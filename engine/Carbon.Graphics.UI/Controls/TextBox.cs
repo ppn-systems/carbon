@@ -17,7 +17,7 @@ namespace Carbon.Graphics.UI.Controls;
 /// Represents an interactive single-line text input control for chat, login, and player input.
 /// Supports cursor blinking, backspace, character typing, and selection.
 /// </summary>
-public sealed class TextBox
+public sealed class TextBox : IFocusable
 {
     private readonly StringBuilder _buffer = new(128);
     private float _cursorTimer;
@@ -66,6 +66,33 @@ public sealed class TextBox
     /// Gets or sets a value indicating whether this control currently holds keyboard focus.
     /// </summary>
     public bool IsFocused { get; set; }
+
+    /// <inheritdoc/>
+    public bool IsFocusable => true;
+
+    /// <inheritdoc/>
+    public int TabIndex { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether text input characters are masked for password entry.
+    /// </summary>
+    public bool IsPassword { get; set; }
+
+    /// <summary>
+    /// Gets or sets the masking character used when <see cref="IsPassword"/> is true (default is '•').
+    /// </summary>
+    public char PasswordChar { get; set; } = '•';
+
+    /// <inheritdoc/>
+    public void OnFocusGained()
+    {
+        _cursorVisible = true;
+        _cursorTimer = 0f;
+    }
+
+    /// <inheritdoc/>
+    public void OnFocusLost() =>
+        _cursorVisible = false;
 
     /// <summary>
     /// Gets or sets the font asset.
@@ -242,10 +269,10 @@ public sealed class TextBox
             }
             else if (_buffer.Length > 0)
             {
-                string text = this.Text;
+                string displayText = this.IsPassword ? new string(this.PasswordChar, _buffer.Length) : this.Text;
                 spriteBatch.DrawString(
                     this.Font,
-                    text.AsSpan(),
+                    displayText.AsSpan(),
                     textPos,
                     this.TextColor,
                     scale: 1.0f,
@@ -257,7 +284,9 @@ public sealed class TextBox
             // 3. Draw Blinking Cursor
             if (this.IsFocused && _cursorVisible)
             {
-                string prefix = _cursorIndex > 0 ? this.Text[.._cursorIndex] : string.Empty;
+                string prefix = _cursorIndex > 0
+                    ? (this.IsPassword ? new string(this.PasswordChar, _cursorIndex) : this.Text[.._cursorIndex])
+                    : string.Empty;
                 TextMeasureResult prefixMeasure = this.Font.MeasureString(prefix.AsSpan());
 
                 float cursorX = contentX + prefixMeasure.Width;

@@ -15,7 +15,7 @@ namespace Carbon.Graphics.UI.Controls;
 /// <summary>
 /// Represents an interactive button control supporting nine-slice skins, font labels, and state transitions.
 /// </summary>
-public sealed class Button
+public sealed class Button : IFocusable
 {
     private ControlState _state = ControlState.Normal;
     private bool _isPressedInternally;
@@ -44,6 +44,25 @@ public sealed class Button
     /// Gets or sets a value indicating whether the button is interactive.
     /// </summary>
     public bool IsEnabled { get; set; } = true;
+
+    /// <inheritdoc/>
+    public bool IsFocused { get; set; }
+
+    /// <inheritdoc/>
+    public bool IsFocusable => this.IsEnabled;
+
+    /// <inheritdoc/>
+    public int TabIndex { get; set; }
+
+    /// <inheritdoc/>
+    public void OnFocusGained()
+    {
+    }
+
+    /// <inheritdoc/>
+    public void OnFocusLost()
+    {
+    }
 
     /// <summary>
     /// Gets or sets the font used for rendering the text label.

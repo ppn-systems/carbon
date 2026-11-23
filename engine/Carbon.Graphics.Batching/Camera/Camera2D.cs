@@ -196,6 +196,39 @@ public sealed class Camera2D
         return new RectangleF(minX, minY, maxX - minX, maxY - minY);
     }
 
+    /// <summary>
+    /// Smoothly interpolates the camera center position toward a target position using framerate-independent exponential smoothing.
+    /// </summary>
+    /// <param name="target">The target world coordinates.</param>
+    /// <param name="smoothing">The smoothing speed factor (higher values catch up faster).</param>
+    /// <param name="dt">Elapsed delta time in seconds.</param>
+    public void LerpTo(Vector2 target, float smoothing, double dt)
+    {
+        float t = 1.0f - MathF.Exp(-smoothing * (float)dt);
+        this.Position = Vector2.Lerp(this.Position, target, t);
+    }
+
+    /// <summary>
+    /// Constrains the visible camera viewport so it never displays coordinates outside the specified world bounds rectangle.
+    /// </summary>
+    /// <param name="worldBounds">The boundary rectangle bounding the playable world area.</param>
+    public void ClampToBounds(in RectangleF worldBounds)
+    {
+        RectangleF visible = this.GetVisibleBounds();
+        float halfW = visible.Width * 0.5f;
+        float halfH = visible.Height * 0.5f;
+
+        float minX = worldBounds.Left + halfW;
+        float maxX = worldBounds.Right - halfW;
+        float minY = worldBounds.Top + halfH;
+        float maxY = worldBounds.Bottom - halfH;
+
+        float clampedX = minX <= maxX ? Math.Clamp(this.Position.X, minX, maxX) : (worldBounds.Left + worldBounds.Right) * 0.5f;
+        float clampedY = minY <= maxY ? Math.Clamp(this.Position.Y, minY, maxY) : (worldBounds.Top + worldBounds.Bottom) * 0.5f;
+
+        this.Position = new Vector2(clampedX, clampedY);
+    }
+
     private void EnsureMatricesUpdated()
     {
         if (!_isDirty)
