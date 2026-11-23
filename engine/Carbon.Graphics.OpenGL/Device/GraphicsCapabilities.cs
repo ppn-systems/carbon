@@ -8,7 +8,7 @@ namespace Carbon.Graphics.OpenGL.Device;
 /// <summary>
 /// Encapsulates queried hardware capabilities and driver properties of the active OpenGL device.
 /// </summary>
-public sealed class GraphicsDeviceCapabilities
+public sealed class GraphicsCapabilities
 {
     /// <summary>
     /// Gets the hardware vendor string reported by OpenGL.
@@ -41,10 +41,10 @@ public sealed class GraphicsDeviceCapabilities
     public int MaxVertexAttributes { get; }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="GraphicsDeviceCapabilities"/> class by querying the active GL context.
+    /// Initializes a new instance of the <see cref="GraphicsCapabilities"/> class by querying the active GL context.
     /// </summary>
     /// <param name="gl">The OpenGL API instance.</param>
-    public unsafe GraphicsDeviceCapabilities(GL gl)
+    public unsafe GraphicsCapabilities(GL gl)
     {
         ArgumentNullException.ThrowIfNull(gl, nameof(gl));
 

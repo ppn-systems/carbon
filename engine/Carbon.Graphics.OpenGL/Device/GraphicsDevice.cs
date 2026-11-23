@@ -21,12 +21,12 @@ public sealed class GraphicsDevice : IGraphicsDevice
     /// <summary>
     /// Gets the state cache manager eliminating redundant GPU driver calls.
     /// </summary>
-    public GlStateManager StateManager { get; }
+    public GlStateCache StateCache { get; }
 
     /// <summary>
     /// Gets the queried hardware capabilities of this graphics device.
     /// </summary>
-    public GraphicsDeviceCapabilities Capabilities { get; }
+    public GraphicsCapabilities Capabilities { get; }
 
     /// <inheritdoc/>
     public bool IsActive => !_disposed;
@@ -38,15 +38,15 @@ public sealed class GraphicsDevice : IGraphicsDevice
     public GraphicsDevice(GL gl)
     {
         this.Gl = gl ?? throw new ArgumentNullException(nameof(gl));
-        this.StateManager = new GlStateManager(gl);
-        this.Capabilities = new GraphicsDeviceCapabilities(gl);
+        this.StateCache = new GlStateCache(gl);
+        this.Capabilities = new GraphicsCapabilities(gl);
     }
 
     /// <inheritdoc/>
     public void SetViewport(int x, int y, uint width, uint height)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        this.StateManager.SetViewport(x, y, width, height);
+        this.StateCache.SetViewport(x, y, width, height);
     }
 
     /// <inheritdoc/>
@@ -70,7 +70,7 @@ public sealed class GraphicsDevice : IGraphicsDevice
     public void SetBlendState(in BlendState state)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        this.StateManager.SetBlendState(state);
+        this.StateCache.SetBlendState(state);
     }
 
     /// <summary>
@@ -80,7 +80,7 @@ public sealed class GraphicsDevice : IGraphicsDevice
     public void SetDepthStencilState(in DepthStencilState state)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        this.StateManager.SetDepthStencilState(state);
+        this.StateCache.SetDepthStencilState(state);
     }
 
     /// <summary>
@@ -94,7 +94,7 @@ public sealed class GraphicsDevice : IGraphicsDevice
     public void SetScissor(bool enabled, int x = 0, int y = 0, uint width = 0, uint height = 0)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        this.StateManager.SetScissor(enabled, x, y, width, height);
+        this.StateCache.SetScissor(enabled, x, y, width, height);
     }
 
     /// <inheritdoc/>
@@ -119,7 +119,7 @@ public sealed class GraphicsDevice : IGraphicsDevice
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (renderTarget is null)
         {
-            this.StateManager.BindFramebuffer(0);
+            this.StateCache.BindFramebuffer(0);
         }
         else
         {
@@ -146,7 +146,7 @@ public sealed class GraphicsDevice : IGraphicsDevice
     {
         if (!_disposed)
         {
-            this.StateManager.Invalidate();
+            this.StateCache.Invalidate();
             _disposed = true;
             GC.SuppressFinalize(this);
         }

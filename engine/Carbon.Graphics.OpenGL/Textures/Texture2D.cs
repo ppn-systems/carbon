@@ -13,7 +13,7 @@ namespace Carbon.Graphics.OpenGL.Textures;
 public sealed class Texture2D : ITexture
 {
     private readonly GL _gl;
-    private readonly GlStateManager _stateManager;
+    private readonly GlStateCache _stateCache;
     private bool _disposed;
 
     /// <inheritdoc/>
@@ -38,13 +38,13 @@ public sealed class Texture2D : ITexture
     /// <summary>
     /// Gets the pixel format of this texture.
     /// </summary>
-    public PixelFormatType Format { get; }
+    public TextureFormat Format { get; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Texture2D"/> class and allocates GPU storage.
     /// </summary>
     /// <param name="gl">The OpenGL API instance.</param>
-    /// <param name="stateManager">The state cache manager.</param>
+    /// <param name="stateCache">The state cache manager.</param>
     /// <param name="width">The width of the texture in pixels.</param>
     /// <param name="height">The height of the texture in pixels.</param>
     /// <param name="format">The pixel color format.</param>
@@ -52,15 +52,15 @@ public sealed class Texture2D : ITexture
     /// <param name="wrap">The coordinate wrap mode.</param>
     public unsafe Texture2D(
         GL gl,
-        GlStateManager stateManager,
+        GlStateCache stateCache,
         uint width,
         uint height,
-        PixelFormatType format = PixelFormatType.Rgba8,
+        TextureFormat format = TextureFormat.Rgba8,
         TextureFilter filter = TextureFilter.Nearest,
         TextureWrap wrap = TextureWrap.ClampToEdge)
     {
         _gl = gl ?? throw new ArgumentNullException(nameof(gl));
-        _stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
+        _stateCache = stateCache ?? throw new ArgumentNullException(nameof(stateCache));
         ArgumentOutOfRangeException.ThrowIfZero(width, nameof(width));
         ArgumentOutOfRangeException.ThrowIfZero(height, nameof(height));
 
@@ -71,7 +71,7 @@ public sealed class Texture2D : ITexture
         this.Wrap = wrap;
 
         this.Handle = _gl.GenTexture();
-        _stateManager.BindTexture(0, this.Handle);
+        _stateCache.BindTexture(0, this.Handle);
 
         this.ApplySamplerParameters(filter, wrap);
 
@@ -83,7 +83,7 @@ public sealed class Texture2D : ITexture
     public void Bind(int unit = 0)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _stateManager.BindTexture(unit, this.Handle);
+        _stateCache.BindTexture(unit, this.Handle);
     }
 
     /// <summary>
@@ -103,8 +103,8 @@ public sealed class Texture2D : ITexture
 
         this.Bind(0);
 
-        // Ensure 1-byte row unpack alignment for odd widths or R8/RGB textures to prevent skew
-        if (this.Format != PixelFormatType.Rgba8 || (targetWidth * 4 % 4 != 0))
+        // Ensure 1-byte row unpack alignment for odd widths or non-RGBA textures to prevent skew
+        if (this.Format != TextureFormat.Rgba8 || (targetWidth * 4 % 4 != 0))
         {
             _gl.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
         }
@@ -117,7 +117,7 @@ public sealed class Texture2D : ITexture
         }
 
         // Restore default 4-byte unpack alignment
-        if (this.Format != PixelFormatType.Rgba8 || (targetWidth * 4 % 4 != 0))
+        if (this.Format != TextureFormat.Rgba8 || (targetWidth * 4 % 4 != 0))
         {
             _gl.PixelStore(PixelStoreParameter.UnpackAlignment, 4);
         }
@@ -168,14 +168,14 @@ public sealed class Texture2D : ITexture
         _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, glWrap);
     }
 
-    private static (InternalFormat InternalFormat, PixelFormat PixelFormat, PixelType PixelType) ResolveFormats(PixelFormatType format)
+    private static (InternalFormat InternalFormat, PixelFormat PixelFormat, PixelType PixelType) ResolveFormats(TextureFormat format)
     {
         return format switch
         {
-            PixelFormatType.Rgba8 => (InternalFormat.Rgba8, PixelFormat.Rgba, PixelType.UnsignedByte),
-            PixelFormatType.Rgb8 => (InternalFormat.Rgb8, PixelFormat.Rgb, PixelType.UnsignedByte),
-            PixelFormatType.R8 => (InternalFormat.R8, PixelFormat.Red, PixelType.UnsignedByte),
-            PixelFormatType.Depth24Stencil8 => (InternalFormat.Depth24Stencil8, PixelFormat.DepthStencil, PixelType.UnsignedInt248),
+            TextureFormat.Rgba8 => (InternalFormat.Rgba8, PixelFormat.Rgba, PixelType.UnsignedByte),
+            TextureFormat.Rgb8 => (InternalFormat.Rgb8, PixelFormat.Rgb, PixelType.UnsignedByte),
+            TextureFormat.R8 => (InternalFormat.R8, PixelFormat.Red, PixelType.UnsignedByte),
+            TextureFormat.Depth24Stencil8 => (InternalFormat.Depth24Stencil8, PixelFormat.DepthStencil, PixelType.UnsignedInt248),
             _ => (InternalFormat.Rgba8, PixelFormat.Rgba, PixelType.UnsignedByte)
         };
     }

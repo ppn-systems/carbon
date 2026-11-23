@@ -6,9 +6,9 @@ using Silk.NET.OpenGL;
 namespace Carbon.Graphics.OpenGL.States;
 
 /// <summary>
-/// High-performance OpenGL state cache that eliminates redundant driver calls.
+/// High-performance OpenGL pipeline state cache that eliminates redundant driver calls.
 /// </summary>
-public sealed class GlStateManager
+public sealed class GlStateCache
 {
     private const int MAX_TEXTURE_UNITS = 32;
 
@@ -60,10 +60,10 @@ public sealed class GlStateManager
     public DepthStencilState CurrentDepthState => _currentDepthState;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="GlStateManager"/> class.
+    /// Initializes a new instance of the <see cref="GlStateCache"/> class.
     /// </summary>
     /// <param name="gl">The Silk.NET OpenGL API instance.</param>
-    public GlStateManager(GL gl) => _gl = gl ?? throw new ArgumentNullException(nameof(gl));
+    public GlStateCache(GL gl) => _gl = gl ?? throw new ArgumentNullException(nameof(gl));
 
     /// <summary>
     /// Sets the active shader program, avoiding redundant glUseProgram calls.

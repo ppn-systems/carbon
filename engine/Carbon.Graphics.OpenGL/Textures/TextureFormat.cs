@@ -5,7 +5,7 @@ namespace Carbon.Graphics.OpenGL.Textures;
 /// <summary>
 /// Specifies the pixel storage format for GPU textures.
 /// </summary>
-public enum PixelFormatType
+public enum TextureFormat
 {
     /// <summary>
     /// 32-bit color format with 8 bits per RGBA component.

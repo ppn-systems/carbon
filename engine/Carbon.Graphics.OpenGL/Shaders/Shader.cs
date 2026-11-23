@@ -14,7 +14,7 @@ namespace Carbon.Graphics.OpenGL.Shaders;
 public sealed class Shader : IShader
 {
     private readonly GL _gl;
-    private readonly GlStateManager _stateManager;
+    private readonly GlStateCache _stateCache;
     private readonly ShaderUniformCache _uniformCache;
     private bool _disposed;
 
@@ -25,13 +25,13 @@ public sealed class Shader : IShader
     /// Initializes a new instance of the <see cref="Shader"/> class, compiling and linking vertex and fragment sources.
     /// </summary>
     /// <param name="gl">The OpenGL API instance.</param>
-    /// <param name="stateManager">The state cache manager.</param>
+    /// <param name="stateCache">The state cache manager.</param>
     /// <param name="vertexSource">The GLSL source code for the vertex shader.</param>
     /// <param name="fragmentSource">The GLSL source code for the fragment shader.</param>
-    public Shader(GL gl, GlStateManager stateManager, string vertexSource, string fragmentSource)
+    public Shader(GL gl, GlStateCache stateCache, string vertexSource, string fragmentSource)
     {
         _gl = gl ?? throw new ArgumentNullException(nameof(gl));
-        _stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
+        _stateCache = stateCache ?? throw new ArgumentNullException(nameof(stateCache));
         ArgumentException.ThrowIfNullOrWhiteSpace(vertexSource, nameof(vertexSource));
         ArgumentException.ThrowIfNullOrWhiteSpace(fragmentSource, nameof(fragmentSource));
 
@@ -72,7 +72,7 @@ public sealed class Shader : IShader
     public void Bind()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _stateManager.UseProgram(this.Handle);
+        _stateCache.UseProgram(this.Handle);
     }
 
     /// <inheritdoc/>

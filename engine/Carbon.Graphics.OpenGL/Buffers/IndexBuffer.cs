@@ -13,7 +13,7 @@ namespace Carbon.Graphics.OpenGL.Buffers;
 public sealed class IndexBuffer : IIndexBuffer
 {
     private readonly GL _gl;
-    private readonly GlStateManager _stateManager;
+    private readonly GlStateCache _stateCache;
     private bool _disposed;
 
     /// <inheritdoc/>
@@ -34,19 +34,19 @@ public sealed class IndexBuffer : IIndexBuffer
     /// Initializes a new instance of the <see cref="IndexBuffer"/> class with pre-allocated capacity.
     /// </summary>
     /// <param name="gl">The OpenGL API instance.</param>
-    /// <param name="stateManager">The state cache manager.</param>
+    /// <param name="stateCache">The state cache manager.</param>
     /// <param name="capacity">The maximum number of indices this buffer can store.</param>
     /// <param name="indexType">The index element type (UnsignedShort or UnsignedInt).</param>
     /// <param name="usage">The expected buffer usage hint.</param>
     public unsafe IndexBuffer(
         GL gl,
-        GlStateManager stateManager,
+        GlStateCache stateCache,
         uint capacity,
         DrawElementsType indexType = DrawElementsType.UnsignedShort,
         BufferUsage usage = BufferUsage.DynamicDraw)
     {
         _gl = gl ?? throw new ArgumentNullException(nameof(gl));
-        _stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
+        _stateCache = stateCache ?? throw new ArgumentNullException(nameof(stateCache));
         ArgumentOutOfRangeException.ThrowIfZero(capacity, nameof(capacity));
 
         this.IndexCount = capacity;
@@ -62,7 +62,7 @@ public sealed class IndexBuffer : IIndexBuffer
         };
 
         this.Handle = _gl.GenBuffer();
-        _stateManager.BindIndexBuffer(this.Handle);
+        _stateCache.BindIndexBuffer(this.Handle);
 
         BufferUsageARB glUsage = ResolveGlUsage(usage);
         _gl.BufferData(BufferTargetARB.ElementArrayBuffer, capacity * elementSize, null, glUsage);
@@ -72,7 +72,7 @@ public sealed class IndexBuffer : IIndexBuffer
     public void Bind()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _stateManager.BindIndexBuffer(this.Handle);
+        _stateCache.BindIndexBuffer(this.Handle);
     }
 
     /// <summary>

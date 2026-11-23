@@ -8,12 +8,12 @@ using Silk.NET.OpenGL;
 namespace Carbon.Graphics.OpenGL.Buffers;
 
 /// <summary>
-/// Encapsulates an OpenGL Vertex Array Object (VAO) that manages vertex buffer and attribute state.
+/// Encapsulates an OpenGL Vertex Array (VAO) that manages vertex buffer, index buffer, and attribute layout bindings.
 /// </summary>
-public sealed class VertexArrayObject : IDisposable
+public sealed class VertexArray : IDisposable
 {
     private readonly GL _gl;
-    private readonly GlStateManager _stateManager;
+    private readonly GlStateCache _stateCache;
     private bool _disposed;
 
     /// <summary>
@@ -22,25 +22,25 @@ public sealed class VertexArrayObject : IDisposable
     public uint Handle { get; }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="VertexArrayObject"/> class.
+    /// Initializes a new instance of the <see cref="VertexArray"/> class.
     /// </summary>
     /// <param name="gl">The OpenGL API instance.</param>
-    /// <param name="stateManager">The state cache manager.</param>
-    public VertexArrayObject(GL gl, GlStateManager stateManager)
+    /// <param name="stateCache">The state cache manager.</param>
+    public VertexArray(GL gl, GlStateCache stateCache)
     {
         _gl = gl ?? throw new ArgumentNullException(nameof(gl));
-        _stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
+        _stateCache = stateCache ?? throw new ArgumentNullException(nameof(stateCache));
 
         this.Handle = _gl.GenVertexArray();
     }
 
     /// <summary>
-    /// Binds this vertex array object to the OpenGL pipeline.
+    /// Binds this vertex array to the OpenGL pipeline.
     /// </summary>
     public void Bind()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _stateManager.BindVertexArray(this.Handle);
+        _stateCache.BindVertexArray(this.Handle);
     }
 
     /// <summary>

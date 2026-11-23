@@ -13,7 +13,7 @@ namespace Carbon.Graphics.OpenGL.Textures;
 public sealed class RenderTarget2D : IRenderTarget
 {
     private readonly GL _gl;
-    private readonly GlStateManager _stateManager;
+    private readonly GlStateCache _stateCache;
     private readonly uint _depthRenderbufferHandle;
     private bool _disposed;
 
@@ -43,19 +43,19 @@ public sealed class RenderTarget2D : IRenderTarget
     /// Initializes a new instance of the <see cref="RenderTarget2D"/> class.
     /// </summary>
     /// <param name="gl">The OpenGL API instance.</param>
-    /// <param name="stateManager">The state cache manager.</param>
+    /// <param name="stateCache">The state cache manager.</param>
     /// <param name="width">The width in pixels.</param>
     /// <param name="height">The height in pixels.</param>
     /// <param name="withDepthStencil">Whether to attach a 24-bit depth and 8-bit stencil renderbuffer.</param>
-    public RenderTarget2D(GL gl, GlStateManager stateManager, uint width, uint height, bool withDepthStencil = true)
+    public RenderTarget2D(GL gl, GlStateCache stateCache, uint width, uint height, bool withDepthStencil = true)
     {
         _gl = gl ?? throw new ArgumentNullException(nameof(gl));
-        _stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
+        _stateCache = stateCache ?? throw new ArgumentNullException(nameof(stateCache));
 
-        this.ColorTexture = new Texture2D(gl, stateManager, width, height, PixelFormatType.Rgba8, TextureFilter.Nearest, TextureWrap.ClampToEdge);
+        this.ColorTexture = new Texture2D(gl, stateCache, width, height, TextureFormat.Rgba8, TextureFilter.Nearest, TextureWrap.ClampToEdge);
 
         this.FramebufferHandle = _gl.GenFramebuffer();
-        _stateManager.BindFramebuffer(this.FramebufferHandle);
+        _stateCache.BindFramebuffer(this.FramebufferHandle);
 
         _gl.FramebufferTexture2D(
             FramebufferTarget.Framebuffer,
@@ -83,22 +83,22 @@ public sealed class RenderTarget2D : IRenderTarget
             throw new InvalidOperationException($"OpenGL Framebuffer configuration failed with status: {status}");
         }
 
-        _stateManager.BindFramebuffer(0);
+        _stateCache.BindFramebuffer(0);
     }
 
     /// <inheritdoc/>
     public void Bind()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _stateManager.BindFramebuffer(this.FramebufferHandle);
-        _stateManager.SetViewport(0, 0, this.Width, this.Height);
+        _stateCache.BindFramebuffer(this.FramebufferHandle);
+        _stateCache.SetViewport(0, 0, this.Width, this.Height);
     }
 
     /// <inheritdoc/>
     public void Unbind()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _stateManager.BindFramebuffer(0);
+        _stateCache.BindFramebuffer(0);
     }
 
     /// <inheritdoc/>

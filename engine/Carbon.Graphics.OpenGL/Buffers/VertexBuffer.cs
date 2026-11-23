@@ -14,7 +14,7 @@ namespace Carbon.Graphics.OpenGL.Buffers;
 public sealed class VertexBuffer<TVertex> : IVertexBuffer where TVertex : unmanaged
 {
     private readonly GL _gl;
-    private readonly GlStateManager _stateManager;
+    private readonly GlStateCache _stateCache;
     private bool _disposed;
 
     /// <inheritdoc/>
@@ -35,13 +35,13 @@ public sealed class VertexBuffer<TVertex> : IVertexBuffer where TVertex : unmana
     /// Initializes a new instance of the <see cref="VertexBuffer{TVertex}"/> class with pre-allocated capacity.
     /// </summary>
     /// <param name="gl">The OpenGL API instance.</param>
-    /// <param name="stateManager">The state cache manager.</param>
+    /// <param name="stateCache">The state cache manager.</param>
     /// <param name="capacity">The maximum number of vertices this buffer can initially store.</param>
     /// <param name="usage">The expected buffer usage hint.</param>
-    public unsafe VertexBuffer(GL gl, GlStateManager stateManager, uint capacity, BufferUsage usage = BufferUsage.DynamicDraw)
+    public unsafe VertexBuffer(GL gl, GlStateCache stateCache, uint capacity, BufferUsage usage = BufferUsage.DynamicDraw)
     {
         _gl = gl ?? throw new ArgumentNullException(nameof(gl));
-        _stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
+        _stateCache = stateCache ?? throw new ArgumentNullException(nameof(stateCache));
         ArgumentOutOfRangeException.ThrowIfZero(capacity, nameof(capacity));
 
         this.Stride = (uint)sizeof(TVertex);
@@ -49,7 +49,7 @@ public sealed class VertexBuffer<TVertex> : IVertexBuffer where TVertex : unmana
         this.Usage = usage;
 
         this.Handle = _gl.GenBuffer();
-        _stateManager.BindVertexBuffer(this.Handle);
+        _stateCache.BindVertexBuffer(this.Handle);
 
         BufferUsageARB glUsage = ResolveGlUsage(usage);
         _gl.BufferData(BufferTargetARB.ArrayBuffer, capacity * this.Stride, null, glUsage);
@@ -59,7 +59,7 @@ public sealed class VertexBuffer<TVertex> : IVertexBuffer where TVertex : unmana
     public void Bind()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _stateManager.BindVertexBuffer(this.Handle);
+        _stateCache.BindVertexBuffer(this.Handle);
     }
 
     /// <summary>
