@@ -1,3 +1,5 @@
+// Copyright (c) 2026 PPN Systems. All rights reserved.
+
 using System;
 using System.Numerics;
 using Carbon.Graphics.OpenGL.Abstractions;
@@ -74,10 +76,23 @@ public sealed class Shader : IShader
     }
 
     /// <inheritdoc/>
-    public void SetUniform(string name, int value)
+    public int GetUniformLocation(string name)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        int location = _uniformCache.GetLocation(name);
+        return _uniformCache.GetLocation(name);
+    }
+
+    /// <inheritdoc/>
+    public void SetUniform(string name, int value)
+    {
+        int location = this.GetUniformLocation(name);
+        this.SetUniform(location, value);
+    }
+
+    /// <inheritdoc/>
+    public void SetUniform(int location, int value)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (location != -1)
         {
             this.Bind();
@@ -88,8 +103,14 @@ public sealed class Shader : IShader
     /// <inheritdoc/>
     public void SetUniform(string name, float value)
     {
+        int location = this.GetUniformLocation(name);
+        this.SetUniform(location, value);
+    }
+
+    /// <inheritdoc/>
+    public void SetUniform(int location, float value)
+    {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        int location = _uniformCache.GetLocation(name);
         if (location != -1)
         {
             this.Bind();
@@ -100,8 +121,14 @@ public sealed class Shader : IShader
     /// <inheritdoc/>
     public void SetUniform(string name, in Vector2 value)
     {
+        int location = this.GetUniformLocation(name);
+        this.SetUniform(location, in value);
+    }
+
+    /// <inheritdoc/>
+    public void SetUniform(int location, in Vector2 value)
+    {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        int location = _uniformCache.GetLocation(name);
         if (location != -1)
         {
             this.Bind();
@@ -112,8 +139,14 @@ public sealed class Shader : IShader
     /// <inheritdoc/>
     public void SetUniform(string name, in Vector3 value)
     {
+        int location = this.GetUniformLocation(name);
+        this.SetUniform(location, in value);
+    }
+
+    /// <inheritdoc/>
+    public void SetUniform(int location, in Vector3 value)
+    {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        int location = _uniformCache.GetLocation(name);
         if (location != -1)
         {
             this.Bind();
@@ -124,8 +157,14 @@ public sealed class Shader : IShader
     /// <inheritdoc/>
     public void SetUniform(string name, in Vector4 value)
     {
+        int location = this.GetUniformLocation(name);
+        this.SetUniform(location, in value);
+    }
+
+    /// <inheritdoc/>
+    public void SetUniform(int location, in Vector4 value)
+    {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        int location = _uniformCache.GetLocation(name);
         if (location != -1)
         {
             this.Bind();
@@ -134,10 +173,16 @@ public sealed class Shader : IShader
     }
 
     /// <inheritdoc/>
-    public unsafe void SetUniform(string name, in Matrix4x4 value)
+    public void SetUniform(string name, in Matrix4x4 value)
+    {
+        int location = this.GetUniformLocation(name);
+        this.SetUniform(location, in value);
+    }
+
+    /// <inheritdoc/>
+    public unsafe void SetUniform(int location, in Matrix4x4 value)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        int location = _uniformCache.GetLocation(name);
         if (location != -1)
         {
             this.Bind();
@@ -177,6 +222,7 @@ public sealed class Shader : IShader
         {
             _gl.DeleteProgram(this.Handle);
             _disposed = true;
+            GC.SuppressFinalize(this);
         }
     }
 }

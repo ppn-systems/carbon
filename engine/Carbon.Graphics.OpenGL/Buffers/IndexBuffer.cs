@@ -1,3 +1,5 @@
+// Copyright (c) 2026 PPN Systems. All rights reserved.
+
 using System;
 using Carbon.Graphics.OpenGL.Abstractions;
 using Carbon.Graphics.OpenGL.States;
@@ -62,14 +64,7 @@ public sealed class IndexBuffer : IIndexBuffer
         this.Handle = _gl.GenBuffer();
         _stateManager.BindIndexBuffer(this.Handle);
 
-        BufferUsageARB glUsage = usage switch
-        {
-            BufferUsage.StaticDraw => BufferUsageARB.StaticDraw,
-            BufferUsage.DynamicDraw => BufferUsageARB.DynamicDraw,
-            BufferUsage.StreamDraw => BufferUsageARB.StreamDraw,
-            _ => BufferUsageARB.DynamicDraw
-        };
-
+        BufferUsageARB glUsage = ResolveGlUsage(usage);
         _gl.BufferData(BufferTargetARB.ElementArrayBuffer, capacity * elementSize, null, glUsage);
     }
 
@@ -85,7 +80,8 @@ public sealed class IndexBuffer : IIndexBuffer
     /// </summary>
     /// <param name="indices">The span of 16-bit indices.</param>
     /// <param name="offsetIndices">The index offset within the buffer.</param>
-    public unsafe void SetData(ReadOnlySpan<ushort> indices, uint offsetIndices = 0)
+    /// <param name="discardBuffer">Whether to orphan the existing buffer backing to prevent GPU stalls.</param>
+    public unsafe void SetData(ReadOnlySpan<ushort> indices, uint offsetIndices = 0, bool discardBuffer = false)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -106,6 +102,12 @@ public sealed class IndexBuffer : IIndexBuffer
 
         this.Bind();
 
+        if (discardBuffer && offsetIndices == 0)
+        {
+            BufferUsageARB glUsage = ResolveGlUsage(this.Usage);
+            _gl.BufferData(BufferTargetARB.ElementArrayBuffer, this.IndexCount * sizeof(ushort), null, glUsage);
+        }
+
         fixed (ushort* ptr = indices)
         {
             nuint sizeBytes = (nuint)(indices.Length * sizeof(ushort));
@@ -119,7 +121,8 @@ public sealed class IndexBuffer : IIndexBuffer
     /// </summary>
     /// <param name="indices">The span of 32-bit indices.</param>
     /// <param name="offsetIndices">The index offset within the buffer.</param>
-    public unsafe void SetData(ReadOnlySpan<uint> indices, uint offsetIndices = 0)
+    /// <param name="discardBuffer">Whether to orphan the existing buffer backing to prevent GPU stalls.</param>
+    public unsafe void SetData(ReadOnlySpan<uint> indices, uint offsetIndices = 0, bool discardBuffer = false)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -140,6 +143,12 @@ public sealed class IndexBuffer : IIndexBuffer
 
         this.Bind();
 
+        if (discardBuffer && offsetIndices == 0)
+        {
+            BufferUsageARB glUsage = ResolveGlUsage(this.Usage);
+            _gl.BufferData(BufferTargetARB.ElementArrayBuffer, this.IndexCount * sizeof(uint), null, glUsage);
+        }
+
         fixed (uint* ptr = indices)
         {
             nuint sizeBytes = (nuint)(indices.Length * sizeof(uint));
@@ -148,6 +157,14 @@ public sealed class IndexBuffer : IIndexBuffer
         }
     }
 
+    private static BufferUsageARB ResolveGlUsage(BufferUsage usage) => usage switch
+    {
+        BufferUsage.StaticDraw => BufferUsageARB.StaticDraw,
+        BufferUsage.DynamicDraw => BufferUsageARB.DynamicDraw,
+        BufferUsage.StreamDraw => BufferUsageARB.StreamDraw,
+        _ => BufferUsageARB.DynamicDraw
+    };
+
     /// <inheritdoc/>
     public void Dispose()
     {
@@ -155,6 +172,7 @@ public sealed class IndexBuffer : IIndexBuffer
         {
             _gl.DeleteBuffer(this.Handle);
             _disposed = true;
+            GC.SuppressFinalize(this);
         }
     }
 }

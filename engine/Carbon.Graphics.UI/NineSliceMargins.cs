@@ -1,3 +1,5 @@
+// Copyright (c) 2026 PPN Systems. All rights reserved.
+
 namespace Carbon.Graphics.UI;
 
 /// <summary>

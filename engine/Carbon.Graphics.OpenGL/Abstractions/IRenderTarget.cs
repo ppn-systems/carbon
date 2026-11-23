@@ -1,3 +1,5 @@
+// Copyright (c) 2026 PPN Systems. All rights reserved.
+
 using System;
 
 namespace Carbon.Graphics.OpenGL.Abstractions;

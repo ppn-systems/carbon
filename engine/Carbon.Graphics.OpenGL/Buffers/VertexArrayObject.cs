@@ -1,3 +1,5 @@
+// Copyright (c) 2026 PPN Systems. All rights reserved.
+
 using System;
 using Carbon.Graphics.OpenGL.Abstractions;
 using Carbon.Graphics.OpenGL.States;
@@ -89,6 +91,7 @@ public sealed class VertexArrayObject : IDisposable
         {
             _gl.DeleteVertexArray(this.Handle);
             _disposed = true;
+            GC.SuppressFinalize(this);
         }
     }
 }

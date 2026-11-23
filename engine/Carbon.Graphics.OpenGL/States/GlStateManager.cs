@@ -1,3 +1,5 @@
+// Copyright (c) 2026 PPN Systems. All rights reserved.
+
 using System;
 using Silk.NET.OpenGL;
 
@@ -36,6 +38,26 @@ public sealed class GlStateManager
     private int _scissorY = -1;
     private uint _scissorWidth;
     private uint _scissorHeight;
+
+    /// <summary>
+    /// Gets the currently cached viewport rectangle (X, Y, Width, Height) without querying the GPU.
+    /// </summary>
+    public (int X, int Y, uint Width, uint Height) Viewport => (_viewportX, _viewportY, _viewportWidth, _viewportHeight);
+
+    /// <summary>
+    /// Gets the currently cached scissor rectangle and its enabled status without querying the GPU.
+    /// </summary>
+    public (int X, int Y, uint Width, uint Height, bool Enabled) Scissor => (_scissorX, _scissorY, _scissorWidth, _scissorHeight, _scissorEnabled);
+
+    /// <summary>
+    /// Gets the currently cached color blend state.
+    /// </summary>
+    public BlendState CurrentBlendState => _currentBlendState;
+
+    /// <summary>
+    /// Gets the currently cached depth stencil state.
+    /// </summary>
+    public DepthStencilState CurrentDepthState => _currentDepthState;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GlStateManager"/> class.

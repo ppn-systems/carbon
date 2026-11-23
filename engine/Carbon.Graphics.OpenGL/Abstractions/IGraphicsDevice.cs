@@ -1,3 +1,5 @@
+// Copyright (c) 2026 PPN Systems. All rights reserved.
+
 using System;
 using System.Numerics;
 using Silk.NET.OpenGL;

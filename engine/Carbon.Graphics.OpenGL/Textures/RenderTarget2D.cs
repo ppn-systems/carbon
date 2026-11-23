@@ -1,3 +1,5 @@
+// Copyright (c) 2026 PPN Systems. All rights reserved.
+
 using System;
 using Carbon.Graphics.OpenGL.Abstractions;
 using Carbon.Graphics.OpenGL.States;
@@ -116,6 +118,7 @@ public sealed class RenderTarget2D : IRenderTarget
 
             this.ColorTexture.Dispose();
             _disposed = true;
+            GC.SuppressFinalize(this);
         }
     }
 }

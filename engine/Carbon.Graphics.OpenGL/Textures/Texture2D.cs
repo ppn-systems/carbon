@@ -1,3 +1,5 @@
+// Copyright (c) 2026 PPN Systems. All rights reserved.
+
 using System;
 using Carbon.Graphics.OpenGL.Abstractions;
 using Carbon.Graphics.OpenGL.States;
@@ -101,12 +103,34 @@ public sealed class Texture2D : ITexture
 
         this.Bind(0);
 
+        // Ensure 1-byte row unpack alignment for odd widths or R8/RGB textures to prevent skew
+        if (this.Format != PixelFormatType.Rgba8 || (targetWidth * 4 % 4 != 0))
+        {
+            _gl.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
+        }
+
         (_, PixelFormat pixelFormat, PixelType pixelType) = ResolveFormats(this.Format);
 
         fixed (byte* ptr = pixels)
         {
             _gl.TexSubImage2D(TextureTarget.Texture2D, 0, x, y, targetWidth, targetHeight, pixelFormat, pixelType, ptr);
         }
+
+        // Restore default 4-byte unpack alignment
+        if (this.Format != PixelFormatType.Rgba8 || (targetWidth * 4 % 4 != 0))
+        {
+            _gl.PixelStore(PixelStoreParameter.UnpackAlignment, 4);
+        }
+    }
+
+    /// <summary>
+    /// Generates mipmap chain levels for this texture on the GPU.
+    /// </summary>
+    public void GenerateMipmaps()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        this.Bind(0);
+        _gl.GenerateMipmap(TextureTarget.Texture2D);
     }
 
     /// <summary>
@@ -163,6 +187,7 @@ public sealed class Texture2D : ITexture
         {
             _gl.DeleteTexture(this.Handle);
             _disposed = true;
+            GC.SuppressFinalize(this);
         }
     }
 }

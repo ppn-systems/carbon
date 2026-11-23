@@ -1,3 +1,5 @@
+// Copyright (c) 2026 PPN Systems. All rights reserved.
+
 using System;
 using Carbon.Graphics.OpenGL.Abstractions;
 using Carbon.Graphics.OpenGL.States;
@@ -49,14 +51,7 @@ public sealed class VertexBuffer<TVertex> : IVertexBuffer where TVertex : unmana
         this.Handle = _gl.GenBuffer();
         _stateManager.BindVertexBuffer(this.Handle);
 
-        BufferUsageARB glUsage = usage switch
-        {
-            BufferUsage.StaticDraw => BufferUsageARB.StaticDraw,
-            BufferUsage.DynamicDraw => BufferUsageARB.DynamicDraw,
-            BufferUsage.StreamDraw => BufferUsageARB.StreamDraw,
-            _ => BufferUsageARB.DynamicDraw
-        };
-
+        BufferUsageARB glUsage = ResolveGlUsage(usage);
         _gl.BufferData(BufferTargetARB.ArrayBuffer, capacity * this.Stride, null, glUsage);
     }
 
@@ -72,7 +67,8 @@ public sealed class VertexBuffer<TVertex> : IVertexBuffer where TVertex : unmana
     /// </summary>
     /// <param name="vertices">The span of vertex data to write.</param>
     /// <param name="offsetVertices">The vertex index offset within the buffer.</param>
-    public unsafe void SetData(ReadOnlySpan<TVertex> vertices, uint offsetVertices = 0)
+    /// <param name="discardBuffer">Whether to orphan (discard) the existing buffer backing to prevent GPU pipeline stalls on dynamic streaming.</param>
+    public unsafe void SetData(ReadOnlySpan<TVertex> vertices, uint offsetVertices = 0, bool discardBuffer = false)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -88,6 +84,12 @@ public sealed class VertexBuffer<TVertex> : IVertexBuffer where TVertex : unmana
 
         this.Bind();
 
+        if (discardBuffer && offsetVertices == 0)
+        {
+            BufferUsageARB glUsage = ResolveGlUsage(this.Usage);
+            _gl.BufferData(BufferTargetARB.ArrayBuffer, this.VertexCount * this.Stride, null, glUsage);
+        }
+
         fixed (TVertex* ptr = vertices)
         {
             nuint sizeBytes = (nuint)(vertices.Length * sizeof(TVertex));
@@ -96,6 +98,14 @@ public sealed class VertexBuffer<TVertex> : IVertexBuffer where TVertex : unmana
         }
     }
 
+    private static BufferUsageARB ResolveGlUsage(BufferUsage usage) => usage switch
+    {
+        BufferUsage.StaticDraw => BufferUsageARB.StaticDraw,
+        BufferUsage.DynamicDraw => BufferUsageARB.DynamicDraw,
+        BufferUsage.StreamDraw => BufferUsageARB.StreamDraw,
+        _ => BufferUsageARB.DynamicDraw
+    };
+
     /// <inheritdoc/>
     public void Dispose()
     {
@@ -103,6 +113,7 @@ public sealed class VertexBuffer<TVertex> : IVertexBuffer where TVertex : unmana
         {
             _gl.DeleteBuffer(this.Handle);
             _disposed = true;
+            GC.SuppressFinalize(this);
         }
     }
 }

@@ -1,3 +1,5 @@
+// Copyright (c) 2026 PPN Systems. All rights reserved.
+
 using Silk.NET.OpenGL;
 
 namespace Carbon.Graphics.OpenGL.States;

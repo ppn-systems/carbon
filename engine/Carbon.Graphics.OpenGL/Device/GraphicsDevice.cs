@@ -1,3 +1,5 @@
+// Copyright (c) 2026 PPN Systems. All rights reserved.
+
 using System;
 using System.Numerics;
 using Carbon.Graphics.OpenGL.Abstractions;
@@ -146,6 +148,7 @@ public sealed class GraphicsDevice : IGraphicsDevice
         {
             this.StateManager.Invalidate();
             _disposed = true;
+            GC.SuppressFinalize(this);
         }
     }
 }
