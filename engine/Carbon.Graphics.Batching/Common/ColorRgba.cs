@@ -70,6 +70,15 @@ public readonly record struct ColorRgba(byte R, byte G, byte B, byte A = 255)
     public static readonly ColorRgba Gray = new(128, 128, 128, 255);
 
     /// <summary>
+    /// Multiplies two colors component-wise (modulate blending).
+    /// </summary>
+    public static ColorRgba operator *(ColorRgba a, ColorRgba b) => new(
+        (byte)(a.R * b.R / 255),
+        (byte)(a.G * b.G / 255),
+        (byte)(a.B * b.B / 255),
+        (byte)(a.A * b.A / 255));
+
+    /// <summary>
     /// Creates a <see cref="ColorRgba"/> from normalized floating point components [0.0 - 1.0].
     /// </summary>
     /// <param name="r">Normalized red.</param>
