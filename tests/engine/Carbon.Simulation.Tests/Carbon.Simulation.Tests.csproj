@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\engine\Carbon.Physics\Carbon.Physics.csproj" />
+        <ProjectReference Include="..\..\..\engine\Carbon.Simulation\Carbon.Simulation.csproj" />
+    </ItemGroup>
+</Project>

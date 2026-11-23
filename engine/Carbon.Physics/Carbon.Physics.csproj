@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <RootNamespace>Carbon.Physics</RootNamespace>
+        <AssemblyName>Carbon.Physics</AssemblyName>
+    </PropertyGroup>
+</Project>
