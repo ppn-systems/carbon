@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="Carbon.Graphics.Animation/Carbon.Graphics.Animation.csproj" />
+  <Project Path="Carbon.Graphics.Batching/Carbon.Graphics.Batching.csproj" />
+  <Project Path="Carbon.Graphics.Fonts/Carbon.Graphics.Fonts.csproj" />
+  <Project Path="Carbon.Graphics.OpenGL/Carbon.Graphics.OpenGL.csproj" />
+  <Project Path="Carbon.Graphics.UI/Carbon.Graphics.UI.csproj" />
+  <Project Path="Carbon.Graphics.Windowing/Carbon.Graphics.Windowing.csproj" />
+</Solution>
