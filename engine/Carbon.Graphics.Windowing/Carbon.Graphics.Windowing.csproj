@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <RootNamespace>Carbon.Graphics.Windowing</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Silk.NET.Windowing" />
+        <PackageReference Include="Silk.NET.Input" />
+        <ProjectReference Include="..\Carbon.Graphics.OpenGL\Carbon.Graphics.OpenGL.csproj" />
+    </ItemGroup>
+</Project>

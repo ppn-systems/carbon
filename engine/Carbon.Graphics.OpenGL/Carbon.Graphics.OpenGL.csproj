@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <RootNamespace>Carbon.Graphics.OpenGL</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Silk.NET.OpenGL" />
+        <PackageReference Include="Silk.NET.Maths" />
+        <PackageReference Include="Silk.NET.Core" />
+    </ItemGroup>
+</Project>
