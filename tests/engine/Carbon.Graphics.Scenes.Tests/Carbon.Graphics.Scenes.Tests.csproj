@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\engine\Carbon.Graphics.Scenes\Carbon.Graphics.Scenes.csproj" />
+    </ItemGroup>
+</Project>

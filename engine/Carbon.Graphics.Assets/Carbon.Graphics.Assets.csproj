@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <RootNamespace>Carbon.Graphics.Assets</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="StbImageSharp" />
+        <ProjectReference Include="..\Carbon.Graphics.OpenGL\Carbon.Graphics.OpenGL.csproj" />
+        <ProjectReference Include="..\Carbon.Graphics.Batching\Carbon.Graphics.Batching.csproj" />
+        <ProjectReference Include="..\Carbon.Graphics.Animation\Carbon.Graphics.Animation.csproj" />
+        <ProjectReference Include="..\Carbon.Graphics.Fonts\Carbon.Graphics.Fonts.csproj" />
+    </ItemGroup>
+</Project>

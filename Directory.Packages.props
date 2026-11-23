@@ -19,17 +19,12 @@
 
     <!-- Rendering & Windowing (Silk.NET OpenGL) -->
     <ItemGroup>
-        <PackageVersion Include="Silk.NET.OpenGL" Version="2.22.0" />
-        <PackageVersion Include="Silk.NET.Windowing" Version="2.22.0" />
-        <PackageVersion Include="Silk.NET.Input" Version="2.22.0" />
-        <PackageVersion Include="Silk.NET.Maths" Version="2.22.0" />
-        <PackageVersion Include="Silk.NET.Core" Version="2.22.0" />
-    </ItemGroup>
-
-    <!-- High-Performance Serialization & Pipelines -->
-    <ItemGroup>
-        <PackageVersion Include="MemoryPack" Version="1.21.4" />
-        <PackageVersion Include="System.IO.Pipelines" Version="10.0.0" />
+		<PackageVersion Include="Silk.NET.Core" Version="2.22.0" />
+		<PackageVersion Include="Silk.NET.Input" Version="2.22.0" />
+		<PackageVersion Include="Silk.NET.Maths" Version="2.22.0" />
+		<PackageVersion Include="Silk.NET.OpenGL" Version="2.22.0" />
+		<PackageVersion Include="Silk.NET.Windowing" Version="2.22.0" />
+		<PackageVersion Include="StbImageSharp" Version="2.30.15" />
     </ItemGroup>
 
     <!-- Roslyn Code Analysis & Source Generation -->
@@ -40,10 +35,10 @@
 
     <!-- Testing Stack -->
     <ItemGroup>
-        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
-        <PackageVersion Include="xunit" Version="2.9.3" />
-        <PackageVersion Include="xunit.runner.visualstudio" Version="3.0.2" />
-        <PackageVersion Include="FluentAssertions" Version="8.0.1" />
-        <PackageVersion Include="NSubstitute" Version="5.3.0" />
+		<PackageVersion Include="xunit" Version="2.9.3" />
+		<PackageVersion Include="NSubstitute" Version="5.3.0" />
+		<PackageVersion Include="FluentAssertions" Version="8.0.1" />
+		<PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
+		<PackageVersion Include="xunit.runner.visualstudio" Version="3.0.2" />
     </ItemGroup>
 </Project>

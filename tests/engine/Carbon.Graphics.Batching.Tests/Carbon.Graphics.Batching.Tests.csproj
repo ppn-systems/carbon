@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\engine\Carbon.Graphics.Batching\Carbon.Graphics.Batching.csproj" />
+    </ItemGroup>
+</Project>

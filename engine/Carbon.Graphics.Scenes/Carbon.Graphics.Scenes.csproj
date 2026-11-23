@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <RootNamespace>Carbon.Graphics.Scenes</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Carbon.Graphics.OpenGL\Carbon.Graphics.OpenGL.csproj" />
+        <ProjectReference Include="..\Carbon.Graphics.Batching\Carbon.Graphics.Batching.csproj" />
+        <ProjectReference Include="..\Carbon.Graphics.Animation\Carbon.Graphics.Animation.csproj" />
+        <ProjectReference Include="..\Carbon.Graphics.Fonts\Carbon.Graphics.Fonts.csproj" />
+        <ProjectReference Include="..\Carbon.Graphics.UI\Carbon.Graphics.UI.csproj" />
+        <ProjectReference Include="..\Carbon.Graphics.Windowing\Carbon.Graphics.Windowing.csproj" />
+    </ItemGroup>
+</Project>
