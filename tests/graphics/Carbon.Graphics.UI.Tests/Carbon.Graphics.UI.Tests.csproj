@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\graphics\Carbon.Graphics.UI\Carbon.Graphics.UI.csproj" />
+    </ItemGroup>
+</Project>

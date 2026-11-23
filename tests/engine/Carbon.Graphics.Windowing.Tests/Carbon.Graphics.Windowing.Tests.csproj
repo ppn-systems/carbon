@@ -1,5 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-    <ItemGroup>
-        <ProjectReference Include="..\..\..\engine\Carbon.Graphics.Windowing\Carbon.Graphics.Windowing.csproj" />
-    </ItemGroup>
-</Project>

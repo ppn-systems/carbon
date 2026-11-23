@@ -5,15 +5,16 @@ description: Use when writing or reviewing any C# — server services, handlers,
 
 # C# / .NET Style Guide for Carbon
 
-Applies across all C# code in `analyzer/`, `contracts/`, `engine/`, `server/`, `desktop/`, and `wasm/`. This skill is the authoritative style source for the Carbon project.
+Applies across all C# code in `analyzer/`, `contracts/`, `engine/`, `graphics/`, `server/`, `desktop/`, and `wasm/`. This skill is the authoritative style source for the Carbon project.
 
 ## Non-negotiables
 
 - **Layer boundaries** (strictly enforced across dependencies):
   - `contracts/`: Pure protocol, packet models, DTOs, and interface definitions. Has NO dependencies on game logic, engine, or server runtime.
   - `engine/`: Pure game simulation, ECS (entities/components/systems), math, spatial hashing, tick loop. Depends only on `contracts/`. NEVER references `server/`, `desktop/`, or `wasm/`.
+  - `graphics/`: Client-only rendering (Carbon.Graphics.*, Silk.NET.OpenGL). Depends only on `contracts/` and `engine/`. NEVER referenced by `server/`.
   - `server/`: Dedicated game server, gateway, connection listeners, world loop host, persistence. Depends on `contracts/`, `engine/`, and server libraries.
-  - `desktop/` & `wasm/`: Client application runners. Depend on `contracts/` and `engine/` (for client-side prediction/interpolation).
+  - `desktop/` & `wasm/`: Client application runners. Depend on `contracts/`, `engine/` (for client-side prediction/interpolation), and `graphics/`.
   - `analyzer/`: Roslyn incremental source generators and analyzers. Zero runtime dependencies.
 - **Nullable reference types** stay enabled throughout the entire codebase (`<Nullable>enable</Nullable>`). Never use `#nullable disable`.
 - **Zero warnings policy**: Code must build with zero errors and zero warnings (`<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`).

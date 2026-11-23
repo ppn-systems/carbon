@@ -22,6 +22,7 @@ carbon/
 ├── desktop/      # Native desktop client runner (Silk.NET.OpenGL)
 ├── docs/         # Architecture specifications, ADRs, protocol docs, and system design
 ├── engine/       # Core game simulation, ECS, fixed-tick loop, spatial hashing, and collision
+├── graphics/     # Client-only 2.5D rendering modules (Carbon.Graphics.*: OpenGL, batching, fonts, scenes, UI)
 ├── library/      # Pre-built managed assemblies and dependencies (e.g. Nalix.Observability)
 ├── resources/    # Game configurations, schemas, maps, tilesets, assets, and localization
 ├── server/       # Dedicated game server, gateway multiplexer, world simulation, and auth
@@ -35,7 +36,9 @@ carbon/
 3. **Layer Boundaries**:
    - `contracts/` depends on nothing.
    - `engine/` depends ONLY on `contracts/`.
-   - `server/`, `desktop/`, and `wasm/` consume `contracts/` and `engine/`.
+   - `graphics/` (client rendering) depends only on `contracts/` and `engine/`; it must never be referenced by `server/`.
+   - `server/` consumes `contracts/` and `engine/`.
+   - `desktop/` and `wasm/` consume `contracts/`, `engine/`, and `graphics/`.
 4. **No Allocations on Hot Paths**: Game tick loops and packet dispatching must be zero-allocation (struct components, `Span<T>`, `PacketFactory<T>.Acquire()`).
 5. **No Blind Architecture Changes**: No new frameworks, database shifts, or breaking wire protocol changes without an Architecture Decision Record (ADR) in `docs/adr/`.
 6. **No Speculative Code**: Follow Karpathy Guidelines — implement only what is requested, make surgical edits, and verify with tests.
@@ -44,12 +47,12 @@ carbon/
 
 | Task / Domain | Primary Skill | Notes |
 | :--- | :--- | :--- |
-| Locating code, deciding project placement across 10 folders | `carbon-repo-navigation` | Folder boundaries, feature discovery, contracts/engine layout |
+| Locating code, deciding project placement across 11 folders | `carbon-repo-navigation` | Folder boundaries, feature discovery, contracts/engine layout |
 | Writing documentation, ADRs in `docs/adr/`, localization | `carbon-docs-style` | Language by audience, ADR lifecycle (`Proposed`/`Accepted`) |
 | Drafting / authoring a new execution prompt | `prompt-author` | Investigation first, cite `file:line`, DOD, never self-executes |
 | Executing / running a numbered prompt from `docs/execution/` | `prompt-execute` | Pre-flight check, literal DOD, scoped test, commit `[exec/N]` |
 | Direct bug fix or small task without a prompt | `direct-fix` | Triage, surgical fix, scoped verification, PR |
-| Game engine, ECS components/systems, Silk.NET.OpenGL | `carbon-engine-ecs` | Unmanaged structs, fixed-tick loop, AoI spatial grid, OpenGL |
+| Game engine (`engine/`), ECS components/systems, rendering (`graphics/`, Silk.NET.OpenGL) | `carbon-engine-ecs` | Unmanaged structs, fixed-tick loop, AoI spatial grid, OpenGL |
 | Writing / reviewing any C# code, layer boundaries | `csharp-style` | File-scoped namespaces, nullable, explicit types, naming |
 | LLM behavior, avoiding complexity & hallucinations | `karpathy-guidelines` | Simplicity first, surgical edits, verify with goals |
 | Hot path optimization, Native AOT, trimming | `performance-aot` | Zero-alloc tick loop, struct components, object pooling |

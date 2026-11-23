@@ -1,6 +1,6 @@
 ---
 name: carbon-repo-navigation
-description: Use to locate code, decide where a new file or project belongs, or navigate between server, engine, contracts, client runners, and docs across the 10 Carbon folders — analyzer, contracts, deploy, desktop, docs, engine, library, resources, server, wasm.
+description: Use to locate code, decide where a new file or project belongs, or navigate between server, engine, contracts, client runners, and docs across the 11 Carbon folders — analyzer, contracts, deploy, desktop, docs, engine, graphics, library, resources, server, wasm.
 ---
 
 # Carbon Repository Navigation
@@ -17,6 +17,7 @@ carbon/
 ├── desktop/      # Cross-platform native desktop client runner
 ├── docs/         # Architecture specifications, ADRs, execution prompts, and protocol specs
 ├── engine/       # Core game simulation, ECS, fixed-tick loop, spatial hashing, and collision
+├── graphics/     # Client-only 2.5D rendering modules (Carbon.Graphics.*: OpenGL, batching, fonts, scenes, UI)
 ├── library/      # Pre-built managed assemblies and dependencies (e.g. Nalix.Observability)
 ├── resources/    # Game configurations, schemas, maps, tilesets, assets, and localization
 ├── server/       # Dedicated game server, gateway multiplexer, world simulation, and auth
@@ -27,8 +28,9 @@ carbon/
 
 - **`contracts/`**: Depends on NOTHING. Pure contracts, DTOs, packet definitions, serialization markers.
 - **`engine/`**: Depends ONLY on `contracts/`. Pure simulation, ECS components and systems, spatial partitioning, deterministic math.
-- **`server/`**: Depends on `contracts/`, `engine/`, and server-side transports. Never references client runners.
-- **`desktop/` & `wasm/`**: Depend on `contracts/` and `engine/` (for client prediction and simulation replay).
+- **`graphics/`**: Client-only rendering (Carbon.Graphics.*, Silk.NET.OpenGL). May depend on `contracts/` and `engine/`. Never referenced by `server/`.
+- **`server/`**: Depends on `contracts/`, `engine/`, and server-side transports. Never references `graphics/` or client runners.
+- **`desktop/` & `wasm/`**: Depend on `contracts/`, `engine/` (for client prediction and simulation replay), and `graphics/` (rendering).
 - **`analyzer/`**: Analyzers and Source Generators. Referenced as `OutputItemType="Analyzer" ReferenceOutputAssembly="false"`.
 - **`resources/`**: Static and data-driven assets consumed at runtime (JSON schemas, tile maps, localization).
 - **`library/`**: Third-party pre-compiled assemblies (read-only).

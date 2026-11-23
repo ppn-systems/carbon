@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-      - name: Build engine
-        run: dotnet build engine/Carbon.Graphics.slnx -c Release
+      - name: Build graphics
+        run: dotnet build graphics/Carbon.Graphics.slnx -c Release
       - name: Test
         run: dotnet test tests/Carbon.Graphics.Tests.slnx -c Release
