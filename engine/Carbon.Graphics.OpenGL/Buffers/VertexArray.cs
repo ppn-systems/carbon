@@ -89,6 +89,7 @@ public sealed class VertexArray : IDisposable
     {
         if (!_disposed)
         {
+            _stateCache.InvalidateVertexArray(this.Handle);
             _gl.DeleteVertexArray(this.Handle);
             _disposed = true;
             GC.SuppressFinalize(this);

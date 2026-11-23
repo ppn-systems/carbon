@@ -183,6 +183,16 @@ public sealed class Camera2D
     /// <returns>A <see cref="RectangleF"/> bounding the visible world region.</returns>
     public RectangleF GetVisibleBounds()
     {
+        if (_rotation == 0f)
+        {
+            float invZoom = 1.0f / _zoom;
+            float worldW = _viewportSize.X * invZoom;
+            float worldH = _viewportSize.Y * invZoom;
+            float halfW = worldW * 0.5f;
+            float halfH = worldH * 0.5f;
+            return new RectangleF(_position.X - halfW, _position.Y - halfH, worldW, worldH);
+        }
+
         Vector2 topLeft = this.ScreenToWorld(Vector2.Zero);
         Vector2 topRight = this.ScreenToWorld(new Vector2(_viewportSize.X, 0f));
         Vector2 bottomLeft = this.ScreenToWorld(new Vector2(0f, _viewportSize.Y));

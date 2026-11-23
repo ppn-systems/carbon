@@ -162,9 +162,14 @@ public abstract class GameScene : IScene
     {
         if (_pendingRemove.Count > 0)
         {
-            for (int i = 0; i < _pendingRemove.Count; i++)
+            if (_pendingRemove.Count == 1)
             {
-                _ = _activeObjects.Remove(_pendingRemove[i]);
+                _ = _activeObjects.Remove(_pendingRemove[0]);
+            }
+            else
+            {
+                HashSet<IRenderObject> removeSet = [.. _pendingRemove];
+                _ = _activeObjects.RemoveAll(removeSet.Contains);
             }
 
             _pendingRemove.Clear();

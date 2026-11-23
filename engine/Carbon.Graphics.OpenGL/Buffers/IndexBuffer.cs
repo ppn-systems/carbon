@@ -170,6 +170,7 @@ public sealed class IndexBuffer : IIndexBuffer
     {
         if (!_disposed)
         {
+            _stateCache.InvalidateIndexBuffer(this.Handle);
             _gl.DeleteBuffer(this.Handle);
             _disposed = true;
             GC.SuppressFinalize(this);

@@ -111,6 +111,7 @@ public sealed class VertexBuffer<TVertex> : IVertexBuffer where TVertex : unmana
     {
         if (!_disposed)
         {
+            _stateCache.InvalidateVertexBuffer(this.Handle);
             _gl.DeleteBuffer(this.Handle);
             _disposed = true;
             GC.SuppressFinalize(this);

@@ -1,7 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
-using System.Buffers;
 using System.Numerics;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Shaders;
@@ -35,6 +34,7 @@ public sealed class SpriteBatch : IDisposable
 
     private readonly SpriteBatchItem[] _items = new SpriteBatchItem[MAX_BATCH_ITEMS];
     private readonly Vertex2D[] _vertexScratch = new Vertex2D[MAX_VERTICES];
+    private readonly int[] _sortIndices = new int[MAX_BATCH_ITEMS];
     private int _itemCount;
 
     private bool _hasBegun;
@@ -345,51 +345,42 @@ public sealed class SpriteBatch : IDisposable
 
     private void RenderSorted()
     {
-        int[] rentedIndices = ArrayPool<int>.Shared.Rent(_itemCount);
-
-        try
+        for (int i = 0; i < _itemCount; i++)
         {
-            for (int i = 0; i < _itemCount; i++)
-            {
-                rentedIndices[i] = i;
-            }
-
-            Array.Sort(rentedIndices, 0, _itemCount, new SpriteItemComparer(_items));
-
-            int batchStart = 0;
-            ITexture? currentTexture = null;
-
-            for (int i = 0; i < _itemCount; i++)
-            {
-                int itemIndex = rentedIndices[i];
-                ITexture itemTexture = _items[itemIndex].Texture;
-
-                if (currentTexture is null)
-                {
-                    currentTexture = itemTexture;
-                }
-                else if (currentTexture.Handle != itemTexture.Handle)
-                {
-                    this.DrawItemRange(batchStart, i - batchStart, currentTexture);
-                    currentTexture = itemTexture;
-                    batchStart = i;
-                }
-
-                int vBase = i * VERTICES_PER_ITEM;
-                _vertexScratch[vBase + 0] = _items[itemIndex].VertexTL;
-                _vertexScratch[vBase + 1] = _items[itemIndex].VertexTR;
-                _vertexScratch[vBase + 2] = _items[itemIndex].VertexBR;
-                _vertexScratch[vBase + 3] = _items[itemIndex].VertexBL;
-            }
-
-            if (currentTexture is not null && _itemCount > batchStart)
-            {
-                this.DrawItemRange(batchStart, _itemCount - batchStart, currentTexture);
-            }
+            _sortIndices[i] = i;
         }
-        finally
+
+        _sortIndices.AsSpan(0, _itemCount).Sort(new SpriteItemComparer(_items));
+
+        int batchStart = 0;
+        ITexture? currentTexture = null;
+
+        for (int i = 0; i < _itemCount; i++)
         {
-            ArrayPool<int>.Shared.Return(rentedIndices);
+            int itemIndex = _sortIndices[i];
+            ITexture itemTexture = _items[itemIndex].Texture;
+
+            if (currentTexture is null)
+            {
+                currentTexture = itemTexture;
+            }
+            else if (currentTexture.Handle != itemTexture.Handle)
+            {
+                this.DrawItemRange(batchStart, i - batchStart, currentTexture);
+                currentTexture = itemTexture;
+                batchStart = i;
+            }
+
+            int vBase = i * VERTICES_PER_ITEM;
+            _vertexScratch[vBase + 0] = _items[itemIndex].VertexTL;
+            _vertexScratch[vBase + 1] = _items[itemIndex].VertexTR;
+            _vertexScratch[vBase + 2] = _items[itemIndex].VertexBR;
+            _vertexScratch[vBase + 3] = _items[itemIndex].VertexBL;
+        }
+
+        if (currentTexture is not null && _itemCount > batchStart)
+        {
+            this.DrawItemRange(batchStart, _itemCount - batchStart, currentTexture);
         }
     }
 

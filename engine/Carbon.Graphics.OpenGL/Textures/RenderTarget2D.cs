@@ -113,6 +113,7 @@ public sealed class RenderTarget2D : IRenderTarget
 
             if (this.FramebufferHandle != 0)
             {
+                _stateCache.InvalidateFramebuffer(this.FramebufferHandle);
                 _gl.DeleteFramebuffer(this.FramebufferHandle);
             }
 

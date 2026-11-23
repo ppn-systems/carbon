@@ -2,6 +2,7 @@
 
 using System;
 using System.Buffers.Binary;
+using System.Runtime.InteropServices;
 
 namespace Carbon.Graphics.Assets.Decoders;
 
@@ -51,6 +52,7 @@ public static class QoiDecoder
 
         int totalPixels = width * height;
         byte[] output = new byte[totalPixels * 4];
+        Span<uint> pixelSpan = MemoryMarshal.Cast<byte, uint>(output.AsSpan());
 
         Span<byte> indexArray = stackalloc byte[64 * 4];
         indexArray.Clear();
@@ -61,10 +63,10 @@ public static class QoiDecoder
         byte a = 255;
 
         int inPos = HeaderSize;
-        int outPos = 0;
+        int pixelIndex = 0;
         int endPos = data.Length - 8; // Exclude 8-byte end marker
 
-        while (outPos < output.Length && inPos < endPos)
+        while (pixelIndex < totalPixels && inPos < endPos)
         {
             byte b1 = data[inPos++];
 
@@ -106,14 +108,10 @@ public static class QoiDecoder
             else if ((b1 & 0xC0) == 0xC0) // QOI_OP_RUN
             {
                 int run = (b1 & 0x3F) + 1;
-                while (run-- > 0 && outPos < output.Length)
-                {
-                    output[outPos++] = r;
-                    output[outPos++] = g;
-                    output[outPos++] = b;
-                    output[outPos++] = a;
-                }
-
+                uint currentPixel = (uint)(r | (g << 8) | (b << 16) | (a << 24));
+                int maxRun = Math.Min(run, totalPixels - pixelIndex);
+                pixelSpan.Slice(pixelIndex, maxRun).Fill(currentPixel);
+                pixelIndex += maxRun;
                 continue;
             }
 
@@ -123,10 +121,7 @@ public static class QoiDecoder
             indexArray[index + 2] = b;
             indexArray[index + 3] = a;
 
-            output[outPos++] = r;
-            output[outPos++] = g;
-            output[outPos++] = b;
-            output[outPos++] = a;
+            pixelSpan[pixelIndex++] = (uint)(r | (g << 8) | (b << 16) | (a << 24));
         }
 
         return new DecodedImage(width, height, output);

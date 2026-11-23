@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Buffers;
 using System.Numerics;
 using System.Text;
 using Carbon.Graphics.Batching.Common;
@@ -269,45 +270,85 @@ public sealed class TextBox : IFocusable
             }
             else if (_buffer.Length > 0)
             {
-                string displayText = this.IsPassword ? new string(this.PasswordChar, _buffer.Length) : this.Text;
-                spriteBatch.DrawString(
-                    this.Font,
-                    displayText.AsSpan(),
-                    textPos,
-                    this.TextColor,
-                    scale: 1.0f,
-                    depth: depth,
-                    footY: finalFootY,
-                    layer: layer);
-            }
+                Span<char> scratch = stackalloc char[256];
+                char[]? rented = null;
+                Span<char> displayChars = _buffer.Length <= scratch.Length
+                    ? scratch[.._buffer.Length]
+                    : (rented = ArrayPool<char>.Shared.Rent(_buffer.Length)).AsSpan(0, _buffer.Length);
 
-            // 3. Draw Blinking Cursor
-            if (this.IsFocused && _cursorVisible)
-            {
-                string prefix = _cursorIndex > 0
-                    ? (this.IsPassword ? new string(this.PasswordChar, _cursorIndex) : this.Text[.._cursorIndex])
-                    : string.Empty;
-                TextMeasureResult prefixMeasure = this.Font.MeasureString(prefix.AsSpan());
-
-                float cursorX = contentX + prefixMeasure.Width;
-                float cursorHeight = this.Font.LineHeight;
-
-                if (this.BackgroundTexture != null)
+                try
                 {
-                    // Render 2px width cursor bar
-                    spriteBatch.Draw(
-                        this.BackgroundTexture,
-                        new Vector2(cursorX, contentY),
-                        new RectangleF(this.BackgroundSource.X, this.BackgroundSource.Y, 2f, cursorHeight),
-                        this.CursorColor,
-                        rotation: 0f,
-                        origin: Vector2.Zero,
-                        scale: Vector2.One,
-                        effects: SpriteEffects.None,
+                    if (this.IsPassword)
+                    {
+                        displayChars.Fill(this.PasswordChar);
+                    }
+                    else
+                    {
+                        _buffer.CopyTo(0, displayChars, _buffer.Length);
+                    }
+
+                    spriteBatch.DrawString(
+                        this.Font,
+                        displayChars,
+                        textPos,
+                        this.TextColor,
+                        scale: 1.0f,
                         depth: depth,
                         footY: finalFootY,
                         layer: layer);
+
+                    // 3. Draw Blinking Cursor
+                    if (this.IsFocused && _cursorVisible)
+                    {
+                        int safeCursor = Math.Clamp(_cursorIndex, 0, _buffer.Length);
+                        ReadOnlySpan<char> prefix = displayChars[..safeCursor];
+                        TextMeasureResult prefixMeasure = this.Font.MeasureString(prefix);
+
+                        float cursorX = contentX + prefixMeasure.Width;
+                        float cursorHeight = this.Font.LineHeight;
+
+                        if (this.BackgroundTexture != null)
+                        {
+                            // Render 2px width cursor bar
+                            spriteBatch.Draw(
+                                this.BackgroundTexture,
+                                new Vector2(cursorX, contentY),
+                                new RectangleF(this.BackgroundSource.X, this.BackgroundSource.Y, 2f, cursorHeight),
+                                this.CursorColor,
+                                rotation: 0f,
+                                origin: Vector2.Zero,
+                                scale: Vector2.One,
+                                effects: SpriteEffects.None,
+                                depth: depth,
+                                footY: finalFootY,
+                                layer: layer);
+                        }
+                    }
                 }
+                finally
+                {
+                    if (rented != null)
+                    {
+                        ArrayPool<char>.Shared.Return(rented);
+                    }
+                }
+            }
+
+            // Draw cursor when buffer is empty
+            if (_buffer.Length == 0 && this.IsFocused && _cursorVisible && this.BackgroundTexture != null)
+            {
+                spriteBatch.Draw(
+                    this.BackgroundTexture,
+                    new Vector2(contentX, contentY),
+                    new RectangleF(this.BackgroundSource.X, this.BackgroundSource.Y, 2f, this.Font.LineHeight),
+                    this.CursorColor,
+                    rotation: 0f,
+                    origin: Vector2.Zero,
+                    scale: Vector2.One,
+                    effects: SpriteEffects.None,
+                    depth: depth,
+                    footY: finalFootY,
+                    layer: layer);
             }
         }
     }

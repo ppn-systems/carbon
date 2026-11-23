@@ -22,7 +22,7 @@ public static class SpriteSortKey
     {
         DepthSortMode.YSorted => (layer * LAYER_MULTIPLIER) + footY + (depth * 0.01f),
         DepthSortMode.BackToFront => (layer * LAYER_MULTIPLIER) + depth,
-        DepthSortMode.Immediate => throw new System.NotImplementedException(),
+        DepthSortMode.Immediate => 0f,
         _ => textureHandle
     };
 }

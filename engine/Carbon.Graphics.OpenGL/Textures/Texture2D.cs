@@ -185,6 +185,7 @@ public sealed class Texture2D : ITexture
     {
         if (!_disposed)
         {
+            _stateCache.InvalidateTexture(this.Handle);
             _gl.DeleteTexture(this.Handle);
             _disposed = true;
             GC.SuppressFinalize(this);

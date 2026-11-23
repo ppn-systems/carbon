@@ -282,6 +282,70 @@ public sealed class GlStateCache
     }
 
     /// <summary>
+    /// Clears any cached reference to the specified texture handle across all texture units.
+    /// Prevents stale cache hits if OpenGL recycles deleted texture handles.
+    /// </summary>
+    /// <param name="texture">The OpenGL texture handle being deleted.</param>
+    public void InvalidateTexture(uint texture)
+    {
+        for (int i = 0; i < _boundTextures.Length; i++)
+        {
+            if (_boundTextures[i] == texture)
+            {
+                _boundTextures[i] = 0;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Clears the cached vertex buffer handle if it matches the specified VBO handle.
+    /// </summary>
+    /// <param name="vbo">The VBO handle being deleted.</param>
+    public void InvalidateVertexBuffer(uint vbo)
+    {
+        if (_currentVbo == vbo)
+        {
+            _currentVbo = 0;
+        }
+    }
+
+    /// <summary>
+    /// Clears the cached index buffer handle if it matches the specified EBO handle.
+    /// </summary>
+    /// <param name="ebo">The EBO handle being deleted.</param>
+    public void InvalidateIndexBuffer(uint ebo)
+    {
+        if (_currentEbo == ebo)
+        {
+            _currentEbo = 0;
+        }
+    }
+
+    /// <summary>
+    /// Clears the cached vertex array handle if it matches the specified VAO handle.
+    /// </summary>
+    /// <param name="vao">The VAO handle being deleted.</param>
+    public void InvalidateVertexArray(uint vao)
+    {
+        if (_currentVao == vao)
+        {
+            _currentVao = 0;
+        }
+    }
+
+    /// <summary>
+    /// Clears the cached framebuffer handle if it matches the specified FBO handle.
+    /// </summary>
+    /// <param name="fbo">The FBO handle being deleted.</param>
+    public void InvalidateFramebuffer(uint fbo)
+    {
+        if (_currentFbo == fbo)
+        {
+            _currentFbo = 0;
+        }
+    }
+
+    /// <summary>
     /// Invalidates all cached state bindings (useful when switching external render contexts).
     /// </summary>
     public void Invalidate()
