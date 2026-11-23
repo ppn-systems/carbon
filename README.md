@@ -20,4 +20,20 @@ carbon/
 
 ## Getting Started
 
-*(Documentation and build instructions will be updated as the core modules are implemented.)*
+**Prerequisites:** .NET SDK 10.0.402 or a later 10.0 feature band (see `global.json`).
+
+Build the engine:
+
+```bash
+dotnet build engine/Carbon.Graphics.slnx -c Release
+```
+
+Run the tests:
+
+```bash
+dotnet test tests/Carbon.Graphics.Tests.slnx -c Release
+```
+
+The build treats warnings as errors. CI (`.github/workflows/ci.yml`) runs the same build and tests on every pull request.
+
+> Only the `engine/` graphics modules (Carbon.Graphics.*) are implemented so far; the other folders are placeholders.

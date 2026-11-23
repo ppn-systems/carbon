@@ -57,8 +57,7 @@ public sealed class IndexBuffer : IIndexBuffer
         {
             DrawElementsType.UnsignedShort => sizeof(ushort),
             DrawElementsType.UnsignedInt => sizeof(uint),
-            DrawElementsType.UnsignedByte => throw new NotImplementedException(),
-            _ => throw new ArgumentException("Only UnsignedShort and UnsignedInt index types are supported.", nameof(indexType))
+            DrawElementsType.UnsignedByte or _ => throw new ArgumentException("Only UnsignedShort and UnsignedInt index types are supported.", nameof(indexType))
         };
 
         this.Handle = _gl.GenBuffer();
