@@ -1,6 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
-namespace Carbon.Graphics.Fonts;
+namespace Carbon.Graphics.Fonts.Layout;
 
 /// <summary>
 /// Defines horizontal alignment options for text rendering.
