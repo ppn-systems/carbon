@@ -16,6 +16,7 @@ public sealed class SpatialHashGrid2D
     private readonly float _invCellSize;
     private readonly Dictionary<ulong, List<int>> _cells = new(1024);
     private readonly Dictionary<int, CellCoord> _entityLocations = new(2048);
+    private readonly Stack<List<int>> _bucketPool = new(256);
 
     /// <summary>
     /// Gets the dimension size of each cell in world units.
@@ -185,13 +186,14 @@ public sealed class SpatialHashGrid2D
     }
 
     /// <summary>
-    /// Clears all cells and entity mappings from the grid.
+    /// Clears all cells and entity mappings from the grid, recycling buckets back to the internal pool.
     /// </summary>
     public void Clear()
     {
         foreach (List<int> bucket in _cells.Values)
         {
             bucket.Clear();
+            _bucketPool.Push(bucket);
         }
 
         _cells.Clear();
@@ -202,7 +204,7 @@ public sealed class SpatialHashGrid2D
     {
         if (!_cells.TryGetValue(key, out List<int>? bucket))
         {
-            bucket = new List<int>(16);
+            bucket = _bucketPool.Count > 0 ? _bucketPool.Pop() : new List<int>(16);
             _cells[key] = bucket;
         }
 
@@ -217,6 +219,8 @@ public sealed class SpatialHashGrid2D
             if (bucket.Count == 0)
             {
                 _ = _cells.Remove(key);
+                bucket.Clear();
+                _bucketPool.Push(bucket);
             }
         }
     }

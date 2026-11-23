@@ -73,8 +73,8 @@ public static class EntityCollisionSystem
                     continue;
                 }
 
-                Entity entityB = new(otherId, 1);
-                if (!entities.IsAlive(entityB) || !entities.HasTransform(entityB) || !entities.HasCollider(entityB))
+                Entity entityB = entities.GetEntity(otherId);
+                if (!entityB.IsValid || !entities.HasTransform(entityB) || !entities.HasCollider(entityB))
                 {
                     continue;
                 }

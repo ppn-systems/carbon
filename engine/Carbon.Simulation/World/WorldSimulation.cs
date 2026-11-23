@@ -1,6 +1,9 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System.Numerics;
+using Carbon.Physics.Obstacles;
+using Carbon.Physics.Raycast;
+using Carbon.Physics.Shapes;
 using Carbon.Simulation.Clock;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
@@ -19,6 +22,7 @@ public sealed class WorldSimulation
     private readonly FixedTickClock _clock;
     private readonly EntityManager _entities;
     private readonly SpatialHashGrid2D _spatialGrid;
+    private TileObstacleGrid? _obstacleGrid;
 
     /// <summary>
     /// Gets the fixed-tick simulation clock.
@@ -34,6 +38,15 @@ public sealed class WorldSimulation
     /// Gets the 2D spatial hash grid managing entity AoI and broadphase buckets.
     /// </summary>
     public SpatialHashGrid2D SpatialGrid => _spatialGrid;
+
+    /// <summary>
+    /// Gets or sets the optional static obstacle tile grid for terrain collisions and raycasting.
+    /// </summary>
+    public TileObstacleGrid? ObstacleGrid
+    {
+        get => _obstacleGrid;
+        set => _obstacleGrid = value;
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WorldSimulation"/> class.
@@ -61,11 +74,28 @@ public sealed class WorldSimulation
     /// <param name="args">Tick contextual timing parameters.</param>
     public void Tick(FixedTickArgs args)
     {
-        // 1. Movement System: integrate velocity -> position
-        MovementSystem.Update(_entities, args.DeltaTime);
+        // 1. Movement System: integrate velocity -> position and resolve static obstacle collisions
+        MovementSystem.Update(_entities, args.DeltaTime, _obstacleGrid);
 
         // 2. Collision & Spatial System: broadphase query & entity-to-entity separation
         EntityCollisionSystem.Update(_entities, _spatialGrid);
+    }
+
+    /// <summary>
+    /// Casts a ray against the world's static obstacle terrain.
+    /// </summary>
+    /// <param name="ray">The 2D testing ray.</param>
+    /// <param name="hit">Output hit information.</param>
+    /// <returns><see langword="true"/> if an obstacle was hit; otherwise, <see langword="false"/>.</returns>
+    public bool Raycast(in Ray2D ray, out RaycastHit2D hit)
+    {
+        if (_obstacleGrid != null && _obstacleGrid.Raycast(ray, out hit))
+        {
+            return true;
+        }
+
+        hit = RaycastHit2D.None;
+        return false;
     }
 
     /// <summary>

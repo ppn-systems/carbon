@@ -34,6 +34,7 @@ public sealed class EntityManager
     private Velocity2D[] _velocities;
     private Collider2D[] _colliders;
     private HealthComponent[] _healths;
+    private int[] _denseIndices;
 
     private readonly Queue<int> _freeSlotQueue = new(512);
     private readonly List<Entity> _activeEntities = new(InitialCapacity);
@@ -63,6 +64,8 @@ public sealed class EntityManager
         _velocities = new Velocity2D[initialCapacity + 1];
         _colliders = new Collider2D[initialCapacity + 1];
         _healths = new HealthComponent[initialCapacity + 1];
+        _denseIndices = new int[initialCapacity + 1];
+        Array.Fill(_denseIndices, -1);
 
         // Slot 0 is reserved for Entity.Null
         _generations[0] = 0;
@@ -99,12 +102,13 @@ public sealed class EntityManager
         _aliveCount++;
 
         Entity entity = new(id, gen);
+        _denseIndices[id] = _activeEntities.Count;
         _activeEntities.Add(entity);
         return entity;
     }
 
     /// <summary>
-    /// Destroys an entity and recycles its ID slot.
+    /// Destroys an entity and recycles its ID slot in O(1) time using swap-back removal.
     /// </summary>
     /// <param name="entity">The entity to destroy.</param>
     /// <returns><see langword="true"/> if destroyed; otherwise, <see langword="false"/>.</returns>
@@ -121,7 +125,17 @@ public sealed class EntityManager
         _freeSlotQueue.Enqueue(id);
         _aliveCount--;
 
-        _ = _activeEntities.Remove(entity);
+        int denseIndex = _denseIndices[id];
+        int lastIndex = _activeEntities.Count - 1;
+        if (denseIndex != lastIndex)
+        {
+            Entity lastEntity = _activeEntities[lastIndex];
+            _activeEntities[denseIndex] = lastEntity;
+            _denseIndices[lastEntity.Id] = denseIndex;
+        }
+
+        _denseIndices[id] = -1;
+        _activeEntities.RemoveAt(lastIndex);
         return true;
     }
 
@@ -131,7 +145,23 @@ public sealed class EntityManager
     /// <param name="entity">The entity handle to check.</param>
     /// <returns><see langword="true"/> if alive; otherwise, <see langword="false"/>.</returns>
     public bool IsAlive(Entity entity) =>
-        entity.Id > 0 && entity.Id <= _highestId && _generations[entity.Id] == entity.Generation;
+        entity.Id > 0 && entity.Id <= _highestId && _generations[entity.Id] == entity.Generation && _denseIndices[entity.Id] >= 0;
+
+    /// <summary>
+    /// Determines whether an entity slot ID is currently allocated and active.
+    /// </summary>
+    /// <param name="id">Entity slot identifier.</param>
+    /// <returns><see langword="true"/> if active; otherwise, <see langword="false"/>.</returns>
+    public bool IsSlotAlive(int id) =>
+        id > 0 && id <= _highestId && _denseIndices[id] >= 0;
+
+    /// <summary>
+    /// Retrieves the active <see cref="Entity"/> handle corresponding to a given entity slot ID.
+    /// </summary>
+    /// <param name="id">Entity slot identifier.</param>
+    /// <returns>Active entity handle, or <see cref="Entity.Null"/> if slot is inactive.</returns>
+    public Entity GetEntity(int id) =>
+        this.IsSlotAlive(id) ? new Entity(id, _generations[id]) : Entity.Null;
 
     // --- Transform2D Component ---
 
@@ -251,6 +281,7 @@ public sealed class EntityManager
         _aliveCount = 0;
         _highestId = 0;
         Array.Clear(_flags);
+        Array.Fill(_denseIndices, -1);
         for (int i = 1; i <= _capacity; i++)
         {
             _generations[i]++;
@@ -276,10 +307,12 @@ public sealed class EntityManager
         Array.Resize(ref _velocities, newCapacity + 1);
         Array.Resize(ref _colliders, newCapacity + 1);
         Array.Resize(ref _healths, newCapacity + 1);
+        Array.Resize(ref _denseIndices, newCapacity + 1);
 
         for (int i = oldCap + 1; i <= newCapacity; i++)
         {
             _generations[i] = 1;
+            _denseIndices[i] = -1;
         }
     }
 }

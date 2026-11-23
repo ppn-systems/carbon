@@ -69,4 +69,35 @@ public sealed class EntityManagerTests
         Action actStale = () => manager.GetTransform(e1);
         actStale.Should().Throw<InvalidOperationException>();
     }
+
+    [Fact]
+    public void DestroyEntity_SwapBackRemoval_MaintainsDenseListConsistency()
+    {
+        EntityManager manager = new(64);
+        Entity e1 = manager.CreateEntity();
+        Entity e2 = manager.CreateEntity();
+        Entity e3 = manager.CreateEntity();
+
+        manager.EntityCount.Should().Be(3);
+        manager.ActiveEntities.Should().Equal(e1, e2, e3);
+
+        // Destroy middle entity: e3 will be swapped to index 1
+        bool destroyed = manager.DestroyEntity(e2);
+        destroyed.Should().BeTrue();
+
+        manager.EntityCount.Should().Be(2);
+        manager.ActiveEntities.Count.Should().Be(2);
+        manager.IsAlive(e2).Should().BeFalse();
+        manager.IsAlive(e1).Should().BeTrue();
+        manager.IsAlive(e3).Should().BeTrue();
+
+        // GetEntity and IsSlotAlive tests
+        manager.IsSlotAlive(e1.Id).Should().BeTrue();
+        manager.IsSlotAlive(e2.Id).Should().BeFalse();
+        manager.IsSlotAlive(e3.Id).Should().BeTrue();
+
+        manager.GetEntity(e1.Id).Should().Be(e1);
+        manager.GetEntity(e2.Id).Should().Be(Entity.Null);
+        manager.GetEntity(e3.Id).Should().Be(e3);
+    }
 }
