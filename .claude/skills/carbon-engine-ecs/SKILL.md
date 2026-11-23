@@ -1,11 +1,11 @@
 ---
 name: carbon-engine-ecs
-description: Use when writing or reviewing game engine, simulation, ECS, or rendering code in engine/ or desktop/ — unmanaged struct components, pure systems, Spatial Hashing (AoI), Fixed-Tick simulation loop, and Silk.NET.OpenGL rendering pipeline.
+description: Use when writing or reviewing game engine, simulation, ECS, or rendering code in engine/, graphics/, or desktop/ — unmanaged struct components, pure systems, Spatial Hashing (AoI), Fixed-Tick simulation loop, and Silk.NET.OpenGL rendering pipeline.
 ---
 
 # Carbon Engine Architecture & ECS
 
-Applies to core simulation in `engine/` and rendering client runners in `desktop/`.
+Applies to core simulation in `engine/`, rendering modules in `graphics/`, and client runners in `desktop/`.
 
 ## Architectural Principles
 

@@ -1,10 +1,10 @@
 <Solution>
-  <Project Path="engine/Carbon.Graphics.Animation.Tests/Carbon.Graphics.Animation.Tests.csproj" />
-  <Project Path="engine/Carbon.Graphics.Assets.Tests/Carbon.Graphics.Assets.Tests.csproj" />
-  <Project Path="engine/Carbon.Graphics.Batching.Tests/Carbon.Graphics.Batching.Tests.csproj" />
-  <Project Path="engine/Carbon.Graphics.Fonts.Tests/Carbon.Graphics.Fonts.Tests.csproj" />
-  <Project Path="engine/Carbon.Graphics.OpenGL.Tests/Carbon.Graphics.OpenGL.Tests.csproj" />
-  <Project Path="engine/Carbon.Graphics.Scenes.Tests/Carbon.Graphics.Scenes.Tests.csproj" />
-  <Project Path="engine/Carbon.Graphics.UI.Tests/Carbon.Graphics.UI.Tests.csproj" />
-  <Project Path="engine/Carbon.Graphics.Windowing.Tests/Carbon.Graphics.Windowing.Tests.csproj" />
+  <Project Path="graphics/Carbon.Graphics.Animation.Tests/Carbon.Graphics.Animation.Tests.csproj" />
+  <Project Path="graphics/Carbon.Graphics.Assets.Tests/Carbon.Graphics.Assets.Tests.csproj" />
+  <Project Path="graphics/Carbon.Graphics.Batching.Tests/Carbon.Graphics.Batching.Tests.csproj" />
+  <Project Path="graphics/Carbon.Graphics.Fonts.Tests/Carbon.Graphics.Fonts.Tests.csproj" />
+  <Project Path="graphics/Carbon.Graphics.OpenGL.Tests/Carbon.Graphics.OpenGL.Tests.csproj" />
+  <Project Path="graphics/Carbon.Graphics.Scenes.Tests/Carbon.Graphics.Scenes.Tests.csproj" />
+  <Project Path="graphics/Carbon.Graphics.UI.Tests/Carbon.Graphics.UI.Tests.csproj" />
+  <Project Path="graphics/Carbon.Graphics.Windowing.Tests/Carbon.Graphics.Windowing.Tests.csproj" />
 </Solution>

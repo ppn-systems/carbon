@@ -24,6 +24,7 @@ Before submitting a Pull Request, verify against the appropriate tier:
 | **Documentation / Markdown only** | Verify markdown formatting, link integrity, and grammar. |
 | **Contracts / Protocol (`contracts/`)** | Build `contracts/` and all consumers (`engine/`, `server/`, `desktop/`, `wasm/`). Verify packet opcode uniqueness and serialization orders. |
 | **Core Engine (`engine/`)** | Build `engine/` and run engine unit tests (tick determinism, math, ECS iteration). |
+| **Graphics (`graphics/`)** | Build `graphics/Carbon.Graphics.slnx` and run `tests/Carbon.Graphics.Tests.slnx`. |
 | **Server / Network (`server/`)** | Build `server/` and run server integration/packet handler tests. |
 | **Analyzers / Generators (`analyzer/`)** | Verify generator executes during consuming project builds and emitted output matches expectation without breaking IDE responsiveness. |
 
@@ -40,7 +41,7 @@ Before submitting a Pull Request, verify against the appropriate tier:
 
 Follow Conventional Commits: `<type>(<scope>): <subject>`
 - Types: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `chore`.
-- Scope: `contracts`, `engine`, `server`, `network`, `analyzer`, `desktop`, `wasm`, `deploy`.
+- Scope: `contracts`, `engine`, `graphics`, `server`, `network`, `analyzer`, `desktop`, `wasm`, `deploy`.
 - Subject: Imperative, lowercase, concise (≤ 72 characters).
 - Example:
   - `feat(contracts): define player movement c2s packet and opcode`

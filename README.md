@@ -12,6 +12,7 @@ carbon/
 ├── desktop/      # Cross-platform desktop client runner
 ├── docs/         # Architecture specifications, ADRs, protocol docs, and system design
 ├── engine/       # Core game simulation, ECS, fixed-tick loop, spatial hashing, and collision
+├── graphics/     # Client-only 2.5D rendering modules (Carbon.Graphics.*: OpenGL, batching, fonts, scenes, UI)
 ├── library/      # Pre-built managed assemblies and dependencies (e.g. Nalix Observability)
 ├── resources/    # Game configurations, schemas, maps, tilesets, assets, and localization
 ├── server/       # Dedicated game server, gateway multiplexer, world simulation, and auth
@@ -22,10 +23,10 @@ carbon/
 
 **Prerequisites:** .NET SDK 10.0.402 or a later 10.0 feature band (see `global.json`).
 
-Build the engine:
+Build the graphics modules:
 
 ```bash
-dotnet build engine/Carbon.Graphics.slnx -c Release
+dotnet build graphics/Carbon.Graphics.slnx -c Release
 ```
 
 Run the tests:
@@ -36,4 +37,4 @@ dotnet test tests/Carbon.Graphics.Tests.slnx -c Release
 
 The build treats warnings as errors. CI (`.github/workflows/ci.yml`) runs the same build and tests on every pull request.
 
-> Only the `engine/` graphics modules (Carbon.Graphics.*) are implemented so far; the other folders are placeholders.
+> Only the `graphics/` modules (Carbon.Graphics.*) are implemented so far; the other folders are placeholders.
