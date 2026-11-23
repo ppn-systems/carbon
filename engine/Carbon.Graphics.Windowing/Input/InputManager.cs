@@ -2,6 +2,7 @@
 
 using System;
 using System.Numerics;
+using Carbon.Graphics.Windowing.Abstractions;
 using Silk.NET.Input;
 
 namespace Carbon.Graphics.Windowing.Input;
@@ -172,5 +173,7 @@ public sealed class InputManager : IInputManager, IDisposable
             _mouse.MouseMove -= this.OnMouseMove;
             _mouse.Scroll -= this.OnMouseScroll;
         }
+
+        _silkInput.Dispose();
     }
 }

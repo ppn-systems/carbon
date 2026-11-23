@@ -2,9 +2,10 @@
 
 using System;
 using System.Numerics;
+using Carbon.Graphics.Windowing.Input;
 using Silk.NET.Input;
 
-namespace Carbon.Graphics.Windowing.Input;
+namespace Carbon.Graphics.Windowing.Abstractions;
 
 /// <summary>
 /// Defines the contract for polling and querying keyboard, mouse, and text character input states.

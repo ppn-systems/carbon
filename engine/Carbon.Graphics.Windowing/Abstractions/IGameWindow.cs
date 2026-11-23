@@ -2,9 +2,8 @@
 
 using System;
 using Carbon.Graphics.OpenGL.Abstractions;
-using Carbon.Graphics.Windowing.Input;
 
-namespace Carbon.Graphics.Windowing.Window;
+namespace Carbon.Graphics.Windowing.Abstractions;
 
 /// <summary>
 /// Defines the lifecycle, presentation loop, and device management for the native client game window.

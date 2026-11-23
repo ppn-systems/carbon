@@ -3,6 +3,7 @@
 using System;
 using Carbon.Graphics.OpenGL.Abstractions;
 using Carbon.Graphics.OpenGL.Device;
+using Carbon.Graphics.Windowing.Abstractions;
 using Carbon.Graphics.Windowing.Configuration;
 using Carbon.Graphics.Windowing.Input;
 using Silk.NET.Input;
