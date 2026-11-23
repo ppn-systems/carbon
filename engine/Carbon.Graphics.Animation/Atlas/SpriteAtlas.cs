@@ -12,7 +12,7 @@ namespace Carbon.Graphics.Animation.Atlas;
 /// <summary>
 /// Manages a collection of named <see cref="AtlasRegion"/> instances associated with a shared <see cref="ITexture"/>.
 /// </summary>
-public sealed class SpriteAtlas : IEnumerable<AtlasRegion>
+public sealed class SpriteAtlas : IEnumerable<AtlasRegion>, IDisposable
 {
     private readonly Dictionary<string, AtlasRegion> _regions = new(StringComparer.Ordinal);
 
@@ -213,4 +213,9 @@ public sealed class SpriteAtlas : IEnumerable<AtlasRegion>
 
     /// <inheritdoc/>
     IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
+
+    /// <summary>
+    /// Disposes the underlying texture associated with this atlas.
+    /// </summary>
+    public void Dispose() => this.Texture.Dispose();
 }

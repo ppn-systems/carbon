@@ -14,7 +14,7 @@ namespace Carbon.Graphics.Fonts.Rendering;
 /// Represents a high-performance bitmap or signed-distance-field (SDF) font asset ready for rendering.
 /// Encapsulates texture atlas, character metrics, kerning pairs, and loaders.
 /// </summary>
-public sealed class BitmapFont
+public sealed class BitmapFont : IDisposable
 {
     /// <summary>
     /// Gets the friendly identifier or family name of this font.
@@ -265,4 +265,9 @@ public sealed class BitmapFont
 
         return int.TryParse(valSpan, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
     }
+
+    /// <summary>
+    /// Disposes the underlying font atlas texture.
+    /// </summary>
+    public void Dispose() => this.Texture.Dispose();
 }
