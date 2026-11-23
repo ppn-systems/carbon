@@ -1,0 +1,49 @@
+<Project>
+    <PropertyGroup>
+        <!-- Central Package Management -->
+        <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+        <NoWarn>$(NoWarn);NU1507</NoWarn>
+    </PropertyGroup>
+
+    <!-- Nalix Realtime Core & Abstractions (Version 14.4.0) -->
+    <ItemGroup>
+        <PackageVersion Include="Nalix.SDK" Version="14.4.0" />
+        <PackageVersion Include="Nalix.Codec" Version="14.4.0" />
+        <PackageVersion Include="Nalix.Hosting" Version="14.4.0" />
+        <PackageVersion Include="Nalix.Network" Version="14.4.0" />
+        <PackageVersion Include="Nalix.Runtime" Version="14.4.0" />
+        <PackageVersion Include="Nalix.Framework" Version="14.4.0" />
+        <PackageVersion Include="Nalix.Environment" Version="14.4.0" />
+        <PackageVersion Include="Nalix.Abstractions" Version="14.4.0" />
+    </ItemGroup>
+
+    <!-- Rendering & Windowing (Silk.NET OpenGL) -->
+    <ItemGroup>
+        <PackageVersion Include="Silk.NET.OpenGL" Version="2.22.0" />
+        <PackageVersion Include="Silk.NET.Windowing" Version="2.22.0" />
+        <PackageVersion Include="Silk.NET.Input" Version="2.22.0" />
+        <PackageVersion Include="Silk.NET.Maths" Version="2.22.0" />
+        <PackageVersion Include="Silk.NET.Core" Version="2.22.0" />
+    </ItemGroup>
+
+    <!-- High-Performance Serialization & Pipelines -->
+    <ItemGroup>
+        <PackageVersion Include="MemoryPack" Version="1.21.4" />
+        <PackageVersion Include="System.IO.Pipelines" Version="10.0.0" />
+    </ItemGroup>
+
+    <!-- Roslyn Code Analysis & Source Generation -->
+    <ItemGroup>
+        <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
+        <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" />
+    </ItemGroup>
+
+    <!-- Testing Stack -->
+    <ItemGroup>
+        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
+        <PackageVersion Include="xunit" Version="2.9.3" />
+        <PackageVersion Include="xunit.runner.visualstudio" Version="3.0.2" />
+        <PackageVersion Include="FluentAssertions" Version="8.0.1" />
+        <PackageVersion Include="NSubstitute" Version="5.3.0" />
+    </ItemGroup>
+</Project>

@@ -1,0 +1,44 @@
+<Project>
+    <PropertyGroup>
+        <!-- Target Framework & Language Standards -->
+        <TargetFramework Condition="'$(TargetFrameworks)' == ''">net10.0</TargetFramework>
+        <LangVersion>preview</LangVersion>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+        <AnalysisLevel>latest</AnalysisLevel>
+        <EnableNETAnalyzers>true</EnableNETAnalyzers>
+
+        <!-- Native AOT & Trimming Compatibility -->
+        <IsAotCompatible>true</IsAotCompatible>
+        <IsTrimmable>true</IsTrimmable>
+
+        <!-- Centralized build output: all bin/ and obj/ route to root artifacts/ -->
+        <UseArtifactsOutput>true</UseArtifactsOutput>
+    </PropertyGroup>
+
+    <!-- Debug Configuration -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+        <DebugType>embedded</DebugType>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <IncludeSymbols>false</IncludeSymbols>
+    </PropertyGroup>
+
+    <!-- Release Configuration -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <DebugType>portable</DebugType>
+        <EmbedUntrackedSources>false</EmbedUntrackedSources>
+        <Deterministic>true</Deterministic>
+        <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+        <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    </PropertyGroup>
+
+    <!-- Metadata -->
+    <PropertyGroup>
+        <Authors>Carbon Team</Authors>
+        <Company>Carbon</Company>
+        <Copyright>Copyright (c) 2026 Carbon. All rights reserved.</Copyright>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+</Project>
