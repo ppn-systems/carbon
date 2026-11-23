@@ -1,14 +1,14 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
-namespace Carbon.Graphics.Windowing;
+namespace Carbon.Graphics.Windowing.Configuration;
 
 /// <summary>
-/// Specifies the display mode of the game application window.
+/// Specifies the display presentation mode of the game application window.
 /// </summary>
 public enum WindowDisplayMode
 {
     /// <summary>
-    /// Standard windowed mode with title bar and borders.
+    /// Standard windowed mode with title bar and resizable borders.
     /// </summary>
     Windowed = 0,
 
