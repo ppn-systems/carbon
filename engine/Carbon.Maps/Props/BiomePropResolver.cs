@@ -65,7 +65,7 @@ public static class BiomePropResolver
         }
 
         // Fast deterministic spatial hash per tile
-        ulong tileSeed = seed ^ (ulong)(worldTileX * 73856093) ^ (ulong)(worldTileY * 19349663);
+        ulong tileSeed = SpatialHash.Hash(seed, worldTileX, worldTileY);
         DeterministicRandom rng = new(tileSeed);
 
         float roll = rng.NextFloat(0f, 1f);
@@ -109,14 +109,14 @@ public static class BiomePropResolver
         if (isInActiveVein)
         {
             // Inside an active geological hotspot, only a few tiles form compact ore clusters
-            uint veinHash = (uint)((worldTileX * 374761393) ^ (worldTileY * 668265263) ^ (int)seed);
+            uint veinHash = SpatialHash.Hash32(seed, worldTileX, worldTileY, 0x5E1AUL);
             isVeinNode = (veinHash % 6) == 0;
         }
 
         // 2. Rare Ancient Shrines (Mystical landmarks in secluded high-density groves, ~1 in 200 tiles)
         if (!isNearWater && mineralNoise >= 0.86f && foliageDensity >= 0.76f)
         {
-            uint shrineHash = (uint)((worldTileX * 15823) ^ (worldTileY * 374761) ^ (int)seed);
+            uint shrineHash = SpatialHash.Hash32(seed, worldTileX, worldTileY, 0x5A41UL);
             if ((shrineHash % 67) == 0)
             {
                 prop = MapProp.Create(MapPropType.AncientShrine, localX, localY, worldX, worldY, radius: 34f * scaleVar, isSolid: true, 0x818CF8FF, 0x4338CAFF, 1.3f);

@@ -19,13 +19,25 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
 {
     private readonly ChunkWorld2D _world;
     private readonly ConcurrentDictionary<(int X, int Y), RampDirection> _ramps = new();
+    private readonly Func<int, int, byte> _heightQuery;
+    private readonly Func<int, int, bool> _waterQuery;
+    private readonly Func<int, int, byte> _heightLevelQuery;
+    private readonly Func<int, int, RampDirection> _rampQuery;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TileWalkabilityGrid"/> class.
     /// </summary>
     /// <param name="world">The backing chunk streaming world.</param>
-    public TileWalkabilityGrid(ChunkWorld2D world) =>
+    public TileWalkabilityGrid(ChunkWorld2D world)
+    {
         _world = world ?? throw new ArgumentNullException(nameof(world));
+
+        // Cached once: creating these lambdas per GetRamp/CanTraverse call allocated on every collision query.
+        _heightQuery = (x, y) => _world.PeekTileAtWorld(x, y).HeightLevel;
+        _waterQuery = (x, y) => _world.PeekTileAtWorld(x, y).Biome is BiomeType.DeepOcean or BiomeType.ShallowWater;
+        _heightLevelQuery = this.GetHeightLevel;
+        _rampQuery = this.GetRamp;
+    }
 
     /// <summary>
     /// Registers or updates an inclined ramp at the specified tile.
@@ -52,7 +64,7 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
             return direction;
         }
 
-        MapTile tile = _world.GetTileAtWorld(worldTileX, worldTileY);
+        MapTile tile = _world.PeekTileAtWorld(worldTileX, worldTileY);
         if (tile.HeightLevel == 0 || tile.Biome is BiomeType.DeepOcean or BiomeType.ShallowWater)
         {
             return RampDirection.None;
@@ -62,13 +74,13 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
             worldTileX,
             worldTileY,
             tile.HeightLevel,
-            (x, y) => _world.GetTileAtWorld(x, y).HeightLevel,
-            (x, y) => _world.GetTileAtWorld(x, y).Biome is BiomeType.DeepOcean or BiomeType.ShallowWater);
+            _heightQuery,
+            _waterQuery);
     }
 
     /// <inheritdoc/>
     public byte GetHeightLevel(int worldTileX, int worldTileY) =>
-        _world.GetTileAtWorld(worldTileX, worldTileY).HeightLevel;
+        _world.PeekTileAtWorld(worldTileX, worldTileY).HeightLevel;
 
     /// <inheritdoc/>
     public TileWalkability GetWalkability(int worldTileX, int worldTileY)
@@ -100,7 +112,7 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
         }
 
         // 4. Check natural terrain tile
-        MapTile tile = _world.GetTileAtWorld(worldTileX, worldTileY);
+        MapTile tile = _world.PeekTileAtWorld(worldTileX, worldTileY);
 
         if (tile.Biome is BiomeType.DeepOcean)
         {
@@ -171,8 +183,8 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
                 fromY,
                 toX,
                 toY,
-                this.GetHeightLevel,
-                this.GetRamp);
+                _heightLevelQuery,
+                _rampQuery);
         }
 
         return true;
