@@ -43,7 +43,7 @@ public static class Program
     private static BiomeType s_lastPlayerBiome = (BiomeType)255;
     private static (int X, int Y) s_lastChunkCoord = (int.MinValue, int.MinValue);
     private static ulong s_currentSeed = 1337UL;
-    private static bool s_debugOverlay = true;
+    private static bool s_debugOverlay;
     private static int s_frameCount;
     private static bool s_hasAutoCaptured;
 
@@ -294,7 +294,28 @@ public static class Program
                     RectangleF rect = new(tileWorldX, tileWorldY, TileSize, TileSize);
                     s_geometryBatch.FillRectangle(rect, baseColor);
 
-                    // Highlight solid obstacles in debug mode
+                    // Subtle organic surface micro-details (water ripples, grass blades)
+                    if (tile.Biome is BiomeType.DeepOcean or BiomeType.ShallowWater)
+                    {
+                        if (tile.Variant == 1)
+                        {
+                            s_geometryBatch.FillRectangle(new RectangleF(tileWorldX + 6f, tileWorldY + 12f, 18f, 2f), new ColorRgba(255, 255, 255, 75));
+                        }
+                        else if (tile.Variant == 2)
+                        {
+                            s_geometryBatch.FillRectangle(new RectangleF(tileWorldX + 10f, tileWorldY + 20f, 14f, 2f), new ColorRgba(255, 255, 255, 60));
+                        }
+                    }
+                    else if (tile.Biome is BiomeType.LushPlains or BiomeType.AncientForest)
+                    {
+                        if (tile.Variant == 2)
+                        {
+                            s_geometryBatch.FillRectangle(new RectangleF(tileWorldX + 8f, tileWorldY + 14f, 2f, 4f), new ColorRgba(74, 222, 128, 110));
+                            s_geometryBatch.FillRectangle(new RectangleF(tileWorldX + 11f, tileWorldY + 12f, 2f, 6f), new ColorRgba(74, 222, 128, 130));
+                        }
+                    }
+
+                    // Highlight solid obstacles only when debug overlay is toggled on with 'B'
                     if (s_debugOverlay && tile.IsSolid)
                     {
                         RectangleF innerBorder = new(tileWorldX + 2f, tileWorldY + 2f, TileSize - 4f, TileSize - 4f);
@@ -338,11 +359,12 @@ public static class Program
 
             if (entity == s_player)
             {
-                // Player: Sleek MMORPG hero avatar token (drop shadow, navy tunic, cyan trim, white center dot)
-                s_geometryBatch.FillCircle(new Vector2(trans.Position.X, trans.Position.Y + 2f), col.Radius + 1f, new ColorRgba(0, 0, 0, 80));
-                s_geometryBatch.FillCircle(trans.Position, col.Radius, new ColorRgba(30, 58, 138, 255));
-                s_geometryBatch.FillCircle(trans.Position, col.Radius * 0.65f, new ColorRgba(56, 189, 248, 255));
-                s_geometryBatch.FillCircle(trans.Position, col.Radius * 0.3f, new ColorRgba(255, 255, 255, 255));
+                // Player: Sleek MMORPG hero avatar token (drop shadow, navy mantle, royal blue tunic, cyan crest, gold core)
+                s_geometryBatch.FillCircle(new Vector2(trans.Position.X + 2f, trans.Position.Y + 3f), col.Radius + 1f, new ColorRgba(0, 0, 0, 75));
+                s_geometryBatch.FillCircle(trans.Position, col.Radius, new ColorRgba(15, 23, 42, 255));
+                s_geometryBatch.FillCircle(trans.Position, col.Radius * 0.85f, new ColorRgba(30, 64, 175, 255));
+                s_geometryBatch.FillCircle(trans.Position, col.Radius * 0.55f, new ColorRgba(56, 189, 248, 255));
+                s_geometryBatch.FillCircle(trans.Position, col.Radius * 0.22f, new ColorRgba(250, 204, 21, 255));
             }
         }
 
@@ -386,13 +408,17 @@ public static class Program
         switch (prop.Type)
         {
             case MapPropType.OakTree:
-                batch.FillCircle(new Vector2(pos.X, pos.Y + 12f), r * 0.45f, new ColorRgba(0, 0, 0, 45));
-                batch.FillRectangle(new RectangleF(pos.X - 7f, pos.Y - 8f, 14f, 26f), secondary);
+                batch.FillCircle(new Vector2(pos.X + 4f, pos.Y + 14f), r * 0.45f, new ColorRgba(0, 0, 0, 45));
+                batch.FillRectangle(new RectangleF(pos.X - 10f, pos.Y + 6f, 20f, 8f), new ColorRgba(69, 26, 3));
+                batch.FillRectangle(new RectangleF(pos.X - 7f, pos.Y - 10f, 14f, 26f), secondary);
+                batch.FillRectangle(new RectangleF(pos.X - 6f, pos.Y - 10f, 3f, 22f), new ColorRgba(146, 64, 14));
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 18f), r * 0.75f, new ColorRgba(15, 61, 30));
                 batch.FillCircle(new Vector2(pos.X, pos.Y - 26f), r, primary);
                 batch.FillCircle(new Vector2(pos.X - (r * 0.45f), pos.Y - 20f), r * 0.72f, primary);
                 batch.FillCircle(new Vector2(pos.X + (r * 0.45f), pos.Y - 22f), r * 0.75f, primary);
                 batch.FillCircle(new Vector2(pos.X, pos.Y - 40f), r * 0.65f, primary);
-                batch.FillCircle(new Vector2(pos.X - 6f, pos.Y - 32f), r * 0.42f, secondary);
+                batch.FillCircle(new Vector2(pos.X - 10f, pos.Y - 32f), r * 0.48f, new ColorRgba(34, 197, 94));
+                batch.FillCircle(new Vector2(pos.X - 14f, pos.Y - 36f), r * 0.26f, new ColorRgba(74, 222, 128));
                 break;
 
             case MapPropType.BirchTree:
@@ -467,13 +493,15 @@ public static class Program
             case MapPropType.GoldVein:
             case MapPropType.CoalDeposit:
             case MapPropType.SilverVein:
-                batch.FillCircle(new Vector2(pos.X, pos.Y + 6f), r * 0.85f, new ColorRgba(0, 0, 0, 50), segments: 8);
+                batch.FillCircle(new Vector2(pos.X + 4f, pos.Y + 8f), r * 0.85f, new ColorRgba(0, 0, 0, 50), segments: 8);
                 batch.FillCircle(pos, r, primary, segments: 8);
-                batch.FillCircle(new Vector2(pos.X - 4f, pos.Y - 4f), r * 0.55f, new ColorRgba(0, 0, 0, 60), segments: 6);
+                batch.FillCircle(new Vector2(pos.X + 3f, pos.Y + 3f), r * 0.7f, new ColorRgba(0, 0, 0, 55), segments: 8);
+                batch.FillCircle(new Vector2(pos.X - 4f, pos.Y - 4f), r * 0.55f, new ColorRgba(255, 255, 255, 30), segments: 6);
                 batch.FillCircle(new Vector2(pos.X - 5f, pos.Y - 4f), r * 0.28f, secondary, segments: 6);
                 batch.FillCircle(new Vector2(pos.X + 5f, pos.Y + 3f), r * 0.25f, secondary, segments: 6);
                 batch.FillCircle(new Vector2(pos.X + 2f, pos.Y - 6f), r * 0.22f, secondary, segments: 5);
                 batch.FillCircle(new Vector2(pos.X - 2f, pos.Y + 6f), r * 0.20f, secondary, segments: 5);
+                batch.FillCircle(new Vector2(pos.X - 6f, pos.Y - 5f), r * 0.12f, new ColorRgba(255, 255, 255, 220), segments: 4);
                 break;
 
             case MapPropType.CrystalCluster:
