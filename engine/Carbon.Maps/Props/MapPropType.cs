@@ -112,5 +112,20 @@ public enum MapPropType : byte
     /// <summary>
     /// Ancient mystical stone shrine obelisk (Wilderness POI).
     /// </summary>
-    AncientShrine = 19
+    AncientShrine = 19,
+
+    /// <summary>
+    /// Wide umbrella-canopied acacia tree (Savanna).
+    /// </summary>
+    AcaciaTree = 20,
+
+    /// <summary>
+    /// Flowering cherry blossom tree with vibrant pink sakura canopy (Blossom Woods).
+    /// </summary>
+    CherryBlossomTree = 21,
+
+    /// <summary>
+    /// Faceted pale-cyan glacial ice crystal spire with perpetual frost glow (Alpine Peaks).
+    /// </summary>
+    GlacialCrystal = 22
 }

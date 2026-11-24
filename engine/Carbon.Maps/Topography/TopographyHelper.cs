@@ -24,7 +24,7 @@ public static class TopographyHelper
             return 0;
         }
 
-        if (elevation >= 0.70f)
+        if (biome is BiomeType.AlpinePeaks || elevation >= 0.70f)
         {
             return 2;
         }

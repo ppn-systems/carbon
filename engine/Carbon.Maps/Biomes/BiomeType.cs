@@ -38,5 +38,14 @@ public enum BiomeType : byte
     FrozenTundra = 9,
 
     /// <summary>Scorched volcanic badlands with basalt and lava.</summary>
-    VolcanicAshland = 10
+    VolcanicAshland = 10,
+
+    /// <summary>Jagged glaciated mountain peaks with blue ice and perpetual snowdrifts.</summary>
+    AlpinePeaks = 11,
+
+    /// <summary>Warm amber savanna grasslands with flat-topped acacia trees.</summary>
+    Savanna = 12,
+
+    /// <summary>Enchanted temperate forest with blooming cherry blossoms and mystical springs.</summary>
+    BlossomWoods = 13
 }

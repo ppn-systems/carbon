@@ -20,6 +20,9 @@ public sealed class WhittakerBiomeResolverTests
     [InlineData(0.50f, 0.50f, 0.85f, BiomeType.MistySwamp)]
     [InlineData(0.50f, 0.50f, 0.60f, BiomeType.AncientForest)]
     [InlineData(0.50f, 0.50f, 0.40f, BiomeType.LushPlains)]
+    [InlineData(0.90f, 0.10f, 0.50f, BiomeType.AlpinePeaks)]
+    [InlineData(0.50f, 0.65f, 0.35f, BiomeType.Savanna)]
+    [InlineData(0.50f, 0.50f, 0.75f, BiomeType.BlossomWoods)]
     public void Resolve_CorrectlyMapsWhittakerBiomes(
         float elevation,
         float temperature,

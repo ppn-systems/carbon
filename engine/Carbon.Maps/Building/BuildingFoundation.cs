@@ -52,7 +52,8 @@ public static class BuildingFoundation
         BiomeType.DeepOcean or BiomeType.ShallowWater => TerrainAffordance.None,
         BiomeType.DuneDesert or BiomeType.MistySwamp or BiomeType.BeachSand => TerrainAffordance.Medium,
         BiomeType.LushPlains or BiomeType.AncientForest or BiomeType.RedMesa or
-        BiomeType.TropicalJungle or BiomeType.FrozenTundra or BiomeType.VolcanicAshland => TerrainAffordance.Heavy,
+        BiomeType.TropicalJungle or BiomeType.FrozenTundra or BiomeType.VolcanicAshland or
+        BiomeType.AlpinePeaks or BiomeType.Savanna or BiomeType.BlossomWoods => TerrainAffordance.Heavy,
         _ => TerrainAffordance.Heavy
     };
 

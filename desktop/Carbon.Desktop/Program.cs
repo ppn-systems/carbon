@@ -557,6 +557,28 @@ public static class Program
                 batch.FillRectangle(new RectangleF(pos.X - 8f, pos.Y - 6f, 16f, 26f), secondary);
                 break;
 
+            case MapPropType.AcaciaTree:
+                batch.FillCircle(new Vector2(pos.X, pos.Y + 8f), r * 0.4f, new ColorRgba(0, 0, 0, 45));
+                batch.FillRectangle(new RectangleF(pos.X - 5f, pos.Y - 14f, 10f, 28f), secondary);
+                batch.FillRectangle(new RectangleF(pos.X - 16f, pos.Y - 22f, 14f, 5f), secondary);
+                batch.FillRectangle(new RectangleF(pos.X + 2f, pos.Y - 24f, 16f, 5f), secondary);
+                break;
+
+            case MapPropType.CherryBlossomTree:
+                batch.FillCircle(new Vector2(pos.X, pos.Y + 10f), r * 0.65f, new ColorRgba(244, 114, 182, 70));
+                batch.FillCircle(new Vector2(pos.X, pos.Y + 8f), r * 0.4f, new ColorRgba(0, 0, 0, 45));
+                batch.FillRectangle(new RectangleF(pos.X - 6f, pos.Y - 10f, 12f, 26f), secondary);
+                batch.FillRectangle(new RectangleF(pos.X - 5f, pos.Y - 8f, 3f, 20f), new ColorRgba(85, 45, 35));
+                break;
+
+            case MapPropType.GlacialCrystal:
+                batch.FillCircle(new Vector2(pos.X, pos.Y + 8f), r * 0.75f, new ColorRgba(0, 0, 0, 55), segments: 6);
+                batch.FillCircle(pos, r * 0.85f, primary, segments: 6);
+                batch.FillCircle(new Vector2(pos.X - 4f, pos.Y - 6f), r * 0.45f, secondary, segments: 5);
+                batch.FillCircle(new Vector2(pos.X + 4f, pos.Y + 3f), r * 0.35f, new ColorRgba(255, 255, 255, 240), segments: 4);
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 8f), r * 0.3f, new ColorRgba(255, 255, 255, 255), segments: 4);
+                break;
+
             case MapPropType.DeadTree:
                 batch.FillCircle(new Vector2(pos.X, pos.Y + 8f), r * 0.3f, new ColorRgba(0, 0, 0, 45));
                 batch.FillRectangle(new RectangleF(pos.X - 5f, pos.Y - 14f, 10f, 32f), primary);
@@ -685,6 +707,26 @@ public static class Program
                 batch.FillCircle(new Vector2(pos.X + (r * 0.45f), pos.Y - 4f), r * 0.45f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
                 batch.FillRectangle(new RectangleF(pos.X - 16f, pos.Y - 4f, 4f, 18f), new ColorRgba(primary.R, primary.G, primary.B, alpha));
                 batch.FillRectangle(new RectangleF(pos.X + 12f, pos.Y - 4f, 4f, 18f), new ColorRgba(primary.R, primary.G, primary.B, alpha));
+                break;
+
+            case MapPropType.AcaciaTree:
+                batch.FillCircle(new Vector2(pos.X - 14f, pos.Y - 26f), r * 0.75f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
+                batch.FillCircle(new Vector2(pos.X + 14f, pos.Y - 28f), r * 0.75f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 32f), r * 0.85f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
+                batch.FillRectangle(new RectangleF(pos.X - (r * 1.3f), pos.Y - 30f, r * 2.6f, 10f), new ColorRgba(primary.R, primary.G, primary.B, alpha));
+                batch.FillRectangle(new RectangleF(pos.X - r, pos.Y - 34f, r * 2f, 6f), new ColorRgba(163, 163, 50, alpha));
+                break;
+
+            case MapPropType.CherryBlossomTree:
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 20f), r * 0.85f, new ColorRgba(236, 72, 153, subAlpha));
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 28f), r, new ColorRgba(primary.R, primary.G, primary.B, alpha));
+                batch.FillCircle(new Vector2(pos.X - (r * 0.5f), pos.Y - 22f), r * 0.75f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
+                batch.FillCircle(new Vector2(pos.X + (r * 0.5f), pos.Y - 24f), r * 0.75f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 42f), r * 0.65f, new ColorRgba(251, 207, 232, alpha));
+                batch.FillCircle(new Vector2(pos.X - 8f, pos.Y - 34f), r * 0.35f, new ColorRgba(255, 255, 255, alpha));
+                break;
+
+            case MapPropType.GlacialCrystal:
                 break;
             case MapPropType.None:
                 break;

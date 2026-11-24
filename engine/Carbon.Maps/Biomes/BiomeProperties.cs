@@ -45,7 +45,16 @@ public readonly record struct BiomeProperties(
         new(BiomeType.FrozenTundra, IsSolid: false, MoveSpeedMultiplier: 1.15f, ColorRgba: 0xDFECF4FF),
 
         // VolcanicAshland: Dark obsidian charcoal basalt (0x353338FF)
-        new(BiomeType.VolcanicAshland, IsSolid: true, MoveSpeedMultiplier: 0.0f, ColorRgba: 0x353338FF)
+        new(BiomeType.VolcanicAshland, IsSolid: true, MoveSpeedMultiplier: 0.0f, ColorRgba: 0x353338FF),
+
+        // AlpinePeaks: Glaciated icy blue-white mountain peaks (0xD8E8F5FF)
+        new(BiomeType.AlpinePeaks, IsSolid: false, MoveSpeedMultiplier: 0.85f, ColorRgba: 0xD8E8F5FF),
+
+        // Savanna: Golden amber savanna prairie (0xC4A35AFF)
+        new(BiomeType.Savanna, IsSolid: false, MoveSpeedMultiplier: 1.05f, ColorRgba: 0xC4A35AFF),
+
+        // BlossomWoods: Vibrant emerald jade with blossom radiance (0x488C64FF)
+        new(BiomeType.BlossomWoods, IsSolid: false, MoveSpeedMultiplier: 1.0f, ColorRgba: 0x488C64FF)
     ];
 
     /// <summary>

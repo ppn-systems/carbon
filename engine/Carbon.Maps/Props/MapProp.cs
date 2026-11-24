@@ -69,13 +69,15 @@ public readonly record struct MapProp(
         MapPropType.PineTree or MapPropType.SnowPine => this.WorldPositionY + (20f * this.Scale),
         MapPropType.PalmTree => this.WorldPositionY + (26f * this.Scale),
         MapPropType.WillowTree => this.WorldPositionY + (20f * this.Scale),
+        MapPropType.AcaciaTree => this.WorldPositionY + (18f * this.Scale),
+        MapPropType.CherryBlossomTree => this.WorldPositionY + (16f * this.Scale),
         MapPropType.DeadTree => this.WorldPositionY + (18f * this.Scale),
         MapPropType.Cactus => this.WorldPositionY + (20f * this.Scale),
         MapPropType.AncientShrine => this.WorldPositionY + (20f * this.Scale),
         MapPropType.Bush or MapPropType.MushroomCluster => this.WorldPositionY + this.Radius,
         MapPropType.CopperVein or MapPropType.IronVein or MapPropType.GoldVein or
         MapPropType.CoalDeposit or MapPropType.SilverVein or MapPropType.CrystalCluster or
-        MapPropType.Boulder or MapPropType.BasaltPillar => this.WorldPositionY + (this.CollisionRadius > 0.001f ? this.CollisionRadius : this.Radius),
+        MapPropType.GlacialCrystal or MapPropType.Boulder or MapPropType.BasaltPillar => this.WorldPositionY + (this.CollisionRadius > 0.001f ? this.CollisionRadius : this.Radius),
         MapPropType.None => this.WorldPositionY,
         _ => this.WorldPositionY + (this.CollisionRadius > 0.001f ? this.CollisionRadius : this.Radius)
     };
@@ -116,9 +118,9 @@ public readonly record struct MapProp(
         uint colorSecondary,
         float scale = 1.0f)
     {
-        bool isTree = type is MapPropType.OakTree or MapPropType.BirchTree or MapPropType.PineTree or MapPropType.SnowPine or MapPropType.PalmTree or MapPropType.WillowTree;
+        bool isTree = type is MapPropType.OakTree or MapPropType.BirchTree or MapPropType.PineTree or MapPropType.SnowPine or MapPropType.PalmTree or MapPropType.WillowTree or MapPropType.AcaciaTree or MapPropType.CherryBlossomTree;
         bool isFlora = isTree || type is MapPropType.DeadTree or MapPropType.Cactus or MapPropType.Bush or MapPropType.MushroomCluster;
-        bool isOre = type is MapPropType.CopperVein or MapPropType.IronVein or MapPropType.GoldVein or MapPropType.CoalDeposit or MapPropType.SilverVein or MapPropType.CrystalCluster or MapPropType.Boulder or MapPropType.BasaltPillar;
+        bool isOre = type is MapPropType.CopperVein or MapPropType.IronVein or MapPropType.GoldVein or MapPropType.CoalDeposit or MapPropType.SilverVein or MapPropType.CrystalCluster or MapPropType.GlacialCrystal or MapPropType.Boulder or MapPropType.BasaltPillar;
 
         PropCategory category = isTree || isFlora ? PropCategory.Flora : (isOre ? PropCategory.Mineral : PropCategory.Structure);
         PropDestructibility destruct = isOre ? PropDestructibility.Create(200f, 1) : (isTree ? PropDestructibility.Create(100f, 1) : PropDestructibility.Create(50f, 0));

@@ -514,6 +514,135 @@ public static class BiomePropResolver
 
                 break;
 
+            case BiomeType.AlpinePeaks:
+                // High alpine glacial peaks: silver outcroppings, glowing glacial crystals, frost-bound conifers
+                if (isVeinNode)
+                {
+                    if (roll < 0.40f)
+                    {
+                        prop = MapProp.Create(MapPropType.SilverVein, localX, localY, worldX, worldY, radius: 21f * scaleVar, isSolid: true, 0x475569FF, 0xF1F5F9FF, scaleVar);
+                        return true;
+                    }
+
+                    if (roll < 0.85f)
+                    {
+                        prop = MapProp.Create(MapPropType.GlacialCrystal, localX, localY, worldX, worldY, radius: 22f * scaleVar, isSolid: true, 0x0EA5E9FF, 0xE0F2FEFF, scaleVar);
+                        return true;
+                    }
+
+                    prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0x94A3B8FF, 0xE2E8F0FF, scaleVar);
+                    return true;
+                }
+
+                if (isTreeSlot && foliageDensity >= 0.65f && roll < 0.25f)
+                {
+                    prop = MapProp.Create(MapPropType.SnowPine, localX, localY, worldX, worldY, radius: 32f * scaleVar, isSolid: true, 0xF8FAFCFF, 0x0284C7FF, scaleVar);
+                    return true;
+                }
+
+                break;
+
+            case BiomeType.Savanna:
+                // Vast amber plains with solitary umbrella acacia trees and clustered copper seams
+                if (isVeinNode)
+                {
+                    if (roll < 0.50f)
+                    {
+                        prop = MapProp.Create(MapPropType.CopperVein, localX, localY, worldX, worldY, radius: 21f * scaleVar, isSolid: true, 0x78350FFF, 0x2DD4BFFF, scaleVar);
+                        return true;
+                    }
+
+                    if (roll < 0.80f)
+                    {
+                        prop = MapProp.Create(MapPropType.IronVein, localX, localY, worldX, worldY, radius: 21f * scaleVar, isSolid: true, 0x334155FF, 0xEA580CFF, scaleVar);
+                        return true;
+                    }
+
+                    prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0xB45309FF, 0x78350FFF, scaleVar);
+                    return true;
+                }
+
+                if (isTreeSlot && foliageDensity >= 0.48f && roll < 0.25f)
+                {
+                    prop = MapProp.Create(MapPropType.AcaciaTree, localX, localY, worldX, worldY, radius: 38f * scaleVar, isSolid: true, 0x65A30DFF, 0x78350FFF, scaleVar);
+                    return true;
+                }
+                else if (!isNearWater && roll < 0.020f)
+                {
+                    prop = MapProp.Create(MapPropType.Bush, localX, localY, worldX, worldY, radius: 15f * scaleVar, isSolid: false, 0xA16207FF, 0xCA8A04FF, scaleVar);
+                    return true;
+                }
+
+                break;
+
+            case BiomeType.BlossomWoods:
+                // Enchanted flowering grove: blooming sakura cherry trees, crystal clusters, and soft undergrowth
+                if (isVeinNode)
+                {
+                    if (roll < 0.45f)
+                    {
+                        prop = MapProp.Create(MapPropType.CrystalCluster, localX, localY, worldX, worldY, radius: 23f * scaleVar, isSolid: true, 0xC084FCFF, 0xF472B6FF, scaleVar);
+                        return true;
+                    }
+
+                    if (roll < 0.80f)
+                    {
+                        prop = MapProp.Create(MapPropType.CopperVein, localX, localY, worldX, worldY, radius: 21f * scaleVar, isSolid: true, 0x78350FFF, 0x2DD4BFFF, scaleVar);
+                        return true;
+                    }
+
+                    prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0x475569FF, 0xEC4899FF, scaleVar);
+                    return true;
+                }
+
+                if (isTreeSlot)
+                {
+                    if (foliageDensity >= 0.65f)
+                    {
+                        if (roll < 0.45f)
+                        {
+                            prop = MapProp.Create(MapPropType.CherryBlossomTree, localX, localY, worldX, worldY, radius: 36f * scaleVar, isSolid: true, 0xF472B6FF, 0x3F2213FF, scaleVar);
+                            return true;
+                        }
+
+                        if (roll < 0.68f)
+                        {
+                            prop = MapProp.Create(MapPropType.OakTree, localX, localY, worldX, worldY, radius: 34f * scaleVar, isSolid: true, 0x059669FF, 0x451A03FF, scaleVar);
+                            return true;
+                        }
+                    }
+                    else if (foliageDensity >= 0.40f)
+                    {
+                        if (roll < 0.25f)
+                        {
+                            prop = MapProp.Create(MapPropType.CherryBlossomTree, localX, localY, worldX, worldY, radius: 36f * scaleVar, isSolid: true, 0xF472B6FF, 0x3F2213FF, scaleVar);
+                            return true;
+                        }
+
+                        if (roll < 0.40f)
+                        {
+                            prop = MapProp.Create(MapPropType.BirchTree, localX, localY, worldX, worldY, radius: 30f * scaleVar, isSolid: true, 0x84CC16FF, 0xF8FAFCFF, scaleVar);
+                            return true;
+                        }
+                    }
+                }
+                else if (!isNearWater)
+                {
+                    if (roll < 0.035f)
+                    {
+                        prop = MapProp.Create(MapPropType.Bush, localX, localY, worldX, worldY, radius: 16f * scaleVar, isSolid: false, 0x10B981FF, 0xF472B6FF, scaleVar);
+                        return true;
+                    }
+
+                    if (roll < 0.055f)
+                    {
+                        prop = MapProp.Create(MapPropType.MushroomCluster, localX, localY, worldX, worldY, radius: 14f * scaleVar, isSolid: false, 0xA855F7FF, 0xFAF5FFFF, scaleVar);
+                        return true;
+                    }
+                }
+
+                break;
+
             default:
                 break;
         }

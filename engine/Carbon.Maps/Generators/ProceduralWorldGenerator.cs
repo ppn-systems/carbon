@@ -211,7 +211,7 @@ public sealed class ProceduralWorldGenerator
 
         float moisture = Math.Clamp(rawMoisture, 0f, 1f);
 
-        // 4. Hydrology & Continuous Serpentine River Carving
+        // 4. Hydrology, Continuous Serpentine Rivers, Inland Lakes & Desert Oases
         // Rivers flow across continental landmasses and carve natural riverbeds down to sea level.
         // Once reaching the ocean (elevation < 0.32f), the river naturally discharges into the sea;
         // oceanic waters are never altered or elevated into artificial sandbanks.
@@ -219,9 +219,24 @@ public sealed class ProceduralWorldGenerator
         {
             float riverDist = this.GetRiverDistance(worldX, worldY);
 
-            if (riverDist <= 2.2f)
+            // Natural inland freshwater lakes and desert oases
+            float lakeNoise = _riverNoise.Evaluate((fx * 3.6f) + 120f, (fy * 3.6f) + 120f, octaves: 2);
+            bool isLakeOrOasis = false;
+
+            if (temperature > 0.68f && rawMoisture < 0.28f && elevation >= 0.42f && elevation <= 0.62f && lakeNoise > 0.86f)
             {
-                // Flowing freshwater river channel: continuous, un-severed water surface
+                // Desert oasis spring in arid dunes
+                isLakeOrOasis = true;
+            }
+            else if (elevation >= 0.45f && elevation <= 0.68f && rawMoisture >= 0.50f && riverDist > 14f && lakeNoise > 0.88f)
+            {
+                // Mountain / valley freshwater lake
+                isLakeOrOasis = true;
+            }
+
+            if (riverDist <= 2.2f || isLakeOrOasis)
+            {
+                // Flowing freshwater river channel or inland lake: continuous, un-severed water surface
                 byte riverVariant = (byte)((worldX ^ (worldY * 31)) & 3);
                 return new MapTile(
                     BiomeType.ShallowWater,
