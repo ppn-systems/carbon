@@ -262,6 +262,7 @@ public sealed class GeometryBatch : IDisposable
         }
 
         _stateCache.SetBlendState(in _blendState);
+        _stateCache.SetDepthStencilState(DepthStencilState.None);
         _vao.Bind();
 
         _vbo.SetData(_vertices.AsSpan(0, _vertexCount), 0, discardBuffer: true);

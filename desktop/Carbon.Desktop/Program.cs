@@ -75,6 +75,10 @@ public static class Program
 
     private static void OnLoad(IGameWindow window)
     {
+        Console.WriteLine($"[OpenGL] Vendor:   {window.Device.Gl.GetStringS(StringName.Vendor)}");
+        Console.WriteLine($"[OpenGL] Renderer: {window.Device.Gl.GetStringS(StringName.Renderer)}");
+        Console.WriteLine($"[OpenGL] Version:  {window.Device.Gl.GetStringS(StringName.Version)}");
+
         s_geometryBatch = new GeometryBatch(window.Device);
         s_camera = new Camera2D(window.Width, window.Height)
         {
@@ -297,6 +301,12 @@ public static class Program
         }
 
         s_geometryBatch.End();
+
+        GLEnum glError = window.Device.Gl.GetError();
+        if (glError != GLEnum.NoError)
+        {
+            Console.WriteLine($"[OpenGL Error] {glError}");
+        }
     }
 
     private static void OnResize(IGameWindow window, int width, int height)
