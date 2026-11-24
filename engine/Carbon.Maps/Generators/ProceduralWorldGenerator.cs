@@ -4,6 +4,8 @@ using System;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
 using Carbon.Maps.Noise;
+using Carbon.Maps.Props;
+using Carbon.Maps.Structures;
 
 namespace Carbon.Maps.Generators;
 
@@ -18,6 +20,7 @@ public sealed class ProceduralWorldGenerator
     private readonly DomainWarp2D _elevationWarp;
     private readonly FractalNoise2D _temperatureNoise;
     private readonly FractalNoise2D _moistureNoise;
+    private readonly FractalNoise2D _riverNoise;
 
     /// <summary>
     /// Gets the deterministic generation seed.
@@ -34,6 +37,7 @@ public sealed class ProceduralWorldGenerator
         _elevationWarp = new DomainWarp2D(seed ^ 0x1234567890ABCDEFUL);
         _temperatureNoise = new FractalNoise2D(seed ^ 0xFEDCBA0987654321UL);
         _moistureNoise = new FractalNoise2D(seed ^ 0xCAFEBABE1337BEEFUL);
+        _riverNoise = new FractalNoise2D(seed ^ 0x9876543210ABCDEFUL);
     }
 
     /// <summary>
@@ -41,9 +45,9 @@ public sealed class ProceduralWorldGenerator
     /// </summary>
     /// <param name="width">Map width in tiles.</param>
     /// <param name="height">Map height in tiles.</param>
-    /// <param name="frequency">Spatial frequency scale of terrain features (default 0.015f).</param>
+    /// <param name="frequency">Spatial frequency scale of terrain features (default 0.0025f).</param>
     /// <returns>Populated <see cref="TilemapData"/>.</returns>
-    public TilemapData GenerateTilemap(int width, int height, float frequency = 0.015f)
+    public TilemapData GenerateTilemap(int width, int height, float frequency = 0.0025f)
     {
         TilemapData map = new(width, height);
 
@@ -61,13 +65,22 @@ public sealed class ProceduralWorldGenerator
 
     /// <summary>
     /// Generates a single 32x32 world chunk at the given chunk grid coordinates.
-    /// Seamlessly continuous across chunk boundaries.
+    /// Seamlessly continuous across chunk boundaries with procedural prop placement.
     /// </summary>
     /// <param name="chunkX">Chunk horizontal coordinate.</param>
     /// <param name="chunkY">Chunk vertical coordinate.</param>
-    /// <param name="frequency">Spatial frequency scale of terrain features (default 0.015f).</param>
+    /// <param name="frequency">Spatial frequency scale of terrain features (default 0.0025f).</param>
+    /// <param name="spawnTileX">World spawn tile X (for settlement placement).</param>
+    /// <param name="spawnTileY">World spawn tile Y (for settlement placement).</param>
+    /// <param name="tileSize">Physical dimension of each tile in world units.</param>
     /// <returns>Populated <see cref="Chunk2D"/>.</returns>
-    public Chunk2D GenerateChunk(int chunkX, int chunkY, float frequency = 0.015f)
+    public Chunk2D GenerateChunk(
+        int chunkX,
+        int chunkY,
+        float frequency = 0.0025f,
+        int spawnTileX = 0,
+        int spawnTileY = 0,
+        float tileSize = 32f)
     {
         Chunk2D chunk = new(chunkX, chunkY);
         int startX = chunkX * Chunk2D.Size;
@@ -81,6 +94,36 @@ public sealed class ProceduralWorldGenerator
                 int worldX = startX + localX;
                 MapTile tile = this.SampleTile(worldX, worldY, frequency);
                 chunk.SetTile(localX, localY, tile);
+
+                // 1. Check if occupied by Starter Village structure
+                if (StarterVillageGenerator.TryResolveVillageStructure(
+                    worldX,
+                    worldY,
+                    localX,
+                    localY,
+                    spawnTileX,
+                    spawnTileY,
+                    tileSize,
+                    out MapProp villageProp))
+                {
+                    chunk.AddProp(villageProp);
+                }
+                else if (!StarterVillageGenerator.IsWithinVillage(worldX, worldY, spawnTileX, spawnTileY))
+                {
+                    // 2. Wilderness procedural props & flora (only outside village perimeter)
+                    if (BiomePropResolver.TryResolveProp(
+                        worldX,
+                        worldY,
+                        localX,
+                        localY,
+                        tile.Biome,
+                        tileSize,
+                        _seed,
+                        out MapProp wildProp))
+                    {
+                        chunk.AddProp(wildProp);
+                    }
+                }
             }
         }
 
@@ -94,7 +137,7 @@ public sealed class ProceduralWorldGenerator
     /// <param name="worldY">World Y tile coordinate.</param>
     /// <param name="frequency">Spatial frequency scale.</param>
     /// <returns>Evaluated <see cref="MapTile"/>.</returns>
-    public MapTile SampleTile(int worldX, int worldY, float frequency = 0.015f)
+    public MapTile SampleTile(int worldX, int worldY, float frequency = 0.0025f)
     {
         float fx = worldX * frequency;
         float fy = worldY * frequency;
@@ -109,11 +152,24 @@ public sealed class ProceduralWorldGenerator
         // 3. Moisture
         float moisture = _moistureNoise.Evaluate(fx * 0.8f, fy * 0.8f, octaves: 3);
 
-        // 4. Resolve biome
+        // 4. Hydrology & River carving (when on land, elevation > 0.38f)
+        if (elevation >= 0.38f && elevation <= 0.80f)
+        {
+            float riverVal = MathF.Abs(_riverNoise.Evaluate(fx * 2.5f, fy * 2.5f, octaves: 2) - 0.5f);
+            if (riverVal < 0.012f)
+            {
+                bool isCenter = riverVal < 0.006f;
+                BiomeType riverBiome = isCenter ? BiomeType.ShallowWater : BiomeType.BeachSand;
+                byte riverVariant = (byte)((worldX ^ (worldY * 31)) & 3);
+                return new MapTile(riverBiome, isCenter ? 0.28f : 0.35f, temperature, 1.0f, false, riverVariant);
+            }
+        }
+
+        // 5. Resolve biome
         BiomeType biome = WhittakerBiomeResolver.Resolve(elevation, temperature, moisture);
         bool isSolid = BiomeProperties.Get(biome).IsSolid;
 
-        // 5. Procedural variant for subtle visual variation
+        // 6. Procedural variant for subtle visual variation
         byte variant = (byte)((worldX ^ (worldY * 31)) & 3);
 
         return new MapTile(biome, elevation, temperature, moisture, isSolid, variant);

@@ -18,6 +18,12 @@ public sealed class Chunk2D
     private readonly int _chunkX;
     private readonly int _chunkY;
     private readonly MapTile[] _tiles = new MapTile[Size * Size];
+    private readonly System.Collections.Generic.List<Carbon.Maps.Props.MapProp> _props = new();
+
+    /// <summary>
+    /// Gets the list of physical and decorative props positioned within this chunk.
+    /// </summary>
+    public System.Collections.Generic.List<Carbon.Maps.Props.MapProp> Props => _props;
 
     /// <summary>
     /// Gets the horizontal chunk coordinate in chunk space.
@@ -59,7 +65,18 @@ public sealed class Chunk2D
     }
 
     /// <summary>
-    /// Generates a local <see cref="TileObstacleGrid"/> from the solid tiles within this chunk.
+    /// Appends a prop to this chunk's collection.
+    /// </summary>
+    /// <param name="prop">The prop to add.</param>
+    public void AddProp(in Carbon.Maps.Props.MapProp prop) => _props.Add(prop);
+
+    /// <summary>
+    /// Clears all props from this chunk.
+    /// </summary>
+    public void ClearProps() => _props.Clear();
+
+    /// <summary>
+    /// Generates a local <see cref="TileObstacleGrid"/> from the solid tiles and physical props within this chunk.
     /// </summary>
     /// <param name="tileSize">Dimension of each tile in world units (e.g. 32f).</param>
     /// <returns>A populated obstacle grid.</returns>
@@ -74,6 +91,17 @@ public sealed class Chunk2D
                 {
                     grid.SetSolid(x, y, true);
                 }
+            }
+        }
+
+        for (int i = 0; i < _props.Count; i++)
+        {
+            Carbon.Maps.Props.MapProp p = _props[i];
+            if (p.HasCollision)
+            {
+                int px = Math.Clamp(p.LocalTileX, 0, Size - 1);
+                int py = Math.Clamp(p.LocalTileY, 0, Size - 1);
+                grid.SetSolid(px, py, true);
             }
         }
 
