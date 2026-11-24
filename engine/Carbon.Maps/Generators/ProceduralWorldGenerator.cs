@@ -23,7 +23,7 @@ public sealed class ProceduralWorldGenerator
     /// Bump it whenever any change alters generated output (the golden-hash test fails), so a client running
     /// a different generator refuses to play instead of silently desyncing.
     /// </summary>
-    public const ushort GeneratorVersion = 4;
+    public const ushort GeneratorVersion = 5;
 
 
     /// <summary>
@@ -170,6 +170,16 @@ public sealed class ProceduralWorldGenerator
     /// <param name="worldY">World tile Y.</param>
     /// <returns>Width-scaled distance to the nearest river or lake.</returns>
     public float GetRiverDistance(int worldX, int worldY) => _rivers.GetDistance(worldX, worldY);
+
+    /// <summary>
+    /// Builds the river regions around a point on the thread pool ahead of time, so streaming chunks in
+    /// does not stall on a region build (~0.3 s each). Safe to call every frame.
+    /// </summary>
+    /// <param name="worldTileX">World tile X.</param>
+    /// <param name="worldTileY">World tile Y.</param>
+    /// <param name="radiusTiles">Radius in tiles.</param>
+    public void PrewarmHydrology(int worldTileX, int worldTileY, int radiusTiles) =>
+        _rivers.Prewarm(worldTileX, worldTileY, radiusTiles);
 
     /// <summary>
     /// Smooth, low-detail terrain relief used for discrete height levels and river routing. Built from the

@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Carbon.Maps.Random;
 
 namespace Carbon.Maps.Hydrology;
@@ -54,6 +55,14 @@ internal sealed class RiverNetwork
     private const float MaxStoredDistance = (FarAway - 1) / Quantum;
 
     private const int MaxCachedRegions = 48;
+
+    // Extra grid border (tiles) used only by depression filling.
+    private const int FillApron = 384;
+
+    // Elevation samples are cached in blocks of BlockCells x BlockCells cells and shared between regions,
+    // whose grids overlap by more than 80 %.
+    private const int BlockCells = 64;
+    private const int MaxCachedBlocks = 400;
     // Priority-flood epsilon: filled depressions keep a tiny downhill gradient towards their outlet.
     private const float FillEpsilon = 1e-5f;
 
@@ -73,6 +82,7 @@ internal sealed class RiverNetwork
     private readonly ulong _seed;
     private readonly Func<int, int, float> _relief;
     private readonly ConcurrentDictionary<long, Lazy<byte[]>> _regions = new();
+    private readonly ConcurrentDictionary<long, Lazy<float[]>> _blocks = new();
 
     /// <summary>Initializes a new instance of the <see cref="RiverNetwork"/> class.</summary>
     /// <param name="seed">World seed.</param>
@@ -99,20 +109,106 @@ internal sealed class RiverNetwork
         return q == FarAway ? float.MaxValue : q / Quantum;
     }
 
-    private byte[] GetRegion(int rx, int ry)
+    /// <summary>
+    /// Starts building, on the thread pool, every region within <paramref name="radiusTiles"/> of a point,
+    /// so the region is ready before the player's chunks need it. Already built or building regions are skipped.
+    /// </summary>
+    /// <param name="worldX">World tile X.</param>
+    /// <param name="worldY">World tile Y.</param>
+    /// <param name="radiusTiles">Radius in tiles.</param>
+    public void Prewarm(int worldX, int worldY, int radiusTiles)
     {
-        long key = ((long)rx << 32) | (uint)ry;
-        if (_regions.Count > MaxCachedRegions)
+        int rx0 = FloorDiv(worldX - radiusTiles, RegionSize);
+        int rx1 = FloorDiv(worldX + radiusTiles, RegionSize);
+        int ry0 = FloorDiv(worldY - radiusTiles, RegionSize);
+        int ry1 = FloorDiv(worldY + radiusTiles, RegionSize);
+        for (int ry = ry0; ry <= ry1; ry++)
         {
-            // Approximate eviction: drop an arbitrary region; it is recomputed identically if needed again.
-            foreach (long k in _regions.Keys)
+            for (int rx = rx0; rx <= rx1; rx++)
             {
-                if (k != key && _regions.TryRemove(k, out _))
+                long key = ((long)rx << 32) | (uint)ry;
+                if (_regions.ContainsKey(key))
                 {
-                    break;
+                    continue;
+                }
+
+                int bx = rx;
+                int by = ry;
+                _ = Task.Run(() => this.GetRegion(bx, by));
+            }
+        }
+    }
+
+    private float[] SampleGrid(int gx0, int gy0, int g)
+    {
+        float[] grid = new float[g * g];
+        int bx0 = FloorDiv(gx0, BlockCells);
+        int by0 = FloorDiv(gy0, BlockCells);
+        int bx1 = FloorDiv(gx0 + g - 1, BlockCells);
+        int by1 = FloorDiv(gy0 + g - 1, BlockCells);
+        for (int by = by0; by <= by1; by++)
+        {
+            for (int bx = bx0; bx <= bx1; bx++)
+            {
+                float[] block = this.GetBlock(bx, by);
+                int cx0 = Math.Max(bx * BlockCells, gx0);
+                int cx1 = Math.Min((bx + 1) * BlockCells, gx0 + g);
+                int cy0 = Math.Max(by * BlockCells, gy0);
+                int cy1 = Math.Min((by + 1) * BlockCells, gy0 + g);
+                for (int cy = cy0; cy < cy1; cy++)
+                {
+                    int src = ((cy - (by * BlockCells)) * BlockCells) + (cx0 - (bx * BlockCells));
+                    int dst = ((cy - gy0) * g) + (cx0 - gx0);
+                    Array.Copy(block, src, grid, dst, cx1 - cx0);
                 }
             }
         }
+
+        return grid;
+    }
+
+    private float[] GetBlock(int bx, int by)
+    {
+        long key = ((long)bx << 32) | (uint)by;
+        Evict(_blocks, key, MaxCachedBlocks);
+        return _blocks.GetOrAdd(key, _ => new Lazy<float[]>(() =>
+        {
+            float[] block = new float[BlockCells * BlockCells];
+            for (int cy = 0; cy < BlockCells; cy++)
+            {
+                for (int cx = 0; cx < BlockCells; cx++)
+                {
+                    int wx = (((bx * BlockCells) + cx) * Cell) + (Cell / 2);
+                    int wy = (((by * BlockCells) + cy) * Cell) + (Cell / 2);
+                    block[(cy * BlockCells) + cx] = _relief(wx, wy);
+                }
+            }
+
+            return block;
+        })).Value;
+    }
+
+    // Approximate eviction: drop an arbitrary entry; it is recomputed identically if needed again.
+    private static void Evict<T>(ConcurrentDictionary<long, T> cache, long keep, int max)
+    {
+        if (cache.Count <= max)
+        {
+            return;
+        }
+
+        foreach (long k in cache.Keys)
+        {
+            if (k != keep && cache.TryRemove(k, out _))
+            {
+                return;
+            }
+        }
+    }
+
+    private byte[] GetRegion(int rx, int ry)
+    {
+        long key = ((long)rx << 32) | (uint)ry;
+        Evict(_regions, key, MaxCachedRegions);
 
         return _regions.GetOrAdd(key, k => new Lazy<byte[]>(() => this.BuildRegion(rx, ry))).Value;
     }
@@ -122,18 +218,15 @@ internal sealed class RiverNetwork
         int x0 = rx * RegionSize;
         int y0 = ry * RegionSize;
 
-        // Flow grid covering the region plus the maximum river length on every side.
-        int gx0 = FloorDiv(x0 - MaxRiverLength, Cell);
-        int gy0 = FloorDiv(y0 - MaxRiverLength, Cell);
-        int g = ((RegionSize + (2 * MaxRiverLength)) / Cell) + 1;
-        float[] relief = new float[g * g];
-        for (int cy = 0; cy < g; cy++)
-        {
-            for (int cx = 0; cx < g; cx++)
-            {
-                relief[(cy * g) + cx] = _relief(((gx0 + cx) * Cell) + (Cell / 2), ((gy0 + cy) * Cell) + (Cell / 2));
-            }
-        }
+        // Flow grid covering the region, the maximum river length on every side (every river that can reach
+        // the region springs inside it) and an extra fill apron, so the artificial outlets on the grid edge
+        // are too far away to change how basins near the region fill (keeps rivers continuous across
+        // region borders).
+        int margin = MaxRiverLength + FillApron;
+        int gx0 = FloorDiv(x0 - margin, Cell);
+        int gy0 = FloorDiv(y0 - margin, Cell);
+        int g = ((RegionSize + (2 * margin)) / Cell) + 1;
+        float[] relief = this.SampleGrid(gx0, gy0, g);
 
         // 1. Fill depressions (priority-flood from the grid edge and the sea). Water in a basin rises to the
         //    lowest point of its rim, which makes the filled surface drain everywhere; the filled part of
@@ -217,16 +310,47 @@ internal sealed class RiverNetwork
         // 3. Rasterise channels into the region's distance field.
         byte[] field = new byte[RegionSize * RegionSize];
         Array.Fill(field, FarAway);
+        // Main upstream stem of every cell (the inflow carrying the most water), used as the previous
+        // control point so channels are drawn as smooth Catmull-Rom curves instead of 8-tile straight segments.
+        int[] prev = new int[g * g];
+        Array.Fill(prev, -1);
+        for (int c = 0; c < next.Length; c++)
+        {
+            int n = next[c];
+            if (n >= 0 && (prev[n] < 0 || flow[c] > flow[prev[n]] || (flow[c] == flow[prev[n]] && c < prev[n])))
+            {
+                prev[n] = c;
+            }
+        }
+
+        const int Steps = 4;
         for (int a = 0; a < next.Length; a++)
         {
             int b = next[a];
-            if (b >= 0)
+            if (b < 0)
             {
-                (float ax, float ay) = this.CellPoint(a, g, gx0, gy0);
-                (float bx, float by) = this.CellPoint(b, g, gx0, gy0);
-                float wa = Width(flow[a]);
-                float wb = Width(flow[b]);
-                StampSegment(field, x0, y0, ax, ay, bx, by, wa, wb);
+                continue;
+            }
+
+            int p0 = prev[a] >= 0 ? prev[a] : a;
+            int p3 = next[b] >= 0 ? next[b] : b;
+            (float x0p, float y0p) = this.CellPoint(p0, g, gx0, gy0);
+            (float ax, float ay) = this.CellPoint(a, g, gx0, gy0);
+            (float bx, float by) = this.CellPoint(b, g, gx0, gy0);
+            (float x3p, float y3p) = this.CellPoint(p3, g, gx0, gy0);
+            float wa = Width(flow[a]);
+            float wb = Width(flow[b]);
+
+            float sx = ax;
+            float sy = ay;
+            for (int i = 1; i <= Steps; i++)
+            {
+                float t = i / (float)Steps;
+                float ex = CatmullRom(x0p, ax, bx, x3p, t);
+                float ey = CatmullRom(y0p, ay, by, y3p, t);
+                StampSegment(field, x0, y0, sx, sy, ex, ey, wa + ((wb - wa) * (i - 1) / Steps), wa + ((wb - wa) * i / Steps));
+                sx = ex;
+                sy = ey;
             }
         }
 
@@ -245,8 +369,6 @@ internal sealed class RiverNetwork
             while (pending.Count > 0)
             {
                 int k = pending.Pop();
-                (float lx, float ly) = LakeCellCentre(k, g, gx0, gy0);
-                StampLake(field, x0, y0, lx, ly, Cell * 0.8f);
                 int kx = k % g;
                 int ky = k / g;
                 for (int i = 0; i < 4; i++)
@@ -262,6 +384,8 @@ internal sealed class RiverNetwork
                 }
             }
         }
+
+        StampLakeShores(field, x0, y0, gx0, gy0, g, filled, relief, isLake);
 
         foreach (int end in lakeEnds)
         {
@@ -385,9 +509,6 @@ internal sealed class RiverNetwork
         return path;
     }
 
-    private static (float X, float Y) LakeCellCentre(int index, int g, int gx0, int gy0) =>
-        (((gx0 + (index % g)) * Cell) + (Cell * 0.5f), ((gy0 + (index / g)) * Cell) + (Cell * 0.5f));
-
     // Cell centre jittered by a hash of the cell, so merged rivers share their points and the
     // D8 staircase turns into a meandering line.
     private (float X, float Y) CellPoint(int index, int g, int gx0, int gy0)
@@ -395,9 +516,16 @@ internal sealed class RiverNetwork
         int cx = gx0 + (index % g);
         int cy = gy0 + (index / g);
         ulong h = SpatialHash.Hash(_seed ^ 0x2B7E151628AED2A6UL, cx, cy);
-        float jx = (((h & 0xFFFF) / 65535f) - 0.5f) * (Cell * 0.7f);
-        float jy = ((((h >> 16) & 0xFFFF) / 65535f) - 0.5f) * (Cell * 0.7f);
+        float jx = (((h & 0xFFFF) / 65535f) - 0.5f) * (Cell * 0.45f);
+        float jy = ((((h >> 16) & 0xFFFF) / 65535f) - 0.5f) * (Cell * 0.45f);
         return ((cx * Cell) + (Cell * 0.5f) + jx, (cy * Cell) + (Cell * 0.5f) + jy);
+    }
+
+    private static float CatmullRom(float p0, float p1, float p2, float p3, float t)
+    {
+        float t2 = t * t;
+        float t3 = t2 * t;
+        return 0.5f * ((2f * p1) + ((p2 - p0) * t) + (((2f * p0) - (5f * p1) + (4f * p2) - p3) * t2) + (((3f * p1) - p0 - (3f * p2) + p3) * t3));
     }
 
     // Channel half-width scale: a spring is a narrow stream, every merged river widens it.
@@ -448,6 +576,109 @@ internal sealed class RiverNetwork
                 float ey = y0 + ty + 0.5f - ly;
                 float d = MathF.Max(MathF.Sqrt((ex * ex) + (ey * ey)) - radius, 0f);
                 Store(field, (ty * RegionSize) + tx, d);
+            }
+        }
+    }
+
+    // Lake shorelines follow the contour of the water depth (filled level minus ground), smoothed and
+    // interpolated between cell centres, instead of a union of per-cell discs. Outside the lake the stored
+    // value grows with the distance to that contour, so beaches and riparian zones stay smooth too.
+    private static void StampLakeShores(byte[] field, int x0, int y0, int gx0, int gy0, int g, float[] filled, float[] relief, bool[] isLake)
+    {
+        const float Threshold = LakeDepth * 0.5f;
+
+        // Depth of lake cells only (other basins hold no river and stay dry), with a 3x3 blur so the contour
+        // is rounded rather than following the cell grid.
+        float[] depth = new float[g * g];
+        int minCx = g;
+        int minCy = g;
+        int maxCx = -1;
+        int maxCy = -1;
+        for (int c = 0; c < depth.Length; c++)
+        {
+            if (!isLake[c])
+            {
+                continue;
+            }
+
+            depth[c] = filled[c] - relief[c];
+            minCx = Math.Min(minCx, c % g);
+            maxCx = Math.Max(maxCx, c % g);
+            minCy = Math.Min(minCy, c / g);
+            maxCy = Math.Max(maxCy, c / g);
+        }
+
+        if (maxCx < 0)
+        {
+            return;
+        }
+
+        float[] smooth = new float[g * g];
+        for (int cy = Math.Max(minCy - 2, 1); cy <= Math.Min(maxCy + 2, g - 2); cy++)
+        {
+            for (int cx = Math.Max(minCx - 2, 1); cx <= Math.Min(maxCx + 2, g - 2); cx++)
+            {
+                float sum = 0f;
+                for (int dy = -1; dy <= 1; dy++)
+                {
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        float w = (dx == 0 ? 2f : 1f) * (dy == 0 ? 2f : 1f);
+                        sum += depth[((cy + dy) * g) + cx + dx] * w;
+                    }
+                }
+
+                smooth[(cy * g) + cx] = sum / 16f;
+            }
+        }
+
+        int tx0 = Math.Max(((gx0 + minCx - 3) * Cell) - x0, 0);
+        int tx1 = Math.Min(((gx0 + maxCx + 4) * Cell) - x0, RegionSize - 1);
+        int ty0 = Math.Max(((gy0 + minCy - 3) * Cell) - y0, 0);
+        int ty1 = Math.Min(((gy0 + maxCy + 4) * Cell) - y0, RegionSize - 1);
+        for (int ty = ty0; ty <= ty1; ty++)
+        {
+            float v = ((y0 + ty + 0.5f - (Cell * 0.5f)) / Cell) - gy0;
+            int cy = (int)MathF.Floor(v);
+            if (cy < 0 || cy >= g - 1)
+            {
+                continue;
+            }
+
+            float fy = v - cy;
+            for (int tx = tx0; tx <= tx1; tx++)
+            {
+                float u = ((x0 + tx + 0.5f - (Cell * 0.5f)) / Cell) - gx0;
+                int cx = (int)MathF.Floor(u);
+                if (cx < 0 || cx >= g - 1)
+                {
+                    continue;
+                }
+
+                float fx = u - cx;
+                float d00 = smooth[(cy * g) + cx];
+                float d10 = smooth[(cy * g) + cx + 1];
+                float d01 = smooth[((cy + 1) * g) + cx];
+                float d11 = smooth[((cy + 1) * g) + cx + 1];
+                if (d00 <= 0f && d10 <= 0f && d01 <= 0f && d11 <= 0f)
+                {
+                    continue;
+                }
+
+                float top = d00 + ((d10 - d00) * fx);
+                float bottom = d01 + ((d11 - d01) * fx);
+                float d = top + ((bottom - top) * fy);
+                if (d >= Threshold)
+                {
+                    Store(field, (ty * RegionSize) + tx, 0f);
+                    continue;
+                }
+
+                // Gradient of the bilinear surface (per tile) turns the depth deficit into a distance.
+                float gx = (d10 - d00 + ((d11 - d01 - (d10 - d00)) * fy)) / Cell;
+                float gy = (bottom - top) / Cell;
+                float grad = MathF.Max(MathF.Sqrt((gx * gx) + (gy * gy)), 1e-6f);
+                Store(field, (ty * RegionSize) + tx, 2.25f + ((Threshold - d) / grad));
             }
         }
     }

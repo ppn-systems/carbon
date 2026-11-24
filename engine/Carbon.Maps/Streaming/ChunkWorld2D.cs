@@ -273,6 +273,12 @@ public sealed class ChunkWorld2D
         int centerChunkX = (int)MathF.Floor(centerWorldPos.X / chunkSizeWorld);
         int centerChunkY = (int)MathF.Floor(centerWorldPos.Y / chunkSizeWorld);
 
+        // 0. Start building river regions a little beyond the load radius in the background.
+        _generator.PrewarmHydrology(
+            (centerChunkX * Chunk2D.Size) + (Chunk2D.Size / 2),
+            (centerChunkY * Chunk2D.Size) + (Chunk2D.Size / 2),
+            (chunkRadius + 8) * Chunk2D.Size);
+
         // 1. Ensure all chunks within load radius are resident
         for (int cy = centerChunkY - chunkRadius; cy <= centerChunkY + chunkRadius; cy++)
         {
