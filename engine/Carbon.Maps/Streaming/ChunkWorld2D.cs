@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Maps.Biomes;
+using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Props;
@@ -24,10 +25,16 @@ public sealed class ChunkWorld2D
     private readonly ConcurrentDictionary<long, Chunk2D> _activeChunks = new();
     private readonly ConcurrentQueue<Chunk2D> _chunkPool = new();
     private readonly List<long> _evictionBuffer = new();
+    private readonly BuildingGrid _buildings = new();
 
     private readonly int _spawnTileX;
     private readonly int _spawnTileY;
     private readonly Vector2 _spawnWorldPosition;
+
+    /// <summary>
+    /// Gets the spatial building grid managing constructed structures, connected walls, and doors.
+    /// </summary>
+    public BuildingGrid Buildings => _buildings;
 
     /// <summary>
     /// Gets the deterministic generator powering world synthesis.
@@ -337,6 +344,13 @@ public sealed class ChunkWorld2D
                     }
                 }
             }
+        }
+
+        // 3. Resolve continuous collision against constructed building structures (walls, closed doors, pillars)
+        if (_buildings.ResolveCollision(ref position, radius, _tileSize, out Vector2 buildingPushNormal))
+        {
+            collided = true;
+            pushNormal += buildingPushNormal;
         }
 
         if (pushNormal.LengthSquared() > 0.0001f)
