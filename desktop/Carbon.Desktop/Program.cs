@@ -310,15 +310,30 @@ public static class Program
                     s_geometryBatch.FillRectangle(rect, baseColor);
 
                     // Subtle organic surface micro-details (water ripples, grass blades)
-                    if (tile.Biome is BiomeType.DeepOcean or BiomeType.ShallowWater)
+                    if (tile.Biome == BiomeType.DeepOcean)
                     {
+                        // Deep ocean swell waves: organic oceanic blue tones
                         if (tile.Variant == 1)
                         {
-                            s_geometryBatch.FillRectangle(new RectangleF(tileWorldX + 6f, tileWorldY + 12f, 18f, 2f), new ColorRgba(255, 255, 255, 75));
+                            s_geometryBatch.FillRectangle(new RectangleF(tileWorldX + 6f, tileWorldY + 12f, 18f, 2f), new ColorRgba(56, 189, 248, 55));
+                            s_geometryBatch.FillRectangle(new RectangleF(tileWorldX + 18f, tileWorldY + 14f, 6f, 1.5f), new ColorRgba(14, 165, 233, 45));
                         }
                         else if (tile.Variant == 2)
                         {
-                            s_geometryBatch.FillRectangle(new RectangleF(tileWorldX + 10f, tileWorldY + 20f, 14f, 2f), new ColorRgba(255, 255, 255, 60));
+                            s_geometryBatch.FillRectangle(new RectangleF(tileWorldX + 8f, tileWorldY + 20f, 16f, 2f), new ColorRgba(56, 189, 248, 45));
+                        }
+                    }
+                    else if (tile.Biome == BiomeType.ShallowWater)
+                    {
+                        // Shallow coastal foam ripples
+                        if (tile.Variant == 1)
+                        {
+                            s_geometryBatch.FillRectangle(new RectangleF(tileWorldX + 5f, tileWorldY + 10f, 18f, 2f), new ColorRgba(255, 255, 255, 80));
+                            s_geometryBatch.FillRectangle(new RectangleF(tileWorldX + 16f, tileWorldY + 12f, 8f, 1.5f), new ColorRgba(255, 255, 255, 60));
+                        }
+                        else if (tile.Variant == 2)
+                        {
+                            s_geometryBatch.FillRectangle(new RectangleF(tileWorldX + 9f, tileWorldY + 18f, 15f, 2f), new ColorRgba(255, 255, 255, 70));
                         }
                     }
                     else if (tile.Biome is BiomeType.LushPlains or BiomeType.AncientForest)
@@ -376,11 +391,30 @@ public static class Program
 
             if (entity == s_player)
             {
-                // Player: Sleek MMORPG hero avatar token (drop shadow, navy mantle, royal blue tunic, cyan crest, gold core)
+                // Current player tile for contextual foot effects (water splash / ripple)
+                int ptx = (int)MathF.Floor(trans.Position.X / TileSize);
+                int pty = (int)MathF.Floor(trans.Position.Y / TileSize);
+                MapTile currentTile = s_chunkWorld.GetTileAtWorld(ptx, pty);
+
+                if (currentTile.Biome is BiomeType.ShallowWater)
+                {
+                    // Water ripple ring around player's feet when wading in shallow water
+                    s_geometryBatch.FillCircle(trans.Position, col.Radius + 6f, new ColorRgba(255, 255, 255, 55));
+                    s_geometryBatch.FillCircle(trans.Position, col.Radius + 4f, new ColorRgba(56, 189, 248, 75));
+                }
+
+                // Player: High-contrast sleek MMORPG hero avatar token
+                // Drop shadow
                 s_geometryBatch.FillCircle(new Vector2(trans.Position.X + 2f, trans.Position.Y + 3f), col.Radius + 1f, new ColorRgba(0, 0, 0, 75));
+                // High-contrast platinum outer rim (ensures crisp visibility against dark ocean or night tiles)
+                s_geometryBatch.FillCircle(trans.Position, col.Radius + 1.5f, new ColorRgba(248, 250, 252, 220));
+                // Outer navy mantle
                 s_geometryBatch.FillCircle(trans.Position, col.Radius, new ColorRgba(15, 23, 42, 255));
-                s_geometryBatch.FillCircle(trans.Position, col.Radius * 0.85f, new ColorRgba(30, 64, 175, 255));
-                s_geometryBatch.FillCircle(trans.Position, col.Radius * 0.55f, new ColorRgba(56, 189, 248, 255));
+                // Royal blue tunic
+                s_geometryBatch.FillCircle(trans.Position, col.Radius * 0.82f, new ColorRgba(30, 64, 175, 255));
+                // Cyan energy ring
+                s_geometryBatch.FillCircle(trans.Position, col.Radius * 0.52f, new ColorRgba(56, 189, 248, 255));
+                // Golden core crest
                 s_geometryBatch.FillCircle(trans.Position, col.Radius * 0.22f, new ColorRgba(250, 204, 21, 255));
             }
         }

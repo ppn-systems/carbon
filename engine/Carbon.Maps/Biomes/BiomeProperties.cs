@@ -14,8 +14,8 @@ public readonly record struct BiomeProperties(
 {
     private static readonly BiomeProperties[] s_table =
     [
-        // DeepOcean: Impassable deep navy blue (0x0f172aFF)
-        new(BiomeType.DeepOcean, IsSolid: true, MoveSpeedMultiplier: 0.0f, ColorRgba: 0x0F172AFF),
+        // DeepOcean: Impassable rich sapphire oceanic navy (0x075985FF)
+        new(BiomeType.DeepOcean, IsSolid: true, MoveSpeedMultiplier: 0.0f, ColorRgba: 0x075985FF),
 
         // ShallowWater: Walkable light cyan (0x38bdf8FF)
         new(BiomeType.ShallowWater, IsSolid: false, MoveSpeedMultiplier: 0.7f, ColorRgba: 0x38BDF8FF),
