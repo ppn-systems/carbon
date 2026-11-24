@@ -100,7 +100,13 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
             }
         }
 
-        // 2. Check solid physical natural props (trees, ores, boulders)
+        // 2. Structures of villages, harbours, camps and shrines
+        if (_world.Generator.Landmarks.IsTileBlocked(worldTileX, worldTileY))
+        {
+            return TileWalkability.Impassable;
+        }
+
+        // 3. Check solid physical natural props (trees, ores, boulders)
         if (_world.HasSolidPropAt(worldTileX, worldTileY))
         {
             return TileWalkability.Impassable;

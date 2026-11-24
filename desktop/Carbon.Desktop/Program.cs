@@ -139,8 +139,7 @@ public static class Program
 
         ProceduralWorldGenerator generator = new(seed);
         s_chunkWorld = new ChunkWorld2D(generator, TileSize, MacroFrequency);
-        ChunkWorld2D world = s_chunkWorld;
-        s_poiRenderer = new PointOfInterestRenderer(TileSize, world.PeekTileAtWorld);
+        s_poiRenderer = new PointOfInterestRenderer(TileSize, generator.Landmarks);
         s_chunkTerrainRenderer?.EvictDistant(0, 0, -1);
 
         // Preload chunks around the natural safe starter spawn
@@ -460,10 +459,10 @@ public static class Program
                 }
 
                 s_poiRenderer.DrawGround(s_geometryBatch, poi);
-                IReadOnlyList<PointOfInterestRenderer.Piece> pieces = s_poiRenderer.GetPieces(poi);
-                for (int k = 0; k < pieces.Count; k++)
+                ReadOnlySpan<LandmarkPiece> pieces = s_poiRenderer.GetLayout(poi).Pieces;
+                for (int k = 0; k < pieces.Length; k++)
                 {
-                    s_groundSortList.Add(new GroundRenderItem(pieces[k].Position.Y, pieces[k]));
+                    s_groundSortList.Add(new GroundRenderItem(pieces[k].Y * TileSize, pieces[k]));
                 }
             }
         }
@@ -516,7 +515,7 @@ public static class Program
             ref readonly GroundRenderItem item = ref groundSpan[i];
             if (item.IsPiece)
             {
-                PointOfInterestRenderer.DrawPiece(s_geometryBatch, item.Piece);
+                s_poiRenderer?.DrawPiece(s_geometryBatch, item.Piece);
             }
             else if (item.IsProp)
             {
@@ -919,7 +918,7 @@ public static class Program
         public readonly MapProp Prop;
         public readonly Entity Entity;
         public readonly bool IsPiece;
-        public readonly PointOfInterestRenderer.Piece Piece;
+        public readonly LandmarkPiece Piece;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public GroundRenderItem(float sortY, in MapProp prop)
@@ -940,7 +939,7 @@ public static class Program
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public GroundRenderItem(float sortY, in PointOfInterestRenderer.Piece piece)
+        public GroundRenderItem(float sortY, in LandmarkPiece piece)
         {
             SortY = sortY;
             IsProp = false;

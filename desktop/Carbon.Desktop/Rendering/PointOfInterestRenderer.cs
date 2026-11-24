@@ -1,12 +1,9 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
-using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
-using Carbon.Maps.Biomes;
-using Carbon.Maps.Data;
 using Carbon.Maps.Landmarks;
 
 namespace Carbon.Desktop.Rendering;
@@ -24,51 +21,30 @@ namespace Carbon.Desktop.Rendering;
 internal sealed class PointOfInterestRenderer
 {
     private readonly float _tileSize;
-    private readonly Func<int, int, MapTile> _tileAt;
-    private readonly Dictionary<long, Layout> _layouts = new();
+    private readonly PointOfInterestResolver _landmarks;
 
-    public PointOfInterestRenderer(float tileSize, Func<int, int, MapTile> tileAt)
+    public PointOfInterestRenderer(float tileSize, PointOfInterestResolver landmarks)
     {
         _tileSize = tileSize;
-        _tileAt = tileAt;
+        _landmarks = landmarks;
     }
-
-    /// <summary>Kind of an upright piece that takes part in Y-sorting.</summary>
-    public enum PieceKind : byte
-    {
-        House,
-        Warehouse,
-        Well,
-        Tent,
-        Campfire,
-        ShrineGate,
-        StoneLantern,
-        Altar,
-        Barrel,
-    }
-
-    /// <summary>An upright piece of a point of interest. <see cref="Position"/> is its ground contact point.</summary>
-    public readonly record struct Piece(PieceKind Kind, Vector2 Position, float Width, byte Variant);
-
-    /// <summary>Drops cached layouts (e.g. after the world is regenerated).</summary>
-    public void Clear() => _layouts.Clear();
 
     /// <summary>Draws the flat ground layer of a point of interest.</summary>
     public void DrawGround(GeometryBatch batch, in PointOfInterest poi)
     {
-        Layout layout = this.GetLayout(poi);
+        LandmarkLayout layout = this.GetLayout(poi);
         Vector2 c = this.Centre(poi);
         float r = poi.Radius * _tileSize;
 
         switch (poi.Type)
         {
             case PointOfInterestType.RiverVillage:
-                DrawFields(batch, layout);
-                foreach (Piece p in layout.Pieces)
+                this.DrawFields(batch, layout);
+                foreach (LandmarkPiece p in layout.Pieces)
                 {
-                    if (p.Kind == PieceKind.House)
+                    if (p.Kind == LandmarkPieceKind.House)
                     {
-                        DrawPath(batch, c, p.Position + new Vector2(0f, 6f), 14f);
+                        DrawPath(batch, c, this.ToWorld(p) + new Vector2(0f, 6f), 14f);
                     }
                 }
 
@@ -95,40 +71,46 @@ internal sealed class PointOfInterestRenderer
         }
     }
 
-    /// <summary>Gets the upright pieces of a point of interest, for Y-sorting.</summary>
-    public IReadOnlyList<Piece> GetPieces(in PointOfInterest poi) => this.GetLayout(poi).Pieces;
+    /// <summary>Gets the layout (structures and fields) of a point of interest, shared with the engine.</summary>
+    public LandmarkLayout GetLayout(in PointOfInterest poi) =>
+        _landmarks.GetLayout(FloorDiv(poi.TileX, PointOfInterestResolver.SiteSize), FloorDiv(poi.TileY, PointOfInterestResolver.SiteSize));
 
-    /// <summary>Draws one upright piece.</summary>
-    public static void DrawPiece(GeometryBatch batch, in Piece piece)
+    /// <summary>Ground contact point of a structure in world pixels.</summary>
+    public Vector2 ToWorld(in LandmarkPiece piece) => new(piece.X * _tileSize, piece.Y * _tileSize);
+
+    /// <summary>Draws one upright structure.</summary>
+    public void DrawPiece(GeometryBatch batch, in LandmarkPiece piece)
     {
+        Vector2 position = this.ToWorld(piece);
+        float width = piece.Width * _tileSize;
         switch (piece.Kind)
         {
-            case PieceKind.House:
-                DrawHouse(batch, piece.Position, piece.Width, piece.Variant, isWarehouse: false);
+            case LandmarkPieceKind.House:
+                DrawHouse(batch, position, width, piece.Variant, isWarehouse: false);
                 break;
-            case PieceKind.Warehouse:
-                DrawHouse(batch, piece.Position, piece.Width, piece.Variant, isWarehouse: true);
+            case LandmarkPieceKind.Warehouse:
+                DrawHouse(batch, position, width, piece.Variant, isWarehouse: true);
                 break;
-            case PieceKind.Well:
-                DrawWell(batch, piece.Position);
+            case LandmarkPieceKind.Well:
+                DrawWell(batch, position);
                 break;
-            case PieceKind.Tent:
-                DrawTent(batch, piece.Position, piece.Width, piece.Variant);
+            case LandmarkPieceKind.Tent:
+                DrawTent(batch, position, width, piece.Variant);
                 break;
-            case PieceKind.Campfire:
-                DrawCampfire(batch, piece.Position);
+            case LandmarkPieceKind.Campfire:
+                DrawCampfire(batch, position);
                 break;
-            case PieceKind.ShrineGate:
-                DrawShrineGate(batch, piece.Position, piece.Width);
+            case LandmarkPieceKind.ShrineGate:
+                DrawShrineGate(batch, position, width);
                 break;
-            case PieceKind.StoneLantern:
-                DrawStoneLantern(batch, piece.Position);
+            case LandmarkPieceKind.StoneLantern:
+                DrawStoneLantern(batch, position);
                 break;
-            case PieceKind.Altar:
-                DrawAltar(batch, piece.Position);
+            case LandmarkPieceKind.Altar:
+                DrawAltar(batch, position);
                 break;
-            case PieceKind.Barrel:
-                DrawBarrels(batch, piece.Position);
+            case LandmarkPieceKind.Barrel:
+                DrawBarrels(batch, position);
                 break;
             default:
                 break;
@@ -136,173 +118,6 @@ internal sealed class PointOfInterestRenderer
     }
 
     // ── Layout ───────────────────────────────────────────────────────────────
-
-    private sealed class Layout
-    {
-        public List<Piece> Pieces { get; } = new();
-
-        public List<(Vector2 Min, Vector2 Max, byte Crop)> Fields { get; } = new();
-    }
-
-    private Vector2 Centre(in PointOfInterest poi) =>
-        new((poi.TileX + 0.5f) * _tileSize, (poi.TileY + 0.5f) * _tileSize);
-
-    private Layout GetLayout(in PointOfInterest poi)
-    {
-        long key = ((long)poi.TileX << 32) | (uint)poi.TileY;
-        if (!_layouts.TryGetValue(key, out Layout? layout))
-        {
-            layout = this.BuildLayout(poi);
-            _layouts[key] = layout;
-        }
-
-        return layout;
-    }
-
-    private Layout BuildLayout(in PointOfInterest poi)
-    {
-        Layout layout = new();
-        Vector2 c = this.Centre(poi);
-        float r = poi.Radius * _tileSize;
-        byte level = _tileAt(poi.TileX, poi.TileY).HeightLevel;
-        uint seed = (uint)((poi.TileX * 73856093) ^ (poi.TileY * 19349663));
-
-        switch (poi.Type)
-        {
-            case PointOfInterestType.RiverVillage:
-                {
-                    layout.Pieces.Add(new Piece(PieceKind.Well, c + new Vector2(0f, 10f), 0f, 0));
-                    int houses = 0;
-                    for (int i = 0; i < 9 && houses < 7; i++)
-                    {
-                        float a = (i * (MathF.Tau / 9f)) + (Hash01(seed, i) * 0.35f);
-                        float dist = r * (0.55f + (Hash01(seed, i + 40) * 0.22f));
-                        Vector2 pos = c + new Vector2(MathF.Cos(a) * dist, MathF.Sin(a) * dist * 0.85f);
-                        float w = 64f + (Hash01(seed, i + 80) * 26f);
-                        if (this.IsBuildable(pos, w, level) && !Overlaps(layout.Pieces, pos, w + 22f))
-                        {
-                            layout.Pieces.Add(new Piece(PieceKind.House, pos, w, (byte)(Hash(seed, i + 120) % 6)));
-                            houses++;
-                        }
-                    }
-
-                    // Crop fields on the open ground between the houses.
-                    for (int i = 0; i < 6; i++)
-                    {
-                        float a = (i * (MathF.Tau / 6f)) + 0.5f + (Hash01(seed, i + 200) * 0.3f);
-                        Vector2 fc = c + (new Vector2(MathF.Cos(a), MathF.Sin(a)) * (r * 0.86f));
-                        Vector2 half = new(36f + (Hash01(seed, i + 210) * 18f), 22f + (Hash01(seed, i + 220) * 12f));
-                        if (this.IsBuildable(fc, half.X * 2f, level) && !Overlaps(layout.Pieces, fc, half.X + 40f))
-                        {
-                            layout.Fields.Add((fc - half, fc + half, (byte)(Hash(seed, i + 230) % 3)));
-                        }
-                    }
-
-                    layout.Pieces.Add(new Piece(PieceKind.Barrel, c + new Vector2(42f, 34f), 0f, 0));
-                    break;
-                }
-
-            case PointOfInterestType.Harbor:
-                {
-                    Vector2 sea = SeaDirection(poi);
-                    Vector2 inland = c - (sea * (r * 0.30f));
-                    layout.Pieces.Add(new Piece(PieceKind.Warehouse, inland, 104f, (byte)(Hash(seed, 1) % 6)));
-                    Vector2 side = new(-sea.Y, sea.X);
-                    for (int i = -1; i <= 1; i += 2)
-                    {
-                        Vector2 pos = inland + (side * (i * 120f)) + (sea * 20f);
-                        if (this.IsBuildable(pos, 64f, level))
-                        {
-                            layout.Pieces.Add(new Piece(PieceKind.House, pos, 64f, (byte)(Hash(seed, i + 5) % 6)));
-                        }
-                    }
-
-                    layout.Pieces.Add(new Piece(PieceKind.Barrel, c + (side * 46f) + (sea * 30f), 0f, 0));
-                    layout.Pieces.Add(new Piece(PieceKind.Barrel, c - (side * 52f) + (sea * 36f), 0f, 1));
-                    break;
-                }
-
-            case PointOfInterestType.LakesideCamp:
-                {
-                    layout.Pieces.Add(new Piece(PieceKind.Campfire, c, 0f, 0));
-                    for (int i = 0; i < 3; i++)
-                    {
-                        float a = (-MathF.PI / 2f) + ((i - 1) * 1.1f) + (Hash01(seed, i) * 0.3f);
-                        Vector2 pos = c + new Vector2(MathF.Cos(a) * 76f, MathF.Sin(a) * 62f);
-                        if (this.IsBuildable(pos, 56f, level))
-                        {
-                            layout.Pieces.Add(new Piece(PieceKind.Tent, pos, 56f + (Hash01(seed, i + 9) * 10f), (byte)(Hash(seed, i + 20) % 3)));
-                        }
-                    }
-
-                    break;
-                }
-
-            case PointOfInterestType.MountainShrine:
-                layout.Pieces.Add(new Piece(PieceKind.Altar, c + new Vector2(0f, -24f), 0f, 0));
-                layout.Pieces.Add(new Piece(PieceKind.ShrineGate, c + new Vector2(0f, r * 0.62f), 92f, 0));
-                layout.Pieces.Add(new Piece(PieceKind.StoneLantern, c + new Vector2(-58f, 18f), 0f, 0));
-                layout.Pieces.Add(new Piece(PieceKind.StoneLantern, c + new Vector2(58f, 18f), 0f, 0));
-                break;
-
-            case PointOfInterestType.None:
-            default:
-                break;
-        }
-
-        return layout;
-    }
-
-    // Dry ground at the site's level under the whole footprint: no houses in rivers or on cliff edges.
-    private bool IsBuildable(Vector2 groundPoint, float width, byte level)
-    {
-        for (int i = -1; i <= 1; i++)
-        {
-            for (int j = 0; j <= 1; j++)
-            {
-                int tx = (int)MathF.Floor((groundPoint.X + (i * width * 0.5f)) / _tileSize);
-                int ty = (int)MathF.Floor((groundPoint.Y - (j * 40f)) / _tileSize);
-                MapTile t = _tileAt(tx, ty);
-                if (t.IsSolid || t.HeightLevel != level || t.Biome is BiomeType.ShallowWater or BiomeType.DeepOcean)
-                {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
-
-    private static bool Overlaps(List<Piece> pieces, Vector2 p, float clearance)
-    {
-        foreach (Piece piece in pieces)
-        {
-            if (Vector2.DistanceSquared(piece.Position, p) < clearance * clearance)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static Vector2 SeaDirection(in PointOfInterest poi)
-    {
-        Vector2 d = new(poi.FacingX, poi.FacingY);
-        return d.LengthSquared() > 0.01f ? Vector2.Normalize(d) : new Vector2(0f, 1f);
-    }
-
-    private static uint Hash(uint seed, int i)
-    {
-        uint h = seed ^ (uint)(i * 0x9E3779B9);
-        h ^= h >> 16;
-        h *= 0x7FEB352D;
-        h ^= h >> 15;
-        h *= 0x846CA68B;
-        return h ^ (h >> 16);
-    }
-
-    private static float Hash01(uint seed, int i) => (Hash(seed, i) & 0xFFFF) / 65535f;
 
     // ── Ground layer ─────────────────────────────────────────────────────────
 
@@ -332,10 +147,24 @@ internal sealed class PointOfInterestRenderer
         batch.DrawLine(from, to, new ColorRgba(184, 156, 108), width);
     }
 
-    private static void DrawFields(GeometryBatch batch, Layout layout)
+    private static Vector2 SeaDirection(in PointOfInterest poi)
     {
-        foreach ((Vector2 min, Vector2 max, byte crop) in layout.Fields)
+        Vector2 d = new(poi.FacingX, poi.FacingY);
+        return d.LengthSquared() > 0.01f ? Vector2.Normalize(d) : new Vector2(0f, 1f);
+    }
+
+    private static int FloorDiv(int a, int b) => a >= 0 ? a / b : ((a + 1) / b) - 1;
+
+    private Vector2 Centre(in PointOfInterest poi) =>
+        new((poi.TileX + 0.5f) * _tileSize, (poi.TileY + 0.5f) * _tileSize);
+
+    private void DrawFields(GeometryBatch batch, LandmarkLayout layout)
+    {
+        foreach (LandmarkField field in layout.Fields)
         {
+            Vector2 min = new(field.MinX * _tileSize, field.MinY * _tileSize);
+            Vector2 max = new(field.MaxX * _tileSize, field.MaxY * _tileSize);
+            byte crop = field.Crop;
             ColorRgba soil = new(112, 78, 46);
             ColorRgba row = crop switch
             {

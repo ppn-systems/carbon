@@ -9,6 +9,7 @@ using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
+using Carbon.Maps.Landmarks;
 using Carbon.Maps.Navigation;
 using Carbon.Maps.Props;
 using Carbon.Physics.Obstacles;
@@ -542,7 +543,13 @@ public sealed class ChunkWorld2D
             }
         }
 
-        // 3. Resolve continuous collision against constructed building structures (walls, closed doors, pillars)
+        // 3. Points of interest: houses, wells, tents, gate posts... (footprints in tile units)
+        if (this.ResolveLandmarkCollision(ref position, radius, ref pushNormal))
+        {
+            collided = true;
+        }
+
+        // 4. Resolve continuous collision against constructed building structures (walls, closed doors, pillars)
         if (_buildings.ResolveCollision(ref position, radius, _tileSize, out Vector2 buildingPushNormal))
         {
             collided = true;
@@ -556,6 +563,72 @@ public sealed class ChunkWorld2D
 
         return collided;
     }
+
+    private bool ResolveLandmarkCollision(ref Vector2 position, float radius, ref Vector2 pushNormal)
+    {
+        int tileX = (int)MathF.Floor(position.X / _tileSize);
+        int tileY = (int)MathF.Floor(position.Y / _tileSize);
+        int siteX = FloorDiv(tileX, PointOfInterestResolver.SiteSize);
+        int siteY = FloorDiv(tileY, PointOfInterestResolver.SiteSize);
+        PointOfInterest site = _generator.Landmarks.GetSite(siteX, siteY);
+        if (site.Type == PointOfInterestType.None ||
+            Math.Abs(site.TileX - tileX) > site.Radius + 6 ||
+            Math.Abs(site.TileY - tileY) > site.Radius + 6)
+        {
+            return false;
+        }
+
+        bool collided = false;
+        Span<TileBox> boxes = stackalloc TileBox[LandmarkPiece.MaxColliders];
+        ReadOnlySpan<LandmarkPiece> pieces = _generator.Landmarks.GetLayout(siteX, siteY).Pieces;
+        for (int i = 0; i < pieces.Length; i++)
+        {
+            int n = pieces[i].GetColliders(boxes);
+            for (int k = 0; k < n; k++)
+            {
+                TileBox b = boxes[k];
+                float minX = b.MinX * _tileSize;
+                float minY = b.MinY * _tileSize;
+                float maxX = b.MaxX * _tileSize;
+                float maxY = b.MaxY * _tileSize;
+                Vector2 closest = new(Math.Clamp(position.X, minX, maxX), Math.Clamp(position.Y, minY, maxY));
+                Vector2 diff = position - closest;
+                float distSq = diff.LengthSquared();
+                if (distSq >= radius * radius)
+                {
+                    continue;
+                }
+
+                collided = true;
+                Vector2 normal;
+                float push;
+                if (distSq > 0.0001f)
+                {
+                    float dist = MathF.Sqrt(distSq);
+                    normal = diff / dist;
+                    push = radius - dist;
+                }
+                else
+                {
+                    // Centre inside the box: leave through the nearest side.
+                    float left = position.X - minX;
+                    float right = maxX - position.X;
+                    float top = position.Y - minY;
+                    float bottom = maxY - position.Y;
+                    float m = MathF.Min(MathF.Min(left, right), MathF.Min(top, bottom));
+                    normal = m == bottom ? new Vector2(0f, 1f) : m == top ? new Vector2(0f, -1f) : m == left ? new Vector2(-1f, 0f) : new Vector2(1f, 0f);
+                    push = m + radius;
+                }
+
+                position += normal * push;
+                pushNormal += normal;
+            }
+        }
+
+        return collided;
+    }
+
+    private static int FloorDiv(int a, int b) => a >= 0 ? a / b : ((a + 1) / b) - 1;
 
     private static (int X, int Y) LocateSafeNaturalSpawn(ProceduralWorldGenerator generator, float frequency)
     {

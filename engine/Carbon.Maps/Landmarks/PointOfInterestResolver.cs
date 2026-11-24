@@ -24,6 +24,12 @@ public sealed class PointOfInterestResolver
     /// <summary>Edge of a site in tiles.</summary>
     public const int SiteSize = 224;
 
+    /// <summary>
+    /// Distance from a site's edge to any point of interest centre. Larger than every footprint
+    /// (radius ≤ 11 tiles plus structures), so a point of interest never reaches into another site.
+    /// </summary>
+    public const int SiteMargin = 24;
+
     private const int Candidates = 40;
     private const int MaxCachedSites = 2048;
 
@@ -37,6 +43,7 @@ public sealed class PointOfInterestResolver
     private readonly Func<int, int, MapTile> _sampleTile;
     private readonly Func<int, int, float> _riverDistance;
     private readonly ConcurrentDictionary<long, PointOfInterest> _sites = new();
+    private readonly ConcurrentDictionary<long, LandmarkLayout> _layouts = new();
 
     /// <summary>Initializes a new instance of the <see cref="PointOfInterestResolver"/> class.</summary>
     /// <param name="seed">World seed.</param>
@@ -99,6 +106,46 @@ public sealed class PointOfInterestResolver
         return false;
     }
 
+    /// <summary>Gets the structures and fields of a site's point of interest (cached).</summary>
+    /// <param name="siteX">Site X.</param>
+    /// <param name="siteY">Site Y.</param>
+    /// <returns>The layout, empty when the site has no point of interest.</returns>
+    public LandmarkLayout GetLayout(int siteX, int siteY)
+    {
+        long key = ((long)siteX << 32) | (uint)siteY;
+        if (_layouts.TryGetValue(key, out LandmarkLayout? layout))
+        {
+            return layout;
+        }
+
+        if (_layouts.Count > MaxCachedSites)
+        {
+            _layouts.Clear();
+        }
+
+        layout = LandmarkLayout.Build(this.GetSite(siteX, siteY), _sampleTile);
+        _layouts[key] = layout;
+        return layout;
+    }
+
+    /// <summary>
+    /// Returns whether a structure (house, well, tent, ...) blocks a world tile. Used for navigation.
+    /// </summary>
+    /// <param name="tileX">World tile X.</param>
+    /// <param name="tileY">World tile Y.</param>
+    /// <returns><c>true</c> when the tile is blocked.</returns>
+    public bool IsTileBlocked(int tileX, int tileY)
+    {
+        // Footprints never leave their own site (see SiteMargin), so only that site needs checking.
+        int sx = FloorDiv(tileX, SiteSize);
+        int sy = FloorDiv(tileY, SiteSize);
+        PointOfInterest site = this.GetSite(sx, sy);
+        return site.Type != PointOfInterestType.None &&
+            Math.Abs(site.TileX - tileX) <= site.Radius + 4 &&
+            Math.Abs(site.TileY - tileY) <= site.Radius + 4 &&
+            this.GetLayout(sx, sy).BlocksTile(tileX, tileY);
+    }
+
     private PointOfInterest Resolve(int siteX, int siteY)
     {
         // About half of the sites are settled at all.
@@ -109,7 +156,7 @@ public sealed class PointOfInterestResolver
 
         PointOfInterest best = default;
         float bestScore = 0f;
-        int margin = 24; // keep footprints inside the site so neighbouring sites never overlap
+        int margin = SiteMargin; // keep footprints inside the site so neighbouring sites never overlap
         for (int i = 0; i < Candidates; i++)
         {
             ulong h = SpatialHash.Hash(_seed ^ 0x47C1E3A5B9D2F608UL, (siteX * Candidates) + i, siteY);
@@ -155,7 +202,7 @@ public sealed class PointOfInterestResolver
         if (flat && tile.HeightLevel == 0 && river is > 4.5f and <= 11f &&
             tile.Biome is BiomeType.LushPlains or BiomeType.Savanna or BiomeType.BlossomWoods or BiomeType.AncientForest)
         {
-            return (PointOfInterestType.RiverVillage, 2.5f - (MathF.Abs(river - 7f) * 0.1f), 9);
+            return (PointOfInterestType.RiverVillage, 2.5f - (MathF.Abs(river - 7f) * 0.1f), 11);
         }
 
         // Camp: dry shore right next to a lake or a large river.
