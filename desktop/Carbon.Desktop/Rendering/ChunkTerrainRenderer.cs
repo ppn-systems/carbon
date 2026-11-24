@@ -185,31 +185,21 @@ public sealed class ChunkTerrainRenderer : IDisposable
                 ref readonly MapTile tile = ref chunk.GetTile(lx, ly);
                 ColorRgba baseColor = HexToColor(tile.ColorRgba);
 
-                if (tile.Variant != 0)
-                {
-                    int shade = (tile.Variant * 6) - 9;
-                    baseColor = new ColorRgba(
-                        (byte)Math.Clamp(baseColor.R + shade, 0, 255),
-                        (byte)Math.Clamp(baseColor.G + shade, 0, 255),
-                        (byte)Math.Clamp(baseColor.B + shade, 0, 255),
-                        baseColor.A);
-                }
-
-                // Topographical 2.5D HeightLevel Depth Tinting
+                // Topographical 2.5D HeightLevel Depth Tinting (Smooth painterly elevation lift)
                 if (tile.HeightLevel == 1)
                 {
                     baseColor = new ColorRgba(
-                        (byte)Math.Min(baseColor.R + 18, 255),
-                        (byte)Math.Min(baseColor.G + 18, 255),
-                        (byte)Math.Min(baseColor.B + 14, 255),
+                        (byte)Math.Min(baseColor.R + 14, 255),
+                        (byte)Math.Min(baseColor.G + 14, 255),
+                        (byte)Math.Min(baseColor.B + 10, 255),
                         baseColor.A);
                 }
                 else if (tile.HeightLevel == 2)
                 {
                     baseColor = new ColorRgba(
-                        (byte)Math.Min(baseColor.R + 36, 255),
-                        (byte)Math.Min(baseColor.G + 36, 255),
-                        (byte)Math.Min(baseColor.B + 30, 255),
+                        (byte)Math.Min(baseColor.R + 28, 255),
+                        (byte)Math.Min(baseColor.G + 28, 255),
+                        (byte)Math.Min(baseColor.B + 22, 255),
                         baseColor.A);
                 }
 
@@ -304,6 +294,54 @@ public sealed class ChunkTerrainRenderer : IDisposable
                     builder.AddTriangle(new Vector2(x, y + s), new Vector2(x + innerB, y + s), new Vector2(x, y + s - innerB), deepOceanColor);
                 }
             }
+
+            // Soft riverbank and lake foam shoreline along land edges with corner beveling
+            NeighborMask land = CoastlineAutotiler.GetLandAdjacencyMask(chunk, lx, ly, wtx, wty, world);
+            if (land != NeighborMask.None)
+            {
+                ColorRgba bankColor = new(44, 94, 59, 255);
+
+                if ((land & (NeighborMask.North | NeighborMask.West)) == (NeighborMask.North | NeighborMask.West))
+                {
+                    builder.AddTriangle(new Vector2(x, y), new Vector2(x + b, y), new Vector2(x, y + b), bankColor);
+                }
+
+                if ((land & (NeighborMask.North | NeighborMask.East)) == (NeighborMask.North | NeighborMask.East))
+                {
+                    builder.AddTriangle(new Vector2(x + s, y), new Vector2(x + s - b, y), new Vector2(x + s, y + b), bankColor);
+                }
+
+                if ((land & (NeighborMask.South | NeighborMask.East)) == (NeighborMask.South | NeighborMask.East))
+                {
+                    builder.AddTriangle(new Vector2(x + s, y + s), new Vector2(x + s - b, y + s), new Vector2(x + s, y + s - b), bankColor);
+                }
+
+                if ((land & (NeighborMask.South | NeighborMask.West)) == (NeighborMask.South | NeighborMask.West))
+                {
+                    builder.AddTriangle(new Vector2(x, y + s), new Vector2(x + b, y + s), new Vector2(x, y + s - b), bankColor);
+                }
+
+                ColorRgba foamColor = new(255, 255, 255, 55);
+                if ((land & NeighborMask.North) != 0)
+                {
+                    builder.AddRectangle(new RectangleF(x, y, s, 1.5f), foamColor);
+                }
+
+                if ((land & NeighborMask.South) != 0)
+                {
+                    builder.AddRectangle(new RectangleF(x, y + s - 1.5f, s, 1.5f), foamColor);
+                }
+
+                if ((land & NeighborMask.West) != 0)
+                {
+                    builder.AddRectangle(new RectangleF(x, y, 1.5f, s), foamColor);
+                }
+
+                if ((land & NeighborMask.East) != 0)
+                {
+                    builder.AddRectangle(new RectangleF(x + s - 1.5f, y, 1.5f, s), foamColor);
+                }
+            }
         }
         else if (tile.Biome == BiomeType.DeepOcean)
         {
@@ -342,7 +380,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
 
                 if ((shallow & (NeighborMask.South | NeighborMask.East)) == 0 && (shallow & NeighborMask.SouthEast) != 0)
                 {
-                    builder.AddTriangle(new Vector2(x + s, y + s), new Vector2(x + s - innerB, y + s), new Vector2(x + s, y + s - innerB), shallowWaterColor);
+                    builder.AddTriangle(new Vector2(x + s, y + s), new Vector2(x + s - innerB, y), new Vector2(x + s, y + s - innerB), shallowWaterColor);
                 }
 
                 if ((shallow & (NeighborMask.South | NeighborMask.West)) == 0 && (shallow & NeighborMask.SouthWest) != 0)
@@ -351,7 +389,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
                 }
             }
         }
-        else if (tile.Biome == BiomeType.BeachSand)
+        else if (tile.Biome is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
         {
             NeighborMask water = CoastlineAutotiler.GetWaterAdjacencyMask(chunk, lx, ly, wtx, wty, world);
             if (water != NeighborMask.None)
@@ -377,6 +415,44 @@ public sealed class ChunkTerrainRenderer : IDisposable
                 }
             }
         }
+    }
+
+    private static (ColorRgba rockBase, ColorRgba rockStrata, ColorRgba rockHighlight, ColorRgba rockShadow) GetCliffPalette(BiomeType biome)
+    {
+        return biome switch
+        {
+            BiomeType.RedMesa => (
+                new ColorRgba(160, 80, 56, 255),
+                new ColorRgba(135, 65, 44, 255),
+                new ColorRgba(215, 125, 88, 230),
+                new ColorRgba(95, 42, 28, 255)
+            ),
+            BiomeType.FrozenTundra => (
+                new ColorRgba(125, 140, 155, 255),
+                new ColorRgba(105, 120, 135, 255),
+                new ColorRgba(220, 232, 245, 240),
+                new ColorRgba(75, 90, 105, 255)
+            ),
+            BiomeType.DuneDesert => (
+                new ColorRgba(180, 128, 70, 255),
+                new ColorRgba(155, 105, 55, 255),
+                new ColorRgba(225, 168, 95, 230),
+                new ColorRgba(115, 75, 35, 255)
+            ),
+            BiomeType.VolcanicAshland => (
+                new ColorRgba(45, 44, 50, 255),
+                new ColorRgba(34, 33, 38, 255),
+                new ColorRgba(105, 105, 115, 230),
+                new ColorRgba(22, 21, 25, 255)
+            ),
+            BiomeType.AncientForest or BiomeType.LushPlains or BiomeType.MistySwamp or BiomeType.TropicalJungle or
+            BiomeType.DeepOcean or BiomeType.ShallowWater or BiomeType.BeachSand or _ => (
+                new ColorRgba(70, 76, 82, 255),
+                new ColorRgba(54, 59, 65, 255),
+                new ColorRgba(165, 172, 180, 230),
+                new ColorRgba(36, 40, 45, 255)
+            )
+        };
     }
 
     private static void BakeTileCliffFaces(
@@ -415,33 +491,31 @@ public sealed class ChunkTerrainRenderer : IDisposable
         }
 
         float s = tileSize;
+        (ColorRgba rockBase, ColorRgba rockStrata, ColorRgba rockHighlight, ColorRgba rockShadow) = GetCliffPalette(tile.Biome);
+        ColorRgba dropShadow = new(0, 0, 0, 80);
 
-        ColorRgba rockWallBase = new(55, 60, 68, 255);
-        ColorRgba rockWallShadow = new(38, 42, 48, 255);
-        ColorRgba cliffTopRidge = new(190, 195, 205, 220);
-        ColorRgba dropShadow = new(0, 0, 0, 85);
-
-        // 1. South Face: The primary 2.5D vertical rock wall facing the camera
+        // 1. South Face: The primary 2.5D vertical rock wall facing the camera (14px tall)
         if ((mask & CliffFaceMask.South) != 0)
         {
             if (world.NavGrid.GetRamp(wtx, wty) != RampDirection.South &&
                 world.NavGrid.GetRamp(wtx, wty + 1) != RampDirection.South)
             {
-                builder.AddRectangle(new RectangleF(x, y + s - 10f, s, 10f), rockWallBase);
-                builder.AddRectangle(new RectangleF(x, y + s - 11f, s, 1.5f), cliffTopRidge);
-                builder.AddRectangle(new RectangleF(x + 3f, y + s - 5f, s - 6f, 2f), rockWallShadow);
-                builder.AddRectangle(new RectangleF(x, y + s, s, 6f), dropShadow);
+                builder.AddRectangle(new RectangleF(x, y + s - 14f, s, 14f), rockBase);
+                builder.AddRectangle(new RectangleF(x, y + s - 14f, s, 2f), rockHighlight);
+                builder.AddRectangle(new RectangleF(x, y + s - 9f, s, 2.5f), rockStrata);
+                builder.AddRectangle(new RectangleF(x, y + s - 4f, s, 2f), rockShadow);
+                builder.AddRectangle(new RectangleF(x, y + s, s, 7f), dropShadow);
             }
         }
 
-        // 2. North Face: Top edge drop
+        // 2. North Face: Top edge drop shadow down onto northern tile
         if ((mask & CliffFaceMask.North) != 0)
         {
             if (world.NavGrid.GetRamp(wtx, wty) != RampDirection.North &&
                 world.NavGrid.GetRamp(wtx, wty - 1) != RampDirection.North)
             {
-                builder.AddRectangle(new RectangleF(x, y, s, 3f), rockWallShadow);
-                builder.AddRectangle(new RectangleF(x, y - 3f, s, 3f), dropShadow);
+                builder.AddRectangle(new RectangleF(x, y, s, 2.5f), rockShadow);
+                builder.AddRectangle(new RectangleF(x, y - 6f, s, 6f), dropShadow);
             }
         }
 
@@ -451,8 +525,9 @@ public sealed class ChunkTerrainRenderer : IDisposable
             if (world.NavGrid.GetRamp(wtx, wty) != RampDirection.East &&
                 world.NavGrid.GetRamp(wtx + 1, wty) != RampDirection.East)
             {
-                builder.AddRectangle(new RectangleF(x + s - 4f, y, 4f, s), rockWallShadow);
-                builder.AddRectangle(new RectangleF(x + s, y, 4f, s), dropShadow);
+                builder.AddRectangle(new RectangleF(x + s - 7f, y, 7f, s), rockBase);
+                builder.AddRectangle(new RectangleF(x + s - 3f, y, 3f, s), rockShadow);
+                builder.AddRectangle(new RectangleF(x + s, y, 6f, s), dropShadow);
             }
         }
 
@@ -462,7 +537,9 @@ public sealed class ChunkTerrainRenderer : IDisposable
             if (world.NavGrid.GetRamp(wtx, wty) != RampDirection.West &&
                 world.NavGrid.GetRamp(wtx - 1, wty) != RampDirection.West)
             {
-                builder.AddRectangle(new RectangleF(x, y, 3f, s), new ColorRgba(160, 165, 175, 180));
+                builder.AddRectangle(new RectangleF(x, y, 7f, s), rockBase);
+                builder.AddRectangle(new RectangleF(x, y, 2f, s), rockHighlight);
+                builder.AddRectangle(new RectangleF(x + 5f, y, 2f, s), rockStrata);
             }
         }
     }
@@ -484,176 +561,68 @@ public sealed class ChunkTerrainRenderer : IDisposable
         }
 
         float s = tileSize;
-        (ColorRgba slopeBed, ColorRgba rockSlab, ColorRgba rockShadow, ColorRgba rockHighlight) = GetNaturalSlopePalette(tile.Biome);
+        ColorRgba slopeBed = HexToColor(tile.ColorRgba);
+        (ColorRgba rockCheek, _, _, _) = GetCliffPalette(tile.Biome);
 
-        // Flanking rock cheek color
-        ColorRgba rockCheek = new((byte)(slopeBed.R * 0.70f), (byte)(slopeBed.G * 0.70f), (byte)(slopeBed.B * 0.70f), 255);
-        ColorRgba rockCheekHighlight = new((byte)Math.Min(rockCheek.R + 40, 255), (byte)Math.Min(rockCheek.G + 40, 255), (byte)Math.Min(rockCheek.B + 40, 255), 220);
-        ColorRgba grassFringe = new(56, 128, 62, 200);
+        // Subtle natural foot-worn trail down the center
+        ColorRgba wornDirt = new(
+            (byte)Math.Clamp((slopeBed.R * 0.88f) + 10, 0, 255),
+            (byte)Math.Clamp((slopeBed.G * 0.88f) + 8, 0, 255),
+            (byte)Math.Clamp((slopeBed.B * 0.82f) + 6, 0, 255),
+            slopeBed.A);
 
-        int hash = (wtx * 31) ^ (wty * 17);
+        ColorRgba embeddedStone = new(95, 102, 108, 120);
 
         if (ramp is RampDirection.West or RampDirection.East)
         {
-            // Horizontal Natural Ravine / Mountain Pass (West <-> East)
-            const float apronReach = 8f;
+            // Horizontal Natural Mountain Pass (West <-> East)
+            const float apronReach = 6f;
             float trailX = ramp == RampDirection.West ? x - apronReach : x;
             float trailW = s + apronReach;
 
-            // 1. Natural earthen chute bed with height slope shading
-            ColorRgba highBed = new((byte)Math.Min(slopeBed.R + 12, 255), (byte)Math.Min(slopeBed.G + 12, 255), (byte)Math.Min(slopeBed.B + 10, 255), 255);
-            builder.AddRectangle(new RectangleF(trailX, y + 3f, trailW, s - 6f), slopeBed);
-            float highSideX = ramp == RampDirection.West ? trailX + trailW - 10f : trailX;
-            builder.AddRectangle(new RectangleF(highSideX, y + 3f, 10f, s - 6f), highBed);
+            // 1. Natural earthen chute bed connecting the height levels
+            builder.AddRectangle(new RectangleF(trailX, y + 2f, trailW, s - 4f), slopeBed);
 
-            // 2. Flanking natural cliff cheek wings (beveled rock buttresses framing the pass)
-            builder.AddRectangle(new RectangleF(trailX, y + 1f, trailW, 2.5f), rockCheek);
-            builder.AddRectangle(new RectangleF(trailX, y + 1f, trailW, 1f), rockCheekHighlight);
-            builder.AddRectangle(new RectangleF(trailX, y + s - 3.5f, trailW, 2.5f), rockCheek);
-            builder.AddRectangle(new RectangleF(trailX, y + s - 4.5f, trailW, 1f), rockShadow);
+            // 2. Foot-worn center dirt trail
+            builder.AddRectangle(new RectangleF(trailX, y + 6f, trailW, s - 12f), wornDirt);
 
-            // 3. Natural organic stepping flagstones (3 tiers with paired offset stones)
-            float tierSpacing = trailW / 4f;
-            for (int tier = 0; tier < 3; tier++)
-            {
-                float tierX = trailX + ((tier + 0.65f) * tierSpacing);
-                float stoneW = 4.5f;
+            // 3. Flanking natural rock shoulders framing the pass
+            builder.AddRectangle(new RectangleF(trailX, y, trailW, 2.5f), rockCheek);
+            builder.AddRectangle(new RectangleF(trailX, y + s - 2.5f, trailW, 2.5f), rockCheek);
 
-                // Upper stone in pair
-                float stone1H = (s * 0.36f) + ((hash + tier) & 1);
-                builder.AddRectangle(new RectangleF(tierX, y + 4.5f, stoneW, stone1H), rockSlab);
-                builder.AddRectangle(new RectangleF(tierX + stoneW - 1f, y + 4.5f, 1f, stone1H), rockHighlight);
-                builder.AddRectangle(new RectangleF(tierX, y + 4.5f + stone1H - 1f, stoneW, 1f), rockShadow);
+            // 4. Subtle embedded natural stepping stones
+            builder.AddRectangle(new RectangleF(trailX + (trailW * 0.30f), y + 9f, 3f, s - 18f), embeddedStone);
+            builder.AddRectangle(new RectangleF(trailX + (trailW * 0.70f), y + 8f, 3f, s - 16f), embeddedStone);
 
-                // Lower stone in pair (slightly offset)
-                float stone2OffsetY = y + 6f + stone1H;
-                float stone2H = (s * 0.34f) - ((hash + tier) & 1);
-                float offsetTierX = tierX + (((hash >> tier) & 1) * 2f) - 1f;
-                builder.AddRectangle(new RectangleF(offsetTierX, stone2OffsetY, stoneW, stone2H), rockSlab);
-                builder.AddRectangle(new RectangleF(offsetTierX + stoneW - 1f, stone2OffsetY, 1f, stone2H), rockHighlight);
-                builder.AddRectangle(new RectangleF(offsetTierX, stone2OffsetY + stone2H - 1f, stoneW, 1f), rockShadow);
-            }
-
-            // 4. Natural scattered pebbles and tufts
-            builder.AddRectangle(new RectangleF(trailX + 6f, y + 3f, 2f, 1.5f), rockHighlight);
-            builder.AddRectangle(new RectangleF(trailX + 16f, y + s - 5f, 2f, 1.5f), rockShadow);
-            builder.AddRectangle(new RectangleF(trailX + (trailW * 0.5f), y + 2f, 2.5f, 1.5f), grassFringe);
-
-            // 5. Foot ground shadow
+            // 5. Soft ground shadow at lower terminus
             float footX = ramp == RampDirection.West ? trailX - 2f : trailX + trailW;
-            builder.AddRectangle(new RectangleF(footX, y + 3f, 2.5f, s - 6f), new ColorRgba(0, 0, 0, 45));
+            builder.AddRectangle(new RectangleF(footX, y + 2f, 2.5f, s - 4f), new ColorRgba(0, 0, 0, 45));
         }
         else
         {
-            // Vertical Natural Ravine / Mountain Pass (North <-> South)
-            const float apronReach = 8f;
+            // Vertical Natural Mountain Pass (North <-> South)
+            const float apronReach = 6f;
             float trailY = ramp == RampDirection.South ? y : y - apronReach;
             float trailH = s + apronReach;
 
-            // 1. Natural earthen chute bed with height slope shading
-            ColorRgba highBed = new((byte)Math.Min(slopeBed.R + 12, 255), (byte)Math.Min(slopeBed.G + 12, 255), (byte)Math.Min(slopeBed.B + 10, 255), 255);
-            builder.AddRectangle(new RectangleF(x + 3f, trailY, s - 6f, trailH), slopeBed);
-            float highSideY = ramp == RampDirection.South ? trailY : trailY + trailH - 10f;
-            builder.AddRectangle(new RectangleF(x + 3f, highSideY, s - 6f, 10f), highBed);
+            // 1. Natural earthen chute bed connecting the height levels
+            builder.AddRectangle(new RectangleF(x + 2f, trailY, s - 4f, trailH), slopeBed);
 
-            // 2. Flanking natural cliff cheek wings (beveled rock buttresses framing the pass)
-            builder.AddRectangle(new RectangleF(x + 1f, trailY, 2.5f, trailH), rockCheek);
-            builder.AddRectangle(new RectangleF(x + 1f, trailY, 1f, trailH), rockCheekHighlight);
-            builder.AddRectangle(new RectangleF(x + s - 3.5f, trailY, 2.5f, trailH), rockCheek);
-            builder.AddRectangle(new RectangleF(x + s - 4.5f, trailY, 1f, trailH), rockShadow);
+            // 2. Foot-worn center dirt trail
+            builder.AddRectangle(new RectangleF(x + 6f, trailY, s - 12f, trailH), wornDirt);
 
-            // 3. Natural organic stepping flagstones (3 tiers with paired offset stones)
-            float tierSpacing = trailH / 4f;
-            for (int tier = 0; tier < 3; tier++)
-            {
-                float tierY = trailY + ((tier + 0.65f) * tierSpacing);
-                float stoneH = 4.5f;
+            // 3. Flanking natural rock shoulders framing the pass
+            builder.AddRectangle(new RectangleF(x, trailY, 2.5f, trailH), rockCheek);
+            builder.AddRectangle(new RectangleF(x + s - 2.5f, trailY, 2.5f, trailH), rockCheek);
 
-                // Left stone in pair
-                float stone1W = (s * 0.36f) + ((hash + tier) & 1);
-                builder.AddRectangle(new RectangleF(x + 4.5f, tierY, stone1W, stoneH), rockSlab);
-                builder.AddRectangle(new RectangleF(x + 4.5f, tierY, stone1W, 1f), rockHighlight);
-                builder.AddRectangle(new RectangleF(x + 4.5f, tierY + stoneH - 1f, stone1W, 1f), rockShadow);
+            // 4. Subtle embedded natural stepping stones
+            builder.AddRectangle(new RectangleF(x + 9f, trailY + (trailH * 0.30f), s - 18f, 3f), embeddedStone);
+            builder.AddRectangle(new RectangleF(x + 8f, trailY + (trailH * 0.70f), s - 16f, 3f), embeddedStone);
 
-                // Right stone in pair (slightly offset)
-                float stone2OffsetX = x + 6f + stone1W;
-                float stone2W = (s * 0.34f) - ((hash + tier) & 1);
-                float offsetTierY = tierY + (((hash >> tier) & 1) * 2f) - 1f;
-                builder.AddRectangle(new RectangleF(stone2OffsetX, offsetTierY, stone2W, stoneH), rockSlab);
-                builder.AddRectangle(new RectangleF(stone2OffsetX, offsetTierY, stone2W, 1f), rockHighlight);
-                builder.AddRectangle(new RectangleF(stone2OffsetX, offsetTierY + stoneH - 1f, stone2W, 1f), rockShadow);
-            }
-
-            // 4. Natural scattered pebbles and tufts
-            builder.AddRectangle(new RectangleF(x + 3f, trailY + 6f, 1.5f, 2f), rockHighlight);
-            builder.AddRectangle(new RectangleF(x + s - 5f, trailY + 16f, 1.5f, 2f), rockShadow);
-            builder.AddRectangle(new RectangleF(x + 2f, trailY + (trailH * 0.5f), 1.5f, 2.5f), grassFringe);
-
-            // 5. Foot ground shadow
+            // 5. Soft ground shadow at lower terminus
             float footY = ramp == RampDirection.South ? trailY + trailH : trailY - 2f;
-            builder.AddRectangle(new RectangleF(x + 3f, footY, s - 6f, 2.5f), new ColorRgba(0, 0, 0, 45));
+            builder.AddRectangle(new RectangleF(x + 2f, footY, s - 4f, 2.5f), new ColorRgba(0, 0, 0, 45));
         }
-    }
-
-    private static (ColorRgba slopeBed, ColorRgba rockSlab, ColorRgba rockShadow, ColorRgba rockHighlight) GetNaturalSlopePalette(BiomeType biome)
-    {
-        return biome switch
-        {
-            BiomeType.AncientForest => (
-                new ColorRgba(56, 46, 34, 255),    // Dark rich woodland loam
-                new ColorRgba(85, 90, 82, 230),    // Weathered mossy granite slab
-                new ColorRgba(38, 32, 24, 220),    // Earth shadow
-                new ColorRgba(112, 118, 110, 220)  // Sunlit granite lip
-            ),
-            BiomeType.RedMesa => (
-                new ColorRgba(145, 68, 45, 255),   // Sandstone scree slope
-                new ColorRgba(175, 88, 58, 240),   // Sediment rock ledge
-                new ColorRgba(105, 42, 26, 220),   // Sandstone undercut shadow
-                new ColorRgba(215, 125, 85, 220)   // Sunlit terracotta rim
-            ),
-            BiomeType.FrozenTundra => (
-                new ColorRgba(140, 155, 168, 255), // Frost gravel scree
-                new ColorRgba(180, 195, 208, 240), // Weathered frost stone
-                new ColorRgba(90, 105, 118, 220),  // Cold crevasse shadow
-                new ColorRgba(218, 228, 238, 240)  // Frosted edge highlight
-            ),
-            BiomeType.DuneDesert => (
-                new ColorRgba(195, 130, 52, 255),  // Compacted dune slope
-                new ColorRgba(170, 112, 42, 230),  // Sandstone outcrop
-                new ColorRgba(135, 85, 28, 220),   // Dune crest shadow
-                new ColorRgba(225, 165, 82, 220)   // Windblown sand crest
-            ),
-            BiomeType.VolcanicAshland => (
-                new ColorRgba(42, 42, 48, 255),    // Basalt scree slope
-                new ColorRgba(68, 68, 76, 240),    // Obsidian ledge
-                new ColorRgba(24, 24, 28, 220),    // Volcanic ash shadow
-                new ColorRgba(98, 98, 108, 220)   // Volcanic ridge highlight
-            ),
-            BiomeType.MistySwamp => (
-                new ColorRgba(60, 54, 38, 255),    // Peat & bog trail
-                new ColorRgba(78, 85, 68, 230),    // Bog rock slab
-                new ColorRgba(35, 30, 20, 220),    // Wet mud shadow
-                new ColorRgba(105, 115, 92, 220)   // Mossy stone highlight
-            ),
-            BiomeType.TropicalJungle => (
-                new ColorRgba(74, 58, 38, 255),    // Tropical loam trail
-                new ColorRgba(88, 102, 80, 230),   // Jungle river rock
-                new ColorRgba(42, 34, 22, 220),    // Humid soil shadow
-                new ColorRgba(118, 134, 108, 220)  // Lichen stone lip
-            ),
-            BiomeType.DeepOcean or BiomeType.ShallowWater or BiomeType.BeachSand => (
-                new ColorRgba(175, 148, 102, 255), // Coastal sand & pebble ramp
-                new ColorRgba(140, 142, 145, 230), // Water-smoothed granite
-                new ColorRgba(110, 92, 62, 220),   // Wet sand shadow
-                new ColorRgba(215, 192, 145, 220)  // Sunlit sand highlight
-            ),
-            BiomeType.LushPlains or _ => (
-                new ColorRgba(105, 88, 64, 255),   // Compacted earthen trail bed
-                new ColorRgba(125, 128, 132, 230), // Embedded flat limestone stepping slab
-                new ColorRgba(62, 52, 38, 220),    // Moist soil shadow
-                new ColorRgba(160, 164, 168, 220)  // Weathered limestone highlight
-            )
-        };
     }
 
     private static void BakeTileBuildings(
@@ -744,136 +713,79 @@ public sealed class ChunkTerrainRenderer : IDisposable
         in MapTile tile)
     {
         uint hash = (uint)((wtx * 374761393) ^ (wty * 668265263));
+        uint slot = hash % 20;
 
         switch (tile.Biome)
         {
             case BiomeType.LushPlains:
-            case BiomeType.AncientForest:
-            case BiomeType.TropicalJungle:
                 {
-                    // 1. Natural 3D Grass Tufts with sunlit blade tips
-                    uint tuftType = hash & 3;
-                    ColorRgba grassBladeDark = new(35, 78, 42, 200);
-                    ColorRgba grassBladeLight = new(92, 179, 102, 220);
-
-                    if (tuftType == 1)
-                    {
-                        builder.AddRectangle(new RectangleF(x + 6f, y + 10f, 2f, 5f), grassBladeDark);
-                        builder.AddRectangle(new RectangleF(x + 7f, y + 8f, 2f, 7f), grassBladeLight);
-                        builder.AddRectangle(new RectangleF(x + 9f, y + 11f, 2f, 4f), grassBladeDark);
-                    }
-                    else if (tuftType == 2)
-                    {
-                        builder.AddRectangle(new RectangleF(x + 18f, y + 16f, 2f, 6f), grassBladeLight);
-                        builder.AddRectangle(new RectangleF(x + 20f, y + 18f, 2f, 4f), grassBladeDark);
-                    }
-                    else if (tuftType == 3)
-                    {
-                        builder.AddRectangle(new RectangleF(x + 12f, y + 22f, 2f, 5f), grassBladeLight);
-                    }
-
-                    // 2. Vibrant Wildflowers on select meadow tiles
-                    uint flowerSlot = (hash >> 4) & 15;
-                    if (flowerSlot == 1)
+                    // Rare, delicate meadow wildflowers (1 in 20 tiles)
+                    if (slot == 1)
                     {
                         // Golden Dandelion cluster
-                        builder.AddRectangle(new RectangleF(x + 14f, y + 12f, 3f, 3f), new ColorRgba(250, 204, 21, 245));
-                        builder.AddRectangle(new RectangleF(x + 17f, y + 15f, 2.5f, 2.5f), new ColorRgba(245, 158, 11, 240));
-                        builder.AddRectangle(new RectangleF(x + 15f, y + 13f, 1f, 1f), new ColorRgba(255, 255, 255, 255));
+                        builder.AddRectangle(new RectangleF(x + 14f, y + 12f, 3f, 3f), new ColorRgba(250, 204, 21, 230));
+                        builder.AddRectangle(new RectangleF(x + 16f, y + 14f, 2f, 2f), new ColorRgba(245, 158, 11, 220));
                     }
-                    else if (flowerSlot == 2)
+                    else if (slot == 2)
                     {
                         // Mountain Daisies (White with yellow center)
-                        builder.AddRectangle(new RectangleF(x + 8f, y + 20f, 3f, 3f), new ColorRgba(255, 255, 255, 245));
-                        builder.AddRectangle(new RectangleF(x + 9f, y + 21f, 1.2f, 1.2f), new ColorRgba(234, 179, 8, 255));
-                        builder.AddRectangle(new RectangleF(x + 22f, y + 9f, 2.5f, 2.5f), new ColorRgba(255, 255, 255, 245));
+                        builder.AddRectangle(new RectangleF(x + 8f, y + 18f, 3f, 3f), new ColorRgba(255, 255, 255, 230));
+                        builder.AddRectangle(new RectangleF(x + 9f, y + 19f, 1.2f, 1.2f), new ColorRgba(234, 179, 8, 255));
                     }
-                    else if (flowerSlot == 3)
+                    else if (slot == 3)
                     {
                         // Wild Lavender (Violet-purple)
-                        builder.AddRectangle(new RectangleF(x + 20f, y + 18f, 2.5f, 4f), new ColorRgba(168, 85, 247, 230));
-                        builder.AddRectangle(new RectangleF(x + 23f, y + 16f, 2f, 3.5f), new ColorRgba(192, 132, 252, 230));
+                        builder.AddRectangle(new RectangleF(x + 20f, y + 16f, 2.5f, 3.5f), new ColorRgba(168, 85, 247, 220));
                     }
-                    else if (flowerSlot == 4)
+
+                    break;
+                }
+
+            case BiomeType.AncientForest:
+                {
+                    if (slot == 1)
                     {
-                        // Forest pebble / soil speckle
-                        builder.AddRectangle(new RectangleF(x + 11f, y + 15f, 3f, 2f), new ColorRgba(60, 48, 36, 140));
+                        // Forest moss or tiny woodland mushroom
+                        builder.AddRectangle(new RectangleF(x + 12f, y + 15f, 3f, 2.5f), new ColorRgba(58, 88, 52, 180));
+                        builder.AddRectangle(new RectangleF(x + 14f, y + 14f, 2f, 2f), new ColorRgba(215, 180, 130, 220));
                     }
+                    else if (slot == 2)
+                    {
+                        // Woodland pebble
+                        builder.AddRectangle(new RectangleF(x + 18f, y + 20f, 2.5f, 2f), new ColorRgba(50, 56, 52, 160));
+                    }
+
                     break;
                 }
 
             case BiomeType.BeachSand:
             case BiomeType.DuneDesert:
                 {
-                    uint sandPattern = hash & 3;
-                    if (sandPattern == 1)
+                    if (slot == 1)
                     {
-                        builder.AddRectangle(new RectangleF(x + 4f, y + 10f, 14f, 1.5f), new ColorRgba(245, 230, 190, 120));
-                        builder.AddRectangle(new RectangleF(x + 4f, y + 11.5f, 14f, 1f), new ColorRgba(180, 140, 95, 80));
+                        // Soft wind-carved sand ripple
+                        builder.AddRectangle(new RectangleF(x + 6f, y + 14f, 12f, 1.5f), new ColorRgba(245, 230, 190, 110));
                     }
-                    else if (sandPattern == 2)
-                    {
-                        builder.AddRectangle(new RectangleF(x + 18f, y + 18f, 3f, 2f), new ColorRgba(160, 120, 85, 180));
-                        builder.AddRectangle(new RectangleF(x + 18f, y + 20f, 3f, 1f), new ColorRgba(0, 0, 0, 50));
-                    }
+
                     break;
                 }
 
             case BiomeType.ShallowWater:
                 {
-                    uint wavePattern = hash & 3;
-                    if (wavePattern == 1)
+                    if (slot == 1)
                     {
-                        builder.AddRectangle(new RectangleF(x + 4f, y + 8f, 16f, 1.5f), new ColorRgba(255, 255, 255, 95));
-                        builder.AddRectangle(new RectangleF(x + 14f, y + 10f, 8f, 1.2f), new ColorRgba(255, 255, 255, 75));
+                        // Soft watercolor ripple
+                        builder.AddRectangle(new RectangleF(x + 8f, y + 14f, 14f, 1.2f), new ColorRgba(255, 255, 255, 75));
                     }
-                    else if (wavePattern == 2)
-                    {
-                        builder.AddRectangle(new RectangleF(x + 12f, y + 18f, 12f, 1.5f), new ColorRgba(255, 255, 255, 85));
-                    }
+
                     break;
                 }
 
             case BiomeType.DeepOcean:
-                {
-                    uint oceanPattern = hash & 3;
-                    if (oceanPattern == 1)
-                    {
-                        builder.AddRectangle(new RectangleF(x + 6f, y + 14f, 18f, 2f), new ColorRgba(30, 85, 145, 90));
-                    }
-                    break;
-                }
-
-            case BiomeType.RedMesa:
-                {
-                    uint rockPattern = hash & 3;
-                    if (rockPattern == 1)
-                    {
-                        builder.AddRectangle(new RectangleF(x + 5f, y + 12f, 12f, 2f), new ColorRgba(135, 55, 40, 160));
-                    }
-                    break;
-                }
-
-            case BiomeType.FrozenTundra:
-                {
-                    uint frostPattern = hash & 3;
-                    if (frostPattern == 1)
-                    {
-                        builder.AddRectangle(new RectangleF(x + 8f, y + 14f, 10f, 1.5f), new ColorRgba(255, 255, 255, 150));
-                    }
-                    break;
-                }
-
             case BiomeType.MistySwamp:
-                {
-                    uint swampPattern = hash & 3;
-                    if (swampPattern == 1)
-                    {
-                        builder.AddRectangle(new RectangleF(x + 6f, y + 16f, 10f, 3f), new ColorRgba(45, 60, 45, 180));
-                    }
-                    break;
-                }
-
+            case BiomeType.RedMesa:
+            case BiomeType.TropicalJungle:
+            case BiomeType.FrozenTundra:
             case BiomeType.VolcanicAshland:
             default:
                 break;

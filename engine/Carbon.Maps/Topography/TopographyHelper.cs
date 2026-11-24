@@ -24,12 +24,12 @@ public static class TopographyHelper
             return 0;
         }
 
-        if (elevation >= 0.82f)
+        if (elevation >= 0.70f)
         {
             return 2;
         }
 
-        if (elevation >= 0.68f)
+        if (elevation >= 0.54f)
         {
             return 1;
         }
@@ -40,17 +40,19 @@ public static class TopographyHelper
     /// <summary>
     /// Checks whether a tile coordinate falls on a designated procedural ramp corridor,
     /// used to prevent foliage and boulder obstructions on mountain highway passes.
+    /// Spaced organically every ~10-12 tiles along cliff edges.
     /// </summary>
     public static bool IsPotentialRampSlot(int worldTileX, int worldTileY)
     {
-        int slotX = ((worldTileX % 14) + 14) % 14;
-        int slotY = ((worldTileY % 14) + 14) % 14;
+        int slotX = ((worldTileX % 11) + 11) % 11;
+        int slotY = ((worldTileY % 11) + 11) % 11;
         return slotX is 5 or 6 || slotY is 5 or 6;
     }
 
     /// <summary>
     /// Evaluates whether a cliff tile naturally forms a walkable mountain pass / ramp incline
     /// connecting two topographical height levels in the procedural infinite world.
+    /// Spaced regularly along straight cliff walls; strictly excludes corners to preserve natural geology.
     /// </summary>
     public static RampDirection ResolveProceduralRamp(
         int worldTileX,
@@ -67,14 +69,18 @@ public static class TopographyHelper
             return RampDirection.None;
         }
 
-        int slotX = ((worldTileX % 14) + 14) % 14;
-        int slotY = ((worldTileY % 14) + 14) % 14;
+        int slotX = ((worldTileX % 11) + 11) % 11;
+        int slotY = ((worldTileY % 11) + 11) % 11;
 
         // 1. South Face Grand Ramp (Incline connects down to South)
+        // Must be a straight cliff face: lower south, upper north, flanks solid
         if (slotX is 5 or 6 &&
             heightQuery(worldTileX, worldTileY + 1) == currentHeight - 1 &&
-            heightQuery(worldTileX, worldTileY - 1) == currentHeight &&
-            !isWaterQuery(worldTileX, worldTileY + 1))
+            heightQuery(worldTileX, worldTileY - 1) >= currentHeight &&
+            heightQuery(worldTileX - 1, worldTileY) >= currentHeight &&
+            heightQuery(worldTileX + 1, worldTileY) >= currentHeight &&
+            !isWaterQuery(worldTileX, worldTileY + 1) &&
+            !isWaterQuery(worldTileX, worldTileY))
         {
             return RampDirection.South;
         }
@@ -82,8 +88,11 @@ public static class TopographyHelper
         // 2. North Face Grand Ramp (Incline connects down to North)
         if (slotX is 5 or 6 &&
             heightQuery(worldTileX, worldTileY - 1) == currentHeight - 1 &&
-            heightQuery(worldTileX, worldTileY + 1) == currentHeight &&
-            !isWaterQuery(worldTileX, worldTileY - 1))
+            heightQuery(worldTileX, worldTileY + 1) >= currentHeight &&
+            heightQuery(worldTileX - 1, worldTileY) >= currentHeight &&
+            heightQuery(worldTileX + 1, worldTileY) >= currentHeight &&
+            !isWaterQuery(worldTileX, worldTileY - 1) &&
+            !isWaterQuery(worldTileX, worldTileY))
         {
             return RampDirection.North;
         }
@@ -91,8 +100,11 @@ public static class TopographyHelper
         // 3. East Face Grand Ramp (Incline connects down to East)
         if (slotY is 5 or 6 &&
             heightQuery(worldTileX + 1, worldTileY) == currentHeight - 1 &&
-            heightQuery(worldTileX - 1, worldTileY) == currentHeight &&
-            !isWaterQuery(worldTileX + 1, worldTileY))
+            heightQuery(worldTileX - 1, worldTileY) >= currentHeight &&
+            heightQuery(worldTileX, worldTileY - 1) >= currentHeight &&
+            heightQuery(worldTileX, worldTileY + 1) >= currentHeight &&
+            !isWaterQuery(worldTileX + 1, worldTileY) &&
+            !isWaterQuery(worldTileX, worldTileY))
         {
             return RampDirection.East;
         }
@@ -100,8 +112,11 @@ public static class TopographyHelper
         // 4. West Face Grand Ramp (Incline connects down to West)
         if (slotY is 5 or 6 &&
             heightQuery(worldTileX - 1, worldTileY) == currentHeight - 1 &&
-            heightQuery(worldTileX + 1, worldTileY) == currentHeight &&
-            !isWaterQuery(worldTileX - 1, worldTileY))
+            heightQuery(worldTileX + 1, worldTileY) >= currentHeight &&
+            heightQuery(worldTileX, worldTileY - 1) >= currentHeight &&
+            heightQuery(worldTileX, worldTileY + 1) >= currentHeight &&
+            !isWaterQuery(worldTileX - 1, worldTileY) &&
+            !isWaterQuery(worldTileX, worldTileY))
         {
             return RampDirection.West;
         }

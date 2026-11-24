@@ -15,16 +15,16 @@ public sealed class TopographyAndCliffAutotilerTests
         Assert.Equal(0, TopographyHelper.ResolveHeightLevel(0.1f, BiomeType.DeepOcean));
         Assert.Equal(0, TopographyHelper.ResolveHeightLevel(0.3f, BiomeType.ShallowWater));
 
-        // Lowland plains (elevation < 0.68f)
-        Assert.Equal(0, TopographyHelper.ResolveHeightLevel(0.45f, BiomeType.LushPlains));
-        Assert.Equal(0, TopographyHelper.ResolveHeightLevel(0.60f, BiomeType.AncientForest));
+        // Lowland plains (elevation < 0.54f)
+        Assert.Equal(0, TopographyHelper.ResolveHeightLevel(0.40f, BiomeType.LushPlains));
+        Assert.Equal(0, TopographyHelper.ResolveHeightLevel(0.50f, BiomeType.AncientForest));
 
-        // Highland plateaus (0.68f <= elevation < 0.82f)
-        Assert.Equal(1, TopographyHelper.ResolveHeightLevel(0.70f, BiomeType.LushPlains));
-        Assert.Equal(1, TopographyHelper.ResolveHeightLevel(0.80f, BiomeType.RedMesa));
+        // Highland plateaus (0.54f <= elevation < 0.70f)
+        Assert.Equal(1, TopographyHelper.ResolveHeightLevel(0.58f, BiomeType.LushPlains));
+        Assert.Equal(1, TopographyHelper.ResolveHeightLevel(0.66f, BiomeType.RedMesa));
 
-        // Mountain peaks (elevation >= 0.82f)
-        Assert.Equal(2, TopographyHelper.ResolveHeightLevel(0.85f, BiomeType.VolcanicAshland));
+        // Mountain peaks (elevation >= 0.70f)
+        Assert.Equal(2, TopographyHelper.ResolveHeightLevel(0.75f, BiomeType.VolcanicAshland));
         Assert.Equal(2, TopographyHelper.ResolveHeightLevel(0.95f, BiomeType.FrozenTundra));
     }
 

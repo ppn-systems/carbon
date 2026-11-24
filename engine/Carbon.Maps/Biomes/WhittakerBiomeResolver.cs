@@ -28,6 +28,13 @@ public static class WhittakerBiomeResolver
             return BiomeType.ShallowWater;
         }
 
+        // Sub-zero polar climate check: polar ice and snowbanks directly meet water, no yellow tropical sand!
+        if (temperature < 0.25f)
+        {
+            return BiomeType.FrozenTundra;
+        }
+
+        // Ocean coastal beach sand in temperate and warm climates
         if (elevation < 0.38f)
         {
             return BiomeType.BeachSand;

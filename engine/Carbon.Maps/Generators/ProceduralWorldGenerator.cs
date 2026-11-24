@@ -169,30 +169,40 @@ public sealed class ProceduralWorldGenerator
 
         float moisture = Math.Clamp(rawMoisture, 0f, 1f);
 
-        // 4. Hydrology & Continuous River Carving
-        // Rivers flow continuously from mountain sources to the sea without artificial upper cutoffs!
-        if (elevation >= 0.30f)
-        {
-            float riverVal = MathF.Abs(_riverNoise.Evaluate(fx * 2.6f, fy * 2.6f, octaves: 2) - 0.5f);
-            if (riverVal < 0.012f)
-            {
-                if (riverVal < 0.0075f)
-                {
-                    // Center river channel: flowing water carving to base level
-                    byte riverVariant = (byte)((worldX ^ (worldY * 31)) & 3);
-                    return new MapTile(
-                        BiomeType.ShallowWater,
-                        Elevation: 0.28f,
-                        temperature,
-                        Moisture: 1.0f,
-                        IsSolid: false,
-                        riverVariant,
-                        HeightLevel: 0);
-                }
+        // 4. Hydrology & Continuous Serpentine River Carving
+        // Generates organic, continuous meandering river channels that never disconnect or terminate abruptly.
+        float riverWarpX = (_riverNoise.Evaluate(fx * 1.5f, fy * 0.4f, octaves: 2) - 0.5f) * 160f;
+        float riverWarpY = (_riverNoise.Evaluate(fx * 0.4f, fy * 1.5f, octaves: 2) - 0.5f) * 160f;
 
-                // River banks: lush moist soil along riverbanks
-                moisture = 1.0f;
-            }
+        // Primary East-West continental river with multi-octave serpentine meander
+        float riverCenterY = (MathF.Sin(fx * 2.4f) * 55f) + (MathF.Sin(fx * 0.7f) * 120f) + riverWarpX;
+        float distY = MathF.Abs(worldY - riverCenterY);
+
+        // North-South continental river tributary
+        float riverCenterX = (MathF.Sin(fy * 2.0f) * 55f) + (MathF.Sin(fy * 0.6f) * 130f) + riverWarpY;
+        float distX = MathF.Abs(worldX - riverCenterX);
+
+        float riverDist = MathF.Min(distY, distX);
+
+        if (riverDist <= 2.2f)
+        {
+            // Flowing freshwater river channel: continuous, un-severed water surface
+            byte riverVariant = (byte)((worldX ^ (worldY * 31)) & 3);
+            return new MapTile(
+                BiomeType.ShallowWater,
+                Elevation: 0.28f,
+                temperature,
+                Moisture: 0.85f,
+                IsSolid: false,
+                riverVariant,
+                HeightLevel: 0);
+        }
+
+        if (riverDist < 5.5f)
+        {
+            // Riparian riverbank zone: gentle valley slope and lush moist soil without swamp decay or beach sand
+            elevation = MathF.Min(elevation, 0.46f);
+            moisture = Math.Clamp(moisture + 0.25f, 0.52f, 0.68f);
         }
 
         // 5. Resolve biome

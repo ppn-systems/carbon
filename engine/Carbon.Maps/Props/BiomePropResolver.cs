@@ -43,8 +43,12 @@ public static class BiomePropResolver
             return false;
         }
 
-        // Mountain highway passes and ramps must remain clear of solid trees and boulders
-        if (TopographyHelper.IsPotentialRampSlot(worldTileX, worldTileY))
+        // Mountain highway passes and ramp entrance corridors must remain clear of solid trees and boulders
+        if (TopographyHelper.IsPotentialRampSlot(worldTileX, worldTileY) ||
+            TopographyHelper.IsPotentialRampSlot(worldTileX, worldTileY - 1) ||
+            TopographyHelper.IsPotentialRampSlot(worldTileX, worldTileY + 1) ||
+            TopographyHelper.IsPotentialRampSlot(worldTileX - 1, worldTileY) ||
+            TopographyHelper.IsPotentialRampSlot(worldTileX + 1, worldTileY))
         {
             return false;
         }
@@ -66,8 +70,7 @@ public static class BiomePropResolver
 
         // Staggered cellular grid for trees:
         // Guarantees no two tree origins can ever spawn on adjacent or diagonal tiles (minimum 2 tiles spacing).
-        // This eliminates the solid impenetrable clump wall of overlapping canopies while forming organic,
-        // sunlit forest groves with visible ground and walkable understory exploration paths.
+        // Modulated with natural woodland spacing so canopies form organic, sunlit groves with open exploration lanes.
         bool isTreeSlot = (Math.Abs((worldTileX * 3) + (worldTileY * 7)) % 5) == 0;
 
         switch (biome)
@@ -80,15 +83,15 @@ public static class BiomePropResolver
                 // Gentle, airy meadows: solitary oaks/birches, soft shrubs, and rare, precious copper deposits
                 if (isTreeSlot)
                 {
-                    if (roll < 0.05f)
+                    if (roll < 0.04f)
                     {
-                        prop = MapProp.Create(MapPropType.OakTree, localX, localY, worldX, worldY, radius: 42f * scaleVar, isSolid: true, 0x166534FF, 0x78350FFF, scaleVar);
+                        prop = MapProp.Create(MapPropType.OakTree, localX, localY, worldX, worldY, radius: 32f * scaleVar, isSolid: true, 0x166534FF, 0x78350FFF, scaleVar);
                         return true;
                     }
 
-                    if (roll < 0.10f)
+                    if (roll < 0.08f)
                     {
-                        prop = MapProp.Create(MapPropType.BirchTree, localX, localY, worldX, worldY, radius: 36f * scaleVar, isSolid: true, 0x84CC16FF, 0xF8FAFCFF, scaleVar);
+                        prop = MapProp.Create(MapPropType.BirchTree, localX, localY, worldX, worldY, radius: 28f * scaleVar, isSolid: true, 0x84CC16FF, 0xF8FAFCFF, scaleVar);
                         return true;
                     }
                 }
@@ -96,7 +99,7 @@ public static class BiomePropResolver
                 {
                     if (roll < 0.022f)
                     {
-                        prop = MapProp.Create(MapPropType.Bush, localX, localY, worldX, worldY, radius: 17f * scaleVar, isSolid: false, 0x15803DFF, 0x22C55EFF, scaleVar);
+                        prop = MapProp.Create(MapPropType.Bush, localX, localY, worldX, worldY, radius: 15f * scaleVar, isSolid: false, 0x15803DFF, 0x22C55EFF, scaleVar);
                         return true;
                     }
                 }
@@ -130,21 +133,21 @@ public static class BiomePropResolver
                 // Towering woodland canopy with shaded undergrowth and deep-earth coal and iron
                 if (isTreeSlot)
                 {
+                    if (roll < 0.16f)
+                    {
+                        prop = MapProp.Create(MapPropType.OakTree, localX, localY, worldX, worldY, radius: 34f * scaleVar, isSolid: true, 0x14532DFF, 0x451A03FF, scaleVar);
+                        return true;
+                    }
+
                     if (roll < 0.28f)
                     {
-                        prop = MapProp.Create(MapPropType.OakTree, localX, localY, worldX, worldY, radius: 46f * scaleVar, isSolid: true, 0x14532DFF, 0x451A03FF, scaleVar);
+                        prop = MapProp.Create(MapPropType.PineTree, localX, localY, worldX, worldY, radius: 28f * scaleVar, isSolid: true, 0x064E3BFF, 0x713F12FF, scaleVar);
                         return true;
                     }
 
-                    if (roll < 0.50f)
+                    if (roll < 0.38f)
                     {
-                        prop = MapProp.Create(MapPropType.PineTree, localX, localY, worldX, worldY, radius: 32f * scaleVar, isSolid: true, 0x064E3BFF, 0x713F12FF, scaleVar);
-                        return true;
-                    }
-
-                    if (roll < 0.65f)
-                    {
-                        prop = MapProp.Create(MapPropType.BirchTree, localX, localY, worldX, worldY, radius: 38f * scaleVar, isSolid: true, 0x65A30DFF, 0xF8FAFCFF, scaleVar);
+                        prop = MapProp.Create(MapPropType.BirchTree, localX, localY, worldX, worldY, radius: 30f * scaleVar, isSolid: true, 0x65A30DFF, 0xF8FAFCFF, scaleVar);
                         return true;
                     }
                 }
