@@ -212,30 +212,36 @@ public sealed class ProceduralWorldGenerator
         float moisture = Math.Clamp(rawMoisture, 0f, 1f);
 
         // 4. Hydrology & Continuous Serpentine River Carving
-        // Generates organic, continuous meandering river channels that never disconnect or terminate abruptly.
-        float riverDist = this.GetRiverDistance(worldX, worldY);
-
-        if (riverDist <= 2.2f)
+        // Rivers flow across continental landmasses and carve natural riverbeds down to sea level.
+        // Once reaching the ocean (elevation < 0.32f), the river naturally discharges into the sea;
+        // oceanic waters are never altered or elevated into artificial sandbanks.
+        if (elevation >= 0.32f)
         {
-            // Flowing freshwater river channel: continuous, un-severed water surface
-            byte riverVariant = (byte)((worldX ^ (worldY * 31)) & 3);
-            return new MapTile(
-                BiomeType.ShallowWater,
-                Elevation: 0.28f,
-                temperature,
-                Moisture: 0.85f,
-                IsSolid: false,
-                riverVariant,
-                HeightLevel: 0);
-        }
+            float riverDist = this.GetRiverDistance(worldX, worldY);
 
-        if (riverDist < 6.0f)
-        {
-            // Riparian river valley zone: smooth continuous slope into the riverbed,
-            // lush moist soil without artificial step cliffs
-            float valleyT = Math.Clamp((riverDist - 2.2f) / 3.8f, 0f, 1f);
-            elevation = (0.36f * (1f - valleyT)) + (MathF.Min(elevation, 0.50f) * valleyT);
-            moisture = Math.Clamp((0.78f * (1f - valleyT)) + (moisture * valleyT), 0f, 1f);
+            if (riverDist <= 2.2f)
+            {
+                // Flowing freshwater river channel: continuous, un-severed water surface
+                byte riverVariant = (byte)((worldX ^ (worldY * 31)) & 3);
+                return new MapTile(
+                    BiomeType.ShallowWater,
+                    Elevation: 0.28f,
+                    temperature,
+                    Moisture: 0.85f,
+                    IsSolid: false,
+                    riverVariant,
+                    HeightLevel: 0);
+            }
+
+            if (riverDist < 6.0f)
+            {
+                // Riparian river valley zone: smooth continuous slope into the riverbed,
+                // lush moist soil without artificial step cliffs
+                float valleyT = Math.Clamp((riverDist - 2.2f) / 3.8f, 0f, 1f);
+                float targetValleyElevation = (0.34f * (1f - valleyT)) + (MathF.Min(elevation, 0.50f) * valleyT);
+                elevation = MathF.Min(elevation, targetValleyElevation);
+                moisture = Math.Clamp(moisture + (0.25f * (1f - valleyT)), 0f, 1f);
+            }
         }
 
         // 5. Resolve biome
