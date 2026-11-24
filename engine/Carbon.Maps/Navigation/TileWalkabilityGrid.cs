@@ -75,7 +75,8 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
             worldTileY,
             tile.HeightLevel,
             _heightQuery,
-            _waterQuery);
+            _waterQuery,
+            IsRiverside(_world.Generator.GetRiverDistance(worldTileX, worldTileY)));
     }
 
     /// <inheritdoc/>
@@ -189,4 +190,7 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
 
         return true;
     }
+
+    // Dry river bank close to the channel (width-scaled distance just outside the water threshold).
+    private static bool IsRiverside(float riverDistance) => riverDistance is > 2.2f and <= 4.0f;
 }

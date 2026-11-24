@@ -38,6 +38,12 @@ public static class TopographyHelper
         return 0;
     }
 
+    /// <summary>Relief from which terrain becomes mountain (height level 2).</summary>
+    public const float MountainRelief = 0.75f;
+
+    /// <summary>Relief from which terrain becomes plateau (height level 1).</summary>
+    public const float PlateauRelief = 0.56f;
+
     /// <summary>
     /// Resolves the discrete height level from the smooth terrain relief rather than the detailed
     /// elevation, which keeps plateau and mountain outlines broad and free of one-tile specks.
@@ -55,12 +61,12 @@ public static class TopographyHelper
             return 0;
         }
 
-        if (relief >= 0.72f)
+        if (relief >= MountainRelief)
         {
             return 2;
         }
 
-        return relief >= 0.56f ? (byte)1 : (byte)0;
+        return relief >= PlateauRelief ? (byte)1 : (byte)0;
     }
 
     /// <summary>
@@ -80,7 +86,8 @@ public static class TopographyHelper
         int worldTileY,
         byte currentHeight,
         Func<int, int, byte> heightQuery,
-        Func<int, int, bool> isWaterQuery)
+        Func<int, int, bool> isWaterQuery,
+        bool isRiverside = false)
     {
         ArgumentNullException.ThrowIfNull(heightQuery);
         ArgumentNullException.ThrowIfNull(isWaterQuery);
@@ -90,8 +97,10 @@ public static class TopographyHelper
             return RampDirection.None;
         }
 
-        bool rampColumn = IsRampColumn(worldTileX, worldTileY);
-        bool rampRow = IsRampRow(worldTileX, worldTileY);
+        // Paths follow rivers: beside a river every straight cliff tile may carry a ramp, the way trails
+        // run up a valley next to a waterfall. Elsewhere ramps appear once per jittered 11-tile block.
+        bool rampColumn = isRiverside || IsRampColumn(worldTileX, worldTileY);
+        bool rampRow = isRiverside || IsRampRow(worldTileX, worldTileY);
 
         // 1. South Face Grand Ramp (Incline connects down to South)
         // Must be a straight cliff face: lower south, upper north, flanks solid

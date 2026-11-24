@@ -4,6 +4,7 @@ using System;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
 using Carbon.Maps.Hydrology;
+using Carbon.Maps.Landmarks;
 using Carbon.Maps.Noise;
 using Carbon.Maps.Props;
 using Carbon.Maps.Random;
@@ -23,7 +24,10 @@ public sealed class ProceduralWorldGenerator
     /// Bump it whenever any change alters generated output (the golden-hash test fails), so a client running
     /// a different generator refuses to play instead of silently desyncing.
     /// </summary>
-    public const ushort GeneratorVersion = 5;
+    public const ushort GeneratorVersion = 6;
+
+    /// <summary>Width-scaled distance over which rivers and lakes lower and moisten the land around them.</summary>
+    public const float RiparianReach = 10f;
 
 
     /// <summary>
@@ -39,12 +43,16 @@ public sealed class ProceduralWorldGenerator
     private readonly FractalNoise2D _foliageNoise;
     private readonly FractalNoise2D _mineralNoise;
     private readonly RiverNetwork _rivers;
+    private readonly PointOfInterestResolver _landmarks;
     private readonly FractalNoise2D _ridgeNoise;
 
     /// <summary>
     /// Gets the deterministic generation seed.
     /// </summary>
     public ulong Seed => _seed;
+
+    /// <summary>Gets the resolver that places villages, harbours, camps and shrines.</summary>
+    public PointOfInterestResolver Landmarks => _landmarks;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ProceduralWorldGenerator"/> class.
@@ -62,6 +70,7 @@ public sealed class ProceduralWorldGenerator
 
         _ridgeNoise = new FractalNoise2D(seed ^ 0x52D6E1F0A3B49C87UL);
         _rivers = new RiverNetwork(seed, this.SampleTerrainElevation);
+        _landmarks = new PointOfInterestResolver(seed, (x, y) => this.SampleTile(x, y), _rivers.GetDistance);
     }
 
     /// <summary>
@@ -121,6 +130,22 @@ public sealed class ProceduralWorldGenerator
         ArgumentNullException.ThrowIfNull(chunk, nameof(chunk));
 
         chunk.Reset(chunkX, chunkY);
+
+        // Points of interest centred in this chunk (sites are larger than chunks, so check the 3x3 sites).
+        int siteX = FloorDiv(chunkX * Chunk2D.Size, PointOfInterestResolver.SiteSize);
+        int siteY = FloorDiv(chunkY * Chunk2D.Size, PointOfInterestResolver.SiteSize);
+        for (int sy = siteY - 1; sy <= siteY + 1; sy++)
+        {
+            for (int sx = siteX - 1; sx <= siteX + 1; sx++)
+            {
+                PointOfInterest poi = _landmarks.GetSite(sx, sy);
+                if (poi.Type != PointOfInterestType.None &&
+                    Chunk2D.ToChunkCoord(poi.TileX) == chunkX && Chunk2D.ToChunkCoord(poi.TileY) == chunkY)
+                {
+                    chunk.AddPointOfInterest(poi);
+                }
+            }
+        }
         int startX = chunkX * Chunk2D.Size;
         int startY = chunkY * Chunk2D.Size;
 
@@ -139,6 +164,12 @@ public sealed class ProceduralWorldGenerator
                 // Coherent macro density fields (Foliage & Mineral Veins)
                 float foliageDensity = _foliageNoise.Evaluate(worldX * 0.015f, worldY * 0.015f, octaves: 3);
                 float mineralNoise = _mineralNoise.Evaluate(worldX * 0.008f, worldY * 0.008f, octaves: 2);
+
+                // Settlements and landmarks keep their footprint clear of trees and rocks.
+                if (_landmarks.TryGetAt(worldX, worldY, out _))
+                {
+                    continue;
+                }
 
                 // Natural wilderness procedural props & flora
                 if (BiomePropResolver.TryResolveProp(
@@ -295,14 +326,20 @@ public sealed class ProceduralWorldGenerator
                     HeightLevel: TopographyHelper.ResolveTerrainHeightLevel(relief, coastElevation, BiomeType.ShallowWater, isInlandWater: true));
             }
 
-            if (riverDist < 6.0f)
+            if (riverDist < RiparianReach)
             {
-                // Riparian river valley zone: smooth continuous slope into the riverbed,
-                // lush moist soil without artificial step cliffs
-                float valleyT = Math.Clamp((riverDist - 2.2f) / 3.8f, 0f, 1f);
-                float targetValleyElevation = (0.34f * (1f - valleyT)) + (MathF.Min(elevation, 0.50f) * valleyT);
-                elevation = MathF.Min(elevation, targetValleyElevation);
-                moisture = Math.Clamp(moisture + (0.25f * (1f - valleyT)), 0f, 1f);
+                // Riparian zone: the ground eases down towards the water and gets wetter, with a smooth
+                // falloff (no hard edge, no elevation cap), so bank biomes blend instead of forming a trench.
+                // Distances are width-scaled, so big rivers get proportionally wider valleys than streams.
+                float k = 1f - Math.Clamp((riverDist - 2.2f) / (RiparianReach - 2.2f), 0f, 1f);
+                k = k * k * (3f - (2f * k));
+                elevation = MathF.Max(elevation - (0.08f * k), MathF.Min(elevation, 0.36f));
+                if (riverDist < 3.0f)
+                {
+                    elevation = MathF.Min(elevation, 0.37f); // narrow sand or gravel bank
+                }
+
+                moisture = Math.Clamp(moisture + (0.30f * k), 0f, 1f);
             }
         }
 
@@ -320,4 +357,6 @@ public sealed class ProceduralWorldGenerator
 
         return new MapTile(biome, elevation, temperature, moisture, isSolid, variant, heightLevel);
     }
+
+    private static int FloorDiv(int a, int b) => a >= 0 ? a / b : ((a + 1) / b) - 1;
 }

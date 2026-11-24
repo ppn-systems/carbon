@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using Carbon.Maps.Landmarks;
 using Carbon.Maps.Props;
 using Carbon.Physics.Obstacles;
 
@@ -34,6 +35,8 @@ public sealed class Chunk2D
     private readonly MapTile[] _tiles = new MapTile[Size * Size];
     private readonly List<MapProp> _props = new();
     private readonly ReadOnlyCollection<MapProp> _propsView;
+    private readonly List<PointOfInterest> _pointsOfInterest = new();
+    private readonly ReadOnlyCollection<PointOfInterest> _pointsOfInterestView;
 
     // One bit per tile: set when at least one colliding prop occupies the tile (O(1) walkability lookups).
     private readonly ulong[] _solidPropMask = new ulong[Size * Size / 64];
@@ -82,7 +85,15 @@ public sealed class Chunk2D
         _chunkX = chunkX;
         _chunkY = chunkY;
         _propsView = _props.AsReadOnly();
+        _pointsOfInterestView = _pointsOfInterest.AsReadOnly();
     }
+
+    /// <summary>Gets the points of interest whose centre lies in this chunk.</summary>
+    public ReadOnlyCollection<PointOfInterest> PointsOfInterest => _pointsOfInterestView;
+
+    /// <summary>Adds a point of interest centred in this chunk.</summary>
+    /// <param name="poi">The point of interest.</param>
+    public void AddPointOfInterest(in PointOfInterest poi) => _pointsOfInterest.Add(poi);
 
     /// <summary>
     /// Converts a continuous world tile coordinate to its corresponding chunk coordinate.
@@ -104,6 +115,7 @@ public sealed class Chunk2D
         _chunkX = chunkX;
         _chunkY = chunkY;
         _props.Clear();
+        _pointsOfInterest.Clear();
         Array.Clear(_solidPropMask);
         Array.Clear(_tiles, 0, _tiles.Length);
     }

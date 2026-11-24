@@ -18,6 +18,7 @@ using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Navigation;
+using Carbon.Maps.Landmarks;
 using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
 using Carbon.Maps.Topography;
@@ -38,9 +39,11 @@ public static class Program
 {
     private const float TileSize = 32f;
     private const float MacroFrequency = 0.0008f; // Expansive continental scale (~1250 tiles per continent)
-    private static readonly string s_screenshotPath = Path.Combine(
-        @"C:\Users\nguye\.gemini\antigravity-cli\brain\16aec843-7ea2-45f0-ac90-80492879a105",
-        "world_capture.bmp");
+    // CARBON_SCREENSHOT_PATH overrides where captures are written (default: ./screenshots/world_capture.bmp).
+    private static readonly string s_screenshotPath =
+        Environment.GetEnvironmentVariable("CARBON_SCREENSHOT_PATH") is { Length: > 0 } customPath
+            ? customPath
+            : Path.Combine(Environment.CurrentDirectory, "screenshots", "world_capture.bmp");
 
     private static GeometryBatch? s_geometryBatch;
     private static ChunkTerrainRenderer? s_chunkTerrainRenderer;
@@ -119,6 +122,12 @@ public static class Program
             Zoom = Environment.GetEnvironmentVariable("CARBON_MACRO_VIEW") == "1" ? 0.25f : 1.0f
         };
 
+        // CARBON_SEED selects the world seed (decimal), e.g. to reproduce a screenshot.
+        if (ulong.TryParse(Environment.GetEnvironmentVariable("CARBON_SEED"), System.Globalization.CultureInfo.InvariantCulture, out ulong envSeed))
+        {
+            s_currentSeed = envSeed;
+        }
+
         GenerateWorld(s_currentSeed);
     }
 
@@ -133,6 +142,15 @@ public static class Program
 
         // Preload chunks around the natural safe starter spawn
         Vector2 spawnPoint = s_chunkWorld.SpawnWorldPosition;
+
+        // CARBON_FOCUS_TILE="x,y" starts the player at a given world tile (screenshots, debugging).
+        if (Environment.GetEnvironmentVariable("CARBON_FOCUS_TILE") is { Length: > 0 } focus &&
+            focus.Split(',') is [string fx, string fy] &&
+            int.TryParse(fx, System.Globalization.CultureInfo.InvariantCulture, out int focusX) &&
+            int.TryParse(fy, System.Globalization.CultureInfo.InvariantCulture, out int focusY))
+        {
+            spawnPoint = new Vector2((focusX + 0.5f) * TileSize, (focusY + 0.5f) * TileSize);
+        }
         s_chunkWorld.UpdateAroundPosition(spawnPoint, chunkRadius: 4, evictionRadius: 8);
 
         s_world = new WorldSimulation(tickRate: 50, cellSize: TileSize);
@@ -431,6 +449,12 @@ public static class Program
                 continue;
             }
 
+            // Points of interest lie flat on the ground, under props and entities.
+            for (int i = 0; i < chunk.PointsOfInterest.Count; i++)
+            {
+                RenderPointOfInterest(s_geometryBatch, chunk.PointsOfInterest[i]);
+            }
+
             for (int i = 0; i < chunk.Props.Count; i++)
             {
                 MapProp prop = chunk.Props[i];
@@ -515,6 +539,67 @@ public static class Program
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {
             Console.WriteLine($"[Screenshot Error] {ex.Message}");
+        }
+    }
+
+    private static void RenderPointOfInterest(GeometryBatch batch, in PointOfInterest poi)
+    {
+        Vector2 c = new((poi.TileX + 0.5f) * TileSize, (poi.TileY + 0.5f) * TileSize);
+        float r = poi.Radius * TileSize;
+        ColorRgba path = new(196, 170, 120);
+        ColorRgba wall = new(120, 72, 40);
+        ColorRgba roof = new(176, 64, 48);
+        ColorRgba stone = new(148, 163, 184);
+
+        switch (poi.Type)
+        {
+            case PointOfInterestType.RiverVillage:
+                // Trodden plaza with a well, ringed by thatched houses.
+                batch.FillCircle(c, r * 0.45f, path, 40);
+                batch.FillCircle(c, 14f, stone, 16);
+                batch.FillCircle(c, 8f, new ColorRgba(56, 120, 200), 16);
+                for (int i = 0; i < 6; i++)
+                {
+                    float a = i * (MathF.PI / 3f);
+                    Vector2 h = c + (new Vector2(MathF.Cos(a), MathF.Sin(a)) * (r * 0.72f));
+                    batch.FillRectangle(new RectangleF(h.X - 26f, h.Y - 18f, 52f, 36f), wall);
+                    batch.FillRectangle(new RectangleF(h.X - 30f, h.Y - 30f, 60f, 16f), roof);
+                }
+
+                break;
+
+            case PointOfInterestType.Harbor:
+                // Piers reach out over the water, towards the sea; the boathouse stands behind them, inland.
+                Vector2 sea = new(poi.FacingX, poi.FacingY);
+                Vector2 side = new(-sea.Y, sea.X);
+                batch.FillCircle(c, r * 0.5f, path, 32);
+                for (int i = -1; i <= 1; i++)
+                {
+                    batch.DrawLine(c + (side * (i * 70f)), c + (side * (i * 70f)) + (sea * (r * 1.4f)), new ColorRgba(139, 94, 52), 22f);
+                }
+
+                Vector2 house = c - (sea * 60f);
+                batch.FillRectangle(new RectangleF(house.X - 40f, house.Y - 25f, 80f, 50f), wall);
+                batch.FillRectangle(new RectangleF(house.X - 46f, house.Y - 39f, 92f, 18f), roof);
+                break;
+
+            case PointOfInterestType.LakesideCamp:
+                batch.FillCircle(c, r * 0.6f, path, 24);
+                batch.FillCircle(c, 10f, new ColorRgba(234, 88, 12), 12);
+                batch.FillTriangle(c + new Vector2(-70f, 30f), c + new Vector2(-30f, 30f), c + new Vector2(-50f, -10f), new ColorRgba(22, 101, 52));
+                batch.FillTriangle(c + new Vector2(30f, 30f), c + new Vector2(70f, 30f), c + new Vector2(50f, -10f), new ColorRgba(22, 101, 52));
+                break;
+
+            case PointOfInterestType.MountainShrine:
+                batch.FillCircle(c, r * 0.7f, stone, 24);
+                batch.DrawCircle(c, r * 0.7f, new ColorRgba(71, 85, 105), 24, 4f);
+                batch.FillRectangle(new RectangleF(c.X - 16f, c.Y - 40f, 32f, 56f), new ColorRgba(100, 116, 139));
+                batch.FillRectangle(new RectangleF(c.X - 28f, c.Y - 48f, 56f, 12f), new ColorRgba(185, 28, 28));
+                break;
+
+            case PointOfInterestType.None:
+            default:
+                break;
         }
     }
 

@@ -56,6 +56,12 @@ internal sealed class RiverNetwork
 
     private const int MaxCachedRegions = 48;
 
+    // Number of cells over which a river widens into its estuary before reaching the sea.
+    private const int EstuaryCells = 5;
+
+    // Upper bound of the channel width scale (estuaries included).
+    private const float MaxChannelScale = 5f;
+
     // Extra grid border (tiles) used only by depression filling.
     private const int FillApron = 384;
 
@@ -238,6 +244,10 @@ internal sealed class RiverNetwork
         List<int> lakeEnds = new();
         int[] flow = new int[g * g];
         int[] next = new int[g * g];
+
+        // Width multiplier of river mouths: the last cells before the sea flare into an estuary.
+        float[] mouth = new float[g * g];
+        Array.Fill(mouth, 1f);
         Array.Fill(next, -1);
         int s0x = FloorDiv(x0 - MaxRiverLength, SourceSpacing);
         int s0y = FloorDiv(y0 - MaxRiverLength, SourceSpacing);
@@ -298,6 +308,14 @@ internal sealed class RiverNetwork
             {
                 lakeEnds.Add(path[^1]);
             }
+            else if (filled[path[^1]] < SeaRelief)
+            {
+                for (int k = 0; k < Math.Min(EstuaryCells, path.Count); k++)
+                {
+                    int c = path[path.Count - 1 - k];
+                    mouth[c] = MathF.Max(mouth[c], 1f + (0.45f * (EstuaryCells - k)));
+                }
+            }
 
             // Add this river's water to its own cells and to every cell downstream of the junction.
             int guard = 0;
@@ -338,8 +356,8 @@ internal sealed class RiverNetwork
             (float ax, float ay) = this.CellPoint(a, g, gx0, gy0);
             (float bx, float by) = this.CellPoint(b, g, gx0, gy0);
             (float x3p, float y3p) = this.CellPoint(p3, g, gx0, gy0);
-            float wa = Width(flow[a]);
-            float wb = Width(flow[b]);
+            float wa = MathF.Min(Width(flow[a]) * mouth[a], MaxChannelScale);
+            float wb = MathF.Min(Width(flow[b]) * mouth[b], MaxChannelScale);
 
             float sx = ax;
             float sy = ay;
