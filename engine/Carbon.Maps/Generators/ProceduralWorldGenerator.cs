@@ -146,23 +146,52 @@ public sealed class ProceduralWorldGenerator
         // 1. Continental Elevation with domain warping
         float elevation = _elevationWarp.Evaluate(fx, fy, warpStrength: 0.15f, octaves: 4);
 
-        // 2. Temperature (gradient slightly by latitude Y plus noise)
-        float rawTemp = _temperatureNoise.Evaluate(fx * 0.7f, fy * 0.7f, octaves: 3);
-        float temperature = Math.Clamp(rawTemp, 0f, 1f);
+        // 2. Coherent Continental Temperature with North-South Latitude Gradient
+        // A gentle continental latitude band along Y (period ~2500 tiles)
+        float latY = fy * 0.40f;
+        float latGradient = 0.50f + (0.35f * MathF.Sin(latY));
+        float tempTurbulence = (_temperatureNoise.Evaluate(fx * 0.45f, fy * 0.45f, octaves: 3) - 0.5f) * 0.20f;
+        float temperature = Math.Clamp(latGradient + tempTurbulence, 0f, 1f);
 
-        // 3. Moisture
-        float moisture = _moistureNoise.Evaluate(fx * 0.8f, fy * 0.8f, octaves: 3);
-
-        // 4. Hydrology & River carving (when on land, elevation > 0.38f)
-        if (elevation is >= 0.38f and <= 0.82f)
+        // Adiabatic lapse rate: High altitude mountain elevations cool down naturally
+        if (elevation > 0.65f)
         {
-            float riverVal = MathF.Abs(_riverNoise.Evaluate(fx * 3.0f, fy * 3.0f, octaves: 2) - 0.5f);
-            if (riverVal < 0.013f)
+            float altitudeCooling = (elevation - 0.65f) * 0.55f;
+            temperature = Math.Clamp(temperature - altitudeCooling, 0f, 1f);
+        }
+
+        // 3. Moisture (Rainfall & Humidity)
+        float rawMoisture = _moistureNoise.Evaluate(fx * 0.50f, fy * 0.50f, octaves: 3);
+        if (elevation < 0.42f)
+        {
+            rawMoisture += (0.42f - elevation) * 0.35f; // Coastal humidity
+        }
+
+        float moisture = Math.Clamp(rawMoisture, 0f, 1f);
+
+        // 4. Hydrology & Continuous River Carving
+        // Rivers flow continuously from mountain sources to the sea without artificial upper cutoffs!
+        if (elevation >= 0.30f)
+        {
+            float riverVal = MathF.Abs(_riverNoise.Evaluate(fx * 2.6f, fy * 2.6f, octaves: 2) - 0.5f);
+            if (riverVal < 0.012f)
             {
-                bool isCenter = riverVal < 0.007f;
-                BiomeType riverBiome = isCenter ? BiomeType.ShallowWater : BiomeType.BeachSand;
-                byte riverVariant = (byte)((worldX ^ (worldY * 31)) & 3);
-                return new MapTile(riverBiome, isCenter ? 0.28f : 0.35f, temperature, 1.0f, false, riverVariant);
+                if (riverVal < 0.0075f)
+                {
+                    // Center river channel: flowing water carving to base level
+                    byte riverVariant = (byte)((worldX ^ (worldY * 31)) & 3);
+                    return new MapTile(
+                        BiomeType.ShallowWater,
+                        Elevation: 0.28f,
+                        temperature,
+                        Moisture: 1.0f,
+                        IsSolid: false,
+                        riverVariant,
+                        HeightLevel: 0);
+                }
+
+                // River banks: lush moist soil along riverbanks
+                moisture = 1.0f;
             }
         }
 

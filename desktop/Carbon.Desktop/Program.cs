@@ -115,7 +115,7 @@ public static class Program
         s_chunkTerrainRenderer = new ChunkTerrainRenderer(window.Device);
         s_camera = new Camera2D(window.Width, window.Height)
         {
-            Zoom = 1.0f
+            Zoom = Environment.GetEnvironmentVariable("CARBON_MACRO_VIEW") == "1" ? 0.25f : 1.0f
         };
 
         GenerateWorld(s_currentSeed);

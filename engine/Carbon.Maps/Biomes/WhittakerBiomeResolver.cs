@@ -33,20 +33,26 @@ public static class WhittakerBiomeResolver
             return BiomeType.BeachSand;
         }
 
-        // 2. High altitude mountain peaks
+        // 2. High altitude mountain peaks (elevation > 0.80f)
         if (elevation > 0.80f)
         {
             if (temperature < 0.35f)
             {
-                return BiomeType.FrozenTundra;
+                return BiomeType.FrozenTundra; // Alpine snow peak
             }
 
             if (temperature > 0.75f)
             {
-                return BiomeType.VolcanicAshland;
+                return BiomeType.VolcanicAshland; // Scorched volcanic peak
             }
 
-            return BiomeType.RedMesa;
+            if (temperature > 0.55f && moisture < 0.48f)
+            {
+                return BiomeType.RedMesa; // Arid canyon plateau
+            }
+
+            // High altitude temperate mountain: conifer woods or high alpine meadow
+            return moisture >= 0.50f ? BiomeType.AncientForest : BiomeType.LushPlains;
         }
 
         // 3. Sub-zero polar climate

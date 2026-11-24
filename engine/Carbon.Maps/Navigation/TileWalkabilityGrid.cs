@@ -43,10 +43,28 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
     }
 
     /// <summary>
-    /// Queries the ramp direction registered on the specified tile.
+    /// Queries the ramp direction registered on the specified tile, resolving procedural ramps if not manually placed.
     /// </summary>
-    public RampDirection GetRamp(int worldTileX, int worldTileY) =>
-        _ramps.TryGetValue((worldTileX, worldTileY), out RampDirection direction) ? direction : RampDirection.None;
+    public RampDirection GetRamp(int worldTileX, int worldTileY)
+    {
+        if (_ramps.TryGetValue((worldTileX, worldTileY), out RampDirection direction))
+        {
+            return direction;
+        }
+
+        MapTile tile = _world.GetTileAtWorld(worldTileX, worldTileY);
+        if (tile.HeightLevel == 0 || tile.Biome is BiomeType.DeepOcean or BiomeType.ShallowWater)
+        {
+            return RampDirection.None;
+        }
+
+        return TopographyHelper.ResolveProceduralRamp(
+            worldTileX,
+            worldTileY,
+            tile.HeightLevel,
+            (x, y) => _world.GetTileAtWorld(x, y).HeightLevel,
+            (x, y) => _world.GetTileAtWorld(x, y).Biome is BiomeType.DeepOcean or BiomeType.ShallowWater);
+    }
 
     /// <inheritdoc/>
     public byte GetHeightLevel(int worldTileX, int worldTileY) =>

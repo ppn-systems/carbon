@@ -1,7 +1,9 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Random;
+using Carbon.Maps.Topography;
 
 namespace Carbon.Maps.Props;
 
@@ -41,6 +43,12 @@ public static class BiomePropResolver
             return false;
         }
 
+        // Mountain highway passes and ramps must remain clear of solid trees and boulders
+        if (TopographyHelper.IsPotentialRampSlot(worldTileX, worldTileY))
+        {
+            return false;
+        }
+
         // Fast deterministic spatial hash per tile
         ulong tileSeed = seed ^ (ulong)(worldTileX * 73856093) ^ (ulong)(worldTileY * 19349663);
         DeterministicRandom rng = new(tileSeed);
@@ -56,6 +64,12 @@ public static class BiomePropResolver
         // to prevent unnatural clumping and preserve open MMORPG exploration lanes
         bool isResourceCell = ((worldTileX & 3) == 0) && ((worldTileY & 3) == 0);
 
+        // Staggered cellular grid for trees:
+        // Guarantees no two tree origins can ever spawn on adjacent or diagonal tiles (minimum 2 tiles spacing).
+        // This eliminates the solid impenetrable clump wall of overlapping canopies while forming organic,
+        // sunlit forest groves with visible ground and walkable understory exploration paths.
+        bool isTreeSlot = (Math.Abs((worldTileX * 3) + (worldTileY * 7)) % 5) == 0;
+
         switch (biome)
         {
             case BiomeType.DeepOcean:
@@ -64,22 +78,27 @@ public static class BiomePropResolver
 
             case BiomeType.LushPlains:
                 // Gentle, airy meadows: solitary oaks/birches, soft shrubs, and rare, precious copper deposits
-                if (roll < 0.007f)
+                if (isTreeSlot)
                 {
-                    prop = MapProp.Create(MapPropType.OakTree, localX, localY, worldX, worldY, radius: 42f * scaleVar, isSolid: true, 0x166534FF, 0x78350FFF, scaleVar);
-                    return true;
-                }
+                    if (roll < 0.05f)
+                    {
+                        prop = MapProp.Create(MapPropType.OakTree, localX, localY, worldX, worldY, radius: 42f * scaleVar, isSolid: true, 0x166534FF, 0x78350FFF, scaleVar);
+                        return true;
+                    }
 
-                if (roll < 0.012f)
-                {
-                    prop = MapProp.Create(MapPropType.BirchTree, localX, localY, worldX, worldY, radius: 36f * scaleVar, isSolid: true, 0x84CC16FF, 0xF8FAFCFF, scaleVar);
-                    return true;
+                    if (roll < 0.10f)
+                    {
+                        prop = MapProp.Create(MapPropType.BirchTree, localX, localY, worldX, worldY, radius: 36f * scaleVar, isSolid: true, 0x84CC16FF, 0xF8FAFCFF, scaleVar);
+                        return true;
+                    }
                 }
-
-                if (roll < 0.020f)
+                else
                 {
-                    prop = MapProp.Create(MapPropType.Bush, localX, localY, worldX, worldY, radius: 17f * scaleVar, isSolid: false, 0x15803DFF, 0x22C55EFF, scaleVar);
-                    return true;
+                    if (roll < 0.022f)
+                    {
+                        prop = MapProp.Create(MapPropType.Bush, localX, localY, worldX, worldY, radius: 17f * scaleVar, isSolid: false, 0x15803DFF, 0x22C55EFF, scaleVar);
+                        return true;
+                    }
                 }
 
                 // Spaced heavy formations (at most 1 per ~16 tiles)
@@ -109,34 +128,39 @@ public static class BiomePropResolver
 
             case BiomeType.AncientForest:
                 // Towering woodland canopy with shaded undergrowth and deep-earth coal and iron
-                if (roll < 0.045f)
+                if (isTreeSlot)
                 {
-                    prop = MapProp.Create(MapPropType.OakTree, localX, localY, worldX, worldY, radius: 46f * scaleVar, isSolid: true, 0x14532DFF, 0x451A03FF, scaleVar);
-                    return true;
-                }
+                    if (roll < 0.28f)
+                    {
+                        prop = MapProp.Create(MapPropType.OakTree, localX, localY, worldX, worldY, radius: 46f * scaleVar, isSolid: true, 0x14532DFF, 0x451A03FF, scaleVar);
+                        return true;
+                    }
 
-                if (roll < 0.075f)
-                {
-                    prop = MapProp.Create(MapPropType.PineTree, localX, localY, worldX, worldY, radius: 32f * scaleVar, isSolid: true, 0x064E3BFF, 0x713F12FF, scaleVar);
-                    return true;
-                }
+                    if (roll < 0.50f)
+                    {
+                        prop = MapProp.Create(MapPropType.PineTree, localX, localY, worldX, worldY, radius: 32f * scaleVar, isSolid: true, 0x064E3BFF, 0x713F12FF, scaleVar);
+                        return true;
+                    }
 
-                if (roll < 0.095f)
-                {
-                    prop = MapProp.Create(MapPropType.BirchTree, localX, localY, worldX, worldY, radius: 38f * scaleVar, isSolid: true, 0x65A30DFF, 0xF8FAFCFF, scaleVar);
-                    return true;
+                    if (roll < 0.65f)
+                    {
+                        prop = MapProp.Create(MapPropType.BirchTree, localX, localY, worldX, worldY, radius: 38f * scaleVar, isSolid: true, 0x65A30DFF, 0xF8FAFCFF, scaleVar);
+                        return true;
+                    }
                 }
-
-                if (roll < 0.115f)
+                else
                 {
-                    prop = MapProp.Create(MapPropType.Bush, localX, localY, worldX, worldY, radius: 17f * scaleVar, isSolid: false, 0x166534FF, 0x15803DFF, scaleVar);
-                    return true;
-                }
+                    if (roll < 0.040f)
+                    {
+                        prop = MapProp.Create(MapPropType.Bush, localX, localY, worldX, worldY, radius: 17f * scaleVar, isSolid: false, 0x166534FF, 0x15803DFF, scaleVar);
+                        return true;
+                    }
 
-                if (roll < 0.130f)
-                {
-                    prop = MapProp.Create(MapPropType.MushroomCluster, localX, localY, worldX, worldY, radius: 13f * scaleVar, isSolid: false, 0x78350FFF, 0xFEF3C7FF, scaleVar);
-                    return true;
+                    if (roll < 0.065f)
+                    {
+                        prop = MapProp.Create(MapPropType.MushroomCluster, localX, localY, worldX, worldY, radius: 13f * scaleVar, isSolid: false, 0x78350FFF, 0xFEF3C7FF, scaleVar);
+                        return true;
+                    }
                 }
 
                 if (isResourceCell)
@@ -171,7 +195,7 @@ public static class BiomePropResolver
 
             case BiomeType.FrozenTundra:
                 // Desolate snow plains with frosted conifers and rare mineral outcroppings
-                if (roll < 0.018f)
+                if (isTreeSlot && roll < 0.14f)
                 {
                     prop = MapProp.Create(MapPropType.SnowPine, localX, localY, worldX, worldY, radius: 32f * scaleVar, isSolid: true, 0xF1F5F9FF, 0x0F766EFF, scaleVar);
                     return true;
@@ -235,7 +259,7 @@ public static class BiomePropResolver
 
             case BiomeType.BeachSand:
                 // Coastal shore: palm trees and smooth water-washed boulders
-                if (roll < 0.009f)
+                if (isTreeSlot && roll < 0.06f)
                 {
                     prop = MapProp.Create(MapPropType.PalmTree, localX, localY, worldX, worldY, radius: 34f * scaleVar, isSolid: true, 0x10B981FF, 0x92400EFF, scaleVar);
                     return true;
@@ -251,22 +275,27 @@ public static class BiomePropResolver
 
             case BiomeType.MistySwamp:
                 // Murky wetlands: weeping willows, dead cypress trees, and bog iron
-                if (roll < 0.020f)
+                if (isTreeSlot)
                 {
-                    prop = MapProp.Create(MapPropType.WillowTree, localX, localY, worldX, worldY, radius: 40f * scaleVar, isSolid: true, 0x4D7C0FFF, 0x3F6212FF, scaleVar);
-                    return true;
-                }
+                    if (roll < 0.18f)
+                    {
+                        prop = MapProp.Create(MapPropType.WillowTree, localX, localY, worldX, worldY, radius: 40f * scaleVar, isSolid: true, 0x4D7C0FFF, 0x3F6212FF, scaleVar);
+                        return true;
+                    }
 
-                if (roll < 0.035f)
-                {
-                    prop = MapProp.Create(MapPropType.DeadTree, localX, localY, worldX, worldY, radius: 24f * scaleVar, isSolid: true, 0x1E293BFF, 0x334155FF, scaleVar);
-                    return true;
+                    if (roll < 0.32f)
+                    {
+                        prop = MapProp.Create(MapPropType.DeadTree, localX, localY, worldX, worldY, radius: 24f * scaleVar, isSolid: true, 0x1E293BFF, 0x334155FF, scaleVar);
+                        return true;
+                    }
                 }
-
-                if (roll < 0.050f)
+                else
                 {
-                    prop = MapProp.Create(MapPropType.MushroomCluster, localX, localY, worldX, worldY, radius: 13f * scaleVar, isSolid: false, 0x854D0EFF, 0xFEF3C7FF, scaleVar);
-                    return true;
+                    if (roll < 0.045f)
+                    {
+                        prop = MapProp.Create(MapPropType.MushroomCluster, localX, localY, worldX, worldY, radius: 13f * scaleVar, isSolid: false, 0x854D0EFF, 0xFEF3C7FF, scaleVar);
+                        return true;
+                    }
                 }
 
                 if (isResourceCell)
@@ -371,22 +400,27 @@ public static class BiomePropResolver
 
             case BiomeType.TropicalJungle:
                 // Exotic rainforest: dense palms, jungle broadleaves, lush bushes, copper, and crystals
-                if (roll < 0.035f)
+                if (isTreeSlot)
                 {
-                    prop = MapProp.Create(MapPropType.PalmTree, localX, localY, worldX, worldY, radius: 36f * scaleVar, isSolid: true, 0x059669FF, 0x78350FFF, scaleVar);
-                    return true;
-                }
+                    if (roll < 0.25f)
+                    {
+                        prop = MapProp.Create(MapPropType.PalmTree, localX, localY, worldX, worldY, radius: 36f * scaleVar, isSolid: true, 0x059669FF, 0x78350FFF, scaleVar);
+                        return true;
+                    }
 
-                if (roll < 0.075f)
-                {
-                    prop = MapProp.Create(MapPropType.OakTree, localX, localY, worldX, worldY, radius: 44f * scaleVar, isSolid: true, 0x047857FF, 0x451A03FF, scaleVar);
-                    return true;
+                    if (roll < 0.48f)
+                    {
+                        prop = MapProp.Create(MapPropType.OakTree, localX, localY, worldX, worldY, radius: 44f * scaleVar, isSolid: true, 0x047857FF, 0x451A03FF, scaleVar);
+                        return true;
+                    }
                 }
-
-                if (roll < 0.100f)
+                else
                 {
-                    prop = MapProp.Create(MapPropType.Bush, localX, localY, worldX, worldY, radius: 18f * scaleVar, isSolid: false, 0x059669FF, 0x10B981FF, scaleVar);
-                    return true;
+                    if (roll < 0.040f)
+                    {
+                        prop = MapProp.Create(MapPropType.Bush, localX, localY, worldX, worldY, radius: 18f * scaleVar, isSolid: false, 0x059669FF, 0x10B981FF, scaleVar);
+                        return true;
+                    }
                 }
 
                 if (isResourceCell)
