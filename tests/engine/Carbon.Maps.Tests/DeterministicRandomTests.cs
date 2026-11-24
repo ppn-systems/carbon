@@ -5,13 +5,13 @@ using Xunit;
 
 namespace Carbon.Maps.Tests;
 
-public sealed class FastRandomTests
+public sealed class DeterministicRandomTests
 {
     [Fact]
-    public void FastRandom_SameSeed_ProducesExactSameSequence()
+    public void DeterministicRandom_SameSeed_ProducesExactSameSequence()
     {
-        FastRandom r1 = new(1337UL);
-        FastRandom r2 = new(1337UL);
+        DeterministicRandom r1 = new(1337UL);
+        DeterministicRandom r2 = new(1337UL);
 
         for (int i = 0; i < 100; i++)
         {
@@ -21,9 +21,9 @@ public sealed class FastRandomTests
     }
 
     [Fact]
-    public void FastRandom_NextFloat_AlwaysWithinUnitRange()
+    public void DeterministicRandom_NextFloat_AlwaysWithinUnitRange()
     {
-        FastRandom rng = new(42UL);
+        DeterministicRandom rng = new(42UL);
 
         for (int i = 0; i < 1000; i++)
         {
@@ -33,9 +33,9 @@ public sealed class FastRandomTests
     }
 
     [Fact]
-    public void FastRandom_NextInt_AlwaysWithinRange()
+    public void DeterministicRandom_NextInt_AlwaysWithinRange()
     {
-        FastRandom rng = new(999UL);
+        DeterministicRandom rng = new(999UL);
 
         for (int i = 0; i < 500; i++)
         {

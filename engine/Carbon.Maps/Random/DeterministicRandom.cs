@@ -9,7 +9,7 @@ namespace Carbon.Maps.Random;
 /// High-throughput, zero-allocation deterministic pseudo-random number generator based on Xoshiro256**.
 /// State is initialized deterministically from a 64-bit seed via SplitMix64.
 /// </summary>
-public struct FastRandom
+public struct DeterministicRandom
 {
     private ulong _s0;
     private ulong _s1;
@@ -17,21 +17,21 @@ public struct FastRandom
     private ulong _s3;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="FastRandom"/> struct from a 64-bit seed.
+    /// Initializes a new instance of the <see cref="DeterministicRandom"/> struct from a 64-bit seed.
     /// </summary>
     /// <param name="seed">Initial 64-bit integer seed.</param>
-    public FastRandom(ulong seed)
+    public DeterministicRandom(ulong seed)
     {
         ulong state = seed == 0 ? 0x9E3779B97F4A7C15UL : seed;
 
-        _s0 = SplitMix64(ref state);
-        _s1 = SplitMix64(ref state);
-        _s2 = SplitMix64(ref state);
-        _s3 = SplitMix64(ref state);
+        this._s0 = SplitMix64(ref state);
+        this._s1 = SplitMix64(ref state);
+        this._s2 = SplitMix64(ref state);
+        this._s3 = SplitMix64(ref state);
 
-        if ((_s0 | _s1 | _s2 | _s3) == 0)
+        if ((this._s0 | this._s1 | this._s2 | this._s3) == 0)
         {
-            _s0 = 0x9E3779B97F4A7C15UL;
+            this._s0 = 0x9E3779B97F4A7C15UL;
         }
     }
 
@@ -40,16 +40,16 @@ public struct FastRandom
     /// </summary>
     public ulong NextULong()
     {
-        ulong result = BitOperations.RotateLeft(_s1 * 5, 7) * 9;
-        ulong t = _s1 << 17;
+        ulong result = BitOperations.RotateLeft(this._s1 * 5, 7) * 9;
+        ulong t = this._s1 << 17;
 
-        _s2 ^= _s0;
-        _s3 ^= _s1;
-        _s1 ^= _s2;
-        _s0 ^= _s3;
+        this._s2 ^= this._s0;
+        this._s3 ^= this._s1;
+        this._s1 ^= this._s2;
+        this._s0 ^= this._s3;
 
-        _s2 ^= t;
-        _s3 = BitOperations.RotateLeft(_s3, 45);
+        this._s2 ^= t;
+        this._s3 = BitOperations.RotateLeft(this._s3, 45);
 
         return result;
     }

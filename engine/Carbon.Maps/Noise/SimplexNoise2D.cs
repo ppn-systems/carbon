@@ -40,7 +40,7 @@ public sealed class SimplexNoise2D
             source[i] = (byte)i;
         }
 
-        FastRandom rng = new(seed);
+        DeterministicRandom rng = new(seed);
         for (int i = 255; i > 0; i--)
         {
             int swapIdx = rng.NextInt(0, i + 1);
