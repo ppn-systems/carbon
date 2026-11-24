@@ -494,68 +494,39 @@ public static class Program
         }
 
         const float s = TileSize;
-        const float b = 16f;
-        const float innerB = 8f;
+        const float b = 10f;
+        const float innerB = 6f;
 
         ColorRgba deepOceanColor = new(7, 89, 133, 255);
         ColorRgba shallowWaterColor = new(56, 189, 248, 255);
-        ColorRgba shelfCrest = new(14, 165, 233, 190);
-        ColorRgba coastalFoam = new(255, 255, 255, 185);
-        ColorRgba sandShelf = new(254, 240, 138, 140);
 
         if (tile.Biome == BiomeType.ShallowWater)
         {
-            // 1. Shallow Water <-> Deep Ocean Transitions
+            // 1. Shallow Water <-> Deep Ocean: Bevel outer corners jutting into ocean
             NeighborMask ocean = CoastlineAutotiler.GetAdjacencyMask(chunk, lx, ly, wtx, wty, s_chunkWorld, BiomeType.DeepOcean);
             if (ocean != NeighborMask.None)
             {
-                // Convex outer corners (shallow water jutting out into deep ocean)
                 if ((ocean & (NeighborMask.North | NeighborMask.West)) == (NeighborMask.North | NeighborMask.West))
                 {
                     batch.FillTriangle(new Vector2(x, y), new Vector2(x + b, y), new Vector2(x, y + b), deepOceanColor);
-                    batch.DrawLine(new Vector2(x + b, y), new Vector2(x, y + b), shelfCrest, 1.5f);
                 }
 
                 if ((ocean & (NeighborMask.North | NeighborMask.East)) == (NeighborMask.North | NeighborMask.East))
                 {
                     batch.FillTriangle(new Vector2(x + s, y), new Vector2(x + s - b, y), new Vector2(x + s, y + b), deepOceanColor);
-                    batch.DrawLine(new Vector2(x + s - b, y), new Vector2(x + s, y + b), shelfCrest, 1.5f);
                 }
 
                 if ((ocean & (NeighborMask.South | NeighborMask.East)) == (NeighborMask.South | NeighborMask.East))
                 {
                     batch.FillTriangle(new Vector2(x + s, y + s), new Vector2(x + s - b, y + s), new Vector2(x + s, y + s - b), deepOceanColor);
-                    batch.DrawLine(new Vector2(x + s - b, y + s), new Vector2(x + s, y + s - b), shelfCrest, 1.5f);
                 }
 
                 if ((ocean & (NeighborMask.South | NeighborMask.West)) == (NeighborMask.South | NeighborMask.West))
                 {
                     batch.FillTriangle(new Vector2(x, y + s), new Vector2(x + b, y + s), new Vector2(x, y + s - b), deepOceanColor);
-                    batch.DrawLine(new Vector2(x + b, y + s), new Vector2(x, y + s - b), shelfCrest, 1.5f);
                 }
 
-                // Straight continental shelf drop lines
-                if ((ocean & NeighborMask.North) != 0 && (ocean & (NeighborMask.West | NeighborMask.East)) == 0)
-                {
-                    batch.DrawLine(new Vector2(x, y + 1f), new Vector2(x + s, y + 1f), shelfCrest, 2f);
-                }
-
-                if ((ocean & NeighborMask.East) != 0 && (ocean & (NeighborMask.North | NeighborMask.South)) == 0)
-                {
-                    batch.DrawLine(new Vector2(x + s - 1f, y), new Vector2(x + s - 1f, y + s), shelfCrest, 2f);
-                }
-
-                if ((ocean & NeighborMask.South) != 0 && (ocean & (NeighborMask.West | NeighborMask.East)) == 0)
-                {
-                    batch.DrawLine(new Vector2(x, y + s - 1f), new Vector2(x + s, y + s - 1f), shelfCrest, 2f);
-                }
-
-                if ((ocean & NeighborMask.West) != 0 && (ocean & (NeighborMask.North | NeighborMask.South)) == 0)
-                {
-                    batch.DrawLine(new Vector2(x + 1f, y), new Vector2(x + 1f, y + s), shelfCrest, 2f);
-                }
-
-                // Diagonal inner nooks (diagonal neighbor is ocean, but cardinals are shallow)
+                // Inner ocean nooks
                 if ((ocean & (NeighborMask.North | NeighborMask.West)) == 0 && (ocean & NeighborMask.NorthWest) != 0)
                 {
                     batch.FillTriangle(new Vector2(x, y), new Vector2(x + innerB, y), new Vector2(x, y + innerB), deepOceanColor);
@@ -576,119 +547,34 @@ public static class Program
                     batch.FillTriangle(new Vector2(x, y + s), new Vector2(x + innerB, y + s), new Vector2(x, y + s - innerB), deepOceanColor);
                 }
             }
-
-            // 2. Shallow Water <-> Land Shoreline Transitions
-            NeighborMask land = CoastlineAutotiler.GetLandAdjacencyMask(chunk, lx, ly, wtx, wty, s_chunkWorld);
-            if (land != NeighborMask.None)
-            {
-                // Concave shoreline corners (water nestled into land)
-                if ((land & (NeighborMask.North | NeighborMask.West)) == (NeighborMask.North | NeighborMask.West))
-                {
-                    batch.FillTriangle(new Vector2(x, y), new Vector2(x + b, y), new Vector2(x, y + b), sandShelf);
-                    batch.DrawLine(new Vector2(x + b, y), new Vector2(x, y + b), coastalFoam, 2f);
-                }
-
-                if ((land & (NeighborMask.North | NeighborMask.East)) == (NeighborMask.North | NeighborMask.East))
-                {
-                    batch.FillTriangle(new Vector2(x + s, y), new Vector2(x + s - b, y), new Vector2(x + s, y + b), sandShelf);
-                    batch.DrawLine(new Vector2(x + s - b, y), new Vector2(x + s, y + b), coastalFoam, 2f);
-                }
-
-                if ((land & (NeighborMask.South | NeighborMask.East)) == (NeighborMask.South | NeighborMask.East))
-                {
-                    batch.FillTriangle(new Vector2(x + s, y + s), new Vector2(x + s - b, y + s), new Vector2(x + s, y + s - b), sandShelf);
-                    batch.DrawLine(new Vector2(x + s - b, y + s), new Vector2(x + s, y + s - b), coastalFoam, 2f);
-                }
-
-                if ((land & (NeighborMask.South | NeighborMask.West)) == (NeighborMask.South | NeighborMask.West))
-                {
-                    batch.FillTriangle(new Vector2(x, y + s), new Vector2(x + b, y + s), new Vector2(x, y + s - b), sandShelf);
-                    batch.DrawLine(new Vector2(x + b, y + s), new Vector2(x, y + s - b), coastalFoam, 2f);
-                }
-
-                // Straight coastal shorelines with frothy white foam
-                if ((land & NeighborMask.North) != 0)
-                {
-                    batch.FillRectangle(new RectangleF(x, y, s, 3f), sandShelf);
-                    batch.DrawLine(new Vector2(x, y + 2f), new Vector2(x + s, y + 2f), coastalFoam, 1.8f);
-                }
-
-                if ((land & NeighborMask.East) != 0)
-                {
-                    batch.FillRectangle(new RectangleF(x + s - 3f, y, 3f, s), sandShelf);
-                    batch.DrawLine(new Vector2(x + s - 2f, y), new Vector2(x + s - 2f, y + s), coastalFoam, 1.8f);
-                }
-
-                if ((land & NeighborMask.South) != 0)
-                {
-                    batch.FillRectangle(new RectangleF(x, y + s - 3f, s, 3f), sandShelf);
-                    batch.DrawLine(new Vector2(x, y + s - 2f), new Vector2(x + s, y + s - 2f), coastalFoam, 1.8f);
-                }
-
-                if ((land & NeighborMask.West) != 0)
-                {
-                    batch.FillRectangle(new RectangleF(x, y, 3f, s), sandShelf);
-                    batch.DrawLine(new Vector2(x + 2f, y), new Vector2(x + 2f, y + s), coastalFoam, 1.8f);
-                }
-
-                // Diagonal inner land nooks
-                if ((land & (NeighborMask.North | NeighborMask.West)) == 0 && (land & NeighborMask.NorthWest) != 0)
-                {
-                    batch.FillTriangle(new Vector2(x, y), new Vector2(x + innerB, y), new Vector2(x, y + innerB), sandShelf);
-                    batch.DrawLine(new Vector2(x + innerB, y), new Vector2(x, y + innerB), coastalFoam, 1.5f);
-                }
-
-                if ((land & (NeighborMask.North | NeighborMask.East)) == 0 && (land & NeighborMask.NorthEast) != 0)
-                {
-                    batch.FillTriangle(new Vector2(x + s, y), new Vector2(x + s - innerB, y), new Vector2(x + s, y + innerB), sandShelf);
-                    batch.DrawLine(new Vector2(x + s - innerB, y), new Vector2(x + s, y + innerB), coastalFoam, 1.5f);
-                }
-
-                if ((land & (NeighborMask.South | NeighborMask.East)) == 0 && (land & NeighborMask.SouthEast) != 0)
-                {
-                    batch.FillTriangle(new Vector2(x + s, y + s), new Vector2(x + s - innerB, y + s), new Vector2(x + s, y + s - innerB), sandShelf);
-                    batch.DrawLine(new Vector2(x + s - innerB, y + s), new Vector2(x + s, y + s - innerB), coastalFoam, 1.5f);
-                }
-
-                if ((land & (NeighborMask.South | NeighborMask.West)) == 0 && (land & NeighborMask.SouthWest) != 0)
-                {
-                    batch.FillTriangle(new Vector2(x, y + s), new Vector2(x + innerB, y + s), new Vector2(x, y + s - innerB), sandShelf);
-                    batch.DrawLine(new Vector2(x + innerB, y), new Vector2(x, y + s - innerB), coastalFoam, 1.5f);
-                }
-            }
         }
         else if (tile.Biome == BiomeType.DeepOcean)
         {
-            // Deep Ocean <-> Shallow Water Transitions
+            // 2. Deep Ocean <-> Shallow Water: Fill concave corners surrounded by shallow water
             NeighborMask shallow = CoastlineAutotiler.GetAdjacencyMask(chunk, lx, ly, wtx, wty, s_chunkWorld, BiomeType.ShallowWater);
             if (shallow != NeighborMask.None)
             {
-                // Concave corners (deep ocean indented into shallow water)
                 if ((shallow & (NeighborMask.North | NeighborMask.West)) == (NeighborMask.North | NeighborMask.West))
                 {
                     batch.FillTriangle(new Vector2(x, y), new Vector2(x + b, y), new Vector2(x, y + b), shallowWaterColor);
-                    batch.DrawLine(new Vector2(x + b, y), new Vector2(x, y + b), shelfCrest, 1.5f);
                 }
 
                 if ((shallow & (NeighborMask.North | NeighborMask.East)) == (NeighborMask.North | NeighborMask.East))
                 {
                     batch.FillTriangle(new Vector2(x + s, y), new Vector2(x + s - b, y), new Vector2(x + s, y + b), shallowWaterColor);
-                    batch.DrawLine(new Vector2(x + s - b, y), new Vector2(x + s, y + b), shelfCrest, 1.5f);
                 }
 
                 if ((shallow & (NeighborMask.South | NeighborMask.East)) == (NeighborMask.South | NeighborMask.East))
                 {
                     batch.FillTriangle(new Vector2(x + s, y + s), new Vector2(x + s - b, y + s), new Vector2(x + s, y + s - b), shallowWaterColor);
-                    batch.DrawLine(new Vector2(x + s - b, y + s), new Vector2(x + s, y + s - b), shelfCrest, 1.5f);
                 }
 
                 if ((shallow & (NeighborMask.South | NeighborMask.West)) == (NeighborMask.South | NeighborMask.West))
                 {
                     batch.FillTriangle(new Vector2(x, y + s), new Vector2(x + b, y + s), new Vector2(x, y + s - b), shallowWaterColor);
-                    batch.DrawLine(new Vector2(x + b, y + s), new Vector2(x, y + s - b), shelfCrest, 1.5f);
                 }
 
-                // Inner diagonal shallow water nooks
+                // Inner shallow nooks
                 if ((shallow & (NeighborMask.North | NeighborMask.West)) == 0 && (shallow & NeighborMask.NorthWest) != 0)
                 {
                     batch.FillTriangle(new Vector2(x, y), new Vector2(x + innerB, y), new Vector2(x, y + innerB), shallowWaterColor);
@@ -710,60 +596,30 @@ public static class Program
                 }
             }
         }
-        else
+        else if (tile.Biome == BiomeType.BeachSand)
         {
-            // 3. Land <-> Water Transitions (Beaches, Capes, Peninsulas)
+            // 3. Beach Sand <-> Shallow Water: Bevel sharp sand points jutting into water
             NeighborMask water = CoastlineAutotiler.GetWaterAdjacencyMask(chunk, lx, ly, wtx, wty, s_chunkWorld);
             if (water != NeighborMask.None)
             {
-                // Outer convex land corners (cape jutting into water)
                 if ((water & (NeighborMask.North | NeighborMask.West)) == (NeighborMask.North | NeighborMask.West))
                 {
                     batch.FillTriangle(new Vector2(x, y), new Vector2(x + b, y), new Vector2(x, y + b), shallowWaterColor);
-                    batch.DrawLine(new Vector2(x + b, y), new Vector2(x, y + b), coastalFoam, 2f);
                 }
 
                 if ((water & (NeighborMask.North | NeighborMask.East)) == (NeighborMask.North | NeighborMask.East))
                 {
                     batch.FillTriangle(new Vector2(x + s, y), new Vector2(x + s - b, y), new Vector2(x + s, y + b), shallowWaterColor);
-                    batch.DrawLine(new Vector2(x + s - b, y), new Vector2(x + s, y + b), coastalFoam, 2f);
                 }
 
                 if ((water & (NeighborMask.South | NeighborMask.East)) == (NeighborMask.South | NeighborMask.East))
                 {
                     batch.FillTriangle(new Vector2(x + s, y + s), new Vector2(x + s - b, y + s), new Vector2(x + s, y + s - b), shallowWaterColor);
-                    batch.DrawLine(new Vector2(x + s - b, y + s), new Vector2(x + s, y + s - b), coastalFoam, 2f);
                 }
 
                 if ((water & (NeighborMask.South | NeighborMask.West)) == (NeighborMask.South | NeighborMask.West))
                 {
                     batch.FillTriangle(new Vector2(x, y + s), new Vector2(x + b, y + s), new Vector2(x, y + s - b), shallowWaterColor);
-                    batch.DrawLine(new Vector2(x + b, y + s), new Vector2(x, y + s - b), coastalFoam, 2f);
-                }
-
-                // Inner diagonal water nooks touching land corner
-                if ((water & (NeighborMask.North | NeighborMask.West)) == 0 && (water & NeighborMask.NorthWest) != 0)
-                {
-                    batch.FillTriangle(new Vector2(x, y), new Vector2(x + innerB, y), new Vector2(x, y + innerB), shallowWaterColor);
-                    batch.DrawLine(new Vector2(x + innerB, y), new Vector2(x, y + innerB), coastalFoam, 1.5f);
-                }
-
-                if ((water & (NeighborMask.North | NeighborMask.East)) == 0 && (water & NeighborMask.NorthEast) != 0)
-                {
-                    batch.FillTriangle(new Vector2(x + s, y), new Vector2(x + s - innerB, y), new Vector2(x + s, y + innerB), shallowWaterColor);
-                    batch.DrawLine(new Vector2(x + s - innerB, y), new Vector2(x + s, y + innerB), coastalFoam, 1.5f);
-                }
-
-                if ((water & (NeighborMask.South | NeighborMask.East)) == 0 && (water & NeighborMask.SouthEast) != 0)
-                {
-                    batch.FillTriangle(new Vector2(x + s, y + s), new Vector2(x + s - innerB, y + s), new Vector2(x + s, y + s - innerB), shallowWaterColor);
-                    batch.DrawLine(new Vector2(x + s - innerB, y + s), new Vector2(x + s, y + s - innerB), coastalFoam, 1.5f);
-                }
-
-                if ((water & (NeighborMask.South | NeighborMask.West)) == 0 && (water & NeighborMask.SouthWest) != 0)
-                {
-                    batch.FillTriangle(new Vector2(x, y + s), new Vector2(x + innerB, y + s), new Vector2(x, y + s - innerB), shallowWaterColor);
-                    batch.DrawLine(new Vector2(x + innerB, y + s), new Vector2(x, y + s - innerB), coastalFoam, 1.5f);
                 }
             }
         }

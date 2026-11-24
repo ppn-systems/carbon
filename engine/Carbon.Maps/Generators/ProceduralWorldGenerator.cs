@@ -156,9 +156,9 @@ public sealed class ProceduralWorldGenerator
         if (elevation is >= 0.38f and <= 0.82f)
         {
             float riverVal = MathF.Abs(_riverNoise.Evaluate(fx * 3.0f, fy * 3.0f, octaves: 2) - 0.5f);
-            if (riverVal < 0.010f)
+            if (riverVal < 0.013f)
             {
-                bool isCenter = riverVal < 0.005f;
+                bool isCenter = riverVal < 0.007f;
                 BiomeType riverBiome = isCenter ? BiomeType.ShallowWater : BiomeType.BeachSand;
                 byte riverVariant = (byte)((worldX ^ (worldY * 31)) & 3);
                 return new MapTile(riverBiome, isCenter ? 0.28f : 0.35f, temperature, 1.0f, false, riverVariant);
