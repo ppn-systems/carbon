@@ -57,7 +57,11 @@ public sealed class LandmarkLayout
         switch (poi.Type)
         {
             case PointOfInterestType.RiverVillage:
+            case PointOfInterestType.DesertVillage:
+            case PointOfInterestType.SnowVillage:
+            case PointOfInterestType.SwampVillage:
                 {
+                    byte style = StyleOf(poi.Type);
                     pieces.Add(new LandmarkPiece(LandmarkPieceKind.Well, cx, cy + (10f * Px), 1f, 0));
                     int houses = 0;
                     for (int i = 0; i < 9 && houses < 7; i++)
@@ -69,12 +73,12 @@ public sealed class LandmarkLayout
                         float w = (64f + (Hash01(seed, i + 80) * 26f)) * Px;
                         if (IsBuildable(tileAt, x, y, w, level) && !Overlaps(pieces, x, y, w + (22f * Px)))
                         {
-                            pieces.Add(new LandmarkPiece(LandmarkPieceKind.House, x, y, w, (byte)(Hash(seed, i + 120) % 6)));
+                            pieces.Add(new LandmarkPiece(LandmarkPieceKind.House, x, y, w, (byte)((Hash(seed, i + 120) % 6) | (uint)(style << 4))));
                             houses++;
                         }
                     }
 
-                    for (int i = 0; i < 6; i++)
+                    for (int i = 0; i < (poi.Type == PointOfInterestType.RiverVillage ? 6 : 0); i++)
                     {
                         float a = (i * (MathF.Tau / 6f)) + 0.5f + (Hash01(seed, i + 200) * 0.3f);
                         float fx = cx + (Cos(a) * r * 0.86f);
@@ -137,7 +141,6 @@ public sealed class LandmarkLayout
                 pieces.Add(new LandmarkPiece(LandmarkPieceKind.StoneLantern, cx - (58f * Px), cy + (18f * Px), 1f, 0));
                 pieces.Add(new LandmarkPiece(LandmarkPieceKind.StoneLantern, cx + (58f * Px), cy + (18f * Px), 1f, 0));
                 break;
-
             case PointOfInterestType.None:
             default:
                 break;
@@ -155,7 +158,7 @@ public sealed class LandmarkLayout
         Span<TileBox> boxes = stackalloc TileBox[LandmarkPiece.MaxColliders];
         for (int i = 0; i < _pieces.Length; i++)
         {
-            int n = _pieces[i].GetColliders(boxes);
+            int n = _pieces[i].GetNavFootprint(boxes);
             for (int k = 0; k < n; k++)
             {
                 TileBox b = boxes[k];
@@ -181,7 +184,7 @@ public sealed class LandmarkLayout
             for (int j = 0; j <= 1; j++)
             {
                 int tx = (int)MathF.Floor(x + (i * width * 0.5f));
-                int ty = (int)MathF.Floor(y - (j * 40f * Px));
+                int ty = (int)MathF.Floor(y - (j * LandmarkPiece.HouseDepthTiles));
                 MapTile t = tileAt(tx, ty);
                 if (t.IsSolid || t.HeightLevel != level || t.Biome is BiomeType.ShallowWater or BiomeType.DeepOcean)
                 {
@@ -213,6 +216,16 @@ public sealed class LandmarkLayout
         float len = MathF.Sqrt((poi.FacingX * poi.FacingX) + (poi.FacingY * poi.FacingY));
         return len > 0.1f ? (poi.FacingX / len, poi.FacingY / len) : (0f, 1f);
     }
+
+    private static byte StyleOf(PointOfInterestType type) => type switch
+    {
+        PointOfInterestType.DesertVillage => LandmarkPiece.StyleDesert,
+        PointOfInterestType.SnowVillage => LandmarkPiece.StyleSnow,
+        PointOfInterestType.SwampVillage => LandmarkPiece.StyleSwamp,
+        PointOfInterestType.None or PointOfInterestType.RiverVillage or PointOfInterestType.Harbor or
+        PointOfInterestType.MountainShrine or PointOfInterestType.LakesideCamp => LandmarkPiece.StyleTemperate,
+        _ => LandmarkPiece.StyleTemperate,
+    };
 
     private static float Sin(float a) => DeterministicMath.Sin(a);
 

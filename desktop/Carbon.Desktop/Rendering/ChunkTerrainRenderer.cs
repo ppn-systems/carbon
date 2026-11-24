@@ -38,6 +38,17 @@ public sealed class ChunkTerrainRenderer : IDisposable
     private readonly Dictionary<long, ChunkMesh2D> _meshCache = new();
     private readonly List<long> _evictionBuffer = new();
     private readonly Dictionary<long, WaterfallEdge[]> _waterfalls = new();
+    private readonly Dictionary<long, RippleSpot[]> _ripples = new();
+
+    // Water tiles chosen for animated ripples while baking the current chunk.
+    private static readonly List<RippleSpot> s_bakingRipples = new();
+
+    /// <summary>A point on open water where an animated ripple glint plays.</summary>
+    public readonly record struct RippleSpot(Vector2 Centre, int Seed, bool IsDeep);
+
+    /// <summary>Gets the ripple spots of a chunk (empty until the chunk has been rendered once).</summary>
+    public ReadOnlySpan<RippleSpot> GetRipples(long chunkKey) =>
+        _ripples.TryGetValue(chunkKey, out RippleSpot[]? spots) ? spots : [];
 
     // Waterfall edges found while baking the current chunk (the bake helpers are static).
     private static readonly List<WaterfallEdge> s_bakingWaterfalls = new();
@@ -134,9 +145,11 @@ public sealed class ChunkTerrainRenderer : IDisposable
         if (!_meshCache.TryGetValue(key, out ChunkMesh2D? mesh))
         {
             s_bakingWaterfalls.Clear();
+            s_bakingRipples.Clear();
             mesh = this.BuildChunkMesh(chunk, world);
             _meshCache[key] = mesh;
             _waterfalls[key] = [.. s_bakingWaterfalls];
+            _ripples[key] = [.. s_bakingRipples];
         }
 
         mesh.Draw();
@@ -179,6 +192,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
         {
             long key = _evictionBuffer[i];
             _ = _waterfalls.Remove(key);
+            _ = _ripples.Remove(key);
             if (_meshCache.Remove(key, out ChunkMesh2D? mesh))
             {
                 mesh.Dispose();
@@ -208,6 +222,22 @@ public sealed class ChunkTerrainRenderer : IDisposable
                 // Autotiling & Marching Squares smooth diagonal coastline transitions
                 int wtx = (chunk.ChunkX * Chunk2D.Size) + lx;
                 int wty = (chunk.ChunkY * Chunk2D.Size) + ly;
+
+                // About one water tile in ten gets an animated ripple
+                if (tile.Biome is BiomeType.ShallowWater or BiomeType.DeepOcean)
+                {
+                    int rippleSeed = (wtx * 92837111) ^ (wty * 689287499);
+                    if (((uint)rippleSeed % 100u) < 11u)
+                    {
+                        s_bakingRipples.Add(new RippleSpot(
+                            new Vector2(tileWorldX + (tileSize * 0.5f), tileWorldY + (tileSize * 0.5f)),
+                            rippleSeed,
+                            tile.Biome == BiomeType.DeepOcean));
+                    }
+                }
+
+                // Diagonal corner cuts between different surfaces (sand / grass / water ...)
+                BakeTileDiagonalCorners(_builder, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize);
                 BakeTileCoastlineTransitions(_builder, chunk, lx, ly, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize);
 
                 // Smooth Biome-to-Biome Transition Dithering / Blending
@@ -622,6 +652,37 @@ public sealed class ChunkTerrainRenderer : IDisposable
     }
 
     private const float CliffFaceHeight = 14f;
+
+    // Marching-squares style corner cut: when both edge neighbours of a corner (and the diagonal one) are the
+    // same other surface at the same height, that surface takes the half-tile triangle of the corner.
+    // A staircase boundary between two surfaces (a sandy bank, a forest edge, a shoreline) then becomes a
+    // straight 45 degree line.
+    private static void BakeTileDiagonalCorners(
+        ChunkMeshBuilder builder, int wtx, int wty, float x, float y, in MapTile tile, ChunkWorld2D world, float s)
+    {
+        MapTile n = world.PeekTileAtWorld(wtx, wty - 1);
+        MapTile so = world.PeekTileAtWorld(wtx, wty + 1);
+        MapTile w = world.PeekTileAtWorld(wtx - 1, wty);
+        MapTile e = world.PeekTileAtWorld(wtx + 1, wty);
+
+        TryCut(builder, tile, n, w, world.PeekTileAtWorld(wtx - 1, wty - 1), new Vector2(x, y), new Vector2(x + s, y), new Vector2(x, y + s));
+        TryCut(builder, tile, n, e, world.PeekTileAtWorld(wtx + 1, wty - 1), new Vector2(x + s, y), new Vector2(x + s, y + s), new Vector2(x, y));
+        TryCut(builder, tile, so, w, world.PeekTileAtWorld(wtx - 1, wty + 1), new Vector2(x, y + s), new Vector2(x, y), new Vector2(x + s, y + s));
+        TryCut(builder, tile, so, e, world.PeekTileAtWorld(wtx + 1, wty + 1), new Vector2(x + s, y + s), new Vector2(x, y + s), new Vector2(x + s, y));
+
+        static void TryCut(ChunkMeshBuilder b, in MapTile self, in MapTile a, in MapTile c, in MapTile diag, Vector2 corner, Vector2 p1, Vector2 p2)
+        {
+            // Only one side of a boundary cuts (the surface with the higher enum value gives way), otherwise
+            // both sides cut and the two diagonals, half a tile apart, form a sawtooth.
+            if (a.Biome == self.Biome || a.Biome > self.Biome || a.Biome != c.Biome || diag.Biome != a.Biome ||
+                a.HeightLevel != self.HeightLevel || c.HeightLevel != self.HeightLevel || diag.HeightLevel != self.HeightLevel)
+            {
+                return;
+            }
+
+            b.AddTriangle(corner, p1, p2, GroundColor(in a));
+        }
+    }
 
     private static readonly ColorRgba s_foam = new(255, 255, 255, 235);
     private static readonly ColorRgba s_foamSoft = new(224, 242, 254, 170);

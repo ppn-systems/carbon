@@ -48,6 +48,13 @@ public sealed class LandmarkAndHydrologyRulesTests
                         Assert.Equal(0, tile.HeightLevel);
                         Assert.True(river <= 12f);
                         break;
+                    case PointOfInterestType.DesertVillage:
+                    case PointOfInterestType.SnowVillage:
+                    case PointOfInterestType.SwampVillage:
+                        villages++;
+                        Assert.Equal(0, tile.HeightLevel);
+                        Assert.InRange(river, 3f, 11f);
+                        break;
                     case PointOfInterestType.None:
                     default:
                         break;

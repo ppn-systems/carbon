@@ -24,7 +24,7 @@ public sealed class ProceduralWorldGenerator
     /// Bump it whenever any change alters generated output (the golden-hash test fails), so a client running
     /// a different generator refuses to play instead of silently desyncing.
     /// </summary>
-    public const ushort GeneratorVersion = 7;
+    public const ushort GeneratorVersion = 8;
 
     /// <summary>Width-scaled distance over which rivers and lakes lower and moisten the land around them.</summary>
     public const float RiparianReach = 10f;

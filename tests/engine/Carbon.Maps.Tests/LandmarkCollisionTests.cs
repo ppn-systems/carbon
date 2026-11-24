@@ -17,21 +17,49 @@ public sealed class LandmarkCollisionTests
     private const float TileSize = 32f;
 
     [Fact]
-    public void ResolveEntityCollision_WalkingIntoHouse_IsPushedOutOfFootprint()
+    public void ResolveEntityCollision_StandingInAWall_IsPushedOut()
     {
         (ChunkWorld2D world, LandmarkPiece house) = FindHouse();
-        Span<TileBox> boxes = stackalloc TileBox[LandmarkPiece.MaxColliders];
-        house.GetColliders(boxes);
-        TileBox box = boxes[0];
 
-        // Standing in the middle of the house body.
-        Vector2 inside = new((box.MinX + box.MaxX) * 0.5f * TileSize, (box.MinY + box.MaxY) * 0.5f * TileSize);
-        bool collided = world.ResolveEntityCollision(ref inside, radius: 7f, out _);
+        // Centre of the left wall
+        Vector2 inWall = new((house.X - (house.Width * 0.5f) + (LandmarkPiece.WallTiles * 0.5f)) * TileSize, (house.Y - (house.Depth * 0.5f)) * TileSize);
+        Vector2 before = inWall;
+        bool collided = world.ResolveEntityCollision(ref inWall, radius: 7f, out _);
 
         Assert.True(collided);
-        bool stillInside = inside.X > box.MinX * TileSize && inside.X < box.MaxX * TileSize &&
-                           inside.Y > box.MinY * TileSize && inside.Y < box.MaxY * TileSize;
-        Assert.False(stillInside);
+        Assert.True(Vector2.Distance(before, inWall) > 3f);
+    }
+
+    [Fact]
+    public void ResolveEntityCollision_WalkingThroughTheDoor_EntersTheHouse()
+    {
+        (ChunkWorld2D world, LandmarkPiece house) = FindHouse();
+        Vector2 position = new(house.X * TileSize, (house.Y + 0.5f) * TileSize);
+
+        // Walk north through the door opening in small steps, resolving collisions like the simulation does.
+        for (int i = 0; i < 40; i++)
+        {
+            position += new Vector2(0f, -1.5f);
+            _ = world.ResolveEntityCollision(ref position, radius: 7f, out _);
+        }
+
+        Assert.True(house.IsInside(position.X / TileSize, position.Y / TileSize), $"Ended at {position}, not inside the house.");
+    }
+
+    [Fact]
+    public void ResolveEntityCollision_WalkingIntoTheSideWall_IsStoppedOutside()
+    {
+        (ChunkWorld2D world, LandmarkPiece house) = FindHouse();
+        float left = (house.X - (house.Width * 0.5f)) * TileSize;
+        Vector2 position = new(left - 20f, (house.Y - (house.Depth * 0.5f)) * TileSize);
+
+        for (int i = 0; i < 30; i++)
+        {
+            position += new Vector2(1.5f, 0f);
+            _ = world.ResolveEntityCollision(ref position, radius: 7f, out _);
+        }
+
+        Assert.True(position.X < left, "The side wall must stop an entity walking into it.");
     }
 
     [Fact]

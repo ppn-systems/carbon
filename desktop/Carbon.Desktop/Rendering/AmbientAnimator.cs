@@ -57,6 +57,33 @@ internal static class AmbientAnimator
         }
     }
 
+    /// <summary>
+    /// Ripples on open water: pairs of light glints that swell, drift with the current and fade, each on
+    /// its own phase so the surface twinkles instead of pulsing in unison.
+    /// </summary>
+    public static void DrawRipples(GeometryBatch batch, ReadOnlySpan<ChunkTerrainRenderer.RippleSpot> spots, float time)
+    {
+        for (int i = 0; i < spots.Length; i++)
+        {
+            ChunkTerrainRenderer.RippleSpot spot = spots[i];
+            uint seed = (uint)spot.Seed;
+            float phase = Frac((time * (0.22f + (Hash01(seed, 1) * 0.12f))) + Hash01(seed, 2));
+            float life = MathF.Sin(phase * MathF.PI);
+            if (life < 0.05f)
+            {
+                continue;
+            }
+
+            float drift = (phase - 0.5f) * 10f;
+            Vector2 c = spot.Centre + new Vector2(((Hash01(seed, 3) - 0.5f) * 18f) + drift, (Hash01(seed, 4) - 0.5f) * 18f);
+            float w = 6f + (life * 8f);
+            byte a = (byte)(life * (spot.IsDeep ? 70f : 120f));
+            ColorRgba glint = spot.IsDeep ? new ColorRgba(150, 190, 230, a) : new ColorRgba(230, 248, 255, a);
+            batch.FillRectangle(new RectangleF(c.X - (w * 0.5f), c.Y, w, 1.5f), glint);
+            batch.FillRectangle(new RectangleF(c.X - (w * 0.3f) + 4f, c.Y + 4f, w * 0.6f, 1.5f), new ColorRgba(glint.R, glint.G, glint.B, (byte)(a * 0.6f)));
+        }
+    }
+
     /// <summary>Fractional part.</summary>
     public static float Frac(float v) => v - MathF.Floor(v);
 

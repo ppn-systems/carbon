@@ -424,6 +424,7 @@ public static class Program
                 continue;
             }
 
+            AmbientAnimator.DrawRipples(s_geometryBatch, s_chunkTerrainRenderer.GetRipples(chunk.Key), s_animTime);
             AmbientAnimator.DrawWaterfalls(s_geometryBatch, s_chunkTerrainRenderer.GetWaterfalls(chunk.Key), s_animTime);
         }
 
@@ -476,7 +477,7 @@ public static class Program
                     continue;
                 }
 
-                s_poiRenderer.DrawGround(s_geometryBatch, poi, s_animTime);
+                s_poiRenderer.DrawGround(s_geometryBatch, poi, s_animTime, playerPos);
                 ReadOnlySpan<LandmarkPiece> pieces = s_poiRenderer.GetLayout(poi).Pieces;
                 for (int k = 0; k < pieces.Length; k++)
                 {
@@ -533,7 +534,7 @@ public static class Program
             ref readonly GroundRenderItem item = ref groundSpan[i];
             if (item.IsPiece)
             {
-                s_poiRenderer?.DrawPiece(s_geometryBatch, item.Piece, s_animTime);
+                s_poiRenderer?.DrawPiece(s_geometryBatch, item.Piece, s_animTime, playerPos);
             }
             else if (item.IsProp)
             {
@@ -551,7 +552,12 @@ public static class Program
         for (int i = 0; i < canopySpan.Length; i++)
         {
             ref readonly CanopyRenderItem item = ref canopySpan[i];
-            RenderPropCanopy(s_geometryBatch, item.Prop, playerPos);
+            // Canopies sway in the wind (trunks stay put): per-tree phase plus a slow shared gust.
+            MapProp swaying = item.Prop;
+            float gust = 0.6f + (0.4f * MathF.Sin(s_animTime * 0.35f));
+            float sway = MathF.Sin((s_animTime * 1.25f) + (swaying.WorldPositionX * 0.013f) + (swaying.WorldPositionY * 0.007f)) * 1.8f * gust * swaying.Scale;
+            swaying = swaying with { WorldPositionX = swaying.WorldPositionX + sway };
+            RenderPropCanopy(s_geometryBatch, swaying, playerPos);
         }
 
         s_geometryBatch.End();

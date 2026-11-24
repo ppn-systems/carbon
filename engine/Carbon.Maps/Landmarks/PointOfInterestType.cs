@@ -19,4 +19,13 @@ public enum PointOfInterestType : byte
 
     /// <summary>Camp on the shore of a lake or a large river.</summary>
     LakesideCamp = 4,
+
+    /// <summary>Adobe village beside a river crossing the desert (an oasis settlement).</summary>
+    DesertVillage = 5,
+
+    /// <summary>Log-cabin village on frozen tundra near water.</summary>
+    SnowVillage = 6,
+
+    /// <summary>Stilt-house village in a misty swamp.</summary>
+    SwampVillage = 7,
 }

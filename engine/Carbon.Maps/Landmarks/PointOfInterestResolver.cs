@@ -198,6 +198,25 @@ public sealed class PointOfInterestResolver
             return (PointOfInterestType.Harbor, 3f, 7);
         }
 
+        // Biome villages: each climate builds its own kind of settlement by the water.
+        if (flat && tile.HeightLevel == 0 && river is > 3.0f and <= 11f)
+        {
+            if (tile.Biome is BiomeType.MistySwamp)
+            {
+                return (PointOfInterestType.SwampVillage, 2.5f, 11);
+            }
+
+            if (tile.Biome is BiomeType.DuneDesert or BiomeType.RedMesa)
+            {
+                return (PointOfInterestType.DesertVillage, 2.5f, 11);
+            }
+
+            if (tile.Biome is BiomeType.FrozenTundra)
+            {
+                return (PointOfInterestType.SnowVillage, 2.5f, 11);
+            }
+        }
+
         // Village: flat fertile lowland, near water but outside the flood zone.
         if (flat && tile.HeightLevel == 0 && river is > 4.5f and <= 11f &&
             tile.Biome is BiomeType.LushPlains or BiomeType.Savanna or BiomeType.BlossomWoods or BiomeType.AncientForest)
