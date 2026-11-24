@@ -288,23 +288,56 @@ public static class Program
         }
 
         // 8. Stream infinite chunks around the moving player with pooling
+        Vector2 previousPlayerPos = playerTrans.Position;
         s_chunkWorld.UpdateAroundPosition(playerTrans.Position, chunkRadius: 4, evictionRadius: 7);
 
         // 9. Step simulation
         _ = s_world.Update(dt);
 
-        // 10. Continuous physical collision sliding (terrain, trunks, ores)
+        // 10. Continuous Collision Detection (CCD) Sub-stepping:
+        // Prevents tunneling through tree trunks, boulders, cliffs, and walls during high-speed sprinting
         ref Transform2D simTrans = ref s_world.Entities.GetTransform(s_player);
         ref readonly Collider2D col = ref s_world.Entities.GetCollider(s_player);
-        Vector2 resolvedPos = simTrans.Position;
-        if (s_chunkWorld.ResolveEntityCollision(ref resolvedPos, col.Radius, out Vector2 pushNormal))
+        ref Velocity2D simVel = ref s_world.Entities.GetVelocity(s_player);
+
+        Vector2 displacement = simTrans.Position - previousPlayerPos;
+        float totalDist = displacement.Length();
+
+        if (totalDist > 0.0001f)
         {
-            simTrans.Position = resolvedPos;
-            ref Velocity2D vel = ref s_world.Entities.GetVelocity(s_player);
-            float dot = Vector2.Dot(vel.Linear, pushNormal);
-            if (dot < 0f)
+            const float maxStep = 2.5f; // Well below player radius 7f and obstacle radius 8f
+            int subSteps = Math.Clamp((int)MathF.Ceiling(totalDist / maxStep), 1, 16);
+            Vector2 stepDelta = displacement / subSteps;
+            Vector2 currentPos = previousPlayerPos;
+
+            for (int step = 0; step < subSteps; step++)
             {
-                vel.Linear -= pushNormal * dot;
+                currentPos += stepDelta;
+                if (s_chunkWorld.ResolveEntityCollision(ref currentPos, col.Radius, out Vector2 pushNormal))
+                {
+                    // Deflect trajectory along obstacle surface for silky smooth sliding
+                    float stepDot = Vector2.Dot(stepDelta, pushNormal);
+                    if (stepDot < 0f)
+                    {
+                        stepDelta -= pushNormal * stepDot;
+                    }
+
+                    float velDot = Vector2.Dot(simVel.Linear, pushNormal);
+                    if (velDot < 0f)
+                    {
+                        simVel.Linear -= pushNormal * velDot;
+                    }
+                }
+            }
+
+            simTrans.Position = currentPos;
+        }
+        else
+        {
+            Vector2 currentPos = simTrans.Position;
+            if (s_chunkWorld.ResolveEntityCollision(ref currentPos, col.Radius, out _))
+            {
+                simTrans.Position = currentPos;
             }
         }
 

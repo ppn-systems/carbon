@@ -486,72 +486,112 @@ public sealed class ChunkTerrainRenderer : IDisposable
         float s = tileSize;
         (ColorRgba slopeBed, ColorRgba rockSlab, ColorRgba rockShadow, ColorRgba rockHighlight) = GetNaturalSlopePalette(tile.Biome);
 
-        // Deterministic pseudo-random variation based on tile coordinates
+        // Flanking rock cheek color
+        ColorRgba rockCheek = new((byte)(slopeBed.R * 0.70f), (byte)(slopeBed.G * 0.70f), (byte)(slopeBed.B * 0.70f), 255);
+        ColorRgba rockCheekHighlight = new((byte)Math.Min(rockCheek.R + 40, 255), (byte)Math.Min(rockCheek.G + 40, 255), (byte)Math.Min(rockCheek.B + 40, 255), 220);
+        ColorRgba grassFringe = new(56, 128, 62, 200);
+
         int hash = (wtx * 31) ^ (wty * 17);
 
         if (ramp is RampDirection.West or RampDirection.East)
         {
-            // Horizontal Natural Mountain Pass / Scree Trail (West <-> East)
+            // Horizontal Natural Ravine / Mountain Pass (West <-> East)
             const float apronReach = 8f;
             float trailX = ramp == RampDirection.West ? x - apronReach : x;
             float trailW = s + apronReach;
 
-            // 1. Natural earthen/scree roadbed blending into the mountain slope
-            builder.AddRectangle(new RectangleF(trailX, y + 2f, trailW, s - 4f), slopeBed);
+            // 1. Natural earthen chute bed with height slope shading
+            ColorRgba highBed = new((byte)Math.Min(slopeBed.R + 12, 255), (byte)Math.Min(slopeBed.G + 12, 255), (byte)Math.Min(slopeBed.B + 10, 255), 255);
+            builder.AddRectangle(new RectangleF(trailX, y + 3f, trailW, s - 6f), slopeBed);
+            float highSideX = ramp == RampDirection.West ? trailX + trailW - 10f : trailX;
+            builder.AddRectangle(new RectangleF(highSideX, y + 3f, 10f, s - 6f), highBed);
 
-            // 2. Soft earthen border transition on top and bottom margins
-            ColorRgba borderShade = new((byte)(slopeBed.R * 0.75f), (byte)(slopeBed.G * 0.75f), (byte)(slopeBed.B * 0.75f), 180);
-            builder.AddRectangle(new RectangleF(trailX, y + 1f, trailW, 1.5f), borderShade);
-            builder.AddRectangle(new RectangleF(trailX, y + s - 2.5f, trailW, 1.5f), borderShade);
+            // 2. Flanking natural cliff cheek wings (beveled rock buttresses framing the pass)
+            builder.AddRectangle(new RectangleF(trailX, y + 1f, trailW, 2.5f), rockCheek);
+            builder.AddRectangle(new RectangleF(trailX, y + 1f, trailW, 1f), rockCheekHighlight);
+            builder.AddRectangle(new RectangleF(trailX, y + s - 3.5f, trailW, 2.5f), rockCheek);
+            builder.AddRectangle(new RectangleF(trailX, y + s - 4.5f, trailW, 1f), rockShadow);
 
-            // 3. Embedded natural stone stepping slabs (geological strata lines)
-            float stepSpacing = trailW / 4f;
-            for (int i = 0; i < 3; i++)
+            // 3. Natural organic stepping flagstones (3 tiers with paired offset stones)
+            float tierSpacing = trailW / 4f;
+            for (int tier = 0; tier < 3; tier++)
             {
-                float slabX = trailX + ((i + 0.6f) * stepSpacing);
-                float slabH = s - 10f - ((hash + i) & 3);
-                float slabOffsetY = 5f + (((hash >> 2) + i) & 1);
+                float tierX = trailX + ((tier + 0.65f) * tierSpacing);
+                float stoneW = 4.5f;
 
-                builder.AddRectangle(new RectangleF(slabX, y + slabOffsetY, 1.5f, slabH), rockShadow);
-                builder.AddRectangle(new RectangleF(slabX + 1.5f, y + slabOffsetY, 3f, slabH), rockSlab);
-                builder.AddRectangle(new RectangleF(slabX + 4.5f, y + slabOffsetY, 1f, slabH), rockHighlight);
+                // Upper stone in pair
+                float stone1H = (s * 0.36f) + ((hash + tier) & 1);
+                builder.AddRectangle(new RectangleF(tierX, y + 4.5f, stoneW, stone1H), rockSlab);
+                builder.AddRectangle(new RectangleF(tierX + stoneW - 1f, y + 4.5f, 1f, stone1H), rockHighlight);
+                builder.AddRectangle(new RectangleF(tierX, y + 4.5f + stone1H - 1f, stoneW, 1f), rockShadow);
+
+                // Lower stone in pair (slightly offset)
+                float stone2OffsetY = y + 6f + stone1H;
+                float stone2H = (s * 0.34f) - ((hash + tier) & 1);
+                float offsetTierX = tierX + (((hash >> tier) & 1) * 2f) - 1f;
+                builder.AddRectangle(new RectangleF(offsetTierX, stone2OffsetY, stoneW, stone2H), rockSlab);
+                builder.AddRectangle(new RectangleF(offsetTierX + stoneW - 1f, stone2OffsetY, 1f, stone2H), rockHighlight);
+                builder.AddRectangle(new RectangleF(offsetTierX, stone2OffsetY + stone2H - 1f, stoneW, 1f), rockShadow);
             }
 
-            // 4. Trail foot ambient occlusion shadow
+            // 4. Natural scattered pebbles and tufts
+            builder.AddRectangle(new RectangleF(trailX + 6f, y + 3f, 2f, 1.5f), rockHighlight);
+            builder.AddRectangle(new RectangleF(trailX + 16f, y + s - 5f, 2f, 1.5f), rockShadow);
+            builder.AddRectangle(new RectangleF(trailX + (trailW * 0.5f), y + 2f, 2.5f, 1.5f), grassFringe);
+
+            // 5. Foot ground shadow
             float footX = ramp == RampDirection.West ? trailX - 2f : trailX + trailW;
-            builder.AddRectangle(new RectangleF(footX, y + 2f, 3f, s - 4f), new ColorRgba(0, 0, 0, 50));
+            builder.AddRectangle(new RectangleF(footX, y + 3f, 2.5f, s - 6f), new ColorRgba(0, 0, 0, 45));
         }
         else
         {
-            // Vertical Natural Mountain Pass / Scree Trail (North <-> South)
+            // Vertical Natural Ravine / Mountain Pass (North <-> South)
             const float apronReach = 8f;
             float trailY = ramp == RampDirection.South ? y : y - apronReach;
             float trailH = s + apronReach;
 
-            // 1. Natural earthen/scree roadbed
-            builder.AddRectangle(new RectangleF(x + 2f, trailY, s - 4f, trailH), slopeBed);
+            // 1. Natural earthen chute bed with height slope shading
+            ColorRgba highBed = new((byte)Math.Min(slopeBed.R + 12, 255), (byte)Math.Min(slopeBed.G + 12, 255), (byte)Math.Min(slopeBed.B + 10, 255), 255);
+            builder.AddRectangle(new RectangleF(x + 3f, trailY, s - 6f, trailH), slopeBed);
+            float highSideY = ramp == RampDirection.South ? trailY : trailY + trailH - 10f;
+            builder.AddRectangle(new RectangleF(x + 3f, highSideY, s - 6f, 10f), highBed);
 
-            // 2. Soft earthen border transition on left and right margins
-            ColorRgba borderShade = new((byte)(slopeBed.R * 0.75f), (byte)(slopeBed.G * 0.75f), (byte)(slopeBed.B * 0.75f), 180);
-            builder.AddRectangle(new RectangleF(x + 1f, trailY, 1.5f, trailH), borderShade);
-            builder.AddRectangle(new RectangleF(x + s - 2.5f, trailY, 1.5f, trailH), borderShade);
+            // 2. Flanking natural cliff cheek wings (beveled rock buttresses framing the pass)
+            builder.AddRectangle(new RectangleF(x + 1f, trailY, 2.5f, trailH), rockCheek);
+            builder.AddRectangle(new RectangleF(x + 1f, trailY, 1f, trailH), rockCheekHighlight);
+            builder.AddRectangle(new RectangleF(x + s - 3.5f, trailY, 2.5f, trailH), rockCheek);
+            builder.AddRectangle(new RectangleF(x + s - 4.5f, trailY, 1f, trailH), rockShadow);
 
-            // 3. Embedded natural stone stepping slabs (horizontal natural rock ledges)
-            float stepSpacing = trailH / 4f;
-            for (int i = 0; i < 3; i++)
+            // 3. Natural organic stepping flagstones (3 tiers with paired offset stones)
+            float tierSpacing = trailH / 4f;
+            for (int tier = 0; tier < 3; tier++)
             {
-                float slabY = trailY + ((i + 0.6f) * stepSpacing);
-                float slabW = s - 10f - ((hash + i) & 3);
-                float slabOffsetX = 5f + (((hash >> 2) + i) & 1);
+                float tierY = trailY + ((tier + 0.65f) * tierSpacing);
+                float stoneH = 4.5f;
 
-                builder.AddRectangle(new RectangleF(x + slabOffsetX, slabY, slabW, 1f), rockHighlight);
-                builder.AddRectangle(new RectangleF(x + slabOffsetX, slabY + 1f, slabW, 3f), rockSlab);
-                builder.AddRectangle(new RectangleF(x + slabOffsetX, slabY + 4f, slabW, 1.5f), rockShadow);
+                // Left stone in pair
+                float stone1W = (s * 0.36f) + ((hash + tier) & 1);
+                builder.AddRectangle(new RectangleF(x + 4.5f, tierY, stone1W, stoneH), rockSlab);
+                builder.AddRectangle(new RectangleF(x + 4.5f, tierY, stone1W, 1f), rockHighlight);
+                builder.AddRectangle(new RectangleF(x + 4.5f, tierY + stoneH - 1f, stone1W, 1f), rockShadow);
+
+                // Right stone in pair (slightly offset)
+                float stone2OffsetX = x + 6f + stone1W;
+                float stone2W = (s * 0.34f) - ((hash + tier) & 1);
+                float offsetTierY = tierY + (((hash >> tier) & 1) * 2f) - 1f;
+                builder.AddRectangle(new RectangleF(stone2OffsetX, offsetTierY, stone2W, stoneH), rockSlab);
+                builder.AddRectangle(new RectangleF(stone2OffsetX, offsetTierY, stone2W, 1f), rockHighlight);
+                builder.AddRectangle(new RectangleF(stone2OffsetX, offsetTierY + stoneH - 1f, stone2W, 1f), rockShadow);
             }
 
-            // 4. Trail foot ambient occlusion shadow
+            // 4. Natural scattered pebbles and tufts
+            builder.AddRectangle(new RectangleF(x + 3f, trailY + 6f, 1.5f, 2f), rockHighlight);
+            builder.AddRectangle(new RectangleF(x + s - 5f, trailY + 16f, 1.5f, 2f), rockShadow);
+            builder.AddRectangle(new RectangleF(x + 2f, trailY + (trailH * 0.5f), 1.5f, 2.5f), grassFringe);
+
+            // 5. Foot ground shadow
             float footY = ramp == RampDirection.South ? trailY + trailH : trailY - 2f;
-            builder.AddRectangle(new RectangleF(x + 2f, footY, s - 4f, 3f), new ColorRgba(0, 0, 0, 50));
+            builder.AddRectangle(new RectangleF(x + 3f, footY, s - 6f, 2.5f), new ColorRgba(0, 0, 0, 45));
         }
     }
 
