@@ -49,6 +49,23 @@ public sealed class Chunk2D
     public int ChunkY => _chunkY;
 
     /// <summary>
+    /// Gets the unique 64-bit packed hash key identifying this chunk.
+    /// </summary>
+    public long Key => PackKey(this.ChunkX, this.ChunkY);
+
+    /// <summary>
+    /// Packs 2D chunk grid coordinates into a unique 64-bit long integer.
+    /// </summary>
+    public static long PackKey(int chunkX, int chunkY) =>
+        ((long)chunkX << 32) | (uint)chunkY;
+
+    /// <summary>
+    /// Unpacks a 64-bit packed chunk key back into (chunkX, chunkY) coordinates.
+    /// </summary>
+    public static (int X, int Y) UnpackKey(long key) =>
+        ((int)(key >> 32), (int)(key & 0xFFFFFFFF));
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="Chunk2D"/> class.
     /// </summary>
     /// <param name="chunkX">Chunk X coordinate.</param>

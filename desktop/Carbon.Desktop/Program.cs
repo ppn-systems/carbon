@@ -3,6 +3,7 @@
 using System;
 using System.IO;
 using System.Numerics;
+using Carbon.Desktop.Rendering;
 using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
@@ -14,7 +15,6 @@ using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
-using Carbon.Maps.Transitions;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.World;
@@ -37,6 +37,7 @@ public static class Program
         "world_capture.bmp");
 
     private static GeometryBatch? s_geometryBatch;
+    private static ChunkTerrainRenderer? s_chunkTerrainRenderer;
     private static Camera2D? s_camera;
     private static ChunkWorld2D? s_chunkWorld;
     private static WorldSimulation? s_world;
@@ -79,8 +80,17 @@ public static class Program
         window.Update += OnUpdate;
         window.Render += OnRender;
         window.Resize += OnResize;
+        window.Closing += OnClosing;
 
         window.Run();
+    }
+
+    private static void OnClosing(IGameWindow window)
+    {
+        s_chunkTerrainRenderer?.Dispose();
+        s_chunkTerrainRenderer = null;
+        s_geometryBatch?.Dispose();
+        s_geometryBatch = null;
     }
 
     private static void OnLoad(IGameWindow window)
@@ -90,6 +100,7 @@ public static class Program
         Console.WriteLine($"[OpenGL] Version:  {window.Device.Gl.GetStringS(StringName.Version)}");
 
         s_geometryBatch = new GeometryBatch(window.Device);
+        s_chunkTerrainRenderer = new ChunkTerrainRenderer(window.Device);
         s_camera = new Camera2D(window.Width, window.Height)
         {
             Zoom = 1.0f
@@ -105,6 +116,7 @@ public static class Program
 
         ProceduralWorldGenerator generator = new(seed);
         s_chunkWorld = new ChunkWorld2D(generator, TileSize, MacroFrequency);
+        s_chunkTerrainRenderer?.EvictDistant(0, 0, -1);
 
         // Preload chunks around the natural safe starter spawn
         Vector2 spawnPoint = s_chunkWorld.SpawnWorldPosition;
@@ -218,6 +230,7 @@ public static class Program
         {
             s_lastChunkCoord = (currentChunkX, currentChunkY);
             Console.WriteLine($"[ChunkStream] Di chuyen vao Chunk ({currentChunkX}, {currentChunkY}) | Active Chunks: {s_chunkWorld.LoadedChunkCount} | Pooled: {s_chunkWorld.PooledChunkCount}");
+            s_chunkTerrainRenderer?.EvictDistant(currentChunkX, currentChunkY, 7);
         }
 
         // 8. Stream infinite chunks around the moving player with pooling
@@ -244,11 +257,16 @@ public static class Program
         // 11. Follow player with camera
         ref readonly Transform2D updatedTrans = ref s_world.Entities.GetTransform(s_player);
         s_camera.Position = updatedTrans.Position;
+
+        if (s_frameCount >= 25 && Environment.GetEnvironmentVariable("CARBON_AUTO_EXIT") == "1")
+        {
+            window.Close();
+        }
     }
 
     private static void OnRender(IGameWindow window, double dt)
     {
-        if (s_geometryBatch == null || s_camera == null || s_chunkWorld == null || s_world == null)
+        if (s_geometryBatch == null || s_camera == null || s_chunkWorld == null || s_world == null || s_chunkTerrainRenderer == null)
         {
             return;
         }
@@ -264,9 +282,9 @@ public static class Program
         float minY = s_camera.Position.Y - halfH;
         float maxY = s_camera.Position.Y + halfH;
 
-        s_geometryBatch.Begin(s_camera.ViewProjectionMatrix);
+        // 1. Render Visible Chunks Terrain in 1 GPU Draw Call per Chunk (Static VBO Mesh Caching)
+        s_chunkTerrainRenderer.Begin(s_camera.ViewProjectionMatrix);
 
-        // 1. Render Visible Chunks Terrain with AABB Frustum Culling
         foreach (Chunk2D chunk in s_chunkWorld.ActiveChunks)
         {
             chunk.GetBounds(TileSize, out float cMinX, out float cMinY, out float cMaxX, out float cMaxY);
@@ -277,85 +295,36 @@ public static class Program
                 continue;
             }
 
-            for (int ly = 0; ly < Chunk2D.Size; ly++)
+            s_chunkTerrainRenderer.RenderChunk(chunk, s_chunkWorld);
+        }
+
+        s_chunkTerrainRenderer.End();
+
+        s_geometryBatch.Begin(s_camera.ViewProjectionMatrix);
+
+        // Debug overlay for solid terrain tiles
+        if (s_debugOverlay)
+        {
+            foreach (Chunk2D chunk in s_chunkWorld.ActiveChunks)
             {
-                float tileWorldY = cMinY + (ly * TileSize);
-                if (tileWorldY + TileSize < minY || tileWorldY > maxY)
+                chunk.GetBounds(TileSize, out float cMinX, out float cMinY, out float cMaxX, out float cMaxY);
+                if (cMaxX < minX || cMinX > maxX || cMaxY < minY || cMinY > maxY)
                 {
                     continue;
                 }
 
-                for (int lx = 0; lx < Chunk2D.Size; lx++)
+                for (int ly = 0; ly < Chunk2D.Size; ly++)
                 {
-                    float tileWorldX = cMinX + (lx * TileSize);
-                    if (tileWorldX + TileSize < minX || tileWorldX > maxX)
+                    float tileWorldY = cMinY + (ly * TileSize);
+                    for (int lx = 0; lx < Chunk2D.Size; lx++)
                     {
-                        continue;
-                    }
-
-                    ref readonly MapTile tile = ref chunk.GetTile(lx, ly);
-                    ColorRgba baseColor = HexToColor(tile.ColorRgba);
-
-                    // Organic procedural variant shading
-                    if (tile.Variant != 0)
-                    {
-                        int shade = (tile.Variant * 6) - 9;
-                        baseColor = new ColorRgba(
-                            (byte)Math.Clamp(baseColor.R + shade, 0, 255),
-                            (byte)Math.Clamp(baseColor.G + shade, 0, 255),
-                            (byte)Math.Clamp(baseColor.B + shade, 0, 255),
-                            baseColor.A);
-                    }
-
-                    RectangleF rect = new(tileWorldX, tileWorldY, TileSize, TileSize);
-                    s_geometryBatch.FillRectangle(rect, baseColor);
-
-                    // Procedural autotiling & Marching Squares smooth diagonal coastline transitions
-                    int wtx = (chunk.ChunkX * Chunk2D.Size) + lx;
-                    int wty = (chunk.ChunkY * Chunk2D.Size) + ly;
-                    RenderTileCoastlineTransitions(s_geometryBatch, chunk, lx, ly, wtx, wty, tileWorldX, tileWorldY, in tile);
-
-                    // Subtle organic surface micro-details (water ripples, grass blades)
-                    if (tile.Biome == BiomeType.DeepOcean)
-                    {
-                        // Deep ocean swell waves: organic oceanic blue tones
-                        if (tile.Variant == 1)
+                        ref readonly MapTile tile = ref chunk.GetTile(lx, ly);
+                        if (tile.IsSolid)
                         {
-                            s_geometryBatch.FillRectangle(new RectangleF(tileWorldX + 6f, tileWorldY + 12f, 18f, 2f), new ColorRgba(56, 189, 248, 55));
-                            s_geometryBatch.FillRectangle(new RectangleF(tileWorldX + 18f, tileWorldY + 14f, 6f, 1.5f), new ColorRgba(14, 165, 233, 45));
+                            float tileWorldX = cMinX + (lx * TileSize);
+                            RectangleF innerBorder = new(tileWorldX + 2f, tileWorldY + 2f, TileSize - 4f, TileSize - 4f);
+                            s_geometryBatch.FillRectangle(innerBorder, new ColorRgba(0, 0, 0, 70));
                         }
-                        else if (tile.Variant == 2)
-                        {
-                            s_geometryBatch.FillRectangle(new RectangleF(tileWorldX + 8f, tileWorldY + 20f, 16f, 2f), new ColorRgba(56, 189, 248, 45));
-                        }
-                    }
-                    else if (tile.Biome == BiomeType.ShallowWater)
-                    {
-                        // Shallow coastal foam ripples
-                        if (tile.Variant == 1)
-                        {
-                            s_geometryBatch.FillRectangle(new RectangleF(tileWorldX + 5f, tileWorldY + 10f, 18f, 2f), new ColorRgba(255, 255, 255, 80));
-                            s_geometryBatch.FillRectangle(new RectangleF(tileWorldX + 16f, tileWorldY + 12f, 8f, 1.5f), new ColorRgba(255, 255, 255, 60));
-                        }
-                        else if (tile.Variant == 2)
-                        {
-                            s_geometryBatch.FillRectangle(new RectangleF(tileWorldX + 9f, tileWorldY + 18f, 15f, 2f), new ColorRgba(255, 255, 255, 70));
-                        }
-                    }
-                    else if (tile.Biome is BiomeType.LushPlains or BiomeType.AncientForest)
-                    {
-                        if (tile.Variant == 2)
-                        {
-                            s_geometryBatch.FillRectangle(new RectangleF(tileWorldX + 8f, tileWorldY + 14f, 2f, 4f), new ColorRgba(74, 222, 128, 110));
-                            s_geometryBatch.FillRectangle(new RectangleF(tileWorldX + 11f, tileWorldY + 12f, 2f, 6f), new ColorRgba(74, 222, 128, 130));
-                        }
-                    }
-
-                    // Highlight solid obstacles only when debug overlay is toggled on with 'B'
-                    if (s_debugOverlay && tile.IsSolid)
-                    {
-                        RectangleF innerBorder = new(tileWorldX + 2f, tileWorldY + 2f, TileSize - 4f, TileSize - 4f);
-                        s_geometryBatch.FillRectangle(innerBorder, new ColorRgba(0, 0, 0, 70));
                     }
                 }
             }
@@ -449,9 +418,9 @@ public static class Program
 
         s_geometryBatch.End();
 
-        // 5. Automated Screenshot Telemetry (captures frame 60 for analysis)
+        // 5. Automated Screenshot Telemetry (captures frame 20 for analysis)
         s_frameCount++;
-        if (s_frameCount >= 60 && !s_hasAutoCaptured)
+        if (s_frameCount >= 20 && !s_hasAutoCaptured)
         {
             s_hasAutoCaptured = true;
             CaptureScreen(window);
@@ -474,154 +443,6 @@ public static class Program
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {
             Console.WriteLine($"[Screenshot Error] {ex.Message}");
-        }
-    }
-
-    private static void RenderTileCoastlineTransitions(
-        GeometryBatch batch,
-        Chunk2D chunk,
-        int lx,
-        int ly,
-        int wtx,
-        int wty,
-        float x,
-        float y,
-        in MapTile tile)
-    {
-        if (s_chunkWorld == null)
-        {
-            return;
-        }
-
-        const float s = TileSize;
-        const float b = 10f;
-        const float innerB = 6f;
-
-        ColorRgba deepOceanColor = new(7, 89, 133, 255);
-        ColorRgba shallowWaterColor = new(56, 189, 248, 255);
-
-        if (tile.Biome == BiomeType.ShallowWater)
-        {
-            // 1. Shallow Water <-> Deep Ocean: Bevel outer corners jutting into ocean
-            NeighborMask ocean = CoastlineAutotiler.GetAdjacencyMask(chunk, lx, ly, wtx, wty, s_chunkWorld, BiomeType.DeepOcean);
-            if (ocean != NeighborMask.None)
-            {
-                if ((ocean & (NeighborMask.North | NeighborMask.West)) == (NeighborMask.North | NeighborMask.West))
-                {
-                    batch.FillTriangle(new Vector2(x, y), new Vector2(x + b, y), new Vector2(x, y + b), deepOceanColor);
-                }
-
-                if ((ocean & (NeighborMask.North | NeighborMask.East)) == (NeighborMask.North | NeighborMask.East))
-                {
-                    batch.FillTriangle(new Vector2(x + s, y), new Vector2(x + s - b, y), new Vector2(x + s, y + b), deepOceanColor);
-                }
-
-                if ((ocean & (NeighborMask.South | NeighborMask.East)) == (NeighborMask.South | NeighborMask.East))
-                {
-                    batch.FillTriangle(new Vector2(x + s, y + s), new Vector2(x + s - b, y + s), new Vector2(x + s, y + s - b), deepOceanColor);
-                }
-
-                if ((ocean & (NeighborMask.South | NeighborMask.West)) == (NeighborMask.South | NeighborMask.West))
-                {
-                    batch.FillTriangle(new Vector2(x, y + s), new Vector2(x + b, y + s), new Vector2(x, y + s - b), deepOceanColor);
-                }
-
-                // Inner ocean nooks
-                if ((ocean & (NeighborMask.North | NeighborMask.West)) == 0 && (ocean & NeighborMask.NorthWest) != 0)
-                {
-                    batch.FillTriangle(new Vector2(x, y), new Vector2(x + innerB, y), new Vector2(x, y + innerB), deepOceanColor);
-                }
-
-                if ((ocean & (NeighborMask.North | NeighborMask.East)) == 0 && (ocean & NeighborMask.NorthEast) != 0)
-                {
-                    batch.FillTriangle(new Vector2(x + s, y), new Vector2(x + s - innerB, y), new Vector2(x + s, y + innerB), deepOceanColor);
-                }
-
-                if ((ocean & (NeighborMask.South | NeighborMask.East)) == 0 && (ocean & NeighborMask.SouthEast) != 0)
-                {
-                    batch.FillTriangle(new Vector2(x + s, y + s), new Vector2(x + s - innerB, y + s), new Vector2(x + s, y + s - innerB), deepOceanColor);
-                }
-
-                if ((ocean & (NeighborMask.South | NeighborMask.West)) == 0 && (ocean & NeighborMask.SouthWest) != 0)
-                {
-                    batch.FillTriangle(new Vector2(x, y + s), new Vector2(x + innerB, y + s), new Vector2(x, y + s - innerB), deepOceanColor);
-                }
-            }
-        }
-        else if (tile.Biome == BiomeType.DeepOcean)
-        {
-            // 2. Deep Ocean <-> Shallow Water: Fill concave corners surrounded by shallow water
-            NeighborMask shallow = CoastlineAutotiler.GetAdjacencyMask(chunk, lx, ly, wtx, wty, s_chunkWorld, BiomeType.ShallowWater);
-            if (shallow != NeighborMask.None)
-            {
-                if ((shallow & (NeighborMask.North | NeighborMask.West)) == (NeighborMask.North | NeighborMask.West))
-                {
-                    batch.FillTriangle(new Vector2(x, y), new Vector2(x + b, y), new Vector2(x, y + b), shallowWaterColor);
-                }
-
-                if ((shallow & (NeighborMask.North | NeighborMask.East)) == (NeighborMask.North | NeighborMask.East))
-                {
-                    batch.FillTriangle(new Vector2(x + s, y), new Vector2(x + s - b, y), new Vector2(x + s, y + b), shallowWaterColor);
-                }
-
-                if ((shallow & (NeighborMask.South | NeighborMask.East)) == (NeighborMask.South | NeighborMask.East))
-                {
-                    batch.FillTriangle(new Vector2(x + s, y + s), new Vector2(x + s - b, y + s), new Vector2(x + s, y + s - b), shallowWaterColor);
-                }
-
-                if ((shallow & (NeighborMask.South | NeighborMask.West)) == (NeighborMask.South | NeighborMask.West))
-                {
-                    batch.FillTriangle(new Vector2(x, y + s), new Vector2(x + b, y + s), new Vector2(x, y + s - b), shallowWaterColor);
-                }
-
-                // Inner shallow nooks
-                if ((shallow & (NeighborMask.North | NeighborMask.West)) == 0 && (shallow & NeighborMask.NorthWest) != 0)
-                {
-                    batch.FillTriangle(new Vector2(x, y), new Vector2(x + innerB, y), new Vector2(x, y + innerB), shallowWaterColor);
-                }
-
-                if ((shallow & (NeighborMask.North | NeighborMask.East)) == 0 && (shallow & NeighborMask.NorthEast) != 0)
-                {
-                    batch.FillTriangle(new Vector2(x + s, y), new Vector2(x + s - innerB, y), new Vector2(x + s, y + innerB), shallowWaterColor);
-                }
-
-                if ((shallow & (NeighborMask.South | NeighborMask.East)) == 0 && (shallow & NeighborMask.SouthEast) != 0)
-                {
-                    batch.FillTriangle(new Vector2(x + s, y + s), new Vector2(x + s - innerB, y + s), new Vector2(x + s, y + s - innerB), shallowWaterColor);
-                }
-
-                if ((shallow & (NeighborMask.South | NeighborMask.West)) == 0 && (shallow & NeighborMask.SouthWest) != 0)
-                {
-                    batch.FillTriangle(new Vector2(x, y + s), new Vector2(x + innerB, y + s), new Vector2(x, y + s - innerB), shallowWaterColor);
-                }
-            }
-        }
-        else if (tile.Biome == BiomeType.BeachSand)
-        {
-            // 3. Beach Sand <-> Shallow Water: Bevel sharp sand points jutting into water
-            NeighborMask water = CoastlineAutotiler.GetWaterAdjacencyMask(chunk, lx, ly, wtx, wty, s_chunkWorld);
-            if (water != NeighborMask.None)
-            {
-                if ((water & (NeighborMask.North | NeighborMask.West)) == (NeighborMask.North | NeighborMask.West))
-                {
-                    batch.FillTriangle(new Vector2(x, y), new Vector2(x + b, y), new Vector2(x, y + b), shallowWaterColor);
-                }
-
-                if ((water & (NeighborMask.North | NeighborMask.East)) == (NeighborMask.North | NeighborMask.East))
-                {
-                    batch.FillTriangle(new Vector2(x + s, y), new Vector2(x + s - b, y), new Vector2(x + s, y + b), shallowWaterColor);
-                }
-
-                if ((water & (NeighborMask.South | NeighborMask.East)) == (NeighborMask.South | NeighborMask.East))
-                {
-                    batch.FillTriangle(new Vector2(x + s, y + s), new Vector2(x + s - b, y + s), new Vector2(x + s, y + s - b), shallowWaterColor);
-                }
-
-                if ((water & (NeighborMask.South | NeighborMask.West)) == (NeighborMask.South | NeighborMask.West))
-                {
-                    batch.FillTriangle(new Vector2(x, y + s), new Vector2(x + b, y + s), new Vector2(x, y + s - b), shallowWaterColor);
-                }
-            }
         }
     }
 

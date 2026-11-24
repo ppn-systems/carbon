@@ -374,8 +374,8 @@ public sealed class ChunkWorld2D
     }
 
     private static long PackChunkKey(int chunkX, int chunkY) =>
-        ((long)chunkX << 32) | (uint)chunkY;
+        Chunk2D.PackKey(chunkX, chunkY);
 
     private static (int X, int Y) UnpackChunkKey(long key) =>
-        ((int)(key >> 32), (int)(key & 0xFFFFFFFF));
+        Chunk2D.UnpackKey(key);
 }

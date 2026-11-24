@@ -73,6 +73,20 @@ public sealed class ChunkWorld2DTests
         Assert.Equal(31, Chunk2D.ToLocalCoord(negTile));
     }
 
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(-1, -1)]
+    [InlineData(1234, -5678)]
+    [InlineData(int.MinValue / 2, int.MaxValue / 2)]
+    public void Chunk2D_PackKey_And_UnpackKey_RoundTripAccurately(int cx, int cy)
+    {
+        long key = Chunk2D.PackKey(cx, cy);
+        (int rx, int ry) = Chunk2D.UnpackKey(key);
+
+        Assert.Equal(cx, rx);
+        Assert.Equal(cy, ry);
+    }
+
     [Fact]
     public void ChunkObstacleGrid_IncorporatesPhysicalProps()
     {
