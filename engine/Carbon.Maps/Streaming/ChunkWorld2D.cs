@@ -8,6 +8,7 @@ using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
+using Carbon.Maps.Navigation;
 using Carbon.Maps.Props;
 using Carbon.Physics.Obstacles;
 
@@ -26,6 +27,7 @@ public sealed class ChunkWorld2D
     private readonly ConcurrentQueue<Chunk2D> _chunkPool = new();
     private readonly List<long> _evictionBuffer = new();
     private readonly BuildingGrid _buildings = new();
+    private readonly TileWalkabilityGrid _navGrid;
 
     private readonly int _spawnTileX;
     private readonly int _spawnTileY;
@@ -35,6 +37,11 @@ public sealed class ChunkWorld2D
     /// Gets the spatial building grid managing constructed structures, connected walls, and doors.
     /// </summary>
     public BuildingGrid Buildings => _buildings;
+
+    /// <summary>
+    /// Gets the spatial navigation grid managing terrain walkability, pathfinding traversal costs, and cliffs.
+    /// </summary>
+    public TileWalkabilityGrid NavGrid => _navGrid;
 
     /// <summary>
     /// Gets the deterministic generator powering world synthesis.
@@ -88,6 +95,7 @@ public sealed class ChunkWorld2D
         _spawnTileX = sx;
         _spawnTileY = sy;
         _spawnWorldPosition = new Vector2((sx * tileSize) + (tileSize * 0.5f), (sy * tileSize) + (tileSize * 0.5f));
+        _navGrid = new TileWalkabilityGrid(this);
     }
 
     /// <summary>
@@ -175,6 +183,34 @@ public sealed class ChunkWorld2D
 
         Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
         return chunk.GetTile(lx, ly);
+    }
+
+    /// <summary>
+    /// Evaluates whether an active natural prop with physical collision occupies the specified world tile.
+    /// Chopped trees or mined ores with destroyed status are automatically treated as non-solid.
+    /// </summary>
+    public bool HasSolidPropAt(int worldTileX, int worldTileY)
+    {
+        int cx = Chunk2D.ToChunkCoord(worldTileX);
+        int cy = Chunk2D.ToChunkCoord(worldTileY);
+        if (!this.TryGetChunk(cx, cy, out Chunk2D? chunk) || chunk == null)
+        {
+            return false;
+        }
+
+        int lx = Chunk2D.ToLocalCoord(worldTileX);
+        int ly = Chunk2D.ToLocalCoord(worldTileY);
+
+        for (int i = 0; i < chunk.Props.Count; i++)
+        {
+            MapProp prop = chunk.Props[i];
+            if (prop.LocalTileX == lx && prop.LocalTileY == ly && prop.HasCollision)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

@@ -5,6 +5,7 @@ using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
 using Carbon.Maps.Noise;
 using Carbon.Maps.Props;
+using Carbon.Maps.Topography;
 
 namespace Carbon.Maps.Generators;
 
@@ -172,6 +173,9 @@ public sealed class ProceduralWorldGenerator
         // 6. Procedural variant for subtle visual variation
         byte variant = (byte)((worldX ^ (worldY * 31)) & 3);
 
-        return new MapTile(biome, elevation, temperature, moisture, isSolid, variant);
+        // 7. Resolve discrete 2.5D height level (0: Lowland, 1: Plateau, 2: Mountain)
+        byte heightLevel = TopographyHelper.ResolveHeightLevel(elevation, biome);
+
+        return new MapTile(biome, elevation, temperature, moisture, isSolid, variant, heightLevel);
     }
 }

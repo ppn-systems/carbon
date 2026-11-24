@@ -13,7 +13,8 @@ public readonly record struct MapTile(
     float Temperature,
     float Moisture,
     bool IsSolid,
-    byte Variant)
+    byte Variant,
+    byte HeightLevel = 0)
 {
     /// <summary>
     /// Gets the visual RGBA hex color for zero-asset procedural rendering.
