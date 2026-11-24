@@ -13,7 +13,6 @@ using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Props;
-using Carbon.Maps.Random;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
@@ -92,7 +91,7 @@ public static class Program
         s_geometryBatch = new GeometryBatch(window.Device);
         s_camera = new Camera2D(window.Width, window.Height)
         {
-            Zoom = 1.0f
+            Zoom = 0.8f
         };
 
         GenerateWorld(s_currentSeed);
@@ -112,35 +111,10 @@ public static class Program
 
         s_world = new WorldSimulation(tickRate: 50, cellSize: TileSize);
 
-        s_player = s_world.SpawnEntity(spawnPoint, radius: 10f);
+        s_player = s_world.SpawnEntity(spawnPoint, radius: 7f);
         s_world.Entities.SetVelocity(s_player, new Velocity2D(0f, 0f, 5f));
 
         s_camera!.Position = spawnPoint;
-
-        // Spawn a herd of roaming wildlife in the surrounding wilderness
-        DeterministicRandom rng = new(seed ^ 0x9999999999999999UL);
-        for (int i = 0; i < 25; i++)
-        {
-            float offsetX = rng.NextFloat(-350f, 350f);
-            float offsetY = rng.NextFloat(-350f, 350f);
-            Vector2 npcPos = spawnPoint + new Vector2(offsetX, offsetY);
-
-            int tx = (int)MathF.Floor(npcPos.X / TileSize);
-            int ty = (int)MathF.Floor(npcPos.Y / TileSize);
-            MapTile tile = s_chunkWorld.GetTileAtWorld(tx, ty);
-
-            if (!tile.IsSolid)
-            {
-                Entity npc = s_world.SpawnEntity(npcPos, radius: 8f);
-                Vector2 wanderDir = new(rng.NextFloat(-1f, 1f), rng.NextFloat(-1f, 1f));
-                if (wanderDir.LengthSquared() > 0.001f)
-                {
-                    wanderDir = Vector2.Normalize(wanderDir);
-                }
-
-                s_world.Entities.SetVelocity(npc, new Velocity2D(wanderDir.X * 45f, wanderDir.Y * 45f, 1f));
-            }
-        }
 
         Console.WriteLine($"[WorldGen] Diem xuat phat tu nhien: ({spawnPoint.X:F1}, {spawnPoint.Y:F1})");
         Console.WriteLine($"[WorldGen] Chunks khoi tao: {s_chunkWorld.LoadedChunkCount} chunks san sang.");
@@ -342,8 +316,8 @@ public static class Program
             for (int i = 0; i < chunk.Props.Count; i++)
             {
                 MapProp prop = chunk.Props[i];
-                if (prop.WorldPositionX + 24f >= minX && prop.WorldPositionX - 24f <= maxX &&
-                    prop.WorldPositionY + 24f >= minY && prop.WorldPositionY - 24f <= maxY)
+                if (prop.WorldPositionX + 32f >= minX && prop.WorldPositionX - 32f <= maxX &&
+                    prop.WorldPositionY + 32f >= minY && prop.WorldPositionY - 32f <= maxY)
                 {
                     RenderProp(s_geometryBatch, prop);
                 }
@@ -364,16 +338,11 @@ public static class Program
 
             if (entity == s_player)
             {
-                // Player: Glowing cyan circle with white center
-                s_geometryBatch.FillCircle(trans.Position, col.Radius + 3f, new ColorRgba(56, 189, 248, 120));
-                s_geometryBatch.FillCircle(trans.Position, col.Radius, new ColorRgba(255, 255, 255, 255));
-                s_geometryBatch.FillCircle(trans.Position, col.Radius * 0.5f, new ColorRgba(14, 165, 233, 255));
-            }
-            else
-            {
-                // Roaming creatures: Crimson circle with inner core
-                s_geometryBatch.FillCircle(trans.Position, col.Radius, new ColorRgba(239, 68, 68, 220));
-                s_geometryBatch.FillCircle(trans.Position, col.Radius * 0.4f, new ColorRgba(185, 28, 28, 255));
+                // Player: Sleek MMORPG hero avatar token (drop shadow, navy tunic, cyan trim, white center dot)
+                s_geometryBatch.FillCircle(new Vector2(trans.Position.X, trans.Position.Y + 2f), col.Radius + 1f, new ColorRgba(0, 0, 0, 80));
+                s_geometryBatch.FillCircle(trans.Position, col.Radius, new ColorRgba(30, 58, 138, 255));
+                s_geometryBatch.FillCircle(trans.Position, col.Radius * 0.65f, new ColorRgba(56, 189, 248, 255));
+                s_geometryBatch.FillCircle(trans.Position, col.Radius * 0.3f, new ColorRgba(255, 255, 255, 255));
             }
         }
 
@@ -416,39 +385,80 @@ public static class Program
         switch (prop.Type)
         {
             case MapPropType.OakTree:
-                batch.FillRectangle(new RectangleF(pos.X - 3.5f, pos.Y - 2f, 7f, 13f), secondary);
+                batch.FillRectangle(new RectangleF(pos.X - 4f, pos.Y - 2f, 8f, 16f), secondary);
                 batch.FillCircle(new Vector2(pos.X, pos.Y - 8f), prop.Radius, primary);
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 8f), prop.Radius * 0.55f, secondary);
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 8f), prop.Radius * 0.65f, secondary);
+                break;
+
+            case MapPropType.BirchTree:
+                batch.FillRectangle(new RectangleF(pos.X - 3f, pos.Y - 2f, 6f, 16f), secondary);
+                batch.FillRectangle(new RectangleF(pos.X - 3f, pos.Y + 3f, 3f, 2f), new ColorRgba(30, 41, 59));
+                batch.FillRectangle(new RectangleF(pos.X, pos.Y + 8f, 3f, 2f), new ColorRgba(30, 41, 59));
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 8f), prop.Radius, primary);
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 8f), prop.Radius * 0.6f, new ColorRgba(163, 230, 53));
                 break;
 
             case MapPropType.PineTree:
             case MapPropType.SnowPine:
-                batch.FillRectangle(new RectangleF(pos.X - 2.5f, pos.Y - 1f, 5f, 11f), new ColorRgba(113, 63, 18));
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 6f), prop.Radius, primary, segments: 16);
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 11f), prop.Radius * 0.65f, secondary, segments: 16);
+                batch.FillRectangle(new RectangleF(pos.X - 3f, pos.Y - 1f, 6f, 15f), new ColorRgba(113, 63, 18));
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 4f), prop.Radius, secondary, segments: 16);
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 10f), prop.Radius * 0.75f, primary, segments: 16);
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 15f), prop.Radius * 0.45f, primary, segments: 16);
                 break;
 
             case MapPropType.PalmTree:
-                batch.FillRectangle(new RectangleF(pos.X - 2f, pos.Y - 2f, 4f, 14f), secondary);
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 9f), prop.Radius, primary, segments: 12);
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 9f), prop.Radius * 0.45f, new ColorRgba(255, 255, 255, 80));
+                batch.FillRectangle(new RectangleF(pos.X - 2.5f, pos.Y - 2f, 5f, 18f), secondary);
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 10f), prop.Radius, primary, segments: 12);
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 10f), prop.Radius * 0.45f, new ColorRgba(255, 255, 255, 80));
                 break;
 
-            case MapPropType.Cactus:
-                batch.FillRectangle(new RectangleF(pos.X - 3f, pos.Y - 11f, 6f, 22f), primary);
-                batch.FillRectangle(new RectangleF(pos.X - 9f, pos.Y - 7f, 18f, 4f), primary);
-                batch.FillRectangle(new RectangleF(pos.X - 9f, pos.Y - 13f, 4f, 6f), secondary);
-                batch.FillRectangle(new RectangleF(pos.X + 5f, pos.Y - 13f, 4f, 6f), secondary);
+            case MapPropType.WillowTree:
+                batch.FillRectangle(new RectangleF(pos.X - 4f, pos.Y - 2f, 8f, 15f), secondary);
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 7f), prop.Radius, primary);
+                batch.FillCircle(new Vector2(pos.X - 6f, pos.Y + 2f), prop.Radius * 0.4f, primary);
+                batch.FillCircle(new Vector2(pos.X + 6f, pos.Y + 2f), prop.Radius * 0.4f, primary);
                 break;
 
             case MapPropType.DeadTree:
-                batch.FillRectangle(new RectangleF(pos.X - 3f, pos.Y - 10f, 6f, 20f), primary);
-                batch.FillRectangle(new RectangleF(pos.X - 7f, pos.Y - 6f, 14f, 3.5f), secondary);
+                batch.FillRectangle(new RectangleF(pos.X - 3.5f, pos.Y - 10f, 7f, 22f), primary);
+                batch.FillRectangle(new RectangleF(pos.X - 8f, pos.Y - 6f, 16f, 3.5f), secondary);
                 break;
 
-            case MapPropType.BasaltPillar:
-                batch.FillCircle(pos, prop.Radius, primary, segments: 6);
-                batch.FillCircle(pos, prop.Radius * 0.65f, secondary, segments: 6);
+            case MapPropType.Cactus:
+                batch.FillRectangle(new RectangleF(pos.X - 3.5f, pos.Y - 12f, 7f, 24f), primary);
+                batch.FillRectangle(new RectangleF(pos.X - 10f, pos.Y - 7f, 20f, 4f), primary);
+                batch.FillRectangle(new RectangleF(pos.X - 10f, pos.Y - 14f, 4f, 7f), secondary);
+                batch.FillRectangle(new RectangleF(pos.X + 6f, pos.Y - 14f, 4f, 7f), secondary);
+                break;
+
+            case MapPropType.Bush:
+                batch.FillCircle(new Vector2(pos.X - 3f, pos.Y + 1f), prop.Radius * 0.75f, primary);
+                batch.FillCircle(new Vector2(pos.X + 3f, pos.Y + 1f), prop.Radius * 0.75f, primary);
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 2f), prop.Radius, secondary);
+                break;
+
+            case MapPropType.MushroomCluster:
+                batch.FillRectangle(new RectangleF(pos.X - 4f, pos.Y + 1f, 2f, 5f), secondary);
+                batch.FillRectangle(new RectangleF(pos.X + 2f, pos.Y + 2f, 2f, 4f), secondary);
+                batch.FillCircle(new Vector2(pos.X - 3f, pos.Y), prop.Radius * 0.7f, primary);
+                batch.FillCircle(new Vector2(pos.X + 3f, pos.Y + 1f), prop.Radius * 0.55f, primary);
+                break;
+
+            case MapPropType.CopperVein:
+            case MapPropType.IronVein:
+            case MapPropType.GoldVein:
+            case MapPropType.CoalDeposit:
+            case MapPropType.SilverVein:
+                batch.FillCircle(pos, prop.Radius, primary, segments: 8);
+                batch.FillCircle(new Vector2(pos.X - 2.5f, pos.Y - 2f), prop.Radius * 0.35f, secondary, segments: 6);
+                batch.FillCircle(new Vector2(pos.X + 2.5f, pos.Y + 1.5f), prop.Radius * 0.3f, secondary, segments: 6);
+                break;
+
+            case MapPropType.CrystalCluster:
+                batch.FillCircle(pos, prop.Radius * 0.7f, primary, segments: 6);
+                batch.FillCircle(new Vector2(pos.X - 3f, pos.Y - 3f), prop.Radius * 0.45f, secondary, segments: 5);
+                batch.FillCircle(new Vector2(pos.X + 3f, pos.Y + 2f), prop.Radius * 0.4f, secondary, segments: 5);
+                batch.FillCircle(new Vector2(pos.X, pos.Y + 4f), prop.Radius * 0.35f, new ColorRgba(255, 255, 255, 220), segments: 4);
                 break;
 
             case MapPropType.Boulder:
@@ -456,16 +466,15 @@ public static class Program
                 batch.FillCircle(new Vector2(pos.X - 2f, pos.Y - 2f), prop.Radius * 0.5f, secondary, segments: 8);
                 break;
 
-            case MapPropType.AncientShrine:
-                batch.FillCircle(pos, prop.Radius + 7f, new ColorRgba(129, 140, 248, 70));
-                batch.FillRectangle(new RectangleF(pos.X - 9f, pos.Y - 13f, 18f, 26f), secondary);
-                batch.FillRectangle(new RectangleF(pos.X - 5f, pos.Y - 9f, 10f, 18f), primary);
+            case MapPropType.BasaltPillar:
+                batch.FillCircle(pos, prop.Radius, primary, segments: 6);
+                batch.FillCircle(pos, prop.Radius * 0.65f, secondary, segments: 6);
                 break;
 
-            case MapPropType.WildflowerPatch:
-                batch.FillCircle(new Vector2(pos.X - 4f, pos.Y - 4f), 3.5f, primary);
-                batch.FillCircle(new Vector2(pos.X + 4f, pos.Y + 2f), 3.5f, secondary);
-                batch.FillCircle(new Vector2(pos.X + 1f, pos.Y - 3f), 3f, new ColorRgba(255, 255, 255));
+            case MapPropType.AncientShrine:
+                batch.FillCircle(pos, prop.Radius + 8f, new ColorRgba(129, 140, 248, 70));
+                batch.FillRectangle(new RectangleF(pos.X - 9f, pos.Y - 13f, 18f, 26f), secondary);
+                batch.FillRectangle(new RectangleF(pos.X - 5f, pos.Y - 9f, 10f, 18f), primary);
                 break;
 
             case MapPropType.None:
