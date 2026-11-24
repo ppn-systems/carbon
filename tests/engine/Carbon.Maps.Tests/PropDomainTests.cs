@@ -232,4 +232,138 @@ public sealed class PropDomainTests
         Assert.Equal("TreeTrunk", renderList[0].Id);
         Assert.Equal("PlayerAvatar", renderList[1].Id);
     }
+
+    [Fact]
+    public void BiomePropResolver_FoliageDensity_EnforcesMeadowClearingsAndDenseCopses()
+    {
+        ulong seed = 1337UL;
+
+        // In LushPlains, low foliage density (< 0.48f) must guarantee open meadows (0 trees)
+        int clearingTreeCount = 0;
+        for (int y = 0; y < 20; y++)
+        {
+            for (int x = 0; x < 20; x++)
+            {
+                if (BiomePropResolver.TryResolveProp(
+                    x, y, x, y,
+                    Biomes.BiomeType.LushPlains,
+                    elevation: 0.40f,
+                    foliageDensity: 0.25f,
+                    mineralNoise: 0.10f,
+                    isNearWater: false,
+                    tileSize: 32f,
+                    seed,
+                    out MapProp prop) && prop.IsSolid)
+                {
+                    clearingTreeCount++;
+                }
+            }
+        }
+
+        Assert.Equal(0, clearingTreeCount);
+
+        // High foliage density (>= 0.72f) must produce trees in valid slots
+        int copseTreeCount = 0;
+        for (int y = 0; y < 20; y++)
+        {
+            for (int x = 0; x < 20; x++)
+            {
+                if (BiomePropResolver.TryResolveProp(
+                    x, y, x, y,
+                    Biomes.BiomeType.LushPlains,
+                    elevation: 0.40f,
+                    foliageDensity: 0.85f,
+                    mineralNoise: 0.10f,
+                    isNearWater: false,
+                    tileSize: 32f,
+                    seed,
+                    out MapProp prop) && prop.IsSolid)
+                {
+                    copseTreeCount++;
+                }
+            }
+        }
+
+        Assert.True(copseTreeCount > 0, "High foliage density copse must contain trees.");
+    }
+
+    [Fact]
+    public void BiomePropResolver_MineralVein_EnforcesCleanGroundAndClustersInActiveVeins()
+    {
+        ulong seed = 9999UL;
+
+        // Normal ground with low mineral noise (< 0.68f) must have ZERO mineral ores
+        int barrenOreCount = 0;
+        for (int y = 0; y < 30; y++)
+        {
+            for (int x = 0; x < 30; x++)
+            {
+                if (BiomePropResolver.TryResolveProp(
+                    x, y, x % 32, y % 32,
+                    Biomes.BiomeType.RedMesa,
+                    elevation: 0.60f,
+                    foliageDensity: 0.20f,
+                    mineralNoise: 0.30f,
+                    isNearWater: false,
+                    tileSize: 32f,
+                    seed,
+                    out MapProp prop) && prop.Type is MapPropType.CopperVein or MapPropType.IronVein or MapPropType.GoldVein)
+                {
+                    barrenOreCount++;
+                }
+            }
+        }
+
+        Assert.Equal(0, barrenOreCount);
+
+        // Active geological vein (mineral noise >= 0.70f in highlands) must spawn concentrated ore nodes
+        int veinOreCount = 0;
+        for (int y = 0; y < 10; y++)
+        {
+            for (int x = 0; x < 10; x++)
+            {
+                if (BiomePropResolver.TryResolveProp(
+                    x, y, x, y,
+                    Biomes.BiomeType.RedMesa,
+                    elevation: 0.60f,
+                    foliageDensity: 0.20f,
+                    mineralNoise: 0.85f,
+                    isNearWater: false,
+                    tileSize: 32f,
+                    seed,
+                    out MapProp prop) && prop.Type is MapPropType.CopperVein or MapPropType.IronVein or MapPropType.GoldVein)
+                {
+                    veinOreCount++;
+                }
+            }
+        }
+
+        Assert.True(veinOreCount >= 2, $"Active geological vein must spawn clustered ore nodes (found {veinOreCount}).");
+    }
+
+    [Fact]
+    public void BiomePropResolver_WaterClearance_KeepsRiverbanksClearOfSolidObstacles()
+    {
+        ulong seed = 42UL;
+
+        for (int y = 0; y < 20; y++)
+        {
+            for (int x = 0; x < 20; x++)
+            {
+                if (BiomePropResolver.TryResolveProp(
+                    x, y, x, y,
+                    Biomes.BiomeType.AncientForest,
+                    elevation: 0.40f,
+                    foliageDensity: 0.90f,
+                    mineralNoise: 0.90f,
+                    isNearWater: true,
+                    tileSize: 32f,
+                    seed,
+                    out MapProp prop))
+                {
+                    Assert.False(prop.IsSolid, "Riverbank tiles must remain free of solid tree trunks and boulders.");
+                }
+            }
+        }
+    }
 }

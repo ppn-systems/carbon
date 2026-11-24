@@ -26,6 +26,8 @@ public sealed class ProceduralWorldGenerator
     private readonly FractalNoise2D _temperatureNoise;
     private readonly FractalNoise2D _moistureNoise;
     private readonly FractalNoise2D _riverNoise;
+    private readonly FractalNoise2D _foliageNoise;
+    private readonly FractalNoise2D _mineralNoise;
 
     /// <summary>
     /// Gets the deterministic generation seed.
@@ -43,6 +45,8 @@ public sealed class ProceduralWorldGenerator
         _temperatureNoise = new FractalNoise2D(seed ^ 0xFEDCBA0987654321UL);
         _moistureNoise = new FractalNoise2D(seed ^ 0xCAFEBABE1337BEEFUL);
         _riverNoise = new FractalNoise2D(seed ^ 0x9876543210ABCDEFUL);
+        _foliageNoise = new FractalNoise2D(seed ^ 0xFEEDFACECAFEBEEFUL);
+        _mineralNoise = new FractalNoise2D(seed ^ 0xDEADBEEF1337CAFEUL);
     }
 
     /// <summary>
@@ -114,6 +118,13 @@ public sealed class ProceduralWorldGenerator
                 MapTile tile = this.SampleTile(worldX, worldY, frequency);
                 chunk.SetTile(localX, localY, tile);
 
+                float riverDist = this.GetRiverDistance(worldX, worldY);
+                bool isNearWater = riverDist < 3.8f || tile.Elevation < 0.38f;
+
+                // Coherent macro density fields (Foliage & Mineral Veins)
+                float foliageDensity = _foliageNoise.Evaluate(worldX * 0.015f, worldY * 0.015f, octaves: 3);
+                float mineralNoise = _mineralNoise.Evaluate(worldX * 0.038f, worldY * 0.038f, octaves: 2);
+
                 // Natural wilderness procedural props & flora
                 if (BiomePropResolver.TryResolveProp(
                     worldX,
@@ -121,6 +132,10 @@ public sealed class ProceduralWorldGenerator
                     localX,
                     localY,
                     tile.Biome,
+                    tile.Elevation,
+                    foliageDensity,
+                    mineralNoise,
+                    isNearWater,
                     tileSize,
                     _seed,
                     out MapProp wildProp))
@@ -129,6 +144,33 @@ public sealed class ProceduralWorldGenerator
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Computes the continuous Euclidean/Manhattan distance to the nearest meandering river channel.
+    /// Operates at human gameplay scale with multi-octave serpentine curvature.
+    /// Features a single majestic continental river with natural mountain feeder tributaries.
+    /// </summary>
+    public float GetRiverDistance(int worldX, int worldY)
+    {
+        // Continuous domain-warped river meander
+        float riverWarpX = (_riverNoise.Evaluate(worldX * 0.012f, worldY * 0.012f, octaves: 2) - 0.5f) * 28f;
+        float riverWarpY = (_riverNoise.Evaluate(worldY * 0.012f, worldX * 0.012f, octaves: 2) - 0.5f) * 28f;
+
+        // Primary East-West continental serpentine river (wavelength ~160 tiles and ~75 tiles)
+        float mainRiverCenterY = 65f + (MathF.Sin(worldX * 0.024f) * 35f) + (MathF.Sin(worldX * 0.008f) * 75f) + (MathF.Cos(worldX * 0.055f) * 10f) + riverWarpX;
+        float distMain = MathF.Abs(worldY - mainRiverCenterY);
+
+        // Northern highland feeder tributary that flows south into the main river and naturally merges
+        // Tributary exists only north of the main river confluence (worldY < mainRiverCenterY - 2f)
+        float distTrib = float.MaxValue;
+        if (worldY < mainRiverCenterY - 2f)
+        {
+            float tributaryCenterX = 65f + (MathF.Sin(worldY * 0.020f) * 30f) + (MathF.Sin(worldY * 0.006f) * 70f) + riverWarpY;
+            distTrib = MathF.Abs(worldX - tributaryCenterX);
+        }
+
+        return MathF.Min(distMain, distTrib);
     }
 
     /// <summary>
@@ -171,18 +213,7 @@ public sealed class ProceduralWorldGenerator
 
         // 4. Hydrology & Continuous Serpentine River Carving
         // Generates organic, continuous meandering river channels that never disconnect or terminate abruptly.
-        float riverWarpX = (_riverNoise.Evaluate(fx * 1.5f, fy * 0.4f, octaves: 2) - 0.5f) * 160f;
-        float riverWarpY = (_riverNoise.Evaluate(fx * 0.4f, fy * 1.5f, octaves: 2) - 0.5f) * 160f;
-
-        // Primary East-West continental river with multi-octave serpentine meander
-        float riverCenterY = (MathF.Sin(fx * 2.4f) * 55f) + (MathF.Sin(fx * 0.7f) * 120f) + riverWarpX;
-        float distY = MathF.Abs(worldY - riverCenterY);
-
-        // North-South continental river tributary
-        float riverCenterX = (MathF.Sin(fy * 2.0f) * 55f) + (MathF.Sin(fy * 0.6f) * 130f) + riverWarpY;
-        float distX = MathF.Abs(worldX - riverCenterX);
-
-        float riverDist = MathF.Min(distY, distX);
+        float riverDist = this.GetRiverDistance(worldX, worldY);
 
         if (riverDist <= 2.2f)
         {
@@ -198,11 +229,13 @@ public sealed class ProceduralWorldGenerator
                 HeightLevel: 0);
         }
 
-        if (riverDist < 5.5f)
+        if (riverDist < 6.0f)
         {
-            // Riparian riverbank zone: gentle valley slope and lush moist soil without swamp decay or beach sand
-            elevation = MathF.Min(elevation, 0.46f);
-            moisture = Math.Clamp(moisture + 0.25f, 0.52f, 0.68f);
+            // Riparian river valley zone: smooth continuous slope into the riverbed,
+            // lush moist soil without artificial step cliffs
+            float valleyT = Math.Clamp((riverDist - 2.2f) / 3.8f, 0f, 1f);
+            elevation = (0.36f * (1f - valleyT)) + (MathF.Min(elevation, 0.50f) * valleyT);
+            moisture = Math.Clamp((0.78f * (1f - valleyT)) + (moisture * valleyT), 0f, 1f);
         }
 
         // 5. Resolve biome
