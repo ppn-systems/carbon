@@ -47,6 +47,9 @@ public static class Program
 
     private static GeometryBatch? s_geometryBatch;
     private static PointOfInterestRenderer? s_poiRenderer;
+    private static float s_animTime;
+    private static readonly int s_captureFrames =
+        int.TryParse(Environment.GetEnvironmentVariable("CARBON_CAPTURE_FRAMES"), System.Globalization.CultureInfo.InvariantCulture, out int frames) ? Math.Clamp(frames, 0, 240) : 0;
     private static ChunkTerrainRenderer? s_chunkTerrainRenderer;
     private static Camera2D? s_camera;
     private static ChunkWorld2D? s_chunkWorld;
@@ -365,7 +368,7 @@ public static class Program
         ref readonly Transform2D updatedTrans = ref s_world.Entities.GetTransform(s_player);
         s_camera.Position = updatedTrans.Position;
 
-        if (s_frameCount >= 25 && Environment.GetEnvironmentVariable("CARBON_AUTO_EXIT") == "1")
+        if (s_frameCount >= 25 + s_captureFrames && Environment.GetEnvironmentVariable("CARBON_AUTO_EXIT") == "1")
         {
             window.Close();
         }
@@ -373,6 +376,9 @@ public static class Program
 
     private static void OnRender(IGameWindow window, double dt)
     {
+        // While capturing an animation, step time at a fixed 15 fps so the sequence is independent of the
+        // (possibly slow, software-rendered) frame rate.
+        s_animTime += s_captureFrames > 0 ? 1f / 15f : (float)dt;
         if (s_geometryBatch == null || s_camera == null || s_chunkWorld == null || s_world == null || s_chunkTerrainRenderer == null)
         {
             return;
@@ -408,6 +414,18 @@ public static class Program
         s_chunkTerrainRenderer.End();
 
         s_geometryBatch.Begin(s_camera.ViewProjectionMatrix);
+
+        // Animated water over the baked waterfall curtains of the visible chunks
+        foreach (Chunk2D chunk in s_chunkWorld.ActiveChunks)
+        {
+            chunk.GetBounds(TileSize, out float cMinX, out float cMinY, out float cMaxX, out float cMaxY);
+            if (cMaxX < minX || cMinX > maxX || cMaxY < minY || cMinY > maxY)
+            {
+                continue;
+            }
+
+            AmbientAnimator.DrawWaterfalls(s_geometryBatch, s_chunkTerrainRenderer.GetWaterfalls(chunk.Key), s_animTime);
+        }
 
         // Debug overlay for solid terrain tiles
         if (s_debugOverlay)
@@ -458,7 +476,7 @@ public static class Program
                     continue;
                 }
 
-                s_poiRenderer.DrawGround(s_geometryBatch, poi);
+                s_poiRenderer.DrawGround(s_geometryBatch, poi, s_animTime);
                 ReadOnlySpan<LandmarkPiece> pieces = s_poiRenderer.GetLayout(poi).Pieces;
                 for (int k = 0; k < pieces.Length; k++)
                 {
@@ -515,7 +533,7 @@ public static class Program
             ref readonly GroundRenderItem item = ref groundSpan[i];
             if (item.IsPiece)
             {
-                s_poiRenderer?.DrawPiece(s_geometryBatch, item.Piece);
+                s_poiRenderer?.DrawPiece(s_geometryBatch, item.Piece, s_animTime);
             }
             else if (item.IsProp)
             {
@@ -544,6 +562,14 @@ public static class Program
         {
             s_hasAutoCaptured = true;
             CaptureScreen(window);
+        }
+        else if (s_captureFrames > 0 && s_frameCount > 20 && s_frameCount <= 20 + s_captureFrames)
+        {
+            // CARBON_CAPTURE_FRAMES=N also saves the N following frames as <name>_001.bmp ... for animations.
+            string path = Path.Combine(
+                Path.GetDirectoryName(s_screenshotPath) ?? string.Empty,
+                $"{Path.GetFileNameWithoutExtension(s_screenshotPath)}_{s_frameCount - 20:D3}.bmp");
+            ScreenshotHelper.Capture(window.Device.Gl, window.Width, window.Height, path);
         }
 
         GLEnum glError = window.Device.Gl.GetError();

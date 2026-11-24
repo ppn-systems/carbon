@@ -30,7 +30,7 @@ internal sealed class PointOfInterestRenderer
     }
 
     /// <summary>Draws the flat ground layer of a point of interest.</summary>
-    public void DrawGround(GeometryBatch batch, in PointOfInterest poi)
+    public void DrawGround(GeometryBatch batch, in PointOfInterest poi, float time)
     {
         LandmarkLayout layout = this.GetLayout(poi);
         Vector2 c = this.Centre(poi);
@@ -53,7 +53,7 @@ internal sealed class PointOfInterestRenderer
 
             case PointOfInterestType.Harbor:
                 DrawPlaza(batch, c, r * 0.35f);
-                this.DrawPiers(batch, poi, c, r);
+                this.DrawPiers(batch, poi, c, r, time);
                 break;
 
             case PointOfInterestType.LakesideCamp:
@@ -79,17 +79,17 @@ internal sealed class PointOfInterestRenderer
     public Vector2 ToWorld(in LandmarkPiece piece) => new(piece.X * _tileSize, piece.Y * _tileSize);
 
     /// <summary>Draws one upright structure.</summary>
-    public void DrawPiece(GeometryBatch batch, in LandmarkPiece piece)
+    public void DrawPiece(GeometryBatch batch, in LandmarkPiece piece, float time)
     {
         Vector2 position = this.ToWorld(piece);
         float width = piece.Width * _tileSize;
         switch (piece.Kind)
         {
             case LandmarkPieceKind.House:
-                DrawHouse(batch, position, width, piece.Variant, isWarehouse: false);
+                DrawHouse(batch, position, width, piece.Variant, isWarehouse: false, time);
                 break;
             case LandmarkPieceKind.Warehouse:
-                DrawHouse(batch, position, width, piece.Variant, isWarehouse: true);
+                DrawHouse(batch, position, width, piece.Variant, isWarehouse: true, time);
                 break;
             case LandmarkPieceKind.Well:
                 DrawWell(batch, position);
@@ -98,16 +98,16 @@ internal sealed class PointOfInterestRenderer
                 DrawTent(batch, position, width, piece.Variant);
                 break;
             case LandmarkPieceKind.Campfire:
-                DrawCampfire(batch, position);
+                DrawCampfire(batch, position, time);
                 break;
             case LandmarkPieceKind.ShrineGate:
                 DrawShrineGate(batch, position, width);
                 break;
             case LandmarkPieceKind.StoneLantern:
-                DrawStoneLantern(batch, position);
+                DrawStoneLantern(batch, position, time);
                 break;
             case LandmarkPieceKind.Altar:
-                DrawAltar(batch, position);
+                DrawAltar(batch, position, time);
                 break;
             case LandmarkPieceKind.Barrel:
                 DrawBarrels(batch, position);
@@ -192,7 +192,7 @@ internal sealed class PointOfInterestRenderer
         }
     }
 
-    private void DrawPiers(GeometryBatch batch, in PointOfInterest poi, Vector2 c, float r)
+    private void DrawPiers(GeometryBatch batch, in PointOfInterest poi, Vector2 c, float r, float time)
     {
         Vector2 sea = SeaDirection(poi);
         Vector2 side = new(-sea.Y, sea.X);
@@ -224,12 +224,15 @@ internal sealed class PointOfInterestRenderer
             }
 
             Vector2 boat = start + (sea * (len * 0.65f)) + (side * (i * 46f));
-            DrawBoat(batch, boat, sea, (byte)(i + 1));
+            DrawBoat(batch, boat, sea, (byte)(i + 1), time + (i * 1.7f));
         }
     }
 
-    private static void DrawBoat(GeometryBatch batch, Vector2 c, Vector2 forward, byte variant)
+    private static void DrawBoat(GeometryBatch batch, Vector2 c, Vector2 forward, byte variant, float time)
     {
+        // Gentle bobbing on the swell
+        c += new Vector2(0f, MathF.Sin(time * 1.6f) * 1.6f);
+        float sway = MathF.Sin(time * 1.1f) * 3f;
         Vector2 side = new(-forward.Y, forward.X);
         Span<Vector2> hull =
         [
@@ -258,7 +261,7 @@ internal sealed class PointOfInterestRenderer
 
         // Sail
         ColorRgba sail = variant == 0 ? new ColorRgba(244, 238, 220) : new ColorRgba(220, 120, 90);
-        batch.FillTriangle(c + new Vector2(0f, -46f), c + new Vector2(0f, -6f), c + new Vector2(22f, -10f), sail);
+        batch.FillTriangle(c + new Vector2(0f, -46f), c + new Vector2(0f, -6f), c + new Vector2(22f + sway, -10f + (sway * 0.3f)), sail);
         batch.DrawLine(c, c + new Vector2(0f, -48f), new ColorRgba(90, 60, 36), 2.5f);
     }
 
@@ -306,7 +309,7 @@ internal sealed class PointOfInterestRenderer
         new(222, 204, 168),
     ];
 
-    private static void DrawHouse(GeometryBatch batch, Vector2 foot, float width, byte variant, bool isWarehouse)
+    private static void DrawHouse(GeometryBatch batch, Vector2 foot, float width, byte variant, bool isWarehouse, float time)
     {
         ColorRgba roof = s_roofs[variant % s_roofs.Length];
         ColorRgba wall = isWarehouse ? new ColorRgba(150, 106, 66) : s_walls[variant / 3 % s_walls.Length];
@@ -369,8 +372,15 @@ internal sealed class PointOfInterestRenderer
             float cx = x0 + (width * 0.72f);
             batch.FillRectangle(new RectangleF(cx, top - front - back + 4f, 9f, 16f), new ColorRgba(120, 96, 84));
             batch.FillRectangle(new RectangleF(cx - 1f, top - front - back + 2f, 11f, 3f), new ColorRgba(90, 72, 64));
-            batch.FillCircle(new Vector2(cx + 6f, top - front - back - 6f), 5f, new ColorRgba(220, 220, 220, 110), 10);
-            batch.FillCircle(new Vector2(cx + 11f, top - front - back - 16f), 7f, new ColorRgba(220, 220, 220, 70), 10);
+            // Smoke puffs rising, drifting with the wind, growing and fading
+            Vector2 mouth = new(cx + 4.5f, top - front - back + 2f);
+            float offset = (foot.X * 0.013f) + (foot.Y * 0.007f);
+            for (int i = 0; i < 4; i++)
+            {
+                float phase = AmbientAnimator.Frac((time * 0.32f) + (i * 0.25f) + offset);
+                Vector2 p = mouth + new Vector2((phase * 14f) + (MathF.Sin((time * 1.3f) + i + offset) * 2.5f), -phase * 34f);
+                batch.FillCircle(p, 3.5f + (phase * 6f), new ColorRgba(228, 228, 228, (byte)(150f * (1f - phase))), 12);
+            }
         }
     }
 
@@ -419,9 +429,10 @@ internal sealed class PointOfInterestRenderer
         batch.DrawLine(new Vector2(foot.X - half, foot.Y), new Vector2(foot.X, foot.Y - h), Shade(canvas, 0.85f), 2f);
     }
 
-    private static void DrawCampfire(GeometryBatch batch, Vector2 foot)
+    private static void DrawCampfire(GeometryBatch batch, Vector2 foot, float time)
     {
-        batch.FillCircle(foot, 34f, new ColorRgba(255, 160, 60, 40), 24); // glow
+        float flicker = (MathF.Sin(time * 11f) * 0.5f) + (MathF.Sin(time * 17.3f) * 0.3f);
+        batch.FillCircle(foot, 34f + (flicker * 4f), new ColorRgba(255, 160, 60, (byte)(40 + (flicker * 12f))), 24); // glow
         for (int i = 0; i < 8; i++)
         {
             float a = i * (MathF.Tau / 8f);
@@ -430,8 +441,19 @@ internal sealed class PointOfInterestRenderer
 
         batch.DrawLine(foot + new Vector2(-10f, 4f), foot + new Vector2(10f, -4f), new ColorRgba(92, 58, 32), 5f);
         batch.DrawLine(foot + new Vector2(-10f, -4f), foot + new Vector2(10f, 4f), new ColorRgba(110, 70, 40), 5f);
-        batch.FillTriangle(foot + new Vector2(-8f, 0f), foot + new Vector2(8f, 0f), foot + new Vector2(0f, -22f), new ColorRgba(234, 88, 12));
-        batch.FillTriangle(foot + new Vector2(-5f, 0f), foot + new Vector2(5f, 0f), foot + new Vector2(1f, -15f), new ColorRgba(251, 191, 36));
+        // Dancing flames
+        float lean = MathF.Sin(time * 7.1f) * 3f;
+        batch.FillTriangle(foot + new Vector2(-8f, 0f), foot + new Vector2(8f, 0f), foot + new Vector2(lean, -22f - (flicker * 5f)), new ColorRgba(234, 88, 12));
+        batch.FillTriangle(foot + new Vector2(-7f, 0f), foot + new Vector2(1f, 0f), foot + new Vector2(-4f + (lean * 0.6f), -14f + (flicker * 3f)), new ColorRgba(249, 115, 22));
+        batch.FillTriangle(foot + new Vector2(-5f, 0f), foot + new Vector2(5f, 0f), foot + new Vector2(1f - (lean * 0.5f), -15f - (flicker * 3f)), new ColorRgba(251, 191, 36));
+
+        // Sparks drifting up
+        for (int i = 0; i < 4; i++)
+        {
+            float phase = AmbientAnimator.Frac((time * 0.8f) + (i * 0.27f));
+            Vector2 p = foot + new Vector2((MathF.Sin((time * 3f) + (i * 2f)) * 6f) + ((i - 1.5f) * 3f), -14f - (phase * 30f));
+            batch.FillRectangle(new RectangleF(p.X, p.Y, 2f, 2f), new ColorRgba(253, 186, 116, (byte)(255f * (1f - phase))));
+        }
 
         // Log seats
         batch.FillRectangle(new RectangleF(foot.X - 46f, foot.Y + 18f, 26f, 8f), new ColorRgba(110, 70, 40));
@@ -456,7 +478,7 @@ internal sealed class PointOfInterestRenderer
         batch.FillRectangle(new RectangleF(foot.X - 8f, foot.Y - h + 4f, 16f, 10f), new ColorRgba(214, 170, 60)); // plaque
     }
 
-    private static void DrawStoneLantern(GeometryBatch batch, Vector2 foot)
+    private static void DrawStoneLantern(GeometryBatch batch, Vector2 foot, float time)
     {
         ColorRgba stone = new(150, 156, 166);
         ColorRgba stoneDark = new(110, 116, 126);
@@ -465,18 +487,29 @@ internal sealed class PointOfInterestRenderer
         batch.FillRectangle(new RectangleF(foot.X - 3f, foot.Y - 24f, 6f, 18f), stone);
         batch.FillRectangle(new RectangleF(foot.X - 8f, foot.Y - 36f, 16f, 12f), stoneDark);
         batch.FillRectangle(new RectangleF(foot.X - 4f, foot.Y - 33f, 8f, 6f), new ColorRgba(255, 200, 90));
-        batch.FillCircle(new Vector2(foot.X, foot.Y - 30f), 14f, new ColorRgba(255, 190, 80, 45), 14);
+        float glow = 0.5f + (0.5f * MathF.Sin((time * 2.3f) + foot.X));
+        batch.FillCircle(new Vector2(foot.X, foot.Y - 30f), 13f + (glow * 4f), new ColorRgba(255, 190, 80, (byte)(35 + (glow * 30f))), 14);
         batch.FillTriangle(new Vector2(foot.X - 12f, foot.Y - 36f), new Vector2(foot.X + 12f, foot.Y - 36f), new Vector2(foot.X, foot.Y - 46f), stone);
     }
 
-    private static void DrawAltar(GeometryBatch batch, Vector2 foot)
+    private static void DrawAltar(GeometryBatch batch, Vector2 foot, float time)
     {
+        float bob = MathF.Sin(time * 1.4f) * 3f;
+        float pulse = 0.5f + (0.5f * MathF.Sin(time * 2.1f));
         batch.FillRectangle(new RectangleF(foot.X - 20f, foot.Y - 2f, 46f, 8f), new ColorRgba(0, 0, 0, 50));
         batch.FillRectangle(new RectangleF(foot.X - 22f, foot.Y - 18f, 44f, 18f), new ColorRgba(120, 126, 136));
         batch.FillRectangle(new RectangleF(foot.X - 24f, foot.Y - 24f, 48f, 8f), new ColorRgba(170, 176, 186));
-        batch.FillCircle(new Vector2(foot.X, foot.Y - 34f), 18f, new ColorRgba(120, 200, 255, 50), 18);
-        batch.FillCircle(new Vector2(foot.X, foot.Y - 34f), 8f, new ColorRgba(140, 220, 255), 14);
-        batch.FillCircle(new Vector2(foot.X - 2f, foot.Y - 36f), 3f, new ColorRgba(235, 250, 255), 8);
+        Vector2 orb = new(foot.X, foot.Y - 36f + bob);
+        batch.FillCircle(orb, 16f + (pulse * 6f), new ColorRgba(120, 200, 255, (byte)(35 + (pulse * 35f))), 18);
+        batch.FillCircle(orb, 8f, new ColorRgba(140, 220, 255), 14);
+        batch.FillCircle(orb + new Vector2(-2f, -2f), 3f, new ColorRgba(235, 250, 255), 8);
+
+        // Motes orbiting the orb
+        for (int i = 0; i < 3; i++)
+        {
+            float a = (time * 1.5f) + (i * (MathF.Tau / 3f));
+            batch.FillRectangle(new RectangleF(orb.X + (MathF.Cos(a) * 14f) - 1f, orb.Y + (MathF.Sin(a) * 6f) - 1f, 2f, 2f), new ColorRgba(200, 240, 255, 200));
+        }
     }
 
     private static void DrawBarrels(GeometryBatch batch, Vector2 foot)
