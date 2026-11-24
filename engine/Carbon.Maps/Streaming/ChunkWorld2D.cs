@@ -225,6 +225,128 @@ public sealed class ChunkWorld2D
         return combined;
     }
 
+    /// <summary>
+    /// Performs zero-allocation continuous spatial collision resolution for an entity against terrain and physical obstacles.
+    /// Follows MMORPG sliding physics: prevents stepping on tree trunks or entering water/ores while allowing
+    /// free passage underneath leafy canopies.
+    /// </summary>
+    /// <param name="position">Entity position in world coordinates, modified in-place to slide around obstacles.</param>
+    /// <param name="radius">Entity collision radius.</param>
+    /// <param name="pushNormal">Combined surface push normal if a collision occurred; otherwise Vector2.Zero.</param>
+    /// <returns>True if a collision was resolved; otherwise false.</returns>
+    public bool ResolveEntityCollision(ref Vector2 position, float radius, out Vector2 pushNormal)
+    {
+        pushNormal = Vector2.Zero;
+        bool collided = false;
+
+        // 1. Terrain collision against solid tiles (rivers, ocean, cliffs)
+        int minTileX = (int)MathF.Floor((position.X - radius) / _tileSize);
+        int maxTileX = (int)MathF.Floor((position.X + radius) / _tileSize);
+        int minTileY = (int)MathF.Floor((position.Y - radius) / _tileSize);
+        int maxTileY = (int)MathF.Floor((position.Y + radius) / _tileSize);
+
+        for (int ty = minTileY; ty <= maxTileY; ty++)
+        {
+            for (int tx = minTileX; tx <= maxTileX; tx++)
+            {
+                MapTile tile = this.GetTileAtWorld(tx, ty);
+                if (!tile.IsSolid)
+                {
+                    continue;
+                }
+
+                float tileMinX = tx * _tileSize;
+                float tileMinY = ty * _tileSize;
+                float tileMaxX = tileMinX + _tileSize;
+                float tileMaxY = tileMinY + _tileSize;
+
+                float closestX = Math.Clamp(position.X, tileMinX, tileMaxX);
+                float closestY = Math.Clamp(position.Y, tileMinY, tileMaxY);
+                Vector2 diff = position - new Vector2(closestX, closestY);
+                float distSq = diff.LengthSquared();
+
+                if (distSq < radius * radius)
+                {
+                    collided = true;
+                    if (distSq > 0.0001f)
+                    {
+                        float dist = MathF.Sqrt(distSq);
+                        Vector2 normal = diff / dist;
+                        float penetration = radius - dist;
+                        position += normal * penetration;
+                        pushNormal += normal;
+                    }
+                    else
+                    {
+                        Vector2 normal = new(0f, -1f);
+                        position += normal * radius;
+                        pushNormal += normal;
+                    }
+                }
+            }
+        }
+
+        // 2. Physical prop collision (tree trunks, mineral ore boulders, walls)
+        // Free passage is permitted underneath tree canopies; collision applies only against the trunk footprint.
+        float searchRadius = radius + 48f;
+        float chunkSizeWorld = Chunk2D.Size * _tileSize;
+        int minChunkX = (int)MathF.Floor((position.X - searchRadius) / chunkSizeWorld);
+        int maxChunkX = (int)MathF.Floor((position.X + searchRadius) / chunkSizeWorld);
+        int minChunkY = (int)MathF.Floor((position.Y - searchRadius) / chunkSizeWorld);
+        int maxChunkY = (int)MathF.Floor((position.Y + searchRadius) / chunkSizeWorld);
+
+        for (int cy = minChunkY; cy <= maxChunkY; cy++)
+        {
+            for (int cx = minChunkX; cx <= maxChunkX; cx++)
+            {
+                if (!this.TryGetChunk(cx, cy, out Chunk2D? chunk) || chunk == null)
+                {
+                    continue;
+                }
+
+                for (int i = 0; i < chunk.Props.Count; i++)
+                {
+                    MapProp prop = chunk.Props[i];
+                    if (!prop.HasCollision)
+                    {
+                        continue;
+                    }
+
+                    Vector2 propPos = prop.WorldPosition;
+                    Vector2 diff = position - propPos;
+                    float minDist = prop.CollisionRadius + radius;
+                    float distSq = diff.LengthSquared();
+
+                    if (distSq < minDist * minDist)
+                    {
+                        collided = true;
+                        if (distSq > 0.0001f)
+                        {
+                            float dist = MathF.Sqrt(distSq);
+                            Vector2 normal = diff / dist;
+                            float penetration = minDist - dist;
+                            position += normal * penetration;
+                            pushNormal += normal;
+                        }
+                        else
+                        {
+                            Vector2 normal = new(1f, 0f);
+                            position += normal * minDist;
+                            pushNormal += normal;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (pushNormal.LengthSquared() > 0.0001f)
+        {
+            pushNormal = Vector2.Normalize(pushNormal);
+        }
+
+        return collided;
+    }
+
     private static (int X, int Y) LocateSafeNaturalSpawn(ProceduralWorldGenerator generator, float frequency)
     {
         // Spiral outward from (0, 0) to find pristine natural land in LushPlains

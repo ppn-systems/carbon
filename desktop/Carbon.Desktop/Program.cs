@@ -225,7 +225,22 @@ public static class Program
         // 9. Step simulation
         _ = s_world.Update(dt);
 
-        // 10. Follow player with camera
+        // 10. Continuous physical collision sliding (terrain, trunks, ores)
+        ref Transform2D simTrans = ref s_world.Entities.GetTransform(s_player);
+        ref readonly Collider2D col = ref s_world.Entities.GetCollider(s_player);
+        Vector2 resolvedPos = simTrans.Position;
+        if (s_chunkWorld.ResolveEntityCollision(ref resolvedPos, col.Radius, out Vector2 pushNormal))
+        {
+            simTrans.Position = resolvedPos;
+            ref Velocity2D vel = ref s_world.Entities.GetVelocity(s_player);
+            float dot = Vector2.Dot(vel.Linear, pushNormal);
+            if (dot < 0f)
+            {
+                vel.Linear -= pushNormal * dot;
+            }
+        }
+
+        // 11. Follow player with camera
         ref readonly Transform2D updatedTrans = ref s_world.Entities.GetTransform(s_player);
         s_camera.Position = updatedTrans.Position;
     }
@@ -325,7 +340,9 @@ public static class Program
             }
         }
 
-        // 2. Render Props with Frustum Culling
+        Vector2 playerPos = s_world.Entities.GetTransform(s_player).Position;
+
+        // 2. Render Props Ground Layer (Trunks, Minerals, Bushes, Ground Obstacles)
         foreach (Chunk2D chunk in s_chunkWorld.ActiveChunks)
         {
             chunk.GetBounds(TileSize, out float cMinX, out float cMinY, out float cMaxX, out float cMaxY);
@@ -340,12 +357,12 @@ public static class Program
                 if (prop.WorldPositionX + 96f >= minX && prop.WorldPositionX - 96f <= maxX &&
                     prop.WorldPositionY + 96f >= minY && prop.WorldPositionY - 96f <= maxY)
                 {
-                    RenderProp(s_geometryBatch, prop);
+                    RenderPropGround(s_geometryBatch, prop);
                 }
             }
         }
 
-        // 3. Render Active Entities
+        // 3. Render Active Entities (Layer 2.5: Player Avatar)
         for (int i = 0; i < s_world.Entities.ActiveEntities.Count; i++)
         {
             Entity entity = s_world.Entities.ActiveEntities[i];
@@ -368,9 +385,31 @@ public static class Program
             }
         }
 
+        // 4. Render Overhead Tree Canopies with X-Ray Fading (Layer 3: Canopy Occlusion)
+        // When player walks beneath tree shade, foliage fades to translucent (~35% alpha) so player & solid trunk remain visible
+        foreach (Chunk2D chunk in s_chunkWorld.ActiveChunks)
+        {
+            chunk.GetBounds(TileSize, out float cMinX, out float cMinY, out float cMaxX, out float cMaxY);
+            if (cMaxX < minX || cMinX > maxX || cMaxY < minY || cMinY > maxY)
+            {
+                continue;
+            }
+
+            for (int i = 0; i < chunk.Props.Count; i++)
+            {
+                MapProp prop = chunk.Props[i];
+                if (prop.HasCanopy &&
+                    prop.WorldPositionX + 96f >= minX && prop.WorldPositionX - 96f <= maxX &&
+                    prop.WorldPositionY + 96f >= minY && prop.WorldPositionY - 96f <= maxY)
+                {
+                    RenderPropCanopy(s_geometryBatch, prop, playerPos);
+                }
+            }
+        }
+
         s_geometryBatch.End();
 
-        // 4. Automated Screenshot Telemetry (captures frame 60 for analysis)
+        // 5. Automated Screenshot Telemetry (captures frame 60 for analysis)
         s_frameCount++;
         if (s_frameCount >= 60 && !s_hasAutoCaptured)
         {
@@ -398,7 +437,7 @@ public static class Program
         }
     }
 
-    private static void RenderProp(GeometryBatch batch, in MapProp prop)
+    private static void RenderPropGround(GeometryBatch batch, in MapProp prop)
     {
         Vector2 pos = prop.WorldPosition;
         ColorRgba primary = HexToColor(prop.ColorPrimary);
@@ -412,13 +451,6 @@ public static class Program
                 batch.FillRectangle(new RectangleF(pos.X - 10f, pos.Y + 6f, 20f, 8f), new ColorRgba(69, 26, 3));
                 batch.FillRectangle(new RectangleF(pos.X - 7f, pos.Y - 10f, 14f, 26f), secondary);
                 batch.FillRectangle(new RectangleF(pos.X - 6f, pos.Y - 10f, 3f, 22f), new ColorRgba(146, 64, 14));
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 18f), r * 0.75f, new ColorRgba(15, 61, 30));
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 26f), r, primary);
-                batch.FillCircle(new Vector2(pos.X - (r * 0.45f), pos.Y - 20f), r * 0.72f, primary);
-                batch.FillCircle(new Vector2(pos.X + (r * 0.45f), pos.Y - 22f), r * 0.75f, primary);
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 40f), r * 0.65f, primary);
-                batch.FillCircle(new Vector2(pos.X - 10f, pos.Y - 32f), r * 0.48f, new ColorRgba(34, 197, 94));
-                batch.FillCircle(new Vector2(pos.X - 14f, pos.Y - 36f), r * 0.26f, new ColorRgba(74, 222, 128));
                 break;
 
             case MapPropType.BirchTree:
@@ -426,36 +458,22 @@ public static class Program
                 batch.FillRectangle(new RectangleF(pos.X - 5f, pos.Y - 8f, 10f, 30f), secondary);
                 batch.FillRectangle(new RectangleF(pos.X - 5f, pos.Y + 2f, 4f, 2.5f), new ColorRgba(30, 41, 59));
                 batch.FillRectangle(new RectangleF(pos.X + 1f, pos.Y + 10f, 4f, 2.5f), new ColorRgba(30, 41, 59));
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 26f), r, primary);
-                batch.FillCircle(new Vector2(pos.X - (r * 0.38f), pos.Y - 20f), r * 0.65f, primary);
-                batch.FillCircle(new Vector2(pos.X + (r * 0.38f), pos.Y - 22f), r * 0.65f, primary);
-                batch.FillCircle(new Vector2(pos.X - 4f, pos.Y - 30f), r * 0.45f, new ColorRgba(190, 242, 100));
                 break;
 
             case MapPropType.PineTree:
             case MapPropType.SnowPine:
                 batch.FillCircle(new Vector2(pos.X, pos.Y + 8f), r * 0.35f, new ColorRgba(0, 0, 0, 45));
                 batch.FillRectangle(new RectangleF(pos.X - 5f, pos.Y - 4f, 10f, 24f), new ColorRgba(113, 63, 18));
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 6f), r, secondary, segments: 16);
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 22f), r * 0.75f, primary, segments: 16);
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 36f), r * 0.48f, primary, segments: 16);
                 break;
 
             case MapPropType.PalmTree:
                 batch.FillCircle(new Vector2(pos.X, pos.Y + 8f), r * 0.35f, new ColorRgba(0, 0, 0, 40));
                 batch.FillRectangle(new RectangleF(pos.X - 4f, pos.Y - 6f, 8f, 32f), secondary);
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 26f), r, primary, segments: 14);
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 26f), r * 0.45f, new ColorRgba(255, 255, 255, 75));
                 break;
 
             case MapPropType.WillowTree:
                 batch.FillCircle(new Vector2(pos.X, pos.Y + 12f), r * 0.45f, new ColorRgba(0, 0, 0, 50));
                 batch.FillRectangle(new RectangleF(pos.X - 8f, pos.Y - 6f, 16f, 26f), secondary);
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 20f), r, primary);
-                batch.FillCircle(new Vector2(pos.X - (r * 0.45f), pos.Y - 4f), r * 0.45f, primary);
-                batch.FillCircle(new Vector2(pos.X + (r * 0.45f), pos.Y - 4f), r * 0.45f, primary);
-                batch.FillRectangle(new RectangleF(pos.X - 16f, pos.Y - 4f, 4f, 18f), primary);
-                batch.FillRectangle(new RectangleF(pos.X + 12f, pos.Y - 4f, 4f, 18f), primary);
                 break;
 
             case MapPropType.DeadTree:
@@ -533,6 +551,88 @@ public static class Program
                 break;
 
             case MapPropType.None:
+            default:
+                break;
+        }
+    }
+
+    private static void RenderPropCanopy(GeometryBatch batch, in MapProp prop, Vector2 playerPosition)
+    {
+        Vector2 pos = prop.WorldPosition;
+        ColorRgba primary = HexToColor(prop.ColorPrimary);
+        ColorRgba secondary = HexToColor(prop.ColorSecondary);
+        float r = prop.Radius;
+
+        // When player is standing under the tree canopy, leaves fade to ~35% alpha (90/255) so player and solid trunk remain visible
+        byte alpha = prop.IsUnderCanopy(playerPosition) ? (byte)90 : (byte)255;
+        byte subAlpha = (byte)(alpha * 180 / 255);
+
+        switch (prop.Type)
+        {
+            case MapPropType.OakTree:
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 18f), r * 0.75f, new ColorRgba(15, 61, 30, subAlpha));
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 26f), r, new ColorRgba(primary.R, primary.G, primary.B, alpha));
+                batch.FillCircle(new Vector2(pos.X - (r * 0.45f), pos.Y - 20f), r * 0.72f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
+                batch.FillCircle(new Vector2(pos.X + (r * 0.45f), pos.Y - 22f), r * 0.75f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 40f), r * 0.65f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
+                batch.FillCircle(new Vector2(pos.X - 10f, pos.Y - 32f), r * 0.48f, new ColorRgba(34, 197, 94, alpha));
+                batch.FillCircle(new Vector2(pos.X - 14f, pos.Y - 36f), r * 0.26f, new ColorRgba(74, 222, 128, alpha));
+                break;
+
+            case MapPropType.BirchTree:
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 26f), r, new ColorRgba(primary.R, primary.G, primary.B, alpha));
+                batch.FillCircle(new Vector2(pos.X - (r * 0.38f), pos.Y - 20f), r * 0.65f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
+                batch.FillCircle(new Vector2(pos.X + (r * 0.38f), pos.Y - 22f), r * 0.65f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
+                batch.FillCircle(new Vector2(pos.X - 4f, pos.Y - 30f), r * 0.45f, new ColorRgba(190, 242, 100, alpha));
+                break;
+
+            case MapPropType.PineTree:
+            case MapPropType.SnowPine:
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 6f), r, new ColorRgba(secondary.R, secondary.G, secondary.B, alpha), segments: 16);
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 22f), r * 0.75f, new ColorRgba(primary.R, primary.G, primary.B, alpha), segments: 16);
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 36f), r * 0.48f, new ColorRgba(primary.R, primary.G, primary.B, alpha), segments: 16);
+                break;
+
+            case MapPropType.PalmTree:
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 26f), r, new ColorRgba(primary.R, primary.G, primary.B, alpha), segments: 14);
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 26f), r * 0.45f, new ColorRgba(255, 255, 255, (byte)(75 * alpha / 255)));
+                break;
+
+            case MapPropType.WillowTree:
+                batch.FillCircle(new Vector2(pos.X, pos.Y - 20f), r, new ColorRgba(primary.R, primary.G, primary.B, alpha));
+                batch.FillCircle(new Vector2(pos.X - (r * 0.45f), pos.Y - 4f), r * 0.45f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
+                batch.FillCircle(new Vector2(pos.X + (r * 0.45f), pos.Y - 4f), r * 0.45f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
+                batch.FillRectangle(new RectangleF(pos.X - 16f, pos.Y - 4f, 4f, 18f), new ColorRgba(primary.R, primary.G, primary.B, alpha));
+                batch.FillRectangle(new RectangleF(pos.X + 12f, pos.Y - 4f, 4f, 18f), new ColorRgba(primary.R, primary.G, primary.B, alpha));
+                break;
+            case MapPropType.None:
+                break;
+            case MapPropType.DeadTree:
+                break;
+            case MapPropType.Cactus:
+                break;
+            case MapPropType.Bush:
+                break;
+            case MapPropType.MushroomCluster:
+                break;
+            case MapPropType.CopperVein:
+                break;
+            case MapPropType.IronVein:
+                break;
+            case MapPropType.GoldVein:
+                break;
+            case MapPropType.CoalDeposit:
+                break;
+            case MapPropType.SilverVein:
+                break;
+            case MapPropType.CrystalCluster:
+                break;
+            case MapPropType.Boulder:
+                break;
+            case MapPropType.BasaltPillar:
+                break;
+            case MapPropType.AncientShrine:
+                break;
             default:
                 break;
         }
