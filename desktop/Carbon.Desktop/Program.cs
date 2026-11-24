@@ -17,8 +17,8 @@ using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
-using Carbon.Maps.Navigation;
 using Carbon.Maps.Landmarks;
+using Carbon.Maps.Navigation;
 using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
 using Carbon.Maps.Topography;
@@ -46,6 +46,7 @@ public static class Program
             : Path.Combine(Environment.CurrentDirectory, "screenshots", "world_capture.bmp");
 
     private static GeometryBatch? s_geometryBatch;
+    private static PointOfInterestRenderer? s_poiRenderer;
     private static ChunkTerrainRenderer? s_chunkTerrainRenderer;
     private static Camera2D? s_camera;
     private static ChunkWorld2D? s_chunkWorld;
@@ -138,6 +139,8 @@ public static class Program
 
         ProceduralWorldGenerator generator = new(seed);
         s_chunkWorld = new ChunkWorld2D(generator, TileSize, MacroFrequency);
+        ChunkWorld2D world = s_chunkWorld;
+        s_poiRenderer = new PointOfInterestRenderer(TileSize, world.PeekTileAtWorld);
         s_chunkTerrainRenderer?.EvictDistant(0, 0, -1);
 
         // Preload chunks around the natural safe starter spawn
@@ -441,18 +444,36 @@ public static class Program
         s_groundSortList.Clear();
         s_canopySortList.Clear();
 
+        // Points of interest: flat ground layer now (under props and entities), upright pieces Y-sorted.
+        // Culled by footprint rather than by chunk, since a village spills over its centre chunk.
+        foreach (Chunk2D chunk in s_chunkWorld.ActiveChunks)
+        {
+            for (int i = 0; i < chunk.PointsOfInterest.Count; i++)
+            {
+                PointOfInterest poi = chunk.PointsOfInterest[i];
+                float reach = (poi.Radius + 6) * TileSize * 2f;
+                float px = (poi.TileX + 0.5f) * TileSize;
+                float py = (poi.TileY + 0.5f) * TileSize;
+                if (px + reach < minX || px - reach > maxX || py + reach < minY || py - reach > maxY || s_poiRenderer is null)
+                {
+                    continue;
+                }
+
+                s_poiRenderer.DrawGround(s_geometryBatch, poi);
+                IReadOnlyList<PointOfInterestRenderer.Piece> pieces = s_poiRenderer.GetPieces(poi);
+                for (int k = 0; k < pieces.Count; k++)
+                {
+                    s_groundSortList.Add(new GroundRenderItem(pieces[k].Position.Y, pieces[k]));
+                }
+            }
+        }
+
         foreach (Chunk2D chunk in s_chunkWorld.ActiveChunks)
         {
             chunk.GetBounds(TileSize, out float cMinX, out float cMinY, out float cMaxX, out float cMaxY);
             if (cMaxX < minX || cMinX > maxX || cMaxY < minY || cMinY > maxY)
             {
                 continue;
-            }
-
-            // Points of interest lie flat on the ground, under props and entities.
-            for (int i = 0; i < chunk.PointsOfInterest.Count; i++)
-            {
-                RenderPointOfInterest(s_geometryBatch, chunk.PointsOfInterest[i]);
             }
 
             for (int i = 0; i < chunk.Props.Count; i++)
@@ -493,7 +514,11 @@ public static class Program
         for (int i = 0; i < groundSpan.Length; i++)
         {
             ref readonly GroundRenderItem item = ref groundSpan[i];
-            if (item.IsProp)
+            if (item.IsPiece)
+            {
+                PointOfInterestRenderer.DrawPiece(s_geometryBatch, item.Piece);
+            }
+            else if (item.IsProp)
             {
                 RenderPropGround(s_geometryBatch, item.Prop);
             }
@@ -539,67 +564,6 @@ public static class Program
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {
             Console.WriteLine($"[Screenshot Error] {ex.Message}");
-        }
-    }
-
-    private static void RenderPointOfInterest(GeometryBatch batch, in PointOfInterest poi)
-    {
-        Vector2 c = new((poi.TileX + 0.5f) * TileSize, (poi.TileY + 0.5f) * TileSize);
-        float r = poi.Radius * TileSize;
-        ColorRgba path = new(196, 170, 120);
-        ColorRgba wall = new(120, 72, 40);
-        ColorRgba roof = new(176, 64, 48);
-        ColorRgba stone = new(148, 163, 184);
-
-        switch (poi.Type)
-        {
-            case PointOfInterestType.RiverVillage:
-                // Trodden plaza with a well, ringed by thatched houses.
-                batch.FillCircle(c, r * 0.45f, path, 40);
-                batch.FillCircle(c, 14f, stone, 16);
-                batch.FillCircle(c, 8f, new ColorRgba(56, 120, 200), 16);
-                for (int i = 0; i < 6; i++)
-                {
-                    float a = i * (MathF.PI / 3f);
-                    Vector2 h = c + (new Vector2(MathF.Cos(a), MathF.Sin(a)) * (r * 0.72f));
-                    batch.FillRectangle(new RectangleF(h.X - 26f, h.Y - 18f, 52f, 36f), wall);
-                    batch.FillRectangle(new RectangleF(h.X - 30f, h.Y - 30f, 60f, 16f), roof);
-                }
-
-                break;
-
-            case PointOfInterestType.Harbor:
-                // Piers reach out over the water, towards the sea; the boathouse stands behind them, inland.
-                Vector2 sea = new(poi.FacingX, poi.FacingY);
-                Vector2 side = new(-sea.Y, sea.X);
-                batch.FillCircle(c, r * 0.5f, path, 32);
-                for (int i = -1; i <= 1; i++)
-                {
-                    batch.DrawLine(c + (side * (i * 70f)), c + (side * (i * 70f)) + (sea * (r * 1.4f)), new ColorRgba(139, 94, 52), 22f);
-                }
-
-                Vector2 house = c - (sea * 60f);
-                batch.FillRectangle(new RectangleF(house.X - 40f, house.Y - 25f, 80f, 50f), wall);
-                batch.FillRectangle(new RectangleF(house.X - 46f, house.Y - 39f, 92f, 18f), roof);
-                break;
-
-            case PointOfInterestType.LakesideCamp:
-                batch.FillCircle(c, r * 0.6f, path, 24);
-                batch.FillCircle(c, 10f, new ColorRgba(234, 88, 12), 12);
-                batch.FillTriangle(c + new Vector2(-70f, 30f), c + new Vector2(-30f, 30f), c + new Vector2(-50f, -10f), new ColorRgba(22, 101, 52));
-                batch.FillTriangle(c + new Vector2(30f, 30f), c + new Vector2(70f, 30f), c + new Vector2(50f, -10f), new ColorRgba(22, 101, 52));
-                break;
-
-            case PointOfInterestType.MountainShrine:
-                batch.FillCircle(c, r * 0.7f, stone, 24);
-                batch.DrawCircle(c, r * 0.7f, new ColorRgba(71, 85, 105), 24, 4f);
-                batch.FillRectangle(new RectangleF(c.X - 16f, c.Y - 40f, 32f, 56f), new ColorRgba(100, 116, 139));
-                batch.FillRectangle(new RectangleF(c.X - 28f, c.Y - 48f, 56f, 12f), new ColorRgba(185, 28, 28));
-                break;
-
-            case PointOfInterestType.None:
-            default:
-                break;
         }
     }
 
@@ -954,6 +918,8 @@ public static class Program
         public readonly bool IsProp;
         public readonly MapProp Prop;
         public readonly Entity Entity;
+        public readonly bool IsPiece;
+        public readonly PointOfInterestRenderer.Piece Piece;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public GroundRenderItem(float sortY, in MapProp prop)
@@ -971,6 +937,17 @@ public static class Program
             IsProp = false;
             Prop = default;
             Entity = entity;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public GroundRenderItem(float sortY, in PointOfInterestRenderer.Piece piece)
+        {
+            SortY = sortY;
+            IsProp = false;
+            Prop = default;
+            Entity = Entity.Null;
+            IsPiece = true;
+            Piece = piece;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
