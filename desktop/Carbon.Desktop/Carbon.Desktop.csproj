@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <RootNamespace>Carbon.Desktop</RootNamespace>
+        <AssemblyName>Carbon.Desktop</AssemblyName>
+        <NoWarn>$(NoWarn);CA1303</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\engine\Carbon.Physics\Carbon.Physics.csproj" />
+        <ProjectReference Include="..\..\engine\Carbon.Simulation\Carbon.Simulation.csproj" />
+        <ProjectReference Include="..\..\engine\Carbon.Maps\Carbon.Maps.csproj" />
+        <ProjectReference Include="..\..\graphics\Carbon.Graphics.OpenGL\Carbon.Graphics.OpenGL.csproj" />
+        <ProjectReference Include="..\..\graphics\Carbon.Graphics.Windowing\Carbon.Graphics.Windowing.csproj" />
+        <ProjectReference Include="..\..\graphics\Carbon.Graphics.Batching\Carbon.Graphics.Batching.csproj" />
+    </ItemGroup>
+</Project>

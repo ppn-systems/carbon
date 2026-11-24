@@ -24,14 +24,14 @@ public struct DeterministicRandom
     {
         ulong state = seed == 0 ? 0x9E3779B97F4A7C15UL : seed;
 
-        this._s0 = SplitMix64(ref state);
-        this._s1 = SplitMix64(ref state);
-        this._s2 = SplitMix64(ref state);
-        this._s3 = SplitMix64(ref state);
+        _s0 = SplitMix64(ref state);
+        _s1 = SplitMix64(ref state);
+        _s2 = SplitMix64(ref state);
+        _s3 = SplitMix64(ref state);
 
-        if ((this._s0 | this._s1 | this._s2 | this._s3) == 0)
+        if ((_s0 | _s1 | _s2 | _s3) == 0)
         {
-            this._s0 = 0x9E3779B97F4A7C15UL;
+            _s0 = 0x9E3779B97F4A7C15UL;
         }
     }
 
@@ -40,16 +40,16 @@ public struct DeterministicRandom
     /// </summary>
     public ulong NextULong()
     {
-        ulong result = BitOperations.RotateLeft(this._s1 * 5, 7) * 9;
-        ulong t = this._s1 << 17;
+        ulong result = BitOperations.RotateLeft(_s1 * 5, 7) * 9;
+        ulong t = _s1 << 17;
 
-        this._s2 ^= this._s0;
-        this._s3 ^= this._s1;
-        this._s1 ^= this._s2;
-        this._s0 ^= this._s3;
+        _s2 ^= _s0;
+        _s3 ^= _s1;
+        _s1 ^= _s2;
+        _s0 ^= _s3;
 
-        this._s2 ^= t;
-        this._s3 = BitOperations.RotateLeft(this._s3, 45);
+        _s2 ^= t;
+        _s3 = BitOperations.RotateLeft(_s3, 45);
 
         return result;
     }
