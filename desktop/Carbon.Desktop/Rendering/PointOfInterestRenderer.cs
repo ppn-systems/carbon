@@ -83,6 +83,32 @@ internal sealed class PointOfInterestRenderer
         }
     }
 
+    /// <summary>
+    /// Finds the building the player (world pixels) stands in, with its room rectangle in world pixels.
+    /// </summary>
+    public bool TryGetBuildingAt(Vector2 playerWorld, out LandmarkPiece building, out RectangleF room)
+    {
+        int tx = (int)MathF.Floor(playerWorld.X / _tileSize);
+        int ty = (int)MathF.Floor(playerWorld.Y / _tileSize);
+        foreach (LandmarkPiece p in _landmarks.GetLayout(FloorDiv(tx, PointOfInterestResolver.SiteSize), FloorDiv(ty, PointOfInterestResolver.SiteSize)).Pieces)
+        {
+            if (this.IsInside(p, playerWorld))
+            {
+                float lift = p.Style == LandmarkPiece.StyleSwamp ? 10f : 0f;
+                float w = p.Width * _tileSize;
+                float d = p.Depth * _tileSize;
+                Vector2 foot = this.ToWorld(p);
+                building = p;
+                room = new RectangleF(foot.X - (w * 0.5f), foot.Y - lift - d, w, d);
+                return true;
+            }
+        }
+
+        building = default;
+        room = default;
+        return false;
+    }
+
     /// <summary>Returns whether the player (world pixels) stands inside a building.</summary>
     public bool IsInside(in LandmarkPiece piece, Vector2 playerWorld) =>
         piece.IsInside(playerWorld.X / _tileSize, playerWorld.Y / _tileSize);
@@ -333,7 +359,7 @@ internal sealed class PointOfInterestRenderer
         GeometryBatch batch, Vector2 foot, float width, float depth, byte look, byte style, bool isWarehouse, bool open, float time)
     {
         float lift = style == LandmarkPiece.StyleSwamp ? 10f : 0f; // stilts
-        float wallH = isWarehouse ? 34f : 28f;
+        float wallH = isWarehouse ? 46f : 38f;
         float x0 = foot.X - (width * 0.5f);
         float baseY = foot.Y - lift;
         float top = baseY - wallH;
@@ -343,7 +369,7 @@ internal sealed class PointOfInterestRenderer
         {
             // Cut-away: low wall stubs around the room, door gap in the front wall.
             ColorRgba stub = Shade(wall, 0.8f);
-            float door = (isWarehouse ? 32f : 20f) * 0.5f;
+            float door = (isWarehouse ? 48f : 32f) * 0.5f;
             batch.FillRectangle(new RectangleF(x0, baseY - 8f, (width * 0.5f) - door, 8f), stub);
             batch.FillRectangle(new RectangleF(foot.X + door, baseY - 8f, (width * 0.5f) - door, 8f), stub);
             batch.FillRectangle(new RectangleF(x0, baseY - 8f, width, 2f), Shade(wall, 1.1f));
@@ -413,23 +439,26 @@ internal sealed class PointOfInterestRenderer
         // Door and windows
         if (isWarehouse)
         {
-            batch.FillRectangle(new RectangleF(foot.X - 16f, baseY - 26f, 32f, 26f), new ColorRgba(84, 52, 30));
-            batch.DrawLine(new Vector2(foot.X, baseY - 26f), new Vector2(foot.X, baseY), new ColorRgba(60, 36, 20), 2f);
+            batch.FillRectangle(new RectangleF(foot.X - 22f, baseY - 36f, 44f, 36f), new ColorRgba(84, 52, 30));
+            batch.DrawLine(new Vector2(foot.X, baseY - 36f), new Vector2(foot.X, baseY), new ColorRgba(60, 36, 20), 2f);
         }
         else
         {
             ColorRgba doorColor = style == LandmarkPiece.StyleDesert ? new ColorRgba(176, 70, 52) : new ColorRgba(92, 58, 34);
-            batch.FillRectangle(new RectangleF(foot.X - 7f, baseY - 20f, 14f, 20f), doorColor);
-            batch.FillRectangle(new RectangleF(foot.X + 3f, baseY - 11f, 2f, 2f), new ColorRgba(230, 190, 90));
+            batch.FillRectangle(new RectangleF(foot.X - 13f, baseY - 30f, 26f, 30f), s_timber);
+            batch.FillRectangle(new RectangleF(foot.X - 11f, baseY - 28f, 22f, 28f), doorColor);
+            batch.FillRectangle(new RectangleF(foot.X + 6f, baseY - 15f, 2.5f, 2.5f), new ColorRgba(230, 190, 90));
 
             // Warm light flickers gently behind the glass
             float flicker = 0.85f + (0.15f * MathF.Sin((time * 3.1f) + foot.X));
             ColorRgba glass = (look & 1) == 0
                 ? new ColorRgba((byte)(255 * flicker), (byte)(214 * flicker), (byte)(120 * flicker))
                 : new ColorRgba(150, 196, 220);
-            for (int i = -1; i <= 1; i += 2)
+            // Two windows on each side of the door
+            for (int k = 0; k < 4; k++)
             {
-                float wx = foot.X + (i * width * 0.28f) - 6f;
+                float side = k < 2 ? -1f : 1f;
+                float wx = foot.X + (side * width * ((k % 2) == 0 ? 0.20f : 0.36f)) - 6f;
                 if (style == LandmarkPiece.StyleDesert)
                 {
                     batch.FillRectangle(new RectangleF(wx + 1f, top + 9f, 10f, 9f), new ColorRgba(70, 46, 30));
@@ -533,83 +562,149 @@ internal sealed class PointOfInterestRenderer
         {
             LandmarkPiece.StyleDesert => new ColorRgba(204, 164, 112),
             LandmarkPiece.StyleSwamp => new ColorRgba(110, 84, 56),
+            LandmarkPiece.StyleSnow => new ColorRgba(150, 104, 64),
             _ => new ColorRgba(168, 118, 72),
         };
 
+        // Floor: planks (or clay tiles in the desert)
         batch.FillRectangle(new RectangleF(x0, y0, width, depth), floor);
         if (style == LandmarkPiece.StyleDesert)
         {
-            for (float ty = y0 + 8f; ty < baseY; ty += 8f)
+            for (float ty = y0 + 12f; ty < baseY; ty += 12f)
             {
                 batch.FillRectangle(new RectangleF(x0, ty, width, 1f), Shade(floor, 0.85f));
             }
 
-            for (float tx = x0 + 8f; tx < x0 + width; tx += 8f)
+            for (float tx = x0 + 12f; tx < x0 + width; tx += 12f)
             {
                 batch.FillRectangle(new RectangleF(tx, y0, 1f, depth), Shade(floor, 0.85f));
             }
         }
         else
         {
-            for (float ty = y0 + 6f; ty < baseY; ty += 6f)
+            int row = 0;
+            for (float ty = y0 + 8f; ty < baseY; ty += 8f, row++)
             {
-                batch.FillRectangle(new RectangleF(x0, ty, width, 1f), Shade(floor, 0.8f));
+                batch.FillRectangle(new RectangleF(x0, ty, width, 1f), Shade(floor, 0.78f));
+                for (float tx = x0 + (row % 2 * 20f) + 10f; tx < x0 + width; tx += 40f)
+                {
+                    batch.FillRectangle(new RectangleF(tx, ty - 8f, 1f, 8f), Shade(floor, 0.85f));
+                }
             }
         }
 
-        // Inner face of the back wall
+        // Inner face of the back wall with a shelf, and a soft shadow at its foot
         ColorRgba wall = WallColor(style, look, isWarehouse);
-        batch.FillRectangle(new RectangleF(x0, y0, width, 12f), Shade(wall, 0.85f));
-        batch.FillRectangle(new RectangleF(x0, y0 + 12f, width, 2f), Shade(wall, 0.6f));
+        batch.FillRectangle(new RectangleF(x0, y0, width, 22f), Shade(wall, 0.85f));
+        batch.FillRectangle(new RectangleF(x0, y0 + 22f, width, 3f), Shade(wall, 0.55f));
+        batch.FillRectangle(new RectangleF(x0, y0 + 25f, width, 6f), new ColorRgba(0, 0, 0, 35));
+
+        // Daylight falling through the front windows onto the floor
+        for (int k = 0; k < 4; k++)
+        {
+            float side = k < 2 ? -1f : 1f;
+            float wx = foot.X + (side * width * ((k % 2) == 0 ? 0.20f : 0.36f));
+            batch.FillRectangle(new RectangleF(wx - 7f, baseY - 26f, 14f, 18f), new ColorRgba(255, 240, 190, 40));
+        }
 
         if (isWarehouse)
         {
-            // Crates and sacks
-            for (int i = 0; i < 4; i++)
+            // Stacked crates along the walls, sacks and barrels on the floor
+            for (int i = 0; i < 6; i++)
             {
-                float cx = x0 + 10f + (i * ((width - 30f) / 3f));
-                batch.FillRectangle(new RectangleF(cx, y0 + 16f, 16f, 14f), new ColorRgba(150, 104, 60));
-                batch.DrawRectangle(new RectangleF(cx, y0 + 16f, 16f, 14f), new ColorRgba(100, 66, 36), 1.5f);
-                batch.DrawLine(new Vector2(cx, y0 + 16f), new Vector2(cx + 16f, y0 + 30f), new ColorRgba(100, 66, 36), 1.5f);
+                float cx = x0 + 10f + (i * ((width - 36f) / 5f));
+                DrawCrate(batch, new Vector2(cx, y0 + 26f), 24f);
+                if ((i % 2) == 0)
+                {
+                    DrawCrate(batch, new Vector2(cx + 4f, y0 + 14f), 20f);
+                }
             }
 
-            batch.FillCircle(new Vector2(x0 + 20f, baseY - 14f), 7f, new ColorRgba(196, 176, 130), 10);
-            batch.FillCircle(new Vector2(x0 + 32f, baseY - 12f), 6f, new ColorRgba(186, 164, 118), 10);
+            for (int i = 0; i < 4; i++)
+            {
+                batch.FillCircle(new Vector2(x0 + 22f + (i * 14f), baseY - 22f), 8f, new ColorRgba(196, 176, 130), 12);
+            }
+
+            DrawBarrels(batch, new Vector2(x0 + width - 40f, baseY - 14f));
             return;
         }
 
-        // Rug
+        // Shelf with pots on the back wall
+        batch.FillRectangle(new RectangleF(foot.X - 30f, y0 + 6f, 60f, 3f), s_timber);
+        for (int i = 0; i < 4; i++)
+        {
+            ColorRgba pot = (i % 2) == 0 ? new ColorRgba(176, 96, 60) : new ColorRgba(120, 150, 170);
+            batch.FillRectangle(new RectangleF(foot.X - 26f + (i * 15f), y0 - 1f, 8f, 7f), pot);
+        }
+
+        // Big rug in the middle
         ColorRgba rug = style == LandmarkPiece.StyleSnow ? new ColorRgba(236, 230, 220) : new ColorRgba(150, 54, 48);
-        batch.FillRectangle(new RectangleF(foot.X - 12f, y0 + 24f, 24f, depth - 32f), rug);
-        batch.DrawRectangle(new RectangleF(foot.X - 10f, y0 + 26f, 20f, depth - 36f), Shade(rug, 0.8f), 1f);
+        float rugW = width * 0.42f;
+        float rugH = depth * 0.42f;
+        float rugY = y0 + (depth * 0.42f);
+        batch.FillRectangle(new RectangleF(foot.X - (rugW * 0.5f), rugY, rugW, rugH), rug);
+        batch.DrawRectangle(new RectangleF(foot.X - (rugW * 0.5f) + 4f, rugY + 4f, rugW - 8f, rugH - 8f), Shade(rug, 0.75f), 2f);
+        batch.FillRectangle(new RectangleF(foot.X - 6f, rugY + (rugH * 0.5f) - 4f, 12f, 8f), Shade(rug, 1.25f));
 
-        // Bed against the back-left wall
-        batch.FillRectangle(new RectangleF(x0 + 7f, y0 + 14f, 16f, 26f), new ColorRgba(110, 74, 44));
-        batch.FillRectangle(new RectangleF(x0 + 8f, y0 + 22f, 14f, 17f), (look & 1) == 0 ? new ColorRgba(70, 110, 170) : new ColorRgba(150, 70, 70));
-        batch.FillRectangle(new RectangleF(x0 + 9f, y0 + 15f, 12f, 6f), new ColorRgba(240, 236, 226));
+        // Bed in the back-left corner
+        float bx = x0 + 10f;
+        float by = y0 + 30f;
+        ColorRgba blanket = (look & 1) == 0 ? new ColorRgba(70, 110, 170) : new ColorRgba(150, 70, 70);
+        batch.FillRectangle(new RectangleF(bx + 3f, by + 3f, 30f, 44f), new ColorRgba(0, 0, 0, 40));
+        batch.FillRectangle(new RectangleF(bx, by, 30f, 44f), new ColorRgba(110, 74, 44));
+        batch.FillRectangle(new RectangleF(bx + 2f, by + 13f, 26f, 30f), blanket);
+        batch.FillRectangle(new RectangleF(bx + 2f, by + 13f, 26f, 4f), Shade(blanket, 1.2f));
+        batch.FillRectangle(new RectangleF(bx + 4f, by + 3f, 22f, 9f), new ColorRgba(240, 236, 226));
 
-        // Table with two stools
-        float tx0 = foot.X + (width * 0.12f);
-        batch.FillRectangle(new RectangleF(tx0, y0 + 26f, 16f, 10f), new ColorRgba(130, 88, 52));
-        batch.FillCircle(new Vector2(tx0 - 4f, y0 + 31f), 3.5f, new ColorRgba(110, 74, 44), 8);
-        batch.FillCircle(new Vector2(tx0 + 20f, y0 + 31f), 3.5f, new ColorRgba(110, 74, 44), 8);
-        batch.FillCircle(new Vector2(tx0 + 8f, y0 + 30f), 2.5f, new ColorRgba(230, 220, 200), 8); // bowl
+        // Chest at the foot of the bed
+        batch.FillRectangle(new RectangleF(bx + 2f, by + 50f, 26f, 14f), new ColorRgba(130, 84, 44));
+        batch.FillRectangle(new RectangleF(bx + 2f, by + 55f, 26f, 2f), new ColorRgba(214, 170, 60));
 
-        // Hearth on the back-right wall with a live fire (desert homes keep water jars instead)
-        float hx = x0 + width - 22f;
+        // Table with stools, a candle and dishes, right of centre
+        float tx0 = foot.X + (width * 0.10f);
+        float ty0 = y0 + (depth * 0.30f);
+        batch.FillRectangle(new RectangleF(tx0 + 3f, ty0 + 3f, 34f, 20f), new ColorRgba(0, 0, 0, 40));
+        batch.FillRectangle(new RectangleF(tx0, ty0, 34f, 20f), new ColorRgba(130, 88, 52));
+        batch.FillRectangle(new RectangleF(tx0, ty0, 34f, 3f), new ColorRgba(156, 108, 66));
+        batch.FillCircle(new Vector2(tx0 - 7f, ty0 + 10f), 5f, new ColorRgba(110, 74, 44), 10);
+        batch.FillCircle(new Vector2(tx0 + 41f, ty0 + 10f), 5f, new ColorRgba(110, 74, 44), 10);
+        batch.FillCircle(new Vector2(tx0 + 10f, ty0 + 10f), 4f, new ColorRgba(230, 220, 200), 10);
+        batch.FillCircle(new Vector2(tx0 + 24f, ty0 + 10f), 4f, new ColorRgba(230, 220, 200), 10);
+        float candle = 0.5f + (0.5f * MathF.Sin(time * 7f));
+        batch.FillRectangle(new RectangleF(tx0 + 16f, ty0 + 2f, 2f, 5f), new ColorRgba(245, 240, 225));
+        batch.FillCircle(new Vector2(tx0 + 17f, ty0 + 1f), 1.8f + candle, new ColorRgba(255, 200, 90), 8);
+        batch.FillCircle(new Vector2(tx0 + 17f, ty0 + 2f), 14f + (candle * 3f), new ColorRgba(255, 200, 100, 26), 14);
+
+        // Potted plant in the front-left corner
+        batch.FillRectangle(new RectangleF(x0 + 10f, baseY - 20f, 10f, 9f), new ColorRgba(176, 96, 60));
+        batch.FillCircle(new Vector2(x0 + 15f, baseY - 24f), 7f, new ColorRgba(64, 140, 70), 12);
+
+        // Hearth in the back-right corner with a live fire (desert homes keep water jars instead)
+        float hx = x0 + width - 40f;
         if (style == LandmarkPiece.StyleDesert)
         {
-            batch.FillCircle(new Vector2(hx + 6f, y0 + 20f), 6f, new ColorRgba(176, 96, 60), 10);
-            batch.FillCircle(new Vector2(hx - 4f, y0 + 22f), 5f, new ColorRgba(160, 86, 54), 10);
+            batch.FillCircle(new Vector2(hx + 12f, y0 + 34f), 9f, new ColorRgba(176, 96, 60), 12);
+            batch.FillCircle(new Vector2(hx + 26f, y0 + 38f), 7f, new ColorRgba(160, 86, 54), 12);
+            batch.FillCircle(new Vector2(hx + 12f, y0 + 31f), 4f, new ColorRgba(60, 100, 140), 10);
             return;
         }
 
-        batch.FillRectangle(new RectangleF(hx, y0 + 4f, 16f, 14f), new ColorRgba(120, 116, 112));
-        batch.FillRectangle(new RectangleF(hx + 3f, y0 + 8f, 10f, 9f), new ColorRgba(40, 30, 26));
-        float flame = MathF.Sin(time * 10f) * 1.5f;
-        batch.FillTriangle(new Vector2(hx + 4f, y0 + 17f), new Vector2(hx + 12f, y0 + 17f), new Vector2(hx + 8f + flame, y0 + 9f), new ColorRgba(249, 115, 22));
-        batch.FillTriangle(new Vector2(hx + 6f, y0 + 17f), new Vector2(hx + 10f, y0 + 17f), new Vector2(hx + 8f - flame, y0 + 12f), new ColorRgba(251, 191, 36));
-        batch.FillCircle(new Vector2(hx + 8f, y0 + 18f), 14f, new ColorRgba(255, 170, 80, (byte)(30 + (flame * 6f))), 14);
+        batch.FillRectangle(new RectangleF(hx, y0 + 2f, 32f, 28f), new ColorRgba(120, 116, 112));
+        batch.FillRectangle(new RectangleF(hx - 3f, y0, 38f, 5f), new ColorRgba(150, 146, 140));
+        batch.FillRectangle(new RectangleF(hx + 6f, y0 + 12f, 20f, 18f), new ColorRgba(40, 30, 26));
+        float flame = MathF.Sin(time * 10f) * 2f;
+        batch.FillTriangle(new Vector2(hx + 8f, y0 + 30f), new Vector2(hx + 24f, y0 + 30f), new Vector2(hx + 16f + flame, y0 + 14f), new ColorRgba(249, 115, 22));
+        batch.FillTriangle(new Vector2(hx + 11f, y0 + 30f), new Vector2(hx + 21f, y0 + 30f), new Vector2(hx + 16f - flame, y0 + 19f), new ColorRgba(251, 191, 36));
+        batch.FillCircle(new Vector2(hx + 16f, y0 + 34f), 30f, new ColorRgba(255, 170, 80, (byte)(30 + (flame * 6f))), 18);
+        DrawCrate(batch, new Vector2(hx - 18f, y0 + 26f), 14f); // firewood box
+    }
+
+    private static void DrawCrate(GeometryBatch batch, Vector2 topLeft, float size)
+    {
+        batch.FillRectangle(new RectangleF(topLeft.X + 2f, topLeft.Y + 2f, size, size), new ColorRgba(0, 0, 0, 40));
+        batch.FillRectangle(new RectangleF(topLeft.X, topLeft.Y, size, size), new ColorRgba(150, 104, 60));
+        batch.DrawRectangle(new RectangleF(topLeft.X, topLeft.Y, size, size), new ColorRgba(100, 66, 36), 2f);
+        batch.DrawLine(topLeft, topLeft + new Vector2(size, size), new ColorRgba(100, 66, 36), 2f);
     }
 
     private static void DrawWell(GeometryBatch batch, Vector2 foot)

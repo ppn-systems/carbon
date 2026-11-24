@@ -69,10 +69,10 @@ public readonly record struct LandmarkPiece(LandmarkPieceKind Kind, float X, flo
     public const byte StyleSwamp = 3;
 
     /// <summary>Depth (north-south) of a house body in tiles.</summary>
-    public const float HouseDepthTiles = 56f * Px;
+    public const float HouseDepthTiles = 112f * Px;
 
     /// <summary>Depth of the warehouse body in tiles.</summary>
-    public const float WarehouseDepthTiles = 64f * Px;
+    public const float WarehouseDepthTiles = 128f * Px;
 
     /// <summary>Wall thickness in tiles.</summary>
     public const float WallTiles = 5f * Px;
@@ -90,7 +90,7 @@ public readonly record struct LandmarkPiece(LandmarkPieceKind Kind, float X, flo
     public bool HasInterior => this.Kind is LandmarkPieceKind.House or LandmarkPieceKind.Warehouse;
 
     /// <summary>Width in tiles of the door opening in the front wall.</summary>
-    public float DoorWidth => this.Kind == LandmarkPieceKind.Warehouse ? 32f * Px : 20f * Px;
+    public float DoorWidth => this.Kind == LandmarkPieceKind.Warehouse ? 48f * Px : 32f * Px;
 
     /// <summary>Depth in tiles of the building body (0 for structures without an interior).</summary>
     public float Depth => this.Kind switch

@@ -48,6 +48,12 @@ public static class Program
     private static GeometryBatch? s_geometryBatch;
     private static PointOfInterestRenderer? s_poiRenderer;
     private static float s_animTime;
+
+    // Interior view: 0 = outside, 1 = fully inside a building (camera zoomed in, surroundings dimmed).
+    private const float InteriorZoomBoost = 1.4f;
+    private static float s_interiorBlend;
+    private static RectangleF s_interiorRoom;
+    private static float? s_userZoom;
     private static readonly int s_captureFrames =
         int.TryParse(Environment.GetEnvironmentVariable("CARBON_CAPTURE_FRAMES"), System.Globalization.CultureInfo.InvariantCulture, out int frames) ? Math.Clamp(frames, 0, 240) : 0;
     private static ChunkTerrainRenderer? s_chunkTerrainRenderer;
@@ -211,13 +217,15 @@ public static class Program
         }
 
         // 5. Zoom controls
+        // The player's chosen zoom is kept apart from the automatic interior zoom applied on top of it.
+        s_userZoom ??= s_camera.Zoom;
         if (window.Input.Keyboard.IsKeyDown(Key.Q))
         {
-            s_camera.Zoom = Math.Clamp(s_camera.Zoom * 0.985f, 0.10f, 3.0f);
+            s_userZoom = Math.Clamp(s_userZoom.Value * 0.985f, 0.10f, 3.0f);
         }
         else if (window.Input.Keyboard.IsKeyDown(Key.E))
         {
-            s_camera.Zoom = Math.Clamp(s_camera.Zoom * 1.015f, 0.10f, 3.0f);
+            s_userZoom = Math.Clamp(s_userZoom.Value * 1.015f, 0.10f, 3.0f);
         }
 
         // 6. Movement controls
@@ -366,7 +374,20 @@ public static class Program
 
         // 11. Follow player with camera
         ref readonly Transform2D updatedTrans = ref s_world.Entities.GetTransform(s_player);
-        s_camera.Position = updatedTrans.Position;
+
+        // 12. Interiors: entering a building eases the camera in on the room and fades the outside out.
+        bool inside = s_poiRenderer is not null && s_poiRenderer.TryGetBuildingAt(updatedTrans.Position, out _, out s_interiorRoom);
+        float target = inside ? 1f : 0f;
+        float rate = s_captureFrames > 0 ? 1f / 15f : (float)dt;
+        s_interiorBlend += (target - s_interiorBlend) * Math.Min(1f, rate * 4f);
+        if (!inside && s_interiorBlend < 0.002f)
+        {
+            s_interiorBlend = 0f;
+        }
+
+        Vector2 roomCentre = new(s_interiorRoom.X + (s_interiorRoom.Width * 0.5f), s_interiorRoom.Y + (s_interiorRoom.Height * 0.5f));
+        s_camera.Position = Vector2.Lerp(updatedTrans.Position, roomCentre, s_interiorBlend * 0.75f);
+        s_camera.Zoom = (s_userZoom ?? s_camera.Zoom) * (1f + (InteriorZoomBoost * s_interiorBlend));
 
         if (s_frameCount >= 25 + s_captureFrames && Environment.GetEnvironmentVariable("CARBON_AUTO_EXIT") == "1")
         {
@@ -558,6 +579,33 @@ public static class Program
             float sway = MathF.Sin((s_animTime * 1.25f) + (swaying.WorldPositionX * 0.013f) + (swaying.WorldPositionY * 0.007f)) * 1.8f * gust * swaying.Scale;
             swaying = swaying with { WorldPositionX = swaying.WorldPositionX + sway };
             RenderPropCanopy(s_geometryBatch, swaying, playerPos);
+        }
+
+        // Interior view: darken everything outside the room the player stands in
+        if (s_interiorBlend > 0.01f)
+        {
+            RectangleF room = s_interiorRoom;
+            float pad = 4f;
+            float left = room.X - pad;
+            float right = room.X + room.Width + pad;
+            float topY = room.Y - pad;
+            float bottom = room.Y + room.Height + pad;
+            ColorRgba dim = new(6, 8, 14, (byte)(225f * s_interiorBlend));
+            float bigL = minX - 64f;
+            float bigT = minY - 64f;
+            float bigR = maxX + 64f;
+            float bigB = maxY + 64f;
+            s_geometryBatch.FillRectangle(new RectangleF(bigL, bigT, bigR - bigL, topY - bigT), dim);
+            s_geometryBatch.FillRectangle(new RectangleF(bigL, bottom, bigR - bigL, bigB - bottom), dim);
+            s_geometryBatch.FillRectangle(new RectangleF(bigL, topY, left - bigL, bottom - topY), dim);
+            s_geometryBatch.FillRectangle(new RectangleF(right, topY, bigR - right, bottom - topY), dim);
+
+            // Soft inner glow along the edge of the darkness
+            ColorRgba edge = new(6, 8, 14, (byte)(90f * s_interiorBlend));
+            s_geometryBatch.FillRectangle(new RectangleF(left, topY, right - left, 6f), edge);
+            s_geometryBatch.FillRectangle(new RectangleF(left, bottom - 6f, right - left, 6f), edge);
+            s_geometryBatch.FillRectangle(new RectangleF(left, topY, 6f, bottom - topY), edge);
+            s_geometryBatch.FillRectangle(new RectangleF(right - 6f, topY, 6f, bottom - topY), edge);
         }
 
         s_geometryBatch.End();

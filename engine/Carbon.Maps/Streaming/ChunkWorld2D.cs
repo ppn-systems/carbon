@@ -448,7 +448,7 @@ public sealed class ChunkWorld2D
 
                 if (!isImpassable && (tx != currentTileX || ty != currentTileY))
                 {
-                    if (!_navGrid.CanTraverse(currentTileX, currentTileY, tx, ty))
+                    if (!_navGrid.CanTraverse(currentTileX, currentTileY, tx, ty, includeLandmarks: false))
                     {
                         isImpassable = true;
                     }

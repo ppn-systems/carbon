@@ -26,7 +26,7 @@ public sealed class PointOfInterestResolver
 
     /// <summary>
     /// Distance from a site's edge to any point of interest centre. Larger than every footprint
-    /// (radius ≤ 11 tiles plus structures), so a point of interest never reaches into another site.
+    /// (radius ≤ 16 tiles, structures inside it), so a point of interest never reaches into another site.
     /// </summary>
     public const int SiteMargin = 24;
 
@@ -195,7 +195,7 @@ public sealed class PointOfInterestResolver
         // Harbour: coast beside a river mouth.
         if (nearSea && river <= 12f && tile.HeightLevel == 0)
         {
-            return (PointOfInterestType.Harbor, 3f, 7);
+            return (PointOfInterestType.Harbor, 3f, 12);
         }
 
         // Biome villages: each climate builds its own kind of settlement by the water.
@@ -203,17 +203,17 @@ public sealed class PointOfInterestResolver
         {
             if (tile.Biome is BiomeType.MistySwamp)
             {
-                return (PointOfInterestType.SwampVillage, 2.5f, 11);
+                return (PointOfInterestType.SwampVillage, 2.5f, 16);
             }
 
             if (tile.Biome is BiomeType.DuneDesert or BiomeType.RedMesa)
             {
-                return (PointOfInterestType.DesertVillage, 2.5f, 11);
+                return (PointOfInterestType.DesertVillage, 2.5f, 16);
             }
 
             if (tile.Biome is BiomeType.FrozenTundra)
             {
-                return (PointOfInterestType.SnowVillage, 2.5f, 11);
+                return (PointOfInterestType.SnowVillage, 2.5f, 16);
             }
         }
 
@@ -221,7 +221,7 @@ public sealed class PointOfInterestResolver
         if (flat && tile.HeightLevel == 0 && river is > 4.5f and <= 11f &&
             tile.Biome is BiomeType.LushPlains or BiomeType.Savanna or BiomeType.BlossomWoods or BiomeType.AncientForest)
         {
-            return (PointOfInterestType.RiverVillage, 2.5f - (MathF.Abs(river - 7f) * 0.1f), 11);
+            return (PointOfInterestType.RiverVillage, 2.5f - (MathF.Abs(river - 7f) * 0.1f), 16);
         }
 
         // Camp: dry shore right next to a lake or a large river.

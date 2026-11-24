@@ -84,7 +84,19 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
         _world.PeekTileAtWorld(worldTileX, worldTileY).HeightLevel;
 
     /// <inheritdoc/>
-    public TileWalkability GetWalkability(int worldTileX, int worldTileY)
+    public TileWalkability GetWalkability(int worldTileX, int worldTileY) =>
+        this.GetWalkability(worldTileX, worldTileY, includeLandmarks: true);
+
+    /// <summary>
+    /// Evaluates walkability, optionally ignoring the structures of points of interest. Entity collision
+    /// ignores them here because it resolves their walls precisely (with door openings), whereas
+    /// pathfinding treats each building as one solid block.
+    /// </summary>
+    /// <param name="worldTileX">World tile X.</param>
+    /// <param name="worldTileY">World tile Y.</param>
+    /// <param name="includeLandmarks">Whether buildings and other landmark structures block the tile.</param>
+    /// <returns>The walkability classification.</returns>
+    public TileWalkability GetWalkability(int worldTileX, int worldTileY, bool includeLandmarks)
     {
         // 1. Check constructed buildings (highest priority)
         if (_world.Buildings.TryGetStructure(worldTileX, worldTileY, out StructureTile structure))
@@ -101,7 +113,7 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
         }
 
         // 2. Structures of villages, harbours, camps and shrines
-        if (_world.Generator.Landmarks.IsTileBlocked(worldTileX, worldTileY))
+        if (includeLandmarks && _world.Generator.Landmarks.IsTileBlocked(worldTileX, worldTileY))
         {
             return TileWalkability.Impassable;
         }
@@ -154,10 +166,23 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
         this.GetWalkability(worldTileX, worldTileY) != TileWalkability.Impassable;
 
     /// <inheritdoc/>
-    public bool CanTraverse(int fromX, int fromY, int toX, int toY)
+    public bool CanTraverse(int fromX, int fromY, int toX, int toY) =>
+        this.CanTraverse(fromX, fromY, toX, toY, includeLandmarks: true);
+
+    /// <summary>
+    /// Evaluates whether movement between two tiles is allowed, optionally ignoring landmark structures
+    /// (see <see cref="GetWalkability(int, int, bool)"/>).
+    /// </summary>
+    /// <param name="fromX">Source tile X.</param>
+    /// <param name="fromY">Source tile Y.</param>
+    /// <param name="toX">Target tile X.</param>
+    /// <param name="toY">Target tile Y.</param>
+    /// <param name="includeLandmarks">Whether buildings and other landmark structures block tiles.</param>
+    /// <returns><c>true</c> when the move is allowed.</returns>
+    public bool CanTraverse(int fromX, int fromY, int toX, int toY, bool includeLandmarks)
     {
         // Target tile must be walkable
-        if (!this.IsWalkable(toX, toY))
+        if (this.GetWalkability(toX, toY, includeLandmarks) == TileWalkability.Impassable)
         {
             return false;
         }
@@ -169,8 +194,8 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
         if (dx != 0 && dy != 0)
         {
             // Moving diagonally: check adjacent orthogonals
-            bool adj1Walkable = this.IsWalkable(fromX + dx, fromY);
-            bool adj2Walkable = this.IsWalkable(fromX, fromY + dy);
+            bool adj1Walkable = this.GetWalkability(fromX + dx, fromY, includeLandmarks) != TileWalkability.Impassable;
+            bool adj2Walkable = this.GetWalkability(fromX, fromY + dy, includeLandmarks) != TileWalkability.Impassable;
 
             if (!adj1Walkable && !adj2Walkable)
             {

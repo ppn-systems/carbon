@@ -67,11 +67,11 @@ public sealed class LandmarkLayout
                     for (int i = 0; i < 9 && houses < 7; i++)
                     {
                         float a = (i * (MathF.Tau / 9f)) + (Hash01(seed, i) * 0.35f);
-                        float dist = r * (0.55f + (Hash01(seed, i + 40) * 0.22f));
+                        float dist = r * (0.58f + (Hash01(seed, i + 40) * 0.18f));
                         float x = cx + (Cos(a) * dist);
                         float y = cy + (Sin(a) * dist * 0.85f);
-                        float w = (64f + (Hash01(seed, i + 80) * 26f)) * Px;
-                        if (IsBuildable(tileAt, x, y, w, level) && !Overlaps(pieces, x, y, w + (22f * Px)))
+                        float w = (144f + (Hash01(seed, i + 80) * 32f)) * Px;
+                        if (IsBuildable(tileAt, x, y, w, level) && !Overlaps(pieces, x, y, w + (40f * Px)))
                         {
                             pieces.Add(new LandmarkPiece(LandmarkPieceKind.House, x, y, w, (byte)((Hash(seed, i + 120) % 6) | (uint)(style << 4))));
                             houses++;
@@ -102,14 +102,14 @@ public sealed class LandmarkLayout
                     float py = sx;
                     float ix = cx - (sx * r * 0.30f);
                     float iy = cy - (sy * r * 0.30f);
-                    pieces.Add(new LandmarkPiece(LandmarkPieceKind.Warehouse, ix, iy, 104f * Px, (byte)(Hash(seed, 1) % 6)));
+                    pieces.Add(new LandmarkPiece(LandmarkPieceKind.Warehouse, ix, iy, 192f * Px, (byte)(Hash(seed, 1) % 6)));
                     for (int i = -1; i <= 1; i += 2)
                     {
-                        float x = ix + (px * i * 120f * Px) + (sx * 20f * Px);
-                        float y = iy + (py * i * 120f * Px) + (sy * 20f * Px);
-                        if (IsBuildable(tileAt, x, y, 64f * Px, level))
+                        float x = ix + (px * i * 220f * Px) + (sx * 20f * Px);
+                        float y = iy + (py * i * 220f * Px) + (sy * 20f * Px);
+                        if (IsBuildable(tileAt, x, y, 144f * Px, level))
                         {
-                            pieces.Add(new LandmarkPiece(LandmarkPieceKind.House, x, y, 64f * Px, (byte)(Hash(seed, i + 5) % 6)));
+                            pieces.Add(new LandmarkPiece(LandmarkPieceKind.House, x, y, 144f * Px, (byte)(Hash(seed, i + 5) % 6)));
                         }
                     }
 
@@ -179,12 +179,12 @@ public sealed class LandmarkLayout
     // Dry ground at the site's level under the whole footprint: no buildings in rivers or on cliff edges.
     private static bool IsBuildable(Func<int, int, MapTile> tileAt, float x, float y, float width, byte level)
     {
-        for (int i = -1; i <= 1; i++)
+        for (int i = -2; i <= 2; i++)
         {
-            for (int j = 0; j <= 1; j++)
+            for (int j = 0; j <= 3; j++)
             {
-                int tx = (int)MathF.Floor(x + (i * width * 0.5f));
-                int ty = (int)MathF.Floor(y - (j * LandmarkPiece.HouseDepthTiles));
+                int tx = (int)MathF.Floor(x + (i * width * 0.25f));
+                int ty = (int)MathF.Floor(y - (j * LandmarkPiece.HouseDepthTiles / 3f));
                 MapTile t = tileAt(tx, ty);
                 if (t.IsSolid || t.HeightLevel != level || t.Biome is BiomeType.ShallowWater or BiomeType.DeepOcean)
                 {
