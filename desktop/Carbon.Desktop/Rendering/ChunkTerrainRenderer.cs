@@ -225,7 +225,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
                 BakeTileCliffFaces(_builder, chunk, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize);
 
                 // Ramps (Incline passages connecting height levels)
-                BakeTileRamps(_builder, wtx, wty, tileWorldX, tileWorldY, world, tileSize);
+                BakeTileRamps(_builder, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize);
 
                 // Building Structures (RimWorld-style Walls, Doors, Floors, Roof Interior Shading)
                 BakeTileBuildings(_builder, wtx, wty, tileWorldX, tileWorldY, world, tileSize);
@@ -473,6 +473,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
         int wty,
         float x,
         float y,
+        in MapTile tile,
         ChunkWorld2D world,
         float tileSize)
     {
@@ -483,89 +484,136 @@ public sealed class ChunkTerrainRenderer : IDisposable
         }
 
         float s = tileSize;
+        (ColorRgba slopeBed, ColorRgba rockSlab, ColorRgba rockShadow, ColorRgba rockHighlight) = GetNaturalSlopePalette(tile.Biome);
 
-        // Rich Timber Mountain Incline Palette
-        ColorRgba rampRoadbed = new(155, 125, 90, 255);        // Sturdy weathered wood roadbed
-        ColorRgba balustradeWood = new(82, 60, 42, 255);       // Heavy side timber balustrades
-        ColorRgba balustradeRail = new(195, 160, 120, 255);    // Sunlit top handrail
-        ColorRgba stepPlankFace = new(175, 145, 105, 255);     // Heavy timber tread
-        ColorRgba stepPlankShadow = new(65, 48, 34, 255);      // Step riser shadow
-        ColorRgba stepPlankHighlight = new(225, 195, 150, 255); // Step lip highlight
-        ColorRgba lanternPost = new(60, 48, 38, 255);          // Carved entrance marker post
-        ColorRgba lanternGlow = new(251, 191, 36, 255);        // Warm glowing amber lantern
+        // Deterministic pseudo-random variation based on tile coordinates
+        int hash = (wtx * 31) ^ (wty * 17);
 
         if (ramp is RampDirection.West or RampDirection.East)
         {
-            // Horizontal Grand Mountain Pass (Player moves West <-> East)
-            const float apronReach = 10f;
-            float roadX = ramp == RampDirection.West ? x - apronReach : x;
-            float roadW = s + apronReach;
+            // Horizontal Natural Mountain Pass / Scree Trail (West <-> East)
+            const float apronReach = 8f;
+            float trailX = ramp == RampDirection.West ? x - apronReach : x;
+            float trailW = s + apronReach;
 
-            // Roadbed surface
-            builder.AddRectangle(new RectangleF(roadX, y + 2f, roadW, s - 4f), rampRoadbed);
+            // 1. Natural earthen/scree roadbed blending into the mountain slope
+            builder.AddRectangle(new RectangleF(trailX, y + 2f, trailW, s - 4f), slopeBed);
 
-            // Ground shadow underneath ramp edge
-            builder.AddRectangle(new RectangleF(roadX, y + s - 2f, roadW, 4f), new ColorRgba(0, 0, 0, 75));
+            // 2. Soft earthen border transition on top and bottom margins
+            ColorRgba borderShade = new((byte)(slopeBed.R * 0.75f), (byte)(slopeBed.G * 0.75f), (byte)(slopeBed.B * 0.75f), 180);
+            builder.AddRectangle(new RectangleF(trailX, y + 1f, trailW, 1.5f), borderShade);
+            builder.AddRectangle(new RectangleF(trailX, y + s - 2.5f, trailW, 1.5f), borderShade);
 
-            // Heavy Side Balustrades / Retaining Walls
-            builder.AddRectangle(new RectangleF(roadX - 2f, y, roadW + 4f, 4f), balustradeWood);
-            builder.AddRectangle(new RectangleF(roadX - 2f, y, roadW + 4f, 1.5f), balustradeRail);
-
-            builder.AddRectangle(new RectangleF(roadX - 2f, y + s - 4f, roadW + 4f, 4f), balustradeWood);
-            builder.AddRectangle(new RectangleF(roadX - 2f, y + s - 4f, roadW + 4f, 1.5f), balustradeRail);
-
-            // 5 Stately Timber Step Planks across the incline
-            float stepSpacing = roadW / 5f;
-            for (int i = 0; i < 5; i++)
+            // 3. Embedded natural stone stepping slabs (geological strata lines)
+            float stepSpacing = trailW / 4f;
+            for (int i = 0; i < 3; i++)
             {
-                float plankX = roadX + (i * stepSpacing) + 2f;
-                builder.AddRectangle(new RectangleF(plankX, y + 4f, 1.5f, s - 8f), stepPlankShadow);
-                builder.AddRectangle(new RectangleF(plankX + 1.5f, y + 4f, 3.5f, s - 8f), stepPlankFace);
-                builder.AddRectangle(new RectangleF(plankX + 5f, y + 4f, 1f, s - 8f), stepPlankHighlight);
+                float slabX = trailX + ((i + 0.6f) * stepSpacing);
+                float slabH = s - 10f - ((hash + i) & 3);
+                float slabOffsetY = 5f + (((hash >> 2) + i) & 1);
+
+                builder.AddRectangle(new RectangleF(slabX, y + slabOffsetY, 1.5f, slabH), rockShadow);
+                builder.AddRectangle(new RectangleF(slabX + 1.5f, y + slabOffsetY, 3f, slabH), rockSlab);
+                builder.AddRectangle(new RectangleF(slabX + 4.5f, y + slabOffsetY, 1f, slabH), rockHighlight);
             }
 
-            // Twin Entrance Trail Marker Posts with Glowing Lanterns at the foot of the ramp
-            float postX = ramp == RampDirection.West ? roadX - 3f : roadX + roadW - 2f;
-            builder.AddRectangle(new RectangleF(postX, y - 2f, 5f, 6f), lanternPost);
-            builder.AddRectangle(new RectangleF(postX + 1f, y - 1f, 3f, 3f), lanternGlow);
-
-            builder.AddRectangle(new RectangleF(postX, y + s - 4f, 5f, 6f), lanternPost);
-            builder.AddRectangle(new RectangleF(postX + 1f, y + s - 3f, 3f, 3f), lanternGlow);
+            // 4. Trail foot ambient occlusion shadow
+            float footX = ramp == RampDirection.West ? trailX - 2f : trailX + trailW;
+            builder.AddRectangle(new RectangleF(footX, y + 2f, 3f, s - 4f), new ColorRgba(0, 0, 0, 50));
         }
         else
         {
-            // Vertical Grand Mountain Staircase (Player moves North <-> South)
-            const float apronReach = 10f;
-            float roadY = ramp == RampDirection.South ? y : y - apronReach;
-            float roadH = s + apronReach;
+            // Vertical Natural Mountain Pass / Scree Trail (North <-> South)
+            const float apronReach = 8f;
+            float trailY = ramp == RampDirection.South ? y : y - apronReach;
+            float trailH = s + apronReach;
 
-            builder.AddRectangle(new RectangleF(x + 2f, roadY, s - 4f, roadH), rampRoadbed);
-            builder.AddRectangle(new RectangleF(x + s - 2f, roadY, 4f, roadH), new ColorRgba(0, 0, 0, 75));
+            // 1. Natural earthen/scree roadbed
+            builder.AddRectangle(new RectangleF(x + 2f, trailY, s - 4f, trailH), slopeBed);
 
-            builder.AddRectangle(new RectangleF(x, roadY - 2f, 4f, roadH + 4f), balustradeWood);
-            builder.AddRectangle(new RectangleF(x, roadY - 2f, 1.5f, roadH + 4f), balustradeRail);
+            // 2. Soft earthen border transition on left and right margins
+            ColorRgba borderShade = new((byte)(slopeBed.R * 0.75f), (byte)(slopeBed.G * 0.75f), (byte)(slopeBed.B * 0.75f), 180);
+            builder.AddRectangle(new RectangleF(x + 1f, trailY, 1.5f, trailH), borderShade);
+            builder.AddRectangle(new RectangleF(x + s - 2.5f, trailY, 1.5f, trailH), borderShade);
 
-            builder.AddRectangle(new RectangleF(x + s - 4f, roadY - 2f, 4f, roadH + 4f), balustradeWood);
-            builder.AddRectangle(new RectangleF(x + s - 4f, roadY - 2f, 1.5f, roadH + 4f), balustradeRail);
-
-            // 5 Stately Horizontal Steps
-            float stepSpacing = roadH / 5f;
-            for (int i = 0; i < 5; i++)
+            // 3. Embedded natural stone stepping slabs (horizontal natural rock ledges)
+            float stepSpacing = trailH / 4f;
+            for (int i = 0; i < 3; i++)
             {
-                float plankY = roadY + (i * stepSpacing) + 2f;
-                builder.AddRectangle(new RectangleF(x + 4f, plankY + 3.5f, s - 8f, 2f), stepPlankShadow);
-                builder.AddRectangle(new RectangleF(x + 4f, plankY, s - 8f, 3.5f), stepPlankFace);
-                builder.AddRectangle(new RectangleF(x + 4f, plankY, s - 8f, 1f), stepPlankHighlight);
+                float slabY = trailY + ((i + 0.6f) * stepSpacing);
+                float slabW = s - 10f - ((hash + i) & 3);
+                float slabOffsetX = 5f + (((hash >> 2) + i) & 1);
+
+                builder.AddRectangle(new RectangleF(x + slabOffsetX, slabY, slabW, 1f), rockHighlight);
+                builder.AddRectangle(new RectangleF(x + slabOffsetX, slabY + 1f, slabW, 3f), rockSlab);
+                builder.AddRectangle(new RectangleF(x + slabOffsetX, slabY + 4f, slabW, 1.5f), rockShadow);
             }
 
-            // Twin Entrance Posts at the foot
-            float postY = ramp == RampDirection.South ? roadY + roadH - 2f : roadY - 3f;
-            builder.AddRectangle(new RectangleF(x - 2f, postY, 6f, 5f), lanternPost);
-            builder.AddRectangle(new RectangleF(x - 1f, postY + 1f, 3f, 3f), lanternGlow);
-
-            builder.AddRectangle(new RectangleF(x + s - 4f, postY, 6f, 5f), lanternPost);
-            builder.AddRectangle(new RectangleF(x + s - 3f, postY + 1f, 3f, 3f), lanternGlow);
+            // 4. Trail foot ambient occlusion shadow
+            float footY = ramp == RampDirection.South ? trailY + trailH : trailY - 2f;
+            builder.AddRectangle(new RectangleF(x + 2f, footY, s - 4f, 3f), new ColorRgba(0, 0, 0, 50));
         }
+    }
+
+    private static (ColorRgba slopeBed, ColorRgba rockSlab, ColorRgba rockShadow, ColorRgba rockHighlight) GetNaturalSlopePalette(BiomeType biome)
+    {
+        return biome switch
+        {
+            BiomeType.AncientForest => (
+                new ColorRgba(56, 46, 34, 255),    // Dark rich woodland loam
+                new ColorRgba(85, 90, 82, 230),    // Weathered mossy granite slab
+                new ColorRgba(38, 32, 24, 220),    // Earth shadow
+                new ColorRgba(112, 118, 110, 220)  // Sunlit granite lip
+            ),
+            BiomeType.RedMesa => (
+                new ColorRgba(145, 68, 45, 255),   // Sandstone scree slope
+                new ColorRgba(175, 88, 58, 240),   // Sediment rock ledge
+                new ColorRgba(105, 42, 26, 220),   // Sandstone undercut shadow
+                new ColorRgba(215, 125, 85, 220)   // Sunlit terracotta rim
+            ),
+            BiomeType.FrozenTundra => (
+                new ColorRgba(140, 155, 168, 255), // Frost gravel scree
+                new ColorRgba(180, 195, 208, 240), // Weathered frost stone
+                new ColorRgba(90, 105, 118, 220),  // Cold crevasse shadow
+                new ColorRgba(218, 228, 238, 240)  // Frosted edge highlight
+            ),
+            BiomeType.DuneDesert => (
+                new ColorRgba(195, 130, 52, 255),  // Compacted dune slope
+                new ColorRgba(170, 112, 42, 230),  // Sandstone outcrop
+                new ColorRgba(135, 85, 28, 220),   // Dune crest shadow
+                new ColorRgba(225, 165, 82, 220)   // Windblown sand crest
+            ),
+            BiomeType.VolcanicAshland => (
+                new ColorRgba(42, 42, 48, 255),    // Basalt scree slope
+                new ColorRgba(68, 68, 76, 240),    // Obsidian ledge
+                new ColorRgba(24, 24, 28, 220),    // Volcanic ash shadow
+                new ColorRgba(98, 98, 108, 220)   // Volcanic ridge highlight
+            ),
+            BiomeType.MistySwamp => (
+                new ColorRgba(60, 54, 38, 255),    // Peat & bog trail
+                new ColorRgba(78, 85, 68, 230),    // Bog rock slab
+                new ColorRgba(35, 30, 20, 220),    // Wet mud shadow
+                new ColorRgba(105, 115, 92, 220)   // Mossy stone highlight
+            ),
+            BiomeType.TropicalJungle => (
+                new ColorRgba(74, 58, 38, 255),    // Tropical loam trail
+                new ColorRgba(88, 102, 80, 230),   // Jungle river rock
+                new ColorRgba(42, 34, 22, 220),    // Humid soil shadow
+                new ColorRgba(118, 134, 108, 220)  // Lichen stone lip
+            ),
+            BiomeType.DeepOcean or BiomeType.ShallowWater or BiomeType.BeachSand => (
+                new ColorRgba(175, 148, 102, 255), // Coastal sand & pebble ramp
+                new ColorRgba(140, 142, 145, 230), // Water-smoothed granite
+                new ColorRgba(110, 92, 62, 220),   // Wet sand shadow
+                new ColorRgba(215, 192, 145, 220)  // Sunlit sand highlight
+            ),
+            BiomeType.LushPlains or _ => (
+                new ColorRgba(105, 88, 64, 255),   // Compacted earthen trail bed
+                new ColorRgba(125, 128, 132, 230), // Embedded flat limestone stepping slab
+                new ColorRgba(62, 52, 38, 220),    // Moist soil shadow
+                new ColorRgba(160, 164, 168, 220)  // Weathered limestone highlight
+            )
+        };
     }
 
     private static void BakeTileBuildings(

@@ -10,7 +10,6 @@ using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Navigation;
 using Carbon.Maps.Props;
-using Carbon.Maps.Topography;
 using Carbon.Physics.Obstacles;
 
 namespace Carbon.Maps.Streaming;
@@ -198,99 +197,6 @@ public sealed class ChunkWorld2D
 
         Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
         chunk.SetTile(lx, ly, tile);
-    }
-
-    /// <summary>
-    /// Constructs a scenic highland plateau, walkable ramps, and a starter RimWorld outpost
-    /// near the natural spawn point to showcase 2.5D topography and construction mechanics.
-    /// </summary>
-    public void BuildStarterTopographyShowcase()
-    {
-        (int sx, int sy) = (_spawnTileX, _spawnTileY);
-
-        // 1. Elevate a scenic plateau (10x10 tiles) east of spawn: sx + 6 to sx + 15, sy + 1 to sy + 10
-        int pMinX = sx + 6;
-        int pMaxX = sx + 15;
-        int pMinY = sy + 1;
-        int pMaxY = sy + 10;
-
-        for (int y = pMinY; y <= pMaxY; y++)
-        {
-            for (int x = pMinX; x <= pMaxX; x++)
-            {
-                MapTile current = this.GetTileAtWorld(x, y);
-                if (current.Biome is BiomeType.DeepOcean or BiomeType.ShallowWater)
-                {
-                    continue;
-                }
-
-                this.SetTileAtWorld(x, y, new MapTile(current.Biome, current.Elevation, current.Temperature, current.Moisture, current.IsSolid, current.Variant, HeightLevel: 1));
-            }
-        }
-
-        // 2. Clear colliding props overlapping the plateau
-        int cxMin = Chunk2D.ToChunkCoord(pMinX);
-        int cxMax = Chunk2D.ToChunkCoord(pMaxX);
-        int cyMin = Chunk2D.ToChunkCoord(pMinY);
-        int cyMax = Chunk2D.ToChunkCoord(pMaxY);
-
-        for (int cy = cyMin; cy <= cyMax; cy++)
-        {
-            for (int cx = cxMin; cx <= cxMax; cx++)
-            {
-                if (this.TryGetChunk(cx, cy, out Chunk2D? chunk) && chunk != null)
-                {
-                    _ = chunk.Props.RemoveAll(p =>
-                    {
-                        int wx = (chunk.ChunkX * Chunk2D.Size) + p.LocalTileX;
-                        int wy = (chunk.ChunkY * Chunk2D.Size) + p.LocalTileY;
-                        return wx >= pMinX && wx <= pMaxX && wy >= pMinY && wy <= pMaxY;
-                    });
-                }
-            }
-        }
-
-        // 3. Register Walkable Grand Ramps (Double-wide 64px mountain highway passes)
-        // West Grand Ramp: direct 2-tile wide path facing the player spawn
-        _navGrid.SetRamp(sx + 6, sy + 3, RampDirection.West);
-        _navGrid.SetRamp(sx + 6, sy + 4, RampDirection.West);
-
-        // South Grand Staircase: scenic 2-tile wide stone stairway along the southern rock cliff
-        _navGrid.SetRamp(sx + 10, sy + 10, RampDirection.South);
-        _navGrid.SetRamp(sx + 11, sy + 10, RampDirection.South);
-
-        // 4. Construct a RimWorld starter outpost atop the plateau (5x5 stone shelter)
-        int houseX = sx + 9;
-        int houseY = sy + 4;
-        int houseW = 5;
-        int houseH = 5;
-
-        for (int hy = 0; hy < houseH; hy++)
-        {
-            for (int hx = 0; hx < houseW; hx++)
-            {
-                int wx = houseX + hx;
-                int wy = houseY + hy;
-
-                bool isEdge = hx == 0 || hx == houseW - 1 || hy == 0 || hy == houseH - 1;
-                if (isEdge)
-                {
-                    if (hx == 2 && hy == houseH - 1)
-                    {
-                        // Doorway on the south face
-                        _buildings.ForcePlaceStructure(wx, wy, StructureType.WoodDoor);
-                    }
-                    else
-                    {
-                        _buildings.ForcePlaceStructure(wx, wy, StructureType.StoneWall);
-                    }
-                }
-                else
-                {
-                    _buildings.ForcePlaceStructure(wx, wy, StructureType.WoodFloor);
-                }
-            }
-        }
     }
 
     /// <summary>

@@ -72,6 +72,7 @@ public static class Program
         Console.WriteLine(" [Q] / [E]             : Thu nho / Phong to camera (Zoom)");
         Console.WriteLine(" [R]                   : Tai sinh the gioi voi Seed ngau nhien moi");
         Console.WriteLine(" [B]                   : Bat / Tat hien thi vien va cham (Collision Overlay)");
+        Console.WriteLine(" [H]                   : Dat thu nghiem nha RimWorld gan nhan vat (Desktop test)");
         Console.WriteLine(" [F12]                 : Chup anh man hinh (Screenshot to Artifact)");
         Console.WriteLine(" [Escape]              : Thoat khoi ung dung");
         Console.WriteLine("==========================================================================");
@@ -134,9 +135,6 @@ public static class Program
         Vector2 spawnPoint = s_chunkWorld.SpawnWorldPosition;
         s_chunkWorld.UpdateAroundPosition(spawnPoint, chunkRadius: 4, evictionRadius: 8);
 
-        // Construct 2.5D plateau, ramp, and RimWorld starter outpost showcase near spawn
-        s_chunkWorld.BuildStarterTopographyShowcase();
-
         s_world = new WorldSimulation(tickRate: 50, cellSize: TileSize);
 
         s_player = s_world.SpawnEntity(spawnPoint, radius: 7f);
@@ -181,6 +179,12 @@ public static class Program
         if (window.Input.Keyboard.IsKeyPressed(Key.F12))
         {
             CaptureScreen(window);
+        }
+
+        // 5. Desktop test building placement
+        if (window.Input.Keyboard.IsKeyPressed(Key.H))
+        {
+            PlaceTestHouseNearPlayer();
         }
 
         // 5. Zoom controls
@@ -742,6 +746,46 @@ public static class Program
         byte b = (byte)((hex >> 8) & 0xFF);
         byte a = (byte)(hex & 0xFF);
         return new ColorRgba(r, g, b, a);
+    }
+
+    private static void PlaceTestHouseNearPlayer()
+    {
+        if (s_chunkWorld == null || s_world == null || !s_world.Entities.IsAlive(s_player))
+        {
+            return;
+        }
+
+        Vector2 playerPos = s_world.Entities.GetTransform(s_player).Position;
+        int ptx = (int)MathF.Floor(playerPos.X / TileSize) + 4;
+        int pty = (int)MathF.Floor(playerPos.Y / TileSize);
+
+        for (int hy = 0; hy < 5; hy++)
+        {
+            for (int hx = 0; hx < 5; hx++)
+            {
+                int wx = ptx + hx;
+                int wy = pty + hy;
+                bool isEdge = hx == 0 || hx == 4 || hy == 0 || hy == 4;
+                if (isEdge)
+                {
+                    if (hx == 2 && hy == 4)
+                    {
+                        s_chunkWorld.Buildings.ForcePlaceStructure(wx, wy, StructureType.WoodDoor);
+                    }
+                    else
+                    {
+                        s_chunkWorld.Buildings.ForcePlaceStructure(wx, wy, StructureType.StoneWall);
+                    }
+                }
+                else
+                {
+                    s_chunkWorld.Buildings.ForcePlaceStructure(wx, wy, StructureType.WoodFloor);
+                }
+            }
+        }
+
+        s_chunkTerrainRenderer?.EvictDistant((int)MathF.Floor(playerPos.X / (32 * TileSize)), (int)MathF.Floor(playerPos.Y / (32 * TileSize)), 0);
+        Console.WriteLine($"[Test] Da dung thu nghiem 1 can nha RimWorld tai ({ptx}, {pty}) bang phim [H]!");
     }
 
     private readonly struct GroundRenderItem : IComparable<GroundRenderItem>
