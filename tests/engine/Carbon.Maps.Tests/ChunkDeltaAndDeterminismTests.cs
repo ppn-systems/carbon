@@ -108,16 +108,21 @@ public sealed class ChunkDeltaAndDeterminismTests
     {
         ProceduralWorldGenerator a = new(1UL);
         ProceduralWorldGenerator b = new(2UL);
+        int waterA = 0;
         int differing = 0;
-        for (int x = 0; x < 200; x += 10)
+        for (int y = -1024; y < 1024; y += 4)
         {
-            if (MathF.Abs(a.GetRiverDistance(x, 0) - b.GetRiverDistance(x, 0)) > 1f)
+            for (int x = -1024; x < 1024; x += 4)
             {
-                differing++;
+                bool wa = a.GetRiverDistance(x, y) <= 2.2f;
+                bool wb = b.GetRiverDistance(x, y) <= 2.2f;
+                waterA += wa ? 1 : 0;
+                differing += wa != wb ? 1 : 0;
             }
         }
 
-        Assert.True(differing > 10);
+        Assert.True(waterA > 100, "Seed 1 should have rivers in a 2048x2048 area.");
+        Assert.True(differing > waterA / 2, "Different seeds must not share river courses.");
     }
 
     [Fact]
@@ -243,7 +248,7 @@ public sealed class ChunkDeltaAndDeterminismTests
         Assert.Equal(GoldenChunkHash, HashChunk(chunk));
     }
 
-    private const ulong GoldenChunkHash = 3939991031041537186UL;
+    private const ulong GoldenChunkHash = 16613386810166236724UL;
 
     private static ulong HashChunk(Chunk2D chunk)
     {
