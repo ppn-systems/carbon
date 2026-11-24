@@ -57,6 +57,30 @@ public readonly record struct MapProp(
         this.HasCanopy && Vector2.DistanceSquared(entityPosition, this.CanopyCenter) <= (this.CanopyRadius * this.CanopyRadius);
 
     /// <summary>
+    /// Gets the vertical anchor coordinate in world space used for 2.5D depth sorting (Layer 2).
+    /// Represents the bottom-most ground contact footprint where the prop anchors into the terrain.
+    /// In top-down / 2.5D rendering, objects with smaller footprints are drawn earlier (north/back),
+    /// while objects with larger footprints are drawn later (south/front).
+    /// </summary>
+    public float GroundFootprintY => this.Type switch
+    {
+        MapPropType.OakTree => this.WorldPositionY + (14f * this.Scale),
+        MapPropType.BirchTree => this.WorldPositionY + (22f * this.Scale),
+        MapPropType.PineTree or MapPropType.SnowPine => this.WorldPositionY + (20f * this.Scale),
+        MapPropType.PalmTree => this.WorldPositionY + (26f * this.Scale),
+        MapPropType.WillowTree => this.WorldPositionY + (20f * this.Scale),
+        MapPropType.DeadTree => this.WorldPositionY + (18f * this.Scale),
+        MapPropType.Cactus => this.WorldPositionY + (20f * this.Scale),
+        MapPropType.AncientShrine => this.WorldPositionY + (20f * this.Scale),
+        MapPropType.Bush or MapPropType.MushroomCluster => this.WorldPositionY + this.Radius,
+        MapPropType.CopperVein or MapPropType.IronVein or MapPropType.GoldVein or
+        MapPropType.CoalDeposit or MapPropType.SilverVein or MapPropType.CrystalCluster or
+        MapPropType.Boulder or MapPropType.BasaltPillar => this.WorldPositionY + (this.CollisionRadius > 0.001f ? this.CollisionRadius : this.Radius),
+        MapPropType.None => this.WorldPositionY,
+        _ => this.WorldPositionY + (this.CollisionRadius > 0.001f ? this.CollisionRadius : this.Radius)
+    };
+
+    /// <summary>
     /// Creates a complete domain prop instance with explicit category, destructibility, collision radius, and canopy geometry.
     /// </summary>
     public static MapProp Create(

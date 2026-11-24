@@ -1,5 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Props;
@@ -110,5 +111,125 @@ public sealed class PropDomainTests
         // Entity should be pushed out along Y axis to at least 15px distance
         float newDist = Vector2.Distance(trunkPos, new Vector2(200f, 200f));
         Assert.True(newDist >= 14.99f);
+    }
+
+    [Fact]
+    public void MapProp_ComputesGroundFootprintY_ForDepthSorting()
+    {
+        // Oak Tree at (100, 100) with scale 1.0f
+        MapProp oak = MapProp.Create(
+            type: MapPropType.OakTree,
+            category: PropCategory.Flora,
+            destructibility: PropDestructibility.Create(100f, 1),
+            localX: 3,
+            localY: 3,
+            worldX: 100f,
+            worldY: 100f,
+            radius: 42f,
+            collisionRadius: 8f,
+            canopyRadius: 42f,
+            canopyOffsetY: -22f,
+            isSolid: true,
+            colorPrimary: 0x166534FF,
+            colorSecondary: 0x78350FFF,
+            scale: 1.0f);
+
+        // Ground footprint Y should be worldY + (14f * scale) = 114f
+        Assert.Equal(114f, oak.GroundFootprintY);
+
+        // Entity standing north of the tree base (feet at Y = 95f)
+        float northPlayerFootY = 95f;
+        Assert.True(northPlayerFootY < oak.GroundFootprintY, "North entity must have smaller FootY to be rendered behind trunk");
+
+        // Entity standing south of the tree base (feet at Y = 125f)
+        float southPlayerFootY = 125f;
+        Assert.True(southPlayerFootY > oak.GroundFootprintY, "South entity must have larger FootY to be rendered in front of trunk");
+
+        // Mineral deposit at (50, 50) with radius 16f
+        MapProp ore = MapProp.Create(
+            type: MapPropType.CopperVein,
+            category: PropCategory.Mineral,
+            destructibility: PropDestructibility.Create(200f, 1),
+            localX: 1,
+            localY: 1,
+            worldX: 50f,
+            worldY: 50f,
+            radius: 16f,
+            collisionRadius: 16f,
+            canopyRadius: 0f,
+            canopyOffsetY: 0f,
+            isSolid: true,
+            colorPrimary: 0xB45309FF,
+            colorSecondary: 0xFDE68AFF,
+            scale: 1.0f);
+
+        Assert.Equal(66f, ore.GroundFootprintY);
+
+        // Birch Tree at (200, 200) with scale 1.0f -> footprint at 200 + 22 = 222f
+        MapProp birch = MapProp.Create(
+            type: MapPropType.BirchTree,
+            category: PropCategory.Flora,
+            destructibility: PropDestructibility.Create(80f, 1),
+            localX: 6,
+            localY: 6,
+            worldX: 200f,
+            worldY: 200f,
+            radius: 36f,
+            collisionRadius: 8f,
+            canopyRadius: 36f,
+            canopyOffsetY: -22f,
+            isSolid: true,
+            colorPrimary: 0x15803DFF,
+            colorSecondary: 0xE2E8F0FF,
+            scale: 1.0f);
+
+        Assert.Equal(222f, birch.GroundFootprintY);
+    }
+
+    [Fact]
+    public void GroundYSorting_MaintainsCorrectDepthOrderingBetweenEntitiesAndObstacles()
+    {
+        // Oak Tree at (100, 100) -> GroundFootprintY = 114f
+        MapProp oak = MapProp.Create(
+            type: MapPropType.OakTree,
+            category: PropCategory.Flora,
+            destructibility: PropDestructibility.Create(100f, 1),
+            localX: 3,
+            localY: 3,
+            worldX: 100f,
+            worldY: 100f,
+            radius: 42f,
+            collisionRadius: 8f,
+            canopyRadius: 42f,
+            canopyOffsetY: -22f,
+            isSolid: true,
+            colorPrimary: 0x166534FF,
+            colorSecondary: 0x78350FFF,
+            scale: 1.0f);
+
+        // Simulation items list
+        List<(float SortY, string Id)> renderList = new(4);
+
+        // Case 1: Player stands BEHIND tree (North, center Y = 80, foot Y = 90)
+        float playerBehindFootY = 90f;
+        renderList.Clear();
+        renderList.Add((oak.GroundFootprintY, "TreeTrunk"));
+        renderList.Add((playerBehindFootY, "PlayerAvatar"));
+        renderList.Sort((a, b) => a.SortY.CompareTo(b.SortY));
+
+        // When player is behind, Player must be rendered first, Tree trunk on top
+        Assert.Equal("PlayerAvatar", renderList[0].Id);
+        Assert.Equal("TreeTrunk", renderList[1].Id);
+
+        // Case 2: Player moves in FRONT of tree (South, center Y = 120, foot Y = 130)
+        float playerInFrontFootY = 130f;
+        renderList.Clear();
+        renderList.Add((oak.GroundFootprintY, "TreeTrunk"));
+        renderList.Add((playerInFrontFootY, "PlayerAvatar"));
+        renderList.Sort((a, b) => a.SortY.CompareTo(b.SortY));
+
+        // When player is in front, Tree trunk rendered first, Player rendered on top
+        Assert.Equal("TreeTrunk", renderList[0].Id);
+        Assert.Equal("PlayerAvatar", renderList[1].Id);
     }
 }

@@ -1,8 +1,11 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Carbon.Desktop.Rendering;
 using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Common;
@@ -48,6 +51,8 @@ public static class Program
     private static bool s_debugOverlay;
     private static int s_frameCount;
     private static bool s_hasAutoCaptured;
+    private static readonly List<GroundRenderItem> s_groundSortList = new(256);
+    private static readonly List<CanopyRenderItem> s_canopySortList = new(128);
 
     /// <summary>
     /// Application main entry point.
@@ -87,6 +92,8 @@ public static class Program
 
     private static void OnClosing(IGameWindow window)
     {
+        s_groundSortList.Clear();
+        s_canopySortList.Clear();
         s_chunkTerrainRenderer?.Dispose();
         s_chunkTerrainRenderer = null;
         s_geometryBatch?.Dispose();
@@ -332,7 +339,10 @@ public static class Program
 
         Vector2 playerPos = s_world.Entities.GetTransform(s_player).Position;
 
-        // 2. Render Props Ground Layer (Trunks, Minerals, Bushes, Ground Obstacles)
+        // 2. Collect visible ground props & entities into zero-alloc pooled sort list (Layer 2: 2.5D Y-Sorting)
+        s_groundSortList.Clear();
+        s_canopySortList.Clear();
+
         foreach (Chunk2D chunk in s_chunkWorld.ActiveChunks)
         {
             chunk.GetBounds(TileSize, out float cMinX, out float cMinY, out float cMaxX, out float cMaxY);
@@ -347,12 +357,16 @@ public static class Program
                 if (prop.WorldPositionX + 96f >= minX && prop.WorldPositionX - 96f <= maxX &&
                     prop.WorldPositionY + 96f >= minY && prop.WorldPositionY - 96f <= maxY)
                 {
-                    RenderPropGround(s_geometryBatch, prop);
+                    s_groundSortList.Add(new GroundRenderItem(prop.GroundFootprintY, in prop));
+
+                    if (prop.HasCanopy)
+                    {
+                        s_canopySortList.Add(new CanopyRenderItem(prop.WorldPositionY, in prop));
+                    }
                 }
             }
         }
 
-        // 3. Render Active Entities (Layer 2.5: Player Avatar)
         for (int i = 0; i < s_world.Entities.ActiveEntities.Count; i++)
         {
             Entity entity = s_world.Entities.ActiveEntities[i];
@@ -364,56 +378,34 @@ public static class Program
             ref readonly Transform2D trans = ref s_world.Entities.GetTransform(entity);
             ref readonly Collider2D col = ref s_world.Entities.GetCollider(entity);
 
-            if (entity == s_player)
+            float entityFootY = trans.Position.Y + col.Radius;
+            s_groundSortList.Add(new GroundRenderItem(entityFootY, entity));
+        }
+
+        // 3. Sort Ground Items by Foot Y in Ascending Order (North-to-South 2.5D Depth Sorting)
+        s_groundSortList.Sort();
+
+        Span<GroundRenderItem> groundSpan = CollectionsMarshal.AsSpan(s_groundSortList);
+        for (int i = 0; i < groundSpan.Length; i++)
+        {
+            ref readonly GroundRenderItem item = ref groundSpan[i];
+            if (item.IsProp)
             {
-                // Current player tile for contextual foot effects (water splash / ripple)
-                int ptx = (int)MathF.Floor(trans.Position.X / TileSize);
-                int pty = (int)MathF.Floor(trans.Position.Y / TileSize);
-                MapTile currentTile = s_chunkWorld.GetTileAtWorld(ptx, pty);
-
-                if (currentTile.Biome is BiomeType.ShallowWater)
-                {
-                    // Water ripple ring around player's feet when wading in shallow water
-                    s_geometryBatch.FillCircle(trans.Position, col.Radius + 6f, new ColorRgba(255, 255, 255, 55));
-                    s_geometryBatch.FillCircle(trans.Position, col.Radius + 4f, new ColorRgba(56, 189, 248, 75));
-                }
-
-                // Player: High-contrast sleek MMORPG hero avatar token
-                // Drop shadow
-                s_geometryBatch.FillCircle(new Vector2(trans.Position.X + 2f, trans.Position.Y + 3f), col.Radius + 1f, new ColorRgba(0, 0, 0, 75));
-                // High-contrast platinum outer rim (ensures crisp visibility against dark ocean or night tiles)
-                s_geometryBatch.FillCircle(trans.Position, col.Radius + 1.5f, new ColorRgba(248, 250, 252, 220));
-                // Outer navy mantle
-                s_geometryBatch.FillCircle(trans.Position, col.Radius, new ColorRgba(15, 23, 42, 255));
-                // Royal blue tunic
-                s_geometryBatch.FillCircle(trans.Position, col.Radius * 0.82f, new ColorRgba(30, 64, 175, 255));
-                // Cyan energy ring
-                s_geometryBatch.FillCircle(trans.Position, col.Radius * 0.52f, new ColorRgba(56, 189, 248, 255));
-                // Golden core crest
-                s_geometryBatch.FillCircle(trans.Position, col.Radius * 0.22f, new ColorRgba(250, 204, 21, 255));
+                RenderPropGround(s_geometryBatch, item.Prop);
+            }
+            else
+            {
+                RenderEntity(s_geometryBatch, item.Entity);
             }
         }
 
-        // 4. Render Overhead Tree Canopies with X-Ray Fading (Layer 3: Canopy Occlusion)
-        // When player walks beneath tree shade, foliage fades to translucent (~35% alpha) so player & solid trunk remain visible
-        foreach (Chunk2D chunk in s_chunkWorld.ActiveChunks)
+        // 4. Render Overhead Tree Canopies with X-Ray Fading (Layer 3: Canopy Occlusion in Y-Order)
+        s_canopySortList.Sort();
+        Span<CanopyRenderItem> canopySpan = CollectionsMarshal.AsSpan(s_canopySortList);
+        for (int i = 0; i < canopySpan.Length; i++)
         {
-            chunk.GetBounds(TileSize, out float cMinX, out float cMinY, out float cMaxX, out float cMaxY);
-            if (cMaxX < minX || cMinX > maxX || cMaxY < minY || cMinY > maxY)
-            {
-                continue;
-            }
-
-            for (int i = 0; i < chunk.Props.Count; i++)
-            {
-                MapProp prop = chunk.Props[i];
-                if (prop.HasCanopy &&
-                    prop.WorldPositionX + 96f >= minX && prop.WorldPositionX - 96f <= maxX &&
-                    prop.WorldPositionY + 96f >= minY && prop.WorldPositionY - 96f <= maxY)
-                {
-                    RenderPropCanopy(s_geometryBatch, prop, playerPos);
-                }
-            }
+            ref readonly CanopyRenderItem item = ref canopySpan[i];
+            RenderPropCanopy(s_geometryBatch, item.Prop, playerPos);
         }
 
         s_geometryBatch.End();
@@ -647,6 +639,51 @@ public static class Program
         }
     }
 
+    private static void RenderEntity(GeometryBatch batch, Entity entity)
+    {
+        if (s_world == null || s_chunkWorld == null)
+        {
+            return;
+        }
+
+        if (!s_world.Entities.HasTransform(entity) || !s_world.Entities.HasCollider(entity))
+        {
+            return;
+        }
+
+        ref readonly Transform2D trans = ref s_world.Entities.GetTransform(entity);
+        ref readonly Collider2D col = ref s_world.Entities.GetCollider(entity);
+
+        if (entity == s_player)
+        {
+            // Current player tile for contextual foot effects (water splash / ripple)
+            int ptx = (int)MathF.Floor(trans.Position.X / TileSize);
+            int pty = (int)MathF.Floor(trans.Position.Y / TileSize);
+            MapTile currentTile = s_chunkWorld.GetTileAtWorld(ptx, pty);
+
+            if (currentTile.Biome is BiomeType.ShallowWater)
+            {
+                // Water ripple ring around player's feet when wading in shallow water
+                batch.FillCircle(trans.Position, col.Radius + 6f, new ColorRgba(255, 255, 255, 55));
+                batch.FillCircle(trans.Position, col.Radius + 4f, new ColorRgba(56, 189, 248, 75));
+            }
+
+            // Player: High-contrast sleek MMORPG hero avatar token
+            // Drop shadow
+            batch.FillCircle(new Vector2(trans.Position.X + 2f, trans.Position.Y + 3f), col.Radius + 1f, new ColorRgba(0, 0, 0, 75));
+            // High-contrast platinum outer rim (ensures crisp visibility against dark ocean or night tiles)
+            batch.FillCircle(trans.Position, col.Radius + 1.5f, new ColorRgba(248, 250, 252, 220));
+            // Outer navy mantle
+            batch.FillCircle(trans.Position, col.Radius, new ColorRgba(15, 23, 42, 255));
+            // Royal blue tunic
+            batch.FillCircle(trans.Position, col.Radius * 0.82f, new ColorRgba(30, 64, 175, 255));
+            // Cyan energy ring
+            batch.FillCircle(trans.Position, col.Radius * 0.52f, new ColorRgba(56, 189, 248, 255));
+            // Golden core crest
+            batch.FillCircle(trans.Position, col.Radius * 0.22f, new ColorRgba(250, 204, 21, 255));
+        }
+    }
+
     private static void OnResize(IGameWindow window, int width, int height)
     {
         if (s_camera != null && width > 0 && height > 0)
@@ -662,5 +699,50 @@ public static class Program
         byte b = (byte)((hex >> 8) & 0xFF);
         byte a = (byte)(hex & 0xFF);
         return new ColorRgba(r, g, b, a);
+    }
+
+    private readonly struct GroundRenderItem : IComparable<GroundRenderItem>
+    {
+        public readonly float SortY;
+        public readonly bool IsProp;
+        public readonly MapProp Prop;
+        public readonly Entity Entity;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public GroundRenderItem(float sortY, in MapProp prop)
+        {
+            this.SortY = sortY;
+            this.IsProp = true;
+            this.Prop = prop;
+            this.Entity = Entity.Null;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public GroundRenderItem(float sortY, Entity entity)
+        {
+            this.SortY = sortY;
+            this.IsProp = false;
+            this.Prop = default;
+            this.Entity = entity;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int CompareTo(GroundRenderItem other) => this.SortY.CompareTo(other.SortY);
+    }
+
+    private readonly struct CanopyRenderItem : IComparable<CanopyRenderItem>
+    {
+        public readonly float SortY;
+        public readonly MapProp Prop;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public CanopyRenderItem(float sortY, in MapProp prop)
+        {
+            this.SortY = sortY;
+            this.Prop = prop;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int CompareTo(CanopyRenderItem other) => this.SortY.CompareTo(other.SortY);
     }
 }
