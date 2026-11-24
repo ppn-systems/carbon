@@ -2,6 +2,7 @@
 
 using System;
 using Carbon.Maps.Biomes;
+using Carbon.Maps.Random;
 
 namespace Carbon.Maps.Topography;
 
@@ -38,16 +39,36 @@ public static class TopographyHelper
     }
 
     /// <summary>
+    /// Resolves the discrete height level from the smooth terrain relief rather than the detailed
+    /// elevation, which keeps plateau and mountain outlines broad and free of one-tile specks.
+    /// </summary>
+    /// <param name="relief">Smooth relief (low-octave elevation plus ridges).</param>
+    /// <param name="elevation">Detailed elevation of the tile.</param>
+    /// <param name="biome">Resolved biome.</param>
+    /// <param name="isInlandWater">Whether the tile is a river or lake, which keeps the level of its terrain.</param>
+    /// <returns>0 (lowland), 1 (plateau) or 2 (mountain).</returns>
+    public static byte ResolveTerrainHeightLevel(float relief, float elevation, BiomeType biome, bool isInlandWater)
+    {
+        // Sea, beaches and a coastal buffer stay at sea level so coasts never become sheer sea cliffs.
+        if (!isInlandWater && (biome is BiomeType.DeepOcean or BiomeType.ShallowWater or BiomeType.BeachSand || elevation < 0.42f))
+        {
+            return 0;
+        }
+
+        if (relief >= 0.72f)
+        {
+            return 2;
+        }
+
+        return relief >= 0.56f ? (byte)1 : (byte)0;
+    }
+
+    /// <summary>
     /// Checks whether a tile coordinate falls on a designated procedural ramp corridor,
     /// used to prevent foliage and boulder obstructions on mountain highway passes.
     /// Spaced organically every ~10-12 tiles along cliff edges.
     /// </summary>
-    public static bool IsPotentialRampSlot(int worldTileX, int worldTileY)
-    {
-        int slotX = ((worldTileX % 11) + 11) % 11;
-        int slotY = ((worldTileY % 11) + 11) % 11;
-        return slotX is 5 or 6 || slotY is 5 or 6;
-    }
+    public static bool IsPotentialRampSlot(int worldTileX, int worldTileY) => IsRampColumn(worldTileX, worldTileY) || IsRampRow(worldTileX, worldTileY);
 
     /// <summary>
     /// Evaluates whether a cliff tile naturally forms a walkable mountain pass / ramp incline
@@ -69,12 +90,12 @@ public static class TopographyHelper
             return RampDirection.None;
         }
 
-        int slotX = ((worldTileX % 11) + 11) % 11;
-        int slotY = ((worldTileY % 11) + 11) % 11;
+        bool rampColumn = IsRampColumn(worldTileX, worldTileY);
+        bool rampRow = IsRampRow(worldTileX, worldTileY);
 
         // 1. South Face Grand Ramp (Incline connects down to South)
         // Must be a straight cliff face: lower south, upper north, flanks solid
-        if (slotX is 5 or 6 &&
+        if (rampColumn &&
             heightQuery(worldTileX, worldTileY + 1) == currentHeight - 1 &&
             heightQuery(worldTileX, worldTileY - 1) >= currentHeight &&
             heightQuery(worldTileX - 1, worldTileY) >= currentHeight &&
@@ -86,7 +107,7 @@ public static class TopographyHelper
         }
 
         // 2. North Face Grand Ramp (Incline connects down to North)
-        if (slotX is 5 or 6 &&
+        if (rampColumn &&
             heightQuery(worldTileX, worldTileY - 1) == currentHeight - 1 &&
             heightQuery(worldTileX, worldTileY + 1) >= currentHeight &&
             heightQuery(worldTileX - 1, worldTileY) >= currentHeight &&
@@ -98,7 +119,7 @@ public static class TopographyHelper
         }
 
         // 3. East Face Grand Ramp (Incline connects down to East)
-        if (slotY is 5 or 6 &&
+        if (rampRow &&
             heightQuery(worldTileX + 1, worldTileY) == currentHeight - 1 &&
             heightQuery(worldTileX - 1, worldTileY) >= currentHeight &&
             heightQuery(worldTileX, worldTileY - 1) >= currentHeight &&
@@ -110,7 +131,7 @@ public static class TopographyHelper
         }
 
         // 4. West Face Grand Ramp (Incline connects down to West)
-        if (slotY is 5 or 6 &&
+        if (rampRow &&
             heightQuery(worldTileX - 1, worldTileY) == currentHeight - 1 &&
             heightQuery(worldTileX + 1, worldTileY) >= currentHeight &&
             heightQuery(worldTileX, worldTileY - 1) >= currentHeight &&
@@ -123,4 +144,26 @@ public static class TopographyHelper
 
         return RampDirection.None;
     }
+
+    // Ramps are 2 tiles wide and appear once per 11-tile block along a cliff. The position inside each
+    // block is jittered by a hash of the block, so ramps no longer line up on a visible world grid.
+    private const int RampBlock = 11;
+
+    private static bool IsRampColumn(int worldTileX, int worldTileY)
+    {
+        int block = FloorDiv(worldTileX, RampBlock);
+        int offset = 1 + (int)(SpatialHash.Hash32(0x52A3UL, block, FloorDiv(worldTileY, RampBlock * 3), 0x0C01UL) % (RampBlock - 3));
+        int slot = worldTileX - (block * RampBlock);
+        return slot == offset || slot == offset + 1;
+    }
+
+    private static bool IsRampRow(int worldTileX, int worldTileY)
+    {
+        int block = FloorDiv(worldTileY, RampBlock);
+        int offset = 1 + (int)(SpatialHash.Hash32(0x52A3UL, FloorDiv(worldTileX, RampBlock * 3), block, 0x0D02UL) % (RampBlock - 3));
+        int slot = worldTileY - (block * RampBlock);
+        return slot == offset || slot == offset + 1;
+    }
+
+    private static int FloorDiv(int a, int b) => a >= 0 ? a / b : ((a + 1) / b) - 1;
 }

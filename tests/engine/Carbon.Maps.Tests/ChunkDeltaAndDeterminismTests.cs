@@ -125,7 +125,7 @@ public sealed class ChunkDeltaAndDeterminismTests
     {
         ProceduralWorldGenerator generator = new(42UL);
         float nearest = float.MaxValue;
-        for (int y = 1_000_000; y < 1_000_000 + (int)ProceduralWorldGenerator.RiverSpacing; y++)
+        for (int y = 1_000_000; y < 1_002_000; y++)
         {
             nearest = MathF.Min(nearest, generator.GetRiverDistance(2_000_000, y));
         }
@@ -167,6 +167,63 @@ public sealed class ChunkDeltaAndDeterminismTests
         Assert.InRange(even, 412, 612);
     }
 
+    [Theory]
+    [InlineData(42UL)]
+    [InlineData(7UL)]
+    public void SampleTile_HeightLevels_FormNoTinyIsolatedRegions(ulong seed)
+    {
+        // Height levels come from the smooth relief, so plateaus/mountains are broad: no region of a
+        // level may be smaller than 16 tiles (one-tile pillars and pits are unwalkable noise).
+        const int N = 384;
+        ProceduralWorldGenerator generator = new(seed);
+        byte[] h = new byte[N * N];
+        for (int y = 0; y < N; y++)
+        {
+            for (int x = 0; x < N; x++)
+            {
+                h[(y * N) + x] = generator.SampleTile(x - (N / 2), y - (N / 2)).HeightLevel;
+            }
+        }
+
+        bool[] seen = new bool[N * N];
+        Stack<int> stack = new();
+        for (int i = 0; i < h.Length; i++)
+        {
+            if (seen[i])
+            {
+                continue;
+            }
+
+            int size = 0;
+            bool touchesBorder = false;
+            seen[i] = true;
+            stack.Push(i);
+            while (stack.Count > 0)
+            {
+                int k = stack.Pop();
+                size++;
+                int kx = k % N;
+                int ky = k / N;
+                touchesBorder |= kx == 0 || ky == 0 || kx == N - 1 || ky == N - 1;
+                foreach ((int dx, int dy) in s_neighbours)
+                {
+                    int nx = kx + dx;
+                    int ny = ky + dy;
+                    int j = (ny * N) + nx;
+                    if (nx >= 0 && ny >= 0 && nx < N && ny < N && !seen[j] && h[j] == h[i])
+                    {
+                        seen[j] = true;
+                        stack.Push(j);
+                    }
+                }
+            }
+
+            Assert.True(touchesBorder || size >= 16, $"Isolated height-level region of {size} tiles at index {i}.");
+        }
+    }
+
+    private static readonly (int, int)[] s_neighbours = [(1, 0), (-1, 0), (0, 1), (0, -1)];
+
     [Fact]
     public void GenerateChunk_SameSeed_IsBitIdenticalAcrossRuns()
     {
@@ -186,7 +243,7 @@ public sealed class ChunkDeltaAndDeterminismTests
         Assert.Equal(GoldenChunkHash, HashChunk(chunk));
     }
 
-    private const ulong GoldenChunkHash = 18350925402378002276UL;
+    private const ulong GoldenChunkHash = 3939991031041537186UL;
 
     private static ulong HashChunk(Chunk2D chunk)
     {

@@ -22,7 +22,16 @@ public sealed class ProceduralWorldGenerator
     /// Bump it whenever any change alters generated output (the golden-hash test fails), so a client running
     /// a different generator refuses to play instead of silently desyncing.
     /// </summary>
-    public const ushort GeneratorVersion = 2;
+    public const ushort GeneratorVersion = 3;
+
+    /// <summary>Frequency of the major river field (feature size ≈ 900 tiles).</summary>
+    public const float MajorRiverFrequency = 0.0011f;
+
+    /// <summary>Frequency of the tributary field (feature size ≈ 300 tiles).</summary>
+    public const float TributaryFrequency = 0.0034f;
+
+    /// <summary>Relief above which no river exists (river sources).</summary>
+    public const float MaxRiverRelief = 0.74f;
 
     /// <summary>
     /// Default macro-scale spatial frequency producing expansive continental biomes (wavelength ~1250 tiles).
@@ -36,8 +45,10 @@ public sealed class ProceduralWorldGenerator
     private readonly FractalNoise2D _riverNoise;
     private readonly FractalNoise2D _foliageNoise;
     private readonly FractalNoise2D _mineralNoise;
-    private readonly float _riverBaseX;
-    private readonly float _riverBaseY;
+    private readonly FractalNoise2D _majorRiverField;
+    private readonly FractalNoise2D _tributaryField;
+    private readonly FractalNoise2D _tributarySideField;
+    private readonly FractalNoise2D _ridgeNoise;
 
     /// <summary>
     /// Gets the deterministic generation seed.
@@ -58,10 +69,10 @@ public sealed class ProceduralWorldGenerator
         _foliageNoise = new FractalNoise2D(seed ^ 0xFEEDFACECAFEBEEFUL);
         _mineralNoise = new FractalNoise2D(seed ^ 0xDEADBEEF1337CAFEUL);
 
-        // Seed-derived origin of the river lattice
-        DeterministicRandom riverRng = new(seed ^ 0x0BADC0DE5EEDF00DUL);
-        _riverBaseX = riverRng.NextFloat(0f, RiverSpacing);
-        _riverBaseY = riverRng.NextFloat(0f, RiverSpacing);
+        _majorRiverField = new FractalNoise2D(seed ^ 0x0BADC0DE5EEDF00DUL);
+        _tributaryField = new FractalNoise2D(seed ^ 0x7E1B0A2C4D6F8091UL);
+        _tributarySideField = new FractalNoise2D(seed ^ 0x3C5A7E9F1B2D4F60UL);
+        _ridgeNoise = new FractalNoise2D(seed ^ 0x52D6E1F0A3B49C87UL);
     }
 
     /// <summary>
@@ -162,70 +173,89 @@ public sealed class ProceduralWorldGenerator
     }
 
     /// <summary>
-    /// Spacing in tiles between parallel continental river systems. Rivers repeat across the
-    /// infinite world instead of existing only near the origin.
+    /// Computes the distance in tiles to the nearest river channel, scaled by the river's local width
+    /// (a value of 1 means "one half-width away"; the channel itself is ≤ 2.2).
     /// </summary>
-    public const float RiverSpacing = 768f;
-
-    /// <summary>
-    /// Computes the distance in tiles to the nearest meandering river channel.
-    /// The world holds a repeating lattice of East-West continental rivers, each fed from the north by
-    /// highland tributaries. Every river and tributary takes its offset and meander phase from the seed,
-    /// so different seeds produce different hydrology. Uses <see cref="DeterministicMath"/> so the result
-    /// is bit-identical on every platform.
-    /// </summary>
+    /// <remarks>
+    /// Rivers are the zero iso-lines of domain-warped noise fields, so every river has its own organic
+    /// shape instead of repeating one sine curve. Distance to the iso-line is the first-order estimate
+    /// <c>|f| / |∇f|</c>. The terrain relief shapes the network: major rivers widen in lowlands, thin into
+    /// streams in the uplands and vanish below the peaks (their sources); tributaries live in the uplands
+    /// and exist on one side of their receiving river only, so they end in T-junctions instead of crossing it.
+    /// </remarks>
     /// <param name="worldX">World tile X.</param>
     /// <param name="worldY">World tile Y.</param>
-    /// <returns>Distance to the nearest river centre line, in tiles.</returns>
-    public float GetRiverDistance(int worldX, int worldY)
+    /// <returns>Width-scaled distance to the nearest river.</returns>
+    public float GetRiverDistance(int worldX, int worldY) =>
+        this.GetRiverDistance(worldX, worldY, this.SampleRelief(worldX * DefaultFrequency, worldY * DefaultFrequency));
+
+    private float GetRiverDistance(int worldX, int worldY, float relief)
     {
-        // Continuous domain-warped river meander
-        float riverWarpX = (_riverNoise.Evaluate(worldX * 0.012f, worldY * 0.012f, octaves: 2) - 0.5f) * 28f;
-        float riverWarpY = (_riverNoise.Evaluate(worldY * 0.012f, worldX * 0.012f, octaves: 2) - 0.5f) * 28f;
-
-        // Primary East-West rivers: the two nearest bands always contain the closest one, because the
-        // meander amplitude (≤ ~150 tiles) is well under half the band spacing.
-        int band0 = (int)MathF.Floor((worldY - _riverBaseY) / RiverSpacing);
-        float c0 = this.MainRiverCenterY(band0, worldX, riverWarpX);
-        float c1 = this.MainRiverCenterY(band0 + 1, worldX, riverWarpX);
-        float distMain = MathF.Min(MathF.Abs(worldY - c0), MathF.Abs(worldY - c1));
-
-        // Highland feeder tributaries flow south into the river directly below them and start a third of
-        // the way down from the river above, so they never cross a main channel.
-        int southBand = worldY < c0 ? band0 : band0 + 1;
-        float southCenter = worldY < c0 ? c0 : c1;
-        float northCenter = worldY < c0 ? this.MainRiverCenterY(band0 - 1, worldX, riverWarpX) : c0;
-
-        float distTrib = float.MaxValue;
-        if (worldY < southCenter - 2f && worldY > northCenter + (RiverSpacing * 0.33f))
+        // Rivers never rise above the high mountains: those are where they spring from.
+        if (relief > MaxRiverRelief)
         {
-            int col0 = (int)MathF.Floor((worldX - _riverBaseX) / RiverSpacing);
-            for (int col = col0; col <= col0 + 1; col++)
+            return float.MaxValue;
+        }
+
+        // Shared meander warp (tiles)
+        float warpX = (_riverNoise.Evaluate(worldX * 0.010f, worldY * 0.010f, octaves: 2) - 0.5f) * 36f;
+        float warpY = (_riverNoise.Evaluate((worldY * 0.010f) + 71.3f, (worldX * 0.010f) + 19.7f, octaves: 2) - 0.5f) * 36f;
+        float wx = worldX + warpX;
+        float wy = worldY + warpY;
+
+        // Width: broad lowland rivers, narrowing upstream into streams.
+        float upland = Math.Clamp((relief - 0.40f) / (MaxRiverRelief - 0.40f), 0f, 1f);
+        // Never thinner than ~0.9 so the 2.2 channel threshold stays ≥ 2 tiles wide and streams do not
+        // break up into dashes.
+        float majorWidth = 1.6f - (0.7f * upland);
+        float major = IsoLineDistance(_majorRiverField, wx, wy, MajorRiverFrequency, octaves: 2, out float majorSign) / majorWidth;
+
+        // Tributaries: upland streams, on one side of the major river field only.
+        float tributary = float.MaxValue;
+        if (relief > 0.48f)
+        {
+            // Only some upland basins carry tributaries (sparsity), and only on one side of the major
+            // river field, so a tributary meets its river in a T-junction instead of crossing it.
+            float basin = _tributarySideField.Evaluate(worldX * 0.0009f, worldY * 0.0009f, octaves: 2);
+            float side = _tributarySideField.Evaluate((worldX * 0.0013f) + 37.1f, (worldY * 0.0013f) + 11.9f, octaves: 1) - 0.5f;
+            if (basin > 0.54f && side * majorSign > 0f)
             {
-                float phase = HashPhase(_seed, col, southBand, 0x7A1BUL);
-                float tributaryCenterX = _riverBaseX + (col * RiverSpacing)
-                    + (DeterministicMath.Sin((worldY * 0.020f) + phase) * 30f)
-                    + (DeterministicMath.Sin((worldY * 0.006f) + (phase * 1.7f)) * 70f)
-                    + riverWarpY;
-                distTrib = MathF.Min(distTrib, MathF.Abs(worldX - tributaryCenterX));
+                tributary = IsoLineDistance(_tributaryField, wx, wy, TributaryFrequency, octaves: 2, out _) / 0.9f;
             }
         }
 
-        return MathF.Min(distMain, distTrib);
+        return MathF.Min(major, tributary);
     }
 
-    private float MainRiverCenterY(int band, int worldX, float warp)
+    private static float IsoLineDistance(FractalNoise2D field, float x, float y, float frequency, int octaves, out float value)
     {
-        float phase = HashPhase(_seed, band, 0, 0x51F3UL);
-        return _riverBaseY + (band * RiverSpacing)
-            + (DeterministicMath.Sin((worldX * 0.024f) + phase) * 35f)
-            + (DeterministicMath.Sin((worldX * 0.008f) + (phase * 2.3f)) * 75f)
-            + (DeterministicMath.Cos((worldX * 0.055f) + (phase * 0.6f)) * 10f)
-            + warp;
+        const float H = 1.5f;
+        float v = field.Evaluate(x * frequency, y * frequency, octaves) - 0.5f;
+        value = v;
+        float gx = (field.Evaluate((x + H) * frequency, y * frequency, octaves) - field.Evaluate((x - H) * frequency, y * frequency, octaves)) / (2f * H);
+        float gy = (field.Evaluate(x * frequency, (y + H) * frequency, octaves) - field.Evaluate(x * frequency, (y - H) * frequency, octaves)) / (2f * H);
+        float grad = MathF.Sqrt((gx * gx) + (gy * gy));
+        return MathF.Abs(v) / MathF.Max(grad, 1e-5f);
     }
 
-    private static float HashPhase(ulong seed, int a, int b, ulong salt) =>
-        SpatialHash.Hash32(seed, a, b, salt) * (6.2831853f / 4294967296f);
+    /// <summary>
+    /// Smooth, low-detail terrain relief used for discrete height levels and river routing. Built from the
+    /// same warped continental field as <c>Elevation</c> but with fewer octaves, plus ridged mountain ranges,
+    /// so plateau and mountain outlines are broad and clean instead of jagged.
+    /// </summary>
+    private float SampleRelief(float fx, float fy)
+    {
+        float relief = _elevationWarp.Evaluate(fx, fy, warpStrength: 0.15f, octaves: 2);
+        return relief + this.RidgeLift(fx, fy, relief, octaves: 2);
+    }
+
+    // Ridged multifractal mountain chains, only raised where the continent is already high.
+    private float RidgeLift(float fx, float fy, float baseElevation, int octaves)
+    {
+        float ridge = 1f - MathF.Abs((_ridgeNoise.Evaluate(fx * 2.2f, fy * 2.2f, octaves) * 2f) - 1f);
+        float mask = Math.Clamp((baseElevation - 0.50f) / 0.14f, 0f, 1f);
+        return ridge * ridge * mask * 0.10f;
+    }
 
     /// <summary>
     /// Samples a single map tile at world tile coordinates with continuous multi-scale coherent noise.
@@ -246,6 +276,13 @@ public sealed class ProceduralWorldGenerator
 
         // 1. Continental Elevation with domain warping
         float elevation = _elevationWarp.Evaluate(fx, fy, warpStrength: 0.15f, octaves: 4);
+        elevation = Math.Clamp(elevation + this.RidgeLift(fx, fy, elevation, octaves: 4), 0f, 1f);
+
+        // Smooth relief drives the discrete 2.5D height levels and the river network.
+        float relief = this.SampleRelief(fx, fy);
+
+        // Elevation before river valleys are carved: decides what counts as coast for height levels.
+        float coastElevation = elevation;
 
         // 2. Coherent Continental Temperature with North-South Latitude Gradient
         // A gentle continental latitude band along Y (period ~2500 tiles)
@@ -276,7 +313,7 @@ public sealed class ProceduralWorldGenerator
         // oceanic waters are never altered or elevated into artificial sandbanks.
         if (elevation >= 0.32f)
         {
-            float riverDist = this.GetRiverDistance(worldX, worldY);
+            float riverDist = this.GetRiverDistance(worldX, worldY, relief);
             riverDistance = riverDist;
 
             // Natural inland freshwater lakes and desert oases
@@ -296,7 +333,9 @@ public sealed class ProceduralWorldGenerator
 
             if (riverDist <= 2.2f || isLakeOrOasis)
             {
-                // Flowing freshwater river channel or inland lake: continuous, un-severed water surface
+                // Flowing freshwater river channel or inland lake: continuous, un-severed water surface.
+                // Rivers and lakes sit on the terrain they cross; where they leave a plateau the
+                // renderer draws a waterfall over the cliff instead of a carved canyon.
                 byte riverVariant = (byte)(SpatialHash.Hash32(_seed, worldX, worldY, 0x0A71UL) & 3);
                 return new MapTile(
                     BiomeType.ShallowWater,
@@ -305,7 +344,7 @@ public sealed class ProceduralWorldGenerator
                     Moisture: 0.85f,
                     IsSolid: false,
                     riverVariant,
-                    HeightLevel: 0);
+                    HeightLevel: TopographyHelper.ResolveTerrainHeightLevel(relief, coastElevation, BiomeType.ShallowWater, isInlandWater: true));
             }
 
             if (riverDist < 6.0f)
@@ -327,7 +366,9 @@ public sealed class ProceduralWorldGenerator
         byte variant = (byte)(SpatialHash.Hash32(_seed, worldX, worldY, 0x0A71UL) & 3);
 
         // 7. Resolve discrete 2.5D height level (0: Lowland, 1: Plateau, 2: Mountain)
-        byte heightLevel = TopographyHelper.ResolveHeightLevel(elevation, biome);
+        // River valleys turn banks into beach sand; that is inland, so it keeps the terrain's level.
+        bool isCoast = coastElevation < 0.38f;
+        byte heightLevel = TopographyHelper.ResolveTerrainHeightLevel(relief, coastElevation, isCoast ? biome : BiomeType.LushPlains, isInlandWater: false);
 
         return new MapTile(biome, elevation, temperature, moisture, isSolid, variant, heightLevel);
     }
