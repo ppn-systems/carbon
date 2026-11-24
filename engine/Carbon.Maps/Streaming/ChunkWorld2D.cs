@@ -7,20 +7,22 @@ using System.Numerics;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
+using Carbon.Maps.Props;
 using Carbon.Physics.Obstacles;
 
 namespace Carbon.Maps.Streaming;
 
 /// <summary>
 /// High-performance chunk-streaming world coordinator managing infinite procedural 2D terrain.
-/// Continuously generates, caches, and evicts chunks around active players/cameras to guarantee bounded RAM usage.
+/// Employs Minecraft-style chunk lifecycle management with object pooling to guarantee zero GC allocations during exploration.
 /// </summary>
 public sealed class ChunkWorld2D
 {
     private readonly ProceduralWorldGenerator _generator;
     private readonly float _tileSize;
     private readonly float _frequency;
-    private readonly ConcurrentDictionary<long, Chunk2D> _chunks = new();
+    private readonly ConcurrentDictionary<long, Chunk2D> _activeChunks = new();
+    private readonly ConcurrentQueue<Chunk2D> _chunkPool = new();
     private readonly List<long> _evictionBuffer = new();
 
     private readonly int _spawnTileX;
@@ -38,7 +40,7 @@ public sealed class ChunkWorld2D
     public float TileSize => _tileSize;
 
     /// <summary>
-    /// Gets the world spawn coordinate vector located on safe starter land.
+    /// Gets the world spawn coordinate vector located on safe, natural starter land.
     /// </summary>
     public Vector2 SpawnWorldPosition => _spawnWorldPosition;
 
@@ -48,37 +50,41 @@ public sealed class ChunkWorld2D
     public (int X, int Y) SpawnTile => (_spawnTileX, _spawnTileY);
 
     /// <summary>
-    /// Gets the collection of currently loaded active chunks.
+    /// Gets the collection of currently resident active chunks.
     /// </summary>
-    public ICollection<Chunk2D> ActiveChunks => _chunks.Values;
+    public ICollection<Chunk2D> ActiveChunks => _activeChunks.Values;
 
     /// <summary>
-    /// Gets the count of currently resident chunks in memory.
+    /// Gets the count of currently resident active chunks in memory.
     /// </summary>
-    public int LoadedChunkCount => _chunks.Count;
+    public int LoadedChunkCount => _activeChunks.Count;
+
+    /// <summary>
+    /// Gets the count of idle recycled chunks currently held in the object pool.
+    /// </summary>
+    public int PooledChunkCount => _chunkPool.Count;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ChunkWorld2D"/> class.
-    /// Automatically searches for a safe starter continent and establishes the starter village.
+    /// Automatically locates a natural safe starter location within a grand LushPlains biome.
     /// </summary>
     /// <param name="generator">The procedural terrain generator.</param>
     /// <param name="tileSize">Physical dimension of each tile (default 32f).</param>
-    /// <param name="frequency">Macro spatial noise frequency (default 0.0025f).</param>
-    public ChunkWorld2D(ProceduralWorldGenerator generator, float tileSize = 32f, float frequency = 0.0025f)
+    /// <param name="frequency">Macro spatial noise frequency (default 0.0008f).</param>
+    public ChunkWorld2D(ProceduralWorldGenerator generator, float tileSize = 32f, float frequency = ProceduralWorldGenerator.DefaultFrequency)
     {
         _generator = generator ?? throw new ArgumentNullException(nameof(generator));
         _tileSize = tileSize;
         _frequency = frequency;
 
-        // Search near (0, 0) for safe LushPlains spawn location
-        (int sx, int sy) = LocateSafeSpawn(generator, frequency);
+        (int sx, int sy) = LocateSafeNaturalSpawn(generator, frequency);
         _spawnTileX = sx;
         _spawnTileY = sy;
         _spawnWorldPosition = new Vector2((sx * tileSize) + (tileSize * 0.5f), (sy * tileSize) + (tileSize * 0.5f));
     }
 
     /// <summary>
-    /// Retrieves an existing chunk or deterministically generates a new one.
+    /// Retrieves an existing chunk or generates one using object pooling to eliminate GC pressure.
     /// </summary>
     /// <param name="chunkX">Chunk X coordinate.</param>
     /// <param name="chunkY">Chunk Y coordinate.</param>
@@ -86,7 +92,16 @@ public sealed class ChunkWorld2D
     public Chunk2D GetOrCreateChunk(int chunkX, int chunkY)
     {
         long key = PackChunkKey(chunkX, chunkY);
-        return _chunks.GetOrAdd(key, _ => _generator.GenerateChunk(chunkX, chunkY, _frequency, _spawnTileX, _spawnTileY, _tileSize));
+        if (_activeChunks.TryGetValue(key, out Chunk2D? existing))
+        {
+            return existing;
+        }
+
+        Chunk2D chunk = _chunkPool.TryDequeue(out Chunk2D? recycled) ? recycled : new Chunk2D(chunkX, chunkY);
+        _generator.PopulateChunk(chunk, chunkX, chunkY, _frequency, _tileSize);
+
+        _activeChunks[key] = chunk;
+        return chunk;
     }
 
     /// <summary>
@@ -95,23 +110,23 @@ public sealed class ChunkWorld2D
     public bool TryGetChunk(int chunkX, int chunkY, out Chunk2D? chunk)
     {
         long key = PackChunkKey(chunkX, chunkY);
-        return _chunks.TryGetValue(key, out chunk);
+        return _activeChunks.TryGetValue(key, out chunk);
     }
 
     /// <summary>
     /// Streams and loads all chunks within <paramref name="chunkRadius"/> around the target world position,
-    /// while evicting chunks farther than <paramref name="evictionRadius"/> to prevent memory leaks.
+    /// recycling chunks farther than <paramref name="evictionRadius"/> back into the pool.
     /// </summary>
     /// <param name="centerWorldPos">Target center world coordinates (e.g. camera or player).</param>
-    /// <param name="chunkRadius">Active load radius in chunks (e.g. 3 chunks = 7x7 active grid).</param>
-    /// <param name="evictionRadius">Distance in chunks beyond which inactive chunks are unloaded (e.g. 6 chunks).</param>
-    public void UpdateAroundPosition(Vector2 centerWorldPos, int chunkRadius = 3, int evictionRadius = 6)
+    /// <param name="chunkRadius">Active load radius in chunks (e.g. 4 chunks = 9x9 active grid).</param>
+    /// <param name="evictionRadius">Distance in chunks beyond which inactive chunks are recycled into the pool (e.g. 7 chunks).</param>
+    public void UpdateAroundPosition(Vector2 centerWorldPos, int chunkRadius = 4, int evictionRadius = 7)
     {
         float chunkSizeWorld = Chunk2D.Size * _tileSize;
         int centerChunkX = (int)MathF.Floor(centerWorldPos.X / chunkSizeWorld);
         int centerChunkY = (int)MathF.Floor(centerWorldPos.Y / chunkSizeWorld);
 
-        // 1. Ensure all chunks within load radius are generated
+        // 1. Ensure all chunks within load radius are resident
         for (int cy = centerChunkY - chunkRadius; cy <= centerChunkY + chunkRadius; cy++)
         {
             for (int cx = centerChunkX - chunkRadius; cx <= centerChunkX + chunkRadius; cx++)
@@ -120,9 +135,9 @@ public sealed class ChunkWorld2D
             }
         }
 
-        // 2. Evict chunks beyond eviction radius
+        // 2. Recycle distant chunks beyond eviction radius
         _evictionBuffer.Clear();
-        foreach (KeyValuePair<long, Chunk2D> kvp in _chunks)
+        foreach (KeyValuePair<long, Chunk2D> kvp in _activeChunks)
         {
             (int kx, int ky) = UnpackChunkKey(kvp.Key);
             int dist = Math.Max(Math.Abs(kx - centerChunkX), Math.Abs(ky - centerChunkY));
@@ -134,7 +149,10 @@ public sealed class ChunkWorld2D
 
         for (int i = 0; i < _evictionBuffer.Count; i++)
         {
-            _ = _chunks.TryRemove(_evictionBuffer[i], out _);
+            if (_activeChunks.TryRemove(_evictionBuffer[i], out Chunk2D? evicted))
+            {
+                _chunkPool.Enqueue(evicted);
+            }
         }
     }
 
@@ -143,10 +161,10 @@ public sealed class ChunkWorld2D
     /// </summary>
     public MapTile GetTileAtWorld(int worldTileX, int worldTileY)
     {
-        int cx = (int)MathF.Floor((float)worldTileX / Chunk2D.Size);
-        int cy = (int)MathF.Floor((float)worldTileY / Chunk2D.Size);
-        int lx = worldTileX - (cx * Chunk2D.Size);
-        int ly = worldTileY - (cy * Chunk2D.Size);
+        int cx = Chunk2D.ToChunkCoord(worldTileX);
+        int cy = Chunk2D.ToChunkCoord(worldTileY);
+        int lx = Chunk2D.ToLocalCoord(worldTileX);
+        int ly = Chunk2D.ToLocalCoord(worldTileY);
 
         Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
         return chunk.GetTile(lx, ly);
@@ -180,7 +198,6 @@ public sealed class ChunkWorld2D
                 int baseOffsetX = cx * Chunk2D.Size;
                 int baseOffsetY = cy * Chunk2D.Size;
 
-                // Copy solid tiles
                 for (int ly = 0; ly < Chunk2D.Size; ly++)
                 {
                     for (int lx = 0; lx < Chunk2D.Size; lx++)
@@ -192,10 +209,9 @@ public sealed class ChunkWorld2D
                     }
                 }
 
-                // Copy solid props
                 for (int i = 0; i < chunk.Props.Count; i++)
                 {
-                    Props.MapProp prop = chunk.Props[i];
+                    MapProp prop = chunk.Props[i];
                     if (prop.HasCollision)
                     {
                         int px = Math.Clamp(baseOffsetX + prop.LocalTileX, 0, tilesAcross - 1);
@@ -209,14 +225,14 @@ public sealed class ChunkWorld2D
         return combined;
     }
 
-    private static (int X, int Y) LocateSafeSpawn(ProceduralWorldGenerator generator, float frequency)
+    private static (int X, int Y) LocateSafeNaturalSpawn(ProceduralWorldGenerator generator, float frequency)
     {
-        // Spiral outward from (0, 0) to find safe land in LushPlains
-        for (int r = 0; r < 200; r += 2)
+        // Spiral outward from (0, 0) to find pristine natural land in LushPlains
+        for (int r = 0; r < 500; r += 4)
         {
-            for (int dy = -r; dy <= r; dy += 2)
+            for (int dy = -r; dy <= r; dy += 4)
             {
-                for (int dx = -r; dx <= r; dx += 2)
+                for (int dx = -r; dx <= r; dx += 4)
                 {
                     if (Math.Max(Math.Abs(dx), Math.Abs(dy)) != r)
                     {

@@ -13,7 +13,7 @@ namespace Carbon.Maps.Tests;
 public sealed class ChunkWorld2DTests
 {
     [Fact]
-    public void ChunkWorld2D_InitializesSafeSpawnPoint()
+    public void ChunkWorld2D_InitializesSafeNaturalSpawn()
     {
         ProceduralWorldGenerator generator = new(0x1337BEEF12345678UL);
         ChunkWorld2D world = new(generator, tileSize: 32f);
@@ -39,7 +39,7 @@ public sealed class ChunkWorld2DTests
     }
 
     [Fact]
-    public void ChunkWorld2D_EvictsDistantChunks()
+    public void ChunkWorld2D_EvictsDistantChunksAndPoolsThem()
     {
         ProceduralWorldGenerator generator = new(999UL);
         ChunkWorld2D world = new(generator, tileSize: 32f);
@@ -53,41 +53,24 @@ public sealed class ChunkWorld2DTests
         Vector2 farPos = new(100000f, 100000f);
         world.UpdateAroundPosition(farPos, chunkRadius: 2, evictionRadius: 4);
 
-        // Old chunks at (0, 0) must be evicted, keeping bounded RAM
+        // Old chunks at (0, 0) must be evicted and pushed into the pool
         Assert.True(world.LoadedChunkCount <= 35);
+        Assert.True(world.PooledChunkCount > 0);
     }
 
     [Fact]
-    public void StarterVillage_GeneratesTownWellAtSpawn()
+    public void Chunk2D_BitShiftCoordinateHelpers()
     {
-        ProceduralWorldGenerator generator = new(12345UL);
-        ChunkWorld2D world = new(generator, tileSize: 32f);
+        int tileX = 65;
+        int chunkX = Chunk2D.ToChunkCoord(tileX);
+        int localX = Chunk2D.ToLocalCoord(tileX);
 
-        (int sx, int sy) = world.SpawnTile;
-        int chunkX = (int)System.MathF.Floor((float)sx / Chunk2D.Size);
-        int chunkY = (int)System.MathF.Floor((float)sy / Chunk2D.Size);
+        Assert.Equal(2, chunkX);
+        Assert.Equal(1, localX);
 
-        Chunk2D spawnChunk = world.GetOrCreateChunk(chunkX, chunkY);
-
-        bool foundTownWell = false;
-        bool foundRoad = false;
-
-        for (int i = 0; i < spawnChunk.Props.Count; i++)
-        {
-            MapProp p = spawnChunk.Props[i];
-            if (p.Type == MapPropType.TownWell)
-            {
-                foundTownWell = true;
-            }
-
-            if (p.Type == MapPropType.CobblestoneRoad)
-            {
-                foundRoad = true;
-            }
-        }
-
-        Assert.True(foundTownWell);
-        Assert.True(foundRoad);
+        int negTile = -1;
+        Assert.Equal(-1, Chunk2D.ToChunkCoord(negTile));
+        Assert.Equal(31, Chunk2D.ToLocalCoord(negTile));
     }
 
     [Fact]

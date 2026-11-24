@@ -5,17 +5,21 @@ using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
 using Carbon.Maps.Noise;
 using Carbon.Maps.Props;
-using Carbon.Maps.Structures;
 
 namespace Carbon.Maps.Generators;
 
 /// <summary>
 /// High-performance deterministic procedural world generator.
-/// Synthesizes continuous multi-layered coherent noise fields (Elevation, Temperature, Moisture)
-/// with domain warping to produce rich 10-biome landscapes.
+/// Synthesizes continuous multi-layered coherent noise fields (Elevation, Temperature, Moisture, Hydrology)
+/// with domain warping to produce massive macro-continental 10-biome landscapes.
 /// </summary>
 public sealed class ProceduralWorldGenerator
 {
+    /// <summary>
+    /// Default macro-scale spatial frequency producing expansive continental biomes (wavelength ~1250 tiles).
+    /// </summary>
+    public const float DefaultFrequency = 0.0008f;
+
     private readonly ulong _seed;
     private readonly DomainWarp2D _elevationWarp;
     private readonly FractalNoise2D _temperatureNoise;
@@ -45,9 +49,9 @@ public sealed class ProceduralWorldGenerator
     /// </summary>
     /// <param name="width">Map width in tiles.</param>
     /// <param name="height">Map height in tiles.</param>
-    /// <param name="frequency">Spatial frequency scale of terrain features (default 0.0025f).</param>
+    /// <param name="frequency">Spatial frequency scale of terrain features (default 0.0008f).</param>
     /// <returns>Populated <see cref="TilemapData"/>.</returns>
-    public TilemapData GenerateTilemap(int width, int height, float frequency = 0.0025f)
+    public TilemapData GenerateTilemap(int width, int height, float frequency = DefaultFrequency)
     {
         TilemapData map = new(width, height);
 
@@ -65,24 +69,38 @@ public sealed class ProceduralWorldGenerator
 
     /// <summary>
     /// Generates a single 32x32 world chunk at the given chunk grid coordinates.
-    /// Seamlessly continuous across chunk boundaries with procedural prop placement.
+    /// Seamlessly continuous across chunk boundaries with natural flora and prop placement.
     /// </summary>
     /// <param name="chunkX">Chunk horizontal coordinate.</param>
     /// <param name="chunkY">Chunk vertical coordinate.</param>
-    /// <param name="frequency">Spatial frequency scale of terrain features (default 0.0025f).</param>
-    /// <param name="spawnTileX">World spawn tile X (for settlement placement).</param>
-    /// <param name="spawnTileY">World spawn tile Y (for settlement placement).</param>
+    /// <param name="frequency">Spatial frequency scale of terrain features (default 0.0008f).</param>
     /// <param name="tileSize">Physical dimension of each tile in world units.</param>
     /// <returns>Populated <see cref="Chunk2D"/>.</returns>
     public Chunk2D GenerateChunk(
         int chunkX,
         int chunkY,
-        float frequency = 0.0025f,
-        int spawnTileX = 0,
-        int spawnTileY = 0,
+        float frequency = DefaultFrequency,
         float tileSize = 32f)
     {
         Chunk2D chunk = new(chunkX, chunkY);
+        this.PopulateChunk(chunk, chunkX, chunkY, frequency, tileSize);
+        return chunk;
+    }
+
+    /// <summary>
+    /// Populates an existing (or recycled) chunk instance at the specified chunk grid coordinates.
+    /// Zero allocation when used with chunk pooling.
+    /// </summary>
+    public void PopulateChunk(
+        Chunk2D chunk,
+        int chunkX,
+        int chunkY,
+        float frequency = DefaultFrequency,
+        float tileSize = 32f)
+    {
+        ArgumentNullException.ThrowIfNull(chunk, nameof(chunk));
+
+        chunk.Reset(chunkX, chunkY);
         int startX = chunkX * Chunk2D.Size;
         int startY = chunkY * Chunk2D.Size;
 
@@ -95,54 +113,36 @@ public sealed class ProceduralWorldGenerator
                 MapTile tile = this.SampleTile(worldX, worldY, frequency);
                 chunk.SetTile(localX, localY, tile);
 
-                // 1. Check if occupied by Starter Village structure
-                if (StarterVillageGenerator.TryResolveVillageStructure(
+                // Natural wilderness procedural props & flora
+                if (BiomePropResolver.TryResolveProp(
                     worldX,
                     worldY,
                     localX,
                     localY,
-                    spawnTileX,
-                    spawnTileY,
+                    tile.Biome,
                     tileSize,
-                    out MapProp villageProp))
+                    _seed,
+                    out MapProp wildProp))
                 {
-                    chunk.AddProp(villageProp);
-                }
-                else if (!StarterVillageGenerator.IsWithinVillage(worldX, worldY, spawnTileX, spawnTileY))
-                {
-                    // 2. Wilderness procedural props & flora (only outside village perimeter)
-                    if (BiomePropResolver.TryResolveProp(
-                        worldX,
-                        worldY,
-                        localX,
-                        localY,
-                        tile.Biome,
-                        tileSize,
-                        _seed,
-                        out MapProp wildProp))
-                    {
-                        chunk.AddProp(wildProp);
-                    }
+                    chunk.AddProp(wildProp);
                 }
             }
         }
-
-        return chunk;
     }
 
     /// <summary>
-    /// Samples a single map tile at world tile coordinates.
+    /// Samples a single map tile at world tile coordinates with continuous multi-scale coherent noise.
     /// </summary>
     /// <param name="worldX">World X tile coordinate.</param>
     /// <param name="worldY">World Y tile coordinate.</param>
     /// <param name="frequency">Spatial frequency scale.</param>
     /// <returns>Evaluated <see cref="MapTile"/>.</returns>
-    public MapTile SampleTile(int worldX, int worldY, float frequency = 0.0025f)
+    public MapTile SampleTile(int worldX, int worldY, float frequency = DefaultFrequency)
     {
         float fx = worldX * frequency;
         float fy = worldY * frequency;
 
-        // 1. Elevation with domain warping
+        // 1. Continental Elevation with domain warping
         float elevation = _elevationWarp.Evaluate(fx, fy, warpStrength: 0.15f, octaves: 4);
 
         // 2. Temperature (gradient slightly by latitude Y plus noise)
@@ -153,12 +153,12 @@ public sealed class ProceduralWorldGenerator
         float moisture = _moistureNoise.Evaluate(fx * 0.8f, fy * 0.8f, octaves: 3);
 
         // 4. Hydrology & River carving (when on land, elevation > 0.38f)
-        if (elevation >= 0.38f && elevation <= 0.80f)
+        if (elevation is >= 0.38f and <= 0.82f)
         {
-            float riverVal = MathF.Abs(_riverNoise.Evaluate(fx * 2.5f, fy * 2.5f, octaves: 2) - 0.5f);
-            if (riverVal < 0.012f)
+            float riverVal = MathF.Abs(_riverNoise.Evaluate(fx * 3.0f, fy * 3.0f, octaves: 2) - 0.5f);
+            if (riverVal < 0.010f)
             {
-                bool isCenter = riverVal < 0.006f;
+                bool isCenter = riverVal < 0.005f;
                 BiomeType riverBiome = isCenter ? BiomeType.ShallowWater : BiomeType.BeachSand;
                 byte riverVariant = (byte)((worldX ^ (worldY * 31)) & 3);
                 return new MapTile(riverBiome, isCenter ? 0.28f : 0.35f, temperature, 1.0f, false, riverVariant);

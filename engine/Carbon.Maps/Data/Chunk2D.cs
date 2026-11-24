@@ -1,12 +1,15 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
+using Carbon.Maps.Props;
 using Carbon.Physics.Obstacles;
 
 namespace Carbon.Maps.Data;
 
 /// <summary>
 /// A uniform 32x32 tile chunk representing a local segment of the procedural world.
+/// Optimized with bit-shift math and object pooling reusability.
 /// </summary>
 public sealed class Chunk2D
 {
@@ -15,15 +18,25 @@ public sealed class Chunk2D
     /// </summary>
     public const int Size = 32;
 
-    private readonly int _chunkX;
-    private readonly int _chunkY;
+    /// <summary>
+    /// Bit-shift count corresponding to 32 (2^5 = 32).
+    /// </summary>
+    public const int SizeBits = 5;
+
+    /// <summary>
+    /// Bitmask for fast local coordinate modulo (31).
+    /// </summary>
+    public const int SizeMask = 31;
+
+    private int _chunkX;
+    private int _chunkY;
     private readonly MapTile[] _tiles = new MapTile[Size * Size];
-    private readonly System.Collections.Generic.List<Carbon.Maps.Props.MapProp> _props = new();
+    private readonly List<MapProp> _props = new();
 
     /// <summary>
     /// Gets the list of physical and decorative props positioned within this chunk.
     /// </summary>
-    public System.Collections.Generic.List<Carbon.Maps.Props.MapProp> Props => _props;
+    public List<MapProp> Props => _props;
 
     /// <summary>
     /// Gets the horizontal chunk coordinate in chunk space.
@@ -44,6 +57,41 @@ public sealed class Chunk2D
     {
         _chunkX = chunkX;
         _chunkY = chunkY;
+    }
+
+    /// <summary>
+    /// Converts a continuous world tile coordinate to its corresponding chunk coordinate.
+    /// </summary>
+    public static int ToChunkCoord(int tileCoord) =>
+        tileCoord >= 0 ? tileCoord >> SizeBits : (tileCoord - SizeMask) / Size;
+
+    /// <summary>
+    /// Converts a continuous world tile coordinate to its local chunk tile coordinate [0..31].
+    /// </summary>
+    public static int ToLocalCoord(int tileCoord) =>
+        ((tileCoord % Size) + Size) % Size;
+
+    /// <summary>
+    /// Re-initializes this chunk instance for a new chunk coordinate (object pooling reuse).
+    /// </summary>
+    public void Reset(int chunkX, int chunkY)
+    {
+        _chunkX = chunkX;
+        _chunkY = chunkY;
+        _props.Clear();
+        Array.Clear(_tiles, 0, _tiles.Length);
+    }
+
+    /// <summary>
+    /// Calculates the 2D world bounding box of this chunk.
+    /// </summary>
+    public void GetBounds(float tileSize, out float minX, out float minY, out float maxX, out float maxY)
+    {
+        float chunkSizeWorld = Size * tileSize;
+        minX = _chunkX * chunkSizeWorld;
+        minY = _chunkY * chunkSizeWorld;
+        maxX = minX + chunkSizeWorld;
+        maxY = minY + chunkSizeWorld;
     }
 
     /// <summary>
@@ -68,7 +116,7 @@ public sealed class Chunk2D
     /// Appends a prop to this chunk's collection.
     /// </summary>
     /// <param name="prop">The prop to add.</param>
-    public void AddProp(in Carbon.Maps.Props.MapProp prop) => _props.Add(prop);
+    public void AddProp(in MapProp prop) => _props.Add(prop);
 
     /// <summary>
     /// Clears all props from this chunk.
@@ -96,7 +144,7 @@ public sealed class Chunk2D
 
         for (int i = 0; i < _props.Count; i++)
         {
-            Carbon.Maps.Props.MapProp p = _props[i];
+            MapProp p = _props[i];
             if (p.HasCollision)
             {
                 int px = Math.Clamp(p.LocalTileX, 0, Size - 1);

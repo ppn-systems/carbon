@@ -3,7 +3,7 @@
 namespace Carbon.Maps.Props;
 
 /// <summary>
-/// Identifies physical and visual prop decorations scattered throughout procedural biomes and settlements.
+/// Identifies natural physical and decorative environmental props scattered throughout procedural biomes.
 /// </summary>
 public enum MapPropType : byte
 {
@@ -13,7 +13,7 @@ public enum MapPropType : byte
     None = 0,
 
     /// <summary>
-    /// Oak tree with broad foliage canopy (Lush Plains, Ancient Forest).
+    /// Broadleaf oak tree with dense foliage canopy (Lush Plains, Ancient Forest).
     /// </summary>
     OakTree = 1,
 
@@ -23,17 +23,17 @@ public enum MapPropType : byte
     PineTree = 2,
 
     /// <summary>
-    /// Snow-dusted pine tree (Frozen Tundra).
+    /// Snow-dusted glacial pine tree (Frozen Tundra).
     /// </summary>
     SnowPine = 3,
 
     /// <summary>
-    /// Tropical palm tree with slender trunk and fronds (Beach Sand, Tropical Jungle, Oasis).
+    /// Tropical palm tree with slender trunk and fronds (Beach Sand, Tropical Jungle).
     /// </summary>
     PalmTree = 4,
 
     /// <summary>
-    /// Multi-branched desert cactus (Dune Desert, Red Mesa).
+    /// Multi-branched desert saguaro cactus (Dune Desert, Red Mesa).
     /// </summary>
     Cactus = 5,
 
@@ -58,27 +58,7 @@ public enum MapPropType : byte
     WildflowerPatch = 9,
 
     /// <summary>
-    /// Cobblestone stone path providing travel speed boost (Settlements, Highways).
-    /// </summary>
-    CobblestoneRoad = 10,
-
-    /// <summary>
-    /// Wooden palisade fence barrier (Village borders).
-    /// </summary>
-    WoodenFence = 11,
-
-    /// <summary>
-    /// Stone water well landmark (Village center).
-    /// </summary>
-    TownWell = 12,
-
-    /// <summary>
     /// Ancient mystical stone shrine obelisk (Wilderness POI).
     /// </summary>
-    AncientShrine = 13,
-
-    /// <summary>
-    /// Warm glowing campfire (Campsites, Outposts).
-    /// </summary>
-    Campfire = 14
+    AncientShrine = 10
 }

@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.IO;
 using System.Numerics;
 using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Common;
@@ -24,13 +25,16 @@ namespace Carbon.Desktop;
 
 /// <summary>
 /// Entry point for the Carbon native desktop client runner.
-/// Demonstrates infinite procedural chunk streaming, macro-continental biomes,
-/// starter village settlement, and physical prop collision in an open-world MMORPG setting.
+/// Demonstrates infinite procedural chunk streaming, massive macro-continental biomes,
+/// zero-allocation chunk pooling, AABB frustum culling, and automated screenshot telemetry.
 /// </summary>
 public static class Program
 {
     private const float TileSize = 32f;
-    private const float MacroFrequency = 0.0025f; // Macro-continental scale (500+ tiles per biome)
+    private const float MacroFrequency = 0.0008f; // Expansive continental scale (~1250 tiles per continent)
+    private static readonly string s_screenshotPath = Path.Combine(
+        @"C:\Users\nguye\.gemini\antigravity-cli\brain\16aec843-7ea2-45f0-ac90-80492879a105",
+        "world_capture.bmp");
 
     private static GeometryBatch? s_geometryBatch;
     private static Camera2D? s_camera;
@@ -41,22 +45,25 @@ public static class Program
     private static (int X, int Y) s_lastChunkCoord = (int.MinValue, int.MinValue);
     private static ulong s_currentSeed = 1337UL;
     private static bool s_debugOverlay = true;
+    private static int s_frameCount;
+    private static bool s_hasAutoCaptured;
 
     /// <summary>
     /// Application main entry point.
     /// </summary>
     public static void Main()
     {
-        Console.WriteLine("======================================================================");
-        Console.WriteLine("   Carbon MMORPG Infinite World Viewer — Macro Biomes, Rivers & Town  ");
-        Console.WriteLine("======================================================================");
+        Console.WriteLine("==========================================================================");
+        Console.WriteLine("   Carbon MMORPG Infinite World — Macro Biomes, Rivers & Chunk Streaming  ");
+        Console.WriteLine("==========================================================================");
         Console.WriteLine(" [W, A, S, D] / Arrows : Di chuyen nhan vat khap the gioi vo han");
         Console.WriteLine(" [Left Shift]          : Chay nhanh (Sprint 450 u/s)");
         Console.WriteLine(" [Q] / [E]             : Thu nho / Phong to camera (Zoom)");
         Console.WriteLine(" [R]                   : Tai sinh the gioi voi Seed ngau nhien moi");
         Console.WriteLine(" [B]                   : Bat / Tat hien thi vien va cham (Collision Overlay)");
+        Console.WriteLine(" [F12]                 : Chup anh man hinh (Screenshot to Artifact)");
         Console.WriteLine(" [Escape]              : Thoat khoi ung dung");
-        Console.WriteLine("======================================================================");
+        Console.WriteLine("==========================================================================");
 
         WindowSettings settings = new()
         {
@@ -99,7 +106,7 @@ public static class Program
         ProceduralWorldGenerator generator = new(seed);
         s_chunkWorld = new ChunkWorld2D(generator, TileSize, MacroFrequency);
 
-        // Preload chunks around the safe starter spawn
+        // Preload chunks around the natural safe starter spawn
         Vector2 spawnPoint = s_chunkWorld.SpawnWorldPosition;
         s_chunkWorld.UpdateAroundPosition(spawnPoint, chunkRadius: 4, evictionRadius: 8);
 
@@ -110,7 +117,7 @@ public static class Program
 
         s_camera!.Position = spawnPoint;
 
-        // Spawn a herd of roaming wildlife and village guards
+        // Spawn a herd of roaming wildlife in the surrounding wilderness
         DeterministicRandom rng = new(seed ^ 0x9999999999999999UL);
         for (int i = 0; i < 25; i++)
         {
@@ -118,8 +125,8 @@ public static class Program
             float offsetY = rng.NextFloat(-350f, 350f);
             Vector2 npcPos = spawnPoint + new Vector2(offsetX, offsetY);
 
-            int tx = (int)(npcPos.X / TileSize);
-            int ty = (int)(npcPos.Y / TileSize);
+            int tx = (int)MathF.Floor(npcPos.X / TileSize);
+            int ty = (int)MathF.Floor(npcPos.Y / TileSize);
             MapTile tile = s_chunkWorld.GetTileAtWorld(tx, ty);
 
             if (!tile.IsSolid)
@@ -135,7 +142,7 @@ public static class Program
             }
         }
 
-        Console.WriteLine($"[WorldGen] Lang Khoi Dau thiet lap tai: ({spawnPoint.X:F1}, {spawnPoint.Y:F1})");
+        Console.WriteLine($"[WorldGen] Diem xuat phat tu nhien: ({spawnPoint.X:F1}, {spawnPoint.Y:F1})");
         Console.WriteLine($"[WorldGen] Chunks khoi tao: {s_chunkWorld.LoadedChunkCount} chunks san sang.");
     }
 
@@ -168,17 +175,23 @@ public static class Program
             Console.WriteLine($"[Debug] Che do hien thi vat can va cham: {(s_debugOverlay ? "BAT" : "TAT")}");
         }
 
-        // 4. Zoom controls
+        // 4. Manual screenshot capture
+        if (window.Input.Keyboard.IsKeyPressed(Key.F12))
+        {
+            CaptureScreen(window);
+        }
+
+        // 5. Zoom controls
         if (window.Input.Keyboard.IsKeyDown(Key.Q))
         {
-            s_camera.Zoom = Math.Clamp(s_camera.Zoom * 0.985f, 0.15f, 3.0f);
+            s_camera.Zoom = Math.Clamp(s_camera.Zoom * 0.985f, 0.10f, 3.0f);
         }
         else if (window.Input.Keyboard.IsKeyDown(Key.E))
         {
-            s_camera.Zoom = Math.Clamp(s_camera.Zoom * 1.015f, 0.15f, 3.0f);
+            s_camera.Zoom = Math.Clamp(s_camera.Zoom * 1.015f, 0.10f, 3.0f);
         }
 
-        // 5. Movement controls
+        // 6. Movement controls
         Vector2 moveDir = Vector2.Zero;
         if (window.Input.Keyboard.IsKeyDown(Key.W) || window.Input.Keyboard.IsKeyDown(Key.Up))
         {
@@ -217,28 +230,28 @@ public static class Program
             vel.Linear = moveDir * finalSpeed;
         }
 
-        // 6. Report biome & chunk transitions
+        // 7. Report biome & chunk transitions
         if (currentTile.Biome != s_lastPlayerBiome)
         {
             s_lastPlayerBiome = currentTile.Biome;
             Console.WriteLine($"[Biome] Buoc vao quan xa: {currentTile.Biome,-16} (Toc do di chuyen: {currentTile.MoveSpeedMultiplier * 100:F0}%)");
         }
 
-        int currentChunkX = (int)MathF.Floor(playerTrans.Position.X / (Chunk2D.Size * TileSize));
-        int currentChunkY = (int)MathF.Floor(playerTrans.Position.Y / (Chunk2D.Size * TileSize));
+        int currentChunkX = Chunk2D.ToChunkCoord(ptx);
+        int currentChunkY = Chunk2D.ToChunkCoord(pty);
         if (currentChunkX != s_lastChunkCoord.X || currentChunkY != s_lastChunkCoord.Y)
         {
             s_lastChunkCoord = (currentChunkX, currentChunkY);
-            Console.WriteLine($"[ChunkStream] Di chuyen vao Chunk ({currentChunkX}, {currentChunkY}) | Active Chunks trong bo nho: {s_chunkWorld.LoadedChunkCount}");
+            Console.WriteLine($"[ChunkStream] Di chuyen vao Chunk ({currentChunkX}, {currentChunkY}) | Active Chunks: {s_chunkWorld.LoadedChunkCount} | Pooled: {s_chunkWorld.PooledChunkCount}");
         }
 
-        // 7. Stream infinite chunks around the moving player
-        s_chunkWorld.UpdateAroundPosition(playerTrans.Position, chunkRadius: 3, evictionRadius: 6);
+        // 8. Stream infinite chunks around the moving player with pooling
+        s_chunkWorld.UpdateAroundPosition(playerTrans.Position, chunkRadius: 4, evictionRadius: 7);
 
-        // 8. Step simulation
+        // 9. Step simulation
         _ = s_world.Update(dt);
 
-        // 9. Follow player with camera
+        // 10. Follow player with camera
         ref readonly Transform2D updatedTrans = ref s_world.Entities.GetTransform(s_player);
         s_camera.Position = updatedTrans.Position;
     }
@@ -261,89 +274,78 @@ public static class Program
         float minY = s_camera.Position.Y - halfH;
         float maxY = s_camera.Position.Y + halfH;
 
-        float chunkSizeWorld = Chunk2D.Size * TileSize;
-        int minChunkX = (int)MathF.Floor(minX / chunkSizeWorld) - 1;
-        int maxChunkX = (int)MathF.Floor(maxX / chunkSizeWorld) + 1;
-        int minChunkY = (int)MathF.Floor(minY / chunkSizeWorld) - 1;
-        int maxChunkY = (int)MathF.Floor(maxY / chunkSizeWorld) + 1;
-
         s_geometryBatch.Begin(s_camera.ViewProjectionMatrix);
 
-        // 1. Render Visible Chunks Terrain
-        for (int cy = minChunkY; cy <= maxChunkY; cy++)
+        // 1. Render Visible Chunks Terrain with AABB Frustum Culling
+        foreach (Chunk2D chunk in s_chunkWorld.ActiveChunks)
         {
-            for (int cx = minChunkX; cx <= maxChunkX; cx++)
+            chunk.GetBounds(TileSize, out float cMinX, out float cMinY, out float cMaxX, out float cMaxY);
+
+            // Frustum Culling AABB test: skip entire chunk if outside camera view
+            if (cMaxX < minX || cMinX > maxX || cMaxY < minY || cMinY > maxY)
             {
-                if (!s_chunkWorld.TryGetChunk(cx, cy, out Chunk2D? chunk) || chunk == null)
+                continue;
+            }
+
+            for (int ly = 0; ly < Chunk2D.Size; ly++)
+            {
+                float tileWorldY = cMinY + (ly * TileSize);
+                if (tileWorldY + TileSize < minY || tileWorldY > maxY)
                 {
                     continue;
                 }
 
-                float baseChunkWorldX = cx * chunkSizeWorld;
-                float baseChunkWorldY = cy * chunkSizeWorld;
-
-                for (int ly = 0; ly < Chunk2D.Size; ly++)
+                for (int lx = 0; lx < Chunk2D.Size; lx++)
                 {
-                    float tileWorldY = baseChunkWorldY + (ly * TileSize);
-                    if (tileWorldY + TileSize < minY || tileWorldY > maxY)
+                    float tileWorldX = cMinX + (lx * TileSize);
+                    if (tileWorldX + TileSize < minX || tileWorldX > maxX)
                     {
                         continue;
                     }
 
-                    for (int lx = 0; lx < Chunk2D.Size; lx++)
+                    ref readonly MapTile tile = ref chunk.GetTile(lx, ly);
+                    ColorRgba baseColor = HexToColor(tile.ColorRgba);
+
+                    // Organic procedural variant shading
+                    if (tile.Variant != 0)
                     {
-                        float tileWorldX = baseChunkWorldX + (lx * TileSize);
-                        if (tileWorldX + TileSize < minX || tileWorldX > maxX)
-                        {
-                            continue;
-                        }
+                        int shade = (tile.Variant * 6) - 9;
+                        baseColor = new ColorRgba(
+                            (byte)Math.Clamp(baseColor.R + shade, 0, 255),
+                            (byte)Math.Clamp(baseColor.G + shade, 0, 255),
+                            (byte)Math.Clamp(baseColor.B + shade, 0, 255),
+                            baseColor.A);
+                    }
 
-                        ref readonly MapTile tile = ref chunk.GetTile(lx, ly);
-                        ColorRgba baseColor = HexToColor(tile.ColorRgba);
+                    RectangleF rect = new(tileWorldX, tileWorldY, TileSize, TileSize);
+                    s_geometryBatch.FillRectangle(rect, baseColor);
 
-                        // Subtle procedural variant shade for organic natural look
-                        if (tile.Variant != 0)
-                        {
-                            int shade = (tile.Variant * 6) - 9;
-                            baseColor = new ColorRgba(
-                                (byte)Math.Clamp(baseColor.R + shade, 0, 255),
-                                (byte)Math.Clamp(baseColor.G + shade, 0, 255),
-                                (byte)Math.Clamp(baseColor.B + shade, 0, 255),
-                                baseColor.A);
-                        }
-
-                        RectangleF rect = new(tileWorldX, tileWorldY, TileSize, TileSize);
-                        s_geometryBatch.FillRectangle(rect, baseColor);
-
-                        // Highlight solid terrain boundary in debug mode
-                        if (s_debugOverlay && tile.IsSolid)
-                        {
-                            RectangleF innerBorder = new(tileWorldX + 2f, tileWorldY + 2f, TileSize - 4f, TileSize - 4f);
-                            s_geometryBatch.FillRectangle(innerBorder, new ColorRgba(0, 0, 0, 70));
-                        }
+                    // Highlight solid obstacles in debug mode
+                    if (s_debugOverlay && tile.IsSolid)
+                    {
+                        RectangleF innerBorder = new(tileWorldX + 2f, tileWorldY + 2f, TileSize - 4f, TileSize - 4f);
+                        s_geometryBatch.FillRectangle(innerBorder, new ColorRgba(0, 0, 0, 70));
                     }
                 }
             }
         }
 
-        // 2. Render Props & Settlements
-        for (int cy = minChunkY; cy <= maxChunkY; cy++)
+        // 2. Render Props with Frustum Culling
+        foreach (Chunk2D chunk in s_chunkWorld.ActiveChunks)
         {
-            for (int cx = minChunkX; cx <= maxChunkX; cx++)
+            chunk.GetBounds(TileSize, out float cMinX, out float cMinY, out float cMaxX, out float cMaxY);
+            if (cMaxX < minX || cMinX > maxX || cMaxY < minY || cMinY > maxY)
             {
-                if (!s_chunkWorld.TryGetChunk(cx, cy, out Chunk2D? chunk) || chunk == null)
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                for (int i = 0; i < chunk.Props.Count; i++)
+            for (int i = 0; i < chunk.Props.Count; i++)
+            {
+                MapProp prop = chunk.Props[i];
+                if (prop.WorldPositionX + 24f >= minX && prop.WorldPositionX - 24f <= maxX &&
+                    prop.WorldPositionY + 24f >= minY && prop.WorldPositionY - 24f <= maxY)
                 {
-                    MapProp prop = chunk.Props[i];
-                    if (prop.WorldPositionX + 24f >= minX && prop.WorldPositionX - 24f <= maxX &&
-                        prop.WorldPositionY + 24f >= minY && prop.WorldPositionY - 24f <= maxY)
-                    {
-                        RenderProp(s_geometryBatch, prop);
-                    }
+                    RenderProp(s_geometryBatch, prop);
                 }
             }
         }
@@ -362,7 +364,7 @@ public static class Program
 
             if (entity == s_player)
             {
-                // Player: Glowing cyan circle with white center and outline
+                // Player: Glowing cyan circle with white center
                 s_geometryBatch.FillCircle(trans.Position, col.Radius + 3f, new ColorRgba(56, 189, 248, 120));
                 s_geometryBatch.FillCircle(trans.Position, col.Radius, new ColorRgba(255, 255, 255, 255));
                 s_geometryBatch.FillCircle(trans.Position, col.Radius * 0.5f, new ColorRgba(14, 165, 233, 255));
@@ -377,10 +379,31 @@ public static class Program
 
         s_geometryBatch.End();
 
+        // 4. Automated Screenshot Telemetry (captures frame 60 for analysis)
+        s_frameCount++;
+        if (s_frameCount >= 60 && !s_hasAutoCaptured)
+        {
+            s_hasAutoCaptured = true;
+            CaptureScreen(window);
+        }
+
         GLEnum glError = window.Device.Gl.GetError();
         if (glError != GLEnum.NoError)
         {
             Console.WriteLine($"[OpenGL Error] {glError}");
+        }
+    }
+
+    private static void CaptureScreen(IGameWindow window)
+    {
+        try
+        {
+            ScreenshotHelper.Capture(window.Device.Gl, window.Width, window.Height, s_screenshotPath);
+            Console.WriteLine($"[Screenshot] Da luu anh chup man hinh vao: {s_screenshotPath}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            Console.WriteLine($"[Screenshot Error] {ex.Message}");
         }
     }
 
@@ -393,7 +416,6 @@ public static class Program
         switch (prop.Type)
         {
             case MapPropType.OakTree:
-                // Trunk + full rounded green crown
                 batch.FillRectangle(new RectangleF(pos.X - 3.5f, pos.Y - 2f, 7f, 13f), secondary);
                 batch.FillCircle(new Vector2(pos.X, pos.Y - 8f), prop.Radius, primary);
                 batch.FillCircle(new Vector2(pos.X, pos.Y - 8f), prop.Radius * 0.55f, secondary);
@@ -401,21 +423,18 @@ public static class Program
 
             case MapPropType.PineTree:
             case MapPropType.SnowPine:
-                // Trunk + conical needle layers
                 batch.FillRectangle(new RectangleF(pos.X - 2.5f, pos.Y - 1f, 5f, 11f), new ColorRgba(113, 63, 18));
                 batch.FillCircle(new Vector2(pos.X, pos.Y - 6f), prop.Radius, primary, segments: 16);
                 batch.FillCircle(new Vector2(pos.X, pos.Y - 11f), prop.Radius * 0.65f, secondary, segments: 16);
                 break;
 
             case MapPropType.PalmTree:
-                // Slender curved trunk + tropical palm fronds
                 batch.FillRectangle(new RectangleF(pos.X - 2f, pos.Y - 2f, 4f, 14f), secondary);
                 batch.FillCircle(new Vector2(pos.X, pos.Y - 9f), prop.Radius, primary, segments: 12);
                 batch.FillCircle(new Vector2(pos.X, pos.Y - 9f), prop.Radius * 0.45f, new ColorRgba(255, 255, 255, 80));
                 break;
 
             case MapPropType.Cactus:
-                // Saguaro cactus: central pillar with arms
                 batch.FillRectangle(new RectangleF(pos.X - 3f, pos.Y - 11f, 6f, 22f), primary);
                 batch.FillRectangle(new RectangleF(pos.X - 9f, pos.Y - 7f, 18f, 4f), primary);
                 batch.FillRectangle(new RectangleF(pos.X - 9f, pos.Y - 13f, 4f, 6f), secondary);
@@ -423,59 +442,27 @@ public static class Program
                 break;
 
             case MapPropType.DeadTree:
-                // Gnarled dark trunk and branches
                 batch.FillRectangle(new RectangleF(pos.X - 3f, pos.Y - 10f, 6f, 20f), primary);
                 batch.FillRectangle(new RectangleF(pos.X - 7f, pos.Y - 6f, 14f, 3.5f), secondary);
                 break;
 
             case MapPropType.BasaltPillar:
-                // Hexagonal volcanic basalt column
                 batch.FillCircle(pos, prop.Radius, primary, segments: 6);
                 batch.FillCircle(pos, prop.Radius * 0.65f, secondary, segments: 6);
                 break;
 
             case MapPropType.Boulder:
-                // Natural smoothed rock
                 batch.FillCircle(pos, prop.Radius, primary, segments: 8);
                 batch.FillCircle(new Vector2(pos.X - 2f, pos.Y - 2f), prop.Radius * 0.5f, secondary, segments: 8);
                 break;
 
-            case MapPropType.TownWell:
-                // Central Village Well: stone base + dark water + wooden roof cross beam
-                batch.FillRectangle(new RectangleF(pos.X - 10f, pos.Y - 10f, 20f, 20f), primary);
-                batch.FillRectangle(new RectangleF(pos.X - 6f, pos.Y - 6f, 12f, 12f), new ColorRgba(14, 165, 233));
-                batch.FillRectangle(new RectangleF(pos.X - 11f, pos.Y - 2.5f, 22f, 5f), secondary);
-                break;
-
-            case MapPropType.Campfire:
-                // Warm glowing campfire with stone ring
-                batch.FillCircle(pos, prop.Radius + 6f, new ColorRgba(249, 115, 22, 60));
-                batch.FillCircle(pos, prop.Radius, secondary, segments: 8);
-                batch.FillCircle(pos, prop.Radius * 0.5f, primary);
-                break;
-
-            case MapPropType.CobblestoneRoad:
-                // Paved stone highway tile
-                batch.FillRectangle(new RectangleF(pos.X - 15f, pos.Y - 15f, 30f, 30f), primary);
-                batch.FillRectangle(new RectangleF(pos.X - 13f, pos.Y - 13f, 11f, 11f), secondary);
-                batch.FillRectangle(new RectangleF(pos.X + 2f, pos.Y + 2f, 11f, 11f), secondary);
-                break;
-
-            case MapPropType.WoodenFence:
-                // Rustic wooden fence barrier
-                batch.FillRectangle(new RectangleF(pos.X - 15f, pos.Y - 3f, 30f, 6f), primary);
-                batch.FillRectangle(new RectangleF(pos.X - 4f, pos.Y - 7f, 8f, 14f), secondary);
-                break;
-
             case MapPropType.AncientShrine:
-                // Mysterious purple obelisk with glowing cyan aura
                 batch.FillCircle(pos, prop.Radius + 7f, new ColorRgba(129, 140, 248, 70));
                 batch.FillRectangle(new RectangleF(pos.X - 9f, pos.Y - 13f, 18f, 26f), secondary);
                 batch.FillRectangle(new RectangleF(pos.X - 5f, pos.Y - 9f, 10f, 18f), primary);
                 break;
 
             case MapPropType.WildflowerPatch:
-                // Colorful flowers in meadows
                 batch.FillCircle(new Vector2(pos.X - 4f, pos.Y - 4f), 3.5f, primary);
                 batch.FillCircle(new Vector2(pos.X + 4f, pos.Y + 2f), 3.5f, secondary);
                 batch.FillCircle(new Vector2(pos.X + 1f, pos.Y - 3f), 3f, new ColorRgba(255, 255, 255));
