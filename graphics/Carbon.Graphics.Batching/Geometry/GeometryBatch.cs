@@ -151,6 +151,30 @@ public sealed class GeometryBatch : IDisposable
     }
 
     /// <summary>
+    /// Draws a solid filled triangle.
+    /// </summary>
+    /// <param name="p0">First vertex coordinate.</param>
+    /// <param name="p1">Second vertex coordinate.</param>
+    /// <param name="p2">Third vertex coordinate.</param>
+    /// <param name="color">Fill color.</param>
+    /// <param name="depth">Depth coordinate.</param>
+    public void FillTriangle(Vector2 p0, Vector2 p1, Vector2 p2, ColorRgba color, float depth = 0f)
+    {
+        this.EnsureCapacity(3, 3);
+
+        uint baseIndex = (uint)_vertexCount;
+        uint packedColor = color.PackedValue;
+
+        _vertices[_vertexCount++] = new VertexColor(p0.X, p0.Y, depth, packedColor);
+        _vertices[_vertexCount++] = new VertexColor(p1.X, p1.Y, depth, packedColor);
+        _vertices[_vertexCount++] = new VertexColor(p2.X, p2.Y, depth, packedColor);
+
+        _indices[_indexCount++] = baseIndex;
+        _indices[_indexCount++] = baseIndex + 1;
+        _indices[_indexCount++] = baseIndex + 2;
+    }
+
+    /// <summary>
     /// Draws an outlined circle.
     /// </summary>
     /// <param name="center">Circle center in world space.</param>
