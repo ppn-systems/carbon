@@ -14,10 +14,13 @@ using Carbon.Graphics.Windowing.Abstractions;
 using Carbon.Graphics.Windowing.Configuration;
 using Carbon.Graphics.Windowing.Window;
 using Carbon.Maps.Biomes;
+using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
+using Carbon.Maps.Navigation;
 using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
+using Carbon.Maps.Topography;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.World;
@@ -46,6 +49,8 @@ public static class Program
     private static WorldSimulation? s_world;
     private static Entity s_player = Entity.Null;
     private static BiomeType s_lastPlayerBiome = (BiomeType)255;
+    private static byte s_lastPlayerHeight = 255;
+    private static StructureType s_lastStructureType = StructureType.None;
     private static (int X, int Y) s_lastChunkCoord = (int.MinValue, int.MinValue);
     private static ulong s_currentSeed = 1337UL;
     private static bool s_debugOverlay;
@@ -128,6 +133,9 @@ public static class Program
         // Preload chunks around the natural safe starter spawn
         Vector2 spawnPoint = s_chunkWorld.SpawnWorldPosition;
         s_chunkWorld.UpdateAroundPosition(spawnPoint, chunkRadius: 4, evictionRadius: 8);
+
+        // Construct 2.5D plateau, ramp, and RimWorld starter outpost showcase near spawn
+        s_chunkWorld.BuildStarterTopographyShowcase();
 
         s_world = new WorldSimulation(tickRate: 50, cellSize: TileSize);
 
@@ -224,12 +232,47 @@ public static class Program
             vel.Linear = moveDir * finalSpeed;
         }
 
-        // 7. Report biome & chunk transitions
+        // 7. Report biome, height level, ramp, and chunk transitions
         if (currentTile.Biome != s_lastPlayerBiome)
         {
             s_lastPlayerBiome = currentTile.Biome;
             Console.WriteLine($"[Biome] Buoc vao quan xa: {currentTile.Biome,-16} (Toc do di chuyen: {currentTile.MoveSpeedMultiplier * 100:F0}%)");
         }
+
+        if (currentTile.HeightLevel != s_lastPlayerHeight)
+        {
+            s_lastPlayerHeight = currentTile.HeightLevel;
+            string altName = currentTile.HeightLevel switch
+            {
+                0 => "Lowland (Vung thap)",
+                1 => "Plateau (Cao nguyen / Doi)",
+                2 => "Mountain Peak (Dinh nui)",
+                _ => $"Level {currentTile.HeightLevel}"
+            };
+            Console.WriteLine($"[Topography] Tang cao do: {altName}");
+        }
+
+        TileWalkability walkability = s_chunkWorld.NavGrid.GetWalkability(ptx, pty);
+        RampDirection currentRamp = s_chunkWorld.NavGrid.GetRamp(ptx, pty);
+
+        if (s_chunkWorld.Buildings.TryGetStructure(ptx, pty, out StructureTile currentStructure))
+        {
+            if (currentStructure.Type != s_lastStructureType)
+            {
+                s_lastStructureType = currentStructure.Type;
+                bool isRoofed = s_chunkWorld.Buildings.IsRoofedAt(ptx, pty);
+                Console.WriteLine($"[Structure] Buoc vao kien truc: {currentStructure.Type} | Mai che: {isRoofed}");
+            }
+        }
+        else if (s_lastStructureType != StructureType.None)
+        {
+            s_lastStructureType = StructureType.None;
+        }
+
+        // Real-time title bar HUD telemetry
+        string rampText = currentRamp != RampDirection.None ? $" [Ramp: {currentRamp}]" : string.Empty;
+        string roofText = s_chunkWorld.Buildings.IsRoofedAt(ptx, pty) ? " [Roofed Room]" : string.Empty;
+        window.Title = $"Carbon MMORPG | Biome: {currentTile.Biome} | Alt: Lvl {currentTile.HeightLevel} | Nav: {walkability}{rampText}{roofText}";
 
         int currentChunkX = Chunk2D.ToChunkCoord(ptx);
         int currentChunkY = Chunk2D.ToChunkCoord(pty);

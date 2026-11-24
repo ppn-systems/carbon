@@ -60,6 +60,11 @@ public interface IBuildingGrid : IReadOnlyBuildingGrid
         out StructureTile placedStructure);
 
     /// <summary>
+    /// Force-places a structure directly onto the grid without foundation validation (e.g. procedural generation / blueprints).
+    /// </summary>
+    void ForcePlaceStructure(int worldTileX, int worldTileY, StructureType structureType);
+
+    /// <summary>
     /// Removes or demolishes the structure at the specified tile, updating neighbor connectivity.
     /// </summary>
     bool TryDemolishStructure(int worldTileX, int worldTileY);

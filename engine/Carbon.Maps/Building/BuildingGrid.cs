@@ -94,6 +94,21 @@ public sealed class BuildingGrid : IBuildingGrid
     }
 
     /// <inheritdoc/>
+    public void ForcePlaceStructure(int worldTileX, int worldTileY, StructureType structureType)
+    {
+        StructureTile blueprint = CreateBlueprint(structureType);
+
+        if (WallAutotiler.CanConnectToWall(blueprint.Category))
+        {
+            WallConnectivityMask mask = WallAutotiler.ComputeConnectivity(worldTileX, worldTileY, this.IsConnectableAt);
+            blueprint = blueprint.WithConnectivity(mask);
+        }
+
+        _structures[(worldTileX, worldTileY)] = blueprint;
+        this.UpdateNeighborConnectivity(worldTileX, worldTileY);
+    }
+
+    /// <inheritdoc/>
     public bool TryDemolishStructure(int worldTileX, int worldTileY)
     {
         if (_structures.TryRemove((worldTileX, worldTileY), out _))
