@@ -250,16 +250,18 @@ public sealed class ChunkWorld2D
             }
         }
 
-        // 3. Register Walkable Ramps connecting the lowland to the plateau
-        // West ramp: direct path facing the player spawn
+        // 3. Register Walkable Grand Ramps (Double-wide 64px mountain highway passes)
+        // West Grand Ramp: direct 2-tile wide path facing the player spawn
         _navGrid.SetRamp(sx + 6, sy + 3, RampDirection.West);
+        _navGrid.SetRamp(sx + 6, sy + 4, RampDirection.West);
 
-        // South ramp: scenic pathway along the southern rock cliff
+        // South Grand Staircase: scenic 2-tile wide stone stairway along the southern rock cliff
         _navGrid.SetRamp(sx + 10, sy + 10, RampDirection.South);
+        _navGrid.SetRamp(sx + 11, sy + 10, RampDirection.South);
 
         // 4. Construct a RimWorld starter outpost atop the plateau (5x5 stone shelter)
         int houseX = sx + 9;
-        int houseY = sy + 3;
+        int houseY = sy + 4;
         int houseW = 5;
         int houseH = 5;
 

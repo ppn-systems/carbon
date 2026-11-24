@@ -14,38 +14,38 @@ public readonly record struct BiomeProperties(
 {
     private static readonly BiomeProperties[] s_table =
     [
-        // DeepOcean: Impassable rich sapphire oceanic navy (0x075985FF)
-        new(BiomeType.DeepOcean, IsSolid: true, MoveSpeedMultiplier: 0.0f, ColorRgba: 0x075985FF),
+        // DeepOcean: Deep sapphire navy (0x0D3B66FF)
+        new(BiomeType.DeepOcean, IsSolid: true, MoveSpeedMultiplier: 0.0f, ColorRgba: 0x0D3B66FF),
 
-        // ShallowWater: Walkable light cyan (0x38bdf8FF)
-        new(BiomeType.ShallowWater, IsSolid: false, MoveSpeedMultiplier: 0.7f, ColorRgba: 0x38BDF8FF),
+        // ShallowWater: Vibrant turquoise coastal / river water (0x2BA8D6FF)
+        new(BiomeType.ShallowWater, IsSolid: false, MoveSpeedMultiplier: 0.7f, ColorRgba: 0x2BA8D6FF),
 
-        // BeachSand: Golden sand (0xfef08aFF)
-        new(BiomeType.BeachSand, IsSolid: false, MoveSpeedMultiplier: 0.9f, ColorRgba: 0xFEF08AFF),
+        // BeachSand: Soft natural warm beach sand (0xE4CE9FFF)
+        new(BiomeType.BeachSand, IsSolid: false, MoveSpeedMultiplier: 0.9f, ColorRgba: 0xE4CE9FFF),
 
-        // LushPlains: Vibrant green (0x22c55eFF)
-        new(BiomeType.LushPlains, IsSolid: false, MoveSpeedMultiplier: 1.0f, ColorRgba: 0x22C55EFF),
+        // LushPlains: Rich natural meadow green (0x3D7A46FF)
+        new(BiomeType.LushPlains, IsSolid: false, MoveSpeedMultiplier: 1.0f, ColorRgba: 0x3D7A46FF),
 
-        // AncientForest: Deep moss green (0x15803dFF)
-        new(BiomeType.AncientForest, IsSolid: false, MoveSpeedMultiplier: 0.95f, ColorRgba: 0x15803DFF),
+        // AncientForest: Deep conifer moss green (0x244B30FF)
+        new(BiomeType.AncientForest, IsSolid: false, MoveSpeedMultiplier: 0.95f, ColorRgba: 0x244B30FF),
 
-        // MistySwamp: Murky slate olive (0x334155FF)
-        new(BiomeType.MistySwamp, IsSolid: false, MoveSpeedMultiplier: 0.6f, ColorRgba: 0x334155FF),
+        // MistySwamp: Murky slate olive (0x3E4A3EFF)
+        new(BiomeType.MistySwamp, IsSolid: false, MoveSpeedMultiplier: 0.6f, ColorRgba: 0x3E4A3EFF),
 
-        // DuneDesert: Warm orange sand (0xea580cFF)
-        new(BiomeType.DuneDesert, IsSolid: false, MoveSpeedMultiplier: 0.85f, ColorRgba: 0xEA580CFF),
+        // DuneDesert: Warm golden desert sandstone (0xD49B6AFF)
+        new(BiomeType.DuneDesert, IsSolid: false, MoveSpeedMultiplier: 0.85f, ColorRgba: 0xD49B6AFF),
 
-        // RedMesa: Deep crimson canyon (0x991b1bFF)
-        new(BiomeType.RedMesa, IsSolid: false, MoveSpeedMultiplier: 0.9f, ColorRgba: 0x991B1BFF),
+        // RedMesa: Warm terracotta canyon clay (0xA4503EFF)
+        new(BiomeType.RedMesa, IsSolid: false, MoveSpeedMultiplier: 0.9f, ColorRgba: 0xA4503EFF),
 
-        // TropicalJungle: Rich emerald (0x047857FF)
-        new(BiomeType.TropicalJungle, IsSolid: false, MoveSpeedMultiplier: 0.8f, ColorRgba: 0x047857FF),
+        // TropicalJungle: Rich dense rainforest emerald (0x1E5936FF)
+        new(BiomeType.TropicalJungle, IsSolid: false, MoveSpeedMultiplier: 0.8f, ColorRgba: 0x1E5936FF),
 
-        // FrozenTundra: Glacial white-blue (0xe0f2feFF)
-        new(BiomeType.FrozenTundra, IsSolid: false, MoveSpeedMultiplier: 1.15f, ColorRgba: 0xE0F2FEFF),
+        // FrozenTundra: Glacial frost pale cyan-white (0xCFE4F0FF)
+        new(BiomeType.FrozenTundra, IsSolid: false, MoveSpeedMultiplier: 1.15f, ColorRgba: 0xCFE4F0FF),
 
-        // VolcanicAshland: Impassable dark obsidian basalt (0x18181bFF)
-        new(BiomeType.VolcanicAshland, IsSolid: true, MoveSpeedMultiplier: 0.0f, ColorRgba: 0x18181BFF)
+        // VolcanicAshland: Dark obsidian charcoal basalt (0x2B292EFF)
+        new(BiomeType.VolcanicAshland, IsSolid: true, MoveSpeedMultiplier: 0.0f, ColorRgba: 0x2B292EFF)
     ];
 
     /// <summary>

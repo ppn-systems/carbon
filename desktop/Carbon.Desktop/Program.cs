@@ -754,23 +754,23 @@ public static class Program
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public GroundRenderItem(float sortY, in MapProp prop)
         {
-            this.SortY = sortY;
-            this.IsProp = true;
-            this.Prop = prop;
-            this.Entity = Entity.Null;
+            SortY = sortY;
+            IsProp = true;
+            Prop = prop;
+            Entity = Entity.Null;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public GroundRenderItem(float sortY, Entity entity)
         {
-            this.SortY = sortY;
-            this.IsProp = false;
-            this.Prop = default;
-            this.Entity = entity;
+            SortY = sortY;
+            IsProp = false;
+            Prop = default;
+            Entity = entity;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int CompareTo(GroundRenderItem other) => this.SortY.CompareTo(other.SortY);
+        public int CompareTo(GroundRenderItem other) => SortY.CompareTo(other.SortY);
     }
 
     private readonly struct CanopyRenderItem : IComparable<CanopyRenderItem>
@@ -781,11 +781,11 @@ public static class Program
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public CanopyRenderItem(float sortY, in MapProp prop)
         {
-            this.SortY = sortY;
-            this.Prop = prop;
+            SortY = sortY;
+            Prop = prop;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int CompareTo(CanopyRenderItem other) => this.SortY.CompareTo(other.SortY);
+        public int CompareTo(CanopyRenderItem other) => SortY.CompareTo(other.SortY);
     }
 }

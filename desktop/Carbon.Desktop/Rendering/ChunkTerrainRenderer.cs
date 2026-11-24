@@ -231,7 +231,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
                 BakeTileBuildings(_builder, wtx, wty, tileWorldX, tileWorldY, world, tileSize);
 
                 // Organic surface micro-details
-                BakeTileMicroDetails(_builder, tileWorldX, tileWorldY, in tile);
+                BakeTileMicroDetails(_builder, wtx, wty, tileWorldX, tileWorldY, in tile);
             }
         }
 
@@ -256,8 +256,8 @@ public sealed class ChunkTerrainRenderer : IDisposable
         const float b = 10f;
         const float innerB = 6f;
 
-        ColorRgba deepOceanColor = new(7, 89, 133, 255);
-        ColorRgba shallowWaterColor = new(56, 189, 248, 255);
+        ColorRgba deepOceanColor = HexToColor(BiomeProperties.Get(BiomeType.DeepOcean).ColorRgba);
+        ColorRgba shallowWaterColor = HexToColor(BiomeProperties.Get(BiomeType.ShallowWater).ColorRgba);
 
         if (tile.Biome == BiomeType.ShallowWater)
         {
@@ -483,36 +483,88 @@ public sealed class ChunkTerrainRenderer : IDisposable
         }
 
         float s = tileSize;
-        ColorRgba rampBase = new(170, 145, 110, 255);
-        ColorRgba rampBorder = new(92, 75, 55, 255);
-        ColorRgba rampTread = new(125, 105, 80, 230);
-        ColorRgba rampHighlight = new(210, 190, 155, 180);
 
-        if (ramp is RampDirection.North or RampDirection.South)
+        // Rich Timber Mountain Incline Palette
+        ColorRgba rampRoadbed = new(155, 125, 90, 255);        // Sturdy weathered wood roadbed
+        ColorRgba balustradeWood = new(82, 60, 42, 255);       // Heavy side timber balustrades
+        ColorRgba balustradeRail = new(195, 160, 120, 255);    // Sunlit top handrail
+        ColorRgba stepPlankFace = new(175, 145, 105, 255);     // Heavy timber tread
+        ColorRgba stepPlankShadow = new(65, 48, 34, 255);      // Step riser shadow
+        ColorRgba stepPlankHighlight = new(225, 195, 150, 255); // Step lip highlight
+        ColorRgba lanternPost = new(60, 48, 38, 255);          // Carved entrance marker post
+        ColorRgba lanternGlow = new(251, 191, 36, 255);        // Warm glowing amber lantern
+
+        if (ramp is RampDirection.West or RampDirection.East)
         {
-            builder.AddRectangle(new RectangleF(x + 2f, y, s - 4f, s), rampBase);
-            builder.AddRectangle(new RectangleF(x, y, 2.5f, s), rampBorder);
-            builder.AddRectangle(new RectangleF(x + s - 2.5f, y, 2.5f, s), rampBorder);
+            // Horizontal Grand Mountain Pass (Player moves West <-> East)
+            const float apronReach = 10f;
+            float roadX = ramp == RampDirection.West ? x - apronReach : x;
+            float roadW = s + apronReach;
 
-            for (int i = 0; i < 4; i++)
+            // Roadbed surface
+            builder.AddRectangle(new RectangleF(roadX, y + 2f, roadW, s - 4f), rampRoadbed);
+
+            // Ground shadow underneath ramp edge
+            builder.AddRectangle(new RectangleF(roadX, y + s - 2f, roadW, 4f), new ColorRgba(0, 0, 0, 75));
+
+            // Heavy Side Balustrades / Retaining Walls
+            builder.AddRectangle(new RectangleF(roadX - 2f, y, roadW + 4f, 4f), balustradeWood);
+            builder.AddRectangle(new RectangleF(roadX - 2f, y, roadW + 4f, 1.5f), balustradeRail);
+
+            builder.AddRectangle(new RectangleF(roadX - 2f, y + s - 4f, roadW + 4f, 4f), balustradeWood);
+            builder.AddRectangle(new RectangleF(roadX - 2f, y + s - 4f, roadW + 4f, 1.5f), balustradeRail);
+
+            // 5 Stately Timber Step Planks across the incline
+            float stepSpacing = roadW / 5f;
+            for (int i = 0; i < 5; i++)
             {
-                float treadY = y + 4f + (i * 7f);
-                builder.AddRectangle(new RectangleF(x + 3f, treadY, s - 6f, 2.5f), rampTread);
-                builder.AddRectangle(new RectangleF(x + 3f, treadY, s - 6f, 1f), rampHighlight);
+                float plankX = roadX + (i * stepSpacing) + 2f;
+                builder.AddRectangle(new RectangleF(plankX, y + 4f, 1.5f, s - 8f), stepPlankShadow);
+                builder.AddRectangle(new RectangleF(plankX + 1.5f, y + 4f, 3.5f, s - 8f), stepPlankFace);
+                builder.AddRectangle(new RectangleF(plankX + 5f, y + 4f, 1f, s - 8f), stepPlankHighlight);
             }
+
+            // Twin Entrance Trail Marker Posts with Glowing Lanterns at the foot of the ramp
+            float postX = ramp == RampDirection.West ? roadX - 3f : roadX + roadW - 2f;
+            builder.AddRectangle(new RectangleF(postX, y - 2f, 5f, 6f), lanternPost);
+            builder.AddRectangle(new RectangleF(postX + 1f, y - 1f, 3f, 3f), lanternGlow);
+
+            builder.AddRectangle(new RectangleF(postX, y + s - 4f, 5f, 6f), lanternPost);
+            builder.AddRectangle(new RectangleF(postX + 1f, y + s - 3f, 3f, 3f), lanternGlow);
         }
         else
         {
-            builder.AddRectangle(new RectangleF(x, y + 2f, s, s - 4f), rampBase);
-            builder.AddRectangle(new RectangleF(x, y, s, 2.5f), rampBorder);
-            builder.AddRectangle(new RectangleF(x, y + s - 2.5f, s, 2.5f), rampBorder);
+            // Vertical Grand Mountain Staircase (Player moves North <-> South)
+            const float apronReach = 10f;
+            float roadY = ramp == RampDirection.South ? y : y - apronReach;
+            float roadH = s + apronReach;
 
-            for (int i = 0; i < 4; i++)
+            builder.AddRectangle(new RectangleF(x + 2f, roadY, s - 4f, roadH), rampRoadbed);
+            builder.AddRectangle(new RectangleF(x + s - 2f, roadY, 4f, roadH), new ColorRgba(0, 0, 0, 75));
+
+            builder.AddRectangle(new RectangleF(x, roadY - 2f, 4f, roadH + 4f), balustradeWood);
+            builder.AddRectangle(new RectangleF(x, roadY - 2f, 1.5f, roadH + 4f), balustradeRail);
+
+            builder.AddRectangle(new RectangleF(x + s - 4f, roadY - 2f, 4f, roadH + 4f), balustradeWood);
+            builder.AddRectangle(new RectangleF(x + s - 4f, roadY - 2f, 1.5f, roadH + 4f), balustradeRail);
+
+            // 5 Stately Horizontal Steps
+            float stepSpacing = roadH / 5f;
+            for (int i = 0; i < 5; i++)
             {
-                float treadX = x + 4f + (i * 7f);
-                builder.AddRectangle(new RectangleF(treadX, y + 3f, 2.5f, s - 6f), rampTread);
-                builder.AddRectangle(new RectangleF(treadX, y + 3f, 1f, s - 6f), rampHighlight);
+                float plankY = roadY + (i * stepSpacing) + 2f;
+                builder.AddRectangle(new RectangleF(x + 4f, plankY + 3.5f, s - 8f, 2f), stepPlankShadow);
+                builder.AddRectangle(new RectangleF(x + 4f, plankY, s - 8f, 3.5f), stepPlankFace);
+                builder.AddRectangle(new RectangleF(x + 4f, plankY, s - 8f, 1f), stepPlankHighlight);
             }
+
+            // Twin Entrance Posts at the foot
+            float postY = ramp == RampDirection.South ? roadY + roadH - 2f : roadY - 3f;
+            builder.AddRectangle(new RectangleF(x - 2f, postY, 6f, 5f), lanternPost);
+            builder.AddRectangle(new RectangleF(x - 1f, postY + 1f, 3f, 3f), lanternGlow);
+
+            builder.AddRectangle(new RectangleF(x + s - 4f, postY, 6f, 5f), lanternPost);
+            builder.AddRectangle(new RectangleF(x + s - 3f, postY + 1f, 3f, 3f), lanternGlow);
         }
     }
 
@@ -595,39 +647,148 @@ public sealed class ChunkTerrainRenderer : IDisposable
         }
     }
 
-    private static void BakeTileMicroDetails(ChunkMeshBuilder builder, float x, float y, in MapTile tile)
+    private static void BakeTileMicroDetails(
+        ChunkMeshBuilder builder,
+        int wtx,
+        int wty,
+        float x,
+        float y,
+        in MapTile tile)
     {
-        if (tile.Biome == BiomeType.DeepOcean)
+        uint hash = (uint)((wtx * 374761393) ^ (wty * 668265263));
+
+        switch (tile.Biome)
         {
-            if (tile.Variant == 1)
-            {
-                builder.AddRectangle(new RectangleF(x + 6f, y + 12f, 18f, 2f), new ColorRgba(56, 189, 248, 55));
-                builder.AddRectangle(new RectangleF(x + 18f, y + 14f, 6f, 1.5f), new ColorRgba(14, 165, 233, 45));
-            }
-            else if (tile.Variant == 2)
-            {
-                builder.AddRectangle(new RectangleF(x + 8f, y + 20f, 16f, 2f), new ColorRgba(56, 189, 248, 45));
-            }
-        }
-        else if (tile.Biome == BiomeType.ShallowWater)
-        {
-            if (tile.Variant == 1)
-            {
-                builder.AddRectangle(new RectangleF(x + 5f, y + 10f, 18f, 2f), new ColorRgba(255, 255, 255, 80));
-                builder.AddRectangle(new RectangleF(x + 16f, y + 12f, 8f, 1.5f), new ColorRgba(255, 255, 255, 60));
-            }
-            else if (tile.Variant == 2)
-            {
-                builder.AddRectangle(new RectangleF(x + 9f, y + 18f, 15f, 2f), new ColorRgba(255, 255, 255, 70));
-            }
-        }
-        else if (tile.Biome is BiomeType.LushPlains or BiomeType.AncientForest)
-        {
-            if (tile.Variant == 2)
-            {
-                builder.AddRectangle(new RectangleF(x + 8f, y + 14f, 2f, 4f), new ColorRgba(74, 222, 128, 110));
-                builder.AddRectangle(new RectangleF(x + 11f, y + 12f, 2f, 6f), new ColorRgba(74, 222, 128, 130));
-            }
+            case BiomeType.LushPlains:
+            case BiomeType.AncientForest:
+            case BiomeType.TropicalJungle:
+                {
+                    // 1. Natural 3D Grass Tufts with sunlit blade tips
+                    uint tuftType = hash & 3;
+                    ColorRgba grassBladeDark = new(35, 78, 42, 200);
+                    ColorRgba grassBladeLight = new(92, 179, 102, 220);
+
+                    if (tuftType == 1)
+                    {
+                        builder.AddRectangle(new RectangleF(x + 6f, y + 10f, 2f, 5f), grassBladeDark);
+                        builder.AddRectangle(new RectangleF(x + 7f, y + 8f, 2f, 7f), grassBladeLight);
+                        builder.AddRectangle(new RectangleF(x + 9f, y + 11f, 2f, 4f), grassBladeDark);
+                    }
+                    else if (tuftType == 2)
+                    {
+                        builder.AddRectangle(new RectangleF(x + 18f, y + 16f, 2f, 6f), grassBladeLight);
+                        builder.AddRectangle(new RectangleF(x + 20f, y + 18f, 2f, 4f), grassBladeDark);
+                    }
+                    else if (tuftType == 3)
+                    {
+                        builder.AddRectangle(new RectangleF(x + 12f, y + 22f, 2f, 5f), grassBladeLight);
+                    }
+
+                    // 2. Vibrant Wildflowers on select meadow tiles
+                    uint flowerSlot = (hash >> 4) & 15;
+                    if (flowerSlot == 1)
+                    {
+                        // Golden Dandelion cluster
+                        builder.AddRectangle(new RectangleF(x + 14f, y + 12f, 3f, 3f), new ColorRgba(250, 204, 21, 245));
+                        builder.AddRectangle(new RectangleF(x + 17f, y + 15f, 2.5f, 2.5f), new ColorRgba(245, 158, 11, 240));
+                        builder.AddRectangle(new RectangleF(x + 15f, y + 13f, 1f, 1f), new ColorRgba(255, 255, 255, 255));
+                    }
+                    else if (flowerSlot == 2)
+                    {
+                        // Mountain Daisies (White with yellow center)
+                        builder.AddRectangle(new RectangleF(x + 8f, y + 20f, 3f, 3f), new ColorRgba(255, 255, 255, 245));
+                        builder.AddRectangle(new RectangleF(x + 9f, y + 21f, 1.2f, 1.2f), new ColorRgba(234, 179, 8, 255));
+                        builder.AddRectangle(new RectangleF(x + 22f, y + 9f, 2.5f, 2.5f), new ColorRgba(255, 255, 255, 245));
+                    }
+                    else if (flowerSlot == 3)
+                    {
+                        // Wild Lavender (Violet-purple)
+                        builder.AddRectangle(new RectangleF(x + 20f, y + 18f, 2.5f, 4f), new ColorRgba(168, 85, 247, 230));
+                        builder.AddRectangle(new RectangleF(x + 23f, y + 16f, 2f, 3.5f), new ColorRgba(192, 132, 252, 230));
+                    }
+                    else if (flowerSlot == 4)
+                    {
+                        // Forest pebble / soil speckle
+                        builder.AddRectangle(new RectangleF(x + 11f, y + 15f, 3f, 2f), new ColorRgba(60, 48, 36, 140));
+                    }
+                    break;
+                }
+
+            case BiomeType.BeachSand:
+            case BiomeType.DuneDesert:
+                {
+                    uint sandPattern = hash & 3;
+                    if (sandPattern == 1)
+                    {
+                        builder.AddRectangle(new RectangleF(x + 4f, y + 10f, 14f, 1.5f), new ColorRgba(245, 230, 190, 120));
+                        builder.AddRectangle(new RectangleF(x + 4f, y + 11.5f, 14f, 1f), new ColorRgba(180, 140, 95, 80));
+                    }
+                    else if (sandPattern == 2)
+                    {
+                        builder.AddRectangle(new RectangleF(x + 18f, y + 18f, 3f, 2f), new ColorRgba(160, 120, 85, 180));
+                        builder.AddRectangle(new RectangleF(x + 18f, y + 20f, 3f, 1f), new ColorRgba(0, 0, 0, 50));
+                    }
+                    break;
+                }
+
+            case BiomeType.ShallowWater:
+                {
+                    uint wavePattern = hash & 3;
+                    if (wavePattern == 1)
+                    {
+                        builder.AddRectangle(new RectangleF(x + 4f, y + 8f, 16f, 1.5f), new ColorRgba(255, 255, 255, 95));
+                        builder.AddRectangle(new RectangleF(x + 14f, y + 10f, 8f, 1.2f), new ColorRgba(255, 255, 255, 75));
+                    }
+                    else if (wavePattern == 2)
+                    {
+                        builder.AddRectangle(new RectangleF(x + 12f, y + 18f, 12f, 1.5f), new ColorRgba(255, 255, 255, 85));
+                    }
+                    break;
+                }
+
+            case BiomeType.DeepOcean:
+                {
+                    uint oceanPattern = hash & 3;
+                    if (oceanPattern == 1)
+                    {
+                        builder.AddRectangle(new RectangleF(x + 6f, y + 14f, 18f, 2f), new ColorRgba(30, 85, 145, 90));
+                    }
+                    break;
+                }
+
+            case BiomeType.RedMesa:
+                {
+                    uint rockPattern = hash & 3;
+                    if (rockPattern == 1)
+                    {
+                        builder.AddRectangle(new RectangleF(x + 5f, y + 12f, 12f, 2f), new ColorRgba(135, 55, 40, 160));
+                    }
+                    break;
+                }
+
+            case BiomeType.FrozenTundra:
+                {
+                    uint frostPattern = hash & 3;
+                    if (frostPattern == 1)
+                    {
+                        builder.AddRectangle(new RectangleF(x + 8f, y + 14f, 10f, 1.5f), new ColorRgba(255, 255, 255, 150));
+                    }
+                    break;
+                }
+
+            case BiomeType.MistySwamp:
+                {
+                    uint swampPattern = hash & 3;
+                    if (swampPattern == 1)
+                    {
+                        builder.AddRectangle(new RectangleF(x + 6f, y + 16f, 10f, 3f), new ColorRgba(45, 60, 45, 180));
+                    }
+                    break;
+                }
+
+            case BiomeType.VolcanicAshland:
+            default:
+                break;
         }
     }
 
