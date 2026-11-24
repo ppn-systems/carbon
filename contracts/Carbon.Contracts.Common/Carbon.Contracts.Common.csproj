@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <RootNamespace>Carbon.Contracts.Common</RootNamespace>
+        <AssemblyName>Carbon.Contracts.Common</AssemblyName>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Nalix packet serialization + base classes. Both references are required in EVERY contracts
+             project: the [Packet]/[GenerateFormatter] source generator ships as an analyzer inside
+             Nalix.Abstractions and does not flow through a ProjectReference. -->
+        <PackageReference Include="Nalix.Abstractions" />
+        <PackageReference Include="Nalix.Codec" />
+    </ItemGroup>
+
+</Project>

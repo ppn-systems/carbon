@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\contracts\Carbon.Contracts.Common\Carbon.Contracts.Common.csproj" />
+        <ProjectReference Include="..\..\..\contracts\Carbon.Contracts.Maps\Carbon.Contracts.Maps.csproj" />
+    </ItemGroup>
+</Project>

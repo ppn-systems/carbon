@@ -18,6 +18,13 @@ namespace Carbon.Maps.Generators;
 public sealed class ProceduralWorldGenerator
 {
     /// <summary>
+    /// Version of the generation algorithm, sent to clients in <c>MapWorldInfo.GeneratorVersion</c>.
+    /// Bump it whenever any change alters generated output (the golden-hash test fails), so a client running
+    /// a different generator refuses to play instead of silently desyncing.
+    /// </summary>
+    public const ushort GeneratorVersion = 2;
+
+    /// <summary>
     /// Default macro-scale spatial frequency producing expansive continental biomes (wavelength ~1250 tiles).
     /// </summary>
     public const float DefaultFrequency = 0.0008f;
