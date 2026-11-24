@@ -75,13 +75,32 @@ public static class BiomePropResolver
         float worldY = (worldTileY * tileSize) + offsetY;
         float scaleVar = rng.NextFloat(0.92f, 1.18f);
 
-        // 1. Geological Mineral Vein System (Clustered Mining Hotspots):
-        // Over 85% of the terrain has ZERO ores or rocks, leaving exploration landscapes clean, open, and beautiful.
-        // Highland plateaus/peaks (elevation >= 0.54f) and mining biomes (RedMesa, VolcanicAshland) have richer vein seams.
-        float veinThreshold = elevation >= 0.54f ? 0.68f : 0.76f;
-        if (biome is BiomeType.RedMesa or BiomeType.VolcanicAshland)
+        // 1. Macro Geological Mineral Vein System (Rare, Localized Mining Deposits):
+        // Over 96% of the landscape has ZERO ores or rocks, keeping meadows and forests clean and peaceful.
+        // Mineral veins are concentrated primarily in rocky highlands, mountain peaks, and arid canyonlands.
+        float veinThreshold = biome switch
         {
-            veinThreshold -= 0.06f;
+            BiomeType.DeepOcean or BiomeType.ShallowWater => 1.0f,
+            BiomeType.BeachSand => 0.92f,
+            BiomeType.RedMesa => 0.74f,
+            BiomeType.VolcanicAshland => 0.72f,
+            BiomeType.AlpinePeaks => 0.75f,
+            BiomeType.FrozenTundra => 0.82f,
+            BiomeType.DuneDesert => 0.84f,
+            BiomeType.Savanna => 0.85f,
+            BiomeType.AncientForest => 0.86f,
+            BiomeType.TropicalJungle or BiomeType.MistySwamp => 0.88f,
+            BiomeType.LushPlains or BiomeType.BlossomWoods => 0.91f,
+            _ => 0.91f
+        };
+
+        if (elevation >= 0.70f)
+        {
+            veinThreshold -= 0.04f;
+        }
+        else if (elevation >= 0.54f)
+        {
+            veinThreshold -= 0.02f;
         }
 
         bool isInActiveVein = !isNearWater && (mineralNoise >= veinThreshold);
@@ -89,9 +108,9 @@ public static class BiomePropResolver
 
         if (isInActiveVein)
         {
-            // Inside an active geological hotspot (diameter ~3-5 tiles), multiple ore nodes cluster tightly together
+            // Inside an active geological hotspot, only a few tiles form compact ore clusters
             uint veinHash = (uint)((worldTileX * 374761393) ^ (worldTileY * 668265263) ^ (int)seed);
-            isVeinNode = (veinHash % 3) == 0;
+            isVeinNode = (veinHash % 6) == 0;
         }
 
         // 2. Rare Ancient Shrines (Mystical landmarks in secluded high-density groves, ~1 in 200 tiles)
@@ -120,14 +139,19 @@ public static class BiomePropResolver
                 // Gentle, airy meadows: vast open grassy clearings (foliage < 0.48), light woodland fringes, and clustered copses
                 if (isVeinNode)
                 {
-                    if (roll < 0.65f)
+                    if (roll < 0.40f)
                     {
                         prop = MapProp.Create(MapPropType.CopperVein, localX, localY, worldX, worldY, radius: 21f * scaleVar, isSolid: true, 0x78350FFF, 0x2DD4BFFF, scaleVar);
                         return true;
                     }
 
-                    prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0x64748BFF, 0x334155FF, scaleVar);
-                    return true;
+                    if (roll < 0.65f)
+                    {
+                        prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0x64748BFF, 0x334155FF, scaleVar);
+                        return true;
+                    }
+
+                    return false;
                 }
 
                 if (isTreeSlot)
@@ -176,20 +200,25 @@ public static class BiomePropResolver
                 // Towering woodland with sunlit glades (foliage < 0.36), airy deciduous woods, and deep ancient groves
                 if (isVeinNode)
                 {
-                    if (roll < 0.45f)
+                    if (roll < 0.35f)
                     {
                         prop = MapProp.Create(MapPropType.CoalDeposit, localX, localY, worldX, worldY, radius: 21f * scaleVar, isSolid: true, 0x18181BFF, 0x3F3F46FF, scaleVar);
                         return true;
                     }
 
-                    if (roll < 0.80f)
+                    if (roll < 0.65f)
                     {
                         prop = MapProp.Create(MapPropType.IronVein, localX, localY, worldX, worldY, radius: 21f * scaleVar, isSolid: true, 0x334155FF, 0xEA580CFF, scaleVar);
                         return true;
                     }
 
-                    prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0x475569FF, 0x15803DFF, scaleVar);
-                    return true;
+                    if (roll < 0.80f)
+                    {
+                        prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0x475569FF, 0x15803DFF, scaleVar);
+                        return true;
+                    }
+
+                    return false;
                 }
 
                 if (isTreeSlot)
@@ -259,20 +288,25 @@ public static class BiomePropResolver
                 // Windswept snow plains with rare conifer pockets and clustered silver/crystal seams
                 if (isVeinNode)
                 {
-                    if (roll < 0.45f)
+                    if (roll < 0.35f)
                     {
                         prop = MapProp.Create(MapPropType.SilverVein, localX, localY, worldX, worldY, radius: 21f * scaleVar, isSolid: true, 0x475569FF, 0xF1F5F9FF, scaleVar);
                         return true;
                     }
 
-                    if (roll < 0.80f)
+                    if (roll < 0.65f)
                     {
                         prop = MapProp.Create(MapPropType.CrystalCluster, localX, localY, worldX, worldY, radius: 22f * scaleVar, isSolid: true, 0x0284C7FF, 0x38BDF8FF, scaleVar);
                         return true;
                     }
 
-                    prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0x94A3B8FF, 0x38BDF8FF, scaleVar);
-                    return true;
+                    if (roll < 0.80f)
+                    {
+                        prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0x94A3B8FF, 0x38BDF8FF, scaleVar);
+                        return true;
+                    }
+
+                    return false;
                 }
 
                 if (isTreeSlot && foliageDensity >= 0.65f && roll < 0.32f)
@@ -287,14 +321,19 @@ public static class BiomePropResolver
                 // Expansive rolling dunes, occasional saguaro clusters and hidden gold seams
                 if (isVeinNode)
                 {
-                    if (roll < 0.45f)
+                    if (roll < 0.35f)
                     {
                         prop = MapProp.Create(MapPropType.GoldVein, localX, localY, worldX, worldY, radius: 21f * scaleVar, isSolid: true, 0x1E293BFF, 0xFACC15FF, scaleVar);
                         return true;
                     }
 
-                    prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0xB45309FF, 0x78350FFF, scaleVar);
-                    return true;
+                    if (roll < 0.65f)
+                    {
+                        prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0xB45309FF, 0x78350FFF, scaleVar);
+                        return true;
+                    }
+
+                    return false;
                 }
 
                 if (foliageDensity >= 0.68f)
@@ -334,14 +373,19 @@ public static class BiomePropResolver
                 // Murky wetlands: weeping willows, dead cypress, and rich bog iron seams
                 if (isVeinNode)
                 {
-                    if (roll < 0.65f)
+                    if (roll < 0.45f)
                     {
                         prop = MapProp.Create(MapPropType.IronVein, localX, localY, worldX, worldY, radius: 21f * scaleVar, isSolid: true, 0x334155FF, 0xEA580CFF, scaleVar);
                         return true;
                     }
 
-                    prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 19f * scaleVar, isSolid: true, 0x334155FF, 0x1E293BFF, scaleVar);
-                    return true;
+                    if (roll < 0.70f)
+                    {
+                        prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 19f * scaleVar, isSolid: true, 0x334155FF, 0x1E293BFF, scaleVar);
+                        return true;
+                    }
+
+                    return false;
                 }
 
                 if (isTreeSlot && foliageDensity >= 0.42f)
@@ -370,26 +414,31 @@ public static class BiomePropResolver
                 // Volcanic badlands: basalt columns, charred timber, rich gold and crystal veins
                 if (isVeinNode)
                 {
-                    if (roll < 0.35f)
+                    if (roll < 0.30f)
                     {
                         prop = MapProp.Create(MapPropType.BasaltPillar, localX, localY, worldX, worldY, radius: 23f * scaleVar, isSolid: true, 0x09090BFF, 0x27272AFF, scaleVar);
                         return true;
                     }
 
-                    if (roll < 0.70f)
+                    if (roll < 0.60f)
                     {
                         prop = MapProp.Create(MapPropType.GoldVein, localX, localY, worldX, worldY, radius: 21f * scaleVar, isSolid: true, 0x18181BFF, 0xFACC15FF, scaleVar);
                         return true;
                     }
 
-                    if (roll < 0.90f)
+                    if (roll < 0.80f)
                     {
                         prop = MapProp.Create(MapPropType.CrystalCluster, localX, localY, worldX, worldY, radius: 23f * scaleVar, isSolid: true, 0x7E22CEFF, 0xC084FCFF, scaleVar);
                         return true;
                     }
 
-                    prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0x27272AFF, 0x09090BFF, scaleVar);
-                    return true;
+                    if (roll < 0.90f)
+                    {
+                        prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0x27272AFF, 0x09090BFF, scaleVar);
+                        return true;
+                    }
+
+                    return false;
                 }
 
                 if (foliageDensity >= 0.70f)
@@ -413,26 +462,31 @@ public static class BiomePropResolver
                 // Primary mining territory: rich clustered copper, iron, and gold outcroppings on sandstone
                 if (isVeinNode)
                 {
-                    if (roll < 0.40f)
+                    if (roll < 0.35f)
                     {
                         prop = MapProp.Create(MapPropType.CopperVein, localX, localY, worldX, worldY, radius: 21f * scaleVar, isSolid: true, 0x78350FFF, 0x2DD4BFFF, scaleVar);
                         return true;
                     }
 
-                    if (roll < 0.70f)
+                    if (roll < 0.65f)
                     {
                         prop = MapProp.Create(MapPropType.IronVein, localX, localY, worldX, worldY, radius: 21f * scaleVar, isSolid: true, 0x334155FF, 0xEA580CFF, scaleVar);
                         return true;
                     }
 
-                    if (roll < 0.90f)
+                    if (roll < 0.85f)
                     {
                         prop = MapProp.Create(MapPropType.GoldVein, localX, localY, worldX, worldY, radius: 21f * scaleVar, isSolid: true, 0x1E293BFF, 0xFACC15FF, scaleVar);
                         return true;
                     }
 
-                    prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0x7F1D1DFF, 0x991B1BFF, scaleVar);
-                    return true;
+                    if (roll < 0.95f)
+                    {
+                        prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0x7F1D1DFF, 0x991B1BFF, scaleVar);
+                        return true;
+                    }
+
+                    return false;
                 }
 
                 if (foliageDensity >= 0.70f)
@@ -462,14 +516,19 @@ public static class BiomePropResolver
                         return true;
                     }
 
-                    if (roll < 0.80f)
+                    if (roll < 0.70f)
                     {
                         prop = MapProp.Create(MapPropType.CrystalCluster, localX, localY, worldX, worldY, radius: 23f * scaleVar, isSolid: true, 0x0D9488FF, 0x2DD4BFFF, scaleVar);
                         return true;
                     }
 
-                    prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0x475569FF, 0x047857FF, scaleVar);
-                    return true;
+                    if (roll < 0.85f)
+                    {
+                        prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0x475569FF, 0x047857FF, scaleVar);
+                        return true;
+                    }
+
+                    return false;
                 }
 
                 if (isTreeSlot)
@@ -518,20 +577,25 @@ public static class BiomePropResolver
                 // High alpine glacial peaks: silver outcroppings, glowing glacial crystals, frost-bound conifers
                 if (isVeinNode)
                 {
-                    if (roll < 0.40f)
+                    if (roll < 0.35f)
                     {
                         prop = MapProp.Create(MapPropType.SilverVein, localX, localY, worldX, worldY, radius: 21f * scaleVar, isSolid: true, 0x475569FF, 0xF1F5F9FF, scaleVar);
                         return true;
                     }
 
-                    if (roll < 0.85f)
+                    if (roll < 0.70f)
                     {
                         prop = MapProp.Create(MapPropType.GlacialCrystal, localX, localY, worldX, worldY, radius: 22f * scaleVar, isSolid: true, 0x0EA5E9FF, 0xE0F2FEFF, scaleVar);
                         return true;
                     }
 
-                    prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0x94A3B8FF, 0xE2E8F0FF, scaleVar);
-                    return true;
+                    if (roll < 0.85f)
+                    {
+                        prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0x94A3B8FF, 0xE2E8F0FF, scaleVar);
+                        return true;
+                    }
+
+                    return false;
                 }
 
                 if (isTreeSlot && foliageDensity >= 0.65f && roll < 0.25f)
@@ -546,20 +610,25 @@ public static class BiomePropResolver
                 // Vast amber plains with solitary umbrella acacia trees and clustered copper seams
                 if (isVeinNode)
                 {
-                    if (roll < 0.50f)
+                    if (roll < 0.35f)
                     {
                         prop = MapProp.Create(MapPropType.CopperVein, localX, localY, worldX, worldY, radius: 21f * scaleVar, isSolid: true, 0x78350FFF, 0x2DD4BFFF, scaleVar);
                         return true;
                     }
 
-                    if (roll < 0.80f)
+                    if (roll < 0.65f)
                     {
                         prop = MapProp.Create(MapPropType.IronVein, localX, localY, worldX, worldY, radius: 21f * scaleVar, isSolid: true, 0x334155FF, 0xEA580CFF, scaleVar);
                         return true;
                     }
 
-                    prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0xB45309FF, 0x78350FFF, scaleVar);
-                    return true;
+                    if (roll < 0.80f)
+                    {
+                        prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0xB45309FF, 0x78350FFF, scaleVar);
+                        return true;
+                    }
+
+                    return false;
                 }
 
                 if (isTreeSlot && foliageDensity >= 0.48f && roll < 0.25f)
@@ -579,20 +648,25 @@ public static class BiomePropResolver
                 // Enchanted flowering grove: blooming sakura cherry trees, crystal clusters, and soft undergrowth
                 if (isVeinNode)
                 {
-                    if (roll < 0.45f)
+                    if (roll < 0.35f)
                     {
                         prop = MapProp.Create(MapPropType.CrystalCluster, localX, localY, worldX, worldY, radius: 23f * scaleVar, isSolid: true, 0xC084FCFF, 0xF472B6FF, scaleVar);
                         return true;
                     }
 
-                    if (roll < 0.80f)
+                    if (roll < 0.65f)
                     {
                         prop = MapProp.Create(MapPropType.CopperVein, localX, localY, worldX, worldY, radius: 21f * scaleVar, isSolid: true, 0x78350FFF, 0x2DD4BFFF, scaleVar);
                         return true;
                     }
 
-                    prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0x475569FF, 0xEC4899FF, scaleVar);
-                    return true;
+                    if (roll < 0.80f)
+                    {
+                        prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 20f * scaleVar, isSolid: true, 0x475569FF, 0xEC4899FF, scaleVar);
+                        return true;
+                    }
+
+                    return false;
                 }
 
                 if (isTreeSlot)

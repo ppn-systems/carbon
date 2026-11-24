@@ -123,7 +123,7 @@ public sealed class ProceduralWorldGenerator
 
                 // Coherent macro density fields (Foliage & Mineral Veins)
                 float foliageDensity = _foliageNoise.Evaluate(worldX * 0.015f, worldY * 0.015f, octaves: 3);
-                float mineralNoise = _mineralNoise.Evaluate(worldX * 0.038f, worldY * 0.038f, octaves: 2);
+                float mineralNoise = _mineralNoise.Evaluate(worldX * 0.008f, worldY * 0.008f, octaves: 2);
 
                 // Natural wilderness procedural props & flora
                 if (BiomePropResolver.TryResolveProp(
