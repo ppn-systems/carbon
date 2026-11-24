@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Carbon.Physics/Carbon.Physics.csproj" />
+  <Project Path="Carbon.Simulation/Carbon.Simulation.csproj" />
+</Solution>

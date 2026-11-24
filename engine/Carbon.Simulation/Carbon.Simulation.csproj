@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <RootNamespace>Carbon.Simulation</RootNamespace>
+        <AssemblyName>Carbon.Simulation</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Carbon.Physics\Carbon.Physics.csproj" />
+    </ItemGroup>
+</Project>
