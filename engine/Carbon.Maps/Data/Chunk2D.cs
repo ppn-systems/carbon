@@ -2,6 +2,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using Carbon.Maps.Landmarks;
 using Carbon.Maps.Props;
 using Carbon.Physics.Obstacles;
 
@@ -32,11 +34,19 @@ public sealed class Chunk2D
     private int _chunkY;
     private readonly MapTile[] _tiles = new MapTile[Size * Size];
     private readonly List<MapProp> _props = new();
+    private readonly ReadOnlyCollection<MapProp> _propsView;
+    private readonly List<PointOfInterest> _pointsOfInterest = new();
+    private readonly ReadOnlyCollection<PointOfInterest> _pointsOfInterestView;
+
+    // One bit per tile: set when at least one colliding prop occupies the tile (O(1) walkability lookups).
+    private readonly ulong[] _solidPropMask = new ulong[Size * Size / 64];
 
     /// <summary>
-    /// Gets the list of physical and decorative props positioned within this chunk.
+    /// Gets the physical and decorative props positioned within this chunk.
+    /// Mutate through <see cref="AddProp"/>, <see cref="SetProp"/> and <see cref="ClearProps"/> so the
+    /// solid-prop index stays in sync.
     /// </summary>
-    public List<MapProp> Props => _props;
+    public ReadOnlyCollection<MapProp> Props => _propsView;
 
     /// <summary>
     /// Gets the horizontal chunk coordinate in chunk space.
@@ -74,7 +84,16 @@ public sealed class Chunk2D
     {
         _chunkX = chunkX;
         _chunkY = chunkY;
+        _propsView = _props.AsReadOnly();
+        _pointsOfInterestView = _pointsOfInterest.AsReadOnly();
     }
+
+    /// <summary>Gets the points of interest whose centre lies in this chunk.</summary>
+    public ReadOnlyCollection<PointOfInterest> PointsOfInterest => _pointsOfInterestView;
+
+    /// <summary>Adds a point of interest centred in this chunk.</summary>
+    /// <param name="poi">The point of interest.</param>
+    public void AddPointOfInterest(in PointOfInterest poi) => _pointsOfInterest.Add(poi);
 
     /// <summary>
     /// Converts a continuous world tile coordinate to its corresponding chunk coordinate.
@@ -96,6 +115,8 @@ public sealed class Chunk2D
         _chunkX = chunkX;
         _chunkY = chunkY;
         _props.Clear();
+        _pointsOfInterest.Clear();
+        Array.Clear(_solidPropMask);
         Array.Clear(_tiles, 0, _tiles.Length);
     }
 
@@ -133,12 +154,92 @@ public sealed class Chunk2D
     /// Appends a prop to this chunk's collection.
     /// </summary>
     /// <param name="prop">The prop to add.</param>
-    public void AddProp(in MapProp prop) => _props.Add(prop);
+    public void AddProp(in MapProp prop)
+    {
+        _props.Add(prop);
+        if (prop.HasCollision)
+        {
+            this.MarkSolidProp(prop.LocalTileX, prop.LocalTileY);
+        }
+    }
+
+    /// <summary>
+    /// Replaces the prop at <paramref name="index"/> (e.g. after damage) and refreshes the solid-prop index.
+    /// </summary>
+    /// <param name="index">Index into <see cref="Props"/>.</param>
+    /// <param name="prop">The updated prop.</param>
+    public void SetProp(int index, in MapProp prop)
+    {
+        _props[index] = prop;
+        this.RebuildSolidPropMask();
+    }
+
+    /// <summary>
+    /// Finds the index of the first prop anchored on the given local tile.
+    /// </summary>
+    /// <param name="localX">Local tile X.</param>
+    /// <param name="localY">Local tile Y.</param>
+    /// <returns>The prop index, or -1 when the tile has no prop.</returns>
+    public int FindPropIndexAt(int localX, int localY)
+    {
+        for (int i = 0; i < _props.Count; i++)
+        {
+            MapProp p = _props[i];
+            if (p.LocalTileX == localX && p.LocalTileY == localY)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Returns whether a colliding prop occupies the given local tile. O(1), allocation-free.
+    /// </summary>
+    /// <param name="localX">Local tile X.</param>
+    /// <param name="localY">Local tile Y.</param>
+    /// <returns><c>true</c> when a solid, non-destroyed prop is anchored on the tile.</returns>
+    public bool HasSolidPropAt(int localX, int localY)
+    {
+        if ((uint)localX >= Size || (uint)localY >= Size)
+        {
+            return false;
+        }
+
+        int bit = (localY * Size) + localX;
+        return (_solidPropMask[bit >> 6] & (1UL << (bit & 63))) != 0;
+    }
 
     /// <summary>
     /// Clears all props from this chunk.
     /// </summary>
-    public void ClearProps() => _props.Clear();
+    public void ClearProps()
+    {
+        _props.Clear();
+        Array.Clear(_solidPropMask);
+    }
+
+    private void MarkSolidProp(int localX, int localY)
+    {
+        int px = Math.Clamp(localX, 0, Size - 1);
+        int py = Math.Clamp(localY, 0, Size - 1);
+        int bit = (py * Size) + px;
+        _solidPropMask[bit >> 6] |= 1UL << (bit & 63);
+    }
+
+    private void RebuildSolidPropMask()
+    {
+        Array.Clear(_solidPropMask);
+        for (int i = 0; i < _props.Count; i++)
+        {
+            MapProp p = _props[i];
+            if (p.HasCollision)
+            {
+                this.MarkSolidProp(p.LocalTileX, p.LocalTileY);
+            }
+        }
+    }
 
     /// <summary>
     /// Generates a local <see cref="TileObstacleGrid"/> from the solid tiles and physical props within this chunk.

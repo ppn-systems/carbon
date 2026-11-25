@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Carbon.Contracts.Common/Carbon.Contracts.Common.csproj" />
+  <Project Path="Carbon.Contracts.Maps/Carbon.Contracts.Maps.csproj" />
+</Solution>

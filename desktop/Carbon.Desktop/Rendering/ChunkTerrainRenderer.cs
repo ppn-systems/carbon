@@ -37,6 +37,31 @@ public sealed class ChunkTerrainRenderer : IDisposable
     private readonly ChunkMeshBuilder _builder = new();
     private readonly Dictionary<long, ChunkMesh2D> _meshCache = new();
     private readonly List<long> _evictionBuffer = new();
+    private readonly Dictionary<long, WaterfallEdge[]> _waterfalls = new();
+    private readonly Dictionary<long, RippleSpot[]> _ripples = new();
+
+    // Water tiles chosen for animated ripples while baking the current chunk.
+    private static readonly List<RippleSpot> s_bakingRipples = new();
+
+    /// <summary>A point on open water where an animated ripple glint plays.</summary>
+    public readonly record struct RippleSpot(Vector2 Centre, int Seed, bool IsDeep);
+
+    /// <summary>Gets the ripple spots of a chunk (empty until the chunk has been rendered once).</summary>
+    public ReadOnlySpan<RippleSpot> GetRipples(long chunkKey) =>
+        _ripples.TryGetValue(chunkKey, out RippleSpot[]? spots) ? spots : [];
+
+    // Waterfall edges found while baking the current chunk (the bake helpers are static).
+    private static readonly List<WaterfallEdge> s_bakingWaterfalls = new();
+
+    /// <summary>The lip of a waterfall: the curtain hangs CliffFaceHeight pixels below the edge A-B.</summary>
+    public readonly record struct WaterfallEdge(Vector2 A, Vector2 B, int Seed);
+
+    /// <summary>
+    /// Gets the waterfall edges baked into a chunk's mesh, for the animated overlay. Empty until the chunk
+    /// has been rendered once.
+    /// </summary>
+    public ReadOnlySpan<WaterfallEdge> GetWaterfalls(long chunkKey) =>
+        _waterfalls.TryGetValue(chunkKey, out WaterfallEdge[]? edges) ? edges : [];
     private bool _hasBegun;
     private bool _disposed;
 
@@ -119,8 +144,12 @@ public sealed class ChunkTerrainRenderer : IDisposable
         long key = chunk.Key;
         if (!_meshCache.TryGetValue(key, out ChunkMesh2D? mesh))
         {
+            s_bakingWaterfalls.Clear();
+            s_bakingRipples.Clear();
             mesh = this.BuildChunkMesh(chunk, world);
             _meshCache[key] = mesh;
+            _waterfalls[key] = [.. s_bakingWaterfalls];
+            _ripples[key] = [.. s_bakingRipples];
         }
 
         mesh.Draw();
@@ -162,6 +191,8 @@ public sealed class ChunkTerrainRenderer : IDisposable
         for (int i = 0; i < _evictionBuffer.Count; i++)
         {
             long key = _evictionBuffer[i];
+            _ = _waterfalls.Remove(key);
+            _ = _ripples.Remove(key);
             if (_meshCache.Remove(key, out ChunkMesh2D? mesh))
             {
                 mesh.Dispose();
@@ -183,25 +214,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
             {
                 float tileWorldX = cMinX + (lx * tileSize);
                 ref readonly MapTile tile = ref chunk.GetTile(lx, ly);
-                ColorRgba baseColor = HexToColor(tile.ColorRgba);
-
-                // Topographical 2.5D HeightLevel Depth Tinting (Smooth painterly elevation lift)
-                if (tile.HeightLevel == 1)
-                {
-                    baseColor = new ColorRgba(
-                        (byte)Math.Min(baseColor.R + 14, 255),
-                        (byte)Math.Min(baseColor.G + 14, 255),
-                        (byte)Math.Min(baseColor.B + 10, 255),
-                        baseColor.A);
-                }
-                else if (tile.HeightLevel == 2)
-                {
-                    baseColor = new ColorRgba(
-                        (byte)Math.Min(baseColor.R + 28, 255),
-                        (byte)Math.Min(baseColor.G + 28, 255),
-                        (byte)Math.Min(baseColor.B + 22, 255),
-                        baseColor.A);
-                }
+                ColorRgba baseColor = GroundColor(in tile);
 
                 RectangleF rect = new(tileWorldX, tileWorldY, tileSize, tileSize);
                 _builder.AddRectangle(rect, baseColor);
@@ -209,6 +222,22 @@ public sealed class ChunkTerrainRenderer : IDisposable
                 // Autotiling & Marching Squares smooth diagonal coastline transitions
                 int wtx = (chunk.ChunkX * Chunk2D.Size) + lx;
                 int wty = (chunk.ChunkY * Chunk2D.Size) + ly;
+
+                // About one water tile in ten gets an animated ripple
+                if (tile.Biome is BiomeType.ShallowWater or BiomeType.DeepOcean)
+                {
+                    int rippleSeed = (wtx * 92837111) ^ (wty * 689287499);
+                    if (((uint)rippleSeed % 100u) < 11u)
+                    {
+                        s_bakingRipples.Add(new RippleSpot(
+                            new Vector2(tileWorldX + (tileSize * 0.5f), tileWorldY + (tileSize * 0.5f)),
+                            rippleSeed,
+                            tile.Biome == BiomeType.DeepOcean));
+                    }
+                }
+
+                // Diagonal corner cuts between different surfaces (sand / grass / water ...)
+                BakeTileDiagonalCorners(_builder, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize);
                 BakeTileCoastlineTransitions(_builder, chunk, lx, ly, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize);
 
                 // Smooth Biome-to-Biome Transition Dithering / Blending
@@ -216,6 +245,9 @@ public sealed class ChunkTerrainRenderer : IDisposable
 
                 // 2.5D Cliff Drop Faces & Drop Shadows
                 BakeTileCliffFaces(_builder, chunk, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize);
+
+                // Foam and spray at the foot of waterfalls
+                BakeTileWaterfallSplash(_builder, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize);
 
                 // Ramps (Incline passages connecting height levels)
                 BakeTileRamps(_builder, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize);
@@ -605,6 +637,141 @@ public sealed class ChunkTerrainRenderer : IDisposable
         };
     }
 
+    // Ground colour of a tile, with the painterly lift of higher levels (shared by the base pass and the
+    // chamfered cliff corners, which repaint the lower ground inside a corner tile).
+    private static ColorRgba GroundColor(in MapTile tile)
+    {
+        ColorRgba c = HexToColor(tile.ColorRgba);
+        int lift = tile.HeightLevel * 14;
+        int liftB = tile.HeightLevel == 2 ? 22 : tile.HeightLevel * 10;
+        return new ColorRgba(
+            (byte)Math.Min(c.R + lift, 255),
+            (byte)Math.Min(c.G + lift, 255),
+            (byte)Math.Min(c.B + liftB, 255),
+            c.A);
+    }
+
+    private const float CliffFaceHeight = 14f;
+
+    // Marching-squares style corner cut: when both edge neighbours of a corner (and the diagonal one) are the
+    // same other surface at the same height, that surface takes the half-tile triangle of the corner.
+    // A staircase boundary between two surfaces (a sandy bank, a forest edge, a shoreline) then becomes a
+    // straight 45 degree line.
+    private static void BakeTileDiagonalCorners(
+        ChunkMeshBuilder builder, int wtx, int wty, float x, float y, in MapTile tile, ChunkWorld2D world, float s)
+    {
+        MapTile n = world.PeekTileAtWorld(wtx, wty - 1);
+        MapTile so = world.PeekTileAtWorld(wtx, wty + 1);
+        MapTile w = world.PeekTileAtWorld(wtx - 1, wty);
+        MapTile e = world.PeekTileAtWorld(wtx + 1, wty);
+
+        TryCut(builder, tile, n, w, world.PeekTileAtWorld(wtx - 1, wty - 1), new Vector2(x, y), new Vector2(x + s, y), new Vector2(x, y + s));
+        TryCut(builder, tile, n, e, world.PeekTileAtWorld(wtx + 1, wty - 1), new Vector2(x + s, y), new Vector2(x + s, y + s), new Vector2(x, y));
+        TryCut(builder, tile, so, w, world.PeekTileAtWorld(wtx - 1, wty + 1), new Vector2(x, y + s), new Vector2(x, y), new Vector2(x + s, y + s));
+        TryCut(builder, tile, so, e, world.PeekTileAtWorld(wtx + 1, wty + 1), new Vector2(x + s, y + s), new Vector2(x, y + s), new Vector2(x + s, y));
+
+        static void TryCut(ChunkMeshBuilder b, in MapTile self, in MapTile a, in MapTile c, in MapTile diag, Vector2 corner, Vector2 p1, Vector2 p2)
+        {
+            // Only one side of a boundary cuts (the surface with the higher enum value gives way), otherwise
+            // both sides cut and the two diagonals, half a tile apart, form a sawtooth.
+            if (a.Biome == self.Biome || a.Biome > self.Biome || a.Biome != c.Biome || diag.Biome != a.Biome ||
+                a.HeightLevel != self.HeightLevel || c.HeightLevel != self.HeightLevel || diag.HeightLevel != self.HeightLevel)
+            {
+                return;
+            }
+
+            b.AddTriangle(corner, p1, p2, GroundColor(in a));
+        }
+    }
+
+    private static readonly ColorRgba s_foam = new(255, 255, 255, 235);
+    private static readonly ColorRgba s_foamSoft = new(224, 242, 254, 170);
+    private static readonly ColorRgba s_curtainTop = new(110, 205, 245, 235);
+    private static readonly ColorRgba s_curtainBottom = new(40, 150, 210, 235);
+    private static readonly ColorRgba s_streak = new(200, 236, 252, 220);
+
+    // Quad as two triangles: a, b along the top edge, then the bottom edge offset by `drop`.
+    private static void AddSlantedBand(ChunkMeshBuilder builder, Vector2 a, Vector2 b, float top, float height, ColorRgba color)
+    {
+        Vector2 a0 = a + new Vector2(0f, top);
+        Vector2 b0 = b + new Vector2(0f, top);
+        Vector2 a1 = a0 + new Vector2(0f, height);
+        Vector2 b1 = b0 + new Vector2(0f, height);
+        builder.AddTriangle(a0, b0, b1, color);
+        builder.AddTriangle(a0, b1, a1, color);
+    }
+
+    // A cliff face (rock) or a waterfall curtain hanging under the edge a-b (a-b may be slanted).
+    private static void AddFace(
+        ChunkMeshBuilder builder, Vector2 a, Vector2 b, bool isWater, int wtx, int wty,
+        ColorRgba rockBase, ColorRgba rockStrata, ColorRgba rockHighlight, ColorRgba rockShadow)
+    {
+        const float H = CliffFaceHeight;
+        if (!isWater)
+        {
+            AddSlantedBand(builder, a, b, 0f, H, rockBase);
+            AddSlantedBand(builder, a, b, 0f, 2f, rockHighlight);
+            AddSlantedBand(builder, a, b, 5f, 2.5f, rockStrata);
+            AddSlantedBand(builder, a, b, 10f, 1.5f, rockStrata);
+            AddSlantedBand(builder, a, b, H - 2f, 2f, rockShadow);
+            return;
+        }
+
+        // Waterfall: lighter top half, deeper bottom half, a foaming lip, and falling streaks.
+        s_bakingWaterfalls.Add(new WaterfallEdge(a, b, (wtx * 73856093) ^ (wty * 19349663)));
+        AddSlantedBand(builder, a, b, 0f, H * 0.5f, s_curtainTop);
+        AddSlantedBand(builder, a, b, H * 0.5f, H * 0.5f, s_curtainBottom);
+        Vector2 dir = b - a;
+        uint h = (uint)((wtx * 73856093) ^ (wty * 19349663));
+        for (int i = 0; i < 5; i++)
+        {
+            h = (h ^ (h >> 13)) * 0x5BD1E995;
+            float t = ((i + 0.5f) / 5f) + (((((h >> 8) & 0xFF) / 255f) - 0.5f) * 0.12f);
+            float w = 1.5f + ((h & 3) * 0.75f);
+            Vector2 p = a + (dir * t);
+            float len = H * (0.55f + (((h >> 16) & 0xFF) / 255f * 0.45f));
+            builder.AddRectangle(new RectangleF(p.X - (w * 0.5f), p.Y + 2f, w, len), (i & 1) == 0 ? s_streak : s_foamSoft);
+        }
+
+        // Foam lip with small bubbles along the edge
+        AddSlantedBand(builder, a, b, -1f, 3f, s_foam);
+        for (int i = 0; i < 4; i++)
+        {
+            Vector2 p = a + (dir * ((i + 0.5f) / 4f));
+            builder.AddRectangle(new RectangleF(p.X - 2.5f, p.Y - 2.5f, 5f, 3f), s_foam);
+        }
+    }
+
+    // Splash pool drawn on the lower tile right below a waterfall (the falling tile's own cell cannot draw
+    // there: the next row of tiles is drawn after it and would cover the splash).
+    private static void BakeTileWaterfallSplash(
+        ChunkMeshBuilder builder, int wtx, int wty, float x, float y, in MapTile tile, ChunkWorld2D world, float tileSize)
+    {
+        if (tile.Biome != BiomeType.ShallowWater)
+        {
+            return;
+        }
+
+        MapTile north = world.PeekTileAtWorld(wtx, wty - 1);
+        if (north.Biome != BiomeType.ShallowWater || north.HeightLevel <= tile.HeightLevel)
+        {
+            return;
+        }
+
+        // Scattered foam clumps rather than a full-width bar, so slanted falls do not leave a staircase.
+        float s = tileSize;
+        uint h = (uint)((wtx * 83492791) ^ (wty * 19349663));
+        for (int i = 0; i < 4; i++)
+        {
+            h = (h ^ (h >> 13)) * 0x5BD1E995;
+            float bx = x + 2f + ((h & 0xFF) / 255f * (s - 14f));
+            float by = y + 1f + (((h >> 8) & 0xFF) / 255f * 8f);
+            float w = 7f + ((h >> 16) & 7);
+            builder.AddRectangle(new RectangleF(bx, by, w, 3f), s_foam);
+            builder.AddRectangle(new RectangleF(bx + 1f, by + 3f, w - 2f, 2f), s_foamSoft);
+        }
+    }
+
     private static void BakeTileCliffFaces(
         ChunkMeshBuilder builder,
         Chunk2D chunk,
@@ -644,35 +811,57 @@ public sealed class ChunkTerrainRenderer : IDisposable
         (ColorRgba rockBase, ColorRgba rockStrata, ColorRgba rockHighlight, ColorRgba rockShadow) = GetCliffPalette(tile.Biome);
         ColorRgba dropShadow = new(0, 0, 0, 80);
 
-        // 1. South Face: The primary 2.5D vertical rock wall facing the camera (14px tall)
-        if ((mask & CliffFaceMask.South) != 0)
+        const float H = CliffFaceHeight;
+        bool isWater = tile.Biome == BiomeType.ShallowWater;
+        bool south = (mask & CliffFaceMask.South) != 0 &&
+            world.NavGrid.GetRamp(wtx, wty) != RampDirection.South &&
+            world.NavGrid.GetRamp(wtx, wty + 1) != RampDirection.South;
+        bool east = (mask & CliffFaceMask.East) != 0 &&
+            world.NavGrid.GetRamp(wtx, wty) != RampDirection.East &&
+            world.NavGrid.GetRamp(wtx + 1, wty) != RampDirection.East;
+        bool west = (mask & CliffFaceMask.West) != 0 &&
+            world.NavGrid.GetRamp(wtx, wty) != RampDirection.West &&
+            world.NavGrid.GetRamp(wtx - 1, wty) != RampDirection.West;
+
+        // Outer corners on a diagonal edge are chamfered: one slanted face replaces the south face and the
+        // side face, and the lower ground fills the cut-away triangle. Consecutive corner tiles line up,
+        // so a diagonal cliff (or waterfall) reads as one straight slope instead of a staircase.
+        if (south && (east ^ west))
         {
-            if (world.NavGrid.GetRamp(wtx, wty) != RampDirection.South &&
-                world.NavGrid.GetRamp(wtx, wty + 1) != RampDirection.South)
+            MapTile below = world.PeekTileAtWorld(wtx, wty + 1);
+            ColorRgba lower = GroundColor(in below);
+            if (east)
             {
-                if (tile.Biome == BiomeType.ShallowWater)
+                Vector2 a = new(x, y + s - H);
+                Vector2 b = new(x + s, y - H);
+                builder.AddTriangle(new Vector2(x + s, y), new Vector2(x + s, y + s), new Vector2(x, y + s), lower);
+                AddFace(builder, a, b, isWater, wtx, wty, rockBase, rockStrata, rockHighlight, rockShadow);
+                if (!isWater)
                 {
-                    // 2.5D Cascading Waterfall plunging over South cliff edge
-                    // A. Upper churning white foam crest
-                    builder.AddRectangle(new RectangleF(x, y + s - 14f, s, 3f), new ColorRgba(255, 255, 255, 240));
-                    // B. Cascading torrent curtain (cyan with vertical water streak highlights)
-                    builder.AddRectangle(new RectangleF(x, y + s - 11f, s, 11f), new ColorRgba(56, 189, 248, 215));
-                    builder.AddRectangle(new RectangleF(x + 4f, y + s - 11f, 3f, 11f), new ColorRgba(186, 230, 253, 230));
-                    builder.AddRectangle(new RectangleF(x + 14f, y + s - 11f, 4f, 11f), new ColorRgba(255, 255, 255, 235));
-                    builder.AddRectangle(new RectangleF(x + 24f, y + s - 11f, 3f, 11f), new ColorRgba(186, 230, 253, 230));
-                    // C. Turbulent splash pool and mist plume at base
-                    builder.AddRectangle(new RectangleF(x - 2f, y + s, s + 4f, 5f), new ColorRgba(255, 255, 255, 180));
-                    builder.AddRectangle(new RectangleF(x - 4f, y + s + 3f, s + 8f, 4f), new ColorRgba(224, 242, 254, 110));
-                }
-                else
-                {
-                    builder.AddRectangle(new RectangleF(x, y + s - 14f, s, 14f), rockBase);
-                    builder.AddRectangle(new RectangleF(x, y + s - 14f, s, 2f), rockHighlight);
-                    builder.AddRectangle(new RectangleF(x, y + s - 9f, s, 2.5f), rockStrata);
-                    builder.AddRectangle(new RectangleF(x, y + s - 4f, s, 2f), rockShadow);
-                    builder.AddRectangle(new RectangleF(x, y + s, s, 7f), dropShadow);
+                    builder.AddTriangle(new Vector2(x, y + s), new Vector2(x + s, y), new Vector2(x + s, y + 6f), dropShadow);
                 }
             }
+            else
+            {
+                Vector2 a = new(x, y - H);
+                Vector2 b = new(x + s, y + s - H);
+                builder.AddTriangle(new Vector2(x, y), new Vector2(x + s, y + s), new Vector2(x, y + s), lower);
+                AddFace(builder, a, b, isWater, wtx, wty, rockBase, rockStrata, rockHighlight, rockShadow);
+                if (!isWater)
+                {
+                    builder.AddTriangle(new Vector2(x, y), new Vector2(x + s, y + s), new Vector2(x, y + 6f), dropShadow);
+                }
+            }
+
+            east = false;
+            west = false;
+            south = false;
+        }
+
+        // 1. South Face: the 2.5D wall (or waterfall curtain) facing the camera
+        if (south)
+        {
+            AddFace(builder, new Vector2(x, y + s - H), new Vector2(x + s, y + s - H), isWater, wtx, wty, rockBase, rockStrata, rockHighlight, rockShadow);
         }
 
         // 2. North Face: Top edge drop shadow down onto northern tile
@@ -686,44 +875,36 @@ public sealed class ChunkTerrainRenderer : IDisposable
             }
         }
 
-        // 3. East Face: Right edge drop
-        if ((mask & CliffFaceMask.East) != 0)
+        // 3. East / West faces: seen from above as narrow strips
+        if (east)
         {
-            if (world.NavGrid.GetRamp(wtx, wty) != RampDirection.East &&
-                world.NavGrid.GetRamp(wtx + 1, wty) != RampDirection.East)
+            if (isWater)
             {
-                if (tile.Biome == BiomeType.ShallowWater)
-                {
-                    builder.AddRectangle(new RectangleF(x + s - 7f, y, 7f, s), new ColorRgba(56, 189, 248, 215));
-                    builder.AddRectangle(new RectangleF(x + s - 2f, y, 2f, s), new ColorRgba(255, 255, 255, 230));
-                    builder.AddRectangle(new RectangleF(x + s, y, 4f, s), new ColorRgba(224, 242, 254, 120));
-                }
-                else
-                {
-                    builder.AddRectangle(new RectangleF(x + s - 7f, y, 7f, s), rockBase);
-                    builder.AddRectangle(new RectangleF(x + s - 3f, y, 3f, s), rockShadow);
-                    builder.AddRectangle(new RectangleF(x + s, y, 6f, s), dropShadow);
-                }
+                builder.AddRectangle(new RectangleF(x + s - 7f, y, 7f, s), s_curtainTop);
+                builder.AddRectangle(new RectangleF(x + s - 3f, y, 3f, s), s_curtainBottom);
+                builder.AddRectangle(new RectangleF(x + s - 8f, y, 2f, s), s_foam);
+            }
+            else
+            {
+                builder.AddRectangle(new RectangleF(x + s - 7f, y, 7f, s), rockBase);
+                builder.AddRectangle(new RectangleF(x + s - 7f, y, 1.5f, s), rockHighlight);
+                builder.AddRectangle(new RectangleF(x + s - 3f, y, 3f, s), rockShadow);
             }
         }
 
-        // 4. West Face: Left edge drop
-        if ((mask & CliffFaceMask.West) != 0)
+        if (west)
         {
-            if (world.NavGrid.GetRamp(wtx, wty) != RampDirection.West &&
-                world.NavGrid.GetRamp(wtx - 1, wty) != RampDirection.West)
+            if (isWater)
             {
-                if (tile.Biome == BiomeType.ShallowWater)
-                {
-                    builder.AddRectangle(new RectangleF(x, y, 7f, s), new ColorRgba(56, 189, 248, 215));
-                    builder.AddRectangle(new RectangleF(x, y, 2f, s), new ColorRgba(255, 255, 255, 230));
-                }
-                else
-                {
-                    builder.AddRectangle(new RectangleF(x, y, 7f, s), rockBase);
-                    builder.AddRectangle(new RectangleF(x, y, 2f, s), rockHighlight);
-                    builder.AddRectangle(new RectangleF(x + 5f, y, 2f, s), rockStrata);
-                }
+                builder.AddRectangle(new RectangleF(x, y, 7f, s), s_curtainTop);
+                builder.AddRectangle(new RectangleF(x, y, 3f, s), s_curtainBottom);
+                builder.AddRectangle(new RectangleF(x + 6f, y, 2f, s), s_foam);
+            }
+            else
+            {
+                builder.AddRectangle(new RectangleF(x, y, 7f, s), rockBase);
+                builder.AddRectangle(new RectangleF(x + 5.5f, y, 1.5f, s), rockHighlight);
+                builder.AddRectangle(new RectangleF(x, y, 2f, s), rockShadow);
             }
         }
     }

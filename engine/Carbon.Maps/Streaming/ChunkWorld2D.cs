@@ -4,10 +4,12 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Threading;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
+using Carbon.Maps.Landmarks;
 using Carbon.Maps.Navigation;
 using Carbon.Maps.Props;
 using Carbon.Physics.Obstacles;
@@ -25,7 +27,11 @@ public sealed class ChunkWorld2D
     private readonly float _frequency;
     private readonly ConcurrentDictionary<long, Chunk2D> _activeChunks = new();
     private readonly ConcurrentQueue<Chunk2D> _chunkPool = new();
+    private readonly ConcurrentDictionary<long, ChunkDelta> _deltas = new();
     private readonly List<long> _evictionBuffer = new();
+
+    // Serialises chunk creation, eviction and edits. Reads of resident chunks stay lock-free.
+    private readonly Lock _gate = new();
     private readonly BuildingGrid _buildings = new();
     private readonly TileWalkabilityGrid _navGrid;
 
@@ -112,11 +118,138 @@ public sealed class ChunkWorld2D
             return existing;
         }
 
-        Chunk2D chunk = _chunkPool.TryDequeue(out Chunk2D? recycled) ? recycled : new Chunk2D(chunkX, chunkY);
-        _generator.PopulateChunk(chunk, chunkX, chunkY, _frequency, _tileSize);
+        lock (_gate)
+        {
+            // Double-check: another thread may have created it while we waited.
+            if (_activeChunks.TryGetValue(key, out existing))
+            {
+                return existing;
+            }
 
-        _activeChunks[key] = chunk;
-        return chunk;
+            Chunk2D chunk = _chunkPool.TryDequeue(out Chunk2D? recycled) ? recycled : new Chunk2D(chunkX, chunkY);
+            _generator.PopulateChunk(chunk, chunkX, chunkY, _frequency, _tileSize);
+
+            // Re-apply player-made changes on top of the deterministic baseline.
+            if (_deltas.TryGetValue(key, out ChunkDelta? delta))
+            {
+                delta.ApplyTo(chunk);
+            }
+
+            // Publish only after the chunk is fully populated, so readers never see a half-built chunk.
+            _activeChunks[key] = chunk;
+            return chunk;
+        }
+    }
+
+    /// <summary>
+    /// Gets the recorded changes of every chunk that has been edited, loaded or not.
+    /// </summary>
+    public ICollection<ChunkDelta> Deltas => _deltas.Values;
+
+    /// <summary>
+    /// Gets the recorded changes of one chunk.
+    /// </summary>
+    /// <param name="chunkX">Chunk X coordinate.</param>
+    /// <param name="chunkY">Chunk Y coordinate.</param>
+    /// <param name="delta">The delta, when the chunk has been edited.</param>
+    /// <returns><c>true</c> when the chunk has a delta.</returns>
+    public bool TryGetDelta(int chunkX, int chunkY, out ChunkDelta? delta) =>
+        _deltas.TryGetValue(PackChunkKey(chunkX, chunkY), out delta);
+
+    /// <summary>
+    /// Imports a delta loaded from storage or received from the server, replacing any existing one.
+    /// When the chunk is resident it is regenerated so the delta takes effect immediately.
+    /// </summary>
+    /// <param name="delta">The delta to import.</param>
+    public void ImportDelta(ChunkDelta delta)
+    {
+        ArgumentNullException.ThrowIfNull(delta);
+
+        lock (_gate)
+        {
+            _deltas[delta.Key] = delta;
+            if (_activeChunks.TryGetValue(delta.Key, out Chunk2D? chunk))
+            {
+                _generator.PopulateChunk(chunk, delta.ChunkX, delta.ChunkY, _frequency, _tileSize);
+                delta.ApplyTo(chunk);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Applies damage to the natural prop anchored on a world tile (chopping, mining) and records it in the
+    /// chunk delta so the result survives chunk eviction.
+    /// </summary>
+    /// <param name="worldTileX">World tile X.</param>
+    /// <param name="worldTileY">World tile Y.</param>
+    /// <param name="damage">Damage amount.</param>
+    /// <param name="updated">The prop after damage.</param>
+    /// <returns><c>true</c> when a prop exists on the tile.</returns>
+    public bool TryDamagePropAt(int worldTileX, int worldTileY, float damage, out MapProp updated)
+    {
+        int cx = Chunk2D.ToChunkCoord(worldTileX);
+        int cy = Chunk2D.ToChunkCoord(worldTileY);
+        int lx = Chunk2D.ToLocalCoord(worldTileX);
+        int ly = Chunk2D.ToLocalCoord(worldTileY);
+
+        Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
+        lock (_gate)
+        {
+            int index = chunk.FindPropIndexAt(lx, ly);
+            if (index < 0)
+            {
+                updated = default;
+                return false;
+            }
+
+            MapProp current = chunk.Props[index];
+            updated = current with { Destructibility = current.Destructibility.ApplyDamage(damage) };
+            chunk.SetProp(index, updated);
+            this.GetOrAddDelta(cx, cy).SetPropState(lx, ly, updated.Destructibility);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Reads the terrain tile at a world tile coordinate WITHOUT loading or generating a chunk.
+    /// Resident chunks are read directly; otherwise the recorded delta or the pure seed sample is used.
+    /// Allocation-free, intended for collision and navigation hot paths.
+    /// </summary>
+    /// <param name="worldTileX">World tile X.</param>
+    /// <param name="worldTileY">World tile Y.</param>
+    /// <returns>The tile.</returns>
+    public MapTile PeekTileAtWorld(int worldTileX, int worldTileY)
+    {
+        int cx = Chunk2D.ToChunkCoord(worldTileX);
+        int cy = Chunk2D.ToChunkCoord(worldTileY);
+        int lx = Chunk2D.ToLocalCoord(worldTileX);
+        int ly = Chunk2D.ToLocalCoord(worldTileY);
+        long key = PackChunkKey(cx, cy);
+
+        if (_activeChunks.TryGetValue(key, out Chunk2D? chunk))
+        {
+            return chunk.GetTile(lx, ly);
+        }
+
+        if (_deltas.TryGetValue(key, out ChunkDelta? delta) &&
+            delta.Tiles.TryGetValue(ChunkDelta.ToLocalIndex(lx, ly), out MapTile edited))
+        {
+            return edited;
+        }
+
+        return _generator.SampleTile(worldTileX, worldTileY, _frequency);
+    }
+
+    private ChunkDelta GetOrAddDelta(int chunkX, int chunkY)
+    {
+        long key = PackChunkKey(chunkX, chunkY);
+        if (!_deltas.TryGetValue(key, out ChunkDelta? delta))
+        {
+            delta = new ChunkDelta(chunkX, chunkY);
+            _deltas[key] = delta;
+        }
+
+        return delta;
     }
 
     /// <summary>
@@ -141,6 +274,12 @@ public sealed class ChunkWorld2D
         int centerChunkX = (int)MathF.Floor(centerWorldPos.X / chunkSizeWorld);
         int centerChunkY = (int)MathF.Floor(centerWorldPos.Y / chunkSizeWorld);
 
+        // 0. Start building river regions a little beyond the load radius in the background.
+        _generator.PrewarmHydrology(
+            (centerChunkX * Chunk2D.Size) + (Chunk2D.Size / 2),
+            (centerChunkY * Chunk2D.Size) + (Chunk2D.Size / 2),
+            (chunkRadius + 8) * Chunk2D.Size);
+
         // 1. Ensure all chunks within load radius are resident
         for (int cy = centerChunkY - chunkRadius; cy <= centerChunkY + chunkRadius; cy++)
         {
@@ -150,23 +289,26 @@ public sealed class ChunkWorld2D
             }
         }
 
-        // 2. Recycle distant chunks beyond eviction radius
-        _evictionBuffer.Clear();
-        foreach (KeyValuePair<long, Chunk2D> kvp in _activeChunks)
+        // 2. Recycle distant chunks beyond eviction radius (their edits stay in _deltas)
+        lock (_gate)
         {
-            (int kx, int ky) = UnpackChunkKey(kvp.Key);
-            int dist = Math.Max(Math.Abs(kx - centerChunkX), Math.Abs(ky - centerChunkY));
-            if (dist > evictionRadius)
+            _evictionBuffer.Clear();
+            foreach (KeyValuePair<long, Chunk2D> kvp in _activeChunks)
             {
-                _evictionBuffer.Add(kvp.Key);
+                (int kx, int ky) = UnpackChunkKey(kvp.Key);
+                int dist = Math.Max(Math.Abs(kx - centerChunkX), Math.Abs(ky - centerChunkY));
+                if (dist > evictionRadius)
+                {
+                    _evictionBuffer.Add(kvp.Key);
+                }
             }
-        }
 
-        for (int i = 0; i < _evictionBuffer.Count; i++)
-        {
-            if (_activeChunks.TryRemove(_evictionBuffer[i], out Chunk2D? evicted))
+            for (int i = 0; i < _evictionBuffer.Count; i++)
             {
-                _chunkPool.Enqueue(evicted);
+                if (_activeChunks.TryRemove(_evictionBuffer[i], out Chunk2D? evicted))
+                {
+                    _chunkPool.Enqueue(evicted);
+                }
             }
         }
     }
@@ -196,7 +338,11 @@ public sealed class ChunkWorld2D
         int ly = Chunk2D.ToLocalCoord(worldTileY);
 
         Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
-        chunk.SetTile(lx, ly, tile);
+        lock (_gate)
+        {
+            chunk.SetTile(lx, ly, tile);
+            this.GetOrAddDelta(cx, cy).SetTile(lx, ly, tile);
+        }
     }
 
     /// <summary>
@@ -212,19 +358,7 @@ public sealed class ChunkWorld2D
             return false;
         }
 
-        int lx = Chunk2D.ToLocalCoord(worldTileX);
-        int ly = Chunk2D.ToLocalCoord(worldTileY);
-
-        for (int i = 0; i < chunk.Props.Count; i++)
-        {
-            MapProp prop = chunk.Props[i];
-            if (prop.LocalTileX == lx && prop.LocalTileY == ly && prop.HasCollision)
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return chunk.HasSolidPropAt(Chunk2D.ToLocalCoord(worldTileX), Chunk2D.ToLocalCoord(worldTileY));
     }
 
     /// <summary>
@@ -309,12 +443,12 @@ public sealed class ChunkWorld2D
         {
             for (int tx = minTileX; tx <= maxTileX; tx++)
             {
-                MapTile tile = this.GetTileAtWorld(tx, ty);
+                MapTile tile = this.PeekTileAtWorld(tx, ty);
                 bool isImpassable = tile.IsSolid;
 
                 if (!isImpassable && (tx != currentTileX || ty != currentTileY))
                 {
-                    if (!_navGrid.CanTraverse(currentTileX, currentTileY, tx, ty))
+                    if (!_navGrid.CanTraverse(currentTileX, currentTileY, tx, ty, includeLandmarks: false))
                     {
                         isImpassable = true;
                     }
@@ -409,7 +543,13 @@ public sealed class ChunkWorld2D
             }
         }
 
-        // 3. Resolve continuous collision against constructed building structures (walls, closed doors, pillars)
+        // 3. Points of interest: houses, wells, tents, gate posts... (footprints in tile units)
+        if (this.ResolveLandmarkCollision(ref position, radius, ref pushNormal))
+        {
+            collided = true;
+        }
+
+        // 4. Resolve continuous collision against constructed building structures (walls, closed doors, pillars)
         if (_buildings.ResolveCollision(ref position, radius, _tileSize, out Vector2 buildingPushNormal))
         {
             collided = true;
@@ -423,6 +563,72 @@ public sealed class ChunkWorld2D
 
         return collided;
     }
+
+    private bool ResolveLandmarkCollision(ref Vector2 position, float radius, ref Vector2 pushNormal)
+    {
+        int tileX = (int)MathF.Floor(position.X / _tileSize);
+        int tileY = (int)MathF.Floor(position.Y / _tileSize);
+        int siteX = FloorDiv(tileX, PointOfInterestResolver.SiteSize);
+        int siteY = FloorDiv(tileY, PointOfInterestResolver.SiteSize);
+        PointOfInterest site = _generator.Landmarks.GetSite(siteX, siteY);
+        if (site.Type == PointOfInterestType.None ||
+            Math.Abs(site.TileX - tileX) > site.Radius + 6 ||
+            Math.Abs(site.TileY - tileY) > site.Radius + 6)
+        {
+            return false;
+        }
+
+        bool collided = false;
+        Span<TileBox> boxes = stackalloc TileBox[LandmarkPiece.MaxColliders];
+        ReadOnlySpan<LandmarkPiece> pieces = _generator.Landmarks.GetLayout(siteX, siteY).Pieces;
+        for (int i = 0; i < pieces.Length; i++)
+        {
+            int n = pieces[i].GetColliders(boxes);
+            for (int k = 0; k < n; k++)
+            {
+                TileBox b = boxes[k];
+                float minX = b.MinX * _tileSize;
+                float minY = b.MinY * _tileSize;
+                float maxX = b.MaxX * _tileSize;
+                float maxY = b.MaxY * _tileSize;
+                Vector2 closest = new(Math.Clamp(position.X, minX, maxX), Math.Clamp(position.Y, minY, maxY));
+                Vector2 diff = position - closest;
+                float distSq = diff.LengthSquared();
+                if (distSq >= radius * radius)
+                {
+                    continue;
+                }
+
+                collided = true;
+                Vector2 normal;
+                float push;
+                if (distSq > 0.0001f)
+                {
+                    float dist = MathF.Sqrt(distSq);
+                    normal = diff / dist;
+                    push = radius - dist;
+                }
+                else
+                {
+                    // Centre inside the box: leave through the nearest side.
+                    float left = position.X - minX;
+                    float right = maxX - position.X;
+                    float top = position.Y - minY;
+                    float bottom = maxY - position.Y;
+                    float m = MathF.Min(MathF.Min(left, right), MathF.Min(top, bottom));
+                    normal = m == bottom ? new Vector2(0f, 1f) : m == top ? new Vector2(0f, -1f) : m == left ? new Vector2(-1f, 0f) : new Vector2(1f, 0f);
+                    push = m + radius;
+                }
+
+                position += normal * push;
+                pushNormal += normal;
+            }
+        }
+
+        return collided;
+    }
+
+    private static int FloorDiv(int a, int b) => a >= 0 ? a / b : ((a + 1) / b) - 1;
 
     private static (int X, int Y) LocateSafeNaturalSpawn(ProceduralWorldGenerator generator, float frequency)
     {

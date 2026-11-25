@@ -19,13 +19,25 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
 {
     private readonly ChunkWorld2D _world;
     private readonly ConcurrentDictionary<(int X, int Y), RampDirection> _ramps = new();
+    private readonly Func<int, int, byte> _heightQuery;
+    private readonly Func<int, int, bool> _waterQuery;
+    private readonly Func<int, int, byte> _heightLevelQuery;
+    private readonly Func<int, int, RampDirection> _rampQuery;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TileWalkabilityGrid"/> class.
     /// </summary>
     /// <param name="world">The backing chunk streaming world.</param>
-    public TileWalkabilityGrid(ChunkWorld2D world) =>
+    public TileWalkabilityGrid(ChunkWorld2D world)
+    {
         _world = world ?? throw new ArgumentNullException(nameof(world));
+
+        // Cached once: creating these lambdas per GetRamp/CanTraverse call allocated on every collision query.
+        _heightQuery = (x, y) => _world.PeekTileAtWorld(x, y).HeightLevel;
+        _waterQuery = (x, y) => _world.PeekTileAtWorld(x, y).Biome is BiomeType.DeepOcean or BiomeType.ShallowWater;
+        _heightLevelQuery = this.GetHeightLevel;
+        _rampQuery = this.GetRamp;
+    }
 
     /// <summary>
     /// Registers or updates an inclined ramp at the specified tile.
@@ -52,7 +64,7 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
             return direction;
         }
 
-        MapTile tile = _world.GetTileAtWorld(worldTileX, worldTileY);
+        MapTile tile = _world.PeekTileAtWorld(worldTileX, worldTileY);
         if (tile.HeightLevel == 0 || tile.Biome is BiomeType.DeepOcean or BiomeType.ShallowWater)
         {
             return RampDirection.None;
@@ -62,16 +74,29 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
             worldTileX,
             worldTileY,
             tile.HeightLevel,
-            (x, y) => _world.GetTileAtWorld(x, y).HeightLevel,
-            (x, y) => _world.GetTileAtWorld(x, y).Biome is BiomeType.DeepOcean or BiomeType.ShallowWater);
+            _heightQuery,
+            _waterQuery,
+            IsRiverside(_world.Generator.GetRiverDistance(worldTileX, worldTileY)));
     }
 
     /// <inheritdoc/>
     public byte GetHeightLevel(int worldTileX, int worldTileY) =>
-        _world.GetTileAtWorld(worldTileX, worldTileY).HeightLevel;
+        _world.PeekTileAtWorld(worldTileX, worldTileY).HeightLevel;
 
     /// <inheritdoc/>
-    public TileWalkability GetWalkability(int worldTileX, int worldTileY)
+    public TileWalkability GetWalkability(int worldTileX, int worldTileY) =>
+        this.GetWalkability(worldTileX, worldTileY, includeLandmarks: true);
+
+    /// <summary>
+    /// Evaluates walkability, optionally ignoring the structures of points of interest. Entity collision
+    /// ignores them here because it resolves their walls precisely (with door openings), whereas
+    /// pathfinding treats each building as one solid block.
+    /// </summary>
+    /// <param name="worldTileX">World tile X.</param>
+    /// <param name="worldTileY">World tile Y.</param>
+    /// <param name="includeLandmarks">Whether buildings and other landmark structures block the tile.</param>
+    /// <returns>The walkability classification.</returns>
+    public TileWalkability GetWalkability(int worldTileX, int worldTileY, bool includeLandmarks)
     {
         // 1. Check constructed buildings (highest priority)
         if (_world.Buildings.TryGetStructure(worldTileX, worldTileY, out StructureTile structure))
@@ -87,7 +112,13 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
             }
         }
 
-        // 2. Check solid physical natural props (trees, ores, boulders)
+        // 2. Structures of villages, harbours, camps and shrines
+        if (includeLandmarks && _world.Generator.Landmarks.IsTileBlocked(worldTileX, worldTileY))
+        {
+            return TileWalkability.Impassable;
+        }
+
+        // 3. Check solid physical natural props (trees, ores, boulders)
         if (_world.HasSolidPropAt(worldTileX, worldTileY))
         {
             return TileWalkability.Impassable;
@@ -100,7 +131,7 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
         }
 
         // 4. Check natural terrain tile
-        MapTile tile = _world.GetTileAtWorld(worldTileX, worldTileY);
+        MapTile tile = _world.PeekTileAtWorld(worldTileX, worldTileY);
 
         if (tile.Biome is BiomeType.DeepOcean)
         {
@@ -135,10 +166,23 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
         this.GetWalkability(worldTileX, worldTileY) != TileWalkability.Impassable;
 
     /// <inheritdoc/>
-    public bool CanTraverse(int fromX, int fromY, int toX, int toY)
+    public bool CanTraverse(int fromX, int fromY, int toX, int toY) =>
+        this.CanTraverse(fromX, fromY, toX, toY, includeLandmarks: true);
+
+    /// <summary>
+    /// Evaluates whether movement between two tiles is allowed, optionally ignoring landmark structures
+    /// (see <see cref="GetWalkability(int, int, bool)"/>).
+    /// </summary>
+    /// <param name="fromX">Source tile X.</param>
+    /// <param name="fromY">Source tile Y.</param>
+    /// <param name="toX">Target tile X.</param>
+    /// <param name="toY">Target tile Y.</param>
+    /// <param name="includeLandmarks">Whether buildings and other landmark structures block tiles.</param>
+    /// <returns><c>true</c> when the move is allowed.</returns>
+    public bool CanTraverse(int fromX, int fromY, int toX, int toY, bool includeLandmarks)
     {
         // Target tile must be walkable
-        if (!this.IsWalkable(toX, toY))
+        if (this.GetWalkability(toX, toY, includeLandmarks) == TileWalkability.Impassable)
         {
             return false;
         }
@@ -150,8 +194,8 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
         if (dx != 0 && dy != 0)
         {
             // Moving diagonally: check adjacent orthogonals
-            bool adj1Walkable = this.IsWalkable(fromX + dx, fromY);
-            bool adj2Walkable = this.IsWalkable(fromX, fromY + dy);
+            bool adj1Walkable = this.GetWalkability(fromX + dx, fromY, includeLandmarks) != TileWalkability.Impassable;
+            bool adj2Walkable = this.GetWalkability(fromX, fromY + dy, includeLandmarks) != TileWalkability.Impassable;
 
             if (!adj1Walkable && !adj2Walkable)
             {
@@ -171,10 +215,13 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
                 fromY,
                 toX,
                 toY,
-                this.GetHeightLevel,
-                this.GetRamp);
+                _heightLevelQuery,
+                _rampQuery);
         }
 
         return true;
     }
+
+    // Dry river bank close to the channel (width-scaled distance just outside the water threshold).
+    private static bool IsRiverside(float riverDistance) => riverDistance is > 2.2f and <= 4.0f;
 }

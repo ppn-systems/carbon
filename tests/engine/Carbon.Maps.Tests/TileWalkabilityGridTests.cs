@@ -151,21 +151,34 @@ public sealed class TileWalkabilityGridTests
         world.UpdateAroundPosition(Vector2.Zero, chunkRadius: 1, evictionRadius: 3);
         Chunk2D chunk = world.GetOrCreateChunk(0, 0);
 
-        // Tile (15, 15) is Level 0 (Lowland)
-        chunk.SetTile(15, 15, new MapTile(BiomeType.LushPlains, 0.4f, 0.5f, 0.5f, false, 0, HeightLevel: 0));
+        // Pick a lowland/plateau pair away from procedural ramp slots (their positions are jittered).
+        int x = 0;
+        int y = 1;
+        while (TopographyHelper.IsPotentialRampSlot(x, y) || TopographyHelper.IsPotentialRampSlot(x, y - 1))
+        {
+            x++;
+            if (x >= Chunk2D.Size)
+            {
+                x = 0;
+                y++;
+            }
+        }
 
-        // Tile (15, 14) is Level 1 (Plateau)
-        chunk.SetTile(15, 14, new MapTile(BiomeType.LushPlains, 0.72f, 0.5f, 0.5f, false, 0, HeightLevel: 1));
+        // Tile (x, y) is Level 0 (Lowland)
+        chunk.SetTile(x, y, new MapTile(BiomeType.LushPlains, 0.4f, 0.5f, 0.5f, false, 0, HeightLevel: 0));
+
+        // Tile (x, y - 1) is Level 1 (Plateau)
+        chunk.SetTile(x, y - 1, new MapTile(BiomeType.LushPlains, 0.72f, 0.5f, 0.5f, false, 0, HeightLevel: 1));
 
         // Without ramp -> Cannot traverse from Level 0 to Level 1
-        Assert.False(world.NavGrid.CanTraverse(15, 15, 15, 14));
+        Assert.False(world.NavGrid.CanTraverse(x, y, x, y - 1));
 
-        // Add North ramp at (15, 15)
-        world.NavGrid.SetRamp(15, 15, RampDirection.North);
-        Assert.Equal(TileWalkability.WalkableRamp, world.NavGrid.GetWalkability(15, 15));
+        // Add North ramp at (x, y)
+        world.NavGrid.SetRamp(x, y, RampDirection.North);
+        Assert.Equal(TileWalkability.WalkableRamp, world.NavGrid.GetWalkability(x, y));
 
         // With ramp -> Can traverse smoothly across the height levels!
-        Assert.True(world.NavGrid.CanTraverse(15, 15, 15, 14));
-        Assert.True(world.NavGrid.CanTraverse(15, 14, 15, 15));
+        Assert.True(world.NavGrid.CanTraverse(x, y, x, y - 1));
+        Assert.True(world.NavGrid.CanTraverse(x, y - 1, x, y));
     }
 }

@@ -17,6 +17,7 @@ using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
+using Carbon.Maps.Landmarks;
 using Carbon.Maps.Navigation;
 using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
@@ -38,11 +39,26 @@ public static class Program
 {
     private const float TileSize = 32f;
     private const float MacroFrequency = 0.0008f; // Expansive continental scale (~1250 tiles per continent)
-    private static readonly string s_screenshotPath = Path.Combine(
-        @"C:\Users\nguye\.gemini\antigravity-cli\brain\16aec843-7ea2-45f0-ac90-80492879a105",
-        "world_capture.bmp");
+    // CARBON_SCREENSHOT_PATH overrides where captures are written (default: ./screenshots/world_capture.bmp).
+    private static readonly string s_screenshotPath =
+        Environment.GetEnvironmentVariable("CARBON_SCREENSHOT_PATH") is { Length: > 0 } customPath
+            ? customPath
+            : Path.Combine(Environment.CurrentDirectory, "screenshots", "world_capture.bmp");
 
     private static GeometryBatch? s_geometryBatch;
+    private static PointOfInterestRenderer? s_poiRenderer;
+    private static float s_animTime;
+    private static Atmosphere? s_atmosphere;
+    private static readonly List<PointLight> s_lights = new(256);
+    private static readonly List<PointOfInterest> s_visibleWorldTrees = new();
+
+    // Interior view: 0 = outside, 1 = fully inside a building (camera zoomed in, surroundings dimmed).
+    private const float InteriorZoomBoost = 1.4f;
+    private static float s_interiorBlend;
+    private static RectangleF s_interiorRoom;
+    private static float? s_userZoom;
+    private static readonly int s_captureFrames =
+        int.TryParse(Environment.GetEnvironmentVariable("CARBON_CAPTURE_FRAMES"), System.Globalization.CultureInfo.InvariantCulture, out int frames) ? Math.Clamp(frames, 0, 240) : 0;
     private static ChunkTerrainRenderer? s_chunkTerrainRenderer;
     private static Camera2D? s_camera;
     private static ChunkWorld2D? s_chunkWorld;
@@ -119,6 +135,12 @@ public static class Program
             Zoom = Environment.GetEnvironmentVariable("CARBON_MACRO_VIEW") == "1" ? 0.25f : 1.0f
         };
 
+        // CARBON_SEED selects the world seed (decimal), e.g. to reproduce a screenshot.
+        if (ulong.TryParse(Environment.GetEnvironmentVariable("CARBON_SEED"), System.Globalization.CultureInfo.InvariantCulture, out ulong envSeed))
+        {
+            s_currentSeed = envSeed;
+        }
+
         GenerateWorld(s_currentSeed);
     }
 
@@ -129,10 +151,32 @@ public static class Program
 
         ProceduralWorldGenerator generator = new(seed);
         s_chunkWorld = new ChunkWorld2D(generator, TileSize, MacroFrequency);
+        s_poiRenderer = new PointOfInterestRenderer(TileSize, generator.Landmarks);
+
+        // CARBON_TIME_OF_DAY (hour, 0-24), CARBON_DAY_LENGTH (real seconds per day) and CARBON_WEATHER
+        // (rain | clear) pin the atmosphere, e.g. for screenshots.
+        float startHour = float.TryParse(Environment.GetEnvironmentVariable("CARBON_TIME_OF_DAY"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float hour) ? hour : 9f;
+        float dayLength = float.TryParse(Environment.GetEnvironmentVariable("CARBON_DAY_LENGTH"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float length) ? length : 600f;
+        bool? rain = Environment.GetEnvironmentVariable("CARBON_WEATHER") switch
+        {
+            "rain" => true,
+            "clear" => false,
+            _ => null,
+        };
+        s_atmosphere = new Atmosphere(startHour, dayLength, rain);
         s_chunkTerrainRenderer?.EvictDistant(0, 0, -1);
 
         // Preload chunks around the natural safe starter spawn
         Vector2 spawnPoint = s_chunkWorld.SpawnWorldPosition;
+
+        // CARBON_FOCUS_TILE="x,y" starts the player at a given world tile (screenshots, debugging).
+        if (Environment.GetEnvironmentVariable("CARBON_FOCUS_TILE") is { Length: > 0 } focus &&
+            focus.Split(',') is [string fx, string fy] &&
+            int.TryParse(fx, System.Globalization.CultureInfo.InvariantCulture, out int focusX) &&
+            int.TryParse(fy, System.Globalization.CultureInfo.InvariantCulture, out int focusY))
+        {
+            spawnPoint = new Vector2((focusX + 0.5f) * TileSize, (focusY + 0.5f) * TileSize);
+        }
         s_chunkWorld.UpdateAroundPosition(spawnPoint, chunkRadius: 4, evictionRadius: 8);
 
         s_world = new WorldSimulation(tickRate: 50, cellSize: TileSize);
@@ -188,13 +232,15 @@ public static class Program
         }
 
         // 5. Zoom controls
+        // The player's chosen zoom is kept apart from the automatic interior zoom applied on top of it.
+        s_userZoom ??= s_camera.Zoom;
         if (window.Input.Keyboard.IsKeyDown(Key.Q))
         {
-            s_camera.Zoom = Math.Clamp(s_camera.Zoom * 0.985f, 0.10f, 3.0f);
+            s_userZoom = Math.Clamp(s_userZoom.Value * 0.985f, 0.10f, 3.0f);
         }
         else if (window.Input.Keyboard.IsKeyDown(Key.E))
         {
-            s_camera.Zoom = Math.Clamp(s_camera.Zoom * 1.015f, 0.10f, 3.0f);
+            s_userZoom = Math.Clamp(s_userZoom.Value * 1.015f, 0.10f, 3.0f);
         }
 
         // 6. Movement controls
@@ -343,9 +389,22 @@ public static class Program
 
         // 11. Follow player with camera
         ref readonly Transform2D updatedTrans = ref s_world.Entities.GetTransform(s_player);
-        s_camera.Position = updatedTrans.Position;
 
-        if (s_frameCount >= 25 && Environment.GetEnvironmentVariable("CARBON_AUTO_EXIT") == "1")
+        // 12. Interiors: entering a building eases the camera in on the room and fades the outside out.
+        bool inside = s_poiRenderer is not null && s_poiRenderer.TryGetBuildingAt(updatedTrans.Position, out _, out s_interiorRoom);
+        float target = inside ? 1f : 0f;
+        float rate = s_captureFrames > 0 ? 1f / 15f : (float)dt;
+        s_interiorBlend += (target - s_interiorBlend) * Math.Min(1f, rate * 4f);
+        if (!inside && s_interiorBlend < 0.002f)
+        {
+            s_interiorBlend = 0f;
+        }
+
+        Vector2 roomCentre = new(s_interiorRoom.X + (s_interiorRoom.Width * 0.5f), s_interiorRoom.Y + (s_interiorRoom.Height * 0.5f));
+        s_camera.Position = Vector2.Lerp(updatedTrans.Position, roomCentre, s_interiorBlend * 0.75f);
+        s_camera.Zoom = (s_userZoom ?? s_camera.Zoom) * (1f + (InteriorZoomBoost * s_interiorBlend));
+
+        if (s_frameCount >= 25 + s_captureFrames && Environment.GetEnvironmentVariable("CARBON_AUTO_EXIT") == "1")
         {
             window.Close();
         }
@@ -353,6 +412,12 @@ public static class Program
 
     private static void OnRender(IGameWindow window, double dt)
     {
+        // While capturing an animation, step time at a fixed 15 fps so the sequence is independent of the
+        // (possibly slow, software-rendered) frame rate.
+        float frameDt = s_captureFrames > 0 ? 1f / 15f : (float)dt;
+        s_animTime += frameDt;
+        s_atmosphere?.Update(frameDt);
+        s_lights.Clear();
         if (s_geometryBatch == null || s_camera == null || s_chunkWorld == null || s_world == null || s_chunkTerrainRenderer == null)
         {
             return;
@@ -389,6 +454,22 @@ public static class Program
 
         s_geometryBatch.Begin(s_camera.ViewProjectionMatrix);
 
+        // Animated water over the baked waterfall curtains of the visible chunks
+        foreach (Chunk2D chunk in s_chunkWorld.ActiveChunks)
+        {
+            chunk.GetBounds(TileSize, out float cMinX, out float cMinY, out float cMaxX, out float cMaxY);
+            if (cMaxX < minX || cMinX > maxX || cMaxY < minY || cMinY > maxY)
+            {
+                continue;
+            }
+
+            AmbientAnimator.DrawRipples(s_geometryBatch, s_chunkTerrainRenderer.GetRipples(chunk.Key), s_animTime);
+            AmbientAnimator.DrawWaterfalls(s_geometryBatch, s_chunkTerrainRenderer.GetWaterfalls(chunk.Key), s_animTime);
+        }
+
+        // Cloud shadows drifting over the ground, under props and buildings
+        s_atmosphere?.DrawCloudShadows(s_geometryBatch, minX, minY, maxX, maxY);
+
         // Debug overlay for solid terrain tiles
         if (s_debugOverlay)
         {
@@ -423,6 +504,37 @@ public static class Program
         s_groundSortList.Clear();
         s_canopySortList.Clear();
 
+        s_visibleWorldTrees.Clear();
+
+        // Points of interest: flat ground layer now (under props and entities), upright pieces Y-sorted.
+        // Culled by footprint rather than by chunk, since a village spills over its centre chunk.
+        foreach (Chunk2D chunk in s_chunkWorld.ActiveChunks)
+        {
+            for (int i = 0; i < chunk.PointsOfInterest.Count; i++)
+            {
+                PointOfInterest poi = chunk.PointsOfInterest[i];
+                float reach = (poi.Radius + 6) * TileSize * 2f;
+                float px = (poi.TileX + 0.5f) * TileSize;
+                float py = (poi.TileY + 0.5f) * TileSize;
+                if (px + reach < minX || px - reach > maxX || py + reach < minY || py - reach > maxY || s_poiRenderer is null)
+                {
+                    continue;
+                }
+
+                s_poiRenderer.DrawGround(s_geometryBatch, poi, s_animTime, playerPos);
+                s_poiRenderer.CollectLights(poi, s_lights, s_animTime);
+                if (poi.Type == PointOfInterestType.WorldTree)
+                {
+                    s_visibleWorldTrees.Add(poi);
+                }
+                ReadOnlySpan<LandmarkPiece> pieces = s_poiRenderer.GetLayout(poi).Pieces;
+                for (int k = 0; k < pieces.Length; k++)
+                {
+                    s_groundSortList.Add(new GroundRenderItem(pieces[k].Y * TileSize, pieces[k]));
+                }
+            }
+        }
+
         foreach (Chunk2D chunk in s_chunkWorld.ActiveChunks)
         {
             chunk.GetBounds(TileSize, out float cMinX, out float cMinY, out float cMaxX, out float cMaxY);
@@ -438,6 +550,10 @@ public static class Program
                     prop.WorldPositionY + 96f >= minY && prop.WorldPositionY - 96f <= maxY)
                 {
                     s_groundSortList.Add(new GroundRenderItem(prop.GroundFootprintY, in prop));
+                    if (PropArt.TryGetLight(prop, out PointLight propLight))
+                    {
+                        s_lights.Add(propLight);
+                    }
 
                     if (prop.HasCanopy)
                     {
@@ -469,7 +585,11 @@ public static class Program
         for (int i = 0; i < groundSpan.Length; i++)
         {
             ref readonly GroundRenderItem item = ref groundSpan[i];
-            if (item.IsProp)
+            if (item.IsPiece)
+            {
+                s_poiRenderer?.DrawPiece(s_geometryBatch, item.Piece, s_animTime, playerPos);
+            }
+            else if (item.IsProp)
             {
                 RenderPropGround(s_geometryBatch, item.Prop);
             }
@@ -485,7 +605,67 @@ public static class Program
         for (int i = 0; i < canopySpan.Length; i++)
         {
             ref readonly CanopyRenderItem item = ref canopySpan[i];
-            RenderPropCanopy(s_geometryBatch, item.Prop, playerPos);
+            // Canopies sway in the wind (trunks stay put): per-tree phase plus a slow shared gust.
+            MapProp swaying = item.Prop;
+            float gust = 0.6f + (0.4f * MathF.Sin(s_animTime * 0.35f));
+            float sway = MathF.Sin((s_animTime * 1.25f) + (swaying.WorldPositionX * 0.013f) + (swaying.WorldPositionY * 0.007f)) * 1.8f * gust * swaying.Scale;
+            swaying = swaying with { WorldPositionX = swaying.WorldPositionX + sway };
+            RenderPropCanopy(s_geometryBatch, swaying, playerPos);
+        }
+
+        // World Tree canopies tower over everything
+        foreach (PointOfInterest tree in s_visibleWorldTrees)
+        {
+            s_poiRenderer?.DrawWorldTreeCanopy(s_geometryBatch, tree, s_animTime, playerPos);
+        }
+
+        // Atmosphere: ambient light (multiply), then point lights (additive), then clouds, rain, fireflies
+        if (s_atmosphere is not null)
+        {
+            s_geometryBatch.End();
+
+            s_geometryBatch.Begin(s_camera.ViewProjectionMatrix, Atmosphere.Multiply);
+            s_atmosphere.DrawAmbient(s_geometryBatch, minX, minY, maxX, maxY);
+            s_geometryBatch.End();
+
+            // The player carries a soft lantern glow after dark
+            s_lights.Add(new PointLight(playerPos, 150f, new ColorRgba(255, 214, 150), 0.6f));
+            s_geometryBatch.Begin(s_camera.ViewProjectionMatrix, Carbon.Graphics.OpenGL.States.BlendState.Additive);
+            s_atmosphere.DrawLights(s_geometryBatch, s_lights);
+            s_geometryBatch.End();
+
+            s_geometryBatch.Begin(s_camera.ViewProjectionMatrix);
+            if (s_interiorBlend < 0.5f)
+            {
+                s_atmosphere.DrawOverlay(s_geometryBatch, minX, minY, maxX, maxY, playerPos);
+            }
+        }
+
+        // Interior view: darken everything outside the room the player stands in
+        if (s_interiorBlend > 0.01f)
+        {
+            RectangleF room = s_interiorRoom;
+            float pad = 4f;
+            float left = room.X - pad;
+            float right = room.X + room.Width + pad;
+            float topY = room.Y - pad;
+            float bottom = room.Y + room.Height + pad;
+            ColorRgba dim = new(6, 8, 14, (byte)(225f * s_interiorBlend));
+            float bigL = minX - 64f;
+            float bigT = minY - 64f;
+            float bigR = maxX + 64f;
+            float bigB = maxY + 64f;
+            s_geometryBatch.FillRectangle(new RectangleF(bigL, bigT, bigR - bigL, topY - bigT), dim);
+            s_geometryBatch.FillRectangle(new RectangleF(bigL, bottom, bigR - bigL, bigB - bottom), dim);
+            s_geometryBatch.FillRectangle(new RectangleF(bigL, topY, left - bigL, bottom - topY), dim);
+            s_geometryBatch.FillRectangle(new RectangleF(right, topY, bigR - right, bottom - topY), dim);
+
+            // Soft inner glow along the edge of the darkness
+            ColorRgba edge = new(6, 8, 14, (byte)(90f * s_interiorBlend));
+            s_geometryBatch.FillRectangle(new RectangleF(left, topY, right - left, 6f), edge);
+            s_geometryBatch.FillRectangle(new RectangleF(left, bottom - 6f, right - left, 6f), edge);
+            s_geometryBatch.FillRectangle(new RectangleF(left, topY, 6f, bottom - topY), edge);
+            s_geometryBatch.FillRectangle(new RectangleF(right - 6f, topY, 6f, bottom - topY), edge);
         }
 
         s_geometryBatch.End();
@@ -496,6 +676,14 @@ public static class Program
         {
             s_hasAutoCaptured = true;
             CaptureScreen(window);
+        }
+        else if (s_captureFrames > 0 && s_frameCount > 20 && s_frameCount <= 20 + s_captureFrames)
+        {
+            // CARBON_CAPTURE_FRAMES=N also saves the N following frames as <name>_001.bmp ... for animations.
+            string path = Path.Combine(
+                Path.GetDirectoryName(s_screenshotPath) ?? string.Empty,
+                $"{Path.GetFileNameWithoutExtension(s_screenshotPath)}_{s_frameCount - 20:D3}.bmp");
+            ScreenshotHelper.Capture(window.Device.Gl, window.Width, window.Height, path);
         }
 
         GLEnum glError = window.Device.Gl.GetError();
@@ -518,247 +706,14 @@ public static class Program
         }
     }
 
-    private static void RenderPropGround(GeometryBatch batch, in MapProp prop)
-    {
-        Vector2 pos = prop.WorldPosition;
-        ColorRgba primary = HexToColor(prop.ColorPrimary);
-        ColorRgba secondary = HexToColor(prop.ColorSecondary);
-        float r = prop.Radius;
-
-        switch (prop.Type)
-        {
-            case MapPropType.OakTree:
-                batch.FillCircle(new Vector2(pos.X + 4f, pos.Y + 14f), r * 0.45f, new ColorRgba(0, 0, 0, 45));
-                batch.FillRectangle(new RectangleF(pos.X - 10f, pos.Y + 6f, 20f, 8f), new ColorRgba(69, 26, 3));
-                batch.FillRectangle(new RectangleF(pos.X - 7f, pos.Y - 10f, 14f, 26f), secondary);
-                batch.FillRectangle(new RectangleF(pos.X - 6f, pos.Y - 10f, 3f, 22f), new ColorRgba(146, 64, 14));
-                break;
-
-            case MapPropType.BirchTree:
-                batch.FillCircle(new Vector2(pos.X, pos.Y + 10f), r * 0.4f, new ColorRgba(0, 0, 0, 45));
-                batch.FillRectangle(new RectangleF(pos.X - 5f, pos.Y - 8f, 10f, 30f), secondary);
-                batch.FillRectangle(new RectangleF(pos.X - 5f, pos.Y + 2f, 4f, 2.5f), new ColorRgba(30, 41, 59));
-                batch.FillRectangle(new RectangleF(pos.X + 1f, pos.Y + 10f, 4f, 2.5f), new ColorRgba(30, 41, 59));
-                break;
-
-            case MapPropType.PineTree:
-            case MapPropType.SnowPine:
-                batch.FillCircle(new Vector2(pos.X, pos.Y + 8f), r * 0.35f, new ColorRgba(0, 0, 0, 45));
-                batch.FillRectangle(new RectangleF(pos.X - 5f, pos.Y - 4f, 10f, 24f), new ColorRgba(113, 63, 18));
-                break;
-
-            case MapPropType.PalmTree:
-                batch.FillCircle(new Vector2(pos.X, pos.Y + 8f), r * 0.35f, new ColorRgba(0, 0, 0, 40));
-                batch.FillRectangle(new RectangleF(pos.X - 4f, pos.Y - 6f, 8f, 32f), secondary);
-                break;
-
-            case MapPropType.WillowTree:
-                batch.FillCircle(new Vector2(pos.X, pos.Y + 12f), r * 0.45f, new ColorRgba(0, 0, 0, 50));
-                batch.FillRectangle(new RectangleF(pos.X - 8f, pos.Y - 6f, 16f, 26f), secondary);
-                break;
-
-            case MapPropType.AcaciaTree:
-                batch.FillCircle(new Vector2(pos.X, pos.Y + 8f), r * 0.4f, new ColorRgba(0, 0, 0, 45));
-                batch.FillRectangle(new RectangleF(pos.X - 5f, pos.Y - 14f, 10f, 28f), secondary);
-                batch.FillRectangle(new RectangleF(pos.X - 16f, pos.Y - 22f, 14f, 5f), secondary);
-                batch.FillRectangle(new RectangleF(pos.X + 2f, pos.Y - 24f, 16f, 5f), secondary);
-                break;
-
-            case MapPropType.CherryBlossomTree:
-                batch.FillCircle(new Vector2(pos.X, pos.Y + 10f), r * 0.65f, new ColorRgba(244, 114, 182, 70));
-                batch.FillCircle(new Vector2(pos.X, pos.Y + 8f), r * 0.4f, new ColorRgba(0, 0, 0, 45));
-                batch.FillRectangle(new RectangleF(pos.X - 6f, pos.Y - 10f, 12f, 26f), secondary);
-                batch.FillRectangle(new RectangleF(pos.X - 5f, pos.Y - 8f, 3f, 20f), new ColorRgba(85, 45, 35));
-                break;
-
-            case MapPropType.GlacialCrystal:
-                batch.FillCircle(new Vector2(pos.X, pos.Y + 8f), r * 0.75f, new ColorRgba(0, 0, 0, 55), segments: 6);
-                batch.FillCircle(pos, r * 0.85f, primary, segments: 6);
-                batch.FillCircle(new Vector2(pos.X - 4f, pos.Y - 6f), r * 0.45f, secondary, segments: 5);
-                batch.FillCircle(new Vector2(pos.X + 4f, pos.Y + 3f), r * 0.35f, new ColorRgba(255, 255, 255, 240), segments: 4);
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 8f), r * 0.3f, new ColorRgba(255, 255, 255, 255), segments: 4);
-                break;
-
-            case MapPropType.DeadTree:
-                batch.FillCircle(new Vector2(pos.X, pos.Y + 8f), r * 0.3f, new ColorRgba(0, 0, 0, 45));
-                batch.FillRectangle(new RectangleF(pos.X - 5f, pos.Y - 14f, 10f, 32f), primary);
-                batch.FillRectangle(new RectangleF(pos.X - 18f, pos.Y - 8f, 16f, 5f), secondary);
-                batch.FillRectangle(new RectangleF(pos.X + 2f, pos.Y - 16f, 18f, 5f), secondary);
-                break;
-
-            case MapPropType.Cactus:
-                batch.FillCircle(new Vector2(pos.X, pos.Y + 6f), r * 0.35f, new ColorRgba(0, 0, 0, 40));
-                batch.FillRectangle(new RectangleF(pos.X - 6f, pos.Y - 20f, 12f, 40f), primary);
-                batch.FillRectangle(new RectangleF(pos.X - 18f, pos.Y - 8f, 14f, 6f), primary);
-                batch.FillRectangle(new RectangleF(pos.X - 18f, pos.Y - 22f, 6f, 16f), secondary);
-                batch.FillRectangle(new RectangleF(pos.X + 4f, pos.Y - 4f, 14f, 6f), primary);
-                batch.FillRectangle(new RectangleF(pos.X + 12f, pos.Y - 18f, 6f, 16f), secondary);
-                break;
-
-            case MapPropType.Bush:
-                batch.FillCircle(new Vector2(pos.X - (r * 0.45f), pos.Y + 2f), r * 0.8f, primary);
-                batch.FillCircle(new Vector2(pos.X + (r * 0.45f), pos.Y + 2f), r * 0.8f, primary);
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 4f), r, secondary);
-                break;
-
-            case MapPropType.MushroomCluster:
-                batch.FillCircle(new Vector2(pos.X, pos.Y + 6f), r * 0.5f, new ColorRgba(0, 0, 0, 35));
-                batch.FillRectangle(new RectangleF(pos.X - 8f, pos.Y + 2f, 4f, 9f), secondary);
-                batch.FillRectangle(new RectangleF(pos.X + 4f, pos.Y + 4f, 3f, 7f), secondary);
-                batch.FillCircle(new Vector2(pos.X - 6f, pos.Y - 2f), r * 0.75f, primary);
-                batch.FillCircle(new Vector2(pos.X + 6f, pos.Y + 1f), r * 0.55f, primary);
-                break;
-
-            case MapPropType.CopperVein:
-            case MapPropType.IronVein:
-            case MapPropType.GoldVein:
-            case MapPropType.CoalDeposit:
-            case MapPropType.SilverVein:
-                batch.FillCircle(new Vector2(pos.X + 4f, pos.Y + 8f), r * 0.85f, new ColorRgba(0, 0, 0, 50), segments: 8);
-                batch.FillCircle(pos, r, primary, segments: 8);
-                batch.FillCircle(new Vector2(pos.X + 3f, pos.Y + 3f), r * 0.7f, new ColorRgba(0, 0, 0, 55), segments: 8);
-                batch.FillCircle(new Vector2(pos.X - 4f, pos.Y - 4f), r * 0.55f, new ColorRgba(255, 255, 255, 30), segments: 6);
-                batch.FillCircle(new Vector2(pos.X - 5f, pos.Y - 4f), r * 0.28f, secondary, segments: 6);
-                batch.FillCircle(new Vector2(pos.X + 5f, pos.Y + 3f), r * 0.25f, secondary, segments: 6);
-                batch.FillCircle(new Vector2(pos.X + 2f, pos.Y - 6f), r * 0.22f, secondary, segments: 5);
-                batch.FillCircle(new Vector2(pos.X - 2f, pos.Y + 6f), r * 0.20f, secondary, segments: 5);
-                batch.FillCircle(new Vector2(pos.X - 6f, pos.Y - 5f), r * 0.12f, new ColorRgba(255, 255, 255, 220), segments: 4);
-                break;
-
-            case MapPropType.CrystalCluster:
-                batch.FillCircle(new Vector2(pos.X, pos.Y + 6f), r * 0.8f, new ColorRgba(0, 0, 0, 60), segments: 6);
-                batch.FillCircle(pos, r * 0.85f, primary, segments: 6);
-                batch.FillCircle(new Vector2(pos.X - 6f, pos.Y - 6f), r * 0.42f, secondary, segments: 5);
-                batch.FillCircle(new Vector2(pos.X + 6f, pos.Y + 4f), r * 0.38f, secondary, segments: 5);
-                batch.FillCircle(new Vector2(pos.X, pos.Y + 8f), r * 0.32f, new ColorRgba(255, 255, 255, 230), segments: 4);
-                batch.FillCircle(new Vector2(pos.X + 3f, pos.Y - 8f), r * 0.35f, secondary, segments: 5);
-                break;
-
-            case MapPropType.Boulder:
-                batch.FillCircle(new Vector2(pos.X, pos.Y + 6f), r * 0.85f, new ColorRgba(0, 0, 0, 50), segments: 8);
-                batch.FillCircle(pos, r, primary, segments: 8);
-                batch.FillCircle(new Vector2(pos.X - 4f, pos.Y - 4f), r * 0.5f, secondary, segments: 8);
-                break;
-
-            case MapPropType.BasaltPillar:
-                batch.FillCircle(new Vector2(pos.X, pos.Y + 8f), r * 0.85f, new ColorRgba(0, 0, 0, 60), segments: 6);
-                batch.FillCircle(pos, r, primary, segments: 6);
-                batch.FillCircle(pos, r * 0.65f, secondary, segments: 6);
-                break;
-
-            case MapPropType.AncientShrine:
-                batch.FillCircle(pos, r + 12f, new ColorRgba(129, 140, 248, 65));
-                batch.FillRectangle(new RectangleF(pos.X - 22f, pos.Y + 4f, 44f, 16f), secondary);
-                batch.FillRectangle(new RectangleF(pos.X - 12f, pos.Y - 28f, 24f, 40f), secondary);
-                batch.FillRectangle(new RectangleF(pos.X - 6f, pos.Y - 20f, 12f, 24f), primary);
-                break;
-
-            case MapPropType.None:
-            default:
-                break;
-        }
-    }
+    // Natural props are drawn by PropArt, which varies every instance (palette, leaf layout, lean, crystals).
+    private static void RenderPropGround(GeometryBatch batch, in MapProp prop) => PropArt.DrawGround(batch, prop);
 
     private static void RenderPropCanopy(GeometryBatch batch, in MapProp prop, Vector2 playerPosition)
     {
-        Vector2 pos = prop.WorldPosition;
-        ColorRgba primary = HexToColor(prop.ColorPrimary);
-        ColorRgba secondary = HexToColor(prop.ColorSecondary);
-        float r = prop.Radius;
-
-        // When player is standing under the tree canopy, leaves fade to ~35% alpha (90/255) so player and solid trunk remain visible
+        // When the player stands under a canopy, the leaves fade so the player and the trunk stay visible.
         byte alpha = prop.IsUnderCanopy(playerPosition) ? (byte)90 : (byte)255;
-        byte subAlpha = (byte)(alpha * 180 / 255);
-
-        switch (prop.Type)
-        {
-            case MapPropType.OakTree:
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 18f), r * 0.75f, new ColorRgba(15, 61, 30, subAlpha));
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 26f), r, new ColorRgba(primary.R, primary.G, primary.B, alpha));
-                batch.FillCircle(new Vector2(pos.X - (r * 0.45f), pos.Y - 20f), r * 0.72f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
-                batch.FillCircle(new Vector2(pos.X + (r * 0.45f), pos.Y - 22f), r * 0.75f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 40f), r * 0.65f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
-                batch.FillCircle(new Vector2(pos.X - 10f, pos.Y - 32f), r * 0.48f, new ColorRgba(34, 197, 94, alpha));
-                batch.FillCircle(new Vector2(pos.X - 14f, pos.Y - 36f), r * 0.26f, new ColorRgba(74, 222, 128, alpha));
-                break;
-
-            case MapPropType.BirchTree:
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 26f), r, new ColorRgba(primary.R, primary.G, primary.B, alpha));
-                batch.FillCircle(new Vector2(pos.X - (r * 0.38f), pos.Y - 20f), r * 0.65f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
-                batch.FillCircle(new Vector2(pos.X + (r * 0.38f), pos.Y - 22f), r * 0.65f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
-                batch.FillCircle(new Vector2(pos.X - 4f, pos.Y - 30f), r * 0.45f, new ColorRgba(190, 242, 100, alpha));
-                break;
-
-            case MapPropType.PineTree:
-            case MapPropType.SnowPine:
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 6f), r, new ColorRgba(secondary.R, secondary.G, secondary.B, alpha), segments: 16);
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 22f), r * 0.75f, new ColorRgba(primary.R, primary.G, primary.B, alpha), segments: 16);
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 36f), r * 0.48f, new ColorRgba(primary.R, primary.G, primary.B, alpha), segments: 16);
-                break;
-
-            case MapPropType.PalmTree:
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 26f), r, new ColorRgba(primary.R, primary.G, primary.B, alpha), segments: 14);
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 26f), r * 0.45f, new ColorRgba(255, 255, 255, (byte)(75 * alpha / 255)));
-                break;
-
-            case MapPropType.WillowTree:
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 20f), r, new ColorRgba(primary.R, primary.G, primary.B, alpha));
-                batch.FillCircle(new Vector2(pos.X - (r * 0.45f), pos.Y - 4f), r * 0.45f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
-                batch.FillCircle(new Vector2(pos.X + (r * 0.45f), pos.Y - 4f), r * 0.45f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
-                batch.FillRectangle(new RectangleF(pos.X - 16f, pos.Y - 4f, 4f, 18f), new ColorRgba(primary.R, primary.G, primary.B, alpha));
-                batch.FillRectangle(new RectangleF(pos.X + 12f, pos.Y - 4f, 4f, 18f), new ColorRgba(primary.R, primary.G, primary.B, alpha));
-                break;
-
-            case MapPropType.AcaciaTree:
-                batch.FillCircle(new Vector2(pos.X - 14f, pos.Y - 26f), r * 0.75f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
-                batch.FillCircle(new Vector2(pos.X + 14f, pos.Y - 28f), r * 0.75f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 32f), r * 0.85f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
-                batch.FillRectangle(new RectangleF(pos.X - (r * 1.3f), pos.Y - 30f, r * 2.6f, 10f), new ColorRgba(primary.R, primary.G, primary.B, alpha));
-                batch.FillRectangle(new RectangleF(pos.X - r, pos.Y - 34f, r * 2f, 6f), new ColorRgba(163, 163, 50, alpha));
-                break;
-
-            case MapPropType.CherryBlossomTree:
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 20f), r * 0.85f, new ColorRgba(236, 72, 153, subAlpha));
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 28f), r, new ColorRgba(primary.R, primary.G, primary.B, alpha));
-                batch.FillCircle(new Vector2(pos.X - (r * 0.5f), pos.Y - 22f), r * 0.75f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
-                batch.FillCircle(new Vector2(pos.X + (r * 0.5f), pos.Y - 24f), r * 0.75f, new ColorRgba(primary.R, primary.G, primary.B, alpha));
-                batch.FillCircle(new Vector2(pos.X, pos.Y - 42f), r * 0.65f, new ColorRgba(251, 207, 232, alpha));
-                batch.FillCircle(new Vector2(pos.X - 8f, pos.Y - 34f), r * 0.35f, new ColorRgba(255, 255, 255, alpha));
-                break;
-
-            case MapPropType.GlacialCrystal:
-                break;
-            case MapPropType.None:
-                break;
-            case MapPropType.DeadTree:
-                break;
-            case MapPropType.Cactus:
-                break;
-            case MapPropType.Bush:
-                break;
-            case MapPropType.MushroomCluster:
-                break;
-            case MapPropType.CopperVein:
-                break;
-            case MapPropType.IronVein:
-                break;
-            case MapPropType.GoldVein:
-                break;
-            case MapPropType.CoalDeposit:
-                break;
-            case MapPropType.SilverVein:
-                break;
-            case MapPropType.CrystalCluster:
-                break;
-            case MapPropType.Boulder:
-                break;
-            case MapPropType.BasaltPillar:
-                break;
-            case MapPropType.AncientShrine:
-                break;
-            default:
-                break;
-        }
+        PropArt.DrawCanopy(batch, prop, alpha);
     }
 
     private static void RenderEntity(GeometryBatch batch, Entity entity)
@@ -814,15 +769,6 @@ public static class Program
         }
     }
 
-    private static ColorRgba HexToColor(uint hex)
-    {
-        byte r = (byte)((hex >> 24) & 0xFF);
-        byte g = (byte)((hex >> 16) & 0xFF);
-        byte b = (byte)((hex >> 8) & 0xFF);
-        byte a = (byte)(hex & 0xFF);
-        return new ColorRgba(r, g, b, a);
-    }
-
     private static void PlaceTestHouseNearPlayer()
     {
         if (s_chunkWorld == null || s_world == null || !s_world.Entities.IsAlive(s_player))
@@ -869,6 +815,8 @@ public static class Program
         public readonly bool IsProp;
         public readonly MapProp Prop;
         public readonly Entity Entity;
+        public readonly bool IsPiece;
+        public readonly LandmarkPiece Piece;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public GroundRenderItem(float sortY, in MapProp prop)
@@ -886,6 +834,17 @@ public static class Program
             IsProp = false;
             Prop = default;
             Entity = entity;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public GroundRenderItem(float sortY, in LandmarkPiece piece)
+        {
+            SortY = sortY;
+            IsProp = false;
+            Prop = default;
+            Entity = Entity.Null;
+            IsPiece = true;
+            Piece = piece;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

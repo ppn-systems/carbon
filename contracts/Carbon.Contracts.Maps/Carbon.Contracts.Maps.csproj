@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <RootNamespace>Carbon.Contracts.Maps</RootNamespace>
+        <AssemblyName>Carbon.Contracts.Maps</AssemblyName>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Common carries the shared primitives (OpStatus, MutationResult). -->
+        <ProjectReference Include="..\Carbon.Contracts.Common\Carbon.Contracts.Common.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Copied verbatim from Carbon.Contracts.Common: the source generator only runs in this
+             assembly when Nalix.Abstractions is referenced directly. -->
+        <PackageReference Include="Nalix.Abstractions" />
+        <PackageReference Include="Nalix.Codec" />
+    </ItemGroup>
+
+</Project>
