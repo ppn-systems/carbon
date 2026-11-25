@@ -140,6 +140,8 @@ public sealed class ChunkWorld2D
 
         lock (_gate)
         {
+            // Deltas recorded against another generator version are migrated first (see ChunkDelta.MigrateTo).
+            delta = delta.MigrateTo(ProceduralWorldGenerator.GeneratorVersion);
             _deltas.Set(delta);
             _streamer.RebuildIfResident(delta.ChunkX, delta.ChunkY);
         }

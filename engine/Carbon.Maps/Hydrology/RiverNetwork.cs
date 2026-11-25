@@ -577,7 +577,18 @@ internal sealed class RiverNetwork : IRiverDistanceSource
     }
 
     // Channel half-width scale: a spring is a narrow stream, every merged river widens it.
-    private static float Width(int flow) => MathF.Min(0.85f + (0.42f * MathF.Log2(MathF.Max(flow, 1))), 2.6f);
+    // Channel width scale 0.85 + 0.42 * log2(flow), capped at 2.6 (reached at flow 18). Stored as exact bit
+    // patterns: MathF.Log2 comes from the platform's math library and may differ in the last bit between
+    // x64, ARM64 and WebAssembly, which could flip a tile between land and water.
+    private static readonly float[] s_widths = Array.ConvertAll(
+        [
+            0x3F59999A, 0x3FA28F5C, 0x3FC201F1, 0x3FD851EC, 0x3FE9A079, 0x3FF7C481,
+            0x4001DC98, 0x40070A3E, 0x400B9B8A, 0x400FB184, 0x401363B8, 0x4016C388,
+            0x4019DE2A, 0x401CBDE0, 0x401F6ACF, 0x4021EB85, 0x40244560, 0x40266666,
+        ],
+        BitConverter.Int32BitsToSingle);
+
+    private static float Width(int flow) => s_widths[Math.Clamp(flow, 1, s_widths.Length) - 1];
 
     private static void StampSegment(byte[] field, int x0, int y0, float ax, float ay, float bx, float by, float wa, float wb)
     {

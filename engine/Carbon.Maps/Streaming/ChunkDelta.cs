@@ -1,9 +1,12 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
+using Carbon.Maps.Generators;
 using Carbon.Maps.Props;
 
 namespace Carbon.Maps.Streaming;
@@ -84,6 +87,160 @@ public sealed class ChunkDelta
     /// <summary>Overrides the revision, used when importing a persisted or received delta.</summary>
     /// <param name="revision">The stored revision.</param>
     public void RestoreRevision(uint revision) => this.Revision = revision;
+
+    /// <summary>
+    /// Gets the generator version the delta was recorded against. Edits only line up with the world they were
+    /// made in: see <see cref="MigrateTo"/>.
+    /// </summary>
+    public ushort GeneratorVersion { get; private set; } = ProceduralWorldGenerator.GeneratorVersion;
+
+    /// <summary>
+    /// Returns this delta carried over to another generator version. Tile edits are kept: they are what
+    /// players placed or dug and stay meaningful on any terrain. Natural prop states (chopped trees, mined
+    /// ores) are dropped: the new generator may put different props on those tiles, so the old states would
+    /// damage the wrong objects; resources simply grow back.
+    /// </summary>
+    /// <param name="generatorVersion">The target version.</param>
+    /// <returns>This delta when the version already matches, otherwise a migrated copy.</returns>
+    public ChunkDelta MigrateTo(ushort generatorVersion)
+    {
+        if (generatorVersion == this.GeneratorVersion)
+        {
+            return this;
+        }
+
+        ChunkDelta migrated = new(this.ChunkX, this.ChunkY) { GeneratorVersion = generatorVersion };
+        foreach (KeyValuePair<int, MapTile> kvp in _tiles)
+        {
+            migrated._tiles[kvp.Key] = kvp.Value;
+        }
+
+        migrated.Revision = this.Revision + 1;
+        return migrated;
+    }
+
+    // Wire format v1 (little-endian): format, generator version, chunk X/Y, revision, tile edits, prop states.
+    private const byte FormatVersion = 1;
+    private const int HeaderSize = 1 + 2 + 4 + 4 + 4;
+    private const int TileSize = 2 + 1 + 4 + 4 + 4 + 1 + 1 + 1;
+    private const int PropSize = 2 + 1 + 4 + 4 + 1;
+
+    /// <summary>Serializes the delta for storage or the network; identical bytes on every platform.</summary>
+    /// <returns>The encoded delta.</returns>
+    public byte[] Serialize()
+    {
+        byte[] buffer = new byte[HeaderSize + 2 + (_tiles.Count * TileSize) + 2 + (_propStates.Count * PropSize)];
+        Span<byte> span = buffer;
+        span[0] = FormatVersion;
+        BinaryPrimitives.WriteUInt16LittleEndian(span[1..], this.GeneratorVersion);
+        BinaryPrimitives.WriteInt32LittleEndian(span[3..], this.ChunkX);
+        BinaryPrimitives.WriteInt32LittleEndian(span[7..], this.ChunkY);
+        BinaryPrimitives.WriteUInt32LittleEndian(span[11..], this.Revision);
+        int o = HeaderSize;
+
+        // Sorted by tile index, so equal deltas always encode to equal bytes.
+        List<int> keys = [.. _tiles.Keys];
+        keys.Sort();
+        BinaryPrimitives.WriteUInt16LittleEndian(span[o..], (ushort)keys.Count);
+        o += 2;
+        foreach (int key in keys)
+        {
+            MapTile t = _tiles[key];
+            BinaryPrimitives.WriteUInt16LittleEndian(span[o..], (ushort)key);
+            span[o + 2] = (byte)t.Biome;
+            BinaryPrimitives.WriteSingleLittleEndian(span[(o + 3)..], t.Elevation);
+            BinaryPrimitives.WriteSingleLittleEndian(span[(o + 7)..], t.Temperature);
+            BinaryPrimitives.WriteSingleLittleEndian(span[(o + 11)..], t.Moisture);
+            span[o + 15] = t.IsSolid ? (byte)1 : (byte)0;
+            span[o + 16] = t.Variant;
+            span[o + 17] = t.HeightLevel;
+            o += TileSize;
+        }
+
+        keys = [.. _propStates.Keys];
+        keys.Sort();
+        BinaryPrimitives.WriteUInt16LittleEndian(span[o..], (ushort)keys.Count);
+        o += 2;
+        foreach (int key in keys)
+        {
+            PropDestructibility p = _propStates[key];
+            BinaryPrimitives.WriteUInt16LittleEndian(span[o..], (ushort)key);
+            span[o + 2] = (byte)((p.IsDestructible ? 1 : 0) | (p.IsDestroyed ? 2 : 0));
+            BinaryPrimitives.WriteSingleLittleEndian(span[(o + 3)..], p.MaxDurability);
+            BinaryPrimitives.WriteSingleLittleEndian(span[(o + 7)..], p.CurrentDurability);
+            span[o + 11] = p.HarvestTier;
+            o += PropSize;
+        }
+
+        return buffer;
+    }
+
+    /// <summary>Decodes a delta written by <see cref="Serialize"/>.</summary>
+    /// <param name="data">The encoded delta.</param>
+    /// <returns>The delta, at the generator version it was recorded with.</returns>
+    /// <exception cref="FormatException">The data is truncated, has an unknown format or bad tile indices.</exception>
+    public static ChunkDelta Deserialize(ReadOnlySpan<byte> data)
+    {
+        if (data.Length < HeaderSize + 4 || data[0] != FormatVersion)
+        {
+            throw new FormatException("Unknown or truncated chunk delta.");
+        }
+
+        ChunkDelta delta = new(BinaryPrimitives.ReadInt32LittleEndian(data[3..]), BinaryPrimitives.ReadInt32LittleEndian(data[7..]))
+        {
+            GeneratorVersion = BinaryPrimitives.ReadUInt16LittleEndian(data[1..]),
+        };
+        uint revision = BinaryPrimitives.ReadUInt32LittleEndian(data[11..]);
+        int o = HeaderSize;
+
+        int tiles = BinaryPrimitives.ReadUInt16LittleEndian(data[o..]);
+        o += 2;
+        Require(data, o + (tiles * TileSize) + 2);
+        for (int i = 0; i < tiles; i++, o += TileSize)
+        {
+            int key = ReadIndex(data[o..]);
+            delta._tiles[key] = new MapTile(
+                (BiomeType)data[o + 2],
+                BinaryPrimitives.ReadSingleLittleEndian(data[(o + 3)..]),
+                BinaryPrimitives.ReadSingleLittleEndian(data[(o + 7)..]),
+                BinaryPrimitives.ReadSingleLittleEndian(data[(o + 11)..]),
+                data[o + 15] != 0,
+                data[o + 16],
+                data[o + 17]);
+        }
+
+        int props = BinaryPrimitives.ReadUInt16LittleEndian(data[o..]);
+        o += 2;
+        Require(data, o + (props * PropSize));
+        for (int i = 0; i < props; i++, o += PropSize)
+        {
+            int key = ReadIndex(data[o..]);
+            byte flags = data[o + 2];
+            delta._propStates[key] = new PropDestructibility(
+                (flags & 1) != 0,
+                BinaryPrimitives.ReadSingleLittleEndian(data[(o + 3)..]),
+                BinaryPrimitives.ReadSingleLittleEndian(data[(o + 7)..]),
+                data[o + 11],
+                (flags & 2) != 0);
+        }
+
+        delta.Revision = revision;
+        return delta;
+    }
+
+    private static void Require(ReadOnlySpan<byte> data, int length)
+    {
+        if (data.Length < length)
+        {
+            throw new FormatException("Truncated chunk delta.");
+        }
+    }
+
+    private static int ReadIndex(ReadOnlySpan<byte> data)
+    {
+        int key = BinaryPrimitives.ReadUInt16LittleEndian(data);
+        return key < Chunk2D.Size * Chunk2D.Size ? key : throw new FormatException("Chunk delta tile index out of range.");
+    }
 
     /// <summary>Applies this delta onto a freshly generated chunk.</summary>
     /// <param name="chunk">The chunk, already populated from the seed.</param>
