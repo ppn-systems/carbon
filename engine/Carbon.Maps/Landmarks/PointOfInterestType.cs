@@ -31,4 +31,7 @@ public enum PointOfInterestType : byte
 
     /// <summary>A rare colossal World Tree in an old forest or meadow, ringed by rune stones.</summary>
     WorldTree = 8,
+
+    /// <summary>A mine dug into a plateau in mountain or badland country, with an ore cart and spoil heaps.</summary>
+    MineEntrance = 9,
 }

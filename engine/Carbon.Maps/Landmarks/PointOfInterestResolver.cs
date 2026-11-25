@@ -4,6 +4,7 @@ using System;
 using System.Collections.Concurrent;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
+using Carbon.Maps.Hydrology;
 using Carbon.Maps.Random;
 
 namespace Carbon.Maps.Landmarks;
@@ -40,20 +41,20 @@ public sealed class PointOfInterestResolver
     ];
 
     private readonly ulong _seed;
-    private readonly Func<int, int, MapTile> _sampleTile;
-    private readonly Func<int, int, float> _riverDistance;
+    private readonly ITileSource _tiles;
+    private readonly IRiverDistanceSource _rivers;
     private readonly ConcurrentDictionary<long, PointOfInterest> _sites = new();
     private readonly ConcurrentDictionary<long, LandmarkLayout> _layouts = new();
 
     /// <summary>Initializes a new instance of the <see cref="PointOfInterestResolver"/> class.</summary>
     /// <param name="seed">World seed.</param>
-    /// <param name="sampleTile">Pure tile sampler.</param>
-    /// <param name="riverDistance">Width-scaled distance to rivers and lakes.</param>
-    public PointOfInterestResolver(ulong seed, Func<int, int, MapTile> sampleTile, Func<int, int, float> riverDistance)
+    /// <param name="tiles">Pure tile sampler.</param>
+    /// <param name="rivers">Width-scaled distance to rivers and lakes.</param>
+    public PointOfInterestResolver(ulong seed, ITileSource tiles, IRiverDistanceSource rivers)
     {
         _seed = seed;
-        _sampleTile = sampleTile ?? throw new ArgumentNullException(nameof(sampleTile));
-        _riverDistance = riverDistance ?? throw new ArgumentNullException(nameof(riverDistance));
+        _tiles = tiles ?? throw new ArgumentNullException(nameof(tiles));
+        _rivers = rivers ?? throw new ArgumentNullException(nameof(rivers));
     }
 
     /// <summary>Gets the point of interest of a site, or one with <see cref="PointOfInterestType.None"/>.</summary>
@@ -123,7 +124,7 @@ public sealed class PointOfInterestResolver
             _layouts.Clear();
         }
 
-        layout = LandmarkLayout.Build(this.GetSite(siteX, siteY), _sampleTile);
+        layout = LandmarkLayout.Build(this.GetSite(siteX, siteY), _tiles);
         _layouts[key] = layout;
         return layout;
     }
@@ -168,15 +169,15 @@ public sealed class PointOfInterestResolver
             ulong h = SpatialHash.Hash(_seed ^ 0x47C1E3A5B9D2F608UL, (siteX * Candidates) + i, siteY);
             int x = (siteX * SiteSize) + margin + (int)(h % (ulong)(SiteSize - (2 * margin)));
             int y = (siteY * SiteSize) + margin + (int)((h >> 24) % (ulong)(SiteSize - (2 * margin)));
-            MapTile tile = _sampleTile(x, y);
+            MapTile tile = _tiles.SampleTile(x, y);
             if (tile.IsSolid || tile.Biome is BiomeType.DeepOcean or BiomeType.ShallowWater)
             {
                 continue;
             }
 
-            float river = _riverDistance(x, y);
+            float river = _rivers.GetDistance(x, y);
             bool nearSea = this.TryFindSea(x, y, out float seaX, out float seaY);
-            (PointOfInterestType type, float score, int radius) = Score(tile, river, this.IsFlat(x, y, tile.HeightLevel), nearSea);
+            (PointOfInterestType type, float score, int radius) = LandmarkRules.Evaluate(tile, river, this.IsFlat(x, y, tile.HeightLevel), nearSea);
             if (score > bestScore)
             {
                 bestScore = score;
@@ -212,14 +213,14 @@ public sealed class PointOfInterestResolver
             ulong h = SpatialHash.Hash(_seed ^ 0x47C1E3A5B9D2F608UL, (siteX * Candidates) + i, siteY);
             int x = (siteX * SiteSize) + SiteMargin + (int)(h % (SiteSize - (2 * SiteMargin)));
             int y = (siteY * SiteSize) + SiteMargin + (int)((h >> 24) % (SiteSize - (2 * SiteMargin)));
-            MapTile tile = _sampleTile(x, y);
+            MapTile tile = _tiles.SampleTile(x, y);
             if (tile.IsSolid || tile.HeightLevel > 1 ||
                 tile.Biome is not (BiomeType.LushPlains or BiomeType.AncientForest or BiomeType.BlossomWoods or BiomeType.TropicalJungle))
             {
                 continue;
             }
 
-            float river = _riverDistance(x, y);
+            float river = _rivers.GetDistance(x, y);
             float score = MathF.Min(river, 30f);
             if (river > 8f && score > best && this.IsFlat(x, y, tile.HeightLevel))
             {
@@ -231,56 +232,6 @@ public sealed class PointOfInterestResolver
         return tree.Type == PointOfInterestType.WorldTree;
     }
 
-    private static (PointOfInterestType Type, float Score, int Radius) Score(in MapTile tile, float river, bool flat, bool nearSea)
-    {
-        // Harbour: coast beside a river mouth.
-        if (nearSea && river <= 12f && tile.HeightLevel == 0)
-        {
-            return (PointOfInterestType.Harbor, 3f, 12);
-        }
-
-        // Biome villages: each climate builds its own kind of settlement by the water.
-        if (flat && tile.HeightLevel == 0 && river is > 3.0f and <= 11f)
-        {
-            if (tile.Biome is BiomeType.MistySwamp)
-            {
-                return (PointOfInterestType.SwampVillage, 2.5f, 16);
-            }
-
-            if (tile.Biome is BiomeType.DuneDesert or BiomeType.RedMesa)
-            {
-                return (PointOfInterestType.DesertVillage, 2.5f, 16);
-            }
-
-            if (tile.Biome is BiomeType.FrozenTundra)
-            {
-                return (PointOfInterestType.SnowVillage, 2.5f, 16);
-            }
-        }
-
-        // Village: flat fertile lowland, near water but outside the flood zone.
-        if (flat && tile.HeightLevel == 0 && river is > 4.5f and <= 11f &&
-            tile.Biome is BiomeType.LushPlains or BiomeType.Savanna or BiomeType.BlossomWoods or BiomeType.AncientForest)
-        {
-            return (PointOfInterestType.RiverVillage, 2.5f - (MathF.Abs(river - 7f) * 0.1f), 16);
-        }
-
-        // Camp: dry shore right next to a lake or a large river.
-        if (flat && river is > 2.4f and <= 4.5f && tile.Biome is not BiomeType.MistySwamp)
-        {
-            return (PointOfInterestType.LakesideCamp, 1.5f, 4);
-        }
-
-        // Shrine: only on high summits; a lower score than any settlement, so it is the fallback of
-        // mountainous sites that offer nowhere to live.
-        if (flat && tile.HeightLevel == 2 && tile.Elevation >= 0.78f)
-        {
-            return (PointOfInterestType.MountainShrine, 0.5f + tile.Elevation, 4);
-        }
-
-        return (PointOfInterestType.None, 0f, 0);
-    }
-
     // Flat: the 5x5 tiles around the site share its height level and none of them is water.
     private bool IsFlat(int x, int y, byte level)
     {
@@ -288,7 +239,7 @@ public sealed class PointOfInterestResolver
         {
             for (int dx = -4; dx <= 4; dx += 2)
             {
-                MapTile t = _sampleTile(x + dx, y + dy);
+                MapTile t = _tiles.SampleTile(x + dx, y + dy);
                 if (t.HeightLevel != level || t.IsSolid || t.Biome is BiomeType.ShallowWater or BiomeType.DeepOcean)
                 {
                     return false;
@@ -308,8 +259,8 @@ public sealed class PointOfInterestResolver
         {
             int sx = x + ox;
             int sy = y + oy;
-            MapTile t = _sampleTile(sx, sy);
-            if (t.Biome is BiomeType.DeepOcean || (t.Biome is BiomeType.ShallowWater && t.Elevation < 0.30f && _riverDistance(sx, sy) > 2.2f))
+            MapTile t = _tiles.SampleTile(sx, sy);
+            if (t.Biome is BiomeType.DeepOcean || (t.Biome is BiomeType.ShallowWater && t.Elevation < 0.30f && _rivers.GetDistance(sx, sy) > WorldConstants.RiverChannel))
             {
                 dirX += ox;
                 dirY += oy;

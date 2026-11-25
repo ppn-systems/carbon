@@ -242,10 +242,14 @@ internal static class PropArt
     }
 
     /// <summary>Draws the canopy of a tree above entities. <paramref name="alpha"/> fades it when the player is under it.</summary>
-    public static void DrawCanopy(GeometryBatch batch, in MapProp prop, byte alpha)
+    /// <remarks>
+    /// <paramref name="swayX"/> only shifts where the canopy is drawn. The look is always derived from the
+    /// prop's fixed position, so wind sway never changes a tree's palette or leaf layout.
+    /// </remarks>
+    public static void DrawCanopy(GeometryBatch batch, in MapProp prop, byte alpha, float swayX = 0f)
     {
-        Vector2 pos = prop.WorldPosition;
         uint h = Seed(prop);
+        Vector2 pos = prop.WorldPosition + new Vector2(swayX, 0f);
         float r = prop.Radius;
         Vector2 top = pos + new Vector2(Lean(h), 0f);
 

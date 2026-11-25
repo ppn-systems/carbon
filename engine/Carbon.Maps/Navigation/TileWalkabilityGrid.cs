@@ -223,5 +223,5 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
     }
 
     // Dry river bank close to the channel (width-scaled distance just outside the water threshold).
-    private static bool IsRiverside(float riverDistance) => riverDistance is > 2.2f and <= 4.0f;
+    private static bool IsRiverside(float riverDistance) => riverDistance is > WorldConstants.RiverChannel and <= 4.0f;
 }

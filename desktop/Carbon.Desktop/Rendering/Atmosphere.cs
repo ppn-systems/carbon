@@ -46,8 +46,6 @@ internal sealed class Atmosphere
         (24f, new Vector3(0.20f, 0.25f, 0.46f)),
     ];
 
-    private const float CloudCell = 760f;
-    private static readonly Vector2 s_wind = new(16f, 5f);
 
     /// <summary>Initializes a new instance of the <see cref="Atmosphere"/> class.</summary>
     /// <param name="startHour">Hour of day at start (0..24).</param>
@@ -61,6 +59,7 @@ internal sealed class Atmosphere
     }
 
     private readonly bool? _forcedRain;
+    private readonly CloudSystem _clouds = new();
     private float _time;
 
     /// <summary>Gets the current hour of day (0..24).</summary>
@@ -102,25 +101,14 @@ internal sealed class Atmosphere
         this.Night = Math.Clamp((0.95f - luminance) / 0.65f, 0f, 1f);
     }
 
-    /// <summary>Cloud shadows sliding over the ground (draw right after the terrain).</summary>
+    /// <summary>
+    /// Updates the clouds for this frame and draws their shadows on the ground (call right after the
+    /// terrain, before props).
+    /// </summary>
     public void DrawCloudShadows(GeometryBatch batch, float minX, float minY, float maxX, float maxY)
     {
-        float daylight = 1f - this.Night;
-        if (daylight < 0.05f)
-        {
-            return;
-        }
-
-        byte a = (byte)((22f + (this.Rain * 18f)) * daylight);
-        this.ForEachCloud(minX, minY, maxX, maxY, (centre, size, seed) =>
-        {
-            Vector2 shadow = centre + new Vector2(140f, 220f); // the sun casts shadows to the south-east
-            for (int i = 0; i < 6; i++)
-            {
-                Vector2 o = new((AmbientAnimator.Hash01(seed, i) - 0.5f) * size * 1.4f, (AmbientAnimator.Hash01(seed, i + 10) - 0.5f) * size * 0.6f);
-                MushroomArt.FillEllipse(batch, shadow + o, size * (0.45f + (AmbientAnimator.Hash01(seed, i + 20) * 0.3f)), size * 0.3f, new ColorRgba(10, 20, 40, a), 18);
-            }
-        });
+        _clouds.Update(_time, this.Rain, minX, minY, maxX, maxY);
+        _clouds.DrawShadows(batch, this.Hour, this.Night, this.Rain);
     }
 
     /// <summary>The ambient pass: multiplies the whole view by the light colour.</summary>
@@ -169,18 +157,7 @@ internal sealed class Atmosphere
     /// <summary>Weather and life drawn on top: thin clouds, rain, splashes and night fireflies.</summary>
     public void DrawOverlay(GeometryBatch batch, float minX, float minY, float maxX, float maxY, Vector2 player)
     {
-        // High, thin clouds
-        float daylight = 1f - (0.7f * this.Night);
-        byte cloudA = (byte)((18f + (this.Rain * 30f)) * daylight);
-        ColorRgba cloud = this.Rain > 0.3f ? new ColorRgba(170, 176, 190, cloudA) : new ColorRgba(255, 255, 255, cloudA);
-        this.ForEachCloud(minX, minY, maxX, maxY, (centre, size, seed) =>
-        {
-            for (int i = 0; i < 6; i++)
-            {
-                Vector2 o = new((AmbientAnimator.Hash01(seed, i) - 0.5f) * size * 1.4f, (AmbientAnimator.Hash01(seed, i + 10) - 0.5f) * size * 0.6f);
-                MushroomArt.FillEllipse(batch, centre + o, size * (0.45f + (AmbientAnimator.Hash01(seed, i + 20) * 0.3f)), size * 0.3f, cloud, 18);
-            }
-        });
+        _clouds.DrawClouds(batch, this.Hour, this.Night, this.Rain, player);
 
         if (this.Rain > 0.02f)
         {
@@ -230,33 +207,6 @@ internal sealed class Atmosphere
             float y = minY + (AmbientAnimator.Hash01(66u, i + (cycle * 89)) * h);
             float r = 2f + (phase * 7f);
             batch.DrawRectangle(new RectangleF(x - r, y - (r * 0.4f), r * 2f, r * 0.8f), new ColorRgba(220, 232, 250, (byte)(120 * (1f - phase) * this.Rain)), 1f);
-        }
-    }
-
-    // Clouds live on a world-space grid that slides with the wind; each cell may hold one cloud.
-    private void ForEachCloud(float minX, float minY, float maxX, float maxY, Action<Vector2, float, uint> draw)
-    {
-        Vector2 drift = s_wind * _time;
-        float margin = CloudCell;
-        int cx0 = (int)MathF.Floor((minX - drift.X - margin) / CloudCell);
-        int cx1 = (int)MathF.Floor((maxX - drift.X + margin) / CloudCell);
-        int cy0 = (int)MathF.Floor((minY - drift.Y - margin) / CloudCell);
-        int cy1 = (int)MathF.Floor((maxY - drift.Y + margin) / CloudCell);
-        float coverage = 0.45f + (this.Rain * 0.5f);
-        for (int cy = cy0; cy <= cy1; cy++)
-        {
-            for (int cx = cx0; cx <= cx1; cx++)
-            {
-                uint seed = (uint)((cx * 73856093) ^ (cy * 19349663));
-                if (AmbientAnimator.Hash01(seed, 1) > coverage)
-                {
-                    continue;
-                }
-
-                Vector2 centre = new Vector2((cx + AmbientAnimator.Hash01(seed, 2)) * CloudCell, (cy + AmbientAnimator.Hash01(seed, 3)) * CloudCell) + drift;
-                float size = 140f + (AmbientAnimator.Hash01(seed, 4) * 160f);
-                draw(centre, size, seed);
-            }
         }
     }
 

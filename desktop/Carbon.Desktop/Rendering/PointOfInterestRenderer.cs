@@ -73,6 +73,10 @@ internal sealed class PointOfInterestRenderer
                 DrawWorldTreeGround(batch, c + new Vector2(0f, _tileSize), r, time);
                 break;
 
+            case PointOfInterestType.MineEntrance:
+                DrawMineYard(batch, c, r);
+                break;
+
             case PointOfInterestType.None:
             default:
                 break;
@@ -139,10 +143,14 @@ internal sealed class PointOfInterestRenderer
                     }
 
                     break;
+                case LandmarkPieceKind.MineEntrance:
+                    lights.Add(new PointLight(foot + new Vector2(0f, -14f), 90f, warm, 0.5f * flicker)); // lamps inside the adit
+                    break;
                 case LandmarkPieceKind.Well:
                 case LandmarkPieceKind.Tent:
                 case LandmarkPieceKind.ShrineGate:
                 case LandmarkPieceKind.Barrel:
+                case LandmarkPieceKind.OreCart:
                 default:
                     break;
             }
@@ -230,6 +238,12 @@ internal sealed class PointOfInterestRenderer
                 break;
             case LandmarkPieceKind.Barrel:
                 DrawBarrels(batch, position);
+                break;
+            case LandmarkPieceKind.MineEntrance:
+                DrawMineEntrance(batch, position, width, piece.Variant);
+                break;
+            case LandmarkPieceKind.OreCart:
+                DrawOreCart(batch, position, piece.Variant);
                 break;
             default:
                 break;
@@ -968,6 +982,101 @@ internal sealed class PointOfInterestRenderer
             batch.FillRectangle(new RectangleF(p.X - 6f, p.Y - 5f, 12f, 2f), new ColorRgba(70, 70, 74));
             batch.FillCircle(new Vector2(p.X, p.Y - 16f), 6f, new ColorRgba(164, 116, 70), 10);
         }
+    }
+
+    // Trodden yard in front of the mine: packed earth, spoil heaps of grey rock and a short rail line.
+    private static void DrawMineYard(GeometryBatch batch, Vector2 c, float r)
+    {
+        batch.FillCircle(c + new Vector2(0f, r * 0.15f), r * 0.62f, new ColorRgba(126, 104, 78, 150), 28);
+        batch.FillCircle(c + new Vector2(0f, r * 0.15f), r * 0.46f, new ColorRgba(146, 122, 92, 170), 28);
+        for (int i = 0; i < 2; i++)
+        {
+            float side = i == 0 ? -1f : 1f;
+            Vector2 heap = c + new Vector2(side * r * 0.52f, -r * 0.05f);
+            batch.FillCircle(heap + new Vector2(3f, 4f), 22f, new ColorRgba(0, 0, 0, 40), 14);
+            batch.FillCircle(heap, 20f, new ColorRgba(112, 110, 108), 14);
+            batch.FillCircle(heap + new Vector2(-6f, -6f), 12f, new ColorRgba(140, 138, 134), 12);
+            batch.FillCircle(heap + new Vector2(8f, -2f), 7f, new ColorRgba(96, 94, 92), 10);
+        }
+
+        // Rails from the portal out into the yard
+        Vector2 a = c + new Vector2(0f, -r * 0.05f);
+        Vector2 b = c + new Vector2(0f, r * 0.55f);
+        for (float y = a.Y; y < b.Y; y += 8f)
+        {
+            batch.FillRectangle(new RectangleF(c.X - 12f, y, 24f, 3f), new ColorRgba(98, 70, 44));
+        }
+
+        batch.DrawLine(new Vector2(c.X - 8f, a.Y), new Vector2(c.X - 8f, b.Y), new ColorRgba(80, 84, 92), 2f);
+        batch.DrawLine(new Vector2(c.X + 8f, a.Y), new Vector2(c.X + 8f, b.Y), new ColorRgba(80, 84, 92), 2f);
+    }
+
+    // A timbered adit cut into a rock face: dark opening, two posts and a lintel, a lantern hook.
+    private static void DrawMineEntrance(GeometryBatch batch, Vector2 foot, float width, byte variant)
+    {
+        ColorRgba rock = variant switch
+        {
+            1 => new ColorRgba(150, 104, 84),  // red sandstone
+            2 => new ColorRgba(78, 74, 78),    // basalt
+            3 => new ColorRgba(176, 184, 196), // frosted granite
+            _ => new ColorRgba(128, 124, 118),
+        };
+        float hw = width * 0.5f;
+
+        // Rock face: a lumpy mound of overlapping boulders
+        batch.FillCircle(foot + new Vector2(4f, 4f), hw * 0.95f, new ColorRgba(0, 0, 0, 50), 24);
+        for (int i = 0; i < 7; i++)
+        {
+            float t = (i / 6f) - 0.5f;
+            float rr = hw * (0.42f - (MathF.Abs(t) * 0.25f));
+            Vector2 p = foot + new Vector2(t * hw * 1.6f, -hw * (0.55f - (MathF.Abs(t) * 0.5f)));
+            batch.FillCircle(p, rr, Shade(rock, 0.85f + (0.05f * (i % 3))), 18);
+        }
+
+        batch.FillCircle(foot + new Vector2(-hw * 0.25f, -hw * 0.85f), hw * 0.22f, Shade(rock, 1.15f), 14);
+
+        // Opening
+        float ow = 34f;
+        float oh = 40f;
+        batch.FillRectangle(new RectangleF(foot.X - (ow * 0.5f), foot.Y - oh, ow, oh), new ColorRgba(22, 18, 16));
+        batch.FillCircle(new Vector2(foot.X, foot.Y - oh), ow * 0.5f, new ColorRgba(22, 18, 16), 16);
+
+        // Timber frame
+        ColorRgba wood = new(118, 78, 44);
+        batch.FillRectangle(new RectangleF(foot.X - (ow * 0.5f) - 6f, foot.Y - oh - 4f, 6f, oh + 4f), wood);
+        batch.FillRectangle(new RectangleF(foot.X + (ow * 0.5f), foot.Y - oh - 4f, 6f, oh + 4f), wood);
+        batch.FillRectangle(new RectangleF(foot.X - (ow * 0.5f) - 10f, foot.Y - oh - 10f, ow + 20f, 7f), Shade(wood, 1.1f));
+        batch.FillRectangle(new RectangleF(foot.X - (ow * 0.5f) - 10f, foot.Y - oh - 4f, ow + 20f, 1.5f), Shade(wood, 0.7f));
+
+        // Lantern on the lintel
+        batch.DrawLine(new Vector2(foot.X + 12f, foot.Y - oh - 3f), new Vector2(foot.X + 12f, foot.Y - oh + 5f), new ColorRgba(40, 40, 44), 1f);
+        batch.FillRectangle(new RectangleF(foot.X + 9f, foot.Y - oh + 5f, 6f, 7f), new ColorRgba(255, 196, 110));
+    }
+
+    // An ore cart on rails, loaded with ore of the mine's colour.
+    private static void DrawOreCart(GeometryBatch batch, Vector2 foot, byte variant)
+    {
+        ColorRgba ore = variant switch
+        {
+            1 => new ColorRgba(214, 176, 60), // gold
+            2 => new ColorRgba(70, 190, 200), // copper patina
+            _ => new ColorRgba(150, 92, 70),  // iron
+        };
+        batch.FillCircle(foot + new Vector2(3f, 2f), 18f, new ColorRgba(0, 0, 0, 45), 14);
+        batch.FillCircle(foot + new Vector2(-9f, -3f), 4f, new ColorRgba(50, 50, 56), 10);
+        batch.FillCircle(foot + new Vector2(9f, -3f), 4f, new ColorRgba(50, 50, 56), 10);
+        Span<Vector2> body =
+        [
+            foot + new Vector2(-17f, -20f),
+            foot + new Vector2(17f, -20f),
+            foot + new Vector2(13f, -5f),
+            foot + new Vector2(-13f, -5f),
+        ];
+        batch.FillConvexPolygon(body, new ColorRgba(104, 84, 64));
+        batch.FillRectangle(new RectangleF(foot.X - 17f, foot.Y - 21f, 34f, 3f), new ColorRgba(70, 72, 78));
+        batch.FillCircle(foot + new Vector2(-5f, -21f), 6f, ore, 10);
+        batch.FillCircle(foot + new Vector2(5f, -22f), 5f, Shade(ore, 0.8f), 10);
+        batch.FillCircle(foot + new Vector2(0f, -25f), 4f, Shade(ore, 1.15f), 8);
     }
 
     private static ColorRgba Shade(ColorRgba c, float k) =>

@@ -26,7 +26,7 @@ namespace Carbon.Maps.Hydrology;
 /// computes it: chunks agree across region borders and every machine produces the same rivers.
 /// </para>
 /// </remarks>
-internal sealed class RiverNetwork
+internal sealed class RiverNetwork : IRiverDistanceSource
 {
     /// <summary>Region edge in tiles.</summary>
     public const int RegionSize = 512;
@@ -41,7 +41,7 @@ internal sealed class RiverNetwork
     public const int SourceSpacing = 88;
 
     /// <summary>Relief below which a cell is sea: the river mouth.</summary>
-    public const float SeaRelief = 0.32f;
+    public const float SeaRelief = WorldConstants.SeaLevel;
 
     /// <summary>Relief band in which springs appear.</summary>
     public const float MinSourceRelief = 0.62f;
@@ -86,17 +86,17 @@ internal sealed class RiverNetwork
     ];
 
     private readonly ulong _seed;
-    private readonly Func<int, int, float> _relief;
+    private readonly IRoutingTerrain _relief;
     private readonly ConcurrentDictionary<long, Lazy<byte[]>> _regions = new();
     private readonly ConcurrentDictionary<long, Lazy<float[]>> _blocks = new();
 
     /// <summary>Initializes a new instance of the <see cref="RiverNetwork"/> class.</summary>
     /// <param name="seed">World seed.</param>
     /// <param name="relief">Terrain elevation used for routing at a world tile; must be deterministic.</param>
-    public RiverNetwork(ulong seed, Func<int, int, float> relief)
+    public RiverNetwork(ulong seed, IRoutingTerrain relief)
     {
         _seed = seed;
-        _relief = relief;
+        _relief = relief ?? throw new ArgumentNullException(nameof(relief));
     }
 
     /// <summary>
@@ -152,6 +152,10 @@ internal sealed class RiverNetwork
         int by0 = FloorDiv(gy0, BlockCells);
         int bx1 = FloorDiv(gx0 + g - 1, BlockCells);
         int by1 = FloorDiv(gy0 + g - 1, BlockCells);
+
+        // Blocks are independent pure samples: build the missing ones on all cores first.
+        int bw = bx1 - bx0 + 1;
+        _ = Parallel.For(0, bw * (by1 - by0 + 1), i => this.GetBlock(bx0 + (i % bw), by0 + (i / bw)));
         for (int by = by0; by <= by1; by++)
         {
             for (int bx = bx0; bx <= bx1; bx++)
@@ -186,7 +190,7 @@ internal sealed class RiverNetwork
                 {
                     int wx = (((bx * BlockCells) + cx) * Cell) + (Cell / 2);
                     int wy = (((by * BlockCells) + cy) * Cell) + (Cell / 2);
-                    block[(cy * BlockCells) + cx] = _relief(wx, wy);
+                    block[(cy * BlockCells) + cx] = _relief.SampleRoutingElevation(wx, wy);
                 }
             }
 
@@ -414,6 +418,23 @@ internal sealed class RiverNetwork
         return field;
     }
 
+    private static bool TouchesLand(bool[] done, int c, int g)
+    {
+        int cx = c % g;
+        int cy = c / g;
+        for (int i = 0; i < s_d8.Length; i++)
+        {
+            int nx = cx + s_d8[i].Dx;
+            int ny = cy + s_d8[i].Dy;
+            if (nx >= 0 && ny >= 0 && nx < g && ny < g && !done[(ny * g) + nx])
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     // Priority-flood (Barnes et al. 2014, with epsilon): every cell's water level becomes the lowest level
     // from which water can still drain to the sea or out of the grid.
     private static float[] Fill(float[] relief, int g)
@@ -429,6 +450,15 @@ internal sealed class RiverNetwork
             {
                 filled[c] = relief[c];
                 done[c] = true;
+            }
+        }
+
+        // Seed the flood with the boundary of the open water only: a sea cell whose neighbours are all sea
+        // or grid edge would pop without touching anything, and open ocean is most of a coastal grid.
+        for (int c = 0; c < relief.Length; c++)
+        {
+            if (done[c] && TouchesLand(done, c, g))
+            {
                 open.Enqueue(c, relief[c]);
             }
         }
@@ -547,7 +577,18 @@ internal sealed class RiverNetwork
     }
 
     // Channel half-width scale: a spring is a narrow stream, every merged river widens it.
-    private static float Width(int flow) => MathF.Min(0.85f + (0.42f * MathF.Log2(MathF.Max(flow, 1))), 2.6f);
+    // Channel width scale 0.85 + 0.42 * log2(flow), capped at 2.6 (reached at flow 18). Stored as exact bit
+    // patterns: MathF.Log2 comes from the platform's math library and may differ in the last bit between
+    // x64, ARM64 and WebAssembly, which could flip a tile between land and water.
+    private static readonly float[] s_widths = Array.ConvertAll(
+        [
+            0x3F59999A, 0x3FA28F5C, 0x3FC201F1, 0x3FD851EC, 0x3FE9A079, 0x3FF7C481,
+            0x4001DC98, 0x40070A3E, 0x400B9B8A, 0x400FB184, 0x401363B8, 0x4016C388,
+            0x4019DE2A, 0x401CBDE0, 0x401F6ACF, 0x4021EB85, 0x40244560, 0x40266666,
+        ],
+        BitConverter.Int32BitsToSingle);
+
+    private static float Width(int flow) => s_widths[Math.Clamp(flow, 1, s_widths.Length) - 1];
 
     private static void StampSegment(byte[] field, int x0, int y0, float ax, float ay, float bx, float by, float wa, float wb)
     {

@@ -36,6 +36,12 @@ public enum LandmarkPieceKind : byte
 
     /// <summary>Trunk of a World Tree (its canopy is drawn above everything).</summary>
     WorldTree = 9,
+
+    /// <summary>A timbered mine portal cut into the rock.</summary>
+    MineEntrance = 10,
+
+    /// <summary>An ore cart on a short stretch of rail.</summary>
+    OreCart = 11,
 }
 
 /// <summary>An axis-aligned collision box in world tile units.</summary>
@@ -101,7 +107,8 @@ public readonly record struct LandmarkPiece(LandmarkPieceKind Kind, float X, flo
         LandmarkPieceKind.House => HouseDepthTiles,
         LandmarkPieceKind.Warehouse => WarehouseDepthTiles,
         LandmarkPieceKind.Well or LandmarkPieceKind.Tent or LandmarkPieceKind.Campfire or LandmarkPieceKind.ShrineGate or
-        LandmarkPieceKind.StoneLantern or LandmarkPieceKind.Altar or LandmarkPieceKind.Barrel or LandmarkPieceKind.WorldTree => 0f,
+        LandmarkPieceKind.StoneLantern or LandmarkPieceKind.Altar or LandmarkPieceKind.Barrel or LandmarkPieceKind.WorldTree or
+        LandmarkPieceKind.MineEntrance or LandmarkPieceKind.OreCart => 0f,
         _ => 0f,
     };
 
@@ -189,6 +196,15 @@ public readonly record struct LandmarkPiece(LandmarkPieceKind Kind, float X, flo
                 return 1;
             case LandmarkPieceKind.Barrel:
                 boxes[0] = new TileBox(this.X - (20f * Px), this.Y - (10f * Px), this.X + (20f * Px), this.Y);
+                return 1;
+            case LandmarkPieceKind.MineEntrance:
+                // The rock face and the two timber posts; the dark opening between them is walkable.
+                boxes[0] = new TileBox(this.X - hw, this.Y - (40f * Px), this.X + hw, this.Y - (22f * Px));
+                boxes[1] = new TileBox(this.X - hw, this.Y - (22f * Px), this.X - (20f * Px), this.Y);
+                boxes[2] = new TileBox(this.X + (20f * Px), this.Y - (22f * Px), this.X + hw, this.Y);
+                return 3;
+            case LandmarkPieceKind.OreCart:
+                boxes[0] = new TileBox(this.X - (18f * Px), this.Y - (12f * Px), this.X + (18f * Px), this.Y);
                 return 1;
             default:
                 return 0;

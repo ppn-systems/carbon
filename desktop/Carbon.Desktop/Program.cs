@@ -49,6 +49,8 @@ public static class Program
     private static PointOfInterestRenderer? s_poiRenderer;
     private static float s_animTime;
     private static Atmosphere? s_atmosphere;
+    private static readonly float s_timeScale =
+        float.TryParse(Environment.GetEnvironmentVariable("CARBON_TIME_SCALE"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float scale) ? Math.Clamp(scale, 0.1f, 1000f) : 1f;
     private static readonly List<PointLight> s_lights = new(256);
     private static readonly List<PointOfInterest> s_visibleWorldTrees = new();
 
@@ -416,7 +418,8 @@ public static class Program
         // (possibly slow, software-rendered) frame rate.
         float frameDt = s_captureFrames > 0 ? 1f / 15f : (float)dt;
         s_animTime += frameDt;
-        s_atmosphere?.Update(frameDt);
+        // CARBON_TIME_SCALE speeds up the sky (clouds, weather, time of day), e.g. for time-lapse captures.
+        s_atmosphere?.Update(frameDt * s_timeScale);
         s_lights.Clear();
         if (s_geometryBatch == null || s_camera == null || s_chunkWorld == null || s_world == null || s_chunkTerrainRenderer == null)
         {
@@ -606,11 +609,11 @@ public static class Program
         {
             ref readonly CanopyRenderItem item = ref canopySpan[i];
             // Canopies sway in the wind (trunks stay put): per-tree phase plus a slow shared gust.
-            MapProp swaying = item.Prop;
+            // The sway is a drawing offset only: the prop itself (and so its look) is never modified.
+            MapProp tree = item.Prop;
             float gust = 0.6f + (0.4f * MathF.Sin(s_animTime * 0.35f));
-            float sway = MathF.Sin((s_animTime * 1.25f) + (swaying.WorldPositionX * 0.013f) + (swaying.WorldPositionY * 0.007f)) * 1.8f * gust * swaying.Scale;
-            swaying = swaying with { WorldPositionX = swaying.WorldPositionX + sway };
-            RenderPropCanopy(s_geometryBatch, swaying, playerPos);
+            float sway = MathF.Sin((s_animTime * 1.25f) + (tree.WorldPositionX * 0.013f) + (tree.WorldPositionY * 0.007f)) * 1.8f * gust * tree.Scale;
+            RenderPropCanopy(s_geometryBatch, tree, playerPos, sway);
         }
 
         // World Tree canopies tower over everything
@@ -709,11 +712,11 @@ public static class Program
     // Natural props are drawn by PropArt, which varies every instance (palette, leaf layout, lean, crystals).
     private static void RenderPropGround(GeometryBatch batch, in MapProp prop) => PropArt.DrawGround(batch, prop);
 
-    private static void RenderPropCanopy(GeometryBatch batch, in MapProp prop, Vector2 playerPosition)
+    private static void RenderPropCanopy(GeometryBatch batch, in MapProp prop, Vector2 playerPosition, float swayX)
     {
         // When the player stands under a canopy, the leaves fade so the player and the trunk stay visible.
         byte alpha = prop.IsUnderCanopy(playerPosition) ? (byte)90 : (byte)255;
-        PropArt.DrawCanopy(batch, prop, alpha);
+        PropArt.DrawCanopy(batch, prop, alpha, swayX);
     }
 
     private static void RenderEntity(GeometryBatch batch, Entity entity)
