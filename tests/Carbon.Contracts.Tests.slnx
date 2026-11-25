@@ -1,3 +1,5 @@
 <Solution>
+  <Project Path="../contracts/Carbon.Contracts.Common/Carbon.Contracts.Common.csproj" />
+  <Project Path="../contracts/Carbon.Contracts.Maps/Carbon.Contracts.Maps.csproj" />
   <Project Path="contracts/Carbon.Contracts.Tests/Carbon.Contracts.Tests.csproj" />
 </Solution>

@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <RootNamespace>Carbon.Primitives</RootNamespace>
+        <AssemblyName>Carbon.Primitives</AssemblyName>
+    </PropertyGroup>
+</Project>

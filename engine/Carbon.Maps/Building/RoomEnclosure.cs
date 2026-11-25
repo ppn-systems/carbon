@@ -94,6 +94,6 @@ public sealed class RoomEnclosure
     /// <summary>
     /// Creates an empty or outdoor open air room representation.
     /// </summary>
-    public static RoomEnclosure Outdoors =>
+    public static readonly RoomEnclosure Outdoors =
         new([], false, 0, 0, 0, 0);
 }

@@ -23,6 +23,7 @@ internal sealed class ChunkStreamer
     private readonly ConcurrentDictionary<long, Chunk2D> _active = new();
     private readonly ConcurrentQueue<Chunk2D> _pool = new();
     private readonly List<long> _evictionBuffer = new();
+    private Chunk2D[] _activeSnapshot = [];
 
     /// <summary>Initializes a new instance of the <see cref="ChunkStreamer"/> class.</summary>
     /// <param name="generator">The world generator.</param>
@@ -39,8 +40,8 @@ internal sealed class ChunkStreamer
         _tileSize = tileSize;
     }
 
-    /// <summary>Gets the resident chunks.</summary>
-    public ICollection<Chunk2D> Active => _active.Values;
+    /// <summary>Gets a zero-allocation read-only span over the currently resident chunks.</summary>
+    public ReadOnlySpan<Chunk2D> Active => Volatile.Read(ref _activeSnapshot);
 
     /// <summary>Gets the number of resident chunks.</summary>
     public int ActiveCount => _active.Count;
@@ -74,17 +75,24 @@ internal sealed class ChunkStreamer
 
             // Publish only once fully populated, so readers never see a half-built chunk.
             _active[key] = chunk;
+            this.RebuildActiveSnapshotLocked();
             return chunk;
         }
     }
 
-    /// <summary>Regenerates a resident chunk so a newly imported delta takes effect. Call under the lock.</summary>
+    /// <summary>Regenerates a resident chunk atomically so readers never see a partially reset chunk. Call under the lock.</summary>
     public void RebuildIfResident(int chunkX, int chunkY)
     {
-        if (this.TryGet(chunkX, chunkY, out Chunk2D? chunk) && chunk != null)
+        long key = Chunk2D.PackKey(chunkX, chunkY);
+        if (!_active.ContainsKey(key))
         {
-            this.Build(chunk, chunkX, chunkY);
+            return;
         }
+
+        Chunk2D replacement = _pool.TryDequeue(out Chunk2D? recycled) ? recycled : new Chunk2D(chunkX, chunkY);
+        this.Build(replacement, chunkX, chunkY);
+        _active[key] = replacement;
+        this.RebuildActiveSnapshotLocked();
     }
 
     /// <summary>Loads every chunk within <paramref name="loadRadius"/> and recycles those beyond <paramref name="evictRadius"/>.</summary>
@@ -111,14 +119,41 @@ internal sealed class ChunkStreamer
                 }
             }
 
+            bool evictedAny = false;
             for (int i = 0; i < _evictionBuffer.Count; i++)
             {
                 if (_active.TryRemove(_evictionBuffer[i], out Chunk2D? evicted))
                 {
                     _pool.Enqueue(evicted);
+                    evictedAny = true;
                 }
             }
+
+            if (evictedAny)
+            {
+                this.RebuildActiveSnapshotLocked();
+            }
         }
+    }
+
+    private void RebuildActiveSnapshotLocked()
+    {
+        int count = _active.Count;
+        if (count == 0)
+        {
+            Volatile.Write(ref _activeSnapshot, []);
+            return;
+        }
+
+        Chunk2D[] next = new Chunk2D[count];
+        int index = 0;
+        foreach (KeyValuePair<long, Chunk2D> kvp in _active)
+        {
+            next[index++] = kvp.Value;
+        }
+
+        Array.Sort(next, static (a, b) => a.ChunkY != b.ChunkY ? a.ChunkY.CompareTo(b.ChunkY) : a.ChunkX.CompareTo(b.ChunkX));
+        Volatile.Write(ref _activeSnapshot, next);
     }
 
     private void Build(Chunk2D chunk, int chunkX, int chunkY)

@@ -34,4 +34,16 @@ public enum PointOfInterestType : byte
 
     /// <summary>A mine dug into a plateau in mountain or badland country, with an ore cart and spoil heaps.</summary>
     MineEntrance = 9,
+
+    /// <summary>Weather-worn ancient stone ruins in wilds, deserts, and forests.</summary>
+    AncientRuins = 10,
+
+    /// <summary>Fortified outlaw bandit camp with tents, barrels, and a lookout watchtower.</summary>
+    BanditCamp = 11,
+
+    /// <summary>Roadside wooden watchtower overlooking frontier plains, mesas, or tundra.</summary>
+    Watchtower = 12,
+
+    /// <summary>Large ringed stone arena in dangerous outer regions designed for world boss encounters.</summary>
+    BossArena = 13,
 }

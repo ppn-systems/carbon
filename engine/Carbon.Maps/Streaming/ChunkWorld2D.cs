@@ -1,15 +1,17 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
-using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
+using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Navigation;
 using Carbon.Maps.Props;
 using Carbon.Physics.Obstacles;
+using Carbon.Physics.Raycast;
+using Carbon.Physics.Shapes;
 
 namespace Carbon.Maps.Streaming;
 
@@ -17,7 +19,7 @@ namespace Carbon.Maps.Streaming;
 /// High-performance chunk-streaming world coordinator managing infinite procedural 2D terrain.
 /// Employs Minecraft-style chunk lifecycle management with object pooling to guarantee zero GC allocations during exploration.
 /// </summary>
-public sealed class ChunkWorld2D
+public sealed class ChunkWorld2D : IWorldPhysics2D
 {
     private readonly ProceduralWorldGenerator _generator;
     private readonly float _tileSize;
@@ -26,13 +28,10 @@ public sealed class ChunkWorld2D
     private readonly Lock _gate = new();
     private readonly ChunkDeltaStore _deltas = new();
     private readonly ChunkStreamer _streamer;
-    private readonly BuildingGrid _buildings = new();
+    private readonly BuildingGrid _buildings;
     private readonly TileWalkabilityGrid _navGrid;
     private readonly WorldCollision _collision;
-
-    private readonly int _spawnTileX;
-    private readonly int _spawnTileY;
-    private readonly Vector2 _spawnWorldPosition;
+    private readonly Lazy<(int X, int Y)> _spawn;
 
     /// <summary>
     /// Gets the spatial building grid managing constructed structures, connected walls, and doors.
@@ -57,17 +56,24 @@ public sealed class ChunkWorld2D
     /// <summary>
     /// Gets the world spawn coordinate vector located on safe, natural starter land.
     /// </summary>
-    public Vector2 SpawnWorldPosition => _spawnWorldPosition;
+    public Vector2 SpawnWorldPosition
+    {
+        get
+        {
+            (int sx, int sy) = _spawn.Value;
+            return new Vector2((sx * _tileSize) + (_tileSize * 0.5f), (sy * _tileSize) + (_tileSize * 0.5f));
+        }
+    }
 
     /// <summary>
     /// Gets the world spawn coordinate in tile units.
     /// </summary>
-    public (int X, int Y) SpawnTile => (_spawnTileX, _spawnTileY);
+    public (int X, int Y) SpawnTile => _spawn.Value;
 
     /// <summary>
-    /// Gets the collection of currently resident active chunks.
+    /// Gets a zero-allocation read-only span of currently resident active chunks.
     /// </summary>
-    public ICollection<Chunk2D> ActiveChunks => _streamer.Active;
+    public ReadOnlySpan<Chunk2D> ActiveChunks => _streamer.Active;
 
     /// <summary>
     /// Gets the count of currently resident active chunks in memory.
@@ -92,11 +98,14 @@ public sealed class ChunkWorld2D
         _tileSize = tileSize ?? generator.Settings.TileSize;
         _frequency = frequency ?? generator.Settings.Frequency;
         _streamer = new ChunkStreamer(generator, _deltas, _gate, _frequency, _tileSize);
+        _buildings = new BuildingGrid(this.OnStructureChanged, this.OnStructureConnectivityUpdated);
 
-        (int sx, int sy) = _frequency == generator.Settings.Frequency ? generator.SpawnTile : SpawnLocator.Locate(generator, _frequency);
-        _spawnTileX = sx;
-        _spawnTileY = sy;
-        _spawnWorldPosition = new Vector2((sx * _tileSize) + (_tileSize * 0.5f), (sy * _tileSize) + (_tileSize * 0.5f));
+        ProceduralWorldGenerator genRef = _generator;
+        float freqCopy = _frequency;
+        _spawn = new Lazy<(int X, int Y)>(
+            () => freqCopy == genRef.Settings.Frequency ? genRef.SpawnTile : SpawnLocator.Locate(genRef, freqCopy),
+            LazyThreadSafetyMode.ExecutionAndPublication);
+
         _navGrid = new TileWalkabilityGrid(this);
         _collision = new WorldCollision(this);
     }
@@ -110,9 +119,9 @@ public sealed class ChunkWorld2D
     public Chunk2D GetOrCreateChunk(int chunkX, int chunkY) => _streamer.GetOrCreate(chunkX, chunkY);
 
     /// <summary>
-    /// Gets the recorded changes of every chunk that has been edited, loaded or not.
+    /// Gets a zero-allocation read-only span of recorded changes of every chunk that has been edited, loaded or not.
     /// </summary>
-    public ICollection<ChunkDelta> Deltas => _deltas.All;
+    public ReadOnlySpan<ChunkDelta> Deltas => _deltas.All;
 
     /// <summary>
     /// Gets the store of player-made changes.
@@ -143,6 +152,7 @@ public sealed class ChunkWorld2D
             // Deltas recorded against another generator version are migrated first (see ChunkDelta.MigrateTo).
             delta = delta.MigrateTo(ProceduralWorldGenerator.GeneratorVersion);
             _deltas.Set(delta);
+            _buildings.ApplyChunkStructures(delta.ChunkX, delta.ChunkY, delta.Structures);
             _streamer.RebuildIfResident(delta.ChunkX, delta.ChunkY);
         }
     }
@@ -156,7 +166,34 @@ public sealed class ChunkWorld2D
     /// <param name="damage">Damage amount.</param>
     /// <param name="updated">The prop after damage.</param>
     /// <returns><c>true</c> when a prop exists on the tile.</returns>
-    public bool TryDamagePropAt(int worldTileX, int worldTileY, float damage, out MapProp updated)
+    public bool TryDamagePropAt(int worldTileX, int worldTileY, float damage, out MapProp updated) =>
+        this.TryDamagePropAt(worldTileX, worldTileY, damage, byte.MaxValue, out updated);
+
+    /// <summary>
+    /// Applies damage to the natural prop anchored on a world tile when <paramref name="toolHarvestTier"/> meets or
+    /// exceeds the prop's required harvest tier, recording edits into the chunk delta.
+    /// </summary>
+    /// <param name="worldTileX">World tile X.</param>
+    /// <param name="worldTileY">World tile Y.</param>
+    /// <param name="damage">Damage amount.</param>
+    /// <param name="toolHarvestTier">Harvest tier of the striking tool.</param>
+    /// <param name="updated">The prop after damage, or the unchanged prop if harvest tier is insufficient.</param>
+    /// <returns><c>true</c> when a prop exists and damage was applied; otherwise <c>false</c>.</returns>
+    public bool TryDamagePropAt(int worldTileX, int worldTileY, float damage, byte toolHarvestTier, out MapProp updated) =>
+        this.TryDamagePropAt(worldTileX, worldTileY, damage, toolHarvestTier, respawnAtTick: 0, out updated);
+
+    /// <summary>
+    /// Applies damage to the natural prop anchored on a world tile when <paramref name="toolHarvestTier"/> meets or
+    /// exceeds the prop's required harvest tier, optionally scheduling a respawn tick when destroyed.
+    /// </summary>
+    /// <param name="worldTileX">World tile X.</param>
+    /// <param name="worldTileY">World tile Y.</param>
+    /// <param name="damage">Damage amount.</param>
+    /// <param name="toolHarvestTier">Harvest tier of the striking tool.</param>
+    /// <param name="respawnAtTick">Tick when destroyed resource regrows (0 = does not auto-respawn).</param>
+    /// <param name="updated">The prop after damage, or the unchanged prop if indestructible or tool tier is insufficient.</param>
+    /// <returns><c>true</c> when a prop exists and damage was applied; otherwise <c>false</c>.</returns>
+    public bool TryDamagePropAt(int worldTileX, int worldTileY, float damage, byte toolHarvestTier, ulong respawnAtTick, out MapProp updated)
     {
         int cx = Chunk2D.ToChunkCoord(worldTileX);
         int cy = Chunk2D.ToChunkCoord(worldTileY);
@@ -174,11 +211,43 @@ public sealed class ChunkWorld2D
             }
 
             MapProp current = chunk.Props[index];
+            if (!current.Destructibility.IsDestructible || toolHarvestTier < current.Destructibility.HarvestTier)
+            {
+                updated = current;
+                return false;
+            }
+
             updated = current with { Destructibility = current.Destructibility.ApplyDamage(damage) };
             chunk.SetProp(index, updated);
-            _deltas.GetOrAdd(cx, cy).SetPropState(lx, ly, updated.Destructibility);
+            _deltas.GetOrAdd(cx, cy).SetPropState(lx, ly, updated.Destructibility, respawnAtTick);
             return true;
         }
+    }
+
+    /// <summary>
+    /// Restores any destroyed props whose scheduled respawn tick has been reached.
+    /// </summary>
+    /// <param name="currentTick">Current simulation tick.</param>
+    /// <returns>The total number of props respawned.</returns>
+    public int ProcessPropRespawns(ulong currentTick)
+    {
+        int respawned = 0;
+        lock (_gate)
+        {
+            ReadOnlySpan<ChunkDelta> all = _deltas.All;
+            for (int i = 0; i < all.Length; i++)
+            {
+                ChunkDelta delta = all[i];
+                int expired = delta.RemoveExpiredPropStates(currentTick);
+                if (expired > 0)
+                {
+                    respawned += expired;
+                    _streamer.RebuildIfResident(delta.ChunkX, delta.ChunkY);
+                }
+            }
+        }
+
+        return respawned;
     }
 
     /// <summary>
@@ -302,4 +371,119 @@ public sealed class ChunkWorld2D
     /// <returns>True if a collision was resolved; otherwise false.</returns>
     public bool ResolveEntityCollision(ref Vector2 position, float radius, out Vector2 pushNormal) =>
         _collision.Resolve(ref position, radius, out pushNormal);
+
+    /// <summary>
+    /// Checks whether a terrain road occupies <paramref name="worldTileX"/>, <paramref name="worldTileY"/> without generating chunks.
+    /// </summary>
+    public bool IsRoadAtWorld(int worldTileX, int worldTileY)
+    {
+        int cx = Chunk2D.ToChunkCoord(worldTileX);
+        int cy = Chunk2D.ToChunkCoord(worldTileY);
+        if (_streamer.TryGet(cx, cy, out Chunk2D? chunk) && chunk is not null)
+        {
+            return chunk.IsRoad(Chunk2D.ToLocalCoord(worldTileX), Chunk2D.ToLocalCoord(worldTileY));
+        }
+
+        MapTile tile = this.PeekTileAtWorld(worldTileX, worldTileY);
+        return !tile.IsSolid && tile.Biome is not (BiomeType.ShallowWater or BiomeType.DeepOcean) &&
+            _generator.Roads.IsRoadOrBridgeAtTile(worldTileX, worldTileY, bridgeOnly: false);
+    }
+
+    /// <summary>
+    /// Checks whether a wooden bridge spans <paramref name="worldTileX"/>, <paramref name="worldTileY"/> without generating chunks.
+    /// </summary>
+    public bool IsBridgeAtWorld(int worldTileX, int worldTileY)
+    {
+        int cx = Chunk2D.ToChunkCoord(worldTileX);
+        int cy = Chunk2D.ToChunkCoord(worldTileY);
+        if (_streamer.TryGet(cx, cy, out Chunk2D? chunk) && chunk is not null)
+        {
+            return chunk.IsBridge(Chunk2D.ToLocalCoord(worldTileX), Chunk2D.ToLocalCoord(worldTileY));
+        }
+
+        MapTile tile = this.PeekTileAtWorld(worldTileX, worldTileY);
+        return tile.Biome is BiomeType.ShallowWater or BiomeType.DeepOcean &&
+            _generator.Roads.IsRoadOrBridgeAtTile(worldTileX, worldTileY, bridgeOnly: true);
+    }
+
+    /// <inheritdoc/>
+    public float GetMoveSpeedMultiplier(Vector2 worldPosition)
+    {
+        int tx = (int)MathF.Floor(worldPosition.X / _tileSize);
+        int ty = (int)MathF.Floor(worldPosition.Y / _tileSize);
+        if (_buildings.TryGetStructure(tx, ty, out StructureTile structure) && !structure.IsSolid && structure.MoveSpeedMultiplier > 0f)
+        {
+            return structure.MoveSpeedMultiplier;
+        }
+
+        if (this.IsBridgeAtWorld(tx, ty) || _generator.Landmarks.IsWalkablePierTile(tx, ty) || this.IsRoadAtWorld(tx, ty))
+        {
+            return 1.20f;
+        }
+
+        MapTile tile = this.PeekTileAtWorld(tx, ty);
+        if (tile.Biome == BiomeType.VolcanicAshland && tile.IsSolid)
+        {
+            return 0f;
+        }
+
+        return tile.MoveSpeedMultiplier;
+    }
+
+    /// <inheritdoc/>
+    public bool ResolveCircleCollision(ref Vector2 position, float radius, out Vector2 pushNormal) =>
+        this.ResolveEntityCollision(ref position, radius, out pushNormal);
+
+    /// <inheritdoc/>
+    public bool ResolveAabbCollision(ref Vector2 position, in AABB2D localBox, out Vector2 pushNormal) =>
+        _collision.ResolveAabb(ref position, in localBox, out pushNormal);
+
+    /// <inheritdoc/>
+    public bool Raycast(in Ray2D ray, out RaycastHit2D hit) =>
+        _collision.Raycast(in ray, out hit);
+
+    private void OnStructureChanged(int worldTileX, int worldTileY, StructureTile structure)
+    {
+        int cx = Chunk2D.ToChunkCoord(worldTileX);
+        int cy = Chunk2D.ToChunkCoord(worldTileY);
+        int lx = Chunk2D.ToLocalCoord(worldTileX);
+        int ly = Chunk2D.ToLocalCoord(worldTileY);
+
+        lock (_gate)
+        {
+            ChunkDelta delta = _deltas.GetOrAdd(cx, cy);
+            if (structure.IsOccupied)
+            {
+                delta.SetStructure(lx, ly, in structure);
+                if (this.TryGetChunk(cx, cy, out Chunk2D? chunk) && chunk is not null)
+                {
+                    int propIdx = chunk.FindPropIndexAt(lx, ly);
+                    if (propIdx >= 0 && chunk.Props[propIdx].Destructibility.IsDestructible && !chunk.Props[propIdx].Destructibility.IsDestroyed)
+                    {
+                        chunk.SetProp(propIdx, chunk.Props[propIdx] with { Destructibility = chunk.Props[propIdx].Destructibility.ApplyDamage(float.MaxValue) });
+                    }
+                }
+            }
+            else
+            {
+                delta.RemoveStructure(lx, ly);
+            }
+        }
+    }
+
+    private void OnStructureConnectivityUpdated(int worldTileX, int worldTileY, WallConnectivityMask connectivity)
+    {
+        int cx = Chunk2D.ToChunkCoord(worldTileX);
+        int cy = Chunk2D.ToChunkCoord(worldTileY);
+        int lx = Chunk2D.ToLocalCoord(worldTileX);
+        int ly = Chunk2D.ToLocalCoord(worldTileY);
+
+        lock (_gate)
+        {
+            if (_deltas.TryGet(cx, cy, out ChunkDelta? delta) && delta is not null)
+            {
+                delta.RefreshStructureConnectivity(lx, ly, connectivity);
+            }
+        }
+    }
 }

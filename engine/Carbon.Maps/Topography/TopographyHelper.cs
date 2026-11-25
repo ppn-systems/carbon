@@ -2,7 +2,7 @@
 
 using System;
 using Carbon.Maps.Biomes;
-using Carbon.Maps.Random;
+using Carbon.Primitives.Hashing;
 
 namespace Carbon.Maps.Topography;
 
@@ -45,18 +45,21 @@ public static class TopographyHelper
     public const float PlateauRelief = 0.56f;
 
     /// <summary>
-    /// Resolves the discrete height level from the smooth terrain relief rather than the detailed
-    /// elevation, which keeps plateau and mountain outlines broad and free of one-tile specks.
+    /// Resolves the discrete height level from smooth coarse relief and coastal buffer elevation so plateaus,
+    /// mountain peaks, and rivers crossing them share continuous height bands free of one-tile pillars or uphill waterfalls.
     /// </summary>
     /// <param name="relief">Smooth relief (low-octave elevation plus ridges).</param>
-    /// <param name="elevation">Detailed elevation of the tile.</param>
-    /// <param name="biome">Resolved biome.</param>
-    /// <param name="isInlandWater">Whether the tile is a river or lake, which keeps the level of its terrain.</param>
+    /// <param name="elevation">Coastal baseline elevation of the tile.</param>
+    /// <param name="biome">Resolved biome (kept for API compatibility).</param>
+    /// <param name="isInlandWater">Whether the tile is a river or lake (kept for API compatibility).</param>
     /// <returns>0 (lowland), 1 (plateau) or 2 (mountain).</returns>
     public static byte ResolveTerrainHeightLevel(float relief, float elevation, BiomeType biome, bool isInlandWater)
     {
-        // Sea, beaches and a coastal buffer stay at sea level so coasts never become sheer sea cliffs.
-        if (!isInlandWater && (biome is BiomeType.DeepOcean or BiomeType.ShallowWater or BiomeType.BeachSand || elevation < 0.42f))
+        _ = biome;
+        _ = isInlandWater;
+
+        // Sea, beaches and coastal lowlands stay at level 0 so coasts never form vertical sea cliffs.
+        if (elevation < 0.42f)
         {
             return 0;
         }
@@ -103,12 +106,11 @@ public static class TopographyHelper
         bool rampRow = isRiverside || IsRampRow(worldTileX, worldTileY);
 
         // 1. South Face Grand Ramp (Incline connects down to South)
-        // Must be a straight cliff face: lower south, upper north, flanks solid
+        // Must sit against a higher plateau backing and at least one supporting flank (or riverside pass)
         if (rampColumn &&
             heightQuery(worldTileX, worldTileY + 1) == currentHeight - 1 &&
             heightQuery(worldTileX, worldTileY - 1) >= currentHeight &&
-            heightQuery(worldTileX - 1, worldTileY) >= currentHeight &&
-            heightQuery(worldTileX + 1, worldTileY) >= currentHeight &&
+            (isRiverside || heightQuery(worldTileX - 1, worldTileY) >= currentHeight || heightQuery(worldTileX + 1, worldTileY) >= currentHeight) &&
             !isWaterQuery(worldTileX, worldTileY + 1) &&
             !isWaterQuery(worldTileX, worldTileY))
         {
@@ -119,8 +121,7 @@ public static class TopographyHelper
         if (rampColumn &&
             heightQuery(worldTileX, worldTileY - 1) == currentHeight - 1 &&
             heightQuery(worldTileX, worldTileY + 1) >= currentHeight &&
-            heightQuery(worldTileX - 1, worldTileY) >= currentHeight &&
-            heightQuery(worldTileX + 1, worldTileY) >= currentHeight &&
+            (isRiverside || heightQuery(worldTileX - 1, worldTileY) >= currentHeight || heightQuery(worldTileX + 1, worldTileY) >= currentHeight) &&
             !isWaterQuery(worldTileX, worldTileY - 1) &&
             !isWaterQuery(worldTileX, worldTileY))
         {
@@ -131,8 +132,7 @@ public static class TopographyHelper
         if (rampRow &&
             heightQuery(worldTileX + 1, worldTileY) == currentHeight - 1 &&
             heightQuery(worldTileX - 1, worldTileY) >= currentHeight &&
-            heightQuery(worldTileX, worldTileY - 1) >= currentHeight &&
-            heightQuery(worldTileX, worldTileY + 1) >= currentHeight &&
+            (isRiverside || heightQuery(worldTileX, worldTileY - 1) >= currentHeight || heightQuery(worldTileX, worldTileY + 1) >= currentHeight) &&
             !isWaterQuery(worldTileX + 1, worldTileY) &&
             !isWaterQuery(worldTileX, worldTileY))
         {
@@ -143,8 +143,7 @@ public static class TopographyHelper
         if (rampRow &&
             heightQuery(worldTileX - 1, worldTileY) == currentHeight - 1 &&
             heightQuery(worldTileX + 1, worldTileY) >= currentHeight &&
-            heightQuery(worldTileX, worldTileY - 1) >= currentHeight &&
-            heightQuery(worldTileX, worldTileY + 1) >= currentHeight &&
+            (isRiverside || heightQuery(worldTileX, worldTileY - 1) >= currentHeight || heightQuery(worldTileX, worldTileY + 1) >= currentHeight) &&
             !isWaterQuery(worldTileX - 1, worldTileY) &&
             !isWaterQuery(worldTileX, worldTileY))
         {

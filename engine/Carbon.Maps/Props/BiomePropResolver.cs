@@ -1,9 +1,8 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
-using System;
 using Carbon.Maps.Biomes;
-using Carbon.Maps.Random;
-using Carbon.Maps.Topography;
+using Carbon.Primitives.Hashing;
+using Carbon.Primitives.Random;
 
 namespace Carbon.Maps.Props;
 
@@ -44,22 +43,66 @@ public static class BiomePropResolver
         bool isNearWater,
         float tileSize,
         ulong seed,
+        out MapProp prop) =>
+        TryResolveProp(
+            worldTileX,
+            worldTileY,
+            localX,
+            localY,
+            biome,
+            elevation,
+            foliageDensity,
+            mineralNoise,
+            isNearWater,
+            tileSize,
+            seed,
+            keepClear: false,
+            zoneTier: 1,
+            out prop);
+
+    /// <summary>
+    /// Evaluates whether a prop spawns at the given world tile coordinate, honoring road/cliff clearance
+    /// and zone-tier mineral density scaling.
+    /// </summary>
+    /// <param name="worldTileX">Tile X coordinate in world space.</param>
+    /// <param name="worldTileY">Tile Y coordinate in world space.</param>
+    /// <param name="localX">Local X coordinate within the chunk [0..31].</param>
+    /// <param name="localY">Local Y coordinate within the chunk [0..31].</param>
+    /// <param name="biome">Biome classification of the underlying terrain.</param>
+    /// <param name="elevation">Continuous terrain elevation [0..1].</param>
+    /// <param name="foliageDensity">Continuous macro foliage density noise [0..1].</param>
+    /// <param name="mineralNoise">Continuous geological mineral vein noise [0..1].</param>
+    /// <param name="isNearWater">Whether the tile is water or immediately adjacent to a river/ocean shore.</param>
+    /// <param name="tileSize">Physical dimension of a tile in world units.</param>
+    /// <param name="seed">Deterministic generation seed.</param>
+    /// <param name="keepClear">True when adjacent to a road, bridge, or cliff edge and props must stay clear.</param>
+    /// <param name="zoneTier">MMORPG zone danger tier (1..3) scaling ore richness.</param>
+    /// <param name="prop">The populated prop if successfully placed.</param>
+    /// <returns>True if a prop is present on this tile; otherwise false.</returns>
+    public static bool TryResolveProp(
+        int worldTileX,
+        int worldTileY,
+        int localX,
+        int localY,
+        BiomeType biome,
+        float elevation,
+        float foliageDensity,
+        float mineralNoise,
+        bool isNearWater,
+        float tileSize,
+        ulong seed,
+        bool keepClear,
+        byte zoneTier,
         out MapProp prop)
     {
         prop = default;
-
-        // Aquatic biomes do not spawn standard land props
-        if (biome is BiomeType.DeepOcean or BiomeType.ShallowWater)
+        if (keepClear)
         {
             return false;
         }
 
-        // Mountain highway passes and ramp corridors must remain clear of solid props
-        if (TopographyHelper.IsPotentialRampSlot(worldTileX, worldTileY) ||
-            TopographyHelper.IsPotentialRampSlot(worldTileX, worldTileY - 1) ||
-            TopographyHelper.IsPotentialRampSlot(worldTileX, worldTileY + 1) ||
-            TopographyHelper.IsPotentialRampSlot(worldTileX - 1, worldTileY) ||
-            TopographyHelper.IsPotentialRampSlot(worldTileX + 1, worldTileY))
+        // Aquatic biomes do not spawn standard land props
+        if (biome is BiomeType.DeepOcean or BiomeType.ShallowWater)
         {
             return false;
         }
@@ -77,7 +120,7 @@ public static class BiomePropResolver
 
         BiomePropTable table = BiomePropTables.Get(biome);
 
-        // 1. Mineral veins: over 96% of the land has no ore; veins concentrate in highlands and badlands.
+        // 1. Mineral veins: over 96% of the land has no ore; veins concentrate in highlands and higher danger tiers.
         float veinThreshold = table.VeinThreshold;
         if (elevation >= 0.70f)
         {
@@ -88,9 +131,19 @@ public static class BiomePropResolver
             veinThreshold -= 0.02f;
         }
 
-        // Inside an active vein only a few tiles form compact ore clusters.
-        bool isVeinNode = !isNearWater && mineralNoise >= veinThreshold &&
-            (SpatialHash.Hash32(seed, worldTileX, worldTileY, 0x5E1AUL) % 6) == 0;
+        if (zoneTier >= 3)
+        {
+            veinThreshold -= 0.05f;
+        }
+        else if (zoneTier == 2)
+        {
+            veinThreshold -= 0.02f;
+        }
+
+        // Anti-clump checkerboard keeps mineral outcrops spaced at >= 2 tiles with no colliding adjacent boulders.
+        bool isOreSlot = ((worldTileX & 1) == 0) && ((worldTileY & 1) == 0);
+        bool isVeinNode = !isNearWater && isOreSlot && mineralNoise >= veinThreshold &&
+            (SpatialHash.Hash32(seed, worldTileX, worldTileY, 0x5E1AUL) % 3) == 0;
 
         // 2. Rare ancient shrines in secluded high-density groves (~1 in 200 tiles).
         if (!isNearWater && mineralNoise >= 0.86f && foliageDensity >= 0.76f &&
@@ -115,9 +168,23 @@ public static class BiomePropResolver
             }
         }
 
-        // 3. Staggered hexagonal lattice for trees: at least sqrt(5) ~= 2.24 tiles between trunks, so crowns
-        // stay distinct and exploration lanes stay open.
-        bool isTreeSlot = !isNearWater && ((Math.Abs(worldTileX + 2 + (worldTileY * 2)) % 4) == 0);
+        // Occasional non-vein field boulders on highlands/plains for tactical cover.
+        if (!isNearWater && isOreSlot && !table.VeinExclusive && mineralNoise >= 0.56f &&
+            (SpatialHash.Hash32(seed, worldTileX, worldTileY, 0xB01DUL) % 97) == 0)
+        {
+            prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 22f * scaleVar, isSolid: true, 0x7A7E84FF, 0x9CA0A6FF, scaleVar);
+            return true;
+        }
+
+        // 3. Staggered hexagonal lattice for trees (x + 2y ≡ 0 mod 5): at least sqrt(5) ~= 2.24 tiles between trunks,
+        // keeping tree crowns distinct and exploration lanes open.
+        int lattice = (worldTileX + (worldTileY * 2)) % 5;
+        if (lattice < 0)
+        {
+            lattice += 5;
+        }
+
+        bool isTreeSlot = !isNearWater && lattice == 0;
 
         // 4. Vegetation layers, first matching condition wins.
         PropLayer[] layers = table.Layers;

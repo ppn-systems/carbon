@@ -1,0 +1,55 @@
+<Solution>
+  <Folder Name="/contracts/">
+    <Project Path="contracts/Carbon.Contracts.Common/Carbon.Contracts.Common.csproj" />
+    <Project Path="contracts/Carbon.Contracts.Maps/Carbon.Contracts.Maps.csproj" />
+  </Folder>
+  <Folder Name="/desktop/">
+    <Project Path="desktop/Carbon.Desktop/Carbon.Desktop.csproj" />
+  </Folder>
+  <Folder Name="/engine/">
+    <Project Path="engine/Carbon.AI/Carbon.AI.csproj" />
+    <Project Path="engine/Carbon.Combat/Carbon.Combat.csproj" />
+    <Project Path="engine/Carbon.Data/Carbon.Data.csproj" />
+    <Project Path="engine/Carbon.Items/Carbon.Items.csproj" />
+    <Project Path="engine/Carbon.Maps/Carbon.Maps.csproj" />
+    <Project Path="engine/Carbon.Physics/Carbon.Physics.csproj" />
+    <Project Path="engine/Carbon.Prediction/Carbon.Prediction.csproj" />
+    <Project Path="engine/Carbon.Primitives/Carbon.Primitives.csproj" />
+    <Project Path="engine/Carbon.Simulation/Carbon.Simulation.csproj" />
+  </Folder>
+  <Folder Name="/graphics/">
+    <Project Path="graphics/Carbon.Graphics.Animation/Carbon.Graphics.Animation.csproj" />
+    <Project Path="graphics/Carbon.Graphics.Assets/Carbon.Graphics.Assets.csproj" />
+    <Project Path="graphics/Carbon.Graphics.Batching/Carbon.Graphics.Batching.csproj" />
+    <Project Path="graphics/Carbon.Graphics.Fonts/Carbon.Graphics.Fonts.csproj" />
+    <Project Path="graphics/Carbon.Graphics.OpenGL/Carbon.Graphics.OpenGL.csproj" />
+    <Project Path="graphics/Carbon.Graphics.Scenes/Carbon.Graphics.Scenes.csproj" />
+    <Project Path="graphics/Carbon.Graphics.UI/Carbon.Graphics.UI.csproj" />
+    <Project Path="graphics/Carbon.Graphics.Windowing/Carbon.Graphics.Windowing.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/contracts/">
+    <Project Path="tests/contracts/Carbon.Contracts.Tests/Carbon.Contracts.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/engine/">
+    <Project Path="tests/engine/Carbon.AI.Tests/Carbon.AI.Tests.csproj" />
+    <Project Path="tests/engine/Carbon.Combat.Tests/Carbon.Combat.Tests.csproj" />
+    <Project Path="tests/engine/Carbon.Data.Tests/Carbon.Data.Tests.csproj" />
+    <Project Path="tests/engine/Carbon.Items.Tests/Carbon.Items.Tests.csproj" />
+    <Project Path="tests/engine/Carbon.Maps.Tests/Carbon.Maps.Tests.csproj" />
+    <Project Path="tests/engine/Carbon.Physics.Tests/Carbon.Physics.Tests.csproj" />
+    <Project Path="tests/engine/Carbon.Prediction.Tests/Carbon.Prediction.Tests.csproj" />
+    <Project Path="tests/engine/Carbon.Primitives.Tests/Carbon.Primitives.Tests.csproj" />
+    <Project Path="tests/engine/Carbon.Simulation.Tests/Carbon.Simulation.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/graphics/">
+    <Project Path="tests/graphics/Carbon.Graphics.Animation.Tests/Carbon.Graphics.Animation.Tests.csproj" />
+    <Project Path="tests/graphics/Carbon.Graphics.Assets.Tests/Carbon.Graphics.Assets.Tests.csproj" />
+    <Project Path="tests/graphics/Carbon.Graphics.Batching.Tests/Carbon.Graphics.Batching.Tests.csproj" />
+    <Project Path="tests/graphics/Carbon.Graphics.Fonts.Tests/Carbon.Graphics.Fonts.Tests.csproj" />
+    <Project Path="tests/graphics/Carbon.Graphics.OpenGL.Tests/Carbon.Graphics.OpenGL.Tests.csproj" />
+    <Project Path="tests/graphics/Carbon.Graphics.Scenes.Tests/Carbon.Graphics.Scenes.Tests.csproj" />
+    <Project Path="tests/graphics/Carbon.Graphics.UI.Tests/Carbon.Graphics.UI.Tests.csproj" />
+    <Project Path="tests/graphics/Carbon.Graphics.Windowing.Tests/Carbon.Graphics.Windowing.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -3,4 +3,8 @@
         <RootNamespace>Carbon.Physics</RootNamespace>
         <AssemblyName>Carbon.Physics</AssemblyName>
     </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Carbon.Primitives\Carbon.Primitives.csproj" />
+    </ItemGroup>
 </Project>

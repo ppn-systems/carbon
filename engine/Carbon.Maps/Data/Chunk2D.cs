@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Threading;
 using Carbon.Maps.Landmarks;
 using Carbon.Maps.Props;
 using Carbon.Physics.Obstacles;
@@ -43,6 +44,9 @@ public sealed class Chunk2D
 
     // One bit per tile: set where a road crosses the tile.
     private readonly ulong[] _roadMask = new ulong[Size * Size / 64];
+
+    // One bit per tile: set where a wooden road bridge crosses water.
+    private readonly ulong[] _bridgeMask = new ulong[Size * Size / 64];
 
     /// <summary>
     /// Gets the physical and decorative props positioned within this chunk.
@@ -121,6 +125,7 @@ public sealed class Chunk2D
         _pointsOfInterest.Clear();
         Array.Clear(_solidPropMask);
         Array.Clear(_roadMask);
+        Array.Clear(_bridgeMask);
         Array.Clear(_tiles, 0, _tiles.Length);
     }
 
@@ -151,7 +156,11 @@ public sealed class Chunk2D
     public void SetTile(int localX, int localY, in MapTile tile)
     {
         EnsureInBounds(localX, localY);
-        _tiles[(localY * Size) + localX] = tile;
+        int bit = (localY * Size) + localX;
+        _tiles[bit] = tile;
+        ulong mask = ~(1UL << (bit & 63));
+        _roadMask[bit >> 6] &= mask;
+        _bridgeMask[bit >> 6] &= mask;
     }
 
     /// <summary>
@@ -239,6 +248,30 @@ public sealed class Chunk2D
         _roadMask[bit >> 6] |= 1UL << (bit & 63);
     }
 
+    /// <summary>Returns whether a road bridge crosses the given local tile.</summary>
+    /// <param name="localX">Local tile X.</param>
+    /// <param name="localY">Local tile Y.</param>
+    /// <returns><c>true</c> when the tile is a bridge.</returns>
+    public bool IsBridge(int localX, int localY)
+    {
+        if ((uint)localX >= Size || (uint)localY >= Size)
+        {
+            return false;
+        }
+
+        int bit = (localY * Size) + localX;
+        return (_bridgeMask[bit >> 6] & (1UL << (bit & 63))) != 0;
+    }
+
+    /// <summary>Marks a local tile as a road bridge over water.</summary>
+    /// <param name="localX">Local tile X.</param>
+    /// <param name="localY">Local tile Y.</param>
+    public void SetBridge(int localX, int localY)
+    {
+        int bit = (localY * Size) + localX;
+        _bridgeMask[bit >> 6] |= 1UL << (bit & 63);
+    }
+
     /// <summary>Removes the props matching a predicate and refreshes the solid-prop index.</summary>
     /// <param name="match">Returns <c>true</c> for props to remove.</param>
     /// <returns>The number of props removed.</returns>
@@ -272,14 +305,22 @@ public sealed class Chunk2D
 
     private void RebuildSolidPropMask()
     {
-        Array.Clear(_solidPropMask);
+        Span<ulong> nextMask = stackalloc ulong[_solidPropMask.Length];
         for (int i = 0; i < _props.Count; i++)
         {
             MapProp p = _props[i];
             if (p.HasCollision)
             {
-                this.MarkSolidProp(p.LocalTileX, p.LocalTileY);
+                int px = Math.Clamp(p.LocalTileX, 0, Size - 1);
+                int py = Math.Clamp(p.LocalTileY, 0, Size - 1);
+                int bit = (py * Size) + px;
+                nextMask[bit >> 6] |= 1UL << (bit & 63);
             }
+        }
+
+        for (int i = 0; i < _solidPropMask.Length; i++)
+        {
+            Volatile.Write(ref _solidPropMask[i], nextMask[i]);
         }
     }
 

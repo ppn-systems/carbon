@@ -14,8 +14,8 @@ namespace Carbon.Maps.Tests;
 public sealed class GenerationPipelineTests
 {
     // Pins tiles (all fields), props and landmarks over 81 scattered chunks plus 90k pure samples (generator
-    // version 11: roads, mines and the spawn clearing). Update it only together with GeneratorVersion.
-    private const ulong GoldenWorldFingerprint = 6592968123613380798UL;
+    // version 12: MMORPG worldgen overhaul). Update it only together with GeneratorVersion.
+    private const ulong GoldenWorldFingerprint = 2276200943289429033UL;
 
     [Fact]
     public void Generate_WorldFingerprint_IsStable()

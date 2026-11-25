@@ -42,10 +42,10 @@ public readonly record struct BiomeProperties(
         new(BiomeType.TropicalJungle, IsSolid: false, MoveSpeedMultiplier: 0.8f, ColorRgba: 0x23683DFF),
 
         // FrozenTundra: Glacial frost pale snow (0xDFECF4FF)
-        new(BiomeType.FrozenTundra, IsSolid: false, MoveSpeedMultiplier: 1.15f, ColorRgba: 0xDFECF4FF),
+        new(BiomeType.FrozenTundra, IsSolid: false, MoveSpeedMultiplier: 0.90f, ColorRgba: 0xDFECF4FF),
 
-        // VolcanicAshland: Dark obsidian charcoal basalt (0x353338FF)
-        new(BiomeType.VolcanicAshland, IsSolid: true, MoveSpeedMultiplier: 0.0f, ColorRgba: 0x353338FF),
+        // VolcanicAshland: Walkable dark obsidian charcoal ashlands (lava fissures are solid per tile)
+        new(BiomeType.VolcanicAshland, IsSolid: false, MoveSpeedMultiplier: 0.80f, ColorRgba: 0x353338FF),
 
         // AlpinePeaks: Glaciated icy blue-white mountain peaks (0xD8E8F5FF)
         new(BiomeType.AlpinePeaks, IsSolid: false, MoveSpeedMultiplier: 0.85f, ColorRgba: 0xD8E8F5FF),

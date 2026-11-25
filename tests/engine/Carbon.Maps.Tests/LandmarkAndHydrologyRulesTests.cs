@@ -63,6 +63,19 @@ public sealed class LandmarkAndHydrologyRulesTests
                         Assert.Equal(1, tile.HeightLevel);
                         Assert.True(river > 6f, "A mine is dug away from rivers.");
                         break;
+                    case PointOfInterestType.BanditCamp:
+                        Assert.Equal(0, tile.HeightLevel);
+                        Assert.True(river > 9f);
+                        break;
+                    case PointOfInterestType.AncientRuins:
+                        Assert.True(tile.HeightLevel <= 2);
+                        Assert.True(river > 11f);
+                        break;
+                    case PointOfInterestType.Watchtower:
+                    case PointOfInterestType.BossArena:
+                        Assert.True(tile.HeightLevel <= 2);
+                        Assert.True(river > 8f);
+                        break;
                     case PointOfInterestType.None:
                     default:
                         break;

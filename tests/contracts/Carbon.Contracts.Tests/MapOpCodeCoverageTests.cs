@@ -69,6 +69,11 @@ public sealed class MapOpCodeCoverageTests
             PropIndices = [17],
             PropDurabilities = [12.5f],
             PropDestroyed = [true],
+            StructureIndices = [42, 43],
+            StructureTypes = [1, 3],
+            StructureDurabilities = [150f, 100f],
+            StructureDoorStates = [0, 1],
+            StructureConnectivities = [2, 0],
         };
 
         byte[] bytes = original.Serialize();
@@ -81,6 +86,11 @@ public sealed class MapOpCodeCoverageTests
         Assert.Equal(original.TileTraits, copy.TileTraits);
         Assert.Equal(original.PropDurabilities, copy.PropDurabilities);
         Assert.Equal(original.PropDestroyed, copy.PropDestroyed);
+        Assert.Equal(original.StructureIndices, copy.StructureIndices);
+        Assert.Equal(original.StructureTypes, copy.StructureTypes);
+        Assert.Equal(original.StructureDurabilities, copy.StructureDurabilities);
+        Assert.Equal(original.StructureDoorStates, copy.StructureDoorStates);
+        Assert.Equal(original.StructureConnectivities, copy.StructureConnectivities);
     }
 
     [Fact]

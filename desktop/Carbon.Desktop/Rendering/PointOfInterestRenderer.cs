@@ -77,6 +77,23 @@ internal sealed class PointOfInterestRenderer
                 DrawMineYard(batch, c, r);
                 break;
 
+            case PointOfInterestType.AncientRuins:
+                DrawShrinePlatform(batch, c, r * 0.85f);
+                break;
+
+            case PointOfInterestType.BanditCamp:
+                batch.FillCircle(c, r * 0.72f, new ColorRgba(110, 86, 62, 130), 24);
+                break;
+
+            case PointOfInterestType.Watchtower:
+                batch.FillCircle(c, r * 0.65f, new ColorRgba(136, 128, 114, 150), 20);
+                break;
+
+            case PointOfInterestType.BossArena:
+                DrawShrinePlatform(batch, c, r * 0.92f);
+                batch.FillCircle(c, r * 0.48f, new ColorRgba(110, 44, 48, 120), 24);
+                break;
+
             case PointOfInterestType.None:
             default:
                 break;
@@ -145,6 +162,12 @@ internal sealed class PointOfInterestRenderer
                     break;
                 case LandmarkPieceKind.MineEntrance:
                     lights.Add(new PointLight(foot + new Vector2(0f, -14f), 90f, warm, 0.5f * flicker)); // lamps inside the adit
+                    break;
+                case LandmarkPieceKind.Watchtower:
+                    lights.Add(new PointLight(foot + new Vector2(0f, -72f), 170f, warm, 0.85f * flicker));
+                    break;
+                case LandmarkPieceKind.RuinedPillar:
+                    lights.Add(new PointLight(foot + new Vector2(0f, -20f), 85f, spirit, 0.35f));
                     break;
                 case LandmarkPieceKind.Well:
                 case LandmarkPieceKind.Tent:
@@ -244,6 +267,12 @@ internal sealed class PointOfInterestRenderer
                 break;
             case LandmarkPieceKind.OreCart:
                 DrawOreCart(batch, position, piece.Variant);
+                break;
+            case LandmarkPieceKind.RuinedPillar:
+                DrawRuinedPillar(batch, position, piece.Variant);
+                break;
+            case LandmarkPieceKind.Watchtower:
+                DrawWatchtower(batch, position, width, piece.Variant);
                 break;
             default:
                 break;
@@ -1077,6 +1106,39 @@ internal sealed class PointOfInterestRenderer
         batch.FillCircle(foot + new Vector2(-5f, -21f), 6f, ore, 10);
         batch.FillCircle(foot + new Vector2(5f, -22f), 5f, Shade(ore, 0.8f), 10);
         batch.FillCircle(foot + new Vector2(0f, -25f), 4f, Shade(ore, 1.15f), 8);
+    }
+
+    private static void DrawRuinedPillar(GeometryBatch batch, Vector2 foot, byte variant)
+    {
+        ColorRgba stone = (variant & 1) == 0 ? new ColorRgba(142, 146, 152) : new ColorRgba(124, 128, 134);
+        float height = 34f + (variant % 3 * 8f);
+        batch.FillCircle(foot + new Vector2(3f, 3f), 11f, new ColorRgba(0, 0, 0, 45), 12);
+        batch.FillRectangle(new RectangleF(foot.X - 10f, foot.Y - 6f, 20f, 6f), Shade(stone, 0.78f));
+        batch.FillRectangle(new RectangleF(foot.X - 7f, foot.Y - height, 14f, height - 6f), stone);
+        batch.FillRectangle(new RectangleF(foot.X + 2f, foot.Y - height, 5f, height - 6f), Shade(stone, 0.84f));
+        batch.FillTriangle(
+            new Vector2(foot.X - 7f, foot.Y - height),
+            new Vector2(foot.X + 7f, foot.Y - height),
+            new Vector2(foot.X - 2f, foot.Y - height - 7f),
+            Shade(stone, 1.12f));
+    }
+
+    private static void DrawWatchtower(GeometryBatch batch, Vector2 foot, float width, byte variant)
+    {
+        ColorRgba stone = (variant & 1) == 0 ? new ColorRgba(128, 130, 136) : new ColorRgba(136, 108, 76);
+        ColorRgba timber = new(118, 78, 44);
+        float hw = MathF.Max(18f, width * 0.42f);
+        float height = 74f;
+        batch.FillCircle(foot + new Vector2(4f, 4f), hw * 1.05f, new ColorRgba(0, 0, 0, 50), 16);
+        batch.FillRectangle(new RectangleF(foot.X - hw, foot.Y - height, hw * 2f, height), stone);
+        batch.FillRectangle(new RectangleF(foot.X + (hw * 0.2f), foot.Y - height, hw * 0.8f, height), Shade(stone, 0.82f));
+        batch.FillRectangle(new RectangleF(foot.X - hw - 4f, foot.Y - height - 10f, (hw * 2f) + 8f, 12f), timber);
+        batch.FillTriangle(
+            new Vector2(foot.X - hw - 8f, foot.Y - height - 10f),
+            new Vector2(foot.X + hw + 8f, foot.Y - height - 10f),
+            new Vector2(foot.X, foot.Y - height - 30f),
+            new ColorRgba(148, 56, 42));
+        batch.FillRectangle(new RectangleF(foot.X - 6f, foot.Y - 22f, 12f, 22f), new ColorRgba(44, 30, 20));
     }
 
     private static ColorRgba Shade(ColorRgba c, float k) =>

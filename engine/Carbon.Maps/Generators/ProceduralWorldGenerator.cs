@@ -23,7 +23,7 @@ public sealed class ProceduralWorldGenerator : ITileSource
     /// Bump it whenever any change alters generated output (the golden-hash test fails), so a client running
     /// a different generator refuses to play instead of silently desyncing.
     /// </summary>
-    public const ushort GeneratorVersion = 11;
+    public const ushort GeneratorVersion = 12;
 
     /// <summary>Width-scaled distance over which rivers and lakes lower and moisten the land around them.</summary>
     public const float RiparianReach = WorldConstants.RiparianReach;
@@ -96,10 +96,10 @@ public sealed class ProceduralWorldGenerator : ITileSource
         this.Settings = settings;
         ulong seed = settings.Seed;
         _seed = seed;
-        ElevationStage elevation = new(seed);
-        _rivers = new RiverNetwork(seed, elevation);
+        ElevationStage elevation = new(seed, settings.Frequency);
+        _rivers = new RiverNetwork(seed, settings.Frequency, elevation);
         _landmarks = new PointOfInterestResolver(seed, this, _rivers);
-        _roads = new RoadNetwork(StageSeed.Derive(seed, "roads"), _landmarks, this);
+        _roads = new RoadNetwork(StageSeed.Derive(seed, "roads"), _landmarks, this, _rivers);
         _spawn = new Lazy<(int X, int Y)>(() => SpawnLocator.Locate(this, settings.Frequency));
 
         List<ITileStage> tileStages = [elevation, new ClimateStage(seed), new HydrologyStage(seed, _rivers), new BiomeStage(seed)];

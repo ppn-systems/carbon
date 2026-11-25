@@ -38,19 +38,35 @@ public sealed class PropStage : IChunkStage
         for (int i = 0; i < tiles.Length; i++)
         {
             ref readonly TileSample s = ref tiles[i];
-            // Settlement footprints and roads stay clear.
-            if (chunk.IsRoad(i % Chunk2D.Size, i / Chunk2D.Size) || _landmarks.TryGetAt(s.WorldX, s.WorldY, out _))
+            int lx = i % Chunk2D.Size;
+            int ly = i / Chunk2D.Size;
+
+            // Settlement footprints, bridges, and roads stay clear.
+            if (chunk.IsRoad(lx, ly) || chunk.IsBridge(lx, ly) || _landmarks.TryGetAt(s.WorldX, s.WorldY, out _))
+            {
+                continue;
+            }
+
+            // 1-tile clearance buffer along roads, bridges, and cliff edges so props never block navigation.
+            bool keepClear =
+                (lx > 0 && (chunk.IsRoad(lx - 1, ly) || chunk.IsBridge(lx - 1, ly) || tiles[i - 1].Tile.HeightLevel != s.Tile.HeightLevel)) ||
+                (lx + 1 < Chunk2D.Size && (chunk.IsRoad(lx + 1, ly) || chunk.IsBridge(lx + 1, ly) || tiles[i + 1].Tile.HeightLevel != s.Tile.HeightLevel)) ||
+                (ly > 0 && (chunk.IsRoad(lx, ly - 1) || chunk.IsBridge(lx, ly - 1) || tiles[i - Chunk2D.Size].Tile.HeightLevel != s.Tile.HeightLevel)) ||
+                (ly + 1 < Chunk2D.Size && (chunk.IsRoad(lx, ly + 1) || chunk.IsBridge(lx, ly + 1) || tiles[i + Chunk2D.Size].Tile.HeightLevel != s.Tile.HeightLevel));
+
+            if (keepClear)
             {
                 continue;
             }
 
             float foliage = _foliage.Evaluate(s.WorldX * 0.015f, s.WorldY * 0.015f, octaves: 3);
             float minerals = _minerals.Evaluate(s.WorldX * 0.008f, s.WorldY * 0.008f, octaves: 2);
+            byte zoneTier = WorldProgression.GetZoneTier(_seed, s.WorldX, s.WorldY);
             if (BiomePropResolver.TryResolveProp(
                 s.WorldX,
                 s.WorldY,
-                i % Chunk2D.Size,
-                i / Chunk2D.Size,
+                lx,
+                ly,
                 s.Tile.Biome,
                 s.Tile.Elevation,
                 foliage,
@@ -58,6 +74,8 @@ public sealed class PropStage : IChunkStage
                 s.IsNearWater,
                 context.TileSize,
                 _seed,
+                keepClear: false,
+                zoneTier,
                 out MapProp prop))
             {
                 chunk.AddProp(prop);

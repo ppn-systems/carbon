@@ -2,8 +2,9 @@
 
 using System;
 using System.Numerics;
+using Carbon.Primitives.Math;
 
-namespace Carbon.Maps.Random;
+namespace Carbon.Primitives.Random;
 
 /// <summary>
 /// High-throughput, zero-allocation deterministic pseudo-random number generator based on Xoshiro256**.
@@ -11,6 +12,8 @@ namespace Carbon.Maps.Random;
 /// </summary>
 public struct DeterministicRandom
 {
+    private const float TwoPi = 6.2831853071795864769f;
+
     private ulong _s0;
     private ulong _s1;
     private ulong _s2;
@@ -74,6 +77,24 @@ public struct DeterministicRandom
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(minInclusive, maxExclusive, nameof(minInclusive));
         uint range = (uint)(maxExclusive - minInclusive);
         return minInclusive + (int)(this.NextULong() % range);
+    }
+
+    /// <summary>
+    /// Generates a deterministic boolean that is <see langword="true"/> with the specified probability.
+    /// </summary>
+    /// <param name="probability">Probability in [0.0, 1.0].</param>
+    /// <returns>Deterministic boolean outcome.</returns>
+    public bool NextBool(float probability = 0.5f) =>
+        this.NextFloat() < probability;
+
+    /// <summary>
+    /// Generates a deterministic 2D unit direction vector using <see cref="DeterministicMath"/>.
+    /// </summary>
+    /// <returns>Unit <see cref="Vector2"/>.</returns>
+    public Vector2 NextUnitVector2()
+    {
+        float angle = this.NextFloat() * TwoPi;
+        return new Vector2(DeterministicMath.Cos(angle), DeterministicMath.Sin(angle));
     }
 
     private static ulong SplitMix64(ref ulong state)

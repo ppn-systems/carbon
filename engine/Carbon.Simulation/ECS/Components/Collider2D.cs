@@ -1,5 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System.Numerics;
 using Carbon.Physics.Shapes;
 
 namespace Carbon.Simulation.ECS.Components;
@@ -43,6 +44,16 @@ public record struct Collider2D(
     uint Layer = 1,
     uint Mask = uint.MaxValue)
 {
+    /// <summary>
+    /// Computes the axis-aligned world-space bounding box enclosing this collider at <paramref name="worldPosition"/>.
+    /// </summary>
+    /// <param name="worldPosition">Entity world position.</param>
+    /// <returns>World-space <see cref="AABB2D"/> bounds.</returns>
+    public readonly AABB2D GetWorldAabb(Vector2 worldPosition) =>
+        this.Kind == ColliderKind.Circle
+            ? AABB2D.FromCenterSize(worldPosition, new Vector2(this.Radius * 2f, this.Radius * 2f))
+            : this.Box.Offset(worldPosition);
+
     /// <summary>
     /// Creates a circular collider component.
     /// </summary>

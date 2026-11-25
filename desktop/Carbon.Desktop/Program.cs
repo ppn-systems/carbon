@@ -181,7 +181,10 @@ public static class Program
         }
         s_chunkWorld.UpdateAroundPosition(spawnPoint, chunkRadius: 4, evictionRadius: 8);
 
-        s_world = new WorldSimulation(tickRate: 50, cellSize: TileSize);
+        s_world = new WorldSimulation(tickRate: 50, cellSize: TileSize)
+        {
+            WorldPhysics = s_chunkWorld
+        };
 
         s_player = s_world.SpawnEntity(spawnPoint, radius: 7f);
         s_world.Entities.SetVelocity(s_player, new Velocity2D(0f, 0f, 5f));
@@ -275,13 +278,9 @@ public static class Program
         int pty = (int)MathF.Floor(playerTrans.Position.Y / TileSize);
         MapTile currentTile = s_chunkWorld.GetTileAtWorld(ptx, pty);
 
-        float finalSpeed = baseSpeed * currentTile.MoveSpeedMultiplier;
-
         if (moveDir.LengthSquared() > 0.001f)
         {
-            moveDir = Vector2.Normalize(moveDir);
-            ref Velocity2D vel = ref s_world.Entities.GetVelocity(s_player);
-            vel.Linear = moveDir * finalSpeed;
+            s_world.EnqueueCommand(SimulationCommand.MoveInput(s_player, moveDir, baseSpeed));
         }
 
         // 7. Report biome, height level, ramp, and chunk transitions
@@ -336,63 +335,15 @@ public static class Program
         }
 
         // 8. Stream infinite chunks around the moving player with pooling
-        Vector2 previousPlayerPos = playerTrans.Position;
         s_chunkWorld.UpdateAroundPosition(playerTrans.Position, chunkRadius: 4, evictionRadius: 7);
 
-        // 9. Step simulation
+        // 9. Step simulation (drains input commands, applies terrain speed multiplier & CCD sub-stepping)
         _ = s_world.Update(dt);
 
-        // 10. Continuous Collision Detection (CCD) Sub-stepping:
-        // Prevents tunneling through tree trunks, boulders, cliffs, and walls during high-speed sprinting
-        ref Transform2D simTrans = ref s_world.Entities.GetTransform(s_player);
-        ref readonly Collider2D col = ref s_world.Entities.GetCollider(s_player);
-        ref Velocity2D simVel = ref s_world.Entities.GetVelocity(s_player);
-
-        Vector2 displacement = simTrans.Position - previousPlayerPos;
-        float totalDist = displacement.Length();
-
-        if (totalDist > 0.0001f)
-        {
-            const float maxStep = 2.5f; // Well below player radius 7f and obstacle radius 8f
-            int subSteps = Math.Clamp((int)MathF.Ceiling(totalDist / maxStep), 1, 16);
-            Vector2 stepDelta = displacement / subSteps;
-            Vector2 currentPos = previousPlayerPos;
-
-            for (int step = 0; step < subSteps; step++)
-            {
-                currentPos += stepDelta;
-                if (s_chunkWorld.ResolveEntityCollision(ref currentPos, col.Radius, out Vector2 pushNormal))
-                {
-                    // Deflect trajectory along obstacle surface for silky smooth sliding
-                    float stepDot = Vector2.Dot(stepDelta, pushNormal);
-                    if (stepDot < 0f)
-                    {
-                        stepDelta -= pushNormal * stepDot;
-                    }
-
-                    float velDot = Vector2.Dot(simVel.Linear, pushNormal);
-                    if (velDot < 0f)
-                    {
-                        simVel.Linear -= pushNormal * velDot;
-                    }
-                }
-            }
-
-            simTrans.Position = currentPos;
-        }
-        else
-        {
-            Vector2 currentPos = simTrans.Position;
-            if (s_chunkWorld.ResolveEntityCollision(ref currentPos, col.Radius, out _))
-            {
-                simTrans.Position = currentPos;
-            }
-        }
-
-        // 11. Follow player with camera
+        // 10. Follow player with camera
         ref readonly Transform2D updatedTrans = ref s_world.Entities.GetTransform(s_player);
 
-        // 12. Interiors: entering a building eases the camera in on the room and fades the outside out.
+        // 11. Interiors: entering a building eases the camera in on the room and fades the outside out.
         bool inside = s_poiRenderer is not null && s_poiRenderer.TryGetBuildingAt(updatedTrans.Position, out _, out s_interiorRoom);
         float target = inside ? 1f : 0f;
         float rate = s_captureFrames > 0 ? 1f / 15f : (float)dt;
@@ -501,7 +452,7 @@ public static class Program
             }
         }
 
-        Vector2 playerPos = s_world.Entities.GetTransform(s_player).Position;
+        Vector2 playerPos = s_world.GetInterpolatedPosition(s_player);
 
         // 2. Collect visible ground props & entities into zero-alloc pooled sort list (Layer 2: 2.5D Y-Sorting)
         s_groundSortList.Clear();
@@ -731,36 +682,36 @@ public static class Program
             return;
         }
 
-        ref readonly Transform2D trans = ref s_world.Entities.GetTransform(entity);
+        Vector2 entityPos = s_world.GetInterpolatedPosition(entity);
         ref readonly Collider2D col = ref s_world.Entities.GetCollider(entity);
 
         if (entity == s_player)
         {
             // Current player tile for contextual foot effects (water splash / ripple)
-            int ptx = (int)MathF.Floor(trans.Position.X / TileSize);
-            int pty = (int)MathF.Floor(trans.Position.Y / TileSize);
+            int ptx = (int)MathF.Floor(entityPos.X / TileSize);
+            int pty = (int)MathF.Floor(entityPos.Y / TileSize);
             MapTile currentTile = s_chunkWorld.GetTileAtWorld(ptx, pty);
 
             if (currentTile.Biome is BiomeType.ShallowWater)
             {
                 // Water ripple ring around player's feet when wading in shallow water
-                batch.FillCircle(trans.Position, col.Radius + 6f, new ColorRgba(255, 255, 255, 55));
-                batch.FillCircle(trans.Position, col.Radius + 4f, new ColorRgba(56, 189, 248, 75));
+                batch.FillCircle(entityPos, col.Radius + 6f, new ColorRgba(255, 255, 255, 55));
+                batch.FillCircle(entityPos, col.Radius + 4f, new ColorRgba(56, 189, 248, 75));
             }
 
             // Player: High-contrast sleek MMORPG hero avatar token
             // Drop shadow
-            batch.FillCircle(new Vector2(trans.Position.X + 2f, trans.Position.Y + 3f), col.Radius + 1f, new ColorRgba(0, 0, 0, 75));
+            batch.FillCircle(new Vector2(entityPos.X + 2f, entityPos.Y + 3f), col.Radius + 1f, new ColorRgba(0, 0, 0, 75));
             // High-contrast platinum outer rim (ensures crisp visibility against dark ocean or night tiles)
-            batch.FillCircle(trans.Position, col.Radius + 1.5f, new ColorRgba(248, 250, 252, 220));
+            batch.FillCircle(entityPos, col.Radius + 1.5f, new ColorRgba(248, 250, 252, 220));
             // Outer navy mantle
-            batch.FillCircle(trans.Position, col.Radius, new ColorRgba(15, 23, 42, 255));
+            batch.FillCircle(entityPos, col.Radius, new ColorRgba(15, 23, 42, 255));
             // Royal blue tunic
-            batch.FillCircle(trans.Position, col.Radius * 0.82f, new ColorRgba(30, 64, 175, 255));
+            batch.FillCircle(entityPos, col.Radius * 0.82f, new ColorRgba(30, 64, 175, 255));
             // Cyan energy ring
-            batch.FillCircle(trans.Position, col.Radius * 0.52f, new ColorRgba(56, 189, 248, 255));
+            batch.FillCircle(entityPos, col.Radius * 0.52f, new ColorRgba(56, 189, 248, 255));
             // Golden core crest
-            batch.FillCircle(trans.Position, col.Radius * 0.22f, new ColorRgba(250, 204, 21, 255));
+            batch.FillCircle(entityPos, col.Radius * 0.22f, new ColorRgba(250, 204, 21, 255));
         }
     }
 
@@ -779,7 +730,7 @@ public static class Program
             return;
         }
 
-        Vector2 playerPos = s_world.Entities.GetTransform(s_player).Position;
+        Vector2 playerPos = s_world.GetInterpolatedPosition(s_player);
         int ptx = (int)MathF.Floor(playerPos.X / TileSize) + 4;
         int pty = (int)MathF.Floor(playerPos.Y / TileSize);
 

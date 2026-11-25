@@ -2,6 +2,7 @@
 
 using System.Numerics;
 using Carbon.Maps.Biomes;
+using Carbon.Physics.Shapes;
 
 namespace Carbon.Maps.Building;
 
@@ -40,6 +41,11 @@ public interface IReadOnlyBuildingGrid
     /// Resolves physical circle-box collision against solid constructed walls and closed doors.
     /// </summary>
     bool ResolveCollision(ref Vector2 position, float radius, float tileSize, out Vector2 pushNormal);
+
+    /// <summary>
+    /// Resolves physical AABB collision against solid constructed walls and closed doors.
+    /// </summary>
+    bool ResolveAabbCollision(ref Vector2 position, in AABB2D localBox, float tileSize, out Vector2 pushNormal);
 }
 
 /// <summary>
@@ -74,6 +80,12 @@ public interface IBuildingGrid : IReadOnlyBuildingGrid
     /// If destroyed, collapses the structure and updates neighbor connectivity.
     /// </summary>
     bool ApplyDamage(int worldTileX, int worldTileY, float damageAmount, out StructureTile updatedStructure);
+
+    /// <summary>
+    /// Inflicts durability damage upon the structure at the specified tile if <paramref name="toolHarvestTier"/>
+    /// meets or exceeds the structure's minimum harvest tier.
+    /// </summary>
+    bool ApplyDamage(int worldTileX, int worldTileY, float damageAmount, byte toolHarvestTier, out StructureTile updatedStructure);
 
     /// <summary>
     /// Toggles the operational state (Open / Closed) of a constructed door passage.

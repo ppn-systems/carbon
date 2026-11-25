@@ -3,6 +3,7 @@
 using System;
 using System.Numerics;
 using Carbon.Physics.Raycast;
+using Carbon.Physics.Separation;
 using Carbon.Physics.Shapes;
 
 namespace Carbon.Physics.Obstacles;
@@ -11,7 +12,7 @@ namespace Carbon.Physics.Obstacles;
 /// High-performance uniform 2D tile obstacle grid for static terrain collision, wall sliding, and Line-of-Sight raycasting.
 /// Zero heap allocation on hot-path collision queries.
 /// </summary>
-public sealed class TileObstacleGrid
+public sealed class TileObstacleGrid : IWorldPhysics2D
 {
     private readonly int _width;
     private readonly int _height;
@@ -100,6 +101,60 @@ public sealed class TileObstacleGrid
         float minX = tileX * _tileSize;
         float minY = tileY * _tileSize;
         return new AABB2D(new Vector2(minX, minY), new Vector2(minX + _tileSize, minY + _tileSize));
+    }
+
+    /// <inheritdoc/>
+    public float GetMoveSpeedMultiplier(Vector2 worldPosition) => 1f;
+
+    /// <inheritdoc/>
+    public bool ResolveCircleCollision(ref Vector2 position, float radius, out Vector2 pushNormal) =>
+        this.ResolveCircle(ref position, radius, out pushNormal);
+
+    /// <inheritdoc/>
+    public bool ResolveAabbCollision(ref Vector2 position, in AABB2D localBox, out Vector2 pushNormal) =>
+        this.ResolveAabb(ref position, in localBox, out pushNormal);
+
+    /// <summary>
+    /// Resolves AABB entity collision against adjacent solid obstacle tiles, pushing out along the minimum penetration axis.
+    /// </summary>
+    /// <param name="position">Entity world origin position.</param>
+    /// <param name="localBox">Entity local-space bounding box relative to <paramref name="position"/>.</param>
+    /// <param name="pushNormal">Output normalized pushout direction.</param>
+    /// <returns><see langword="true"/> if any obstacle collision was resolved; otherwise, <see langword="false"/>.</returns>
+    public bool ResolveAabb(ref Vector2 position, in AABB2D localBox, out Vector2 pushNormal)
+    {
+        AABB2D worldBox = localBox.Offset(position);
+        int minX = (int)MathF.Floor(worldBox.Min.X * _invTileSize);
+        int maxX = (int)MathF.Floor(worldBox.Max.X * _invTileSize);
+        int minY = (int)MathF.Floor(worldBox.Min.Y * _invTileSize);
+        int maxY = (int)MathF.Floor(worldBox.Max.Y * _invTileSize);
+
+        bool resolvedAny = false;
+        pushNormal = Vector2.Zero;
+
+        for (int ty = minY; ty <= maxY; ty++)
+        {
+            for (int tx = minX; tx <= maxX; tx++)
+            {
+                if (!this.IsSolid(tx, ty))
+                {
+                    continue;
+                }
+
+                AABB2D tileBox = this.TileToAABB(tx, ty);
+                if (EntitySeparation.ResolveStaticAabb(ref position, in localBox, in tileBox, ref pushNormal))
+                {
+                    resolvedAny = true;
+                }
+            }
+        }
+
+        if (resolvedAny && pushNormal.LengthSquared() > 1e-6f)
+        {
+            pushNormal = Vector2.Normalize(pushNormal);
+        }
+
+        return resolvedAny;
     }
 
     /// <summary>

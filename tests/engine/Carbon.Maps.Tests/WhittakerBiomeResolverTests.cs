@@ -41,7 +41,7 @@ public sealed class WhittakerBiomeResolverTests
             ref readonly BiomeProperties props = ref BiomeProperties.Get(biome);
             Assert.Equal(biome, props.Type);
 
-            if (biome is BiomeType.DeepOcean or BiomeType.VolcanicAshland)
+            if (biome == BiomeType.DeepOcean)
             {
                 Assert.True(props.IsSolid);
                 Assert.Equal(0f, props.MoveSpeedMultiplier);

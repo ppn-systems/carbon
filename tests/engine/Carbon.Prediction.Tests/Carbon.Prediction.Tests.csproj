@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <RootNamespace>Carbon.Prediction.Tests</RootNamespace>
+        <AssemblyName>Carbon.Prediction.Tests</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\engine\Carbon.Prediction\Carbon.Prediction.csproj" />
+    </ItemGroup>
+</Project>

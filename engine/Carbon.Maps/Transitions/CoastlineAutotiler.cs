@@ -217,7 +217,7 @@ public static class CoastlineAutotiler
             return chunk.GetTile(localX, localY).Biome;
         }
 
-        return world.GetTileAtWorld(worldX, worldY).Biome;
+        return world.PeekTileAtWorld(worldX, worldY).Biome;
     }
 
     private static bool IsLand(BiomeType biome) =>

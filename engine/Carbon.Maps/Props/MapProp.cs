@@ -123,7 +123,17 @@ public readonly record struct MapProp(
         bool isOre = type is MapPropType.CopperVein or MapPropType.IronVein or MapPropType.GoldVein or MapPropType.CoalDeposit or MapPropType.SilverVein or MapPropType.CrystalCluster or MapPropType.GlacialCrystal or MapPropType.Boulder or MapPropType.BasaltPillar;
 
         PropCategory category = isTree || isFlora ? PropCategory.Flora : (isOre ? PropCategory.Mineral : PropCategory.Structure);
-        PropDestructibility destruct = isOre ? PropDestructibility.Create(200f, 1) : (isTree ? PropDestructibility.Create(100f, 1) : PropDestructibility.Create(50f, 0));
+        PropDestructibility destruct = type switch
+        {
+            MapPropType.None or MapPropType.AncientShrine => PropDestructibility.Indestructible,
+            MapPropType.Bush or MapPropType.Cactus or MapPropType.MushroomCluster or MapPropType.DeadTree => PropDestructibility.Create(40f, 0),
+            MapPropType.OakTree or MapPropType.BirchTree or MapPropType.WillowTree or MapPropType.PalmTree or MapPropType.AcaciaTree => PropDestructibility.Create(100f, 1),
+            MapPropType.CoalDeposit or MapPropType.CopperVein or MapPropType.Boulder => PropDestructibility.Create(140f, 1),
+            MapPropType.PineTree or MapPropType.SnowPine or MapPropType.CherryBlossomTree => PropDestructibility.Create(140f, 2),
+            MapPropType.IronVein or MapPropType.SilverVein => PropDestructibility.Create(220f, 2),
+            MapPropType.GoldVein or MapPropType.CrystalCluster or MapPropType.GlacialCrystal or MapPropType.BasaltPillar => PropDestructibility.Create(320f, 3),
+            _ => PropDestructibility.Create(80f, 1),
+        };
 
         float collisionRadius = isTree ? (8f * scale) : (isSolid ? radius : 0f);
         float canopyRadius = isTree ? radius : 0f;

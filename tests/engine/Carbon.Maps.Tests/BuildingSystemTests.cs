@@ -260,4 +260,74 @@ public sealed class BuildingSystemTests
         Assert.True(playerPos.X <= 118.01f);
         Assert.True(pushNormal.X < -0.5f);
     }
+
+    [Fact]
+    public void IsRoofedAt_IsolatedOutdoorWall_DoesNotRoofWilderness_WhileEnclosedRoomWithOpenDoorIsRoofed()
+    {
+        BuildingGrid grid = new();
+        _ = grid.TryPlaceStructure(50, 50, StructureType.StoneWall, BiomeType.LushPlains, false, out _);
+
+        Assert.False(grid.IsRoofedAt(50, 50));
+        Assert.False(grid.IsRoofedAt(51, 50));
+        Assert.False(grid.IsRoofedAt(49, 50));
+
+        // 4x4 room around (1..2, 1..2) with a WoodDoor at (1, 0) toggled Open
+        for (int x = 0; x <= 3; x++)
+        {
+            StructureType topType = x == 1 ? StructureType.WoodDoor : StructureType.StoneWall;
+            _ = grid.TryPlaceStructure(x, 0, topType, BiomeType.LushPlains, false, out _);
+            _ = grid.TryPlaceStructure(x, 3, StructureType.StoneWall, BiomeType.LushPlains, false, out _);
+        }
+
+        for (int y = 1; y <= 2; y++)
+        {
+            _ = grid.TryPlaceStructure(0, y, StructureType.StoneWall, BiomeType.LushPlains, false, out _);
+            _ = grid.TryPlaceStructure(3, y, StructureType.StoneWall, BiomeType.LushPlains, false, out _);
+        }
+
+        Assert.True(grid.ToggleDoor(1, 0, out _));
+        Assert.True(grid.IsRoofedAt(1, 1));
+        Assert.True(grid.IsRoofedAt(2, 2));
+        Assert.True(grid.IsRoofedAt(1, 0)); // Open doorway stays roofed
+        Assert.False(grid.IsRoofedAt(-1, 1)); // Exterior outside wall stays unroofed
+
+        // Breaching a wall opens the room to sky and invalidates the cached roof
+        Assert.True(grid.TryDemolishStructure(2, 0));
+        Assert.False(grid.IsRoofedAt(1, 1));
+    }
+
+    [Fact]
+    public void HarvestTier_PreventsLowTierToolsFromDamagingHighTierWallsAndProps()
+    {
+        BuildingGrid grid = new();
+        _ = grid.TryPlaceStructure(2, 2, StructureType.StoneWall, BiomeType.LushPlains, false, out StructureTile placed);
+        Assert.Equal(2, placed.Destructibility.HarvestTier);
+
+        Assert.False(grid.ApplyDamage(2, 2, 100f, toolHarvestTier: 1, out StructureTile tier1Result));
+        Assert.Equal(400f, tier1Result.CurrentDurability);
+
+        Assert.True(grid.ApplyDamage(2, 2, 100f, toolHarvestTier: 2, out StructureTile tier2Result));
+        Assert.Equal(300f, tier2Result.CurrentDurability);
+    }
+
+    [Fact]
+    public void ChunkWorld2D_ResolveAabbCollision_BlocksWallAndAllowsOpenDoor()
+    {
+        ProceduralWorldGenerator generator = new(1337UL);
+        ChunkWorld2D world = new(generator, tileSize: 32f);
+        world.UpdateAroundPosition(Vector2.Zero, chunkRadius: 1, evictionRadius: 3);
+
+        Assert.Equal(PlacementValidationResult.Success, world.Buildings.TryPlaceStructure(4, 4, StructureType.StoneWall, BiomeType.LushPlains, false, out _));
+        Assert.Equal(PlacementValidationResult.Success, world.Buildings.TryPlaceStructure(4, 5, StructureType.WoodDoor, BiomeType.LushPlains, false, out _));
+        Assert.True(world.Buildings.ToggleDoor(4, 5, out _));
+
+        Carbon.Physics.Shapes.AABB2D box = Carbon.Physics.Shapes.AABB2D.FromCenterSize(Vector2.Zero, new Vector2(16f, 16f));
+        Vector2 againstWall = new(124f, 144f);
+        Assert.True(world.ResolveAabbCollision(ref againstWall, in box, out Vector2 wallNormal));
+        Assert.True(againstWall.X <= 120.01f);
+        Assert.True(wallNormal.X < -0.5f);
+
+        Vector2 throughDoor = new(144f, 176f);
+        Assert.False(world.ResolveAabbCollision(ref throughDoor, in box, out _));
+    }
 }

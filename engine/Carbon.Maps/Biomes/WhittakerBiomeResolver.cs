@@ -88,9 +88,9 @@ public static class WhittakerBiomeResolver
             return BiomeType.DuneDesert;
         }
 
-        if (temperature >= 0.62f && moisture is >= 0.25f and <= 0.45f)
+        if (temperature >= 0.62f && moisture is >= 0.25f and < 0.50f)
         {
-            return BiomeType.Savanna; // Golden acacia savanna
+            return BiomeType.Savanna; // Golden acacia savanna transitions smoothly to forest at 0.50
         }
 
         if (temperature > 0.60f && moisture < 0.48f)

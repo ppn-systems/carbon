@@ -64,6 +64,11 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
             return direction;
         }
 
+        if (_world.Generator.Roads.TryGetRoadRamp(worldTileX, worldTileY, out RampDirection roadRamp))
+        {
+            return roadRamp;
+        }
+
         MapTile tile = _world.PeekTileAtWorld(worldTileX, worldTileY);
         if (tile.HeightLevel == 0 || tile.Biome is BiomeType.DeepOcean or BiomeType.ShallowWater)
         {
@@ -124,18 +129,29 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
             return TileWalkability.Impassable;
         }
 
-        // 3. Check inclined ramp
+        // 3. Bridges over rivers and walkable wooden harbor piers
+        if (_world.IsBridgeAtWorld(worldTileX, worldTileY) || _world.Generator.Landmarks.IsWalkablePierTile(worldTileX, worldTileY))
+        {
+            return TileWalkability.WalkableFast;
+        }
+
+        // 4. Inclined ramp
         if (this.GetRamp(worldTileX, worldTileY) != RampDirection.None)
         {
             return TileWalkability.WalkableRamp;
         }
 
-        // 4. Check natural terrain tile
+        // 5. Natural terrain & roads
         MapTile tile = _world.PeekTileAtWorld(worldTileX, worldTileY);
 
-        if (tile.Biome is BiomeType.DeepOcean)
+        if (tile.IsSolid || tile.Biome is BiomeType.DeepOcean)
         {
             return TileWalkability.Impassable;
+        }
+
+        if (_world.IsRoadAtWorld(worldTileX, worldTileY))
+        {
+            return TileWalkability.WalkableFast;
         }
 
         if (tile.Biome is BiomeType.ShallowWater or BiomeType.MistySwamp)

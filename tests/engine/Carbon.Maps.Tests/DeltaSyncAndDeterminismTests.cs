@@ -3,9 +3,13 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Text.RegularExpressions;
+using Carbon.Maps.Biomes;
+using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
+using Carbon.Maps.Networking;
 using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
 using Xunit;
@@ -64,7 +68,9 @@ public sealed partial class DeltaSyncAndDeterminismTests
     {
         ChunkDelta delta = new(1, 2);
         MapTile tile = new(Biomes.BiomeType.BeachSand, 0.5f, 0.5f, 0.5f, false, 1, 0);
+        StructureTile wall = StructureTile.CreateWall(StructureType.StoneWall, StructureMaterial.Stone);
         delta.SetTile(4, 5, tile);
+        delta.SetStructure(2, 3, in wall);
         delta.SetPropState(6, 7, PropDestructibility.Create(10f) with { IsDestroyed = true });
 
         byte[] bytes = delta.Serialize();
@@ -75,9 +81,92 @@ public sealed partial class DeltaSyncAndDeterminismTests
         ChunkDelta migrated = old.MigrateTo(ProceduralWorldGenerator.GeneratorVersion);
         Assert.Equal(ProceduralWorldGenerator.GeneratorVersion, migrated.GeneratorVersion);
         Assert.Equal(tile, migrated.Tiles[ChunkDelta.ToLocalIndex(4, 5)]);
+        Assert.Equal(wall, migrated.Structures[ChunkDelta.ToLocalIndex(2, 3)]);
         Assert.Empty(migrated.PropStates);
         Assert.True(migrated.Revision > old.Revision);
         Assert.Same(migrated, migrated.MigrateTo(ProceduralWorldGenerator.GeneratorVersion));
+    }
+
+    [Fact]
+    public void ChunkDelta_StructuresRoundTripAndDemolition_SyncsBuildingGridAndCollision()
+    {
+        ChunkWorld2D server = new(new ProceduralWorldGenerator(42UL), tileSize: 32f);
+        (int sx, int sy) = server.SpawnTile;
+
+        Assert.Equal(
+            PlacementValidationResult.Success,
+            server.Buildings.TryPlaceStructure(sx, sy, StructureType.StoneWall, BiomeType.LushPlains, false, out _));
+        Assert.Equal(
+            PlacementValidationResult.Success,
+            server.Buildings.TryPlaceStructure(sx + 1, sy, StructureType.WoodDoor, BiomeType.LushPlains, false, out _));
+        Assert.True(server.Buildings.ToggleDoor(sx + 1, sy, out _));
+        Assert.True(server.Buildings.ApplyDamage(sx, sy, 50f, out StructureTile damagedWall));
+
+        ChunkWorld2D client = new(new ProceduralWorldGenerator(42UL), tileSize: 32f);
+        foreach (ChunkDelta delta in server.Deltas)
+        {
+            byte[] encoded = delta.Serialize();
+            ChunkDelta decoded = ChunkDelta.Deserialize(encoded);
+            Assert.Equal(encoded, decoded.Serialize());
+            client.ImportDelta(decoded);
+        }
+
+        Assert.True(client.Buildings.TryGetStructure(sx, sy, out StructureTile clientWall));
+        Assert.Equal(damagedWall.CurrentDurability, clientWall.CurrentDurability);
+        Assert.True(client.Buildings.IsSolidAt(sx, sy));
+
+        Assert.True(client.Buildings.TryGetStructure(sx + 1, sy, out StructureTile clientDoor));
+        Assert.Equal(DoorState.Open, clientDoor.DoorState);
+        Assert.False(client.Buildings.IsSolidAt(sx + 1, sy));
+
+        // Collision on client blocks against the synced wall
+        Vector2 probe = new((sx * 32f) - 4f, (sy * 32f) + 16f);
+        Assert.True(client.ResolveEntityCollision(ref probe, radius: 8f, out _));
+
+        // Demolish on server and re-sync delta to client
+        Assert.True(server.Buildings.TryDemolishStructure(sx, sy));
+        Assert.True(server.TryGetDelta(Chunk2D.ToChunkCoord(sx), Chunk2D.ToChunkCoord(sy), out ChunkDelta? updatedDelta));
+        client.ImportDelta(ChunkDelta.Deserialize(updatedDelta!.Serialize()));
+
+        Assert.False(client.Buildings.TryGetStructure(sx, sy, out _));
+        Assert.False(client.Buildings.IsSolidAt(sx, sy));
+    }
+
+    [Fact]
+    public void ChunkDeltaPacketMapper_ToAndFromPacket_PreservesTilesPropsAndStructures()
+    {
+        ChunkDelta source = new(3, -2);
+        MapTile tile = new(BiomeType.LushPlains, 0.5f, 0.5f, 0.5f, IsSolid: true, Variant: 4, HeightLevel: 2);
+        source.SetTile(5, 6, in tile);
+        source.SetPropState(7, 8, new PropDestructibility(true, 100f, 35f, 1, false));
+        StructureTile door = StructureTile.CreateDoor(StructureType.WoodDoor, StructureMaterial.Wood)
+            .ApplyDamage(25f)
+            .WithDoorState(DoorState.Open)
+            .WithConnectivity(WallConnectivityMask.East | WallConnectivityMask.West);
+        source.SetStructure(9, 10, in door);
+        source.RestoreRevision(42);
+
+        Carbon.Contracts.Maps.S2C.MapChunkDelta packet = ChunkDeltaPacketMapper.ToPacket(source);
+        Assert.Equal(source.ChunkX, packet.ChunkX);
+        Assert.Equal(source.ChunkY, packet.ChunkY);
+        Assert.Equal(42U, packet.Revision);
+
+        ChunkDelta roundTripped = ChunkDeltaPacketMapper.FromPacket(packet);
+        Assert.Equal(42U, roundTripped.Revision);
+        Assert.True(roundTripped.Tiles.TryGetValue(ChunkDelta.ToLocalIndex(5, 6), out MapTile rtTile));
+        Assert.Equal(BiomeType.LushPlains, rtTile.Biome);
+        Assert.True(rtTile.IsSolid);
+        Assert.Equal((byte)4, rtTile.Variant);
+        Assert.Equal((byte)2, rtTile.HeightLevel);
+
+        Assert.True(roundTripped.PropStates.TryGetValue(ChunkDelta.ToLocalIndex(7, 8), out PropDestructibility rtProp));
+        Assert.Equal(35f, rtProp.CurrentDurability);
+
+        Assert.True(roundTripped.Structures.TryGetValue(ChunkDelta.ToLocalIndex(9, 10), out StructureTile rtStruct));
+        Assert.Equal(StructureType.WoodDoor, rtStruct.Type);
+        Assert.Equal(75f, rtStruct.CurrentDurability);
+        Assert.Equal(DoorState.Open, rtStruct.DoorState);
+        Assert.Equal(WallConnectivityMask.East | WallConnectivityMask.West, rtStruct.Connectivity);
     }
 
     [Fact]

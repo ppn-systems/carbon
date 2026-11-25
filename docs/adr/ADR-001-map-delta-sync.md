@@ -1,6 +1,6 @@
 # ADR-001: Đồng bộ map bằng seed + chunk delta
 
-**Status:** Proposed
+**Status:** Accepted
 
 ## Context
 
@@ -15,7 +15,7 @@ Một chunk đầy đủ là 1.024 tile. Gửi nguyên chunk qua mạng tốn b�
 ## Decision
 
 - **D1 — Seed là nguồn sự thật cho địa hình gốc.** Server gửi `MapWorldInfo` (seed, `GeneratorVersion`, tile size, frequency, spawn). Client tự sinh mọi chunk.
-- **D2 — Chỉ đồng bộ delta.** `ChunkDelta` (`engine/Carbon.Maps/Streaming/ChunkDelta.cs`) ghi tile override và trạng thái prop theo local index, kèm `Revision` tăng đơn điệu. Delta được áp lại mỗi khi chunk được populate và là đơn vị dùng cho lưu trữ (persist) lẫn truyền mạng.
+- **D2 — Chỉ đồng bộ delta.** `ChunkDelta` (`engine/Carbon.Maps/Streaming/ChunkDelta.cs`, format v2) và `MapChunkDelta` ghi tile override (`Tiles`), trạng thái prop tự nhiên (`PropStates`), và các công trình xây dựng từ `BuildingGrid` (`Structures`) theo local index, kèm `Revision` tăng đơn điệu. Delta được áp lại mỗi khi chunk được populate hoặc import, và `MigrateTo` giữ lại cả `Tiles` lẫn `Structures` khi nâng `GeneratorVersion`. Đây là đơn vị dùng cho lưu trữ (persist) lẫn truyền mạng.
 - **D3 — Generation phải tất định trên mọi nền tảng.** Chỉ dùng phép toán IEEE cơ bản: `DeterministicMath.Sin/Cos` thay cho `MathF`, `SpatialHash` thay cho hash tự chế. Test golden hash (`ChunkDeltaAndDeterminismTests.GenerateChunk_GoldenHash_IsStable`) khóa output; mọi thay đổi làm đổi output phải bump `ProceduralWorldGenerator.GeneratorVersion`.
 - **D4 — Contracts theo mẫu AtmosOS.** Dự án `contracts/Carbon.Contracts.Common` (`OpStatus`, `MutationResult`, `SharedOpCode` 0x00F0–0x00FF) và `contracts/Carbon.Contracts.Maps` (`MapOpCode`, `C2S/`, `S2C/`). Module Map giữ band `0x1100–0x11FF`:
   - `0x1101–0x110F` C2S
@@ -33,6 +33,6 @@ Một chunk đầy đủ là 1.024 tile. Gửi nguyên chunk qua mạng tốn b�
 
 ## Consequences
 
-- Chỉnh sửa map không còn mất khi chunk bị evict. Băng thông map tỉ lệ với số chỉnh sửa, không tỉ lệ với diện tích.
+- Chỉnh sửa map, tài nguyên và công trình người chơi xây (`BuildingGrid`) đều gắn vào `ChunkDelta`, không còn mất khi chunk bị evict và có thể đồng bộ trọn vẹn qua `MapChunkDelta`. Băng thông map tỉ lệ với số chỉnh sửa, không tỉ lệ với diện tích.
 - Mọi thay đổi thuật toán generation đều là thay đổi tương thích: phải bump `GeneratorVersion` và cập nhật golden hash.
-- Delta hiện nằm trong RAM (`ChunkWorld2D.Deltas`). Việc ghi xuống storage và handler phía server chưa được triển khai vì `server/` còn trống. Đây là bước tiếp theo.
+- Delta hiện lưu trong RAM (`ChunkWorld2D.Deltas`). Việc ghi xuống storage và handler phía server sẽ được triển khai khi dựng `server/`.

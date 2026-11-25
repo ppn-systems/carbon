@@ -8,8 +8,9 @@ using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Props;
-using Carbon.Maps.Random;
 using Carbon.Maps.Streaming;
+using Carbon.Primitives.Hashing;
+using Carbon.Primitives.Math;
 using Xunit;
 
 namespace Carbon.Maps.Tests;
@@ -248,7 +249,7 @@ public sealed class ChunkDeltaAndDeterminismTests
         Assert.Equal(GoldenChunkHash, HashChunk(chunk));
     }
 
-    private const ulong GoldenChunkHash = 16613386810166236724UL;
+    private const ulong GoldenChunkHash = 498543533686952799UL;
 
     private static ulong HashChunk(Chunk2D chunk)
     {
