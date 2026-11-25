@@ -177,7 +177,7 @@ public sealed class PointOfInterestResolver
 
             float river = _rivers.GetDistance(x, y);
             bool nearSea = this.TryFindSea(x, y, out float seaX, out float seaY);
-            (PointOfInterestType type, float score, int radius) = Score(tile, river, this.IsFlat(x, y, tile.HeightLevel), nearSea);
+            (PointOfInterestType type, float score, int radius) = LandmarkRules.Evaluate(tile, river, this.IsFlat(x, y, tile.HeightLevel), nearSea);
             if (score > bestScore)
             {
                 bestScore = score;
@@ -230,56 +230,6 @@ public sealed class PointOfInterestResolver
         }
 
         return tree.Type == PointOfInterestType.WorldTree;
-    }
-
-    private static (PointOfInterestType Type, float Score, int Radius) Score(in MapTile tile, float river, bool flat, bool nearSea)
-    {
-        // Harbour: coast beside a river mouth.
-        if (nearSea && river <= 12f && tile.HeightLevel == 0)
-        {
-            return (PointOfInterestType.Harbor, 3f, 12);
-        }
-
-        // Biome villages: each climate builds its own kind of settlement by the water.
-        if (flat && tile.HeightLevel == 0 && river is > 3.0f and <= 11f)
-        {
-            if (tile.Biome is BiomeType.MistySwamp)
-            {
-                return (PointOfInterestType.SwampVillage, 2.5f, 16);
-            }
-
-            if (tile.Biome is BiomeType.DuneDesert or BiomeType.RedMesa)
-            {
-                return (PointOfInterestType.DesertVillage, 2.5f, 16);
-            }
-
-            if (tile.Biome is BiomeType.FrozenTundra)
-            {
-                return (PointOfInterestType.SnowVillage, 2.5f, 16);
-            }
-        }
-
-        // Village: flat fertile lowland, near water but outside the flood zone.
-        if (flat && tile.HeightLevel == 0 && river is > 4.5f and <= 11f &&
-            tile.Biome is BiomeType.LushPlains or BiomeType.Savanna or BiomeType.BlossomWoods or BiomeType.AncientForest)
-        {
-            return (PointOfInterestType.RiverVillage, 2.5f - (MathF.Abs(river - 7f) * 0.1f), 16);
-        }
-
-        // Camp: dry shore right next to a lake or a large river.
-        if (flat && river is > 2.4f and <= 4.5f && tile.Biome is not BiomeType.MistySwamp)
-        {
-            return (PointOfInterestType.LakesideCamp, 1.5f, 4);
-        }
-
-        // Shrine: only on high summits; a lower score than any settlement, so it is the fallback of
-        // mountainous sites that offer nowhere to live.
-        if (flat && tile.HeightLevel == 2 && tile.Elevation >= 0.78f)
-        {
-            return (PointOfInterestType.MountainShrine, 0.5f + tile.Elevation, 4);
-        }
-
-        return (PointOfInterestType.None, 0f, 0);
     }
 
     // Flat: the 5x5 tiles around the site share its height level and none of them is water.
