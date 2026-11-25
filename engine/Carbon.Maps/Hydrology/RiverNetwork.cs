@@ -26,7 +26,7 @@ namespace Carbon.Maps.Hydrology;
 /// computes it: chunks agree across region borders and every machine produces the same rivers.
 /// </para>
 /// </remarks>
-internal sealed class RiverNetwork
+internal sealed class RiverNetwork : IRiverDistanceSource
 {
     /// <summary>Region edge in tiles.</summary>
     public const int RegionSize = 512;
@@ -86,17 +86,17 @@ internal sealed class RiverNetwork
     ];
 
     private readonly ulong _seed;
-    private readonly Func<int, int, float> _relief;
+    private readonly IRoutingTerrain _relief;
     private readonly ConcurrentDictionary<long, Lazy<byte[]>> _regions = new();
     private readonly ConcurrentDictionary<long, Lazy<float[]>> _blocks = new();
 
     /// <summary>Initializes a new instance of the <see cref="RiverNetwork"/> class.</summary>
     /// <param name="seed">World seed.</param>
     /// <param name="relief">Terrain elevation used for routing at a world tile; must be deterministic.</param>
-    public RiverNetwork(ulong seed, Func<int, int, float> relief)
+    public RiverNetwork(ulong seed, IRoutingTerrain relief)
     {
         _seed = seed;
-        _relief = relief;
+        _relief = relief ?? throw new ArgumentNullException(nameof(relief));
     }
 
     /// <summary>
@@ -186,7 +186,7 @@ internal sealed class RiverNetwork
                 {
                     int wx = (((bx * BlockCells) + cx) * Cell) + (Cell / 2);
                     int wy = (((by * BlockCells) + cy) * Cell) + (Cell / 2);
-                    block[(cy * BlockCells) + cx] = _relief(wx, wy);
+                    block[(cy * BlockCells) + cx] = _relief.SampleRoutingElevation(wx, wy);
                 }
             }
 

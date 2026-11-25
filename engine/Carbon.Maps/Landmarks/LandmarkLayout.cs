@@ -38,7 +38,7 @@ public sealed class LandmarkLayout
     /// <param name="poi">The point of interest.</param>
     /// <param name="tileAt">Pure terrain sampler.</param>
     /// <returns>The layout.</returns>
-    public static LandmarkLayout Build(in PointOfInterest poi, Func<int, int, MapTile> tileAt)
+    public static LandmarkLayout Build(in PointOfInterest poi, ITileSource tileAt)
     {
         ArgumentNullException.ThrowIfNull(tileAt);
         if (poi.Type == PointOfInterestType.None)
@@ -51,7 +51,7 @@ public sealed class LandmarkLayout
         float cx = poi.TileX + 0.5f;
         float cy = poi.TileY + 0.5f;
         float r = poi.Radius;
-        byte level = tileAt(poi.TileX, poi.TileY).HeightLevel;
+        byte level = tileAt.SampleTile(poi.TileX, poi.TileY).HeightLevel;
         ulong seed = SpatialHash.Hash(0x1A2B3C4D5E6F7081UL, poi.TileX, poi.TileY);
 
         switch (poi.Type)
@@ -187,7 +187,7 @@ public sealed class LandmarkLayout
     }
 
     // Dry ground at the site's level under the whole footprint: no buildings in rivers or on cliff edges.
-    private static bool IsBuildable(Func<int, int, MapTile> tileAt, float x, float y, float width, byte level)
+    private static bool IsBuildable(ITileSource tileAt, float x, float y, float width, byte level)
     {
         for (int i = -2; i <= 2; i++)
         {
@@ -195,7 +195,7 @@ public sealed class LandmarkLayout
             {
                 int tx = (int)MathF.Floor(x + (i * width * 0.25f));
                 int ty = (int)MathF.Floor(y - (j * LandmarkPiece.HouseDepthTiles / 3f));
-                MapTile t = tileAt(tx, ty);
+                MapTile t = tileAt.SampleTile(tx, ty);
                 if (t.IsSolid || t.HeightLevel != level || t.Biome is BiomeType.ShallowWater or BiomeType.DeepOcean)
                 {
                     return false;
