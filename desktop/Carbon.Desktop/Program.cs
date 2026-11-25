@@ -49,6 +49,8 @@ public static class Program
     private static PointOfInterestRenderer? s_poiRenderer;
     private static float s_animTime;
     private static Atmosphere? s_atmosphere;
+    private static readonly float s_timeScale =
+        float.TryParse(Environment.GetEnvironmentVariable("CARBON_TIME_SCALE"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float scale) ? Math.Clamp(scale, 0.1f, 1000f) : 1f;
     private static readonly List<PointLight> s_lights = new(256);
     private static readonly List<PointOfInterest> s_visibleWorldTrees = new();
 
@@ -416,7 +418,8 @@ public static class Program
         // (possibly slow, software-rendered) frame rate.
         float frameDt = s_captureFrames > 0 ? 1f / 15f : (float)dt;
         s_animTime += frameDt;
-        s_atmosphere?.Update(frameDt);
+        // CARBON_TIME_SCALE speeds up the sky (clouds, weather, time of day), e.g. for time-lapse captures.
+        s_atmosphere?.Update(frameDt * s_timeScale);
         s_lights.Clear();
         if (s_geometryBatch == null || s_camera == null || s_chunkWorld == null || s_world == null || s_chunkTerrainRenderer == null)
         {
