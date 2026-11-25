@@ -7,8 +7,14 @@
     <Project Path="desktop/Carbon.Desktop/Carbon.Desktop.csproj" />
   </Folder>
   <Folder Name="/engine/">
+    <Project Path="engine/Carbon.AI/Carbon.AI.csproj" />
+    <Project Path="engine/Carbon.Combat/Carbon.Combat.csproj" />
+    <Project Path="engine/Carbon.Data/Carbon.Data.csproj" />
+    <Project Path="engine/Carbon.Items/Carbon.Items.csproj" />
     <Project Path="engine/Carbon.Maps/Carbon.Maps.csproj" />
     <Project Path="engine/Carbon.Physics/Carbon.Physics.csproj" />
+    <Project Path="engine/Carbon.Prediction/Carbon.Prediction.csproj" />
+    <Project Path="engine/Carbon.Primitives/Carbon.Primitives.csproj" />
     <Project Path="engine/Carbon.Simulation/Carbon.Simulation.csproj" />
   </Folder>
   <Folder Name="/graphics/">
@@ -26,8 +32,14 @@
     <Project Path="tests/contracts/Carbon.Contracts.Tests/Carbon.Contracts.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/engine/">
+    <Project Path="tests/engine/Carbon.AI.Tests/Carbon.AI.Tests.csproj" />
+    <Project Path="tests/engine/Carbon.Combat.Tests/Carbon.Combat.Tests.csproj" />
+    <Project Path="tests/engine/Carbon.Data.Tests/Carbon.Data.Tests.csproj" />
+    <Project Path="tests/engine/Carbon.Items.Tests/Carbon.Items.Tests.csproj" />
     <Project Path="tests/engine/Carbon.Maps.Tests/Carbon.Maps.Tests.csproj" />
     <Project Path="tests/engine/Carbon.Physics.Tests/Carbon.Physics.Tests.csproj" />
+    <Project Path="tests/engine/Carbon.Prediction.Tests/Carbon.Prediction.Tests.csproj" />
+    <Project Path="tests/engine/Carbon.Primitives.Tests/Carbon.Primitives.Tests.csproj" />
     <Project Path="tests/engine/Carbon.Simulation.Tests/Carbon.Simulation.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/graphics/">

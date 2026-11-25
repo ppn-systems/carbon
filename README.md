@@ -11,7 +11,7 @@ carbon/
 ├── deploy/       # Docker, docker-compose, Kubernetes manifests, CI/CD (upcoming)
 ├── desktop/      # Cross-platform desktop client runner (Carbon.Desktop)
 ├── docs/         # Architecture specifications, ADRs, protocol docs, and system design
-├── engine/       # Core game simulation, procedural maps, physics, ECS (Carbon.Maps, Carbon.Physics, Carbon.Simulation)
+├── engine/       # Core simulation & gameplay framework (Primitives, Physics, Data, Maps, Simulation, Items, Combat, AI, Prediction)
 ├── graphics/     # Client-only 2.5D rendering modules (Carbon.Graphics.*: OpenGL, batching, fonts, scenes, UI)
 ├── library/      # Pre-built managed assemblies and dependencies (e.g. Nalix Observability)
 ├── resources/    # Game configurations, schemas, maps, tilesets, assets, and localization (upcoming)

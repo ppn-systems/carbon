@@ -1,5 +1,11 @@
 <Solution>
+  <Project Path="Carbon.AI/Carbon.AI.csproj" />
+  <Project Path="Carbon.Combat/Carbon.Combat.csproj" />
+  <Project Path="Carbon.Data/Carbon.Data.csproj" />
+  <Project Path="Carbon.Items/Carbon.Items.csproj" />
   <Project Path="Carbon.Maps/Carbon.Maps.csproj" />
   <Project Path="Carbon.Physics/Carbon.Physics.csproj" />
+  <Project Path="Carbon.Prediction/Carbon.Prediction.csproj" />
+  <Project Path="Carbon.Primitives/Carbon.Primitives.csproj" />
   <Project Path="Carbon.Simulation/Carbon.Simulation.csproj" />
 </Solution>
