@@ -160,26 +160,9 @@ internal static class PropArt
                 }
 
             case MapPropType.MushroomCluster:
-                {
-                    batch.FillCircle(new Vector2(pos.X, pos.Y + 6f), r * 0.5f, new ColorRgba(0, 0, 0, 35));
-                    int count = 2 + (int)(Hash01(h, 2) * 3f);
-                    ColorRgba cap = Hash01(h, 3) switch
-                    {
-                        < 0.4f => primary,
-                        < 0.7f => new ColorRgba(214, 160, 90),
-                        _ => new ColorRgba(150, 110, 200),
-                    };
-                    for (int i = 0; i < count; i++)
-                    {
-                        Vector2 p = pos + new Vector2((Hash01(h, 10 + i) - 0.5f) * 18f, (Hash01(h, 20 + i) - 0.3f) * 8f);
-                        float cr = r * (0.35f + (Hash01(h, 30 + i) * 0.4f));
-                        batch.FillRectangle(new RectangleF(p.X - 2f, p.Y, 4f, cr + 3f), secondary);
-                        batch.FillCircle(p, cr, cap, 12);
-                        batch.FillCircle(p + new Vector2(-cr * 0.3f, -cr * 0.3f), cr * 0.25f, new ColorRgba(255, 255, 255, 200), 6);
-                    }
-
-                    break;
-                }
+                // Each patch is its own species: dome, parasol, cone, bell, fly agaric or glowing caps.
+                MushroomArt.DrawCluster(batch, pos + new Vector2(0f, 6f), r * 1.3f, h);
+                break;
 
             case MapPropType.CopperVein:
             case MapPropType.IronVein:

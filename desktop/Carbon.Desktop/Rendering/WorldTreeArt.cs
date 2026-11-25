@@ -15,8 +15,8 @@ namespace Carbon.Desktop.Rendering;
 /// </summary>
 internal static class WorldTreeArt
 {
-    private const float TrunkHeight = 250f;
-    private const float CanopyRise = 330f; // canopy centre above the foot
+    private const float TrunkHeight = 270f;
+    private const float CanopyRise = 360f; // canopy centre above the foot
     private const float CanopyRx = 250f;
     private const float CanopyRy = 165f;
 
@@ -27,8 +27,24 @@ internal static class WorldTreeArt
     private static readonly ColorRgba s_moss = new(92, 140, 70);
     private static readonly ColorRgba s_spirit = new(140, 255, 214);
 
-    // Leaf clumps: offset from the canopy centre, radius, and height tone (0 = underside, 1 = crown).
-    private static readonly (Vector2 Offset, float Radius, float Tone)[] s_clumps = BuildClumps();
+    // Foliage lobes (offset from the crown centre, radius), sorted back to front.
+    private static readonly (Vector2 Offset, float Radius)[] s_lobes =
+    [
+        (new Vector2(-40f, -130f), 105f),
+        (new Vector2(90f, -120f), 95f),
+        (new Vector2(-170f, -60f), 100f),
+        (new Vector2(175f, -50f), 100f),
+        (new Vector2(0f, -40f), 125f),
+        (new Vector2(-250f, 20f), 80f),
+        (new Vector2(255f, 30f), 80f),
+        (new Vector2(-120f, 55f), 100f),
+        (new Vector2(125f, 65f), 100f),
+        (new Vector2(5f, 85f), 95f),
+    ];
+
+    // Leaf clumps of a unit lobe: offset (in lobe radii), radius (in lobe radii), tone (0 = underside, 1 = sunlit top-left).
+    private const int ClumpsPerLobe = 22;
+    private static readonly (Vector2 Offset, float Radius, float Tone)[] s_lobeClumps = BuildLobeClumps();
 
     /// <summary>Ground layer: dappled canopy shadow, moss, grass and flowers around the foot.</summary>
     public static void DrawGround(GeometryBatch batch, Vector2 foot, float radius, float time)
@@ -68,6 +84,14 @@ internal static class WorldTreeArt
             }
         }
 
+        // A fairy ring of glowing mushrooms around the roots
+        for (int i = 0; i < 14; i++)
+        {
+            float a = (i * (MathF.Tau / 14f)) + (Hash01(17u, i) * 0.2f);
+            Vector2 p = foot + new Vector2(MathF.Cos(a) * 170f, (MathF.Sin(a) * 74f) + 6f);
+            MushroomArt.DrawOne(batch, p, 7f + (Hash01(18u, i) * 4f), MushroomArt.Shape.Glowing, 1000u + (uint)i, time);
+        }
+
         // Wildflowers in loose drifts
         for (int i = 0; i < 46; i++)
         {
@@ -86,170 +110,287 @@ internal static class WorldTreeArt
         }
     }
 
-    /// <summary>The trunk with its roots and great limbs (Y-sorted with entities).</summary>
+    /// <summary>
+    /// The trunk (Y-sorted with entities): three strands braided around each other, each with its own
+    /// cylindrical shading, drawn back-to-front per height step so the twists read clearly; great limbs
+    /// at the top and roots at the base.
+    /// </summary>
     public static void DrawTrunk(GeometryBatch batch, Vector2 foot, float time)
     {
-        // Contour: flared base, gentle S-curve, tapering to the crotch where the limbs split
-        const int N = 14;
-        Span<Vector2> left = stackalloc Vector2[N + 1];
-        Span<Vector2> right = stackalloc Vector2[N + 1];
+        const int N = 22;
+        const int Strands = 3;
+
+        // Soft cyan aura and contact shadow at the base
+        for (int i = 0; i < 4; i++)
+        {
+            FillEllipse(batch, foot + new Vector2(0f, -6f), 150f - (i * 26f), 46f - (i * 8f), new ColorRgba(s_spirit.R, s_spirit.G, s_spirit.B, 10), 28);
+        }
+
+        FillEllipse(batch, foot + new Vector2(16f, 4f), 120f, 22f, new ColorRgba(0, 0, 0, 70), 28);
+
+        // Dark core so no grass shows between the strands
+        Span<Vector2> coreL = stackalloc Vector2[N + 1];
+        Span<Vector2> coreR = stackalloc Vector2[N + 1];
         for (int i = 0; i <= N; i++)
         {
             float t = i / (float)N;
-            float y = foot.Y - (t * TrunkHeight);
-            float half = 36f + (24f * (1f - t)) + (30f * MathF.Pow(1f - t, 4f));
-            float x = foot.X + (MathF.Sin((t * 3.1f) + 0.4f) * 9f);
-            left[i] = new Vector2(x - half, y);
-            right[i] = new Vector2(x + half, y);
+            float half = 40f + (20f * (1f - t)) + (34f * MathF.Pow(1f - t, 4f));
+            coreL[i] = new Vector2(foot.X - (half * 0.85f), foot.Y - (t * TrunkHeight));
+            coreR[i] = new Vector2(foot.X + (half * 0.85f), foot.Y - (t * TrunkHeight));
         }
 
-        // Base shadow
-        FillEllipse(batch, foot + new Vector2(14f, 4f), 120f, 22f, new ColorRgba(0, 0, 0, 70), 28);
+        FillBand(batch, coreL, coreR, 0f, 1f, s_barkDeep);
 
-        // Cylindrical shading: dark body, mid band, lit left band, deep right edge
-        FillBand(batch, left, right, 0f, 1f, s_barkDark);
-        FillBand(batch, left, right, 0.08f, 0.62f, s_bark);
-        FillBand(batch, left, right, 0.12f, 0.34f, s_barkLight);
-        FillBand(batch, left, right, 0.86f, 1f, s_barkDeep);
-
-        // Twisting bark grooves
-        for (int g = 0; g < 7; g++)
+        // Strand geometry
+        Span<Vector2> centre = stackalloc Vector2[(N + 1) * Strands];
+        Span<float> depth = stackalloc float[(N + 1) * Strands];
+        Span<float> width = stackalloc float[(N + 1) * Strands];
+        for (int k = 0; k < Strands; k++)
         {
-            float f0 = 0.1f + (g * 0.13f);
-            Vector2 prev = Lerp(left[0], right[0], f0);
-            for (int i = 1; i <= N; i++)
+            for (int i = 0; i <= N; i++)
             {
                 float t = i / (float)N;
-                float f = Math.Clamp(f0 + (MathF.Sin((t * 4f) + g) * 0.06f) + (t * 0.05f), 0.04f, 0.96f);
-                Vector2 p = Lerp(left[i], right[i], f);
-                batch.DrawLine(prev, p, g % 2 == 0 ? s_barkDeep : new ColorRgba(84, 60, 40), g % 3 == 0 ? 2.5f : 1.5f);
-                prev = p;
+                float phase = (t * 2.3f * MathF.PI) + (k * MathF.Tau / Strands);
+                float spread = (24f * (1f - (t * 0.35f))) + (40f * MathF.Pow(1f - t, 3f));
+                centre[(k * (N + 1)) + i] = new Vector2(foot.X + (MathF.Sin(phase) * spread), foot.Y - (t * TrunkHeight));
+                depth[(k * (N + 1)) + i] = MathF.Cos(phase);
+                width[(k * (N + 1)) + i] = (34f * (1f - (t * 0.42f))) + (26f * MathF.Pow(1f - t, 3f));
             }
         }
 
-        // Moss creeping up the shaded side, and a hollow glowing with spirit light
-        for (int i = 0; i < 5; i++)
+        Span<int> order = stackalloc int[Strands];
+        for (int i = 0; i < N; i++)
         {
-            float t = 0.05f + (Hash01(21u, i) * 0.35f);
-            int idx = Math.Clamp((int)(t * N), 0, N - 1);
-            Vector2 p = Lerp(left[idx], right[idx], 0.6f + (Hash01(22u, i) * 0.25f));
-            FillEllipse(batch, p, 4f + (Hash01(23u, i) * 3f), 12f + (Hash01(24u, i) * 10f), new ColorRgba(72, 104, 58, 150), 12);
+            // Back strands first at this height step
+            for (int k = 0; k < Strands; k++)
+            {
+                order[k] = k;
+            }
+
+            for (int x = 1; x < Strands; x++)
+            {
+                for (int y = x; y > 0 && depth[(order[y] * (N + 1)) + i] < depth[(order[y - 1] * (N + 1)) + i]; y--)
+                {
+                    (order[y], order[y - 1]) = (order[y - 1], order[y]);
+                }
+            }
+
+            for (int o = 0; o < Strands; o++)
+            {
+                int k = order[o];
+                int a0 = (k * (N + 1)) + i;
+                DrawStrandSegment(batch, centre[a0], centre[a0 + 1], width[a0], width[a0 + 1], depth[a0]);
+            }
         }
 
+        // Hollow with spirit light where the strands part, and carved runes
         float pulse = 0.5f + (0.5f * MathF.Sin(time * 1.4f));
-        Vector2 hollow = Lerp(left[4], right[4], 0.42f);
-        FillEllipse(batch, hollow, 30f + (pulse * 6f), 36f + (pulse * 6f), new ColorRgba(s_spirit.R, s_spirit.G, s_spirit.B, (byte)(25 + (pulse * 25f))), 20);
-        FillEllipse(batch, hollow, 13f, 19f, s_barkDeep, 16);
-        FillEllipse(batch, hollow + new Vector2(0f, 3f), 8f, 13f, new ColorRgba(s_spirit.R, s_spirit.G, s_spirit.B, (byte)(110 + (pulse * 100f))), 14);
+        Vector2 hollow = foot + new Vector2(-4f, -TrunkHeight * 0.22f);
+        FillEllipse(batch, hollow, 30f + (pulse * 6f), 36f + (pulse * 6f), new ColorRgba(s_spirit.R, s_spirit.G, s_spirit.B, (byte)(22 + (pulse * 22f))), 20);
+        FillEllipse(batch, hollow, 12f, 18f, s_barkDeep, 16);
+        FillEllipse(batch, hollow + new Vector2(0f, 3f), 7f, 12f, new ColorRgba(s_spirit.R, s_spirit.G, s_spirit.B, (byte)(110 + (pulse * 100f))), 14);
 
-        // Rune glyphs carved along the bark, faintly glowing
-        for (int i = 0; i < 4; i++)
+        int top = N;
+        Vector2 crownL = centre[top];
+        Vector2 crownR = centre[top];
+        for (int k = 1; k < Strands; k++)
         {
-            int idx = 6 + (i * 2);
-            Vector2 p = Lerp(left[idx], right[idx], 0.3f + (i % 2 * 0.35f));
-            ColorRgba glow = new(s_spirit.R, s_spirit.G, s_spirit.B, (byte)(70 + (pulse * 110f)));
-            batch.DrawLine(p + new Vector2(-4f, -6f), p + new Vector2(0f, 6f), glow, 2f);
-            batch.DrawLine(p + new Vector2(0f, 6f), p + new Vector2(4f, -6f), glow, 2f);
-            batch.DrawLine(p + new Vector2(-3f, -1f), p + new Vector2(3f, -1f), glow, 1.5f);
+            Vector2 c = centre[(k * (N + 1)) + top];
+            crownL = c.X < crownL.X ? c : crownL;
+            crownR = c.X > crownR.X ? c : crownR;
         }
 
-        DrawLimbs(batch, left[N], right[N]);
-
-        // Roots last: they emerge from the flared base and crawl outwards over the ground in front of it.
+        DrawLimbs(batch, crownL, crownR);
         DrawRoots(batch, foot, time);
     }
 
+    private static void DrawStrandSegment(GeometryBatch batch, Vector2 a, Vector2 b, float wa, float wb, float depth)
+    {
+        // Strands facing the viewer are lighter; each is shaded like a cylinder lit from the left.
+        float lightK = 0.55f + (0.45f * ((depth + 1f) * 0.5f));
+        ColorRgba body = Mix(s_barkDark, s_bark, lightK);
+        ColorRgba lit = Mix(s_bark, s_barkLight, lightK);
+        ColorRgba shade = Mix(s_barkDeep, s_barkDark, lightK);
+        Band(batch, a, b, wa, wb, -0.5f, 0.5f, body);
+        Band(batch, a, b, wa, wb, -0.36f, -0.1f, lit);
+        Band(batch, a, b, wa, wb, 0.28f, 0.5f, shade);
+        Band(batch, a, b, wa, wb, -0.5f, -0.44f, s_barkDeep);
+        Band(batch, a, b, wa, wb, 0.44f, 0.5f, s_barkDeep);
+    }
+
+    // A slice of a strand between fractions f0..f1 of its width (-0.5 = left edge, 0.5 = right edge).
+    private static void Band(GeometryBatch batch, Vector2 a, Vector2 b, float wa, float wb, float f0, float f1, ColorRgba color)
+    {
+        Vector2 a0 = a + new Vector2(wa * f0, 0f);
+        Vector2 a1 = a + new Vector2(wa * f1, 0f);
+        Vector2 b0 = b + new Vector2(wb * f0, 0f);
+        Vector2 b1 = b + new Vector2(wb * f1, 0f);
+        batch.FillTriangle(a0, a1, b1, color);
+        batch.FillTriangle(a0, b1, b0, color);
+    }
+
     /// <summary>
-    /// The crown, drawn above everything. While the player stands beneath it a window opens in the
-    /// leaves around them instead of fading the whole crown.
+    /// The crown, drawn above everything: great lobes of foliage growing from the limb ends, each built
+    /// from leaf clumps with a shaded underside, sunlit rim and leaf texture; luminous vines hanging
+    /// below and motes of light rising. While the player stands beneath it a window opens in the leaves.
     /// </summary>
     public static void DrawCanopy(GeometryBatch batch, Vector2 foot, float time, Vector2 player)
     {
         Vector2 c = foot + new Vector2(0f, -CanopyRise);
         float sway = MathF.Sin(time * 0.5f) * 2f;
-        bool under = MathF.Abs(player.X - c.X) < CanopyRx + 30f && player.Y > c.Y - CanopyRy - 30f && player.Y < c.Y + CanopyRy + 40f;
-        const float Window = 105f;
+        bool under = MathF.Abs(player.X - c.X) < CanopyRx + 40f && player.Y > c.Y - CanopyRy - 60f && player.Y < foot.Y - 120f;
+        const float Window = 110f;
 
-        ColorRgba deep = new(18, 70, 40);
-        ColorRgba body = new(36, 118, 62);
-        ColorRgba lit = new(92, 176, 84);
-        ColorRgba crown = new(176, 222, 120);
+        ColorRgba deep = new(14, 58, 44);
+        ColorRgba body = new(28, 110, 70);
+        ColorRgba lit = new(84, 172, 96);
+        ColorRgba sun = new(196, 232, 140);
+        ColorRgba leafDark = new(10, 46, 34);
 
-        for (int i = 0; i < s_clumps.Length; i++)
+        // Hanging vines (behind the lowest leaves)
+        for (int i = 0; i < 16; i++)
         {
-            (Vector2 off, float r, float tone) = s_clumps[i];
-            Vector2 p = c + off + new Vector2(sway * (1f - tone), 0f);
-            if (under)
+            float x = c.X - (CanopyRx * 0.85f) + (i * (CanopyRx * 1.7f / 15f)) + ((Hash01(81u, i) - 0.5f) * 20f);
+            float y0 = c.Y + (CanopyRy * 0.45f) + (Hash01(82u, i) * 30f);
+            float len = 50f + (Hash01(83u, i) * 90f);
+            if (under && MathF.Abs(x - player.X) < Window * 0.8f && player.Y > y0 && player.Y < y0 + len + 30f)
             {
-                float d = Vector2.Distance(p, player);
-                if (d < Window)
+                continue;
+            }
+
+            Vector2 prev = new(x, y0);
+            for (int sgm = 1; sgm <= 4; sgm++)
+            {
+                float t = sgm / 4f;
+                Vector2 p = new(x + (MathF.Sin((time * 1.1f) + i + (t * 2f)) * 6f * t), y0 + (len * t));
+                batch.DrawLine(prev, p, new ColorRgba(36, 90, 56), 2.2f - t);
+                prev = p;
+            }
+
+            float glow = 0.5f + (0.5f * MathF.Sin((time * 2f) + (i * 1.3f)));
+            ColorRgba bead = i % 3 == 0 ? new ColorRgba(255, 226, 150) : s_spirit;
+            batch.FillCircle(prev, 8f + (glow * 3f), new ColorRgba(bead.R, bead.G, bead.B, (byte)(30 + (glow * 30f))), 12);
+            batch.FillCircle(prev, 2.8f, bead, 8);
+        }
+
+        // Lobes, back to front
+        for (int l = 0; l < s_lobes.Length; l++)
+        {
+            (Vector2 lobeOff, float lobeR) = s_lobes[l];
+            Vector2 lc = c + lobeOff + new Vector2(sway * (0.5f + (l * 0.08f)), 0f);
+            float global = Math.Clamp(0.5f - (lobeOff.Y / 260f), 0f, 1f); // higher lobes are brighter
+
+            // Underside shadow of the lobe
+            if (!under || Vector2.Distance(lc, player) > lobeR + Window)
+            {
+                FillEllipse(batch, lc + new Vector2(6f, lobeR * 0.35f), lobeR * 0.95f, lobeR * 0.55f, new ColorRgba(deep.R, deep.G, deep.B, 230), 24);
+            }
+
+            for (int i = 0; i < ClumpsPerLobe; i++)
+            {
+                (Vector2 off, float r, float tone) = s_lobeClumps[i];
+                Vector2 p = lc + (off * lobeR);
+                float cr = r * lobeR;
+                if (under)
+                {
+                    float d = Vector2.Distance(p, player);
+                    if (d < Window)
+                    {
+                        continue;
+                    }
+
+                    cr *= Math.Clamp((d - Window) / 40f, 0.45f, 1f);
+                }
+
+                float k = Math.Clamp((tone * 0.7f) + (global * 0.3f), 0f, 1f);
+                ColorRgba main = k < 0.5f ? Mix(deep, body, k * 2f) : Mix(body, lit, (k - 0.5f) * 2f);
+                batch.FillCircle(p, cr, main, 12);
+                if (tone > 0.7f)
+                {
+                    // Sunlit rim on the upper-left of the lobe
+                    batch.FillCircle(p + new Vector2(-cr * 0.25f, -cr * 0.3f), cr * 0.55f, Mix(lit, sun, (tone - 0.7f) / 0.3f), 10);
+                }
+            }
+
+            // Leaf texture: short dark and light strokes scattered over the lobe
+            for (int i = 0; i < 18; i++)
+            {
+                float a = Hash01((uint)(90 + l), i) * MathF.Tau;
+                float d = MathF.Sqrt(Hash01((uint)(110 + l), i)) * lobeR * 0.8f;
+                Vector2 p = lc + new Vector2(MathF.Cos(a) * d, MathF.Sin(a) * d * 0.8f);
+                if (under && Vector2.Distance(p, player) < Window + 10f)
                 {
                     continue;
                 }
 
-                // Soften the window's edge: clumps near it are drawn smaller
-                r *= Math.Clamp((d - Window) / 40f, 0.45f, 1f);
-            }
-
-            ColorRgba main = tone < 0.5f ? Mix(deep, body, tone * 2f) : Mix(body, lit, (tone - 0.5f) * 2f);
-            batch.FillCircle(p + new Vector2(0f, r * 0.25f), r, Shade(main, 0.72f), 14);
-            batch.FillCircle(p, r * 0.92f, main, 14);
-            if (tone > 0.55f)
-            {
-                batch.FillCircle(p + new Vector2(-r * 0.3f, -r * 0.32f), r * 0.42f, Mix(lit, crown, tone), 10);
+                bool upper = MathF.Sin(a) < 0f;
+                ColorRgba stroke = upper ? new ColorRgba(sun.R, sun.G, sun.B, 150) : new ColorRgba(leafDark.R, leafDark.G, leafDark.B, 150);
+                batch.DrawLine(p, p + new Vector2(4f, upper ? -3f : 3f), stroke, 2f);
             }
         }
 
-        // Luminous blossoms scattered over the crown, breathing slowly
-        for (int i = 0; i < 28; i++)
+        // Luminous blossoms breathing slowly across the crown
+        for (int i = 0; i < 24; i++)
         {
-            (Vector2 off, float _, float tone) = s_clumps[i * 7 % s_clumps.Length];
-            Vector2 p = c + off + new Vector2((Hash01(31u, i) - 0.5f) * 20f, (Hash01(32u, i) - 0.5f) * 14f);
+            (Vector2 lobeOff, float lobeR) = s_lobes[i % s_lobes.Length];
+            float a = Hash01(31u, i) * MathF.Tau;
+            float d = MathF.Sqrt(Hash01(32u, i)) * lobeR * 0.75f;
+            Vector2 p = c + lobeOff + new Vector2(MathF.Cos(a) * d, MathF.Sin(a) * d * 0.7f);
             if (under && Vector2.Distance(p, player) < Window)
             {
                 continue;
             }
 
             float b = 0.5f + (0.5f * MathF.Sin((time * 1.3f) + (i * 0.9f)));
-            ColorRgba petal = i % 3 == 0 ? new ColorRgba(255, 236, 170) : new ColorRgba(190, 255, 230);
-            batch.FillCircle(p, 7f + (b * 3f), new ColorRgba(petal.R, petal.G, petal.B, (byte)(30 + (b * 30f))), 10);
-            batch.FillCircle(p, 2.5f + (tone * 1.5f), petal, 8);
+            ColorRgba petal = i % 3 == 0 ? new ColorRgba(255, 236, 170) : new ColorRgba(200, 255, 236);
+            batch.FillCircle(p, 6f + (b * 3f), new ColorRgba(petal.R, petal.G, petal.B, (byte)(25 + (b * 30f))), 10);
+            batch.FillCircle(p, 2.2f, petal, 6);
         }
 
-        // Soft light shafts: each is three nested slanted quads of decreasing alpha
+        // Soft light shafts
         for (int i = 0; i < 4; i++)
         {
             float pulse = 0.5f + (0.5f * MathF.Sin((time * 0.6f) + (i * 1.9f)));
-            float x = c.X - 160f + (i * 95f);
+            float x = c.X - 170f + (i * 100f);
             for (int k = 0; k < 3; k++)
             {
                 float w = 10f + (k * 9f);
-                Vector2 a0 = new(x - w, c.Y + 40f);
-                Vector2 a1 = new(x + w, c.Y + 40f);
+                Vector2 a0 = new(x - w, c.Y + 70f);
+                Vector2 a1 = new(x + w, c.Y + 70f);
                 Vector2 b0 = new(x - w + 60f, foot.Y + 20f);
                 Vector2 b1 = new(x + w + 70f, foot.Y + 20f);
-                ColorRgba light = new(255, 246, 205, (byte)((10 + (pulse * 10f)) / (k + 1)));
+                ColorRgba light = new(255, 246, 205, (byte)((9 + (pulse * 9f)) / (k + 1)));
                 batch.FillTriangle(a0, a1, b1, light);
                 batch.FillTriangle(a0, b1, b0, light);
             }
         }
 
-        // Fireflies drifting beneath the crown
-        for (int i = 0; i < 22; i++)
+        // Motes of spirit light rising from the roots into the crown
+        for (int i = 0; i < 20; i++)
+        {
+            float phase = AmbientAnimator.Frac((time * (0.06f + (Hash01(45u, i) * 0.05f))) + Hash01(46u, i));
+            float x = foot.X + ((Hash01(47u, i) - 0.5f) * 220f) + (MathF.Sin((time * 0.9f) + i) * 10f);
+            float y = foot.Y - (phase * (CanopyRise + 40f));
+            float alpha = MathF.Sin(phase * MathF.PI);
+            batch.FillCircle(new Vector2(x, y), 5f, new ColorRgba(s_spirit.R, s_spirit.G, s_spirit.B, (byte)(30 * alpha)), 8);
+            batch.FillCircle(new Vector2(x, y), 1.6f, new ColorRgba(220, 255, 240, (byte)(220 * alpha)), 6);
+        }
+
+        // Fireflies and falling leaves
+        for (int i = 0; i < 16; i++)
         {
             float t = time * (0.2f + (Hash01(41u, i) * 0.25f));
-            Vector2 p = new(foot.X + (MathF.Sin(t + (i * 1.7f)) * CanopyRx * 0.9f), foot.Y - 60f + (MathF.Cos((t * 1.3f) + i) * 90f));
+            Vector2 p = new(foot.X + (MathF.Sin(t + (i * 1.7f)) * CanopyRx), foot.Y - 50f + (MathF.Cos((t * 1.3f) + i) * 80f));
             float glow = 0.5f + (0.5f * MathF.Sin((time * 4f) + (i * 2.3f)));
             batch.FillCircle(p, 7f, new ColorRgba(253, 230, 138, (byte)(35 * glow)), 10);
             batch.FillCircle(p, 1.8f, new ColorRgba(255, 250, 200, (byte)(110 + (130 * glow))), 6);
         }
 
-        // Leaves spiralling down
         for (int i = 0; i < 12; i++)
         {
             float phase = AmbientAnimator.Frac((time * 0.11f) + Hash01(43u, i));
             float lx = c.X - CanopyRx + (Hash01(44u, i) * CanopyRx * 2f) + (MathF.Sin((time * 1.6f) + i) * 14f);
-            float ly = c.Y + (CanopyRy * 0.6f) + (phase * 300f);
+            float ly = c.Y + (CanopyRy * 0.7f) + (phase * 280f);
             float spin = MathF.Sin((time * 3f) + i);
             batch.FillRectangle(new RectangleF(lx, ly, 3f + (MathF.Abs(spin) * 2f), 2.5f), new ColorRgba(150, 210, 100, (byte)(230f * (1f - phase))));
         }
@@ -330,21 +471,19 @@ internal static class WorldTreeArt
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static (Vector2 Offset, float Radius, float Tone)[] BuildClumps()
+    private static (Vector2 Offset, float Radius, float Tone)[] BuildLobeClumps()
     {
-        // Sample a lumpy dome, then sort back-to-front (top of the crown first) so lower clumps overlap.
-        (Vector2 Offset, float Radius, float Tone)[] clumps = new (Vector2, float, float)[124];
+        (Vector2 Offset, float Radius, float Tone)[] clumps = new (Vector2, float, float)[ClumpsPerLobe];
         for (int i = 0; i < clumps.Length; i++)
         {
             float a = Hash01(71u, i) * MathF.Tau;
-            float lump = 1f + (0.14f * MathF.Sin((a * 5f) + 0.7f)) + (0.07f * MathF.Sin(a * 11f));
-            float d = MathF.Sqrt(Hash01(72u, i)) * lump * 0.88f;
-            Vector2 off = new(MathF.Cos(a) * d * CanopyRx, MathF.Sin(a) * d * CanopyRy);
-            float tone = Math.Clamp(0.5f - (off.Y / (CanopyRy * 2f)) + ((1f - d) * 0.25f), 0f, 1f);
-            float r = 26f + (Hash01(73u, i) * 22f) + ((1f - d) * 10f);
-            clumps[i] = (off, r, tone);
+            float d = MathF.Sqrt(Hash01(72u, i)) * 0.62f;
+            Vector2 off = new(MathF.Cos(a) * d, MathF.Sin(a) * d * 0.78f);
+            float tone = Math.Clamp(0.55f - (off.Y * 0.9f) - (off.X * 0.35f), 0f, 1f);
+            clumps[i] = (off, 0.3f + (Hash01(73u, i) * 0.16f), tone);
         }
 
+        // Back to front within the lobe as well
         Array.Sort(clumps, (x, y) => x.Offset.Y.CompareTo(y.Offset.Y));
         return clumps;
     }
