@@ -3,9 +3,11 @@
 using System;
 using System.Numerics;
 using Carbon.Physics.Obstacles;
+using Carbon.Physics.Shapes;
 using Carbon.Primitives.Buffers;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
+using Carbon.Simulation.ECS.Systems;
 using Carbon.Simulation.World;
 
 namespace Carbon.Prediction.Client;
@@ -114,66 +116,14 @@ public sealed class ClientPredictionReconciler
                 vel = Vector2.Zero;
             }
 
-            Vector2 displacement = vel * dt;
-            if (drag > 0f)
-            {
-                vel *= MathF.Max(0f, 1f - (drag * dt));
-            }
-
-            if (physics is not null && hasCol && !col.IsTrigger && col.Kind != ColliderKind.None)
-            {
-                float radius = col.Kind == ColliderKind.Circle
-                    ? col.Radius
-                    : MathF.Min(col.Box.Width, col.Box.Height) * 0.5f;
-                Vector2 centerOffset = col.Kind == ColliderKind.Aabb ? col.Box.Center : Vector2.Zero;
-
-                if (radius > 0f)
-                {
-                    float totalDist = displacement.Length();
-                    if (totalDist > 0.0001f)
-                    {
-                        float maxStep = MathF.Min(2.5f, radius * 0.5f);
-                        int subSteps = Math.Clamp((int)MathF.Ceiling(totalDist / maxStep), 1, 16);
-                        Vector2 stepDelta = displacement / subSteps;
-                        Vector2 currentCenter = pos + centerOffset;
-
-                        for (int step = 0; step < subSteps; step++)
-                        {
-                            currentCenter += stepDelta;
-                            if (physics.ResolveCircleCollision(ref currentCenter, radius, out Vector2 pushNormal))
-                            {
-                                float stepDot = Vector2.Dot(stepDelta, pushNormal);
-                                if (stepDot < 0f)
-                                {
-                                    stepDelta -= pushNormal * stepDot;
-                                }
-
-                                float velDot = Vector2.Dot(vel, pushNormal);
-                                if (velDot < 0f)
-                                {
-                                    vel -= pushNormal * velDot;
-                                }
-                            }
-                        }
-
-                        pos = currentCenter - centerOffset;
-                    }
-                    else
-                    {
-                        Vector2 currentCenter = pos + displacement + centerOffset;
-                        _ = physics.ResolveCircleCollision(ref currentCenter, radius, out _);
-                        pos = currentCenter - centerOffset;
-                    }
-                }
-                else
-                {
-                    pos += displacement;
-                }
-            }
-            else
-            {
-                pos += displacement;
-            }
+            _ = MovementSystem.StepSingle(
+                ref pos,
+                ref vel,
+                drag,
+                in col,
+                hasCol,
+                dt,
+                physics);
 
             future = future with
             {
@@ -192,7 +142,8 @@ public sealed class ClientPredictionReconciler
 
         if (hasCol)
         {
-            _ = simulation.SpatialGrid.Update(localEntity.Id, pos);
+            AABB2D bounds = col.GetWorldAabb(pos);
+            _ = simulation.SpatialGrid.Update(localEntity.Id, in bounds);
         }
 
         return new ReconciliationResult(true, pos, oldPredictedPos - pos);

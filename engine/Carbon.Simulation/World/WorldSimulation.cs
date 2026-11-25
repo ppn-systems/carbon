@@ -10,6 +10,7 @@ using Carbon.Physics.Narrowphase;
 using Carbon.Physics.Obstacles;
 using Carbon.Physics.Raycast;
 using Carbon.Physics.Shapes;
+using Carbon.Primitives.Math;
 using Carbon.Simulation.Clock;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
@@ -407,10 +408,12 @@ public sealed class WorldSimulation
     {
         Entity entity = _entities.CreateEntity();
         Transform2D transform = new(position);
+        Collider2D collider = Collider2D.CreateCircle(radius);
+        AABB2D bounds = collider.GetWorldAabb(position);
         _entities.SetTransform(entity, in transform);
         _entities.SetPreviousTransform(entity, new PreviousTransform2D(transform.Position, transform.Rotation));
-        _entities.SetCollider(entity, Collider2D.CreateCircle(radius));
-        _spatialGrid.Insert(entity.Id, position);
+        _entities.SetCollider(entity, in collider);
+        _spatialGrid.Insert(entity.Id, in bounds);
         this.MarkDirty(entity, EntityDirtyMask.Spawned);
         return entity;
     }
@@ -515,7 +518,8 @@ public sealed class WorldSimulation
         float t = Math.Clamp(alpha ?? _clock.InterpolationAlpha, 0f, 1f);
         ref readonly PreviousTransform2D previous = ref _entities.GetPreviousTransform(entity);
         Vector2 pos = Vector2.Lerp(previous.Position, current.Position, t);
-        float rot = previous.Rotation + ((current.Rotation - previous.Rotation) * t);
+        float deltaRot = DeterministicMath.WrapAngle(current.Rotation - previous.Rotation);
+        float rot = DeterministicMath.WrapAngle(previous.Rotation + (deltaRot * t));
         return new Transform2D(pos, rot);
     }
 
@@ -691,7 +695,8 @@ public sealed class WorldSimulation
                         _entities.SetPreviousTransform(cmd.Entity, new PreviousTransform2D(cmd.Vector, transform.Rotation));
                         if (_entities.HasCollider(cmd.Entity))
                         {
-                            _ = _spatialGrid.Update(cmd.Entity.Id, cmd.Vector);
+                            AABB2D bounds = _entities.GetCollider(cmd.Entity).GetWorldAabb(cmd.Vector);
+                            _ = _spatialGrid.Update(cmd.Entity.Id, in bounds);
                         }
 
                         this.MarkDirty(cmd.Entity, EntityDirtyMask.Transform);

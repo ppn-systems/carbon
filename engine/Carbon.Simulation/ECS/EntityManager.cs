@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.Threading;
 using Carbon.Simulation.ECS.Components;
 
@@ -16,6 +17,7 @@ public sealed class EntityManager
     private const int InitialCapacity = 4096;
 
     private static int s_nextComponentTypeId;
+    private static int s_nextAttachmentTypeId;
 
     private int _capacity;
     private int _highestId;
@@ -24,6 +26,7 @@ public sealed class EntityManager
     private int[] _generations;
     private int[] _denseIndices;
     private IComponentPool?[] _pools = new IComponentPool?[16];
+    private IAttachmentStore?[] _attachmentStores = new IAttachmentStore?[8];
 
     private readonly ComponentPool<Transform2D> _transforms;
     private readonly ComponentPool<PreviousTransform2D> _previousTransforms;
@@ -39,6 +42,11 @@ public sealed class EntityManager
         public static readonly int Id = Interlocked.Increment(ref s_nextComponentTypeId) - 1;
     }
 
+    private static class AttachmentTypeId<T> where T : class
+    {
+        public static readonly int Id = Interlocked.Increment(ref s_nextAttachmentTypeId) - 1;
+    }
+
     /// <summary>
     /// Gets the number of currently alive entities.
     /// </summary>
@@ -48,6 +56,12 @@ public sealed class EntityManager
     /// Gets the list of currently active entity handles.
     /// </summary>
     public IReadOnlyList<Entity> ActiveEntities => _activeEntities;
+
+    /// <summary>
+    /// Gets a zero-allocation read-only span over the currently active entity handles.
+    /// Valid until an entity is created or destroyed.
+    /// </summary>
+    public ReadOnlySpan<Entity> ActiveEntitiesSpan => CollectionsMarshal.AsSpan(_activeEntities);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EntityManager"/> class.
@@ -125,6 +139,11 @@ public sealed class EntityManager
             _pools[i]?.RemoveBySlot(id);
         }
 
+        for (int i = 0; i < _attachmentStores.Length; i++)
+        {
+            _attachmentStores[i]?.RemoveBySlot(id);
+        }
+
         _generations[id]++;
         _freeSlotQueue.Enqueue(id);
         _aliveCount--;
@@ -193,6 +212,35 @@ public sealed class EntityManager
         }
 
         return pool;
+    }
+
+    /// <summary>
+    /// Gets or creates the managed <see cref="EntityAttachmentStore{T}"/> associated with reference type <typeparamref name="T"/>.
+    /// Attachments are automatically cleared when their owning entity is destroyed.
+    /// </summary>
+    /// <typeparam name="T">Managed reference type stored per entity.</typeparam>
+    /// <returns>The backing attachment store.</returns>
+    public EntityAttachmentStore<T> GetAttachmentStore<T>() where T : class
+    {
+        int typeId = AttachmentTypeId<T>.Id;
+        if (typeId >= _attachmentStores.Length)
+        {
+            int nextSize = _attachmentStores.Length;
+            while (nextSize <= typeId)
+            {
+                nextSize *= 2;
+            }
+
+            Array.Resize(ref _attachmentStores, nextSize);
+        }
+
+        if (_attachmentStores[typeId] is not EntityAttachmentStore<T> store)
+        {
+            store = new EntityAttachmentStore<T>(this, _capacity);
+            _attachmentStores[typeId] = store;
+        }
+
+        return store;
     }
 
     /// <summary>
@@ -401,6 +449,11 @@ public sealed class EntityManager
             _pools[i]?.Clear();
         }
 
+        for (int i = 0; i < _attachmentStores.Length; i++)
+        {
+            _attachmentStores[i]?.Clear();
+        }
+
         for (int i = 1; i <= _capacity; i++)
         {
             _generations[i]++;
@@ -432,6 +485,11 @@ public sealed class EntityManager
         for (int i = 0; i < _pools.Length; i++)
         {
             _pools[i]?.GrowEntityCapacity(newCapacity);
+        }
+
+        for (int i = 0; i < _attachmentStores.Length; i++)
+        {
+            _attachmentStores[i]?.GrowEntityCapacity(newCapacity);
         }
     }
 }

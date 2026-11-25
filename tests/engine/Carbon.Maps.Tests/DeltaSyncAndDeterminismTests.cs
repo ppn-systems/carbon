@@ -9,6 +9,7 @@ using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
+using Carbon.Maps.Networking;
 using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
 using Xunit;
@@ -129,6 +130,43 @@ public sealed partial class DeltaSyncAndDeterminismTests
 
         Assert.False(client.Buildings.TryGetStructure(sx, sy, out _));
         Assert.False(client.Buildings.IsSolidAt(sx, sy));
+    }
+
+    [Fact]
+    public void ChunkDeltaPacketMapper_ToAndFromPacket_PreservesTilesPropsAndStructures()
+    {
+        ChunkDelta source = new(3, -2);
+        MapTile tile = new(BiomeType.LushPlains, 0.5f, 0.5f, 0.5f, IsSolid: true, Variant: 4, HeightLevel: 2);
+        source.SetTile(5, 6, in tile);
+        source.SetPropState(7, 8, new PropDestructibility(true, 100f, 35f, 1, false));
+        StructureTile door = StructureTile.CreateDoor(StructureType.WoodDoor, StructureMaterial.Wood)
+            .ApplyDamage(25f)
+            .WithDoorState(DoorState.Open)
+            .WithConnectivity(WallConnectivityMask.East | WallConnectivityMask.West);
+        source.SetStructure(9, 10, in door);
+        source.RestoreRevision(42);
+
+        Carbon.Contracts.Maps.S2C.MapChunkDelta packet = ChunkDeltaPacketMapper.ToPacket(source);
+        Assert.Equal(source.ChunkX, packet.ChunkX);
+        Assert.Equal(source.ChunkY, packet.ChunkY);
+        Assert.Equal(42U, packet.Revision);
+
+        ChunkDelta roundTripped = ChunkDeltaPacketMapper.FromPacket(packet);
+        Assert.Equal(42U, roundTripped.Revision);
+        Assert.True(roundTripped.Tiles.TryGetValue(ChunkDelta.ToLocalIndex(5, 6), out MapTile rtTile));
+        Assert.Equal(BiomeType.LushPlains, rtTile.Biome);
+        Assert.True(rtTile.IsSolid);
+        Assert.Equal((byte)4, rtTile.Variant);
+        Assert.Equal((byte)2, rtTile.HeightLevel);
+
+        Assert.True(roundTripped.PropStates.TryGetValue(ChunkDelta.ToLocalIndex(7, 8), out PropDestructibility rtProp));
+        Assert.Equal(35f, rtProp.CurrentDurability);
+
+        Assert.True(roundTripped.Structures.TryGetValue(ChunkDelta.ToLocalIndex(9, 10), out StructureTile rtStruct));
+        Assert.Equal(StructureType.WoodDoor, rtStruct.Type);
+        Assert.Equal(75f, rtStruct.CurrentDurability);
+        Assert.Equal(DoorState.Open, rtStruct.DoorState);
+        Assert.Equal(WallConnectivityMask.East | WallConnectivityMask.West, rtStruct.Connectivity);
     }
 
     [Fact]

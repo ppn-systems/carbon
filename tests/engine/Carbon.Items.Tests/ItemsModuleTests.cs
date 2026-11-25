@@ -1,12 +1,15 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System.Numerics;
 using Carbon.Data.Registry;
 using Carbon.Items.Components;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
 using Carbon.Items.Definitions;
 using Carbon.Items.Equipment;
+using Carbon.Items.Systems;
 using Carbon.Simulation.ECS;
+using Carbon.Simulation.World;
 using FluentAssertions;
 using Xunit;
 
@@ -86,5 +89,25 @@ public sealed class ItemsModuleTests
 
         entities.GetComponent<InventoryRef>(e).Capacity.Should().Be(24);
         entities.GetComponent<LootDropComponent>(e).Item.Quantity.Should().Be(5);
+    }
+
+    [Fact]
+    public void LootExpirationSystem_DespawnsExpiredDropsAndRetainsPermanentDrops()
+    {
+        WorldSimulation world = new(tickRate: 20);
+        world.RegisterSystem(new LootExpirationSystem());
+
+        Entity expiring = world.SpawnEntity(Vector2.Zero, radius: 1f);
+        world.Entities.SetComponent(expiring, new LootDropComponent(new ItemSlot(1, 3), DespawnAtTick: 2));
+
+        Entity permanent = world.SpawnEntity(new Vector2(10f, 0f), radius: 1f);
+        world.Entities.SetComponent(permanent, new LootDropComponent(new ItemSlot(2, 1), DespawnAtTick: 0));
+
+        _ = world.Update(0.05); // Tick 1
+        world.Entities.IsAlive(expiring).Should().BeTrue();
+
+        _ = world.Update(0.05); // Tick 2 (>= 2)
+        world.Entities.IsAlive(expiring).Should().BeFalse();
+        world.Entities.IsAlive(permanent).Should().BeTrue();
     }
 }

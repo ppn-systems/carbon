@@ -1,7 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
-using System.Collections.Generic;
+using System.Buffers;
 using System.Numerics;
 using Carbon.Physics.Contacts;
 using Carbon.Physics.Narrowphase;
@@ -47,104 +47,124 @@ public static class EntityCollisionSystem
         ArgumentNullException.ThrowIfNull(entities);
         ArgumentNullException.ThrowIfNull(spatialGrid);
 
-        IReadOnlyList<Entity> active = entities.ActiveEntities;
-        int count = active.Count;
+        ComponentPool<Collider2D> colliders = entities.GetPool<Collider2D>();
+        ComponentPool<Transform2D> transforms = entities.GetPool<Transform2D>();
+        ReadOnlySpan<int> slots = colliders.EntitySlots;
+        ReadOnlySpan<Collider2D> colSpan = colliders.AsSpan();
 
-        // Step 1: Synchronize spatial grid positions
-        for (int i = 0; i < count; i++)
+        // Step 1: Synchronize multi-cell spatial grid bounds
+        for (int i = 0; i < slots.Length; i++)
         {
-            Entity entity = active[i];
-            if (entities.HasTransform(entity) && entities.HasCollider(entity))
+            int slot = slots[i];
+            if (colSpan[i].Kind == ColliderKind.None || !transforms.Has(slot))
             {
-                ref readonly Transform2D transform = ref entities.GetTransform(entity);
-                _ = spatialGrid.Update(entity.Id, transform.Position);
+                continue;
             }
+
+            AABB2D worldBounds = colSpan[i].GetWorldAabb(transforms.Get(slot).Position);
+            _ = spatialGrid.Update(slot, in worldBounds);
         }
 
         // Step 2: Broadphase & Narrowphase entity-to-entity resolution
-        Span<int> nearbyBuffer = stackalloc int[MaxQueryBuffer];
-
-        for (int i = 0; i < count; i++)
+        int[]? rentedBuffer = spatialGrid.EntityCount > MaxQueryBuffer
+            ? ArrayPool<int>.Shared.Rent(spatialGrid.EntityCount)
+            : null;
+        try
         {
-            Entity entityA = active[i];
-            if (!entities.HasTransform(entityA) || !entities.HasCollider(entityA))
+            Span<int> nearbyBuffer = rentedBuffer is not null
+                ? rentedBuffer
+                : stackalloc int[MaxQueryBuffer];
+
+            for (int i = 0; i < slots.Length; i++)
             {
-                continue;
-            }
-
-            ref readonly Collider2D colA = ref entities.GetCollider(entityA);
-            if (colA.Kind == ColliderKind.None)
-            {
-                continue;
-            }
-
-            ref Transform2D transA = ref entities.GetTransform(entityA);
-            CellCoord cell = spatialGrid.WorldToCell(transA.Position);
-
-            spatialGrid.QueryCellRadius(in cell, cellRadius: 1, nearbyBuffer, out int nearbyCount);
-
-            for (int k = 0; k < nearbyCount; k++)
-            {
-                int otherId = nearbyBuffer[k];
-
-                // Avoid duplicate pairs and self-collision: only test when entityA.Id < otherId
-                if (entityA.Id >= otherId)
+                int slotA = slots[i];
+                Collider2D colA = colSpan[i];
+                if (colA.Kind == ColliderKind.None || !transforms.Has(slotA))
                 {
                     continue;
                 }
 
-                Entity entityB = entities.GetEntity(otherId);
-                if (!entityB.IsValid || !entities.HasTransform(entityB) || !entities.HasCollider(entityB))
+                Entity entityA = entities.GetEntity(slotA);
+                if (!entityA.IsValid)
                 {
                     continue;
                 }
 
-                ref readonly Collider2D colB = ref entities.GetCollider(entityB);
-                if (colB.Kind == ColliderKind.None)
-                {
-                    continue;
-                }
+                ref Transform2D transA = ref transforms.Get(slotA);
+                AABB2D worldBoundsA = colA.GetWorldAabb(transA.Position);
+                CellCoord minCell = spatialGrid.WorldToCell(worldBoundsA.Min);
+                CellCoord maxCell = spatialGrid.WorldToCell(worldBoundsA.Max);
+                CellCoord queryMin = new(minCell.X - 1, minCell.Y - 1);
+                CellCoord queryMax = new(maxCell.X + 1, maxCell.Y + 1);
 
-                // Check collision layer filtering
-                if ((colA.Mask & colB.Layer) == 0 || (colB.Mask & colA.Layer) == 0)
-                {
-                    continue;
-                }
+                spatialGrid.QueryRegion(in queryMin, in queryMax, nearbyBuffer, out int nearbyCount);
 
-                ref Transform2D transB = ref entities.GetTransform(entityB);
-
-                if (colA.IsTrigger || colB.IsTrigger)
+                for (int k = 0; k < nearbyCount; k++)
                 {
-                    if (triggerEvents is not null && TestOverlap(transA.Position, in colA, transB.Position, in colB))
+                    int otherId = nearbyBuffer[k];
+
+                    // Avoid duplicate pairs and self-collision: only test when entityA.Id < otherId
+                    if (slotA >= otherId || !transforms.Has(otherId) || !colliders.TryGet(otherId, out Collider2D colB) || colB.Kind == ColliderKind.None)
                     {
-                        if (colA.IsTrigger)
-                        {
-                            triggerEvents.Publish(new TriggerOverlapEvent(entityA, entityB));
-                        }
-
-                        if (colB.IsTrigger)
-                        {
-                            triggerEvents.Publish(new TriggerOverlapEvent(entityB, entityA));
-                        }
+                        continue;
                     }
 
-                    continue;
+                    Entity entityB = entities.GetEntity(otherId);
+                    if (!entityB.IsValid)
+                    {
+                        continue;
+                    }
+
+                    // Check collision layer filtering
+                    if ((colA.Mask & colB.Layer) == 0 || (colB.Mask & colA.Layer) == 0)
+                    {
+                        continue;
+                    }
+
+                    ref Transform2D transB = ref transforms.Get(otherId);
+
+                    if (colA.IsTrigger || colB.IsTrigger)
+                    {
+                        if (triggerEvents is not null && TestOverlap(transA.Position, in colA, transB.Position, in colB))
+                        {
+                            if (colA.IsTrigger)
+                            {
+                                triggerEvents.Publish(new TriggerOverlapEvent(entityA, entityB));
+                            }
+
+                            if (colB.IsTrigger)
+                            {
+                                triggerEvents.Publish(new TriggerOverlapEvent(entityB, entityA));
+                            }
+                        }
+
+                        continue;
+                    }
+
+                    Vector2 posA = transA.Position;
+                    Vector2 posB = transB.Position;
+
+                    if (ResolveSolidOverlap(ref posA, in colA, ref posB, in colB))
+                    {
+                        transA.Position = posA;
+                        transB.Position = posB;
+
+                        AABB2D updatedBoundsA = colA.GetWorldAabb(posA);
+                        AABB2D updatedBoundsB = colB.GetWorldAabb(posB);
+                        _ = spatialGrid.Update(slotA, in updatedBoundsA);
+                        _ = spatialGrid.Update(otherId, in updatedBoundsB);
+
+                        markDirty?.Invoke(entityA, EntityDirtyMask.Transform);
+                        markDirty?.Invoke(entityB, EntityDirtyMask.Transform);
+                    }
                 }
-
-                Vector2 posA = transA.Position;
-                Vector2 posB = transB.Position;
-
-                if (ResolveSolidOverlap(ref posA, in colA, ref posB, in colB))
-                {
-                    transA.Position = posA;
-                    transB.Position = posB;
-
-                    _ = spatialGrid.Update(entityA.Id, posA);
-                    _ = spatialGrid.Update(entityB.Id, posB);
-
-                    markDirty?.Invoke(entityA, EntityDirtyMask.Transform);
-                    markDirty?.Invoke(entityB, EntityDirtyMask.Transform);
-                }
+            }
+        }
+        finally
+        {
+            if (rentedBuffer is not null)
+            {
+                ArrayPool<int>.Shared.Return(rentedBuffer);
             }
         }
     }

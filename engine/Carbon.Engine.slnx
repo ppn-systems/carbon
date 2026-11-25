@@ -1,4 +1,6 @@
 <Solution>
+  <Project Path="../contracts/Carbon.Contracts.Common/Carbon.Contracts.Common.csproj" />
+  <Project Path="../contracts/Carbon.Contracts.Maps/Carbon.Contracts.Maps.csproj" />
   <Project Path="Carbon.AI/Carbon.AI.csproj" />
   <Project Path="Carbon.Combat/Carbon.Combat.csproj" />
   <Project Path="Carbon.Data/Carbon.Data.csproj" />

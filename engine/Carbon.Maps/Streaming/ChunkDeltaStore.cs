@@ -1,7 +1,9 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
 using Carbon.Maps.Data;
 
 namespace Carbon.Maps.Streaming;
@@ -14,9 +16,11 @@ namespace Carbon.Maps.Streaming;
 public sealed class ChunkDeltaStore
 {
     private readonly ConcurrentDictionary<long, ChunkDelta> _deltas = new();
+    private readonly Lock _snapshotGate = new();
+    private ChunkDelta[] _snapshot = [];
 
-    /// <summary>Gets every recorded delta.</summary>
-    public ICollection<ChunkDelta> All => _deltas.Values;
+    /// <summary>Gets a zero-allocation read-only span over every recorded delta.</summary>
+    public ReadOnlySpan<ChunkDelta> All => Volatile.Read(ref _snapshot);
 
     /// <summary>Gets the number of edited chunks.</summary>
     public int Count => _deltas.Count;
@@ -52,10 +56,51 @@ public sealed class ChunkDeltaStore
     /// <param name="chunkX">Chunk X.</param>
     /// <param name="chunkY">Chunk Y.</param>
     /// <returns>The delta.</returns>
-    internal ChunkDelta GetOrAdd(int chunkX, int chunkY) =>
-        _deltas.GetOrAdd(Chunk2D.PackKey(chunkX, chunkY), _ => new ChunkDelta(chunkX, chunkY));
+    internal ChunkDelta GetOrAdd(int chunkX, int chunkY)
+    {
+        long key = Chunk2D.PackKey(chunkX, chunkY);
+        if (_deltas.TryGetValue(key, out ChunkDelta? existing))
+        {
+            return existing;
+        }
+
+        ChunkDelta created = new(chunkX, chunkY);
+        if (_deltas.TryAdd(key, created))
+        {
+            this.RebuildSnapshot();
+            return created;
+        }
+
+        return _deltas[key];
+    }
 
     /// <summary>Stores a delta, replacing any existing one. Call under the world lock.</summary>
     /// <param name="delta">The delta.</param>
-    internal void Set(ChunkDelta delta) => _deltas[delta.Key] = delta;
+    internal void Set(ChunkDelta delta)
+    {
+        _deltas[delta.Key] = delta;
+        this.RebuildSnapshot();
+    }
+
+    private void RebuildSnapshot()
+    {
+        lock (_snapshotGate)
+        {
+            int count = _deltas.Count;
+            if (count == 0)
+            {
+                Volatile.Write(ref _snapshot, []);
+                return;
+            }
+
+            ChunkDelta[] next = new ChunkDelta[count];
+            int index = 0;
+            foreach (KeyValuePair<long, ChunkDelta> kvp in _deltas)
+            {
+                next[index++] = kvp.Value;
+            }
+
+            Volatile.Write(ref _snapshot, next);
+        }
+    }
 }

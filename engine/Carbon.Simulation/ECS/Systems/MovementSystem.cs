@@ -1,9 +1,9 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
-using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Physics.Obstacles;
+using Carbon.Physics.Shapes;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.Networking;
 
@@ -40,94 +40,135 @@ public static class MovementSystem
     {
         ArgumentNullException.ThrowIfNull(entities);
 
-        IReadOnlyList<Entity> active = entities.ActiveEntities;
-        int count = active.Count;
+        ComponentPool<Velocity2D> velocities = entities.GetPool<Velocity2D>();
+        ComponentPool<Transform2D> transforms = entities.GetPool<Transform2D>();
+        ComponentPool<Collider2D> colliders = entities.GetPool<Collider2D>();
 
-        for (int i = 0; i < count; i++)
+        ReadOnlySpan<int> slots = velocities.EntitySlots;
+        Span<Velocity2D> velSpan = velocities.AsSpan();
+
+        for (int i = 0; i < slots.Length; i++)
         {
-            Entity entity = active[i];
-            if (!entities.HasTransform(entity) || !entities.HasVelocity(entity))
+            int slot = slots[i];
+            if (!transforms.Has(slot))
             {
                 continue;
             }
 
-            ref Transform2D transform = ref entities.GetTransform(entity);
-            ref Velocity2D velocity = ref entities.GetVelocity(entity);
-
-            Vector2 previousPos = transform.Position;
-            Vector2 displacement = velocity.Linear * dt;
-
-            // Apply drag damping if configured
-            if (velocity.Drag > 0f)
+            Entity entity = entities.GetEntity(slot);
+            if (!entity.IsValid)
             {
-                float factor = MathF.Max(0f, 1f - (velocity.Drag * dt));
-                velocity.Linear *= factor;
+                continue;
             }
 
-            // Resolve against static world physics using continuous collision detection sub-stepping
-            if (worldPhysics is not null && entities.HasCollider(entity))
+            ref Transform2D transform = ref transforms.Get(slot);
+            ref Velocity2D velocity = ref velSpan[i];
+            bool hasCollider = colliders.TryGet(slot, out Collider2D collider);
+
+            Vector2 pos = transform.Position;
+            Vector2 linear = velocity.Linear;
+            bool moved = StepSingle(
+                ref pos,
+                ref linear,
+                velocity.Drag,
+                in collider,
+                hasCollider,
+                dt,
+                worldPhysics);
+
+            velocity.Linear = linear;
+            if (moved)
             {
-                ref readonly Collider2D col = ref entities.GetCollider(entity);
-                if (!col.IsTrigger && col.Kind != ColliderKind.None)
-                {
-                    float radius = col.Kind == ColliderKind.Circle
-                        ? col.Radius
-                        : MathF.Min(col.Box.Width, col.Box.Height) * 0.5f;
-                    Vector2 centerOffset = col.Kind == ColliderKind.Aabb ? col.Box.Center : Vector2.Zero;
-
-                    if (radius > 0f)
-                    {
-                        float totalDist = displacement.Length();
-                        if (totalDist > 0.0001f)
-                        {
-                            float maxStep = MathF.Min(2.5f, radius * 0.5f);
-                            int subSteps = Math.Clamp((int)MathF.Ceiling(totalDist / maxStep), 1, 16);
-                            Vector2 stepDelta = displacement / subSteps;
-                            Vector2 currentCenter = previousPos + centerOffset;
-
-                            for (int step = 0; step < subSteps; step++)
-                            {
-                                currentCenter += stepDelta;
-                                if (worldPhysics.ResolveCircleCollision(ref currentCenter, radius, out Vector2 pushNormal))
-                                {
-                                    float stepDot = Vector2.Dot(stepDelta, pushNormal);
-                                    if (stepDot < 0f)
-                                    {
-                                        stepDelta -= pushNormal * stepDot;
-                                    }
-
-                                    float velDot = Vector2.Dot(velocity.Linear, pushNormal);
-                                    if (velDot < 0f)
-                                    {
-                                        velocity.Linear -= pushNormal * velDot;
-                                    }
-                                }
-                            }
-
-                            transform.Position = currentCenter - centerOffset;
-                        }
-                        else
-                        {
-                            Vector2 currentCenter = previousPos + displacement + centerOffset;
-                            _ = worldPhysics.ResolveCircleCollision(ref currentCenter, radius, out _);
-                            transform.Position = currentCenter - centerOffset;
-                        }
-
-                        if (transform.Position != previousPos)
-                        {
-                            markDirty?.Invoke(entity, EntityDirtyMask.Transform);
-                        }
-
-                        continue;
-                    }
-                }
-            }
-
-            transform.Position = previousPos + displacement;
-            if (transform.Position != previousPos)
-            {
+                transform.Position = pos;
                 markDirty?.Invoke(entity, EntityDirtyMask.Transform);
             }
         }
+    }
+
+    /// <summary>
+    /// Steps a single entity position and linear velocity over <paramref name="dt"/> using continuous collision
+    /// detection (CCD) sub-stepping against <paramref name="worldPhysics"/>.
+    /// Shared by both authoritative simulation and client-side prediction reconciliation.
+    /// </summary>
+    /// <param name="position">Entity world position updated in-place.</param>
+    /// <param name="linearVelocity">Entity linear velocity updated in-place for drag and wall sliding.</param>
+    /// <param name="drag">Linear damping coefficient.</param>
+    /// <param name="collider">Entity collider definition.</param>
+    /// <param name="hasCollider">Whether <paramref name="collider"/> is active on the entity.</param>
+    /// <param name="dt">Fixed timestep duration in seconds.</param>
+    /// <param name="worldPhysics">Optional static world collision provider.</param>
+    /// <returns><see langword="true"/> if <paramref name="position"/> changed; otherwise, <see langword="false"/>.</returns>
+    public static bool StepSingle(
+        ref Vector2 position,
+        ref Vector2 linearVelocity,
+        float drag,
+        in Collider2D collider,
+        bool hasCollider,
+        float dt,
+        IWorldPhysics2D? worldPhysics)
+    {
+        Vector2 previousPos = position;
+        Vector2 displacement = linearVelocity * dt;
+
+        if (drag > 0f)
+        {
+            float factor = MathF.Max(0f, 1f - (drag * dt));
+            linearVelocity *= factor;
+        }
+
+        if (worldPhysics is not null && hasCollider && !collider.IsTrigger && collider.Kind != ColliderKind.None)
+        {
+            float extent = collider.Kind == ColliderKind.Circle
+                ? collider.Radius
+                : MathF.Min(collider.Box.Width, collider.Box.Height) * 0.5f;
+
+            if (extent > 0f)
+            {
+                AABB2D localBox = collider.Box;
+                float totalDist = displacement.Length();
+
+                if (totalDist > 0.0001f)
+                {
+                    float maxStep = MathF.Min(2.5f, extent * 0.5f);
+                    int subSteps = Math.Clamp((int)MathF.Ceiling(totalDist / maxStep), 1, 16);
+                    Vector2 stepDelta = displacement / subSteps;
+
+                    for (int step = 0; step < subSteps; step++)
+                    {
+                        position += stepDelta;
+                        bool hit = collider.Kind == ColliderKind.Circle
+                            ? worldPhysics.ResolveCircleCollision(ref position, collider.Radius, out Vector2 pushNormal)
+                            : worldPhysics.ResolveAabbCollision(ref position, in localBox, out pushNormal);
+
+                        if (hit)
+                        {
+                            float stepDot = Vector2.Dot(stepDelta, pushNormal);
+                            if (stepDot < 0f)
+                            {
+                                stepDelta -= pushNormal * stepDot;
+                            }
+
+                            float velDot = Vector2.Dot(linearVelocity, pushNormal);
+                            if (velDot < 0f)
+                            {
+                                linearVelocity -= pushNormal * velDot;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    position += displacement;
+                    _ = collider.Kind == ColliderKind.Circle
+                        ? worldPhysics.ResolveCircleCollision(ref position, collider.Radius, out _)
+                        : worldPhysics.ResolveAabbCollision(ref position, in localBox, out _);
+                }
+
+                return position != previousPos;
+            }
+        }
+
+        position = previousPos + displacement;
+        return position != previousPos;
     }
 }

@@ -1,6 +1,9 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System;
 using System.Numerics;
+using Carbon.Physics.Obstacles;
+using Carbon.Physics.Shapes;
 using Carbon.Prediction.Client;
 using Carbon.Prediction.Remote;
 using Carbon.Simulation.ECS;
@@ -72,5 +75,38 @@ public sealed class PredictionModuleTests
         // Extrapolates at most maxExtrapolationSeconds (0.1s * 100u/s = +10u -> X=110)
         TransformSnapshot extra = buffer.Sample(2.5, maxExtrapolationSeconds: 0.1f);
         extra.Position.X.Should().BeApproximately(110f, 0.001f);
+
+        // Shortest-arc rotation across +/- PI boundary
+        SnapshotInterpolationBuffer rotBuffer = new(capacity: 4);
+        rotBuffer.PushSnapshot(new TransformSnapshot(1.0, Vector2.Zero, Vector2.Zero, MathF.PI - 0.1f)).Should().BeTrue();
+        rotBuffer.PushSnapshot(new TransformSnapshot(2.0, Vector2.Zero, Vector2.Zero, -MathF.PI + 0.1f)).Should().BeTrue();
+        TransformSnapshot rotMid = rotBuffer.Sample(1.5);
+        MathF.Abs(MathF.Abs(rotMid.Rotation) - MathF.PI).Should().BeLessThan(0.05f);
+    }
+
+    [Fact]
+    public void ClientPredictionReconciler_AabbColliderReplaysViaSharedStepSingleAgainstObstacles()
+    {
+        TileObstacleGrid grid = new(width: 8, height: 8, tileSize: 32f);
+        grid.SetSolid(2, 1, true); // [64..96, 32..64]
+
+        WorldSimulation sim = new(tickRate: 20)
+        {
+            WorldPhysics = grid
+        };
+
+        Entity player = sim.SpawnEntity(new Vector2(40f, 48f), radius: 8f);
+        sim.Entities.SetCollider(player, Collider2D.CreateAabb(AABB2D.FromCenterSize(Vector2.Zero, new Vector2(16f, 16f))));
+        sim.Entities.SetVelocity(player, new Velocity2D(200f, 0f));
+
+        ClientPredictionReconciler reconciler = new();
+        reconciler.RecordPredictedTick(new PredictedTickRecord(1, Vector2.UnitX, 200f, new Vector2(45f, 48f), new Vector2(200f, 0f)));
+        reconciler.RecordPredictedTick(new PredictedTickRecord(2, Vector2.UnitX, 200f, new Vector2(55f, 48f), new Vector2(200f, 0f)));
+
+        // Reconcile from X=50 -> moves 10u in tick 2 against solid wall at X=64 (box half-width 8 => clamped <= 56)
+        ReconciliationResult res = reconciler.Reconcile(1, new Vector2(50f, 48f), new Vector2(200f, 0f), sim, player);
+
+        res.WasCorrected.Should().BeTrue();
+        res.CorrectedPosition.X.Should().BeLessThanOrEqualTo(56.01f);
     }
 }

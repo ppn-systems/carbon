@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
+using Carbon.Physics.Separation;
+using Carbon.Physics.Shapes;
 
 namespace Carbon.Maps.Building;
 
@@ -16,6 +18,10 @@ namespace Carbon.Maps.Building;
 public sealed class BuildingGrid : IBuildingGrid
 {
     private readonly ConcurrentDictionary<(int X, int Y), StructureTile> _structures = new();
+    private readonly ConcurrentDictionary<(int X, int Y), bool> _roofCache = new();
+    private readonly Func<int, int, bool> _isConnectableDelegate;
+    private readonly Func<int, int, bool> _supportsRoofDelegate;
+    private readonly Func<int, int, bool> _isRoomBoundaryDelegate;
     private readonly Action<int, int, StructureTile>? _onStructureChanged;
     private readonly Action<int, int, WallConnectivityMask>? _onConnectivityUpdated;
 
@@ -24,6 +30,9 @@ public sealed class BuildingGrid : IBuildingGrid
     /// </summary>
     public BuildingGrid()
     {
+        _isConnectableDelegate = this.IsConnectableAt;
+        _supportsRoofDelegate = this.SupportsRoofAt;
+        _isRoomBoundaryDelegate = this.IsRoomBoundaryAt;
     }
 
     /// <summary>
@@ -32,6 +41,7 @@ public sealed class BuildingGrid : IBuildingGrid
     internal BuildingGrid(
         Action<int, int, StructureTile>? onStructureChanged,
         Action<int, int, WallConnectivityMask>? onConnectivityUpdated = null)
+        : this()
     {
         _onStructureChanged = onStructureChanged;
         _onConnectivityUpdated = onConnectivityUpdated;
@@ -56,13 +66,68 @@ public sealed class BuildingGrid : IBuildingGrid
     /// <inheritdoc/>
     public bool IsRoofedAt(int worldTileX, int worldTileY)
     {
-        if (_structures.TryGetValue((worldTileX, worldTileY), out StructureTile structure) && structure.HasRoof)
+        if (_roofCache.TryGetValue((worldTileX, worldTileY), out bool cached))
         {
-            return true;
+            return cached;
         }
 
-        return RoomDetector.IsTileRoofed(worldTileX, worldTileY, this.SupportsRoofAt);
+        bool roofed = this.ComputeIsRoofedAt(worldTileX, worldTileY);
+        _roofCache[(worldTileX, worldTileY)] = roofed;
+        return roofed;
     }
+
+    /// <summary>
+    /// Evaluates whether a structure at (worldTileX, worldTileY) forms a room perimeter boundary (intact wall or door).
+    /// </summary>
+    public bool IsRoomBoundaryAt(int worldTileX, int worldTileY) =>
+        _structures.TryGetValue((worldTileX, worldTileY), out StructureTile structure) &&
+        !structure.IsDestroyed &&
+        (structure.Category is StructureCategory.Wall or StructureCategory.Door);
+
+    private bool ComputeIsRoofedAt(int worldTileX, int worldTileY)
+    {
+        if (_structures.TryGetValue((worldTileX, worldTileY), out StructureTile structure) && !structure.IsDestroyed)
+        {
+            if (structure.HasRoof)
+            {
+                return true;
+            }
+
+            if (structure.Category is StructureCategory.Wall or StructureCategory.Door)
+            {
+                return this.IsAdjacentInteriorRoofed(worldTileX, worldTileY);
+            }
+        }
+
+        return this.ComputeInteriorTileRoofed(worldTileX, worldTileY);
+    }
+
+    private bool IsAdjacentInteriorRoofed(int boundaryX, int boundaryY)
+    {
+        for (int dy = -1; dy <= 1; dy++)
+        {
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                if (dx == 0 && dy == 0)
+                {
+                    continue;
+                }
+
+                int nx = boundaryX + dx;
+                int ny = boundaryY + dy;
+                if (!this.IsRoomBoundaryAt(nx, ny) && this.ComputeInteriorTileRoofed(nx, ny))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private bool ComputeInteriorTileRoofed(int worldTileX, int worldTileY) =>
+        RoomDetector.IsTileRoofed(worldTileX, worldTileY, _supportsRoofDelegate) &&
+        RoomDetector.IsTileEnclosed(worldTileX, worldTileY, _isRoomBoundaryDelegate);
 
     /// <summary>
     /// Evaluates whether a structure at (worldTileX, worldTileY) is actively capable of supporting a roof.
@@ -101,12 +166,13 @@ public sealed class BuildingGrid : IBuildingGrid
 
         if (WallAutotiler.CanConnectToWall(blueprint.Category))
         {
-            WallConnectivityMask mask = WallAutotiler.ComputeConnectivity(worldTileX, worldTileY, this.IsConnectableAt);
+            WallConnectivityMask mask = WallAutotiler.ComputeConnectivity(worldTileX, worldTileY, _isConnectableDelegate);
             blueprint = blueprint.WithConnectivity(mask);
         }
 
         _structures[(worldTileX, worldTileY)] = blueprint;
         placedStructure = blueprint;
+        _roofCache.Clear();
 
         // Automatically update the 4 cardinal neighbors so they snap to the new structure
         this.UpdateNeighborConnectivity(worldTileX, worldTileY);
@@ -122,11 +188,12 @@ public sealed class BuildingGrid : IBuildingGrid
 
         if (WallAutotiler.CanConnectToWall(blueprint.Category))
         {
-            WallConnectivityMask mask = WallAutotiler.ComputeConnectivity(worldTileX, worldTileY, this.IsConnectableAt);
+            WallConnectivityMask mask = WallAutotiler.ComputeConnectivity(worldTileX, worldTileY, _isConnectableDelegate);
             blueprint = blueprint.WithConnectivity(mask);
         }
 
         _structures[(worldTileX, worldTileY)] = blueprint;
+        _roofCache.Clear();
         this.UpdateNeighborConnectivity(worldTileX, worldTileY);
         _onStructureChanged?.Invoke(worldTileX, worldTileY, blueprint);
     }
@@ -136,6 +203,7 @@ public sealed class BuildingGrid : IBuildingGrid
     {
         if (_structures.TryRemove((worldTileX, worldTileY), out _))
         {
+            _roofCache.Clear();
             this.UpdateNeighborConnectivity(worldTileX, worldTileY);
             _onStructureChanged?.Invoke(worldTileX, worldTileY, StructureTile.Empty);
             return true;
@@ -145,11 +213,21 @@ public sealed class BuildingGrid : IBuildingGrid
     }
 
     /// <inheritdoc/>
-    public bool ApplyDamage(int worldTileX, int worldTileY, float damageAmount, out StructureTile updatedStructure)
+    public bool ApplyDamage(int worldTileX, int worldTileY, float damageAmount, out StructureTile updatedStructure) =>
+        this.ApplyDamage(worldTileX, worldTileY, damageAmount, byte.MaxValue, out updatedStructure);
+
+    /// <inheritdoc/>
+    public bool ApplyDamage(int worldTileX, int worldTileY, float damageAmount, byte toolHarvestTier, out StructureTile updatedStructure)
     {
         if (!_structures.TryGetValue((worldTileX, worldTileY), out StructureTile current))
         {
             updatedStructure = StructureTile.Empty;
+            return false;
+        }
+
+        if (toolHarvestTier < current.Destructibility.HarvestTier)
+        {
+            updatedStructure = current;
             return false;
         }
 
@@ -158,7 +236,8 @@ public sealed class BuildingGrid : IBuildingGrid
 
         if (updatedStructure.IsDestroyed)
         {
-            // Structure collapsed; update adjacent walls so they disconnect from this rubble
+            // Structure collapsed; invalidate roof enclosures and disconnect adjacent walls
+            _roofCache.Clear();
             this.UpdateNeighborConnectivity(worldTileX, worldTileY);
         }
 
@@ -245,10 +324,53 @@ public sealed class BuildingGrid : IBuildingGrid
         return collided;
     }
 
+    /// <inheritdoc/>
+    public bool ResolveAabbCollision(ref Vector2 position, in AABB2D localBox, float tileSize, out Vector2 pushNormal)
+    {
+        pushNormal = Vector2.Zero;
+        bool collided = false;
+
+        AABB2D worldBox = localBox.Offset(position);
+        int minTx = (int)MathF.Floor(worldBox.Min.X / tileSize);
+        int maxTx = (int)MathF.Floor(worldBox.Max.X / tileSize);
+        int minTy = (int)MathF.Floor(worldBox.Min.Y / tileSize);
+        int maxTy = (int)MathF.Floor(worldBox.Max.Y / tileSize);
+
+        for (int ty = minTy; ty <= maxTy; ty++)
+        {
+            for (int tx = minTx; tx <= maxTx; tx++)
+            {
+                if (!this.IsSolidAt(tx, ty))
+                {
+                    continue;
+                }
+
+                float boxMinX = tx * tileSize;
+                float boxMinY = ty * tileSize;
+                AABB2D tileBox = new(new Vector2(boxMinX, boxMinY), new Vector2(boxMinX + tileSize, boxMinY + tileSize));
+                if (EntitySeparation.ResolveStaticAabb(ref position, in localBox, in tileBox, ref pushNormal))
+                {
+                    collided = true;
+                }
+            }
+        }
+
+        if (collided && pushNormal.LengthSquared() > 0.0001f)
+        {
+            pushNormal = Vector2.Normalize(pushNormal);
+        }
+
+        return collided;
+    }
+
     /// <summary>
     /// Clears all placed structures from the grid.
     /// </summary>
-    public void Clear() => _structures.Clear();
+    public void Clear()
+    {
+        _structures.Clear();
+        _roofCache.Clear();
+    }
 
     /// <summary>
     /// Replaces all constructed structures inside the specified chunk with the imported chunk delta state
@@ -256,6 +378,7 @@ public sealed class BuildingGrid : IBuildingGrid
     /// </summary>
     internal void ApplyChunkStructures(int chunkX, int chunkY, IReadOnlyDictionary<int, StructureTile> structures)
     {
+        _roofCache.Clear();
         int baseX = chunkX * Chunk2D.Size;
         int baseY = chunkY * Chunk2D.Size;
 
@@ -287,7 +410,7 @@ public sealed class BuildingGrid : IBuildingGrid
                     !current.IsDestroyed &&
                     WallAutotiler.CanConnectToWall(current.Category))
                 {
-                    WallConnectivityMask mask = WallAutotiler.ComputeConnectivity(wx, wy, this.IsConnectableAt);
+                    WallConnectivityMask mask = WallAutotiler.ComputeConnectivity(wx, wy, _isConnectableDelegate);
                     _structures[(wx, wy)] = current.WithConnectivity(mask);
                 }
             }
@@ -316,14 +439,14 @@ public sealed class BuildingGrid : IBuildingGrid
                 !neighbor.IsDestroyed &&
                 WallAutotiler.CanConnectToWall(neighbor.Category))
             {
-                WallConnectivityMask updatedMask = WallAutotiler.ComputeConnectivity(nx, ny, this.IsConnectableAt);
+                WallConnectivityMask updatedMask = WallAutotiler.ComputeConnectivity(nx, ny, _isConnectableDelegate);
                 _structures[(nx, ny)] = neighbor.WithConnectivity(updatedMask);
                 _onConnectivityUpdated?.Invoke(nx, ny, updatedMask);
             }
         }
     }
 
-    private static StructureTile CreateBlueprint(StructureType type) => type switch
+    internal static StructureTile CreateBlueprint(StructureType type) => type switch
     {
         StructureType.None => StructureTile.Empty,
         StructureType.WoodWall => StructureTile.CreateWall(type, StructureMaterial.Wood, durability: 150f, harvestTier: 1),

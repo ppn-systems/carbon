@@ -10,6 +10,7 @@ using Carbon.Maps.Building;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Navigation;
 using Carbon.Maps.Streaming;
+using Carbon.Physics.Obstacles;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.World;
@@ -110,5 +111,46 @@ public sealed class AiModuleTests
 
         world.Entities.GetComponent<AiBrainComponent>(mob).State.Should().Be(AiState.Idle);
         world.Entities.GetHealth(mob).Current.Should().BeApproximately(100f, 0.001f);
+    }
+
+    [Fact]
+    public void AiBehaviorSystem_LineOfSightBlockedAndThreatOverrideAndPatrol_BehaveCorrectly()
+    {
+        TileObstacleGrid grid = new(width: 8, height: 8, tileSize: 32f);
+        grid.SetSolid(2, 1, true); // Wall separating X=48 and X=112 at Y=48
+
+        WorldSimulation world = new(tickRate: 20)
+        {
+            WorldPhysics = grid
+        };
+        world.RegisterSystem(new AiBehaviorSystem());
+
+        Entity mob = world.SpawnEntity(new Vector2(48f, 48f), radius: 8f);
+        world.Entities.SetVelocity(mob, new Velocity2D(0f, 0f));
+        world.Entities.SetComponent(mob, new AiBrainComponent(
+            AiState.Patrol,
+            HomePosition: new Vector2(48f, 48f),
+            AggroRadius: 120f,
+            AttackRange: 20f,
+            LeashRadius: 200f,
+            MoveSpeed: 60f,
+            TargetLayerMask: 2,
+            PatrolRadius: 30f));
+
+        Entity hiddenPlayer = world.SpawnEntity(new Vector2(112f, 48f), radius: 8f);
+        world.Entities.SetCollider(hiddenPlayer, Collider2D.CreateCircle(8f) with { Layer = 2 });
+
+        // Blocked by wall: remains in Patrol and selects deterministic patrol waypoint
+        _ = world.Update(0.05);
+        world.Entities.GetComponent<AiBrainComponent>(mob).State.Should().Be(AiState.Patrol);
+        world.Entities.GetComponent<AiBrainComponent>(mob).PatrolDestination.Should().NotBe(default(Vector2));
+
+        // Inject threat from hiddenPlayer -> ThreatTable overrides LoS and triggers Chase
+        ThreatTable threat = world.Entities.GetAttachmentStore<ThreatTable>().GetOrAdd(mob, static () => new ThreatTable());
+        threat.AddThreat(hiddenPlayer, 100f);
+
+        _ = world.Update(0.05);
+        world.Entities.GetComponent<AiBrainComponent>(mob).State.Should().Be(AiState.Chase);
+        world.Entities.GetComponent<AiBrainComponent>(mob).TargetEntity.Should().Be(hiddenPlayer);
     }
 }

@@ -29,6 +29,15 @@ public interface IWorldPhysics2D
     bool ResolveCircleCollision(ref Vector2 position, float radius, out Vector2 pushNormal);
 
     /// <summary>
+    /// Resolves axis-aligned bounding box entity collision against static world obstacles, modifying <paramref name="position"/> in-place.
+    /// </summary>
+    /// <param name="position">Entity world origin position.</param>
+    /// <param name="localBox">Entity local-space bounding box relative to <paramref name="position"/>.</param>
+    /// <param name="pushNormal">Normalized pushout surface normal if a collision occurred; otherwise, <see cref="Vector2.Zero"/>.</param>
+    /// <returns><see langword="true"/> if a collision was resolved; otherwise, <see langword="false"/>.</returns>
+    bool ResolveAabbCollision(ref Vector2 position, in AABB2D localBox, out Vector2 pushNormal);
+
+    /// <summary>
     /// Casts a ray against static world obstacles, returning the earliest hit.
     /// </summary>
     /// <param name="ray">The 2D testing ray.</param>

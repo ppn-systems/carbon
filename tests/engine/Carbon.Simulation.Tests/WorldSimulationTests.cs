@@ -338,10 +338,99 @@ public sealed class WorldSimulationTests
             return false;
         }
 
+        public bool ResolveAabbCollision(ref Vector2 position, in AABB2D localBox, out Vector2 pushNormal)
+        {
+            pushNormal = Vector2.Zero;
+            return false;
+        }
+
         public bool Raycast(in Ray2D ray, out RaycastHit2D hit)
         {
             hit = RaycastHit2D.None;
             return false;
         }
+    }
+
+    [Fact]
+    public void EntityAttachmentStore_AutomaticallyClears_WhenEntityDestroyed()
+    {
+        EntityManager manager = new(16);
+        Entity e1 = manager.CreateEntity();
+        EntityAttachmentStore<List<int>> store = manager.GetAttachmentStore<List<int>>();
+
+        List<int> attached = store.GetOrAdd(e1, static () => [42]);
+        attached.Should().ContainSingle().Which.Should().Be(42);
+        store.Has(e1).Should().BeTrue();
+
+        manager.DestroyEntity(e1).Should().BeTrue();
+        store.Has(e1).Should().BeFalse();
+        store.TryGet(e1, out _).Should().BeFalse();
+
+        // Recycled slot with higher generation must not expose old entity's attachment
+        Entity e2 = manager.CreateEntity();
+        store.Has(e2).Should().BeFalse();
+    }
+
+    [Fact]
+    public void SpatialHashGrid2D_MultiCellLargeAabb_QueriesWithoutDuplicates()
+    {
+        SpatialHashGrid2D grid = new(cellSize: 32f);
+        AABB2D giantBounds = new(new Vector2(10f, 10f), new Vector2(80f, 80f)); // Spans (0,0)..(2,2) = 9 cells
+        grid.Insert(1, in giantBounds);
+
+        Span<int> buffer = stackalloc int[16];
+        grid.QueryRegion(new CellCoord(0, 0), new CellCoord(2, 2), buffer, out int count);
+        count.Should().Be(1);
+        buffer[0].Should().Be(1);
+
+        // Moving slightly while still occupying all 9 cells returns false (no cell set change)
+        grid.Update(1, new AABB2D(new Vector2(12f, 12f), new Vector2(78f, 78f))).Should().BeFalse();
+
+        // QueryAoiDiff should not mark an already-visible multi-cell entity as newly entered
+        Span<int> entered = stackalloc int[16];
+        Span<int> exited = stackalloc int[16];
+        grid.QueryAoiDiff(new CellCoord(0, 0), new CellCoord(1, 0), cellRadius: 1, entered, out int enteredCount, exited, out int exitedCount);
+        enteredCount.Should().Be(0);
+        exitedCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void GetInterpolatedTransform_AndMovementAabb_AndLargeEntityCount_WorkCorrectly()
+    {
+        TileObstacleGrid obstacles = new(width: 8, height: 8, tileSize: 32f);
+        obstacles.SetSolid(2, 1, true); // [64..96, 32..64]
+        WorldSimulation world = new(tickRate: 20)
+        {
+            WorldPhysics = obstacles
+        };
+
+        Entity aabbMover = world.SpawnEntity(new Vector2(54f, 48f), radius: 8f);
+        world.Entities.SetCollider(aabbMover, Collider2D.CreateAabb(AABB2D.FromCenterSize(Vector2.Zero, new Vector2(16f, 16f))));
+        world.Entities.SetVelocity(aabbMover, new Velocity2D(200f, 0f));
+
+        // Wrap shortest arc from +170deg to -170deg across PI boundary
+        Entity rotEntity = world.SpawnEntity(Vector2.Zero, radius: 1f);
+        float nearPlusPi = MathF.PI - 0.1f;
+        float nearMinusPi = -MathF.PI + 0.1f;
+        world.Entities.SetPreviousTransform(rotEntity, new PreviousTransform2D(Vector2.Zero, nearPlusPi));
+        world.Entities.SetTransform(rotEntity, new Transform2D(Vector2.Zero, nearMinusPi));
+
+        Transform2D mid = world.GetInterpolatedTransform(rotEntity, alpha: 0.5f);
+        MathF.Abs(MathF.Abs(mid.Rotation) - MathF.PI).Should().BeLessThan(0.05f);
+
+        // Advance one tick so AABB mover collides cleanly with tile [64..96] -> Max.X <= 64 => X <= 56
+        _ = world.Update(0.05);
+        world.Entities.GetTransform(aabbMover).Position.X.Should().BeLessThanOrEqualTo(56.01f);
+
+        // Spawn > 256 entities to trigger ArrayPool<int>.Shared fallback in EntityCollisionSystem without overflow
+        for (int i = 0; i < 270; i++)
+        {
+            int gx = i % 10;
+            int gy = i / 10;
+            _ = world.SpawnEntity(new Vector2(200f + (gx * 5f), 200f + (gy * 5f)), radius: 2f);
+        }
+
+        _ = world.Update(0.05);
+        world.SpatialGrid.EntityCount.Should().BeGreaterThan(260);
     }
 }

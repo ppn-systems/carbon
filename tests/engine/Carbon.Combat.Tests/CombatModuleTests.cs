@@ -2,6 +2,7 @@
 
 using System;
 using System.Numerics;
+using Carbon.Combat.Components;
 using Carbon.Combat.Cooldowns;
 using Carbon.Combat.Events;
 using Carbon.Combat.Hitboxes;
@@ -131,5 +132,87 @@ public sealed class CombatModuleTests
 
         hitCount.Should().Be(1);
         hits[0].Should().Be(inFront);
+    }
+
+    [Fact]
+    public void StatusEffectSystem_TicksDamageSynchronizesStunAndHonorsInvulnerable()
+    {
+        WorldSimulation world = new(tickRate: 20);
+        world.RegisterSystem(new StatusEffectSystem());
+
+        Entity caster = world.SpawnEntity(Vector2.Zero, radius: 4f);
+        Entity target = world.SpawnEntity(new Vector2(20f, 0f), radius: 4f);
+        world.Entities.SetHealth(target, new HealthComponent(100f, 100f));
+        world.Entities.SetVelocity(target, new Velocity2D(50f, 0f));
+
+        StatusEffectBuffer buffer = world.Entities.GetAttachmentStore<StatusEffectBuffer>().GetOrAdd(target, static () => new StatusEffectBuffer());
+        buffer.ApplyOrRefresh(new ActiveStatusEffect(
+            EffectId: 101,
+            Caster: caster,
+            ControlMask: CrowdControlMask.Stunned,
+            MagnitudePerStack: 15f,
+            RemainingTicks: 2,
+            PulseIntervalTicks: 1,
+            TicksUntilNextPulse: 1,
+            Stacks: 1,
+            MaxStacks: 1,
+            IsDamage: true));
+
+        _ = world.Update(0.05);
+
+        world.Entities.GetComponent<CombatStateComponent>(target).CanMove.Should().BeFalse();
+        world.Entities.GetVelocity(target).Linear.Should().Be(Vector2.Zero);
+        world.Entities.GetHealth(target).Current.Should().BeApproximately(85f, 0.001f);
+        world.ReadEvents<StatusPulseEvent>().Length.Should().Be(1);
+
+        // Apply invulnerability before tick 2 -> second burn pulse must deal zero damage
+        buffer.ApplyOrRefresh(new ActiveStatusEffect(
+            EffectId: 202,
+            Caster: target,
+            ControlMask: CrowdControlMask.Invulnerable,
+            MagnitudePerStack: 0f,
+            RemainingTicks: 5,
+            PulseIntervalTicks: 0,
+            TicksUntilNextPulse: 0,
+            Stacks: 1,
+            MaxStacks: 1,
+            IsDamage: false));
+
+        _ = world.Update(0.05);
+        world.Entities.GetHealth(target).Current.Should().BeApproximately(85f, 0.001f);
+    }
+
+    [Fact]
+    public void ProjectileSystem_HonorsDefenseStatAndInvulnerability()
+    {
+        WorldSimulation world = new(tickRate: 20);
+        world.RegisterSystem(new ProjectileSystem());
+
+        Entity attacker = world.SpawnEntity(Vector2.Zero, radius: 5f);
+        Entity armoredTarget = world.SpawnEntity(new Vector2(30f, 0f), radius: 6f);
+        world.Entities.SetCollider(armoredTarget, Collider2D.CreateCircle(6f) with { Layer = 2 });
+        world.Entities.SetHealth(armoredTarget, new HealthComponent(100f, 100f));
+
+        StatSheet stats = world.Entities.GetAttachmentStore<StatSheet>().GetOrAdd(armoredTarget, static () => new StatSheet());
+        stats.SetBase(StatType.Defense, 100f); // 100 / (100 + 100) = 50% mitigation -> 40 * 0.5 = 20
+
+        Entity bolt = world.SpawnEntity(new Vector2(10f, 0f), radius: 2f);
+        world.Entities.SetCollider(bolt, Collider2D.CreateCircle(2f, isTrigger: true));
+        world.Entities.SetVelocity(bolt, new Velocity2D(600f, 0f));
+        world.Entities.SetComponent(bolt, new ProjectileComponent(attacker, Damage: 40f, TargetLayerMask: 2, RemainingTicks: 10));
+
+        _ = world.Update(0.05);
+        world.Entities.GetHealth(armoredTarget).Current.Should().BeApproximately(80f, 0.001f);
+
+        // Mark invulnerable -> next projectile deals 0 damage
+        world.Entities.SetComponent(armoredTarget, new CombatStateComponent(CrowdControlMask.Invulnerable, 1f));
+        Entity secondBolt = world.SpawnEntity(new Vector2(10f, 0f), radius: 2f);
+        world.Entities.SetCollider(secondBolt, Collider2D.CreateCircle(2f, isTrigger: true));
+        world.Entities.SetVelocity(secondBolt, new Velocity2D(600f, 0f));
+        world.Entities.SetComponent(secondBolt, new ProjectileComponent(attacker, Damage: 40f, TargetLayerMask: 2, RemainingTicks: 10));
+
+        _ = world.Update(0.05);
+        world.Entities.GetHealth(armoredTarget).Current.Should().BeApproximately(80f, 0.001f);
+        world.Entities.IsAlive(secondBolt).Should().BeFalse();
     }
 }

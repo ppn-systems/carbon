@@ -18,6 +18,9 @@ namespace Carbon.AI.Components;
 /// <param name="TargetLayerMask">Collider layer mask used when scanning for valid targets.</param>
 /// <param name="AttackCooldownTicks">Fixed ticks between attack ready events.</param>
 /// <param name="CooldownRemainingTicks">Remaining ticks until next attack.</param>
+/// <param name="PatrolRadius">Maximum patrol wander radius around <paramref name="HomePosition"/> when idle patrolling.</param>
+/// <param name="PatrolDestination">Active patrol destination in world coordinates.</param>
+/// <param name="PatrolWaitTicks">Remaining ticks to pause before selecting or moving to the next patrol waypoint.</param>
 public readonly record struct AiBrainComponent(
     AiState State,
     Vector2 HomePosition,
@@ -28,4 +31,7 @@ public readonly record struct AiBrainComponent(
     Entity TargetEntity = default,
     uint TargetLayerMask = uint.MaxValue,
     uint AttackCooldownTicks = 20,
-    uint CooldownRemainingTicks = 0);
+    uint CooldownRemainingTicks = 0,
+    float PatrolRadius = 0f,
+    Vector2 PatrolDestination = default,
+    uint PatrolWaitTicks = 0);

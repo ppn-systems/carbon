@@ -5,6 +5,8 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\contracts\Carbon.Contracts.Common\Carbon.Contracts.Common.csproj" />
+        <ProjectReference Include="..\..\contracts\Carbon.Contracts.Maps\Carbon.Contracts.Maps.csproj" />
         <ProjectReference Include="..\Carbon.Primitives\Carbon.Primitives.csproj" />
         <ProjectReference Include="..\Carbon.Physics\Carbon.Physics.csproj" />
     </ItemGroup>

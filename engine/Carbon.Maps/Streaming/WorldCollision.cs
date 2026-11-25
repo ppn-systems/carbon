@@ -7,6 +7,7 @@ using Carbon.Maps.Landmarks;
 using Carbon.Maps.Props;
 using Carbon.Physics.Obstacles;
 using Carbon.Physics.Raycast;
+using Carbon.Physics.Separation;
 using Carbon.Physics.Shapes;
 
 namespace Carbon.Maps.Streaming;
@@ -226,6 +227,153 @@ internal sealed class WorldCollision
         if (pushNormal.LengthSquared() > 0.0001f)
         {
             pushNormal = Vector2.Normalize(pushNormal);
+        }
+
+        return collided;
+    }
+
+    /// <summary>
+    /// Performs zero-allocation AABB collision resolution against terrain, cliffs, props, landmarks, and buildings.
+    /// </summary>
+    public bool ResolveAabb(ref Vector2 position, in AABB2D localBox, out Vector2 pushNormal)
+    {
+        pushNormal = Vector2.Zero;
+        bool collided = false;
+
+        AABB2D worldBox = localBox.Offset(position);
+        int minTileX = (int)MathF.Floor(worldBox.Min.X / _tileSize);
+        int maxTileX = (int)MathF.Floor(worldBox.Max.X / _tileSize);
+        int minTileY = (int)MathF.Floor(worldBox.Min.Y / _tileSize);
+        int maxTileY = (int)MathF.Floor(worldBox.Max.Y / _tileSize);
+
+        Vector2 boxCenter = worldBox.Center;
+        int currentTileX = (int)MathF.Floor(boxCenter.X / _tileSize);
+        int currentTileY = (int)MathF.Floor(boxCenter.Y / _tileSize);
+
+        for (int ty = minTileY; ty <= maxTileY; ty++)
+        {
+            for (int tx = minTileX; tx <= maxTileX; tx++)
+            {
+                MapTile tile = _world.PeekTileAtWorld(tx, ty);
+                bool isImpassable = tile.IsSolid;
+
+                if (!isImpassable && (tx != currentTileX || ty != currentTileY))
+                {
+                    if (!_world.NavGrid.CanTraverse(currentTileX, currentTileY, tx, ty, includeLandmarks: false))
+                    {
+                        isImpassable = true;
+                    }
+                }
+
+                if (!isImpassable)
+                {
+                    continue;
+                }
+
+                float tileMinX = tx * _tileSize;
+                float tileMinY = ty * _tileSize;
+                AABB2D tileBox = new(new Vector2(tileMinX, tileMinY), new Vector2(tileMinX + _tileSize, tileMinY + _tileSize));
+                if (EntitySeparation.ResolveStaticAabb(ref position, in localBox, in tileBox, ref pushNormal))
+                {
+                    collided = true;
+                }
+            }
+        }
+
+        worldBox = localBox.Offset(position);
+        float chunkSizeWorld = Chunk2D.Size * _tileSize;
+        int minChunkX = (int)MathF.Floor((worldBox.Min.X - 48f) / chunkSizeWorld);
+        int maxChunkX = (int)MathF.Floor((worldBox.Max.X + 48f) / chunkSizeWorld);
+        int minChunkY = (int)MathF.Floor((worldBox.Min.Y - 48f) / chunkSizeWorld);
+        int maxChunkY = (int)MathF.Floor((worldBox.Max.Y + 48f) / chunkSizeWorld);
+
+        for (int cy = minChunkY; cy <= maxChunkY; cy++)
+        {
+            for (int cx = minChunkX; cx <= maxChunkX; cx++)
+            {
+                if (!_world.TryGetChunk(cx, cy, out Chunk2D? chunk) || chunk is null)
+                {
+                    continue;
+                }
+
+                for (int i = 0; i < chunk.Props.Count; i++)
+                {
+                    MapProp prop = chunk.Props[i];
+                    if (!prop.HasCollision)
+                    {
+                        continue;
+                    }
+
+                    if (EntitySeparation.ResolveStaticAabbVsCircle(
+                        ref position,
+                        in localBox,
+                        prop.WorldPosition,
+                        prop.CollisionRadius,
+                        ref pushNormal))
+                    {
+                        collided = true;
+                    }
+                }
+            }
+        }
+
+        if (this.ResolveLandmarksAabb(ref position, in localBox, ref pushNormal))
+        {
+            collided = true;
+        }
+
+        if (_world.Buildings.ResolveAabbCollision(ref position, in localBox, _tileSize, out Vector2 buildingPushNormal))
+        {
+            collided = true;
+            pushNormal += buildingPushNormal;
+        }
+
+        if (pushNormal.LengthSquared() > 0.0001f)
+        {
+            pushNormal = Vector2.Normalize(pushNormal);
+        }
+
+        return collided;
+    }
+
+    private bool ResolveLandmarksAabb(ref Vector2 position, in AABB2D localBox, ref Vector2 pushNormal)
+    {
+        AABB2D worldBox = localBox.Offset(position);
+        int minSiteX = FloorDiv((int)MathF.Floor(worldBox.Min.X / _tileSize), PointOfInterestResolver.SiteSize);
+        int maxSiteX = FloorDiv((int)MathF.Floor(worldBox.Max.X / _tileSize), PointOfInterestResolver.SiteSize);
+        int minSiteY = FloorDiv((int)MathF.Floor(worldBox.Min.Y / _tileSize), PointOfInterestResolver.SiteSize);
+        int maxSiteY = FloorDiv((int)MathF.Floor(worldBox.Max.Y / _tileSize), PointOfInterestResolver.SiteSize);
+
+        bool collided = false;
+        Span<TileBox> boxes = stackalloc TileBox[LandmarkPiece.MaxColliders];
+
+        for (int sy = minSiteY; sy <= maxSiteY; sy++)
+        {
+            for (int sx = minSiteX; sx <= maxSiteX; sx++)
+            {
+                PointOfInterest site = _world.Generator.Landmarks.GetSite(sx, sy);
+                if (site.Type == PointOfInterestType.None)
+                {
+                    continue;
+                }
+
+                ReadOnlySpan<LandmarkPiece> pieces = _world.Generator.Landmarks.GetLayout(sx, sy).Pieces;
+                for (int i = 0; i < pieces.Length; i++)
+                {
+                    int n = pieces[i].GetColliders(boxes);
+                    for (int k = 0; k < n; k++)
+                    {
+                        TileBox b = boxes[k];
+                        AABB2D pieceBox = new(
+                            new Vector2(b.MinX * _tileSize, b.MinY * _tileSize),
+                            new Vector2(b.MaxX * _tileSize, b.MaxY * _tileSize));
+                        if (EntitySeparation.ResolveStaticAabb(ref position, in localBox, in pieceBox, ref pushNormal))
+                        {
+                            collided = true;
+                        }
+                    }
+                }
+            }
         }
 
         return collided;

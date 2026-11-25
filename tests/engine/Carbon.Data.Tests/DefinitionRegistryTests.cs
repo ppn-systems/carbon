@@ -46,6 +46,19 @@ public sealed partial class DefinitionRegistryTests
         missing.Should().Throw<KeyNotFoundException>();
     }
 
+    [Fact]
+    public void DefinitionRegistry_TryGetMissingAndEnumeration_WorkCleanly()
+    {
+        SampleDef[] items = [new SampleDef(1, "oak"), new SampleDef(2, "pine")];
+        DefinitionRegistry<uint, SampleDef> registry = new(items);
+
+        registry.TryGet(99, out SampleDef? none).Should().BeFalse();
+        none.Should().BeNull();
+        registry.All.Length.Should().Be(2);
+        registry.All[0].Id.Should().Be(1U);
+        registry.All[1].Code.Should().Be("pine");
+    }
+
     public sealed record SampleDef(uint Id, string Code) : IDataDefinition<uint>;
 
     [JsonSerializable(typeof(SampleDef[]))]

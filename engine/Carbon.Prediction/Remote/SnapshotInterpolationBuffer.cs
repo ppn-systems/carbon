@@ -3,6 +3,7 @@
 using System;
 using System.Numerics;
 using Carbon.Primitives.Buffers;
+using Carbon.Primitives.Math;
 
 namespace Carbon.Prediction.Remote;
 
@@ -75,7 +76,7 @@ public sealed class SnapshotInterpolationBuffer
                     renderTime,
                     Vector2.Lerp(a.Position, b.Position, t),
                     Vector2.Lerp(a.Velocity, b.Velocity, t),
-                    a.Rotation + ((b.Rotation - a.Rotation) * t));
+                    DeterministicMath.WrapAngle(a.Rotation + (DeterministicMath.WrapAngle(b.Rotation - a.Rotation) * t)));
             }
         }
 

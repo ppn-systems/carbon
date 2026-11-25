@@ -1,7 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
-using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
 using Carbon.Maps.Building;
@@ -67,9 +66,9 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     public (int X, int Y) SpawnTile => (_spawnTileX, _spawnTileY);
 
     /// <summary>
-    /// Gets the collection of currently resident active chunks.
+    /// Gets a zero-allocation read-only span of currently resident active chunks.
     /// </summary>
-    public ICollection<Chunk2D> ActiveChunks => _streamer.Active;
+    public ReadOnlySpan<Chunk2D> ActiveChunks => _streamer.Active;
 
     /// <summary>
     /// Gets the count of currently resident active chunks in memory.
@@ -113,9 +112,9 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     public Chunk2D GetOrCreateChunk(int chunkX, int chunkY) => _streamer.GetOrCreate(chunkX, chunkY);
 
     /// <summary>
-    /// Gets the recorded changes of every chunk that has been edited, loaded or not.
+    /// Gets a zero-allocation read-only span of recorded changes of every chunk that has been edited, loaded or not.
     /// </summary>
-    public ICollection<ChunkDelta> Deltas => _deltas.All;
+    public ReadOnlySpan<ChunkDelta> Deltas => _deltas.All;
 
     /// <summary>
     /// Gets the store of player-made changes.
@@ -160,7 +159,20 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     /// <param name="damage">Damage amount.</param>
     /// <param name="updated">The prop after damage.</param>
     /// <returns><c>true</c> when a prop exists on the tile.</returns>
-    public bool TryDamagePropAt(int worldTileX, int worldTileY, float damage, out MapProp updated)
+    public bool TryDamagePropAt(int worldTileX, int worldTileY, float damage, out MapProp updated) =>
+        this.TryDamagePropAt(worldTileX, worldTileY, damage, byte.MaxValue, out updated);
+
+    /// <summary>
+    /// Applies damage to the natural prop anchored on a world tile when <paramref name="toolHarvestTier"/> meets or
+    /// exceeds the prop's required harvest tier, recording edits into the chunk delta.
+    /// </summary>
+    /// <param name="worldTileX">World tile X.</param>
+    /// <param name="worldTileY">World tile Y.</param>
+    /// <param name="damage">Damage amount.</param>
+    /// <param name="toolHarvestTier">Harvest tier of the striking tool.</param>
+    /// <param name="updated">The prop after damage, or the unchanged prop if harvest tier is insufficient.</param>
+    /// <returns><c>true</c> when a prop exists and damage was applied; otherwise <c>false</c>.</returns>
+    public bool TryDamagePropAt(int worldTileX, int worldTileY, float damage, byte toolHarvestTier, out MapProp updated)
     {
         int cx = Chunk2D.ToChunkCoord(worldTileX);
         int cy = Chunk2D.ToChunkCoord(worldTileY);
@@ -178,6 +190,12 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
             }
 
             MapProp current = chunk.Props[index];
+            if (toolHarvestTier < current.Destructibility.HarvestTier)
+            {
+                updated = current;
+                return false;
+            }
+
             updated = current with { Destructibility = current.Destructibility.ApplyDamage(damage) };
             chunk.SetProp(index, updated);
             _deltas.GetOrAdd(cx, cy).SetPropState(lx, ly, updated.Destructibility);
@@ -323,6 +341,10 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     /// <inheritdoc/>
     public bool ResolveCircleCollision(ref Vector2 position, float radius, out Vector2 pushNormal) =>
         this.ResolveEntityCollision(ref position, radius, out pushNormal);
+
+    /// <inheritdoc/>
+    public bool ResolveAabbCollision(ref Vector2 position, in AABB2D localBox, out Vector2 pushNormal) =>
+        _collision.ResolveAabb(ref position, in localBox, out pushNormal);
 
     /// <inheritdoc/>
     public bool Raycast(in Ray2D ray, out RaycastHit2D hit) =>

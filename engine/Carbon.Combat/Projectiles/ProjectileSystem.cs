@@ -3,7 +3,9 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Combat.Components;
 using Carbon.Combat.Events;
+using Carbon.Combat.Stats;
 using Carbon.Physics.Shapes;
 using Carbon.Simulation.Clock;
 using Carbon.Simulation.ECS;
@@ -60,16 +62,29 @@ public sealed class ProjectileSystem : ISimulationSystem
                 {
                     if (hit.Entity.IsValid && entities.HasHealth(hit.Entity))
                     {
-                        ref HealthComponent health = ref entities.GetHealth(hit.Entity);
-                        bool wasDead = health.IsDead;
-                        float nextHp = MathF.Max(0f, health.Current - proj.Damage);
-                        health = new HealthComponent(nextHp, health.Max);
-                        world.MarkDirty(hit.Entity, EntityDirtyMask.Health);
-
-                        world.PublishEvent(new DamageEvent(proj.Owner, hit.Entity, proj.Damage, proj.IsCritical));
-                        if (!wasDead && health.IsDead)
+                        bool invulnerable = entities.TryGetComponent(hit.Entity, out CombatStateComponent combatState) &&
+                                            combatState.IsInvulnerable;
+                        if (!invulnerable)
                         {
-                            world.PublishEvent(new EntityKilledEvent(proj.Owner, hit.Entity));
+                            float effectiveDamage = proj.Damage;
+                            EntityAttachmentStore<StatSheet> statsStore = entities.GetAttachmentStore<StatSheet>();
+                            if (effectiveDamage > 0f && statsStore.TryGet(hit.Entity, out StatSheet? stats))
+                            {
+                                float defense = MathF.Max(0f, stats.GetValue(StatType.Defense));
+                                effectiveDamage *= 100f / (100f + defense);
+                            }
+
+                            ref HealthComponent health = ref entities.GetHealth(hit.Entity);
+                            bool wasDead = health.IsDead;
+                            float nextHp = MathF.Max(0f, health.Current - effectiveDamage);
+                            health = new HealthComponent(nextHp, health.Max);
+                            world.MarkDirty(hit.Entity, EntityDirtyMask.Health);
+
+                            world.PublishEvent(new DamageEvent(proj.Owner, hit.Entity, effectiveDamage, proj.IsCritical));
+                            if (!wasDead && health.IsDead)
+                            {
+                                world.PublishEvent(new EntityKilledEvent(proj.Owner, hit.Entity));
+                            }
                         }
                     }
 
