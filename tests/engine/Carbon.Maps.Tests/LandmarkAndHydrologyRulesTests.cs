@@ -55,6 +55,10 @@ public sealed class LandmarkAndHydrologyRulesTests
                         Assert.Equal(0, tile.HeightLevel);
                         Assert.InRange(river, 3f, 11f);
                         break;
+                    case PointOfInterestType.WorldTree:
+                        Assert.True(tile.HeightLevel <= 1);
+                        Assert.True(river > 8f, "A World Tree grows well away from rivers.");
+                        break;
                     case PointOfInterestType.None:
                     default:
                         break;
@@ -63,6 +67,25 @@ public sealed class LandmarkAndHydrologyRulesTests
         }
 
         Assert.True(villages > 0, "A 2000x2000 tile area should hold at least one river village.");
+    }
+
+    [Fact]
+    public void WorldTrees_AreRareButPresent()
+    {
+        ProceduralWorldGenerator generator = new(7UL);
+
+        // Density over a fixed 11 x 11 block of sites (~2,500 x 2,500 tiles).
+        int trees = 0;
+        for (int sy = -5; sy <= 5; sy++)
+        {
+            for (int sx = -5; sx <= 5; sx++)
+            {
+                trees += generator.Landmarks.GetSite(sx, sy).Type == PointOfInterestType.WorldTree ? 1 : 0;
+            }
+        }
+
+        Assert.True(trees > 0, "No World Tree in 121 sites.");
+        Assert.True(trees <= 121 / 10, $"World Trees should be rare: {trees} in 121 sites.");
     }
 
     [Fact]

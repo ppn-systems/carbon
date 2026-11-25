@@ -135,6 +135,16 @@ public sealed class LandmarkLayout
                     break;
                 }
 
+            case PointOfInterestType.WorldTree:
+                pieces.Add(new LandmarkPiece(LandmarkPieceKind.WorldTree, cx, cy + 1f, 96f * Px, (byte)(Hash(seed, 3) % 4)));
+                for (int i = 0; i < 6; i++)
+                {
+                    float a = (i * (MathF.Tau / 6f)) + 0.26f;
+                    pieces.Add(new LandmarkPiece(LandmarkPieceKind.StoneLantern, cx + (Cos(a) * 8.5f), cy + 1f + (Sin(a) * 7f), 1f, 1));
+                }
+
+                break;
+
             case PointOfInterestType.MountainShrine:
                 pieces.Add(new LandmarkPiece(LandmarkPieceKind.Altar, cx, cy - (24f * Px), 1f, 0));
                 pieces.Add(new LandmarkPiece(LandmarkPieceKind.ShrineGate, cx, cy + (r * 0.62f), 92f * Px, 0));
@@ -223,7 +233,7 @@ public sealed class LandmarkLayout
         PointOfInterestType.SnowVillage => LandmarkPiece.StyleSnow,
         PointOfInterestType.SwampVillage => LandmarkPiece.StyleSwamp,
         PointOfInterestType.None or PointOfInterestType.RiverVillage or PointOfInterestType.Harbor or
-        PointOfInterestType.MountainShrine or PointOfInterestType.LakesideCamp => LandmarkPiece.StyleTemperate,
+        PointOfInterestType.MountainShrine or PointOfInterestType.LakesideCamp or PointOfInterestType.WorldTree => LandmarkPiece.StyleTemperate,
         _ => LandmarkPiece.StyleTemperate,
     };
 

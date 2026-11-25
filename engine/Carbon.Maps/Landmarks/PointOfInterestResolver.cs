@@ -148,6 +148,12 @@ public sealed class PointOfInterestResolver
 
     private PointOfInterest Resolve(int siteX, int siteY)
     {
+        // About one site in forty may host a World Tree, if it has a quiet, flat, green spot for it.
+        if (SpatialHash.Hash(_seed ^ 0x77E5A1C3D9F0B246UL, siteX, siteY) % 40 == 0 && this.TryPlaceWorldTree(siteX, siteY, out PointOfInterest tree))
+        {
+            return tree;
+        }
+
         // About half of the sites are settled at all.
         if ((SpatialHash.Hash(_seed ^ 0x9A0C5E17D2B4F863UL, siteX, siteY) & 0xFF) >= 128)
         {
@@ -180,6 +186,11 @@ public sealed class PointOfInterestResolver
             }
         }
 
+        return this.FinishSite(siteX, siteY, best);
+    }
+
+    private PointOfInterest FinishSite(int siteX, int siteY, PointOfInterest best)
+    {
         // Only one mountain site in three keeps its shrine, so summits are not all crowned.
         if (best.Type == PointOfInterestType.MountainShrine &&
             (SpatialHash.Hash(_seed ^ 0x1F3D5B7997B5D3F1UL, siteX, siteY) % 3) != 0)
@@ -188,6 +199,36 @@ public sealed class PointOfInterestResolver
         }
 
         return best;
+    }
+
+    // A World Tree needs flat lowland or plateau in a green biome, well away from rivers; the candidate
+    // farthest from water wins.
+    private bool TryPlaceWorldTree(int siteX, int siteY, out PointOfInterest tree)
+    {
+        tree = default;
+        float best = 0f;
+        for (int i = 0; i < Candidates; i++)
+        {
+            ulong h = SpatialHash.Hash(_seed ^ 0x47C1E3A5B9D2F608UL, (siteX * Candidates) + i, siteY);
+            int x = (siteX * SiteSize) + SiteMargin + (int)(h % (SiteSize - (2 * SiteMargin)));
+            int y = (siteY * SiteSize) + SiteMargin + (int)((h >> 24) % (SiteSize - (2 * SiteMargin)));
+            MapTile tile = _sampleTile(x, y);
+            if (tile.IsSolid || tile.HeightLevel > 1 ||
+                tile.Biome is not (BiomeType.LushPlains or BiomeType.AncientForest or BiomeType.BlossomWoods or BiomeType.TropicalJungle))
+            {
+                continue;
+            }
+
+            float river = _riverDistance(x, y);
+            float score = MathF.Min(river, 30f);
+            if (river > 8f && score > best && this.IsFlat(x, y, tile.HeightLevel))
+            {
+                best = score;
+                tree = new PointOfInterest(PointOfInterestType.WorldTree, x, y, 14);
+            }
+        }
+
+        return tree.Type == PointOfInterestType.WorldTree;
     }
 
     private static (PointOfInterestType Type, float Score, int Radius) Score(in MapTile tile, float river, bool flat, bool nearSea)

@@ -28,4 +28,7 @@ public enum PointOfInterestType : byte
 
     /// <summary>Stilt-house village in a misty swamp.</summary>
     SwampVillage = 7,
+
+    /// <summary>A rare colossal World Tree in an old forest or meadow, ringed by rune stones.</summary>
+    WorldTree = 8,
 }

@@ -68,6 +68,10 @@ internal sealed class PointOfInterestRenderer
                 DrawShrinePlatform(batch, c, r * 0.62f);
                 break;
 
+            case PointOfInterestType.WorldTree:
+                DrawWorldTreeGround(batch, c + new Vector2(0f, _tileSize), r, time);
+                break;
+
             case PointOfInterestType.None:
             default:
                 break;
@@ -146,7 +150,18 @@ internal sealed class PointOfInterestRenderer
                 DrawShrineGate(batch, position, width);
                 break;
             case LandmarkPieceKind.StoneLantern:
-                DrawStoneLantern(batch, position, time);
+                if (piece.Variant == 1)
+                {
+                    DrawRuneStone(batch, position, time);
+                }
+                else
+                {
+                    DrawStoneLantern(batch, position, time);
+                }
+
+                break;
+            case LandmarkPieceKind.WorldTree:
+                DrawWorldTreeTrunk(batch, position, time);
                 break;
             case LandmarkPieceKind.Altar:
                 DrawAltar(batch, position, time);
@@ -705,6 +720,178 @@ internal sealed class PointOfInterestRenderer
         batch.FillRectangle(new RectangleF(topLeft.X, topLeft.Y, size, size), new ColorRgba(150, 104, 60));
         batch.DrawRectangle(new RectangleF(topLeft.X, topLeft.Y, size, size), new ColorRgba(100, 66, 36), 2f);
         batch.DrawLine(topLeft, topLeft + new Vector2(size, size), new ColorRgba(100, 66, 36), 2f);
+    }
+
+    // ── World Tree ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Draws the World Tree canopy above everything else (entities included). It fades when the player
+    /// walks beneath it, and carries animated light shafts, fireflies and drifting leaves.
+    /// </summary>
+    public void DrawWorldTreeCanopy(GeometryBatch batch, in PointOfInterest poi, float time, Vector2 playerWorld)
+    {
+        LandmarkLayout layout = this.GetLayout(poi);
+        foreach (LandmarkPiece p in layout.Pieces)
+        {
+            if (p.Kind != LandmarkPieceKind.WorldTree)
+            {
+                continue;
+            }
+
+            Vector2 foot = this.ToWorld(p);
+            // The crown sits high on the trunk, so the trunk and its roots stay visible beneath it.
+            Vector2 c = foot + new Vector2(0f, -300f);
+            float r = 210f;
+            bool under = MathF.Abs(playerWorld.X - c.X) < r && playerWorld.Y < foot.Y + 10f && playerWorld.Y > c.Y - r;
+            byte a = under ? (byte)110 : (byte)255;
+            float sway = MathF.Sin(time * 0.6f) * 2.5f;
+
+            // Massive layered canopy: dark underside, emerald body, glowing gold-green crown
+            batch.FillCircle(c + new Vector2(10f, 70f), r * 0.95f, new ColorRgba(10, 40, 24, (byte)(a * 0.7f)), 40);
+            for (int i = 0; i < 9; i++)
+            {
+                float ang = (i * (MathF.Tau / 9f)) + 0.3f;
+                Vector2 q = c + new Vector2((MathF.Cos(ang) * r * 0.62f) + sway, MathF.Sin(ang) * r * 0.42f);
+                batch.FillCircle(q, r * (0.42f + (i % 3 * 0.05f)), new ColorRgba(22, 101, 52, a), 28);
+            }
+
+            batch.FillCircle(c + new Vector2(sway, -10f), r * 0.75f, new ColorRgba(34, 139, 70, a), 36);
+            for (int i = 0; i < 6; i++)
+            {
+                float ang = (i * (MathF.Tau / 6f)) + 1.1f;
+                Vector2 q = c + new Vector2((MathF.Cos(ang) * r * 0.35f) + sway, (MathF.Sin(ang) * r * 0.25f) - 40f);
+                batch.FillCircle(q, r * 0.28f, new ColorRgba(74, 180, 90, a), 24);
+            }
+
+            batch.FillCircle(c + new Vector2(-40f + sway, -90f), r * 0.22f, new ColorRgba(190, 230, 120, a), 20);
+            batch.FillCircle(c + new Vector2(30f + sway, -70f), r * 0.14f, new ColorRgba(220, 245, 150, a), 16);
+
+            // Light shafts slanting through the leaves
+            for (int i = 0; i < 3; i++)
+            {
+                float pulse = 0.5f + (0.5f * MathF.Sin((time * 0.7f) + (i * 2.1f)));
+                float x = c.X - 120f + (i * 110f);
+                batch.FillTriangle(new Vector2(x, c.Y - 40f), new Vector2(x + 26f, c.Y - 40f), new Vector2(x + 70f, foot.Y + 30f), new ColorRgba(255, 245, 200, (byte)(18 + (pulse * 22f))));
+            }
+
+            // Fireflies wandering under the canopy
+            for (int i = 0; i < 18; i++)
+            {
+                float t = time * (0.25f + (AmbientAnimator.Hash01(7u, i) * 0.3f));
+                float fx = c.X + (MathF.Sin(t + (i * 1.7f)) * r * 0.85f);
+                float fy = foot.Y - 40f + (MathF.Cos((t * 1.3f) + i) * 70f);
+                float glow = 0.5f + (0.5f * MathF.Sin((time * 4f) + (i * 2.3f)));
+                batch.FillCircle(new Vector2(fx, fy), 6f, new ColorRgba(253, 230, 138, (byte)(40 * glow)), 10);
+                batch.FillCircle(new Vector2(fx, fy), 1.8f, new ColorRgba(255, 250, 200, (byte)(120 + (120 * glow))), 6);
+            }
+
+            // Leaves drifting down
+            for (int i = 0; i < 10; i++)
+            {
+                float phase = AmbientAnimator.Frac((time * 0.12f) + AmbientAnimator.Hash01(11u, i));
+                float lx = c.X - r + (AmbientAnimator.Hash01(13u, i) * r * 2f) + (MathF.Sin((time * 1.5f) + i) * 12f);
+                float ly = c.Y + (phase * 260f);
+                batch.FillRectangle(new RectangleF(lx, ly, 4f, 2.5f), new ColorRgba(120, 200, 90, (byte)(220f * (1f - phase))));
+            }
+        }
+    }
+
+    private static void DrawWorldTreeGround(GeometryBatch batch, Vector2 c, float r, float time)
+    {
+        // Moss clearing and a ring of flowers
+        batch.FillCircle(c, r * 0.95f, new ColorRgba(60, 110, 60, 120), 48);
+        batch.FillCircle(c, r * 0.7f, new ColorRgba(70, 130, 70, 140), 48);
+        for (int i = 0; i < 40; i++)
+        {
+            float a = i * (MathF.Tau / 40f);
+            float d = r * (0.62f + (AmbientAnimator.Hash01(3u, i) * 0.3f));
+            ColorRgba petal = (i % 3) switch
+            {
+                0 => new ColorRgba(253, 224, 71),
+                1 => new ColorRgba(244, 114, 182),
+                _ => new ColorRgba(255, 255, 255),
+            };
+            batch.FillCircle(c + new Vector2(MathF.Cos(a) * d, MathF.Sin(a) * d * 0.8f), 3f, petal, 6);
+        }
+
+        // Glowing roots radiating from the trunk, pulsing slowly
+        float pulse = 0.5f + (0.5f * MathF.Sin(time * 1.2f));
+        for (int i = 0; i < 7; i++)
+        {
+            float a = (i * (MathF.Tau / 7f)) + 0.2f;
+            Vector2 mid = c + new Vector2(MathF.Cos(a) * r * 0.2f, MathF.Sin(a) * r * 0.14f);
+            Vector2 end = c + new Vector2(MathF.Cos(a + 0.3f) * r * 0.36f, MathF.Sin(a + 0.3f) * r * 0.26f);
+            batch.DrawLine(c, mid, new ColorRgba(92, 64, 40), 14f);
+            batch.DrawLine(mid, end, new ColorRgba(92, 64, 40), 7f);
+            batch.DrawLine(end, end + ((end - mid) * 0.4f), new ColorRgba(92, 64, 40), 3f);
+            batch.DrawLine(mid, end, new ColorRgba(120, 255, 200, (byte)(50 + (pulse * 80f))), 2f);
+        }
+    }
+
+    private static void DrawWorldTreeTrunk(GeometryBatch batch, Vector2 foot, float time)
+    {
+        ColorRgba bark = new(96, 66, 44);
+        ColorRgba barkDark = new(66, 44, 30);
+        ColorRgba barkLight = new(132, 96, 64);
+        batch.FillRectangle(new RectangleF(foot.X - 50f, foot.Y - 10f, 120f, 26f), new ColorRgba(0, 0, 0, 60));
+
+        // Buttress roots flaring out at the base
+        batch.FillTriangle(foot + new Vector2(-48f, -60f), foot + new Vector2(-48f, 0f), foot + new Vector2(-90f, 6f), barkDark);
+        batch.FillTriangle(foot + new Vector2(48f, -60f), foot + new Vector2(48f, 0f), foot + new Vector2(92f, 6f), barkDark);
+        batch.FillTriangle(foot + new Vector2(-20f, -10f), foot + new Vector2(10f, 0f), foot + new Vector2(-30f, 14f), barkDark);
+
+        // Trunk tapering upward
+        Span<Vector2> trunk =
+        [
+            foot + new Vector2(-48f, 0f),
+            foot + new Vector2(48f, 0f),
+            foot + new Vector2(34f, -240f),
+            foot + new Vector2(-34f, -240f),
+        ];
+        batch.FillConvexPolygon(trunk, bark);
+
+        // Bark ridges and a hollow
+        for (int i = 0; i < 6; i++)
+        {
+            float x = -36f + (i * 14f);
+            batch.DrawLine(foot + new Vector2(x, -4f), foot + new Vector2(x * 0.72f, -236f), (i & 1) == 0 ? barkDark : barkLight, 2.5f);
+        }
+
+        batch.FillCircle(foot + new Vector2(-6f, -70f), 12f, new ColorRgba(30, 20, 14), 14);
+
+        // Glowing runes spiralling up the trunk
+        float pulse = 0.5f + (0.5f * MathF.Sin(time * 1.6f));
+        for (int i = 0; i < 7; i++)
+        {
+            Vector2 p = foot + new Vector2(MathF.Sin(i * 1.3f) * 18f, -30f - (i * 28f));
+            batch.FillRectangle(new RectangleF(p.X - 3f, p.Y - 5f, 6f, 10f), new ColorRgba(120, 255, 200, (byte)(90 + (pulse * 120f))));
+            batch.FillCircle(p, 9f, new ColorRgba(120, 255, 200, (byte)(20 + (pulse * 25f))), 10);
+        }
+    }
+
+    private static void DrawRuneStone(GeometryBatch batch, Vector2 foot, float time)
+    {
+        float glow = 0.5f + (0.5f * MathF.Sin((time * 1.8f) + foot.X));
+        batch.FillRectangle(new RectangleF(foot.X - 8f, foot.Y - 3f, 22f, 7f), new ColorRgba(0, 0, 0, 55));
+        Span<Vector2> stone =
+        [
+            foot + new Vector2(-10f, 0f),
+            foot + new Vector2(10f, 0f),
+            foot + new Vector2(8f, -34f),
+            foot + new Vector2(0f, -42f),
+            foot + new Vector2(-9f, -32f),
+        ];
+        batch.FillConvexPolygon(stone, new ColorRgba(110, 116, 126));
+        batch.FillRectangle(new RectangleF(foot.X - 10f, foot.Y - 34f, 4f, 34f), new ColorRgba(140, 146, 156));
+        // Rune: a diamond with a dot, glowing
+        ColorRgba rune = new(120, 255, 200, (byte)(120 + (glow * 120f)));
+        Vector2 rc = foot + new Vector2(0f, -22f);
+        batch.DrawLine(rc + new Vector2(0f, -8f), rc + new Vector2(5f, 0f), rune, 2f);
+        batch.DrawLine(rc + new Vector2(5f, 0f), rc + new Vector2(0f, 8f), rune, 2f);
+        batch.DrawLine(rc + new Vector2(0f, 8f), rc + new Vector2(-5f, 0f), rune, 2f);
+        batch.DrawLine(rc + new Vector2(-5f, 0f), rc + new Vector2(0f, -8f), rune, 2f);
+        batch.FillCircle(rc, 1.8f, rune, 6);
+        batch.FillCircle(foot + new Vector2(0f, -22f), 14f, new ColorRgba(120, 255, 200, (byte)(20 + (glow * 30f))), 12);
     }
 
     private static void DrawWell(GeometryBatch batch, Vector2 foot)

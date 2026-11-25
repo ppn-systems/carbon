@@ -33,6 +33,9 @@ public enum LandmarkPieceKind : byte
 
     /// <summary>Stack of barrels.</summary>
     Barrel = 8,
+
+    /// <summary>Trunk of a World Tree (its canopy is drawn above everything).</summary>
+    WorldTree = 9,
 }
 
 /// <summary>An axis-aligned collision box in world tile units.</summary>
@@ -98,7 +101,7 @@ public readonly record struct LandmarkPiece(LandmarkPieceKind Kind, float X, flo
         LandmarkPieceKind.House => HouseDepthTiles,
         LandmarkPieceKind.Warehouse => WarehouseDepthTiles,
         LandmarkPieceKind.Well or LandmarkPieceKind.Tent or LandmarkPieceKind.Campfire or LandmarkPieceKind.ShrineGate or
-        LandmarkPieceKind.StoneLantern or LandmarkPieceKind.Altar or LandmarkPieceKind.Barrel => 0f,
+        LandmarkPieceKind.StoneLantern or LandmarkPieceKind.Altar or LandmarkPieceKind.Barrel or LandmarkPieceKind.WorldTree => 0f,
         _ => 0f,
     };
 
@@ -174,6 +177,10 @@ public readonly record struct LandmarkPiece(LandmarkPieceKind Kind, float X, flo
                 boxes[0] = new TileBox(this.X - hw + (8f * Px), this.Y - (8f * Px), this.X - hw + (17f * Px), this.Y);
                 boxes[1] = new TileBox(this.X + hw - (17f * Px), this.Y - (8f * Px), this.X + hw - (8f * Px), this.Y);
                 return 2;
+            case LandmarkPieceKind.WorldTree:
+                // The massive trunk; the buttress roots around it can be walked over.
+                boxes[0] = new TileBox(this.X - (48f * Px), this.Y - (36f * Px), this.X + (48f * Px), this.Y);
+                return 1;
             case LandmarkPieceKind.StoneLantern:
                 boxes[0] = new TileBox(this.X - (8f * Px), this.Y - (8f * Px), this.X + (8f * Px), this.Y);
                 return 1;
