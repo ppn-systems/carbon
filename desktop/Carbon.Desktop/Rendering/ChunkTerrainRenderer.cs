@@ -13,6 +13,7 @@ using Carbon.Graphics.OpenGL.Textures;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
+using Carbon.Maps.Roads;
 using Carbon.Maps.Streaming;
 using Carbon.Maps.Topography;
 using Carbon.Maps.Transitions;
@@ -260,8 +261,90 @@ public sealed class ChunkTerrainRenderer : IDisposable
             }
         }
 
+        BakeRoads(_builder, chunk, world, tileSize);
+
         RectangleF bounds = new(cMinX, cMinY, cMaxX - cMinX, cMaxY - cMinY);
         return _builder.Build(_device, _whiteTexture, bounds);
+    }
+
+    private static readonly List<RoadLink> s_roadLinks = new();
+
+    // Dirt roads: overlapping discs stamped every half tile along each road curve, on the road tiles of this
+    // chunk only (water, cliffs and other levels stay as they are). A darker rim, a lighter worn centre and a
+    // few pebbles keep the path soft-edged and organic.
+    private static void BakeRoads(ChunkMeshBuilder builder, Chunk2D chunk, ChunkWorld2D world, float tileSize)
+    {
+        int x0 = chunk.ChunkX * Chunk2D.Size;
+        int y0 = chunk.ChunkY * Chunk2D.Size;
+        s_roadLinks.Clear();
+        world.Generator.Roads.Query(x0, y0, x0 + Chunk2D.Size - 1, y0 + Chunk2D.Size - 1, s_roadLinks);
+        if (s_roadLinks.Count == 0)
+        {
+            return;
+        }
+
+        for (int pass = 0; pass < 3; pass++)
+        {
+            foreach (RoadLink link in s_roadLinks)
+            {
+                float[] p = link.Points;
+                for (int i = 0; i + 3 < p.Length; i += 2)
+                {
+                    float ax = p[i];
+                    float ay = p[i + 1];
+                    float bx = p[i + 2];
+                    float by = p[i + 3];
+                    int steps = Math.Max(1, (int)(MathF.Sqrt(((bx - ax) * (bx - ax)) + ((by - ay) * (by - ay))) * 2f));
+                    for (int k = 0; k < steps; k++)
+                    {
+                        float t = k / (float)steps;
+                        float x = ax + ((bx - ax) * t);
+                        float y = ay + ((by - ay) * t);
+                        int lx = (int)MathF.Floor(x) - x0;
+                        int ly = (int)MathF.Floor(y) - y0;
+                        if (!chunk.IsRoad(lx, ly))
+                        {
+                            continue;
+                        }
+
+                        Vector2 c = new(x * tileSize, y * tileSize);
+                        int h = ((int)(x * 7.3f) * 73856093) ^ ((int)(y * 7.3f) * 19349663);
+                        switch (pass)
+                        {
+                            case 0:
+                                AddDisc(builder, c, tileSize * 0.86f, new ColorRgba(120, 92, 58, 255));
+                                break;
+                            case 1:
+                                AddDisc(builder, c, tileSize * 0.66f, new ColorRgba(168, 134, 90, 255));
+                                break;
+                            default:
+                                AddDisc(builder, c + new Vector2(0f, tileSize * 0.05f), tileSize * 0.34f, new ColorRgba(188, 156, 110, 255));
+                                if (((uint)h % 9u) == 0u)
+                                {
+                                    float ox = ((((uint)h >> 8) % 100u / 100f) - 0.5f) * tileSize;
+                                    float oy = ((((uint)h >> 16) % 100u / 100f) - 0.5f) * tileSize * 0.8f;
+                                    AddDisc(builder, c + new Vector2(ox, oy), tileSize * 0.07f, new ColorRgba(132, 120, 104, 255));
+                                }
+
+                                break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static void AddDisc(ChunkMeshBuilder builder, Vector2 c, float r, ColorRgba color)
+    {
+        const int Segments = 12;
+        Vector2 prev = c + new Vector2(r, 0f);
+        for (int i = 1; i <= Segments; i++)
+        {
+            float a = i * (MathF.Tau / Segments);
+            Vector2 next = c + new Vector2(MathF.Cos(a) * r, MathF.Sin(a) * r * 0.85f);
+            builder.AddTriangle(c, prev, next, color);
+            prev = next;
+        }
     }
 
     private static void BakeTileCoastlineTransitions(

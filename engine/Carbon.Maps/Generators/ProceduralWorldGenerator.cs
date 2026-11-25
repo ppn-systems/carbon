@@ -6,6 +6,8 @@ using Carbon.Maps.Data;
 using Carbon.Maps.Generators.Stages;
 using Carbon.Maps.Hydrology;
 using Carbon.Maps.Landmarks;
+using Carbon.Maps.Roads;
+using Carbon.Maps.Streaming;
 
 namespace Carbon.Maps.Generators;
 
@@ -21,7 +23,7 @@ public sealed class ProceduralWorldGenerator : ITileSource
     /// Bump it whenever any change alters generated output (the golden-hash test fails), so a client running
     /// a different generator refuses to play instead of silently desyncing.
     /// </summary>
-    public const ushort GeneratorVersion = 10;
+    public const ushort GeneratorVersion = 11;
 
     /// <summary>Width-scaled distance over which rivers and lakes lower and moisten the land around them.</summary>
     public const float RiparianReach = WorldConstants.RiparianReach;
@@ -38,6 +40,8 @@ public sealed class ProceduralWorldGenerator : ITileSource
     private readonly ulong _seed;
     private readonly RiverNetwork _rivers;
     private readonly PointOfInterestResolver _landmarks;
+    private readonly RoadNetwork _roads;
+    private readonly Lazy<(int X, int Y)> _spawn;
     private readonly ITileStage[] _tileStages;
     private readonly IChunkStage[] _chunkStages;
 
@@ -52,9 +56,16 @@ public sealed class ProceduralWorldGenerator : ITileSource
     /// <summary>Gets the resolver that places villages, harbours, camps and shrines.</summary>
     public PointOfInterestResolver Landmarks => _landmarks;
 
+    /// <summary>Gets the road network linking settlements.</summary>
+    public RoadNetwork Roads => _roads;
+
+    /// <summary>Gets the world spawn tile: the nearest dry LushPlains tile to the origin.</summary>
+    public (int X, int Y) SpawnTile => _spawn.Value;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="ProceduralWorldGenerator"/> class with the standard
-    /// pipeline: Elevation → Climate → Hydrology → Biome per tile, then Landmarks → Props per chunk.
+    /// pipeline: Elevation → Climate → Hydrology → Biome per tile, then Landmarks → Roads → Props → Spawn clearing
+    /// per chunk.
     /// </summary>
     /// <param name="seed">64-bit deterministic world seed (default frequency and tile size).</param>
     /// <param name="extraTileStages">Optional tile stages run after the biome stage (e.g. local overrides).</param>
@@ -88,6 +99,8 @@ public sealed class ProceduralWorldGenerator : ITileSource
         ElevationStage elevation = new(seed);
         _rivers = new RiverNetwork(seed, elevation);
         _landmarks = new PointOfInterestResolver(seed, this, _rivers);
+        _roads = new RoadNetwork(StageSeed.Derive(seed, "roads"), _landmarks, this);
+        _spawn = new Lazy<(int X, int Y)>(() => SpawnLocator.Locate(this, settings.Frequency));
 
         List<ITileStage> tileStages = [elevation, new ClimateStage(seed), new HydrologyStage(seed, _rivers), new BiomeStage(seed)];
         if (extraTileStages != null)
@@ -95,7 +108,13 @@ public sealed class ProceduralWorldGenerator : ITileSource
             tileStages.AddRange(extraTileStages);
         }
 
-        List<IChunkStage> chunkStages = [new LandmarkStage(_landmarks), new PropStage(seed, _landmarks)];
+        List<IChunkStage> chunkStages =
+        [
+            new LandmarkStage(_landmarks),
+            new RoadStage(_roads),
+            new PropStage(seed, _landmarks),
+            new SpawnClearingStage(_spawn),
+        ];
         if (extraChunkStages != null)
         {
             chunkStages.AddRange(extraChunkStages);

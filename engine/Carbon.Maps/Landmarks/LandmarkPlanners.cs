@@ -32,6 +32,7 @@ public static class LandmarkPlanners
         [PointOfInterestType.LakesideCamp] = new CampPlanner(),
         [PointOfInterestType.WorldTree] = new WorldTreePlanner(),
         [PointOfInterestType.MountainShrine] = new ShrinePlanner(),
+        [PointOfInterestType.MineEntrance] = new MinePlanner(),
     };
 
     /// <summary>Gets the planner of a kind of point of interest, or <c>null</c>.</summary>
@@ -262,5 +263,31 @@ internal sealed class ShrinePlanner : ILandmarkPlanner
         c.Add(new LandmarkPiece(LandmarkPieceKind.ShrineGate, cx, cy + (c.Radius * 0.62f), 92f * Px, 0));
         c.Add(new LandmarkPiece(LandmarkPieceKind.StoneLantern, cx - (58f * Px), cy + (18f * Px), 1f, 0));
         c.Add(new LandmarkPiece(LandmarkPieceKind.StoneLantern, cx + (58f * Px), cy + (18f * Px), 1f, 0));
+    }
+}
+
+/// <summary>A mine portal with an ore cart, a lantern and spoil heaps of rock.</summary>
+internal sealed class MinePlanner : ILandmarkPlanner
+{
+    public void Plan(LandmarkPlanContext c)
+    {
+        const float Px = LandmarkPlanContext.Px;
+        float cx = c.CenterX;
+        float cy = c.CenterY;
+        c.Add(new LandmarkPiece(LandmarkPieceKind.MineEntrance, cx, cy - (8f * Px), 112f * Px, (byte)(c.Hash(1) % 4)));
+        float side = c.Hash01(2) < 0.5f ? -1f : 1f;
+        float cartX = cx + (side * 78f * Px);
+        float cartY = cy + (30f * Px);
+        if (c.IsBuildable(cartX, cartY, 40f * Px))
+        {
+            c.Add(new LandmarkPiece(LandmarkPieceKind.OreCart, cartX, cartY, 1f, (byte)(c.Hash(3) % 3)));
+        }
+
+        float lampX = cx - (side * 70f * Px);
+        float lampY = cy + (20f * Px);
+        if (c.IsBuildable(lampX, lampY, 20f * Px))
+        {
+            c.Add(new LandmarkPiece(LandmarkPieceKind.StoneLantern, lampX, lampY, 1f, 0));
+        }
     }
 }

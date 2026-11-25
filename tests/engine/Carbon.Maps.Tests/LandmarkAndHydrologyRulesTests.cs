@@ -59,6 +59,10 @@ public sealed class LandmarkAndHydrologyRulesTests
                         Assert.True(tile.HeightLevel <= 1);
                         Assert.True(river > 8f, "A World Tree grows well away from rivers.");
                         break;
+                    case PointOfInterestType.MineEntrance:
+                        Assert.Equal(1, tile.HeightLevel);
+                        Assert.True(river > 6f, "A mine is dug away from rivers.");
+                        break;
                     case PointOfInterestType.None:
                     default:
                         break;

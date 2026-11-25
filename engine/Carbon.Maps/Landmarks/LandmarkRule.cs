@@ -105,6 +105,15 @@ public static class LandmarkRules
             RiverSlope = 0.1f,
         },
 
+        // Mine: a flat ledge on a plateau in rock country, away from rivers.
+        new(PointOfInterestType.MineEntrance, 6, 1.2f)
+        {
+            RequireFlat = true,
+            HeightLevel = 1,
+            RiverAbove = 6f,
+            Biomes = [BiomeType.AlpinePeaks, BiomeType.RedMesa, BiomeType.VolcanicAshland, BiomeType.FrozenTundra, BiomeType.Savanna],
+        },
+
         // Camp: dry shore right next to a lake or a large river.
         new(PointOfInterestType.LakesideCamp, 4, 1.5f) { RequireFlat = true, RiverAbove = 2.4f, RiverAtMost = 4.5f, ExcludedBiomes = [BiomeType.MistySwamp] },
 

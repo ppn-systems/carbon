@@ -93,7 +93,7 @@ public sealed class ChunkWorld2D
         _frequency = frequency ?? generator.Settings.Frequency;
         _streamer = new ChunkStreamer(generator, _deltas, _gate, _frequency, _tileSize);
 
-        (int sx, int sy) = SpawnLocator.Locate(generator, _frequency);
+        (int sx, int sy) = _frequency == generator.Settings.Frequency ? generator.SpawnTile : SpawnLocator.Locate(generator, _frequency);
         _spawnTileX = sx;
         _spawnTileY = sy;
         _spawnWorldPosition = new Vector2((sx * _tileSize) + (_tileSize * 0.5f), (sy * _tileSize) + (_tileSize * 0.5f));

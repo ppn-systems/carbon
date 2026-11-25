@@ -13,12 +13,12 @@ namespace Carbon.Maps.Tests;
 
 public sealed class GenerationPipelineTests
 {
-    // Pins tiles (all fields), props and landmarks over 81 scattered chunks plus 90k pure samples, taken
-    // before the stage pipeline and prop tables replaced the monolithic generator.
-    private const ulong GoldenWorldFingerprint = 66471468730424576UL;
+    // Pins tiles (all fields), props and landmarks over 81 scattered chunks plus 90k pure samples (generator
+    // version 11: roads, mines and the spawn clearing). Update it only together with GeneratorVersion.
+    private const ulong GoldenWorldFingerprint = 6592968123613380798UL;
 
     [Fact]
-    public void Generate_WorldFingerprint_MatchesPrePipelineOutput()
+    public void Generate_WorldFingerprint_IsStable()
     {
         ulong h = 1469598103934665603UL;
         void Mix(ulong v) => h = (h ^ v) * 1099511628211UL;

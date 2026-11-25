@@ -41,6 +41,9 @@ public sealed class Chunk2D
     // One bit per tile: set when at least one colliding prop occupies the tile (O(1) walkability lookups).
     private readonly ulong[] _solidPropMask = new ulong[Size * Size / 64];
 
+    // One bit per tile: set where a road crosses the tile.
+    private readonly ulong[] _roadMask = new ulong[Size * Size / 64];
+
     /// <summary>
     /// Gets the physical and decorative props positioned within this chunk.
     /// Mutate through <see cref="AddProp"/>, <see cref="SetProp"/> and <see cref="ClearProps"/> so the
@@ -117,6 +120,7 @@ public sealed class Chunk2D
         _props.Clear();
         _pointsOfInterest.Clear();
         Array.Clear(_solidPropMask);
+        Array.Clear(_roadMask);
         Array.Clear(_tiles, 0, _tiles.Length);
     }
 
@@ -209,6 +213,44 @@ public sealed class Chunk2D
 
         int bit = (localY * Size) + localX;
         return (_solidPropMask[bit >> 6] & (1UL << (bit & 63))) != 0;
+    }
+
+    /// <summary>Returns whether a road crosses the given local tile.</summary>
+    /// <param name="localX">Local tile X.</param>
+    /// <param name="localY">Local tile Y.</param>
+    /// <returns><c>true</c> when the tile is road.</returns>
+    public bool IsRoad(int localX, int localY)
+    {
+        if ((uint)localX >= Size || (uint)localY >= Size)
+        {
+            return false;
+        }
+
+        int bit = (localY * Size) + localX;
+        return (_roadMask[bit >> 6] & (1UL << (bit & 63))) != 0;
+    }
+
+    /// <summary>Marks a local tile as road.</summary>
+    /// <param name="localX">Local tile X.</param>
+    /// <param name="localY">Local tile Y.</param>
+    public void SetRoad(int localX, int localY)
+    {
+        int bit = (localY * Size) + localX;
+        _roadMask[bit >> 6] |= 1UL << (bit & 63);
+    }
+
+    /// <summary>Removes the props matching a predicate and refreshes the solid-prop index.</summary>
+    /// <param name="match">Returns <c>true</c> for props to remove.</param>
+    /// <returns>The number of props removed.</returns>
+    public int RemoveProps(Predicate<MapProp> match)
+    {
+        int removed = _props.RemoveAll(match);
+        if (removed > 0)
+        {
+            this.RebuildSolidPropMask();
+        }
+
+        return removed;
     }
 
     /// <summary>

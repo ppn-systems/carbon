@@ -38,7 +38,8 @@ public sealed class PropStage : IChunkStage
         for (int i = 0; i < tiles.Length; i++)
         {
             ref readonly TileSample s = ref tiles[i];
-            if (_landmarks.TryGetAt(s.WorldX, s.WorldY, out _))
+            // Settlement footprints and roads stay clear.
+            if (chunk.IsRoad(i % Chunk2D.Size, i / Chunk2D.Size) || _landmarks.TryGetAt(s.WorldX, s.WorldY, out _))
             {
                 continue;
             }
