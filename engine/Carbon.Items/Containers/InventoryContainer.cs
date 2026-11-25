@@ -1,8 +1,10 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using Carbon.Data.Registry;
+using Carbon.Items.Definitions;
 
-namespace Carbon.Simulation.Items;
+namespace Carbon.Items.Containers;
 
 /// <summary>
 /// Fixed-capacity slot-based inventory container storing unmanaged <see cref="ItemSlot"/> entries.
@@ -59,6 +61,27 @@ public sealed class InventoryContainer
         ArgumentOutOfRangeException.ThrowIfNegative(slotIndex);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(slotIndex, _slots.Length);
         this.SetSlotInternal(slotIndex, entry.IsEmpty ? ItemSlot.Empty : entry);
+    }
+
+    /// <summary>
+    /// Attempts to add <paramref name="incoming"/> using the max stack size configured on its <see cref="ItemArchetype"/>.
+    /// </summary>
+    /// <param name="incoming">Item entry to insert.</param>
+    /// <param name="registry">Item archetype registry.</param>
+    /// <returns>The unplaced remainder quantity (0 if the entire entry fit).</returns>
+    public int TryAdd(in ItemSlot incoming, DefinitionRegistry<uint, ItemArchetype> registry)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+
+        if (incoming.IsEmpty)
+        {
+            return 0;
+        }
+
+        int maxStack = registry.TryGet(incoming.ItemId, out ItemArchetype? archetype)
+            ? Math.Max(1, archetype.MaxStackSize)
+            : 99;
+        return this.TryAdd(in incoming, maxStack);
     }
 
     /// <summary>

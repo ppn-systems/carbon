@@ -1,6 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
-namespace Carbon.Simulation.Items;
+namespace Carbon.Items.Containers;
 
 /// <summary>
 /// Unmanaged value representation of an item entry inside an inventory or equipment slot.
