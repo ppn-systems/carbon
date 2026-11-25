@@ -9,8 +9,12 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\engine\Carbon.Data\Carbon.Data.csproj" />
+        <ProjectReference Include="..\..\engine\Carbon.Items\Carbon.Items.csproj" />
         <ProjectReference Include="..\..\graphics\Carbon.Graphics.Batching\Carbon.Graphics.Batching.csproj" />
+        <ProjectReference Include="..\..\graphics\Carbon.Graphics.Fonts\Carbon.Graphics.Fonts.csproj" />
         <ProjectReference Include="..\..\graphics\Carbon.Graphics.OpenGL\Carbon.Graphics.OpenGL.csproj" />
+        <ProjectReference Include="..\..\graphics\Carbon.Graphics.UI\Carbon.Graphics.UI.csproj" />
         <ProjectReference Include="..\..\graphics\Carbon.Graphics.Windowing\Carbon.Graphics.Windowing.csproj" />
         <ProjectReference Include="..\Carbon.Desktop.Abstractions\Carbon.Desktop.Abstractions.csproj" />
     </ItemGroup>

@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Carbon.Abstractions.World;
 using Carbon.Contracts.Common;
@@ -8,6 +9,7 @@ using Carbon.Contracts.Items;
 using Carbon.Contracts.Items.C2S;
 using Carbon.Contracts.Items.S2C;
 using Carbon.Handlers.Internal;
+using Carbon.Items.Containers;
 using Nalix.Abstractions.Injection;
 using Nalix.Abstractions.Networking.Packets;
 using Nalix.Abstractions.Security;
@@ -30,17 +32,22 @@ public static partial class ItemHandlers
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (s_world.TryGetSessionByConnection(context.Connection.ConnectionId, out ConnectedPlayerSession? session) && session is not null)
+        List<(ushort SlotIndex, ItemSlot Slot)> snapshot = [];
+        if (s_world.GetInventorySnapshot(context.Connection.ConnectionId, snapshot))
         {
-            using PacketScope<InventorySlotItem> lease = PacketFactory<InventorySlotItem>.Acquire();
-            InventorySlotItem starterTool = lease.Value;
-            starterTool.IsEndOfStream = false;
-            starterTool.IsTerminator = false;
-            starterTool.SlotIndex = session.SelectedHotbarSlot;
-            starterTool.ItemId = 1;
-            starterTool.Count = 1;
-            starterTool.Durability = 100f;
-            await context.Sender.ReplyAsync(starterTool).ConfigureAwait(false);
+            for (int i = 0; i < snapshot.Count; i++)
+            {
+                (ushort slotIndex, ItemSlot slot) = snapshot[i];
+                using PacketScope<InventorySlotItem> lease = PacketFactory<InventorySlotItem>.Acquire();
+                InventorySlotItem pkt = lease.Value;
+                pkt.IsEndOfStream = false;
+                pkt.IsTerminator = false;
+                pkt.SlotIndex = slotIndex;
+                pkt.ItemId = (ushort)slot.ItemId;
+                pkt.Count = slot.Quantity;
+                pkt.Durability = slot.Durability;
+                await context.Sender.ReplyAsync(pkt).ConfigureAwait(false);
+            }
         }
 
         using PacketScope<InventorySlotItem> termLease = PacketFactory<InventorySlotItem>.Acquire();
@@ -61,21 +68,17 @@ public static partial class ItemHandlers
         return PacketReplyHelper.SendMutationAsync(context, status, ItemOpCode.SelectHotbarSlot);
     }
 
-    /// <summary>Opcode <c>0x4003</c>. Validates a crafting recipe request.</summary>
+    /// <summary>Opcode <c>0x4003</c>. Validates and executes a crafting recipe request.</summary>
     [PacketOpcode(ItemOpCode.CraftItem)]
     [PacketPermission(PermissionLevel.USER)]
     public static ValueTask HandleCraftItemAsync(IPacketContext<CraftItem> context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (!s_world.TryGetSessionByConnection(context.Connection.ConnectionId, out _))
-        {
-            return PacketReplyHelper.SendMutationAsync(context, OpStatus.Forbidden, ItemOpCode.CraftItem);
-        }
-
-        OpStatus status = context.Packet.RecipeId > 0 && context.Packet.Quantity > 0
-            ? OpStatus.NotFound
-            : OpStatus.Invalid;
+        OpStatus status = s_world.TryCraftRecipe(
+            context.Connection.ConnectionId,
+            context.Packet.RecipeId,
+            context.Packet.Quantity);
         return PacketReplyHelper.SendMutationAsync(context, status, ItemOpCode.CraftItem);
     }
 }

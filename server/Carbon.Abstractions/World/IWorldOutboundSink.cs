@@ -77,4 +77,10 @@ public interface IWorldOutboundSink
 
     /// <summary>Broadcasts a constructed structure update to connections in range.</summary>
     void SendStructureChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, byte structureType, float durability, byte doorState, byte connectivity);
+
+    /// <summary>Broadcasts a combat damage event to connections observing the combatants.</summary>
+    void SendCombatHit(ReadOnlySpan<ulong> recipientConnectionIds, ulong attackerNetworkId, ulong defenderNetworkId, float damage, float remainingHealth, bool isCritical, bool isKilled);
+
+    /// <summary>Sends a single updated inventory slot to the owning player connection.</summary>
+    void SendInventorySlotChanged(ulong connectionId, ushort slotIndex, uint itemId, int quantity, float durability);
 }

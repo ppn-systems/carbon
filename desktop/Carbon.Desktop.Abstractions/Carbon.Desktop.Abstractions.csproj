@@ -12,6 +12,8 @@
         <ProjectReference Include="..\..\contracts\Carbon.Contracts.Identity\Carbon.Contracts.Identity.csproj" />
         <ProjectReference Include="..\..\contracts\Carbon.Contracts.Items\Carbon.Contracts.Items.csproj" />
         <ProjectReference Include="..\..\contracts\Carbon.Contracts.Maps\Carbon.Contracts.Maps.csproj" />
+        <ProjectReference Include="..\..\engine\Carbon.Data\Carbon.Data.csproj" />
+        <ProjectReference Include="..\..\engine\Carbon.Items\Carbon.Items.csproj" />
         <ProjectReference Include="..\..\engine\Carbon.Maps\Carbon.Maps.csproj" />
         <ProjectReference Include="..\..\engine\Carbon.Simulation\Carbon.Simulation.csproj" />
     </ItemGroup>

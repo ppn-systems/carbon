@@ -46,9 +46,12 @@ public static partial class EntityHandlers
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        OpStatus status = s_world.TryGetSessionByConnection(context.Connection.ConnectionId, out _)
-            ? OpStatus.Ok
-            : OpStatus.Forbidden;
+        EntityAttackInput req = context.Packet;
+        OpStatus status = s_world.EnqueueAttackInput(
+            context.Connection.ConnectionId,
+            req.TargetNetworkId,
+            new Vector2(req.AimX, req.AimY),
+            req.AbilitySlot);
 
         return PacketReplyHelper.SendMutationAsync(context, status, EntityOpCode.AttackInput);
     }

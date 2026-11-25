@@ -14,14 +14,21 @@ using Carbon.Contracts.Entities.S2C;
 using Carbon.Contracts.Identity;
 using Carbon.Contracts.Identity.C2S;
 using Carbon.Contracts.Identity.S2C;
+using Carbon.Contracts.Items.C2S;
+using Carbon.Contracts.Items.S2C;
 using Carbon.Contracts.Maps.C2S;
 using Carbon.Contracts.Maps.S2C;
 using Carbon.Desktop.Abstractions;
+using Carbon.Items.Catalog;
+using Carbon.Items.Containers;
+using Carbon.Items.Crafting;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Networking;
 using Carbon.Maps.Streaming;
+using Carbon.Prediction.Client;
+using Carbon.Prediction.Remote;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.World;
@@ -36,19 +43,24 @@ using Nalix.SDK.Transport.Extensions;
 namespace Carbon.Desktop.Networking;
 
 /// <summary>
-/// Live WebSocket multiplayer session built on <c>Nalix.SDK</c> (<c>14.4.0</c>), supporting authentication,
-/// character enter-world, chunk delta streaming, local client prediction, server reconciliation, and AoI interpolation.
+/// Live WebSocket multiplayer session built on <c>Nalix.SDK</c> (<c>14.4.0</c>), featuring client prediction
+/// rewind/replay via <see cref="ClientPredictionReconciler"/>, <see cref="VisualErrorSmoother"/> smoothing,
+/// <see cref="SnapshotInterpolationBuffer"/> remote entity smoothing, inventory sync, and live combat push handling.
 /// </summary>
 public sealed class NalixMultiplayerSession : IClientWorldSession
 {
     private const float WalkSpeed = 250f;
     private const float SprintSpeed = 450f;
+    private const double InterpolationDelaySeconds = 0.065;
 
     private readonly DesktopClientOptions _options;
     private readonly List<IDisposable> _subscriptions = [];
     private readonly ConcurrentDictionary<ulong, RemoteEntityState> _remoteEntities = new();
     private readonly ConcurrentDictionary<long, uint> _requestedChunks = new();
     private readonly List<RemoteEntityView> _remoteViewSnapshot = new(64);
+    private readonly List<ClientCombatEvent> _combatEvents = new(32);
+    private readonly InventoryContainer _inventory = new(27);
+    private readonly ClientPredictionReconciler _reconciler = new(128);
     private readonly Lock _worldGate = new();
 
     private WebSocketSession? _session;
@@ -58,9 +70,19 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
     private ulong _localNetworkId;
     private ulong _worldSeed;
     private float _tileSize = 32f;
+    private ushort _tickRate = 30;
     private uint _clientTick;
+    private double _latestServerTime;
     private Vector2 _pendingServerReconcile;
+    private Vector2 _pendingServerVelocity;
+    private uint _pendingServerAckTick;
     private bool _hasServerReconcile;
+    private Vector2 _visualOffset;
+    private byte _selectedSlot;
+    private Vector2 _lastAttackDir = Vector2.UnitX;
+    private float _attackSwingTimer;
+    private float _localHealth = 100f;
+    private float _localMaxHealth = 100f;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="NalixMultiplayerSession"/> class.
@@ -89,8 +111,26 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
     /// <inheritdoc/>
     public Vector2 LocalPlayerInterpolatedPosition =>
         _simulation is not null && _simulation.Entities.IsAlive(_localPlayer)
-            ? _simulation.GetInterpolatedPosition(_localPlayer)
+            ? _simulation.GetInterpolatedPosition(_localPlayer) + _visualOffset
             : Vector2.Zero;
+
+    /// <inheritdoc/>
+    public float LocalPlayerHealth => _localHealth;
+
+    /// <inheritdoc/>
+    public float LocalPlayerMaxHealth => _localMaxHealth;
+
+    /// <inheritdoc/>
+    public byte SelectedHotbarSlot => _selectedSlot;
+
+    /// <inheritdoc/>
+    public InventoryContainer Inventory => _inventory;
+
+    /// <inheritdoc/>
+    public Vector2 LastAttackDirection => _lastAttackDir;
+
+    /// <inheritdoc/>
+    public float AttackSwingTimer => _attackSwingTimer;
 
     /// <inheritdoc/>
     public IReadOnlyList<RemoteEntityView> RemoteEntities
@@ -98,15 +138,22 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
         get
         {
             _remoteViewSnapshot.Clear();
+            double renderTime = Math.Max(0.0, _latestServerTime - InterpolationDelaySeconds);
             foreach (KeyValuePair<ulong, RemoteEntityState> kvp in _remoteEntities)
             {
                 RemoteEntityState s = kvp.Value;
+                TransformSnapshot sampled = s.Interpolation.Count > 0
+                    ? s.Interpolation.Sample(renderTime, maxExtrapolationSeconds: 0.1f)
+                    : new TransformSnapshot(0.0, s.Position, s.Velocity);
+                Vector2 viewPos = s.Interpolation.Count > 0 ? sampled.Position : s.Position;
+                Vector2 viewVel = s.Interpolation.Count > 0 ? sampled.Velocity : s.Velocity;
+
                 _remoteViewSnapshot.Add(new RemoteEntityView(
                     s.NetworkId,
                     s.Kind,
                     s.Name,
-                    s.Position,
-                    s.Velocity,
+                    viewPos,
+                    viewVel,
                     s.Radius,
                     s.CurrentHealth,
                     s.MaxHealth));
@@ -147,10 +194,12 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
             });
         _session = ws;
 
-        // Always subscribe before connecting so early pushes are never dropped.
+        // Subscribe to server push streams before connecting so early frames are never lost.
         _subscriptions.Add(ws.On<EntitySpawn>(this.OnEntitySpawn));
         _subscriptions.Add(ws.On<EntityDespawn>(this.OnEntityDespawn));
         _subscriptions.Add(ws.On<EntityDeltaBatch>(this.OnEntityDeltaBatch));
+        _subscriptions.Add(ws.On<CombatHit>(this.OnCombatHit));
+        _subscriptions.Add(ws.On<InventorySlotChanged>(this.OnInventorySlotChanged));
         _subscriptions.Add(ws.On<MapPropChanged>(this.OnMapPropChanged));
         _subscriptions.Add(ws.On<MapStructureChanged>(this.OnMapStructureChanged));
 
@@ -214,6 +263,7 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
 
         _worldSeed = enter.WorldSeed;
         _tileSize = enter.TileSize > 0f ? enter.TileSize : 32f;
+        _tickRate = enter.TickRate > 0 ? enter.TickRate : (ushort)30;
         _localNetworkId = enter.PlayerNetworkId;
 
         ProceduralWorldGenerator generator = new(_worldSeed);
@@ -221,7 +271,7 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
         Vector2 initialPos = new(enter.PositionX, enter.PositionY);
         _chunkWorld.UpdateAroundPosition(initialPos, chunkRadius: 4, evictionRadius: 8);
 
-        _simulation = new WorldSimulation(enter.TickRate > 0 ? enter.TickRate : 30, _tileSize)
+        _simulation = new WorldSimulation(_tickRate, _tileSize)
         {
             WorldPhysics = _chunkWorld,
         };
@@ -229,6 +279,7 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
         _localPlayer = _simulation.SpawnNetworkEntity(_localNetworkId, initialPos, radius: 7f, ownerSessionId: 1);
         _simulation.Entities.SetVelocity(_localPlayer, new Velocity2D(0f, 0f, 5f));
 
+        await this.FetchInventorySnapshotAsync(ws, reqOpts, ct).ConfigureAwait(false);
         this.RequestMissingChunkDeltasAround(initialPos);
     }
 
@@ -240,34 +291,63 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
             return;
         }
 
+        if (_attackSwingTimer > 0f)
+        {
+            _attackSwingTimer = MathF.Max(0f, _attackSwingTimer - (float)dt);
+        }
+
         lock (_worldGate)
         {
+            _visualOffset = VisualErrorSmoother.Decay(_visualOffset, (float)dt);
+
             if (_hasServerReconcile && _simulation!.Entities.IsAlive(_localPlayer))
             {
-                ref Transform2D tr = ref _simulation.Entities.GetTransform(_localPlayer);
-                float driftSq = Vector2.DistanceSquared(tr.Position, _pendingServerReconcile);
-                if (driftSq > (_tileSize * _tileSize))
+                ReconciliationResult result = _reconciler.Reconcile(
+                    _pendingServerAckTick,
+                    _pendingServerReconcile,
+                    _pendingServerVelocity,
+                    _simulation,
+                    _localPlayer,
+                    errorThreshold: 2.0f);
+
+                if (result.WasCorrected)
                 {
-                    _simulation.EnqueueCommand(SimulationCommand.Teleport(_localPlayer, _pendingServerReconcile));
+                    _simulation.Entities.GetTransform(_localPlayer).Position = result.CorrectedPosition;
+                    _visualOffset += result.VisualErrorOffset;
                 }
-                else if (driftSq > 4f)
+                else
                 {
-                    tr.Position = Vector2.Lerp(tr.Position, _pendingServerReconcile, 0.2f);
+                    ref Transform2D tr = ref _simulation.Entities.GetTransform(_localPlayer);
+                    float driftSq = Vector2.DistanceSquared(tr.Position, _pendingServerReconcile);
+                    if (driftSq > (_tileSize * _tileSize * 4f))
+                    {
+                        _simulation.EnqueueCommand(SimulationCommand.Teleport(_localPlayer, _pendingServerReconcile));
+                    }
                 }
 
                 _hasServerReconcile = false;
             }
 
+            float speed = sprint ? SprintSpeed : WalkSpeed;
             if (moveDir.LengthSquared() > 0.001f)
             {
-                float speed = sprint ? SprintSpeed : WalkSpeed;
                 _simulation!.EnqueueCommand(SimulationCommand.MoveInput(_localPlayer, moveDir, speed, _clientTick));
             }
 
             int ticks = _simulation!.Update(dt);
             if (ticks > 0)
             {
-                _clientTick += (uint)ticks;
+                Vector2 postPos = _simulation.Entities.GetTransform(_localPlayer).Position;
+                Vector2 postVel = _simulation.Entities.HasVelocity(_localPlayer)
+                    ? _simulation.Entities.GetVelocity(_localPlayer).Linear
+                    : Vector2.Zero;
+
+                for (int t = 0; t < ticks; t++)
+                {
+                    _clientTick++;
+                    _reconciler.RecordPredictedTick(new PredictedTickRecord(_clientTick, moveDir, speed, postPos, postVel));
+                }
+
                 if (_session is { IsConnected: true })
                 {
                     this.SendMoveInputAsync(moveDir, sprint);
@@ -277,6 +357,79 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
             Vector2 pos = _simulation.Entities.GetTransform(_localPlayer).Position;
             _chunkWorld!.UpdateAroundPosition(pos, chunkRadius: 4, evictionRadius: 7);
             this.RequestMissingChunkDeltasAround(pos);
+        }
+    }
+
+    /// <inheritdoc/>
+    public void SelectHotbarSlot(byte slotIndex)
+    {
+        if (slotIndex >= 9)
+        {
+            return;
+        }
+
+        _selectedSlot = slotIndex;
+        if (_session is { IsConnected: true })
+        {
+            _ = this.SendPooledAsync<SelectHotbarSlot>(p => p.SlotIndex = slotIndex);
+        }
+    }
+
+    /// <inheritdoc/>
+    public void TriggerPrimaryAction(Vector2 aimWorldPosition)
+    {
+        if (!this.IsReady || _session is not { IsConnected: true })
+        {
+            return;
+        }
+
+        Vector2 pos = this.LocalPlayerInterpolatedPosition;
+        Vector2 delta = aimWorldPosition - pos;
+        _lastAttackDir = delta.LengthSquared() > 1e-4f ? Vector2.Normalize(delta) : Vector2.UnitX;
+        _attackSwingTimer = 0.22f;
+
+        uint tick = _clientTick;
+        byte slot = _selectedSlot;
+        _ = this.SendPooledAsync<EntityAttackInput>(p =>
+        {
+            p.ClientTick = tick;
+            p.TargetNetworkId = 0UL;
+            p.AimX = aimWorldPosition.X;
+            p.AimY = aimWorldPosition.Y;
+            p.AbilitySlot = slot;
+        });
+    }
+
+    /// <inheritdoc/>
+    public bool TryCraftRecipe(ushort recipeId)
+    {
+        if (!this.IsReady || _session is not { IsConnected: true } ||
+            !StarterGameCatalog.Recipes.TryGet(recipeId, out CraftingRecipe? recipe) ||
+            !RecipeMatcher.CanCraft(_inventory, recipe))
+        {
+            return false;
+        }
+
+        _ = this.SendPooledAsync<CraftItem>(p =>
+        {
+            p.RecipeId = recipeId;
+            p.Quantity = 1;
+        });
+        return true;
+    }
+
+    /// <inheritdoc/>
+    public void DrainCombatEvents(List<ClientCombatEvent> destination)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        lock (_worldGate)
+        {
+            for (int i = 0; i < _combatEvents.Count; i++)
+            {
+                destination.Add(_combatEvents[i]);
+            }
+
+            _combatEvents.Clear();
         }
     }
 
@@ -468,6 +621,24 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
         throw new InvalidOperationException("Character list remained empty after CharacterCreate succeeded.");
     }
 
+    private async Task FetchInventorySnapshotAsync(WebSocketSession ws, RequestOptions reqOpts, CancellationToken ct)
+    {
+        _inventory.Clear();
+        using PacketScope<InventoryRequest> lease = PacketFactory<InventoryRequest>.Acquire();
+        await foreach (InventorySlotItem item in ws.StreamAsync<InventorySlotItem>(
+            lease.Value,
+            reqOpts,
+            ct).ConfigureAwait(false))
+        {
+            if (item.IsTerminator || item.SlotIndex >= _inventory.Capacity)
+            {
+                continue;
+            }
+
+            _inventory.SetSlot(item.SlotIndex, new ItemSlot(item.ItemId, item.Count, 0UL, item.Durability));
+        }
+    }
+
     private void SendMoveInputAsync(Vector2 moveDir, bool sprint)
     {
         uint tick = _clientTick;
@@ -569,10 +740,12 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
     {
         if (pkt.NetworkId == _localNetworkId)
         {
+            _localHealth = pkt.CurrentHealth;
+            _localMaxHealth = pkt.MaxHealth > 0f ? pkt.MaxHealth : 100f;
             return;
         }
 
-        _remoteEntities[pkt.NetworkId] = new RemoteEntityState
+        RemoteEntityState state = new()
         {
             NetworkId = pkt.NetworkId,
             Kind = pkt.Kind,
@@ -583,6 +756,11 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
             CurrentHealth = pkt.CurrentHealth,
             MaxHealth = pkt.MaxHealth,
         };
+        _ = state.Interpolation.PushSnapshot(new TransformSnapshot(
+            _latestServerTime,
+            state.Position,
+            state.Velocity));
+        _remoteEntities[pkt.NetworkId] = state;
     }
 
     private void OnEntityDespawn(EntityDespawn pkt) =>
@@ -590,9 +768,13 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
 
     private void OnEntityDeltaBatch(EntityDeltaBatch pkt)
     {
+        double snapshotTime = pkt.ServerTick / (double)_tickRate;
         lock (_worldGate)
         {
+            _latestServerTime = Math.Max(_latestServerTime, snapshotTime);
+            _pendingServerAckTick = pkt.LastProcessedClientTick;
             _pendingServerReconcile = new Vector2(pkt.SelfPositionX, pkt.SelfPositionY);
+            _pendingServerVelocity = Vector2.Zero;
             _hasServerReconcile = true;
         }
 
@@ -602,6 +784,11 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
             ulong netId = pkt.NetworkIds[i];
             if (netId == _localNetworkId)
             {
+                if (i < pkt.CurrentHealths.Length)
+                {
+                    _localHealth = pkt.CurrentHealths[i];
+                }
+
                 continue;
             }
 
@@ -621,8 +808,44 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
                 {
                     state.CurrentHealth = pkt.CurrentHealths[i];
                 }
+
+                _ = state.Interpolation.PushSnapshot(new TransformSnapshot(snapshotTime, state.Position, state.Velocity));
             }
         }
+    }
+
+    private void OnCombatHit(CombatHit pkt)
+    {
+        Vector2 worldPos = this.LocalPlayerInterpolatedPosition;
+        if (pkt.DefenderNetworkId == _localNetworkId)
+        {
+            _localHealth = pkt.RemainingHealth;
+        }
+        else if (_remoteEntities.TryGetValue(pkt.DefenderNetworkId, out RemoteEntityState? state))
+        {
+            state.CurrentHealth = pkt.RemainingHealth;
+            worldPos = state.Position;
+        }
+
+        lock (_worldGate)
+        {
+            bool isHeal = pkt.Damage < 0f;
+            float mag = MathF.Abs(pkt.Damage);
+            _combatEvents.Add(new ClientCombatEvent(worldPos, mag, pkt.IsCritical, isHeal));
+        }
+    }
+
+    private void OnInventorySlotChanged(InventorySlotChanged pkt)
+    {
+        if (pkt.SlotIndex >= _inventory.Capacity)
+        {
+            return;
+        }
+
+        ItemSlot next = pkt.ItemId == 0 || pkt.Count <= 0
+            ? ItemSlot.Empty
+            : new ItemSlot(pkt.ItemId, pkt.Count, 0UL, pkt.Durability);
+        _inventory.SetSlot(pkt.SlotIndex, in next);
     }
 
     private void OnMapPropChanged(MapPropChanged pkt)
@@ -663,5 +886,6 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
         public float Radius { get; init; }
         public float CurrentHealth { get; set; }
         public float MaxHealth { get; init; }
+        public SnapshotInterpolationBuffer Interpolation { get; } = new(16);
     }
 }

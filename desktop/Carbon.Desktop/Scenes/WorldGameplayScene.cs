@@ -24,7 +24,8 @@ namespace Carbon.Desktop.Scenes;
 
 /// <summary>
 /// Primary playable 2.5D MMORPG world scene orchestrating input polling, <see cref="IClientWorldSession"/> updates,
-/// <see cref="CameraRig2D"/> tracking, <see cref="WorldSceneRenderer"/> passes, HUD telemetry, and capture hooks.
+/// <see cref="CameraRig2D"/> tracking, <see cref="WorldSceneRenderer"/> passes, <see cref="HudOverlayRenderer"/> HUD/Minimap,
+/// and capture hooks.
 /// </summary>
 public sealed class WorldGameplayScene : GameScene
 {
@@ -34,6 +35,7 @@ public sealed class WorldGameplayScene : GameScene
 
     private CameraRig2D? _cameraRig;
     private WorldSceneRenderer? _worldRenderer;
+    private HudOverlayRenderer? _hudRenderer;
     private BiomeType _lastBiome = (BiomeType)255;
     private byte _lastHeight = 255;
     private StructureType _lastStructure = StructureType.None;
@@ -63,6 +65,7 @@ public sealed class WorldGameplayScene : GameScene
 
         _cameraRig = new CameraRig2D(_camera, _options.MacroView);
         _worldRenderer = new WorldSceneRenderer(context.Device, _options);
+        _hudRenderer = new HudOverlayRenderer(context.Device);
         _worldRenderer.EnsureWorldBound(_session);
 
         Vector2 focusPos = _options.FocusTileX.HasValue && _options.FocusTileY.HasValue
@@ -78,7 +81,7 @@ public sealed class WorldGameplayScene : GameScene
         ArgumentNullException.ThrowIfNull(context);
         base.Update(context, dt);
 
-        if (!_session.IsReady || _cameraRig is null || _worldRenderer is null)
+        if (!_session.IsReady || _cameraRig is null || _worldRenderer is null || _hudRenderer is null)
         {
             return;
         }
@@ -99,6 +102,35 @@ public sealed class WorldGameplayScene : GameScene
             _worldRenderer.InvalidateAll();
             _cameraRig.SnapTo(_session.LocalPlayerInterpolatedPosition);
             return;
+        }
+
+        if (input.ToggleHudPressed)
+        {
+            _hudRenderer.Visible = !_hudRenderer.Visible;
+        }
+
+        if (input.ToggleCraftPressed)
+        {
+            _hudRenderer.ShowCraftingPanel = !_hudRenderer.ShowCraftingPanel;
+        }
+
+        if (input.NumberSlotPressed is byte slotIdx)
+        {
+            if (_hudRenderer.ShowCraftingPanel && slotIdx < 6)
+            {
+                _ = _session.TryCraftRecipe((ushort)(slotIdx + 1));
+            }
+            else
+            {
+                _session.SelectHotbarSlot(slotIdx);
+            }
+        }
+
+        if (input.AttackPressed)
+        {
+            Vector2 mouseScreen = input.MouseScreenPosition;
+            Vector2 aimWorld = _camera.ScreenToWorld(in mouseScreen);
+            _session.TriggerPrimaryAction(aimWorld);
         }
 
         if (input.ToggleDebugPressed)
@@ -157,7 +189,7 @@ public sealed class WorldGameplayScene : GameScene
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(spriteBatch);
 
-        if (_cameraRig is null || _worldRenderer is null || !_session.IsReady)
+        if (_cameraRig is null || _worldRenderer is null || _hudRenderer is null || !_session.IsReady)
         {
             return;
         }
@@ -169,7 +201,17 @@ public sealed class WorldGameplayScene : GameScene
             context.WindowWidth,
             context.WindowHeight,
             frameDt,
-            _options.TimeScale);
+            _options.TimeScale,
+            spriteBatch,
+            _hudRenderer.Font);
+
+        _hudRenderer.Render(
+            _session,
+            spriteBatch,
+            context.WindowWidth,
+            context.WindowHeight,
+            frameDt,
+            _worldRenderer.TimeOfDayHour);
 
         base.Render(context, spriteBatch, dt);
 
@@ -207,6 +249,8 @@ public sealed class WorldGameplayScene : GameScene
     {
         if (disposing)
         {
+            _hudRenderer?.Dispose();
+            _hudRenderer = null;
             _worldRenderer?.Dispose();
             _worldRenderer = null;
         }
@@ -251,7 +295,7 @@ public sealed class WorldGameplayScene : GameScene
         string roofText = chunkWorld.Buildings.IsRoofedAt(ptx, pty) ? " [Roofed Room]" : string.Empty;
         string netText = _session.IsOnlineMultiplayer
             ? $" | Online Peers: {_session.RemoteEntities.Count}"
-            : " | Offline";
+            : $" | Actors: {_session.RemoteEntities.Count}";
         window.Title = $"Carbon MMORPG | Biome: {currentTile.Biome} | Alt: Lvl {currentTile.HeightLevel} | Nav: {walkability}{rampText}{roofText}{netText}";
 
         int chunkX = Chunk2D.ToChunkCoord(ptx);

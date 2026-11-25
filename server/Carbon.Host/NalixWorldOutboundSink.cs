@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Carbon.Abstractions.World;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Entities.S2C;
+using Carbon.Contracts.Items.S2C;
 using Carbon.Contracts.Maps.S2C;
 using Microsoft.Extensions.Logging;
 using Nalix.Abstractions.Networking;
@@ -141,6 +142,27 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
             {
                 _ = DispatchStructureChangedAsync(conn, tileX, tileY, structureType, durability, doorState, connectivity, _logger);
             }
+        }
+    }
+
+    /// <inheritdoc/>
+    public void SendCombatHit(ReadOnlySpan<ulong> recipientConnectionIds, ulong attackerNetworkId, ulong defenderNetworkId, float damage, float remainingHealth, bool isCritical, bool isKilled)
+    {
+        for (int i = 0; i < recipientConnectionIds.Length; i++)
+        {
+            if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
+            {
+                _ = DispatchCombatHitAsync(conn, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, _logger);
+            }
+        }
+    }
+
+    /// <inheritdoc/>
+    public void SendInventorySlotChanged(ulong connectionId, ushort slotIndex, uint itemId, int quantity, float durability)
+    {
+        if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
+        {
+            _ = DispatchInventorySlotChangedAsync(conn, slotIndex, itemId, quantity, durability, _logger);
         }
     }
 
@@ -314,6 +336,62 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogSendFailure(logger, nameof(MapStructureChanged), ex);
+        }
+    }
+
+    private static async Task DispatchCombatHitAsync(
+        IConnection connection,
+        ulong attackerNetworkId,
+        ulong defenderNetworkId,
+        float damage,
+        float remainingHealth,
+        bool isCritical,
+        bool isKilled,
+        ILogger logger)
+    {
+        try
+        {
+            using PacketScope<CombatHit> lease = PacketFactory<CombatHit>.Acquire();
+            CombatHit pkt = lease.Value;
+            pkt.AttackerNetworkId = attackerNetworkId;
+            pkt.DefenderNetworkId = defenderNetworkId;
+            pkt.Damage = damage;
+            pkt.RemainingHealth = remainingHealth;
+            pkt.IsCritical = isCritical;
+            pkt.IsKilled = isKilled;
+
+            bool encrypt = connection.Algorithm != CipherSuiteType.None;
+            await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogSendFailure(logger, nameof(CombatHit), ex);
+        }
+    }
+
+    private static async Task DispatchInventorySlotChangedAsync(
+        IConnection connection,
+        ushort slotIndex,
+        uint itemId,
+        int quantity,
+        float durability,
+        ILogger logger)
+    {
+        try
+        {
+            using PacketScope<InventorySlotChanged> lease = PacketFactory<InventorySlotChanged>.Acquire();
+            InventorySlotChanged pkt = lease.Value;
+            pkt.SlotIndex = slotIndex;
+            pkt.ItemId = (ushort)itemId;
+            pkt.Count = quantity;
+            pkt.Durability = durability;
+
+            bool encrypt = connection.Algorithm != CipherSuiteType.None;
+            await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogSendFailure(logger, nameof(InventorySlotChanged), ex);
         }
     }
 

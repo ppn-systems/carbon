@@ -1,10 +1,15 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System;
+using System.Collections.Generic;
 using System.Numerics;
 using System.Reflection;
 using System.Threading.Tasks;
 using Carbon.Desktop.Abstractions;
 using Carbon.Desktop.Networking;
+using Carbon.Items.Catalog;
+using Carbon.Items.Containers;
+using Carbon.Maps.Building;
 using FluentAssertions;
 using Xunit;
 
@@ -33,7 +38,7 @@ public sealed class DesktopClientSessionTests
     }
 
     [Fact]
-    public async Task OfflineWorldSession_ShouldSimulateMovementHousePlacementDoorToggleAndReseed()
+    public async Task OfflineWorldSession_ShouldSimulateMovementHousePlacementDoorToggleCraftingCombatAndReseed()
     {
         DesktopClientOptions options = new()
         {
@@ -48,6 +53,8 @@ public sealed class DesktopClientSessionTests
             await session.InitializeAsync().ConfigureAwait(true);
             session.IsReady.Should().BeTrue();
             session.IsOnlineMultiplayer.Should().BeFalse();
+            session.Inventory.GetSlot(0).ItemId.Should().Be(StarterGameCatalog.WoodAxe);
+            session.Inventory.GetSlot(2).ItemId.Should().Be(StarterGameCatalog.IronSword);
 
             Vector2 startPos = session.LocalPlayerInterpolatedPosition;
             for (int i = 0; i < 15; i++)
@@ -57,11 +64,22 @@ public sealed class DesktopClientSessionTests
 
             session.LocalPlayerInterpolatedPosition.Should().NotBe(startPos);
 
+            session.SelectHotbarSlot(2);
+            session.SelectedHotbarSlot.Should().Be(2);
+            session.TriggerPrimaryAction(session.LocalPlayerInterpolatedPosition + new Vector2(32f, 0f));
+            session.AttackSwingTimer.Should().BeGreaterThan(0f);
+
+            _ = session.Inventory.TryAdd(new ItemSlot(StarterGameCatalog.WoodLog, 6), 99);
+            session.TryCraftRecipe(1).Should().BeTrue();
+            List<ClientCombatEvent> feedback = [];
+            session.DrainCombatEvents(feedback);
+            feedback.Should().NotBeEmpty();
+
             session.TryPlaceTestHouse(out _).Should().BeTrue();
             Vector2 afterHousePos = session.LocalPlayerInterpolatedPosition;
-            int doorTileX = (int)System.MathF.Floor(afterHousePos.X / options.TileSize) + 1;
-            int doorTileY = (int)System.MathF.Floor(afterHousePos.Y / options.TileSize);
-            session.ChunkWorld.Buildings.ForcePlaceStructure(doorTileX, doorTileY, Carbon.Maps.Building.StructureType.WoodDoor);
+            int doorTileX = (int)MathF.Floor(afterHousePos.X / options.TileSize) + 1;
+            int doorTileY = (int)MathF.Floor(afterHousePos.Y / options.TileSize);
+            session.ChunkWorld.Buildings.ForcePlaceStructure(doorTileX, doorTileY, StructureType.WoodDoor);
             session.TryToggleNearbyDoor(out _).Should().BeTrue();
 
             session.ReseedOffline(9001UL);

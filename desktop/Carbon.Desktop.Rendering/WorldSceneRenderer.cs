@@ -7,8 +7,11 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions;
+using Carbon.Graphics.Batching;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
+using Carbon.Graphics.Batching.Sprites;
+using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Graphics.OpenGL.Abstractions;
 using Carbon.Graphics.OpenGL.States;
 using Carbon.Maps.Biomes;
@@ -39,12 +42,17 @@ public sealed class WorldSceneRenderer : IDisposable
     private readonly List<GroundRenderItem> _groundSortList = new(2048);
     private readonly List<CanopyRenderItem> _canopySortList = new(1024);
     private readonly List<PointOfInterest> _visibleWorldTrees = new(4);
+    private readonly List<ClientCombatEvent> _combatEventScratch = new(16);
+    private readonly List<FloatingCombatText> _floatingTexts = new(32);
 
     private PointOfInterestResolver? _landmarks;
     private PointOfInterestRenderer? _poiRenderer;
     private ulong _boundSeed;
     private float _animTime;
     private bool _disposed;
+
+    /// <summary>Gets the current in-game hour [0..24) from the atmospheric cycle.</summary>
+    public float TimeOfDayHour => _atmosphere.Hour;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WorldSceneRenderer"/> class.
@@ -109,7 +117,7 @@ public sealed class WorldSceneRenderer : IDisposable
         _terrainRenderer.EvictDistant(centerChunkX, centerChunkY, evictionRadius);
 
     /// <summary>
-    /// Executes the full multi-pass 2.5D frame render pipeline.
+    /// Executes the full multi-pass 2.5D frame render pipeline including melee slash VFX, nameplates, and floating combat numbers.
     /// </summary>
     public void Render(
         IClientWorldSession session,
@@ -117,7 +125,9 @@ public sealed class WorldSceneRenderer : IDisposable
         int viewportWidth,
         int viewportHeight,
         float frameDt,
-        float timeScale)
+        float timeScale,
+        SpriteBatch? spriteBatch = null,
+        BitmapFont? font = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(cameraRig);
@@ -131,6 +141,42 @@ public sealed class WorldSceneRenderer : IDisposable
         _animTime += frameDt;
         _atmosphere.Update(frameDt * timeScale);
         _lights.Clear();
+
+        _combatEventScratch.Clear();
+        session.DrainCombatEvents(_combatEventScratch);
+        for (int i = 0; i < _combatEventScratch.Count; i++)
+        {
+            ClientCombatEvent ev = _combatEventScratch[i];
+            string text = ev.Label ?? (ev.IsCritical
+                ? $"-{(int)MathF.Ceiling(ev.Amount)}!"
+                : ev.IsHeal
+                    ? $"+{(int)MathF.Ceiling(ev.Amount)}"
+                    : $"-{(int)MathF.Ceiling(ev.Amount)}");
+            ColorRgba color = ev.IsHeal
+                ? new ColorRgba(74, 222, 128, 255)
+                : ev.IsCritical
+                    ? new ColorRgba(250, 204, 21, 255)
+                    : new ColorRgba(248, 113, 113, 255);
+            _floatingTexts.Add(new FloatingCombatText(ev.WorldPosition + new Vector2(0f, -14f), text, color, ev.IsCritical ? 1.35f : 1.05f, 0.95f));
+        }
+
+        for (int i = _floatingTexts.Count - 1; i >= 0; i--)
+        {
+            FloatingCombatText ft = _floatingTexts[i];
+            float nextLife = ft.RemainingSeconds - frameDt;
+            if (nextLife <= 0f)
+            {
+                _floatingTexts.RemoveAt(i);
+            }
+            else
+            {
+                _floatingTexts[i] = ft with
+                {
+                    Position = ft.Position + new Vector2(0f, -26f * frameDt),
+                    RemainingSeconds = nextLife,
+                };
+            }
+        }
 
         _device.SetViewport(0, 0, (uint)viewportWidth, (uint)viewportHeight);
         _device.SetClearColor(new Vector4(0.04f, 0.05f, 0.08f, 1.0f));
@@ -319,6 +365,11 @@ public sealed class WorldSceneRenderer : IDisposable
             _poiRenderer?.DrawWorldTreeCanopy(_geometryBatch, in tree, _animTime, playerPos);
         }
 
+        if (session.AttackSwingTimer > 0f)
+        {
+            DrawMeleeSlashArc(_geometryBatch, playerPos, session.LastAttackDirection, session.AttackSwingTimer / 0.22f);
+        }
+
         _geometryBatch.End();
 
         // 5. Atmosphere multiply ambient, additive point lights, sky weather overlay, and interior darkening
@@ -343,6 +394,43 @@ public sealed class WorldSceneRenderer : IDisposable
         }
 
         _geometryBatch.End();
+
+        // 6. World-space outlined entity nameplates & floating combat text
+        if (spriteBatch is not null && font is not null)
+        {
+            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: viewProj);
+            ColorRgba outline = new(10, 12, 18, 255);
+            const float NameplateRadiusSq = 340f * 340f;
+
+            for (int i = 0; i < remotes.Count; i++)
+            {
+                RemoteEntityView r = remotes[i];
+                if (string.IsNullOrEmpty(r.Name) || Vector2.DistanceSquared(playerPos, r.Position) > NameplateRadiusSq)
+                {
+                    continue;
+                }
+
+                ColorRgba labelColor = r.Kind == EntityKind.Monster
+                    ? new ColorRgba(252, 165, 165, 255)
+                    : r.Kind == EntityKind.Npc
+                        ? new ColorRgba(253, 224, 71, 255)
+                        : new ColorRgba(110, 231, 183, 255);
+                Vector2 labelPos = new(r.Position.X - (r.Name.Length * 3f), r.Position.Y - r.Radius - 20f);
+                spriteBatch.DrawOutlinedString(font, r.Name, labelPos, labelColor, outline, 1, 1f);
+            }
+
+            for (int i = 0; i < _floatingTexts.Count; i++)
+            {
+                FloatingCombatText ft = _floatingTexts[i];
+                byte alpha = (byte)(Math.Clamp(ft.RemainingSeconds / 0.95f, 0f, 1f) * 255f);
+                ColorRgba tint = new(ft.Color.R, ft.Color.G, ft.Color.B, alpha);
+                ColorRgba fadeOutline = new(10, 12, 18, alpha);
+                Vector2 pos = new(ft.Position.X - (ft.Text.Length * 3f * ft.Scale), ft.Position.Y);
+                spriteBatch.DrawOutlinedString(font, ft.Text, pos, tint, fadeOutline, 1, ft.Scale);
+            }
+
+            spriteBatch.End();
+        }
     }
 
     /// <inheritdoc/>
@@ -479,6 +567,43 @@ public sealed class WorldSceneRenderer : IDisposable
         batch.FillRectangle(new RectangleF(left, topY, 6f, bottom - topY), edge);
         batch.FillRectangle(new RectangleF(right - 6f, topY, 6f, bottom - topY), edge);
     }
+
+    private static void DrawMeleeSlashArc(GeometryBatch batch, Vector2 origin, Vector2 direction, float lifeFraction)
+    {
+        Vector2 dir = direction.LengthSquared() > 1e-4f ? Vector2.Normalize(direction) : Vector2.UnitX;
+        float baseAngle = MathF.Atan2(dir.Y, dir.X);
+        float progress = 1f - lifeFraction;
+        float arcSpan = 1.6f;
+        float startAngle = baseAngle - (arcSpan * 0.5f);
+        byte alpha = (byte)(Math.Clamp(lifeFraction, 0f, 1f) * 230f);
+        ColorRgba slashColor = new(248, 250, 252, alpha);
+        ColorRgba coreColor = new(56, 189, 248, alpha);
+        const float reach = 42f;
+
+        Vector2 prevOuter = origin + (new Vector2(MathF.Cos(startAngle), MathF.Sin(startAngle)) * reach);
+        const int segments = 10;
+        for (int i = 1; i <= segments; i++)
+        {
+            float t = i / (float)segments;
+            if (t > progress + 0.35f)
+            {
+                break;
+            }
+
+            float angle = startAngle + (arcSpan * t);
+            Vector2 nextOuter = origin + (new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * (reach + (MathF.Sin(t * MathF.PI) * 14f)));
+            batch.DrawLine(prevOuter, nextOuter, slashColor, 3.5f);
+            batch.DrawLine(origin + ((nextOuter - origin) * 0.65f), nextOuter, coreColor, 2f);
+            prevOuter = nextOuter;
+        }
+    }
+
+    private readonly record struct FloatingCombatText(
+        Vector2 Position,
+        string Text,
+        ColorRgba Color,
+        float Scale,
+        float RemainingSeconds);
 
     private enum GroundItemKind : byte
     {

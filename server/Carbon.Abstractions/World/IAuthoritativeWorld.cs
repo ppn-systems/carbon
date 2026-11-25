@@ -1,11 +1,13 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Maps.S2C;
+using Carbon.Items.Containers;
 using Carbon.Maps.Building;
 
 namespace Carbon.Abstractions.World;
@@ -124,6 +126,21 @@ public interface IAuthoritativeWorld
     /// <paramref name="knownRevision"/>.
     /// </summary>
     bool TryCreateChunkDeltaPacket(int chunkX, int chunkY, uint knownRevision, out MapChunkDelta? packet);
+
+    /// <summary>
+    /// Enqueues a client combat swing or consumable action onto the next fixed tick.
+    /// </summary>
+    OpStatus EnqueueAttackInput(ulong connectionId, ulong targetNetworkId, Vector2 aimWorldPosition, byte abilitySlot);
+
+    /// <summary>
+    /// Copies occupied inventory slots for the session bound to <paramref name="connectionId"/>.
+    /// </summary>
+    bool GetInventorySnapshot(ulong connectionId, List<(ushort SlotIndex, ItemSlot Slot)> output);
+
+    /// <summary>
+    /// Validates and executes a crafting recipe request on the player's authoritative inventory.
+    /// </summary>
+    OpStatus TryCraftRecipe(ulong connectionId, ushort recipeId, ushort quantity);
 
     /// <summary>
     /// Advances the authoritative simulation by one fixed tick and dispatches AoI snapshots.

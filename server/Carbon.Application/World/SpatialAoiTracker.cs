@@ -12,17 +12,17 @@ namespace Carbon.Application.World;
 
 /// <summary>
 /// Tracks Area of Interest (AoI) visibility sets per connected session and computes entered/exited/visible
-/// entity slices using reusable scratch buffers so tick synchronization stays allocation-free.
+/// entity slices using reusable scratch buffers so tick synchronization stays allocation-free and $O(1)$ per lookup.
 /// </summary>
 public sealed class SpatialAoiTracker
 {
-    private const int ScratchCapacity = 256;
+    private const int InitialScratchCapacity = 256;
 
     private readonly Dictionary<ulong, HashSet<ulong>> _visibleByConnection = new();
-    private readonly int[] _broadphaseBuffer = new int[ScratchCapacity];
-    private readonly List<ulong> _currentIds = new(ScratchCapacity);
+    private readonly HashSet<ulong> _currentIds = new(InitialScratchCapacity);
     private readonly List<ulong> _exitedIds = new(64);
     private readonly float _viewRadius;
+    private int[] _broadphaseBuffer = new int[InitialScratchCapacity];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SpatialAoiTracker"/> class.
@@ -90,6 +90,11 @@ public sealed class SpatialAoiTracker
         CellCoord centerCell = simulation.SpatialGrid.WorldToCell(observerPosition);
         int cellRadius = Math.Max(1, (int)MathF.Ceiling(_viewRadius / simulation.SpatialGrid.CellSize));
         simulation.SpatialGrid.QueryCellRadius(in centerCell, cellRadius, _broadphaseBuffer, out int hits);
+        if (hits >= _broadphaseBuffer.Length && _broadphaseBuffer.Length < 4096)
+        {
+            _broadphaseBuffer = new int[_broadphaseBuffer.Length * 2];
+            simulation.SpatialGrid.QueryCellRadius(in centerCell, cellRadius, _broadphaseBuffer, out hits);
+        }
 
         float radiusSq = _viewRadius * _viewRadius;
         for (int i = 0; i < hits; i++)
@@ -109,7 +114,7 @@ public sealed class SpatialAoiTracker
                 continue;
             }
 
-            _currentIds.Add(identity.NetworkId);
+            _ = _currentIds.Add(identity.NetworkId);
             if (known.Add(identity.NetworkId))
             {
                 enteredIds.Add(identity.NetworkId);

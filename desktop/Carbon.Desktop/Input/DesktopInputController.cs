@@ -9,22 +9,17 @@ using Silk.NET.Input;
 namespace Carbon.Desktop.Input;
 
 /// <summary>
-/// Per-frame snapshot of decoded player movement, zoom, world interaction, and tool inputs.
+/// Per-frame snapshot of decoded player movement, combat, hotbar/crafting, zoom, world interaction, and tool inputs.
 /// </summary>
-/// <param name="MoveDirection">Normalized 2D movement vector.</param>
-/// <param name="Sprint">Whether sprint is held.</param>
-/// <param name="ZoomMultiplier">Optional continuous zoom step multiplier.</param>
-/// <param name="HarvestPressed">Whether harvest interaction was triggered this frame.</param>
-/// <param name="ToggleDoorPressed">Whether door toggle was triggered this frame.</param>
-/// <param name="PlaceHousePressed">Whether starter house placement was triggered this frame.</param>
-/// <param name="ToggleDebugPressed">Whether solid debug overlay toggle was triggered this frame.</param>
-/// <param name="ReseedPressed">Whether offline map reseed was triggered this frame.</param>
-/// <param name="ScreenshotPressed">Whether manual screenshot capture was triggered this frame.</param>
-/// <param name="ExitPressed">Whether exit key was pressed.</param>
 internal readonly record struct DesktopInputFrame(
     Vector2 MoveDirection,
     bool Sprint,
     float? ZoomMultiplier,
+    bool AttackPressed,
+    Vector2 MouseScreenPosition,
+    byte? NumberSlotPressed,
+    bool ToggleCraftPressed,
+    bool ToggleHudPressed,
     bool HarvestPressed,
     bool ToggleDoorPressed,
     bool PlaceHousePressed,
@@ -43,6 +38,7 @@ internal static class DesktopInputController
         ArgumentNullException.ThrowIfNull(input);
 
         KeyboardSnapshot keyboard = input.Keyboard;
+        MouseSnapshot mouse = input.Mouse;
 
         Vector2 moveDir = Vector2.Zero;
         if (keyboard.IsKeyDown(Key.W) || keyboard.IsKeyDown(Key.Up))
@@ -75,10 +71,17 @@ internal static class DesktopInputController
             zoomMultiplier = 1.015f;
         }
 
+        byte? numberSlot = PollNumberKey(keyboard);
+
         return new DesktopInputFrame(
             MoveDirection: moveDir,
             Sprint: keyboard.IsKeyDown(Key.ShiftLeft) || keyboard.IsKeyDown(Key.ShiftRight),
             ZoomMultiplier: zoomMultiplier,
+            AttackPressed: keyboard.IsKeyPressed(Key.Space) || mouse.IsButtonPressed(MouseButton.Left),
+            MouseScreenPosition: mouse.Position,
+            NumberSlotPressed: numberSlot,
+            ToggleCraftPressed: keyboard.IsKeyPressed(Key.C),
+            ToggleHudPressed: keyboard.IsKeyPressed(Key.Tab),
             HarvestPressed: keyboard.IsKeyPressed(Key.F),
             ToggleDoorPressed: keyboard.IsKeyPressed(Key.G),
             PlaceHousePressed: keyboard.IsKeyPressed(Key.H),
@@ -86,5 +89,55 @@ internal static class DesktopInputController
             ReseedPressed: keyboard.IsKeyPressed(Key.R),
             ScreenshotPressed: keyboard.IsKeyPressed(Key.F12),
             ExitPressed: keyboard.IsKeyDown(Key.Escape));
+    }
+
+    private static byte? PollNumberKey(in KeyboardSnapshot keyboard)
+    {
+        if (keyboard.IsKeyPressed(Key.Number1))
+        {
+            return 0;
+        }
+
+        if (keyboard.IsKeyPressed(Key.Number2))
+        {
+            return 1;
+        }
+
+        if (keyboard.IsKeyPressed(Key.Number3))
+        {
+            return 2;
+        }
+
+        if (keyboard.IsKeyPressed(Key.Number4))
+        {
+            return 3;
+        }
+
+        if (keyboard.IsKeyPressed(Key.Number5))
+        {
+            return 4;
+        }
+
+        if (keyboard.IsKeyPressed(Key.Number6))
+        {
+            return 5;
+        }
+
+        if (keyboard.IsKeyPressed(Key.Number7))
+        {
+            return 6;
+        }
+
+        if (keyboard.IsKeyPressed(Key.Number8))
+        {
+            return 7;
+        }
+
+        if (keyboard.IsKeyPressed(Key.Number9))
+        {
+            return 8;
+        }
+
+        return null;
     }
 }
