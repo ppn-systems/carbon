@@ -152,6 +152,10 @@ internal sealed class RiverNetwork : IRiverDistanceSource
         int by0 = FloorDiv(gy0, BlockCells);
         int bx1 = FloorDiv(gx0 + g - 1, BlockCells);
         int by1 = FloorDiv(gy0 + g - 1, BlockCells);
+
+        // Blocks are independent pure samples: build the missing ones on all cores first.
+        int bw = bx1 - bx0 + 1;
+        _ = Parallel.For(0, bw * (by1 - by0 + 1), i => this.GetBlock(bx0 + (i % bw), by0 + (i / bw)));
         for (int by = by0; by <= by1; by++)
         {
             for (int bx = bx0; bx <= bx1; bx++)
@@ -414,6 +418,23 @@ internal sealed class RiverNetwork : IRiverDistanceSource
         return field;
     }
 
+    private static bool TouchesLand(bool[] done, int c, int g)
+    {
+        int cx = c % g;
+        int cy = c / g;
+        for (int i = 0; i < s_d8.Length; i++)
+        {
+            int nx = cx + s_d8[i].Dx;
+            int ny = cy + s_d8[i].Dy;
+            if (nx >= 0 && ny >= 0 && nx < g && ny < g && !done[(ny * g) + nx])
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     // Priority-flood (Barnes et al. 2014, with epsilon): every cell's water level becomes the lowest level
     // from which water can still drain to the sea or out of the grid.
     private static float[] Fill(float[] relief, int g)
@@ -429,6 +450,15 @@ internal sealed class RiverNetwork : IRiverDistanceSource
             {
                 filled[c] = relief[c];
                 done[c] = true;
+            }
+        }
+
+        // Seed the flood with the boundary of the open water only: a sea cell whose neighbours are all sea
+        // or grid edge would pop without touching anything, and open ocean is most of a coastal grid.
+        for (int c = 0; c < relief.Length; c++)
+        {
+            if (done[c] && TouchesLand(done, c, g))
+            {
                 open.Enqueue(c, relief[c]);
             }
         }
