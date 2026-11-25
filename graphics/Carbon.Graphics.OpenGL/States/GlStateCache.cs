@@ -88,6 +88,9 @@ public sealed class GlStateCache
         {
             _currentVao = vao;
             _gl.BindVertexArray(vao);
+            // In OpenGL, GL_ELEMENT_ARRAY_BUFFER binding is an internal property of the active VAO.
+            // Switching VAOs changes the GPU's element array buffer binding, so reset cached EBO state.
+            _currentEbo = 0;
         }
     }
 

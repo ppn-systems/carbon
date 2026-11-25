@@ -144,11 +144,7 @@ public sealed class GameWindow : IGameWindow
         this.Resize?.Invoke(this, size.X, size.Y);
     }
 
-    private void OnClosing()
-    {
-        this.Closing?.Invoke(this);
-        this.Dispose();
-    }
+    private void OnClosing() => this.Closing?.Invoke(this);
 
     /// <summary>
     /// Releases the native window, graphics device, and input contexts.

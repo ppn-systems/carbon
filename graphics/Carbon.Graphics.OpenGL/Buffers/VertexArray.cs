@@ -55,7 +55,8 @@ public sealed class VertexArray : IDisposable
         ArgumentNullException.ThrowIfNull(layout, nameof(layout));
 
         this.Bind();
-        vertexBuffer.Bind();
+        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, vertexBuffer.Handle);
+        _stateCache.BindVertexBuffer(vertexBuffer.Handle);
 
         for (int i = 0; i < layout.Elements.Count; i++)
         {
@@ -81,7 +82,8 @@ public sealed class VertexArray : IDisposable
         ArgumentNullException.ThrowIfNull(indexBuffer, nameof(indexBuffer));
 
         this.Bind();
-        indexBuffer.Bind();
+        _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, indexBuffer.Handle);
+        _stateCache.BindIndexBuffer(indexBuffer.Handle);
     }
 
     /// <inheritdoc/>

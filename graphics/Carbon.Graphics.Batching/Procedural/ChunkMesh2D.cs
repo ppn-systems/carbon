@@ -66,6 +66,9 @@ public sealed class ChunkMesh2D : IDisposable
             ? concrete.StateCache
             : throw new ArgumentException("Device must be a valid GraphicsDevice instance.", nameof(device));
 
+        // Unbind any active VAO so new buffer allocations cannot corrupt previously bound VAO state
+        stateCache.BindVertexArray(0);
+
         uint vertexCapacity = (uint)Math.Max(1, vertices.Length);
         uint indexCapacity = (uint)Math.Max(1, indices.Length);
 
@@ -85,6 +88,9 @@ public sealed class ChunkMesh2D : IDisposable
         {
             _ebo.SetData(indices);
         }
+
+        // Reset active VAO binding to cleanly avoid cross-contamination
+        stateCache.BindVertexArray(0);
     }
 
     /// <summary>
