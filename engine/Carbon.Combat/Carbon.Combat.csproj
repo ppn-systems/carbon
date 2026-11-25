@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <RootNamespace>Carbon.Combat</RootNamespace>
+        <AssemblyName>Carbon.Combat</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Carbon.Primitives\Carbon.Primitives.csproj" />
+        <ProjectReference Include="..\Carbon.Physics\Carbon.Physics.csproj" />
+        <ProjectReference Include="..\Carbon.Simulation\Carbon.Simulation.csproj" />
+    </ItemGroup>
+</Project>

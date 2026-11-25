@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <RootNamespace>Carbon.AI.Tests</RootNamespace>
+        <AssemblyName>Carbon.AI.Tests</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\engine\Carbon.AI\Carbon.AI.csproj" />
+    </ItemGroup>
+</Project>

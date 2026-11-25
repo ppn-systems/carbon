@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <RootNamespace>Carbon.Combat.Tests</RootNamespace>
+        <AssemblyName>Carbon.Combat.Tests</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\engine\Carbon.Combat\Carbon.Combat.csproj" />
+    </ItemGroup>
+</Project>
