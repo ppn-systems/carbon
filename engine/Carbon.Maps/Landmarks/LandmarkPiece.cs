@@ -42,6 +42,12 @@ public enum LandmarkPieceKind : byte
 
     /// <summary>An ore cart on a short stretch of rail.</summary>
     OreCart = 11,
+
+    /// <summary>A weathered stone pillar found in ancient ruins and boss arenas.</summary>
+    RuinedPillar = 12,
+
+    /// <summary>A tall timber frontier watchtower.</summary>
+    Watchtower = 13,
 }
 
 /// <summary>An axis-aligned collision box in world tile units.</summary>
@@ -108,7 +114,7 @@ public readonly record struct LandmarkPiece(LandmarkPieceKind Kind, float X, flo
         LandmarkPieceKind.Warehouse => WarehouseDepthTiles,
         LandmarkPieceKind.Well or LandmarkPieceKind.Tent or LandmarkPieceKind.Campfire or LandmarkPieceKind.ShrineGate or
         LandmarkPieceKind.StoneLantern or LandmarkPieceKind.Altar or LandmarkPieceKind.Barrel or LandmarkPieceKind.WorldTree or
-        LandmarkPieceKind.MineEntrance or LandmarkPieceKind.OreCart => 0f,
+        LandmarkPieceKind.MineEntrance or LandmarkPieceKind.OreCart or LandmarkPieceKind.RuinedPillar or LandmarkPieceKind.Watchtower => 0f,
         _ => 0f,
     };
 
@@ -205,6 +211,12 @@ public readonly record struct LandmarkPiece(LandmarkPieceKind Kind, float X, flo
                 return 3;
             case LandmarkPieceKind.OreCart:
                 boxes[0] = new TileBox(this.X - (18f * Px), this.Y - (12f * Px), this.X + (18f * Px), this.Y);
+                return 1;
+            case LandmarkPieceKind.RuinedPillar:
+                boxes[0] = new TileBox(this.X - (10f * Px), this.Y - (10f * Px), this.X + (10f * Px), this.Y);
+                return 1;
+            case LandmarkPieceKind.Watchtower:
+                boxes[0] = new TileBox(this.X - (28f * Px), this.Y - (20f * Px), this.X + (28f * Px), this.Y);
                 return 1;
             default:
                 return 0;

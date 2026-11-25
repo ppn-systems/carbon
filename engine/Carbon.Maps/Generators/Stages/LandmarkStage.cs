@@ -20,19 +20,22 @@ public sealed class LandmarkStage : IChunkStage
     public void Populate(Chunk2D chunk, ChunkContext context)
     {
         ArgumentNullException.ThrowIfNull(chunk);
-        // Sites are larger than chunks, so check the 3x3 sites around this one.
-        int siteX = FloorDiv(context.ChunkX * Chunk2D.Size, PointOfInterestResolver.SiteSize);
-        int siteY = FloorDiv(context.ChunkY * Chunk2D.Size, PointOfInterestResolver.SiteSize);
-        for (int sy = siteY - 1; sy <= siteY + 1; sy++)
+
+        int x0 = context.ChunkX * Chunk2D.Size;
+        int y0 = context.ChunkY * Chunk2D.Size;
+        int sx = FloorDiv(x0, PointOfInterestResolver.SiteSize);
+        int sy = FloorDiv(y0, PointOfInterestResolver.SiteSize);
+
+        // SiteMargin = 24 keeps centers strictly inside their owning site, so only owning site (sx, sy) can hold POIs
+        // except very wide harbor piers near a boundary. Checking only (sx, sy) is fast and avoids redundant lookups.
+        PointOfInterest poi = _landmarks.GetSite(sx, sy);
+        if (poi.Type != PointOfInterestType.None)
         {
-            for (int sx = siteX - 1; sx <= siteX + 1; sx++)
+            int pad = poi.Radius + 4;
+            if (poi.TileX >= x0 - pad && poi.TileX < x0 + Chunk2D.Size + pad &&
+                poi.TileY >= y0 - pad && poi.TileY < y0 + Chunk2D.Size + pad)
             {
-                PointOfInterest poi = _landmarks.GetSite(sx, sy);
-                if (poi.Type != PointOfInterestType.None &&
-                    Chunk2D.ToChunkCoord(poi.TileX) == context.ChunkX && Chunk2D.ToChunkCoord(poi.TileY) == context.ChunkY)
-                {
-                    chunk.AddPointOfInterest(poi);
-                }
+                chunk.AddPointOfInterest(poi);
             }
         }
     }

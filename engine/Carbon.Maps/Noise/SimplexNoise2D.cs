@@ -122,6 +122,9 @@ public sealed class SimplexNoise2D
         return 70.0f * (n0 + n1 + n2);
     }
 
-    private static int FastFloor(float x) =>
-        x >= 0f ? (int)x : (int)x - 1;
+    private static int FastFloor(float x)
+    {
+        int xi = (int)x;
+        return x < xi ? xi - 1 : xi;
+    }
 }

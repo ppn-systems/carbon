@@ -261,10 +261,62 @@ public sealed class ChunkTerrainRenderer : IDisposable
             }
         }
 
+        BakeBridges(_builder, chunk, tileSize);
         BakeRoads(_builder, chunk, world, tileSize);
 
         RectangleF bounds = new(cMinX, cMinY, cMaxX - cMinX, cMaxY - cMinY);
         return _builder.Build(_device, _whiteTexture, bounds);
+    }
+
+    private static void BakeBridges(ChunkMeshBuilder builder, Chunk2D chunk, float tileSize)
+    {
+        ColorRgba plankShadow = new(0, 0, 0, 65);
+        ColorRgba railColor = new(96, 62, 34, 255);
+        ColorRgba plankLight = new(156, 110, 66, 255);
+        ColorRgba plankDark = new(132, 90, 50, 255);
+
+        for (int ly = 0; ly < Chunk2D.Size; ly++)
+        {
+            for (int lx = 0; lx < Chunk2D.Size; lx++)
+            {
+                if (!chunk.IsBridge(lx, ly))
+                {
+                    continue;
+                }
+
+                float wx = ((chunk.ChunkX * Chunk2D.Size) + lx) * tileSize;
+                float wy = ((chunk.ChunkY * Chunk2D.Size) + ly) * tileSize;
+                bool northBridge = ly > 0 && chunk.IsBridge(lx, ly - 1);
+                bool southBridge = ly + 1 < Chunk2D.Size && chunk.IsBridge(lx, ly + 1);
+                bool horizontal = !northBridge && !southBridge;
+
+                builder.AddRectangle(new RectangleF(wx + 2f, wy + 4f, tileSize, tileSize), plankShadow);
+                if (horizontal)
+                {
+                    builder.AddRectangle(new RectangleF(wx, wy + 2f, tileSize, tileSize - 4f), plankDark);
+                    for (int p = 0; p < 3; p++)
+                    {
+                        float px = wx + (p * (tileSize / 3f)) + 1f;
+                        builder.AddRectangle(new RectangleF(px, wy + 4f, (tileSize / 3f) - 2f, tileSize - 8f), (p & 1) == 0 ? plankLight : plankDark);
+                    }
+
+                    builder.AddRectangle(new RectangleF(wx, wy + 1f, tileSize, 3f), railColor);
+                    builder.AddRectangle(new RectangleF(wx, wy + tileSize - 4f, tileSize, 3f), railColor);
+                }
+                else
+                {
+                    builder.AddRectangle(new RectangleF(wx + 2f, wy, tileSize - 4f, tileSize), plankDark);
+                    for (int p = 0; p < 3; p++)
+                    {
+                        float py = wy + (p * (tileSize / 3f)) + 1f;
+                        builder.AddRectangle(new RectangleF(wx + 4f, py, tileSize - 8f, (tileSize / 3f) - 2f), (p & 1) == 0 ? plankLight : plankDark);
+                    }
+
+                    builder.AddRectangle(new RectangleF(wx + 1f, wy, 3f, tileSize), railColor);
+                    builder.AddRectangle(new RectangleF(wx + tileSize - 4f, wy, 3f, tileSize), railColor);
+                }
+            }
+        }
     }
 
     private static readonly List<RoadLink> s_roadLinks = new();
@@ -661,7 +713,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
             return chunk.GetTile(localX, localY).Biome;
         }
 
-        return world.GetTileAtWorld(worldX, worldY).Biome;
+        return world.PeekTileAtWorld(worldX, worldY).Biome;
     }
 
     private static (ColorRgba rockBase, ColorRgba rockStrata, ColorRgba rockHighlight, ColorRgba rockShadow) GetCliffPalette(BiomeType biome)
@@ -882,7 +934,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
                 return chunk.GetTile(tlx, tly).HeightLevel;
             }
 
-            return world.GetTileAtWorld(tx, ty).HeightLevel;
+            return world.PeekTileAtWorld(tx, ty).HeightLevel;
         });
 
         if (mask == CliffFaceMask.None)

@@ -12,6 +12,7 @@ namespace Carbon.Maps.Generators.Stages;
 /// </summary>
 public sealed class ClimateStage : ITileStage
 {
+    private readonly ulong _seed;
     private readonly FractalNoise2D _temperature;
     private readonly FractalNoise2D _moisture;
 
@@ -19,6 +20,7 @@ public sealed class ClimateStage : ITileStage
     /// <param name="seed">World seed.</param>
     public ClimateStage(ulong seed)
     {
+        _seed = seed;
         _temperature = new FractalNoise2D(seed ^ 0xFEDCBA0987654321UL);
         _moisture = new FractalNoise2D(seed ^ 0xCAFEBABE1337BEEFUL);
     }
@@ -26,22 +28,28 @@ public sealed class ClimateStage : ITileStage
     /// <inheritdoc/>
     public bool Apply(ref TileSample sample)
     {
-        // A gentle continental latitude band along Y (period ~2500 tiles), plus turbulence
-        float latGradient = 0.50f + (0.35f * DeterministicMath.Sin(sample.Fy * 0.40f));
-        float turbulence = (_temperature.Evaluate(sample.Fx * 0.45f, sample.Fy * 0.45f, octaves: 3) - 0.5f) * 0.20f;
+        float starter = WorldProgression.GetStarterWeight(_seed, sample.WorldX, sample.WorldY);
+
+        // Latitude band along Y (~4750-tile wavelength at default frequency), plus turbulence.
+        float latGradient = 0.50f + (0.35f * DeterministicMath.Sin(sample.Fy * 1.65f));
+        latGradient += (0.50f - latGradient) * (starter * 0.55f);
+
+        float turbulence = (_temperature.Evaluate(sample.Fx * 0.45f, sample.Fy * 0.45f, octaves: 3) - 0.5f) * 0.22f;
         float temperature = Math.Clamp(latGradient + turbulence, 0f, 1f);
 
-        // Adiabatic lapse rate: high mountains cool down
-        if (sample.Elevation > 0.65f)
+        // Adiabatic lapse rate: highlands and mountain peaks cool progressively above low plains.
+        if (sample.Elevation > 0.48f)
         {
-            temperature = Math.Clamp(temperature - ((sample.Elevation - 0.65f) * 0.55f), 0f, 1f);
+            temperature = Math.Clamp(temperature - ((sample.Elevation - 0.48f) * 0.62f), 0f, 1f);
         }
 
         float rawMoisture = _moisture.Evaluate(sample.Fx * 0.50f, sample.Fy * 0.50f, octaves: 3);
-        if (sample.Elevation < 0.42f)
+        if (sample.CoastElevation < 0.52f)
         {
-            rawMoisture += (0.42f - sample.Elevation) * 0.35f; // coastal humidity
+            rawMoisture += (0.52f - sample.CoastElevation) * 0.45f; // coastal humidity
         }
+
+        rawMoisture += (0.45f - rawMoisture) * (starter * 0.40f);
 
         sample.Temperature = temperature;
         sample.RawMoisture = rawMoisture;

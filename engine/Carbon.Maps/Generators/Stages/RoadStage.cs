@@ -38,23 +38,44 @@ public sealed class RoadStage : IChunkStage
         }
 
         ReadOnlySpan<TileSample> tiles = context.Tiles;
-        for (int i = 0; i < tiles.Length; i++)
+        for (int li = 0; li < links.Count; li++)
         {
-            MapTile tile = tiles[i].Tile;
-            if (tile.IsSolid || tile.Biome is BiomeType.ShallowWater or BiomeType.DeepOcean)
-            {
-                continue;
-            }
+            RoadLink link = links[li];
+            float reach = link.IsBridge ? RoadNetwork.BridgeHalfWidth + 0.5f : RoadNetwork.HalfWidth + 0.5f;
+            int minLx = Math.Max(0, (int)MathF.Floor(link.MinX - reach) - x0);
+            int maxLx = Math.Min(Chunk2D.Size - 1, (int)MathF.Ceiling(link.MaxX + reach) - x0);
+            int minLy = Math.Max(0, (int)MathF.Floor(link.MinY - reach) - y0);
+            int maxLy = Math.Min(Chunk2D.Size - 1, (int)MathF.Ceiling(link.MaxY + reach) - y0);
 
-            int lx = i % Chunk2D.Size;
-            int ly = i / Chunk2D.Size;
-            foreach (RoadLink link in links)
+            for (int ly = minLy; ly <= maxLy; ly++)
             {
-                if (tile.HeightLevel == link.Level &&
-                    RoadNetwork.Distance(link, x0 + lx + 0.5f, y0 + ly + 0.5f) <= RoadNetwork.HalfWidth)
+                int row = ly * Chunk2D.Size;
+                float py = y0 + ly + 0.5f;
+                for (int lx = minLx; lx <= maxLx; lx++)
                 {
-                    chunk.SetRoad(lx, ly);
-                    break;
+                    MapTile tile = tiles[row + lx].Tile;
+                    float dist = RoadNetwork.Distance(link, x0 + lx + 0.5f, py);
+                    if (link.IsBridge)
+                    {
+                        if (dist <= RoadNetwork.BridgeHalfWidth && tile.Biome is BiomeType.ShallowWater or BiomeType.DeepOcean)
+                        {
+                            chunk.SetBridge(lx, ly);
+                        }
+                    }
+                    else if (!tile.IsSolid && tile.Biome is not (BiomeType.ShallowWater or BiomeType.DeepOcean))
+                    {
+                        if (tile.HeightLevel == link.Level && dist <= RoadNetwork.HalfWidth)
+                        {
+                            chunk.SetRoad(lx, ly);
+                        }
+                    }
+                    else if (tile.Biome is BiomeType.ShallowWater or BiomeType.DeepOcean &&
+                             tile.Elevation >= 0.24f &&
+                             dist <= RoadNetwork.BridgeHalfWidth)
+                    {
+                        // Bridge shallow water / river channels clipped along a road polyline.
+                        chunk.SetBridge(lx, ly);
+                    }
                 }
             }
         }

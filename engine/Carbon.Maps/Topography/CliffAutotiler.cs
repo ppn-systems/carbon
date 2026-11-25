@@ -88,10 +88,6 @@ public static class CliffAutotiler
             return false; // Extreme cliff drop (>1 level) is completely impassable
         }
 
-        // Stepping across a 1-level height difference requires an aligned ramp
-        RampDirection fromRamp = getRampDirection(fromX, fromY);
-        RampDirection toRamp = getRampDirection(toX, toY);
-
         int dx = toX - fromX;
         int dy = toY - fromY;
 
@@ -101,30 +97,36 @@ public static class CliffAutotiler
             return false;
         }
 
-        // Check if movement aligns with a North-South ramp
-        if (dy < 0) // Moving North
+        // Verify ramp direction matches the exact cliff step direction (upward/downward).
+        bool climbing = toHeight > fromHeight;
+        int lowX = climbing ? fromX : toX;
+        int lowY = climbing ? fromY : toY;
+        int highX = climbing ? toX : fromX;
+        int highY = climbing ? toY : fromY;
+        int upDx = highX - lowX;
+        int upDy = highY - lowY;
+
+        RampDirection highRamp = getRampDirection(highX, highY);
+        RampDirection lowRamp = getRampDirection(lowX, lowY);
+
+        if (upDy < 0)
         {
-            return fromRamp is RampDirection.North or RampDirection.South ||
-                   toRamp is RampDirection.North or RampDirection.South;
+            return highRamp == RampDirection.South || lowRamp == RampDirection.North;
         }
 
-        if (dy > 0) // Moving South
+        if (upDy > 0)
         {
-            return fromRamp is RampDirection.North or RampDirection.South ||
-                   toRamp is RampDirection.North or RampDirection.South;
+            return highRamp == RampDirection.North || lowRamp == RampDirection.South;
         }
 
-        // Check if movement aligns with an East-West ramp
-        if (dx > 0) // Moving East
+        if (upDx > 0)
         {
-            return fromRamp is RampDirection.East or RampDirection.West ||
-                   toRamp is RampDirection.East or RampDirection.West;
+            return highRamp == RampDirection.West || lowRamp == RampDirection.East;
         }
 
-        if (dx < 0) // Moving West
+        if (upDx < 0)
         {
-            return fromRamp is RampDirection.East or RampDirection.West ||
-                   toRamp is RampDirection.East or RampDirection.West;
+            return highRamp == RampDirection.East || lowRamp == RampDirection.West;
         }
 
         return false;

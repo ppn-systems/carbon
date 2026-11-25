@@ -34,6 +34,10 @@ public static class LandmarkPlanners
         [PointOfInterestType.WorldTree] = new WorldTreePlanner(),
         [PointOfInterestType.MountainShrine] = new ShrinePlanner(),
         [PointOfInterestType.MineEntrance] = new MinePlanner(),
+        [PointOfInterestType.AncientRuins] = new AncientRuinsPlanner(),
+        [PointOfInterestType.BanditCamp] = new BanditCampPlanner(),
+        [PointOfInterestType.Watchtower] = new WatchtowerPlanner(),
+        [PointOfInterestType.BossArena] = new BossArenaPlanner(),
     };
 
     /// <summary>Gets the planner of a kind of point of interest, or <c>null</c>.</summary>
@@ -196,16 +200,47 @@ internal sealed class HarborPlanner : ILandmarkPlanner
         float py = sx;
         float cx = c.CenterX;
         float cy = c.CenterY;
+        float warehouseW = 192f * Px;
         float ix = cx - (sx * c.Radius * 0.30f);
         float iy = cy - (sy * c.Radius * 0.30f);
-        c.Add(new LandmarkPiece(LandmarkPieceKind.Warehouse, ix, iy, 192f * Px, (byte)(c.Hash(1) % 6)));
+
+        // Step further inland if needed so the warehouse never straddles tidal water.
+        if (!c.IsBuildable(ix, iy, warehouseW))
+        {
+            bool placed = false;
+            for (float frac = 0.45f; frac <= 0.85f; frac += 0.20f)
+            {
+                float candX = cx - (sx * c.Radius * frac);
+                float candY = cy - (sy * c.Radius * frac);
+                if (c.IsBuildable(candX, candY, warehouseW))
+                {
+                    ix = candX;
+                    iy = candY;
+                    placed = true;
+                    break;
+                }
+            }
+
+            if (!placed)
+            {
+                ix = cx;
+                iy = cy;
+            }
+        }
+
+        if (c.IsBuildable(ix, iy, warehouseW))
+        {
+            c.Add(new LandmarkPiece(LandmarkPieceKind.Warehouse, ix, iy, warehouseW, (byte)(c.Hash(1) % 6)));
+        }
+
+        byte houseStyle = c.Level == 0 && c.Poi.TileY != 0 ? LandmarkPiece.StyleTemperate : LandmarkPiece.StyleTemperate;
         for (int i = -1; i <= 1; i += 2)
         {
             float x = ix + (px * i * 220f * Px) + (sx * 20f * Px);
             float y = iy + (py * i * 220f * Px) + (sy * 20f * Px);
             if (c.IsBuildable(x, y, 144f * Px))
             {
-                c.Add(new LandmarkPiece(LandmarkPieceKind.House, x, y, 144f * Px, (byte)(c.Hash(i + 5) % 6)));
+                c.Add(new LandmarkPiece(LandmarkPieceKind.House, x, y, 144f * Px, (byte)((c.Hash(i + 5) % 6) | (uint)(houseStyle << 4))));
             }
         }
 
@@ -289,6 +324,97 @@ internal sealed class MinePlanner : ILandmarkPlanner
         if (c.IsBuildable(lampX, lampY, 20f * Px))
         {
             c.Add(new LandmarkPiece(LandmarkPieceKind.StoneLantern, lampX, lampY, 1f, 0));
+        }
+    }
+}
+
+/// <summary>Overgrown monoliths, broken stone pillars, and an ancient altar.</summary>
+internal sealed class AncientRuinsPlanner : ILandmarkPlanner
+{
+    public void Plan(LandmarkPlanContext c)
+    {
+        float cx = c.CenterX;
+        float cy = c.CenterY;
+        c.Add(new LandmarkPiece(LandmarkPieceKind.Altar, cx, cy, 1f, 1));
+
+        for (int i = 0; i < 6; i++)
+        {
+            float a = (i * (MathF.Tau / 6f)) + (c.Hash01(i) * 0.25f);
+            float dist = 4.2f + (c.Hash01(i + 20) * 2.5f);
+            float x = cx + (LandmarkPlanContext.Cos(a) * dist);
+            float y = cy + (LandmarkPlanContext.Sin(a) * dist * 0.85f);
+            if (c.IsBuildable(x, y, 1f))
+            {
+                c.Add(new LandmarkPiece(LandmarkPieceKind.RuinedPillar, x, y, 1f, (byte)(c.Hash(i + 40) % 3)));
+            }
+        }
+
+        c.Add(new LandmarkPiece(LandmarkPieceKind.StoneLantern, cx - 2.2f, cy + 1.5f, 1f, 1));
+        c.Add(new LandmarkPiece(LandmarkPieceKind.StoneLantern, cx + 2.2f, cy + 1.5f, 1f, 1));
+    }
+}
+
+/// <summary>Outlaw bandit camp featuring a watchtower, central bonfire, tents, and stolen barrels.</summary>
+internal sealed class BanditCampPlanner : ILandmarkPlanner
+{
+    public void Plan(LandmarkPlanContext c)
+    {
+        const float Px = LandmarkPlanContext.Px;
+        float cx = c.CenterX;
+        float cy = c.CenterY;
+        c.Add(new LandmarkPiece(LandmarkPieceKind.Campfire, cx, cy, 1f, 0));
+
+        float towerX = cx - 4.0f;
+        float towerY = cy - 2.5f;
+        if (c.IsBuildable(towerX, towerY, 2f))
+        {
+            c.Add(new LandmarkPiece(LandmarkPieceKind.Watchtower, towerX, towerY, 2f, 0));
+        }
+
+        for (int i = 0; i < 4; i++)
+        {
+            float a = (i * (MathF.Tau / 4f)) + 0.4f + (c.Hash01(i + 10) * 0.2f);
+            float x = cx + (LandmarkPlanContext.Cos(a) * 3.8f);
+            float y = cy + (LandmarkPlanContext.Sin(a) * 3.2f);
+            if (c.IsBuildable(x, y, 56f * Px) && !c.Overlaps(x, y, 1.8f))
+            {
+                c.Add(new LandmarkPiece(LandmarkPieceKind.Tent, x, y, 58f * Px, (byte)(c.Hash(i + 50) % 3)));
+            }
+        }
+
+        c.Add(new LandmarkPiece(LandmarkPieceKind.Barrel, cx + 2.0f, cy + 1.4f, 1f, 0));
+        c.Add(new LandmarkPiece(LandmarkPieceKind.Barrel, cx + 2.9f, cy + 1.1f, 1f, 1));
+    }
+}
+
+/// <summary>Timber frontier watchtower with supply barrels and lantern.</summary>
+internal sealed class WatchtowerPlanner : ILandmarkPlanner
+{
+    public void Plan(LandmarkPlanContext c)
+    {
+        float cx = c.CenterX;
+        float cy = c.CenterY;
+        c.Add(new LandmarkPiece(LandmarkPieceKind.Watchtower, cx, cy, 2f, (byte)(c.Hash(2) % 2)));
+        c.Add(new LandmarkPiece(LandmarkPieceKind.Barrel, cx + 1.8f, cy + 0.4f, 1f, 0));
+        c.Add(new LandmarkPiece(LandmarkPieceKind.StoneLantern, cx - 1.6f, cy + 0.5f, 1f, 0));
+    }
+}
+
+/// <summary>Wide open endgame stone arena surrounded by 8 monolith pillars and torches for boss encounters.</summary>
+internal sealed class BossArenaPlanner : ILandmarkPlanner
+{
+    public void Plan(LandmarkPlanContext c)
+    {
+        float cx = c.CenterX;
+        float cy = c.CenterY;
+        c.Add(new LandmarkPiece(LandmarkPieceKind.Altar, cx, cy, 1f, 2));
+
+        for (int i = 0; i < 8; i++)
+        {
+            float a = i * (MathF.Tau / 8f);
+            float px = cx + (LandmarkPlanContext.Cos(a) * 11.2f);
+            float py = cy + (LandmarkPlanContext.Sin(a) * 10.2f);
+            c.Add(new LandmarkPiece((i & 1) == 0 ? LandmarkPieceKind.RuinedPillar : LandmarkPieceKind.StoneLantern, px, py, 1f, 1));
         }
     }
 }

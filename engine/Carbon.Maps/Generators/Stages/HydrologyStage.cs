@@ -41,39 +41,52 @@ public sealed class HydrologyStage : ITileStage
             return true;
         }
 
-        float riverDist = _rivers.GetDistance(sample.WorldX, sample.WorldY);
+        float riverDist = _rivers.GetDistance(sample.WorldX, sample.WorldY, out bool isDeepChannel);
         sample.RiverDistance = riverDist;
 
-        // Desert oasis springs in arid dunes
-        float lakeNoise = _lakes.Evaluate((sample.Fx * 3.6f) + 120f, (sample.Fy * 3.6f) + 120f, octaves: 2);
-        bool isOasis = sample.Temperature > 0.68f && sample.RawMoisture < 0.28f &&
-            sample.Elevation >= 0.42f && sample.Elevation <= 0.62f && lakeNoise > 0.86f;
+        // Desert oasis springs in arid dunes: skip expensive 2-octave noise unless inside desert climate bounds.
+        bool inOasisClimate = sample.Temperature > 0.68f && sample.RawMoisture < 0.28f &&
+            sample.Elevation >= 0.42f && sample.Elevation <= 0.62f;
+        float oasisNoise = inOasisClimate
+            ? _lakes.Evaluate((sample.Fx * 3.6f) + 120f, (sample.Fy * 3.6f) + 120f, octaves: 2)
+            : 0f;
+        bool isOasis = inOasisClimate && oasisNoise > 0.86f;
 
         if (riverDist <= WorldConstants.RiverChannel || isOasis)
         {
-            // River channel or lake: a continuous water surface sitting on the terrain it crosses
-            // (the renderer draws waterfalls where it leaves a plateau).
             byte variant = (byte)(SpatialHash.Hash32(_seed, sample.WorldX, sample.WorldY, 0x0A71UL) & 3);
+            bool deep = isDeepChannel && !isOasis;
+            BiomeType waterBiome = deep ? BiomeType.DeepOcean : BiomeType.ShallowWater;
             sample.Tile = new MapTile(
-                BiomeType.ShallowWater,
-                Elevation: 0.28f,
+                waterBiome,
+                Elevation: deep ? 0.25f : 0.28f,
                 sample.Temperature,
                 Moisture: 0.85f,
-                IsSolid: false,
+                IsSolid: deep,
                 variant,
-                HeightLevel: TopographyHelper.ResolveTerrainHeightLevel(sample.Relief, sample.CoastElevation, BiomeType.ShallowWater, isInlandWater: true));
+                HeightLevel: TopographyHelper.ResolveTerrainHeightLevel(sample.Relief, sample.CoastElevation, waterBiome, isInlandWater: true));
             return false;
+        }
+
+        if (inOasisClimate && oasisNoise > 0.72f)
+        {
+            // Moist oasis halo nourishes date/jungle palms around desert pools.
+            float halo = Math.Clamp((oasisNoise - 0.72f) / 0.14f, 0f, 1f);
+            sample.Moisture = Math.Clamp(sample.Moisture + (0.45f * halo), 0f, 1f);
         }
 
         if (riverDist < WorldConstants.RiparianReach)
         {
-            // Riparian zone: ease the ground down towards the water and wet it; big rivers get wider valleys.
+            // Riparian zone: ease ground toward the water and wet it; preserve lush forest/plateau banks
+            // by clamping sand-level lowering to coasts and arid climates rather than turning forests into beach sand.
             float k = 1f - Math.Clamp((riverDist - WorldConstants.RiverChannel) / (WorldConstants.RiparianReach - WorldConstants.RiverChannel), 0f, 1f);
             k = k * k * (3f - (2f * k));
-            float elevation = MathF.Max(sample.Elevation - (0.08f * k), MathF.Min(sample.Elevation, 0.36f));
-            if (riverDist < 3.0f)
+            bool sandyBank = sample.CoastElevation < WorldConstants.CoastLevel || (sample.Temperature > 0.62f && sample.RawMoisture < 0.35f);
+            float floorElev = sandyBank ? 0.36f : 0.385f;
+            float elevation = MathF.Max(sample.Elevation - (0.08f * k), MathF.Min(sample.Elevation, floorElev));
+            if (riverDist < 3.0f && sandyBank)
             {
-                elevation = MathF.Min(elevation, 0.37f); // narrow sand or gravel bank
+                elevation = MathF.Min(elevation, 0.37f);
             }
 
             sample.Elevation = elevation;

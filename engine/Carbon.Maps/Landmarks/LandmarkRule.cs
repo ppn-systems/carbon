@@ -48,15 +48,21 @@ public sealed record LandmarkRule(PointOfInterestType Type, int Radius, float Sc
     /// <summary>Gets the score lost per tile away from <see cref="RiverSweetSpot"/>.</summary>
     public float RiverSlope { get; init; }
 
+    /// <summary>Gets the minimum MMORPG progression zone tier (<c>0..3</c>) required for this landmark.</summary>
+    public byte MinZoneTier { get; init; }
+
+    /// <summary>Gets the maximum MMORPG progression zone tier (<c>0..3</c>) allowed for this landmark.</summary>
+    public byte MaxZoneTier { get; init; } = 3;
+
     /// <summary>Returns the score of a candidate spot, or <c>null</c> when the rule does not accept it.</summary>
-    /// <param name="tile">The spot's tile.</param>
-    /// <param name="river">Width-scaled river distance.</param>
-    /// <param name="flat">Whether the area is flat.</param>
-    /// <param name="nearSea">Whether open sea is close.</param>
-    /// <returns>The score, or <c>null</c>.</returns>
-    public float? Evaluate(in MapTile tile, float river, bool flat, bool nearSea)
+    public float? Evaluate(in MapTile tile, float river, bool flat, bool nearSea) =>
+        this.Evaluate(in tile, river, flat, nearSea, zoneTier: 1);
+
+    /// <summary>Returns the score of a candidate spot at <paramref name="zoneTier"/>, or <c>null</c> when rejected.</summary>
+    public float? Evaluate(in MapTile tile, float river, bool flat, bool nearSea, byte zoneTier)
     {
-        if ((this.RequireFlat && !flat) || (this.RequireNearSea && !nearSea) ||
+        if (zoneTier < this.MinZoneTier || zoneTier > this.MaxZoneTier ||
+            (this.RequireFlat && !flat) || (this.RequireNearSea && !nearSea) ||
             (this.HeightLevel is byte level && tile.HeightLevel != level) ||
             !(river > this.RiverAbove && river <= this.RiverAtMost) ||
             tile.Elevation < this.MinElevation ||
@@ -119,19 +125,52 @@ public static class LandmarkRules
 
         // Shrine: only on high summits, scored below any settlement, so it is the fallback of mountain sites.
         new(PointOfInterestType.MountainShrine, 4, 0.5f) { RequireFlat = true, HeightLevel = 2, MinElevation = 0.78f, ScorePerElevation = 1f },
+
+        // Boss Arena: endgame open ring in outer zones away from rivers.
+        new(PointOfInterestType.BossArena, 14, 2.1f)
+        {
+            RequireFlat = true,
+            RiverAbove = 8f,
+            MinZoneTier = 2,
+            ExcludedBiomes = [BiomeType.MistySwamp],
+        },
+
+        // Outlaw Bandit Camp: inland frontier camp away from river towns.
+        new(PointOfInterestType.BanditCamp, 9, 1.8f)
+        {
+            RequireFlat = true,
+            HeightLevel = 0,
+            RiverAbove = 9f,
+            MinZoneTier = 1,
+        },
+
+        // Ancient Ruins: overgrown monoliths in deep wilds and forests.
+        new(PointOfInterestType.AncientRuins, 10, 1.7f)
+        {
+            RequireFlat = true,
+            RiverAbove = 11f,
+            Biomes = [BiomeType.AncientForest, BiomeType.DuneDesert, BiomeType.MistySwamp, BiomeType.TropicalJungle, BiomeType.BlossomWoods],
+        },
+
+        // Frontier Watchtower: roadside lookout in inland plains, mesas, or tundra.
+        new(PointOfInterestType.Watchtower, 6, 1.4f)
+        {
+            RequireFlat = true,
+            RiverAbove = 8f,
+            Biomes = [BiomeType.LushPlains, BiomeType.Savanna, BiomeType.RedMesa, BiomeType.FrozenTundra],
+        },
     ];
 
     /// <summary>Finds the first rule accepting a spot.</summary>
-    /// <param name="tile">The spot's tile.</param>
-    /// <param name="river">Width-scaled river distance.</param>
-    /// <param name="flat">Whether the area is flat.</param>
-    /// <param name="nearSea">Whether open sea is close.</param>
-    /// <returns>The point of interest type, its score and radius (<see cref="PointOfInterestType.None"/> when none).</returns>
-    public static (PointOfInterestType Type, float Score, int Radius) Evaluate(in MapTile tile, float river, bool flat, bool nearSea)
+    public static (PointOfInterestType Type, float Score, int Radius) Evaluate(in MapTile tile, float river, bool flat, bool nearSea) =>
+        Evaluate(in tile, river, flat, nearSea, zoneTier: 1);
+
+    /// <summary>Finds the first rule accepting a spot within <paramref name="zoneTier"/>.</summary>
+    public static (PointOfInterestType Type, float Score, int Radius) Evaluate(in MapTile tile, float river, bool flat, bool nearSea, byte zoneTier)
     {
         foreach (LandmarkRule rule in All)
         {
-            if (rule.Evaluate(tile, river, flat, nearSea) is float score)
+            if (rule.Evaluate(tile, river, flat, nearSea, zoneTier) is float score)
             {
                 return (rule.Type, score, rule.Radius);
             }

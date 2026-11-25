@@ -21,6 +21,7 @@ public sealed class ChunkDelta
 {
     private readonly Dictionary<int, MapTile> _tiles = new();
     private readonly Dictionary<int, PropDestructibility> _propStates = new();
+    private readonly Dictionary<int, ulong> _propRespawnTicks = new();
     private readonly Dictionary<int, StructureTile> _structures = new();
     private readonly ReadOnlyDictionary<int, MapTile> _tilesView;
     private readonly ReadOnlyDictionary<int, PropDestructibility> _propStatesView;
@@ -85,10 +86,72 @@ public sealed class ChunkDelta
     /// <param name="localX">Local tile X of the prop anchor.</param>
     /// <param name="localY">Local tile Y of the prop anchor.</param>
     /// <param name="state">The new prop state.</param>
-    public void SetPropState(int localX, int localY, PropDestructibility state)
+    public void SetPropState(int localX, int localY, PropDestructibility state) =>
+        this.SetPropState(localX, localY, state, respawnAtTick: 0);
+
+    /// <summary>Records a prop state override with an optional simulation respawn tick.</summary>
+    /// <param name="localX">Local tile X of the prop anchor.</param>
+    /// <param name="localY">Local tile Y of the prop anchor.</param>
+    /// <param name="state">The new prop state.</param>
+    /// <param name="respawnAtTick">World tick after which the destroyed prop state expires (0 = permanent).</param>
+    public void SetPropState(int localX, int localY, PropDestructibility state, ulong respawnAtTick)
     {
-        _propStates[ToLocalIndex(localX, localY)] = state;
+        int key = ToLocalIndex(localX, localY);
+        _propStates[key] = state;
+        if (state.IsDestroyed && respawnAtTick > 0)
+        {
+            _propRespawnTicks[key] = respawnAtTick;
+        }
+        else
+        {
+            _ = _propRespawnTicks.Remove(key);
+        }
+
         this.Revision++;
+    }
+
+    /// <summary>
+    /// Expires destroyed prop states whose scheduled respawn tick has arrived.
+    /// </summary>
+    /// <param name="currentTick">Current world simulation tick.</param>
+    /// <returns>The number of props whose state was reset for respawn.</returns>
+    internal int RemoveExpiredPropStates(ulong currentTick)
+    {
+        if (_propRespawnTicks.Count == 0)
+        {
+            return 0;
+        }
+
+        int removed = 0;
+        List<int>? expired = null;
+        foreach (KeyValuePair<int, ulong> kvp in _propRespawnTicks)
+        {
+            if (kvp.Value <= currentTick)
+            {
+                expired ??= [];
+                expired.Add(kvp.Key);
+            }
+        }
+
+        if (expired is not null)
+        {
+            for (int i = 0; i < expired.Count; i++)
+            {
+                int key = expired[i];
+                _ = _propRespawnTicks.Remove(key);
+                if (_propStates.Remove(key))
+                {
+                    removed++;
+                }
+            }
+
+            if (removed > 0)
+            {
+                this.Revision++;
+            }
+        }
+
+        return removed;
     }
 
     /// <summary>Records or updates a constructed structure on a tile within the chunk.</summary>
@@ -362,6 +425,20 @@ public sealed class ChunkDelta
             if (index >= 0)
             {
                 chunk.SetProp(index, chunk.Props[index] with { Destructibility = kvp.Value });
+            }
+        }
+
+        foreach (KeyValuePair<int, StructureTile> kvp in _structures)
+        {
+            if (!kvp.Value.IsOccupied)
+            {
+                continue;
+            }
+
+            int index = chunk.FindPropIndexAt(kvp.Key & Chunk2D.SizeMask, kvp.Key >> Chunk2D.SizeBits);
+            if (index >= 0 && chunk.Props[index].Destructibility.IsDestructible && !chunk.Props[index].Destructibility.IsDestroyed)
+            {
+                chunk.SetProp(index, chunk.Props[index] with { Destructibility = chunk.Props[index].Destructibility.ApplyDamage(float.MaxValue) });
             }
         }
     }

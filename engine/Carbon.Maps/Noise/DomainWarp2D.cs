@@ -41,4 +41,31 @@ public sealed class DomainWarp2D
 
         return _source.Evaluate(warpedX, warpedY, octaves);
     }
+
+    /// <summary>
+    /// Evaluates warped noise at full octaves and captures a coarse octave pass using a single warp sample.
+    /// </summary>
+    /// <param name="x">X coordinate.</param>
+    /// <param name="y">Y coordinate.</param>
+    /// <param name="warpStrength">Coordinate distortion intensity.</param>
+    /// <param name="fullOctaves">Full source octaves.</param>
+    /// <param name="coarseOctaves">Coarse source octaves.</param>
+    /// <param name="coarseValue">Outputs the coarse warped value in <c>[0, 1]</c>.</param>
+    /// <returns>Domain-warped noise value in <c>[0, 1]</c>.</returns>
+    public float EvaluateWithCoarse(
+        float x,
+        float y,
+        float warpStrength,
+        int fullOctaves,
+        int coarseOctaves,
+        out float coarseValue)
+    {
+        float qx = (_warpX.Evaluate(x, y, 2) * 2f) - 1f;
+        float qy = (_warpY.Evaluate(x + 5.2f, y + 1.3f, 2) * 2f) - 1f;
+
+        float warpedX = x + (qx * warpStrength);
+        float warpedY = y + (qy * warpStrength);
+
+        return _source.EvaluateWithCoarse(warpedX, warpedY, fullOctaves, coarseOctaves, out coarseValue);
+    }
 }

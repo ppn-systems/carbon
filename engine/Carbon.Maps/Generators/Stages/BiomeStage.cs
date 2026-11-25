@@ -21,11 +21,14 @@ public sealed class BiomeStage : ITileStage
     {
         BiomeType biome = WhittakerBiomeResolver.Resolve(sample.Elevation, sample.Temperature, sample.Moisture);
         bool isSolid = BiomeProperties.Get(biome).IsSolid;
-        byte variant = (byte)(SpatialHash.Hash32(_seed, sample.WorldX, sample.WorldY, 0x0A71UL) & 3);
+        if (!isSolid && biome == BiomeType.VolcanicAshland)
+        {
+            // Volcanic ashlands are walkable overall, punctuated by impassable obsidian lava fissures.
+            isSolid = (SpatialHash.Hash32(_seed, sample.WorldX >> 1, sample.WorldY >> 1, 0x7A7AUL) & 15) == 0;
+        }
 
-        // River banks turn to sand inland; only real coasts take the beach height rules.
-        bool isCoast = sample.CoastElevation < WorldConstants.CoastLevel;
-        byte heightLevel = TopographyHelper.ResolveTerrainHeightLevel(sample.Relief, sample.CoastElevation, isCoast ? biome : BiomeType.LushPlains, isInlandWater: false);
+        byte variant = (byte)(SpatialHash.Hash32(_seed, sample.WorldX, sample.WorldY, 0x0A71UL) & 3);
+        byte heightLevel = TopographyHelper.ResolveTerrainHeightLevel(sample.Relief, sample.CoastElevation, biome, isInlandWater: false);
 
         sample.Tile = new MapTile(biome, sample.Elevation, sample.Temperature, sample.Moisture, isSolid, variant, heightLevel);
         return true;

@@ -80,13 +80,19 @@ internal sealed class ChunkStreamer
         }
     }
 
-    /// <summary>Regenerates a resident chunk so a newly imported delta takes effect. Call under the lock.</summary>
+    /// <summary>Regenerates a resident chunk atomically so readers never see a partially reset chunk. Call under the lock.</summary>
     public void RebuildIfResident(int chunkX, int chunkY)
     {
-        if (this.TryGet(chunkX, chunkY, out Chunk2D? chunk) && chunk != null)
+        long key = Chunk2D.PackKey(chunkX, chunkY);
+        if (!_active.ContainsKey(key))
         {
-            this.Build(chunk, chunkX, chunkY);
+            return;
         }
+
+        Chunk2D replacement = _pool.TryDequeue(out Chunk2D? recycled) ? recycled : new Chunk2D(chunkX, chunkY);
+        this.Build(replacement, chunkX, chunkY);
+        _active[key] = replacement;
+        this.RebuildActiveSnapshotLocked();
     }
 
     /// <summary>Loads every chunk within <paramref name="loadRadius"/> and recycles those beyond <paramref name="evictRadius"/>.</summary>
@@ -146,6 +152,7 @@ internal sealed class ChunkStreamer
             next[index++] = kvp.Value;
         }
 
+        Array.Sort(next, static (a, b) => a.ChunkY != b.ChunkY ? a.ChunkY.CompareTo(b.ChunkY) : a.ChunkX.CompareTo(b.ChunkX));
         Volatile.Write(ref _activeSnapshot, next);
     }
 

@@ -112,9 +112,10 @@ internal sealed class WorldCollision
             for (int tx = minTileX; tx <= maxTileX; tx++)
             {
                 MapTile tile = _world.PeekTileAtWorld(tx, ty);
-                bool isImpassable = tile.IsSolid;
+                bool hasDeck = _world.IsBridgeAtWorld(tx, ty) || _world.Generator.Landmarks.IsWalkablePierTile(tx, ty);
+                bool isImpassable = !hasDeck && tile.IsSolid;
 
-                if (!isImpassable && (tx != currentTileX || ty != currentTileY))
+                if (!isImpassable && !hasDeck && (tx != currentTileX || ty != currentTileY))
                 {
                     if (!_world.NavGrid.CanTraverse(currentTileX, currentTileY, tx, ty, includeLandmarks: false))
                     {
@@ -255,9 +256,10 @@ internal sealed class WorldCollision
             for (int tx = minTileX; tx <= maxTileX; tx++)
             {
                 MapTile tile = _world.PeekTileAtWorld(tx, ty);
-                bool isImpassable = tile.IsSolid;
+                bool hasDeck = _world.IsBridgeAtWorld(tx, ty) || _world.Generator.Landmarks.IsWalkablePierTile(tx, ty);
+                bool isImpassable = !hasDeck && tile.IsSolid;
 
-                if (!isImpassable && (tx != currentTileX || ty != currentTileY))
+                if (!isImpassable && !hasDeck && (tx != currentTileX || ty != currentTileY))
                 {
                     if (!_world.NavGrid.CanTraverse(currentTileX, currentTileY, tx, ty, includeLandmarks: false))
                     {

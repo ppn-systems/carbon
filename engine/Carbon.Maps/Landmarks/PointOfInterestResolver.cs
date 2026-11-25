@@ -2,8 +2,10 @@
 
 using System;
 using System.Collections.Concurrent;
+using System.Numerics;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
+using Carbon.Maps.Generators;
 using Carbon.Maps.Hydrology;
 using Carbon.Primitives.Hashing;
 
@@ -44,7 +46,9 @@ public sealed class PointOfInterestResolver
     private readonly ITileSource _tiles;
     private readonly IRiverDistanceSource _rivers;
     private readonly ConcurrentDictionary<long, PointOfInterest> _sites = new();
+    private readonly ConcurrentQueue<long> _siteOrder = new();
     private readonly ConcurrentDictionary<long, LandmarkLayout> _layouts = new();
+    private readonly ConcurrentQueue<long> _layoutOrder = new();
 
     /// <summary>Initializes a new instance of the <see cref="PointOfInterestResolver"/> class.</summary>
     /// <param name="seed">World seed.</param>
@@ -58,9 +62,6 @@ public sealed class PointOfInterestResolver
     }
 
     /// <summary>Gets the point of interest of a site, or one with <see cref="PointOfInterestType.None"/>.</summary>
-    /// <param name="siteX">Site X.</param>
-    /// <param name="siteY">Site Y.</param>
-    /// <returns>The site's point of interest.</returns>
     public PointOfInterest GetSite(int siteX, int siteY)
     {
         long key = ((long)siteX << 32) | (uint)siteY;
@@ -69,48 +70,77 @@ public sealed class PointOfInterestResolver
             return cached;
         }
 
-        if (_sites.Count > MaxCachedSites)
+        TrimQueue(_sites, _siteOrder, MaxCachedSites);
+        PointOfInterest poi = this.Resolve(siteX, siteY);
+        if (_sites.TryAdd(key, poi))
         {
-            _sites.Clear();
+            _siteOrder.Enqueue(key);
         }
 
-        PointOfInterest poi = this.Resolve(siteX, siteY);
-        _sites[key] = poi;
-        return poi;
+        return _sites.TryGetValue(key, out PointOfInterest published) ? published : poi;
     }
 
     /// <summary>
     /// Finds the point of interest whose footprint covers a world tile.
+    /// Footprints never cross site boundaries (<see cref="SiteMargin"/> &gt; max radius), so only the owning site is checked.
     /// </summary>
-    /// <param name="worldTileX">World tile X.</param>
-    /// <param name="worldTileY">World tile Y.</param>
-    /// <param name="poi">The point of interest.</param>
-    /// <returns><c>true</c> when the tile is inside one.</returns>
     public bool TryGetAt(int worldTileX, int worldTileY, out PointOfInterest poi)
     {
         int sx = FloorDiv(worldTileX, SiteSize);
         int sy = FloorDiv(worldTileY, SiteSize);
-        for (int dy = -1; dy <= 1; dy++)
+        PointOfInterest site = this.GetSite(sx, sy);
+        if (site.Type != PointOfInterestType.None && site.Contains(worldTileX, worldTileY))
         {
-            for (int dx = -1; dx <= 1; dx++)
-            {
-                PointOfInterest site = this.GetSite(sx + dx, sy + dy);
-                if (site.Type != PointOfInterestType.None && site.Contains(worldTileX, worldTileY))
-                {
-                    poi = site;
-                    return true;
-                }
-            }
+            poi = site;
+            return true;
         }
 
         poi = default;
         return false;
     }
 
+    /// <summary>
+    /// Returns whether <paramref name="worldTileX"/>, <paramref name="worldTileY"/> lies on the wooden deck of a Harbor pier.
+    /// </summary>
+    public bool IsWalkablePierTile(int worldTileX, int worldTileY)
+    {
+        int sx = FloorDiv(worldTileX, SiteSize);
+        int sy = FloorDiv(worldTileY, SiteSize);
+        PointOfInterest site = this.GetSite(sx, sy);
+        if (site.Type != PointOfInterestType.Harbor)
+        {
+            return false;
+        }
+
+        if (Math.Abs(worldTileX - site.TileX) > 28 || Math.Abs(worldTileY - site.TileY) > 28)
+        {
+            return false;
+        }
+
+        float len = MathF.Sqrt((site.FacingX * site.FacingX) + (site.FacingY * site.FacingY));
+        Vector2 sea = len > 0.1f ? new Vector2(site.FacingX / len, site.FacingY / len) : new Vector2(0f, 1f);
+        Vector2 side = new(-sea.Y, sea.X);
+        Vector2 c = new(site.TileX + 0.5f, site.TileY + 0.5f);
+        Vector2 tileCenter = new(worldTileX + 0.5f, worldTileY + 0.5f);
+
+        for (int i = -1; i <= 1; i += 2)
+        {
+            Vector2 start = c + (side * (i * (52f / 32f)));
+            Vector2 end = start + (sea * (site.Radius * 1.55f));
+            Vector2 ab = end - start;
+            float abLenSq = MathF.Max(ab.LengthSquared(), 1e-5f);
+            float t = Math.Clamp(Vector2.Dot(tileCenter - start, ab) / abLenSq, 0f, 1f);
+            Vector2 closest = start + (ab * t);
+            if (Vector2.DistanceSquared(tileCenter, closest) <= 0.72f * 0.72f)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>Gets the structures and fields of a site's point of interest (cached).</summary>
-    /// <param name="siteX">Site X.</param>
-    /// <param name="siteY">Site Y.</param>
-    /// <returns>The layout, empty when the site has no point of interest.</returns>
     public LandmarkLayout GetLayout(int siteX, int siteY)
     {
         long key = ((long)siteX << 32) | (uint)siteY;
@@ -119,14 +149,14 @@ public sealed class PointOfInterestResolver
             return layout;
         }
 
-        if (_layouts.Count > MaxCachedSites)
+        TrimQueue(_layouts, _layoutOrder, MaxCachedSites);
+        layout = LandmarkLayout.Build(this.GetSite(siteX, siteY), _tiles);
+        if (_layouts.TryAdd(key, layout))
         {
-            _layouts.Clear();
+            _layoutOrder.Enqueue(key);
         }
 
-        layout = LandmarkLayout.Build(this.GetSite(siteX, siteY), _tiles);
-        _layouts[key] = layout;
-        return layout;
+        return _layouts.TryGetValue(key, out LandmarkLayout? published) ? published : layout;
     }
 
     /// <summary>
@@ -155,15 +185,16 @@ public sealed class PointOfInterestResolver
             return tree;
         }
 
-        // About half of the sites are settled at all.
-        if ((SpatialHash.Hash(_seed ^ 0x9A0C5E17D2B4F863UL, siteX, siteY) & 0xFF) >= 128)
+        // Starter origin site (0, 0) always searches for a settlement; other sites settle at ~60% density.
+        bool isStarterSite = siteX == 0 && siteY == 0;
+        if (!isStarterSite && (SpatialHash.Hash(_seed ^ 0x9A0C5E17D2B4F863UL, siteX, siteY) & 0xFF) >= 154)
         {
             return default;
         }
 
         PointOfInterest best = default;
         float bestScore = 0f;
-        int margin = SiteMargin; // keep footprints inside the site so neighbouring sites never overlap
+        int margin = SiteMargin;
         for (int i = 0; i < Candidates; i++)
         {
             ulong h = SpatialHash.Hash(_seed ^ 0x47C1E3A5B9D2F608UL, (siteX * Candidates) + i, siteY);
@@ -176,13 +207,28 @@ public sealed class PointOfInterestResolver
             }
 
             float river = _rivers.GetDistance(x, y);
-            bool nearSea = this.TryFindSea(x, y, out float seaX, out float seaY);
-            (PointOfInterestType type, float score, int radius) = LandmarkRules.Evaluate(tile, river, this.IsFlat(x, y, tile.HeightLevel), nearSea);
+            byte zoneTier = WorldProgression.GetZoneTier(_seed, x, y);
+
+            // Evaluate cheap non-flat/non-sea gate first, probing sea/flatness only if any rule could plausibly accept.
+            float seaX = 0f;
+            float seaY = 0f;
+            bool nearSea = river <= 12f && tile.HeightLevel == 0 && tile.Elevation < 0.44f && this.TryFindSea(x, y, out seaX, out seaY);
+            float seaXOut = seaX;
+            float seaYOut = seaY;
+
+            (PointOfInterestType coarseType, _, _) = LandmarkRules.Evaluate(in tile, river, flat: true, nearSea, zoneTier);
+            if (coarseType == PointOfInterestType.None)
+            {
+                continue;
+            }
+
+            bool flat = this.IsFlat(x, y, tile.HeightLevel);
+            (PointOfInterestType type, float score, int radius) = LandmarkRules.Evaluate(in tile, river, flat, nearSea, zoneTier);
             if (score > bestScore)
             {
                 bestScore = score;
                 best = type == PointOfInterestType.Harbor
-                    ? new PointOfInterest(type, x, y, radius, seaX, seaY)
+                    ? new PointOfInterest(type, x, y, radius, seaXOut, seaYOut)
                     : new PointOfInterest(type, x, y, radius);
             }
         }
@@ -192,14 +238,40 @@ public sealed class PointOfInterestResolver
 
     private PointOfInterest FinishSite(int siteX, int siteY, PointOfInterest best)
     {
-        // Only one mountain site in three keeps its shrine, so summits are not all crowned.
-        if (best.Type == PointOfInterestType.MountainShrine &&
-            (SpatialHash.Hash(_seed ^ 0x1F3D5B7997B5D3F1UL, siteX, siteY) % 3) != 0)
+        uint finishHash = SpatialHash.Hash32(_seed, siteX, siteY, 0x1F3D5B79UL);
+        return best.Type switch
         {
-            return default;
-        }
+            PointOfInterestType.MountainShrine when (finishHash % 3) != 0 => default,
+            PointOfInterestType.BossArena when (finishHash % 6) != 0 => default,
+            PointOfInterestType.BanditCamp when (finishHash % 2) != 0 => default,
+            PointOfInterestType.AncientRuins when (finishHash % 2) != 0 => default,
+            PointOfInterestType.Watchtower when (finishHash % 3) != 0 => default,
+            PointOfInterestType.None or
+            PointOfInterestType.RiverVillage or
+            PointOfInterestType.Harbor or
+            PointOfInterestType.MountainShrine or
+            PointOfInterestType.LakesideCamp or
+            PointOfInterestType.DesertVillage or
+            PointOfInterestType.SnowVillage or
+            PointOfInterestType.SwampVillage or
+            PointOfInterestType.WorldTree or
+            PointOfInterestType.MineEntrance or
+            PointOfInterestType.AncientRuins or
+            PointOfInterestType.BanditCamp or
+            PointOfInterestType.Watchtower or
+            PointOfInterestType.BossArena => best,
+            _ => best,
+        };
+    }
 
-        return best;
+    private static void TrimQueue<TValue>(ConcurrentDictionary<long, TValue> dict, ConcurrentQueue<long> queue, int max)
+    {
+        int guard = 0;
+        while (dict.Count >= max && guard < 8 && queue.TryDequeue(out long oldest))
+        {
+            guard++;
+            _ = dict.TryRemove(oldest, out _);
+        }
     }
 
     // A World Tree needs flat lowland or plateau in a green biome, well away from rivers; the candidate
@@ -232,12 +304,12 @@ public sealed class PointOfInterestResolver
         return tree.Type == PointOfInterestType.WorldTree;
     }
 
-    // Flat: the 5x5 tiles around the site share its height level and none of them is water.
+    // Flat: checks an 8-tile ring + cardinal 1-tile safety neighborhood at the site height level without rivers or cliffs.
     private bool IsFlat(int x, int y, byte level)
     {
-        for (int dy = -4; dy <= 4; dy += 2)
+        for (int dy = -6; dy <= 6; dy += 2)
         {
-            for (int dx = -4; dx <= 4; dx += 2)
+            for (int dx = -6; dx <= 6; dx += 2)
             {
                 MapTile t = _tiles.SampleTile(x + dx, y + dy);
                 if (t.HeightLevel != level || t.IsSolid || t.Biome is BiomeType.ShallowWater or BiomeType.DeepOcean)
@@ -247,7 +319,16 @@ public sealed class PointOfInterestResolver
             }
         }
 
-        return true;
+        return this.IsDryAtLevel(x + 1, y, level) &&
+            this.IsDryAtLevel(x - 1, y, level) &&
+            this.IsDryAtLevel(x, y + 1, level) &&
+            this.IsDryAtLevel(x, y - 1, level);
+    }
+
+    private bool IsDryAtLevel(int x, int y, byte level)
+    {
+        MapTile t = _tiles.SampleTile(x, y);
+        return !t.IsSolid && t.HeightLevel == level && t.Biome is not (BiomeType.ShallowWater or BiomeType.DeepOcean);
     }
 
     // Finds open sea about 10 tiles away and returns the unit direction towards it.
@@ -255,12 +336,14 @@ public sealed class PointOfInterestResolver
     {
         dirX = 0f;
         dirY = 0f;
-        foreach ((int ox, int oy) in s_seaProbes)
+        for (int i = 0; i < s_seaProbes.Length; i++)
         {
+            (int ox, int oy) = s_seaProbes[i];
             int sx = x + ox;
             int sy = y + oy;
             MapTile t = _tiles.SampleTile(sx, sy);
-            if (t.Biome is BiomeType.DeepOcean || (t.Biome is BiomeType.ShallowWater && t.Elevation < 0.30f && _rivers.GetDistance(sx, sy) > WorldConstants.RiverChannel))
+            // Open coastal sea only (distinguish from inland DeepOcean river channels whose Elevation == 0.25f).
+            if (t.Elevation < 0.22f && t.Biome == BiomeType.DeepOcean)
             {
                 dirX += ox;
                 dirY += oy;
