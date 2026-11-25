@@ -100,4 +100,40 @@ public sealed class EntityManagerTests
         manager.GetEntity(e2.Id).Should().Be(Entity.Null);
         manager.GetEntity(e3.Id).Should().Be(e3);
     }
+
+    [Fact]
+    public void GenericComponentPool_SetGetSpanAndDestroy_WorksAcrossArbitraryStructTypes()
+    {
+        EntityManager manager = new(initialCapacity: 2);
+        Entity e1 = manager.CreateEntity();
+        Entity e2 = manager.CreateEntity();
+        Entity e3 = manager.CreateEntity(); // Triggers capacity growth beyond 2
+
+        manager.SetComponent(e1, new CustomMana(50f, 100f));
+        manager.SetComponent(e3, new CustomMana(25f, 80f));
+
+        manager.HasComponent<CustomMana>(e1).Should().BeTrue();
+        manager.HasComponent<CustomMana>(e2).Should().BeFalse();
+        manager.HasComponent<CustomMana>(e3).Should().BeTrue();
+
+        ref CustomMana mana1 = ref manager.GetComponent<CustomMana>(e1);
+        mana1 = mana1 with { Current = 75f };
+        manager.TryGetComponent(e1, out CustomMana read1).Should().BeTrue();
+        read1.Current.Should().Be(75f);
+
+        ComponentPool<CustomMana> pool = manager.GetPool<CustomMana>();
+        pool.Count.Should().Be(2);
+        pool.AsSpan().Length.Should().Be(2);
+
+        // Removing a component leaves entity alive
+        manager.RemoveComponent<CustomMana>(e1).Should().BeTrue();
+        manager.HasComponent<CustomMana>(e1).Should().BeFalse();
+        pool.Count.Should().Be(1);
+
+        // Destroying an entity cleans up all custom component pools automatically
+        manager.DestroyEntity(e3).Should().BeTrue();
+        pool.Count.Should().Be(0);
+    }
+
+    private readonly record struct CustomMana(float Current, float Max);
 }

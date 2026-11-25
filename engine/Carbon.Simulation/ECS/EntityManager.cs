@@ -2,42 +2,42 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using Carbon.Simulation.ECS.Components;
 
 namespace Carbon.Simulation.ECS;
 
-[Flags]
-internal enum ComponentFlags : byte
-{
-    None = 0,
-    Transform = 1 << 0,
-    Velocity = 1 << 1,
-    Collider = 1 << 2,
-    Health = 1 << 3
-}
-
 /// <summary>
-/// High-throughput, zero-allocation entity and component manager.
-/// Uses generational indexing and flat component arrays for optimal CPU cache locality.
+/// High-throughput, zero-allocation entity and component manager backed by generic sparse-set
+/// <see cref="ComponentPool{T}"/> containers. Supports arbitrary unmanaged struct components without runtime reflection.
 /// </summary>
 public sealed class EntityManager
 {
     private const int InitialCapacity = 4096;
+
+    private static int s_nextComponentTypeId;
 
     private int _capacity;
     private int _highestId;
     private int _aliveCount;
 
     private int[] _generations;
-    private ComponentFlags[] _flags;
-    private Transform2D[] _transforms;
-    private Velocity2D[] _velocities;
-    private Collider2D[] _colliders;
-    private HealthComponent[] _healths;
     private int[] _denseIndices;
+    private IComponentPool?[] _pools = new IComponentPool?[16];
+
+    private readonly ComponentPool<Transform2D> _transforms;
+    private readonly ComponentPool<PreviousTransform2D> _previousTransforms;
+    private readonly ComponentPool<Velocity2D> _velocities;
+    private readonly ComponentPool<Collider2D> _colliders;
+    private readonly ComponentPool<HealthComponent> _healths;
 
     private readonly Queue<int> _freeSlotQueue = new(512);
     private readonly List<Entity> _activeEntities = new(InitialCapacity);
+
+    private static class ComponentTypeId<T> where T : unmanaged
+    {
+        public static readonly int Id = Interlocked.Increment(ref s_nextComponentTypeId) - 1;
+    }
 
     /// <summary>
     /// Gets the number of currently alive entities.
@@ -59,11 +59,6 @@ public sealed class EntityManager
 
         _capacity = initialCapacity;
         _generations = new int[initialCapacity + 1];
-        _flags = new ComponentFlags[initialCapacity + 1];
-        _transforms = new Transform2D[initialCapacity + 1];
-        _velocities = new Velocity2D[initialCapacity + 1];
-        _colliders = new Collider2D[initialCapacity + 1];
-        _healths = new HealthComponent[initialCapacity + 1];
         _denseIndices = new int[initialCapacity + 1];
         Array.Fill(_denseIndices, -1);
 
@@ -73,6 +68,12 @@ public sealed class EntityManager
         {
             _generations[i] = 1;
         }
+
+        _transforms = this.GetPool<Transform2D>();
+        _previousTransforms = this.GetPool<PreviousTransform2D>();
+        _velocities = this.GetPool<Velocity2D>();
+        _colliders = this.GetPool<Collider2D>();
+        _healths = this.GetPool<HealthComponent>();
     }
 
     /// <summary>
@@ -98,7 +99,6 @@ public sealed class EntityManager
         }
 
         int gen = _generations[id];
-        _flags[id] = ComponentFlags.None;
         _aliveCount++;
 
         Entity entity = new(id, gen);
@@ -120,8 +120,12 @@ public sealed class EntityManager
         }
 
         int id = entity.Id;
+        for (int i = 0; i < _pools.Length; i++)
+        {
+            _pools[i]?.RemoveBySlot(id);
+        }
+
         _generations[id]++;
-        _flags[id] = ComponentFlags.None;
         _freeSlotQueue.Enqueue(id);
         _aliveCount--;
 
@@ -163,6 +167,94 @@ public sealed class EntityManager
     public Entity GetEntity(int id) =>
         this.IsSlotAlive(id) ? new Entity(id, _generations[id]) : Entity.Null;
 
+    /// <summary>
+    /// Gets or creates the sparse-set <see cref="ComponentPool{T}"/> for an arbitrary unmanaged component type.
+    /// </summary>
+    /// <typeparam name="T">Unmanaged component struct type.</typeparam>
+    /// <returns>The backing component pool.</returns>
+    public ComponentPool<T> GetPool<T>() where T : unmanaged
+    {
+        int typeId = ComponentTypeId<T>.Id;
+        if (typeId >= _pools.Length)
+        {
+            int nextSize = _pools.Length;
+            while (nextSize <= typeId)
+            {
+                nextSize *= 2;
+            }
+
+            Array.Resize(ref _pools, nextSize);
+        }
+
+        if (_pools[typeId] is not ComponentPool<T> pool)
+        {
+            pool = new ComponentPool<T>(_capacity);
+            _pools[typeId] = pool;
+        }
+
+        return pool;
+    }
+
+    /// <summary>
+    /// Assigns or updates an unmanaged component of type <typeparamref name="T"/> on an entity.
+    /// </summary>
+    /// <typeparam name="T">Unmanaged component struct type.</typeparam>
+    /// <param name="entity">Target entity handle.</param>
+    /// <param name="component">Component value.</param>
+    public void SetComponent<T>(Entity entity, in T component) where T : unmanaged
+    {
+        this.EnsureAlive(entity);
+        this.GetPool<T>().Set(entity.Id, in component);
+    }
+
+    /// <summary>
+    /// Gets a mutable reference to an entity's component of type <typeparamref name="T"/>.
+    /// </summary>
+    /// <typeparam name="T">Unmanaged component struct type.</typeparam>
+    /// <param name="entity">Target entity handle.</param>
+    /// <returns>Mutable reference to the component.</returns>
+    public ref T GetComponent<T>(Entity entity) where T : unmanaged
+    {
+        this.EnsureAlive(entity);
+        return ref this.GetPool<T>().Get(entity.Id);
+    }
+
+    /// <summary>
+    /// Attempts to read an entity's component of type <typeparamref name="T"/> without throwing if absent.
+    /// </summary>
+    /// <typeparam name="T">Unmanaged component struct type.</typeparam>
+    /// <param name="entity">Target entity handle.</param>
+    /// <param name="component">Retrieved component value when present.</param>
+    /// <returns><see langword="true"/> if the entity is alive and owns the component; otherwise, <see langword="false"/>.</returns>
+    public bool TryGetComponent<T>(Entity entity, out T component) where T : unmanaged
+    {
+        if (!this.IsAlive(entity))
+        {
+            component = default;
+            return false;
+        }
+
+        return this.GetPool<T>().TryGet(entity.Id, out component);
+    }
+
+    /// <summary>
+    /// Determines whether an alive entity owns a component of type <typeparamref name="T"/>.
+    /// </summary>
+    /// <typeparam name="T">Unmanaged component struct type.</typeparam>
+    /// <param name="entity">Target entity handle.</param>
+    /// <returns><see langword="true"/> if present; otherwise, <see langword="false"/>.</returns>
+    public bool HasComponent<T>(Entity entity) where T : unmanaged =>
+        this.IsAlive(entity) && this.GetPool<T>().Has(entity.Id);
+
+    /// <summary>
+    /// Removes a component of type <typeparamref name="T"/> from an entity.
+    /// </summary>
+    /// <typeparam name="T">Unmanaged component struct type.</typeparam>
+    /// <param name="entity">Target entity handle.</param>
+    /// <returns><see langword="true"/> if removed; otherwise, <see langword="false"/>.</returns>
+    public bool RemoveComponent<T>(Entity entity) where T : unmanaged =>
+        this.IsAlive(entity) && this.GetPool<T>().Remove(entity.Id);
+
     // --- Transform2D Component ---
 
     /// <summary>
@@ -171,8 +263,7 @@ public sealed class EntityManager
     public void SetTransform(Entity entity, in Transform2D transform)
     {
         this.EnsureAlive(entity);
-        _transforms[entity.Id] = transform;
-        _flags[entity.Id] |= ComponentFlags.Transform;
+        _transforms.Set(entity.Id, in transform);
     }
 
     /// <summary>
@@ -181,14 +272,40 @@ public sealed class EntityManager
     public ref Transform2D GetTransform(Entity entity)
     {
         this.EnsureAlive(entity);
-        return ref _transforms[entity.Id];
+        return ref _transforms.Get(entity.Id);
     }
 
     /// <summary>
     /// Determines whether an entity has a <see cref="Transform2D"/> component.
     /// </summary>
     public bool HasTransform(Entity entity) =>
-        this.IsAlive(entity) && (_flags[entity.Id] & ComponentFlags.Transform) != 0;
+        this.IsAlive(entity) && _transforms.Has(entity.Id);
+
+    // --- PreviousTransform2D Component ---
+
+    /// <summary>
+    /// Assigns or updates the <see cref="PreviousTransform2D"/> component of an entity.
+    /// </summary>
+    public void SetPreviousTransform(Entity entity, in PreviousTransform2D previousTransform)
+    {
+        this.EnsureAlive(entity);
+        _previousTransforms.Set(entity.Id, in previousTransform);
+    }
+
+    /// <summary>
+    /// Gets a reference to the <see cref="PreviousTransform2D"/> component of an entity.
+    /// </summary>
+    public ref PreviousTransform2D GetPreviousTransform(Entity entity)
+    {
+        this.EnsureAlive(entity);
+        return ref _previousTransforms.Get(entity.Id);
+    }
+
+    /// <summary>
+    /// Determines whether an entity has a <see cref="PreviousTransform2D"/> component.
+    /// </summary>
+    public bool HasPreviousTransform(Entity entity) =>
+        this.IsAlive(entity) && _previousTransforms.Has(entity.Id);
 
     // --- Velocity2D Component ---
 
@@ -198,8 +315,7 @@ public sealed class EntityManager
     public void SetVelocity(Entity entity, in Velocity2D velocity)
     {
         this.EnsureAlive(entity);
-        _velocities[entity.Id] = velocity;
-        _flags[entity.Id] |= ComponentFlags.Velocity;
+        _velocities.Set(entity.Id, in velocity);
     }
 
     /// <summary>
@@ -208,14 +324,14 @@ public sealed class EntityManager
     public ref Velocity2D GetVelocity(Entity entity)
     {
         this.EnsureAlive(entity);
-        return ref _velocities[entity.Id];
+        return ref _velocities.Get(entity.Id);
     }
 
     /// <summary>
     /// Determines whether an entity has a <see cref="Velocity2D"/> component.
     /// </summary>
     public bool HasVelocity(Entity entity) =>
-        this.IsAlive(entity) && (_flags[entity.Id] & ComponentFlags.Velocity) != 0;
+        this.IsAlive(entity) && _velocities.Has(entity.Id);
 
     // --- Collider2D Component ---
 
@@ -225,8 +341,7 @@ public sealed class EntityManager
     public void SetCollider(Entity entity, in Collider2D collider)
     {
         this.EnsureAlive(entity);
-        _colliders[entity.Id] = collider;
-        _flags[entity.Id] |= ComponentFlags.Collider;
+        _colliders.Set(entity.Id, in collider);
     }
 
     /// <summary>
@@ -235,14 +350,14 @@ public sealed class EntityManager
     public ref Collider2D GetCollider(Entity entity)
     {
         this.EnsureAlive(entity);
-        return ref _colliders[entity.Id];
+        return ref _colliders.Get(entity.Id);
     }
 
     /// <summary>
     /// Determines whether an entity has a <see cref="Collider2D"/> component.
     /// </summary>
     public bool HasCollider(Entity entity) =>
-        this.IsAlive(entity) && (_flags[entity.Id] & ComponentFlags.Collider) != 0;
+        this.IsAlive(entity) && _colliders.Has(entity.Id);
 
     // --- HealthComponent Component ---
 
@@ -252,8 +367,7 @@ public sealed class EntityManager
     public void SetHealth(Entity entity, in HealthComponent health)
     {
         this.EnsureAlive(entity);
-        _healths[entity.Id] = health;
-        _flags[entity.Id] |= ComponentFlags.Health;
+        _healths.Set(entity.Id, in health);
     }
 
     /// <summary>
@@ -262,14 +376,14 @@ public sealed class EntityManager
     public ref HealthComponent GetHealth(Entity entity)
     {
         this.EnsureAlive(entity);
-        return ref _healths[entity.Id];
+        return ref _healths.Get(entity.Id);
     }
 
     /// <summary>
     /// Determines whether an entity has a <see cref="HealthComponent"/>.
     /// </summary>
     public bool HasHealth(Entity entity) =>
-        this.IsAlive(entity) && (_flags[entity.Id] & ComponentFlags.Health) != 0;
+        this.IsAlive(entity) && _healths.Has(entity.Id);
 
     /// <summary>
     /// Clears all entities and components from the manager.
@@ -280,8 +394,13 @@ public sealed class EntityManager
         _freeSlotQueue.Clear();
         _aliveCount = 0;
         _highestId = 0;
-        Array.Clear(_flags);
         Array.Fill(_denseIndices, -1);
+
+        for (int i = 0; i < _pools.Length; i++)
+        {
+            _pools[i]?.Clear();
+        }
+
         for (int i = 1; i <= _capacity; i++)
         {
             _generations[i]++;
@@ -302,17 +421,17 @@ public sealed class EntityManager
         _capacity = newCapacity;
 
         Array.Resize(ref _generations, newCapacity + 1);
-        Array.Resize(ref _flags, newCapacity + 1);
-        Array.Resize(ref _transforms, newCapacity + 1);
-        Array.Resize(ref _velocities, newCapacity + 1);
-        Array.Resize(ref _colliders, newCapacity + 1);
-        Array.Resize(ref _healths, newCapacity + 1);
         Array.Resize(ref _denseIndices, newCapacity + 1);
 
         for (int i = oldCap + 1; i <= newCapacity; i++)
         {
             _generations[i] = 1;
             _denseIndices[i] = -1;
+        }
+
+        for (int i = 0; i < _pools.Length; i++)
+        {
+            _pools[i]?.GrowEntityCapacity(newCapacity);
         }
     }
 }

@@ -452,7 +452,7 @@ public static class Program
             }
         }
 
-        Vector2 playerPos = s_world.Entities.GetTransform(s_player).Position;
+        Vector2 playerPos = s_world.GetInterpolatedPosition(s_player);
 
         // 2. Collect visible ground props & entities into zero-alloc pooled sort list (Layer 2: 2.5D Y-Sorting)
         s_groundSortList.Clear();
@@ -682,36 +682,36 @@ public static class Program
             return;
         }
 
-        ref readonly Transform2D trans = ref s_world.Entities.GetTransform(entity);
+        Vector2 entityPos = s_world.GetInterpolatedPosition(entity);
         ref readonly Collider2D col = ref s_world.Entities.GetCollider(entity);
 
         if (entity == s_player)
         {
             // Current player tile for contextual foot effects (water splash / ripple)
-            int ptx = (int)MathF.Floor(trans.Position.X / TileSize);
-            int pty = (int)MathF.Floor(trans.Position.Y / TileSize);
+            int ptx = (int)MathF.Floor(entityPos.X / TileSize);
+            int pty = (int)MathF.Floor(entityPos.Y / TileSize);
             MapTile currentTile = s_chunkWorld.GetTileAtWorld(ptx, pty);
 
             if (currentTile.Biome is BiomeType.ShallowWater)
             {
                 // Water ripple ring around player's feet when wading in shallow water
-                batch.FillCircle(trans.Position, col.Radius + 6f, new ColorRgba(255, 255, 255, 55));
-                batch.FillCircle(trans.Position, col.Radius + 4f, new ColorRgba(56, 189, 248, 75));
+                batch.FillCircle(entityPos, col.Radius + 6f, new ColorRgba(255, 255, 255, 55));
+                batch.FillCircle(entityPos, col.Radius + 4f, new ColorRgba(56, 189, 248, 75));
             }
 
             // Player: High-contrast sleek MMORPG hero avatar token
             // Drop shadow
-            batch.FillCircle(new Vector2(trans.Position.X + 2f, trans.Position.Y + 3f), col.Radius + 1f, new ColorRgba(0, 0, 0, 75));
+            batch.FillCircle(new Vector2(entityPos.X + 2f, entityPos.Y + 3f), col.Radius + 1f, new ColorRgba(0, 0, 0, 75));
             // High-contrast platinum outer rim (ensures crisp visibility against dark ocean or night tiles)
-            batch.FillCircle(trans.Position, col.Radius + 1.5f, new ColorRgba(248, 250, 252, 220));
+            batch.FillCircle(entityPos, col.Radius + 1.5f, new ColorRgba(248, 250, 252, 220));
             // Outer navy mantle
-            batch.FillCircle(trans.Position, col.Radius, new ColorRgba(15, 23, 42, 255));
+            batch.FillCircle(entityPos, col.Radius, new ColorRgba(15, 23, 42, 255));
             // Royal blue tunic
-            batch.FillCircle(trans.Position, col.Radius * 0.82f, new ColorRgba(30, 64, 175, 255));
+            batch.FillCircle(entityPos, col.Radius * 0.82f, new ColorRgba(30, 64, 175, 255));
             // Cyan energy ring
-            batch.FillCircle(trans.Position, col.Radius * 0.52f, new ColorRgba(56, 189, 248, 255));
+            batch.FillCircle(entityPos, col.Radius * 0.52f, new ColorRgba(56, 189, 248, 255));
             // Golden core crest
-            batch.FillCircle(trans.Position, col.Radius * 0.22f, new ColorRgba(250, 204, 21, 255));
+            batch.FillCircle(entityPos, col.Radius * 0.22f, new ColorRgba(250, 204, 21, 255));
         }
     }
 
@@ -730,7 +730,7 @@ public static class Program
             return;
         }
 
-        Vector2 playerPos = s_world.Entities.GetTransform(s_player).Position;
+        Vector2 playerPos = s_world.GetInterpolatedPosition(s_player);
         int ptx = (int)MathF.Floor(playerPos.X / TileSize) + 4;
         int pty = (int)MathF.Floor(playerPos.Y / TileSize);
 

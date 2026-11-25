@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Physics.Obstacles;
 using Carbon.Simulation.ECS.Components;
+using Carbon.Simulation.Networking;
 
 namespace Carbon.Simulation.ECS.Systems;
 
@@ -20,7 +21,22 @@ public static class MovementSystem
     /// <param name="entities">The entity manager.</param>
     /// <param name="dt">Simulation delta time in seconds.</param>
     /// <param name="worldPhysics">Optional static obstacle / world physics provider.</param>
-    public static void Update(EntityManager entities, float dt, IWorldPhysics2D? worldPhysics = null)
+    public static void Update(EntityManager entities, float dt, IWorldPhysics2D? worldPhysics = null) =>
+        Update(entities, dt, worldPhysics, markDirty: null);
+
+    /// <summary>
+    /// Updates position and linear velocity across active entities, optionally resolving continuous world collisions
+    /// and marking modified transforms dirty for network replication.
+    /// </summary>
+    /// <param name="entities">The entity manager.</param>
+    /// <param name="dt">Simulation delta time in seconds.</param>
+    /// <param name="worldPhysics">Optional static obstacle / world physics provider.</param>
+    /// <param name="markDirty">Optional callback invoked when an entity's transform changes.</param>
+    public static void Update(
+        EntityManager entities,
+        float dt,
+        IWorldPhysics2D? worldPhysics,
+        Action<Entity, EntityDirtyMask>? markDirty)
     {
         ArgumentNullException.ThrowIfNull(entities);
 
@@ -52,50 +68,66 @@ public static class MovementSystem
             if (worldPhysics is not null && entities.HasCollider(entity))
             {
                 ref readonly Collider2D col = ref entities.GetCollider(entity);
-                if (!col.IsTrigger && col.Kind == ColliderKind.Circle)
+                if (!col.IsTrigger && col.Kind != ColliderKind.None)
                 {
-                    float totalDist = displacement.Length();
-                    if (totalDist > 0.0001f)
+                    float radius = col.Kind == ColliderKind.Circle
+                        ? col.Radius
+                        : MathF.Min(col.Box.Width, col.Box.Height) * 0.5f;
+                    Vector2 centerOffset = col.Kind == ColliderKind.Aabb ? col.Box.Center : Vector2.Zero;
+
+                    if (radius > 0f)
                     {
-                        float maxStep = col.Radius > 0f ? MathF.Min(2.5f, col.Radius * 0.5f) : 2.5f;
-                        int subSteps = Math.Clamp((int)MathF.Ceiling(totalDist / maxStep), 1, 16);
-                        Vector2 stepDelta = displacement / subSteps;
-                        Vector2 currentPos = previousPos;
-
-                        for (int step = 0; step < subSteps; step++)
+                        float totalDist = displacement.Length();
+                        if (totalDist > 0.0001f)
                         {
-                            currentPos += stepDelta;
-                            if (worldPhysics.ResolveCircleCollision(ref currentPos, col.Radius, out Vector2 pushNormal))
-                            {
-                                // Deflect trajectory and velocity along obstacle surface for smooth sliding
-                                float stepDot = Vector2.Dot(stepDelta, pushNormal);
-                                if (stepDot < 0f)
-                                {
-                                    stepDelta -= pushNormal * stepDot;
-                                }
+                            float maxStep = MathF.Min(2.5f, radius * 0.5f);
+                            int subSteps = Math.Clamp((int)MathF.Ceiling(totalDist / maxStep), 1, 16);
+                            Vector2 stepDelta = displacement / subSteps;
+                            Vector2 currentCenter = previousPos + centerOffset;
 
-                                float velDot = Vector2.Dot(velocity.Linear, pushNormal);
-                                if (velDot < 0f)
+                            for (int step = 0; step < subSteps; step++)
+                            {
+                                currentCenter += stepDelta;
+                                if (worldPhysics.ResolveCircleCollision(ref currentCenter, radius, out Vector2 pushNormal))
                                 {
-                                    velocity.Linear -= pushNormal * velDot;
+                                    float stepDot = Vector2.Dot(stepDelta, pushNormal);
+                                    if (stepDot < 0f)
+                                    {
+                                        stepDelta -= pushNormal * stepDot;
+                                    }
+
+                                    float velDot = Vector2.Dot(velocity.Linear, pushNormal);
+                                    if (velDot < 0f)
+                                    {
+                                        velocity.Linear -= pushNormal * velDot;
+                                    }
                                 }
                             }
+
+                            transform.Position = currentCenter - centerOffset;
+                        }
+                        else
+                        {
+                            Vector2 currentCenter = previousPos + displacement + centerOffset;
+                            _ = worldPhysics.ResolveCircleCollision(ref currentCenter, radius, out _);
+                            transform.Position = currentCenter - centerOffset;
                         }
 
-                        transform.Position = currentPos;
-                    }
-                    else
-                    {
-                        Vector2 currentPos = previousPos + displacement;
-                        _ = worldPhysics.ResolveCircleCollision(ref currentPos, col.Radius, out _);
-                        transform.Position = currentPos;
-                    }
+                        if (transform.Position != previousPos)
+                        {
+                            markDirty?.Invoke(entity, EntityDirtyMask.Transform);
+                        }
 
-                    continue;
+                        continue;
+                    }
                 }
             }
 
             transform.Position = previousPos + displacement;
+            if (transform.Position != previousPos)
+            {
+                markDirty?.Invoke(entity, EntityDirtyMask.Transform);
+            }
         }
     }
 }

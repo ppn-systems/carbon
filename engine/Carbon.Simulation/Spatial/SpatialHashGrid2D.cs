@@ -117,17 +117,142 @@ public sealed class SpatialHashGrid2D
     /// <param name="centerCell">Center cell coordinate.</param>
     /// <param name="resultsBuffer">Output span to write found entity IDs.</param>
     /// <param name="count">Output total count of entities written.</param>
-    public void QueryNeighbors(in CellCoord centerCell, Span<int> resultsBuffer, out int count)
+    public void QueryNeighbors(in CellCoord centerCell, Span<int> resultsBuffer, out int count) =>
+        this.QueryCellRadius(in centerCell, cellRadius: 1, resultsBuffer, out count);
+
+    /// <summary>
+    /// Queries all entities residing within a Chebyshev cell radius around <paramref name="centerCell"/>.
+    /// Hot-path zero allocation: outputs into user-provided <see cref="Span{T}"/>.
+    /// </summary>
+    /// <param name="centerCell">Center cell coordinate.</param>
+    /// <param name="cellRadius">Non-negative Chebyshev radius in cells (1 = 3x3 neighborhood).</param>
+    /// <param name="resultsBuffer">Output span to write found entity IDs.</param>
+    /// <param name="count">Output total count of entities written.</param>
+    public void QueryCellRadius(in CellCoord centerCell, int cellRadius, Span<int> resultsBuffer, out int count)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(cellRadius);
+
+        count = 0;
+        int maxCapacity = resultsBuffer.Length;
+
+        for (int dy = -cellRadius; dy <= cellRadius; dy++)
+        {
+            for (int dx = -cellRadius; dx <= cellRadius; dx++)
+            {
+                CellCoord neighbor = new(centerCell.X + dx, centerCell.Y + dy);
+                if (_cells.TryGetValue(neighbor.Key, out List<int>? bucket) && bucket is not null)
+                {
+                    int bucketCount = bucket.Count;
+                    for (int i = 0; i < bucketCount; i++)
+                    {
+                        if (count < maxCapacity)
+                        {
+                            resultsBuffer[count++] = bucket[i];
+                        }
+                        else
+                        {
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Computes which entities entered or exited an observer's Area of Interest (AoI) when moving from
+    /// <paramref name="previousCell"/> to <paramref name="currentCell"/>. Zero heap allocation.
+    /// </summary>
+    /// <param name="previousCell">Observer's previous cell coordinate.</param>
+    /// <param name="currentCell">Observer's current cell coordinate.</param>
+    /// <param name="cellRadius">AoI Chebyshev radius in cells.</param>
+    /// <param name="enteredBuffer">Output buffer receiving entity IDs that newly entered the AoI.</param>
+    /// <param name="enteredCount">Total number of entered entity IDs written.</param>
+    /// <param name="exitedBuffer">Output buffer receiving entity IDs that left the AoI.</param>
+    /// <param name="exitedCount">Total number of exited entity IDs written.</param>
+    public void QueryAoiDiff(
+        in CellCoord previousCell,
+        in CellCoord currentCell,
+        int cellRadius,
+        Span<int> enteredBuffer,
+        out int enteredCount,
+        Span<int> exitedBuffer,
+        out int exitedCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(cellRadius);
+
+        enteredCount = 0;
+        exitedCount = 0;
+
+        if (previousCell == currentCell)
+        {
+            return;
+        }
+
+        int maxEntered = enteredBuffer.Length;
+        for (int dy = -cellRadius; dy <= cellRadius && enteredCount < maxEntered; dy++)
+        {
+            for (int dx = -cellRadius; dx <= cellRadius && enteredCount < maxEntered; dx++)
+            {
+                CellCoord cell = new(currentCell.X + dx, currentCell.Y + dy);
+                if (cell.ChebyshevDistance(in previousCell) <= cellRadius)
+                {
+                    continue;
+                }
+
+                if (_cells.TryGetValue(cell.Key, out List<int>? bucket) && bucket is not null)
+                {
+                    int bucketCount = bucket.Count;
+                    for (int i = 0; i < bucketCount && enteredCount < maxEntered; i++)
+                    {
+                        enteredBuffer[enteredCount++] = bucket[i];
+                    }
+                }
+            }
+        }
+
+        int maxExited = exitedBuffer.Length;
+        for (int dy = -cellRadius; dy <= cellRadius && exitedCount < maxExited; dy++)
+        {
+            for (int dx = -cellRadius; dx <= cellRadius && exitedCount < maxExited; dx++)
+            {
+                CellCoord cell = new(previousCell.X + dx, previousCell.Y + dy);
+                if (cell.ChebyshevDistance(in currentCell) <= cellRadius)
+                {
+                    continue;
+                }
+
+                if (_cells.TryGetValue(cell.Key, out List<int>? bucket) && bucket is not null)
+                {
+                    int bucketCount = bucket.Count;
+                    for (int i = 0; i < bucketCount && exitedCount < maxExited; i++)
+                    {
+                        exitedBuffer[exitedCount++] = bucket[i];
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Queries all entities residing inside an inclusive rectangular range of spatial cells.
+    /// Hot-path zero allocation: outputs into user-provided <see cref="Span{T}"/>.
+    /// </summary>
+    /// <param name="minCell">Minimum inclusive cell coordinate.</param>
+    /// <param name="maxCell">Maximum inclusive cell coordinate.</param>
+    /// <param name="resultsBuffer">Output span to write found entity IDs.</param>
+    /// <param name="count">Output total count of entities written.</param>
+    public void QueryRegion(in CellCoord minCell, in CellCoord maxCell, Span<int> resultsBuffer, out int count)
     {
         count = 0;
         int maxCapacity = resultsBuffer.Length;
 
-        for (int dy = -1; dy <= 1; dy++)
+        for (int cy = minCell.Y; cy <= maxCell.Y; cy++)
         {
-            for (int dx = -1; dx <= 1; dx++)
+            for (int cx = minCell.X; cx <= maxCell.X; cx++)
             {
-                CellCoord neighbor = new(centerCell.X + dx, centerCell.Y + dy);
-                if (_cells.TryGetValue(neighbor.Key, out List<int>? bucket) && bucket != null)
+                CellCoord cell = new(cx, cy);
+                if (_cells.TryGetValue(cell.Key, out List<int>? bucket) && bucket is not null)
                 {
                     int bucketCount = bucket.Count;
                     for (int i = 0; i < bucketCount; i++)
