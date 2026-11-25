@@ -36,7 +36,7 @@ public sealed class HydrologyStage : ITileStage
         sample.RiverDistance = float.NaN;
 
         // Rivers discharge into the sea; open ocean is never altered.
-        if (sample.Elevation < 0.32f)
+        if (sample.Elevation < WorldConstants.SeaLevel)
         {
             return true;
         }
@@ -49,7 +49,7 @@ public sealed class HydrologyStage : ITileStage
         bool isOasis = sample.Temperature > 0.68f && sample.RawMoisture < 0.28f &&
             sample.Elevation >= 0.42f && sample.Elevation <= 0.62f && lakeNoise > 0.86f;
 
-        if (riverDist <= 2.2f || isOasis)
+        if (riverDist <= WorldConstants.RiverChannel || isOasis)
         {
             // River channel or lake: a continuous water surface sitting on the terrain it crosses
             // (the renderer draws waterfalls where it leaves a plateau).
@@ -65,10 +65,10 @@ public sealed class HydrologyStage : ITileStage
             return false;
         }
 
-        if (riverDist < ProceduralWorldGenerator.RiparianReach)
+        if (riverDist < WorldConstants.RiparianReach)
         {
             // Riparian zone: ease the ground down towards the water and wet it; big rivers get wider valleys.
-            float k = 1f - Math.Clamp((riverDist - 2.2f) / (ProceduralWorldGenerator.RiparianReach - 2.2f), 0f, 1f);
+            float k = 1f - Math.Clamp((riverDist - WorldConstants.RiverChannel) / (WorldConstants.RiparianReach - WorldConstants.RiverChannel), 0f, 1f);
             k = k * k * (3f - (2f * k));
             float elevation = MathF.Max(sample.Elevation - (0.08f * k), MathF.Min(sample.Elevation, 0.36f));
             if (riverDist < 3.0f)

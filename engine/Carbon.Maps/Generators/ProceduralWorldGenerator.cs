@@ -24,7 +24,7 @@ public sealed class ProceduralWorldGenerator : ITileSource
     public const ushort GeneratorVersion = 10;
 
     /// <summary>Width-scaled distance over which rivers and lakes lower and moisten the land around them.</summary>
-    public const float RiparianReach = 10f;
+    public const float RiparianReach = WorldConstants.RiparianReach;
 
 
     /// <summary>
@@ -46,6 +46,9 @@ public sealed class ProceduralWorldGenerator : ITileSource
     /// </summary>
     public ulong Seed => _seed;
 
+    /// <summary>Gets the world settings (seed, frequency, tile size).</summary>
+    public WorldGenSettings Settings { get; }
+
     /// <summary>Gets the resolver that places villages, harbours, camps and shrines.</summary>
     public PointOfInterestResolver Landmarks => _landmarks;
 
@@ -53,7 +56,7 @@ public sealed class ProceduralWorldGenerator : ITileSource
     /// Initializes a new instance of the <see cref="ProceduralWorldGenerator"/> class with the standard
     /// pipeline: Elevation → Climate → Hydrology → Biome per tile, then Landmarks → Props per chunk.
     /// </summary>
-    /// <param name="seed">64-bit deterministic world seed.</param>
+    /// <param name="seed">64-bit deterministic world seed (default frequency and tile size).</param>
     /// <param name="extraTileStages">Optional tile stages run after the biome stage (e.g. local overrides).</param>
     /// <param name="extraChunkStages">Optional chunk stages run after props (e.g. caves, roads). Give each its own
     /// seed with <see cref="StageSeed.Derive"/> so it never disturbs the existing stages.</param>
@@ -61,7 +64,26 @@ public sealed class ProceduralWorldGenerator : ITileSource
         ulong seed,
         IReadOnlyList<ITileStage>? extraTileStages = null,
         IReadOnlyList<IChunkStage>? extraChunkStages = null)
+        : this(new WorldGenSettings(seed), extraTileStages, extraChunkStages)
     {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ProceduralWorldGenerator"/> class from world settings
+    /// (as sent to clients in <c>MapWorldInfo</c>).
+    /// </summary>
+    /// <param name="settings">World settings.</param>
+    /// <param name="extraTileStages">Optional tile stages run after the biome stage.</param>
+    /// <param name="extraChunkStages">Optional chunk stages run after props.</param>
+    public ProceduralWorldGenerator(
+        WorldGenSettings settings,
+        IReadOnlyList<ITileStage>? extraTileStages = null,
+        IReadOnlyList<IChunkStage>? extraChunkStages = null)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        settings.Validate();
+        this.Settings = settings;
+        ulong seed = settings.Seed;
         _seed = seed;
         ElevationStage elevation = new(seed);
         _rivers = new RiverNetwork(seed, elevation);
@@ -88,9 +110,9 @@ public sealed class ProceduralWorldGenerator : ITileSource
     /// </summary>
     /// <param name="width">Map width in tiles.</param>
     /// <param name="height">Map height in tiles.</param>
-    /// <param name="frequency">Spatial frequency scale of terrain features (default 0.0008f).</param>
+    /// <param name="frequency">Spatial frequency scale of terrain features (default: the world settings).</param>
     /// <returns>Populated <see cref="TilemapData"/>.</returns>
-    public TilemapData GenerateTilemap(int width, int height, float frequency = DefaultFrequency)
+    public TilemapData GenerateTilemap(int width, int height, float? frequency = null)
     {
         TilemapData map = new(width, height);
 
@@ -98,7 +120,7 @@ public sealed class ProceduralWorldGenerator : ITileSource
         {
             for (int x = 0; x < width; x++)
             {
-                MapTile tile = this.SampleTile(x, y, frequency);
+                MapTile tile = this.SampleTile(x, y, frequency ?? this.Settings.Frequency);
                 map.SetTile(x, y, tile);
             }
         }
@@ -112,17 +134,17 @@ public sealed class ProceduralWorldGenerator : ITileSource
     /// </summary>
     /// <param name="chunkX">Chunk horizontal coordinate.</param>
     /// <param name="chunkY">Chunk vertical coordinate.</param>
-    /// <param name="frequency">Spatial frequency scale of terrain features (default 0.0008f).</param>
+    /// <param name="frequency">Spatial frequency scale of terrain features (default: the world settings).</param>
     /// <param name="tileSize">Physical dimension of each tile in world units.</param>
     /// <returns>Populated <see cref="Chunk2D"/>.</returns>
     public Chunk2D GenerateChunk(
         int chunkX,
         int chunkY,
-        float frequency = DefaultFrequency,
-        float tileSize = 32f)
+        float? frequency = null,
+        float? tileSize = null)
     {
         Chunk2D chunk = new(chunkX, chunkY);
-        this.PopulateChunk(chunk, chunkX, chunkY, frequency, tileSize);
+        this.PopulateChunk(chunk, chunkX, chunkY, frequency ?? this.Settings.Frequency, tileSize ?? this.Settings.TileSize);
         return chunk;
     }
 
@@ -134,12 +156,14 @@ public sealed class ProceduralWorldGenerator : ITileSource
         Chunk2D chunk,
         int chunkX,
         int chunkY,
-        float frequency = DefaultFrequency,
-        float tileSize = 32f)
+        float? frequency = null,
+        float? tileSize = null)
     {
         ArgumentNullException.ThrowIfNull(chunk, nameof(chunk));
 
         chunk.Reset(chunkX, chunkY);
+        float freq = frequency ?? this.Settings.Frequency;
+        float size = tileSize ?? this.Settings.TileSize;
 
         // Terrain first, for the whole chunk, then the chunk stages decorate it from the same samples.
         TileSample[] samples = s_chunkSamples ??= new TileSample[Chunk2D.Size * Chunk2D.Size];
@@ -150,12 +174,12 @@ public sealed class ProceduralWorldGenerator : ITileSource
             for (int localX = 0; localX < Chunk2D.Size; localX++)
             {
                 ref TileSample sample = ref samples[(localY * Chunk2D.Size) + localX];
-                this.Synthesize(ref sample, startX + localX, startY + localY, frequency);
+                this.Synthesize(ref sample, startX + localX, startY + localY, freq);
                 chunk.SetTile(localX, localY, sample.Tile);
             }
         }
 
-        ChunkContext context = new(chunkX, chunkY, tileSize, samples);
+        ChunkContext context = new(chunkX, chunkY, size, samples);
         for (int i = 0; i < _chunkStages.Length; i++)
         {
             _chunkStages[i].Populate(chunk, context);
@@ -189,10 +213,10 @@ public sealed class ProceduralWorldGenerator : ITileSource
     /// <param name="worldY">World Y tile coordinate.</param>
     /// <param name="frequency">Spatial frequency scale.</param>
     /// <returns>Evaluated <see cref="MapTile"/>.</returns>
-    public MapTile SampleTile(int worldX, int worldY, float frequency = DefaultFrequency)
+    public MapTile SampleTile(int worldX, int worldY, float? frequency = null)
     {
         TileSample sample = default;
-        this.Synthesize(ref sample, worldX, worldY, frequency);
+        this.Synthesize(ref sample, worldX, worldY, frequency ?? this.Settings.Frequency);
         return sample.Tile;
     }
 

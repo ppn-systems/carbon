@@ -24,7 +24,7 @@ public sealed class BiomeStage : ITileStage
         byte variant = (byte)(SpatialHash.Hash32(_seed, sample.WorldX, sample.WorldY, 0x0A71UL) & 3);
 
         // River banks turn to sand inland; only real coasts take the beach height rules.
-        bool isCoast = sample.CoastElevation < 0.38f;
+        bool isCoast = sample.CoastElevation < WorldConstants.CoastLevel;
         byte heightLevel = TopographyHelper.ResolveTerrainHeightLevel(sample.Relief, sample.CoastElevation, isCoast ? biome : BiomeType.LushPlains, isInlandWater: false);
 
         sample.Tile = new MapTile(biome, sample.Elevation, sample.Temperature, sample.Moisture, isSolid, variant, heightLevel);

@@ -310,7 +310,7 @@ public sealed class PointOfInterestResolver
             int sx = x + ox;
             int sy = y + oy;
             MapTile t = _tiles.SampleTile(sx, sy);
-            if (t.Biome is BiomeType.DeepOcean || (t.Biome is BiomeType.ShallowWater && t.Elevation < 0.30f && _rivers.GetDistance(sx, sy) > 2.2f))
+            if (t.Biome is BiomeType.DeepOcean || (t.Biome is BiomeType.ShallowWater && t.Elevation < 0.30f && _rivers.GetDistance(sx, sy) > WorldConstants.RiverChannel))
             {
                 dirX += ox;
                 dirY += oy;

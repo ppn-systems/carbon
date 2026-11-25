@@ -23,13 +23,13 @@ public static class WhittakerBiomeResolver
             return BiomeType.DeepOcean;
         }
 
-        if (elevation < 0.32f)
+        if (elevation < WorldConstants.SeaLevel)
         {
             return BiomeType.ShallowWater;
         }
 
         // Ocean coastal beach sand in temperate and warm climates (polar ice meets water directly)
-        if (elevation < 0.38f)
+        if (elevation < WorldConstants.CoastLevel)
         {
             if (temperature < 0.25f)
             {

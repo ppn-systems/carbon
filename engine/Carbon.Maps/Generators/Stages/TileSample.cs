@@ -47,5 +47,5 @@ public struct TileSample
     public MapTile Tile { get; set; }
 
     /// <summary>Gets a value indicating whether the tile is water or right next to it.</summary>
-    public readonly bool IsNearWater => this.RiverDistance < 3.8f || this.Tile.Elevation < 0.38f;
+    public readonly bool IsNearWater => this.RiverDistance < WorldConstants.NearWater || this.Tile.Elevation < WorldConstants.CoastLevel;
 }

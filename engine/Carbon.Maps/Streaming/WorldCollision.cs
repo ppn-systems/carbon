@@ -5,6 +5,7 @@ using System.Numerics;
 using Carbon.Maps.Data;
 using Carbon.Maps.Landmarks;
 using Carbon.Maps.Props;
+using Carbon.Physics.Obstacles;
 
 namespace Carbon.Maps.Streaming;
 
@@ -23,6 +24,61 @@ internal sealed class WorldCollision
     {
         _world = world;
         _tileSize = world.TileSize;
+    }
+
+    /// <summary>
+    /// Assembles an active obstacle collision grid combining terrain and physical props
+    /// across the specified local chunk radius.
+    /// </summary>
+    public TileObstacleGrid CreateObstacleGrid(Vector2 centerWorldPos, int chunkRadius = 2)
+    {
+        float chunkSizeWorld = Chunk2D.Size * _tileSize;
+        int centerChunkX = (int)MathF.Floor(centerWorldPos.X / chunkSizeWorld);
+        int centerChunkY = (int)MathF.Floor(centerWorldPos.Y / chunkSizeWorld);
+
+        int minChunkX = centerChunkX - chunkRadius;
+        int minChunkY = centerChunkY - chunkRadius;
+        int chunksAcross = (chunkRadius * 2) + 1;
+        int tilesAcross = chunksAcross * Chunk2D.Size;
+
+        TileObstacleGrid combined = new(tilesAcross, tilesAcross, _tileSize);
+
+        for (int cy = 0; cy < chunksAcross; cy++)
+        {
+            int chunkY = minChunkY + cy;
+            for (int cx = 0; cx < chunksAcross; cx++)
+            {
+                int chunkX = minChunkX + cx;
+                Chunk2D chunk = _world.GetOrCreateChunk(chunkX, chunkY);
+
+                int baseOffsetX = cx * Chunk2D.Size;
+                int baseOffsetY = cy * Chunk2D.Size;
+
+                for (int ly = 0; ly < Chunk2D.Size; ly++)
+                {
+                    for (int lx = 0; lx < Chunk2D.Size; lx++)
+                    {
+                        if (chunk.GetTile(lx, ly).IsSolid)
+                        {
+                            combined.SetSolid(baseOffsetX + lx, baseOffsetY + ly, true);
+                        }
+                    }
+                }
+
+                for (int i = 0; i < chunk.Props.Count; i++)
+                {
+                    MapProp prop = chunk.Props[i];
+                    if (prop.HasCollision)
+                    {
+                        int px = Math.Clamp(baseOffsetX + prop.LocalTileX, 0, tilesAcross - 1);
+                        int py = Math.Clamp(baseOffsetY + prop.LocalTileY, 0, tilesAcross - 1);
+                        combined.SetSolid(px, py, true);
+                    }
+                }
+            }
+        }
+
+        return combined;
     }
 
     /// <summary>

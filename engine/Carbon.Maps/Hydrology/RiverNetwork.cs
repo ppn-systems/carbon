@@ -41,7 +41,7 @@ internal sealed class RiverNetwork : IRiverDistanceSource
     public const int SourceSpacing = 88;
 
     /// <summary>Relief below which a cell is sea: the river mouth.</summary>
-    public const float SeaRelief = 0.32f;
+    public const float SeaRelief = WorldConstants.SeaLevel;
 
     /// <summary>Relief band in which springs appear.</summary>
     public const float MinSourceRelief = 0.62f;
