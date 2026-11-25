@@ -1,5 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System.Collections.Concurrent;
 using System.Numerics;
 using Carbon.Physics.Obstacles;
 using Carbon.Physics.Raycast;
@@ -14,15 +15,19 @@ namespace Carbon.Simulation.World;
 
 /// <summary>
 /// Top-level deterministic world simulation coordinator.
-/// Orchestrates the fixed-tick loop, entity management, spatial grid partitioning, and kinematic collision resolution.
-/// Runs headlessly on Dedicated Servers and on client instances for deterministic simulation and prediction.
+/// Orchestrates the fixed-tick loop, thread-safe command queue, entity management, spatial grid partitioning,
+/// and continuous kinematic collision resolution. Runs headlessly on Dedicated Servers and on clients for prediction.
 /// </summary>
 public sealed class WorldSimulation
 {
+    private const int MaxCommandsPerTick = 16384;
+
     private readonly FixedTickClock _clock;
     private readonly EntityManager _entities;
     private readonly SpatialHashGrid2D _spatialGrid;
+    private readonly ConcurrentQueue<SimulationCommand> _commandQueue = new();
     private TileObstacleGrid? _obstacleGrid;
+    private IWorldPhysics2D? _worldPhysics;
 
     /// <summary>
     /// Gets the fixed-tick simulation clock.
@@ -40,12 +45,27 @@ public sealed class WorldSimulation
     public SpatialHashGrid2D SpatialGrid => _spatialGrid;
 
     /// <summary>
+    /// Gets the number of commands currently buffered in the incoming thread-safe command queue.
+    /// </summary>
+    public int PendingCommandCount => _commandQueue.Count;
+
+    /// <summary>
     /// Gets or sets the optional static obstacle tile grid for terrain collisions and raycasting.
     /// </summary>
     public TileObstacleGrid? ObstacleGrid
     {
         get => _obstacleGrid;
         set => _obstacleGrid = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the optional world physics provider for terrain speed scaling and continuous collision resolution.
+    /// When unset, <see cref="ObstacleGrid"/> is used if present.
+    /// </summary>
+    public IWorldPhysics2D? WorldPhysics
+    {
+        get => _worldPhysics;
+        set => _worldPhysics = value;
     }
 
     /// <summary>
@@ -61,6 +81,12 @@ public sealed class WorldSimulation
     }
 
     /// <summary>
+    /// Enqueues a simulation command from any thread to be executed sequentially at the start of the next fixed tick.
+    /// </summary>
+    /// <param name="command">The command to enqueue.</param>
+    public void EnqueueCommand(in SimulationCommand command) => _commandQueue.Enqueue(command);
+
+    /// <summary>
     /// Advances the simulation clock by the elapsed wall-clock time and executes all accumulated fixed ticks.
     /// </summary>
     /// <param name="elapsedSeconds">Elapsed wall-clock time in seconds since previous frame.</param>
@@ -74,10 +100,15 @@ public sealed class WorldSimulation
     /// <param name="args">Tick contextual timing parameters.</param>
     public void Tick(FixedTickArgs args)
     {
-        // 1. Movement System: integrate velocity -> position and resolve static obstacle collisions
-        MovementSystem.Update(_entities, args.DeltaTime, _obstacleGrid);
+        IWorldPhysics2D? physics = _worldPhysics ?? _obstacleGrid;
 
-        // 2. Collision & Spatial System: broadphase query & entity-to-entity separation
+        // 1. Drain incoming thread-safe commands sequentially on the tick thread
+        this.DrainCommands(physics);
+
+        // 2. Movement System: integrate velocity -> position with CCD sub-stepping against world physics
+        MovementSystem.Update(_entities, args.DeltaTime, physics);
+
+        // 3. Collision & Spatial System: broadphase query & entity-to-entity separation
         EntityCollisionSystem.Update(_entities, _spatialGrid);
     }
 
@@ -89,7 +120,8 @@ public sealed class WorldSimulation
     /// <returns><see langword="true"/> if an obstacle was hit; otherwise, <see langword="false"/>.</returns>
     public bool Raycast(in Ray2D ray, out RaycastHit2D hit)
     {
-        if (_obstacleGrid != null && _obstacleGrid.Raycast(ray, out hit))
+        TileObstacleGrid? grid = _obstacleGrid ?? (_worldPhysics as TileObstacleGrid);
+        if (grid is not null && grid.Raycast(ray, out hit))
         {
             return true;
         }
@@ -123,6 +155,65 @@ public sealed class WorldSimulation
         {
             _ = _spatialGrid.Remove(entity.Id);
             _ = _entities.DestroyEntity(entity);
+        }
+    }
+
+    private void DrainCommands(IWorldPhysics2D? physics)
+    {
+        int processed = 0;
+        while (processed < MaxCommandsPerTick && _commandQueue.TryDequeue(out SimulationCommand cmd))
+        {
+            processed++;
+            switch (cmd.Kind)
+            {
+                case SimulationCommandKind.SetMoveInput:
+                    if (_entities.IsAlive(cmd.Entity) && _entities.HasVelocity(cmd.Entity))
+                    {
+                        ref Velocity2D vel = ref _entities.GetVelocity(cmd.Entity);
+                        if (cmd.Vector.LengthSquared() > 0.000001f && cmd.BaseSpeed > 0f)
+                        {
+                            Vector2 dir = Vector2.Normalize(cmd.Vector);
+                            float multiplier = (physics is not null && _entities.HasTransform(cmd.Entity))
+                                ? physics.GetMoveSpeedMultiplier(_entities.GetTransform(cmd.Entity).Position)
+                                : 1f;
+                            vel.Linear = dir * (cmd.BaseSpeed * multiplier);
+                        }
+                        else if (vel.Drag <= 0f)
+                        {
+                            vel.Linear = Vector2.Zero;
+                        }
+                    }
+
+                    break;
+
+                case SimulationCommandKind.SetVelocity:
+                    if (_entities.IsAlive(cmd.Entity) && _entities.HasVelocity(cmd.Entity))
+                    {
+                        _entities.GetVelocity(cmd.Entity).Linear = cmd.Vector;
+                    }
+
+                    break;
+
+                case SimulationCommandKind.Teleport:
+                    if (_entities.IsAlive(cmd.Entity) && _entities.HasTransform(cmd.Entity))
+                    {
+                        _entities.GetTransform(cmd.Entity).Position = cmd.Vector;
+                        if (_entities.HasCollider(cmd.Entity))
+                        {
+                            _ = _spatialGrid.Update(cmd.Entity.Id, cmd.Vector);
+                        }
+                    }
+
+                    break;
+
+                case SimulationCommandKind.Despawn:
+                    this.DespawnEntity(cmd.Entity);
+                    break;
+
+                case SimulationCommandKind.None:
+                default:
+                    break;
+            }
         }
     }
 }

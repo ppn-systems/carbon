@@ -11,7 +11,7 @@ namespace Carbon.Physics.Obstacles;
 /// High-performance uniform 2D tile obstacle grid for static terrain collision, wall sliding, and Line-of-Sight raycasting.
 /// Zero heap allocation on hot-path collision queries.
 /// </summary>
-public sealed class TileObstacleGrid
+public sealed class TileObstacleGrid : IWorldPhysics2D
 {
     private readonly int _width;
     private readonly int _height;
@@ -101,6 +101,13 @@ public sealed class TileObstacleGrid
         float minY = tileY * _tileSize;
         return new AABB2D(new Vector2(minX, minY), new Vector2(minX + _tileSize, minY + _tileSize));
     }
+
+    /// <inheritdoc/>
+    public float GetMoveSpeedMultiplier(Vector2 worldPosition) => 1f;
+
+    /// <inheritdoc/>
+    public bool ResolveCircleCollision(ref Vector2 position, float radius, out Vector2 pushNormal) =>
+        this.ResolveCircle(ref position, radius, out pushNormal);
 
     /// <summary>
     /// Resolves circular entity collision against adjacent solid obstacle tiles, pushing the circle outward to allow smooth wall sliding.

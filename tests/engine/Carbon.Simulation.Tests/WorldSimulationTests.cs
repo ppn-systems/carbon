@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System.Numerics;
+using System.Threading.Tasks;
 using Carbon.Physics.Obstacles;
 using Carbon.Physics.Raycast;
 using Carbon.Physics.Shapes;
@@ -98,5 +99,77 @@ public sealed class WorldSimulationTests
         hasHit.Should().BeTrue();
         hit.HasHit.Should().BeTrue();
         hit.Point.X.Should().BeApproximately(64f, 0.01f);
+    }
+
+    [Fact]
+    public void EnqueueCommand_MoveInputWithWorldPhysics_AppliesTerrainSpeedMultiplierOnTick()
+    {
+        WorldSimulation world = new(tickRate: 20)
+        {
+            WorldPhysics = new ScaledSpeedWorldPhysics(multiplier: 0.5f)
+        };
+
+        Entity player = world.SpawnEntity(new Vector2(0f, 0f), radius: 5f);
+        world.Entities.SetVelocity(player, new Velocity2D(0f, 0f, drag: 0f));
+        world.EnqueueCommand(SimulationCommand.MoveInput(player, new Vector2(1f, 0f), baseSpeed: 200f));
+
+        world.PendingCommandCount.Should().Be(1);
+        _ = world.Update(0.05);
+
+        world.PendingCommandCount.Should().Be(0);
+        Vector2 pos = world.Entities.GetTransform(player).Position;
+        pos.X.Should().BeApproximately(5f, 0.001f); // 200 * 0.5 * 0.05 = 5
+    }
+
+    [Fact]
+    public void EnqueueCommand_ConcurrentProducers_ProcessesAllCommandsSafelyOnTick()
+    {
+        WorldSimulation world = new(tickRate: 20);
+        const int count = 32;
+        Entity[] entities = new Entity[count];
+        for (int i = 0; i < count; i++)
+        {
+            entities[i] = world.SpawnEntity(new Vector2(i * 100f, 0f), radius: 5f);
+        }
+
+        _ = Parallel.For(0, count, i =>
+            world.EnqueueCommand(SimulationCommand.Teleport(entities[i], new Vector2(i * 100f, 42f))));
+
+        _ = world.Update(0.05);
+
+        world.PendingCommandCount.Should().Be(0);
+        for (int i = 0; i < count; i++)
+        {
+            world.Entities.GetTransform(entities[i]).Position.Y.Should().BeApproximately(42f, 0.001f);
+        }
+    }
+
+    [Fact]
+    public void Movement_HighSpeedSprintAgainstThinWall_DoesNotTunnelThroughObstacle()
+    {
+        WorldSimulation world = new(tickRate: 20);
+        TileObstacleGrid grid = new(10, 10, 32f);
+        grid.SetSolid(1, 0, true); // 1-tile wall at X: [32, 64]
+        world.WorldPhysics = grid;
+
+        // Extreme velocity (2000 u/s * 0.05s = 100u displacement in a single tick) would jump past [32, 64] without CCD
+        Entity player = world.SpawnEntity(new Vector2(16f, 16f), radius: 5f);
+        world.Entities.SetVelocity(player, new Velocity2D(2000f, 0f));
+
+        _ = world.Update(0.05);
+
+        Vector2 pos = world.Entities.GetTransform(player).Position;
+        pos.X.Should().BeLessThanOrEqualTo(27.01f);
+    }
+
+    private sealed class ScaledSpeedWorldPhysics(float multiplier) : IWorldPhysics2D
+    {
+        public float GetMoveSpeedMultiplier(Vector2 worldPosition) => multiplier;
+
+        public bool ResolveCircleCollision(ref Vector2 position, float radius, out Vector2 pushNormal)
+        {
+            pushNormal = Vector2.Zero;
+            return false;
+        }
     }
 }
