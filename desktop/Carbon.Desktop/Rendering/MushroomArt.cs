@@ -190,6 +190,9 @@ internal static class MushroomArt
         }
     }
 
+    /// <summary>Returns whether a mushroom patch with this seed is a glowing species.</summary>
+    public static bool IsGlowing(uint seed) => PickShape(seed) == Shape.Glowing;
+
     private static Shape PickShape(uint seed)
     {
         float r = Hash01(seed, 1);

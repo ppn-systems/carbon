@@ -216,6 +216,31 @@ internal static class PropArt
         }
     }
 
+    /// <summary>Returns the light a prop gives off at night (crystals, glowing mushrooms), if any.</summary>
+    public static bool TryGetLight(in MapProp prop, out PointLight light)
+    {
+        if (prop.Type == MapPropType.CrystalCluster)
+        {
+            light = new PointLight(prop.WorldPosition + new Vector2(0f, -6f), 70f, Hex(prop.ColorPrimary), 0.7f);
+            return true;
+        }
+
+        if (prop.Type == MapPropType.GlacialCrystal)
+        {
+            light = new PointLight(prop.WorldPosition + new Vector2(0f, -6f), 60f, new ColorRgba(170, 220, 255), 0.6f);
+            return true;
+        }
+
+        if (prop.Type == MapPropType.MushroomCluster && MushroomArt.IsGlowing(Seed(prop)))
+        {
+            light = new PointLight(prop.WorldPosition, 60f, new ColorRgba(120, 230, 230), 0.8f);
+            return true;
+        }
+
+        light = default;
+        return false;
+    }
+
     /// <summary>Draws the canopy of a tree above entities. <paramref name="alpha"/> fades it when the player is under it.</summary>
     public static void DrawCanopy(GeometryBatch batch, in MapProp prop, byte alpha)
     {

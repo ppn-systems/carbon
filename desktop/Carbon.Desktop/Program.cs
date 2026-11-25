@@ -48,6 +48,8 @@ public static class Program
     private static GeometryBatch? s_geometryBatch;
     private static PointOfInterestRenderer? s_poiRenderer;
     private static float s_animTime;
+    private static Atmosphere? s_atmosphere;
+    private static readonly List<PointLight> s_lights = new(256);
     private static readonly List<PointOfInterest> s_visibleWorldTrees = new();
 
     // Interior view: 0 = outside, 1 = fully inside a building (camera zoomed in, surroundings dimmed).
@@ -150,6 +152,18 @@ public static class Program
         ProceduralWorldGenerator generator = new(seed);
         s_chunkWorld = new ChunkWorld2D(generator, TileSize, MacroFrequency);
         s_poiRenderer = new PointOfInterestRenderer(TileSize, generator.Landmarks);
+
+        // CARBON_TIME_OF_DAY (hour, 0-24), CARBON_DAY_LENGTH (real seconds per day) and CARBON_WEATHER
+        // (rain | clear) pin the atmosphere, e.g. for screenshots.
+        float startHour = float.TryParse(Environment.GetEnvironmentVariable("CARBON_TIME_OF_DAY"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float hour) ? hour : 9f;
+        float dayLength = float.TryParse(Environment.GetEnvironmentVariable("CARBON_DAY_LENGTH"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float length) ? length : 600f;
+        bool? rain = Environment.GetEnvironmentVariable("CARBON_WEATHER") switch
+        {
+            "rain" => true,
+            "clear" => false,
+            _ => null,
+        };
+        s_atmosphere = new Atmosphere(startHour, dayLength, rain);
         s_chunkTerrainRenderer?.EvictDistant(0, 0, -1);
 
         // Preload chunks around the natural safe starter spawn
@@ -400,7 +414,10 @@ public static class Program
     {
         // While capturing an animation, step time at a fixed 15 fps so the sequence is independent of the
         // (possibly slow, software-rendered) frame rate.
-        s_animTime += s_captureFrames > 0 ? 1f / 15f : (float)dt;
+        float frameDt = s_captureFrames > 0 ? 1f / 15f : (float)dt;
+        s_animTime += frameDt;
+        s_atmosphere?.Update(frameDt);
+        s_lights.Clear();
         if (s_geometryBatch == null || s_camera == null || s_chunkWorld == null || s_world == null || s_chunkTerrainRenderer == null)
         {
             return;
@@ -449,6 +466,9 @@ public static class Program
             AmbientAnimator.DrawRipples(s_geometryBatch, s_chunkTerrainRenderer.GetRipples(chunk.Key), s_animTime);
             AmbientAnimator.DrawWaterfalls(s_geometryBatch, s_chunkTerrainRenderer.GetWaterfalls(chunk.Key), s_animTime);
         }
+
+        // Cloud shadows drifting over the ground, under props and buildings
+        s_atmosphere?.DrawCloudShadows(s_geometryBatch, minX, minY, maxX, maxY);
 
         // Debug overlay for solid terrain tiles
         if (s_debugOverlay)
@@ -502,6 +522,7 @@ public static class Program
                 }
 
                 s_poiRenderer.DrawGround(s_geometryBatch, poi, s_animTime, playerPos);
+                s_poiRenderer.CollectLights(poi, s_lights, s_animTime);
                 if (poi.Type == PointOfInterestType.WorldTree)
                 {
                     s_visibleWorldTrees.Add(poi);
@@ -529,6 +550,10 @@ public static class Program
                     prop.WorldPositionY + 96f >= minY && prop.WorldPositionY - 96f <= maxY)
                 {
                     s_groundSortList.Add(new GroundRenderItem(prop.GroundFootprintY, in prop));
+                    if (PropArt.TryGetLight(prop, out PointLight propLight))
+                    {
+                        s_lights.Add(propLight);
+                    }
 
                     if (prop.HasCanopy)
                     {
@@ -592,6 +617,28 @@ public static class Program
         foreach (PointOfInterest tree in s_visibleWorldTrees)
         {
             s_poiRenderer?.DrawWorldTreeCanopy(s_geometryBatch, tree, s_animTime, playerPos);
+        }
+
+        // Atmosphere: ambient light (multiply), then point lights (additive), then clouds, rain, fireflies
+        if (s_atmosphere is not null)
+        {
+            s_geometryBatch.End();
+
+            s_geometryBatch.Begin(s_camera.ViewProjectionMatrix, Atmosphere.Multiply);
+            s_atmosphere.DrawAmbient(s_geometryBatch, minX, minY, maxX, maxY);
+            s_geometryBatch.End();
+
+            // The player carries a soft lantern glow after dark
+            s_lights.Add(new PointLight(playerPos, 150f, new ColorRgba(255, 214, 150), 0.6f));
+            s_geometryBatch.Begin(s_camera.ViewProjectionMatrix, Carbon.Graphics.OpenGL.States.BlendState.Additive);
+            s_atmosphere.DrawLights(s_geometryBatch, s_lights);
+            s_geometryBatch.End();
+
+            s_geometryBatch.Begin(s_camera.ViewProjectionMatrix);
+            if (s_interiorBlend < 0.5f)
+            {
+                s_atmosphere.DrawOverlay(s_geometryBatch, minX, minY, maxX, maxY, playerPos);
+            }
         }
 
         // Interior view: darken everything outside the room the player stands in

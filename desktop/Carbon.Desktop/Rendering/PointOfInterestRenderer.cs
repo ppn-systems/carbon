@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
@@ -83,6 +84,67 @@ internal sealed class PointOfInterestRenderer
             if (this.IsInside(p, playerWorld))
             {
                 DrawInterior(batch, this.ToWorld(p), p.Width * _tileSize, p.Depth * _tileSize, p.Look, p.Style, p.Kind == LandmarkPieceKind.Warehouse, time);
+            }
+        }
+    }
+
+    /// <summary>Adds the lights of a point of interest (windows, fires, lanterns, runes) to <paramref name="lights"/>.</summary>
+    public void CollectLights(in PointOfInterest poi, List<PointLight> lights, float time)
+    {
+        ColorRgba warm = new(255, 186, 104);
+        ColorRgba spirit = new(120, 255, 210);
+        foreach (LandmarkPiece p in this.GetLayout(poi).Pieces)
+        {
+            Vector2 foot = this.ToWorld(p);
+            float flicker = 0.85f + (0.15f * MathF.Sin((time * 9f) + foot.X));
+            switch (p.Kind)
+            {
+                case LandmarkPieceKind.House:
+                case LandmarkPieceKind.Warehouse:
+                    {
+                        float width = p.Width * _tileSize;
+                        float wallTop = foot.Y - (p.Kind == LandmarkPieceKind.Warehouse ? 46f : 38f);
+                        lights.Add(new PointLight(foot + new Vector2(0f, 10f), 70f, warm, 0.7f)); // light spilling from the door
+                        if (p.Kind == LandmarkPieceKind.House)
+                        {
+                            for (int k = 0; k < 4; k++)
+                            {
+                                float side = k < 2 ? -1f : 1f;
+                                float x = foot.X + (side * width * ((k % 2) == 0 ? 0.20f : 0.36f));
+                                lights.Add(new PointLight(new Vector2(x, wallTop + 14f), 46f, warm, 0.8f * flicker));
+                            }
+                        }
+
+                        break;
+                    }
+
+                case LandmarkPieceKind.Campfire:
+                    lights.Add(new PointLight(foot + new Vector2(0f, -8f), 190f, new ColorRgba(255, 150, 70), flicker));
+                    break;
+                case LandmarkPieceKind.StoneLantern:
+                    lights.Add(new PointLight(foot + new Vector2(0f, -30f), p.Variant == 1 ? 70f : 110f, p.Variant == 1 ? spirit : warm, p.Variant == 1 ? 0.45f : 0.8f));
+                    break;
+                case LandmarkPieceKind.Altar:
+                    lights.Add(new PointLight(foot + new Vector2(0f, -36f), 130f, new ColorRgba(140, 210, 255), 0.9f));
+                    break;
+                case LandmarkPieceKind.WorldTree:
+                    // One broad spirit glow around the base and a soft one in the crown; the mushroom ring
+                    // reads as a single faint halo instead of many overlapping lights.
+                    lights.Add(new PointLight(foot + new Vector2(0f, -50f), 240f, spirit, 0.55f));
+                    lights.Add(new PointLight(foot + new Vector2(0f, -340f), 260f, new ColorRgba(170, 255, 210), 0.25f));
+                    for (int i = 0; i < 14; i += 2)
+                    {
+                        float a = i * (MathF.Tau / 14f);
+                        lights.Add(new PointLight(foot + new Vector2(MathF.Cos(a) * 170f, (MathF.Sin(a) * 74f) - 4f), 34f, spirit, 0.35f));
+                    }
+
+                    break;
+                case LandmarkPieceKind.Well:
+                case LandmarkPieceKind.Tent:
+                case LandmarkPieceKind.ShrineGate:
+                case LandmarkPieceKind.Barrel:
+                default:
+                    break;
             }
         }
     }
