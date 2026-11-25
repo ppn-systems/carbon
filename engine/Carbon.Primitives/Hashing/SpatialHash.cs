@@ -1,6 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
-namespace Carbon.Maps.Random;
+namespace Carbon.Primitives.Hashing;
 
 /// <summary>
 /// Well-mixed, platform-independent integer hash for per-tile deterministic decisions.

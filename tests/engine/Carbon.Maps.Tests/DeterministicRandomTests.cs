@@ -1,6 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
-using Carbon.Maps.Random;
+using Carbon.Primitives.Random;
 using Xunit;
 
 namespace Carbon.Maps.Tests;

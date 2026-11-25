@@ -5,7 +5,7 @@ using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
 using Carbon.Maps.Hydrology;
 using Carbon.Maps.Noise;
-using Carbon.Maps.Random;
+using Carbon.Primitives.Hashing;
 using Carbon.Maps.Topography;
 
 namespace Carbon.Maps.Generators.Stages;

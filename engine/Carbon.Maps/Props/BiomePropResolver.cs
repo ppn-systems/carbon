@@ -2,7 +2,8 @@
 
 using System;
 using Carbon.Maps.Biomes;
-using Carbon.Maps.Random;
+using Carbon.Primitives.Hashing;
+using Carbon.Primitives.Random;
 using Carbon.Maps.Topography;
 
 namespace Carbon.Maps.Props;

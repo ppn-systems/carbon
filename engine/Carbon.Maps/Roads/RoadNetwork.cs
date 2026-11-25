@@ -5,7 +5,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Carbon.Maps.Data;
 using Carbon.Maps.Landmarks;
-using Carbon.Maps.Random;
+using Carbon.Primitives.Hashing;
 
 namespace Carbon.Maps.Roads;
 

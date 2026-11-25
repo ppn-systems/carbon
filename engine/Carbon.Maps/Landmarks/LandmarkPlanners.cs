@@ -4,7 +4,8 @@ using System;
 using System.Collections.Generic;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
-using Carbon.Maps.Random;
+using Carbon.Primitives.Hashing;
+using Carbon.Primitives.Math;
 
 namespace Carbon.Maps.Landmarks;
 

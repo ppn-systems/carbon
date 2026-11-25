@@ -2,7 +2,7 @@
 
 using System;
 using Carbon.Maps.Noise;
-using Carbon.Maps.Random;
+using Carbon.Primitives.Math;
 
 namespace Carbon.Maps.Generators.Stages;
 

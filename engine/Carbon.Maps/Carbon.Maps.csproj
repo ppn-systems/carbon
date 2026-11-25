@@ -5,6 +5,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\Carbon.Primitives\Carbon.Primitives.csproj" />
         <ProjectReference Include="..\Carbon.Physics\Carbon.Physics.csproj" />
     </ItemGroup>
 </Project>

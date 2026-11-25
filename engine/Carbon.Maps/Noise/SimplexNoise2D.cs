@@ -1,7 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System.Numerics;
-using Carbon.Maps.Random;
+using Carbon.Primitives.Random;
 
 namespace Carbon.Maps.Noise;
 

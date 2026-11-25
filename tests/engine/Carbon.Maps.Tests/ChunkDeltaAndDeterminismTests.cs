@@ -8,8 +8,9 @@ using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Props;
-using Carbon.Maps.Random;
 using Carbon.Maps.Streaming;
+using Carbon.Primitives.Hashing;
+using Carbon.Primitives.Math;
 using Xunit;
 
 namespace Carbon.Maps.Tests;

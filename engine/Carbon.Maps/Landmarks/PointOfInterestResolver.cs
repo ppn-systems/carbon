@@ -5,7 +5,7 @@ using System.Collections.Concurrent;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
 using Carbon.Maps.Hydrology;
-using Carbon.Maps.Random;
+using Carbon.Primitives.Hashing;
 
 namespace Carbon.Maps.Landmarks;
 
