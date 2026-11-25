@@ -6,6 +6,8 @@ using Carbon.Maps.Data;
 using Carbon.Maps.Landmarks;
 using Carbon.Maps.Props;
 using Carbon.Physics.Obstacles;
+using Carbon.Physics.Raycast;
+using Carbon.Physics.Shapes;
 
 namespace Carbon.Maps.Streaming;
 
@@ -291,6 +293,180 @@ internal sealed class WorldCollision
         }
 
         return collided;
+    }
+
+    /// <summary>
+    /// Casts a ray against solid terrain tiles, cliffs, constructed buildings, resident natural props, and landmark structures.
+    /// Allocation-free on the hot path.
+    /// </summary>
+    /// <param name="ray">The 2D testing ray.</param>
+    /// <param name="hit">Output hit information if an obstacle was intersected.</param>
+    /// <returns><see langword="true"/> if an obstacle was hit; otherwise, <see langword="false"/>.</returns>
+    public bool Raycast(in Ray2D ray, out RaycastHit2D hit)
+    {
+        float maxDist = float.IsInfinity(ray.MaxDistance) ? (128f * _tileSize) : MathF.Min(ray.MaxDistance, 512f * _tileSize);
+        if (maxDist <= 0f)
+        {
+            hit = RaycastHit2D.None;
+            return false;
+        }
+
+        Ray2D boundedRay = new(ray.Origin, ray.Direction, maxDist);
+        bool found = false;
+        RaycastHit2D bestHit = RaycastHit2D.None;
+        float bestDist = maxDist;
+
+        // 1. 2D DDA traversal across tiles (terrain, cliff barriers, constructed buildings)
+        int tx = (int)MathF.Floor(boundedRay.Origin.X / _tileSize);
+        int ty = (int)MathF.Floor(boundedRay.Origin.Y / _tileSize);
+        int prevTx = tx;
+        int prevTy = ty;
+
+        int stepX = boundedRay.Direction.X > 0f ? 1 : (boundedRay.Direction.X < 0f ? -1 : 0);
+        int stepY = boundedRay.Direction.Y > 0f ? 1 : (boundedRay.Direction.Y < 0f ? -1 : 0);
+
+        float tDeltaX = stepX != 0 ? _tileSize / MathF.Abs(boundedRay.Direction.X) : float.PositiveInfinity;
+        float tDeltaY = stepY != 0 ? _tileSize / MathF.Abs(boundedRay.Direction.Y) : float.PositiveInfinity;
+
+        float nextBoundaryX = (tx + (stepX > 0 ? 1 : 0)) * _tileSize;
+        float nextBoundaryY = (ty + (stepY > 0 ? 1 : 0)) * _tileSize;
+
+        float tMaxX = stepX != 0 ? (nextBoundaryX - boundedRay.Origin.X) / boundedRay.Direction.X : float.PositiveInfinity;
+        float tMaxY = stepY != 0 ? (nextBoundaryY - boundedRay.Origin.Y) / boundedRay.Direction.Y : float.PositiveInfinity;
+
+        const int maxDdaSteps = 512;
+        for (int step = 0; step < maxDdaSteps; step++)
+        {
+            bool blocked = _world.PeekTileAtWorld(tx, ty).IsSolid || _world.Buildings.IsSolidAt(tx, ty);
+            if (!blocked && (tx != prevTx || ty != prevTy))
+            {
+                if (!_world.NavGrid.CanTraverse(prevTx, prevTy, tx, ty, includeLandmarks: false))
+                {
+                    blocked = true;
+                }
+            }
+
+            if (blocked)
+            {
+                AABB2D tileBox = new(
+                    new Vector2(tx * _tileSize, ty * _tileSize),
+                    new Vector2((tx + 1) * _tileSize, (ty + 1) * _tileSize));
+                if (Raycaster2D.IntersectAABB(in boundedRay, in tileBox, out RaycastHit2D tileHit) && tileHit.Distance <= bestDist)
+                {
+                    bestHit = tileHit;
+                    bestDist = tileHit.Distance;
+                    found = true;
+                }
+
+                break;
+            }
+
+            prevTx = tx;
+            prevTy = ty;
+
+            if (tMaxX < tMaxY)
+            {
+                if (tMaxX > bestDist)
+                {
+                    break;
+                }
+
+                tx += stepX;
+                tMaxX += tDeltaX;
+            }
+            else
+            {
+                if (tMaxY > bestDist)
+                {
+                    break;
+                }
+
+                ty += stepY;
+                tMaxY += tDeltaY;
+            }
+        }
+
+        // 2. Resident chunk solid props along the ray bounding box
+        Vector2 rayEnd = boundedRay.GetPoint(bestDist);
+        float minWorldX = MathF.Min(boundedRay.Origin.X, rayEnd.X) - 48f;
+        float maxWorldX = MathF.Max(boundedRay.Origin.X, rayEnd.X) + 48f;
+        float minWorldY = MathF.Min(boundedRay.Origin.Y, rayEnd.Y) - 48f;
+        float maxWorldY = MathF.Max(boundedRay.Origin.Y, rayEnd.Y) + 48f;
+
+        float chunkSizeWorld = Chunk2D.Size * _tileSize;
+        int minChunkX = (int)MathF.Floor(minWorldX / chunkSizeWorld);
+        int maxChunkX = (int)MathF.Floor(maxWorldX / chunkSizeWorld);
+        int minChunkY = (int)MathF.Floor(minWorldY / chunkSizeWorld);
+        int maxChunkY = (int)MathF.Floor(maxWorldY / chunkSizeWorld);
+
+        for (int cy = minChunkY; cy <= maxChunkY; cy++)
+        {
+            for (int cx = minChunkX; cx <= maxChunkX; cx++)
+            {
+                if (!_world.TryGetChunk(cx, cy, out Chunk2D? chunk) || chunk is null)
+                {
+                    continue;
+                }
+
+                for (int i = 0; i < chunk.Props.Count; i++)
+                {
+                    MapProp prop = chunk.Props[i];
+                    if (!prop.HasCollision)
+                    {
+                        continue;
+                    }
+
+                    Circle2D propCircle = new(prop.WorldPosition, prop.CollisionRadius);
+                    if (Raycaster2D.IntersectCircle(in boundedRay, in propCircle, out RaycastHit2D propHit) && propHit.Distance < bestDist)
+                    {
+                        bestHit = propHit;
+                        bestDist = propHit.Distance;
+                        found = true;
+                    }
+                }
+            }
+        }
+
+        // 3. Landmark piece colliders intersecting the ray bounding box
+        int minSiteX = FloorDiv((int)MathF.Floor(minWorldX / _tileSize), PointOfInterestResolver.SiteSize);
+        int maxSiteX = FloorDiv((int)MathF.Floor(maxWorldX / _tileSize), PointOfInterestResolver.SiteSize);
+        int minSiteY = FloorDiv((int)MathF.Floor(minWorldY / _tileSize), PointOfInterestResolver.SiteSize);
+        int maxSiteY = FloorDiv((int)MathF.Floor(maxWorldY / _tileSize), PointOfInterestResolver.SiteSize);
+        Span<TileBox> boxes = stackalloc TileBox[LandmarkPiece.MaxColliders];
+
+        for (int sy = minSiteY; sy <= maxSiteY; sy++)
+        {
+            for (int sx = minSiteX; sx <= maxSiteX; sx++)
+            {
+                PointOfInterest site = _world.Generator.Landmarks.GetSite(sx, sy);
+                if (site.Type == PointOfInterestType.None)
+                {
+                    continue;
+                }
+
+                ReadOnlySpan<LandmarkPiece> pieces = _world.Generator.Landmarks.GetLayout(sx, sy).Pieces;
+                for (int i = 0; i < pieces.Length; i++)
+                {
+                    int n = pieces[i].GetColliders(boxes);
+                    for (int k = 0; k < n; k++)
+                    {
+                        TileBox b = boxes[k];
+                        AABB2D box = new(
+                            new Vector2(b.MinX * _tileSize, b.MinY * _tileSize),
+                            new Vector2(b.MaxX * _tileSize, b.MaxY * _tileSize));
+                        if (Raycaster2D.IntersectAABB(in boundedRay, in box, out RaycastHit2D pieceHit) && pieceHit.Distance < bestDist)
+                        {
+                            bestHit = pieceHit;
+                            bestDist = pieceHit.Distance;
+                            found = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        hit = bestHit;
+        return found;
     }
 
     private static int FloorDiv(int a, int b) => a >= 0 ? a / b : ((a + 1) / b) - 1;

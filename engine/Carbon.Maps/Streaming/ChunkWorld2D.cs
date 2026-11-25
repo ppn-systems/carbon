@@ -10,6 +10,8 @@ using Carbon.Maps.Generators;
 using Carbon.Maps.Navigation;
 using Carbon.Maps.Props;
 using Carbon.Physics.Obstacles;
+using Carbon.Physics.Raycast;
+using Carbon.Physics.Shapes;
 
 namespace Carbon.Maps.Streaming;
 
@@ -321,6 +323,10 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     /// <inheritdoc/>
     public bool ResolveCircleCollision(ref Vector2 position, float radius, out Vector2 pushNormal) =>
         this.ResolveEntityCollision(ref position, radius, out pushNormal);
+
+    /// <inheritdoc/>
+    public bool Raycast(in Ray2D ray, out RaycastHit2D hit) =>
+        _collision.Raycast(in ray, out hit);
 
     private void OnStructureChanged(int worldTileX, int worldTileY, StructureTile structure)
     {
