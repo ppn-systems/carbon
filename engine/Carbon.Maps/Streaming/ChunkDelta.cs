@@ -5,6 +5,7 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Carbon.Maps.Biomes;
+using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Props;
@@ -20,8 +21,10 @@ public sealed class ChunkDelta
 {
     private readonly Dictionary<int, MapTile> _tiles = new();
     private readonly Dictionary<int, PropDestructibility> _propStates = new();
+    private readonly Dictionary<int, StructureTile> _structures = new();
     private readonly ReadOnlyDictionary<int, MapTile> _tilesView;
     private readonly ReadOnlyDictionary<int, PropDestructibility> _propStatesView;
+    private readonly ReadOnlyDictionary<int, StructureTile> _structuresView;
 
     /// <summary>Initializes a new instance of the <see cref="ChunkDelta"/> class.</summary>
     /// <param name="chunkX">Chunk X coordinate.</param>
@@ -32,6 +35,7 @@ public sealed class ChunkDelta
         this.ChunkY = chunkY;
         _tilesView = _tiles.AsReadOnly();
         _propStatesView = _propStates.AsReadOnly();
+        _structuresView = _structures.AsReadOnly();
     }
 
     /// <summary>Gets the chunk X coordinate.</summary>
@@ -55,8 +59,11 @@ public sealed class ChunkDelta
     /// <summary>Gets the overridden prop states, keyed by the local index of the tile the prop is anchored on.</summary>
     public ReadOnlyDictionary<int, PropDestructibility> PropStates => _propStatesView;
 
+    /// <summary>Gets the constructed structures in this chunk, keyed by local tile index (<c>localY * Chunk2D.Size + localX</c>).</summary>
+    public ReadOnlyDictionary<int, StructureTile> Structures => _structuresView;
+
     /// <summary>Gets a value indicating whether the delta holds no changes.</summary>
-    public bool IsEmpty => _tiles.Count == 0 && _propStates.Count == 0;
+    public bool IsEmpty => _tiles.Count == 0 && _propStates.Count == 0 && _structures.Count == 0;
 
     /// <summary>Converts local tile coordinates into the delta's local index.</summary>
     /// <param name="localX">Local tile X.</param>
@@ -84,6 +91,41 @@ public sealed class ChunkDelta
         this.Revision++;
     }
 
+    /// <summary>Records or updates a constructed structure on a tile within the chunk.</summary>
+    /// <param name="localX">Local tile X.</param>
+    /// <param name="localY">Local tile Y.</param>
+    /// <param name="structure">The constructed structure state.</param>
+    public void SetStructure(int localX, int localY, in StructureTile structure)
+    {
+        _structures[ToLocalIndex(localX, localY)] = structure;
+        this.Revision++;
+    }
+
+    /// <summary>Removes a constructed structure from the chunk delta (e.g. after demolition).</summary>
+    /// <param name="localX">Local tile X.</param>
+    /// <param name="localY">Local tile Y.</param>
+    public void RemoveStructure(int localX, int localY)
+    {
+        _ = _structures.Remove(ToLocalIndex(localX, localY));
+        this.Revision++;
+    }
+
+    /// <summary>
+    /// Refreshes the cached wall connectivity mask of a recorded structure when an adjacent tile changes,
+    /// without bumping <see cref="Revision"/>.
+    /// </summary>
+    /// <param name="localX">Local tile X.</param>
+    /// <param name="localY">Local tile Y.</param>
+    /// <param name="connectivity">The recomputed wall connectivity mask.</param>
+    internal void RefreshStructureConnectivity(int localX, int localY, WallConnectivityMask connectivity)
+    {
+        int key = ToLocalIndex(localX, localY);
+        if (_structures.TryGetValue(key, out StructureTile existing))
+        {
+            _structures[key] = existing.WithConnectivity(connectivity);
+        }
+    }
+
     /// <summary>Overrides the revision, used when importing a persisted or received delta.</summary>
     /// <param name="revision">The stored revision.</param>
     public void RestoreRevision(uint revision) => this.Revision = revision;
@@ -95,9 +137,9 @@ public sealed class ChunkDelta
     public ushort GeneratorVersion { get; private set; } = ProceduralWorldGenerator.GeneratorVersion;
 
     /// <summary>
-    /// Returns this delta carried over to another generator version. Tile edits are kept: they are what
-    /// players placed or dug and stay meaningful on any terrain. Natural prop states (chopped trees, mined
-    /// ores) are dropped: the new generator may put different props on those tiles, so the old states would
+    /// Returns this delta carried over to another generator version. Tile edits and constructed structures are kept:
+    /// they are what players placed or dug and stay meaningful on any terrain. Natural prop states (chopped trees,
+    /// mined ores) are dropped: the new generator may put different props on those tiles, so the old states would
     /// damage the wrong objects; resources simply grow back.
     /// </summary>
     /// <param name="generatorVersion">The target version.</param>
@@ -115,21 +157,29 @@ public sealed class ChunkDelta
             migrated._tiles[kvp.Key] = kvp.Value;
         }
 
+        foreach (KeyValuePair<int, StructureTile> kvp in _structures)
+        {
+            migrated._structures[kvp.Key] = kvp.Value;
+        }
+
         migrated.Revision = this.Revision + 1;
         return migrated;
     }
 
-    // Wire format v1 (little-endian): format, generator version, chunk X/Y, revision, tile edits, prop states.
-    private const byte FormatVersion = 1;
+    // Wire format (little-endian): format, generator version, chunk X/Y, revision, tile edits, prop states, structures (v2+).
+    private const byte LegacyFormatVersion = 1;
+    private const byte FormatVersion = 2;
     private const int HeaderSize = 1 + 2 + 4 + 4 + 4;
     private const int TileSize = 2 + 1 + 4 + 4 + 4 + 1 + 1 + 1;
     private const int PropSize = 2 + 1 + 4 + 4 + 1;
+    private const int StructureSize = 2 + 1 + 1 + 1 + 1 + 1 + 1 + 4 + 4 + 4;
 
     /// <summary>Serializes the delta for storage or the network; identical bytes on every platform.</summary>
     /// <returns>The encoded delta.</returns>
     public byte[] Serialize()
     {
-        byte[] buffer = new byte[HeaderSize + 2 + (_tiles.Count * TileSize) + 2 + (_propStates.Count * PropSize)];
+        int totalSize = HeaderSize + 2 + (_tiles.Count * TileSize) + 2 + (_propStates.Count * PropSize) + 2 + (_structures.Count * StructureSize);
+        byte[] buffer = new byte[totalSize];
         Span<byte> span = buffer;
         span[0] = FormatVersion;
         BinaryPrimitives.WriteUInt16LittleEndian(span[1..], this.GeneratorVersion);
@@ -172,6 +222,30 @@ public sealed class ChunkDelta
             o += PropSize;
         }
 
+        keys = [.. _structures.Keys];
+        keys.Sort();
+        BinaryPrimitives.WriteUInt16LittleEndian(span[o..], (ushort)keys.Count);
+        o += 2;
+        foreach (int key in keys)
+        {
+            StructureTile s = _structures[key];
+            BinaryPrimitives.WriteUInt16LittleEndian(span[o..], (ushort)key);
+            span[o + 2] = (byte)s.Type;
+            span[o + 3] = (byte)s.Material;
+            span[o + 4] = (byte)s.Category;
+            span[o + 5] = (byte)(
+                (s.Destructibility.IsDestructible ? 1 : 0) |
+                (s.Destructibility.IsDestroyed ? 2 : 0) |
+                (s.HasRoof ? 4 : 0) |
+                (s.DoorState == DoorState.Open ? 8 : 0));
+            span[o + 6] = s.Destructibility.HarvestTier;
+            span[o + 7] = (byte)s.Connectivity;
+            BinaryPrimitives.WriteSingleLittleEndian(span[(o + 8)..], s.Destructibility.MaxDurability);
+            BinaryPrimitives.WriteSingleLittleEndian(span[(o + 12)..], s.Destructibility.CurrentDurability);
+            BinaryPrimitives.WriteSingleLittleEndian(span[(o + 16)..], s.MoveSpeedMultiplier);
+            o += StructureSize;
+        }
+
         return buffer;
     }
 
@@ -181,11 +255,12 @@ public sealed class ChunkDelta
     /// <exception cref="FormatException">The data is truncated, has an unknown format or bad tile indices.</exception>
     public static ChunkDelta Deserialize(ReadOnlySpan<byte> data)
     {
-        if (data.Length < HeaderSize + 4 || data[0] != FormatVersion)
+        if (data.Length < HeaderSize + 4 || (data[0] != LegacyFormatVersion && data[0] != FormatVersion))
         {
             throw new FormatException("Unknown or truncated chunk delta.");
         }
 
+        byte format = data[0];
         ChunkDelta delta = new(BinaryPrimitives.ReadInt32LittleEndian(data[3..]), BinaryPrimitives.ReadInt32LittleEndian(data[7..]))
         {
             GeneratorVersion = BinaryPrimitives.ReadUInt16LittleEndian(data[1..]),
@@ -222,6 +297,34 @@ public sealed class ChunkDelta
                 BinaryPrimitives.ReadSingleLittleEndian(data[(o + 7)..]),
                 data[o + 11],
                 (flags & 2) != 0);
+        }
+
+        if (format == FormatVersion)
+        {
+            Require(data, o + 2);
+            int structures = BinaryPrimitives.ReadUInt16LittleEndian(data[o..]);
+            o += 2;
+            Require(data, o + (structures * StructureSize));
+            for (int i = 0; i < structures; i++, o += StructureSize)
+            {
+                int key = ReadIndex(data[o..]);
+                byte flags = data[o + 5];
+                PropDestructibility destructibility = new(
+                    (flags & 1) != 0,
+                    BinaryPrimitives.ReadSingleLittleEndian(data[(o + 8)..]),
+                    BinaryPrimitives.ReadSingleLittleEndian(data[(o + 12)..]),
+                    data[o + 6],
+                    (flags & 2) != 0);
+                delta._structures[key] = new StructureTile(
+                    (StructureType)data[o + 2],
+                    (StructureMaterial)data[o + 3],
+                    (StructureCategory)data[o + 4],
+                    destructibility,
+                    (flags & 8) != 0 ? DoorState.Open : DoorState.Closed,
+                    (WallConnectivityMask)data[o + 7],
+                    (flags & 4) != 0,
+                    BinaryPrimitives.ReadSingleLittleEndian(data[(o + 16)..]));
+            }
         }
 
         delta.Revision = revision;

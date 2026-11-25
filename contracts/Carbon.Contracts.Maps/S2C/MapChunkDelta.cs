@@ -7,8 +7,8 @@ using Nalix.Codec.DataFrames;
 namespace Carbon.Contracts.Maps.S2C;
 
 /// <summary>
-/// One chunk's edits in a stream response to <see cref="C2S.MapChunkRequest"/>. Tile and prop changes
-/// are sent as parallel arrays indexed by local tile index (<c>localY * 32 + localX</c>).
+/// One chunk's edits in a stream response to <see cref="C2S.MapChunkRequest"/>. Tile, prop, and structure
+/// changes are sent as parallel arrays indexed by local tile index (<c>localY * 32 + localX</c>).
 /// A large delta may be split across several packets of the same chunk.
 /// </summary>
 [Packet]
@@ -70,4 +70,24 @@ public sealed partial class MapChunkDelta : PacketBase<MapChunkDelta>, IPacketSt
     /// <summary>Whether each changed prop is destroyed.</summary>
     [SerializeOrder(12)]
     public bool[] PropDestroyed { get; set; } = [];
+
+    /// <summary>Local indices of the tiles occupied by constructed structures.</summary>
+    [SerializeOrder(13)]
+    public ushort[] StructureIndices { get; set; } = [];
+
+    /// <summary>Structure type (<c>Carbon.Maps.Building.StructureType</c>) per constructed structure.</summary>
+    [SerializeOrder(14)]
+    public byte[] StructureTypes { get; set; } = [];
+
+    /// <summary>Remaining durability per constructed structure.</summary>
+    [SerializeOrder(15)]
+    public float[] StructureDurabilities { get; set; } = [];
+
+    /// <summary>Door state (<c>Carbon.Maps.Building.DoorState</c>) per constructed structure.</summary>
+    [SerializeOrder(16)]
+    public byte[] StructureDoorStates { get; set; } = [];
+
+    /// <summary>Wall connectivity mask (<c>Carbon.Maps.Building.WallConnectivityMask</c>) per constructed structure.</summary>
+    [SerializeOrder(17)]
+    public byte[] StructureConnectivities { get; set; } = [];
 }

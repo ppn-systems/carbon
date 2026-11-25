@@ -17,7 +17,7 @@ namespace Carbon.Maps.Streaming;
 /// High-performance chunk-streaming world coordinator managing infinite procedural 2D terrain.
 /// Employs Minecraft-style chunk lifecycle management with object pooling to guarantee zero GC allocations during exploration.
 /// </summary>
-public sealed class ChunkWorld2D
+public sealed class ChunkWorld2D : IWorldPhysics2D
 {
     private readonly ProceduralWorldGenerator _generator;
     private readonly float _tileSize;
@@ -26,7 +26,7 @@ public sealed class ChunkWorld2D
     private readonly Lock _gate = new();
     private readonly ChunkDeltaStore _deltas = new();
     private readonly ChunkStreamer _streamer;
-    private readonly BuildingGrid _buildings = new();
+    private readonly BuildingGrid _buildings;
     private readonly TileWalkabilityGrid _navGrid;
     private readonly WorldCollision _collision;
 
@@ -92,6 +92,7 @@ public sealed class ChunkWorld2D
         _tileSize = tileSize ?? generator.Settings.TileSize;
         _frequency = frequency ?? generator.Settings.Frequency;
         _streamer = new ChunkStreamer(generator, _deltas, _gate, _frequency, _tileSize);
+        _buildings = new BuildingGrid(this.OnStructureChanged, this.OnStructureConnectivityUpdated);
 
         (int sx, int sy) = _frequency == generator.Settings.Frequency ? generator.SpawnTile : SpawnLocator.Locate(generator, _frequency);
         _spawnTileX = sx;
@@ -143,6 +144,7 @@ public sealed class ChunkWorld2D
             // Deltas recorded against another generator version are migrated first (see ChunkDelta.MigrateTo).
             delta = delta.MigrateTo(ProceduralWorldGenerator.GeneratorVersion);
             _deltas.Set(delta);
+            _buildings.ApplyChunkStructures(delta.ChunkX, delta.ChunkY, delta.Structures);
             _streamer.RebuildIfResident(delta.ChunkX, delta.ChunkY);
         }
     }
@@ -302,4 +304,58 @@ public sealed class ChunkWorld2D
     /// <returns>True if a collision was resolved; otherwise false.</returns>
     public bool ResolveEntityCollision(ref Vector2 position, float radius, out Vector2 pushNormal) =>
         _collision.Resolve(ref position, radius, out pushNormal);
+
+    /// <inheritdoc/>
+    public float GetMoveSpeedMultiplier(Vector2 worldPosition)
+    {
+        int tx = (int)MathF.Floor(worldPosition.X / _tileSize);
+        int ty = (int)MathF.Floor(worldPosition.Y / _tileSize);
+        if (_buildings.TryGetStructure(tx, ty, out StructureTile structure) && !structure.IsSolid && structure.MoveSpeedMultiplier > 0f)
+        {
+            return structure.MoveSpeedMultiplier;
+        }
+
+        return this.PeekTileAtWorld(tx, ty).MoveSpeedMultiplier;
+    }
+
+    /// <inheritdoc/>
+    public bool ResolveCircleCollision(ref Vector2 position, float radius, out Vector2 pushNormal) =>
+        this.ResolveEntityCollision(ref position, radius, out pushNormal);
+
+    private void OnStructureChanged(int worldTileX, int worldTileY, StructureTile structure)
+    {
+        int cx = Chunk2D.ToChunkCoord(worldTileX);
+        int cy = Chunk2D.ToChunkCoord(worldTileY);
+        int lx = Chunk2D.ToLocalCoord(worldTileX);
+        int ly = Chunk2D.ToLocalCoord(worldTileY);
+
+        lock (_gate)
+        {
+            ChunkDelta delta = _deltas.GetOrAdd(cx, cy);
+            if (structure.IsOccupied)
+            {
+                delta.SetStructure(lx, ly, in structure);
+            }
+            else
+            {
+                delta.RemoveStructure(lx, ly);
+            }
+        }
+    }
+
+    private void OnStructureConnectivityUpdated(int worldTileX, int worldTileY, WallConnectivityMask connectivity)
+    {
+        int cx = Chunk2D.ToChunkCoord(worldTileX);
+        int cy = Chunk2D.ToChunkCoord(worldTileY);
+        int lx = Chunk2D.ToLocalCoord(worldTileX);
+        int ly = Chunk2D.ToLocalCoord(worldTileY);
+
+        lock (_gate)
+        {
+            if (_deltas.TryGet(cx, cy, out ChunkDelta? delta) && delta is not null)
+            {
+                delta.RefreshStructureConnectivity(lx, ly, connectivity);
+            }
+        }
+    }
 }

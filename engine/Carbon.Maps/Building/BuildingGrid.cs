@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Maps.Biomes;
+using Carbon.Maps.Data;
 
 namespace Carbon.Maps.Building;
 
@@ -15,6 +16,26 @@ namespace Carbon.Maps.Building;
 public sealed class BuildingGrid : IBuildingGrid
 {
     private readonly ConcurrentDictionary<(int X, int Y), StructureTile> _structures = new();
+    private readonly Action<int, int, StructureTile>? _onStructureChanged;
+    private readonly Action<int, int, WallConnectivityMask>? _onConnectivityUpdated;
+
+    /// <summary>
+    /// Initializes a new standalone instance of the <see cref="BuildingGrid"/> class.
+    /// </summary>
+    public BuildingGrid()
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="BuildingGrid"/> class wired to delta synchronization callbacks.
+    /// </summary>
+    internal BuildingGrid(
+        Action<int, int, StructureTile>? onStructureChanged,
+        Action<int, int, WallConnectivityMask>? onConnectivityUpdated = null)
+    {
+        _onStructureChanged = onStructureChanged;
+        _onConnectivityUpdated = onConnectivityUpdated;
+    }
 
     /// <inheritdoc/>
     public int StructureCount => _structures.Count;
@@ -89,6 +110,7 @@ public sealed class BuildingGrid : IBuildingGrid
 
         // Automatically update the 4 cardinal neighbors so they snap to the new structure
         this.UpdateNeighborConnectivity(worldTileX, worldTileY);
+        _onStructureChanged?.Invoke(worldTileX, worldTileY, blueprint);
 
         return PlacementValidationResult.Success;
     }
@@ -106,6 +128,7 @@ public sealed class BuildingGrid : IBuildingGrid
 
         _structures[(worldTileX, worldTileY)] = blueprint;
         this.UpdateNeighborConnectivity(worldTileX, worldTileY);
+        _onStructureChanged?.Invoke(worldTileX, worldTileY, blueprint);
     }
 
     /// <inheritdoc/>
@@ -114,6 +137,7 @@ public sealed class BuildingGrid : IBuildingGrid
         if (_structures.TryRemove((worldTileX, worldTileY), out _))
         {
             this.UpdateNeighborConnectivity(worldTileX, worldTileY);
+            _onStructureChanged?.Invoke(worldTileX, worldTileY, StructureTile.Empty);
             return true;
         }
 
@@ -138,6 +162,7 @@ public sealed class BuildingGrid : IBuildingGrid
             this.UpdateNeighborConnectivity(worldTileX, worldTileY);
         }
 
+        _onStructureChanged?.Invoke(worldTileX, worldTileY, updatedStructure);
         return true;
     }
 
@@ -153,6 +178,7 @@ public sealed class BuildingGrid : IBuildingGrid
         DoorState nextState = current.DoorState is DoorState.Closed ? DoorState.Open : DoorState.Closed;
         updatedStructure = current.WithDoorState(nextState);
         _structures[(worldTileX, worldTileY)] = updatedStructure;
+        _onStructureChanged?.Invoke(worldTileX, worldTileY, updatedStructure);
         return true;
     }
 
@@ -224,6 +250,50 @@ public sealed class BuildingGrid : IBuildingGrid
     /// </summary>
     public void Clear() => _structures.Clear();
 
+    /// <summary>
+    /// Replaces all constructed structures inside the specified chunk with the imported chunk delta state
+    /// and stitches wall connectivity along the chunk boundary without firing mutation callbacks.
+    /// </summary>
+    internal void ApplyChunkStructures(int chunkX, int chunkY, IReadOnlyDictionary<int, StructureTile> structures)
+    {
+        int baseX = chunkX * Chunk2D.Size;
+        int baseY = chunkY * Chunk2D.Size;
+
+        for (int ly = 0; ly < Chunk2D.Size; ly++)
+        {
+            int wy = baseY + ly;
+            for (int lx = 0; lx < Chunk2D.Size; lx++)
+            {
+                int wx = baseX + lx;
+                int localIndex = (ly * Chunk2D.Size) + lx;
+                if (structures.TryGetValue(localIndex, out StructureTile incoming) && incoming.IsOccupied)
+                {
+                    _structures[(wx, wy)] = incoming;
+                }
+                else
+                {
+                    _ = _structures.TryRemove((wx, wy), out _);
+                }
+            }
+        }
+
+        for (int ly = -1; ly <= Chunk2D.Size; ly++)
+        {
+            int wy = baseY + ly;
+            for (int lx = -1; lx <= Chunk2D.Size; lx++)
+            {
+                int wx = baseX + lx;
+                if (_structures.TryGetValue((wx, wy), out StructureTile current) &&
+                    !current.IsDestroyed &&
+                    WallAutotiler.CanConnectToWall(current.Category))
+                {
+                    WallConnectivityMask mask = WallAutotiler.ComputeConnectivity(wx, wy, this.IsConnectableAt);
+                    _structures[(wx, wy)] = current.WithConnectivity(mask);
+                }
+            }
+        }
+    }
+
     private bool IsConnectableAt(int x, int y) =>
         _structures.TryGetValue((x, y), out StructureTile neighbor) &&
         !neighbor.IsDestroyed &&
@@ -248,6 +318,7 @@ public sealed class BuildingGrid : IBuildingGrid
             {
                 WallConnectivityMask updatedMask = WallAutotiler.ComputeConnectivity(nx, ny, this.IsConnectableAt);
                 _structures[(nx, ny)] = neighbor.WithConnectivity(updatedMask);
+                _onConnectivityUpdated?.Invoke(nx, ny, updatedMask);
             }
         }
     }
