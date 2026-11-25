@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
+
     <PropertyGroup>
         <OutputType>Exe</OutputType>
         <RootNamespace>Carbon.Desktop</RootNamespace>
@@ -7,11 +8,13 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\engine\Carbon.Physics\Carbon.Physics.csproj" />
-        <ProjectReference Include="..\..\engine\Carbon.Simulation\Carbon.Simulation.csproj" />
-        <ProjectReference Include="..\..\engine\Carbon.Maps\Carbon.Maps.csproj" />
-        <ProjectReference Include="..\..\graphics\Carbon.Graphics.OpenGL\Carbon.Graphics.OpenGL.csproj" />
-        <ProjectReference Include="..\..\graphics\Carbon.Graphics.Windowing\Carbon.Graphics.Windowing.csproj" />
+        <ProjectReference Include="..\Carbon.Desktop.Abstractions\Carbon.Desktop.Abstractions.csproj" />
+        <ProjectReference Include="..\Carbon.Desktop.Networking\Carbon.Desktop.Networking.csproj" />
+        <ProjectReference Include="..\Carbon.Desktop.Rendering\Carbon.Desktop.Rendering.csproj" />
         <ProjectReference Include="..\..\graphics\Carbon.Graphics.Batching\Carbon.Graphics.Batching.csproj" />
+        <ProjectReference Include="..\..\graphics\Carbon.Graphics.OpenGL\Carbon.Graphics.OpenGL.csproj" />
+        <ProjectReference Include="..\..\graphics\Carbon.Graphics.Scenes\Carbon.Graphics.Scenes.csproj" />
+        <ProjectReference Include="..\..\graphics\Carbon.Graphics.Windowing\Carbon.Graphics.Windowing.csproj" />
     </ItemGroup>
+
 </Project>

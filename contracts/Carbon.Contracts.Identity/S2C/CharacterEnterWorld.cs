@@ -1,0 +1,60 @@
+// Copyright (c) 2026 PPN Systems. All rights reserved.
+
+using Carbon.Contracts.Common;
+using Nalix.Abstractions.Networking.Packets;
+using Nalix.Abstractions.Serialization;
+using Nalix.Codec.DataFrames;
+
+namespace Carbon.Contracts.Identity.S2C;
+
+/// <summary>
+/// Server reply to <see cref="C2S.CharacterSelect"/> carrying world bootstrap metadata and initial entity state.
+/// </summary>
+[Packet]
+[GenerateFormatter]
+[SerializePackable(SerializeLayout.Explicit)]
+public sealed partial class CharacterEnterWorld : PacketBase<CharacterEnterWorld>, IPacketStaticOpcode
+{
+    /// <inheritdoc/>
+    public static ushort StaticOpCode => IdentityOpCode.CharacterEnterWorld;
+
+    /// <summary>Operation outcome (<see cref="OpStatus.Ok"/> when spawned into world).</summary>
+    [SerializeOrder(0)]
+    public OpStatus Status { get; set; }
+
+    /// <summary>Authoritative network entity identifier bound to the player avatar.</summary>
+    [SerializeOrder(1)]
+    public ulong PlayerNetworkId { get; set; }
+
+    /// <summary>Deterministic world generation seed.</summary>
+    [SerializeOrder(2)]
+    public ulong WorldSeed { get; set; }
+
+    /// <summary>Generator version expected by the server.</summary>
+    [SerializeOrder(3)]
+    public ushort GeneratorVersion { get; set; }
+
+    /// <summary>Physical tile dimension in world units.</summary>
+    [SerializeOrder(4)]
+    public float TileSize { get; set; }
+
+    /// <summary>Macro terrain noise frequency.</summary>
+    [SerializeOrder(5)]
+    public float Frequency { get; set; }
+
+    /// <summary>Initial authoritative spawn world X position.</summary>
+    [SerializeOrder(6)]
+    public float PositionX { get; set; }
+
+    /// <summary>Initial authoritative spawn world Y position.</summary>
+    [SerializeOrder(7)]
+    public float PositionY { get; set; }
+
+    /// <summary>Current authoritative simulation tick.</summary>
+    [SerializeOrder(8)]
+    public ulong ServerTick { get; set; }
+
+    /// <summary>Fixed simulation tick rate in Hertz.</summary>
+    [SerializeOrder(9)]
+    public ushort TickRate { get; set; }
+}

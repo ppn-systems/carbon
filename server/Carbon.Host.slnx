@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Carbon.Abstractions/Carbon.Abstractions.csproj" />
+  <Project Path="Carbon.Application/Carbon.Application.csproj" />
+  <Project Path="Carbon.Handlers/Carbon.Handlers.csproj" />
+  <Project Path="Carbon.Host/Carbon.Host.csproj" />
+  <Project Path="Carbon.Infrastructure/Carbon.Infrastructure.csproj" />
+</Solution>

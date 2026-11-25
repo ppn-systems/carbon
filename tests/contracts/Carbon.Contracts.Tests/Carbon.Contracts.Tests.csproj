@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <ItemGroup>
         <ProjectReference Include="..\..\..\contracts\Carbon.Contracts.Common\Carbon.Contracts.Common.csproj" />
+        <ProjectReference Include="..\..\..\contracts\Carbon.Contracts.Entities\Carbon.Contracts.Entities.csproj" />
+        <ProjectReference Include="..\..\..\contracts\Carbon.Contracts.Identity\Carbon.Contracts.Identity.csproj" />
+        <ProjectReference Include="..\..\..\contracts\Carbon.Contracts.Items\Carbon.Contracts.Items.csproj" />
         <ProjectReference Include="..\..\..\contracts\Carbon.Contracts.Maps\Carbon.Contracts.Maps.csproj" />
     </ItemGroup>
 </Project>

@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\desktop\Carbon.Desktop.Abstractions\Carbon.Desktop.Abstractions.csproj" />
+        <ProjectReference Include="..\..\..\desktop\Carbon.Desktop.Networking\Carbon.Desktop.Networking.csproj" />
+        <ProjectReference Include="..\..\..\desktop\Carbon.Desktop.Rendering\Carbon.Desktop.Rendering.csproj" />
+        <ProjectReference Include="..\..\..\desktop\Carbon.Desktop\Carbon.Desktop.csproj" />
+    </ItemGroup>
+</Project>

@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="../desktop/Carbon.Desktop.Abstractions/Carbon.Desktop.Abstractions.csproj" />
+  <Project Path="../desktop/Carbon.Desktop.Networking/Carbon.Desktop.Networking.csproj" />
+  <Project Path="../desktop/Carbon.Desktop.Rendering/Carbon.Desktop.Rendering.csproj" />
+  <Project Path="../desktop/Carbon.Desktop/Carbon.Desktop.csproj" />
+  <Project Path="desktop/Carbon.Desktop.Tests/Carbon.Desktop.Tests.csproj" />
+</Solution>

@@ -1,9 +1,15 @@
 <Solution>
   <Folder Name="/contracts/">
     <Project Path="contracts/Carbon.Contracts.Common/Carbon.Contracts.Common.csproj" />
+    <Project Path="contracts/Carbon.Contracts.Entities/Carbon.Contracts.Entities.csproj" />
+    <Project Path="contracts/Carbon.Contracts.Identity/Carbon.Contracts.Identity.csproj" />
+    <Project Path="contracts/Carbon.Contracts.Items/Carbon.Contracts.Items.csproj" />
     <Project Path="contracts/Carbon.Contracts.Maps/Carbon.Contracts.Maps.csproj" />
   </Folder>
   <Folder Name="/desktop/">
+    <Project Path="desktop/Carbon.Desktop.Abstractions/Carbon.Desktop.Abstractions.csproj" />
+    <Project Path="desktop/Carbon.Desktop.Networking/Carbon.Desktop.Networking.csproj" />
+    <Project Path="desktop/Carbon.Desktop.Rendering/Carbon.Desktop.Rendering.csproj" />
     <Project Path="desktop/Carbon.Desktop/Carbon.Desktop.csproj" />
   </Folder>
   <Folder Name="/engine/">
@@ -27,9 +33,19 @@
     <Project Path="graphics/Carbon.Graphics.UI/Carbon.Graphics.UI.csproj" />
     <Project Path="graphics/Carbon.Graphics.Windowing/Carbon.Graphics.Windowing.csproj" />
   </Folder>
+  <Folder Name="/server/">
+    <Project Path="server/Carbon.Abstractions/Carbon.Abstractions.csproj" />
+    <Project Path="server/Carbon.Application/Carbon.Application.csproj" />
+    <Project Path="server/Carbon.Handlers/Carbon.Handlers.csproj" />
+    <Project Path="server/Carbon.Host/Carbon.Host.csproj" />
+    <Project Path="server/Carbon.Infrastructure/Carbon.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/tests/" />
   <Folder Name="/tests/contracts/">
     <Project Path="tests/contracts/Carbon.Contracts.Tests/Carbon.Contracts.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/desktop/">
+    <Project Path="tests/desktop/Carbon.Desktop.Tests/Carbon.Desktop.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/engine/">
     <Project Path="tests/engine/Carbon.AI.Tests/Carbon.AI.Tests.csproj" />
@@ -51,5 +67,8 @@
     <Project Path="tests/graphics/Carbon.Graphics.Scenes.Tests/Carbon.Graphics.Scenes.Tests.csproj" />
     <Project Path="tests/graphics/Carbon.Graphics.UI.Tests/Carbon.Graphics.UI.Tests.csproj" />
     <Project Path="tests/graphics/Carbon.Graphics.Windowing.Tests/Carbon.Graphics.Windowing.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/server/">
+    <Project Path="tests/server/Carbon.Host.Tests/Carbon.Host.Tests.csproj" />
   </Folder>
 </Solution>

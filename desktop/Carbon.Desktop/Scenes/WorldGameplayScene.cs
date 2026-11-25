@@ -1,0 +1,279 @@
+// Copyright (c) 2026 PPN Systems. All rights reserved.
+
+using System;
+using System.IO;
+using System.Numerics;
+using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Input;
+using Carbon.Desktop.Rendering;
+using Carbon.Graphics.Batching.Camera;
+using Carbon.Graphics.Batching.Common;
+using Carbon.Graphics.Batching.Sprites;
+using Carbon.Graphics.Scenes.Base;
+using Carbon.Graphics.Scenes.Management;
+using Carbon.Graphics.Windowing.Abstractions;
+using Carbon.Maps.Biomes;
+using Carbon.Maps.Building;
+using Carbon.Maps.Data;
+using Carbon.Maps.Navigation;
+using Carbon.Maps.Streaming;
+using Carbon.Maps.Topography;
+using Silk.NET.OpenGL;
+
+namespace Carbon.Desktop.Scenes;
+
+/// <summary>
+/// Primary playable 2.5D MMORPG world scene orchestrating input polling, <see cref="IClientWorldSession"/> updates,
+/// <see cref="CameraRig2D"/> tracking, <see cref="WorldSceneRenderer"/> passes, HUD telemetry, and capture hooks.
+/// </summary>
+public sealed class WorldGameplayScene : GameScene
+{
+    private readonly IClientWorldSession _session;
+    private readonly DesktopClientOptions _options;
+    private readonly Camera2D _camera;
+
+    private CameraRig2D? _cameraRig;
+    private WorldSceneRenderer? _worldRenderer;
+    private BiomeType _lastBiome = (BiomeType)255;
+    private byte _lastHeight = 255;
+    private StructureType _lastStructure = StructureType.None;
+    private (int X, int Y) _lastChunk = (int.MinValue, int.MinValue);
+    private int _frameCount;
+    private bool _hasAutoCaptured;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="WorldGameplayScene"/> class.
+    /// </summary>
+    /// <param name="session">Initialized offline or multiplayer client world session.</param>
+    /// <param name="options">Client runtime options.</param>
+    /// <param name="camera">Shared 2D orthographic camera.</param>
+    public WorldGameplayScene(IClientWorldSession session, DesktopClientOptions options, Camera2D camera)
+        : base("WorldGameplay")
+    {
+        _session = session ?? throw new ArgumentNullException(nameof(session));
+        _options = options ?? throw new ArgumentNullException(nameof(options));
+        _camera = camera ?? throw new ArgumentNullException(nameof(camera));
+    }
+
+    /// <inheritdoc/>
+    public override void Load(SceneContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        base.Load(context);
+
+        _cameraRig = new CameraRig2D(_camera, _options.MacroView);
+        _worldRenderer = new WorldSceneRenderer(context.Device, _options);
+        _worldRenderer.EnsureWorldBound(_session);
+
+        Vector2 focusPos = _options.FocusTileX.HasValue && _options.FocusTileY.HasValue
+            ? new Vector2((_options.FocusTileX.Value + 0.5f) * _options.TileSize, (_options.FocusTileY.Value + 0.5f) * _options.TileSize)
+            : _session.LocalPlayerInterpolatedPosition;
+
+        _cameraRig.SnapTo(focusPos);
+    }
+
+    /// <inheritdoc/>
+    public override void Update(SceneContext context, double dt)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        base.Update(context, dt);
+
+        if (!_session.IsReady || _cameraRig is null || _worldRenderer is null)
+        {
+            return;
+        }
+
+        DesktopInputFrame input = DesktopInputController.Poll(context.Input);
+
+        if (input.ExitPressed)
+        {
+            context.Window.Close();
+            return;
+        }
+
+        if (input.ReseedPressed && !_session.IsOnlineMultiplayer)
+        {
+            ulong nextSeed = (ulong)Environment.TickCount64 ^ 0xA5A5A5A5A5A5A5A5UL;
+            _session.ReseedOffline(nextSeed);
+            _worldRenderer.EnsureWorldBound(_session);
+            _worldRenderer.InvalidateAll();
+            _cameraRig.SnapTo(_session.LocalPlayerInterpolatedPosition);
+            return;
+        }
+
+        if (input.ToggleDebugPressed)
+        {
+            _worldRenderer.ShowDebugOverlay = !_worldRenderer.ShowDebugOverlay;
+            Console.WriteLine($"[Debug] Solid collision overlay: {(_worldRenderer.ShowDebugOverlay ? "ON" : "OFF")}");
+        }
+
+        if (input.ScreenshotPressed)
+        {
+            this.CaptureScreenshot(context.Window, _options.ScreenshotPath);
+        }
+
+        if (input.HarvestPressed && _session.TryHarvestNearbyProp(out (int ChunkX, int ChunkY) harvestChunk))
+        {
+            _worldRenderer.InvalidateChunk(harvestChunk.ChunkX, harvestChunk.ChunkY);
+        }
+
+        if (input.ToggleDoorPressed && _session.TryToggleNearbyDoor(out (int ChunkX, int ChunkY) doorChunk))
+        {
+            _worldRenderer.InvalidateChunk(doorChunk.ChunkX, doorChunk.ChunkY);
+        }
+
+        if (input.PlaceHousePressed && _session.TryPlaceTestHouse(out (int ChunkX, int ChunkY) houseChunk))
+        {
+            _worldRenderer.InvalidateChunk(houseChunk.ChunkX, houseChunk.ChunkY);
+        }
+
+        if (input.ZoomMultiplier.HasValue)
+        {
+            _cameraRig.AdjustZoom(input.ZoomMultiplier.Value);
+        }
+
+        _session.Update(dt, input.MoveDirection, input.Sprint);
+
+        Vector2 playerPos = _session.LocalPlayerInterpolatedPosition;
+        float tileSize = _session.ChunkWorld.TileSize;
+        int ptx = (int)MathF.Floor(playerPos.X / tileSize);
+        int pty = (int)MathF.Floor(playerPos.Y / tileSize);
+
+        this.UpdateTelemetry(context.Window, ptx, pty);
+
+        bool inside = _worldRenderer.TryGetBuildingAt(playerPos, out RectangleF room);
+        float rateDt = _options.CaptureFrames > 0 ? 1f / 15f : (float)dt;
+        _cameraRig.Update(playerPos, inside, in room, rateDt);
+
+        if (_options.AutoExit && _frameCount >= 25 + _options.CaptureFrames)
+        {
+            context.Window.Close();
+        }
+    }
+
+    /// <inheritdoc/>
+    public override void Render(SceneContext context, SpriteBatch spriteBatch, double dt)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(spriteBatch);
+
+        if (_cameraRig is null || _worldRenderer is null || !_session.IsReady)
+        {
+            return;
+        }
+
+        float frameDt = _options.CaptureFrames > 0 ? 1f / 15f : (float)dt;
+        _worldRenderer.Render(
+            _session,
+            _cameraRig,
+            context.WindowWidth,
+            context.WindowHeight,
+            frameDt,
+            _options.TimeScale);
+
+        base.Render(context, spriteBatch, dt);
+
+        _frameCount++;
+        if (_frameCount >= 20 && !_hasAutoCaptured)
+        {
+            _hasAutoCaptured = true;
+            this.CaptureScreenshot(context.Window, _options.ScreenshotPath);
+        }
+        else if (_options.CaptureFrames > 0 && _frameCount > 20 && _frameCount <= 20 + _options.CaptureFrames)
+        {
+            string path = Path.Combine(
+                Path.GetDirectoryName(_options.ScreenshotPath) ?? string.Empty,
+                $"{Path.GetFileNameWithoutExtension(_options.ScreenshotPath)}_{_frameCount - 20:D3}.bmp");
+            ScreenshotHelper.Capture(context.Device.Gl, context.WindowWidth, context.WindowHeight, path);
+        }
+
+        GLEnum glError = context.Device.Gl.GetError();
+        if (glError != GLEnum.NoError)
+        {
+            Console.WriteLine($"[OpenGL Error] {glError}");
+        }
+    }
+
+    /// <inheritdoc/>
+    public override void Resize(SceneContext context, int width, int height)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        base.Resize(context, width, height);
+        _cameraRig?.Resize(width, height);
+    }
+
+    /// <inheritdoc/>
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _worldRenderer?.Dispose();
+            _worldRenderer = null;
+        }
+
+        base.Dispose(disposing);
+    }
+
+    private void UpdateTelemetry(IGameWindow window, int ptx, int pty)
+    {
+        ChunkWorld2D chunkWorld = _session.ChunkWorld;
+        MapTile currentTile = chunkWorld.GetTileAtWorld(ptx, pty);
+
+        if (currentTile.Biome != _lastBiome)
+        {
+            _lastBiome = currentTile.Biome;
+            Console.WriteLine($"[Biome] Entered: {currentTile.Biome,-16} (Speed: {currentTile.MoveSpeedMultiplier * 100:F0}%)");
+        }
+
+        if (currentTile.HeightLevel != _lastHeight)
+        {
+            _lastHeight = currentTile.HeightLevel;
+            Console.WriteLine($"[Topography] Elevation level: {_lastHeight}");
+        }
+
+        if (chunkWorld.Buildings.TryGetStructure(ptx, pty, out StructureTile currentStructure))
+        {
+            if (currentStructure.Type != _lastStructure)
+            {
+                _lastStructure = currentStructure.Type;
+                bool isRoofed = chunkWorld.Buildings.IsRoofedAt(ptx, pty);
+                Console.WriteLine($"[Structure] Entered: {currentStructure.Type} | Roofed: {isRoofed}");
+            }
+        }
+        else if (_lastStructure != StructureType.None)
+        {
+            _lastStructure = StructureType.None;
+        }
+
+        TileWalkability walkability = chunkWorld.NavGrid.GetWalkability(ptx, pty);
+        RampDirection currentRamp = chunkWorld.NavGrid.GetRamp(ptx, pty);
+        string rampText = currentRamp != RampDirection.None ? $" [Ramp: {currentRamp}]" : string.Empty;
+        string roofText = chunkWorld.Buildings.IsRoofedAt(ptx, pty) ? " [Roofed Room]" : string.Empty;
+        string netText = _session.IsOnlineMultiplayer
+            ? $" | Online Peers: {_session.RemoteEntities.Count}"
+            : " | Offline";
+        window.Title = $"Carbon MMORPG | Biome: {currentTile.Biome} | Alt: Lvl {currentTile.HeightLevel} | Nav: {walkability}{rampText}{roofText}{netText}";
+
+        int chunkX = Chunk2D.ToChunkCoord(ptx);
+        int chunkY = Chunk2D.ToChunkCoord(pty);
+        if (chunkX != _lastChunk.X || chunkY != _lastChunk.Y)
+        {
+            _lastChunk = (chunkX, chunkY);
+            Console.WriteLine($"[ChunkStream] Chunk ({chunkX}, {chunkY}) | Active: {chunkWorld.LoadedChunkCount} | Pooled: {chunkWorld.PooledChunkCount}");
+            _worldRenderer?.EvictDistant(chunkX, chunkY, 7);
+        }
+    }
+
+    private void CaptureScreenshot(IGameWindow window, string filePath)
+    {
+        try
+        {
+            ScreenshotHelper.Capture(window.Device.Gl, window.Width, window.Height, filePath);
+            Console.WriteLine($"[Screenshot] Saved capture to: {filePath}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            Console.WriteLine($"[Screenshot Error] {ex.Message}");
+        }
+    }
+}

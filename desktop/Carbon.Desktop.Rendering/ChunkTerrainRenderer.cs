@@ -201,6 +201,44 @@ public sealed class ChunkTerrainRenderer : IDisposable
         }
     }
 
+    /// <summary>
+    /// Invalidates and disposes the cached GPU mesh for the specified chunk and its 8 immediate neighbors
+    /// so autotiling and building changes rebuild cleanly on the next render pass.
+    /// </summary>
+    /// <param name="chunkX">Modified chunk X coordinate.</param>
+    /// <param name="chunkY">Modified chunk Y coordinate.</param>
+    public void InvalidateChunk(int chunkX, int chunkY)
+    {
+        for (int dy = -1; dy <= 1; dy++)
+        {
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                long key = Chunk2D.PackKey(chunkX + dx, chunkY + dy);
+                _ = _waterfalls.Remove(key);
+                _ = _ripples.Remove(key);
+                if (_meshCache.Remove(key, out ChunkMesh2D? mesh))
+                {
+                    mesh.Dispose();
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Invalidates and disposes all cached chunk GPU meshes (e.g., after reseeding).
+    /// </summary>
+    public void InvalidateAll()
+    {
+        foreach (ChunkMesh2D mesh in _meshCache.Values)
+        {
+            mesh.Dispose();
+        }
+
+        _meshCache.Clear();
+        _waterfalls.Clear();
+        _ripples.Clear();
+    }
+
     private ChunkMesh2D BuildChunkMesh(Chunk2D chunk, ChunkWorld2D world)
     {
         _builder.Clear();

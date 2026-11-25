@@ -22,6 +22,8 @@ jobs:
         run: dotnet build engine/Carbon.Engine.slnx -c Release
       - name: Build graphics
         run: dotnet build graphics/Carbon.Graphics.slnx -c Release
+      - name: Build server
+        run: dotnet build server/Carbon.Host.slnx -c Release
       - name: Build desktop
         run: dotnet build desktop/Carbon.Desktop.slnx -c Release
       - name: Test contracts
@@ -30,3 +32,7 @@ jobs:
         run: dotnet test tests/Carbon.Engine.Tests.slnx -c Release
       - name: Test graphics
         run: dotnet test tests/Carbon.Graphics.Tests.slnx -c Release
+      - name: Test server
+        run: dotnet test tests/Carbon.Host.Tests.slnx -c Release
+      - name: Test desktop
+        run: dotnet test tests/Carbon.Desktop.Tests.slnx -c Release
