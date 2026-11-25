@@ -16,7 +16,17 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+      - name: Build contracts
+        run: dotnet build contracts/Carbon.Contracts.slnx -c Release
+      - name: Build engine
+        run: dotnet build engine/Carbon.Engine.slnx -c Release
       - name: Build graphics
         run: dotnet build graphics/Carbon.Graphics.slnx -c Release
-      - name: Test
+      - name: Build desktop
+        run: dotnet build desktop/Carbon.Desktop.slnx -c Release
+      - name: Test contracts
+        run: dotnet test tests/Carbon.Contracts.Tests.slnx -c Release
+      - name: Test engine
+        run: dotnet test tests/Carbon.Engine.Tests.slnx -c Release
+      - name: Test graphics
         run: dotnet test tests/Carbon.Graphics.Tests.slnx -c Release

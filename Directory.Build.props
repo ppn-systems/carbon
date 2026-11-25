@@ -15,7 +15,9 @@
         <IsTrimmable>true</IsTrimmable>
 
         <!-- Centralized build output: all bin/ and obj/ route to root artifacts/ -->
+        <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
         <UseArtifactsOutput>true</UseArtifactsOutput>
+        <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
     </PropertyGroup>
 
     <!-- Debug Configuration -->

@@ -1,4 +1,12 @@
 <Solution>
+  <Project Path="../graphics/Carbon.Graphics.Animation/Carbon.Graphics.Animation.csproj" />
+  <Project Path="../graphics/Carbon.Graphics.Assets/Carbon.Graphics.Assets.csproj" />
+  <Project Path="../graphics/Carbon.Graphics.Batching/Carbon.Graphics.Batching.csproj" />
+  <Project Path="../graphics/Carbon.Graphics.Fonts/Carbon.Graphics.Fonts.csproj" />
+  <Project Path="../graphics/Carbon.Graphics.OpenGL/Carbon.Graphics.OpenGL.csproj" />
+  <Project Path="../graphics/Carbon.Graphics.Scenes/Carbon.Graphics.Scenes.csproj" />
+  <Project Path="../graphics/Carbon.Graphics.UI/Carbon.Graphics.UI.csproj" />
+  <Project Path="../graphics/Carbon.Graphics.Windowing/Carbon.Graphics.Windowing.csproj" />
   <Project Path="graphics/Carbon.Graphics.Animation.Tests/Carbon.Graphics.Animation.Tests.csproj" />
   <Project Path="graphics/Carbon.Graphics.Assets.Tests/Carbon.Graphics.Assets.Tests.csproj" />
   <Project Path="graphics/Carbon.Graphics.Batching.Tests/Carbon.Graphics.Batching.Tests.csproj" />
