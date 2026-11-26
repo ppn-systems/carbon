@@ -148,7 +148,7 @@ public sealed partial class AuthoritativeWorld
 
         if (hitCount == 0)
         {
-            this.ProcessToolHarvestFallbackLocked(state, attackerPos, aimDir, in activeSlot);
+            _props.SwingAtWorld(state, attackerPos, aimDir, in activeSlot);
             return;
         }
 

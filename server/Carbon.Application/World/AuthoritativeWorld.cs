@@ -15,6 +15,7 @@ using Carbon.Application.World.Loot;
 using Carbon.Application.World.Needs;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Projectiles;
+using Carbon.Application.World.Props;
 using Carbon.Application.World.Replication;
 using Carbon.AI.Components;
 using Carbon.AI.Threat;
@@ -57,7 +58,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private const float BaseWalkSpeed = 250f;
     private const float SprintSpeed = 450f;
     private const float BuildInteractRangeTiles = 3.5f;
-    private const float ToolHarvestRangePx = 52f;
     private const float MeleeStrikeRangePx = 56f;
     private const float DefaultEntityRadius = 7f;
     private const uint PlayerLayer = 1U;
@@ -76,6 +76,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly ConstructionService _construction;
     private readonly InventoryService _inventory;
     private readonly CombatService _combat;
+    private readonly PropHarvestService _props;
     private readonly PlayerMaterialAdapter _playerMaterials;
     private readonly WorldSimulation _simulation;
     private readonly AoiReplicator _replication;
@@ -204,6 +205,25 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _outbound,
             state => this.MarkCharacterDirtyLocked(state, inventoryChanged: true));
         _combat = new CombatService(_simulation, _chunkWorld, MonsterLayer, _outbound, this.CollectNearbyConnectionsAroundWorldLocked, this.OnMonsterKilledLocked);
+        _props = new PropHarvestService(
+            _simulation,
+            _chunkWorld,
+            this.TileSize,
+            this.TickRate,
+            () => _itemRules,
+            () => _currentTick,
+            _groundLoot,
+            _construction,
+            _outbound,
+            _dirtyChunks,
+            this.AppendTileRecipientsLocked,
+            this.IsWithinInteractRangeLocked,
+            this.DegradeActiveSlotDurabilityLocked,
+            (state, xp) =>
+            {
+                this.GrantExperienceLocked(state, xp, out _);
+                this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
+            });
         _projectiles = new ProjectileService(_simulation, _chunkWorld, MonsterLayer, () => ++_nextNetworkId, new ProjectileHits(this));
 
         _needs = new NeedsService(

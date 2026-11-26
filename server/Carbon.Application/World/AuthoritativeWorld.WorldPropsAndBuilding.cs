@@ -5,12 +5,11 @@ using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Abstractions.World;
 using Carbon.Application.World.Construction;
+using Carbon.Application.World.Props;
 using Carbon.Application.World.Players;
-using Carbon.Application.World.Replication;
 using Carbon.Application.World.Commands;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Maps.S2C;
-using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
 using Carbon.Maps.Building;
@@ -52,7 +51,7 @@ public sealed partial class AuthoritativeWorld
         OpStatus outcomeStatus = OpStatus.Ok;
         ulong[]? recipientsCopy = null;
         (ushort SlotIndex, ItemSlot Slot)[] modifiedCopy;
-        uint revision = 0;
+        uint revision;
         float durability;
         bool isDestroyed = false;
 
@@ -76,10 +75,6 @@ public sealed partial class AuthoritativeWorld
                 return new WorldMutationOutcome(OpStatus.RateLimited, 0);
             }
 
-            int cx = Chunk2D.ToChunkCoord(tileX);
-            int cy = Chunk2D.ToChunkCoord(tileY);
-            ulong respawnAt = _currentTick + (ulong)(this.TickRate * 30);
-
             if (!_chunkWorld.TryGetPropAt(tileX, tileY, out MapProp existing) ||
                 existing.Type == MapPropType.None ||
                 existing.Destructibility.IsDestroyed)
@@ -97,73 +92,34 @@ public sealed partial class AuthoritativeWorld
             ItemSlot activeSlot = state.Session.SelectedHotbarSlot < state.Inventory.Capacity
                 ? state.Inventory.GetSlot(state.Session.SelectedHotbarSlot)
                 : ItemSlot.Empty;
-            ToolTargetKind targetKind = ToToolTargetKind(existing.Category);
-            PropStrikeEvaluation eval = ToolUsagePolicy.EvaluatePropStrike(
-                _itemRules,
-                in activeSlot,
-                targetKind,
-                existing.Destructibility.HarvestTier);
-
             _mutationSlotScratch.Clear();
-            if (eval.DurabilityLoss > 0f &&
-                this.DegradeActiveSlotDurabilityLocked(state, in activeSlot, eval.DurabilityLoss, out ItemSlot degradedSlot))
+            PropStrikeResult strike = _props.Strike(state, tileX, tileY, in existing, in activeSlot, replicateToolWear: false, out ItemSlot? toolWear);
+            if (toolWear.HasValue)
             {
-                _mutationSlotScratch.Add((state.Session.SelectedHotbarSlot, degradedSlot));
+                _mutationSlotScratch.Add((state.Session.SelectedHotbarSlot, toolWear.Value));
             }
 
-            if (!_chunkWorld.TryDamagePropAt(tileX, tileY, eval.Damage, eval.EffectiveTier, respawnAt, out MapProp updated))
+            this.CollectNearbyConnectionsLocked(tileX, tileY, _aoiRecipientsScratch);
+            if (_aoiRecipientsScratch.Count > 0)
             {
-                uint currentRev = _chunkWorld.TryGetDelta(cx, cy, out ChunkDelta? curDelta) && curDelta is not null
-                    ? curDelta.Revision
-                    : 0U;
-                float existingDur = existing.Destructibility.CurrentDurability;
-                this.CollectNearbyConnectionsLocked(tileX, tileY, _aoiRecipientsScratch);
-                if (_aoiRecipientsScratch.Count > 0)
-                {
-                    recipientsCopy = [.. _aoiRecipientsScratch];
-                }
+                recipientsCopy = [.. _aoiRecipientsScratch];
+            }
 
-                modifiedCopy = [.. _mutationSlotScratch];
+            modifiedCopy = [.. _mutationSlotScratch];
+            revision = strike.Revision;
+            durability = strike.Prop.Destructibility.CurrentDurability;
+            if (!strike.Damaged)
+            {
                 if (recipientsCopy is null && modifiedCopy.Length == 0)
                 {
                     return new WorldMutationOutcome(OpStatus.Forbidden, 0);
                 }
 
                 outcomeStatus = OpStatus.Forbidden;
-                durability = existingDur;
-                revision = currentRev;
             }
             else
             {
-                _ = _dirtyChunks.Add(Chunk2D.PackKey(cx, cy));
-                if (_chunkWorld.TryGetDelta(cx, cy, out ChunkDelta? delta) && delta is not null)
-                {
-                    revision = delta.Revision;
-                }
-
-                durability = updated.Destructibility.CurrentDurability;
-                isDestroyed = updated.Destructibility.IsDestroyed;
-
-                if (isDestroyed)
-                {
-                    ItemSlot drop = PropHarvestCatalog.ResolveDrop(_itemRules, updated.Type, out uint propXp);
-                    if (!drop.IsEmpty)
-                    {
-                        Vector2 propDropPos = new((tileX + 0.5f) * this.TileSize, (tileY + 0.5f) * this.TileSize);
-                        this.SpawnGroundLootLocked(propDropPos, in drop);
-                    }
-
-                    this.GrantExperienceLocked(state, propXp > 0U ? propXp : 15U, out _);
-                    this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
-                }
-
-                this.CollectNearbyConnectionsLocked(tileX, tileY, _aoiRecipientsScratch);
-                if (_aoiRecipientsScratch.Count > 0)
-                {
-                    recipientsCopy = [.. _aoiRecipientsScratch];
-                }
-
-                modifiedCopy = [.. _mutationSlotScratch];
+                isDestroyed = strike.Prop.Destructibility.IsDestroyed;
             }
         }
 
@@ -328,208 +284,6 @@ public sealed partial class AuthoritativeWorld
         }
     }
 
-    private void ProcessToolHarvestFallbackLocked(PlayerState state, Vector2 attackerPos, Vector2 aimDir, in ItemSlot activeSlot)
-    {
-        int aimTx = (int)MathF.Floor(state.PendingAttackAim.X / this.TileSize);
-        int aimTy = (int)MathF.Floor(state.PendingAttackAim.Y / this.TileSize);
-        ulong respawnAt = _currentTick + (ulong)(this.TickRate * 30);
-
-        int blockedTx = 0;
-        int blockedTy = 0;
-        MapProp blockedProp = default;
-        bool hasBlocked = false;
-
-        if (this.IsWithinHarvestRangeLocked(attackerPos, aimTx, aimTy))
-        {
-            if (this.TryDamagePropAndQueueLocked(state, aimTx, aimTy, in activeSlot, respawnAt, ref blockedProp))
-            {
-                return;
-            }
-
-            if (blockedProp.Type != MapPropType.None)
-            {
-                blockedTx = aimTx;
-                blockedTy = aimTy;
-                hasBlocked = true;
-            }
-        }
-
-        if (!hasBlocked)
-        {
-            Vector2 sideDir = new(-aimDir.Y, aimDir.X);
-            ReadOnlySpan<Vector2> probes =
-            [
-                attackerPos + (aimDir * 24f),
-                attackerPos + (((aimDir * 0.85f) + (sideDir * 0.52f)) * 24f),
-                attackerPos + (((aimDir * 0.85f) - (sideDir * 0.52f)) * 24f),
-            ];
-
-            for (int i = 0; i < probes.Length; i++)
-            {
-                int wx = (int)MathF.Floor(probes[i].X / this.TileSize);
-                int wy = (int)MathF.Floor(probes[i].Y / this.TileSize);
-                if (!this.IsWithinHarvestRangeLocked(attackerPos, wx, wy))
-                {
-                    continue;
-                }
-
-                MapProp localBlocked = default;
-                if (this.TryDamagePropAndQueueLocked(state, wx, wy, in activeSlot, respawnAt, ref localBlocked))
-                {
-                    return;
-                }
-
-                if (localBlocked.Type != MapPropType.None)
-                {
-                    blockedTx = wx;
-                    blockedTy = wy;
-                    blockedProp = localBlocked;
-                    hasBlocked = true;
-                    break;
-                }
-            }
-        }
-
-        if (hasBlocked)
-        {
-            int cx = Chunk2D.ToChunkCoord(blockedTx);
-            int cy = Chunk2D.ToChunkCoord(blockedTy);
-            uint revision = _chunkWorld.TryGetDelta(cx, cy, out ChunkDelta? delta) && delta is not null
-                ? delta.Revision
-                : 0U;
-
-            (int offset, int count) = this.AppendTileRecipientsLocked(blockedTx, blockedTy);
-            if (count > 0)
-            {
-                _outbound.Pending.PropChanges.Add(new OutboundPropChange(
-                    offset,
-                    count,
-                    blockedTx,
-                    blockedTy,
-                    revision,
-                    blockedProp.Destructibility.CurrentDurability,
-                    false));
-            }
-
-            return;
-        }
-
-        if (this.IsWithinInteractRangeLocked(state.Entity, aimTx, aimTy) &&
-            _chunkWorld.Buildings.TryGetStructure(aimTx, aimTy, out StructureTile targetStruct) &&
-            targetStruct.Type != StructureType.None)
-        {
-            float dmg = 20f;
-            byte toolTier = 1;
-            if (!activeSlot.IsEmpty && _itemRules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? toolDef))
-            {
-                toolTier = Math.Max((byte)1, toolDef.HarvestTier);
-                bool isWoodStruct = targetStruct.Material == StructureMaterial.Wood;
-                if (isWoodStruct && toolDef.Capabilities.HasFlag(ToolCapabilities.ChopFlora))
-                {
-                    dmg = MathF.Max(40f, toolDef.FloraHarvestDamage);
-                }
-                else if (!isWoodStruct && toolDef.Capabilities.HasFlag(ToolCapabilities.MineMineral))
-                {
-                    dmg = MathF.Max(45f, toolDef.MineralHarvestDamage);
-                }
-                else
-                {
-                    dmg = MathF.Max(15f, toolDef.BaseDamage * 0.7f);
-                }
-            }
-
-            if (toolTier >= targetStruct.Destructibility.HarvestTier)
-            {
-                _construction.DamageStructure(aimTx, aimTy, dmg);
-            }
-        }
-    }
-
-    private bool TryDamagePropAndQueueLocked(
-        PlayerState state,
-        int wx,
-        int wy,
-        in ItemSlot activeSlot,
-        ulong respawnAt,
-        ref MapProp tierBlockedProp)
-    {
-        if (!_simulation.Entities.IsAlive(state.Entity) ||
-            !_simulation.Entities.HasTransform(state.Entity) ||
-            !this.IsWithinHarvestRangeLocked(_simulation.Entities.GetTransform(state.Entity).Position, wx, wy))
-        {
-            return false;
-        }
-
-        if (!_chunkWorld.TryGetPropAt(wx, wy, out MapProp existing) ||
-            existing.Type == MapPropType.None ||
-            existing.Destructibility.IsDestroyed ||
-            !existing.Destructibility.IsDestructible)
-        {
-            return false;
-        }
-
-        ToolTargetKind targetKind = ToToolTargetKind(existing.Category);
-        PropStrikeEvaluation eval = ToolUsagePolicy.EvaluatePropStrike(
-            _itemRules,
-            in activeSlot,
-            targetKind,
-            existing.Destructibility.HarvestTier);
-
-        if (eval.DurabilityLoss > 0f &&
-            this.DegradeActiveSlotDurabilityLocked(state, in activeSlot, eval.DurabilityLoss, out ItemSlot degradedSlot))
-        {
-            _outbound.Pending.SlotChanges.Add(new OutboundSlotChange(
-                state.Session.ConnectionId,
-                state.Session.SelectedHotbarSlot,
-                degradedSlot));
-        }
-
-        if (!_chunkWorld.TryDamagePropAt(wx, wy, eval.Damage, eval.EffectiveTier, respawnAt, out MapProp updated))
-        {
-            if (eval.Outcome != ToolStrikeOutcome.Optimal || eval.EffectiveTier < existing.Destructibility.HarvestTier)
-            {
-                tierBlockedProp = existing;
-            }
-
-            return false;
-        }
-
-        int cx = Chunk2D.ToChunkCoord(wx);
-        int cy = Chunk2D.ToChunkCoord(wy);
-        _ = _dirtyChunks.Add(Chunk2D.PackKey(cx, cy));
-        uint revision = _chunkWorld.TryGetDelta(cx, cy, out ChunkDelta? delta) && delta is not null
-            ? delta.Revision
-            : 0U;
-
-        if (updated.Destructibility.IsDestroyed)
-        {
-            ItemSlot drop = PropHarvestCatalog.ResolveDrop(_itemRules, updated.Type, out uint propXp);
-            if (!drop.IsEmpty)
-            {
-                Vector2 propDropPos = new((wx + 0.5f) * this.TileSize, (wy + 0.5f) * this.TileSize);
-                this.SpawnGroundLootLocked(propDropPos, in drop);
-            }
-
-            this.GrantExperienceLocked(state, propXp > 0U ? propXp : 15U, out _);
-            this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
-        }
-
-        (int offset, int count) = this.AppendTileRecipientsLocked(wx, wy);
-        if (count > 0)
-        {
-            _outbound.Pending.PropChanges.Add(new OutboundPropChange(
-                offset,
-                count,
-                wx,
-                wy,
-                revision,
-                updated.Destructibility.CurrentDurability,
-                updated.Destructibility.IsDestroyed));
-        }
-
-        return true;
-    }
-
     private (int Offset, int Count) AppendTileRecipientsLocked(int tileX, int tileY)
     {
         this.CollectNearbyConnectionsLocked(tileX, tileY, _aoiRecipientsScratch);
@@ -541,12 +295,6 @@ public sealed partial class AuthoritativeWorld
         }
 
         return (offset, count);
-    }
-
-    private bool IsWithinHarvestRangeLocked(Vector2 playerPos, int tileX, int tileY)
-    {
-        Vector2 tileCenter = new((tileX + 0.5f) * this.TileSize, (tileY + 0.5f) * this.TileSize);
-        return Vector2.DistanceSquared(playerPos, tileCenter) <= (ToolHarvestRangePx * ToolHarvestRangePx);
     }
 
     private bool IsWithinInteractRangeLocked(Entity entity, int tileX, int tileY)
@@ -561,9 +309,4 @@ public sealed partial class AuthoritativeWorld
         float maxDist = BuildInteractRangeTiles * this.TileSize;
         return Vector2.DistanceSquared(pos, tileCenter) <= (maxDist * maxDist);
     }
-
-    private static ToolTargetKind ToToolTargetKind(PropCategory category) =>
-        category == PropCategory.Mineral
-            ? ToolTargetKind.Mineral
-            : ToolTargetKind.Flora;
 }
