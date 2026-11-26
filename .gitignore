@@ -55,4 +55,4 @@ publish/
 resources/thirdparty/
 
 # Screenshot review output
-screenshots/
+/screenshots/

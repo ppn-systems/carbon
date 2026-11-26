@@ -1,0 +1,15 @@
+# name | environment variables (space separated KEY=VALUE)
+spawn_day        | CARBON_TIME_OF_DAY=10
+spawn_night      | CARBON_TIME_OF_DAY=23
+macro_day        | CARBON_TIME_OF_DAY=12 CARBON_MACRO_VIEW=1
+shallow_water    | CARBON_TIME_OF_DAY=11 CARBON_FOCUS_BIOME=ShallowWater
+beach            | CARBON_TIME_OF_DAY=11 CARBON_FOCUS_BIOME=BeachSand
+plains           | CARBON_TIME_OF_DAY=11 CARBON_FOCUS_BIOME=LushPlains
+forest           | CARBON_TIME_OF_DAY=11 CARBON_FOCUS_BIOME=AncientForest
+swamp            | CARBON_TIME_OF_DAY=11 CARBON_FOCUS_BIOME=MistySwamp
+desert           | CARBON_TIME_OF_DAY=11 CARBON_FOCUS_BIOME=DuneDesert
+mesa             | CARBON_TIME_OF_DAY=11 CARBON_FOCUS_BIOME=RedMesa
+jungle           | CARBON_TIME_OF_DAY=11 CARBON_FOCUS_BIOME=TropicalJungle
+tundra           | CARBON_TIME_OF_DAY=11 CARBON_FOCUS_BIOME=FrozenTundra
+forest_night     | CARBON_TIME_OF_DAY=22 CARBON_FOCUS_BIOME=AncientForest
+desert_rain      | CARBON_TIME_OF_DAY=15 CARBON_FOCUS_BIOME=DuneDesert CARBON_WEATHER=rain
