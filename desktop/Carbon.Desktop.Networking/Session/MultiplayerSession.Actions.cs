@@ -10,6 +10,7 @@ using Carbon.Contracts.Entities;
 using Carbon.Contracts.Entities.C2S;
 using Carbon.Contracts.Items.C2S;
 using Carbon.Contracts.Maps.C2S;
+using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Events;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
@@ -617,7 +618,7 @@ public sealed partial class MultiplayerSession
     {
         if (source.IsStackable)
         {
-            int maxStack = StarterGameCatalog.GetMaxStackSize(source.ItemId);
+            int maxStack = SyncedItemCatalog.GetMaxStackSize(source.ItemId);
             for (int i = startInclusive; i < endExclusive; i++)
             {
                 ItemSlot candidate = _inventory.GetSlot(i);

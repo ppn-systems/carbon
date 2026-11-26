@@ -8,6 +8,7 @@ using Carbon.Configuration.Catalog;
 using Carbon.Configuration.Sync;
 using Carbon.Contracts.Config.C2S;
 using Carbon.Contracts.Config.S2C;
+using Carbon.Desktop.Abstractions.Configuration;
 using Nalix.Codec.Pooling;
 using Nalix.SDK.Options;
 using Nalix.SDK.Transport;
@@ -188,6 +189,7 @@ public sealed partial class MultiplayerSession
 
     private void OnConfigReady(ConfigCatalog catalog)
     {
+        _ = SyncedItemCatalog.Apply(catalog);
         _gameConfig = catalog;
         lock (_configGate)
         {
