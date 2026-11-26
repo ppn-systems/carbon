@@ -87,7 +87,7 @@ public static class Program
         AuthService authService = new(accountStore, characterStore, hasher);
         SessionTransportRegistry transportRegistry = new();
         WorldOutboundSink outboundSink = new(transportRegistry, loggerFactory.CreateLogger<WorldOutboundSink>());
-        // Gameplay config is server-authoritative (ADR-011): the server builds its domains from the same snapshot it
+        // Gameplay config is server-authoritative (ADR-014): the server builds its domains from the same snapshot it
         // serves to clients, so both sides always run on identical bytes.
         ConfigRepository config = ConfigRepository.Load(ResolveConfigDirectory(options.ConfigDirectory));
         if (logger.IsEnabled(LogLevel.Information))

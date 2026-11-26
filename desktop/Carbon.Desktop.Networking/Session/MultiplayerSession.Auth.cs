@@ -239,7 +239,7 @@ public sealed partial class MultiplayerSession
 
         TcpSession tcp = this.RequireAuthenticatedTcpSession();
 
-        // Gameplay tables come only from the server (ADR-011): never enter the world on stale or missing config.
+        // Gameplay tables come only from the server (ADR-014): never enter the world on stale or missing config.
         try
         {
             using CancellationTokenSource configTimeout = CancellationTokenSource.CreateLinkedTokenSource(ct);

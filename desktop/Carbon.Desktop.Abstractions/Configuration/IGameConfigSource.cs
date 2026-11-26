@@ -8,7 +8,7 @@ using Carbon.Configuration.Catalog;
 namespace Carbon.Desktop.Abstractions.Configuration;
 
 /// <summary>
-/// Gameplay config received from the server (ADR-011). The client never ships or hardcodes gameplay tables:
+/// Gameplay config received from the server (ADR-014). The client never ships or hardcodes gameplay tables:
 /// domain code reads its document (<c>items</c>, <c>monsters</c>, ...) from <see cref="GameConfig"/>.
 /// </summary>
 public interface IGameConfigSource
