@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,6 +13,7 @@ using Carbon.Infrastructure.Configuration;
 using Carbon.Infrastructure.Persistence.Postgres;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Infrastructure.Security;
+using Carbon.Server.Configuration;
 using Microsoft.Extensions.Logging;
 using Nalix.Hosting;
 using Npgsql;
@@ -106,7 +108,18 @@ public static class Program
             return 0;
         }
 
-        NetworkApplication app = Startup.Build(options, authService, world, outboundSink, transportRegistry, logger);
+        ConfigRepository config = ConfigRepository.Load(ResolveConfigDirectory(options.ConfigDirectory));
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation(
+                "Loaded {Count} config documents from {Directory} (manifest v{Version}).",
+                config.Entries.Count,
+                config.Directory,
+                config.ManifestVersion);
+        }
+
+        using ConfigHotReloadWatcher configWatcher = new(config, logger);
+        NetworkApplication app = Startup.Build(options, authService, world, outboundSink, transportRegistry, logger, config);
         await using ConfiguredAsyncDisposable appScope = app.ConfigureAwait(false);
 
         using CancellationTokenSource cts = new();
@@ -138,5 +151,31 @@ public static class Program
         await cts.CancelAsync().ConfigureAwait(false);
         await tickTask.ConfigureAwait(false);
         return 0;
+    }
+
+    /// <summary>
+    /// Returns <paramref name="configured"/> when set; otherwise the first <c>resources/config</c> found walking up from
+    /// the working directory, then from the executable directory.
+    /// </summary>
+    private static string ResolveConfigDirectory(string configured)
+    {
+        if (configured.Length > 0)
+        {
+            return configured;
+        }
+
+        foreach (string start in new[] { Environment.CurrentDirectory, AppContext.BaseDirectory })
+        {
+            for (DirectoryInfo? dir = new(start); dir is not null; dir = dir.Parent)
+            {
+                string candidate = Path.Combine(dir.FullName, "resources", "config");
+                if (Directory.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return Path.Combine(Environment.CurrentDirectory, "resources", "config");
     }
 }

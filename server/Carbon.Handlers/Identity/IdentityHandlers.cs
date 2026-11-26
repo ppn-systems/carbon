@@ -11,6 +11,7 @@ using Carbon.Contracts.Common;
 using Carbon.Contracts.Identity;
 using Carbon.Contracts.Identity.C2S;
 using Carbon.Contracts.Identity.S2C;
+using Carbon.Handlers.Config;
 using Carbon.Handlers.Internal;
 using Carbon.Handlers.Session;
 using Carbon.Maps.Generators;
@@ -57,6 +58,10 @@ public static partial class IdentityHandlers
         }
 
         await SendAuthResultAsync(context, outcome, connectionId).ConfigureAwait(false);
+        if (outcome.Status == AuthStatus.Ok)
+        {
+            await ConfigHandlers.SendManifestAsync(context.Sender, context.CancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>Opcode <c>0x0102</c>. Authenticates an existing account and elevates the session upon success.</summary>
@@ -84,6 +89,10 @@ public static partial class IdentityHandlers
         }
 
         await SendAuthResultAsync(context, outcome, connectionId).ConfigureAwait(false);
+        if (outcome.Status == AuthStatus.Ok)
+        {
+            await ConfigHandlers.SendManifestAsync(context.Sender, context.CancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>Opcode <c>0x0103</c>. Streams all characters belonging to the signed-in account.</summary>

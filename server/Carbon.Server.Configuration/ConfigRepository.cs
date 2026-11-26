@@ -63,6 +63,14 @@ public sealed class ConfigRepository
     }
 
     /// <summary>
+    /// Creates a repository with no documents and no directory (for hosts or tests without gameplay config).
+    /// Its manifest is empty, so clients become ready immediately; <see cref="Reload"/> throws.
+    /// </summary>
+    /// <returns>An empty repository.</returns>
+    public static ConfigRepository CreateEmpty() =>
+        new(string.Empty, new Snapshot([], new ConfigCatalog(1, [])));
+
+    /// <summary>
     /// Re-reads the config directory. On any invalid file the current snapshot is kept and the exception is
     /// rethrown, so a bad edit never reaches clients.
     /// </summary>
@@ -223,7 +231,7 @@ public sealed class ConfigRepository
 
     private static Snapshot BuildSnapshot(string directory, Snapshot? previous)
     {
-        if (!System.IO.Directory.Exists(directory))
+        if (directory.Length == 0 || !System.IO.Directory.Exists(directory))
         {
             throw new InvalidDataException($"Config directory '{directory}' does not exist.");
         }

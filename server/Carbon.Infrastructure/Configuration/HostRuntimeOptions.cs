@@ -45,6 +45,12 @@ public sealed class HostRuntimeOptions
     public ushort UdpPort { get; init; } = 57208;
 
     /// <summary>
+    /// Gets or sets the gameplay config directory (<c>resources/config</c>, ADR-011).
+    /// Empty means "locate <c>resources/config</c> above the working or base directory".
+    /// </summary>
+    public string ConfigDirectory { get; init; } = string.Empty;
+
+    /// <summary>
     /// Loads options from environment variables with safe local SQLite defaults.
     /// </summary>
     public static HostRuntimeOptions FromEnvironment()
@@ -90,6 +96,10 @@ public sealed class HostRuntimeOptions
             ? path
             : "/ws/";
 
+        string configDirectory = Environment.GetEnvironmentVariable("CARBON_CONFIG_DIR") is { Length: > 0 } dir
+            ? dir.Trim()
+            : string.Empty;
+
         return new HostRuntimeOptions
         {
             Provider = provider,
@@ -101,6 +111,7 @@ public sealed class HostRuntimeOptions
             WebSocketPath = wsPath,
             TcpPort = tcpPort,
             UdpPort = udpPort,
+            ConfigDirectory = configDirectory,
         };
     }
 }

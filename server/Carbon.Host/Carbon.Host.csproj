@@ -18,6 +18,7 @@
         <ProjectReference Include="..\Carbon.Application\Carbon.Application.csproj" />
         <ProjectReference Include="..\Carbon.Handlers\Carbon.Handlers.csproj" />
         <ProjectReference Include="..\Carbon.Infrastructure\Carbon.Infrastructure.csproj" />
+        <ProjectReference Include="..\Carbon.Server.Configuration\Carbon.Server.Configuration.csproj" />
     </ItemGroup>
 
     <ItemGroup>
