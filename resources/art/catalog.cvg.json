@@ -845,6 +845,14 @@
       "tier": 0,
       "accentColor": "#65A30D",
       "file": "items/rotten_food.cvg.json"
+    },
+    {
+      "itemId": 204,
+      "id": "slime_jelly_preserve",
+      "displayName": "Slime Jelly Preserve",
+      "tier": 1,
+      "accentColor": "#22C55E",
+      "file": "items/slime_jelly_preserve.cvg.json"
     }
   ],
   "props": [

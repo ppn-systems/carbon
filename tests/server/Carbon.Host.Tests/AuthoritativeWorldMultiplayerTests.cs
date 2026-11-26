@@ -1122,6 +1122,83 @@ public sealed class AuthoritativeWorldMultiplayerTests
         }
     }
 
+    [Fact]
+    public async Task CampfireCooking_RawMeatToCookedMeat_ThenEatingGivesCookedMoodBonus()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-cooking-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
+            RecordingOutboundSink sink = new();
+
+            // 600 food/min (x0.5 idle) makes the player hungry enough to eat within a few seconds.
+            NeedsConfig needs = new() { FoodDecayPerMinute = 600f };
+            AuthoritativeWorld world = CreateSurvivalWorld(factory, sink, needs, out GameEconomy economy, out FoodCatalog food);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+            uint rawMeat = economy.Items.ResolveId("raw_meat");
+            uint cookedMeat = economy.Items.ResolveId("cooked_meat");
+            InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
+            inv.SetSlot(0, new ItemSlot(rawMeat, 1));
+            inv.SetSlot(1, new ItemSlot(StarterGameCatalog.WoodLog, 10));
+            CharacterRecord cook = new(
+                Guid.NewGuid(), Guid.NewGuid(), "Cook", 1, 0,
+                world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
+                100f, 100f, SelectedHotbarSlot: 1, InventoryBlob: InventoryBinaryCodec.Serialize(inv),
+                UpdatedAtUtc: DateTimeOffset.UtcNow, Gold: 100);
+            EnterWorldResult enter = world.TryEnterWorld(930UL, 930UL, cook);
+            enter.Status.Should().Be(OpStatus.Ok);
+
+            StarterGameCatalog.RecipeCatalog.TryGetByCode("cooked_meat", out CraftingRecipe? recipe).Should().BeTrue();
+            world.TryCraftRecipe(930UL, (ushort)recipe!.Id, 1).Should().Be(OpStatus.OutOfRange, "cooking needs a stove or campfire nearby");
+
+            // Build a campfire (4 wood logs, 40 work) next to the player.
+            int px = (int)MathF.Floor(enter.PositionX / 32f);
+            int py = (int)MathF.Floor(enter.PositionY / 32f);
+            WorldMutationOutcome placed = default;
+            foreach ((int dx, int dy) in new[] { (0, 2), (0, -2), (-2, 0), (2, 0), (2, 2), (-2, -2), (2, -2), (-2, 2) })
+            {
+                placed = world.TryPlaceStructure(930UL, px + dx, py + dy, StructureType.Campfire);
+                if (placed.Status == OpStatus.Ok)
+                {
+                    break;
+                }
+            }
+
+            placed.Status.Should().Be(OpStatus.Ok, "a campfire blueprint fits next to the player");
+            StepTicks(world, 60);
+            sink.StructureChanges.Should().Contain(c => c.StructureType == (byte)StructureType.Campfire, "the campfire is built");
+
+            world.TryCraftRecipe(930UL, (ushort)recipe.Id, 1).Should().Be(OpStatus.Ok, "a campfire counts as a stove (the 1-gold stove fee is paid)");
+            List<(ushort SlotIndex, ItemSlot Slot)> slots = [];
+            world.GetInventorySnapshot(930UL, slots).Should().BeTrue();
+            slots.Should().NotContain(x => x.Slot.ItemId == rawMeat, "the raw meat was cooked");
+            (ushort mealSlot, ItemSlot meal) = slots.Single(x => x.Slot.ItemId == cookedMeat);
+            meal.IsPerishable.Should().BeFalse("cooked food does not spoil");
+            mealSlot.Should().BeLessThan(PlayerInventoryLayout.HotbarCount, "the cooked meat lands on the hotbar");
+
+            StepTicks(world, 90);
+            world.EnqueueAttackInput(930UL, 0UL, world.DefaultSpawnWorldPosition, (byte)mealSlot).Should().Be(OpStatus.Ok);
+            StepTicks(world, (4 * 30) + 5);
+
+            sink.SlotChanges.Should().Contain(c => c.ConnectionId == 930UL && c.SlotIndex == mealSlot && c.Quantity == 0, "the cooked meat was eaten");
+            food.TryGetIndex("cooked_meat", out int cookedIndex).Should().BeTrue();
+            float bonus = food.Get(cookedIndex).MoodOffset;
+            bonus.Should().BeGreaterThan(0f);
+            sink.NeedsSyncs.Last(n => n.ConnectionId == 930UL).Needs.Mood.Should().BeApproximately(
+                needs.MoodBaseline + bonus, 0.01f, "a fed player who ate a cooked meal gets its mood bonus from food.json");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
     private static AuthoritativeWorld CreateSurvivalWorld(
         SqliteConnectionFactory factory,
         RecordingOutboundSink sink,
