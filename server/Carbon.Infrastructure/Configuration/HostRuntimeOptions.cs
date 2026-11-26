@@ -51,6 +51,12 @@ public sealed class HostRuntimeOptions
     public string ConfigDirectory { get; init; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets a value indicating whether config file edits are hot-reloaded and pushed to clients
+    /// (<c>CARBON_CONFIG_HOT_RELOAD=1</c>). Off by default until every domain can swap its tables at runtime.
+    /// </summary>
+    public bool ConfigHotReload { get; init; }
+
+    /// <summary>
     /// Loads options from environment variables with safe local SQLite defaults.
     /// </summary>
     public static HostRuntimeOptions FromEnvironment()
@@ -112,6 +118,7 @@ public sealed class HostRuntimeOptions
             TcpPort = tcpPort,
             UdpPort = udpPort,
             ConfigDirectory = configDirectory,
+            ConfigHotReload = string.Equals(Environment.GetEnvironmentVariable("CARBON_CONFIG_HOT_RELOAD"), "1", StringComparison.Ordinal),
         };
     }
 }

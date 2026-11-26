@@ -32,12 +32,10 @@
         <PackageReference Include="Nalix.Runtime" />
     </ItemGroup>
 
-    <!-- Server-authoritative economy data, loaded at boot by GameEconomy.FindConfigDirectory. -->
+    <!-- Server-authoritative gameplay config (ADR-011): every resources/config/*.json ships next to the host, which loads
+         and serves all of them; one document per domain, so new domains need no change here. -->
     <ItemGroup>
-        <None Include="..\..\resources\config\items.json" Link="config\items.json" CopyToOutputDirectory="PreserveNewest" />
-        <None Include="..\..\resources\config\recipes.json" Link="config\recipes.json" CopyToOutputDirectory="PreserveNewest" />
-        <None Include="..\..\resources\config\loot.json" Link="config\loot.json" CopyToOutputDirectory="PreserveNewest" />
-        <None Include="..\..\resources\config\economy.json" Link="config\economy.json" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="..\..\resources\config\*.json" Link="config\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 
     <ItemGroup>
