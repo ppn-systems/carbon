@@ -27,7 +27,7 @@
       "id": "slime_king",
       "minLevel": 5,
       "maxLevel": 20,
-      "archetypeId": 101,
+      "archetypeId": 109,
       "displayName": "Slime King",
       "visualArchetype": "wild_slime",
       "lootTableId": "slime_king",
@@ -136,6 +136,7 @@
       "displayName": "Orc Shaman",
       "visualArchetype": "orc_shaman",
       "lootTableId": "orc",
+      "eliteVariant": "orc_warlord",
       "radius": 9,
       "stats": { "hp": 165, "damage": 22, "armor": 10, "speed": 140 },
       "aggroRange": 250,
@@ -148,6 +149,28 @@
         { "kind": "Spell", "minRange": 0, "maxRange": 100, "windupTicks": 16, "travelTicks": 6, "activeTicks": 1, "recoveryTicks": 12, "cooldownTicks": 70, "damageMultiplier": 1.2, "areaRadius": 100, "halfAngleDegrees": 30, "shape": "Cone" },
         { "kind": "Projectile", "minRange": 40, "maxRange": 195, "windupTicks": 16, "activeTicks": 1, "recoveryTicks": 12, "cooldownTicks": 42, "projectileSpeed": 360, "projectileRadius": 4, "arcHeight": 10, "projectileVisual": 6 },
         { "kind": "Melee", "minRange": 0, "maxRange": 24, "windupTicks": 10, "travelTicks": 2, "activeTicks": 3, "recoveryTicks": 12, "cooldownTicks": 30, "damageMultiplier": 0.6, "areaRadius": 24, "halfAngleDegrees": 50, "lungeDistance": 6 }
+      ]
+    },
+    {
+      "id": "orc_warlord",
+      "minLevel": 20,
+      "maxLevel": 50,
+      "archetypeId": 108,
+      "displayName": "Orc Warlord",
+      "visualArchetype": "orc_warlord",
+      "lootTableId": "orc_warlord",
+      "isElite": true,
+      "radius": 12,
+      "stats": { "hp": 560, "damage": 30, "armor": 24, "speed": 128 },
+      "aggroRange": 240,
+      "leashRange": 540,
+      "engageRange": 150,
+      "retreatRange": 0,
+      "patrolRadius": 48,
+      "preferredBiomes": [ "MistySwamp", "TropicalJungle", "Savanna" ],
+      "attacks": [
+        { "kind": "Leap", "minRange": 60, "maxRange": 150, "windupTicks": 16, "travelTicks": 12, "activeTicks": 2, "recoveryTicks": 22, "cooldownTicks": 120, "damageMultiplier": 1.3, "areaRadius": 36 },
+        { "kind": "Melee", "minRange": 0, "maxRange": 30, "windupTicks": 16, "travelTicks": 4, "activeTicks": 5, "recoveryTicks": 16, "cooldownTicks": 42, "areaRadius": 32, "halfAngleDegrees": 75, "lungeDistance": 20 }
       ]
     },
     {

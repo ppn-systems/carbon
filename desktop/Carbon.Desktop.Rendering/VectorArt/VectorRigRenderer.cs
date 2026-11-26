@@ -38,7 +38,9 @@ public static class VectorRigRenderer
         float swingTimer = 0f,
         byte appearancePreset = 0,
         VisualEquipmentLoadout equipment = default,
-        IVectorArtRepository? art = null)
+        IVectorArtRepository? art = null,
+        RigOverlay overlays = RigOverlay.None,
+        float overlayTime = 0f)
     {
         ArgumentNullException.ThrowIfNull(batch);
         ArgumentNullException.ThrowIfNull(rig);
@@ -68,6 +70,11 @@ public static class VectorRigRenderer
             ModularCharacterOverlays.DrawEquippedBackCape(batch, rig, in bones[(int)VectorBoneId.Cape], footPosition, sx, sy, isNorth: false, equipment.ChestId, art, hitFlash);
         }
 
+        if ((overlays & RigOverlay.NightGlow) != 0)
+        {
+            DrawNightAura(batch, rig, in bones[(int)VectorBoneId.Body], footPosition, sx, sy, overlayTime);
+        }
+
         DrawPassShapes(batch, rig, in bones, footPosition, sx, sy, isSouth, isSide, isNorth, capePass: !isNorth, hitFlash, appearancePreset, isModularHuman);
         if (isNorth)
         {
@@ -91,6 +98,79 @@ public static class VectorRigRenderer
         {
             DrawEquippedItemOnRig(batch, rig, equippedItem, footPosition, direction, uniformScale, mirrorX, in bones[(int)VectorBoneId.ArmFront], action, swingTimer, equipment.WeaponUpgradeLevel);
         }
+
+        if ((overlays & RigOverlay.NightGlow) != 0)
+        {
+            DrawNightEyes(batch, rig, in bones[(int)VectorBoneId.Head], footPosition, sx, sy, isSide, isNorth, overlayTime);
+        }
+
+        if ((overlays & RigOverlay.EliteCrown) != 0)
+        {
+            DrawEliteCrown(batch, rig, in bones[(int)VectorBoneId.Head], footPosition, sx, sy, overlayTime);
+        }
+    }
+
+    // Night / elite overlays are painted geometry on the rig only: they never register scene lights.
+    private static void DrawNightAura(GeometryBatch batch, CompiledVectorRig rig, in BonePose body, Vector2 origin, float sx, float sy, float time)
+    {
+        Vector2 pivot = rig.GetBonePivot(VectorBoneId.Body);
+        Vector2 center = Transform(pivot, pivot, in body, origin, sx, sy, 1f, 0f);
+        float unit = MathF.Abs(sy);
+        float pulse = 0.85f + (0.15f * MathF.Sin(time * 2.4f));
+        ColorRgba glow = rig.Markers.EyeGlow;
+        batch.FillCircle(center, rig.DesignHeight * 0.36f * unit * pulse, new ColorRgba(glow.R, glow.G, glow.B, 22), 20);
+        batch.DrawCircle(center, rig.DesignHeight * 0.40f * unit * pulse, new ColorRgba(glow.R, glow.G, glow.B, 55), 20, MathF.Max(1f, unit * 0.35f));
+    }
+
+    private static void DrawNightEyes(GeometryBatch batch, CompiledVectorRig rig, in BonePose head, Vector2 origin, float sx, float sy, bool isSide, bool isNorth, float time)
+    {
+        ReadOnlySpan<Vector2> eyes = rig.Markers.EyesFor(isSide, isNorth);
+        if (eyes.IsEmpty)
+        {
+            return;
+        }
+
+        Vector2 pivot = rig.GetBonePivot(VectorBoneId.Head);
+        float cos = MathF.Cos(head.RotRad);
+        float sin = MathF.Sin(head.RotRad);
+        float unit = MathF.Abs(sy);
+        ColorRgba glow = rig.Markers.EyeGlow;
+        for (int i = 0; i < eyes.Length; i++)
+        {
+            Vector2 p = Transform(eyes[i], pivot, in head, origin, sx, sy, cos, sin);
+            float flicker = 0.8f + (0.2f * MathF.Sin((time * 7f) + (i * 1.7f)));
+            batch.FillCircle(p, MathF.Max(2f, 2.1f * unit) * flicker, new ColorRgba(glow.R, glow.G, glow.B, (byte)(85 * flicker)), 12);
+            batch.FillCircle(p, MathF.Max(1.1f, 0.85f * unit), new ColorRgba(glow.R, glow.G, glow.B, 245), 10);
+            batch.FillCircle(p, MathF.Max(0.6f, 0.38f * unit), new ColorRgba(255, 250, 235, 255), 8);
+        }
+    }
+
+    private static void DrawEliteCrown(GeometryBatch batch, CompiledVectorRig rig, in BonePose head, Vector2 origin, float sx, float sy, float time)
+    {
+        Vector2 pivot = rig.GetBonePivot(VectorBoneId.Head);
+        float cos = MathF.Cos(head.RotRad);
+        float sin = MathF.Sin(head.RotRad);
+        float bob = MathF.Sin(time * 3f) * 0.35f;
+        Vector2 a = rig.Markers.Crown + new Vector2(0f, -1.6f + bob);
+        ColorRgba gold = new(250, 204, 21, 255);
+        ColorRgba goldDark = new(161, 98, 7, 255);
+        ColorRgba outline = new(66, 32, 6, 255);
+
+        BonePose headPose = head;
+        Vector2 P(float dx, float dy) => Transform(a + new Vector2(dx, dy), pivot, in headPose, origin, sx, sy, cos, sin);
+
+        Span<Vector2> band = [P(-3.2f, 0f), P(3.2f, 0f), P(3.2f, -1.4f), P(-3.2f, -1.4f)];
+        batch.FillConvexPolygon(band, goldDark);
+        batch.FillTriangle(P(-3.2f, -1.4f), P(-2.1f, -4.4f), P(-1.0f, -1.4f), gold);
+        batch.FillTriangle(P(-1.1f, -1.4f), P(0f, -5.4f), P(1.1f, -1.4f), gold);
+        batch.FillTriangle(P(1.0f, -1.4f), P(2.1f, -4.4f), P(3.2f, -1.4f), gold);
+        float t = MathF.Max(1f, MathF.Abs(sy) * 0.3f);
+        batch.DrawLine(P(-3.2f, 0f), P(3.2f, 0f), outline, t);
+        batch.DrawLine(P(-3.2f, 0f), P(-2.1f, -4.4f), outline, t);
+        batch.DrawLine(P(3.2f, 0f), P(2.1f, -4.4f), outline, t);
+        batch.DrawLine(P(-1.1f, -1.4f), P(0f, -5.4f), outline, t);
+        batch.DrawLine(P(1.1f, -1.4f), P(0f, -5.4f), outline, t);
+        batch.FillCircle(P(0f, -0.7f), MathF.Max(1f, 0.55f * MathF.Abs(sy)), new ColorRgba(239, 68, 68, 255), 8);
     }
 
     /// <summary>
