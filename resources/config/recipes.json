@@ -1132,7 +1132,7 @@
     },
     {
       "id": 46,
-      "code": "slime_jelly",
+      "code": "slime_jelly_preserve",
       "station": "stove",
       "workTicks": 60,
       "unlockLevel": 1,
@@ -1150,7 +1150,7 @@
       ],
       "outputs": [
         {
-          "item": "slime_jelly",
+          "item": "slime_jelly_preserve",
           "qty": 2
         }
       ]
@@ -1479,6 +1479,31 @@
       "outputs": [
         {
           "item": "shaman_staff",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 59,
+      "code": "berry_stew",
+      "station": "stove",
+      "workTicks": 150,
+      "unlockLevel": 4,
+      "skill": "cooking",
+      "skillLevel": 3,
+      "ingredients": [
+        {
+          "item": "berries",
+          "qty": 3
+        },
+        {
+          "item": "bread",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "stew",
           "qty": 1
         }
       ]

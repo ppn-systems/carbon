@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "itemId": 204,
+  "id": "slime_jelly_preserve",
+  "displayName": "Slime Jelly Preserve",
+  "tier": 1,
+  "categoryLabel": "Food",
+  "accentColor": "#22C55E",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -5,
+      "y": -4,
+      "w": 10,
+      "h": 11,
+      "color": "#E2E8F0",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -4.2,
+      "y": -2.5,
+      "w": 8.4,
+      "h": 8,
+      "color": "#22C55E"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -1.6,
+      "y": 1,
+      "rx": 1.6,
+      "ry": 2.4,
+      "color": "#BBF7D0"
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -5.5,
+      "y": -6.5,
+      "w": 11,
+      "h": 2.6,
+      "color": "#B45309",
+      "outlineColor": "#451A03",
+      "outlineThickness": 1.0
+    }
+  ]
+}

@@ -36,9 +36,17 @@ public sealed partial class AuthoritativeWorld
                 return new WorldMutationOutcome(OpStatus.Forbidden, 0);
             }
 
+            // The "harvest nearby" key deliberately reaches the interact range (the client searches +/-2 tiles).
             if (!this.IsWithinInteractRangeLocked(state.Entity, tileX, tileY))
             {
                 return new WorldMutationOutcome(OpStatus.OutOfRange, 0);
+            }
+
+            // Shares the attack cooldown with the tick-path tool swing, so the packet path cannot strike faster
+            // than a normal swing (previously only the global per-connection packet limit applied).
+            if (!state.Cooldowns.IsReady(AttackAbilityId, _currentTick))
+            {
+                return new WorldMutationOutcome(OpStatus.RateLimited, 0);
             }
 
             int cx = Chunk2D.ToChunkCoord(tileX);
@@ -56,6 +64,8 @@ public sealed partial class AuthoritativeWorld
             {
                 return new WorldMutationOutcome(OpStatus.Forbidden, 0);
             }
+
+            state.Cooldowns.StartCooldown(AttackAbilityId, _currentTick, this.ScaleAttackCooldownLocked(state, (uint)Math.Max(10, this.TickRate / 2)));
 
             ItemSlot activeSlot = state.Session.SelectedHotbarSlot < state.Inventory.Capacity
                 ? state.Inventory.GetSlot(state.Session.SelectedHotbarSlot)

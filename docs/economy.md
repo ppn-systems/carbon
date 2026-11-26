@@ -160,6 +160,37 @@ This follows the RimWorld model: a recipe needs a **station**, a **work amount**
 
 `VendorService.TryBuy` checks funds, wallet cap and inventory space before committing both sides. A full bag is never charged, and a capped wallet never loses the items it tried to sell. `CraftingCheckout` charges the station fee only when the craft (or job start) succeeds, and refuses the craft with `InsufficientFunds` before touching the inventory.
 
+### 7.1 Player-hour balance simulation (`Carbon.Economy.Simulation`)
+
+`EconomySimulator` plays the engaged player described in `economy.json → playerModel` for N hours at one level. It uses the real tables: `LootRoller` for loot, `PriceBook` sell prices, `VendorService.TryRepair` and `TryBuy`, and `PriceBook.GetCraftingFee`. Every gold movement goes through a `Wallet`, and the report is read back from the ledger by `CurrencyReason`.
+
+Each simulated hour runs this model:
+
+- **Kills:** `designTargets.killsPerHour` kills, rotating between the normal (non-elite) monster tables that cover the level.
+- **Loot sales:** `sellLootPercent` of the looted item units are sold.
+- **Gear wear and repair:** each piece of the stage's gear loses `durabilityLossPerKill` per kill and is repaired at the vendor once it drops below `repairBelowPercent`.
+- **Crafting fees:** `craftsPerHour` station fees are paid, cycling through the stage's recipes.
+- **Food:** `foodBoughtPerHour` units of `foodItem` are bought.
+
+`EconomyBalanceSimulatorTests` runs 20 hours at 12 levels with seed 2026 and prints the table below. It fails when net gold/hour leaves `designTargets.netGoldPerHour`, when the sink share leaves `designTargets.sinkShare`, or when the inflation slope (the least-squares slope of net gold/hour against level) is not positive.
+
+| Level | Loot gold | Vendor sales | Repairs | Station fees | Vendor buys | **Net/h** | Sink share | Net band |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | :--- |
+| 1 | 84 | 5 | 25 | 3 | 24 | **37** | 58 % | 0–900 |
+| 5 | 300 | 64 | 25 | 3 | 24 | **312** | 14 % | 0–900 |
+| 10 | 544 | 80 | 36 | 12 | 24 | **552** | 12 % | 300–2,000 |
+| 20 | 968 | 156 | 36 | 12 | 24 | **1,052** | 6 % | 300–2,000 |
+| 30 | 1,336 | 178 | 43 | 15 | 24 | **1,431** | 5 % | 800–3,000 |
+| 40 | 1,647 | 177 | 43 | 15 | 24 | **1,742** | 5 % | 800–3,000 |
+| 50 | 2,313 | 482 | 65 | 27 | 24 | **2,679** | 4 % | 1,500–4,500 |
+| 60 | 2,575 | 458 | 65 | 27 | 24 | **2,916** | 4 % | 1,500–4,500 |
+| 75 | 3,353 | 920 | 156 | 78 | 24 | **4,014** | 6 % | 2,500–6,000 |
+| 100 | 4,010 | 927 | 156 | 78 | 24 | **4,678** | 5 % | 2,500–6,000 |
+
+Inflation slope: about 49 net gold/hour per level. The diamond column of the printed table has too few kills (2,400 per level) to be meaningful. The diamond band is gated by the 1,000,000-kill test in `EconomySimulationTests`.
+
+> **Balance finding.** From level 10 upward, the current sinks remove only 4–6% of faucet gold, so nearly all gold earned stays in circulation. The `sinkShare` floor (3%) is a regression guard, not a target. Raising it needs a design decision, such as higher repair costs, a gold cost on high-tier recipes, or level-scaled consumables, and the bands in this section should be updated in the same PR.
+
 ## 8. Items (`items.json`)
 
 Ids 1–39 keep the `StarterGameCatalog` ids and codes, and a test checks category, stack size and durability against it. New content starts at id 100. Rarity runs `common` → `uncommon` → `rare` → `epic` → `legendary`.
@@ -235,5 +266,5 @@ Ids 1–39 keep the `StarterGameCatalog` ids and codes, and a test checks catego
 ## 10. Changing the numbers
 
 1. Edit the JSON. The loaders reject unknown properties, unknown item codes, duplicate ids and out-of-range values with an `InvalidDataException` that names the file and field.
-2. Run `dotnet test tests/Carbon.Engine.Tests.slnx`. The simulation tests show the simulated gold/hour or diamonds/hour next to the design band it left.
+2. Run `dotnet test tests/Carbon.Engine.Tests.slnx`. The simulation tests show the simulated gold/hour or diamonds/hour next to the design band it left, and `EconomyBalanceSimulatorTests` prints the faucet/sink table from §7.1 (use `--logger "console;verbosity=detailed"`).
 3. If the design intent changed, update `designTargets` and the tables in this document in the same PR.

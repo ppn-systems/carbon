@@ -39,6 +39,9 @@ public sealed record EconomyConfig
     /// <summary>Gets the designed income bands asserted by tests.</summary>
     public DesignTargets DesignTargets { get; set; } = new();
 
+    /// <summary>Gets the engaged-player behaviour used by the balance simulation.</summary>
+    public PlayerModel PlayerModel { get; set; } = new();
+
     /// <summary>
     /// Parses and validates an <c>economy.json</c> document.
     /// </summary>
@@ -100,6 +103,10 @@ public sealed record EconomyConfig
             && this.CraftingFees.Stove >= 0 && this.CraftingFees.Alchemy >= 0 && this.CraftingFees.OutputValueRateBps is >= 0 and <= 10000,
             "crafting fees must be >= 0 and outputValueRateBps in [0, 10000]");
         Require(this.DesignTargets.KillsPerHour > 0, "designTargets.killsPerHour must be positive");
+        Require(
+            this.PlayerModel.SellLootPercent is >= 0 and <= 100 && this.PlayerModel.RepairBelowPercent is >= 0 and <= 100
+            && this.PlayerModel.DurabilityLossPerKill >= 0f && this.PlayerModel.CraftsPerHour >= 0 && this.PlayerModel.FoodBoughtPerHour >= 0,
+            "playerModel percents must be in [0, 100] and rates >= 0");
     }
 
     private static void Require(bool condition, string message)

@@ -59,6 +59,57 @@
       { "minLevel": 25, "maxLevel": 49, "min": 0.008, "max": 0.03 },
       { "minLevel": 50, "maxLevel": 74, "min": 0.01, "max": 0.04 },
       { "minLevel": 75, "maxLevel": 100, "min": 0.015, "max": 0.06 }
+    ],
+    "netGoldPerHour": [
+      { "minLevel": 1, "maxLevel": 9, "min": 0, "max": 900 },
+      { "minLevel": 10, "maxLevel": 24, "min": 300, "max": 2000 },
+      { "minLevel": 25, "maxLevel": 49, "min": 800, "max": 3000 },
+      { "minLevel": 50, "maxLevel": 74, "min": 1500, "max": 4500 },
+      { "minLevel": 75, "maxLevel": 100, "min": 2500, "max": 6000 }
+    ],
+    "sinkShare": [
+      { "minLevel": 1, "maxLevel": 9, "min": 0.05, "max": 0.8 },
+      { "minLevel": 10, "maxLevel": 100, "min": 0.03, "max": 0.5 }
+    ]
+  },
+  "playerModel": {
+    "sellLootPercent": 50,
+    "durabilityLossPerKill": 0.5,
+    "repairBelowPercent": 50,
+    "craftsPerHour": 4,
+    "foodBoughtPerHour": 6,
+    "foodItem": "raw_meat",
+    "stages": [
+      {
+        "minLevel": 1,
+        "maxLevel": 9,
+        "gear": ["copper_sword", "leather_cap", "leather_tunic", "leather_boots"],
+        "recipes": ["leather", "cooked_meat", "leather_cap", "copper_ingot"]
+      },
+      {
+        "minLevel": 10,
+        "maxLevel": 24,
+        "gear": ["iron_sword", "iron_helmet", "leather_tunic", "leather_greaves", "leather_boots"],
+        "recipes": ["iron_ingot", "iron_sword", "roast_meat", "small_health_potion"]
+      },
+      {
+        "minLevel": 25,
+        "maxLevel": 49,
+        "gear": ["iron_axe", "iron_helmet", "iron_chestplate", "iron_leggings", "iron_boots"],
+        "recipes": ["iron_ingot", "iron_chestplate", "stew", "greater_health_potion"]
+      },
+      {
+        "minLevel": 50,
+        "maxLevel": 74,
+        "gear": ["ember_blade", "orc_war_helm", "crystal_robe", "iron_leggings", "iron_boots"],
+        "recipes": ["ember_blade", "crystal_robe", "arcane_pie", "greater_health_potion"]
+      },
+      {
+        "minLevel": 75,
+        "maxLevel": 100,
+        "gear": ["demon_cleaver", "abyssal_crown", "crystal_robe", "iron_leggings", "iron_boots"],
+        "recipes": ["demon_cleaver", "abyssal_crown", "arcane_pie", "greater_health_potion"]
+      }
     ]
   }
 }

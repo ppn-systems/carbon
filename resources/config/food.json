@@ -7,5 +7,6 @@
   {"itemId": "roast_meat", "nutrition": 45, "quality": "simple", "poisonChance": 0.0, "moodOffset": 3, "moodDurationSeconds": 600, "eatSeconds": 4, "spoilSeconds": 0, "spoilsInto": ""},
   {"itemId": "arcane_pie", "nutrition": 50, "quality": "fine", "poisonChance": 0.0, "moodOffset": 5, "moodDurationSeconds": 900, "eatSeconds": 5, "spoilSeconds": 0, "spoilsInto": ""},
   {"itemId": "stew", "nutrition": 60, "quality": "fine", "poisonChance": 0.01, "moodOffset": 5, "moodDurationSeconds": 900, "eatSeconds": 6, "spoilSeconds": 0, "spoilsInto": ""},
-  {"itemId": "rotten_food", "nutrition": 5, "quality": "raw", "poisonChance": 0.6, "moodOffset": -10, "moodDurationSeconds": 600, "eatSeconds": 2, "spoilSeconds": 0, "spoilsInto": ""}
+  {"itemId": "rotten_food", "nutrition": 5, "quality": "raw", "poisonChance": 0.6, "moodOffset": -10, "moodDurationSeconds": 600, "eatSeconds": 2, "spoilSeconds": 0, "spoilsInto": ""},
+  {"itemId": "slime_jelly_preserve", "nutrition": 18, "quality": "simple", "poisonChance": 0.0, "moodOffset": 2, "moodDurationSeconds": 600, "eatSeconds": 2, "spoilSeconds": 0, "spoilsInto": ""}
 ]
