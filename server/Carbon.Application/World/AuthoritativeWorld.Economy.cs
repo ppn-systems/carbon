@@ -4,6 +4,7 @@ using System;
 using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Inventory;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.Application.World.Commands;
@@ -187,7 +188,7 @@ public sealed partial class AuthoritativeWorld
 
             Vector2 playerPos = _simulation.Entities.GetTransform(state.Entity).Position;
             bool inRange = requireForge
-                ? this.IsNearForgeStationLocked(playerPos)
+                ? _inventory.IsNearForgeStation(playerPos)
                 : this.HasNearbyFriendlyNpcLocked(playerPos, VendorRangeSq);
             if (!inRange)
             {
@@ -205,7 +206,7 @@ public sealed partial class AuthoritativeWorld
             }
 
             _mutationSlotScratch.Clear();
-            CollectModifiedSlots(beforeSnapshot, state.Inventory.Slots, _mutationSlotScratch);
+            InventoryService.CollectModifiedSlots(beforeSnapshot, state.Inventory.Slots, _mutationSlotScratch);
             this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
             modifiedCopy = [.. _mutationSlotScratch];
             gold = state.Wallet.Gold;
