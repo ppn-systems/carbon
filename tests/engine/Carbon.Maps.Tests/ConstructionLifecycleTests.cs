@@ -326,6 +326,16 @@ public sealed class ConstructionLifecycleTests
     }
 
     [Fact]
+    public void ImportSite_PushedSite_ReservesFootprintForPreviewUntilForgotten()
+    {
+        _ledger.ImportSite(1, 0, StructureType.Workbench, StructureRotation.North, 2, 1, ConstructionStage.Frame, 30f);
+
+        _service.ValidatePlacement(2, 0, StructureType.WoodWall, StructureRotation.North).Should().Be(BuildResultCode.BlockedByConstructionSite);
+        _ledger.ForgetSite(1, 0).Should().BeTrue();
+        _service.ValidatePlacement(2, 0, StructureType.WoodWall, StructureRotation.North).Should().Be(BuildResultCode.Ok);
+    }
+
+    [Fact]
     public void BuildMutationResult_EveryCode_MapsToAnOpStatus()
     {
         foreach (BuildResultCode code in Enum.GetValues<BuildResultCode>())

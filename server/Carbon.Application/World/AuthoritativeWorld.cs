@@ -101,6 +101,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private List<OutboundSlotChange> _pendingSlotChanges = new(32);
     private List<OutboundPropChange> _pendingPropChanges = new(16);
     private List<OutboundStructureChange> _pendingStructureChanges = new(16);
+    private List<OutboundConstructionChange> _pendingConstructionChanges = new(16);
     private List<OutboundEquipmentChange> _pendingEquipmentChanges = new(16);
     private List<OutboundStatsSync> _pendingStatsSyncs = new(32);
     private List<OutboundWalletSync> _pendingWalletSyncs = new(16);
@@ -115,6 +116,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private List<OutboundSlotChange> _dispatchSlotChanges = new(32);
     private List<OutboundPropChange> _dispatchPropChanges = new(16);
     private List<OutboundStructureChange> _dispatchStructureChanges = new(16);
+    private List<OutboundConstructionChange> _dispatchConstructionChanges = new(16);
     private List<OutboundEquipmentChange> _dispatchEquipmentChanges = new(16);
     private List<OutboundStatsSync> _dispatchStatsSyncs = new(32);
     private List<OutboundWalletSync> _dispatchWalletSyncs = new(16);
@@ -1190,6 +1192,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         public BuildJobKind BuildJob { get; set; }
         public int BuildJobTileX { get; set; }
         public int BuildJobTileY { get; set; }
+        public int LastPushedBuildBucket { get; set; } = -1;
+        public ConstructionStage LastPushedBuildStage { get; set; }
 
         /// <summary>Server-authoritative gold/diamond balances (in-memory until a persistence ADR lands).</summary>
         public Wallet Wallet { get; init; } = new(session.PlayerNetworkId);
@@ -1304,4 +1308,16 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         float Durability,
         byte DoorState,
         byte Connectivity);
+
+    private readonly record struct OutboundConstructionChange(
+        int RecipientsOffset,
+        int RecipientsCount,
+        int TileX,
+        int TileY,
+        byte StructureType,
+        byte Rotation,
+        byte Stage,
+        byte Size,
+        float Progress,
+        bool IsDeconstruction);
 }

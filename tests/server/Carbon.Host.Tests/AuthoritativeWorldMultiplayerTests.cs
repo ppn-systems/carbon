@@ -128,6 +128,13 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
             sink.StructureChanges.Should().Contain(c => c.TileX == buildTileX && c.TileY == buildTileY && c.StructureType == (byte)StructureType.WoodWall);
 
+            // Clients saw the frame, throttled progress steps, and the site's removal once the wall completed.
+            sink.ConstructionChanges.Should().Contain(c => c.TileX == buildTileX && c.TileY == buildTileY && c.Stage == (byte)ConstructionStage.Frame && !c.IsDeconstruction);
+            sink.ConstructionChanges.Should().Contain(c => c.TileX == buildTileX && c.Progress > 0.4f && c.Progress < 0.6f && !c.IsDeconstruction);
+            sink.ConstructionChanges.Count(c => c.TileX == buildTileX && c.TileY == buildTileY && !c.IsDeconstruction)
+                .Should().BeLessThan(20, "progress is pushed in 10% steps, not every tick");
+            sink.ConstructionChanges.Should().Contain(c => c.TileX == buildTileX && c.TileY == buildTileY && c.Stage == (byte)ConstructionStage.Removed && !c.IsDeconstruction);
+
             // Player B does not own the wall and may not deconstruct it.
             world.TryDemolishStructure(202UL, buildTileX, buildTileY).Status.Should().Be(OpStatus.Forbidden);
 
@@ -139,6 +146,8 @@ public sealed class AuthoritativeWorldMultiplayerTests
             }
 
             sink.StructureChanges.Should().Contain(c => c.TileX == buildTileX && c.TileY == buildTileY && c.StructureType == 0);
+            sink.ConstructionChanges.Should().Contain(c => c.TileX == buildTileX && c.IsDeconstruction && c.Stage == (byte)ConstructionStage.Complete && c.Progress > 0f);
+            sink.ConstructionChanges.Should().Contain(c => c.TileX == buildTileX && c.IsDeconstruction && c.Stage == (byte)ConstructionStage.Removed);
             List<(ushort SlotIndex, ItemSlot Slot)> builderSlots = [];
             world.GetInventorySnapshot(101UL, builderSlots).Should().BeTrue();
             builderSlots.Where(x => x.Slot.ItemId == StarterGameCatalog.WoodLog).Sum(x => x.Slot.Quantity).Should().Be(17);
@@ -1004,6 +1013,20 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
         public void SendStructureChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, byte structureType, float durability, byte doorState, byte connectivity) =>
             this.StructureChanges.Add((tileX, tileY, structureType));
+
+        public List<(int TileX, int TileY, byte Stage, float Progress, bool IsDeconstruction)> ConstructionChanges { get; } = [];
+
+        public void SendConstructionChanged(
+            ReadOnlySpan<ulong> recipientConnectionIds,
+            int tileX,
+            int tileY,
+            byte structureType,
+            byte rotation,
+            byte stage,
+            byte size,
+            float progress,
+            bool isDeconstruction) =>
+            this.ConstructionChanges.Add((tileX, tileY, stage, progress, isDeconstruction));
 
         public void SendCombatHit(ReadOnlySpan<ulong> recipientConnectionIds, ulong attackerNetworkId, ulong defenderNetworkId, float damage, float remainingHealth, bool isCritical, bool isKilled) =>
             this.CombatHits.Add((attackerNetworkId, defenderNetworkId, damage, isKilled));
