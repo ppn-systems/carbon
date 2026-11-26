@@ -191,7 +191,7 @@ public sealed partial class AuthoritativeWorld
             return Entity.Null;
         }
 
-        return this.SpawnProjectileLocked(
+        return _projectiles.Spawn(
             ownerNet.NetworkId,
             ownerConnectionId: 0UL,
             fromPlayer: false,

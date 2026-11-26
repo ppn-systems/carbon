@@ -100,7 +100,7 @@ public sealed partial class AuthoritativeWorld
             this.BindSpawnedMonstersLocked();
             this.QueueAttackPhasesLocked();
 
-            this.StepProjectilesLocked();
+            _projectiles.Step();
 
             foreach (KeyValuePair<ulong, ActivePlayerState> kvp in _playersByConnection)
             {
@@ -505,7 +505,7 @@ public sealed partial class AuthoritativeWorld
             {
                 _groundLoot.Forget(netId);
                 _ = _actorsByNetworkId.Remove(netId);
-                _ = _projectilesByNetworkId.Remove(netId);
+                _projectiles.Forget(netId);
             }
         }
 

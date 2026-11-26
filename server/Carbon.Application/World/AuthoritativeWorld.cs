@@ -9,6 +9,7 @@ using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
 using Carbon.Application.World.Commands;
 using Carbon.Application.World.Loot;
+using Carbon.Application.World.Projectiles;
 using Carbon.Application.World.Replication;
 using Carbon.AI.Components;
 using Carbon.AI.Threat;
@@ -58,7 +59,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private const uint PlayerLayer = 1U;
     private const uint MonsterLayer = 2U;
     private const uint NpcLayer = 4U;
-    private const uint ProjectileLayer = 16U;
     private const int PlayerInventoryCapacity = PlayerInventoryLayout.TotalCapacity;
     private const uint AttackAbilityId = 1U;
     private const uint SkillAbilityIdBase = 100U;
@@ -89,7 +89,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly Dictionary<ulong, ulong> _connectionByNetworkId = new();
     private readonly Dictionary<ulong, NpcActorMeta> _actorsByNetworkId = new();
     private readonly GroundLootService _groundLoot;
-    private readonly Dictionary<ulong, ProjectileActorMeta> _projectilesByNetworkId = new();
+    private readonly ProjectileService _projectiles;
     private readonly HashSet<long> _populatedChunks = new();
     private readonly MonsterCatalog _creatureCatalog;
     private readonly CreatureSystems _creatures;
@@ -111,7 +111,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly List<ulong> _aoiRecipientsScratch = new(64);
     private readonly List<Entity> _dirtyResetScratch = new(256);
     private readonly List<ulong> _staleLootScratch = new(32);
-    private readonly List<ulong> _expiredProjectilesScratch = new(32);
     private readonly List<(ushort SlotIndex, ItemSlot Slot)> _mutationSlotScratch = new(8);
     private readonly List<(int TileX, int TileY, uint Revision, float MaxDurability)> _respawnedPropsScratch = new(16);
     private readonly Entity[] _combatHitScratch = new Entity[32];
@@ -191,6 +190,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             () => ++_nextNetworkId,
             () => _currentTick,
             this.QueueLootVisualRefreshLocked);
+        _projectiles = new ProjectileService(_simulation, _chunkWorld, MonsterLayer, () => ++_nextNetworkId, new ProjectileHits(this));
 
         _needsConfig = needsConfig ?? new NeedsConfig();
         _foodCatalog = foodCatalog ?? new FoodCatalog([], _needsConfig.FoodMax);
@@ -969,7 +969,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             lootCount = lootItem.Quantity;
             weaponUpgrade = ItemEnhancementPolicy.GetUpgradeLevel(in lootItem);
         }
-        else if (_projectilesByNetworkId.TryGetValue(networkId, out ProjectileActorMeta projMeta))
+        else if (_projectiles.TryGet(networkId, out ProjectileState projMeta))
         {
             kind = EntityKind.Projectile;
             name = string.Empty;
@@ -1190,17 +1190,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         /// <summary>Diamond bad-luck protection counter.</summary>
         public LootPityState LootPity { get; set; }
     }
-
-    private readonly record struct ProjectileActorMeta(
-        Entity Entity,
-        ulong OwnerNetworkId,
-        ulong OwnerConnectionId,
-        bool FromPlayer,
-        ushort VisualArchetype,
-        float Damage,
-        bool IsCritical,
-        Vector2 Velocity,
-        uint RemainingTicks);
 
     private readonly record struct NpcActorMeta(
         EntityKind Kind,
