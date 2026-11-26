@@ -6,12 +6,11 @@ using System.Globalization;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
-using Carbon.AI.Components;
-using Carbon.AI.Threat;
 using Carbon.Abstractions.Configuration;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
 using Carbon.Application.World.Actions;
+using Carbon.Application.World.Actors;
 using Carbon.Application.World.Combat;
 using Carbon.Application.World.Commands;
 using Carbon.Application.World.Construction;
@@ -38,9 +37,7 @@ using Carbon.Items.Serialization;
 using Carbon.Items.Systems;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
-using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
-using Carbon.Maps.Landmarks;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
@@ -78,6 +75,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly InventoryService _inventory;
     private readonly CombatService _combat;
     private readonly PropHarvestService _props;
+    private readonly SettlementNpcSpawner _settlements;
     private readonly PlayerActionService _actions;
     private readonly PlayerMaterialAdapter _playerMaterials;
     private readonly WorldSimulation _simulation;
@@ -94,7 +92,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly Dictionary<ulong, NpcActorMeta> _actorsByNetworkId = new();
     private readonly GroundLootService _groundLoot;
     private readonly ProjectileService _projectiles;
-    private readonly HashSet<long> _populatedChunks = new();
     private readonly MonsterCatalog _creatureCatalog;
     private readonly CreatureSystems _creatures;
     private readonly HashSet<long> _dirtyChunks = new();
@@ -109,7 +106,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly List<(int TileX, int TileY, uint Revision, float MaxDurability)> _respawnedPropsScratch = new(16);
     private readonly Entity[] _combatHitScratch = new Entity[32];
 
-    private bool _spawnedSanctuaryBlacksmith;
     private ulong _nextNetworkId = 1000UL;
     private ulong _currentTick;
 
@@ -220,6 +216,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
                 this.GrantExperienceLocked(state, xp, out _);
                 this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
             });
+        _settlements = new SettlementNpcSpawner(_simulation, _chunkWorld, _actorsByNetworkId, () => ++_nextNetworkId, this.TileSize, this.TickRate, DefaultEntityRadius, PlayerLayer, MonsterLayer, NpcLayer);
         _projectiles = new ProjectileService(_simulation, _chunkWorld, MonsterLayer, () => ++_nextNetworkId, new ProjectileHits(this));
 
         _needs = new NeedsService(
@@ -362,7 +359,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
             Vector2 originSpawn = _chunkWorld.SpawnWorldPosition;
             _chunkWorld.UpdateAroundPosition(originSpawn, chunkRadius: 2, evictionRadius: 8);
-            this.PopulateChunkActorsAroundLocked(originSpawn, radius: 2);
+            _settlements.PopulateAround(originSpawn, radius: 2);
         }
     }
 
@@ -396,7 +393,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
             Vector2 spawnPos = _debugSpawnPosition ?? new Vector2(character.PositionX, character.PositionY);
             _chunkWorld.UpdateAroundPosition(spawnPos, chunkRadius: 2, evictionRadius: 8);
-            this.PopulateChunkActorsAroundLocked(spawnPos, radius: 2);
+            _settlements.PopulateAround(spawnPos, radius: 2);
 
             ulong networkId = ++_nextNetworkId;
             Entity entity = _simulation.SpawnNetworkEntity(networkId, spawnPos, DefaultEntityRadius, sessionId);
@@ -670,170 +667,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         return OpStatus.Ok;
     }
 
-    private void PopulateChunkActorsAroundLocked(Vector2 worldCenter, int radius)
-    {
-        int centerCx = Chunk2D.ToChunkCoord((int)MathF.Floor(worldCenter.X / this.TileSize));
-        int centerCy = Chunk2D.ToChunkCoord((int)MathF.Floor(worldCenter.Y / this.TileSize));
-        Vector2 safeOrigin = _chunkWorld.SpawnWorldPosition;
-
-        if (!_spawnedSanctuaryBlacksmith)
-        {
-            _spawnedSanctuaryBlacksmith = true;
-            int spawnTx = (int)MathF.Floor(safeOrigin.X / this.TileSize);
-            int spawnTy = (int)MathF.Floor(safeOrigin.Y / this.TileSize);
-            long spawnChunkKey = Chunk2D.PackKey(Chunk2D.ToChunkCoord(spawnTx), Chunk2D.ToChunkCoord(spawnTy));
-            int[] offsets = [2, -1, -2, -1, 2, 1, 0, -2, -2, 1, 3, 0];
-            for (int oi = 0; oi < offsets.Length; oi += 2)
-            {
-                int bx = spawnTx + offsets[oi];
-                int by = spawnTy + offsets[oi + 1];
-                MapTile smithTile = _chunkWorld.GetTileAtWorld(bx, by);
-                if (!smithTile.IsSolid &&
-                    smithTile.Biome is not (BiomeType.ShallowWater or BiomeType.DeepOcean) &&
-                    !_chunkWorld.HasSolidPropAt(bx, by))
-                {
-                    NpcArchetypeSpec smithSpec = WorldActorCatalog.GetNpcSpec(WorldActorCatalog.MasterBlacksmith);
-                    Vector2 smithPos = new((bx + 0.5f) * this.TileSize, (by + 0.5f) * this.TileSize);
-                    this.SpawnActorFromMetaLocked(new NpcActorMeta(
-                        EntityKind.Npc,
-                        smithSpec.ArchetypeId,
-                        smithSpec.Name,
-                        smithSpec.Level,
-                        smithPos,
-                        250f,
-                        45f,
-                        smithSpec.Radius,
-                        0f,
-                        0U,
-                        spawnChunkKey,
-                        StarterGameCatalog.IronOre,
-                        1,
-                        0U));
-                    break;
-                }
-            }
-        }
-
-        for (int dy = -radius; dy <= radius; dy++)
-        {
-            for (int dx = -radius; dx <= radius; dx++)
-            {
-                int cx = centerCx + dx;
-                int cy = centerCy + dy;
-                long key = Chunk2D.PackKey(cx, cy);
-                if (!_populatedChunks.Add(key) || !_chunkWorld.TryGetChunk(cx, cy, out Chunk2D? chunk) || chunk is null)
-                {
-                    continue;
-                }
-
-                // Spawn friendly settlement NPCs near Points of Interest.
-                for (int i = 0; i < chunk.PointsOfInterest.Count; i++)
-                {
-                    PointOfInterest poi = chunk.PointsOfInterest[i];
-                    if (poi.Type is PointOfInterestType.RiverVillage or
-                        PointOfInterestType.Harbor or
-                        PointOfInterestType.MountainShrine or
-                        PointOfInterestType.LakesideCamp or
-                        PointOfInterestType.DesertVillage or
-                        PointOfInterestType.SnowVillage or
-                        PointOfInterestType.SwampVillage)
-                    {
-                        int npcTx = poi.TileX + 1;
-                        int npcTy = poi.TileY + 1;
-                        MapTile npcTile = _chunkWorld.GetTileAtWorld(npcTx, npcTy);
-                        if (!npcTile.IsSolid)
-                        {
-                            ushort npcArchetype = poi.Type == PointOfInterestType.Harbor
-                                ? WorldActorCatalog.HarbourMaster
-                                : poi.Type == PointOfInterestType.MountainShrine
-                                    ? WorldActorCatalog.ShrineKeeper
-                                    : WorldActorCatalog.VillageGuard;
-                            NpcArchetypeSpec npcSpec = WorldActorCatalog.GetNpcSpec(npcArchetype);
-                            Vector2 npcPos = new((npcTx + 0.5f) * this.TileSize, (npcTy + 0.5f) * this.TileSize);
-                            NpcActorMeta npcMeta = new(
-                                EntityKind.Npc,
-                                npcSpec.ArchetypeId,
-                                npcSpec.Name,
-                                npcSpec.Level,
-                                npcPos,
-                                200f,
-                                70f,
-                                npcSpec.Radius,
-                                0f,
-                                0U,
-                                key,
-                                StarterGameCatalog.BerryHerb,
-                                1,
-                                0U);
-                            this.SpawnActorFromMetaLocked(npcMeta);
-                        }
-
-                        if (poi.Type is PointOfInterestType.RiverVillage or PointOfInterestType.DesertVillage or PointOfInterestType.SnowVillage)
-                        {
-                            int smithTx = poi.TileX - 1;
-                            int smithTy = poi.TileY + 1;
-                            MapTile vSmithTile = _chunkWorld.GetTileAtWorld(smithTx, smithTy);
-                            if (!vSmithTile.IsSolid && !_chunkWorld.HasSolidPropAt(smithTx, smithTy))
-                            {
-                                NpcArchetypeSpec vSmith = WorldActorCatalog.GetNpcSpec(WorldActorCatalog.MasterBlacksmith);
-                                Vector2 vSmithPos = new((smithTx + 0.5f) * this.TileSize, (smithTy + 0.5f) * this.TileSize);
-                                this.SpawnActorFromMetaLocked(new NpcActorMeta(
-                                    EntityKind.Npc,
-                                    vSmith.ArchetypeId,
-                                    vSmith.Name,
-                                    vSmith.Level,
-                                    vSmithPos,
-                                    250f,
-                                    45f,
-                                    vSmith.Radius,
-                                    0f,
-                                    0U,
-                                    key,
-                                    StarterGameCatalog.IronOre,
-                                    1,
-                                    0U));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private void SpawnActorFromMetaLocked(in NpcActorMeta meta)
-    {
-        ulong netId = ++_nextNetworkId;
-        float radius = meta.Radius > 0f ? meta.Radius : DefaultEntityRadius;
-        Entity entity = _simulation.SpawnNetworkEntity(netId, meta.HomePos, radius, ownerSessionId: 0UL);
-        uint layer = meta.Kind == EntityKind.Monster ? MonsterLayer : NpcLayer;
-        _simulation.Entities.SetCollider(entity, new Collider2D(ColliderKind.Circle, radius, default, false, layer, uint.MaxValue));
-        _simulation.Entities.SetVelocity(entity, new Velocity2D(0f, 0f, 5f));
-        _simulation.Entities.SetHealth(entity, new HealthComponent(meta.MaxHealth, meta.MaxHealth));
-
-        float aggro = meta.Kind == EntityKind.Monster ? MathF.Max(192f, meta.AttackRange + 48f) : 0f;
-        float attackRange = meta.Kind == EntityKind.Monster ? MathF.Max(36f, meta.AttackRange) : 0f;
-        uint targetMask = meta.Kind == EntityKind.Monster ? PlayerLayer : 0U;
-        AiBrainComponent brain = new(
-            AiState.Patrol,
-            meta.HomePos,
-            aggro,
-            attackRange,
-            LeashRadius: 384f,
-            meta.MoveSpeed,
-            TargetLayerMask: targetMask,
-            AttackCooldownTicks: (uint)Math.Max(15, (int)this.TickRate),
-            PatrolRadius: meta.Kind == EntityKind.Monster ? 96f : 64f,
-            WindupTicks: meta.WindupTicks);
-        _simulation.Entities.SetComponent(entity, in brain);
-
-        if (meta.Kind == EntityKind.Monster)
-        {
-            _ = _simulation.Entities.GetAttachmentStore<ThreatTable>().GetOrAdd(entity, static () => new ThreatTable());
-        }
-
-        _actorsByNetworkId[netId] = meta;
-    }
-
     private bool RemovePlayerLocked(ulong connectionId)
     {
         if (!_players.ByConnection.Remove(connectionId, out PlayerState? state))
@@ -1037,26 +870,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
     private static (int X, int Y) UnpackKey(long key) =>
         ((int)(key >> 32), (int)(uint)key);
-
-    private readonly record struct NpcActorMeta(
-        EntityKind Kind,
-        ushort ArchetypeId,
-        string Name,
-        ushort Level,
-        Vector2 HomePos,
-        float MaxHealth,
-        float MoveSpeed,
-        float Radius,
-        float AttackDamage,
-        uint WindupTicks,
-        long ChunkKey,
-        uint DropItemId,
-        int DropQuantity,
-        uint ExperienceReward,
-        float AttackRange = 44f,
-        float ProjectileSpeed = 0f,
-        byte ProjectileArchetype = 0,
-        string? LootTableId = null);
 
     // Debug overrides (folded from AuthoritativeWorld.DebugOverrides.cs):
     // Developer-only overrides for the screenshot review tool: a forced spawn tile and a start hour. They come
