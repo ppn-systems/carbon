@@ -286,7 +286,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
                 _ = this.RemovePlayerLocked(duplicateConnectionId);
             }
 
-            Vector2 spawnPos = new(character.PositionX, character.PositionY);
+            Vector2 spawnPos = _debugSpawnPosition ?? new Vector2(character.PositionX, character.PositionY);
             _chunkWorld.UpdateAroundPosition(spawnPos, chunkRadius: 2, evictionRadius: 8);
             this.PopulateChunkActorsAroundLocked(spawnPos, radius: 2);
 
