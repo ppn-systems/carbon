@@ -61,6 +61,12 @@ public sealed partial class MultiplayerSession : IWorldSession
     private readonly SemaphoreSlim _connectGate = new(1, 1);
     private readonly SemaphoreSlim _udpGate = new(1, 1);
     private readonly Lock _worldGate = new();
+
+    /// <summary>
+    /// World mutations received on network threads, applied on the main thread at the start of <see cref="Update"/> so
+    /// the renderer never reads <see cref="ChunkWorld"/> while a packet is changing it (audit TS-2).
+    /// </summary>
+    private readonly ConcurrentQueue<Action> _worldInbox = new();
     private RemoteEntityView[] _cachedRemoteViews = [];
     private bool _remoteViewsDirty = true;
 
@@ -494,6 +500,26 @@ public sealed partial class MultiplayerSession : IWorldSession
         }
     }
 
+    /// <summary>Queues a world mutation from a network thread; it runs on the main thread in <see cref="Update"/>.</summary>
+    private void PostWorldMutation(Action mutation) => _worldInbox.Enqueue(mutation);
+
+    /// <summary>Applies queued network world mutations on the calling (main) thread, under the world lock.</summary>
+    private void DrainWorldInbox()
+    {
+        if (_worldInbox.IsEmpty)
+        {
+            return;
+        }
+
+        lock (_worldGate)
+        {
+            while (_worldInbox.TryDequeue(out Action? mutation))
+            {
+                mutation();
+            }
+        }
+    }
+
     /// <inheritdoc/>
     public void Update(double dt, Vector2 moveDir, bool sprint)
     {
@@ -501,6 +527,8 @@ public sealed partial class MultiplayerSession : IWorldSession
         {
             return;
         }
+
+        this.DrainWorldInbox();
 
         float fdt = (float)dt;
         this.MonitorConnectionHealth(fdt);

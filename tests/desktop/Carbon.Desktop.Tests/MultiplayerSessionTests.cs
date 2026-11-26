@@ -297,6 +297,9 @@ public sealed class MultiplayerSessionTests
                 {
                     world.StepFixedTick();
                     await Task.Delay(20).ConfigureAwait(true);
+
+                    // Network world updates are applied on the client's frame update (audit TS-2), as in the game loop.
+                    clientB.Update(1.0 / 30.0, Vector2.Zero, sprint: false);
                     clientB.CopyConstructionMarkers(markers);
                     foreach (ConstructionMarker marker in markers.Where(m => m.AnchorX == placeX && m.AnchorY == placeY && !m.IsDeconstruction))
                     {
