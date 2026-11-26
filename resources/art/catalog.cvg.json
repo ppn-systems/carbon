@@ -809,6 +809,14 @@
       "tier": 3,
       "accentColor": "#F97316",
       "file": "items/ash_essence.cvg.json"
+    },
+    {
+      "itemId": 203,
+      "id": "rotten_food",
+      "displayName": "Rotten Food",
+      "tier": 0,
+      "accentColor": "#65A30D",
+      "file": "items/rotten_food.cvg.json"
     }
   ],
   "props": [

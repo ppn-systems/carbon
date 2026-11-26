@@ -78,6 +78,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly NeedsConfig _needsConfig;
     private readonly FoodCatalog _foodCatalog;
     private readonly EatActionSystem _eatAction;
+    private readonly uint[] _spoiledItemIdByFood;
     private readonly GameEconomy? _economy;
 
     private readonly Dictionary<ulong, ActivePlayerState> _playersByConnection = new();
@@ -205,6 +206,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         _needsConfig = needsConfig ?? new NeedsConfig();
         _foodCatalog = foodCatalog ?? new FoodCatalog([], _needsConfig.FoodMax);
         _eatAction = new EatActionSystem(_foodCatalog, _needsConfig, worldSeed);
+        _spoiledItemIdByFood = this.ResolveSpoiledItemIds();
         _simulation.RegisterSystem(_eatAction);
         _simulation.RegisterSystem(new NeedsSystem(_needsConfig));
         _aoi = new SpatialAoiTracker(this.TileSize * 24f);

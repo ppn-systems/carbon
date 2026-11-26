@@ -192,7 +192,7 @@ public static class PlayerInventoryLayout
                 if (s.ItemId == incoming.ItemId && s.IsStackable && s.Quantity < maxStackSize)
                 {
                     int add = Math.Min(remaining, maxStackSize - s.Quantity);
-                    inventory.SetSlot(i, s with { Quantity = s.Quantity + add });
+                    inventory.SetSlot(i, s.MergeWith(in incoming, add));
                     remaining -= add;
                 }
             }

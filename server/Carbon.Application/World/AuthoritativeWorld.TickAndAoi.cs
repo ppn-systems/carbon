@@ -85,6 +85,10 @@ public sealed partial class AuthoritativeWorld
             _creatures.Spawner.TimeOfDayHours = WorldProgression.ComputeTimeOfDayHours(_currentTick, this.TickRate);
             _simulation.Tick(new FixedTickArgs(_currentTick, dt, _currentTick * dt));
             this.ProcessSurvivalEventsLocked();
+            if ((_currentTick % this.TickRate) == 0UL)
+            {
+                this.AdvanceFoodSpoilageLocked(SpoilageStepSeconds);
+            }
             this.BindSpawnedMonstersLocked();
             this.QueueAttackPhasesLocked();
 
@@ -456,7 +460,8 @@ public sealed partial class AuthoritativeWorld
                 slotCopy.ItemId,
                 slotCopy.Quantity,
                 slotCopy.Durability,
-                ItemEnhancementPolicy.GetUpgradeLevel(in slotCopy));
+                ItemEnhancementPolicy.GetUpgradeLevel(in slotCopy),
+                slotCopy.FreshnessSeconds);
         }
 
         for (int i = 0; i < _dispatchPropChanges.Count; i++)

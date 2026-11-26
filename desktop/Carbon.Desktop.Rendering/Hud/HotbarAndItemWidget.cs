@@ -15,6 +15,7 @@ using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
+using Carbon.Survival.Food;
 
 namespace Carbon.Desktop.Rendering.Hud;
 
@@ -438,6 +439,11 @@ internal sealed class HotbarAndItemWidget
                 ItemCategory.Placeable or ItemCategory.Accessory or ItemCategory.Resource or ItemCategory.Quest or ItemCategory.None or _ => $"Stack {item.Quantity}/{def.MaxStackSize}",
             }
             : $"x{item.Quantity}";
+
+        if (SyncedFoodCatalog.TryGet(item.ItemId, out FoodDefinition? food))
+        {
+            stats = SyncedFoodCatalog.FormatTooltip(food, item.FreshnessSeconds);
+        }
 
         spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, stats, cardW - 62f, 1f), new Vector2(x + 54f, y + 29f), CarbonUiPalette.TextMuted, black, 1, 1f);
     }

@@ -28,4 +28,15 @@ public sealed class FoodDefinition
 
     /// <summary>Gets the seconds it takes to eat this food.</summary>
     public float EatSeconds { get; init; }
+
+    /// <summary>Gets the online seconds until a stack of this food spoils; <c>0</c> means it never spoils.</summary>
+    public float SpoilSeconds { get; init; }
+
+    /// <summary>
+    /// Gets the item id a spoiled stack turns into (e.g. <c>rotten_food</c>), or empty to remove the stack.
+    /// </summary>
+    public string SpoilsInto { get; init; } = string.Empty;
+
+    /// <summary>Gets a value indicating whether this food spoils.</summary>
+    public bool IsPerishable => this.SpoilSeconds > 0f;
 }
