@@ -8,7 +8,6 @@ using Carbon.Application.World.Construction;
 using Carbon.Application.World.Replication;
 using Carbon.Application.World.Commands;
 using Carbon.Contracts.Common;
-using Carbon.Contracts.Entities;
 using Carbon.Contracts.Maps.S2C;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -542,27 +541,6 @@ public sealed partial class AuthoritativeWorld
 
         return (offset, count);
     }
-
-    private WorldMutationOutcome ExecuteCommandLocked(WorldCommand command) => command.Kind switch
-    {
-        WorldCommandKind.HarvestProp => this.TryHarvestProp(command.ConnectionId, command.TileX, command.TileY),
-        WorldCommandKind.PlaceStructure => this.TryPlaceStructure(command.ConnectionId, command.TileX, command.TileY, command.StructureType, command.Rotation),
-        WorldCommandKind.DemolishStructure => this.TryDemolishStructure(command.ConnectionId, command.TileX, command.TileY),
-        WorldCommandKind.ToggleDoor => this.TryToggleDoor(command.ConnectionId, command.TileX, command.TileY),
-        WorldCommandKind.SetResting => new(this.TrySetResting(command.ConnectionId, command.Arg0 != 0), 0),
-        WorldCommandKind.SelectHotbarSlot => new(this.TrySelectHotbarSlot(command.ConnectionId, (byte)command.Arg0), 0),
-        WorldCommandKind.CraftRecipe => new(this.TryCraftRecipe(command.ConnectionId, command.Arg0, command.Arg1), 0),
-        WorldCommandKind.MoveInventorySlot => new(this.TryMoveInventorySlot(command.ConnectionId, command.Arg0, command.Arg1), 0),
-        WorldCommandKind.UpgradeInventoryItem => new(this.TryUpgradeInventoryItem(command.ConnectionId, command.Arg0), 0),
-        WorldCommandKind.DropInventoryItem => new(this.TryDropInventoryItem(command.ConnectionId, command.Arg0, command.Arg2), 0),
-        WorldCommandKind.VendorBuy => new(this.TryVendorBuy(command.ConnectionId, command.Arg0, command.Arg1), 0),
-        WorldCommandKind.VendorSell => new(this.TryVendorSell(command.ConnectionId, command.Arg0, command.Arg1), 0),
-        WorldCommandKind.RepairItem => new(this.TryRepairItem(command.ConnectionId, command.Arg0), 0),
-        WorldCommandKind.AllocateCharacterPoint => new(
-            this.TryAllocateCharacterPoint(command.ConnectionId, (PointAllocationKind)command.Arg0, command.Arg1, (byte)command.Arg2),
-            0),
-        _ => new WorldMutationOutcome(OpStatus.Invalid, 0),
-    };
 
     private bool IsWithinHarvestRangeLocked(Vector2 playerPos, int tileX, int tileY)
     {

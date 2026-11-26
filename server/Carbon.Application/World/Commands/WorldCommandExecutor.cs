@@ -1,0 +1,88 @@
+// Copyright (c) 2026 PPN Systems. All rights reserved.
+
+using System;
+using Carbon.Abstractions.World;
+using Carbon.Contracts.Common;
+using Carbon.Contracts.Entities;
+using Carbon.Maps.Building;
+
+namespace Carbon.Application.World.Commands;
+
+/// <summary>The synchronous world mutations a tick-queued <see cref="WorldCommand"/> can run (ADR-017).</summary>
+internal interface IWorldCommandHandlers
+{
+    WorldMutationOutcome TryHarvestProp(ulong connectionId, int tileX, int tileY);
+
+    WorldMutationOutcome TryPlaceStructure(ulong connectionId, int tileX, int tileY, StructureType structureType, StructureRotation rotation);
+
+    WorldMutationOutcome TryDemolishStructure(ulong connectionId, int tileX, int tileY);
+
+    WorldMutationOutcome TryToggleDoor(ulong connectionId, int tileX, int tileY);
+
+    OpStatus TrySetResting(ulong connectionId, bool rest);
+
+    OpStatus TrySelectHotbarSlot(ulong connectionId, byte slotIndex);
+
+    OpStatus TryCraftRecipe(ulong connectionId, ushort recipeId, ushort quantity);
+
+    OpStatus TryMoveInventorySlot(ulong connectionId, ushort fromSlot, ushort toSlot);
+
+    OpStatus TryUpgradeInventoryItem(ulong connectionId, ushort slotIndex);
+
+    OpStatus TryDropInventoryItem(ulong connectionId, ushort slotIndex, int quantity);
+
+    OpStatus TryVendorBuy(ulong connectionId, ushort itemId, ushort quantity);
+
+    OpStatus TryVendorSell(ulong connectionId, ushort slotIndex, ushort quantity);
+
+    OpStatus TryRepairItem(ulong connectionId, ushort slotIndex);
+
+    OpStatus TryAllocateCharacterPoint(ulong connectionId, PointAllocationKind kind, ushort targetId, byte amount);
+}
+
+/// <summary>
+/// Runs tick-queued world commands (audit SOLID-1, extracted from <see cref="AuthoritativeWorld"/>): decodes each
+/// <see cref="WorldCommand"/> into its <see cref="IWorldCommandHandlers"/> call. The drain delegate is created once, so
+/// draining the queue every tick does not allocate.
+/// </summary>
+internal sealed class WorldCommandExecutor
+{
+    private readonly IWorldCommandHandlers _handlers;
+    private readonly Func<WorldCommand, WorldMutationOutcome> _execute;
+
+    /// <summary>Initializes a new instance of the <see cref="WorldCommandExecutor"/> class.</summary>
+    public WorldCommandExecutor(IWorldCommandHandlers handlers)
+    {
+        _handlers = handlers ?? throw new ArgumentNullException(nameof(handlers));
+        _execute = this.Execute;
+    }
+
+    /// <summary>Runs every command queued when the tick started. Call while holding the world lock.</summary>
+    public void Drain(WorldCommandQueue queue)
+    {
+        ArgumentNullException.ThrowIfNull(queue);
+        queue.Drain(_execute);
+    }
+
+    /// <summary>Runs one command; an unknown kind is <see cref="OpStatus.Invalid"/>.</summary>
+    public WorldMutationOutcome Execute(WorldCommand command) => command.Kind switch
+    {
+        WorldCommandKind.HarvestProp => _handlers.TryHarvestProp(command.ConnectionId, command.TileX, command.TileY),
+        WorldCommandKind.PlaceStructure => _handlers.TryPlaceStructure(command.ConnectionId, command.TileX, command.TileY, command.StructureType, command.Rotation),
+        WorldCommandKind.DemolishStructure => _handlers.TryDemolishStructure(command.ConnectionId, command.TileX, command.TileY),
+        WorldCommandKind.ToggleDoor => _handlers.TryToggleDoor(command.ConnectionId, command.TileX, command.TileY),
+        WorldCommandKind.SetResting => new(_handlers.TrySetResting(command.ConnectionId, command.Arg0 != 0), 0),
+        WorldCommandKind.SelectHotbarSlot => new(_handlers.TrySelectHotbarSlot(command.ConnectionId, (byte)command.Arg0), 0),
+        WorldCommandKind.CraftRecipe => new(_handlers.TryCraftRecipe(command.ConnectionId, command.Arg0, command.Arg1), 0),
+        WorldCommandKind.MoveInventorySlot => new(_handlers.TryMoveInventorySlot(command.ConnectionId, command.Arg0, command.Arg1), 0),
+        WorldCommandKind.UpgradeInventoryItem => new(_handlers.TryUpgradeInventoryItem(command.ConnectionId, command.Arg0), 0),
+        WorldCommandKind.DropInventoryItem => new(_handlers.TryDropInventoryItem(command.ConnectionId, command.Arg0, command.Arg2), 0),
+        WorldCommandKind.VendorBuy => new(_handlers.TryVendorBuy(command.ConnectionId, command.Arg0, command.Arg1), 0),
+        WorldCommandKind.VendorSell => new(_handlers.TryVendorSell(command.ConnectionId, command.Arg0, command.Arg1), 0),
+        WorldCommandKind.RepairItem => new(_handlers.TryRepairItem(command.ConnectionId, command.Arg0), 0),
+        WorldCommandKind.AllocateCharacterPoint => new(
+            _handlers.TryAllocateCharacterPoint(command.ConnectionId, (PointAllocationKind)command.Arg0, command.Arg1, (byte)command.Arg2),
+            0),
+        _ => new WorldMutationOutcome(OpStatus.Invalid, 0),
+    };
+}
