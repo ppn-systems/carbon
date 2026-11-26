@@ -50,8 +50,21 @@ Existing building blocks:
 7. **D7 — Hot reload.** `ConfigRepository.Reload()` builds a new snapshot. Unchanged documents keep their version; changed ones get
    `version + 1`; any change bumps `ManifestVersion` and raises `ManifestChanged` so the host pushes the new manifest. An invalid
    file during reload throws and the previous snapshot stays live.
-8. **D8 — Desktop holds no config.** Client code obtains config only from `ConfigSyncClient.Catalog` (`ConfigCatalog.GetUtf8` or
-   `ConfigCatalog.LoadRegistry` through `JsonDefinitionLoader`). No config file is bundled with or hardcoded into `desktop/` or `wasm/`.
+8. **D8 — Desktop holds no config.** Client code obtains config only from `IGameConfigSource` (`IWorldSession.GameConfig`,
+   `GameConfigChanged`, `WaitForGameConfigAsync`), reading documents through `ConfigCatalog.GetUtf8` or `ConfigCatalog.LoadRegistry`.
+   No config file is bundled with or hardcoded into `desktop/` or `wasm/`.
+9. **D9 — Host wiring.**
+   - `Carbon.Host` loads `ConfigRepository` from `CARBON_CONFIG_DIR`, or else from the first `resources/config` found above the
+     working or executable directory. It fails fast on invalid config.
+   - `ConfigHotReloadWatcher` reloads it, debounced 500 ms, when a `*.json` file changes. An invalid edit is logged and ignored.
+   - `IdentityHandlers` sends the manifest right after a successful login or register. `ConfigManifestBroadcaster` pushes it to
+     every signed-in stream connection on `ManifestChanged`.
+   - `ConfigHandlers` answers `ConfigRequest`. A rejected request still gets a stream terminator, and a stale one gets the
+     current manifest first.
+   - `MultiplayerSession` subscribes to `ConfigManifest`, runs one sync pump (a newer manifest supersedes an older one) over a
+     `FileSystemConfigCacheStorage` in `DesktopOptions.ConfigCacheDirectory` (`CARBON_CONFIG_CACHE`). `EnterWorldAsync` refuses to
+     enter the world until the current connection's config is verified.
+   - Clients sharing one cache directory write through unique temp files, and a failed cache write never fails a sync.
 
 ## Alternatives Considered
 
@@ -68,8 +81,9 @@ Existing building blocks:
 - Positive: every domain has one place for its data, CI (`ResourcesConfigTests`) rejects invalid JSON or names in
   `resources/config/`, clients download only what changed, and nothing on the client is trusted.
 - Positive: client sync logic is transport-agnostic and fully unit-tested without a network.
-- Trade-off: the host must wire the packets — send the manifest after login, route `ConfigRequest` to `HandleRequestAsync`,
-  forward `ConfigDocument` to the client sync, and push the manifest on `ManifestChanged`. A file watcher or admin command that
-  calls `Reload()` is left to the host.
+- Trade-off: entering the world now waits for config sync (up to 15 s). A server that sends no manifest cannot be joined.
+- Debt: shared gameplay tables are still compiled into `engine/Carbon.Items/Catalog` (`StarterGameCatalog`, `WorldActorCatalog`,
+  `SkillCatalog`, `ItemEnhancementPolicy`, `ToolUsagePolicy`, `CharacterProgressionPolicy`), and the desktop reads them directly.
+  Each domain moves its table into `resources/config/<domain>.json` and loads it from `ConfigCatalog` on both sides.
 - Trade-off: FNV-1a is not cryptographic; integrity relies on the server connection, not on the hash.
 - Debt: no compression; documents up to 4 MiB are sent as plain chunks.
