@@ -944,6 +944,21 @@
       ]
     },
     {
+      "id": 112,
+      "code": "cactus_fiber",
+      "name": "Cactus Fiber",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 0,
+      "maxStack": 99,
+      "basePrice": 1,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "plant"
+      ]
+    },
+    {
       "id": 120,
       "code": "berries",
       "name": "Berries",
