@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Application.World.Players;
 using Carbon.Application.World.Projectiles;
 using Carbon.Application.World.Replication;
 using Carbon.AI.Components;
@@ -22,7 +23,7 @@ namespace Carbon.Application.World;
 
 public sealed partial class AuthoritativeWorld
 {
-    private void ProcessPlayerAttackLocked(ActivePlayerState state)
+    private void ProcessPlayerAttackLocked(PlayerState state)
     {
         if (!_simulation.Entities.IsAlive(state.Entity) ||
             !_simulation.Entities.HasTransform(state.Entity))
@@ -192,7 +193,7 @@ public sealed partial class AuthoritativeWorld
         }
     }
 
-    private bool TryConsumeActiveSlotPotionLocked(ActivePlayerState state, in ItemSlot activeSlot)
+    private bool TryConsumeActiveSlotPotionLocked(PlayerState state, in ItemSlot activeSlot)
     {
         if (this.TryBeginEatingActiveSlotLocked(state, in activeSlot))
         {
@@ -229,7 +230,7 @@ public sealed partial class AuthoritativeWorld
     }
 
     /// <summary>Applies a consumable's HP/MP/stamina restores; returns false when nothing could be restored.</summary>
-    private bool ApplyConsumableRestoresLocked(ActivePlayerState state, ItemArchetype def)
+    private bool ApplyConsumableRestoresLocked(PlayerState state, ItemArchetype def)
     {
         bool used = false;
         float combatTextAmount = 0f;
@@ -281,7 +282,7 @@ public sealed partial class AuthoritativeWorld
         return true;
     }
 
-    private void ProcessActiveSkillLocked(ActivePlayerState state, ushort skillId)
+    private void ProcessActiveSkillLocked(PlayerState state, ushort skillId)
     {
         byte rank = state.Progression.GetSkillRank(skillId);
         if (rank == 0 || !SkillCatalog.Skills.TryGet(skillId, out SkillDefinition? skillDef))
@@ -380,7 +381,7 @@ public sealed partial class AuthoritativeWorld
     }
 
     private bool ApplyMonsterHitsFromScratchLocked(
-        ActivePlayerState attacker,
+        PlayerState attacker,
         Vector2 attackerPos,
         Vector2 aimDir,
         int hitCount,
@@ -553,7 +554,7 @@ public sealed partial class AuthoritativeWorld
             isKilled));
     }
 
-    private void GrantExperienceLocked(ActivePlayerState state, uint amount, out bool leveledUp)
+    private void GrantExperienceLocked(PlayerState state, uint amount, out bool leveledUp)
     {
         leveledUp = false;
         if (amount == 0U || state.Level >= CharacterProgressionPolicy.MaxLevel)
@@ -599,7 +600,7 @@ public sealed partial class AuthoritativeWorld
     }
 
     private bool DegradeActiveSlotDurabilityLocked(
-        ActivePlayerState state,
+        PlayerState state,
         in ItemSlot activeSlot,
         float loss,
         out ItemSlot updatedSlot)
@@ -626,7 +627,7 @@ public sealed partial class AuthoritativeWorld
         return true;
     }
 
-    private void DegradeEquippedArmorLocked(ActivePlayerState victim, float loss)
+    private void DegradeEquippedArmorLocked(PlayerState victim, float loss)
     {
         bool anyBroke = false;
         for (int sIdx = PlayerInventoryLayout.HeadSlot; sIdx <= PlayerInventoryLayout.FeetSlot; sIdx++)
@@ -697,7 +698,7 @@ public sealed partial class AuthoritativeWorld
     {
         public void OnMonsterHit(in ProjectileState projectile, Entity monster, Vector2 segmentStart, Vector2 shotDirection)
         {
-            if (owner._playersByConnection.TryGetValue(projectile.OwnerConnectionId, out ActivePlayerState? ownerState))
+            if (owner._players.ByConnection.TryGetValue(projectile.OwnerConnectionId, out PlayerState? ownerState))
             {
                 owner._combatHitScratch[0] = monster;
                 _ = owner.ApplyMonsterHitsFromScratchLocked(
@@ -713,9 +714,9 @@ public sealed partial class AuthoritativeWorld
 
         public bool TryHitPlayer(in ProjectileState projectile, Vector2 segmentStart, Vector2 segmentEnd)
         {
-            foreach (KeyValuePair<ulong, ActivePlayerState> pkv in owner._playersByConnection)
+            foreach (KeyValuePair<ulong, PlayerState> pkv in owner._players.ByConnection)
             {
-                ActivePlayerState player = pkv.Value;
+                PlayerState player = pkv.Value;
                 if (!owner._simulation.Entities.IsAlive(player.Entity) ||
                     !owner._simulation.Entities.HasTransform(player.Entity) ||
                     !owner._simulation.Entities.HasHealth(player.Entity))

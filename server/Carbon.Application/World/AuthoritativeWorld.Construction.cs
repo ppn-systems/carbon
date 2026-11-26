@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Application.World.Construction;
+using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -22,12 +23,12 @@ public sealed partial class AuthoritativeWorld
     /// <summary>Gets the structure definitions used by the server.</summary>
     public StructureCatalog StructureCatalog => _construction.Catalog;
 
-    private bool TryGetBuildActorLocked(ActivePlayerState state, out BuildActor actor) =>
+    private bool TryGetBuildActorLocked(PlayerState state, out BuildActor actor) =>
         _construction.TryCreateActor(state.Entity, state.SourceCharacter.Id, state.Inventory.Slots, out actor);
 
     private bool IsPlayerOnTileLocked(int tileX, int tileY)
     {
-        foreach (KeyValuePair<ulong, ActivePlayerState> kvp in _playersByConnection)
+        foreach (KeyValuePair<ulong, PlayerState> kvp in _players.ByConnection)
         {
             Entity entity = kvp.Value.Entity;
             if (!_simulation.Entities.IsAlive(entity) || !_simulation.Entities.HasTransform(entity))
@@ -48,7 +49,7 @@ public sealed partial class AuthoritativeWorld
     /// <summary>
     /// Places a blueprint for <paramref name="state"/>, delivers what the player carries and makes it the player's build job.
     /// </summary>
-    private BuildMutationResult PlaceBlueprintLocked(ActivePlayerState state, int tileX, int tileY, StructureType type, StructureRotation rotation)
+    private BuildMutationResult PlaceBlueprintLocked(PlayerState state, int tileX, int tileY, StructureType type, StructureRotation rotation)
     {
         if (!this.TryGetBuildActorLocked(state, out BuildActor actor))
         {
@@ -63,9 +64,9 @@ public sealed partial class AuthoritativeWorld
     private void ProcessBuildJobsLocked(float dt)
     {
         float work = _construction.WorkFor(dt);
-        foreach (KeyValuePair<ulong, ActivePlayerState> kvp in _playersByConnection)
+        foreach (KeyValuePair<ulong, PlayerState> kvp in _players.ByConnection)
         {
-            ActivePlayerState state = kvp.Value;
+            PlayerState state = kvp.Value;
             if (state.Build.Kind == BuildJobKind.None || !this.TryGetBuildActorLocked(state, out BuildActor actor))
             {
                 continue;
@@ -82,9 +83,9 @@ public sealed partial class AuthoritativeWorld
     /// </summary>
     private sealed class PlayerMaterialAdapter(AuthoritativeWorld world) : IMaterialSource
     {
-        private ActivePlayerState? _state;
+        private PlayerState? _state;
 
-        public void Bind(ActivePlayerState state) => _state = state;
+        public void Bind(PlayerState state) => _state = state;
 
         public int CountOf(string itemId) =>
             _state is not null && world._construction.TryResolveItemId(itemId, out uint id, out _) ? _state.Inventory.CountItem(id) : 0;
@@ -131,7 +132,7 @@ public sealed partial class AuthoritativeWorld
 
         private void QueueSlotChanges(ReadOnlySpan<ItemSlot> before)
         {
-            ActivePlayerState state = _state!;
+            PlayerState state = _state!;
             ReadOnlySpan<ItemSlot> after = state.Inventory.Slots;
             bool changed = false;
             for (int i = 0; i < after.Length; i++)

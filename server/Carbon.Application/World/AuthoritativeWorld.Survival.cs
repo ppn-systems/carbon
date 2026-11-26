@@ -2,10 +2,10 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.Application.World.Commands;
 using Carbon.Combat.Events;
@@ -13,7 +13,6 @@ using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
-using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Survival.Components;
 using Carbon.Survival.Events;
@@ -31,7 +30,7 @@ public sealed partial class AuthoritativeWorld
     private const float FightingWindowSeconds = 6f;
     private const float SpoilageStepSeconds = 1f;
 
-    private void PrepareNeedsForTickLocked(ActivePlayerState state, bool isSprinting)
+    private void PrepareNeedsForTickLocked(PlayerState state, bool isSprinting)
     {
         if (!_simulation.Entities.HasComponent<NeedsComponent>(state.Entity))
         {
@@ -67,7 +66,7 @@ public sealed partial class AuthoritativeWorld
     /// Starts a meal when the active slot holds a food from <c>food.json</c>. The item code is resolved from the
     /// built-in catalog first, then from the data-driven economy catalog (<c>items.json</c>).
     /// </summary>
-    private bool TryBeginEatingActiveSlotLocked(ActivePlayerState state, in ItemSlot activeSlot)
+    private bool TryBeginEatingActiveSlotLocked(PlayerState state, in ItemSlot activeSlot)
     {
         if (activeSlot.IsEmpty || activeSlot.Quantity <= 0)
         {
@@ -99,9 +98,9 @@ public sealed partial class AuthoritativeWorld
     /// </summary>
     private void AdvanceFoodSpoilageLocked(float elapsedSeconds)
     {
-        foreach (KeyValuePair<ulong, ActivePlayerState> kvp in _playersByConnection)
+        foreach (KeyValuePair<ulong, PlayerState> kvp in _players.ByConnection)
         {
-            ActivePlayerState state = kvp.Value;
+            PlayerState state = kvp.Value;
             _spoiledSlotsScratch.Clear();
             _needs.AdvanceSpoilage(state.Inventory, elapsedSeconds, _spoiledSlotsScratch);
             for (int i = 0; i < _spoiledSlotsScratch.Count; i++)
@@ -122,7 +121,7 @@ public sealed partial class AuthoritativeWorld
         ReadOnlySpan<MealCompletedEvent> meals = _simulation.ReadEvents<MealCompletedEvent>();
         for (int i = 0; i < meals.Length; i++)
         {
-            if (this.TryGetPlayerByEntityLocked(meals[i].Entity, out ActivePlayerState? state))
+            if (_players.TryGetByEntity(_simulation, meals[i].Entity, out PlayerState? state))
             {
                 this.ConsumeEatenItemLocked(state);
             }
@@ -131,7 +130,7 @@ public sealed partial class AuthoritativeWorld
         ReadOnlySpan<MealInterruptedEvent> interrupts = _simulation.ReadEvents<MealInterruptedEvent>();
         for (int i = 0; i < interrupts.Length; i++)
         {
-            if (this.TryGetPlayerByEntityLocked(interrupts[i].Entity, out ActivePlayerState? state))
+            if (_players.TryGetByEntity(_simulation, interrupts[i].Entity, out PlayerState? state))
             {
                 state.EatingSlot = -1;
                 state.StatsDirty = true;
@@ -141,7 +140,7 @@ public sealed partial class AuthoritativeWorld
         ReadOnlySpan<NeedStateChangedEvent> changes = _simulation.ReadEvents<NeedStateChangedEvent>();
         for (int i = 0; i < changes.Length; i++)
         {
-            if (this.TryGetPlayerByEntityLocked(changes[i].Entity, out ActivePlayerState? state))
+            if (_players.TryGetByEntity(_simulation, changes[i].Entity, out PlayerState? state))
             {
                 state.StatsDirty = true;
                 this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
@@ -153,7 +152,7 @@ public sealed partial class AuthoritativeWorld
         for (int i = 0; i < damage.Length; i++)
         {
             ref readonly DamageEvent hit = ref damage[i];
-            if (hit.Attacker == hit.Target && this.TryGetPlayerByEntityLocked(hit.Target, out ActivePlayerState? state))
+            if (hit.Attacker == hit.Target && _players.TryGetByEntity(_simulation, hit.Target, out PlayerState? state))
             {
                 state.StatsDirty = true;
                 this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
@@ -165,7 +164,7 @@ public sealed partial class AuthoritativeWorld
         {
             ref readonly EntityKilledEvent kill = ref kills[i];
             if (kill.Killer == kill.Victim &&
-                this.TryGetPlayerByEntityLocked(kill.Victim, out ActivePlayerState? state) &&
+                _players.TryGetByEntity(_simulation, kill.Victim, out PlayerState? state) &&
                 _simulation.Entities.HasTransform(state.Entity))
             {
                 // Route starvation death through the standard death/respawn path (health is already 0).
@@ -191,7 +190,7 @@ public sealed partial class AuthoritativeWorld
         _simulation.ClearEvents<EntityKilledEvent>();
     }
 
-    private void ConsumeEatenItemLocked(ActivePlayerState state)
+    private void ConsumeEatenItemLocked(PlayerState state)
     {
         int slotIndex = state.EatingSlot;
         state.EatingSlot = -1;
@@ -218,7 +217,7 @@ public sealed partial class AuthoritativeWorld
         this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
     }
 
-    private void InterruptMealOnDamageLocked(ActivePlayerState victim)
+    private void InterruptMealOnDamageLocked(PlayerState victim)
     {
         _ = EatActionSystem.CancelEat(_simulation, victim.Entity, MealInterruptReason.Damaged);
         this.WakeLocked(victim);
@@ -239,7 +238,7 @@ public sealed partial class AuthoritativeWorld
     {
         lock (_gate)
         {
-            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state) ||
+            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state) ||
                 !_simulation.Entities.HasTransform(state.Entity) ||
                 (_simulation.Entities.HasHealth(state.Entity) && _simulation.Entities.GetHealth(state.Entity).IsDead))
             {
@@ -275,7 +274,7 @@ public sealed partial class AuthoritativeWorld
     }
 
     /// <summary>Stands a resting player up (no-op when awake).</summary>
-    private void WakeLocked(ActivePlayerState state)
+    private void WakeLocked(PlayerState state)
     {
         if (state.RestMode == RestMode.None)
         {
@@ -286,25 +285,11 @@ public sealed partial class AuthoritativeWorld
         state.StatsDirty = true;
     }
 
-    private void ResetNeedsAfterDeathLocked(ActivePlayerState state)
+    private void ResetNeedsAfterDeathLocked(PlayerState state)
     {
         _ = EatActionSystem.CancelEat(_simulation, state.Entity, MealInterruptReason.Died);
         state.EatingSlot = -1;
         this.WakeLocked(state);
         _needs.ResetAfterDeath(state.Entity);
-    }
-
-    private bool TryGetPlayerByEntityLocked(Entity entity, [NotNullWhen(true)] out ActivePlayerState? state)
-    {
-        if (_simulation.TryGetNetworkIdentity(entity, out NetworkIdentity identity) &&
-            _connectionByNetworkId.TryGetValue(identity.NetworkId, out ulong connectionId) &&
-            _playersByConnection.TryGetValue(connectionId, out state) &&
-            state.Entity == entity)
-        {
-            return true;
-        }
-
-        state = null;
-        return false;
     }
 }
