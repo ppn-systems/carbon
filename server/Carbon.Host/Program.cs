@@ -29,6 +29,12 @@ namespace Carbon.Host;
 /// </summary>
 public static class Program
 {
+    /// <summary>
+    /// Config documents the server uses but never sends to clients: drop rates, price tunables and spawn rules are
+    /// server decisions a client has no reason to see.
+    /// </summary>
+    private static readonly string[] s_serverOnlyDocuments = ["economy", "loot", "spawning"];
+
     /// <summary>Boots migrations, initializes the authoritative world, and runs listeners until shutdown.</summary>
     public static async Task<int> Main(string[] args)
     {
@@ -89,7 +95,7 @@ public static class Program
         WorldOutboundSink outboundSink = new(transportRegistry, loggerFactory.CreateLogger<WorldOutboundSink>());
         // Gameplay config is server-authoritative (ADR-011): the server builds its domains from the same snapshot it
         // serves to clients, so both sides always run on identical bytes.
-        ConfigRepository config = ConfigRepository.Load(ResolveConfigDirectory(options.ConfigDirectory));
+        ConfigRepository config = ConfigRepository.Load(ResolveConfigDirectory(options.ConfigDirectory), s_serverOnlyDocuments);
         if (logger.IsEnabled(LogLevel.Information))
         {
             logger.LogInformation(
