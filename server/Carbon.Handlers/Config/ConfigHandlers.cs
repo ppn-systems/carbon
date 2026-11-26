@@ -15,7 +15,7 @@ using Nalix.Codec.Pooling;
 namespace Carbon.Handlers.Config;
 
 /// <summary>
-/// Server-authoritative config sync (ADR-011): sends the manifest after sign-in and streams the documents
+/// Server-authoritative config sync (ADR-014): sends the manifest after sign-in and streams the documents
 /// a client asks for. Requests are untrusted and validated by <see cref="ConfigRepository"/>.
 /// </summary>
 [PacketHandler("Carbon.Config")]

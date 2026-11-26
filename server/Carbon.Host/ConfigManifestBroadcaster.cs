@@ -16,7 +16,7 @@ namespace Carbon.Host;
 
 /// <summary>
 /// Pushes the new config manifest to every signed-in stream connection after a reload changes it, so clients
-/// re-download exactly the documents whose hash changed (ADR-011 D7).
+/// re-download exactly the documents whose hash changed (ADR-014 D7).
 /// </summary>
 internal sealed class ConfigManifestBroadcaster
 {
