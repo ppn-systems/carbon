@@ -51,6 +51,10 @@ public static class PropHarvestCatalog
                 xpReward = 28U;
                 return new ItemSlot(StarterGameCatalog.ManaCrystal, 2);
 
+            case 23: // DryBush
+                xpReward = 6U;
+                return new ItemSlot(StarterGameCatalog.WoodLog, 1);
+
             default:
                 xpReward = 0U;
                 return ItemSlot.Empty;

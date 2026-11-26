@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Numerics;
 using Carbon.Graphics.Batching.Common;
 
 namespace Carbon.Desktop.Rendering.VectorArt;
@@ -22,7 +23,9 @@ public sealed class CompiledBiomeArt
         ColorRgba cliffHighlight,
         ColorRgba cliffShadow,
         int detailChancePercent,
-        CompiledVectorShape[][] detailVariants)
+        CompiledVectorShape[][] detailVariants,
+        BiomeSurfaceStyle? surface = null,
+        BiomeDecalLayer[]? decalLayers = null)
     {
         this.BiomeId = biomeId;
         this.Id = id;
@@ -35,6 +38,8 @@ public sealed class CompiledBiomeArt
         this.CliffShadow = cliffShadow;
         this.DetailChancePercent = Math.Clamp(detailChancePercent, 0, 100);
         this.DetailVariants = detailVariants;
+        this.Surface = surface ?? BiomeSurfaceStyle.FromGround(new Vector3(groundColor.R, groundColor.G, groundColor.B));
+        this.DecalLayers = decalLayers ?? BiomeDecalLayer.None;
     }
 
     /// <summary>Numeric biome ID matching <c>BiomeType</c>.</summary>
@@ -69,4 +74,10 @@ public sealed class CompiledBiomeArt
 
     /// <summary>Array of pre-compiled tile micro-detail decal variants in <c>[0..32]</c> tile space.</summary>
     public CompiledVectorShape[][] DetailVariants { get; }
+
+    /// <summary>Gets the ground colour field (the blueprint's <c>surface</c> block).</summary>
+    public BiomeSurfaceStyle Surface { get; }
+
+    /// <summary>Gets the scattered ground decal layers (the blueprint's <c>decals</c> list).</summary>
+    public BiomeDecalLayer[] DecalLayers { get; }
 }

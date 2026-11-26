@@ -31,19 +31,20 @@ internal sealed class Atmosphere
         BlendingFactor.Zero,
         BlendingFactor.One);
 
-    // Ambient light keyframes over a 24 h day (hour, rgb multiplier).
+    // Ambient light keyframes over a 24 h day (hour, rgb multiplier). Nights are moonlit blue rather than
+    // black, so the world stays readable; lights and fireflies still glow because Night saturates early.
     private static readonly (float Hour, Vector3 Light)[] s_ambient =
     [
-        (0f, new Vector3(0.20f, 0.25f, 0.46f)),
-        (4.5f, new Vector3(0.24f, 0.27f, 0.50f)),
+        (0f, new Vector3(0.36f, 0.42f, 0.64f)),
+        (4.5f, new Vector3(0.38f, 0.43f, 0.65f)),
         (6.0f, new Vector3(0.78f, 0.56f, 0.58f)), // dawn
         (7.5f, new Vector3(1.00f, 0.88f, 0.78f)),
         (9.0f, new Vector3(1.00f, 1.00f, 1.00f)),
         (16.5f, new Vector3(1.00f, 0.98f, 0.94f)),
         (18.3f, new Vector3(1.00f, 0.70f, 0.50f)), // sunset
         (19.6f, new Vector3(0.52f, 0.40f, 0.62f)), // dusk
-        (21.0f, new Vector3(0.22f, 0.26f, 0.48f)),
-        (24f, new Vector3(0.20f, 0.25f, 0.46f)),
+        (21.0f, new Vector3(0.37f, 0.42f, 0.63f)),
+        (24f, new Vector3(0.36f, 0.42f, 0.64f)),
     ];
 
 
@@ -102,7 +103,7 @@ internal sealed class Atmosphere
         light = Vector3.Lerp(light, light * new Vector3(0.9f, 0.95f, 1.05f), this.Rain); // cooler
         this.Ambient = light;
         float luminance = (light.X * 0.3f) + (light.Y * 0.55f) + (light.Z * 0.15f);
-        this.Night = Math.Clamp((0.95f - luminance) / 0.65f, 0f, 1f);
+        this.Night = Math.Clamp((0.95f - luminance) / 0.5f, 0f, 1f);
     }
 
     /// <summary>

@@ -1,0 +1,319 @@
+{
+  "schemaVersion": 2,
+  "propType": 24,
+  "id": "dune_grass",
+  "displayName": "Dune Grass",
+  "designRadius": 12,
+  "hasCanopy": false,
+  "allowMirror": true,
+  "isWoody": false,
+  "isIcy": false,
+  "rareLastVariantChance": 0.12,
+  "light": null,
+  "paletteVariants": [
+    {
+      "blade": "#8A9A52",
+      "bladeDark": "#6A7A40",
+      "bladeLit": "#B6C070",
+      "seed": "#E8D8A4"
+    },
+    {
+      "blade": "#9AA45A",
+      "bladeDark": "#76804A",
+      "bladeLit": "#C8C67A",
+      "seed": "#F0E2B4"
+    },
+    {
+      "blade": "#7E9450",
+      "bladeDark": "#5E743E",
+      "bladeLit": "#A8BA6A",
+      "seed": "#DCCB94"
+    }
+  ],
+  "groundShapes": [
+    {
+      "kind": "ellipse",
+      "x": 1.0,
+      "y": 5.5,
+      "rx": 11.0,
+      "ry": 3.8,
+      "color": "#00000026"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -4.45,
+          5
+        ],
+        [
+          -1.85,
+          5
+        ],
+        [
+          -10.7,
+          -10
+        ],
+        [
+          -11.4,
+          -9.4
+        ]
+      ],
+      "color": "$blade"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -3.4,
+          5
+        ],
+        [
+          -0.8,
+          5
+        ],
+        [
+          -6.7,
+          -16
+        ],
+        [
+          -7.4,
+          -15.4
+        ]
+      ],
+      "color": "$bladeDark"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -2.35,
+          5
+        ],
+        [
+          0.25,
+          5
+        ],
+        [
+          -2.7,
+          -19
+        ],
+        [
+          -3.4,
+          -18.4
+        ]
+      ],
+      "color": "$blade"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -1.3,
+          5
+        ],
+        [
+          1.3,
+          5
+        ],
+        [
+          0.3,
+          -21
+        ],
+        [
+          -0.4,
+          -20.4
+        ]
+      ],
+      "color": "$bladeDark"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -0.25,
+          5
+        ],
+        [
+          2.35,
+          5
+        ],
+        [
+          4.3,
+          -18
+        ],
+        [
+          3.6,
+          -17.4
+        ]
+      ],
+      "color": "$blade"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          0.8,
+          5
+        ],
+        [
+          3.4,
+          5
+        ],
+        [
+          8.3,
+          -15
+        ],
+        [
+          7.6,
+          -14.4
+        ]
+      ],
+      "color": "$bladeDark"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          1.85,
+          5
+        ],
+        [
+          4.45,
+          5
+        ],
+        [
+          11.3,
+          -9
+        ],
+        [
+          10.6,
+          -8.4
+        ]
+      ],
+      "color": "$blade"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -1.65,
+          5
+        ],
+        [
+          0.95,
+          5
+        ],
+        [
+          -5.7,
+          -13
+        ],
+        [
+          -6.4,
+          -12.4
+        ]
+      ],
+      "color": "$bladeLit"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -0.6,
+          5
+        ],
+        [
+          2.0,
+          5
+        ],
+        [
+          6.3,
+          -12
+        ],
+        [
+          5.6,
+          -11.4
+        ]
+      ],
+      "color": "$bladeLit"
+    },
+    {
+      "kind": "capsule",
+      "x": -3,
+      "y": -19,
+      "x2": -4.5,
+      "y2": -24,
+      "thickness": 1.8,
+      "color": "$seed"
+    },
+    {
+      "kind": "capsule",
+      "x": 0,
+      "y": -21,
+      "x2": 0.8,
+      "y2": -26,
+      "thickness": 1.8,
+      "color": "$seed"
+    },
+    {
+      "kind": "capsule",
+      "x": 6,
+      "y": -15,
+      "x2": 8.5,
+      "y2": -19,
+      "thickness": 1.8,
+      "color": "$seed"
+    }
+  ],
+  "canopyShapes": [],
+  "remnantShapes": [
+    {
+      "kind": "ellipse",
+      "x": 1.0,
+      "y": 5.0,
+      "rx": 8.0,
+      "ry": 3.0,
+      "color": "#00000024"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -4,
+          5
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          -2,
+          1
+        ]
+      ],
+      "color": "$bladeDark"
+    },
+    {
+      "kind": "line",
+      "x": -2,
+      "y": 3,
+      "x2": -5,
+      "y2": -1,
+      "thickness": 1.0,
+      "color": "$blade"
+    },
+    {
+      "kind": "line",
+      "x": 2,
+      "y": 3,
+      "x2": 5,
+      "y2": -1,
+      "thickness": 1.0,
+      "color": "$bladeLit"
+    }
+  ]
+}

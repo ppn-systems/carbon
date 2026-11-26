@@ -89,5 +89,80 @@
         }
       ]
     }
+  ],
+  "surface": {
+    "pattern": "water",
+    "colors": [
+      "#163250",
+      "#1C3D61",
+      "#254C74"
+    ],
+    "scale": 1.0,
+    "variation": 0.04,
+    "grain": 0.03
+  },
+  "decals": [
+    {
+      "id": "crest",
+      "chance": 0.06,
+      "maxCount": 1,
+      "placement": "any",
+      "jitter": true,
+      "variants": [
+        {
+          "shapes": [
+            {
+              "kind": "line",
+              "x": 9,
+              "y": 16,
+              "x2": 13.67,
+              "y2": 14.8,
+              "thickness": 1.1,
+              "color": "#3E72A0A0"
+            },
+            {
+              "kind": "line",
+              "x": 13.67,
+              "y": 14.8,
+              "x2": 18.33,
+              "y2": 16,
+              "thickness": 1.1,
+              "color": "#3E72A0A0"
+            },
+            {
+              "kind": "line",
+              "x": 18.33,
+              "y": 16,
+              "x2": 23,
+              "y2": 15.0,
+              "thickness": 1.1,
+              "color": "#3E72A0A0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "glint",
+      "chance": 0.03,
+      "maxCount": 1,
+      "placement": "any",
+      "jitter": true,
+      "variants": [
+        {
+          "shapes": [
+            {
+              "kind": "line",
+              "x": 13,
+              "y": 15,
+              "x2": 18,
+              "y2": 14.6,
+              "thickness": 0.8,
+              "color": "#8CC8F080"
+            }
+          ]
+        }
+      ]
+    }
   ]
 }
