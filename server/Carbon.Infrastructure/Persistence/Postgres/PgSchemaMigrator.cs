@@ -279,7 +279,7 @@ public sealed class PgSchemaMigrator : IDatabaseMigrator
             _ = await markExtCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         }
 
-        // ADR-011: server-authoritative wallet. Later additive column migrations follow the same pattern.
+        // ADR-012: server-authoritative wallet. Later additive column migrations follow the same pattern.
         await AddCharacterColumnsAsync(
             conn,
             tx,

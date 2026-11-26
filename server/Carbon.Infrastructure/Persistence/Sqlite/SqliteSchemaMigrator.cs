@@ -319,7 +319,7 @@ public sealed class SqliteSchemaMigrator : IDatabaseMigrator
             _ = await insertExt.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         }
 
-        // ADR-011: server-authoritative wallet. Later additive column migrations follow the same pattern.
+        // ADR-012: server-authoritative wallet. Later additive column migrations follow the same pattern.
         await AddCharacterColumnsAsync(
             conn,
             tx,

@@ -8,7 +8,7 @@ namespace Carbon.Contracts.Entities.S2C;
 
 /// <summary>
 /// Server push of the local player's gold and diamond balances, sent on world entry and after every change.
-/// Balances are server-authoritative (ADR-011); clients only display them.
+/// Balances are server-authoritative (ADR-012); clients only display them.
 /// </summary>
 [Packet]
 [GenerateFormatter]

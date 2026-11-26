@@ -191,7 +191,7 @@ Ids 1–39 keep the `StarterGameCatalog` ids and codes, and a test checks catego
 - **Crafting.** `PlayerInventoryLayout.TryCraftInBag`, which `TryCraftRecipe` uses, now runs through `RecipeMatcher` on a draft of the bag slots. It is all-or-nothing, never consumes forge-upgraded stacks, and never touches equipment slots.
 - **Art.** Every item with id ≥ 100 has a `resources/art/items/<code>.cvg.json` icon registered in `catalog.cvg.json`.
 
-**Wallet persistence, sync and sinks** ([ADR-011](adr/ADR-011-server-authoritative-wallet-persistence-and-sync.md)):
+**Wallet persistence, sync and sinks** ([ADR-012](adr/ADR-012-server-authoritative-wallet-persistence-and-sync.md)):
 - `CharacterRecord` persists `Gold`, `Diamonds`, `WalletSequence` and `DiamondPity` through migration `0005_character_wallet`, in both SQLite and PostgreSQL.
 - `WalletSync` (S2C `0x1237`) pushes balances on world entry, after kills and after vendor operations. The HUD shows them next to the hotbar, using `resources/art/ui/coin.cvg.json` and `diamond.cvg.json`.
 - `VendorBuyItem` (`0x4007`) and `VendorSellItem` (`0x4008`) require a friendly town NPC within 175 px. `RepairInventoryItem` (`0x4009`) requires a forge station. All three reply with `MutationResult`.

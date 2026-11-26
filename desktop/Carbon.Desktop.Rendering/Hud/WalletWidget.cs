@@ -15,7 +15,7 @@ namespace Carbon.Desktop.Rendering.Hud;
 
 /// <summary>
 /// Compact gold and diamond counter docked to the right of the hotbar. Balances come from the server's
-/// <c>WalletSync</c> push (ADR-011); the client never computes them.
+/// <c>WalletSync</c> push (ADR-012); the client never computes them.
 /// </summary>
 internal sealed class WalletWidget
 {

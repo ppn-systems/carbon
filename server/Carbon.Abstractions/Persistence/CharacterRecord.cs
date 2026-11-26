@@ -13,7 +13,7 @@ namespace Carbon.Abstractions.Persistence;
 /// </summary>
 /// <remarks>
 /// <c>Gold</c>, <c>Diamonds</c>, <c>WalletSequence</c> and <c>DiamondPity</c> persist the server-authoritative
-/// wallet (ADR-011). They are trailing optional members so existing call sites keep compiling.
+/// wallet (ADR-012). They are trailing optional members so existing call sites keep compiling.
 /// </remarks>
 public sealed record CharacterRecord(
     Guid Id,

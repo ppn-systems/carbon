@@ -90,6 +90,15 @@ public static class CarbonUiPalette
     /// <summary>Stamina bar fill.</summary>
     public static readonly ColorRgba StaminaFill = new(58, 152, 104, 255);
 
+    /// <summary>Hunger (food) bar fill while fed.</summary>
+    public static readonly ColorRgba HungerFill = new(206, 138, 56, 255);
+
+    /// <summary>Hunger bar fill while hungry or worse.</summary>
+    public static readonly ColorRgba HungerWarnFill = new(222, 88, 40, 255);
+
+    /// <summary>Hunger bar fill while food poisoned.</summary>
+    public static readonly ColorRgba PoisonFill = new(128, 160, 52, 255);
+
     /// <summary>Warm XP bar fill.</summary>
     public static readonly ColorRgba XpFill = new(198, 168, 104, 255);
 

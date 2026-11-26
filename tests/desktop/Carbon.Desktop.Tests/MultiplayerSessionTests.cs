@@ -153,7 +153,7 @@ public sealed class MultiplayerSessionTests
 
                 float initialX = rosterA[0].PositionX;
 
-                // Seed a persisted wallet balance (ADR-011) before entering the world.
+                // Seed a persisted wallet balance (ADR-012) before entering the world.
                 CharacterRecord? heroARecord = await characters.FindByIdAsync(rosterA[0].CharacterId).ConfigureAwait(true);
                 await characters.SaveBatchAsync([heroARecord! with { Gold = 321, Diamonds = 4 }]).ConfigureAwait(true);
 
@@ -215,6 +215,11 @@ public sealed class MultiplayerSessionTests
                     world.StepFixedTick();
                     await Task.Delay(15).ConfigureAwait(true);
                 }
+
+                clientA.LocalPlayerMaxFood.Should().Be(100f);
+                clientA.LocalPlayerFood.Should().BeLessThan(100f, "the server's hunger decay is synced in PlayerStatsSync").And.BeGreaterThan(99f);
+                clientA.LocalPlayerHungerState.Should().Be(0, "a fresh hero is fed");
+                clientA.LocalPlayerEatProgress.Should().BeLessThan(0f);
 
                 clientB.RemoteEntities.Should().Contain(
                     e => e.Name == "HeroA",

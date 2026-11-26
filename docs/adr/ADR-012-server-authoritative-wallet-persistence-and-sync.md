@@ -1,4 +1,4 @@
-# ADR-011: Server-Authoritative Wallet Persistence, Sync & Vendor Sinks
+# ADR-012: Server-Authoritative Wallet Persistence, Sync & Vendor Sinks
 
 - **Date**: 2026-11-26
 - **Status**: Accepted

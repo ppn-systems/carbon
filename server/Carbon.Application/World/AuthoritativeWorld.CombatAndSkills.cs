@@ -56,7 +56,7 @@ public sealed partial class AuthoritativeWorld
             return;
         }
 
-        state.Cooldowns.StartCooldown(AttackAbilityId, _currentTick, (uint)Math.Max(10, this.TickRate / 2));
+        state.Cooldowns.StartCooldown(AttackAbilityId, _currentTick, this.ScaleAttackCooldownLocked(state, (uint)Math.Max(10, this.TickRate / 2)));
 
         Vector2 attackerPos = _simulation.Entities.GetTransform(state.Entity).Position;
         if (activeSlot.Quantity > 0 &&
@@ -190,6 +190,11 @@ public sealed partial class AuthoritativeWorld
 
     private bool TryConsumeActiveSlotPotionLocked(ActivePlayerState state, in ItemSlot activeSlot)
     {
+        if (this.TryBeginEatingActiveSlotLocked(state, in activeSlot))
+        {
+            return true;
+        }
+
         if (activeSlot.IsEmpty || activeSlot.Quantity <= 0 ||
             !StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? def) ||
             def.Category != ItemCategory.Consumable)
@@ -202,6 +207,26 @@ public sealed partial class AuthoritativeWorld
             return true;
         }
 
+        if (!this.ApplyConsumableRestoresLocked(state, def))
+        {
+            return false;
+        }
+
+        state.Cooldowns.StartCooldown(ConsumableAbilityId, _currentTick, (uint)Math.Max(15, (int)MathF.Round(this.TickRate * 1.5f)));
+        state.StatsDirty = true;
+
+        ItemSlot updatedSlot = activeSlot.Quantity > 1
+            ? activeSlot with { Quantity = activeSlot.Quantity - 1 }
+            : ItemSlot.Empty;
+        state.Inventory.SetSlot(state.Session.SelectedHotbarSlot, in updatedSlot);
+        _pendingSlotChanges.Add(new OutboundSlotChange(state.Session.ConnectionId, state.Session.SelectedHotbarSlot, updatedSlot));
+        this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
+        return true;
+    }
+
+    /// <summary>Applies a consumable's HP/MP/stamina restores; returns false when nothing could be restored.</summary>
+    private bool ApplyConsumableRestoresLocked(ActivePlayerState state, ItemArchetype def)
+    {
         bool used = false;
         float combatTextAmount = 0f;
         float resultingHealth = 0f;
@@ -236,16 +261,6 @@ public sealed partial class AuthoritativeWorld
         {
             return false;
         }
-
-        state.Cooldowns.StartCooldown(ConsumableAbilityId, _currentTick, (uint)Math.Max(15, (int)MathF.Round(this.TickRate * 1.5f)));
-        state.StatsDirty = true;
-
-        ItemSlot updatedSlot = activeSlot.Quantity > 1
-            ? activeSlot with { Quantity = activeSlot.Quantity - 1 }
-            : ItemSlot.Empty;
-        state.Inventory.SetSlot(state.Session.SelectedHotbarSlot, in updatedSlot);
-        _pendingSlotChanges.Add(new OutboundSlotChange(state.Session.ConnectionId, state.Session.SelectedHotbarSlot, updatedSlot));
-        this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
 
         if (combatTextAmount < 0f && _simulation.Entities.HasTransform(state.Entity))
         {

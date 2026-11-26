@@ -647,6 +647,13 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             pkt.ProgressionBlob = snapshot.ProgressionBlob;
             pkt.CooldownSkillIds = snapshot.CooldownSkillIds;
             pkt.CooldownRemainingSeconds = snapshot.CooldownRemainingSeconds;
+            pkt.Food = snapshot.Needs.Food;
+            pkt.MaxFood = snapshot.Needs.MaxFood;
+            pkt.HungerState = snapshot.Needs.HungerState;
+            pkt.Malnutrition = snapshot.Needs.Malnutrition;
+            pkt.Mood = snapshot.Needs.Mood;
+            pkt.FoodPoisoned = snapshot.Needs.FoodPoisoned;
+            pkt.EatProgress = snapshot.Needs.EatProgress;
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
             await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
