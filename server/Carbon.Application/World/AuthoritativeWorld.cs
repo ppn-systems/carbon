@@ -11,6 +11,7 @@ using Carbon.AI.Threat;
 using Carbon.Abstractions.Configuration;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Actions;
 using Carbon.Application.World.Combat;
 using Carbon.Application.World.Commands;
 using Carbon.Application.World.Construction;
@@ -60,15 +61,13 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private const float BaseWalkSpeed = 250f;
     private const float SprintSpeed = 450f;
     private const float BuildInteractRangeTiles = 3.5f;
-    private const float MeleeStrikeRangePx = 56f;
     private const float DefaultEntityRadius = 7f;
     private const uint PlayerLayer = 1U;
     private const uint MonsterLayer = 2U;
     private const uint NpcLayer = 4U;
     private const int PlayerInventoryCapacity = PlayerInventoryLayout.TotalCapacity;
-    private const uint AttackAbilityId = 1U;
-    private const uint SkillAbilityIdBase = 100U;
-    private const uint ConsumableAbilityId = 5U;
+    private const uint AttackAbilityId = PlayerActionService.AttackAbilityId;
+    private const uint SkillAbilityIdBase = PlayerActionService.SkillAbilityIdBase;
 
     private readonly Lock _gate = new();
     private readonly WorldCommandQueue _commands = new();
@@ -79,6 +78,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly InventoryService _inventory;
     private readonly CombatService _combat;
     private readonly PropHarvestService _props;
+    private readonly PlayerActionService _actions;
     private readonly PlayerMaterialAdapter _playerMaterials;
     private readonly WorldSimulation _simulation;
     private readonly AoiReplicator _replication;
@@ -231,6 +231,19 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             needsConfig,
             foodCatalog,
             worldSeed);
+        _actions = new PlayerActionService(
+            _simulation,
+            this.TickRate,
+            MonsterLayer,
+            () => _itemRules,
+            () => _currentTick,
+            _outbound,
+            _combat,
+            _projectiles,
+            _props,
+            _inventory,
+            _needs,
+            new PlayerActionHost(this));
         _persistence = new CharacterPersistence(_simulation, _needs, _time);
         _commandExecutor = new WorldCommandExecutor(this);
         _replication = new AoiReplicator(_simulation, _outbound, this.TileSize * 24f, DefaultEntityRadius, this.ResolveSpawnIdentityLocked);

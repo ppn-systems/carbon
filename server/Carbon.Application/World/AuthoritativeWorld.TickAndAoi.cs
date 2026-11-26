@@ -105,7 +105,7 @@ public sealed partial class AuthoritativeWorld
                 PlayerState state = kvp.Value;
                 if (state.HasPendingAttack)
                 {
-                    this.ProcessPlayerAttackLocked(state);
+                    _actions.Attack(state);
                     state.HasPendingAttack = false;
                 }
             }
@@ -318,7 +318,7 @@ public sealed partial class AuthoritativeWorld
             monsterDamage = CharacterProgressionPolicy.MitigateDamage(rawDamage, victim.Stats.Defense);
             victim.LastCombatDamageTick = _currentTick;
             victim.StatsDirty = true;
-            this.DegradeEquippedArmorLocked(victim, 0.5f);
+            _actions.WearArmor(victim, 0.5f);
             this.InterruptMealOnDamageLocked(victim);
         }
 
