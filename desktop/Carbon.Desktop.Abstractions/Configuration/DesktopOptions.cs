@@ -72,6 +72,12 @@ public sealed class DesktopOptions
     public string CharacterName { get; init; } = "Hero";
 
     /// <summary>
+    /// Gets or sets the directory where server-sent gameplay config documents are cached (ADR-011).
+    /// Cached files are re-hashed against the server manifest before use, so a stale or corrupt file is only a cache miss.
+    /// </summary>
+    public string ConfigCacheDirectory { get; init; } = DefaultConfigCacheDirectory();
+
+    /// <summary>
     /// Parses desktop client options from standard <c>CARBON_*</c> environment variables.
     /// </summary>
     /// <param name="readEnv">Optional environment reader (defaults to <see cref="Environment.GetEnvironmentVariable(string)"/>).</param>
@@ -145,6 +151,7 @@ public sealed class DesktopOptions
         string username = get("CARBON_USERNAME") is { Length: > 0 } user ? user.Trim() : "adventurer";
         string password = get("CARBON_PASSWORD") is { Length: > 0 } pass ? pass : "carbon123";
         string charName = get("CARBON_CHARACTER") is { Length: > 0 } ch ? ch.Trim() : "Hero";
+        string configCache = get("CARBON_CONFIG_CACHE") is { Length: > 0 } cache ? cache.Trim() : DefaultConfigCacheDirectory();
 
         return new DesktopOptions
         {
@@ -166,6 +173,10 @@ public sealed class DesktopOptions
             Username = username,
             Password = password,
             CharacterName = charName,
+            ConfigCacheDirectory = configCache,
         };
     }
+
+    private static string DefaultConfigCacheDirectory() =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Carbon", "config-cache");
 }

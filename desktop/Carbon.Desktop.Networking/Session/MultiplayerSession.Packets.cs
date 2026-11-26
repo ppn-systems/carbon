@@ -6,6 +6,7 @@ using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Contracts.Common;
+using Carbon.Contracts.Config.S2C;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Entities.S2C;
 using Carbon.Contracts.Identity;
@@ -83,6 +84,8 @@ public sealed partial class MultiplayerSession
             EncryptRequestsByDefault = true,
         });
 
+        this.ResetConfigSyncForNewConnection();
+        _tcpSubscriptions.Add(tcp.On<ConfigManifest>(this.OnConfigManifest));
         _tcpSubscriptions.Add(tcp.On<EntitySpawn>(this.OnEntitySpawn));
         _tcpSubscriptions.Add(tcp.On<EntityDespawn>(this.OnEntityDespawn));
         _tcpSubscriptions.Add(tcp.On<EntityDeltaBatch>(this.OnEntityDeltaBatch));
