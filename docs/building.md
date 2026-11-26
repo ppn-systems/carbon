@@ -118,10 +118,19 @@ The file is compiled into `Carbon.Maps` as an embedded resource. `StructureCatal
 - Refunds that do not fit in the inventory drop at the player's feet.
 - Placement and completion check only players for entity overlap; monsters are not checked yet.
 
+## Client build UX (desktop)
+
+The client previews and displays; the server decides every outcome.
+
+- **Placement ghost.** When a placeable kit is selected and the aimed tile is within reach, `ConstructionOverlayRenderer` draws the structure's `.cvg.json` art over the footprint. The ghost is green when `IWorldReadModel.PreviewPlacement` returns `Ok`, and red with a cross and the reason label (`BuildResultText`) otherwise. `PreviewPlacement` runs the same `BuildingService.ValidatePlacement` as the server, against the client's world copy, the local player and remote entities.
+- **Sites.** A blueprint is drawn as faded art with a blue dashed outline. A frame fades in as work progresses and gets scaffold hatching. Both show a green progress bar, and nearby ones also show a label (`Building 40% - [Z] cancel`).
+- **Deconstruction.** An orange pulsing outline and an orange progress bar.
+- **Data.** The server pushes `MapConstructionChanged` (S2C `0x1133`) when a stage changes and in 10% progress steps. The client keeps a `ConstructionMarkerBook`, which chunk-delta imports also seed, and mirrors pushed sites into its `ConstructionLedger` with `ImportSite`/`ForgetSite`, so previews see fresh blueprints.
+- **Keys.** Primary action (LMB) with a kit places a blueprint. `Z` or RMB on a blueprint cancels it, and on an owned structure starts deconstruction.
+
 ## Not done yet
 
-- Desktop rendering of blueprints and frames. Sites are already in `MapChunkDelta`, and the client sends demolish for a reserved tile to cancel it. There is no push packet for site progress; clients see it when they refetch the chunk delta.
-- A UI to choose rotation and to grant build permissions (`BuildPermissionTable.Grant` is not exposed to clients yet; grants are in memory only).
+- A UI to choose rotation (the ghost always previews North) and to grant build permissions (`BuildPermissionTable.Grant` is not exposed to clients yet; grants are in memory only).
 - Monsters do not attack structures yet. `BuildingService.ApplyDamage` is ready for it.
 - Deconstruction progress is kept in memory only and resets on restart; construction progress is persisted.
 - Frames do not block movement yet.

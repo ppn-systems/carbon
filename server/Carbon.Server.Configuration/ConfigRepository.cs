@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
@@ -28,12 +29,14 @@ public sealed class ConfigRepository
     public const string SearchPattern = "*.json";
 
     private readonly Lock _reloadGate = new();
+    private readonly FrozenSet<string> _serverOnly;
     private volatile Snapshot _snapshot;
 
-    private ConfigRepository(string directory, Snapshot snapshot)
+    private ConfigRepository(string directory, Snapshot snapshot, FrozenSet<string> serverOnly)
     {
         this.Directory = directory;
         _snapshot = snapshot;
+        _serverOnly = serverOnly;
     }
 
     /// <summary>Raised after a reload that changed the manifest.</summary>
@@ -45,21 +48,28 @@ public sealed class ConfigRepository
     /// <summary>Gets the current manifest version.</summary>
     public uint ManifestVersion => _snapshot.Catalog.ManifestVersion;
 
-    /// <summary>Gets the current manifest entries, ordered by name.</summary>
+    /// <summary>Gets every current document entry (server-only ones included), ordered by name.</summary>
     public IReadOnlyList<ConfigManifestEntry> Entries => _snapshot.Entries;
+
+    /// <summary>
+    /// Gets the names of documents the server uses but never sends to clients (for example drop rates or price tunables).
+    /// They are left out of the manifest, and requests for them are rejected as unknown.
+    /// </summary>
+    public IReadOnlySet<string> ServerOnlyDocuments => _serverOnly;
 
     /// <summary>Gets the current documents, for server-side domain loaders.</summary>
     public ConfigCatalog Catalog => _snapshot.Catalog;
 
     /// <summary>Loads the config directory. Fails fast: the server must not start with broken config.</summary>
     /// <param name="directory">Config directory (normally <c>resources/config</c>).</param>
+    /// <param name="serverOnlyDocuments">Documents loaded for the server but never sent to clients.</param>
     /// <returns>The loaded repository.</returns>
     /// <exception cref="InvalidDataException">Thrown when a file is invalid.</exception>
-    public static ConfigRepository Load(string directory)
+    public static ConfigRepository Load(string directory, IEnumerable<string>? serverOnlyDocuments = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directory);
         string full = Path.GetFullPath(directory);
-        return new ConfigRepository(full, BuildSnapshot(full, previous: null));
+        return new ConfigRepository(full, BuildSnapshot(full, previous: null), (serverOnlyDocuments ?? []).ToFrozenSet(StringComparer.Ordinal));
     }
 
     /// <summary>
@@ -68,7 +78,7 @@ public sealed class ConfigRepository
     /// </summary>
     /// <returns>An empty repository.</returns>
     public static ConfigRepository CreateEmpty() =>
-        new(string.Empty, new Snapshot([], new ConfigCatalog(1, [])));
+        new(string.Empty, new Snapshot([], new ConfigCatalog(1, [])), FrozenSet<string>.Empty);
 
     /// <summary>
     /// Re-reads the config directory. On any invalid file the current snapshot is kept and the exception is
@@ -101,26 +111,29 @@ public sealed class ConfigRepository
     public ConfigManifest CreateManifest()
     {
         Snapshot snapshot = _snapshot;
-        int count = snapshot.Entries.Length;
-        string[] names = new string[count];
-        ulong[] hashes = new ulong[count];
-        int[] lengths = new int[count];
-        uint[] versions = new uint[count];
-        for (int i = 0; i < count; i++)
+        List<string> names = new(snapshot.Entries.Length);
+        List<ulong> hashes = new(snapshot.Entries.Length);
+        List<int> lengths = new(snapshot.Entries.Length);
+        List<uint> versions = new(snapshot.Entries.Length);
+        foreach (ConfigManifestEntry entry in snapshot.Entries)
         {
-            ConfigManifestEntry entry = snapshot.Entries[i];
-            names[i] = entry.Name;
-            hashes[i] = entry.ContentHash;
-            lengths[i] = entry.ByteLength;
-            versions[i] = entry.Version;
+            if (_serverOnly.Contains(entry.Name))
+            {
+                continue;
+            }
+
+            names.Add(entry.Name);
+            hashes.Add(entry.ContentHash);
+            lengths.Add(entry.ByteLength);
+            versions.Add(entry.Version);
         }
 
         ConfigManifest manifest = ConfigManifest.Create();
         manifest.ManifestVersion = snapshot.Catalog.ManifestVersion;
-        manifest.Names = names;
-        manifest.ContentHashes = hashes;
-        manifest.ByteLengths = lengths;
-        manifest.Versions = versions;
+        manifest.Names = [.. names];
+        manifest.ContentHashes = [.. hashes];
+        manifest.ByteLengths = [.. lengths];
+        manifest.Versions = [.. versions];
         return manifest;
     }
 
@@ -142,7 +155,7 @@ public sealed class ConfigRepository
         ArgumentNullException.ThrowIfNull(send);
 
         Snapshot snapshot = _snapshot;
-        ConfigRequestStatus status = Validate(request, snapshot);
+        ConfigRequestStatus status = this.Validate(request, snapshot);
         if (status != ConfigRequestStatus.Ok)
         {
             return status;
@@ -189,7 +202,7 @@ public sealed class ConfigRepository
         return ConfigRequestStatus.Ok;
     }
 
-    private static ConfigRequestStatus Validate(ConfigRequest request, Snapshot snapshot)
+    private ConfigRequestStatus Validate(ConfigRequest request, Snapshot snapshot)
     {
         string[]? names = request.Names;
         if (names is null)
@@ -220,7 +233,7 @@ public sealed class ConfigRepository
                 return ConfigRequestStatus.DuplicateName;
             }
 
-            if (!snapshot.Catalog.Contains(name))
+            if (!snapshot.Catalog.Contains(name) || _serverOnly.Contains(name))
             {
                 return ConfigRequestStatus.UnknownName;
             }

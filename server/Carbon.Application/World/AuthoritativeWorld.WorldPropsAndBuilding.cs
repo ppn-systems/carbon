@@ -187,18 +187,23 @@ public sealed partial class AuthoritativeWorld
 
             _playerMaterials.Bind(state);
             BuildMutationResult result;
-            if (_building.Ledger.TryGetSiteAt(tileX, tileY, out int anchorX, out int anchorY, out _))
+            if (_building.Ledger.TryGetSiteAt(tileX, tileY, out int anchorX, out int anchorY, out ConstructionSite site))
             {
+                StructureType siteType = site.Type;
                 result = _building.CancelBlueprint(actor, tileX, tileY, _playerMaterials);
-                if (result.IsSuccess && state.BuildJob == BuildJobKind.Construct &&
-                    state.BuildJobTileX == anchorX && state.BuildJobTileY == anchorY)
+                if (result.IsSuccess)
                 {
-                    state.BuildJob = BuildJobKind.None;
+                    this.QueueConstructionChangeLocked(anchorX, anchorY, siteType, StructureRotation.North, ConstructionStage.Removed, result.Width, result.Height, 0f, isDeconstruction: false);
+                    if (state.BuildJob == BuildJobKind.Construct && state.BuildJobTileX == anchorX && state.BuildJobTileY == anchorY)
+                    {
+                        state.BuildJob = BuildJobKind.None;
+                    }
                 }
             }
             else
             {
                 // The first tick of work validates ownership and reach; the job then continues every tick.
+                StructureType type = _chunkWorld.Buildings.TryGetStructure(tileX, tileY, out StructureTile tile) ? tile.Type : StructureType.None;
                 result = _building.ApplyDeconstructionWork(actor, tileX, tileY, _building.Catalog.Rules.BuilderWorkPerSecond / this.TickRate, _playerMaterials);
                 if (result.IsSuccess && result.Stage == ConstructionStage.Removed)
                 {
@@ -206,9 +211,8 @@ public sealed partial class AuthoritativeWorld
                 }
                 else if (result.IsSuccess)
                 {
-                    state.BuildJob = BuildJobKind.Deconstruct;
-                    state.BuildJobTileX = tileX;
-                    state.BuildJobTileY = tileY;
+                    this.StartBuildJobLocked(state, BuildJobKind.Deconstruct, result.AnchorX, result.AnchorY);
+                    this.PushDeconstructionProgressLocked(state, in result, type);
                 }
             }
 

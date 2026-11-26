@@ -698,6 +698,7 @@ public sealed partial class MultiplayerSession : IWorldSession
             _inventoryLoaded = false;
             _reconciler.Clear();
             _chunkWorld = null;
+            _constructionMarkers.Clear();
             _simulation = null;
             _localPlayer = Entity.Null;
             _localNetworkId = 0UL;

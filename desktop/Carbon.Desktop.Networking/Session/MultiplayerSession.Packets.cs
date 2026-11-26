@@ -15,6 +15,7 @@ using Carbon.Contracts.Identity.S2C;
 using Carbon.Contracts.Items.S2C;
 using Carbon.Contracts.Maps.C2S;
 using Carbon.Contracts.Maps.S2C;
+using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Events;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
@@ -97,6 +98,7 @@ public sealed partial class MultiplayerSession
         _tcpSubscriptions.Add(tcp.On<SkillCastBroadcast>(this.OnSkillCastBroadcast));
         _tcpSubscriptions.Add(tcp.On<MapPropChanged>(this.OnMapPropChanged));
         _tcpSubscriptions.Add(tcp.On<MapStructureChanged>(this.OnMapStructureChanged));
+        _tcpSubscriptions.Add(tcp.On<MapConstructionChanged>(this.OnMapConstructionChanged));
 
         _tcpSession = tcp;
         await tcp.ConnectAsync(host, tcpPort, ct).ConfigureAwait(false);
@@ -449,6 +451,7 @@ public sealed partial class MultiplayerSession
                 _worldSeed = enter.WorldSeed;
                 ProceduralWorldGenerator generator = new(_worldSeed);
                 _chunkWorld = new ChunkWorld2D(generator, _tileSize, enter.Frequency);
+                _constructionMarkers.Clear();
                 _chunkWorld.UpdateAroundPosition(rejoinPos, chunkRadius: 4, evictionRadius: 8);
                 _simulation = new WorldSimulation(_tickRate, _tileSize)
                 {
@@ -717,7 +720,11 @@ public sealed partial class MultiplayerSession
                 ChunkDelta domainDelta = ChunkDeltaPacketMapper.FromPacket(packet);
                 lock (_worldGate)
                 {
-                    _chunkWorld?.ImportDelta(domainDelta);
+                    if (_chunkWorld is not null)
+                    {
+                        _chunkWorld.ImportDelta(domainDelta);
+                        this.OnChunkDeltaImportedLocked(domainDelta);
+                    }
                     _requestedChunks[Chunk2D.PackKey(cx, cy)] = packet.Revision;
                     _dirtyChunks.Add((cx, cy));
                 }
@@ -1119,7 +1126,7 @@ public sealed partial class MultiplayerSession
                 byte prevUpg = ItemEnhancementPolicy.GetUpgradeLevel(in previous);
                 if (previous.ItemId == next.ItemId && pkt.UpgradeLevel > prevUpg)
                 {
-                    string forgeMsg = $"+{pkt.UpgradeLevel} {StarterGameCatalog.GetDisplayName(next.ItemId)} Forged!";
+                    string forgeMsg = $"+{pkt.UpgradeLevel} {SyncedItemCatalog.GetDisplayName(next.ItemId)} Forged!";
                     _combatEvents.Add(new CombatFeedbackEvent(
                         localPos + new Vector2(0f, -14f),
                         pkt.UpgradeLevel,
@@ -1136,7 +1143,7 @@ public sealed partial class MultiplayerSession
 
                 if (gained > 0)
                 {
-                    string popup = $"+{gained} {StarterGameCatalog.GetDisplayName(next.ItemId)}";
+                    string popup = $"+{gained} {SyncedItemCatalog.GetDisplayName(next.ItemId)}";
                     _combatEvents.Add(new CombatFeedbackEvent(
                         localPos + new Vector2(0f, -12f),
                         gained,
@@ -1151,7 +1158,7 @@ public sealed partial class MultiplayerSession
                 {
                     if (previous.Durability > 0f && next.Durability <= 0f)
                     {
-                        string brokenMsg = $"{StarterGameCatalog.GetDisplayName(next.ItemId)} Worn Out!";
+                        string brokenMsg = $"{SyncedItemCatalog.GetDisplayName(next.ItemId)} Worn Out!";
                         _combatEvents.Add(new CombatFeedbackEvent(
                             localPos + new Vector2(0f, -14f),
                             0f,
@@ -1162,7 +1169,7 @@ public sealed partial class MultiplayerSession
                     }
                     else if (previous.Durability <= 0f && next.Durability > 0f)
                     {
-                        string mendMsg = $"{StarterGameCatalog.GetDisplayName(next.ItemId)} Mended!";
+                        string mendMsg = $"{SyncedItemCatalog.GetDisplayName(next.ItemId)} Mended!";
                         _combatEvents.Add(new CombatFeedbackEvent(
                             localPos + new Vector2(0f, -14f),
                             next.Durability,

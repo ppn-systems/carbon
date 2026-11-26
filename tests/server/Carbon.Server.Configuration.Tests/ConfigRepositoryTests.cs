@@ -131,6 +131,22 @@ public sealed class ConfigRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task ServerOnlyDocuments_AreLoadedForTheServerButNeverSentToClients()
+    {
+        _dir.Write("items.json", "[]");
+        _dir.Write("loot.json", "{\"dropRate\":0.05}");
+        ConfigRepository repository = ConfigRepository.Load(_dir.Path, serverOnlyDocuments: ["loot"]);
+        List<ConfigDocument> sent = [];
+
+        using ConfigManifest manifest = repository.CreateManifest();
+        manifest.Names.Should().Equal("items");
+        manifest.ContentHashes.Should().HaveCount(1);
+        repository.Catalog.Contains("loot").Should().BeTrue("the server itself still uses it");
+        (await Handle(repository, 1, sent, "loot")).Should().Be(ConfigRequestStatus.UnknownName);
+        sent.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task HandleRequestAsync_LargeDocument_IsChunkedAndEndsWithTerminator()
     {
         string big = "[" + string.Join(',', Enumerable.Range(0, 9000).Select(static i => $"{{\"id\":{i}}}")) + "]";

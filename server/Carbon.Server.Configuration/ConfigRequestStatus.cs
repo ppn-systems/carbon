@@ -17,7 +17,7 @@ public enum ConfigRequestStatus : byte
     /// <summary>A name is listed twice.</summary>
     DuplicateName = 3,
 
-    /// <summary>A well-formed name is not in the current manifest.</summary>
+    /// <summary>A well-formed name is not in the current manifest (missing, or a server-only document).</summary>
     UnknownName = 4,
 
     /// <summary>The client synced against an older manifest; send it the current manifest again.</summary>

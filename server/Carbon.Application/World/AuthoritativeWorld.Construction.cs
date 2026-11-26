@@ -135,14 +135,31 @@ public sealed partial class AuthoritativeWorld
             return placed;
         }
 
-        state.BuildJob = BuildJobKind.Construct;
-        state.BuildJobTileX = placed.AnchorX;
-        state.BuildJobTileY = placed.AnchorY;
+        this.StartBuildJobLocked(state, BuildJobKind.Construct, placed.AnchorX, placed.AnchorY);
 
         _playerMaterials.Bind(state);
         BuildMutationResult delivered = _building.DeliverMaterials(actor, _playerMaterials, placed.AnchorX, placed.AnchorY);
         this.MarkFootprintDirtyLocked(placed);
+        this.PushSiteProgressLocked(state, placed.AnchorX, placed.AnchorY, force: true);
         return delivered.IsSuccess ? delivered : placed;
+    }
+
+    /// <summary>
+    /// Replaces the player's build job. A deconstruction that is abandoned clears its progress bar on clients.
+    /// </summary>
+    private void StartBuildJobLocked(ActivePlayerState state, BuildJobKind job, int anchorX, int anchorY)
+    {
+        if (state.BuildJob == BuildJobKind.Deconstruct &&
+            (job != BuildJobKind.Deconstruct || state.BuildJobTileX != anchorX || state.BuildJobTileY != anchorY))
+        {
+            this.QueueConstructionChangeLocked(state.BuildJobTileX, state.BuildJobTileY, StructureType.None, StructureRotation.North, ConstructionStage.Removed, 1, 1, 0f, isDeconstruction: true);
+        }
+
+        state.BuildJob = job;
+        state.BuildJobTileX = anchorX;
+        state.BuildJobTileY = anchorY;
+        state.LastPushedBuildBucket = -1;
+        state.LastPushedBuildStage = ConstructionStage.None;
     }
 
     /// <summary>Advances every player's construction or deconstruction job by one fixed tick.</summary>
@@ -160,40 +177,139 @@ public sealed partial class AuthoritativeWorld
             int jx = state.BuildJobTileX;
             int jy = state.BuildJobTileY;
             _playerMaterials.Bind(state);
-            BuildMutationResult result;
             if (state.BuildJob == BuildJobKind.Construct)
             {
-                if (_building.Ledger.TryGetSiteAt(jx, jy, out _, out _, out ConstructionSite site) && site.Stage == ConstructionStage.Blueprint)
-                {
-                    BuildMutationResult delivered = _building.DeliverMaterials(actor, _playerMaterials, jx, jy);
-                    if (delivered.IsSuccess)
-                    {
-                        this.MarkFootprintDirtyLocked(delivered);
-                    }
-                }
-
-                result = _building.ApplyConstructionWork(actor, jx, jy, work);
+                this.AdvanceConstructionLocked(state, actor, jx, jy, work);
             }
             else
             {
-                result = _building.ApplyDeconstructionWork(actor, jx, jy, work, _playerMaterials);
-            }
-
-            if (result.IsSuccess)
-            {
-                this.MarkFootprintDirtyLocked(result);
-                if ((result.Stage == ConstructionStage.Complete && state.BuildJob == BuildJobKind.Construct) ||
-                    result.Stage == ConstructionStage.Removed)
-                {
-                    this.QueueFootprintStructureChangesLocked(result);
-                    state.BuildJob = BuildJobKind.None;
-                }
-            }
-            else if (!IsPausedJob(result.Code))
-            {
-                state.BuildJob = BuildJobKind.None;
+                this.AdvanceDeconstructionLocked(state, actor, jx, jy, work);
             }
         }
+    }
+
+    private void AdvanceConstructionLocked(ActivePlayerState state, in BuildActor actor, int jx, int jy, float work)
+    {
+        if (_building.Ledger.TryGetSiteAt(jx, jy, out _, out _, out ConstructionSite site) && site.Stage == ConstructionStage.Blueprint)
+        {
+            BuildMutationResult delivered = _building.DeliverMaterials(actor, _playerMaterials, jx, jy);
+            if (delivered.IsSuccess)
+            {
+                this.MarkFootprintDirtyLocked(delivered);
+            }
+        }
+
+        BuildMutationResult result = _building.ApplyConstructionWork(actor, jx, jy, work);
+        if (result.IsSuccess && result.Stage == ConstructionStage.Complete)
+        {
+            this.MarkFootprintDirtyLocked(result);
+            this.QueueFootprintStructureChangesLocked(result);
+            this.QueueConstructionChangeLocked(result.AnchorX, result.AnchorY, StructureType.None, StructureRotation.North, ConstructionStage.Removed, result.Width, result.Height, 1f, isDeconstruction: false);
+            state.BuildJob = BuildJobKind.None;
+            return;
+        }
+
+        if (result.IsSuccess)
+        {
+            this.MarkFootprintDirtyLocked(result);
+        }
+        else if (!IsPausedJob(result.Code))
+        {
+            state.BuildJob = BuildJobKind.None;
+        }
+
+        this.PushSiteProgressLocked(state, jx, jy, force: false);
+    }
+
+    private void AdvanceDeconstructionLocked(ActivePlayerState state, in BuildActor actor, int jx, int jy, float work)
+    {
+        StructureType type = _chunkWorld.Buildings.TryGetStructure(jx, jy, out StructureTile tile) ? tile.Type : StructureType.None;
+        BuildMutationResult result = _building.ApplyDeconstructionWork(actor, jx, jy, work, _playerMaterials);
+        if (result.IsSuccess && result.Stage == ConstructionStage.Removed)
+        {
+            this.MarkFootprintDirtyLocked(result);
+            this.QueueFootprintStructureChangesLocked(result);
+            this.QueueConstructionChangeLocked(result.AnchorX, result.AnchorY, type, StructureRotation.North, ConstructionStage.Removed, result.Width, result.Height, 1f, isDeconstruction: true);
+            state.BuildJob = BuildJobKind.None;
+            return;
+        }
+
+        if (result.IsSuccess)
+        {
+            this.PushDeconstructionProgressLocked(state, in result, type);
+        }
+        else if (!IsPausedJob(result.Code))
+        {
+            this.QueueConstructionChangeLocked(jx, jy, type, StructureRotation.North, ConstructionStage.Removed, 1, 1, 0f, isDeconstruction: true);
+            state.BuildJob = BuildJobKind.None;
+        }
+    }
+
+    /// <summary>Pushes the site's stage and progress when the stage changed or progress crossed a 10% step.</summary>
+    private void PushSiteProgressLocked(ActivePlayerState state, int tileX, int tileY, bool force)
+    {
+        if (!_building.Ledger.TryGetSiteAt(tileX, tileY, out int ax, out int ay, out ConstructionSite site) ||
+            !_building.Catalog.TryGet(site.Type, out StructureDefinition definition))
+        {
+            return;
+        }
+
+        float progress = definition.WorkAmount > 0f ? site.WorkDone / definition.WorkAmount : 0f;
+        int bucket = (int)(progress * 10f);
+        if (!force && bucket == state.LastPushedBuildBucket && site.Stage == state.LastPushedBuildStage)
+        {
+            return;
+        }
+
+        state.LastPushedBuildBucket = bucket;
+        state.LastPushedBuildStage = site.Stage;
+        this.QueueConstructionChangeLocked(ax, ay, site.Type, site.Rotation, site.Stage, site.Width, site.Height, progress, isDeconstruction: false);
+    }
+
+    private void PushDeconstructionProgressLocked(ActivePlayerState state, in BuildMutationResult result, StructureType type)
+    {
+        int bucket = (int)(result.Progress * 10f);
+        if (bucket == state.LastPushedBuildBucket && state.LastPushedBuildStage == ConstructionStage.Complete)
+        {
+            return;
+        }
+
+        state.LastPushedBuildBucket = bucket;
+        state.LastPushedBuildStage = ConstructionStage.Complete;
+        StructureRotation rotation = _building.Ledger.TryGetRecord(result.AnchorX, result.AnchorY, out StructureRecord record)
+            ? record.Rotation
+            : StructureRotation.North;
+        this.QueueConstructionChangeLocked(result.AnchorX, result.AnchorY, type, rotation, ConstructionStage.Complete, result.Width, result.Height, result.Progress, isDeconstruction: true);
+    }
+
+    private void QueueConstructionChangeLocked(
+        int anchorX,
+        int anchorY,
+        StructureType type,
+        StructureRotation rotation,
+        ConstructionStage stage,
+        int width,
+        int height,
+        float progress,
+        bool isDeconstruction)
+    {
+        (int offset, int count) = this.AppendTileRecipientsLocked(anchorX, anchorY);
+        if (count == 0)
+        {
+            return;
+        }
+
+        _pendingConstructionChanges.Add(new OutboundConstructionChange(
+            offset,
+            count,
+            anchorX,
+            anchorY,
+            (byte)type,
+            (byte)rotation,
+            (byte)stage,
+            (byte)(Math.Clamp(width, 1, 15) | (Math.Clamp(height, 1, 15) << 4)),
+            Math.Clamp(progress, 0f, 1f),
+            isDeconstruction));
     }
 
     /// <summary>Damages a structure (tool strikes) and drops a fraction of its materials when it is destroyed.</summary>
@@ -205,6 +321,11 @@ public sealed partial class AuthoritativeWorld
         {
             this.MarkFootprintDirtyLocked(result);
             this.QueueFootprintStructureChangesLocked(result);
+            if (result.Stage == ConstructionStage.Removed)
+            {
+                // Clears a deconstruction bar that may be showing on the destroyed structure.
+                this.QueueConstructionChangeLocked(result.AnchorX, result.AnchorY, StructureType.None, StructureRotation.North, ConstructionStage.Removed, result.Width, result.Height, 0f, isDeconstruction: true);
+            }
         }
     }
 

@@ -444,6 +444,61 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         }
     }
 
+    /// <inheritdoc/>
+    public void SendConstructionChanged(
+        ReadOnlySpan<ulong> recipientConnectionIds,
+        int tileX,
+        int tileY,
+        byte structureType,
+        byte rotation,
+        byte stage,
+        byte size,
+        float progress,
+        bool isDeconstruction)
+    {
+        for (int i = 0; i < recipientConnectionIds.Length; i++)
+        {
+            if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
+            {
+                _ = DispatchConstructionChangedAsync(conn, tileX, tileY, structureType, rotation, stage, size, progress, isDeconstruction, _logger);
+            }
+        }
+    }
+
+    private static async Task DispatchConstructionChangedAsync(
+        IConnection connection,
+        int tileX,
+        int tileY,
+        byte structureType,
+        byte rotation,
+        byte stage,
+        byte size,
+        float progress,
+        bool isDeconstruction,
+        ILogger logger)
+    {
+        try
+        {
+            using PacketScope<MapConstructionChanged> lease = PacketFactory<MapConstructionChanged>.Acquire();
+            MapConstructionChanged pkt = lease.Value;
+            pkt.TileX = tileX;
+            pkt.TileY = tileY;
+            pkt.StructureType = structureType;
+            pkt.Rotation = rotation;
+            pkt.Stage = stage;
+            pkt.Size = size;
+            pkt.Progress = progress;
+            pkt.IsDeconstruction = isDeconstruction;
+
+            bool encrypt = connection.Algorithm != CipherSuiteType.None;
+            await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogSendFailure(logger, nameof(MapConstructionChanged), ex);
+        }
+    }
+
     private static async Task DispatchStructureChangedAsync(
         IConnection connection,
         int tileX,
