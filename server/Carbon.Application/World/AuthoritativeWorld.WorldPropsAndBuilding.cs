@@ -4,6 +4,7 @@ using System;
 using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Replication;
 using Carbon.Application.World.Commands;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
@@ -433,7 +434,7 @@ public sealed partial class AuthoritativeWorld
             (int offset, int count) = this.AppendTileRecipientsLocked(blockedTx, blockedTy);
             if (count > 0)
             {
-                _pendingPropChanges.Add(new OutboundPropChange(
+                _outbound.Pending.PropChanges.Add(new OutboundPropChange(
                     offset,
                     count,
                     blockedTx,
@@ -510,7 +511,7 @@ public sealed partial class AuthoritativeWorld
         if (eval.DurabilityLoss > 0f &&
             this.DegradeActiveSlotDurabilityLocked(state, in activeSlot, eval.DurabilityLoss, out ItemSlot degradedSlot))
         {
-            _pendingSlotChanges.Add(new OutboundSlotChange(
+            _outbound.Pending.SlotChanges.Add(new OutboundSlotChange(
                 state.Session.ConnectionId,
                 state.Session.SelectedHotbarSlot,
                 degradedSlot));
@@ -549,7 +550,7 @@ public sealed partial class AuthoritativeWorld
         (int offset, int count) = this.AppendTileRecipientsLocked(wx, wy);
         if (count > 0)
         {
-            _pendingPropChanges.Add(new OutboundPropChange(
+            _outbound.Pending.PropChanges.Add(new OutboundPropChange(
                 offset,
                 count,
                 wx,
@@ -565,11 +566,11 @@ public sealed partial class AuthoritativeWorld
     private (int Offset, int Count) AppendTileRecipientsLocked(int tileX, int tileY)
     {
         this.CollectNearbyConnectionsLocked(tileX, tileY, _aoiRecipientsScratch);
-        int offset = _flatRecipients.Count;
+        int offset = _outbound.Pending.Recipients.Count;
         int count = _aoiRecipientsScratch.Count;
         for (int i = 0; i < count; i++)
         {
-            _flatRecipients.Add(_aoiRecipientsScratch[i]);
+            _outbound.Pending.Recipients.Add(_aoiRecipientsScratch[i]);
         }
 
         return (offset, count);

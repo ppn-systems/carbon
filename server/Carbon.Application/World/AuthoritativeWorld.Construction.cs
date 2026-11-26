@@ -5,6 +5,7 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Replication;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
@@ -279,7 +280,7 @@ public sealed partial class AuthoritativeWorld
             return;
         }
 
-        _pendingConstructionChanges.Add(new OutboundConstructionChange(
+        _outbound.Pending.ConstructionChanges.Add(new OutboundConstructionChange(
             offset,
             count,
             anchorX,
@@ -334,7 +335,7 @@ public sealed partial class AuthoritativeWorld
                 }
 
                 StructureTile tile = _chunkWorld.Buildings.TryGetStructure(tx, ty, out StructureTile current) ? current : StructureTile.Empty;
-                _pendingStructureChanges.Add(new OutboundStructureChange(
+                _outbound.Pending.StructureChanges.Add(new OutboundStructureChange(
                     offset,
                     count,
                     tx,
@@ -433,7 +434,7 @@ public sealed partial class AuthoritativeWorld
             {
                 if (before[i] != after[i])
                 {
-                    world._pendingSlotChanges.Add(new OutboundSlotChange(state.Session.ConnectionId, (ushort)i, after[i]));
+                    world._outbound.Pending.SlotChanges.Add(new OutboundSlotChange(state.Session.ConnectionId, (ushort)i, after[i]));
                     changed = true;
                 }
             }

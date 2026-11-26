@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Replication;
 using Carbon.Application.World.Commands;
 using Carbon.Application.World.Loot;
 using Carbon.Contracts.Common;
@@ -583,8 +584,8 @@ public sealed partial class AuthoritativeWorld
         for (int i = 0; i < _aoiRecipientsScratch.Count; i++)
         {
             ulong recipient = _aoiRecipientsScratch[i];
-            _pendingDespawns.Add(new OutboundDespawn(recipient, lootNetId, _currentTick));
-            _pendingSpawns.Add(new OutboundSpawn(recipient, updatedSnap));
+            _outbound.Pending.Despawns.Add(new OutboundDespawn(recipient, lootNetId, _currentTick));
+            _outbound.Pending.Spawns.Add(new OutboundSpawn(recipient, updatedSnap));
         }
     }
 
@@ -638,7 +639,7 @@ public sealed partial class AuthoritativeWorld
         {
             if (snapshot[i] != after[i])
             {
-                _pendingSlotChanges.Add(new OutboundSlotChange(state.Session.ConnectionId, (ushort)i, after[i]));
+                _outbound.Pending.SlotChanges.Add(new OutboundSlotChange(state.Session.ConnectionId, (ushort)i, after[i]));
             }
         }
 

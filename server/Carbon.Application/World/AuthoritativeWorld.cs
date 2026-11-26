@@ -9,6 +9,7 @@ using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
 using Carbon.Application.World.Commands;
 using Carbon.Application.World.Loot;
+using Carbon.Application.World.Replication;
 using Carbon.AI.Components;
 using Carbon.AI.Threat;
 using Carbon.Combat.Cooldowns;
@@ -105,36 +106,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly List<ulong> _scratchEntered = new(64);
     private readonly List<ulong> _scratchVisible = new(128);
     private readonly List<ulong> _scratchExited = new(64);
-    // Double-buffered staging vs dispatch queues: staging is mutated only under _gate and swapped into dispatch at tick end.
-    private List<OutboundSpawn> _pendingSpawns = new(64);
-    private List<OutboundDespawn> _pendingDespawns = new(64);
-    private List<OutboundDelta> _pendingDeltas = new(64);
-    private List<EntityDeltaEntry> _flatDeltaEntries = new(512);
-    private List<OutboundCombatHit> _pendingCombatHits = new(32);
-    private List<OutboundSlotChange> _pendingSlotChanges = new(32);
-    private List<OutboundPropChange> _pendingPropChanges = new(16);
-    private List<OutboundStructureChange> _pendingStructureChanges = new(16);
-    private List<OutboundConstructionChange> _pendingConstructionChanges = new(16);
-    private List<OutboundEquipmentChange> _pendingEquipmentChanges = new(16);
-    private List<OutboundStatsSync> _pendingStatsSyncs = new(32);
-    private List<OutboundWalletSync> _pendingWalletSyncs = new(16);
-    private List<OutboundSkillCast> _pendingSkillCasts = new(16);
-    private List<ulong> _flatRecipients = new(256);
-
-    private List<OutboundSpawn> _dispatchSpawns = new(64);
-    private List<OutboundDespawn> _dispatchDespawns = new(64);
-    private List<OutboundDelta> _dispatchDeltas = new(64);
-    private List<EntityDeltaEntry> _dispatchDeltaEntries = new(512);
-    private List<OutboundCombatHit> _dispatchCombatHits = new(32);
-    private List<OutboundSlotChange> _dispatchSlotChanges = new(32);
-    private List<OutboundPropChange> _dispatchPropChanges = new(16);
-    private List<OutboundStructureChange> _dispatchStructureChanges = new(16);
-    private List<OutboundConstructionChange> _dispatchConstructionChanges = new(16);
-    private List<OutboundEquipmentChange> _dispatchEquipmentChanges = new(16);
-    private List<OutboundStatsSync> _dispatchStatsSyncs = new(32);
-    private List<OutboundWalletSync> _dispatchWalletSyncs = new(16);
-    private List<OutboundSkillCast> _dispatchSkillCasts = new(16);
-    private List<ulong> _dispatchRecipients = new(256);
+    // Outbound replication, staged under _gate during the tick and dispatched after it (OutboundTickBuffer).
+    private readonly OutboundTickBuffer _outbound = new();
     private readonly List<ulong> _aoiRecipientsScratch = new(64);
     private readonly List<Entity> _dirtyResetScratch = new(256);
     private readonly List<ulong> _staleLootScratch = new(32);
@@ -1050,16 +1023,16 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             return;
         }
 
-        int offset = _flatRecipients.Count;
+        int offset = _outbound.Pending.Recipients.Count;
         for (int i = 0; i < _aoiRecipientsScratch.Count; i++)
         {
-            _flatRecipients.Add(_aoiRecipientsScratch[i]);
+            _outbound.Pending.Recipients.Add(_aoiRecipientsScratch[i]);
         }
 
         ItemSlot held = state.Session.SelectedHotbarSlot < state.Inventory.Capacity
             ? state.Inventory.GetSlot(state.Session.SelectedHotbarSlot)
             : ItemSlot.Empty;
-        _pendingEquipmentChanges.Add(new OutboundEquipmentChange(
+        _outbound.Pending.EquipmentChanges.Add(new OutboundEquipmentChange(
             offset,
             _aoiRecipientsScratch.Count,
             state.Session.PlayerNetworkId,
@@ -1144,7 +1117,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             snap = snap with { LeveledUp = true };
         }
 
-        _pendingStatsSyncs.Add(new OutboundStatsSync(state.Session.ConnectionId, snap));
+        _outbound.Pending.StatsSyncs.Add(new OutboundStatsSync(state.Session.ConnectionId, snap));
     }
 
     private float GetCooldownSecondsRemaining(CooldownTracker tracker, uint abilityId)
@@ -1218,7 +1191,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         public LootPityState LootPity { get; set; }
     }
 
-
     private readonly record struct ProjectileActorMeta(
         Entity Entity,
         ulong OwnerNetworkId,
@@ -1229,35 +1201,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         bool IsCritical,
         Vector2 Velocity,
         uint RemainingTicks);
-
-    private readonly record struct OutboundEquipmentChange(
-        int RecipientsOffset,
-        int RecipientsCount,
-        ulong NetworkId,
-        ushort HeadId,
-        ushort ChestId,
-        ushort LegsId,
-        ushort FeetId,
-        ushort WeaponId,
-        byte WeaponUpgrade,
-        ushort Level,
-        float MaxHealth);
-
-    private readonly record struct OutboundWalletSync(ulong ConnectionId, long Gold, long Diamonds, ulong Sequence);
-
-    private readonly record struct OutboundStatsSync(
-        ulong ConnectionId,
-        PlayerStatsSnapshot Snapshot);
-
-    private readonly record struct OutboundSkillCast(
-        int RecipientsOffset,
-        int RecipientsCount,
-        ulong CasterNetworkId,
-        byte AbilitySlot,
-        float OriginX,
-        float OriginY,
-        float AimX,
-        float AimY);
 
     private readonly record struct NpcActorMeta(
         EntityKind Kind,
@@ -1279,60 +1222,4 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         byte ProjectileArchetype = 0,
         string? LootTableId = null);
 
-    private readonly record struct OutboundSpawn(ulong ConnectionId, EntitySpawnSnapshot Snapshot);
-    private readonly record struct OutboundDespawn(ulong ConnectionId, ulong NetworkId, ulong ServerTick);
-    private readonly record struct OutboundDelta(
-        ulong ConnectionId,
-        ulong ServerTick,
-        uint LastClientTick,
-        float SelfX,
-        float SelfY,
-        int Offset,
-        int Count);
-
-    private readonly record struct OutboundCombatHit(
-        int RecipientsOffset,
-        int RecipientsCount,
-        ulong AttackerNetworkId,
-        ulong DefenderNetworkId,
-        float Damage,
-        float RemainingHealth,
-        bool IsCritical,
-        bool IsKilled);
-
-    private readonly record struct OutboundSlotChange(
-        ulong ConnectionId,
-        ushort SlotIndex,
-        ItemSlot Slot);
-
-    private readonly record struct OutboundPropChange(
-        int RecipientsOffset,
-        int RecipientsCount,
-        int TileX,
-        int TileY,
-        uint Revision,
-        float Durability,
-        bool IsDestroyed);
-
-    private readonly record struct OutboundStructureChange(
-        int RecipientsOffset,
-        int RecipientsCount,
-        int TileX,
-        int TileY,
-        byte StructureType,
-        float Durability,
-        byte DoorState,
-        byte Connectivity);
-
-    private readonly record struct OutboundConstructionChange(
-        int RecipientsOffset,
-        int RecipientsCount,
-        int TileX,
-        int TileY,
-        byte StructureType,
-        byte Rotation,
-        byte Stage,
-        byte Size,
-        float Progress,
-        bool IsDeconstruction);
 }

@@ -1,8 +1,8 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
-using System.Collections.Generic;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Replication;
 using Carbon.AI.Components;
 using Carbon.AI.Systems;
 using Carbon.AI.Threat;
@@ -29,9 +29,6 @@ namespace Carbon.Application.World;
 /// </summary>
 public sealed partial class AuthoritativeWorld
 {
-    private List<OutboundAttackPhase> _pendingAttackPhases = new(32);
-    private List<OutboundAttackPhase> _dispatchAttackPhases = new(32);
-
     private static CreatureSystems RegisterCreatureSystems(
         WorldSimulation simulation,
         CreatureContent content,
@@ -136,9 +133,9 @@ public sealed partial class AuthoritativeWorld
                 continue;
             }
 
-            int offset = _flatRecipients.Count;
-            _flatRecipients.AddRange(_aoiRecipientsScratch);
-            _pendingAttackPhases.Add(new OutboundAttackPhase(
+            int offset = _outbound.Pending.Recipients.Count;
+            _outbound.Pending.Recipients.AddRange(_aoiRecipientsScratch);
+            _outbound.Pending.AttackPhases.Add(new OutboundAttackPhase(
                 offset,
                 _aoiRecipientsScratch.Count,
                 new AttackPhaseSnapshot(
@@ -160,18 +157,6 @@ public sealed partial class AuthoritativeWorld
 
         _simulation.ClearEvents<AttackPhaseChangedEvent>();
         _simulation.ClearEvents<ProjectileLaunchedEvent>();
-    }
-
-    private void DispatchAttackPhases(ReadOnlySpan<ulong> recipientsSpan)
-    {
-        for (int i = 0; i < _dispatchAttackPhases.Count; i++)
-        {
-            OutboundAttackPhase phase = _dispatchAttackPhases[i];
-            AttackPhaseSnapshot snapshot = phase.Snapshot;
-            _outboundSink.SendEntityAttackPhase(recipientsSpan.Slice(phase.RecipientsOffset, phase.RecipientsCount), in snapshot);
-        }
-
-        _dispatchAttackPhases.Clear();
     }
 
     private bool ApplyMonsterHitLocked(Entity attacker, Entity victim, float damage)
@@ -217,8 +202,6 @@ public sealed partial class AuthoritativeWorld
             isCritical: false,
             request.LifetimeTicks);
     }
-
-    private readonly record struct OutboundAttackPhase(int RecipientsOffset, int RecipientsCount, AttackPhaseSnapshot Snapshot);
 
     /// <summary>
     /// Server <see cref="IAttackEffects"/>: hits use the authoritative player damage path (mitigation, death,
