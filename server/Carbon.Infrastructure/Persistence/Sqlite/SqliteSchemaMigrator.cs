@@ -344,6 +344,16 @@ public sealed class SqliteSchemaMigrator : IDatabaseMigrator
             ],
             ct).ConfigureAwait(false);
 
+        // ADR-017: rest need. needs_rest = -1 marks "never saved" so existing characters spawn fully rested.
+        await AddCharacterColumnsAsync(
+            conn,
+            tx,
+            "0007_character_rest",
+            [
+                ("needs_rest", "REAL NOT NULL DEFAULT -1"),
+            ],
+            ct).ConfigureAwait(false);
+
         await tx.CommitAsync(ct).ConfigureAwait(false);
     }
 

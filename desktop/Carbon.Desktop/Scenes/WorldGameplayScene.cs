@@ -234,6 +234,11 @@ public sealed class WorldGameplayScene : GameScene
             _hudRenderer.Settings.Save();
         }
 
+        if (input.ToggleRestPressed && !_hudRenderer.HasActiveModal)
+        {
+            _ = _session.TryToggleRest();
+        }
+
         if (input.CycleTargetPressed && !_hudRenderer.HasActiveModal)
         {
             _ = _session.CycleNearestHostileTarget();

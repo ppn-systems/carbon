@@ -1,17 +1,20 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
-using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Numerics;
+using System;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
 using Carbon.Combat.Events;
 using Carbon.Contracts.Common;
+using Carbon.Contracts.Entities;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
-using Carbon.Simulation.ECS;
+using Carbon.Maps.Building;
 using Carbon.Simulation.ECS.Components;
+using Carbon.Simulation.ECS;
 using Carbon.Survival.Components;
 using Carbon.Survival.Events;
 using Carbon.Survival.Food;
@@ -42,11 +45,26 @@ public sealed partial class AuthoritativeWorld
         bool isFighting = state.LastCombatDamageTick != 0UL &&
             (_currentTick - state.LastCombatDamageTick) < (ulong)(this.TickRate * FightingWindowSeconds);
 
-        NeedsActivity activity = isFighting ? NeedsActivity.Fighting
-            : isSprinting ? NeedsActivity.Sprinting
-            : isMoving ? NeedsActivity.Walking
-            : NeedsActivity.Idle;
-        _ = NeedsSystem.SetActivity(_simulation, state.Entity, activity);
+        // A sleeper whose bed was destroyed or deconstructed wakes up.
+        if (state.RestMode is RestMode.Sleeping or RestMode.SleepingComfortable &&
+            !this.IsIntactBedLocked(state.RestBedTileX, state.RestBedTileY))
+        {
+            this.WakeLocked(state);
+        }
+
+        NeedsActivity activity = state.RestMode switch
+        {
+            RestMode.Sitting => NeedsActivity.Resting,
+            RestMode.Sleeping or RestMode.SleepingComfortable => NeedsActivity.Sleeping,
+            RestMode.None => isFighting ? NeedsActivity.Fighting
+                : isSprinting ? NeedsActivity.Sprinting
+                : isMoving ? NeedsActivity.Walking
+                : NeedsActivity.Idle,
+            _ => NeedsActivity.Idle,
+        };
+        ref NeedsComponent current = ref _simulation.Entities.GetComponent<NeedsComponent>(state.Entity);
+        current.Activity = activity;
+        current.SleepComfort = state.RestMode == RestMode.SleepingComfortable;
 
         // Cancel the meal if the food left its reserved slot (dropped, moved, traded) so nothing is eaten for free.
         if (state.EatingSlot >= 0 && EatActionSystem.IsEating(_simulation, state.Entity))
@@ -275,13 +293,109 @@ public sealed partial class AuthoritativeWorld
         this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
     }
 
-    private void InterruptMealOnDamageLocked(ActivePlayerState victim) =>
+    private void InterruptMealOnDamageLocked(ActivePlayerState victim)
+    {
         _ = EatActionSystem.CancelEat(_simulation, victim.Entity, MealInterruptReason.Damaged);
+        this.WakeLocked(victim);
+    }
+
+    /// <inheritdoc/>
+    public OpStatus TrySetResting(ulong connectionId, bool rest)
+    {
+        lock (_gate)
+        {
+            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state) ||
+                !_simulation.Entities.HasTransform(state.Entity) ||
+                (_simulation.Entities.HasHealth(state.Entity) && _simulation.Entities.GetHealth(state.Entity).IsDead))
+            {
+                return OpStatus.Forbidden;
+            }
+
+            if (!rest)
+            {
+                this.WakeLocked(state);
+                return OpStatus.Ok;
+            }
+
+            Vector2 pos = _simulation.Entities.GetTransform(state.Entity).Position;
+            if (this.TryFindBedLocked(pos, out int bedX, out int bedY))
+            {
+                state.RestMode = _chunkWorld.Buildings.IsRoofedAt(bedX, bedY) ? RestMode.SleepingComfortable : RestMode.Sleeping;
+                state.RestBedTileX = bedX;
+                state.RestBedTileY = bedY;
+            }
+            else
+            {
+                state.RestMode = RestMode.Sitting;
+            }
+
+            if (_simulation.Entities.HasVelocity(state.Entity))
+            {
+                _simulation.Entities.SetVelocity(state.Entity, new Velocity2D(0f, 0f, 5f));
+            }
+
+            state.StatsDirty = true;
+            return OpStatus.Ok;
+        }
+    }
+
+    /// <summary>Stands a resting player up (no-op when awake).</summary>
+    private void WakeLocked(ActivePlayerState state)
+    {
+        if (state.RestMode == RestMode.None)
+        {
+            return;
+        }
+
+        state.RestMode = RestMode.None;
+        state.StatsDirty = true;
+    }
+
+    /// <summary>Finds an intact wood bed within <see cref="Carbon.Survival.Config.NeedsConfig.BedReachTiles"/> of <paramref name="pos"/>.</summary>
+    private bool TryFindBedLocked(Vector2 pos, out int bedX, out int bedY)
+    {
+        float reach = _needsConfig.BedReachTiles * this.TileSize;
+        int radius = (int)MathF.Ceiling(_needsConfig.BedReachTiles);
+        int ptx = (int)MathF.Floor(pos.X / this.TileSize);
+        int pty = (int)MathF.Floor(pos.Y / this.TileSize);
+        float best = float.MaxValue;
+        bedX = 0;
+        bedY = 0;
+        for (int dy = -radius; dy <= radius; dy++)
+        {
+            for (int dx = -radius; dx <= radius; dx++)
+            {
+                int tx = ptx + dx;
+                int ty = pty + dy;
+                if (!this.IsIntactBedLocked(tx, ty))
+                {
+                    continue;
+                }
+
+                Vector2 center = new((tx + 0.5f) * this.TileSize, (ty + 0.5f) * this.TileSize);
+                float dist = Vector2.Distance(center, pos);
+                if (dist <= reach && dist < best)
+                {
+                    best = dist;
+                    bedX = tx;
+                    bedY = ty;
+                }
+            }
+        }
+
+        return best < float.MaxValue;
+    }
+
+    private bool IsIntactBedLocked(int tileX, int tileY) =>
+        _chunkWorld.Buildings.TryGetStructure(tileX, tileY, out StructureTile tile) &&
+        tile.Type == StructureType.WoodBed &&
+        !tile.IsDestroyed;
 
     private void ResetNeedsAfterDeathLocked(ActivePlayerState state)
     {
         _ = EatActionSystem.CancelEat(_simulation, state.Entity, MealInterruptReason.Died);
         state.EatingSlot = -1;
+        this.WakeLocked(state);
         if (!_simulation.Entities.HasComponent<NeedsComponent>(state.Entity))
         {
             return;
@@ -302,6 +416,12 @@ public sealed partial class AuthoritativeWorld
     private NeedsComponent RestoreNeedsLocked(CharacterRecord character)
     {
         NeedsComponent needs = NeedsComponent.CreateFull(_needsConfig);
+        if (_needsConfig.RestEnabled && float.IsFinite(character.NeedsRest) && character.NeedsRest >= 0f)
+        {
+            needs.Rest = Math.Clamp(character.NeedsRest, 0f, needs.RestMax);
+            needs.Fatigue = _needsConfig.ClassifyRest(needs.RestFraction);
+        }
+
         if (!float.IsFinite(character.NeedsFood) || character.NeedsFood < 0f)
         {
             return needs;
@@ -352,7 +472,11 @@ public sealed partial class AuthoritativeWorld
             needs.Malnutrition,
             needs.Mood,
             needs.IsPoisoned,
-            eatProgress);
+            eatProgress,
+            needs.Rest,
+            needs.RestMax,
+            (byte)needs.Fatigue,
+            state.RestMode);
     }
 
     private bool TryGetPlayerByEntityLocked(Entity entity, [NotNullWhen(true)] out ActivePlayerState? state)

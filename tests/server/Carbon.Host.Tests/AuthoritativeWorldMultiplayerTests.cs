@@ -1199,6 +1199,102 @@ public sealed class AuthoritativeWorldMultiplayerTests
         }
     }
 
+    [Fact]
+    public async Task Resting_SitsWithoutBed_SleepsInBuiltBed_WakesOnMove_AndPersistsRest()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-rest-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
+            SqliteCharacterStore characters = new(factory);
+            RecordingOutboundSink sink = new();
+            NeedsConfig needs = new();
+            AuthoritativeWorld world = CreateSurvivalWorld(factory, sink, needs, out GameEconomy economy, out _);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+            Guid accountId = Guid.NewGuid();
+            (await new SqliteAccountStore(factory).TryCreateAsync(new AccountRecord(accountId, "sleepy", "SLEEPY", [1, 2, 3], [4, 5, 6], DateTimeOffset.UtcNow, false)).ConfigureAwait(true)).Should().BeTrue();
+
+            // Starter loadout: a tier-1 axe in hotbar slot 0 (beds need tier 1 to build), plus logs and planks.
+            InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
+            StarterGameCatalog.GrantStarterLoadout(inv, startingClass: 0);
+            inv.TryAdd(new ItemSlot(economy.Items.ResolveId("wood_plank"), 20)).Should().Be(0);
+            inv.TryAdd(new ItemSlot(StarterGameCatalog.WoodLog, 10)).Should().Be(0);
+            CharacterRecord sleeper = new(
+                Guid.NewGuid(), accountId, "Sleeper", 1, 0,
+                world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
+                100f, 100f, 0, InventoryBinaryCodec.Serialize(inv), DateTimeOffset.UtcNow, NeedsRest: 50f);
+            (await characters.TryCreateAsync(sleeper).ConfigureAwait(true)).Should().BeTrue();
+            EnterWorldResult enter = world.TryEnterWorld(940UL, 940UL, sleeper);
+            enter.Status.Should().Be(OpStatus.Ok);
+            world.StepFixedTick();
+            sink.NeedsSyncs.Last(n => n.ConnectionId == 940UL).Needs.Rest.Should().BeApproximately(50f, 0.1f, "rest is restored from the record");
+
+            // No bed nearby: resting means sitting.
+            world.TrySetResting(940UL, rest: true).Should().Be(OpStatus.Ok);
+            world.StepFixedTick();
+            sink.NeedsSyncs.Last(n => n.ConnectionId == 940UL).Needs.RestMode.Should().Be(RestMode.Sitting);
+
+            // Moving stands the player up.
+            world.EnqueueMoveInput(940UL, 2U, new Vector2(1f, 0f), sprint: false);
+            world.StepFixedTick();
+            world.EnqueueMoveInput(940UL, 3U, Vector2.Zero, sprint: false);
+            StepTicks(world, 10);
+            sink.NeedsSyncs.Last(n => n.ConnectionId == 940UL).Needs.RestMode.Should().Be(RestMode.None, "moving wakes a resting player");
+
+            // Build a wood bed (10 planks, 160 work) next to the player. Beds need a finished floor under both tiles.
+            int ptx = (int)MathF.Floor(enter.PositionX / 32f);
+            int pty = (int)MathF.Floor(enter.PositionY / 32f);
+            List<string> attempts = [];
+            bool bedPlaced = false;
+            foreach ((int dx, int dy) in new[] { (1, 0), (-1, 0), (1, -1), (-1, -1), (2, 0), (-2, 0), (0, 1), (0, -2) })
+            {
+                int bx = ptx + dx;
+                int by = pty + dy;
+                OpStatus floorA = world.TryPlaceStructure(940UL, bx, by, StructureType.WoodFloor).Status;
+                StepTicks(world, 40);
+                OpStatus floorB = world.TryPlaceStructure(940UL, bx, by + 1, StructureType.WoodFloor).Status;
+                StepTicks(world, 40);
+                OpStatus bed = world.TryPlaceStructure(940UL, bx, by, StructureType.WoodBed).Status;
+                attempts.Add($"({dx},{dy}) floors={floorA}/{floorB} bed={bed}");
+                if (bed == OpStatus.Ok)
+                {
+                    bedPlaced = true;
+                    break;
+                }
+            }
+
+            bedPlaced.Should().BeTrue($"a bed fits next to the player; attempts: {string.Join(" | ", attempts)}");
+            StepTicks(world, 120);
+            sink.StructureChanges.Should().Contain(c => c.StructureType == (byte)StructureType.WoodBed, "the bed is built");
+
+            world.TrySetResting(940UL, rest: true).Should().Be(OpStatus.Ok);
+            world.StepFixedTick();
+            PlayerNeedsSnapshot asleep = sink.NeedsSyncs.Last(n => n.ConnectionId == 940UL).Needs;
+            asleep.RestMode.Should().Be(RestMode.Sleeping, "a bed within reach outdoors means plain sleep");
+            float restAtBedtime = asleep.Rest;
+
+            StepTicks(world, 30 * 60);
+            PlayerNeedsSnapshot rested = sink.NeedsSyncs.Last(n => n.ConnectionId == 940UL).Needs;
+            rested.RestMode.Should().Be(RestMode.Sleeping);
+            rested.Rest.Should().BeApproximately(restAtBedtime + needs.RestRecoveryPerMinute, 0.3f, "a bed recovers 10 rest per minute");
+
+            world.LeaveWorld(940UL).Should().BeTrue();
+            await world.FlushDirtyPersistenceAsync().ConfigureAwait(true);
+            CharacterRecord? reloaded = await characters.FindByIdAsync(sleeper.Id).ConfigureAwait(true);
+            reloaded!.NeedsRest.Should().BeApproximately(rested.Rest, 0.5f, "rest is saved on logout (0007_character_rest)");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
     private static AuthoritativeWorld CreateSurvivalWorld(
         SqliteConnectionFactory factory,
         RecordingOutboundSink sink,

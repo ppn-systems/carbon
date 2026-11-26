@@ -885,6 +885,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             NeedsFood = needs.Food,
             NeedsMalnutrition = needs.Malnutrition,
             NeedsPoisonSeconds = needs.PoisonRemainingSeconds,
+            NeedsRest = needs.Rest,
         };
     }
 
@@ -1160,6 +1161,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         public bool InventoryDirty { get; set; }
         public int EatingSlot { get; set; } = -1;
         public uint EatingItemId { get; set; }
+        public RestMode RestMode { get; set; }
+        public int RestBedTileX { get; set; }
+        public int RestBedTileY { get; set; }
         public BuildJobKind BuildJob { get; set; }
         public int BuildJobTileX { get; set; }
         public int BuildJobTileY { get; set; }

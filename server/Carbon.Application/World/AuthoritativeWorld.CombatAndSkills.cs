@@ -52,6 +52,9 @@ public sealed partial class AuthoritativeWorld
             return;
         }
 
+        // Attacking, harvesting or building stands a resting player up (eating does not).
+        this.WakeLocked(state);
+
         if (!state.Cooldowns.IsReady(AttackAbilityId, _currentTick))
         {
             return;

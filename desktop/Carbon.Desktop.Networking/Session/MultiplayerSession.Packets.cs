@@ -887,6 +887,14 @@ public sealed partial class MultiplayerSession
                 _localEatProgress = pkt.EatProgress;
             }
 
+            if (pkt.MaxRest > 0f)
+            {
+                _localRest = pkt.Rest;
+                _localMaxRest = pkt.MaxRest;
+                _localRestState = pkt.RestState;
+                _localRestMode = pkt.RestMode;
+            }
+
             _localTraits = pkt.Traits;
             _unspentStatPoints = pkt.UnspentStatPoints;
             _unspentSkillPoints = pkt.UnspentSkillPoints;

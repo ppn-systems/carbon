@@ -88,4 +88,16 @@ public static partial class EntityHandlers
             context.Packet.Amount);
         return PacketReplyHelper.SendMutationAsync(context, status, EntityOpCode.AllocateCharacterPoint);
     }
+
+    /// <summary>Opcode <c>0x1205</c>. Starts resting (bed sleep or sitting) or stands the player up (ADR-017).</summary>
+    [PacketOpcode(EntityOpCode.RestRequest)]
+    [PacketPermission(PermissionLevel.USER)]
+    public static ValueTask HandleRestRequestAsync(IPacketContext<EntityRestRequest> context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        OpStatus status = s_world.TrySetResting(connectionId, context.Packet.Rest);
+        return PacketReplyHelper.SendMutationAsync(context, status, EntityOpCode.RestRequest);
+    }
 }

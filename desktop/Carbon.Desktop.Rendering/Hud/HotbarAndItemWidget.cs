@@ -2,6 +2,7 @@
 
 using System;
 using System.Numerics;
+using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Feedback;
@@ -29,7 +30,10 @@ internal sealed class HotbarAndItemWidget
     private const float SlotSize = 54f;
     private const float Gap = 5f;
     private const float TotalWidth = (SlotCount * SlotSize) + ((SlotCount - 1) * Gap); // 526px
-    private const int VitalsBarCount = 4; // HP, MP, stamina, hunger
+    private const int VitalsBarCount = 5; // HP, MP, stamina, hunger, rest
+    private const byte TiredState = 1;
+    private const byte VeryTiredState = 2;
+    private const byte ExhaustedState = 3;
     private const byte HungryState = 1;
     private const byte UrgentHungerState = 2;
     private const byte StarvingState = 3;
@@ -229,7 +233,7 @@ internal sealed class HotbarAndItemWidget
     {
         const float lvW = 58f;
         const float segGap = 6f;
-        const float barW = (TotalWidth - lvW - (VitalsBarCount * segGap)) / VitalsBarCount; // 111px
+        const float barW = (TotalWidth - lvW - (VitalsBarCount * segGap)) / VitalsBarCount; // ~88px
         const float barH = 20f;
 
         // Level badge
@@ -268,6 +272,16 @@ internal sealed class HotbarAndItemWidget
             batch.FillRectangle(
                 new RectangleF(foodX, barsY + barH - 3f, barW * Math.Clamp(eatProgress, 0f, 1f), 3f),
                 new ColorRgba(255, 255, 255, 200));
+        }
+
+        // Rest bar (ADR-017); a soft top highlight while sleeping or sitting
+        float restX = foodX + barW + segGap;
+        float restRatio = Math.Clamp(world.LocalPlayerRest / MathF.Max(1f, world.LocalPlayerMaxRest), 0f, 1f);
+        ColorRgba restFill = world.LocalPlayerRestState >= VeryTiredState ? CarbonUiPalette.RestWarnFill : CarbonUiPalette.RestFill;
+        DrawMeterGeometry(batch, new RectangleF(restX, barsY, barW, barH), restRatio, restRatio, restFill);
+        if (world.LocalPlayerRestMode != RestMode.None)
+        {
+            batch.FillRectangle(new RectangleF(restX, barsY, barW, 3f), new ColorRgba(200, 220, 255, 170));
         }
 
         // Thin XP bar across the hotbar width
@@ -345,6 +359,28 @@ internal sealed class HotbarAndItemWidget
 
         float foodX = staX + barW + segGap;
         CarbonUiSkin.DrawCenteredText(spriteBatch, font, BuildHungerLabel(world), new RectangleF(foodX, barsY, barW, barH), CarbonUiPalette.TextPrimary, black, 1f);
+
+        float restX = foodX + barW + segGap;
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, BuildRestLabel(world), new RectangleF(restX, barsY, barW, barH), CarbonUiPalette.TextPrimary, black, 1f);
+    }
+
+    private static string BuildRestLabel(IWorldReadModel world)
+    {
+        int pct = (int)MathF.Round(100f * Math.Clamp(world.LocalPlayerRest / MathF.Max(1f, world.LocalPlayerMaxRest), 0f, 1f));
+        return world.LocalPlayerRestMode switch
+        {
+            RestMode.Sitting => $"Sit {pct}%",
+            RestMode.Sleeping => $"Zzz {pct}%",
+            RestMode.SleepingComfortable => $"Zzz+ {pct}%",
+            RestMode.None => world.LocalPlayerRestState switch
+            {
+                ExhaustedState => "Exhausted",
+                VeryTiredState => $"Drowsy {pct}%",
+                TiredState => $"Tired {pct}%",
+                _ => $"Rest {pct}%",
+            },
+            _ => $"Rest {pct}%",
+        };
     }
 
     private static string BuildHungerLabel(IWorldReadModel world)
@@ -358,7 +394,7 @@ internal sealed class HotbarAndItemWidget
         return world.LocalPlayerHungerState switch
         {
             HungryState => $"Hungry {pct}%",
-            UrgentHungerState => $"Ravenous {pct}%",
+            UrgentHungerState => "Ravenous",
             StarvingState => "Starving!",
             _ => world.LocalPlayerFoodPoisoned ? $"Sick {pct}%" : $"Food {pct}%",
         };
