@@ -35,6 +35,11 @@ public sealed class EngineDesignTests
         // Pure state transition (returns a new value, no side effects), added in #18 (economy, owned by a parallel agent).
         // Audit: move to a static CraftingJobRules.Advance(in job) used by the crafting system.
         "Carbon.Items.Components.CraftingJobComponent.Advance",
+
+        // Fixed-capacity mood-memory buffer accessors, added in #14 (survival, owned by a parallel agent).
+        // Audit: move to a static NeedsMemory helper operating on ref NeedsComponent.
+        "Carbon.Survival.Components.NeedsComponent.AddMemory",
+        "Carbon.Survival.Components.NeedsComponent.GetMemory",
     };
 
     /// <summary>

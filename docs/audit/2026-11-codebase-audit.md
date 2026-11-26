@@ -2,7 +2,7 @@
 
 | Field | Value |
 | :--- | :--- |
-| **Audited commit** | `6d6dfac` (master, PR #12). PRs #13, #15, #16, #17 and #18, merged afterwards, are covered by the automated guards but were not manually re-audited; line numbers in files they touched may have shifted. |
+| **Audited commit** | `6d6dfac` (master, PR #12). PRs #13–#18, merged afterwards, are covered by the automated guards but were not manually re-audited; line numbers in files they touched may have shifted. |
 | **Scope** | `contracts/`, `engine/`, `server/`, `desktop/`, `graphics/`, `tests/` (~79k lines C#, 31 production projects, 15 test projects) |
 | **Method** | Manual read-through per layer against AGENTS.md, ADR-001…ADR-010, and the `csharp-style`, `carbon-engine-ecs`, `performance-aot`, `testing-style`, `carbon-handlers` skills; plus the reflection/metadata guards in `tests/architecture/Carbon.Architecture.Tests` |
 | **Status** | Report only. No production code changed in this PR (economy, combat/AI, survival, building, config sync, and biome rendering are being changed in parallel). |
@@ -85,6 +85,7 @@ Guarded by `EngineDesignTests`. Components (`*.Components` namespaces or `*Compo
 | ECS-4 | Medium | `HealthComponent` (`engine/Carbon.Simulation/ECS/Components/HealthComponent.cs:13`) enforces no `0 ≤ Current ≤ Max`. Every caller clamps by hand (`ProjectileSystem.cs:79-80`, `StatusEffectSystem.cs:91-106`, `AiBehaviorSystem.cs:312,333-334`, server). | Add pure static helpers (`HealthMath.Damage/Heal`) that clamp, and use only those. |
 | ECS-5 | Low | `Collider2D.GetWorldAabb` is a behavior method on a component (allowlisted in `EngineDesignTests`). | Move it to a static `Collider2DMath` helper and delete the allowlist entry. |
 | ECS-5b | Low | `CraftingJobComponent.Advance` (`engine/Carbon.Items/Components/CraftingJobComponent.cs:53`, added in #18) is a state-transition method on a component. It is pure, but it is still behavior (allowlisted). | Move it to a static `CraftingJobRules.Advance(in job)` called by the crafting system. |
+| ECS-5c | Low | `NeedsComponent.AddMemory`/`GetMemory` (`engine/Carbon.Survival/Components/NeedsComponent.cs:104,116`, added in #14) put buffer logic on a component (allowlisted). The desktop HUD mirrors hunger state codes as `const byte` (`desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs:31-33`). | Move the buffer logic to a static `NeedsMemory` helper on `ref NeedsComponent`. Use one shared hunger-state enum from contracts on the client. |
 | ECS-6 | Low | `AiBrainComponent` (`engine/Carbon.AI/Components/AiBrainComponent.cs:27-43`) mixes 16 fields of static tuning with runtime state, and is copied with `with` several times per tick. | Split into an `AiProfileRef` (config) and a small `AiRuntimeState` mutated via `ref`. |
 | ECS-7 | Low | Systems hold scratch buffers (`ProjectileSystem._toDespawn` `:25`, `LootExpirationSystem._expired` `engine/Carbon.Items/Systems/LootExpirationSystem.cs:19`, `AiBehaviorSystem._pathfinder` `:35`), so they are not re-entrant. | Document single-threaded system execution, or pass a scratch context into `Update`. |
 | ECS-8 | Medium | `EntityManager.DestroyEntity` is public (`engine/Carbon.Simulation/ECS/EntityManager.cs:129`) and reachable through `WorldSimulation.Entities`. It bypasses the spatial grid and the network-id map (`WorldSimulation.cs:593,596`). | Make it internal and route all removals through `WorldSimulation.DespawnEntity`, or add a destroy hook. |
@@ -216,10 +217,10 @@ Project: `tests/architecture/Carbon.Architecture.Tests` · Solution: `tests/Carb
 | Test class | Rule | Existing violations |
 | :--- | :--- | :--- |
 | `LayerDependencyTests` | Layer graph per AGENTS.md rule 3 (contracts → nothing; engine → contracts; graphics → contracts/engine; server never → graphics/desktop; desktop never → server), checked on both `.csproj` and compiled metadata. Restricted packages stay in their layer. Every production project must be referenced by the architecture test project. | none |
-| `EngineDesignTests` | ECS components are unmanaged structs with no behavior methods. Public engine classes are sealed/abstract/static unless they are inherited. | 2 allowlisted (ECS-5, ECS-5b) |
+| `EngineDesignTests` | ECS components are unmanaged structs with no behavior methods. Public engine classes are sealed/abstract/static unless they are inherited. | 4 allowlisted (ECS-5, ECS-5b, ECS-5c) |
 | `CodeHygieneTests` | No `async void` in any production assembly. No static mutable state in engine/server (non-readonly statics, or `static readonly` mutable collections). Namespace = RootNamespace + folder path for all 454 source files. | 23 statics allowlisted with reasons |
 | `ResourceTests` | Every `resources/**/*.json` parses strictly. `resources/art` loads through the real `CarbonVectorArtLibrary.LoadFromDirectory`. Every `.cvg.json` is referenced by the catalog (otherwise it is never validated), and every reference exists. Raster images only under `resources/ui` and `resources/fonts`. Nothing under `resources/thirdparty`. | none |
-| `ServerAuthorityTests` | Desktop must not use *new* engine balance types (`StarterGameCatalog`, `SkillCatalog`, …). No *new* gameplay-named numeric `const`/`static readonly` (speed, damage, cooldown, price, …) in desktop. Heuristic. | 36 usages + 3 constants allowlisted (SA-1, SA-3) |
+| `ServerAuthorityTests` | Desktop must not use *new* engine balance types (`StarterGameCatalog`, `SkillCatalog`, …). No *new* gameplay-named numeric `const`/`static readonly` (speed, damage, cooldown, price, …) in desktop. Heuristic. | 36 usages + 4 constants allowlisted (SA-1, SA-3, ECS-5c) |
 
 Every allowlist has a matching `*_ShouldNotContainStaleEntries` test, so fixing a violation forces you to delete its entry, and the list only shrinks.
 

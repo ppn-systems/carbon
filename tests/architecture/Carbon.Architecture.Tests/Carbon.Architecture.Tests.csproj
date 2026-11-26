@@ -24,6 +24,7 @@
         <ProjectReference Include="..\..\..\engine\Carbon.Prediction\Carbon.Prediction.csproj" />
         <ProjectReference Include="..\..\..\engine\Carbon.Primitives\Carbon.Primitives.csproj" />
         <ProjectReference Include="..\..\..\engine\Carbon.Simulation\Carbon.Simulation.csproj" />
+        <ProjectReference Include="..\..\..\engine\Carbon.Survival\Carbon.Survival.csproj" />
         <ProjectReference Include="..\..\..\graphics\Carbon.Graphics.Animation\Carbon.Graphics.Animation.csproj" />
         <ProjectReference Include="..\..\..\graphics\Carbon.Graphics.Assets\Carbon.Graphics.Assets.csproj" />
         <ProjectReference Include="..\..\..\graphics\Carbon.Graphics.Batching\Carbon.Graphics.Batching.csproj" />

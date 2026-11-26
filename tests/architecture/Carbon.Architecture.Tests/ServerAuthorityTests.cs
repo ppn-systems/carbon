@@ -105,6 +105,10 @@ public sealed partial class ServerAuthorityTests
 
         // Visual only: terrain apron mesh extent ("reach" is a false positive).
         "desktop/Carbon.Desktop.Rendering/World/ChunkTerrainRenderer.cs|apronReach",
+
+        // Hunger state code mirrored from the survival enum (#14), used for HUD labels. Not a balance number,
+        // but a duplicated wire value. Audit: use the shared HungerState enum from contracts.
+        "desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs|UrgentHungerState",
     };
 
     [Fact]

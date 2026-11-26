@@ -21,6 +21,7 @@
   <Project Path="../engine/Carbon.Prediction/Carbon.Prediction.csproj" />
   <Project Path="../engine/Carbon.Primitives/Carbon.Primitives.csproj" />
   <Project Path="../engine/Carbon.Simulation/Carbon.Simulation.csproj" />
+  <Project Path="../engine/Carbon.Survival/Carbon.Survival.csproj" />
   <Project Path="../graphics/Carbon.Graphics.Animation/Carbon.Graphics.Animation.csproj" />
   <Project Path="../graphics/Carbon.Graphics.Assets/Carbon.Graphics.Assets.csproj" />
   <Project Path="../graphics/Carbon.Graphics.Batching/Carbon.Graphics.Batching.csproj" />
