@@ -56,3 +56,6 @@ resources/thirdparty/
 
 # Screenshot review output
 /screenshots/
+
+# Local agent worktrees
+.claude/worktrees/
