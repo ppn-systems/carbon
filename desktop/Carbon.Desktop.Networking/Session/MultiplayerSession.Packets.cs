@@ -849,6 +849,17 @@ public sealed partial class MultiplayerSession
             _localStamina = pkt.CurrentStamina;
             _localMaxStamina = MathF.Max(1f, pkt.MaxStamina);
             _localDefense = pkt.Defense;
+            if (pkt.MaxFood > 0f)
+            {
+                _localFood = pkt.Food;
+                _localMaxFood = pkt.MaxFood;
+                _localHungerState = pkt.HungerState;
+                _localMalnutrition = pkt.Malnutrition;
+                _localMood = pkt.Mood;
+                _localFoodPoisoned = pkt.FoodPoisoned;
+                _localEatProgress = pkt.EatProgress;
+            }
+
             _localTraits = pkt.Traits;
             _unspentStatPoints = pkt.UnspentStatPoints;
             _unspentSkillPoints = pkt.UnspentSkillPoints;

@@ -16,6 +16,8 @@ using Carbon.Infrastructure.Persistence.Postgres;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Infrastructure.Security;
 using Carbon.Server.Configuration;
+using Carbon.Survival.Config;
+using Carbon.Survival.Food;
 using Microsoft.Extensions.Logging;
 using Nalix.Hosting;
 using Npgsql;
@@ -103,6 +105,10 @@ public static class Program
             ReadDocument(config, GameEconomy.EconomyFile),
             ReadDocument(config, GameEconomy.LootFile));
 
+        // Survival tuning (hunger decay, food nutrition) comes from the same served snapshot.
+        NeedsConfig needsConfig = NeedsConfig.LoadFromJson(ReadDocument(config, "needs.json"));
+        FoodCatalog foodCatalog = FoodCatalog.LoadFromJson(ReadDocument(config, "food.json"), needsConfig.FoodMax);
+
         AuthoritativeWorld world = new(
             options.WorldSeed,
             options.TileSize,
@@ -111,7 +117,10 @@ public static class Program
             chunkDeltaRepo,
             characterStore,
             outboundSink,
-            economy: economy);
+            time: null,
+            needsConfig,
+            foodCatalog,
+            economy);
 
         await world.InitializeFromStoreAsync().ConfigureAwait(false);
 
