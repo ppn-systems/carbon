@@ -15,6 +15,7 @@
         <ProjectReference Include="..\..\..\engine\Carbon.Combat\Carbon.Combat.csproj" />
         <ProjectReference Include="..\..\..\engine\Carbon.Creatures\Carbon.Creatures.csproj" />
         <ProjectReference Include="..\..\..\engine\Carbon.Data\Carbon.Data.csproj" />
+        <ProjectReference Include="..\..\..\engine\Carbon.Economy\Carbon.Economy.csproj" />
         <ProjectReference Include="..\..\..\engine\Carbon.Items\Carbon.Items.csproj" />
         <ProjectReference Include="..\..\..\engine\Carbon.Maps\Carbon.Maps.csproj" />
         <ProjectReference Include="..\..\..\engine\Carbon.Physics\Carbon.Physics.csproj" />

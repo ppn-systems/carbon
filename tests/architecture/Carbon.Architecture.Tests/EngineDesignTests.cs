@@ -31,6 +31,10 @@ public sealed class EngineDesignTests
     {
         // Pure geometry helper (position + offset -> AABB). Audit: move to a static Collider2DMath helper.
         "Carbon.Simulation.ECS.Components.Collider2D.GetWorldAabb",
+
+        // Pure state transition (returns a new value, no side effects), added in #18 (economy, owned by a parallel agent).
+        // Audit: move to a static CraftingJobRules.Advance(in job) used by the crafting system.
+        "Carbon.Items.Components.CraftingJobComponent.Advance",
     };
 
     /// <summary>
