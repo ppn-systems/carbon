@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Commands;
 using Carbon.AI.Components;
 using Carbon.AI.Threat;
 using Carbon.Combat.Cooldowns;
@@ -64,6 +65,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private const ulong LootLifetimeTicks = 30UL * 120UL;
 
     private readonly Lock _gate = new();
+    private readonly WorldCommandQueue _commands = new();
     private readonly ProceduralWorldGenerator _generator;
     private readonly ChunkWorld2D _chunkWorld;
     private readonly BuildingService _building;

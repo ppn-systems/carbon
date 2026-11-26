@@ -109,57 +109,61 @@ public static partial class MapHandlers
     /// <summary>Opcode <c>0x1103</c>. Applies tool-tiered harvesting damage to a natural prop within range.</summary>
     [PacketOpcode(MapOpCode.PropHarvest)]
     [PacketPermission(PermissionLevel.USER)]
-    public static ValueTask HandlePropHarvestAsync(IPacketContext<MapPropHarvest> context)
+    public static async ValueTask HandlePropHarvestAsync(IPacketContext<MapPropHarvest> context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
         MapPropHarvest req = context.Packet;
+        IPacketSender sender = context.Sender;
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
-        WorldMutationOutcome outcome = s_world.TryHarvestProp(connectionId, req.TileX, req.TileY);
-        return PacketReplyHelper.SendMutationAsync(context, outcome.Status, MapOpCode.PropHarvest, outcome.Revision);
+        WorldMutationOutcome outcome = await s_world.SubmitHarvestPropAsync(connectionId, req.TileX, req.TileY).ConfigureAwait(false);
+        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, MapOpCode.PropHarvest, outcome.Revision).ConfigureAwait(false);
     }
 
     /// <summary>Opcode <c>0x1104</c>. Places a player structure on a valid walkable tile within range.</summary>
     [PacketOpcode(MapOpCode.StructurePlace)]
     [PacketPermission(PermissionLevel.USER)]
-    public static ValueTask HandleStructurePlaceAsync(IPacketContext<MapStructurePlace> context)
+    public static async ValueTask HandleStructurePlaceAsync(IPacketContext<MapStructurePlace> context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
         MapStructurePlace req = context.Packet;
+        IPacketSender sender = context.Sender;
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
-        WorldMutationOutcome outcome = s_world.TryPlaceStructure(
+        WorldMutationOutcome outcome = await s_world.SubmitPlaceStructureAsync(
             connectionId,
             req.TileX,
             req.TileY,
             (StructureType)req.StructureType,
-            (StructureRotation)(req.Rotation & 0x03));
-        return PacketReplyHelper.SendMutationAsync(context, outcome.Status, MapOpCode.StructurePlace, outcome.Revision);
+            (StructureRotation)(req.Rotation & 0x03)).ConfigureAwait(false);
+        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, MapOpCode.StructurePlace, outcome.Revision).ConfigureAwait(false);
     }
 
     /// <summary>Opcode <c>0x1105</c>. Demolishes an existing constructed structure within range.</summary>
     [PacketOpcode(MapOpCode.StructureDemolish)]
     [PacketPermission(PermissionLevel.USER)]
-    public static ValueTask HandleStructureDemolishAsync(IPacketContext<MapStructureDemolish> context)
+    public static async ValueTask HandleStructureDemolishAsync(IPacketContext<MapStructureDemolish> context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
         MapStructureDemolish req = context.Packet;
+        IPacketSender sender = context.Sender;
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
-        WorldMutationOutcome outcome = s_world.TryDemolishStructure(connectionId, req.TileX, req.TileY);
-        return PacketReplyHelper.SendMutationAsync(context, outcome.Status, MapOpCode.StructureDemolish, outcome.Revision);
+        WorldMutationOutcome outcome = await s_world.SubmitDemolishStructureAsync(connectionId, req.TileX, req.TileY).ConfigureAwait(false);
+        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, MapOpCode.StructureDemolish, outcome.Revision).ConfigureAwait(false);
     }
 
     /// <summary>Opcode <c>0x1106</c>. Toggles a constructed door open or closed within range.</summary>
     [PacketOpcode(MapOpCode.DoorToggle)]
     [PacketPermission(PermissionLevel.USER)]
-    public static ValueTask HandleDoorToggleAsync(IPacketContext<MapDoorToggle> context)
+    public static async ValueTask HandleDoorToggleAsync(IPacketContext<MapDoorToggle> context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
         MapDoorToggle req = context.Packet;
+        IPacketSender sender = context.Sender;
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
-        WorldMutationOutcome outcome = s_world.TryToggleDoor(connectionId, req.TileX, req.TileY);
-        return PacketReplyHelper.SendMutationAsync(context, outcome.Status, MapOpCode.DoorToggle, outcome.Revision);
+        WorldMutationOutcome outcome = await s_world.SubmitToggleDoorAsync(connectionId, req.TileX, req.TileY).ConfigureAwait(false);
+        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, MapOpCode.DoorToggle, outcome.Revision).ConfigureAwait(false);
     }
 }

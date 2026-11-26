@@ -2,7 +2,9 @@
 
 using System;
 using System.Numerics;
+using System.Threading.Tasks;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Commands;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Maps.S2C;
 using Carbon.Items.Catalog;
@@ -20,6 +22,28 @@ namespace Carbon.Application.World;
 public sealed partial class AuthoritativeWorld
 {
     /// <inheritdoc/>
+    public ValueTask<WorldMutationOutcome> SubmitHarvestPropAsync(ulong connectionId, int tileX, int tileY) =>
+        _commands.Submit(WorldCommandKind.HarvestProp, connectionId, tileX, tileY);
+
+    /// <inheritdoc/>
+    public ValueTask<WorldMutationOutcome> SubmitPlaceStructureAsync(ulong connectionId, int tileX, int tileY, StructureType structureType, StructureRotation rotation = StructureRotation.North) =>
+        _commands.Submit(WorldCommandKind.PlaceStructure, connectionId, tileX, tileY, structureType, rotation);
+
+    /// <inheritdoc/>
+    public ValueTask<WorldMutationOutcome> SubmitDemolishStructureAsync(ulong connectionId, int tileX, int tileY) =>
+        _commands.Submit(WorldCommandKind.DemolishStructure, connectionId, tileX, tileY);
+
+    /// <inheritdoc/>
+    public ValueTask<WorldMutationOutcome> SubmitToggleDoorAsync(ulong connectionId, int tileX, int tileY) =>
+        _commands.Submit(WorldCommandKind.ToggleDoor, connectionId, tileX, tileY);
+
+    /// <inheritdoc/>
+    public void FailPendingCommands() => _commands.FailAll(OpStatus.Conflict);
+
+    /// <summary>
+    /// Harvests or damages the natural prop on the tile. Runs synchronously; packet handlers go through
+    /// <see cref="SubmitHarvestPropAsync"/> so it executes inside the tick (ADR-017).
+    /// </summary>
     public WorldMutationOutcome TryHarvestProp(ulong connectionId, int tileX, int tileY)
     {
         OpStatus outcomeStatus = OpStatus.Ok;
@@ -148,7 +172,7 @@ public sealed partial class AuthoritativeWorld
         return new WorldMutationOutcome(outcomeStatus, outcomeStatus == OpStatus.Ok ? revision : 0);
     }
 
-    /// <inheritdoc/>
+    /// <summary>Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
     public WorldMutationOutcome TryPlaceStructure(
         ulong connectionId,
         int tileX,
@@ -179,7 +203,7 @@ public sealed partial class AuthoritativeWorld
         }
     }
 
-    /// <inheritdoc/>
+    /// <summary>Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
     public WorldMutationOutcome TryDemolishStructure(ulong connectionId, int tileX, int tileY)
     {
         lock (_gate)
@@ -235,7 +259,7 @@ public sealed partial class AuthoritativeWorld
         }
     }
 
-    /// <inheritdoc/>
+    /// <summary>Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
     public WorldMutationOutcome TryToggleDoor(ulong connectionId, int tileX, int tileY)
     {
         ulong[]? recipientsCopy = null;
@@ -547,6 +571,15 @@ public sealed partial class AuthoritativeWorld
 
         return (offset, count);
     }
+
+    private WorldMutationOutcome ExecuteCommandLocked(WorldCommand command) => command.Kind switch
+    {
+        WorldCommandKind.HarvestProp => this.TryHarvestProp(command.ConnectionId, command.TileX, command.TileY),
+        WorldCommandKind.PlaceStructure => this.TryPlaceStructure(command.ConnectionId, command.TileX, command.TileY, command.StructureType, command.Rotation),
+        WorldCommandKind.DemolishStructure => this.TryDemolishStructure(command.ConnectionId, command.TileX, command.TileY),
+        WorldCommandKind.ToggleDoor => this.TryToggleDoor(command.ConnectionId, command.TileX, command.TileY),
+        _ => new WorldMutationOutcome(OpStatus.Invalid, 0),
+    };
 
     private bool IsWithinHarvestRangeLocked(Vector2 playerPos, int tileX, int tileY)
     {
