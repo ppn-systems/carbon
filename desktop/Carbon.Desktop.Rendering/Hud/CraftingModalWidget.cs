@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -391,7 +392,7 @@ internal sealed class CraftingModalWidget
             RectangleF rowRect = GetRecipeRowRect(in layout, shown);
             bool canCraft = PlayerInventoryLayout.CanCraft(slots, rec);
             float textMaxW = rowRect.Width - MathF.Round(72f * s);
-            string outName = CarbonUiSkin.TruncateToWidth(font, $"{StarterGameCatalog.GetDisplayName(rec.Output.ItemId)} x{rec.Output.Quantity}", textMaxW, layout.TextScale);
+            string outName = CarbonUiSkin.TruncateToWidth(font, $"{SyncedItemCatalog.GetDisplayName(rec.Output.ItemId)} x{rec.Output.Quantity}", textMaxW, layout.TextScale);
             spriteBatch.DrawOutlinedString(font, outName, new Vector2(rowRect.X + MathF.Round(64f * s), rowRect.Y + MathF.Round(10f * s)), canCraft ? CarbonUiPalette.TextPrimary : CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
 
             string summaryTag = CarbonUiSkin.TruncateToWidth(font, FormatRecipeShortTag(rec.Output.ItemId), textMaxW, layout.TextScale);
@@ -415,7 +416,7 @@ internal sealed class CraftingModalWidget
             int owned = PlayerInventoryLayout.CountItem(slots, outId);
             float headerX = outBox.Right + MathF.Round(12f * s);
             float headerMaxW = rightPane.Right - headerX - MathF.Round(14f * s);
-            string title = CarbonUiSkin.TruncateToWidth(font, $"{StarterGameCatalog.GetDisplayName(outId)} x{selectedRec.Output.Quantity}", headerMaxW, layout.TitleScale);
+            string title = CarbonUiSkin.TruncateToWidth(font, $"{SyncedItemCatalog.GetDisplayName(outId)} x{selectedRec.Output.Quantity}", headerMaxW, layout.TitleScale);
             spriteBatch.DrawOutlinedString(font, title, new Vector2(headerX, outBox.Y + MathF.Round(4f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TitleScale);
             spriteBatch.DrawOutlinedString(font, $"Owned: {owned}", new Vector2(headerX, outBox.Y + MathF.Round(38f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
 
@@ -439,7 +440,7 @@ internal sealed class CraftingModalWidget
                 float textY = ingCard.Y + MathF.Round(14f * s);
                 spriteBatch.DrawOutlinedString(
                     font,
-                    CarbonUiSkin.TruncateToWidth(font, StarterGameCatalog.GetDisplayName(ing.ItemId), ingCard.Width - MathF.Round(120f * s), layout.TextScale),
+                    CarbonUiSkin.TruncateToWidth(font, SyncedItemCatalog.GetDisplayName(ing.ItemId), ingCard.Width - MathF.Round(120f * s), layout.TextScale),
                     new Vector2(ingCard.X + MathF.Round(48f * s), textY),
                     CarbonUiPalette.TextPrimary,
                     black,

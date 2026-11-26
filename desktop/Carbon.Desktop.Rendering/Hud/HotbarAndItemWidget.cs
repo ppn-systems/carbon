@@ -2,6 +2,7 @@
 
 using System;
 using System.Numerics;
+using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Feedback;
 using Carbon.Desktop.Rendering.UiSkin;
@@ -416,7 +417,7 @@ internal sealed class HotbarAndItemWidget
         float y = topY - cardH;
         ColorRgba black = CarbonUiPalette.TextOutline;
 
-        string name = StarterGameCatalog.GetDisplayName(item.ItemId);
+        string name = SyncedItemCatalog.GetDisplayName(item.ItemId);
         if (art is not null && art.TryGetItem(item.ItemId, out CompiledItemVectorArt? bp))
         {
             name = bp.DisplayName;
