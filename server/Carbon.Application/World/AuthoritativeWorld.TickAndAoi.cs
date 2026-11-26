@@ -3,11 +3,9 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
-using Carbon.Abstractions.World;
 using Carbon.Application.World.Replication;
 using Carbon.AI.Components;
 using Carbon.AI.Threat;
@@ -34,7 +32,6 @@ public sealed partial class AuthoritativeWorld
     {
         lock (_gate)
         {
-            _dirtyResetScratch.Clear();
 
             _currentTick++;
             float dt = 1f / this.TickRate;
@@ -155,64 +152,13 @@ public sealed partial class AuthoritativeWorld
                     this.PopulateChunkActorsAroundLocked(obsPos, radius: 2);
                 }
 
-                _aoi.ComputeVisibility(
+                EntityDirtyMask selfDirty = _replication.ReplicateTo(
                     observer.Session.ConnectionId,
                     observer.Session.PlayerNetworkId,
+                    observer.Entity,
                     obsPos,
-                    _simulation,
-                    _scratchEntered,
-                    _scratchVisible,
-                    _scratchExited);
-
-                for (int i = 0; i < _scratchEntered.Count; i++)
-                {
-                    ulong targetNetId = _scratchEntered[i];
-                    if (this.TryBuildSpawnSnapshotLocked(targetNetId, out EntitySpawnSnapshot snap))
-                    {
-                        _outbound.Pending.Spawns.Add(new OutboundSpawn(observer.Session.ConnectionId, snap));
-                    }
-                }
-
-                for (int i = 0; i < _scratchExited.Count; i++)
-                {
-                    _outbound.Pending.Despawns.Add(new OutboundDespawn(observer.Session.ConnectionId, _scratchExited[i], _currentTick));
-                }
-
-                int deltaOffset = _outbound.Pending.DeltaEntries.Count;
-                for (int i = 0; i < _scratchVisible.Count; i++)
-                {
-                    ulong visibleNetId = _scratchVisible[i];
-                    if (_simulation.TryGetEntityByNetworkId(visibleNetId, out Entity visibleEntity))
-                    {
-                        EntityDirtyMask mask = _simulation.GetDirtyFlags(visibleEntity);
-                        if (mask != EntityDirtyMask.None)
-                        {
-                            Vector2 pos = _simulation.Entities.GetTransform(visibleEntity).Position;
-                            Vector2 vel = _simulation.Entities.HasVelocity(visibleEntity)
-                                ? _simulation.Entities.GetVelocity(visibleEntity).Linear
-                                : Vector2.Zero;
-                            float hp = _simulation.Entities.HasHealth(visibleEntity)
-                                ? _simulation.Entities.GetHealth(visibleEntity).Current
-                                : 100f;
-                            _outbound.Pending.DeltaEntries.Add(new EntityDeltaEntry(visibleNetId, (byte)mask, pos.X, pos.Y, vel.X, vel.Y, hp));
-                        }
-                    }
-                }
-
-                int deltaCount = _outbound.Pending.DeltaEntries.Count - deltaOffset;
-                EntityDirtyMask selfDirty = _simulation.GetDirtyFlags(observer.Entity);
-                if (selfDirty != EntityDirtyMask.None || deltaCount > 0)
-                {
-                    _outbound.Pending.Deltas.Add(new OutboundDelta(
-                        observer.Session.ConnectionId,
-                        _currentTick,
-                        observer.LastClientTick,
-                        obsPos.X,
-                        obsPos.Y,
-                        deltaOffset,
-                        deltaCount));
-                }
-
+                    observer.LastClientTick,
+                    _currentTick);
                 if ((selfDirty & EntityDirtyMask.Transform) != 0)
                 {
                     observer.PersistenceDirty = true;
@@ -271,16 +217,7 @@ public sealed partial class AuthoritativeWorld
                 }
             }
 
-            ReadOnlySpan<Entity> activeEntities = CollectionsMarshal.AsSpan((List<Entity>)_simulation.Entities.ActiveEntities);
-            for (int i = 0; i < activeEntities.Length; i++)
-            {
-                _dirtyResetScratch.Add(activeEntities[i]);
-            }
-
-            for (int i = 0; i < _dirtyResetScratch.Count; i++)
-            {
-                _simulation.ClearDirtyFlags(_dirtyResetScratch[i]);
-            }
+            _replication.ClearDirtyFlags();
 
             this.SwapOutboundBuffersLocked();
         }
@@ -522,7 +459,7 @@ public sealed partial class AuthoritativeWorld
     private void CollectNearbyConnectionsAroundWorldLocked(Vector2 target, List<ulong> output)
     {
         output.Clear();
-        float radiusSq = (_aoi.ViewRadius + (this.TileSize * 2f)) * (_aoi.ViewRadius + (this.TileSize * 2f));
+        float radiusSq = (_replication.ViewRadius + (this.TileSize * 2f)) * (_replication.ViewRadius + (this.TileSize * 2f));
         foreach (KeyValuePair<ulong, ActivePlayerState> kvp in _playersByConnection)
         {
             ActivePlayerState state = kvp.Value;
