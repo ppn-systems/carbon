@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "itemId": 153,
+  "id": "ash_essence",
+  "displayName": "Ash Essence",
+  "tier": 3,
+  "categoryLabel": "Rare Drop",
+  "accentColor": "#F97316",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": 1,
+      "rx": 5,
+      "ry": 5.6,
+      "color": "#57534E",
+      "outlineColor": "#1C1917",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -2.5,
+          -3
+        ],
+        [
+          0,
+          -8
+        ],
+        [
+          2.5,
+          -3
+        ]
+      ],
+      "color": "#F97316",
+      "outlineColor": "#1C1917",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -1.5,
+      "y": 0,
+      "rx": 1.2,
+      "ry": 1.4,
+      "color": "#FED7AA"
+    }
+  ]
+}

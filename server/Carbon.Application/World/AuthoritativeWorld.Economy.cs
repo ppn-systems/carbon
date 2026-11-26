@@ -46,13 +46,16 @@ public sealed partial class AuthoritativeWorld
     /// Maps a <see cref="WorldActorCatalog"/> monster archetype to its <c>loot.json</c> table id.
     /// </summary>
     /// <param name="archetypeId">Monster archetype id.</param>
-    /// <returns>The loot table id, or <see langword="null"/> when the monster still uses its legacy spec drops.</returns>
+    /// <returns>The loot table id, or <see langword="null"/> for actors without one.</returns>
     public static string? ResolveLootTableId(ushort archetypeId) => archetypeId switch
     {
         WorldActorCatalog.WildSlime => "slime",
         WorldActorCatalog.SkeletonArcher => "skeleton",
         WorldActorCatalog.OrcShaman => "orc",
         WorldActorCatalog.CrimsonDemon => "demon",
+        WorldActorCatalog.RockGolem => "golem",
+        WorldActorCatalog.FrostWolf => "wolf",
+        WorldActorCatalog.AshWraith => "wraith",
         _ => null
     };
 
@@ -70,7 +73,7 @@ public sealed partial class AuthoritativeWorld
             return false;
         }
 
-        LootContext context = new(monsterLevel, killer.Level);
+        LootContext context = new(monsterLevel, killer.Level, IsElite: table.IsElite);
         DeterministicRandom random = LootRoller.CreateRandom(this.WorldSeed, _currentTick, victimNetworkId);
         LootPityState pity = killer.LootPity;
         Span<LootDrop> drops = stackalloc LootDrop[MaxLootStacksPerKill];
