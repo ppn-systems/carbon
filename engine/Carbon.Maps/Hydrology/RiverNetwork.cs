@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Carbon.Maps.Noise;
 using Carbon.Primitives.Hashing;
 
 namespace Carbon.Maps.Hydrology;
@@ -51,6 +52,16 @@ internal sealed class RiverNetwork : IRiverDistanceSource
     private const float FillEpsilon = 1e-5f;
     private const float LakeDepth = 0.008f;
     private const float MaxLakeDepth = 0.045f;
+
+    // Any cell the priority flood raised (by at least one FillEpsilon) is under the basin's spill level.
+    private const float FloodedDepth = FillEpsilon * 0.5f;
+
+    // How many cells of a lake basin's shallow rim join the lake.
+    private const int LakeRimCells = 2;
+
+    // Lake shores are sampled through a noise warp of up to this many cells, at this frequency (per tile).
+    private const float ShoreWarpCells = 0.45f;
+    private const float ShoreWarpFrequency = 1f / 37f;
     private const int MaxLakeRadiusCells = 24;
 
     private readonly record struct RegionData(byte[] DistanceField, byte[] DeepMask);
@@ -71,6 +82,7 @@ internal sealed class RiverNetwork : IRiverDistanceSource
     private readonly ulong _seed;
     private readonly int _frequencyBits;
     private readonly IRoutingTerrain _relief;
+    private readonly SimplexNoise2D _shoreWarp;
 
     /// <summary>Initializes a new instance of the <see cref="RiverNetwork"/> class.</summary>
     /// <param name="seed">World seed.</param>
@@ -81,6 +93,7 @@ internal sealed class RiverNetwork : IRiverDistanceSource
         _seed = seed;
         _frequencyBits = BitConverter.SingleToInt32Bits(frequency);
         _relief = relief ?? throw new ArgumentNullException(nameof(relief));
+        _shoreWarp = new SimplexNoise2D(seed ^ 0x6C8E9CF570932BD5UL);
     }
 
     /// <inheritdoc/>
@@ -364,38 +377,6 @@ internal sealed class RiverNetwork : IRiverDistanceSource
                 }
             }
 
-            const int Steps = 6;
-            for (int a = 0; a < cellCount; a++)
-            {
-                int b = next[a];
-                if (b < 0)
-                {
-                    continue;
-                }
-
-                int p0 = prev[a] >= 0 ? prev[a] : a;
-                int p3 = next[b] >= 0 ? next[b] : b;
-                (float x0p, float y0p) = this.CellPoint(p0, g, gx0, gy0);
-                (float ax, float ay) = this.CellPoint(a, g, gx0, gy0);
-                (float bx, float by) = this.CellPoint(b, g, gx0, gy0);
-                (float x3p, float y3p) = this.CellPoint(p3, g, gx0, gy0);
-                float wa = MathF.Min(Width(flow[a]) * mouth[a], MaxChannelScale);
-                float wb = MathF.Min(Width(flow[b]) * mouth[b], MaxChannelScale);
-                bool deepSegment = flow[a] >= 4 || mouth[a] > 1.2f || flow[b] >= 4 || mouth[b] > 1.2f;
-
-                float sx = ax;
-                float sy = ay;
-                for (int i = 1; i <= Steps; i++)
-                {
-                    float t = i / (float)Steps;
-                    float ex = CatmullRom(x0p, ax, bx, x3p, t);
-                    float ey = CatmullRom(y0p, ay, by, y3p, t);
-                    this.StampSegment(field, deepMask, x0, y0, sx, sy, ex, ey, wa + ((wb - wa) * (i - 1) / Steps), wa + ((wb - wa) * i / Steps), deepSegment);
-                    sx = ex;
-                    sy = ey;
-                }
-            }
-
             // Bounded depression lakes along river courses (prevents cross-region infinite flood-fill seams).
             Stack<int> pending = new();
             for (int c = 0; c < cellCount; c++)
@@ -440,7 +421,69 @@ internal sealed class RiverNetwork : IRiverDistanceSource
                 }
             }
 
-            StampLakeShores(field, x0, y0, gx0, gy0, g, cellCount, filled, relief, isLake);
+            // The shallow rim of a lake basin (flooded, but shallower than LakeDepth) joins the lake for a couple
+            // of cells. Rivers crossing a filled flat follow the fill's epsilon gradient in rigid straight D8 lines;
+            // on a rim left dry they showed as long ruler-straight channels running beside the lake shore.
+            List<int> rim = new(64);
+            for (int pass = 0; pass < LakeRimCells; pass++)
+            {
+                rim.Clear();
+                for (int c = 0; c < cellCount; c++)
+                {
+                    float dc = filled[c] - relief[c];
+                    if (isLake[c] || dc < FloodedDepth || dc > MaxLakeDepth)
+                    {
+                        continue;
+                    }
+
+                    int cx = c % g;
+                    int cy = c / g;
+                    if ((cx > 0 && isLake[c - 1]) || (cx < g - 1 && isLake[c + 1]) ||
+                        (cy > 0 && isLake[c - g]) || (cy < g - 1 && isLake[c + g]))
+                    {
+                        rim.Add(c);
+                    }
+                }
+
+                for (int i = 0; i < rim.Count; i++)
+                {
+                    isLake[rim[i]] = true;
+                }
+            }
+
+            const int Steps = 6;
+            for (int a = 0; a < cellCount; a++)
+            {
+                int b = next[a];
+                if (b < 0 || (isLake[a] && isLake[b]))
+                {
+                    continue; // no channel inside a lake: the lake surface covers it
+                }
+
+                int p0 = prev[a] >= 0 ? prev[a] : a;
+                int p3 = next[b] >= 0 ? next[b] : b;
+                (float x0p, float y0p) = this.CellPoint(p0, g, gx0, gy0);
+                (float ax, float ay) = this.CellPoint(a, g, gx0, gy0);
+                (float bx, float by) = this.CellPoint(b, g, gx0, gy0);
+                (float x3p, float y3p) = this.CellPoint(p3, g, gx0, gy0);
+                float wa = MathF.Min(Width(flow[a]) * mouth[a], MaxChannelScale);
+                float wb = MathF.Min(Width(flow[b]) * mouth[b], MaxChannelScale);
+                bool deepSegment = flow[a] >= 4 || mouth[a] > 1.2f || flow[b] >= 4 || mouth[b] > 1.2f;
+
+                float sx = ax;
+                float sy = ay;
+                for (int i = 1; i <= Steps; i++)
+                {
+                    float t = i / (float)Steps;
+                    float ex = CatmullRom(x0p, ax, bx, x3p, t);
+                    float ey = CatmullRom(y0p, ay, by, y3p, t);
+                    this.StampSegment(field, deepMask, x0, y0, sx, sy, ex, ey, wa + ((wb - wa) * (i - 1) / Steps), wa + ((wb - wa) * i / Steps), deepSegment);
+                    sx = ex;
+                    sy = ey;
+                }
+            }
+
+            this.StampLakeShores(field, x0, y0, gx0, gy0, g, cellCount, filled, relief, isLake);
 
             for (int i = 0; i < lakeEnds.Count; i++)
             {
@@ -702,7 +745,7 @@ internal sealed class RiverNetwork : IRiverDistanceSource
         }
     }
 
-    private static void StampLakeShores(
+    private void StampLakeShores(
         byte[] field,
         int x0,
         int y0,
@@ -734,7 +777,8 @@ internal sealed class RiverNetwork : IRiverDistanceSource
                     continue;
                 }
 
-                depth[c] = filled[c] - relief[c];
+                // Every lake cell is at least LakeDepth deep, so the shore encloses the shallow rim as well.
+                depth[c] = MathF.Max(filled[c] - relief[c], LakeDepth);
                 minCx = Math.Min(minCx, c % g);
                 maxCx = Math.Max(maxCx, c % g);
                 minCy = Math.Min(minCy, c / g);
@@ -764,29 +808,59 @@ internal sealed class RiverNetwork : IRiverDistanceSource
                 }
             }
 
+            // Reuse depth as "some lake within one cell": tiles far from any lake skip the warp noise.
+            float[] near = depth;
+            Array.Clear(near, 0, cellCount);
+            for (int cy = Math.Max(minCy - 3, 1); cy <= Math.Min(maxCy + 3, g - 2); cy++)
+            {
+                for (int cx = Math.Max(minCx - 3, 1); cx <= Math.Min(maxCx + 3, g - 2); cx++)
+                {
+                    float m = 0f;
+                    for (int dy = -1; dy <= 1; dy++)
+                    {
+                        for (int dx = -1; dx <= 1; dx++)
+                        {
+                            m = MathF.Max(m, smooth[((cy + dy) * g) + cx + dx]);
+                        }
+                    }
+
+                    near[(cy * g) + cx] = m;
+                }
+            }
+
             int tx0 = Math.Max(((gx0 + minCx - 3) * Cell) - x0, 0);
             int tx1 = Math.Min(((gx0 + maxCx + 4) * Cell) - x0, RegionSize - 1);
             int ty0 = Math.Max(((gy0 + minCy - 3) * Cell) - y0, 0);
             int ty1 = Math.Min(((gy0 + maxCy + 4) * Cell) - y0, RegionSize - 1);
             for (int ty = ty0; ty <= ty1; ty++)
             {
-                float v = ((y0 + ty + 0.5f - (Cell * 0.5f)) / Cell) - gy0;
-                int cy = (int)MathF.Floor(v);
-                if (cy < 0 || cy >= g - 1)
-                {
-                    continue;
-                }
-
-                float fy = v - cy;
+                float wy = y0 + ty + 0.5f;
                 for (int tx = tx0; tx <= tx1; tx++)
                 {
-                    float u = ((x0 + tx + 0.5f - (Cell * 0.5f)) / Cell) - gx0;
-                    int cx = (int)MathF.Floor(u);
-                    if (cx < 0 || cx >= g - 1)
+                    // The cell grid is coarse (16 tiles): warping the sample point with world-space noise bends
+                    // shores that would otherwise follow straight cell rows and columns.
+                    float wx = x0 + tx + 0.5f;
+                    int ncx = (int)MathF.Floor(((wx - (Cell * 0.5f)) / Cell) - gx0);
+                    int ncy = (int)MathF.Floor(((wy - (Cell * 0.5f)) / Cell) - gy0);
+                    if (ncx < 0 || ncy < 0 || ncx >= g - 1 || ncy >= g - 1 ||
+                        (near[(ncy * g) + ncx] <= 0f && near[(ncy * g) + ncx + 1] <= 0f &&
+                         near[((ncy + 1) * g) + ncx] <= 0f && near[((ncy + 1) * g) + ncx + 1] <= 0f))
                     {
                         continue;
                     }
 
+                    float warpX = _shoreWarp.Evaluate(wx * ShoreWarpFrequency, wy * ShoreWarpFrequency) * ShoreWarpCells;
+                    float warpY = _shoreWarp.Evaluate((wx * ShoreWarpFrequency) + 71.3f, (wy * ShoreWarpFrequency) - 37.9f) * ShoreWarpCells;
+                    float v = ((wy - (Cell * 0.5f)) / Cell) - gy0 + warpY;
+                    int cy = (int)MathF.Floor(v);
+                    float u = ((wx - (Cell * 0.5f)) / Cell) - gx0 + warpX;
+                    int cx = (int)MathF.Floor(u);
+                    if (cx < 0 || cx >= g - 1 || cy < 0 || cy >= g - 1)
+                    {
+                        continue;
+                    }
+
+                    float fy = v - cy;
                     float fx = u - cx;
                     float d00 = smooth[(cy * g) + cx];
                     float d10 = smooth[(cy * g) + cx + 1];
