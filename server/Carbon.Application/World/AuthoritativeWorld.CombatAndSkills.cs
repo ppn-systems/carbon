@@ -7,6 +7,7 @@ using Carbon.AI.Components;
 using Carbon.AI.Threat;
 using Carbon.Contracts.Entities;
 using Carbon.Combat.Hitboxes;
+using Carbon.Combat.Stats;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
@@ -370,6 +371,7 @@ public sealed partial class AuthoritativeWorld
         float knockbackSpeed)
     {
         EntityAttachmentStore<ThreatTable> threatStore = _simulation.Entities.GetAttachmentStore<ThreatTable>();
+        EntityAttachmentStore<StatSheet> statsStore = _simulation.Entities.GetAttachmentStore<StatSheet>();
         bool anyDamaged = false;
 
         for (int i = 0; i < hitCount; i++)
@@ -390,7 +392,15 @@ public sealed partial class AuthoritativeWorld
 
             anyDamaged = true;
             HealthComponent hp = _simulation.Entities.GetHealth(target);
-            float remaining = MathF.Max(0f, hp.Current - damage);
+
+            // Monster armor (StatSheet Defense from monsters.json scaling) mitigates player hits like CombatDamage.Apply.
+            float dealt = damage;
+            if (statsStore.TryGet(target, out StatSheet? targetStats))
+            {
+                dealt *= 100f / (100f + MathF.Max(0f, targetStats.GetValue(StatType.Defense)));
+            }
+
+            float remaining = MathF.Max(0f, hp.Current - dealt);
             bool killed = remaining <= 0f;
 
             _simulation.Entities.SetHealth(target, new HealthComponent(remaining, hp.Max));
@@ -398,7 +408,7 @@ public sealed partial class AuthoritativeWorld
 
             if (!killed)
             {
-                threatStore.GetOrAdd(target, static () => new ThreatTable()).AddThreat(attacker.Entity, damage * 2f);
+                threatStore.GetOrAdd(target, static () => new ThreatTable()).AddThreat(attacker.Entity, dealt * 2f);
                 if (_simulation.Entities.HasComponent<AiBrainComponent>(target))
                 {
                     ref AiBrainComponent brain = ref _simulation.Entities.GetComponent<AiBrainComponent>(target);
@@ -422,7 +432,7 @@ public sealed partial class AuthoritativeWorld
                         continue;
                     }
 
-                    threatStore.GetOrAdd(ally, static () => new ThreatTable()).AddThreat(attacker.Entity, damage * 0.8f);
+                    threatStore.GetOrAdd(ally, static () => new ThreatTable()).AddThreat(attacker.Entity, dealt * 0.8f);
                     ref AiBrainComponent allyBrain = ref _simulation.Entities.GetComponent<AiBrainComponent>(ally);
                     if (allyBrain.State is AiState.Idle or AiState.Patrol)
                     {
@@ -471,7 +481,7 @@ public sealed partial class AuthoritativeWorld
                 targetPos,
                 attacker.Session.PlayerNetworkId,
                 targetIdentity.NetworkId,
-                damage,
+                dealt,
                 remaining,
                 isCritical,
                 killed);

@@ -18,32 +18,32 @@
         "startDistance": 0,
         "endDistance": 6400,
         "startLevel": 1,
-        "endLevel": 5
+        "endLevel": 8
       },
       {
         "name": "frontier",
         "startDistance": 6400,
         "endDistance": 32000,
-        "startLevel": 5,
-        "endLevel": 15
+        "startLevel": 8,
+        "endLevel": 25
       },
       {
         "name": "outer_wilds",
         "startDistance": 32000,
         "endDistance": 80000,
-        "startLevel": 15,
-        "endLevel": 30
+        "startLevel": 25,
+        "endLevel": 50
       },
       {
         "name": "endgame",
         "startDistance": 80000,
         "endDistance": 160000,
-        "startLevel": 30,
-        "endLevel": 45
+        "startLevel": 50,
+        "endLevel": 80
       }
     ],
-    "levelsPerUnitBeyond": 0.0001,
-    "maxLevel": 60
+    "levelsPerUnitBeyond": 0.0005,
+    "maxLevel": 100
   },
   "statCurves": {
     "hp": {
@@ -125,6 +125,10 @@
         {
           "monster": "ash_wraith",
           "weight": 100
+        },
+        {
+          "monster": "wild_slime",
+          "weight": 30
         }
       ]
     },
@@ -186,6 +190,10 @@
           "monster": "crimson_demon",
           "weight": 25,
           "nightWeight": 45
+        },
+        {
+          "monster": "wild_slime",
+          "weight": 30
         }
       ]
     },
@@ -204,6 +212,10 @@
           "monster": "crimson_demon",
           "weight": 25,
           "nightWeight": 45
+        },
+        {
+          "monster": "wild_slime",
+          "weight": 30
         }
       ]
     },
@@ -213,6 +225,10 @@
         {
           "monster": "frost_wolf",
           "weight": 100
+        },
+        {
+          "monster": "wild_slime",
+          "weight": 30
         }
       ]
     },
@@ -222,6 +238,10 @@
         {
           "monster": "frost_wolf",
           "weight": 100
+        },
+        {
+          "monster": "wild_slime",
+          "weight": 30
         }
       ]
     },
@@ -236,6 +256,10 @@
         {
           "monster": "ash_wraith",
           "weight": 50
+        },
+        {
+          "monster": "wild_slime",
+          "weight": 30
         }
       ]
     }

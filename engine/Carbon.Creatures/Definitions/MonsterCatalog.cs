@@ -208,6 +208,11 @@ public sealed class MonsterCatalog
             throw new ArgumentException($"Monster '{id}' must satisfy 0 <= retreatRange < engageRange.");
         }
 
+        if (def.MinLevel < 1 || def.MaxLevel < def.MinLevel)
+        {
+            throw new ArgumentException($"Monster '{id}' must satisfy 1 <= minLevel <= maxLevel.");
+        }
+
         if (def.Attacks is null || def.Attacks.Count == 0 || def.Attacks.Count > byte.MaxValue)
         {
             throw new ArgumentException($"Monster '{id}' must declare between 1 and 255 attacks.");

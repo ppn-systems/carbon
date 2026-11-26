@@ -22,18 +22,24 @@ happens only inside the simulation. Clients only animate.
 
 ### Server integration
 
-`AuthoritativeWorld` (`server/Carbon.Application/World/AuthoritativeWorld.Creatures.cs`) loads `CreatureContent`
-(`monsters.json` and `spawning.json`). The Host copies `resources/config/*.json` next to its binary.
+`AuthoritativeWorld` (`server/Carbon.Application/World/AuthoritativeWorld.Creatures.cs`) runs on `CreatureContent`
+(`monsters.json` and `spawning.json`). The Host builds it from `ConfigRepository.Catalog`, the same bytes it serves to
+clients (ADR-011). Clients never read these files: they render from replicated archetype ids and
+`EntityAttackPhase`.
 
 - **Spawning**: `MonsterSpawnerSystem` replaces chunk-based monster population and the old fixed 45 s respawn
   queue. Every player entity is a `SpawnAnchorComponent`. Entering the world requests an immediate scan.
 - **Replication**: each `MonsterSpawnedEvent` is bound to a network id. Monsters replicate their `archetypeId`, and the
-  client picks the vector rig from it. Drops and XP still come from `WorldActorCatalog` (economy owns `loot.json`).
+  client picks the vector rig from it.
+- **Rewards**: kills roll the definition's `lootTableId` in economy's `loot.json`. The `WorldActorCatalog` drop is used
+  only when no economy is configured. Kill XP is `clamp(0.45 * maxHp + 4 * level, 25, 650)`, doubled for elites and
+  multiplied by 1.35 at night.
+- **Armor**: a monster's scaled armor (StatSheet `Defense`) mitigates player hits by `100 / (100 + armor)`.
 - **Hits and projectiles**: the server's `IAttackEffects` sends hits through the authoritative player damage path
   (mitigation, death, `CombatHit`). It spawns projectiles as replicated server projectiles
   (`AttackProfile.ProjectileVisual`).
 - **Phase broadcast**: every `AttackPhaseChangedEvent` is broadcast to AoI observers as `EntityAttackPhase`
-  (opcode `0x1237`, [ADR-013](adr/ADR-013-entity-attack-phase-packet.md)). Monsters no longer use
+  (opcode `0x1238`, [ADR-013](adr/ADR-013-entity-attack-phase-packet.md)). Monsters no longer use
   `SkillCastBroadcast`.
 - **Time of day**: `MonsterSpawnerSystem.TimeOfDayHours` is set every tick from
   `WorldProgression.ComputeTimeOfDayHours`.
@@ -165,11 +171,16 @@ the next by a smooth ramp.
 
 | Band | Distance (units) | Tiles | Levels |
 | :--- | :--- | :--- | :--- |
-| `heartland` | 0 – 6 400 | 0 – 200 | 1 → 5 |
-| `frontier` | 6 400 – 32 000 | 200 – 1 000 | 5 → 15 |
-| `outer_wilds` | 32 000 – 80 000 | 1 000 – 2 500 | 15 → 30 |
-| `endgame` | 80 000 – 160 000 | 2 500 – 5 000 | 30 → 45 |
-| beyond | > 160 000 | > 5 000 | +1 per 10 000 units, max 60 |
+| `heartland` | 0 – 6 400 | 0 – 200 | 1 → 8 |
+| `frontier` | 6 400 – 32 000 | 200 – 1 000 | 8 → 25 |
+| `outer_wilds` | 32 000 – 80 000 | 1 000 – 2 500 | 25 → 50 |
+| `endgame` | 80 000 – 160 000 | 2 500 – 5 000 | 50 → 80 |
+| beyond | > 160 000 | > 5 000 | +1 per 2 000 units, max 100 |
+
+Each monster also declares `minLevel` / `maxLevel`, matching its `loot.json` band, and spawns only where the
+spawn-point level lies inside that range. Elite variants follow the same rule. As a result slimes (1–15) dominate
+near spawn and demons (45–100) only appear in the endgame band. `MonsterScalingTests` checks that every spawnable
+range overlaps its loot band.
 
 ### Stat curves
 

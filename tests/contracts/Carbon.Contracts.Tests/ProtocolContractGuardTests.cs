@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using Carbon.Contracts.Common;
@@ -54,6 +55,42 @@ public sealed class ProtocolContractGuardTests
 
         IGrouping<ushort, (Type Type, ushort OpCode)>? duplicate = all.GroupBy(static p => p.OpCode).FirstOrDefault(static g => g.Count() > 1);
         Assert.True(duplicate is null, $"Duplicate opcode 0x{duplicate?.Key:X4}: {string.Join(", ", duplicate?.Select(static p => p.Type.Name) ?? [])}");
+    }
+
+    [Fact]
+    public void AllOpCodeClasses_DeclaredConstants_AreGloballyUnique()
+    {
+        // Discover every contracts module next to the test binaries (not a hand-maintained list), so a new module or a
+        // constant reused across modules fails CI even before a packet binds it.
+        string[] modules = Directory.GetFiles(AppContext.BaseDirectory, "Carbon.Contracts.*.dll");
+        string contractsRoot = Path.Combine(FindRepoRoot(), "contracts");
+        string[] projects = Directory.GetDirectories(contractsRoot, "Carbon.Contracts.*");
+        Assert.True(
+            projects.Length <= modules.Length,
+            $"Every contracts project must be referenced by Carbon.Contracts.Tests ({projects.Length} projects, {modules.Length} assemblies).");
+
+        List<(string Name, ushort OpCode)> constants = [];
+        foreach (string module in modules)
+        {
+            Assembly assembly = Assembly.LoadFrom(module);
+            foreach (Type type in assembly.GetTypes().Where(static t => t.IsClass && t.IsAbstract && t.IsSealed && t.Name.EndsWith("OpCode", StringComparison.Ordinal)))
+            {
+                constants.AddRange(type
+                    .GetFields(BindingFlags.Public | BindingFlags.Static)
+                    .Where(static f => f.IsLiteral && f.FieldType == typeof(ushort))
+                    .Select(f => ($"{type.Name}.{f.Name}", (ushort)f.GetValue(null)!)));
+            }
+        }
+
+        Assert.NotEmpty(constants);
+        string[] duplicates =
+        [
+            .. constants
+                .GroupBy(static c => c.OpCode)
+                .Where(static g => g.Count() > 1)
+                .Select(static g => $"0x{g.Key:X4}: {string.Join(", ", g.Select(static c => c.Name))}"),
+        ];
+        Assert.True(duplicates.Length == 0, $"Opcode collision(s): {string.Join("; ", duplicates)}");
     }
 
     [Theory]
@@ -385,6 +422,17 @@ public sealed class ProtocolContractGuardTests
 
     private static bool IsPacketType(Type t) =>
         t is { IsClass: true, IsAbstract: false } && typeof(IPacketStaticOpcode).IsAssignableFrom(t);
+
+    private static string FindRepoRoot()
+    {
+        DirectoryInfo? dir = new(AppContext.BaseDirectory);
+        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "contracts")))
+        {
+            dir = dir.Parent;
+        }
+
+        return dir?.FullName ?? throw new DirectoryNotFoundException("repository root (contracts/) not found");
+    }
 
     private static IEnumerable<(Type Type, ushort OpCode)> PacketOpCodes(Assembly assembly) =>
         assembly.GetTypes()

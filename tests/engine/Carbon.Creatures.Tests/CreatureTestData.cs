@@ -25,6 +25,27 @@ internal static class CreatureTestData
 
     public static SpawningConfig LoadSpawning() => SpawningConfig.FromJson(SpawningJson);
 
+    public static Dictionary<string, (int MinLevel, int MaxLevel)> LoadLootBands()
+    {
+        Dictionary<string, (int MinLevel, int MaxLevel)> bands = new(StringComparer.Ordinal);
+        string path = Path.Combine(s_configDir.Value, "loot.json");
+        if (!File.Exists(path))
+        {
+            return bands;
+        }
+
+        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(path));
+        foreach (JsonElement table in doc.RootElement.GetProperty("tables").EnumerateArray())
+        {
+            if (table.TryGetProperty("minLevel", out JsonElement min) && table.TryGetProperty("maxLevel", out JsonElement max))
+            {
+                bands[table.GetProperty("id").GetString()!] = (min.GetInt32(), max.GetInt32());
+            }
+        }
+
+        return bands;
+    }
+
     public static HashSet<string> LoadLootTableIds()
     {
         HashSet<string> ids = new(StringComparer.Ordinal);

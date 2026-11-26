@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Numerics;
 using Carbon.Abstractions.World;
 using Carbon.AI.Components;
 using Carbon.AI.Systems;
@@ -16,7 +15,6 @@ using Carbon.Creatures.Events;
 using Carbon.Creatures.Spawning;
 using Carbon.Items.Catalog;
 using Carbon.Maps.Data;
-using Carbon.Maps.Generators;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
@@ -63,7 +61,6 @@ public sealed partial class AuthoritativeWorld
     private void BindSpawnedMonstersLocked()
     {
         ReadOnlySpan<MonsterSpawnedEvent> spawned = _simulation.ReadEvents<MonsterSpawnedEvent>();
-        Vector2 origin = _chunkWorld.SpawnWorldPosition;
         for (int i = 0; i < spawned.Length; i++)
         {
             MonsterSpawnedEvent evt = spawned[i];
@@ -81,12 +78,8 @@ public sealed partial class AuthoritativeWorld
             int ty = (int)MathF.Floor(evt.Position.Y / this.TileSize);
             long chunkKey = Chunk2D.PackKey(Chunk2D.ToChunkCoord(tx), Chunk2D.ToChunkCoord(ty));
 
-            // Drops and XP stay owned by the item / economy catalogs; only level and combat stats are data-driven here.
-            Items.Catalog.ScaledMonsterStats rewards = WorldActorCatalog.ScaleMonster(
-                def.ArchetypeId,
-                WorldProgression.GetZoneTier(this.WorldSeed, tx, ty),
-                Vector2.Distance(evt.Position, origin) / this.TileSize,
-                evt.IsNight);
+            // Loot is rolled from loot.json (def.LootTableId); the catalog drop only backs worlds without an economy.
+            MonsterArchetypeSpec legacyDrop = WorldActorCatalog.GetMonsterSpec(def.ArchetypeId);
             HealthComponent hp = _simulation.Entities.GetHealth(evt.Monster);
             AiBrainComponent brain = _simulation.Entities.GetComponent<AiBrainComponent>(evt.Monster);
             MonsterComponent monster = _simulation.Entities.GetComponent<MonsterComponent>(evt.Monster);
@@ -103,14 +96,26 @@ public sealed partial class AuthoritativeWorld
                 monster.Damage,
                 0U,
                 chunkKey,
-                rewards.DropItemId,
-                rewards.DropQuantity,
-                rewards.ExperienceReward,
+                legacyDrop.DropItemId,
+                legacyDrop.DropMinQuantity,
+                ComputeExperienceReward(hp.Max, evt.Level, evt.IsElite, evt.IsNight),
                 brain.AttackRange,
                 LootTableId: def.LootTableId);
         }
 
         _simulation.ClearEvents<MonsterSpawnedEvent>();
+    }
+
+    /// <summary>
+    /// Kill XP from the scaled (data-driven) monster: <c>clamp(0.45 * maxHp + 4 * level, 25, 650)</c>, x2 for elites,
+    /// x1.35 at night (the formula previously applied by <c>WorldActorCatalog.ScaleMonster</c>).
+    /// </summary>
+    private static uint ComputeExperienceReward(float maxHealth, int level, bool isElite, bool isNight)
+    {
+        float xp = Math.Clamp((maxHealth * 0.45f) + (level * 4f), 25f, 650f);
+        xp *= isElite ? 2f : 1f;
+        xp *= isNight ? 1.35f : 1f;
+        return (uint)MathF.Round(xp);
     }
 
     private void QueueAttackPhasesLocked()

@@ -10,6 +10,7 @@ using Carbon.Abstractions.Configuration;
 using Carbon.Abstractions.Persistence;
 using Carbon.Application.Identity;
 using Carbon.Application.World;
+using Carbon.Creatures;
 using Carbon.Economy;
 using Carbon.Infrastructure.Configuration;
 using Carbon.Infrastructure.Persistence.Postgres;
@@ -103,6 +104,10 @@ public static class Program
             ReadDocument(config, GameEconomy.EconomyFile),
             ReadDocument(config, GameEconomy.LootFile));
 
+        CreatureContent creatures = CreatureContent.FromJson(
+            ReadDocument(config, CreatureContent.MonstersFileName),
+            ReadDocument(config, CreatureContent.SpawningFileName));
+
         AuthoritativeWorld world = new(
             options.WorldSeed,
             options.TileSize,
@@ -111,6 +116,7 @@ public static class Program
             chunkDeltaRepo,
             characterStore,
             outboundSink,
+            creatures: creatures,
             economy: economy);
 
         await world.InitializeFromStoreAsync().ConfigureAwait(false);

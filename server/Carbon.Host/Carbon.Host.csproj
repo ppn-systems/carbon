@@ -39,10 +39,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Content Include="..\..\resources\config\*.json" Link="resources\config\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
-    </ItemGroup>
-
-    <ItemGroup>
         <InternalsVisibleTo Include="Carbon.Host.Tests" />
         <InternalsVisibleTo Include="Carbon.Desktop.Tests" />
     </ItemGroup>

@@ -24,7 +24,7 @@ range and still could not carry radius, angle, or duration.
 ## Decision
 
 1. **D1: dedicated S2C packet.** Add `EntityAttackPhase` (`contracts/Carbon.Contracts.Entities/S2C`) at opcode
-   `EntityOpCode.EntityAttackPhase = 0x1237`, inside the Entities S2C band (`0x1230–0x12FF`). Fields, in
+   `EntityOpCode.EntityAttackPhase = 0x1238`, inside the Entities S2C band (`0x1230–0x12FF`). Fields, in
    `[SerializeOrder]` order:
    - `NetworkId`
    - `ServerTick`

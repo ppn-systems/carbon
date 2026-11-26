@@ -218,13 +218,17 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
         }
 
         SpawnTableData? table = _tables[(byte)biome];
-        if (table is null || !table.TryPick(rng.NextFloat(), isNight, out ushort monsterIndex))
+        // Level depends only on distance from the origin; monsters spawn only inside their level range (loot bands).
+        int level = (int)MathF.Floor(_scaling.EvaluateLevel(originDistance, out _));
+        if (table is null || !table.TryPick(rng.NextFloat(), isNight, level, out ushort monsterIndex))
         {
             return;
         }
 
         float eliteChance = isNight ? _config.Night.EliteChance : _config.DayEliteChance;
-        if (rng.NextFloat() < eliteChance && _catalog.TryGetEliteVariant(monsterIndex, out ushort eliteIndex))
+        if (rng.NextFloat() < eliteChance &&
+            _catalog.TryGetEliteVariant(monsterIndex, out ushort eliteIndex) &&
+            _catalog.GetDefinition(eliteIndex).IsSpawnableAt(level))
         {
             monsterIndex = eliteIndex;
         }
@@ -283,19 +287,16 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
         private readonly ushort[] _monsters;
         private readonly float[] _dayWeights;
         private readonly float[] _nightWeights;
-        private readonly float _dayTotal;
-        private readonly float _nightTotal;
+        private readonly int[] _minLevels;
+        private readonly int[] _maxLevels;
 
-        private SpawnTableData(ushort[] monsters, float[] dayWeights, float[] nightWeights)
+        private SpawnTableData(ushort[] monsters, float[] dayWeights, float[] nightWeights, int[] minLevels, int[] maxLevels)
         {
             _monsters = monsters;
             _dayWeights = dayWeights;
             _nightWeights = nightWeights;
-            for (int i = 0; i < monsters.Length; i++)
-            {
-                _dayTotal += dayWeights[i];
-                _nightTotal += nightWeights[i];
-            }
+            _minLevels = minLevels;
+            _maxLevels = maxLevels;
         }
 
         public static SpawnTableData Create(MonsterCatalog catalog, SpawnTable table)
@@ -304,6 +305,8 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
             ushort[] monsters = new ushort[count];
             float[] day = new float[count];
             float[] night = new float[count];
+            int[] minLevels = new int[count];
+            int[] maxLevels = new int[count];
             for (int i = 0; i < count; i++)
             {
                 SpawnTableEntry entry = table.Entries[i];
@@ -312,44 +315,57 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
                     throw new ArgumentException($"Spawn table '{table.Biome}' references unknown monster '{entry.Monster}'.", nameof(table));
                 }
 
+                MonsterDefinition def = catalog.GetDefinition(monsters[i]);
                 day[i] = entry.Weight;
                 night[i] = entry.NightWeight ?? entry.Weight;
+                minLevels[i] = def.MinLevel;
+                maxLevels[i] = def.MaxLevel;
             }
 
-            return new SpawnTableData(monsters, day, night);
+            return new SpawnTableData(monsters, day, night, minLevels, maxLevels);
         }
 
-        public bool TryPick(float roll, bool isNight, out ushort monsterIndex)
+        /// <summary>Weighted pick among entries whose monster level range contains <paramref name="level"/>.</summary>
+        public bool TryPick(float roll, bool isNight, int level, out ushort monsterIndex)
         {
             float[] weights = isNight ? _nightWeights : _dayWeights;
-            float total = isNight ? _nightTotal : _dayTotal;
             monsterIndex = 0;
+            float total = 0f;
+            for (int i = 0; i < weights.Length; i++)
+            {
+                if (this.IsEligible(i, level))
+                {
+                    total += weights[i];
+                }
+            }
+
             if (total <= 0f)
             {
                 return false;
             }
 
             float threshold = roll * total;
+            int last = -1;
             for (int i = 0; i < weights.Length; i++)
             {
+                if (!this.IsEligible(i, level) || weights[i] <= 0f)
+                {
+                    continue;
+                }
+
+                last = i;
                 threshold -= weights[i];
-                if (threshold < 0f && weights[i] > 0f)
+                if (threshold < 0f)
                 {
                     monsterIndex = _monsters[i];
                     return true;
                 }
             }
 
-            for (int i = weights.Length - 1; i >= 0; i--)
-            {
-                if (weights[i] > 0f)
-                {
-                    monsterIndex = _monsters[i];
-                    return true;
-                }
-            }
-
-            return false;
+            monsterIndex = _monsters[last];
+            return true;
         }
+
+        private bool IsEligible(int i, int level) => level >= _minLevels[i] && level <= _maxLevels[i];
     }
 }

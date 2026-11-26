@@ -3,6 +3,8 @@
   "monsters": [
     {
       "id": "wild_slime",
+      "minLevel": 1,
+      "maxLevel": 15,
       "archetypeId": 101,
       "displayName": "Wild Slime",
       "visualArchetype": "wild_slime",
@@ -15,7 +17,7 @@
       "engageRange": 100,
       "retreatRange": 0,
       "patrolRadius": 96,
-      "preferredBiomes": [ "BeachSand", "LushPlains", "AncientForest", "MistySwamp", "TropicalJungle", "Savanna" ],
+      "preferredBiomes": [ "BeachSand", "LushPlains", "AncientForest", "MistySwamp", "TropicalJungle", "Savanna", "BlossomWoods", "DuneDesert", "RedMesa", "FrozenTundra", "AlpinePeaks", "VolcanicAshland" ],
       "attacks": [
         { "kind": "Leap", "minRange": 40, "maxRange": 110, "windupTicks": 12, "travelTicks": 10, "activeTicks": 2, "recoveryTicks": 14, "cooldownTicks": 75, "damageMultiplier": 1.4, "areaRadius": 26 },
         { "kind": "Melee", "minRange": 0, "maxRange": 22, "windupTicks": 8, "travelTicks": 3, "activeTicks": 3, "recoveryTicks": 10, "cooldownTicks": 30, "areaRadius": 22, "halfAngleDegrees": 50, "lungeDistance": 8 }
@@ -23,6 +25,8 @@
     },
     {
       "id": "slime_king",
+      "minLevel": 5,
+      "maxLevel": 20,
       "archetypeId": 101,
       "displayName": "Slime King",
       "visualArchetype": "wild_slime",
@@ -43,6 +47,8 @@
     },
     {
       "id": "rock_golem",
+      "minLevel": 10,
+      "maxLevel": 40,
       "archetypeId": 102,
       "displayName": "Rock Golem",
       "visualArchetype": "rock_golem",
@@ -61,6 +67,8 @@
     },
     {
       "id": "frost_wolf",
+      "minLevel": 5,
+      "maxLevel": 30,
       "archetypeId": 103,
       "displayName": "Frost Wolf",
       "visualArchetype": "frost_wolf",
@@ -80,6 +88,8 @@
     },
     {
       "id": "ash_wraith",
+      "minLevel": 20,
+      "maxLevel": 60,
       "archetypeId": 104,
       "displayName": "Ash Wraith",
       "visualArchetype": "ash_wraith",
@@ -99,6 +109,8 @@
     },
     {
       "id": "skeleton_archer",
+      "minLevel": 8,
+      "maxLevel": 35,
       "archetypeId": 105,
       "displayName": "Skeleton Archer",
       "visualArchetype": "skeleton_archer",
@@ -118,6 +130,8 @@
     },
     {
       "id": "orc_shaman",
+      "minLevel": 15,
+      "maxLevel": 45,
       "archetypeId": 106,
       "displayName": "Orc Shaman",
       "visualArchetype": "orc_shaman",
@@ -138,6 +152,8 @@
     },
     {
       "id": "crimson_demon",
+      "minLevel": 45,
+      "maxLevel": 100,
       "archetypeId": 107,
       "displayName": "Crimson Demon",
       "visualArchetype": "crimson_demon",
