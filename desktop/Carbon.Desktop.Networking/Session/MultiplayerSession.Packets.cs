@@ -15,7 +15,6 @@ using Carbon.Contracts.Identity.S2C;
 using Carbon.Contracts.Items.S2C;
 using Carbon.Contracts.Maps.C2S;
 using Carbon.Contracts.Maps.S2C;
-using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Events;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
@@ -1167,7 +1166,7 @@ public sealed partial class MultiplayerSession
                 byte prevUpg = ItemEnhancementPolicy.GetUpgradeLevel(in previous);
                 if (previous.ItemId == next.ItemId && pkt.UpgradeLevel > prevUpg)
                 {
-                    string forgeMsg = $"+{pkt.UpgradeLevel} {SyncedItemCatalog.GetDisplayName(next.ItemId)} Forged!";
+                    string forgeMsg = $"+{pkt.UpgradeLevel} {_items.GetDisplayName(next.ItemId)} Forged!";
                     _combatEvents.Add(new CombatFeedbackEvent(
                         localPos + new Vector2(0f, -14f),
                         pkt.UpgradeLevel,
@@ -1184,7 +1183,7 @@ public sealed partial class MultiplayerSession
 
                 if (gained > 0)
                 {
-                    string popup = $"+{gained} {SyncedItemCatalog.GetDisplayName(next.ItemId)}";
+                    string popup = $"+{gained} {_items.GetDisplayName(next.ItemId)}";
                     _combatEvents.Add(new CombatFeedbackEvent(
                         localPos + new Vector2(0f, -12f),
                         gained,
@@ -1194,12 +1193,12 @@ public sealed partial class MultiplayerSession
                     _hudNotifications.Add(popup);
                 }
                 else if (previous.ItemId == next.ItemId &&
-                         StarterGameCatalog.Items.TryGet(next.ItemId, out ItemArchetype? slotDef) &&
+                         _items.Rules.Items.TryGet(next.ItemId, out ItemArchetype? slotDef) &&
                          slotDef.MaxDurability > 0f)
                 {
                     if (previous.Durability > 0f && next.Durability <= 0f)
                     {
-                        string brokenMsg = $"{SyncedItemCatalog.GetDisplayName(next.ItemId)} Worn Out!";
+                        string brokenMsg = $"{_items.GetDisplayName(next.ItemId)} Worn Out!";
                         _combatEvents.Add(new CombatFeedbackEvent(
                             localPos + new Vector2(0f, -14f),
                             0f,
@@ -1210,7 +1209,7 @@ public sealed partial class MultiplayerSession
                     }
                     else if (previous.Durability <= 0f && next.Durability > 0f)
                     {
-                        string mendMsg = $"{SyncedItemCatalog.GetDisplayName(next.ItemId)} Mended!";
+                        string mendMsg = $"{_items.GetDisplayName(next.ItemId)} Mended!";
                         _combatEvents.Add(new CombatFeedbackEvent(
                             localPos + new Vector2(0f, -14f),
                             next.Durability,
@@ -1271,6 +1270,7 @@ public sealed partial class MultiplayerSession
                         ? ToolTargetKind.Mineral
                         : ToolTargetKind.Flora;
                     PropStrikeEvaluation eval = ToolUsagePolicy.EvaluatePropStrike(
+                        _items.Rules,
                         in activeSlot,
                         kind,
                         updated.Destructibility.HarvestTier);
@@ -1287,6 +1287,7 @@ public sealed partial class MultiplayerSession
                         ? ToolTargetKind.Mineral
                         : ToolTargetKind.Flora;
                     PropStrikeEvaluation eval = ToolUsagePolicy.EvaluatePropStrike(
+                        _items.Rules,
                         in activeSlot,
                         kind,
                         updated.Destructibility.HarvestTier);

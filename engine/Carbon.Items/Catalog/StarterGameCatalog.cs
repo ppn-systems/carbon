@@ -1,19 +1,13 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
-using System.IO;
-using System.Threading;
-using Carbon.Data.Registry;
 using Carbon.Items.Containers;
-using Carbon.Items.Crafting;
-using Carbon.Items.Definitions;
 
 namespace Carbon.Items.Catalog;
 
 /// <summary>
-/// Stable item id constants, the starter loadout, and the active item and recipe tables shared by server authority and
-/// client prediction/HUD. The tables are data-driven (<c>resources/config/items.json</c> and <c>recipes.json</c>);
-/// no item stats or recipes are hardcoded here.
+/// Stable item id constants and the starter loadout. Item stats and recipes are data (<c>items.json</c>,
+/// <c>recipes.json</c>) and live in an <see cref="ItemRules"/> instance owned by the server world or the client session.
 /// </summary>
 public static class StarterGameCatalog
 {
@@ -134,62 +128,6 @@ public static class StarterGameCatalog
     /// <summary>Molten abyssal core dropped by Crimson Demons.</summary>
     public const uint DemonEmber = 39;
 
-    private static volatile Tables? s_tables;
-
-    /// <summary>
-    /// Gets the item archetypes (combat, tool, armor and consumable stats) built from <c>items.json</c>.
-    /// The server installs its loaded config at boot and the desktop installs the server-synced config after every
-    /// sync (<see cref="Install"/>); until then the build-time copy of the shipped <c>resources/config</c> is used.
-    /// </summary>
-    public static DefinitionRegistry<uint, ItemArchetype> Items => Current.Items;
-
-    /// <summary>Gets the crafting recipes built from <c>recipes.json</c> (see <see cref="Items"/> for the install rules).</summary>
-    public static DefinitionRegistry<uint, CraftingRecipe> Recipes => Current.Recipes;
-
-    /// <summary>Gets the item catalog behind <see cref="Items"/>.</summary>
-    public static ItemCatalog ItemCatalog => Current.ItemCatalog;
-
-    /// <summary>Gets the recipe catalog behind <see cref="Recipes"/>.</summary>
-    public static RecipeCatalog RecipeCatalog => Current.RecipeCatalog;
-
-    private static Tables Current => s_tables ?? LoadBuiltInDefaults();
-
-    /// <summary>
-    /// Replaces the active item and recipe tables atomically; readers on any thread see either the old or the new set.
-    /// </summary>
-    /// <param name="items">Validated item catalog (server: <c>ConfigRepository.Catalog</c>; desktop: synced config).</param>
-    /// <param name="recipes">Recipe catalog compiled against <paramref name="items"/>.</param>
-    public static void Install(ItemCatalog items, RecipeCatalog recipes)
-    {
-        ArgumentNullException.ThrowIfNull(items);
-        ArgumentNullException.ThrowIfNull(recipes);
-        s_tables = new Tables(items, items.BuildArchetypeRegistry(), recipes, recipes.Registry);
-    }
-
-    private static Tables LoadBuiltInDefaults()
-    {
-        ItemCatalog items = ItemCatalog.LoadFromJson(ReadEmbedded("items.json"));
-        RecipeCatalog recipes = RecipeCatalog.LoadFromJson(ReadEmbedded("recipes.json"), items);
-        Tables tables = new(items, items.BuildArchetypeRegistry(), recipes, recipes.Registry);
-        _ = Interlocked.CompareExchange(ref s_tables, tables, null);
-        return s_tables;
-    }
-
-    private static string ReadEmbedded(string fileName)
-    {
-        string resource = "Carbon.Items.Config." + fileName;
-        using Stream stream = typeof(StarterGameCatalog).Assembly.GetManifestResourceStream(resource)
-            ?? throw new InvalidOperationException($"Embedded default config '{resource}' is missing.");
-        using StreamReader reader = new(stream);
-        return reader.ReadToEnd();
-    }
-
-    private sealed record Tables(
-        ItemCatalog ItemCatalog,
-        DefinitionRegistry<uint, ItemArchetype> Items,
-        RecipeCatalog RecipeCatalog,
-        DefinitionRegistry<uint, CraftingRecipe> Recipes);
-
     /// <summary>
     /// Populates a fresh character inventory with default starter Vanguard gear.
     /// </summary>
@@ -270,62 +208,4 @@ public static class StarterGameCatalog
             inventory.SetSlot(PlayerInventoryLayout.FeetSlot, new ItemSlot(LeatherBoots, 1, 0, 120f));
         }
     }
-
-    /// <summary>Returns the human-readable HUD display name for an item ID.</summary>
-    public static string GetDisplayName(uint itemId) =>
-        Items.TryGet(itemId, out ItemArchetype? def) && !string.IsNullOrEmpty(def.DisplayName) ? def.DisplayName : "Empty";
-
-    /// <summary>Returns armor defense rating contributed by <paramref name="itemId"/> when equipped.</summary>
-    public static float GetArmorDefense(uint itemId) =>
-        Items.TryGet(itemId, out ItemArchetype? def) ? def.ArmorDefense : 0f;
-
-    /// <summary>Returns bonus max HP contributed by <paramref name="itemId"/> when equipped.</summary>
-    public static float GetArmorBonusHealth(uint itemId) =>
-        Items.TryGet(itemId, out ItemArchetype? def) ? def.BonusHealth : 0f;
-
-    /// <summary>Returns bonus max Mana contributed by <paramref name="itemId"/> when equipped.</summary>
-    public static float GetArmorBonusMana(uint itemId) =>
-        Items.TryGet(itemId, out ItemArchetype? def) ? def.BonusMana : 0f;
-
-    /// <summary>Returns baseline melee attack damage for an active item ID.</summary>
-    public static float GetWeaponBaseDamage(uint itemId) =>
-        Items.TryGet(itemId, out ItemArchetype? def) ? def.BaseDamage : 12f;
-
-    /// <summary>Returns harvest damage per strike against flora props (trees, bushes, cacti).</summary>
-    public static float GetFloraHarvestDamage(uint itemId) =>
-        Items.TryGet(itemId, out ItemArchetype? def) ? def.FloraHarvestDamage : 20f;
-
-    /// <summary>Returns harvest damage per strike against mineral props (boulders, ore veins, crystals).</summary>
-    public static float GetMineralHarvestDamage(uint itemId) =>
-        Items.TryGet(itemId, out ItemArchetype? def) ? def.MineralHarvestDamage : 10f;
-
-    /// <summary>Returns a concise HUD action tooltip describing the active item's role and tier.</summary>
-    public static string GetActionHint(uint itemId) =>
-        Items.TryGet(itemId, out ItemArchetype? def) && !string.IsNullOrEmpty(def.ActionHint)
-            ? def.ActionHint
-            : "Empty Hand | Forage Bushes & Punch (12 dmg)";
-
-    /// <summary>Resolves the inventory placeable kit item ID corresponding to <paramref name="structureType"/>.</summary>
-    public static uint ResolveStructureKitItemId(byte structureType)
-    {
-        if (structureType == 0)
-        {
-            return 0U;
-        }
-
-        ReadOnlySpan<ItemArchetype> all = Items.All;
-        for (int i = 0; i < all.Length; i++)
-        {
-            if (all[i].Category == ItemCategory.Placeable && all[i].PlaceableStructureType == structureType)
-            {
-                return all[i].Id;
-            }
-        }
-
-        return 0U;
-    }
-
-    /// <summary>Maps an item's <see cref="Items"/> max stack size for crafting output bounds.</summary>
-    public static int GetMaxStackSize(uint itemId) =>
-        Items.TryGet(itemId, out ItemArchetype? archetype) ? Math.Max(1, archetype.MaxStackSize) : 99;
 }

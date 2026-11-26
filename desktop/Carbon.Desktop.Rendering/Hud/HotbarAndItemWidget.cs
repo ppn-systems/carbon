@@ -64,7 +64,7 @@ internal sealed class HotbarAndItemWidget
             ItemSlot item = slots[i];
             ColorRgba border = active
                 ? CarbonUiPalette.BorderActive
-                : (!item.IsEmpty && ToolUsagePolicy.IsWornOut(in item) ? CarbonUiPalette.DangerBorder : CarbonUiPalette.BorderSubtle);
+                : (!item.IsEmpty && ToolUsagePolicy.IsWornOut(world.Items.Rules, in item) ? CarbonUiPalette.DangerBorder : CarbonUiPalette.BorderSubtle);
             skin.DrawSlot(
                 spriteBatch,
                 new RectangleF(sx, sy, SlotSize, SlotSize),
@@ -138,7 +138,7 @@ internal sealed class HotbarAndItemWidget
                     VectorRigRenderer.DrawItemIcon(batch, itemArt, iconCenter, targetSize: 34f);
                 }
 
-                if (StarterGameCatalog.Items.TryGet(item.ItemId, out ItemArchetype? archetype) && archetype.MaxDurability > 0f)
+                if (world.Items.Rules.Items.TryGet(item.ItemId, out ItemArchetype? archetype) && archetype.MaxDurability > 0f)
                 {
                     byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
                     float effMaxDur = MathF.Max(1f, ItemEnhancementPolicy.GetEffectiveMaxDurability(archetype, upg));
@@ -157,7 +157,7 @@ internal sealed class HotbarAndItemWidget
             ItemSlot hItem = slots[hoveredSlot];
             if (!hItem.IsEmpty)
             {
-                DrawTooltipGeometry(batch, art, startX + (hoveredSlot * (SlotSize + Gap)), barsY - 10f, viewportWidth, in hItem);
+                DrawTooltipGeometry(batch, world, art, startX + (hoveredSlot * (SlotSize + Gap)), barsY - 10f, viewportWidth, in hItem);
             }
         }
 
@@ -218,7 +218,7 @@ internal sealed class HotbarAndItemWidget
             ItemSlot hItem = slots[hoveredSlot];
             if (!hItem.IsEmpty)
             {
-                DrawTooltipText(spriteBatch, font, art, startX + (hoveredSlot * (SlotSize + Gap)), barsY - 10f, viewportWidth, in hItem);
+                DrawTooltipText(spriteBatch, font, world, art, startX + (hoveredSlot * (SlotSize + Gap)), barsY - 10f, viewportWidth, in hItem);
             }
         }
     }
@@ -402,6 +402,7 @@ internal sealed class HotbarAndItemWidget
 
     private static void DrawTooltipGeometry(
         GeometryBatch batch,
+        IWorldReadModel world,
         IVectorArtRepository? art,
         float slotX,
         float topY,
@@ -425,7 +426,7 @@ internal sealed class HotbarAndItemWidget
 
         batch.DrawRectangle(iconBox, CarbonUiPalette.BorderSubtle, 1f);
 
-        if (StarterGameCatalog.Items.TryGet(item.ItemId, out ItemArchetype? archetype) && archetype.MaxDurability > 0f)
+        if (world.Items.Rules.Items.TryGet(item.ItemId, out ItemArchetype? archetype) && archetype.MaxDurability > 0f)
         {
             byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
             float effMaxDur = MathF.Max(1f, ItemEnhancementPolicy.GetEffectiveMaxDurability(archetype, upg));
@@ -442,6 +443,7 @@ internal sealed class HotbarAndItemWidget
     private static void DrawTooltipText(
         SpriteBatch spriteBatch,
         BitmapFont font,
+        IWorldReadModel world,
         IVectorArtRepository? art,
         float slotX,
         float topY,
@@ -454,7 +456,7 @@ internal sealed class HotbarAndItemWidget
         float y = topY - cardH;
         ColorRgba black = CarbonUiPalette.TextOutline;
 
-        string name = SyncedItemCatalog.GetDisplayName(item.ItemId);
+        string name = world.Items.GetDisplayName(item.ItemId);
         if (art is not null && art.TryGetItem(item.ItemId, out CompiledItemVectorArt? bp))
         {
             name = bp.DisplayName;
@@ -465,7 +467,7 @@ internal sealed class HotbarAndItemWidget
         spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, titleName, cardW - 62f, 1f), new Vector2(x + 54f, y + 8f), CarbonUiPalette.TextWarm, black, 1, 1f);
 
         float upgMult = ItemEnhancementPolicy.GetStatMultiplier(upg);
-        string stats = StarterGameCatalog.Items.TryGet(item.ItemId, out ItemArchetype? def)
+        string stats = world.Items.Rules.Items.TryGet(item.ItemId, out ItemArchetype? def)
             ? def.Category switch
             {
                 ItemCategory.Armor => $"+{(int)MathF.Round(def.ArmorDefense * upgMult)} DEF  +{(int)MathF.Round(def.BonusHealth * upgMult)} HP",
@@ -476,7 +478,7 @@ internal sealed class HotbarAndItemWidget
             }
             : $"x{item.Quantity}";
 
-        if (SyncedFoodCatalog.TryGet(item.ItemId, out FoodDefinition? food))
+        if (SyncedFoodCatalog.TryGet(world.Items, item.ItemId, out FoodDefinition? food))
         {
             stats = SyncedFoodCatalog.FormatTooltip(food, item.FreshnessSeconds);
         }

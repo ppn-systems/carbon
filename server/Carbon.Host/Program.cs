@@ -13,7 +13,6 @@ using Carbon.Infrastructure.Configuration;
 using Carbon.Infrastructure.Persistence.Postgres;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Infrastructure.Security;
-using Carbon.Items.Catalog;
 using Carbon.Server.Configuration;
 using Microsoft.Extensions.Logging;
 using Nalix.Hosting;
@@ -87,7 +86,6 @@ public static class Program
         await migrator.MigrateAsync().ConfigureAwait(false);
 
         Pbkdf2PasswordHasher hasher = new();
-        using AuthService authService = new(accountStore, characterStore, hasher);
         SessionTransportRegistry transportRegistry = new();
         WorldOutboundSink outboundSink = new(transportRegistry, loggerFactory.CreateLogger<WorldOutboundSink>());
         // Gameplay config is server-authoritative (ADR-014): the server builds its domains from the same snapshot it
@@ -104,9 +102,6 @@ public static class Program
 
         ServerGameData gameData = ServerGameData.Load(config.Catalog);
 
-        // Item stats and recipes used by combat, harvesting, crafting and inventory come from the same snapshot.
-        StarterGameCatalog.Install(gameData.Economy.Items, gameData.Economy.Recipes);
-
         AuthoritativeWorld world = new(
             options.WorldSeed,
             options.TileSize,
@@ -122,6 +117,7 @@ public static class Program
             ServerGameData.LoadStructures(config.Catalog),
             ServerGameData.LoadCreatures(config.Catalog));
         ServerGameData.BindHotReload(config, world);
+        using AuthService authService = new(accountStore, characterStore, hasher, time: null, () => world.ItemRules);
 
         if (options.DebugOverrides.IsActive)
         {

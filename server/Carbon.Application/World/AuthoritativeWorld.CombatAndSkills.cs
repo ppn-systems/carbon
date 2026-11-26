@@ -38,7 +38,7 @@ public sealed partial class AuthoritativeWorld
 
         if (state.PendingAttackAbility < 9 && state.PendingAttackAbility != state.Session.SelectedHotbarSlot)
         {
-            byte tier = ResolveSlotHarvestTier(state.Inventory, state.PendingAttackAbility);
+            byte tier = this.ResolveSlotHarvestTier(state.Inventory, state.PendingAttackAbility);
             state.Session = state.Session with { SelectedHotbarSlot = state.PendingAttackAbility, SelectedHarvestTier = tier };
             this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
         }
@@ -64,7 +64,7 @@ public sealed partial class AuthoritativeWorld
 
         Vector2 attackerPos = _simulation.Entities.GetTransform(state.Entity).Position;
         if (activeSlot.Quantity > 0 &&
-            StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? archetype) &&
+            _itemRules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? archetype) &&
             archetype.Category == ItemCategory.Placeable)
         {
             this.ProcessPlaceablePrimaryActionLocked(state, attackerPos, activeSlot, archetype);
@@ -75,7 +75,7 @@ public sealed partial class AuthoritativeWorld
         Vector2 aimDir = rawAim.LengthSquared() > 1e-4f ? Vector2.Normalize(rawAim) : Vector2.UnitX;
 
         if (activeSlot.Quantity > 0 &&
-            StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? weaponDef) &&
+            _itemRules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? weaponDef) &&
             weaponDef.ProjectileSpeed > 0f)
         {
             if (weaponDef.AttackManaCost > 0f)
@@ -89,8 +89,8 @@ public sealed partial class AuthoritativeWorld
                 state.StatsDirty = true;
             }
 
-            CombatStrikeEvaluation rangedEval = ToolUsagePolicy.EvaluateCombatStrike(in activeSlot);
-            bool rangedCrit = !ToolUsagePolicy.IsWornOut(in activeSlot) &&
+            CombatStrikeEvaluation rangedEval = ToolUsagePolicy.EvaluateCombatStrike(_itemRules, in activeSlot);
+            bool rangedCrit = !ToolUsagePolicy.IsWornOut(_itemRules, in activeSlot) &&
                 RollCriticalHit(weaponDef.CritChance, ++state.CombatRollNonce);
             float rangedDmg = rangedEval.Damage * state.Stats.AttackMultiplier;
             float finalRangedDmg = rangedCrit ? rangedDmg * 1.5f : rangedDmg;
@@ -139,7 +139,7 @@ public sealed partial class AuthoritativeWorld
 
         float meleeRange = MeleeStrikeRangePx;
         ItemArchetype? meleeDef = null;
-        if (!activeSlot.IsEmpty && StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out meleeDef) && meleeDef.Capabilities.HasFlag(ToolCapabilities.MeleeWeapon))
+        if (!activeSlot.IsEmpty && _itemRules.Items.TryGet(activeSlot.ItemId, out meleeDef) && meleeDef.Capabilities.HasFlag(ToolCapabilities.MeleeWeapon))
         {
             meleeRange = Math.Clamp(meleeDef.AttackRange, MeleeStrikeRangePx, 96f);
         }
@@ -172,7 +172,7 @@ public sealed partial class AuthoritativeWorld
             return;
         }
 
-        CombatStrikeEvaluation combatEval = ToolUsagePolicy.EvaluateCombatStrike(in activeSlot);
+        CombatStrikeEvaluation combatEval = ToolUsagePolicy.EvaluateCombatStrike(_itemRules, in activeSlot);
         bool isCrit = meleeDef is not null &&
             combatEval.Outcome == ToolStrikeOutcome.Optimal &&
             RollCriticalHit(meleeDef.CritChance, ++state.CombatRollNonce);
@@ -200,7 +200,7 @@ public sealed partial class AuthoritativeWorld
         }
 
         if (activeSlot.IsEmpty || activeSlot.Quantity <= 0 ||
-            !StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? def) ||
+            !_itemRules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? def) ||
             def.Category != ItemCategory.Consumable)
         {
             return false;
@@ -352,7 +352,7 @@ public sealed partial class AuthoritativeWorld
             : ItemSlot.Empty;
         float basePower = skillDef.ScalingMode == SkillScalingMode.ArcaneSpell
             ? 30f * state.Stats.SpellPowerMultiplier
-            : ToolUsagePolicy.EvaluateCombatStrike(in activeSlot).Damage * state.Stats.AttackMultiplier;
+            : ToolUsagePolicy.EvaluateCombatStrike(_itemRules, in activeSlot).Damage * state.Stats.AttackMultiplier;
         float skillDamage = basePower * spec.DamageMultiplier;
 
         HitboxQuery.QueryArc(_simulation, pos, aimDir, spec.Radius, spec.HalfAngleRad, _combatHitScratch, out int hitCount, MonsterLayer, state.Entity);
@@ -480,7 +480,7 @@ public sealed partial class AuthoritativeWorld
                         float rareRoll = rareHash % 1000UL / 1000f;
                         if (spec.RareDropItemId != 0U && rareRoll < spec.RareDropChance)
                         {
-                            float dur = StarterGameCatalog.Items.TryGet(spec.RareDropItemId, out ItemArchetype? rareDef)
+                            float dur = _itemRules.Items.TryGet(spec.RareDropItemId, out ItemArchetype? rareDef)
                                 ? rareDef.MaxDurability
                                 : 0f;
                             ItemSlot rareLoot = new(spec.RareDropItemId, 1, 0, dur);
@@ -607,7 +607,7 @@ public sealed partial class AuthoritativeWorld
         updatedSlot = activeSlot;
         if (loss <= 0f ||
             activeSlot.IsEmpty ||
-            !StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? def) ||
+            !_itemRules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? def) ||
             def.MaxDurability <= 0f)
         {
             return false;

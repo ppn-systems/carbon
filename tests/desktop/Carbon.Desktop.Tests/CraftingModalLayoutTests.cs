@@ -21,7 +21,7 @@ public sealed class CraftingModalLayoutTests
         PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(width, height);
         float buttonTop = CraftingModalWidget.GetCraft1ButtonRect(in layout).Y;
         int maxIngredients = 0;
-        foreach (CraftingRecipe recipe in StarterGameCatalog.Recipes.All)
+        foreach (CraftingRecipe recipe in ItemRules.LoadShippedDefaults().Recipes.All)
         {
             maxIngredients = System.Math.Max(maxIngredients, recipe.Ingredients.Count);
         }

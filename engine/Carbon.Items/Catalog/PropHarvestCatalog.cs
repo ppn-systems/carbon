@@ -1,5 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
 using Carbon.Maps.Props;
@@ -9,16 +10,18 @@ namespace Carbon.Items.Catalog;
 /// <summary>
 /// Maps each harvestable <see cref="MapPropType"/> to its themed drop: trees → wood, boulders → stone, veins → their ore,
 /// crystals → mana crystal, cactus → cactus fiber, bushes → berries, dry bush and dune grass → plant fiber. Items are resolved by code from the active
-/// <c>items.json</c> catalog (<see cref="StarterGameCatalog.ItemCatalog"/>), never from raw numeric ids.
+/// <c>items.json</c> catalog (<see cref="ItemRules.ItemCatalog"/>), never from raw numeric ids.
 /// </summary>
 public static class PropHarvestCatalog
 {
     /// <summary>Resolves the dropped item stack and XP reward for a destroyed prop.</summary>
+    /// <param name="rules">Item tables the drop codes resolve against.</param>
     /// <param name="propType">Destroyed prop type.</param>
     /// <param name="xpReward">Harvest XP (<c>0</c> when the prop yields nothing).</param>
     /// <returns>The dropped stack, or <see cref="ItemSlot.Empty"/> for props that yield nothing.</returns>
-    public static ItemSlot ResolveDrop(MapPropType propType, out uint xpReward)
+    public static ItemSlot ResolveDrop(ItemRules rules, MapPropType propType, out uint xpReward)
     {
+        ArgumentNullException.ThrowIfNull(rules);
         (string? code, int quantity, uint xp) = propType switch
         {
             MapPropType.OakTree or MapPropType.PineTree or MapPropType.SnowPine or MapPropType.PalmTree
@@ -39,7 +42,7 @@ public static class PropHarvestCatalog
             _ => (null, 0, 0U),
         };
 
-        if (code is null || !StarterGameCatalog.ItemCatalog.TryGetByCode(code, out ItemCatalogEntry? item))
+        if (code is null || !rules.ItemCatalog.TryGetByCode(code, out ItemCatalogEntry? item))
         {
             xpReward = 0U;
             return ItemSlot.Empty;

@@ -69,7 +69,7 @@ public sealed partial class AuthoritativeWorld
                 return OpStatus.Forbidden;
             }
 
-            byte tier = ResolveSlotHarvestTier(state.Inventory, slotIndex);
+            byte tier = this.ResolveSlotHarvestTier(state.Inventory, slotIndex);
             state.Session = state.Session with { SelectedHotbarSlot = slotIndex, SelectedHarvestTier = tier };
             this.RecomputeDerivedStatsLocked(state);
             this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
@@ -125,7 +125,7 @@ public sealed partial class AuthoritativeWorld
             return OpStatus.Invalid;
         }
 
-        if (!StarterGameCatalog.Recipes.TryGet(recipeId, out CraftingRecipe? recipe))
+        if (!_itemRules.Recipes.TryGet(recipeId, out CraftingRecipe? recipe))
         {
             return OpStatus.NotFound;
         }
@@ -166,7 +166,7 @@ public sealed partial class AuthoritativeWorld
             {
                 CraftResult result = _economy is not null
                     ? _economy.Checkout.TryCraft(state.Wallet, state.Inventory, recipe, context, _currentTick, bagLimit)
-                    : RecipeMatcher.TryCraft(state.Inventory, recipe, StarterGameCatalog.ItemCatalog, context, bagLimit);
+                    : RecipeMatcher.TryCraft(state.Inventory, recipe, _itemRules.ItemCatalog, context, bagLimit);
                 if (!result.IsOk)
                 {
                     firstFailure = result;
@@ -182,7 +182,7 @@ public sealed partial class AuthoritativeWorld
             }
 
             CollectModifiedSlots(beforeSnapshot, state.Inventory.Slots, _mutationSlotScratch);
-            byte newTier = ResolveSlotHarvestTier(state.Inventory, state.Session.SelectedHotbarSlot);
+            byte newTier = this.ResolveSlotHarvestTier(state.Inventory, state.Session.SelectedHotbarSlot);
             state.Session = state.Session with { SelectedHarvestTier = newTier };
             this.GrantExperienceLocked(state, (uint)(15 * crafted), out _);
             this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
@@ -233,13 +233,13 @@ public sealed partial class AuthoritativeWorld
             Span<ItemSlot> beforeSnap = stackalloc ItemSlot[before.Length];
             before.CopyTo(beforeSnap);
 
-            if (!PlayerInventoryLayout.TryMoveOrEquipSlot(state.Inventory, fromSlot, toSlot))
+            if (!PlayerInventoryLayout.TryMoveOrEquipSlot(_itemRules, state.Inventory, fromSlot, toSlot))
             {
                 return OpStatus.Invalid;
             }
 
             CollectModifiedSlots(beforeSnap, state.Inventory.Slots, _mutationSlotScratch);
-            byte newTier = ResolveSlotHarvestTier(state.Inventory, state.Session.SelectedHotbarSlot);
+            byte newTier = this.ResolveSlotHarvestTier(state.Inventory, state.Session.SelectedHotbarSlot);
             state.Session = state.Session with { SelectedHarvestTier = newTier };
 
             if (fromSlot >= PlayerInventoryLayout.BagLimit ||
@@ -340,7 +340,7 @@ public sealed partial class AuthoritativeWorld
             }
 
             ItemSlot target = state.Inventory.GetSlot(slotIndex);
-            if (!ItemEnhancementPolicy.CanUpgrade(in target, out uint mat1, out int c1, out uint mat2, out int c2, out float successChance))
+            if (!ItemEnhancementPolicy.CanUpgrade(_itemRules, in target, out uint mat1, out int c1, out uint mat2, out int c2, out float successChance))
             {
                 return OpStatus.Invalid;
             }
@@ -371,7 +371,7 @@ public sealed partial class AuthoritativeWorld
                 : Random.Shared.NextDouble();
 
             succeeded = roll <= successChance;
-            if (succeeded && StarterGameCatalog.Items.TryGet(target.ItemId, out ItemArchetype? def))
+            if (succeeded && _itemRules.Items.TryGet(target.ItemId, out ItemArchetype? def))
             {
                 byte nextLevel = (byte)(ItemEnhancementPolicy.GetUpgradeLevel(in target) + 1);
                 float nextDur = ItemEnhancementPolicy.GetEffectiveMaxDurability(def, nextLevel);
@@ -556,7 +556,7 @@ public sealed partial class AuthoritativeWorld
             return;
         }
 
-        int maxStack = StarterGameCatalog.GetMaxStackSize(item.ItemId);
+        int maxStack = _itemRules.GetMaxStackSize(item.ItemId);
         if (maxStack > 1 && item.IsStackable)
         {
             foreach (KeyValuePair<ulong, LootDropMeta> kvp in _lootByNetworkId)
@@ -675,7 +675,7 @@ public sealed partial class AuthoritativeWorld
         }
 
         ItemSlot metaItem = meta.Item;
-        int maxStack = StarterGameCatalog.GetMaxStackSize(metaItem.ItemId);
+        int maxStack = _itemRules.GetMaxStackSize(metaItem.ItemId);
         ReadOnlySpan<ItemSlot> before = state.Inventory.Slots;
         Span<ItemSlot> snapshot = stackalloc ItemSlot[before.Length];
         before.CopyTo(snapshot);
@@ -735,12 +735,12 @@ public sealed partial class AuthoritativeWorld
         }
     }
 
-    private static byte ResolveSlotHarvestTier(InventoryContainer inventory, byte slotIndex)
+    private byte ResolveSlotHarvestTier(InventoryContainer inventory, byte slotIndex)
     {
         if (slotIndex < inventory.Capacity)
         {
             ItemSlot slot = inventory.GetSlot(slotIndex);
-            if (!slot.IsEmpty && StarterGameCatalog.Items.TryGet(slot.ItemId, out ItemArchetype? def))
+            if (!slot.IsEmpty && _itemRules.Items.TryGet(slot.ItemId, out ItemArchetype? def))
             {
                 return def.HarvestTier;
             }

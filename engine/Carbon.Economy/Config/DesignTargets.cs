@@ -24,4 +24,9 @@ public sealed record DesignTargets
 
     /// <summary>Gets the accepted share of faucet gold the sinks remove (<c>0..1</c>), by level band.</summary>
     public IReadOnlyList<LevelBand> SinkShare { get; set; } = [];
+
+    /// <summary>
+    /// Gets the accepted inflation slope: the least-squares slope of net gold/hour against level (gold/hour per level).
+    /// </summary>
+    public ValueRange InflationSlope { get; set; } = new() { Min = 0d, Max = double.MaxValue };
 }

@@ -18,6 +18,9 @@ public sealed class VendorAndCheckoutTests
 
     private static uint Id(string code) => ShippedConfig.Items.ResolveId(code);
 
+    private static Items.Definitions.ItemCatalogEntry Item(string code) =>
+        ShippedConfig.Items.TryGetByCode(code, out Items.Definitions.ItemCatalogEntry? item) ? item : throw new System.Collections.Generic.KeyNotFoundException(code);
+
     private static CraftingRecipe Recipe(string code) =>
         ShippedConfig.Recipes.TryGetByCode(code, out CraftingRecipe? recipe) ? recipe : throw new System.Collections.Generic.KeyNotFoundException(code);
 
@@ -115,6 +118,65 @@ public sealed class VendorAndCheckoutTests
         bag.GetSlot(0).Durability.Should().Be(200f);
         vendor.TryRepair(wallet, bag, 0).Error.Should().Be(EconomyError.AlreadyRepaired);
         vendor.TryRepair(wallet, bag, 1).Error.Should().Be(EconomyError.NotRepairable);
+    }
+
+    [Fact]
+    public void GetRepairCost_ScalesWithRarity()
+    {
+        // Same missing fraction; the rarity percentage (economy.json repair.rarityMultiplierPercent) scales the cost.
+        ItemSlot HalfWorn(string code)
+        {
+            Items.Definitions.ItemCatalogEntry item = Item(code);
+            return new ItemSlot(item.Id, 1, InstanceId: 1, Durability: item.MaxDurability / 2f);
+        }
+
+        Config.RarityPercents rarity = ShippedConfig.Economy.Repair.RarityMultiplierPercent;
+        long Formula(string code, int percent) =>
+            (long)System.Math.Ceiling(Item(code).BasePrice * 0.30 * 0.5 * percent / 100d);
+
+        s_prices.GetRepairCost(HalfWorn("copper_sword")).Should().Be(Formula("copper_sword", rarity.Common));
+        s_prices.GetRepairCost(HalfWorn("ember_blade")).Should().Be(Formula("ember_blade", rarity.Epic));
+        rarity.Epic.Should().BeGreaterThan(rarity.Common, "high-tier gear is the main recurring sink");
+    }
+
+    [Fact]
+    public void GetCraftingFee_ScalesWithRarestOutput()
+    {
+        Config.CraftingFeeRules fees = ShippedConfig.Economy.CraftingFees;
+        CraftingRecipe blade = Recipe("ember_blade");
+        long baseFee = fees.Forge + (s_prices.GetOutputValue(blade) * fees.OutputValueRateBps / 10_000);
+
+        s_prices.GetCraftingFee(blade).Should().Be(baseFee * fees.RarityMultiplierPercent.Epic / 100);
+        s_prices.GetCraftingFee(Recipe("wood_plank")).Should().Be(fees.None, "hand crafting stays free");
+    }
+
+    [Fact]
+    public void GetBuyPrice_Consumables_ArePricedByBuyerLevelBand()
+    {
+        uint potion = Id("small_health_potion");
+        uint log = Id("wood_log");
+        long basePotion = s_prices.GetBuyPrice(potion);
+
+        s_prices.GetBuyPrice(potion, buyerLevel: 1).Should().Be(basePotion);
+        s_prices.GetBuyPrice(potion, buyerLevel: 60).Should().Be(
+            (long)System.Math.Ceiling(basePotion * ShippedConfig.Economy.GetConsumablePricePercent(60) / 100d));
+        s_prices.GetBuyPrice(potion, buyerLevel: 60).Should().BeGreaterThan(s_prices.GetBuyPrice(potion, buyerLevel: 20));
+        s_prices.GetBuyPrice(log, buyerLevel: 60).Should().Be(s_prices.GetBuyPrice(log), "only consumables are level-banded");
+        s_prices.GetSellPrice(potion).Should().BeLessThan(basePotion, "a high-level price never lets buy-then-sell mint gold");
+    }
+
+    [Fact]
+    public void TryBuy_WithBuyerLevel_ChargesTheBandedPrice()
+    {
+        VendorService vendor = new(s_prices);
+        Wallet wallet = new(1);
+        wallet.TryCredit(CurrencyKind.Gold, 10_000, CurrencyReason.Admin);
+        InventoryContainer bag = new(4);
+        uint potion = Id("small_health_potion");
+
+        vendor.TryBuy(wallet, bag, potion, 3, buyerLevel: 80).IsOk.Should().BeTrue();
+
+        wallet.Gold.Should().Be(10_000 - (3 * s_prices.GetBuyPrice(potion, buyerLevel: 80)));
     }
 
     [Fact]

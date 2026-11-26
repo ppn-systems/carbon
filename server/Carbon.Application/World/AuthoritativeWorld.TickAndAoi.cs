@@ -241,7 +241,7 @@ public sealed partial class AuthoritativeWorld
                     {
                         ItemSlot curSlot = observer.Inventory.GetSlot(sIdx);
                         if (curSlot.IsEmpty ||
-                            !StarterGameCatalog.Items.TryGet(curSlot.ItemId, out ItemArchetype? itemDef))
+                            !_itemRules.Items.TryGet(curSlot.ItemId, out ItemArchetype? itemDef))
                         {
                             continue;
                         }

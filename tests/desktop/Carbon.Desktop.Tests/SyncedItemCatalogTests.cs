@@ -15,7 +15,6 @@ using Xunit;
 namespace Carbon.Desktop.Tests;
 
 /// <summary>The desktop reads item names, stats and recipes from the server's synced <c>items.json</c> and <c>recipes.json</c>.</summary>
-[Collection(LiveHostGroup.Name)]
 public sealed class SyncedItemCatalogTests
 {
     private static readonly byte[] s_itemsJson = File.ReadAllBytes(Path.Combine(FindRepositoryRoot(), "resources", "config", "items.json"));
@@ -24,45 +23,34 @@ public sealed class SyncedItemCatalogTests
     [Fact]
     public void Apply_SyncedItemsDocument_ServesNamesAndStacksForItemsTheClientNeverCompiled()
     {
-        try
-        {
-            SyncedItemCatalog.Apply(Config(1, s_itemsJson)).Should().BeTrue();
+        SyncedItemCatalog synced = new();
 
-            ItemCatalog catalog = SyncedItemCatalog.Current!;
-            ItemCatalogEntry beyondStarter = catalog.All.ToArray().First(static i => i.Id >= 100);
-            SyncedItemCatalog.GetDisplayName(beyondStarter.Id).Should().Be(beyondStarter.Name);
-            SyncedItemCatalog.GetMaxStackSize(beyondStarter.Id).Should().Be(beyondStarter.MaxStack);
-            SyncedItemCatalog.GetDisplayName(0U).Should().Be("Empty");
-            SyncedItemCatalog.GetDisplayName(uint.MaxValue).Should().Be($"Item #{uint.MaxValue}");
-            StarterGameCatalog.Items.Contains(beyondStarter.Id).Should().BeTrue("the synced catalog is installed as the active item table");
-            StarterGameCatalog.Recipes.Count.Should().Be(StarterGameCatalog.RecipeCatalog.Count);
-        }
-        finally
-        {
-            RestoreShippedConfig();
-        }
+        synced.Apply(Config(1, s_itemsJson)).Should().BeTrue();
+
+        ItemCatalog catalog = synced.Current!;
+        ItemCatalogEntry beyondStarter = catalog.All.ToArray().First(static i => i.Id >= 100);
+        synced.GetDisplayName(beyondStarter.Id).Should().Be(beyondStarter.Name);
+        synced.GetMaxStackSize(beyondStarter.Id).Should().Be(beyondStarter.MaxStack);
+        synced.GetDisplayName(0U).Should().Be("Empty");
+        synced.GetDisplayName(uint.MaxValue).Should().Be($"Item #{uint.MaxValue}");
+        synced.Rules.Items.Contains(beyondStarter.Id).Should().BeTrue("the synced catalog backs the session's item rules");
+        synced.Rules.Recipes.Count.Should().Be(synced.Rules.RecipeCatalog.Count);
     }
 
     [Fact]
     public void Apply_MissingOrInvalidItemsDocument_KeepsPreviousCatalog()
     {
-        try
-        {
-            SyncedItemCatalog.Apply(Config(1, s_itemsJson)).Should().BeTrue();
-            ItemCatalog? before = SyncedItemCatalog.Current;
-            ItemArchetype axeBefore = StarterGameCatalog.Items.GetRequired(StarterGameCatalog.WoodAxe);
+        SyncedItemCatalog synced = new();
+        synced.Apply(Config(1, s_itemsJson)).Should().BeTrue();
+        ItemCatalog? before = synced.Current;
+        ItemRules rulesBefore = synced.Rules;
 
-            SyncedItemCatalog.Apply(new ConfigCatalog(2, [])).Should().BeFalse();
-            SyncedItemCatalog.Apply(new ConfigCatalog(3, [new ConfigCatalogEntry("items", 0, 1, "{\"items\":[{\"id\":0}]}"u8.ToArray())])).Should().BeFalse();
-            SyncedItemCatalog.Apply(new ConfigCatalog(4, [new ConfigCatalogEntry("items", 0, 1, s_itemsJson)])).Should().BeFalse("recipes.json must sync with items.json so recipe ids match the server");
+        synced.Apply(new ConfigCatalog(2, [])).Should().BeFalse();
+        synced.Apply(new ConfigCatalog(3, [new ConfigCatalogEntry("items", 0, 1, "{\"items\":[{\"id\":0}]}"u8.ToArray())])).Should().BeFalse();
+        synced.Apply(new ConfigCatalog(4, [new ConfigCatalogEntry("items", 0, 1, s_itemsJson)])).Should().BeFalse("recipes.json must sync with items.json so recipe ids match the server");
 
-            SyncedItemCatalog.Current.Should().BeSameAs(before);
-            StarterGameCatalog.Items.GetRequired(StarterGameCatalog.WoodAxe).Should().BeSameAs(axeBefore);
-        }
-        finally
-        {
-            RestoreShippedConfig();
-        }
+        synced.Current.Should().BeSameAs(before);
+        synced.Rules.Should().BeSameAs(rulesBefore);
     }
 
     [Fact]
@@ -73,20 +61,29 @@ public sealed class SyncedItemCatalogTests
             .Replace("\"baseDamage\": 34.0", "\"baseDamage\": 999.0", StringComparison.Ordinal);
         string recipes = System.Text.Encoding.UTF8.GetString(s_recipesJson)
             .Replace("\"code\": \"wood_plank\"", "\"code\": \"wood_plank_synced\"", StringComparison.Ordinal);
-        try
-        {
-            SyncedItemCatalog.Apply(Config(5, System.Text.Encoding.UTF8.GetBytes(items), System.Text.Encoding.UTF8.GetBytes(recipes))).Should().BeTrue();
+        SyncedItemCatalog synced = new();
 
-            StarterGameCatalog.Items.GetRequired(StarterGameCatalog.IronSword).BaseDamage.Should().Be(999f, "iron sword damage comes from the synced items.json");
-            StarterGameCatalog.GetWeaponBaseDamage(StarterGameCatalog.IronSword).Should().Be(999f);
-            StarterGameCatalog.RecipeCatalog.TryGetByCode("wood_plank_synced", out _).Should().BeTrue("recipes come from the synced recipes.json");
-        }
-        finally
-        {
-            RestoreShippedConfig();
-        }
+        synced.Apply(Config(5, System.Text.Encoding.UTF8.GetBytes(items), System.Text.Encoding.UTF8.GetBytes(recipes))).Should().BeTrue();
 
-        StarterGameCatalog.Items.GetRequired(StarterGameCatalog.IronSword).BaseDamage.Should().Be(34f);
+        synced.Rules.Items.GetRequired(StarterGameCatalog.IronSword).BaseDamage.Should().Be(999f, "iron sword damage comes from the synced items.json");
+        synced.Rules.GetWeaponBaseDamage(StarterGameCatalog.IronSword).Should().Be(999f);
+        synced.Rules.RecipeCatalog.TryGetByCode("wood_plank_synced", out _).Should().BeTrue("recipes come from the synced recipes.json");
+    }
+
+    [Fact]
+    public void Apply_TwoSessions_KeepIndependentTables()
+    {
+        // No process-wide installed table: a second session (or a test) syncing other values never leaks into the first.
+        string items = System.Text.Encoding.UTF8.GetString(s_itemsJson)
+            .Replace("\"baseDamage\": 34.0", "\"baseDamage\": 999.0", StringComparison.Ordinal);
+        SyncedItemCatalog first = new();
+        SyncedItemCatalog second = new();
+
+        first.Apply(Config(1, s_itemsJson)).Should().BeTrue();
+        second.Apply(Config(2, System.Text.Encoding.UTF8.GetBytes(items))).Should().BeTrue();
+
+        first.Rules.GetWeaponBaseDamage(StarterGameCatalog.IronSword).Should().Be(34f);
+        second.Rules.GetWeaponBaseDamage(StarterGameCatalog.IronSword).Should().Be(999f);
     }
 
     [Fact]
@@ -119,8 +116,6 @@ public sealed class SyncedItemCatalogTests
                 new ConfigCatalogEntry("recipes", ConfigContentHash.Compute(recipeBytes), version, recipeBytes),
             ]);
     }
-
-    private static void RestoreShippedConfig() => SyncedItemCatalog.Apply(Config(100, s_itemsJson)).Should().BeTrue();
 
     private static string FindRepositoryRoot()
     {

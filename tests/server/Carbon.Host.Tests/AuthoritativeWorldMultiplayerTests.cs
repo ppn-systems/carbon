@@ -255,8 +255,8 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
             world.TryEnterWorld(connectionId: 101UL, sessionId: 1UL, scout).Status.Should().Be(OpStatus.Ok);
             // recipes.json: planks are hand-crafted anywhere; walls need a built workbench nearby.
-            StarterGameCatalog.RecipeCatalog.TryGetByCode("wood_plank", out CraftingRecipe? plankRecipe).Should().BeTrue();
-            StarterGameCatalog.RecipeCatalog.TryGetByCode("wood_wall", out CraftingRecipe? wallRecipe).Should().BeTrue();
+            world.ItemRules.RecipeCatalog.TryGetByCode("wood_plank", out CraftingRecipe? plankRecipe).Should().BeTrue();
+            world.ItemRules.RecipeCatalog.TryGetByCode("wood_wall", out CraftingRecipe? wallRecipe).Should().BeTrue();
             world.TryCraftRecipe(101UL, recipeId: (ushort)plankRecipe!.Id, quantity: 2).Should().Be(OpStatus.Ok);
             sink.SlotChanges.Should().NotBeEmpty();
             world.TryCraftRecipe(101UL, recipeId: (ushort)wallRecipe!.Id, quantity: 1).Should().Be(OpStatus.OutOfRange, "wood walls are crafted at a workbench");
@@ -1221,7 +1221,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             EnterWorldResult enter = world.TryEnterWorld(930UL, 930UL, cook);
             enter.Status.Should().Be(OpStatus.Ok);
 
-            StarterGameCatalog.RecipeCatalog.TryGetByCode("cooked_meat", out CraftingRecipe? recipe).Should().BeTrue();
+            world.ItemRules.RecipeCatalog.TryGetByCode("cooked_meat", out CraftingRecipe? recipe).Should().BeTrue();
             world.TryCraftRecipe(930UL, (ushort)recipe!.Id, 1).Should().Be(OpStatus.OutOfRange, "cooking needs a stove or campfire nearby");
 
             // Build a campfire (4 wood logs, 40 work) next to the player.

@@ -24,4 +24,9 @@ public sealed record CraftingFeeRules
 
     /// <summary>Gets the value-proportional fee in basis points of the outputs' base value (applied at stations only).</summary>
     public int OutputValueRateBps { get; set; } = 200;
+
+    /// <summary>
+    /// Gets or sets the station-fee percentage by the rarest output's rarity, applied to the whole fee (flat + proportional).
+    /// </summary>
+    public RarityPercents RarityMultiplierPercent { get; set; } = new();
 }

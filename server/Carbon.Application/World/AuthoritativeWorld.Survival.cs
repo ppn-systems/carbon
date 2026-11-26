@@ -11,7 +11,6 @@ using Carbon.Application.World.Commands;
 using Carbon.Combat.Events;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
-using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
 using Carbon.Maps.Building;
@@ -158,7 +157,7 @@ public sealed partial class AuthoritativeWorld
 
     /// <summary>Resolves an item id to its code from the built-in catalog, then the data-driven economy catalog.</summary>
     private string? ResolveItemCode(uint itemId) =>
-        StarterGameCatalog.Items.TryGet(itemId, out ItemArchetype? builtIn)
+        _itemRules.Items.TryGet(itemId, out ItemArchetype? builtIn)
             ? builtIn.Code
             : _economy is not null && _economy.Items.TryGet(itemId, out ItemCatalogEntry? entry) ? entry.Code : null;
 
@@ -180,7 +179,7 @@ public sealed partial class AuthoritativeWorld
                 continue;
             }
 
-            ReadOnlySpan<ItemArchetype> builtIn = StarterGameCatalog.Items.All;
+            ReadOnlySpan<ItemArchetype> builtIn = _itemRules.Items.All;
             for (int b = 0; b < builtIn.Length; b++)
             {
                 if (string.Equals(builtIn[b].Code, target, StringComparison.Ordinal))
@@ -284,7 +283,7 @@ public sealed partial class AuthoritativeWorld
             return;
         }
 
-        if (StarterGameCatalog.Items.TryGet(slot.ItemId, out ItemArchetype? def))
+        if (_itemRules.Items.TryGet(slot.ItemId, out ItemArchetype? def))
         {
             _ = this.ApplyConsumableRestoresLocked(state, def);
         }
