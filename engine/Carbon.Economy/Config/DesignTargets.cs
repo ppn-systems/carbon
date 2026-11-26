@@ -18,4 +18,10 @@ public sealed record DesignTargets
 
     /// <summary>Gets the accepted diamonds/hour from normal (non-elite) monsters by level band.</summary>
     public IReadOnlyList<LevelBand> DiamondsPerHour { get; set; } = [];
+
+    /// <summary>Gets the accepted net gold/hour (all faucets minus all sinks) of the simulated player by level band.</summary>
+    public IReadOnlyList<LevelBand> NetGoldPerHour { get; set; } = [];
+
+    /// <summary>Gets the accepted share of faucet gold the sinks remove (<c>0..1</c>), by level band.</summary>
+    public IReadOnlyList<LevelBand> SinkShare { get; set; } = [];
 }

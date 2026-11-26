@@ -1,0 +1,72 @@
+// Copyright (c) 2026 PPN Systems. All rights reserved.
+
+using System.Collections.Generic;
+using System.Linq;
+using Carbon.Economy.Config;
+using Carbon.Economy.Simulation;
+using FluentAssertions;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace Carbon.Economy.Tests;
+
+/// <summary>
+/// Player-hour balance gate: plays the <c>economy.json → playerModel</c> against the shipped loot, vendor, repair and
+/// station-fee tables and fails when net gold/hour or the sink share leaves its designed band.
+/// </summary>
+public sealed class EconomyBalanceSimulatorTests
+{
+    private const int Hours = 20;
+    private static readonly int[] s_levels = [1, 5, 10, 15, 20, 30, 40, 50, 60, 75, 90, 100];
+    private readonly ITestOutputHelper _output;
+
+    public EconomyBalanceSimulatorTests(ITestOutputHelper output) => _output = output;
+
+    private static GameEconomy Economy => GameEconomy.Load(ShippedConfig.Read("items.json"), ShippedConfig.Read("recipes.json"), ShippedConfig.Read("economy.json"), ShippedConfig.Read("loot.json"));
+
+    [Fact]
+    public void Simulate_PlayerHoursAtEveryStage_NetGoldAndSinkShareStayInsideDesignBands()
+    {
+        EconomySimulator simulator = new(Economy);
+        List<EconomyHourReport> reports = [.. s_levels.Select(level => simulator.Simulate(level, Hours, seed: 2026))];
+        _output.WriteLine(EconomySimulator.FormatTable(reports));
+        DesignTargets targets = ShippedConfig.Economy.DesignTargets;
+
+        foreach (EconomyHourReport r in reports)
+        {
+            LevelBand net = targets.NetGoldPerHour.Single(b => b.MinLevel <= r.Level && r.Level <= b.MaxLevel);
+            LevelBand share = targets.SinkShare.Single(b => b.MinLevel <= r.Level && r.Level <= b.MaxLevel);
+            r.Net.Should().BeInRange(net.Min, net.Max, "net gold/hour at level {0}", r.Level);
+            r.SinkShare.Should().BeInRange(share.Min, share.Max, "sink share at level {0}", r.Level);
+            r.Repairs.Should().BePositive("every stage's gear must wear out and be repaired at level {0}", r.Level);
+            r.VendorPurchases.Should().BePositive("food is bought every hour at level {0}", r.Level);
+        }
+
+        EconomySimulator.InflationSlope(reports).Should().BePositive("net gold/hour grows with level");
+    }
+
+    [Fact]
+    public void Simulate_SameSeed_IsDeterministic()
+    {
+        EconomySimulator simulator = new(Economy);
+
+        simulator.Simulate(30, 3, seed: 7).Should().Be(simulator.Simulate(30, 3, seed: 7));
+    }
+
+    [Fact]
+    public void PlayerModel_Stages_CoverEveryLevelWithoutGaps()
+    {
+        PlayerModel model = ShippedConfig.Economy.PlayerModel;
+
+        for (int level = 1; level <= ShippedConfig.Economy.MaxLevel; level++)
+        {
+            model.Stages.Count(s => s.MinLevel <= level && level <= s.MaxLevel).Should().Be(1, "level {0}", level);
+        }
+
+        foreach (PlayerStage stage in model.Stages)
+        {
+            stage.Gear.Where(code => !ShippedConfig.Items.TryGetByCode(code, out _)).Should().BeEmpty("gear must exist in items.json");
+            stage.Recipes.Where(code => !ShippedConfig.Recipes.TryGetByCode(code, out _)).Should().BeEmpty("recipes must exist in recipes.json");
+        }
+    }
+}
