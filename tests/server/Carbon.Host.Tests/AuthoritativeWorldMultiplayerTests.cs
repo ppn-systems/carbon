@@ -29,6 +29,41 @@ namespace Carbon.Host.Tests;
 
 public sealed class AuthoritativeWorldMultiplayerTests
 {
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(13, 23)]
+    public async Task TryEnterWorld_PlayerInHeartlandNearSpawn_SeesWildSlimeWithinOneSecond(int offsetTilesX, int offsetTilesY)
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-heartland-spawn-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
+            RecordingOutboundSink sink = new();
+            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), new SqliteCharacterStore(factory), sink);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+            Vector2 position = world.DefaultSpawnWorldPosition + (new Vector2(offsetTilesX, offsetTilesY) * 32f);
+            CharacterRecord hero = new(Guid.NewGuid(), Guid.NewGuid(), "Newcomer", 1, 0, position.X, position.Y, 100f, 100f, 0, [], DateTimeOffset.UtcNow);
+            world.TryEnterWorld(connectionId: 77UL, sessionId: 77UL, hero).Status.Should().Be(OpStatus.Ok);
+
+            // One second at 30 Hz: the entry scan must populate the heartland immediately, not after spawn intervals.
+            for (int tick = 0; tick < 30; tick++)
+            {
+                world.StepFixedTick();
+            }
+
+            sink.Spawns.Should().Contain(
+                s => s.ConnectionId == 77UL && s.Snapshot.Kind == EntityKind.Monster && s.Snapshot.ArchetypeId == WorldActorCatalog.WildSlime,
+                "a new player in the heartland must see at least one slime right away");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            File.Delete(dbPath);
+        }
+    }
+
     [Fact]
     public async Task TwoPlayersEnteringSteppingBuildingAndLeaving_ShouldSyncAoiAndPersistDeltas()
     {
@@ -1081,7 +1116,8 @@ public sealed class AuthoritativeWorldMultiplayerTests
             mob.Should().NotBeNull("the data-driven spawner populates cells around an entering player");
             mob!.Value.ArchetypeId.Should().BeInRange(101, 109, "monsters replicate their WorldActorCatalog rig archetype");
 
-            CharacterRecord bait = scout with { Id = Guid.NewGuid(), Name = "Bait", PositionX = mob.Value.PositionX + 30f, PositionY = mob.Value.PositionY };
+            // Aggro needs line of sight; with seed 1337 the west side of this mob is clear of props.
+            CharacterRecord bait = scout with { Id = Guid.NewGuid(), Name = "Bait", PositionX = mob.Value.PositionX - 30f, PositionY = mob.Value.PositionY };
             EnterWorldResult baitEnter = world.TryEnterWorld(connectionId: 404UL, sessionId: 4UL, bait);
             baitEnter.Status.Should().Be(OpStatus.Ok);
 

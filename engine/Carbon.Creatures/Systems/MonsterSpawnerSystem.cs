@@ -190,17 +190,32 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
             return;
         }
 
-        DeterministicRandom rng = new(SpatialHash.Hash(SpatialHash.Hash(_seed, cell.X, cell.Y), (int)state.Attempts, 0x4D4F4E));
-        state.Attempts++;
         float densityRate = isNight ? _config.Night.DensityMultiplier : 1f;
         state.NextSpawnTick = tickIndex + Math.Max(1UL, (ulong)(_config.SpawnIntervalTicks / densityRate));
 
+        // A rejected candidate (safe zone, too close to a player, blocked tile, no eligible monster) retries at once
+        // instead of waiting a whole spawn interval, so cells around a player populate on the first scan.
+        int candidates = Math.Max(1, _config.PlacementAttempts);
+        for (int c = 0; c < candidates; c++)
+        {
+            DeterministicRandom rng = new(SpatialHash.Hash(SpatialHash.Hash(_seed, cell.X, cell.Y), (int)state.Attempts, 0x4D4F4E));
+            state.Attempts++;
+            if (this.TrySpawnCandidate(world, cell, anchors, isNight, ref rng))
+            {
+                state.Alive++;
+                return;
+            }
+        }
+    }
+
+    private bool TrySpawnCandidate(WorldSimulation world, CellCoord cell, ReadOnlySpan<Vector2> anchors, bool isNight, ref DeterministicRandom rng)
+    {
         float size = _config.CellSize;
         Vector2 position = new((cell.X + rng.NextFloat()) * size, (cell.Y + rng.NextFloat()) * size);
         float originDistance = Vector2.Distance(position, _worldOrigin);
         if (originDistance < _config.SafeZoneRadius)
         {
-            return;
+            return false;
         }
 
         float minAnchorDistSq = _config.MinSpawnDistanceFromAnchor * _config.MinSpawnDistanceFromAnchor;
@@ -208,13 +223,13 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
         {
             if (Vector2.DistanceSquared(position, anchors[i]) < minAnchorDistSq)
             {
-                return;
+                return false;
             }
         }
 
         if (!_surface.TrySampleSpawnBiome(position, out BiomeType biome))
         {
-            return;
+            return false;
         }
 
         SpawnTableData? table = _tables[(byte)biome];
@@ -222,7 +237,7 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
         int level = (int)MathF.Floor(_scaling.EvaluateLevel(originDistance, out _));
         if (table is null || !table.TryPick(rng.NextFloat(), isNight, level, out ushort monsterIndex))
         {
-            return;
+            return false;
         }
 
         float eliteChance = isNight ? _config.Night.EliteChance : _config.DayEliteChance;
@@ -244,8 +259,8 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
             _config.TargetLayerMask,
             cell);
 
-        state.Alive++;
         _tracked.Add(new TrackedMonster(monster, cell));
+        return true;
     }
 
     private void ReapDead(WorldSimulation world, ulong tickIndex)

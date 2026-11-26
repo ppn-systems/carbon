@@ -1,9 +1,10 @@
 {
   "schemaVersion": 1,
-  "safeZoneRadius": 1600,
+  "safeZoneRadius": 480,
   "cellSize": 512,
   "activationRadiusCells": 2,
-  "minSpawnDistanceFromAnchor": 384,
+  "minSpawnDistanceFromAnchor": 256,
+  "placementAttempts": 6,
   "baseCellCap": 3,
   "spawnIntervalTicks": 150,
   "respawnDelayTicks": 900,
