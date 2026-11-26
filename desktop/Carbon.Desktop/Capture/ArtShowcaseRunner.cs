@@ -124,6 +124,7 @@ internal static class ArtShowcaseRunner
             window.Device.Clear(ClearBufferMask.ColorBufferBit);
 
             geom.Begin(ortho);
+            ItemRules itemRules = ItemRules.LoadShippedDefaults(); // offline capture tool: no server, so the shipped tables
             for (int i = 0; i < s_monsterLineup.Length; i++)
             {
                 (ushort archId, string atkClip, ActionAnimationKind vfxKind) = s_monsterLineup[i];
@@ -180,7 +181,7 @@ internal static class ArtShowcaseRunner
                 MonsterArchetypeSpec spec = WorldActorCatalog.GetMonsterSpec(archId);
                 float cx = 96f + (i * 176f);
                 sprites.DrawOutlinedString(font, spec.Name, new Vector2(cx - 52f, 294f), white, black, 1, 1.0f);
-                sprites.DrawOutlinedString(font, $"Drop: {StarterGameCatalog.GetDisplayName(spec.DropItemId)}", new Vector2(cx - 56f, 316f), gold, black, 1, 0.85f);
+                sprites.DrawOutlinedString(font, $"Drop: {itemRules.GetDisplayName(spec.DropItemId)}", new Vector2(cx - 56f, 316f), gold, black, 1, 0.85f);
                 sprites.DrawOutlinedString(font, $"Clip: {atkClip}", new Vector2(cx - 48f, 580f), new ColorRgba(125, 211, 252, 255), black, 1, 0.9f);
             }
 
@@ -192,7 +193,7 @@ internal static class ArtShowcaseRunner
             window.Device.Clear(ClearBufferMask.ColorBufferBit);
 
             geom.Begin(ortho);
-            ReadOnlySpan<ItemArchetype> allItems = StarterGameCatalog.Items.All;
+            ReadOnlySpan<ItemArchetype> allItems = itemRules.Items.All;
             const int cols = 8;
             for (int i = 0; i < allItems.Length; i++)
             {

@@ -174,7 +174,7 @@ internal sealed class ConstructionOverlayRenderer
         world.CopyInventorySlots(slots);
         ItemSlot held = world.SelectedHotbarSlot < slots.Length ? slots[world.SelectedHotbarSlot] : ItemSlot.Empty;
         if (!held.IsEmpty &&
-            StarterGameCatalog.Items.TryGet(held.ItemId, out ItemArchetype? archetype) &&
+            world.Items.Rules.Items.TryGet(held.ItemId, out ItemArchetype? archetype) &&
             archetype.Category == ItemCategory.Placeable &&
             archetype.PlaceableStructureType != 0)
         {

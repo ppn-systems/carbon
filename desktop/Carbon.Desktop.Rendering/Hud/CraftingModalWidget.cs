@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -108,7 +107,7 @@ internal sealed class CraftingModalWidget
 
         if (GetCraft1ButtonRect(in layout).Contains(mousePos))
         {
-            if (StarterGameCatalog.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? rec) && PlayerInventoryLayout.CanCraft(slots, rec))
+            if (world.Items.Rules.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? rec) && PlayerInventoryLayout.CanCraft(slots, rec))
             {
                 craftRecipeId = _selectedRecipeId;
                 craftQuantity = 1;
@@ -119,7 +118,7 @@ internal sealed class CraftingModalWidget
 
         if (GetCraft5ButtonRect(in layout).Contains(mousePos))
         {
-            if (StarterGameCatalog.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? rec) && PlayerInventoryLayout.CanCraft(slots, rec, quantity: 5))
+            if (world.Items.Rules.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? rec) && PlayerInventoryLayout.CanCraft(slots, rec, quantity: 5))
             {
                 craftRecipeId = _selectedRecipeId;
                 craftQuantity = 5;
@@ -128,13 +127,13 @@ internal sealed class CraftingModalWidget
             return true;
         }
 
-        ReadOnlySpan<CraftingRecipe> recipes = StarterGameCatalog.Recipes.All;
+        ReadOnlySpan<CraftingRecipe> recipes = world.Items.Rules.Recipes.All;
         int matchIdx = 0;
         int shown = 0;
         for (int i = 0; i < recipes.Length && shown < MaxVisibleCards; i++)
         {
             CraftingRecipe rec = recipes[i];
-            if (!this.MatchesFilter(slots, rec))
+            if (!this.MatchesFilter(world.Items.Rules, slots, rec))
             {
                 continue;
             }
@@ -200,8 +199,8 @@ internal sealed class CraftingModalWidget
         skin.DrawButton(spriteBatch, GetScrollUpRect(in layout), CarbonUiPalette.CardFill, CarbonUiPalette.BorderSubtle);
         skin.DrawButton(spriteBatch, GetScrollDownRect(in layout), CarbonUiPalette.CardFill, CarbonUiPalette.BorderSubtle);
 
-        ReadOnlySpan<CraftingRecipe> recipes = StarterGameCatalog.Recipes.All;
-        int totalMatches = this.CountMatches(slots, recipes);
+        ReadOnlySpan<CraftingRecipe> recipes = world.Items.Rules.Recipes.All;
+        int totalMatches = this.CountMatches(world.Items.Rules, slots, recipes);
         int maxScroll = Math.Max(0, totalMatches - MaxVisibleCards);
         if (_scrollOffset > maxScroll)
         {
@@ -213,7 +212,7 @@ internal sealed class CraftingModalWidget
         for (int i = 0; i < recipes.Length && shown < MaxVisibleCards; i++)
         {
             CraftingRecipe rec = recipes[i];
-            if (!this.MatchesFilter(slots, rec))
+            if (!this.MatchesFilter(world.Items.Rules, slots, rec))
             {
                 continue;
             }
@@ -244,7 +243,7 @@ internal sealed class CraftingModalWidget
         RectangleF outIconBox = GetOutputIconRect(in layout);
         skin.DrawSlot(spriteBatch, in outIconBox, CarbonUiPalette.SlotFill, CarbonUiPalette.BorderOuter);
 
-        if (StarterGameCatalog.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? selectedRec))
+        if (world.Items.Rules.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? selectedRec))
         {
             for (int k = 0; k < selectedRec.Ingredients.Count; k++)
             {
@@ -285,13 +284,13 @@ internal sealed class CraftingModalWidget
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
 
-        ReadOnlySpan<CraftingRecipe> recipes = StarterGameCatalog.Recipes.All;
+        ReadOnlySpan<CraftingRecipe> recipes = world.Items.Rules.Recipes.All;
         int matchIdx = 0;
         int shown = 0;
         for (int i = 0; i < recipes.Length && shown < MaxVisibleCards; i++)
         {
             CraftingRecipe rec = recipes[i];
-            if (!this.MatchesFilter(slots, rec))
+            if (!this.MatchesFilter(world.Items.Rules, slots, rec))
             {
                 continue;
             }
@@ -316,7 +315,7 @@ internal sealed class CraftingModalWidget
             shown++;
         }
 
-        if (StarterGameCatalog.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? selectedRec) && art is not null)
+        if (world.Items.Rules.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? selectedRec) && art is not null)
         {
             RectangleF outBox = GetOutputIconRect(in layout);
             if (art.TryGetItem(selectedRec.Output.ItemId, out CompiledItemVectorArt? outArt))
@@ -372,13 +371,13 @@ internal sealed class CraftingModalWidget
         CarbonUiSkin.DrawCenteredText(spriteBatch, font, "^", GetScrollUpRect(in layout), CarbonUiPalette.TextPrimary, black, layout.TextScale);
         CarbonUiSkin.DrawCenteredText(spriteBatch, font, "v", GetScrollDownRect(in layout), CarbonUiPalette.TextPrimary, black, layout.TextScale);
 
-        ReadOnlySpan<CraftingRecipe> recipes = StarterGameCatalog.Recipes.All;
+        ReadOnlySpan<CraftingRecipe> recipes = world.Items.Rules.Recipes.All;
         int matchIdx = 0;
         int shown = 0;
         for (int i = 0; i < recipes.Length && shown < MaxVisibleCards; i++)
         {
             CraftingRecipe rec = recipes[i];
-            if (!this.MatchesFilter(slots, rec))
+            if (!this.MatchesFilter(world.Items.Rules, slots, rec))
             {
                 continue;
             }
@@ -392,10 +391,10 @@ internal sealed class CraftingModalWidget
             RectangleF rowRect = GetRecipeRowRect(in layout, shown);
             bool canCraft = PlayerInventoryLayout.CanCraft(slots, rec);
             float textMaxW = rowRect.Width - MathF.Round(72f * s);
-            string outName = CarbonUiSkin.TruncateToWidth(font, $"{SyncedItemCatalog.GetDisplayName(rec.Output.ItemId)} x{rec.Output.Quantity}", textMaxW, layout.TextScale);
+            string outName = CarbonUiSkin.TruncateToWidth(font, $"{world.Items.GetDisplayName(rec.Output.ItemId)} x{rec.Output.Quantity}", textMaxW, layout.TextScale);
             spriteBatch.DrawOutlinedString(font, outName, new Vector2(rowRect.X + MathF.Round(64f * s), rowRect.Y + MathF.Round(10f * s)), canCraft ? CarbonUiPalette.TextPrimary : CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
 
-            string summaryTag = CarbonUiSkin.TruncateToWidth(font, FormatRecipeShortTag(rec.Output.ItemId), textMaxW, layout.TextScale);
+            string summaryTag = CarbonUiSkin.TruncateToWidth(font, FormatRecipeShortTag(world.Items.Rules, rec.Output.ItemId), textMaxW, layout.TextScale);
             spriteBatch.DrawOutlinedString(font, summaryTag, new Vector2(rowRect.X + MathF.Round(64f * s), rowRect.Y + MathF.Round(36f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
 
             matchIdx++;
@@ -408,7 +407,7 @@ internal sealed class CraftingModalWidget
             spriteBatch.DrawOutlinedString(font, "No matching recipes", new Vector2(leftPane.X + MathF.Round(72f * s), leftPane.Y + MathF.Round(190f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
         }
 
-        if (StarterGameCatalog.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? selectedRec))
+        if (world.Items.Rules.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? selectedRec))
         {
             RectangleF rightPane = GetRightPaneRect(in layout);
             RectangleF outBox = GetOutputIconRect(in layout);
@@ -416,7 +415,7 @@ internal sealed class CraftingModalWidget
             int owned = PlayerInventoryLayout.CountItem(slots, outId);
             float headerX = outBox.Right + MathF.Round(12f * s);
             float headerMaxW = rightPane.Right - headerX - MathF.Round(14f * s);
-            string title = CarbonUiSkin.TruncateToWidth(font, $"{SyncedItemCatalog.GetDisplayName(outId)} x{selectedRec.Output.Quantity}", headerMaxW, layout.TitleScale);
+            string title = CarbonUiSkin.TruncateToWidth(font, $"{world.Items.GetDisplayName(outId)} x{selectedRec.Output.Quantity}", headerMaxW, layout.TitleScale);
             spriteBatch.DrawOutlinedString(font, title, new Vector2(headerX, outBox.Y + MathF.Round(4f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TitleScale);
             string requirement = CarbonUiSkin.TruncateToWidth(font, $"Owned: {owned}  |  {FormatRequirement(selectedRec)}", headerMaxW, layout.TextScale);
             spriteBatch.DrawOutlinedString(font, requirement, new Vector2(headerX, outBox.Y + MathF.Round(38f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
@@ -424,7 +423,7 @@ internal sealed class CraftingModalWidget
             float detailPad = MathF.Round(16f * s);
             spriteBatch.DrawOutlinedString(
                 font,
-                CarbonUiSkin.TruncateToWidth(font, FormatDetailedStats(outId), rightPane.Width - (detailPad * 2f), layout.TextScale),
+                CarbonUiSkin.TruncateToWidth(font, FormatDetailedStats(world.Items.Rules, outId), rightPane.Width - (detailPad * 2f), layout.TextScale),
                 new Vector2(rightPane.X + detailPad, outBox.Bottom + MathF.Round(18f * s)),
                 CarbonUiPalette.TextPrimary,
                 black,
@@ -441,7 +440,7 @@ internal sealed class CraftingModalWidget
                 float textY = ingCard.Y + MathF.Max(0f, (ingCard.Height * 0.5f) - MathF.Round(10f * s));
                 spriteBatch.DrawOutlinedString(
                     font,
-                    CarbonUiSkin.TruncateToWidth(font, SyncedItemCatalog.GetDisplayName(ing.ItemId), ingCard.Width - MathF.Round(120f * s), layout.TextScale),
+                    CarbonUiSkin.TruncateToWidth(font, world.Items.GetDisplayName(ing.ItemId), ingCard.Width - MathF.Round(120f * s), layout.TextScale),
                     new Vector2(ingCard.X + MathF.Round(48f * s), textY),
                     CarbonUiPalette.TextPrimary,
                     black,
@@ -480,12 +479,12 @@ internal sealed class CraftingModalWidget
         return recipe.UnlockLevel > 1 ? $"{station} Lv {recipe.UnlockLevel}" : station;
     }
 
-    private int CountMatches(ReadOnlySpan<ItemSlot> slots, ReadOnlySpan<CraftingRecipe> recipes)
+    private int CountMatches(ItemRules rules, ReadOnlySpan<ItemSlot> slots, ReadOnlySpan<CraftingRecipe> recipes)
     {
         int count = 0;
         for (int i = 0; i < recipes.Length; i++)
         {
-            if (this.MatchesFilter(slots, recipes[i]))
+            if (this.MatchesFilter(rules, slots, recipes[i]))
             {
                 count++;
             }
@@ -494,7 +493,7 @@ internal sealed class CraftingModalWidget
         return count;
     }
 
-    private bool MatchesFilter(ReadOnlySpan<ItemSlot> slots, CraftingRecipe recipe)
+    private bool MatchesFilter(ItemRules rules, ReadOnlySpan<ItemSlot> slots, CraftingRecipe recipe)
     {
         if (_craftableOnly && !PlayerInventoryLayout.CanCraft(slots, recipe))
         {
@@ -506,7 +505,7 @@ internal sealed class CraftingModalWidget
             return true;
         }
 
-        if (!StarterGameCatalog.Items.TryGet(recipe.Output.ItemId, out ItemArchetype? def))
+        if (!rules.Items.TryGet(recipe.Output.ItemId, out ItemArchetype? def))
         {
             return false;
         }
@@ -522,8 +521,8 @@ internal sealed class CraftingModalWidget
         };
     }
 
-    private static string FormatRecipeShortTag(uint itemId) =>
-        StarterGameCatalog.Items.TryGet(itemId, out ItemArchetype? def)
+    private static string FormatRecipeShortTag(ItemRules rules, uint itemId) =>
+        rules.Items.TryGet(itemId, out ItemArchetype? def)
             ? def.Category switch
             {
                 ItemCategory.Weapon => $"Weapon  {(int)def.BaseDamage} DMG",
@@ -537,8 +536,8 @@ internal sealed class CraftingModalWidget
             }
             : string.Empty;
 
-    private static string FormatDetailedStats(uint itemId) =>
-        StarterGameCatalog.Items.TryGet(itemId, out ItemArchetype? def)
+    private static string FormatDetailedStats(ItemRules rules, uint itemId) =>
+        rules.Items.TryGet(itemId, out ItemArchetype? def)
             ? def.Category switch
             {
                 ItemCategory.Weapon => $"DMG {(int)def.BaseDamage}  Crit {(int)(def.CritChance * 100f)}%  RNG {(int)def.AttackRange}",

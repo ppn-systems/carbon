@@ -77,6 +77,9 @@ Existing building blocks:
     server crafting (`AuthoritativeWorld.TryCraftRecipe`) still executes those ids and `recipes.json` renumbers them. The client
     switches to `recipes.json` in the same change that moves server crafting onto `RecipeCatalog`. A test pins every compiled
     starter item to the same code and stack size in `items.json`.
+    *Update (2026-11):* combat, tool and recipe data now come from `items.json`/`recipes.json` through an injected
+    `ItemRules` instance (server: `GameEconomy.ItemRules`; desktop: the session's `SyncedItemCatalog`). The static
+    `StarterGameCatalog.Items`/`Recipes` tables are gone; see `docs/economy.md` §9.
 
 12. **D12 — Domains swap with the manifest.** `ConfigRepository.AddReloadStep` registers a two-phase step. On a reload
     every step first *prepares* the new domain from the candidate snapshot without touching live state. Any

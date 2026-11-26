@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text;
 using Carbon.Configuration.Catalog;
@@ -11,13 +12,13 @@ using Carbon.Items.Definitions;
 namespace Carbon.Desktop.Abstractions.Configuration;
 
 /// <summary>
-/// The client's view of the server's <c>items.json</c> and <c>recipes.json</c> (ADR-014): item names, stats, stack sizes,
+/// One session's view of the server's <c>items.json</c> and <c>recipes.json</c> (ADR-014): item names, stats, stack sizes,
 /// durability and recipes come from the synced documents, never from tables compiled into the client, so items and recipes
-/// the server adds show up without a client build. Each verified sync also installs them as <see cref="StarterGameCatalog"/>'s
-/// active tables, which the HUD, crafting window and client prediction read.
-/// Replaced whole each time a sync completes; readers on any thread see either the old or the new catalog.
+/// the server adds show up without a client build. The HUD, crafting window and client prediction read
+/// <see cref="Rules"/>. Owned by the session (<see cref="World.IWorldReadModel.Items"/>); each verified sync replaces the
+/// rules whole, so readers on any thread see either the old or the new set.
 /// </summary>
-public static class SyncedItemCatalog
+public sealed class SyncedItemCatalog
 {
     /// <summary>Name of the synced document.</summary>
     public const string DocumentName = "items";
@@ -25,18 +26,28 @@ public static class SyncedItemCatalog
     /// <summary>Name of the synced recipe document.</summary>
     public const string RecipesDocumentName = "recipes";
 
-    private static volatile ItemCatalog? s_current;
+    private readonly Lazy<ItemRules> _fallback = new(ItemRules.LoadShippedDefaults);
+    private volatile ItemRules? _synced;
 
-    /// <summary>Gets the catalog from the last verified sync, or <see langword="null"/> before the first one.</summary>
-    public static ItemCatalog? Current => s_current;
+    /// <summary>Gets the item catalog from the last verified sync, or <see langword="null"/> before the first one.</summary>
+    public ItemCatalog? Current => _synced?.ItemCatalog;
 
-    /// <summary>Rebuilds the catalog from a verified config sync.</summary>
+    /// <summary>
+    /// Gets the rules from the last verified sync. Before the first sync (title and character screens) this is the
+    /// copy of the shipped tables built into <c>Carbon.Items</c>.
+    /// </summary>
+    public ItemRules Rules => _synced ?? _fallback.Value;
+
+    /// <summary>Rebuilds the rules from a verified config sync.</summary>
     /// <param name="config">Verified server config.</param>
-    /// <returns><see langword="true"/> when <c>items.json</c> was present and valid; otherwise the previous catalog stays.</returns>
-    public static bool Apply(ConfigCatalog config)
+    /// <returns><see langword="true"/> when <c>items.json</c> and <c>recipes.json</c> were present and valid; otherwise the previous rules stay.</returns>
+    public bool Apply(ConfigCatalog config)
     {
         ArgumentNullException.ThrowIfNull(config);
-        if (!config.TryGet(DocumentName, out ConfigCatalogEntry? entry))
+
+        // Recipe ids must match the server's, so a sync without a valid recipes.json is rejected as a whole.
+        if (!config.TryGet(DocumentName, out ConfigCatalogEntry? entry)
+            || !config.TryGet(RecipesDocumentName, out ConfigCatalogEntry? recipesEntry))
         {
             return false;
         }
@@ -44,17 +55,8 @@ public static class SyncedItemCatalog
         try
         {
             ItemCatalog items = ItemCatalog.LoadFromJson(Encoding.UTF8.GetString(entry.Utf8.Span));
-
-            // Item stats and recipes the client predicts and displays come from the same synced bytes the server runs;
-            // recipe ids must match the server's, so a sync without a valid recipes.json is rejected as a whole.
-            if (!config.TryGet(RecipesDocumentName, out ConfigCatalogEntry? recipesEntry))
-            {
-                return false;
-            }
-
             RecipeCatalog recipes = RecipeCatalog.LoadFromJson(Encoding.UTF8.GetString(recipesEntry.Utf8.Span), items);
-            StarterGameCatalog.Install(items, recipes);
-            s_current = items;
+            _synced = new ItemRules(items, recipes);
             return true;
         }
         catch (InvalidDataException)
@@ -67,12 +69,12 @@ public static class SyncedItemCatalog
     /// <param name="itemId">Item id.</param>
     /// <param name="item">The definition when known.</param>
     /// <returns><see langword="true"/> when the server's catalog defines <paramref name="itemId"/>.</returns>
-    public static bool TryGet(uint itemId, [System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out ItemCatalogEntry item)
+    public bool TryGet(uint itemId, [MaybeNullWhen(false)] out ItemCatalogEntry item)
     {
-        ItemCatalog? catalog = s_current;
-        if (catalog is not null)
+        ItemRules? rules = _synced;
+        if (rules is not null)
         {
-            return catalog.TryGet(itemId, out item);
+            return rules.ItemCatalog.TryGet(itemId, out item);
         }
 
         item = null;
@@ -82,19 +84,19 @@ public static class SyncedItemCatalog
     /// <summary>Returns the display name of an item, <c>"Empty"</c> for id 0, or <c>"Item #id"</c> when unknown.</summary>
     /// <param name="itemId">Item id.</param>
     /// <returns>The display name.</returns>
-    public static string GetDisplayName(uint itemId)
+    public string GetDisplayName(uint itemId)
     {
         if (itemId == 0U)
         {
             return "Empty";
         }
 
-        return TryGet(itemId, out ItemCatalogEntry? item) && item.Name.Length > 0 ? item.Name : $"Item #{itemId}";
+        return this.TryGet(itemId, out ItemCatalogEntry? item) && item.Name.Length > 0 ? item.Name : $"Item #{itemId}";
     }
 
     /// <summary>Returns the maximum stack size of an item (1 when unknown).</summary>
     /// <param name="itemId">Item id.</param>
     /// <returns>The maximum stack size.</returns>
-    public static int GetMaxStackSize(uint itemId) =>
-        TryGet(itemId, out ItemCatalogEntry? item) ? Math.Max(1, item.MaxStack) : 1;
+    public int GetMaxStackSize(uint itemId) =>
+        this.TryGet(itemId, out ItemCatalogEntry? item) ? Math.Max(1, item.MaxStack) : 1;
 }

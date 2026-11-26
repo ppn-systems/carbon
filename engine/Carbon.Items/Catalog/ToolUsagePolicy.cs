@@ -74,9 +74,10 @@ public static class ToolUsagePolicy
     /// <summary>
     /// Returns <see langword="true"/> when <paramref name="slot"/> holds a breakable tool/weapon whose durability is exhausted.
     /// </summary>
-    public static bool IsWornOut(in ItemSlot slot)
+    public static bool IsWornOut(ItemRules rules, in ItemSlot slot)
     {
-        if (slot.IsEmpty || !StarterGameCatalog.Items.TryGet(slot.ItemId, out ItemArchetype? def))
+        ArgumentNullException.ThrowIfNull(rules);
+        if (slot.IsEmpty || !rules.Items.TryGet(slot.ItemId, out ItemArchetype? def))
         {
             return false;
         }
@@ -87,11 +88,12 @@ public static class ToolUsagePolicy
     /// <summary>
     /// Evaluates melee combat damage and durability wear for <paramref name="slot"/>.
     /// </summary>
-    public static CombatStrikeEvaluation EvaluateCombatStrike(in ItemSlot slot)
+    public static CombatStrikeEvaluation EvaluateCombatStrike(ItemRules rules, in ItemSlot slot)
     {
+        ArgumentNullException.ThrowIfNull(rules);
         float upgradeMult = ItemEnhancementPolicy.GetStatMultiplier(ItemEnhancementPolicy.GetUpgradeLevel(in slot));
-        float baseDamage = StarterGameCatalog.GetWeaponBaseDamage(slot.ItemId) * upgradeMult;
-        if (slot.IsEmpty || !StarterGameCatalog.Items.TryGet(slot.ItemId, out ItemArchetype? def) || def.MaxDurability <= 0f)
+        float baseDamage = rules.GetWeaponBaseDamage(slot.ItemId) * upgradeMult;
+        if (slot.IsEmpty || !rules.Items.TryGet(slot.ItemId, out ItemArchetype? def) || def.MaxDurability <= 0f)
         {
             return new CombatStrikeEvaluation(baseDamage, 0f, ToolStrikeOutcome.Optimal);
         }
@@ -112,18 +114,20 @@ public static class ToolUsagePolicy
     /// Evaluates harvest potency, effective tier, blade wear, and misuse warnings for striking a world prop.
     /// </summary>
     public static PropStrikeEvaluation EvaluatePropStrike(
+        ItemRules rules,
         in ItemSlot slot,
         ToolTargetKind targetKind,
         byte propRequiredTier)
     {
+        ArgumentNullException.ThrowIfNull(rules);
         if (targetKind == ToolTargetKind.Combat)
         {
-            CombatStrikeEvaluation combat = EvaluateCombatStrike(in slot);
+            CombatStrikeEvaluation combat = EvaluateCombatStrike(rules, in slot);
             return new PropStrikeEvaluation(combat.Damage, 0, combat.DurabilityLoss, combat.Outcome);
         }
 
         ItemArchetype? def = null;
-        bool hasDef = !slot.IsEmpty && StarterGameCatalog.Items.TryGet(slot.ItemId, out def);
+        bool hasDef = !slot.IsEmpty && rules.Items.TryGet(slot.ItemId, out def);
         bool isDurabilityTool = hasDef && def is not null && def.MaxDurability > 0f;
         float upgradeMult = ItemEnhancementPolicy.GetStatMultiplier(ItemEnhancementPolicy.GetUpgradeLevel(in slot));
 
@@ -164,8 +168,8 @@ public static class ToolUsagePolicy
         }
 
         float dmg = (targetKind == ToolTargetKind.Mineral
-            ? StarterGameCatalog.GetMineralHarvestDamage(slot.ItemId)
-            : StarterGameCatalog.GetFloraHarvestDamage(slot.ItemId)) * upgradeMult;
+            ? rules.GetMineralHarvestDamage(slot.ItemId)
+            : rules.GetFloraHarvestDamage(slot.ItemId)) * upgradeMult;
         byte tier = def?.HarvestTier ?? 0;
 
         if (tier < propRequiredTier)
