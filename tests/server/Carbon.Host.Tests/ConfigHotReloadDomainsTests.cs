@@ -56,7 +56,8 @@ public sealed partial class ConfigHotReloadDomainsTests : IDisposable
             data.Needs,
             data.Food,
             data.Economy,
-            ServerGameData.LoadStructures(_config.Catalog));
+            ServerGameData.LoadStructures(_config.Catalog),
+            ServerGameData.LoadCreatures(_config.Catalog));
         ServerGameData.BindHotReload(_config, _world);
     }
 
@@ -120,17 +121,20 @@ public sealed partial class ConfigHotReloadDomainsTests : IDisposable
         _world.Economy.Should().BeSameAs(economyBefore);
     }
 
-    [Fact]
-    public void Reload_StructuresChanged_IsRejectedBecauseBuildingCannotSwapAtRuntime()
+    [Theory]
+    [InlineData("structures")]
+    [InlineData("monsters")]
+    [InlineData("spawning")]
+    public void Reload_RestartRequiredDocumentChanged_IsRejectedAndSwapsNothing(string document)
     {
         uint manifestBefore = _config.ManifestVersion;
         GameEconomy economyBefore = _world.Economy!;
-        this.Edit("structures.json", json => json.Insert(json.IndexOf('{', StringComparison.Ordinal) + 1, "\"_note\": \"edited\","));
+        this.Edit($"{document}.json", json => json.Insert(json.IndexOf('{', StringComparison.Ordinal) + 1, "\"_note\": \"edited\","));
         this.Edit("items.json", json => json.Replace("\"name\": \"", "\"name\": \"X", StringComparison.Ordinal));
 
         Action reload = () => _config.Reload();
 
-        reload.Should().Throw<InvalidDataException>().WithMessage("*structures*restart*");
+        reload.Should().Throw<InvalidDataException>().WithMessage($"*{document}*restart*");
         _config.ManifestVersion.Should().Be(manifestBefore);
         _world.Economy.Should().BeSameAs(economyBefore, "a rejected reload swaps no domain, even ones that were valid");
     }

@@ -8,6 +8,7 @@ using System.Text;
 using System.Text.Json;
 using Carbon.Application.World;
 using Carbon.Configuration.Catalog;
+using Carbon.Creatures;
 using Carbon.Economy;
 using Carbon.Maps.Building;
 using Carbon.Server.Configuration;
@@ -26,10 +27,12 @@ namespace Carbon.Host;
 internal sealed record ServerGameData(GameEconomy Economy, NeedsConfig Needs, FoodCatalog Food)
 {
     /// <summary>
-    /// Documents a running server cannot swap yet (the building service is built once at boot): a reload that changes
-    /// them is rejected, so clients never get a structure catalog the server is not running. Restart to apply them.
+    /// Documents a running server cannot swap yet, because the building service and the creature systems are built once
+    /// at boot. A reload that changes them is rejected, so clients never get data the server is not running.
+    /// Restart the server to apply them.
     /// </summary>
-    public static readonly FrozenSet<string> RestartRequiredDocuments = FrozenSet.ToFrozenSet(["structures"], StringComparer.Ordinal);
+    public static readonly FrozenSet<string> RestartRequiredDocuments =
+        FrozenSet.ToFrozenSet(["structures", "monsters", "spawning"], StringComparer.Ordinal);
 
     /// <summary>Builds and validates every swappable server domain from <paramref name="catalog"/>.</summary>
     /// <param name="catalog">Config snapshot.</param>
@@ -62,6 +65,15 @@ internal sealed record ServerGameData(GameEconomy Economy, NeedsConfig Needs, Fo
     {
         ArgumentNullException.ThrowIfNull(catalog);
         return StructureCatalog.Parse(Read(catalog, "structures.json"));
+    }
+
+    /// <summary>Builds the monster catalog and spawning rules from <c>monsters.json</c> and <c>spawning.json</c>.</summary>
+    /// <param name="catalog">Config snapshot.</param>
+    /// <returns>The creature content.</returns>
+    public static CreatureContent LoadCreatures(ConfigCatalog catalog)
+    {
+        ArgumentNullException.ThrowIfNull(catalog);
+        return CreatureContent.FromJson(Read(catalog, CreatureContent.MonstersFileName), Read(catalog, CreatureContent.SpawningFileName));
     }
 
     /// <summary>

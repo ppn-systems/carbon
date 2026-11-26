@@ -27,7 +27,7 @@ public sealed class MonsterBehaviorTests
     {
         Arena arena = new();
         Entity player = arena.SpawnPlayer(new Vector2(60f, 0f));
-        Entity skeleton = arena.SpawnMonster("skeleton", Vector2.Zero);
+        Entity skeleton = arena.SpawnMonster("skeleton_archer", Vector2.Zero);
 
         int launches = 0;
         for (int i = 0; i < 150; i++)
@@ -38,7 +38,7 @@ public sealed class MonsterBehaviorTests
 
         float dist = arena.Distance(skeleton, player);
         dist.Should().BeGreaterThanOrEqualTo(100f, "ranged monsters back off to their retreat range (110)");
-        dist.Should().BeLessThanOrEqualTo(250f, "ranged monsters stay inside their engage band");
+        dist.Should().BeLessThanOrEqualTo(260f, "ranged monsters stay inside their engage band");
         launches.Should().BeGreaterThan(0, "the skeleton fires projectiles");
         arena.World.Entities.GetHealth(player).Current.Should().BeLessThan(Arena.PlayerHealth, "projectiles hit the player");
     }
@@ -48,7 +48,7 @@ public sealed class MonsterBehaviorTests
     {
         Arena arena = new();
         Entity player = arena.SpawnPlayer(new Vector2(30f, 0f));
-        Entity demon = arena.SpawnMonster("demon", Vector2.Zero);
+        Entity demon = arena.SpawnMonster("orc_shaman", Vector2.Zero);
 
         for (int i = 0; i < 200; i++)
         {
@@ -56,7 +56,7 @@ public sealed class MonsterBehaviorTests
         }
 
         float dist = arena.Distance(demon, player);
-        dist.Should().BeInRange(70f, 210f, "casters keep mid distance (retreat 80, engage 170)");
+        dist.Should().BeInRange(70f, 210f, "casters keep mid distance (retreat 80, engage 180)");
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public sealed class MonsterBehaviorTests
     {
         Arena arena = new();
         Entity player = arena.SpawnPlayer(new Vector2(150f, 0f));
-        Entity orc = arena.SpawnMonster("orc", Vector2.Zero);
+        Entity orc = arena.SpawnMonster("rock_golem", Vector2.Zero);
 
         bool sawMelee = false;
         for (int i = 0; i < 150; i++)
@@ -86,7 +86,7 @@ public sealed class MonsterBehaviorTests
     {
         Arena arena = new();
         _ = arena.SpawnPlayer(new Vector2(20f, 0f));
-        Entity orc = arena.SpawnMonster("orc", Vector2.Zero);
+        Entity orc = arena.SpawnMonster("rock_golem", Vector2.Zero);
 
         for (int i = 0; i < 60 && !arena.World.Entities.GetComponent<AttackStateComponent>(orc).IsBusy; i++)
         {
@@ -115,9 +115,9 @@ public sealed class MonsterBehaviorTests
     {
         Arena arena = new();
         Entity player = arena.SpawnPlayer(new Vector2(20f, 0f), health: 1e6f);
-        _ = arena.SpawnMonster("orc", Vector2.Zero);
-        _ = arena.SpawnMonster("slime", new Vector2(80f, 30f));
-        _ = arena.SpawnMonster("demon", new Vector2(-60f, -40f));
+        _ = arena.SpawnMonster("rock_golem", Vector2.Zero);
+        _ = arena.SpawnMonster("wild_slime", new Vector2(80f, 30f));
+        _ = arena.SpawnMonster("crimson_demon", new Vector2(-60f, -40f));
 
         // Step world.Tick directly: WorldSimulation.Update allocates a method-group delegate per call.
         for (int i = 0; i < 400; i++)
@@ -133,7 +133,7 @@ public sealed class MonsterBehaviorTests
         }
 
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        allocated.Should().Be(0, "AI, monster brain, and melee/leap/spell attack ticks are zero-allocation");
+        allocated.Should().Be(0, "AI, monster brain, and melee/leap attack ticks are zero-allocation");
         arena.World.Entities.GetHealth(player).Current.Should().BeLessThan(healthBefore, "the measured window contains resolved attacks");
     }
 

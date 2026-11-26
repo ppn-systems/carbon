@@ -292,6 +292,18 @@ public sealed class PgSchemaMigrator : IDatabaseMigrator
             ],
             ct).ConfigureAwait(false);
 
+        // ADR-015: survival needs. needs_food = -1 marks "never saved" so existing characters spawn fully fed.
+        await AddCharacterColumnsAsync(
+            conn,
+            tx,
+            "0006_character_needs",
+            [
+                ("needs_food", "REAL NOT NULL DEFAULT -1"),
+                ("needs_malnutrition", "REAL NOT NULL DEFAULT 0"),
+                ("needs_poison_seconds", "REAL NOT NULL DEFAULT 0"),
+            ],
+            ct).ConfigureAwait(false);
+
         await tx.CommitAsync(ct).ConfigureAwait(false);
     }
 

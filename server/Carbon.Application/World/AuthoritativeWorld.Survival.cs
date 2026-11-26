@@ -2,6 +2,7 @@
 
 using System;
 using System.Diagnostics.CodeAnalysis;
+using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
 using Carbon.Combat.Events;
 using Carbon.Contracts.Common;
@@ -114,6 +115,7 @@ public sealed partial class AuthoritativeWorld
             if (this.TryGetPlayerByEntityLocked(changes[i].Entity, out ActivePlayerState? state))
             {
                 state.StatsDirty = true;
+                this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
             }
         }
 
@@ -206,6 +208,32 @@ public sealed partial class AuthoritativeWorld
         fresh.Activity = needs.Activity;
         needs = fresh;
     }
+
+    /// <summary>
+    /// Rebuilds a player's needs from the persisted record (ADR-015). A negative <c>NeedsFood</c> means the needs were
+    /// never saved, so the character starts fully fed; stored values are clamped to the current config ranges.
+    /// </summary>
+    private NeedsComponent RestoreNeedsLocked(CharacterRecord character)
+    {
+        NeedsComponent needs = NeedsComponent.CreateFull(_needsConfig);
+        if (!float.IsFinite(character.NeedsFood) || character.NeedsFood < 0f)
+        {
+            return needs;
+        }
+
+        needs.Food = Math.Clamp(character.NeedsFood, 0f, needs.FoodMax);
+        needs.Malnutrition = float.IsFinite(character.NeedsMalnutrition) ? Math.Clamp(character.NeedsMalnutrition, 0f, 1f) : 0f;
+        needs.PoisonRemainingSeconds = float.IsFinite(character.NeedsPoisonSeconds)
+            ? Math.Clamp(character.NeedsPoisonSeconds, 0f, _needsConfig.PoisonDurationSeconds)
+            : 0f;
+        needs.Hunger = _needsConfig.ClassifyHunger(needs.FoodFraction);
+        return needs;
+    }
+
+    private NeedsComponent GetNeedsForPersistenceLocked(ActivePlayerState state) =>
+        _simulation.Entities.TryGetComponent(state.Entity, out NeedsComponent needs)
+            ? needs
+            : NeedsComponent.CreateFull(_needsConfig);
 
     private float GetNeedsMoveScaleLocked(ActivePlayerState state) =>
         _simulation.Entities.TryGetComponent(state.Entity, out NeedsComponent needs) ? needs.MoveSpeedScale : 1f;

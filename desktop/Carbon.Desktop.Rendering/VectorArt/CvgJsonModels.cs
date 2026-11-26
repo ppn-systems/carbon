@@ -187,7 +187,15 @@ internal sealed class CvgAnimDto
 {
     public float Duration { get; set; } = 1f;
     public bool Loop { get; set; } = true;
+    public CvgPhaseMarksDto? PhaseMarks { get; set; }
     public List<CvgKeyframeDto> Tracks { get; set; } = [];
+}
+
+internal sealed class CvgPhaseMarksDto
+{
+    public float WindupEnd { get; set; } = AttackPhaseMarks.Default.WindupEnd;
+    public float TravelEnd { get; set; } = AttackPhaseMarks.Default.TravelEnd;
+    public float ActiveEnd { get; set; } = AttackPhaseMarks.Default.ActiveEnd;
 }
 
 internal sealed class CvgEntityRigDto

@@ -88,7 +88,8 @@ Existing building blocks:
     - `AuthoritativeWorld.ApplyGameData` installs them under the world lock between ticks.
     - In-progress meals are remapped to the new food catalog by item id, or cancelled when their food was removed.
     - Existing players keep their current needs values and wallet caps.
-    - `structures.json` (`BuildingService` is built once) is restart-required: a reload that changes it is rejected.
+    - `structures`, `monsters` and `spawning` are restart-required, because `BuildingService` and the creature systems
+      are built once: a reload that changes them is rejected.
 
 ## Alternatives Considered
 

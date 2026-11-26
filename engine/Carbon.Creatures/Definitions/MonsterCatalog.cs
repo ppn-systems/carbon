@@ -177,6 +177,11 @@ public sealed class MonsterCatalog
             throw new ArgumentException("Monster id must be non-empty.");
         }
 
+        if (def.ArchetypeId == 0)
+        {
+            throw new ArgumentException($"Monster '{id}' must declare a non-zero archetypeId.");
+        }
+
         if (string.IsNullOrWhiteSpace(def.VisualArchetype))
         {
             throw new ArgumentException($"Monster '{id}' must declare a visualArchetype.");
@@ -201,6 +206,11 @@ public sealed class MonsterCatalog
         if (def.EngageRange <= 0f || def.RetreatRange < 0f || def.RetreatRange >= def.EngageRange)
         {
             throw new ArgumentException($"Monster '{id}' must satisfy 0 <= retreatRange < engageRange.");
+        }
+
+        if (def.MinLevel < 1 || def.MaxLevel < def.MinLevel)
+        {
+            throw new ArgumentException($"Monster '{id}' must satisfy 1 <= minLevel <= maxLevel.");
         }
 
         if (def.Attacks is null || def.Attacks.Count == 0 || def.Attacks.Count > byte.MaxValue)

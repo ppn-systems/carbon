@@ -115,7 +115,8 @@ public static class Program
             gameData.Needs,
             gameData.Food,
             gameData.Economy,
-            ServerGameData.LoadStructures(config.Catalog));
+            ServerGameData.LoadStructures(config.Catalog),
+            ServerGameData.LoadCreatures(config.Catalog));
         ServerGameData.BindHotReload(config, world);
 
         await world.InitializeFromStoreAsync().ConfigureAwait(false);
