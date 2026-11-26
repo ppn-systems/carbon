@@ -860,6 +860,71 @@ public sealed class AuthoritativeWorldMultiplayerTests
         }
     }
 
+    [Fact]
+    public async Task NeedsPersistence_SurvivesLogoutAndMigration_AndLegacyCharactersSpawnFed()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-needs-persist-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            SqliteSchemaMigrator migrator = new(factory);
+            await migrator.MigrateAsync().ConfigureAwait(true);
+            await migrator.MigrateAsync().ConfigureAwait(true); // idempotent re-run keeps 0006_character_needs applied once
+
+            SqliteAccountStore accounts = new(factory);
+            SqliteCharacterStore characters = new(factory);
+            Guid accountId = Guid.NewGuid();
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            (await accounts.TryCreateAsync(new AccountRecord(accountId, "hungry", "HUNGRY", [1, 2, 3], [4, 5, 6], now, false)).ConfigureAwait(true)).Should().BeTrue();
+
+            RecordingOutboundSink sink = new();
+            AuthoritativeWorld world = CreateSurvivalWorld(factory, sink, new NeedsConfig(), out _, out _);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+            CharacterRecord famished = new(
+                Guid.NewGuid(), accountId, "Famished", 1, 0,
+                world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
+                100f, 100f, 0, [], now,
+                NeedsFood: 20f, NeedsMalnutrition: 0.3f, NeedsPoisonSeconds: 30f);
+            CharacterRecord legacy = famished with { Id = Guid.NewGuid(), Name = "Legacy", NeedsFood = -1f, NeedsMalnutrition = 0f, NeedsPoisonSeconds = 0f };
+            (await characters.TryCreateAsync(famished).ConfigureAwait(true)).Should().BeTrue();
+            (await characters.TryCreateAsync(legacy).ConfigureAwait(true)).Should().BeTrue();
+
+            CharacterRecord? stored = await characters.FindByIdAsync(famished.Id).ConfigureAwait(true);
+            stored!.NeedsFood.Should().Be(20f);
+            stored.NeedsMalnutrition.Should().Be(0.3f);
+            stored.NeedsPoisonSeconds.Should().Be(30f);
+
+            world.TryEnterWorld(910UL, 910UL, stored).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(911UL, 911UL, (await characters.FindByIdAsync(legacy.Id).ConfigureAwait(true))!).Status.Should().Be(OpStatus.Ok);
+            world.StepFixedTick();
+
+            PlayerNeedsSnapshot restored = sink.NeedsSyncs.Last(n => n.ConnectionId == 910UL).Needs;
+            restored.Food.Should().BeApproximately(20f, 0.1f, "logging out must not refill the hunger meter");
+            restored.HungerState.Should().Be(1, "20 % food is Hungry");
+            restored.Malnutrition.Should().BeApproximately(0.3f, 0.01f);
+            restored.FoodPoisoned.Should().BeTrue();
+            sink.NeedsSyncs.Last(n => n.ConnectionId == 911UL).Needs.Food.Should().BeGreaterThan(99f, "characters saved before 0006 spawn fully fed");
+
+            StepTicks(world, 60);
+            world.LeaveWorld(910UL).Should().BeTrue();
+            await world.FlushDirtyPersistenceAsync().ConfigureAwait(true);
+
+            CharacterRecord? reloaded = await characters.FindByIdAsync(famished.Id).ConfigureAwait(true);
+            reloaded!.NeedsFood.Should().BeInRange(19f, 20f, "two seconds of decay are saved on logout");
+            reloaded.NeedsMalnutrition.Should().BeInRange(0.29f, 0.3f, "malnutrition recovers slowly while fed");
+            reloaded.NeedsPoisonSeconds.Should().BeInRange(27.5f, 28.5f, "poisoning keeps counting down");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
     private static AuthoritativeWorld CreateSurvivalWorld(
         SqliteConnectionFactory factory,
         RecordingOutboundSink sink,
