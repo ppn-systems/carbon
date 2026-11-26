@@ -85,6 +85,12 @@ public sealed class SurvivalConfigTests
 
             tags.Should().Contain("food", $"items.json '{food.ItemId}' must carry the food tag");
         }
+
+        foreach (JsonElement item in byCode.Values)
+        {
+            item.TryGetProperty("nutrition", out _).Should().BeFalse(
+                $"food.json is the single source of nutrition; items.json '{item.GetProperty("code").GetString()}' must not define it");
+        }
     }
 
     [Fact]

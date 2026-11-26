@@ -309,7 +309,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(startLevel, inventory, selectedSlot, startProg);
             float startHp = MathF.Min(stats.MaxHealth, MathF.Max(1f, character.CurrentHealth));
             _simulation.Entities.SetHealth(entity, new HealthComponent(startHp, stats.MaxHealth));
-            _simulation.Entities.SetComponent(entity, NeedsComponent.CreateFull(_needsConfig));
+            _simulation.Entities.SetComponent(entity, this.RestoreNeedsLocked(character));
 
             byte harvestTier = ResolveSlotHarvestTier(inventory, selectedSlot);
 
@@ -858,6 +858,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             ? InventoryBinaryCodec.Serialize(state.Inventory)
             : state.SourceCharacter.InventoryBlob;
 
+        NeedsComponent needs = this.GetNeedsForPersistenceLocked(state);
         return state.SourceCharacter with
         {
             Level = state.Level,
@@ -879,6 +880,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             Diamonds = state.Wallet.Diamonds,
             WalletSequence = state.Wallet.Sequence,
             DiamondPity = state.LootPity.KillsSinceDiamond,
+            NeedsFood = needs.Food,
+            NeedsMalnutrition = needs.Malnutrition,
+            NeedsPoisonSeconds = needs.PoisonRemainingSeconds,
         };
     }
 
