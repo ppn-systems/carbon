@@ -225,12 +225,98 @@ internal static class ArtShowcaseRunner
             ScreenshotHelper.Capture(window.Device.Gl, w, h, Path.Combine(outputDir, "items_showcase.bmp"));
 
             RenderAttackPhaseSheet(window, geom, sprites, font, art, ortho, Path.Combine(outputDir, "monsters_attack_phases.bmp"));
+            RenderDayNightEliteSheet(window, geom, sprites, font, art, ortho, Path.Combine(outputDir, "monsters_day_night_elite.bmp"));
         }
         finally
         {
             font.Dispose();
             whitePixel.Dispose();
         }
+    }
+
+    private static readonly ushort[] s_dayNightLineup =
+    [
+        WorldActorCatalog.WildSlime,
+        WorldActorCatalog.SlimeKing,
+        WorldActorCatalog.OrcShaman,
+        WorldActorCatalog.OrcWarlord,
+        WorldActorCatalog.FrostWolf,
+        WorldActorCatalog.SkeletonArcher,
+        WorldActorCatalog.RockGolem,
+        WorldActorCatalog.AshWraith,
+        WorldActorCatalog.CrimsonDemon,
+    ];
+
+    private static void RenderDayNightEliteSheet(
+        IGameWindow window,
+        GeometryBatch geom,
+        SpriteBatch sprites,
+        BitmapFont font,
+        CarbonVectorArtLibrary art,
+        Matrix4x4 ortho,
+        string path)
+    {
+        const float FirstX = 90f;
+        const float Spacing = 137f;
+        const float DayFootY = 300f;
+        const float NightFootY = 620f;
+        const float Scale = 2.6f; // rigs are drawn at world height x Scale so relative sizes (elites are bigger) stay honest
+
+        window.Device.SetClearColor(new Vector4(0.06f, 0.07f, 0.10f, 1.0f));
+        window.Device.Clear(ClearBufferMask.ColorBufferBit);
+
+        geom.Begin(ortho);
+        geom.FillRectangle(new RectangleF(16f, 70f, window.Width - 32f, 268f), new ColorRgba(92, 128, 92, 255));
+        geom.FillRectangle(new RectangleF(16f, 390f, window.Width - 32f, 268f), new ColorRgba(16, 22, 46, 255));
+        for (int i = 0; i < s_dayNightLineup.Length; i++)
+        {
+            ushort archId = s_dayNightLineup[i];
+            if (!art.TryGetMonster(archId, out CompiledVectorRig? rig))
+            {
+                continue;
+            }
+
+            float cx = FirstX + (i * Spacing);
+            RigOverlay elite = rig.IsElite ? RigOverlay.EliteCrown : RigOverlay.None;
+            float height = rig.WorldHeight * Scale;
+
+            geom.FillCircle(new Vector2(cx, DayFootY), 20f, new ColorRgba(0, 0, 0, 70), 16);
+            VectorRigRenderer.DrawEntityRig(geom, rig, new Vector2(cx, DayFootY), Direction8.South, "idle", 0.2f, isNormalized: false,
+                targetHeightOverride: height, overlays: elite, overlayTime: 0.4f + i);
+
+            geom.FillCircle(new Vector2(cx, NightFootY), 20f, new ColorRgba(0, 0, 0, 110), 16);
+            VectorRigRenderer.DrawEntityRig(geom, rig, new Vector2(cx, NightFootY), Direction8.South, "idle", 0.2f, isNormalized: false,
+                targetHeightOverride: height, overlays: elite | RigOverlay.NightGlow, overlayTime: 0.4f + i);
+        }
+
+        geom.End();
+
+        sprites.Begin(DepthSortMode.Immediate, transformMatrix: ortho);
+        ColorRgba black = new(0, 0, 0, 255);
+        ColorRgba gold = new(250, 204, 21, 255);
+        ColorRgba white = new(241, 245, 249, 255);
+        sprites.DrawOutlinedString(font, "MONSTERS: DAY VS NIGHT, NORMAL VS ELITE (RIG OVERLAYS, NO LIGHTS)", new Vector2(24f, 22f), gold, black, 1, 1.2f);
+        sprites.DrawOutlinedString(font, "DAY", new Vector2(28f, 80f), white, black, 1, 1.1f);
+        sprites.DrawOutlinedString(font, "NIGHT: EYE GLOW + AURA", new Vector2(28f, 400f), white, black, 1, 1.1f);
+        for (int i = 0; i < s_dayNightLineup.Length; i++)
+        {
+            if (!art.TryGetMonster(s_dayNightLineup[i], out CompiledVectorRig? rig))
+            {
+                continue;
+            }
+
+            float cx = FirstX + (i * Spacing);
+            sprites.DrawOutlinedString(font, rig.Title, new Vector2(cx - 50f, DayFootY + 12f), white, black, 1, 0.8f);
+            sprites.DrawOutlinedString(font, rig.Title, new Vector2(cx - 50f, NightFootY + 12f), white, black, 1, 0.8f);
+            if (rig.IsElite)
+            {
+                sprites.DrawOutlinedString(font, "ELITE", new Vector2(cx - 18f, DayFootY + 30f), gold, black, 1, 0.8f);
+                sprites.DrawOutlinedString(font, "ELITE", new Vector2(cx - 18f, NightFootY + 30f), gold, black, 1, 0.8f);
+            }
+        }
+
+        sprites.End();
+        ScreenshotHelper.Capture(window.Device.Gl, window.Width, window.Height, path);
     }
 
     private static void RenderAttackPhaseSheet(

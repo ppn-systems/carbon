@@ -122,6 +122,12 @@ public static class WorldActorCatalog
     /// <summary>Crimson Demon heavy abyssal cleaver monster archetype identifier.</summary>
     public const ushort CrimsonDemon = 107;
 
+    /// <summary>Orc Warlord elite (of <see cref="OrcShaman"/>) monster archetype identifier.</summary>
+    public const ushort OrcWarlord = 108;
+
+    /// <summary>Slime King elite (of <see cref="WildSlime"/>) monster archetype identifier.</summary>
+    public const ushort SlimeKing = 109;
+
     /// <summary>Village Guard NPC archetype identifier.</summary>
     public const ushort VillageGuard = 201;
 

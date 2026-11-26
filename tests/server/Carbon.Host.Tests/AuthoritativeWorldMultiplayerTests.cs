@@ -1079,7 +1079,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             }
 
             mob.Should().NotBeNull("the data-driven spawner populates cells around an entering player");
-            mob!.Value.ArchetypeId.Should().BeInRange(101, 107, "monsters replicate their WorldActorCatalog rig archetype");
+            mob!.Value.ArchetypeId.Should().BeInRange(101, 109, "monsters replicate their WorldActorCatalog rig archetype");
 
             CharacterRecord bait = scout with { Id = Guid.NewGuid(), Name = "Bait", PositionX = mob.Value.PositionX + 30f, PositionY = mob.Value.PositionY };
             EnterWorldResult baitEnter = world.TryEnterWorld(connectionId: 404UL, sessionId: 4UL, bait);

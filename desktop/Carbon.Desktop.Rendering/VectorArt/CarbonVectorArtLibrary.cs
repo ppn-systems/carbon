@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Numerics;
 using System.Text.Json;
 using Carbon.Graphics.Batching.Common;
@@ -144,7 +145,8 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
                 entry.Title,
                 entry.Subtitle,
                 entry.Level,
-                entry.AccentColor);
+                entry.AccentColor,
+                entry.Elite);
         }
 
         int maxNpcId = 201;
@@ -393,7 +395,8 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
         string title,
         string subtitle,
         byte level,
-        string fallbackAccentHex)
+        string fallbackAccentHex,
+        bool isElite = false)
     {
         if (!File.Exists(filePath))
         {
@@ -434,7 +437,27 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
             pivots,
             shapes,
             anims,
-            dto.SupportsModularHuman);
+            dto.SupportsModularHuman)
+        {
+            IsElite = isElite,
+            Markers = CompileMarkers(dto, accent),
+        };
+    }
+
+    private static RigMarkers CompileMarkers(CvgEntityRigDto dto, ColorRgba accent)
+    {
+        CvgRigMarkersDto? m = dto.Markers;
+        float headTop = dto.HeadTopOffset > 0f ? dto.HeadTopOffset : dto.WorldHeight * 0.9f;
+        if (m is null)
+        {
+            return new RigMarkers([], [], new Vector2(0f, -headTop), accent);
+        }
+
+        Vector2[] eyes = [.. m.Eyes.Select(static p => new Vector2(p.X, p.Y))];
+        Vector2[] eyesSide = [.. m.EyesSide.Select(static p => new Vector2(p.X, p.Y))];
+        Vector2 crown = m.Crown is null ? new Vector2(0f, -headTop) : new Vector2(m.Crown.X, m.Crown.Y);
+        ColorRgba glow = string.IsNullOrWhiteSpace(m.EyeGlowColor) ? accent : ParseColor(m.EyeGlowColor, dto.Palette);
+        return new RigMarkers(eyes, eyesSide, crown, glow);
     }
 
     private static CompiledItemVectorArt CompileItem(string filePath)
