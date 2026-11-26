@@ -54,9 +54,13 @@ Existing building blocks:
    `GameConfigChanged`, `WaitForGameConfigAsync`), reading documents through `ConfigCatalog.GetUtf8` or `ConfigCatalog.LoadRegistry`.
    No config file is bundled with or hardcoded into `desktop/` or `wasm/`.
 9. **D9 — Host wiring.**
-   - `Carbon.Host` loads `ConfigRepository` from `CARBON_CONFIG_DIR`, or else from the first `resources/config` found above the
-     working or executable directory. It fails fast on invalid config.
-   - `ConfigHotReloadWatcher` reloads it, debounced 500 ms, when a `*.json` file changes. An invalid edit is logged and ignored.
+   - `Carbon.Host` loads `ConfigRepository` from `CARBON_CONFIG_DIR`. Otherwise it uses the `config` folder copied next to the
+     binaries (every `resources/config/*.json`) or `resources/config` above them. It fails fast on invalid config.
+   - Server domains are built from that same snapshot (`GameEconomy.Load(...)` reads `config.Catalog`), so the server never runs
+     different bytes from the ones it serves.
+   - `ConfigHotReloadWatcher` reloads the snapshot, debounced 500 ms, when a `*.json` file changes, but only with
+     `CARBON_CONFIG_HOT_RELOAD=1`. It stays off by default until boot-built domains can swap their tables at runtime;
+     otherwise clients would get a config the server isn't running. An invalid edit is logged and ignored.
    - `IdentityHandlers` sends the manifest right after a successful login or register. `ConfigManifestBroadcaster` pushes it to
      every signed-in stream connection on `ManifestChanged`.
    - `ConfigHandlers` answers `ConfigRequest`. A rejected request still gets a stream terminator, and a stale one gets the
