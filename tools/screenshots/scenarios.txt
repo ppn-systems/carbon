@@ -1,0 +1,44 @@
+# World screenshot scenarios for tools/screenshots/capture.sh
+#
+# One scenario per line:   name | server env | client env
+#   server env  CARBON_DEBUG_* overrides for the Debug host (spawn biome/tile/offset, start hour)
+#   client env  CARBON_* desktop options (focus biome, weather, macro view, auto walk ...)
+# Blank lines and lines starting with '#' are ignored. Names must be unique ([a-z0-9_]).
+
+# --- every biome by name, midday ---
+lush_plains        | CARBON_DEBUG_SPAWN_BIOME=LushPlains CARBON_DEBUG_START_HOUR=11      | CARBON_FOCUS_BIOME=LushPlains CARBON_WEATHER=clear
+ancient_forest     | CARBON_DEBUG_SPAWN_BIOME=AncientForest CARBON_DEBUG_START_HOUR=11   | CARBON_FOCUS_BIOME=AncientForest CARBON_WEATHER=clear
+blossom_woods      | CARBON_DEBUG_SPAWN_BIOME=BlossomWoods CARBON_DEBUG_START_HOUR=11    | CARBON_FOCUS_BIOME=BlossomWoods CARBON_WEATHER=clear
+tropical_jungle    | CARBON_DEBUG_SPAWN_BIOME=TropicalJungle CARBON_DEBUG_START_HOUR=11  | CARBON_FOCUS_BIOME=TropicalJungle CARBON_WEATHER=clear
+misty_swamp        | CARBON_DEBUG_SPAWN_BIOME=MistySwamp CARBON_DEBUG_START_HOUR=11      | CARBON_FOCUS_BIOME=MistySwamp CARBON_WEATHER=clear
+savanna            | CARBON_DEBUG_SPAWN_BIOME=Savanna CARBON_DEBUG_START_HOUR=11         | CARBON_FOCUS_BIOME=Savanna CARBON_WEATHER=clear
+dune_desert        | CARBON_DEBUG_SPAWN_BIOME=DuneDesert CARBON_DEBUG_START_HOUR=11      | CARBON_FOCUS_BIOME=DuneDesert CARBON_WEATHER=clear
+red_mesa           | CARBON_DEBUG_SPAWN_BIOME=RedMesa CARBON_DEBUG_START_HOUR=11         | CARBON_FOCUS_BIOME=RedMesa CARBON_WEATHER=clear
+beach_sand         | CARBON_DEBUG_SPAWN_BIOME=BeachSand CARBON_DEBUG_START_HOUR=11       | CARBON_FOCUS_BIOME=BeachSand CARBON_WEATHER=clear
+frozen_tundra      | CARBON_DEBUG_SPAWN_BIOME=FrozenTundra CARBON_DEBUG_START_HOUR=11    | CARBON_FOCUS_BIOME=FrozenTundra CARBON_WEATHER=clear
+alpine_peaks       | CARBON_DEBUG_SPAWN_BIOME=AlpinePeaks CARBON_DEBUG_START_HOUR=11     | CARBON_FOCUS_BIOME=AlpinePeaks CARBON_WEATHER=clear
+# volcanic_ashland (not generated near spawn for seed 1337: hot peaks above 0.80 elevation are vanishingly rare)
+# volcanic_ashland   | CARBON_DEBUG_SPAWN_BIOME=VolcanicAshland CARBON_DEBUG_START_HOUR=11 | CARBON_FOCUS_BIOME=VolcanicAshland CARBON_WEATHER=clear
+shallow_water      | CARBON_DEBUG_SPAWN_BIOME=ShallowWater CARBON_DEBUG_START_HOUR=11    | CARBON_FOCUS_BIOME=ShallowWater CARBON_WEATHER=clear
+
+# --- time of day and weather at spawn ---
+spawn_day          | CARBON_DEBUG_START_HOUR=11   | CARBON_WEATHER=clear
+spawn_dusk         | CARBON_DEBUG_START_HOUR=19.2 | CARBON_WEATHER=clear
+spawn_night        | CARBON_DEBUG_START_HOUR=23   | CARBON_WEATHER=clear
+spawn_rain         | CARBON_DEBUG_START_HOUR=11   | CARBON_WEATHER=rain
+forest_night       | CARBON_DEBUG_SPAWN_BIOME=AncientForest CARBON_DEBUG_START_HOUR=23 | CARBON_WEATHER=clear
+desert_night       | CARBON_DEBUG_SPAWN_BIOME=DuneDesert CARBON_DEBUG_START_HOUR=23    | CARBON_WEATHER=clear
+
+# --- macro view (zoomed out) ---
+macro_spawn        | CARBON_DEBUG_START_HOUR=11 | CARBON_MACRO_VIEW=1 CARBON_WEATHER=clear
+
+# --- wading: standing and walking through shallow water, day and night ---
+wading_walk        | CARBON_DEBUG_SPAWN_BIOME=ShallowWater CARBON_DEBUG_START_HOUR=11 | CARBON_AUTO_WALK=1,0.3 CARBON_WEATHER=clear
+wading_night       | CARBON_DEBUG_SPAWN_BIOME=ShallowWater CARBON_DEBUG_START_HOUR=23 | CARBON_WEATHER=clear
+
+# --- monsters: near spawn vs far away, and at night ---
+# (seed 1337: offsets put the player a few tiles from a monster chunk's spawn point; tier and level grow
+#  with the distance from the world spawn)
+monsters_near      | CARBON_DEBUG_SPAWN_OFFSET=13,23  CARBON_DEBUG_START_HOUR=11  | CARBON_WEATHER=clear
+monsters_far       | CARBON_DEBUG_SPAWN_OFFSET=651,26 CARBON_DEBUG_START_HOUR=11  | CARBON_WEATHER=clear
+monsters_night     | CARBON_DEBUG_SPAWN_OFFSET=13,23  CARBON_DEBUG_START_HOUR=23  | CARBON_WEATHER=clear

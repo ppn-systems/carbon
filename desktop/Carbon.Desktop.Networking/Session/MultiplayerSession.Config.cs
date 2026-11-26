@@ -190,6 +190,7 @@ public sealed partial class MultiplayerSession
     private void OnConfigReady(ConfigCatalog catalog)
     {
         _ = SyncedItemCatalog.Apply(catalog);
+        _ = SyncedFoodCatalog.Apply(catalog);
         _gameConfig = catalog;
         lock (_configGate)
         {

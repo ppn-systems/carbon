@@ -80,6 +80,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private NeedsConfig _needsConfig;
     private FoodCatalog _foodCatalog;
     private GameEconomy? _economy;
+    private uint[] _spoiledItemIdByFood;
 
     private readonly Dictionary<ulong, ActivePlayerState> _playersByConnection = new();
     private readonly Dictionary<ulong, ulong> _connectionByNetworkId = new();
@@ -206,6 +207,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         _needsConfig = needsConfig ?? new NeedsConfig();
         _foodCatalog = foodCatalog ?? new FoodCatalog([], _needsConfig.FoodMax);
         _eatAction = new EatActionSystem(_foodCatalog, _needsConfig, worldSeed);
+        _spoiledItemIdByFood = this.ResolveSpoiledItemIds();
         _simulation.RegisterSystem(_eatAction);
         _needsSystem = new NeedsSystem(_needsConfig);
         _simulation.RegisterSystem(_needsSystem);
@@ -232,6 +234,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             _needsConfig = needsConfig;
             _foodCatalog = foodCatalog;
             _economy = economy;
+            _spoiledItemIdByFood = this.ResolveSpoiledItemIds();
         }
     }
 
@@ -347,7 +350,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
                 _ = this.RemovePlayerLocked(duplicateConnectionId);
             }
 
-            Vector2 spawnPos = new(character.PositionX, character.PositionY);
+            Vector2 spawnPos = _debugSpawnPosition ?? new Vector2(character.PositionX, character.PositionY);
             _chunkWorld.UpdateAroundPosition(spawnPos, chunkRadius: 2, evictionRadius: 8);
             this.PopulateChunkActorsAroundLocked(spawnPos, radius: 2);
 

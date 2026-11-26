@@ -73,6 +73,23 @@ Food poisoning lasts **2 minutes**: mood −12, move/attack speed ×0.85, health
 `FoodPoisoningRoll.Sample(seed, eater, tickIndex, foodIndex)`, a pure SplitMix64 hash, so the same world seed
 replays identically and no RNG state is stored.
 
+## Food spoilage (ADR-016)
+
+Raw food spoils while its owner is online. Stacks are checked about once a second.
+
+| Food | Spoils after | Becomes |
+| :--- | ---: | :--- |
+| `raw_meat` | 20 min | `rotten_food` |
+| `slime_jelly` | 30 min | `rotten_food` |
+| `berries` | 40 min | `rotten_food` |
+| cooked food, `bread`, `stew` | never | — |
+
+- `rotten_food` is still edible: +5 food, 60 % food poisoning, −10 mood for 10 min.
+- New stacks start their countdown on the first spoilage pass. Merging stacks keeps the older countdown.
+- The hotbar tooltip shows `+25 food  Spoils in 12m`.
+- Food on the ground does not age; it expires instead.
+- `spoilSeconds` and `spoilsInto` live in `food.json`.
+
 ## Rest
 
 **Rest is disabled in the shipped `needs.json` (`restEnabled: false`)** until the game has a sit/sleep action;

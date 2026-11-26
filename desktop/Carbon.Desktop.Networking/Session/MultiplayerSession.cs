@@ -116,6 +116,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     private ulong _walletSequence;
     private bool _hasWalletSync;
 
+    private const float MinLocalFreshnessSeconds = 0.01f;
     private float _localFood = 100f;
     private float _localMaxFood = 100f;
     private byte _localHungerState;
@@ -457,6 +458,25 @@ public sealed partial class MultiplayerSession : IWorldSession
             ? Carbon.Maps.Generators.WorldProgression.ComputeTimeOfDayHours((ulong)(_latestServerTime * _tickRate), _tickRate)
             : null;
 
+    /// <summary>
+    /// Counts perishable stacks down locally between server updates (ADR-016). The server stays authoritative: it
+    /// sends the spoiled replacement, and the local countdown never reaches zero (zero means not perishable).
+    /// </summary>
+    private void AgePerishableSlots(float dt)
+    {
+        lock (_worldGate)
+        {
+            for (int i = 0; i < _inventory.Capacity; i++)
+            {
+                ItemSlot slot = _inventory.GetSlot(i);
+                if (slot.IsPerishable)
+                {
+                    _inventory.SetSlot(i, slot with { FreshnessSeconds = MathF.Max(MinLocalFreshnessSeconds, slot.FreshnessSeconds - dt) });
+                }
+            }
+        }
+    }
+
     /// <inheritdoc/>
     public void Update(double dt, Vector2 moveDir, bool sprint)
     {
@@ -482,6 +502,8 @@ public sealed partial class MultiplayerSession : IWorldSession
         {
             _forgeFeedbackTimer = MathF.Max(0f, _forgeFeedbackTimer - fdt);
         }
+
+        this.AgePerishableSlots(fdt);
 
         if (_currentAction.IsActive)
         {

@@ -13,7 +13,7 @@ namespace Carbon.Survival.Tests;
 
 public sealed class SurvivalConfigTests
 {
-    private static readonly string[] s_expectedFoods = ["berries", "raw_meat", "cooked_meat", "bread", "stew", "slime_jelly", "roast_meat", "arcane_pie"];
+    private static readonly string[] s_expectedFoods = ["berries", "raw_meat", "cooked_meat", "bread", "stew", "slime_jelly", "roast_meat", "arcane_pie", "rotten_food"];
 
     [Fact]
     public void LoadFromJson_RepositoryNeedsJson_LoadsAndMatchesDocumentedTimeline()
@@ -84,6 +84,20 @@ public sealed class SurvivalConfigTests
             }
 
             tags.Should().Contain("food", $"items.json '{food.ItemId}' must carry the food tag");
+        }
+
+        foreach (FoodDefinition food in catalog.All)
+        {
+            if (food.SpoilsInto.Length > 0)
+            {
+                byCode.Should().ContainKey(food.SpoilsInto, $"'{food.ItemId}' spoils into an item that must exist in items.json");
+                catalog.TryGetIndex(food.SpoilsInto, out _).Should().BeTrue($"spoiled food '{food.SpoilsInto}' must itself be in food.json");
+            }
+
+            if (food.Quality == FoodQuality.Raw && food.ItemId != "rotten_food")
+            {
+                food.IsPerishable.Should().BeTrue($"raw '{food.ItemId}' must spoil (RimWorld-style food chain)");
+            }
         }
 
         foreach (JsonElement item in byCode.Values)

@@ -169,7 +169,8 @@ public interface IWorldOutboundSink
     void SendCombatHit(ReadOnlySpan<ulong> recipientConnectionIds, ulong attackerNetworkId, ulong defenderNetworkId, float damage, float remainingHealth, bool isCritical, bool isKilled);
 
     /// <summary>Sends a single updated inventory slot to the owning player connection.</summary>
-    void SendInventorySlotChanged(ulong connectionId, ushort slotIndex, uint itemId, int quantity, float durability, byte upgradeLevel = 0);
+    /// <remarks><paramref name="freshnessSeconds"/> is the food spoilage countdown (ADR-016), 0 when not perishable.</remarks>
+    void SendInventorySlotChanged(ulong connectionId, ushort slotIndex, uint itemId, int quantity, float durability, byte upgradeLevel = 0, float freshnessSeconds = 0f);
 
     /// <summary>Broadcasts updated visible armor, held weapon, enhancement glow, and level to AoI observers.</summary>
     void SendEntityEquipmentChanged(

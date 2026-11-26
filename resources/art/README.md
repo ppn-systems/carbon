@@ -12,8 +12,8 @@ Thư mục này chứa toàn bộ bản vẽ vector 2D khai báo bằng JSON (`.
 - `monsters/*.cvg.json`: 7 quái vật kèm keyframe animation `idle`, `walk`, `attack`.
 - `npcs/*.cvg.json`: 4 NPC kèm animation.
 - `items/*.cvg.json`: 32 vật phẩm, công cụ, vũ khí, tài nguyên và trang bị.
-- `props/*.cvg.json`: 22 cây cối, bụi rậm, xương rồng, nấm (kèm biến thể phát quang hiếm), mỏ khoáng sản, tinh thể và đền cổ (`groundShapes`, `canopyShapes`, `remnantShapes`, `paletteVariants`, `light`). Gốc tọa độ `(0, 0)` tại chân prop.
-- `biomes/*.cvg.json`: 14 biome chuẩn hóa `displayName` tiếng Anh sạch đẹp, bảng màu mặt đất/minimap/vách đá 4 sắc độ (`cliffBase`, `cliffStrata`, `cliffHighlight`, `cliffShadow`) và 3 biến thể chi tiết bề mặt `detailVariants` trong không gian tile `[0..32]`.
+- `props/*.cvg.json`: 24 cây cối, bụi rậm (kể cả bụi khô sa mạc `dry_bush` và cỏ đụn cát `dune_grass`), xương rồng, nấm (kèm biến thể phát quang hiếm), mỏ khoáng sản, tinh thể và đền cổ (`groundShapes`, `canopyShapes`, `remnantShapes`, `paletteVariants`, `light`). Gốc tọa độ `(0, 0)` tại chân prop.
+- `biomes/*.cvg.json`: 14 biome chuẩn hóa `displayName` tiếng Anh sạch đẹp, bảng màu mặt đất/minimap/vách đá 4 sắc độ (`cliffBase`, `cliffStrata`, `cliffHighlight`, `cliffShadow`) và 3 biến thể chi tiết bề mặt `detailVariants` trong không gian tile `[0..32]`. Khối `surface` mô tả trường màu mặt đất liên tục (`pattern`: `patches`, `dunes`, `strata`, `drifts`, `peat`, `rock`, `water`; `colors`, `accent`, `variation`, `grain`) và danh sách `decals` (lớp trang trí rải ngẫu nhiên trong tile: `chance`, `maxCount`, `placement` = `any`/`dry`/`shore`, `jitter`, `variants`); tất cả được bake tĩnh vào mesh chunk.
 - `structures/*.cvg.json`: 8 công trình xây dựng (`WoodWall`, `StoneWall`, `WoodDoor`, `StoneDoor`, `WoodFloor`, `StoneFloor`, `RoofPillar`, `ForgeAnvil`) trong không gian tile `[0..32]`, hỗ trợ riêng `openShapes` cho trạng thái cửa mở.
 
 ## Quy ước & Kiểm tra

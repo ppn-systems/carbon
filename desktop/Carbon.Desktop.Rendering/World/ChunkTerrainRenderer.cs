@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Numerics;
 using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Graphics.Batching.Common;
@@ -17,7 +18,6 @@ using Carbon.Maps.Data;
 using Carbon.Maps.Roads;
 using Carbon.Maps.Streaming;
 using Carbon.Maps.Topography;
-using Carbon.Maps.Transitions;
 using GlShader = Carbon.Graphics.OpenGL.Shaders.Shader;
 
 namespace Carbon.Desktop.Rendering.World;
@@ -28,7 +28,7 @@ namespace Carbon.Desktop.Rendering.World;
 /// into static GPU buffers once on chunk load, rendering entire visible chunks in 1 draw call per chunk.
 /// Reduces CPU draw overhead by 95% and eliminates per-frame vertex copies.
 /// </summary>
-public sealed class ChunkTerrainRenderer : IDisposable
+public sealed partial class ChunkTerrainRenderer : IDisposable
 {
     private readonly IGraphicsDevice _device;
     private readonly IVectorArtRepository? _art;
@@ -67,6 +67,26 @@ public sealed class ChunkTerrainRenderer : IDisposable
         _waterfalls.TryGetValue(chunkKey, out WaterfallEdge[]? edges) ? edges : [];
     private bool _hasBegun;
     private bool _disposed;
+
+    // Bake statistics, reported every 64 bakes and on dispose. The first bake (JIT warm-up) is left out.
+    private long _bakeTicks;
+    private long _bakeVertices;
+    private int _bakeCount;
+
+    /// <summary>
+    /// Gets the average time spent baking one chunk mesh after the first, in milliseconds (0 until two chunks
+    /// have been baked).
+    /// </summary>
+    public double AverageBakeMilliseconds => _bakeCount < 2 ? 0d : Stopwatch.GetElapsedTime(0, _bakeTicks).TotalMilliseconds / (_bakeCount - 1);
+
+    private void ReportBakeStats()
+    {
+        if (_bakeCount >= 2)
+        {
+            Console.WriteLine(
+                $"[Terrain] {_bakeCount} chunks baked: {this.AverageBakeMilliseconds:F2} ms and {_bakeVertices / _bakeCount} vertices per chunk on average");
+        }
+    }
 
     /// <summary>
     /// Gets the count of currently cached static chunk GPU meshes.
@@ -151,7 +171,18 @@ public sealed class ChunkTerrainRenderer : IDisposable
         {
             s_bakingWaterfalls.Clear();
             s_bakingRipples.Clear();
+            long start = Stopwatch.GetTimestamp();
             mesh = this.BuildChunkMesh(chunk, world);
+            if (++_bakeCount > 1)
+            {
+                _bakeTicks += Stopwatch.GetTimestamp() - start;
+            }
+
+            if (_bakeCount % 64 == 0)
+            {
+                this.ReportBakeStats();
+            }
+
             _meshCache[key] = mesh;
             _waterfalls[key] = [.. s_bakingWaterfalls];
             _ripples[key] = [.. s_bakingRipples];
@@ -246,67 +277,10 @@ public sealed class ChunkTerrainRenderer : IDisposable
     private ChunkMesh2D BuildChunkMesh(Chunk2D chunk, ChunkWorld2D world)
     {
         _builder.Clear();
-        float tileSize = world.TileSize;
-        chunk.GetBounds(tileSize, out float cMinX, out float cMinY, out float cMaxX, out float cMaxY);
-
-        for (int ly = 0; ly < Chunk2D.Size; ly++)
-        {
-            float tileWorldY = cMinY + (ly * tileSize);
-
-            for (int lx = 0; lx < Chunk2D.Size; lx++)
-            {
-                float tileWorldX = cMinX + (lx * tileSize);
-                ref readonly MapTile tile = ref chunk.GetTile(lx, ly);
-                ColorRgba baseColor = GroundColor(in tile, _art);
-
-                RectangleF rect = new(tileWorldX, tileWorldY, tileSize, tileSize);
-                _builder.AddRectangle(rect, baseColor);
-
-                // Autotiling & Marching Squares smooth diagonal coastline transitions
-                int wtx = (chunk.ChunkX * Chunk2D.Size) + lx;
-                int wty = (chunk.ChunkY * Chunk2D.Size) + ly;
-
-                // About one water tile in ten gets an animated ripple
-                if (tile.Biome is BiomeType.ShallowWater or BiomeType.DeepOcean)
-                {
-                    int rippleSeed = (wtx * 92837111) ^ (wty * 689287499);
-                    if (((uint)rippleSeed % 100u) < 11u)
-                    {
-                        s_bakingRipples.Add(new RippleSpot(
-                            new Vector2(tileWorldX + (tileSize * 0.5f), tileWorldY + (tileSize * 0.5f)),
-                            rippleSeed,
-                            tile.Biome == BiomeType.DeepOcean));
-                    }
-                }
-
-                // Diagonal corner cuts between different surfaces (sand / grass / water ...)
-                BakeTileDiagonalCorners(_builder, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize, _art);
-                BakeTileCoastlineTransitions(_builder, chunk, lx, ly, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize, _art);
-
-                // Smooth Biome-to-Biome Transition Dithering / Blending
-                BakeTileBiomeBlending(_builder, chunk, lx, ly, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize, _art);
-
-                // 2.5D Cliff Drop Faces & Drop Shadows
-                BakeTileCliffFaces(_builder, chunk, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize, _art);
-
-                // Foam and spray at the foot of waterfalls
-                BakeTileWaterfallSplash(_builder, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize);
-
-                // Ramps (Incline passages connecting height levels)
-                BakeTileRamps(_builder, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize, _art);
-
-                // Building Structures (Walls, Doors, Floors, Roof Interior Shading)
-                BakeTileBuildings(_builder, wtx, wty, tileWorldX, tileWorldY, world, tileSize, _art);
-
-                // Organic surface micro-details driven by biomes/*.cvg.json
-                BakeTileMicroDetails(_builder, wtx, wty, tileWorldX, tileWorldY, in tile, tileSize, _art);
-            }
-        }
-
-        BakeBridges(_builder, chunk, tileSize);
-        BakeRoads(_builder, chunk, world, tileSize);
-
+        BakeChunkGeometry(_builder, chunk, world, _art);
+        chunk.GetBounds(world.TileSize, out float cMinX, out float cMinY, out float cMaxX, out float cMaxY);
         RectangleF bounds = new(cMinX, cMinY, cMaxX - cMinX, cMaxY - cMinY);
+        _bakeVertices += _builder.VertexCount;
         return _builder.Build(_device, _whiteTexture, bounds);
     }
 
@@ -441,325 +415,6 @@ public sealed class ChunkTerrainRenderer : IDisposable
         }
     }
 
-    private static void BakeTileCoastlineTransitions(
-        ChunkMeshBuilder builder,
-        Chunk2D chunk,
-        int lx,
-        int ly,
-        int wtx,
-        int wty,
-        float x,
-        float y,
-        in MapTile tile,
-        ChunkWorld2D world,
-        float tileSize,
-        IVectorArtRepository? art)
-    {
-        float s = tileSize;
-        const float b = 10f;
-        const float innerB = 6f;
-
-        ColorRgba deepOceanColor = ResolveBiomeColor(BiomeType.DeepOcean, BiomeProperties.Get(BiomeType.DeepOcean).ColorRgba, art);
-        ColorRgba shallowWaterColor = ResolveBiomeColor(BiomeType.ShallowWater, BiomeProperties.Get(BiomeType.ShallowWater).ColorRgba, art);
-
-        if (tile.Biome == BiomeType.ShallowWater)
-        {
-            NeighborMask ocean = CoastlineAutotiler.GetAdjacencyMask(chunk, lx, ly, wtx, wty, world, BiomeType.DeepOcean);
-            if (ocean != NeighborMask.None)
-            {
-                if ((ocean & (NeighborMask.North | NeighborMask.West)) == (NeighborMask.North | NeighborMask.West))
-                {
-                    builder.AddTriangle(new Vector2(x, y), new Vector2(x + b, y), new Vector2(x, y + b), deepOceanColor);
-                }
-
-                if ((ocean & (NeighborMask.North | NeighborMask.East)) == (NeighborMask.North | NeighborMask.East))
-                {
-                    builder.AddTriangle(new Vector2(x + s, y), new Vector2(x + s - b, y), new Vector2(x + s, y + b), deepOceanColor);
-                }
-
-                if ((ocean & (NeighborMask.South | NeighborMask.East)) == (NeighborMask.South | NeighborMask.East))
-                {
-                    builder.AddTriangle(new Vector2(x + s, y + s), new Vector2(x + s - b, y + s), new Vector2(x + s, y + s - b), deepOceanColor);
-                }
-
-                if ((ocean & (NeighborMask.South | NeighborMask.West)) == (NeighborMask.South | NeighborMask.West))
-                {
-                    builder.AddTriangle(new Vector2(x, y + s), new Vector2(x + b, y + s), new Vector2(x, y + s - b), deepOceanColor);
-                }
-
-                if ((ocean & (NeighborMask.North | NeighborMask.West)) == 0 && (ocean & NeighborMask.NorthWest) != 0)
-                {
-                    builder.AddTriangle(new Vector2(x, y), new Vector2(x + innerB, y), new Vector2(x, y + innerB), deepOceanColor);
-                }
-
-                if ((ocean & (NeighborMask.North | NeighborMask.East)) == 0 && (ocean & NeighborMask.NorthEast) != 0)
-                {
-                    builder.AddTriangle(new Vector2(x + s, y), new Vector2(x + s - innerB, y), new Vector2(x + s, y + innerB), deepOceanColor);
-                }
-
-                if ((ocean & (NeighborMask.South | NeighborMask.East)) == 0 && (ocean & NeighborMask.SouthEast) != 0)
-                {
-                    builder.AddTriangle(new Vector2(x + s, y + s), new Vector2(x + s - innerB, y + s), new Vector2(x + s, y + s - innerB), deepOceanColor);
-                }
-
-                if ((ocean & (NeighborMask.South | NeighborMask.West)) == 0 && (ocean & NeighborMask.SouthWest) != 0)
-                {
-                    builder.AddTriangle(new Vector2(x, y + s), new Vector2(x + innerB, y + s), new Vector2(x, y + s - innerB), deepOceanColor);
-                }
-            }
-
-            // Soft riverbank and lake foam shoreline along land edges with corner beveling
-            NeighborMask land = CoastlineAutotiler.GetLandAdjacencyMask(chunk, lx, ly, wtx, wty, world);
-            if (land != NeighborMask.None)
-            {
-                ColorRgba bankColor = new(44, 94, 59, 255);
-
-                if ((land & (NeighborMask.North | NeighborMask.West)) == (NeighborMask.North | NeighborMask.West))
-                {
-                    builder.AddTriangle(new Vector2(x, y), new Vector2(x + b, y), new Vector2(x, y + b), bankColor);
-                }
-
-                if ((land & (NeighborMask.North | NeighborMask.East)) == (NeighborMask.North | NeighborMask.East))
-                {
-                    builder.AddTriangle(new Vector2(x + s, y), new Vector2(x + s - b, y), new Vector2(x + s, y + b), bankColor);
-                }
-
-                if ((land & (NeighborMask.South | NeighborMask.East)) == (NeighborMask.South | NeighborMask.East))
-                {
-                    builder.AddTriangle(new Vector2(x + s, y + s), new Vector2(x + s - b, y + s), new Vector2(x + s, y + s - b), bankColor);
-                }
-
-                if ((land & (NeighborMask.South | NeighborMask.West)) == (NeighborMask.South | NeighborMask.West))
-                {
-                    builder.AddTriangle(new Vector2(x, y + s), new Vector2(x + b, y + s), new Vector2(x, y + s - b), bankColor);
-                }
-
-                ColorRgba foamColor = new(255, 255, 255, 55);
-                if ((land & NeighborMask.North) != 0)
-                {
-                    builder.AddRectangle(new RectangleF(x, y, s, 1.5f), foamColor);
-                }
-
-                if ((land & NeighborMask.South) != 0)
-                {
-                    builder.AddRectangle(new RectangleF(x, y + s - 1.5f, s, 1.5f), foamColor);
-                }
-
-                if ((land & NeighborMask.West) != 0)
-                {
-                    builder.AddRectangle(new RectangleF(x, y, 1.5f, s), foamColor);
-                }
-
-                if ((land & NeighborMask.East) != 0)
-                {
-                    builder.AddRectangle(new RectangleF(x + s - 1.5f, y, 1.5f, s), foamColor);
-                }
-            }
-        }
-        else if (tile.Biome == BiomeType.DeepOcean)
-        {
-            NeighborMask shallow = CoastlineAutotiler.GetAdjacencyMask(chunk, lx, ly, wtx, wty, world, BiomeType.ShallowWater);
-            if (shallow != NeighborMask.None)
-            {
-                if ((shallow & (NeighborMask.North | NeighborMask.West)) == (NeighborMask.North | NeighborMask.West))
-                {
-                    builder.AddTriangle(new Vector2(x, y), new Vector2(x + b, y), new Vector2(x, y + b), shallowWaterColor);
-                }
-
-                if ((shallow & (NeighborMask.North | NeighborMask.East)) == (NeighborMask.North | NeighborMask.East))
-                {
-                    builder.AddTriangle(new Vector2(x + s, y), new Vector2(x + s - b, y), new Vector2(x + s, y + b), shallowWaterColor);
-                }
-
-                if ((shallow & (NeighborMask.South | NeighborMask.East)) == (NeighborMask.South | NeighborMask.East))
-                {
-                    builder.AddTriangle(new Vector2(x + s, y + s), new Vector2(x + s - b, y + s), new Vector2(x + s, y + s - b), shallowWaterColor);
-                }
-
-                if ((shallow & (NeighborMask.South | NeighborMask.West)) == (NeighborMask.South | NeighborMask.West))
-                {
-                    builder.AddTriangle(new Vector2(x, y + s), new Vector2(x + b, y + s), new Vector2(x, y + s - b), shallowWaterColor);
-                }
-
-                if ((shallow & (NeighborMask.North | NeighborMask.West)) == 0 && (shallow & NeighborMask.NorthWest) != 0)
-                {
-                    builder.AddTriangle(new Vector2(x, y), new Vector2(x + innerB, y), new Vector2(x, y + innerB), shallowWaterColor);
-                }
-
-                if ((shallow & (NeighborMask.North | NeighborMask.East)) == 0 && (shallow & NeighborMask.NorthEast) != 0)
-                {
-                    builder.AddTriangle(new Vector2(x + s, y), new Vector2(x + s - innerB, y), new Vector2(x + s, y + innerB), shallowWaterColor);
-                }
-
-                if ((shallow & (NeighborMask.South | NeighborMask.East)) == 0 && (shallow & NeighborMask.SouthEast) != 0)
-                {
-                    builder.AddTriangle(new Vector2(x + s, y + s), new Vector2(x + s - innerB, y), new Vector2(x + s, y + s - innerB), shallowWaterColor);
-                }
-
-                if ((shallow & (NeighborMask.South | NeighborMask.West)) == 0 && (shallow & NeighborMask.SouthWest) != 0)
-                {
-                    builder.AddTriangle(new Vector2(x, y + s), new Vector2(x + innerB, y + s), new Vector2(x, y + s - innerB), shallowWaterColor);
-                }
-            }
-        }
-        else if (tile.Biome is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
-        {
-            NeighborMask water = CoastlineAutotiler.GetWaterAdjacencyMask(chunk, lx, ly, wtx, wty, world);
-            if (water != NeighborMask.None)
-            {
-                if ((water & (NeighborMask.North | NeighborMask.West)) == (NeighborMask.North | NeighborMask.West))
-                {
-                    builder.AddTriangle(new Vector2(x, y), new Vector2(x + b, y), new Vector2(x, y + b), shallowWaterColor);
-                }
-
-                if ((water & (NeighborMask.North | NeighborMask.East)) == (NeighborMask.North | NeighborMask.East))
-                {
-                    builder.AddTriangle(new Vector2(x + s, y), new Vector2(x + s - b, y), new Vector2(x + s, y + b), shallowWaterColor);
-                }
-
-                if ((water & (NeighborMask.South | NeighborMask.East)) == (NeighborMask.South | NeighborMask.East))
-                {
-                    builder.AddTriangle(new Vector2(x + s, y + s), new Vector2(x + s - b, y + s), new Vector2(x + s, y + s - b), shallowWaterColor);
-                }
-
-                if ((water & (NeighborMask.South | NeighborMask.West)) == (NeighborMask.South | NeighborMask.West))
-                {
-                    builder.AddTriangle(new Vector2(x, y + s), new Vector2(x + b, y + s), new Vector2(x, y + s - b), shallowWaterColor);
-                }
-            }
-        }
-    }
-
-    private static void BakeTileBiomeBlending(
-        ChunkMeshBuilder builder,
-        Chunk2D chunk,
-        int lx,
-        int ly,
-        int wtx,
-        int wty,
-        float x,
-        float y,
-        in MapTile tile,
-        ChunkWorld2D world,
-        float tileSize,
-        IVectorArtRepository? art)
-    {
-        // Only blend between terrestrial biomes (water transitions are handled by BakeTileCoastlineTransitions)
-        if (tile.Biome is BiomeType.DeepOcean or BiomeType.ShallowWater)
-        {
-            return;
-        }
-
-        const float band = 5f;
-        const float cornerSize = 10f;
-        const float innerCornerSize = 6f;
-
-        // Sample 8 neighbors
-        BiomeType n = GetNeighborBiome(chunk, lx, ly - 1, wtx, wty - 1, world);
-        BiomeType s = GetNeighborBiome(chunk, lx, ly + 1, wtx, wty + 1, world);
-        BiomeType w = GetNeighborBiome(chunk, lx - 1, ly, wtx - 1, wty, world);
-        BiomeType e = GetNeighborBiome(chunk, lx + 1, ly, wtx + 1, wty, world);
-        BiomeType nw = GetNeighborBiome(chunk, lx - 1, ly - 1, wtx - 1, wty - 1, world);
-        BiomeType ne = GetNeighborBiome(chunk, lx + 1, ly - 1, wtx + 1, wty - 1, world);
-        BiomeType sw = GetNeighborBiome(chunk, lx - 1, ly + 1, wtx - 1, wty + 1, world);
-        BiomeType se = GetNeighborBiome(chunk, lx + 1, ly + 1, wtx + 1, wty + 1, world);
-
-        // Cardinal edge blending
-        if (n != tile.Biome && n is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
-        {
-            ColorRgba col = ResolveBiomeColor(n, BiomeProperties.Get(n).ColorRgba, art);
-            builder.AddRectangle(new RectangleF(x, y, tileSize, band), new ColorRgba(col.R, col.G, col.B, 90));
-            builder.AddRectangle(new RectangleF(x + 5f, y + band, 3f, 2f), new ColorRgba(col.R, col.G, col.B, 55));
-            builder.AddRectangle(new RectangleF(x + 15f, y + band, 4f, 2f), new ColorRgba(col.R, col.G, col.B, 55));
-            builder.AddRectangle(new RectangleF(x + 25f, y + band, 3f, 2f), new ColorRgba(col.R, col.G, col.B, 55));
-        }
-
-        if (s != tile.Biome && s is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
-        {
-            ColorRgba col = ResolveBiomeColor(s, BiomeProperties.Get(s).ColorRgba, art);
-            builder.AddRectangle(new RectangleF(x, y + tileSize - band, tileSize, band), new ColorRgba(col.R, col.G, col.B, 90));
-            builder.AddRectangle(new RectangleF(x + 7f, y + tileSize - band - 2f, 4f, 2f), new ColorRgba(col.R, col.G, col.B, 55));
-            builder.AddRectangle(new RectangleF(x + 19f, y + tileSize - band - 2f, 3f, 2f), new ColorRgba(col.R, col.G, col.B, 55));
-        }
-
-        if (w != tile.Biome && w is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
-        {
-            ColorRgba col = ResolveBiomeColor(w, BiomeProperties.Get(w).ColorRgba, art);
-            builder.AddRectangle(new RectangleF(x, y, band, tileSize), new ColorRgba(col.R, col.G, col.B, 90));
-            builder.AddRectangle(new RectangleF(x + band, y + 5f, 2f, 4f), new ColorRgba(col.R, col.G, col.B, 55));
-            builder.AddRectangle(new RectangleF(x + band, y + 17f, 2f, 3f), new ColorRgba(col.R, col.G, col.B, 55));
-        }
-
-        if (e != tile.Biome && e is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
-        {
-            ColorRgba col = ResolveBiomeColor(e, BiomeProperties.Get(e).ColorRgba, art);
-            builder.AddRectangle(new RectangleF(x + tileSize - band, y, band, tileSize), new ColorRgba(col.R, col.G, col.B, 90));
-            builder.AddRectangle(new RectangleF(x + tileSize - band - 2f, y + 9f, 2f, 4f), new ColorRgba(col.R, col.G, col.B, 55));
-            builder.AddRectangle(new RectangleF(x + tileSize - band - 2f, y + 21f, 2f, 3f), new ColorRgba(col.R, col.G, col.B, 55));
-        }
-
-        // Marching Squares diagonal corner smoothing
-        if (n != tile.Biome && n == w && n is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
-        {
-            ColorRgba col = ResolveBiomeColor(n, BiomeProperties.Get(n).ColorRgba, art);
-            builder.AddTriangle(new Vector2(x, y), new Vector2(x + cornerSize, y), new Vector2(x, y + cornerSize), new ColorRgba(col.R, col.G, col.B, 120));
-        }
-        else if (nw != tile.Biome && n == tile.Biome && w == tile.Biome && nw is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
-        {
-            ColorRgba col = ResolveBiomeColor(nw, BiomeProperties.Get(nw).ColorRgba, art);
-            builder.AddTriangle(new Vector2(x, y), new Vector2(x + innerCornerSize, y), new Vector2(x, y + innerCornerSize), new ColorRgba(col.R, col.G, col.B, 80));
-        }
-
-        if (n != tile.Biome && n == e && n is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
-        {
-            ColorRgba col = ResolveBiomeColor(n, BiomeProperties.Get(n).ColorRgba, art);
-            builder.AddTriangle(new Vector2(x + tileSize, y), new Vector2(x + tileSize - cornerSize, y), new Vector2(x + tileSize, y + cornerSize), new ColorRgba(col.R, col.G, col.B, 120));
-        }
-        else if (ne != tile.Biome && n == tile.Biome && e == tile.Biome && ne is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
-        {
-            ColorRgba col = ResolveBiomeColor(ne, BiomeProperties.Get(ne).ColorRgba, art);
-            builder.AddTriangle(new Vector2(x + tileSize, y), new Vector2(x + tileSize - innerCornerSize, y), new Vector2(x + tileSize, y + innerCornerSize), new ColorRgba(col.R, col.G, col.B, 80));
-        }
-
-        if (s != tile.Biome && s == e && s is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
-        {
-            ColorRgba col = ResolveBiomeColor(s, BiomeProperties.Get(s).ColorRgba, art);
-            builder.AddTriangle(new Vector2(x + tileSize, y + tileSize), new Vector2(x + tileSize - cornerSize, y + tileSize), new Vector2(x + tileSize, y + tileSize - cornerSize), new ColorRgba(col.R, col.G, col.B, 120));
-        }
-        else if (se != tile.Biome && s == tile.Biome && e == tile.Biome && se is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
-        {
-            ColorRgba col = ResolveBiomeColor(se, BiomeProperties.Get(se).ColorRgba, art);
-            builder.AddTriangle(new Vector2(x + tileSize, y + tileSize), new Vector2(x + tileSize - innerCornerSize, y + tileSize), new Vector2(x + tileSize, y + tileSize - innerCornerSize), new ColorRgba(col.R, col.G, col.B, 80));
-        }
-
-        if (s != tile.Biome && s == w && s is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
-        {
-            ColorRgba col = ResolveBiomeColor(s, BiomeProperties.Get(s).ColorRgba, art);
-            builder.AddTriangle(new Vector2(x, y + tileSize), new Vector2(x + cornerSize, y + tileSize), new Vector2(x, y + tileSize - cornerSize), new ColorRgba(col.R, col.G, col.B, 120));
-        }
-        else if (sw != tile.Biome && s == tile.Biome && w == tile.Biome && sw is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
-        {
-            ColorRgba col = ResolveBiomeColor(sw, BiomeProperties.Get(sw).ColorRgba, art);
-            builder.AddTriangle(new Vector2(x, y + tileSize), new Vector2(x + innerCornerSize, y + tileSize), new Vector2(x, y + tileSize - innerCornerSize), new ColorRgba(col.R, col.G, col.B, 80));
-        }
-    }
-
-    private static BiomeType GetNeighborBiome(
-        Chunk2D chunk,
-        int localX,
-        int localY,
-        int worldX,
-        int worldY,
-        ChunkWorld2D world)
-    {
-        if ((uint)localX < Chunk2D.Size && (uint)localY < Chunk2D.Size)
-        {
-            return chunk.GetTile(localX, localY).Biome;
-        }
-
-        return world.PeekTileAtWorld(worldX, worldY).Biome;
-    }
-
     private static (ColorRgba rockBase, ColorRgba rockStrata, ColorRgba rockHighlight, ColorRgba rockShadow) GetCliffPalette(
         BiomeType biome,
         IVectorArtRepository? art)
@@ -828,52 +483,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
             ? biomeArt.GroundColor
             : HexToColor(fallbackColorHex);
 
-    // Ground colour of a tile, with the painterly lift of higher levels (shared by the base pass and the
-    // chamfered cliff corners, which repaint the lower ground inside a corner tile).
-    private static ColorRgba GroundColor(in MapTile tile, IVectorArtRepository? art)
-    {
-        ColorRgba c = ResolveBiomeColor(tile.Biome, tile.ColorRgba, art);
-        int lift = tile.HeightLevel * 14;
-        int liftB = tile.HeightLevel == 2 ? 22 : tile.HeightLevel * 10;
-        return new ColorRgba(
-            (byte)Math.Min(c.R + lift, 255),
-            (byte)Math.Min(c.G + lift, 255),
-            (byte)Math.Min(c.B + liftB, 255),
-            c.A);
-    }
-
     private const float CliffFaceHeight = 14f;
-
-    // Marching-squares style corner cut: when both edge neighbours of a corner (and the diagonal one) are the
-    // same other surface at the same height, that surface takes the half-tile triangle of the corner.
-    // A staircase boundary between two surfaces (a sandy bank, a forest edge, a shoreline) then becomes a
-    // straight 45 degree line.
-    private static void BakeTileDiagonalCorners(
-        ChunkMeshBuilder builder, int wtx, int wty, float x, float y, in MapTile tile, ChunkWorld2D world, float s, IVectorArtRepository? art)
-    {
-        MapTile n = world.PeekTileAtWorld(wtx, wty - 1);
-        MapTile so = world.PeekTileAtWorld(wtx, wty + 1);
-        MapTile w = world.PeekTileAtWorld(wtx - 1, wty);
-        MapTile e = world.PeekTileAtWorld(wtx + 1, wty);
-
-        TryCut(builder, tile, n, w, world.PeekTileAtWorld(wtx - 1, wty - 1), new Vector2(x, y), new Vector2(x + s, y), new Vector2(x, y + s), art);
-        TryCut(builder, tile, n, e, world.PeekTileAtWorld(wtx + 1, wty - 1), new Vector2(x + s, y), new Vector2(x + s, y + s), new Vector2(x, y), art);
-        TryCut(builder, tile, so, w, world.PeekTileAtWorld(wtx - 1, wty + 1), new Vector2(x, y + s), new Vector2(x, y), new Vector2(x + s, y + s), art);
-        TryCut(builder, tile, so, e, world.PeekTileAtWorld(wtx + 1, wty + 1), new Vector2(x + s, y + s), new Vector2(x, y + s), new Vector2(x + s, y), art);
-
-        static void TryCut(ChunkMeshBuilder b, in MapTile self, in MapTile a, in MapTile c, in MapTile diag, Vector2 corner, Vector2 p1, Vector2 p2, IVectorArtRepository? repo)
-        {
-            // Only one side of a boundary cuts (the surface with the higher enum value gives way), otherwise
-            // both sides cut and the two diagonals, half a tile apart, form a sawtooth.
-            if (a.Biome == self.Biome || a.Biome > self.Biome || a.Biome != c.Biome || diag.Biome != a.Biome ||
-                a.HeightLevel != self.HeightLevel || c.HeightLevel != self.HeightLevel || diag.HeightLevel != self.HeightLevel)
-            {
-                return;
-            }
-
-            b.AddTriangle(corner, p1, p2, GroundColor(in a, repo));
-        }
-    }
 
     private static readonly ColorRgba s_foam = new(255, 255, 255, 235);
     private static readonly ColorRgba s_foamSoft = new(224, 242, 254, 170);
@@ -1021,12 +631,17 @@ public sealed class ChunkTerrainRenderer : IDisposable
         if (south && (east ^ west))
         {
             MapTile below = world.PeekTileAtWorld(wtx, wty + 1);
-            ColorRgba lower = GroundColor(in below, art);
+            int lx = wtx - (chunk.ChunkX * Chunk2D.Size);
+            int ly = wty - (chunk.ChunkY * Chunk2D.Size);
+            ColorRgba nw = CornerColor(lx, ly, in below, art);
+            ColorRgba ne = CornerColor(lx + 1, ly, in below, art);
+            ColorRgba se = CornerColor(lx + 1, ly + 1, in below, art);
+            ColorRgba sw = CornerColor(lx, ly + 1, in below, art);
             if (east)
             {
                 Vector2 a = new(x, y + s - H);
                 Vector2 b = new(x + s, y - H);
-                builder.AddTriangle(new Vector2(x + s, y), new Vector2(x + s, y + s), new Vector2(x, y + s), lower);
+                builder.AddTriangle(new Vector2(x + s, y), new Vector2(x + s, y + s), new Vector2(x, y + s), ne, se, sw);
                 AddFace(builder, a, b, isWater, wtx, wty, rockBase, rockStrata, rockHighlight, rockShadow);
                 if (!isWater)
                 {
@@ -1037,7 +652,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
             {
                 Vector2 a = new(x, y - H);
                 Vector2 b = new(x + s, y + s - H);
-                builder.AddTriangle(new Vector2(x, y), new Vector2(x + s, y + s), new Vector2(x, y + s), lower);
+                builder.AddTriangle(new Vector2(x, y), new Vector2(x + s, y + s), new Vector2(x, y + s), nw, se, sw);
                 AddFace(builder, a, b, isWater, wtx, wty, rockBase, rockStrata, rockHighlight, rockShadow);
                 if (!isWater)
                 {
@@ -1230,30 +845,6 @@ public sealed class ChunkTerrainRenderer : IDisposable
         }
     }
 
-    private static void BakeTileMicroDetails(
-        ChunkMeshBuilder builder,
-        int wtx,
-        int wty,
-        float x,
-        float y,
-        in MapTile tile,
-        float tileSize,
-        IVectorArtRepository? art)
-    {
-        if (art is null || !art.TryGetBiome((byte)tile.Biome, out CompiledBiomeArt? biomeArt) || biomeArt.DetailVariants.Length == 0)
-        {
-            return;
-        }
-
-        uint hash = (uint)((wtx * 374761393) ^ (wty * 668265263));
-        if ((hash % 100u) < (uint)biomeArt.DetailChancePercent)
-        {
-            int variantIdx = (int)((hash >> 8) % (uint)biomeArt.DetailVariants.Length);
-            bool mirrorX = ((hash >> 16) & 1u) != 0;
-            VectorMeshBaker.StampTileShapes(builder, biomeArt.DetailVariants[variantIdx], x, y, tileSize, mirrorX);
-        }
-    }
-
     private static ColorRgba HexToColor(uint hex)
     {
         byte r = (byte)((hex >> 24) & 0xFF);
@@ -1268,6 +859,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
     {
         if (!_disposed)
         {
+            this.ReportBakeStats();
             foreach (ChunkMesh2D mesh in _meshCache.Values)
             {
                 mesh.Dispose();

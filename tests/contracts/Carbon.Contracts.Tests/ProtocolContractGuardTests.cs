@@ -226,8 +226,15 @@ public sealed class ProtocolContractGuardTests
             Count = 12,
             Durability = 87.5f,
             UpgradeLevel = 5,
+            FreshnessSeconds = 612.25f,
         };
         using InventorySlotItem slotCopy = InventorySlotItem.Deserialize(slot.Serialize());
+        Assert.Equal(612.25f, slotCopy.FreshnessSeconds);
+
+        using InventorySlotChanged changed = new() { SlotIndex = 4, ItemId = 121, Count = 3, FreshnessSeconds = 90.5f };
+        using InventorySlotChanged changedCopy = InventorySlotChanged.Deserialize(changed.Serialize());
+        Assert.Equal((ushort)121, changedCopy.ItemId);
+        Assert.Equal(90.5f, changedCopy.FreshnessSeconds);
         Assert.Equal((ushort)3, slotCopy.SlotIndex);
         Assert.Equal((ushort)404, slotCopy.ItemId);
         Assert.Equal(12, slotCopy.Count);

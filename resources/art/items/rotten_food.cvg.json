@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "itemId": 203,
+  "id": "rotten_food",
+  "displayName": "Rotten Food",
+  "tier": 0,
+  "categoryLabel": "Food",
+  "accentColor": "#65A30D",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": 1,
+      "rx": 6.5,
+      "ry": 4.6,
+      "color": "#4D7C0F",
+      "rotDeg": -12,
+      "outlineColor": "#1A2E05",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -2,
+      "y": 0,
+      "rx": 2.4,
+      "ry": 1.6,
+      "color": "#A3E635",
+      "rotDeg": -12
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 2.6,
+      "y": 2,
+      "rx": 1.6,
+      "ry": 1.1,
+      "color": "#365314",
+      "rotDeg": 0
+    },
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": -1,
+      "y": -6,
+      "x2": 0,
+      "y2": -9,
+      "thickness": 1.2,
+      "color": "#BEF264"
+    },
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": 2.5,
+      "y": -5.5,
+      "x2": 3.5,
+      "y2": -8.5,
+      "thickness": 1.2,
+      "color": "#BEF264"
+    }
+  ]
+}
