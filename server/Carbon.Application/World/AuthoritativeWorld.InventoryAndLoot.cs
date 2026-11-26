@@ -575,7 +575,7 @@ public sealed partial class AuthoritativeWorld
 
     private void QueueLootVisualRefreshLocked(ulong lootNetId, Vector2 pos)
     {
-        if (!this.TryBuildSpawnSnapshotLocked(lootNetId, out EntitySpawnSnapshot updatedSnap))
+        if (!_replication.TryBuildSpawnSnapshot(lootNetId, out EntitySpawnSnapshot updatedSnap))
         {
             return;
         }

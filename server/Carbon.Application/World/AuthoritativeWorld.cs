@@ -72,7 +72,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly ConstructionService _construction;
     private readonly PlayerMaterialAdapter _playerMaterials;
     private readonly WorldSimulation _simulation;
-    private readonly SpatialAoiTracker _aoi;
+    private readonly AoiReplicator _replication;
     private readonly IChunkDeltaRepository _chunkDeltaRepo;
     private readonly ICharacterStore _characterStore;
     private readonly IWorldOutboundSink _outboundSink;
@@ -99,13 +99,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly Dictionary<Guid, CharacterRecord> _inFlightCharacters = new();
 
     // Reusable scratch buffers (zero per-tick heap allocations under steady state).
-    private readonly List<ulong> _scratchEntered = new(64);
-    private readonly List<ulong> _scratchVisible = new(128);
-    private readonly List<ulong> _scratchExited = new(64);
     // Outbound replication, staged under _gate during the tick and dispatched after it (OutboundTickBuffer).
     private readonly OutboundTickBuffer _outbound = new();
     private readonly List<ulong> _aoiRecipientsScratch = new(64);
-    private readonly List<Entity> _dirtyResetScratch = new(256);
     private readonly List<ulong> _staleLootScratch = new(32);
     private readonly List<(ushort SlotIndex, ItemSlot Slot)> _mutationSlotScratch = new(8);
     private readonly List<(ushort SlotIndex, ItemSlot Slot)> _spoiledSlotsScratch = new(8);
@@ -203,7 +199,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             needsConfig,
             foodCatalog,
             worldSeed);
-        _aoi = new SpatialAoiTracker(this.TileSize * 24f);
+        _replication = new AoiReplicator(_simulation, _outbound, this.TileSize * 24f, DefaultEntityRadius, this.ResolveSpawnIdentityLocked);
     }
 
     /// <summary>
@@ -425,7 +421,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
 
             _playersByConnection[connectionId] = playerState;
             _connectionByNetworkId[networkId] = connectionId;
-            _aoi.TrackConnection(connectionId);
+            _replication.Track(connectionId);
 
             return new EnterWorldResult(
                 OpStatus.Ok,
@@ -835,7 +831,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
 
         this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
         _ = _connectionByNetworkId.Remove(state.Session.PlayerNetworkId);
-        _aoi.UntrackConnection(connectionId);
+        _replication.Untrack(connectionId);
         _simulation.DespawnEntity(state.Entity);
         return true;
     }
@@ -903,100 +899,50 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         };
     }
 
-    private bool TryBuildSpawnSnapshotLocked(ulong networkId, out EntitySpawnSnapshot snapshot)
+    /// <summary>Resolves what a replicated entity is: a player (name, look, gear), an NPC, a loot stack or a projectile.</summary>
+    private SpawnIdentity ResolveSpawnIdentityLocked(ulong networkId)
     {
-        if (!_simulation.TryGetEntityByNetworkId(networkId, out Entity entity) || !_simulation.Entities.HasTransform(entity))
-        {
-            snapshot = default;
-            return false;
-        }
-
-        Vector2 pos = _simulation.Entities.GetTransform(entity).Position;
-        Vector2 vel = _simulation.Entities.HasVelocity(entity)
-            ? _simulation.Entities.GetVelocity(entity).Linear
-            : Vector2.Zero;
-        float radius = _simulation.Entities.HasCollider(entity)
-            ? _simulation.Entities.GetCollider(entity).Radius
-            : DefaultEntityRadius;
-        float hp = _simulation.Entities.HasHealth(entity)
-            ? _simulation.Entities.GetHealth(entity).Current
-            : 100f;
-        float maxHp = _simulation.Entities.HasHealth(entity)
-            ? _simulation.Entities.GetHealth(entity).Max
-            : 100f;
-
-        EntityKind kind = EntityKind.Player;
-        string name = "Adventurer";
-        ushort archetype = 0;
-        ushort headId = 0;
-        ushort chestId = 0;
-        ushort legsId = 0;
-        ushort feetId = 0;
-        ushort weaponId = 0;
-        ushort level = 1;
-        int lootCount = 0;
-        byte weaponUpgrade = 0;
-
         if (_connectionByNetworkId.TryGetValue(networkId, out ulong ownerConn) &&
             _playersByConnection.TryGetValue(ownerConn, out ActivePlayerState? state))
         {
-            name = state.Session.CharacterName;
-            archetype = state.SourceCharacter.AppearancePreset;
-            level = state.Level;
-            headId = (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.HeadSlot).ItemId;
-            chestId = (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.ChestSlot).ItemId;
-            legsId = (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.LegsSlot).ItemId;
-            feetId = (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.FeetSlot).ItemId;
             ItemSlot held = state.Session.SelectedHotbarSlot < state.Inventory.Capacity
                 ? state.Inventory.GetSlot(state.Session.SelectedHotbarSlot)
                 : ItemSlot.Empty;
-            weaponId = (ushort)held.ItemId;
-            weaponUpgrade = ItemEnhancementPolicy.GetUpgradeLevel(in held);
-        }
-        else if (_actorsByNetworkId.TryGetValue(networkId, out NpcActorMeta meta))
-        {
-            kind = meta.Kind;
-            name = meta.Name;
-            archetype = meta.ArchetypeId;
-            level = meta.Level;
-        }
-        else if (_groundLoot.TryGet(networkId, out GroundLootEntry lootMeta))
-        {
-            kind = EntityKind.LootDrop;
-            ItemSlot lootItem = lootMeta.Item;
-            name = _itemRules.GetDisplayName(lootItem.ItemId);
-            archetype = (ushort)lootItem.ItemId;
-            lootCount = lootItem.Quantity;
-            weaponUpgrade = ItemEnhancementPolicy.GetUpgradeLevel(in lootItem);
-        }
-        else if (_projectiles.TryGet(networkId, out ProjectileState projMeta))
-        {
-            kind = EntityKind.Projectile;
-            name = string.Empty;
-            archetype = projMeta.VisualArchetype;
+            return new SpawnIdentity(
+                EntityKind.Player,
+                state.Session.CharacterName,
+                state.SourceCharacter.AppearancePreset,
+                (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.HeadSlot).ItemId,
+                (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.ChestSlot).ItemId,
+                (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.LegsSlot).ItemId,
+                (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.FeetSlot).ItemId,
+                (ushort)held.ItemId,
+                state.Level,
+                0,
+                ItemEnhancementPolicy.GetUpgradeLevel(in held));
         }
 
-        snapshot = new EntitySpawnSnapshot(
-            networkId,
-            kind,
-            archetype,
-            name,
-            pos.X,
-            pos.Y,
-            vel.X,
-            vel.Y,
-            radius,
-            hp,
-            maxHp,
-            headId,
-            chestId,
-            legsId,
-            feetId,
-            weaponId,
-            level,
-            lootCount,
-            weaponUpgrade);
-        return true;
+        if (_actorsByNetworkId.TryGetValue(networkId, out NpcActorMeta meta))
+        {
+            return SpawnIdentity.Unknown with { Kind = meta.Kind, Name = meta.Name, Archetype = meta.ArchetypeId, Level = meta.Level };
+        }
+
+        if (_groundLoot.TryGet(networkId, out GroundLootEntry lootMeta))
+        {
+            ItemSlot lootItem = lootMeta.Item;
+            return SpawnIdentity.Unknown with
+            {
+                Kind = EntityKind.LootDrop,
+                Name = _itemRules.GetDisplayName(lootItem.ItemId),
+                Archetype = (ushort)lootItem.ItemId,
+                LootCount = lootItem.Quantity,
+                WeaponUpgrade = ItemEnhancementPolicy.GetUpgradeLevel(in lootItem),
+            };
+        }
+
+        return _projectiles.TryGet(networkId, out ProjectileState projMeta)
+            ? SpawnIdentity.Unknown with { Kind = EntityKind.Projectile, Name = string.Empty, Archetype = projMeta.VisualArchetype }
+            : SpawnIdentity.Unknown;
     }
 
     private void RecomputeDerivedStatsLocked(ActivePlayerState state)
