@@ -8,6 +8,7 @@ using System.Text;
 using Carbon.Economy.Config;
 using Carbon.Economy.Currency;
 using Carbon.Economy.Loot;
+using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
 using Carbon.Items.Definitions;
@@ -54,12 +55,12 @@ public sealed class EconomySimulator
         ReasonTotals ledger = new();
         Wallet wallet = new(1, long.MaxValue, long.MaxValue, ledger);
         wallet.Restore(StartingGold, 0, 0);
-        InventoryContainer gear = this.EquipGear(stage);
-        InventoryContainer bag = new(8);
+        InventoryContainer gear = this.EquipWeapon(stage);
+        InventoryContainer bag = new(PlayerInventoryLayout.BagLimit);
         LootPityState pity = default;
         Span<LootDrop> drops = stackalloc LootDrop[32];
         LootContext context = new(level, PlayerLevel: level);
-        uint foodId = _economy.Items.ResolveId(model.FoodItem);
+        (uint Id, int PerHour)[] consumables = this.ResolveConsumables(stage);
         int killsPerHour = config.DesignTargets.KillsPerHour;
         int recipeCursor = 0;
 
@@ -79,7 +80,7 @@ public sealed class EconomySimulator
                     _ = wallet.TryCredit(CurrencyKind.Gold, sold * _economy.Prices.GetSellPrice(drops[d].ItemId), CurrencyReason.VendorSale, killIndex);
                 }
 
-                this.WearAndRepair(wallet, gear, model, killIndex);
+                this.WearAndRepair(wallet, gear, model, stage.StrikesPerKill, killIndex);
             }
 
             for (int c = 0; c < model.CraftsPerHour && stage.Recipes.Count > 0; c++)
@@ -90,9 +91,14 @@ public sealed class EconomySimulator
                 }
             }
 
-            if (model.FoodBoughtPerHour > 0 && _economy.Vendor.TryBuy(wallet, bag, foodId, model.FoodBoughtPerHour).IsOk)
+            foreach ((uint id, int perHour) in consumables)
             {
-                bag.Clear(); // eaten
+                if (perHour > 0 && !_economy.Vendor.TryBuy(wallet, bag, id, perHour, buyerLevel: level).IsOk)
+                {
+                    throw new InvalidDataException($"playerModel consumable {id} could not be bought at level {level}.");
+                }
+
+                bag.Clear(); // consumed during the hour
             }
         }
 
@@ -190,41 +196,50 @@ public sealed class EconomySimulator
         return tables.Count > 0 ? tables : throw new InvalidDataException($"No normal monster loot table covers level {level}.");
     }
 
-    private InventoryContainer EquipGear(PlayerStage stage)
+    private InventoryContainer EquipWeapon(PlayerStage stage)
     {
-        InventoryContainer gear = new(Math.Max(1, stage.Gear.Count));
-        for (int i = 0; i < stage.Gear.Count; i++)
+        ItemCatalogEntry weapon = _economy.Items.TryGetByCode(stage.Weapon, out ItemCatalogEntry? found)
+            ? found
+            : throw new InvalidDataException($"playerModel weapon '{stage.Weapon}' is not in items.json.");
+        if (weapon.MaxDurability <= 0f)
         {
-            ItemCatalogEntry item = _economy.Items.TryGetByCode(stage.Gear[i], out ItemCatalogEntry? found)
-                ? found
-                : throw new InvalidDataException($"playerModel gear '{stage.Gear[i]}' is not in items.json.");
-            if (item.MaxDurability <= 0f)
-            {
-                throw new InvalidDataException($"playerModel gear '{item.Code}' does not wear out.");
-            }
-
-            gear.SetSlot(i, new ItemSlot(item.Id, 1, InstanceId: (ulong)(i + 1), Durability: item.MaxDurability));
+            throw new InvalidDataException($"playerModel weapon '{weapon.Code}' does not wear out.");
         }
 
+        InventoryContainer gear = new(1);
+        gear.SetSlot(0, new ItemSlot(weapon.Id, 1, InstanceId: 1, Durability: weapon.MaxDurability));
         return gear;
     }
 
-    private void WearAndRepair(Wallet wallet, InventoryContainer gear, PlayerModel model, ulong tick)
+    private (uint Id, int PerHour)[] ResolveConsumables(PlayerStage stage)
     {
-        for (int i = 0; i < gear.Capacity; i++)
+        (uint Id, int PerHour)[] resolved = new (uint, int)[stage.Consumables.Count];
+        for (int i = 0; i < resolved.Length; i++)
         {
-            ItemSlot slot = gear.GetSlot(i);
-            if (slot.IsEmpty || !_economy.Items.TryGet(slot.ItemId, out ItemCatalogEntry? item))
-            {
-                continue;
-            }
+            ConsumableUse use = stage.Consumables[i];
+            resolved[i] = _economy.Items.TryGetByCode(use.Item, out ItemCatalogEntry? item)
+                ? (item.Id, use.PerHour)
+                : throw new InvalidDataException($"playerModel consumable '{use.Item}' is not in items.json.");
+        }
 
-            ItemSlot worn = slot with { Durability = MathF.Max(0f, slot.Durability - model.DurabilityLossPerKill) };
-            gear.SetSlot(i, worn);
-            if (worn.Durability * 100f < item.MaxDurability * model.RepairBelowPercent)
-            {
-                _ = _economy.Vendor.TryRepair(wallet, gear, i, tick);
-            }
+        return resolved;
+    }
+
+    private void WearAndRepair(Wallet wallet, InventoryContainer gear, PlayerModel model, int strikesPerKill, ulong tick)
+    {
+        ItemSlot slot = gear.GetSlot(0);
+        if (!_economy.Items.TryGet(slot.ItemId, out ItemCatalogEntry? item))
+        {
+            return;
+        }
+
+        // The same per-strike wear the server applies (ToolUsagePolicy), so the sink follows the real combat rules.
+        float loss = ToolUsagePolicy.EvaluateCombatStrike(_economy.ItemRules, in slot).DurabilityLoss * strikesPerKill;
+        ItemSlot worn = slot with { Durability = MathF.Max(0f, slot.Durability - loss) };
+        gear.SetSlot(0, worn);
+        if (worn.Durability * 100f < item.MaxDurability * model.RepairBelowPercent)
+        {
+            _ = _economy.Vendor.TryRepair(wallet, gear, 0, tick);
         }
     }
 

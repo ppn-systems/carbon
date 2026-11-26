@@ -40,6 +40,9 @@ public sealed partial class MultiplayerSession
     public ConfigCatalog? GameConfig => _gameConfig;
 
     /// <inheritdoc/>
+    public SyncedItemCatalog Items => _items;
+
+    /// <inheritdoc/>
     public Task<ConfigCatalog> WaitForGameConfigAsync(CancellationToken ct = default)
     {
         Task<ConfigCatalog> ready;
@@ -189,7 +192,7 @@ public sealed partial class MultiplayerSession
 
     private void OnConfigReady(ConfigCatalog catalog)
     {
-        _ = SyncedItemCatalog.Apply(catalog);
+        _ = _items.Apply(catalog);
         _ = SyncedFoodCatalog.Apply(catalog);
         _gameConfig = catalog;
         lock (_configGate)

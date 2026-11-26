@@ -10,7 +10,6 @@ using Carbon.Contracts.Entities;
 using Carbon.Contracts.Entities.C2S;
 using Carbon.Contracts.Items.C2S;
 using Carbon.Contracts.Maps.C2S;
-using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Events;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
@@ -67,7 +66,7 @@ public sealed partial class MultiplayerSession
             targetNetId = _lockedTargetNetworkId;
         }
 
-        bool hasArchetype = StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? archetype);
+        bool hasArchetype = _items.Rules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? archetype);
         if (hasArchetype && archetype is { Category: ItemCategory.Consumable })
         {
             bool healsHp = archetype.HealHealth > 0f;
@@ -260,8 +259,8 @@ public sealed partial class MultiplayerSession
             ItemSlot src = _inventory.GetSlot(fromSlot);
             ItemSlot dst = _inventory.GetSlot(toSlot);
             if (src.IsEmpty ||
-                !PlayerInventoryLayout.CanAcceptSlotItem(toSlot, in src) ||
-                !PlayerInventoryLayout.CanAcceptSlotItem(fromSlot, in dst))
+                !PlayerInventoryLayout.CanAcceptSlotItem(_items.Rules, toSlot, in src) ||
+                !PlayerInventoryLayout.CanAcceptSlotItem(_items.Rules, fromSlot, in dst))
             {
                 return false;
             }
@@ -316,7 +315,7 @@ public sealed partial class MultiplayerSession
         lock (_worldGate)
         {
             ItemSlot target = _inventory.GetSlot(slotIndex);
-            if (!ItemEnhancementPolicy.CanUpgrade(in target, out uint m1, out int c1, out uint m2, out int c2, out float _))
+            if (!ItemEnhancementPolicy.CanUpgrade(_items.Rules, in target, out uint m1, out int c1, out uint m2, out int c2, out float _))
             {
                 return false;
             }
@@ -594,7 +593,7 @@ public sealed partial class MultiplayerSession
     private int ResolveQuickMoveTargetSlot(ushort slotIndex, in ItemSlot source)
     {
         if (slotIndex < PlayerInventoryLayout.BagLimit &&
-            StarterGameCatalog.Items.TryGet(source.ItemId, out ItemArchetype? def))
+            _items.Rules.Items.TryGet(source.ItemId, out ItemArchetype? def))
         {
             int armorSlot = PlayerInventoryLayout.GetArmorSlotIndex(def.EquipSlot);
             if (armorSlot >= 0 && armorSlot < _inventory.Capacity)
@@ -625,7 +624,7 @@ public sealed partial class MultiplayerSession
     {
         if (source.IsStackable)
         {
-            int maxStack = SyncedItemCatalog.GetMaxStackSize(source.ItemId);
+            int maxStack = _items.GetMaxStackSize(source.ItemId);
             for (int i = startInclusive; i < endExclusive; i++)
             {
                 ItemSlot candidate = _inventory.GetSlot(i);
@@ -654,7 +653,7 @@ public sealed partial class MultiplayerSession
             _tcpSession is not { IsConnected: true } ||
             quantity == 0 ||
             quantity > 64 ||
-            !StarterGameCatalog.Recipes.TryGet(recipeId, out CraftingRecipe? recipe))
+            !_items.Rules.Recipes.TryGet(recipeId, out CraftingRecipe? recipe))
         {
             return false;
         }
@@ -851,7 +850,7 @@ public sealed partial class MultiplayerSession
             activeSlot = _inventory.GetSlot(_selectedSlot);
         }
 
-        _ = StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? activeArchetype);
+        _ = _items.Rules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? activeArchetype);
         ActionAnimationKind harvestKind = ResolveActionKind(activeArchetype);
         float harvestDuration = ResolveActionDuration(harvestKind);
         _comboStep = (byte)(_comboStep ^ 1);

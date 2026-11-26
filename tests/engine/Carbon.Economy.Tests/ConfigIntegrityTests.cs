@@ -96,7 +96,7 @@ public sealed class ConfigIntegrityTests
     [Fact]
     public void ItemsJson_SharedIds_MatchStarterGameCatalog()
     {
-        foreach (ItemArchetype archetype in StarterGameCatalog.Items.All)
+        foreach (ItemArchetype archetype in ItemRules.LoadShippedDefaults().Items.All)
         {
             ShippedConfig.Items.TryGet(archetype.Id, out ItemCatalogEntry? item).Should().BeTrue($"items.json must define starter item {archetype.Id}");
             item!.Code.Should().Be(archetype.Code);
@@ -249,6 +249,20 @@ public sealed class ConfigIntegrityTests
         EconomyConfig config = ShippedConfig.Economy with { Vendor = new VendorRules { BuyMarkupPercent = 100, SellRatioPercent = 100 } };
         Action act = config.Validate;
         act.Should().Throw<InvalidDataException>().WithMessage("*sellRatioPercent*");
+    }
+
+    [Theory]
+    [InlineData(10, 20, 90, "percent >= 100")]
+    [InlineData(10, 20, 150, "must not overlap")]
+    public void EconomyConfig_WithBadConsumablePriceBands_FailsValidation(int minLevel, int maxLevel, int percent, string message)
+    {
+        // The shipped bands already cover 1-100, so any extra band overlaps; a band below 100% fails first.
+        List<PriceBand> bands = [.. ShippedConfig.Economy.Vendor.ConsumablePriceBands, new PriceBand { MinLevel = minLevel, MaxLevel = maxLevel, Percent = percent }];
+        EconomyConfig config = ShippedConfig.Economy with { Vendor = ShippedConfig.Economy.Vendor with { ConsumablePriceBands = bands } };
+
+        Action act = config.Validate;
+
+        act.Should().Throw<InvalidDataException>().WithMessage($"*{message}*");
     }
 
     [Fact]

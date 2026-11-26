@@ -56,52 +56,35 @@ public sealed partial class ServerAuthorityTests
         // Remove entries as config sync replaces each usage.
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs|ItemEnhancementPolicy",
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs|SkillCatalog",
-        "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs|StarterGameCatalog",
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs|CharacterProgressionPolicy",
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs|ItemEnhancementPolicy",
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs|CharacterProgressionPolicy",
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs|ItemEnhancementPolicy",
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs|SkillCatalog",
-        "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs|StarterGameCatalog",
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs|ToolUsagePolicy",
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs|WorldActorCatalog",
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.cs|WorldActorCatalog",
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.cs|WorldProgression",
         "desktop/Carbon.Desktop.Rendering/Effects/ActionVfxRenderer.cs|StarterGameCatalog",
         "desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs|ItemEnhancementPolicy",
-        "desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs|StarterGameCatalog",
         "desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs|ItemEnhancementPolicy",
-        "desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs|StarterGameCatalog",
         "desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs|ItemEnhancementPolicy",
-        "desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs|StarterGameCatalog",
         "desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs|ToolUsagePolicy",
         "desktop/Carbon.Desktop.Rendering/Hud/InventoryModalWidget.cs|ItemEnhancementPolicy",
-        "desktop/Carbon.Desktop.Rendering/Hud/InventoryModalWidget.cs|StarterGameCatalog",
         "desktop/Carbon.Desktop.Rendering/Hud/PlayerModalTabs.cs|SkillCatalog",
         "desktop/Carbon.Desktop.Rendering/Hud/SkillBarWidget.cs|SkillCatalog",
         "desktop/Carbon.Desktop.Rendering/Overlays/WorldEntityOverlayRenderer.cs|WorldActorCatalog",
         "desktop/Carbon.Desktop.Rendering/VectorArt/ModularCharacterOverlays.cs|StarterGameCatalog",
         "desktop/Carbon.Desktop.Rendering/World/WorldSceneRenderer.cs|ItemEnhancementPolicy",
-        "desktop/Carbon.Desktop.Rendering/World/WorldSceneRenderer.cs|StarterGameCatalog",
         "desktop/Carbon.Desktop.Rendering/World/WorldSceneRenderer.cs|WorldProgression",
-        "desktop/Carbon.Desktop/Capture/ArtShowcaseRunner.cs|StarterGameCatalog",
         "desktop/Carbon.Desktop/Capture/ArtShowcaseRunner.cs|WorldActorCatalog",
         "desktop/Carbon.Desktop/Input/DesktopInputController.cs|SkillCatalog",
         "desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs|StarterGameCatalog",
-        "desktop/Carbon.Desktop/Scenes/WorldGameplayScene.cs|StarterGameCatalog",
         "desktop/Carbon.Desktop/Scenes/WorldGameplayScene.cs|WorldActorCatalog",
-
-        // NEW after the guard was written: added in #25 (building UX, owned by a parallel agent) after #24 had
-        // already introduced SyncedItemCatalog. Audit SA-1b: switch to SyncedItemCatalog and delete this entry.
-        "desktop/Carbon.Desktop.Rendering/World/ConstructionOverlayRenderer.cs|StarterGameCatalog",
 
         // NEW after the guard was written: added in #30 (creatures, owned by a parallel agent). Uses archetype id
         // constants only, to pick an attack clip. Audit SA-1c: declare the clip in the monster .cvg.json instead.
         "desktop/Carbon.Desktop.Rendering/VectorArt/MonsterAttackAnimator.cs|WorldActorCatalog",
-
-        // transitional shim from #28; removal tracked in the follow-up
-        // economy PR (inject ItemCatalog/RecipeCatalog instances instead of a static install)
-        "desktop/Carbon.Desktop.Abstractions/Configuration/SyncedItemCatalog.cs|StarterGameCatalog",
     };
 
     /// <summary>

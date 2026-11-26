@@ -10,7 +10,6 @@ using Carbon.Application.World;
 using Carbon.Configuration.Catalog;
 using Carbon.Creatures;
 using Carbon.Economy;
-using Carbon.Items.Catalog;
 using Carbon.Maps.Building;
 using Carbon.Server.Configuration;
 using Carbon.Survival.Config;
@@ -94,13 +93,8 @@ internal sealed record ServerGameData(GameEconomy Economy, NeedsConfig Needs, Fo
             }
 
             ServerGameData data = Load(next);
-            return () =>
-            {
-                world.ApplyGameData(data.Economy, data.Needs, data.Food);
-
-                // Item stats and recipes swap with the economy, matching what clients re-sync.
-                StarterGameCatalog.Install(data.Economy.Items, data.Economy.Recipes);
-            };
+            // Item stats and recipes (GameEconomy.ItemRules) swap with the economy, matching what clients re-sync.
+            return () => world.ApplyGameData(data.Economy, data.Needs, data.Food);
         });
     }
 

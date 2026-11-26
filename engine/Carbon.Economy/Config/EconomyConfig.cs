@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using Carbon.Economy.Serialization;
@@ -98,15 +99,61 @@ public sealed record EconomyConfig
             this.Vendor.SellRatioPercent >= 0 && this.Vendor.SellRatioPercent < this.Vendor.BuyMarkupPercent,
             "vendor.sellRatioPercent must be >= 0 and below buyMarkupPercent (otherwise buy-then-sell mints gold)");
         Require(this.Repair.CostPercentOfBasePrice >= 0 && this.Repair.MinimumCost >= 0, "repair costs must be >= 0");
+        Require(this.Repair.RarityMultiplierPercent.IsValid, "repair.rarityMultiplierPercent values must be >= 0");
         Require(
             this.CraftingFees.None >= 0 && this.CraftingFees.Workbench >= 0 && this.CraftingFees.Forge >= 0
             && this.CraftingFees.Stove >= 0 && this.CraftingFees.Alchemy >= 0 && this.CraftingFees.OutputValueRateBps is >= 0 and <= 10000,
             "crafting fees must be >= 0 and outputValueRateBps in [0, 10000]");
+        Require(this.CraftingFees.RarityMultiplierPercent.IsValid, "craftingFees.rarityMultiplierPercent values must be >= 0");
+        this.ValidateConsumablePriceBands();
         Require(this.DesignTargets.KillsPerHour > 0, "designTargets.killsPerHour must be positive");
+        Require(this.DesignTargets.InflationSlope.Min <= this.DesignTargets.InflationSlope.Max, "designTargets.inflationSlope min must be <= max");
         Require(
             this.PlayerModel.SellLootPercent is >= 0 and <= 100 && this.PlayerModel.RepairBelowPercent is >= 0 and <= 100
-            && this.PlayerModel.DurabilityLossPerKill >= 0f && this.PlayerModel.CraftsPerHour >= 0 && this.PlayerModel.FoodBoughtPerHour >= 0,
-            "playerModel percents must be in [0, 100] and rates >= 0");
+            && this.PlayerModel.CraftsPerHour >= 0,
+            "playerModel percents must be in [0, 100] and craftsPerHour >= 0");
+        foreach (PlayerStage stage in this.PlayerModel.Stages)
+        {
+            Require(stage.MinLevel >= 1 && stage.MaxLevel >= stage.MinLevel && stage.StrikesPerKill >= 1, "playerModel.stages need 1 <= minLevel <= maxLevel and strikesPerKill >= 1");
+            foreach (ConsumableUse use in stage.Consumables)
+            {
+                Require(use.Item.Length > 0 && use.PerHour >= 0, "playerModel consumables need an item and perHour >= 0");
+            }
+        }
+    }
+
+    /// <summary>Returns the consumable price percentage for a buyer at <paramref name="level"/> (100 outside every band).</summary>
+    /// <param name="level">Buyer level (0 = unknown).</param>
+    /// <returns>The price percentage.</returns>
+    public int GetConsumablePricePercent(int level)
+    {
+        foreach (PriceBand band in this.Vendor.ConsumablePriceBands)
+        {
+            if (band.MinLevel <= level && level <= band.MaxLevel)
+            {
+                return band.Percent;
+            }
+        }
+
+        return 100;
+    }
+
+    private void ValidateConsumablePriceBands()
+    {
+        IReadOnlyList<PriceBand> bands = this.Vendor.ConsumablePriceBands;
+        for (int i = 0; i < bands.Count; i++)
+        {
+            // Percent >= 100 keeps the anti-arbitrage invariant: the sell price (base x sellRatio) stays below any buy price.
+            Require(
+                bands[i].MinLevel >= 1 && bands[i].MaxLevel >= bands[i].MinLevel && bands[i].Percent >= 100,
+                "vendor.consumablePriceBands need 1 <= minLevel <= maxLevel and percent >= 100");
+            for (int j = 0; j < i; j++)
+            {
+                Require(
+                    bands[i].MaxLevel < bands[j].MinLevel || bands[i].MinLevel > bands[j].MaxLevel,
+                    "vendor.consumablePriceBands must not overlap");
+            }
+        }
     }
 
     private static void Require(bool condition, string message)

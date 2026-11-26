@@ -433,7 +433,7 @@ public sealed class VectorArtAndArchitectureTests
         CarbonVectorArtLibrary? lib = CarbonVectorArtLibrary.LoadFromDirectory(artRoot);
         lib.Should().NotBeNull();
 
-        foreach (Carbon.Items.Definitions.ItemArchetype item in StarterGameCatalog.Items.All)
+        foreach (Carbon.Items.Definitions.ItemArchetype item in ItemRules.LoadShippedDefaults().Items.All)
         {
             lib!.TryGetItem(item.Id, out CompiledItemVectorArt? itemArt).Should().BeTrue($"item {item.Id} ({item.DisplayName}) must have compiled cvg.json art");
             itemArt.Should().NotBeNull();

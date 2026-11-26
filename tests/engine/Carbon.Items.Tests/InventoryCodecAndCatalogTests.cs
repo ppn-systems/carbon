@@ -15,6 +15,8 @@ namespace Carbon.Items.Tests;
 
 public sealed class InventoryCodecAndCatalogTests
 {
+    private static readonly ItemRules s_rules = ItemRules.LoadShippedDefaults();
+
     [Fact]
     public void InventoryBinaryCodec_ShouldRoundTripStarterLoadoutAndRejectCorruptPayloads()
     {
@@ -40,8 +42,8 @@ public sealed class InventoryCodecAndCatalogTests
     [Fact]
     public void StarterGameCatalog_EveryDataDrivenRecipe_CraftsAtomicallyFromItsIngredients()
     {
-        ReadOnlySpan<CraftingRecipe> recipes = StarterGameCatalog.Recipes.All;
-        recipes.Length.Should().Be(StarterGameCatalog.RecipeCatalog.Count, "recipes come from recipes.json");
+        ReadOnlySpan<CraftingRecipe> recipes = s_rules.Recipes.All;
+        recipes.Length.Should().Be(s_rules.RecipeCatalog.Count, "recipes come from recipes.json");
         recipes.Length.Should().BeGreaterThan(40);
 
         for (int i = 0; i < recipes.Length; i++)
@@ -50,10 +52,10 @@ public sealed class InventoryCodecAndCatalogTests
             InventoryContainer bag = new(16);
             foreach (RecipeIngredient ingredient in recipe.Ingredients)
             {
-                bag.TryAdd(new ItemSlot(ingredient.ItemId, ingredient.Quantity), StarterGameCatalog.GetMaxStackSize(ingredient.ItemId)).Should().Be(0);
+                bag.TryAdd(new ItemSlot(ingredient.ItemId, ingredient.Quantity), s_rules.GetMaxStackSize(ingredient.ItemId)).Should().Be(0);
             }
 
-            RecipeMatcher.TryCraft(bag, recipe, StarterGameCatalog.ItemCatalog, CraftContext.Unrestricted).IsOk.Should().BeTrue($"recipe '{recipe.Code}' should craft from exactly its ingredients");
+            RecipeMatcher.TryCraft(bag, recipe, s_rules.ItemCatalog, CraftContext.Unrestricted).IsOk.Should().BeTrue($"recipe '{recipe.Code}' should craft from exactly its ingredients");
             for (int o = 0; o < recipe.OutputCount; o++)
             {
                 ItemSlot output = recipe.GetOutput(o);
@@ -79,15 +81,15 @@ public sealed class InventoryCodecAndCatalogTests
     [Fact]
     public void StarterGameCatalog_ItemArchetypes_ComeFromItemsJsonStats()
     {
-        StarterGameCatalog.Items.Count.Should().Be(StarterGameCatalog.ItemCatalog.Count, "every items.json entry has an archetype");
-        ItemArchetype axe = StarterGameCatalog.Items.GetRequired(StarterGameCatalog.WoodAxe);
+        s_rules.Items.Count.Should().Be(s_rules.ItemCatalog.Count, "every items.json entry has an archetype");
+        ItemArchetype axe = s_rules.Items.GetRequired(StarterGameCatalog.WoodAxe);
         axe.EquipSlot.Should().Be(EquipmentSlotKind.Tool);
         axe.HarvestTier.Should().Be(1);
         axe.Capabilities.Should().Be(ToolCapabilities.ChopFlora);
         axe.FloraHarvestDamage.Should().Be(55f);
-        StarterGameCatalog.Items.GetRequired(StarterGameCatalog.HuntingBow).ProjectileSpeed.Should().Be(520f);
-        StarterGameCatalog.Items.GetRequired(StarterGameCatalog.WoodWallKit).PlaceableStructureType.Should().Be(1);
-        StarterGameCatalog.Items.TryGet(StarterGameCatalog.ItemCatalog.ResolveId("ember_blade"), out ItemArchetype? blade).Should().BeTrue("items beyond the starter set are simulated too");
+        s_rules.Items.GetRequired(StarterGameCatalog.HuntingBow).ProjectileSpeed.Should().Be(520f);
+        s_rules.Items.GetRequired(StarterGameCatalog.WoodWallKit).PlaceableStructureType.Should().Be(1);
+        s_rules.Items.TryGet(s_rules.ItemCatalog.ResolveId("ember_blade"), out ItemArchetype? blade).Should().BeTrue("items beyond the starter set are simulated too");
         blade!.Capabilities.Should().HaveFlag(ToolCapabilities.MeleeWeapon);
     }
 
@@ -99,9 +101,9 @@ public sealed class InventoryCodecAndCatalogTests
         inv.SetSlot(10, new ItemSlot(StarterGameCatalog.WoodLog, 5));
 
         ItemSlot logSlot = inv.GetSlot(10);
-        PlayerInventoryLayout.CanAcceptSlotItem(PlayerInventoryLayout.HeadSlot, in logSlot).Should().BeFalse();
+        PlayerInventoryLayout.CanAcceptSlotItem(s_rules, PlayerInventoryLayout.HeadSlot, in logSlot).Should().BeFalse();
 
-        PlayerInventoryLayout.TryQuickMove(inv, 9, out int equippedSlot).Should().BeTrue();
+        PlayerInventoryLayout.TryQuickMove(s_rules, inv, 9, out int equippedSlot).Should().BeTrue();
         equippedSlot.Should().Be(PlayerInventoryLayout.HeadSlot);
         inv.GetSlot(PlayerInventoryLayout.HeadSlot).ItemId.Should().Be(StarterGameCatalog.IronHelmet);
 
@@ -110,14 +112,14 @@ public sealed class InventoryCodecAndCatalogTests
         ItemEnhancementPolicy.GetUpgradeLevel(in upgraded).Should().Be(5);
         inv.SetSlot(PlayerInventoryLayout.HeadSlot, in upgraded);
 
-        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(3, inv);
+        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(s_rules, 3, inv);
         stats.Defense.Should().BeGreaterThan(10f);
         stats.MaxHealth.Should().BeGreaterThan(140f);
         stats.MaxMana.Should().Be(100f);
         CharacterProgressionPolicy.GetXpToNextLevel(1).Should().Be(100U);
         CharacterProgressionPolicy.MitigateDamage(100f, stats.Defense).Should().BeLessThan(70f);
 
-        ItemEnhancementPolicy.CanUpgrade(in upgraded, out uint m1, out int c1, out uint m2, out int c2, out float chance).Should().BeTrue();
+        ItemEnhancementPolicy.CanUpgrade(s_rules, in upgraded, out uint m1, out int c1, out uint m2, out int c2, out float chance).Should().BeTrue();
         m1.Should().Be(StarterGameCatalog.IronOre);
         c1.Should().BeGreaterThan(0);
         m2.Should().Be(StarterGameCatalog.ManaCrystal);
@@ -133,28 +135,28 @@ public sealed class InventoryCodecAndCatalogTests
         ItemSlot freshPick = new(StarterGameCatalog.StonePickaxe, 1, 0, 160f);
         ItemSlot wornSword = new(StarterGameCatalog.IronSword, 1, 0, 0f);
 
-        ToolUsagePolicy.IsWornOut(in freshSword).Should().BeFalse();
-        ToolUsagePolicy.IsWornOut(in wornSword).Should().BeTrue();
+        ToolUsagePolicy.IsWornOut(s_rules, in freshSword).Should().BeFalse();
+        ToolUsagePolicy.IsWornOut(s_rules, in wornSword).Should().BeTrue();
 
-        PropStrikeEvaluation swordOnTree = ToolUsagePolicy.EvaluatePropStrike(in freshSword, ToolTargetKind.Flora, 1);
+        PropStrikeEvaluation swordOnTree = ToolUsagePolicy.EvaluatePropStrike(s_rules, in freshSword, ToolTargetKind.Flora, 1);
         swordOnTree.Outcome.Should().Be(ToolStrikeOutcome.SwordMisuseOnWood);
         swordOnTree.DurabilityLoss.Should().BeGreaterThan(3f);
-        swordOnTree.Damage.Should().BeLessThan(StarterGameCatalog.GetFloraHarvestDamage(StarterGameCatalog.WoodAxe));
+        swordOnTree.Damage.Should().BeLessThan(s_rules.GetFloraHarvestDamage(StarterGameCatalog.WoodAxe));
 
-        PropStrikeEvaluation swordOnRock = ToolUsagePolicy.EvaluatePropStrike(in freshSword, ToolTargetKind.Mineral, 1);
+        PropStrikeEvaluation swordOnRock = ToolUsagePolicy.EvaluatePropStrike(s_rules, in freshSword, ToolTargetKind.Mineral, 1);
         swordOnRock.Outcome.Should().Be(ToolStrikeOutcome.BladeBluntOnStone);
         swordOnRock.Damage.Should().Be(0f);
         swordOnRock.DurabilityLoss.Should().BeGreaterThan(4f);
 
-        PropStrikeEvaluation axeOnTree = ToolUsagePolicy.EvaluatePropStrike(in freshAxe, ToolTargetKind.Flora, 1);
+        PropStrikeEvaluation axeOnTree = ToolUsagePolicy.EvaluatePropStrike(s_rules, in freshAxe, ToolTargetKind.Flora, 1);
         axeOnTree.Outcome.Should().Be(ToolStrikeOutcome.Optimal);
 
-        PropStrikeEvaluation pickOnOre = ToolUsagePolicy.EvaluatePropStrike(in freshPick, ToolTargetKind.Mineral, 2);
+        PropStrikeEvaluation pickOnOre = ToolUsagePolicy.EvaluatePropStrike(s_rules, in freshPick, ToolTargetKind.Mineral, 2);
         pickOnOre.Outcome.Should().Be(ToolStrikeOutcome.Optimal);
 
-        CombatStrikeEvaluation wornHit = ToolUsagePolicy.EvaluateCombatStrike(in wornSword);
+        CombatStrikeEvaluation wornHit = ToolUsagePolicy.EvaluateCombatStrike(s_rules, in wornSword);
         wornHit.Outcome.Should().Be(ToolStrikeOutcome.WornOutTool);
-        wornHit.Damage.Should().BeLessThan(StarterGameCatalog.GetWeaponBaseDamage(StarterGameCatalog.IronSword));
+        wornHit.Damage.Should().BeLessThan(s_rules.GetWeaponBaseDamage(StarterGameCatalog.IronSword));
     }
 
     [Fact]
@@ -173,7 +175,7 @@ public sealed class InventoryCodecAndCatalogTests
         gearBag.GetSlot(0).Quantity.Should().Be(1);
         gearBag.GetSlot(1).Quantity.Should().Be(1);
 
-        int swordMaxStack = StarterGameCatalog.GetMaxStackSize(StarterGameCatalog.IronSword);
+        int swordMaxStack = s_rules.GetMaxStackSize(StarterGameCatalog.IronSword);
         swordMaxStack.Should().Be(1);
 
         // Full bag (0..35) with armor slots (36..39) empty must refuse craft rather than spilling into armor slots.
@@ -184,8 +186,8 @@ public sealed class InventoryCodecAndCatalogTests
         }
 
         fullBag.SetSlot(PlayerInventoryLayout.BagLimit - 1, new ItemSlot(StarterGameCatalog.WoodLog, 10));
-        StarterGameCatalog.Recipes.TryGet(1, out CraftingRecipe? wallRecipe).Should().BeTrue();
-        PlayerInventoryLayout.TryCraftInBag(fullBag, wallRecipe!, StarterGameCatalog.GetMaxStackSize(StarterGameCatalog.WoodWallKit)).Should().BeFalse();
+        s_rules.Recipes.TryGet(1, out CraftingRecipe? wallRecipe).Should().BeTrue();
+        PlayerInventoryLayout.TryCraftInBag(fullBag, wallRecipe!, s_rules.GetMaxStackSize(StarterGameCatalog.WoodWallKit)).Should().BeFalse();
         fullBag.GetSlot(PlayerInventoryLayout.HeadSlot).IsEmpty.Should().BeTrue();
 
         // Codec v2 preserves UpgradeLevel & explicit InstanceId cleanly.
@@ -238,12 +240,12 @@ public sealed class InventoryCodecAndCatalogTests
         mageBag.GetSlot(PlayerInventoryLayout.HeadSlot).ItemId.Should().Be(StarterGameCatalog.LeatherCap);
         mageBag.GetSlot(PlayerInventoryLayout.ChestSlot).ItemId.Should().Be(StarterGameCatalog.LeatherTunic);
         mageBag.GetSlot(PlayerInventoryLayout.FeetSlot).ItemId.Should().Be(StarterGameCatalog.LeatherBoots);
-        DerivedCharacterStats baseStats = CharacterProgressionPolicy.ComputeStats(1, mageBag);
-        DerivedCharacterStats staffStats = CharacterProgressionPolicy.ComputeStats(1, mageBag, selectedHotbarSlot: 2);
+        DerivedCharacterStats baseStats = CharacterProgressionPolicy.ComputeStats(s_rules, 1, mageBag);
+        DerivedCharacterStats staffStats = CharacterProgressionPolicy.ComputeStats(s_rules, 1, mageBag, selectedHotbarSlot: 2);
         staffStats.MaxMana.Should().BeGreaterThan(baseStats.MaxMana);
 
         ItemSlot bowSlot = rangerBag.GetSlot(2);
-        ToolUsagePolicy.EvaluatePropStrike(in bowSlot, ToolTargetKind.Mineral, 1).Outcome.Should().Be(ToolStrikeOutcome.BladeBluntOnStone);
+        ToolUsagePolicy.EvaluatePropStrike(s_rules, in bowSlot, ToolTargetKind.Mineral, 1).Outcome.Should().Be(ToolStrikeOutcome.BladeBluntOnStone);
 
         ScaledMonsterStats archer = WorldActorCatalog.ScaleMonsterForZone(WorldActorCatalog.SkeletonArcher, 1);
         archer.AttackRange.Should().BeGreaterThan(200f);
@@ -280,17 +282,17 @@ public sealed class InventoryCodecAndCatalogTests
         CharacterSkillMaskHelper.HasSkill(decodedProg.UnlockedSkillMask, SkillCatalog.ArcaneNovaId).Should().BeTrue();
         CharacterSkillMaskHelper.HasSkill(decodedProg.UnlockedSkillMask, SkillCatalog.VitalSurgeId).Should().BeFalse();
 
-        DerivedCharacterStats boosted = CharacterProgressionPolicy.ComputeStats(5, mageBag, selectedHotbarSlot: 2, allocated);
-        DerivedCharacterStats unboosted = CharacterProgressionPolicy.ComputeStats(5, mageBag, selectedHotbarSlot: 2);
+        DerivedCharacterStats boosted = CharacterProgressionPolicy.ComputeStats(s_rules, 5, mageBag, selectedHotbarSlot: 2, allocated);
+        DerivedCharacterStats unboosted = CharacterProgressionPolicy.ComputeStats(s_rules, 5, mageBag, selectedHotbarSlot: 2);
         boosted.MaxHealth.Should().BeGreaterThan(unboosted.MaxHealth);
         boosted.MaxMana.Should().BeGreaterThan(unboosted.MaxMana);
         boosted.AttackMultiplier.Should().BeGreaterThan(unboosted.AttackMultiplier);
         boosted.MoveSpeedMultiplier.Should().BeGreaterThan(unboosted.MoveSpeedMultiplier);
 
-        StarterGameCatalog.Items.TryGet(StarterGameCatalog.RoastMeat, out _).Should().BeTrue();
-        StarterGameCatalog.Items.TryGet(StarterGameCatalog.ArcanePie, out _).Should().BeTrue();
-        StarterGameCatalog.Items.TryGet(StarterGameCatalog.DemonCleaver, out _).Should().BeTrue();
-        StarterGameCatalog.Items.TryGet(StarterGameCatalog.ShamanStaff, out ItemArchetype? shamanStaff).Should().BeTrue();
+        s_rules.Items.TryGet(StarterGameCatalog.RoastMeat, out _).Should().BeTrue();
+        s_rules.Items.TryGet(StarterGameCatalog.ArcanePie, out _).Should().BeTrue();
+        s_rules.Items.TryGet(StarterGameCatalog.DemonCleaver, out _).Should().BeTrue();
+        s_rules.Items.TryGet(StarterGameCatalog.ShamanStaff, out ItemArchetype? shamanStaff).Should().BeTrue();
         shamanStaff!.Capabilities.HasFlag(ToolCapabilities.MagicFocus).Should().BeTrue();
         WorldActorCatalog.GetNpcSpec(WorldActorCatalog.MasterBlacksmith).Capabilities.HasFlag(NpcCapabilities.ForgeArtisan).Should().BeTrue();
         WorldActorCatalog.GetNpcSpec(WorldActorCatalog.HarbourMaster).Capabilities.HasFlag(NpcCapabilities.ForgeArtisan).Should().BeFalse();
@@ -298,7 +300,7 @@ public sealed class InventoryCodecAndCatalogTests
         WorldActorCatalog.ScaleMonsterForZone(WorldActorCatalog.CrimsonDemon, 1).AttackDamage.Should().BeGreaterThan(25f);
 
         // TryCraftInBag must NOT consume equipped armor (36..39) or forge-enhanced (+1+) ingredients
-        StarterGameCatalog.Recipes.TryGet(15, out CraftingRecipe? ironHelmRecipe).Should().BeTrue();
+        s_rules.Recipes.TryGet(15, out CraftingRecipe? ironHelmRecipe).Should().BeTrue();
         InventoryContainer craftGuardBag = new(PlayerInventoryLayout.TotalCapacity);
         craftGuardBag.SetSlot(0, new ItemSlot(StarterGameCatalog.IronOre, 5, 0UL, 0f, UpgradeLevel: 1));
         PlayerInventoryLayout.TryCraftInBag(craftGuardBag, ironHelmRecipe!, 1).Should().BeFalse();
@@ -309,13 +311,13 @@ public sealed class InventoryCodecAndCatalogTests
     {
         for (byte structureType = 1; structureType <= 8; structureType++)
         {
-            uint kitId = StarterGameCatalog.ResolveStructureKitItemId(structureType);
+            uint kitId = s_rules.ResolveStructureKitItemId(structureType);
             kitId.Should().NotBe(0U, $"StructureType {structureType} must have a placeable kit item");
-            StarterGameCatalog.Items.TryGet(kitId, out ItemArchetype? kitDef).Should().BeTrue();
+            s_rules.Items.TryGet(kitId, out ItemArchetype? kitDef).Should().BeTrue();
             kitDef!.Category.Should().Be(ItemCategory.Placeable);
 
             bool hasRecipe = false;
-            foreach (CraftingRecipe rec in StarterGameCatalog.Recipes.All)
+            foreach (CraftingRecipe rec in s_rules.Recipes.All)
             {
                 if (rec.Output.ItemId == kitId)
                 {
@@ -356,15 +358,15 @@ public sealed class InventoryCodecAndCatalogTests
         foreach (ushort m in monsters)
         {
             MonsterArchetypeSpec spec = WorldActorCatalog.GetMonsterSpec(m);
-            StarterGameCatalog.Items.TryGet(spec.DropItemId, out _).Should().BeTrue();
+            s_rules.Items.TryGet(spec.DropItemId, out _).Should().BeTrue();
             if (spec.SecondaryDropItemId != 0U)
             {
-                StarterGameCatalog.Items.TryGet(spec.SecondaryDropItemId, out _).Should().BeTrue();
+                s_rules.Items.TryGet(spec.SecondaryDropItemId, out _).Should().BeTrue();
             }
 
             if (spec.RareDropItemId != 0U)
             {
-                StarterGameCatalog.Items.TryGet(spec.RareDropItemId, out _).Should().BeTrue();
+                s_rules.Items.TryGet(spec.RareDropItemId, out _).Should().BeTrue();
             }
         }
     }

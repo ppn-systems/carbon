@@ -231,7 +231,7 @@ public sealed class WorldSceneRenderer : IDisposable
             Span<Carbon.Items.Containers.ItemSlot> hSlots = stackalloc Carbon.Items.Containers.ItemSlot[Carbon.Items.Catalog.PlayerInventoryLayout.TotalCapacity];
             world.CopyInventorySlots(hSlots);
             Carbon.Items.Containers.ItemSlot held = world.SelectedHotbarSlot < hSlots.Length ? hSlots[world.SelectedHotbarSlot] : Carbon.Items.Containers.ItemSlot.Empty;
-            if (!held.IsEmpty && Carbon.Items.Catalog.StarterGameCatalog.Items.TryGet(held.ItemId, out Carbon.Items.Definitions.ItemArchetype? heldArchetype) &&
+            if (!held.IsEmpty && world.Items.Rules.Items.TryGet(held.ItemId, out Carbon.Items.Definitions.ItemArchetype? heldArchetype) &&
                 heldArchetype.Category is Carbon.Items.Definitions.ItemCategory.Placeable or Carbon.Items.Definitions.ItemCategory.Tool)
             {
                 aimTileX = (int)MathF.Floor(aimedWorldPosition.Value.X / tileSize);
@@ -946,7 +946,7 @@ public sealed class WorldSceneRenderer : IDisposable
         world.CopyInventorySlots(slots);
         ItemSlot active = world.SelectedHotbarSlot < slots.Length ? slots[world.SelectedHotbarSlot] : ItemSlot.Empty;
         bool isPlaceable = active.Quantity > 0 &&
-            StarterGameCatalog.Items.TryGet(active.ItemId, out ItemArchetype? archetype) &&
+            world.Items.Rules.Items.TryGet(active.ItemId, out ItemArchetype? archetype) &&
             archetype is { Category: ItemCategory.Placeable };
 
         if (isPlaceable)

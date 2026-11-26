@@ -41,6 +41,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     private const float IdleKeepAliveSeconds = 2.5f;
 
     private readonly DesktopOptions _options;
+    private readonly SyncedItemCatalog _items = new();
     private readonly List<IDisposable> _tcpSubscriptions = [];
     private readonly List<IDisposable> _udpSubscriptions = [];
     private readonly ConcurrentDictionary<ulong, RemoteEntityState> _remoteEntities = new();

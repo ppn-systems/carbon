@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Carbon.Economy.Config;
 using Carbon.Economy.Simulation;
+using Carbon.Items.Definitions;
 using FluentAssertions;
 using Xunit;
 using Xunit.Abstractions;
@@ -17,7 +18,7 @@ namespace Carbon.Economy.Tests;
 public sealed class EconomyBalanceSimulatorTests
 {
     private const int Hours = 20;
-    private static readonly int[] s_levels = [1, 5, 10, 15, 20, 30, 40, 50, 60, 75, 90, 100];
+    private static readonly int[] s_levels = [1, 5, 9, 10, 15, 20, 24, 25, 30, 35, 40, 45, 49, 50, 55, 60, 65, 70, 74, 75, 80, 85, 90, 95, 100];
     private readonly ITestOutputHelper _output;
 
     public EconomyBalanceSimulatorTests(ITestOutputHelper output) => _output = output;
@@ -38,11 +39,14 @@ public sealed class EconomyBalanceSimulatorTests
             LevelBand share = targets.SinkShare.Single(b => b.MinLevel <= r.Level && r.Level <= b.MaxLevel);
             r.Net.Should().BeInRange(net.Min, net.Max, "net gold/hour at level {0}", r.Level);
             r.SinkShare.Should().BeInRange(share.Min, share.Max, "sink share at level {0}", r.Level);
-            r.Repairs.Should().BePositive("every stage's gear must wear out and be repaired at level {0}", r.Level);
-            r.VendorPurchases.Should().BePositive("food is bought every hour at level {0}", r.Level);
+            r.Repairs.Should().BePositive("every stage's weapon must wear out and be repaired at level {0}", r.Level);
+            r.VendorPurchases.Should().BePositive("consumables are bought every hour at level {0}", r.Level);
         }
 
-        EconomySimulator.InflationSlope(reports).Should().BePositive("net gold/hour grows with level");
+        EconomySimulator.InflationSlope(reports).Should().BeInRange(
+            targets.InflationSlope.Min,
+            targets.InflationSlope.Max,
+            "net gold/hour may grow with level, but only inside designTargets.inflationSlope");
     }
 
     [Fact]
@@ -65,7 +69,10 @@ public sealed class EconomyBalanceSimulatorTests
 
         foreach (PlayerStage stage in model.Stages)
         {
-            stage.Gear.Where(code => !ShippedConfig.Items.TryGetByCode(code, out _)).Should().BeEmpty("gear must exist in items.json");
+            ShippedConfig.Items.TryGetByCode(stage.Weapon, out ItemCatalogEntry? weapon).Should().BeTrue("weapon '{0}' must exist in items.json", stage.Weapon);
+            weapon!.Category.Should().Be(ItemCategory.Weapon, "'{0}' is the stage's weapon", stage.Weapon);
+            stage.Consumables.Where(use => !ShippedConfig.Items.TryGetByCode(use.Item, out ItemCatalogEntry? item) || !item.VendorBuyable)
+                .Should().BeEmpty("consumables must be vendor-buyable items in items.json");
             stage.Recipes.Where(code => !ShippedConfig.Recipes.TryGetByCode(code, out _)).Should().BeEmpty("recipes must exist in recipes.json");
         }
     }

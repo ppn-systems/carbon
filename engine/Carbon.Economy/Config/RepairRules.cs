@@ -12,4 +12,9 @@ public sealed record RepairRules
 
     /// <summary>Gets the minimum charge for any non-zero repair.</summary>
     public long MinimumCost { get; set; } = 1;
+
+    /// <summary>
+    /// Gets or sets the repair-cost percentage per item rarity: higher-tier gear costs proportionally more to keep up.
+    /// </summary>
+    public RarityPercents RarityMultiplierPercent { get; set; } = new();
 }

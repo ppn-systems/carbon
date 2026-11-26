@@ -83,23 +83,25 @@ public static class CharacterProgressionPolicy
     }
 
     /// <summary>Computes derived stats for <paramref name="level"/> and armor slots.</summary>
-    public static DerivedCharacterStats ComputeStats(ushort level, InventoryContainer inventory) =>
-        ComputeStats(level, inventory, selectedHotbarSlot: byte.MaxValue, progression: null);
+    public static DerivedCharacterStats ComputeStats(ItemRules rules, ushort level, InventoryContainer inventory) =>
+        ComputeStats(rules, level, inventory, selectedHotbarSlot: byte.MaxValue, progression: null);
 
     /// <summary>Computes derived stats combining level, armor slots, and active hotbar focus weapon.</summary>
-    public static DerivedCharacterStats ComputeStats(ushort level, InventoryContainer inventory, byte selectedHotbarSlot) =>
-        ComputeStats(level, inventory, selectedHotbarSlot, progression: null);
+    public static DerivedCharacterStats ComputeStats(ItemRules rules, ushort level, InventoryContainer inventory, byte selectedHotbarSlot) =>
+        ComputeStats(rules, level, inventory, selectedHotbarSlot, progression: null);
 
     /// <summary>
     /// Computes derived HP, MP, Stamina, Defense, Offense, SpellPower, and MoveSpeed scaling combining
     /// character level, open attribute allocations, equipped armor slots (<c>36..39</c>), and held weapons.
     /// </summary>
     public static DerivedCharacterStats ComputeStats(
+        ItemRules rules,
         ushort level,
         InventoryContainer inventory,
         byte selectedHotbarSlot,
         CharacterProgressionState? progression)
     {
+        ArgumentNullException.ThrowIfNull(rules);
         ArgumentNullException.ThrowIfNull(inventory);
 
         ushort vit = progression?.GetAttribute(PrimaryAttributeId.Vitality) ?? 0;
@@ -124,23 +126,23 @@ public static class CharacterProgressionPolicy
             }
 
             ItemSlot armor = inventory.GetSlot(slotIdx);
-            if (armor.IsEmpty || ToolUsagePolicy.IsWornOut(in armor))
+            if (armor.IsEmpty || ToolUsagePolicy.IsWornOut(rules, in armor))
             {
                 continue;
             }
 
             float upgMult = ItemEnhancementPolicy.GetStatMultiplier(ItemEnhancementPolicy.GetUpgradeLevel(in armor));
-            maxHp += StarterGameCatalog.GetArmorBonusHealth(armor.ItemId) * upgMult;
-            maxMp += StarterGameCatalog.GetArmorBonusMana(armor.ItemId) * upgMult;
-            defTotal += StarterGameCatalog.GetArmorDefense(armor.ItemId) * upgMult;
+            maxHp += rules.GetArmorBonusHealth(armor.ItemId) * upgMult;
+            maxMp += rules.GetArmorBonusMana(armor.ItemId) * upgMult;
+            defTotal += rules.GetArmorDefense(armor.ItemId) * upgMult;
         }
 
         if (selectedHotbarSlot < PlayerInventoryLayout.HotbarCount && selectedHotbarSlot < inventory.Capacity)
         {
             ItemSlot held = inventory.GetSlot(selectedHotbarSlot);
             if (!held.IsEmpty &&
-                !ToolUsagePolicy.IsWornOut(in held) &&
-                StarterGameCatalog.Items.TryGet(held.ItemId, out Definitions.ItemArchetype? heldDef) &&
+                !ToolUsagePolicy.IsWornOut(rules, in held) &&
+                rules.Items.TryGet(held.ItemId, out Definitions.ItemArchetype? heldDef) &&
                 heldDef.Category == Definitions.ItemCategory.Weapon)
             {
                 float upgMult = ItemEnhancementPolicy.GetStatMultiplier(ItemEnhancementPolicy.GetUpgradeLevel(in held));
