@@ -102,11 +102,11 @@ spoil and drops the raw-food mood penalty. The cooked meal's mood bonus comes fr
 | `roast_meat` | 2 raw_meat + 1 berry_herb | 1 roast_meat | 5 |
 | `bread` | 3 wheat | 1 bread | 2 |
 | `stew` | 2 raw_meat + 2 berries + 1 wheat | 1 stew | 8 |
-| `slime_jelly` | 2 slime_gel + 1 berries | 2 slime_jelly | 1 |
+| `slime_jelly_preserve` | 2 slime_gel + 1 berries | 2 slime_jelly_preserve | 1 |
 | `arcane_pie` | 2 wheat + 3 berries + 1 mana_crystal | 1 arcane_pie | 15 |
 | `berry_stew` | 3 berries + 1 bread | 1 stew | 4 |
 
-`slime_jelly` is the exception: its output is raw, so it still spoils.
+Raw `slime_jelly` dropped by slimes spoils. The cooked `slime_jelly_preserve` (+18 food, +2 mood) does not.
 
 ## Rest
 

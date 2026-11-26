@@ -1554,6 +1554,22 @@
         "food",
         "rotten"
       ]
+    },
+    {
+      "id": 204,
+      "code": "slime_jelly_preserve",
+      "name": "Slime Jelly Preserve",
+      "category": "consumable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 50,
+      "basePrice": 9,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "food",
+        "slime"
+      ]
     }
   ]
 }

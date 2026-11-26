@@ -13,7 +13,7 @@ namespace Carbon.Survival.Tests;
 
 public sealed class SurvivalConfigTests
 {
-    private static readonly string[] s_expectedFoods = ["berries", "raw_meat", "cooked_meat", "bread", "stew", "slime_jelly", "roast_meat", "arcane_pie", "rotten_food"];
+    private static readonly string[] s_expectedFoods = ["berries", "raw_meat", "cooked_meat", "bread", "stew", "slime_jelly", "roast_meat", "arcane_pie", "rotten_food", "slime_jelly_preserve"];
 
     [Fact]
     public void LoadFromJson_RepositoryNeedsJson_LoadsAndMatchesDocumentedTimeline()
@@ -146,11 +146,9 @@ public sealed class SurvivalConfigTests
                 string produced = output.GetProperty("item").GetString()!;
                 catalog.TryGetIndex(produced, out int index).Should().BeTrue($"cooking recipe '{code}' must output a food from food.json, not '{produced}'");
                 FoodDefinition food = catalog.Get(index);
-                if (food.Quality != FoodQuality.Raw)
-                {
-                    food.IsPerishable.Should().BeFalse($"cooked '{produced}' must not spoil (cooking is how raw food is preserved)");
-                    food.MoodOffset.Should().BeGreaterThanOrEqualTo(0f, $"cooked '{produced}' must not carry a raw-food mood penalty");
-                }
+                food.Quality.Should().NotBe(FoodQuality.Raw, $"cooking recipe '{code}' must output cooked food, not raw '{produced}'");
+                food.IsPerishable.Should().BeFalse($"cooked '{produced}' must not spoil (cooking is how raw food is preserved)");
+                food.MoodOffset.Should().BeGreaterThanOrEqualTo(0f, $"cooked '{produced}' must not carry a raw-food mood penalty");
             }
         }
 
