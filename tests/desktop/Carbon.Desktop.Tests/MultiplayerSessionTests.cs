@@ -76,7 +76,7 @@ public sealed class MultiplayerSessionTests
             SqliteCharacterStore characters = new(dbFactory);
             SqliteChunkDeltaRepository chunkDeltas = new(dbFactory);
             Pbkdf2PasswordHasher hasher = new();
-            AuthService authService = new(accounts, characters, hasher);
+            using AuthService authService = new(accounts, characters, hasher);
             SessionTransportRegistry transportRegistry = new();
             WorldOutboundSink outboundSink = new(transportRegistry, NullLogger<WorldOutboundSink>.Instance);
 
