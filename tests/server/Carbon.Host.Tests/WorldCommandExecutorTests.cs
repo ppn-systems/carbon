@@ -1,5 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Carbon.Abstractions.World;
@@ -40,6 +41,22 @@ public sealed class WorldCommandExecutorTests
         (await rest.ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok);
         (await point.ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok);
         queue.Count.Should().Be(0);
+    }
+
+    [Fact]
+    public void Drain_EveryTickWithNothingQueued_AllocatesNothing()
+    {
+        WorldCommandExecutor executor = new(new RecordingHandlers());
+        WorldCommandQueue queue = new();
+        executor.Drain(queue);
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int tick = 0; tick < 1_000; tick++)
+        {
+            executor.Drain(queue);
+        }
+
+        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0, "the drain runs at the start of every fixed tick (AGENTS.md rule 4)");
     }
 
     [Fact]
