@@ -1,0 +1,8 @@
+[
+  { "itemId": "berries",     "nutrition": 10, "quality": "raw",    "poisonChance": 0.02, "moodOffset": 0,  "moodDurationSeconds": 0,   "eatSeconds": 1.5 },
+  { "itemId": "raw_meat",    "nutrition": 25, "quality": "raw",    "poisonChance": 0.15, "moodOffset": -7, "moodDurationSeconds": 600, "eatSeconds": 4 },
+  { "itemId": "slime_jelly", "nutrition": 15, "quality": "raw",    "poisonChance": 0.08, "moodOffset": -3, "moodDurationSeconds": 300, "eatSeconds": 2 },
+  { "itemId": "cooked_meat", "nutrition": 40, "quality": "simple", "poisonChance": 0.02, "moodOffset": 2,  "moodDurationSeconds": 600, "eatSeconds": 4 },
+  { "itemId": "bread",       "nutrition": 35, "quality": "simple", "poisonChance": 0.01, "moodOffset": 0,  "moodDurationSeconds": 0,   "eatSeconds": 3 },
+  { "itemId": "stew",        "nutrition": 60, "quality": "fine",   "poisonChance": 0.01, "moodOffset": 5,  "moodDurationSeconds": 900, "eatSeconds": 6 }
+]

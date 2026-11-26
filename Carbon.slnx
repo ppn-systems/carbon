@@ -22,6 +22,7 @@
     <Project Path="engine/Carbon.Prediction/Carbon.Prediction.csproj" />
     <Project Path="engine/Carbon.Primitives/Carbon.Primitives.csproj" />
     <Project Path="engine/Carbon.Simulation/Carbon.Simulation.csproj" />
+    <Project Path="engine/Carbon.Survival/Carbon.Survival.csproj" />
   </Folder>
   <Folder Name="/graphics/">
     <Project Path="graphics/Carbon.Graphics.Animation/Carbon.Graphics.Animation.csproj" />
@@ -57,6 +58,7 @@
     <Project Path="tests/engine/Carbon.Prediction.Tests/Carbon.Prediction.Tests.csproj" />
     <Project Path="tests/engine/Carbon.Primitives.Tests/Carbon.Primitives.Tests.csproj" />
     <Project Path="tests/engine/Carbon.Simulation.Tests/Carbon.Simulation.Tests.csproj" />
+    <Project Path="tests/engine/Carbon.Survival.Tests/Carbon.Survival.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/graphics/">
     <Project Path="tests/graphics/Carbon.Graphics.Animation.Tests/Carbon.Graphics.Animation.Tests.csproj" />
