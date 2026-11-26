@@ -24,9 +24,21 @@ internal sealed class MonsterTargetWidget
     private RemoteEntityView _activeTarget;
     private float _ghostRatio;
     private bool _hasTarget;
+    private bool _isLocked;
 
-    public void UpdateTarget(IClientWorldReadModel world, CombatFeedbackTracker feedback, Vector2? aimedWorldPos) =>
-        _hasTarget = feedback.TryResolveTargetEntity(world, aimedWorldPos, out _activeTarget, out _ghostRatio);
+    public void UpdateTarget(IClientWorldReadModel world, CombatFeedbackTracker? feedback, Vector2? aimedWorldPos)
+    {
+        if (feedback is not null)
+        {
+            _hasTarget = feedback.TryResolveTargetEntity(world, aimedWorldPos, out _activeTarget, out _ghostRatio);
+        }
+        else
+        {
+            _hasTarget = false;
+        }
+
+        _isLocked = _hasTarget && _activeTarget.NetworkId != 0UL && _activeTarget.NetworkId == world.LockedTargetNetworkId;
+    }
 
     public void DrawGeometry(GeometryBatch batch, IVectorArtRepository? art, int viewportWidth, float animTime)
     {
@@ -61,7 +73,8 @@ internal sealed class MonsterTargetWidget
                 boxSize: 46f,
                 Direction8.South,
                 _activeTarget.AttackAnimRemaining > 0f ? "attack" : "idle",
-                animTime);
+                animTime,
+                art: art);
         }
 
         batch.DrawRectangle(pBox, accent, 1.5f);
@@ -111,16 +124,20 @@ internal sealed class MonsterTargetWidget
         ColorRgba black = new(10, 12, 18, 255);
 
         CompiledVectorRig? rig = ResolveRig(art, in _activeTarget);
-        string levelPrefix = rig is not null && rig.Level > 0 ? $"[LV.{rig.Level}] " : string.Empty;
-        string subtitle = rig is not null && !string.IsNullOrWhiteSpace(rig.Subtitle)
-            ? rig.Subtitle
-            : (_activeTarget.Kind == EntityKind.Npc ? "TOWN NPC" : "HOSTILE");
+        ushort displayLv = _activeTarget.Level > 0 ? _activeTarget.Level : (rig is not null ? rig.Level : (ushort)1);
+        string lockTag = _isLocked ? " [LOCK]" : string.Empty;
+        string levelPrefix = displayLv > 0 ? $"[LV.{displayLv}] " : string.Empty;
+        string subtitle = _isLocked
+            ? "LOCKED [TAB]"
+            : (rig is not null && !string.IsNullOrWhiteSpace(rig.Subtitle)
+                ? rig.Subtitle
+                : (_activeTarget.Kind == EntityKind.Npc ? "TOWN NPC" : "HOSTILE"));
 
         ColorRgba nameColor = _activeTarget.Kind == EntityKind.Npc
             ? new ColorRgba(253, 224, 71, 255)
             : new ColorRgba(254, 202, 202, 255);
 
-        spriteBatch.DrawOutlinedString(font, $"{levelPrefix}{_activeTarget.Name}", new Vector2(x + 68f, y + 10f), nameColor, black, 1, 1.5f);
+        spriteBatch.DrawOutlinedString(font, $"{levelPrefix}{_activeTarget.Name}{lockTag}", new Vector2(x + 68f, y + 10f), nameColor, black, 1, 1.5f);
         TextMeasureResult subSize = font.MeasureString(subtitle, TextLayoutOptions.Default, 1f);
         spriteBatch.DrawOutlinedString(font, subtitle, new Vector2(x + cardW - subSize.Width - 12f, y + 13f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
 

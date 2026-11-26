@@ -67,7 +67,8 @@ internal sealed class HotbarAndItemWidget
         batch.FillRectangle(new RectangleF(startX - 8f, startY - 8f, totalW + 16f, SlotSize + 16f), new ColorRgba(8, 12, 22, 232));
         batch.DrawRectangle(new RectangleF(startX - 8f, startY - 8f, totalW + 16f, SlotSize + 16f), new ColorRgba(51, 65, 85, 225), 1.5f);
 
-        InventoryContainer inv = world.Inventory;
+        Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
+        world.CopyInventorySlots(slots);
         int hoveredSlot = -1;
 
         for (int i = 0; i < SlotCount; i++)
@@ -84,7 +85,7 @@ internal sealed class HotbarAndItemWidget
                 hoveredSlot = i;
             }
 
-            ItemSlot item = inv.GetSlot(i);
+            ItemSlot item = slots[i];
             ColorRgba accentBorder = new(71, 85, 105, 225);
             CompiledItemVectorArt? itemArt = null;
             if (!item.IsEmpty && art is not null && art.TryGetItem(item.ItemId, out itemArt))
@@ -134,13 +135,13 @@ internal sealed class HotbarAndItemWidget
             }
         }
 
-        // Hovered Item Tooltip Card above hotbar, or compact active-item hint ribbon
+        // Hovered Item Tooltip Card above skill bar/hotbar, or compact active-item hint ribbon
         if (hoveredSlot >= 0)
         {
-            ItemSlot hItem = inv.GetSlot(hoveredSlot);
+            ItemSlot hItem = slots[hoveredSlot];
             if (!hItem.IsEmpty)
             {
-                DrawTooltipGeometry(batch, art, startX + (hoveredSlot * (SlotSize + Gap)), startY, viewportWidth, in hItem);
+                DrawTooltipGeometry(batch, art, startX + (hoveredSlot * (SlotSize + Gap)), startY - 62f, viewportWidth, in hItem);
             }
         }
         else
@@ -176,12 +177,15 @@ internal sealed class HotbarAndItemWidget
         float startY = viewportHeight - SlotSize - 36f;
         ColorRgba black = new(10, 12, 18, 255);
 
+        Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
+        world.CopyInventorySlots(slots);
+
         for (int i = 0; i < SlotCount; i++)
         {
             float sx = startX + (i * (SlotSize + Gap));
             float sy = i == world.SelectedHotbarSlot ? startY - 4f : startY;
             spriteBatch.DrawOutlinedString(font, $"{i + 1}", new Vector2(sx + 4f, sy + 4f), new ColorRgba(203, 213, 225, 255), black, 1, 1f);
-            ItemSlot item = world.Inventory.GetSlot(i);
+            ItemSlot item = slots[i];
             byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
             if (upg > 0)
             {
@@ -200,10 +204,10 @@ internal sealed class HotbarAndItemWidget
 
         if (hoveredSlot >= 0)
         {
-            ItemSlot hItem = world.Inventory.GetSlot(hoveredSlot);
+            ItemSlot hItem = slots[hoveredSlot];
             if (!hItem.IsEmpty)
             {
-                DrawTooltipText(spriteBatch, font, art, startX + (hoveredSlot * (SlotSize + Gap)), startY, viewportWidth, in hItem);
+                DrawTooltipText(spriteBatch, font, art, startX + (hoveredSlot * (SlotSize + Gap)), startY - 62f, viewportWidth, in hItem);
             }
         }
         else
@@ -324,10 +328,10 @@ internal sealed class HotbarAndItemWidget
         if (viewportWidth >= 1080)
         {
             scale = 1.5f;
-            return "[WASD] Move [Q/R/V] Skills [E] Loot/Door [I] Bag/Armor/Forge [C] Craft [1-9] Slot";
+            return "[WASD] Move [TAB] Target [Q/R/V] Skills [E] Loot/Door [I/B] Bag [C] Craft [1-9] Slot";
         }
 
         scale = 1f;
-        return "[WASD] Move [Q/R/V] Skill [E] Loot [I] Bag [C] Craft [1-9] Slot";
+        return "[WASD] Move [TAB] Target [Q/R/V] Skill [E] Loot [I/B] Bag [C] Craft";
     }
 }

@@ -298,10 +298,14 @@ public sealed partial class NalixMultiplayerSession
     {
         if (pkt.NetworkId == _localNetworkId)
         {
-            _localHealth = pkt.CurrentHealth;
-            _localMaxHealth = pkt.MaxHealth > 0f ? pkt.MaxHealth : 100f;
-            _localAppearancePreset = (byte)pkt.ArchetypeId;
-            _localLevel = Math.Max((ushort)1, pkt.Level);
+            lock (_worldGate)
+            {
+                _localHealth = pkt.CurrentHealth;
+                _localMaxHealth = pkt.MaxHealth > 0f ? pkt.MaxHealth : 100f;
+                _localAppearancePreset = (byte)pkt.ArchetypeId;
+                _localLevel = Math.Max((ushort)1, pkt.Level);
+            }
+
             return;
         }
 
@@ -325,59 +329,111 @@ public sealed partial class NalixMultiplayerSession
             LootCount = pkt.LootCount,
             WeaponUpgradeLevel = pkt.WeaponUpgradeLevel,
         };
-        _ = state.Interpolation.PushSnapshot(new TransformSnapshot(
-            _latestServerTime,
-            state.Position,
-            state.Velocity));
-        _remoteEntities[pkt.NetworkId] = state;
+
+        lock (_worldGate)
+        {
+            _ = state.Interpolation.PushSnapshot(new TransformSnapshot(
+                _latestServerTime,
+                state.Position,
+                state.Velocity));
+            _remoteEntities[pkt.NetworkId] = state;
+        }
     }
 
-    private void OnEntityDespawn(EntityDespawn pkt) =>
-        _ = _remoteEntities.TryRemove(pkt.NetworkId, out _);
+    private void OnEntityDespawn(EntityDespawn pkt)
+    {
+        lock (_worldGate)
+        {
+            _ = _remoteEntities.TryRemove(pkt.NetworkId, out _);
+            if (pkt.NetworkId == _lockedTargetNetworkId)
+            {
+                _lockedTargetNetworkId = 0UL;
+            }
+        }
+    }
 
     private void OnEntityEquipmentChanged(EntityEquipmentChanged pkt)
     {
-        if (pkt.NetworkId == _localNetworkId)
+        lock (_worldGate)
         {
-            _localLevel = Math.Max((ushort)1, pkt.Level);
-            return;
-        }
+            if (pkt.NetworkId == _localNetworkId)
+            {
+                _localLevel = Math.Max((ushort)1, pkt.Level);
+                if (pkt.MaxHealth > 0f)
+                {
+                    _localMaxHealth = MathF.Max(1f, pkt.MaxHealth);
+                }
 
-        if (_remoteEntities.TryGetValue(pkt.NetworkId, out RemoteEntityState? state))
-        {
-            state.EquippedHeadId = pkt.EquippedHeadId;
-            state.EquippedChestId = pkt.EquippedChestId;
-            state.EquippedLegsId = pkt.EquippedLegsId;
-            state.EquippedFeetId = pkt.EquippedFeetId;
-            state.EquippedWeaponId = pkt.EquippedWeaponId;
-            state.WeaponUpgradeLevel = pkt.WeaponUpgradeLevel;
-            state.Level = Math.Max((ushort)1, pkt.Level);
+                return;
+            }
+
+            if (_remoteEntities.TryGetValue(pkt.NetworkId, out RemoteEntityState? state))
+            {
+                state.EquippedHeadId = pkt.EquippedHeadId;
+                state.EquippedChestId = pkt.EquippedChestId;
+                state.EquippedLegsId = pkt.EquippedLegsId;
+                state.EquippedFeetId = pkt.EquippedFeetId;
+                state.EquippedWeaponId = pkt.EquippedWeaponId;
+                state.WeaponUpgradeLevel = pkt.WeaponUpgradeLevel;
+                state.Level = Math.Max((ushort)1, pkt.Level);
+                if (pkt.MaxHealth > 0f)
+                {
+                    state.MaxHealth = MathF.Max(1f, pkt.MaxHealth);
+                }
+            }
         }
     }
 
     private void OnPlayerStatsSync(PlayerStatsSync pkt)
     {
-        _localLevel = Math.Max((ushort)1, pkt.Level);
-        _localExperience = pkt.Experience;
-        _localXpToNext = Math.Max(1U, pkt.XpToNextLevel);
-        _localHealth = pkt.CurrentHealth;
-        _localMaxHealth = MathF.Max(1f, pkt.MaxHealth);
-        _localMana = pkt.CurrentMana;
-        _localMaxMana = MathF.Max(1f, pkt.MaxMana);
-        _localStamina = pkt.CurrentStamina;
-        _localMaxStamina = MathF.Max(1f, pkt.MaxStamina);
-        _localDefense = pkt.Defense;
-        _skill1Cd = pkt.Skill1Cooldown;
-        _skill2Cd = pkt.Skill2Cooldown;
-        _skill3Cd = pkt.Skill3Cooldown;
-
-        if (pkt.LeveledUp)
+        lock (_worldGate)
         {
-            string msg = $"LEVEL UP! Lv.{_localLevel}";
-            lock (_worldGate)
+            ushort prevLevel = _localLevel;
+            uint prevXp = _localExperience;
+            uint xpGain = 0U;
+            if (pkt.Level == prevLevel && pkt.Experience > prevXp)
+            {
+                xpGain = pkt.Experience - prevXp;
+            }
+            else if (pkt.Level > prevLevel)
+            {
+                uint prevThresh = CharacterProgressionPolicy.GetXpToNextLevel(prevLevel);
+                xpGain = prevThresh - Math.Min(prevXp, prevThresh) + pkt.Experience;
+            }
+
+            _localLevel = Math.Max((ushort)1, pkt.Level);
+            _localExperience = pkt.Experience;
+            _localXpToNext = Math.Max(1U, pkt.XpToNextLevel);
+            _localHealth = pkt.CurrentHealth;
+            _localMaxHealth = MathF.Max(1f, pkt.MaxHealth);
+            _localMana = pkt.CurrentMana;
+            _localMaxMana = MathF.Max(1f, pkt.MaxMana);
+            _localStamina = pkt.CurrentStamina;
+            _localMaxStamina = MathF.Max(1f, pkt.MaxStamina);
+            _localDefense = pkt.Defense;
+            _skill1Cd = pkt.Skill1Cooldown;
+            _skill2Cd = pkt.Skill2Cooldown;
+            _skill3Cd = pkt.Skill3Cooldown;
+
+            Vector2 localPos = _simulation is not null && _simulation.Entities.IsAlive(_localPlayer)
+                ? _simulation.GetInterpolatedPosition(_localPlayer) + _visualOffset
+                : Vector2.Zero;
+
+            if (xpGain > 0U && _inventoryLoaded)
             {
                 _combatEvents.Add(new ClientCombatEvent(
-                    this.LocalPlayerInterpolatedPosition + new Vector2(0f, -20f),
+                    localPos + new Vector2(0f, -24f),
+                    xpGain,
+                    IsCritical: false,
+                    IsHeal: true,
+                    Label: $"+{xpGain} XP"));
+            }
+
+            if (pkt.LeveledUp)
+            {
+                string msg = $"LEVEL UP! Lv.{_localLevel}";
+                _combatEvents.Add(new ClientCombatEvent(
+                    localPos + new Vector2(0f, -34f),
                     _localLevel,
                     IsCritical: true,
                     IsHeal: true,
@@ -389,17 +445,27 @@ public sealed partial class NalixMultiplayerSession
 
     private void OnSkillCastBroadcast(SkillCastBroadcast pkt)
     {
-        if (pkt.CasterNetworkId != _localNetworkId &&
-            _remoteEntities.TryGetValue(pkt.CasterNetworkId, out RemoteEntityState? caster))
+        lock (_worldGate)
         {
-            Vector2 delta = new(pkt.AimX - caster.Position.X, pkt.AimY - caster.Position.Y);
-            if (delta.LengthSquared() > 1e-4f)
+            if (pkt.CasterNetworkId != _localNetworkId &&
+                _remoteEntities.TryGetValue(pkt.CasterNetworkId, out RemoteEntityState? caster))
             {
-                caster.FacingDir = Vector2.Normalize(delta);
-            }
+                Vector2 delta = new(pkt.AimX - caster.Position.X, pkt.AimY - caster.Position.Y);
+                if (delta.LengthSquared() > 1e-4f)
+                {
+                    caster.FacingDir = Vector2.Normalize(delta);
+                }
 
-            caster.AttackAnimDuration = 0.42f;
-            caster.AttackAnimTimer = 0.42f;
+                caster.ActiveActionKind = pkt.AbilitySlot switch
+                {
+                    CharacterProgressionPolicy.SkillWhirlwind => ClientActionKind.SkillWhirlwind,
+                    CharacterProgressionPolicy.SkillArcaneNova => ClientActionKind.SkillArcaneNova,
+                    CharacterProgressionPolicy.SkillVitalSurge => ClientActionKind.SkillVitalSurge,
+                    _ => ClientActionKind.SwordSlash,
+                };
+                caster.AttackAnimDuration = 0.45f;
+                caster.AttackAnimTimer = 0.45f;
+            }
         }
     }
 
@@ -413,84 +479,107 @@ public sealed partial class NalixMultiplayerSession
             _pendingServerReconcile = new Vector2(pkt.SelfPositionX, pkt.SelfPositionY);
             _pendingServerVelocity = Vector2.Zero;
             _hasServerReconcile = true;
-        }
 
-        int count = pkt.NetworkIds.Length;
-        for (int i = 0; i < count; i++)
-        {
-            ulong netId = pkt.NetworkIds[i];
-            if (netId == _localNetworkId)
+            int count = pkt.NetworkIds.Length;
+            for (int i = 0; i < count; i++)
             {
-                if (i < pkt.CurrentHealths.Length)
+                ulong netId = pkt.NetworkIds[i];
+                if (netId == _localNetworkId)
                 {
-                    _localHealth = pkt.CurrentHealths[i];
-                }
-
-                continue;
-            }
-
-            if (_remoteEntities.TryGetValue(netId, out RemoteEntityState? state))
-            {
-                if (i < pkt.PositionsX.Length && i < pkt.PositionsY.Length)
-                {
-                    state.Position = new Vector2(pkt.PositionsX[i], pkt.PositionsY[i]);
-                }
-
-                if (i < pkt.VelocitiesX.Length && i < pkt.VelocitiesY.Length)
-                {
-                    state.Velocity = new Vector2(pkt.VelocitiesX[i], pkt.VelocitiesY[i]);
-                    if (state.Velocity.LengthSquared() > 4f)
+                    if (i < pkt.CurrentHealths.Length)
                     {
-                        state.FacingDir = Vector2.Normalize(state.Velocity);
+                        _localHealth = pkt.CurrentHealths[i];
                     }
+
+                    continue;
                 }
 
-                if (i < pkt.CurrentHealths.Length)
+                if (_remoteEntities.TryGetValue(netId, out RemoteEntityState? state))
                 {
-                    state.CurrentHealth = pkt.CurrentHealths[i];
-                }
+                    if (i < pkt.PositionsX.Length && i < pkt.PositionsY.Length)
+                    {
+                        state.Position = new Vector2(pkt.PositionsX[i], pkt.PositionsY[i]);
+                    }
 
-                _ = state.Interpolation.PushSnapshot(new TransformSnapshot(snapshotTime, state.Position, state.Velocity));
+                    if (i < pkt.VelocitiesX.Length && i < pkt.VelocitiesY.Length)
+                    {
+                        state.Velocity = new Vector2(pkt.VelocitiesX[i], pkt.VelocitiesY[i]);
+                        if (state.Velocity.LengthSquared() > 4f)
+                        {
+                            state.FacingDir = Vector2.Normalize(state.Velocity);
+                        }
+                    }
+
+                    if (i < pkt.CurrentHealths.Length)
+                    {
+                        state.CurrentHealth = pkt.CurrentHealths[i];
+                    }
+
+                    _ = state.Interpolation.PushSnapshot(new TransformSnapshot(snapshotTime, state.Position, state.Velocity));
+                }
             }
         }
     }
 
     private void OnCombatHit(CombatHit pkt)
     {
-        Vector2 worldPos = this.LocalPlayerInterpolatedPosition;
-        if (pkt.DefenderNetworkId == _localNetworkId)
-        {
-            _localHealth = pkt.RemainingHealth;
-            if (pkt.Damage > 0f)
-            {
-                _localHitFlashTimer = 0.16f;
-            }
-        }
-        else if (_remoteEntities.TryGetValue(pkt.DefenderNetworkId, out RemoteEntityState? defenderState))
-        {
-            defenderState.CurrentHealth = pkt.RemainingHealth;
-            worldPos = defenderState.Position;
-            if (pkt.Damage > 0f)
-            {
-                defenderState.HitFlashTimer = 0.16f;
-            }
-        }
-
-        if (pkt.AttackerNetworkId != _localNetworkId &&
-            _remoteEntities.TryGetValue(pkt.AttackerNetworkId, out RemoteEntityState? attackerState))
-        {
-            Vector2 aimDelta = worldPos - attackerState.Position;
-            if (aimDelta.LengthSquared() > 1e-4f)
-            {
-                attackerState.FacingDir = Vector2.Normalize(aimDelta);
-            }
-
-            attackerState.AttackAnimDuration = 0.30f;
-            attackerState.AttackAnimTimer = 0.30f;
-        }
-
         lock (_worldGate)
         {
+            Vector2 worldPos = _simulation is not null && _simulation.Entities.IsAlive(_localPlayer)
+                ? _simulation.GetInterpolatedPosition(_localPlayer) + _visualOffset
+                : Vector2.Zero;
+
+            if (pkt.DefenderNetworkId == _localNetworkId)
+            {
+                _localHealth = pkt.RemainingHealth;
+                if (pkt.Damage > 0f)
+                {
+                    _localHitFlashTimer = 0.16f;
+                }
+
+                if (pkt.IsKilled)
+                {
+                    _lockedTargetNetworkId = 0UL;
+                    _hudNotifications.Add("YOU WERE SLAIN - RESPAWNED AT SANCTUARY");
+                    _combatEvents.Add(new ClientCombatEvent(
+                        worldPos + new Vector2(0f, -20f),
+                        0f,
+                        IsCritical: true,
+                        IsHeal: false,
+                        Label: "SLAIN! RESPAWNED"));
+                }
+            }
+            else if (_remoteEntities.TryGetValue(pkt.DefenderNetworkId, out RemoteEntityState? defenderState))
+            {
+                defenderState.CurrentHealth = pkt.RemainingHealth;
+                worldPos = defenderState.Position;
+                if (pkt.Damage > 0f)
+                {
+                    defenderState.HitFlashTimer = 0.16f;
+                }
+
+                if (pkt.IsKilled && pkt.DefenderNetworkId == _lockedTargetNetworkId)
+                {
+                    _lockedTargetNetworkId = 0UL;
+                }
+            }
+
+            if (pkt.AttackerNetworkId != _localNetworkId &&
+                _remoteEntities.TryGetValue(pkt.AttackerNetworkId, out RemoteEntityState? attackerState))
+            {
+                Vector2 aimDelta = worldPos - attackerState.Position;
+                if (aimDelta.LengthSquared() > 1e-4f)
+                {
+                    attackerState.FacingDir = Vector2.Normalize(aimDelta);
+                }
+
+                attackerState.ActiveActionKind = attackerState.Kind == EntityKind.Monster
+                    ? ClientActionKind.MonsterStrike
+                    : ClientActionKind.SwordSlash;
+                attackerState.AttackAnimDuration = 0.30f;
+                attackerState.AttackAnimTimer = 0.30f;
+            }
+
             bool isHeal = pkt.Damage < 0f;
             float mag = MathF.Abs(pkt.Damage);
             _combatEvents.Add(new ClientCombatEvent(worldPos, mag, pkt.IsCritical, isHeal));
@@ -499,82 +588,77 @@ public sealed partial class NalixMultiplayerSession
 
     private void OnInventorySlotChanged(InventorySlotChanged pkt)
     {
-        if (pkt.SlotIndex >= _inventory.Capacity)
+        lock (_worldGate)
         {
-            return;
-        }
-
-        ItemSlot previous = _inventory.GetSlot(pkt.SlotIndex);
-        ItemSlot rawNext = pkt.ItemId == 0 || pkt.Count <= 0
-            ? ItemSlot.Empty
-            : new ItemSlot(pkt.ItemId, pkt.Count, 0UL, pkt.Durability);
-        ItemSlot next = rawNext.IsEmpty
-            ? ItemSlot.Empty
-            : ItemEnhancementPolicy.WithUpgradeLevel(in rawNext, pkt.UpgradeLevel);
-        _inventory.SetSlot(pkt.SlotIndex, in next);
-
-        if (_inventoryLoaded && next.ItemId != 0 && next.Quantity > 0)
-        {
-            byte prevUpg = ItemEnhancementPolicy.GetUpgradeLevel(in previous);
-            if (previous.ItemId == next.ItemId && pkt.UpgradeLevel > prevUpg)
+            if (pkt.SlotIndex >= _inventory.Capacity)
             {
-                string forgeMsg = $"+{pkt.UpgradeLevel} {StarterGameCatalog.GetDisplayName(next.ItemId)} Forged!";
-                lock (_worldGate)
+                return;
+            }
+
+            ItemSlot previous = _inventory.GetSlot(pkt.SlotIndex);
+            ItemSlot rawNext = pkt.ItemId == 0 || pkt.Count <= 0
+                ? ItemSlot.Empty
+                : new ItemSlot(pkt.ItemId, pkt.Count, 0UL, pkt.Durability);
+            ItemSlot next = rawNext.IsEmpty
+                ? ItemSlot.Empty
+                : ItemEnhancementPolicy.WithUpgradeLevel(in rawNext, pkt.UpgradeLevel);
+            _inventory.SetSlot(pkt.SlotIndex, in next);
+
+            Vector2 localPos = _simulation is not null && _simulation.Entities.IsAlive(_localPlayer)
+                ? _simulation.GetInterpolatedPosition(_localPlayer) + _visualOffset
+                : Vector2.Zero;
+
+            if (_inventoryLoaded && next.ItemId != 0 && next.Quantity > 0)
+            {
+                byte prevUpg = ItemEnhancementPolicy.GetUpgradeLevel(in previous);
+                if (previous.ItemId == next.ItemId && pkt.UpgradeLevel > prevUpg)
                 {
+                    string forgeMsg = $"+{pkt.UpgradeLevel} {StarterGameCatalog.GetDisplayName(next.ItemId)} Forged!";
                     _combatEvents.Add(new ClientCombatEvent(
-                        this.LocalPlayerInterpolatedPosition + new Vector2(0f, -14f),
+                        localPos + new Vector2(0f, -14f),
                         pkt.UpgradeLevel,
                         IsCritical: true,
                         IsHeal: true,
                         Label: forgeMsg));
                     _hudNotifications.Add(forgeMsg);
+                    return;
                 }
 
-                return;
-            }
-            int gained = previous.ItemId == next.ItemId
-                ? Math.Max(0, next.Quantity - previous.Quantity)
-                : next.Quantity;
+                int gained = previous.ItemId == next.ItemId
+                    ? Math.Max(0, next.Quantity - previous.Quantity)
+                    : next.Quantity;
 
-            if (gained > 0)
-            {
-                string popup = $"+{gained} {StarterGameCatalog.GetDisplayName(next.ItemId)}";
-                lock (_worldGate)
+                if (gained > 0)
                 {
+                    string popup = $"+{gained} {StarterGameCatalog.GetDisplayName(next.ItemId)}";
                     _combatEvents.Add(new ClientCombatEvent(
-                        this.LocalPlayerInterpolatedPosition + new Vector2(0f, -12f),
+                        localPos + new Vector2(0f, -12f),
                         gained,
                         IsCritical: false,
                         IsHeal: true,
                         Label: popup));
                     _hudNotifications.Add(popup);
                 }
-            }
-            else if (previous.ItemId == next.ItemId &&
-                     StarterGameCatalog.Items.TryGet(next.ItemId, out ItemArchetype? slotDef) &&
-                     slotDef.MaxDurability > 0f)
-            {
-                if (previous.Durability > 0f && next.Durability <= 0f)
+                else if (previous.ItemId == next.ItemId &&
+                         StarterGameCatalog.Items.TryGet(next.ItemId, out ItemArchetype? slotDef) &&
+                         slotDef.MaxDurability > 0f)
                 {
-                    string brokenMsg = $"{StarterGameCatalog.GetDisplayName(next.ItemId)} Worn Out!";
-                    lock (_worldGate)
+                    if (previous.Durability > 0f && next.Durability <= 0f)
                     {
+                        string brokenMsg = $"{StarterGameCatalog.GetDisplayName(next.ItemId)} Worn Out!";
                         _combatEvents.Add(new ClientCombatEvent(
-                            this.LocalPlayerInterpolatedPosition + new Vector2(0f, -14f),
+                            localPos + new Vector2(0f, -14f),
                             0f,
                             IsCritical: true,
                             IsHeal: false,
                             Label: brokenMsg));
                         _hudNotifications.Add($"{brokenMsg} Visit NPC Guard to mend");
                     }
-                }
-                else if (previous.Durability <= 0f && next.Durability > 0f)
-                {
-                    string mendMsg = $"{StarterGameCatalog.GetDisplayName(next.ItemId)} Mended!";
-                    lock (_worldGate)
+                    else if (previous.Durability <= 0f && next.Durability > 0f)
                     {
+                        string mendMsg = $"{StarterGameCatalog.GetDisplayName(next.ItemId)} Mended!";
                         _combatEvents.Add(new ClientCombatEvent(
-                            this.LocalPlayerInterpolatedPosition + new Vector2(0f, -14f),
+                            localPos + new Vector2(0f, -14f),
                             next.Durability,
                             IsCritical: false,
                             IsHeal: true,
@@ -702,7 +786,7 @@ public sealed partial class NalixMultiplayerSession
         public float HitFlashTimer { get; set; }
         public float Radius { get; init; }
         public float CurrentHealth { get; set; }
-        public float MaxHealth { get; init; }
+        public float MaxHealth { get; set; }
         public ushort EquippedHeadId { get; set; }
         public ushort EquippedChestId { get; set; }
         public ushort EquippedLegsId { get; set; }
@@ -711,6 +795,7 @@ public sealed partial class NalixMultiplayerSession
         public ushort Level { get; set; } = 1;
         public int LootCount { get; init; }
         public byte WeaponUpgradeLevel { get; set; }
+        public ClientActionKind ActiveActionKind { get; set; }
         public SnapshotInterpolationBuffer Interpolation { get; } = new(16);
     }
 }

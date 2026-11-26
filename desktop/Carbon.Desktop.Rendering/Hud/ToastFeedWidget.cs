@@ -46,7 +46,7 @@ internal sealed class ToastFeedWidget
         }
     }
 
-    public void DrawGeometry(GeometryBatch batch, BitmapFont font, int viewportWidth, int viewportHeight)
+    public void DrawGeometry(GeometryBatch batch, BitmapFont font, int viewportWidth)
     {
         for (int i = 0; i < _toasts.Count; i++)
         {
@@ -55,13 +55,13 @@ internal sealed class ToastFeedWidget
             TextMeasureResult size = font.MeasureString(toast.Message, TextLayoutOptions.Default, 1.5f);
             float w = size.Width + 16f;
             float x = viewportWidth - w - 16f;
-            float y = viewportHeight - 104f - (i * 24f);
+            float y = 216f + (i * 24f);
             batch.FillRectangle(new RectangleF(x, y, w, 20f), new ColorRgba(10, 15, 28, alpha));
             batch.DrawRectangle(new RectangleF(x, y, w, 20f), new ColorRgba(71, 85, 105, alpha), 1f);
         }
     }
 
-    public void DrawText(SpriteBatch spriteBatch, BitmapFont font, int viewportWidth, int viewportHeight)
+    public void DrawText(SpriteBatch spriteBatch, BitmapFont font, int viewportWidth)
     {
         for (int i = 0; i < _toasts.Count; i++)
         {
@@ -69,7 +69,7 @@ internal sealed class ToastFeedWidget
             byte alpha = (byte)(Math.Clamp(toast.RemainingSeconds / 0.8f, 0f, 1f) * 255f);
             TextMeasureResult size = font.MeasureString(toast.Message, TextLayoutOptions.Default, 1.5f);
             float x = MathF.Floor(viewportWidth - size.Width - 24f);
-            float y = MathF.Floor(viewportHeight - 100f - (i * 24f));
+            float y = MathF.Floor(220f + (i * 24f));
             ColorRgba textColor = toast.Message.StartsWith('+')
                 ? new ColorRgba(74, 222, 128, alpha)
                 : new ColorRgba(251, 191, 36, alpha);

@@ -254,7 +254,7 @@ public sealed class WorldSceneRenderer : IDisposable
                     this.DrawLocalEntity(_geometryBatch, world, item.Entity);
                     break;
                 case GroundItemKind.RemoteEntity:
-                    this.DrawRemoteEntity(_geometryBatch, in item.Remote);
+                    this.DrawRemoteEntity(_geometryBatch, world, in item.Remote);
                     break;
                 default:
                     break;
@@ -361,9 +361,6 @@ public sealed class WorldSceneRenderer : IDisposable
         _damagedProps.Clear();
         _visibleWorldTrees.Clear();
 
-        int playerChunkX = Chunk2D.ToChunkCoord((int)MathF.Floor(playerPos.X / tileSize));
-        int playerChunkY = Chunk2D.ToChunkCoord((int)MathF.Floor(playerPos.Y / tileSize));
-
         foreach (Chunk2D chunk in chunkWorld.ActiveChunks)
         {
             for (int i = 0; i < chunk.PointsOfInterest.Count; i++)
@@ -442,18 +439,22 @@ public sealed class WorldSceneRenderer : IDisposable
                 }
 
                 bool isHovered = hasAimTile && propWx == aimTileX && propWy == aimTileY;
-                bool inActivePropScope = chunk.ChunkX == playerChunkX &&
-                    chunk.ChunkY == playerChunkY &&
-                    Vector2.DistanceSquared(playerPos, prop.WorldPosition) <= (240f * 240f);
+                float distToPropSq = Vector2.DistanceSquared(playerPos, prop.WorldPosition);
+                bool inActivePropScope = distToPropSq <= (256f * 256f);
                 if (prop.Destructibility.IsDestructible &&
                     prop.Destructibility.MaxDurability > 0f &&
-                    ((prop.Destructibility.HealthPercentage < 0.99f && inActivePropScope) || hasRecentHit || isHovered))
+                    inActivePropScope &&
+                    (prop.Destructibility.HealthPercentage < 0.99f || hasRecentHit || isHovered))
                 {
+                    float alpha = hasRecentHit
+                        ? Math.Clamp(hitState.BarTimer / 1.0f, 0f, 1f)
+                        : 1f;
                     _damagedProps.Add(new DamagedPropHudMarker(
                         prop.WorldPosition + new Vector2(0f, prop.Category == PropCategory.Flora && prop.HasCanopy ? -prop.Radius - 22f : -prop.Radius - 10f),
                         prop.Destructibility.CurrentDurability,
                         prop.Destructibility.MaxDurability,
-                        prop.Category == PropCategory.Mineral));
+                        prop.Category == PropCategory.Mineral,
+                        alpha));
                 }
             }
         }
@@ -554,7 +555,8 @@ public sealed class WorldSceneRenderer : IDisposable
                 action,
                 world.AttackSwingTimer,
                 world.LocalPlayerAppearancePreset,
-                loadout);
+                loadout,
+                _art);
         }
         else
         {
@@ -562,7 +564,7 @@ public sealed class WorldSceneRenderer : IDisposable
         }
     }
 
-    private void DrawRemoteEntity(GeometryBatch batch, in RemoteEntityView remote)
+    private void DrawRemoteEntity(GeometryBatch batch, IClientWorldReadModel world, in RemoteEntityView remote)
     {
         if (remote.Kind == EntityKind.LootDrop)
         {
@@ -570,6 +572,11 @@ public sealed class WorldSceneRenderer : IDisposable
             batch.FillCircle(new Vector2(remote.Position.X + 1f, remote.Position.Y + 4f), 8.5f, new ColorRgba(0, 0, 0, 95), 10);
             if (_art is not null && _art.TryGetItem(remote.ArchetypeId, out CompiledItemVectorArt? lootArt))
             {
+                ColorRgba beamCol = remote.WeaponUpgradeLevel > 0
+                    ? new ColorRgba(34, 211, 238, 70)
+                    : new ColorRgba(lootArt.AccentColor.R, lootArt.AccentColor.G, lootArt.AccentColor.B, 55);
+                batch.FillRectangle(new RectangleF(remote.Position.X - 3f, remote.Position.Y - 22f, 6f, 24f), beamCol);
+
                 ColorRgba ringCol = remote.WeaponUpgradeLevel > 0
                     ? new ColorRgba(34, 211, 238, 170)
                     : new ColorRgba(lootArt.AccentColor.R, lootArt.AccentColor.G, lootArt.AccentColor.B, 140);
@@ -599,6 +606,12 @@ public sealed class WorldSceneRenderer : IDisposable
         {
             batch.DrawCircle(footPos, r + 2.5f, new ColorRgba(253, 224, 71, 110), 12, 1.1f);
         }
+        else if (remote.Kind == EntityKind.Monster && remote.NetworkId == world.LockedTargetNetworkId)
+        {
+            float pulse = r + 5.5f + (MathF.Sin(_animTime * 8f) * 1.4f);
+            batch.DrawCircle(footPos, pulse, new ColorRgba(244, 63, 94, 225), 18, 1.8f);
+            batch.DrawCircle(footPos, pulse + 3f, new ColorRgba(250, 204, 21, 160), 18, 1.1f);
+        }
 
         if (_art is not null)
         {
@@ -627,7 +640,13 @@ public sealed class WorldSceneRenderer : IDisposable
 
                 if (attacking)
                 {
-                    clip = "slash";
+                    clip = remote.ActiveActionKind switch
+                    {
+                        ClientActionKind.AxeChop => "chop",
+                        ClientActionKind.PickaxeMine => "mine",
+                        ClientActionKind.SkillArcaneNova or ClientActionKind.SkillVitalSurge => "cast",
+                        ClientActionKind.None or ClientActionKind.SwordSlash or ClientActionKind.MonsterStrike or ClientActionKind.ConsumeItem or ClientActionKind.PlaceStructure or ClientActionKind.SkillWhirlwind or _ => "slash",
+                    };
                     norm = true;
                     eval = 1f - Math.Clamp(remote.AttackAnimRemaining / MathF.Max(0.05f, remote.AttackAnimDuration), 0f, 1f);
                 }
@@ -661,7 +680,8 @@ public sealed class WorldSceneRenderer : IDisposable
                     equippedItem: remoteWeapon,
                     legacySwingTimer: remote.AttackAnimRemaining,
                     appearancePreset: preset,
-                    equipment: remoteLoadout);
+                    equipment: remoteLoadout,
+                    art: _art);
                 return;
             }
         }
@@ -701,13 +721,17 @@ public sealed class WorldSceneRenderer : IDisposable
             if (r.AttackAnimRemaining > 0f)
             {
                 float rProg = 1f - Math.Clamp(r.AttackAnimRemaining / MathF.Max(0.05f, r.AttackAnimDuration), 0f, 1f);
+                ClientActionKind remoteKind = r.ActiveActionKind != ClientActionKind.None
+                    ? r.ActiveActionKind
+                    : (r.Kind == EntityKind.Player ? ClientActionKind.SwordSlash : ClientActionKind.MonsterStrike);
                 ActionVfxRenderer.DrawActionTrail(
                     _geometryBatch,
                     r.Position,
-                    r.Kind == EntityKind.Player ? ClientActionKind.SwordSlash : ClientActionKind.MonsterStrike,
+                    remoteKind,
                     r.FacingDirection,
                     rProg,
-                    0);
+                    0,
+                    r.EquippedWeaponId);
             }
         }
     }

@@ -100,5 +100,11 @@
       "ry": 1.8,
       "color": "#CFFAFE"
     }
-  ]
+  ],
+  "heldVisible": false,
+  "armorVisual": {
+    "primaryColor": "#FACC15",
+    "secondaryColor": "#38BDF8",
+    "trimColor": "#22D3EE"
+  }
 }

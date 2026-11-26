@@ -23,7 +23,7 @@ namespace Carbon.Handlers.Maps;
 [PacketHandler("Carbon.Maps")]
 public static partial class MapHandlers
 {
-    [Inject] private static IAuthoritativeWorld s_world = null!;
+    [Inject] private static IWorldMapService s_world = null!;
     [Inject] private static ISessionTransportRegistry s_transports = null!;
 
     /// <summary>Opcode <c>0x1101</c>. Returns deterministic world seed, version, and starter spawn coordinates.</summary>

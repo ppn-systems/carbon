@@ -72,5 +72,6 @@
       "outlineColor": "#1E293B",
       "outlineThickness": 0.8
     }
-  ]
+  ],
+  "heldVisible": true
 }

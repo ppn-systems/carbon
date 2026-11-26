@@ -21,7 +21,11 @@ public sealed class CompiledItemVectorArt
         Vector2 gripPoint,
         float restAngleRad,
         float worldScale,
-        CompiledVectorShape[] shapes)
+        CompiledVectorShape[] shapes,
+        bool isHeldVisible = true,
+        ColorRgba armorPrimaryColor = default,
+        ColorRgba armorSecondaryColor = default,
+        ColorRgba armorTrimColor = default)
     {
         this.ItemId = itemId;
         this.Key = key;
@@ -33,7 +37,23 @@ public sealed class CompiledItemVectorArt
         this.RestAngleRad = restAngleRad;
         this.WorldScale = worldScale;
         this.Shapes = shapes;
+        this.IsHeldVisible = isHeldVisible;
+        this.ArmorPrimaryColor = armorPrimaryColor;
+        this.ArmorSecondaryColor = armorSecondaryColor;
+        this.ArmorTrimColor = armorTrimColor;
     }
+
+    /// <summary>Whether holding this item on the active hotbar renders it in the hero's hand at rest.</summary>
+    public bool IsHeldVisible { get; }
+
+    /// <summary>Primary color applied to worn armor overlay composites (when item is equipment).</summary>
+    public ColorRgba ArmorPrimaryColor { get; }
+
+    /// <summary>Secondary shade color applied to worn armor overlay composites.</summary>
+    public ColorRgba ArmorSecondaryColor { get; }
+
+    /// <summary>Trim/highlight accent color applied to worn armor overlay composites.</summary>
+    public ColorRgba ArmorTrimColor { get; }
 
     /// <summary>Domain item ID (<c>1..12</c>).</summary>
     public uint ItemId { get; }

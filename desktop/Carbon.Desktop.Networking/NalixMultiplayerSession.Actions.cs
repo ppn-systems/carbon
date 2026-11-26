@@ -3,6 +3,9 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Threading;
+using System.Threading.Tasks;
+using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Entities.C2S;
 using Carbon.Contracts.Items.C2S;
@@ -16,6 +19,10 @@ using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Props;
 using Nalix.Abstractions.Networking.Datagrams;
+using Nalix.Codec.Pooling;
+using Nalix.SDK.Options;
+using Nalix.SDK.Transport;
+using Nalix.SDK.Transport.Extensions;
 
 namespace Carbon.Desktop.Networking;
 
@@ -50,9 +57,41 @@ public sealed partial class NalixMultiplayerSession
         _lastAttackDir = delta.LengthSquared() > 1e-4f ? Vector2.Normalize(delta) : Vector2.UnitX;
         _localFacingDir = _lastAttackDir;
 
-        ItemSlot activeSlot = _inventory.GetSlot(_selectedSlot);
+        ItemSlot activeSlot;
+        ulong targetNetId;
+        lock (_worldGate)
+        {
+            activeSlot = _inventory.GetSlot(_selectedSlot);
+            targetNetId = _lockedTargetNetworkId;
+        }
+
         bool hasArchetype = StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? archetype);
-        ClientActionKind actionKind = ResolveActionKind(activeSlot.ItemId, archetype);
+        if (hasArchetype && archetype is { Category: ItemCategory.Consumable })
+        {
+            if (activeSlot.ItemId == StarterGameCatalog.BerryHerb && _localHealth >= _localMaxHealth - 0.1f)
+            {
+                lock (_worldGate)
+                {
+                    _hudNotifications.Add("Health is already full!");
+                }
+
+                return false;
+            }
+
+            if (activeSlot.ItemId == StarterGameCatalog.ManaTonic &&
+                _localMana >= _localMaxMana - 0.1f &&
+                _localStamina >= _localMaxStamina - 0.1f)
+            {
+                lock (_worldGate)
+                {
+                    _hudNotifications.Add("Mana & Stamina already full!");
+                }
+
+                return false;
+            }
+        }
+
+        ClientActionKind actionKind = ResolveActionKind(archetype);
         float actionDuration = ResolveActionDuration(actionKind);
         _comboStep = (byte)(_comboStep ^ 1);
         _currentAction = new ClientActionState(
@@ -76,7 +115,7 @@ public sealed partial class NalixMultiplayerSession
             p =>
             {
                 p.ClientTick = tick;
-                p.TargetNetworkId = 0UL;
+                p.TargetNetworkId = targetNetId;
                 p.AimX = aimWorldPosition.X;
                 p.AimY = aimWorldPosition.Y;
                 p.AbilitySlot = slot;
@@ -98,7 +137,7 @@ public sealed partial class NalixMultiplayerSession
     {
         if (!this.IsReady ||
             _tcpSession is not { IsConnected: true } ||
-            !CharacterProgressionPolicy.TryGetSkillSpec(skillSlot, out string _, out float mpCost, out float stamCost, out float cdSec))
+            !CharacterProgressionPolicy.TryGetSkillSpec(skillSlot, out SkillSpec spec))
         {
             return false;
         }
@@ -108,28 +147,28 @@ public sealed partial class NalixMultiplayerSession
             return false;
         }
 
-        if (_localMana < mpCost || _localStamina < stamCost)
+        if (_localMana < spec.ManaCost || _localStamina < spec.StaminaCost)
         {
             lock (_worldGate)
             {
-                _hudNotifications.Add(_localMana < mpCost ? "Not enough Mana!" : "Not enough Stamina!");
+                _hudNotifications.Add(_localMana < spec.ManaCost ? "Not enough Mana!" : "Not enough Stamina!");
             }
 
             return false;
         }
 
-        _localMana = MathF.Max(0f, _localMana - mpCost);
-        _localStamina = MathF.Max(0f, _localStamina - stamCost);
+        _localMana = MathF.Max(0f, _localMana - spec.ManaCost);
+        _localStamina = MathF.Max(0f, _localStamina - spec.StaminaCost);
         switch (skillSlot)
         {
             case CharacterProgressionPolicy.SkillWhirlwind:
-                _skill1Cd = cdSec;
+                _skill1Cd = spec.CooldownSeconds;
                 break;
             case CharacterProgressionPolicy.SkillArcaneNova:
-                _skill2Cd = cdSec;
+                _skill2Cd = spec.CooldownSeconds;
                 break;
             case CharacterProgressionPolicy.SkillVitalSurge:
-                _skill3Cd = cdSec;
+                _skill3Cd = spec.CooldownSeconds;
                 break;
             default:
                 break;
@@ -150,12 +189,21 @@ public sealed partial class NalixMultiplayerSession
         };
         float duration = ResolveActionDuration(actionKind);
         _comboStep = (byte)(_comboStep ^ 1);
+
+        uint heldItemId;
+        ulong targetNetId;
+        lock (_worldGate)
+        {
+            heldItemId = _inventory.GetSlot(_selectedSlot).ItemId;
+            targetNetId = _lockedTargetNetworkId;
+        }
+
         _currentAction = new ClientActionState(
             actionKind,
             duration,
             duration,
             aimDir,
-            _inventory.GetSlot(_selectedSlot).ItemId,
+            heldItemId,
             _comboStep);
         if (skillSlot == CharacterProgressionPolicy.SkillWhirlwind)
         {
@@ -163,14 +211,14 @@ public sealed partial class NalixMultiplayerSession
         }
 
         uint tick = _clientTick;
-        byte abilityCode = (byte)(100 + skillSlot);
+        byte abilityCode = AbilityInputEncoding.EncodeSkill(skillSlot);
         _ = this.SendGameplayDatagramOrTcpAsync<EntityAttackInput>(
             DeliveryMethod.ReliableUnordered,
             channel: 0,
             p =>
             {
                 p.ClientTick = tick;
-                p.TargetNetworkId = 0UL;
+                p.TargetNetworkId = targetNetId;
                 p.AimX = aimWorldPosition.X;
                 p.AimY = aimWorldPosition.Y;
                 p.AbilitySlot = abilityCode;
@@ -190,13 +238,16 @@ public sealed partial class NalixMultiplayerSession
             return false;
         }
 
-        ItemSlot src = _inventory.GetSlot(fromSlot);
-        ItemSlot dst = _inventory.GetSlot(toSlot);
-        if (src.IsEmpty ||
-            !PlayerInventoryLayout.CanAcceptSlotItem(toSlot, in src) ||
-            !PlayerInventoryLayout.CanAcceptSlotItem(fromSlot, in dst))
+        lock (_worldGate)
         {
-            return false;
+            ItemSlot src = _inventory.GetSlot(fromSlot);
+            ItemSlot dst = _inventory.GetSlot(toSlot);
+            if (src.IsEmpty ||
+                !PlayerInventoryLayout.CanAcceptSlotItem(toSlot, in src) ||
+                !PlayerInventoryLayout.CanAcceptSlotItem(fromSlot, in dst))
+            {
+                return false;
+            }
         }
 
         ushort seq = ++_itemSeqId;
@@ -219,13 +270,18 @@ public sealed partial class NalixMultiplayerSession
             return false;
         }
 
-        ItemSlot source = _inventory.GetSlot(slotIndex);
-        if (source.IsEmpty)
+        int dest;
+        lock (_worldGate)
         {
-            return false;
+            ItemSlot source = _inventory.GetSlot(slotIndex);
+            if (source.IsEmpty)
+            {
+                return false;
+            }
+
+            dest = this.ResolveQuickMoveTargetSlot(slotIndex, in source);
         }
 
-        int dest = this.ResolveQuickMoveTargetSlot(slotIndex, in source);
         return dest >= 0 && this.TryMoveInventorySlot(slotIndex, (ushort)dest);
     }
 
@@ -239,29 +295,81 @@ public sealed partial class NalixMultiplayerSession
             return false;
         }
 
-        ItemSlot target = _inventory.GetSlot(slotIndex);
-        if (!ItemEnhancementPolicy.CanUpgrade(in target, out uint m1, out int c1, out uint m2, out int c2, out float _))
+        bool missingMats = false;
+        lock (_worldGate)
         {
-            return false;
-        }
-
-        if (_inventory.CountItem(m1) < c1 || (m2 != 0U && _inventory.CountItem(m2) < c2))
-        {
-            lock (_worldGate)
+            ItemSlot target = _inventory.GetSlot(slotIndex);
+            if (!ItemEnhancementPolicy.CanUpgrade(in target, out uint m1, out int c1, out uint m2, out int c2, out float _))
             {
-                _hudNotifications.Add("Missing upgrade materials!");
+                return false;
             }
 
+            if (_inventory.CountItem(m1) < c1 || (m2 != 0U && _inventory.CountItem(m2) < c2))
+            {
+                _hudNotifications.Add("Missing upgrade materials!");
+                missingMats = true;
+            }
+        }
+
+        if (missingMats)
+        {
             return false;
         }
 
         ushort seq = ++_itemSeqId;
-        _ = this.SendTcpPooledAsync<UpgradeInventoryItem>(p =>
-        {
-            p.SlotIndex = slotIndex;
-            p.SequenceId = seq;
-        });
+        _ = this.ExecuteUpgradeRequestAsync(slotIndex, seq);
         return true;
+    }
+
+    private async Task ExecuteUpgradeRequestAsync(ushort slotIndex, ushort seq)
+    {
+        TcpSession? tcp = _tcpSession;
+        if (tcp is null || !tcp.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            RequestOptions reqOpts = RequestOptions.Default.WithTimeout(4000).WithEncrypt(tcp.State.EncryptionEnabled);
+            using PacketScope<UpgradeInventoryItem> lease = PacketFactory<UpgradeInventoryItem>.Acquire();
+            lease.Value.SlotIndex = slotIndex;
+            lease.Value.SequenceId = seq;
+
+            using MutationResult reply = await tcp.RequestAsync<MutationResult>(
+                lease.Value,
+                reqOpts,
+                predicate: null,
+                CancellationToken.None).ConfigureAwait(false);
+
+            bool succeeded = reply.Status == OpStatus.Ok;
+            lock (_worldGate)
+            {
+                _forgeFeedbackTimer = 1.25f;
+                _lastForgeSucceeded = succeeded;
+                if (reply.Status == OpStatus.EnhancementFailed)
+                {
+                    _hudNotifications.Add("Forge failed - materials consumed!");
+                    Vector2 pos = _simulation is not null && _simulation.Entities.IsAlive(_localPlayer)
+                        ? _simulation.GetInterpolatedPosition(_localPlayer) + _visualOffset
+                        : Vector2.Zero;
+                    _combatEvents.Add(new ClientCombatEvent(
+                        pos + new Vector2(0f, -16f),
+                        0f,
+                        IsCritical: true,
+                        IsHeal: false,
+                        Label: "FORGE FAILED!"));
+                }
+                else if (reply.Status == OpStatus.Conflict)
+                {
+                    _hudNotifications.Add("Missing upgrade materials!");
+                }
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Transient transport error ignored cleanly.
+        }
     }
 
     /// <inheritdoc/>
@@ -269,10 +377,17 @@ public sealed partial class NalixMultiplayerSession
     {
         if (!this.IsReady ||
             _tcpSession is not { IsConnected: true } ||
-            slotIndex >= PlayerInventoryLayout.TotalCapacity ||
-            _inventory.GetSlot(slotIndex).IsEmpty)
+            slotIndex >= PlayerInventoryLayout.TotalCapacity)
         {
             return false;
+        }
+
+        lock (_worldGate)
+        {
+            if (_inventory.GetSlot(slotIndex).IsEmpty)
+            {
+                return false;
+            }
         }
 
         ushort seq = ++_itemSeqId;
@@ -286,6 +401,75 @@ public sealed partial class NalixMultiplayerSession
     }
 
     /// <inheritdoc/>
+    public void SetLockedTarget(ulong networkId)
+    {
+        lock (_worldGate)
+        {
+            if (networkId == 0UL || !_remoteEntities.TryGetValue(networkId, out RemoteEntityState? target) || target.CurrentHealth <= 0f)
+            {
+                _lockedTargetNetworkId = 0UL;
+                return;
+            }
+
+            _lockedTargetNetworkId = networkId;
+        }
+    }
+
+    /// <inheritdoc/>
+    public bool CycleNearestHostileTarget(float maxRange = 340f)
+    {
+        if (!this.IsReady)
+        {
+            return false;
+        }
+
+        Vector2 pos = this.LocalPlayerInterpolatedPosition;
+        float maxDistSq = maxRange * maxRange;
+        List<(ulong NetworkId, float DistSq)> candidates = [];
+
+        lock (_worldGate)
+        {
+            foreach (KeyValuePair<ulong, RemoteEntityState> kvp in _remoteEntities)
+            {
+                RemoteEntityState rs = kvp.Value;
+                if (rs.Kind != EntityKind.Monster || rs.CurrentHealth <= 0f)
+                {
+                    continue;
+                }
+
+                float d2 = Vector2.DistanceSquared(pos, rs.Position);
+                if (d2 <= maxDistSq)
+                {
+                    candidates.Add((rs.NetworkId, d2));
+                }
+            }
+
+            if (candidates.Count == 0)
+            {
+                _lockedTargetNetworkId = 0UL;
+                return false;
+            }
+
+            candidates.Sort(static (a, b) => a.DistSq.CompareTo(b.DistSq));
+            int nextIndex = 0;
+            if (_lockedTargetNetworkId != 0UL)
+            {
+                for (int i = 0; i < candidates.Count; i++)
+                {
+                    if (candidates[i].NetworkId == _lockedTargetNetworkId)
+                    {
+                        nextIndex = (i + 1) % candidates.Count;
+                        break;
+                    }
+                }
+            }
+
+            _lockedTargetNetworkId = candidates[nextIndex].NetworkId;
+            return true;
+        }
+    }
+
+    /// <inheritdoc/>
     public bool TryPickupNearbyLoot()
     {
         if (!this.IsReady || _tcpSession is not { IsConnected: true })
@@ -294,23 +478,26 @@ public sealed partial class NalixMultiplayerSession
         }
 
         Vector2 pos = this.LocalPlayerInterpolatedPosition;
-        const float maxDistSq = 96f * 96f;
+        const float maxDistSq = 84f * 84f;
         ulong bestId = 0UL;
         float bestDistSq = maxDistSq;
 
-        foreach (KeyValuePair<ulong, RemoteEntityState> kvp in _remoteEntities)
+        lock (_worldGate)
         {
-            RemoteEntityState s = kvp.Value;
-            if (s.Kind != EntityKind.LootDrop)
+            foreach (KeyValuePair<ulong, RemoteEntityState> kvp in _remoteEntities)
             {
-                continue;
-            }
+                RemoteEntityState s = kvp.Value;
+                if (s.Kind != EntityKind.LootDrop)
+                {
+                    continue;
+                }
 
-            float d2 = Vector2.DistanceSquared(pos, s.Position);
-            if (d2 <= bestDistSq)
-            {
-                bestDistSq = d2;
-                bestId = s.NetworkId;
+                float d2 = Vector2.DistanceSquared(pos, s.Position);
+                if (d2 <= bestDistSq)
+                {
+                    bestDistSq = d2;
+                    bestId = s.NetworkId;
+                }
             }
         }
 
@@ -382,11 +569,19 @@ public sealed partial class NalixMultiplayerSession
     /// <inheritdoc/>
     public bool TryCraftRecipe(ushort recipeId)
     {
-        if (!this.IsReady || _tcpSession is not { IsConnected: true } ||
-            !StarterGameCatalog.Recipes.TryGet(recipeId, out CraftingRecipe? recipe) ||
-            !RecipeMatcher.CanCraft(_inventory, recipe))
+        if (!this.IsReady ||
+            _tcpSession is not { IsConnected: true } ||
+            !StarterGameCatalog.Recipes.TryGet(recipeId, out CraftingRecipe? recipe))
         {
             return false;
+        }
+
+        lock (_worldGate)
+        {
+            if (!RecipeMatcher.CanCraft(_inventory, recipe))
+            {
+                return false;
+            }
         }
 
         _ = this.SendTcpPooledAsync<CraftItem>(p =>
@@ -507,9 +702,14 @@ public sealed partial class NalixMultiplayerSession
         _lastAttackDir = aimDir;
         _localFacingDir = aimDir;
 
-        ItemSlot activeSlot = _inventory.GetSlot(_selectedSlot);
+        ItemSlot activeSlot;
+        lock (_worldGate)
+        {
+            activeSlot = _inventory.GetSlot(_selectedSlot);
+        }
+
         _ = StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? activeArchetype);
-        ClientActionKind harvestKind = ResolveActionKind(activeSlot.ItemId, activeArchetype);
+        ClientActionKind harvestKind = ResolveActionKind(activeArchetype);
         float harvestDuration = ResolveActionDuration(harvestKind);
         _comboStep = (byte)(_comboStep ^ 1);
         _attackSwingTimer = harvestDuration;
@@ -604,14 +804,32 @@ public sealed partial class NalixMultiplayerSession
             });
     }
 
-    private static ClientActionKind ResolveActionKind(uint itemId, ItemArchetype? archetype) => itemId switch
+    private static ClientActionKind ResolveActionKind(ItemArchetype? archetype)
     {
-        StarterGameCatalog.WoodAxe => ClientActionKind.AxeChop,
-        StarterGameCatalog.StonePickaxe or StarterGameCatalog.CrystalPickaxe => ClientActionKind.PickaxeMine,
-        _ when archetype is { Category: ItemCategory.Placeable } => ClientActionKind.PlaceStructure,
-        _ when archetype is { Category: ItemCategory.Consumable } => ClientActionKind.ConsumeItem,
-        _ => ClientActionKind.SwordSlash,
-    };
+        if (archetype is null)
+        {
+            return ClientActionKind.SwordSlash;
+        }
+
+        if (archetype.Category == ItemCategory.Placeable)
+        {
+            return ClientActionKind.PlaceStructure;
+        }
+
+        if (archetype.Category == ItemCategory.Consumable)
+        {
+            return ClientActionKind.ConsumeItem;
+        }
+
+        if (archetype.Category == ItemCategory.Tool)
+        {
+            return archetype.MineralHarvestDamage > archetype.FloraHarvestDamage
+                ? ClientActionKind.PickaxeMine
+                : ClientActionKind.AxeChop;
+        }
+
+        return ClientActionKind.SwordSlash;
+    }
 
     private static float ResolveActionDuration(ClientActionKind kind) => kind switch
     {

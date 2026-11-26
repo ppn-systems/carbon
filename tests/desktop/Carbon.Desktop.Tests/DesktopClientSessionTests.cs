@@ -18,6 +18,8 @@ using Carbon.Host;
 using Carbon.Infrastructure.Configuration;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Infrastructure.Security;
+using Carbon.Items.Catalog;
+using Carbon.Items.Containers;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
@@ -149,6 +151,15 @@ public sealed class DesktopClientSessionTests
                 clientA.TransportLabel.Should().Be("TCP+UDP");
                 clientA.ActiveCharacterName.Should().Be("HeroA");
                 clientA.LocalPlayerAppearancePreset.Should().Be(1);
+                clientA.LocalPlayerLevel.Should().BeGreaterThanOrEqualTo(1);
+                clientA.LocalPlayerMaxMana.Should().BeGreaterThan(0f);
+                clientA.LocalPlayerMaxStamina.Should().BeGreaterThan(0f);
+
+                ItemSlot[] copiedSlots = new ItemSlot[PlayerInventoryLayout.TotalCapacity];
+                clientA.CopyInventorySlots(copiedSlots);
+                copiedSlots[0].ItemId.Should().Be(StarterGameCatalog.WoodAxe);
+                clientA.CycleNearestHostileTarget(32f).Should().BeFalse();
+                clientA.LockedTargetNetworkId.Should().Be(0UL);
 
                 (bool enteredB, _) = await clientB.EnterWorldAsync(rosterB[0].CharacterId).ConfigureAwait(true);
                 enteredB.Should().BeTrue();

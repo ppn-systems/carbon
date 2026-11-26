@@ -29,6 +29,7 @@ namespace Carbon.Desktop.Abstractions;
 /// <param name="Level">Entity display level.</param>
 /// <param name="LootCount">Stack quantity when representing a ground loot drop.</param>
 /// <param name="WeaponUpgradeLevel">Enhancement level (<c>0..10</c>) of the equipped weapon or loot drop.</param>
+/// <param name="ActiveActionKind">Current attack or skill action kind being animated.</param>
 public readonly record struct RemoteEntityView(
     ulong NetworkId,
     EntityKind Kind,
@@ -50,4 +51,5 @@ public readonly record struct RemoteEntityView(
     ushort EquippedWeaponId = 0,
     ushort Level = 1,
     int LootCount = 0,
-    byte WeaponUpgradeLevel = 0);
+    byte WeaponUpgradeLevel = 0,
+    ClientActionKind ActiveActionKind = ClientActionKind.None);

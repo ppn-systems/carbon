@@ -37,10 +37,15 @@ internal sealed class WorldEntityOverlayRenderer
     {
         Vector2 playerPos = world.LocalPlayerInterpolatedPosition;
 
-        // 1. Prop durability bars (46x6px beveled)
+        // 1. Prop durability bars (46x6px beveled with smooth fade-out)
         for (int i = 0; i < damagedProps.Length; i++)
         {
             ref readonly DamagedPropHudMarker pm = ref damagedProps[i];
+            if (pm.Alpha <= 0.02f)
+            {
+                continue;
+            }
+
             Vector2 pmWorld = pm.WorldPos;
             Vector2 screenPt = cameraRig.Camera.WorldToScreen(in pmWorld);
             if (screenPt.X < -40f || screenPt.X > viewportWidth + 40f || screenPt.Y < -20f || screenPt.Y > viewportHeight + 20f)
@@ -48,24 +53,27 @@ internal sealed class WorldEntityOverlayRenderer
                 continue;
             }
 
+            byte aBg = (byte)Math.Clamp(pm.Alpha * 235f, 0f, 235f);
+            byte aFill = (byte)Math.Clamp(pm.Alpha * 255f, 0f, 255f);
             float frac = Math.Clamp(pm.Current / MathF.Max(1f, pm.Max), 0f, 1f);
             const float barW = 46f;
             const float barH = 6f;
             float bx = MathF.Floor(screenPt.X - (barW * 0.5f));
             float by = MathF.Floor(screenPt.Y);
-            batch.FillRectangle(new RectangleF(bx - 1f, by - 1f, barW + 2f, barH + 2f), new ColorRgba(8, 12, 20, 235));
+            batch.FillRectangle(new RectangleF(bx - 1f, by - 1f, barW + 2f, barH + 2f), new ColorRgba(8, 12, 20, aBg));
             ColorRgba fill = pm.IsMineral
-                ? new ColorRgba(245, 158, 11, 255)
-                : new ColorRgba(74, 222, 128, 255);
+                ? new ColorRgba(245, 158, 11, aFill)
+                : new ColorRgba(74, 222, 128, aFill);
             if (frac > 0.01f)
             {
                 batch.FillRectangle(new RectangleF(bx, by, barW * frac, barH), fill);
-                batch.FillRectangle(new RectangleF(bx, by, barW * frac, 1.5f), new ColorRgba(255, 255, 255, 70));
+                batch.FillRectangle(new RectangleF(bx, by, barW * frac, 1.5f), new ColorRgba(255, 255, 255, (byte)(pm.Alpha * 70f)));
             }
         }
 
         // 2. Monster / NPC / Remote Player proportional overhead plates & ground loot labels
         IReadOnlyList<RemoteEntityView> remotes = world.RemoteEntities;
+        ulong closestLootId = FindClosestLootId(playerPos, remotes);
         for (int i = 0; i < remotes.Count; i++)
         {
             RemoteEntityView r = remotes[i];
@@ -76,10 +84,11 @@ internal sealed class WorldEntityOverlayRenderer
                 {
                     Vector2 lootWorld = r.Position;
                     Vector2 lootScreen = cameraRig.Camera.WorldToScreen(in lootWorld);
-                    string lootLabel = FormatLootLabel(in r);
+                    bool canPromptE = r.NetworkId == closestLootId;
+                    string lootLabel = canPromptE ? $"[E] {FormatLootLabel(in r)}" : FormatLootLabel(in r);
                     TextMeasureResult lSize = font.MeasureString(lootLabel, TextLayoutOptions.Default, 1f);
                     float lpW = lSize.Width + 10f;
-                    batch.FillRectangle(new RectangleF(MathF.Floor(lootScreen.X - (lpW * 0.5f)), MathF.Floor(lootScreen.Y - 26f), lpW, 11f), new ColorRgba(8, 12, 20, 185));
+                    batch.FillRectangle(new RectangleF(MathF.Floor(lootScreen.X - (lpW * 0.5f)), MathF.Floor(lootScreen.Y - 26f), lpW, 11f), new ColorRgba(8, 12, 20, 195));
                 }
 
                 continue;
@@ -174,6 +183,7 @@ internal sealed class WorldEntityOverlayRenderer
         ColorRgba outline = new(10, 12, 18, 255);
         Vector2 playerPos = world.LocalPlayerInterpolatedPosition;
         IReadOnlyList<RemoteEntityView> remotes = world.RemoteEntities;
+        ulong closestLootId = FindClosestLootId(playerPos, remotes);
 
         for (int i = 0; i < remotes.Count; i++)
         {
@@ -185,9 +195,12 @@ internal sealed class WorldEntityOverlayRenderer
                 {
                     Vector2 lootWorld = r.Position;
                     Vector2 lootScreen = cameraRig.Camera.WorldToScreen(in lootWorld);
-                    string lootLabel = FormatLootLabel(in r);
+                    bool canPromptE = r.NetworkId == closestLootId;
+                    string lootLabel = canPromptE ? $"[E] {FormatLootLabel(in r)}" : FormatLootLabel(in r);
                     TextMeasureResult lSize = font.MeasureString(lootLabel, TextLayoutOptions.Default, 1f);
-                    ColorRgba lootCol = r.WeaponUpgradeLevel > 0 ? new ColorRgba(34, 211, 238, 255) : new ColorRgba(253, 224, 71, 255);
+                    ColorRgba lootCol = r.WeaponUpgradeLevel > 0
+                        ? new ColorRgba(34, 211, 238, 255)
+                        : (canPromptE ? new ColorRgba(110, 231, 183, 255) : new ColorRgba(253, 224, 71, 255));
                     spriteBatch.DrawOutlinedString(font, lootLabel, new Vector2(MathF.Floor(lootScreen.X - (lSize.Width * 0.5f)), MathF.Floor(lootScreen.Y - 25f)), lootCol, outline, 1, 1f);
                 }
 
@@ -236,6 +249,30 @@ internal sealed class WorldEntityOverlayRenderer
             Vector2 pos = new(MathF.Floor(screenFt.X - (ftSize.Width * 0.5f)), MathF.Floor(screenFt.Y));
             spriteBatch.DrawOutlinedString(font, ft.Text, pos, tint, fadeOutline, 1, ft.Scale);
         }
+    }
+
+    private static ulong FindClosestLootId(Vector2 playerPos, IReadOnlyList<RemoteEntityView> remotes)
+    {
+        const float maxSq = 84f * 84f;
+        float bestSq = maxSq;
+        ulong bestId = 0UL;
+        for (int i = 0; i < remotes.Count; i++)
+        {
+            RemoteEntityView r = remotes[i];
+            if (r.Kind != EntityKind.LootDrop)
+            {
+                continue;
+            }
+
+            float dSq = Vector2.DistanceSquared(playerPos, r.Position);
+            if (dSq <= bestSq)
+            {
+                bestSq = dSq;
+                bestId = r.NetworkId;
+            }
+        }
+
+        return bestId;
     }
 
     private static float ResolveHeadOffsetScreen(in RemoteEntityView remote, IVectorArtRepository? art, float zoom)

@@ -29,7 +29,7 @@ namespace Carbon.Handlers.Identity;
 public static partial class IdentityHandlers
 {
     [Inject] private static IAuthService s_authService = null!;
-    [Inject] private static IAuthoritativeWorld s_world = null!;
+    [Inject] private static IWorldSessionGateway s_world = null!;
     [Inject] private static ISessionTransportRegistry s_transports = null!;
 
     /// <summary>Opcode <c>0x0101</c>. Registers a new account and elevates the session upon success.</summary>
@@ -92,7 +92,9 @@ public static partial class IdentityHandlers
 
             for (int i = 0; i < characters.Count; i++)
             {
-                CharacterRecord c = characters[i];
+                CharacterRecord c = s_world.TryGetPendingCharacterSnapshot(characters[i].Id, out CharacterRecord? latest) && latest is not null
+                    ? latest
+                    : characters[i];
                 using PacketScope<CharacterSummary> lease = PacketFactory<CharacterSummary>.Acquire();
                 CharacterSummary item = lease.Value;
                 item.IsEndOfStream = false;
@@ -147,7 +149,12 @@ public static partial class IdentityHandlers
 
         OpStatus status = result.Succeeded
             ? OpStatus.Ok
-            : (string.Equals(result.FailureReason, "invalid_name", StringComparison.Ordinal) ? OpStatus.Invalid : OpStatus.Conflict);
+            : result.FailureReason switch
+            {
+                "invalid_name" => OpStatus.Invalid,
+                "character_limit_reached" => OpStatus.Forbidden,
+                _ => OpStatus.Conflict,
+            };
 
         await PacketReplyHelper.SendMutationAsync(context, status, IdentityOpCode.CharacterCreate).ConfigureAwait(false);
     }
@@ -174,6 +181,11 @@ public static partial class IdentityHandlers
         {
             await SendEnterWorldAsync(context, new EnterWorldResult(OpStatus.NotFound, 0, 0, 0, 0, 0, 0, 0, 0, 0)).ConfigureAwait(false);
             return;
+        }
+
+        if (s_world.TryGetPendingCharacterSnapshot(owned.Id, out CharacterRecord? pendingSnapshot) && pendingSnapshot is not null)
+        {
+            owned = pendingSnapshot;
         }
 
         EnterWorldResult enter = s_world.TryEnterWorld(connectionId, connectionId, owned);
@@ -233,6 +245,17 @@ public static partial class IdentityHandlers
             reply.ServerTick = result.ServerTick;
             reply.TickRate = result.TickRate;
             reply.AppearancePreset = result.AppearancePreset;
+            reply.SelectedHotbarSlot = result.SelectedHotbarSlot;
+            reply.Level = result.Level;
+            reply.Experience = result.Experience;
+            reply.XpToNextLevel = result.XpToNextLevel;
+            reply.CurrentHealth = result.CurrentHealth;
+            reply.MaxHealth = result.MaxHealth;
+            reply.CurrentMana = result.CurrentMana;
+            reply.MaxMana = result.MaxMana;
+            reply.CurrentStamina = result.CurrentStamina;
+            reply.MaxStamina = result.MaxStamina;
+            reply.Defense = result.Defense;
             return context.Sender.ReplyAsync(reply).DisposeOnCompletionAsync(lease);
         }
         catch

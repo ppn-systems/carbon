@@ -49,6 +49,8 @@ internal sealed class MenuTextField
 
     public bool IsFocused { get; set; }
 
+    public Func<char, bool>? CharacterFilter { get; init; }
+
     public string Text
     {
         get => _buffer.ToString();
@@ -89,6 +91,11 @@ internal sealed class MenuTextField
             return;
         }
 
+        if (this.CharacterFilter is not null && !this.CharacterFilter(ch))
+        {
+            return;
+        }
+
         _ = _buffer.Append(ch);
         _cursorTimer = 0f;
         _cursorVisible = true;
@@ -120,7 +127,7 @@ internal sealed class MenuTextField
 
         if (this.IsFocused && _cursorVisible)
         {
-            string display = this.GetDisplayText();
+            string display = this.GetClippedDisplayText(font, MathF.Max(20f, this.Bounds.Width - 24f));
             TextMeasureResult size = font.MeasureString(display, TextLayoutOptions.Default, 2f);
             float cursorX = MathF.Min(this.Bounds.Right - 10f, this.Bounds.X + 12f + size.Width + 2f);
             float cursorY = this.Bounds.Y + 9f;
@@ -140,7 +147,8 @@ internal sealed class MenuTextField
             1,
             2f);
 
-        string display = _buffer.Length == 0 ? this.Placeholder : this.GetDisplayText();
+        float maxTextW = MathF.Max(20f, this.Bounds.Width - 24f);
+        string display = _buffer.Length == 0 ? this.Placeholder : this.GetClippedDisplayText(font, maxTextW);
         ColorRgba textColor = _buffer.Length == 0
             ? new ColorRgba(100, 116, 139, 255)
             : ColorRgba.White;
@@ -155,14 +163,43 @@ internal sealed class MenuTextField
             2f);
     }
 
-    private string GetDisplayText()
+    private string GetClippedDisplayText(BitmapFont font, float maxPixelWidth)
     {
         if (_buffer.Length == 0)
         {
             return string.Empty;
         }
 
-        return this.IsPassword ? new string('*', _buffer.Length) : _buffer.ToString();
+        string raw = this.IsPassword ? new string('*', _buffer.Length) : _buffer.ToString();
+        if (font.MeasureString(raw, TextLayoutOptions.Default, 2f).Width <= maxPixelWidth)
+        {
+            return raw;
+        }
+
+        if (this.IsFocused)
+        {
+            for (int start = 1; start < raw.Length; start++)
+            {
+                string tail = raw[start..];
+                if (font.MeasureString(tail, TextLayoutOptions.Default, 2f).Width <= maxPixelWidth)
+                {
+                    return tail;
+                }
+            }
+
+            return raw[^1..];
+        }
+
+        for (int len = raw.Length - 1; len > 1; len--)
+        {
+            string head = $"{raw[..len]}...";
+            if (font.MeasureString(head, TextLayoutOptions.Default, 2f).Width <= maxPixelWidth)
+            {
+                return head;
+            }
+        }
+
+        return "...";
     }
 }
 

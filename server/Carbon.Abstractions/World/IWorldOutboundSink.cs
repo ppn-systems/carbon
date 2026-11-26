@@ -91,7 +91,8 @@ public interface IWorldOutboundSink
         ushort feetId,
         ushort weaponId,
         byte weaponUpgrade,
-        ushort level);
+        ushort level,
+        float maxHealth = 0f);
 
     /// <summary>Synchronizes the owning player's RPG progression, MP, Stamina, Defense, and skill cooldowns.</summary>
     void SendPlayerStatsSync(

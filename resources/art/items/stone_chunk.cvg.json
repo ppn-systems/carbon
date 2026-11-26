@@ -90,5 +90,6 @@
       ],
       "color": "#E2E8F0"
     }
-  ]
+  ],
+  "heldVisible": false
 }

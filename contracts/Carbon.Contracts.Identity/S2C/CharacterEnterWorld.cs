@@ -58,7 +58,51 @@ public sealed partial class CharacterEnterWorld : PacketBase<CharacterEnterWorld
     [SerializeOrder(9)]
     public ushort TickRate { get; set; }
 
-    /// <summary>Visual appearance preset index (0..3) of the entered character.</summary>
+    /// <summary>Visual appearance preset index (0..255) of the entered character.</summary>
     [SerializeOrder(10)]
     public byte AppearancePreset { get; set; }
+
+    /// <summary>Persisted active hotbar slot (<c>0..8</c>).</summary>
+    [SerializeOrder(11)]
+    public byte SelectedHotbarSlot { get; set; }
+
+    /// <summary>Character progression level (<c>1..99</c>).</summary>
+    [SerializeOrder(12)]
+    public ushort Level { get; set; } = 1;
+
+    /// <summary>Accumulated XP within the current level.</summary>
+    [SerializeOrder(13)]
+    public uint Experience { get; set; }
+
+    /// <summary>XP required to reach the next level.</summary>
+    [SerializeOrder(14)]
+    public uint XpToNextLevel { get; set; } = 100U;
+
+    /// <summary>Current authoritative health points.</summary>
+    [SerializeOrder(15)]
+    public float CurrentHealth { get; set; } = 100f;
+
+    /// <summary>Derived maximum health points.</summary>
+    [SerializeOrder(16)]
+    public float MaxHealth { get; set; } = 100f;
+
+    /// <summary>Current authoritative mana points.</summary>
+    [SerializeOrder(17)]
+    public float CurrentMana { get; set; } = 80f;
+
+    /// <summary>Derived maximum mana points.</summary>
+    [SerializeOrder(18)]
+    public float MaxMana { get; set; } = 80f;
+
+    /// <summary>Current authoritative stamina points.</summary>
+    [SerializeOrder(19)]
+    public float CurrentStamina { get; set; } = 100f;
+
+    /// <summary>Derived maximum stamina points.</summary>
+    [SerializeOrder(20)]
+    public float MaxStamina { get; set; } = 100f;
+
+    /// <summary>Derived armor defense rating.</summary>
+    [SerializeOrder(21)]
+    public float Defense { get; set; } = 2f;
 }

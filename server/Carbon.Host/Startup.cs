@@ -41,6 +41,11 @@ internal static class Startup
 
         InstanceManager.Instance.Register<IAuthService>(authService);
         InstanceManager.Instance.Register<IAuthoritativeWorld>(world);
+        InstanceManager.Instance.Register<IWorldSessionGateway>(world);
+        InstanceManager.Instance.Register<IWorldEntityCommandSink>(world);
+        InstanceManager.Instance.Register<IWorldInventoryService>(world);
+        InstanceManager.Instance.Register<IWorldMapService>(world);
+        InstanceManager.Instance.Register<IWorldSimulationLoop>(world);
         InstanceManager.Instance.Register<ISessionTransportRegistry>(transportRegistry);
 
         INetworkApplicationBuilder builder = NetworkApplication.CreateBuilder()

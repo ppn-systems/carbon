@@ -20,7 +20,7 @@ namespace Carbon.Handlers.Entities;
 [PacketHandler("Carbon.Entities")]
 public static partial class EntityHandlers
 {
-    [Inject] private static IAuthoritativeWorld s_world = null!;
+    [Inject] private static IWorldEntityCommandSink s_world = null!;
     [Inject] private static ISessionTransportRegistry s_transports = null!;
 
     /// <summary>Opcode <c>0x1201</c>. Enqueues client directional movement onto the next fixed world tick.</summary>

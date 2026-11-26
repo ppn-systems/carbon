@@ -257,6 +257,81 @@ public sealed class AuthoritativeWorldMultiplayerTests
         }
     }
 
+    [Fact]
+    public async Task AuthoritativeHardening_MissingKit_EnhancementFailed_And_SessionEviction_ShouldBeEnforced()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-hardening-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            SqliteSchemaMigrator migrator = new(factory);
+            await migrator.MigrateAsync().ConfigureAwait(true);
+
+            SqliteCharacterStore characters = new(factory);
+            SqliteChunkDeltaRepository chunks = new(factory);
+            RecordingOutboundSink sink = new();
+
+            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, chunks, characters, sink);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+            InventoryContainer seeded = new(PlayerInventoryLayout.TotalCapacity);
+            seeded.SetSlot(0, new ItemSlot(StarterGameCatalog.IronSword, 1, 0UL, 200f, UpgradeLevel: 3));
+            seeded.SetSlot(9, new ItemSlot(StarterGameCatalog.IronOre, 50));
+            seeded.SetSlot(10, new ItemSlot(StarterGameCatalog.ManaCrystal, 50));
+            seeded.SetSlot(11, new ItemSlot(StarterGameCatalog.StoneChunk, 50));
+            seeded.SetSlot(12, new ItemSlot(StarterGameCatalog.WoodLog, 50));
+
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            CharacterRecord hero = new(
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                "Hardener",
+                1,
+                0,
+                world.DefaultSpawnWorldPosition.X,
+                world.DefaultSpawnWorldPosition.Y,
+                100f,
+                100f,
+                0,
+                InventoryBinaryCodec.Serialize(seeded),
+                now);
+
+            world.TryEnterWorld(connectionId: 701UL, sessionId: 71UL, hero).Status.Should().Be(OpStatus.Ok);
+
+            int wallTx = (int)MathF.Floor(world.DefaultSpawnWorldPosition.X / 32f) + 2;
+            int wallTy = (int)MathF.Floor(world.DefaultSpawnWorldPosition.Y / 32f);
+            world.TryPlaceStructure(701UL, wallTx, wallTy, StructureType.StoneWall).Status.Should().Be(OpStatus.Conflict);
+
+            // Seed 1U rolls 0.969 (> 0.85 chance at +3 -> +4), deterministically consuming mats without upgrading.
+            world.TryUpgradeInventoryItem(701UL, slotIndex: 0, deterministicRollSeed: 1U).Should().Be(OpStatus.EnhancementFailed);
+            List<(ushort SlotIndex, ItemSlot Slot)> postFailInv = [];
+            world.GetInventorySnapshot(701UL, postFailInv).Should().BeTrue();
+            postFailInv.Should().Contain(s => s.SlotIndex == 0 && ItemEnhancementPolicy.GetUpgradeLevel(in s.Slot) == 3);
+
+            // Seed 2U rolls 0.131 (<= 0.85), succeeding +3 -> +4.
+            world.TryUpgradeInventoryItem(701UL, slotIndex: 0, deterministicRollSeed: 2U).Should().Be(OpStatus.Ok);
+            postFailInv.Clear();
+            world.GetInventorySnapshot(701UL, postFailInv).Should().BeTrue();
+            postFailInv.Should().Contain(s => s.SlotIndex == 0 && ItemEnhancementPolicy.GetUpgradeLevel(in s.Slot) == 4);
+
+            world.TryGetPendingCharacterSnapshot(hero.Id, out CharacterRecord? pending).Should().BeTrue();
+            pending.Should().NotBeNull();
+
+            // Re-entering with the same CharacterId evicts the previous live connection cleanly.
+            world.TryEnterWorld(connectionId: 702UL, sessionId: 72UL, hero).Status.Should().Be(OpStatus.Ok);
+            world.TryGetSessionByConnection(701UL, out _).Should().BeFalse();
+            world.TryGetSessionByConnection(702UL, out _).Should().BeTrue();
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
     private sealed class RecordingOutboundSink : IWorldOutboundSink
     {
         public List<(ulong ConnectionId, EntitySpawnSnapshot Snapshot)> Spawns { get; } = [];
@@ -297,7 +372,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
         public void SendInventorySlotChanged(ulong connectionId, ushort slotIndex, uint itemId, int quantity, float durability, byte upgradeLevel = 0) =>
             this.SlotChanges.Add((connectionId, slotIndex, itemId, quantity));
 
-        public void SendEntityEquipmentChanged(ReadOnlySpan<ulong> recipientConnectionIds, ulong entityNetworkId, ushort headId, ushort chestId, ushort legsId, ushort feetId, ushort weaponId, byte weaponUpgrade, ushort level) =>
+        public void SendEntityEquipmentChanged(ReadOnlySpan<ulong> recipientConnectionIds, ulong entityNetworkId, ushort headId, ushort chestId, ushort legsId, ushort feetId, ushort weaponId, byte weaponUpgrade, ushort level, float maxHealth = 0f) =>
             this.EquipmentChanges.Add((entityNetworkId, chestId, weaponId, level));
 
         public void SendPlayerStatsSync(ulong connectionId, ushort level, uint experience, uint xpToNextLevel, float currentHealth, float maxHealth, float currentMana, float maxMana, float currentStamina, float maxStamina, float defense, float skill1Cd, float skill2Cd, float skill3Cd, bool leveledUp) =>

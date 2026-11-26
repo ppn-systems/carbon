@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Buffers.Binary;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
@@ -128,5 +129,69 @@ public sealed class InventoryCodecAndCatalogTests
         CombatStrikeEvaluation wornHit = ToolUsagePolicy.EvaluateCombatStrike(in wornSword);
         wornHit.Outcome.Should().Be(ToolStrikeOutcome.WornOutTool);
         wornHit.Damage.Should().BeLessThan(StarterGameCatalog.GetWeaponBaseDamage(StarterGameCatalog.IronSword));
+    }
+
+    [Fact]
+    public void NonStackableGear_CodecV1V2_And_ZoneScaling_ShouldHoldInvariants()
+    {
+        ItemSlot instancedGear = new(StarterGameCatalog.IronSword, 1, InstanceId: 100UL, Durability: 200f);
+        instancedGear.IsStackable.Should().BeFalse();
+        ItemSlot forgedGear = new(StarterGameCatalog.IronSword, 1, 0UL, 200f, UpgradeLevel: 1);
+        forgedGear.IsStackable.Should().BeFalse();
+        ItemSlot mat = new(StarterGameCatalog.WoodLog, 5);
+        mat.IsStackable.Should().BeTrue();
+
+        InventoryContainer gearBag = new(PlayerInventoryLayout.TotalCapacity);
+        gearBag.TryAdd(in forgedGear, 99).Should().Be(0);
+        gearBag.TryAdd(in forgedGear, 99).Should().Be(0);
+        gearBag.GetSlot(0).Quantity.Should().Be(1);
+        gearBag.GetSlot(1).Quantity.Should().Be(1);
+
+        int swordMaxStack = StarterGameCatalog.GetMaxStackSize(StarterGameCatalog.IronSword);
+        swordMaxStack.Should().Be(1);
+
+        // Full bag (0..35) with armor slots (36..39) empty must refuse craft rather than spilling into armor slots.
+        InventoryContainer fullBag = new(PlayerInventoryLayout.TotalCapacity);
+        for (int i = 0; i < PlayerInventoryLayout.BagLimit - 1; i++)
+        {
+            fullBag.SetSlot(i, new ItemSlot(StarterGameCatalog.WoodAxe, 1, 0UL, 120f));
+        }
+
+        fullBag.SetSlot(PlayerInventoryLayout.BagLimit - 1, new ItemSlot(StarterGameCatalog.WoodLog, 10));
+        StarterGameCatalog.Recipes.TryGet(1, out CraftingRecipe? wallRecipe).Should().BeTrue();
+        PlayerInventoryLayout.TryCraftInBag(fullBag, wallRecipe!, StarterGameCatalog.GetMaxStackSize(StarterGameCatalog.WoodWallKit)).Should().BeFalse();
+        fullBag.GetSlot(PlayerInventoryLayout.HeadSlot).IsEmpty.Should().BeTrue();
+
+        // Codec v2 preserves UpgradeLevel & explicit InstanceId cleanly.
+        InventoryContainer v2Source = new(PlayerInventoryLayout.TotalCapacity);
+        v2Source.SetSlot(2, new ItemSlot(StarterGameCatalog.IronSword, 1, 42UL, 250f, UpgradeLevel: 7));
+        byte[] v2Bytes = InventoryBinaryCodec.Serialize(v2Source);
+        InventoryContainer v2Restored = new(PlayerInventoryLayout.TotalCapacity);
+        InventoryBinaryCodec.TryDeserializeInto(v2Bytes, v2Restored).Should().BeTrue();
+        v2Restored.GetSlot(2).UpgradeLevel.Should().Be(7);
+        v2Restored.GetSlot(2).InstanceId.Should().Be(42UL);
+
+        // Synthetic Format v1 payload migrates legacy InstanceId (<= 10) into UpgradeLevel.
+        byte[] v1Payload = new byte[5 + 22];
+        v1Payload[0] = 1;
+        BinaryPrimitives.WriteUInt16LittleEndian(v1Payload.AsSpan(1, 2), 40);
+        BinaryPrimitives.WriteUInt16LittleEndian(v1Payload.AsSpan(3, 2), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(v1Payload.AsSpan(5, 2), 3);
+        BinaryPrimitives.WriteUInt32LittleEndian(v1Payload.AsSpan(7, 4), StarterGameCatalog.IronSword);
+        BinaryPrimitives.WriteInt32LittleEndian(v1Payload.AsSpan(11, 4), 1);
+        BinaryPrimitives.WriteUInt64LittleEndian(v1Payload.AsSpan(15, 8), 4UL);
+        BinaryPrimitives.WriteInt32LittleEndian(v1Payload.AsSpan(23, 4), BitConverter.SingleToInt32Bits(200f));
+
+        InventoryContainer v1Restored = new(PlayerInventoryLayout.TotalCapacity);
+        InventoryBinaryCodec.TryDeserializeInto(v1Payload, v1Restored).Should().BeTrue();
+        v1Restored.GetSlot(3).UpgradeLevel.Should().Be(4);
+        v1Restored.GetSlot(3).InstanceId.Should().Be(0UL);
+
+        // Zone scaling produces monotonically stronger monster stats for deeper tiers.
+        ScaledMonsterStats scaled = WorldActorCatalog.ScaleMonsterForZone(WorldActorCatalog.RockGolem, 3);
+        scaled.Level.Should().BeGreaterThan(3);
+        scaled.MaxHealth.Should().BeGreaterThan(150f);
+        scaled.AttackDamage.Should().BeGreaterThan(16f);
+        scaled.ExperienceReward.Should().BeGreaterThan(25U);
     }
 }

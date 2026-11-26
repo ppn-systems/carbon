@@ -2,6 +2,7 @@
 
 using System;
 using Carbon.Items.Containers;
+using Carbon.Items.Crafting;
 using Carbon.Items.Definitions;
 
 namespace Carbon.Items.Catalog;
@@ -183,7 +184,7 @@ public static class PlayerInventoryLayout
         int bagCap = Math.Min(BagLimit, inventory.Capacity);
         int remaining = incoming.Quantity;
 
-        if (incoming.IsStackable)
+        if (maxStackSize > 1 && incoming.IsStackable)
         {
             for (int i = 0; i < bagCap && remaining > 0; i++)
             {
@@ -219,6 +220,82 @@ public static class PlayerInventoryLayout
         }
 
         return remaining;
+    }
+
+    /// <summary>
+    /// Crafts <paramref name="recipe"/> using only general bag storage (<c>0..35</c>) so outputs
+    /// never spill into dedicated equipped armor slots (<c>36..39</c>).
+    /// </summary>
+    public static bool TryCraftInBag(InventoryContainer inventory, CraftingRecipe recipe, int maxOutputStackSize = 99)
+    {
+        ArgumentNullException.ThrowIfNull(inventory);
+        ArgumentNullException.ThrowIfNull(recipe);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxOutputStackSize);
+
+        int bagCap = Math.Min(BagLimit, inventory.Capacity);
+        if (!RecipeMatcher.CanCraft(inventory, recipe))
+        {
+            return false;
+        }
+
+        ItemSlot output = recipe.Output;
+        if (!output.IsEmpty)
+        {
+            bool stackOut = maxOutputStackSize > 1 && output.IsStackable;
+            int freeCapacity = 0;
+            for (int i = 0; i < bagCap; i++)
+            {
+                ItemSlot slot = inventory.GetSlot(i);
+                if (slot.IsEmpty)
+                {
+                    freeCapacity += stackOut ? maxOutputStackSize : 1;
+                }
+                else if (stackOut && slot.IsStackable && slot.ItemId == output.ItemId && slot.Quantity < maxOutputStackSize)
+                {
+                    freeCapacity += maxOutputStackSize - slot.Quantity;
+                }
+            }
+
+            for (int i = 0; i < recipe.Ingredients.Count && freeCapacity < output.Quantity; i++)
+            {
+                RecipeIngredient ing = recipe.Ingredients[i];
+                int needed = ing.Quantity;
+                for (int s = 0; s < bagCap && needed > 0; s++)
+                {
+                    ItemSlot cur = inventory.GetSlot(s);
+                    if (cur.ItemId != ing.ItemId || cur.Quantity <= 0)
+                    {
+                        continue;
+                    }
+
+                    if (needed >= cur.Quantity)
+                    {
+                        freeCapacity += stackOut ? maxOutputStackSize : 1;
+                        needed -= cur.Quantity;
+                    }
+                    else
+                    {
+                        needed = 0;
+                    }
+                }
+            }
+
+            if (freeCapacity < output.Quantity)
+            {
+                return false;
+            }
+        }
+
+        for (int i = 0; i < recipe.Ingredients.Count; i++)
+        {
+            RecipeIngredient ing = recipe.Ingredients[i];
+            if (ing.Quantity > 0)
+            {
+                _ = inventory.TryRemove(ing.ItemId, ing.Quantity);
+            }
+        }
+
+        return TryAddBagItem(inventory, in output, maxOutputStackSize) == 0;
     }
 
     private static int FindFirstEmptyOrMergeSlot(InventoryContainer inventory, in ItemSlot source, int startInclusive, int endExclusive)

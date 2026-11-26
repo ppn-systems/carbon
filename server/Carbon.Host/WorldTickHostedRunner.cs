@@ -13,7 +13,7 @@ namespace Carbon.Host;
 /// </summary>
 internal sealed class WorldTickHostedRunner
 {
-    private readonly IAuthoritativeWorld _world;
+    private readonly IWorldSimulationLoop _world;
     private readonly ILogger<WorldTickHostedRunner> _logger;
     private readonly TimeSpan _tickInterval;
     private readonly int _flushEveryTicks;
@@ -21,7 +21,7 @@ internal sealed class WorldTickHostedRunner
     /// <summary>
     /// Initializes a new instance of the <see cref="WorldTickHostedRunner"/> class.
     /// </summary>
-    public WorldTickHostedRunner(IAuthoritativeWorld world, ILogger<WorldTickHostedRunner> logger)
+    public WorldTickHostedRunner(IWorldSimulationLoop world, ILogger<WorldTickHostedRunner> logger)
     {
         _world = world ?? throw new ArgumentNullException(nameof(world));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));

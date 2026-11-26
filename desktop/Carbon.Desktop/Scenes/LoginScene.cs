@@ -188,8 +188,21 @@ public sealed class LoginScene : GameScene
 
         if (kb.IsKeyPressed(Key.Escape))
         {
-            context.Window.Close();
-            return;
+            bool unfocusedAny = false;
+            for (int i = 0; i < _fields.Length; i++)
+            {
+                if (_fields[i].IsFocused)
+                {
+                    _fields[i].IsFocused = false;
+                    unfocusedAny = true;
+                }
+            }
+
+            if (!unfocusedAny)
+            {
+                context.Window.Close();
+                return;
+            }
         }
 
         if (kb.IsKeyPressed(Key.Tab))

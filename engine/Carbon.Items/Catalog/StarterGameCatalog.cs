@@ -86,29 +86,90 @@ public static class StarterGameCatalog
     /// <summary>Gets all registered starter item archetypes indexed by ID.</summary>
     public static DefinitionRegistry<uint, ItemArchetype> Items { get; } = new(
     [
-        new ItemArchetype(WoodAxe, "wood_axe", ItemCategory.Tool, MaxStackSize: 1, EquipmentSlotKind.Tool, HarvestTier: 1, MaxDurability: 120f),
-        new ItemArchetype(StonePickaxe, "stone_pickaxe", ItemCategory.Tool, MaxStackSize: 1, EquipmentSlotKind.Tool, HarvestTier: 2, MaxDurability: 160f),
-        new ItemArchetype(IronSword, "iron_sword", ItemCategory.Weapon, MaxStackSize: 1, EquipmentSlotKind.MainHand, HarvestTier: 0, MaxDurability: 200f),
-        new ItemArchetype(WoodLog, "wood_log", ItemCategory.Resource, MaxStackSize: 99),
-        new ItemArchetype(StoneChunk, "stone_chunk", ItemCategory.Resource, MaxStackSize: 99),
-        new ItemArchetype(IronOre, "iron_ore", ItemCategory.Resource, MaxStackSize: 99),
-        new ItemArchetype(ManaCrystal, "mana_crystal", ItemCategory.Resource, MaxStackSize: 99),
-        new ItemArchetype(BerryHerb, "berry_herb", ItemCategory.Consumable, MaxStackSize: 99),
-        new ItemArchetype(WoodWallKit, "wood_wall", ItemCategory.Placeable, MaxStackSize: 99, PlaceableStructureType: 1),
-        new ItemArchetype(StoneWallKit, "stone_wall", ItemCategory.Placeable, MaxStackSize: 99, PlaceableStructureType: 2),
-        new ItemArchetype(WoodDoorKit, "wood_door", ItemCategory.Placeable, MaxStackSize: 99, PlaceableStructureType: 3),
-        new ItemArchetype(CrystalPickaxe, "crystal_pickaxe", ItemCategory.Tool, MaxStackSize: 1, EquipmentSlotKind.Tool, HarvestTier: 3, MaxDurability: 250f),
-        new ItemArchetype(LeatherCap, "leather_cap", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Head, MaxDurability: 120f),
-        new ItemArchetype(LeatherTunic, "leather_tunic", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Chest, MaxDurability: 150f),
-        new ItemArchetype(LeatherGreaves, "leather_greaves", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Legs, MaxDurability: 140f),
-        new ItemArchetype(LeatherBoots, "leather_boots", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Feet, MaxDurability: 120f),
-        new ItemArchetype(IronHelmet, "iron_helmet", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Head, MaxDurability: 220f),
-        new ItemArchetype(IronChestplate, "iron_chestplate", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Chest, MaxDurability: 260f),
-        new ItemArchetype(IronLeggings, "iron_leggings", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Legs, MaxDurability: 240f),
-        new ItemArchetype(IronBoots, "iron_boots", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Feet, MaxDurability: 200f),
-        new ItemArchetype(CrystalCrown, "crystal_crown", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Head, MaxDurability: 240f),
-        new ItemArchetype(CrystalRobe, "crystal_robe", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Chest, MaxDurability: 280f),
-        new ItemArchetype(ManaTonic, "mana_tonic", ItemCategory.Consumable, MaxStackSize: 20),
+        new ItemArchetype(
+            WoodAxe, "wood_axe", ItemCategory.Tool, MaxStackSize: 1, EquipmentSlotKind.Tool, HarvestTier: 1, MaxDurability: 120f,
+            DisplayName: "Wood Axe", BaseDamage: 16f, FloraHarvestDamage: 55f, MineralHarvestDamage: 26f,
+            ActionHint: "Tier 1 Axe | Chop Trees (55 dmg)"),
+        new ItemArchetype(
+            StonePickaxe, "stone_pickaxe", ItemCategory.Tool, MaxStackSize: 1, EquipmentSlotKind.Tool, HarvestTier: 2, MaxDurability: 160f,
+            DisplayName: "Stone Pick", BaseDamage: 18f, FloraHarvestDamage: 38f, MineralHarvestDamage: 68f,
+            ActionHint: "Tier 2 Pick | Mine Stone/Ore (68 dmg)"),
+        new ItemArchetype(
+            IronSword, "iron_sword", ItemCategory.Weapon, MaxStackSize: 1, EquipmentSlotKind.MainHand, HarvestTier: 0, MaxDurability: 200f,
+            DisplayName: "Iron Sword", BaseDamage: 34f, CritChance: 0.20f, FloraHarvestDamage: 28f, MineralHarvestDamage: 16f,
+            ActionHint: "Melee Blade | Combat 34 dmg (+Crit) | Not for Wood/Stone"),
+        new ItemArchetype(
+            WoodLog, "wood_log", ItemCategory.Resource, MaxStackSize: 99,
+            DisplayName: "Wood Log", ActionHint: "Material | Craft Walls, Doors & Tools [C]"),
+        new ItemArchetype(
+            StoneChunk, "stone_chunk", ItemCategory.Resource, MaxStackSize: 99,
+            DisplayName: "Stone", ActionHint: "Material | Craft Stone Walls & Pickaxe [C]"),
+        new ItemArchetype(
+            IronOre, "iron_ore", ItemCategory.Resource, MaxStackSize: 99,
+            DisplayName: "Iron Ore", ActionHint: "Material | Craft Iron Sword & Crystal Pick [C]"),
+        new ItemArchetype(
+            ManaCrystal, "mana_crystal", ItemCategory.Resource, MaxStackSize: 99,
+            DisplayName: "Crystal", ActionHint: "Rare Crystal | Craft Tier 3 Crystal Pick [C]"),
+        new ItemArchetype(
+            BerryHerb, "berry_herb", ItemCategory.Consumable, MaxStackSize: 99,
+            DisplayName: "Berry Herb", HealHealth: 25f, ActionHint: "Consumable | Use: Restore +25 HP"),
+        new ItemArchetype(
+            WoodWallKit, "wood_wall", ItemCategory.Placeable, MaxStackSize: 99, PlaceableStructureType: 1,
+            DisplayName: "Wood Wall", ActionHint: "Builder | Place Wood Wall on Target Tile"),
+        new ItemArchetype(
+            StoneWallKit, "stone_wall", ItemCategory.Placeable, MaxStackSize: 99, PlaceableStructureType: 2,
+            DisplayName: "Stone Wall", ActionHint: "Builder | Place Stone Wall on Target Tile"),
+        new ItemArchetype(
+            WoodDoorKit, "wood_door", ItemCategory.Placeable, MaxStackSize: 99, PlaceableStructureType: 3,
+            DisplayName: "Wood Door", ActionHint: "Builder | Place Wood Door ([E] Open/Close)"),
+        new ItemArchetype(
+            CrystalPickaxe, "crystal_pickaxe", ItemCategory.Tool, MaxStackSize: 1, EquipmentSlotKind.Tool, HarvestTier: 3, MaxDurability: 250f,
+            DisplayName: "Crys.Pick", BaseDamage: 24f, FloraHarvestDamage: 60f, MineralHarvestDamage: 95f,
+            ActionHint: "Tier 3 Pick | Mine All Crystal/Gold (95 dmg)"),
+        new ItemArchetype(
+            LeatherCap, "leather_cap", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Head, MaxDurability: 120f,
+            DisplayName: "Leather Cap", ArmorDefense: 3f, BonusMana: 10f,
+            ActionHint: "Leather Armor | Equip in [I] Bag to raise DEF & MP"),
+        new ItemArchetype(
+            LeatherTunic, "leather_tunic", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Chest, MaxDurability: 150f,
+            DisplayName: "Leather Tunic", ArmorDefense: 6f, BonusHealth: 15f,
+            ActionHint: "Leather Armor | Equip in [I] Bag to raise DEF & HP"),
+        new ItemArchetype(
+            LeatherGreaves, "leather_greaves", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Legs, MaxDurability: 140f,
+            DisplayName: "Leather Legs", ArmorDefense: 4f, BonusHealth: 10f,
+            ActionHint: "Leather Armor | Equip in [I] Bag to raise DEF & HP"),
+        new ItemArchetype(
+            LeatherBoots, "leather_boots", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Feet, MaxDurability: 120f,
+            DisplayName: "Leather Boots", ArmorDefense: 3f,
+            ActionHint: "Leather Armor | Equip in [I] Bag to raise DEF & HP"),
+        new ItemArchetype(
+            IronHelmet, "iron_helmet", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Head, MaxDurability: 220f,
+            DisplayName: "Iron Helm", ArmorDefense: 7f, BonusHealth: 18f,
+            ActionHint: "Iron Armor | Heavy DEF & HP | Forge [+] Upgradable"),
+        new ItemArchetype(
+            IronChestplate, "iron_chestplate", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Chest, MaxDurability: 260f,
+            DisplayName: "Iron Plate", ArmorDefense: 14f, BonusHealth: 40f,
+            ActionHint: "Iron Armor | Heavy DEF & HP | Forge [+] Upgradable"),
+        new ItemArchetype(
+            IronLeggings, "iron_leggings", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Legs, MaxDurability: 240f,
+            DisplayName: "Iron Legs", ArmorDefense: 10f, BonusHealth: 25f,
+            ActionHint: "Iron Armor | Heavy DEF & HP | Forge [+] Upgradable"),
+        new ItemArchetype(
+            IronBoots, "iron_boots", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Feet, MaxDurability: 200f,
+            DisplayName: "Iron Boots", ArmorDefense: 6f, BonusHealth: 12f,
+            ActionHint: "Iron Armor | Heavy DEF & HP | Forge [+] Upgradable"),
+        new ItemArchetype(
+            CrystalCrown, "crystal_crown", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Head, MaxDurability: 240f,
+            DisplayName: "Crystal Crown", ArmorDefense: 8f, BonusHealth: 15f, BonusMana: 35f,
+            ActionHint: "Arcane Armor | High MP & DEF | Forge [+] Upgradable"),
+        new ItemArchetype(
+            CrystalRobe, "crystal_robe", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Chest, MaxDurability: 280f,
+            DisplayName: "Crystal Robe", ArmorDefense: 15f, BonusHealth: 28f, BonusMana: 55f,
+            ActionHint: "Arcane Armor | High MP & DEF | Forge [+] Upgradable"),
+        new ItemArchetype(
+            ManaTonic, "mana_tonic", ItemCategory.Consumable, MaxStackSize: 20,
+            DisplayName: "Mana Tonic", RestoreMana: 45f, RestoreStamina: 30f,
+            ActionHint: "Consumable | Use: +45 MP & +30 Stamina"),
     ]);
 
     /// <summary>Gets all registered crafting recipes indexed by ID (1..15).</summary>
@@ -185,124 +246,58 @@ public static class StarterGameCatalog
     }
 
     /// <summary>Returns the human-readable HUD display name for an item ID.</summary>
-    public static string GetDisplayName(uint itemId) => itemId switch
-    {
-        WoodAxe => "Wood Axe",
-        StonePickaxe => "Stone Pick",
-        IronSword => "Iron Sword",
-        WoodLog => "Wood Log",
-        StoneChunk => "Stone",
-        IronOre => "Iron Ore",
-        ManaCrystal => "Crystal",
-        BerryHerb => "Berry Herb",
-        WoodWallKit => "Wood Wall",
-        StoneWallKit => "Stone Wall",
-        WoodDoorKit => "Wood Door",
-        CrystalPickaxe => "Crys.Pick",
-        LeatherCap => "Leather Cap",
-        LeatherTunic => "Leather Tunic",
-        LeatherGreaves => "Leather Legs",
-        LeatherBoots => "Leather Boots",
-        IronHelmet => "Iron Helm",
-        IronChestplate => "Iron Plate",
-        IronLeggings => "Iron Legs",
-        IronBoots => "Iron Boots",
-        CrystalCrown => "Crystal Crown",
-        CrystalRobe => "Crystal Robe",
-        ManaTonic => "Mana Tonic",
-        _ => "Empty",
-    };
+    public static string GetDisplayName(uint itemId) =>
+        Items.TryGet(itemId, out ItemArchetype? def) && !string.IsNullOrEmpty(def.DisplayName) ? def.DisplayName : "Empty";
 
     /// <summary>Returns armor defense rating contributed by <paramref name="itemId"/> when equipped.</summary>
-    public static float GetArmorDefense(uint itemId) => itemId switch
-    {
-        LeatherCap => 3f,
-        LeatherTunic => 6f,
-        LeatherGreaves => 4f,
-        LeatherBoots => 3f,
-        IronHelmet => 7f,
-        IronChestplate => 14f,
-        IronLeggings => 10f,
-        IronBoots => 6f,
-        CrystalCrown => 8f,
-        CrystalRobe => 15f,
-        _ => 0f,
-    };
+    public static float GetArmorDefense(uint itemId) =>
+        Items.TryGet(itemId, out ItemArchetype? def) ? def.ArmorDefense : 0f;
 
     /// <summary>Returns bonus max HP contributed by <paramref name="itemId"/> when equipped.</summary>
-    public static float GetArmorBonusHealth(uint itemId) => itemId switch
-    {
-        LeatherTunic => 15f,
-        LeatherGreaves => 10f,
-        IronHelmet => 18f,
-        IronChestplate => 40f,
-        IronLeggings => 25f,
-        IronBoots => 12f,
-        CrystalCrown => 15f,
-        CrystalRobe => 28f,
-        _ => 0f,
-    };
+    public static float GetArmorBonusHealth(uint itemId) =>
+        Items.TryGet(itemId, out ItemArchetype? def) ? def.BonusHealth : 0f;
 
     /// <summary>Returns bonus max Mana contributed by <paramref name="itemId"/> when equipped.</summary>
-    public static float GetArmorBonusMana(uint itemId) => itemId switch
-    {
-        CrystalCrown => 35f,
-        CrystalRobe => 55f,
-        LeatherCap => 10f,
-        _ => 0f,
-    };
+    public static float GetArmorBonusMana(uint itemId) =>
+        Items.TryGet(itemId, out ItemArchetype? def) ? def.BonusMana : 0f;
 
     /// <summary>Returns baseline melee attack damage for an active item ID.</summary>
-    public static float GetWeaponBaseDamage(uint itemId) => itemId switch
-    {
-        IronSword => 34f,
-        CrystalPickaxe => 24f,
-        StonePickaxe => 18f,
-        WoodAxe => 16f,
-        _ => 12f,
-    };
+    public static float GetWeaponBaseDamage(uint itemId) =>
+        Items.TryGet(itemId, out ItemArchetype? def) ? def.BaseDamage : 12f;
 
     /// <summary>Returns harvest damage per strike against flora props (trees, bushes, cacti).</summary>
-    public static float GetFloraHarvestDamage(uint itemId) => itemId switch
-    {
-        WoodAxe => 55f,
-        CrystalPickaxe => 60f,
-        StonePickaxe => 38f,
-        IronSword => 28f,
-        _ => 20f,
-    };
+    public static float GetFloraHarvestDamage(uint itemId) =>
+        Items.TryGet(itemId, out ItemArchetype? def) ? def.FloraHarvestDamage : 20f;
 
     /// <summary>Returns harvest damage per strike against mineral props (boulders, ore veins, crystals).</summary>
-    public static float GetMineralHarvestDamage(uint itemId) => itemId switch
-    {
-        CrystalPickaxe => 95f,
-        StonePickaxe => 68f,
-        WoodAxe => 26f,
-        IronSword => 16f,
-        _ => 10f,
-    };
+    public static float GetMineralHarvestDamage(uint itemId) =>
+        Items.TryGet(itemId, out ItemArchetype? def) ? def.MineralHarvestDamage : 10f;
 
     /// <summary>Returns a concise HUD action tooltip describing the active item's role and tier.</summary>
-    public static string GetActionHint(uint itemId) => itemId switch
+    public static string GetActionHint(uint itemId) =>
+        Items.TryGet(itemId, out ItemArchetype? def) && !string.IsNullOrEmpty(def.ActionHint)
+            ? def.ActionHint
+            : "Empty Hand | Forage Bushes & Punch (12 dmg)";
+
+    /// <summary>Resolves the inventory placeable kit item ID corresponding to <paramref name="structureType"/>.</summary>
+    public static uint ResolveStructureKitItemId(byte structureType)
     {
-        WoodAxe => "Tier 1 Axe | Chop Trees (55 dmg)",
-        StonePickaxe => "Tier 2 Pick | Mine Stone/Ore (68 dmg)",
-        CrystalPickaxe => "Tier 3 Pick | Mine All Crystal/Gold (95 dmg)",
-        IronSword => "Melee Blade | Combat 34 dmg (+Crit) | Not for Wood/Stone",
-        BerryHerb => "Consumable | Use: Restore +25 HP",
-        ManaTonic => "Consumable | Use: +45 MP & +30 Stamina",
-        LeatherCap or LeatherTunic or LeatherGreaves or LeatherBoots => "Leather Armor | Equip in [I] Bag to raise DEF & HP",
-        IronHelmet or IronChestplate or IronLeggings or IronBoots => "Iron Armor | Heavy DEF & HP | Forge [+] Upgradable",
-        CrystalCrown or CrystalRobe => "Arcane Armor | High MP & DEF | Forge [+] Upgradable",
-        WoodWallKit => "Builder | Place Wood Wall on Target Tile",
-        StoneWallKit => "Builder | Place Stone Wall on Target Tile",
-        WoodDoorKit => "Builder | Place Wood Door ([E] Open/Close)",
-        WoodLog => "Material | Craft Walls, Doors & Tools [C]",
-        StoneChunk => "Material | Craft Stone Walls & Pickaxe [C]",
-        IronOre => "Material | Craft Iron Sword & Crystal Pick [C]",
-        ManaCrystal => "Rare Crystal | Craft Tier 3 Crystal Pick [C]",
-        _ => "Empty Hand | Forage Bushes & Punch (12 dmg)",
-    };
+        if (structureType == 0)
+        {
+            return 0U;
+        }
+
+        ReadOnlySpan<ItemArchetype> all = Items.All;
+        for (int i = 0; i < all.Length; i++)
+        {
+            if (all[i].Category == ItemCategory.Placeable && all[i].PlaceableStructureType == structureType)
+            {
+                return all[i].Id;
+            }
+        }
+
+        return 0U;
+    }
 
     /// <summary>Maps an item's <see cref="Items"/> max stack size for crafting output bounds.</summary>
     public static int GetMaxStackSize(uint itemId) =>

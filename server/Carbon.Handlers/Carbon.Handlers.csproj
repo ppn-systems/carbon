@@ -14,7 +14,6 @@
         <ProjectReference Include="..\..\contracts\Carbon.Contracts.Maps\Carbon.Contracts.Maps.csproj" />
         <ProjectReference Include="..\..\engine\Carbon.Maps\Carbon.Maps.csproj" />
         <ProjectReference Include="..\Carbon.Abstractions\Carbon.Abstractions.csproj" />
-        <ProjectReference Include="..\Carbon.Application\Carbon.Application.csproj" />
     </ItemGroup>
 
     <ItemGroup>

@@ -23,7 +23,7 @@ internal readonly record struct FloatingCombatText(
 internal readonly record struct PropHitState(float ShakeTimer, float BarTimer);
 
 /// <summary>Damaged or hovered natural prop marker projected to screen space for durability bars.</summary>
-internal readonly record struct DamagedPropHudMarker(Vector2 WorldPos, float Current, float Max, bool IsMineral);
+internal readonly record struct DamagedPropHudMarker(Vector2 WorldPos, float Current, float Max, bool IsMineral, float Alpha = 1f);
 
 /// <summary>
 /// Manages transient combat &amp; gathering feedback: prop shake timers, debris particles,
@@ -122,13 +122,16 @@ public sealed class CombatFeedbackTracker
                 : ev.IsHeal
                     ? $"+{(int)MathF.Ceiling(ev.Amount)}"
                     : $"-{(int)MathF.Ceiling(ev.Amount)}");
-            ColorRgba color = ev.Label is not null && !ev.IsHeal
-                ? new ColorRgba(251, 146, 60, 255)
-                : ev.IsHeal
-                    ? new ColorRgba(74, 222, 128, 255)
-                    : ev.IsCritical
-                        ? new ColorRgba(250, 204, 21, 255)
-                        : new ColorRgba(248, 113, 113, 255);
+            bool isXpPopup = ev.Label is not null && ev.Label.StartsWith('+') && ev.Label.EndsWith(" XP", StringComparison.Ordinal);
+            ColorRgba color = isXpPopup
+                ? new ColorRgba(192, 132, 252, 255)
+                : ev.Label is not null && !ev.IsHeal
+                    ? new ColorRgba(251, 146, 60, 255)
+                    : ev.IsHeal
+                        ? new ColorRgba(74, 222, 128, 255)
+                        : ev.IsCritical
+                            ? new ColorRgba(250, 204, 21, 255)
+                            : new ColorRgba(248, 113, 113, 255);
             float scale = ev.IsCritical || ev.IsHeal ? 2.0f : 1.75f;
             _floatingTexts.Add(new FloatingCombatText(ev.WorldPosition + new Vector2(0f, -14f), text, color, scale, 0.95f));
         }
@@ -179,6 +182,20 @@ public sealed class CombatFeedbackTracker
 
         IReadOnlyList<RemoteEntityView> remotes = world.RemoteEntities;
         Vector2 playerPos = world.LocalPlayerInterpolatedPosition;
+
+        if (world.LockedTargetNetworkId != 0UL)
+        {
+            for (int i = 0; i < remotes.Count; i++)
+            {
+                RemoteEntityView r = remotes[i];
+                if (r.NetworkId == world.LockedTargetNetworkId && r.CurrentHealth > 0f)
+                {
+                    target = r;
+                    ghostRatio = this.GetEntityGhostRatio(target.NetworkId, target.CurrentHealth, target.MaxHealth);
+                    return true;
+                }
+            }
+        }
 
         if (aimedWorldPos.HasValue)
         {

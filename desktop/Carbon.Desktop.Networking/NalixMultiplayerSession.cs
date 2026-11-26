@@ -95,6 +95,9 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
     private float _localHitFlashTimer;
     private ClientActionState _currentAction = ClientActionState.None;
     private byte _comboStep;
+    private ulong _lockedTargetNetworkId;
+    private float _forgeFeedbackTimer;
+    private bool _lastForgeSucceeded;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="NalixMultiplayerSession"/> class.
@@ -115,10 +118,18 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
     public Entity LocalPlayer => _localPlayer;
 
     /// <inheritdoc/>
-    public Vector2 LocalPlayerInterpolatedPosition =>
-        _simulation is not null && _simulation.Entities.IsAlive(_localPlayer)
-            ? _simulation.GetInterpolatedPosition(_localPlayer) + _visualOffset
-            : Vector2.Zero;
+    public Vector2 LocalPlayerInterpolatedPosition
+    {
+        get
+        {
+            lock (_worldGate)
+            {
+                return _simulation is not null && _simulation.Entities.IsAlive(_localPlayer)
+                    ? _simulation.GetInterpolatedPosition(_localPlayer) + _visualOffset
+                    : Vector2.Zero;
+            }
+        }
+    }
 
     /// <inheritdoc/>
     public float LocalPlayerHealth => _localHealth;
@@ -181,46 +192,70 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
     public ClientActionState CurrentAction => _currentAction;
 
     /// <inheritdoc/>
+    public ulong LockedTargetNetworkId => _lockedTargetNetworkId;
+
+    /// <inheritdoc/>
+    public float ForgeFeedbackTimer => _forgeFeedbackTimer;
+
+    /// <inheritdoc/>
+    public bool LastForgeSucceeded => _lastForgeSucceeded;
+
+    /// <inheritdoc/>
+    public void CopyInventorySlots(Span<ItemSlot> destination)
+    {
+        lock (_worldGate)
+        {
+            ReadOnlySpan<ItemSlot> source = _inventory.Slots;
+            int count = Math.Min(destination.Length, source.Length);
+            source[..count].CopyTo(destination);
+        }
+    }
+
+    /// <inheritdoc/>
     public IReadOnlyList<RemoteEntityView> RemoteEntities
     {
         get
         {
-            _remoteViewSnapshot.Clear();
-            double renderTime = Math.Max(0.0, _latestServerTime - InterpolationDelaySeconds);
-            foreach (KeyValuePair<ulong, RemoteEntityState> kvp in _remoteEntities)
+            lock (_worldGate)
             {
-                RemoteEntityState s = kvp.Value;
-                TransformSnapshot sampled = s.Interpolation.Count > 0
-                    ? s.Interpolation.Sample(renderTime, maxExtrapolationSeconds: 0.1f)
-                    : new TransformSnapshot(0.0, s.Position, s.Velocity);
-                Vector2 viewPos = s.Interpolation.Count > 0 ? sampled.Position : s.Position;
-                Vector2 viewVel = s.Interpolation.Count > 0 ? sampled.Velocity : s.Velocity;
+                _remoteViewSnapshot.Clear();
+                double renderTime = Math.Max(0.0, _latestServerTime - InterpolationDelaySeconds);
+                foreach (KeyValuePair<ulong, RemoteEntityState> kvp in _remoteEntities)
+                {
+                    RemoteEntityState s = kvp.Value;
+                    TransformSnapshot sampled = s.Interpolation.Count > 0
+                        ? s.Interpolation.Sample(renderTime, maxExtrapolationSeconds: 0.1f)
+                        : new TransformSnapshot(0.0, s.Position, s.Velocity);
+                    Vector2 viewPos = s.Interpolation.Count > 0 ? sampled.Position : s.Position;
+                    Vector2 viewVel = s.Interpolation.Count > 0 ? sampled.Velocity : s.Velocity;
 
-                _remoteViewSnapshot.Add(new RemoteEntityView(
-                    s.NetworkId,
-                    s.Kind,
-                    s.Name,
-                    viewPos,
-                    viewVel,
-                    s.Radius,
-                    s.CurrentHealth,
-                    s.MaxHealth,
-                    s.ArchetypeId,
-                    s.FacingDir,
-                    s.AttackAnimTimer,
-                    s.AttackAnimDuration,
-                    s.HitFlashTimer,
-                    s.EquippedHeadId,
-                    s.EquippedChestId,
-                    s.EquippedLegsId,
-                    s.EquippedFeetId,
-                    s.EquippedWeaponId,
-                    s.Level,
-                    s.LootCount,
-                    s.WeaponUpgradeLevel));
+                    _remoteViewSnapshot.Add(new RemoteEntityView(
+                        s.NetworkId,
+                        s.Kind,
+                        s.Name,
+                        viewPos,
+                        viewVel,
+                        s.Radius,
+                        s.CurrentHealth,
+                        s.MaxHealth,
+                        s.ArchetypeId,
+                        s.FacingDir,
+                        s.AttackAnimTimer,
+                        s.AttackAnimDuration,
+                        s.HitFlashTimer,
+                        s.EquippedHeadId,
+                        s.EquippedChestId,
+                        s.EquippedLegsId,
+                        s.EquippedFeetId,
+                        s.EquippedWeaponId,
+                        s.Level,
+                        s.LootCount,
+                        s.WeaponUpgradeLevel,
+                        s.ActiveActionKind));
+                }
+
+                return _remoteViewSnapshot;
             }
-
-            return _remoteViewSnapshot;
         }
     }
 
@@ -285,6 +320,11 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
             _localHitFlashTimer = MathF.Max(0f, _localHitFlashTimer - fdt);
         }
 
+        if (_forgeFeedbackTimer > 0f)
+        {
+            _forgeFeedbackTimer = MathF.Max(0f, _forgeFeedbackTimer - fdt);
+        }
+
         if (_currentAction.IsActive)
         {
             float rem = _currentAction.RemainingSeconds - fdt;
@@ -293,17 +333,31 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
                 : ClientActionState.None;
         }
 
-        foreach (KeyValuePair<ulong, RemoteEntityState> kvp in _remoteEntities)
+        lock (_worldGate)
         {
-            RemoteEntityState rs = kvp.Value;
-            if (rs.AttackAnimTimer > 0f)
+            foreach (KeyValuePair<ulong, RemoteEntityState> kvp in _remoteEntities)
             {
-                rs.AttackAnimTimer = MathF.Max(0f, rs.AttackAnimTimer - fdt);
+                RemoteEntityState rs = kvp.Value;
+                if (rs.AttackAnimTimer > 0f)
+                {
+                    rs.AttackAnimTimer = MathF.Max(0f, rs.AttackAnimTimer - fdt);
+                    if (rs.AttackAnimTimer <= 0f)
+                    {
+                        rs.ActiveActionKind = ClientActionKind.None;
+                    }
+                }
+
+                if (rs.HitFlashTimer > 0f)
+                {
+                    rs.HitFlashTimer = MathF.Max(0f, rs.HitFlashTimer - fdt);
+                }
             }
 
-            if (rs.HitFlashTimer > 0f)
+            if (_lockedTargetNetworkId != 0UL &&
+                (!_remoteEntities.TryGetValue(_lockedTargetNetworkId, out RemoteEntityState? lockedState) ||
+                 lockedState.CurrentHealth <= 0f))
             {
-                rs.HitFlashTimer = MathF.Max(0f, rs.HitFlashTimer - fdt);
+                _lockedTargetNetworkId = 0UL;
             }
         }
 
@@ -346,14 +400,17 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
             float speed = canSprint ? SprintSpeed : WalkSpeed;
             if (canSprint)
             {
-                _localStamina = MathF.Max(0f, _localStamina - (18f * fdt));
+                _localStamina = MathF.Max(0f, _localStamina - (22f * fdt));
             }
-            else
+            else if (_localStamina < _localMaxStamina)
             {
-                _localStamina = MathF.Min(_localMaxStamina, _localStamina + ((isMoving ? 8f : 16f) * fdt));
+                _localStamina = MathF.Min(_localMaxStamina, _localStamina + (18f * fdt));
             }
 
-            _localMana = MathF.Min(_localMaxMana, _localMana + (3.5f * fdt));
+            if (_localMana < _localMaxMana)
+            {
+                _localMana = MathF.Min(_localMaxMana, _localMana + (6f * fdt));
+            }
 
             if (isMoving)
             {
@@ -435,6 +492,9 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
             _skill1Cd = 0f;
             _skill2Cd = 0f;
             _skill3Cd = 0f;
+            _lockedTargetNetworkId = 0UL;
+            _forgeFeedbackTimer = 0f;
+            _lastForgeSucceeded = false;
         }
     }
 }

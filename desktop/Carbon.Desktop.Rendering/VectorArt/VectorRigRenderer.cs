@@ -6,7 +6,6 @@ using Carbon.Desktop.Abstractions;
 using Carbon.Graphics.Animation.Directions;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
-using Carbon.Items.Catalog;
 
 namespace Carbon.Desktop.Rendering.VectorArt;
 
@@ -38,7 +37,8 @@ public static class VectorRigRenderer
         ClientActionState action = default,
         float legacySwingTimer = 0f,
         byte appearancePreset = 0,
-        VisualEquipmentLoadout equipment = default)
+        VisualEquipmentLoadout equipment = default,
+        IVectorArtRepository? art = null)
     {
         ArgumentNullException.ThrowIfNull(batch);
         ArgumentNullException.ThrowIfNull(rig);
@@ -52,7 +52,7 @@ public static class VectorRigRenderer
         bool isNorth = direction == Direction8.North;
         bool isSide = direction is Direction8.East or Direction8.West or Direction8.SouthEast or Direction8.SouthWest or Direction8.NorthEast or Direction8.NorthWest;
         bool isSouth = !isNorth && !isSide;
-        bool isBaseHero = string.Equals(rig.Id, "base_hero", StringComparison.OrdinalIgnoreCase);
+        bool isModularHuman = rig.SupportsModularHuman || string.Equals(rig.Id, "base_hero", StringComparison.OrdinalIgnoreCase);
 
         Span<BonePose> bones = stackalloc BonePose[(int)VectorBoneId.Count];
         rig.EvaluatePose(clipName, "idle", timeOrNormalizedProgress, isNormalized, bones);
@@ -63,28 +63,28 @@ public static class VectorRigRenderer
             DrawEquippedItemOnRig(batch, rig, equippedItem, footPosition, direction, uniformScale, mirrorX, in bones[(int)VectorBoneId.ArmFront], action, legacySwingTimer, equipment.WeaponUpgradeLevel);
         }
 
-        if (isBaseHero && !isNorth && equipment.ChestId != 0)
+        if (isModularHuman && !isNorth && equipment.ChestId != 0)
         {
-            ModularCharacterOverlays.DrawEquippedBackCape(batch, rig, in bones[(int)VectorBoneId.Cape], footPosition, sx, sy, isNorth: false, equipment.ChestId, hitFlash);
+            ModularCharacterOverlays.DrawEquippedBackCape(batch, rig, in bones[(int)VectorBoneId.Cape], footPosition, sx, sy, isNorth: false, equipment.ChestId, art, hitFlash);
         }
 
-        DrawPassShapes(batch, rig, in bones, footPosition, sx, sy, isSouth, isSide, isNorth, capePass: !isNorth, hitFlash, appearancePreset, isBaseHero);
+        DrawPassShapes(batch, rig, in bones, footPosition, sx, sy, isSouth, isSide, isNorth, capePass: !isNorth, hitFlash, appearancePreset, isModularHuman);
         if (isNorth)
         {
-            DrawPassShapes(batch, rig, in bones, footPosition, sx, sy, isSouth, isSide, isNorth, capePass: true, hitFlash, appearancePreset, isBaseHero);
+            DrawPassShapes(batch, rig, in bones, footPosition, sx, sy, isSouth, isSide, isNorth, capePass: true, hitFlash, appearancePreset, isModularHuman);
         }
 
-        if (isBaseHero)
+        if (isModularHuman)
         {
-            ModularCharacterOverlays.DrawLegAndFootArmor(batch, rig, in bones, footPosition, sx, sy, isNorth, isSide, equipment, hitFlash);
-            ModularCharacterOverlays.DrawChestAndArmArmor(batch, rig, in bones, footPosition, sx, sy, isNorth, isSide, equipment.ChestId, hitFlash);
+            ModularCharacterOverlays.DrawLegAndFootArmor(batch, rig, in bones, footPosition, sx, sy, isNorth, isSide, equipment, art, hitFlash);
+            ModularCharacterOverlays.DrawChestAndArmArmor(batch, rig, in bones, footPosition, sx, sy, isNorth, isSide, equipment.ChestId, art, hitFlash);
             if (isNorth && equipment.ChestId != 0)
             {
-                ModularCharacterOverlays.DrawEquippedBackCape(batch, rig, in bones[(int)VectorBoneId.Cape], footPosition, sx, sy, isNorth: true, equipment.ChestId, hitFlash);
+                ModularCharacterOverlays.DrawEquippedBackCape(batch, rig, in bones[(int)VectorBoneId.Cape], footPosition, sx, sy, isNorth: true, equipment.ChestId, art, hitFlash);
             }
 
             ModularCharacterOverlays.DrawFaceAndHair(batch, rig, in bones[(int)VectorBoneId.Head], footPosition, sx, sy, isSouth, isSide, isNorth, appearancePreset, equipment.HeadId, hitFlash);
-            ModularCharacterOverlays.DrawHeadArmor(batch, rig, in bones[(int)VectorBoneId.Headgear], footPosition, sx, sy, isSouth, isNorth, equipment.HeadId, hitFlash);
+            ModularCharacterOverlays.DrawHeadArmor(batch, rig, in bones[(int)VectorBoneId.Headgear], footPosition, sx, sy, isSouth, isNorth, equipment.HeadId, art, hitFlash);
         }
 
         if (!isNorth && equippedItem is not null)
@@ -107,7 +107,8 @@ public static class VectorRigRenderer
         float timeOrNormalizedProgress = 0f,
         CompiledItemVectorArt? equippedItem = null,
         byte appearancePreset = 0,
-        VisualEquipmentLoadout equipment = default)
+        VisualEquipmentLoadout equipment = default,
+        IVectorArtRepository? art = null)
     {
         ArgumentNullException.ThrowIfNull(batch);
         ArgumentNullException.ThrowIfNull(rig);
@@ -175,7 +176,8 @@ public static class VectorRigRenderer
             hitFlash: 0f,
             equippedItem: equippedItem,
             appearancePreset: appearancePreset,
-            equipment: equipment);
+            equipment: equipment,
+            art: art);
     }
 
     private static void ExpandBoundsForShape(
@@ -271,11 +273,7 @@ public static class VectorRigRenderer
         float legacySwingTimer,
         byte weaponUpgradeLevel = 0)
     {
-        bool isToolOrWeapon = item.ItemId is StarterGameCatalog.WoodAxe
-            or StarterGameCatalog.StonePickaxe
-            or StarterGameCatalog.CrystalPickaxe
-            or StarterGameCatalog.IronSword;
-        if (!isToolOrWeapon && !action.IsActive)
+        if (!item.IsHeldVisible && !action.IsActive)
         {
             return;
         }
@@ -404,9 +402,7 @@ public static class VectorRigRenderer
         byte appearancePreset = 0,
         bool isBaseHero = false)
     {
-        ColorRgba baseCol = isBaseHero
-            ? ModularCharacterOverlays.ResolveModularColor(s.Color, appearancePreset, true)
-            : s.Color;
+        ColorRgba baseCol = ModularCharacterOverlays.ResolveModularColor(in s, appearancePreset, isBaseHero);
         ColorRgba fill = ApplyHitFlash(baseCol, hitFlash);
         ColorRgba outline = s.HasOutline ? ApplyHitFlash(s.OutlineColor, hitFlash * 0.45f) : default;
         float cosBone = MathF.Cos(bone.RotRad);

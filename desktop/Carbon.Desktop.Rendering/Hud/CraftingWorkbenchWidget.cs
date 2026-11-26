@@ -11,43 +11,79 @@ using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
+using Carbon.Items.Definitions;
 
 namespace Carbon.Desktop.Rendering.Hud;
 
 /// <summary>
-/// Toggleable RPG crafting workbench panel rendering vector output icons, live ingredient progress,
-/// hover highlights, and hit-testing for recipes <c>1..6</c> (SRP).
+/// Left-docked RPG crafting workbench panel with 5 category filter tabs, live bag ingredient counts,
+/// hover stat preview, and zero-overlap layout clear of the hotbar and target frames (SRP).
 /// </summary>
 internal sealed class CraftingWorkbenchWidget
 {
-    private const float PanelW = 796f;
-    private const float PanelH = 292f;
-    private const int RowsPerColumn = 9;
-    private const float ColWidth = 380f;
+    private const float PanelX = 16f;
+    private const float PanelY = 142f;
+    private const float PanelW = 344f;
+    private const float PanelH = 420f;
+    private const float TabRowY = PanelY + 30f;
+    private const float TabH = 22f;
+    private const float ListStartY = PanelY + 58f;
+    private const float RowH = 25f;
+    private const int MaxVisibleRows = 12;
+
+    private static readonly string[] s_tabLabels = ["ALL", "TOOL", "GEAR", "BLD", "POT"];
+
+    private int _activeTab;
+    private int _hoveredRecipeIdx = -1;
+
+    public bool TryHitTestTab(Vector2 mousePos, int viewportWidth, int viewportHeight)
+    {
+        _ = viewportWidth;
+        _ = viewportHeight;
+        if (mousePos.Y < TabRowY || mousePos.Y > TabRowY + TabH || mousePos.X < PanelX + 10f || mousePos.X > PanelX + PanelW - 10f)
+        {
+            return false;
+        }
+
+        float tabW = (PanelW - 24f) / s_tabLabels.Length;
+        int idx = (int)((mousePos.X - (PanelX + 10f)) / tabW);
+        if (idx >= 0 && idx < s_tabLabels.Length)
+        {
+            _activeTab = idx;
+            return true;
+        }
+
+        return false;
+    }
 
     public bool TryHitTestRecipe(Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort recipeId)
     {
+        _ = viewportWidth;
+        _ = viewportHeight;
         recipeId = 0;
-        float x = MathF.Floor((viewportWidth - PanelW) * 0.5f);
-        float y = viewportHeight - PanelH - 102f;
-
         if (!this.ContainsPoint(mousePos, viewportWidth, viewportHeight))
         {
             return false;
         }
 
         ReadOnlySpan<CraftingRecipe> recipes = StarterGameCatalog.Recipes.All;
-        for (int i = 0; i < recipes.Length; i++)
+        int visible = 0;
+        for (int i = 0; i < recipes.Length && visible < MaxVisibleRows; i++)
         {
-            int col = i / RowsPerColumn;
-            int row = i % RowsPerColumn;
-            float rx = x + 14f + (col * (ColWidth + 8f));
-            float ry = y + 36f + (row * 26f);
-            if (mousePos.X >= rx && mousePos.X <= rx + ColWidth && mousePos.Y >= ry && mousePos.Y < ry + 24f)
+            if (!MatchesTab(recipes[i], _activeTab))
+            {
+                continue;
+            }
+
+            float ry = ListStartY + (visible * (RowH + 2f));
+            if (mousePos.X >= PanelX + 10f && mousePos.X <= PanelX + PanelW - 10f &&
+                mousePos.Y >= ry && mousePos.Y < ry + RowH)
             {
                 recipeId = (ushort)recipes[i].Id;
                 return true;
             }
+
+            visible++;
         }
 
         return false;
@@ -55,9 +91,9 @@ internal sealed class CraftingWorkbenchWidget
 
     public bool ContainsPoint(Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
-        float x = MathF.Floor((viewportWidth - PanelW) * 0.5f);
-        float y = viewportHeight - PanelH - 102f;
-        return mousePos.X >= x && mousePos.X <= x + PanelW && mousePos.Y >= y && mousePos.Y <= y + PanelH;
+        _ = viewportWidth;
+        _ = viewportHeight;
+        return mousePos.X >= PanelX && mousePos.X <= PanelX + PanelW && mousePos.Y >= PanelY && mousePos.Y <= PanelY + PanelH;
     }
 
     public void DrawGeometry(
@@ -68,7 +104,7 @@ internal sealed class CraftingWorkbenchWidget
         int viewportHeight,
         Vector2? mouseScreenPos)
     {
-        int hoveredIdx = -1;
+        _hoveredRecipeIdx = -1;
         if (mouseScreenPos.HasValue && this.TryHitTestRecipe(mouseScreenPos.Value, viewportWidth, viewportHeight, out ushort hovId))
         {
             ReadOnlySpan<CraftingRecipe> all = StarterGameCatalog.Recipes.All;
@@ -76,70 +112,155 @@ internal sealed class CraftingWorkbenchWidget
             {
                 if (all[i].Id == hovId)
                 {
-                    hoveredIdx = i;
+                    _hoveredRecipeIdx = i;
                     break;
                 }
             }
         }
 
-        float x = MathF.Floor((viewportWidth - PanelW) * 0.5f);
-        float y = viewportHeight - PanelH - 102f;
-        RectangleF panel = new(x, y, PanelW, PanelH);
+        RectangleF panel = new(PanelX, PanelY, PanelW, PanelH);
         batch.FillRectangle(panel, new ColorRgba(10, 15, 28, 240));
-        batch.DrawRectangle(panel, new ColorRgba(250, 204, 21, 230), 1.5f);
+        batch.DrawRectangle(panel, new ColorRgba(250, 204, 21, 225), 1.5f);
 
-        InventoryContainer inventory = world.Inventory;
-        ReadOnlySpan<CraftingRecipe> recipes = StarterGameCatalog.Recipes.All;
-        for (int i = 0; i < recipes.Length; i++)
+        float tabW = (PanelW - 24f) / s_tabLabels.Length;
+        for (int t = 0; t < s_tabLabels.Length; t++)
         {
-            int col = i / RowsPerColumn;
-            int row = i % RowsPerColumn;
-            float rx = x + 14f + (col * (ColWidth + 8f));
-            float ry = y + 36f + (row * 26f);
-            bool canCraft = RecipeMatcher.CanCraft(inventory, recipes[i]);
-            bool hovered = i == hoveredIdx;
+            RectangleF tRect = new(PanelX + 10f + (t * tabW), TabRowY, tabW - 3f, TabH);
+            bool active = t == _activeTab;
+            batch.FillRectangle(tRect, active ? new ColorRgba(217, 119, 6, 235) : new ColorRgba(18, 28, 48, 235));
+            batch.DrawRectangle(tRect, active ? new ColorRgba(253, 224, 71, 255) : new ColorRgba(71, 85, 105, 215), 1f);
+        }
+
+        Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
+        world.CopyInventorySlots(slots);
+
+        ReadOnlySpan<CraftingRecipe> recipes = StarterGameCatalog.Recipes.All;
+        int visible = 0;
+        for (int i = 0; i < recipes.Length && visible < MaxVisibleRows; i++)
+        {
+            if (!MatchesTab(recipes[i], _activeTab))
+            {
+                continue;
+            }
+
+            float ry = ListStartY + (visible * (RowH + 2f));
+            bool canCraft = CanCraftFromSpan(slots, recipes[i]);
+            bool hovered = i == _hoveredRecipeIdx;
             ColorRgba rowBg = hovered
-                ? new ColorRgba(51, 65, 85, 225)
-                : (canCraft ? new ColorRgba(20, 83, 45, 130) : new ColorRgba(15, 23, 42, 175));
-            batch.FillRectangle(new RectangleF(rx, ry, ColWidth, 24f), rowBg);
+                ? new ColorRgba(51, 65, 85, 235)
+                : (canCraft ? new ColorRgba(20, 83, 45, 145) : new ColorRgba(15, 23, 42, 185));
+            batch.FillRectangle(new RectangleF(PanelX + 10f, ry, PanelW - 20f, RowH), rowBg);
 
             if (art is not null && art.TryGetItem(recipes[i].Output.ItemId, out CompiledItemVectorArt? outArt))
             {
-                VectorRigRenderer.DrawItemIcon(batch, outArt, new Vector2(rx + 14f, ry + 12f), targetSize: 17f);
+                VectorRigRenderer.DrawItemIcon(batch, outArt, new Vector2(PanelX + 24f, ry + (RowH * 0.5f)), targetSize: 17f);
             }
+
+            visible++;
         }
+
+        // Bottom preview strip for hovered recipe
+        batch.FillRectangle(new RectangleF(PanelX + 10f, PanelY + PanelH - 36f, PanelW - 20f, 28f), new ColorRgba(15, 23, 42, 235));
+        batch.DrawRectangle(new RectangleF(PanelX + 10f, PanelY + PanelH - 36f, PanelW - 20f, 28f), new ColorRgba(71, 85, 105, 210), 1f);
     }
 
-    public void DrawText(SpriteBatch spriteBatch, BitmapFont font, InventoryContainer inventory, int viewportWidth, int viewportHeight)
+    public void DrawText(SpriteBatch spriteBatch, BitmapFont font, IClientWorldReadModel world, int viewportWidth, int viewportHeight)
     {
-        float x = MathF.Floor((viewportWidth - PanelW) * 0.5f);
-        float y = viewportHeight - PanelH - 102f;
+        _ = viewportWidth;
+        _ = viewportHeight;
         ColorRgba black = new(10, 12, 18, 255);
+        spriteBatch.DrawOutlinedString(font, "CRAFTING WORKBENCH (Click or 1-6)", new Vector2(PanelX + 12f, PanelY + 9f), new ColorRgba(250, 204, 21, 255), black, 1, 1.5f);
 
-        spriteBatch.DrawOutlinedString(font, "CRAFTING WORKBENCH (Click Recipe or 1-6)", new Vector2(x + 16f, y + 12f), new ColorRgba(250, 204, 21, 255), black, 1, 2f);
+        float tabW = (PanelW - 24f) / s_tabLabels.Length;
+        for (int t = 0; t < s_tabLabels.Length; t++)
+        {
+            ColorRgba tc = t == _activeTab ? ColorRgba.White : new ColorRgba(148, 163, 184, 255);
+            spriteBatch.DrawOutlinedString(font, s_tabLabels[t], new Vector2(PanelX + 18f + (t * tabW), TabRowY + 6f), tc, black, 1, 1f);
+        }
+
+        Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
+        world.CopyInventorySlots(slots);
 
         ReadOnlySpan<CraftingRecipe> recipes = StarterGameCatalog.Recipes.All;
-        for (int i = 0; i < recipes.Length; i++)
+        int visible = 0;
+        for (int i = 0; i < recipes.Length && visible < MaxVisibleRows; i++)
         {
-            int col = i / RowsPerColumn;
-            int row = i % RowsPerColumn;
-            float rx = x + 14f + (col * (ColWidth + 8f));
-            float ry = y + 36f + (row * 26f);
-
             CraftingRecipe recipe = recipes[i];
-            bool canCraft = RecipeMatcher.CanCraft(inventory, recipe);
+            if (!MatchesTab(recipe, _activeTab))
+            {
+                continue;
+            }
+
+            float ry = ListStartY + (visible * (RowH + 2f));
+            bool canCraft = CanCraftFromSpan(slots, recipe);
             string outName = StarterGameCatalog.GetDisplayName(recipe.Output.ItemId);
             string firstIng = recipe.Ingredients.Count > 0
-                ? $"{inventory.CountItem(recipe.Ingredients[0].ItemId)}/{recipe.Ingredients[0].Quantity} {StarterGameCatalog.GetDisplayName(recipe.Ingredients[0].ItemId)}"
+                ? $"{CountBagItem(slots, recipe.Ingredients[0].ItemId)}/{recipe.Ingredients[0].Quantity} {StarterGameCatalog.GetDisplayName(recipe.Ingredients[0].ItemId)}"
                 : string.Empty;
             string secondIng = recipe.Ingredients.Count > 1
-                ? $" + {inventory.CountItem(recipe.Ingredients[1].ItemId)}/{recipe.Ingredients[1].Quantity} {StarterGameCatalog.GetDisplayName(recipe.Ingredients[1].ItemId)}"
+                ? $" + {CountBagItem(slots, recipe.Ingredients[1].ItemId)}/{recipe.Ingredients[1].Quantity}"
                 : string.Empty;
 
             ColorRgba rowColor = canCraft ? new ColorRgba(74, 222, 128, 255) : new ColorRgba(248, 165, 165, 255);
-            string tag = canCraft ? "[OK]" : "[--]";
+            string tag = canCraft ? "[CRAFT]" : "[--]";
             string line = $"{outName} x{recipe.Output.Quantity}: {firstIng}{secondIng} {tag}";
-            spriteBatch.DrawOutlinedString(font, line, new Vector2(rx + 30f, ry + 7f), rowColor, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, line, new Vector2(PanelX + 38f, ry + 7f), rowColor, black, 1, 1f);
+            visible++;
         }
+
+        string preview = _hoveredRecipeIdx >= 0 && _hoveredRecipeIdx < recipes.Length
+            ? StarterGameCatalog.GetActionHint(recipes[_hoveredRecipeIdx].Output.ItemId)
+            : "Hover a recipe to inspect stats; click row to craft";
+        spriteBatch.DrawOutlinedString(font, preview, new Vector2(PanelX + 16f, PanelY + PanelH - 26f), new ColorRgba(226, 232, 240, 255), black, 1, 1f);
+    }
+
+    private static bool MatchesTab(CraftingRecipe recipe, int tab)
+    {
+        if (tab == 0)
+        {
+            return true;
+        }
+
+        if (!StarterGameCatalog.Items.TryGet(recipe.Output.ItemId, out ItemArchetype? def))
+        {
+            return false;
+        }
+
+        return tab switch
+        {
+            1 => def.Category is ItemCategory.Tool or ItemCategory.Weapon,
+            2 => def.Category == ItemCategory.Armor,
+            3 => def.Category == ItemCategory.Placeable,
+            4 => def.Category == ItemCategory.Consumable,
+            _ => true,
+        };
+    }
+
+    private static int CountBagItem(ReadOnlySpan<ItemSlot> slots, uint itemId)
+    {
+        int total = 0;
+        int bagCount = Math.Min(PlayerInventoryLayout.BagLimit, slots.Length);
+        for (int i = 0; i < bagCount; i++)
+        {
+            if (slots[i].ItemId == itemId)
+            {
+                total += slots[i].Quantity;
+            }
+        }
+
+        return total;
+    }
+
+    private static bool CanCraftFromSpan(ReadOnlySpan<ItemSlot> slots, CraftingRecipe recipe)
+    {
+        for (int i = 0; i < recipe.Ingredients.Count; i++)
+        {
+            if (CountBagItem(slots, recipe.Ingredients[i].ItemId) < recipe.Ingredients[i].Quantity)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

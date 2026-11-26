@@ -48,4 +48,8 @@ public sealed partial class EntityEquipmentChanged : PacketBase<EntityEquipmentC
     /// <summary>Current character level.</summary>
     [SerializeOrder(7)]
     public ushort Level { get; set; } = 1;
+
+    /// <summary>Updated derived maximum health points (0 when unchanged).</summary>
+    [SerializeOrder(8)]
+    public float MaxHealth { get; set; }
 }

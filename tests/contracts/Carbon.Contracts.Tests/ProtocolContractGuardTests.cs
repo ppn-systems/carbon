@@ -215,11 +215,41 @@ public sealed class ProtocolContractGuardTests
             EquippedWeaponId = 3,
             WeaponUpgradeLevel = 6,
             Level = 5,
+            MaxHealth = 215f,
         };
         using EntityEquipmentChanged eqCopy = EntityEquipmentChanged.Deserialize(eq.Serialize());
         Assert.Equal(77UL, eqCopy.NetworkId);
         Assert.Equal((ushort)18, eqCopy.EquippedChestId);
         Assert.Equal((byte)6, eqCopy.WeaponUpgradeLevel);
+        Assert.Equal(215f, eqCopy.MaxHealth);
+
+        using CharacterEnterWorld enterFull = new()
+        {
+            Status = OpStatus.Ok,
+            PlayerNetworkId = 11UL,
+            WorldSeed = 1337UL,
+            SelectedHotbarSlot = 2,
+            Level = 7,
+            Experience = 340U,
+            XpToNextLevel = 550U,
+            CurrentHealth = 185f,
+            MaxHealth = 210f,
+            CurrentMana = 95f,
+            MaxMana = 140f,
+            CurrentStamina = 112f,
+            MaxStamina = 136f,
+            Defense = 24f,
+        };
+        using CharacterEnterWorld enterFullCopy = CharacterEnterWorld.Deserialize(enterFull.Serialize());
+        Assert.Equal((byte)2, enterFullCopy.SelectedHotbarSlot);
+        Assert.Equal((ushort)7, enterFullCopy.Level);
+        Assert.Equal(24f, enterFullCopy.Defense);
+
+        Assert.Equal((byte)102, AbilityInputEncoding.EncodeSkill(2));
+        Assert.True(AbilityInputEncoding.TryDecodeSkill(102, out byte decodedSkill));
+        Assert.Equal((byte)2, decodedSkill);
+        Assert.False(AbilityInputEncoding.TryDecodeSkill(2, out _));
+        Assert.Equal((byte)8, (byte)OpStatus.EnhancementFailed);
 
         using MoveInventorySlot move = new() { FromSlot = 9, ToSlot = 37, SequenceId = 12 };
         using MoveInventorySlot moveCopy = MoveInventorySlot.Deserialize(move.Serialize());

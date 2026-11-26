@@ -205,13 +205,14 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
         ushort feetId,
         ushort weaponId,
         byte weaponUpgrade,
-        ushort level)
+        ushort level,
+        float maxHealth = 0f)
     {
         for (int i = 0; i < recipientConnectionIds.Length; i++)
         {
             if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
             {
-                _ = DispatchEquipmentChangedAsync(conn, entityNetworkId, headId, chestId, legsId, feetId, weaponId, weaponUpgrade, level, _logger);
+                _ = DispatchEquipmentChangedAsync(conn, entityNetworkId, headId, chestId, legsId, feetId, weaponId, weaponUpgrade, level, maxHealth, _logger);
             }
         }
     }
@@ -615,6 +616,7 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
         ushort weaponId,
         byte weaponUpgrade,
         ushort level,
+        float maxHealth,
         ILogger logger)
     {
         try
@@ -629,6 +631,7 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
             pkt.EquippedWeaponId = weaponId;
             pkt.WeaponUpgradeLevel = weaponUpgrade;
             pkt.Level = level;
+            pkt.MaxHealth = maxHealth;
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
             await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);

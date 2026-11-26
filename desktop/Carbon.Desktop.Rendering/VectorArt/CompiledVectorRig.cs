@@ -88,6 +88,25 @@ public enum VectorFacingFilter : byte
     NotNorth = 4,
 }
 
+/// <summary>Semantic palette slot role allowing modular skin/hair/eye color substitution without color matching hacks.</summary>
+public enum VectorPaletteRole : byte
+{
+    /// <summary>Static blueprint color.</summary>
+    None = 0,
+
+    /// <summary>Primary skin tone surface.</summary>
+    Skin = 1,
+
+    /// <summary>Shaded skin tone surface.</summary>
+    SkinShadow = 2,
+
+    /// <summary>Hair pigment surface.</summary>
+    Hair = 3,
+
+    /// <summary>Eye iris pigment.</summary>
+    Eye = 4,
+}
+
 /// <summary>Evaluated per-bone runtime transform.</summary>
 public struct BonePose
 {
@@ -126,7 +145,8 @@ public readonly struct CompiledVectorShape
         bool hasOutline,
         ColorRgba outlineColor,
         float outlineThickness,
-        Vector2[]? polygonPoints)
+        Vector2[]? polygonPoints,
+        VectorPaletteRole role = VectorPaletteRole.None)
     {
         this.Kind = kind;
         this.Bone = bone;
@@ -140,6 +160,7 @@ public readonly struct CompiledVectorShape
         this.OutlineColor = outlineColor;
         this.OutlineThickness = outlineThickness;
         this.PolygonPoints = polygonPoints;
+        this.Role = role;
     }
 
     /// <summary>Primitive shape type.</summary>
@@ -177,6 +198,9 @@ public readonly struct CompiledVectorShape
 
     /// <summary>Polygon vertex coordinates if <see cref="Kind"/> is <see cref="VectorShapeKind.Polygon"/>.</summary>
     public Vector2[]? PolygonPoints { get; }
+
+    /// <summary>Semantic palette substitution role.</summary>
+    public VectorPaletteRole Role { get; }
 }
 
 /// <summary>Pre-compiled keyframe pose sample for an animation track.</summary>
@@ -240,7 +264,8 @@ public sealed class CompiledVectorRig
         Vector2 northGrip,
         Vector2[] bonePivots,
         CompiledVectorShape[] shapes,
-        Dictionary<string, CompiledVectorAnimation> animations)
+        Dictionary<string, CompiledVectorAnimation> animations,
+        bool supportsModularHuman = false)
     {
         this.Id = id;
         this.Title = title;
@@ -258,7 +283,11 @@ public sealed class CompiledVectorRig
             : new Vector2[(int)VectorBoneId.Count];
         this.Shapes = shapes;
         _animations = animations;
+        this.SupportsModularHuman = supportsModularHuman;
     }
+
+    /// <summary>Whether modular skin/hair/face and armor overlays composite onto this rig.</summary>
+    public bool SupportsModularHuman { get; }
 
     /// <summary>Gets the anatomical joint rotation pivot (in design-space pixels relative to feet) for <paramref name="bone"/>.</summary>
     public Vector2 GetBonePivot(VectorBoneId bone)

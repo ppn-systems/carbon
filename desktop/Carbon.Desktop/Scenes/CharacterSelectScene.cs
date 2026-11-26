@@ -67,6 +67,7 @@ public sealed class CharacterSelectScene : GameScene
     private byte _faceStyle;
     private byte _skinTone;
     private byte _selectedPreset;
+    private bool _isCustomizingNewHero;
     private string? _preferSelectName;
 
     private Task<IReadOnlyList<ClientCharacterSummary>>? _listTask;
@@ -90,7 +91,10 @@ public sealed class CharacterSelectScene : GameScene
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _camera = camera ?? throw new ArgumentNullException(nameof(camera));
 
-        _createNameField = new MenuTextField("NEW CHARACTER NAME", "2-20 chars", options.CharacterName, isPassword: false, maxLength: 20);
+        _createNameField = new MenuTextField("NEW CHARACTER NAME", "2-20 chars", options.CharacterName, isPassword: false, maxLength: 20)
+        {
+            CharacterFilter = static ch => char.IsLetterOrDigit(ch) || ch == '_' || ch == ' ',
+        };
     }
 
     /// <inheritdoc/>
@@ -145,17 +149,26 @@ public sealed class CharacterSelectScene : GameScene
 
         if (kb.IsKeyPressed(Key.Escape))
         {
-            this.BeginLogout();
-            return;
+            if (_createNameField.IsFocused)
+            {
+                _createNameField.IsFocused = false;
+            }
+            else
+            {
+                this.BeginLogout();
+                return;
+            }
         }
 
         if (kb.IsKeyPressed(Key.Up) && _characters.Count > 0)
         {
             _selectedIndex = (_selectedIndex + _characters.Count - 1) % _characters.Count;
+            _isCustomizingNewHero = false;
         }
         else if (kb.IsKeyPressed(Key.Down) && _characters.Count > 0)
         {
             _selectedIndex = (_selectedIndex + 1) % _characters.Count;
+            _isCustomizingNewHero = false;
         }
 
         this.HandleBackspaceRepeat(kb, (float)dt);
@@ -165,6 +178,10 @@ public sealed class CharacterSelectScene : GameScene
         Vector2 mousePos = mouse.Position;
 
         _createNameField.Update((float)dt, mousePos, leftPressed && !busy);
+        if (_createNameField.IsFocused && leftPressed)
+        {
+            _isCustomizingNewHero = true;
+        }
 
         if (leftPressed && !busy)
         {
@@ -174,6 +191,7 @@ public sealed class CharacterSelectScene : GameScene
                 {
                     _selectedIndex = i;
                     _createNameField.IsFocused = false;
+                    _isCustomizingNewHero = false;
                 }
             }
         }
@@ -181,6 +199,7 @@ public sealed class CharacterSelectScene : GameScene
         bool hasSelection = _selectedIndex >= 0 && _selectedIndex < _characters.Count;
         _enterWorldButton.IsEnabled = !busy && hasSelection;
         _createButton.IsEnabled = !busy && _characters.Count < 4;
+        _createButton.Text = _characters.Count >= 4 ? "ROSTER FULL (4/4)" : "CREATE HERO";
         _hairPrevBtn.IsEnabled = !busy;
         _hairNextBtn.IsEnabled = !busy;
         _hColPrevBtn.IsEnabled = !busy;
@@ -197,44 +216,58 @@ public sealed class CharacterSelectScene : GameScene
             return;
         }
 
+        bool changedCustom = false;
         if (_hairPrevBtn.Update(mousePos, leftDown, leftPressed))
         {
             _hairStyle = (byte)((_hairStyle + 3) % 4);
+            changedCustom = true;
         }
 
         if (_hairNextBtn.Update(mousePos, leftDown, leftPressed))
         {
             _hairStyle = (byte)((_hairStyle + 1) % 4);
+            changedCustom = true;
         }
 
         if (_hColPrevBtn.Update(mousePos, leftDown, leftPressed))
         {
             _hairColor = (byte)((_hairColor + 3) % 4);
+            changedCustom = true;
         }
 
         if (_hColNextBtn.Update(mousePos, leftDown, leftPressed))
         {
             _hairColor = (byte)((_hairColor + 1) % 4);
+            changedCustom = true;
         }
 
         if (_facePrevBtn.Update(mousePos, leftDown, leftPressed))
         {
             _faceStyle = (byte)((_faceStyle + 3) % 4);
+            changedCustom = true;
         }
 
         if (_faceNextBtn.Update(mousePos, leftDown, leftPressed))
         {
             _faceStyle = (byte)((_faceStyle + 1) % 4);
+            changedCustom = true;
         }
 
         if (_skinPrevBtn.Update(mousePos, leftDown, leftPressed))
         {
             _skinTone = (byte)((_skinTone + 3) % 4);
+            changedCustom = true;
         }
 
         if (_skinNextBtn.Update(mousePos, leftDown, leftPressed))
         {
             _skinTone = (byte)((_skinTone + 1) % 4);
+            changedCustom = true;
+        }
+
+        if (changedCustom)
+        {
+            _isCustomizingNewHero = true;
         }
 
         _selectedPreset = CharacterAppearance.Pack(_hairStyle, _hairColor, _faceStyle, _skinTone);
@@ -309,11 +342,14 @@ public sealed class CharacterSelectScene : GameScene
         }
 
         // Live modular avatar preview pedestal
+        byte previewPreset = !_isCustomizingNewHero && _selectedIndex >= 0 && _selectedIndex < _characters.Count
+            ? _characters[_selectedIndex].AppearancePreset
+            : _selectedPreset;
         float previewCx = ox + 516f;
         float previewCy = oy + 240f;
         _geometryBatch.FillCircle(new Vector2(previewCx, previewCy + 14f), 24f, new ColorRgba(0, 0, 0, 105), 16);
         _geometryBatch.DrawCircle(new Vector2(previewCx, previewCy + 14f), 25f, new ColorRgba(56, 189, 248, 225), 18, 1.5f);
-        if (_vectorArt is not null && _vectorArt.TryGetCharacter(_selectedPreset, out CompiledVectorRig? previewRig))
+        if (_vectorArt is not null && _vectorArt.TryGetCharacter(previewPreset, out CompiledVectorRig? previewRig))
         {
             VectorRigRenderer.DrawEntityRig(
                 _geometryBatch,
@@ -324,7 +360,7 @@ public sealed class CharacterSelectScene : GameScene
                 _elapsed,
                 isNormalized: false,
                 targetHeightOverride: 62f,
-                appearancePreset: _selectedPreset);
+                appearancePreset: previewPreset);
         }
         else
         {
@@ -394,7 +430,10 @@ public sealed class CharacterSelectScene : GameScene
             ? $"READY: {_characters[_selectedIndex].Name.ToUpperInvariant()}"
             : "CREATE A HERO FIRST";
         spriteBatch.DrawOutlinedString(_font, selText, new Vector2(ox + 458f, oy + 76f), ColorRgba.White, black, 1, 2f);
-        spriteBatch.DrawOutlinedString(_font, "APPEARANCE", new Vector2(ox + 586f, oy + 154f), new ColorRgba(203, 213, 225, 255), black, 1, 1.5f);
+        string previewHeader = !_isCustomizingNewHero && _selectedIndex >= 0 && _selectedIndex < _characters.Count
+            ? $"HERO: {_characters[_selectedIndex].Name.ToUpperInvariant()}"
+            : "NEW HERO BUILDER";
+        spriteBatch.DrawOutlinedString(_font, previewHeader, new Vector2(ox + 586f, oy + 154f), new ColorRgba(203, 213, 225, 255), black, 1, 1.5f);
         spriteBatch.DrawOutlinedString(_font, $"HAIR: {s_hairStyles[_hairStyle]}", new Vector2(ox + 618f, oy + 180f), ColorRgba.White, black, 1, 1f);
         spriteBatch.DrawOutlinedString(_font, $"TONE: {s_hairColors[_hairColor]}", new Vector2(ox + 618f, oy + 212f), new ColorRgba(253, 224, 71, 255), black, 1, 1f);
         spriteBatch.DrawOutlinedString(_font, $"EYES: {s_faceStyles[_faceStyle]}", new Vector2(ox + 618f, oy + 244f), new ColorRgba(125, 211, 252, 255), black, 1, 1f);

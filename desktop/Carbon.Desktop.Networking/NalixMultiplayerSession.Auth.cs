@@ -253,9 +253,23 @@ public sealed partial class NalixMultiplayerSession
             _latestServerTime = enter.TickRate > 0 ? enter.ServerTick / (double)enter.TickRate : 0.0;
             _hasServerReconcile = false;
             _visualOffset = Vector2.Zero;
-            _selectedSlot = 0;
-            _localHealth = 100f;
-            _localMaxHealth = 100f;
+            _selectedSlot = enter.SelectedHotbarSlot < 9 ? enter.SelectedHotbarSlot : (byte)0;
+            _localLevel = Math.Max((ushort)1, enter.Level);
+            _localExperience = enter.Experience;
+            _localXpToNext = Math.Max(1U, enter.XpToNextLevel);
+            _localHealth = enter.CurrentHealth;
+            _localMaxHealth = MathF.Max(1f, enter.MaxHealth);
+            _localMana = enter.CurrentMana;
+            _localMaxMana = MathF.Max(1f, enter.MaxMana);
+            _localStamina = enter.CurrentStamina;
+            _localMaxStamina = MathF.Max(1f, enter.MaxStamina);
+            _localDefense = enter.Defense;
+            _skill1Cd = 0f;
+            _skill2Cd = 0f;
+            _skill3Cd = 0f;
+            _lockedTargetNetworkId = 0UL;
+            _forgeFeedbackTimer = 0f;
+            _lastForgeSucceeded = false;
             _wasMovingLastTick = false;
             _idleKeepAliveTimer = 0f;
             _inventoryLoaded = false;
@@ -299,26 +313,34 @@ public sealed partial class NalixMultiplayerSession
     /// <inheritdoc/>
     public async Task LogoutAsync(CancellationToken ct = default)
     {
-        await this.TearDownUdpAsync().ConfigureAwait(false);
-
-        TcpSession? tcp = _tcpSession;
-        if (tcp is { IsConnected: true } && _isAuthenticated)
+        await _connectGate.WaitAsync(ct).ConfigureAwait(false);
+        try
         {
-            try
-            {
-                RequestOptions reqOpts = RequestOptions.Default.WithTimeout(2000).WithEncrypt(tcp.State.EncryptionEnabled);
-                using PacketScope<AuthLogout> lease = PacketFactory<AuthLogout>.Acquire();
-                using MutationResult _ = await tcp.RequestAsync<MutationResult>(lease.Value, reqOpts, predicate: null, ct).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException)
-            {
-                // Best-effort server logout before clearing local world state.
-            }
-        }
+            await this.TearDownUdpAsync().ConfigureAwait(false);
 
-        this.ClearWorldState();
-        _isAuthenticated = false;
-        _activeCharacterName = string.Empty;
+            TcpSession? tcp = _tcpSession;
+            if (tcp is { IsConnected: true } && _isAuthenticated)
+            {
+                try
+                {
+                    RequestOptions reqOpts = RequestOptions.Default.WithTimeout(2000).WithEncrypt(tcp.State.EncryptionEnabled);
+                    using PacketScope<AuthLogout> lease = PacketFactory<AuthLogout>.Acquire();
+                    using MutationResult _ = await tcp.RequestAsync<MutationResult>(lease.Value, reqOpts, predicate: null, ct).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    // Best-effort server logout before clearing local world state.
+                }
+            }
+
+            this.ClearWorldState();
+            _isAuthenticated = false;
+            _activeCharacterName = string.Empty;
+        }
+        finally
+        {
+            _ = _connectGate.Release();
+        }
     }
 
     /// <inheritdoc/>
@@ -388,8 +410,12 @@ public sealed partial class NalixMultiplayerSession
 
     private async Task FetchInventorySnapshotAsync(TcpSession tcp, RequestOptions reqOpts, CancellationToken ct)
     {
-        _inventoryLoaded = false;
-        _inventory.Clear();
+        lock (_worldGate)
+        {
+            _inventoryLoaded = false;
+            _inventory.Clear();
+        }
+
         try
         {
             using PacketScope<InventoryRequest> lease = PacketFactory<InventoryRequest>.Acquire();
@@ -405,12 +431,18 @@ public sealed partial class NalixMultiplayerSession
 
                 ItemSlot rawSlot = new(item.ItemId, item.Count, 0UL, item.Durability);
                 ItemSlot hydrated = ItemEnhancementPolicy.WithUpgradeLevel(in rawSlot, item.UpgradeLevel);
-                _inventory.SetSlot(item.SlotIndex, in hydrated);
+                lock (_worldGate)
+                {
+                    _inventory.SetSlot(item.SlotIndex, in hydrated);
+                }
             }
         }
         finally
         {
-            _inventoryLoaded = true;
+            lock (_worldGate)
+            {
+                _inventoryLoaded = true;
+            }
         }
     }
 

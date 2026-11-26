@@ -9,7 +9,6 @@ using Carbon.Contracts.Items;
 using Carbon.Contracts.Items.C2S;
 using Carbon.Contracts.Items.S2C;
 using Carbon.Handlers.Internal;
-using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Nalix.Abstractions.Injection;
 using Nalix.Abstractions.Networking.Packets;
@@ -24,7 +23,7 @@ namespace Carbon.Handlers.Items;
 [PacketHandler("Carbon.Items")]
 public static partial class ItemHandlers
 {
-    [Inject] private static IAuthoritativeWorld s_world = null!;
+    [Inject] private static IWorldInventoryService s_world = null!;
     [Inject] private static ISessionTransportRegistry s_transports = null!;
 
     /// <summary>Opcode <c>0x4001</c>. Streams active inventory slots ending in a terminator.</summary>
@@ -49,7 +48,7 @@ public static partial class ItemHandlers
                 pkt.ItemId = (ushort)slot.ItemId;
                 pkt.Count = slot.Quantity;
                 pkt.Durability = slot.Durability;
-                pkt.UpgradeLevel = ItemEnhancementPolicy.GetUpgradeLevel(in slot);
+                pkt.UpgradeLevel = slot.UpgradeLevel;
                 await context.Sender.ReplyAsync(pkt).ConfigureAwait(false);
             }
         }

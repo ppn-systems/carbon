@@ -101,5 +101,6 @@
       "outlineColor": "#0F172A",
       "outlineThickness": 0.8
     }
-  ]
+  ],
+  "heldVisible": true
 }

@@ -84,5 +84,11 @@
       "outlineColor": "#451A03",
       "outlineThickness": 0.8
     }
-  ]
+  ],
+  "heldVisible": false,
+  "armorVisual": {
+    "primaryColor": "#92400E",
+    "secondaryColor": "#D97706",
+    "trimColor": "#F59E0B"
+  }
 }

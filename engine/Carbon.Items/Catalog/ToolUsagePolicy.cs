@@ -104,7 +104,7 @@ public static class ToolUsagePolicy
                 ToolStrikeOutcome.WornOutTool);
         }
 
-        float loss = slot.ItemId == StarterGameCatalog.IronSword ? 1.5f : 2.2f;
+        float loss = def.Category == ItemCategory.Weapon ? 1.5f : 2.2f;
         return new CombatStrikeEvaluation(baseDamage, loss, ToolStrikeOutcome.Optimal);
     }
 
@@ -137,7 +137,7 @@ public static class ToolUsagePolicy
                 ToolStrikeOutcome.WornOutTool);
         }
 
-        if (slot.ItemId == StarterGameCatalog.IronSword)
+        if (def is { Category: ItemCategory.Weapon })
         {
             if (targetKind == ToolTargetKind.Mineral)
             {
@@ -147,16 +147,14 @@ public static class ToolUsagePolicy
             return new PropStrikeEvaluation(12f * upgradeMult, 1, 4.5f, ToolStrikeOutcome.SwordMisuseOnWood);
         }
 
-        if (slot.ItemId == StarterGameCatalog.WoodAxe && targetKind == ToolTargetKind.Mineral)
+        if (def is { Category: ItemCategory.Tool } && targetKind == ToolTargetKind.Mineral && def.MineralHarvestDamage < 40f)
         {
             return new PropStrikeEvaluation(0f, 0, 4.0f, ToolStrikeOutcome.BladeBluntOnStone);
         }
 
-        if ((slot.ItemId is StarterGameCatalog.StonePickaxe or StarterGameCatalog.CrystalPickaxe) &&
-            targetKind == ToolTargetKind.Flora &&
-            def is not null)
+        if (def is { Category: ItemCategory.Tool } && targetKind == ToolTargetKind.Flora && def.MineralHarvestDamage > def.FloraHarvestDamage)
         {
-            float pickOnWoodDmg = StarterGameCatalog.GetFloraHarvestDamage(slot.ItemId) * 0.72f * upgradeMult;
+            float pickOnWoodDmg = def.FloraHarvestDamage * 0.72f * upgradeMult;
             if (def.HarvestTier < propRequiredTier)
             {
                 return new PropStrikeEvaluation(0f, def.HarvestTier, 1.5f, ToolStrikeOutcome.InsufficientTier);

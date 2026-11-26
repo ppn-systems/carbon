@@ -1,5 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Items.Containers;
@@ -89,6 +90,18 @@ public interface IClientWorldReadModel : IClientConnectionStatus, IClientCharact
 
     /// <summary>Gets the active world seed.</summary>
     ulong WorldSeed { get; }
+
+    /// <summary>Gets the network ID of the currently tab/click-locked hostile target (<c>0</c> if none).</summary>
+    ulong LockedTargetNetworkId { get; }
+
+    /// <summary>Gets remaining seconds for the forge outcome feedback pulse (&gt; 0 after upgrade attempt).</summary>
+    float ForgeFeedbackTimer { get; }
+
+    /// <summary>Gets whether the most recent forge enhancement attempt succeeded.</summary>
+    bool LastForgeSucceeded { get; }
+
+    /// <summary>Copies the player's inventory slots into <paramref name="destination"/> under session synchronization.</summary>
+    void CopyInventorySlots(Span<ItemSlot> destination);
 
     /// <summary>Drains newly buffered floating combat/loot events into <paramref name="destination"/>.</summary>
     void DrainCombatEvents(List<ClientCombatEvent> destination);

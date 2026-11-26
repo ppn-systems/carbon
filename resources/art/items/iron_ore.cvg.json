@@ -108,5 +108,6 @@
       "ry": 1.2,
       "color": "#FED7AA"
     }
-  ]
+  ],
+  "heldVisible": false
 }

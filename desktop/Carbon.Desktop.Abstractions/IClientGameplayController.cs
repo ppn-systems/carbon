@@ -47,4 +47,10 @@ public interface IClientGameplayController
 
     /// <summary>Attempts to pick up the closest ground loot item within range.</summary>
     bool TryPickupNearbyLoot();
+
+    /// <summary>Sets or clears the locked target network ID (<c>0</c> clears lock).</summary>
+    void SetLockedTarget(ulong networkId);
+
+    /// <summary>Selects or cycles the nearest alive hostile monster within <paramref name="maxRange"/> world units.</summary>
+    bool CycleNearestHostileTarget(float maxRange = 340f);
 }

@@ -64,16 +64,24 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
             ?? throw new InvalidDataException("catalog.cvg.json deserialized to null.");
 
         CarbonVectorArtLibrary lib = new();
+        Dictionary<string, CompiledVectorRig> compiledCache = new(StringComparer.OrdinalIgnoreCase);
 
         for (int i = 0; i < catalog.Characters.Count; i++)
         {
             CvgCharacterCatalogDto entry = catalog.Characters[i];
-            lib._characters[entry.Preset] = CompileRig(
-                Path.Combine(artRoot, entry.File),
-                entry.Title,
-                "ADVENTURER",
-                1,
-                entry.AccentColor);
+            string fullPath = Path.GetFullPath(Path.Combine(artRoot, entry.File));
+            if (!compiledCache.TryGetValue(fullPath, out CompiledVectorRig? compiled))
+            {
+                compiled = CompileRig(
+                    fullPath,
+                    entry.Title,
+                    "ADVENTURER",
+                    1,
+                    entry.AccentColor);
+                compiledCache[fullPath] = compiled;
+            }
+
+            lib._characters[entry.Preset] = compiled;
         }
 
         for (int i = 0; i < catalog.Monsters.Count; i++)
@@ -189,7 +197,8 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
             northGrip,
             pivots,
             shapes,
-            anims);
+            anims,
+            dto.SupportsModularHuman);
     }
 
     private static CompiledItemVectorArt CompileItem(string filePath)
@@ -210,6 +219,10 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
         }
 
         CompiledVectorShape[] shapes = CompileShapes(dto.Shapes, dto.Palette, filePath);
+        ColorRgba primaryArmor = dto.ArmorVisual is not null ? ParseColor(dto.ArmorVisual.PrimaryColor, dto.Palette) : default;
+        ColorRgba secondaryArmor = dto.ArmorVisual is not null ? ParseColor(dto.ArmorVisual.SecondaryColor, dto.Palette) : default;
+        ColorRgba trimArmor = dto.ArmorVisual is not null ? ParseColor(dto.ArmorVisual.TrimColor, dto.Palette) : default;
+
         return new CompiledItemVectorArt(
             dto.ItemId,
             dto.Id,
@@ -220,7 +233,11 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
             new Vector2(dto.GripX, dto.GripY),
             dto.RestAngleDeg * (MathF.PI / 180f),
             dto.WorldScale > 0f ? dto.WorldScale : 1f,
-            shapes);
+            shapes,
+            dto.HeldVisible,
+            primaryArmor,
+            secondaryArmor,
+            trimArmor);
     }
 
     private static CompiledVectorShape[] CompileShapes(
@@ -262,6 +279,7 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
 
             bool hasOutline = !string.IsNullOrWhiteSpace(s.OutlineColor);
             ColorRgba outline = hasOutline ? ParseColor(s.OutlineColor!, palette) : default;
+            VectorPaletteRole role = ParseRole(s.Role);
 
             compiled[i] = new CompiledVectorShape(
                 kind,
@@ -275,7 +293,8 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
                 hasOutline,
                 outline,
                 s.OutlineThickness > 0f ? s.OutlineThickness : 1.1f,
-                pts);
+                pts,
+                role);
         }
 
         return compiled;
@@ -397,6 +416,18 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
         "notnorth" => VectorFacingFilter.NotNorth,
         "any" or _ => VectorFacingFilter.Any,
     };
+
+    private static VectorPaletteRole ParseRole(string? role) =>
+        string.IsNullOrWhiteSpace(role)
+            ? VectorPaletteRole.None
+            : role.ToLowerInvariant() switch
+            {
+                "skin" => VectorPaletteRole.Skin,
+                "skinshadow" or "skin_shadow" => VectorPaletteRole.SkinShadow,
+                "hair" => VectorPaletteRole.Hair,
+                "eye" => VectorPaletteRole.Eye,
+                _ => VectorPaletteRole.None,
+            };
 
     private static ColorRgba ParseColor(string raw, Dictionary<string, string>? palette)
     {

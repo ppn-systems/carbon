@@ -60,5 +60,6 @@
       "outlineColor": "#451A03",
       "outlineThickness": 0.8
     }
-  ]
+  ],
+  "heldVisible": true
 }

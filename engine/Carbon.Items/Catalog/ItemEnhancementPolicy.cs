@@ -7,7 +7,7 @@ using Carbon.Items.Definitions;
 namespace Carbon.Items.Catalog;
 
 /// <summary>
-/// Governs forge enhancement levels (<c>+0..+10</c>) packed into <see cref="ItemSlot.InstanceId"/>,
+/// Governs forge enhancement levels (<c>+0..+10</c>) stored on <see cref="ItemSlot.UpgradeLevel"/>,
 /// stat scaling multipliers, effective max durability, and upgrade material recipes.
 /// </summary>
 public static class ItemEnhancementPolicy
@@ -17,15 +17,11 @@ public static class ItemEnhancementPolicy
 
     /// <summary>Extracts the item's enhancement level (<c>0..10</c>) from <paramref name="slot"/>.</summary>
     public static byte GetUpgradeLevel(in ItemSlot slot) =>
-        slot.IsEmpty ? (byte)0 : (byte)Math.Clamp(slot.InstanceId & 0xFFUL, 0UL, MaxUpgradeLevel);
+        slot.IsEmpty ? (byte)0 : Math.Clamp(slot.UpgradeLevel, (byte)0, MaxUpgradeLevel);
 
-    /// <summary>Returns a copy of <paramref name="slot"/> storing <paramref name="upgradeLevel"/> in its low byte.</summary>
-    public static ItemSlot WithUpgradeLevel(in ItemSlot slot, byte upgradeLevel)
-    {
-        byte clamped = Math.Clamp(upgradeLevel, (byte)0, MaxUpgradeLevel);
-        ulong nextId = (slot.InstanceId & ~0xFFUL) | clamped;
-        return slot with { InstanceId = nextId };
-    }
+    /// <summary>Returns a copy of <paramref name="slot"/> with <paramref name="upgradeLevel"/> updated cleanly.</summary>
+    public static ItemSlot WithUpgradeLevel(in ItemSlot slot, byte upgradeLevel) =>
+        slot with { UpgradeLevel = Math.Clamp(upgradeLevel, (byte)0, MaxUpgradeLevel) };
 
     /// <summary>Returns the weapon/harvest/defense multiplier for <paramref name="upgradeLevel"/> (<c>+12%</c> per level).</summary>
     public static float GetStatMultiplier(byte upgradeLevel) =>

@@ -55,6 +55,7 @@ internal sealed class CvgShapeDto
     public string Kind { get; set; } = "ellipse";
     public string Bone { get; set; } = "body";
     public string Facing { get; set; } = "any";
+    public string? Role { get; set; }
     public float X { get; set; }
     public float Y { get; set; }
     public float Rx { get; set; }
@@ -97,6 +98,7 @@ internal sealed class CvgEntityRigDto
 {
     public int SchemaVersion { get; set; } = 1;
     public string Id { get; set; } = string.Empty;
+    public bool SupportsModularHuman { get; set; }
     public float DesignHeight { get; set; } = 34f;
     public float WorldHeight { get; set; } = 34f;
     public float HeadTopOffset { get; set; } = 30f;
@@ -108,6 +110,13 @@ internal sealed class CvgEntityRigDto
     public Dictionary<string, CvgAnimDto> Animations { get; set; } = [];
 }
 
+internal sealed class CvgEquipmentVisualDto
+{
+    public string PrimaryColor { get; set; } = "#92400E";
+    public string SecondaryColor { get; set; } = "#B45309";
+    public string TrimColor { get; set; } = "#F59E0B";
+}
+
 internal sealed class CvgItemBlueprintDto
 {
     public int SchemaVersion { get; set; } = 1;
@@ -117,6 +126,8 @@ internal sealed class CvgItemBlueprintDto
     public byte Tier { get; set; } = 1;
     public string CategoryLabel { get; set; } = "Item";
     public string AccentColor { get; set; } = "#94A3B8";
+    public bool HeldVisible { get; set; } = true;
+    public CvgEquipmentVisualDto? ArmorVisual { get; set; }
     public float GripX { get; set; }
     public float GripY { get; set; }
     public float RestAngleDeg { get; set; }

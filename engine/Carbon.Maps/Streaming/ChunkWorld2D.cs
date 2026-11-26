@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
 using Carbon.Maps.Biomes;
@@ -310,20 +311,46 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     /// </summary>
     /// <param name="currentTick">Current simulation tick.</param>
     /// <returns>The total number of props respawned.</returns>
-    public int ProcessPropRespawns(ulong currentTick)
+    public int ProcessPropRespawns(ulong currentTick) =>
+        this.ProcessPropRespawns(currentTick, respawnedProps: null);
+
+    /// <summary>
+    /// Restores any destroyed props whose scheduled respawn tick has been reached and optionally collects
+    /// the restored world tile coordinates &amp; max durability for network replication.
+    /// </summary>
+    public int ProcessPropRespawns(
+        ulong currentTick,
+        List<(int TileX, int TileY, uint Revision, float MaxDurability)>? respawnedProps)
     {
         int respawned = 0;
+        List<int>? localKeys = respawnedProps is not null ? [] : null;
         lock (_gate)
         {
             ReadOnlySpan<ChunkDelta> all = _deltas.All;
             for (int i = 0; i < all.Length; i++)
             {
                 ChunkDelta delta = all[i];
-                int expired = delta.RemoveExpiredPropStates(currentTick);
+                localKeys?.Clear();
+                int expired = delta.RemoveExpiredPropStates(currentTick, localKeys);
                 if (expired > 0)
                 {
                     respawned += expired;
                     _streamer.RebuildIfResident(delta.ChunkX, delta.ChunkY);
+
+                    if (respawnedProps is not null && localKeys is not null && _streamer.TryGet(delta.ChunkX, delta.ChunkY, out Chunk2D? chunk) && chunk is not null)
+                    {
+                        int baseTx = delta.ChunkX * Chunk2D.Size;
+                        int baseTy = delta.ChunkY * Chunk2D.Size;
+                        for (int k = 0; k < localKeys.Count; k++)
+                        {
+                            int key = localKeys[k];
+                            int lx = key & Chunk2D.SizeMask;
+                            int ly = key >> Chunk2D.SizeBits;
+                            int pIdx = chunk.FindPropIndexAt(lx, ly);
+                            float maxDur = pIdx >= 0 ? chunk.Props[pIdx].Destructibility.MaxDurability : 100f;
+                            respawnedProps.Add((baseTx + lx, baseTy + ly, delta.Revision, maxDur));
+                        }
+                    }
                 }
             }
         }

@@ -80,5 +80,11 @@
       "h": 1.6,
       "color": "#E2E8F0"
     }
-  ]
+  ],
+  "heldVisible": false,
+  "armorVisual": {
+    "primaryColor": "#94A3B8",
+    "secondaryColor": "#64748B",
+    "trimColor": "#E2E8F0"
+  }
 }

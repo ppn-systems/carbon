@@ -73,5 +73,6 @@
       "thickness": 1.2,
       "color": "#B45309"
     }
-  ]
+  ],
+  "heldVisible": false
 }

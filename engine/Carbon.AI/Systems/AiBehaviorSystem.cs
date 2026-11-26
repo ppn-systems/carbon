@@ -283,13 +283,10 @@ public sealed class AiBehaviorSystem : ISimulationSystem
                 case AiState.ReturnHome:
                     Vector2 toHome = brain.HomePosition - pos;
                     float homeDistSq = toHome.LengthSquared();
-                    if (homeDistSq <= 16f)
+                    if (homeDistSq <= 64f)
                     {
                         SetEntityVelocity(world, aiEntity, Vector2.Zero);
-                        if (pathStore.TryGet(aiEntity, out PathWaypointBuffer? returnPath))
-                        {
-                            returnPath.Clear();
-                        }
+                        ResetAggroAndPath(threatStore, pathStore, aiEntity);
 
                         if (entities.HasHealth(aiEntity))
                         {
@@ -312,6 +309,17 @@ public sealed class AiBehaviorSystem : ISimulationSystem
                     }
                     else
                     {
+                        if (entities.HasHealth(aiEntity))
+                        {
+                            ref HealthComponent hp = ref entities.GetHealth(aiEntity);
+                            if (hp.Current < hp.Max)
+                            {
+                                float healed = MathF.Min(hp.Max, hp.Current + (hp.Max * 0.25f * tick.DeltaTime));
+                                hp = new HealthComponent(healed, hp.Max);
+                                world.MarkDirty(aiEntity, EntityDirtyMask.Health);
+                            }
+                        }
+
                         float speedMult = physics is not null ? physics.GetMoveSpeedMultiplier(pos) : 1f;
                         Vector2 dirHome = this.ComputeReturnDirection(
                             world,
@@ -647,6 +655,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
         target.IsValid &&
         entities.IsAlive(target) &&
         entities.HasTransform(target) &&
+        (!entities.HasCollider(target) || !entities.GetCollider(target).IsTrigger) &&
         (!entities.HasHealth(target) || !entities.GetHealth(target).IsDead);
 
     private static void SetEntityVelocity(WorldSimulation world, Entity entity, Vector2 linear)

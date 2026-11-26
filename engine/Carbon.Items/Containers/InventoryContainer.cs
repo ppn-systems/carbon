@@ -102,7 +102,7 @@ public sealed class InventoryContainer
 
         int remaining = incoming.Quantity;
 
-        if (incoming.IsStackable)
+        if (maxStackSize > 1 && incoming.IsStackable)
         {
             for (int i = 0; i < _slots.Length && remaining > 0; i++)
             {
@@ -202,7 +202,7 @@ public sealed class InventoryContainer
             return true;
         }
 
-        if (source.IsStackable && target.IsStackable && source.ItemId == target.ItemId && target.Quantity < maxStackSize)
+        if (maxStackSize > 1 && source.IsStackable && target.IsStackable && source.ItemId == target.ItemId && target.Quantity < maxStackSize)
         {
             int transfer = Math.Min(source.Quantity, maxStackSize - target.Quantity);
             this.SetSlotInternal(toSlot, target with { Quantity = target.Quantity + transfer });

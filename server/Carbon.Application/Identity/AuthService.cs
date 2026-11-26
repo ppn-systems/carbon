@@ -142,7 +142,12 @@ public sealed class AuthService : IAuthService
             MaxHealth: 100f,
             SelectedHotbarSlot: 0,
             InventoryBlob: [],
-            UpdatedAtUtc: _time.GetUtcNow());
+            UpdatedAtUtc: _time.GetUtcNow(),
+            Experience: 0U,
+            CurrentMana: 80f,
+            MaxMana: 80f,
+            CurrentStamina: 100f,
+            MaxStamina: 100f);
 
         bool inserted = await _characters.TryCreateAsync(created, ct).ConfigureAwait(false);
         return inserted

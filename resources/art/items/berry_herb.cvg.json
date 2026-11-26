@@ -94,5 +94,6 @@
       "ry": 0.8,
       "color": "#FFFFFF"
     }
-  ]
+  ],
+  "heldVisible": false
 }

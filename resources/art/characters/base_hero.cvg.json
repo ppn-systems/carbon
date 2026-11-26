@@ -282,7 +282,8 @@
       "ry": 2.1,
       "color": "$skin",
       "outlineColor": "$outline",
-      "outlineThickness": 0.9
+      "outlineThickness": 0.9,
+      "role": "skin"
     },
     {
       "kind": "capsule",
@@ -307,7 +308,8 @@
       "ry": 2.0,
       "color": "$skinShadow",
       "outlineColor": "$outline",
-      "outlineThickness": 0.9
+      "outlineThickness": 0.9,
+      "role": "skinShadow"
     },
     {
       "kind": "capsule",
@@ -446,7 +448,8 @@
       "ry": 6.4,
       "color": "$skin",
       "outlineColor": "$outline",
-      "outlineThickness": 1.2
+      "outlineThickness": 1.2,
+      "role": "skin"
     },
     {
       "kind": "ellipse",
@@ -456,7 +459,8 @@
       "y": -23.0,
       "rx": 5.2,
       "ry": 2.1,
-      "color": "$skinShadow"
+      "color": "$skinShadow",
+      "role": "skinShadow"
     },
     {
       "kind": "ellipse",
@@ -486,7 +490,8 @@
       "y": -26.5,
       "rx": 1.6,
       "ry": 2.0,
-      "color": "$skinShadow"
+      "color": "$skinShadow",
+      "role": "skinShadow"
     },
     {
       "kind": "capsule",
@@ -511,7 +516,8 @@
       "ry": 2.2,
       "color": "$skin",
       "outlineColor": "$outline",
-      "outlineThickness": 0.9
+      "outlineThickness": 0.9,
+      "role": "skin"
     },
     {
       "kind": "capsule",
@@ -536,7 +542,8 @@
       "ry": 2.2,
       "color": "$skin",
       "outlineColor": "$outline",
-      "outlineThickness": 0.9
+      "outlineThickness": 0.9,
+      "role": "skin"
     },
     {
       "kind": "capsule",
@@ -561,7 +568,8 @@
       "ry": 2.0,
       "color": "$skinShadow",
       "outlineColor": "$outline",
-      "outlineThickness": 0.9
+      "outlineThickness": 0.9,
+      "role": "skinShadow"
     }
   ],
   "animations": {
@@ -1298,5 +1306,6 @@
         }
       ]
     }
-  }
+  },
+  "supportsModularHuman": true
 }

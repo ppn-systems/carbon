@@ -17,12 +17,15 @@ internal readonly record struct DesktopInputFrame(
     float? ZoomMultiplier,
     bool SpaceActionPressed,
     bool LeftClickPressed,
+    bool LeftMouseDown,
     bool RightClickPressed,
+    bool ShiftHeld,
     int ScrollSlotDelta,
     Vector2 MouseScreenPosition,
     byte? NumberSlotPressed,
     byte? SkillPressed,
     bool ToggleInventoryPressed,
+    bool CycleTargetPressed,
     bool InteractOrPickupPressed,
     bool DropItemPressed,
     bool ToggleCraftPressed,
@@ -85,18 +88,22 @@ internal static class DesktopInputController
             ? -1
             : (mouse.ScrollDelta.Y < -0.01f ? 1 : 0);
 
+        bool shiftHeld = keyboard.IsKeyDown(Key.ShiftLeft) || keyboard.IsKeyDown(Key.ShiftRight);
         return new DesktopInputFrame(
             MoveDirection: moveDir,
-            Sprint: keyboard.IsKeyDown(Key.ShiftLeft) || keyboard.IsKeyDown(Key.ShiftRight),
+            Sprint: shiftHeld,
             ZoomMultiplier: zoomMultiplier,
             SpaceActionPressed: keyboard.IsKeyPressed(Key.Space),
             LeftClickPressed: mouse.IsButtonPressed(MouseButton.Left),
+            LeftMouseDown: mouse.IsButtonDown(MouseButton.Left),
             RightClickPressed: mouse.IsButtonPressed(MouseButton.Right),
+            ShiftHeld: shiftHeld,
             ScrollSlotDelta: scrollDelta,
             MouseScreenPosition: mouse.Position,
             NumberSlotPressed: numberSlot,
             SkillPressed: skillPressed,
-            ToggleInventoryPressed: keyboard.IsKeyPressed(Key.I) || keyboard.IsKeyPressed(Key.Tab),
+            ToggleInventoryPressed: keyboard.IsKeyPressed(Key.I) || keyboard.IsKeyPressed(Key.B),
+            CycleTargetPressed: keyboard.IsKeyPressed(Key.Tab),
             InteractOrPickupPressed: keyboard.IsKeyPressed(Key.E),
             DropItemPressed: keyboard.IsKeyPressed(Key.X),
             ToggleCraftPressed: keyboard.IsKeyPressed(Key.C),
@@ -104,7 +111,7 @@ internal static class DesktopInputController
             HarvestPressed: keyboard.IsKeyPressed(Key.F),
             ToggleDoorPressed: keyboard.IsKeyPressed(Key.G),
             PlaceHousePressed: keyboard.IsKeyPressed(Key.H),
-            ToggleDebugPressed: keyboard.IsKeyPressed(Key.B),
+            ToggleDebugPressed: keyboard.IsKeyPressed(Key.F3),
             ScreenshotPressed: keyboard.IsKeyPressed(Key.F12),
             EscapePressed: keyboard.IsKeyPressed(Key.Escape));
     }

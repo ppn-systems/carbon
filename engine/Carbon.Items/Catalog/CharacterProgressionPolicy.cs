@@ -17,6 +17,21 @@ public readonly record struct DerivedCharacterStats(
     float MoveSpeedMultiplier);
 
 /// <summary>
+/// Declarative combat/resource specification for an active player skill.
+/// </summary>
+public readonly record struct SkillSpec(
+    byte SkillSlot,
+    string DisplayName,
+    float ManaCost,
+    float StaminaCost,
+    float CooldownSeconds,
+    float Radius,
+    float HalfAngleRad,
+    float DamageMultiplier,
+    float SelfHealRatio,
+    float StaminaRestore);
+
+/// <summary>
 /// Central progression policy governing character leveling curves, armor stat aggregation, damage mitigation,
 /// stamina/mana economy, and active skill costs.
 /// </summary>
@@ -87,6 +102,49 @@ public static class CharacterProgressionPolicy
         return MathF.Max(1f, rawDamage * (100f / (100f + (effDef * 4f))));
     }
 
+    /// <summary>Resolves full combat &amp; resource specs for <paramref name="skillSlot"/> (<c>1..3</c>).</summary>
+    public static bool TryGetSkillSpec(byte skillSlot, out SkillSpec spec)
+    {
+        spec = skillSlot switch
+        {
+            SkillWhirlwind => new SkillSpec(
+                SkillWhirlwind,
+                "Whirlwind [Q]",
+                ManaCost: 18f,
+                StaminaCost: 22f,
+                CooldownSeconds: 3.5f,
+                Radius: 96f,
+                HalfAngleRad: MathF.PI,
+                DamageMultiplier: 1.55f,
+                SelfHealRatio: 0f,
+                StaminaRestore: 0f),
+            SkillArcaneNova => new SkillSpec(
+                SkillArcaneNova,
+                "Arcane Nova [R]",
+                ManaCost: 30f,
+                StaminaCost: 10f,
+                CooldownSeconds: 5.0f,
+                Radius: 170f,
+                HalfAngleRad: 0.72f,
+                DamageMultiplier: 2.10f,
+                SelfHealRatio: 0f,
+                StaminaRestore: 0f),
+            SkillVitalSurge => new SkillSpec(
+                SkillVitalSurge,
+                "Vital Surge [V]",
+                ManaCost: 35f,
+                StaminaCost: 0f,
+                CooldownSeconds: 8.0f,
+                Radius: 0f,
+                HalfAngleRad: 0f,
+                DamageMultiplier: 0f,
+                SelfHealRatio: 0.40f,
+                StaminaRestore: 45f),
+            _ => default,
+        };
+        return spec.SkillSlot != 0;
+    }
+
     /// <summary>Returns MP cost, Stamina cost, cooldown seconds, and base name for <paramref name="skillSlot"/> (<c>1..3</c>).</summary>
     public static bool TryGetSkillSpec(
         byte skillSlot,
@@ -95,35 +153,19 @@ public static class CharacterProgressionPolicy
         out float staminaCost,
         out float cooldownSeconds)
     {
-        switch (skillSlot)
+        if (TryGetSkillSpec(skillSlot, out SkillSpec spec))
         {
-            case SkillWhirlwind:
-                displayName = "Whirlwind [Q]";
-                manaCost = 18f;
-                staminaCost = 22f;
-                cooldownSeconds = 3.5f;
-                return true;
-
-            case SkillArcaneNova:
-                displayName = "Arcane Nova [R]";
-                manaCost = 30f;
-                staminaCost = 10f;
-                cooldownSeconds = 5.0f;
-                return true;
-
-            case SkillVitalSurge:
-                displayName = "Vital Surge [V]";
-                manaCost = 35f;
-                staminaCost = 0f;
-                cooldownSeconds = 8.0f;
-                return true;
-
-            default:
-                displayName = string.Empty;
-                manaCost = 0f;
-                staminaCost = 0f;
-                cooldownSeconds = 0f;
-                return false;
+            displayName = spec.DisplayName;
+            manaCost = spec.ManaCost;
+            staminaCost = spec.StaminaCost;
+            cooldownSeconds = spec.CooldownSeconds;
+            return true;
         }
+
+        displayName = string.Empty;
+        manaCost = 0f;
+        staminaCost = 0f;
+        cooldownSeconds = 0f;
+        return false;
     }
 }
