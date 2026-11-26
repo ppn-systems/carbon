@@ -118,4 +118,20 @@ public sealed partial class PlayerStatsSync : PacketBase<PlayerStatsSync>, IPack
     /// <summary>Progress of the meal being eaten, <c>0..1</c>, or a negative value when not eating.</summary>
     [SerializeOrder(24)]
     public float EatProgress { get; set; } = -1f;
+
+    /// <summary>Current rest level, <c>0..MaxRest</c> (ADR-018).</summary>
+    [SerializeOrder(25)]
+    public float Rest { get; set; }
+
+    /// <summary>Rest capacity.</summary>
+    [SerializeOrder(26)]
+    public float MaxRest { get; set; }
+
+    /// <summary>Rest state: <c>0</c>=Rested, <c>1</c>=Tired, <c>2</c>=VeryTired, <c>3</c>=Exhausted.</summary>
+    [SerializeOrder(27)]
+    public byte RestState { get; set; }
+
+    /// <summary>How the player is resting right now.</summary>
+    [SerializeOrder(28)]
+    public RestMode RestMode { get; set; }
 }

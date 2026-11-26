@@ -550,6 +550,19 @@ public sealed partial class MultiplayerSession
     }
 
     /// <inheritdoc/>
+    public bool TryToggleRest()
+    {
+        if (!this.IsReady || _tcpSession is not { IsConnected: true })
+        {
+            return false;
+        }
+
+        bool rest = _localRestMode == RestMode.None;
+        _ = this.SendTcpPooledAsync<EntityRestRequest>(p => p.Rest = rest);
+        return true;
+    }
+
+    /// <inheritdoc/>
     public bool TryPickupNearbyLoot()
     {
         if (!this.IsReady || _tcpSession is not { IsConnected: true })

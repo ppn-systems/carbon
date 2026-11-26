@@ -96,6 +96,12 @@ public static class CarbonUiPalette
     /// <summary>Hunger bar fill while hungry or worse.</summary>
     public static readonly ColorRgba HungerWarnFill = new(222, 88, 40, 255);
 
+    /// <summary>Rest bar fill while rested or tired.</summary>
+    public static readonly ColorRgba RestFill = new(112, 104, 204, 255);
+
+    /// <summary>Rest bar fill while very tired or exhausted.</summary>
+    public static readonly ColorRgba RestWarnFill = new(168, 72, 160, 255);
+
     /// <summary>Hunger bar fill while food poisoned.</summary>
     public static readonly ColorRgba PoisonFill = new(128, 160, 52, 255);
 

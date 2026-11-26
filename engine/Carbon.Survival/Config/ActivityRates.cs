@@ -40,6 +40,7 @@ public sealed class ActivityRates
         NeedsActivity.Fighting => this.Fighting,
         NeedsActivity.Swimming => this.Swimming,
         NeedsActivity.Resting => this.Resting,
+        NeedsActivity.Sleeping => this.Resting,
         _ => this.Walking,
     };
 

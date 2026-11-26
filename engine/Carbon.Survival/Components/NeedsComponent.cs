@@ -62,6 +62,12 @@ public struct NeedsComponent
     /// <summary>Gets or sets a value indicating whether natural health regeneration is suppressed.</summary>
     public bool HealthRegenBlocked { get; set; }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether the current sleep is in a comfortable spot (a bed in a roofed room).
+    /// Set by the host while <see cref="Activity"/> is <see cref="NeedsActivity.Sleeping"/>.
+    /// </summary>
+    public bool SleepComfort { get; set; }
+
     /// <summary>Gets the food level as a 0..1 fraction.</summary>
     public readonly float FoodFraction => this.FoodMax > 0f ? Math.Clamp(this.Food / this.FoodMax, 0f, 1f) : 0f;
 

@@ -96,6 +96,18 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile
     /// <summary>Gets the progress of the meal being eaten (<c>0..1</c>), or a negative value when not eating.</summary>
     float LocalPlayerEatProgress { get; }
 
+    /// <summary>Gets the local player's rest level (ADR-018).</summary>
+    float LocalPlayerRest { get; }
+
+    /// <summary>Gets the local player's rest capacity.</summary>
+    float LocalPlayerMaxRest { get; }
+
+    /// <summary>Gets the rest state: <c>0</c>=Rested, <c>1</c>=Tired, <c>2</c>=VeryTired, <c>3</c>=Exhausted.</summary>
+    byte LocalPlayerRestState { get; }
+
+    /// <summary>Gets how the local player is resting.</summary>
+    Contracts.Entities.RestMode LocalPlayerRestMode { get; }
+
     /// <summary>Gets remaining cooldown in seconds for active skill <paramref name="skillId"/>.</summary>
     float GetSkillCooldown(ushort skillId);
 
