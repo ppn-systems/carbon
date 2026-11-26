@@ -527,17 +527,19 @@ public sealed class WorldSceneRenderer : IDisposable
         ref readonly Collider2D col = ref sim.Entities.GetCollider(entity);
         Vector2 velocity = sim.Entities.HasVelocity(entity) ? sim.Entities.GetVelocity(entity).Linear : Vector2.Zero;
         float tileSize = world.ChunkWorld.TileSize;
-        MapTile currentTile = world.ChunkWorld.GetTileAtWorld((int)MathF.Floor(entityPos.X / tileSize), (int)MathF.Floor(entityPos.Y / tileSize));
-
-        if (currentTile.Biome == BiomeType.ShallowWater)
-        {
-            batch.FillCircle(entityPos, col.Radius + 6f, new ColorRgba(255, 255, 255, 55));
-            batch.FillCircle(entityPos, col.Radius + 4f, new ColorRgba(56, 189, 248, 75));
-        }
-
         Vector2 footPos = new(entityPos.X, entityPos.Y + col.Radius);
-        batch.FillCircle(new Vector2(footPos.X + 1.5f, footPos.Y + 1.5f), col.Radius * 1.18f, new ColorRgba(0, 0, 0, 88), 12);
-        batch.DrawCircle(footPos, col.Radius + 3.5f, new ColorRgba(56, 189, 248, 150), 14, 1.3f);
+        CompiledVectorRig? rig = null;
+        bool hasRig = _art is not null && _art.TryGetCharacter(world.LocalPlayerAppearancePreset, out rig);
+        WadingRenderer.Wade wade = WadingRenderer.Resolve(world.ChunkWorld, entityPos, hasRig ? rig!.WorldHeight : 35f, col.Radius);
+        if (wade.IsWading)
+        {
+            WadingRenderer.DrawBehind(batch, footPos, in wade, _animTime, 1u);
+        }
+        else
+        {
+            batch.FillCircle(new Vector2(footPos.X + 1.5f, footPos.Y + 1.5f), col.Radius * 1.18f, new ColorRgba(0, 0, 0, 88), 12);
+            batch.DrawCircle(footPos, col.Radius + 3.5f, new ColorRgba(56, 189, 248, 150), 14, 1.3f);
+        }
 
         ActionState action = world.CurrentAction;
         Vector2 facing = action.IsActive
@@ -551,7 +553,7 @@ public sealed class WorldSceneRenderer : IDisposable
             : (world.AttackSwingTimer > 0f ? 1f - Math.Clamp(world.AttackSwingTimer / 0.24f, 0f, 1f) : _animTime);
         float flash = world.LocalHitFlashTimer > 0f ? Math.Clamp(world.LocalHitFlashTimer / 0.16f, 0f, 0.8f) : 0f;
 
-        if (_art is not null && _art.TryGetCharacter(world.LocalPlayerAppearancePreset, out CompiledVectorRig? rig))
+        if (_art is not null && hasRig && rig is not null)
         {
             Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
             world.CopyInventorySlots(slots);
@@ -572,7 +574,7 @@ public sealed class WorldSceneRenderer : IDisposable
             VectorRigRenderer.DrawEntityRig(
                 batch,
                 rig,
-                footPos,
+                footPos + new Vector2(0f, wade.Sink),
                 dir8,
                 clip,
                 eval,
@@ -590,6 +592,8 @@ public sealed class WorldSceneRenderer : IDisposable
         {
             batch.FillCircle(entityPos, col.Radius, new ColorRgba(56, 189, 248, 255));
         }
+
+        WadingRenderer.DrawFront(batch, _art, tileSize, footPos, in wade, velocity, _animTime, 1u);
     }
 
     private void DrawRemoteEntity(GeometryBatch batch, IWorldReadModel world, in RemoteEntityView remote)
@@ -635,7 +639,25 @@ public sealed class WorldSceneRenderer : IDisposable
         bool attacking = remote.AttackAnimRemaining > 0f;
         float flash = remote.HitFlashRemaining > 0f ? Math.Clamp(remote.HitFlashRemaining / 0.16f, 0f, 0.8f) : 0f;
 
-        batch.FillCircle(new Vector2(footPos.X + 1.5f, footPos.Y + 1.5f), r * 1.15f, new ColorRgba(0, 0, 0, 82), 12);
+        CompiledVectorRig? wadeRig = null;
+        bool hasWadeRig = _art is not null && remote.Kind switch
+        {
+            EntityKind.Player => _art.TryGetCharacter((byte)remote.ArchetypeId, out wadeRig),
+            EntityKind.Npc => _art.TryGetNpc(remote.ArchetypeId, out wadeRig),
+            EntityKind.Monster => _art.TryGetMonster(remote.ArchetypeId, out wadeRig),
+            EntityKind.Projectile or EntityKind.LootDrop or _ => false,
+        };
+        uint wadeSeed = (uint)remote.NetworkId;
+        WadingRenderer.Wade wade = WadingRenderer.Resolve(world.ChunkWorld, remote.Position, hasWadeRig ? wadeRig!.WorldHeight : 35f, r);
+        if (wade.IsWading)
+        {
+            WadingRenderer.DrawBehind(batch, footPos, in wade, _animTime, wadeSeed);
+        }
+        else
+        {
+            batch.FillCircle(new Vector2(footPos.X + 1.5f, footPos.Y + 1.5f), r * 1.15f, new ColorRgba(0, 0, 0, 82), 12);
+        }
+
         if (remote.Kind == EntityKind.Npc)
         {
             batch.DrawCircle(footPos, r + 2.5f, new ColorRgba(253, 224, 71, 110), 12, 1.1f);
@@ -751,7 +773,7 @@ public sealed class WorldSceneRenderer : IDisposable
                 VectorRigRenderer.DrawEntityRig(
                     batch,
                     rig,
-                    footPos,
+                    footPos + new Vector2(0f, wade.Sink),
                     dir8,
                     clip,
                     eval,
@@ -763,6 +785,7 @@ public sealed class WorldSceneRenderer : IDisposable
                     appearancePreset: preset,
                     equipment: remoteLoadout,
                     art: _art);
+                WadingRenderer.DrawFront(batch, _art, world.ChunkWorld.TileSize, footPos, in wade, remote.Velocity, _animTime, wadeSeed);
                 return;
             }
         }
