@@ -110,6 +110,12 @@ public sealed partial class MultiplayerSession
             Math.Clamp(pkt.Progress, 0f, 1f),
             pkt.IsDeconstruction);
 
+        // The marker is a copy, so the mutation can run later on the main thread (audit TS-2).
+        this.PostWorldMutation(() => this.ApplyConstructionMarker(marker));
+    }
+
+    private void ApplyConstructionMarker(ConstructionMarker marker)
+    {
         lock (_worldGate)
         {
             _constructionMarkers.Apply(in marker);
