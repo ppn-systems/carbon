@@ -371,6 +371,7 @@ public sealed partial class AuthoritativeWorld
                 foreach (KeyValuePair<Guid, CharacterRecord> kvp in _dirtyCharacters)
                 {
                     characterBatch.Add(kvp.Value);
+                    _inFlightCharacters[kvp.Key] = kvp.Value;
                 }
 
                 _dirtyCharacters.Clear();
@@ -390,6 +391,11 @@ public sealed partial class AuthoritativeWorld
                 {
                     await _characterStore.SaveBatchAsync(characterBatch, ct).ConfigureAwait(false);
                 }
+
+                lock (_gate)
+                {
+                    this.ReleaseInFlightCharactersLocked(characterBatch);
+                }
             }
             catch
             {
@@ -405,9 +411,26 @@ public sealed partial class AuthoritativeWorld
                         CharacterRecord failed = characterBatch[i];
                         _ = _dirtyCharacters.TryAdd(failed.Id, failed);
                     }
+
+                    this.ReleaseInFlightCharactersLocked(characterBatch);
                 }
 
                 throw;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Drops the in-flight entries of a finished save. An entry replaced by a newer flush meanwhile is kept.
+    /// </summary>
+    private void ReleaseInFlightCharactersLocked(List<CharacterRecord> batch)
+    {
+        for (int i = 0; i < batch.Count; i++)
+        {
+            CharacterRecord saved = batch[i];
+            if (_inFlightCharacters.TryGetValue(saved.Id, out CharacterRecord? current) && ReferenceEquals(current, saved))
+            {
+                _ = _inFlightCharacters.Remove(saved.Id);
             }
         }
     }

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
@@ -674,6 +675,76 @@ public sealed class AuthoritativeWorldMultiplayerTests
             }
 
             world.TryHarvestProp(701UL, tx, ty).Status.Should().NotBe(OpStatus.RateLimited, "the cooldown has elapsed after 3 seconds");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task TryGetPendingCharacterSnapshot_WhileSaveIsInFlight_ReturnsUnsavedRecord()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-inflight-save-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            SqliteSchemaMigrator migrator = new(factory);
+            await migrator.MigrateAsync().ConfigureAwait(true);
+
+            SqliteAccountStore accounts = new(factory);
+            GatedCharacterStore characters = new(new SqliteCharacterStore(factory));
+            SqliteChunkDeltaRepository chunks = new(factory);
+            RecordingOutboundSink sink = new();
+
+            DateTimeOffset now = new(2026, 11, 26, 12, 0, 0, TimeSpan.Zero);
+            Guid accountId = Guid.NewGuid();
+            AccountRecord account = new(accountId, "saver", "SAVER", [1, 2, 3], [4, 5, 6], now, false);
+            (await accounts.TryCreateAsync(account).ConfigureAwait(true)).Should().BeTrue();
+
+            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, chunks, characters, sink);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+            InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
+            StarterGameCatalog.GrantStarterLoadout(inv, startingClass: 0);
+            CharacterRecord hero = new(
+                Guid.NewGuid(),
+                accountId,
+                "Saver",
+                Level: 1,
+                AppearancePreset: 0,
+                PositionX: world.DefaultSpawnWorldPosition.X,
+                PositionY: world.DefaultSpawnWorldPosition.Y,
+                CurrentHealth: 100f,
+                MaxHealth: 100f,
+                SelectedHotbarSlot: 0,
+                InventoryBlob: InventoryBinaryCodec.Serialize(inv),
+                UpdatedAtUtc: now,
+                Flags: CharacterTraits.StarterLoadoutGranted);
+            (await characters.TryCreateAsync(hero).ConfigureAwait(true)).Should().BeTrue();
+
+            world.TryEnterWorld(connectionId: 801UL, sessionId: 801UL, hero).Status.Should().Be(OpStatus.Ok);
+            world.TrySelectHotbarSlot(801UL, 3).Should().Be(OpStatus.Ok);
+            world.LeaveWorld(801UL).Should().BeTrue();
+
+            Task flush = world.FlushDirtyPersistenceAsync();
+            await characters.SaveStarted.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true);
+
+            // The player logged out and the flush took the record out of the dirty set, but the save has not
+            // committed. A re-select now must see the unsaved record, not the stale database row.
+            world.TryGetPendingCharacterSnapshot(hero.Id, out CharacterRecord? pending).Should().BeTrue();
+            pending!.SelectedHotbarSlot.Should().Be(3);
+            (await characters.Inner.FindByIdAsync(hero.Id).ConfigureAwait(true))!.SelectedHotbarSlot.Should().Be(0);
+
+            characters.ReleaseSave();
+            await flush.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true);
+
+            world.TryGetPendingCharacterSnapshot(hero.Id, out _).Should().BeFalse("the committed row is now authoritative");
+            (await characters.Inner.FindByIdAsync(hero.Id).ConfigureAwait(true))!.SelectedHotbarSlot.Should().Be(3);
         }
         finally
         {
@@ -1545,6 +1616,35 @@ public sealed class AuthoritativeWorldMultiplayerTests
             {
                 File.Delete(dbPath);
             }
+        }
+    }
+
+    /// <summary>Character store whose <see cref="SaveBatchAsync"/> blocks until the test releases it.</summary>
+    private sealed class GatedCharacterStore(ICharacterStore inner) : ICharacterStore
+    {
+        private readonly TaskCompletionSource _saveStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ICharacterStore Inner { get; } = inner;
+
+        public Task SaveStarted => _saveStarted.Task;
+
+        public void ReleaseSave() => _release.TrySetResult();
+
+        public Task<IReadOnlyList<CharacterRecord>> ListByAccountAsync(Guid accountId, CancellationToken ct = default) =>
+            this.Inner.ListByAccountAsync(accountId, ct);
+
+        public Task<CharacterRecord?> FindByIdAsync(Guid characterId, CancellationToken ct = default) =>
+            this.Inner.FindByIdAsync(characterId, ct);
+
+        public Task<bool> TryCreateAsync(CharacterRecord character, CancellationToken ct = default) =>
+            this.Inner.TryCreateAsync(character, ct);
+
+        public async Task SaveBatchAsync(IReadOnlyList<CharacterRecord> characters, CancellationToken ct = default)
+        {
+            _saveStarted.TrySetResult();
+            await _release.Task.ConfigureAwait(false);
+            await this.Inner.SaveBatchAsync(characters, ct).ConfigureAwait(false);
         }
     }
 

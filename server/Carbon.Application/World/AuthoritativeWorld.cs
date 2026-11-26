@@ -93,6 +93,12 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly HashSet<long> _dirtyChunks = new();
     private readonly Dictionary<Guid, CharacterRecord> _dirtyCharacters = new();
 
+    /// <summary>
+    /// Records handed to <see cref="ICharacterStore.SaveBatchAsync"/> whose save has not committed yet. They stay
+    /// visible to <see cref="TryGetPendingCharacterSnapshot"/> so a re-select during the save never loads the stale row.
+    /// </summary>
+    private readonly Dictionary<Guid, CharacterRecord> _inFlightCharacters = new();
+
     // Reusable scratch buffers (zero per-tick heap allocations under steady state).
     private readonly List<ulong> _scratchEntered = new(64);
     private readonly List<ulong> _scratchVisible = new(128);
@@ -498,6 +504,12 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             if (_dirtyCharacters.TryGetValue(characterId, out CharacterRecord? cached))
             {
                 character = cached;
+                return true;
+            }
+
+            if (_inFlightCharacters.TryGetValue(characterId, out CharacterRecord? inFlight))
+            {
+                character = inFlight;
                 return true;
             }
 
