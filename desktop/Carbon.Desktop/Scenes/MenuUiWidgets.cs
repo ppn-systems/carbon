@@ -3,6 +3,7 @@
 using System;
 using System.Numerics;
 using System.Text;
+using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.Batching.Sprites;
@@ -41,7 +42,7 @@ internal sealed class MenuTextField
 
     public string Placeholder { get; }
 
-    public bool IsPassword { get; }
+    public bool IsPassword { get; set; }
 
     public int MaxLength { get; }
 
@@ -111,6 +112,29 @@ internal sealed class MenuTextField
         _ = _buffer.Remove(_buffer.Length - 1, 1);
         _cursorTimer = 0f;
         _cursorVisible = true;
+    }
+
+    public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin)
+    {
+        ColorRgba fill = this.IsFocused
+            ? new ColorRgba(24, 34, 58, 245)
+            : new ColorRgba(12, 18, 34, 232);
+        ColorRgba border = this.IsFocused
+            ? new ColorRgba(250, 204, 21, 255)
+            : new ColorRgba(71, 85, 105, 225);
+        skin.DrawInset(spriteBatch, this.Bounds, fill, border);
+    }
+
+    public void DrawCursorGeometry(GeometryBatch batch, BitmapFont font)
+    {
+        if (this.IsFocused && _cursorVisible)
+        {
+            string display = this.GetClippedDisplayText(font, MathF.Max(20f, this.Bounds.Width - 24f));
+            TextMeasureResult size = font.MeasureString(display, TextLayoutOptions.Default, 2f);
+            float cursorX = MathF.Min(this.Bounds.Right - 10f, this.Bounds.X + 12f + size.Width + 2f);
+            float cursorY = this.Bounds.Y + 9f;
+            batch.FillRectangle(new RectangleF(cursorX, cursorY, 3f, this.Bounds.Height - 18f), new ColorRgba(250, 204, 21, 255));
+        }
     }
 
     public void DrawGeometry(GeometryBatch batch, BitmapFont font)
@@ -235,6 +259,12 @@ internal sealed class MenuButton
         this.IsHovered = this.Bounds.Contains(mousePos);
         this.IsPressed = this.IsHovered && leftDown;
         return this.IsHovered && leftPressed;
+    }
+
+    public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin)
+    {
+        (ColorRgba fill, ColorRgba border) = this.ResolveColors();
+        skin.DrawButton(spriteBatch, this.Bounds, fill, border);
     }
 
     public void DrawGeometry(GeometryBatch batch)

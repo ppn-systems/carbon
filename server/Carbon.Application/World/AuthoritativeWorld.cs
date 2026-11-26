@@ -44,6 +44,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private const uint MonsterLayer = 2U;
     private const uint NpcLayer = 4U;
     private const uint LootLayer = 8U;
+    private const uint ProjectileLayer = 16U;
     private const int PlayerInventoryCapacity = PlayerInventoryLayout.TotalCapacity;
     private const uint AttackAbilityId = 1U;
     private const uint Skill1AbilityId = 2U;
@@ -66,6 +67,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly Dictionary<ulong, ulong> _connectionByNetworkId = new();
     private readonly Dictionary<ulong, NpcActorMeta> _actorsByNetworkId = new();
     private readonly Dictionary<ulong, LootDropMeta> _lootByNetworkId = new();
+    private readonly Dictionary<ulong, ProjectileActorMeta> _projectilesByNetworkId = new();
     private readonly HashSet<long> _populatedChunks = new();
     private readonly List<PendingMonsterRespawn> _pendingRespawns = new(32);
     private readonly HashSet<long> _dirtyChunks = new();
@@ -90,11 +92,13 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly List<ulong> _aoiRecipientsScratch = new(64);
     private readonly List<Entity> _dirtyResetScratch = new(256);
     private readonly List<ulong> _staleLootScratch = new(32);
+    private readonly List<ulong> _expiredProjectilesScratch = new(32);
     private readonly List<(ushort SlotIndex, ItemSlot Slot)> _mutationSlotScratch = new(8);
     private readonly List<(int TileX, int TileY, uint Revision, float MaxDurability)> _respawnedPropsScratch = new(16);
     private readonly Entity[] _combatHitScratch = new Entity[32];
     private readonly Entity[] _packAggroScratch = new Entity[16];
 
+    private bool _spawnedSanctuaryBlacksmith;
     private ulong _nextNetworkId = 1000UL;
     private ulong _currentTick;
 
@@ -228,11 +232,11 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             }
 
             ushort startLevel = Math.Max((ushort)1, character.Level);
-            DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(startLevel, inventory);
+            byte selectedSlot = character.SelectedHotbarSlot < 9 ? character.SelectedHotbarSlot : (byte)0;
+            DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(startLevel, inventory, selectedSlot);
             float startHp = MathF.Min(stats.MaxHealth, MathF.Max(1f, character.CurrentHealth));
             _simulation.Entities.SetHealth(entity, new HealthComponent(startHp, stats.MaxHealth));
 
-            byte selectedSlot = character.SelectedHotbarSlot < 9 ? character.SelectedHotbarSlot : (byte)0;
             byte harvestTier = ResolveSlotHarvestTier(inventory, selectedSlot);
 
             ConnectedPlayerSession session = new(
@@ -380,6 +384,44 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         float safeRadiusSq = 100f * this.TileSize * this.TileSize;
         float chunkWorldSpan = Chunk2D.Size * this.TileSize;
 
+        if (!_spawnedSanctuaryBlacksmith)
+        {
+            _spawnedSanctuaryBlacksmith = true;
+            int spawnTx = (int)MathF.Floor(safeOrigin.X / this.TileSize);
+            int spawnTy = (int)MathF.Floor(safeOrigin.Y / this.TileSize);
+            long spawnChunkKey = Chunk2D.PackKey(Chunk2D.ToChunkCoord(spawnTx), Chunk2D.ToChunkCoord(spawnTy));
+            int[] offsets = [2, -1, -2, -1, 2, 1, 0, -2, -2, 1, 3, 0];
+            for (int oi = 0; oi < offsets.Length; oi += 2)
+            {
+                int bx = spawnTx + offsets[oi];
+                int by = spawnTy + offsets[oi + 1];
+                MapTile smithTile = _chunkWorld.GetTileAtWorld(bx, by);
+                if (!smithTile.IsSolid &&
+                    smithTile.Biome is not (BiomeType.ShallowWater or BiomeType.DeepOcean) &&
+                    !_chunkWorld.HasSolidPropAt(bx, by))
+                {
+                    NpcArchetypeSpec smithSpec = WorldActorCatalog.GetNpcSpec(WorldActorCatalog.MasterBlacksmith);
+                    Vector2 smithPos = new((bx + 0.5f) * this.TileSize, (by + 0.5f) * this.TileSize);
+                    this.SpawnActorFromMetaLocked(new NpcActorMeta(
+                        EntityKind.Npc,
+                        smithSpec.ArchetypeId,
+                        smithSpec.Name,
+                        smithSpec.Level,
+                        smithPos,
+                        250f,
+                        45f,
+                        smithSpec.Radius,
+                        0f,
+                        0U,
+                        spawnChunkKey,
+                        StarterGameCatalog.IronOre,
+                        1,
+                        0U));
+                    break;
+                }
+            }
+        }
+
         for (int dy = -radius; dy <= radius; dy++)
         {
             for (int dx = -radius; dx <= radius; dx++)
@@ -433,6 +475,33 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
                                 0U);
                             this.SpawnActorFromMetaLocked(npcMeta);
                         }
+
+                        if (poi.Type is PointOfInterestType.RiverVillage or PointOfInterestType.DesertVillage or PointOfInterestType.SnowVillage)
+                        {
+                            int smithTx = poi.TileX - 1;
+                            int smithTy = poi.TileY + 1;
+                            MapTile vSmithTile = _chunkWorld.GetTileAtWorld(smithTx, smithTy);
+                            if (!vSmithTile.IsSolid && !_chunkWorld.HasSolidPropAt(smithTx, smithTy))
+                            {
+                                NpcArchetypeSpec vSmith = WorldActorCatalog.GetNpcSpec(WorldActorCatalog.MasterBlacksmith);
+                                Vector2 vSmithPos = new((smithTx + 0.5f) * this.TileSize, (smithTy + 0.5f) * this.TileSize);
+                                this.SpawnActorFromMetaLocked(new NpcActorMeta(
+                                    EntityKind.Npc,
+                                    vSmith.ArchetypeId,
+                                    vSmith.Name,
+                                    vSmith.Level,
+                                    vSmithPos,
+                                    250f,
+                                    45f,
+                                    vSmith.Radius,
+                                    0f,
+                                    0U,
+                                    key,
+                                    StarterGameCatalog.IronOre,
+                                    1,
+                                    0U));
+                            }
+                        }
                     }
                 }
 
@@ -463,7 +532,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
 
                 float chunkDist = Vector2.Distance(monsterPos, safeOrigin) / chunkWorldSpan;
                 byte zoneTier = (byte)Math.Clamp((int)(chunkDist / 4f), 0, 15);
-                ushort monsterArchetype = ResolveBiomeMonsterArchetype(spawnTile.Biome);
+                ushort monsterArchetype = ResolveBiomeMonsterArchetype(spawnTile.Biome, h);
                 ScaledMonsterStats scaled = WorldActorCatalog.ScaleMonsterForZone(monsterArchetype, zoneTier);
 
                 NpcActorMeta monsterMeta = new(
@@ -480,7 +549,10 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
                     key,
                     scaled.DropItemId,
                     scaled.DropQuantity,
-                    scaled.ExperienceReward);
+                    scaled.ExperienceReward,
+                    scaled.AttackRange,
+                    scaled.ProjectileSpeed,
+                    scaled.ProjectileArchetype);
                 this.SpawnActorFromMetaLocked(monsterMeta);
 
                 // Spawn a pack companion nearby in ~25% of monster chunks.
@@ -513,8 +585,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         _simulation.Entities.SetVelocity(entity, new Velocity2D(0f, 0f, 5f));
         _simulation.Entities.SetHealth(entity, new HealthComponent(meta.MaxHealth, meta.MaxHealth));
 
-        float aggro = meta.Kind == EntityKind.Monster ? 192f : 0f;
-        float attackRange = meta.Kind == EntityKind.Monster ? 44f : 0f;
+        float aggro = meta.Kind == EntityKind.Monster ? MathF.Max(192f, meta.AttackRange + 48f) : 0f;
+        float attackRange = meta.Kind == EntityKind.Monster ? MathF.Max(36f, meta.AttackRange) : 0f;
         uint targetMask = meta.Kind == EntityKind.Monster ? PlayerLayer : 0U;
         AiBrainComponent brain = new(
             AiState.Patrol,
@@ -669,6 +741,12 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             lootCount = lootItem.Quantity;
             weaponUpgrade = ItemEnhancementPolicy.GetUpgradeLevel(in lootItem);
         }
+        else if (_projectilesByNetworkId.TryGetValue(networkId, out ProjectileActorMeta projMeta))
+        {
+            kind = EntityKind.Projectile;
+            name = string.Empty;
+            archetype = projMeta.VisualArchetype;
+        }
 
         snapshot = new EntitySpawnSnapshot(
             networkId,
@@ -695,7 +773,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
 
     private void RecomputeDerivedStatsLocked(ActivePlayerState state)
     {
-        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(state.Level, state.Inventory);
+        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(state.Level, state.Inventory, state.Session.SelectedHotbarSlot);
         state.Stats = stats;
         if (_simulation.Entities.HasHealth(state.Entity))
         {
@@ -797,11 +875,11 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         return remTicks > 0U ? (float)remTicks / this.TickRate : 0f;
     }
 
-    private static ushort ResolveBiomeMonsterArchetype(BiomeType biome)
+    private static ushort ResolveBiomeMonsterArchetype(BiomeType biome, ulong chunkHash)
     {
         if (biome is BiomeType.RedMesa or BiomeType.DuneDesert)
         {
-            return WorldActorCatalog.RockGolem;
+            return ((chunkHash >> 12) % 3UL == 0UL) ? WorldActorCatalog.SkeletonArcher : WorldActorCatalog.RockGolem;
         }
 
         if (biome is BiomeType.FrozenTundra or BiomeType.AlpinePeaks)
@@ -814,7 +892,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             return WorldActorCatalog.AshWraith;
         }
 
-        return WorldActorCatalog.WildSlime;
+        return ((chunkHash >> 12) % 5UL <= 1UL) ? WorldActorCatalog.SkeletonArcher : WorldActorCatalog.WildSlime;
     }
 
     private static ulong HashChunk(ulong seed, int cx, int cy)
@@ -865,6 +943,17 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     }
 
     private readonly record struct LootDropMeta(ItemSlot Item, ulong SpawnTick);
+
+    private readonly record struct ProjectileActorMeta(
+        Entity Entity,
+        ulong OwnerNetworkId,
+        ulong OwnerConnectionId,
+        bool FromPlayer,
+        ushort VisualArchetype,
+        float Damage,
+        bool IsCritical,
+        Vector2 Velocity,
+        uint RemainingTicks);
 
     private readonly record struct OutboundEquipmentChange(
         int RecipientsOffset,
@@ -920,7 +1009,10 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         long ChunkKey,
         uint DropItemId,
         int DropQuantity,
-        uint ExperienceReward);
+        uint ExperienceReward,
+        float AttackRange = 44f,
+        float ProjectileSpeed = 0f,
+        byte ProjectileArchetype = 0);
 
     private readonly record struct PendingMonsterRespawn(ulong RespawnTick, NpcActorMeta Meta);
     private readonly record struct OutboundSpawn(ulong ConnectionId, EntitySpawnSnapshot Snapshot);

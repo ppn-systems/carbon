@@ -30,5 +30,10 @@ public enum StructureCategory : byte
     /// <summary>
     /// Vertical support column on Layer 2 that holds up roofs within a 6-tile radius without enclosing the room.
     /// </summary>
-    Pillar = 4
+    Pillar = 4,
+
+    /// <summary>
+    /// Interactive crafting or blacksmith workstation placed on Layer 2.
+    /// </summary>
+    Station = 5
 }

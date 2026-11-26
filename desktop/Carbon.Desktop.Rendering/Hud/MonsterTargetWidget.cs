@@ -5,6 +5,7 @@ using System.Numerics;
 using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions;
 using Carbon.Desktop.Rendering.Feedback;
+using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Graphics.Animation.Directions;
 using Carbon.Graphics.Batching.Common;
@@ -38,6 +39,24 @@ internal sealed class MonsterTargetWidget
         }
 
         _isLocked = _hasTarget && _activeTarget.NetworkId != 0UL && _activeTarget.NetworkId == world.LockedTargetNetworkId;
+    }
+
+    public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin, int viewportWidth, float animTime)
+    {
+        if (!_hasTarget)
+        {
+            return;
+        }
+
+        const float cardW = 336f;
+        const float cardH = 68f;
+        float x = MathF.Floor((viewportWidth - cardW) * 0.5f);
+        const float y = 14f;
+        ColorRgba frameBorder = _activeTarget.AttackAnimRemaining > 0f
+            ? new ColorRgba(248, 113, 113, (byte)(190 + (65 * MathF.Abs(MathF.Sin(animTime * 16f)))))
+            : (_activeTarget.Kind == EntityKind.Npc ? new ColorRgba(234, 179, 8, 235) : new ColorRgba(225, 29, 72, 235));
+        skin.DrawPanel(spriteBatch, UiPanelStyle.OrnateHighlight, new RectangleF(x, y, cardW, cardH), new ColorRgba(10, 15, 28, 228), frameBorder);
+        skin.DrawSlot(spriteBatch, new RectangleF(x + 8f, y + 8f, 52f, 52f), new ColorRgba(14, 22, 40, 240), frameBorder);
     }
 
     public void DrawGeometry(GeometryBatch batch, IVectorArtRepository? art, int viewportWidth, float animTime)

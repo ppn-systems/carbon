@@ -18,6 +18,9 @@ namespace Carbon.Items.Catalog;
 /// <param name="DropItemId">Primary ground loot drop item ID.</param>
 /// <param name="DropMinQuantity">Minimum stack quantity dropped on kill.</param>
 /// <param name="DropMaxQuantity">Maximum stack quantity dropped on kill.</param>
+/// <param name="AttackRange">Engagement distance before entering <c>Attack</c> state.</param>
+/// <param name="ProjectileSpeed">Projectile velocity in world units/sec (<c>0</c> = melee).</param>
+/// <param name="ProjectileArchetype">Visual projectile archetype ID for ranged monsters.</param>
 public readonly record struct MonsterArchetypeSpec(
     ushort ArchetypeId,
     string Name,
@@ -29,7 +32,10 @@ public readonly record struct MonsterArchetypeSpec(
     uint WindupTicks,
     uint DropItemId,
     int DropMinQuantity,
-    int DropMaxQuantity);
+    int DropMaxQuantity,
+    float AttackRange = 44f,
+    float ProjectileSpeed = 0f,
+    byte ProjectileArchetype = 0);
 
 /// <summary>
 /// Zone-scaled monster combat parameters computed cleanly without hardcoded server switches.
@@ -45,7 +51,10 @@ public readonly record struct ScaledMonsterStats(
     uint WindupTicks,
     uint DropItemId,
     int DropQuantity,
-    uint ExperienceReward);
+    uint ExperienceReward,
+    float AttackRange = 44f,
+    float ProjectileSpeed = 0f,
+    byte ProjectileArchetype = 0);
 
 /// <summary>
 /// Immutable specification for a friendly town NPC archetype.
@@ -73,6 +82,9 @@ public static class WorldActorCatalog
     /// <summary>Ash Wraith archetype identifier.</summary>
     public const ushort AshWraith = 104;
 
+    /// <summary>Skeleton Archer ranged monster archetype identifier.</summary>
+    public const ushort SkeletonArcher = 105;
+
     /// <summary>Village Guard NPC archetype identifier.</summary>
     public const ushort VillageGuard = 201;
 
@@ -82,12 +94,16 @@ public static class WorldActorCatalog
     /// <summary>Shrine Keeper NPC archetype identifier.</summary>
     public const ushort ShrineKeeper = 203;
 
+    /// <summary>Master Blacksmith NPC archetype identifier.</summary>
+    public const ushort MasterBlacksmith = 204;
+
     private static readonly MonsterArchetypeSpec[] s_monsters =
     [
         new(WildSlime, "Wild Slime", BaseLevel: 1, BaseMaxHealth: 75f, MoveSpeed: 130f, Radius: 8f, BaseAttackDamage: 9f, WindupTicks: 7U, StarterGameCatalog.BerryHerb, 1, 2),
         new(RockGolem, "Rock Golem", BaseLevel: 3, BaseMaxHealth: 150f, MoveSpeed: 105f, Radius: 11f, BaseAttackDamage: 16f, WindupTicks: 11U, StarterGameCatalog.IronOre, 2, 3),
         new(FrostWolf, "Frost Wolf", BaseLevel: 2, BaseMaxHealth: 95f, MoveSpeed: 168f, Radius: 8.5f, BaseAttackDamage: 12f, WindupTicks: 6U, StarterGameCatalog.StoneChunk, 2, 3),
-        new(AshWraith, "Ash Wraith", BaseLevel: 4, BaseMaxHealth: 110f, MoveSpeed: 148f, Radius: 8.5f, BaseAttackDamage: 14f, WindupTicks: 8U, StarterGameCatalog.ManaCrystal, 1, 2),
+        new(AshWraith, "Ash Wraith", BaseLevel: 4, BaseMaxHealth: 110f, MoveSpeed: 148f, Radius: 8.5f, BaseAttackDamage: 14f, WindupTicks: 10U, StarterGameCatalog.ManaCrystal, 1, 2, AttackRange: 215f, ProjectileSpeed: 340f, ProjectileArchetype: 4),
+        new(SkeletonArcher, "Skeleton Archer", BaseLevel: 2, BaseMaxHealth: 85f, MoveSpeed: 142f, Radius: 8f, BaseAttackDamage: 13f, WindupTicks: 9U, StarterGameCatalog.WoodLog, 2, 4, AttackRange: 235f, ProjectileSpeed: 390f, ProjectileArchetype: 5),
     ];
 
     private static readonly NpcArchetypeSpec[] s_npcs =
@@ -95,6 +111,7 @@ public static class WorldActorCatalog
         new(VillageGuard, "Village Guard", Level: 10, Radius: 8f),
         new(HarbourMaster, "Harbour Master", Level: 8, Radius: 8f),
         new(ShrineKeeper, "Shrine Keeper", Level: 12, Radius: 8f),
+        new(MasterBlacksmith, "Master Blacksmith", Level: 15, Radius: 8.5f),
     ];
 
     /// <summary>Resolves static baseline specs for <paramref name="archetypeId"/> (defaults to <see cref="WildSlime"/>).</summary>
@@ -149,6 +166,9 @@ public static class WorldActorCatalog
             baseSpec.WindupTicks,
             baseSpec.DropItemId,
             qty,
-            xp);
+            xp,
+            baseSpec.AttackRange,
+            baseSpec.ProjectileSpeed,
+            baseSpec.ProjectileArchetype);
     }
 }

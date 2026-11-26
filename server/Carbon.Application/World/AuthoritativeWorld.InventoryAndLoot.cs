@@ -11,6 +11,8 @@ using Carbon.Items.Components;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
 using Carbon.Items.Definitions;
+using Carbon.Maps.Building;
+
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 
@@ -57,6 +59,7 @@ public sealed partial class AuthoritativeWorld
         float eqMaxHp;
         ulong netId;
         bool broadcastEq = false;
+        ActivePlayerState? snapState;
 
         lock (_gate)
         {
@@ -67,6 +70,8 @@ public sealed partial class AuthoritativeWorld
 
             byte tier = ResolveSlotHarvestTier(state.Inventory, slotIndex);
             state.Session = state.Session with { SelectedHotbarSlot = slotIndex, SelectedHarvestTier = tier };
+            this.RecomputeDerivedStatsLocked(state);
+            snapState = state;
             this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
 
             eqNetHead = (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.HeadSlot).ItemId;
@@ -86,6 +91,11 @@ public sealed partial class AuthoritativeWorld
                 this.CollectNearbyConnectionsAroundWorldLocked(pPos, _aoiRecipientsScratch);
                 broadcastEq = _aoiRecipientsScratch.Count > 0;
             }
+        }
+
+        if (snapState is not null)
+        {
+            this.DispatchImmediateStatsSync(snapState, false);
         }
 
         if (broadcastEq)
@@ -285,9 +295,16 @@ public sealed partial class AuthoritativeWorld
 
         lock (_gate)
         {
-            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state))
+            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state) ||
+                !_simulation.Entities.HasTransform(state.Entity))
             {
                 return OpStatus.Forbidden;
+            }
+
+            Vector2 playerPos = _simulation.Entities.GetTransform(state.Entity).Position;
+            if (!this.IsNearForgeStationLocked(playerPos))
+            {
+                return OpStatus.OutOfRange;
             }
 
             if (slotIndex >= state.Inventory.Capacity)
@@ -702,6 +719,31 @@ public sealed partial class AuthoritativeWorld
         }
 
         return 0;
+    }
+
+    private bool IsNearForgeStationLocked(Vector2 worldPos)
+    {
+        if (this.HasNearbyFriendlyNpcLocked(worldPos, 175f * 175f))
+        {
+            return true;
+        }
+
+        int ptx = (int)MathF.Floor(worldPos.X / this.TileSize);
+        int pty = (int)MathF.Floor(worldPos.Y / this.TileSize);
+        for (int dy = -5; dy <= 5; dy++)
+        {
+            for (int dx = -5; dx <= 5; dx++)
+            {
+                if (_chunkWorld.Buildings.TryGetStructure(ptx + dx, pty + dy, out StructureTile st) &&
+                    st.Type == StructureType.ForgeAnvil &&
+                    !st.IsDestroyed)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private static void RemoveItemTrackingChanges(

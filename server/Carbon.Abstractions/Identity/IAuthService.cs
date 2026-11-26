@@ -45,9 +45,16 @@ public interface IAuthService
     Task<IReadOnlyList<CharacterRecord>> ListCharactersAsync(Guid accountId, CancellationToken ct = default);
 
     /// <summary>
-    /// Creates a new character spawning at the world's starter spawn tile.
+    /// Creates a new character spawning at the world's starter spawn tile with optional <paramref name="startingClass"/>.
     /// </summary>
-    Task<CharacterCreateResult> CreateCharacterAsync(Guid accountId, string characterName, byte appearancePreset, float spawnX, float spawnY, CancellationToken ct = default);
+    Task<CharacterCreateResult> CreateCharacterAsync(
+        Guid accountId,
+        string characterName,
+        byte appearancePreset,
+        float spawnX,
+        float spawnY,
+        byte startingClass = 0,
+        CancellationToken ct = default);
 
     /// <summary>
     /// Loads a character belonging to <paramref name="accountId"/>, or returns <see langword="null"/> when unauthorized.

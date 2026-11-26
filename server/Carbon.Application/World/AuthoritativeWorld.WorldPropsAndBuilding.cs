@@ -167,7 +167,7 @@ public sealed partial class AuthoritativeWorld
             Vector2 playerPos = _simulation.Entities.GetTransform(state.Entity).Position;
             int ptx = (int)MathF.Floor(playerPos.X / this.TileSize);
             int pty = (int)MathF.Floor(playerPos.Y / this.TileSize);
-            if ((structureType is StructureType.WoodWall or StructureType.StoneWall) && tileX == ptx && tileY == pty)
+            if ((structureType is StructureType.WoodWall or StructureType.StoneWall or StructureType.ForgeAnvil) && tileX == ptx && tileY == pty)
             {
                 return new WorldMutationOutcome(OpStatus.Conflict, 0);
             }
@@ -357,7 +357,7 @@ public sealed partial class AuthoritativeWorld
             return;
         }
 
-        if ((structureType is StructureType.WoodWall or StructureType.StoneWall) && aimTx == ptx && aimTy == pty)
+        if ((structureType is StructureType.WoodWall or StructureType.StoneWall or StructureType.ForgeAnvil) && aimTx == ptx && aimTy == pty)
         {
             return;
         }

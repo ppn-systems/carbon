@@ -25,4 +25,8 @@ public sealed partial class CharacterCreate : PacketBase<CharacterCreate>, IPack
     /// <summary>Visual preset identifier.</summary>
     [SerializeOrder(1)]
     public byte AppearancePreset { get; set; }
+
+    /// <summary>Starter combat class discipline (<see cref="HeroArchetypeClass"/>).</summary>
+    [SerializeOrder(2)]
+    public byte StartingClass { get; set; }
 }

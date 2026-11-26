@@ -461,10 +461,13 @@ public sealed partial class NalixMultiplayerSession
                     CharacterProgressionPolicy.SkillWhirlwind => ClientActionKind.SkillWhirlwind,
                     CharacterProgressionPolicy.SkillArcaneNova => ClientActionKind.SkillArcaneNova,
                     CharacterProgressionPolicy.SkillVitalSurge => ClientActionKind.SkillVitalSurge,
+                    212 => ClientActionKind.StaffCast,
+                    >= 210 and <= 219 => ClientActionKind.BowShot,
+                    >= 220 and <= 229 => ClientActionKind.MonsterStrike,
                     _ => ClientActionKind.SwordSlash,
                 };
-                caster.AttackAnimDuration = 0.45f;
-                caster.AttackAnimTimer = 0.45f;
+                caster.AttackAnimDuration = pkt.AbilitySlot >= 210 ? 0.28f : 0.45f;
+                caster.AttackAnimTimer = caster.AttackAnimDuration;
             }
         }
     }

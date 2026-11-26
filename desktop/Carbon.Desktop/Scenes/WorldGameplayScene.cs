@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Carbon.Desktop.Abstractions;
 using Carbon.Desktop.Input;
 using Carbon.Desktop.Rendering;
+using Carbon.Desktop.Rendering.Hud;
 using Carbon.Graphics.Batching;
 using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Common;
@@ -157,6 +158,10 @@ public sealed class WorldGameplayScene : GameScene
             {
                 _hudRenderer.ShowCraftingPanel = false;
             }
+            else if (_hudRenderer.ShowForgeModal)
+            {
+                _hudRenderer.ShowForgeModal = false;
+            }
             else if (!_showEscapeMenu && _session.LockedTargetNetworkId != 0UL)
             {
                 _session.SetLockedTarget(0UL);
@@ -179,7 +184,7 @@ public sealed class WorldGameplayScene : GameScene
             _hudRenderer.Visible = !_hudRenderer.Visible;
         }
 
-        if (input.CycleTargetPressed && !_hudRenderer.ShowInventoryModal && !_hudRenderer.ShowCraftingPanel)
+        if (input.CycleTargetPressed && !_hudRenderer.HasActiveModal)
         {
             _ = _session.CycleNearestHostileTarget();
         }
@@ -193,6 +198,7 @@ public sealed class WorldGameplayScene : GameScene
             if (_hudRenderer.ShowInventoryModal)
             {
                 _hudRenderer.ShowCraftingPanel = false;
+                _hudRenderer.ShowForgeModal = false;
             }
         }
 
@@ -202,10 +208,16 @@ public sealed class WorldGameplayScene : GameScene
             if (_hudRenderer.ShowCraftingPanel)
             {
                 _hudRenderer.ShowInventoryModal = false;
+                _hudRenderer.ShowForgeModal = false;
                 _hudRenderer.SelectedInventorySlot = -1;
                 _draggingInventorySlot = -1;
                 _hudRenderer.DraggedInventorySlot = -1;
             }
+        }
+
+        if (input.ToggleForgePressed)
+        {
+            this.ToggleForgeStationModal();
         }
 
         if (input.MoveDirection.LengthSquared() > 1e-4f)
@@ -213,22 +225,22 @@ public sealed class WorldGameplayScene : GameScene
             _lastMoveDirection = Vector2.Normalize(input.MoveDirection);
         }
 
-        if (input.ScrollSlotDelta != 0 && !_hudRenderer.ShowInventoryModal)
+        if (input.ScrollSlotDelta != 0)
         {
-            int nextSlot = (((_session.SelectedHotbarSlot + input.ScrollSlotDelta) % 9) + 9) % 9;
-            _session.SelectHotbarSlot((byte)nextSlot);
+            if (_hudRenderer.ShowCraftingPanel)
+            {
+                _hudRenderer.ScrollCrafting(input.ScrollSlotDelta);
+            }
+            else if (!_hudRenderer.HasActiveModal)
+            {
+                int nextSlot = (((_session.SelectedHotbarSlot + input.ScrollSlotDelta) % 9) + 9) % 9;
+                _session.SelectHotbarSlot((byte)nextSlot);
+            }
         }
 
         if (input.NumberSlotPressed is byte slotIdx)
         {
-            if (_hudRenderer.ShowCraftingPanel && slotIdx < 6)
-            {
-                _ = _session.TryCraftRecipe((ushort)(slotIdx + 1));
-            }
-            else
-            {
-                _session.SelectHotbarSlot(slotIdx);
-            }
+            _session.SelectHotbarSlot(slotIdx);
         }
 
         if (_hudRenderer.ShowInventoryModal)
@@ -236,12 +248,25 @@ public sealed class WorldGameplayScene : GameScene
             Vector2 mouseScreen = input.MouseScreenPosition;
             if (input.LeftClickPressed)
             {
-                if (_hudRenderer.TryHitTestInventoryForgeButton(mouseScreen, context.WindowWidth, context.WindowHeight))
+                if (_hudRenderer.TryHitTestModalCloseButton(mouseScreen, context.WindowWidth, context.WindowHeight))
+                {
+                    _hudRenderer.ShowInventoryModal = false;
+                    _hudRenderer.SelectedInventorySlot = -1;
+                    _draggingInventorySlot = -1;
+                }
+                else if (_hudRenderer.TryHitTestInventoryUseEquipButton(mouseScreen, context.WindowWidth, context.WindowHeight))
                 {
                     int targetSlot = _hudRenderer.ResolveInventoryActionTargetSlot(_session);
                     if (targetSlot >= 0)
                     {
-                        _ = _session.TryUpgradeInventoryItem((ushort)targetSlot);
+                        if (targetSlot < 9)
+                        {
+                            _session.SelectHotbarSlot((byte)targetSlot);
+                        }
+                        else
+                        {
+                            _ = _session.TryQuickMoveInventorySlot((ushort)targetSlot);
+                        }
                     }
                 }
                 else if (_hudRenderer.TryHitTestInventoryDropAllButton(mouseScreen, context.WindowWidth, context.WindowHeight))
@@ -302,6 +327,53 @@ public sealed class WorldGameplayScene : GameScene
 
             _hudRenderer.DraggedInventorySlot = _draggingInventorySlot;
         }
+        else if (_hudRenderer.ShowCraftingPanel)
+        {
+            Vector2 mouseScreen = input.MouseScreenPosition;
+            if (input.LeftClickPressed)
+            {
+                if (_hudRenderer.TryHitTestModalCloseButton(mouseScreen, context.WindowWidth, context.WindowHeight) ||
+                    !_hudRenderer.IsPointInActiveModal(mouseScreen, context.WindowWidth, context.WindowHeight))
+                {
+                    _hudRenderer.ShowCraftingPanel = false;
+                }
+                else if (_hudRenderer.TryHandleCraftingClick(mouseScreen, _session, context.WindowWidth, context.WindowHeight, out ushort recId, out ushort recQty) &&
+                         recId != 0 && recQty != 0)
+                {
+                    for (int i = 0; i < recQty; i++)
+                    {
+                        if (!_session.TryCraftRecipe(recId))
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        else if (_hudRenderer.ShowForgeModal)
+        {
+            Vector2 mouseScreen = input.MouseScreenPosition;
+            if (input.LeftClickPressed)
+            {
+                if (_hudRenderer.TryHitTestModalCloseButton(mouseScreen, context.WindowWidth, context.WindowHeight) ||
+                    !_hudRenderer.IsPointInActiveModal(mouseScreen, context.WindowWidth, context.WindowHeight))
+                {
+                    _hudRenderer.ShowForgeModal = false;
+                }
+                else if (_hudRenderer.TryHitTestForgeAnvilButton(mouseScreen, context.WindowWidth, context.WindowHeight))
+                {
+                    int targetGear = _hudRenderer.ResolveForgeTargetSlot(_session);
+                    if (targetGear >= 0)
+                    {
+                        _ = _session.TryUpgradeInventoryItem((ushort)targetGear);
+                    }
+                }
+                else
+                {
+                    _ = _hudRenderer.TrySelectForgeGear(mouseScreen, _session, context.WindowWidth, context.WindowHeight);
+                }
+            }
+        }
         else
         {
             _draggingInventorySlot = -1;
@@ -310,7 +382,26 @@ public sealed class WorldGameplayScene : GameScene
             if (input.LeftClickPressed)
             {
                 Vector2 mouseScreen = input.MouseScreenPosition;
-                if (_hudRenderer.TryHitTestHotbar(mouseScreen, context.WindowWidth, context.WindowHeight, out byte hotbarSlot))
+                if (_hudRenderer.TryHitTestHudDockButton(mouseScreen, context.WindowWidth, context.WindowHeight, out HudDockAction dockAction))
+                {
+                    if (dockAction == HudDockAction.Inventory)
+                    {
+                        _hudRenderer.ShowInventoryModal = true;
+                        _hudRenderer.ShowCraftingPanel = false;
+                        _hudRenderer.ShowForgeModal = false;
+                    }
+                    else if (dockAction == HudDockAction.Crafting)
+                    {
+                        _hudRenderer.ShowCraftingPanel = true;
+                        _hudRenderer.ShowInventoryModal = false;
+                        _hudRenderer.ShowForgeModal = false;
+                    }
+                    else if (dockAction == HudDockAction.Forge)
+                    {
+                        this.ToggleForgeStationModal();
+                    }
+                }
+                else if (_hudRenderer.TryHitTestHotbar(mouseScreen, context.WindowWidth, context.WindowHeight, out byte hotbarSlot))
                 {
                     _session.SelectHotbarSlot(hotbarSlot);
                 }
@@ -318,21 +409,24 @@ public sealed class WorldGameplayScene : GameScene
                 {
                     _ = _session.TryCastSkill(skillFromClick, _mouseWorldPosition);
                 }
-                else if (_hudRenderer.TryHitTestCraftingTab(mouseScreen, context.WindowWidth, context.WindowHeight))
-                {
-                    // Crafting workbench tab switched cleanly inside widget.
-                }
-                else if (_hudRenderer.TryHitTestCraftingRecipe(mouseScreen, context.WindowWidth, context.WindowHeight, out ushort craftRecipeId))
-                {
-                    _ = _session.TryCraftRecipe(craftRecipeId);
-                }
-                else if (!_hudRenderer.IsPointInCraftingPanel(mouseScreen, context.WindowWidth, context.WindowHeight))
+                else
                 {
                     Vector2 aimWorld = _camera.ScreenToWorld(in mouseScreen);
+                    bool openedForgeNpc = false;
                     IReadOnlyList<RemoteEntityView> remotes = _session.RemoteEntities;
                     for (int i = 0; i < remotes.Count; i++)
                     {
                         RemoteEntityView entity = remotes[i];
+                        if (entity.Kind == Contracts.Entities.EntityKind.Npc &&
+                            entity.ArchetypeId == 204 &&
+                            Vector2.DistanceSquared(aimWorld, entity.Position) <= (24f * 24f) &&
+                            _session.IsNearForgeStation())
+                        {
+                            this.ToggleForgeStationModal();
+                            openedForgeNpc = true;
+                            break;
+                        }
+
                         if (entity.Kind != Contracts.Entities.EntityKind.Monster || entity.CurrentHealth <= 0f)
                         {
                             continue;
@@ -346,7 +440,10 @@ public sealed class WorldGameplayScene : GameScene
                         }
                     }
 
-                    _ = _session.TriggerPrimaryAction(aimWorld, out _);
+                    if (!openedForgeNpc)
+                    {
+                        _ = _session.TriggerPrimaryAction(aimWorld, out _);
+                    }
                 }
             }
             else if (input.RightClickPressed &&
@@ -387,9 +484,9 @@ public sealed class WorldGameplayScene : GameScene
 
             if (input.InteractOrPickupPressed)
             {
-                if (!_session.TryPickupNearbyLoot())
+                if (!_session.TryPickupNearbyLoot() && !_session.TryToggleNearbyDoor(out _) && _session.IsNearForgeStation())
                 {
-                    _ = _session.TryToggleNearbyDoor(out _);
+                    this.ToggleForgeStationModal();
                 }
             }
 
@@ -606,14 +703,13 @@ public sealed class WorldGameplayScene : GameScene
 
         _menuBatch.Begin(proj);
         _menuBatch.FillRectangle(new RectangleF(0f, 0f, width, height), new ColorRgba(6, 10, 20, 145));
-        _menuBatch.FillRectangle(new RectangleF(x, y, cardW, cardH), new ColorRgba(10, 15, 28, 240));
-        _menuBatch.DrawRectangle(new RectangleF(x, y, cardW, cardH), new ColorRgba(250, 204, 21, 230), 2f);
-        _resumeButton.DrawGeometry(_menuBatch);
-        _logoutButton.DrawGeometry(_menuBatch);
-        _quitButton.DrawGeometry(_menuBatch);
         _menuBatch.End();
 
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: proj);
+        _hudRenderer.UiSkin.DrawWindow(spriteBatch, new RectangleF(x, y, cardW, cardH), new ColorRgba(250, 204, 21, 235), bodyAlpha: 242);
+        _resumeButton.DrawSkin(spriteBatch, _hudRenderer.UiSkin);
+        _logoutButton.DrawSkin(spriteBatch, _hudRenderer.UiSkin);
+        _quitButton.DrawSkin(spriteBatch, _hudRenderer.UiSkin);
         TextMeasureResult titleSize = _hudRenderer.Font.MeasureString("SYSTEM MENU", TextLayoutOptions.Default, 2.5f);
         spriteBatch.DrawOutlinedString(
             _hudRenderer.Font,
@@ -627,6 +723,33 @@ public sealed class WorldGameplayScene : GameScene
         _logoutButton.DrawText(spriteBatch, _hudRenderer.Font);
         _quitButton.DrawText(spriteBatch, _hudRenderer.Font);
         spriteBatch.End();
+    }
+
+    private void ToggleForgeStationModal()
+    {
+        if (_hudRenderer is null)
+        {
+            return;
+        }
+
+        if (_hudRenderer.ShowForgeModal)
+        {
+            _hudRenderer.ShowForgeModal = false;
+            return;
+        }
+
+        if (!_session.IsNearForgeStation())
+        {
+            _hudRenderer.PushNotification("Visit Master Blacksmith or place a Forge Anvil to enhance gear!");
+            return;
+        }
+
+        _hudRenderer.ShowForgeModal = true;
+        _hudRenderer.ShowInventoryModal = false;
+        _hudRenderer.ShowCraftingPanel = false;
+        _hudRenderer.SelectedInventorySlot = -1;
+        _draggingInventorySlot = -1;
+        _hudRenderer.DraggedInventorySlot = -1;
     }
 
     private void UpdateTelemetry(IGameWindow window, int ptx, int pty)

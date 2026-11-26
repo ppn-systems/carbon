@@ -88,15 +88,21 @@ public sealed partial class AuthoritativeWorld
                     _ = this.TryPickupSpecificLootLocked(state, state.PendingPickupLootId, 84f * 84f);
                     state.PendingPickupLootId = 0UL;
                 }
+            }
 
+            _simulation.Tick(new FixedTickArgs(_currentTick, dt, _currentTick * dt));
+
+            this.StepProjectilesLocked();
+
+            foreach (KeyValuePair<ulong, ActivePlayerState> kvp in _playersByConnection)
+            {
+                ActivePlayerState state = kvp.Value;
                 if (state.HasPendingAttack)
                 {
                     this.ProcessPlayerAttackLocked(state);
                     state.HasPendingAttack = false;
                 }
             }
-
-            _simulation.Tick(new FixedTickArgs(_currentTick, dt, _currentTick * dt));
 
             this.ProcessAiAttacksLocked();
             this.ProcessMonsterRespawnsLocked();
@@ -492,63 +498,124 @@ public sealed partial class AuthoritativeWorld
 
             Vector2 atkPos = _simulation.Entities.GetTransform(evt.Attacker).Position;
             Vector2 defPos = _simulation.Entities.GetTransform(evt.Target).Position;
+            bool hasMeta = _actorsByNetworkId.TryGetValue(attackerNet.NetworkId, out NpcActorMeta atkMeta);
+            float rawDamage = hasMeta ? atkMeta.AttackDamage : 10f;
+
+            if (hasMeta && atkMeta.ProjectileSpeed > 0f && atkMeta.AttackRange > 64f)
+            {
+                float maxShotRange = atkMeta.AttackRange * 1.35f;
+                Vector2 toTarget = defPos - atkPos;
+                float distSq = toTarget.LengthSquared();
+                if (distSq > (maxShotRange * maxShotRange) || !this.HasLineOfSightLocked(atkPos, defPos))
+                {
+                    continue;
+                }
+
+                Vector2 shotDir = distSq > 1e-4f ? Vector2.Normalize(toTarget) : Vector2.UnitY;
+                this.CollectNearbyConnectionsAroundWorldLocked(atkPos, _aoiRecipientsScratch);
+                if (_aoiRecipientsScratch.Count > 0)
+                {
+                    int castOffset = _flatRecipients.Count;
+                    for (int rIdx = 0; rIdx < _aoiRecipientsScratch.Count; rIdx++)
+                    {
+                        _flatRecipients.Add(_aoiRecipientsScratch[rIdx]);
+                    }
+
+                    _pendingSkillCasts.Add(new OutboundSkillCast(
+                        castOffset,
+                        _aoiRecipientsScratch.Count,
+                        attackerNet.NetworkId,
+                        (byte)(220 + atkMeta.ProjectileArchetype),
+                        atkPos.X,
+                        atkPos.Y,
+                        defPos.X,
+                        defPos.Y));
+                }
+
+                uint lifeTicks = (uint)Math.Max(14, MathF.Ceiling(maxShotRange / atkMeta.ProjectileSpeed * this.TickRate));
+                this.SpawnProjectileLocked(
+                    attackerNet.NetworkId,
+                    ownerConnectionId: 0UL,
+                    fromPlayer: false,
+                    atkPos + (shotDir * 14f),
+                    shotDir * atkMeta.ProjectileSpeed,
+                    atkMeta.ProjectileArchetype,
+                    rawDamage,
+                    isCritical: false,
+                    lifeTicks);
+                continue;
+            }
+
             if (Vector2.DistanceSquared(atkPos, defPos) > (60f * 60f) || !this.HasLineOfSightLocked(atkPos, defPos))
             {
                 continue;
             }
 
-            HealthComponent hp = _simulation.Entities.GetHealth(evt.Target);
-            float rawDamage = _actorsByNetworkId.TryGetValue(attackerNet.NetworkId, out NpcActorMeta atkMeta)
-                ? atkMeta.AttackDamage
-                : 10f;
-            float monsterDamage = rawDamage;
             ActivePlayerState? victim = null;
             if (_connectionByNetworkId.TryGetValue(targetNet.NetworkId, out ulong targetConn))
             {
                 _ = _playersByConnection.TryGetValue(targetConn, out victim);
             }
 
-            if (victim is not null)
-            {
-                monsterDamage = CharacterProgressionPolicy.MitigateDamage(rawDamage, victim.Stats.Defense);
-                victim.LastCombatDamageTick = _currentTick;
-                victim.StatsDirty = true;
-                this.DegradeEquippedArmorLocked(victim, 0.5f);
-            }
-
-            float nextHp = MathF.Max(0f, hp.Current - monsterDamage);
-            bool killed = nextHp <= 0f;
-
-            if (killed)
-            {
-                Vector2 sanctuaryPos = _chunkWorld.SpawnWorldPosition;
-                _simulation.Entities.SetHealth(evt.Target, new HealthComponent(hp.Max, hp.Max));
-                _simulation.EnqueueCommand(SimulationCommand.Teleport(evt.Target, sanctuaryPos));
-                if (_simulation.Entities.HasVelocity(evt.Target))
-                {
-                    _simulation.Entities.SetVelocity(evt.Target, new Velocity2D(0f, 0f, 5f));
-                }
-
-                if (victim is not null)
-                {
-                    victim.CurrentMana = victim.Stats.MaxMana;
-                    victim.CurrentStamina = victim.Stats.MaxStamina;
-                    victim.StatsDirty = true;
-                    this.MarkCharacterDirtyLocked(victim, inventoryChanged: false);
-                }
-
-                this.ClearAggroAgainstTargetLocked(evt.Target, defPos);
-            }
-            else
-            {
-                _simulation.Entities.SetHealth(evt.Target, new HealthComponent(nextHp, hp.Max));
-            }
-
-            _simulation.MarkDirty(evt.Target, EntityDirtyMask.Health);
-            this.QueueCombatHitLocked(defPos, attackerNet.NetworkId, targetNet.NetworkId, monsterDamage, killed ? hp.Max : nextHp, false, killed);
+            this.ApplyDamageToPlayerLocked(victim, attackerNet.NetworkId, evt.Target, targetNet.NetworkId, defPos, rawDamage);
         }
 
         _simulation.ClearEvents<AiAttackReadyEvent>();
+    }
+
+    private void ApplyDamageToPlayerLocked(
+        ActivePlayerState? victim,
+        ulong attackerNetId,
+        Entity targetEntity,
+        ulong targetNetId,
+        Vector2 defPos,
+        float rawDamage)
+    {
+        if (!_simulation.Entities.IsAlive(targetEntity) || !_simulation.Entities.HasHealth(targetEntity))
+        {
+            return;
+        }
+
+        HealthComponent hp = _simulation.Entities.GetHealth(targetEntity);
+        float monsterDamage = rawDamage;
+        if (victim is not null)
+        {
+            monsterDamage = CharacterProgressionPolicy.MitigateDamage(rawDamage, victim.Stats.Defense);
+            victim.LastCombatDamageTick = _currentTick;
+            victim.StatsDirty = true;
+            this.DegradeEquippedArmorLocked(victim, 0.5f);
+        }
+
+        float nextHp = MathF.Max(0f, hp.Current - monsterDamage);
+        bool killed = nextHp <= 0f;
+
+        if (killed)
+        {
+            Vector2 sanctuaryPos = _chunkWorld.SpawnWorldPosition;
+            _simulation.Entities.SetHealth(targetEntity, new HealthComponent(hp.Max, hp.Max));
+            _simulation.EnqueueCommand(SimulationCommand.Teleport(targetEntity, sanctuaryPos));
+            if (_simulation.Entities.HasVelocity(targetEntity))
+            {
+                _simulation.Entities.SetVelocity(targetEntity, new Velocity2D(0f, 0f, 5f));
+            }
+
+            if (victim is not null)
+            {
+                victim.CurrentMana = victim.Stats.MaxMana;
+                victim.CurrentStamina = victim.Stats.MaxStamina;
+                victim.StatsDirty = true;
+                this.MarkCharacterDirtyLocked(victim, inventoryChanged: false);
+            }
+
+            this.ClearAggroAgainstTargetLocked(targetEntity, defPos);
+        }
+        else
+        {
+            _simulation.Entities.SetHealth(targetEntity, new HealthComponent(nextHp, hp.Max));
+        }
+
+        _simulation.MarkDirty(targetEntity, EntityDirtyMask.Health);
+        this.QueueCombatHitLocked(defPos, attackerNetId, targetNetId, monsterDamage, killed ? hp.Max : nextHp, false, killed);
     }
 
     private void ClearAggroAgainstTargetLocked(Entity victimEntity, Vector2 deathPos)
@@ -606,6 +673,7 @@ public sealed partial class AuthoritativeWorld
             {
                 _ = _lootByNetworkId.Remove(netId);
                 _ = _actorsByNetworkId.Remove(netId);
+                _ = _projectilesByNetworkId.Remove(netId);
             }
         }
 

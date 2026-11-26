@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "itemId": 28,
+  "id": "forge_anvil",
+  "displayName": "Forge Anvil",
+  "tier": 2,
+  "categoryLabel": "Workstation",
+  "accentColor": "#F97316",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.85,
+  "palette": {},
+  "shapes": [
+    { "kind": "rect", "bone": "root", "facing": "any", "x": -7.5, "y": 3.5, "w": 15.0, "h": 4.2, "color": "#475569", "outlineColor": "#0F172A", "outlineThickness": 1.1 },
+    { "kind": "rect", "bone": "root", "facing": "any", "x": -4.4, "y": -1.5, "w": 8.8, "h": 5.2, "color": "#334155", "outlineColor": "#0F172A", "outlineThickness": 1.0 },
+    { "kind": "polygon", "bone": "root", "facing": "any", "points": [[-9.2, -4.2], [7.8, -5.8], [8.5, -1.6], [-5.2, -1.2]], "color": "#94A3B8", "outlineColor": "#0F172A", "outlineThickness": 1.2 },
+    { "kind": "ellipse", "bone": "root", "facing": "any", "x": -3.2, "y": -4.2, "rx": 2.2, "ry": 1.2, "color": "#F97316" }
+  ],
+  "heldVisible": false
+}

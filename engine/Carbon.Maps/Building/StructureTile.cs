@@ -53,6 +53,7 @@ public readonly record struct StructureTile(
         StructureCategory.Wall => !this.Destructibility.IsDestroyed,
         StructureCategory.Door => this.DoorState is DoorState.Closed && !this.Destructibility.IsDestroyed,
         StructureCategory.Pillar => !this.Destructibility.IsDestroyed,
+        StructureCategory.Station => !this.Destructibility.IsDestroyed,
         StructureCategory.Floor => false,
         StructureCategory.None => false,
         _ => false
@@ -132,4 +133,10 @@ public readonly record struct StructureTile(
     /// </summary>
     public static StructureTile CreatePillar(StructureMaterial material, float durability = 300f) =>
         new(StructureType.RoofPillar, material, StructureCategory.Pillar, PropDestructibility.Create(durability, 1), DoorState.Closed, WallConnectivityMask.None, true, 0f);
+
+    /// <summary>
+    /// Creates an interactive workstation tile instance (e.g. blacksmith forge anvil).
+    /// </summary>
+    public static StructureTile CreateStation(StructureType type, StructureMaterial material, float durability = 350f, byte harvestTier = 2) =>
+        new(type, material, StructureCategory.Station, PropDestructibility.Create(durability, harvestTier), DoorState.Closed, WallConnectivityMask.None, false, 0f);
 }

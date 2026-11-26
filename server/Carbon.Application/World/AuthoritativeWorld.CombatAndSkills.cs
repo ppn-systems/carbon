@@ -19,6 +19,8 @@ namespace Carbon.Application.World;
 
 public sealed partial class AuthoritativeWorld
 {
+    private readonly List<(ulong NetworkId, ProjectileActorMeta Meta)> _projectileTickScratch = new(32);
+
     private void ProcessPlayerAttackLocked(ActivePlayerState state)
     {
         if (!_simulation.Entities.IsAlive(state.Entity) ||
@@ -67,6 +69,69 @@ public sealed partial class AuthoritativeWorld
 
         Vector2 rawAim = state.PendingAttackAim - attackerPos;
         Vector2 aimDir = rawAim.LengthSquared() > 1e-4f ? Vector2.Normalize(rawAim) : Vector2.UnitX;
+
+        if (activeSlot.Quantity > 0 &&
+            StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? weaponDef) &&
+            weaponDef.ProjectileSpeed > 0f)
+        {
+            if (weaponDef.AttackManaCost > 0f)
+            {
+                if (state.CurrentMana < weaponDef.AttackManaCost)
+                {
+                    return;
+                }
+
+                state.CurrentMana = MathF.Max(0f, state.CurrentMana - weaponDef.AttackManaCost);
+                state.StatsDirty = true;
+            }
+
+            CombatStrikeEvaluation rangedEval = ToolUsagePolicy.EvaluateCombatStrike(in activeSlot);
+            bool rangedCrit = weaponDef.CritChance >= 0.18f &&
+                ((_currentTick + state.Session.PlayerNetworkId) % 5UL == 0UL);
+            float rangedDmg = rangedEval.Damage * state.Stats.AttackMultiplier;
+            float finalRangedDmg = rangedCrit ? rangedDmg * 1.5f : rangedDmg;
+
+            if (this.DegradeActiveSlotDurabilityLocked(state, in activeSlot, 0.8f, out ItemSlot degradedRanged))
+            {
+                _pendingSlotChanges.Add(new OutboundSlotChange(
+                    state.Session.ConnectionId,
+                    state.Session.SelectedHotbarSlot,
+                    degradedRanged));
+            }
+
+            this.CollectNearbyConnectionsAroundWorldLocked(attackerPos, _aoiRecipientsScratch);
+            if (_aoiRecipientsScratch.Count > 0)
+            {
+                int castOffset = _flatRecipients.Count;
+                for (int rIdx = 0; rIdx < _aoiRecipientsScratch.Count; rIdx++)
+                {
+                    _flatRecipients.Add(_aoiRecipientsScratch[rIdx]);
+                }
+
+                _pendingSkillCasts.Add(new OutboundSkillCast(
+                    castOffset,
+                    _aoiRecipientsScratch.Count,
+                    state.Session.PlayerNetworkId,
+                    (byte)(210 + weaponDef.ProjectileArchetype),
+                    attackerPos.X,
+                    attackerPos.Y,
+                    attackerPos.X + (aimDir.X * 64f),
+                    attackerPos.Y + (aimDir.Y * 64f)));
+            }
+
+            uint lifeTicks = (uint)Math.Max(12, MathF.Ceiling(weaponDef.AttackRange / weaponDef.ProjectileSpeed * this.TickRate));
+            this.SpawnProjectileLocked(
+                state.Session.PlayerNetworkId,
+                state.Session.ConnectionId,
+                fromPlayer: true,
+                attackerPos + (aimDir * 10f),
+                aimDir * weaponDef.ProjectileSpeed,
+                weaponDef.ProjectileArchetype,
+                finalRangedDmg,
+                rangedCrit,
+                lifeTicks);
+            return;
+        }
 
         HitboxQuery.QueryArc(
             _simulation,
@@ -541,5 +606,186 @@ public sealed partial class AuthoritativeWorld
         }
 
         return false;
+    }
+
+    private void SpawnProjectileLocked(
+        ulong ownerNetworkId,
+        ulong ownerConnectionId,
+        bool fromPlayer,
+        Vector2 origin,
+        Vector2 velocity,
+        ushort visualArchetype,
+        float damage,
+        bool isCritical,
+        uint lifetimeTicks)
+    {
+        ulong netId = ++_nextNetworkId;
+        Entity proj = _simulation.SpawnNetworkEntity(netId, origin, 4f, ownerSessionId: ownerConnectionId);
+        _simulation.Entities.SetCollider(proj, new Collider2D(ColliderKind.Circle, 4f, default, true, ProjectileLayer, 0U));
+        _simulation.Entities.SetVelocity(proj, new Velocity2D(velocity.X, velocity.Y, 0f));
+
+        _projectilesByNetworkId[netId] = new ProjectileActorMeta(
+            proj,
+            ownerNetworkId,
+            ownerConnectionId,
+            fromPlayer,
+            visualArchetype,
+            damage,
+            isCritical,
+            velocity,
+            Math.Max(2U, lifetimeTicks));
+    }
+
+    private void StepProjectilesLocked()
+    {
+        if (_projectilesByNetworkId.Count == 0)
+        {
+            return;
+        }
+
+        _projectileTickScratch.Clear();
+        foreach (KeyValuePair<ulong, ProjectileActorMeta> kv in _projectilesByNetworkId)
+        {
+            _projectileTickScratch.Add((kv.Key, kv.Value));
+        }
+
+        _expiredProjectilesScratch.Clear();
+
+        for (int i = 0; i < _projectileTickScratch.Count; i++)
+        {
+            (ulong netId, ProjectileActorMeta meta) = _projectileTickScratch[i];
+            if (!_simulation.Entities.IsAlive(meta.Entity) || !_simulation.Entities.HasTransform(meta.Entity))
+            {
+                _expiredProjectilesScratch.Add(netId);
+                continue;
+            }
+
+            Vector2 currentPos = _simulation.Entities.GetTransform(meta.Entity).Position;
+            Vector2 startPos = _simulation.Entities.TryGetComponent(meta.Entity, out PreviousTransform2D prev)
+                ? prev.Position
+                : currentPos;
+            Vector2 delta = currentPos - startPos;
+            float dist = delta.Length();
+
+            if (dist > 0.01f)
+            {
+                Ray2D wallRay = new(startPos, delta / dist, dist);
+                if (_chunkWorld.Raycast(in wallRay, out _))
+                {
+                    _expiredProjectilesScratch.Add(netId);
+                    continue;
+                }
+            }
+
+            bool hitEntity = false;
+            Vector2 shotDir = meta.Velocity.LengthSquared() > 1e-4f ? Vector2.Normalize(meta.Velocity) : Vector2.UnitX;
+
+            if (meta.FromPlayer)
+            {
+                Vector2 mid = (startPos + currentPos) * 0.5f;
+                _simulation.OverlapCircle(mid, (dist * 0.5f) + 20f, _combatHitScratch, out int candidateCount, MonsterLayer);
+
+                Entity closestMob = Entity.Null;
+                float bestProjT = float.MaxValue;
+                for (int c = 0; c < candidateCount; c++)
+                {
+                    Entity candidate = _combatHitScratch[c];
+                    if (!_simulation.Entities.IsAlive(candidate) ||
+                        !_simulation.Entities.HasHealth(candidate) ||
+                        !_simulation.Entities.HasTransform(candidate))
+                    {
+                        continue;
+                    }
+
+                    Vector2 mobPos = _simulation.Entities.GetTransform(candidate).Position;
+                    float mobR = _simulation.Entities.HasCollider(candidate) ? _simulation.Entities.GetCollider(candidate).Radius : 8f;
+                    float hitR = mobR + 5f;
+                    if (DistancePointToSegmentSq(mobPos, startPos, currentPos, out float segT) <= (hitR * hitR) && segT < bestProjT)
+                    {
+                        bestProjT = segT;
+                        closestMob = candidate;
+                    }
+                }
+
+                if (closestMob.IsValid)
+                {
+                    hitEntity = true;
+                    if (_playersByConnection.TryGetValue(meta.OwnerConnectionId, out ActivePlayerState? ownerState))
+                    {
+                        _combatHitScratch[0] = closestMob;
+                        _ = this.ApplyMonsterHitsFromScratchLocked(
+                            ownerState,
+                            startPos,
+                            shotDir,
+                            hitCount: 1,
+                            meta.Damage,
+                            meta.IsCritical,
+                            knockbackSpeed: 85f);
+                    }
+                }
+            }
+            else
+            {
+                foreach (KeyValuePair<ulong, ActivePlayerState> pkv in _playersByConnection)
+                {
+                    ActivePlayerState player = pkv.Value;
+                    if (!_simulation.Entities.IsAlive(player.Entity) ||
+                        !_simulation.Entities.HasTransform(player.Entity) ||
+                        !_simulation.Entities.HasHealth(player.Entity))
+                    {
+                        continue;
+                    }
+
+                    Vector2 playerPos = _simulation.Entities.GetTransform(player.Entity).Position;
+                    float hitR = DefaultEntityRadius + 5f;
+                    if (DistancePointToSegmentSq(playerPos, startPos, currentPos, out _) <= (hitR * hitR))
+                    {
+                        hitEntity = true;
+                        this.ApplyDamageToPlayerLocked(
+                            player,
+                            meta.OwnerNetworkId,
+                            player.Entity,
+                            player.Session.PlayerNetworkId,
+                            playerPos,
+                            meta.Damage);
+                        break;
+                    }
+                }
+            }
+
+            if (hitEntity || meta.RemainingTicks <= 1U)
+            {
+                _expiredProjectilesScratch.Add(netId);
+            }
+            else
+            {
+                _projectilesByNetworkId[netId] = meta with { RemainingTicks = meta.RemainingTicks - 1U };
+            }
+        }
+
+        for (int i = 0; i < _expiredProjectilesScratch.Count; i++)
+        {
+            ulong netId = _expiredProjectilesScratch[i];
+            if (_projectilesByNetworkId.Remove(netId, out ProjectileActorMeta removed) &&
+                _simulation.Entities.IsAlive(removed.Entity))
+            {
+                _simulation.DespawnEntity(removed.Entity);
+            }
+        }
+    }
+
+    private static float DistancePointToSegmentSq(Vector2 p, Vector2 a, Vector2 b, out float t)
+    {
+        Vector2 ab = b - a;
+        float lenSq = ab.LengthSquared();
+        if (lenSq <= 1e-6f)
+        {
+            t = 0f;
+            return Vector2.DistanceSquared(p, a);
+        }
+
+        t = Math.Clamp(Vector2.Dot(p - a, ab) / lenSq, 0f, 1f);
+        Vector2 proj = a + (ab * t);
+        return Vector2.DistanceSquared(p, proj);
     }
 }

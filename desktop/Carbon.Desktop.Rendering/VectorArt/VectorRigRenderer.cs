@@ -309,6 +309,8 @@ public static class VectorRigRenderer
                 ClientActionKind.PickaxeMine => -1.75f + (MathF.Pow(p, 0.65f) * 2.35f),
                 ClientActionKind.SwordSlash or ClientActionKind.SkillWhirlwind => (action.ComboStep & 1) == 0 ? -1.25f + (p * 2.5f) : 1.25f - (p * 2.5f),
                 ClientActionKind.PlaceStructure => -0.6f + (p * 0.8f),
+                ClientActionKind.BowShot => -0.45f + (p * 0.35f),
+                ClientActionKind.StaffCast => -0.95f + (MathF.Sin(p * MathF.PI) * 0.65f),
                 ClientActionKind.ConsumeItem or ClientActionKind.MonsterStrike or ClientActionKind.SkillArcaneNova or ClientActionKind.SkillVitalSurge or ClientActionKind.None or _ => 0f,
             };
         }

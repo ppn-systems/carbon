@@ -48,7 +48,7 @@ public sealed class InventoryCodecAndCatalogTests
         _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.BerryHerb, 20), 99);
 
         ReadOnlySpan<CraftingRecipe> recipes = StarterGameCatalog.Recipes.All;
-        recipes.Length.Should().Be(17);
+        recipes.Length.Should().Be(22);
 
         for (int i = 0; i < recipes.Length; i++)
         {
@@ -60,6 +60,9 @@ public sealed class InventoryCodecAndCatalogTests
 
         bag.CountItem(StarterGameCatalog.CrystalPickaxe).Should().Be(1);
         bag.CountItem(StarterGameCatalog.IronSword).Should().Be(1);
+        bag.CountItem(StarterGameCatalog.HuntingBow).Should().Be(1);
+        bag.CountItem(StarterGameCatalog.ArcaneStaff).Should().Be(1);
+        bag.CountItem(StarterGameCatalog.ForgeAnvilKit).Should().Be(1);
         bag.CountItem(StarterGameCatalog.StoneWallKit).Should().Be(2);
         bag.CountItem(StarterGameCatalog.IronHelmet).Should().Be(1);
         bag.CountItem(StarterGameCatalog.CrystalRobe).Should().Be(1);
@@ -193,5 +196,25 @@ public sealed class InventoryCodecAndCatalogTests
         scaled.MaxHealth.Should().BeGreaterThan(150f);
         scaled.AttackDamage.Should().BeGreaterThan(16f);
         scaled.ExperienceReward.Should().BeGreaterThan(25U);
+
+        // Class starter loadouts grant Vanguard sword, Ranger HuntingBow, and Arcanist ArcaneStaff (+MaxMP).
+        InventoryContainer rangerBag = new(PlayerInventoryLayout.TotalCapacity);
+        StarterGameCatalog.GrantStarterLoadout(rangerBag, startingClass: 1);
+        rangerBag.GetSlot(2).ItemId.Should().Be(StarterGameCatalog.HuntingBow);
+        rangerBag.GetSlot(PlayerInventoryLayout.ChestSlot).ItemId.Should().Be(StarterGameCatalog.LeatherTunic);
+
+        InventoryContainer mageBag = new(PlayerInventoryLayout.TotalCapacity);
+        StarterGameCatalog.GrantStarterLoadout(mageBag, startingClass: 2);
+        mageBag.GetSlot(2).ItemId.Should().Be(StarterGameCatalog.ArcaneStaff);
+        DerivedCharacterStats baseStats = CharacterProgressionPolicy.ComputeStats(1, mageBag);
+        DerivedCharacterStats staffStats = CharacterProgressionPolicy.ComputeStats(1, mageBag, selectedHotbarSlot: 2);
+        staffStats.MaxMana.Should().BeGreaterThan(baseStats.MaxMana);
+
+        ItemSlot bowSlot = rangerBag.GetSlot(2);
+        ToolUsagePolicy.EvaluatePropStrike(in bowSlot, ToolTargetKind.Mineral, 1).Outcome.Should().Be(ToolStrikeOutcome.BladeBluntOnStone);
+
+        ScaledMonsterStats archer = WorldActorCatalog.ScaleMonsterForZone(WorldActorCatalog.SkeletonArcher, 1);
+        archer.AttackRange.Should().BeGreaterThan(200f);
+        archer.ProjectileSpeed.Should().BeGreaterThan(0f);
     }
 }

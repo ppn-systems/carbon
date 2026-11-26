@@ -136,7 +136,7 @@ public sealed class DesktopClientSessionTests
 
                 ClientAuthResult regB = await clientB.RegisterAsync("127.0.0.1", tcpPort, "playerB", "password123").ConfigureAwait(true);
                 regB.Succeeded.Should().BeTrue();
-                (bool createdB, _) = await clientB.CreateCharacterAsync("HeroB", appearancePreset: 2).ConfigureAwait(true);
+                (bool createdB, _) = await clientB.CreateCharacterAsync("HeroB", appearancePreset: 2, startingClass: (byte)Contracts.Identity.HeroArchetypeClass.Arcanist).ConfigureAwait(true);
                 createdB.Should().BeTrue();
                 IReadOnlyList<ClientCharacterSummary> rosterB = await clientB.ListCharactersAsync().ConfigureAwait(true);
                 rosterB.Should().ContainSingle(c => c.Name == "HeroB" && c.AppearancePreset == 2);
@@ -158,12 +158,26 @@ public sealed class DesktopClientSessionTests
                 ItemSlot[] copiedSlots = new ItemSlot[PlayerInventoryLayout.TotalCapacity];
                 clientA.CopyInventorySlots(copiedSlots);
                 copiedSlots[0].ItemId.Should().Be(StarterGameCatalog.WoodAxe);
+
+                for (int t = 0; t < 4; t++)
+                {
+                    clientA.Update(1.0 / 30.0, Vector2.Zero, sprint: false);
+                    world.StepFixedTick();
+                    await Task.Delay(15).ConfigureAwait(true);
+                }
+
                 clientA.CycleNearestHostileTarget(32f).Should().BeFalse();
                 clientA.LockedTargetNetworkId.Should().Be(0UL);
+                clientA.IsNearForgeStation().Should().BeTrue("sanctuary starter area hosts Master Blacksmith");
 
                 (bool enteredB, _) = await clientB.EnterWorldAsync(rosterB[0].CharacterId).ConfigureAwait(true);
                 enteredB.Should().BeTrue();
                 clientB.IsUdpActive.Should().BeTrue();
+                clientB.CopyInventorySlots(copiedSlots);
+                copiedSlots[2].ItemId.Should().Be(StarterGameCatalog.ArcaneStaff);
+                clientB.SelectHotbarSlot(2);
+                _ = clientB.TriggerPrimaryAction(clientB.LocalPlayerInterpolatedPosition + new Vector2(64f, 0f), out _);
+                clientB.CurrentAction.Kind.Should().Be(ClientActionKind.StaffCast);
 
                 // 4. Drive UDP movement + fixed server ticks until peer spawns and moves over AoI.
                 for (int i = 0; i < 20; i++)

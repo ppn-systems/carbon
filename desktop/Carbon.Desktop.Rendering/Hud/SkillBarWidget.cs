@@ -3,6 +3,7 @@
 using System;
 using System.Numerics;
 using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.Batching.Sprites;
@@ -42,6 +43,22 @@ internal sealed class SkillBarWidget
         }
 
         return false;
+    }
+
+    public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin, IClientWorldReadModel world, int viewportWidth, int viewportHeight)
+    {
+        (float startX, float startY) = ComputeOrigin(viewportWidth, viewportHeight);
+        float totalW = (SkillCount * SlotSize) + ((SkillCount - 1) * Gap);
+        skin.DrawInset(spriteBatch, new RectangleF(startX - 6f, startY - 5f, totalW + 12f, SlotSize + 10f), new ColorRgba(8, 12, 22, 224), new ColorRgba(56, 189, 248, 200));
+
+        for (byte s = 1; s <= SkillCount; s++)
+        {
+            float sx = startX + ((s - 1) * (SlotSize + Gap));
+            _ = CharacterProgressionPolicy.TryGetSkillSpec(s, out SkillSpec spec);
+            float cd = world.GetSkillCooldown(s);
+            bool ready = cd <= 0.02f && world.LocalPlayerMana >= spec.ManaCost && world.LocalPlayerStamina >= spec.StaminaCost;
+            skin.DrawSlot(spriteBatch, new RectangleF(sx, startY, SlotSize, SlotSize), new ColorRgba(12, 18, 34, 235), ready ? ResolveAccentColor(s) : new ColorRgba(71, 85, 105, 220));
+        }
     }
 
     public int DrawGeometry(

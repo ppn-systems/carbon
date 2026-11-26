@@ -8,6 +8,9 @@ using Carbon.Abstractions.Identity;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.Security;
 using Carbon.Contracts.Identity;
+using Carbon.Items.Catalog;
+using Carbon.Items.Containers;
+using Carbon.Items.Serialization;
 
 namespace Carbon.Application.Identity;
 
@@ -117,6 +120,7 @@ public sealed class AuthService : IAuthService
         byte appearancePreset,
         float spawnX,
         float spawnY,
+        byte startingClass = 0,
         CancellationToken ct = default)
     {
         if (!IsValidIdentifier(characterName, 2, 20))
@@ -130,6 +134,23 @@ public sealed class AuthService : IAuthService
             return new CharacterCreateResult(false, "character_limit_reached", null);
         }
 
+        byte[] invBlob = [];
+        byte selectedSlot = 0;
+        float maxHp = 100f;
+        float maxMp = 80f;
+        float maxStam = 100f;
+        if (startingClass is 1 or 2)
+        {
+            InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
+            StarterGameCatalog.GrantStarterLoadout(inv, startingClass);
+            selectedSlot = 2;
+            DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(1, inv, selectedSlot);
+            maxHp = stats.MaxHealth;
+            maxMp = stats.MaxMana;
+            maxStam = stats.MaxStamina;
+            invBlob = InventoryBinaryCodec.Serialize(inv);
+        }
+
         CharacterRecord created = new(
             Guid.NewGuid(),
             accountId,
@@ -138,16 +159,16 @@ public sealed class AuthService : IAuthService
             appearancePreset,
             spawnX,
             spawnY,
-            CurrentHealth: 100f,
-            MaxHealth: 100f,
-            SelectedHotbarSlot: 0,
-            InventoryBlob: [],
+            CurrentHealth: maxHp,
+            MaxHealth: maxHp,
+            SelectedHotbarSlot: selectedSlot,
+            InventoryBlob: invBlob,
             UpdatedAtUtc: _time.GetUtcNow(),
             Experience: 0U,
-            CurrentMana: 80f,
-            MaxMana: 80f,
-            CurrentStamina: 100f,
-            MaxStamina: 100f);
+            CurrentMana: maxMp,
+            MaxMana: maxMp,
+            CurrentStamina: maxStam,
+            MaxStamina: maxStam);
 
         bool inserted = await _characters.TryCreateAsync(created, ct).ConfigureAwait(false);
         return inserted

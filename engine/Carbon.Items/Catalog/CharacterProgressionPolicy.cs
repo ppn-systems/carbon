@@ -57,7 +57,14 @@ public static class CharacterProgressionPolicy
     }
 
     /// <summary>Computes derived HP, MP, Stamina, Defense, and Offense scaling for <paramref name="level"/> and armor slots.</summary>
-    public static DerivedCharacterStats ComputeStats(ushort level, InventoryContainer inventory)
+    public static DerivedCharacterStats ComputeStats(ushort level, InventoryContainer inventory) =>
+        ComputeStats(level, inventory, selectedHotbarSlot: byte.MaxValue);
+
+    /// <summary>
+    /// Computes derived HP, MP, Stamina, Defense, and Offense scaling for <paramref name="level"/>,
+    /// equipped armor slots (<c>36..39</c>), and an actively held hotbar focus weapon (such as Mage Staffs).
+    /// </summary>
+    public static DerivedCharacterStats ComputeStats(ushort level, InventoryContainer inventory, byte selectedHotbarSlot)
     {
         ArgumentNullException.ThrowIfNull(inventory);
 
@@ -85,6 +92,20 @@ public static class CharacterProgressionPolicy
             maxHp += StarterGameCatalog.GetArmorBonusHealth(armor.ItemId) * upgMult;
             maxMp += StarterGameCatalog.GetArmorBonusMana(armor.ItemId) * upgMult;
             defTotal += StarterGameCatalog.GetArmorDefense(armor.ItemId) * upgMult;
+        }
+
+        if (selectedHotbarSlot < PlayerInventoryLayout.HotbarCount && selectedHotbarSlot < inventory.Capacity)
+        {
+            ItemSlot held = inventory.GetSlot(selectedHotbarSlot);
+            if (!held.IsEmpty &&
+                !ToolUsagePolicy.IsWornOut(in held) &&
+                StarterGameCatalog.Items.TryGet(held.ItemId, out Definitions.ItemArchetype? heldDef) &&
+                heldDef.Category == Definitions.ItemCategory.Weapon &&
+                heldDef.BonusMana > 0f)
+            {
+                float upgMult = ItemEnhancementPolicy.GetStatMultiplier(ItemEnhancementPolicy.GetUpgradeLevel(in held));
+                maxMp += heldDef.BonusMana * upgMult;
+            }
         }
 
         return new DerivedCharacterStats(maxHp, maxMp, maxStam, defTotal, atkMult, 1f);

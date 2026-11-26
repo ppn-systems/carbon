@@ -77,6 +77,11 @@ internal sealed class WorldEntityOverlayRenderer
         for (int i = 0; i < remotes.Count; i++)
         {
             RemoteEntityView r = remotes[i];
+            if (r.Kind == EntityKind.Projectile)
+            {
+                continue;
+            }
+
             float distSq = Vector2.DistanceSquared(playerPos, r.Position);
             if (r.Kind == EntityKind.LootDrop)
             {
@@ -188,6 +193,11 @@ internal sealed class WorldEntityOverlayRenderer
         for (int i = 0; i < remotes.Count; i++)
         {
             RemoteEntityView r = remotes[i];
+            if (r.Kind == EntityKind.Projectile)
+            {
+                continue;
+            }
+
             float distSq = Vector2.DistanceSquared(playerPos, r.Position);
             if (r.Kind == EntityKind.LootDrop)
             {
@@ -231,6 +241,11 @@ internal sealed class WorldEntityOverlayRenderer
                     ? new ColorRgba(253, 224, 71, 255)
                     : new ColorRgba(110, 231, 183, 255);
             string displayName = FormatEntityTitle(in r);
+            if (r.Kind == EntityKind.Npc && r.ArchetypeId == 204 && distSq <= (165f * 165f))
+            {
+                displayName = $"{r.Name} [U/E: FORGE]";
+            }
+
             TextMeasureResult measure = font.MeasureString(displayName, TextLayoutOptions.Default, 1f);
             Vector2 labelPos = new(MathF.Floor(screenPt.X - (measure.Width * 0.5f)), nameY);
             spriteBatch.DrawOutlinedString(font, displayName, labelPos, labelColor, outline, 1, 1f);

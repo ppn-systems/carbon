@@ -72,6 +72,14 @@ internal static class ActionVfxRenderer
                 DrawVitalSurgeAura(batch, origin + new Vector2(0f, -8f), progress, alpha);
                 break;
 
+            case ClientActionKind.BowShot:
+                DrawBowReleaseStreak(batch, origin + new Vector2(0f, -6f), dir, progress, alpha);
+                break;
+
+            case ClientActionKind.StaffCast:
+                DrawStaffCastBurst(batch, origin + new Vector2(0f, -8f), dir, progress, alpha, isCrystal: itemId == StarterGameCatalog.CrystalStaff);
+                break;
+
             case ClientActionKind.None:
             case ClientActionKind.ConsumeItem:
             case ClientActionKind.PlaceStructure:
@@ -314,5 +322,23 @@ internal static class ActionVfxRenderer
         float r2 = 10f + (progress * 20f);
         batch.DrawCircle(origin, r1, new ColorRgba(74, 222, 128, alpha), 18, 2.8f);
         batch.DrawCircle(origin + new Vector2(0f, -progress * 18f), r2, new ColorRgba(250, 204, 21, (byte)(alpha * 0.85f)), 16, 2.2f);
+    }
+
+    private static void DrawBowReleaseStreak(GeometryBatch batch, Vector2 origin, Vector2 dir, float progress, byte alpha)
+    {
+        Vector2 perp = new(-dir.Y, dir.X);
+        Vector2 tip = origin + (dir * (18f + (progress * 22f)));
+        batch.DrawLine(origin + (perp * 7f), tip, new ColorRgba(253, 224, 71, (byte)(alpha * 0.7f)), 1.6f);
+        batch.DrawLine(origin - (perp * 7f), tip, new ColorRgba(253, 224, 71, (byte)(alpha * 0.7f)), 1.6f);
+        batch.DrawLine(origin + (dir * 8f), tip + (dir * 8f), new ColorRgba(248, 250, 252, alpha), 2.2f);
+    }
+
+    private static void DrawStaffCastBurst(GeometryBatch batch, Vector2 origin, Vector2 dir, float progress, byte alpha, bool isCrystal)
+    {
+        Vector2 focal = origin + (dir * 15f);
+        ColorRgba outer = isCrystal ? new ColorRgba(192, 132, 252, alpha) : new ColorRgba(56, 189, 248, alpha);
+        ColorRgba core = new(224, 242, 254, alpha);
+        batch.DrawCircle(focal, 4f + (progress * 14f), outer, 14, 2.0f);
+        batch.FillCircle(focal, 4.5f * (1f - (progress * 0.5f)), core, 10);
     }
 }

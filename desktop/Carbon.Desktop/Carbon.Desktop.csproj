@@ -21,6 +21,7 @@
 
     <ItemGroup>
         <Content Include="..\..\resources\art\**\*" Link="resources\art\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+        <Content Include="..\..\resources\ui\**\*" Link="resources\ui\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 
 </Project>

@@ -38,6 +38,12 @@ public enum ClientActionKind : byte
 
     /// <summary>Skill 3: Self Vital Surge restoration aura.</summary>
     SkillVitalSurge = 9,
+
+    /// <summary>Ranged physical bow release shot.</summary>
+    BowShot = 10,
+
+    /// <summary>Arcane staff projectile spell cast.</summary>
+    StaffCast = 11,
 }
 
 /// <summary>

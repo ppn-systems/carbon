@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "itemId": 27,
+  "id": "crystal_staff",
+  "displayName": "Crystal Staff",
+  "tier": 3,
+  "categoryLabel": "Archmage Staff",
+  "accentColor": "#C084FC",
+  "gripX": -2.5,
+  "gripY": 2.5,
+  "restAngleDeg": -68.0,
+  "worldScale": 1.08,
+  "palette": {},
+  "shapes": [
+    { "kind": "capsule", "bone": "root", "facing": "any", "x": -7.4, "y": 7.4, "x2": 4.2, "y2": -4.2, "thickness": 2.8, "color": "#D97706", "outlineColor": "#451A03", "outlineThickness": 1.0 },
+    { "kind": "ring", "bone": "root", "facing": "any", "x": 6.4, "y": -6.4, "rx": 4.8, "ry": 4.8, "thickness": 1.5, "color": "#22D3EE" },
+    { "kind": "polygon", "bone": "root", "facing": "any", "points": [[6.4, -10.0], [9.6, -6.4], [6.4, -2.8], [3.2, -6.4]], "color": "#C084FC", "outlineColor": "#3B0764", "outlineThickness": 1.0 },
+    { "kind": "ellipse", "bone": "root", "facing": "any", "x": 6.4, "y": -6.4, "rx": 1.4, "ry": 1.4, "color": "#F8FAFC" }
+  ],
+  "heldVisible": true
+}

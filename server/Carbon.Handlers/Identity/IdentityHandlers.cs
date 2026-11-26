@@ -144,6 +144,7 @@ public static partial class IdentityHandlers
                 context.Packet.AppearancePreset,
                 spawn.X,
                 spawn.Y,
+                context.Packet.StartingClass,
                 context.CancellationToken)
             .ConfigureAwait(false);
 

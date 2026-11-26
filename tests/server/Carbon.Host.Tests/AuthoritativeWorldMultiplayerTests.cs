@@ -332,6 +332,128 @@ public sealed class AuthoritativeWorldMultiplayerTests
         }
     }
 
+    [Fact]
+    public async Task RangedBowAndStaffCombat_And_StationBoundForging_ShouldWorkEndToEnd()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-ranged-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            SqliteSchemaMigrator migrator = new(factory);
+            await migrator.MigrateAsync().ConfigureAwait(true);
+
+            SqliteCharacterStore characters = new(factory);
+            SqliteChunkDeltaRepository chunks = new(factory);
+            RecordingOutboundSink sink = new();
+
+            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, chunks, characters, sink);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+            // 1. Discover a wilderness monster away from starter sanctuary.
+            EntitySpawnSnapshot? mobSpawn = null;
+            InventoryContainer scoutInv = new(PlayerInventoryLayout.TotalCapacity);
+            StarterGameCatalog.GrantStarterLoadout(scoutInv, startingClass: 1);
+            scoutInv.SetSlot(3, new ItemSlot(StarterGameCatalog.ArcaneStaff, 1, 0UL, 190f));
+            scoutInv.SetSlot(4, new ItemSlot(StarterGameCatalog.ForgeAnvilKit, 2));
+            scoutInv.SetSlot(9, new ItemSlot(StarterGameCatalog.IronOre, 30));
+            scoutInv.SetSlot(10, new ItemSlot(StarterGameCatalog.ManaCrystal, 30));
+            scoutInv.SetSlot(11, new ItemSlot(StarterGameCatalog.StoneChunk, 30));
+            byte[] rangerBytes = InventoryBinaryCodec.Serialize(scoutInv);
+
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            ulong hunterConn = 0UL;
+            float hunterX = 0f;
+            float hunterY = 0f;
+            for (int probeX = 2; probeX <= 7 && mobSpawn is null; probeX++)
+            {
+                hunterX = ((probeX * 32) + 16) * 32f;
+                hunterY = 16f * 32f;
+                ulong cid = (ulong)(900 + probeX);
+                CharacterRecord rec = new(Guid.NewGuid(), Guid.NewGuid(), $"Ranger{probeX}", 1, 0, hunterX, hunterY, 120f, 120f, 2, rangerBytes, now, CurrentMana: 110f, MaxMana: 110f);
+                world.TryEnterWorld(cid, cid, rec).Status.Should().Be(OpStatus.Ok);
+                world.StepFixedTick();
+
+                for (int i = 0; i < sink.Spawns.Count; i++)
+                {
+                    if (sink.Spawns[i].ConnectionId == cid && sink.Spawns[i].Snapshot.Kind == EntityKind.Monster)
+                    {
+                        mobSpawn = sink.Spawns[i].Snapshot;
+                        hunterConn = cid;
+                        break;
+                    }
+                }
+            }
+
+            mobSpawn.Should().NotBeNull();
+
+            // 2. Station-bound Forging: trying to enhance in open wilderness without NPC/Anvil must return OutOfRange,
+            //    then placing StructureType.ForgeAnvil nearby unlocks OpStatus.Ok enhancement!
+            world.TryUpgradeInventoryItem(hunterConn, slotIndex: 2).Should().Be(OpStatus.OutOfRange);
+
+            int anvilTx = (int)MathF.Floor(hunterX / 32f) + 2;
+            int anvilTy = (int)MathF.Floor(hunterY / 32f);
+            for (int dx = -2; dx <= 2; dx++)
+            {
+                for (int dy = -2; dy <= 2; dy++)
+                {
+                    if (dx == 0 && dy == 0)
+                    {
+                        continue;
+                    }
+
+                    WorldMutationOutcome tryAnvil = world.TryPlaceStructure(hunterConn, (int)MathF.Floor(hunterX / 32f) + dx, (int)MathF.Floor(hunterY / 32f) + dy, StructureType.ForgeAnvil);
+                    if (tryAnvil.Status == OpStatus.Ok)
+                    {
+                        dx = 99;
+                        break;
+                    }
+                }
+            }
+
+            world.TryUpgradeInventoryItem(hunterConn, slotIndex: 2, deterministicRollSeed: 2U).Should().Be(OpStatus.Ok);
+
+            // 3. Fire HuntingBow projectile from ~120px away towards discovered monster and step ticks until swept projectile hits.
+            Vector2 shotOrigin = new(mobSpawn!.Value.PositionX - 110f, mobSpawn.Value.PositionY);
+            CharacterRecord sniper = new(Guid.NewGuid(), Guid.NewGuid(), "Sniper", 1, 0, shotOrigin.X, shotOrigin.Y, 120f, 120f, 2, rangerBytes, now, CurrentMana: 110f, MaxMana: 110f);
+            world.TryEnterWorld(950UL, 950UL, sniper).Status.Should().Be(OpStatus.Ok);
+            world.EnqueueAttackInput(950UL, 0UL, new Vector2(mobSpawn.Value.PositionX, mobSpawn.Value.PositionY), 2).Should().Be(OpStatus.Ok);
+            for (int t = 0; t < 16; t++)
+            {
+                world.StepFixedTick();
+            }
+
+            sink.Spawns.Should().Contain(s => s.Snapshot.Kind == EntityKind.Projectile && s.Snapshot.ArchetypeId == 1);
+            sink.CombatHits.Should().Contain(h => h.DefenderNetworkId == mobSpawn.Value.NetworkId && h.Damage > 0f);
+
+            // 4. Fire ArcaneStaff Mana Bolt (slot 3 -> ArchetypeId 2) & confirm projectile spawns.
+            int hitsBeforeStaff = sink.CombatHits.Count;
+            world.TrySelectHotbarSlot(950UL, 3).Should().Be(OpStatus.Ok);
+            for (int w = 0; w < 20; w++)
+            {
+                world.StepFixedTick();
+            }
+
+            world.EnqueueAttackInput(950UL, 0UL, new Vector2(mobSpawn.Value.PositionX, mobSpawn.Value.PositionY), 3).Should().Be(OpStatus.Ok);
+            for (int t = 0; t < 16; t++)
+            {
+                world.StepFixedTick();
+            }
+
+            sink.Spawns.Should().Contain(s => s.Snapshot.Kind == EntityKind.Projectile && s.Snapshot.ArchetypeId == 2);
+            sink.CombatHits.Count.Should().BeGreaterThan(hitsBeforeStaff);
+            _ = anvilTx;
+            _ = anvilTy;
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
     private sealed class RecordingOutboundSink : IWorldOutboundSink
     {
         public List<(ulong ConnectionId, EntitySpawnSnapshot Snapshot)> Spawns { get; } = [];

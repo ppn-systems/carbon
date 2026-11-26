@@ -45,5 +45,10 @@ public enum StructureType : byte
     /// <summary>
     /// Constructed roof support column (Heavy affordance, 300 HP).
     /// </summary>
-    RoofPillar = 7
+    RoofPillar = 7,
+
+    /// <summary>
+    /// Placeable blacksmith anvil workstation enabling field gear enhancement (+1..+10).
+    /// </summary>
+    ForgeAnvil = 8
 }

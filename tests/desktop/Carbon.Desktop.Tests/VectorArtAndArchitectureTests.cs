@@ -7,6 +7,7 @@ using System.Reflection;
 using Carbon.Desktop.Abstractions;
 using Carbon.Desktop.Networking;
 using Carbon.Desktop.Rendering;
+using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
 using FluentAssertions;
 using Xunit;
@@ -27,10 +28,18 @@ public sealed class VectorArtAndArchitectureTests
 
         VectorArtValidationSummary summary = VectorArtValidator.ValidateDirectory(artRoot!);
         summary.CharactersValidated.Should().Be(4);
-        summary.MonstersValidated.Should().Be(4);
-        summary.NpcsValidated.Should().Be(3);
-        summary.ItemsValidated.Should().Be(23);
+        summary.MonstersValidated.Should().Be(5);
+        summary.NpcsValidated.Should().Be(4);
+        summary.ItemsValidated.Should().Be(28);
         summary.RasterImagesFound.Should().Be(0, "declarative vector pipeline uses zero PNG/JPG images");
+
+        string? uiPanelDir = CarbonUiSkin.TryFindPanelDirectory();
+        uiPanelDir.Should().NotBeNull("standardized 9-slice UI panels must exist under resources/ui/panels/");
+        File.Exists(Path.Combine(uiPanelDir!, "0.png")).Should().BeTrue();
+        File.Exists(Path.Combine(uiPanelDir!, "1.png")).Should().BeTrue();
+        File.Exists(Path.Combine(uiPanelDir!, "9.png")).Should().BeTrue();
+        File.Exists(Path.Combine(uiPanelDir!, "14.png")).Should().BeTrue();
+        File.Exists(Path.Combine(uiPanelDir!, "15.png")).Should().BeTrue();
 
         CarbonVectorArtLibrary lib = CarbonVectorArtLibrary.LoadFromDirectory(artRoot!);
         Span<BonePose> pose = stackalloc BonePose[(int)VectorBoneId.Count];

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.Batching.Sprites;
@@ -27,6 +28,15 @@ internal sealed class MinimapRadarWidget
     private int _cachedPtx = int.MinValue;
     private int _cachedPty = int.MinValue;
     private ulong _cachedSeed;
+
+    public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin, int viewportWidth)
+    {
+        const float mapSize = 152f;
+        const float pad = 8f;
+        float mapX = viewportWidth - mapSize - 24f;
+        const float mapY = 38f;
+        skin.DrawCard(spriteBatch, new RectangleF(mapX - pad, mapY - 24f, mapSize + (pad * 2f), mapSize + 44f), new ColorRgba(71, 85, 105, 235), bodyAlpha: 224);
+    }
 
     public void DrawGeometry(GeometryBatch batch, IClientWorldReadModel world, int viewportWidth, int ptx, int pty)
     {
@@ -73,7 +83,7 @@ internal sealed class MinimapRadarWidget
         for (int i = 0; i < remotes.Count; i++)
         {
             RemoteEntityView r = remotes[i];
-            if (r.Kind == EntityKind.LootDrop)
+            if (r.Kind is EntityKind.LootDrop or EntityKind.Projectile)
             {
                 continue;
             }

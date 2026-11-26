@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "id": "master_blacksmith",
+  "designHeight": 34.0,
+  "worldHeight": 35.0,
+  "headTopOffset": 31.0,
+  "accentColor": "#F97316",
+  "bonePivots": {
+    "root": { "x": 0.0, "y": 0.0 },
+    "cape": { "x": 0.0, "y": -21.0 },
+    "legLeft": { "x": -3.2, "y": -10.4 },
+    "legRight": { "x": 3.2, "y": -10.4 },
+    "body": { "x": 0.0, "y": -15.0 },
+    "armBack": { "x": -6.6, "y": -19.5 },
+    "armFront": { "x": 6.6, "y": -19.5 },
+    "head": { "x": 0.0, "y": -22.5 },
+    "headgear": { "x": 0.0, "y": -28.0 },
+    "aura": { "x": 0.0, "y": -24.0 }
+  },
+  "palette": {
+    "outline": "#18181B",
+    "apron": "#78350F",
+    "apronLight": "#B45309",
+    "tunic": "#475569",
+    "skin": "#F5C6A5",
+    "beard": "#7C2D12",
+    "steel": "#CBD5E1",
+    "steelDark": "#64748B",
+    "ember": "#F97316",
+    "boot": "#27272A"
+  },
+  "shapes": [
+    { "kind": "ellipse", "bone": "root", "facing": "any", "x": 0.0, "y": 0.2, "rx": 8.8, "ry": 3.2, "color": "#0A0E1782" },
+    { "kind": "capsule", "bone": "legLeft", "facing": "any", "x": -3.2, "y": -10.2, "x2": -3.5, "y2": -2.0, "thickness": 4.2, "color": "$boot", "outlineColor": "$outline", "outlineThickness": 1.0 },
+    { "kind": "capsule", "bone": "legRight", "facing": "any", "x": 3.2, "y": -10.2, "x2": 3.5, "y2": -2.0, "thickness": 4.2, "color": "$boot", "outlineColor": "$outline", "outlineThickness": 1.0 },
+    { "kind": "rect", "bone": "body", "facing": "any", "x": -6.2, "y": -20.5, "w": 12.4, "h": 11.0, "color": "$tunic", "outlineColor": "$outline", "outlineThickness": 1.2 },
+    { "kind": "polygon", "bone": "body", "facing": "any", "points": [[-4.8, -19.8], [4.8, -19.8], [5.4, -7.8], [-5.4, -7.8]], "color": "$apron", "outlineColor": "$outline", "outlineThickness": 1.0 },
+    { "kind": "rect", "bone": "body", "facing": "any", "x": -5.2, "y": -12.6, "w": 10.4, "h": 2.2, "color": "$apronLight", "outlineColor": "$outline", "outlineThickness": 0.9 },
+    { "kind": "rect", "bone": "body", "facing": "any", "x": -1.6, "y": -12.8, "w": 3.2, "h": 2.6, "color": "$ember", "outlineColor": "$outline", "outlineThickness": 0.8 },
+    { "kind": "capsule", "bone": "armBack", "facing": "any", "x": -6.6, "y": -19.5, "x2": -7.8, "y2": -12.0, "thickness": 3.6, "color": "$skin", "outlineColor": "$outline", "outlineThickness": 1.0 },
+    { "kind": "capsule", "bone": "armFront", "facing": "any", "x": 6.6, "y": -19.5, "x2": 8.4, "y2": -12.2, "thickness": 3.6, "color": "$skin", "outlineColor": "$outline", "outlineThickness": 1.0 },
+    { "kind": "capsule", "bone": "armFront", "facing": "any", "x": 8.2, "y": -12.4, "x2": 10.4, "y2": -17.6, "thickness": 2.0, "color": "$apronLight", "outlineColor": "$outline", "outlineThickness": 0.9 },
+    { "kind": "rect", "bone": "armFront", "facing": "any", "x": 8.4, "y": -20.5, "w": 4.8, "h": 3.4, "color": "$steel", "outlineColor": "$outline", "outlineThickness": 1.0 },
+    { "kind": "ellipse", "bone": "head", "facing": "any", "x": 0.0, "y": -24.2, "rx": 5.8, "ry": 5.4, "color": "$skin", "outlineColor": "$outline", "outlineThickness": 1.2 },
+    { "kind": "ellipse", "bone": "head", "facing": "any", "x": -1.9, "y": -24.6, "rx": 0.9, "ry": 1.0, "color": "$outline" },
+    { "kind": "ellipse", "bone": "head", "facing": "any", "x": 1.9, "y": -24.6, "rx": 0.9, "ry": 1.0, "color": "$outline" },
+    { "kind": "polygon", "bone": "head", "facing": "any", "points": [[-4.8, -22.2], [4.8, -22.2], [3.8, -17.2], [0.0, -16.0], [-3.8, -17.2]], "color": "$beard", "outlineColor": "$outline", "outlineThickness": 1.0 },
+    { "kind": "rect", "bone": "headgear", "facing": "any", "x": -5.8, "y": -29.2, "w": 11.6, "h": 2.8, "color": "$steelDark", "outlineColor": "$outline", "outlineThickness": 1.0 }
+  ],
+  "animations": {
+    "idle": {
+      "duration": 1.5,
+      "loop": true,
+      "tracks": [
+        { "t": 0.0, "bones": { "body": { "dy": 0.0 }, "armFront": { "rotDeg": 0.0 }, "head": { "dy": 0.0 } } },
+        { "t": 0.5, "bones": { "body": { "dy": -0.6 }, "armFront": { "rotDeg": -16.0 }, "head": { "dy": -0.6 } } },
+        { "t": 1.0, "bones": { "body": { "dy": 0.0 }, "armFront": { "rotDeg": 0.0 }, "head": { "dy": 0.0 } } }
+      ]
+    },
+    "walk": {
+      "duration": 0.65,
+      "loop": true,
+      "tracks": [
+        { "t": 0.0, "bones": { "legLeft": { "rotDeg": -16.0 }, "legRight": { "rotDeg": 16.0 }, "body": { "dy": -0.5 } } },
+        { "t": 0.5, "bones": { "legLeft": { "rotDeg": 16.0 }, "legRight": { "rotDeg": -16.0 }, "body": { "dy": 0.4 } } },
+        { "t": 1.0, "bones": { "legLeft": { "rotDeg": -16.0 }, "legRight": { "rotDeg": 16.0 }, "body": { "dy": -0.5 } } }
+      ]
+    }
+  }
+}

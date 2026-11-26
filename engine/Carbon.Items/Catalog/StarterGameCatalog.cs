@@ -83,6 +83,21 @@ public static class StarterGameCatalog
     /// <summary>Restorative mana &amp; stamina tonic (+45 MP, +30 Stamina).</summary>
     public const uint ManaTonic = 23;
 
+    /// <summary>Hunter ashwood recurve bow (ranged physical projectiles).</summary>
+    public const uint HuntingBow = 24;
+
+    /// <summary>Crystal-tipped arcane mage staff (fires mana bolts, +30 MaxMP).</summary>
+    public const uint ArcaneStaff = 25;
+
+    /// <summary>Tier 3 prism crystal bow (high-velocity piercing arrows).</summary>
+    public const uint CrystalBow = 26;
+
+    /// <summary>Archmage astral crystal staff (+50 MaxMP, high-power mana bolts).</summary>
+    public const uint CrystalStaff = 27;
+
+    /// <summary>Placeable blacksmith anvil workstation kit (<c>StructureType.ForgeAnvil = 8</c>).</summary>
+    public const uint ForgeAnvilKit = 28;
+
     /// <summary>Gets all registered starter item archetypes indexed by ID.</summary>
     public static DefinitionRegistry<uint, ItemArchetype> Items { get; } = new(
     [
@@ -170,9 +185,29 @@ public static class StarterGameCatalog
             ManaTonic, "mana_tonic", ItemCategory.Consumable, MaxStackSize: 20,
             DisplayName: "Mana Tonic", RestoreMana: 45f, RestoreStamina: 30f,
             ActionHint: "Consumable | Use: +45 MP & +30 Stamina"),
+        new ItemArchetype(
+            HuntingBow, "hunting_bow", ItemCategory.Weapon, MaxStackSize: 1, EquipmentSlotKind.MainHand, HarvestTier: 0, MaxDurability: 180f,
+            DisplayName: "Hunt Bow", BaseDamage: 26f, CritChance: 0.22f, FloraHarvestDamage: 12f, MineralHarvestDamage: 0f,
+            ActionHint: "Ranged Bow | Shoot Arrows (26 dmg, 290 range)", AttackRange: 290f, ProjectileSpeed: 520f, ProjectileArchetype: 1),
+        new ItemArchetype(
+            ArcaneStaff, "arcane_staff", ItemCategory.Weapon, MaxStackSize: 1, EquipmentSlotKind.MainHand, HarvestTier: 0, MaxDurability: 190f,
+            DisplayName: "Arc.Staff", BaseDamage: 31f, CritChance: 0.18f, FloraHarvestDamage: 10f, MineralHarvestDamage: 0f, BonusMana: 30f,
+            ActionHint: "Mage Staff | Arcane Bolt (31 dmg, 4 MP, +30 MaxMP)", AttackRange: 275f, ProjectileSpeed: 460f, ProjectileArchetype: 2, AttackManaCost: 4f),
+        new ItemArchetype(
+            CrystalBow, "crystal_bow", ItemCategory.Weapon, MaxStackSize: 1, EquipmentSlotKind.MainHand, HarvestTier: 0, MaxDurability: 250f,
+            DisplayName: "Crys.Bow", BaseDamage: 38f, CritChance: 0.25f, FloraHarvestDamage: 14f, MineralHarvestDamage: 0f,
+            ActionHint: "Tier 3 Bow | Prism Arrows (38 dmg, 320 range)", AttackRange: 320f, ProjectileSpeed: 580f, ProjectileArchetype: 3),
+        new ItemArchetype(
+            CrystalStaff, "crystal_staff", ItemCategory.Weapon, MaxStackSize: 1, EquipmentSlotKind.MainHand, HarvestTier: 0, MaxDurability: 260f,
+            DisplayName: "Crys.Staff", BaseDamage: 44f, CritChance: 0.22f, FloraHarvestDamage: 12f, MineralHarvestDamage: 0f, BonusMana: 50f,
+            ActionHint: "Archmage Staff | Astral Bolt (44 dmg, 6 MP, +50 MaxMP)", AttackRange: 300f, ProjectileSpeed: 500f, ProjectileArchetype: 2, AttackManaCost: 6f),
+        new ItemArchetype(
+            ForgeAnvilKit, "forge_anvil", ItemCategory.Placeable, MaxStackSize: 20, PlaceableStructureType: 8,
+            DisplayName: "Forge Anvil",
+            ActionHint: "Workstation | Place Anvil to Enhance Gear ([U])"),
     ]);
 
-    /// <summary>Gets all registered crafting recipes indexed by ID (1..15).</summary>
+    /// <summary>Gets all registered crafting recipes indexed by ID (1..22).</summary>
     public static DefinitionRegistry<uint, CraftingRecipe> Recipes { get; } = new(
     [
         new CraftingRecipe(1, [new RecipeIngredient(WoodLog, 4)], new ItemSlot(WoodWallKit, 2)),
@@ -192,13 +227,27 @@ public static class StarterGameCatalog
         new CraftingRecipe(15, [new RecipeIngredient(BerryHerb, 2), new RecipeIngredient(ManaCrystal, 1)], new ItemSlot(ManaTonic, 2)),
         new CraftingRecipe(16, [new RecipeIngredient(ManaCrystal, 4), new RecipeIngredient(IronOre, 4)], new ItemSlot(CrystalCrown, 1, 0, 240f)),
         new CraftingRecipe(17, [new RecipeIngredient(ManaCrystal, 6), new RecipeIngredient(IronOre, 5)], new ItemSlot(CrystalRobe, 1, 0, 280f)),
+        new CraftingRecipe(18, [new RecipeIngredient(WoodLog, 6), new RecipeIngredient(BerryHerb, 2)], new ItemSlot(HuntingBow, 1, 0, 180f)),
+        new CraftingRecipe(19, [new RecipeIngredient(WoodLog, 5), new RecipeIngredient(ManaCrystal, 2)], new ItemSlot(ArcaneStaff, 1, 0, 190f)),
+        new CraftingRecipe(20, [new RecipeIngredient(WoodLog, 5), new RecipeIngredient(IronOre, 3), new RecipeIngredient(ManaCrystal, 4)], new ItemSlot(CrystalBow, 1, 0, 250f)),
+        new CraftingRecipe(21, [new RecipeIngredient(ManaCrystal, 5), new RecipeIngredient(IronOre, 3)], new ItemSlot(CrystalStaff, 1, 0, 260f)),
+        new CraftingRecipe(22, [new RecipeIngredient(IronOre, 6), new RecipeIngredient(StoneChunk, 6)], new ItemSlot(ForgeAnvilKit, 1)),
     ]);
 
     /// <summary>
-    /// Populates a fresh character inventory with starter tools, weapon, rations, and building kits.
+    /// Populates a fresh character inventory with default starter Vanguard gear.
     /// </summary>
     /// <param name="inventory">Target inventory container.</param>
-    public static void GrantStarterLoadout(InventoryContainer inventory)
+    public static void GrantStarterLoadout(InventoryContainer inventory) =>
+        GrantStarterLoadout(inventory, startingClass: 0);
+
+    /// <summary>
+    /// Populates a fresh character inventorytailored for <paramref name="startingClass"/>
+    /// (<c>0</c>=Vanguard Sword, <c>1</c>=Ranger Bow, <c>2</c>=Arcanist Staff).
+    /// </summary>
+    /// <param name="inventory">Target inventory container.</param>
+    /// <param name="startingClass">Selected starting hero class byte.</param>
+    public static void GrantStarterLoadout(InventoryContainer inventory, byte startingClass)
     {
         ArgumentNullException.ThrowIfNull(inventory);
 
@@ -215,7 +264,13 @@ public static class StarterGameCatalog
 
         if (inventory.Capacity > 2)
         {
-            inventory.SetSlot(2, new ItemSlot(IronSword, 1, 0, 200f));
+            ItemSlot primaryWeapon = startingClass switch
+            {
+                1 => new ItemSlot(HuntingBow, 1, 0, 180f),
+                2 => new ItemSlot(ArcaneStaff, 1, 0, 190f),
+                _ => new ItemSlot(IronSword, 1, 0, 200f),
+            };
+            inventory.SetSlot(2, in primaryWeapon);
         }
 
         if (inventory.Capacity > 3)
@@ -235,10 +290,27 @@ public static class StarterGameCatalog
 
         if (inventory.Capacity > 6)
         {
-            inventory.SetSlot(6, new ItemSlot(ManaTonic, 3));
+            inventory.SetSlot(6, new ItemSlot(ManaTonic, startingClass == 2 ? 6 : 3));
         }
 
-        if (inventory.Capacity > 10)
+        if (startingClass is 1 or 2)
+        {
+            if (inventory.Capacity > PlayerInventoryLayout.HeadSlot)
+            {
+                inventory.SetSlot(PlayerInventoryLayout.HeadSlot, new ItemSlot(LeatherCap, 1, 0, 120f));
+            }
+
+            if (inventory.Capacity > PlayerInventoryLayout.ChestSlot)
+            {
+                inventory.SetSlot(PlayerInventoryLayout.ChestSlot, new ItemSlot(LeatherTunic, 1, 0, 150f));
+            }
+
+            if (inventory.Capacity > PlayerInventoryLayout.FeetSlot)
+            {
+                inventory.SetSlot(PlayerInventoryLayout.FeetSlot, new ItemSlot(LeatherBoots, 1, 0, 120f));
+            }
+        }
+        else if (inventory.Capacity > 10)
         {
             inventory.SetSlot(9, new ItemSlot(LeatherTunic, 1, 0, 150f));
             inventory.SetSlot(10, new ItemSlot(LeatherBoots, 1, 0, 120f));

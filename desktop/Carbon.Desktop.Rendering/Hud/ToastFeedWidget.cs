@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.Batching.Sprites;
@@ -43,6 +44,21 @@ internal sealed class ToastFeedWidget
             {
                 _toasts[i] = _toasts[i] with { RemainingSeconds = rem };
             }
+        }
+    }
+
+    public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin, BitmapFont font, int viewportWidth)
+    {
+        for (int i = 0; i < _toasts.Count; i++)
+        {
+            NotificationToast toast = _toasts[i];
+            byte alpha = (byte)(Math.Clamp(toast.RemainingSeconds / 0.8f, 0f, 1f) * 225f);
+            TextMeasureResult size = font.MeasureString(toast.Message, TextLayoutOptions.Default, 1.5f);
+            float w = size.Width + 18f;
+            float x = viewportWidth - w - 16f;
+            float y = 216f + (i * 25f);
+            ColorRgba border = toast.Message.StartsWith('+') ? new ColorRgba(52, 211, 153, alpha) : new ColorRgba(250, 204, 21, alpha);
+            skin.DrawInset(spriteBatch, new RectangleF(x, y, w, 22f), new ColorRgba(10, 15, 28, alpha), border);
         }
     }
 

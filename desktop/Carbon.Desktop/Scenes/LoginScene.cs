@@ -6,6 +6,7 @@ using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Desktop.Abstractions;
 using Carbon.Desktop.Rendering;
+using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching;
 using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Common;
@@ -24,8 +25,8 @@ using Silk.NET.OpenGL;
 namespace Carbon.Desktop.Scenes;
 
 /// <summary>
-/// Online authentication scene handling server endpoint selection, TCP X25519 encrypted login/registration,
-/// and automated fast-path login when <see cref="DesktopClientOptions.AutoLogin"/> is enabled.
+/// Online authentication scene with standardized 9-slice skinning, explicit Sign-In / Create-Account tabs,
+/// password confirmation &amp; reveal toggle, gateway endpoint editor, and fast AutoLogin path.
 /// </summary>
 public sealed class LoginScene : GameScene
 {
@@ -33,28 +34,33 @@ public sealed class LoginScene : GameScene
     private readonly DesktopClientOptions _options;
     private readonly Camera2D _camera;
 
-    private readonly MenuTextField _serverField;
     private readonly MenuTextField _usernameField;
     private readonly MenuTextField _passwordField;
-    private readonly MenuTextField[] _fields;
+    private readonly MenuTextField _confirmPasswordField;
+    private readonly MenuTextField _serverField;
 
-    private readonly MenuButton _signInButton = new("SIGN IN", MenuButtonStyle.PrimaryGold);
-    private readonly MenuButton _registerButton = new("REGISTER", MenuButtonStyle.SecondaryEmerald);
+    private readonly MenuButton _signInTab = new("SIGN IN", MenuButtonStyle.PrimaryGold);
+    private readonly MenuButton _registerTab = new("CREATE ACCOUNT", MenuButtonStyle.NeutralSlate);
+    private readonly MenuButton _toggleMaskBtn = new("SHOW", MenuButtonStyle.NeutralSlate);
+    private readonly MenuButton _submitButton = new("SIGN IN TO REALM", MenuButtonStyle.SecondaryEmerald);
+    private readonly MenuButton _editGatewayBtn = new("EDIT", MenuButtonStyle.NeutralSlate);
     private readonly MenuButton _quitButton = new("QUIT", MenuButtonStyle.DangerRed);
 
     private GeometryBatch? _geometryBatch;
     private BitmapFont? _font;
     private Texture2D? _whitePixel;
+    private CarbonUiSkin? _uiSkin;
     private IInputManager? _boundInput;
 
     private Task<ClientAuthResult>? _pendingAuthTask;
     private Task? _pendingAutoEnterTask;
-    private bool _pendingIsRegister;
+    private bool _registerMode;
+    private bool _showGatewayEditor;
     private bool _autoStarted;
     private float _elapsed;
     private float _backspaceHoldTime;
     private float _backspaceRepeatTime;
-    private string _statusMessage = "Enter credentials to connect via TCP + Authenticated UDP.";
+    private string _statusMessage = "Ready. Sign in or create an online account.";
     private bool _statusIsError;
 
     /// <summary>
@@ -67,13 +73,14 @@ public sealed class LoginScene : GameScene
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _camera = camera ?? throw new ArgumentNullException(nameof(camera));
 
-        _serverField = new MenuTextField("SERVER (HOST:PORT)", "127.0.0.1:57207", $"{options.ServerHost}:{options.ServerTcpPort}", isPassword: false, maxLength: 96);
-        _usernameField = new MenuTextField("USERNAME", "3-24 chars", options.Username, isPassword: false, maxLength: 24)
+        _usernameField = new MenuTextField("ACCOUNT USERNAME", "3-24 letters or digits", options.Username, isPassword: false, maxLength: 24)
         {
             IsFocused = true,
+            CharacterFilter = static ch => char.IsLetterOrDigit(ch) || ch == '_' || ch == '.',
         };
         _passwordField = new MenuTextField("PASSWORD", "min 6 chars", options.Password, isPassword: true, maxLength: 64);
-        _fields = [_serverField, _usernameField, _passwordField];
+        _confirmPasswordField = new MenuTextField("CONFIRM PASSWORD", "repeat password", string.Empty, isPassword: true, maxLength: 64);
+        _serverField = new MenuTextField("SERVER GATEWAY (HOST:PORT)", "127.0.0.1:57207", $"{options.ServerHost}:{options.ServerTcpPort}", isPassword: false, maxLength: 96);
     }
 
     /// <inheritdoc/>
@@ -84,6 +91,7 @@ public sealed class LoginScene : GameScene
 
         _geometryBatch = new GeometryBatch(context.Device);
         (_font, _whitePixel) = EmbeddedPixelFont.Create(context.Device);
+        _uiSkin = CarbonUiSkin.Load(context.Device);
     }
 
     /// <inheritdoc/>
@@ -188,17 +196,15 @@ public sealed class LoginScene : GameScene
 
         if (kb.IsKeyPressed(Key.Escape))
         {
-            bool unfocusedAny = false;
-            for (int i = 0; i < _fields.Length; i++)
+            if (this.UnfocusAll())
             {
-                if (_fields[i].IsFocused)
-                {
-                    _fields[i].IsFocused = false;
-                    unfocusedAny = true;
-                }
+                // First Escape clears active text focus cleanly.
             }
-
-            if (!unfocusedAny)
+            else if (_showGatewayEditor)
+            {
+                _showGatewayEditor = false;
+            }
+            else
             {
                 context.Window.Close();
                 return;
@@ -217,14 +223,55 @@ public sealed class LoginScene : GameScene
         bool leftPressed = mouse.IsButtonPressed(MouseButton.Left);
         Vector2 mousePos = mouse.Position;
 
-        for (int i = 0; i < _fields.Length; i++)
+        _signInTab.IsEnabled = !busy;
+        _registerTab.IsEnabled = !busy;
+        _toggleMaskBtn.IsEnabled = !busy;
+        _submitButton.IsEnabled = !busy;
+        _editGatewayBtn.IsEnabled = !busy;
+        _quitButton.IsEnabled = true;
+
+        _signInTab.Style = _registerMode ? MenuButtonStyle.NeutralSlate : MenuButtonStyle.PrimaryGold;
+        _registerTab.Style = _registerMode ? MenuButtonStyle.PrimaryGold : MenuButtonStyle.NeutralSlate;
+        _submitButton.Text = _registerMode ? "CREATE ACCOUNT" : "SIGN IN TO REALM";
+        _submitButton.Style = _registerMode ? MenuButtonStyle.PrimaryGold : MenuButtonStyle.SecondaryEmerald;
+        _editGatewayBtn.Text = _showGatewayEditor ? "DONE" : "EDIT";
+
+        if (_signInTab.Update(mousePos, leftDown, leftPressed) && _registerMode)
         {
-            _fields[i].Update((float)dt, mousePos, leftPressed && !busy);
+            _registerMode = false;
+            _confirmPasswordField.IsFocused = false;
+            _statusIsError = false;
+            _statusMessage = "Enter credentials to connect via TCP + Authenticated UDP.";
+        }
+        else if (_registerTab.Update(mousePos, leftDown, leftPressed) && !_registerMode)
+        {
+            _registerMode = true;
+            _statusIsError = false;
+            _statusMessage = "Choose a unique username (3-24 chars) and password.";
         }
 
-        _signInButton.IsEnabled = !busy;
-        _registerButton.IsEnabled = !busy;
-        _quitButton.IsEnabled = true;
+        if (_toggleMaskBtn.Update(mousePos, leftDown, leftPressed))
+        {
+            bool showPlain = _passwordField.IsPassword;
+            _passwordField.IsPassword = !showPlain;
+            _confirmPasswordField.IsPassword = !showPlain;
+            _toggleMaskBtn.Text = showPlain ? "HIDE" : "SHOW";
+        }
+
+        if (_editGatewayBtn.Update(mousePos, leftDown, leftPressed))
+        {
+            _showGatewayEditor = !_showGatewayEditor;
+            if (_showGatewayEditor)
+            {
+                _ = this.UnfocusAll();
+                _serverField.IsFocused = true;
+            }
+            else if (_serverField.IsFocused)
+            {
+                _serverField.IsFocused = false;
+                _usernameField.IsFocused = true;
+            }
+        }
 
         if (_quitButton.Update(mousePos, leftDown, leftPressed))
         {
@@ -232,14 +279,12 @@ public sealed class LoginScene : GameScene
             return;
         }
 
+        this.UpdateActiveFields((float)dt, mousePos, leftPressed && !busy);
+
         bool enterSubmit = !busy && (kb.IsKeyPressed(Key.Enter) || kb.IsKeyPressed(Key.KeypadEnter));
-        if (_signInButton.Update(mousePos, leftDown, leftPressed) || enterSubmit)
+        if (_submitButton.Update(mousePos, leftDown, leftPressed) || enterSubmit)
         {
-            this.BeginAuth(isRegister: false);
-        }
-        else if (_registerButton.Update(mousePos, leftDown, leftPressed))
-        {
-            this.BeginAuth(isRegister: true);
+            this.BeginAuth();
         }
 
         if (busy)
@@ -247,7 +292,7 @@ public sealed class LoginScene : GameScene
             _statusIsError = false;
             _statusMessage = _pendingAutoEnterTask is not null
                 ? $"Connecting & entering world ({_options.ServerHost}:{_options.ServerTcpPort})..."
-                : (_pendingIsRegister ? "Creating account via TCP X25519..." : "Signing in via TCP X25519...");
+                : (_registerMode ? "Creating account via TCP X25519..." : "Signing in via TCP X25519...");
         }
     }
 
@@ -257,7 +302,7 @@ public sealed class LoginScene : GameScene
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(spriteBatch);
 
-        if (_geometryBatch is null || _font is null)
+        if (_geometryBatch is null || _font is null || _uiSkin is null)
         {
             return;
         }
@@ -275,70 +320,117 @@ public sealed class LoginScene : GameScene
         this.LayoutControls(width, height);
         Matrix4x4 proj = Matrix4x4.CreateOrthographicOffCenter(0f, width, height, 0f, -1f, 1f);
 
-        float panelW = 500f;
-        float panelH = 420f;
-        float px = MathF.Floor((width - panelW) * 0.5f);
-        float py = MathF.Floor((height - panelH) * 0.5f) + 22f;
+        (float px, float py, float panelW, float panelH) = this.GetPanelRect(width, height);
+        RectangleF card = new(px, py, panelW, panelH);
+        RectangleF gatewayPill = new(px + 28f, py + panelH - 90f, 344f, 34f);
+        RectangleF statusPill = new(px + 28f, py + panelH - 46f, panelW - 56f, 30f);
 
+        // Pass 1: Animated twilight horizon backdrop
         _geometryBatch.Begin(proj);
         MenuBackdropRenderer.Draw(_geometryBatch, width, height, _elapsed);
-
-        RectangleF card = new(px, py, panelW, panelH);
-        _geometryBatch.FillRectangle(card, new ColorRgba(10, 15, 28, 232));
-        _geometryBatch.DrawRectangle(card, new ColorRgba(250, 204, 21, 210), 2f);
-        _geometryBatch.FillRectangle(new RectangleF(px, py, panelW, 6f), new ColorRgba(250, 204, 21, 235));
-
-        for (int i = 0; i < _fields.Length; i++)
-        {
-            _fields[i].DrawGeometry(_geometryBatch, _font);
-        }
-
-        _signInButton.DrawGeometry(_geometryBatch);
-        _registerButton.DrawGeometry(_geometryBatch);
-        _quitButton.DrawGeometry(_geometryBatch);
         _geometryBatch.End();
 
+        // Pass 2: Standardized 9-Slice Ornate Frame, Tabs, Fields & Buttons
+        spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: proj);
+        _uiSkin.DrawWindow(spriteBatch, in card, new ColorRgba(250, 204, 21, 240), bodyAlpha: 236);
+        _signInTab.DrawSkin(spriteBatch, _uiSkin);
+        _registerTab.DrawSkin(spriteBatch, _uiSkin);
+        _usernameField.DrawSkin(spriteBatch, _uiSkin);
+        _passwordField.DrawSkin(spriteBatch, _uiSkin);
+        _toggleMaskBtn.DrawSkin(spriteBatch, _uiSkin);
+        if (_registerMode)
+        {
+            _confirmPasswordField.DrawSkin(spriteBatch, _uiSkin);
+        }
+
+        _submitButton.DrawSkin(spriteBatch, _uiSkin);
+        if (_showGatewayEditor)
+        {
+            _serverField.DrawSkin(spriteBatch, _uiSkin);
+        }
+        else
+        {
+            _uiSkin.DrawInset(spriteBatch, in gatewayPill, new ColorRgba(12, 18, 34, 225), new ColorRgba(71, 85, 105, 220));
+        }
+
+        _editGatewayBtn.DrawSkin(spriteBatch, _uiSkin);
+        _quitButton.DrawSkin(spriteBatch, _uiSkin);
+
+        ColorRgba statusFrame = _statusIsError
+            ? new ColorRgba(248, 113, 113, 215)
+            : new ColorRgba(52, 211, 153, 180);
+        _uiSkin.DrawInset(spriteBatch, in statusPill, new ColorRgba(10, 16, 30, 235), statusFrame);
+        spriteBatch.End();
+
+        // Pass 3: Focus cursors & server badge accent
+        _geometryBatch.Begin(proj);
+        _usernameField.DrawCursorGeometry(_geometryBatch, _font);
+        _passwordField.DrawCursorGeometry(_geometryBatch, _font);
+        if (_registerMode)
+        {
+            _confirmPasswordField.DrawCursorGeometry(_geometryBatch, _font);
+        }
+
+        if (_showGatewayEditor)
+        {
+            _serverField.DrawCursorGeometry(_geometryBatch, _font);
+        }
+        else
+        {
+            ColorRgba dotCol = _session.IsConnected ? new ColorRgba(52, 211, 153, 255) : new ColorRgba(56, 189, 248, 255);
+            _geometryBatch.FillCircle(new Vector2(gatewayPill.X + 14f, gatewayPill.Y + 17f), 4f, dotCol, 10);
+        }
+
+        _geometryBatch.End();
+
+        // Pass 4: Crisp Bitmap Typography
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: proj);
         ColorRgba black = new(8, 10, 16, 255);
 
-        const string title = "CARBON ONLINE";
+        const string title = "CARBON REALMS";
         TextMeasureResult titleMeasure = _font.MeasureString(title, TextLayoutOptions.Default, 4f);
-        spriteBatch.DrawOutlinedString(
-            _font,
-            title,
-            new Vector2(MathF.Floor((width - titleMeasure.Width) * 0.5f), py - 68f),
-            new ColorRgba(250, 204, 21, 255),
-            black,
-            2,
-            4f);
+        spriteBatch.DrawOutlinedString(_font, title, new Vector2(MathF.Floor((width - titleMeasure.Width) * 0.5f), py - 66f), new ColorRgba(250, 204, 21, 255), black, 2, 4f);
 
-        const string subtitle = "TCP + NALIX AUTHENTICATED UDP";
-        TextMeasureResult subMeasure = _font.MeasureString(subtitle, TextLayoutOptions.Default, 2f);
-        spriteBatch.DrawOutlinedString(
-            _font,
-            subtitle,
-            new Vector2(MathF.Floor((width - subMeasure.Width) * 0.5f), py - 30f),
-            new ColorRgba(125, 211, 252, 255),
-            black,
-            1,
-            2f);
+        const string subtitle = "ONLINE MMORPG  //  TCP X25519 + AUTH UDP";
+        TextMeasureResult subMeasure = _font.MeasureString(subtitle, TextLayoutOptions.Default, 1.5f);
+        spriteBatch.DrawOutlinedString(_font, subtitle, new Vector2(MathF.Floor((width - subMeasure.Width) * 0.5f), py - 28f), new ColorRgba(125, 211, 252, 255), black, 1, 1.5f);
 
-        for (int i = 0; i < _fields.Length; i++)
+        _signInTab.DrawText(spriteBatch, _font);
+        _registerTab.DrawText(spriteBatch, _font);
+        _usernameField.DrawText(spriteBatch, _font);
+        _passwordField.DrawText(spriteBatch, _font);
+        _toggleMaskBtn.DrawText(spriteBatch, _font);
+        if (_registerMode)
         {
-            _fields[i].DrawText(spriteBatch, _font);
+            _confirmPasswordField.DrawText(spriteBatch, _font);
         }
 
-        _signInButton.DrawText(spriteBatch, _font);
-        _registerButton.DrawText(spriteBatch, _font);
+        _submitButton.DrawText(spriteBatch, _font);
+        if (_showGatewayEditor)
+        {
+            _serverField.DrawText(spriteBatch, _font);
+        }
+        else
+        {
+            string gwText = $"GATEWAY: {_serverField.Text}";
+            if (gwText.Length > 34)
+            {
+                gwText = $"{gwText[..31]}...";
+            }
+
+            spriteBatch.DrawOutlinedString(_font, gwText, new Vector2(gatewayPill.X + 26f, gatewayPill.Y + 10f), new ColorRgba(203, 213, 225, 255), black, 1, 1.5f);
+        }
+
+        _editGatewayBtn.DrawText(spriteBatch, _font);
         _quitButton.DrawText(spriteBatch, _font);
 
         ColorRgba statusColor = _statusIsError
             ? new ColorRgba(248, 113, 113, 255)
             : new ColorRgba(110, 231, 183, 255);
-        string msg = _statusMessage.Length > 52 ? _statusMessage[..52] : _statusMessage;
-        spriteBatch.DrawOutlinedString(_font, msg, new Vector2(px + 28f, py + panelH - 36f), statusColor, black, 1, 2f);
-
+        string msg = _statusMessage.Length > 58 ? _statusMessage[..58] : _statusMessage;
+        spriteBatch.DrawOutlinedString(_font, msg, new Vector2(statusPill.X + 10f, statusPill.Y + 8f), statusColor, black, 1, 1.5f);
         spriteBatch.End();
+
         base.Render(context, spriteBatch, dt);
     }
 
@@ -348,6 +440,8 @@ public sealed class LoginScene : GameScene
         if (disposing)
         {
             this.DetachInput();
+            _uiSkin?.Dispose();
+            _uiSkin = null;
             _geometryBatch?.Dispose();
             _geometryBatch = null;
             _font?.Dispose();
@@ -359,59 +453,150 @@ public sealed class LoginScene : GameScene
         base.Dispose(disposing);
     }
 
-    private void LayoutControls(int width, int height)
+    private (float Px, float Py, float PanelW, float PanelH) GetPanelRect(int width, int height)
     {
-        const float panelW = 500f;
-        const float panelH = 420f;
+        const float panelW = 540f;
+        float panelH = _registerMode ? 496f : 434f;
+        if (_showGatewayEditor)
+        {
+            panelH += 34f;
+        }
+
         float px = MathF.Floor((width - panelW) * 0.5f);
         float py = MathF.Floor((height - panelH) * 0.5f) + 22f;
+        return (px, py, panelW, panelH);
+    }
+
+    private void LayoutControls(int width, int height)
+    {
+        (float px, float py, float panelW, float panelH) = this.GetPanelRect(width, height);
         float fieldX = px + 28f;
         float fieldW = panelW - 56f;
 
-        _serverField.Bounds = new RectangleF(fieldX, py + 48f, fieldW, 38f);
-        _usernameField.Bounds = new RectangleF(fieldX, py + 122f, fieldW, 38f);
-        _passwordField.Bounds = new RectangleF(fieldX, py + 196f, fieldW, 38f);
+        _signInTab.Bounds = new RectangleF(fieldX, py + 22f, 236f, 38f);
+        _registerTab.Bounds = new RectangleF(fieldX + 248f, py + 22f, 236f, 38f);
 
-        float btnY = py + 264f;
-        _signInButton.Bounds = new RectangleF(fieldX, btnY, 212f, 44f);
-        _registerButton.Bounds = new RectangleF(fieldX + 232f, btnY, 212f, 44f);
-        _quitButton.Bounds = new RectangleF(fieldX + 152f, btnY + 58f, 140f, 36f);
+        _usernameField.Bounds = new RectangleF(fieldX, py + 98f, fieldW, 38f);
+        _passwordField.Bounds = new RectangleF(fieldX, py + 172f, fieldW - 76f, 38f);
+        _toggleMaskBtn.Bounds = new RectangleF(fieldX + fieldW - 68f, py + 172f, 68f, 38f);
+
+        float nextY = py + 230f;
+        if (_registerMode)
+        {
+            _confirmPasswordField.Bounds = new RectangleF(fieldX, py + 246f, fieldW, 38f);
+            nextY = py + 302f;
+        }
+
+        _submitButton.Bounds = new RectangleF(fieldX, nextY, fieldW, 44f);
+
+        if (_showGatewayEditor)
+        {
+            _serverField.Bounds = new RectangleF(fieldX, py + panelH - 96f, 344f, 36f);
+            _editGatewayBtn.Bounds = new RectangleF(fieldX + 352f, py + panelH - 96f, 68f, 36f);
+            _quitButton.Bounds = new RectangleF(fieldX + 426f, py + panelH - 96f, 58f, 36f);
+        }
+        else
+        {
+            _editGatewayBtn.Bounds = new RectangleF(fieldX + 352f, py + panelH - 90f, 68f, 34f);
+            _quitButton.Bounds = new RectangleF(fieldX + 426f, py + panelH - 90f, 58f, 34f);
+        }
     }
 
-    private void BeginAuth(bool isRegister)
+    private void BeginAuth()
     {
         if (!TryParseEndpoint(_serverField.Text, _options.ServerTcpPort, out string host, out ushort port))
         {
             _statusIsError = true;
-            _statusMessage = "Invalid server format. Use host or host:port.";
+            _statusMessage = "Invalid server gateway. Use host:port.";
             return;
         }
 
-        _pendingIsRegister = isRegister;
-        string user = _usernameField.Text;
+        string user = _usernameField.Text.Trim();
         string pass = _passwordField.Text;
-        _pendingAuthTask = isRegister
+        if (user.Length < 3 || user.Length > 24)
+        {
+            _statusIsError = true;
+            _statusMessage = "Username must be between 3 and 24 characters.";
+            return;
+        }
+
+        if (pass.Length < 6)
+        {
+            _statusIsError = true;
+            _statusMessage = "Password must be at least 6 characters.";
+            return;
+        }
+
+        if (_registerMode && !string.Equals(pass, _confirmPasswordField.Text, StringComparison.Ordinal))
+        {
+            _statusIsError = true;
+            _statusMessage = "Password confirmation does not match.";
+            return;
+        }
+
+        _pendingAuthTask = _registerMode
             ? _session.RegisterAsync(host, port, user, pass)
             : _session.LoginAsync(host, port, user, pass);
     }
 
+    private void UpdateActiveFields(float dt, Vector2 mousePos, bool allowFocusClick)
+    {
+        _usernameField.Update(dt, mousePos, allowFocusClick);
+        _passwordField.Update(dt, mousePos, allowFocusClick);
+        if (_registerMode)
+        {
+            _confirmPasswordField.Update(dt, mousePos, allowFocusClick);
+        }
+        else
+        {
+            _confirmPasswordField.IsFocused = false;
+        }
+
+        if (_showGatewayEditor)
+        {
+            _serverField.Update(dt, mousePos, allowFocusClick);
+        }
+        else
+        {
+            _serverField.IsFocused = false;
+        }
+    }
+
+    private bool UnfocusAll()
+    {
+        bool any = _usernameField.IsFocused || _passwordField.IsFocused || _confirmPasswordField.IsFocused || _serverField.IsFocused;
+        _usernameField.IsFocused = false;
+        _passwordField.IsFocused = false;
+        _confirmPasswordField.IsFocused = false;
+        _serverField.IsFocused = false;
+        return any;
+    }
+
     private void CycleFocus(bool reverse)
     {
-        int focusedIdx = 0;
-        for (int i = 0; i < _fields.Length; i++)
+        MenuTextField[] active = (_registerMode, _showGatewayEditor) switch
         {
-            if (_fields[i].IsFocused)
+            (true, true) => [_usernameField, _passwordField, _confirmPasswordField, _serverField],
+            (true, false) => [_usernameField, _passwordField, _confirmPasswordField],
+            (false, true) => [_usernameField, _passwordField, _serverField],
+            (false, false) => [_usernameField, _passwordField],
+        };
+
+        int focusedIdx = -1;
+        for (int i = 0; i < active.Length; i++)
+        {
+            if (active[i].IsFocused)
             {
                 focusedIdx = i;
-                _fields[i].IsFocused = false;
+                active[i].IsFocused = false;
                 break;
             }
         }
 
-        int next = reverse
-            ? (focusedIdx + _fields.Length - 1) % _fields.Length
-            : (focusedIdx + 1) % _fields.Length;
-        _fields[next].IsFocused = true;
+        int next = focusedIdx < 0
+            ? 0
+            : (reverse ? (focusedIdx + active.Length - 1) % active.Length : (focusedIdx + 1) % active.Length);
+        active[next].IsFocused = true;
     }
 
     private void HandleBackspaceRepeat(in KeyboardSnapshot kb, float dt)
@@ -446,10 +631,10 @@ public sealed class LoginScene : GameScene
 
     private void ApplyBackspace()
     {
-        for (int i = 0; i < _fields.Length; i++)
-        {
-            _fields[i].Backspace();
-        }
+        _usernameField.Backspace();
+        _passwordField.Backspace();
+        _confirmPasswordField.Backspace();
+        _serverField.Backspace();
     }
 
     private void OnCharacterReceived(char ch)
@@ -459,9 +644,16 @@ public sealed class LoginScene : GameScene
             return;
         }
 
-        for (int i = 0; i < _fields.Length; i++)
+        _usernameField.AppendChar(ch);
+        _passwordField.AppendChar(ch);
+        if (_registerMode)
         {
-            _fields[i].AppendChar(ch);
+            _confirmPasswordField.AppendChar(ch);
+        }
+
+        if (_showGatewayEditor)
+        {
+            _serverField.AppendChar(ch);
         }
     }
 

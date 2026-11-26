@@ -91,6 +91,17 @@ public sealed partial class NalixMultiplayerSession
             }
         }
 
+        if (hasArchetype && archetype is { ProjectileSpeed: > 0f, AttackManaCost: > 0f } &&
+            _localMana < archetype.AttackManaCost)
+        {
+            lock (_worldGate)
+            {
+                _hudNotifications.Add("Not enough Mana!");
+            }
+
+            return false;
+        }
+
         ClientActionKind actionKind = ResolveActionKind(archetype);
         float actionDuration = ResolveActionDuration(actionKind);
         _comboStep = (byte)(_comboStep ^ 1);
@@ -102,7 +113,7 @@ public sealed partial class NalixMultiplayerSession
             activeSlot.ItemId,
             _comboStep);
 
-        if (actionKind is ClientActionKind.SwordSlash or ClientActionKind.AxeChop or ClientActionKind.PickaxeMine)
+        if (actionKind is ClientActionKind.SwordSlash or ClientActionKind.AxeChop or ClientActionKind.PickaxeMine or ClientActionKind.BowShot or ClientActionKind.StaffCast)
         {
             _attackSwingTimer = actionDuration;
         }
@@ -363,6 +374,10 @@ public sealed partial class NalixMultiplayerSession
                 else if (reply.Status == OpStatus.Conflict)
                 {
                     _hudNotifications.Add("Missing upgrade materials!");
+                }
+                else if (reply.Status == OpStatus.OutOfRange)
+                {
+                    _hudNotifications.Add("Move near a Blacksmith or Forge Anvil to enhance gear!");
                 }
             }
         }
@@ -828,6 +843,13 @@ public sealed partial class NalixMultiplayerSession
                 : ClientActionKind.AxeChop;
         }
 
+        if (archetype.Category == ItemCategory.Weapon && archetype.ProjectileSpeed > 0f)
+        {
+            return archetype.AttackManaCost > 0f || archetype.ProjectileArchetype == 2
+                ? ClientActionKind.StaffCast
+                : ClientActionKind.BowShot;
+        }
+
         return ClientActionKind.SwordSlash;
     }
 
@@ -835,6 +857,8 @@ public sealed partial class NalixMultiplayerSession
     {
         ClientActionKind.AxeChop => 0.30f,
         ClientActionKind.PickaxeMine => 0.30f,
+        ClientActionKind.BowShot => 0.26f,
+        ClientActionKind.StaffCast => 0.28f,
         ClientActionKind.ConsumeItem => 0.24f,
         ClientActionKind.PlaceStructure => 0.20f,
         ClientActionKind.SkillWhirlwind => 0.42f,

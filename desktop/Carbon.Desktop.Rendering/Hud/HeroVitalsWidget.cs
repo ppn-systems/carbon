@@ -4,6 +4,7 @@ using System;
 using System.Numerics;
 using Carbon.Desktop.Abstractions;
 using Carbon.Desktop.Rendering.Feedback;
+using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Graphics.Animation.Directions;
 using Carbon.Graphics.Batching.Common;
@@ -27,6 +28,12 @@ internal sealed class HeroVitalsWidget
     private const float CardY = 14f;
     private const float CardW = 344f;
     private const float CardH = 118f;
+
+    public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin)
+    {
+        skin.DrawCard(spriteBatch, new RectangleF(CardX, CardY, CardW, CardH), new ColorRgba(250, 204, 21, 225), bodyAlpha: 228);
+        skin.DrawSlot(spriteBatch, new RectangleF(CardX + 8f, CardY + 8f, 52f, 52f), new ColorRgba(14, 22, 40, 240), new ColorRgba(56, 189, 248, 220));
+    }
 
     public void DrawGeometry(
         GeometryBatch batch,

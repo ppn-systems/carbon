@@ -16,8 +16,8 @@ public interface IClientCharacterService : IClientCharacterProfile
     /// <summary>Queries all characters owned by the currently authenticated account.</summary>
     Task<IReadOnlyList<ClientCharacterSummary>> ListCharactersAsync(CancellationToken ct = default);
 
-    /// <summary>Creates a new character on the currently authenticated account.</summary>
-    Task<(bool Succeeded, string Message)> CreateCharacterAsync(string characterName, byte appearancePreset, CancellationToken ct = default);
+    /// <summary>Creates a new character on the currently authenticated account with an optional starting class.</summary>
+    Task<(bool Succeeded, string Message)> CreateCharacterAsync(string characterName, byte appearancePreset, byte startingClass = 0, CancellationToken ct = default);
 
     /// <summary>Selects a character, enters the authoritative world, syncs inventory/chunks, and opens Authenticated UDP.</summary>
     Task<(bool Succeeded, string Message)> EnterWorldAsync(Guid characterId, CancellationToken ct = default);

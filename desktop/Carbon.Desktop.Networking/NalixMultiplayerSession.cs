@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Carbon.Desktop.Abstractions;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
+using Carbon.Maps.Building;
 using Carbon.Maps.Streaming;
 using Carbon.Prediction.Client;
 using Carbon.Prediction.Remote;
@@ -212,6 +213,48 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
     }
 
     /// <inheritdoc/>
+    public bool IsNearForgeStation(float maxDistance = 165f)
+    {
+        if (!this.IsReady || _chunkWorld is null)
+        {
+            return false;
+        }
+
+        Vector2 playerPos = this.LocalPlayerInterpolatedPosition;
+        float maxDistSq = maxDistance * maxDistance;
+        lock (_worldGate)
+        {
+            foreach (KeyValuePair<ulong, RemoteEntityState> kvp in _remoteEntities)
+            {
+                RemoteEntityState s = kvp.Value;
+                if (s.Kind == Contracts.Entities.EntityKind.Npc &&
+                    Vector2.DistanceSquared(playerPos, s.Position) <= maxDistSq)
+                {
+                    return true;
+                }
+            }
+
+            int ptx = (int)MathF.Floor(playerPos.X / _tileSize);
+            int pty = (int)MathF.Floor(playerPos.Y / _tileSize);
+            int tileSpan = Math.Clamp((int)MathF.Ceiling(maxDistance / _tileSize), 1, 8);
+            for (int dy = -tileSpan; dy <= tileSpan; dy++)
+            {
+                for (int dx = -tileSpan; dx <= tileSpan; dx++)
+                {
+                    if (_chunkWorld.Buildings.TryGetStructure(ptx + dx, pty + dy, out StructureTile st) &&
+                        st.Type == StructureType.ForgeAnvil &&
+                        !st.IsDestroyed)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <inheritdoc/>
     public IReadOnlyList<RemoteEntityView> RemoteEntities
     {
         get
@@ -223,8 +266,9 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
                 foreach (KeyValuePair<ulong, RemoteEntityState> kvp in _remoteEntities)
                 {
                     RemoteEntityState s = kvp.Value;
+                    double sampleTime = s.Kind == Contracts.Entities.EntityKind.Projectile ? _latestServerTime : renderTime;
                     TransformSnapshot sampled = s.Interpolation.Count > 0
-                        ? s.Interpolation.Sample(renderTime, maxExtrapolationSeconds: 0.1f)
+                        ? s.Interpolation.Sample(sampleTime, maxExtrapolationSeconds: 0.1f)
                         : new TransformSnapshot(0.0, s.Position, s.Velocity);
                     Vector2 viewPos = s.Interpolation.Count > 0 ? sampled.Position : s.Position;
                     Vector2 viewVel = s.Interpolation.Count > 0 ? sampled.Velocity : s.Velocity;

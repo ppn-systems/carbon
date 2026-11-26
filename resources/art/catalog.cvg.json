@@ -66,6 +66,15 @@
       "level": 2,
       "accentColor": "#A855F7",
       "file": "monsters/ash_wraith.cvg.json"
+    },
+    {
+      "archetypeId": 105,
+      "id": "skeleton_archer",
+      "title": "Skeleton Archer",
+      "subtitle": "LV.2 RANGED BOWMAN",
+      "level": 2,
+      "accentColor": "#CBD5E1",
+      "file": "monsters/skeleton_archer.cvg.json"
     }
   ],
   "npcs": [
@@ -92,6 +101,14 @@
       "subtitle": "SHRINE ORACLE",
       "accentColor": "#34D399",
       "file": "npcs/shrine_keeper.cvg.json"
+    },
+    {
+      "archetypeId": 204,
+      "id": "master_blacksmith",
+      "title": "Master Blacksmith",
+      "subtitle": "FORGE ARTISAN",
+      "accentColor": "#F97316",
+      "file": "npcs/master_blacksmith.cvg.json"
     }
   ],
   "items": [
@@ -278,6 +295,46 @@
       "tier": 1,
       "accentColor": "#38BDF8",
       "file": "items/mana_tonic.cvg.json"
+    },
+    {
+      "itemId": 24,
+      "id": "hunting_bow",
+      "displayName": "Hunting Bow",
+      "tier": 1,
+      "accentColor": "#22C55E",
+      "file": "items/hunting_bow.cvg.json"
+    },
+    {
+      "itemId": 25,
+      "id": "arcane_staff",
+      "displayName": "Arcane Staff",
+      "tier": 2,
+      "accentColor": "#38BDF8",
+      "file": "items/arcane_staff.cvg.json"
+    },
+    {
+      "itemId": 26,
+      "id": "crystal_bow",
+      "displayName": "Crystal Bow",
+      "tier": 3,
+      "accentColor": "#22D3EE",
+      "file": "items/crystal_bow.cvg.json"
+    },
+    {
+      "itemId": 27,
+      "id": "crystal_staff",
+      "displayName": "Crystal Staff",
+      "tier": 3,
+      "accentColor": "#C084FC",
+      "file": "items/crystal_staff.cvg.json"
+    },
+    {
+      "itemId": 28,
+      "id": "forge_anvil",
+      "displayName": "Forge Anvil",
+      "tier": 2,
+      "accentColor": "#F97316",
+      "file": "items/forge_anvil.cvg.json"
     }
   ]
 }

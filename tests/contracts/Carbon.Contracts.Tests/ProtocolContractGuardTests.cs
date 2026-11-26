@@ -259,6 +259,16 @@ public sealed class ProtocolContractGuardTests
         using UpgradeInventoryItem upgCopy = UpgradeInventoryItem.Deserialize(upg.Serialize());
         Assert.Equal((ushort)2, upgCopy.SlotIndex);
 
+        using CharacterCreate charCreate = new()
+        {
+            CharacterName = "Spellweaver",
+            AppearancePreset = 7,
+            StartingClass = (byte)HeroArchetypeClass.Arcanist,
+        };
+        using CharacterCreate charCreateCopy = CharacterCreate.Deserialize(charCreate.Serialize());
+        Assert.Equal("Spellweaver", charCreateCopy.CharacterName);
+        Assert.Equal((byte)HeroArchetypeClass.Arcanist, charCreateCopy.StartingClass);
+
         using DropInventoryItem drop = new() { SlotIndex = 5, Quantity = 2, SequenceId = 9 };
         using DropInventoryItem dropCopy = DropInventoryItem.Deserialize(drop.Serialize());
         Assert.Equal(2, dropCopy.Quantity);

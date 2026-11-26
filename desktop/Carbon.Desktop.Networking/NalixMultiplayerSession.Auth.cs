@@ -176,6 +176,7 @@ public sealed partial class NalixMultiplayerSession
     public async Task<(bool Succeeded, string Message)> CreateCharacterAsync(
         string characterName,
         byte appearancePreset,
+        byte startingClass = 0,
         CancellationToken ct = default)
     {
         TcpSession tcp = this.RequireAuthenticatedTcpSession();
@@ -189,6 +190,7 @@ public sealed partial class NalixMultiplayerSession
         using PacketScope<CharacterCreate> lease = PacketFactory<CharacterCreate>.Acquire();
         lease.Value.CharacterName = trimmed;
         lease.Value.AppearancePreset = appearancePreset;
+        lease.Value.StartingClass = startingClass;
 
         using MutationResult reply = await tcp.RequestAsync<MutationResult>(
             lease.Value,
@@ -376,7 +378,7 @@ public sealed partial class NalixMultiplayerSession
         }
         else
         {
-            (bool created, string createMsg) = await this.CreateCharacterAsync(_options.CharacterName, 0, ct).ConfigureAwait(false);
+            (bool created, string createMsg) = await this.CreateCharacterAsync(_options.CharacterName, 0, ct: ct).ConfigureAwait(false);
             if (!created)
             {
                 throw new InvalidOperationException($"Failed to create starter character: {createMsg}");

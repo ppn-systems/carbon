@@ -566,6 +566,12 @@ public sealed class WorldSceneRenderer : IDisposable
 
     private void DrawRemoteEntity(GeometryBatch batch, IClientWorldReadModel world, in RemoteEntityView remote)
     {
+        if (remote.Kind == EntityKind.Projectile)
+        {
+            DrawProjectile(batch, in remote, _lights);
+            return;
+        }
+
         if (remote.Kind == EntityKind.LootDrop)
         {
             float bob = (MathF.Sin((_animTime * 4.2f) + remote.NetworkId) * 2.8f) - 5f;
@@ -644,7 +650,7 @@ public sealed class WorldSceneRenderer : IDisposable
                     {
                         ClientActionKind.AxeChop => "chop",
                         ClientActionKind.PickaxeMine => "mine",
-                        ClientActionKind.SkillArcaneNova or ClientActionKind.SkillVitalSurge => "cast",
+                        ClientActionKind.SkillArcaneNova or ClientActionKind.SkillVitalSurge or ClientActionKind.StaffCast or ClientActionKind.BowShot => "cast",
                         ClientActionKind.None or ClientActionKind.SwordSlash or ClientActionKind.MonsterStrike or ClientActionKind.ConsumeItem or ClientActionKind.PlaceStructure or ClientActionKind.SkillWhirlwind or _ => "slash",
                     };
                     norm = true;
@@ -687,6 +693,48 @@ public sealed class WorldSceneRenderer : IDisposable
         }
 
         batch.FillCircle(remote.Position, r, new ColorRgba(250, 204, 21, 255));
+    }
+
+    private static void DrawProjectile(GeometryBatch batch, in RemoteEntityView proj, List<PointLight> lights)
+    {
+        Vector2 vel = proj.Velocity.LengthSquared() > 1e-4f
+            ? Vector2.Normalize(proj.Velocity)
+            : Vector2.UnitX;
+        Vector2 perp = new(-vel.Y, vel.X);
+        Vector2 pos = proj.Position + new Vector2(0f, -8f);
+
+        switch (proj.ArchetypeId)
+        {
+            case 2: // ArcaneBolt (blue/cyan energy orb + trail)
+                batch.DrawLine(pos - (vel * 12f), pos, new ColorRgba(56, 189, 248, 175), 3.4f);
+                batch.FillCircle(pos, 5.2f, new ColorRgba(56, 189, 248, 225), 10);
+                batch.FillCircle(pos, 2.8f, new ColorRgba(224, 242, 254, 255), 8);
+                lights.Add(new PointLight(pos, 48f, new ColorRgba(56, 189, 248), 0.55f));
+                break;
+
+            case 4: // DarkBolt (Ash Wraith violet flame bolt)
+                batch.DrawLine(pos - (vel * 11f), pos, new ColorRgba(168, 85, 247, 185), 3.2f);
+                batch.FillCircle(pos, 5.0f, new ColorRgba(147, 51, 234, 230), 10);
+                batch.FillCircle(pos, 2.4f, new ColorRgba(245, 208, 254, 255), 8);
+                lights.Add(new PointLight(pos, 42f, new ColorRgba(192, 132, 252), 0.45f));
+                break;
+
+            case 3: // CrystalArrow (glowing prism arrow)
+                batch.DrawLine(pos - (vel * 11f), pos + (vel * 6f), new ColorRgba(34, 211, 238, 235), 2.2f);
+                batch.FillTriangle(pos + (vel * 9f), pos + (vel * 2f) + (perp * 3.0f), pos + (vel * 2f) - (perp * 3.0f), new ColorRgba(224, 242, 254, 255));
+                lights.Add(new PointLight(pos, 36f, new ColorRgba(34, 211, 238), 0.35f));
+                break;
+
+            case 5: // BoneArrow (Skeleton Archer crimson-tipped arrow)
+                batch.DrawLine(pos - (vel * 10f), pos + (vel * 5f), new ColorRgba(226, 232, 240, 230), 1.8f);
+                batch.FillTriangle(pos + (vel * 8.5f), pos + (vel * 2f) + (perp * 2.6f), pos + (vel * 2f) - (perp * 2.6f), new ColorRgba(244, 63, 94, 255));
+                break;
+
+            default: // 1: Hunting Arrow
+                batch.DrawLine(pos - (vel * 10f), pos + (vel * 5f), new ColorRgba(217, 119, 6, 240), 1.9f);
+                batch.FillTriangle(pos + (vel * 8.5f), pos + (vel * 2f) + (perp * 2.8f), pos + (vel * 2f) - (perp * 2.8f), new ColorRgba(248, 250, 252, 255));
+                break;
+        }
     }
 
     private void DrawActionTrails(IClientWorldReadModel world, Vector2 playerPos)
@@ -745,7 +793,7 @@ public sealed class WorldSceneRenderer : IDisposable
                 ClientActionKind.AxeChop => "chop",
                 ClientActionKind.PickaxeMine => "mine",
                 ClientActionKind.SwordSlash or ClientActionKind.MonsterStrike or ClientActionKind.SkillWhirlwind => "slash",
-                ClientActionKind.SkillArcaneNova or ClientActionKind.SkillVitalSurge => "cast",
+                ClientActionKind.SkillArcaneNova or ClientActionKind.SkillVitalSurge or ClientActionKind.StaffCast or ClientActionKind.BowShot => "cast",
                 ClientActionKind.PlaceStructure => "chop",
                 ClientActionKind.ConsumeItem => "idle",
                 ClientActionKind.None or _ => moving ? "walk" : "idle",

@@ -103,6 +103,9 @@ public interface IClientWorldReadModel : IClientConnectionStatus, IClientCharact
     /// <summary>Copies the player's inventory slots into <paramref name="destination"/> under session synchronization.</summary>
     void CopyInventorySlots(Span<ItemSlot> destination);
 
+    /// <summary>Returns <see langword="true"/> when a town Blacksmith NPC or placed <c>ForgeAnvil</c> is nearby.</summary>
+    bool IsNearForgeStation(float maxDistance = 165f);
+
     /// <summary>Drains newly buffered floating combat/loot events into <paramref name="destination"/>.</summary>
     void DrainCombatEvents(List<ClientCombatEvent> destination);
 

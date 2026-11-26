@@ -228,7 +228,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
                     else if (brain.WindupRemainingTicks > 0)
                     {
                         uint nextWindup = brain.WindupRemainingTicks - 1;
-                        if (nextWindup <= 2 && nextWindup > 0)
+                        if (nextWindup <= 2 && nextWindup > 0 && brain.AttackRange <= 64f)
                         {
                             Vector2 lungeDelta = atkTargetPos - pos;
                             float lungeLenSq = lungeDelta.LengthSquared();
@@ -274,7 +274,23 @@ public sealed class AiBehaviorSystem : ISimulationSystem
                     }
                     else
                     {
-                        SetEntityVelocity(world, aiEntity, Vector2.Zero);
+                        Vector2 cooldownVel = Vector2.Zero;
+                        if (brain.AttackRange > 64f)
+                        {
+                            Vector2 away = pos - atkTargetPos;
+                            float awayLenSq = away.LengthSquared();
+                            float kiteThreshold = brain.AttackRange * 0.38f;
+                            if (awayLenSq > 1e-4f && awayLenSq < (kiteThreshold * kiteThreshold))
+                            {
+                                Vector2 retreatDir = away / MathF.Sqrt(awayLenSq);
+                                if (HasNavigationClearance(world, pos, pos + (retreatDir * 24f), entityRadius))
+                                {
+                                    cooldownVel = retreatDir * (brain.MoveSpeed * 0.65f);
+                                }
+                            }
+                        }
+
+                        SetEntityVelocity(world, aiEntity, cooldownVel);
                         brain = brain with { CooldownRemainingTicks = brain.CooldownRemainingTicks - 1 };
                     }
 

@@ -1231,6 +1231,14 @@ public sealed class ChunkTerrainRenderer : IDisposable
                 builder.AddRectangle(new RectangleF(x + 4f, y + 4f, s - 8f, s - 8f), new ColorRgba(120, 125, 135, 255));
                 break;
 
+            case StructureCategory.Station:
+                builder.AddRectangle(new RectangleF(x + 2f, y + 3f, s - 4f, s - 5f), new ColorRgba(68, 76, 92, 255));
+                builder.AddRectangle(new RectangleF(x + 5f, y + 18f, s - 10f, 9f), new ColorRgba(51, 65, 85, 255));
+                builder.AddRectangle(new RectangleF(x + 7f, y + 8f, s - 14f, 11f), new ColorRgba(30, 41, 59, 255));
+                builder.AddRectangle(new RectangleF(x + 4f, y + 7f, s - 7f, 6f), new ColorRgba(148, 163, 184, 255));
+                builder.AddRectangle(new RectangleF(x + 11f, y + 9f, 5f, 3f), new ColorRgba(249, 115, 22, 255));
+                break;
+
             case StructureCategory.None:
             default:
                 break;
