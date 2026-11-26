@@ -34,7 +34,7 @@ public sealed class SqlitePersistenceRoundTripTests
             SqliteCharacterStore characters = new(factory);
             SqliteChunkDeltaRepository chunks = new(factory);
             Pbkdf2PasswordHasher hasher = new();
-            AuthService auth = new(accounts, characters, hasher);
+            using AuthService auth = new(accounts, characters, hasher);
 
             AuthOutcome registered = await auth.RegisterAsync("alice", "secret-pass", CarbonProtocol.Version).ConfigureAwait(true);
             registered.Status.Should().Be(AuthStatus.Ok);

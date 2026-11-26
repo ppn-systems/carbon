@@ -87,7 +87,7 @@ public static class Program
         await migrator.MigrateAsync().ConfigureAwait(false);
 
         Pbkdf2PasswordHasher hasher = new();
-        AuthService authService = new(accountStore, characterStore, hasher);
+        using AuthService authService = new(accountStore, characterStore, hasher);
         SessionTransportRegistry transportRegistry = new();
         WorldOutboundSink outboundSink = new(transportRegistry, loggerFactory.CreateLogger<WorldOutboundSink>());
         // Gameplay config is server-authoritative (ADR-014): the server builds its domains from the same snapshot it
