@@ -18,6 +18,7 @@ using Carbon.Graphics.Scenes.Management;
 using Carbon.Graphics.Windowing.Abstractions;
 using Carbon.Graphics.Windowing.Input;
 using Silk.NET.Input;
+using Silk.NET.OpenGL;
 
 namespace Carbon.Desktop.Scenes;
 
@@ -223,6 +224,9 @@ public sealed class CharacterSelectScene : GameScene
         {
             return;
         }
+
+        context.Device.SetClearColor(new Vector4(0.04f, 0.06f, 0.11f, 1f));
+        context.Device.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
         this.LayoutControls(width, height);
         Matrix4x4 proj = Matrix4x4.CreateOrthographicOffCenter(0f, width, height, 0f, -1f, 1f);
