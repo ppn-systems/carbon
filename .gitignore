@@ -58,3 +58,9 @@ publish/
 
 # Runtime client screenshots
 screenshots/
+
+# Third-party reference art imported by tools/assets/import-assets.sh (license forbids redistribution)
+resources/thirdparty/
+
+# Local agent worktrees
+.claude/worktrees/
