@@ -10,7 +10,7 @@ namespace Carbon.Creatures.Tests;
 public sealed class MonsterScalingTests
 {
     private readonly MonsterScaling _scaling = new(CreatureTestData.LoadSpawning());
-    private readonly MonsterDefinition _orc = CreatureTestData.LoadCatalog().GetDefinition(CreatureTestData.LoadCatalog().GetIndex("orc"));
+    private readonly MonsterDefinition _orc = CreatureTestData.LoadCatalog().GetDefinition(CreatureTestData.LoadCatalog().GetIndex("rock_golem"));
 
     [Fact]
     public void Compute_IncreasingDistance_IsMonotonicInLevelAndStats()

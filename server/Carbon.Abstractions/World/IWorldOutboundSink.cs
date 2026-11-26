@@ -74,6 +74,39 @@ public readonly record struct EntityDeltaEntry(
     float CurrentHealth);
 
 /// <summary>
+/// Start of a server-authoritative attack phase dispatched as <c>EntityAttackPhase</c> (see ADR-013).
+/// </summary>
+/// <param name="NetworkId">Attacker network id.</param>
+/// <param name="ServerTick">Tick the phase started.</param>
+/// <param name="AttackKind">Attack kind byte (melee, projectile, spell, leap).</param>
+/// <param name="Phase">Phase byte (none, windup, travel, active, recovery).</param>
+/// <param name="Shape">Telegraph shape byte (circle, cone).</param>
+/// <param name="Interrupted">Whether a none phase reports an interruption.</param>
+/// <param name="TargetX">Locked target point X.</param>
+/// <param name="TargetY">Locked target point Y.</param>
+/// <param name="DirectionX">Facing X.</param>
+/// <param name="DirectionY">Facing Y.</param>
+/// <param name="AreaRadius">Telegraph radius.</param>
+/// <param name="HalfAngleRadians">Cone half-angle.</param>
+/// <param name="PhaseDurationTicks">Phase duration in ticks.</param>
+/// <param name="Progress">Normalized whole-attack progress at phase start.</param>
+public readonly record struct AttackPhaseSnapshot(
+    ulong NetworkId,
+    ulong ServerTick,
+    byte AttackKind,
+    byte Phase,
+    byte Shape,
+    bool Interrupted,
+    float TargetX,
+    float TargetY,
+    float DirectionX,
+    float DirectionY,
+    float AreaRadius,
+    float HalfAngleRadians,
+    ushort PhaseDurationTicks,
+    float Progress);
+
+/// <summary>
 /// Decoupled transport sink used by <c>Carbon.Application</c> to dispatch AoI entity updates and map edits
 /// to active connections without referencing Nalix sockets directly.
 /// </summary>
@@ -131,4 +164,7 @@ public interface IWorldOutboundSink
         float originY,
         float aimX,
         float aimY);
+
+    /// <summary>Broadcasts the start of a monster attack phase to AoI observers.</summary>
+    void SendEntityAttackPhase(ReadOnlySpan<ulong> recipientConnectionIds, in AttackPhaseSnapshot snapshot);
 }

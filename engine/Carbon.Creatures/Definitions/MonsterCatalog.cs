@@ -177,6 +177,11 @@ public sealed class MonsterCatalog
             throw new ArgumentException("Monster id must be non-empty.");
         }
 
+        if (def.ArchetypeId == 0)
+        {
+            throw new ArgumentException($"Monster '{id}' must declare a non-zero archetypeId.");
+        }
+
         if (string.IsNullOrWhiteSpace(def.VisualArchetype))
         {
             throw new ArgumentException($"Monster '{id}' must declare a visualArchetype.");

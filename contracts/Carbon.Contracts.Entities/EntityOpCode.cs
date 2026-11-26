@@ -44,4 +44,7 @@ public static class EntityOpCode
 
     /// <summary>Broadcasts active skill cast visuals to nearby observers.</summary>
     public const ushort SkillCastBroadcast = 0x1236;
+
+    /// <summary>Broadcasts the start of a server-authoritative monster attack phase (telegraph, release, impact) to observers.</summary>
+    public const ushort EntityAttackPhase = 0x1237;
 }

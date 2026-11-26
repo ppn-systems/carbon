@@ -120,7 +120,7 @@ public sealed partial class AuthoritativeWorld
             }
 
             uint lifeTicks = (uint)Math.Max(12, MathF.Ceiling(weaponDef.AttackRange / weaponDef.ProjectileSpeed * this.TickRate));
-            this.SpawnProjectileLocked(
+            _ = this.SpawnProjectileLocked(
                 state.Session.PlayerNetworkId,
                 state.Session.ConnectionId,
                 fromPlayer: true,
@@ -434,7 +434,6 @@ public sealed partial class AuthoritativeWorld
             {
                 if (_actorsByNetworkId.Remove(targetIdentity.NetworkId, out NpcActorMeta meta))
                 {
-                    _pendingRespawns.Add(new PendingMonsterRespawn(_currentTick + (ulong)(this.TickRate * 45), meta));
                     ItemSlot loot = new(meta.DropItemId, Math.Max(1, meta.DropQuantity));
                     this.SpawnGroundLootLocked(targetPos, in loot);
 
@@ -659,7 +658,7 @@ public sealed partial class AuthoritativeWorld
         return false;
     }
 
-    private void SpawnProjectileLocked(
+    private Entity SpawnProjectileLocked(
         ulong ownerNetworkId,
         ulong ownerConnectionId,
         bool fromPlayer,
@@ -685,6 +684,7 @@ public sealed partial class AuthoritativeWorld
             isCritical,
             velocity,
             Math.Max(2U, lifetimeTicks));
+        return proj;
     }
 
     private void StepProjectilesLocked()

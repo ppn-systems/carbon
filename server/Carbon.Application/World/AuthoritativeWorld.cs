@@ -8,9 +8,11 @@ using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
 using Carbon.AI.Components;
-using Carbon.AI.Systems;
 using Carbon.AI.Threat;
 using Carbon.Combat.Cooldowns;
+using Carbon.Creatures;
+using Carbon.Creatures.Components;
+using Carbon.Creatures.Definitions;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Items.Catalog;
@@ -69,7 +71,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly Dictionary<ulong, LootDropMeta> _lootByNetworkId = new();
     private readonly Dictionary<ulong, ProjectileActorMeta> _projectilesByNetworkId = new();
     private readonly HashSet<long> _populatedChunks = new();
-    private readonly List<PendingMonsterRespawn> _pendingRespawns = new(32);
+    private readonly MonsterCatalog _creatureCatalog;
+    private readonly CreatureSystems _creatures;
     private readonly HashSet<long> _dirtyChunks = new();
     private readonly Dictionary<Guid, CharacterRecord> _dirtyCharacters = new();
 
@@ -119,6 +122,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     /// <summary>
     /// Initializes a new instance of the <see cref="AuthoritativeWorld"/> class.
     /// </summary>
+    /// <remarks>
+    /// <paramref name="creatures"/> defaults to <see cref="CreatureContent.LoadDefault"/> (<c>resources/config</c>).
+    /// </remarks>
     public AuthoritativeWorld(
         ulong worldSeed,
         float tileSize,
@@ -127,7 +133,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         IChunkDeltaRepository chunkDeltaRepo,
         ICharacterStore characterStore,
         IWorldOutboundSink outboundSink,
-        TimeProvider? time = null)
+        TimeProvider? time = null,
+        CreatureContent? creatures = null)
     {
         ArgumentNullException.ThrowIfNull(chunkDeltaRepo);
         ArgumentNullException.ThrowIfNull(characterStore);
@@ -149,7 +156,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         {
             WorldPhysics = _chunkWorld,
         };
-        _simulation.RegisterSystem(new AiBehaviorSystem(_chunkWorld.NavGrid, this.TileSize));
+        CreatureContent creatureContent = creatures ?? CreatureContent.LoadDefault();
+        _creatureCatalog = creatureContent.Catalog;
+        _creatures = RegisterCreatureSystems(_simulation, creatureContent, _chunkWorld, this.WorldSeed, this.TileSize, new ServerAttackEffects(this));
         _simulation.RegisterSystem(new LootExpirationSystem());
         _aoi = new SpatialAoiTracker(this.TileSize * 24f);
     }
@@ -238,6 +247,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             Entity entity = _simulation.SpawnNetworkEntity(networkId, spawnPos, DefaultEntityRadius, sessionId);
             _simulation.Entities.SetCollider(entity, new Collider2D(ColliderKind.Circle, DefaultEntityRadius, default, false, PlayerLayer, uint.MaxValue));
             _simulation.Entities.SetVelocity(entity, new Velocity2D(0f, 0f, 5f));
+            _simulation.Entities.SetComponent(entity, default(SpawnAnchorComponent));
+            _creatures.Spawner.RequestScan();
 
             InventoryContainer inventory = new(PlayerInventoryCapacity);
             if (!InventoryBinaryCodec.TryDeserializeInto(character.InventoryBlob, inventory))
@@ -521,7 +532,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         int centerCx = Chunk2D.ToChunkCoord((int)MathF.Floor(worldCenter.X / this.TileSize));
         int centerCy = Chunk2D.ToChunkCoord((int)MathF.Floor(worldCenter.Y / this.TileSize));
         Vector2 safeOrigin = _chunkWorld.SpawnWorldPosition;
-        float safeRadiusSq = 100f * this.TileSize * this.TileSize;
 
         if (!_spawnedSanctuaryBlacksmith)
         {
@@ -641,78 +651,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
                                     0U));
                             }
                         }
-                    }
-                }
-
-                // Deterministic biome monster spawn (~70% of wilderness chunks away from safe starter zone).
-                ulong h = HashChunk(this.WorldSeed, cx, cy);
-                if ((h % 10UL) >= 7UL)
-                {
-                    continue;
-                }
-
-                int lx = 6 + (int)(h % 20UL);
-                int ly = 6 + (int)((h >> 8) % 20UL);
-                int wx = (cx * Chunk2D.Size) + lx;
-                int wy = (cy * Chunk2D.Size) + ly;
-                MapTile spawnTile = chunk.GetTile(lx, ly);
-                if (spawnTile.IsSolid ||
-                    spawnTile.Biome is BiomeType.ShallowWater or BiomeType.DeepOcean ||
-                    _chunkWorld.HasSolidPropAt(wx, wy))
-                {
-                    continue;
-                }
-
-                Vector2 monsterPos = new((wx + 0.5f) * this.TileSize, (wy + 0.5f) * this.TileSize);
-                if (Vector2.DistanceSquared(monsterPos, safeOrigin) < safeRadiusSq)
-                {
-                    continue;
-                }
-
-                byte zoneTier = WorldProgression.GetZoneTier(this.WorldSeed, wx, wy);
-                float distanceTilesFromSpawn = Vector2.Distance(monsterPos, safeOrigin) / this.TileSize;
-                bool isNight = WorldProgression.IsNightHour(WorldProgression.ComputeTimeOfDayHours(_currentTick, this.TickRate));
-                ushort monsterArchetype = ResolveBiomeMonsterArchetype(spawnTile.Biome, h);
-                ScaledMonsterStats scaled = WorldActorCatalog.ScaleMonster(
-                    monsterArchetype,
-                    zoneTier,
-                    distanceTilesFromSpawn,
-                    isNight);
-
-                NpcActorMeta monsterMeta = new(
-                    EntityKind.Monster,
-                    scaled.ArchetypeId,
-                    scaled.Name,
-                    scaled.Level,
-                    monsterPos,
-                    scaled.MaxHealth,
-                    scaled.MoveSpeed,
-                    scaled.Radius,
-                    scaled.AttackDamage,
-                    scaled.WindupTicks,
-                    key,
-                    scaled.DropItemId,
-                    scaled.DropQuantity,
-                    scaled.ExperienceReward,
-                    scaled.AttackRange,
-                    scaled.ProjectileSpeed,
-                    scaled.ProjectileArchetype);
-                this.SpawnActorFromMetaLocked(monsterMeta);
-
-                // Spawn a pack companion nearby in ~25% of monster chunks.
-                if (((h >> 16) & 3UL) == 0UL)
-                {
-                    int packLx = Math.Clamp(lx + 2, 1, Chunk2D.Size - 2);
-                    int packLy = Math.Clamp(ly + 1, 1, Chunk2D.Size - 2);
-                    int packWx = (cx * Chunk2D.Size) + packLx;
-                    int packWy = (cy * Chunk2D.Size) + packLy;
-                    MapTile packTile = chunk.GetTile(packLx, packLy);
-                    if (!packTile.IsSolid &&
-                        packTile.Biome is not (BiomeType.ShallowWater or BiomeType.DeepOcean) &&
-                        !_chunkWorld.HasSolidPropAt(packWx, packWy))
-                    {
-                        Vector2 packPos = new((packWx + 0.5f) * this.TileSize, (packWy + 0.5f) * this.TileSize);
-                        this.SpawnActorFromMetaLocked(monsterMeta with { HomePos = packPos });
                     }
                 }
             }
@@ -1043,39 +981,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         return remTicks > 0U ? (float)remTicks / this.TickRate : 0f;
     }
 
-    private static ushort ResolveBiomeMonsterArchetype(BiomeType biome, ulong chunkHash)
-    {
-        if (biome is BiomeType.RedMesa or BiomeType.DuneDesert)
-        {
-            ulong roll = (chunkHash >> 12) % 4UL;
-            return roll == 0UL
-                ? WorldActorCatalog.CrimsonDemon
-                : (roll == 1UL ? WorldActorCatalog.SkeletonArcher : WorldActorCatalog.RockGolem);
-        }
-
-        if (biome is BiomeType.FrozenTundra or BiomeType.AlpinePeaks)
-        {
-            return WorldActorCatalog.FrostWolf;
-        }
-
-        if (biome is BiomeType.VolcanicAshland)
-        {
-            return ((chunkHash >> 12) % 2UL == 0UL) ? WorldActorCatalog.CrimsonDemon : WorldActorCatalog.AshWraith;
-        }
-
-        if (biome is BiomeType.BlossomWoods)
-        {
-            return WorldActorCatalog.AshWraith;
-        }
-
-        if (biome is BiomeType.MistySwamp or BiomeType.TropicalJungle or BiomeType.Savanna)
-        {
-            return ((chunkHash >> 12) % 3UL == 0UL) ? WorldActorCatalog.OrcShaman : WorldActorCatalog.WildSlime;
-        }
-
-        return ((chunkHash >> 12) % 5UL <= 1UL) ? WorldActorCatalog.SkeletonArcher : WorldActorCatalog.WildSlime;
-    }
-
     private static ulong HashChunk(ulong seed, int cx, int cy)
     {
         ulong x = seed ^ ((uint)cx * 0x9E3779B97F4A7C15UL) ^ ((uint)cy * 0xBF58476D1CE4E5B9UL);
@@ -1184,7 +1089,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         float ProjectileSpeed = 0f,
         byte ProjectileArchetype = 0);
 
-    private readonly record struct PendingMonsterRespawn(ulong RespawnTick, NpcActorMeta Meta);
     private readonly record struct OutboundSpawn(ulong ConnectionId, EntitySpawnSnapshot Snapshot);
     private readonly record struct OutboundDespawn(ulong ConnectionId, ulong NetworkId, ulong ServerTick);
     private readonly record struct OutboundDelta(

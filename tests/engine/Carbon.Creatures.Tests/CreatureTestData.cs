@@ -41,8 +41,12 @@ internal static class CreatureTestData
     }
 }
 
-/// <summary>Deterministic biome sampler returning one biome everywhere.</summary>
-internal sealed class FixedBiomeSampler(BiomeType biome) : IBiomeSampler
+/// <summary>Deterministic spawn surface: walkable everywhere, one biome everywhere.</summary>
+internal sealed class FixedBiomeSampler(BiomeType biome) : ISpawnSurface
 {
-    public BiomeType SampleBiome(Vector2 worldPosition) => biome;
+    public bool TrySampleSpawnBiome(Vector2 worldPosition, out BiomeType sampled)
+    {
+        sampled = biome;
+        return true;
+    }
 }

@@ -18,6 +18,12 @@ public sealed class MonsterDefinition : IDataDefinition<string>
     /// <summary>Gets the display name.</summary>
     public string DisplayName { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Gets the protocol archetype id replicated in <c>EntitySpawn</c>; clients resolve the vector rig from it
+    /// (see <c>WorldActorCatalog</c>). Elite variants may share their base monster's archetype.
+    /// </summary>
+    public ushort ArchetypeId { get; set; }
+
     /// <summary>Gets the client visual archetype key used to pick sprites / animation sets.</summary>
     public string VisualArchetype { get; set; } = string.Empty;
 

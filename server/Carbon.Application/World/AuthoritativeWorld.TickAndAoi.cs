@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
 using Carbon.AI.Components;
-using Carbon.AI.Systems;
 using Carbon.AI.Threat;
 using Carbon.Contracts.Entities;
 using Carbon.Items.Catalog;
@@ -81,7 +80,10 @@ public sealed partial class AuthoritativeWorld
                 }
             }
 
+            _creatures.Spawner.TimeOfDayHours = WorldProgression.ComputeTimeOfDayHours(_currentTick, this.TickRate);
             _simulation.Tick(new FixedTickArgs(_currentTick, dt, _currentTick * dt));
+            this.BindSpawnedMonstersLocked();
+            this.QueueAttackPhasesLocked();
 
             this.StepProjectilesLocked();
 
@@ -95,8 +97,6 @@ public sealed partial class AuthoritativeWorld
                 }
             }
 
-            this.ProcessAiAttacksLocked();
-            this.ProcessMonsterRespawnsLocked();
             this.ProcessDespawnedEntitiesLocked();
 
             if ((_currentTick % this.TickRate) == 0UL)
@@ -284,6 +284,7 @@ public sealed partial class AuthoritativeWorld
         (_pendingEquipmentChanges, _dispatchEquipmentChanges) = (_dispatchEquipmentChanges, _pendingEquipmentChanges);
         (_pendingStatsSyncs, _dispatchStatsSyncs) = (_dispatchStatsSyncs, _pendingStatsSyncs);
         (_pendingSkillCasts, _dispatchSkillCasts) = (_dispatchSkillCasts, _pendingSkillCasts);
+        (_pendingAttackPhases, _dispatchAttackPhases) = (_dispatchAttackPhases, _pendingAttackPhases);
         (_flatRecipients, _dispatchRecipients) = (_dispatchRecipients, _flatRecipients);
 
         _pendingSpawns.Clear();
@@ -297,6 +298,7 @@ public sealed partial class AuthoritativeWorld
         _pendingEquipmentChanges.Clear();
         _pendingStatsSyncs.Clear();
         _pendingSkillCasts.Clear();
+        _pendingAttackPhases.Clear();
         _flatRecipients.Clear();
     }
 
@@ -509,6 +511,8 @@ public sealed partial class AuthoritativeWorld
                 cast.AimY);
         }
 
+        this.DispatchAttackPhases(recipientsSpan);
+
         _dispatchSpawns.Clear();
         _dispatchDespawns.Clear();
         _dispatchDeltas.Clear();
@@ -521,112 +525,6 @@ public sealed partial class AuthoritativeWorld
         _dispatchStatsSyncs.Clear();
         _dispatchSkillCasts.Clear();
         _dispatchRecipients.Clear();
-    }
-
-    private void ProcessAiAttacksLocked()
-    {
-        ReadOnlySpan<AiAttackReadyEvent> attackEvents = _simulation.ReadEvents<AiAttackReadyEvent>();
-        for (int i = 0; i < attackEvents.Length; i++)
-        {
-            AiAttackReadyEvent evt = attackEvents[i];
-            if (!_simulation.Entities.IsAlive(evt.Attacker) ||
-                !_simulation.Entities.IsAlive(evt.Target) ||
-                !_simulation.Entities.HasTransform(evt.Attacker) ||
-                !_simulation.Entities.HasTransform(evt.Target) ||
-                !_simulation.Entities.HasHealth(evt.Target) ||
-                !_simulation.TryGetNetworkIdentity(evt.Attacker, out NetworkIdentity attackerNet) ||
-                !_simulation.TryGetNetworkIdentity(evt.Target, out NetworkIdentity targetNet))
-            {
-                continue;
-            }
-
-            Vector2 atkPos = _simulation.Entities.GetTransform(evt.Attacker).Position;
-            Vector2 defPos = _simulation.Entities.GetTransform(evt.Target).Position;
-            bool hasMeta = _actorsByNetworkId.TryGetValue(attackerNet.NetworkId, out NpcActorMeta atkMeta);
-            bool isNight = WorldProgression.IsNightHour(WorldProgression.ComputeTimeOfDayHours(_currentTick, this.TickRate));
-            float rawDamage = (hasMeta ? atkMeta.AttackDamage : 10f) * (isNight ? 1.25f : 1f);
-
-            if (hasMeta && atkMeta.ProjectileSpeed > 0f && atkMeta.AttackRange > 64f)
-            {
-                float maxShotRange = atkMeta.AttackRange * 1.35f;
-                Vector2 toTarget = defPos - atkPos;
-                float distSq = toTarget.LengthSquared();
-                if (distSq > (maxShotRange * maxShotRange) || !this.HasLineOfSightLocked(atkPos, defPos))
-                {
-                    continue;
-                }
-
-                Vector2 shotDir = distSq > 1e-4f ? Vector2.Normalize(toTarget) : Vector2.UnitY;
-                this.CollectNearbyConnectionsAroundWorldLocked(atkPos, _aoiRecipientsScratch);
-                if (_aoiRecipientsScratch.Count > 0)
-                {
-                    int castOffset = _flatRecipients.Count;
-                    for (int rIdx = 0; rIdx < _aoiRecipientsScratch.Count; rIdx++)
-                    {
-                        _flatRecipients.Add(_aoiRecipientsScratch[rIdx]);
-                    }
-
-                    _pendingSkillCasts.Add(new OutboundSkillCast(
-                        castOffset,
-                        _aoiRecipientsScratch.Count,
-                        attackerNet.NetworkId,
-                        AbilityInputEncoding.EncodeMonsterProjectileCast(atkMeta.ProjectileArchetype),
-                        atkPos.X,
-                        atkPos.Y,
-                        defPos.X,
-                        defPos.Y));
-                }
-
-                uint lifeTicks = (uint)Math.Max(14, MathF.Ceiling(maxShotRange / atkMeta.ProjectileSpeed * this.TickRate));
-                this.SpawnProjectileLocked(
-                    attackerNet.NetworkId,
-                    ownerConnectionId: 0UL,
-                    fromPlayer: false,
-                    atkPos + (shotDir * 14f),
-                    shotDir * atkMeta.ProjectileSpeed,
-                    atkMeta.ProjectileArchetype,
-                    rawDamage,
-                    isCritical: false,
-                    lifeTicks);
-                continue;
-            }
-
-            float meleeHitRange = MathF.Max(60f, atkMeta.AttackRange + 16f);
-            if (Vector2.DistanceSquared(atkPos, defPos) > (meleeHitRange * meleeHitRange) || !this.HasLineOfSightLocked(atkPos, defPos))
-            {
-                continue;
-            }
-
-            this.CollectNearbyConnectionsAroundWorldLocked(atkPos, _aoiRecipientsScratch);
-            if (_aoiRecipientsScratch.Count > 0)
-            {
-                int castOffset = _flatRecipients.Count;
-                for (int rIdx = 0; rIdx < _aoiRecipientsScratch.Count; rIdx++)
-                {
-                    _flatRecipients.Add(_aoiRecipientsScratch[rIdx]);
-                }
-
-                _pendingSkillCasts.Add(new OutboundSkillCast(
-                    castOffset,
-                    _aoiRecipientsScratch.Count,
-                    attackerNet.NetworkId,
-                    AbilityInputEncoding.EncodeMonsterMeleeCast(atkMeta.ArchetypeId),
-                    atkPos.X,
-                    atkPos.Y,
-                    defPos.X,
-                    defPos.Y));
-            }
-
-            ActivePlayerState? victim = null;
-            if (_connectionByNetworkId.TryGetValue(targetNet.NetworkId, out ulong targetConn))
-            {
-                _ = _playersByConnection.TryGetValue(targetConn, out victim);
-            }
-
-            this.ApplyDamageToPlayerLocked(victim, attackerNet.NetworkId, evt.Target, targetNet.NetworkId, defPos, rawDamage);
-        }
-
-        _simulation.ClearEvents<AiAttackReadyEvent>();
     }
 
     private void ApplyDamageToPlayerLocked(
@@ -711,21 +609,6 @@ public sealed partial class AuthoritativeWorld
                     };
                 }
             }
-        }
-    }
-
-    private void ProcessMonsterRespawnsLocked()
-    {
-        for (int i = _pendingRespawns.Count - 1; i >= 0; i--)
-        {
-            PendingMonsterRespawn pending = _pendingRespawns[i];
-            if (_currentTick < pending.RespawnTick)
-            {
-                continue;
-            }
-
-            _pendingRespawns.RemoveAt(i);
-            this.SpawnActorFromMetaLocked(pending.Meta);
         }
     }
 

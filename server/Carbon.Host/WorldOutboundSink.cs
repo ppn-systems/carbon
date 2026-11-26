@@ -227,6 +227,18 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     }
 
     /// <inheritdoc/>
+    public void SendEntityAttackPhase(ReadOnlySpan<ulong> recipientConnectionIds, in AttackPhaseSnapshot snapshot)
+    {
+        for (int i = 0; i < recipientConnectionIds.Length; i++)
+        {
+            if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
+            {
+                _ = DispatchAttackPhaseAsync(conn, snapshot, _logger);
+            }
+        }
+    }
+
+    /// <inheritdoc/>
     public void SendSkillCastBroadcast(
         ReadOnlySpan<ulong> recipientConnectionIds,
         ulong casterNetworkId,
@@ -645,6 +657,36 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogSendFailure(logger, nameof(PlayerStatsSync), ex);
+        }
+    }
+
+    private static async Task DispatchAttackPhaseAsync(IConnection connection, AttackPhaseSnapshot snapshot, ILogger logger)
+    {
+        try
+        {
+            using PacketScope<EntityAttackPhase> lease = PacketFactory<EntityAttackPhase>.Acquire();
+            EntityAttackPhase pkt = lease.Value;
+            pkt.NetworkId = snapshot.NetworkId;
+            pkt.ServerTick = snapshot.ServerTick;
+            pkt.AttackKind = snapshot.AttackKind;
+            pkt.Phase = snapshot.Phase;
+            pkt.Shape = snapshot.Shape;
+            pkt.Interrupted = snapshot.Interrupted;
+            pkt.TargetX = snapshot.TargetX;
+            pkt.TargetY = snapshot.TargetY;
+            pkt.DirectionX = snapshot.DirectionX;
+            pkt.DirectionY = snapshot.DirectionY;
+            pkt.AreaRadius = snapshot.AreaRadius;
+            pkt.HalfAngleRadians = snapshot.HalfAngleRadians;
+            pkt.PhaseDurationTicks = snapshot.PhaseDurationTicks;
+            pkt.Progress = snapshot.Progress;
+
+            bool encrypt = connection.Algorithm != CipherSuiteType.None;
+            await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogSendFailure(logger, nameof(EntityAttackPhase), ex);
         }
     }
 

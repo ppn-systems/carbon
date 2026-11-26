@@ -34,33 +34,34 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
     private readonly MonsterCatalog _catalog;
     private readonly SpawningConfig _config;
     private readonly MonsterScaling _scaling;
-    private readonly IBiomeSampler _biomes;
+    private readonly ISpawnSurface _surface;
     private readonly Vector2 _worldOrigin;
     private readonly ulong _seed;
     private readonly SpawnTableData?[] _tables = new SpawnTableData?[byte.MaxValue + 1];
     private readonly Dictionary<CellCoord, CellState> _cells = new(256);
     private readonly HashSet<CellCoord> _visited = new(64);
     private readonly List<TrackedMonster> _tracked = new(256);
+    private bool _scanRequested;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MonsterSpawnerSystem"/> class.
     /// </summary>
     /// <param name="catalog">Monster catalog.</param>
     /// <param name="config">Spawning configuration.</param>
-    /// <param name="biomes">Biome sampler.</param>
+    /// <param name="surface">Spawn surface (walkability + biome).</param>
     /// <param name="worldOrigin">World origin / first player spawn point; distance from it drives monster level.</param>
     /// <param name="seed">Deterministic world seed.</param>
     /// <exception cref="ArgumentException">Thrown when a spawn table references an unknown monster.</exception>
-    public MonsterSpawnerSystem(MonsterCatalog catalog, SpawningConfig config, IBiomeSampler biomes, Vector2 worldOrigin, ulong seed)
+    public MonsterSpawnerSystem(MonsterCatalog catalog, SpawningConfig config, ISpawnSurface surface, Vector2 worldOrigin, ulong seed)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(config);
-        ArgumentNullException.ThrowIfNull(biomes);
+        ArgumentNullException.ThrowIfNull(surface);
 
         _catalog = catalog;
         _config = config;
         _scaling = new MonsterScaling(config);
-        _biomes = biomes;
+        _surface = surface;
         _worldOrigin = worldOrigin;
         _seed = seed;
 
@@ -92,6 +93,12 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
     public int LiveMonsterCount => _tracked.Count;
 
     /// <summary>
+    /// Requests a scan on the next tick regardless of <see cref="SpawningConfig.ScanIntervalTicks"/>
+    /// (e.g. right after a player enters the world, so nearby cells populate immediately).
+    /// </summary>
+    public void RequestScan() => _scanRequested = true;
+
+    /// <summary>
     /// Converts a world position to its spawner density cell.
     /// </summary>
     /// <param name="position">World position.</param>
@@ -119,10 +126,12 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
     {
         ArgumentNullException.ThrowIfNull(world);
 
-        if (tick.TickIndex % _config.ScanIntervalTicks != 0)
+        if (!_scanRequested && tick.TickIndex % _config.ScanIntervalTicks != 0)
         {
             return;
         }
+
+        _scanRequested = false;
 
         this.ReapDead(world, tick.TickIndex);
 
@@ -203,7 +212,11 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
             }
         }
 
-        BiomeType biome = _biomes.SampleBiome(position);
+        if (!_surface.TrySampleSpawnBiome(position, out BiomeType biome))
+        {
+            return;
+        }
+
         SpawnTableData? table = _tables[(byte)biome];
         if (table is null || !table.TryPick(rng.NextFloat(), isNight, out ushort monsterIndex))
         {

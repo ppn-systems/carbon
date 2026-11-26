@@ -20,13 +20,13 @@ public sealed class MonsterCatalogTests
     {
         MonsterCatalog catalog = CreatureTestData.LoadCatalog();
 
-        string[] required = ["slime", "orc", "demon", "blood_monster", "skeleton", "slime_king"];
+        string[] required = ["wild_slime", "rock_golem", "frost_wolf", "ash_wraith", "skeleton_archer", "orc_shaman", "crimson_demon", "slime_king"];
         foreach (string id in required)
         {
             catalog.TryGetIndex(id, out _).Should().BeTrue($"'{id}' is a required monster");
         }
 
-        catalog.TryGetEliteVariant(catalog.GetIndex("slime"), out ushort elite).Should().BeTrue();
+        catalog.TryGetEliteVariant(catalog.GetIndex("wild_slime"), out ushort elite).Should().BeTrue();
         catalog.GetDefinition(elite).Id.Should().Be("slime_king");
         catalog.GetDefinition(elite).IsElite.Should().BeTrue();
     }
@@ -40,6 +40,7 @@ public sealed class MonsterCatalogTests
         {
             def.LootTableId.Should().Be(def.Id, "loot tables are keyed by monster id");
             def.VisualArchetype.Should().NotBeNullOrWhiteSpace("the client picks sprites by visual archetype key");
+            def.ArchetypeId.Should().BeInRange(101, 199, "monsters use the WorldActorCatalog monster archetype range");
             def.PreferredBiomes.Should().NotBeEmpty().And.OnlyContain(b => Enum.IsDefined(b));
             def.Attacks.Should().NotBeEmpty().And.OnlyContain(a => Enum.IsDefined(a.Kind) && Enum.IsDefined(a.Shape));
         }
@@ -72,11 +73,11 @@ public sealed class MonsterCatalogTests
     [Fact]
     public void FromJson_MissingLootTable_ThrowsArgumentException()
     {
-        string json = CreatureTestData.MonstersJson.Replace("\"lootTableId\": \"orc\"", "\"lootTableId\": \"\"", StringComparison.Ordinal);
+        string json = CreatureTestData.MonstersJson.Replace("\"lootTableId\": \"rock_golem\"", "\"lootTableId\": \"\"", StringComparison.Ordinal);
 
         Action load = () => MonsterCatalog.FromJson(json);
 
-        load.Should().Throw<ArgumentException>().WithMessage("*orc*lootTableId*");
+        load.Should().Throw<ArgumentException>().WithMessage("*rock_golem*lootTableId*");
     }
 
     [Fact]

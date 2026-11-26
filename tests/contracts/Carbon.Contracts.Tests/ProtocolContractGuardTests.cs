@@ -310,6 +310,38 @@ public sealed class ProtocolContractGuardTests
         using SkillCastBroadcast castCopy = SkillCastBroadcast.Deserialize(cast.Serialize());
         Assert.Equal((byte)2, castCopy.AbilitySlot);
 
+        using EntityAttackPhase phase = new()
+        {
+            NetworkId = 77UL,
+            ServerTick = 123_456UL,
+            AttackKind = EntityAttackPhase.KindSpell,
+            Phase = EntityAttackPhase.PhaseWindup,
+            Shape = 1,
+            Interrupted = true,
+            TargetX = 12.5f,
+            TargetY = -4f,
+            DirectionX = 0.6f,
+            DirectionY = 0.8f,
+            AreaRadius = 42f,
+            HalfAngleRadians = 0.5f,
+            PhaseDurationTicks = 24,
+            Progress = 0.25f,
+        };
+        using EntityAttackPhase phaseCopy = EntityAttackPhase.Deserialize(phase.Serialize());
+        Assert.Equal(77UL, phaseCopy.NetworkId);
+        Assert.Equal(123_456UL, phaseCopy.ServerTick);
+        Assert.Equal(EntityAttackPhase.KindSpell, phaseCopy.AttackKind);
+        Assert.Equal(EntityAttackPhase.PhaseWindup, phaseCopy.Phase);
+        Assert.Equal((byte)1, phaseCopy.Shape);
+        Assert.True(phaseCopy.Interrupted);
+        Assert.Equal(12.5f, phaseCopy.TargetX);
+        Assert.Equal(-4f, phaseCopy.TargetY);
+        Assert.Equal(0.8f, phaseCopy.DirectionY);
+        Assert.Equal(42f, phaseCopy.AreaRadius);
+        Assert.Equal(0.5f, phaseCopy.HalfAngleRadians);
+        Assert.Equal((ushort)24, phaseCopy.PhaseDurationTicks);
+        Assert.Equal(0.25f, phaseCopy.Progress);
+
         byte packed = CharacterAppearance.Pack(2, 3, 1, 2);
         CharacterAppearance app = new(packed);
         Assert.Equal((byte)2, app.HairStyle);
