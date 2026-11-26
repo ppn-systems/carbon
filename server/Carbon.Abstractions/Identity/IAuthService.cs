@@ -40,6 +40,12 @@ public interface IAuthService
     Task<AuthOutcome> LoginAsync(string username, string password, ushort protocolVersion, CancellationToken ct = default);
 
     /// <summary>
+    /// Verifies credentials as <see cref="LoginAsync(string, string, ushort, CancellationToken)"/>, also counting failed
+    /// attempts per <paramref name="clientAddress"/> (normalized IP, no port) so one address cannot spray usernames.
+    /// </summary>
+    Task<AuthOutcome> LoginAsync(string username, string password, ushort protocolVersion, string? clientAddress, CancellationToken ct = default);
+
+    /// <summary>
     /// Lists all characters belonging to the authenticated account.
     /// </summary>
     Task<IReadOnlyList<CharacterRecord>> ListCharactersAsync(Guid accountId, CancellationToken ct = default);
