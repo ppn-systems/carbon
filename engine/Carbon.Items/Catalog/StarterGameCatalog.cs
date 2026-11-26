@@ -55,7 +55,7 @@ public static class StarterGameCatalog
     [
         new ItemArchetype(WoodAxe, "wood_axe", ItemCategory.Tool, MaxStackSize: 1, EquipmentSlotKind.Tool, HarvestTier: 1, MaxDurability: 120f),
         new ItemArchetype(StonePickaxe, "stone_pickaxe", ItemCategory.Tool, MaxStackSize: 1, EquipmentSlotKind.Tool, HarvestTier: 2, MaxDurability: 160f),
-        new ItemArchetype(IronSword, "iron_sword", ItemCategory.Weapon, MaxStackSize: 1, EquipmentSlotKind.MainHand, HarvestTier: 1, MaxDurability: 200f),
+        new ItemArchetype(IronSword, "iron_sword", ItemCategory.Weapon, MaxStackSize: 1, EquipmentSlotKind.MainHand, HarvestTier: 0, MaxDurability: 200f),
         new ItemArchetype(WoodLog, "wood_log", ItemCategory.Resource, MaxStackSize: 99),
         new ItemArchetype(StoneChunk, "stone_chunk", ItemCategory.Resource, MaxStackSize: 99),
         new ItemArchetype(IronOre, "iron_ore", ItemCategory.Resource, MaxStackSize: 99),
@@ -172,7 +172,7 @@ public static class StarterGameCatalog
         WoodAxe => "Tier 1 Axe | Chop Trees (55 dmg)",
         StonePickaxe => "Tier 2 Pick | Mine Stone/Ore (68 dmg)",
         CrystalPickaxe => "Tier 3 Pick | Mine All Crystal/Gold (95 dmg)",
-        IronSword => "Melee Blade | Combat 34 dmg (+Crit)",
+        IronSword => "Melee Blade | Combat 34 dmg (+Crit) | Not for Wood/Stone",
         BerryHerb => "Consumable | Use: Restore +25 HP",
         WoodWallKit => "Builder | Place Wood Wall on Target Tile",
         StoneWallKit => "Builder | Place Stone Wall on Target Tile",

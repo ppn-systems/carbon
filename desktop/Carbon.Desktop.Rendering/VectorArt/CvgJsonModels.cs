@@ -102,6 +102,7 @@ internal sealed class CvgEntityRigDto
     public float HeadTopOffset { get; set; } = 30f;
     public string AccentColor { get; set; } = "#38BDF8";
     public Dictionary<string, CvgPointDto>? WeaponGrip { get; set; }
+    public Dictionary<string, CvgPointDto>? BonePivots { get; set; }
     public Dictionary<string, string> Palette { get; set; } = [];
     public List<CvgShapeDto> Shapes { get; set; } = [];
     public Dictionary<string, CvgAnimDto> Animations { get; set; } = [];

@@ -8,22 +8,34 @@
   "accentColor": "#F59E0B",
   "gripX": -4.5,
   "gripY": 4.5,
-  "restAngleDeg": -24.0,
-  "worldScale": 0.92,
+  "restAngleDeg": -78.0,
+  "worldScale": 0.94,
   "palette": {},
   "shapes": [
     {
       "kind": "capsule",
       "bone": "root",
       "facing": "any",
-      "x": -7.0,
-      "y": 7.0,
-      "x2": 6.0,
-      "y2": -6.0,
-      "thickness": 2.8,
+      "x": -7.2,
+      "y": 7.2,
+      "x2": 6.2,
+      "y2": -6.2,
+      "thickness": 2.7,
       "color": "#92400E",
       "outlineColor": "#1E1B18",
       "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -7.2,
+      "y": 7.2,
+      "rx": 1.8,
+      "ry": 1.8,
+      "color": "#F59E0B",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 0.8
     },
     {
       "kind": "polygon",
@@ -31,20 +43,20 @@
       "facing": "any",
       "points": [
         [
-          1.5,
-          -4.5
+          1.2,
+          -4.6
         ],
         [
           8.0,
-          -8.5
+          -8.8
         ],
         [
-          9.5,
-          0.5
+          9.6,
+          0.8
         ],
         [
-          3.5,
-          2.0
+          3.4,
+          2.2
         ]
       ],
       "color": "#94A3B8",
@@ -52,13 +64,37 @@
       "outlineThickness": 1.1
     },
     {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          5.2,
+          -6.4
+        ],
+        [
+          8.0,
+          -8.8
+        ],
+        [
+          9.4,
+          0.2
+        ],
+        [
+          7.2,
+          0.8
+        ]
+      ],
+      "color": "#CBD5E1"
+    },
+    {
       "kind": "line",
       "bone": "root",
       "facing": "any",
-      "x": 7.5,
-      "y": -7.8,
-      "x2": 9.0,
-      "y2": 0.2,
+      "x": 7.8,
+      "y": -8.2,
+      "x2": 9.2,
+      "y2": 0.4,
       "thickness": 1.5,
       "color": "#F8FAFC"
     }

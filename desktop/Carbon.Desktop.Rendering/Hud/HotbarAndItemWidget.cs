@@ -100,6 +100,11 @@ internal sealed class HotbarAndItemWidget
             ColorRgba border = active
                 ? new ColorRgba(250, 204, 21, 255)
                 : (hovered ? ColorRgba.White : accentBorder);
+            if (!item.IsEmpty && ToolUsagePolicy.IsWornOut(in item))
+            {
+                border = new ColorRgba(239, 68, 68, 255);
+            }
+
             batch.DrawRectangle(rect, border, active ? 2.5f : 1.3f);
 
             if (active)
@@ -115,14 +120,14 @@ internal sealed class HotbarAndItemWidget
                     VectorRigRenderer.DrawItemIcon(batch, itemArt, iconCenter, targetSize: 30f);
                 }
 
-                if (item.Durability > 0f && StarterGameCatalog.Items.TryGet(item.ItemId, out ItemArchetype? archetype) && archetype.MaxDurability > 0f)
+                if (StarterGameCatalog.Items.TryGet(item.ItemId, out ItemArchetype? archetype) && archetype.MaxDurability > 0f)
                 {
                     float frac = Math.Clamp(item.Durability / archetype.MaxDurability, 0f, 1f);
-                    ColorRgba durColor = frac > 0.5f
-                        ? new ColorRgba(56, 189, 248, 240)
-                        : (frac > 0.2f ? new ColorRgba(250, 204, 21, 240) : new ColorRgba(239, 68, 68, 245));
+                    ColorRgba durColor = frac <= 0f
+                        ? new ColorRgba(239, 68, 68, 255)
+                        : (frac > 0.5f ? new ColorRgba(56, 189, 248, 240) : (frac > 0.2f ? new ColorRgba(250, 204, 21, 240) : new ColorRgba(239, 68, 68, 245)));
                     batch.FillRectangle(new RectangleF(sx + 5f, sy + SlotSize - 7f, SlotSize - 10f, 3.5f), new ColorRgba(15, 23, 42, 235));
-                    batch.FillRectangle(new RectangleF(sx + 5f, sy + SlotSize - 7f, (SlotSize - 10f) * frac, 3.5f), durColor);
+                    batch.FillRectangle(new RectangleF(sx + 5f, sy + SlotSize - 7f, MathF.Max(frac <= 0f ? SlotSize - 10f : 1f, (SlotSize - 10f) * frac), 3.5f), durColor);
                 }
             }
         }
@@ -213,8 +218,8 @@ internal sealed class HotbarAndItemWidget
         int viewportWidth,
         in ItemSlot item)
     {
-        const float cardW = 284f;
-        const float cardH = 88f;
+        const float cardW = 318f;
+        const float cardH = 108f;
         float x = Math.Clamp(MathF.Floor(slotX + (SlotSize * 0.5f) - (cardW * 0.5f)), 12f, viewportWidth - cardW - 12f);
         float y = hotbarTopY - cardH - 14f;
 
@@ -225,17 +230,30 @@ internal sealed class HotbarAndItemWidget
             accent = bp.AccentColor;
         }
 
-        batch.FillRectangle(new RectangleF(x, y, cardW, cardH), new ColorRgba(8, 12, 24, 242));
+        batch.FillRectangle(new RectangleF(x, y, cardW, cardH), new ColorRgba(8, 12, 24, 245));
         batch.DrawRectangle(new RectangleF(x, y, cardW, cardH), accent, 1.5f);
+        batch.FillRectangle(new RectangleF(x + 2f, y + 2f, cardW - 4f, 2f), new ColorRgba(accent.R, accent.G, accent.B, 90));
 
-        RectangleF iconBox = new(x + 8f, y + 8f, 40f, 40f);
+        RectangleF iconBox = new(x + 8f, y + 8f, 42f, 42f);
         batch.FillRectangle(iconBox, new ColorRgba(15, 23, 42, 245));
         if (bp is not null)
         {
-            VectorRigRenderer.DrawItemIcon(batch, bp, new Vector2(x + 28f, y + 28f), 28f);
+            VectorRigRenderer.DrawItemIcon(batch, bp, new Vector2(x + 29f, y + 29f), 30f);
         }
 
         batch.DrawRectangle(iconBox, accent, 1f);
+
+        if (StarterGameCatalog.Items.TryGet(item.ItemId, out ItemArchetype? archetype) && archetype.MaxDurability > 0f)
+        {
+            float frac = Math.Clamp(item.Durability / archetype.MaxDurability, 0f, 1f);
+            ColorRgba durFill = frac <= 0f
+                ? new ColorRgba(239, 68, 68, 255)
+                : (frac > 0.5f ? new ColorRgba(56, 189, 248, 245) : (frac > 0.2f ? new ColorRgba(250, 204, 21, 245) : new ColorRgba(239, 68, 68, 245)));
+            RectangleF durBg = new(x + 10f, y + 92f, cardW - 20f, 8f);
+            batch.FillRectangle(durBg, new ColorRgba(15, 23, 42, 245));
+            batch.FillRectangle(new RectangleF(x + 10f, y + 92f, (cardW - 20f) * frac, 8f), durFill);
+            batch.DrawRectangle(durBg, new ColorRgba(51, 65, 85, 220), 1f);
+        }
     }
 
     private static void DrawTooltipText(
@@ -247,8 +265,8 @@ internal sealed class HotbarAndItemWidget
         int viewportWidth,
         in ItemSlot item)
     {
-        const float cardW = 284f;
-        const float cardH = 88f;
+        const float cardW = 318f;
+        const float cardH = 108f;
         float x = Math.Clamp(MathF.Floor(slotX + (SlotSize * 0.5f) - (cardW * 0.5f)), 12f, viewportWidth - cardW - 12f);
         float y = hotbarTopY - cardH - 14f;
         ColorRgba black = new(10, 12, 18, 255);
@@ -265,12 +283,21 @@ internal sealed class HotbarAndItemWidget
             titleColor = bp.AccentColor;
         }
 
-        spriteBatch.DrawOutlinedString(font, name, new Vector2(x + 56f, y + 10f), titleColor, black, 1, 1.5f);
-        spriteBatch.DrawOutlinedString(font, $"Tier {tier} | {cat}", new Vector2(x + 56f, y + 28f), new ColorRgba(203, 213, 225, 255), black, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, name, new Vector2(x + 58f, y + 10f), titleColor, black, 1, 1.5f);
+        spriteBatch.DrawOutlinedString(font, $"Tier {tier} | {cat}", new Vector2(x + 58f, y + 29f), new ColorRgba(203, 213, 225, 255), black, 1, 1f);
 
         string stats = $"DMG {(int)StarterGameCatalog.GetWeaponBaseDamage(item.ItemId)} | Chop {(int)StarterGameCatalog.GetFloraHarvestDamage(item.ItemId)} | Mine {(int)StarterGameCatalog.GetMineralHarvestDamage(item.ItemId)}";
         spriteBatch.DrawOutlinedString(font, stats, new Vector2(x + 10f, y + 56f), new ColorRgba(125, 211, 252, 255), black, 1, 1f);
         spriteBatch.DrawOutlinedString(font, StarterGameCatalog.GetActionHint(item.ItemId), new Vector2(x + 10f, y + 71f), new ColorRgba(253, 224, 71, 255), black, 1, 1f);
+
+        if (StarterGameCatalog.Items.TryGet(item.ItemId, out ItemArchetype? archetype) && archetype.MaxDurability > 0f)
+        {
+            string durLabel = item.Durability <= 0f
+                ? $"DURABILITY 0/{(int)archetype.MaxDurability} [WORN OUT]"
+                : $"DURABILITY {(int)MathF.Ceiling(item.Durability)}/{(int)archetype.MaxDurability}";
+            ColorRgba durTxtColor = item.Durability <= 0f ? new ColorRgba(252, 165, 165, 255) : ColorRgba.White;
+            spriteBatch.DrawOutlinedString(font, durLabel, new Vector2(x + 14f, y + 90f), durTxtColor, black, 1, 1f);
+        }
     }
 
     private static string ResolveHintText(int viewportWidth, out float scale)

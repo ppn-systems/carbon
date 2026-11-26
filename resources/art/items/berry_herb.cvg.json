@@ -17,46 +17,82 @@
       "bone": "root",
       "facing": "any",
       "x": -3.0,
-      "y": 3.5,
-      "rx": 4.2,
-      "ry": 4.0,
-      "color": "#EF4444",
-      "outlineColor": "#450A0A",
-      "outlineThickness": 1.1
+      "y": 2.4,
+      "rx": 4.8,
+      "ry": 2.8,
+      "color": "#16A34A",
+      "rotDeg": -28.0,
+      "outlineColor": "#052E16",
+      "outlineThickness": 1.0
     },
     {
       "kind": "ellipse",
       "bone": "root",
       "facing": "any",
-      "x": 3.5,
-      "y": 4.2,
-      "rx": 4.0,
-      "ry": 3.8,
+      "x": 3.0,
+      "y": 2.4,
+      "rx": 4.8,
+      "ry": 2.8,
+      "color": "#22C55E",
+      "rotDeg": 28.0,
+      "outlineColor": "#052E16",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -2.5,
+      "y": -1.8,
+      "rx": 3.0,
+      "ry": 3.0,
+      "color": "#EF4444",
+      "outlineColor": "#450A0A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 2.5,
+      "y": -1.5,
+      "rx": 3.0,
+      "ry": 3.0,
       "color": "#DC2626",
       "outlineColor": "#450A0A",
-      "outlineThickness": 1.1
+      "outlineThickness": 1.0
     },
     {
       "kind": "ellipse",
       "bone": "root",
       "facing": "any",
       "x": 0.0,
-      "y": -3.5,
-      "rx": 4.8,
-      "ry": 3.2,
-      "color": "#22C55E",
-      "outlineColor": "#052E16",
-      "outlineThickness": 1.1
+      "y": -5.0,
+      "rx": 2.8,
+      "ry": 2.8,
+      "color": "#F87171",
+      "outlineColor": "#450A0A",
+      "outlineThickness": 1.0
     },
     {
       "kind": "ellipse",
       "bone": "root",
       "facing": "any",
-      "x": -4.0,
-      "y": 2.2,
-      "rx": 1.1,
-      "ry": 1.0,
-      "color": "#FCA5A5"
+      "x": -0.6,
+      "y": -5.8,
+      "rx": 0.9,
+      "ry": 0.9,
+      "color": "#FFFFFF"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -3.1,
+      "y": -2.6,
+      "rx": 0.8,
+      "ry": 0.8,
+      "color": "#FFFFFF"
     }
   ]
 }

@@ -222,6 +222,7 @@ public sealed class CompiledVectorAnimation
 /// </summary>
 public sealed class CompiledVectorRig
 {
+    private readonly Vector2[] _bonePivots;
     private readonly Dictionary<string, CompiledVectorAnimation> _animations;
 
     /// <summary>Initializes a compiled vector rig.</summary>
@@ -237,6 +238,7 @@ public sealed class CompiledVectorRig
         Vector2 southGrip,
         Vector2 sideGrip,
         Vector2 northGrip,
+        Vector2[] bonePivots,
         CompiledVectorShape[] shapes,
         Dictionary<string, CompiledVectorAnimation> animations)
     {
@@ -251,8 +253,18 @@ public sealed class CompiledVectorRig
         this.SouthGrip = southGrip;
         this.SideGrip = sideGrip;
         this.NorthGrip = northGrip;
+        _bonePivots = bonePivots is not null && bonePivots.Length == (int)VectorBoneId.Count
+            ? bonePivots
+            : new Vector2[(int)VectorBoneId.Count];
         this.Shapes = shapes;
         _animations = animations;
+    }
+
+    /// <summary>Gets the anatomical joint rotation pivot (in design-space pixels relative to feet) for <paramref name="bone"/>.</summary>
+    public Vector2 GetBonePivot(VectorBoneId bone)
+    {
+        int idx = (int)bone;
+        return (uint)idx < (uint)_bonePivots.Length ? _bonePivots[idx] : Vector2.Zero;
     }
 
     /// <summary>Blueprint identifier.</summary>
@@ -361,7 +373,9 @@ public sealed class CompiledVectorRig
             if (normT >= a.Time && normT <= b.Time)
             {
                 float span = MathF.Max(0.0001f, b.Time - a.Time);
-                float alpha = Math.Clamp((normT - a.Time) / span, 0f, 1f);
+                float linearAlpha = Math.Clamp((normT - a.Time) / span, 0f, 1f);
+                // Smoothstep easing prevents robotic snapping on breathing and limb reversal.
+                float alpha = linearAlpha * linearAlpha * (3f - (2f * linearAlpha));
                 int count = Math.Min(outBones.Length, (int)VectorBoneId.Count);
                 for (int boneIdx = 0; boneIdx < count; boneIdx++)
                 {

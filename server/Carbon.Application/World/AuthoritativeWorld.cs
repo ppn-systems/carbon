@@ -446,9 +446,20 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
             ItemSlot activeSlot = state.Session.SelectedHotbarSlot < state.Inventory.Capacity
                 ? state.Inventory.GetSlot(state.Session.SelectedHotbarSlot)
                 : ItemSlot.Empty;
-            float strikeDamage = ResolvePropStrikeDamage(activeSlot.ItemId, existing.Category);
+            ToolTargetKind targetKind = ToToolTargetKind(existing.Category);
+            PropStrikeEvaluation eval = ToolUsagePolicy.EvaluatePropStrike(
+                in activeSlot,
+                targetKind,
+                existing.Destructibility.HarvestTier);
 
-            if (!_chunkWorld.TryDamagePropAt(tileX, tileY, strikeDamage, state.Session.SelectedHarvestTier, respawnAt, out MapProp updated))
+            _mutationSlotScratch.Clear();
+            if (eval.DurabilityLoss > 0f &&
+                this.DegradeActiveSlotDurabilityLocked(state, in activeSlot, eval.DurabilityLoss, out ItemSlot degradedSlot))
+            {
+                _mutationSlotScratch.Add((state.Session.SelectedHotbarSlot, degradedSlot));
+            }
+
+            if (!_chunkWorld.TryDamagePropAt(tileX, tileY, eval.Damage, eval.EffectiveTier, respawnAt, out MapProp updated))
             {
                 this.CollectNearbyConnectionsLocked(tileX, tileY, _aoiRecipientsScratch);
                 if (_aoiRecipientsScratch.Count > 0)
@@ -465,6 +476,12 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
                         isDestroyed: false);
                 }
 
+                for (int i = 0; i < _mutationSlotScratch.Count; i++)
+                {
+                    (ushort idx, ItemSlot slot) = _mutationSlotScratch[i];
+                    _outboundSink.SendInventorySlotChanged(connectionId, idx, slot.ItemId, slot.Quantity, slot.Durability);
+                }
+
                 return new WorldMutationOutcome(OpStatus.Forbidden, 0);
             }
 
@@ -477,7 +494,6 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
             durability = updated.Destructibility.CurrentDurability;
             isDestroyed = updated.Destructibility.IsDestroyed;
 
-            _mutationSlotScratch.Clear();
             if (isDestroyed)
             {
                 ItemSlot drop = ResolvePropDrop(updated.Type);
@@ -844,6 +860,29 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
                         this.MarkCharacterDirtyLocked(observer);
                     }
                 }
+
+                // Friendly NPCs near settlements slowly mend damaged tools and blades within 110px.
+                if ((_currentTick % (ulong)(this.TickRate * 2)) == 0UL &&
+                    this.HasNearbyFriendlyNpcLocked(obsPos, 110f * 110f))
+                {
+                    for (int sIdx = 0; sIdx < observer.Inventory.Capacity; sIdx++)
+                    {
+                        ItemSlot curSlot = observer.Inventory.GetSlot(sIdx);
+                        if (curSlot.IsEmpty ||
+                            !StarterGameCatalog.Items.TryGet(curSlot.ItemId, out ItemArchetype? itemDef) ||
+                            itemDef.MaxDurability <= 0f ||
+                            curSlot.Durability >= itemDef.MaxDurability)
+                        {
+                            continue;
+                        }
+
+                        float mendedDur = MathF.Min(itemDef.MaxDurability, curSlot.Durability + 12f);
+                        ItemSlot repaired = curSlot with { Durability = mendedDur };
+                        observer.Inventory.SetSlot(sIdx, in repaired);
+                        _pendingSlotChanges.Add(new OutboundSlotChange(observer.Session.ConnectionId, (ushort)sIdx, repaired));
+                        this.MarkCharacterDirtyLocked(observer);
+                    }
+                }
             }
 
             ReadOnlySpan<Entity> activeEntities = CollectionsMarshal.AsSpan((List<Entity>)_simulation.Entities.ActiveEntities);
@@ -1082,14 +1121,17 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
 
         if (hitCount == 0)
         {
-            this.ProcessToolHarvestFallbackLocked(state, activeSlot.ItemId, state.Session.SelectedHarvestTier);
+            this.ProcessToolHarvestFallbackLocked(state, in activeSlot);
             return;
         }
 
-        float baseDamage = StarterGameCatalog.GetWeaponBaseDamage(activeSlot.ItemId);
-        bool isCrit = activeSlot.ItemId == StarterGameCatalog.IronSword && ((_currentTick + state.Session.PlayerNetworkId) % 5UL == 0UL);
-        float finalDamage = isCrit ? baseDamage * 1.5f : baseDamage;
+        CombatStrikeEvaluation combatEval = ToolUsagePolicy.EvaluateCombatStrike(in activeSlot);
+        bool isCrit = activeSlot.ItemId == StarterGameCatalog.IronSword &&
+            combatEval.Outcome == ToolStrikeOutcome.Optimal &&
+            ((_currentTick + state.Session.PlayerNetworkId) % 5UL == 0UL);
+        float finalDamage = isCrit ? combatEval.Damage * 1.5f : combatEval.Damage;
         EntityAttachmentStore<ThreatTable> threatStore = _simulation.Entities.GetAttachmentStore<ThreatTable>();
+        bool anyDamaged = false;
 
         for (int i = 0; i < hitCount; i++)
         {
@@ -1100,6 +1142,8 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
             {
                 continue;
             }
+
+            anyDamaged = true;
 
             HealthComponent hp = _simulation.Entities.GetHealth(target);
             float remaining = MathF.Max(0f, hp.Current - finalDamage);
@@ -1169,6 +1213,16 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
                 isCrit,
                 killed);
         }
+
+        if (anyDamaged &&
+            combatEval.DurabilityLoss > 0f &&
+            this.DegradeActiveSlotDurabilityLocked(state, in activeSlot, combatEval.DurabilityLoss, out ItemSlot degradedCombatSlot))
+        {
+            _pendingSlotChanges.Add(new OutboundSlotChange(
+                state.Session.ConnectionId,
+                state.Session.SelectedHotbarSlot,
+                degradedCombatSlot));
+        }
     }
 
     private void ProcessPlaceablePrimaryActionLocked(
@@ -1233,7 +1287,7 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
         }
     }
 
-    private void ProcessToolHarvestFallbackLocked(ActivePlayerState state, uint activeItemId, byte harvestTier)
+    private void ProcessToolHarvestFallbackLocked(ActivePlayerState state, in ItemSlot activeSlot)
     {
         int aimTx = (int)MathF.Floor(state.PendingAttackAim.X / this.TileSize);
         int aimTy = (int)MathF.Floor(state.PendingAttackAim.Y / this.TileSize);
@@ -1244,7 +1298,7 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
         MapProp blockedProp = default;
         bool hasBlocked = false;
 
-        if (this.TryDamagePropAndQueueLocked(state, aimTx, aimTy, activeItemId, harvestTier, respawnAt, ref blockedProp))
+        if (this.TryDamagePropAndQueueLocked(state, aimTx, aimTy, in activeSlot, respawnAt, ref blockedProp))
         {
             return;
         }
@@ -1256,29 +1310,38 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
             hasBlocked = true;
         }
 
-        for (int dy = -1; dy <= 1; dy++)
+        if (!hasBlocked)
         {
-            for (int dx = -1; dx <= 1; dx++)
+            for (int dy = -1; dy <= 1; dy++)
             {
-                if (dx == 0 && dy == 0)
+                for (int dx = -1; dx <= 1; dx++)
                 {
-                    continue;
+                    if (dx == 0 && dy == 0)
+                    {
+                        continue;
+                    }
+
+                    int wx = aimTx + dx;
+                    int wy = aimTy + dy;
+                    MapProp localBlocked = default;
+                    if (this.TryDamagePropAndQueueLocked(state, wx, wy, in activeSlot, respawnAt, ref localBlocked))
+                    {
+                        return;
+                    }
+
+                    if (localBlocked.Type != MapPropType.None)
+                    {
+                        blockedTx = wx;
+                        blockedTy = wy;
+                        blockedProp = localBlocked;
+                        hasBlocked = true;
+                        break;
+                    }
                 }
 
-                int wx = aimTx + dx;
-                int wy = aimTy + dy;
-                MapProp localBlocked = default;
-                if (this.TryDamagePropAndQueueLocked(state, wx, wy, activeItemId, harvestTier, respawnAt, ref localBlocked))
+                if (hasBlocked)
                 {
-                    return;
-                }
-
-                if (!hasBlocked && localBlocked.Type != MapPropType.None)
-                {
-                    blockedTx = wx;
-                    blockedTy = wy;
-                    blockedProp = localBlocked;
-                    hasBlocked = true;
+                    break;
                 }
             }
         }
@@ -1310,8 +1373,7 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
         ActivePlayerState state,
         int wx,
         int wy,
-        uint activeItemId,
-        byte harvestTier,
+        in ItemSlot activeSlot,
         ulong respawnAt,
         ref MapProp tierBlockedProp)
     {
@@ -1328,10 +1390,24 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
             return false;
         }
 
-        float strikeDamage = ResolvePropStrikeDamage(activeItemId, existing.Category);
-        if (!_chunkWorld.TryDamagePropAt(wx, wy, strikeDamage, harvestTier, respawnAt, out MapProp updated))
+        ToolTargetKind targetKind = ToToolTargetKind(existing.Category);
+        PropStrikeEvaluation eval = ToolUsagePolicy.EvaluatePropStrike(
+            in activeSlot,
+            targetKind,
+            existing.Destructibility.HarvestTier);
+
+        if (eval.DurabilityLoss > 0f &&
+            this.DegradeActiveSlotDurabilityLocked(state, in activeSlot, eval.DurabilityLoss, out ItemSlot degradedSlot))
         {
-            if (harvestTier < existing.Destructibility.HarvestTier)
+            _pendingSlotChanges.Add(new OutboundSlotChange(
+                state.Session.ConnectionId,
+                state.Session.SelectedHotbarSlot,
+                degradedSlot));
+        }
+
+        if (!_chunkWorld.TryDamagePropAt(wx, wy, eval.Damage, eval.EffectiveTier, respawnAt, out MapProp updated))
+        {
+            if (eval.Outcome != ToolStrikeOutcome.Optimal || eval.EffectiveTier < existing.Destructibility.HarvestTier)
             {
                 tierBlockedProp = existing;
             }
@@ -1799,10 +1875,58 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
         return 0;
     }
 
-    private static float ResolvePropStrikeDamage(uint itemId, PropCategory category) =>
+    private static ToolTargetKind ToToolTargetKind(PropCategory category) =>
         category == PropCategory.Mineral
-            ? StarterGameCatalog.GetMineralHarvestDamage(itemId)
-            : StarterGameCatalog.GetFloraHarvestDamage(itemId);
+            ? ToolTargetKind.Mineral
+            : ToolTargetKind.Flora;
+
+    private bool DegradeActiveSlotDurabilityLocked(
+        ActivePlayerState state,
+        in ItemSlot activeSlot,
+        float loss,
+        out ItemSlot updatedSlot)
+    {
+        updatedSlot = activeSlot;
+        if (loss <= 0f ||
+            activeSlot.IsEmpty ||
+            !StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? def) ||
+            def.MaxDurability <= 0f)
+        {
+            return false;
+        }
+
+        float current = MathF.Max(0f, activeSlot.Durability);
+        float next = MathF.Max(0f, current - loss);
+        if (MathF.Abs(next - current) < 0.001f)
+        {
+            return false;
+        }
+
+        updatedSlot = activeSlot with { Durability = next };
+        state.Inventory.SetSlot(state.Session.SelectedHotbarSlot, in updatedSlot);
+        this.MarkCharacterDirtyLocked(state);
+        return true;
+    }
+
+    private bool HasNearbyFriendlyNpcLocked(Vector2 worldPos, float radiusSq)
+    {
+        foreach (KeyValuePair<ulong, NpcActorMeta> kv in _actorsByNetworkId)
+        {
+            if (kv.Value.Kind != EntityKind.Npc)
+            {
+                continue;
+            }
+
+            if (_simulation.TryGetEntityByNetworkId(kv.Key, out Entity npcEntity) &&
+                _simulation.Entities.HasTransform(npcEntity) &&
+                Vector2.DistanceSquared(worldPos, _simulation.Entities.GetTransform(npcEntity).Position) <= radiusSq)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private static void AddItemTrackingChanges(
         InventoryContainer inventory,

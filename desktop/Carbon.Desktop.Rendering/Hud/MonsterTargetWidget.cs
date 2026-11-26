@@ -47,24 +47,21 @@ internal sealed class MonsterTargetWidget
         batch.FillRectangle(new RectangleF(x, y, cardW, cardH), new ColorRgba(10, 15, 28, 232));
         batch.DrawRectangle(new RectangleF(x, y, cardW, cardH), frameBorder, 1.5f);
 
-        // Portrait medallion
+        // Auto-framed portrait medallion
         RectangleF pBox = new(x + 8f, y + 8f, 52f, 52f);
         batch.FillRectangle(pBox, new ColorRgba(15, 23, 42, 245));
         CompiledVectorRig? rig = ResolveRig(art, in _activeTarget);
         ColorRgba accent = rig is not null ? rig.AccentColor : frameBorder;
         if (rig is not null)
         {
-            Vector2 portraitFoot = new(x + 34f, y + 54f);
-            VectorRigRenderer.DrawEntityRig(
+            VectorRigRenderer.DrawPortraitRig(
                 batch,
                 rig,
-                portraitFoot,
+                new Vector2(x + 34f, y + 34f),
+                boxSize: 46f,
                 Direction8.South,
                 _activeTarget.AttackAnimRemaining > 0f ? "attack" : "idle",
-                animTime,
-                isNormalized: false,
-                targetHeightOverride: 38f,
-                hitFlash: _activeTarget.HitFlashRemaining > 0f ? 0.65f : 0f);
+                animTime);
         }
 
         batch.DrawRectangle(pBox, accent, 1.5f);
@@ -114,6 +111,7 @@ internal sealed class MonsterTargetWidget
         ColorRgba black = new(10, 12, 18, 255);
 
         CompiledVectorRig? rig = ResolveRig(art, in _activeTarget);
+        string levelPrefix = rig is not null && rig.Level > 0 ? $"[LV.{rig.Level}] " : string.Empty;
         string subtitle = rig is not null && !string.IsNullOrWhiteSpace(rig.Subtitle)
             ? rig.Subtitle
             : (_activeTarget.Kind == EntityKind.Npc ? "TOWN NPC" : "HOSTILE");
@@ -122,7 +120,7 @@ internal sealed class MonsterTargetWidget
             ? new ColorRgba(253, 224, 71, 255)
             : new ColorRgba(254, 202, 202, 255);
 
-        spriteBatch.DrawOutlinedString(font, _activeTarget.Name, new Vector2(x + 68f, y + 10f), nameColor, black, 1, 1.5f);
+        spriteBatch.DrawOutlinedString(font, $"{levelPrefix}{_activeTarget.Name}", new Vector2(x + 68f, y + 10f), nameColor, black, 1, 1.5f);
         TextMeasureResult subSize = font.MeasureString(subtitle, TextLayoutOptions.Default, 1f);
         spriteBatch.DrawOutlinedString(font, subtitle, new Vector2(x + cardW - subSize.Width - 12f, y + 13f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
 

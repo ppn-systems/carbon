@@ -196,6 +196,13 @@ public sealed class AuthoritativeWorldMultiplayerTests
             world.StepFixedTick();
 
             sink.CombatHits.Should().Contain(h => h.DefenderNetworkId == mobSpawn.Value.NetworkId && h.Damage > 0f);
+
+            List<(ushort SlotIndex, ItemSlot Slot)> slayerInv = [];
+            world.GetInventorySnapshot(404UL, slayerInv).Should().BeTrue();
+            slayerInv.Should().Contain(s =>
+                s.Slot.ItemId == StarterGameCatalog.IronSword &&
+                s.Slot.Durability < 200f &&
+                s.Slot.Durability > 0f);
         }
         finally
         {

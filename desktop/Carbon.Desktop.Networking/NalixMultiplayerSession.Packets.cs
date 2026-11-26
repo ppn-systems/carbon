@@ -13,6 +13,7 @@ using Carbon.Contracts.Maps.S2C;
 using Carbon.Desktop.Abstractions;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
+using Carbon.Items.Definitions;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Networking;
@@ -447,6 +448,39 @@ public sealed partial class NalixMultiplayerSession
                     _hudNotifications.Add(popup);
                 }
             }
+            else if (previous.ItemId == next.ItemId &&
+                     StarterGameCatalog.Items.TryGet(next.ItemId, out ItemArchetype? slotDef) &&
+                     slotDef.MaxDurability > 0f)
+            {
+                if (previous.Durability > 0f && next.Durability <= 0f)
+                {
+                    string brokenMsg = $"{StarterGameCatalog.GetDisplayName(next.ItemId)} Worn Out!";
+                    lock (_worldGate)
+                    {
+                        _combatEvents.Add(new ClientCombatEvent(
+                            this.LocalPlayerInterpolatedPosition + new Vector2(0f, -14f),
+                            0f,
+                            IsCritical: true,
+                            IsHeal: false,
+                            Label: brokenMsg));
+                        _hudNotifications.Add($"{brokenMsg} Visit NPC Guard to mend");
+                    }
+                }
+                else if (previous.Durability <= 0f && next.Durability > 0f)
+                {
+                    string mendMsg = $"{StarterGameCatalog.GetDisplayName(next.ItemId)} Mended!";
+                    lock (_worldGate)
+                    {
+                        _combatEvents.Add(new ClientCombatEvent(
+                            this.LocalPlayerInterpolatedPosition + new Vector2(0f, -14f),
+                            next.Durability,
+                            IsCritical: false,
+                            IsHeal: true,
+                            Label: mendMsg));
+                        _hudNotifications.Add(mendMsg);
+                    }
+                }
+            }
         }
     }
 
@@ -492,17 +526,39 @@ public sealed partial class NalixMultiplayerSession
 
                 if (wasTierBlocked)
                 {
-                    string warn = $"Need Tier {updated.Destructibility.HarvestTier} Tool!";
+                    ItemSlot activeSlot = _inventory.GetSlot(_selectedSlot);
+                    ToolTargetKind kind = updated.Category == PropCategory.Mineral
+                        ? ToolTargetKind.Mineral
+                        : ToolTargetKind.Flora;
+                    PropStrikeEvaluation eval = ToolUsagePolicy.EvaluatePropStrike(
+                        in activeSlot,
+                        kind,
+                        updated.Destructibility.HarvestTier);
+                    string warn = eval.Outcome != ToolStrikeOutcome.Optimal
+                        ? ToolUsagePolicy.GetMisuseWarning(eval.Outcome, updated.Destructibility.HarvestTier)
+                        : $"Need Tier {updated.Destructibility.HarvestTier} Tool!";
                     _combatEvents.Add(new ClientCombatEvent(worldPos, 0f, IsCritical: false, IsHeal: false, Label: warn));
                     _hudNotifications.Add(warn);
                 }
                 else if (damageDealt > 0.5f)
                 {
+                    ItemSlot activeSlot = _inventory.GetSlot(_selectedSlot);
+                    ToolTargetKind kind = updated.Category == PropCategory.Mineral
+                        ? ToolTargetKind.Mineral
+                        : ToolTargetKind.Flora;
+                    PropStrikeEvaluation eval = ToolUsagePolicy.EvaluatePropStrike(
+                        in activeSlot,
+                        kind,
+                        updated.Destructibility.HarvestTier);
                     _combatEvents.Add(new ClientCombatEvent(
                         worldPos,
                         damageDealt,
                         IsCritical: pkt.IsDestroyed,
                         IsHeal: false));
+                    if (eval.Outcome == ToolStrikeOutcome.SwordMisuseOnWood)
+                    {
+                        _hudNotifications.Add(ToolUsagePolicy.GetMisuseWarning(eval.Outcome, updated.Destructibility.HarvestTier));
+                    }
                 }
             }
         }

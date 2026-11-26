@@ -58,4 +58,36 @@ public sealed class InventoryCodecAndCatalogTests
         bag.CountItem(StarterGameCatalog.IronSword).Should().Be(1);
         bag.CountItem(StarterGameCatalog.StoneWallKit).Should().Be(2);
     }
+
+    [Fact]
+    public void ToolUsagePolicy_ShouldPenalizeMisuseDeflectRockAndDegradeWhenWornOut()
+    {
+        ItemSlot freshSword = new(StarterGameCatalog.IronSword, 1, 0, 200f);
+        ItemSlot freshAxe = new(StarterGameCatalog.WoodAxe, 1, 0, 120f);
+        ItemSlot freshPick = new(StarterGameCatalog.StonePickaxe, 1, 0, 160f);
+        ItemSlot wornSword = new(StarterGameCatalog.IronSword, 1, 0, 0f);
+
+        ToolUsagePolicy.IsWornOut(in freshSword).Should().BeFalse();
+        ToolUsagePolicy.IsWornOut(in wornSword).Should().BeTrue();
+
+        PropStrikeEvaluation swordOnTree = ToolUsagePolicy.EvaluatePropStrike(in freshSword, ToolTargetKind.Flora, 1);
+        swordOnTree.Outcome.Should().Be(ToolStrikeOutcome.SwordMisuseOnWood);
+        swordOnTree.DurabilityLoss.Should().BeGreaterThan(3f);
+        swordOnTree.Damage.Should().BeLessThan(StarterGameCatalog.GetFloraHarvestDamage(StarterGameCatalog.WoodAxe));
+
+        PropStrikeEvaluation swordOnRock = ToolUsagePolicy.EvaluatePropStrike(in freshSword, ToolTargetKind.Mineral, 1);
+        swordOnRock.Outcome.Should().Be(ToolStrikeOutcome.BladeBluntOnStone);
+        swordOnRock.Damage.Should().Be(0f);
+        swordOnRock.DurabilityLoss.Should().BeGreaterThan(4f);
+
+        PropStrikeEvaluation axeOnTree = ToolUsagePolicy.EvaluatePropStrike(in freshAxe, ToolTargetKind.Flora, 1);
+        axeOnTree.Outcome.Should().Be(ToolStrikeOutcome.Optimal);
+
+        PropStrikeEvaluation pickOnOre = ToolUsagePolicy.EvaluatePropStrike(in freshPick, ToolTargetKind.Mineral, 2);
+        pickOnOre.Outcome.Should().Be(ToolStrikeOutcome.Optimal);
+
+        CombatStrikeEvaluation wornHit = ToolUsagePolicy.EvaluateCombatStrike(in wornSword);
+        wornHit.Outcome.Should().Be(ToolStrikeOutcome.WornOutTool);
+        wornHit.Damage.Should().BeLessThan(StarterGameCatalog.GetWeaponBaseDamage(StarterGameCatalog.IronSword));
+    }
 }

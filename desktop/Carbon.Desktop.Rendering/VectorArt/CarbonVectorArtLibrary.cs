@@ -168,6 +168,7 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
 
         CompiledVectorShape[] shapes = CompileShapes(dto.Shapes, dto.Palette, filePath);
         Dictionary<string, CompiledVectorAnimation> anims = CompileAnimations(dto.Animations);
+        Vector2[] pivots = CompilePivots(dto.BonePivots, dto.DesignHeight);
 
         Vector2 southGrip = ResolveGrip(dto.WeaponGrip, "south", new Vector2(8f, -10f));
         Vector2 sideGrip = ResolveGrip(dto.WeaponGrip, "side", southGrip);
@@ -186,6 +187,7 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
             southGrip,
             sideGrip,
             northGrip,
+            pivots,
             shapes,
             anims);
     }
@@ -317,6 +319,37 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
         }
 
         return dict;
+    }
+
+    private static Vector2[] CompilePivots(Dictionary<string, CvgPointDto>? raw, float designHeight)
+    {
+        float h = MathF.Max(16f, designHeight);
+        Vector2[] pivots = new Vector2[(int)VectorBoneId.Count];
+        pivots[(int)VectorBoneId.Root] = Vector2.Zero;
+        pivots[(int)VectorBoneId.Cape] = new Vector2(0f, -h * 0.52f);
+        pivots[(int)VectorBoneId.Tail] = new Vector2(0f, -h * 0.28f);
+        pivots[(int)VectorBoneId.LegLeft] = new Vector2(-h * 0.08f, -h * 0.28f);
+        pivots[(int)VectorBoneId.LegRight] = new Vector2(h * 0.08f, -h * 0.28f);
+        pivots[(int)VectorBoneId.Body] = new Vector2(0f, -h * 0.42f);
+        pivots[(int)VectorBoneId.ArmBack] = new Vector2(-h * 0.16f, -h * 0.56f);
+        pivots[(int)VectorBoneId.ArmFront] = new Vector2(h * 0.16f, -h * 0.56f);
+        pivots[(int)VectorBoneId.Head] = new Vector2(0f, -h * 0.72f);
+        pivots[(int)VectorBoneId.Headgear] = new Vector2(0f, -h * 0.76f);
+        pivots[(int)VectorBoneId.Aura] = new Vector2(0f, -h * 0.48f);
+
+        if (raw is not null)
+        {
+            foreach (KeyValuePair<string, CvgPointDto> kvp in raw)
+            {
+                if (kvp.Value is not null)
+                {
+                    int idx = (int)ParseBone(kvp.Key);
+                    pivots[idx] = new Vector2(kvp.Value.X, kvp.Value.Y);
+                }
+            }
+        }
+
+        return pivots;
     }
 
     private static Vector2 ResolveGrip(Dictionary<string, CvgPointDto>? grips, string key, Vector2 fallback)

@@ -12,6 +12,7 @@ using Carbon.Graphics.Batching.Sprites;
 using Carbon.Graphics.Fonts.Layout;
 using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Items.Catalog;
+using Carbon.Items.Containers;
 using Carbon.Maps.Biomes;
 
 namespace Carbon.Desktop.Rendering.Hud;
@@ -34,27 +35,42 @@ internal sealed class HeroVitalsWidget
         batch.DrawRectangle(card, new ColorRgba(71, 85, 105, 235), 1.5f);
         batch.FillRectangle(new RectangleF(16f, 16f, 408f, 2f), new ColorRgba(56, 189, 248, 70));
 
-        // 58x58 portrait frame rendering live declarative hero rig
+        // 58x58 portrait frame rendering auto-framed live declarative hero rig
         RectangleF portraitBox = new(24f, 24f, 58f, 58f);
         batch.FillRectangle(portraitBox, new ColorRgba(15, 23, 42, 245));
         ColorRgba accent = new(56, 189, 248, 255);
+        ItemSlot activeSlot = world.Inventory.GetSlot(world.SelectedHotbarSlot);
+        CompiledItemVectorArt? equippedArt = null;
+        if (!activeSlot.IsEmpty && art is not null)
+        {
+            _ = art.TryGetItem(activeSlot.ItemId, out equippedArt);
+        }
+
         if (art is not null && art.TryGetCharacter(world.LocalPlayerAppearancePreset, out CompiledVectorRig? rig))
         {
             accent = rig.AccentColor;
-            Vector2 portraitFoot = new(53f, 75f);
-            VectorRigRenderer.DrawEntityRig(
+            VectorRigRenderer.DrawPortraitRig(
                 batch,
                 rig,
-                portraitFoot,
+                new Vector2(53f, 53f),
+                boxSize: 52f,
                 Direction8.South,
                 "idle",
                 animTime,
-                isNormalized: false,
-                targetHeightOverride: 44f,
-                hitFlash: world.LocalHitFlashTimer > 0f ? 0.65f : 0f);
+                equippedArt);
         }
 
         batch.DrawRectangle(portraitBox, accent, 2f);
+
+        // Mini active-tool medallion anchored at portrait bottom-right
+        if (equippedArt is not null)
+        {
+            bool wornOut = ToolUsagePolicy.IsWornOut(in activeSlot);
+            RectangleF miniBox = new(64f, 64f, 22f, 22f);
+            batch.FillRectangle(miniBox, new ColorRgba(10, 15, 28, 245));
+            VectorRigRenderer.DrawItemIcon(batch, equippedArt, new Vector2(75f, 75f), 15f);
+            batch.DrawRectangle(miniBox, wornOut ? new ColorRgba(239, 68, 68, 255) : equippedArt.AccentColor, 1.3f);
+        }
 
         // Class accent header strip & transport status badge
         ColorRgba badgeColor = world.IsUdpActive
@@ -139,8 +155,12 @@ internal sealed class HeroVitalsWidget
 
         int h = (int)MathF.Floor(hourOfDay) % 24;
         int m = (int)MathF.Floor((hourOfDay - MathF.Floor(hourOfDay)) * 60f);
+        ItemSlot activeSlot = world.Inventory.GetSlot(world.SelectedHotbarSlot);
+        bool wornOut = ToolUsagePolicy.IsWornOut(in activeSlot);
         string itemName = StarterGameCatalog.GetDisplayName(activeItemId);
-        spriteBatch.DrawOutlinedString(font, $"{itemName} | {biome}", new Vector2(94f, 84f), new ColorRgba(226, 232, 240, 255), black, 1, 1.5f);
+        string itemLabel = wornOut ? $"{itemName} [WORN]" : itemName;
+        ColorRgba itemColor = wornOut ? new ColorRgba(248, 113, 113, 255) : new ColorRgba(226, 232, 240, 255);
+        spriteBatch.DrawOutlinedString(font, $"{itemLabel} | {biome}", new Vector2(94f, 84f), itemColor, black, 1, 1.5f);
         spriteBatch.DrawOutlinedString(font, $"Pos ({ptx},{pty}) | {h:D2}:{m:D2} | {(int)fps} FPS", new Vector2(24f, 106f), new ColorRgba(148, 163, 184, 255), black, 1, 1.5f);
     }
 }

@@ -8,20 +8,20 @@
   "accentColor": "#22D3EE",
   "gripX": -4.5,
   "gripY": 4.5,
-  "restAngleDeg": -26.0,
-  "worldScale": 1.05,
+  "restAngleDeg": -82.0,
+  "worldScale": 1.06,
   "palette": {},
   "shapes": [
     {
       "kind": "capsule",
       "bone": "root",
       "facing": "any",
-      "x": -7.0,
-      "y": 7.0,
-      "x2": 5.5,
-      "y2": -5.5,
+      "x": -7.2,
+      "y": 7.2,
+      "x2": 5.2,
+      "y2": -5.2,
       "thickness": 2.7,
-      "color": "#4C1D95",
+      "color": "#334155",
       "outlineColor": "#0F172A",
       "outlineThickness": 1.0
     },
@@ -31,54 +31,74 @@
       "facing": "any",
       "points": [
         [
-          -1.5,
-          -9.2
+          -1.0,
+          -7.8
         ],
         [
-          5.8,
-          -7.0
+          8.8,
+          -9.0
         ],
         [
-          9.8,
-          1.8
+          9.2,
+          -5.2
         ],
         [
-          5.4,
-          2.6
-        ],
-        [
-          2.2,
-          -4.4
-        ],
-        [
-          -3.6,
-          -6.0
+          1.4,
+          -3.2
         ]
       ],
       "color": "#06B6D4",
       "outlineColor": "#083344",
-      "outlineThickness": 1.2
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          8.8,
+          -9.0
+        ],
+        [
+          1.4,
+          -3.2
+        ],
+        [
+          4.2,
+          1.4
+        ],
+        [
+          9.2,
+          -1.8
+        ]
+      ],
+      "color": "#22D3EE",
+      "outlineColor": "#083344",
+      "outlineThickness": 1.0
     },
     {
       "kind": "line",
       "bone": "root",
       "facing": "any",
-      "x": -0.5,
-      "y": -8.2,
-      "x2": 8.6,
-      "y2": 1.0,
+      "x": 0.5,
+      "y": -7.0,
+      "x2": 8.5,
+      "y2": -8.2,
       "thickness": 1.5,
-      "color": "#A5F3FC"
+      "color": "#CFFAFE"
     },
     {
       "kind": "ellipse",
       "bone": "root",
       "facing": "any",
-      "x": 5.2,
-      "y": -5.2,
-      "rx": 1.6,
-      "ry": 1.6,
-      "color": "#FFFFFF"
+      "x": 3.6,
+      "y": -4.4,
+      "rx": 1.8,
+      "ry": 1.8,
+      "color": "#FDE047",
+      "outlineColor": "#083344",
+      "outlineThickness": 0.8
     }
   ]
 }

@@ -295,15 +295,14 @@ public sealed class CharacterSelectScene : GameScene
                 RectangleF pBox = new(b.X + 8f, b.Y + 8f, 44f, 44f);
                 _geometryBatch.FillRectangle(pBox, new ColorRgba(12, 18, 32, 235));
                 _geometryBatch.DrawRectangle(pBox, cardRig.AccentColor, 1.2f);
-                VectorRigRenderer.DrawEntityRig(
+                VectorRigRenderer.DrawPortraitRig(
                     _geometryBatch,
                     cardRig,
-                    new Vector2(b.X + 30f, b.Y + 48f),
+                    new Vector2(b.X + 30f, b.Y + 30f),
+                    boxSize: 38f,
                     Direction8.South,
                     "idle",
-                    _elapsed + (i * 0.25f),
-                    isNormalized: false,
-                    targetHeightOverride: 34f);
+                    _elapsed + (i * 0.25f));
             }
         }
 

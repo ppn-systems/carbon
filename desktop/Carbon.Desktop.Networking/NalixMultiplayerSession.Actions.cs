@@ -220,11 +220,10 @@ public sealed partial class NalixMultiplayerSession
         _lastAttackDir = aimDir;
         _localFacingDir = aimDir;
 
-        ClientActionKind harvestKind = bestProp.Category == PropCategory.Mineral
-            ? ClientActionKind.PickaxeMine
-            : ClientActionKind.AxeChop;
-        const float harvestDuration = 0.30f;
         ItemSlot activeSlot = _inventory.GetSlot(_selectedSlot);
+        _ = StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? activeArchetype);
+        ClientActionKind harvestKind = ResolveActionKind(activeSlot.ItemId, activeArchetype);
+        float harvestDuration = ResolveActionDuration(harvestKind);
         _comboStep = (byte)(_comboStep ^ 1);
         _attackSwingTimer = harvestDuration;
         _currentAction = new ClientActionState(

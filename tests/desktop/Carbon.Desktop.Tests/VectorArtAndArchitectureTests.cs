@@ -23,6 +23,7 @@ public sealed class VectorArtAndArchitectureTests
 
         string repoRoot = FindRepoRoot(artRoot!);
         Directory.Exists(Path.Combine(repoRoot, "resources", "sprites")).Should().BeFalse("deprecated PNG sprite folder must be absent");
+        Directory.Exists(Path.Combine(repoRoot, "resources", "vector-art")).Should().BeFalse("duplicate vector-art folder must not exist");
 
         VectorArtValidationSummary summary = VectorArtValidator.ValidateDirectory(artRoot!);
         summary.CharactersValidated.Should().Be(4);
@@ -36,7 +37,10 @@ public sealed class VectorArtAndArchitectureTests
         for (byte p = 0; p < 4; p++)
         {
             lib.TryGetCharacter(p, out CompiledVectorRig? rig).Should().BeTrue();
-            rig!.EvaluatePose("chop", "idle", 0.42f, isNormalized: true, pose);
+            rig!.GetBonePivot(VectorBoneId.ArmFront).Y.Should().BeLessThan(0f, "shoulder pivot must sit in upper body");
+            rig.GetBonePivot(VectorBoneId.LegLeft).Y.Should().BeLessThan(0f, "hip pivot must sit above boots");
+            rig.ClipNames.Should().Contain(["idle", "walk", "slash", "chop", "mine"]);
+            rig.EvaluatePose("chop", "idle", 0.42f, isNormalized: true, pose);
             rig.EvaluatePose("mine", "idle", 0.40f, isNormalized: true, pose);
             rig.EvaluatePose("slash", "idle", 0.35f, isNormalized: true, pose);
         }
