@@ -1,5 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System.Threading.Tasks;
 using Carbon.Contracts.Maps.S2C;
 using Carbon.Maps.Building;
 
@@ -28,21 +29,24 @@ public interface IWorldMapService
     /// <summary>Builds a thread-safe wire delta packet snapshot for the requested chunk when its revision exceeds <paramref name="knownRevision"/>.</summary>
     bool TryCreateChunkDeltaPacket(int chunkX, int chunkY, uint knownRevision, out MapChunkDelta? packet);
 
-    /// <summary>Attempts to harvest or damage the natural prop on the specified world tile.</summary>
-    WorldMutationOutcome TryHarvestProp(ulong connectionId, int tileX, int tileY);
+    /// <summary>
+    /// Queues a harvest of the natural prop on the tile; completes after the next tick has processed it (ADR-017).
+    /// </summary>
+    ValueTask<WorldMutationOutcome> SubmitHarvestPropAsync(ulong connectionId, int tileX, int tileY);
 
     /// <summary>
-    /// Places a construction blueprint anchored on the specified world tile. Materials are taken from the player's
-    /// inventory and construction work advances each tick while the player stays in reach (<c>docs/building.md</c>).
+    /// Queues placing a construction blueprint anchored on the tile. Materials are taken from the player's inventory
+    /// and construction work advances each tick while the player stays in reach (<c>docs/building.md</c>). Completes
+    /// after the next tick has processed it (ADR-017).
     /// </summary>
-    WorldMutationOutcome TryPlaceStructure(ulong connectionId, int tileX, int tileY, StructureType structureType, StructureRotation rotation = StructureRotation.North);
+    ValueTask<WorldMutationOutcome> SubmitPlaceStructureAsync(ulong connectionId, int tileX, int tileY, StructureType structureType, StructureRotation rotation = StructureRotation.North);
 
     /// <summary>
-    /// Cancels the blueprint covering the tile (100% refund), or starts deconstructing the owned structure there
-    /// (work over time, partial refund).
+    /// Queues cancelling the blueprint covering the tile (100% refund), or deconstructing the owned structure there
+    /// (work over time, partial refund). Completes after the next tick has processed it (ADR-017).
     /// </summary>
-    WorldMutationOutcome TryDemolishStructure(ulong connectionId, int tileX, int tileY);
+    ValueTask<WorldMutationOutcome> SubmitDemolishStructureAsync(ulong connectionId, int tileX, int tileY);
 
-    /// <summary>Attempts to toggle an existing door on the specified world tile.</summary>
-    WorldMutationOutcome TryToggleDoor(ulong connectionId, int tileX, int tileY);
+    /// <summary>Queues toggling the door on the tile; completes after the next tick has processed it (ADR-017).</summary>
+    ValueTask<WorldMutationOutcome> SubmitToggleDoorAsync(ulong connectionId, int tileX, int tileY);
 }

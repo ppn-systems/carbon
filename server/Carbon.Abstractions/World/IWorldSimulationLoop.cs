@@ -24,4 +24,7 @@ public interface IWorldSimulationLoop
 
     /// <summary>Flushes dirty chunk deltas and active player character state to the configured stores.</summary>
     Task FlushDirtyPersistenceAsync(CancellationToken ct = default);
+
+    /// <summary>Completes every queued, unprocessed world command with a failure status (host shutdown, ADR-017 D4).</summary>
+    void FailPendingCommands();
 }

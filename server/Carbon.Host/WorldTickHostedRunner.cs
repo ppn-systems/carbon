@@ -67,6 +67,8 @@ internal sealed class WorldTickHostedRunner
         }
         finally
         {
+            // No more ticks will run: answer queued handler commands instead of leaving them waiting (ADR-017 D4).
+            _world.FailPendingCommands();
             try
             {
                 await _world.FlushDirtyPersistenceAsync(CancellationToken.None).ConfigureAwait(false);

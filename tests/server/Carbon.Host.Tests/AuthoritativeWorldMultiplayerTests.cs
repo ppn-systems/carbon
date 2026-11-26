@@ -1648,7 +1648,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
         }
     }
 
-    private sealed class RecordingOutboundSink : IWorldOutboundSink
+    internal sealed class RecordingOutboundSink : IWorldOutboundSink
     {
         public List<(ulong ConnectionId, EntitySpawnSnapshot Snapshot)> Spawns { get; } = [];
         public List<(ulong ConnectionId, ulong NetworkId)> Despawns { get; } = [];
