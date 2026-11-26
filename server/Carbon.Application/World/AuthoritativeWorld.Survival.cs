@@ -1,11 +1,13 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
-using System;
+using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Commands;
 using Carbon.Combat.Events;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
@@ -13,8 +15,8 @@ using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
 using Carbon.Maps.Building;
-using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.ECS;
+using Carbon.Simulation.ECS.Components;
 using Carbon.Survival.Components;
 using Carbon.Survival.Events;
 using Carbon.Survival.Food;
@@ -300,6 +302,16 @@ public sealed partial class AuthoritativeWorld
     }
 
     /// <inheritdoc/>
+    public ValueTask<WorldMutationOutcome> SubmitSetRestingAsync(ulong connectionId, bool rest) =>
+        _commands.Submit(WorldCommandKind.SetResting, connectionId, 0, 0, flag: rest);
+
+    /// <summary>
+    /// Starts resting (sleeping in a bed within reach, otherwise sitting) or stands the player up (ADR-018). Runs
+    /// synchronously; packet handlers go through <see cref="SubmitSetRestingAsync"/> so it executes inside the tick.
+    /// </summary>
+    /// <param name="connectionId">Requesting connection.</param>
+    /// <param name="rest"><see langword="true"/> to rest, <see langword="false"/> to stand up.</param>
+    /// <returns><see cref="OpStatus.Ok"/>, or <see cref="OpStatus.Forbidden"/> when not in the world or dead.</returns>
     public OpStatus TrySetResting(ulong connectionId, bool rest)
     {
         lock (_gate)

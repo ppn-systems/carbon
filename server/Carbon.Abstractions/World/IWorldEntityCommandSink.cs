@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System.Numerics;
+using System.Threading.Tasks;
 using Carbon.Contracts.Common;
 
 namespace Carbon.Abstractions.World;
@@ -27,10 +28,11 @@ public interface IWorldEntityCommandSink
         byte amount = 1);
 
     /// <summary>
-    /// Starts resting (sleeping in a bed within reach, otherwise sitting) or stands the player up (ADR-018).
+    /// Queues a request to start resting (sleeping in a bed within reach, otherwise sitting) or to stand the player
+    /// up (ADR-018). It runs on the next fixed tick (ADR-017).
     /// </summary>
     /// <param name="connectionId">Requesting connection.</param>
     /// <param name="rest"><see langword="true"/> to rest, <see langword="false"/> to stand up.</param>
-    /// <returns><see cref="OpStatus.Ok"/>, <see cref="OpStatus.Forbidden"/> when not in the world or dead.</returns>
-    OpStatus TrySetResting(ulong connectionId, bool rest);
+    /// <returns>The outcome: <see cref="OpStatus.Ok"/>, or <see cref="OpStatus.Forbidden"/> when not in the world or dead.</returns>
+    ValueTask<WorldMutationOutcome> SubmitSetRestingAsync(ulong connectionId, bool rest);
 }

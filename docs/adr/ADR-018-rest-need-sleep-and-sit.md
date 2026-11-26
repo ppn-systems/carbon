@@ -11,7 +11,7 @@ PR #14 shipped the rest need (`NeedsComponent.Rest`, Tired / VeryTired / Exhaust
 ## Decision
 
 1. **D1 — Wire.**
-   - Add the C2S `EntityRestRequest` (`EntityOpCode.RestRequest = 0x1205`) with `bool Rest`. It is answered with `MutationResult`.
+   - Add the C2S `EntityRestRequest` (`EntityOpCode.RestRequest = 0x1205`) with `bool Rest`. It is tick-queued (ADR-017) and answered with `MutationResult`.
    - The server chooses the mode, so clients can't claim a bed they're not at.
    - Add the contract enum `RestMode` (`None`, `Sitting`, `Sleeping`, `SleepingComfortable`).
    - Append `Rest`, `MaxRest`, `RestState` and `RestMode` to `PlayerStatsSync` (orders 25–28). Existing fields keep their positions.
@@ -45,4 +45,4 @@ PR #14 shipped the rest need (`NeedsComponent.Rest`, Tired / VeryTired / Exhaust
 - Rest now matters: players who stay out for two hours slow down and stop regenerating health until they sleep. Building a roofed bedroom pays off.
 - Additive wire and schema changes. Old rows spawn fully rested.
 - `PlayerNeedsSnapshot` gains four trailing optional members, so existing sink implementations compile unchanged.
-- The mutation lives in the world-side `TrySetResting`, which the handler calls. It can move to a tick-queued `Submit*Async` command (ADR-017) without changing its rules.
+- The handler calls `IWorldEntityCommandSink.SubmitSetRestingAsync`, which queues a `WorldCommandKind.SetResting` command. The tick runs it through the world-side `TrySetResting` (ADR-017 D7), so the mutation never happens on an I/O thread.

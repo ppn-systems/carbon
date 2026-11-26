@@ -578,6 +578,7 @@ public sealed partial class AuthoritativeWorld
         WorldCommandKind.PlaceStructure => this.TryPlaceStructure(command.ConnectionId, command.TileX, command.TileY, command.StructureType, command.Rotation),
         WorldCommandKind.DemolishStructure => this.TryDemolishStructure(command.ConnectionId, command.TileX, command.TileY),
         WorldCommandKind.ToggleDoor => this.TryToggleDoor(command.ConnectionId, command.TileX, command.TileY),
+        WorldCommandKind.SetResting => new WorldMutationOutcome(this.TrySetResting(command.ConnectionId, command.Flag), 0),
         _ => new WorldMutationOutcome(OpStatus.Invalid, 0),
     };
 

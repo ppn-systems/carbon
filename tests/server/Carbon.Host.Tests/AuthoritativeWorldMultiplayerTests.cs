@@ -1302,9 +1302,10 @@ public sealed class AuthoritativeWorldMultiplayerTests
             world.StepFixedTick();
             sink.NeedsSyncs.Last(n => n.ConnectionId == 940UL).Needs.Rest.Should().BeApproximately(50f, 0.1f, "rest is restored from the record");
 
-            // No bed nearby: resting means sitting.
-            world.TrySetResting(940UL, rest: true).Should().Be(OpStatus.Ok);
+            // No bed nearby: resting means sitting. The handler path is tick-queued (ADR-017).
+            ValueTask<WorldMutationOutcome> sit = world.SubmitSetRestingAsync(940UL, rest: true);
             world.StepFixedTick();
+            (await sit.ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok, "the queued rest request runs on the tick");
             sink.NeedsSyncs.Last(n => n.ConnectionId == 940UL).Needs.RestMode.Should().Be(RestMode.Sitting);
 
             // Moving stands the player up.

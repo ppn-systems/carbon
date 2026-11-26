@@ -23,9 +23,13 @@ internal enum WorldCommandKind : byte
 
     /// <summary>Open or close a door.</summary>
     ToggleDoor = 4,
+
+    /// <summary>Start resting (<see cref="WorldCommand.Flag"/> = true) or stand up (ADR-018).</summary>
+    SetResting = 5,
 }
 
 /// <summary>A mutating request waiting for the next tick, with the completion its handler awaits.</summary>
+/// <remarks><see cref="Flag"/> is a boolean argument for commands that need one (e.g. rest vs. stand).</remarks>
 internal readonly record struct WorldCommand(
     WorldCommandKind Kind,
     ulong ConnectionId,
@@ -33,7 +37,8 @@ internal readonly record struct WorldCommand(
     int TileY,
     StructureType StructureType,
     StructureRotation Rotation,
-    TaskCompletionSource<WorldMutationOutcome> Completion);
+    TaskCompletionSource<WorldMutationOutcome> Completion,
+    bool Flag = false);
 
 /// <summary>
 /// Lock-free queue of mutating requests submitted from network I/O threads and drained at the start of each fixed
@@ -60,7 +65,8 @@ internal sealed class WorldCommandQueue
         int tileX,
         int tileY,
         StructureType structureType = StructureType.None,
-        StructureRotation rotation = StructureRotation.North)
+        StructureRotation rotation = StructureRotation.North,
+        bool flag = false)
     {
         int pending = _pendingByConnection.AddOrUpdate(connectionId, 1, static (_, n) => n + 1);
         if (pending > MaxPendingPerConnection)
@@ -70,7 +76,7 @@ internal sealed class WorldCommandQueue
         }
 
         TaskCompletionSource<WorldMutationOutcome> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        _queue.Enqueue(new WorldCommand(kind, connectionId, tileX, tileY, structureType, rotation, completion));
+        _queue.Enqueue(new WorldCommand(kind, connectionId, tileX, tileY, structureType, rotation, completion, flag));
         return new ValueTask<WorldMutationOutcome>(completion.Task);
     }
 
