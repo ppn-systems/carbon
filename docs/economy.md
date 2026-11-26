@@ -152,44 +152,59 @@ This follows the RimWorld model: a recipe needs a **station**, a **work amount**
 
 ## 7. Gold sinks (`Carbon.Economy.Vendor`, `Carbon.Economy.Crafting`)
 
+The design target is that sinks remove **35–60% of faucet gold from level 10 up** (`designTargets.sinkShare`). Levels 1–9 may be lower so new players can gear up. Every sink is data in `economy.json` and runs through the live server paths (`VendorService`, `CraftingCheckout`).
+
 | Sink | Rule (`economy.json`) | Example |
 | :--- | :--- | :--- |
-| Vendor spread | Buy at 100% of base price; sell at `floor(25%)`. Only `vendorBuyable` basics (logs, stone, fiber, coal, wheat, berries, raw meat, cloth, tier-1 tools) are sold. | `orc_tusk` (15 g) sells for 3 g |
-| Repair | `ceil(basePrice × 30% × missing/max durability)`, minimum 1 g | Iron sword (110 g) at half durability costs 17 g |
-| Station fee | Flat (hand 0, workbench 0, forge 2, stove 1, alchemy 5) + 2% of the outputs' base value | Abyssal crown: 5 + 50 = 55 g |
+| Vendor spread | Buy at 100% of base price; sell at `floor(25%)`. Vendors sell `vendorBuyable` basics (logs, stone, fiber, coal, wheat, berries, raw meat, cloth, tier-1 tools) and consumables (cooked meat, bread, stew, roast meat, arcane pie, health potions, mana tonic). | `orc_tusk` (15 g) sells for 3 g |
+| Consumable upkeep | Consumables cost `vendor.consumablePriceBands[buyer level]` percent of the buy price: 100% at levels 1–14, rising in 5-level steps to 790% at 95–100. This tracks the level-scaled gold faucet. A band is never below 100%, so buy-then-sell never mints gold. | Small health potion: 12 g at level 10, 59 g at level 60 |
+| Repair | `ceil(basePrice × 30% × rarity% × missing/max durability)`, minimum 1 g. `repair.rarityMultiplierPercent`: common 50, uncommon 100, rare 175, epic 300, legendary 400. Only the active weapon or tool wears (1.5 per weapon strike, `ToolUsagePolicy`); armor does not. | Half-worn: copper sword 5 g, iron sword 17 g, ember blade 216 g |
+| Station fee | `(flat + 10% of the outputs' base value) × rarity%` of the rarest output. Flat: hand 0, workbench 0, forge 2, stove 1, alchemy 5. `craftingFees.rarityMultiplierPercent`: common 100, uncommon 150, rare 250, epic 400, legendary 600. Hand crafting stays free. | Ember blade: (2 + 48) × 400% = 200 g; abyssal crown: (5 + 250) × 600% = 1,530 g |
 
-`VendorService.TryBuy` checks funds, wallet cap and inventory space before committing both sides. A full bag is never charged, and a capped wallet never loses the items it tried to sell. `CraftingCheckout` charges the station fee only when the craft (or job start) succeeds, and refuses the craft with `InsufficientFunds` before touching the inventory.
+`VendorService.TryBuy` checks funds, wallet cap and inventory space before committing both sides; the server passes the buyer's level. A full bag is never charged, and a capped wallet never loses the items it tried to sell. `CraftingCheckout` charges the station fee only when the craft (or job start) succeeds, and refuses the craft with `InsufficientFunds` before touching the inventory.
 
 ### 7.1 Player-hour balance simulation (`Carbon.Economy.Simulation`)
 
-`EconomySimulator` plays the engaged player described in `economy.json → playerModel` for N hours at one level. It uses the real tables: `LootRoller` for loot, `PriceBook` sell prices, `VendorService.TryRepair` and `TryBuy`, and `PriceBook.GetCraftingFee`. Every gold movement goes through a `Wallet`, and the report is read back from the ledger by `CurrencyReason`.
+`EconomySimulator` plays the engaged player described in `economy.json → playerModel` for N hours at one level. It uses the real tables: `LootRoller` for loot, `PriceBook` sell prices, `ToolUsagePolicy` weapon wear, `VendorService.TryRepair` and `TryBuy`, and `PriceBook.GetCraftingFee`. Every gold movement goes through a `Wallet`, and the report is read back from the ledger by `CurrencyReason`.
 
 Each simulated hour runs this model:
 
 - **Kills:** `designTargets.killsPerHour` kills, rotating between the normal (non-elite) monster tables that cover the level.
 - **Loot sales:** `sellLootPercent` of the looted item units are sold.
-- **Gear wear and repair:** each piece of the stage's gear loses `durabilityLossPerKill` per kill and is repaired at the vendor once it drops below `repairBelowPercent`.
+- **Weapon wear and repair:**
+  - Each kill takes the stage's `strikesPerKill` strikes (monster HP over the stage weapon's damage): 3 at levels 1–24, 2 from level 25.
+  - Each strike wears the stage's `weapon` by the server's per-strike loss.
+  - The weapon is repaired at the vendor once it drops below `repairBelowPercent`.
 - **Crafting fees:** `craftsPerHour` station fees are paid, cycling through the stage's recipes.
-- **Food:** `foodBoughtPerHour` units of `foodItem` are bought.
+- **Consumables:** the stage's `consumables` are bought at the buyer's level-band price.
 
-`EconomyBalanceSimulatorTests` runs 20 hours at 12 levels with seed 2026 and prints the table below. It fails when net gold/hour leaves `designTargets.netGoldPerHour`, when the sink share leaves `designTargets.sinkShare`, or when the inflation slope (the least-squares slope of net gold/hour against level) is not positive.
+`EconomyBalanceSimulatorTests` runs 20 hours at 25 levels with seed 2026: every 5 levels plus each stage boundary. It prints the table below. It fails when any of these leaves its band:
 
-| Level | Loot gold | Vendor sales | Repairs | Station fees | Vendor buys | **Net/h** | Sink share | Net band |
-| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | :--- |
-| 1 | 84 | 5 | 25 | 3 | 24 | **37** | 58 % | 0–900 |
-| 5 | 300 | 64 | 25 | 3 | 24 | **312** | 14 % | 0–900 |
-| 10 | 544 | 80 | 36 | 12 | 24 | **552** | 12 % | 300–2,000 |
-| 20 | 968 | 156 | 36 | 12 | 24 | **1,052** | 6 % | 300–2,000 |
-| 30 | 1,336 | 178 | 43 | 15 | 24 | **1,431** | 5 % | 800–3,000 |
-| 40 | 1,647 | 177 | 43 | 15 | 24 | **1,742** | 5 % | 800–3,000 |
-| 50 | 2,313 | 482 | 65 | 27 | 24 | **2,679** | 4 % | 1,500–4,500 |
-| 60 | 2,575 | 458 | 65 | 27 | 24 | **2,916** | 4 % | 1,500–4,500 |
-| 75 | 3,353 | 920 | 156 | 78 | 24 | **4,014** | 6 % | 2,500–6,000 |
-| 100 | 4,010 | 927 | 156 | 78 | 24 | **4,678** | 5 % | 2,500–6,000 |
+- net gold/hour (`designTargets.netGoldPerHour`);
+- the sink share (`designTargets.sinkShare`);
+- the inflation slope, the least-squares slope of net gold/hour against level (`designTargets.inflationSlope`, 10–40).
 
-Inflation slope: about 49 net gold/hour per level. The diamond column of the printed table has too few kills (2,400 per level) to be meaningful. The diamond band is gated by the 1,000,000-kill test in `EconomySimulationTests`.
+**Before (#34) and after sink tuning**, per hour:
 
-> **Balance finding.** From level 10 upward, the current sinks remove only 4–6% of faucet gold, so nearly all gold earned stays in circulation. The `sinkShare` floor (3%) is a regression guard, not a target. Raising it needs a design decision, such as higher repair costs, a gold cost on high-tier recipes, or level-scaled consumables, and the bands in this section should be updated in the same PR.
+| Level | Faucets before | Sinks before | Share before | Faucets | Repairs | Station fees | Vendor buys | **Net/h** | **Sink share** | Net band |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | :--- |
+| 1 | 89 | 52 | 58 % | 89 | 35 | 8 | 8 | **38** | 58 % | 0–900 |
+| 5 | 364 | 52 | 14 % | 364 | 35 | 8 | 8 | **312** | 14 % | 0–900 |
+| 10 | 624 | 72 | 12 % | 624 | 94 | 32 | 168 | **330** | 47 % | 200–1,200 |
+| 20 | 1,124 | 72 | 6 % | 1,124 | 94 | 32 | 364 | **635** | 44 % | 200–1,200 |
+| 24 | | | | 1,207 | 94 | 32 | 364 | **718** | 41 % | 200–1,200 |
+| 30 | 1,514 | 82 | 5 % | 1,514 | 128 | 84 | 480 | **821** | 46 % | 450–2,200 |
+| 40 | 1,824 | 82 | 5 % | 1,824 | 128 | 84 | 577 | **1,035** | 43 % | 450–2,200 |
+| 49 | | | | 2,750 | 128 | 84 | 860 | **1,678** | 39 % | 450–2,200 |
+| 50 | 2,795 | 116 | 4 % | 2,795 | 484 | 310 | 648 | **1,353** | 52 % | 1,000–3,000 |
+| 60 | 3,033 | 116 | 4 % | 3,033 | 484 | 310 | 701 | **1,537** | 49 % | 1,000–3,000 |
+| 74 | | | | 4,315 | 484 | 310 | 1,096 | **2,425** | 44 % | 1,000–3,000 |
+| 75 | 4,273 | 258 | 6 % | 4,273 | 703 | 324 | 906 | **2,340** | 45 % | 1,600–3,600 |
+| 100 | 4,937 | 258 | 5 % | 4,937 | 703 | 324 | 1,046 | **2,864** | 42 % | 1,600–3,600 |
+
+From level 10 up the sink share is now 39–52% (it was 4–12%). The inflation slope fell from about 49 to about 28 net gold/hour per level, so a level-100 player keeps about 2,900 gold/hour instead of 4,700. The faucets are unchanged; only sinks moved. Within each stage the fixed sinks (repair, station fees) stay flat while income grows, so the share drifts down toward the end of each stage. The consumable price bands are stepped to keep it above 35%.
+
+The diamond column of the printed table has too few kills (2,400 per level) to be meaningful. The diamond band is gated by the 1,000,000-kill test in `EconomySimulationTests`.
 
 ## 8. Items (`items.json`)
 

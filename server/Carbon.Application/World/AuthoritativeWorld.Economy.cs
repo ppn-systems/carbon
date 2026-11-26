@@ -118,7 +118,7 @@ public sealed partial class AuthoritativeWorld
             connectionId,
             requireForge: false,
             (economy, state, tick) => economy.Vendor.TryBuy(
-                state.Wallet, state.Inventory, itemId, quantity, tick, Math.Min(PlayerInventoryLayout.BagLimit, state.Inventory.Capacity)).Status);
+                state.Wallet, state.Inventory, itemId, quantity, tick, Math.Min(PlayerInventoryLayout.BagLimit, state.Inventory.Capacity), state.Level).Status);
     }
 
     /// <inheritdoc/>

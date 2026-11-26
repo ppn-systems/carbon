@@ -251,6 +251,20 @@ public sealed class ConfigIntegrityTests
         act.Should().Throw<InvalidDataException>().WithMessage("*sellRatioPercent*");
     }
 
+    [Theory]
+    [InlineData(10, 20, 90, "percent >= 100")]
+    [InlineData(10, 20, 150, "must not overlap")]
+    public void EconomyConfig_WithBadConsumablePriceBands_FailsValidation(int minLevel, int maxLevel, int percent, string message)
+    {
+        // The shipped bands already cover 1-100, so any extra band overlaps; a band below 100% fails first.
+        List<PriceBand> bands = [.. ShippedConfig.Economy.Vendor.ConsumablePriceBands, new PriceBand { MinLevel = minLevel, MaxLevel = maxLevel, Percent = percent }];
+        EconomyConfig config = ShippedConfig.Economy with { Vendor = ShippedConfig.Economy.Vendor with { ConsumablePriceBands = bands } };
+
+        Action act = config.Validate;
+
+        act.Should().Throw<InvalidDataException>().WithMessage($"*{message}*");
+    }
+
     [Fact]
     public void DesignTargets_CoverEveryLevel()
     {

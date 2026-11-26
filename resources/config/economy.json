@@ -31,11 +31,33 @@
   },
   "vendor": {
     "buyMarkupPercent": 100,
-    "sellRatioPercent": 25
+    "sellRatioPercent": 25,
+    "consumablePriceBands": [
+      { "minLevel": 1, "maxLevel": 9, "percent": 100 },
+      { "minLevel": 10, "maxLevel": 14, "percent": 100 },
+      { "minLevel": 15, "maxLevel": 19, "percent": 130 },
+      { "minLevel": 20, "maxLevel": 24, "percent": 210 },
+      { "minLevel": 25, "maxLevel": 29, "percent": 215 },
+      { "minLevel": 30, "maxLevel": 34, "percent": 243 },
+      { "minLevel": 35, "maxLevel": 39, "percent": 270 },
+      { "minLevel": 40, "maxLevel": 44, "percent": 292 },
+      { "minLevel": 45, "maxLevel": 49, "percent": 440 },
+      { "minLevel": 50, "maxLevel": 54, "percent": 448 },
+      { "minLevel": 55, "maxLevel": 59, "percent": 470 },
+      { "minLevel": 60, "maxLevel": 64, "percent": 486 },
+      { "minLevel": 65, "maxLevel": 69, "percent": 600 },
+      { "minLevel": 70, "maxLevel": 74, "percent": 760 },
+      { "minLevel": 75, "maxLevel": 79, "percent": 685 },
+      { "minLevel": 80, "maxLevel": 84, "percent": 710 },
+      { "minLevel": 85, "maxLevel": 89, "percent": 730 },
+      { "minLevel": 90, "maxLevel": 94, "percent": 752 },
+      { "minLevel": 95, "maxLevel": 100, "percent": 790 }
+    ]
   },
   "repair": {
     "costPercentOfBasePrice": 30,
-    "minimumCost": 1
+    "minimumCost": 1,
+    "rarityMultiplierPercent": { "common": 50, "uncommon": 100, "rare": 175, "epic": 300, "legendary": 400 }
   },
   "craftingFees": {
     "none": 0,
@@ -43,7 +65,8 @@
     "forge": 2,
     "stove": 1,
     "alchemy": 5,
-    "outputValueRateBps": 200
+    "outputValueRateBps": 1000,
+    "rarityMultiplierPercent": { "common": 100, "uncommon": 150, "rare": 250, "epic": 400, "legendary": 600 }
   },
   "designTargets": {
     "killsPerHour": 120,
@@ -62,53 +85,79 @@
     ],
     "netGoldPerHour": [
       { "minLevel": 1, "maxLevel": 9, "min": 0, "max": 900 },
-      { "minLevel": 10, "maxLevel": 24, "min": 300, "max": 2000 },
-      { "minLevel": 25, "maxLevel": 49, "min": 800, "max": 3000 },
-      { "minLevel": 50, "maxLevel": 74, "min": 1500, "max": 4500 },
-      { "minLevel": 75, "maxLevel": 100, "min": 2500, "max": 6000 }
+      { "minLevel": 10, "maxLevel": 24, "min": 200, "max": 1200 },
+      { "minLevel": 25, "maxLevel": 49, "min": 450, "max": 2200 },
+      { "minLevel": 50, "maxLevel": 74, "min": 1000, "max": 3000 },
+      { "minLevel": 75, "maxLevel": 100, "min": 1600, "max": 3600 }
     ],
     "sinkShare": [
       { "minLevel": 1, "maxLevel": 9, "min": 0.05, "max": 0.8 },
-      { "minLevel": 10, "maxLevel": 100, "min": 0.03, "max": 0.5 }
-    ]
+      { "minLevel": 10, "maxLevel": 100, "min": 0.35, "max": 0.6 }
+    ],
+    "inflationSlope": {
+      "min": 10,
+      "max": 40
+    }
   },
   "playerModel": {
     "sellLootPercent": 50,
-    "durabilityLossPerKill": 0.5,
     "repairBelowPercent": 50,
     "craftsPerHour": 4,
-    "foodBoughtPerHour": 6,
-    "foodItem": "raw_meat",
     "stages": [
       {
         "minLevel": 1,
         "maxLevel": 9,
-        "gear": ["copper_sword", "leather_cap", "leather_tunic", "leather_boots"],
-        "recipes": ["leather", "cooked_meat", "leather_cap", "copper_ingot"]
+        "weapon": "copper_sword",
+        "strikesPerKill": 3,
+        "recipes": ["leather", "cooked_meat", "leather_cap", "copper_ingot"],
+        "consumables": [
+          { "item": "berries", "perHour": 4 }
+        ]
       },
       {
         "minLevel": 10,
         "maxLevel": 24,
-        "gear": ["iron_sword", "iron_helmet", "leather_tunic", "leather_greaves", "leather_boots"],
-        "recipes": ["iron_ingot", "iron_sword", "roast_meat", "small_health_potion"]
+        "weapon": "iron_sword",
+        "strikesPerKill": 3,
+        "recipes": ["iron_ingot", "iron_sword", "roast_meat", "small_health_potion"],
+        "consumables": [
+          { "item": "small_health_potion", "perHour": 8 },
+          { "item": "cooked_meat", "perHour": 12 }
+        ]
       },
       {
         "minLevel": 25,
         "maxLevel": 49,
-        "gear": ["iron_axe", "iron_helmet", "iron_chestplate", "iron_leggings", "iron_boots"],
-        "recipes": ["iron_ingot", "iron_chestplate", "stew", "greater_health_potion"]
+        "weapon": "crystal_bow",
+        "strikesPerKill": 2,
+        "recipes": ["iron_ingot", "iron_chestplate", "stew", "greater_health_potion"],
+        "consumables": [
+          { "item": "small_health_potion", "perHour": 8 },
+          { "item": "stew", "perHour": 5 },
+          { "item": "bread", "perHour": 1 }
+        ]
       },
       {
         "minLevel": 50,
         "maxLevel": 74,
-        "gear": ["ember_blade", "orc_war_helm", "crystal_robe", "iron_leggings", "iron_boots"],
-        "recipes": ["ember_blade", "crystal_robe", "arcane_pie", "greater_health_potion"]
+        "weapon": "ember_blade",
+        "strikesPerKill": 2,
+        "recipes": ["ember_blade", "crystal_robe", "arcane_pie", "greater_health_potion"],
+        "consumables": [
+          { "item": "arcane_pie", "perHour": 3 },
+          { "item": "stew", "perHour": 2 }
+        ]
       },
       {
         "minLevel": 75,
         "maxLevel": 100,
-        "gear": ["demon_cleaver", "abyssal_crown", "crystal_robe", "iron_leggings", "iron_boots"],
-        "recipes": ["demon_cleaver", "abyssal_crown", "arcane_pie", "greater_health_potion"]
+        "weapon": "demon_cleaver",
+        "strikesPerKill": 2,
+        "recipes": ["demon_cleaver", "greater_health_potion", "arcane_pie", "stew"],
+        "consumables": [
+          { "item": "arcane_pie", "perHour": 2 },
+          { "item": "mana_tonic", "perHour": 4 }
+        ]
       }
     ]
   }
