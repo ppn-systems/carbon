@@ -83,6 +83,57 @@ public sealed class AuthServiceLoginThrottlingTests
         h.Hasher.VerifyCalls.Should().Be(0);
     }
 
+    [Fact]
+    public async Task LoginAsync_UnknownUsername_StillVerifiesAgainstDummyHash()
+    {
+        Harness h = new();
+        using AuthService auth = h.CreateService();
+
+        AuthOutcome outcome = await auth.LoginAsync("nobody", Password, CarbonProtocol.Version).ConfigureAwait(true);
+
+        outcome.Status.Should().Be(AuthStatus.InvalidCredentials);
+        h.Hasher.VerifyCalls.Should().Be(1, "an unknown username must cost as much as a wrong password (audit SEC-2)");
+    }
+
+    [Fact]
+    public async Task LoginAsync_ManyFailuresFromOneAddress_LocksThatAddressOnly()
+    {
+        Harness h = new();
+        using AuthService auth = h.CreateService();
+        const string attacker = "203.0.113.7";
+
+        for (int i = 0; i < AuthService.MaxFailedLoginsPerAddressWindow; i++)
+        {
+            (await auth.LoginAsync($"user{i}", "wrong", CarbonProtocol.Version, attacker).ConfigureAwait(true)).Status
+                .Should().Be(AuthStatus.InvalidCredentials);
+        }
+
+        int verifiesBefore = h.Hasher.VerifyCalls;
+        (await auth.LoginAsync(Username, Password, CarbonProtocol.Version, attacker).ConfigureAwait(true)).Status
+            .Should().Be(AuthStatus.Locked, "the address sprayed usernames past the per-address limit");
+        h.Hasher.VerifyCalls.Should().Be(verifiesBefore, "a locked address is rejected before hashing");
+
+        (await auth.LoginAsync(Username, Password, CarbonProtocol.Version, "198.51.100.2").ConfigureAwait(true)).Status
+            .Should().Be(AuthStatus.Ok, "other addresses are unaffected");
+    }
+
+    [Fact]
+    public async Task LoginAsync_LockedAddressAfterWindowElapses_IsAcceptedAgain()
+    {
+        Harness h = new();
+        using AuthService auth = h.CreateService();
+        const string address = "203.0.113.8";
+        for (int i = 0; i < AuthService.MaxFailedLoginsPerAddressWindow; i++)
+        {
+            _ = await auth.LoginAsync($"user{i}", "wrong", CarbonProtocol.Version, address).ConfigureAwait(true);
+        }
+
+        h.Time.Advance(AuthService.LoginFailureWindow);
+
+        (await auth.LoginAsync(Username, Password, CarbonProtocol.Version, address).ConfigureAwait(true)).Status
+            .Should().Be(AuthStatus.Ok);
+    }
+
     private sealed class Harness
     {
         public Harness()

@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Identity;
 using Carbon.Abstractions.Persistence;
@@ -16,6 +17,7 @@ using Carbon.Handlers.Internal;
 using Carbon.Handlers.Session;
 using Carbon.Maps.Generators;
 using Nalix.Abstractions.Injection;
+using Nalix.Abstractions.Networking;
 using Nalix.Abstractions.Networking.Packets;
 using Nalix.Abstractions.Security;
 using Nalix.Codec.Extensions;
@@ -41,9 +43,14 @@ public static partial class IdentityHandlers
         ArgumentNullException.ThrowIfNull(context);
 
         AuthRegister req = context.Packet;
-        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+
+        // Captured before the first await: the pooled context may be recycled while the hash runs (audit TS-4).
+        IConnection connection = context.Connection;
+        IPacketSender sender = context.Sender;
+        CancellationToken ct = context.CancellationToken;
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(connection);
         AuthOutcome outcome = await s_authService
-            .RegisterAsync(req.Username, req.Password, req.ClientProtocolVersion, context.CancellationToken)
+            .RegisterAsync(req.Username, req.Password, req.ClientProtocolVersion, ct)
             .ConfigureAwait(false);
 
         if (outcome.Status == AuthStatus.Ok)
@@ -54,13 +61,13 @@ public static partial class IdentityHandlers
             }
 
             ConnectionAuthRegistry.SetAuthenticated(connectionId, outcome.AccountId);
-            context.Connection.Level = PermissionLevel.USER;
+            connection.Level = PermissionLevel.USER;
         }
 
-        await SendAuthResultAsync(context, outcome, connectionId).ConfigureAwait(false);
+        await SendAuthResultAsync(sender, outcome, connectionId).ConfigureAwait(false);
         if (outcome.Status == AuthStatus.Ok)
         {
-            await ConfigHandlers.SendManifestAsync(context.Sender, context.CancellationToken).ConfigureAwait(false);
+            await ConfigHandlers.SendManifestAsync(sender, ct).ConfigureAwait(false);
         }
     }
 
@@ -72,9 +79,14 @@ public static partial class IdentityHandlers
         ArgumentNullException.ThrowIfNull(context);
 
         AuthLogin req = context.Packet;
-        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+
+        // Captured before the first await: the pooled context may be recycled while the hash runs (audit TS-4).
+        IConnection connection = context.Connection;
+        IPacketSender sender = context.Sender;
+        CancellationToken ct = context.CancellationToken;
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(connection);
         AuthOutcome outcome = await s_authService
-            .LoginAsync(req.Username, req.Password, req.ClientProtocolVersion, context.CancellationToken)
+            .LoginAsync(req.Username, req.Password, req.ClientProtocolVersion, connection.NetworkEndpoint?.Address, ct)
             .ConfigureAwait(false);
 
         if (outcome.Status == AuthStatus.Ok)
@@ -85,13 +97,13 @@ public static partial class IdentityHandlers
             }
 
             ConnectionAuthRegistry.SetAuthenticated(connectionId, outcome.AccountId);
-            context.Connection.Level = PermissionLevel.USER;
+            connection.Level = PermissionLevel.USER;
         }
 
-        await SendAuthResultAsync(context, outcome, connectionId).ConfigureAwait(false);
+        await SendAuthResultAsync(sender, outcome, connectionId).ConfigureAwait(false);
         if (outcome.Status == AuthStatus.Ok)
         {
-            await ConfigHandlers.SendManifestAsync(context.Sender, context.CancellationToken).ConfigureAwait(false);
+            await ConfigHandlers.SendManifestAsync(sender, ct).ConfigureAwait(false);
         }
     }
 
@@ -230,8 +242,7 @@ public static partial class IdentityHandlers
         return PacketReplyHelper.SendMutationAsync(context, OpStatus.Ok, IdentityOpCode.Logout);
     }
 
-    private static ValueTask SendAuthResultAsync<TReq>(IPacketContext<TReq> context, AuthOutcome outcome, ulong connectionId)
-        where TReq : IPacket
+    private static ValueTask SendAuthResultAsync(IPacketSender sender, AuthOutcome outcome, ulong connectionId)
     {
         PacketScope<AuthResult> lease = PacketFactory<AuthResult>.Acquire();
         try
@@ -241,7 +252,7 @@ public static partial class IdentityHandlers
             reply.AccountId = outcome.AccountId;
             reply.SessionId = outcome.Status == AuthStatus.Ok ? connectionId : 0UL;
             reply.ServerProtocolVersion = CarbonProtocol.Version;
-            return context.Sender.ReplyAsync(reply).DisposeOnCompletionAsync(lease);
+            return sender.ReplyAsync(reply).DisposeOnCompletionAsync(lease);
         }
         catch
         {

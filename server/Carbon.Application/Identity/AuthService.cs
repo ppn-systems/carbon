@@ -35,12 +35,23 @@ public sealed class AuthService : IAuthService, IDisposable
     /// <summary>Window over which failed logins are counted; a locked account unlocks when it expires.</summary>
     public static readonly TimeSpan LoginFailureWindow = TimeSpan.FromMinutes(5);
 
+    /// <summary>
+    /// Failed logins allowed per client address within <see cref="LoginFailureWindow"/>, across all usernames, before
+    /// that address is refused. Higher than the per-account limit so players behind one NAT are not locked out together.
+    /// </summary>
+    public const int MaxFailedLoginsPerAddressWindow = 20;
+
+    /// <summary>Upper bound on tracked client addresses; expired entries are pruned when it is exceeded.</summary>
+    public const int MaxTrackedAddresses = 50_000;
+
     private readonly IAccountStore _accounts;
     private readonly ICharacterStore _characters;
     private readonly IPasswordHasher _hasher;
     private readonly TimeProvider _time;
     private readonly Func<ItemRules> _itemRules;
     private readonly ConcurrentDictionary<Guid, LoginFailures> _loginFailures = new();
+    private readonly ConcurrentDictionary<string, LoginFailures> _addressFailures = new(StringComparer.Ordinal);
+    private readonly Lazy<(byte[] Hash, byte[] Salt)> _dummyCredentials;
 
     /// <summary>
     /// Bounds concurrent password hashing so a flood of logins cannot occupy every core; the hashing itself runs on
@@ -70,6 +81,7 @@ public sealed class AuthService : IAuthService, IDisposable
         _characters = characters ?? throw new ArgumentNullException(nameof(characters));
         _hasher = hasher ?? throw new ArgumentNullException(nameof(hasher));
         _time = time ?? TimeProvider.System;
+        _dummyCredentials = new Lazy<(byte[], byte[])>(this.CreateDummyCredentials);
         if (itemRules is null)
         {
             ItemRules defaults = ItemRules.LoadShippedDefaults();
@@ -118,7 +130,11 @@ public sealed class AuthService : IAuthService, IDisposable
     }
 
     /// <inheritdoc/>
-    public async Task<AuthOutcome> LoginAsync(string username, string password, ushort protocolVersion, CancellationToken ct = default)
+    public Task<AuthOutcome> LoginAsync(string username, string password, ushort protocolVersion, CancellationToken ct = default) =>
+        this.LoginAsync(username, password, protocolVersion, clientAddress: null, ct);
+
+    /// <inheritdoc/>
+    public async Task<AuthOutcome> LoginAsync(string username, string password, ushort protocolVersion, string? clientAddress, CancellationToken ct = default)
     {
         if (protocolVersion != Carbon.Contracts.Common.CarbonProtocol.Version)
         {
@@ -130,10 +146,27 @@ public sealed class AuthService : IAuthService, IDisposable
             return new AuthOutcome(AuthStatus.InvalidInput, Guid.Empty);
         }
 
+        DateTimeOffset now = _time.GetUtcNow();
+        string? address = string.IsNullOrWhiteSpace(clientAddress) ? null : clientAddress;
+        if (address is not null && IsLockedOut(_addressFailures, address, MaxFailedLoginsPerAddressWindow, now))
+        {
+            // Rejected before the lookup and the hash: an address spraying usernames costs the server nothing.
+            return new AuthOutcome(AuthStatus.Locked, Guid.Empty);
+        }
+
         string normalized = username.Trim().ToUpperInvariant();
         AccountRecord? existing = await _accounts.FindByUsernameAsync(normalized, ct).ConfigureAwait(false);
         if (existing is null)
         {
+            // Verify against a dummy hash so an unknown username takes as long as a wrong password (audit SEC-2).
+            _ = await this.RunHashAsync(
+                () =>
+                {
+                    (byte[] dummyHash, byte[] dummySalt) = _dummyCredentials.Value;
+                    return _hasher.Verify(password, dummyHash, dummySalt);
+                },
+                ct).ConfigureAwait(false);
+            this.RecordAddressFailure(address, now);
             return new AuthOutcome(AuthStatus.InvalidCredentials, Guid.Empty);
         }
 
@@ -142,8 +175,7 @@ public sealed class AuthService : IAuthService, IDisposable
             return new AuthOutcome(AuthStatus.Locked, Guid.Empty);
         }
 
-        DateTimeOffset now = _time.GetUtcNow();
-        if (this.IsLockedOut(existing.Id, now))
+        if (IsLockedOut(_loginFailures, existing.Id, MaxFailedLoginsPerWindow, now))
         {
             // Rejected before hashing, so brute force against a locked account costs the server nothing.
             return new AuthOutcome(AuthStatus.Locked, Guid.Empty);
@@ -154,7 +186,8 @@ public sealed class AuthService : IAuthService, IDisposable
         bool verified = await this.RunHashAsync(() => _hasher.Verify(password, expectedHash, salt), ct).ConfigureAwait(false);
         if (!verified)
         {
-            this.RecordFailedLogin(existing.Id, now);
+            RecordFailure(_loginFailures, existing.Id, now);
+            this.RecordAddressFailure(address, now);
             return new AuthOutcome(AuthStatus.InvalidCredentials, Guid.Empty);
         }
 
@@ -237,19 +270,48 @@ public sealed class AuthService : IAuthService, IDisposable
     /// <inheritdoc/>
     public void Dispose() => _hashGate.Dispose();
 
-    private bool IsLockedOut(Guid accountId, DateTimeOffset now) =>
-        _loginFailures.TryGetValue(accountId, out LoginFailures failures) &&
-        failures.Count >= MaxFailedLoginsPerWindow &&
-        now - failures.WindowStart < LoginFailureWindow;
+    private static bool IsLockedOut<TKey>(ConcurrentDictionary<TKey, LoginFailures> failures, TKey key, int limit, DateTimeOffset now)
+        where TKey : notnull =>
+        failures.TryGetValue(key, out LoginFailures entry) &&
+        entry.Count >= limit &&
+        now - entry.WindowStart < LoginFailureWindow;
 
-    private void RecordFailedLogin(Guid accountId, DateTimeOffset now) =>
-        _loginFailures.AddOrUpdate(
-            accountId,
+    private static void RecordFailure<TKey>(ConcurrentDictionary<TKey, LoginFailures> failures, TKey key, DateTimeOffset now)
+        where TKey : notnull =>
+        failures.AddOrUpdate(
+            key,
             static (_, at) => new LoginFailures(1, at),
             static (_, current, at) => at - current.WindowStart >= LoginFailureWindow
                 ? new LoginFailures(1, at)
                 : current with { Count = current.Count + 1 },
             now);
+
+    private void RecordAddressFailure(string? address, DateTimeOffset now)
+    {
+        if (address is null)
+        {
+            return;
+        }
+
+        if (_addressFailures.Count >= MaxTrackedAddresses)
+        {
+            foreach (KeyValuePair<string, LoginFailures> entry in _addressFailures)
+            {
+                if (now - entry.Value.WindowStart >= LoginFailureWindow)
+                {
+                    _ = _addressFailures.TryRemove(entry);
+                }
+            }
+        }
+
+        RecordFailure(_addressFailures, address, now);
+    }
+
+    private (byte[] Hash, byte[] Salt) CreateDummyCredentials()
+    {
+        _hasher.HashPassword(Guid.NewGuid().ToString("N"), out byte[] hash, out byte[] salt);
+        return (hash, salt);
+    }
 
     private async Task<T> RunHashAsync<T>(Func<T> work, CancellationToken ct)
     {
