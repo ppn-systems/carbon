@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "itemId": 103,
+  "id": "copper_ingot",
+  "displayName": "Copper Ingot",
+  "tier": 1,
+  "categoryLabel": "Material",
+  "accentColor": "#EA580C",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -7.5,
+          4.5
+        ],
+        [
+          -5,
+          -2.5
+        ],
+        [
+          5,
+          -2.5
+        ],
+        [
+          7.5,
+          4.5
+        ]
+      ],
+      "color": "#EA580C",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -4,
+      "y": -0.8,
+      "x2": 4,
+      "y2": -0.8,
+      "thickness": 1.0,
+      "color": "#FDBA74"
+    }
+  ]
+}

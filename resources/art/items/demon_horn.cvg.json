@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "itemId": 144,
+  "id": "demon_horn",
+  "displayName": "Demon Horn",
+  "tier": 4,
+  "categoryLabel": "Rare Drop",
+  "accentColor": "#B91C1C",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -6,
+          6
+        ],
+        [
+          -1,
+          6
+        ],
+        [
+          5.5,
+          -7.5
+        ]
+      ],
+      "color": "#7F1D1D",
+      "outlineColor": "#140B10",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -1,
+          6
+        ],
+        [
+          3,
+          6
+        ],
+        [
+          5.5,
+          -7.5
+        ]
+      ],
+      "color": "#B91C1C",
+      "outlineColor": "#140B10",
+      "outlineThickness": 1.0
+    }
+  ]
+}

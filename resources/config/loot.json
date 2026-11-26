@@ -1,0 +1,352 @@
+{
+  "version": 1,
+  "tables": [
+    {
+      "id": "slime",
+      "kind": "monster",
+      "minLevel": 1,
+      "maxLevel": 15,
+      "goldBase": 1,
+      "diamondBasePpm": 5,
+      "rolls": 1,
+      "nothingWeight": 40,
+      "guaranteed": [
+        {
+          "item": "slime_gel",
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        }
+      ],
+      "entries": [
+        {
+          "item": "slime_gel",
+          "weight": 40,
+          "min": 1,
+          "max": 3,
+          "minLevel": 1
+        },
+        {
+          "item": "plant_fiber",
+          "weight": 20,
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        },
+        {
+          "item": "small_health_potion",
+          "weight": 6,
+          "min": 1,
+          "max": 1,
+          "minLevel": 3
+        },
+        {
+          "item": "slime_core",
+          "weight": 3,
+          "min": 1,
+          "max": 1,
+          "minLevel": 5
+        },
+        {
+          "item": "rough_gem",
+          "weight": 1,
+          "min": 1,
+          "max": 1,
+          "minLevel": 10
+        }
+      ]
+    },
+    {
+      "id": "skeleton",
+      "kind": "monster",
+      "minLevel": 8,
+      "maxLevel": 35,
+      "goldBase": 2,
+      "diamondBasePpm": 8,
+      "rolls": 1,
+      "nothingWeight": 35,
+      "guaranteed": [
+        {
+          "item": "bone",
+          "min": 1,
+          "max": 3,
+          "minLevel": 1
+        }
+      ],
+      "entries": [
+        {
+          "item": "bone",
+          "weight": 35,
+          "min": 1,
+          "max": 3,
+          "minLevel": 1
+        },
+        {
+          "item": "bone_dust",
+          "weight": 30,
+          "min": 1,
+          "max": 4,
+          "minLevel": 1
+        },
+        {
+          "item": "bone_shard",
+          "weight": 20,
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        },
+        {
+          "item": "rope",
+          "weight": 8,
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        },
+        {
+          "item": "small_health_potion",
+          "weight": 5,
+          "min": 1,
+          "max": 1,
+          "minLevel": 10
+        },
+        {
+          "item": "rough_gem",
+          "weight": 2,
+          "min": 1,
+          "max": 1,
+          "minLevel": 20
+        }
+      ]
+    },
+    {
+      "id": "orc",
+      "kind": "monster",
+      "minLevel": 15,
+      "maxLevel": 45,
+      "goldBase": 2,
+      "diamondBasePpm": 10,
+      "rolls": 2,
+      "nothingWeight": 40,
+      "guaranteed": [
+        {
+          "item": "crude_iron",
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        }
+      ],
+      "entries": [
+        {
+          "item": "crude_iron",
+          "weight": 30,
+          "min": 1,
+          "max": 3,
+          "minLevel": 1
+        },
+        {
+          "item": "raw_meat",
+          "weight": 25,
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        },
+        {
+          "item": "beast_pelt",
+          "weight": 15,
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        },
+        {
+          "item": "orc_tusk",
+          "weight": 12,
+          "min": 1,
+          "max": 2,
+          "minLevel": 18
+        },
+        {
+          "item": "small_health_potion",
+          "weight": 6,
+          "min": 1,
+          "max": 1,
+          "minLevel": 1
+        },
+        {
+          "item": "rough_gem",
+          "weight": 2,
+          "min": 1,
+          "max": 1,
+          "minLevel": 25
+        }
+      ]
+    },
+    {
+      "id": "blood_monster",
+      "kind": "monster",
+      "minLevel": 30,
+      "maxLevel": 70,
+      "goldBase": 3,
+      "diamondBasePpm": 15,
+      "rolls": 1,
+      "nothingWeight": 35,
+      "guaranteed": [
+        {
+          "item": "blood_vial",
+          "min": 1,
+          "max": 1,
+          "minLevel": 1
+        }
+      ],
+      "entries": [
+        {
+          "item": "blood_vial",
+          "weight": 35,
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        },
+        {
+          "item": "raw_meat",
+          "weight": 25,
+          "min": 1,
+          "max": 3,
+          "minLevel": 1
+        },
+        {
+          "item": "small_health_potion",
+          "weight": 10,
+          "min": 1,
+          "max": 1,
+          "minLevel": 1
+        },
+        {
+          "item": "rough_gem",
+          "weight": 3,
+          "min": 1,
+          "max": 1,
+          "minLevel": 40
+        }
+      ]
+    },
+    {
+      "id": "demon",
+      "kind": "monster",
+      "minLevel": 45,
+      "maxLevel": 100,
+      "goldBase": 3,
+      "diamondBasePpm": 25,
+      "rolls": 2,
+      "nothingWeight": 40,
+      "guaranteed": [
+        {
+          "item": "ember_shard",
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        }
+      ],
+      "entries": [
+        {
+          "item": "ember_shard",
+          "weight": 35,
+          "min": 1,
+          "max": 3,
+          "minLevel": 1
+        },
+        {
+          "item": "coal",
+          "weight": 25,
+          "min": 2,
+          "max": 5,
+          "minLevel": 1
+        },
+        {
+          "item": "demon_ember",
+          "weight": 8,
+          "min": 1,
+          "max": 1,
+          "minLevel": 55
+        },
+        {
+          "item": "demon_horn",
+          "weight": 4,
+          "min": 1,
+          "max": 1,
+          "minLevel": 60
+        },
+        {
+          "item": "small_health_potion",
+          "weight": 8,
+          "min": 1,
+          "max": 1,
+          "minLevel": 1
+        },
+        {
+          "item": "rough_gem",
+          "weight": 3,
+          "min": 1,
+          "max": 1,
+          "minLevel": 50
+        }
+      ]
+    },
+    {
+      "id": "rich_ore_vein",
+      "theme": "ore",
+      "kind": "gather",
+      "minLevel": 1,
+      "maxLevel": 100,
+      "goldBase": 0,
+      "diamondBasePpm": 150,
+      "rolls": 1,
+      "eliteExtraRolls": 0,
+      "bossExtraRolls": 0,
+      "nothingWeight": 20,
+      "guaranteed": [
+        {
+          "item": "iron_ore",
+          "min": 2,
+          "max": 4,
+          "minLevel": 1
+        }
+      ],
+      "entries": [
+        {
+          "item": "copper_ore",
+          "weight": 30,
+          "min": 1,
+          "max": 3,
+          "minLevel": 1
+        },
+        {
+          "item": "coal",
+          "weight": 30,
+          "min": 1,
+          "max": 3,
+          "minLevel": 1
+        },
+        {
+          "item": "iron_ore",
+          "weight": 20,
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        },
+        {
+          "item": "mana_crystal",
+          "weight": 8,
+          "min": 1,
+          "max": 1,
+          "minLevel": 10
+        },
+        {
+          "item": "rough_gem",
+          "weight": 2,
+          "min": 1,
+          "max": 1,
+          "minLevel": 20
+        }
+      ]
+    }
+  ]
+}

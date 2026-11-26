@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "itemId": 124,
+  "id": "stew",
+  "displayName": "Hearty Stew",
+  "tier": 2,
+  "categoryLabel": "Food",
+  "accentColor": "#B45309",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -6.5,
+      "y": 0,
+      "w": 13,
+      "h": 5,
+      "color": "#92400E",
+      "outlineColor": "#451A03",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": 0,
+      "rx": 6.8,
+      "ry": 2.4,
+      "color": "#B45309",
+      "outlineColor": "#451A03",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -2,
+      "y": -0.4,
+      "rx": 1.2,
+      "ry": 0.7,
+      "color": "#FDE68A"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 2,
+      "y": 0.3,
+      "rx": 1.2,
+      "ry": 0.7,
+      "color": "#FDE68A"
+    }
+  ]
+}
