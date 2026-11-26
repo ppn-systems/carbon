@@ -130,4 +130,40 @@ public static partial class ItemHandlers
             context.Packet.Quantity);
         return PacketReplyHelper.SendMutationAsync(context, status, ItemOpCode.DropInventoryItem);
     }
+
+    /// <summary>Opcode <c>0x4007</c>. Buys vendor-sold items for gold near a friendly town NPC.</summary>
+    [PacketOpcode(ItemOpCode.VendorBuyItem)]
+    [PacketPermission(PermissionLevel.USER)]
+    public static ValueTask HandleVendorBuyItemAsync(IPacketContext<VendorBuyItem> context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        OpStatus status = s_world.TryVendorBuy(connectionId, context.Packet.ItemId, context.Packet.Quantity);
+        return PacketReplyHelper.SendMutationAsync(context, status, ItemOpCode.VendorBuyItem);
+    }
+
+    /// <summary>Opcode <c>0x4008</c>. Sells a bag stack to a nearby friendly town NPC for gold.</summary>
+    [PacketOpcode(ItemOpCode.VendorSellItem)]
+    [PacketPermission(PermissionLevel.USER)]
+    public static ValueTask HandleVendorSellItemAsync(IPacketContext<VendorSellItem> context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        OpStatus status = s_world.TryVendorSell(connectionId, context.Packet.SlotIndex, context.Packet.Quantity);
+        return PacketReplyHelper.SendMutationAsync(context, status, ItemOpCode.VendorSellItem);
+    }
+
+    /// <summary>Opcode <c>0x4009</c>. Repairs an item's durability for gold at a forge station.</summary>
+    [PacketOpcode(ItemOpCode.RepairInventoryItem)]
+    [PacketPermission(PermissionLevel.USER)]
+    public static ValueTask HandleRepairInventoryItemAsync(IPacketContext<RepairInventoryItem> context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        OpStatus status = s_world.TryRepairItem(connectionId, context.Packet.SlotIndex);
+        return PacketReplyHelper.SendMutationAsync(context, status, ItemOpCode.RepairInventoryItem);
+    }
 }

@@ -279,7 +279,56 @@ public sealed class PgSchemaMigrator : IDatabaseMigrator
             _ = await markExtCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         }
 
+        // ADR-011: server-authoritative wallet. Later additive column migrations follow the same pattern.
+        await AddCharacterColumnsAsync(
+            conn,
+            tx,
+            "0005_character_wallet",
+            [
+                ("gold", "BIGINT NOT NULL DEFAULT 0"),
+                ("diamonds", "BIGINT NOT NULL DEFAULT 0"),
+                ("wallet_sequence", "BIGINT NOT NULL DEFAULT 0"),
+                ("diamond_pity", "INTEGER NOT NULL DEFAULT 0"),
+            ],
+            ct).ConfigureAwait(false);
+
         await tx.CommitAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Applies an additive, idempotent migration that adds missing columns to <c>characters</c> and records
+    /// <paramref name="migrationId"/> in <c>schema_migrations</c>. Column names and definitions are compile-time constants.
+    /// </summary>
+    private static async Task AddCharacterColumnsAsync(
+        NpgsqlConnection conn,
+        NpgsqlTransaction tx,
+        string migrationId,
+        (string Column, string Definition)[] columns,
+        CancellationToken ct)
+    {
+        NpgsqlCommand check = new("SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE id = @id);", conn, tx);
+        await using (ConfiguredAsyncDisposable checkScope = check.ConfigureAwait(false))
+        {
+            _ = check.Parameters.AddWithValue("id", migrationId);
+            if (await check.ExecuteScalarAsync(ct).ConfigureAwait(false) is true)
+            {
+                return;
+            }
+        }
+
+        for (int i = 0; i < columns.Length; i++)
+        {
+#pragma warning disable CA2100 // Column names/definitions are compile-time constants, never user input.
+            NpgsqlCommand alter = new($"ALTER TABLE characters ADD COLUMN IF NOT EXISTS {columns[i].Column} {columns[i].Definition};", conn, tx);
+#pragma warning restore CA2100
+            await using ConfiguredAsyncDisposable alterScope = alter.ConfigureAwait(false);
+            _ = await alter.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        NpgsqlCommand mark = new("INSERT INTO schema_migrations (id) VALUES (@id);", conn, tx);
+        await using ConfiguredAsyncDisposable markScope = mark.ConfigureAwait(false);
+        _ = mark.Parameters.AddWithValue("id", migrationId);
+        _ = await mark.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 
     private static byte[] PackLegacyProgressionBlob(

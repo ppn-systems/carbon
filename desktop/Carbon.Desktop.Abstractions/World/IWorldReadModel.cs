@@ -64,6 +64,12 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile
     /// <summary>Gets derived armor defense rating.</summary>
     float LocalPlayerDefense { get; }
 
+    /// <summary>Gets the server-authoritative gold balance from the last <c>WalletSync</c>.</summary>
+    long LocalPlayerGold { get; }
+
+    /// <summary>Gets the server-authoritative diamond balance from the last <c>WalletSync</c>.</summary>
+    long LocalPlayerDiamonds { get; }
+
     /// <summary>Gets remaining cooldown in seconds for active skill <paramref name="skillId"/>.</summary>
     float GetSkillCooldown(ushort skillId);
 

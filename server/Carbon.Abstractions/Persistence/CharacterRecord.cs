@@ -9,8 +9,12 @@ namespace Carbon.Abstractions.Persistence;
 
 /// <summary>
 /// Persisted character record storing world transform, vitals, archetype class, bitmask flags,
-/// inventory blob, and extensible binary progression payload (<c>attributes + N skills</c>).
+/// inventory blob, extensible binary progression payload (<c>attributes + N skills</c>), and wallet balances.
 /// </summary>
+/// <remarks>
+/// <c>Gold</c>, <c>Diamonds</c>, <c>WalletSequence</c> and <c>DiamondPity</c> persist the server-authoritative
+/// wallet (ADR-011). They are trailing optional members so existing call sites keep compiling.
+/// </remarks>
 public sealed record CharacterRecord(
     Guid Id,
     Guid AccountId,
@@ -32,4 +36,8 @@ public sealed record CharacterRecord(
     HeroArchetypeClass Class = HeroArchetypeClass.Vanguard,
     CharacterTraits Flags = CharacterTraits.StarterLoadoutGranted,
     CharacterSkillMask UnlockedSkills = CharacterSkillMask.None,
-    byte[]? ProgressionBlob = null);
+    byte[]? ProgressionBlob = null,
+    long Gold = 0L,
+    long Diamonds = 0L,
+    ulong WalletSequence = 0UL,
+    int DiamondPity = 0);

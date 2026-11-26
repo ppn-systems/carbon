@@ -10,12 +10,14 @@ using System.Numerics;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using Carbon.Abstractions.Persistence;
 using Carbon.Application.Identity;
 using Carbon.Application.World;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Identity;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Abstractions.World;
+using Carbon.Economy;
 using Carbon.Host;
 using Carbon.Infrastructure.Configuration;
 using Carbon.Infrastructure.Persistence.Sqlite;
@@ -95,7 +97,8 @@ public sealed class MultiplayerSessionTests
                 hostOptions.TickRate,
                 chunkDeltas,
                 characters,
-                outboundSink);
+                outboundSink,
+                economy: GameEconomy.LoadFromDirectory(GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!));
 
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
@@ -149,6 +152,10 @@ public sealed class MultiplayerSessionTests
 
                 float initialX = rosterA[0].PositionX;
 
+                // Seed a persisted wallet balance (ADR-011) before entering the world.
+                CharacterRecord? heroARecord = await characters.FindByIdAsync(rosterA[0].CharacterId).ConfigureAwait(true);
+                await characters.SaveBatchAsync([heroARecord! with { Gold = 321, Diamonds = 4 }]).ConfigureAwait(true);
+
                 // 3. Enter world and verify Authenticated UDP (NDP) activates cleanly.
                 (bool enteredA, _) = await clientA.EnterWorldAsync(rosterA[0].CharacterId).ConfigureAwait(true);
                 enteredA.Should().BeTrue();
@@ -175,6 +182,19 @@ public sealed class MultiplayerSessionTests
                 clientA.CycleNearestHostileTarget(32f).Should().BeFalse();
                 clientA.LockedTargetNetworkId.Should().Be(0UL);
                 clientA.IsNearForgeStation().Should().BeTrue("sanctuary starter area hosts Master Blacksmith");
+                clientA.LocalPlayerGold.Should().Be(321, "WalletSync pushes the persisted balance on world entry");
+                clientA.LocalPlayerDiamonds.Should().Be(4);
+
+                // Buy 5 wood logs from the sanctuary vendor over the wire; the server charges gold and pushes WalletSync.
+                clientA.TryVendorBuy((ushort)StarterGameCatalog.WoodLog, 5).Should().BeTrue();
+                for (int t = 0; t < 40 && clientA.LocalPlayerGold == 321; t++)
+                {
+                    clientA.Update(1.0 / 30.0, Vector2.Zero, sprint: false);
+                    world.StepFixedTick();
+                    await Task.Delay(15).ConfigureAwait(true);
+                }
+
+                clientA.LocalPlayerGold.Should().Be(311, "5 wood logs at 2 gold each were bought");
 
                 (bool enteredB, _) = await clientB.EnterWorldAsync(rosterB[0].CharacterId).ConfigureAwait(true);
                 enteredB.Should().BeTrue();

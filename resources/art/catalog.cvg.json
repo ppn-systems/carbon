@@ -1080,5 +1080,15 @@
       "displayName": "Forge Anvil",
       "file": "structures/forge_anvil.cvg.json"
     }
+  ],
+  "uiIcons": [
+    {
+      "id": "coin",
+      "file": "ui/coin.cvg.json"
+    },
+    {
+      "id": "diamond",
+      "file": "ui/diamond.cvg.json"
+    }
   ]
 }

@@ -110,6 +110,10 @@ public sealed partial class MultiplayerSession : IWorldSession
     private float _localStamina = 100f;
     private float _localMaxStamina = 100f;
     private float _localDefense = 2f;
+    private long _localGold;
+    private long _localDiamonds;
+    private ulong _walletSequence;
+    private bool _hasWalletSync;
     private HeroArchetypeClass _localClass = HeroArchetypeClass.Vanguard;
     private CharacterTraits _localTraits = CharacterTraits.None;
     private ushort _unspentStatPoints;
@@ -188,6 +192,12 @@ public sealed partial class MultiplayerSession : IWorldSession
 
     /// <inheritdoc/>
     public float LocalPlayerDefense => _localDefense;
+
+    /// <inheritdoc/>
+    public long LocalPlayerGold => Interlocked.Read(ref _localGold);
+
+    /// <inheritdoc/>
+    public long LocalPlayerDiamonds => Interlocked.Read(ref _localDiamonds);
 
     /// <inheritdoc/>
     public HeroArchetypeClass LocalPlayerClass => _localClass;
@@ -666,6 +676,10 @@ public sealed partial class MultiplayerSession : IWorldSession
             _localStamina = 100f;
             _localMaxStamina = 100f;
             _localDefense = 2f;
+            _localGold = 0;
+            _localDiamonds = 0;
+            _walletSequence = 0;
+            _hasWalletSync = false;
             _localClass = HeroArchetypeClass.Vanguard;
             _localTraits = CharacterTraits.None;
             _progression.Clear();

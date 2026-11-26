@@ -42,6 +42,9 @@ public interface IVectorArtRepository
     /// <summary>Resolves an inventory item vector definition by item ID (<c>1..32</c>).</summary>
     bool TryGetItem(uint itemId, [NotNullWhen(true)] out CompiledItemVectorArt? item);
 
+    /// <summary>Resolves a HUD icon (e.g. <c>coin</c>, <c>diamond</c>) declared under <c>uiIcons</c> in <c>catalog.cvg.json</c>.</summary>
+    bool TryGetUiIcon(string iconId, [NotNullWhen(true)] out CompiledItemVectorArt? icon);
+
     /// <summary>Resolves a compiled natural prop/tree definition by <c>MapPropType</c> (<c>1..22</c>).</summary>
     bool TryGetProp(byte propType, [NotNullWhen(true)] out CompiledPropArt? prop);
 

@@ -439,6 +439,11 @@ public sealed class VectorArtAndArchitectureTests
             itemArt.Should().NotBeNull();
         }
 
+        lib!.TryGetUiIcon("coin", out CompiledItemVectorArt? coinIcon).Should().BeTrue("the wallet HUD needs a gold coin icon");
+        lib.TryGetUiIcon("diamond", out CompiledItemVectorArt? diamondIcon).Should().BeTrue("the wallet HUD needs a diamond icon");
+        coinIcon!.Shapes.Length.Should().BePositive();
+        diamondIcon!.Shapes.Length.Should().BePositive();
+
         string[] expectedMonsterClips =
         [
             "skeleton_archer.cvg.json:attack_bow",
