@@ -41,6 +41,72 @@ public enum UiPanelStyle
 }
 
 /// <summary>
+/// Restrained dark-slate RPG UI palette eliminating high-saturation color clutter across HUD and modals.
+/// </summary>
+public static class CarbonUiPalette
+{
+    /// <summary>Primary modal backdrop fill.</summary>
+    public static readonly ColorRgba WindowFill = new(13, 16, 23, 246);
+
+    /// <summary>Secondary inner card fill.</summary>
+    public static readonly ColorRgba CardFill = new(18, 22, 31, 238);
+
+    /// <summary>Resting inventory/hotbar socket fill.</summary>
+    public static readonly ColorRgba SlotFill = new(11, 14, 21, 242);
+
+    /// <summary>Hovered inventory/hotbar socket fill.</summary>
+    public static readonly ColorRgba SlotHoverFill = new(27, 34, 48, 248);
+
+    /// <summary>Selected socket or active tab fill.</summary>
+    public static readonly ColorRgba SlotSelectedFill = new(34, 42, 58, 250);
+
+    /// <summary>Restrained steel outer frame border.</summary>
+    public static readonly ColorRgba BorderOuter = new(114, 126, 144, 235);
+
+    /// <summary>Subtle muted divider and slot border.</summary>
+    public static readonly ColorRgba BorderSubtle = new(66, 76, 92, 220);
+
+    /// <summary>Warm muted brass accent used sparingly on active focus/selection.</summary>
+    public static readonly ColorRgba BorderActive = new(212, 186, 130, 255);
+
+    /// <summary>Primary crisp off-white UI text.</summary>
+    public static readonly ColorRgba TextPrimary = new(236, 240, 245, 255);
+
+    /// <summary>Secondary muted slate UI text.</summary>
+    public static readonly ColorRgba TextMuted = new(152, 163, 180, 255);
+
+    /// <summary>Warm muted brass text accent.</summary>
+    public static readonly ColorRgba TextWarm = new(224, 202, 152, 255);
+
+    /// <summary>Dark outline stroke color for crisp bitmap text.</summary>
+    public static readonly ColorRgba TextOutline = new(8, 10, 14, 255);
+
+    /// <summary>Health bar fill.</summary>
+    public static readonly ColorRgba HpFill = new(188, 48, 56, 255);
+
+    /// <summary>Mana bar fill.</summary>
+    public static readonly ColorRgba MpFill = new(52, 108, 194, 255);
+
+    /// <summary>Stamina bar fill.</summary>
+    public static readonly ColorRgba StaminaFill = new(58, 152, 104, 255);
+
+    /// <summary>Warm XP bar fill.</summary>
+    public static readonly ColorRgba XpFill = new(198, 168, 104, 255);
+
+    /// <summary>Muted crimson fill for close/danger buttons.</summary>
+    public static readonly ColorRgba DangerFill = new(126, 36, 42, 238);
+
+    /// <summary>Muted crimson border for close/danger buttons.</summary>
+    public static readonly ColorRgba DangerBorder = new(188, 76, 82, 240);
+
+    /// <summary>Muted forest fill for confirm/positive buttons.</summary>
+    public static readonly ColorRgba ConfirmFill = new(34, 96, 68, 240);
+
+    /// <summary>Muted forest border for confirm/positive buttons.</summary>
+    public static readonly ColorRgba ConfirmBorder = new(96, 168, 128, 245);
+}
+
+/// <summary>
 /// Dual-layer nine-slice UI skin downsampling <c>96x96</c> pixel templates by <c>2x</c> to crisp <c>48x48</c>
 /// textures and splitting each panel into a watertight solid interior body and crisp outer border filigree.
 /// </summary>
@@ -225,12 +291,12 @@ public sealed class CarbonUiSkin : IDisposable
     }
 
     /// <summary>Draws an ornate dialog window backdrop and frame.</summary>
-    public void DrawWindow(SpriteBatch spriteBatch, in RectangleF bounds, ColorRgba frameColor, byte bodyAlpha = 242) =>
-        this.DrawPanel(spriteBatch, UiPanelStyle.OrnateWindow, in bounds, new ColorRgba(10, 15, 28, bodyAlpha), frameColor);
+    public void DrawWindow(SpriteBatch spriteBatch, in RectangleF bounds, ColorRgba frameColor, byte bodyAlpha = 246) =>
+        this.DrawPanel(spriteBatch, UiPanelStyle.OrnateWindow, in bounds, new ColorRgba(CarbonUiPalette.WindowFill.R, CarbonUiPalette.WindowFill.G, CarbonUiPalette.WindowFill.B, bodyAlpha), frameColor);
 
     /// <summary>Draws a clean double-bevel card with obsidian dark tint.</summary>
-    public void DrawCard(SpriteBatch spriteBatch, in RectangleF bounds, ColorRgba frameColor, byte bodyAlpha = 232) =>
-        this.DrawPanel(spriteBatch, UiPanelStyle.DoubleCard, in bounds, new ColorRgba(12, 19, 34, bodyAlpha), frameColor);
+    public void DrawCard(SpriteBatch spriteBatch, in RectangleF bounds, ColorRgba frameColor, byte bodyAlpha = 238) =>
+        this.DrawPanel(spriteBatch, UiPanelStyle.DoubleCard, in bounds, new ColorRgba(CarbonUiPalette.CardFill.R, CarbonUiPalette.CardFill.G, CarbonUiPalette.CardFill.B, bodyAlpha), frameColor);
 
     /// <summary>Draws an inventory or hotbar slot bezel.</summary>
     public void DrawSlot(SpriteBatch spriteBatch, in RectangleF bounds, ColorRgba fillColor, ColorRgba frameColor) =>

@@ -24,12 +24,12 @@ using Nalix.SDK.Transport;
 namespace Carbon.Desktop.Networking;
 
 /// <summary>
-/// Online-only dual-transport multiplayer client session built on <c>Nalix.SDK</c> (<c>14.4.0</c>).
+/// Online-only dual-transport multiplayer client session.
 /// Runs reliable transactions over <see cref="TcpSession"/> (X25519 ECDH + AEAD) and streams
-/// low-latency movement/combat state over Authenticated UDP (<see cref="DatagramSession"/> / NDP),
-/// with automatic TCP fallback, prediction reconciliation, and snapshot interpolation.
+/// low-latency movement/combat state over Authenticated UDP (<see cref="DatagramSession"/>),
+/// with automatic TCP fallback, background UDP auto-reconnect, prediction reconciliation, and snapshot interpolation.
 /// </summary>
-public sealed partial class NalixMultiplayerSession : IClientWorldSession
+public sealed partial class MultiplayerSession : IClientWorldSession
 {
     private const float WalkSpeed = 250f;
     private const float SprintSpeed = 450f;
@@ -54,12 +54,17 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
     private readonly InventoryContainer _inventory = new(PlayerInventoryLayout.TotalCapacity);
     private readonly ClientPredictionReconciler _reconciler = new(128);
     private readonly SemaphoreSlim _connectGate = new(1, 1);
+    private readonly SemaphoreSlim _udpGate = new(1, 1);
     private readonly Lock _worldGate = new();
     private RemoteEntityView[] _cachedRemoteViews = [];
     private bool _remoteViewsDirty = true;
 
     private TcpSession? _tcpSession;
     private DatagramSession? _udpSession;
+    private CancellationTokenSource? _sessionCts;
+    private float _udpReconnectTimer;
+    private int _udpReconnectAttempt;
+    private int _udpReconnectInFlight;
     private string _connectedHost = string.Empty;
     private ushort _connectedPort;
     private bool _isAuthenticated;
@@ -110,10 +115,10 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
     private bool _lastForgeSucceeded;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="NalixMultiplayerSession"/> class.
+    /// Initializes a new instance of the <see cref="MultiplayerSession"/> class.
     /// </summary>
     /// <param name="options">Client runtime options.</param>
-    public NalixMultiplayerSession(DesktopClientOptions options) =>
+    public MultiplayerSession(DesktopClientOptions options) =>
         _options = options ?? throw new ArgumentNullException(nameof(options));
 
     /// <inheritdoc/>
@@ -398,6 +403,8 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
         }
 
         float fdt = (float)dt;
+        this.MonitorUdpHealth(fdt);
+
         if (_attackSwingTimer > 0f)
         {
             _attackSwingTimer = MathF.Max(0f, _attackSwingTimer - fdt);
@@ -564,12 +571,28 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
         }
     }
 
+    /// <summary>Tears down only the UDP datagram transport cleanly so unit tests can verify automatic UDP recovery.</summary>
+    internal async Task DropUdpTransportForTestingAsync()
+    {
+        await this.TearDownUdpAsync().ConfigureAwait(false);
+        _udpReconnectAttempt = 0;
+        _udpReconnectTimer = 1.5f;
+    }
+
     /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
         await this.TearDownTransportsAsync().ConfigureAwait(false);
         this.ClearWorldState();
+        if (_sessionCts is not null)
+        {
+            await _sessionCts.CancelAsync().ConfigureAwait(false);
+            _sessionCts.Dispose();
+            _sessionCts = null;
+        }
+
         _connectGate.Dispose();
+        _udpGate.Dispose();
     }
 
     private void ClearWorldState()

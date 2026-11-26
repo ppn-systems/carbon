@@ -694,7 +694,7 @@ public sealed class WorldSceneRenderer : IDisposable
                     0f,
                     flash,
                     equippedItem: remoteWeapon,
-                    legacySwingTimer: remote.AttackAnimRemaining,
+                    swingTimer: remote.AttackAnimRemaining,
                     appearancePreset: preset,
                     equipment: remoteLoadout,
                     art: _art);

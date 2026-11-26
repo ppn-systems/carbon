@@ -39,7 +39,7 @@ public sealed class DesktopClientSessionTests
         Assembly[] headlessAssemblies =
         [
             typeof(IClientWorldSession).Assembly,
-            typeof(NalixMultiplayerSession).Assembly,
+            typeof(MultiplayerSession).Assembly,
         ];
 
         foreach (Assembly asm in headlessAssemblies)
@@ -54,7 +54,7 @@ public sealed class DesktopClientSessionTests
     }
 
     [Fact]
-    public async Task NalixMultiplayerSession_OverLiveTcpAndAuthenticatedUdp_ShouldAuthenticateManageCharactersAndSyncWorld()
+    public async Task MultiplayerSession_OverLiveTcpAndAuthenticatedUdp_ShouldAuthenticateManageCharactersAndSyncWorld()
     {
         string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-e2e-udp-{Guid.NewGuid():N}.db");
         ushort tcpPort = AllocateFreeTcpPort();
@@ -71,8 +71,8 @@ public sealed class DesktopClientSessionTests
             SqliteChunkDeltaRepository chunkDeltas = new(dbFactory);
             Pbkdf2PasswordHasher hasher = new();
             AuthService authService = new(accounts, characters, hasher);
-            NalixSessionTransportRegistry transportRegistry = new();
-            NalixWorldOutboundSink outboundSink = new(transportRegistry, NullLogger<NalixWorldOutboundSink>.Instance);
+            SessionTransportRegistry transportRegistry = new();
+            WorldOutboundSink outboundSink = new(transportRegistry, NullLogger<WorldOutboundSink>.Instance);
 
             HostRuntimeOptions hostOptions = new()
             {
@@ -115,8 +115,8 @@ public sealed class DesktopClientSessionTests
                 CharacterName = "HeroA",
             };
 
-            NalixMultiplayerSession clientA = new(clientOptions);
-            NalixMultiplayerSession clientB = new(clientOptions);
+            MultiplayerSession clientA = new(clientOptions);
+            MultiplayerSession clientB = new(clientOptions);
 
             try
             {
@@ -265,6 +265,20 @@ public sealed class DesktopClientSessionTests
 
                 clientB.ChunkWorld.Buildings.TryGetStructure(placeX, placeY, out StructureTile placed).Should().BeTrue();
                 placed.Type.Should().Be(StructureType.WoodWall);
+
+                // 5.5 Drop UDP transport and verify Update() automatically reconnects UDP on the next heartbeat.
+                await clientA.DropUdpTransportForTestingAsync().ConfigureAwait(true);
+                clientA.IsUdpActive.Should().BeFalse();
+
+                for (int i = 0; i < 60 && !clientA.IsUdpActive; i++)
+                {
+                    clientA.Update(0.25, Vector2.Zero, sprint: false);
+                    world.StepFixedTick();
+                    await Task.Delay(35).ConfigureAwait(true);
+                }
+
+                clientA.IsUdpActive.Should().BeTrue("UDP offline state must automatically reconnect without manual login");
+                clientA.TransportLabel.Should().Be("TCP+UDP");
 
                 // 6. Logout disconnects UDP cleanly and allows subsequent re-login.
                 await clientA.LogoutAsync().ConfigureAwait(true);

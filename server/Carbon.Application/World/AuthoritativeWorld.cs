@@ -483,6 +483,15 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
                     return OpStatus.Invalid;
                 }
 
+                if (!SkillCatalog.CanCharacterAccessSkill(
+                    skillDef,
+                    state.SourceCharacter.Class,
+                    state.SourceCharacter.Flags,
+                    prog.UnlockedSkillMask))
+                {
+                    return OpStatus.Forbidden;
+                }
+
                 ushort unspentSkills = CharacterProgressionPolicy.GetUnspentSkillPoints(state.Level, prog);
                 byte curRank = prog.GetSkillRank(targetId);
                 if (unspentSkills == 0 || curRank >= skillDef.MaxRank)

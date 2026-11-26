@@ -23,7 +23,7 @@ public static class Program
     public static async Task<int> Main()
     {
         DesktopClientOptions options = DesktopClientOptions.FromEnvironment();
-        NalixMultiplayerSession session = new(options);
+        MultiplayerSession session = new(options);
 
         try
         {

@@ -32,7 +32,7 @@ using Nalix.SDK.Transport.Extensions;
 
 namespace Carbon.Desktop.Networking;
 
-public sealed partial class NalixMultiplayerSession
+public sealed partial class MultiplayerSession
 {
     private async Task<TcpSession> EnsureTcpConnectedAsync(string host, ushort tcpPort, CancellationToken ct)
     {
@@ -44,6 +44,7 @@ public sealed partial class NalixMultiplayerSession
                 string.Equals(_connectedHost, host, StringComparison.OrdinalIgnoreCase) &&
                 _connectedPort == tcpPort)
             {
+                _sessionCts ??= new CancellationTokenSource();
                 return existing;
             }
 
@@ -79,6 +80,7 @@ public sealed partial class NalixMultiplayerSession
 
             _connectedHost = host;
             _connectedPort = tcpPort;
+            _sessionCts = new CancellationTokenSource();
             return tcp;
         }
         finally
@@ -89,43 +91,160 @@ public sealed partial class NalixMultiplayerSession
 
     private async Task TryOpenAuthenticatedUdpAsync(TcpSession tcp, CancellationToken ct)
     {
-        await this.TearDownUdpAsync().ConfigureAwait(false);
-        if (!tcp.IsConnected || !tcp.State.EncryptionEnabled)
+        await _udpGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await this.TearDownUdpLockedAsync().ConfigureAwait(false);
+            if (ct.IsCancellationRequested || !tcp.IsConnected || !tcp.State.EncryptionEnabled)
+            {
+                return;
+            }
+
+            DatagramSession udp = new(tcp);
+            try
+            {
+                _udpSubscriptions.Add(udp.On<EntityDeltaBatch>(this.OnEntityDeltaBatch));
+                _udpSubscriptions.Add(udp.On<CombatHit>(this.OnCombatHit));
+                _udpSubscriptions.Add(udp.On<EntitySpawn>(this.OnEntitySpawn));
+                _udpSubscriptions.Add(udp.On<EntityDespawn>(this.OnEntityDespawn));
+                _udpSubscriptions.Add(udp.On<EntityEquipmentChanged>(this.OnEntityEquipmentChanged));
+                _udpSubscriptions.Add(udp.On<SkillCastBroadcast>(this.OnSkillCastBroadcast));
+
+                using CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeoutCts.CancelAfter(3000);
+                await udp.ConnectAsync(_connectedHost, null, timeoutCts.Token).ConfigureAwait(false);
+                _udpSession = udp;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                await this.TearDownUdpLockedAsync().ConfigureAwait(false);
+                await udp.DisposeAsync().ConfigureAwait(false);
+                throw;
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                await this.TearDownUdpLockedAsync().ConfigureAwait(false);
+                await udp.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _ = _udpGate.Release();
+        }
+    }
+
+    private void MonitorUdpHealth(float frameDt)
+    {
+        if (!this.IsReady || !this.IsAuthenticated || _tcpSession is not { IsConnected: true } tcp)
         {
             return;
         }
 
-        DatagramSession udp = new(tcp);
+        if (this.IsUdpActive)
+        {
+            _udpReconnectAttempt = 0;
+            _udpReconnectTimer = 0f;
+            return;
+        }
+
+        if (Volatile.Read(ref _udpReconnectInFlight) != 0)
+        {
+            return;
+        }
+
+        _udpReconnectTimer -= frameDt;
+        if (_udpReconnectTimer > 0f)
+        {
+            return;
+        }
+
+        int attempt = _udpReconnectAttempt;
+        float nextBackoff = attempt switch
+        {
+            0 => 1.5f,
+            1 => 3.0f,
+            2 => 6.0f,
+            _ => 8.0f,
+        };
+        _udpReconnectAttempt = Math.Min(attempt + 1, 8);
+        _udpReconnectTimer = nextBackoff;
+
+        if (Interlocked.CompareExchange(ref _udpReconnectInFlight, 1, 0) == 0)
+        {
+            _ = this.ReconnectUdpBackgroundAsync(tcp);
+        }
+    }
+
+    private async Task ReconnectUdpBackgroundAsync(TcpSession tcp)
+    {
         try
         {
-            _udpSubscriptions.Add(udp.On<EntityDeltaBatch>(this.OnEntityDeltaBatch));
-            _udpSubscriptions.Add(udp.On<CombatHit>(this.OnCombatHit));
-            _udpSubscriptions.Add(udp.On<EntitySpawn>(this.OnEntitySpawn));
-            _udpSubscriptions.Add(udp.On<EntityDespawn>(this.OnEntityDespawn));
-            _udpSubscriptions.Add(udp.On<EntityEquipmentChanged>(this.OnEntityEquipmentChanged));
-            _udpSubscriptions.Add(udp.On<SkillCastBroadcast>(this.OnSkillCastBroadcast));
+            CancellationToken sessionToken = _sessionCts?.Token ?? CancellationToken.None;
+            if (sessionToken.IsCancellationRequested || !this.IsReady || !this.IsAuthenticated || !tcp.IsConnected)
+            {
+                return;
+            }
 
-            using CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeoutCts.CancelAfter(3000);
-            await udp.ConnectAsync(_connectedHost, null, timeoutCts.Token).ConfigureAwait(false);
-            _udpSession = udp;
+            await this.TryOpenAuthenticatedUdpAsync(tcp, sessionToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
-            await this.TearDownUdpAsync().ConfigureAwait(false);
-            await udp.DisposeAsync().ConfigureAwait(false);
-            throw;
+            // Session torn down during UDP reconnect.
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            await this.TearDownUdpAsync().ConfigureAwait(false);
-            await udp.DisposeAsync().ConfigureAwait(false);
+            // Next interval on MonitorUdpHealth will retry with backoff.
+        }
+        finally
+        {
+            _ = Interlocked.Exchange(ref _udpReconnectInFlight, 0);
+        }
+    }
+
+    private async Task HandleUdpFaultAsync(DatagramSession faultedUdp)
+    {
+        await _udpGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (ReferenceEquals(_udpSession, faultedUdp))
+            {
+                await this.TearDownUdpLockedAsync().ConfigureAwait(false);
+                if (_udpReconnectTimer <= 0f)
+                {
+                    _udpReconnectTimer = 1.5f;
+                }
+            }
+        }
+        finally
+        {
+            _ = _udpGate.Release();
+        }
+    }
+
+    private void CancelSessionOperations()
+    {
+        CancellationTokenSource? cts = Interlocked.Exchange(ref _sessionCts, null);
+        if (cts is not null)
+        {
+            try
+            {
+                cts.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Already disposed.
+            }
+
+            cts.Dispose();
         }
     }
 
     private async Task TearDownTransportsAsync()
     {
+        this.CancelSessionOperations();
         await this.TearDownUdpAsync().ConfigureAwait(false);
+        _udpReconnectAttempt = 0;
+        _udpReconnectTimer = 0f;
 
         for (int i = 0; i < _tcpSubscriptions.Count; i++)
         {
@@ -157,6 +276,19 @@ public sealed partial class NalixMultiplayerSession
     }
 
     private async Task TearDownUdpAsync()
+    {
+        await _udpGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await this.TearDownUdpLockedAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _ = _udpGate.Release();
+        }
+    }
+
+    private async Task TearDownUdpLockedAsync()
     {
         for (int i = 0; i < _udpSubscriptions.Count; i++)
         {
@@ -202,7 +334,7 @@ public sealed partial class NalixMultiplayerSession
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
-                // Fall back to reliable TCP stream if datagram send rejects.
+                _ = this.HandleUdpFaultAsync(udp);
             }
         }
 

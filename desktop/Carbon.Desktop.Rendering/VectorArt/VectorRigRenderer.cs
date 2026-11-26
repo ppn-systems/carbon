@@ -35,7 +35,7 @@ public static class VectorRigRenderer
         float hitFlash = 0f,
         CompiledItemVectorArt? equippedItem = null,
         ClientActionState action = default,
-        float legacySwingTimer = 0f,
+        float swingTimer = 0f,
         byte appearancePreset = 0,
         VisualEquipmentLoadout equipment = default,
         IVectorArtRepository? art = null)
@@ -60,7 +60,7 @@ public static class VectorRigRenderer
         // If North-facing, draw item behind torso first; render non-cape shapes, then promote Cape back shapes on top of torso.
         if (isNorth && equippedItem is not null)
         {
-            DrawEquippedItemOnRig(batch, rig, equippedItem, footPosition, direction, uniformScale, mirrorX, in bones[(int)VectorBoneId.ArmFront], action, legacySwingTimer, equipment.WeaponUpgradeLevel);
+            DrawEquippedItemOnRig(batch, rig, equippedItem, footPosition, direction, uniformScale, mirrorX, in bones[(int)VectorBoneId.ArmFront], action, swingTimer, equipment.WeaponUpgradeLevel);
         }
 
         if (isModularHuman && !isNorth && equipment.ChestId != 0)
@@ -89,7 +89,7 @@ public static class VectorRigRenderer
 
         if (!isNorth && equippedItem is not null)
         {
-            DrawEquippedItemOnRig(batch, rig, equippedItem, footPosition, direction, uniformScale, mirrorX, in bones[(int)VectorBoneId.ArmFront], action, legacySwingTimer, equipment.WeaponUpgradeLevel);
+            DrawEquippedItemOnRig(batch, rig, equippedItem, footPosition, direction, uniformScale, mirrorX, in bones[(int)VectorBoneId.ArmFront], action, swingTimer, equipment.WeaponUpgradeLevel);
         }
     }
 
@@ -270,7 +270,7 @@ public static class VectorRigRenderer
         bool mirrorX,
         in BonePose frontArmPose,
         in ClientActionState action,
-        float legacySwingTimer,
+        float swingTimer,
         byte weaponUpgradeLevel = 0)
     {
         if (!item.IsHeldVisible && !action.IsActive)
@@ -339,9 +339,9 @@ public static class VectorRigRenderer
                     break;
             }
         }
-        else if (legacySwingTimer > 0f)
+        else if (swingTimer > 0f)
         {
-            float p = 1f - Math.Clamp(legacySwingTimer / 0.24f, 0f, 1f);
+            float p = 1f - Math.Clamp(swingTimer / 0.24f, 0f, 1f);
             swingOffset = EvaluateSwingArc(p, -1.30f, 1.20f, out thrustFactor);
         }
         else

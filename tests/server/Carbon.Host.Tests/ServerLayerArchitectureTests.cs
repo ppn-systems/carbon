@@ -1,5 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System;
+using System.Linq;
 using System.Reflection;
 using Carbon.Abstractions.World;
 using Carbon.Application.World;
@@ -51,6 +53,25 @@ public sealed class ServerLayerArchitectureTests
         {
             string refName = reference.Name ?? string.Empty;
             refName.Should().NotBe("Carbon.Infrastructure", "Carbon.Handlers dispatches through Carbon.Abstractions only");
+        }
+    }
+
+    [Fact]
+    public void ServerAssemblies_ShouldNotUseNalixTypeNamePrefixes()
+    {
+        Assembly[] serverAssemblies =
+        [
+            typeof(SessionTransportRegistry).Assembly,
+            typeof(IdentityHandlers).Assembly,
+        ];
+
+        foreach (Assembly assembly in serverAssemblies)
+        {
+            assembly.GetTypes()
+                .Where(static t => !t.Name.StartsWith('<'))
+                .Select(static t => t.Name)
+                .Should().NotContain(name => name.Contains("Nalix", StringComparison.Ordinal),
+                    because: $"types in {assembly.GetName().Name} should use simple domain names without Nalix* prefixes");
         }
     }
 }

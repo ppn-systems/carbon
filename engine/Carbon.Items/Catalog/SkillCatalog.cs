@@ -1,6 +1,10 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
+using Carbon.Contracts.Common;
+using Carbon.Contracts.Entities;
+using Carbon.Contracts.Identity;
 using Carbon.Data.Abstractions;
 using Carbon.Data.Registry;
 
@@ -43,7 +47,7 @@ public enum SkillAnimArchetype : byte
 }
 
 /// <summary>
-/// Declarative data-driven skill definition supporting open skill registration without hardcoding IDs.
+/// Declarative data-driven skill definition supporting open class-gated skill registration without hardcoding IDs.
 /// </summary>
 public sealed record SkillDefinition(
     ushort Id,
@@ -52,6 +56,7 @@ public sealed record SkillDefinition(
     string DefaultKeyLabel,
     string Summary,
     string AccentHex,
+    HeroArchetypeClass RequiredClass,
     SkillEffectKind EffectKind,
     SkillScalingMode ScalingMode,
     SkillAnimArchetype AnimArchetype,
@@ -99,17 +104,17 @@ public sealed record SkillDefinition(
 }
 
 /// <summary>
-/// Central AOT registry of active skills indexed by open <see cref="ushort"/> identifier.
+/// Central AOT registry of active class-gated skills indexed by open <see cref="ushort"/> identifier.
 /// </summary>
 public static class SkillCatalog
 {
-    /// <summary>360-degree spinning cleave skill identifier.</summary>
+    /// <summary>360-degree spinning cleave skill identifier (<see cref="HeroArchetypeClass.Vanguard"/>).</summary>
     public const ushort WhirlwindId = 1;
 
-    /// <summary>Long-range crystal shockwave cone skill identifier.</summary>
+    /// <summary>Long-range crystal shockwave cone skill identifier (<see cref="HeroArchetypeClass.Arcanist"/>).</summary>
     public const ushort ArcaneNovaId = 2;
 
-    /// <summary>Self restoration + stamina surge burst skill identifier.</summary>
+    /// <summary>Self restoration + stamina surge burst skill identifier (<see cref="HeroArchetypeClass.Ranger"/>).</summary>
     public const ushort VitalSurgeId = 3;
 
     /// <summary>Registered active skills ordered cleanly for UI &amp; server lookup.</summary>
@@ -120,8 +125,9 @@ public static class SkillCatalog
             Code: "whirlwind",
             DisplayName: "Whirlwind",
             DefaultKeyLabel: "Q",
-            Summary: "360 Cleave Strike around hero",
-            AccentHex: "#F97316",
+            Summary: "360 Cleave Strike",
+            AccentHex: "#D4BA82",
+            RequiredClass: HeroArchetypeClass.Vanguard,
             EffectKind: SkillEffectKind.ArcStrike,
             ScalingMode: SkillScalingMode.PhysicalWeapon,
             AnimArchetype: SkillAnimArchetype.SpinSlash,
@@ -147,8 +153,9 @@ public static class SkillCatalog
             Code: "arcane_nova",
             DisplayName: "Arcane Nova",
             DefaultKeyLabel: "R",
-            Summary: "Long Arcane Shockwave Cone",
-            AccentHex: "#38BDF8",
+            Summary: "Arcane Shockwave Cone",
+            AccentHex: "#6E9ED8",
+            RequiredClass: HeroArchetypeClass.Arcanist,
             EffectKind: SkillEffectKind.ArcStrike,
             ScalingMode: SkillScalingMode.ArcaneSpell,
             AnimArchetype: SkillAnimArchetype.ArcaneWave,
@@ -174,8 +181,9 @@ public static class SkillCatalog
             Code: "vital_surge",
             DisplayName: "Vital Surge",
             DefaultKeyLabel: "V",
-            Summary: "Restore HP & Stamina Burst",
-            AccentHex: "#34D399",
+            Summary: "Restore HP & Stamina",
+            AccentHex: "#66B58B",
+            RequiredClass: HeroArchetypeClass.Ranger,
             EffectKind: SkillEffectKind.SelfRestore,
             ScalingMode: SkillScalingMode.VitalMaxHealth,
             AnimArchetype: SkillAnimArchetype.SelfAura,
@@ -200,6 +208,50 @@ public static class SkillCatalog
 
     /// <summary>Total learnable mastery ranks summed across all registered skills.</summary>
     public static int TotalLearnableRanks { get; } = ComputeTotalLearnableRanks();
+
+    /// <summary>
+    /// Returns <see langword="true"/> when a character of <paramref name="heroClass"/> with <paramref name="traits"/>
+    /// and <paramref name="unlockedMask"/> is permitted to view, learn, and cast <paramref name="skill"/>.
+    /// </summary>
+    public static bool CanCharacterAccessSkill(
+        SkillDefinition skill,
+        HeroArchetypeClass heroClass,
+        CharacterTraits traits,
+        CharacterSkillMask unlockedMask)
+    {
+        ArgumentNullException.ThrowIfNull(skill);
+        if (CharacterSkillMaskHelper.HasSkill(unlockedMask, skill.Id))
+        {
+            return true;
+        }
+
+        return traits.HasFlag(CharacterTraits.ClassAdvanced) && skill.RequiredClass == heroClass;
+    }
+
+    /// <summary>
+    /// Collects every skill accessible to the given character sorted by <see cref="SkillDefinition.Id"/>.
+    /// Returns an empty list for starter characters prior to job/class advancement.
+    /// </summary>
+    public static void CollectCharacterSkills(
+        HeroArchetypeClass heroClass,
+        CharacterTraits traits,
+        CharacterSkillMask unlockedMask,
+        List<SkillDefinition> destination)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        destination.Clear();
+
+        ReadOnlySpan<SkillDefinition> all = Skills.All;
+        for (int i = 0; i < all.Length; i++)
+        {
+            if (CanCharacterAccessSkill(all[i], heroClass, traits, unlockedMask))
+            {
+                destination.Add(all[i]);
+            }
+        }
+
+        destination.Sort(static (a, b) => a.Id.CompareTo(b.Id));
+    }
 
     private static int ComputeTotalLearnableRanks()
     {

@@ -41,7 +41,7 @@ internal sealed class MonsterTargetWidget
         _isLocked = _hasTarget && _activeTarget.NetworkId != 0UL && _activeTarget.NetworkId == world.LockedTargetNetworkId;
     }
 
-    public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin, int viewportWidth, float animTime)
+    public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin, int viewportWidth)
     {
         if (!_hasTarget)
         {
@@ -49,14 +49,14 @@ internal sealed class MonsterTargetWidget
         }
 
         const float cardW = 340f;
-        const float cardH = 72f;
+        const float cardH = 74f;
         float x = MathF.Floor((viewportWidth - cardW) * 0.5f);
         const float y = 14f;
         ColorRgba frameBorder = _activeTarget.AttackAnimRemaining > 0f
-            ? new ColorRgba(248, 113, 113, (byte)(190 + (65 * MathF.Abs(MathF.Sin(animTime * 16f)))))
-            : (_activeTarget.Kind == EntityKind.Npc ? new ColorRgba(234, 179, 8, 235) : new ColorRgba(225, 29, 72, 235));
-        skin.DrawPanel(spriteBatch, UiPanelStyle.OrnateHighlight, new RectangleF(x, y, cardW, cardH), new ColorRgba(10, 15, 28, 236), frameBorder);
-        skin.DrawSlot(spriteBatch, new RectangleF(x + 10f, y + 10f, 52f, 52f), new ColorRgba(12, 18, 34, 244), frameBorder);
+            ? CarbonUiPalette.HpFill
+            : CarbonUiPalette.BorderOuter;
+        skin.DrawPanel(spriteBatch, UiPanelStyle.OrnateHighlight, new RectangleF(x, y, cardW, cardH), CarbonUiPalette.WindowFill, frameBorder);
+        skin.DrawSlot(spriteBatch, new RectangleF(x + 10f, y + 11f, 52f, 52f), CarbonUiPalette.SlotFill, frameBorder);
     }
 
     public void DrawGeometry(GeometryBatch batch, IVectorArtRepository? art, int viewportWidth, float animTime)
@@ -70,7 +70,7 @@ internal sealed class MonsterTargetWidget
         float x = MathF.Floor((viewportWidth - cardW) * 0.5f);
         const float y = 14f;
 
-        RectangleF pBox = new(x + 10f, y + 10f, 52f, 52f);
+        RectangleF pBox = new(x + 10f, y + 11f, 52f, 52f);
         CompiledVectorRig? rig = ResolveRig(art, in _activeTarget);
         if (rig is not null)
         {
@@ -86,33 +86,33 @@ internal sealed class MonsterTargetWidget
         }
 
         float barX = x + 70f;
-        float barY = y + 38f;
+        float barY = y + 40f;
         const float barW = 256f;
-        const float barH = 18f;
+        const float barH = 20f;
         float maxHp = MathF.Max(1f, _activeTarget.MaxHealth);
         float ratio = Math.Clamp(_activeTarget.CurrentHealth / maxHp, 0f, 1f);
         float ghost = Math.Clamp(_ghostRatio, ratio, 1f);
 
-        batch.FillRectangle(new RectangleF(barX - 1f, barY - 1f, barW + 2f, barH + 2f), new ColorRgba(6, 9, 16, 245));
-        batch.FillRectangle(new RectangleF(barX, barY, barW, barH), new ColorRgba(26, 36, 54, 240));
+        batch.FillRectangle(new RectangleF(barX - 1f, barY - 1f, barW + 2f, barH + 2f), new ColorRgba(8, 10, 14, 245));
+        batch.FillRectangle(new RectangleF(barX, barY, barW, barH), CarbonUiPalette.SlotFill);
         if (ghost > ratio + 0.004f)
         {
-            batch.FillRectangle(new RectangleF(barX, barY, barW * ghost, barH), new ColorRgba(253, 224, 71, 225));
+            batch.FillRectangle(new RectangleF(barX, barY, barW * ghost, barH), CarbonUiPalette.BorderActive);
         }
 
         if (ratio > 0.004f)
         {
             ColorRgba fill = _activeTarget.Kind == EntityKind.Npc
-                ? new ColorRgba(234, 179, 8, 255)
-                : new ColorRgba(225, 29, 72, 255);
+                ? CarbonUiPalette.XpFill
+                : CarbonUiPalette.HpFill;
             batch.FillRectangle(new RectangleF(barX, barY, barW * ratio, barH), fill);
-            batch.FillRectangle(new RectangleF(barX, barY, barW * ratio, 4f), new ColorRgba(255, 255, 255, 75));
+            batch.FillRectangle(new RectangleF(barX, barY, barW * ratio, 3f), new ColorRgba(255, 255, 255, 55));
         }
 
         for (int seg = 1; seg <= 3; seg++)
         {
             float tx = MathF.Floor(barX + (barW * (seg * 0.25f)));
-            batch.FillRectangle(new RectangleF(tx, barY, 1f, barH), new ColorRgba(8, 12, 20, 145));
+            batch.FillRectangle(new RectangleF(tx, barY, 1f, barH), new ColorRgba(8, 10, 14, 145));
         }
     }
 
@@ -126,35 +126,33 @@ internal sealed class MonsterTargetWidget
         const float cardW = 340f;
         float x = MathF.Floor((viewportWidth - cardW) * 0.5f);
         const float y = 14f;
-        ColorRgba black = new(10, 12, 18, 255);
+        ColorRgba black = CarbonUiPalette.TextOutline;
 
         CompiledVectorRig? rig = ResolveRig(art, in _activeTarget);
         ushort displayLv = _activeTarget.Level > 0 ? _activeTarget.Level : (rig is not null ? rig.Level : (ushort)1);
-        string lockTag = _isLocked ? " [LOCK]" : string.Empty;
-        string levelPrefix = displayLv > 0 ? $"[LV.{displayLv}] " : string.Empty;
+        string levelPrefix = displayLv > 0 ? $"Lv.{displayLv} " : string.Empty;
         string subtitle = _isLocked
-            ? "LOCKED [TAB]"
+            ? "LOCKED"
             : (rig is not null && !string.IsNullOrWhiteSpace(rig.Subtitle)
                 ? rig.Subtitle
-                : (_activeTarget.Kind == EntityKind.Npc ? "TOWN NPC" : "HOSTILE"));
+                : (_activeTarget.Kind == EntityKind.Npc ? "NPC" : "HOSTILE"));
 
         ColorRgba nameColor = _activeTarget.Kind == EntityKind.Npc
-            ? new ColorRgba(253, 224, 71, 255)
-            : new ColorRgba(254, 202, 202, 255);
+            ? CarbonUiPalette.TextWarm
+            : CarbonUiPalette.TextPrimary;
 
-        string safeSub = CarbonUiSkin.TruncateToWidth(font, subtitle, 108f, 1f);
+        string safeSub = CarbonUiSkin.TruncateToWidth(font, subtitle, 92f, 1f);
         TextMeasureResult subSize = font.MeasureString(safeSub, TextLayoutOptions.Default, 1f);
-        float maxNameWidth = MathF.Max(80f, cardW - 70f - subSize.Width - 22f);
-        string fullTitle = CarbonUiSkin.TruncateToWidth(font, $"{levelPrefix}{_activeTarget.Name}{lockTag}", maxNameWidth, 1.5f);
+        float maxNameWidth = MathF.Max(80f, cardW - 72f - subSize.Width - 20f);
+        string fullTitle = CarbonUiSkin.TruncateToWidth(font, $"{levelPrefix}{_activeTarget.Name}", maxNameWidth, 1f);
 
-        spriteBatch.DrawOutlinedString(font, fullTitle, new Vector2(x + 70f, y + 12f), nameColor, black, 1, 1.5f);
-        spriteBatch.DrawOutlinedString(font, safeSub, new Vector2(x + cardW - subSize.Width - 14f, y + 14f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, fullTitle, new Vector2(x + 70f, y + 13f), nameColor, black, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, safeSub, new Vector2(x + cardW - subSize.Width - 14f, y + 13f), CarbonUiPalette.TextMuted, black, 1, 1f);
 
         int curHp = (int)MathF.Ceiling(_activeTarget.CurrentHealth);
         int maxHp = (int)MathF.Ceiling(MathF.Max(1f, _activeTarget.MaxHealth));
-        int pct = (int)MathF.Round(Math.Clamp(_activeTarget.CurrentHealth / MathF.Max(1f, _activeTarget.MaxHealth), 0f, 1f) * 100f);
-        string hpText = $"{curHp} / {maxHp} ({pct}%)";
-        CarbonUiSkin.DrawCenteredText(spriteBatch, font, hpText, new RectangleF(x + 70f, y + 38f, 256f, 18f), ColorRgba.White, black, 1.5f);
+        string hpText = $"{curHp} / {maxHp}";
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, hpText, new RectangleF(x + 70f, y + 40f, 256f, 20f), CarbonUiPalette.TextPrimary, black, 1f);
     }
 
     private static CompiledVectorRig? ResolveRig(IVectorArtRepository? art, in RemoteEntityView target)

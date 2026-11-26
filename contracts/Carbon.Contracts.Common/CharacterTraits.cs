@@ -24,4 +24,7 @@ public enum CharacterTraits : ulong
 
     /// <summary>Indicates blacksmith forge crafting access is unlocked.</summary>
     ForgeUnlocked = 1UL << 3,
+
+    /// <summary>Indicates the character has completed class/job advancement and unlocked class skills.</summary>
+    ClassAdvanced = 1UL << 4,
 }

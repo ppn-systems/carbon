@@ -126,7 +126,7 @@ public sealed class CharacterSelectScene : GameScene
         base.Load(context);
 
         _geometryBatch = new GeometryBatch(context.Device);
-        (_font, _whitePixel) = EmbeddedPixelFont.Create(context.Device);
+        (_font, _whitePixel) = GameFontLoader.Load(context.Device);
         _uiSkin = CarbonUiSkin.Load(context.Device);
         _vectorArt = CarbonVectorArtLibrary.LoadOrDefault();
     }
@@ -276,17 +276,17 @@ public sealed class CharacterSelectScene : GameScene
 
         // Pass 2: Standardized 9-Slice Windows, Cards, Hero Slots & Buttons
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: proj);
-        _uiSkin.DrawWindow(spriteBatch, in mainCard, new ColorRgba(250, 204, 21, 235), bodyAlpha: 238);
-        _uiSkin.DrawCard(spriteBatch, in stageCard, new ColorRgba(56, 189, 248, 210), bodyAlpha: 228);
-        _uiSkin.DrawCard(spriteBatch, in rightCard, new ColorRgba(100, 116, 139, 220), bodyAlpha: 228);
+        _uiSkin.DrawWindow(spriteBatch, in mainCard, CarbonUiPalette.BorderOuter, bodyAlpha: 242);
+        _uiSkin.DrawCard(spriteBatch, in stageCard, CarbonUiPalette.BorderSubtle, bodyAlpha: 234);
+        _uiSkin.DrawCard(spriteBatch, in rightCard, CarbonUiPalette.BorderSubtle, bodyAlpha: 234);
 
         if (_isCreatorMode)
         {
             for (int c = 0; c < 3; c++)
             {
                 bool sel = (byte)_selectedClass == c;
-                ColorRgba border = sel ? ResolveClassAccent(c) : new ColorRgba(71, 85, 105, 205);
-                ColorRgba body = sel ? new ColorRgba(26, 40, 68, 242) : new ColorRgba(13, 21, 36, 224);
+                ColorRgba border = sel ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle;
+                ColorRgba body = sel ? CarbonUiPalette.SlotSelectedFill : CarbonUiPalette.SlotFill;
                 _uiSkin.DrawPanel(spriteBatch, UiPanelStyle.DoubleCard, in _classCardBounds[c], body, border);
             }
 
@@ -312,13 +312,13 @@ public sealed class CharacterSelectScene : GameScene
             {
                 bool occupied = i < _characters.Count;
                 bool sel = occupied && i == _selectedIndex;
-                ColorRgba border = sel ? new ColorRgba(250, 204, 21, 255) : (occupied ? new ColorRgba(71, 85, 105, 220) : new ColorRgba(51, 65, 85, 175));
-                ColorRgba body = sel ? new ColorRgba(26, 44, 76, 242) : new ColorRgba(12, 20, 34, occupied ? (byte)228 : (byte)170);
+                ColorRgba border = sel ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle;
+                ColorRgba body = sel ? CarbonUiPalette.SlotSelectedFill : new ColorRgba(CarbonUiPalette.SlotFill.R, CarbonUiPalette.SlotFill.G, CarbonUiPalette.SlotFill.B, occupied ? (byte)234 : (byte)175);
                 _uiSkin.DrawPanel(spriteBatch, UiPanelStyle.DoubleCard, in _slotBounds[i], body, border);
                 if (occupied)
                 {
                     RectangleF pBox = new(_slotBounds[i].X + 10f, _slotBounds[i].Y + 12f, 52f, 52f);
-                    _uiSkin.DrawSlot(spriteBatch, in pBox, new ColorRgba(14, 22, 38, 240), sel ? new ColorRgba(250, 204, 21, 245) : new ColorRgba(56, 189, 248, 210));
+                    _uiSkin.DrawSlot(spriteBatch, in pBox, CarbonUiPalette.SlotFill, sel ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderOuter);
                 }
             }
 
@@ -333,7 +333,7 @@ public sealed class CharacterSelectScene : GameScene
         _turnLeftBtn.DrawSkin(spriteBatch, _uiSkin);
         _turnRightBtn.DrawSkin(spriteBatch, _uiSkin);
         _logoutButton.DrawSkin(spriteBatch, _uiSkin);
-        _uiSkin.DrawInset(spriteBatch, in statusPill, new ColorRgba(10, 16, 30, 232), _statusIsError ? new ColorRgba(248, 113, 113, 210) : new ColorRgba(52, 211, 153, 175));
+        _uiSkin.DrawInset(spriteBatch, in statusPill, CarbonUiPalette.SlotFill, _statusIsError ? CarbonUiPalette.DangerBorder : CarbonUiPalette.BorderSubtle);
         spriteBatch.End();
 
         // Pass 3: Live Vector Hero Pedestal, Class Weapon Badges, Portraits & Cursor
@@ -341,8 +341,8 @@ public sealed class CharacterSelectScene : GameScene
         Direction8 previewDir = s_turnDirs[_turnIndex];
         float stageCx = stageCard.X + (stageCard.Width * 0.5f);
         float stageCy = stageCard.Y + 240f;
-        _geometryBatch.FillCircle(new Vector2(stageCx, stageCy), 44f, new ColorRgba(6, 10, 20, 145), 22);
-        _geometryBatch.DrawCircle(new Vector2(stageCx, stageCy), 45f, _isCreatorMode ? ResolveClassAccent((int)_selectedClass) : new ColorRgba(56, 189, 248, 210), 22, 1.8f);
+        _geometryBatch.FillCircle(new Vector2(stageCx, stageCy), 44f, new ColorRgba(6, 10, 18, 145), 22);
+        _geometryBatch.DrawCircle(new Vector2(stageCx, stageCy), 45f, CarbonUiPalette.BorderOuter, 22, 1.8f);
 
         byte previewPreset = _isCreatorMode || _selectedIndex < 0 || _selectedIndex >= _characters.Count
             ? _selectedPreset
@@ -382,7 +382,7 @@ public sealed class CharacterSelectScene : GameScene
                 hitFlash: 0f,
                 equippedItem: weaponArt,
                 action: default,
-                legacySwingTimer: 0f,
+                swingTimer: 0f,
                 appearancePreset: previewPreset,
                 equipment: previewLoadout,
                 art: _vectorArt);
@@ -428,32 +428,32 @@ public sealed class CharacterSelectScene : GameScene
 
         // Pass 4: Text & Typography
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: proj);
-        ColorRgba black = new(8, 10, 16, 255);
+        ColorRgba black = CarbonUiPalette.TextOutline;
 
-        string header = _isCreatorMode ? "CHARACTER CREATOR // NEW HERO" : $"HERO ROSTER ({_characters.Count}/4)";
-        spriteBatch.DrawOutlinedString(_font, header, new Vector2(ox + 22f, oy + 20f), new ColorRgba(250, 204, 21, 255), black, 2, 2.5f);
-        spriteBatch.DrawOutlinedString(_font, $"NET: {_session.TransportLabel}", new Vector2(ox + 686f, oy + 23f), new ColorRgba(125, 211, 252, 255), black, 1, 1.5f);
+        string header = _isCreatorMode ? "CHARACTER CREATOR" : $"HERO ROSTER ({_characters.Count}/4)";
+        spriteBatch.DrawOutlinedString(_font, header, new Vector2(ox + 22f, oy + 18f), CarbonUiPalette.TextWarm, black, 2, 1.5f);
+        spriteBatch.DrawOutlinedString(_font, $"NET: {_session.TransportLabel}", new Vector2(ox + 686f, oy + 22f), CarbonUiPalette.TextMuted, black, 1, 1f);
 
-        string stageTitle = _isCreatorMode ? $"{s_classTitles[(int)_selectedClass]} PREVIEW" : "HERO STAGE";
-        TextMeasureResult stSize = _font.MeasureString(stageTitle, TextLayoutOptions.Default, 1.5f);
-        spriteBatch.DrawOutlinedString(_font, stageTitle, new Vector2(MathF.Floor(stageCard.X + ((stageCard.Width - stSize.Width) * 0.5f)), stageCard.Y + 14f), ColorRgba.White, black, 1, 1.5f);
+        string stageTitle = _isCreatorMode ? $"{s_classTitles[(int)_selectedClass]}" : "HERO STAGE";
+        TextMeasureResult stSize = _font.MeasureString(stageTitle, TextLayoutOptions.Default, 1f);
+        spriteBatch.DrawOutlinedString(_font, stageTitle, new Vector2(MathF.Floor(stageCard.X + ((stageCard.Width - stSize.Width) * 0.5f)), stageCard.Y + 14f), CarbonUiPalette.TextPrimary, black, 1, 1f);
 
         if (_isCreatorMode)
         {
-            spriteBatch.DrawOutlinedString(_font, "CHOOSE STARTING CLASS", new Vector2(ox + 24f, oy + 66f), new ColorRgba(203, 213, 225, 255), black, 1, 1.5f);
+            spriteBatch.DrawOutlinedString(_font, "STARTING CLASS", new Vector2(ox + 24f, oy + 66f), CarbonUiPalette.TextMuted, black, 1, 1f);
             for (int c = 0; c < 3; c++)
             {
                 RectangleF cb = _classCardBounds[c];
-                ColorRgba accent = ResolveClassAccent(c);
-                spriteBatch.DrawOutlinedString(_font, s_classTitles[c], new Vector2(cb.X + 64f, cb.Y + 16f), accent, black, 1, 2f);
-                spriteBatch.DrawOutlinedString(_font, s_classSubtitles[c], new Vector2(cb.X + 64f, cb.Y + 46f), new ColorRgba(226, 232, 240, 255), black, 1, 1f);
+                ColorRgba accent = (byte)_selectedClass == c ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextPrimary;
+                spriteBatch.DrawOutlinedString(_font, s_classTitles[c], new Vector2(cb.X + 64f, cb.Y + 18f), accent, black, 1, 1.25f);
+                spriteBatch.DrawOutlinedString(_font, CarbonUiSkin.TruncateToWidth(_font, s_classSubtitles[c], cb.Width - 72f, 1f), new Vector2(cb.X + 64f, cb.Y + 48f), CarbonUiPalette.TextMuted, black, 1, 1f);
             }
 
-            spriteBatch.DrawOutlinedString(_font, "APPEARANCE TRAITS", new Vector2(rightCard.X + 16f, rightCard.Y + 14f), new ColorRgba(250, 204, 21, 255), black, 1, 1.5f);
-            spriteBatch.DrawOutlinedString(_font, $"HAIR: {s_hairStyles[_hairStyle]}", new Vector2(rightCard.X + 52f, rightCard.Y + 52f), ColorRgba.White, black, 1, 1.5f);
-            spriteBatch.DrawOutlinedString(_font, $"TONE: {s_hairColors[_hairColor]}", new Vector2(rightCard.X + 52f, rightCard.Y + 86f), new ColorRgba(253, 224, 71, 255), black, 1, 1.5f);
-            spriteBatch.DrawOutlinedString(_font, $"EYES: {s_faceStyles[_faceStyle]}", new Vector2(rightCard.X + 52f, rightCard.Y + 120f), new ColorRgba(125, 211, 252, 255), black, 1, 1.5f);
-            spriteBatch.DrawOutlinedString(_font, $"SKIN: {s_skinTones[_skinTone]}", new Vector2(rightCard.X + 52f, rightCard.Y + 154f), new ColorRgba(245, 198, 165, 255), black, 1, 1.5f);
+            spriteBatch.DrawOutlinedString(_font, "APPEARANCE", new Vector2(rightCard.X + 16f, rightCard.Y + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(_font, $"HAIR: {s_hairStyles[_hairStyle]}", new Vector2(rightCard.X + 52f, rightCard.Y + 49f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(_font, $"TONE: {s_hairColors[_hairColor]}", new Vector2(rightCard.X + 52f, rightCard.Y + 83f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(_font, $"EYES: {s_faceStyles[_faceStyle]}", new Vector2(rightCard.X + 52f, rightCard.Y + 117f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(_font, $"SKIN: {s_skinTones[_skinTone]}", new Vector2(rightCard.X + 52f, rightCard.Y + 151f), CarbonUiPalette.TextPrimary, black, 1, 1f);
 
             _hairPrevBtn.DrawText(spriteBatch, _font);
             _hairNextBtn.DrawText(spriteBatch, _font);
@@ -479,32 +479,26 @@ public sealed class CharacterSelectScene : GameScene
                 if (i < _characters.Count)
                 {
                     ClientCharacterSummary c = _characters[i];
-                    ColorRgba nc = i == _selectedIndex ? new ColorRgba(250, 204, 21, 255) : ColorRgba.White;
+                    ColorRgba nc = i == _selectedIndex ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextPrimary;
                     string clsLabel = s_classTitles[Math.Clamp((int)c.Class, 0, s_classTitles.Length - 1)];
-                    spriteBatch.DrawOutlinedString(_font, c.Name, new Vector2(b.X + 70f, b.Y + 14f), nc, black, 1, 2f);
-                    spriteBatch.DrawOutlinedString(_font, $"{clsLabel} | LV.{c.Level} | TIER {c.ZoneTier}", new Vector2(b.X + 70f, b.Y + 42f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
+                    spriteBatch.DrawOutlinedString(_font, CarbonUiSkin.TruncateToWidth(_font, c.Name, b.Width - 82f, 1.25f), new Vector2(b.X + 70f, b.Y + 14f), nc, black, 1, 1.25f);
+                    spriteBatch.DrawOutlinedString(_font, $"{clsLabel}  LV.{c.Level}", new Vector2(b.X + 70f, b.Y + 42f), CarbonUiPalette.TextMuted, black, 1, 1f);
                 }
                 else
                 {
-                    spriteBatch.DrawOutlinedString(_font, "+ EMPTY SLOT (CREATE)", new Vector2(b.X + 26f, b.Y + 30f), new ColorRgba(100, 116, 139, 255), black, 1, 1.5f);
+                    spriteBatch.DrawOutlinedString(_font, "+ EMPTY SLOT", new Vector2(b.X + 26f, b.Y + 30f), CarbonUiPalette.TextMuted, black, 1, 1f);
                 }
             }
 
-            spriteBatch.DrawOutlinedString(_font, "HERO DOSSIER", new Vector2(rightCard.X + 16f, rightCard.Y + 14f), new ColorRgba(250, 204, 21, 255), black, 1, 1.5f);
+            spriteBatch.DrawOutlinedString(_font, "HERO DOSSIER", new Vector2(rightCard.X + 16f, rightCard.Y + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
             if (_selectedIndex >= 0 && _selectedIndex < _characters.Count)
             {
                 ClientCharacterSummary sel = _characters[_selectedIndex];
                 string selCls = s_classTitles[Math.Clamp((int)sel.Class, 0, s_classTitles.Length - 1)];
-                spriteBatch.DrawOutlinedString(_font, sel.Name.ToUpperInvariant(), new Vector2(rightCard.X + 16f, rightCard.Y + 44f), ColorRgba.White, black, 1, 2.5f);
-                spriteBatch.DrawOutlinedString(_font, $"{selCls}  //  LV.{sel.Level}  //  TIER {sel.ZoneTier}", new Vector2(rightCard.X + 16f, rightCard.Y + 76f), new ColorRgba(125, 211, 252, 255), black, 1, 1.5f);
-                spriteBatch.DrawOutlinedString(_font, $"POS: ({(int)sel.PositionX}, {(int)sel.PositionY})", new Vector2(rightCard.X + 16f, rightCard.Y + 98f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
+                spriteBatch.DrawOutlinedString(_font, CarbonUiSkin.TruncateToWidth(_font, sel.Name.ToUpperInvariant(), rightCard.Width - 32f, 1.5f), new Vector2(rightCard.X + 16f, rightCard.Y + 44f), CarbonUiPalette.TextPrimary, black, 1, 1.5f);
+                spriteBatch.DrawOutlinedString(_font, $"{selCls}  //  LV.{sel.Level}  //  TIER {sel.ZoneTier}", new Vector2(rightCard.X + 16f, rightCard.Y + 78f), CarbonUiPalette.TextWarm, black, 1, 1f);
+                spriteBatch.DrawOutlinedString(_font, $"POS: ({(int)sel.PositionX}, {(int)sel.PositionY})", new Vector2(rightCard.X + 16f, rightCard.Y + 102f), CarbonUiPalette.TextMuted, black, 1, 1f);
             }
-
-            spriteBatch.DrawOutlinedString(_font, "CONTROLS SUMMARY:", new Vector2(rightCard.X + 16f, rightCard.Y + 142f), new ColorRgba(253, 224, 71, 255), black, 1, 1.5f);
-            spriteBatch.DrawOutlinedString(_font, "WASD: Move    SHIFT: Sprint", new Vector2(rightCard.X + 16f, rightCard.Y + 166f), new ColorRgba(226, 232, 240, 255), black, 1, 1f);
-            spriteBatch.DrawOutlinedString(_font, "LMB / SPACE: Attack / Shoot / Cast", new Vector2(rightCard.X + 16f, rightCard.Y + 184f), new ColorRgba(226, 232, 240, 255), black, 1, 1f);
-            spriteBatch.DrawOutlinedString(_font, "TAB: Target Lock    Q/R/V: Skills", new Vector2(rightCard.X + 16f, rightCard.Y + 202f), new ColorRgba(226, 232, 240, 255), black, 1, 1f);
-            spriteBatch.DrawOutlinedString(_font, "I: Bag   C: Workshop   U: Forge Anvil", new Vector2(rightCard.X + 16f, rightCard.Y + 220f), new ColorRgba(226, 232, 240, 255), black, 1, 1f);
 
             if (_characters.Count < 4)
             {
@@ -519,10 +513,10 @@ public sealed class CharacterSelectScene : GameScene
         _logoutButton.DrawText(spriteBatch, _font);
 
         ColorRgba statusColor = _statusIsError
-            ? new ColorRgba(248, 113, 113, 255)
-            : new ColorRgba(110, 231, 183, 255);
-        string status = _statusMessage.Length > 72 ? _statusMessage[..72] : _statusMessage;
-        spriteBatch.DrawOutlinedString(_font, status, new Vector2(statusPill.X + 10f, statusPill.Y + 8f), statusColor, black, 1, 1.5f);
+            ? new ColorRgba(235, 130, 130, 255)
+            : CarbonUiPalette.TextPrimary;
+        string status = CarbonUiSkin.TruncateToWidth(_font, _statusMessage, statusPill.Width - 20f, 1f);
+        spriteBatch.DrawOutlinedString(_font, status, new Vector2(statusPill.X + 10f, statusPill.Y + 7f), statusColor, black, 1, 1f);
         spriteBatch.End();
 
         base.Render(context, spriteBatch, dt);
@@ -862,13 +856,6 @@ public sealed class CharacterSelectScene : GameScene
             _createButton.Bounds = new RectangleF(rx + 16f, ry + 302f, 274f, 44f);
         }
     }
-
-    private static ColorRgba ResolveClassAccent(int classIdx) => classIdx switch
-    {
-        1 => new ColorRgba(74, 222, 128, 255),
-        2 => new ColorRgba(56, 189, 248, 255),
-        _ => new ColorRgba(250, 204, 21, 255),
-    };
 
     private void BeginLogout()
     {

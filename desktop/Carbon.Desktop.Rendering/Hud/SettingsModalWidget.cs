@@ -42,22 +42,22 @@ internal sealed class SettingsModalWidget
 
     private static readonly (string Key, string Desc)[] s_controlsLeft =
     [
-        ("WASD / Arrows", "Move hero"),
-        ("Hold Shift", "Sprint (uses Stamina)"),
-        ("LMB / Space", "Strike, Cast or Harvest"),
-        ("Scroll / 1..9", "Select Hotbar Slot"),
-        ("TAB", "Lock / Cycle Enemy"),
-        ("Q / R / V", "Cast Learned Skills"),
+        ("WASD", "Move"),
+        ("Shift", "Sprint"),
+        ("LMB / Space", "Attack / Harvest"),
+        ("1..9 / Scroll", "Select Slot"),
+        ("Tab", "Lock Target"),
+        ("Q / R / V", "Class Skills"),
     ];
 
     private static readonly (string Key, string Desc)[] s_controlsRight =
     [
-        ("E", "Pickup Loot / Smith / Door"),
-        ("I / B", "Bag, Gear & Stat Points"),
-        ("K", "Skill Tome (Unlock/Rank)"),
-        ("C", "Crafting Workshop"),
-        ("U", "Blacksmith Forge Anvil"),
-        ("M / F1 / ESC", "Radar / Hide HUD / Menu"),
+        ("E", "Pickup / Smith"),
+        ("I", "Inventory Bag"),
+        ("Y", "Character & Stats"),
+        ("C / U", "Craft / Forge"),
+        ("M / F1", "Map / Toggle HUD"),
+        ("Esc", "Menu"),
     ];
 
     private int _activeTab;
@@ -103,7 +103,7 @@ internal sealed class SettingsModalWidget
             return SettingsModalAction.None;
         }
 
-        for (int row = 0; row < 4; row++)
+        for (int row = 0; row < 3; row++)
         {
             if (GetToggleButtonRect(ox, oy, row).Contains(mousePos))
             {
@@ -115,11 +115,8 @@ internal sealed class SettingsModalWidget
                     case 1:
                         settings.ShowCombatNumbers = !settings.ShowCombatNumbers;
                         break;
-                    case 2:
-                        settings.ShowTelemetry = !settings.ShowTelemetry;
-                        break;
                     default:
-                        settings.ShowKeybindHints = !settings.ShowKeybindHints;
+                        settings.ShowTelemetry = !settings.ShowTelemetry;
                         break;
                 }
 
@@ -150,11 +147,11 @@ internal sealed class SettingsModalWidget
         Vector2? mouseScreenPos)
     {
         (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
-        skin.DrawWindow(spriteBatch, new RectangleF(ox, oy, PanelW, PanelH), new ColorRgba(250, 204, 21, 240), bodyAlpha: 248);
+        skin.DrawWindow(spriteBatch, new RectangleF(ox, oy, PanelW, PanelH), CarbonUiPalette.BorderOuter, bodyAlpha: 248);
 
         RectangleF closeBtn = GetCloseButtonRect(ox, oy);
         bool hoverClose = mouseScreenPos.HasValue && closeBtn.Contains(mouseScreenPos.Value);
-        skin.DrawButton(spriteBatch, in closeBtn, hoverClose ? new ColorRgba(220, 38, 38, 245) : new ColorRgba(153, 27, 27, 235), new ColorRgba(248, 113, 113, 245));
+        skin.DrawButton(spriteBatch, in closeBtn, hoverClose ? new ColorRgba(158, 46, 52, 245) : CarbonUiPalette.DangerFill, CarbonUiPalette.DangerBorder);
 
         for (int t = 0; t < 2; t++)
         {
@@ -163,15 +160,15 @@ internal sealed class SettingsModalWidget
             skin.DrawButton(
                 spriteBatch,
                 in tabRect,
-                active ? new ColorRgba(180, 83, 9, 240) : new ColorRgba(18, 28, 48, 232),
-                active ? new ColorRgba(253, 224, 71, 255) : new ColorRgba(71, 85, 105, 220));
+                active ? CarbonUiPalette.SlotSelectedFill : CarbonUiPalette.CardFill,
+                active ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle);
         }
 
-        skin.DrawCard(spriteBatch, new RectangleF(ox + 20f, oy + 86f, PanelW - 40f, 274f), new ColorRgba(71, 85, 105, 225), bodyAlpha: 238);
+        skin.DrawCard(spriteBatch, new RectangleF(ox + 20f, oy + 86f, PanelW - 40f, 274f), CarbonUiPalette.BorderSubtle, bodyAlpha: 238);
 
         if (_activeTab == 0)
         {
-            bool[] values = [settings.ShowMinimap, settings.ShowCombatNumbers, settings.ShowTelemetry, settings.ShowKeybindHints];
+            bool[] values = [settings.ShowMinimap, settings.ShowCombatNumbers, settings.ShowTelemetry];
             for (int r = 0; r < values.Length; r++)
             {
                 RectangleF btn = GetToggleButtonRect(ox, oy, r);
@@ -180,8 +177,8 @@ internal sealed class SettingsModalWidget
                 skin.DrawButton(
                     spriteBatch,
                     in btn,
-                    on ? (hovered ? new ColorRgba(16, 185, 129, 245) : new ColorRgba(5, 150, 105, 235)) : new ColorRgba(26, 36, 54, 230),
-                    on ? new ColorRgba(110, 231, 183, 245) : new ColorRgba(100, 116, 139, 220));
+                    on ? (hovered ? new ColorRgba(44, 114, 82, 245) : CarbonUiPalette.ConfirmFill) : CarbonUiPalette.SlotFill,
+                    on ? CarbonUiPalette.ConfirmBorder : CarbonUiPalette.BorderSubtle);
             }
 
             for (int z = 0; z < 3; z++)
@@ -191,89 +188,80 @@ internal sealed class SettingsModalWidget
                 skin.DrawButton(
                     spriteBatch,
                     in zRect,
-                    active ? new ColorRgba(37, 99, 235, 240) : new ColorRgba(20, 30, 50, 228),
-                    active ? new ColorRgba(125, 211, 252, 255) : new ColorRgba(71, 85, 105, 215));
+                    active ? CarbonUiPalette.SlotSelectedFill : CarbonUiPalette.SlotFill,
+                    active ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle);
             }
         }
 
-        skin.DrawButton(spriteBatch, GetFooterButtonRect(ox, oy, 0), new ColorRgba(5, 150, 105, 238), new ColorRgba(110, 231, 183, 245));
-        skin.DrawButton(spriteBatch, GetFooterButtonRect(ox, oy, 1), new ColorRgba(180, 83, 9, 238), new ColorRgba(253, 224, 71, 245));
-        skin.DrawButton(spriteBatch, GetFooterButtonRect(ox, oy, 2), new ColorRgba(153, 27, 27, 238), new ColorRgba(248, 113, 113, 245));
+        skin.DrawButton(spriteBatch, GetFooterButtonRect(ox, oy, 0), CarbonUiPalette.ConfirmFill, CarbonUiPalette.ConfirmBorder);
+        skin.DrawButton(spriteBatch, GetFooterButtonRect(ox, oy, 1), CarbonUiPalette.CardFill, CarbonUiPalette.BorderOuter);
+        skin.DrawButton(spriteBatch, GetFooterButtonRect(ox, oy, 2), CarbonUiPalette.DangerFill, CarbonUiPalette.DangerBorder);
     }
 
     public void DrawText(SpriteBatch spriteBatch, BitmapFont font, ClientUiSettings settings, int viewportWidth, int viewportHeight)
     {
         (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
-        ColorRgba black = new(8, 10, 16, 255);
+        ColorRgba black = CarbonUiPalette.TextOutline;
 
-        spriteBatch.DrawOutlinedString(font, "SYSTEM SETTINGS & CONTROLS [ESC]", new Vector2(ox + 20f, oy + 16f), new ColorRgba(250, 204, 21, 255), black, 1, 1.5f);
-        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "X", GetCloseButtonRect(ox, oy), ColorRgba.White, black, 1.5f);
-        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "HUD & DISPLAY", GetTabRect(ox, oy, 0), ColorRgba.White, black, 1f);
-        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "CONTROLS & GUIDE", GetTabRect(ox, oy, 1), ColorRgba.White, black, 1f);
+        spriteBatch.DrawOutlinedString(font, "Settings", new Vector2(ox + 20f, oy + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "X", GetCloseButtonRect(ox, oy), CarbonUiPalette.TextPrimary, black, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "Display", GetTabRect(ox, oy, 0), CarbonUiPalette.TextPrimary, black, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "Controls", GetTabRect(ox, oy, 1), CarbonUiPalette.TextPrimary, black, 1f);
 
         if (_activeTab == 0)
         {
             (string Label, bool Val)[] rows =
             [
-                ("Show Top-Right Radar Minimap ([M])", settings.ShowMinimap),
-                ("Show Floating Combat & XP Numbers", settings.ShowCombatNumbers),
-                ("Show Coordinates & FPS Telemetry", settings.ShowTelemetry),
-                ("Show Bottom Keybind Hint Ribbon", settings.ShowKeybindHints),
+                ("Show Minimap (M)", settings.ShowMinimap),
+                ("Show Combat Numbers", settings.ShowCombatNumbers),
+                ("Show FPS & Coords in Character Info", settings.ShowTelemetry),
             ];
             for (int r = 0; r < rows.Length; r++)
             {
                 RectangleF toggleRect = GetToggleButtonRect(ox, oy, r);
-                spriteBatch.DrawOutlinedString(font, rows[r].Label, new Vector2(ox + 38f, toggleRect.Y + 6f), new ColorRgba(226, 232, 240, 255), black, 1, 1f);
-                CarbonUiSkin.DrawCenteredText(spriteBatch, font, rows[r].Val ? "ON" : "OFF", in toggleRect, ColorRgba.White, black, 1f);
+                spriteBatch.DrawOutlinedString(font, rows[r].Label, new Vector2(ox + 38f, toggleRect.Y + 4f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+                CarbonUiSkin.DrawCenteredText(spriteBatch, font, rows[r].Val ? "ON" : "OFF", in toggleRect, CarbonUiPalette.TextPrimary, black, 1f);
             }
 
-            spriteBatch.DrawOutlinedString(font, "Camera Zoom Preset", new Vector2(ox + 38f, oy + 294f), new ColorRgba(226, 232, 240, 255), black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, "Camera Zoom", new Vector2(ox + 38f, oy + 292f), CarbonUiPalette.TextPrimary, black, 1, 1f);
             string[] zoomLabels = ["WIDE", "STD", "CLOSE"];
             for (int z = 0; z < 3; z++)
             {
-                CarbonUiSkin.DrawCenteredText(spriteBatch, font, zoomLabels[z], GetZoomButtonRect(ox, oy, z), ColorRgba.White, black, 1f);
+                CarbonUiSkin.DrawCenteredText(spriteBatch, font, zoomLabels[z], GetZoomButtonRect(ox, oy, z), CarbonUiPalette.TextPrimary, black, 1f);
             }
         }
         else
         {
-            spriteBatch.DrawOutlinedString(font, "COMBAT & HARVESTING", new Vector2(ox + 36f, oy + 100f), new ColorRgba(253, 224, 71, 255), black, 1, 1f);
-            spriteBatch.DrawOutlinedString(font, "MENUS & STATIONS", new Vector2(ox + 302f, oy + 100f), new ColorRgba(125, 211, 252, 255), black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, "Combat", new Vector2(ox + 36f, oy + 100f), CarbonUiPalette.TextWarm, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, "Menus", new Vector2(ox + 302f, oy + 100f), CarbonUiPalette.TextWarm, black, 1, 1f);
 
             for (int i = 0; i < s_controlsLeft.Length; i++)
             {
-                float y = oy + 124f + (i * 28f);
-                spriteBatch.DrawOutlinedString(font, s_controlsLeft[i].Key, new Vector2(ox + 36f, y), new ColorRgba(253, 224, 71, 255), black, 1, 1f);
-                spriteBatch.DrawOutlinedString(font, s_controlsLeft[i].Desc, new Vector2(ox + 132f, y), ColorRgba.White, black, 1, 1f);
+                float y = oy + 128f + (i * 30f);
+                spriteBatch.DrawOutlinedString(font, s_controlsLeft[i].Key, new Vector2(ox + 36f, y), CarbonUiPalette.TextWarm, black, 1, 1f);
+                spriteBatch.DrawOutlinedString(font, s_controlsLeft[i].Desc, new Vector2(ox + 148f, y), CarbonUiPalette.TextPrimary, black, 1, 1f);
             }
 
             for (int i = 0; i < s_controlsRight.Length; i++)
             {
-                float y = oy + 124f + (i * 28f);
-                spriteBatch.DrawOutlinedString(font, s_controlsRight[i].Key, new Vector2(ox + 302f, y), new ColorRgba(125, 211, 252, 255), black, 1, 1f);
-                spriteBatch.DrawOutlinedString(font, s_controlsRight[i].Desc, new Vector2(ox + 388f, y), ColorRgba.White, black, 1, 1f);
+                float y = oy + 128f + (i * 30f);
+                spriteBatch.DrawOutlinedString(font, s_controlsRight[i].Key, new Vector2(ox + 302f, y), CarbonUiPalette.TextWarm, black, 1, 1f);
+                spriteBatch.DrawOutlinedString(font, s_controlsRight[i].Desc, new Vector2(ox + 402f, y), CarbonUiPalette.TextPrimary, black, 1, 1f);
             }
 
             spriteBatch.DrawOutlinedString(
                 font,
-                "Tip: Chopping/mining needs close range; Bows/Staffs shoot at range.",
-                new Vector2(ox + 36f, oy + 318f),
-                new ColorRgba(148, 163, 184, 255),
-                black,
-                1,
-                1f);
-            spriteBatch.DrawOutlinedString(
-                font,
-                "Tip: Unlock skills with SP in [K], forge +1..+10 near Blacksmith [U].",
-                new Vector2(ox + 36f, oy + 334f),
-                new ColorRgba(148, 163, 184, 255),
+                "Drag an item outside Bag to drop it on the ground.",
+                new Vector2(ox + 36f, oy + 324f),
+                CarbonUiPalette.TextMuted,
                 black,
                 1,
                 1f);
         }
 
-        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "RESUME", GetFooterButtonRect(ox, oy, 0), ColorRgba.White, black, 1f);
-        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "LOGOUT HERO", GetFooterButtonRect(ox, oy, 1), ColorRgba.White, black, 1f);
-        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "QUIT GAME", GetFooterButtonRect(ox, oy, 2), ColorRgba.White, black, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "RESUME", GetFooterButtonRect(ox, oy, 0), CarbonUiPalette.TextPrimary, black, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "LOGOUT", GetFooterButtonRect(ox, oy, 1), CarbonUiPalette.TextPrimary, black, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "QUIT", GetFooterButtonRect(ox, oy, 2), CarbonUiPalette.TextPrimary, black, 1f);
     }
 
     private static (float Ox, float Oy) ComputeOrigin(int viewportWidth, int viewportHeight) =>

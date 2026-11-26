@@ -14,47 +14,37 @@ using Carbon.Items.Catalog;
 namespace Carbon.Desktop.Rendering.Hud;
 
 /// <summary>
-/// Compact data-driven RPG active skill bar rendering every skill registered in <see cref="SkillCatalog.Skills"/>
-/// alongside the bottom hotbar, showing locked padlocks when <c>Rank == 0</c>, learned mastery pips,
-/// cooldown sweeps, and hover tooltip cards (SRP / OCP).
+/// Right-edge vertical class skill bar powered by <see cref="SkillCatalog"/>.
+/// Stays completely hidden prior to job/class advancement when the hero has zero unlocked class skills.
 /// </summary>
 internal sealed class SkillBarWidget
 {
-    private const float SlotSize = 42f;
-    private const float Gap = 5f;
-    private const float HotbarWidth = (9 * 44f) + (8 * 4f);
+    private const float SlotSize = 52f;
+    private const float Gap = 6f;
 
-    private static SkillDefinition[]? s_orderedSkills;
+    private readonly List<SkillDefinition> _visibleSkills = new(8);
 
-    internal static IReadOnlyList<SkillDefinition> GetOrderedSkills()
-    {
-        if (s_orderedSkills is not null)
-        {
-            return s_orderedSkills;
-        }
-
-        List<SkillDefinition> list = [.. SkillCatalog.Skills.All];
-        list.Sort(static (a, b) => a.Id.CompareTo(b.Id));
-        s_orderedSkills = [.. list];
-        return s_orderedSkills;
-    }
-
-    public bool TryHitTestSkill(Vector2 mousePos, int viewportWidth, int viewportHeight, bool showHints, out ushort skillId)
+    public bool TryHitTestSkill(IClientWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort skillId)
     {
         skillId = 0;
-        IReadOnlyList<SkillDefinition> skills = GetOrderedSkills();
-        (float startX, float startY) = ComputeOrigin(viewportWidth, viewportHeight, showHints, skills.Count);
-        if (mousePos.Y < startY || mousePos.Y > startY + SlotSize)
+        this.CollectVisibleSkills(world);
+        if (_visibleSkills.Count == 0)
         {
             return false;
         }
 
-        for (int i = 0; i < skills.Count; i++)
+        (float startX, float startY) = ComputeOrigin(viewportWidth, viewportHeight, _visibleSkills.Count);
+        if (mousePos.X < startX || mousePos.X > startX + SlotSize)
         {
-            float sx = startX + (i * (SlotSize + Gap));
-            if (mousePos.X >= sx && mousePos.X <= sx + SlotSize)
+            return false;
+        }
+
+        for (int i = 0; i < _visibleSkills.Count; i++)
+        {
+            float sy = startY + (i * (SlotSize + Gap));
+            if (mousePos.Y >= sy && mousePos.Y <= sy + SlotSize)
             {
-                skillId = skills[i].Id;
+                skillId = _visibleSkills[i].Id;
                 return true;
             }
         }
@@ -67,35 +57,38 @@ internal sealed class SkillBarWidget
         CarbonUiSkin skin,
         IClientWorldReadModel world,
         int viewportWidth,
-        int viewportHeight,
-        bool showHints)
+        int viewportHeight)
     {
-        IReadOnlyList<SkillDefinition> skills = GetOrderedSkills();
-        if (skills.Count == 0)
+        this.CollectVisibleSkills(world);
+        if (_visibleSkills.Count == 0)
         {
             return;
         }
 
-        (float startX, float startY) = ComputeOrigin(viewportWidth, viewportHeight, showHints, skills.Count);
-        float totalW = (skills.Count * SlotSize) + ((skills.Count - 1) * Gap);
-        skin.DrawCard(spriteBatch, new RectangleF(startX - 7f, startY - 7f, totalW + 14f, SlotSize + 14f), new ColorRgba(56, 189, 248, 205), bodyAlpha: 230);
+        (float startX, float startY) = ComputeOrigin(viewportWidth, viewportHeight, _visibleSkills.Count);
+        float totalH = (_visibleSkills.Count * SlotSize) + ((_visibleSkills.Count - 1) * Gap);
+        skin.DrawCard(
+            spriteBatch,
+            new RectangleF(startX - 6f, startY - 6f, SlotSize + 12f, totalH + 12f),
+            CarbonUiPalette.BorderOuter,
+            bodyAlpha: 236);
 
-        for (int i = 0; i < skills.Count; i++)
+        for (int i = 0; i < _visibleSkills.Count; i++)
         {
-            SkillDefinition skill = skills[i];
-            float sx = startX + (i * (SlotSize + Gap));
+            SkillDefinition skill = _visibleSkills[i];
+            float sy = startY + (i * (SlotSize + Gap));
             byte rank = world.GetSkillRank(skill.Id);
             if (rank == 0)
             {
-                skin.DrawSlot(spriteBatch, new RectangleF(sx, startY, SlotSize, SlotSize), new ColorRgba(10, 14, 24, 232), new ColorRgba(51, 65, 85, 195));
+                skin.DrawSlot(spriteBatch, new RectangleF(startX, sy, SlotSize, SlotSize), CarbonUiPalette.SlotFill, CarbonUiPalette.BorderSubtle);
                 continue;
             }
 
             SkillSpec spec = skill.EvaluateRank(rank);
             float cd = world.GetSkillCooldown(skill.Id);
             bool ready = cd <= 0.02f && world.LocalPlayerMana >= spec.ManaCost && world.LocalPlayerStamina >= spec.StaminaCost;
-            ColorRgba accent = ResolveAccentColor(skill);
-            skin.DrawSlot(spriteBatch, new RectangleF(sx, startY, SlotSize, SlotSize), new ColorRgba(14, 22, 38, 238), ready ? accent : new ColorRgba(71, 85, 105, 220));
+            ColorRgba border = ready ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle;
+            skin.DrawSlot(spriteBatch, new RectangleF(startX, sy, SlotSize, SlotSize), CarbonUiPalette.CardFill, border);
         }
     }
 
@@ -104,69 +97,71 @@ internal sealed class SkillBarWidget
         IClientWorldReadModel world,
         int viewportWidth,
         int viewportHeight,
-        bool showHints,
         Vector2? mouseScreenPos)
     {
-        IReadOnlyList<SkillDefinition> skills = GetOrderedSkills();
-        if (skills.Count == 0)
+        this.CollectVisibleSkills(world);
+        if (_visibleSkills.Count == 0)
         {
             return 0;
         }
 
-        (float startX, float startY) = ComputeOrigin(viewportWidth, viewportHeight, showHints, skills.Count);
+        (float startX, float startY) = ComputeOrigin(viewportWidth, viewportHeight, _visibleSkills.Count);
         SkillDefinition? hoveredDef = null;
+        float hoveredY = startY;
 
-        for (int i = 0; i < skills.Count; i++)
+        for (int i = 0; i < _visibleSkills.Count; i++)
         {
-            SkillDefinition skill = skills[i];
-            float sx = startX + (i * (SlotSize + Gap));
-            RectangleF rect = new(sx, startY, SlotSize, SlotSize);
+            SkillDefinition skill = _visibleSkills[i];
+            float sy = startY + (i * (SlotSize + Gap));
+            RectangleF rect = new(startX, sy, SlotSize, SlotSize);
             if (mouseScreenPos.HasValue && rect.Contains(mouseScreenPos.Value))
             {
                 hoveredDef = skill;
+                hoveredY = sy;
             }
 
             byte rank = world.GetSkillRank(skill.Id);
             ColorRgba accent = ResolveAccentColor(skill);
-            if (rank == 0)
+            if (rank > 0)
             {
-                DrawLockedPadlock(batch, new Vector2(sx + (SlotSize * 0.5f), startY + (SlotSize * 0.48f)));
-                continue;
+                SkillSpec spec = skill.EvaluateRank(rank);
+                float cd = world.GetSkillCooldown(skill.Id);
+                bool hasResources = world.LocalPlayerMana >= spec.ManaCost && world.LocalPlayerStamina >= spec.StaminaCost;
+                bool ready = cd <= 0.02f && hasResources;
+
+                DrawSkillGlyph(batch, skill.AnimArchetype, new Vector2(startX + (SlotSize * 0.5f), sy + (SlotSize * 0.46f)), accent, ready);
+
+                for (int r = 0; r < rank && r < skill.MaxRank; r++)
+                {
+                    batch.FillRectangle(new RectangleF(startX + 5f + (r * 5f), sy + SlotSize - 7f, 3.5f, 3.5f), CarbonUiPalette.BorderActive);
+                }
+
+                if (cd > 0.02f && spec.CooldownSeconds > 0.1f)
+                {
+                    float frac = Math.Clamp(cd / spec.CooldownSeconds, 0f, 1f);
+                    float maskH = SlotSize * frac;
+                    batch.FillRectangle(new RectangleF(startX + 2f, sy + SlotSize - maskH, SlotSize - 4f, maskH - 2f), new ColorRgba(8, 10, 16, 195));
+                }
+                else if (!hasResources)
+                {
+                    batch.FillRectangle(new RectangleF(startX + 2f, sy + 2f, SlotSize - 4f, SlotSize - 4f), new ColorRgba(10, 12, 18, 120));
+                }
             }
-
-            SkillSpec spec = skill.EvaluateRank(rank);
-            float cd = world.GetSkillCooldown(skill.Id);
-            bool hasResources = world.LocalPlayerMana >= spec.ManaCost && world.LocalPlayerStamina >= spec.StaminaCost;
-            bool ready = cd <= 0.02f && hasResources;
-
-            DrawSkillGlyph(batch, skill.AnimArchetype, new Vector2(sx + (SlotSize * 0.5f), startY + (SlotSize * 0.44f)), accent, ready);
-
-            for (int r = 0; r < rank && r < skill.MaxRank; r++)
+            else
             {
-                batch.FillRectangle(new RectangleF(sx + 4f + (r * 4.5f), startY + SlotSize - 6f, 3f, 3f), new ColorRgba(250, 204, 21, 240));
-            }
-
-            if (cd > 0.02f && spec.CooldownSeconds > 0.1f)
-            {
-                float frac = Math.Clamp(cd / spec.CooldownSeconds, 0f, 1f);
-                float maskH = SlotSize * frac;
-                batch.FillRectangle(new RectangleF(sx + 2f, startY + SlotSize - maskH, SlotSize - 4f, maskH - 2f), new ColorRgba(6, 10, 20, 195));
-            }
-            else if (!hasResources)
-            {
-                batch.FillRectangle(new RectangleF(sx + 2f, startY + 2f, SlotSize - 4f, SlotSize - 4f), new ColorRgba(10, 14, 24, 125));
+                DrawSkillGlyph(batch, skill.AnimArchetype, new Vector2(startX + (SlotSize * 0.5f), sy + (SlotSize * 0.46f)), CarbonUiPalette.TextMuted, ready: false);
             }
         }
 
         if (hoveredDef is not null)
         {
-            float tipX = Math.Clamp(startX - 10f, 12f, viewportWidth - 296f);
-            RectangleF tipBox = new(tipX, startY - 72f, 284f, 62f);
-            ColorRgba accent = world.GetSkillRank(hoveredDef.Id) > 0
-                ? ResolveAccentColor(hoveredDef)
-                : new ColorRgba(148, 163, 184, 255);
-            batch.FillRectangle(tipBox, new ColorRgba(8, 12, 24, 245));
-            batch.DrawRectangle(tipBox, accent, 1.4f);
+            const float tipW = 248f;
+            const float tipH = 56f;
+            float tipX = MathF.Max(12f, startX - tipW - 14f);
+            float tipY = Math.Clamp(hoveredY, 12f, viewportHeight - tipH - 12f);
+            RectangleF tipBox = new(tipX, tipY, tipW, tipH);
+            batch.FillRectangle(tipBox, CarbonUiPalette.WindowFill);
+            batch.DrawRectangle(tipBox, CarbonUiPalette.BorderOuter, 1.4f);
             return hoveredDef.Id;
         }
 
@@ -179,51 +174,58 @@ internal sealed class SkillBarWidget
         IClientWorldReadModel world,
         int viewportWidth,
         int viewportHeight,
-        bool showHints,
         ushort hoveredSkillId)
     {
-        IReadOnlyList<SkillDefinition> skills = GetOrderedSkills();
-        if (skills.Count == 0)
+        this.CollectVisibleSkills(world);
+        if (_visibleSkills.Count == 0)
         {
             return;
         }
 
-        (float startX, float startY) = ComputeOrigin(viewportWidth, viewportHeight, showHints, skills.Count);
-        ColorRgba black = new(8, 10, 16, 255);
+        (float startX, float startY) = ComputeOrigin(viewportWidth, viewportHeight, _visibleSkills.Count);
+        ColorRgba black = CarbonUiPalette.TextOutline;
         SkillDefinition? hoveredDef = null;
+        float hoveredY = startY;
 
-        for (int i = 0; i < skills.Count; i++)
+        for (int i = 0; i < _visibleSkills.Count; i++)
         {
-            SkillDefinition skill = skills[i];
+            SkillDefinition skill = _visibleSkills[i];
+            float sy = startY + (i * (SlotSize + Gap));
             if (skill.Id == hoveredSkillId)
             {
                 hoveredDef = skill;
+                hoveredY = sy;
             }
 
-            float sx = startX + (i * (SlotSize + Gap));
             byte rank = world.GetSkillRank(skill.Id);
             spriteBatch.DrawOutlinedString(
                 font,
                 skill.DefaultKeyLabel,
-                new Vector2(sx + 4f, startY + 3f),
-                rank > 0 ? new ColorRgba(253, 224, 71, 255) : new ColorRgba(148, 163, 184, 220),
+                new Vector2(startX + 5f, sy + 3f),
+                rank > 0 ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextMuted,
                 black,
                 1,
                 1f);
 
             if (rank == 0)
             {
-                spriteBatch.DrawOutlinedString(font, "LOCK", new Vector2(sx + SlotSize - 24f, startY + SlotSize - 12f), new ColorRgba(148, 163, 184, 225), black, 1, 1f);
                 continue;
             }
 
             SkillSpec spec = skill.EvaluateRank(rank);
-            spriteBatch.DrawOutlinedString(font, $"{(int)spec.ManaCost}", new Vector2(sx + SlotSize - 17f, startY + SlotSize - 12f), new ColorRgba(125, 211, 252, 255), black, 1, 1f);
+            spriteBatch.DrawOutlinedString(
+                font,
+                $"{(int)spec.ManaCost}",
+                new Vector2(startX + SlotSize - 22f, sy + SlotSize - 18f),
+                CarbonUiPalette.TextMuted,
+                black,
+                1,
+                1f);
 
             float cd = world.GetSkillCooldown(skill.Id);
             if (cd > 0.05f)
             {
-                CarbonUiSkin.DrawCenteredText(spriteBatch, font, $"{cd:F1}s", new RectangleF(sx, startY, SlotSize, SlotSize), ColorRgba.White, black, 1.5f);
+                CarbonUiSkin.DrawCenteredText(spriteBatch, font, $"{cd:F1}s", new RectangleF(startX, sy, SlotSize, SlotSize), CarbonUiPalette.TextPrimary, black, 1f);
             }
         }
 
@@ -232,25 +234,17 @@ internal sealed class SkillBarWidget
             byte rank = world.GetSkillRank(hoveredDef.Id);
             byte effectiveRank = rank > 0 ? rank : (byte)1;
             SkillSpec hoveredSpec = hoveredDef.EvaluateRank(effectiveRank);
-            float tipX = Math.Clamp(startX - 10f, 12f, viewportWidth - 296f);
-            float tipY = startY - 72f;
-            if (rank == 0)
-            {
-                string title = CarbonUiSkin.TruncateToWidth(font, $"{hoveredDef.DisplayName} [LOCKED]", 268f, 1.5f);
-                spriteBatch.DrawOutlinedString(font, title, new Vector2(tipX + 8f, tipY + 6f), new ColorRgba(250, 204, 21, 255), black, 1, 1.5f);
-                spriteBatch.DrawOutlinedString(font, "Requires 1 Skill Point to unlock", new Vector2(tipX + 8f, tipY + 26f), new ColorRgba(248, 113, 113, 255), black, 1, 1f);
-                spriteBatch.DrawOutlinedString(font, "Open Skill Tome [K] to unlock & upgrade", new Vector2(tipX + 8f, tipY + 42f), new ColorRgba(203, 213, 225, 255), black, 1, 1f);
-            }
-            else
-            {
-                string title = CarbonUiSkin.TruncateToWidth(font, $"{hoveredSpec.DisplayName} (R{rank}/{hoveredDef.MaxRank})", 268f, 1.5f);
-                spriteBatch.DrawOutlinedString(font, title, new Vector2(tipX + 8f, tipY + 6f), ResolveAccentColor(hoveredDef), black, 1, 1.5f);
-                spriteBatch.DrawOutlinedString(font, $"MP {(int)hoveredSpec.ManaCost} | STA {(int)hoveredSpec.StaminaCost} | CD {hoveredSpec.CooldownSeconds:F1}s", new Vector2(tipX + 8f, tipY + 26f), new ColorRgba(125, 211, 252, 255), black, 1, 1f);
-                string desc = hoveredDef.EffectKind == SkillEffectKind.SelfRestore
-                    ? $"Restore {(int)MathF.Round(hoveredSpec.SelfHealRatio * 100f)}% HP & +{(int)hoveredSpec.StaminaRestore} STA"
-                    : $"{hoveredDef.Summary} ({(int)MathF.Round(hoveredSpec.DamageMultiplier * 100f)}% DMG)";
-                spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, desc, 268f, 1f), new Vector2(tipX + 8f, tipY + 42f), new ColorRgba(226, 232, 240, 255), black, 1, 1f);
-            }
+            const float tipW = 248f;
+            const float tipH = 56f;
+            float tipX = MathF.Max(12f, startX - tipW - 14f);
+            float tipY = Math.Clamp(hoveredY, 12f, viewportHeight - tipH - 12f);
+
+            string title = CarbonUiSkin.TruncateToWidth(font, rank > 0 ? $"{hoveredDef.DisplayName} R{rank}" : $"{hoveredDef.DisplayName}", tipW - 18f, 1f);
+            spriteBatch.DrawOutlinedString(font, title, new Vector2(tipX + 9f, tipY + 8f), CarbonUiPalette.TextWarm, black, 1, 1f);
+            string costLine = rank > 0
+                ? $"MP {(int)hoveredSpec.ManaCost}  STA {(int)hoveredSpec.StaminaCost}  CD {hoveredSpec.CooldownSeconds:F1}s"
+                : hoveredDef.Summary;
+            spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, costLine, tipW - 18f, 1f), new Vector2(tipX + 9f, tipY + 30f), CarbonUiPalette.TextMuted, black, 1, 1f);
         }
     }
 
@@ -262,47 +256,44 @@ internal sealed class SkillBarWidget
 
         if (anim == SkillAnimArchetype.SpinSlash)
         {
-            batch.DrawCircle(center, 10f, col, 16, 2.2f);
-            batch.DrawLine(center + new Vector2(-8f, -4f), center + new Vector2(8f, 4f), ColorRgba.White, 1.8f);
-            batch.DrawLine(center + new Vector2(-8f, 4f), center + new Vector2(8f, -4f), col, 1.8f);
+            batch.DrawCircle(center, 11f, col, 16, 2.2f);
+            batch.DrawLine(center + new Vector2(-9f, -4.5f), center + new Vector2(9f, 4.5f), CarbonUiPalette.TextPrimary, 1.8f);
+            batch.DrawLine(center + new Vector2(-9f, 4.5f), center + new Vector2(9f, -4.5f), col, 1.8f);
         }
         else if (anim == SkillAnimArchetype.ArcaneWave)
         {
             Span<Vector2> diamond =
             [
-                center + new Vector2(0f, -11f),
-                center + new Vector2(9f, 0f),
-                center + new Vector2(0f, 11f),
-                center + new Vector2(-9f, 0f),
+                center + new Vector2(0f, -12f),
+                center + new Vector2(10f, 0f),
+                center + new Vector2(0f, 12f),
+                center + new Vector2(-10f, 0f),
             ];
             batch.FillConvexPolygon(diamond, col);
-            batch.FillCircle(center, 4f, new ColorRgba(224, 242, 254, 255), 10);
+            batch.FillCircle(center, 4f, CarbonUiPalette.TextPrimary, 10);
         }
         else
         {
-            batch.FillRectangle(new RectangleF(center.X - 2.5f, center.Y - 9f, 5f, 18f), col);
-            batch.FillRectangle(new RectangleF(center.X - 9f, center.Y - 2.5f, 18f, 5f), col);
+            batch.FillRectangle(new RectangleF(center.X - 3f, center.Y - 10f, 6f, 20f), col);
+            batch.FillRectangle(new RectangleF(center.X - 10f, center.Y - 3f, 20f, 6f), col);
         }
     }
 
-    private static void DrawLockedPadlock(GeometryBatch batch, Vector2 center)
-    {
-        ColorRgba steel = new(148, 163, 184, 200);
-        batch.DrawCircle(center + new Vector2(0f, -4f), 4.5f, steel, 10, 1.5f);
-        batch.FillRectangle(new RectangleF(center.X - 5.5f, center.Y - 2f, 11f, 8.5f), new ColorRgba(71, 85, 105, 225));
-        batch.DrawRectangle(new RectangleF(center.X - 5.5f, center.Y - 2f, 11f, 8.5f), steel, 1f);
-        batch.FillCircle(center + new Vector2(0f, 2f), 1.4f, new ColorRgba(12, 18, 34, 255), 6);
-    }
+    internal static ColorRgba ResolveAccentColor(SkillDefinition skill) =>
+        CarbonUiSkin.ParseHexColor(skill.AccentHex, CarbonUiPalette.BorderActive);
 
-    private static (float StartX, float StartY) ComputeOrigin(int viewportWidth, int viewportHeight, bool showHints, int count)
+    private void CollectVisibleSkills(IClientWorldReadModel world) =>
+        SkillCatalog.CollectCharacterSkills(
+            world.LocalPlayerClass,
+            world.LocalCharacterTraits,
+            world.LocalUnlockedSkillMask,
+            _visibleSkills);
+
+    private static (float StartX, float StartY) ComputeOrigin(int viewportWidth, int viewportHeight, int count)
     {
-        float hotbarX = MathF.Floor((viewportWidth - HotbarWidth) * 0.5f);
-        float skillW = count > 0 ? (count * SlotSize) + ((count - 1) * Gap) : 0f;
-        float startX = MathF.Max(12f, hotbarX - skillW - 14f);
-        float startY = viewportHeight - (showHints ? 75f : 56f);
+        float totalH = count > 0 ? (count * SlotSize) + ((count - 1) * Gap) : 0f;
+        float startX = viewportWidth - SlotSize - 14f;
+        float startY = MathF.Floor((viewportHeight - totalH) * 0.5f);
         return (startX, startY);
     }
-
-    internal static ColorRgba ResolveAccentColor(SkillDefinition skill) =>
-        CarbonUiSkin.ParseHexColor(skill.AccentHex, new ColorRgba(56, 189, 248, 255));
 }

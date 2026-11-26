@@ -26,7 +26,7 @@ using Nalix.SDK.Transport.Extensions;
 
 namespace Carbon.Desktop.Networking;
 
-public sealed partial class NalixMultiplayerSession
+public sealed partial class MultiplayerSession
 {
     /// <inheritdoc/>
     public async Task<ClientAuthResult> LoginAsync(
@@ -320,6 +320,8 @@ public sealed partial class NalixMultiplayerSession
 
         await this.FetchInventorySnapshotAsync(tcp, reqOpts, ct).ConfigureAwait(false);
         this.RequestMissingChunkDeltasAround(new Vector2(enter.PositionX, enter.PositionY));
+        _udpReconnectAttempt = 0;
+        _udpReconnectTimer = 1.5f;
         await this.TryOpenAuthenticatedUdpAsync(tcp, ct).ConfigureAwait(false);
 
         return (true, "Entered world.");
@@ -331,7 +333,10 @@ public sealed partial class NalixMultiplayerSession
         await _connectGate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
+            this.CancelSessionOperations();
             await this.TearDownUdpAsync().ConfigureAwait(false);
+            _udpReconnectAttempt = 0;
+            _udpReconnectTimer = 0f;
 
             TcpSession? tcp = _tcpSession;
             if (tcp is { IsConnected: true } && _isAuthenticated)

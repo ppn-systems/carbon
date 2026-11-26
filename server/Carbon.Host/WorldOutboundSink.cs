@@ -20,25 +20,25 @@ using Nalix.Runtime.Extensions;
 namespace Carbon.Host;
 
 /// <summary>
-/// Pushes world simulation AoI updates and map edits onto live Nalix transport connections
+/// Pushes world simulation AoI updates and map edits onto live transport connections
 /// (routing high-frequency deltas and combat hits over Authenticated UDP when attached, with TCP fallback).
 /// </summary>
-internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
+internal sealed class WorldOutboundSink : IWorldOutboundSink
 {
-    private readonly NalixSessionTransportRegistry _transportRegistry;
-    private readonly ILogger<NalixWorldOutboundSink> _logger;
+    private readonly SessionTransportRegistry _transportRegistry;
+    private readonly ILogger<WorldOutboundSink> _logger;
     private volatile IConnectionHub? _hub;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="NalixWorldOutboundSink"/> class.
+    /// Initializes a new instance of the <see cref="WorldOutboundSink"/> class.
     /// </summary>
-    public NalixWorldOutboundSink(NalixSessionTransportRegistry transportRegistry, ILogger<NalixWorldOutboundSink> logger)
+    public WorldOutboundSink(SessionTransportRegistry transportRegistry, ILogger<WorldOutboundSink> logger)
     {
         _transportRegistry = transportRegistry ?? throw new ArgumentNullException(nameof(transportRegistry));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    /// <summary>Binds the live connection hub created by the Nalix host builder.</summary>
+    /// <summary>Binds the live connection hub created by the host builder.</summary>
     public void AttachHub(IConnectionHub hub) =>
         _hub = hub ?? throw new ArgumentNullException(nameof(hub));
 

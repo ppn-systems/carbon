@@ -94,7 +94,7 @@ internal sealed class WorldEntityOverlayRenderer
                     string lootLabel = canPromptE ? $"[E] {FormatLootLabel(in r)}" : FormatLootLabel(in r);
                     TextMeasureResult lSize = font.MeasureString(lootLabel, TextLayoutOptions.Default, 1f);
                     float lpW = lSize.Width + 10f;
-                    batch.FillRectangle(new RectangleF(MathF.Floor(lootScreen.X - (lpW * 0.5f)), MathF.Floor(lootScreen.Y - 26f), lpW, 11f), new ColorRgba(8, 12, 20, 195));
+                    batch.FillRectangle(new RectangleF(MathF.Floor(lootScreen.X - (lpW * 0.5f)), MathF.Floor(lootScreen.Y - 30f), lpW, 18f), new ColorRgba(10, 13, 20, 200));
                 }
 
                 continue;
@@ -168,10 +168,10 @@ internal sealed class WorldEntityOverlayRenderer
             {
                 string displayName = FormatDisplayTitle(in r, distSq);
                 TextMeasureResult measure = font.MeasureString(displayName, TextLayoutOptions.Default, 1f);
-                float pillW = measure.Width + 10f;
+                float pillW = measure.Width + 12f;
                 float pillX = MathF.Floor(screenPt.X - (pillW * 0.5f));
-                float pillY = showBar ? barTopY - 13f : MathF.Floor(screenPt.Y - headOffsetScreen - 13f);
-                batch.FillRectangle(new RectangleF(pillX, pillY, pillW, 11f), new ColorRgba(8, 12, 20, 175));
+                float pillY = showBar ? barTopY - 21f : MathF.Floor(screenPt.Y - headOffsetScreen - 20f);
+                batch.FillRectangle(new RectangleF(pillX, pillY, pillW, 18f), new ColorRgba(10, 13, 20, 185));
             }
         }
     }
@@ -213,7 +213,7 @@ internal sealed class WorldEntityOverlayRenderer
                     ColorRgba lootCol = r.WeaponUpgradeLevel > 0
                         ? new ColorRgba(34, 211, 238, 255)
                         : (canPromptE ? new ColorRgba(110, 231, 183, 255) : new ColorRgba(253, 224, 71, 255));
-                    spriteBatch.DrawOutlinedString(font, lootLabel, new Vector2(MathF.Floor(lootScreen.X - (lSize.Width * 0.5f)), MathF.Floor(lootScreen.Y - 25f)), lootCol, outline, 1, 1f);
+                    spriteBatch.DrawOutlinedString(font, lootLabel, new Vector2(MathF.Floor(lootScreen.X - (lSize.Width * 0.5f)), MathF.Floor(lootScreen.Y - 29f)), lootCol, outline, 1, 1f);
                 }
 
                 continue;
@@ -234,8 +234,8 @@ internal sealed class WorldEntityOverlayRenderer
             float headOffsetScreen = ResolveHeadOffsetScreen(in r, art, cameraRig.Camera.Zoom);
             bool showBar = r.MaxHealth > 0f && (r.Kind == EntityKind.Monster || r.CurrentHealth < r.MaxHealth - 0.5f);
             float nameY = showBar
-                ? MathF.Floor(screenPt.Y - headOffsetScreen - 22f)
-                : MathF.Floor(screenPt.Y - headOffsetScreen - 11f);
+                ? MathF.Floor(screenPt.Y - headOffsetScreen - 31f)
+                : MathF.Floor(screenPt.Y - headOffsetScreen - 19f);
 
             ColorRgba labelColor = r.Kind == EntityKind.Monster
                 ? new ColorRgba(254, 215, 215, 255)

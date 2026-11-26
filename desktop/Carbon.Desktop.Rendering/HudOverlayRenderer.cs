@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions;
@@ -15,13 +16,13 @@ using Carbon.Graphics.Batching.Sprites;
 using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Graphics.OpenGL.Abstractions;
 using Carbon.Graphics.OpenGL.Textures;
-using Carbon.Maps.Data;
+using Carbon.Items.Catalog;
 
 namespace Carbon.Desktop.Rendering;
 
 /// <summary>
-/// Screen-space MMORPG HUD facade composing specialized single-responsibility RPG widgets
-/// framed by standardized 9-slice <see cref="CarbonUiSkin"/> panels and strict 3-pass Z-ordered rendering (SRP / ISP / DIP).
+/// Screen-space MMORPG HUD facade composing single-responsibility RPG widgets
+/// framed by <see cref="CarbonUiSkin"/> + <see cref="CarbonUiPalette"/> in strict 3-pass Z order (SRP / ISP / DIP).
 /// </summary>
 public sealed class HudOverlayRenderer : IDisposable
 {
@@ -30,17 +31,18 @@ public sealed class HudOverlayRenderer : IDisposable
     private readonly Texture2D _whitePixel;
     private readonly CarbonUiSkin _uiSkin;
     private readonly IVectorArtRepository? _art;
-    private readonly HeroVitalsWidget _heroVitals = new();
     private readonly MonsterTargetWidget _targetWidget = new();
     private readonly MinimapRadarWidget _minimap = new();
     private readonly HotbarAndItemWidget _hotbar = new();
     private readonly SkillBarWidget _skillBar = new();
-    private readonly CraftingModalWidget _craftModal = new();
     private readonly InventoryModalWidget _bagModal = new();
+    private readonly CharacterSheetModalWidget _characterModal = new();
+    private readonly CraftingModalWidget _craftModal = new();
+    private readonly ClassSkillsModalWidget _skillsModal = new();
     private readonly ForgeAnvilModalWidget _forgeModal = new();
-    private readonly SkillTomeModalWidget _skillTomeModal = new();
     private readonly SettingsModalWidget _settingsModal = new();
     private readonly ToastFeedWidget _toasts = new();
+    private readonly List<SkillDefinition> _skillScratch = new(8);
 
     private float _smoothedFps = 60f;
     private float _animTime;
@@ -55,7 +57,7 @@ public sealed class HudOverlayRenderer : IDisposable
     {
         ArgumentNullException.ThrowIfNull(device);
         _geometryBatch = new GeometryBatch(device);
-        (_font, _whitePixel) = EmbeddedPixelFont.Create(device);
+        (_font, _whitePixel) = GameFontLoader.Load(device);
         _uiSkin = CarbonUiSkin.Load(device);
         _art = artRepository ?? CarbonVectorArtLibrary.LoadOrDefault();
     }
@@ -63,43 +65,33 @@ public sealed class HudOverlayRenderer : IDisposable
     /// <summary>Gets the persisted client HUD &amp; display settings.</summary>
     public ClientUiSettings Settings { get; } = ClientUiSettings.LoadOrDefault();
 
-    /// <summary>Gets the embedded bitmap pixel font shared with world-space nameplates &amp; floating combat text.</summary>
+    /// <summary>Gets the primary bitmap font shared with world-space nameplates &amp; floating combat text.</summary>
     public BitmapFont Font => _font;
 
     /// <summary>Gets the shared standardized 9-slice UI skin.</summary>
     public CarbonUiSkin UiSkin => _uiSkin;
 
-    /// <summary>Gets or sets whether the centered Crafting Workshop modal (<c>[C]</c>) is open.</summary>
-    public bool ShowCraftingPanel { get; set; }
+    /// <summary>Gets or sets whether the unified tabbed player window (Inventory/Character/Crafting/Skills) is open.</summary>
+    public bool ShowPlayerModal { get; set; }
 
-    /// <summary>Gets or sets whether the 40-slot Inventory &amp; Equipment modal (<c>[I]</c>) is open.</summary>
-    public bool ShowInventoryModal { get; set; }
+    /// <summary>Gets or sets the active tab of the unified player modal window.</summary>
+    public PlayerModalTab ActivePlayerTab { get; set; } = PlayerModalTab.Inventory;
 
-    /// <summary>Gets or sets whether the Arcane &amp; Martial Skill Tome modal (<c>[K]</c>) is open.</summary>
-    public bool ShowSkillsModal { get; set; }
-
-    /// <summary>Gets or sets whether the Blacksmith Forge Anvil modal (<c>[U]</c>) is open.</summary>
+    /// <summary>Gets or sets whether the Blacksmith Forge Anvil modal is open.</summary>
     public bool ShowForgeModal { get; set; }
 
-    /// <summary>Gets or sets whether the System Settings &amp; Controls modal (<c>[ESC]</c>) is open.</summary>
+    /// <summary>Gets or sets whether the System Settings &amp; Controls modal is open.</summary>
     public bool ShowSettingsModal { get; set; }
 
-    /// <summary>Gets whether any full-screen modal (Bag, Skill Tome, Workshop, Forge, or Settings) is open.</summary>
+    /// <summary>Gets whether any full-screen modal (Player Window, Forge, or Settings) is open.</summary>
     public bool HasActiveModal =>
-        this.ShowInventoryModal || this.ShowSkillsModal || this.ShowCraftingPanel || this.ShowForgeModal || this.ShowSettingsModal;
+        this.ShowPlayerModal || this.ShowForgeModal || this.ShowSettingsModal;
 
-    /// <summary>Gets or sets the currently selected inventory slot (<c>0..39</c>) inside the Bag modal, or <c>-1</c>.</summary>
-    public int SelectedInventorySlot
+    /// <summary>Gets or sets the inventory slot index currently held/carried by the cursor, or <c>-1</c>.</summary>
+    public int CarriedInventorySlot
     {
-        get => _bagModal.SelectedSlot;
-        set => _bagModal.SelectedSlot = value;
-    }
-
-    /// <summary>Gets or sets the inventory slot index currently being dragged by the cursor, or <c>-1</c>.</summary>
-    public int DraggedInventorySlot
-    {
-        get => _bagModal.DraggedSlot;
-        set => _bagModal.DraggedSlot = value;
+        get => _bagModal.CarriedSlot;
+        set => _bagModal.CarriedSlot = value;
     }
 
     /// <summary>Gets or sets whether the HUD overlay is visible.</summary>
@@ -108,20 +100,55 @@ public sealed class HudOverlayRenderer : IDisposable
     /// <summary>Queues a brief fading notification toast on the right edge of the HUD.</summary>
     public void PushNotification(string message) => _toasts.Push(message);
 
-    /// <summary>Closes all secondary gameplay modals (preserving <paramref name="keepSettings"/> if requested).</summary>
+    /// <summary>Returns whether <paramref name="world"/> currently has at least one accessible class skill.</summary>
+    public bool HasAccessibleClassSkills(IClientWorldReadModel world)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        return PlayerModalTabs.HasClassSkills(world, _skillScratch);
+    }
+
+    /// <summary>
+    /// Opens or switches to <paramref name="tab"/>, or closes the player modal if already viewing <paramref name="tab"/>.
+    /// Returns <see langword="false"/> if <paramref name="tab"/> is <see cref="PlayerModalTab.Skills"/> and the character has no class skills.
+    /// </summary>
+    public bool OpenOrTogglePlayerTab(IClientWorldReadModel world, PlayerModalTab tab)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        if (tab == PlayerModalTab.Skills && !this.HasAccessibleClassSkills(world))
+        {
+            return false;
+        }
+
+        if (this.ShowPlayerModal && this.ActivePlayerTab == tab)
+        {
+            this.ShowPlayerModal = false;
+            _bagModal.CarriedSlot = -1;
+            return true;
+        }
+
+        this.ShowForgeModal = false;
+        this.ShowSettingsModal = false;
+        this.ShowPlayerModal = true;
+        this.ActivePlayerTab = tab;
+        if (tab != PlayerModalTab.Inventory)
+        {
+            _bagModal.CarriedSlot = -1;
+        }
+
+        return true;
+    }
+
+    /// <summary>Closes all active modals cleanly.</summary>
     public void CloseAllModals(bool keepSettings = false)
     {
-        this.ShowInventoryModal = false;
-        this.ShowSkillsModal = false;
-        this.ShowCraftingPanel = false;
+        this.ShowPlayerModal = false;
         this.ShowForgeModal = false;
         if (!keepSettings)
         {
             this.ShowSettingsModal = false;
         }
 
-        _bagModal.SelectedSlot = -1;
-        _bagModal.DraggedSlot = -1;
+        _bagModal.CarriedSlot = -1;
     }
 
     /// <summary>Scrolls the Crafting Workshop recipe list up or down.</summary>
@@ -135,18 +162,42 @@ public sealed class HudOverlayRenderer : IDisposable
     {
         slotIndex = 0;
         return this.Visible && viewportWidth > 0 && viewportHeight > 0 &&
-            _hotbar.TryHitTestHotbar(mousePos, viewportWidth, viewportHeight, this.Settings.ShowKeybindHints, out slotIndex);
+            _hotbar.TryHitTestHotbar(mousePos, viewportWidth, viewportHeight, out slotIndex);
     }
 
-    /// <summary>Hit-tests screen-space pointer coordinates against the quick-access dock buttons.</summary>
-    public bool TryHitTestHudDockButton(Vector2 mousePos, int viewportWidth, int viewportHeight, out HudDockAction action)
+    /// <summary>Hit-tests top-left window tab clicks when the unified player window is open.</summary>
+    public bool TryHitTestPlayerModalTab(
+        IClientWorldReadModel world,
+        Vector2 mousePos,
+        int viewportWidth,
+        int viewportHeight,
+        out PlayerModalTab tab)
     {
-        action = HudDockAction.None;
-        return this.Visible && viewportWidth > 0 && viewportHeight > 0 &&
-            _hotbar.TryHitTestDockButton(mousePos, viewportWidth, viewportHeight, this.Settings.ShowKeybindHints, out action);
+        ArgumentNullException.ThrowIfNull(world);
+        tab = PlayerModalTab.Inventory;
+        if (!this.Visible || !this.ShowPlayerModal || viewportWidth <= 0 || viewportHeight <= 0)
+        {
+            return false;
+        }
+
+        bool hit = this.ActivePlayerTab switch
+        {
+            PlayerModalTab.Inventory => _bagModal.TryHitTestTab(world, mousePos, viewportWidth, viewportHeight, out tab),
+            PlayerModalTab.Character => _characterModal.TryHitTestTab(world, mousePos, viewportWidth, viewportHeight, out tab),
+            PlayerModalTab.Crafting => _craftModal.TryHitTestTab(world, mousePos, viewportWidth, viewportHeight, out tab),
+            PlayerModalTab.Skills => _skillsModal.TryHitTestTab(world, mousePos, viewportWidth, viewportHeight, out tab),
+            _ => false,
+        };
+
+        if (hit && tab == PlayerModalTab.Skills && !this.HasAccessibleClassSkills(world))
+        {
+            return false;
+        }
+
+        return hit;
     }
 
-    /// <summary>Hit-tests clicks inside the centered Crafting Workshop modal.</summary>
+    /// <summary>Hit-tests clicks inside the Crafting tab of the player modal.</summary>
     public bool TryHandleCraftingClick(
         Vector2 mousePos,
         IClientWorldReadModel world,
@@ -158,7 +209,7 @@ public sealed class HudOverlayRenderer : IDisposable
         ArgumentNullException.ThrowIfNull(world);
         craftRecipeId = 0;
         craftQuantity = 0;
-        return this.Visible && this.ShowCraftingPanel && viewportWidth > 0 && viewportHeight > 0 &&
+        return this.Visible && this.ShowPlayerModal && this.ActivePlayerTab == PlayerModalTab.Crafting && viewportWidth > 0 && viewportHeight > 0 &&
             _craftModal.TryHandleClick(mousePos, world, viewportWidth, viewportHeight, out craftRecipeId, out craftQuantity);
     }
 
@@ -168,23 +219,29 @@ public sealed class HudOverlayRenderer : IDisposable
             ? _settingsModal.HandleClick(mousePos, this.Settings, viewportWidth, viewportHeight)
             : SettingsModalAction.None;
 
-    /// <summary>Hit-tests unlock/rank-up buttons inside the Skill Tome modal (<c>[K]</c>).</summary>
-    public bool TryHitTestSkillTomeUpgrade(Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort skillId)
+    /// <summary>Hit-tests unlock/rank-up buttons inside the Class Skills tab.</summary>
+    public bool TryHitTestSkillUpgrade(
+        IClientWorldReadModel world,
+        Vector2 mousePos,
+        int viewportWidth,
+        int viewportHeight,
+        out ushort skillId)
     {
+        ArgumentNullException.ThrowIfNull(world);
         skillId = 0;
-        return this.Visible && this.ShowSkillsModal && viewportWidth > 0 && viewportHeight > 0 &&
-            _skillTomeModal.TryHitTestUpgradeButton(mousePos, viewportWidth, viewportHeight, out skillId);
+        return this.Visible && this.ShowPlayerModal && this.ActivePlayerTab == PlayerModalTab.Skills && viewportWidth > 0 && viewportHeight > 0 &&
+            _skillsModal.TryHitTestUpgradeButton(world, mousePos, viewportWidth, viewportHeight, out skillId);
     }
 
-    /// <summary>Hit-tests <c>[+]</c> attribute allocation buttons inside the Bag &amp; Attributes modal (<c>[I]</c>).</summary>
-    public bool TryHitTestInventoryStatPlus(Vector2 mousePos, int viewportWidth, int viewportHeight, out PrimaryAttributeId attribute)
+    /// <summary>Hit-tests <c>+</c> attribute allocation buttons inside the Character Info tab (<c>[Y]</c>).</summary>
+    public bool TryHitTestCharacterStatPlus(Vector2 mousePos, int viewportWidth, int viewportHeight, out PrimaryAttributeId attribute)
     {
         attribute = PrimaryAttributeId.Vitality;
-        return this.Visible && this.ShowInventoryModal && viewportWidth > 0 && viewportHeight > 0 &&
-            _bagModal.TryHitTestStatPlusButton(mousePos, viewportWidth, viewportHeight, out attribute);
+        return this.Visible && this.ShowPlayerModal && this.ActivePlayerTab == PlayerModalTab.Character && viewportWidth > 0 && viewportHeight > 0 &&
+            _characterModal.TryHitTestStatPlusButton(mousePos, viewportWidth, viewportHeight, out attribute);
     }
 
-    /// <summary>Returns whether <paramref name="mousePos"/> hits the <c>[X]</c> close button of whichever modal is open.</summary>
+    /// <summary>Returns whether <paramref name="mousePos"/> hits the close button of whichever modal is open.</summary>
     public bool TryHitTestModalCloseButton(Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
         if (!this.Visible || viewportWidth <= 0 || viewportHeight <= 0)
@@ -192,19 +249,16 @@ public sealed class HudOverlayRenderer : IDisposable
             return false;
         }
 
-        if (this.ShowInventoryModal)
+        if (this.ShowPlayerModal)
         {
-            return _bagModal.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight);
-        }
-
-        if (this.ShowSkillsModal)
-        {
-            return _skillTomeModal.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight);
-        }
-
-        if (this.ShowCraftingPanel)
-        {
-            return _craftModal.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight);
+            return this.ActivePlayerTab switch
+            {
+                PlayerModalTab.Inventory => _bagModal.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight),
+                PlayerModalTab.Character => _characterModal.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight),
+                PlayerModalTab.Crafting => _craftModal.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight),
+                PlayerModalTab.Skills => _skillsModal.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight),
+                _ => false,
+            };
         }
 
         if (this.ShowForgeModal)
@@ -215,9 +269,10 @@ public sealed class HudOverlayRenderer : IDisposable
         return false;
     }
 
-    /// <summary>Returns whether <paramref name="mousePos"/> falls inside the currently open modal window.</summary>
-    public bool IsPointInActiveModal(Vector2 mousePos, int viewportWidth, int viewportHeight)
+    /// <summary>Returns whether <paramref name="mousePos"/> falls inside the currently open modal window (including top tabs).</summary>
+    public bool IsPointInActiveModal(IClientWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
+        ArgumentNullException.ThrowIfNull(world);
         if (!this.Visible || viewportWidth <= 0 || viewportHeight <= 0)
         {
             return false;
@@ -228,19 +283,16 @@ public sealed class HudOverlayRenderer : IDisposable
             return _settingsModal.ContainsPoint(mousePos, viewportWidth, viewportHeight);
         }
 
-        if (this.ShowInventoryModal)
+        if (this.ShowPlayerModal)
         {
-            return _bagModal.ContainsPoint(mousePos, viewportWidth, viewportHeight);
-        }
-
-        if (this.ShowSkillsModal)
-        {
-            return _skillTomeModal.ContainsPoint(mousePos, viewportWidth, viewportHeight);
-        }
-
-        if (this.ShowCraftingPanel)
-        {
-            return _craftModal.ContainsPoint(mousePos, viewportWidth, viewportHeight);
+            return this.ActivePlayerTab switch
+            {
+                PlayerModalTab.Inventory => _bagModal.ContainsPoint(world, mousePos, viewportWidth, viewportHeight),
+                PlayerModalTab.Character => _characterModal.ContainsPoint(world, mousePos, viewportWidth, viewportHeight),
+                PlayerModalTab.Crafting => _craftModal.ContainsPoint(world, mousePos, viewportWidth, viewportHeight),
+                PlayerModalTab.Skills => _skillsModal.ContainsPoint(world, mousePos, viewportWidth, viewportHeight),
+                _ => false,
+            };
         }
 
         if (this.ShowForgeModal)
@@ -251,42 +303,21 @@ public sealed class HudOverlayRenderer : IDisposable
         return false;
     }
 
-    /// <summary>Hit-tests screen-space coordinates against the active skill bar icons.</summary>
-    public bool TryHitTestSkill(Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort skillId)
+    /// <summary>Hit-tests screen-space coordinates against the right-edge class skill bar.</summary>
+    public bool TryHitTestSkill(IClientWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort skillId)
     {
+        ArgumentNullException.ThrowIfNull(world);
         skillId = 0;
         return this.Visible && viewportWidth > 0 && viewportHeight > 0 &&
-            _skillBar.TryHitTestSkill(mousePos, viewportWidth, viewportHeight, this.Settings.ShowKeybindHints, out skillId);
+            _skillBar.TryHitTestSkill(world, mousePos, viewportWidth, viewportHeight, out skillId);
     }
 
-    /// <summary>Hit-tests screen-space coordinates against any of the 40 slots in the Inventory/Equipment modal.</summary>
+    /// <summary>Hit-tests screen-space coordinates against any of the 40 slots in the Inventory tab.</summary>
     public bool TryHitTestInventorySlot(Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort slotIndex)
     {
         slotIndex = 0;
-        return this.Visible && this.ShowInventoryModal && viewportWidth > 0 && viewportHeight > 0 &&
+        return this.Visible && this.ShowPlayerModal && this.ActivePlayerTab == PlayerModalTab.Inventory && viewportWidth > 0 && viewportHeight > 0 &&
             _bagModal.TryHitTestSlot(mousePos, viewportWidth, viewportHeight, out slotIndex);
-    }
-
-    /// <summary>Returns whether <paramref name="mousePos"/> hits the modal Equip / Move button inside the Bag.</summary>
-    public bool TryHitTestInventoryUseEquipButton(Vector2 mousePos, int viewportWidth, int viewportHeight) =>
-        this.Visible && this.ShowInventoryModal && viewportWidth > 0 && viewportHeight > 0 &&
-        _bagModal.TryHitTestUseEquipButton(mousePos, viewportWidth, viewportHeight);
-
-    /// <summary>Returns whether <paramref name="mousePos"/> hits the modal Drop-1 item button.</summary>
-    public bool TryHitTestInventoryDropButton(Vector2 mousePos, int viewportWidth, int viewportHeight) =>
-        this.Visible && this.ShowInventoryModal && viewportWidth > 0 && viewportHeight > 0 &&
-        _bagModal.TryHitTestDropButton(mousePos, viewportWidth, viewportHeight);
-
-    /// <summary>Returns whether <paramref name="mousePos"/> hits the modal Drop-All stack button.</summary>
-    public bool TryHitTestInventoryDropAllButton(Vector2 mousePos, int viewportWidth, int viewportHeight) =>
-        this.Visible && this.ShowInventoryModal && viewportWidth > 0 && viewportHeight > 0 &&
-        _bagModal.TryHitTestDropAllButton(mousePos, viewportWidth, viewportHeight);
-
-    /// <summary>Resolves the active item slot targeted by the Bag modal actions.</summary>
-    public int ResolveInventoryActionTargetSlot(IClientWorldReadModel world)
-    {
-        ArgumentNullException.ThrowIfNull(world);
-        return _bagModal.ResolveActionTargetSlot(world);
     }
 
     /// <summary>Hit-tests gear row selection inside the Blacksmith Forge Anvil modal.</summary>
@@ -328,6 +359,7 @@ public sealed class HudOverlayRenderer : IDisposable
             return;
         }
 
+        _ = hourOfDay;
         _animTime += frameDt;
         _toasts.Step(frameDt);
         if (frameDt > 0.0001f)
@@ -343,50 +375,41 @@ public sealed class HudOverlayRenderer : IDisposable
         float tileSize = world.ChunkWorld.TileSize;
         int ptx = (int)MathF.Floor(playerPos.X / tileSize);
         int pty = (int)MathF.Floor(playerPos.Y / tileSize);
-        MapTile tile = world.ChunkWorld.GetTileAtWorld(ptx, pty);
-
-        Span<Carbon.Items.Containers.ItemSlot> slots = stackalloc Carbon.Items.Containers.ItemSlot[Carbon.Items.Catalog.PlayerInventoryLayout.TotalCapacity];
-        world.CopyInventorySlots(slots);
-        Carbon.Items.Containers.ItemSlot activeItem = world.SelectedHotbarSlot < slots.Length ? slots[world.SelectedHotbarSlot] : Carbon.Items.Containers.ItemSlot.Empty;
         Vector2? bgMouse = this.HasActiveModal ? null : mouseScreenPos;
-        bool showHints = this.Settings.ShowKeybindHints;
 
         // Pass 1: Background HUD (NineSlice Skins -> Vector Geometry & Bars -> Bitmap Text)
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-        _heroVitals.DrawSkin(spriteBatch, _uiSkin);
-        _targetWidget.DrawSkin(spriteBatch, _uiSkin, viewportWidth, _animTime);
+        _targetWidget.DrawSkin(spriteBatch, _uiSkin, viewportWidth);
         if (this.Settings.ShowMinimap)
         {
             _minimap.DrawSkin(spriteBatch, _uiSkin, viewportWidth);
         }
 
-        _hotbar.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight, this.ShowInventoryModal, this.ShowSkillsModal, this.ShowCraftingPanel, this.ShowForgeModal, this.ShowSettingsModal, showHints);
-        _skillBar.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight, showHints);
+        _hotbar.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight);
+        _skillBar.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight);
         _toasts.DrawSkin(spriteBatch, _uiSkin, _font, viewportWidth, this.Settings.ShowMinimap);
         spriteBatch.End();
 
         _geometryBatch.Begin(screenProj);
-        _heroVitals.DrawGeometry(_geometryBatch, world, _art, feedback, _animTime);
         _targetWidget.DrawGeometry(_geometryBatch, _art, viewportWidth, _animTime);
         if (this.Settings.ShowMinimap)
         {
             _minimap.DrawGeometry(_geometryBatch, world, viewportWidth, ptx, pty);
         }
 
-        int hoveredSlot = _hotbar.DrawGeometry(_geometryBatch, _font, world, _art, viewportWidth, viewportHeight, showHints, bgMouse);
-        ushort hoveredSkill = _skillBar.DrawGeometry(_geometryBatch, world, viewportWidth, viewportHeight, showHints, bgMouse);
+        int hoveredSlot = _hotbar.DrawGeometry(_geometryBatch, world, _art, feedback, viewportWidth, viewportHeight, bgMouse);
+        ushort hoveredSkill = _skillBar.DrawGeometry(_geometryBatch, world, viewportWidth, viewportHeight, bgMouse);
         _geometryBatch.End();
 
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-        _heroVitals.DrawText(spriteBatch, _font, world, ptx, pty, tile.Biome, activeItem.ItemId, hourOfDay, _smoothedFps, this.Settings.ShowTelemetry);
         _targetWidget.DrawText(spriteBatch, _font, _art, viewportWidth);
         if (this.Settings.ShowMinimap)
         {
             _minimap.DrawText(spriteBatch, _font, viewportWidth, ptx, pty);
         }
 
-        _hotbar.DrawText(spriteBatch, _font, world, _art, viewportWidth, viewportHeight, showHints, hoveredSlot);
-        _skillBar.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight, showHints, hoveredSkill);
+        _hotbar.DrawText(spriteBatch, _font, world, _art, viewportWidth, viewportHeight, hoveredSlot);
+        _skillBar.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight, hoveredSkill);
         _toasts.DrawText(spriteBatch, _font, viewportWidth, this.Settings.ShowMinimap);
         spriteBatch.End();
 
@@ -394,7 +417,7 @@ public sealed class HudOverlayRenderer : IDisposable
         if (this.ShowSettingsModal)
         {
             _geometryBatch.Begin(screenProj);
-            _geometryBatch.FillRectangle(new RectangleF(0f, 0f, viewportWidth, viewportHeight), new ColorRgba(4, 8, 16, 150));
+            _geometryBatch.FillRectangle(new RectangleF(0f, 0f, viewportWidth, viewportHeight), new ColorRgba(4, 6, 12, 150));
             _geometryBatch.End();
 
             spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
@@ -402,72 +425,86 @@ public sealed class HudOverlayRenderer : IDisposable
             _settingsModal.DrawText(spriteBatch, _font, this.Settings, viewportWidth, viewportHeight);
             spriteBatch.End();
         }
-        else if (this.ShowInventoryModal)
+        else if (this.ShowPlayerModal)
         {
             _geometryBatch.Begin(screenProj);
-            _geometryBatch.FillRectangle(new RectangleF(0f, 0f, viewportWidth, viewportHeight), new ColorRgba(4, 8, 16, 138));
+            _geometryBatch.FillRectangle(new RectangleF(0f, 0f, viewportWidth, viewportHeight), new ColorRgba(4, 6, 12, 138));
             _geometryBatch.End();
 
-            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-            _bagModal.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight, mouseScreenPos);
-            spriteBatch.End();
+            switch (this.ActivePlayerTab)
+            {
+                case PlayerModalTab.Inventory:
+                    spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
+                    _bagModal.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight, mouseScreenPos);
+                    spriteBatch.End();
 
-            _geometryBatch.Begin(screenProj);
-            int hoveredModalSlot = _bagModal.DrawGeometry(_geometryBatch, world, _art, viewportWidth, viewportHeight, mouseScreenPos, _animTime);
-            _geometryBatch.End();
+                    _geometryBatch.Begin(screenProj);
+                    int hoveredModalSlot = _bagModal.DrawGeometry(_geometryBatch, world, _art, viewportWidth, viewportHeight, mouseScreenPos, _animTime);
+                    _geometryBatch.End();
 
-            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-            _bagModal.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight);
-            spriteBatch.End();
+                    spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
+                    _bagModal.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight);
+                    spriteBatch.End();
 
-            _geometryBatch.Begin(screenProj);
-            _bagModal.DrawTopOverlayGeometry(_geometryBatch, world, _art, viewportWidth, viewportHeight, mouseScreenPos, hoveredModalSlot);
-            _geometryBatch.End();
+                    _geometryBatch.Begin(screenProj);
+                    _bagModal.DrawTopOverlayGeometry(_geometryBatch, world, _art, viewportWidth, viewportHeight, mouseScreenPos, hoveredModalSlot);
+                    _geometryBatch.End();
 
-            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-            _bagModal.DrawTopOverlayText(spriteBatch, _font, world, viewportWidth, viewportHeight, mouseScreenPos, hoveredModalSlot);
-            spriteBatch.End();
-        }
-        else if (this.ShowSkillsModal)
-        {
-            _geometryBatch.Begin(screenProj);
-            _geometryBatch.FillRectangle(new RectangleF(0f, 0f, viewportWidth, viewportHeight), new ColorRgba(4, 8, 16, 138));
-            _geometryBatch.End();
+                    spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
+                    _bagModal.DrawTopOverlayText(spriteBatch, _font, world, viewportWidth, viewportHeight, mouseScreenPos, hoveredModalSlot);
+                    spriteBatch.End();
+                    break;
 
-            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-            _skillTomeModal.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight, mouseScreenPos);
-            spriteBatch.End();
+                case PlayerModalTab.Character:
+                    spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
+                    _characterModal.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight, mouseScreenPos);
+                    spriteBatch.End();
 
-            _geometryBatch.Begin(screenProj);
-            _skillTomeModal.DrawGeometry(_geometryBatch, world, viewportWidth, viewportHeight);
-            _geometryBatch.End();
+                    _geometryBatch.Begin(screenProj);
+                    _characterModal.DrawGeometry(_geometryBatch, world, _art, viewportWidth, viewportHeight, _animTime);
+                    _geometryBatch.End();
 
-            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-            _skillTomeModal.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight);
-            spriteBatch.End();
-        }
-        else if (this.ShowCraftingPanel)
-        {
-            _geometryBatch.Begin(screenProj);
-            _geometryBatch.FillRectangle(new RectangleF(0f, 0f, viewportWidth, viewportHeight), new ColorRgba(4, 8, 16, 138));
-            _geometryBatch.End();
+                    spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
+                    _characterModal.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight, ptx, pty, _smoothedFps, this.Settings.ShowTelemetry);
+                    spriteBatch.End();
+                    break;
 
-            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-            _craftModal.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight, mouseScreenPos);
-            spriteBatch.End();
+                case PlayerModalTab.Crafting:
+                    spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
+                    _craftModal.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight, mouseScreenPos);
+                    spriteBatch.End();
 
-            _geometryBatch.Begin(screenProj);
-            _craftModal.DrawGeometry(_geometryBatch, world, _art, viewportWidth, viewportHeight);
-            _geometryBatch.End();
+                    _geometryBatch.Begin(screenProj);
+                    _craftModal.DrawGeometry(_geometryBatch, world, _art, viewportWidth, viewportHeight);
+                    _geometryBatch.End();
 
-            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-            _craftModal.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight);
-            spriteBatch.End();
+                    spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
+                    _craftModal.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight);
+                    spriteBatch.End();
+                    break;
+
+                case PlayerModalTab.Skills:
+                    spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
+                    _skillsModal.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight, mouseScreenPos);
+                    spriteBatch.End();
+
+                    _geometryBatch.Begin(screenProj);
+                    _skillsModal.DrawGeometry(_geometryBatch, world, viewportWidth, viewportHeight);
+                    _geometryBatch.End();
+
+                    spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
+                    _skillsModal.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight);
+                    spriteBatch.End();
+                    break;
+
+                default:
+                    break;
+            }
         }
         else if (this.ShowForgeModal)
         {
             _geometryBatch.Begin(screenProj);
-            _geometryBatch.FillRectangle(new RectangleF(0f, 0f, viewportWidth, viewportHeight), new ColorRgba(4, 8, 16, 138));
+            _geometryBatch.FillRectangle(new RectangleF(0f, 0f, viewportWidth, viewportHeight), new ColorRgba(4, 6, 12, 138));
             _geometryBatch.End();
 
             spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);

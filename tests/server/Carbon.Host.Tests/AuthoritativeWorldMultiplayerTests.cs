@@ -238,15 +238,30 @@ public sealed class AuthoritativeWorldMultiplayerTests
             world.GetInventorySnapshot(404UL, slayerInv).Should().BeTrue();
             slayerInv.Should().Contain(s => s.Slot.ItemId == StarterGameCatalog.WoodAxe);
 
-            // Rank-0 skill must be rejected (not free!), then unlocked with SP before casting succeeds.
+            // Rank-0 skill must be rejected (not free!), and starter characters without ClassAdvanced cannot unlock class skills.
             world.EnqueueAttackInput(404UL, 0UL, new Vector2(mobSpawn.Value.PositionX, mobSpawn.Value.PositionY), AbilityInputEncoding.EncodeSkill(SkillCatalog.WhirlwindId)).Should().Be(OpStatus.Ok);
             world.StepFixedTick();
             sink.SkillCasts.Should().BeEmpty("unlearned rank-0 skills cannot be cast for free");
+            world.TryAllocateCharacterPoint(404UL, PointAllocationKind.Skill, SkillCatalog.WhirlwindId, 1).Should().Be(OpStatus.Forbidden);
 
-            world.TryAllocateCharacterPoint(404UL, PointAllocationKind.Skill, SkillCatalog.WhirlwindId, 1).Should().Be(OpStatus.Ok);
-            world.EnqueueAttackInput(404UL, 0UL, new Vector2(mobSpawn.Value.PositionX, mobSpawn.Value.PositionY), AbilityInputEncoding.EncodeSkill(SkillCatalog.WhirlwindId)).Should().Be(OpStatus.Ok);
+            // An advanced Vanguard character can unlock Vanguard skills, while another class's skill stays forbidden.
+            CharacterRecord vanguardAdv = scout with
+            {
+                Id = Guid.NewGuid(),
+                Name = "vanguard_adv",
+                Class = HeroArchetypeClass.Vanguard,
+                Flags = CharacterTraits.ClassAdvanced,
+                PositionX = mobSpawn.Value.PositionX + 40f,
+                PositionY = mobSpawn.Value.PositionY,
+            };
+            EnterWorldResult advEnter = world.TryEnterWorld(connectionId: 405UL, sessionId: 5UL, vanguardAdv);
+            advEnter.Status.Should().Be(OpStatus.Ok);
+
+            world.TryAllocateCharacterPoint(405UL, PointAllocationKind.Skill, SkillCatalog.ArcaneNovaId, 1).Should().Be(OpStatus.Forbidden);
+            world.TryAllocateCharacterPoint(405UL, PointAllocationKind.Skill, SkillCatalog.WhirlwindId, 1).Should().Be(OpStatus.Ok);
+            world.EnqueueAttackInput(405UL, 0UL, new Vector2(mobSpawn.Value.PositionX, mobSpawn.Value.PositionY), AbilityInputEncoding.EncodeSkill(SkillCatalog.WhirlwindId)).Should().Be(OpStatus.Ok);
             world.StepFixedTick();
-            sink.SkillCasts.Should().Contain(c => c.AbilitySlot == SkillCatalog.WhirlwindId);
+            sink.SkillCasts.Should().Contain(c => c.CasterNetworkId == advEnter.PlayerNetworkId && c.AbilitySlot == SkillCatalog.WhirlwindId);
 
             // Forge upgrade +0 -> +1 on IronSword (slot 2) using mats in scout inventory (101UL)
             world.TryUpgradeInventoryItem(101UL, 2).Should().Be(OpStatus.Ok);
@@ -504,7 +519,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 InventoryBlob: invBytes,
                 UpdatedAtUtc: now,
                 Class: HeroArchetypeClass.Arcanist,
-                Flags: CharacterTraits.StarterLoadoutGranted);
+                Flags: CharacterTraits.StarterLoadoutGranted | CharacterTraits.ClassAdvanced);
             (await characters.TryCreateAsync(hero).ConfigureAwait(true)).Should().BeTrue();
 
             world.TryEnterWorld(connectionId: 601UL, sessionId: 601UL, hero).Status.Should().Be(OpStatus.Ok);

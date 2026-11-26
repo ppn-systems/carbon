@@ -7,6 +7,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\contracts\Carbon.Contracts.Common\Carbon.Contracts.Common.csproj" />
         <ProjectReference Include="..\..\contracts\Carbon.Contracts.Entities\Carbon.Contracts.Entities.csproj" />
+        <ProjectReference Include="..\..\contracts\Carbon.Contracts.Identity\Carbon.Contracts.Identity.csproj" />
         <ProjectReference Include="..\Carbon.Primitives\Carbon.Primitives.csproj" />
         <ProjectReference Include="..\Carbon.Data\Carbon.Data.csproj" />
         <ProjectReference Include="..\Carbon.Simulation\Carbon.Simulation.csproj" />

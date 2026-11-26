@@ -117,11 +117,11 @@ internal sealed class MenuTextField
     public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin)
     {
         ColorRgba fill = this.IsFocused
-            ? new ColorRgba(24, 34, 58, 245)
-            : new ColorRgba(12, 18, 34, 232);
+            ? CarbonUiPalette.SlotSelectedFill
+            : CarbonUiPalette.SlotFill;
         ColorRgba border = this.IsFocused
-            ? new ColorRgba(250, 204, 21, 255)
-            : new ColorRgba(71, 85, 105, 225);
+            ? CarbonUiPalette.BorderActive
+            : CarbonUiPalette.BorderSubtle;
         skin.DrawInset(spriteBatch, this.Bounds, fill, border);
     }
 
@@ -130,21 +130,21 @@ internal sealed class MenuTextField
         if (this.IsFocused && _cursorVisible)
         {
             string display = this.GetClippedDisplayText(font, MathF.Max(20f, this.Bounds.Width - 24f));
-            TextMeasureResult size = font.MeasureString(display, TextLayoutOptions.Default, 2f);
+            TextMeasureResult size = font.MeasureString(display, TextLayoutOptions.Default, 1f);
             float cursorX = MathF.Min(this.Bounds.Right - 10f, this.Bounds.X + 12f + size.Width + 2f);
             float cursorY = this.Bounds.Y + 9f;
-            batch.FillRectangle(new RectangleF(cursorX, cursorY, 3f, this.Bounds.Height - 18f), new ColorRgba(250, 204, 21, 255));
+            batch.FillRectangle(new RectangleF(cursorX, cursorY, 3f, this.Bounds.Height - 18f), CarbonUiPalette.BorderActive);
         }
     }
 
     public void DrawGeometry(GeometryBatch batch, BitmapFont font)
     {
         ColorRgba bg = this.IsFocused
-            ? new ColorRgba(24, 34, 58, 245)
-            : new ColorRgba(15, 23, 42, 230);
+            ? CarbonUiPalette.SlotSelectedFill
+            : CarbonUiPalette.SlotFill;
         ColorRgba border = this.IsFocused
-            ? new ColorRgba(250, 204, 21, 255)
-            : new ColorRgba(71, 85, 105, 220);
+            ? CarbonUiPalette.BorderActive
+            : CarbonUiPalette.BorderSubtle;
 
         batch.FillRectangle(this.Bounds, bg);
         batch.DrawRectangle(this.Bounds, border, this.IsFocused ? 2f : 1.5f);
@@ -152,39 +152,39 @@ internal sealed class MenuTextField
         if (this.IsFocused && _cursorVisible)
         {
             string display = this.GetClippedDisplayText(font, MathF.Max(20f, this.Bounds.Width - 24f));
-            TextMeasureResult size = font.MeasureString(display, TextLayoutOptions.Default, 2f);
+            TextMeasureResult size = font.MeasureString(display, TextLayoutOptions.Default, 1f);
             float cursorX = MathF.Min(this.Bounds.Right - 10f, this.Bounds.X + 12f + size.Width + 2f);
             float cursorY = this.Bounds.Y + 9f;
-            batch.FillRectangle(new RectangleF(cursorX, cursorY, 3f, this.Bounds.Height - 18f), new ColorRgba(250, 204, 21, 255));
+            batch.FillRectangle(new RectangleF(cursorX, cursorY, 3f, this.Bounds.Height - 18f), CarbonUiPalette.BorderActive);
         }
     }
 
     public void DrawText(SpriteBatch spriteBatch, BitmapFont font)
     {
-        ColorRgba black = new(8, 10, 16, 255);
+        ColorRgba black = CarbonUiPalette.TextOutline;
         spriteBatch.DrawOutlinedString(
             font,
             this.Label,
-            new Vector2(this.Bounds.X, this.Bounds.Y - 22f),
-            new ColorRgba(203, 213, 225, 255),
+            new Vector2(this.Bounds.X, this.Bounds.Y - 19f),
+            CarbonUiPalette.TextMuted,
             black,
             1,
-            2f);
+            1f);
 
         float maxTextW = MathF.Max(20f, this.Bounds.Width - 24f);
         string display = _buffer.Length == 0 ? this.Placeholder : this.GetClippedDisplayText(font, maxTextW);
         ColorRgba textColor = _buffer.Length == 0
             ? new ColorRgba(100, 116, 139, 255)
-            : ColorRgba.White;
+            : CarbonUiPalette.TextPrimary;
 
         spriteBatch.DrawOutlinedString(
             font,
             display,
-            new Vector2(this.Bounds.X + 12f, this.Bounds.Y + MathF.Floor((this.Bounds.Height - 16f) * 0.5f)),
+            new Vector2(this.Bounds.X + 12f, this.Bounds.Y + MathF.Floor((this.Bounds.Height - font.LineHeight) * 0.5f)),
             textColor,
             black,
             1,
-            2f);
+            1f);
     }
 
     private string GetClippedDisplayText(BitmapFont font, float maxPixelWidth)
@@ -195,7 +195,7 @@ internal sealed class MenuTextField
         }
 
         string raw = this.IsPassword ? new string('*', _buffer.Length) : _buffer.ToString();
-        if (font.MeasureString(raw, TextLayoutOptions.Default, 2f).Width <= maxPixelWidth)
+        if (font.MeasureString(raw, TextLayoutOptions.Default, 1f).Width <= maxPixelWidth)
         {
             return raw;
         }
@@ -205,7 +205,7 @@ internal sealed class MenuTextField
             for (int start = 1; start < raw.Length; start++)
             {
                 string tail = raw[start..];
-                if (font.MeasureString(tail, TextLayoutOptions.Default, 2f).Width <= maxPixelWidth)
+                if (font.MeasureString(tail, TextLayoutOptions.Default, 1f).Width <= maxPixelWidth)
                 {
                     return tail;
                 }
@@ -217,7 +217,7 @@ internal sealed class MenuTextField
         for (int len = raw.Length - 1; len > 1; len--)
         {
             string head = $"{raw[..len]}...";
-            if (font.MeasureString(head, TextLayoutOptions.Default, 2f).Width <= maxPixelWidth)
+            if (font.MeasureString(head, TextLayoutOptions.Default, 1f).Width <= maxPixelWidth)
             {
                 return head;
             }
@@ -276,53 +276,53 @@ internal sealed class MenuButton
 
     public void DrawText(SpriteBatch spriteBatch, BitmapFont font)
     {
-        ColorRgba black = new(8, 10, 16, 255);
-        ColorRgba textColor = this.IsEnabled ? ColorRgba.White : new ColorRgba(148, 163, 184, 220);
-        TextMeasureResult measure = font.MeasureString(this.Text, TextLayoutOptions.Default, 2f);
+        ColorRgba black = CarbonUiPalette.TextOutline;
+        ColorRgba textColor = this.IsEnabled ? CarbonUiPalette.TextPrimary : CarbonUiPalette.TextMuted;
+        TextMeasureResult measure = font.MeasureString(this.Text, TextLayoutOptions.Default, 1f);
         float tx = MathF.Floor(this.Bounds.X + ((this.Bounds.Width - measure.Width) * 0.5f));
         float ty = MathF.Floor(this.Bounds.Y + ((this.Bounds.Height - measure.Height) * 0.5f)) + (this.IsPressed ? 1f : 0f);
-        spriteBatch.DrawOutlinedString(font, this.Text, new Vector2(tx, ty), textColor, black, 1, 2f);
+        spriteBatch.DrawOutlinedString(font, this.Text, new Vector2(tx, ty), textColor, black, 1, 1f);
     }
 
     private (ColorRgba Fill, ColorRgba Border) ResolveColors()
     {
         if (!this.IsEnabled)
         {
-            return (new ColorRgba(30, 41, 59, 175), new ColorRgba(71, 85, 105, 160));
+            return (new ColorRgba(24, 29, 39, 185), new ColorRgba(56, 65, 80, 170));
         }
 
         if (this.Style == MenuButtonStyle.PrimaryGold)
         {
             return this.IsPressed
-                ? (new ColorRgba(180, 83, 9, 245), new ColorRgba(253, 224, 71, 255))
+                ? (new ColorRgba(76, 66, 44, 245), CarbonUiPalette.BorderActive)
                 : (this.IsHovered
-                    ? (new ColorRgba(217, 119, 6, 245), new ColorRgba(253, 224, 71, 255))
-                    : (new ColorRgba(161, 98, 7, 235), new ColorRgba(250, 204, 21, 240)));
+                    ? (new ColorRgba(92, 80, 52, 245), CarbonUiPalette.BorderActive)
+                    : (new ColorRgba(62, 54, 38, 238), CarbonUiPalette.BorderActive));
         }
 
         if (this.Style == MenuButtonStyle.SecondaryEmerald)
         {
             return this.IsPressed
-                ? (new ColorRgba(4, 120, 87, 245), new ColorRgba(110, 231, 183, 255))
+                ? (new ColorRgba(26, 74, 52, 245), CarbonUiPalette.ConfirmBorder)
                 : (this.IsHovered
-                    ? (new ColorRgba(16, 185, 129, 240), new ColorRgba(167, 243, 208, 255))
-                    : (new ColorRgba(5, 150, 105, 230), new ColorRgba(52, 211, 153, 235)));
+                    ? (new ColorRgba(44, 114, 82, 245), CarbonUiPalette.ConfirmBorder)
+                    : (CarbonUiPalette.ConfirmFill, CarbonUiPalette.ConfirmBorder));
         }
 
         if (this.Style == MenuButtonStyle.DangerRed)
         {
             return this.IsPressed
-                ? (new ColorRgba(153, 27, 27, 245), new ColorRgba(252, 165, 165, 255))
+                ? (new ColorRgba(104, 28, 34, 245), CarbonUiPalette.DangerBorder)
                 : (this.IsHovered
-                    ? (new ColorRgba(220, 38, 38, 240), new ColorRgba(254, 202, 202, 255))
-                    : (new ColorRgba(185, 28, 28, 225), new ColorRgba(248, 113, 113, 235)));
+                    ? (new ColorRgba(152, 44, 50, 245), CarbonUiPalette.DangerBorder)
+                    : (CarbonUiPalette.DangerFill, CarbonUiPalette.DangerBorder));
         }
 
         return this.IsPressed
-            ? (new ColorRgba(51, 65, 85, 245), new ColorRgba(203, 213, 225, 255))
+            ? (CarbonUiPalette.SlotSelectedFill, CarbonUiPalette.BorderOuter)
             : (this.IsHovered
-                ? (new ColorRgba(71, 85, 105, 240), new ColorRgba(226, 232, 240, 255))
-                : (new ColorRgba(30, 41, 59, 230), new ColorRgba(100, 116, 139, 225)));
+                ? (CarbonUiPalette.SlotHoverFill, CarbonUiPalette.BorderOuter)
+                : (CarbonUiPalette.CardFill, CarbonUiPalette.BorderSubtle));
     }
 }
 

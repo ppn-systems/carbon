@@ -15,7 +15,7 @@ namespace Carbon.Host;
 /// authenticated UDP <see cref="DatagramConnection"/> sessions so handlers and world pushes
 /// share one canonical logical session identifier.
 /// </summary>
-internal sealed class NalixSessionTransportRegistry : ISessionTransportRegistry
+internal sealed class SessionTransportRegistry : ISessionTransportRegistry
 {
     private readonly ConcurrentDictionary<ulong, DatagramConnection> _datagramByStreamId = new();
     private readonly ConcurrentDictionary<ulong, ulong> _streamByDatagramId = new();
@@ -27,7 +27,7 @@ internal sealed class NalixSessionTransportRegistry : ISessionTransportRegistry
     public void ConfigureStreamClosedCallback(Action<ulong> onStreamClosed) =>
         _onStreamClosed = onStreamClosed ?? throw new ArgumentNullException(nameof(onStreamClosed));
 
-    /// <summary>Binds the active Nalix connection hub.</summary>
+    /// <summary>Binds the active connection hub.</summary>
     public void AttachHub(IConnectionHub hub)
     {
         ArgumentNullException.ThrowIfNull(hub);

@@ -90,7 +90,7 @@ public sealed class LoginScene : GameScene
         base.Load(context);
 
         _geometryBatch = new GeometryBatch(context.Device);
-        (_font, _whitePixel) = EmbeddedPixelFont.Create(context.Device);
+        (_font, _whitePixel) = GameFontLoader.Load(context.Device);
         _uiSkin = CarbonUiSkin.Load(context.Device);
     }
 
@@ -332,7 +332,7 @@ public sealed class LoginScene : GameScene
 
         // Pass 2: Standardized 9-Slice Ornate Frame, Tabs, Fields & Buttons
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: proj);
-        _uiSkin.DrawWindow(spriteBatch, in card, new ColorRgba(250, 204, 21, 240), bodyAlpha: 236);
+        _uiSkin.DrawWindow(spriteBatch, in card, CarbonUiPalette.BorderOuter, bodyAlpha: 242);
         _signInTab.DrawSkin(spriteBatch, _uiSkin);
         _registerTab.DrawSkin(spriteBatch, _uiSkin);
         _usernameField.DrawSkin(spriteBatch, _uiSkin);
@@ -350,16 +350,16 @@ public sealed class LoginScene : GameScene
         }
         else
         {
-            _uiSkin.DrawInset(spriteBatch, in gatewayPill, new ColorRgba(12, 18, 34, 225), new ColorRgba(71, 85, 105, 220));
+            _uiSkin.DrawInset(spriteBatch, in gatewayPill, CarbonUiPalette.SlotFill, CarbonUiPalette.BorderSubtle);
         }
 
         _editGatewayBtn.DrawSkin(spriteBatch, _uiSkin);
         _quitButton.DrawSkin(spriteBatch, _uiSkin);
 
         ColorRgba statusFrame = _statusIsError
-            ? new ColorRgba(248, 113, 113, 215)
-            : new ColorRgba(52, 211, 153, 180);
-        _uiSkin.DrawInset(spriteBatch, in statusPill, new ColorRgba(10, 16, 30, 235), statusFrame);
+            ? CarbonUiPalette.DangerBorder
+            : CarbonUiPalette.BorderSubtle;
+        _uiSkin.DrawInset(spriteBatch, in statusPill, CarbonUiPalette.SlotFill, statusFrame);
         spriteBatch.End();
 
         // Pass 3: Focus cursors & server badge accent
@@ -377,7 +377,7 @@ public sealed class LoginScene : GameScene
         }
         else
         {
-            ColorRgba dotCol = _session.IsConnected ? new ColorRgba(52, 211, 153, 255) : new ColorRgba(56, 189, 248, 255);
+            ColorRgba dotCol = _session.IsConnected ? CarbonUiPalette.StaminaFill : CarbonUiPalette.TextMuted;
             _geometryBatch.FillCircle(new Vector2(gatewayPill.X + 14f, gatewayPill.Y + 17f), 4f, dotCol, 10);
         }
 
@@ -385,15 +385,15 @@ public sealed class LoginScene : GameScene
 
         // Pass 4: Crisp Bitmap Typography
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: proj);
-        ColorRgba black = new(8, 10, 16, 255);
+        ColorRgba black = CarbonUiPalette.TextOutline;
 
         const string title = "CARBON REALMS";
-        TextMeasureResult titleMeasure = _font.MeasureString(title, TextLayoutOptions.Default, 4f);
-        spriteBatch.DrawOutlinedString(_font, title, new Vector2(MathF.Floor((width - titleMeasure.Width) * 0.5f), py - 66f), new ColorRgba(250, 204, 21, 255), black, 2, 4f);
+        TextMeasureResult titleMeasure = _font.MeasureString(title, TextLayoutOptions.Default, 2f);
+        spriteBatch.DrawOutlinedString(_font, title, new Vector2(MathF.Floor((width - titleMeasure.Width) * 0.5f), py - 66f), CarbonUiPalette.TextWarm, black, 2, 2f);
 
-        const string subtitle = "ONLINE MMORPG  //  TCP X25519 + AUTH UDP";
-        TextMeasureResult subMeasure = _font.MeasureString(subtitle, TextLayoutOptions.Default, 1.5f);
-        spriteBatch.DrawOutlinedString(_font, subtitle, new Vector2(MathF.Floor((width - subMeasure.Width) * 0.5f), py - 28f), new ColorRgba(125, 211, 252, 255), black, 1, 1.5f);
+        const string subtitle = "ONLINE MMORPG  //  TCP + AUTH UDP";
+        TextMeasureResult subMeasure = _font.MeasureString(subtitle, TextLayoutOptions.Default, 1f);
+        spriteBatch.DrawOutlinedString(_font, subtitle, new Vector2(MathF.Floor((width - subMeasure.Width) * 0.5f), py - 28f), CarbonUiPalette.TextMuted, black, 1, 1f);
 
         _signInTab.DrawText(spriteBatch, _font);
         _registerTab.DrawText(spriteBatch, _font);
@@ -412,23 +412,18 @@ public sealed class LoginScene : GameScene
         }
         else
         {
-            string gwText = $"GATEWAY: {_serverField.Text}";
-            if (gwText.Length > 34)
-            {
-                gwText = $"{gwText[..31]}...";
-            }
-
-            spriteBatch.DrawOutlinedString(_font, gwText, new Vector2(gatewayPill.X + 26f, gatewayPill.Y + 10f), new ColorRgba(203, 213, 225, 255), black, 1, 1.5f);
+            string gwText = CarbonUiSkin.TruncateToWidth(_font, $"GATEWAY: {_serverField.Text}", gatewayPill.Width - 36f, 1f);
+            spriteBatch.DrawOutlinedString(_font, gwText, new Vector2(gatewayPill.X + 26f, gatewayPill.Y + 9f), CarbonUiPalette.TextMuted, black, 1, 1f);
         }
 
         _editGatewayBtn.DrawText(spriteBatch, _font);
         _quitButton.DrawText(spriteBatch, _font);
 
         ColorRgba statusColor = _statusIsError
-            ? new ColorRgba(248, 113, 113, 255)
-            : new ColorRgba(110, 231, 183, 255);
-        string msg = _statusMessage.Length > 58 ? _statusMessage[..58] : _statusMessage;
-        spriteBatch.DrawOutlinedString(_font, msg, new Vector2(statusPill.X + 10f, statusPill.Y + 8f), statusColor, black, 1, 1.5f);
+            ? new ColorRgba(235, 130, 130, 255)
+            : CarbonUiPalette.TextPrimary;
+        string msg = CarbonUiSkin.TruncateToWidth(_font, _statusMessage, statusPill.Width - 20f, 1f);
+        spriteBatch.DrawOutlinedString(_font, msg, new Vector2(statusPill.X + 10f, statusPill.Y + 7f), statusColor, black, 1, 1f);
         spriteBatch.End();
 
         base.Render(context, spriteBatch, dt);

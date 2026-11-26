@@ -26,7 +26,7 @@ using Nalix.SDK.Transport.Extensions;
 
 namespace Carbon.Desktop.Networking;
 
-public sealed partial class NalixMultiplayerSession
+public sealed partial class MultiplayerSession
 {
     /// <inheritdoc/>
     public void SelectHotbarSlot(byte slotIndex)
@@ -152,12 +152,17 @@ public sealed partial class NalixMultiplayerSession
             return false;
         }
 
+        if (!SkillCatalog.CanCharacterAccessSkill(skillDef, _localClass, _localTraits, this.LocalUnlockedSkillMask))
+        {
+            return false;
+        }
+
         byte rank = this.GetSkillRank(skillId);
         if (rank == 0)
         {
             lock (_worldGate)
             {
-                _hudNotifications.Add("Skill locked! Press [K] to unlock skills with Skill Points.");
+                _hudNotifications.Add("Skill locked");
             }
 
             return false;
@@ -776,7 +781,7 @@ public sealed partial class NalixMultiplayerSession
     }
 
     /// <inheritdoc/>
-    public bool TryPlaceTestHouse(out (int ChunkX, int ChunkY) centerChunk)
+    public bool TryPlaceStarterWall(out (int ChunkX, int ChunkY) centerChunk)
     {
         centerChunk = default;
         if (!this.IsReady || _tcpSession is not { IsConnected: true })

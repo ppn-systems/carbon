@@ -2,10 +2,12 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Fonts.Atlases;
 using Carbon.Graphics.Fonts.Model;
 using Carbon.Graphics.Fonts.Rendering;
+using Carbon.Graphics.Fonts.TrueType;
 using Carbon.Graphics.OpenGL.Abstractions;
 using Carbon.Graphics.OpenGL.Device;
 using Carbon.Graphics.OpenGL.Textures;
@@ -13,39 +15,114 @@ using Carbon.Graphics.OpenGL.Textures;
 namespace Carbon.Desktop.Rendering;
 
 /// <summary>
-/// Synthesizes an embedded 5x7 crisp bitmap ASCII font (<c>32..126</c>) and a 1x1 white pixel texture
-/// in GPU memory so the HUD and floating combat text require zero external image assets.
+/// Loads the game's primary rasterized UI font from <c>resources/fonts/thaleah_fat.ttf</c>
+/// (with an automatic embedded crisp pixel fallback when running outside asset folders) and allocates
+/// the shared 1x1 white pixel texture on <see cref="IGraphicsDevice"/>.
 /// </summary>
-public static class EmbeddedPixelFont
+public static class GameFontLoader
 {
     private const int CellSize = 8;
     private const int Columns = 16;
-    private const int AtlasWidth = Columns * CellSize;
-    private const int AtlasHeight = 6 * CellSize;
+    private const int FallbackAtlasWidth = Columns * CellSize;
+    private const int FallbackAtlasHeight = 6 * CellSize;
+
+    /// <summary>Searches standard runtime directories for the game's bundled TrueType font.</summary>
+    public static string? TryFindFontPath()
+    {
+        string[] roots = [AppContext.BaseDirectory, Directory.GetCurrentDirectory()];
+        for (int i = 0; i < roots.Length; i++)
+        {
+            DirectoryInfo? cursor = new(roots[i]);
+            while (cursor is not null)
+            {
+                string fontsDir = Path.Combine(cursor.FullName, "resources", "fonts");
+                if (Directory.Exists(fontsDir))
+                {
+                    string preferred = Path.Combine(fontsDir, "thaleah_fat.ttf");
+                    if (File.Exists(preferred))
+                    {
+                        return preferred;
+                    }
+
+                    string[] ttfFiles = Directory.GetFiles(fontsDir, "*.ttf");
+                    if (ttfFiles.Length > 0)
+                    {
+                        return ttfFiles[0];
+                    }
+                }
+
+                cursor = cursor.Parent;
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>
-    /// Creates an in-memory crisp pixel <see cref="BitmapFont"/> and white 1x1 pixel texture on <paramref name="device"/>.
+    /// Loads the game UI <see cref="BitmapFont"/> (<c>16px</c>) and shared 1x1 white pixel texture on <paramref name="device"/>.
     /// </summary>
-    public static (BitmapFont Font, Texture2D WhitePixel) Create(IGraphicsDevice device)
+    /// <param name="device">Active OpenGL graphics device.</param>
+    /// <returns>The ready-to-render UI font and white pixel texture.</returns>
+    public static (BitmapFont Font, Texture2D WhitePixel) Load(IGraphicsDevice device)
     {
         ArgumentNullException.ThrowIfNull(device);
         if (device is not GraphicsDevice concrete)
         {
-            throw new ArgumentException("Requires Concrete GraphicsDevice to allocate textures.", nameof(device));
+            throw new ArgumentException("Requires concrete GraphicsDevice to allocate font textures.", nameof(device));
         }
 
-        byte[] pixels = new byte[AtlasWidth * AtlasHeight * 4];
-        Texture2D? atlasTex = null;
         Texture2D? whitePixel = null;
         BitmapFont? font = null;
+
+        try
+        {
+            whitePixel = new Texture2D(
+                concrete.Gl,
+                concrete.StateCache,
+                1,
+                1,
+                TextureFormat.Rgba8,
+                TextureFilter.Nearest,
+                TextureWrap.ClampToEdge);
+            ReadOnlySpan<byte> white = [255, 255, 255, 255];
+            whitePixel.SetData(white);
+
+            string? fontPath = TryFindFontPath();
+            if (fontPath is not null)
+            {
+                byte[] ttfBytes = File.ReadAllBytes(fontPath);
+                font = TrueTypeFontLoader.CreateFromTrueType("ThaleahFat", concrete, ttfBytes, pixelSize: 16f);
+            }
+            else
+            {
+                font = CreateEmbeddedFallback(concrete);
+            }
+
+            BitmapFont resultFont = font;
+            Texture2D resultWhite = whitePixel;
+            font = null;
+            whitePixel = null;
+            return (resultFont, resultWhite);
+        }
+        finally
+        {
+            font?.Dispose();
+            whitePixel?.Dispose();
+        }
+    }
+
+    private static BitmapFont CreateEmbeddedFallback(GraphicsDevice concrete)
+    {
+        byte[] pixels = new byte[FallbackAtlasWidth * FallbackAtlasHeight * 4];
+        Texture2D? atlasTex = null;
 
         try
         {
             atlasTex = new Texture2D(
                 concrete.Gl,
                 concrete.StateCache,
-                AtlasWidth,
-                AtlasHeight,
+                FallbackAtlasWidth,
+                FallbackAtlasHeight,
                 TextureFormat.Rgba8,
                 TextureFilter.Nearest,
                 TextureWrap.ClampToEdge);
@@ -71,7 +148,7 @@ public static class EmbeddedPixelFont
 
                         int px = cellX + c;
                         int py = cellY + r;
-                        int byteIdx = ((py * AtlasWidth) + px) * 4;
+                        int byteIdx = ((py * FallbackAtlasWidth) + px) * 4;
                         pixels[byteIdx] = 255;
                         pixels[byteIdx + 1] = 255;
                         pixels[byteIdx + 2] = 255;
@@ -90,34 +167,15 @@ public static class EmbeddedPixelFont
                 int col = glyphIdx % Columns;
                 int row = glyphIdx / Columns;
                 RectangleF rect = new(col * CellSize, row * CellSize, 5f, 7f);
-                atlas.AddGlyph(new FontGlyph(code, in rect, 0f, 0f, 6f));
+                atlas.AddGlyph(new FontGlyph(code, in rect, 0f, 1f, 6f));
             }
 
-            whitePixel = new Texture2D(
-                concrete.Gl,
-                concrete.StateCache,
-                1,
-                1,
-                TextureFormat.Rgba8,
-                TextureFilter.Nearest,
-                TextureWrap.ClampToEdge);
-            ReadOnlySpan<byte> white = [255, 255, 255, 255];
-            whitePixel.SetData(white);
-
             FontMetrics metrics = new(fontSize: 8f, lineHeight: 10f, baseLine: 7f, spaceWidth: 5f, tabWidth: 20f);
-            font = new BitmapFont("CarbonPixel", atlas, in metrics);
-
-            BitmapFont resultFont = font;
-            Texture2D resultWhite = whitePixel;
-            font = null;
-            whitePixel = null;
-            return (resultFont, resultWhite);
+            return new BitmapFont("CarbonPixelFallback", atlas, in metrics);
         }
         finally
         {
             atlasTex?.Dispose();
-            font?.Dispose();
-            whitePixel?.Dispose();
         }
     }
 
@@ -129,15 +187,9 @@ public static class EmbeddedPixelFont
         }
 
         char upper = char.ToUpperInvariant(ch);
-        if (s_glyphs.TryGetValue(upper, out uint[]? upperRows))
-        {
-            return upperRows;
-        }
-
-        return s_glyphs[' '];
+        return s_glyphs.TryGetValue(upper, out uint[]? upperRows) ? upperRows : s_glyphs[' '];
     }
 
-    // Standard 5x7 crisp bitmap font bitmasks (5 bits per row, 7 rows per glyph).
     private static readonly Dictionary<char, uint[]> s_glyphs = new()
     {
         [' '] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],

@@ -56,7 +56,9 @@ public sealed class WorldGameplayScene : GameScene
     private Vector2 _mouseScreenPosition;
     private Vector2 _mouseWorldPosition;
     private int _frameCount;
-    private int _draggingInventorySlot = -1;
+    private int _carriedInventorySlot = -1;
+    private Vector2 _pressStartMousePos;
+    private bool _isHoldDragging;
     private bool _hasAutoCaptured;
 
     /// <summary>
@@ -151,7 +153,7 @@ public sealed class WorldGameplayScene : GameScene
             else if (_hudRenderer.HasActiveModal)
             {
                 _hudRenderer.CloseAllModals();
-                _draggingInventorySlot = -1;
+                this.ResetInventoryDragState();
             }
             else if (_session.LockedTargetNetworkId != 0UL)
             {
@@ -168,7 +170,7 @@ public sealed class WorldGameplayScene : GameScene
             if (input.LeftClickPressed)
             {
                 Vector2 mouseScreen = input.MouseScreenPosition;
-                if (!_hudRenderer.IsPointInActiveModal(mouseScreen, context.WindowWidth, context.WindowHeight))
+                if (!_hudRenderer.IsPointInActiveModal(_session, mouseScreen, context.WindowWidth, context.WindowHeight))
                 {
                     _hudRenderer.ShowSettingsModal = false;
                 }
@@ -216,26 +218,29 @@ public sealed class WorldGameplayScene : GameScene
 
         if (input.ToggleInventoryPressed)
         {
-            bool nextInv = !_hudRenderer.ShowInventoryModal;
-            _hudRenderer.CloseAllModals();
-            _draggingInventorySlot = -1;
-            _hudRenderer.ShowInventoryModal = nextInv;
+            this.ResetInventoryDragState();
+            _ = _hudRenderer.OpenOrTogglePlayerTab(_session, PlayerModalTab.Inventory);
+        }
+
+        if (input.ToggleCharacterPressed)
+        {
+            this.ResetInventoryDragState();
+            _ = _hudRenderer.OpenOrTogglePlayerTab(_session, PlayerModalTab.Character);
         }
 
         if (input.ToggleSkillsPressed)
         {
-            bool nextSkills = !_hudRenderer.ShowSkillsModal;
-            _hudRenderer.CloseAllModals();
-            _draggingInventorySlot = -1;
-            _hudRenderer.ShowSkillsModal = nextSkills;
+            this.ResetInventoryDragState();
+            if (!_hudRenderer.OpenOrTogglePlayerTab(_session, PlayerModalTab.Skills))
+            {
+                _hudRenderer.PushNotification("Skills unlock upon class advancement");
+            }
         }
 
         if (input.ToggleCraftPressed)
         {
-            bool nextCraft = !_hudRenderer.ShowCraftingPanel;
-            _hudRenderer.CloseAllModals();
-            _draggingInventorySlot = -1;
-            _hudRenderer.ShowCraftingPanel = nextCraft;
+            this.ResetInventoryDragState();
+            _ = _hudRenderer.OpenOrTogglePlayerTab(_session, PlayerModalTab.Crafting);
         }
 
         if (input.ToggleForgePressed)
@@ -255,7 +260,7 @@ public sealed class WorldGameplayScene : GameScene
 
         if (input.ScrollSlotDelta != 0)
         {
-            if (_hudRenderer.ShowCraftingPanel)
+            if (_hudRenderer.ShowPlayerModal && _hudRenderer.ActivePlayerTab == PlayerModalTab.Crafting)
             {
                 _hudRenderer.ScrollCrafting(input.ScrollSlotDelta);
             }
@@ -275,147 +280,70 @@ public sealed class WorldGameplayScene : GameScene
             _session.SelectHotbarSlot(slotIdx);
         }
 
-        if (_hudRenderer.ShowInventoryModal)
+        if (_hudRenderer.ShowPlayerModal)
         {
             Vector2 mouseScreen = input.MouseScreenPosition;
-            Span<ItemSlot> invSlots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
-            _session.CopyInventorySlots(invSlots);
-
-            if (input.LeftClickPressed)
+            if (input.LeftClickPressed &&
+                _hudRenderer.TryHitTestModalCloseButton(mouseScreen, context.WindowWidth, context.WindowHeight))
             {
-                if (_hudRenderer.TryHitTestModalCloseButton(mouseScreen, context.WindowWidth, context.WindowHeight) ||
-                    !_hudRenderer.IsPointInActiveModal(mouseScreen, context.WindowWidth, context.WindowHeight))
+                _hudRenderer.ShowPlayerModal = false;
+                this.ResetInventoryDragState();
+            }
+            else if (input.LeftClickPressed &&
+                     _hudRenderer.TryHitTestPlayerModalTab(_session, mouseScreen, context.WindowWidth, context.WindowHeight, out PlayerModalTab nextTab))
+            {
+                this.ResetInventoryDragState();
+                _hudRenderer.ActivePlayerTab = nextTab;
+            }
+            else if (_hudRenderer.ActivePlayerTab == PlayerModalTab.Inventory)
+            {
+                this.HandleInventoryTabInput(in input, context.WindowWidth, context.WindowHeight);
+            }
+            else if (_hudRenderer.ActivePlayerTab == PlayerModalTab.Character)
+            {
+                if (input.LeftClickPressed)
                 {
-                    _hudRenderer.ShowInventoryModal = false;
-                    _hudRenderer.SelectedInventorySlot = -1;
-                    _draggingInventorySlot = -1;
-                }
-                else if (_hudRenderer.TryHitTestInventoryStatPlus(mouseScreen, context.WindowWidth, context.WindowHeight, out PrimaryAttributeId statTarget))
-                {
-                    _ = _session.TryAllocateCharacterPoint(PointAllocationKind.Attribute, (ushort)statTarget, 1);
-                }
-                else if (_hudRenderer.TryHitTestInventoryUseEquipButton(mouseScreen, context.WindowWidth, context.WindowHeight))
-                {
-                    int targetSlot = _hudRenderer.ResolveInventoryActionTargetSlot(_session);
-                    if (targetSlot >= 0 && targetSlot < invSlots.Length && !invSlots[targetSlot].IsEmpty)
+                    if (!_hudRenderer.IsPointInActiveModal(_session, mouseScreen, context.WindowWidth, context.WindowHeight))
                     {
-                        bool hasDef = StarterGameCatalog.Items.TryGet(invSlots[targetSlot].ItemId, out ItemArchetype? inspDef);
-                        if (hasDef && inspDef!.Category == ItemCategory.Consumable)
-                        {
-                            if (targetSlot < PlayerInventoryLayout.HotbarCount)
-                            {
-                                _session.SelectHotbarSlot((byte)targetSlot);
-                                _ = _session.TriggerPrimaryAction(_session.LocalPlayerInterpolatedPosition, out _);
-                            }
-                            else
-                            {
-                                _ = _session.TryQuickMoveInventorySlot((ushort)targetSlot);
-                            }
-                        }
-                        else if ((hasDef && inspDef!.Category == ItemCategory.Armor) || targetSlot >= PlayerInventoryLayout.BagLimit)
-                        {
-                            _ = _session.TryQuickMoveInventorySlot((ushort)targetSlot);
-                        }
-                        else if (targetSlot < PlayerInventoryLayout.HotbarCount)
-                        {
-                            _session.SelectHotbarSlot((byte)targetSlot);
-                        }
-                        else
-                        {
-                            _ = _session.TryQuickMoveInventorySlot((ushort)targetSlot);
-                        }
+                        _hudRenderer.ShowPlayerModal = false;
                     }
-                }
-                else if (_hudRenderer.TryHitTestInventoryDropAllButton(mouseScreen, context.WindowWidth, context.WindowHeight))
-                {
-                    int targetSlot = _hudRenderer.ResolveInventoryActionTargetSlot(_session);
-                    if (targetSlot >= 0)
+                    else if (_hudRenderer.TryHitTestCharacterStatPlus(mouseScreen, context.WindowWidth, context.WindowHeight, out PrimaryAttributeId statTarget))
                     {
-                        _ = _session.TryDropInventoryItem((ushort)targetSlot, -1);
-                    }
-                }
-                else if (_hudRenderer.TryHitTestInventoryDropButton(mouseScreen, context.WindowWidth, context.WindowHeight))
-                {
-                    int targetSlot = _hudRenderer.ResolveInventoryActionTargetSlot(_session);
-                    if (targetSlot >= 0)
-                    {
-                        _ = _session.TryDropInventoryItem((ushort)targetSlot, 1);
-                    }
-                }
-                else if (_hudRenderer.TryHitTestInventorySlot(mouseScreen, context.WindowWidth, context.WindowHeight, out ushort clickedSlot))
-                {
-                    if (input.ShiftHeld)
-                    {
-                        _ = _session.TryQuickMoveInventorySlot(clickedSlot);
-                        _hudRenderer.SelectedInventorySlot = -1;
-                        _draggingInventorySlot = -1;
-                    }
-                    else if (_hudRenderer.SelectedInventorySlot >= 0 && _hudRenderer.SelectedInventorySlot != clickedSlot)
-                    {
-                        _ = _session.TryMoveInventorySlot((ushort)_hudRenderer.SelectedInventorySlot, clickedSlot);
-                        _hudRenderer.SelectedInventorySlot = -1;
-                        _draggingInventorySlot = -1;
-                    }
-                    else
-                    {
-                        _hudRenderer.SelectedInventorySlot = clickedSlot;
-                        _draggingInventorySlot = clickedSlot < invSlots.Length && !invSlots[clickedSlot].IsEmpty ? clickedSlot : -1;
+                        _ = _session.TryAllocateCharacterPoint(PointAllocationKind.Attribute, (ushort)statTarget, 1);
                     }
                 }
             }
-            else if (!input.LeftMouseDown && _draggingInventorySlot >= 0)
+            else if (_hudRenderer.ActivePlayerTab == PlayerModalTab.Skills)
             {
-                if (_hudRenderer.TryHitTestInventorySlot(mouseScreen, context.WindowWidth, context.WindowHeight, out ushort dropTarget) &&
-                    dropTarget != _draggingInventorySlot)
+                if (input.LeftClickPressed)
                 {
-                    _ = _session.TryMoveInventorySlot((ushort)_draggingInventorySlot, dropTarget);
-                    _hudRenderer.SelectedInventorySlot = -1;
+                    if (!_hudRenderer.IsPointInActiveModal(_session, mouseScreen, context.WindowWidth, context.WindowHeight))
+                    {
+                        _hudRenderer.ShowPlayerModal = false;
+                    }
+                    else if (_hudRenderer.TryHitTestSkillUpgrade(_session, mouseScreen, context.WindowWidth, context.WindowHeight, out ushort skillId))
+                    {
+                        _ = _session.TryAllocateCharacterPoint(PointAllocationKind.Skill, skillId, 1);
+                    }
                 }
-
-                _draggingInventorySlot = -1;
             }
-            else if (input.RightClickPressed &&
-                     _hudRenderer.TryHitTestInventorySlot(mouseScreen, context.WindowWidth, context.WindowHeight, out ushort rightSlot))
+            else if (_hudRenderer.ActivePlayerTab == PlayerModalTab.Crafting)
             {
-                _ = _session.TryQuickMoveInventorySlot(rightSlot);
-                _hudRenderer.SelectedInventorySlot = -1;
-                _draggingInventorySlot = -1;
+                if (input.LeftClickPressed)
+                {
+                    if (!_hudRenderer.IsPointInActiveModal(_session, mouseScreen, context.WindowWidth, context.WindowHeight))
+                    {
+                        _hudRenderer.ShowPlayerModal = false;
+                    }
+                    else if (_hudRenderer.TryHandleCraftingClick(mouseScreen, _session, context.WindowWidth, context.WindowHeight, out ushort recId, out ushort recQty) &&
+                             recId != 0 && recQty != 0)
+                    {
+                        _ = _session.TryCraftRecipe(recId, recQty);
+                    }
+                }
             }
 
-            _hudRenderer.DraggedInventorySlot = _draggingInventorySlot;
-        }
-        else if (_hudRenderer.ShowSkillsModal)
-        {
-            Vector2 mouseScreen = input.MouseScreenPosition;
-            if (input.LeftClickPressed)
-            {
-                if (_hudRenderer.TryHitTestModalCloseButton(mouseScreen, context.WindowWidth, context.WindowHeight) ||
-                    !_hudRenderer.IsPointInActiveModal(mouseScreen, context.WindowWidth, context.WindowHeight))
-                {
-                    _hudRenderer.ShowSkillsModal = false;
-                }
-                else if (_hudRenderer.TryHitTestSkillTomeUpgrade(mouseScreen, context.WindowWidth, context.WindowHeight, out ushort skillId))
-                {
-                    _ = _session.TryAllocateCharacterPoint(PointAllocationKind.Skill, skillId, 1);
-                }
-            }
-        }
-        else if (_hudRenderer.ShowCraftingPanel)
-        {
-            Vector2 mouseScreen = input.MouseScreenPosition;
-            if (input.LeftClickPressed)
-            {
-                if (_hudRenderer.TryHitTestModalCloseButton(mouseScreen, context.WindowWidth, context.WindowHeight) ||
-                    !_hudRenderer.IsPointInActiveModal(mouseScreen, context.WindowWidth, context.WindowHeight))
-                {
-                    _hudRenderer.ShowCraftingPanel = false;
-                }
-                else if (_hudRenderer.TryHandleCraftingClick(mouseScreen, _session, context.WindowWidth, context.WindowHeight, out ushort recId, out ushort recQty) &&
-                         recId != 0 && recQty != 0)
-                {
-                    _ = _session.TryCraftRecipe(recId, recQty);
-                }
-            }
+            _hudRenderer.CarriedInventorySlot = _carriedInventorySlot;
         }
         else if (_hudRenderer.ShowForgeModal)
         {
@@ -423,7 +351,7 @@ public sealed class WorldGameplayScene : GameScene
             if (input.LeftClickPressed)
             {
                 if (_hudRenderer.TryHitTestModalCloseButton(mouseScreen, context.WindowWidth, context.WindowHeight) ||
-                    !_hudRenderer.IsPointInActiveModal(mouseScreen, context.WindowWidth, context.WindowHeight))
+                    !_hudRenderer.IsPointInActiveModal(_session, mouseScreen, context.WindowWidth, context.WindowHeight))
                 {
                     _hudRenderer.ShowForgeModal = false;
                 }
@@ -443,44 +371,16 @@ public sealed class WorldGameplayScene : GameScene
         }
         else
         {
-            _draggingInventorySlot = -1;
-            _hudRenderer.DraggedInventorySlot = -1;
+            this.ResetInventoryDragState();
 
             if (input.LeftClickPressed)
             {
                 Vector2 mouseScreen = input.MouseScreenPosition;
-                if (_hudRenderer.TryHitTestHudDockButton(mouseScreen, context.WindowWidth, context.WindowHeight, out HudDockAction dockAction))
-                {
-                    if (dockAction == HudDockAction.Inventory)
-                    {
-                        _hudRenderer.CloseAllModals();
-                        _hudRenderer.ShowInventoryModal = true;
-                    }
-                    else if (dockAction == HudDockAction.Skills)
-                    {
-                        _hudRenderer.CloseAllModals();
-                        _hudRenderer.ShowSkillsModal = true;
-                    }
-                    else if (dockAction == HudDockAction.Crafting)
-                    {
-                        _hudRenderer.CloseAllModals();
-                        _hudRenderer.ShowCraftingPanel = true;
-                    }
-                    else if (dockAction == HudDockAction.Forge)
-                    {
-                        this.ToggleForgeStationModal();
-                    }
-                    else if (dockAction == HudDockAction.Settings)
-                    {
-                        _hudRenderer.CloseAllModals();
-                        _hudRenderer.ShowSettingsModal = true;
-                    }
-                }
-                else if (_hudRenderer.TryHitTestHotbar(mouseScreen, context.WindowWidth, context.WindowHeight, out byte hotbarSlot))
+                if (_hudRenderer.TryHitTestHotbar(mouseScreen, context.WindowWidth, context.WindowHeight, out byte hotbarSlot))
                 {
                     _session.SelectHotbarSlot(hotbarSlot);
                 }
-                else if (_hudRenderer.TryHitTestSkill(mouseScreen, context.WindowWidth, context.WindowHeight, out ushort skillFromClick))
+                else if (_hudRenderer.TryHitTestSkill(_session, mouseScreen, context.WindowWidth, context.WindowHeight, out ushort skillFromClick))
                 {
                     _ = _session.TryCastSkill(skillFromClick, _mouseWorldPosition);
                 }
@@ -524,9 +424,8 @@ public sealed class WorldGameplayScene : GameScene
             else if (input.LeftMouseDown && !_session.CurrentAction.IsActive)
             {
                 Vector2 mouseScreen = input.MouseScreenPosition;
-                if (!_hudRenderer.TryHitTestHudDockButton(mouseScreen, context.WindowWidth, context.WindowHeight, out _) &&
-                    !_hudRenderer.TryHitTestHotbar(mouseScreen, context.WindowWidth, context.WindowHeight, out _) &&
-                    !_hudRenderer.TryHitTestSkill(mouseScreen, context.WindowWidth, context.WindowHeight, out _))
+                if (!_hudRenderer.TryHitTestHotbar(mouseScreen, context.WindowWidth, context.WindowHeight, out _) &&
+                    !_hudRenderer.TryHitTestSkill(_session, mouseScreen, context.WindowWidth, context.WindowHeight, out _))
                 {
                     Span<ItemSlot> curSlots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
                     _session.CopyInventorySlots(curSlots);
@@ -595,18 +494,20 @@ public sealed class WorldGameplayScene : GameScene
                 _ = _session.TryToggleNearbyDoor(out _);
             }
 
-            if (input.PlaceHousePressed)
+            if (input.PlaceStructurePressed)
             {
-                _ = _session.TryPlaceTestHouse(out _);
+                _ = _session.TryPlaceStarterWall(out _);
             }
         }
 
-        if (input.DropItemPressed && _hudRenderer.ShowInventoryModal)
+        if (input.DropItemPressed && _hudRenderer.ShowPlayerModal && _carriedInventorySlot >= 0)
         {
-            int targetSlot = _hudRenderer.ResolveInventoryActionTargetSlot(_session);
-            if (targetSlot >= 0)
+            _ = _session.TryDropInventoryItem((ushort)_carriedInventorySlot, 1);
+            Span<ItemSlot> afterDrop = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
+            _session.CopyInventorySlots(afterDrop);
+            if (_carriedInventorySlot >= afterDrop.Length || afterDrop[_carriedInventorySlot].Quantity <= 1)
             {
-                _ = _session.TryDropInventoryItem((ushort)targetSlot, 1);
+                this.ResetInventoryDragState();
             }
         }
 
@@ -740,6 +641,122 @@ public sealed class WorldGameplayScene : GameScene
         base.Dispose(disposing);
     }
 
+    private void HandleInventoryTabInput(in DesktopInputFrame input, int viewportWidth, int viewportHeight)
+    {
+        if (_hudRenderer is null)
+        {
+            return;
+        }
+
+        Vector2 mouseScreen = input.MouseScreenPosition;
+        Span<ItemSlot> invSlots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
+        _session.CopyInventorySlots(invSlots);
+
+        if (_carriedInventorySlot < 0)
+        {
+            if (input.LeftClickPressed)
+            {
+                if (!_hudRenderer.IsPointInActiveModal(_session, mouseScreen, viewportWidth, viewportHeight))
+                {
+                    _hudRenderer.ShowPlayerModal = false;
+                    return;
+                }
+
+                if (_hudRenderer.TryHitTestInventorySlot(mouseScreen, viewportWidth, viewportHeight, out ushort clickedSlot))
+                {
+                    if (input.ShiftHeld)
+                    {
+                        _ = _session.TryQuickMoveInventorySlot(clickedSlot);
+                    }
+                    else if (clickedSlot < invSlots.Length && !invSlots[clickedSlot].IsEmpty)
+                    {
+                        _carriedInventorySlot = clickedSlot;
+                        _pressStartMousePos = mouseScreen;
+                        _isHoldDragging = true;
+                    }
+                }
+            }
+            else if (input.RightClickPressed &&
+                     _hudRenderer.TryHitTestInventorySlot(mouseScreen, viewportWidth, viewportHeight, out ushort rightSlot))
+            {
+                _ = _session.TryQuickMoveInventorySlot(rightSlot);
+            }
+
+            return;
+        }
+
+        if (_isHoldDragging)
+        {
+            if (!input.LeftMouseDown)
+            {
+                _isHoldDragging = false;
+                if (!_hudRenderer.IsPointInActiveModal(_session, mouseScreen, viewportWidth, viewportHeight))
+                {
+                    _ = _session.TryDropInventoryItem((ushort)_carriedInventorySlot, -1);
+                    this.ResetInventoryDragState();
+                }
+                else if (_hudRenderer.TryHitTestInventorySlot(mouseScreen, viewportWidth, viewportHeight, out ushort releaseSlot) &&
+                         releaseSlot != _carriedInventorySlot)
+                {
+                    _ = _session.TryMoveInventorySlot((ushort)_carriedInventorySlot, releaseSlot);
+                    this.ResetInventoryDragState();
+                }
+                else if (Vector2.DistanceSquared(mouseScreen, _pressStartMousePos) > 36f)
+                {
+                    this.ResetInventoryDragState();
+                }
+            }
+
+            return;
+        }
+
+        // Click-pickup carried item mode: place into target slot or drop outside modal window
+        if (input.LeftClickPressed)
+        {
+            if (!_hudRenderer.IsPointInActiveModal(_session, mouseScreen, viewportWidth, viewportHeight))
+            {
+                _ = _session.TryDropInventoryItem((ushort)_carriedInventorySlot, -1);
+                this.ResetInventoryDragState();
+            }
+            else if (_hudRenderer.TryHitTestInventorySlot(mouseScreen, viewportWidth, viewportHeight, out ushort targetSlot))
+            {
+                if (targetSlot != _carriedInventorySlot)
+                {
+                    _ = _session.TryMoveInventorySlot((ushort)_carriedInventorySlot, targetSlot);
+                }
+
+                this.ResetInventoryDragState();
+            }
+            else
+            {
+                this.ResetInventoryDragState();
+            }
+        }
+        else if (input.RightClickPressed)
+        {
+            if (!_hudRenderer.IsPointInActiveModal(_session, mouseScreen, viewportWidth, viewportHeight))
+            {
+                int currentQty = _carriedInventorySlot < invSlots.Length ? invSlots[_carriedInventorySlot].Quantity : 0;
+                _ = _session.TryDropInventoryItem((ushort)_carriedInventorySlot, 1);
+                if (currentQty <= 1)
+                {
+                    this.ResetInventoryDragState();
+                }
+            }
+            else
+            {
+                this.ResetInventoryDragState();
+            }
+        }
+    }
+
+    private void ResetInventoryDragState()
+    {
+        _carriedInventorySlot = -1;
+        _isHoldDragging = false;
+        _hudRenderer?.CarriedInventorySlot = -1;
+    }
+
     private void ApplyZoomPreset(int preset)
     {
         if (_cameraRig is null)
@@ -749,9 +766,9 @@ public sealed class WorldGameplayScene : GameScene
 
         float zoom = preset switch
         {
-            0 => 0.85f,
-            2 => 1.25f,
-            _ => 1.0f,
+            0 => 1.55f,
+            2 => 2.40f,
+            _ => 1.95f,
         };
         _cameraRig.SetZoom(zoom);
     }
@@ -776,7 +793,7 @@ public sealed class WorldGameplayScene : GameScene
         }
 
         _hudRenderer.CloseAllModals();
-        _draggingInventorySlot = -1;
+        this.ResetInventoryDragState();
         _hudRenderer.ShowForgeModal = true;
     }
 

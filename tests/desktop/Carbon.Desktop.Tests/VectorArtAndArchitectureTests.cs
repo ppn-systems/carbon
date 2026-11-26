@@ -10,6 +10,8 @@ using Carbon.Desktop.Rendering;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
+using Carbon.Graphics.Fonts.TrueType;
+using Carbon.Items.Catalog;
 using FluentAssertions;
 using Xunit;
 
@@ -63,7 +65,24 @@ public sealed class VectorArtAndArchitectureTests
         typeof(IClientWorldSession).Should().Implement<IClientCharacterService>();
         typeof(IClientWorldSession).Should().Implement<IClientWorldReadModel>();
         typeof(IClientWorldSession).Should().Implement<IClientGameplayController>();
-        typeof(NalixMultiplayerSession).Should().Implement<IClientWorldSession>();
+        typeof(MultiplayerSession).Should().Implement<IClientWorldSession>();
+
+        Assembly[] renamedAssemblies =
+        [
+            typeof(MultiplayerSession).Assembly,
+            typeof(IClientWorldSession).Assembly,
+            typeof(HudOverlayRenderer).Assembly,
+            typeof(SkillCatalog).Assembly,
+            typeof(TrueTypeFontLoader).Assembly,
+        ];
+        foreach (Assembly assembly in renamedAssemblies)
+        {
+            assembly.GetTypes()
+                .Where(static t => !t.Name.StartsWith('<'))
+                .Select(static t => t.Name)
+                .Should().NotContain(name => name.Contains("Nalix", StringComparison.Ordinal),
+                    because: $"types in {assembly.GetName().Name} should use simple domain names instead of Nalix* prefixes");
+        }
 
         // CQRS & ISP: renderers accept read-only IClientWorldReadModel instead of mutation session.
         MethodInfo? worldRender = typeof(WorldSceneRenderer).GetMethod(nameof(WorldSceneRenderer.Render));

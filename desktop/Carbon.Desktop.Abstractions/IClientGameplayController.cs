@@ -26,7 +26,7 @@ public interface IClientGameplayController
     bool TryHarvestNearbyProp(out (int ChunkX, int ChunkY) modifiedChunk);
 
     /// <summary>Places a starter structure near the player's current position.</summary>
-    bool TryPlaceTestHouse(out (int ChunkX, int ChunkY) centerChunk);
+    bool TryPlaceStarterWall(out (int ChunkX, int ChunkY) centerChunk);
 
     /// <summary>Toggles the nearest door beside the local player.</summary>
     bool TryToggleNearbyDoor(out (int ChunkX, int ChunkY) modifiedChunk);

@@ -35,7 +35,7 @@ internal sealed class MinimapRadarWidget
         const float pad = 8f;
         float mapX = viewportWidth - mapSize - 24f;
         const float mapY = 38f;
-        skin.DrawCard(spriteBatch, new RectangleF(mapX - pad, mapY - 24f, mapSize + (pad * 2f), mapSize + 44f), new ColorRgba(71, 85, 105, 235), bodyAlpha: 232);
+        skin.DrawCard(spriteBatch, new RectangleF(mapX - pad, mapY - 24f, mapSize + (pad * 2f), mapSize + 44f), CarbonUiPalette.BorderOuter, bodyAlpha: 236);
     }
 
     public void DrawGeometry(GeometryBatch batch, IClientWorldReadModel world, int viewportWidth, int ptx, int pty)
@@ -112,10 +112,10 @@ internal sealed class MinimapRadarWidget
     public void DrawText(SpriteBatch spriteBatch, BitmapFont font, int viewportWidth, int ptx, int pty)
     {
         float mapX = MathF.Floor(viewportWidth - 176f);
-        ColorRgba black = new(10, 12, 18, 255);
-        spriteBatch.DrawOutlinedString(font, "RADAR [M]", new Vector2(mapX, 20f), new ColorRgba(248, 250, 252, 255), black, 1, 1.5f);
-        spriteBatch.DrawOutlinedString(font, "N", new Vector2(mapX + 73f, 29f), new ColorRgba(250, 204, 21, 245), black, 1, 1f);
-        spriteBatch.DrawOutlinedString(font, $"({ptx},{pty})", new Vector2(mapX, 194f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
+        ColorRgba black = CarbonUiPalette.TextOutline;
+        spriteBatch.DrawOutlinedString(font, "MAP", new Vector2(mapX, 17f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, "N", new Vector2(mapX + 73f, 22f), CarbonUiPalette.TextWarm, black, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, $"({ptx},{pty})", new Vector2(mapX, 191f), CarbonUiPalette.TextMuted, black, 1, 1f);
     }
 
     private static ColorRgba ResolveMinimapBiomeColor(BiomeType biome)

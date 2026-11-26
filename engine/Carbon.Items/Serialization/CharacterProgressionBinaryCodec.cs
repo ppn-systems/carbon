@@ -67,27 +67,6 @@ public static class CharacterProgressionBinaryCodec
         return buffer;
     }
 
-    /// <summary>Serializes raw attributes &amp; skills directly without allocating a full <see cref="CharacterProgressionState"/>.</summary>
-    public static byte[] SerializeLegacyValues(
-        ushort vit,
-        ushort wis,
-        ushort pwr,
-        ushort agi,
-        byte skill1Rank,
-        byte skill2Rank,
-        byte skill3Rank)
-    {
-        CharacterProgressionState state = new();
-        state.SetAttribute(PrimaryAttributeId.Vitality, vit);
-        state.SetAttribute(PrimaryAttributeId.Wisdom, wis);
-        state.SetAttribute(PrimaryAttributeId.Power, pwr);
-        state.SetAttribute(PrimaryAttributeId.Agility, agi);
-        state.SetSkillRank(SkillCatalog.WhirlwindId, skill1Rank);
-        state.SetSkillRank(SkillCatalog.ArcaneNovaId, skill2Rank);
-        state.SetSkillRank(SkillCatalog.VitalSurgeId, skill3Rank);
-        return Serialize(state);
-    }
-
     /// <summary>
     /// Deserializes <paramref name="data"/> into <paramref name="target"/>.
     /// Empty spans clear <paramref name="target"/> and return <see langword="true"/>.

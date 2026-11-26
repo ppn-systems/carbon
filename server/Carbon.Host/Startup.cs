@@ -28,8 +28,8 @@ internal static class Startup
         HostRuntimeOptions options,
         IAuthService authService,
         IAuthoritativeWorld world,
-        NalixWorldOutboundSink outboundSink,
-        NalixSessionTransportRegistry transportRegistry,
+        WorldOutboundSink outboundSink,
+        SessionTransportRegistry transportRegistry,
         ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(options);

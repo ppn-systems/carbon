@@ -47,35 +47,48 @@ internal sealed class ToastFeedWidget
 
     public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin, BitmapFont font, int viewportWidth, bool showMinimap)
     {
-        float baseY = showMinimap ? 218f : 24f;
+        float baseY = showMinimap ? 218f : 18f;
         for (int i = 0; i < _toasts.Count; i++)
         {
             NotificationToast toast = _toasts[i];
-            byte alpha = (byte)(Math.Clamp(toast.RemainingSeconds / 0.8f, 0f, 1f) * 230f);
+            byte alpha = (byte)(Math.Clamp(toast.RemainingSeconds / 0.8f, 0f, 1f) * 235f);
             TextMeasureResult size = font.MeasureString(toast.Message, TextLayoutOptions.Default, 1f);
-            float w = size.Width + 20f;
-            float x = viewportWidth - w - 16f;
-            float y = baseY + (i * 25f);
-            ColorRgba border = toast.Message.StartsWith('+') ? new ColorRgba(52, 211, 153, alpha) : new ColorRgba(250, 204, 21, alpha);
-            skin.DrawInset(spriteBatch, new RectangleF(x, y, w, 22f), new ColorRgba(10, 15, 28, alpha), border);
+            float w = size.Width + 24f;
+            float x = viewportWidth - w - 14f;
+            float y = baseY + (i * 29f);
+            ColorRgba border = toast.Message.StartsWith('+')
+                ? new ColorRgba(CarbonUiPalette.ConfirmBorder.R, CarbonUiPalette.ConfirmBorder.G, CarbonUiPalette.ConfirmBorder.B, alpha)
+                : new ColorRgba(CarbonUiPalette.BorderOuter.R, CarbonUiPalette.BorderOuter.G, CarbonUiPalette.BorderOuter.B, alpha);
+            skin.DrawInset(
+                spriteBatch,
+                new RectangleF(x, y, w, 25f),
+                new ColorRgba(CarbonUiPalette.WindowFill.R, CarbonUiPalette.WindowFill.G, CarbonUiPalette.WindowFill.B, alpha),
+                border);
         }
     }
 
     public void DrawText(SpriteBatch spriteBatch, BitmapFont font, int viewportWidth, bool showMinimap)
     {
-        float baseY = showMinimap ? 218f : 24f;
+        float baseY = showMinimap ? 218f : 18f;
         for (int i = 0; i < _toasts.Count; i++)
         {
             NotificationToast toast = _toasts[i];
             byte alpha = (byte)(Math.Clamp(toast.RemainingSeconds / 0.8f, 0f, 1f) * 255f);
             TextMeasureResult size = font.MeasureString(toast.Message, TextLayoutOptions.Default, 1f);
-            float w = size.Width + 20f;
-            float x = viewportWidth - w - 16f;
-            float y = baseY + (i * 25f);
+            float w = size.Width + 24f;
+            float x = viewportWidth - w - 14f;
+            float y = baseY + (i * 29f);
             ColorRgba textColor = toast.Message.StartsWith('+')
-                ? new ColorRgba(74, 222, 128, alpha)
-                : new ColorRgba(251, 191, 36, alpha);
-            CarbonUiSkin.DrawCenteredText(spriteBatch, font, toast.Message, new RectangleF(x, y, w, 22f), textColor, new ColorRgba(10, 12, 18, alpha), 1f);
+                ? new ColorRgba(168, 226, 186, alpha)
+                : new ColorRgba(CarbonUiPalette.TextPrimary.R, CarbonUiPalette.TextPrimary.G, CarbonUiPalette.TextPrimary.B, alpha);
+            CarbonUiSkin.DrawCenteredText(
+                spriteBatch,
+                font,
+                toast.Message,
+                new RectangleF(x, y, w, 25f),
+                textColor,
+                new ColorRgba(CarbonUiPalette.TextOutline.R, CarbonUiPalette.TextOutline.G, CarbonUiPalette.TextOutline.B, alpha),
+                1f);
         }
     }
 

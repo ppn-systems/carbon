@@ -16,13 +16,13 @@ public sealed class ClientUiSettings
         "Carbon",
         "ui_settings.cfg");
 
-    /// <summary>Gets or sets whether the top-right radar minimap (<c>[M]</c>) is visible.</summary>
-    public bool ShowMinimap { get; set; } = true;
+    /// <summary>Gets or sets whether the top-right radar minimap is visible (off by default).</summary>
+    public bool ShowMinimap { get; set; }
 
     /// <summary>Gets or sets whether floating combat damage/heal/XP numbers render over actors.</summary>
     public bool ShowCombatNumbers { get; set; } = true;
 
-    /// <summary>Gets or sets whether FPS and world coordinates render inside the hero frame.</summary>
+    /// <summary>Gets or sets whether FPS and world coordinates render inside the character sheet.</summary>
     public bool ShowTelemetry { get; set; } = true;
 
     /// <summary>Gets or sets whether the optional bottom keybind hint ribbon is displayed (off by default).</summary>

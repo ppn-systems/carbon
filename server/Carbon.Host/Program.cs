@@ -79,8 +79,8 @@ public static class Program
 
         Pbkdf2PasswordHasher hasher = new();
         AuthService authService = new(accountStore, characterStore, hasher);
-        NalixSessionTransportRegistry transportRegistry = new();
-        NalixWorldOutboundSink outboundSink = new(transportRegistry, loggerFactory.CreateLogger<NalixWorldOutboundSink>());
+        SessionTransportRegistry transportRegistry = new();
+        WorldOutboundSink outboundSink = new(transportRegistry, loggerFactory.CreateLogger<WorldOutboundSink>());
         AuthoritativeWorld world = new(
             options.WorldSeed,
             options.TileSize,

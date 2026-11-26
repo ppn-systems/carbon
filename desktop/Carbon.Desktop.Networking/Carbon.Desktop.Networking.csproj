@@ -7,6 +7,10 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="Carbon.Desktop.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\..\contracts\Carbon.Contracts.Common\Carbon.Contracts.Common.csproj" />
         <ProjectReference Include="..\..\contracts\Carbon.Contracts.Entities\Carbon.Contracts.Entities.csproj" />
         <ProjectReference Include="..\..\contracts\Carbon.Contracts.Identity\Carbon.Contracts.Identity.csproj" />

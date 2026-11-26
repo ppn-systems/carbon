@@ -13,8 +13,8 @@ namespace Carbon.Desktop.Rendering;
 public sealed class CameraRig2D
 {
     private const float InteriorZoomBoost = 1.4f;
-    private const float MinZoom = 0.10f;
-    private const float MaxZoom = 3.0f;
+    private const float MinZoom = 0.75f;
+    private const float MaxZoom = 4.0f;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CameraRig2D"/> class.
@@ -24,7 +24,7 @@ public sealed class CameraRig2D
     public CameraRig2D(Camera2D camera, bool macroView)
     {
         this.Camera = camera ?? throw new ArgumentNullException(nameof(camera));
-        this.UserZoom = macroView ? 0.15f : 1.0f;
+        this.UserZoom = macroView ? 0.35f : 1.95f;
         this.Camera.Zoom = this.UserZoom;
     }
 
