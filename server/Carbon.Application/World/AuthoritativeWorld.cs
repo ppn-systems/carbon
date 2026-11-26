@@ -49,7 +49,7 @@ namespace Carbon.Application.World;
 /// AI monsters/NPCs, melee &amp; skill combat, inventory/crafting persistence, procedural chunk deltas,
 /// Spatial AoI replication, and zero-allocation tick dispatches.
 /// </summary>
-public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
+public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldCommandHandlers
 {
     private const float BaseWalkSpeed = 250f;
     private const float SprintSpeed = 450f;
@@ -67,6 +67,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
 
     private readonly Lock _gate = new();
     private readonly WorldCommandQueue _commands = new();
+    private readonly WorldCommandExecutor _commandExecutor;
     private readonly ProceduralWorldGenerator _generator;
     private readonly ChunkWorld2D _chunkWorld;
     private readonly ConstructionService _construction;
@@ -199,6 +200,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             needsConfig,
             foodCatalog,
             worldSeed);
+        _commandExecutor = new WorldCommandExecutor(this);
         _replication = new AoiReplicator(_simulation, _outbound, this.TileSize * 24f, DefaultEntityRadius, this.ResolveSpawnIdentityLocked);
     }
 

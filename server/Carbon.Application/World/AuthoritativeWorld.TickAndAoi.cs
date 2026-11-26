@@ -37,7 +37,7 @@ public sealed partial class AuthoritativeWorld
             float dt = 1f / this.TickRate;
 
             // ADR-017: mutating requests submitted since the last tick run first, in arrival order.
-            _commands.Drain(this.ExecuteCommandLocked);
+            _commandExecutor.Drain(_commands);
 
             foreach (KeyValuePair<ulong, ActivePlayerState> kvp in _playersByConnection)
             {
