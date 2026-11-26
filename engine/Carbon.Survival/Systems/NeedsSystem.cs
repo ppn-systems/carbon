@@ -24,7 +24,7 @@ public sealed class NeedsSystem : ISimulationSystem
 {
     private const float SecondsPerMinute = 60f;
 
-    private readonly NeedsConfig _config;
+    private NeedsConfig _config;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="NeedsSystem"/> class.
@@ -38,6 +38,17 @@ public sealed class NeedsSystem : ISimulationSystem
 
     /// <inheritdoc/>
     public SimulationPhase Phase => SimulationPhase.PostUpdate;
+
+    /// <summary>
+    /// Switches to new tuning (config hot reload). Applies from the next tick; existing needs keep their current values.
+    /// Call from the simulation thread (between ticks).
+    /// </summary>
+    /// <param name="config">Validated needs tuning.</param>
+    public void Reconfigure(NeedsConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        _config = config;
+    }
 
     /// <summary>
     /// Sets the activity used for the next drain step. Call from the simulation whenever the entity's movement

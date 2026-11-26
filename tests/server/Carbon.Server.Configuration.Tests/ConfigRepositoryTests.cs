@@ -97,6 +97,37 @@ public sealed class ConfigRepositoryTests : IDisposable
         repository.Entries[0].ContentHash.Should().Be(before);
     }
 
+    [Fact]
+    public void Reload_ReloadSteps_AllPrepareBeforeAnyCommitsAndOneRejectionChangesNothing()
+    {
+        _dir.Write("items.json", "[1]");
+        ConfigRepository repository = ConfigRepository.Load(_dir.Path);
+        List<string> log = [];
+        bool rejectSecond = true;
+        repository.AddReloadStep((result, next) =>
+        {
+            log.Add("prepare-a");
+            return () => log.Add("commit-a");
+        });
+        repository.AddReloadStep((result, next) =>
+        {
+            log.Add("prepare-b");
+            return rejectSecond ? throw new InvalidDataException("b rejects") : () => log.Add($"commit-b:{repository.ManifestVersion}");
+        });
+
+        _dir.Write("items.json", "[2]");
+        Action rejected = () => repository.Reload();
+        rejected.Should().Throw<InvalidDataException>();
+        log.Should().Equal("prepare-a", "prepare-b");
+        repository.ManifestVersion.Should().Be(1u);
+
+        log.Clear();
+        rejectSecond = false;
+        repository.Reload().HasChanges.Should().BeTrue();
+        log.Should().Equal("prepare-a", "prepare-b", "commit-a", "commit-b:1");
+        repository.ManifestVersion.Should().Be(2u, "the served snapshot switches right after the domains commit");
+    }
+
     [Theory]
     [InlineData("Items.json", "[]")]
     [InlineData("items.json", "{\"a\":1,\"a\":2}")]
