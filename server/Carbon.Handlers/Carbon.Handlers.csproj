@@ -8,12 +8,14 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\contracts\Carbon.Contracts.Common\Carbon.Contracts.Common.csproj" />
+        <ProjectReference Include="..\..\contracts\Carbon.Contracts.Config\Carbon.Contracts.Config.csproj" />
         <ProjectReference Include="..\..\contracts\Carbon.Contracts.Entities\Carbon.Contracts.Entities.csproj" />
         <ProjectReference Include="..\..\contracts\Carbon.Contracts.Identity\Carbon.Contracts.Identity.csproj" />
         <ProjectReference Include="..\..\contracts\Carbon.Contracts.Items\Carbon.Contracts.Items.csproj" />
         <ProjectReference Include="..\..\contracts\Carbon.Contracts.Maps\Carbon.Contracts.Maps.csproj" />
         <ProjectReference Include="..\..\engine\Carbon.Maps\Carbon.Maps.csproj" />
         <ProjectReference Include="..\Carbon.Abstractions\Carbon.Abstractions.csproj" />
+        <ProjectReference Include="..\Carbon.Server.Configuration\Carbon.Server.Configuration.csproj" />
     </ItemGroup>
 
     <ItemGroup>

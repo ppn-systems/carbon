@@ -2,6 +2,7 @@
 
 using System;
 using System.IO;
+using System.Text;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,6 +15,7 @@ using Carbon.Infrastructure.Configuration;
 using Carbon.Infrastructure.Persistence.Postgres;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Infrastructure.Security;
+using Carbon.Server.Configuration;
 using Carbon.Survival.Config;
 using Carbon.Survival.Food;
 using Microsoft.Extensions.Logging;
@@ -85,17 +87,27 @@ public static class Program
         AuthService authService = new(accountStore, characterStore, hasher);
         SessionTransportRegistry transportRegistry = new();
         WorldOutboundSink outboundSink = new(transportRegistry, loggerFactory.CreateLogger<WorldOutboundSink>());
-        // Economy data (items, recipes, loot, tunables) is server-authoritative and loaded from resources/config.
-        string economyDir = GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)
-            ?? throw new InvalidOperationException("resources/config (economy.json, items.json, recipes.json, loot.json) was not found next to the server.");
-        GameEconomy economy = GameEconomy.LoadFromDirectory(economyDir);
+        // Gameplay config is server-authoritative (ADR-011): the server builds its domains from the same snapshot it
+        // serves to clients, so both sides always run on identical bytes.
+        ConfigRepository config = ConfigRepository.Load(ResolveConfigDirectory(options.ConfigDirectory));
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation(
+                "Loaded {Count} config documents from {Directory} (manifest v{Version}).",
+                config.Entries.Count,
+                config.Directory,
+                config.ManifestVersion);
+        }
 
-        // Survival tuning (hunger decay, food nutrition) lives in the same config directory.
-        NeedsConfig needsConfig = NeedsConfig.LoadFromJson(
-            await File.ReadAllTextAsync(Path.Combine(economyDir, "needs.json")).ConfigureAwait(false));
-        FoodCatalog foodCatalog = FoodCatalog.LoadFromJson(
-            await File.ReadAllTextAsync(Path.Combine(economyDir, "food.json")).ConfigureAwait(false),
-            needsConfig.FoodMax);
+        GameEconomy economy = GameEconomy.Load(
+            ReadDocument(config, GameEconomy.ItemsFile),
+            ReadDocument(config, GameEconomy.RecipesFile),
+            ReadDocument(config, GameEconomy.EconomyFile),
+            ReadDocument(config, GameEconomy.LootFile));
+
+        // Survival tuning (hunger decay, food nutrition) comes from the same served snapshot.
+        NeedsConfig needsConfig = NeedsConfig.LoadFromJson(ReadDocument(config, "needs.json"));
+        FoodCatalog foodCatalog = FoodCatalog.LoadFromJson(ReadDocument(config, "food.json"), needsConfig.FoodMax);
 
         AuthoritativeWorld world = new(
             options.WorldSeed,
@@ -126,7 +138,10 @@ public static class Program
             return 0;
         }
 
-        NetworkApplication app = Startup.Build(options, authService, world, outboundSink, transportRegistry, logger);
+        // Hot reload is opt-in: domains built at boot (economy) do not swap their tables yet, and the server must never
+        // serve clients a config it is not running itself.
+        using ConfigHotReloadWatcher? configWatcher = options.ConfigHotReload ? new(config, logger) : null;
+        NetworkApplication app = Startup.Build(options, authService, world, outboundSink, transportRegistry, logger, config);
         await using ConfiguredAsyncDisposable appScope = app.ConfigureAwait(false);
 
         using CancellationTokenSource cts = new();
@@ -159,4 +174,18 @@ public static class Program
         await tickTask.ConfigureAwait(false);
         return 0;
     }
+
+    /// <summary>
+    /// Returns <paramref name="configured"/> when set; otherwise the <c>resources/config</c> (or a <c>config</c> folder copied
+    /// next to the binaries) found from the executable directory, then from the working directory.
+    /// </summary>
+    private static string ResolveConfigDirectory(string configured) =>
+        configured.Length > 0
+            ? configured
+            : GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)
+                ?? GameEconomy.FindConfigDirectory(Environment.CurrentDirectory)
+                ?? throw new InvalidOperationException("resources/config was not found; set CARBON_CONFIG_DIR.");
+
+    private static string ReadDocument(ConfigRepository config, string fileName) =>
+        Encoding.UTF8.GetString(config.Catalog.GetUtf8(Path.GetFileNameWithoutExtension(fileName)));
 }

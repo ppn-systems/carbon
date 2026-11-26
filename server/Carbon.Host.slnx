@@ -4,4 +4,5 @@
   <Project Path="Carbon.Handlers/Carbon.Handlers.csproj" />
   <Project Path="Carbon.Host/Carbon.Host.csproj" />
   <Project Path="Carbon.Infrastructure/Carbon.Infrastructure.csproj" />
+  <Project Path="Carbon.Server.Configuration/Carbon.Server.Configuration.csproj" />
 </Solution>

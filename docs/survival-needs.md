@@ -96,8 +96,8 @@ Speed penalties multiply: starving + exhausted + poisoned = 0.65 × 0.85 × 0.85
 
 ## Server integration (`server/Carbon.Application/World/AuthoritativeWorld.Survival.cs`)
 
-- The host copies `needs.json` / `food.json` to `<output>/config/` (also in `deploy/Dockerfile.host`) and loads
-  them at boot; bad data stops the server.
+- The host builds `NeedsConfig` / `FoodCatalog` from the `ConfigRepository` snapshot (ADR-011), so the
+  survival data is the same bytes the server serves to clients; bad data stops the server at boot.
 - `EatActionSystem` then `NeedsSystem` are registered on the world simulation; every player entity gets
   `NeedsComponent.CreateFull`.
 - Each tick the player's activity comes from server state: Fighting (hit in the last 6 s) > Sprinting >

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <RootNamespace>Carbon.Configuration</RootNamespace>
+        <AssemblyName>Carbon.Configuration</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\contracts\Carbon.Contracts.Config\Carbon.Contracts.Config.csproj" />
+        <ProjectReference Include="..\Carbon.Primitives\Carbon.Primitives.csproj" />
+        <ProjectReference Include="..\Carbon.Data\Carbon.Data.csproj" />
+    </ItemGroup>
+</Project>
