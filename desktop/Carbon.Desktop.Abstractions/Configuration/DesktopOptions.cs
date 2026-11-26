@@ -3,6 +3,7 @@
 using System;
 using System.Globalization;
 using System.IO;
+using Carbon.Maps.Biomes;
 
 namespace Carbon.Desktop.Abstractions.Configuration;
 
@@ -25,6 +26,12 @@ public sealed class DesktopOptions
 
     /// <summary>Gets or sets the optional starting world tile Y override.</summary>
     public int? FocusTileY { get; init; }
+
+    /// <summary>
+    /// Gets or sets an optional biome to frame on start (<c>CARBON_FOCUS_BIOME</c>): the camera starts on the
+    /// nearest representative tile of it (see <c>BiomeLocator</c>). An explicit focus tile wins.
+    /// </summary>
+    public BiomeType? FocusBiome { get; init; }
 
     /// <summary>Gets or sets a value indicating whether to start zoomed out for macro inspection.</summary>
     public bool MacroView { get; init; }
@@ -49,6 +56,12 @@ public sealed class DesktopOptions
 
     /// <summary>Gets or sets a value indicating whether the runner closes automatically after capture.</summary>
     public bool AutoExit { get; init; }
+
+    /// <summary>
+    /// Gets or sets an optional constant walk direction applied instead of keyboard movement
+    /// (<c>CARBON_AUTO_WALK=x,y</c>; used by the screenshot tool to capture actors in motion).
+    /// </summary>
+    public (float X, float Y)? AutoWalk { get; init; }
 
     /// <summary>Gets or sets the remote dedicated server host or IP address.</summary>
     public string ServerHost { get; init; } = "127.0.0.1";
@@ -101,6 +114,11 @@ public sealed class DesktopOptions
             focusY = py;
         }
 
+        BiomeType? focusBiome = Enum.TryParse(get("CARBON_FOCUS_BIOME"), ignoreCase: true, out BiomeType parsedBiome) &&
+            Enum.IsDefined(parsedBiome)
+            ? parsedBiome
+            : null;
+
         float startHour = float.TryParse(get("CARBON_TIME_OF_DAY"), NumberStyles.Float, CultureInfo.InvariantCulture, out float parsedHour)
             ? parsedHour
             : 9f;
@@ -127,6 +145,15 @@ public sealed class DesktopOptions
         int captureFrames = int.TryParse(get("CARBON_CAPTURE_FRAMES"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedFrames)
             ? Math.Clamp(parsedFrames, 0, 240)
             : 0;
+
+        (float X, float Y)? autoWalk = null;
+        if (get("CARBON_AUTO_WALK") is { Length: > 0 } walk &&
+            walk.Split(',') is [string wx, string wy] &&
+            float.TryParse(wx, NumberStyles.Float, CultureInfo.InvariantCulture, out float awx) &&
+            float.TryParse(wy, NumberStyles.Float, CultureInfo.InvariantCulture, out float awy))
+        {
+            autoWalk = (awx, awy);
+        }
 
         string serverHost = get("CARBON_SERVER_HOST") is { Length: > 0 } host ? host.Trim() : "127.0.0.1";
         ushort serverTcpPort = ushort.TryParse(get("CARBON_TCP_PORT") ?? get("CARBON_SERVER_PORT"), NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort parsedPort) && parsedPort > 0
@@ -158,6 +185,7 @@ public sealed class DesktopOptions
             Seed = seed,
             FocusTileX = focusX,
             FocusTileY = focusY,
+            FocusBiome = focusBiome,
             MacroView = string.Equals(get("CARBON_MACRO_VIEW"), "1", StringComparison.Ordinal),
             StartHour = startHour,
             DayLengthSeconds = dayLength,
@@ -166,6 +194,7 @@ public sealed class DesktopOptions
             ScreenshotPath = screenshotPath,
             CaptureFrames = captureFrames,
             AutoExit = string.Equals(get("CARBON_AUTO_EXIT"), "1", StringComparison.Ordinal),
+            AutoWalk = autoWalk,
             ServerHost = serverHost,
             ServerTcpPort = serverTcpPort,
             AutoLogin = string.Equals(get("CARBON_AUTO_LOGIN"), "1", StringComparison.Ordinal),

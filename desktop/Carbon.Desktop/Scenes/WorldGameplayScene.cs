@@ -23,6 +23,7 @@ using Carbon.Items.Definitions;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
+using Carbon.Maps.Generators;
 using Carbon.Maps.Navigation;
 using Carbon.Maps.Streaming;
 using Carbon.Maps.Topography;
@@ -96,9 +97,25 @@ public sealed class WorldGameplayScene : GameScene
 
         _worldRenderer.EnsureWorldBound(_session);
 
-        Vector2 focusPos = _options.FocusTileX.HasValue && _options.FocusTileY.HasValue
-            ? new Vector2((_options.FocusTileX.Value + 0.5f) * _options.TileSize, (_options.FocusTileY.Value + 0.5f) * _options.TileSize)
-            : _session.LocalPlayerInterpolatedPosition;
+        Vector2 focusPos = _session.LocalPlayerInterpolatedPosition;
+        if (_options.FocusTileX.HasValue && _options.FocusTileY.HasValue)
+        {
+            focusPos = new Vector2((_options.FocusTileX.Value + 0.5f) * _options.TileSize, (_options.FocusTileY.Value + 0.5f) * _options.TileSize);
+        }
+        else if (_options.FocusBiome is BiomeType focusBiome)
+        {
+            ChunkWorld2D world = _session.ChunkWorld;
+            (int sx, int sy) = world.SpawnTile;
+            if (BiomeLocator.TryFind(world.Generator, focusBiome, sx, sy, 4000, out int bx, out int by))
+            {
+                focusPos = new Vector2((bx + 0.5f) * world.TileSize, (by + 0.5f) * world.TileSize);
+                Console.WriteLine($"[Focus] {focusBiome} at tile {bx},{by}");
+            }
+            else
+            {
+                Console.WriteLine($"[Focus] No {focusBiome} tile within 4000 tiles of spawn");
+            }
+        }
 
         _cameraRig.SnapTo(focusPos);
     }
@@ -540,7 +557,8 @@ public sealed class WorldGameplayScene : GameScene
             _cameraRig.AdjustZoom(input.ZoomMultiplier.Value);
         }
 
-        _session.Update(dt, input.MoveDirection, input.Sprint);
+        Vector2 move = _options.AutoWalk is (float awx, float awy) ? new Vector2(awx, awy) : input.MoveDirection;
+        _session.Update(dt, move, input.Sprint);
 
         _dirtyChunksScratch.Clear();
         _session.DrainDirtyChunks(_dirtyChunksScratch);

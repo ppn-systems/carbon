@@ -1,0 +1,62 @@
+# World screenshot review
+
+`capture.sh` renders a fixed list of world scenarios (every biome, day/night, rain, macro view, wading,
+monsters) with the real online client against a throwaway local server, and lays the results out on a
+labelled contact sheet. Use it to review terrain, props, lighting and actor art before and after a change.
+
+```bash
+tools/screenshots/capture.sh [out_dir] [name_regex]
+
+tools/screenshots/capture.sh                                  # all scenarios -> artifacts/screenshots/
+tools/screenshots/capture.sh /tmp/shots '^(dune_desert|red_mesa)$'
+SKIP_BUILD=1 tools/screenshots/capture.sh /tmp/shots night    # reuse the last build
+```
+
+Output: one `<scenario>.png` per scenario (1280x720) and `contact_sheet.png`. The client log lines tagged
+`[Focus]`, `[Biome]` and `[Terrain]` (chunk bake time and vertex count) are echoed per scenario.
+
+## How it works
+
+For every scenario the script:
+
+1. starts `Carbon.Host` (Debug build) on SQLite in a temporary directory, seeded with `CARBON_SEED`
+   (default `1337`), on free-ish local ports;
+2. runs `Carbon.Desktop` (Release build) under `xvfb-run` with Mesa software GL, auto-login (a fresh account
+   and character per scenario), `CARBON_AUTO_EXIT=1` and `CARBON_SCREENSHOT_PATH`;
+3. stops the server, then converts the BMP captures to PNG and builds the contact sheet
+   (`contact_sheet.py`, `python3 -I` with Pillow).
+
+Requirements: the .NET SDK (`$HOME/.dotnet` is added to `PATH`), `xvfb-run`, GLFW and Mesa (`libglfw3`,
+`libgl1-mesa-dri`), and `python3` with Pillow.
+
+## Scenarios
+
+`scenarios.txt` holds one scenario per line: `name | server env | client env`.
+
+| Server variable (Debug host only) | Meaning |
+| :--- | :--- |
+| `CARBON_DEBUG_SPAWN_BIOME=<BiomeType>` | Every character enters at the nearest representative tile of the biome (`BiomeLocator`: ±10-tile interior; `ShallowWater` is framed wading by a shore). |
+| `CARBON_DEBUG_SPAWN_TILE=x,y` | Every character enters at this world tile (wins over the biome). |
+| `CARBON_DEBUG_SPAWN_OFFSET=dx,dy` | Offset in tiles added to the resolved spawn (e.g. far from the starter area). |
+| `CARBON_DEBUG_START_HOUR=h` | The world clock starts at hour `h` (0..24); clients follow the server clock. |
+
+These overrides are compiled into Debug builds of the host only (`HostRuntimeOptions.ReadDebugOverrides`);
+Release builds ignore the variables, and nothing is ever taken from a client. The host logs a warning when
+they are active.
+
+| Client variable | Meaning |
+| :--- | :--- |
+| `CARBON_FOCUS_BIOME=<BiomeType>` | Start the camera on the biome's representative tile (pair it with the server spawn override, since the camera follows the player). |
+| `CARBON_FOCUS_TILE=x,y` | Start the camera on a tile. |
+| `CARBON_WEATHER=rain\|clear` | Force the weather. |
+| `CARBON_MACRO_VIEW=1` | Zoomed-out overview. |
+| `CARBON_AUTO_WALK=x,y` | Walk in a constant direction (actors in motion, wakes). |
+| `CARBON_CAPTURE_FRAMES=n` | Also capture `n` consecutive frames after the main capture. |
+
+Script knobs: `SKIP_BUILD=1`, `CARBON_SEED`, `BASE_PORT` (TCP; UDP is `BASE_PORT+1`), `WIDTH`/`HEIGHT`,
+`CLIENT_TIMEOUT`, `SERVER_BOOT_TIMEOUT`, `SCENARIOS` (alternative scenario file).
+
+## Smoke test
+
+`tools/screenshots/smoke.sh` captures a single scenario and checks that the PNG exists and is not a flat
+image. It needs the same headless stack and takes well under a minute after the build, so it can run in CI.
