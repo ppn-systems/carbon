@@ -10,6 +10,7 @@
   <Project Path="../desktop/Carbon.Desktop/Carbon.Desktop.csproj" />
   <Project Path="../engine/Carbon.AI/Carbon.AI.csproj" />
   <Project Path="../engine/Carbon.Combat/Carbon.Combat.csproj" />
+  <Project Path="../engine/Carbon.Creatures/Carbon.Creatures.csproj" />
   <Project Path="../engine/Carbon.Data/Carbon.Data.csproj" />
   <Project Path="../engine/Carbon.Items/Carbon.Items.csproj" />
   <Project Path="../engine/Carbon.Maps/Carbon.Maps.csproj" />

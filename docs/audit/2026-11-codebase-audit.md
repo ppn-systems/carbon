@@ -2,7 +2,7 @@
 
 | Field | Value |
 | :--- | :--- |
-| **Audited commit** | `6d6dfac` (master, PR #12) |
+| **Audited commit** | `6d6dfac` (master, PR #12). PRs #13 and #17, merged afterwards, are covered by the automated guards but were not manually re-audited; line numbers in files they touched may have shifted. |
 | **Scope** | `contracts/`, `engine/`, `server/`, `desktop/`, `graphics/`, `tests/` (~79k lines C#, 31 production projects, 15 test projects) |
 | **Method** | Manual read-through per layer against AGENTS.md, ADR-001…ADR-010, and the `csharp-style`, `carbon-engine-ecs`, `performance-aot`, `testing-style`, `carbon-handlers` skills; plus the reflection/metadata guards in `tests/architecture/Carbon.Architecture.Tests` |
 | **Status** | Report only. No production code changed in this PR (economy, combat/AI, survival, building, config sync, and biome rendering are being changed in parallel). |
