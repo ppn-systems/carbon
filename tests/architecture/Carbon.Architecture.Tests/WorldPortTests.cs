@@ -22,11 +22,7 @@ public sealed class WorldPortTests
     /// </summary>
     private static readonly HashSet<string> s_pendingSyncMutatorAllowlist = new(StringComparer.Ordinal)
     {
-        // ADR-017 part 3: economy and progression.
-        "IWorldInventoryService.TryVendorBuy",
-        "IWorldInventoryService.TryVendorSell",
-        "IWorldInventoryService.TryRepairItem",
-        "IWorldEntityCommandSink.TryAllocateCharacterPoint",
+        // Empty: ADR-017 parts 1-3 converted every mutating handler to Submit*Async.
     };
 
     [Fact]

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Carbon.Abstractions.World;
 using Carbon.Application.World.Commands;
 using Carbon.Contracts.Common;
+using Carbon.Contracts.Entities;
 using Carbon.Contracts.Maps.S2C;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -586,6 +587,12 @@ public sealed partial class AuthoritativeWorld
         WorldCommandKind.MoveInventorySlot => new(this.TryMoveInventorySlot(command.ConnectionId, command.Arg0, command.Arg1), 0),
         WorldCommandKind.UpgradeInventoryItem => new(this.TryUpgradeInventoryItem(command.ConnectionId, command.Arg0), 0),
         WorldCommandKind.DropInventoryItem => new(this.TryDropInventoryItem(command.ConnectionId, command.Arg0, command.Arg2), 0),
+        WorldCommandKind.VendorBuy => new(this.TryVendorBuy(command.ConnectionId, command.Arg0, command.Arg1), 0),
+        WorldCommandKind.VendorSell => new(this.TryVendorSell(command.ConnectionId, command.Arg0, command.Arg1), 0),
+        WorldCommandKind.RepairItem => new(this.TryRepairItem(command.ConnectionId, command.Arg0), 0),
+        WorldCommandKind.AllocateCharacterPoint => new(
+            this.TryAllocateCharacterPoint(command.ConnectionId, (PointAllocationKind)command.Arg0, command.Arg1, (byte)command.Arg2),
+            0),
         _ => new WorldMutationOutcome(OpStatus.Invalid, 0),
     };
 

@@ -20,8 +20,11 @@ public interface IWorldEntityCommandSink
     /// <summary>Enqueues an explicit pickup attempt for a nearby ground loot entity.</summary>
     OpStatus EnqueuePickupLoot(ulong connectionId, ulong lootNetworkId);
 
-    /// <summary>Allocates unspent attribute points or skill mastery points for <paramref name="connectionId"/>.</summary>
-    OpStatus TryAllocateCharacterPoint(
+    /// <summary>
+    /// Queues allocating unspent attribute points or skill mastery points for <paramref name="connectionId"/>; completes
+    /// after the next tick (ADR-017).
+    /// </summary>
+    ValueTask<WorldMutationOutcome> SubmitAllocateCharacterPointAsync(
         ulong connectionId,
         Contracts.Entities.PointAllocationKind kind,
         ushort targetId,
