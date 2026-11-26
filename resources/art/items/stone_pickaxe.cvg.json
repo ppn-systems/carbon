@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "itemId": 2,
+  "id": "stone_pickaxe",
+  "displayName": "Stone Pickaxe",
+  "tier": 2,
+  "categoryLabel": "Mining Tool",
+  "accentColor": "#94A3B8",
+  "gripX": -4.5,
+  "gripY": 4.5,
+  "restAngleDeg": -82.0,
+  "worldScale": 0.96,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": -7.2,
+      "y": 7.2,
+      "x2": 5.2,
+      "y2": -5.2,
+      "thickness": 2.6,
+      "color": "#78350F",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -0.8,
+          -7.8
+        ],
+        [
+          8.2,
+          -8.5
+        ],
+        [
+          8.8,
+          -5.4
+        ],
+        [
+          1.2,
+          -3.5
+        ]
+      ],
+      "color": "#64748B",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          8.2,
+          -8.5
+        ],
+        [
+          1.2,
+          -3.5
+        ],
+        [
+          3.5,
+          0.6
+        ],
+        [
+          8.8,
+          -2.0
+        ]
+      ],
+      "color": "#475569",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": 0.2,
+      "y": -7.0,
+      "x2": 8.2,
+      "y2": -7.8,
+      "thickness": 1.4,
+      "color": "#E2E8F0"
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": 2.2,
+      "y": -6.2,
+      "w": 3.2,
+      "h": 3.2,
+      "color": "#F59E0B",
+      "rotDeg": 45.0,
+      "outlineColor": "#0F172A",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": -5.6,
+      "y": 3.4,
+      "x2": -3.4,
+      "y2": 5.6,
+      "thickness": 3.0,
+      "color": "#451A03",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": 7.4,
+      "y": -7.8,
+      "x2": 7.8,
+      "y2": -2.6,
+      "thickness": 1.2,
+      "color": "#F8FAFC"
+    }
+  ],
+  "heldVisible": true
+}

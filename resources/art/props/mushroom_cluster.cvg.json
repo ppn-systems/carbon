@@ -1,0 +1,203 @@
+{
+  "schemaVersion": 2,
+  "propType": 10,
+  "id": "mushroom_cluster",
+  "displayName": "Mushroom Cluster",
+  "designRadius": 14,
+  "hasCanopy": false,
+  "allowMirror": true,
+  "isWoody": false,
+  "isIcy": false,
+  "rareLastVariantChance": 0.16,
+  "light": {
+    "offsetX": 0,
+    "offsetY": -2,
+    "radius": 62,
+    "color": "#78E6E6",
+    "intensity": 0.8,
+    "rareOnly": true
+  },
+  "paletteVariants": [
+    {
+      "stem": "#F5EFE6",
+      "stemShade": "#D6CBB8",
+      "cap": "#DC2626",
+      "capDark": "#7F1D1D",
+      "spot": "#FEF3C7"
+    },
+    {
+      "stem": "#F5EFE6",
+      "stemShade": "#D6CBB8",
+      "cap": "#D97706",
+      "capDark": "#78350F",
+      "spot": "#FEF08A"
+    },
+    {
+      "stem": "#EAE2D6",
+      "stemShade": "#C4B7A4",
+      "cap": "#92400E",
+      "capDark": "#451A03",
+      "spot": "#FDE68A"
+    },
+    {
+      "stem": "#DDF7F7",
+      "stemShade": "#8ED6D6",
+      "cap": "#22D3EE",
+      "capDark": "#0E7490",
+      "spot": "#ECFEFF"
+    }
+  ],
+  "groundShapes": [
+    {
+      "kind": "ellipse",
+      "x": 1,
+      "y": 6,
+      "rx": 12,
+      "ry": 5.2,
+      "color": "#0000002A"
+    },
+    {
+      "kind": "rect",
+      "x": -8.5,
+      "y": -1,
+      "w": 3.6,
+      "h": 7.0,
+      "color": "$stem",
+      "outlineColor": "$stemShade",
+      "outlineThickness": 0.7
+    },
+    {
+      "kind": "ellipse",
+      "x": -6.8,
+      "y": -2.5,
+      "rx": 5.4,
+      "ry": 3.8,
+      "color": "$cap",
+      "outlineColor": "$capDark",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "x": -8.0,
+      "y": -3.5,
+      "rx": 1.1,
+      "ry": 0.9,
+      "color": "$spot"
+    },
+    {
+      "kind": "ellipse",
+      "x": -5.2,
+      "y": -2.2,
+      "rx": 0.9,
+      "ry": 0.8,
+      "color": "$spot"
+    },
+    {
+      "kind": "rect",
+      "x": 5.2,
+      "y": 0,
+      "w": 3.2,
+      "h": 6.2,
+      "color": "$stem",
+      "outlineColor": "$stemShade",
+      "outlineThickness": 0.7
+    },
+    {
+      "kind": "ellipse",
+      "x": 6.8,
+      "y": -1.0,
+      "rx": 4.6,
+      "ry": 3.2,
+      "color": "$cap",
+      "outlineColor": "$capDark",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "x": 6.2,
+      "y": -2.0,
+      "rx": 1.0,
+      "ry": 0.8,
+      "color": "$spot"
+    },
+    {
+      "kind": "rect",
+      "x": -2.4,
+      "y": -3,
+      "w": 4.8,
+      "h": 10.0,
+      "color": "$stem",
+      "outlineColor": "$stemShade",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "ellipse",
+      "x": 0.0,
+      "y": -5.0,
+      "rx": 7.8,
+      "ry": 5.2,
+      "color": "$cap",
+      "outlineColor": "$capDark",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "ellipse",
+      "x": -2.5,
+      "y": -6.5,
+      "rx": 1.4,
+      "ry": 1.1,
+      "color": "$spot"
+    },
+    {
+      "kind": "ellipse",
+      "x": 2.2,
+      "y": -5.8,
+      "rx": 1.2,
+      "ry": 1.0,
+      "color": "$spot"
+    },
+    {
+      "kind": "ellipse",
+      "x": 0.0,
+      "y": -4.0,
+      "rx": 1.1,
+      "ry": 0.9,
+      "color": "$spot"
+    }
+  ],
+  "canopyShapes": [],
+  "remnantShapes": [
+    {
+      "kind": "ellipse",
+      "x": 0,
+      "y": 4,
+      "rx": 7,
+      "ry": 3.2,
+      "color": "#00000020"
+    },
+    {
+      "kind": "ellipse",
+      "x": -5,
+      "y": 2,
+      "rx": 2.2,
+      "ry": 1.5,
+      "color": "$stemShade"
+    },
+    {
+      "kind": "ellipse",
+      "x": 0,
+      "y": 3,
+      "rx": 2.6,
+      "ry": 1.7,
+      "color": "$stem"
+    },
+    {
+      "kind": "ellipse",
+      "x": 5,
+      "y": 2,
+      "rx": 2.0,
+      "ry": 1.4,
+      "color": "$stemShade"
+    }
+  ]
+}

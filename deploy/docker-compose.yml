@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: carbon
+      POSTGRES_USER: carbon
+      POSTGRES_PASSWORD: carbon_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - carbon_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U carbon -d carbon"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  carbon-host:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.host
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      CARBON_DB_PROVIDER: postgres
+      CARBON_DB_CONNECTION: Host=postgres;Port=5432;Database=carbon;Username=carbon;Password=carbon_dev_password
+      CARBON_WORLD_SEED: "1337"
+      CARBON_TICK_RATE: "30"
+      CARBON_TCP_PORT: "57207"
+      CARBON_UDP_PORT: "57208"
+      CARBON_WS_HOST: "+"
+      CARBON_WS_PORT: "57206"
+      CARBON_WS_PATH: /ws/
+    ports:
+      - "57206:57206"
+      - "57207:57207"
+      - "57208:57208/udp"
+
+volumes:
+  carbon_pgdata:

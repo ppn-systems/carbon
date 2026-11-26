@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 2,
+  "biomeId": 3,
+  "id": "lush_plains",
+  "displayName": "Lush Plains",
+  "groundColor": "#4A824B",
+  "minimapColor": "#56964A",
+  "cliffBase": "#464C52",
+  "cliffStrata": "#363B41",
+  "cliffHighlight": "#A5ACB4E6",
+  "cliffShadow": "#24282D",
+  "detailChancePercent": 22,
+  "palette": {
+    "bladeDark": "#325F35",
+    "bladeLit": "#6EB45C",
+    "dandelion": "#FACC15",
+    "daisy": "#FFFFFF",
+    "lavender": "#A855F7"
+  },
+  "detailVariants": [
+    {
+      "shapes": [
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              12,
+              20
+            ],
+            [
+              10,
+              12
+            ],
+            [
+              14,
+              19
+            ]
+          ],
+          "color": "$bladeDark"
+        },
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              15,
+              20
+            ],
+            [
+              16,
+              10
+            ],
+            [
+              18,
+              20
+            ]
+          ],
+          "color": "$bladeLit"
+        },
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              19,
+              20
+            ],
+            [
+              22,
+              13
+            ],
+            [
+              21,
+              20
+            ]
+          ],
+          "color": "$bladeDark"
+        }
+      ]
+    },
+    {
+      "shapes": [
+        {
+          "kind": "ellipse",
+          "x": 15,
+          "y": 15,
+          "rx": 2.4,
+          "ry": 2.4,
+          "color": "$dandelion"
+        },
+        {
+          "kind": "ellipse",
+          "x": 20,
+          "y": 18,
+          "rx": 2.0,
+          "ry": 2.0,
+          "color": "$daisy"
+        },
+        {
+          "kind": "ellipse",
+          "x": 20,
+          "y": 18,
+          "rx": 0.9,
+          "ry": 0.9,
+          "color": "$dandelion"
+        }
+      ]
+    },
+    {
+      "shapes": [
+        {
+          "kind": "ellipse",
+          "x": 12,
+          "y": 14,
+          "rx": 2.2,
+          "ry": 2.2,
+          "color": "$daisy"
+        },
+        {
+          "kind": "ellipse",
+          "x": 12,
+          "y": 14,
+          "rx": 0.9,
+          "ry": 0.9,
+          "color": "$dandelion"
+        },
+        {
+          "kind": "ellipse",
+          "x": 20,
+          "y": 16,
+          "rx": 1.8,
+          "ry": 2.8,
+          "color": "$lavender"
+        },
+        {
+          "kind": "ellipse",
+          "x": 16,
+          "y": 20,
+          "rx": 2.4,
+          "ry": 1.5,
+          "color": "$bladeLit"
+        }
+      ]
+    }
+  ]
+}

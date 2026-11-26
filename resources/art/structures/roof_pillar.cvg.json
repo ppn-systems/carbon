@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 2,
+  "structureType": 7,
+  "id": "roof_pillar",
+  "displayName": "Roof Pillar",
+  "palette": {
+    "shadow": "#00000048",
+    "plinth": "#64748B",
+    "shaft": "#94A3B8",
+    "cap": "#CBD5E1",
+    "core": "#E2E8F0"
+  },
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "x": 17,
+      "y": 26,
+      "rx": 10.5,
+      "ry": 5.0,
+      "color": "$shadow"
+    },
+    {
+      "kind": "rect",
+      "x": 4,
+      "y": 20,
+      "w": 24,
+      "h": 9,
+      "color": "$plinth",
+      "outlineColor": "#334155",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "rect",
+      "x": 7,
+      "y": 8,
+      "w": 18,
+      "h": 16,
+      "color": "$shaft",
+      "outlineColor": "#475569",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          25.7,
+          10.76
+        ],
+        [
+          20.02,
+          14.65
+        ],
+        [
+          11.98,
+          14.65
+        ],
+        [
+          6.3,
+          10.76
+        ],
+        [
+          6.3,
+          5.24
+        ],
+        [
+          11.98,
+          1.35
+        ],
+        [
+          20.02,
+          1.35
+        ],
+        [
+          25.7,
+          5.24
+        ]
+      ],
+      "color": "$cap",
+      "outlineColor": "#475569",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          20.5,
+          7.0
+        ],
+        [
+          17.75,
+          10.29
+        ],
+        [
+          12.25,
+          10.29
+        ],
+        [
+          9.5,
+          7.0
+        ],
+        [
+          12.25,
+          3.71
+        ],
+        [
+          17.75,
+          3.71
+        ]
+      ],
+      "color": "$core"
+    }
+  ],
+  "openShapes": []
+}

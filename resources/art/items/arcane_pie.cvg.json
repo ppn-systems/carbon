@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "itemId": 30,
+  "id": "arcane_pie",
+  "displayName": "Arcane Pie",
+  "tier": 2,
+  "categoryLabel": "Consumable",
+  "accentColor": "#C084FC",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.78,
+  "palette": {},
+  "shapes": [
+    { "kind": "ellipse", "bone": "root", "facing": "any", "x": 0.0, "y": 1.4, "rx": 7.8, "ry": 5.8, "color": "#B45309", "outlineColor": "#451A03", "outlineThickness": 1.2 },
+    { "kind": "ellipse", "bone": "root", "facing": "any", "x": 0.0, "y": 0.2, "rx": 6.8, "ry": 4.9, "color": "#D97706", "outlineColor": "#78350F", "outlineThickness": 0.9 },
+    { "kind": "ellipse", "bone": "root", "facing": "any", "x": 0.0, "y": 0.2, "rx": 5.3, "ry": 3.7, "color": "#7E22CE", "outlineColor": "#4C1D95", "outlineThickness": 0.9 },
+    { "kind": "ellipse", "bone": "root", "facing": "any", "x": -0.8, "y": -0.4, "rx": 3.4, "ry": 2.2, "color": "#A855F7" },
+    { "kind": "line", "bone": "root", "facing": "any", "x": -4.6, "y": -1.4, "x2": 4.6, "y2": 1.6, "thickness": 1.5, "color": "#F59E0B" },
+    { "kind": "line", "bone": "root", "facing": "any", "x": -4.6, "y": 1.6, "x2": 4.6, "y2": -1.4, "thickness": 1.5, "color": "#F59E0B" },
+    { "kind": "line", "bone": "root", "facing": "any", "x": 0.0, "y": -3.2, "x2": 0.0, "y2": 3.6, "thickness": 1.4, "color": "#FBBF24" },
+    { "kind": "ellipse", "bone": "root", "facing": "any", "x": -2.2, "y": -1.4, "rx": 0.9, "ry": 0.9, "color": "#38BDF8" },
+    { "kind": "ellipse", "bone": "root", "facing": "any", "x": 2.1, "y": 0.8, "rx": 0.85, "ry": 0.85, "color": "#F3E8FF" }
+  ],
+  "heldVisible": false
+}

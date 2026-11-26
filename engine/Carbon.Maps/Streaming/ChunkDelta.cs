@@ -114,8 +114,9 @@ public sealed class ChunkDelta
     /// Expires destroyed prop states whose scheduled respawn tick has arrived.
     /// </summary>
     /// <param name="currentTick">Current world simulation tick.</param>
+    /// <param name="removedLocalIndices">Optional destination populated with local packed tile keys of respawned props.</param>
     /// <returns>The number of props whose state was reset for respawn.</returns>
-    internal int RemoveExpiredPropStates(ulong currentTick)
+    internal int RemoveExpiredPropStates(ulong currentTick, List<int>? removedLocalIndices = null)
     {
         if (_propRespawnTicks.Count == 0)
         {
@@ -142,6 +143,7 @@ public sealed class ChunkDelta
                 if (_propStates.Remove(key))
                 {
                     removed++;
+                    removedLocalIndices?.Add(key);
                 }
             }
 

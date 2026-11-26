@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "itemId": 23,
+  "id": "mana_tonic",
+  "displayName": "Mana Tonic",
+  "tier": 1,
+  "categoryLabel": "Consumable",
+  "accentColor": "#38BDF8",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0.0,
+      "y": 2.2,
+      "rx": 5.8,
+      "ry": 5.4,
+      "color": "#0284C7",
+      "outlineColor": "#082F49",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -1.4,
+      "y": 0.8,
+      "rx": 3.2,
+      "ry": 2.8,
+      "color": "#38BDF8"
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -2.2,
+      "y": -5.8,
+      "w": 4.4,
+      "h": 3.6,
+      "color": "#94A3B8",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -1.6,
+      "y": -7.6,
+      "w": 3.2,
+      "h": 2.2,
+      "color": "#B45309",
+      "outlineColor": "#451A03",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -2.8,
+      "y": -6.2,
+      "w": 5.6,
+      "h": 1.4,
+      "color": "#E2E8F0",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0.0,
+      "y": 0.2,
+      "rx": 4.2,
+      "ry": 1.2,
+      "color": "#7DD3FC"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -2.2,
+      "y": -0.2,
+      "rx": 1.2,
+      "ry": 1.0,
+      "color": "#E0F2FE"
+    }
+  ],
+  "heldVisible": false
+}

@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "itemId": 5,
+  "id": "stone_chunk",
+  "displayName": "Stone Chunk",
+  "tier": 1,
+  "categoryLabel": "Material",
+  "accentColor": "#CBD5E1",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.7,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -7.6,
+          1.5
+        ],
+        [
+          -4.0,
+          -6.8
+        ],
+        [
+          3.5,
+          -7.4
+        ],
+        [
+          7.8,
+          -1.2
+        ],
+        [
+          5.8,
+          6.5
+        ],
+        [
+          -3.5,
+          6.8
+        ]
+      ],
+      "color": "#64748B",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -5.6,
+          -0.5
+        ],
+        [
+          -3.2,
+          -5.5
+        ],
+        [
+          2.6,
+          -5.8
+        ],
+        [
+          4.5,
+          -0.8
+        ]
+      ],
+      "color": "#94A3B8"
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -2.0,
+          -4.5
+        ],
+        [
+          2.2,
+          -4.8
+        ],
+        [
+          1.0,
+          -1.2
+        ]
+      ],
+      "color": "#E2E8F0"
+    }
+  ],
+  "heldVisible": false
+}

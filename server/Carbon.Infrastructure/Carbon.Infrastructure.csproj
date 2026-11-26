@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <RootNamespace>Carbon.Infrastructure</RootNamespace>
+        <AssemblyName>Carbon.Infrastructure</AssemblyName>
+        <IsPackable>false</IsPackable>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Carbon.Abstractions\Carbon.Abstractions.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Data.Sqlite" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+        <PackageReference Include="Npgsql" />
+        <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" />
+    </ItemGroup>
+
+</Project>

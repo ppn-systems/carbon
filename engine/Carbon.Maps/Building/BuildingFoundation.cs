@@ -66,7 +66,7 @@ public static class BuildingFoundation
     {
         StructureType.None => TerrainAffordance.None,
         StructureType.WoodFloor or StructureType.StoneFloor => TerrainAffordance.Light,
-        StructureType.WoodWall or StructureType.WoodDoor => TerrainAffordance.Medium,
+        StructureType.WoodWall or StructureType.WoodDoor or StructureType.ForgeAnvil => TerrainAffordance.Medium,
         StructureType.StoneWall or StructureType.StoneDoor or StructureType.RoofPillar => TerrainAffordance.Heavy,
         _ => TerrainAffordance.Heavy
     };

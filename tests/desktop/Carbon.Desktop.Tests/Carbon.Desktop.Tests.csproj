@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\desktop\Carbon.Desktop.Abstractions\Carbon.Desktop.Abstractions.csproj" />
+        <ProjectReference Include="..\..\..\desktop\Carbon.Desktop.Networking\Carbon.Desktop.Networking.csproj" />
+        <ProjectReference Include="..\..\..\desktop\Carbon.Desktop.Rendering\Carbon.Desktop.Rendering.csproj" />
+        <ProjectReference Include="..\..\..\desktop\Carbon.Desktop\Carbon.Desktop.csproj" />
+        <ProjectReference Include="..\..\..\server\Carbon.Abstractions\Carbon.Abstractions.csproj" />
+        <ProjectReference Include="..\..\..\server\Carbon.Application\Carbon.Application.csproj" />
+        <ProjectReference Include="..\..\..\server\Carbon.Infrastructure\Carbon.Infrastructure.csproj" />
+        <ProjectReference Include="..\..\..\server\Carbon.Host\Carbon.Host.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Data.Sqlite" />
+        <PackageReference Include="Nalix.Hosting" />
+    </ItemGroup>
+</Project>

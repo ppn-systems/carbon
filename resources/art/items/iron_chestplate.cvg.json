@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "itemId": 18,
+  "id": "iron_chestplate",
+  "displayName": "Iron Chestplate",
+  "tier": 2,
+  "categoryLabel": "Chest Armor",
+  "accentColor": "#94A3B8",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -7.6,
+          -6.6
+        ],
+        [
+          7.6,
+          -6.6
+        ],
+        [
+          5.6,
+          6.8
+        ],
+        [
+          -5.6,
+          6.8
+        ]
+      ],
+      "color": "#64748B",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -5.4,
+          -5.6
+        ],
+        [
+          5.4,
+          -5.6
+        ],
+        [
+          3.8,
+          3.2
+        ],
+        [
+          -3.8,
+          3.2
+        ]
+      ],
+      "color": "#CBD5E1"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0.0,
+      "y": -1.6,
+      "rx": 2.2,
+      "ry": 2.2,
+      "color": "#FACC15",
+      "outlineColor": "#713F12",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -6.4,
+      "y": -4.5,
+      "rx": 2.6,
+      "ry": 2.2,
+      "color": "#94A3B8",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 6.4,
+      "y": -4.5,
+      "rx": 2.6,
+      "ry": 2.2,
+      "color": "#94A3B8",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 0.9
+    }
+  ],
+  "heldVisible": false,
+  "armorVisual": {
+    "primaryColor": "#94A3B8",
+    "secondaryColor": "#E2E8F0",
+    "trimColor": "#FACC15"
+  }
+}

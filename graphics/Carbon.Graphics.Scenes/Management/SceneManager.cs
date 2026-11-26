@@ -2,6 +2,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Numerics;
+using Carbon.Graphics.Batching;
 using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Sprites;
@@ -45,6 +47,11 @@ public sealed class SceneManager : ISceneManager
     {
         ArgumentNullException.ThrowIfNull(window, nameof(window));
         ArgumentNullException.ThrowIfNull(camera, nameof(camera));
+
+        if (window.Width > 0 && window.Height > 0)
+        {
+            camera.ViewportSize = new Vector2(window.Width, window.Height);
+        }
 
         _context = new SceneContext(window, camera, this);
     }
@@ -135,17 +142,33 @@ public sealed class SceneManager : ISceneManager
             _sceneStack[i].Render(_context, spriteBatch, dt);
         }
 
-        if (_transition.IsActive)
+        if (_transition.IsActive && _transition.Alpha > 0.001f)
         {
-            this.EnsureWhitePixel();
-            RectangleF screenBounds = new(0f, 0f, _context.WindowWidth, _context.WindowHeight);
-            _transition.Render(spriteBatch, _whitePixel!, screenBounds);
+            int width = _context.WindowWidth;
+            int height = _context.WindowHeight;
+            if (width > 0 && height > 0)
+            {
+                this.EnsureWhitePixel();
+                if (_whitePixel is not null)
+                {
+                    Matrix4x4 proj = Matrix4x4.CreateOrthographicOffCenter(0f, width, height, 0f, -1f, 1f);
+                    RectangleF screenBounds = new(0f, 0f, width, height);
+                    spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: proj);
+                    _transition.Render(spriteBatch, _whitePixel, screenBounds);
+                    spriteBatch.End();
+                }
+            }
         }
     }
 
     /// <inheritdoc/>
     public void Resize(int width, int height)
     {
+        if (width > 0 && height > 0)
+        {
+            _context.Camera.ViewportSize = new Vector2(width, height);
+        }
+
         for (int i = 0; i < _sceneStack.Count; i++)
         {
             _sceneStack[i].Resize(_context, width, height);
@@ -165,6 +188,10 @@ public sealed class SceneManager : ISceneManager
         _sceneStack.Clear();
 
         _context.TransitionData = data;
+        if (_context.WindowWidth > 0 && _context.WindowHeight > 0)
+        {
+            _context.Camera.ViewportSize = new Vector2(_context.WindowWidth, _context.WindowHeight);
+        }
 
         if (!nextScene.IsLoaded)
         {

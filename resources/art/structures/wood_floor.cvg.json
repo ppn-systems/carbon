@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 2,
+  "structureType": 5,
+  "id": "wood_floor",
+  "displayName": "Wood Floor",
+  "palette": {
+    "plankA": "#A07D58",
+    "plankB": "#94714D",
+    "seam": "#00000038",
+    "nail": "#4B3621AA"
+  },
+  "shapes": [
+    {
+      "kind": "rect",
+      "x": 0.5,
+      "y": 0.5,
+      "w": 31,
+      "h": 31,
+      "color": "$plankA"
+    },
+    {
+      "kind": "rect",
+      "x": 0.5,
+      "y": 8.5,
+      "w": 31,
+      "h": 7.5,
+      "color": "$plankB"
+    },
+    {
+      "kind": "rect",
+      "x": 0.5,
+      "y": 24.0,
+      "w": 31,
+      "h": 7.5,
+      "color": "$plankB"
+    },
+    {
+      "kind": "line",
+      "x": 0.5,
+      "y": 8.5,
+      "x2": 31.5,
+      "y2": 8.5,
+      "thickness": 1.0,
+      "color": "$seam"
+    },
+    {
+      "kind": "line",
+      "x": 0.5,
+      "y": 16.0,
+      "x2": 31.5,
+      "y2": 16.0,
+      "thickness": 1.0,
+      "color": "$seam"
+    },
+    {
+      "kind": "line",
+      "x": 0.5,
+      "y": 24.0,
+      "x2": 31.5,
+      "y2": 24.0,
+      "thickness": 1.0,
+      "color": "$seam"
+    },
+    {
+      "kind": "line",
+      "x": 14,
+      "y": 0.5,
+      "x2": 14,
+      "y2": 8.5,
+      "thickness": 1.0,
+      "color": "$seam"
+    },
+    {
+      "kind": "line",
+      "x": 21,
+      "y": 8.5,
+      "x2": 21,
+      "y2": 16.0,
+      "thickness": 1.0,
+      "color": "$seam"
+    },
+    {
+      "kind": "line",
+      "x": 10,
+      "y": 16.0,
+      "x2": 10,
+      "y2": 24.0,
+      "thickness": 1.0,
+      "color": "$seam"
+    },
+    {
+      "kind": "ellipse",
+      "x": 4,
+      "y": 4.5,
+      "rx": 0.9,
+      "ry": 0.9,
+      "color": "$nail"
+    },
+    {
+      "kind": "ellipse",
+      "x": 27,
+      "y": 20,
+      "rx": 0.9,
+      "ry": 0.9,
+      "color": "$nail"
+    }
+  ],
+  "openShapes": []
+}

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "itemId": 25,
+  "id": "arcane_staff",
+  "displayName": "Arcane Staff",
+  "tier": 2,
+  "categoryLabel": "Mage Staff",
+  "accentColor": "#38BDF8",
+  "gripX": -2.5,
+  "gripY": 2.5,
+  "restAngleDeg": -68.0,
+  "worldScale": 1.05,
+  "palette": {},
+  "shapes": [
+    { "kind": "capsule", "bone": "root", "facing": "any", "x": -7.2, "y": 7.2, "x2": 4.2, "y2": -4.2, "thickness": 2.6, "color": "#78350F", "outlineColor": "#1E1B18", "outlineThickness": 1.0 },
+    { "kind": "ring", "bone": "root", "facing": "any", "x": 6.2, "y": -6.2, "rx": 4.2, "ry": 4.2, "thickness": 1.5, "color": "#FACC15" },
+    { "kind": "ellipse", "bone": "root", "facing": "any", "x": 6.2, "y": -6.2, "rx": 3.0, "ry": 3.0, "color": "#38BDF8", "outlineColor": "#0369A1", "outlineThickness": 0.9 },
+    { "kind": "ellipse", "bone": "root", "facing": "any", "x": 5.4, "y": -7.0, "rx": 1.1, "ry": 1.1, "color": "#E0F2FE" }
+  ],
+  "heldVisible": true
+}

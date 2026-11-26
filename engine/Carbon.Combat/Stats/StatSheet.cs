@@ -16,7 +16,7 @@ public sealed class StatSheet
     private readonly float[] _baseValues = new float[StatCount];
     private readonly float[] _cachedValues = new float[StatCount];
     private readonly List<StatModifier> _modifiers = new(16);
-    private byte _dirtyMask = 0xFF;
+    private ulong _dirtyMask = ulong.MaxValue;
 
     /// <summary>
     /// Sets the base value for <paramref name="stat"/> and marks it dirty for recomputation.
@@ -27,7 +27,7 @@ public sealed class StatSheet
     {
         int idx = ValidateIndex(stat);
         _baseValues[idx] = value;
-        _dirtyMask |= (byte)(1 << idx);
+        _dirtyMask |= 1UL << idx;
     }
 
     /// <summary>
@@ -45,7 +45,7 @@ public sealed class StatSheet
     {
         int idx = ValidateIndex(modifier.Stat);
         _modifiers.Add(modifier);
-        _dirtyMask |= (byte)(1 << idx);
+        _dirtyMask |= 1UL << idx;
     }
 
     /// <summary>
@@ -61,7 +61,7 @@ public sealed class StatSheet
             if (_modifiers[i].SourceId == sourceId)
             {
                 int idx = ValidateIndex(_modifiers[i].Stat);
-                _dirtyMask |= (byte)(1 << idx);
+                _dirtyMask |= 1UL << idx;
                 _modifiers.RemoveAt(i);
                 removed++;
             }
@@ -78,11 +78,11 @@ public sealed class StatSheet
     public float GetValue(StatType stat)
     {
         int idx = ValidateIndex(stat);
-        byte bit = (byte)(1 << idx);
-        if ((_dirtyMask & bit) != 0)
+        ulong bit = 1UL << idx;
+        if ((_dirtyMask & bit) != 0UL)
         {
             _cachedValues[idx] = this.Recompute(stat, idx);
-            _dirtyMask &= (byte)~bit;
+            _dirtyMask &= ~bit;
         }
 
         return _cachedValues[idx];
@@ -94,7 +94,7 @@ public sealed class StatSheet
     public void ClearModifiers()
     {
         _modifiers.Clear();
-        _dirtyMask = 0xFF;
+        _dirtyMask = ulong.MaxValue;
     }
 
     private float Recompute(StatType stat, int idx)

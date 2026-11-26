@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <RootNamespace>Carbon.Contracts.Entities</RootNamespace>
+        <AssemblyName>Carbon.Contracts.Entities</AssemblyName>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Carbon.Contracts.Common\Carbon.Contracts.Common.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Nalix.Abstractions" />
+        <PackageReference Include="Nalix.Codec" />
+    </ItemGroup>
+
+</Project>

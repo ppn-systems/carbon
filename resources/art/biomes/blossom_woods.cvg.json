@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 2,
+  "biomeId": 13,
+  "id": "blossom_woods",
+  "displayName": "Blossom Woods",
+  "groundColor": "#488C64",
+  "minimapColor": "#C4729E",
+  "cliffBase": "#555A58",
+  "cliffStrata": "#414846",
+  "cliffHighlight": "#D2B4C3E6",
+  "cliffShadow": "#2D3230",
+  "detailChancePercent": 28,
+  "palette": {
+    "petal1": "#F472B6E0",
+    "petal2": "#FBCFE8EB",
+    "bud": "#EC4899",
+    "clover": "#34784F",
+    "stone": "#9CA3AFCC"
+  },
+  "detailVariants": [
+    {
+      "shapes": [
+        {
+          "kind": "ellipse",
+          "x": 10,
+          "y": 13,
+          "rx": 2.2,
+          "ry": 1.4,
+          "color": "$petal1",
+          "rotDeg": 25
+        },
+        {
+          "kind": "ellipse",
+          "x": 17,
+          "y": 19,
+          "rx": 2.0,
+          "ry": 1.3,
+          "color": "$petal2",
+          "rotDeg": -30
+        },
+        {
+          "kind": "ellipse",
+          "x": 22,
+          "y": 11,
+          "rx": 2.1,
+          "ry": 1.4,
+          "color": "$petal1",
+          "rotDeg": 12
+        }
+      ]
+    },
+    {
+      "shapes": [
+        {
+          "kind": "ellipse",
+          "x": 15,
+          "y": 17,
+          "rx": 3.2,
+          "ry": 2.2,
+          "color": "$clover"
+        },
+        {
+          "kind": "ellipse",
+          "x": 14,
+          "y": 15,
+          "rx": 2.0,
+          "ry": 2.0,
+          "color": "$bud"
+        },
+        {
+          "kind": "ellipse",
+          "x": 17,
+          "y": 18,
+          "rx": 1.5,
+          "ry": 1.1,
+          "color": "$petal2"
+        }
+      ]
+    },
+    {
+      "shapes": [
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              19.09,
+              17.19
+            ],
+            [
+              17.31,
+              18.99
+            ],
+            [
+              14.22,
+              18.8
+            ],
+            [
+              12.91,
+              16.81
+            ],
+            [
+              14.69,
+              15.01
+            ],
+            [
+              17.78,
+              15.2
+            ]
+          ],
+          "color": "$stone"
+        },
+        {
+          "kind": "ellipse",
+          "x": 12,
+          "y": 12,
+          "rx": 1.9,
+          "ry": 1.2,
+          "color": "$petal2",
+          "rotDeg": 40
+        },
+        {
+          "kind": "ellipse",
+          "x": 21,
+          "y": 19,
+          "rx": 1.8,
+          "ry": 1.2,
+          "color": "$petal1",
+          "rotDeg": -15
+        }
+      ]
+    }
+  ]
+}

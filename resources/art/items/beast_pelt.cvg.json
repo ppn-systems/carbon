@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "itemId": 37,
+  "id": "beast_pelt",
+  "displayName": "Beast Pelt",
+  "tier": 1,
+  "categoryLabel": "Monster Material",
+  "accentColor": "#D6D3D1",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.75,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -6.8,
+          -5.2
+        ],
+        [
+          0.0,
+          -7.4
+        ],
+        [
+          6.8,
+          -5.2
+        ],
+        [
+          8.0,
+          1.2
+        ],
+        [
+          5.6,
+          7.0
+        ],
+        [
+          -5.6,
+          7.0
+        ],
+        [
+          -8.0,
+          1.2
+        ]
+      ],
+      "color": "#78716C",
+      "outlineColor": "#292524",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -4.6,
+          -3.6
+        ],
+        [
+          0.0,
+          -5.4
+        ],
+        [
+          4.6,
+          -3.6
+        ],
+        [
+          5.2,
+          1.6
+        ],
+        [
+          3.2,
+          4.8
+        ],
+        [
+          -3.2,
+          4.8
+        ],
+        [
+          -5.2,
+          1.6
+        ]
+      ],
+      "color": "#A8A29E"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0.0,
+      "y": -1.2,
+      "rx": 2.4,
+      "ry": 3.2,
+      "color": "#D6D3D1"
+    }
+  ]
+}

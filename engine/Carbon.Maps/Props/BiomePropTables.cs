@@ -56,12 +56,15 @@ public static class BiomePropTables
             [Boulder(0.35f, 18f, 0xCBD5E1FF, 0x64748BFF)],
             [Trees(0f, Solid(MapPropType.PalmTree, 0.035f, 34f, 0x10B981FF, 0x92400EFF))]);
 
-        t[(int)BiomeType.LushPlains] = new(0.91f, true,
-            [Ore(MapPropType.CopperVein, 0.40f, 21f, 0x78350FFF, 0x2DD4BFFF), Boulder(0.65f, 20f, 0x64748BFF, 0x334155FF)],
+        t[(int)BiomeType.LushPlains] = new(0.85f, true,
+            [Ore(MapPropType.CopperVein, 0.42f, 21f, 0x78350FFF, 0x2DD4BFFF), Boulder(0.82f, 21f, 0x64748BFF, 0x334155FF)],
             Forest(
-                0.72f, [Solid(MapPropType.OakTree, 0.28f, 32f, 0x166534FF, 0x78350FFF), Solid(MapPropType.BirchTree, 0.52f, 28f, 0x84CC16FF, 0xF8FAFCFF)],
-                0.48f, [Solid(MapPropType.OakTree, 0.08f, 32f, 0x166534FF, 0x78350FFF), Solid(MapPropType.BirchTree, 0.16f, 28f, 0x84CC16FF, 0xF8FAFCFF)],
-                Undergrowth(0.45f, Soft(MapPropType.Bush, 0.015f, 15f, 0x15803DFF, 0x22C55EFF))));
+                0.72f, [Solid(MapPropType.OakTree, 0.34f, 32f, 0x166534FF, 0x78350FFF), Solid(MapPropType.BirchTree, 0.62f, 28f, 0x84CC16FF, 0xF8FAFCFF)],
+                0.48f, [Solid(MapPropType.OakTree, 0.13f, 32f, 0x166534FF, 0x78350FFF), Solid(MapPropType.BirchTree, 0.24f, 28f, 0x84CC16FF, 0xF8FAFCFF)],
+                Undergrowth(
+                    0.38f,
+                    Soft(MapPropType.Bush, 0.028f, 15f, 0x15803DFF, 0x22C55EFF),
+                    Soft(MapPropType.MushroomCluster, 0.042f, 13f, 0x78350FFF, 0xFEF3C7FF, minFoliage: 0.52f))));
 
         t[(int)BiomeType.AncientForest] = new(0.86f, true,
             [Ore(MapPropType.CoalDeposit, 0.35f, 21f, 0x18181BFF, 0x3F3F46FF), Ore(MapPropType.IronVein, 0.65f, 21f, 0x334155FF, 0xEA580CFF), Boulder(0.80f, 20f, 0x475569FF, 0x15803DFF)],

@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "itemId": 21,
+  "id": "crystal_crown",
+  "displayName": "Crystal Crown",
+  "tier": 3,
+  "categoryLabel": "Arcane Head",
+  "accentColor": "#22D3EE",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.75,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -6.8,
+      "y": 2.2,
+      "w": 13.6,
+      "h": 3.2,
+      "color": "#FACC15",
+      "outlineColor": "#713F12",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -6.2,
+          2.2
+        ],
+        [
+          -4.8,
+          -5.2
+        ],
+        [
+          -2.2,
+          2.2
+        ]
+      ],
+      "color": "#22D3EE",
+      "outlineColor": "#083344",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -2.4,
+          2.2
+        ],
+        [
+          0.0,
+          -7.8
+        ],
+        [
+          2.4,
+          2.2
+        ]
+      ],
+      "color": "#67E8F9",
+      "outlineColor": "#083344",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          2.2,
+          2.2
+        ],
+        [
+          4.8,
+          -5.2
+        ],
+        [
+          6.2,
+          2.2
+        ]
+      ],
+      "color": "#22D3EE",
+      "outlineColor": "#083344",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0.0,
+      "y": -1.6,
+      "rx": 1.4,
+      "ry": 1.8,
+      "color": "#CFFAFE"
+    }
+  ],
+  "heldVisible": false,
+  "armorVisual": {
+    "primaryColor": "#FACC15",
+    "secondaryColor": "#38BDF8",
+    "trimColor": "#22D3EE"
+  }
+}

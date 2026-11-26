@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 2,
+  "biomeId": 5,
+  "id": "misty_swamp",
+  "displayName": "Misty Swamp",
+  "groundColor": "#445842",
+  "minimapColor": "#3E5C4A",
+  "cliffBase": "#464C52",
+  "cliffStrata": "#363B41",
+  "cliffHighlight": "#A5ACB4E6",
+  "cliffShadow": "#24282D",
+  "detailChancePercent": 24,
+  "palette": {
+    "pad": "#5A8A4E",
+    "padShade": "#335432",
+    "bloom": "#F472B6",
+    "reed": "#78924C",
+    "mist": "#86EFAC66"
+  },
+  "detailVariants": [
+    {
+      "shapes": [
+        {
+          "kind": "ellipse",
+          "x": 15,
+          "y": 17,
+          "rx": 4.4,
+          "ry": 3.4,
+          "color": "$pad",
+          "outlineColor": "$padShade",
+          "outlineThickness": 0.8
+        },
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              15,
+              17
+            ],
+            [
+              20,
+              15
+            ],
+            [
+              20,
+              19
+            ]
+          ],
+          "color": "$padShade"
+        },
+        {
+          "kind": "ellipse",
+          "x": 14,
+          "y": 15,
+          "rx": 1.6,
+          "ry": 1.4,
+          "color": "$bloom"
+        }
+      ]
+    },
+    {
+      "shapes": [
+        {
+          "kind": "line",
+          "x": 13,
+          "y": 22,
+          "x2": 11,
+          "y2": 11,
+          "thickness": 1.5,
+          "color": "$reed"
+        },
+        {
+          "kind": "line",
+          "x": 17,
+          "y": 22,
+          "x2": 19,
+          "y2": 10,
+          "thickness": 1.5,
+          "color": "$reed"
+        },
+        {
+          "kind": "ellipse",
+          "x": 19,
+          "y": 11,
+          "rx": 1.1,
+          "ry": 2.2,
+          "color": "#78350F"
+        }
+      ]
+    },
+    {
+      "shapes": [
+        {
+          "kind": "ring",
+          "x": 16,
+          "y": 17,
+          "rx": 4.6,
+          "ry": 4.6,
+          "thickness": 1.2,
+          "color": "$mist"
+        },
+        {
+          "kind": "ellipse",
+          "x": 11,
+          "y": 14,
+          "rx": 2.2,
+          "ry": 1.6,
+          "color": "$padShade"
+        },
+        {
+          "kind": "ellipse",
+          "x": 20,
+          "y": 20,
+          "rx": 1.6,
+          "ry": 1.4,
+          "color": "$mist"
+        }
+      ]
+    }
+  ]
+}

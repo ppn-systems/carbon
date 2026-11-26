@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "itemId": 24,
+  "id": "hunting_bow",
+  "displayName": "Hunting Bow",
+  "tier": 1,
+  "categoryLabel": "Ranged Bow",
+  "accentColor": "#22C55E",
+  "gripX": -1.5,
+  "gripY": 1.5,
+  "restAngleDeg": -18.0,
+  "worldScale": 1.05,
+  "palette": {},
+  "shapes": [
+    { "kind": "capsule", "bone": "root", "facing": "any", "x": -3.2, "y": -8.4, "x2": 2.4, "y2": -3.2, "thickness": 2.5, "color": "#B45309", "outlineColor": "#451A03", "outlineThickness": 1.0 },
+    { "kind": "capsule", "bone": "root", "facing": "any", "x": 2.4, "y": -3.2, "x2": 2.4, "y2": 3.2, "thickness": 2.6, "color": "#92400E", "outlineColor": "#451A03", "outlineThickness": 1.0 },
+    { "kind": "capsule", "bone": "root", "facing": "any", "x": 2.4, "y": 3.2, "x2": -3.2, "y2": 8.4, "thickness": 2.5, "color": "#B45309", "outlineColor": "#451A03", "outlineThickness": 1.0 },
+    { "kind": "line", "bone": "root", "facing": "any", "x": -3.2, "y": -8.2, "x2": -3.2, "y2": 8.2, "thickness": 1.2, "color": "#F8FAFC" },
+    { "kind": "line", "bone": "root", "facing": "any", "x": -5.6, "y": 0.0, "x2": 6.8, "y2": 0.0, "thickness": 1.6, "color": "#FDE047" },
+    { "kind": "polygon", "bone": "root", "facing": "any", "points": [[5.8, -2.2], [9.2, 0.0], [5.8, 2.2]], "color": "#CBD5E1", "outlineColor": "#1E293B", "outlineThickness": 0.9 }
+  ],
+  "heldVisible": true
+}

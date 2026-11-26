@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "itemId": 3,
+  "id": "iron_sword",
+  "displayName": "Iron Sword",
+  "tier": 2,
+  "categoryLabel": "Melee Weapon",
+  "accentColor": "#38BDF8",
+  "gripX": -4.5,
+  "gripY": 4.5,
+  "restAngleDeg": -82.0,
+  "worldScale": 1.05,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": -7.4,
+      "y": 7.4,
+      "x2": -3.0,
+      "y2": 3.0,
+      "thickness": 2.5,
+      "color": "#78350F",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": -5.8,
+      "y": 0.4,
+      "x2": -0.4,
+      "y2": 5.8,
+      "thickness": 2.8,
+      "color": "#FACC15",
+      "outlineColor": "#713F12",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -3.8,
+          1.8
+        ],
+        [
+          6.4,
+          -8.4
+        ],
+        [
+          8.8,
+          -8.8
+        ],
+        [
+          8.4,
+          -6.4
+        ],
+        [
+          -1.8,
+          3.8
+        ]
+      ],
+      "color": "#CBD5E1",
+      "outlineColor": "#1E293B",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -2.2,
+      "y": 2.2,
+      "x2": 8.2,
+      "y2": -8.2,
+      "thickness": 1.6,
+      "color": "#F8FAFC"
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -1.4,
+      "y": 1.4,
+      "x2": 5.8,
+      "y2": -5.8,
+      "thickness": 1.0,
+      "color": "#64748B"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -7.8,
+      "y": 7.8,
+      "rx": 1.9,
+      "ry": 1.9,
+      "color": "#38BDF8",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -3.1,
+      "y": 3.1,
+      "rx": 1.0,
+      "ry": 1.0,
+      "color": "#BAE6FD"
+    }
+  ],
+  "heldVisible": true
+}

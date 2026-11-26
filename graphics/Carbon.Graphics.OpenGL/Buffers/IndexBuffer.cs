@@ -61,6 +61,7 @@ public sealed class IndexBuffer : IIndexBuffer
         };
 
         this.Handle = _gl.GenBuffer();
+        _stateCache.BindVertexArray(0);
         _stateCache.BindIndexBuffer(this.Handle);
 
         BufferUsageARB glUsage = ResolveGlUsage(usage);

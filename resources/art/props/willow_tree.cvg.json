@@ -1,0 +1,387 @@
+{
+  "schemaVersion": 2,
+  "propType": 6,
+  "id": "willow_tree",
+  "displayName": "Willow Tree",
+  "designRadius": 25,
+  "hasCanopy": true,
+  "allowMirror": true,
+  "isWoody": true,
+  "isIcy": false,
+  "rareLastVariantChance": 0.12,
+  "light": null,
+  "paletteVariants": [
+    {
+      "bark": "#6E5239",
+      "barkDark": "#423020",
+      "barkHi": "#8C6D4F",
+      "leafEdge": "#1F422D",
+      "leafDark": "#336B46",
+      "leafMid": "#4F9462",
+      "leafLight": "#82C088"
+    }
+  ],
+  "groundShapes": [
+    {
+      "kind": "ellipse",
+      "x": 2.5,
+      "y": 14.0,
+      "rx": 18.4,
+      "ry": 5.5,
+      "color": "#0000002D"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -8.32,
+          16.0
+        ],
+        [
+          8.32,
+          16.0
+        ],
+        [
+          5.72,
+          -9.0
+        ],
+        [
+          -5.72,
+          -9.0
+        ]
+      ],
+      "color": "$bark",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -13.6,
+          16.5
+        ],
+        [
+          -4.0,
+          16.5
+        ],
+        [
+          -5.6,
+          9.0
+        ]
+      ],
+      "color": "$barkDark"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          4.0,
+          16.5
+        ],
+        [
+          13.6,
+          16.5
+        ],
+        [
+          5.6,
+          10.0
+        ]
+      ],
+      "color": "$barkDark"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          0.88,
+          -9.0
+        ],
+        [
+          5.28,
+          -9.0
+        ],
+        [
+          7.68,
+          16.0
+        ],
+        [
+          1.28,
+          16.0
+        ]
+      ],
+      "color": "$barkDark"
+    },
+    {
+      "kind": "line",
+      "x": -3.2,
+      "y": 14.0,
+      "x2": -1.76,
+      "y2": -7.0,
+      "thickness": 2.0,
+      "color": "$barkHi"
+    }
+  ],
+  "canopyShapes": [
+    {
+      "kind": "ellipse",
+      "x": 9.47,
+      "y": -21.65,
+      "rx": 13.1,
+      "ry": 11.48,
+      "color": "$leafEdge"
+    },
+    {
+      "kind": "ellipse",
+      "x": 2.16,
+      "y": -15.64,
+      "rx": 15.12,
+      "ry": 13.25,
+      "color": "$leafEdge"
+    },
+    {
+      "kind": "ellipse",
+      "x": -7.73,
+      "y": -19.6,
+      "rx": 17.14,
+      "ry": 15.01,
+      "color": "$leafEdge"
+    },
+    {
+      "kind": "ellipse",
+      "x": -11.72,
+      "y": -26.91,
+      "rx": 13.1,
+      "ry": 11.48,
+      "color": "$leafEdge"
+    },
+    {
+      "kind": "ellipse",
+      "x": -1.74,
+      "y": -30.75,
+      "rx": 15.12,
+      "ry": 13.25,
+      "color": "$leafEdge"
+    },
+    {
+      "kind": "ellipse",
+      "x": 9.57,
+      "y": -29.45,
+      "rx": 17.14,
+      "ry": 15.01,
+      "color": "$leafEdge"
+    },
+    {
+      "kind": "ellipse",
+      "x": 8.57,
+      "y": -23.87,
+      "rx": 11.52,
+      "ry": 10.14,
+      "color": "$leafDark"
+    },
+    {
+      "kind": "ellipse",
+      "x": 1.99,
+      "y": -18.28,
+      "rx": 13.2,
+      "ry": 11.62,
+      "color": "$leafMid"
+    },
+    {
+      "kind": "ellipse",
+      "x": -6.99,
+      "y": -22.02,
+      "rx": 14.88,
+      "ry": 13.09,
+      "color": "$leafMid"
+    },
+    {
+      "kind": "ellipse",
+      "x": -10.82,
+      "y": -28.69,
+      "rx": 11.52,
+      "ry": 10.14,
+      "color": "$leafDark"
+    },
+    {
+      "kind": "ellipse",
+      "x": -1.58,
+      "y": -32.11,
+      "rx": 13.2,
+      "ry": 11.62,
+      "color": "$leafMid"
+    },
+    {
+      "kind": "ellipse",
+      "x": 8.83,
+      "y": -31.03,
+      "rx": 14.88,
+      "ry": 13.09,
+      "color": "$leafMid"
+    },
+    {
+      "kind": "ellipse",
+      "x": 0,
+      "y": -29.36,
+      "rx": 16.8,
+      "ry": 14.4,
+      "color": "$leafMid"
+    },
+    {
+      "kind": "ellipse",
+      "x": -6.72,
+      "y": -34.16,
+      "rx": 9.12,
+      "ry": 6.72,
+      "color": "$leafLight"
+    },
+    {
+      "kind": "ellipse",
+      "x": 2.88,
+      "y": -36.08,
+      "rx": 6.24,
+      "ry": 4.8,
+      "color": "$leafLight"
+    },
+    {
+      "kind": "ellipse",
+      "x": -10.8,
+      "y": -28.88,
+      "rx": 5.28,
+      "ry": 4.32,
+      "color": "$leafLight"
+    },
+    {
+      "kind": "capsule",
+      "x": -18,
+      "y": -20,
+      "x2": -19,
+      "y2": 2,
+      "thickness": 3.2,
+      "color": "$leafMid",
+      "outlineColor": "$leafEdge",
+      "outlineThickness": 0.7
+    },
+    {
+      "kind": "capsule",
+      "x": -12,
+      "y": -20,
+      "x2": -13,
+      "y2": 6,
+      "thickness": 3.2,
+      "color": "$leafDark",
+      "outlineColor": "$leafEdge",
+      "outlineThickness": 0.7
+    },
+    {
+      "kind": "capsule",
+      "x": -5,
+      "y": -20,
+      "x2": -6,
+      "y2": 4,
+      "thickness": 3.2,
+      "color": "$leafLight",
+      "outlineColor": "$leafEdge",
+      "outlineThickness": 0.7
+    },
+    {
+      "kind": "capsule",
+      "x": 3,
+      "y": -20,
+      "x2": 4,
+      "y2": 7,
+      "thickness": 3.2,
+      "color": "$leafMid",
+      "outlineColor": "$leafEdge",
+      "outlineThickness": 0.7
+    },
+    {
+      "kind": "capsule",
+      "x": 10,
+      "y": -20,
+      "x2": 11,
+      "y2": 3,
+      "thickness": 3.2,
+      "color": "$leafDark",
+      "outlineColor": "$leafEdge",
+      "outlineThickness": 0.7
+    },
+    {
+      "kind": "capsule",
+      "x": 17,
+      "y": -20,
+      "x2": 18,
+      "y2": 0,
+      "thickness": 3.2,
+      "color": "$leafMid",
+      "outlineColor": "$leafEdge",
+      "outlineThickness": 0.7
+    }
+  ],
+  "remnantShapes": [
+    {
+      "kind": "ellipse",
+      "x": 2.0,
+      "y": 12.0,
+      "rx": 11.5,
+      "ry": 5.5,
+      "color": "#0000002D"
+    },
+    {
+      "kind": "rect",
+      "x": -9.0,
+      "y": 4.0,
+      "w": 18.0,
+      "h": 10.0,
+      "color": "$bark",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "x": 0.0,
+      "y": 5.0,
+      "rx": 9.0,
+      "ry": 6.2,
+      "color": "#DEB887",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 1.4
+    },
+    {
+      "kind": "ring",
+      "x": 0.0,
+      "y": 5.0,
+      "rx": 5.0,
+      "ry": 5.0,
+      "thickness": 1.1,
+      "color": "#B48252"
+    },
+    {
+      "kind": "ellipse",
+      "x": -13.0,
+      "y": 10.0,
+      "rx": 2.2,
+      "ry": 1.1,
+      "color": "#D2A872",
+      "rotDeg": 22
+    },
+    {
+      "kind": "ellipse",
+      "x": 13.5,
+      "y": 11.5,
+      "rx": 2.0,
+      "ry": 1.0,
+      "color": "#D2A872",
+      "rotDeg": -18
+    },
+    {
+      "kind": "ellipse",
+      "x": 8.0,
+      "y": 14.5,
+      "rx": 2.4,
+      "ry": 1.1,
+      "color": "#C69864",
+      "rotDeg": 12
+    }
+  ]
+}

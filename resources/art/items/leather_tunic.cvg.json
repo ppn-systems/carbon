@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "itemId": 14,
+  "id": "leather_tunic",
+  "displayName": "Leather Tunic",
+  "tier": 1,
+  "categoryLabel": "Chest Armor",
+  "accentColor": "#D97706",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -7.2,
+          -6.2
+        ],
+        [
+          7.2,
+          -6.2
+        ],
+        [
+          5.8,
+          6.8
+        ],
+        [
+          -5.8,
+          6.8
+        ]
+      ],
+      "color": "#92400E",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -4.8,
+          -5.2
+        ],
+        [
+          4.8,
+          -5.2
+        ],
+        [
+          3.6,
+          2.2
+        ],
+        [
+          -3.6,
+          2.2
+        ]
+      ],
+      "color": "#D97706"
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -5.8,
+      "y": 1.2,
+      "w": 11.6,
+      "h": 2.0,
+      "color": "#451A03"
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -1.6,
+      "y": 0.8,
+      "w": 3.2,
+      "h": 2.8,
+      "color": "#FACC15",
+      "outlineColor": "#451A03",
+      "outlineThickness": 0.8
+    }
+  ],
+  "heldVisible": false,
+  "armorVisual": {
+    "primaryColor": "#92400E",
+    "secondaryColor": "#D97706",
+    "trimColor": "#F59E0B"
+  }
+}

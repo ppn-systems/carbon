@@ -68,4 +68,36 @@ public static class WorldProgression
 
         return d < 2600f ? (byte)2 : (byte)3;
     }
+
+    /// <summary>Default starting hour of day (10:00 AM).</summary>
+    public const float DefaultStartHour = 10f;
+
+    /// <summary>Real seconds per full 24-hour in-game day cycle.</summary>
+    public const float DefaultDayLengthSeconds = 240f;
+
+    /// <summary>
+    /// Computes deterministic synchronized in-game hour (<c>0..24</c>) from authoritative server tick.
+    /// </summary>
+    public static float ComputeTimeOfDayHours(
+        ulong serverTick,
+        ushort tickRate,
+        float startHour = DefaultStartHour,
+        float dayLengthSeconds = DefaultDayLengthSeconds)
+    {
+        if (tickRate == 0 || dayLengthSeconds <= 0f)
+        {
+            return startHour;
+        }
+
+        double elapsedSeconds = serverTick / (double)tickRate;
+        double hours = (startHour + (elapsedSeconds * 24.0 / dayLengthSeconds)) % 24.0;
+        return hours < 0.0 ? (float)(hours + 24.0) : (float)hours;
+    }
+
+    /// <summary>Returns <c>true</c> during nocturnal empowerment hours (<c>19:00..05:00</c>).</summary>
+    public static bool IsNightHour(float hour)
+    {
+        float h = ((hour % 24f) + 24f) % 24f;
+        return h >= 19.0f || h < 5.0f;
+    }
 }

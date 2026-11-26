@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 2,
+  "biomeId": 4,
+  "id": "ancient_forest",
+  "displayName": "Ancient Forest",
+  "groundColor": "#2C5E3B",
+  "minimapColor": "#246234",
+  "cliffBase": "#464C52",
+  "cliffStrata": "#363B41",
+  "cliffHighlight": "#A5ACB4E6",
+  "cliffShadow": "#24282D",
+  "detailChancePercent": 24,
+  "palette": {
+    "moss": "#3D7A47CC",
+    "mossLit": "#599E58CC",
+    "cap": "#D7B482",
+    "leaf": "#B45309CC",
+    "pebble": "#4B5563CC"
+  },
+  "detailVariants": [
+    {
+      "shapes": [
+        {
+          "kind": "ellipse",
+          "x": 14,
+          "y": 17,
+          "rx": 4.5,
+          "ry": 2.6,
+          "color": "$moss"
+        },
+        {
+          "kind": "ellipse",
+          "x": 15,
+          "y": 16,
+          "rx": 2.5,
+          "ry": 1.4,
+          "color": "$mossLit"
+        },
+        {
+          "kind": "ellipse",
+          "x": 17,
+          "y": 14,
+          "rx": 1.9,
+          "ry": 1.6,
+          "color": "$cap"
+        }
+      ]
+    },
+    {
+      "shapes": [
+        {
+          "kind": "ellipse",
+          "x": 11,
+          "y": 13,
+          "rx": 2.4,
+          "ry": 1.4,
+          "color": "$leaf",
+          "rotDeg": 25
+        },
+        {
+          "kind": "ellipse",
+          "x": 18,
+          "y": 19,
+          "rx": 2.2,
+          "ry": 1.3,
+          "color": "$leaf",
+          "rotDeg": -35
+        },
+        {
+          "kind": "ellipse",
+          "x": 14,
+          "y": 21,
+          "rx": 2.1,
+          "ry": 1.6,
+          "color": "$pebble"
+        }
+      ]
+    },
+    {
+      "shapes": [
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              15,
+              21
+            ],
+            [
+              11,
+              14
+            ],
+            [
+              16,
+              16
+            ]
+          ],
+          "color": "$mossLit"
+        },
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              16,
+              21
+            ],
+            [
+              21,
+              14
+            ],
+            [
+              17,
+              17
+            ]
+          ],
+          "color": "$moss"
+        },
+        {
+          "kind": "ellipse",
+          "x": 16,
+          "y": 21,
+          "rx": 2.8,
+          "ry": 1.5,
+          "color": "$moss"
+        }
+      ]
+    }
+  ]
+}

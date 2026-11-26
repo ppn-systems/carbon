@@ -1,0 +1,555 @@
+{
+  "schemaVersion": 2,
+  "propType": 3,
+  "id": "snow_pine",
+  "displayName": "Snow Pine",
+  "designRadius": 22,
+  "hasCanopy": true,
+  "allowMirror": true,
+  "isWoody": true,
+  "isIcy": false,
+  "rareLastVariantChance": 0.12,
+  "light": null,
+  "paletteVariants": [
+    {
+      "bark": "#6B4226",
+      "barkDark": "#3F2413",
+      "barkHi": "#8B5A38",
+      "leafEdge": "#123430",
+      "leafDark": "#1E4D45",
+      "leafMid": "#2A6A5F",
+      "leafLight": "#3E8B7E",
+      "snow": "#F8FAFC",
+      "snowShade": "#CBD5E1"
+    }
+  ],
+  "groundShapes": [
+    {
+      "kind": "ellipse",
+      "x": 2.5,
+      "y": 14.0,
+      "rx": 11.5,
+      "ry": 5.5,
+      "color": "#0000002D"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -5.2,
+          16.0
+        ],
+        [
+          5.2,
+          16.0
+        ],
+        [
+          4.16,
+          -8.0
+        ],
+        [
+          -4.16,
+          -8.0
+        ]
+      ],
+      "color": "$bark",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -8.5,
+          16.5
+        ],
+        [
+          -2.5,
+          16.5
+        ],
+        [
+          -3.5,
+          9.0
+        ]
+      ],
+      "color": "$barkDark"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          2.5,
+          16.5
+        ],
+        [
+          8.5,
+          16.5
+        ],
+        [
+          3.5,
+          10.0
+        ]
+      ],
+      "color": "$barkDark"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          0.64,
+          -8.0
+        ],
+        [
+          3.84,
+          -8.0
+        ],
+        [
+          4.8,
+          16.0
+        ],
+        [
+          0.8,
+          16.0
+        ]
+      ],
+      "color": "$barkDark"
+    },
+    {
+      "kind": "line",
+      "x": -2.0,
+      "y": 14.0,
+      "x2": -1.28,
+      "y2": -6.0,
+      "thickness": 2.0,
+      "color": "$barkHi"
+    }
+  ],
+  "canopyShapes": [
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -24,
+          -2
+        ],
+        [
+          24,
+          -2
+        ],
+        [
+          0,
+          -26
+        ]
+      ],
+      "color": "$leafEdge"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -21.6,
+          -4
+        ],
+        [
+          21.6,
+          -4
+        ],
+        [
+          0,
+          -24
+        ]
+      ],
+      "color": "$leafDark"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -13.2,
+          -5
+        ],
+        [
+          1.2,
+          -5
+        ],
+        [
+          0,
+          -24
+        ]
+      ],
+      "color": "$leafLight"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -20,
+          -16
+        ],
+        [
+          20,
+          -16
+        ],
+        [
+          0,
+          -40
+        ]
+      ],
+      "color": "$leafEdge"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -18.0,
+          -18
+        ],
+        [
+          18.0,
+          -18
+        ],
+        [
+          0,
+          -38
+        ]
+      ],
+      "color": "$leafMid"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -11.0,
+          -19
+        ],
+        [
+          1.0,
+          -19
+        ],
+        [
+          0,
+          -38
+        ]
+      ],
+      "color": "$leafLight"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -15,
+          -30
+        ],
+        [
+          15,
+          -30
+        ],
+        [
+          0,
+          -52
+        ]
+      ],
+      "color": "$leafEdge"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -13.5,
+          -32
+        ],
+        [
+          13.5,
+          -32
+        ],
+        [
+          0,
+          -50
+        ]
+      ],
+      "color": "$leafDark"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -8.25,
+          -33
+        ],
+        [
+          0.75,
+          -33
+        ],
+        [
+          0,
+          -50
+        ]
+      ],
+      "color": "$leafLight"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -10,
+          -43
+        ],
+        [
+          10,
+          -43
+        ],
+        [
+          0,
+          -63
+        ]
+      ],
+      "color": "$leafEdge"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -9.0,
+          -45
+        ],
+        [
+          9.0,
+          -45
+        ],
+        [
+          0,
+          -61
+        ]
+      ],
+      "color": "$leafMid"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -5.5,
+          -46
+        ],
+        [
+          0.5,
+          -46
+        ],
+        [
+          0,
+          -61
+        ]
+      ],
+      "color": "$leafLight"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -12.48,
+          -13.9
+        ],
+        [
+          12.48,
+          -13.9
+        ],
+        [
+          0,
+          -26
+        ]
+      ],
+      "color": "$snowShade"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -10.56,
+          -15.0
+        ],
+        [
+          8.64,
+          -15.0
+        ],
+        [
+          0,
+          -26
+        ]
+      ],
+      "color": "$snow"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -10.4,
+          -27.9
+        ],
+        [
+          10.4,
+          -27.9
+        ],
+        [
+          0,
+          -40
+        ]
+      ],
+      "color": "$snowShade"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -8.8,
+          -29.0
+        ],
+        [
+          7.2,
+          -29.0
+        ],
+        [
+          0,
+          -40
+        ]
+      ],
+      "color": "$snow"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -7.8,
+          -41.0
+        ],
+        [
+          7.8,
+          -41.0
+        ],
+        [
+          0,
+          -52
+        ]
+      ],
+      "color": "$snowShade"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -6.6,
+          -42.0
+        ],
+        [
+          5.4,
+          -42.0
+        ],
+        [
+          0,
+          -52
+        ]
+      ],
+      "color": "$snow"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -5.2,
+          -53.1
+        ],
+        [
+          5.2,
+          -53.1
+        ],
+        [
+          0,
+          -63
+        ]
+      ],
+      "color": "$snowShade"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -4.4,
+          -54.0
+        ],
+        [
+          3.6,
+          -54.0
+        ],
+        [
+          0,
+          -63
+        ]
+      ],
+      "color": "$snow"
+    }
+  ],
+  "remnantShapes": [
+    {
+      "kind": "ellipse",
+      "x": 2.0,
+      "y": 12.0,
+      "rx": 11.5,
+      "ry": 5.5,
+      "color": "#0000002D"
+    },
+    {
+      "kind": "rect",
+      "x": -9.0,
+      "y": 4.0,
+      "w": 18.0,
+      "h": 10.0,
+      "color": "$bark",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "x": 0.0,
+      "y": 5.0,
+      "rx": 9.0,
+      "ry": 6.2,
+      "color": "#DEB887",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 1.4
+    },
+    {
+      "kind": "ring",
+      "x": 0.0,
+      "y": 5.0,
+      "rx": 5.0,
+      "ry": 5.0,
+      "thickness": 1.1,
+      "color": "#B48252"
+    },
+    {
+      "kind": "ellipse",
+      "x": -13.0,
+      "y": 10.0,
+      "rx": 2.2,
+      "ry": 1.1,
+      "color": "#D2A872",
+      "rotDeg": 22
+    },
+    {
+      "kind": "ellipse",
+      "x": 13.5,
+      "y": 11.5,
+      "rx": 2.0,
+      "ry": 1.0,
+      "color": "#D2A872",
+      "rotDeg": -18
+    },
+    {
+      "kind": "ellipse",
+      "x": 8.0,
+      "y": 14.5,
+      "rx": 2.4,
+      "ry": 1.1,
+      "color": "#C69864",
+      "rotDeg": 12
+    }
+  ]
+}

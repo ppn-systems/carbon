@@ -22,6 +22,7 @@ public sealed class GameWindow : IGameWindow
     private readonly IWindow _silkWindow;
     private GraphicsDevice? _device;
     private InputManager? _inputManager;
+    private bool _faultedInRunLoop;
     private bool _disposed;
 
     /// <inheritdoc/>
@@ -111,7 +112,19 @@ public sealed class GameWindow : IGameWindow
     }
 
     /// <inheritdoc/>
-    public void Run() => _silkWindow.Run();
+    public void Run()
+    {
+        _faultedInRunLoop = false;
+        try
+        {
+            _silkWindow.Run();
+        }
+        catch
+        {
+            _faultedInRunLoop = true;
+            throw;
+        }
+    }
 
     /// <inheritdoc/>
     public void Close() => _silkWindow.Close();
@@ -166,6 +179,22 @@ public sealed class GameWindow : IGameWindow
 
         _inputManager?.Dispose();
         _device?.Dispose();
-        _silkWindow.Dispose();
+
+        if (!_faultedInRunLoop)
+        {
+            _silkWindow.Dispose();
+        }
+        else
+        {
+            try
+            {
+                _silkWindow.Close();
+            }
+            catch (InvalidOperationException)
+            {
+                // Silk.NET keeps its internal render-loop flag set when Run() unwinds via an exception;
+                // skip Reset()/Dispose() so the original exception propagates unmasked.
+            }
+        }
     }
 }

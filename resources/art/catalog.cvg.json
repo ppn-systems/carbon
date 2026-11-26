@@ -1,0 +1,716 @@
+{
+  "schemaVersion": 2,
+  "characters": [
+    {
+      "preset": 0,
+      "id": "base_hero_0",
+      "title": "Adventurer A",
+      "accentColor": "#38BDF8",
+      "file": "characters/base_hero.cvg.json"
+    },
+    {
+      "preset": 1,
+      "id": "base_hero_1",
+      "title": "Adventurer B",
+      "accentColor": "#F87171",
+      "file": "characters/base_hero.cvg.json"
+    },
+    {
+      "preset": 2,
+      "id": "base_hero_2",
+      "title": "Adventurer C",
+      "accentColor": "#C084FC",
+      "file": "characters/base_hero.cvg.json"
+    },
+    {
+      "preset": 3,
+      "id": "base_hero_3",
+      "title": "Adventurer D",
+      "accentColor": "#FACC15",
+      "file": "characters/base_hero.cvg.json"
+    }
+  ],
+  "monsters": [
+    {
+      "archetypeId": 101,
+      "id": "wild_slime",
+      "title": "Wild Slime",
+      "subtitle": "OOZE BEAST",
+      "level": 1,
+      "accentColor": "#22C55E",
+      "file": "monsters/wild_slime.cvg.json"
+    },
+    {
+      "archetypeId": 102,
+      "id": "rock_golem",
+      "title": "Rock Golem",
+      "subtitle": "STONE CONSTRUCT",
+      "level": 3,
+      "accentColor": "#F97316",
+      "file": "monsters/rock_golem.cvg.json"
+    },
+    {
+      "archetypeId": 103,
+      "id": "frost_wolf",
+      "title": "Frost Wolf",
+      "subtitle": "FROST BEAST",
+      "level": 2,
+      "accentColor": "#38BDF8",
+      "file": "monsters/frost_wolf.cvg.json"
+    },
+    {
+      "archetypeId": 104,
+      "id": "ash_wraith",
+      "title": "Ash Wraith",
+      "subtitle": "SPECTRAL FIEND",
+      "level": 2,
+      "accentColor": "#A855F7",
+      "file": "monsters/ash_wraith.cvg.json"
+    },
+    {
+      "archetypeId": 105,
+      "id": "skeleton_archer",
+      "title": "Skeleton Archer",
+      "subtitle": "RANGED BOWMAN",
+      "level": 2,
+      "accentColor": "#CBD5E1",
+      "file": "monsters/skeleton_archer.cvg.json"
+    },
+    {
+      "archetypeId": 106,
+      "id": "orc_shaman",
+      "title": "Orc Shaman",
+      "subtitle": "HEX CASTER",
+      "level": 5,
+      "accentColor": "#A855F7",
+      "file": "monsters/orc_shaman.cvg.json"
+    },
+    {
+      "archetypeId": 107,
+      "id": "crimson_demon",
+      "title": "Crimson Demon",
+      "subtitle": "ABYSSAL FIEND",
+      "level": 8,
+      "accentColor": "#EF4444",
+      "file": "monsters/crimson_demon.cvg.json"
+    }
+  ],
+  "npcs": [
+    {
+      "archetypeId": 201,
+      "id": "village_guard",
+      "title": "Village Guard",
+      "subtitle": "TOWN PATROL",
+      "accentColor": "#FACC15",
+      "file": "npcs/village_guard.cvg.json"
+    },
+    {
+      "archetypeId": 202,
+      "id": "harbour_master",
+      "title": "Harbour Master",
+      "subtitle": "HARBOUR NPC",
+      "accentColor": "#38BDF8",
+      "file": "npcs/harbour_master.cvg.json"
+    },
+    {
+      "archetypeId": 203,
+      "id": "shrine_keeper",
+      "title": "Shrine Keeper",
+      "subtitle": "SHRINE ORACLE",
+      "accentColor": "#34D399",
+      "file": "npcs/shrine_keeper.cvg.json"
+    },
+    {
+      "archetypeId": 204,
+      "id": "master_blacksmith",
+      "title": "Master Blacksmith",
+      "subtitle": "FORGE ARTISAN",
+      "accentColor": "#F97316",
+      "file": "npcs/master_blacksmith.cvg.json"
+    }
+  ],
+  "items": [
+    {
+      "itemId": 1,
+      "id": "wood_axe",
+      "displayName": "Wood Axe",
+      "tier": 1,
+      "accentColor": "#F59E0B",
+      "file": "items/wood_axe.cvg.json"
+    },
+    {
+      "itemId": 2,
+      "id": "stone_pickaxe",
+      "displayName": "Stone Pickaxe",
+      "tier": 2,
+      "accentColor": "#94A3B8",
+      "file": "items/stone_pickaxe.cvg.json"
+    },
+    {
+      "itemId": 3,
+      "id": "iron_sword",
+      "displayName": "Iron Sword",
+      "tier": 2,
+      "accentColor": "#38BDF8",
+      "file": "items/iron_sword.cvg.json"
+    },
+    {
+      "itemId": 4,
+      "id": "wood_log",
+      "displayName": "Wood Log",
+      "tier": 1,
+      "accentColor": "#D97706",
+      "file": "items/wood_log.cvg.json"
+    },
+    {
+      "itemId": 5,
+      "id": "stone_chunk",
+      "displayName": "Stone Chunk",
+      "tier": 1,
+      "accentColor": "#CBD5E1",
+      "file": "items/stone_chunk.cvg.json"
+    },
+    {
+      "itemId": 6,
+      "id": "iron_ore",
+      "displayName": "Iron Ore",
+      "tier": 2,
+      "accentColor": "#FB923C",
+      "file": "items/iron_ore.cvg.json"
+    },
+    {
+      "itemId": 7,
+      "id": "mana_crystal",
+      "displayName": "Mana Crystal",
+      "tier": 3,
+      "accentColor": "#22D3EE",
+      "file": "items/mana_crystal.cvg.json"
+    },
+    {
+      "itemId": 8,
+      "id": "berry_herb",
+      "displayName": "Berry Herb",
+      "tier": 1,
+      "accentColor": "#4ADE80",
+      "file": "items/berry_herb.cvg.json"
+    },
+    {
+      "itemId": 9,
+      "id": "wood_wall",
+      "displayName": "Wood Wall",
+      "tier": 1,
+      "accentColor": "#D97706",
+      "file": "items/wood_wall.cvg.json"
+    },
+    {
+      "itemId": 10,
+      "id": "stone_wall",
+      "displayName": "Stone Wall",
+      "tier": 2,
+      "accentColor": "#94A3B8",
+      "file": "items/stone_wall.cvg.json"
+    },
+    {
+      "itemId": 11,
+      "id": "wood_door",
+      "displayName": "Wood Door",
+      "tier": 1,
+      "accentColor": "#F59E0B",
+      "file": "items/wood_door.cvg.json"
+    },
+    {
+      "itemId": 12,
+      "id": "crystal_pickaxe",
+      "displayName": "Crystal Pickaxe",
+      "tier": 3,
+      "accentColor": "#22D3EE",
+      "file": "items/crystal_pickaxe.cvg.json"
+    },
+    {
+      "itemId": 13,
+      "id": "leather_cap",
+      "displayName": "Leather Cap",
+      "tier": 1,
+      "accentColor": "#D97706",
+      "file": "items/leather_cap.cvg.json"
+    },
+    {
+      "itemId": 14,
+      "id": "leather_tunic",
+      "displayName": "Leather Tunic",
+      "tier": 1,
+      "accentColor": "#D97706",
+      "file": "items/leather_tunic.cvg.json"
+    },
+    {
+      "itemId": 15,
+      "id": "leather_greaves",
+      "displayName": "Leather Greaves",
+      "tier": 1,
+      "accentColor": "#B45309",
+      "file": "items/leather_greaves.cvg.json"
+    },
+    {
+      "itemId": 16,
+      "id": "leather_boots",
+      "displayName": "Leather Boots",
+      "tier": 1,
+      "accentColor": "#92400E",
+      "file": "items/leather_boots.cvg.json"
+    },
+    {
+      "itemId": 17,
+      "id": "iron_helmet",
+      "displayName": "Iron Helmet",
+      "tier": 2,
+      "accentColor": "#CBD5E1",
+      "file": "items/iron_helmet.cvg.json"
+    },
+    {
+      "itemId": 18,
+      "id": "iron_chestplate",
+      "displayName": "Iron Chestplate",
+      "tier": 2,
+      "accentColor": "#94A3B8",
+      "file": "items/iron_chestplate.cvg.json"
+    },
+    {
+      "itemId": 19,
+      "id": "iron_leggings",
+      "displayName": "Iron Leggings",
+      "tier": 2,
+      "accentColor": "#64748B",
+      "file": "items/iron_leggings.cvg.json"
+    },
+    {
+      "itemId": 20,
+      "id": "iron_boots",
+      "displayName": "Iron Boots",
+      "tier": 2,
+      "accentColor": "#94A3B8",
+      "file": "items/iron_boots.cvg.json"
+    },
+    {
+      "itemId": 21,
+      "id": "crystal_crown",
+      "displayName": "Crystal Crown",
+      "tier": 3,
+      "accentColor": "#22D3EE",
+      "file": "items/crystal_crown.cvg.json"
+    },
+    {
+      "itemId": 22,
+      "id": "crystal_robe",
+      "displayName": "Crystal Robe",
+      "tier": 3,
+      "accentColor": "#38BDF8",
+      "file": "items/crystal_robe.cvg.json"
+    },
+    {
+      "itemId": 23,
+      "id": "mana_tonic",
+      "displayName": "Mana Tonic",
+      "tier": 1,
+      "accentColor": "#38BDF8",
+      "file": "items/mana_tonic.cvg.json"
+    },
+    {
+      "itemId": 24,
+      "id": "hunting_bow",
+      "displayName": "Hunting Bow",
+      "tier": 1,
+      "accentColor": "#22C55E",
+      "file": "items/hunting_bow.cvg.json"
+    },
+    {
+      "itemId": 25,
+      "id": "arcane_staff",
+      "displayName": "Arcane Staff",
+      "tier": 2,
+      "accentColor": "#38BDF8",
+      "file": "items/arcane_staff.cvg.json"
+    },
+    {
+      "itemId": 26,
+      "id": "crystal_bow",
+      "displayName": "Crystal Bow",
+      "tier": 3,
+      "accentColor": "#22D3EE",
+      "file": "items/crystal_bow.cvg.json"
+    },
+    {
+      "itemId": 27,
+      "id": "crystal_staff",
+      "displayName": "Crystal Staff",
+      "tier": 3,
+      "accentColor": "#C084FC",
+      "file": "items/crystal_staff.cvg.json"
+    },
+    {
+      "itemId": 28,
+      "id": "forge_anvil",
+      "displayName": "Forge Anvil",
+      "tier": 2,
+      "accentColor": "#F97316",
+      "file": "items/forge_anvil.cvg.json"
+    },
+    {
+      "itemId": 29,
+      "id": "roast_meat",
+      "displayName": "Roast Meat",
+      "tier": 2,
+      "accentColor": "#F97316",
+      "file": "items/roast_meat.cvg.json"
+    },
+    {
+      "itemId": 30,
+      "id": "arcane_pie",
+      "displayName": "Arcane Pie",
+      "tier": 2,
+      "accentColor": "#C084FC",
+      "file": "items/arcane_pie.cvg.json"
+    },
+    {
+      "itemId": 31,
+      "id": "demon_cleaver",
+      "displayName": "Demon Cleaver",
+      "tier": 3,
+      "accentColor": "#EF4444",
+      "file": "items/demon_cleaver.cvg.json"
+    },
+    {
+      "itemId": 32,
+      "id": "shaman_staff",
+      "displayName": "Shaman Staff",
+      "tier": 3,
+      "accentColor": "#A855F7",
+      "file": "items/shaman_staff.cvg.json"
+    },
+    {
+      "itemId": 33,
+      "id": "stone_door",
+      "displayName": "Stone Door",
+      "tier": 2,
+      "accentColor": "#94A3B8",
+      "file": "items/stone_door.cvg.json"
+    },
+    {
+      "itemId": 34,
+      "id": "wood_floor",
+      "displayName": "Wood Floor",
+      "tier": 1,
+      "accentColor": "#D97706",
+      "file": "items/wood_floor.cvg.json"
+    },
+    {
+      "itemId": 35,
+      "id": "stone_floor",
+      "displayName": "Stone Floor",
+      "tier": 2,
+      "accentColor": "#94A3B8",
+      "file": "items/stone_floor.cvg.json"
+    },
+    {
+      "itemId": 36,
+      "id": "roof_pillar",
+      "displayName": "Roof Pillar",
+      "tier": 2,
+      "accentColor": "#CBD5E1",
+      "file": "items/roof_pillar.cvg.json"
+    },
+    {
+      "itemId": 37,
+      "id": "beast_pelt",
+      "displayName": "Beast Pelt",
+      "tier": 1,
+      "accentColor": "#D6D3D1",
+      "file": "items/beast_pelt.cvg.json"
+    },
+    {
+      "itemId": 38,
+      "id": "bone_shard",
+      "displayName": "Bone Shard",
+      "tier": 1,
+      "accentColor": "#F5F5F4",
+      "file": "items/bone_shard.cvg.json"
+    },
+    {
+      "itemId": 39,
+      "id": "demon_ember",
+      "displayName": "Demon Ember",
+      "tier": 3,
+      "accentColor": "#F97316",
+      "file": "items/demon_ember.cvg.json"
+    }
+  ],
+  "props": [
+    {
+      "propType": 1,
+      "id": "oak_tree",
+      "displayName": "Oak Tree",
+      "file": "props/oak_tree.cvg.json"
+    },
+    {
+      "propType": 2,
+      "id": "pine_tree",
+      "displayName": "Pine Tree",
+      "file": "props/pine_tree.cvg.json"
+    },
+    {
+      "propType": 3,
+      "id": "snow_pine",
+      "displayName": "Snow Pine",
+      "file": "props/snow_pine.cvg.json"
+    },
+    {
+      "propType": 4,
+      "id": "palm_tree",
+      "displayName": "Palm Tree",
+      "file": "props/palm_tree.cvg.json"
+    },
+    {
+      "propType": 5,
+      "id": "birch_tree",
+      "displayName": "Birch Tree",
+      "file": "props/birch_tree.cvg.json"
+    },
+    {
+      "propType": 6,
+      "id": "willow_tree",
+      "displayName": "Willow Tree",
+      "file": "props/willow_tree.cvg.json"
+    },
+    {
+      "propType": 7,
+      "id": "dead_tree",
+      "displayName": "Dead Tree",
+      "file": "props/dead_tree.cvg.json"
+    },
+    {
+      "propType": 8,
+      "id": "cactus",
+      "displayName": "Cactus",
+      "file": "props/cactus.cvg.json"
+    },
+    {
+      "propType": 9,
+      "id": "bush",
+      "displayName": "Bush",
+      "file": "props/bush.cvg.json"
+    },
+    {
+      "propType": 10,
+      "id": "mushroom_cluster",
+      "displayName": "Mushroom Cluster",
+      "file": "props/mushroom_cluster.cvg.json"
+    },
+    {
+      "propType": 11,
+      "id": "copper_vein",
+      "displayName": "Copper Vein",
+      "file": "props/copper_vein.cvg.json"
+    },
+    {
+      "propType": 12,
+      "id": "iron_vein",
+      "displayName": "Iron Vein",
+      "file": "props/iron_vein.cvg.json"
+    },
+    {
+      "propType": 13,
+      "id": "gold_vein",
+      "displayName": "Gold Vein",
+      "file": "props/gold_vein.cvg.json"
+    },
+    {
+      "propType": 14,
+      "id": "coal_deposit",
+      "displayName": "Coal Deposit",
+      "file": "props/coal_deposit.cvg.json"
+    },
+    {
+      "propType": 15,
+      "id": "silver_vein",
+      "displayName": "Silver Vein",
+      "file": "props/silver_vein.cvg.json"
+    },
+    {
+      "propType": 16,
+      "id": "crystal_cluster",
+      "displayName": "Crystal Cluster",
+      "file": "props/crystal_cluster.cvg.json"
+    },
+    {
+      "propType": 17,
+      "id": "boulder",
+      "displayName": "Boulder",
+      "file": "props/boulder.cvg.json"
+    },
+    {
+      "propType": 18,
+      "id": "basalt_pillar",
+      "displayName": "Basalt Pillar",
+      "file": "props/basalt_pillar.cvg.json"
+    },
+    {
+      "propType": 19,
+      "id": "ancient_shrine",
+      "displayName": "Ancient Shrine",
+      "file": "props/ancient_shrine.cvg.json"
+    },
+    {
+      "propType": 20,
+      "id": "acacia_tree",
+      "displayName": "Acacia Tree",
+      "file": "props/acacia_tree.cvg.json"
+    },
+    {
+      "propType": 21,
+      "id": "cherry_blossom_tree",
+      "displayName": "Cherry Blossom Tree",
+      "file": "props/cherry_blossom_tree.cvg.json"
+    },
+    {
+      "propType": 22,
+      "id": "glacial_crystal",
+      "displayName": "Glacial Crystal",
+      "file": "props/glacial_crystal.cvg.json"
+    }
+  ],
+  "biomes": [
+    {
+      "biomeId": 0,
+      "id": "deep_ocean",
+      "displayName": "Deep Ocean",
+      "file": "biomes/deep_ocean.cvg.json"
+    },
+    {
+      "biomeId": 1,
+      "id": "shallow_water",
+      "displayName": "Shallow Water",
+      "file": "biomes/shallow_water.cvg.json"
+    },
+    {
+      "biomeId": 2,
+      "id": "beach_sand",
+      "displayName": "Beach Sand",
+      "file": "biomes/beach_sand.cvg.json"
+    },
+    {
+      "biomeId": 3,
+      "id": "lush_plains",
+      "displayName": "Lush Plains",
+      "file": "biomes/lush_plains.cvg.json"
+    },
+    {
+      "biomeId": 4,
+      "id": "ancient_forest",
+      "displayName": "Ancient Forest",
+      "file": "biomes/ancient_forest.cvg.json"
+    },
+    {
+      "biomeId": 5,
+      "id": "misty_swamp",
+      "displayName": "Misty Swamp",
+      "file": "biomes/misty_swamp.cvg.json"
+    },
+    {
+      "biomeId": 6,
+      "id": "dune_desert",
+      "displayName": "Dune Desert",
+      "file": "biomes/dune_desert.cvg.json"
+    },
+    {
+      "biomeId": 7,
+      "id": "red_mesa",
+      "displayName": "Red Mesa",
+      "file": "biomes/red_mesa.cvg.json"
+    },
+    {
+      "biomeId": 8,
+      "id": "tropical_jungle",
+      "displayName": "Tropical Jungle",
+      "file": "biomes/tropical_jungle.cvg.json"
+    },
+    {
+      "biomeId": 9,
+      "id": "frozen_tundra",
+      "displayName": "Frozen Tundra",
+      "file": "biomes/frozen_tundra.cvg.json"
+    },
+    {
+      "biomeId": 10,
+      "id": "volcanic_ashland",
+      "displayName": "Volcanic Ashland",
+      "file": "biomes/volcanic_ashland.cvg.json"
+    },
+    {
+      "biomeId": 11,
+      "id": "alpine_peaks",
+      "displayName": "Alpine Peaks",
+      "file": "biomes/alpine_peaks.cvg.json"
+    },
+    {
+      "biomeId": 12,
+      "id": "savanna",
+      "displayName": "Savanna",
+      "file": "biomes/savanna.cvg.json"
+    },
+    {
+      "biomeId": 13,
+      "id": "blossom_woods",
+      "displayName": "Blossom Woods",
+      "file": "biomes/blossom_woods.cvg.json"
+    }
+  ],
+  "structures": [
+    {
+      "structureType": 1,
+      "id": "wood_wall",
+      "displayName": "Wood Wall",
+      "file": "structures/wood_wall.cvg.json"
+    },
+    {
+      "structureType": 2,
+      "id": "stone_wall",
+      "displayName": "Stone Wall",
+      "file": "structures/stone_wall.cvg.json"
+    },
+    {
+      "structureType": 3,
+      "id": "wood_door",
+      "displayName": "Wood Door",
+      "file": "structures/wood_door.cvg.json"
+    },
+    {
+      "structureType": 4,
+      "id": "stone_door",
+      "displayName": "Stone Door",
+      "file": "structures/stone_door.cvg.json"
+    },
+    {
+      "structureType": 5,
+      "id": "wood_floor",
+      "displayName": "Wood Floor",
+      "file": "structures/wood_floor.cvg.json"
+    },
+    {
+      "structureType": 6,
+      "id": "stone_floor",
+      "displayName": "Stone Floor",
+      "file": "structures/stone_floor.cvg.json"
+    },
+    {
+      "structureType": 7,
+      "id": "roof_pillar",
+      "displayName": "Roof Pillar",
+      "file": "structures/roof_pillar.cvg.json"
+    },
+    {
+      "structureType": 8,
+      "id": "forge_anvil",
+      "displayName": "Forge Anvil",
+      "file": "structures/forge_anvil.cvg.json"
+    }
+  ]
+}

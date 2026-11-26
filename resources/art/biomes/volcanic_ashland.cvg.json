@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 2,
+  "biomeId": 10,
+  "id": "volcanic_ashland",
+  "displayName": "Volcanic Ashland",
+  "groundColor": "#353338",
+  "minimapColor": "#4E4244",
+  "cliffBase": "#2D2C32",
+  "cliffStrata": "#222126",
+  "cliffHighlight": "#696973E6",
+  "cliffShadow": "#161519",
+  "detailChancePercent": 26,
+  "palette": {
+    "crust": "#1C191E",
+    "magma": "#F97316",
+    "ember": "#FDE047",
+    "obsidian": "#475569",
+    "ash": "#57535E99"
+  },
+  "detailVariants": [
+    {
+      "shapes": [
+        {
+          "kind": "line",
+          "x": 8,
+          "y": 19,
+          "x2": 16,
+          "y2": 15,
+          "thickness": 2.8,
+          "color": "$crust"
+        },
+        {
+          "kind": "line",
+          "x": 16,
+          "y": 15,
+          "x2": 24,
+          "y2": 12,
+          "thickness": 2.4,
+          "color": "$crust"
+        },
+        {
+          "kind": "line",
+          "x": 8,
+          "y": 19,
+          "x2": 16,
+          "y2": 15,
+          "thickness": 1.3,
+          "color": "$magma"
+        },
+        {
+          "kind": "line",
+          "x": 16,
+          "y": 15,
+          "x2": 24,
+          "y2": 12,
+          "thickness": 1.1,
+          "color": "$ember"
+        }
+      ]
+    },
+    {
+      "shapes": [
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              12,
+              20
+            ],
+            [
+              10,
+              13
+            ],
+            [
+              16,
+              11
+            ],
+            [
+              19,
+              19
+            ]
+          ],
+          "color": "$obsidian",
+          "outlineColor": "$crust",
+          "outlineThickness": 0.9
+        },
+        {
+          "kind": "ellipse",
+          "x": 13,
+          "y": 14,
+          "rx": 1.1,
+          "ry": 1.5,
+          "color": "#94A3B880"
+        }
+      ]
+    },
+    {
+      "shapes": [
+        {
+          "kind": "ring",
+          "x": 16,
+          "y": 17,
+          "rx": 4.4,
+          "ry": 4.4,
+          "thickness": 1.6,
+          "color": "$ash"
+        },
+        {
+          "kind": "ellipse",
+          "x": 15,
+          "y": 17,
+          "rx": 1.3,
+          "ry": 1.3,
+          "color": "$magma"
+        },
+        {
+          "kind": "ellipse",
+          "x": 19,
+          "y": 15,
+          "rx": 0.9,
+          "ry": 0.9,
+          "color": "$ember"
+        }
+      ]
+    }
+  ]
+}

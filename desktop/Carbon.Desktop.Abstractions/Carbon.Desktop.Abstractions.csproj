@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <RootNamespace>Carbon.Desktop.Abstractions</RootNamespace>
+        <AssemblyName>Carbon.Desktop.Abstractions</AssemblyName>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\contracts\Carbon.Contracts.Common\Carbon.Contracts.Common.csproj" />
+        <ProjectReference Include="..\..\contracts\Carbon.Contracts.Entities\Carbon.Contracts.Entities.csproj" />
+        <ProjectReference Include="..\..\contracts\Carbon.Contracts.Identity\Carbon.Contracts.Identity.csproj" />
+        <ProjectReference Include="..\..\contracts\Carbon.Contracts.Items\Carbon.Contracts.Items.csproj" />
+        <ProjectReference Include="..\..\contracts\Carbon.Contracts.Maps\Carbon.Contracts.Maps.csproj" />
+        <ProjectReference Include="..\..\engine\Carbon.Data\Carbon.Data.csproj" />
+        <ProjectReference Include="..\..\engine\Carbon.Items\Carbon.Items.csproj" />
+        <ProjectReference Include="..\..\engine\Carbon.Maps\Carbon.Maps.csproj" />
+        <ProjectReference Include="..\..\engine\Carbon.Simulation\Carbon.Simulation.csproj" />
+    </ItemGroup>
+
+</Project>

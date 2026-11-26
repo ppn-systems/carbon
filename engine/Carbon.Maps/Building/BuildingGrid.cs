@@ -456,6 +456,7 @@ public sealed class BuildingGrid : IBuildingGrid
         StructureType.WoodFloor => StructureTile.CreateFloor(type, StructureMaterial.Wood, moveSpeedMultiplier: 1.15f),
         StructureType.StoneFloor => StructureTile.CreateFloor(type, StructureMaterial.Stone, moveSpeedMultiplier: 1.20f),
         StructureType.RoofPillar => StructureTile.CreatePillar(StructureMaterial.Stone, durability: 300f),
+        StructureType.ForgeAnvil => StructureTile.CreateStation(type, StructureMaterial.Metal, durability: 350f, harvestTier: 2),
         _ => StructureTile.Empty
     };
 }

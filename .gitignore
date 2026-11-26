@@ -50,3 +50,11 @@ publish/
 
 # Allow DLLs in library folder
 !library/*.dll
+
+# Local runtime SQLite databases
+*.db
+*.db-wal
+*.db-shm
+
+# Runtime client screenshots
+screenshots/

@@ -1,3 +1,6 @@
 <Solution>
+  <Project Path="Carbon.Desktop.Abstractions/Carbon.Desktop.Abstractions.csproj" />
+  <Project Path="Carbon.Desktop.Networking/Carbon.Desktop.Networking.csproj" />
+  <Project Path="Carbon.Desktop.Rendering/Carbon.Desktop.Rendering.csproj" />
   <Project Path="Carbon.Desktop/Carbon.Desktop.csproj" />
 </Solution>

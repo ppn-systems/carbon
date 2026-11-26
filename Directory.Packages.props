@@ -41,4 +41,19 @@
 		<PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
 		<PackageVersion Include="xunit.runner.visualstudio" Version="3.0.2" />
     </ItemGroup>
+
+    <!-- Pure Native AOT Database Drivers & Logging -->
+    <ItemGroup>
+        <PackageVersion Include="Npgsql" Version="10.0.3" />
+        <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.13" />
+        <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
+        <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.13" />
+        <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.13" />
+    </ItemGroup>
+
+    <!-- SDK 10.0.402 (global.json) pins KnownILCompilerPack (Microsoft.DotNet.ILCompiler) to 10.0.13.
+         Revisit and drop once global.json bumps the .NET 10 SDK past 10.0.402. -->
+    <ItemGroup>
+        <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-p3jp-9v83-76w9" />
+    </ItemGroup>
 </Project>

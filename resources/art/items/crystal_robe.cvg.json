@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "itemId": 22,
+  "id": "crystal_robe",
+  "displayName": "Crystal Robe",
+  "tier": 3,
+  "categoryLabel": "Arcane Chest",
+  "accentColor": "#38BDF8",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.75,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -6.8,
+          -6.5
+        ],
+        [
+          6.8,
+          -6.5
+        ],
+        [
+          7.8,
+          7.2
+        ],
+        [
+          -7.8,
+          7.2
+        ]
+      ],
+      "color": "#312E81",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -4.2,
+          -5.6
+        ],
+        [
+          4.2,
+          -5.6
+        ],
+        [
+          5.2,
+          6.2
+        ],
+        [
+          -5.2,
+          6.2
+        ]
+      ],
+      "color": "#4F46E5"
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -5.8,
+      "y": -0.4,
+      "w": 11.6,
+      "h": 1.8,
+      "color": "#FACC15",
+      "outlineColor": "#713F12",
+      "outlineThickness": 0.7
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0.0,
+      "y": -3.4,
+      "rx": 2.0,
+      "ry": 2.4,
+      "color": "#22D3EE",
+      "outlineColor": "#083344",
+      "outlineThickness": 0.8
+    }
+  ],
+  "heldVisible": false,
+  "armorVisual": {
+    "primaryColor": "#4F46E5",
+    "secondaryColor": "#818CF8",
+    "trimColor": "#FACC15"
+  }
+}

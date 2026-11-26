@@ -1,0 +1,347 @@
+{
+  "schemaVersion": 2,
+  "propType": 20,
+  "id": "acacia_tree",
+  "displayName": "Acacia Tree",
+  "designRadius": 24,
+  "hasCanopy": true,
+  "allowMirror": true,
+  "isWoody": true,
+  "isIcy": false,
+  "rareLastVariantChance": 0.12,
+  "light": null,
+  "paletteVariants": [
+    {
+      "bark": "#8B5A2B",
+      "barkDark": "#4E3015",
+      "barkHi": "#B07A46",
+      "leafEdge": "#3D5518",
+      "leafDark": "#557421",
+      "leafMid": "#70942E",
+      "leafLight": "#A2C24B"
+    },
+    {
+      "bark": "#825229",
+      "barkDark": "#4A2C14",
+      "barkHi": "#A87040",
+      "leafEdge": "#485E1A",
+      "leafDark": "#648224",
+      "leafMid": "#85A335",
+      "leafLight": "#B8CF55"
+    },
+    {
+      "bark": "#7A5434",
+      "barkDark": "#452D19",
+      "barkHi": "#9E724C",
+      "leafEdge": "#5E5A1E",
+      "leafDark": "#7D7A27",
+      "leafMid": "#9C9B34",
+      "leafLight": "#C7C254"
+    }
+  ],
+  "groundShapes": [
+    {
+      "kind": "ellipse",
+      "x": 2.5,
+      "y": 14.0,
+      "rx": 11.5,
+      "ry": 5.5,
+      "color": "#0000002D"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -5.2,
+          16.0
+        ],
+        [
+          5.2,
+          16.0
+        ],
+        [
+          3.9,
+          -10.0
+        ],
+        [
+          -3.9,
+          -10.0
+        ]
+      ],
+      "color": "$bark",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -8.5,
+          16.5
+        ],
+        [
+          -2.5,
+          16.5
+        ],
+        [
+          -3.5,
+          9.0
+        ]
+      ],
+      "color": "$barkDark"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          2.5,
+          16.5
+        ],
+        [
+          8.5,
+          16.5
+        ],
+        [
+          3.5,
+          10.0
+        ]
+      ],
+      "color": "$barkDark"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          0.6,
+          -10.0
+        ],
+        [
+          3.6,
+          -10.0
+        ],
+        [
+          4.8,
+          16.0
+        ],
+        [
+          0.8,
+          16.0
+        ]
+      ],
+      "color": "$barkDark"
+    },
+    {
+      "kind": "line",
+      "x": -2.0,
+      "y": 14.0,
+      "x2": -1.2,
+      "y2": -8.0,
+      "thickness": 2.0,
+      "color": "$barkHi"
+    },
+    {
+      "kind": "capsule",
+      "x": 0,
+      "y": -10,
+      "x2": -14,
+      "y2": -25,
+      "thickness": 4.2,
+      "color": "$bark",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "capsule",
+      "x": 0,
+      "y": -10,
+      "x2": 15,
+      "y2": -26,
+      "thickness": 4.0,
+      "color": "$bark",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "capsule",
+      "x": -6,
+      "y": -16,
+      "x2": -2,
+      "y2": -26,
+      "thickness": 2.8,
+      "color": "$bark"
+    },
+    {
+      "kind": "capsule",
+      "x": 7,
+      "y": -18,
+      "x2": 12,
+      "y2": -27,
+      "thickness": 2.6,
+      "color": "$bark"
+    }
+  ],
+  "canopyShapes": [
+    {
+      "kind": "ellipse",
+      "x": -20,
+      "y": -29,
+      "rx": 12.5,
+      "ry": 5.2,
+      "color": "$leafEdge"
+    },
+    {
+      "kind": "ellipse",
+      "x": 0,
+      "y": -28,
+      "rx": 16.5,
+      "ry": 5.6,
+      "color": "$leafEdge"
+    },
+    {
+      "kind": "ellipse",
+      "x": 20,
+      "y": -29,
+      "rx": 12.5,
+      "ry": 5.2,
+      "color": "$leafEdge"
+    },
+    {
+      "kind": "ellipse",
+      "x": -21,
+      "y": -32,
+      "rx": 11.5,
+      "ry": 5.4,
+      "color": "$leafDark"
+    },
+    {
+      "kind": "ellipse",
+      "x": -9,
+      "y": -33,
+      "rx": 13.0,
+      "ry": 6.0,
+      "color": "$leafMid"
+    },
+    {
+      "kind": "ellipse",
+      "x": 6,
+      "y": -34,
+      "rx": 13.5,
+      "ry": 6.2,
+      "color": "$leafMid"
+    },
+    {
+      "kind": "ellipse",
+      "x": 20,
+      "y": -32,
+      "rx": 11.2,
+      "ry": 5.2,
+      "color": "$leafDark"
+    },
+    {
+      "kind": "ellipse",
+      "x": -14,
+      "y": -36,
+      "rx": 9.2,
+      "ry": 4.6,
+      "color": "$leafMid"
+    },
+    {
+      "kind": "ellipse",
+      "x": -2,
+      "y": -37,
+      "rx": 11.0,
+      "ry": 5.0,
+      "color": "$leafLight"
+    },
+    {
+      "kind": "ellipse",
+      "x": 12,
+      "y": -36,
+      "rx": 9.5,
+      "ry": 4.6,
+      "color": "$leafMid"
+    },
+    {
+      "kind": "ellipse",
+      "x": -19,
+      "y": -35,
+      "rx": 6.5,
+      "ry": 3.4,
+      "color": "$leafLight"
+    },
+    {
+      "kind": "ellipse",
+      "x": 15,
+      "y": -35,
+      "rx": 6.0,
+      "ry": 3.2,
+      "color": "$leafLight"
+    }
+  ],
+  "remnantShapes": [
+    {
+      "kind": "ellipse",
+      "x": 2.0,
+      "y": 12.0,
+      "rx": 11.5,
+      "ry": 5.5,
+      "color": "#0000002D"
+    },
+    {
+      "kind": "rect",
+      "x": -9.0,
+      "y": 4.0,
+      "w": 18.0,
+      "h": 10.0,
+      "color": "$bark",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "x": 0.0,
+      "y": 5.0,
+      "rx": 9.0,
+      "ry": 6.2,
+      "color": "#DEB887",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 1.4
+    },
+    {
+      "kind": "ring",
+      "x": 0.0,
+      "y": 5.0,
+      "rx": 5.0,
+      "ry": 5.0,
+      "thickness": 1.1,
+      "color": "#B48252"
+    },
+    {
+      "kind": "ellipse",
+      "x": -13.0,
+      "y": 10.0,
+      "rx": 2.2,
+      "ry": 1.1,
+      "color": "#D2A872",
+      "rotDeg": 22
+    },
+    {
+      "kind": "ellipse",
+      "x": 13.5,
+      "y": 11.5,
+      "rx": 2.0,
+      "ry": 1.0,
+      "color": "#D2A872",
+      "rotDeg": -18
+    },
+    {
+      "kind": "ellipse",
+      "x": 8.0,
+      "y": 14.5,
+      "rx": 2.4,
+      "ry": 1.1,
+      "color": "#C69864",
+      "rotDeg": 12
+    }
+  ]
+}

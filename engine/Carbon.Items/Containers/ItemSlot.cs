@@ -9,11 +9,13 @@ namespace Carbon.Items.Containers;
 /// <param name="Quantity">Number of items in the slot.</param>
 /// <param name="InstanceId">Optional unique instance identifier for non-stackable equipment/items (0 for stackable items).</param>
 /// <param name="Durability">Optional remaining item durability.</param>
+/// <param name="UpgradeLevel">Optional forge enhancement level (<c>0..10</c>).</param>
 public readonly record struct ItemSlot(
     uint ItemId,
     int Quantity,
     ulong InstanceId = 0,
-    float Durability = 0f)
+    float Durability = 0f,
+    byte UpgradeLevel = 0)
 {
     /// <summary>
     /// Gets an empty item slot.
@@ -28,5 +30,5 @@ public readonly record struct ItemSlot(
     /// <summary>
     /// Gets a value indicating whether items in this slot can merge with matching <see cref="ItemId"/> entries.
     /// </summary>
-    public bool IsStackable => this.InstanceId == 0;
+    public bool IsStackable => this.InstanceId == 0 && this.UpgradeLevel == 0;
 }

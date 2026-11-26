@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 2,
+  "biomeId": 11,
+  "id": "alpine_peaks",
+  "displayName": "Alpine Peaks",
+  "groundColor": "#D8E8F5",
+  "minimapColor": "#D6E4F0",
+  "cliffBase": "#A5B4C6",
+  "cliffStrata": "#8796A8",
+  "cliffHighlight": "#F0F8FFFA",
+  "cliffShadow": "#5F6E80",
+  "detailChancePercent": 20,
+  "palette": {
+    "slate": "#7A8CA0",
+    "slateLit": "#AAB9CA",
+    "ice": "#93C5FDD8",
+    "snow": "#FFFFFFE8"
+  },
+  "detailVariants": [
+    {
+      "shapes": [
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              15.9,
+              17.57
+            ],
+            [
+              13.16,
+              19.2
+            ],
+            [
+              10.2,
+              17.79
+            ],
+            [
+              11.11,
+              15.29
+            ],
+            [
+              14.63,
+              15.15
+            ]
+          ],
+          "color": "$slate"
+        },
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              20.82,
+              15.8
+            ],
+            [
+              17.95,
+              16.39
+            ],
+            [
+              17.18,
+              14.2
+            ],
+            [
+              20.05,
+              13.61
+            ]
+          ],
+          "color": "$slateLit"
+        }
+      ]
+    },
+    {
+      "shapes": [
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              15,
+              20
+            ],
+            [
+              12,
+              12
+            ],
+            [
+              18,
+              13
+            ],
+            [
+              19,
+              19
+            ]
+          ],
+          "color": "$ice",
+          "outlineColor": "$snow",
+          "outlineThickness": 0.7
+        },
+        {
+          "kind": "ellipse",
+          "x": 14,
+          "y": 14,
+          "rx": 1.0,
+          "ry": 1.0,
+          "color": "$snow"
+        }
+      ]
+    },
+    {
+      "shapes": [
+        {
+          "kind": "capsule",
+          "x": 6,
+          "y": 16,
+          "x2": 22,
+          "y2": 18,
+          "thickness": 2.0,
+          "color": "$snow"
+        },
+        {
+          "kind": "ellipse",
+          "x": 20,
+          "y": 14,
+          "rx": 2.0,
+          "ry": 1.5,
+          "color": "$slate"
+        }
+      ]
+    }
+  ]
+}

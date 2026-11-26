@@ -28,4 +28,10 @@ public enum OpStatus : byte
 
     /// <summary>The caller sent too many requests; retry later.</summary>
     RateLimited = 6,
+
+    /// <summary>A probabilistic forge enhancement attempt failed after consuming materials.</summary>
+    EnhancementFailed = 8,
+
+    /// <summary>The destination inventory lacks sufficient capacity or open slots.</summary>
+    InventoryFull = 9,
 }

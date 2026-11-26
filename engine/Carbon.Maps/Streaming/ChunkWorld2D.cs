@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
 using Carbon.Maps.Biomes;
@@ -225,24 +226,131 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     }
 
     /// <summary>
+    /// Reads the natural prop anchored on <paramref name="worldTileX"/>, <paramref name="worldTileY"/>, if present
+    /// (including destroyed props so remnant stumps/rubble and metadata remain inspectable).
+    /// </summary>
+    /// <param name="worldTileX">World tile X.</param>
+    /// <param name="worldTileY">World tile Y.</param>
+    /// <param name="prop">Resolved prop snapshot.</param>
+    /// <returns><see langword="true"/> when a prop exists at the coordinate; otherwise <see langword="false"/>.</returns>
+    public bool TryGetPropAt(int worldTileX, int worldTileY, out MapProp prop)
+    {
+        int cx = Chunk2D.ToChunkCoord(worldTileX);
+        int cy = Chunk2D.ToChunkCoord(worldTileY);
+        int lx = Chunk2D.ToLocalCoord(worldTileX);
+        int ly = Chunk2D.ToLocalCoord(worldTileY);
+
+        Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
+        lock (_gate)
+        {
+            int index = chunk.FindPropIndexAt(lx, ly);
+            if (index < 0)
+            {
+                prop = default;
+                return false;
+            }
+
+            prop = chunk.Props[index];
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Synchronizes an authoritative prop durability and destruction state at a world tile on the client,
+    /// returning both previous and updated prop snapshots for fracture VFX and loot/combat feedback.
+    /// </summary>
+    /// <param name="worldTileX">World tile X.</param>
+    /// <param name="worldTileY">World tile Y.</param>
+    /// <param name="currentDurability">Authoritative remaining durability.</param>
+    /// <param name="isDestroyed">Whether the prop is destroyed.</param>
+    /// <param name="previous">Prop snapshot prior to applying this state update.</param>
+    /// <param name="updated">Updated prop snapshot.</param>
+    /// <returns><see langword="true"/> if a matching prop exists on the tile; otherwise <see langword="false"/>.</returns>
+    public bool TrySetPropStateAt(
+        int worldTileX,
+        int worldTileY,
+        float currentDurability,
+        bool isDestroyed,
+        out MapProp previous,
+        out MapProp updated)
+    {
+        int cx = Chunk2D.ToChunkCoord(worldTileX);
+        int cy = Chunk2D.ToChunkCoord(worldTileY);
+        int lx = Chunk2D.ToLocalCoord(worldTileX);
+        int ly = Chunk2D.ToLocalCoord(worldTileY);
+
+        Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
+        lock (_gate)
+        {
+            int index = chunk.FindPropIndexAt(lx, ly);
+            if (index < 0)
+            {
+                previous = default;
+                updated = default;
+                return false;
+            }
+
+            previous = chunk.Props[index];
+            float maxDur = MathF.Max(1f, previous.Destructibility.MaxDurability);
+            float clamped = isDestroyed ? 0f : Math.Clamp(currentDurability, 0f, maxDur);
+            PropDestructibility nextState = previous.Destructibility with
+            {
+                CurrentDurability = clamped,
+                IsDestroyed = isDestroyed || clamped <= 0f,
+            };
+
+            updated = previous with { Destructibility = nextState };
+            chunk.SetProp(index, updated);
+            _deltas.GetOrAdd(cx, cy).SetPropState(lx, ly, nextState);
+            return true;
+        }
+    }
+
+    /// <summary>
     /// Restores any destroyed props whose scheduled respawn tick has been reached.
     /// </summary>
     /// <param name="currentTick">Current simulation tick.</param>
     /// <returns>The total number of props respawned.</returns>
-    public int ProcessPropRespawns(ulong currentTick)
+    public int ProcessPropRespawns(ulong currentTick) =>
+        this.ProcessPropRespawns(currentTick, respawnedProps: null);
+
+    /// <summary>
+    /// Restores any destroyed props whose scheduled respawn tick has been reached and optionally collects
+    /// the restored world tile coordinates &amp; max durability for network replication.
+    /// </summary>
+    public int ProcessPropRespawns(
+        ulong currentTick,
+        List<(int TileX, int TileY, uint Revision, float MaxDurability)>? respawnedProps)
     {
         int respawned = 0;
+        List<int>? localKeys = respawnedProps is not null ? [] : null;
         lock (_gate)
         {
             ReadOnlySpan<ChunkDelta> all = _deltas.All;
             for (int i = 0; i < all.Length; i++)
             {
                 ChunkDelta delta = all[i];
-                int expired = delta.RemoveExpiredPropStates(currentTick);
+                localKeys?.Clear();
+                int expired = delta.RemoveExpiredPropStates(currentTick, localKeys);
                 if (expired > 0)
                 {
                     respawned += expired;
                     _streamer.RebuildIfResident(delta.ChunkX, delta.ChunkY);
+
+                    if (respawnedProps is not null && localKeys is not null && _streamer.TryGet(delta.ChunkX, delta.ChunkY, out Chunk2D? chunk) && chunk is not null)
+                    {
+                        int baseTx = delta.ChunkX * Chunk2D.Size;
+                        int baseTy = delta.ChunkY * Chunk2D.Size;
+                        for (int k = 0; k < localKeys.Count; k++)
+                        {
+                            int key = localKeys[k];
+                            int lx = key & Chunk2D.SizeMask;
+                            int ly = key >> Chunk2D.SizeBits;
+                            int pIdx = chunk.FindPropIndexAt(lx, ly);
+                            float maxDur = pIdx >= 0 ? chunk.Props[pIdx].Destructibility.MaxDurability : 100f;
+                            respawnedProps.Add((baseTx + lx, baseTy + ly, delta.Revision, maxDur));
+                        }
+                    }
                 }
             }
         }

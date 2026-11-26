@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\server\Carbon.Abstractions\Carbon.Abstractions.csproj" />
+        <ProjectReference Include="..\..\..\server\Carbon.Application\Carbon.Application.csproj" />
+        <ProjectReference Include="..\..\..\server\Carbon.Infrastructure\Carbon.Infrastructure.csproj" />
+        <ProjectReference Include="..\..\..\server\Carbon.Handlers\Carbon.Handlers.csproj" />
+        <ProjectReference Include="..\..\..\server\Carbon.Host\Carbon.Host.csproj" />
+    </ItemGroup>
+</Project>

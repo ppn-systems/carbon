@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 2,
+  "structureType": 6,
+  "id": "stone_floor",
+  "displayName": "Stone Floor",
+  "palette": {
+    "flag": "#8C8E94",
+    "flagAlt": "#7F838A",
+    "seam": "#0000003A",
+    "hi": "#FFFFFF30"
+  },
+  "shapes": [
+    {
+      "kind": "rect",
+      "x": 0.5,
+      "y": 0.5,
+      "w": 31,
+      "h": 31,
+      "color": "$flag"
+    },
+    {
+      "kind": "rect",
+      "x": 1.5,
+      "y": 1.5,
+      "w": 13.5,
+      "h": 13.5,
+      "color": "$flagAlt"
+    },
+    {
+      "kind": "rect",
+      "x": 17.0,
+      "y": 17.0,
+      "w": 13.5,
+      "h": 13.5,
+      "color": "$flagAlt"
+    },
+    {
+      "kind": "line",
+      "x": 0.5,
+      "y": 16,
+      "x2": 31.5,
+      "y2": 16,
+      "thickness": 1.1,
+      "color": "$seam"
+    },
+    {
+      "kind": "line",
+      "x": 16,
+      "y": 0.5,
+      "x2": 16,
+      "y2": 31.5,
+      "thickness": 1.1,
+      "color": "$seam"
+    },
+    {
+      "kind": "line",
+      "x": 2,
+      "y": 2,
+      "x2": 14,
+      "y2": 2,
+      "thickness": 1.0,
+      "color": "$hi"
+    },
+    {
+      "kind": "line",
+      "x": 17,
+      "y": 17,
+      "x2": 29,
+      "y2": 17,
+      "thickness": 1.0,
+      "color": "$hi"
+    }
+  ],
+  "openShapes": []
+}

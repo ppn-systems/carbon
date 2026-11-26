@@ -1,0 +1,379 @@
+// Copyright (c) 2026 PPN Systems. All rights reserved.
+
+using System;
+using System.Buffers.Binary;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
+using Carbon.Abstractions.Persistence;
+using Npgsql;
+
+namespace Carbon.Infrastructure.Persistence.Postgres;
+
+/// <summary>
+/// Idempotent pure-SQL schema migrator for PostgreSQL protected by a transaction advisory lock.
+/// </summary>
+public sealed class PgSchemaMigrator : IDatabaseMigrator
+{
+    private const long MigrationAdvisoryLockId = 0x434152424F4E4442L;
+
+    private const string EnsureMigrationsTableSql = """
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            id          TEXT        PRIMARY KEY,
+            applied_utc TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+        """;
+
+    private const string InitialSchemaSql = """
+        CREATE TABLE IF NOT EXISTS accounts (
+            id                  UUID        PRIMARY KEY,
+            username            VARCHAR(32) NOT NULL,
+            normalized_username VARCHAR(32) NOT NULL UNIQUE,
+            password_hash       BYTEA       NOT NULL,
+            password_salt       BYTEA       NOT NULL,
+            created_at_utc      TIMESTAMPTZ NOT NULL,
+            is_banned           BOOLEAN     NOT NULL DEFAULT FALSE
+        );
+
+        CREATE TABLE IF NOT EXISTS characters (
+            id                   UUID        PRIMARY KEY,
+            account_id           UUID        NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+            name                 VARCHAR(32) NOT NULL UNIQUE,
+            level                INTEGER     NOT NULL DEFAULT 1,
+            appearance_preset    SMALLINT    NOT NULL DEFAULT 0,
+            position_x           REAL        NOT NULL,
+            position_y           REAL        NOT NULL,
+            current_health       REAL        NOT NULL,
+            max_health           REAL        NOT NULL,
+            selected_hotbar_slot SMALLINT    NOT NULL DEFAULT 0,
+            inventory_blob       BYTEA       NOT NULL,
+            updated_at_utc       TIMESTAMPTZ NOT NULL,
+            experience           INTEGER     NOT NULL DEFAULT 0,
+            current_mana         REAL        NOT NULL DEFAULT 80.0,
+            max_mana             REAL        NOT NULL DEFAULT 80.0,
+            current_stamina      REAL        NOT NULL DEFAULT 100.0,
+            max_stamina          REAL        NOT NULL DEFAULT 100.0,
+            class_id             SMALLINT    NOT NULL DEFAULT 0,
+            character_flags      BIGINT      NOT NULL DEFAULT 1,
+            skill_flags          BIGINT      NOT NULL DEFAULT 0,
+            progression_blob     BYTEA       NOT NULL DEFAULT ''::bytea
+        );
+
+        CREATE INDEX IF NOT EXISTS ix_characters_account_id ON characters(account_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_characters_lower_name ON characters(LOWER(name));
+
+        CREATE TABLE IF NOT EXISTS world_chunk_deltas (
+            chunk_x           INTEGER     NOT NULL,
+            chunk_y           INTEGER     NOT NULL,
+            revision          BIGINT      NOT NULL,
+            generator_version INTEGER     NOT NULL,
+            payload           BYTEA       NOT NULL,
+            updated_at_utc    TIMESTAMPTZ NOT NULL,
+            PRIMARY KEY (chunk_x, chunk_y)
+        );
+        """;
+
+    private readonly NpgsqlDataSource _dataSource;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PgSchemaMigrator"/> class.
+    /// </summary>
+    /// <param name="dataSource">PostgreSQL data source.</param>
+    public PgSchemaMigrator(NpgsqlDataSource dataSource) =>
+        _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
+
+    /// <inheritdoc/>
+    public async Task MigrateAsync(CancellationToken ct = default)
+    {
+        NpgsqlConnection conn = await _dataSource.OpenConnectionAsync(ct).ConfigureAwait(false);
+        await using ConfiguredAsyncDisposable connScope = conn.ConfigureAwait(false);
+
+        NpgsqlTransaction tx = await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
+        await using ConfiguredAsyncDisposable txScope = tx.ConfigureAwait(false);
+
+        NpgsqlCommand lockCmd = new("SELECT pg_advisory_xact_lock(@lock_id);", conn, tx);
+        await using (ConfiguredAsyncDisposable lockScope = lockCmd.ConfigureAwait(false))
+        {
+            _ = lockCmd.Parameters.AddWithValue("lock_id", MigrationAdvisoryLockId);
+            _ = await lockCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        NpgsqlCommand ensureCmd = new(EnsureMigrationsTableSql, conn, tx);
+        await using (ConfiguredAsyncDisposable ensureScope = ensureCmd.ConfigureAwait(false))
+        {
+            _ = await ensureCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        bool alreadyApplied;
+        NpgsqlCommand checkCmd = new("SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE id = @id);", conn, tx);
+        await using (ConfiguredAsyncDisposable checkScope = checkCmd.ConfigureAwait(false))
+        {
+            _ = checkCmd.Parameters.AddWithValue("id", "0001_initial");
+            object? scalar = await checkCmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
+            alreadyApplied = scalar is true;
+        }
+
+        if (!alreadyApplied)
+        {
+            NpgsqlCommand schemaCmd = new(InitialSchemaSql, conn, tx);
+            await using (ConfiguredAsyncDisposable schemaScope = schemaCmd.ConfigureAwait(false))
+            {
+                _ = await schemaCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            }
+
+            NpgsqlCommand markCmd = new("INSERT INTO schema_migrations (id) VALUES (@id);", conn, tx);
+            await using ConfiguredAsyncDisposable markScope = markCmd.ConfigureAwait(false);
+            _ = markCmd.Parameters.AddWithValue("id", "0001_initial");
+            _ = await markCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        bool hasRpgMigration;
+        NpgsqlCommand checkRpgCmd = new("SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE id = @id);", conn, tx);
+        await using (ConfiguredAsyncDisposable checkRpgScope = checkRpgCmd.ConfigureAwait(false))
+        {
+            _ = checkRpgCmd.Parameters.AddWithValue("id", "0002_rpg_progression");
+            object? scalar = await checkRpgCmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
+            hasRpgMigration = scalar is true;
+        }
+
+        if (!hasRpgMigration)
+        {
+            const string alterSql = """
+                ALTER TABLE characters
+                    ADD COLUMN IF NOT EXISTS experience      INTEGER NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS current_mana    REAL    NOT NULL DEFAULT 80.0,
+                    ADD COLUMN IF NOT EXISTS max_mana        REAL    NOT NULL DEFAULT 80.0,
+                    ADD COLUMN IF NOT EXISTS current_stamina REAL    NOT NULL DEFAULT 100.0,
+                    ADD COLUMN IF NOT EXISTS max_stamina     REAL    NOT NULL DEFAULT 100.0;
+                """;
+            NpgsqlCommand alterCmd = new(alterSql, conn, tx);
+            await using (ConfiguredAsyncDisposable alterScope = alterCmd.ConfigureAwait(false))
+            {
+                _ = await alterCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            }
+
+            NpgsqlCommand markRpgCmd = new("INSERT INTO schema_migrations (id) VALUES (@id);", conn, tx);
+            await using ConfiguredAsyncDisposable markRpgScope = markRpgCmd.ConfigureAwait(false);
+            _ = markRpgCmd.Parameters.AddWithValue("id", "0002_rpg_progression");
+            _ = await markRpgCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        bool hasPointsMigration;
+        NpgsqlCommand checkPtsCmd = new("SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE id = @id);", conn, tx);
+        await using (ConfiguredAsyncDisposable checkPtsScope = checkPtsCmd.ConfigureAwait(false))
+        {
+            _ = checkPtsCmd.Parameters.AddWithValue("id", "0003_stat_and_skill_points");
+            object? scalar = await checkPtsCmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
+            hasPointsMigration = scalar is true;
+        }
+
+        if (!hasPointsMigration)
+        {
+            const string alterPtsSql = """
+                ALTER TABLE characters
+                    ADD COLUMN IF NOT EXISTS stat_vit    INTEGER  NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS stat_wis    INTEGER  NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS stat_pwr    INTEGER  NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS stat_agi    INTEGER  NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS skill1_rank SMALLINT NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS skill2_rank SMALLINT NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS skill3_rank SMALLINT NOT NULL DEFAULT 0;
+                """;
+            NpgsqlCommand alterPtsCmd = new(alterPtsSql, conn, tx);
+            await using (ConfiguredAsyncDisposable alterPtsScope = alterPtsCmd.ConfigureAwait(false))
+            {
+                _ = await alterPtsCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            }
+
+            NpgsqlCommand markPtsCmd = new("INSERT INTO schema_migrations (id) VALUES (@id);", conn, tx);
+            await using ConfiguredAsyncDisposable markPtsScope = markPtsCmd.ConfigureAwait(false);
+            _ = markPtsCmd.Parameters.AddWithValue("id", "0003_stat_and_skill_points");
+            _ = await markPtsCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        bool hasExtMigration;
+        NpgsqlCommand checkExtCmd = new("SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE id = @id);", conn, tx);
+        await using (ConfiguredAsyncDisposable checkExtScope = checkExtCmd.ConfigureAwait(false))
+        {
+            _ = checkExtCmd.Parameters.AddWithValue("id", "0004_character_class_flags_progression_blob");
+            object? scalar = await checkExtCmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
+            hasExtMigration = scalar is true;
+        }
+
+        if (!hasExtMigration)
+        {
+            const string alterExtSql = """
+                ALTER TABLE characters
+                    ADD COLUMN IF NOT EXISTS class_id         SMALLINT NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS character_flags  BIGINT   NOT NULL DEFAULT 1,
+                    ADD COLUMN IF NOT EXISTS skill_flags      BIGINT   NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS progression_blob BYTEA    NOT NULL DEFAULT ''::bytea;
+                CREATE UNIQUE INDEX IF NOT EXISTS ux_characters_lower_name ON characters(LOWER(name));
+                """;
+            NpgsqlCommand alterExtCmd = new(alterExtSql, conn, tx);
+            await using (ConfiguredAsyncDisposable alterExtScope = alterExtCmd.ConfigureAwait(false))
+            {
+                _ = await alterExtCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            }
+
+            bool hasLegacyCols;
+            NpgsqlCommand checkLegacyCmd = new(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'characters' AND column_name = 'stat_vit');",
+                conn,
+                tx);
+            await using (ConfiguredAsyncDisposable checkLegacyScope = checkLegacyCmd.ConfigureAwait(false))
+            {
+                object? scalar = await checkLegacyCmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
+                hasLegacyCols = scalar is true;
+            }
+
+            if (hasLegacyCols)
+            {
+                List<(Guid Id, long CharFlags, long SkillFlags, byte[] Blob)> updates = [];
+                NpgsqlCommand selectLegacyCmd = new(
+                    "SELECT id, octet_length(inventory_blob), stat_vit, stat_wis, stat_pwr, stat_agi, skill1_rank, skill2_rank, skill3_rank FROM characters WHERE octet_length(progression_blob) = 0;",
+                    conn,
+                    tx);
+                await using (ConfiguredAsyncDisposable selectScope = selectLegacyCmd.ConfigureAwait(false))
+                {
+                    System.Data.Common.DbDataReader r = await selectLegacyCmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+                    await using ConfiguredAsyncDisposable rScope = r.ConfigureAwait(false);
+                    while (await r.ReadAsync(ct).ConfigureAwait(false))
+                    {
+                        Guid id = r.GetGuid(0);
+                        int invLen = await r.IsDBNullAsync(1, ct).ConfigureAwait(false) ? 0 : r.GetInt32(1);
+                        ushort vit = (ushort)Math.Max(0, r.GetInt32(2));
+                        ushort wis = (ushort)Math.Max(0, r.GetInt32(3));
+                        ushort pwr = (ushort)Math.Max(0, r.GetInt32(4));
+                        ushort agi = (ushort)Math.Max(0, r.GetInt32(5));
+                        byte s1 = (byte)Math.Clamp((int)r.GetInt16(6), 0, 5);
+                        byte s2 = (byte)Math.Clamp((int)r.GetInt16(7), 0, 5);
+                        byte s3 = (byte)Math.Clamp((int)r.GetInt16(8), 0, 5);
+
+                        byte[] blob = PackLegacyProgressionBlob(vit, wis, pwr, agi, s1, s2, s3, out long skillMask);
+                        long charFlags = invLen > 0 ? 1L : 0L;
+                        updates.Add((id, charFlags, skillMask, blob));
+                    }
+                }
+
+                for (int i = 0; i < updates.Count; i++)
+                {
+                    (Guid id, long charFlags, long skillMask, byte[] blob) = updates[i];
+                    NpgsqlCommand updCmd = new(
+                        "UPDATE characters SET character_flags = @cf, skill_flags = @sf, progression_blob = @pb WHERE id = @id;",
+                        conn,
+                        tx);
+                    await using ConfiguredAsyncDisposable updScope = updCmd.ConfigureAwait(false);
+                    _ = updCmd.Parameters.AddWithValue("cf", charFlags);
+                    _ = updCmd.Parameters.AddWithValue("sf", skillMask);
+                    _ = updCmd.Parameters.AddWithValue("pb", blob);
+                    _ = updCmd.Parameters.AddWithValue("id", id);
+                    _ = await updCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+                }
+            }
+
+            NpgsqlCommand markExtCmd = new("INSERT INTO schema_migrations (id) VALUES (@id);", conn, tx);
+            await using ConfiguredAsyncDisposable markExtScope = markExtCmd.ConfigureAwait(false);
+            _ = markExtCmd.Parameters.AddWithValue("id", "0004_character_class_flags_progression_blob");
+            _ = await markExtCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        await tx.CommitAsync(ct).ConfigureAwait(false);
+    }
+
+    private static byte[] PackLegacyProgressionBlob(
+        ushort vit,
+        ushort wis,
+        ushort pwr,
+        ushort agi,
+        byte s1,
+        byte s2,
+        byte s3,
+        out long skillMask)
+    {
+        ulong mask = 0UL;
+        if (s1 > 0)
+        {
+            mask |= 1UL << 0;
+        }
+
+        if (s2 > 0)
+        {
+            mask |= 1UL << 1;
+        }
+
+        if (s3 > 0)
+        {
+            mask |= 1UL << 2;
+        }
+
+        skillMask = unchecked((long)mask);
+
+        if (vit == 0 && wis == 0 && pwr == 0 && agi == 0 && mask == 0UL)
+        {
+            return [];
+        }
+
+        List<(byte Attr, ushort Pts)> attrs = [];
+        if (vit > 0)
+        {
+            attrs.Add((0, vit));
+        }
+
+        if (wis > 0)
+        {
+            attrs.Add((1, wis));
+        }
+
+        if (pwr > 0)
+        {
+            attrs.Add((2, pwr));
+        }
+
+        if (agi > 0)
+        {
+            attrs.Add((3, agi));
+        }
+
+        List<(ushort SkillId, byte Rank)> skills = [];
+        if (s1 > 0)
+        {
+            skills.Add((1, s1));
+        }
+
+        if (s2 > 0)
+        {
+            skills.Add((2, s2));
+        }
+
+        if (s3 > 0)
+        {
+            skills.Add((3, s3));
+        }
+
+        byte[] buf = new byte[12 + (attrs.Count * 3) + (skills.Count * 3)];
+        Span<byte> span = buf;
+        span[0] = 1;
+        BinaryPrimitives.WriteUInt64LittleEndian(span.Slice(1, 8), mask);
+        span[9] = (byte)attrs.Count;
+        BinaryPrimitives.WriteUInt16LittleEndian(span.Slice(10, 2), (ushort)skills.Count);
+
+        int offset = 12;
+        for (int i = 0; i < attrs.Count; i++)
+        {
+            span[offset] = attrs[i].Attr;
+            BinaryPrimitives.WriteUInt16LittleEndian(span.Slice(offset + 1, 2), attrs[i].Pts);
+            offset += 3;
+        }
+
+        for (int i = 0; i < skills.Count; i++)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(span.Slice(offset, 2), skills[i].SkillId);
+            span[offset + 2] = skills[i].Rank;
+            offset += 3;
+        }
+
+        return buf;
+    }
+}

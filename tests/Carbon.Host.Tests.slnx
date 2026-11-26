@@ -1,0 +1,13 @@
+<Solution>
+  <Project Path="../contracts/Carbon.Contracts.Common/Carbon.Contracts.Common.csproj" />
+  <Project Path="../contracts/Carbon.Contracts.Entities/Carbon.Contracts.Entities.csproj" />
+  <Project Path="../contracts/Carbon.Contracts.Identity/Carbon.Contracts.Identity.csproj" />
+  <Project Path="../contracts/Carbon.Contracts.Items/Carbon.Contracts.Items.csproj" />
+  <Project Path="../contracts/Carbon.Contracts.Maps/Carbon.Contracts.Maps.csproj" />
+  <Project Path="../server/Carbon.Abstractions/Carbon.Abstractions.csproj" />
+  <Project Path="../server/Carbon.Application/Carbon.Application.csproj" />
+  <Project Path="../server/Carbon.Infrastructure/Carbon.Infrastructure.csproj" />
+  <Project Path="../server/Carbon.Handlers/Carbon.Handlers.csproj" />
+  <Project Path="../server/Carbon.Host/Carbon.Host.csproj" />
+  <Project Path="server/Carbon.Host.Tests/Carbon.Host.Tests.csproj" />
+</Solution>

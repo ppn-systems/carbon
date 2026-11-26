@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "itemId": 38,
+  "id": "bone_shard",
+  "displayName": "Bone Shard",
+  "tier": 1,
+  "categoryLabel": "Monster Material",
+  "accentColor": "#F5F5F4",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.75,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -6.4,
+          3.8
+        ],
+        [
+          3.8,
+          -6.4
+        ],
+        [
+          6.6,
+          -3.6
+        ],
+        [
+          -3.6,
+          6.6
+        ]
+      ],
+      "color": "#E7E5E4",
+      "outlineColor": "#44403C",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -5.6,
+      "y": 4.4,
+      "rx": 2.2,
+      "ry": 1.8,
+      "color": "#F5F5F4",
+      "outlineColor": "#44403C",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -3.8,
+      "y": 6.2,
+      "rx": 2.0,
+      "ry": 1.7,
+      "color": "#F5F5F4",
+      "outlineColor": "#44403C",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          2.6,
+          -5.2
+        ],
+        [
+          7.6,
+          -7.4
+        ],
+        [
+          5.2,
+          -2.4
+        ]
+      ],
+      "color": "#FAFAF9"
+    }
+  ]
+}

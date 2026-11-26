@@ -83,6 +83,7 @@ public static class RecipeMatcher
             return true;
         }
 
+        bool stackable = maxOutputStackSize > 1 && output.IsStackable;
         int freeCapacity = 0;
         ReadOnlySpan<ItemSlot> slots = inventory.Slots;
         for (int i = 0; i < slots.Length; i++)
@@ -90,9 +91,9 @@ public static class RecipeMatcher
             ItemSlot slot = slots[i];
             if (slot.IsEmpty)
             {
-                freeCapacity += output.IsStackable ? maxOutputStackSize : 1;
+                freeCapacity += stackable ? maxOutputStackSize : 1;
             }
-            else if (output.IsStackable && slot.IsStackable && slot.ItemId == output.ItemId && slot.Quantity < maxOutputStackSize)
+            else if (stackable && slot.IsStackable && slot.ItemId == output.ItemId && slot.Quantity < maxOutputStackSize)
             {
                 freeCapacity += maxOutputStackSize - slot.Quantity;
             }
@@ -123,7 +124,7 @@ public static class RecipeMatcher
 
                 if (remainingToConsume >= slot.Quantity)
                 {
-                    freeCapacity += output.IsStackable ? maxOutputStackSize : 1;
+                    freeCapacity += stackable ? maxOutputStackSize : 1;
                     remainingToConsume -= slot.Quantity;
                 }
                 else

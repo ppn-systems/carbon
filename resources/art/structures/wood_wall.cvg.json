@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 2,
+  "structureType": 1,
+  "id": "wood_wall",
+  "displayName": "Wood Wall",
+  "palette": {
+    "top": "#9B7349",
+    "topGrain": "#7E5B36",
+    "front": "#5F462D",
+    "frontDark": "#44301D",
+    "hi": "#FFFFFF58",
+    "shadow": "#00000040",
+    "dowel": "#3E2712"
+  },
+  "shapes": [
+    {
+      "kind": "rect",
+      "x": 0,
+      "y": 31,
+      "w": 32,
+      "h": 4,
+      "color": "$shadow"
+    },
+    {
+      "kind": "rect",
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 23,
+      "color": "$top"
+    },
+    {
+      "kind": "rect",
+      "x": 0,
+      "y": 23,
+      "w": 32,
+      "h": 9,
+      "color": "$front"
+    },
+    {
+      "kind": "rect",
+      "x": 0,
+      "y": 29,
+      "w": 32,
+      "h": 3,
+      "color": "$frontDark"
+    },
+    {
+      "kind": "rect",
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 1.8,
+      "color": "$hi"
+    },
+    {
+      "kind": "line",
+      "x": 1,
+      "y": 8,
+      "x2": 31,
+      "y2": 8,
+      "thickness": 1.2,
+      "color": "$topGrain"
+    },
+    {
+      "kind": "line",
+      "x": 1,
+      "y": 16,
+      "x2": 31,
+      "y2": 16,
+      "thickness": 1.2,
+      "color": "$topGrain"
+    },
+    {
+      "kind": "line",
+      "x": 10,
+      "y": 24,
+      "x2": 10,
+      "y2": 31,
+      "thickness": 1.1,
+      "color": "$frontDark"
+    },
+    {
+      "kind": "line",
+      "x": 22,
+      "y": 24,
+      "x2": 22,
+      "y2": 31,
+      "thickness": 1.1,
+      "color": "$frontDark"
+    },
+    {
+      "kind": "ellipse",
+      "x": 4,
+      "y": 4,
+      "rx": 1.2,
+      "ry": 1.2,
+      "color": "$dowel"
+    },
+    {
+      "kind": "ellipse",
+      "x": 28,
+      "y": 4,
+      "rx": 1.2,
+      "ry": 1.2,
+      "color": "$dowel"
+    }
+  ],
+  "openShapes": []
+}

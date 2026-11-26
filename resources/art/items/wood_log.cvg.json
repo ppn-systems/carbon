@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "itemId": 4,
+  "id": "wood_log",
+  "displayName": "Wood Log",
+  "tier": 1,
+  "categoryLabel": "Material",
+  "accentColor": "#D97706",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.7,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -7.2,
+          2.2
+        ],
+        [
+          3.8,
+          -7.2
+        ],
+        [
+          7.6,
+          -3.2
+        ],
+        [
+          -3.4,
+          6.2
+        ]
+      ],
+      "color": "#92400E",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 5.6,
+      "y": -5.0,
+      "rx": 3.0,
+      "ry": 2.5,
+      "color": "#FCD34D",
+      "rotDeg": 40.0,
+      "outlineColor": "#451A03",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 5.6,
+      "y": -5.0,
+      "rx": 1.4,
+      "ry": 1.1,
+      "color": "#D97706",
+      "rotDeg": 40.0
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -4.2,
+      "y": 2.6,
+      "x2": 2.2,
+      "y2": -3.2,
+      "thickness": 1.2,
+      "color": "#B45309"
+    }
+  ],
+  "heldVisible": false
+}

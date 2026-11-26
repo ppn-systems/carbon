@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <RootNamespace>Carbon.Host</RootNamespace>
+        <AssemblyName>Carbon.Host</AssemblyName>
+        <IsPackable>false</IsPackable>
+
+        <PublishAot>true</PublishAot>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Carbon.Abstractions\Carbon.Abstractions.csproj" />
+        <ProjectReference Include="..\Carbon.Application\Carbon.Application.csproj" />
+        <ProjectReference Include="..\Carbon.Handlers\Carbon.Handlers.csproj" />
+        <ProjectReference Include="..\Carbon.Infrastructure\Carbon.Infrastructure.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+        <PackageReference Include="Nalix.Abstractions" />
+        <PackageReference Include="Nalix.Codec" />
+        <PackageReference Include="Nalix.Environment" />
+        <PackageReference Include="Nalix.Framework" />
+        <PackageReference Include="Nalix.Hosting" />
+        <PackageReference Include="Nalix.Network" />
+        <PackageReference Include="Nalix.Runtime" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Carbon.Host.Tests" />
+        <InternalsVisibleTo Include="Carbon.Desktop.Tests" />
+    </ItemGroup>
+
+</Project>

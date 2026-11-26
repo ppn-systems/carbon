@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 2,
+  "biomeId": 7,
+  "id": "red_mesa",
+  "displayName": "Red Mesa",
+  "groundColor": "#B05C46",
+  "minimapColor": "#B05636",
+  "cliffBase": "#A05038",
+  "cliffStrata": "#87412C",
+  "cliffHighlight": "#D77D58E6",
+  "cliffShadow": "#5F2A1C",
+  "detailChancePercent": 26,
+  "palette": {
+    "crack": "#7A3424B8",
+    "ochre": "#D98A54CC",
+    "shale": "#8F4230",
+    "scrub": "#8FA04ACC",
+    "pebble": "#C87450"
+  },
+  "detailVariants": [
+    {
+      "shapes": [
+        {
+          "kind": "line",
+          "x": 7,
+          "y": 16,
+          "x2": 15,
+          "y2": 14,
+          "thickness": 1.5,
+          "color": "$crack"
+        },
+        {
+          "kind": "line",
+          "x": 15,
+          "y": 14,
+          "x2": 24,
+          "y2": 18,
+          "thickness": 1.4,
+          "color": "$crack"
+        },
+        {
+          "kind": "line",
+          "x": 15,
+          "y": 14,
+          "x2": 18,
+          "y2": 9,
+          "thickness": 1.2,
+          "color": "$crack"
+        }
+      ]
+    },
+    {
+      "shapes": [
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              16.56,
+              17.32
+            ],
+            [
+              13.63,
+              19.27
+            ],
+            [
+              9.82,
+              18.08
+            ],
+            [
+              10.41,
+              15.4
+            ],
+            [
+              14.58,
+              14.93
+            ]
+          ],
+          "color": "$ochre",
+          "outlineColor": "$shale",
+          "outlineThickness": 0.7
+        },
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              21.99,
+              14.68
+            ],
+            [
+              19.73,
+              15.59
+            ],
+            [
+              17.84,
+              14.31
+            ],
+            [
+              18.93,
+              12.6
+            ],
+            [
+              21.5,
+              12.83
+            ]
+          ],
+          "color": "$pebble"
+        }
+      ]
+    },
+    {
+      "shapes": [
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              14,
+              21
+            ],
+            [
+              11,
+              14
+            ],
+            [
+              15,
+              19
+            ]
+          ],
+          "color": "$scrub"
+        },
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              16,
+              21
+            ],
+            [
+              19,
+              13
+            ],
+            [
+              18,
+              21
+            ]
+          ],
+          "color": "$scrub"
+        },
+        {
+          "kind": "ellipse",
+          "x": 21,
+          "y": 19,
+          "rx": 2.0,
+          "ry": 1.3,
+          "color": "$shale"
+        }
+      ]
+    }
+  ]
+}
