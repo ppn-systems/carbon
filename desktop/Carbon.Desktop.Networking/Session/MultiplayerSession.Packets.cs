@@ -436,11 +436,24 @@ public sealed partial class MultiplayerSession
                 _localAppearancePreset = enter.AppearancePreset;
             }
 
+            // The world swap runs on the main thread, before the chunk deltas requested next (same FIFO inbox), so the
+            // renderer never sees ChunkWorld2D/WorldSimulation replaced mid-frame (audit TS-2). Only plain values are
+            // captured: `enter` is a pooled packet disposed when the reconnect returns.
             Vector2 rejoinPos = new(enter.PositionX, enter.PositionY);
+            ulong worldSeed = enter.WorldSeed;
+            float frequency = enter.Frequency;
+            this.PostWorldMutation(() => this.RebuildWorldForRejoin(rejoinPos, worldSeed, frequency));
+        }
+    }
+
+    private void RebuildWorldForRejoin(Vector2 rejoinPos, ulong worldSeed, float frequency)
+    {
+        lock (_worldGate)
+        {
             if (_chunkWorld is not null &&
                 _simulation is not null &&
                 _simulation.Entities.IsAlive(_localPlayer) &&
-                _worldSeed == enter.WorldSeed)
+                _worldSeed == worldSeed)
             {
                 _simulation.BindNetworkIdentity(_localPlayer, _localNetworkId, ownerSessionId: 1);
                 _simulation.Entities.GetTransform(_localPlayer).Position = rejoinPos;
@@ -449,9 +462,9 @@ public sealed partial class MultiplayerSession
             }
             else
             {
-                _worldSeed = enter.WorldSeed;
+                _worldSeed = worldSeed;
                 ProceduralWorldGenerator generator = new(_worldSeed);
-                _chunkWorld = new ChunkWorld2D(generator, _tileSize, enter.Frequency);
+                _chunkWorld = new ChunkWorld2D(generator, _tileSize, frequency);
                 _constructionMarkers.Clear();
                 _chunkWorld.UpdateAroundPosition(rejoinPos, chunkRadius: 4, evictionRadius: 8);
                 _simulation = new WorldSimulation(_tickRate, _tileSize)
