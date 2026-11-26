@@ -13,6 +13,7 @@ using Carbon.Application.World.Construction;
 using Carbon.Application.World.Inventory;
 using Carbon.Application.World.Loot;
 using Carbon.Application.World.Needs;
+using Carbon.Application.World.Persistence;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Projectiles;
 using Carbon.Application.World.Props;
@@ -42,7 +43,6 @@ using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.Networking;
 using Carbon.Simulation.World;
-using Carbon.Survival.Components;
 using Carbon.Survival.Config;
 using Carbon.Survival.Food;
 
@@ -96,13 +96,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly MonsterCatalog _creatureCatalog;
     private readonly CreatureSystems _creatures;
     private readonly HashSet<long> _dirtyChunks = new();
-    private readonly Dictionary<Guid, CharacterRecord> _dirtyCharacters = new();
-
-    /// <summary>
-    /// Records handed to <see cref="ICharacterStore.SaveBatchAsync"/> whose save has not committed yet. They stay
-    /// visible to <see cref="TryGetPendingCharacterSnapshot"/> so a re-select during the save never loads the stale row.
-    /// </summary>
-    private readonly Dictionary<Guid, CharacterRecord> _inFlightCharacters = new();
+    private readonly CharacterPersistence _persistence;
 
     // Reusable scratch buffers (zero per-tick heap allocations under steady state).
     // Outbound replication, staged under _gate during the tick and dispatched after it (OutboundTickBuffer).
@@ -235,6 +229,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             needsConfig,
             foodCatalog,
             worldSeed);
+        _persistence = new CharacterPersistence(_simulation, _needs, _time);
         _commandExecutor = new WorldCommandExecutor(this);
         _replication = new AoiReplicator(_simulation, _outbound, this.TileSize * 24f, DefaultEntityRadius, this.ResolveSpawnIdentityLocked);
     }
@@ -396,24 +391,11 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _creatures.Spawner.RequestScan();
 
             InventoryContainer inventory = new(PlayerInventoryCapacity);
-            if (!InventoryBinaryCodec.TryDeserializeInto(character.InventoryBlob, inventory))
-            {
-                StarterGameCatalog.GrantStarterLoadout(inventory, (byte)character.Class);
-                character = character with { Flags = character.Flags | CharacterTraits.StarterLoadoutGranted };
-            }
+            character = CharacterPersistence.LoadInventory(character, inventory);
 
             ushort startLevel = Math.Max((ushort)1, character.Level);
             byte selectedSlot = character.SelectedHotbarSlot < PlayerInventoryLayout.HotbarCount ? character.SelectedHotbarSlot : (byte)0;
-            CharacterProgressionState startProg = new();
-            if (!CharacterProgressionBinaryCodec.TryDeserializeInto(character.ProgressionBlob ?? [], startProg))
-            {
-                startProg.Clear();
-            }
-
-            if (character.UnlockedSkills != CharacterSkillMask.None && startProg.UnlockedSkillMask == CharacterSkillMask.None)
-            {
-                startProg.SetUnlockedSkillMask(character.UnlockedSkills);
-            }
+            CharacterProgressionState startProg = CharacterPersistence.LoadProgression(character);
 
             DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(_itemRules, startLevel, inventory, selectedSlot, startProg);
             float startHp = MathF.Min(stats.MaxHealth, MathF.Max(1f, character.CurrentHealth));
@@ -520,29 +502,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     {
         lock (_gate)
         {
-            foreach (KeyValuePair<ulong, PlayerState> kvp in _players.ByConnection)
-            {
-                if (kvp.Value.SourceCharacter.Id == characterId)
-                {
-                    character = this.BuildUpdatedRecordLocked(kvp.Value, serializeInventory: true);
-                    return true;
-                }
-            }
-
-            if (_dirtyCharacters.TryGetValue(characterId, out CharacterRecord? cached))
-            {
-                character = cached;
-                return true;
-            }
-
-            if (_inFlightCharacters.TryGetValue(characterId, out CharacterRecord? inFlight))
-            {
-                character = inFlight;
-                return true;
-            }
-
-            character = null;
-            return false;
+            return _persistence.TryGetPending(_players.ByConnection.Values, characterId, out character);
         }
     }
 
@@ -873,68 +833,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         return true;
     }
 
-    private void MarkCharacterDirtyLocked(PlayerState state, bool inventoryChanged = true)
-    {
-        if (inventoryChanged)
-        {
-            state.InventoryDirty = true;
-        }
-
-        state.PersistenceDirty = true;
-        if (!_simulation.Entities.IsAlive(state.Entity) || !_simulation.Entities.HasTransform(state.Entity))
-        {
-            return;
-        }
-
-        CharacterRecord updated = this.BuildUpdatedRecordLocked(state, state.InventoryDirty);
-        state.SourceCharacter = updated;
-        state.LastSavedPosition = new Vector2(updated.PositionX, updated.PositionY);
-        state.InventoryDirty = false;
-        _dirtyCharacters[updated.Id] = updated;
-    }
-
-    private CharacterRecord BuildUpdatedRecordLocked(PlayerState state, bool serializeInventory)
-    {
-        Vector2 pos = _simulation.Entities.IsAlive(state.Entity) && _simulation.Entities.HasTransform(state.Entity)
-            ? _simulation.Entities.GetTransform(state.Entity).Position
-            : new Vector2(state.SourceCharacter.PositionX, state.SourceCharacter.PositionY);
-
-        HealthComponent health = _simulation.Entities.IsAlive(state.Entity) && _simulation.Entities.HasHealth(state.Entity)
-            ? _simulation.Entities.GetHealth(state.Entity)
-            : new HealthComponent(state.SourceCharacter.CurrentHealth, state.SourceCharacter.MaxHealth);
-
-        byte[] blob = serializeInventory
-            ? InventoryBinaryCodec.Serialize(state.Inventory)
-            : state.SourceCharacter.InventoryBlob;
-
-        NeedsComponent needs = _needs.GetForPersistence(state.Entity);
-        return state.SourceCharacter with
-        {
-            Level = state.Level,
-            Experience = state.Experience,
-            PositionX = pos.X,
-            PositionY = pos.Y,
-            CurrentHealth = health.Current,
-            MaxHealth = health.Max,
-            CurrentMana = state.CurrentMana,
-            MaxMana = state.Stats.MaxMana,
-            CurrentStamina = state.CurrentStamina,
-            MaxStamina = state.Stats.MaxStamina,
-            SelectedHotbarSlot = state.Session.SelectedHotbarSlot,
-            InventoryBlob = blob,
-            UpdatedAtUtc = _time.GetUtcNow(),
-            UnlockedSkills = state.Progression.UnlockedSkillMask,
-            ProgressionBlob = CharacterProgressionBinaryCodec.Serialize(state.Progression),
-            Gold = state.Wallet.Gold,
-            Diamonds = state.Wallet.Diamonds,
-            WalletSequence = state.Wallet.Sequence,
-            DiamondPity = state.LootPity.KillsSinceDiamond,
-            NeedsFood = needs.Food,
-            NeedsMalnutrition = needs.Malnutrition,
-            NeedsPoisonSeconds = needs.PoisonRemainingSeconds,
-            NeedsRest = needs.Rest,
-        };
-    }
+    private void MarkCharacterDirtyLocked(PlayerState state, bool inventoryChanged = true) =>
+        _persistence.MarkDirty(state, inventoryChanged);
 
     /// <summary>Resolves what a replicated entity is: a player (name, look, gear), an NPC, a loot stack or a projectile.</summary>
     private SpawnIdentity ResolveSpawnIdentityLocked(ulong networkId)

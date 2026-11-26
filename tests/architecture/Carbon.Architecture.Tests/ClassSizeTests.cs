@@ -24,9 +24,9 @@ public sealed class ClassSizeTests
     /// <c>ConstructionService</c>; 4,714 after extracting <c>AoiReplicator</c>; 4,694 after extracting
     /// <c>WorldCommandExecutor</c>; 4,639 after moving the player state to <c>PlayerState</c> / <c>PlayerRegistry</c>;
     /// 4,277 after extracting <c>InventoryService</c>; 4,107 after extracting <c>CombatService</c>; 3,870 after extracting
-    /// <c>PropHarvestService</c>.
+    /// <c>PropHarvestService</c>; 3,722 after extracting <c>CharacterPersistence</c>.
     /// </summary>
-    private const int MaxAuthoritativeWorldLines = 3_870;
+    private const int MaxAuthoritativeWorldLines = 3_722;
 
     [Fact]
     public void AuthoritativeWorld_ShouldNotGainPartialFiles()
