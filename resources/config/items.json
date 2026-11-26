@@ -426,7 +426,7 @@
       "maxStack": 20,
       "basePrice": 15,
       "maxDurability": 0,
-      "vendorBuyable": false,
+      "vendorBuyable": true,
       "tags": [
         "potion"
       ],
@@ -566,7 +566,7 @@
       "maxStack": 20,
       "basePrice": 14,
       "maxDurability": 0,
-      "vendorBuyable": false,
+      "vendorBuyable": true,
       "tags": [
         "food"
       ],
@@ -584,7 +584,7 @@
       "maxStack": 20,
       "basePrice": 36,
       "maxDurability": 0,
-      "vendorBuyable": false,
+      "vendorBuyable": true,
       "tags": [
         "food"
       ],
@@ -1005,7 +1005,7 @@
       "maxStack": 50,
       "basePrice": 6,
       "maxDurability": 0,
-      "vendorBuyable": false,
+      "vendorBuyable": true,
       "tags": [
         "food"
       ],
@@ -1023,7 +1023,7 @@
       "maxStack": 50,
       "basePrice": 8,
       "maxDurability": 0,
-      "vendorBuyable": false,
+      "vendorBuyable": true,
       "tags": [
         "food"
       ],
@@ -1041,7 +1041,7 @@
       "maxStack": 20,
       "basePrice": 18,
       "maxDurability": 0,
-      "vendorBuyable": false,
+      "vendorBuyable": true,
       "tags": [
         "food"
       ],
@@ -1304,7 +1304,7 @@
       "maxStack": 20,
       "basePrice": 12,
       "maxDurability": 0,
-      "vendorBuyable": false,
+      "vendorBuyable": true,
       "tags": [
         "generic",
         "potion"
@@ -1322,7 +1322,7 @@
       "maxStack": 20,
       "basePrice": 140,
       "maxDurability": 0,
-      "vendorBuyable": false,
+      "vendorBuyable": true,
       "tags": [
         "potion"
       ],

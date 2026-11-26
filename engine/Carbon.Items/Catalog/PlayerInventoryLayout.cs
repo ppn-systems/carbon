@@ -67,23 +67,25 @@ public static class PlayerInventoryLayout
     };
 
     /// <summary>Validates whether <paramref name="slot"/> may occupy <paramref name="slotIndex"/>.</summary>
-    public static bool CanAcceptSlotItem(int slotIndex, in ItemSlot slot)
+    public static bool CanAcceptSlotItem(ItemRules rules, int slotIndex, in ItemSlot slot)
     {
+        ArgumentNullException.ThrowIfNull(rules);
         EquipmentSlotKind required = GetRequiredEquipKind(slotIndex);
         if (required == EquipmentSlotKind.None || slot.IsEmpty)
         {
             return true;
         }
 
-        return StarterGameCatalog.Items.TryGet(slot.ItemId, out ItemArchetype? def) && def.EquipSlot == required;
+        return rules.Items.TryGet(slot.ItemId, out ItemArchetype? def) && def.EquipSlot == required;
     }
 
     /// <summary>
     /// Moves, merges, swaps, or equips between <paramref name="fromSlot"/> and <paramref name="toSlot"/>
     /// while strictly enforcing armor slot constraints (<c>36..39</c>).
     /// </summary>
-    public static bool TryMoveOrEquipSlot(InventoryContainer inventory, int fromSlot, int toSlot)
+    public static bool TryMoveOrEquipSlot(ItemRules rules, InventoryContainer inventory, int fromSlot, int toSlot)
     {
+        ArgumentNullException.ThrowIfNull(rules);
         ArgumentNullException.ThrowIfNull(inventory);
         if (fromSlot == toSlot ||
             (uint)fromSlot >= (uint)inventory.Capacity ||
@@ -99,20 +101,21 @@ public static class PlayerInventoryLayout
         }
 
         ItemSlot target = inventory.GetSlot(toSlot);
-        if (!CanAcceptSlotItem(toSlot, in source) || !CanAcceptSlotItem(fromSlot, in target))
+        if (!CanAcceptSlotItem(rules, toSlot, in source) || !CanAcceptSlotItem(rules, fromSlot, in target))
         {
             return false;
         }
 
-        int maxStack = StarterGameCatalog.GetMaxStackSize(source.ItemId);
+        int maxStack = rules.GetMaxStackSize(source.ItemId);
         return inventory.TryMoveOrSwap(fromSlot, toSlot, maxStack);
     }
 
     /// <summary>
     /// Quick-moves or equips an item on right-click (armor to/from dedicated armor slot, backpack to/from hotbar).
     /// </summary>
-    public static bool TryQuickMove(InventoryContainer inventory, int slotIndex, out int destinationSlot)
+    public static bool TryQuickMove(ItemRules rules, InventoryContainer inventory, int slotIndex, out int destinationSlot)
     {
+        ArgumentNullException.ThrowIfNull(rules);
         ArgumentNullException.ThrowIfNull(inventory);
         destinationSlot = -1;
         if ((uint)slotIndex >= (uint)inventory.Capacity)
@@ -128,11 +131,11 @@ public static class PlayerInventoryLayout
 
         // 1. Armor piece inside bag -> equip directly into matching armor slot.
         if (slotIndex < BagLimit &&
-            StarterGameCatalog.Items.TryGet(source.ItemId, out ItemArchetype? def) &&
+            rules.Items.TryGet(source.ItemId, out ItemArchetype? def) &&
             GetArmorSlotIndex(def.EquipSlot) is int armorSlot &&
             armorSlot >= 0 &&
             armorSlot < inventory.Capacity &&
-            TryMoveOrEquipSlot(inventory, slotIndex, armorSlot))
+            TryMoveOrEquipSlot(rules, inventory, slotIndex, armorSlot))
         {
             destinationSlot = armorSlot;
             return true;
@@ -141,13 +144,13 @@ public static class PlayerInventoryLayout
         // 2. From armor slot -> first open bag slot (9..35 then 0..8).
         if (slotIndex >= BagLimit)
         {
-            int targetBag = FindFirstEmptyOrMergeSlot(inventory, in source, BackpackStart, Math.Min(BagLimit, inventory.Capacity));
+            int targetBag = FindFirstEmptyOrMergeSlot(rules, inventory, in source, BackpackStart, Math.Min(BagLimit, inventory.Capacity));
             if (targetBag < 0)
             {
-                targetBag = FindFirstEmptyOrMergeSlot(inventory, in source, 0, Math.Min(HotbarCount, inventory.Capacity));
+                targetBag = FindFirstEmptyOrMergeSlot(rules, inventory, in source, 0, Math.Min(HotbarCount, inventory.Capacity));
             }
 
-            if (targetBag >= 0 && TryMoveOrEquipSlot(inventory, slotIndex, targetBag))
+            if (targetBag >= 0 && TryMoveOrEquipSlot(rules, inventory, slotIndex, targetBag))
             {
                 destinationSlot = targetBag;
                 return true;
@@ -159,8 +162,8 @@ public static class PlayerInventoryLayout
         // 3. Hotbar <-> Backpack
         int start = slotIndex < HotbarCount ? BackpackStart : 0;
         int end = slotIndex < HotbarCount ? Math.Min(BagLimit, inventory.Capacity) : Math.Min(HotbarCount, inventory.Capacity);
-        int target = FindFirstEmptyOrMergeSlot(inventory, in source, start, end);
-        if (target >= 0 && TryMoveOrEquipSlot(inventory, slotIndex, target))
+        int target = FindFirstEmptyOrMergeSlot(rules, inventory, in source, start, end);
+        if (target >= 0 && TryMoveOrEquipSlot(rules, inventory, slotIndex, target))
         {
             destinationSlot = target;
             return true;
@@ -278,11 +281,11 @@ public static class PlayerInventoryLayout
         return true;
     }
 
-    private static int FindFirstEmptyOrMergeSlot(InventoryContainer inventory, in ItemSlot source, int startInclusive, int endExclusive)
+    private static int FindFirstEmptyOrMergeSlot(ItemRules rules, InventoryContainer inventory, in ItemSlot source, int startInclusive, int endExclusive)
     {
         if (source.IsStackable)
         {
-            int maxStack = StarterGameCatalog.GetMaxStackSize(source.ItemId);
+            int maxStack = rules.GetMaxStackSize(source.ItemId);
             for (int i = startInclusive; i < endExclusive; i++)
             {
                 ItemSlot candidate = inventory.GetSlot(i);

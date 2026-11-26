@@ -15,7 +15,17 @@ internal static class PacketReplyHelper
         OpStatus status,
         ushort requestOpCode,
         uint revision = 0)
-        where TReq : IPacket
+        where TReq : IPacket => SendMutationAsync(context.Sender, status, requestOpCode, revision);
+
+    /// <summary>
+    /// Sends a <see cref="MutationResult"/> through a sender captured before an <c>await</c>, so the pooled
+    /// <see cref="IPacketContext{TPacket}"/> is never read after it may have been recycled.
+    /// </summary>
+    internal static ValueTask SendMutationAsync(
+        IPacketSender sender,
+        OpStatus status,
+        ushort requestOpCode,
+        uint revision = 0)
     {
         PacketScope<MutationResult> lease = PacketFactory<MutationResult>.Acquire();
         try
@@ -24,7 +34,7 @@ internal static class PacketReplyHelper
             result.Status = status;
             result.RequestOpCode = requestOpCode;
             result.Revision = revision;
-            return context.Sender.ReplyAsync(result).DisposeOnCompletionAsync(lease);
+            return sender.ReplyAsync(result).DisposeOnCompletionAsync(lease);
         }
         catch
         {

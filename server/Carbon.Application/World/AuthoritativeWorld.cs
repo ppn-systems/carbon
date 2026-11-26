@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Commands;
 using Carbon.AI.Components;
 using Carbon.AI.Threat;
 using Carbon.Combat.Cooldowns;
@@ -64,6 +65,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private const ulong LootLifetimeTicks = 30UL * 120UL;
 
     private readonly Lock _gate = new();
+    private readonly WorldCommandQueue _commands = new();
     private readonly ProceduralWorldGenerator _generator;
     private readonly ChunkWorld2D _chunkWorld;
     private readonly BuildingService _building;
@@ -80,6 +82,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private NeedsConfig _needsConfig;
     private FoodCatalog _foodCatalog;
     private GameEconomy? _economy;
+    private ItemRules _itemRules;
     private uint[] _spoiledItemIdByFood;
 
     private readonly Dictionary<ulong, ActivePlayerState> _playersByConnection = new();
@@ -191,6 +194,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         _outboundSink = outboundSink;
         _time = time ?? TimeProvider.System;
         _economy = economy;
+        _itemRules = economy?.ItemRules ?? ItemRules.LoadShippedDefaults();
 
         _generator = new ProceduralWorldGenerator(this.WorldSeed);
         _chunkWorld = new ChunkWorld2D(_generator, this.TileSize, this.Frequency);
@@ -240,6 +244,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             _needsConfig = needsConfig;
             _foodCatalog = foodCatalog;
             _economy = economy;
+            _itemRules = economy?.ItemRules ?? _itemRules;
             _spoiledItemIdByFood = this.ResolveSpoiledItemIds();
         }
     }
@@ -252,6 +257,18 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             lock (_gate)
             {
                 return _economy;
+            }
+        }
+    }
+
+    /// <summary>Gets the item stat and recipe rules the simulation currently runs on.</summary>
+    public ItemRules ItemRules
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _itemRules;
             }
         }
     }
@@ -387,12 +404,12 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
                 startProg.SetUnlockedSkillMask(character.UnlockedSkills);
             }
 
-            DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(startLevel, inventory, selectedSlot, startProg);
+            DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(_itemRules, startLevel, inventory, selectedSlot, startProg);
             float startHp = MathF.Min(stats.MaxHealth, MathF.Max(1f, character.CurrentHealth));
             _simulation.Entities.SetHealth(entity, new HealthComponent(startHp, stats.MaxHealth));
             _simulation.Entities.SetComponent(entity, this.RestoreNeedsLocked(character));
 
-            byte harvestTier = ResolveSlotHarvestTier(inventory, selectedSlot);
+            byte harvestTier = this.ResolveSlotHarvestTier(inventory, selectedSlot);
 
             ConnectedPlayerSession session = new(
                 sessionId,
@@ -961,7 +978,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         {
             kind = EntityKind.LootDrop;
             ItemSlot lootItem = lootMeta.Item;
-            name = StarterGameCatalog.GetDisplayName(lootItem.ItemId);
+            name = _itemRules.GetDisplayName(lootItem.ItemId);
             archetype = (ushort)lootItem.ItemId;
             lootCount = lootItem.Quantity;
             weaponUpgrade = ItemEnhancementPolicy.GetUpgradeLevel(in lootItem);
@@ -998,7 +1015,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
 
     private void RecomputeDerivedStatsLocked(ActivePlayerState state)
     {
-        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(state.Level, state.Inventory, state.Session.SelectedHotbarSlot, state.Progression);
+        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(_itemRules, state.Level, state.Inventory, state.Session.SelectedHotbarSlot, state.Progression);
         state.Stats = stats;
         if (_simulation.Entities.HasHealth(state.Entity))
         {

@@ -35,8 +35,9 @@ public sealed class VendorService
     /// <param name="quantity">Positive quantity.</param>
     /// <param name="tick">Simulation tick.</param>
     /// <param name="slotLimit">Only the first <paramref name="slotLimit"/> slots receive items (e.g. the bag, not equipment).</param>
+    /// <param name="buyerLevel">Buyer level, for level-banded consumable prices (0 = base price).</param>
     /// <returns>The outcome; on failure nothing changed.</returns>
-    public EconomyResult TryBuy(Wallet wallet, InventoryContainer inventory, uint itemId, int quantity, ulong tick = 0, int slotLimit = int.MaxValue)
+    public EconomyResult TryBuy(Wallet wallet, InventoryContainer inventory, uint itemId, int quantity, ulong tick = 0, int slotLimit = int.MaxValue, int buyerLevel = 0)
     {
         ArgumentNullException.ThrowIfNull(wallet);
         ArgumentNullException.ThrowIfNull(inventory);
@@ -50,7 +51,7 @@ public sealed class VendorService
             return EconomyResult.Fail(EconomyError.UnknownItem);
         }
 
-        long unit = this.Prices.GetBuyPrice(itemId);
+        long unit = this.Prices.GetBuyPrice(itemId, buyerLevel);
         if (unit < 0)
         {
             return EconomyResult.Fail(EconomyError.NotForSale);

@@ -48,6 +48,7 @@ public sealed class AuthService : IAuthService, IDisposable
     private readonly ICharacterStore _characters;
     private readonly IPasswordHasher _hasher;
     private readonly TimeProvider _time;
+    private readonly Func<ItemRules> _itemRules;
     private readonly ConcurrentDictionary<Guid, LoginFailures> _loginFailures = new();
     private readonly ConcurrentDictionary<string, LoginFailures> _addressFailures = new(StringComparer.Ordinal);
     private readonly Lazy<(byte[] Hash, byte[] Salt)> _dummyCredentials;
@@ -65,17 +66,29 @@ public sealed class AuthService : IAuthService, IDisposable
     /// <param name="characters">Character repository.</param>
     /// <param name="hasher">Password hashing service.</param>
     /// <param name="time">Time provider (defaults to <see cref="TimeProvider.System"/>).</param>
+    /// <param name="itemRules">
+    /// Returns the item rules new characters' starting stats are computed with (the world's current rules, so a hot reload
+    /// applies); defaults to the shipped item tables.
+    /// </param>
     public AuthService(
         IAccountStore accounts,
         ICharacterStore characters,
         IPasswordHasher hasher,
-        TimeProvider? time = null)
+        TimeProvider? time = null,
+        Func<ItemRules>? itemRules = null)
     {
         _accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
         _characters = characters ?? throw new ArgumentNullException(nameof(characters));
         _hasher = hasher ?? throw new ArgumentNullException(nameof(hasher));
         _time = time ?? TimeProvider.System;
         _dummyCredentials = new Lazy<(byte[], byte[])>(this.CreateDummyCredentials);
+        if (itemRules is null)
+        {
+            ItemRules defaults = ItemRules.LoadShippedDefaults();
+            itemRules = () => defaults;
+        }
+
+        _itemRules = itemRules;
     }
 
     /// <inheritdoc/>
@@ -215,7 +228,7 @@ public sealed class AuthService : IAuthService, IDisposable
         InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
         StarterGameCatalog.GrantStarterLoadout(inv, startingClass);
         const byte selectedSlot = 2;
-        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(1, inv, selectedSlot);
+        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(_itemRules(), 1, inv, selectedSlot);
         byte[] invBlob = InventoryBinaryCodec.Serialize(inv);
 
         CharacterRecord created = new(

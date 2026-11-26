@@ -55,14 +55,16 @@ public static class SyncedFoodCatalog
     }
 
     /// <summary>Looks up the food definition of an item id via the synced item catalog.</summary>
+    /// <param name="items">The session's synced item catalog (resolves the item's code).</param>
     /// <param name="itemId">Item id.</param>
     /// <param name="food">The food definition when the item is edible.</param>
     /// <returns><see langword="true"/> when the item is a food in <c>food.json</c>.</returns>
-    public static bool TryGet(uint itemId, [MaybeNullWhen(false)] out FoodDefinition food)
+    public static bool TryGet(SyncedItemCatalog items, uint itemId, [MaybeNullWhen(false)] out FoodDefinition food)
     {
+        ArgumentNullException.ThrowIfNull(items);
         FoodCatalog? catalog = s_current;
         if (catalog is not null &&
-            SyncedItemCatalog.TryGet(itemId, out ItemCatalogEntry? item) &&
+            items.TryGet(itemId, out ItemCatalogEntry? item) &&
             catalog.TryGetIndex(item.Code, out int index))
         {
             food = catalog.Get(index);

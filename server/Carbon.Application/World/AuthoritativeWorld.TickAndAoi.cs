@@ -38,6 +38,9 @@ public sealed partial class AuthoritativeWorld
             _currentTick++;
             float dt = 1f / this.TickRate;
 
+            // ADR-017: mutating requests submitted since the last tick run first, in arrival order.
+            _commands.Drain(this.ExecuteCommandLocked);
+
             foreach (KeyValuePair<ulong, ActivePlayerState> kvp in _playersByConnection)
             {
                 ActivePlayerState state = kvp.Value;
@@ -234,7 +237,7 @@ public sealed partial class AuthoritativeWorld
                     {
                         ItemSlot curSlot = observer.Inventory.GetSlot(sIdx);
                         if (curSlot.IsEmpty ||
-                            !StarterGameCatalog.Items.TryGet(curSlot.ItemId, out ItemArchetype? itemDef))
+                            !_itemRules.Items.TryGet(curSlot.ItemId, out ItemArchetype? itemDef))
                         {
                             continue;
                         }

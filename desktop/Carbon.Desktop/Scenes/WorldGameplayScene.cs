@@ -454,7 +454,7 @@ public sealed class WorldGameplayScene : GameScene
                     _session.CopyInventorySlots(curSlots);
                     ItemSlot active = _session.SelectedHotbarSlot < curSlots.Length ? curSlots[_session.SelectedHotbarSlot] : ItemSlot.Empty;
                     bool blockRepeat = !active.IsEmpty &&
-                        StarterGameCatalog.Items.TryGet(active.ItemId, out ItemArchetype? activeDef) &&
+                        _session.Items.Rules.Items.TryGet(active.ItemId, out ItemArchetype? activeDef) &&
                         activeDef.Category is ItemCategory.Consumable or ItemCategory.Placeable;
                     if (!blockRepeat)
                     {

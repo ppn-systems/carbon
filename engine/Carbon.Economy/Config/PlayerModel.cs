@@ -13,21 +13,12 @@ public sealed record PlayerModel
     /// <summary>Gets the percent of looted item units sold to vendors (the rest is used for crafting).</summary>
     public int SellLootPercent { get; set; } = 50;
 
-    /// <summary>Gets the durability each equipped piece loses per kill.</summary>
-    public float DurabilityLossPerKill { get; set; } = 0.5f;
-
-    /// <summary>Gets the durability percent at which gear is repaired.</summary>
+    /// <summary>Gets the durability percent at which the weapon is repaired.</summary>
     public int RepairBelowPercent { get; set; } = 50;
 
     /// <summary>Gets the station crafts per hour (each pays its station fee).</summary>
     public int CraftsPerHour { get; set; } = 4;
 
-    /// <summary>Gets the vendor food purchases per hour.</summary>
-    public int FoodBoughtPerHour { get; set; } = 6;
-
-    /// <summary>Gets the item code of the food bought from vendors.</summary>
-    public string FoodItem { get; set; } = "raw_meat";
-
-    /// <summary>Gets the gear and crafting stages by level.</summary>
+    /// <summary>Gets the weapon, crafting and consumable stages by level.</summary>
     public IReadOnlyList<PlayerStage> Stages { get; set; } = [];
 }
