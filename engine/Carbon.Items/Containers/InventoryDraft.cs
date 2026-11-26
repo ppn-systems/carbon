@@ -137,7 +137,7 @@ public ref struct InventoryDraft
                 if (slot.ItemId == incoming.ItemId && slot.IsStackable && slot.Quantity > 0 && slot.Quantity < maxStack)
                 {
                     int add = Math.Min(remaining, maxStack - slot.Quantity);
-                    _slots[i] = slot with { Quantity = slot.Quantity + add };
+                    _slots[i] = slot.MergeWith(in incoming, add);
                     remaining -= add;
                 }
             }

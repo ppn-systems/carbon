@@ -490,7 +490,7 @@ public sealed partial class MultiplayerSession
                     continue;
                 }
 
-                ItemSlot rawSlot = new(item.ItemId, item.Count, 0UL, item.Durability);
+                ItemSlot rawSlot = new(item.ItemId, item.Count, 0UL, item.Durability, FreshnessSeconds: item.FreshnessSeconds);
                 ItemSlot hydrated = ItemEnhancementPolicy.WithUpgradeLevel(in rawSlot, item.UpgradeLevel);
                 lock (_worldGate)
                 {

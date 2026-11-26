@@ -187,11 +187,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     }
 
     /// <inheritdoc/>
-    public void SendInventorySlotChanged(ulong connectionId, ushort slotIndex, uint itemId, int quantity, float durability, byte upgradeLevel = 0)
+    public void SendInventorySlotChanged(ulong connectionId, ushort slotIndex, uint itemId, int quantity, float durability, byte upgradeLevel = 0, float freshnessSeconds = 0f)
     {
         if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
         {
-            _ = DispatchInventorySlotChangedAsync(conn, slotIndex, itemId, quantity, durability, upgradeLevel, _logger);
+            _ = DispatchInventorySlotChangedAsync(conn, slotIndex, itemId, quantity, durability, upgradeLevel, freshnessSeconds, _logger);
         }
     }
 
@@ -630,6 +630,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         int quantity,
         float durability,
         byte upgradeLevel,
+        float freshnessSeconds,
         ILogger logger)
     {
         try
@@ -641,6 +642,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             pkt.Count = quantity;
             pkt.Durability = durability;
             pkt.UpgradeLevel = upgradeLevel;
+            pkt.FreshnessSeconds = freshnessSeconds;
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
             await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);

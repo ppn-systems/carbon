@@ -537,7 +537,8 @@ public sealed partial class AuthoritativeWorld
                 slot.ItemId,
                 slot.Quantity,
                 slot.Durability,
-                ItemEnhancementPolicy.GetUpgradeLevel(in slot));
+                ItemEnhancementPolicy.GetUpgradeLevel(in slot),
+                slot.FreshnessSeconds);
         }
     }
 

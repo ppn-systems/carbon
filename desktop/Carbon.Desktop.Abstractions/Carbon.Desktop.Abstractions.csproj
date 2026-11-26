@@ -17,6 +17,7 @@
         <ProjectReference Include="..\..\engine\Carbon.Items\Carbon.Items.csproj" />
         <ProjectReference Include="..\..\engine\Carbon.Maps\Carbon.Maps.csproj" />
         <ProjectReference Include="..\..\engine\Carbon.Simulation\Carbon.Simulation.csproj" />
+        <ProjectReference Include="..\..\engine\Carbon.Survival\Carbon.Survival.csproj" />
     </ItemGroup>
 
 </Project>

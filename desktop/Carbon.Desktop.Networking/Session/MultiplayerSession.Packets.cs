@@ -1144,7 +1144,7 @@ public sealed partial class MultiplayerSession
             ItemSlot previous = _inventory.GetSlot(pkt.SlotIndex);
             ItemSlot rawNext = pkt.ItemId == 0 || pkt.Count <= 0
                 ? ItemSlot.Empty
-                : new ItemSlot(pkt.ItemId, pkt.Count, 0UL, pkt.Durability);
+                : new ItemSlot(pkt.ItemId, pkt.Count, 0UL, pkt.Durability, FreshnessSeconds: pkt.FreshnessSeconds);
             ItemSlot next = rawNext.IsEmpty
                 ? ItemSlot.Empty
                 : ItemEnhancementPolicy.WithUpgradeLevel(in rawNext, pkt.UpgradeLevel);
