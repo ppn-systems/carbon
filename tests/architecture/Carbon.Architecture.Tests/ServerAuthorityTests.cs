@@ -98,6 +98,10 @@ public sealed partial class ServerAuthorityTests
         // NEW after the guard was written: added in #30 (creatures, owned by a parallel agent). Uses archetype id
         // constants only, to pick an attack clip. Audit SA-1c: declare the clip in the monster .cvg.json instead.
         "desktop/Carbon.Desktop.Rendering/VectorArt/MonsterAttackAnimator.cs|WorldActorCatalog",
+
+        // transitional shim from #28; removal tracked in the follow-up
+        // economy PR (inject ItemCatalog/RecipeCatalog instances instead of a static install)
+        "desktop/Carbon.Desktop.Abstractions/Configuration/SyncedItemCatalog.cs|StarterGameCatalog",
     };
 
     /// <summary>

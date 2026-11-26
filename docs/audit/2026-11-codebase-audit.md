@@ -2,7 +2,7 @@
 
 | Field | Value |
 | :--- | :--- |
-| **Audited commit** | `6d6dfac` (master, PR #12). PRs #13–#30, merged afterwards, are covered by the automated guards but were not manually re-audited; line numbers in files they touched may have shifted. |
+| **Audited commit** | `6d6dfac` (master, PR #12). PRs #13–#32, merged afterwards, are covered by the automated guards but were not manually re-audited; line numbers in files they touched may have shifted. |
 | **Scope** | `contracts/`, `engine/`, `server/`, `desktop/`, `graphics/`, `tests/` (~79k lines C#, 31 production projects, 15 test projects) |
 | **Method** | Manual read-through per layer against AGENTS.md, ADR-001…ADR-010, and the `csharp-style`, `carbon-engine-ecs`, `performance-aot`, `testing-style`, `carbon-handlers` skills; plus the reflection/metadata guards in `tests/architecture/Carbon.Architecture.Tests` |
 | **Status** | Report only. No production code changed in this PR (economy, combat/AI, survival, building, config sync, and biome rendering are being changed in parallel). |
@@ -28,18 +28,18 @@ The real problems sit **inside** layers:
 
 ## Top 10 findings
 
-| # | ID | Severity | Title |
-| :--- | :--- | :--- | :--- |
-| 1 | SA-1 | Critical | Desktop compiles in and decides with server gameplay balance tables (config sync from #15 exists but is not yet used by these call sites) |
-| 2 | SA-8 | Critical | `TryHarvestProp` skips the attack cooldown, line of sight and harvest range (resource/XP farming at ~240/s) |
-| 3 | TS-2 | Critical | Desktop network thread mutates `ChunkWorld2D`/`WorldSimulation` while render reads them unlocked |
-| 4 | SA-9 | High | Any player can demolish any structure and keep 60% salvage (no owner) |
-| 5 | TS-1 | High | Handlers mutate world state synchronously on I/O threads (craft/move/harvest/build), bypassing the tick queue |
-| 6 | TS-3 | High | Stale load during an in-flight save can roll back or duplicate inventory |
-| 7 | SOLID-1 | High | `AuthoritativeWorld` god class: 5 partials, 4,362 lines, 54 fields, ~17 responsibilities |
-| 8 | HP-1 | High | `WorldOutboundSink.SendEntityDeltaBatch` allocates 7 arrays + a `Task` per observer per tick |
-| 9 | HP-2 | High | Every state change re-serializes the full inventory + progression blob (ADR-007 drift) |
-| 10 | SEC-1 | High | Unauthenticated login: no per-IP/account throttling, uncapped password length, PBKDF2 on the I/O thread |
+| # | ID | Severity | Title | Status since `6d6dfac` (verified on master `ec35f41`) |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | SA-1 | Critical | Desktop compiles in and decides with server gameplay balance tables | **Partly done.** Config sync landed in #15/#24/#28 (`IGameConfigSource`, `SyncedItemCatalog`). Still open: 39 allowlisted desktop call sites, including the #28 `SyncedItemCatalog` → `StarterGameCatalog` shim (SA-1, SA-1b, SA-1c). |
+| 2 | SA-8 | Critical | `TryHarvestProp` skips the attack cooldown, line of sight and harvest range (resource/XP farming at ~240/s) | **Open.** Only `IsWithinInteractRangeLocked` is checked (`AuthoritativeWorld.WorldPropsAndBuilding.cs:39`). |
+| 3 | TS-2 | Critical | Desktop network thread mutates `ChunkWorld2D`/`WorldSimulation` while render reads them unlocked | **Open.** `MultiplayerSession.ChunkWorld`/`Simulation` still expose the live objects (`MultiplayerSession.cs:155,159`). |
+| 4 | SA-9 | High | Any player can demolish any structure and keep 60% salvage (no owner) | **Done in #16.** Structures carry `OwnerId`; `BuildingService` checks `CanModify` and deconstruction takes work over time. |
+| 5 | TS-1 | High | Handlers mutate world state synchronously on I/O threads (craft/move/harvest/build), bypassing the tick queue | **Open.** There is still no command queue in `Carbon.Application/World`. |
+| 6 | TS-3 | High | Stale load during an in-flight save can roll back or duplicate inventory | **Open.** `FlushDirtyPersistenceAsync` still clears the dirty set before the awaited save (`AuthoritativeWorld.TickAndAoi.cs:319`). |
+| 7 | SOLID-1 | High | `AuthoritativeWorld` god class: 5 partials, 4,362 lines, 54 fields, ~17 responsibilities | **Worse.** Now 10 partials and 5,650 lines (Construction, Creatures, Economy, Survival and DebugOverrides added). |
+| 8 | HP-1 | High | `WorldOutboundSink.SendEntityDeltaBatch` allocates 7 arrays + a `Task` per observer per tick | **Open** (`WorldOutboundSink.cs:91-97`). |
+| 9 | HP-2 | High | Every state change re-serializes the full inventory + progression blob (ADR-007 drift) | **Partly done.** Inventory is serialized only when `InventoryDirty`, but `MarkCharacterDirtyLocked` still builds a full record on every call (`AuthoritativeWorld.cs:829-846`). |
+| 10 | SEC-1 | High | Unauthenticated login: no per-IP/account throttling, uncapped password length, PBKDF2 on the I/O thread | **Open.** There is no throttling, and PBKDF2 still runs 100k iterations inline (`Pbkdf2PasswordHasher.cs:16`). |
 
 ---
 
@@ -120,7 +120,7 @@ Guarded by `EngineDesignTests`. Components (`*.Components` namespaces or `*Compo
 
 ## 6. Thread safety
 
-Guarded by `CodeHygieneTests`: no `async void` anywhere (none today), and no static mutable state in engine/server. 23 fields are allowlisted with reasons (type-id counters, `[ThreadStatic]` scratch, `[Inject]` statics, auth map, river caches, read-only lookup tables that should become `FrozenDictionary`).
+Guarded by `CodeHygieneTests`: no `async void` anywhere (none today), and no static mutable state in engine/server. 24 fields are allowlisted with reasons (type-id counters, `[ThreadStatic]` scratch, `[Inject]` statics, auth map, river caches, read-only lookup tables that should become `FrozenDictionary`).
 
 | ID | Sev | Finding | Fix |
 | :--- | :--- | :--- | :--- |
@@ -220,9 +220,9 @@ Project: `tests/architecture/Carbon.Architecture.Tests` · Solution: `tests/Carb
 | :--- | :--- | :--- |
 | `LayerDependencyTests` | Layer graph per AGENTS.md rule 3 (contracts → nothing; engine → contracts; graphics → contracts/engine; server never → graphics/desktop; desktop never → server), checked on both `.csproj` and compiled metadata. Restricted packages stay in their layer. Every production project must be referenced by the architecture test project. | none |
 | `EngineDesignTests` | ECS components are unmanaged structs with no behavior methods. Public engine classes are sealed/abstract/static unless they are inherited. | 4 allowlisted (ECS-5, ECS-5b, ECS-5c) |
-| `CodeHygieneTests` | No `async void` in any production assembly. No static mutable state in engine/server (non-readonly statics, or `static readonly` mutable collections). Namespace = RootNamespace + folder path for all 454 source files. | 23 statics allowlisted with reasons |
-| `ResourceTests` | Every `resources/**/*.json` parses strictly. `resources/art` loads through the real `CarbonVectorArtLibrary.LoadFromDirectory`. Every `.cvg.json` is referenced by the catalog (otherwise it is never validated), and every reference exists. Raster images only under `resources/ui` and `resources/fonts`. Nothing under `resources/thirdparty`. | none |
-| `ServerAuthorityTests` | Desktop must not use *new* engine balance types (`StarterGameCatalog`, `SkillCatalog`, …). No *new* gameplay-named numeric `const`/`static readonly` (speed, damage, cooldown, price, …) in desktop. Heuristic. | 38 usages + 4 constants allowlisted (SA-1, SA-1b, SA-1c, SA-3, ECS-5c) |
+| `CodeHygieneTests` | No `async void` in any production assembly. No static mutable state in engine/server (non-readonly statics, or `static readonly` mutable collections). Namespace = RootNamespace + folder path for all 454 source files. | 24 statics allowlisted with reasons |
+| `ResourceTests` | Every git-tracked `resources/**/*.json` parses strictly (checks use `git ls-files`, so git-ignored local reference art is skipped). `resources/art` loads through the real `CarbonVectorArtLibrary.LoadFromDirectory`. Every `.cvg.json` is referenced by the catalog (otherwise it is never validated), and every reference exists. Raster images only under `resources/ui` and `resources/fonts`. Nothing committed under `resources/thirdparty`. | none |
+| `ServerAuthorityTests` | Desktop must not use *new* engine balance types (`StarterGameCatalog`, `SkillCatalog`, …). No *new* gameplay-named numeric `const`/`static readonly` (speed, damage, cooldown, price, …) in desktop. Heuristic. | 39 usages + 4 constants allowlisted (SA-1, SA-1b, SA-1c, SA-3, ECS-5c) |
 
 Every allowlist has a matching `*_ShouldNotContainStaleEntries` test, so fixing a violation forces you to delete its entry, and the list only shrinks.
 

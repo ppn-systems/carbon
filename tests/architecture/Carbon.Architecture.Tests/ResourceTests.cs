@@ -32,7 +32,9 @@ public sealed class ResourceTests
     [Fact]
     public void AllResourceJsonFiles_ShouldParse()
     {
-        List<string> files = [.. Directory.EnumerateFiles(ResourcesRoot, "*.json", SearchOption.AllDirectories)];
+        List<string> files = [.. RepositoryLayout.TrackedFiles("resources")
+            .Where(rel => rel.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            .Select(rel => Path.Combine(RepositoryLayout.Root, rel))];
         files.Should().NotBeEmpty();
 
         List<string> failures = [];
@@ -91,9 +93,9 @@ public sealed class ResourceTests
     [Fact]
     public void RasterImages_ShouldOnlyExistInAllowedResourceFolders()
     {
-        List<string> violations = [.. Directory.EnumerateFiles(ResourcesRoot, "*", SearchOption.AllDirectories)
-            .Where(p => s_rasterExtensions.Contains(Path.GetExtension(p), StringComparer.OrdinalIgnoreCase))
-            .Select(RepositoryLayout.Relative)
+        // Committed files only: git-ignored local reference art (tools/assets/import-assets.sh) is not checked.
+        List<string> violations = [.. RepositoryLayout.TrackedFiles("resources")
+            .Where(rel => s_rasterExtensions.Contains(Path.GetExtension(rel), StringComparer.OrdinalIgnoreCase))
             .Where(rel => !s_rasterAllowedFolders.Any(f => rel.StartsWith(f, StringComparison.Ordinal)))];
 
         Violations.ShouldBeEmpty(violations, "art is declarative vector (.cvg.json); raster images are only allowed in resources/ui and resources/fonts");
@@ -102,9 +104,9 @@ public sealed class ResourceTests
     [Fact]
     public void ThirdPartyResources_ShouldNotBeCommitted()
     {
-        string thirdParty = Path.Combine(ResourcesRoot, "thirdparty");
-        bool hasFiles = Directory.Exists(thirdParty) && Directory.EnumerateFiles(thirdParty, "*", SearchOption.AllDirectories).Any();
-        hasFiles.Should().BeFalse("third-party assets must not be committed under resources/thirdparty");
+        // resources/thirdparty is git-ignored reference art; it may exist locally but must never be committed.
+        List<string> committed = [.. RepositoryLayout.TrackedFiles("resources/thirdparty")];
+        Violations.ShouldBeEmpty(committed, "third-party assets must not be committed under resources/thirdparty");
     }
 
     private static HashSet<string> CatalogReferencedFiles()

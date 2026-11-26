@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -57,6 +58,84 @@ internal static class RepositoryLayout
         {
             return ex.Types.Where(t => t is not null).ToArray()!;
         }
+    }
+
+    /// <summary>
+    /// Repo-relative paths (forward slashes) of files committed under <paramref name="relativeDirectory"/>.
+    /// Uses <c>git ls-files</c>, so git-ignored local files (e.g. imported reference art) are not reported.
+    /// Falls back to the filesystem minus directories git-ignored in the root <c>.gitignore</c> when git is unavailable.
+    /// </summary>
+    public static IReadOnlyList<string> TrackedFiles(string relativeDirectory)
+    {
+        if (TryGitLsFiles(relativeDirectory, out List<string>? tracked))
+        {
+            return tracked;
+        }
+
+        string[] ignoredPrefixes = ReadIgnoredDirectoryPrefixes();
+        string absolute = Path.Combine(Root, relativeDirectory);
+        if (!Directory.Exists(absolute))
+        {
+            return [];
+        }
+
+        return [.. Directory.EnumerateFiles(absolute, "*", SearchOption.AllDirectories)
+            .Select(Relative)
+            .Where(rel => !ignoredPrefixes.Any(prefix => rel.StartsWith(prefix, StringComparison.Ordinal)))
+            .OrderBy(rel => rel, StringComparer.Ordinal)];
+    }
+
+    private static bool TryGitLsFiles(string relativeDirectory, out List<string> files)
+    {
+        files = [];
+        try
+        {
+            ProcessStartInfo startInfo = new("git")
+            {
+                WorkingDirectory = Root,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            };
+            startInfo.ArgumentList.Add("ls-files");
+            startInfo.ArgumentList.Add("-z");
+            startInfo.ArgumentList.Add("--");
+            startInfo.ArgumentList.Add(relativeDirectory);
+
+            using Process? process = Process.Start(startInfo);
+            if (process is null)
+            {
+                return false;
+            }
+
+            string output = process.StandardOutput.ReadToEnd();
+            process.WaitForExit();
+            if (process.ExitCode != 0)
+            {
+                return false;
+            }
+
+            files = [.. output.Split('\0', StringSplitOptions.RemoveEmptyEntries).OrderBy(f => f, StringComparer.Ordinal)];
+            return true;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return false;
+        }
+    }
+
+    private static string[] ReadIgnoredDirectoryPrefixes()
+    {
+        string gitignore = Path.Combine(Root, ".gitignore");
+        if (!File.Exists(gitignore))
+        {
+            return [];
+        }
+
+        return [.. File.ReadAllLines(gitignore)
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0 && !line.StartsWith('#') && !line.StartsWith('!') && line.EndsWith('/') && !line.Contains('*', StringComparison.Ordinal))
+            .Select(line => line.TrimStart('/'))];
     }
 
     /// <summary>Returns the repo-relative path with forward slashes.</summary>
