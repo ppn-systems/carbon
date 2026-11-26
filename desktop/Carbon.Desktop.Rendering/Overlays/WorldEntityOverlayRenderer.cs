@@ -105,15 +105,14 @@ internal sealed class WorldEntityOverlayRenderer
                 continue;
             }
 
-            Vector2 rWorld = r.Position;
-            Vector2 screenPt = cameraRig.Camera.WorldToScreen(in rWorld);
+            Vector2 crownWorld = ResolveHeadCrownWorld(in r, art);
+            Vector2 screenPt = cameraRig.Camera.WorldToScreen(in crownWorld);
             if (screenPt.X < -90f || screenPt.X > viewportWidth + 90f || screenPt.Y < -70f || screenPt.Y > viewportHeight + 70f)
             {
                 continue;
             }
 
-            float headOffsetScreen = ResolveHeadOffsetScreen(in r, art, cameraRig.Camera.Zoom);
-            float barTopY = MathF.Floor(screenPt.Y - headOffsetScreen - 11f);
+            float barTopY = MathF.Floor(screenPt.Y - 10f);
             bool showBar = r.MaxHealth > 0f && (r.Kind == EntityKind.Monster || r.CurrentHealth < r.MaxHealth - 0.5f);
 
             if (showBar)
@@ -170,7 +169,7 @@ internal sealed class WorldEntityOverlayRenderer
                 TextMeasureResult measure = font.MeasureString(displayName, TextLayoutOptions.Default, 1f);
                 float pillW = measure.Width + 12f;
                 float pillX = MathF.Floor(screenPt.X - (pillW * 0.5f));
-                float pillY = showBar ? barTopY - 21f : MathF.Floor(screenPt.Y - headOffsetScreen - 20f);
+                float pillY = showBar ? barTopY - 21f : MathF.Floor(screenPt.Y - 19f);
                 batch.FillRectangle(new RectangleF(pillX, pillY, pillW, 18f), new ColorRgba(10, 13, 20, 185));
             }
         }
@@ -224,18 +223,17 @@ internal sealed class WorldEntityOverlayRenderer
                 continue;
             }
 
-            Vector2 rWorld = r.Position;
-            Vector2 screenPt = cameraRig.Camera.WorldToScreen(in rWorld);
+            Vector2 crownWorld = ResolveHeadCrownWorld(in r, art);
+            Vector2 screenPt = cameraRig.Camera.WorldToScreen(in crownWorld);
             if (screenPt.X < -90f || screenPt.X > viewportWidth + 90f || screenPt.Y < -70f || screenPt.Y > viewportHeight + 70f)
             {
                 continue;
             }
 
-            float headOffsetScreen = ResolveHeadOffsetScreen(in r, art, cameraRig.Camera.Zoom);
             bool showBar = r.MaxHealth > 0f && (r.Kind == EntityKind.Monster || r.CurrentHealth < r.MaxHealth - 0.5f);
             float nameY = showBar
-                ? MathF.Floor(screenPt.Y - headOffsetScreen - 31f)
-                : MathF.Floor(screenPt.Y - headOffsetScreen - 19f);
+                ? MathF.Floor(screenPt.Y - 30f)
+                : MathF.Floor(screenPt.Y - 18f);
 
             ColorRgba labelColor = r.Kind == EntityKind.Monster
                 ? new ColorRgba(254, 215, 215, 255)
@@ -292,28 +290,29 @@ internal sealed class WorldEntityOverlayRenderer
         return bestId;
     }
 
-    private static float ResolveHeadOffsetScreen(in RemoteEntityView remote, IVectorArtRepository? art, float zoom)
+    private static Vector2 ResolveHeadCrownWorld(in RemoteEntityView remote, IVectorArtRepository? art)
     {
+        float radius = remote.Radius > 0f ? remote.Radius : 7f;
+        float footY = remote.Position.Y + radius;
+        float worldHeight = MathF.Max(28f, radius * 3.8f);
+
         if (art is not null)
         {
             if (remote.Kind == EntityKind.Monster && art.TryGetMonster(remote.ArchetypeId, out CompiledVectorRig? mr))
             {
-                return mr.HeadTopOffset * zoom;
+                worldHeight = mr.WorldHeight;
             }
-
-            if (remote.Kind == EntityKind.Npc && art.TryGetNpc(remote.ArchetypeId, out CompiledVectorRig? nr))
+            else if (remote.Kind == EntityKind.Npc && art.TryGetNpc(remote.ArchetypeId, out CompiledVectorRig? nr))
             {
-                return nr.HeadTopOffset * zoom;
+                worldHeight = nr.WorldHeight;
             }
-
-            if (remote.Kind == EntityKind.Player && art.TryGetCharacter((byte)remote.ArchetypeId, out CompiledVectorRig? cr))
+            else if (remote.Kind == EntityKind.Player && art.TryGetCharacter((byte)remote.ArchetypeId, out CompiledVectorRig? cr))
             {
-                return cr.HeadTopOffset * zoom;
+                worldHeight = cr.WorldHeight;
             }
         }
 
-        float fallback = MathF.Max(28f, remote.Radius * 3.5f);
-        return fallback * zoom;
+        return new Vector2(remote.Position.X, footY - worldHeight - 4f);
     }
 
     private static ColorRgba ResolveEntityAccent(in RemoteEntityView remote, IVectorArtRepository? art)

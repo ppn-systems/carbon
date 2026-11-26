@@ -64,8 +64,9 @@ internal static class PlayerModalTabs
     {
         float fitW = viewportWidth > 0 ? viewportWidth / 1280f : 1f;
         float fitH = viewportHeight > 0 ? viewportHeight / 720f : 1f;
-        float scale = Math.Clamp(MathF.Min(fitW, fitH), 0.90f, 1.85f);
-        float textScale = scale >= 1.70f ? 1.75f : (scale >= 1.38f ? 1.5f : (scale >= 1.12f ? 1.25f : 1.0f));
+        float fit = MathF.Min(fitW, fitH);
+        float scale = Math.Clamp(0.88f + ((fit - 1f) * 0.40f), 0.85f, 1.24f);
+        float textScale = scale >= 1.16f ? 1.25f : 1.0f;
         float titleScale = textScale * 1.25f;
 
         float slotSize = MathF.Round(BaseSlotSize * scale);
@@ -136,9 +137,17 @@ internal static class PlayerModalTabs
         float tabH = MathF.Round(BaseTabH * layout.Scale);
         float gap = MathF.Round(BaseTabGap * layout.Scale);
         float usableW = layout.PanelW - ((count - 1) * gap);
-        float tabW = MathF.Floor(usableW / count);
-        float x = layout.Ox + (index * (tabW + gap));
-        float w = index == count - 1 ? layout.Ox + layout.PanelW - x : tabW;
+        float baseTabW = MathF.Floor(usableW / count);
+        int remainder = Math.Max(0, (int)MathF.Round(usableW) - ((int)baseTabW * count));
+        float x = layout.Ox;
+        for (int i = 0; i < index; i++)
+        {
+            x += baseTabW + (i < remainder ? 1f : 0f) + gap;
+        }
+
+        float w = index == count - 1
+            ? layout.Ox + layout.PanelW - x
+            : baseTabW + (index < remainder ? 1f : 0f);
         return new RectangleF(x, layout.Oy - tabH + 2f, w, tabH);
     }
 

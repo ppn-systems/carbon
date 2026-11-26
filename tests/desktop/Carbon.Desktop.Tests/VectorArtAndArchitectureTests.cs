@@ -14,8 +14,12 @@ using Carbon.Desktop.Rendering.Hud;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Desktop.Scenes;
+using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Fonts.TrueType;
+using Carbon.Graphics.Scenes.Base;
+using Carbon.Graphics.Scenes.Management;
+using Carbon.Graphics.Windowing.Abstractions;
 using Carbon.Items.Catalog;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
@@ -227,6 +231,8 @@ public sealed class VectorArtAndArchitectureTests
         foreach ((int vw, int vh) in viewports)
         {
             PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(vw, vh);
+            (layout.PanelH / vh).Should().BeLessThan(0.76f);
+            (layout.PanelW / vw).Should().BeLessThan(0.60f);
 
             foreach (int tabCount in new[] { 3, 4 })
             {
@@ -295,6 +301,47 @@ public sealed class VectorArtAndArchitectureTests
             hotbar0.Bottom.Should().Be(layout.ContentY + layout.ContentH);
         }
     }
+
+    [Fact]
+    public void SceneManagerAndCameraRig_ShouldKeepViewportAndWorldToScreenAlignedAfterResizeAndSceneSwap()
+    {
+        int width = 1280;
+        int height = 720;
+        IGameWindow fakeWindow = Substitute.For<IGameWindow>();
+        fakeWindow.Width.Returns(_ => width);
+        fakeWindow.Height.Returns(_ => height);
+
+        Camera2D camera = new(1280f, 720f);
+        using SceneManager sceneManager = new(fakeWindow, camera);
+        using StubScene initialScene = new();
+        sceneManager.ChangeScene(initialScene);
+
+        // Simulate window maximize while still on Login / Character Select (scenes that do not override Resize).
+        width = 1920;
+        height = 1017;
+        sceneManager.Resize(width, height);
+        camera.ViewportSize.Should().Be(new Vector2(1920f, 1017f));
+
+        // Swap to a new scene and verify Camera2D retains synchronized framebuffer dimensions.
+        using StubScene worldScene = new();
+        sceneManager.ChangeScene(worldScene);
+        CameraRig2D rig = new(camera, macroView: false);
+        rig.Update(new Vector2(3600f, 15900f), insideBuilding: false, default, 0.016f);
+
+        Vector2 monsterWorld = new(3420f, 15840f);
+        Vector2 screenPt = camera.WorldToScreen(in monsterWorld);
+
+        Vector4 clip = Vector4.Transform(new Vector4(monsterWorld.X, monsterWorld.Y, 0f, 1f), camera.ViewProjectionMatrix);
+        float expectedX = ((clip.X / clip.W) + 1f) * 0.5f * 1920f;
+        float expectedY = (1f - (clip.Y / clip.W)) * 0.5f * 1017f;
+
+        screenPt.X.Should().BeApproximately(expectedX, 0.01f);
+        screenPt.Y.Should().BeApproximately(expectedY, 0.01f);
+        camera.ScreenToWorld(in screenPt).X.Should().BeApproximately(monsterWorld.X, 0.05f);
+        camera.ScreenToWorld(in screenPt).Y.Should().BeApproximately(monsterWorld.Y, 0.05f);
+    }
+
+    private sealed class StubScene : GameScene;
 
     private static string FindRepoRoot(string startPath)
     {

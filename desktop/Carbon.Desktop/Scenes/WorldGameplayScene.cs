@@ -84,6 +84,7 @@ public sealed class WorldGameplayScene : GameScene
         base.Load(context);
 
         _cameraRig = new CameraRig2D(_camera, _options.MacroView);
+        _cameraRig.Resize(context.WindowWidth, context.WindowHeight);
         _worldRenderer = new WorldSceneRenderer(context.Device, _options);
         _hudRenderer = new HudOverlayRenderer(context.Device, _worldRenderer.VectorArt);
         if (!_options.MacroView)
@@ -142,6 +143,7 @@ public sealed class WorldGameplayScene : GameScene
             return;
         }
 
+        _cameraRig.Resize(context.WindowWidth, context.WindowHeight);
         DesktopInputFrame input = DesktopInputController.Poll(context.Input);
         _mouseScreenPosition = input.MouseScreenPosition;
         _mouseWorldPosition = _camera.ScreenToWorld(in _mouseScreenPosition);

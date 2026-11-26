@@ -48,6 +48,11 @@ public sealed class SceneManager : ISceneManager
         ArgumentNullException.ThrowIfNull(window, nameof(window));
         ArgumentNullException.ThrowIfNull(camera, nameof(camera));
 
+        if (window.Width > 0 && window.Height > 0)
+        {
+            camera.ViewportSize = new Vector2(window.Width, window.Height);
+        }
+
         _context = new SceneContext(window, camera, this);
     }
 
@@ -159,6 +164,11 @@ public sealed class SceneManager : ISceneManager
     /// <inheritdoc/>
     public void Resize(int width, int height)
     {
+        if (width > 0 && height > 0)
+        {
+            _context.Camera.ViewportSize = new Vector2(width, height);
+        }
+
         for (int i = 0; i < _sceneStack.Count; i++)
         {
             _sceneStack[i].Resize(_context, width, height);
@@ -178,6 +188,10 @@ public sealed class SceneManager : ISceneManager
         _sceneStack.Clear();
 
         _context.TransitionData = data;
+        if (_context.WindowWidth > 0 && _context.WindowHeight > 0)
+        {
+            _context.Camera.ViewportSize = new Vector2(_context.WindowWidth, _context.WindowHeight);
+        }
 
         if (!nextScene.IsLoaded)
         {

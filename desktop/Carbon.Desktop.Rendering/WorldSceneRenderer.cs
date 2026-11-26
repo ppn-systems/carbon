@@ -160,6 +160,7 @@ public sealed class WorldSceneRenderer : IDisposable
         _feedback.Update(world, frameDt, _animTime, aimedWorldPosition);
 
         _device.SetViewport(0, 0, (uint)viewportWidth, (uint)viewportHeight);
+        cameraRig.Resize(viewportWidth, viewportHeight);
         _device.SetClearColor(new Vector4(0.04f, 0.05f, 0.08f, 1.0f));
         _device.Clear(ClearBufferMask.ColorBufferBit);
 

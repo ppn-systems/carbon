@@ -162,7 +162,7 @@ internal sealed class InventoryModalWidget
         // Subtle separator bar between Backpack (3x9) and Hotbar (1x9)
         float slotSize = MathF.Round(BaseSlotSize * s);
         float slotGap = MathF.Round(BaseSlotGap * s);
-        float bagStartY = layout.ContentY + MathF.Round(184f * s);
+        float bagStartY = layout.ContentY + MathF.Round(172f * s) + MathF.Round(12f * s);
         float divY = bagStartY + (3f * slotSize) + (2f * slotGap) + MathF.Round(10f * s);
         batch.FillRectangle(new RectangleF(layout.ContentX, divY, layout.ContentW, MathF.Max(2f, MathF.Round(2f * s))), CarbonUiPalette.BorderSubtle);
 
@@ -448,7 +448,7 @@ internal sealed class InventoryModalWidget
             };
         }
 
-        float bagStartY = layout.ContentY + MathF.Round(184f * s);
+        float bagStartY = layout.ContentY + MathF.Round(172f * s) + MathF.Round(12f * s);
         if (slotIndex < 9)
         {
             float hotbarY = bagStartY + (3f * slotSize) + (2f * slotGap) + MathF.Round(22f * s);
