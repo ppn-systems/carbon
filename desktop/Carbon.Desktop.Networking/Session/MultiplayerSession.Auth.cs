@@ -238,6 +238,23 @@ public sealed partial class MultiplayerSession
         }
 
         TcpSession tcp = this.RequireAuthenticatedTcpSession();
+
+        // Gameplay tables come only from the server (ADR-011): never enter the world on stale or missing config.
+        try
+        {
+            using CancellationTokenSource configTimeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            configTimeout.CancelAfter(ConfigSyncTimeoutMs);
+            _ = await this.WaitForGameConfigAsync(configTimeout.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return (false, "Timed out syncing game config from the server.");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return (false, ex.Message);
+        }
+
         RequestOptions reqOpts = RequestOptions.Default.WithTimeout(5000).WithEncrypt(tcp.State.EncryptionEnabled);
 
         using PacketScope<CharacterSelect> selectLease = PacketFactory<CharacterSelect>.Acquire();
