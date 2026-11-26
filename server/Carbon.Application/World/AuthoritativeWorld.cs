@@ -9,6 +9,7 @@ using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
 using Carbon.Application.World.Commands;
 using Carbon.Application.World.Loot;
+using Carbon.Application.World.Needs;
 using Carbon.Application.World.Projectiles;
 using Carbon.Application.World.Replication;
 using Carbon.AI.Components;
@@ -39,7 +40,6 @@ using Carbon.Simulation.World;
 using Carbon.Survival.Components;
 using Carbon.Survival.Config;
 using Carbon.Survival.Food;
-using Carbon.Survival.Systems;
 
 namespace Carbon.Application.World;
 
@@ -77,13 +77,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly ICharacterStore _characterStore;
     private readonly IWorldOutboundSink _outboundSink;
     private readonly TimeProvider _time;
-    private readonly EatActionSystem _eatAction;
-    private readonly NeedsSystem _needsSystem;
-    private NeedsConfig _needsConfig;
-    private FoodCatalog _foodCatalog;
+    private readonly NeedsService _needs;
     private GameEconomy? _economy;
     private ItemRules _itemRules;
-    private uint[] _spoiledItemIdByFood;
 
     private readonly Dictionary<ulong, ActivePlayerState> _playersByConnection = new();
     private readonly Dictionary<ulong, ulong> _connectionByNetworkId = new();
@@ -112,6 +108,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly List<Entity> _dirtyResetScratch = new(256);
     private readonly List<ulong> _staleLootScratch = new(32);
     private readonly List<(ushort SlotIndex, ItemSlot Slot)> _mutationSlotScratch = new(8);
+    private readonly List<(ushort SlotIndex, ItemSlot Slot)> _spoiledSlotsScratch = new(8);
     private readonly List<(int TileX, int TileY, uint Revision, float MaxDurability)> _respawnedPropsScratch = new(16);
     private readonly Entity[] _combatHitScratch = new Entity[32];
     private readonly Entity[] _packAggroScratch = new Entity[16];
@@ -192,13 +189,15 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             this.QueueLootVisualRefreshLocked);
         _projectiles = new ProjectileService(_simulation, _chunkWorld, MonsterLayer, () => ++_nextNetworkId, new ProjectileHits(this));
 
-        _needsConfig = needsConfig ?? new NeedsConfig();
-        _foodCatalog = foodCatalog ?? new FoodCatalog([], _needsConfig.FoodMax);
-        _eatAction = new EatActionSystem(_foodCatalog, _needsConfig, worldSeed);
-        _spoiledItemIdByFood = this.ResolveSpoiledItemIds();
-        _simulation.RegisterSystem(_eatAction);
-        _needsSystem = new NeedsSystem(_needsConfig);
-        _simulation.RegisterSystem(_needsSystem);
+        _needs = new NeedsService(
+            _simulation,
+            _chunkWorld.Buildings,
+            this.TileSize,
+            () => _itemRules,
+            () => _economy,
+            needsConfig,
+            foodCatalog,
+            worldSeed);
         _aoi = new SpatialAoiTracker(this.TileSize * 24f);
     }
 
@@ -217,13 +216,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         ArgumentNullException.ThrowIfNull(foodCatalog);
         lock (_gate)
         {
-            _eatAction.Reconfigure(_simulation, foodCatalog, needsConfig);
-            _needsSystem.Reconfigure(needsConfig);
-            _needsConfig = needsConfig;
-            _foodCatalog = foodCatalog;
             _economy = economy;
             _itemRules = economy?.ItemRules ?? _itemRules;
-            _spoiledItemIdByFood = this.ResolveSpoiledItemIds();
+            _needs.Reconfigure(needsConfig, foodCatalog);
         }
     }
 
@@ -258,7 +253,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         {
             lock (_gate)
             {
-                return _needsConfig;
+                return _needs.Config;
             }
         }
     }
@@ -270,7 +265,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         {
             lock (_gate)
             {
-                return _foodCatalog;
+                return _needs.Food;
             }
         }
     }
@@ -385,7 +380,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(_itemRules, startLevel, inventory, selectedSlot, startProg);
             float startHp = MathF.Min(stats.MaxHealth, MathF.Max(1f, character.CurrentHealth));
             _simulation.Entities.SetHealth(entity, new HealthComponent(startHp, stats.MaxHealth));
-            _simulation.Entities.SetComponent(entity, this.RestoreNeedsLocked(character));
+            _simulation.Entities.SetComponent(entity, _needs.Restore(character));
 
             byte harvestTier = this.ResolveSlotHarvestTier(inventory, selectedSlot);
 
@@ -874,7 +869,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             ? InventoryBinaryCodec.Serialize(state.Inventory)
             : state.SourceCharacter.InventoryBlob;
 
-        NeedsComponent needs = this.GetNeedsForPersistenceLocked(state);
+        NeedsComponent needs = _needs.GetForPersistence(state.Entity);
         return state.SourceCharacter with
         {
             Level = state.Level,
@@ -1106,7 +1101,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             progBlob,
             cdIds,
             cdSecs,
-            this.BuildNeedsSnapshotLocked(state));
+            _needs.BuildSnapshot(state.Entity, state.RestMode));
     }
 
     private void EnqueueStatsSyncLocked(ActivePlayerState state, bool leveledUp)

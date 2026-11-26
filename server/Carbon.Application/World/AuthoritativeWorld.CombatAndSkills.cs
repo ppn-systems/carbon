@@ -60,7 +60,7 @@ public sealed partial class AuthoritativeWorld
             return;
         }
 
-        state.Cooldowns.StartCooldown(AttackAbilityId, _currentTick, this.ScaleAttackCooldownLocked(state, (uint)Math.Max(10, this.TickRate / 2)));
+        state.Cooldowns.StartCooldown(AttackAbilityId, _currentTick, _needs.ScaleAttackCooldown(state.Entity, (uint)Math.Max(10, this.TickRate / 2)));
 
         Vector2 attackerPos = _simulation.Entities.GetTransform(state.Entity).Position;
         if (activeSlot.Quantity > 0 &&

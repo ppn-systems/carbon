@@ -91,7 +91,7 @@ public sealed partial class AuthoritativeWorld
                 return new WorldMutationOutcome(OpStatus.Forbidden, 0);
             }
 
-            state.Cooldowns.StartCooldown(AttackAbilityId, _currentTick, this.ScaleAttackCooldownLocked(state, (uint)Math.Max(10, this.TickRate / 2)));
+            state.Cooldowns.StartCooldown(AttackAbilityId, _currentTick, _needs.ScaleAttackCooldown(state.Entity, (uint)Math.Max(10, this.TickRate / 2)));
 
             ItemSlot activeSlot = state.Session.SelectedHotbarSlot < state.Inventory.Capacity
                 ? state.Inventory.GetSlot(state.Session.SelectedHotbarSlot)
