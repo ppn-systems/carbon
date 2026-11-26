@@ -15,6 +15,7 @@ using Carbon.Infrastructure.Configuration;
 using Carbon.Infrastructure.Persistence.Postgres;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Infrastructure.Security;
+using Carbon.Items.Catalog;
 using Carbon.Server.Configuration;
 using Carbon.Survival.Config;
 using Carbon.Survival.Food;
@@ -105,11 +106,10 @@ public static class Program
                 config.ManifestVersion);
         }
 
-        GameEconomy economy = GameEconomy.Load(
-            ReadDocument(config, GameEconomy.ItemsFile),
-            ReadDocument(config, GameEconomy.RecipesFile),
-            ReadDocument(config, GameEconomy.EconomyFile),
-            ReadDocument(config, GameEconomy.LootFile));
+        GameEconomy economy = GameEconomy.Load(config.Catalog);
+
+        // Item stats and recipes used by combat, harvesting, crafting and inventory come from the same snapshot.
+        StarterGameCatalog.Install(economy.Items, economy.Recipes);
 
         // Survival tuning (hunger decay, food nutrition) comes from the same served snapshot.
         NeedsConfig needsConfig = NeedsConfig.LoadFromJson(ReadDocument(config, "needs.json"));

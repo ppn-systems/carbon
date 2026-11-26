@@ -35,6 +35,9 @@ public sealed class RecipeCatalog
     /// <summary>Gets the number of recipes.</summary>
     public int Count => _byId.Count;
 
+    /// <summary>Gets the recipes as a registry keyed by recipe id.</summary>
+    public DefinitionRegistry<uint, CraftingRecipe> Registry => _byId;
+
     /// <summary>
     /// Parses, validates and compiles a <c>recipes.json</c> document.
     /// </summary>

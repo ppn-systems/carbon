@@ -38,39 +38,57 @@ public sealed class InventoryCodecAndCatalogTests
     }
 
     [Fact]
-    public void StarterGameCatalog_AllCraftingRecipesShouldCraftEndToEnd()
+    public void StarterGameCatalog_EveryDataDrivenRecipe_CraftsAtomicallyFromItsIngredients()
     {
-        InventoryContainer bag = new(64);
-        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.WoodLog, 90), 99);
-        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.WoodLog, 60), 99);
-        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.StoneChunk, 90), 99);
-        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.IronOre, 90), 99);
-        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.IronOre, 90), 99);
-        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.ManaCrystal, 90), 99);
-        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.BerryHerb, 40), 99);
-        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.BeastPelt, 30), 99);
-        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.BoneShard, 30), 99);
-        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.DemonEmber, 30), 99);
-
         ReadOnlySpan<CraftingRecipe> recipes = StarterGameCatalog.Recipes.All;
-        recipes.Length.Should().Be(34);
+        recipes.Length.Should().Be(StarterGameCatalog.RecipeCatalog.Count, "recipes come from recipes.json");
+        recipes.Length.Should().BeGreaterThan(40);
 
         for (int i = 0; i < recipes.Length; i++)
         {
             CraftingRecipe recipe = recipes[i];
-            int maxStack = StarterGameCatalog.GetMaxStackSize(recipe.Output.ItemId);
-            RecipeMatcher.CanCraft(bag, recipe).Should().BeTrue($"recipe {recipe.Id} should be craftable");
-            RecipeMatcher.TryCraft(bag, recipe, maxStack).Should().BeTrue($"recipe {recipe.Id} should craft cleanly");
-        }
+            InventoryContainer bag = new(16);
+            foreach (RecipeIngredient ingredient in recipe.Ingredients)
+            {
+                bag.TryAdd(new ItemSlot(ingredient.ItemId, ingredient.Quantity), StarterGameCatalog.GetMaxStackSize(ingredient.ItemId)).Should().Be(0);
+            }
 
-        bag.CountItem(StarterGameCatalog.CrystalPickaxe).Should().Be(1);
-        bag.CountItem(StarterGameCatalog.IronSword).Should().Be(1);
-        bag.CountItem(StarterGameCatalog.HuntingBow).Should().Be(2);
-        bag.CountItem(StarterGameCatalog.ArcaneStaff).Should().Be(1);
-        bag.CountItem(StarterGameCatalog.ForgeAnvilKit).Should().Be(1);
-        bag.CountItem(StarterGameCatalog.StoneWallKit).Should().Be(2);
-        bag.CountItem(StarterGameCatalog.IronHelmet).Should().Be(1);
-        bag.CountItem(StarterGameCatalog.CrystalRobe).Should().Be(1);
+            RecipeMatcher.TryCraft(bag, recipe, StarterGameCatalog.ItemCatalog, CraftContext.Unrestricted).IsOk.Should().BeTrue($"recipe '{recipe.Code}' should craft from exactly its ingredients");
+            for (int o = 0; o < recipe.OutputCount; o++)
+            {
+                ItemSlot output = recipe.GetOutput(o);
+                bag.CountItem(output.ItemId).Should().BeGreaterThanOrEqualTo(output.Quantity, $"'{recipe.Code}' output {o}");
+            }
+
+            foreach (RecipeIngredient ingredient in recipe.Ingredients)
+            {
+                bool alsoOutput = false;
+                for (int o = 0; o < recipe.OutputCount; o++)
+                {
+                    alsoOutput |= recipe.GetOutput(o).ItemId == ingredient.ItemId;
+                }
+
+                if (!alsoOutput)
+                {
+                    bag.CountItem(ingredient.ItemId).Should().Be(0, $"'{recipe.Code}' consumes its ingredients");
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void StarterGameCatalog_ItemArchetypes_ComeFromItemsJsonStats()
+    {
+        StarterGameCatalog.Items.Count.Should().Be(StarterGameCatalog.ItemCatalog.Count, "every items.json entry has an archetype");
+        ItemArchetype axe = StarterGameCatalog.Items.GetRequired(StarterGameCatalog.WoodAxe);
+        axe.EquipSlot.Should().Be(EquipmentSlotKind.Tool);
+        axe.HarvestTier.Should().Be(1);
+        axe.Capabilities.Should().Be(ToolCapabilities.ChopFlora);
+        axe.FloraHarvestDamage.Should().Be(55f);
+        StarterGameCatalog.Items.GetRequired(StarterGameCatalog.HuntingBow).ProjectileSpeed.Should().Be(520f);
+        StarterGameCatalog.Items.GetRequired(StarterGameCatalog.WoodWallKit).PlaceableStructureType.Should().Be(1);
+        StarterGameCatalog.Items.TryGet(StarterGameCatalog.ItemCatalog.ResolveId("ember_blade"), out ItemArchetype? blade).Should().BeTrue("items beyond the starter set are simulated too");
+        blade!.Capabilities.Should().HaveFlag(ToolCapabilities.MeleeWeapon);
     }
 
     [Fact]

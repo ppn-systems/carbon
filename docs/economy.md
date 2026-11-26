@@ -184,11 +184,28 @@ Ids 1–39 keep the `StarterGameCatalog` ids and codes, and a test checks catego
 
 ## 9. Server integration
 
-- **Loading.** `server/Carbon.Host/Program.cs` calls `GameEconomy.FindConfigDirectory` and `GameEconomy.LoadFromDirectory` at boot. The Host copies `resources/config/*.json` to `config/` next to its binaries. A missing or invalid config fails the boot, so the server never runs with silent defaults.
+- **Loading.** The Host builds `GameEconomy.Load(ConfigRepository.Catalog)` from the same snapshot it serves to clients (ADR-014), then calls `StarterGameCatalog.Install(items, recipes)`. A missing or invalid config fails the boot.
+- **One source for item stats and recipes.** `items.json` holds combat, tool, armor and consumable stats: `equipSlot`, `harvestTier`, `baseDamage`, `critChance`, harvest damage, `armorDefense`, bonuses, heals, `attackRange`, projectile fields and `capabilities`. `recipes.json` holds every recipe. `StarterGameCatalog.Items` and `StarterGameCatalog.Recipes` are built from these documents and keep their old API shape.
+  - The server installs them at boot.
+  - The desktop reinstalls them after every verified config sync (`SyncedItemCatalog.Apply`), so tooltips, the hotbar, the crafting window and client prediction use the server's bytes.
+  - Before the first install, both fall back to a build-time copy of the shipped `resources/config` embedded in `Carbon.Items`.
+  - A guard test fails if desktop, graphics or `StarterGameCatalog` construct item or recipe definitions in code.
 - **Kills.** `AuthoritativeWorld.TryRollEconomyLootLocked` (`server/Carbon.Application/World/AuthoritativeWorld.Economy.cs`) replaces the hardcoded `MonsterArchetypeSpec` drops for every monster that has a loot table:
   - `WildSlime` → `slime`, `SkeletonArcher` → `skeleton`, `OrcShaman` → `orc`, `CrimsonDemon` → `demon`, `RockGolem` → `golem`, `FrostWolf` → `wolf`, `AshWraith` → `wraith`.
   - Item stacks become ground loot. Gold and diamonds go into the killer's `Wallet`, and the killer's `LootPity` counter is updated.
-- **Crafting.** `PlayerInventoryLayout.TryCraftInBag`, which `TryCraftRecipe` uses, now runs through `RecipeMatcher` on a draft of the bag slots. It is all-or-nothing, never consumes forge-upgraded stacks, and never touches equipment slots.
+- **Crafting.** `TryCraftRecipe` runs `recipes.json` recipes through `CraftingCheckout`, on a draft of the bag slots only. Each craft is all-or-nothing, never consumes forge-upgraded stacks, and charges the station fee.
+  - **Station:** must be within 5 tiles.
+
+    | Recipe station | Satisfied by |
+    | :--- | :--- |
+    | hand | anywhere |
+    | workbench | a built Workbench |
+    | stove | a Stove or Campfire |
+    | forge | a ForgeAnvil or a forge-artisan NPC (the sanctuary blacksmith) |
+    | alchemy | a Shrine Keeper NPC |
+
+    Otherwise the craft fails with `OutOfRange`.
+  - **Level gate:** the character level must meet `unlockLevel`, otherwise the craft fails with `Forbidden`. There are no crafting skills yet, so the character level also stands in for `skillLevel`.
 - **Art.** Every item with id ≥ 100 has a `resources/art/items/<code>.cvg.json` icon registered in `catalog.cvg.json`.
 
 **Wallet persistence, sync and sinks** ([ADR-012](adr/ADR-012-server-authoritative-wallet-persistence-and-sync.md)):

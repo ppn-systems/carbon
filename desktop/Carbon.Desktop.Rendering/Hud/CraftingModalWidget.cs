@@ -418,7 +418,8 @@ internal sealed class CraftingModalWidget
             float headerMaxW = rightPane.Right - headerX - MathF.Round(14f * s);
             string title = CarbonUiSkin.TruncateToWidth(font, $"{SyncedItemCatalog.GetDisplayName(outId)} x{selectedRec.Output.Quantity}", headerMaxW, layout.TitleScale);
             spriteBatch.DrawOutlinedString(font, title, new Vector2(headerX, outBox.Y + MathF.Round(4f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TitleScale);
-            spriteBatch.DrawOutlinedString(font, $"Owned: {owned}", new Vector2(headerX, outBox.Y + MathF.Round(38f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
+            string requirement = CarbonUiSkin.TruncateToWidth(font, $"Owned: {owned}  |  {FormatRequirement(selectedRec)}", headerMaxW, layout.TextScale);
+            spriteBatch.DrawOutlinedString(font, requirement, new Vector2(headerX, outBox.Y + MathF.Round(38f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
 
             float detailPad = MathF.Round(16f * s);
             spriteBatch.DrawOutlinedString(
@@ -461,6 +462,22 @@ internal sealed class CraftingModalWidget
             CarbonUiSkin.DrawCenteredText(spriteBatch, font, "CRAFT x1", GetCraft1ButtonRect(in layout), CarbonUiPalette.TextPrimary, black, layout.TextScale);
             CarbonUiSkin.DrawCenteredText(spriteBatch, font, "CRAFT x5", GetCraft5ButtonRect(in layout), CarbonUiPalette.TextPrimary, black, layout.TextScale);
         }
+    }
+
+    /// <summary>Formats the recipes.json station and unlock-level gate the server enforces (e.g. <c>Forge Lv 12</c>).</summary>
+    private static string FormatRequirement(CraftingRecipe recipe)
+    {
+        string station = recipe.Station switch
+        {
+            CraftingStation.None => "Hand",
+            CraftingStation.Workbench => "Workbench",
+            CraftingStation.Forge => "Forge",
+            CraftingStation.Stove => "Stove/Campfire",
+            CraftingStation.Alchemy => "Shrine",
+            _ => recipe.Station.ToString(),
+        };
+
+        return recipe.UnlockLevel > 1 ? $"{station} Lv {recipe.UnlockLevel}" : station;
     }
 
     private int CountMatches(ReadOnlySpan<ItemSlot> slots, ReadOnlySpan<CraftingRecipe> recipes)
