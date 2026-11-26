@@ -10,7 +10,8 @@ namespace Carbon.Configuration.Caching;
 /// <summary>
 /// <see cref="IConfigCacheStorage"/> that keeps one <c>&lt;name&gt;.json</c> file per document in a directory.
 /// Writes go to a temporary file first and are then moved into place, so a crash never leaves a half-written file
-/// under the real name (and a corrupt file would be rejected by its hash anyway).
+/// under the real name (and a corrupt file would be rejected by its hash anyway). Concurrent writers of the same
+/// document each use their own temporary file; the last rename wins.
 /// </summary>
 public sealed class FileSystemConfigCacheStorage : IConfigCacheStorage
 {
@@ -49,13 +50,24 @@ public sealed class FileSystemConfigCacheStorage : IConfigCacheStorage
         string path = this.PathOf(name);
         _ = System.IO.Directory.CreateDirectory(_directory);
 
-        string temp = path + ".tmp";
-        using (FileStream stream = new(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+        // A unique temp name per write: several clients on one machine may share the cache and save the same document.
+        string temp = $"{path}.{Guid.NewGuid():N}.tmp";
+        try
         {
-            stream.Write(utf8);
-        }
+            using (FileStream stream = new(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                stream.Write(utf8);
+            }
 
-        File.Move(temp, path, overwrite: true);
+            File.Move(temp, path, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temp))
+            {
+                File.Delete(temp);
+            }
+        }
     }
 
     /// <inheritdoc/>

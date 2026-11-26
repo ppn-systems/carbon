@@ -28,6 +28,27 @@ public sealed class FileSystemConfigCacheStorageTests : IDisposable
         storage.TryRead("items", out _).Should().BeFalse();
     }
 
+    [Fact]
+    public void Write_ConcurrentWritersOfSameDocument_AllSucceedAndLeaveNoTempFiles()
+    {
+        FileSystemConfigCacheStorage storage = new(_directory);
+        byte[] bytes = ConfigTestServer.Utf8("{\"monsters\":[1,2,3]}");
+
+        System.Threading.Tasks.Parallel.For(0, 32, _ => storage.Write("monsters", bytes));
+
+        storage.TryRead("monsters", out byte[]? read).Should().BeTrue();
+        read.Should().Equal(bytes);
+        Directory.GetFiles(_directory).Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Save_StorageFailure_ReturnsFalseInsteadOfThrowing()
+    {
+        ConfigDocumentStore store = new(new ThrowingStorage());
+
+        store.Save("items", [1, 2]).Should().BeFalse();
+    }
+
     [Theory]
     [InlineData("../escape")]
     [InlineData("Items")]
@@ -40,6 +61,21 @@ public sealed class FileSystemConfigCacheStorageTests : IDisposable
         Action act = () => storage.Write(name, [1]);
 
         act.Should().Throw<ArgumentException>();
+    }
+
+    private sealed class ThrowingStorage : IConfigCacheStorage
+    {
+        public bool TryRead(string name, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out byte[]? utf8)
+        {
+            utf8 = null;
+            return false;
+        }
+
+        public void Write(string name, ReadOnlySpan<byte> utf8) => throw new IOException("locked");
+
+        public void Delete(string name)
+        {
+        }
     }
 
     public void Dispose()

@@ -2,6 +2,7 @@
 
 using System;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 
 namespace Carbon.Configuration.Caching;
 
@@ -42,12 +43,24 @@ public sealed class ConfigDocumentStore
         return false;
     }
 
-    /// <summary>Persists a document whose bytes were already verified against the manifest.</summary>
+    /// <summary>
+    /// Persists a document whose bytes were already verified against the manifest. The cache only saves bandwidth on the
+    /// next sync, so a storage failure (disk full, file locked by another client) is reported but never fails the sync.
+    /// </summary>
     /// <param name="name">Document name.</param>
     /// <param name="utf8">Verified document bytes.</param>
-    public void Save(string name, ReadOnlySpan<byte> utf8)
+    /// <returns><see langword="true"/> when the document was persisted.</returns>
+    public bool Save(string name, ReadOnlySpan<byte> utf8)
     {
         ArgumentNullException.ThrowIfNull(name);
-        _storage.Write(name, utf8);
+        try
+        {
+            _storage.Write(name, utf8);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 }

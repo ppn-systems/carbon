@@ -161,7 +161,7 @@ public sealed class ConfigSyncClient
             return;
         }
 
-        _store.Save(entry.Name, pending.Buffer);
+        _ = _store.Save(entry.Name, pending.Buffer);
         _verified[entry.Name] = pending.Buffer;
         _ = _pending.Remove(entry.Name);
     }
