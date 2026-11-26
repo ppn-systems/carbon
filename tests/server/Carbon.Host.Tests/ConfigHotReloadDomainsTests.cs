@@ -10,6 +10,7 @@ using Carbon.Application.World;
 using Carbon.Contracts.Config.S2C;
 using Carbon.Economy;
 using Carbon.Infrastructure.Persistence.Sqlite;
+using Carbon.Items.Catalog;
 using Carbon.Items.Definitions;
 using Carbon.Server.Configuration;
 using FluentAssertions;
@@ -93,6 +94,7 @@ public sealed partial class ConfigHotReloadDomainsTests : IDisposable
         _world.Economy.Should().NotBeSameAs(economyBefore);
         _world.Economy!.Items.TryGet(first.Id, out ItemCatalogEntry? swapped).Should().BeTrue();
         swapped!.Name.Should().Be("Hot Reloaded Name");
+        StarterGameCatalog.Items.GetRequired(first.Id).DisplayName.Should().Be("Hot Reloaded Name", "item stats and recipes are re-installed with the economy");
         _world.NeedsConfig.FoodMax.Should().Be(foodMaxBefore + 50f);
         _world.FoodCatalog.Count.Should().BeGreaterThan(0);
     }
@@ -141,6 +143,9 @@ public sealed partial class ConfigHotReloadDomainsTests : IDisposable
 
     public void Dispose()
     {
+        // Put the shipped item and recipe tables back for other tests in this process.
+        GameEconomy shipped = GameEconomy.LoadFromDirectory(GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!);
+        StarterGameCatalog.Install(shipped.Items, shipped.Recipes);
         _db.Dispose();
         SqliteConnection.ClearAllPools();
         Directory.Delete(_root, recursive: true);

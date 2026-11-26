@@ -108,7 +108,7 @@ public sealed partial class AuthoritativeWorld
 
                 if (isDestroyed)
                 {
-                    ItemSlot drop = PropHarvestCatalog.ResolveDropForPropTypeCode((byte)updated.Type, out uint propXp);
+                    ItemSlot drop = PropHarvestCatalog.ResolveDrop(updated.Type, out uint propXp);
                     if (!drop.IsEmpty)
                     {
                         Vector2 propDropPos = new((tileX + 0.5f) * this.TileSize, (tileY + 0.5f) * this.TileSize);
@@ -498,7 +498,7 @@ public sealed partial class AuthoritativeWorld
 
         if (updated.Destructibility.IsDestroyed)
         {
-            ItemSlot drop = PropHarvestCatalog.ResolveDropForPropTypeCode((byte)updated.Type, out uint propXp);
+            ItemSlot drop = PropHarvestCatalog.ResolveDrop(updated.Type, out uint propXp);
             if (!drop.IsEmpty)
             {
                 Vector2 propDropPos = new((wx + 0.5f) * this.TileSize, (wy + 0.5f) * this.TileSize);

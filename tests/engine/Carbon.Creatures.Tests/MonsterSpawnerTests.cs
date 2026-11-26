@@ -34,6 +34,18 @@ public sealed class MonsterSpawnerTests
     }
 
     [Fact]
+    public void Update_FirstScanWithAnchorAtWorldSpawn_PopulatesHeartlandImmediately()
+    {
+        SpawnRun run = new(seed: 11UL, anchor: Vector2.Zero);
+
+        run.Spawner.RequestScan();
+        run.Step(1);
+
+        run.Spawns.Should().HaveCountGreaterThanOrEqualTo(3, "rejected candidates retry within the scan instead of waiting a spawn interval");
+        run.Spawns.Should().OnlyContain(s => s.Position.Length() >= run.Config.SafeZoneRadius);
+    }
+
+    [Fact]
     public void Update_SameSeed_ProducesIdenticalSpawns()
     {
         SpawnRun a = new(seed: 42UL, anchor: s_frontier);

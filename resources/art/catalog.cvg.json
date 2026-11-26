@@ -831,6 +831,14 @@
       "file": "items/ash_essence.cvg.json"
     },
     {
+      "itemId": 112,
+      "id": "cactus_fiber",
+      "displayName": "Cactus Fiber",
+      "tier": 1,
+      "accentColor": "#65A30D",
+      "file": "items/cactus_fiber.cvg.json"
+    },
+    {
       "itemId": 203,
       "id": "rotten_food",
       "displayName": "Rotten Food",

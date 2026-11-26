@@ -1,7 +1,10 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Text;
+using Carbon.Configuration.Catalog;
 using Carbon.Economy.Config;
 using Carbon.Economy.Crafting;
 using Carbon.Economy.Loot;
@@ -80,6 +83,24 @@ public sealed class GameEconomy
     }
 
     /// <summary>
+    /// Builds the economy from the server's config snapshot (<c>ConfigRepository.Catalog</c>), so the server simulates
+    /// exactly the bytes it serves to clients.
+    /// </summary>
+    /// <param name="config">Config snapshot holding <c>items</c>, <c>recipes</c>, <c>economy</c> and <c>loot</c>.</param>
+    /// <returns>The validated economy.</returns>
+    /// <exception cref="InvalidDataException">Thrown when a document is malformed or inconsistent.</exception>
+    /// <exception cref="KeyNotFoundException">Thrown when a document is missing.</exception>
+    public static GameEconomy Load(ConfigCatalog config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        return Load(
+            Read(config, ItemsFile),
+            Read(config, RecipesFile),
+            Read(config, EconomyFile),
+            Read(config, LootFile));
+    }
+
+    /// <summary>
     /// Loads the economy from a directory containing the four config files.
     /// </summary>
     /// <param name="configDirectory">Directory holding <c>items.json</c>, <c>recipes.json</c>, <c>economy.json</c> and <c>loot.json</c>.</param>
@@ -122,4 +143,7 @@ public sealed class GameEconomy
 
         return null;
     }
+
+    private static string Read(ConfigCatalog config, string fileName) =>
+        Encoding.UTF8.GetString(config.GetUtf8(Path.GetFileNameWithoutExtension(fileName)));
 }

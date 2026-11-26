@@ -5,19 +5,25 @@ using System.IO;
 using System.Text;
 using Carbon.Configuration.Catalog;
 using Carbon.Items.Catalog;
+using Carbon.Items.Crafting;
 using Carbon.Items.Definitions;
 
 namespace Carbon.Desktop.Abstractions.Configuration;
 
 /// <summary>
-/// The client's view of the server's <c>items.json</c> (ADR-014): item names, stack sizes and durability come from the
-/// synced document, never from tables compiled into the client, so items the server adds show up without a client build.
+/// The client's view of the server's <c>items.json</c> and <c>recipes.json</c> (ADR-014): item names, stats, stack sizes,
+/// durability and recipes come from the synced documents, never from tables compiled into the client, so items and recipes
+/// the server adds show up without a client build. Each verified sync also installs them as <see cref="StarterGameCatalog"/>'s
+/// active tables, which the HUD, crafting window and client prediction read.
 /// Replaced whole each time a sync completes; readers on any thread see either the old or the new catalog.
 /// </summary>
 public static class SyncedItemCatalog
 {
     /// <summary>Name of the synced document.</summary>
     public const string DocumentName = "items";
+
+    /// <summary>Name of the synced recipe document.</summary>
+    public const string RecipesDocumentName = "recipes";
 
     private static volatile ItemCatalog? s_current;
 
@@ -37,7 +43,18 @@ public static class SyncedItemCatalog
 
         try
         {
-            s_current = ItemCatalog.LoadFromJson(Encoding.UTF8.GetString(entry.Utf8.Span));
+            ItemCatalog items = ItemCatalog.LoadFromJson(Encoding.UTF8.GetString(entry.Utf8.Span));
+
+            // Item stats and recipes the client predicts and displays come from the same synced bytes the server runs;
+            // recipe ids must match the server's, so a sync without a valid recipes.json is rejected as a whole.
+            if (!config.TryGet(RecipesDocumentName, out ConfigCatalogEntry? recipesEntry))
+            {
+                return false;
+            }
+
+            RecipeCatalog recipes = RecipeCatalog.LoadFromJson(Encoding.UTF8.GetString(recipesEntry.Utf8.Span), items);
+            StarterGameCatalog.Install(items, recipes);
+            s_current = items;
             return true;
         }
         catch (InvalidDataException)

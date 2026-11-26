@@ -42,6 +42,63 @@ public sealed record ItemCatalogEntry : IDataDefinition<uint>
     /// <summary>Gets a value indicating whether NPC vendors sell this item to players.</summary>
     public bool VendorBuyable { get; set; }
 
+    /// <summary>Gets the equipment slot the item goes into (<see cref="EquipmentSlotKind.None"/> when not equippable).</summary>
+    public EquipmentSlotKind EquipSlot { get; set; }
+
+    /// <summary>Gets the harvest power tier of tools.</summary>
+    public byte HarvestTier { get; set; }
+
+    /// <summary>Gets the <c>StructureType</c> byte placed by placeable kits.</summary>
+    public byte PlaceableStructureType { get; set; }
+
+    /// <summary>Gets the baseline melee combat damage.</summary>
+    public float BaseDamage { get; set; } = 12f;
+
+    /// <summary>Gets the critical strike probability (<c>0..1</c>).</summary>
+    public float CritChance { get; set; }
+
+    /// <summary>Gets the harvest power against trees and flora.</summary>
+    public float FloraHarvestDamage { get; set; } = 20f;
+
+    /// <summary>Gets the harvest power against stone, ore and crystal.</summary>
+    public float MineralHarvestDamage { get; set; } = 10f;
+
+    /// <summary>Gets the flat defense when equipped.</summary>
+    public float ArmorDefense { get; set; }
+
+    /// <summary>Gets the bonus maximum health when equipped.</summary>
+    public float BonusHealth { get; set; }
+
+    /// <summary>Gets the bonus maximum mana when equipped.</summary>
+    public float BonusMana { get; set; }
+
+    /// <summary>Gets the health restored when consumed.</summary>
+    public float HealHealth { get; set; }
+
+    /// <summary>Gets the mana restored when consumed.</summary>
+    public float RestoreMana { get; set; }
+
+    /// <summary>Gets the stamina restored when consumed.</summary>
+    public float RestoreStamina { get; set; }
+
+    /// <summary>Gets the concise HUD tooltip hint.</summary>
+    public string ActionHint { get; set; } = string.Empty;
+
+    /// <summary>Gets the melee or projectile range in world units.</summary>
+    public float AttackRange { get; set; } = 72f;
+
+    /// <summary>Gets the projectile speed (<c>0</c> = melee).</summary>
+    public float ProjectileSpeed { get; set; }
+
+    /// <summary>Gets the projectile visual archetype byte.</summary>
+    public byte ProjectileArchetype { get; set; }
+
+    /// <summary>Gets the mana cost per shot or cast.</summary>
+    public float AttackManaCost { get; set; }
+
+    /// <summary>Gets the explicit tool/weapon capability flags.</summary>
+    public ToolCapabilities Capabilities { get; set; }
+
     /// <summary>Gets the theme tags (monster family such as <c>slime</c>, or <c>generic</c>) used by loot validation.</summary>
     public IReadOnlyList<string> Tags { get; set; } = [];
 }

@@ -10,6 +10,7 @@ using Carbon.Application.World;
 using Carbon.Configuration.Catalog;
 using Carbon.Creatures;
 using Carbon.Economy;
+using Carbon.Items.Catalog;
 using Carbon.Maps.Building;
 using Carbon.Server.Configuration;
 using Carbon.Survival.Config;
@@ -43,11 +44,7 @@ internal sealed record ServerGameData(GameEconomy Economy, NeedsConfig Needs, Fo
         ArgumentNullException.ThrowIfNull(catalog);
         try
         {
-            GameEconomy economy = GameEconomy.Load(
-                Read(catalog, GameEconomy.ItemsFile),
-                Read(catalog, GameEconomy.RecipesFile),
-                Read(catalog, GameEconomy.EconomyFile),
-                Read(catalog, GameEconomy.LootFile));
+            GameEconomy economy = GameEconomy.Load(catalog);
             NeedsConfig needs = NeedsConfig.LoadFromJson(Read(catalog, "needs.json"));
             FoodCatalog food = FoodCatalog.LoadFromJson(Read(catalog, "food.json"), needs.FoodMax);
             return new ServerGameData(economy, needs, food);
@@ -97,7 +94,13 @@ internal sealed record ServerGameData(GameEconomy Economy, NeedsConfig Needs, Fo
             }
 
             ServerGameData data = Load(next);
-            return () => world.ApplyGameData(data.Economy, data.Needs, data.Food);
+            return () =>
+            {
+                world.ApplyGameData(data.Economy, data.Needs, data.Food);
+
+                // Item stats and recipes swap with the economy, matching what clients re-sync.
+                StarterGameCatalog.Install(data.Economy.Items, data.Economy.Recipes);
+            };
         });
     }
 

@@ -17,6 +17,7 @@ using Carbon.Economy;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
+using Carbon.Items.Crafting;
 using Carbon.Items.Serialization;
 using Carbon.Maps.Building;
 using Carbon.Survival.Config;
@@ -29,6 +30,41 @@ namespace Carbon.Host.Tests;
 
 public sealed class AuthoritativeWorldMultiplayerTests
 {
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(13, 23)]
+    public async Task TryEnterWorld_PlayerInHeartlandNearSpawn_SeesWildSlimeWithinOneSecond(int offsetTilesX, int offsetTilesY)
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-heartland-spawn-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
+            RecordingOutboundSink sink = new();
+            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), new SqliteCharacterStore(factory), sink);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+            Vector2 position = world.DefaultSpawnWorldPosition + (new Vector2(offsetTilesX, offsetTilesY) * 32f);
+            CharacterRecord hero = new(Guid.NewGuid(), Guid.NewGuid(), "Newcomer", 1, 0, position.X, position.Y, 100f, 100f, 0, [], DateTimeOffset.UtcNow);
+            world.TryEnterWorld(connectionId: 77UL, sessionId: 77UL, hero).Status.Should().Be(OpStatus.Ok);
+
+            // One second at 30 Hz: the entry scan must populate the heartland immediately, not after spawn intervals.
+            for (int tick = 0; tick < 30; tick++)
+            {
+                world.StepFixedTick();
+            }
+
+            sink.Spawns.Should().Contain(
+                s => s.ConnectionId == 77UL && s.Snapshot.Kind == EntityKind.Monster && s.Snapshot.ArchetypeId == WorldActorCatalog.WildSlime,
+                "a new player in the heartland must see at least one slime right away");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            File.Delete(dbPath);
+        }
+    }
+
     [Fact]
     public async Task TwoPlayersEnteringSteppingBuildingAndLeaving_ShouldSyncAoiAndPersistDeltas()
     {
@@ -214,12 +250,17 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 now);
 
             world.TryEnterWorld(connectionId: 101UL, sessionId: 1UL, scout).Status.Should().Be(OpStatus.Ok);
-            world.TryCraftRecipe(101UL, recipeId: 1, quantity: 1).Should().Be(OpStatus.Ok);
+            // recipes.json: planks are hand-crafted anywhere; walls need a built workbench nearby.
+            StarterGameCatalog.RecipeCatalog.TryGetByCode("wood_plank", out CraftingRecipe? plankRecipe).Should().BeTrue();
+            StarterGameCatalog.RecipeCatalog.TryGetByCode("wood_wall", out CraftingRecipe? wallRecipe).Should().BeTrue();
+            world.TryCraftRecipe(101UL, recipeId: (ushort)plankRecipe!.Id, quantity: 2).Should().Be(OpStatus.Ok);
             sink.SlotChanges.Should().NotBeEmpty();
+            world.TryCraftRecipe(101UL, recipeId: (ushort)wallRecipe!.Id, quantity: 1).Should().Be(OpStatus.OutOfRange, "wood walls are crafted at a workbench");
+            world.TryCraftRecipe(101UL, recipeId: 9999, quantity: 1).Should().Be(OpStatus.NotFound);
 
             List<(ushort SlotIndex, ItemSlot Slot)> invSnapshot = [];
             world.GetInventorySnapshot(101UL, invSnapshot).Should().BeTrue();
-            invSnapshot.Should().Contain(s => s.Slot.ItemId == StarterGameCatalog.WoodWallKit && s.Slot.Quantity == 8);
+            invSnapshot.Should().Contain(s => s.Slot.ItemId == plankRecipe.Output.ItemId && s.Slot.Quantity == 4, "two crafts of 1 log → 2 planks");
 
             // Step to populate & stream AoI around world spawn (or enter near wilderness monster chunk).
             world.StepFixedTick();
@@ -1143,7 +1184,8 @@ public sealed class AuthoritativeWorldMultiplayerTests
             mob.Should().NotBeNull("the data-driven spawner populates cells around an entering player");
             mob!.Value.ArchetypeId.Should().BeInRange(101, 109, "monsters replicate their WorldActorCatalog rig archetype");
 
-            CharacterRecord bait = scout with { Id = Guid.NewGuid(), Name = "Bait", PositionX = mob.Value.PositionX + 30f, PositionY = mob.Value.PositionY };
+            // Aggro needs line of sight; with seed 1337 the west side of this mob is clear of props.
+            CharacterRecord bait = scout with { Id = Guid.NewGuid(), Name = "Bait", PositionX = mob.Value.PositionX - 30f, PositionY = mob.Value.PositionY };
             EnterWorldResult baitEnter = world.TryEnterWorld(connectionId: 404UL, sessionId: 4UL, bait);
             baitEnter.Status.Should().Be(OpStatus.Ok);
 
@@ -1177,6 +1219,57 @@ public sealed class AuthoritativeWorldMultiplayerTests
             firstHitTick.Should().BeGreaterThanOrEqualTo(0, "the monster eventually lands a hit");
             firstActiveTick.Should().BeInRange(0, firstHitTick, "damage is only resolved once an attack reaches its active phase");
             sink.SkillCasts.Should().NotContain(c => c.CasterNetworkId == mob.Value.NetworkId, "monster attacks no longer overload SkillCastBroadcast");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ForgeRecipe_AtSanctuaryBlacksmith_EnforcesUnlockLevelAndChargesStationFee()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-forge-craft-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
+            RecordingOutboundSink sink = new();
+            GameEconomy economy = GameEconomy.LoadFromDirectory(GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!);
+            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), new SqliteCharacterStore(factory), sink, economy: economy);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+            economy.Recipes.TryGetByCode("copper_ingot", out CraftingRecipe? copper).Should().BeTrue();
+            economy.Recipes.TryGetByCode("iron_ingot", out CraftingRecipe? iron).Should().BeTrue();
+            InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);
+            bag.SetSlot(0, new ItemSlot(economy.Items.ResolveId("copper_ore"), 2));
+            bag.SetSlot(1, new ItemSlot(economy.Items.ResolveId("coal"), 2));
+            bag.SetSlot(2, new ItemSlot(economy.Items.ResolveId("iron_ore"), 2));
+            CharacterRecord smith = new(
+                Guid.NewGuid(), Guid.NewGuid(), "Smith", (ushort)copper!.UnlockLevel, 0,
+                world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
+                100f, 100f, 0, InventoryBinaryCodec.Serialize(bag), DateTimeOffset.UtcNow, Gold: 100);
+            world.TryEnterWorld(990UL, 990UL, smith).Status.Should().Be(OpStatus.Ok);
+            world.StepFixedTick(); // spawns the sanctuary blacksmith next to spawn
+
+            world.TryCraftRecipe(990UL, (ushort)iron!.Id, 1).Should().Be(OpStatus.Forbidden, $"iron ingots unlock at level {iron.UnlockLevel}");
+            world.TryCraftRecipe(990UL, (ushort)copper.Id, 1).Should().Be(OpStatus.Ok, "the sanctuary blacksmith is a forge station");
+
+            long fee = economy.Prices.GetCraftingFee(copper);
+            fee.Should().BePositive();
+            world.TryGetWalletBalances(990UL, out long gold, out _).Should().BeTrue();
+            gold.Should().Be(100 - fee, "the forge fee is a gold sink");
+            sink.WalletSyncs.Should().Contain(w => w.ConnectionId == 990UL && w.Gold == gold);
+            List<(ushort SlotIndex, ItemSlot Slot)> inventory = [];
+            world.GetInventorySnapshot(990UL, inventory).Should().BeTrue();
+            inventory.Should().Contain(x => x.Slot.ItemId == copper.Output.ItemId && x.Slot.Quantity == 1);
+            inventory.Should().NotContain(x => x.Slot.ItemId == economy.Items.ResolveId("copper_ore"));
+
+            world.TryCraftRecipe(990UL, (ushort)copper.Id, 1).Should().Be(OpStatus.Conflict, "the ore is used up and nothing else changes");
         }
         finally
         {

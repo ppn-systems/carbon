@@ -37,8 +37,9 @@ public sealed class CraftingCheckout
     /// <param name="recipe">Recipe.</param>
     /// <param name="context">Crafter state.</param>
     /// <param name="tick">Simulation tick.</param>
+    /// <param name="slotLimit">Only the first <paramref name="slotLimit"/> slots are used (e.g. the bag, not equipped armor).</param>
     /// <returns>The craft result; on failure nothing changed.</returns>
-    public CraftResult TryCraft(Wallet wallet, InventoryContainer inventory, CraftingRecipe recipe, in CraftContext context, ulong tick = 0)
+    public CraftResult TryCraft(Wallet wallet, InventoryContainer inventory, CraftingRecipe recipe, in CraftContext context, ulong tick = 0, int slotLimit = int.MaxValue)
     {
         ArgumentNullException.ThrowIfNull(wallet);
         long fee = this.Prices.GetCraftingFee(recipe);
@@ -48,7 +49,7 @@ public sealed class CraftingCheckout
             return requirements.IsOk ? CraftResult.Fail(CraftFailure.InsufficientFunds) : requirements;
         }
 
-        CraftResult result = RecipeMatcher.TryCraft(inventory, recipe, this.Prices.Items, context);
+        CraftResult result = RecipeMatcher.TryCraft(inventory, recipe, this.Prices.Items, context, slotLimit);
         if (result.IsOk)
         {
             _ = wallet.TrySpend(CurrencyKind.Gold, fee, CurrencyReason.CraftingFee, tick);

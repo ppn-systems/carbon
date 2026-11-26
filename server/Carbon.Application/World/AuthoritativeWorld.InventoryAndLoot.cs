@@ -19,6 +19,8 @@ namespace Carbon.Application.World;
 
 public sealed partial class AuthoritativeWorld
 {
+    private const int CraftingStationReachTiles = 5;
+
     /// <inheritdoc/>
     public bool GetInventorySnapshot(ulong connectionId, List<(ushort SlotIndex, ItemSlot Slot)> output)
     {
@@ -130,24 +132,44 @@ public sealed partial class AuthoritativeWorld
 
         PlayerStatsSnapshot statsSnap;
         (ushort SlotIndex, ItemSlot Slot)[] modifiedCopy;
+        bool walletChanged;
+        long gold;
+        long diamonds;
+        ulong walletSequence;
         lock (_gate)
         {
-            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state))
+            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state) ||
+                !_simulation.Entities.HasTransform(state.Entity))
             {
                 return OpStatus.Forbidden;
             }
 
-            int maxOutStack = StarterGameCatalog.GetMaxStackSize(recipe.Output.ItemId);
+            // recipes.json rules: the station must be nearby; character level gates both unlock and skill (no crafting
+            // skills are tracked yet, so the character level stands in for the recipe's skill level).
+            Vector2 playerPos = _simulation.Entities.GetTransform(state.Entity).Position;
+            if (!this.IsCraftingStationAvailableLocked(recipe.Station, playerPos))
+            {
+                return OpStatus.OutOfRange;
+            }
+
+            CraftContext context = new(recipe.Station, state.Level, state.Level);
+            int bagLimit = Math.Min(PlayerInventoryLayout.BagLimit, state.Inventory.Capacity);
             _mutationSlotScratch.Clear();
             ReadOnlySpan<ItemSlot> beforeSlots = state.Inventory.Slots;
             Span<ItemSlot> beforeSnapshot = stackalloc ItemSlot[beforeSlots.Length];
             beforeSlots.CopyTo(beforeSnapshot);
+            ulong sequenceBefore = state.Wallet.Sequence;
 
             int crafted = 0;
+            CraftResult firstFailure = CraftResult.Ok;
             for (int q = 0; q < quantity; q++)
             {
-                if (!PlayerInventoryLayout.TryCraftInBag(state.Inventory, recipe, maxOutStack))
+                CraftResult result = _economy is not null
+                    ? _economy.Checkout.TryCraft(state.Wallet, state.Inventory, recipe, context, _currentTick, bagLimit)
+                    : RecipeMatcher.TryCraft(state.Inventory, recipe, StarterGameCatalog.ItemCatalog, context, bagLimit);
+                if (!result.IsOk)
                 {
+                    firstFailure = result;
                     break;
                 }
 
@@ -156,30 +178,7 @@ public sealed partial class AuthoritativeWorld
 
             if (crafted == 0)
             {
-                // Return Conflict if ingredients were missing on the first craft, or InventoryFull if bag lacked output space.
-                bool hasFirstCraftMats = true;
-                int bagCap = Math.Min(PlayerInventoryLayout.BagLimit, state.Inventory.Capacity);
-                for (int rIdx = 0; rIdx < recipe.Ingredients.Count; rIdx++)
-                {
-                    RecipeIngredient ing = recipe.Ingredients[rIdx];
-                    int avail = 0;
-                    for (int s = 0; s < bagCap; s++)
-                    {
-                        ItemSlot cur = state.Inventory.GetSlot(s);
-                        if (cur.ItemId == ing.ItemId && cur.Quantity > 0 && cur.UpgradeLevel == 0)
-                        {
-                            avail += cur.Quantity;
-                        }
-                    }
-
-                    if (avail < ing.Quantity)
-                    {
-                        hasFirstCraftMats = false;
-                        break;
-                    }
-                }
-
-                return hasFirstCraftMats ? OpStatus.InventoryFull : OpStatus.Conflict;
+                return firstFailure.Status;
             }
 
             CollectModifiedSlots(beforeSnapshot, state.Inventory.Slots, _mutationSlotScratch);
@@ -189,10 +188,18 @@ public sealed partial class AuthoritativeWorld
             this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
             statsSnap = this.BuildPlayerStatsSnapshotLocked(state, clearLevelUpPending: true);
             modifiedCopy = [.. _mutationSlotScratch];
+            walletChanged = state.Wallet.Sequence != sequenceBefore;
+            gold = state.Wallet.Gold;
+            diamonds = state.Wallet.Diamonds;
+            walletSequence = state.Wallet.Sequence;
         }
 
         this.SendSlotsOutbound(connectionId, modifiedCopy);
         _outboundSink.SendPlayerStatsSync(connectionId, in statsSnap);
+        if (walletChanged)
+        {
+            _outboundSink.SendWalletSync(connectionId, gold, diamonds, walletSequence);
+        }
 
         return OpStatus.Ok;
     }
@@ -740,6 +747,41 @@ public sealed partial class AuthoritativeWorld
         }
 
         return 0;
+    }
+
+    /// <summary>
+    /// Checks whether <paramref name="station"/> can be used at <paramref name="worldPos"/>: hand recipes anywhere; forge at
+    /// an anvil or forge-artisan NPC; workbench at a built workbench; stove at a built stove or campfire; alchemy at a
+    /// shrine keeper.
+    /// </summary>
+    private bool IsCraftingStationAvailableLocked(CraftingStation station, Vector2 worldPos) => station switch
+    {
+        CraftingStation.None => true,
+        CraftingStation.Forge => this.IsNearForgeStationLocked(worldPos),
+        CraftingStation.Workbench => this.IsNearStructureLocked(worldPos, StructureType.Workbench, StructureType.Workbench),
+        CraftingStation.Stove => this.IsNearStructureLocked(worldPos, StructureType.Stove, StructureType.Campfire),
+        CraftingStation.Alchemy => this.HasNearbyNpcWithCapabilityLocked(worldPos, 175f * 175f, NpcCapabilities.Shrine),
+        _ => false
+    };
+
+    private bool IsNearStructureLocked(Vector2 worldPos, StructureType first, StructureType second)
+    {
+        int ptx = (int)MathF.Floor(worldPos.X / this.TileSize);
+        int pty = (int)MathF.Floor(worldPos.Y / this.TileSize);
+        for (int dy = -CraftingStationReachTiles; dy <= CraftingStationReachTiles; dy++)
+        {
+            for (int dx = -CraftingStationReachTiles; dx <= CraftingStationReachTiles; dx++)
+            {
+                if (_chunkWorld.Buildings.TryGetStructure(ptx + dx, pty + dy, out StructureTile st) &&
+                    (st.Type == first || st.Type == second) &&
+                    !st.IsDestroyed)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private bool IsNearForgeStationLocked(Vector2 worldPos)
