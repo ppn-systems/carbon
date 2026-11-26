@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
 using Carbon.Application.World.Commands;
+using Carbon.Application.World.Loot;
 using Carbon.AI.Components;
 using Carbon.AI.Threat;
 using Carbon.Combat.Cooldowns;
@@ -56,13 +57,11 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private const uint PlayerLayer = 1U;
     private const uint MonsterLayer = 2U;
     private const uint NpcLayer = 4U;
-    private const uint LootLayer = 8U;
     private const uint ProjectileLayer = 16U;
     private const int PlayerInventoryCapacity = PlayerInventoryLayout.TotalCapacity;
     private const uint AttackAbilityId = 1U;
     private const uint SkillAbilityIdBase = 100U;
     private const uint ConsumableAbilityId = 5U;
-    private const ulong LootLifetimeTicks = 30UL * 120UL;
 
     private readonly Lock _gate = new();
     private readonly WorldCommandQueue _commands = new();
@@ -88,7 +87,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly Dictionary<ulong, ActivePlayerState> _playersByConnection = new();
     private readonly Dictionary<ulong, ulong> _connectionByNetworkId = new();
     private readonly Dictionary<ulong, NpcActorMeta> _actorsByNetworkId = new();
-    private readonly Dictionary<ulong, LootDropMeta> _lootByNetworkId = new();
+    private readonly GroundLootService _groundLoot;
     private readonly Dictionary<ulong, ProjectileActorMeta> _projectilesByNetworkId = new();
     private readonly HashSet<long> _populatedChunks = new();
     private readonly MonsterCatalog _creatureCatalog;
@@ -213,6 +212,12 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         _creatureCatalog = creatureContent.Catalog;
         _creatures = RegisterCreatureSystems(_simulation, creatureContent, _chunkWorld, this.WorldSeed, this.TileSize, new ServerAttackEffects(this));
         _simulation.RegisterSystem(new LootExpirationSystem());
+        _groundLoot = new GroundLootService(
+            _simulation,
+            () => _itemRules,
+            () => ++_nextNetworkId,
+            () => _currentTick,
+            this.QueueLootVisualRefreshLocked);
 
         _needsConfig = needsConfig ?? new NeedsConfig();
         _foodCatalog = foodCatalog ?? new FoodCatalog([], _needsConfig.FoodMax);
@@ -982,7 +987,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             archetype = meta.ArchetypeId;
             level = meta.Level;
         }
-        else if (_lootByNetworkId.TryGetValue(networkId, out LootDropMeta lootMeta))
+        else if (_groundLoot.TryGet(networkId, out GroundLootEntry lootMeta))
         {
             kind = EntityKind.LootDrop;
             ItemSlot lootItem = lootMeta.Item;
@@ -1213,7 +1218,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         public LootPityState LootPity { get; set; }
     }
 
-    private readonly record struct LootDropMeta(ItemSlot Item, ulong SpawnTick);
 
     private readonly record struct ProjectileActorMeta(
         Entity Entity,

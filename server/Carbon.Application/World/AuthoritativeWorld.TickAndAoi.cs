@@ -689,14 +689,14 @@ public sealed partial class AuthoritativeWorld
             ulong netId = despawns[i].NetworkId;
             if (netId != 0UL)
             {
-                _ = _lootByNetworkId.Remove(netId);
+                _groundLoot.Forget(netId);
                 _ = _actorsByNetworkId.Remove(netId);
                 _ = _projectilesByNetworkId.Remove(netId);
             }
         }
 
         _simulation.ClearEvents<EntityDespawnedEvent>();
-        this.CleanupExpiredLootMetaLocked();
+        _groundLoot.ForgetDeadStacks();
     }
 
     private void CollectNearbyConnectionsLocked(int tileX, int tileY, List<ulong> output)
