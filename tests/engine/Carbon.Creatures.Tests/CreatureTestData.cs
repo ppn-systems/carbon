@@ -1,7 +1,9 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Text.Json;
 using System.Numerics;
 using Carbon.Creatures.Definitions;
 using Carbon.Creatures.Scaling;
@@ -23,6 +25,45 @@ internal static class CreatureTestData
 
     public static SpawningConfig LoadSpawning() => SpawningConfig.FromJson(SpawningJson);
 
+    public static Dictionary<string, (int MinLevel, int MaxLevel)> LoadLootBands()
+    {
+        Dictionary<string, (int MinLevel, int MaxLevel)> bands = new(StringComparer.Ordinal);
+        string path = Path.Combine(s_configDir.Value, "loot.json");
+        if (!File.Exists(path))
+        {
+            return bands;
+        }
+
+        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(path));
+        foreach (JsonElement table in doc.RootElement.GetProperty("tables").EnumerateArray())
+        {
+            if (table.TryGetProperty("minLevel", out JsonElement min) && table.TryGetProperty("maxLevel", out JsonElement max))
+            {
+                bands[table.GetProperty("id").GetString()!] = (min.GetInt32(), max.GetInt32());
+            }
+        }
+
+        return bands;
+    }
+
+    public static HashSet<string> LoadLootTableIds()
+    {
+        HashSet<string> ids = new(StringComparer.Ordinal);
+        string path = Path.Combine(s_configDir.Value, "loot.json");
+        if (!File.Exists(path))
+        {
+            return ids;
+        }
+
+        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(path));
+        foreach (JsonElement table in doc.RootElement.GetProperty("tables").EnumerateArray())
+        {
+            ids.Add(table.GetProperty("id").GetString()!);
+        }
+
+        return ids;
+    }
+
     private static string FindConfigDirectory()
     {
         DirectoryInfo? dir = new(AppContext.BaseDirectory);
@@ -41,8 +82,12 @@ internal static class CreatureTestData
     }
 }
 
-/// <summary>Deterministic biome sampler returning one biome everywhere.</summary>
-internal sealed class FixedBiomeSampler(BiomeType biome) : IBiomeSampler
+/// <summary>Deterministic spawn surface: walkable everywhere, one biome everywhere.</summary>
+internal sealed class FixedBiomeSampler(BiomeType biome) : ISpawnSurface
 {
-    public BiomeType SampleBiome(Vector2 worldPosition) => biome;
+    public bool TrySampleSpawnBiome(Vector2 worldPosition, out BiomeType sampled)
+    {
+        sampled = biome;
+        return true;
+    }
 }

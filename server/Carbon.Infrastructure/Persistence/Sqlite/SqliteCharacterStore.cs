@@ -23,7 +23,8 @@ public sealed class SqliteCharacterStore : ICharacterStore
                current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
                experience, current_mana, max_mana, current_stamina, max_stamina,
                class_id, character_flags, skill_flags, progression_blob,
-               gold, diamonds, wallet_sequence, diamond_pity
+               gold, diamonds, wallet_sequence, diamond_pity,
+               needs_food, needs_malnutrition, needs_poison_seconds
         FROM characters
         WHERE account_id = @account_id
         ORDER BY name ASC;
@@ -34,7 +35,8 @@ public sealed class SqliteCharacterStore : ICharacterStore
                current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
                experience, current_mana, max_mana, current_stamina, max_stamina,
                class_id, character_flags, skill_flags, progression_blob,
-               gold, diamonds, wallet_sequence, diamond_pity
+               gold, diamonds, wallet_sequence, diamond_pity,
+               needs_food, needs_malnutrition, needs_poison_seconds
         FROM characters
         WHERE id = @id
         LIMIT 1;
@@ -46,8 +48,9 @@ public sealed class SqliteCharacterStore : ICharacterStore
             current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
             experience, current_mana, max_mana, current_stamina, max_stamina,
             class_id, character_flags, skill_flags, progression_blob,
-            gold, diamonds, wallet_sequence, diamond_pity)
-        VALUES (@id, @account_id, @name, @level, @preset, @px, @py, @hp, @max_hp, @slot, @inv, @updated, @xp, @mp, @max_mp, @stam, @max_stam, @class_id, @cflags, @sflags, @pblob, @gold, @diamonds, @wseq, @pity)
+            gold, diamonds, wallet_sequence, diamond_pity,
+            needs_food, needs_malnutrition, needs_poison_seconds)
+        VALUES (@id, @account_id, @name, @level, @preset, @px, @py, @hp, @max_hp, @slot, @inv, @updated, @xp, @mp, @max_mp, @stam, @max_stam, @class_id, @cflags, @sflags, @pblob, @gold, @diamonds, @wseq, @pity, @nfood, @nmal, @npoison)
         ON CONFLICT (name) DO NOTHING;
         """;
 
@@ -74,7 +77,10 @@ public sealed class SqliteCharacterStore : ICharacterStore
             gold = @gold,
             diamonds = @diamonds,
             wallet_sequence = @wseq,
-            diamond_pity = @pity
+            diamond_pity = @pity,
+            needs_food = @nfood,
+            needs_malnutrition = @nmal,
+            needs_poison_seconds = @npoison
         WHERE id = @id;
         """;
 
@@ -160,6 +166,9 @@ public sealed class SqliteCharacterStore : ICharacterStore
         _ = cmd.Parameters.AddWithValue("@diamonds", character.Diamonds);
         _ = cmd.Parameters.AddWithValue("@wseq", unchecked((long)character.WalletSequence));
         _ = cmd.Parameters.AddWithValue("@pity", character.DiamondPity);
+        _ = cmd.Parameters.AddWithValue("@nfood", character.NeedsFood);
+        _ = cmd.Parameters.AddWithValue("@nmal", character.NeedsMalnutrition);
+        _ = cmd.Parameters.AddWithValue("@npoison", character.NeedsPoisonSeconds);
 
         int affected = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         return affected == 1;
@@ -206,6 +215,9 @@ public sealed class SqliteCharacterStore : ICharacterStore
         SqliteParameter pDiamonds = cmd.Parameters.Add("@diamonds", SqliteType.Integer);
         SqliteParameter pWseq = cmd.Parameters.Add("@wseq", SqliteType.Integer);
         SqliteParameter pPity = cmd.Parameters.Add("@pity", SqliteType.Integer);
+        SqliteParameter pNeedsFood = cmd.Parameters.Add("@nfood", SqliteType.Real);
+        SqliteParameter pNeedsMal = cmd.Parameters.Add("@nmal", SqliteType.Real);
+        SqliteParameter pNeedsPoison = cmd.Parameters.Add("@npoison", SqliteType.Real);
         await cmd.PrepareAsync(ct).ConfigureAwait(false);
 
         for (int i = 0; i < characters.Count; i++)
@@ -234,6 +246,9 @@ public sealed class SqliteCharacterStore : ICharacterStore
             pDiamonds.Value = c.Diamonds;
             pWseq.Value = unchecked((long)c.WalletSequence);
             pPity.Value = c.DiamondPity;
+            pNeedsFood.Value = c.NeedsFood;
+            pNeedsMal.Value = c.NeedsMalnutrition;
+            pNeedsPoison.Value = c.NeedsPoisonSeconds;
             _ = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         }
 
@@ -271,6 +286,9 @@ public sealed class SqliteCharacterStore : ICharacterStore
             reader.GetInt64(21),
             reader.GetInt64(22),
             unchecked((ulong)reader.GetInt64(23)),
-            reader.GetInt32(24));
+            reader.GetInt32(24),
+            reader.GetFloat(25),
+            reader.GetFloat(26),
+            reader.GetFloat(27));
     }
 }

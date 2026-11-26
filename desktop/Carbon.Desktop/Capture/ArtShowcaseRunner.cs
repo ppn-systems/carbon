@@ -3,6 +3,7 @@
 using System;
 using System.IO;
 using System.Numerics;
+using Carbon.Contracts.Entities.S2C;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Capture;
 using Carbon.Desktop.Rendering.Effects;
@@ -33,13 +34,39 @@ internal static class ArtShowcaseRunner
 {
     private static readonly (ushort ArchetypeId, string AttackClip, ActionAnimationKind VfxKind)[] s_monsterLineup =
     [
-        (WorldActorCatalog.WildSlime, "attack", ActionAnimationKind.MonsterStrike),
-        (WorldActorCatalog.FrostWolf, "attack", ActionAnimationKind.MonsterStrike),
+        (WorldActorCatalog.WildSlime, "attack_leap", ActionAnimationKind.MonsterStrike),
+        (WorldActorCatalog.FrostWolf, "attack_leap", ActionAnimationKind.MonsterStrike),
         (WorldActorCatalog.SkeletonArcher, "attack_bow", ActionAnimationKind.MonsterBowShot),
         (WorldActorCatalog.RockGolem, "attack_slam", ActionAnimationKind.MonsterHeavySlam),
-        (WorldActorCatalog.AshWraith, "attack_cast", ActionAnimationKind.MonsterSpellCast),
+        (WorldActorCatalog.AshWraith, "attack_spell", ActionAnimationKind.MonsterSpellCast),
         (WorldActorCatalog.OrcShaman, "attack_cast", ActionAnimationKind.MonsterSpellCast),
         (WorldActorCatalog.CrimsonDemon, "attack_slam", ActionAnimationKind.MonsterHeavySlam),
+    ];
+
+    // (archetype, attack kind, shape, area radius, half-angle degrees, label): one filmstrip row per monster attack.
+    private static readonly (ushort ArchetypeId, byte Kind, byte Shape, float Radius, float HalfAngleDeg, string Label)[] s_attackLineup =
+    [
+        (WorldActorCatalog.WildSlime, EntityAttackPhase.KindLeap, 0, 26f, 0f, "Wild Slime - Leap"),
+        (WorldActorCatalog.WildSlime, EntityAttackPhase.KindMelee, 1, 22f, 50f, "Wild Slime - Bite"),
+        (WorldActorCatalog.FrostWolf, EntityAttackPhase.KindLeap, 0, 22f, 0f, "Frost Wolf - Pounce"),
+        (WorldActorCatalog.SkeletonArcher, EntityAttackPhase.KindProjectile, 0, 0f, 0f, "Skeleton - Bow Shot"),
+        (WorldActorCatalog.RockGolem, EntityAttackPhase.KindMelee, 1, 34f, 80f, "Rock Golem - Slam"),
+        (WorldActorCatalog.AshWraith, EntityAttackPhase.KindSpell, 0, 40f, 0f, "Ash Wraith - Eruption"),
+        (WorldActorCatalog.OrcShaman, EntityAttackPhase.KindSpell, 1, 60f, 30f, "Orc Shaman - Hex Cone"),
+        (WorldActorCatalog.OrcShaman, EntityAttackPhase.KindProjectile, 0, 0f, 0f, "Orc Shaman - Bolt"),
+        (WorldActorCatalog.CrimsonDemon, EntityAttackPhase.KindLeap, 0, 36f, 0f, "Crimson Demon - Leap"),
+    ];
+
+    // (phase, progress) samples rendered left to right in each filmstrip row.
+    private static readonly (byte Phase, float Progress, string Label)[] s_phaseSamples =
+    [
+        (EntityAttackPhase.PhaseWindup, 0.05f, "WINDUP 0%"),
+        (EntityAttackPhase.PhaseWindup, 0.6f, "WINDUP 60%"),
+        (EntityAttackPhase.PhaseWindup, 1f, "WINDUP END"),
+        (EntityAttackPhase.PhaseTravel, 0.5f, "TRAVEL 50%"),
+        (EntityAttackPhase.PhaseActive, 0.1f, "ACTIVE"),
+        (EntityAttackPhase.PhaseActive, 0.9f, "ACTIVE END"),
+        (EntityAttackPhase.PhaseRecovery, 0.4f, "RECOVERY"),
     ];
 
     public static int Run(string outputDir)
@@ -196,11 +223,101 @@ internal static class ArtShowcaseRunner
 
             sprites.End();
             ScreenshotHelper.Capture(window.Device.Gl, w, h, Path.Combine(outputDir, "items_showcase.bmp"));
+
+            RenderAttackPhaseSheet(window, geom, sprites, font, art, ortho, Path.Combine(outputDir, "monsters_attack_phases.bmp"));
         }
         finally
         {
             font.Dispose();
             whitePixel.Dispose();
         }
+    }
+
+    private static void RenderAttackPhaseSheet(
+        IGameWindow window,
+        GeometryBatch geom,
+        SpriteBatch sprites,
+        BitmapFont font,
+        CarbonVectorArtLibrary art,
+        Matrix4x4 ortho,
+        string path)
+    {
+        const float RowHeight = 68f;
+        const float FirstRowY = 84f;
+        const float FirstColX = 250f;
+        const float ColWidth = 146f;
+        const float RigHeight = 58f;
+
+        window.Device.SetClearColor(new Vector4(0.07f, 0.09f, 0.12f, 1.0f));
+        window.Device.Clear(ClearBufferMask.ColorBufferBit);
+
+        geom.Begin(ortho);
+        for (int row = 0; row < s_attackLineup.Length; row++)
+        {
+            for (int col = 0; col < s_phaseSamples.Length; col++)
+            {
+                float bx = FirstColX + (col * ColWidth);
+                float by = FirstRowY + (row * RowHeight) + 48f;
+                geom.FillRectangle(new RectangleF(bx - 70f, by - 56f, 140f, 64f), new ColorRgba(20, 26, 38, 255));
+            }
+        }
+
+        for (int row = 0; row < s_attackLineup.Length; row++)
+        {
+            (ushort archId, byte kind, byte shape, float worldRadius, float halfDeg, _) = s_attackLineup[row];
+            if (!art.TryGetMonster(archId, out CompiledVectorRig? rig))
+            {
+                continue;
+            }
+
+            string clip = MonsterAttackAnimator.ResolveClip(rig, archId, kind);
+            AttackPhaseMarks marks = rig.TryGetAnimation(clip, out CompiledVectorAnimation? anim) ? anim.PhaseMarks : AttackPhaseMarks.Default;
+            float footY = FirstRowY + (row * RowHeight) + 48f;
+            float worldToSheet = RigHeight / MathF.Max(1f, rig.WorldHeight);
+            float radius = MathF.Min(40f, worldRadius * worldToSheet); // clamped so neighbouring cells stay readable
+            for (int col = 0; col < s_phaseSamples.Length; col++)
+            {
+                (byte phase, float progress, _) = s_phaseSamples[col];
+                Vector2 foot = new(FirstColX + (col * ColWidth), footY);
+                Vector2 target = kind == EntityAttackPhase.KindProjectile ? foot + new Vector2(62f, -4f) : foot + new Vector2(MathF.Min(46f, radius + 10f), 0f);
+                AttackPhaseView view = new(kind, phase, progress, target, Vector2.UnitX, radius, halfDeg * (MathF.PI / 180f), shape);
+                AttackTelegraphRenderer.Draw(geom, foot, view, 0.2f + (col * 0.37f));
+                geom.FillCircle(foot, 9f, new ColorRgba(0, 0, 0, 90), 14);
+                VectorRigRenderer.DrawEntityRig(
+                    geom,
+                    rig,
+                    foot,
+                    Direction8.East,
+                    clip,
+                    MonsterAttackAnimator.ToClipTime(phase, progress, in marks),
+                    isNormalized: true,
+                    targetHeightOverride: RigHeight);
+            }
+        }
+
+        geom.End();
+
+        sprites.Begin(DepthSortMode.Immediate, transformMatrix: ortho);
+        ColorRgba black = new(0, 0, 0, 255);
+        ColorRgba gold = new(250, 204, 21, 255);
+        ColorRgba white = new(241, 245, 249, 255);
+        ColorRgba cyan = new(125, 211, 252, 255);
+        sprites.DrawOutlinedString(font, "MONSTER ATTACK PHASE TIMELINES (SERVER PHASE -> CLIP TIME, ADR-013)", new Vector2(24f, 18f), gold, black, 1, 1.2f);
+        for (int col = 0; col < s_phaseSamples.Length; col++)
+        {
+            sprites.DrawOutlinedString(font, s_phaseSamples[col].Label, new Vector2(FirstColX - 44f + (col * ColWidth), 62f), cyan, black, 1, 0.85f);
+        }
+
+        for (int row = 0; row < s_attackLineup.Length; row++)
+        {
+            (ushort archId, byte kind, _, _, _, string label) = s_attackLineup[row];
+            string clip = art.TryGetMonster(archId, out CompiledVectorRig? rig) ? MonsterAttackAnimator.ResolveClip(rig, archId, kind) : "-";
+            float y = FirstRowY + (row * RowHeight) + 10f;
+            sprites.DrawOutlinedString(font, label, new Vector2(16f, y), white, black, 1, 0.9f);
+            sprites.DrawOutlinedString(font, $"clip: {clip}", new Vector2(16f, y + 20f), gold, black, 1, 0.8f);
+        }
+
+        sprites.End();
+        ScreenshotHelper.Capture(window.Device.Gl, window.Width, window.Height, path);
     }
 }

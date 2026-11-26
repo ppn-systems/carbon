@@ -96,6 +96,7 @@ public sealed partial class MultiplayerSession
         _tcpSubscriptions.Add(tcp.On<PlayerStatsSync>(this.OnPlayerStatsSync));
         _tcpSubscriptions.Add(tcp.On<WalletSync>(this.OnWalletSync));
         _tcpSubscriptions.Add(tcp.On<SkillCastBroadcast>(this.OnSkillCastBroadcast));
+        _tcpSubscriptions.Add(tcp.On<EntityAttackPhase>(this.OnEntityAttackPhase));
         _tcpSubscriptions.Add(tcp.On<MapPropChanged>(this.OnMapPropChanged));
         _tcpSubscriptions.Add(tcp.On<MapStructureChanged>(this.OnMapStructureChanged));
         _tcpSubscriptions.Add(tcp.On<MapConstructionChanged>(this.OnMapConstructionChanged));
@@ -130,6 +131,7 @@ public sealed partial class MultiplayerSession
                 _udpSubscriptions.Add(udp.On<EntityDespawn>(this.OnEntityDespawn));
                 _udpSubscriptions.Add(udp.On<EntityEquipmentChanged>(this.OnEntityEquipmentChanged));
                 _udpSubscriptions.Add(udp.On<SkillCastBroadcast>(this.OnSkillCastBroadcast));
+                _udpSubscriptions.Add(udp.On<EntityAttackPhase>(this.OnEntityAttackPhase));
 
                 using CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 timeoutCts.CancelAfter(3000);
@@ -979,6 +981,37 @@ public sealed partial class MultiplayerSession
         }
     }
 
+    private void OnEntityAttackPhase(EntityAttackPhase pkt)
+    {
+        lock (_worldGate)
+        {
+            if (!_remoteEntities.TryGetValue(pkt.NetworkId, out RemoteEntityState? attacker))
+            {
+                return;
+            }
+
+            Vector2 dir = new(pkt.DirectionX, pkt.DirectionY);
+            bool finiteDir = float.IsFinite(dir.X) && float.IsFinite(dir.Y) && dir.LengthSquared() > 1e-4f;
+            if (finiteDir && pkt.Phase != EntityAttackPhase.PhaseNone)
+            {
+                attacker.FacingDir = Vector2.Normalize(dir);
+            }
+
+            attacker.AttackKind = pkt.AttackKind;
+            attacker.AttackPhase = pkt.Phase > EntityAttackPhase.PhaseRecovery ? EntityAttackPhase.PhaseNone : pkt.Phase;
+            attacker.AttackPhaseElapsed = 0f;
+            attacker.AttackPhaseDuration = pkt.PhaseDurationTicks / (float)Math.Max((ushort)1, _tickRate);
+            attacker.AttackTarget = float.IsFinite(pkt.TargetX) && float.IsFinite(pkt.TargetY)
+                ? new Vector2(pkt.TargetX, pkt.TargetY)
+                : attacker.Position;
+            attacker.AttackDirection = finiteDir ? Vector2.Normalize(dir) : attacker.FacingDir;
+            attacker.AttackAreaRadius = float.IsFinite(pkt.AreaRadius) ? Math.Clamp(pkt.AreaRadius, 0f, 512f) : 0f;
+            attacker.AttackHalfAngle = float.IsFinite(pkt.HalfAngleRadians) ? Math.Clamp(pkt.HalfAngleRadians, 0f, MathF.PI) : 0f;
+            attacker.AttackShape = pkt.Shape;
+            _remoteViewsDirty = true;
+        }
+    }
+
     private void OnEntityDeltaBatch(EntityDeltaBatch pkt)
     {
         double snapshotTime = pkt.ServerTick / (double)_tickRate;
@@ -1315,6 +1348,25 @@ public sealed partial class MultiplayerSession
         public int LootCount { get; init; }
         public byte WeaponUpgradeLevel { get; set; }
         public ActionAnimationKind ActiveActionKind { get; set; }
+        public byte AttackKind { get; set; }
+        public byte AttackPhase { get; set; }
+        public float AttackPhaseElapsed { get; set; }
+        public float AttackPhaseDuration { get; set; }
+        public Vector2 AttackTarget { get; set; }
+        public Vector2 AttackDirection { get; set; }
+        public float AttackAreaRadius { get; set; }
+        public float AttackHalfAngle { get; set; }
+        public byte AttackShape { get; set; }
         public SnapshotInterpolationBuffer Interpolation { get; } = new(16);
+
+        public AttackPhaseView BuildAttackView() => new(
+            this.AttackKind,
+            this.AttackPhase,
+            this.AttackPhaseDuration > 0f ? Math.Clamp(this.AttackPhaseElapsed / this.AttackPhaseDuration, 0f, 1f) : 1f,
+            this.AttackTarget,
+            this.AttackDirection,
+            this.AttackAreaRadius,
+            this.AttackHalfAngle,
+            this.AttackShape);
     }
 }

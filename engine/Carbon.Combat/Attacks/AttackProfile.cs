@@ -59,6 +59,9 @@ public readonly record struct AttackProfile
     /// <summary>Gets the purely visual apex height of the projectile arc (the simulation is planar).</summary>
     public float ArcHeight { get; init; }
 
+    /// <summary>Gets the client projectile visual id passed to <see cref="IAttackEffects.LaunchProjectile"/>.</summary>
+    public byte ProjectileVisual { get; init; }
+
     /// <summary>Gets the total timeline length in ticks (windup + travel + active + recovery).</summary>
     public uint TotalTicks => this.WindupTicks + this.TravelTicks + this.ActiveTicks + this.RecoveryTicks;
 

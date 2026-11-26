@@ -25,7 +25,8 @@ public sealed class PgCharacterStore : ICharacterStore
                current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
                experience, current_mana, max_mana, current_stamina, max_stamina,
                class_id, character_flags, skill_flags, progression_blob,
-               gold, diamonds, wallet_sequence, diamond_pity
+               gold, diamonds, wallet_sequence, diamond_pity,
+               needs_food, needs_malnutrition, needs_poison_seconds
         FROM characters
         WHERE account_id = @account_id
         ORDER BY name ASC;
@@ -36,7 +37,8 @@ public sealed class PgCharacterStore : ICharacterStore
                current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
                experience, current_mana, max_mana, current_stamina, max_stamina,
                class_id, character_flags, skill_flags, progression_blob,
-               gold, diamonds, wallet_sequence, diamond_pity
+               gold, diamonds, wallet_sequence, diamond_pity,
+               needs_food, needs_malnutrition, needs_poison_seconds
         FROM characters
         WHERE id = @id
         LIMIT 1;
@@ -48,8 +50,9 @@ public sealed class PgCharacterStore : ICharacterStore
             current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
             experience, current_mana, max_mana, current_stamina, max_stamina,
             class_id, character_flags, skill_flags, progression_blob,
-            gold, diamonds, wallet_sequence, diamond_pity)
-        VALUES (@id, @account_id, @name, @level, @preset, @px, @py, @hp, @max_hp, @slot, @inv, @updated, @xp, @mp, @max_mp, @stam, @max_stam, @class_id, @cflags, @sflags, @pblob, @gold, @diamonds, @wseq, @pity)
+            gold, diamonds, wallet_sequence, diamond_pity,
+            needs_food, needs_malnutrition, needs_poison_seconds)
+        VALUES (@id, @account_id, @name, @level, @preset, @px, @py, @hp, @max_hp, @slot, @inv, @updated, @xp, @mp, @max_mp, @stam, @max_stam, @class_id, @cflags, @sflags, @pblob, @gold, @diamonds, @wseq, @pity, @nfood, @nmal, @npoison)
         ON CONFLICT (name) DO NOTHING;
         """;
 
@@ -76,7 +79,10 @@ public sealed class PgCharacterStore : ICharacterStore
             gold = @gold,
             diamonds = @diamonds,
             wallet_sequence = @wseq,
-            diamond_pity = @pity
+            diamond_pity = @pity,
+            needs_food = @nfood,
+            needs_malnutrition = @nmal,
+            needs_poison_seconds = @npoison
         WHERE id = @id;
         """;
 
@@ -162,6 +168,9 @@ public sealed class PgCharacterStore : ICharacterStore
         _ = cmd.Parameters.Add(new NpgsqlParameter("diamonds", NpgsqlDbType.Bigint) { Value = character.Diamonds });
         _ = cmd.Parameters.Add(new NpgsqlParameter("wseq", NpgsqlDbType.Bigint) { Value = unchecked((long)character.WalletSequence) });
         _ = cmd.Parameters.Add(new NpgsqlParameter("pity", NpgsqlDbType.Integer) { Value = character.DiamondPity });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("nfood", NpgsqlDbType.Real) { Value = character.NeedsFood });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("nmal", NpgsqlDbType.Real) { Value = character.NeedsMalnutrition });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("npoison", NpgsqlDbType.Real) { Value = character.NeedsPoisonSeconds });
 
         int affected = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         return affected == 1;
@@ -212,6 +221,9 @@ public sealed class PgCharacterStore : ICharacterStore
             _ = item.Parameters.Add(new NpgsqlParameter("diamonds", NpgsqlDbType.Bigint) { Value = c.Diamonds });
             _ = item.Parameters.Add(new NpgsqlParameter("wseq", NpgsqlDbType.Bigint) { Value = unchecked((long)c.WalletSequence) });
             _ = item.Parameters.Add(new NpgsqlParameter("pity", NpgsqlDbType.Integer) { Value = c.DiamondPity });
+            _ = item.Parameters.Add(new NpgsqlParameter("nfood", NpgsqlDbType.Real) { Value = c.NeedsFood });
+            _ = item.Parameters.Add(new NpgsqlParameter("nmal", NpgsqlDbType.Real) { Value = c.NeedsMalnutrition });
+            _ = item.Parameters.Add(new NpgsqlParameter("npoison", NpgsqlDbType.Real) { Value = c.NeedsPoisonSeconds });
             batch.BatchCommands.Add(item);
         }
 
@@ -251,6 +263,9 @@ public sealed class PgCharacterStore : ICharacterStore
             reader.GetInt64(21),
             reader.GetInt64(22),
             unchecked((ulong)reader.GetInt64(23)),
-            reader.GetInt32(24));
+            reader.GetInt32(24),
+            reader.GetFloat(25),
+            reader.GetFloat(26),
+            reader.GetFloat(27));
     }
 }

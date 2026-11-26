@@ -18,6 +18,12 @@ public sealed class MonsterDefinition : IDataDefinition<string>
     /// <summary>Gets the display name.</summary>
     public string DisplayName { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Gets the protocol archetype id replicated in <c>EntitySpawn</c>; clients resolve the vector rig from it
+    /// (see <c>WorldActorCatalog</c>). Elite variants may share their base monster's archetype.
+    /// </summary>
+    public ushort ArchetypeId { get; set; }
+
     /// <summary>Gets the client visual archetype key used to pick sprites / animation sets.</summary>
     public string VisualArchetype { get; set; } = string.Empty;
 
@@ -51,9 +57,22 @@ public sealed class MonsterDefinition : IDataDefinition<string>
     /// <summary>Gets the idle patrol radius around the spawn point.</summary>
     public float PatrolRadius { get; set; }
 
+    /// <summary>Gets the lowest level at which this monster spawns (aligned with its loot table band).</summary>
+    public int MinLevel { get; set; } = 1;
+
+    /// <summary>Gets the highest level at which this monster spawns.</summary>
+    public int MaxLevel { get; set; } = 100;
+
     /// <summary>Gets the biomes this monster naturally inhabits.</summary>
     public IReadOnlyList<BiomeType> PreferredBiomes { get; set; } = [];
 
     /// <summary>Gets the attack profiles in priority order.</summary>
     public IReadOnlyList<AttackProfileDefinition> Attacks { get; set; } = [];
+
+    /// <summary>
+    /// Determines whether this monster may spawn at <paramref name="level"/>.
+    /// </summary>
+    /// <param name="level">Spawn-point level from <see cref="Scaling.MonsterScaling.EvaluateLevel"/>.</param>
+    /// <returns><see langword="true"/> inside <c>[MinLevel, MaxLevel]</c>.</returns>
+    public bool IsSpawnableAt(int level) => level >= this.MinLevel && level <= this.MaxLevel;
 }

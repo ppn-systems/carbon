@@ -8,6 +8,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\engine\Carbon.AI\Carbon.AI.csproj" />
+        <ProjectReference Include="..\..\engine\Carbon.Creatures\Carbon.Creatures.csproj" />
         <ProjectReference Include="..\..\engine\Carbon.Data\Carbon.Data.csproj" />
         <ProjectReference Include="..\..\engine\Carbon.Survival\Carbon.Survival.csproj" />
         <ProjectReference Include="..\..\engine\Carbon.Economy\Carbon.Economy.csproj" />

@@ -112,7 +112,10 @@ Speed penalties multiply: starving + exhausted + poisoned = 0.65 × 0.85 × 0.85
 - Sync: `PlayerStatsSync` gained `Food`, `MaxFood`, `HungerState`, `Malnutrition`, `Mood`, `FoodPoisoned`
   and `EatProgress` (serialize orders 18–24, appended). It is sent every 10 ticks and right after any
   threshold change, meal start or meal end.
-- Not persisted yet: needs reset to full on login. Persisting them needs a `CharacterRecord` / schema change.
+- Persistence (ADR-015): food, malnutrition and remaining poison are saved on the character (migration
+  `0006_character_needs`) and restored on login, clamped to the current config. Needs pause while logged
+  out. Characters saved before the migration spawn fully fed. Mood memories and in-progress meals are not
+  saved.
 
 ## Client
 

@@ -4,9 +4,7 @@ using System;
 using System.Numerics;
 using Carbon.Combat.Components;
 using Carbon.Combat.Cooldowns;
-using Carbon.Combat.Damage;
 using Carbon.Combat.Hitboxes;
-using Carbon.Combat.Projectiles;
 using Carbon.Simulation.Clock;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
@@ -28,14 +26,17 @@ public sealed class AttackSystem : ISimulationSystem
     private const int MaxAreaTargets = 32;
 
     private readonly AttackProfile[] _profiles;
+    private readonly IAttackEffects _effects;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AttackSystem"/> class with an immutable profile table.
     /// </summary>
     /// <param name="profiles">Attack profiles indexed by <see cref="AttackStateComponent.ProfileId"/>.</param>
+    /// <param name="effects">Hit / projectile side effects (defaults to <see cref="DefaultAttackEffects"/>).</param>
     /// <exception cref="ArgumentException">Thrown when a profile fails <see cref="AttackProfile.Validate"/>.</exception>
-    public AttackSystem(ReadOnlySpan<AttackProfile> profiles)
+    public AttackSystem(ReadOnlySpan<AttackProfile> profiles, IAttackEffects? effects = null)
     {
+        _effects = effects ?? DefaultAttackEffects.Instance;
         ArgumentOutOfRangeException.ThrowIfGreaterThan(profiles.Length, ushort.MaxValue + 1);
         for (int i = 0; i < profiles.Length; i++)
         {
@@ -226,11 +227,11 @@ public sealed class AttackSystem : ISimulationSystem
                 PhaseElapsedTicks = state.PhaseElapsedTicks + 1,
                 TotalElapsedTicks = state.TotalElapsedTicks + 1
             };
-            states[i] = ExecutePhase(world, attacker, in state, in profile, tick.DeltaTime);
+            states[i] = this.ExecutePhase(world, attacker, in state, in profile, tick.DeltaTime);
         }
     }
 
-    private static AttackStateComponent ExecutePhase(
+    private AttackStateComponent ExecutePhase(
         WorldSimulation world,
         Entity attacker,
         in AttackStateComponent state,
@@ -284,12 +285,12 @@ public sealed class AttackSystem : ISimulationSystem
                 SetVelocity(world, attacker, Vector2.Zero);
                 return state.Kind switch
                 {
-                    AttackKind.Melee => ResolveArc(world, attacker, in state, pos, profile.AreaRadius, profile.HalfAngleRadians),
-                    AttackKind.Projectile when state.PhaseElapsedTicks == 1 => LaunchProjectile(world, attacker, in state, in profile, pos, deltaTime),
+                    AttackKind.Melee => this.ResolveArc(world, attacker, in state, pos, profile.AreaRadius, profile.HalfAngleRadians),
+                    AttackKind.Projectile when state.PhaseElapsedTicks == 1 => this.LaunchProjectile(world, attacker, in state, in profile, pos, deltaTime),
                     AttackKind.Spell when state.PhaseElapsedTicks == 1 => profile.Shape == AttackAreaShape.Cone
-                        ? ResolveArc(world, attacker, in state, pos, profile.AreaRadius, profile.HalfAngleRadians)
-                        : ResolveCircle(world, attacker, in state, state.TargetPosition, profile.AreaRadius),
-                    AttackKind.Leap when state.PhaseElapsedTicks == 1 => ResolveCircle(world, attacker, in state, pos, profile.AreaRadius),
+                        ? this.ResolveArc(world, attacker, in state, pos, profile.AreaRadius, profile.HalfAngleRadians)
+                        : this.ResolveCircle(world, attacker, in state, state.TargetPosition, profile.AreaRadius),
+                    AttackKind.Leap when state.PhaseElapsedTicks == 1 => this.ResolveCircle(world, attacker, in state, pos, profile.AreaRadius),
                     _ => state
                 };
 
@@ -301,7 +302,7 @@ public sealed class AttackSystem : ISimulationSystem
         }
     }
 
-    private static AttackStateComponent ResolveArc(
+    private AttackStateComponent ResolveArc(
         WorldSimulation world,
         Entity attacker,
         in AttackStateComponent state,
@@ -311,10 +312,10 @@ public sealed class AttackSystem : ISimulationSystem
     {
         Span<Entity> candidates = stackalloc Entity[MaxAreaTargets];
         HitboxQuery.QueryArc(world, origin, state.Direction, radius, halfAngle, candidates, out int count, state.TargetLayerMask, attacker);
-        return ApplyHits(world, attacker, in state, candidates[..count]);
+        return this.ApplyHits(world, attacker, in state, candidates[..count]);
     }
 
-    private static AttackStateComponent ResolveCircle(
+    private AttackStateComponent ResolveCircle(
         WorldSimulation world,
         Entity attacker,
         in AttackStateComponent state,
@@ -323,10 +324,10 @@ public sealed class AttackSystem : ISimulationSystem
     {
         Span<Entity> candidates = stackalloc Entity[MaxAreaTargets];
         world.OverlapCircle(center, radius, candidates, out int count, state.TargetLayerMask);
-        return ApplyHits(world, attacker, in state, candidates[..count]);
+        return this.ApplyHits(world, attacker, in state, candidates[..count]);
     }
 
-    private static AttackStateComponent ApplyHits(
+    private AttackStateComponent ApplyHits(
         WorldSimulation world,
         Entity attacker,
         in AttackStateComponent state,
@@ -341,7 +342,7 @@ public sealed class AttackSystem : ISimulationSystem
                 continue;
             }
 
-            if (CombatDamage.Apply(world, attacker, victim, state.Damage))
+            if (_effects.ApplyHit(world, attacker, victim, state.Damage))
             {
                 hits = hits.With(victim);
             }
@@ -350,7 +351,7 @@ public sealed class AttackSystem : ISimulationSystem
         return state with { Hits = hits };
     }
 
-    private static AttackStateComponent LaunchProjectile(
+    private AttackStateComponent LaunchProjectile(
         WorldSimulation world,
         Entity attacker,
         in AttackStateComponent state,
@@ -366,11 +367,16 @@ public sealed class AttackSystem : ISimulationSystem
         uint flightTicks = (uint)MathF.Ceiling(Vector2.Distance(spawn, state.TargetPosition) / stepDistance);
         uint lifetimeTicks = (uint)MathF.Ceiling(profile.MaxRange * 1.25f / stepDistance) + 1U;
 
-        Entity projectile = world.SpawnEntity(spawn, profile.ProjectileRadius);
-        entities.SetCollider(projectile, Collider2D.CreateCircle(profile.ProjectileRadius, isTrigger: true));
-        entities.SetVelocity(projectile, new Velocity2D(velocity));
-        entities.SetComponent(projectile, new ProjectileComponent(attacker, state.Damage, state.TargetLayerMask, lifetimeTicks));
-        world.MarkDirty(projectile, EntityDirtyMask.Velocity);
+        ProjectileLaunchRequest request = new(
+            attacker,
+            spawn,
+            velocity,
+            state.Damage,
+            state.TargetLayerMask,
+            lifetimeTicks,
+            profile.ProjectileRadius,
+            profile.ProjectileVisual);
+        Entity projectile = _effects.LaunchProjectile(world, in request);
         world.PublishEvent(new ProjectileLaunchedEvent(attacker, projectile, spawn, velocity, profile.ArcHeight, flightTicks));
         return state;
     }
