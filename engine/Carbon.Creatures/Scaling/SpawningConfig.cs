@@ -28,6 +28,12 @@ public sealed class SpawningConfig
     /// <summary>Gets the minimum distance from any anchor at which a monster may appear.</summary>
     public float MinSpawnDistanceFromAnchor { get; set; }
 
+    /// <summary>
+    /// Gets how many candidate positions a cell samples per spawn opportunity before giving up until its next
+    /// interval (rejections: safe zone, anchor distance, blocked tile, no monster eligible at the level).
+    /// </summary>
+    public int PlacementAttempts { get; set; } = 6;
+
     /// <summary>Gets the daytime maximum number of live spawned monsters per cell.</summary>
     public int BaseCellCap { get; set; } = 3;
 
@@ -83,9 +89,10 @@ public sealed class SpawningConfig
     /// <exception cref="ArgumentException">Thrown when a value is inconsistent.</exception>
     public void Validate()
     {
-        if (this.SafeZoneRadius < 0f || this.CellSize <= 0f || this.ActivationRadiusCells < 0 || this.BaseCellCap < 0)
+        if (this.SafeZoneRadius < 0f || this.CellSize <= 0f || this.ActivationRadiusCells < 0 || this.BaseCellCap < 0 ||
+            this.PlacementAttempts < 1)
         {
-            throw new ArgumentException("Spawner safe zone, cell size, activation radius, and cap must be non-negative.");
+            throw new ArgumentException("Spawner safe zone, cell size, activation radius, and cap must be non-negative; placement attempts must be positive.");
         }
 
         if (this.ScanIntervalTicks == 0 || this.SpawnIntervalTicks == 0)
