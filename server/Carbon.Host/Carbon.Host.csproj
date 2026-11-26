@@ -18,6 +18,7 @@
         <ProjectReference Include="..\Carbon.Application\Carbon.Application.csproj" />
         <ProjectReference Include="..\Carbon.Handlers\Carbon.Handlers.csproj" />
         <ProjectReference Include="..\Carbon.Infrastructure\Carbon.Infrastructure.csproj" />
+        <ProjectReference Include="..\Carbon.Server.Configuration\Carbon.Server.Configuration.csproj" />
     </ItemGroup>
 
     <ItemGroup>
@@ -29,6 +30,12 @@
         <PackageReference Include="Nalix.Hosting" />
         <PackageReference Include="Nalix.Network" />
         <PackageReference Include="Nalix.Runtime" />
+    </ItemGroup>
+
+    <!-- Server-authoritative gameplay config (ADR-011): every resources/config/*.json ships next to the host, which loads
+         and serves all of them; one document per domain, so new domains need no change here. -->
+    <ItemGroup>
+        <None Include="..\..\resources\config\*.json" Link="config\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 
     <ItemGroup>

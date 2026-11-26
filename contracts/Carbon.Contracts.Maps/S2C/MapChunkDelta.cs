@@ -90,4 +90,52 @@ public sealed partial class MapChunkDelta : PacketBase<MapChunkDelta>, IPacketSt
     /// <summary>Wall connectivity mask (<c>Carbon.Maps.Building.WallConnectivityMask</c>) per constructed structure.</summary>
     [SerializeOrder(17)]
     public byte[] StructureConnectivities { get; set; } = [];
+
+    /// <summary>Local anchor tile indices of construction sites (blueprints / frames).</summary>
+    [SerializeOrder(18)]
+    public ushort[] SiteIndices { get; set; } = [];
+
+    /// <summary>Structure type being built per site (<c>Carbon.Maps.Building.StructureType</c>).</summary>
+    [SerializeOrder(19)]
+    public byte[] SiteTypes { get; set; } = [];
+
+    /// <summary>Placement rotation per site (<c>Carbon.Maps.Building.StructureRotation</c>).</summary>
+    [SerializeOrder(20)]
+    public byte[] SiteRotations { get; set; } = [];
+
+    /// <summary>Stage per site (<c>Carbon.Maps.Building.ConstructionStage</c>: 1 = Blueprint, 2 = Frame).</summary>
+    [SerializeOrder(21)]
+    public byte[] SiteStages { get; set; } = [];
+
+    /// <summary>Rotated footprint per site, packed as <c>width | (height &lt;&lt; 4)</c>.</summary>
+    [SerializeOrder(22)]
+    public byte[] SiteSizes { get; set; } = [];
+
+    /// <summary>Accumulated construction work points per site.</summary>
+    [SerializeOrder(23)]
+    public float[] SiteWorkDone { get; set; } = [];
+
+    /// <summary>Owning player id per site.</summary>
+    [SerializeOrder(24)]
+    public ulong[] SiteOwnerIds { get; set; } = [];
+
+    /// <summary>Local tile indices of completed-structure ownership records.</summary>
+    [SerializeOrder(25)]
+    public ushort[] RecordIndices { get; set; } = [];
+
+    /// <summary>Owning player id per record.</summary>
+    [SerializeOrder(26)]
+    public ulong[] RecordOwnerIds { get; set; } = [];
+
+    /// <summary>Offset from the structure anchor per record, packed as <c>dx | (dy &lt;&lt; 4)</c>.</summary>
+    [SerializeOrder(27)]
+    public byte[] RecordAnchorOffsets { get; set; } = [];
+
+    /// <summary>Placement rotation per record (<c>Carbon.Maps.Building.StructureRotation</c>).</summary>
+    [SerializeOrder(28)]
+    public byte[] RecordRotations { get; set; } = [];
+
+    /// <summary>Floor type covered by the structure per record (<c>Carbon.Maps.Building.StructureType</c>, 0 = none).</summary>
+    [SerializeOrder(29)]
+    public byte[] RecordFloorsBeneath { get; set; } = [];
 }

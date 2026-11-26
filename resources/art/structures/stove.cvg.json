@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 2,
+  "structureType": 12,
+  "id": "stove",
+  "displayName": "Stove",
+  "palette": {
+    "body": "#57534E",
+    "bodyDark": "#292524",
+    "burner": "#1C1917",
+    "flame": "#F97316"
+  },
+  "shapes": [
+    {
+      "kind": "rect",
+      "x": 3,
+      "y": 3,
+      "w": 26,
+      "h": 26,
+      "color": "$body",
+      "outlineColor": "$bodyDark",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "x": 11,
+      "y": 11,
+      "rx": 4,
+      "ry": 4,
+      "color": "$burner"
+    },
+    {
+      "kind": "ellipse",
+      "x": 21,
+      "y": 11,
+      "rx": 4,
+      "ry": 4,
+      "color": "$burner"
+    },
+    {
+      "kind": "rect",
+      "x": 7,
+      "y": 19,
+      "w": 18,
+      "h": 8,
+      "color": "$bodyDark"
+    },
+    {
+      "kind": "ellipse",
+      "x": 16,
+      "y": 23,
+      "rx": 3,
+      "ry": 2,
+      "color": "$flame"
+    }
+  ],
+  "openShapes": []
+}

@@ -1,6 +1,8 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.IO;
+using System.Text;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,10 +10,12 @@ using Carbon.Abstractions.Configuration;
 using Carbon.Abstractions.Persistence;
 using Carbon.Application.Identity;
 using Carbon.Application.World;
+using Carbon.Economy;
 using Carbon.Infrastructure.Configuration;
 using Carbon.Infrastructure.Persistence.Postgres;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Infrastructure.Security;
+using Carbon.Server.Configuration;
 using Microsoft.Extensions.Logging;
 using Nalix.Hosting;
 using Npgsql;
@@ -81,6 +85,24 @@ public static class Program
         AuthService authService = new(accountStore, characterStore, hasher);
         SessionTransportRegistry transportRegistry = new();
         WorldOutboundSink outboundSink = new(transportRegistry, loggerFactory.CreateLogger<WorldOutboundSink>());
+        // Gameplay config is server-authoritative (ADR-011): the server builds its domains from the same snapshot it
+        // serves to clients, so both sides always run on identical bytes.
+        ConfigRepository config = ConfigRepository.Load(ResolveConfigDirectory(options.ConfigDirectory));
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation(
+                "Loaded {Count} config documents from {Directory} (manifest v{Version}).",
+                config.Entries.Count,
+                config.Directory,
+                config.ManifestVersion);
+        }
+
+        GameEconomy economy = GameEconomy.Load(
+            ReadDocument(config, GameEconomy.ItemsFile),
+            ReadDocument(config, GameEconomy.RecipesFile),
+            ReadDocument(config, GameEconomy.EconomyFile),
+            ReadDocument(config, GameEconomy.LootFile));
+
         AuthoritativeWorld world = new(
             options.WorldSeed,
             options.TileSize,
@@ -88,7 +110,8 @@ public static class Program
             options.TickRate,
             chunkDeltaRepo,
             characterStore,
-            outboundSink);
+            outboundSink,
+            economy: economy);
 
         await world.InitializeFromStoreAsync().ConfigureAwait(false);
 
@@ -106,7 +129,10 @@ public static class Program
             return 0;
         }
 
-        NetworkApplication app = Startup.Build(options, authService, world, outboundSink, transportRegistry, logger);
+        // Hot reload is opt-in: domains built at boot (economy) do not swap their tables yet, and the server must never
+        // serve clients a config it is not running itself.
+        using ConfigHotReloadWatcher? configWatcher = options.ConfigHotReload ? new(config, logger) : null;
+        NetworkApplication app = Startup.Build(options, authService, world, outboundSink, transportRegistry, logger, config);
         await using ConfiguredAsyncDisposable appScope = app.ConfigureAwait(false);
 
         using CancellationTokenSource cts = new();
@@ -139,4 +165,18 @@ public static class Program
         await tickTask.ConfigureAwait(false);
         return 0;
     }
+
+    /// <summary>
+    /// Returns <paramref name="configured"/> when set; otherwise the <c>resources/config</c> (or a <c>config</c> folder copied
+    /// next to the binaries) found from the executable directory, then from the working directory.
+    /// </summary>
+    private static string ResolveConfigDirectory(string configured) =>
+        configured.Length > 0
+            ? configured
+            : GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)
+                ?? GameEconomy.FindConfigDirectory(Environment.CurrentDirectory)
+                ?? throw new InvalidOperationException("resources/config was not found; set CARBON_CONFIG_DIR.");
+
+    private static string ReadDocument(ConfigRepository config, string fileName) =>
+        Encoding.UTF8.GetString(config.Catalog.GetUtf8(Path.GetFileNameWithoutExtension(fileName)));
 }

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Carbon.Contracts.Common;
+using Carbon.Contracts.Config;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Entities.C2S;
 using Carbon.Contracts.Entities.S2C;
@@ -26,6 +27,7 @@ public sealed class ProtocolContractGuardTests
     private static readonly Assembly[] s_contractAssemblies =
     [
         typeof(SharedOpCode).Assembly,
+        typeof(ConfigOpCode).Assembly,
         typeof(IdentityOpCode).Assembly,
         typeof(MapOpCode).Assembly,
         typeof(EntityOpCode).Assembly,
@@ -35,6 +37,7 @@ public sealed class ProtocolContractGuardTests
     public static TheoryData<Type, ushort, ushort> ModuleBands => new()
     {
         { typeof(IdentityOpCode), 0x0100, 0x01FF },
+        { typeof(ConfigOpCode), 0x0200, 0x02FF },
         { typeof(MapOpCode), 0x1100, 0x11FF },
         { typeof(EntityOpCode), 0x1200, 0x12FF },
         { typeof(ItemOpCode), 0x4000, 0x40FF },

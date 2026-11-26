@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/contracts/">
     <Project Path="contracts/Carbon.Contracts.Common/Carbon.Contracts.Common.csproj" />
+    <Project Path="contracts/Carbon.Contracts.Config/Carbon.Contracts.Config.csproj" />
     <Project Path="contracts/Carbon.Contracts.Entities/Carbon.Contracts.Entities.csproj" />
     <Project Path="contracts/Carbon.Contracts.Identity/Carbon.Contracts.Identity.csproj" />
     <Project Path="contracts/Carbon.Contracts.Items/Carbon.Contracts.Items.csproj" />
@@ -15,8 +16,10 @@
   <Folder Name="/engine/">
     <Project Path="engine/Carbon.AI/Carbon.AI.csproj" />
     <Project Path="engine/Carbon.Combat/Carbon.Combat.csproj" />
+    <Project Path="engine/Carbon.Configuration/Carbon.Configuration.csproj" />
     <Project Path="engine/Carbon.Creatures/Carbon.Creatures.csproj" />
     <Project Path="engine/Carbon.Data/Carbon.Data.csproj" />
+    <Project Path="engine/Carbon.Economy/Carbon.Economy.csproj" />
     <Project Path="engine/Carbon.Items/Carbon.Items.csproj" />
     <Project Path="engine/Carbon.Maps/Carbon.Maps.csproj" />
     <Project Path="engine/Carbon.Physics/Carbon.Physics.csproj" />
@@ -40,6 +43,7 @@
     <Project Path="server/Carbon.Handlers/Carbon.Handlers.csproj" />
     <Project Path="server/Carbon.Host/Carbon.Host.csproj" />
     <Project Path="server/Carbon.Infrastructure/Carbon.Infrastructure.csproj" />
+    <Project Path="server/Carbon.Server.Configuration/Carbon.Server.Configuration.csproj" />
   </Folder>
   <Folder Name="/tests/" />
   <Folder Name="/tests/contracts/">
@@ -51,8 +55,10 @@
   <Folder Name="/tests/engine/">
     <Project Path="tests/engine/Carbon.AI.Tests/Carbon.AI.Tests.csproj" />
     <Project Path="tests/engine/Carbon.Combat.Tests/Carbon.Combat.Tests.csproj" />
+    <Project Path="tests/engine/Carbon.Configuration.Tests/Carbon.Configuration.Tests.csproj" />
     <Project Path="tests/engine/Carbon.Creatures.Tests/Carbon.Creatures.Tests.csproj" />
     <Project Path="tests/engine/Carbon.Data.Tests/Carbon.Data.Tests.csproj" />
+    <Project Path="tests/engine/Carbon.Economy.Tests/Carbon.Economy.Tests.csproj" />
     <Project Path="tests/engine/Carbon.Items.Tests/Carbon.Items.Tests.csproj" />
     <Project Path="tests/engine/Carbon.Maps.Tests/Carbon.Maps.Tests.csproj" />
     <Project Path="tests/engine/Carbon.Physics.Tests/Carbon.Physics.Tests.csproj" />
@@ -72,5 +78,6 @@
   </Folder>
   <Folder Name="/tests/server/">
     <Project Path="tests/server/Carbon.Host.Tests/Carbon.Host.Tests.csproj" />
+    <Project Path="tests/server/Carbon.Server.Configuration.Tests/Carbon.Server.Configuration.Tests.csproj" />
   </Folder>
 </Solution>

@@ -106,7 +106,8 @@ public sealed partial class AuthoritativeWorld
                 rewards.DropItemId,
                 rewards.DropQuantity,
                 rewards.ExperienceReward,
-                brain.AttackRange);
+                brain.AttackRange,
+                LootTableId: def.LootTableId);
         }
 
         _simulation.ClearEvents<MonsterSpawnedEvent>();

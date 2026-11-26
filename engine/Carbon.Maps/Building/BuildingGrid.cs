@@ -198,6 +198,32 @@ public sealed class BuildingGrid : IBuildingGrid
         _onStructureChanged?.Invoke(worldTileX, worldTileY, blueprint);
     }
 
+    /// <summary>
+    /// Places a fully specified structure tile (e.g. a completed construction built from a data-driven definition)
+    /// without foundation validation, recomputing wall autotiling for the tile and its neighbors.
+    /// </summary>
+    /// <param name="worldTileX">World tile X.</param>
+    /// <param name="worldTileY">World tile Y.</param>
+    /// <param name="structure">The structure to place; an empty tile is ignored.</param>
+    public void PlaceStructure(int worldTileX, int worldTileY, in StructureTile structure)
+    {
+        if (!structure.IsOccupied)
+        {
+            return;
+        }
+
+        StructureTile placed = structure;
+        if (WallAutotiler.CanConnectToWall(placed.Category))
+        {
+            placed = placed.WithConnectivity(WallAutotiler.ComputeConnectivity(worldTileX, worldTileY, _isConnectableDelegate));
+        }
+
+        _structures[(worldTileX, worldTileY)] = placed;
+        _roofCache.Clear();
+        this.UpdateNeighborConnectivity(worldTileX, worldTileY);
+        _onStructureChanged?.Invoke(worldTileX, worldTileY, placed);
+    }
+
     /// <inheritdoc/>
     public bool TryDemolishStructure(int worldTileX, int worldTileY)
     {
@@ -446,7 +472,13 @@ public sealed class BuildingGrid : IBuildingGrid
         }
     }
 
-    internal static StructureTile CreateBlueprint(StructureType type) => type switch
+    /// <summary>
+    /// Creates the default full-health tile of a structure type. Used when decoding wire deltas, which carry only the
+    /// type and current durability; values must match <c>resources/config/structures.json</c>.
+    /// </summary>
+    /// <param name="type">The structure type.</param>
+    /// <returns>The default tile, or <see cref="StructureTile.Empty"/> for unknown types.</returns>
+    public static StructureTile CreateBlueprint(StructureType type) => type switch
     {
         StructureType.None => StructureTile.Empty,
         StructureType.WoodWall => StructureTile.CreateWall(type, StructureMaterial.Wood, durability: 150f, harvestTier: 1),
@@ -457,6 +489,13 @@ public sealed class BuildingGrid : IBuildingGrid
         StructureType.StoneFloor => StructureTile.CreateFloor(type, StructureMaterial.Stone, moveSpeedMultiplier: 1.20f),
         StructureType.RoofPillar => StructureTile.CreatePillar(StructureMaterial.Stone, durability: 300f),
         StructureType.ForgeAnvil => StructureTile.CreateStation(type, StructureMaterial.Metal, durability: 350f, harvestTier: 2),
+        StructureType.MetalWall => StructureTile.CreateWall(type, StructureMaterial.Metal, durability: 550f, harvestTier: 3),
+        StructureType.MetalDoor => StructureTile.CreateDoor(type, StructureMaterial.Metal, durability: 350f, harvestTier: 3),
+        StructureType.Workbench => StructureTile.CreateStation(type, StructureMaterial.Wood, durability: 120f, harvestTier: 1),
+        StructureType.Stove => StructureTile.CreateStation(type, StructureMaterial.Stone, durability: 200f, harvestTier: 1),
+        StructureType.Campfire => StructureTile.CreateStation(type, StructureMaterial.Wood, durability: 40f, harvestTier: 0),
+        StructureType.WoodChest => StructureTile.CreateFurniture(type, StructureMaterial.Wood, durability: 80f, harvestTier: 1),
+        StructureType.WoodBed => StructureTile.CreateFurniture(type, StructureMaterial.Wood, durability: 90f, harvestTier: 1),
         _ => StructureTile.Empty
     };
 }

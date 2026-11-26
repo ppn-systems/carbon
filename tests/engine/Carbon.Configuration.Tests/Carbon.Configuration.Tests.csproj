@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <RootNamespace>Carbon.Configuration.Tests</RootNamespace>
+        <AssemblyName>Carbon.Configuration.Tests</AssemblyName>
+        <!-- Test packets are plain, never-pooled instances that only live for one assertion. -->
+        <NoWarn>$(NoWarn);CA2000</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\engine\Carbon.Configuration\Carbon.Configuration.csproj" />
+    </ItemGroup>
+</Project>

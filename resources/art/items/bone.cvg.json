@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "itemId": 147,
+  "id": "bone",
+  "displayName": "Bone",
+  "tier": 1,
+  "categoryLabel": "Monster Drop",
+  "accentColor": "#E2E8F0",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": -5,
+      "y": 4,
+      "x2": 5,
+      "y2": -4,
+      "thickness": 2.6,
+      "color": "#F1F5F9",
+      "outlineColor": "#334155",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -6.2,
+      "y": 4.6,
+      "rx": 1.6,
+      "ry": 1.5,
+      "color": "#F1F5F9",
+      "outlineColor": "#334155",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -4.6,
+      "y": 5.8,
+      "rx": 1.5,
+      "ry": 1.4,
+      "color": "#F1F5F9",
+      "outlineColor": "#334155",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 6.2,
+      "y": -4.6,
+      "rx": 1.6,
+      "ry": 1.5,
+      "color": "#F1F5F9",
+      "outlineColor": "#334155",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 4.6,
+      "y": -5.8,
+      "rx": 1.5,
+      "ry": 1.4,
+      "color": "#F1F5F9",
+      "outlineColor": "#334155",
+      "outlineThickness": 0.9
+    }
+  ]
+}

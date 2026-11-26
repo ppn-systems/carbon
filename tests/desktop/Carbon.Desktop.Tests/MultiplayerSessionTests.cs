@@ -34,6 +34,7 @@ using Carbon.Desktop.Networking.Session;
 
 namespace Carbon.Desktop.Tests;
 
+[Collection(LiveHostGroup.Name)]
 public sealed class MultiplayerSessionTests
 {
     [Fact]
@@ -260,7 +261,8 @@ public sealed class MultiplayerSessionTests
                 Vector2 placeAim = new((placeX + 0.5f) * 32f, (placeY + 0.5f) * 32f);
                 clientA.TriggerPrimaryAction(placeAim, out _).Should().BeTrue();
 
-                for (int i = 0; i < 12; i++)
+                // The kit places a blueprint; the 3 starter wood logs are delivered and 120 work takes 60 ticks.
+                for (int i = 0; i < 120 && !clientB.ChunkWorld.Buildings.TryGetStructure(placeX, placeY, out _); i++)
                 {
                     world.StepFixedTick();
                     await Task.Delay(20).ConfigureAwait(true);

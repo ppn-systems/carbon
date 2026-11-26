@@ -1,7 +1,9 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Text.Json;
 using System.Numerics;
 using Carbon.Creatures.Definitions;
 using Carbon.Creatures.Scaling;
@@ -22,6 +24,24 @@ internal static class CreatureTestData
     public static MonsterCatalog LoadCatalog() => MonsterCatalog.FromJson(MonstersJson);
 
     public static SpawningConfig LoadSpawning() => SpawningConfig.FromJson(SpawningJson);
+
+    public static HashSet<string> LoadLootTableIds()
+    {
+        HashSet<string> ids = new(StringComparer.Ordinal);
+        string path = Path.Combine(s_configDir.Value, "loot.json");
+        if (!File.Exists(path))
+        {
+            return ids;
+        }
+
+        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(path));
+        foreach (JsonElement table in doc.RootElement.GetProperty("tables").EnumerateArray())
+        {
+            ids.Add(table.GetProperty("id").GetString()!);
+        }
+
+        return ids;
+    }
 
     private static string FindConfigDirectory()
     {

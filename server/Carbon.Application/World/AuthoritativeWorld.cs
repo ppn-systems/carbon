@@ -15,11 +15,15 @@ using Carbon.Creatures.Components;
 using Carbon.Creatures.Definitions;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
+using Carbon.Economy;
+using Carbon.Economy.Currency;
+using Carbon.Economy.Loot;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Serialization;
 using Carbon.Items.Systems;
 using Carbon.Maps.Biomes;
+using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Landmarks;
@@ -58,12 +62,16 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly Lock _gate = new();
     private readonly ProceduralWorldGenerator _generator;
     private readonly ChunkWorld2D _chunkWorld;
+    private readonly BuildingService _building;
+    private readonly PlayerMaterialAdapter _playerMaterials;
+    private readonly GroundDropSink _groundDrops;
     private readonly WorldSimulation _simulation;
     private readonly SpatialAoiTracker _aoi;
     private readonly IChunkDeltaRepository _chunkDeltaRepo;
     private readonly ICharacterStore _characterStore;
     private readonly IWorldOutboundSink _outboundSink;
     private readonly TimeProvider _time;
+    private readonly GameEconomy? _economy;
 
     private readonly Dictionary<ulong, ActivePlayerState> _playersByConnection = new();
     private readonly Dictionary<ulong, ulong> _connectionByNetworkId = new();
@@ -134,7 +142,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         ICharacterStore characterStore,
         IWorldOutboundSink outboundSink,
         TimeProvider? time = null,
-        CreatureContent? creatures = null)
+        CreatureContent? creatures = null,
+        GameEconomy? economy = null,
+        StructureCatalog? structureCatalog = null)
     {
         ArgumentNullException.ThrowIfNull(chunkDeltaRepo);
         ArgumentNullException.ThrowIfNull(characterStore);
@@ -149,9 +159,17 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         _characterStore = characterStore;
         _outboundSink = outboundSink;
         _time = time ?? TimeProvider.System;
+        _economy = economy;
 
         _generator = new ProceduralWorldGenerator(this.WorldSeed);
         _chunkWorld = new ChunkWorld2D(_generator, this.TileSize, this.Frequency);
+        _building = BuildingService.ForWorld(
+            _chunkWorld,
+            structureCatalog ?? StructureCatalog.LoadEmbedded(),
+            new BuildPermissionTable(),
+            this.IsPlayerOnTileLocked);
+        _playerMaterials = new PlayerMaterialAdapter(this);
+        _groundDrops = new GroundDropSink(this);
         _simulation = new WorldSimulation(this.TickRate, this.TileSize)
         {
             WorldPhysics = _chunkWorld,
@@ -298,6 +316,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
                 CurrentStamina = startStamina,
                 StatsDirty = true,
                 LastSavedPosition = spawnPos,
+                Wallet = _economy is null
+                    ? new Wallet(networkId)
+                    : new Wallet(networkId, _economy.Config.Currencies.GoldCap, _economy.Config.Currencies.DiamondCap),
             };
             startProg.CopyTo(playerState.Progression);
 
@@ -1028,6 +1049,15 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         public bool LeveledUpPending { get; set; }
         public bool PersistenceDirty { get; set; }
         public bool InventoryDirty { get; set; }
+        public BuildJobKind BuildJob { get; set; }
+        public int BuildJobTileX { get; set; }
+        public int BuildJobTileY { get; set; }
+
+        /// <summary>Server-authoritative gold/diamond balances (in-memory until a persistence ADR lands).</summary>
+        public Wallet Wallet { get; init; } = new(session.PlayerNetworkId);
+
+        /// <summary>Diamond bad-luck protection counter.</summary>
+        public LootPityState LootPity { get; set; }
     }
 
     private readonly record struct LootDropMeta(ItemSlot Item, ulong SpawnTick);
@@ -1087,7 +1117,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         uint ExperienceReward,
         float AttackRange = 44f,
         float ProjectileSpeed = 0f,
-        byte ProjectileArchetype = 0);
+        byte ProjectileArchetype = 0,
+        string? LootTableId = null);
 
     private readonly record struct OutboundSpawn(ulong ConnectionId, EntitySpawnSnapshot Snapshot);
     private readonly record struct OutboundDespawn(ulong ConnectionId, ulong NetworkId, ulong ServerTick);

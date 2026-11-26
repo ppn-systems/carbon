@@ -441,6 +441,334 @@
       "tier": 3,
       "accentColor": "#F97316",
       "file": "items/demon_ember.cvg.json"
+    },
+    {
+      "itemId": 100,
+      "id": "plant_fiber",
+      "displayName": "Plant Fiber",
+      "tier": 1,
+      "accentColor": "#84CC16",
+      "file": "items/plant_fiber.cvg.json"
+    },
+    {
+      "itemId": 101,
+      "id": "wood_plank",
+      "displayName": "Wood Plank",
+      "tier": 1,
+      "accentColor": "#D97706",
+      "file": "items/wood_plank.cvg.json"
+    },
+    {
+      "itemId": 102,
+      "id": "copper_ore",
+      "displayName": "Copper Ore",
+      "tier": 1,
+      "accentColor": "#F97316",
+      "file": "items/copper_ore.cvg.json"
+    },
+    {
+      "itemId": 103,
+      "id": "copper_ingot",
+      "displayName": "Copper Ingot",
+      "tier": 1,
+      "accentColor": "#EA580C",
+      "file": "items/copper_ingot.cvg.json"
+    },
+    {
+      "itemId": 104,
+      "id": "iron_ingot",
+      "displayName": "Iron Ingot",
+      "tier": 2,
+      "accentColor": "#94A3B8",
+      "file": "items/iron_ingot.cvg.json"
+    },
+    {
+      "itemId": 105,
+      "id": "coal",
+      "displayName": "Coal",
+      "tier": 1,
+      "accentColor": "#475569",
+      "file": "items/coal.cvg.json"
+    },
+    {
+      "itemId": 106,
+      "id": "leather",
+      "displayName": "Leather",
+      "tier": 1,
+      "accentColor": "#B45309",
+      "file": "items/leather.cvg.json"
+    },
+    {
+      "itemId": 107,
+      "id": "cloth",
+      "displayName": "Cloth",
+      "tier": 1,
+      "accentColor": "#E7E5E4",
+      "file": "items/cloth.cvg.json"
+    },
+    {
+      "itemId": 108,
+      "id": "stone_brick",
+      "displayName": "Stone Brick",
+      "tier": 1,
+      "accentColor": "#94A3B8",
+      "file": "items/stone_brick.cvg.json"
+    },
+    {
+      "itemId": 109,
+      "id": "rough_gem",
+      "displayName": "Rough Gem",
+      "tier": 3,
+      "accentColor": "#22D3EE",
+      "file": "items/rough_gem.cvg.json"
+    },
+    {
+      "itemId": 110,
+      "id": "rope",
+      "displayName": "Rope",
+      "tier": 1,
+      "accentColor": "#CA8A04",
+      "file": "items/rope.cvg.json"
+    },
+    {
+      "itemId": 111,
+      "id": "iron_nails",
+      "displayName": "Iron Nails",
+      "tier": 1,
+      "accentColor": "#94A3B8",
+      "file": "items/iron_nails.cvg.json"
+    },
+    {
+      "itemId": 120,
+      "id": "berries",
+      "displayName": "Berries",
+      "tier": 1,
+      "accentColor": "#EF4444",
+      "file": "items/berries.cvg.json"
+    },
+    {
+      "itemId": 121,
+      "id": "raw_meat",
+      "displayName": "Raw Meat",
+      "tier": 1,
+      "accentColor": "#DC2626",
+      "file": "items/raw_meat.cvg.json"
+    },
+    {
+      "itemId": 122,
+      "id": "cooked_meat",
+      "displayName": "Cooked Meat",
+      "tier": 1,
+      "accentColor": "#B45309",
+      "file": "items/cooked_meat.cvg.json"
+    },
+    {
+      "itemId": 123,
+      "id": "bread",
+      "displayName": "Bread",
+      "tier": 1,
+      "accentColor": "#D97706",
+      "file": "items/bread.cvg.json"
+    },
+    {
+      "itemId": 124,
+      "id": "stew",
+      "displayName": "Hearty Stew",
+      "tier": 2,
+      "accentColor": "#B45309",
+      "file": "items/stew.cvg.json"
+    },
+    {
+      "itemId": 125,
+      "id": "slime_jelly",
+      "displayName": "Slime Jelly",
+      "tier": 1,
+      "accentColor": "#4ADE80",
+      "file": "items/slime_jelly.cvg.json"
+    },
+    {
+      "itemId": 126,
+      "id": "wheat",
+      "displayName": "Wheat",
+      "tier": 1,
+      "accentColor": "#EAB308",
+      "file": "items/wheat.cvg.json"
+    },
+    {
+      "itemId": 140,
+      "id": "slime_gel",
+      "displayName": "Slime Gel",
+      "tier": 1,
+      "accentColor": "#22C55E",
+      "file": "items/slime_gel.cvg.json"
+    },
+    {
+      "itemId": 141,
+      "id": "slime_core",
+      "displayName": "Slime Core",
+      "tier": 2,
+      "accentColor": "#16A34A",
+      "file": "items/slime_core.cvg.json"
+    },
+    {
+      "itemId": 142,
+      "id": "orc_tusk",
+      "displayName": "Orc Tusk",
+      "tier": 2,
+      "accentColor": "#A3E635",
+      "file": "items/orc_tusk.cvg.json"
+    },
+    {
+      "itemId": 143,
+      "id": "crude_iron",
+      "displayName": "Crude Iron",
+      "tier": 1,
+      "accentColor": "#78716C",
+      "file": "items/crude_iron.cvg.json"
+    },
+    {
+      "itemId": 144,
+      "id": "demon_horn",
+      "displayName": "Demon Horn",
+      "tier": 4,
+      "accentColor": "#B91C1C",
+      "file": "items/demon_horn.cvg.json"
+    },
+    {
+      "itemId": 145,
+      "id": "ember_shard",
+      "displayName": "Ember Shard",
+      "tier": 3,
+      "accentColor": "#F97316",
+      "file": "items/ember_shard.cvg.json"
+    },
+    {
+      "itemId": 146,
+      "id": "blood_vial",
+      "displayName": "Blood Vial",
+      "tier": 3,
+      "accentColor": "#DC2626",
+      "file": "items/blood_vial.cvg.json"
+    },
+    {
+      "itemId": 147,
+      "id": "bone",
+      "displayName": "Bone",
+      "tier": 1,
+      "accentColor": "#E2E8F0",
+      "file": "items/bone.cvg.json"
+    },
+    {
+      "itemId": 148,
+      "id": "bone_dust",
+      "displayName": "Bone Dust",
+      "tier": 1,
+      "accentColor": "#CBD5E1",
+      "file": "items/bone_dust.cvg.json"
+    },
+    {
+      "itemId": 160,
+      "id": "small_health_potion",
+      "displayName": "Small Health Potion",
+      "tier": 1,
+      "accentColor": "#EF4444",
+      "file": "items/small_health_potion.cvg.json"
+    },
+    {
+      "itemId": 161,
+      "id": "greater_health_potion",
+      "displayName": "Greater Health Potion",
+      "tier": 3,
+      "accentColor": "#F43F5E",
+      "file": "items/greater_health_potion.cvg.json"
+    },
+    {
+      "itemId": 180,
+      "id": "copper_sword",
+      "displayName": "Copper Sword",
+      "tier": 1,
+      "accentColor": "#F97316",
+      "file": "items/copper_sword.cvg.json"
+    },
+    {
+      "itemId": 181,
+      "id": "iron_axe",
+      "displayName": "Iron Axe",
+      "tier": 2,
+      "accentColor": "#94A3B8",
+      "file": "items/iron_axe.cvg.json"
+    },
+    {
+      "itemId": 182,
+      "id": "bone_bow",
+      "displayName": "Bone Bow",
+      "tier": 2,
+      "accentColor": "#E2E8F0",
+      "file": "items/bone_bow.cvg.json"
+    },
+    {
+      "itemId": 183,
+      "id": "ember_blade",
+      "displayName": "Ember Blade",
+      "tier": 4,
+      "accentColor": "#F97316",
+      "file": "items/ember_blade.cvg.json"
+    },
+    {
+      "itemId": 184,
+      "id": "blood_amulet",
+      "displayName": "Blood Amulet",
+      "tier": 4,
+      "accentColor": "#DC2626",
+      "file": "items/blood_amulet.cvg.json"
+    },
+    {
+      "itemId": 185,
+      "id": "slime_ring",
+      "displayName": "Slime Ring",
+      "tier": 2,
+      "accentColor": "#22C55E",
+      "file": "items/slime_ring.cvg.json"
+    },
+    {
+      "itemId": 186,
+      "id": "orc_war_helm",
+      "displayName": "Orc War Helm",
+      "tier": 3,
+      "accentColor": "#A3E635",
+      "file": "items/orc_war_helm.cvg.json"
+    },
+    {
+      "itemId": 187,
+      "id": "abyssal_crown",
+      "displayName": "Abyssal Crown",
+      "tier": 5,
+      "accentColor": "#A855F7",
+      "file": "items/abyssal_crown.cvg.json"
+    },
+    {
+      "itemId": 200,
+      "id": "workbench_kit",
+      "displayName": "Workbench Kit",
+      "tier": 1,
+      "accentColor": "#D97706",
+      "file": "items/workbench_kit.cvg.json"
+    },
+    {
+      "itemId": 201,
+      "id": "stove_kit",
+      "displayName": "Stove Kit",
+      "tier": 1,
+      "accentColor": "#F97316",
+      "file": "items/stove_kit.cvg.json"
+    },
+    {
+      "itemId": 202,
+      "id": "alchemy_table_kit",
+      "displayName": "Alchemy Table Kit",
+      "tier": 2,
+      "accentColor": "#A855F7",
+      "file": "items/alchemy_table_kit.cvg.json"
     }
   ],
   "props": [
@@ -711,6 +1039,48 @@
       "id": "forge_anvil",
       "displayName": "Forge Anvil",
       "file": "structures/forge_anvil.cvg.json"
+    },
+    {
+      "structureType": 9,
+      "id": "metal_wall",
+      "displayName": "Metal Wall",
+      "file": "structures/metal_wall.cvg.json"
+    },
+    {
+      "structureType": 10,
+      "id": "metal_door",
+      "displayName": "Metal Door",
+      "file": "structures/metal_door.cvg.json"
+    },
+    {
+      "structureType": 11,
+      "id": "workbench",
+      "displayName": "Workbench",
+      "file": "structures/workbench.cvg.json"
+    },
+    {
+      "structureType": 12,
+      "id": "stove",
+      "displayName": "Stove",
+      "file": "structures/stove.cvg.json"
+    },
+    {
+      "structureType": 13,
+      "id": "campfire",
+      "displayName": "Campfire",
+      "file": "structures/campfire.cvg.json"
+    },
+    {
+      "structureType": 14,
+      "id": "wood_chest",
+      "displayName": "Wood Chest",
+      "file": "structures/wood_chest.cvg.json"
+    },
+    {
+      "structureType": 15,
+      "id": "wood_bed",
+      "displayName": "Wood Bed",
+      "file": "structures/wood_bed.cvg.json"
     }
   ]
 }

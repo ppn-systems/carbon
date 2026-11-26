@@ -97,6 +97,7 @@ public sealed partial class AuthoritativeWorld
                 }
             }
 
+            this.ProcessBuildJobsLocked(dt);
             this.ProcessDespawnedEntitiesLocked();
 
             if ((_currentTick % this.TickRate) == 0UL)

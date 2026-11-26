@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "maxLevel": 100,
+  "currencies": {
+    "goldCap": 2000000000,
+    "diamondCap": 1000000
+  },
+  "gold": {
+    "dropChancePercent": 70,
+    "levelExponent": 0.6,
+    "variancePercent": 25,
+    "eliteMultiplier": 3,
+    "bossMultiplier": 12,
+    "distanceBonusPercentPerTier": 10,
+    "maxDistanceTier": 10,
+    "lowLevelGap": 8,
+    "lowLevelMultiplierPercent": 20
+  },
+  "diamond": {
+    "levelBonusPercentPerLevel": 10,
+    "eliteMultiplier": 5,
+    "bossMultiplier": 40,
+    "distanceBonusPercentPerTier": 25,
+    "maxChancePpm": 50000,
+    "pity": {
+      "enabled": true,
+      "softStartKills": 10000,
+      "stepPpm": 1,
+      "hardCapKills": 30000
+    }
+  },
+  "vendor": {
+    "buyMarkupPercent": 100,
+    "sellRatioPercent": 25
+  },
+  "repair": {
+    "costPercentOfBasePrice": 30,
+    "minimumCost": 1
+  },
+  "craftingFees": {
+    "none": 0,
+    "workbench": 0,
+    "forge": 2,
+    "stove": 1,
+    "alchemy": 5,
+    "outputValueRateBps": 200
+  },
+  "designTargets": {
+    "killsPerHour": 120,
+    "goldPerHour": [
+      { "minLevel": 1, "maxLevel": 9, "min": 50, "max": 900 },
+      { "minLevel": 10, "maxLevel": 24, "min": 250, "max": 2000 },
+      { "minLevel": 25, "maxLevel": 49, "min": 800, "max": 3500 },
+      { "minLevel": 50, "maxLevel": 74, "min": 1500, "max": 5000 },
+      { "minLevel": 75, "maxLevel": 100, "min": 2000, "max": 6000 }
+    ],
+    "diamondsPerHour": [
+      { "minLevel": 1, "maxLevel": 24, "min": 0.006, "max": 0.02 },
+      { "minLevel": 25, "maxLevel": 49, "min": 0.008, "max": 0.03 },
+      { "minLevel": 50, "maxLevel": 74, "min": 0.01, "max": 0.04 },
+      { "minLevel": 75, "maxLevel": 100, "min": 0.015, "max": 0.06 }
+    ]
+  }
+}

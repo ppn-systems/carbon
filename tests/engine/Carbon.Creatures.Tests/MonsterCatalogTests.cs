@@ -35,10 +35,13 @@ public sealed class MonsterCatalogTests
     public void FromJson_ShippedMonstersJson_EveryMonsterHasLootTableVisualKeyAndValidEnums()
     {
         MonsterCatalog catalog = CreatureTestData.LoadCatalog();
+        HashSet<string> lootTables = CreatureTestData.LoadLootTableIds();
 
         foreach (MonsterDefinition def in catalog.Definitions)
         {
-            def.LootTableId.Should().Be(def.Id, "loot tables are keyed by monster id");
+            def.LootTableId.Should().NotBeNullOrWhiteSpace();
+            (lootTables.Contains(def.LootTableId) || def.LootTableId == def.Id).Should().BeTrue(
+                $"'{def.Id}' must reference a loot.json table, or its own id while it still uses legacy catalog drops");
             def.VisualArchetype.Should().NotBeNullOrWhiteSpace("the client picks sprites by visual archetype key");
             def.ArchetypeId.Should().BeInRange(101, 199, "monsters use the WorldActorCatalog monster archetype range");
             def.PreferredBiomes.Should().NotBeEmpty().And.OnlyContain(b => Enum.IsDefined(b));

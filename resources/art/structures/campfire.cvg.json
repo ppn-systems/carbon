@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 2,
+  "structureType": 13,
+  "id": "campfire",
+  "displayName": "Campfire",
+  "palette": {
+    "stone": "#6B7280",
+    "log": "#78350F",
+    "flame": "#F97316",
+    "core": "#FDE047"
+  },
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "x": 16,
+      "y": 18,
+      "rx": 11,
+      "ry": 8,
+      "color": "$stone"
+    },
+    {
+      "kind": "line",
+      "x": 8,
+      "y": 22,
+      "x2": 24,
+      "y2": 14,
+      "thickness": 3.0,
+      "color": "$log"
+    },
+    {
+      "kind": "line",
+      "x": 8,
+      "y": 14,
+      "x2": 24,
+      "y2": 22,
+      "thickness": 3.0,
+      "color": "$log"
+    },
+    {
+      "kind": "ellipse",
+      "x": 16,
+      "y": 16,
+      "rx": 5,
+      "ry": 6,
+      "color": "$flame"
+    },
+    {
+      "kind": "ellipse",
+      "x": 16,
+      "y": 17,
+      "rx": 2.5,
+      "ry": 3,
+      "color": "$core"
+    }
+  ],
+  "openShapes": []
+}
