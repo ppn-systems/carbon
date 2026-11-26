@@ -29,6 +29,7 @@ public sealed class ConfigRepository
     public const string SearchPattern = "*.json";
 
     private readonly Lock _reloadGate = new();
+    private readonly List<Func<ConfigReloadResult, ConfigCatalog, Action>> _reloadSteps = [];
     private readonly FrozenSet<string> _serverOnly;
     private volatile Snapshot _snapshot;
 
@@ -73,6 +74,23 @@ public sealed class ConfigRepository
     }
 
     /// <summary>
+    /// Registers a reload step for a server domain built from config, so a reload swaps the served manifest and the
+    /// running tables together. On each changed reload, <paramref name="prepare"/> receives the diff and the candidate
+    /// documents and builds the new domain without touching live state; throwing <see cref="InvalidDataException"/>
+    /// rejects the reload, leaving the manifest and every domain unchanged. The returned action is the commit,
+    /// which runs only after every step prepared successfully and must not fail.
+    /// </summary>
+    /// <param name="prepare">Builds the new domain and returns the action that installs it.</param>
+    public void AddReloadStep(Func<ConfigReloadResult, ConfigCatalog, Action> prepare)
+    {
+        ArgumentNullException.ThrowIfNull(prepare);
+        lock (_reloadGate)
+        {
+            _reloadSteps.Add(prepare);
+        }
+    }
+
+    /// <summary>
     /// Creates a repository with no documents and no directory (for hosts or tests without gameplay config).
     /// Its manifest is empty, so clients become ready immediately; <see cref="Reload"/> throws.
     /// </summary>
@@ -81,8 +99,8 @@ public sealed class ConfigRepository
         new(string.Empty, new Snapshot([], new ConfigCatalog(1, [])), FrozenSet<string>.Empty);
 
     /// <summary>
-    /// Re-reads the config directory. On any invalid file the current snapshot is kept and the exception is
-    /// rethrown, so a bad edit never reaches clients.
+    /// Re-reads the config directory. On any invalid file, or any reload step rejecting the new documents, the current
+    /// snapshot and every domain are kept and the exception is rethrown, so a bad edit never reaches clients or the server.
     /// </summary>
     /// <returns>What changed.</returns>
     /// <exception cref="InvalidDataException">Thrown when a file is invalid.</exception>
@@ -97,6 +115,19 @@ public sealed class ConfigRepository
             if (!result.HasChanges)
             {
                 return result;
+            }
+
+            // Two-phase: every step prepares against the candidate first, so one invalid domain rejects the whole reload
+            // and nothing changes; only then do the steps commit and the served snapshot switch, before clients are told.
+            Action[] commits = new Action[_reloadSteps.Count];
+            for (int i = 0; i < commits.Length; i++)
+            {
+                commits[i] = _reloadSteps[i](result, next.Catalog);
+            }
+
+            for (int i = 0; i < commits.Length; i++)
+            {
+                commits[i]();
             }
 
             _snapshot = next;

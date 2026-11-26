@@ -51,10 +51,10 @@ public sealed class HostRuntimeOptions
     public string ConfigDirectory { get; init; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets a value indicating whether config file edits are hot-reloaded and pushed to clients
-    /// (<c>CARBON_CONFIG_HOT_RELOAD=1</c>). Off by default until every domain can swap its tables at runtime.
+    /// Gets or sets a value indicating whether config file edits are hot-reloaded: the running server domains and the
+    /// manifest pushed to clients switch together. On by default; <c>CARBON_CONFIG_HOT_RELOAD=0</c> turns it off.
     /// </summary>
-    public bool ConfigHotReload { get; init; }
+    public bool ConfigHotReload { get; init; } = true;
 
     /// <summary>
     /// Gets the developer-only world overrides (debug spawn tile or biome, start hour). Always empty in
@@ -124,7 +124,7 @@ public sealed class HostRuntimeOptions
             TcpPort = tcpPort,
             UdpPort = udpPort,
             ConfigDirectory = configDirectory,
-            ConfigHotReload = string.Equals(Environment.GetEnvironmentVariable("CARBON_CONFIG_HOT_RELOAD"), "1", StringComparison.Ordinal),
+            ConfigHotReload = !string.Equals(Environment.GetEnvironmentVariable("CARBON_CONFIG_HOT_RELOAD"), "0", StringComparison.Ordinal),
             DebugOverrides = ReadDebugOverrides(Environment.GetEnvironmentVariable),
         };
     }
