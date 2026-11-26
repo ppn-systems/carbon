@@ -7,9 +7,11 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Carbon.Desktop.Rendering;
+using Carbon.Graphics.Animation.Characters;
 using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
+using Carbon.Graphics.OpenGL.Device;
 using Carbon.Graphics.Windowing.Abstractions;
 using Carbon.Graphics.Windowing.Configuration;
 using Carbon.Graphics.Windowing.Window;
@@ -77,6 +79,17 @@ public static class Program
     private static readonly List<GroundRenderItem> s_groundSortList = new(256);
     private static readonly List<CanopyRenderItem> s_canopySortList = new(128);
 
+    // Player visuals: sprite archetype (falls back to a procedural token without the art packs), playback state,
+    // and the smoothed fraction of the body below the water surface.
+    private const string PlayerArchetype = "human_soldier";
+    private static CharacterSpriteRenderer? s_characters;
+    private static CharacterAnimationState s_playerAnimation;
+    private static float s_playerSubmersion;
+    private static float s_frameDt;
+
+    // CARBON_AUTO_WALK="dx,dy" holds a movement direction without input (screenshots of walking and wading).
+    private static readonly Vector2 s_autoWalk = ParseAutoWalk(Environment.GetEnvironmentVariable("CARBON_AUTO_WALK"));
+
     /// <summary>
     /// Application main entry point.
     /// </summary>
@@ -120,6 +133,8 @@ public static class Program
         s_canopySortList.Clear();
         s_chunkTerrainRenderer?.Dispose();
         s_chunkTerrainRenderer = null;
+        s_characters?.Dispose();
+        s_characters = null;
         s_geometryBatch?.Dispose();
         s_geometryBatch = null;
     }
@@ -132,6 +147,10 @@ public static class Program
 
         s_geometryBatch = new GeometryBatch(window.Device);
         s_chunkTerrainRenderer = new ChunkTerrainRenderer(window.Device);
+        if (window.Device is GraphicsDevice graphicsDevice)
+        {
+            s_characters = CharacterSpriteRenderer.Create(graphicsDevice);
+        }
         s_camera = new Camera2D(window.Width, window.Height)
         {
             Zoom = Environment.GetEnvironmentVariable("CARBON_MACRO_VIEW") == "1" ? 0.25f : 1.0f
@@ -284,6 +303,11 @@ public static class Program
             moveDir.X += 1f;
         }
 
+        if (moveDir == Vector2.Zero)
+        {
+            moveDir = s_autoWalk;
+        }
+
         float baseSpeed = window.Input.Keyboard.IsKeyDown(Key.ShiftLeft) ? 450f : 250f;
 
         // Current terrain speed multiplier
@@ -382,6 +406,7 @@ public static class Program
         // While capturing an animation, step time at a fixed 15 fps so the sequence is independent of the
         // (possibly slow, software-rendered) frame rate.
         float frameDt = s_captureFrames > 0 ? 1f / 15f : (float)dt;
+        s_frameDt = frameDt;
         s_animTime += frameDt;
         // CARBON_TIME_SCALE speeds up the sky (clouds, weather, time of day), e.g. for time-lapse captures.
         s_atmosphere?.Update(frameDt * s_timeScale);
@@ -697,30 +722,41 @@ public static class Program
         }
 
         Vector2 entityPos = s_world.GetInterpolatedPosition(entity);
-        ref readonly Collider2D col = ref s_world.Entities.GetCollider(entity);
-
-        if (entity == s_player)
+        if (entity == s_player && s_camera is not null)
         {
-            // Current player tile for contextual foot effects (water splash / ripple)
-            int ptx = (int)MathF.Floor(entityPos.X / TileSize);
-            int pty = (int)MathF.Floor(entityPos.Y / TileSize);
-            MapTile currentTile = s_chunkWorld.GetTileAtWorld(ptx, pty);
-
-            if (currentTile.Biome is BiomeType.ShallowWater)
+            // Wading: the body sinks with the engine's water depth (0 at the waterline, 1 at full depth).
+            float depth = s_chunkWorld.GetWaterDepth(entityPos);
+            float targetSubmersion = depth * CharacterSpriteRenderer.MaxSubmersion;
+            s_playerSubmersion += (targetSubmersion - s_playerSubmersion) * MathF.Min(1f, s_frameDt * 10f);
+            if (MathF.Abs(targetSubmersion - s_playerSubmersion) < 0.002f)
             {
-                // Water ripple ring around player's feet when wading in shallow water
-                batch.FillCircle(entityPos, col.Radius + 6f, new ColorRgba(255, 255, 255, 55));
-                batch.FillCircle(entityPos, col.Radius + 4f, new ColorRgba(56, 189, 248, 75));
+                s_playerSubmersion = targetSubmersion;
             }
 
-            // Player token: matte colours only. The previous white rim and saturated cyan core read as an
-            // emissive glow (especially at night, where lit tiles are darkened but the token was not).
-            batch.FillCircle(new Vector2(entityPos.X + 1.5f, entityPos.Y + 2.5f), col.Radius + 0.5f, new ColorRgba(0, 0, 0, 70));
-            batch.FillCircle(entityPos, col.Radius + 1f, new ColorRgba(28, 25, 23, 255));
-            batch.FillCircle(entityPos, col.Radius, new ColorRgba(55, 65, 110, 255));
-            batch.FillCircle(new Vector2(entityPos.X, entityPos.Y - (col.Radius * 0.35f)), col.Radius * 0.45f, new ColorRgba(214, 170, 130, 255));
+            Vector2 velocity = s_world.Entities.HasVelocity(entity) ? s_world.Entities.GetVelocity(entity).Linear : Vector2.Zero;
+            CharacterAnimationSet? set = null;
+            if (s_characters is not null && s_characters.TryGetSet(PlayerArchetype, out CharacterAnimationSet loaded))
+            {
+                set = loaded;
+                // Steps slow down with the actual speed, so wading reads as heavy and sprinting as quick.
+                float walkRate = Math.Clamp(velocity.Length() / 200f, 0.45f, 1.8f);
+                s_playerAnimation.UpdateLocomotion(set, velocity, s_frameDt, walkRate);
+            }
+
+            if (s_characters is not null)
+            {
+                Matrix4x4 viewProjection = s_camera.ViewProjectionMatrix;
+                s_characters.Draw(batch, in viewProjection, set, in s_playerAnimation, entityPos, TileSize, s_playerSubmersion, velocity, s_animTime);
+            }
         }
     }
+
+    private static Vector2 ParseAutoWalk(string? value) =>
+        value?.Split(',') is [string x, string y] &&
+        float.TryParse(x, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float dx) &&
+        float.TryParse(y, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float dy)
+            ? new Vector2(dx, dy)
+            : Vector2.Zero;
 
     private static void OnResize(IGameWindow window, int width, int height)
     {

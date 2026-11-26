@@ -13,5 +13,7 @@
         <ProjectReference Include="..\..\graphics\Carbon.Graphics.OpenGL\Carbon.Graphics.OpenGL.csproj" />
         <ProjectReference Include="..\..\graphics\Carbon.Graphics.Windowing\Carbon.Graphics.Windowing.csproj" />
         <ProjectReference Include="..\..\graphics\Carbon.Graphics.Batching\Carbon.Graphics.Batching.csproj" />
+        <ProjectReference Include="..\..\graphics\Carbon.Graphics.Animation\Carbon.Graphics.Animation.csproj" />
+        <ProjectReference Include="..\..\graphics\Carbon.Graphics.Assets\Carbon.Graphics.Assets.csproj" />
     </ItemGroup>
 </Project>
