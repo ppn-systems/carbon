@@ -62,6 +62,7 @@ public sealed partial class AuthoritativeWorld
                 : ItemSlot.Empty;
             ToolTargetKind targetKind = ToToolTargetKind(existing.Category);
             PropStrikeEvaluation eval = ToolUsagePolicy.EvaluatePropStrike(
+                _itemRules,
                 in activeSlot,
                 targetKind,
                 existing.Destructibility.HarvestTier);
@@ -108,7 +109,7 @@ public sealed partial class AuthoritativeWorld
 
                 if (isDestroyed)
                 {
-                    ItemSlot drop = PropHarvestCatalog.ResolveDrop(updated.Type, out uint propXp);
+                    ItemSlot drop = PropHarvestCatalog.ResolveDrop(_itemRules, updated.Type, out uint propXp);
                     if (!drop.IsEmpty)
                     {
                         Vector2 propDropPos = new((tileX + 0.5f) * this.TileSize, (tileY + 0.5f) * this.TileSize);
@@ -416,7 +417,7 @@ public sealed partial class AuthoritativeWorld
         {
             float dmg = 20f;
             byte toolTier = 1;
-            if (!activeSlot.IsEmpty && StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? toolDef))
+            if (!activeSlot.IsEmpty && _itemRules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? toolDef))
             {
                 toolTier = Math.Max((byte)1, toolDef.HarvestTier);
                 bool isWoodStruct = targetStruct.Material == StructureMaterial.Wood;
@@ -466,6 +467,7 @@ public sealed partial class AuthoritativeWorld
 
         ToolTargetKind targetKind = ToToolTargetKind(existing.Category);
         PropStrikeEvaluation eval = ToolUsagePolicy.EvaluatePropStrike(
+            _itemRules,
             in activeSlot,
             targetKind,
             existing.Destructibility.HarvestTier);
@@ -498,7 +500,7 @@ public sealed partial class AuthoritativeWorld
 
         if (updated.Destructibility.IsDestroyed)
         {
-            ItemSlot drop = PropHarvestCatalog.ResolveDrop(updated.Type, out uint propXp);
+            ItemSlot drop = PropHarvestCatalog.ResolveDrop(_itemRules, updated.Type, out uint propXp);
             if (!drop.IsEmpty)
             {
                 Vector2 propDropPos = new((wx + 0.5f) * this.TileSize, (wy + 0.5f) * this.TileSize);

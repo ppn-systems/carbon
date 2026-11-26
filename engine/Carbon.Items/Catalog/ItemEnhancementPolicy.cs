@@ -43,6 +43,7 @@ public static class ItemEnhancementPolicy
     /// Checks whether <paramref name="slot"/> is eligible for forging and outputs its material costs &amp; success chance.
     /// </summary>
     public static bool CanUpgrade(
+        ItemRules rules,
         in ItemSlot slot,
         out uint material1Id,
         out int material1Count,
@@ -50,13 +51,14 @@ public static class ItemEnhancementPolicy
         out int material2Count,
         out float successChance)
     {
+        ArgumentNullException.ThrowIfNull(rules);
         material1Id = 0U;
         material1Count = 0;
         material2Id = 0U;
         material2Count = 0;
         successChance = 0f;
 
-        if (slot.IsEmpty || !StarterGameCatalog.Items.TryGet(slot.ItemId, out ItemArchetype? def) || def.MaxDurability <= 0f)
+        if (slot.IsEmpty || !rules.Items.TryGet(slot.ItemId, out ItemArchetype? def) || def.MaxDurability <= 0f)
         {
             return false;
         }

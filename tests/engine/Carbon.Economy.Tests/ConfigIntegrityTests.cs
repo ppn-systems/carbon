@@ -96,7 +96,7 @@ public sealed class ConfigIntegrityTests
     [Fact]
     public void ItemsJson_SharedIds_MatchStarterGameCatalog()
     {
-        foreach (ItemArchetype archetype in StarterGameCatalog.Items.All)
+        foreach (ItemArchetype archetype in ItemRules.LoadShippedDefaults().Items.All)
         {
             ShippedConfig.Items.TryGet(archetype.Id, out ItemCatalogEntry? item).Should().BeTrue($"items.json must define starter item {archetype.Id}");
             item!.Code.Should().Be(archetype.Code);

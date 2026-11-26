@@ -38,6 +38,7 @@ public sealed class GameEconomy
         this.Recipes = recipes;
         this.Config = config;
         this.Loot = loot;
+        this.ItemRules = new ItemRules(items, recipes);
         this.Prices = new PriceBook(items, config);
         this.Vendor = new VendorService(this.Prices);
         this.Checkout = new CraftingCheckout(this.Prices);
@@ -48,6 +49,9 @@ public sealed class GameEconomy
 
     /// <summary>Gets the recipe catalog.</summary>
     public RecipeCatalog Recipes { get; }
+
+    /// <summary>Gets the item stat and recipe rules built from <see cref="Items"/> and <see cref="Recipes"/>.</summary>
+    public ItemRules ItemRules { get; }
 
     /// <summary>Gets the economy tunables.</summary>
     public EconomyConfig Config { get; }

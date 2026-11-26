@@ -184,11 +184,11 @@ Ids 1–39 keep the `StarterGameCatalog` ids and codes, and a test checks catego
 
 ## 9. Server integration
 
-- **Loading.** The Host builds `GameEconomy.Load(ConfigRepository.Catalog)` from the same snapshot it serves to clients (ADR-014), then calls `StarterGameCatalog.Install(items, recipes)`. A missing or invalid config fails the boot.
-- **One source for item stats and recipes.** `items.json` holds combat, tool, armor and consumable stats: `equipSlot`, `harvestTier`, `baseDamage`, `critChance`, harvest damage, `armorDefense`, bonuses, heals, `attackRange`, projectile fields and `capabilities`. `recipes.json` holds every recipe. `StarterGameCatalog.Items` and `StarterGameCatalog.Recipes` are built from these documents and keep their old API shape.
-  - The server installs them at boot.
-  - The desktop reinstalls them after every verified config sync (`SyncedItemCatalog.Apply`), so tooltips, the hotbar, the crafting window and client prediction use the server's bytes.
-  - Before the first install, both fall back to a build-time copy of the shipped `resources/config` embedded in `Carbon.Items`.
+- **Loading.** The Host builds `GameEconomy.Load(ConfigRepository.Catalog)` from the same snapshot it serves to clients (ADR-014). A missing or invalid config fails the boot.
+- **One source for item stats and recipes.** `items.json` holds combat, tool, armor and consumable stats: `equipSlot`, `harvestTier`, `baseDamage`, `critChance`, harvest damage, `armorDefense`, bonuses, heals, `attackRange`, projectile fields and `capabilities`. `recipes.json` holds every recipe. Both are compiled into one immutable `ItemRules` instance (`engine/Carbon.Items/Catalog/ItemRules.cs`), and there is no process-wide installed table.
+  - **Server.** `GameEconomy.ItemRules` is owned by `AuthoritativeWorld` and swapped whole with the economy on hot reload (`ApplyGameData`). `AuthService` reads the world's current rules when it computes a new character's stats.
+  - **Desktop.** Each session owns a `SyncedItemCatalog` (`IWorldReadModel.Items`). It rebuilds its `Rules` after every verified config sync, so tooltips, the hotbar, the crafting window and client prediction use the server's bytes. Before the first sync it falls back to the build-time copy of the shipped `resources/config` embedded in `Carbon.Items`.
+  - **Policies.** `ToolUsagePolicy`, `CharacterProgressionPolicy`, `PlayerInventoryLayout`, `ItemEnhancementPolicy` and `PropHarvestCatalog` take the `ItemRules` to evaluate against as a parameter. `StarterGameCatalog` keeps only the stable id constants and the starter loadout.
   - A guard test fails if desktop, graphics or `StarterGameCatalog` construct item or recipe definitions in code.
 - **Kills.** `AuthoritativeWorld.TryRollEconomyLootLocked` (`server/Carbon.Application/World/AuthoritativeWorld.Economy.cs`) replaces the hardcoded `MonsterArchetypeSpec` drops for every monster that has a loot table:
   - `WildSlime` → `slime`, `SkeletonArcher` → `skeleton`, `OrcShaman` → `orc`, `CrimsonDemon` → `demon`, `RockGolem` → `golem`, `FrostWolf` → `wolf`, `AshWraith` → `wraith`.

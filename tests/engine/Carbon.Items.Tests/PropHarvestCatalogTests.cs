@@ -13,6 +13,8 @@ namespace Carbon.Items.Tests;
 
 public sealed class PropHarvestCatalogTests
 {
+    private static readonly ItemRules s_rules = ItemRules.LoadShippedDefaults();
+
     // Props that are scenery, not resources.
     private static readonly HashSet<MapPropType> s_notHarvestable = [MapPropType.None, MapPropType.AncientShrine];
 
@@ -49,7 +51,7 @@ public sealed class PropHarvestCatalogTests
     {
         foreach (MapPropType type in Enum.GetValues<MapPropType>())
         {
-            ItemSlot drop = PropHarvestCatalog.ResolveDrop(type, out uint xp);
+            ItemSlot drop = PropHarvestCatalog.ResolveDrop(s_rules, type, out uint xp);
             if (s_notHarvestable.Contains(type))
             {
                 drop.IsEmpty.Should().BeTrue($"{type} is scenery");
@@ -59,7 +61,7 @@ public sealed class PropHarvestCatalogTests
             // A new prop type must get a drop (and an expected theme here) before it ships.
             drop.IsEmpty.Should().BeFalse($"{type} is harvestable and needs a themed drop in PropHarvestCatalog");
             xp.Should().BePositive($"{type} grants harvest XP");
-            StarterGameCatalog.ItemCatalog.TryGet(drop.ItemId, out ItemCatalogEntry? item).Should().BeTrue($"{type} drops an items.json item");
+            s_rules.ItemCatalog.TryGet(drop.ItemId, out ItemCatalogEntry? item).Should().BeTrue($"{type} drops an items.json item");
             s_expectedTheme.Should().ContainKey(type, $"add the expected drop theme for {type} to this test");
             item!.Tags.Should().Contain(s_expectedTheme[type], $"{type} dropped '{item.Code}'");
         }
@@ -75,7 +77,7 @@ public sealed class PropHarvestCatalogTests
     [InlineData(MapPropType.DuneGrass, "plant_fiber")]
     public void ResolveDrop_UsesTheEnumNotRawNumbers(MapPropType type, string expectedCode)
     {
-        ItemSlot drop = PropHarvestCatalog.ResolveDrop(type, out _);
-        drop.ItemId.Should().Be(StarterGameCatalog.ItemCatalog.ResolveId(expectedCode));
+        ItemSlot drop = PropHarvestCatalog.ResolveDrop(s_rules, type, out _);
+        drop.ItemId.Should().Be(s_rules.ItemCatalog.ResolveId(expectedCode));
     }
 }

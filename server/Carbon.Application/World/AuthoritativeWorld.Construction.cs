@@ -22,42 +22,22 @@ namespace Carbon.Application.World;
 /// </summary>
 public sealed partial class AuthoritativeWorld
 {
-    private static readonly Dictionary<string, uint> s_itemIdsByCode = BuildItemCodeIndex();
-
     /// <summary>Gets the structure definitions used by the server.</summary>
     public StructureCatalog StructureCatalog => _building.Catalog;
 
-    private static Dictionary<string, uint> BuildItemCodeIndex()
-    {
-        ReadOnlySpan<ItemArchetype> items = StarterGameCatalog.Items.All;
-        Dictionary<string, uint> index = new(items.Length, StringComparer.Ordinal);
-        foreach (ItemArchetype item in items)
-        {
-            _ = index.TryAdd(item.Code, item.Id);
-        }
-
-        return index;
-    }
-
     /// <summary>
-    /// Resolves a material code from <c>structures.json</c>: the loaded <c>items.json</c> catalog is authoritative,
-    /// the built-in starter catalog is the fallback when the server runs without economy data (tests).
+    /// Resolves a material code from <c>structures.json</c> against the world's current <c>items.json</c> rules.
     /// </summary>
     private bool TryResolveItemId(string code, out uint itemId, out int maxStack)
     {
-        if (_economy is not null && _economy.Items.TryGetByCode(code, out ItemCatalogEntry? entry))
+        if (_itemRules.ItemCatalog.TryGetByCode(code, out ItemCatalogEntry? entry))
         {
             itemId = entry.Id;
             maxStack = entry.MaxStack;
             return true;
         }
 
-        if (s_itemIdsByCode.TryGetValue(code, out itemId))
-        {
-            maxStack = StarterGameCatalog.GetMaxStackSize(itemId);
-            return true;
-        }
-
+        itemId = 0;
         maxStack = 0;
         return false;
     }
@@ -83,7 +63,7 @@ public sealed partial class AuthoritativeWorld
         foreach (ItemSlot slot in state.Inventory.Slots)
         {
             if (!slot.IsEmpty &&
-                StarterGameCatalog.Items.TryGet(slot.ItemId, out ItemArchetype? def) &&
+                _itemRules.Items.TryGet(slot.ItemId, out ItemArchetype? def) &&
                 def.Category == ItemCategory.Tool &&
                 def.HarvestTier > toolTier)
             {

@@ -6,6 +6,7 @@ using System.Numerics;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Identity;
+using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Events;
 using Carbon.Desktop.Abstractions.Identity;
 using Carbon.Desktop.Abstractions.Session;
@@ -23,6 +24,9 @@ namespace Carbon.Desktop.Abstractions.World;
 /// </summary>
 public interface IWorldReadModel : IConnectionStatus, ICharacterProfile
 {
+    /// <summary>Gets the session's server-synced item and recipe tables (names, stats, stack sizes, recipes).</summary>
+    SyncedItemCatalog Items { get; }
+
     /// <summary>Gets the chunk world coordinator backing terrain, props, and structures.</summary>
     ChunkWorld2D ChunkWorld { get; }
 

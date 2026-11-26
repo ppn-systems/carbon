@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -69,7 +68,7 @@ internal sealed class ForgeAnvilModalWidget
 
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
-        this.CollectEligibleSlots(slots);
+        this.CollectEligibleSlots(world.Items.Rules, slots);
         this.ClampScrollOffset();
 
         for (int i = 0; i < MaxVisibleGearRows && (_scrollOffset + i) < _eligibleScratch.Count; i++)
@@ -89,7 +88,7 @@ internal sealed class ForgeAnvilModalWidget
     {
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
-        this.CollectEligibleSlots(slots);
+        this.CollectEligibleSlots(world.Items.Rules, slots);
 
         if (_selectedSlot >= 0 && _eligibleScratch.Contains((ushort)_selectedSlot))
         {
@@ -116,7 +115,7 @@ internal sealed class ForgeAnvilModalWidget
         (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
-        this.CollectEligibleSlots(slots);
+        this.CollectEligibleSlots(world.Items.Rules, slots);
         this.ClampScrollOffset();
 
         ColorRgba frameCol = world.ForgeFeedbackTimer > 0f
@@ -156,7 +155,7 @@ internal sealed class ForgeAnvilModalWidget
 
         ItemSlot target = activeSlot >= 0 && activeSlot < slots.Length ? slots[activeSlot] : ItemSlot.Empty;
         bool canForge = !target.IsEmpty &&
-            ItemEnhancementPolicy.CanUpgrade(in target, out uint m1, out int c1, out uint m2, out int c2, out _) &&
+            ItemEnhancementPolicy.CanUpgrade(world.Items.Rules, in target, out uint m1, out int c1, out uint m2, out int c2, out _) &&
             CountItemInSpan(slots, m1) >= c1 &&
             (m2 == 0U || CountItemInSpan(slots, m2) >= c2) &&
             world.IsNearForgeStation();
@@ -180,7 +179,7 @@ internal sealed class ForgeAnvilModalWidget
         (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
-        this.CollectEligibleSlots(slots);
+        this.CollectEligibleSlots(world.Items.Rules, slots);
         this.ClampScrollOffset();
 
         for (int i = 0; i < MaxVisibleGearRows && (_scrollOffset + i) < _eligibleScratch.Count; i++)
@@ -200,7 +199,7 @@ internal sealed class ForgeAnvilModalWidget
         }
 
         if (!target.IsEmpty &&
-            ItemEnhancementPolicy.CanUpgrade(in target, out uint m1, out int c1, out uint m2, out int c2, out float chance))
+            ItemEnhancementPolicy.CanUpgrade(world.Items.Rules, in target, out uint m1, out int c1, out uint m2, out int c2, out float chance))
         {
             if (art is not null && m1 != 0U && art.TryGetItem(m1, out CompiledItemVectorArt? m1Art))
             {
@@ -232,7 +231,7 @@ internal sealed class ForgeAnvilModalWidget
         ColorRgba black = CarbonUiPalette.TextOutline;
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
-        this.CollectEligibleSlots(slots);
+        this.CollectEligibleSlots(world.Items.Rules, slots);
 
         spriteBatch.DrawOutlinedString(font, "Blacksmith Forge", new Vector2(ox + 18f, oy + 13f), CarbonUiPalette.TextWarm, black, 1, 1f);
         bool stationNear = world.IsNearForgeStation();
@@ -263,7 +262,7 @@ internal sealed class ForgeAnvilModalWidget
             byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
             float ry = oy + 82f + (i * (RowH + 4f));
             string tag = sIdx >= PlayerInventoryLayout.BagLimit ? "Equipped" : (sIdx < 9 ? $"Slot {sIdx + 1}" : "Bag");
-            string name = SyncedItemCatalog.GetDisplayName(item.ItemId);
+            string name = world.Items.GetDisplayName(item.ItemId);
             string rowLabel = CarbonUiSkin.TruncateToWidth(font, upg > 0 ? $"{name} +{upg}" : name, 190f, 1f);
             spriteBatch.DrawOutlinedString(font, rowLabel, new Vector2(ox + 72f, ry), CarbonUiPalette.TextPrimary, black, 1, 1f);
             spriteBatch.DrawOutlinedString(font, tag, new Vector2(ox + 72f, ry + 20f), CarbonUiPalette.TextMuted, black, 1, 1f);
@@ -280,9 +279,9 @@ internal sealed class ForgeAnvilModalWidget
         }
 
         byte curLv = ItemEnhancementPolicy.GetUpgradeLevel(in target);
-        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, $"{SyncedItemCatalog.GetDisplayName(target.ItemId)} (+{curLv})", 264f, 1.25f), new Vector2(ox + 386f, oy + 86f), CarbonUiPalette.TextPrimary, black, 1, 1.25f);
+        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, $"{world.Items.GetDisplayName(target.ItemId)} (+{curLv})", 264f, 1.25f), new Vector2(ox + 386f, oy + 86f), CarbonUiPalette.TextPrimary, black, 1, 1.25f);
 
-        if (ItemEnhancementPolicy.CanUpgrade(in target, out uint m1, out int c1, out uint m2, out int c2, out float chance))
+        if (ItemEnhancementPolicy.CanUpgrade(world.Items.Rules, in target, out uint m1, out int c1, out uint m2, out int c2, out float chance))
         {
             float multNow = ItemEnhancementPolicy.GetStatMultiplier(curLv);
             float multNext = ItemEnhancementPolicy.GetStatMultiplier((byte)(curLv + 1));
@@ -301,7 +300,7 @@ internal sealed class ForgeAnvilModalWidget
                 int have1 = CountItemInSpan(slots, m1);
                 spriteBatch.DrawOutlinedString(
                     font,
-                    $"{SyncedItemCatalog.GetDisplayName(m1)}: {have1}/{c1}",
+                    $"{world.Items.GetDisplayName(m1)}: {have1}/{c1}",
                     new Vector2(ox + 344f, oy + 230f),
                     have1 >= c1 ? CarbonUiPalette.ConfirmBorder : CarbonUiPalette.DangerBorder,
                     black,
@@ -314,7 +313,7 @@ internal sealed class ForgeAnvilModalWidget
                 int have2 = CountItemInSpan(slots, m2);
                 spriteBatch.DrawOutlinedString(
                     font,
-                    $"{SyncedItemCatalog.GetDisplayName(m2)}: {have2}/{c2}",
+                    $"{world.Items.GetDisplayName(m2)}: {have2}/{c2}",
                     new Vector2(ox + 344f, oy + 256f),
                     have2 >= c2 ? CarbonUiPalette.ConfirmBorder : CarbonUiPalette.DangerBorder,
                     black,
@@ -344,13 +343,13 @@ internal sealed class ForgeAnvilModalWidget
         }
     }
 
-    private void CollectEligibleSlots(ReadOnlySpan<ItemSlot> slots)
+    private void CollectEligibleSlots(ItemRules rules, ReadOnlySpan<ItemSlot> slots)
     {
         _eligibleScratch.Clear();
         // Order: Equipped Armor (36..39), Hotbar (0..8), Backpack (9..35)
         for (int s = PlayerInventoryLayout.HeadSlot; s <= PlayerInventoryLayout.FeetSlot && s < slots.Length; s++)
         {
-            if (IsEligibleGear(in slots[s]))
+            if (IsEligibleGear(rules, in slots[s]))
             {
                 _eligibleScratch.Add((ushort)s);
             }
@@ -358,16 +357,16 @@ internal sealed class ForgeAnvilModalWidget
 
         for (int s = 0; s < PlayerInventoryLayout.BagLimit && s < slots.Length; s++)
         {
-            if (IsEligibleGear(in slots[s]))
+            if (IsEligibleGear(rules, in slots[s]))
             {
                 _eligibleScratch.Add((ushort)s);
             }
         }
     }
 
-    private static bool IsEligibleGear(in ItemSlot slot) =>
+    private static bool IsEligibleGear(ItemRules rules, in ItemSlot slot) =>
         !slot.IsEmpty &&
-        StarterGameCatalog.Items.TryGet(slot.ItemId, out ItemArchetype? def) &&
+        rules.Items.TryGet(slot.ItemId, out ItemArchetype? def) &&
         def.MaxDurability > 0f;
 
     private static int CountItemInSpan(ReadOnlySpan<ItemSlot> slots, uint itemId)

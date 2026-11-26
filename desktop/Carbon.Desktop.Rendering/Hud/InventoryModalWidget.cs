@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -192,7 +191,7 @@ internal sealed class InventoryModalWidget
                     VectorRigRenderer.DrawItemIcon(batch, itemArt, new Vector2(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.46f)), iconSize);
                 }
 
-                if (StarterGameCatalog.Items.TryGet(item.ItemId, out ItemArchetype? def) && def.MaxDurability > 0f)
+                if (world.Items.Rules.Items.TryGet(item.ItemId, out ItemArchetype? def) && def.MaxDurability > 0f)
                 {
                     byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
                     float effMax = MathF.Max(1f, ItemEnhancementPolicy.GetEffectiveMaxDurability(def, upg));
@@ -374,7 +373,7 @@ internal sealed class InventoryModalWidget
         float ty = Math.Clamp(mouseScreenPos.Value.Y - tipH - MathF.Round(8f * s), 12f, viewportHeight - tipH - 12f);
 
         byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in hItem);
-        string title = upg > 0 ? $"{SyncedItemCatalog.GetDisplayName(hItem.ItemId)} +{upg}" : SyncedItemCatalog.GetDisplayName(hItem.ItemId);
+        string title = upg > 0 ? $"{world.Items.GetDisplayName(hItem.ItemId)} +{upg}" : world.Items.GetDisplayName(hItem.ItemId);
         float padX = MathF.Round(10f * s);
         spriteBatch.DrawOutlinedString(
             font,
@@ -386,7 +385,7 @@ internal sealed class InventoryModalWidget
             layout.TextScale);
 
         float upgMult = ItemEnhancementPolicy.GetStatMultiplier(upg);
-        string statLine = StarterGameCatalog.Items.TryGet(hItem.ItemId, out ItemArchetype? def)
+        string statLine = world.Items.Rules.Items.TryGet(hItem.ItemId, out ItemArchetype? def)
             ? (def.Category == ItemCategory.Armor
                 ? $"+{(int)MathF.Round(def.ArmorDefense * upgMult)} DEF  +{(int)MathF.Round(def.BonusHealth * upgMult)} HP"
                 : def.Category == ItemCategory.Weapon
