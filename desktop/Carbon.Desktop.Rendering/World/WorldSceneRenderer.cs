@@ -310,7 +310,8 @@ public sealed class WorldSceneRenderer : IDisposable
         _atmosphere.DrawAmbient(_geometryBatch, minX, minY, maxX, maxY);
         _geometryBatch.End();
 
-        _lights.Add(new PointLight(playerPos, 150f, new ColorRgba(255, 214, 150), 0.6f));
+        // The player emits no light of their own: an automatic lantern here made the character glow after dark.
+        // Light comes only from world sources (props, POIs, projectiles) and, later, an equipped light item.
         _geometryBatch.Begin(viewProj, BlendState.Additive);
         _atmosphere.DrawLights(_geometryBatch, _lights);
         _geometryBatch.End();
