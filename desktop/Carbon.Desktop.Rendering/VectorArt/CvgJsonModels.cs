@@ -89,6 +89,28 @@ internal sealed class CvgBiomeBlueprintDto
     public int DetailChancePercent { get; set; } = 16;
     public Dictionary<string, string> Palette { get; set; } = [];
     public List<CvgBiomeDetailVariantDto> DetailVariants { get; set; } = [];
+    public CvgBiomeSurfaceDto? Surface { get; set; }
+    public List<CvgBiomeDecalLayerDto> Decals { get; set; } = [];
+}
+
+internal sealed class CvgBiomeSurfaceDto
+{
+    public string Pattern { get; set; } = "patches";
+    public List<string> Colors { get; set; } = [];
+    public string? Accent { get; set; }
+    public float Scale { get; set; } = 1f;
+    public float Variation { get; set; } = 0.06f;
+    public float Grain { get; set; } = 0.05f;
+}
+
+internal sealed class CvgBiomeDecalLayerDto
+{
+    public string Id { get; set; } = string.Empty;
+    public float Chance { get; set; }
+    public int MaxCount { get; set; } = 1;
+    public string Placement { get; set; } = "any";
+    public bool Jitter { get; set; } = true;
+    public List<CvgBiomeDetailVariantDto> Variants { get; set; } = [];
 }
 
 internal sealed class CvgStructureCatalogDto

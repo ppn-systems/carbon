@@ -105,6 +105,68 @@ public sealed class ChunkMeshBuilder
     }
 
     /// <summary>
+    /// Adds a triangle with a colour per vertex (interpolated across the face).
+    /// </summary>
+    /// <param name="p0">First vertex coordinate.</param>
+    /// <param name="p1">Second vertex coordinate.</param>
+    /// <param name="p2">Third vertex coordinate.</param>
+    /// <param name="c0">Colour of the first vertex.</param>
+    /// <param name="c1">Colour of the second vertex.</param>
+    /// <param name="c2">Colour of the third vertex.</param>
+    /// <param name="depth">Depth Z coordinate.</param>
+    public void AddTriangle(Vector2 p0, Vector2 p1, Vector2 p2, ColorRgba c0, ColorRgba c1, ColorRgba c2, float depth = 0f)
+    {
+        uint baseIndex = (uint)_vertices.Count;
+        _vertices.Add(new Vertex2D(p0.X, p0.Y, depth, c0.PackedValue, 0f, 0f));
+        _vertices.Add(new Vertex2D(p1.X, p1.Y, depth, c1.PackedValue, 1f, 0f));
+        _vertices.Add(new Vertex2D(p2.X, p2.Y, depth, c2.PackedValue, 0.5f, 1f));
+
+        _indices.Add(baseIndex + 0);
+        _indices.Add(baseIndex + 1);
+        _indices.Add(baseIndex + 2);
+    }
+
+    /// <summary>
+    /// Adds an axis-aligned rectangle shaded with a colour per corner and one at its centre, as a fan of four
+    /// triangles. Neighbouring rectangles that share corner colours blend seamlessly (soft terrain transitions).
+    /// </summary>
+    /// <param name="rect">Rectangle world bounds.</param>
+    /// <param name="topLeft">Colour of the top-left corner.</param>
+    /// <param name="topRight">Colour of the top-right corner.</param>
+    /// <param name="bottomRight">Colour of the bottom-right corner.</param>
+    /// <param name="bottomLeft">Colour of the bottom-left corner.</param>
+    /// <param name="centre">Colour of the centre.</param>
+    /// <param name="depth">Depth Z coordinate.</param>
+    public void AddGradientRectangle(
+        in RectangleF rect,
+        ColorRgba topLeft,
+        ColorRgba topRight,
+        ColorRgba bottomRight,
+        ColorRgba bottomLeft,
+        ColorRgba centre,
+        float depth = 0f)
+    {
+        uint baseIndex = (uint)_vertices.Count;
+        float x0 = rect.Left;
+        float y0 = rect.Top;
+        float x1 = rect.Right;
+        float y1 = rect.Bottom;
+
+        _vertices.Add(new Vertex2D(x0, y0, depth, topLeft.PackedValue, 0f, 0f));
+        _vertices.Add(new Vertex2D(x1, y0, depth, topRight.PackedValue, 1f, 0f));
+        _vertices.Add(new Vertex2D(x1, y1, depth, bottomRight.PackedValue, 1f, 1f));
+        _vertices.Add(new Vertex2D(x0, y1, depth, bottomLeft.PackedValue, 0f, 1f));
+        _vertices.Add(new Vertex2D((x0 + x1) * 0.5f, (y0 + y1) * 0.5f, depth, centre.PackedValue, 0.5f, 0.5f));
+
+        for (uint i = 0; i < 4; i++)
+        {
+            _indices.Add(baseIndex + 4);
+            _indices.Add(baseIndex + i);
+            _indices.Add(baseIndex + ((i + 1) & 3));
+        }
+    }
+
+    /// <summary>
     /// Compiles the accumulated tiles and geometry into an immutable GPU-backed <see cref="ChunkMesh2D"/>.
     /// </summary>
     /// <param name="device">The graphics device.</param>

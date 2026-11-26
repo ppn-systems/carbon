@@ -62,6 +62,34 @@ public sealed class ChunkMeshBuilderTests
     }
 
     [Fact]
+    public void AddTriangle_WithVertexColours_ShouldAppendThreeVerticesAndThreeIndices()
+    {
+        ChunkMeshBuilder builder = new();
+
+        builder.AddTriangle(new Vector2(0f, 0f), new Vector2(10f, 0f), new Vector2(0f, 10f), ColorRgba.Red, ColorRgba.Green, ColorRgba.Blue);
+
+        builder.VertexCount.Should().Be(3);
+        builder.IndexCount.Should().Be(3);
+    }
+
+    [Fact]
+    public void AddGradientRectangle_ShouldAppendFiveVerticesAndFourTriangles()
+    {
+        ChunkMeshBuilder builder = new();
+
+        builder.AddGradientRectangle(
+            new RectangleF(0f, 0f, 32f, 32f),
+            ColorRgba.Red,
+            ColorRgba.Green,
+            ColorRgba.Blue,
+            ColorRgba.White,
+            ColorRgba.Black);
+
+        builder.VertexCount.Should().Be(5);
+        builder.IndexCount.Should().Be(12);
+    }
+
+    [Fact]
     public void Clear_ShouldResetVertexCountToZero()
     {
         ChunkMeshBuilder builder = new();
