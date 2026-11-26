@@ -32,4 +32,8 @@ public sealed partial class InventorySlotChanged : PacketBase<InventorySlotChang
     /// <summary>Updated item durability.</summary>
     [SerializeOrder(3)]
     public float Durability { get; set; }
+
+    /// <summary>Updated item enhancement level (<c>0..10</c>).</summary>
+    [SerializeOrder(4)]
+    public byte UpgradeLevel { get; set; }
 }

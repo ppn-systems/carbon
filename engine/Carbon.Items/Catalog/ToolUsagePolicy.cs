@@ -89,7 +89,8 @@ public static class ToolUsagePolicy
     /// </summary>
     public static CombatStrikeEvaluation EvaluateCombatStrike(in ItemSlot slot)
     {
-        float baseDamage = StarterGameCatalog.GetWeaponBaseDamage(slot.ItemId);
+        float upgradeMult = ItemEnhancementPolicy.GetStatMultiplier(ItemEnhancementPolicy.GetUpgradeLevel(in slot));
+        float baseDamage = StarterGameCatalog.GetWeaponBaseDamage(slot.ItemId) * upgradeMult;
         if (slot.IsEmpty || !StarterGameCatalog.Items.TryGet(slot.ItemId, out ItemArchetype? def) || def.MaxDurability <= 0f)
         {
             return new CombatStrikeEvaluation(baseDamage, 0f, ToolStrikeOutcome.Optimal);
@@ -124,6 +125,7 @@ public static class ToolUsagePolicy
         ItemArchetype? def = null;
         bool hasDef = !slot.IsEmpty && StarterGameCatalog.Items.TryGet(slot.ItemId, out def);
         bool isDurabilityTool = hasDef && def is not null && def.MaxDurability > 0f;
+        float upgradeMult = ItemEnhancementPolicy.GetStatMultiplier(ItemEnhancementPolicy.GetUpgradeLevel(in slot));
 
         if (isDurabilityTool && slot.Durability <= 0f)
         {
@@ -142,7 +144,7 @@ public static class ToolUsagePolicy
                 return new PropStrikeEvaluation(0f, 0, 6.0f, ToolStrikeOutcome.BladeBluntOnStone);
             }
 
-            return new PropStrikeEvaluation(12f, 1, 4.5f, ToolStrikeOutcome.SwordMisuseOnWood);
+            return new PropStrikeEvaluation(12f * upgradeMult, 1, 4.5f, ToolStrikeOutcome.SwordMisuseOnWood);
         }
 
         if (slot.ItemId == StarterGameCatalog.WoodAxe && targetKind == ToolTargetKind.Mineral)
@@ -154,7 +156,7 @@ public static class ToolUsagePolicy
             targetKind == ToolTargetKind.Flora &&
             def is not null)
         {
-            float pickOnWoodDmg = StarterGameCatalog.GetFloraHarvestDamage(slot.ItemId) * 0.72f;
+            float pickOnWoodDmg = StarterGameCatalog.GetFloraHarvestDamage(slot.ItemId) * 0.72f * upgradeMult;
             if (def.HarvestTier < propRequiredTier)
             {
                 return new PropStrikeEvaluation(0f, def.HarvestTier, 1.5f, ToolStrikeOutcome.InsufficientTier);
@@ -163,9 +165,9 @@ public static class ToolUsagePolicy
             return new PropStrikeEvaluation(pickOnWoodDmg, def.HarvestTier, 2.0f, ToolStrikeOutcome.Optimal);
         }
 
-        float dmg = targetKind == ToolTargetKind.Mineral
+        float dmg = (targetKind == ToolTargetKind.Mineral
             ? StarterGameCatalog.GetMineralHarvestDamage(slot.ItemId)
-            : StarterGameCatalog.GetFloraHarvestDamage(slot.ItemId);
+            : StarterGameCatalog.GetFloraHarvestDamage(slot.ItemId)) * upgradeMult;
         byte tier = def?.HarvestTier ?? 0;
 
         if (tier < propRequiredTier)

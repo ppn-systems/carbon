@@ -12,6 +12,7 @@ using Carbon.Contracts.Identity.S2C;
 using Carbon.Contracts.Items.C2S;
 using Carbon.Contracts.Items.S2C;
 using Carbon.Desktop.Abstractions;
+using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Streaming;
@@ -402,7 +403,9 @@ public sealed partial class NalixMultiplayerSession
                     continue;
                 }
 
-                _inventory.SetSlot(item.SlotIndex, new ItemSlot(item.ItemId, item.Count, 0UL, item.Durability));
+                ItemSlot rawSlot = new(item.ItemId, item.Count, 0UL, item.Durability);
+                ItemSlot hydrated = ItemEnhancementPolicy.WithUpgradeLevel(in rawSlot, item.UpgradeLevel);
+                _inventory.SetSlot(item.SlotIndex, in hydrated);
             }
         }
         finally

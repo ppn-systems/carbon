@@ -5,7 +5,6 @@ using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.World;
-using Carbon.Contracts.Entities;
 using Carbon.Contracts.Entities.S2C;
 using Carbon.Contracts.Items.S2C;
 using Carbon.Contracts.Maps.S2C;
@@ -51,20 +50,7 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
             return;
         }
 
-        _ = DispatchEntitySpawnAsync(
-            conn,
-            spawn.NetworkId,
-            spawn.Kind,
-            spawn.ArchetypeId,
-            spawn.Name,
-            spawn.PositionX,
-            spawn.PositionY,
-            spawn.VelocityX,
-            spawn.VelocityY,
-            spawn.Radius,
-            spawn.CurrentHealth,
-            spawn.MaxHealth,
-            _logger);
+        _ = DispatchEntitySpawnAsync(conn, spawn, _logger);
     }
 
     /// <inheritdoc/>
@@ -201,11 +187,91 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
     }
 
     /// <inheritdoc/>
-    public void SendInventorySlotChanged(ulong connectionId, ushort slotIndex, uint itemId, int quantity, float durability)
+    public void SendInventorySlotChanged(ulong connectionId, ushort slotIndex, uint itemId, int quantity, float durability, byte upgradeLevel = 0)
     {
         if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
         {
-            _ = DispatchInventorySlotChangedAsync(conn, slotIndex, itemId, quantity, durability, _logger);
+            _ = DispatchInventorySlotChangedAsync(conn, slotIndex, itemId, quantity, durability, upgradeLevel, _logger);
+        }
+    }
+
+    /// <inheritdoc/>
+    public void SendEntityEquipmentChanged(
+        ReadOnlySpan<ulong> recipientConnectionIds,
+        ulong entityNetworkId,
+        ushort headId,
+        ushort chestId,
+        ushort legsId,
+        ushort feetId,
+        ushort weaponId,
+        byte weaponUpgrade,
+        ushort level)
+    {
+        for (int i = 0; i < recipientConnectionIds.Length; i++)
+        {
+            if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
+            {
+                _ = DispatchEquipmentChangedAsync(conn, entityNetworkId, headId, chestId, legsId, feetId, weaponId, weaponUpgrade, level, _logger);
+            }
+        }
+    }
+
+    /// <inheritdoc/>
+    public void SendPlayerStatsSync(
+        ulong connectionId,
+        ushort level,
+        uint experience,
+        uint xpToNextLevel,
+        float currentHealth,
+        float maxHealth,
+        float currentMana,
+        float maxMana,
+        float currentStamina,
+        float maxStamina,
+        float defense,
+        float skill1Cd,
+        float skill2Cd,
+        float skill3Cd,
+        bool leveledUp)
+    {
+        if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
+        {
+            _ = DispatchPlayerStatsSyncAsync(
+                conn,
+                level,
+                experience,
+                xpToNextLevel,
+                currentHealth,
+                maxHealth,
+                currentMana,
+                maxMana,
+                currentStamina,
+                maxStamina,
+                defense,
+                skill1Cd,
+                skill2Cd,
+                skill3Cd,
+                leveledUp,
+                _logger);
+        }
+    }
+
+    /// <inheritdoc/>
+    public void SendSkillCastBroadcast(
+        ReadOnlySpan<ulong> recipientConnectionIds,
+        ulong casterNetworkId,
+        byte abilitySlot,
+        float originX,
+        float originY,
+        float aimX,
+        float aimY)
+    {
+        for (int i = 0; i < recipientConnectionIds.Length; i++)
+        {
+            if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
+            {
+                _ = DispatchSkillCastAsync(conn, casterNetworkId, abilitySlot, originX, originY, aimX, aimY, _logger);
+            }
         }
     }
 
@@ -230,34 +296,32 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
 
     private static async Task DispatchEntitySpawnAsync(
         IConnection connection,
-        ulong networkId,
-        EntityKind kind,
-        uint archetypeId,
-        string name,
-        float positionX,
-        float positionY,
-        float velocityX,
-        float velocityY,
-        float radius,
-        float currentHealth,
-        float maxHealth,
+        EntitySpawnSnapshot spawn,
         ILogger logger)
     {
         try
         {
             using PacketScope<EntitySpawn> lease = PacketFactory<EntitySpawn>.Acquire();
             EntitySpawn pkt = lease.Value;
-            pkt.NetworkId = networkId;
-            pkt.Kind = kind;
-            pkt.ArchetypeId = (ushort)archetypeId;
-            pkt.Name = name;
-            pkt.PositionX = positionX;
-            pkt.PositionY = positionY;
-            pkt.VelocityX = velocityX;
-            pkt.VelocityY = velocityY;
-            pkt.Radius = radius;
-            pkt.CurrentHealth = currentHealth;
-            pkt.MaxHealth = maxHealth;
+            pkt.NetworkId = spawn.NetworkId;
+            pkt.Kind = spawn.Kind;
+            pkt.ArchetypeId = spawn.ArchetypeId;
+            pkt.Name = spawn.Name;
+            pkt.PositionX = spawn.PositionX;
+            pkt.PositionY = spawn.PositionY;
+            pkt.VelocityX = spawn.VelocityX;
+            pkt.VelocityY = spawn.VelocityY;
+            pkt.Radius = spawn.Radius;
+            pkt.CurrentHealth = spawn.CurrentHealth;
+            pkt.MaxHealth = spawn.MaxHealth;
+            pkt.EquippedHeadId = spawn.EquippedHeadId;
+            pkt.EquippedChestId = spawn.EquippedChestId;
+            pkt.EquippedLegsId = spawn.EquippedLegsId;
+            pkt.EquippedFeetId = spawn.EquippedFeetId;
+            pkt.EquippedWeaponId = spawn.EquippedWeaponId;
+            pkt.Level = spawn.Level;
+            pkt.LootCount = spawn.LootCount;
+            pkt.WeaponUpgradeLevel = spawn.WeaponUpgradeLevel;
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
             await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
@@ -519,6 +583,7 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
         uint itemId,
         int quantity,
         float durability,
+        byte upgradeLevel,
         ILogger logger)
     {
         try
@@ -529,6 +594,7 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
             pkt.ItemId = (ushort)itemId;
             pkt.Count = quantity;
             pkt.Durability = durability;
+            pkt.UpgradeLevel = upgradeLevel;
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
             await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
@@ -536,6 +602,116 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogSendFailure(logger, nameof(InventorySlotChanged), ex);
+        }
+    }
+
+    private static async Task DispatchEquipmentChangedAsync(
+        IConnection connection,
+        ulong entityNetworkId,
+        ushort headId,
+        ushort chestId,
+        ushort legsId,
+        ushort feetId,
+        ushort weaponId,
+        byte weaponUpgrade,
+        ushort level,
+        ILogger logger)
+    {
+        try
+        {
+            using PacketScope<EntityEquipmentChanged> lease = PacketFactory<EntityEquipmentChanged>.Acquire();
+            EntityEquipmentChanged pkt = lease.Value;
+            pkt.NetworkId = entityNetworkId;
+            pkt.EquippedHeadId = headId;
+            pkt.EquippedChestId = chestId;
+            pkt.EquippedLegsId = legsId;
+            pkt.EquippedFeetId = feetId;
+            pkt.EquippedWeaponId = weaponId;
+            pkt.WeaponUpgradeLevel = weaponUpgrade;
+            pkt.Level = level;
+
+            bool encrypt = connection.Algorithm != CipherSuiteType.None;
+            await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogSendFailure(logger, nameof(EntityEquipmentChanged), ex);
+        }
+    }
+
+    private static async Task DispatchPlayerStatsSyncAsync(
+        IConnection connection,
+        ushort level,
+        uint experience,
+        uint xpToNextLevel,
+        float currentHealth,
+        float maxHealth,
+        float currentMana,
+        float maxMana,
+        float currentStamina,
+        float maxStamina,
+        float defense,
+        float skill1Cd,
+        float skill2Cd,
+        float skill3Cd,
+        bool leveledUp,
+        ILogger logger)
+    {
+        try
+        {
+            using PacketScope<PlayerStatsSync> lease = PacketFactory<PlayerStatsSync>.Acquire();
+            PlayerStatsSync pkt = lease.Value;
+            pkt.Level = level;
+            pkt.Experience = experience;
+            pkt.XpToNextLevel = xpToNextLevel;
+            pkt.CurrentHealth = currentHealth;
+            pkt.MaxHealth = maxHealth;
+            pkt.CurrentMana = currentMana;
+            pkt.MaxMana = maxMana;
+            pkt.CurrentStamina = currentStamina;
+            pkt.MaxStamina = maxStamina;
+            pkt.Defense = defense;
+            pkt.Skill1Cooldown = skill1Cd;
+            pkt.Skill2Cooldown = skill2Cd;
+            pkt.Skill3Cooldown = skill3Cd;
+            pkt.LeveledUp = leveledUp;
+
+            bool encrypt = connection.Algorithm != CipherSuiteType.None;
+            await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogSendFailure(logger, nameof(PlayerStatsSync), ex);
+        }
+    }
+
+    private static async Task DispatchSkillCastAsync(
+        IConnection connection,
+        ulong casterNetworkId,
+        byte abilitySlot,
+        float originX,
+        float originY,
+        float aimX,
+        float aimY,
+        ILogger logger)
+    {
+        try
+        {
+            using PacketScope<SkillCastBroadcast> lease = PacketFactory<SkillCastBroadcast>.Acquire();
+            SkillCastBroadcast pkt = lease.Value;
+            pkt.CasterNetworkId = casterNetworkId;
+            pkt.AbilitySlot = abilitySlot;
+            pkt.OriginX = originX;
+            pkt.OriginY = originY;
+            pkt.AimX = aimX;
+            pkt.AimY = aimY;
+
+            bool encrypt = connection.Algorithm != CipherSuiteType.None;
+            await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogSendFailure(logger, nameof(SkillCastBroadcast), ex);
         }
     }
 

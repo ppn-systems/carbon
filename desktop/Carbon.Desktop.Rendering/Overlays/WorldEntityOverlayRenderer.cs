@@ -64,12 +64,28 @@ internal sealed class WorldEntityOverlayRenderer
             }
         }
 
-        // 2. Monster / NPC / Remote Player proportional overhead plates & ghost-trail HP bars
+        // 2. Monster / NPC / Remote Player proportional overhead plates & ground loot labels
         IReadOnlyList<RemoteEntityView> remotes = world.RemoteEntities;
         for (int i = 0; i < remotes.Count; i++)
         {
             RemoteEntityView r = remotes[i];
-            if (Vector2.DistanceSquared(playerPos, r.Position) > NameplateRadiusSq)
+            float distSq = Vector2.DistanceSquared(playerPos, r.Position);
+            if (r.Kind == EntityKind.LootDrop)
+            {
+                if (distSq <= (175f * 175f) && !string.IsNullOrEmpty(r.Name))
+                {
+                    Vector2 lootWorld = r.Position;
+                    Vector2 lootScreen = cameraRig.Camera.WorldToScreen(in lootWorld);
+                    string lootLabel = FormatLootLabel(in r);
+                    TextMeasureResult lSize = font.MeasureString(lootLabel, TextLayoutOptions.Default, 1f);
+                    float lpW = lSize.Width + 10f;
+                    batch.FillRectangle(new RectangleF(MathF.Floor(lootScreen.X - (lpW * 0.5f)), MathF.Floor(lootScreen.Y - 26f), lpW, 11f), new ColorRgba(8, 12, 20, 185));
+                }
+
+                continue;
+            }
+
+            if (distSq > NameplateRadiusSq)
             {
                 continue;
             }
@@ -135,7 +151,8 @@ internal sealed class WorldEntityOverlayRenderer
 
             if (!string.IsNullOrEmpty(r.Name))
             {
-                TextMeasureResult measure = font.MeasureString(r.Name, TextLayoutOptions.Default, 1f);
+                string displayName = FormatEntityTitle(in r);
+                TextMeasureResult measure = font.MeasureString(displayName, TextLayoutOptions.Default, 1f);
                 float pillW = measure.Width + 10f;
                 float pillX = MathF.Floor(screenPt.X - (pillW * 0.5f));
                 float pillY = showBar ? barTopY - 13f : MathF.Floor(screenPt.Y - headOffsetScreen - 13f);
@@ -161,7 +178,23 @@ internal sealed class WorldEntityOverlayRenderer
         for (int i = 0; i < remotes.Count; i++)
         {
             RemoteEntityView r = remotes[i];
-            if (string.IsNullOrEmpty(r.Name) || Vector2.DistanceSquared(playerPos, r.Position) > NameplateRadiusSq)
+            float distSq = Vector2.DistanceSquared(playerPos, r.Position);
+            if (r.Kind == EntityKind.LootDrop)
+            {
+                if (!string.IsNullOrEmpty(r.Name) && distSq <= (175f * 175f))
+                {
+                    Vector2 lootWorld = r.Position;
+                    Vector2 lootScreen = cameraRig.Camera.WorldToScreen(in lootWorld);
+                    string lootLabel = FormatLootLabel(in r);
+                    TextMeasureResult lSize = font.MeasureString(lootLabel, TextLayoutOptions.Default, 1f);
+                    ColorRgba lootCol = r.WeaponUpgradeLevel > 0 ? new ColorRgba(34, 211, 238, 255) : new ColorRgba(253, 224, 71, 255);
+                    spriteBatch.DrawOutlinedString(font, lootLabel, new Vector2(MathF.Floor(lootScreen.X - (lSize.Width * 0.5f)), MathF.Floor(lootScreen.Y - 25f)), lootCol, outline, 1, 1f);
+                }
+
+                continue;
+            }
+
+            if (string.IsNullOrEmpty(r.Name) || distSq > NameplateRadiusSq)
             {
                 continue;
             }
@@ -184,9 +217,10 @@ internal sealed class WorldEntityOverlayRenderer
                 : r.Kind == EntityKind.Npc
                     ? new ColorRgba(253, 224, 71, 255)
                     : new ColorRgba(110, 231, 183, 255);
-            TextMeasureResult measure = font.MeasureString(r.Name, TextLayoutOptions.Default, 1f);
+            string displayName = FormatEntityTitle(in r);
+            TextMeasureResult measure = font.MeasureString(displayName, TextLayoutOptions.Default, 1f);
             Vector2 labelPos = new(MathF.Floor(screenPt.X - (measure.Width * 0.5f)), nameY);
-            spriteBatch.DrawOutlinedString(font, r.Name, labelPos, labelColor, outline, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, displayName, labelPos, labelColor, outline, 1, 1f);
         }
 
         IReadOnlyList<FloatingCombatText> floating = feedback.FloatingTexts;
@@ -267,5 +301,20 @@ internal sealed class WorldEntityOverlayRenderer
             new(center.X - 3.0f, center.Y),
         ];
         batch.FillConvexPolygon(inner, fill);
+    }
+
+    private static string FormatEntityTitle(in RemoteEntityView r) =>
+        (r.Kind is EntityKind.Monster or EntityKind.Player) && r.Level > 0
+            ? $"Lv.{r.Level} {r.Name}"
+            : r.Name;
+
+    private static string FormatLootLabel(in RemoteEntityView r)
+    {
+        if (r.WeaponUpgradeLevel > 0)
+        {
+            return $"+{r.WeaponUpgradeLevel} {r.Name}";
+        }
+
+        return r.LootCount > 1 ? $"{r.Name} x{r.LootCount}" : r.Name;
     }
 }

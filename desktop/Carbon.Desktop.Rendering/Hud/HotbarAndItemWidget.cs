@@ -122,7 +122,9 @@ internal sealed class HotbarAndItemWidget
 
                 if (StarterGameCatalog.Items.TryGet(item.ItemId, out ItemArchetype? archetype) && archetype.MaxDurability > 0f)
                 {
-                    float frac = Math.Clamp(item.Durability / archetype.MaxDurability, 0f, 1f);
+                    byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
+                    float effMaxDur = MathF.Max(1f, ItemEnhancementPolicy.GetEffectiveMaxDurability(archetype, upg));
+                    float frac = Math.Clamp(item.Durability / effMaxDur, 0f, 1f);
                     ColorRgba durColor = frac <= 0f
                         ? new ColorRgba(239, 68, 68, 255)
                         : (frac > 0.5f ? new ColorRgba(56, 189, 248, 240) : (frac > 0.2f ? new ColorRgba(250, 204, 21, 240) : new ColorRgba(239, 68, 68, 245)));
@@ -180,6 +182,14 @@ internal sealed class HotbarAndItemWidget
             float sy = i == world.SelectedHotbarSlot ? startY - 4f : startY;
             spriteBatch.DrawOutlinedString(font, $"{i + 1}", new Vector2(sx + 4f, sy + 4f), new ColorRgba(203, 213, 225, 255), black, 1, 1f);
             ItemSlot item = world.Inventory.GetSlot(i);
+            byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
+            if (upg > 0)
+            {
+                string plusTxt = $"+{upg}";
+                ColorRgba plusCol = upg >= 6 ? new ColorRgba(34, 211, 238, 255) : new ColorRgba(250, 204, 21, 255);
+                spriteBatch.DrawOutlinedString(font, plusTxt, new Vector2(sx + SlotSize - 18f, sy + 4f), plusCol, black, 1, 1f);
+            }
+
             if (!item.IsEmpty && item.Quantity > 1)
             {
                 string qty = $"x{item.Quantity}";
@@ -245,7 +255,9 @@ internal sealed class HotbarAndItemWidget
 
         if (StarterGameCatalog.Items.TryGet(item.ItemId, out ItemArchetype? archetype) && archetype.MaxDurability > 0f)
         {
-            float frac = Math.Clamp(item.Durability / archetype.MaxDurability, 0f, 1f);
+            byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
+            float effMaxDur = MathF.Max(1f, ItemEnhancementPolicy.GetEffectiveMaxDurability(archetype, upg));
+            float frac = Math.Clamp(item.Durability / effMaxDur, 0f, 1f);
             ColorRgba durFill = frac <= 0f
                 ? new ColorRgba(239, 68, 68, 255)
                 : (frac > 0.5f ? new ColorRgba(56, 189, 248, 245) : (frac > 0.2f ? new ColorRgba(250, 204, 21, 245) : new ColorRgba(239, 68, 68, 245)));
@@ -283,18 +295,25 @@ internal sealed class HotbarAndItemWidget
             titleColor = bp.AccentColor;
         }
 
-        spriteBatch.DrawOutlinedString(font, name, new Vector2(x + 58f, y + 10f), titleColor, black, 1, 1.5f);
+        byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
+        string titleName = upg > 0 ? $"{name} +{upg}" : name;
+        spriteBatch.DrawOutlinedString(font, titleName, new Vector2(x + 58f, y + 10f), titleColor, black, 1, 1.5f);
         spriteBatch.DrawOutlinedString(font, $"Tier {tier} | {cat}", new Vector2(x + 58f, y + 29f), new ColorRgba(203, 213, 225, 255), black, 1, 1f);
 
-        string stats = $"DMG {(int)StarterGameCatalog.GetWeaponBaseDamage(item.ItemId)} | Chop {(int)StarterGameCatalog.GetFloraHarvestDamage(item.ItemId)} | Mine {(int)StarterGameCatalog.GetMineralHarvestDamage(item.ItemId)}";
+        float upgMult = ItemEnhancementPolicy.GetStatMultiplier(upg);
+        float armorDef = StarterGameCatalog.GetArmorDefense(item.ItemId) * upgMult;
+        string stats = armorDef > 0f
+            ? $"DEF +{(int)MathF.Round(armorDef)} | +{(int)MathF.Round(StarterGameCatalog.GetArmorBonusHealth(item.ItemId) * upgMult)} HP | +{(int)MathF.Round(StarterGameCatalog.GetArmorBonusMana(item.ItemId) * upgMult)} MP"
+            : $"DMG {(int)MathF.Round(StarterGameCatalog.GetWeaponBaseDamage(item.ItemId) * upgMult)} | Chop {(int)MathF.Round(StarterGameCatalog.GetFloraHarvestDamage(item.ItemId) * upgMult)} | Mine {(int)MathF.Round(StarterGameCatalog.GetMineralHarvestDamage(item.ItemId) * upgMult)}";
         spriteBatch.DrawOutlinedString(font, stats, new Vector2(x + 10f, y + 56f), new ColorRgba(125, 211, 252, 255), black, 1, 1f);
         spriteBatch.DrawOutlinedString(font, StarterGameCatalog.GetActionHint(item.ItemId), new Vector2(x + 10f, y + 71f), new ColorRgba(253, 224, 71, 255), black, 1, 1f);
 
         if (StarterGameCatalog.Items.TryGet(item.ItemId, out ItemArchetype? archetype) && archetype.MaxDurability > 0f)
         {
+            float effMaxDur = MathF.Max(1f, ItemEnhancementPolicy.GetEffectiveMaxDurability(archetype, upg));
             string durLabel = item.Durability <= 0f
-                ? $"DURABILITY 0/{(int)archetype.MaxDurability} [WORN OUT]"
-                : $"DURABILITY {(int)MathF.Ceiling(item.Durability)}/{(int)archetype.MaxDurability}";
+                ? $"DURABILITY 0/{(int)effMaxDur} [WORN OUT]"
+                : $"DURABILITY {(int)MathF.Ceiling(item.Durability)}/{(int)effMaxDur}";
             ColorRgba durTxtColor = item.Durability <= 0f ? new ColorRgba(252, 165, 165, 255) : ColorRgba.White;
             spriteBatch.DrawOutlinedString(font, durLabel, new Vector2(x + 14f, y + 90f), durTxtColor, black, 1, 1f);
         }
@@ -302,13 +321,13 @@ internal sealed class HotbarAndItemWidget
 
     private static string ResolveHintText(int viewportWidth, out float scale)
     {
-        if (viewportWidth >= 1000)
+        if (viewportWidth >= 1080)
         {
-            scale = 2f;
-            return "[WASD] Move [Space] Hit [F] Chop/Mine [1-9] Slot [C] Craft [Esc] Menu";
+            scale = 1.5f;
+            return "[WASD] Move [Q/R/V] Skills [E] Loot/Door [I] Bag/Armor/Forge [C] Craft [1-9] Slot";
         }
 
         scale = 1f;
-        return "[WASD] Move [LMB/Space] Hit [F] Harvest [1-9] Slot [C] Craft";
+        return "[WASD] Move [Q/R/V] Skill [E] Loot [I] Bag [C] Craft [1-9] Slot";
     }
 }

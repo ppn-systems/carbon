@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "itemId": 20,
+  "id": "iron_boots",
+  "displayName": "Iron Boots",
+  "tier": 2,
+  "categoryLabel": "Feet Armor",
+  "accentColor": "#94A3B8",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -6.6,
+      "y": -3.4,
+      "w": 4.6,
+      "h": 7.2,
+      "color": "#475569",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -3.8,
+      "y": 4.2,
+      "rx": 4.2,
+      "ry": 2.4,
+      "color": "#64748B",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": 1.4,
+      "y": -3.4,
+      "w": 4.6,
+      "h": 7.2,
+      "color": "#64748B",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 4.2,
+      "y": 4.2,
+      "rx": 4.2,
+      "ry": 2.4,
+      "color": "#94A3B8",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -6.6,
+      "y": -3.4,
+      "w": 4.6,
+      "h": 1.6,
+      "color": "#E2E8F0"
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": 1.4,
+      "y": -3.4,
+      "w": 4.6,
+      "h": 1.6,
+      "color": "#E2E8F0"
+    }
+  ]
+}

@@ -21,6 +21,14 @@ namespace Carbon.Desktop.Abstractions;
 /// <param name="AttackAnimRemaining">Remaining attack animation seconds (&gt; 0 while attacking).</param>
 /// <param name="AttackAnimDuration">Total attack animation duration in seconds.</param>
 /// <param name="HitFlashRemaining">Remaining white damage flash duration in seconds.</param>
+/// <param name="EquippedHeadId">Equipped head armor item ID (0 when none).</param>
+/// <param name="EquippedChestId">Equipped chest armor item ID (0 when none).</param>
+/// <param name="EquippedLegsId">Equipped leg armor item ID (0 when none).</param>
+/// <param name="EquippedFeetId">Equipped footwear armor item ID (0 when none).</param>
+/// <param name="EquippedWeaponId">Active held weapon or tool item ID.</param>
+/// <param name="Level">Entity display level.</param>
+/// <param name="LootCount">Stack quantity when representing a ground loot drop.</param>
+/// <param name="WeaponUpgradeLevel">Enhancement level (<c>0..10</c>) of the equipped weapon or loot drop.</param>
 public readonly record struct RemoteEntityView(
     ulong NetworkId,
     EntityKind Kind,
@@ -34,4 +42,12 @@ public readonly record struct RemoteEntityView(
     Vector2 FacingDirection = default,
     float AttackAnimRemaining = 0f,
     float AttackAnimDuration = 0.30f,
-    float HitFlashRemaining = 0f);
+    float HitFlashRemaining = 0f,
+    ushort EquippedHeadId = 0,
+    ushort EquippedChestId = 0,
+    ushort EquippedLegsId = 0,
+    ushort EquippedFeetId = 0,
+    ushort EquippedWeaponId = 0,
+    ushort Level = 1,
+    int LootCount = 0,
+    byte WeaponUpgradeLevel = 0);

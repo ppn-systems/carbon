@@ -131,9 +131,11 @@ public sealed class AuthoritativeWorldMultiplayerTests
             AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, chunks, characters, sink);
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
-            InventoryContainer seededBag = new(27);
+            InventoryContainer seededBag = new(PlayerInventoryLayout.TotalCapacity);
             StarterGameCatalog.GrantStarterLoadout(seededBag);
-            _ = seededBag.TryAdd(new ItemSlot(StarterGameCatalog.WoodLog, 8), 99);
+            _ = PlayerInventoryLayout.TryAddBagItem(seededBag, new ItemSlot(StarterGameCatalog.WoodLog, 8), 99);
+            _ = PlayerInventoryLayout.TryAddBagItem(seededBag, new ItemSlot(StarterGameCatalog.StoneChunk, 6), 99);
+            _ = PlayerInventoryLayout.TryAddBagItem(seededBag, new ItemSlot(StarterGameCatalog.IronOre, 4), 99);
             byte[] bagBytes = InventoryBinaryCodec.Serialize(seededBag);
 
             DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -203,6 +205,47 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 s.Slot.ItemId == StarterGameCatalog.IronSword &&
                 s.Slot.Durability < 200f &&
                 s.Slot.Durability > 0f);
+
+            // Equip starter LeatherTunic from backpack slot 9 -> Chest armor slot 37
+            int equipsBefore = sink.EquipmentChanges.Count;
+            world.TryMoveInventorySlot(404UL, PlayerInventoryLayout.BackpackStart, PlayerInventoryLayout.ChestSlot).Should().Be(OpStatus.Ok);
+            world.StepFixedTick();
+            sink.EquipmentChanges.Count.Should().BeGreaterThan(equipsBefore);
+            sink.StatsSyncs.Should().Contain(s => s.ConnectionId == 404UL && s.Defense > 3f);
+
+            // Drop WoodAxe from slot 0 (which lands on ground as EntityKind.LootDrop) & pick it back up via EnqueuePickupLoot
+            int spawnsBeforeDrop = sink.Spawns.Count;
+            world.TryDropInventoryItem(404UL, 0, 1).Should().Be(OpStatus.Ok);
+            world.StepFixedTick();
+            EntitySpawnSnapshot? droppedLoot = null;
+            for (int i = spawnsBeforeDrop; i < sink.Spawns.Count; i++)
+            {
+                if (sink.Spawns[i].ConnectionId == 404UL && sink.Spawns[i].Snapshot.Kind == EntityKind.LootDrop)
+                {
+                    droppedLoot = sink.Spawns[i].Snapshot;
+                    break;
+                }
+            }
+
+            droppedLoot.Should().NotBeNull();
+            world.EnqueuePickupLoot(404UL, droppedLoot!.Value.NetworkId).Should().Be(OpStatus.Ok);
+            world.StepFixedTick();
+            slayerInv.Clear();
+            world.GetInventorySnapshot(404UL, slayerInv).Should().BeTrue();
+            slayerInv.Should().Contain(s => s.Slot.ItemId == StarterGameCatalog.WoodAxe);
+
+            // Cast Whirlwind skill (AbilitySlot = 101)
+            world.EnqueueAttackInput(404UL, 0UL, new Vector2(mobSpawn.Value.PositionX, mobSpawn.Value.PositionY), 101).Should().Be(OpStatus.Ok);
+            world.StepFixedTick();
+            sink.SkillCasts.Should().Contain(c => c.AbilitySlot == 1);
+
+            // Forge upgrade +0 -> +1 on IronSword (slot 2) using mats in scout inventory (101UL)
+            world.TryUpgradeInventoryItem(101UL, 2).Should().Be(OpStatus.Ok);
+            invSnapshot.Clear();
+            world.GetInventorySnapshot(101UL, invSnapshot).Should().BeTrue();
+            invSnapshot.Should().Contain(s =>
+                s.Slot.ItemId == StarterGameCatalog.IronSword &&
+                ItemEnhancementPolicy.GetUpgradeLevel(in s.Slot) == 1);
         }
         finally
         {
@@ -222,6 +265,9 @@ public sealed class AuthoritativeWorldMultiplayerTests
         public List<(int TileX, int TileY, byte StructureType)> StructureChanges { get; } = [];
         public List<(ulong AttackerNetworkId, ulong DefenderNetworkId, float Damage, bool IsKilled)> CombatHits { get; } = [];
         public List<(ulong ConnectionId, ushort SlotIndex, uint ItemId, int Quantity)> SlotChanges { get; } = [];
+        public List<(ulong EntityNetworkId, ushort ChestId, ushort WeaponId, ushort Level)> EquipmentChanges { get; } = [];
+        public List<(ulong ConnectionId, ushort Level, uint Experience, float Defense)> StatsSyncs { get; } = [];
+        public List<(ulong CasterNetworkId, byte AbilitySlot)> SkillCasts { get; } = [];
 
         public void SendEntitySpawn(ulong connectionId, in EntitySpawnSnapshot spawn) =>
             this.Spawns.Add((connectionId, spawn));
@@ -248,7 +294,16 @@ public sealed class AuthoritativeWorldMultiplayerTests
         public void SendCombatHit(ReadOnlySpan<ulong> recipientConnectionIds, ulong attackerNetworkId, ulong defenderNetworkId, float damage, float remainingHealth, bool isCritical, bool isKilled) =>
             this.CombatHits.Add((attackerNetworkId, defenderNetworkId, damage, isKilled));
 
-        public void SendInventorySlotChanged(ulong connectionId, ushort slotIndex, uint itemId, int quantity, float durability) =>
+        public void SendInventorySlotChanged(ulong connectionId, ushort slotIndex, uint itemId, int quantity, float durability, byte upgradeLevel = 0) =>
             this.SlotChanges.Add((connectionId, slotIndex, itemId, quantity));
+
+        public void SendEntityEquipmentChanged(ReadOnlySpan<ulong> recipientConnectionIds, ulong entityNetworkId, ushort headId, ushort chestId, ushort legsId, ushort feetId, ushort weaponId, byte weaponUpgrade, ushort level) =>
+            this.EquipmentChanges.Add((entityNetworkId, chestId, weaponId, level));
+
+        public void SendPlayerStatsSync(ulong connectionId, ushort level, uint experience, uint xpToNextLevel, float currentHealth, float maxHealth, float currentMana, float maxMana, float currentStamina, float maxStamina, float defense, float skill1Cd, float skill2Cd, float skill3Cd, bool leveledUp) =>
+            this.StatsSyncs.Add((connectionId, level, experience, defense));
+
+        public void SendSkillCastBroadcast(ReadOnlySpan<ulong> recipientConnectionIds, ulong casterNetworkId, byte abilitySlot, float originX, float originY, float aimX, float aimY) =>
+            this.SkillCasts.Add((casterNetworkId, abilitySlot));
     }
 }

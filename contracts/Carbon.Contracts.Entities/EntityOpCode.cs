@@ -16,6 +16,9 @@ public static class EntityOpCode
     /// <summary>Client attack or ability activation request.</summary>
     public const ushort AttackInput = 0x1202;
 
+    /// <summary>Client request to pick up a nearby ground loot entity.</summary>
+    public const ushort PickupLoot = 0x1203;
+
     // ── S2C: Server → Client push (0x1230–0x12FF) ───────────────────────────
 
     /// <summary>Notifies a client that an entity entered its Area of Interest.</summary>
@@ -29,4 +32,13 @@ public static class EntityOpCode
 
     /// <summary>Authoritative combat hit broadcast to observers in range.</summary>
     public const ushort CombatHit = 0x1233;
+
+    /// <summary>Broadcasts visible armor, active weapon, enhancement sheen, and level changes to observers.</summary>
+    public const ushort EntityEquipmentChanged = 0x1234;
+
+    /// <summary>Unilateral push synchronizing local player level, XP, HP, MP, stamina, defense, and skill cooldowns.</summary>
+    public const ushort PlayerStatsSync = 0x1235;
+
+    /// <summary>Broadcasts active skill cast visuals to nearby observers.</summary>
+    public const ushort SkillCastBroadcast = 0x1236;
 }

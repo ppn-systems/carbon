@@ -9,6 +9,7 @@ using Carbon.Contracts.Items;
 using Carbon.Contracts.Items.C2S;
 using Carbon.Contracts.Items.S2C;
 using Carbon.Handlers.Internal;
+using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Nalix.Abstractions.Injection;
 using Nalix.Abstractions.Networking.Packets;
@@ -48,6 +49,7 @@ public static partial class ItemHandlers
                 pkt.ItemId = (ushort)slot.ItemId;
                 pkt.Count = slot.Quantity;
                 pkt.Durability = slot.Durability;
+                pkt.UpgradeLevel = ItemEnhancementPolicy.GetUpgradeLevel(in slot);
                 await context.Sender.ReplyAsync(pkt).ConfigureAwait(false);
             }
         }
@@ -84,5 +86,49 @@ public static partial class ItemHandlers
             context.Packet.RecipeId,
             context.Packet.Quantity);
         return PacketReplyHelper.SendMutationAsync(context, status, ItemOpCode.CraftItem);
+    }
+
+    /// <summary>Opcode <c>0x4004</c>. Moves, swaps, merges, or equips items between slots (<c>0..39</c>).</summary>
+    [PacketOpcode(ItemOpCode.MoveInventorySlot)]
+    [PacketPermission(PermissionLevel.USER)]
+    public static ValueTask HandleMoveInventorySlotAsync(IPacketContext<MoveInventorySlot> context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        OpStatus status = s_world.TryMoveInventorySlot(
+            connectionId,
+            context.Packet.FromSlot,
+            context.Packet.ToSlot);
+        return PacketReplyHelper.SendMutationAsync(context, status, ItemOpCode.MoveInventorySlot);
+    }
+
+    /// <summary>Opcode <c>0x4005</c>. Enhances an eligible weapon, tool, or armor slot in the Forge.</summary>
+    [PacketOpcode(ItemOpCode.UpgradeInventoryItem)]
+    [PacketPermission(PermissionLevel.USER)]
+    public static ValueTask HandleUpgradeInventoryItemAsync(IPacketContext<UpgradeInventoryItem> context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        OpStatus status = s_world.TryUpgradeInventoryItem(
+            connectionId,
+            context.Packet.SlotIndex);
+        return PacketReplyHelper.SendMutationAsync(context, status, ItemOpCode.UpgradeInventoryItem);
+    }
+
+    /// <summary>Opcode <c>0x4006</c>. Drops an inventory stack onto the ground as pickupable loot.</summary>
+    [PacketOpcode(ItemOpCode.DropInventoryItem)]
+    [PacketPermission(PermissionLevel.USER)]
+    public static ValueTask HandleDropInventoryItemAsync(IPacketContext<DropInventoryItem> context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        OpStatus status = s_world.TryDropInventoryItem(
+            connectionId,
+            context.Packet.SlotIndex,
+            context.Packet.Quantity);
+        return PacketReplyHelper.SendMutationAsync(context, status, ItemOpCode.DropInventoryItem);
     }
 }

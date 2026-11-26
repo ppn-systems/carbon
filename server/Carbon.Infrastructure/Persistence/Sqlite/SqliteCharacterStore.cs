@@ -17,7 +17,8 @@ public sealed class SqliteCharacterStore : ICharacterStore
 {
     private const string ListSql = """
         SELECT id, account_id, name, level, appearance_preset, position_x, position_y,
-               current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc
+               current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
+               experience, current_mana, max_mana, current_stamina, max_stamina
         FROM characters
         WHERE account_id = @account_id
         ORDER BY name ASC;
@@ -25,7 +26,8 @@ public sealed class SqliteCharacterStore : ICharacterStore
 
     private const string FindSql = """
         SELECT id, account_id, name, level, appearance_preset, position_x, position_y,
-               current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc
+               current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
+               experience, current_mana, max_mana, current_stamina, max_stamina
         FROM characters
         WHERE id = @id
         LIMIT 1;
@@ -34,8 +36,9 @@ public sealed class SqliteCharacterStore : ICharacterStore
     private const string InsertSql = """
         INSERT INTO characters (
             id, account_id, name, level, appearance_preset, position_x, position_y,
-            current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc)
-        VALUES (@id, @account_id, @name, @level, @preset, @px, @py, @hp, @max_hp, @slot, @inv, @updated)
+            current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
+            experience, current_mana, max_mana, current_stamina, max_stamina)
+        VALUES (@id, @account_id, @name, @level, @preset, @px, @py, @hp, @max_hp, @slot, @inv, @updated, @xp, @mp, @max_mp, @stam, @max_stam)
         ON CONFLICT (name) DO NOTHING;
         """;
 
@@ -48,7 +51,12 @@ public sealed class SqliteCharacterStore : ICharacterStore
             max_health = @max_hp,
             selected_hotbar_slot = @slot,
             inventory_blob = @inv,
-            updated_at_utc = @updated
+            updated_at_utc = @updated,
+            experience = @xp,
+            current_mana = @mp,
+            max_mana = @max_mp,
+            current_stamina = @stam,
+            max_stamina = @max_stam
         WHERE id = @id;
         """;
 
@@ -121,6 +129,11 @@ public sealed class SqliteCharacterStore : ICharacterStore
         _ = cmd.Parameters.AddWithValue("@slot", (int)character.SelectedHotbarSlot);
         _ = cmd.Parameters.AddWithValue("@inv", character.InventoryBlob);
         _ = cmd.Parameters.AddWithValue("@updated", character.UpdatedAtUtc.ToUnixTimeMilliseconds());
+        _ = cmd.Parameters.AddWithValue("@xp", (long)character.Experience);
+        _ = cmd.Parameters.AddWithValue("@mp", character.CurrentMana);
+        _ = cmd.Parameters.AddWithValue("@max_mp", character.MaxMana);
+        _ = cmd.Parameters.AddWithValue("@stam", character.CurrentStamina);
+        _ = cmd.Parameters.AddWithValue("@max_stam", character.MaxStamina);
 
         int affected = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         return affected == 1;
@@ -153,6 +166,11 @@ public sealed class SqliteCharacterStore : ICharacterStore
         SqliteParameter pSlot = cmd.Parameters.Add("@slot", SqliteType.Integer);
         SqliteParameter pInv = cmd.Parameters.Add("@inv", SqliteType.Blob);
         SqliteParameter pUpdated = cmd.Parameters.Add("@updated", SqliteType.Integer);
+        SqliteParameter pXp = cmd.Parameters.Add("@xp", SqliteType.Integer);
+        SqliteParameter pMp = cmd.Parameters.Add("@mp", SqliteType.Real);
+        SqliteParameter pMaxMp = cmd.Parameters.Add("@max_mp", SqliteType.Real);
+        SqliteParameter pStam = cmd.Parameters.Add("@stam", SqliteType.Real);
+        SqliteParameter pMaxStam = cmd.Parameters.Add("@max_stam", SqliteType.Real);
         await cmd.PrepareAsync(ct).ConfigureAwait(false);
 
         for (int i = 0; i < characters.Count; i++)
@@ -167,6 +185,11 @@ public sealed class SqliteCharacterStore : ICharacterStore
             pSlot.Value = (int)c.SelectedHotbarSlot;
             pInv.Value = c.InventoryBlob;
             pUpdated.Value = c.UpdatedAtUtc.ToUnixTimeMilliseconds();
+            pXp.Value = (long)c.Experience;
+            pMp.Value = c.CurrentMana;
+            pMaxMp.Value = c.MaxMana;
+            pStam.Value = c.CurrentStamina;
+            pMaxStam.Value = c.MaxStamina;
             _ = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         }
 
@@ -188,6 +211,11 @@ public sealed class SqliteCharacterStore : ICharacterStore
             reader.GetFloat(8),
             (byte)reader.GetInt32(9),
             inv,
-            DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(11)));
+            DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(11)),
+            (uint)Math.Max(0L, reader.GetInt64(12)),
+            reader.GetFloat(13),
+            reader.GetFloat(14),
+            reader.GetFloat(15),
+            reader.GetFloat(16));
     }
 }

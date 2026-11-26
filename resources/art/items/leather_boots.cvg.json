@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "itemId": 16,
+  "id": "leather_boots",
+  "displayName": "Leather Boots",
+  "tier": 1,
+  "categoryLabel": "Feet Armor",
+  "accentColor": "#92400E",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -6.5,
+      "y": -3.2,
+      "w": 4.5,
+      "h": 7.2,
+      "color": "#78350F",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -3.8,
+      "y": 4.2,
+      "rx": 4.0,
+      "ry": 2.4,
+      "color": "#92400E",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": 1.4,
+      "y": -3.2,
+      "w": 4.5,
+      "h": 7.2,
+      "color": "#92400E",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 4.2,
+      "y": 4.2,
+      "rx": 4.0,
+      "ry": 2.4,
+      "color": "#B45309",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -6.5,
+      "y": -3.2,
+      "w": 4.5,
+      "h": 1.8,
+      "color": "#F59E0B"
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": 1.4,
+      "y": -3.2,
+      "w": 4.5,
+      "h": 1.8,
+      "color": "#F59E0B"
+    }
+  ]
+}

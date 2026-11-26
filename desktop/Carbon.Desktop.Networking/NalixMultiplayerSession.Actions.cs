@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Contracts.Entities;
 using Carbon.Contracts.Entities.C2S;
 using Carbon.Contracts.Items.C2S;
 using Carbon.Contracts.Maps.C2S;
@@ -90,6 +91,292 @@ public sealed partial class NalixMultiplayerSession
         }
 
         return false;
+    }
+
+    /// <inheritdoc/>
+    public bool TryCastSkill(byte skillSlot, Vector2 aimWorldPosition)
+    {
+        if (!this.IsReady ||
+            _tcpSession is not { IsConnected: true } ||
+            !CharacterProgressionPolicy.TryGetSkillSpec(skillSlot, out string _, out float mpCost, out float stamCost, out float cdSec))
+        {
+            return false;
+        }
+
+        if (this.GetSkillCooldown(skillSlot) > 0.05f)
+        {
+            return false;
+        }
+
+        if (_localMana < mpCost || _localStamina < stamCost)
+        {
+            lock (_worldGate)
+            {
+                _hudNotifications.Add(_localMana < mpCost ? "Not enough Mana!" : "Not enough Stamina!");
+            }
+
+            return false;
+        }
+
+        _localMana = MathF.Max(0f, _localMana - mpCost);
+        _localStamina = MathF.Max(0f, _localStamina - stamCost);
+        switch (skillSlot)
+        {
+            case CharacterProgressionPolicy.SkillWhirlwind:
+                _skill1Cd = cdSec;
+                break;
+            case CharacterProgressionPolicy.SkillArcaneNova:
+                _skill2Cd = cdSec;
+                break;
+            case CharacterProgressionPolicy.SkillVitalSurge:
+                _skill3Cd = cdSec;
+                break;
+            default:
+                break;
+        }
+
+        Vector2 pos = this.LocalPlayerInterpolatedPosition;
+        Vector2 delta = aimWorldPosition - pos;
+        Vector2 aimDir = delta.LengthSquared() > 1e-4f ? Vector2.Normalize(delta) : _localFacingDir;
+        _lastAttackDir = aimDir;
+        _localFacingDir = aimDir;
+
+        ClientActionKind actionKind = skillSlot switch
+        {
+            CharacterProgressionPolicy.SkillWhirlwind => ClientActionKind.SkillWhirlwind,
+            CharacterProgressionPolicy.SkillArcaneNova => ClientActionKind.SkillArcaneNova,
+            CharacterProgressionPolicy.SkillVitalSurge => ClientActionKind.SkillVitalSurge,
+            _ => ClientActionKind.SwordSlash,
+        };
+        float duration = ResolveActionDuration(actionKind);
+        _comboStep = (byte)(_comboStep ^ 1);
+        _currentAction = new ClientActionState(
+            actionKind,
+            duration,
+            duration,
+            aimDir,
+            _inventory.GetSlot(_selectedSlot).ItemId,
+            _comboStep);
+        if (skillSlot == CharacterProgressionPolicy.SkillWhirlwind)
+        {
+            _attackSwingTimer = duration;
+        }
+
+        uint tick = _clientTick;
+        byte abilityCode = (byte)(100 + skillSlot);
+        _ = this.SendGameplayDatagramOrTcpAsync<EntityAttackInput>(
+            DeliveryMethod.ReliableUnordered,
+            channel: 0,
+            p =>
+            {
+                p.ClientTick = tick;
+                p.TargetNetworkId = 0UL;
+                p.AimX = aimWorldPosition.X;
+                p.AimY = aimWorldPosition.Y;
+                p.AbilitySlot = abilityCode;
+            });
+        return true;
+    }
+
+    /// <inheritdoc/>
+    public bool TryMoveInventorySlot(ushort fromSlot, ushort toSlot)
+    {
+        if (!this.IsReady ||
+            _tcpSession is not { IsConnected: true } ||
+            fromSlot >= PlayerInventoryLayout.TotalCapacity ||
+            toSlot >= PlayerInventoryLayout.TotalCapacity ||
+            fromSlot == toSlot)
+        {
+            return false;
+        }
+
+        ItemSlot src = _inventory.GetSlot(fromSlot);
+        ItemSlot dst = _inventory.GetSlot(toSlot);
+        if (src.IsEmpty ||
+            !PlayerInventoryLayout.CanAcceptSlotItem(toSlot, in src) ||
+            !PlayerInventoryLayout.CanAcceptSlotItem(fromSlot, in dst))
+        {
+            return false;
+        }
+
+        ushort seq = ++_itemSeqId;
+        _ = this.SendTcpPooledAsync<MoveInventorySlot>(p =>
+        {
+            p.FromSlot = fromSlot;
+            p.ToSlot = toSlot;
+            p.SequenceId = seq;
+        });
+        return true;
+    }
+
+    /// <inheritdoc/>
+    public bool TryQuickMoveInventorySlot(ushort slotIndex)
+    {
+        if (!this.IsReady ||
+            _tcpSession is not { IsConnected: true } ||
+            slotIndex >= PlayerInventoryLayout.TotalCapacity)
+        {
+            return false;
+        }
+
+        ItemSlot source = _inventory.GetSlot(slotIndex);
+        if (source.IsEmpty)
+        {
+            return false;
+        }
+
+        int dest = this.ResolveQuickMoveTargetSlot(slotIndex, in source);
+        return dest >= 0 && this.TryMoveInventorySlot(slotIndex, (ushort)dest);
+    }
+
+    /// <inheritdoc/>
+    public bool TryUpgradeInventoryItem(ushort slotIndex)
+    {
+        if (!this.IsReady ||
+            _tcpSession is not { IsConnected: true } ||
+            slotIndex >= PlayerInventoryLayout.TotalCapacity)
+        {
+            return false;
+        }
+
+        ItemSlot target = _inventory.GetSlot(slotIndex);
+        if (!ItemEnhancementPolicy.CanUpgrade(in target, out uint m1, out int c1, out uint m2, out int c2, out float _))
+        {
+            return false;
+        }
+
+        if (_inventory.CountItem(m1) < c1 || (m2 != 0U && _inventory.CountItem(m2) < c2))
+        {
+            lock (_worldGate)
+            {
+                _hudNotifications.Add("Missing upgrade materials!");
+            }
+
+            return false;
+        }
+
+        ushort seq = ++_itemSeqId;
+        _ = this.SendTcpPooledAsync<UpgradeInventoryItem>(p =>
+        {
+            p.SlotIndex = slotIndex;
+            p.SequenceId = seq;
+        });
+        return true;
+    }
+
+    /// <inheritdoc/>
+    public bool TryDropInventoryItem(ushort slotIndex, int quantity)
+    {
+        if (!this.IsReady ||
+            _tcpSession is not { IsConnected: true } ||
+            slotIndex >= PlayerInventoryLayout.TotalCapacity ||
+            _inventory.GetSlot(slotIndex).IsEmpty)
+        {
+            return false;
+        }
+
+        ushort seq = ++_itemSeqId;
+        _ = this.SendTcpPooledAsync<DropInventoryItem>(p =>
+        {
+            p.SlotIndex = slotIndex;
+            p.Quantity = quantity;
+            p.SequenceId = seq;
+        });
+        return true;
+    }
+
+    /// <inheritdoc/>
+    public bool TryPickupNearbyLoot()
+    {
+        if (!this.IsReady || _tcpSession is not { IsConnected: true })
+        {
+            return false;
+        }
+
+        Vector2 pos = this.LocalPlayerInterpolatedPosition;
+        const float maxDistSq = 96f * 96f;
+        ulong bestId = 0UL;
+        float bestDistSq = maxDistSq;
+
+        foreach (KeyValuePair<ulong, RemoteEntityState> kvp in _remoteEntities)
+        {
+            RemoteEntityState s = kvp.Value;
+            if (s.Kind != EntityKind.LootDrop)
+            {
+                continue;
+            }
+
+            float d2 = Vector2.DistanceSquared(pos, s.Position);
+            if (d2 <= bestDistSq)
+            {
+                bestDistSq = d2;
+                bestId = s.NetworkId;
+            }
+        }
+
+        if (bestId == 0UL)
+        {
+            return false;
+        }
+
+        _ = this.SendTcpPooledAsync<EntityPickupLoot>(p => p.LootNetworkId = bestId);
+        return true;
+    }
+
+    private int ResolveQuickMoveTargetSlot(ushort slotIndex, in ItemSlot source)
+    {
+        if (slotIndex < PlayerInventoryLayout.BagLimit &&
+            StarterGameCatalog.Items.TryGet(source.ItemId, out ItemArchetype? def))
+        {
+            int armorSlot = PlayerInventoryLayout.GetArmorSlotIndex(def.EquipSlot);
+            if (armorSlot >= 0 && armorSlot < _inventory.Capacity)
+            {
+                return armorSlot;
+            }
+        }
+
+        if (slotIndex >= PlayerInventoryLayout.BagLimit)
+        {
+            int bagSlot = this.FindOpenOrMergeSlot(in source, PlayerInventoryLayout.BackpackStart, Math.Min(PlayerInventoryLayout.BagLimit, _inventory.Capacity));
+            if (bagSlot < 0)
+            {
+                bagSlot = this.FindOpenOrMergeSlot(in source, 0, Math.Min(PlayerInventoryLayout.HotbarCount, _inventory.Capacity));
+            }
+
+            return bagSlot;
+        }
+
+        int start = slotIndex < PlayerInventoryLayout.HotbarCount ? PlayerInventoryLayout.BackpackStart : 0;
+        int end = slotIndex < PlayerInventoryLayout.HotbarCount
+            ? Math.Min(PlayerInventoryLayout.BagLimit, _inventory.Capacity)
+            : Math.Min(PlayerInventoryLayout.HotbarCount, _inventory.Capacity);
+        return this.FindOpenOrMergeSlot(in source, start, end);
+    }
+
+    private int FindOpenOrMergeSlot(in ItemSlot source, int startInclusive, int endExclusive)
+    {
+        if (source.IsStackable)
+        {
+            int maxStack = StarterGameCatalog.GetMaxStackSize(source.ItemId);
+            for (int i = startInclusive; i < endExclusive; i++)
+            {
+                ItemSlot candidate = _inventory.GetSlot(i);
+                if (candidate.ItemId == source.ItemId && candidate.IsStackable && candidate.Quantity < maxStack)
+                {
+                    return i;
+                }
+            }
+        }
+
+        for (int i = startInclusive; i < endExclusive; i++)
+        {
+            if (_inventory.GetSlot(i).IsEmpty)
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     /// <inheritdoc/>
@@ -332,6 +619,9 @@ public sealed partial class NalixMultiplayerSession
         ClientActionKind.PickaxeMine => 0.30f,
         ClientActionKind.ConsumeItem => 0.24f,
         ClientActionKind.PlaceStructure => 0.20f,
+        ClientActionKind.SkillWhirlwind => 0.42f,
+        ClientActionKind.SkillArcaneNova => 0.45f,
+        ClientActionKind.SkillVitalSurge => 0.48f,
         ClientActionKind.SwordSlash or ClientActionKind.MonsterStrike or ClientActionKind.None or _ => 0.24f,
     };
 }

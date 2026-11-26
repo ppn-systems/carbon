@@ -29,7 +29,7 @@ public sealed class VectorArtAndArchitectureTests
         summary.CharactersValidated.Should().Be(4);
         summary.MonstersValidated.Should().Be(4);
         summary.NpcsValidated.Should().Be(3);
-        summary.ItemsValidated.Should().Be(12);
+        summary.ItemsValidated.Should().Be(23);
         summary.RasterImagesFound.Should().Be(0, "declarative vector pipeline uses zero PNG/JPG images");
 
         CarbonVectorArtLibrary lib = CarbonVectorArtLibrary.LoadFromDirectory(artRoot!);
@@ -39,10 +39,11 @@ public sealed class VectorArtAndArchitectureTests
             lib.TryGetCharacter(p, out CompiledVectorRig? rig).Should().BeTrue();
             rig!.GetBonePivot(VectorBoneId.ArmFront).Y.Should().BeLessThan(0f, "shoulder pivot must sit in upper body");
             rig.GetBonePivot(VectorBoneId.LegLeft).Y.Should().BeLessThan(0f, "hip pivot must sit above boots");
-            rig.ClipNames.Should().Contain(["idle", "walk", "slash", "chop", "mine"]);
+            rig.ClipNames.Should().Contain(["idle", "walk", "slash", "chop", "mine", "cast"]);
             rig.EvaluatePose("chop", "idle", 0.42f, isNormalized: true, pose);
             rig.EvaluatePose("mine", "idle", 0.40f, isNormalized: true, pose);
             rig.EvaluatePose("slash", "idle", 0.35f, isNormalized: true, pose);
+            rig.EvaluatePose("cast", "idle", 0.45f, isNormalized: true, pose);
         }
     }
 

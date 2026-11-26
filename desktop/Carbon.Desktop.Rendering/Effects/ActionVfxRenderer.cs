@@ -60,6 +60,18 @@ internal static class ActionVfxRenderer
                 DrawMonsterStrikeArc(batch, origin + new Vector2(0f, -4f), baseAngle, progress, alpha);
                 break;
 
+            case ClientActionKind.SkillWhirlwind:
+                DrawWhirlwindNova(batch, origin + new Vector2(0f, -6f), progress, alpha);
+                break;
+
+            case ClientActionKind.SkillArcaneNova:
+                DrawArcaneNovaCone(batch, origin + new Vector2(0f, -6f), baseAngle, progress, alpha);
+                break;
+
+            case ClientActionKind.SkillVitalSurge:
+                DrawVitalSurgeAura(batch, origin + new Vector2(0f, -8f), progress, alpha);
+                break;
+
             case ClientActionKind.None:
             case ClientActionKind.ConsumeItem:
             case ClientActionKind.PlaceStructure:
@@ -257,5 +269,50 @@ internal static class ActionVfxRenderer
             prev = p;
             hasPrev = true;
         }
+    }
+
+    private static void DrawWhirlwindNova(GeometryBatch batch, Vector2 origin, float progress, byte alpha)
+    {
+        float radius = 32f + (MathF.Sin(progress * MathF.PI * 0.65f) * 58f);
+        float rot = progress * MathF.Tau * 1.5f;
+        ColorRgba ringCol = new(250, 204, 21, alpha);
+        ColorRgba slashCol = new(248, 250, 252, (byte)(alpha * 0.9f));
+        ColorRgba innerGlow = new(249, 115, 22, (byte)(alpha * 0.45f));
+
+        batch.DrawCircle(origin, radius, ringCol, 24, 3.2f);
+        batch.DrawCircle(origin, radius * 0.72f, innerGlow, 20, 4.5f);
+
+        for (int b = 0; b < 3; b++)
+        {
+            float baseAng = rot + (b * MathF.Tau / 3f);
+            Vector2 p0 = origin + (new Vector2(MathF.Cos(baseAng), MathF.Sin(baseAng)) * (radius * 0.35f));
+            Vector2 p1 = origin + (new Vector2(MathF.Cos(baseAng + 0.55f), MathF.Sin(baseAng + 0.55f)) * (radius * 1.04f));
+            Vector2 p2 = origin + (new Vector2(MathF.Cos(baseAng + 0.12f), MathF.Sin(baseAng + 0.12f)) * (radius * 0.95f));
+            batch.FillTriangle(p0, p1, p2, slashCol);
+        }
+    }
+
+    private static void DrawArcaneNovaCone(GeometryBatch batch, Vector2 origin, float baseAngle, float progress, byte alpha)
+    {
+        float reach = 28f + (MathF.Pow(progress, 0.7f) * 140f);
+        ColorRgba beamFill = new(34, 211, 238, (byte)(alpha * 0.42f));
+        ColorRgba rimCol = new(165, 243, 252, alpha);
+
+        Vector2 left = origin + (new Vector2(MathF.Cos(baseAngle - 0.58f), MathF.Sin(baseAngle - 0.58f)) * reach);
+        Vector2 center = origin + (new Vector2(MathF.Cos(baseAngle), MathF.Sin(baseAngle)) * (reach * 1.08f));
+        Vector2 right = origin + (new Vector2(MathF.Cos(baseAngle + 0.58f), MathF.Sin(baseAngle + 0.58f)) * reach);
+        batch.FillTriangle(origin, left, center, beamFill);
+        batch.FillTriangle(origin, center, right, beamFill);
+        batch.DrawLine(left, center, rimCol, 2.5f);
+        batch.DrawLine(center, right, rimCol, 2.5f);
+        batch.FillCircle(center, 6f + ((1f - progress) * 8f), rimCol, 12);
+    }
+
+    private static void DrawVitalSurgeAura(GeometryBatch batch, Vector2 origin, float progress, byte alpha)
+    {
+        float r1 = 16f + (progress * 32f);
+        float r2 = 10f + (progress * 20f);
+        batch.DrawCircle(origin, r1, new ColorRgba(74, 222, 128, alpha), 18, 2.8f);
+        batch.DrawCircle(origin + new Vector2(0f, -progress * 18f), r2, new ColorRgba(250, 204, 21, (byte)(alpha * 0.85f)), 16, 2.2f);
     }
 }

@@ -29,6 +29,15 @@ public enum ClientActionKind : byte
 
     /// <summary>Structure placement animation.</summary>
     PlaceStructure = 6,
+
+    /// <summary>Skill 1: 360-degree spinning Whirlwind cleave.</summary>
+    SkillWhirlwind = 7,
+
+    /// <summary>Skill 2: Directional crystal Arcane Nova shockwave.</summary>
+    SkillArcaneNova = 8,
+
+    /// <summary>Skill 3: Self Vital Surge restoration aura.</summary>
+    SkillVitalSurge = 9,
 }
 
 /// <summary>

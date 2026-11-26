@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "itemId": 13,
+  "id": "leather_cap",
+  "displayName": "Leather Cap",
+  "tier": 1,
+  "categoryLabel": "Head Armor",
+  "accentColor": "#D97706",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0.0,
+      "y": 1.5,
+      "rx": 7.2,
+      "ry": 4.4,
+      "color": "#92400E",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -6.5,
+          1.2
+        ],
+        [
+          6.5,
+          1.2
+        ],
+        [
+          2.4,
+          -6.5
+        ],
+        [
+          -4.0,
+          -5.2
+        ]
+      ],
+      "color": "#B45309",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -1.2,
+      "y": -1.6,
+      "rx": 3.8,
+      "ry": 1.8,
+      "color": "#F59E0B"
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          3.0,
+          -2.5
+        ],
+        [
+          7.8,
+          -7.5
+        ],
+        [
+          8.2,
+          -4.6
+        ],
+        [
+          4.0,
+          -1.0
+        ]
+      ],
+      "color": "#FACC15",
+      "outlineColor": "#451A03",
+      "outlineThickness": 0.8
+    }
+  ]
+}

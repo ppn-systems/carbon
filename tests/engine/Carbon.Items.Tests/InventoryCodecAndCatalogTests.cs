@@ -37,26 +37,65 @@ public sealed class InventoryCodecAndCatalogTests
     [Fact]
     public void StarterGameCatalog_AllCraftingRecipesShouldCraftEndToEnd()
     {
-        InventoryContainer bag = new(27);
-        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.WoodLog, 40), 99);
-        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.StoneChunk, 20), 99);
-        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.IronOre, 20), 99);
-        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.ManaCrystal, 10), 99);
+        InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);
+        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.WoodLog, 90), 99);
+        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.WoodLog, 60), 99);
+        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.StoneChunk, 90), 99);
+        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.IronOre, 90), 99);
+        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.IronOre, 90), 99);
+        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.ManaCrystal, 60), 99);
+        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.BerryHerb, 20), 99);
 
         ReadOnlySpan<CraftingRecipe> recipes = StarterGameCatalog.Recipes.All;
-        recipes.Length.Should().Be(6);
+        recipes.Length.Should().Be(17);
 
         for (int i = 0; i < recipes.Length; i++)
         {
             CraftingRecipe recipe = recipes[i];
             int maxStack = StarterGameCatalog.GetMaxStackSize(recipe.Output.ItemId);
-            RecipeMatcher.CanCraft(bag, recipe).Should().BeTrue();
-            RecipeMatcher.TryCraft(bag, recipe, maxStack).Should().BeTrue();
+            RecipeMatcher.CanCraft(bag, recipe).Should().BeTrue($"recipe {recipe.Id} should be craftable");
+            RecipeMatcher.TryCraft(bag, recipe, maxStack).Should().BeTrue($"recipe {recipe.Id} should craft cleanly");
         }
 
         bag.CountItem(StarterGameCatalog.CrystalPickaxe).Should().Be(1);
         bag.CountItem(StarterGameCatalog.IronSword).Should().Be(1);
         bag.CountItem(StarterGameCatalog.StoneWallKit).Should().Be(2);
+        bag.CountItem(StarterGameCatalog.IronHelmet).Should().Be(1);
+        bag.CountItem(StarterGameCatalog.CrystalRobe).Should().Be(1);
+    }
+
+    [Fact]
+    public void PlayerInventoryLayout_ItemEnhancement_And_CharacterProgression_ShouldEnforceRpgRules()
+    {
+        InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
+        inv.SetSlot(9, new ItemSlot(StarterGameCatalog.IronHelmet, 1, 0UL, 220f));
+        inv.SetSlot(10, new ItemSlot(StarterGameCatalog.WoodLog, 5));
+
+        ItemSlot logSlot = inv.GetSlot(10);
+        PlayerInventoryLayout.CanAcceptSlotItem(PlayerInventoryLayout.HeadSlot, in logSlot).Should().BeFalse();
+
+        PlayerInventoryLayout.TryQuickMove(inv, 9, out int equippedSlot).Should().BeTrue();
+        equippedSlot.Should().Be(PlayerInventoryLayout.HeadSlot);
+        inv.GetSlot(PlayerInventoryLayout.HeadSlot).ItemId.Should().Be(StarterGameCatalog.IronHelmet);
+
+        ItemSlot helmet = inv.GetSlot(PlayerInventoryLayout.HeadSlot);
+        ItemSlot upgraded = ItemEnhancementPolicy.WithUpgradeLevel(in helmet, 5);
+        ItemEnhancementPolicy.GetUpgradeLevel(in upgraded).Should().Be(5);
+        inv.SetSlot(PlayerInventoryLayout.HeadSlot, in upgraded);
+
+        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(3, inv);
+        stats.Defense.Should().BeGreaterThan(10f);
+        stats.MaxHealth.Should().BeGreaterThan(140f);
+        stats.MaxMana.Should().Be(100f);
+        CharacterProgressionPolicy.GetXpToNextLevel(1).Should().Be(100U);
+        CharacterProgressionPolicy.MitigateDamage(100f, stats.Defense).Should().BeLessThan(70f);
+
+        ItemEnhancementPolicy.CanUpgrade(in upgraded, out uint m1, out int c1, out uint m2, out int c2, out float chance).Should().BeTrue();
+        m1.Should().Be(StarterGameCatalog.IronOre);
+        c1.Should().BeGreaterThan(0);
+        m2.Should().Be(StarterGameCatalog.ManaCrystal);
+        c2.Should().BeGreaterThan(0);
+        chance.Should().BeApproximately(0.85f, 0.01f);
     }
 
     [Fact]

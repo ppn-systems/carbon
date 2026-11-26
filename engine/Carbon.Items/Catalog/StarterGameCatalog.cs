@@ -50,6 +50,39 @@ public static class StarterGameCatalog
     /// <summary>Crystal pickaxe (Harvest tier 3).</summary>
     public const uint CrystalPickaxe = 12;
 
+    /// <summary>Light stitched leather cap (Head armor).</summary>
+    public const uint LeatherCap = 13;
+
+    /// <summary>Light reinforced leather tunic (Chest armor).</summary>
+    public const uint LeatherTunic = 14;
+
+    /// <summary>Light stitched leather greaves (Leg armor).</summary>
+    public const uint LeatherGreaves = 15;
+
+    /// <summary>Light leather travel boots (Feet armor).</summary>
+    public const uint LeatherBoots = 16;
+
+    /// <summary>Forged vanguard iron helmet (Head armor).</summary>
+    public const uint IronHelmet = 17;
+
+    /// <summary>Forged vanguard iron chestplate (Chest armor).</summary>
+    public const uint IronChestplate = 18;
+
+    /// <summary>Forged vanguard iron leggings (Leg armor).</summary>
+    public const uint IronLeggings = 19;
+
+    /// <summary>Forged vanguard iron boots (Feet armor).</summary>
+    public const uint IronBoots = 20;
+
+    /// <summary>Arcane mana-infused crystal crown (Head armor).</summary>
+    public const uint CrystalCrown = 21;
+
+    /// <summary>Arcane crystal-weave battlemage robe (Chest armor).</summary>
+    public const uint CrystalRobe = 22;
+
+    /// <summary>Restorative mana &amp; stamina tonic (+45 MP, +30 Stamina).</summary>
+    public const uint ManaTonic = 23;
+
     /// <summary>Gets all registered starter item archetypes indexed by ID.</summary>
     public static DefinitionRegistry<uint, ItemArchetype> Items { get; } = new(
     [
@@ -65,9 +98,20 @@ public static class StarterGameCatalog
         new ItemArchetype(StoneWallKit, "stone_wall", ItemCategory.Placeable, MaxStackSize: 99, PlaceableStructureType: 2),
         new ItemArchetype(WoodDoorKit, "wood_door", ItemCategory.Placeable, MaxStackSize: 99, PlaceableStructureType: 3),
         new ItemArchetype(CrystalPickaxe, "crystal_pickaxe", ItemCategory.Tool, MaxStackSize: 1, EquipmentSlotKind.Tool, HarvestTier: 3, MaxDurability: 250f),
+        new ItemArchetype(LeatherCap, "leather_cap", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Head, MaxDurability: 120f),
+        new ItemArchetype(LeatherTunic, "leather_tunic", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Chest, MaxDurability: 150f),
+        new ItemArchetype(LeatherGreaves, "leather_greaves", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Legs, MaxDurability: 140f),
+        new ItemArchetype(LeatherBoots, "leather_boots", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Feet, MaxDurability: 120f),
+        new ItemArchetype(IronHelmet, "iron_helmet", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Head, MaxDurability: 220f),
+        new ItemArchetype(IronChestplate, "iron_chestplate", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Chest, MaxDurability: 260f),
+        new ItemArchetype(IronLeggings, "iron_leggings", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Legs, MaxDurability: 240f),
+        new ItemArchetype(IronBoots, "iron_boots", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Feet, MaxDurability: 200f),
+        new ItemArchetype(CrystalCrown, "crystal_crown", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Head, MaxDurability: 240f),
+        new ItemArchetype(CrystalRobe, "crystal_robe", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Chest, MaxDurability: 280f),
+        new ItemArchetype(ManaTonic, "mana_tonic", ItemCategory.Consumable, MaxStackSize: 20),
     ]);
 
-    /// <summary>Gets all registered crafting recipes indexed by ID (1..6).</summary>
+    /// <summary>Gets all registered crafting recipes indexed by ID (1..15).</summary>
     public static DefinitionRegistry<uint, CraftingRecipe> Recipes { get; } = new(
     [
         new CraftingRecipe(1, [new RecipeIngredient(WoodLog, 4)], new ItemSlot(WoodWallKit, 2)),
@@ -76,6 +120,17 @@ public static class StarterGameCatalog
         new CraftingRecipe(4, [new RecipeIngredient(WoodLog, 5), new RecipeIngredient(StoneChunk, 5)], new ItemSlot(StonePickaxe, 1, 0, 160f)),
         new CraftingRecipe(5, [new RecipeIngredient(WoodLog, 4), new RecipeIngredient(IronOre, 6)], new ItemSlot(IronSword, 1, 0, 200f)),
         new CraftingRecipe(6, [new RecipeIngredient(IronOre, 4), new RecipeIngredient(ManaCrystal, 4)], new ItemSlot(CrystalPickaxe, 1, 0, 250f)),
+        new CraftingRecipe(7, [new RecipeIngredient(WoodLog, 4), new RecipeIngredient(BerryHerb, 2)], new ItemSlot(LeatherCap, 1, 0, 120f)),
+        new CraftingRecipe(8, [new RecipeIngredient(WoodLog, 6), new RecipeIngredient(BerryHerb, 3)], new ItemSlot(LeatherTunic, 1, 0, 150f)),
+        new CraftingRecipe(9, [new RecipeIngredient(WoodLog, 5), new RecipeIngredient(BerryHerb, 2)], new ItemSlot(LeatherGreaves, 1, 0, 140f)),
+        new CraftingRecipe(10, [new RecipeIngredient(WoodLog, 3), new RecipeIngredient(BerryHerb, 2)], new ItemSlot(LeatherBoots, 1, 0, 120f)),
+        new CraftingRecipe(11, [new RecipeIngredient(IronOre, 4), new RecipeIngredient(StoneChunk, 2)], new ItemSlot(IronHelmet, 1, 0, 220f)),
+        new CraftingRecipe(12, [new RecipeIngredient(IronOre, 7), new RecipeIngredient(StoneChunk, 3)], new ItemSlot(IronChestplate, 1, 0, 260f)),
+        new CraftingRecipe(13, [new RecipeIngredient(IronOre, 5), new RecipeIngredient(StoneChunk, 3)], new ItemSlot(IronLeggings, 1, 0, 240f)),
+        new CraftingRecipe(14, [new RecipeIngredient(IronOre, 4), new RecipeIngredient(StoneChunk, 2)], new ItemSlot(IronBoots, 1, 0, 200f)),
+        new CraftingRecipe(15, [new RecipeIngredient(BerryHerb, 2), new RecipeIngredient(ManaCrystal, 1)], new ItemSlot(ManaTonic, 2)),
+        new CraftingRecipe(16, [new RecipeIngredient(ManaCrystal, 4), new RecipeIngredient(IronOre, 4)], new ItemSlot(CrystalCrown, 1, 0, 240f)),
+        new CraftingRecipe(17, [new RecipeIngredient(ManaCrystal, 6), new RecipeIngredient(IronOre, 5)], new ItemSlot(CrystalRobe, 1, 0, 280f)),
     ]);
 
     /// <summary>
@@ -116,6 +171,17 @@ public static class StarterGameCatalog
         {
             inventory.SetSlot(5, new ItemSlot(WoodDoorKit, 1));
         }
+
+        if (inventory.Capacity > 6)
+        {
+            inventory.SetSlot(6, new ItemSlot(ManaTonic, 3));
+        }
+
+        if (inventory.Capacity > 10)
+        {
+            inventory.SetSlot(9, new ItemSlot(LeatherTunic, 1, 0, 150f));
+            inventory.SetSlot(10, new ItemSlot(LeatherBoots, 1, 0, 120f));
+        }
     }
 
     /// <summary>Returns the human-readable HUD display name for an item ID.</summary>
@@ -133,7 +199,57 @@ public static class StarterGameCatalog
         StoneWallKit => "Stone Wall",
         WoodDoorKit => "Wood Door",
         CrystalPickaxe => "Crys.Pick",
+        LeatherCap => "Leather Cap",
+        LeatherTunic => "Leather Tunic",
+        LeatherGreaves => "Leather Legs",
+        LeatherBoots => "Leather Boots",
+        IronHelmet => "Iron Helm",
+        IronChestplate => "Iron Plate",
+        IronLeggings => "Iron Legs",
+        IronBoots => "Iron Boots",
+        CrystalCrown => "Crystal Crown",
+        CrystalRobe => "Crystal Robe",
+        ManaTonic => "Mana Tonic",
         _ => "Empty",
+    };
+
+    /// <summary>Returns armor defense rating contributed by <paramref name="itemId"/> when equipped.</summary>
+    public static float GetArmorDefense(uint itemId) => itemId switch
+    {
+        LeatherCap => 3f,
+        LeatherTunic => 6f,
+        LeatherGreaves => 4f,
+        LeatherBoots => 3f,
+        IronHelmet => 7f,
+        IronChestplate => 14f,
+        IronLeggings => 10f,
+        IronBoots => 6f,
+        CrystalCrown => 8f,
+        CrystalRobe => 15f,
+        _ => 0f,
+    };
+
+    /// <summary>Returns bonus max HP contributed by <paramref name="itemId"/> when equipped.</summary>
+    public static float GetArmorBonusHealth(uint itemId) => itemId switch
+    {
+        LeatherTunic => 15f,
+        LeatherGreaves => 10f,
+        IronHelmet => 18f,
+        IronChestplate => 40f,
+        IronLeggings => 25f,
+        IronBoots => 12f,
+        CrystalCrown => 15f,
+        CrystalRobe => 28f,
+        _ => 0f,
+    };
+
+    /// <summary>Returns bonus max Mana contributed by <paramref name="itemId"/> when equipped.</summary>
+    public static float GetArmorBonusMana(uint itemId) => itemId switch
+    {
+        CrystalCrown => 35f,
+        CrystalRobe => 55f,
+        LeatherCap => 10f,
+        _ => 0f,
     };
 
     /// <summary>Returns baseline melee attack damage for an active item ID.</summary>
@@ -174,6 +290,10 @@ public static class StarterGameCatalog
         CrystalPickaxe => "Tier 3 Pick | Mine All Crystal/Gold (95 dmg)",
         IronSword => "Melee Blade | Combat 34 dmg (+Crit) | Not for Wood/Stone",
         BerryHerb => "Consumable | Use: Restore +25 HP",
+        ManaTonic => "Consumable | Use: +45 MP & +30 Stamina",
+        LeatherCap or LeatherTunic or LeatherGreaves or LeatherBoots => "Leather Armor | Equip in [I] Bag to raise DEF & HP",
+        IronHelmet or IronChestplate or IronLeggings or IronBoots => "Iron Armor | Heavy DEF & HP | Forge [+] Upgradable",
+        CrystalCrown or CrystalRobe => "Arcane Armor | High MP & DEF | Forge [+] Upgradable",
         WoodWallKit => "Builder | Place Wood Wall on Target Tile",
         StoneWallKit => "Builder | Place Stone Wall on Target Tile",
         WoodDoorKit => "Builder | Place Wood Door ([E] Open/Close)",

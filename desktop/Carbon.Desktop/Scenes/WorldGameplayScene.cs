@@ -145,7 +145,12 @@ public sealed class WorldGameplayScene : GameScene
 
         if (input.EscapePressed)
         {
-            if (_hudRenderer.ShowCraftingPanel)
+            if (_hudRenderer.ShowInventoryModal)
+            {
+                _hudRenderer.ShowInventoryModal = false;
+                _hudRenderer.SelectedInventorySlot = -1;
+            }
+            else if (_hudRenderer.ShowCraftingPanel)
             {
                 _hudRenderer.ShowCraftingPanel = false;
             }
@@ -167,9 +172,24 @@ public sealed class WorldGameplayScene : GameScene
             _hudRenderer.Visible = !_hudRenderer.Visible;
         }
 
+        if (input.ToggleInventoryPressed)
+        {
+            _hudRenderer.ShowInventoryModal = !_hudRenderer.ShowInventoryModal;
+            _hudRenderer.SelectedInventorySlot = -1;
+            if (_hudRenderer.ShowInventoryModal)
+            {
+                _hudRenderer.ShowCraftingPanel = false;
+            }
+        }
+
         if (input.ToggleCraftPressed)
         {
             _hudRenderer.ShowCraftingPanel = !_hudRenderer.ShowCraftingPanel;
+            if (_hudRenderer.ShowCraftingPanel)
+            {
+                _hudRenderer.ShowInventoryModal = false;
+                _hudRenderer.SelectedInventorySlot = -1;
+            }
         }
 
         if (input.MoveDirection.LengthSquared() > 1e-4f)
@@ -177,7 +197,7 @@ public sealed class WorldGameplayScene : GameScene
             _lastMoveDirection = Vector2.Normalize(input.MoveDirection);
         }
 
-        if (input.ScrollSlotDelta != 0)
+        if (input.ScrollSlotDelta != 0 && !_hudRenderer.ShowInventoryModal)
         {
             int nextSlot = (((_session.SelectedHotbarSlot + input.ScrollSlotDelta) % 9) + 9) % 9;
             _session.SelectHotbarSlot((byte)nextSlot);
@@ -195,33 +215,127 @@ public sealed class WorldGameplayScene : GameScene
             }
         }
 
-        if (input.LeftClickPressed)
+        if (_hudRenderer.ShowInventoryModal)
         {
             Vector2 mouseScreen = input.MouseScreenPosition;
-            if (_hudRenderer.TryHitTestHotbar(mouseScreen, context.WindowWidth, context.WindowHeight, out byte hotbarSlot))
+            if (input.LeftClickPressed)
             {
-                _session.SelectHotbarSlot(hotbarSlot);
-            }
-            else if (_hudRenderer.TryHitTestCraftingRecipe(mouseScreen, context.WindowWidth, context.WindowHeight, out ushort craftRecipeId))
-            {
-                _ = _session.TryCraftRecipe(craftRecipeId);
-            }
-            else if (!_hudRenderer.IsPointInCraftingPanel(mouseScreen, context.WindowWidth, context.WindowHeight))
-            {
-                Vector2 aimWorld = _camera.ScreenToWorld(in mouseScreen);
-                if (_session.TriggerPrimaryAction(aimWorld, out (int ChunkX, int ChunkY) clickChunk))
+                if (_hudRenderer.TryHitTestInventoryForgeButton(mouseScreen, context.WindowWidth, context.WindowHeight))
                 {
-                    _worldRenderer.InvalidateChunk(clickChunk.ChunkX, clickChunk.ChunkY);
+                    int targetSlot = _hudRenderer.ResolveInventoryActionTargetSlot(_session);
+                    if (targetSlot >= 0)
+                    {
+                        _ = _session.TryUpgradeInventoryItem((ushort)targetSlot);
+                    }
                 }
+                else if (_hudRenderer.TryHitTestInventoryDropButton(mouseScreen, context.WindowWidth, context.WindowHeight))
+                {
+                    int targetSlot = _hudRenderer.ResolveInventoryActionTargetSlot(_session);
+                    if (targetSlot >= 0)
+                    {
+                        _ = _session.TryDropInventoryItem((ushort)targetSlot, 1);
+                    }
+                }
+                else if (_hudRenderer.TryHitTestInventorySlot(mouseScreen, context.WindowWidth, context.WindowHeight, out ushort clickedSlot))
+                {
+                    if (_hudRenderer.SelectedInventorySlot < 0)
+                    {
+                        _hudRenderer.SelectedInventorySlot = clickedSlot;
+                    }
+                    else if (_hudRenderer.SelectedInventorySlot == clickedSlot)
+                    {
+                        _hudRenderer.SelectedInventorySlot = -1;
+                    }
+                    else
+                    {
+                        _ = _session.TryMoveInventorySlot((ushort)_hudRenderer.SelectedInventorySlot, clickedSlot);
+                        _hudRenderer.SelectedInventorySlot = -1;
+                    }
+                }
+            }
+            else if (input.RightClickPressed &&
+                     _hudRenderer.TryHitTestInventorySlot(mouseScreen, context.WindowWidth, context.WindowHeight, out ushort rightSlot))
+            {
+                _ = _session.TryQuickMoveInventorySlot(rightSlot);
+                _hudRenderer.SelectedInventorySlot = -1;
+            }
+        }
+        else
+        {
+            if (input.LeftClickPressed)
+            {
+                Vector2 mouseScreen = input.MouseScreenPosition;
+                if (_hudRenderer.TryHitTestHotbar(mouseScreen, context.WindowWidth, context.WindowHeight, out byte hotbarSlot))
+                {
+                    _session.SelectHotbarSlot(hotbarSlot);
+                }
+                else if (_hudRenderer.TryHitTestSkill(mouseScreen, context.WindowWidth, context.WindowHeight, out byte skillFromClick))
+                {
+                    _ = _session.TryCastSkill(skillFromClick, _mouseWorldPosition);
+                }
+                else if (_hudRenderer.TryHitTestCraftingRecipe(mouseScreen, context.WindowWidth, context.WindowHeight, out ushort craftRecipeId))
+                {
+                    _ = _session.TryCraftRecipe(craftRecipeId);
+                }
+                else if (!_hudRenderer.IsPointInCraftingPanel(mouseScreen, context.WindowWidth, context.WindowHeight))
+                {
+                    Vector2 aimWorld = _camera.ScreenToWorld(in mouseScreen);
+                    if (_session.TriggerPrimaryAction(aimWorld, out (int ChunkX, int ChunkY) clickChunk))
+                    {
+                        _worldRenderer.InvalidateChunk(clickChunk.ChunkX, clickChunk.ChunkY);
+                    }
+                }
+            }
+            else if (input.RightClickPressed &&
+                     _hudRenderer.TryHitTestHotbar(input.MouseScreenPosition, context.WindowWidth, context.WindowHeight, out byte quickSlot))
+            {
+                _ = _session.TryQuickMoveInventorySlot(quickSlot);
+            }
+
+            if (input.SkillPressed is byte skillSlot)
+            {
+                _ = _session.TryCastSkill(skillSlot, _mouseWorldPosition);
+            }
+
+            if (input.SpaceActionPressed)
+            {
+                Vector2 spaceAim = _session.LocalPlayerInterpolatedPosition + (_lastMoveDirection * (_session.ChunkWorld.TileSize * 1.25f));
+                if (_session.TriggerPrimaryAction(spaceAim, out (int ChunkX, int ChunkY) spaceChunk))
+                {
+                    _worldRenderer.InvalidateChunk(spaceChunk.ChunkX, spaceChunk.ChunkY);
+                }
+            }
+
+            if (input.InteractOrPickupPressed)
+            {
+                if (!_session.TryPickupNearbyLoot() && _session.TryToggleNearbyDoor(out (int ChunkX, int ChunkY) eDoorChunk))
+                {
+                    _worldRenderer.InvalidateChunk(eDoorChunk.ChunkX, eDoorChunk.ChunkY);
+                }
+            }
+
+            if (input.HarvestPressed && _session.TryHarvestNearbyProp(out (int ChunkX, int ChunkY) harvestChunk))
+            {
+                _worldRenderer.InvalidateChunk(harvestChunk.ChunkX, harvestChunk.ChunkY);
+            }
+
+            if (input.ToggleDoorPressed && _session.TryToggleNearbyDoor(out (int ChunkX, int ChunkY) doorChunk))
+            {
+                _worldRenderer.InvalidateChunk(doorChunk.ChunkX, doorChunk.ChunkY);
+            }
+
+            if (input.PlaceHousePressed && _session.TryPlaceTestHouse(out (int ChunkX, int ChunkY) houseChunk))
+            {
+                _worldRenderer.InvalidateChunk(houseChunk.ChunkX, houseChunk.ChunkY);
             }
         }
 
-        if (input.SpaceActionPressed)
+        if (input.DropItemPressed)
         {
-            Vector2 spaceAim = _session.LocalPlayerInterpolatedPosition + (_lastMoveDirection * (_session.ChunkWorld.TileSize * 1.25f));
-            if (_session.TriggerPrimaryAction(spaceAim, out (int ChunkX, int ChunkY) spaceChunk))
+            int targetSlot = _hudRenderer.ResolveInventoryActionTargetSlot(_session);
+            if (targetSlot >= 0)
             {
-                _worldRenderer.InvalidateChunk(spaceChunk.ChunkX, spaceChunk.ChunkY);
+                _ = _session.TryDropInventoryItem((ushort)targetSlot, 1);
             }
         }
 
@@ -234,21 +348,6 @@ public sealed class WorldGameplayScene : GameScene
         if (input.ScreenshotPressed)
         {
             this.CaptureScreenshot(context.Window, _options.ScreenshotPath);
-        }
-
-        if (input.HarvestPressed && _session.TryHarvestNearbyProp(out (int ChunkX, int ChunkY) harvestChunk))
-        {
-            _worldRenderer.InvalidateChunk(harvestChunk.ChunkX, harvestChunk.ChunkY);
-        }
-
-        if (input.ToggleDoorPressed && _session.TryToggleNearbyDoor(out (int ChunkX, int ChunkY) doorChunk))
-        {
-            _worldRenderer.InvalidateChunk(doorChunk.ChunkX, doorChunk.ChunkY);
-        }
-
-        if (input.PlaceHousePressed && _session.TryPlaceTestHouse(out (int ChunkX, int ChunkY) houseChunk))
-        {
-            _worldRenderer.InvalidateChunk(houseChunk.ChunkX, houseChunk.ChunkY);
         }
 
         if (input.ZoomMultiplier.HasValue)

@@ -29,4 +29,22 @@ public interface IClientGameplayController
 
     /// <summary>Toggles the nearest door beside the local player.</summary>
     bool TryToggleNearbyDoor(out (int ChunkX, int ChunkY) modifiedChunk);
+
+    /// <summary>Casts active skill (<c>1..3</c>) toward <paramref name="aimWorldPosition"/>.</summary>
+    bool TryCastSkill(byte skillSlot, Vector2 aimWorldPosition);
+
+    /// <summary>Requests moving, swapping, merging, or equipping between inventory slots (<c>0..39</c>).</summary>
+    bool TryMoveInventorySlot(ushort fromSlot, ushort toSlot);
+
+    /// <summary>Right-click quick-equips armor or shuttles an item between backpack and hotbar.</summary>
+    bool TryQuickMoveInventorySlot(ushort slotIndex);
+
+    /// <summary>Requests forge enhancement (<c>+1..+10</c>) on the item in <paramref name="slotIndex"/>.</summary>
+    bool TryUpgradeInventoryItem(ushort slotIndex);
+
+    /// <summary>Drops <paramref name="quantity"/> units from <paramref name="slotIndex"/> onto the ground.</summary>
+    bool TryDropInventoryItem(ushort slotIndex, int quantity);
+
+    /// <summary>Attempts to pick up the closest ground loot item within range.</summary>
+    bool TryPickupNearbyLoot();
 }

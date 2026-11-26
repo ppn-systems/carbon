@@ -33,7 +33,9 @@ public sealed class HudOverlayRenderer : IDisposable
     private readonly MonsterTargetWidget _targetWidget = new();
     private readonly MinimapRadarWidget _minimap = new();
     private readonly HotbarAndItemWidget _hotbar = new();
+    private readonly SkillBarWidget _skillBar = new();
     private readonly CraftingWorkbenchWidget _workbench = new();
+    private readonly InventoryForgeModalWidget _inventoryModal = new();
     private readonly ToastFeedWidget _toasts = new();
 
     private float _smoothedFps = 60f;
@@ -58,6 +60,16 @@ public sealed class HudOverlayRenderer : IDisposable
 
     /// <summary>Gets or sets whether the crafting workbench panel is expanded.</summary>
     public bool ShowCraftingPanel { get; set; }
+
+    /// <summary>Gets or sets whether the 40-slot inventory/armor/forge modal is open.</summary>
+    public bool ShowInventoryModal { get; set; }
+
+    /// <summary>Gets or sets the currently selected inventory slot (<c>0..39</c>) inside the modal, or <c>-1</c>.</summary>
+    public int SelectedInventorySlot
+    {
+        get => _inventoryModal.SelectedSlot;
+        set => _inventoryModal.SelectedSlot = value;
+    }
 
     /// <summary>Gets or sets whether the HUD overlay is visible.</summary>
     public bool Visible { get; set; } = true;
@@ -85,6 +97,39 @@ public sealed class HudOverlayRenderer : IDisposable
     public bool IsPointInCraftingPanel(Vector2 mousePos, int viewportWidth, int viewportHeight) =>
         this.Visible && this.ShowCraftingPanel && viewportWidth > 0 && viewportHeight > 0 &&
         _workbench.ContainsPoint(mousePos, viewportWidth, viewportHeight);
+
+    /// <summary>Hit-tests screen-space coordinates against the 3 active skill icons.</summary>
+    public bool TryHitTestSkill(Vector2 mousePos, int viewportWidth, int viewportHeight, out byte skillSlot)
+    {
+        skillSlot = 0;
+        return this.Visible && viewportWidth > 0 && viewportHeight > 0 &&
+            _skillBar.TryHitTestSkill(mousePos, viewportWidth, viewportHeight, out skillSlot);
+    }
+
+    /// <summary>Hit-tests screen-space coordinates against any of the 40 slots in the Inventory/Armor modal.</summary>
+    public bool TryHitTestInventorySlot(Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort slotIndex)
+    {
+        slotIndex = 0;
+        return this.Visible && this.ShowInventoryModal && viewportWidth > 0 && viewportHeight > 0 &&
+            _inventoryModal.TryHitTestSlot(mousePos, viewportWidth, viewportHeight, out slotIndex);
+    }
+
+    /// <summary>Returns whether <paramref name="mousePos"/> hits the modal Forge enhancement button.</summary>
+    public bool TryHitTestInventoryForgeButton(Vector2 mousePos, int viewportWidth, int viewportHeight) =>
+        this.Visible && this.ShowInventoryModal && viewportWidth > 0 && viewportHeight > 0 &&
+        _inventoryModal.TryHitTestForgeButton(mousePos, viewportWidth, viewportHeight);
+
+    /// <summary>Returns whether <paramref name="mousePos"/> hits the modal Drop item button.</summary>
+    public bool TryHitTestInventoryDropButton(Vector2 mousePos, int viewportWidth, int viewportHeight) =>
+        this.Visible && this.ShowInventoryModal && viewportWidth > 0 && viewportHeight > 0 &&
+        _inventoryModal.TryHitTestDropButton(mousePos, viewportWidth, viewportHeight);
+
+    /// <summary>Resolves the active item slot targeted by the modal Forge/Drop controls.</summary>
+    public int ResolveInventoryActionTargetSlot(IClientWorldReadModel world)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        return _inventoryModal.ResolveActionTargetSlot(world);
+    }
 
     /// <summary>Renders all screen-space RPG HUD widgets for the current frame.</summary>
     public void Render(
@@ -129,10 +174,17 @@ public sealed class HudOverlayRenderer : IDisposable
         _heroVitals.DrawGeometry(_geometryBatch, world, _art, resolvedFeedback, _animTime);
         _targetWidget.DrawGeometry(_geometryBatch, _art, viewportWidth, _animTime);
         _minimap.DrawGeometry(_geometryBatch, world, viewportWidth, ptx, pty);
-        int hoveredSlot = _hotbar.DrawGeometry(_geometryBatch, _font, world, _art, viewportWidth, viewportHeight, activeItem.ItemId, mouseScreenPos);
+        int hoveredSlot = _hotbar.DrawGeometry(_geometryBatch, _font, world, _art, viewportWidth, viewportHeight, activeItem.ItemId, this.ShowInventoryModal ? null : mouseScreenPos);
+        _skillBar.DrawGeometry(_geometryBatch, world, viewportWidth, viewportHeight, mouseScreenPos);
         if (this.ShowCraftingPanel)
         {
             _workbench.DrawGeometry(_geometryBatch, world, _art, viewportWidth, viewportHeight, mouseScreenPos);
+        }
+
+        int hoveredModalSlot = -1;
+        if (this.ShowInventoryModal)
+        {
+            hoveredModalSlot = _inventoryModal.DrawGeometry(_geometryBatch, world, _art, viewportWidth, viewportHeight, mouseScreenPos, _animTime);
         }
 
         _toasts.DrawGeometry(_geometryBatch, _font, viewportWidth, viewportHeight);
@@ -140,13 +192,19 @@ public sealed class HudOverlayRenderer : IDisposable
 
         // Pass 2: Outlined pixel-snapped text
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-        _heroVitals.DrawText(spriteBatch, _font, world, _art, ptx, pty, tile.Biome, activeItem.ItemId, hourOfDay, _smoothedFps);
+        _heroVitals.DrawText(spriteBatch, _font, world, ptx, pty, tile.Biome, activeItem.ItemId, hourOfDay, _smoothedFps);
         _targetWidget.DrawText(spriteBatch, _font, _art, viewportWidth);
         _minimap.DrawText(spriteBatch, _font, viewportWidth, ptx, pty);
         _hotbar.DrawText(spriteBatch, _font, world, _art, viewportWidth, viewportHeight, activeItem.ItemId, hoveredSlot);
+        _skillBar.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight);
         if (this.ShowCraftingPanel)
         {
             _workbench.DrawText(spriteBatch, _font, world.Inventory, viewportWidth, viewportHeight);
+        }
+
+        if (this.ShowInventoryModal)
+        {
+            _inventoryModal.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight, hoveredModalSlot);
         }
 
         _toasts.DrawText(spriteBatch, _font, viewportWidth, viewportHeight);

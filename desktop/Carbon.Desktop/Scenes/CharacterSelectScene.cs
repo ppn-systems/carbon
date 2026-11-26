@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Threading.Tasks;
+using Carbon.Contracts.Identity;
 using Carbon.Desktop.Abstractions;
 using Carbon.Desktop.Rendering;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -30,14 +31,10 @@ namespace Carbon.Desktop.Scenes;
 /// </summary>
 public sealed class CharacterSelectScene : GameScene
 {
-    private static readonly string[] s_presetLabels = ["RANGER", "KNIGHT", "SCHOLAR", "ARTISAN"];
-    private static readonly ColorRgba[] s_presetColors =
-    [
-        new(56, 189, 248, 255),
-        new(248, 113, 113, 255),
-        new(192, 132, 252, 255),
-        new(250, 204, 21, 255),
-    ];
+    private static readonly string[] s_hairStyles = ["CROP", "SPIKY", "LONG", "BOB"];
+    private static readonly string[] s_hairColors = ["RAVEN", "BROWN", "GOLD", "SILVER"];
+    private static readonly string[] s_faceStyles = ["COBALT", "CRIMSON", "EMERALD", "MYSTIC"];
+    private static readonly string[] s_skinTones = ["FAIR", "TAN", "BRONZE", "UMBER"];
 
     private readonly IClientWorldSession _session;
     private readonly DesktopClientOptions _options;
@@ -46,8 +43,14 @@ public sealed class CharacterSelectScene : GameScene
     private readonly MenuTextField _createNameField;
     private readonly MenuButton _enterWorldButton = new("ENTER WORLD", MenuButtonStyle.SecondaryEmerald);
     private readonly MenuButton _createButton = new("CREATE HERO", MenuButtonStyle.PrimaryGold);
-    private readonly MenuButton _presetPrevButton = new("<", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _presetNextButton = new(">", MenuButtonStyle.NeutralSlate);
+    private readonly MenuButton _hairPrevBtn = new("<", MenuButtonStyle.NeutralSlate);
+    private readonly MenuButton _hairNextBtn = new(">", MenuButtonStyle.NeutralSlate);
+    private readonly MenuButton _hColPrevBtn = new("<", MenuButtonStyle.NeutralSlate);
+    private readonly MenuButton _hColNextBtn = new(">", MenuButtonStyle.NeutralSlate);
+    private readonly MenuButton _facePrevBtn = new("<", MenuButtonStyle.NeutralSlate);
+    private readonly MenuButton _faceNextBtn = new(">", MenuButtonStyle.NeutralSlate);
+    private readonly MenuButton _skinPrevBtn = new("<", MenuButtonStyle.NeutralSlate);
+    private readonly MenuButton _skinNextBtn = new(">", MenuButtonStyle.NeutralSlate);
     private readonly MenuButton _logoutButton = new("LOGOUT", MenuButtonStyle.DangerRed);
     private readonly RectangleF[] _slotBounds = new RectangleF[4];
 
@@ -59,6 +62,10 @@ public sealed class CharacterSelectScene : GameScene
 
     private IReadOnlyList<ClientCharacterSummary> _characters = [];
     private int _selectedIndex;
+    private byte _hairStyle;
+    private byte _hairColor;
+    private byte _faceStyle;
+    private byte _skinTone;
     private byte _selectedPreset;
     private string? _preferSelectName;
 
@@ -174,8 +181,14 @@ public sealed class CharacterSelectScene : GameScene
         bool hasSelection = _selectedIndex >= 0 && _selectedIndex < _characters.Count;
         _enterWorldButton.IsEnabled = !busy && hasSelection;
         _createButton.IsEnabled = !busy && _characters.Count < 4;
-        _presetPrevButton.IsEnabled = !busy;
-        _presetNextButton.IsEnabled = !busy;
+        _hairPrevBtn.IsEnabled = !busy;
+        _hairNextBtn.IsEnabled = !busy;
+        _hColPrevBtn.IsEnabled = !busy;
+        _hColNextBtn.IsEnabled = !busy;
+        _facePrevBtn.IsEnabled = !busy;
+        _faceNextBtn.IsEnabled = !busy;
+        _skinPrevBtn.IsEnabled = !busy;
+        _skinNextBtn.IsEnabled = !busy;
         _logoutButton.IsEnabled = !busy;
 
         if (_logoutButton.Update(mousePos, leftDown, leftPressed))
@@ -184,15 +197,47 @@ public sealed class CharacterSelectScene : GameScene
             return;
         }
 
-        if (_presetPrevButton.Update(mousePos, leftDown, leftPressed))
+        if (_hairPrevBtn.Update(mousePos, leftDown, leftPressed))
         {
-            _selectedPreset = (byte)((_selectedPreset + 3) % 4);
+            _hairStyle = (byte)((_hairStyle + 3) % 4);
         }
 
-        if (_presetNextButton.Update(mousePos, leftDown, leftPressed))
+        if (_hairNextBtn.Update(mousePos, leftDown, leftPressed))
         {
-            _selectedPreset = (byte)((_selectedPreset + 1) % 4);
+            _hairStyle = (byte)((_hairStyle + 1) % 4);
         }
+
+        if (_hColPrevBtn.Update(mousePos, leftDown, leftPressed))
+        {
+            _hairColor = (byte)((_hairColor + 3) % 4);
+        }
+
+        if (_hColNextBtn.Update(mousePos, leftDown, leftPressed))
+        {
+            _hairColor = (byte)((_hairColor + 1) % 4);
+        }
+
+        if (_facePrevBtn.Update(mousePos, leftDown, leftPressed))
+        {
+            _faceStyle = (byte)((_faceStyle + 3) % 4);
+        }
+
+        if (_faceNextBtn.Update(mousePos, leftDown, leftPressed))
+        {
+            _faceStyle = (byte)((_faceStyle + 1) % 4);
+        }
+
+        if (_skinPrevBtn.Update(mousePos, leftDown, leftPressed))
+        {
+            _skinTone = (byte)((_skinTone + 3) % 4);
+        }
+
+        if (_skinNextBtn.Update(mousePos, leftDown, leftPressed))
+        {
+            _skinTone = (byte)((_skinTone + 1) % 4);
+        }
+
+        _selectedPreset = CharacterAppearance.Pack(_hairStyle, _hairColor, _faceStyle, _skinTone);
 
         bool enterKey = !busy && (kb.IsKeyPressed(Key.Enter) || kb.IsKeyPressed(Key.KeypadEnter));
         if (_createButton.Update(mousePos, leftDown, leftPressed) || (enterKey && _createNameField.IsFocused && _characters.Count < 4))
@@ -263,11 +308,11 @@ public sealed class CharacterSelectScene : GameScene
             _geometryBatch.DrawRectangle(_slotBounds[i], cardBorder, selected ? 2f : 1.5f);
         }
 
-        // Class preset animated vector avatar preview pedestal
-        float previewCx = ox + 650f;
-        float previewCy = oy + 262f;
-        _geometryBatch.FillCircle(new Vector2(previewCx, previewCy + 14f), 20f, new ColorRgba(0, 0, 0, 105), 16);
-        _geometryBatch.DrawCircle(new Vector2(previewCx, previewCy + 14f), 21f, s_presetColors[_selectedPreset], 18, 1.5f);
+        // Live modular avatar preview pedestal
+        float previewCx = ox + 516f;
+        float previewCy = oy + 240f;
+        _geometryBatch.FillCircle(new Vector2(previewCx, previewCy + 14f), 24f, new ColorRgba(0, 0, 0, 105), 16);
+        _geometryBatch.DrawCircle(new Vector2(previewCx, previewCy + 14f), 25f, new ColorRgba(56, 189, 248, 225), 18, 1.5f);
         if (_vectorArt is not null && _vectorArt.TryGetCharacter(_selectedPreset, out CompiledVectorRig? previewRig))
         {
             VectorRigRenderer.DrawEntityRig(
@@ -278,11 +323,12 @@ public sealed class CharacterSelectScene : GameScene
                 "idle",
                 _elapsed,
                 isNormalized: false,
-                targetHeightOverride: 56f);
+                targetHeightOverride: 62f,
+                appearancePreset: _selectedPreset);
         }
         else
         {
-            _geometryBatch.FillCircle(new Vector2(previewCx, previewCy + 6f), 11f, s_presetColors[_selectedPreset], 14);
+            _geometryBatch.FillCircle(new Vector2(previewCx, previewCy + 6f), 11f, new ColorRgba(56, 189, 248, 255), 14);
             _geometryBatch.FillCircle(new Vector2(previewCx, previewCy - 9f), 9f, new ColorRgba(253, 224, 179, 255), 12);
         }
 
@@ -302,15 +348,22 @@ public sealed class CharacterSelectScene : GameScene
                     boxSize: 38f,
                     Direction8.South,
                     "idle",
-                    _elapsed + (i * 0.25f));
+                    _elapsed + (i * 0.25f),
+                    appearancePreset: _characters[i].AppearancePreset);
             }
         }
 
         _createNameField.DrawGeometry(_geometryBatch, _font);
         _enterWorldButton.DrawGeometry(_geometryBatch);
         _createButton.DrawGeometry(_geometryBatch);
-        _presetPrevButton.DrawGeometry(_geometryBatch);
-        _presetNextButton.DrawGeometry(_geometryBatch);
+        _hairPrevBtn.DrawGeometry(_geometryBatch);
+        _hairNextBtn.DrawGeometry(_geometryBatch);
+        _hColPrevBtn.DrawGeometry(_geometryBatch);
+        _hColNextBtn.DrawGeometry(_geometryBatch);
+        _facePrevBtn.DrawGeometry(_geometryBatch);
+        _faceNextBtn.DrawGeometry(_geometryBatch);
+        _skinPrevBtn.DrawGeometry(_geometryBatch);
+        _skinNextBtn.DrawGeometry(_geometryBatch);
         _logoutButton.DrawGeometry(_geometryBatch);
         _geometryBatch.End();
 
@@ -340,15 +393,24 @@ public sealed class CharacterSelectScene : GameScene
         string selText = _selectedIndex >= 0 && _selectedIndex < _characters.Count
             ? $"READY: {_characters[_selectedIndex].Name.ToUpperInvariant()}"
             : "CREATE A HERO FIRST";
-        spriteBatch.DrawOutlinedString(_font, selText, new Vector2(ox + 458f, oy + 80f), ColorRgba.White, black, 1, 2f);
-        spriteBatch.DrawOutlinedString(_font, "APPEARANCE", new Vector2(ox + 458f, oy + 224f), new ColorRgba(203, 213, 225, 255), black, 1, 2f);
-        spriteBatch.DrawOutlinedString(_font, s_presetLabels[_selectedPreset], new Vector2(ox + 504f, oy + 252f), s_presetColors[_selectedPreset], black, 1, 2f);
+        spriteBatch.DrawOutlinedString(_font, selText, new Vector2(ox + 458f, oy + 76f), ColorRgba.White, black, 1, 2f);
+        spriteBatch.DrawOutlinedString(_font, "APPEARANCE", new Vector2(ox + 586f, oy + 154f), new ColorRgba(203, 213, 225, 255), black, 1, 1.5f);
+        spriteBatch.DrawOutlinedString(_font, $"HAIR: {s_hairStyles[_hairStyle]}", new Vector2(ox + 618f, oy + 180f), ColorRgba.White, black, 1, 1f);
+        spriteBatch.DrawOutlinedString(_font, $"TONE: {s_hairColors[_hairColor]}", new Vector2(ox + 618f, oy + 212f), new ColorRgba(253, 224, 71, 255), black, 1, 1f);
+        spriteBatch.DrawOutlinedString(_font, $"EYES: {s_faceStyles[_faceStyle]}", new Vector2(ox + 618f, oy + 244f), new ColorRgba(125, 211, 252, 255), black, 1, 1f);
+        spriteBatch.DrawOutlinedString(_font, $"SKIN: {s_skinTones[_skinTone]}", new Vector2(ox + 618f, oy + 276f), new ColorRgba(245, 198, 165, 255), black, 1, 1f);
 
         _createNameField.DrawText(spriteBatch, _font);
         _enterWorldButton.DrawText(spriteBatch, _font);
         _createButton.DrawText(spriteBatch, _font);
-        _presetPrevButton.DrawText(spriteBatch, _font);
-        _presetNextButton.DrawText(spriteBatch, _font);
+        _hairPrevBtn.DrawText(spriteBatch, _font);
+        _hairNextBtn.DrawText(spriteBatch, _font);
+        _hColPrevBtn.DrawText(spriteBatch, _font);
+        _hColNextBtn.DrawText(spriteBatch, _font);
+        _facePrevBtn.DrawText(spriteBatch, _font);
+        _faceNextBtn.DrawText(spriteBatch, _font);
+        _skinPrevBtn.DrawText(spriteBatch, _font);
+        _skinNextBtn.DrawText(spriteBatch, _font);
         _logoutButton.DrawText(spriteBatch, _font);
 
         ColorRgba statusColor = _statusIsError
@@ -519,13 +581,19 @@ public sealed class CharacterSelectScene : GameScene
             _slotBounds[i] = new RectangleF(ox + 22f, oy + 76f + (i * 88f), 404f, 76f);
         }
 
-        _enterWorldButton.Bounds = new RectangleF(ox + 458f, oy + 114f, 376f, 48f);
+        _enterWorldButton.Bounds = new RectangleF(ox + 458f, oy + 100f, 376f, 44f);
 
-        _presetPrevButton.Bounds = new RectangleF(ox + 458f, oy + 244f, 34f, 34f);
-        _presetNextButton.Bounds = new RectangleF(ox + 694f, oy + 244f, 34f, 34f);
+        _hairPrevBtn.Bounds = new RectangleF(ox + 584f, oy + 174f, 28f, 26f);
+        _hairNextBtn.Bounds = new RectangleF(ox + 806f, oy + 174f, 28f, 26f);
+        _hColPrevBtn.Bounds = new RectangleF(ox + 584f, oy + 206f, 28f, 26f);
+        _hColNextBtn.Bounds = new RectangleF(ox + 806f, oy + 206f, 28f, 26f);
+        _facePrevBtn.Bounds = new RectangleF(ox + 584f, oy + 238f, 28f, 26f);
+        _faceNextBtn.Bounds = new RectangleF(ox + 806f, oy + 238f, 28f, 26f);
+        _skinPrevBtn.Bounds = new RectangleF(ox + 584f, oy + 270f, 28f, 26f);
+        _skinNextBtn.Bounds = new RectangleF(ox + 806f, oy + 270f, 28f, 26f);
 
-        _createNameField.Bounds = new RectangleF(ox + 458f, oy + 312f, 376f, 38f);
-        _createButton.Bounds = new RectangleF(ox + 458f, oy + 366f, 376f, 42f);
+        _createNameField.Bounds = new RectangleF(ox + 458f, oy + 318f, 376f, 36f);
+        _createButton.Bounds = new RectangleF(ox + 458f, oy + 368f, 376f, 40f);
     }
 
     private void BeginLogout()

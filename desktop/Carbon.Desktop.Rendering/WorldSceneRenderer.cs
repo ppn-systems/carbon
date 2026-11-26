@@ -361,6 +361,9 @@ public sealed class WorldSceneRenderer : IDisposable
         _damagedProps.Clear();
         _visibleWorldTrees.Clear();
 
+        int playerChunkX = Chunk2D.ToChunkCoord((int)MathF.Floor(playerPos.X / tileSize));
+        int playerChunkY = Chunk2D.ToChunkCoord((int)MathF.Floor(playerPos.Y / tileSize));
+
         foreach (Chunk2D chunk in chunkWorld.ActiveChunks)
         {
             for (int i = 0; i < chunk.PointsOfInterest.Count; i++)
@@ -439,9 +442,12 @@ public sealed class WorldSceneRenderer : IDisposable
                 }
 
                 bool isHovered = hasAimTile && propWx == aimTileX && propWy == aimTileY;
+                bool inActivePropScope = chunk.ChunkX == playerChunkX &&
+                    chunk.ChunkY == playerChunkY &&
+                    Vector2.DistanceSquared(playerPos, prop.WorldPosition) <= (240f * 240f);
                 if (prop.Destructibility.IsDestructible &&
                     prop.Destructibility.MaxDurability > 0f &&
-                    (prop.Destructibility.HealthPercentage < 0.99f || hasRecentHit || isHovered))
+                    ((prop.Destructibility.HealthPercentage < 0.99f && inActivePropScope) || hasRecentHit || isHovered))
                 {
                     _damagedProps.Add(new DamagedPropHudMarker(
                         prop.WorldPosition + new Vector2(0f, prop.Category == PropCategory.Flora && prop.HasCanopy ? -prop.Radius - 22f : -prop.Radius - 10f),
@@ -519,7 +525,8 @@ public sealed class WorldSceneRenderer : IDisposable
 
         if (_art is not null && _art.TryGetCharacter(world.LocalPlayerAppearancePreset, out CompiledVectorRig? rig))
         {
-            ItemSlot activeItem = world.Inventory.GetSlot(world.SelectedHotbarSlot);
+            InventoryContainer inv = world.Inventory;
+            ItemSlot activeItem = inv.GetSlot(world.SelectedHotbarSlot);
             uint shownId = action.IsActive && action.EquippedItemId != 0U ? action.EquippedItemId : activeItem.ItemId;
             CompiledItemVectorArt? equipped = null;
             if (shownId != 0U)
@@ -527,7 +534,27 @@ public sealed class WorldSceneRenderer : IDisposable
                 _ = _art.TryGetItem(shownId, out equipped);
             }
 
-            VectorRigRenderer.DrawEntityRig(batch, rig, footPos, dir8, clip, eval, isNorm, 0f, flash, equipped, action, world.AttackSwingTimer);
+            ushort headId = PlayerInventoryLayout.HeadSlot < inv.Capacity ? (ushort)inv.GetSlot(PlayerInventoryLayout.HeadSlot).ItemId : (ushort)0;
+            ushort chestId = PlayerInventoryLayout.ChestSlot < inv.Capacity ? (ushort)inv.GetSlot(PlayerInventoryLayout.ChestSlot).ItemId : (ushort)0;
+            ushort legsId = PlayerInventoryLayout.LegsSlot < inv.Capacity ? (ushort)inv.GetSlot(PlayerInventoryLayout.LegsSlot).ItemId : (ushort)0;
+            ushort feetId = PlayerInventoryLayout.FeetSlot < inv.Capacity ? (ushort)inv.GetSlot(PlayerInventoryLayout.FeetSlot).ItemId : (ushort)0;
+            VisualEquipmentLoadout loadout = new(headId, chestId, legsId, feetId, (ushort)shownId, ItemEnhancementPolicy.GetUpgradeLevel(in activeItem));
+
+            VectorRigRenderer.DrawEntityRig(
+                batch,
+                rig,
+                footPos,
+                dir8,
+                clip,
+                eval,
+                isNorm,
+                0f,
+                flash,
+                equipped,
+                action,
+                world.AttackSwingTimer,
+                world.LocalPlayerAppearancePreset,
+                loadout);
         }
         else
         {
@@ -537,6 +564,26 @@ public sealed class WorldSceneRenderer : IDisposable
 
     private void DrawRemoteEntity(GeometryBatch batch, in RemoteEntityView remote)
     {
+        if (remote.Kind == EntityKind.LootDrop)
+        {
+            float bob = (MathF.Sin((_animTime * 4.2f) + remote.NetworkId) * 2.8f) - 5f;
+            batch.FillCircle(new Vector2(remote.Position.X + 1f, remote.Position.Y + 4f), 8.5f, new ColorRgba(0, 0, 0, 95), 10);
+            if (_art is not null && _art.TryGetItem(remote.ArchetypeId, out CompiledItemVectorArt? lootArt))
+            {
+                ColorRgba ringCol = remote.WeaponUpgradeLevel > 0
+                    ? new ColorRgba(34, 211, 238, 170)
+                    : new ColorRgba(lootArt.AccentColor.R, lootArt.AccentColor.G, lootArt.AccentColor.B, 140);
+                batch.DrawCircle(new Vector2(remote.Position.X, remote.Position.Y + 2f), 10.5f, ringCol, 14, 1.2f);
+                VectorRigRenderer.DrawItemIcon(batch, lootArt, new Vector2(remote.Position.X, remote.Position.Y + bob), 18f);
+            }
+            else
+            {
+                batch.FillCircle(new Vector2(remote.Position.X, remote.Position.Y + bob), 6f, new ColorRgba(250, 204, 21, 240), 10);
+            }
+
+            return;
+        }
+
         float r = remote.Radius > 0f ? remote.Radius : 7f;
         Vector2 footPos = new(remote.Position.X, remote.Position.Y + r);
         Vector2 facing = remote.FacingDirection.LengthSquared() > 1e-4f
@@ -556,12 +603,28 @@ public sealed class WorldSceneRenderer : IDisposable
         if (_art is not null)
         {
             CompiledVectorRig? rig = null;
+            CompiledItemVectorArt? remoteWeapon = null;
+            byte preset = 0;
+            VisualEquipmentLoadout remoteLoadout = default;
             string clip = moving ? "walk" : "idle";
             bool norm = false;
             float eval = _animTime + (remote.NetworkId % 7 * 0.13f);
 
             if (remote.Kind == EntityKind.Player && _art.TryGetCharacter((byte)remote.ArchetypeId, out rig))
             {
+                preset = (byte)remote.ArchetypeId;
+                remoteLoadout = new VisualEquipmentLoadout(
+                    remote.EquippedHeadId,
+                    remote.EquippedChestId,
+                    remote.EquippedLegsId,
+                    remote.EquippedFeetId,
+                    remote.EquippedWeaponId,
+                    remote.WeaponUpgradeLevel);
+                if (remote.EquippedWeaponId != 0)
+                {
+                    _ = _art.TryGetItem(remote.EquippedWeaponId, out remoteWeapon);
+                }
+
                 if (attacking)
                 {
                     clip = "slash";
@@ -585,7 +648,20 @@ public sealed class WorldSceneRenderer : IDisposable
 
             if (rig is not null)
             {
-                VectorRigRenderer.DrawEntityRig(batch, rig, footPos, dir8, clip, eval, norm, 0f, flash);
+                VectorRigRenderer.DrawEntityRig(
+                    batch,
+                    rig,
+                    footPos,
+                    dir8,
+                    clip,
+                    eval,
+                    norm,
+                    0f,
+                    flash,
+                    equippedItem: remoteWeapon,
+                    legacySwingTimer: remote.AttackAnimRemaining,
+                    appearancePreset: preset,
+                    equipment: remoteLoadout);
                 return;
             }
         }
@@ -644,7 +720,8 @@ public sealed class WorldSceneRenderer : IDisposable
             {
                 ClientActionKind.AxeChop => "chop",
                 ClientActionKind.PickaxeMine => "mine",
-                ClientActionKind.SwordSlash or ClientActionKind.MonsterStrike => "slash",
+                ClientActionKind.SwordSlash or ClientActionKind.MonsterStrike or ClientActionKind.SkillWhirlwind => "slash",
+                ClientActionKind.SkillArcaneNova or ClientActionKind.SkillVitalSurge => "cast",
                 ClientActionKind.PlaceStructure => "chop",
                 ClientActionKind.ConsumeItem => "idle",
                 ClientActionKind.None or _ => moving ? "walk" : "idle",

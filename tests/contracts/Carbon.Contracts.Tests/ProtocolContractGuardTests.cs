@@ -6,11 +6,13 @@ using System.Linq;
 using System.Reflection;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
+using Carbon.Contracts.Entities.C2S;
 using Carbon.Contracts.Entities.S2C;
 using Carbon.Contracts.Identity;
 using Carbon.Contracts.Identity.C2S;
 using Carbon.Contracts.Identity.S2C;
 using Carbon.Contracts.Items;
+using Carbon.Contracts.Items.C2S;
 using Carbon.Contracts.Items.S2C;
 using Carbon.Contracts.Maps;
 using Nalix.Abstractions.Networking.Packets;
@@ -171,12 +173,88 @@ public sealed class ProtocolContractGuardTests
             ItemId = 404,
             Count = 12,
             Durability = 87.5f,
+            UpgradeLevel = 5,
         };
         using InventorySlotItem slotCopy = InventorySlotItem.Deserialize(slot.Serialize());
         Assert.Equal((ushort)3, slotCopy.SlotIndex);
         Assert.Equal((ushort)404, slotCopy.ItemId);
         Assert.Equal(12, slotCopy.Count);
         Assert.Equal(87.5f, slotCopy.Durability);
+        Assert.Equal((byte)5, slotCopy.UpgradeLevel);
+
+        using PlayerStatsSync stats = new()
+        {
+            Level = 4,
+            Experience = 210,
+            XpToNextLevel = 325,
+            CurrentHealth = 125f,
+            MaxHealth = 150f,
+            CurrentMana = 92f,
+            MaxMana = 120f,
+            CurrentStamina = 85f,
+            MaxStamina = 115f,
+            Defense = 18f,
+            Skill1Cooldown = 1.5f,
+            Skill2Cooldown = 0f,
+            Skill3Cooldown = 4.2f,
+            LeveledUp = true,
+        };
+        using PlayerStatsSync statsCopy = PlayerStatsSync.Deserialize(stats.Serialize());
+        Assert.Equal((ushort)4, statsCopy.Level);
+        Assert.Equal(210U, statsCopy.Experience);
+        Assert.Equal(18f, statsCopy.Defense);
+        Assert.True(statsCopy.LeveledUp);
+
+        using EntityEquipmentChanged eq = new()
+        {
+            NetworkId = 77UL,
+            EquippedHeadId = 17,
+            EquippedChestId = 18,
+            EquippedLegsId = 19,
+            EquippedFeetId = 20,
+            EquippedWeaponId = 3,
+            WeaponUpgradeLevel = 6,
+            Level = 5,
+        };
+        using EntityEquipmentChanged eqCopy = EntityEquipmentChanged.Deserialize(eq.Serialize());
+        Assert.Equal(77UL, eqCopy.NetworkId);
+        Assert.Equal((ushort)18, eqCopy.EquippedChestId);
+        Assert.Equal((byte)6, eqCopy.WeaponUpgradeLevel);
+
+        using MoveInventorySlot move = new() { FromSlot = 9, ToSlot = 37, SequenceId = 12 };
+        using MoveInventorySlot moveCopy = MoveInventorySlot.Deserialize(move.Serialize());
+        Assert.Equal((ushort)37, moveCopy.ToSlot);
+
+        using UpgradeInventoryItem upg = new() { SlotIndex = 2, SequenceId = 3 };
+        using UpgradeInventoryItem upgCopy = UpgradeInventoryItem.Deserialize(upg.Serialize());
+        Assert.Equal((ushort)2, upgCopy.SlotIndex);
+
+        using DropInventoryItem drop = new() { SlotIndex = 5, Quantity = 2, SequenceId = 9 };
+        using DropInventoryItem dropCopy = DropInventoryItem.Deserialize(drop.Serialize());
+        Assert.Equal(2, dropCopy.Quantity);
+
+        using EntityPickupLoot pickup = new() { LootNetworkId = 9001UL };
+        using EntityPickupLoot pickupCopy = EntityPickupLoot.Deserialize(pickup.Serialize());
+        Assert.Equal(9001UL, pickupCopy.LootNetworkId);
+
+        using SkillCastBroadcast cast = new()
+        {
+            CasterNetworkId = 55UL,
+            AbilitySlot = 2,
+            OriginX = 10f,
+            OriginY = 20f,
+            AimX = 40f,
+            AimY = 60f,
+        };
+        using SkillCastBroadcast castCopy = SkillCastBroadcast.Deserialize(cast.Serialize());
+        Assert.Equal((byte)2, castCopy.AbilitySlot);
+
+        byte packed = CharacterAppearance.Pack(2, 3, 1, 2);
+        CharacterAppearance app = new(packed);
+        Assert.Equal((byte)2, app.HairStyle);
+        Assert.Equal((byte)3, app.HairColor);
+        Assert.Equal((byte)1, app.FaceStyle);
+        Assert.Equal((byte)2, app.SkinTone);
     }
 
     private static bool IsPacketType(Type t) =>

@@ -33,6 +33,33 @@ public interface IClientWorldReadModel : IClientConnectionStatus, IClientCharact
     /// <summary>Gets the local player's maximum health.</summary>
     float LocalPlayerMaxHealth { get; }
 
+    /// <summary>Gets the local player's progression level (<c>1..99</c>).</summary>
+    ushort LocalPlayerLevel { get; }
+
+    /// <summary>Gets accumulated experience points toward the next level.</summary>
+    uint LocalPlayerExperience { get; }
+
+    /// <summary>Gets XP threshold required to reach the next level.</summary>
+    uint LocalPlayerXpToNext { get; }
+
+    /// <summary>Gets current mana points.</summary>
+    float LocalPlayerMana { get; }
+
+    /// <summary>Gets derived maximum mana points.</summary>
+    float LocalPlayerMaxMana { get; }
+
+    /// <summary>Gets current stamina points.</summary>
+    float LocalPlayerStamina { get; }
+
+    /// <summary>Gets derived maximum stamina points.</summary>
+    float LocalPlayerMaxStamina { get; }
+
+    /// <summary>Gets derived armor defense rating.</summary>
+    float LocalPlayerDefense { get; }
+
+    /// <summary>Gets remaining cooldown in seconds for active skill slot (<c>1..3</c>).</summary>
+    float GetSkillCooldown(byte skillSlot);
+
     /// <summary>Gets the active zero-based hotbar slot index (<c>0..8</c>).</summary>
     byte SelectedHotbarSlot { get; }
 

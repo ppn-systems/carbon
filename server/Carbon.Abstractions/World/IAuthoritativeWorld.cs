@@ -145,6 +145,26 @@ public interface IAuthoritativeWorld
     OpStatus TryCraftRecipe(ulong connectionId, ushort recipeId, ushort quantity);
 
     /// <summary>
+    /// Moves, swaps, merges, or equips an inventory slot (<c>0..39</c>), enforcing armor slot constraints (<c>36..39</c>).
+    /// </summary>
+    OpStatus TryMoveInventorySlot(ulong connectionId, ushort fromSlot, ushort toSlot);
+
+    /// <summary>
+    /// Attempts to enhance an eligible weapon, tool, or armor piece in <paramref name="slotIndex"/> (<c>+0..+10</c>).
+    /// </summary>
+    OpStatus TryUpgradeInventoryItem(ulong connectionId, ushort slotIndex, uint deterministicRollSeed = 0U);
+
+    /// <summary>
+    /// Drops items from <paramref name="slotIndex"/> onto the ground as an authoritative loot entity.
+    /// </summary>
+    OpStatus TryDropInventoryItem(ulong connectionId, ushort slotIndex, int quantity);
+
+    /// <summary>
+    /// Enqueues an explicit pickup attempt for a nearby ground loot entity.
+    /// </summary>
+    OpStatus EnqueuePickupLoot(ulong connectionId, ulong lootNetworkId);
+
+    /// <summary>
     /// Advances the authoritative simulation by one fixed tick and dispatches AoI snapshots.
     /// </summary>
     void StepFixedTick();

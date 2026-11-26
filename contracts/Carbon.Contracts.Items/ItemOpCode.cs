@@ -19,6 +19,15 @@ public static class ItemOpCode
     /// <summary>Client requests crafting a recipe.</summary>
     public const ushort CraftItem = 0x4003;
 
+    /// <summary>Client requests swapping/moving/equipping an inventory or armor slot.</summary>
+    public const ushort MoveInventorySlot = 0x4004;
+
+    /// <summary>Client requests enhancing a tool, weapon, or armor piece in the Forge.</summary>
+    public const ushort UpgradeInventoryItem = 0x4005;
+
+    /// <summary>Client requests dropping an item stack onto the ground.</summary>
+    public const ushort DropInventoryItem = 0x4006;
+
     // ── S2C: Server → Client stream (0x4020–0x402F) ─────────────────────────
 
     /// <summary>Streamed inventory slot entry answering <see cref="InventoryRequest"/>.</summary>

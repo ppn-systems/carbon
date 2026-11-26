@@ -60,4 +60,36 @@ public sealed partial class EntitySpawn : PacketBase<EntitySpawn>, IPacketStatic
     /// <summary>Maximum health points.</summary>
     [SerializeOrder(10)]
     public float MaxHealth { get; set; }
+
+    /// <summary>Equipped head armor item ID (0 when none).</summary>
+    [SerializeOrder(11)]
+    public ushort EquippedHeadId { get; set; }
+
+    /// <summary>Equipped chest armor item ID (0 when none).</summary>
+    [SerializeOrder(12)]
+    public ushort EquippedChestId { get; set; }
+
+    /// <summary>Equipped leg armor item ID (0 when none).</summary>
+    [SerializeOrder(13)]
+    public ushort EquippedLegsId { get; set; }
+
+    /// <summary>Equipped footwear armor item ID (0 when none).</summary>
+    [SerializeOrder(14)]
+    public ushort EquippedFeetId { get; set; }
+
+    /// <summary>Active held weapon/tool item ID (0 when none).</summary>
+    [SerializeOrder(15)]
+    public ushort EquippedWeaponId { get; set; }
+
+    /// <summary>Character/actor display level.</summary>
+    [SerializeOrder(16)]
+    public ushort Level { get; set; } = 1;
+
+    /// <summary>Stack quantity carried when <see cref="Kind"/> is <see cref="EntityKind.LootDrop"/>.</summary>
+    [SerializeOrder(17)]
+    public int LootCount { get; set; }
+
+    /// <summary>Enhancement level (<c>0..10</c>) of the equipped weapon or dropped item.</summary>
+    [SerializeOrder(18)]
+    public byte WeaponUpgradeLevel { get; set; }
 }

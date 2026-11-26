@@ -53,12 +53,32 @@ public sealed class SqlitePersistenceRoundTripTests
             loggedIn.Status.Should().Be(AuthStatus.Ok);
             loggedIn.AccountId.Should().Be(registered.AccountId);
 
-            CharacterCreateResult created = await auth.CreateCharacterAsync(loggedIn.AccountId, "Ranger", 2, 128f, 256f).ConfigureAwait(true);
+            byte packedPreset = CharacterAppearance.Pack(2, 3, 1, 2);
+            CharacterCreateResult created = await auth.CreateCharacterAsync(loggedIn.AccountId, "Ranger", packedPreset, 128f, 256f).ConfigureAwait(true);
             created.Succeeded.Should().BeTrue();
             created.Character.Should().NotBeNull();
 
+            CharacterRecord progressed = created.Character! with
+            {
+                Level = 4,
+                Experience = 240U,
+                CurrentMana = 62f,
+                MaxMana = 110f,
+                CurrentStamina = 74f,
+                MaxStamina = 118f,
+            };
+            await characters.SaveBatchAsync([progressed]).ConfigureAwait(true);
+
             IReadOnlyList<CharacterRecord> roster = await auth.ListCharactersAsync(loggedIn.AccountId).ConfigureAwait(true);
-            roster.Should().ContainSingle(c => c.Name == "Ranger" && c.AppearancePreset == 2);
+            roster.Should().ContainSingle(c =>
+                c.Name == "Ranger" &&
+                c.AppearancePreset == packedPreset &&
+                c.Level == 4 &&
+                c.Experience == 240U &&
+                c.CurrentMana == 62f &&
+                c.MaxMana == 110f &&
+                c.CurrentStamina == 74f &&
+                c.MaxStamina == 118f);
 
             CharacterRecord? unauthorizedLookup = await auth.FindOwnedCharacterAsync(Guid.NewGuid(), created.Character!.Id).ConfigureAwait(true);
             unauthorizedLookup.Should().BeNull();

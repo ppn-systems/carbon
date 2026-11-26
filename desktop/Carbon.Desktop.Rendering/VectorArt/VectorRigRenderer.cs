@@ -21,7 +21,8 @@ public static class VectorRigRenderer
 
     /// <summary>
     /// Draws a declarative articulated vector entity rig at <paramref name="footPosition"/> with directional visibility,
-    /// bone keyframe evaluation, hit flash tinting, and an optional dynamically swung equipped tool/weapon.
+    /// bone keyframe evaluation, hit flash tinting, modular face/hair/skin customization, layered equipped armor,
+    /// and dynamically swung held tools or weapons.
     /// </summary>
     public static void DrawEntityRig(
         GeometryBatch batch,
@@ -35,7 +36,9 @@ public static class VectorRigRenderer
         float hitFlash = 0f,
         CompiledItemVectorArt? equippedItem = null,
         ClientActionState action = default,
-        float legacySwingTimer = 0f)
+        float legacySwingTimer = 0f,
+        byte appearancePreset = 0,
+        VisualEquipmentLoadout equipment = default)
     {
         ArgumentNullException.ThrowIfNull(batch);
         ArgumentNullException.ThrowIfNull(rig);
@@ -49,6 +52,7 @@ public static class VectorRigRenderer
         bool isNorth = direction == Direction8.North;
         bool isSide = direction is Direction8.East or Direction8.West or Direction8.SouthEast or Direction8.SouthWest or Direction8.NorthEast or Direction8.NorthWest;
         bool isSouth = !isNorth && !isSide;
+        bool isBaseHero = string.Equals(rig.Id, "base_hero", StringComparison.OrdinalIgnoreCase);
 
         Span<BonePose> bones = stackalloc BonePose[(int)VectorBoneId.Count];
         rig.EvaluatePose(clipName, "idle", timeOrNormalizedProgress, isNormalized, bones);
@@ -56,18 +60,36 @@ public static class VectorRigRenderer
         // If North-facing, draw item behind torso first; render non-cape shapes, then promote Cape back shapes on top of torso.
         if (isNorth && equippedItem is not null)
         {
-            DrawEquippedItemOnRig(batch, rig, equippedItem, footPosition, direction, uniformScale, mirrorX, in bones[(int)VectorBoneId.ArmFront], action, legacySwingTimer);
+            DrawEquippedItemOnRig(batch, rig, equippedItem, footPosition, direction, uniformScale, mirrorX, in bones[(int)VectorBoneId.ArmFront], action, legacySwingTimer, equipment.WeaponUpgradeLevel);
         }
 
-        DrawPassShapes(batch, rig, in bones, footPosition, sx, sy, isSouth, isSide, isNorth, capePass: !isNorth, hitFlash);
+        if (isBaseHero && !isNorth && equipment.ChestId != 0)
+        {
+            ModularCharacterOverlays.DrawEquippedBackCape(batch, rig, in bones[(int)VectorBoneId.Cape], footPosition, sx, sy, isNorth: false, equipment.ChestId, hitFlash);
+        }
+
+        DrawPassShapes(batch, rig, in bones, footPosition, sx, sy, isSouth, isSide, isNorth, capePass: !isNorth, hitFlash, appearancePreset, isBaseHero);
         if (isNorth)
         {
-            DrawPassShapes(batch, rig, in bones, footPosition, sx, sy, isSouth, isSide, isNorth, capePass: true, hitFlash);
+            DrawPassShapes(batch, rig, in bones, footPosition, sx, sy, isSouth, isSide, isNorth, capePass: true, hitFlash, appearancePreset, isBaseHero);
+        }
+
+        if (isBaseHero)
+        {
+            ModularCharacterOverlays.DrawLegAndFootArmor(batch, rig, in bones, footPosition, sx, sy, isNorth, isSide, equipment, hitFlash);
+            ModularCharacterOverlays.DrawChestAndArmArmor(batch, rig, in bones, footPosition, sx, sy, isNorth, isSide, equipment.ChestId, hitFlash);
+            if (isNorth && equipment.ChestId != 0)
+            {
+                ModularCharacterOverlays.DrawEquippedBackCape(batch, rig, in bones[(int)VectorBoneId.Cape], footPosition, sx, sy, isNorth: true, equipment.ChestId, hitFlash);
+            }
+
+            ModularCharacterOverlays.DrawFaceAndHair(batch, rig, in bones[(int)VectorBoneId.Head], footPosition, sx, sy, isSouth, isSide, isNorth, appearancePreset, equipment.HeadId, hitFlash);
+            ModularCharacterOverlays.DrawHeadArmor(batch, rig, in bones[(int)VectorBoneId.Headgear], footPosition, sx, sy, isSouth, isNorth, equipment.HeadId, hitFlash);
         }
 
         if (!isNorth && equippedItem is not null)
         {
-            DrawEquippedItemOnRig(batch, rig, equippedItem, footPosition, direction, uniformScale, mirrorX, in bones[(int)VectorBoneId.ArmFront], action, legacySwingTimer);
+            DrawEquippedItemOnRig(batch, rig, equippedItem, footPosition, direction, uniformScale, mirrorX, in bones[(int)VectorBoneId.ArmFront], action, legacySwingTimer, equipment.WeaponUpgradeLevel);
         }
     }
 
@@ -83,7 +105,9 @@ public static class VectorRigRenderer
         Direction8 direction = Direction8.South,
         string clipName = "idle",
         float timeOrNormalizedProgress = 0f,
-        CompiledItemVectorArt? equippedItem = null)
+        CompiledItemVectorArt? equippedItem = null,
+        byte appearancePreset = 0,
+        VisualEquipmentLoadout equipment = default)
     {
         ArgumentNullException.ThrowIfNull(batch);
         ArgumentNullException.ThrowIfNull(rig);
@@ -149,7 +173,9 @@ public static class VectorRigRenderer
             isNormalized: false,
             targetHeightOverride: targetHeight,
             hitFlash: 0f,
-            equippedItem: equippedItem);
+            equippedItem: equippedItem,
+            appearancePreset: appearancePreset,
+            equipment: equipment);
     }
 
     private static void ExpandBoundsForShape(
@@ -242,7 +268,8 @@ public static class VectorRigRenderer
         bool mirrorX,
         in BonePose frontArmPose,
         in ClientActionState action,
-        float legacySwingTimer)
+        float legacySwingTimer,
+        byte weaponUpgradeLevel = 0)
     {
         bool isToolOrWeapon = item.ItemId is StarterGameCatalog.WoodAxe
             or StarterGameCatalog.StonePickaxe
@@ -282,9 +309,9 @@ public static class VectorRigRenderer
             {
                 ClientActionKind.AxeChop => -1.55f + (MathF.Pow(p, 0.72f) * 2.55f),
                 ClientActionKind.PickaxeMine => -1.75f + (MathF.Pow(p, 0.65f) * 2.35f),
-                ClientActionKind.SwordSlash => (action.ComboStep & 1) == 0 ? -1.25f + (p * 2.5f) : 1.25f - (p * 2.5f),
+                ClientActionKind.SwordSlash or ClientActionKind.SkillWhirlwind => (action.ComboStep & 1) == 0 ? -1.25f + (p * 2.5f) : 1.25f - (p * 2.5f),
                 ClientActionKind.PlaceStructure => -0.6f + (p * 0.8f),
-                ClientActionKind.ConsumeItem or ClientActionKind.MonsterStrike or ClientActionKind.None or _ => 0f,
+                ClientActionKind.ConsumeItem or ClientActionKind.MonsterStrike or ClientActionKind.SkillArcaneNova or ClientActionKind.SkillVitalSurge or ClientActionKind.None or _ => 0f,
             };
         }
         else if (legacySwingTimer > 0f)
@@ -303,6 +330,15 @@ public static class VectorRigRenderer
         Vector2 itemCenter = handWorld - rotatedGrip;
         BonePose pose = new() { RotRad = totalRot, ScaleX = 1f, ScaleY = 1f };
 
+        if (weaponUpgradeLevel > 0)
+        {
+            ColorRgba sheen = weaponUpgradeLevel >= 6
+                ? new ColorRgba(34, 211, 238, 125)
+                : new ColorRgba(250, 204, 21, 115);
+            Vector2 auraTip = itemCenter + Rotate(new Vector2(3.5f * itemScale, -3.5f * itemScale), totalRot);
+            batch.FillCircle(auraTip, (5.5f + (weaponUpgradeLevel * 0.45f)) * itemScale, sheen, 12);
+        }
+
         for (int i = 0; i < item.Shapes.Length; i++)
         {
             DrawSingleShape(batch, in item.Shapes[i], Vector2.Zero, in pose, itemCenter, itemScale, itemScale, hitFlash: 0f);
@@ -320,7 +356,9 @@ public static class VectorRigRenderer
         bool isSide,
         bool isNorth,
         bool capePass,
-        float hitFlash)
+        float hitFlash,
+        byte appearancePreset = 0,
+        bool isBaseHero = false)
     {
         CompiledVectorShape[] shapes = rig.Shapes;
         for (int i = 0; i < shapes.Length; i++)
@@ -350,7 +388,7 @@ public static class VectorRigRenderer
 
             BonePose bonePose = bones[(int)shape.Bone];
             Vector2 bonePivot = rig.GetBonePivot(shape.Bone);
-            DrawSingleShape(batch, in shape, bonePivot, in bonePose, origin, sx, sy, hitFlash);
+            DrawSingleShape(batch, in shape, bonePivot, in bonePose, origin, sx, sy, hitFlash, appearancePreset, isBaseHero);
         }
     }
 
@@ -362,9 +400,14 @@ public static class VectorRigRenderer
         Vector2 origin,
         float sx,
         float sy,
-        float hitFlash)
+        float hitFlash,
+        byte appearancePreset = 0,
+        bool isBaseHero = false)
     {
-        ColorRgba fill = ApplyHitFlash(s.Color, hitFlash);
+        ColorRgba baseCol = isBaseHero
+            ? ModularCharacterOverlays.ResolveModularColor(s.Color, appearancePreset, true)
+            : s.Color;
+        ColorRgba fill = ApplyHitFlash(baseCol, hitFlash);
         ColorRgba outline = s.HasOutline ? ApplyHitFlash(s.OutlineColor, hitFlash * 0.45f) : default;
         float cosBone = MathF.Cos(bone.RotRad);
         float sinBone = MathF.Sin(bone.RotRad);

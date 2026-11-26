@@ -40,4 +40,8 @@ public sealed partial class InventorySlotItem : PacketBase<InventorySlotItem>, I
     /// <summary>Remaining item durability.</summary>
     [SerializeOrder(5)]
     public float Durability { get; set; }
+
+    /// <summary>Item enhancement level (<c>0..10</c>).</summary>
+    [SerializeOrder(6)]
+    public byte UpgradeLevel { get; set; }
 }

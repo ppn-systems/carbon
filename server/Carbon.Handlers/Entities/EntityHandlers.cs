@@ -60,4 +60,16 @@ public static partial class EntityHandlers
             ? PacketReplyHelper.SendMutationAsync(context, status, EntityOpCode.AttackInput)
             : ValueTask.CompletedTask;
     }
+
+    /// <summary>Opcode <c>0x1203</c>. Queues a ground loot pickup attempt.</summary>
+    [PacketOpcode(EntityOpCode.PickupLoot)]
+    [PacketPermission(PermissionLevel.USER)]
+    public static ValueTask HandlePickupLootAsync(IPacketContext<EntityPickupLoot> context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        OpStatus status = s_world.EnqueuePickupLoot(connectionId, context.Packet.LootNetworkId);
+        return PacketReplyHelper.SendMutationAsync(context, status, EntityOpCode.PickupLoot);
+    }
 }

@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "itemId": 19,
+  "id": "iron_leggings",
+  "displayName": "Iron Leggings",
+  "tier": 2,
+  "categoryLabel": "Leg Armor",
+  "accentColor": "#64748B",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -6.2,
+      "y": -6.2,
+      "w": 12.4,
+      "h": 3.2,
+      "color": "#475569",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": -3.2,
+      "y": -3.5,
+      "x2": -3.8,
+      "y2": 6.2,
+      "thickness": 4.1,
+      "color": "#64748B",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": 3.2,
+      "y": -3.5,
+      "x2": 3.8,
+      "y2": 6.2,
+      "thickness": 4.1,
+      "color": "#94A3B8",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -3.6,
+      "y": 1.2,
+      "rx": 2.0,
+      "ry": 1.6,
+      "color": "#CBD5E1",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 0.7
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 3.6,
+      "y": 1.2,
+      "rx": 2.0,
+      "ry": 1.6,
+      "color": "#CBD5E1",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 0.7
+    }
+  ]
+}

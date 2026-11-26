@@ -19,7 +19,8 @@ public sealed class PgCharacterStore : ICharacterStore
 {
     private const string ListSql = """
         SELECT id, account_id, name, level, appearance_preset, position_x, position_y,
-               current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc
+               current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
+               experience, current_mana, max_mana, current_stamina, max_stamina
         FROM characters
         WHERE account_id = @account_id
         ORDER BY name ASC;
@@ -27,7 +28,8 @@ public sealed class PgCharacterStore : ICharacterStore
 
     private const string FindSql = """
         SELECT id, account_id, name, level, appearance_preset, position_x, position_y,
-               current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc
+               current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
+               experience, current_mana, max_mana, current_stamina, max_stamina
         FROM characters
         WHERE id = @id
         LIMIT 1;
@@ -36,8 +38,9 @@ public sealed class PgCharacterStore : ICharacterStore
     private const string InsertSql = """
         INSERT INTO characters (
             id, account_id, name, level, appearance_preset, position_x, position_y,
-            current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc)
-        VALUES (@id, @account_id, @name, @level, @preset, @px, @py, @hp, @max_hp, @slot, @inv, @updated)
+            current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
+            experience, current_mana, max_mana, current_stamina, max_stamina)
+        VALUES (@id, @account_id, @name, @level, @preset, @px, @py, @hp, @max_hp, @slot, @inv, @updated, @xp, @mp, @max_mp, @stam, @max_stam)
         ON CONFLICT (name) DO NOTHING;
         """;
 
@@ -50,7 +53,12 @@ public sealed class PgCharacterStore : ICharacterStore
             max_health = @max_hp,
             selected_hotbar_slot = @slot,
             inventory_blob = @inv,
-            updated_at_utc = @updated
+            updated_at_utc = @updated,
+            experience = @xp,
+            current_mana = @mp,
+            max_mana = @max_mp,
+            current_stamina = @stam,
+            max_stamina = @max_stam
         WHERE id = @id;
         """;
 
@@ -123,6 +131,11 @@ public sealed class PgCharacterStore : ICharacterStore
         _ = cmd.Parameters.Add(new NpgsqlParameter("slot", NpgsqlDbType.Smallint) { Value = (short)character.SelectedHotbarSlot });
         _ = cmd.Parameters.Add(new NpgsqlParameter("inv", NpgsqlDbType.Bytea) { Value = character.InventoryBlob });
         _ = cmd.Parameters.Add(new NpgsqlParameter("updated", NpgsqlDbType.TimestampTz) { Value = character.UpdatedAtUtc });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("xp", NpgsqlDbType.Integer) { Value = (int)character.Experience });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("mp", NpgsqlDbType.Real) { Value = character.CurrentMana });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("max_mp", NpgsqlDbType.Real) { Value = character.MaxMana });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("stam", NpgsqlDbType.Real) { Value = character.CurrentStamina });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("max_stam", NpgsqlDbType.Real) { Value = character.MaxStamina });
 
         int affected = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         return affected == 1;
@@ -159,6 +172,11 @@ public sealed class PgCharacterStore : ICharacterStore
             _ = item.Parameters.Add(new NpgsqlParameter("slot", NpgsqlDbType.Smallint) { Value = (short)c.SelectedHotbarSlot });
             _ = item.Parameters.Add(new NpgsqlParameter("inv", NpgsqlDbType.Bytea) { Value = c.InventoryBlob });
             _ = item.Parameters.Add(new NpgsqlParameter("updated", NpgsqlDbType.TimestampTz) { Value = c.UpdatedAtUtc });
+            _ = item.Parameters.Add(new NpgsqlParameter("xp", NpgsqlDbType.Integer) { Value = (int)c.Experience });
+            _ = item.Parameters.Add(new NpgsqlParameter("mp", NpgsqlDbType.Real) { Value = c.CurrentMana });
+            _ = item.Parameters.Add(new NpgsqlParameter("max_mp", NpgsqlDbType.Real) { Value = c.MaxMana });
+            _ = item.Parameters.Add(new NpgsqlParameter("stam", NpgsqlDbType.Real) { Value = c.CurrentStamina });
+            _ = item.Parameters.Add(new NpgsqlParameter("max_stam", NpgsqlDbType.Real) { Value = c.MaxStamina });
             batch.BatchCommands.Add(item);
         }
 
@@ -182,6 +200,11 @@ public sealed class PgCharacterStore : ICharacterStore
             reader.GetFloat(8),
             (byte)reader.GetInt16(9),
             inv,
-            updated);
+            updated,
+            (uint)Math.Max(0, reader.GetInt32(12)),
+            reader.GetFloat(13),
+            reader.GetFloat(14),
+            reader.GetFloat(15),
+            reader.GetFloat(16));
     }
 }

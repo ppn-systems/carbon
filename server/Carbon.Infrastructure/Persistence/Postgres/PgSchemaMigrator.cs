@@ -46,7 +46,12 @@ public sealed class PgSchemaMigrator : IDatabaseMigrator
             max_health           REAL        NOT NULL,
             selected_hotbar_slot SMALLINT    NOT NULL DEFAULT 0,
             inventory_blob       BYTEA       NOT NULL,
-            updated_at_utc       TIMESTAMPTZ NOT NULL
+            updated_at_utc       TIMESTAMPTZ NOT NULL,
+            experience           INTEGER     NOT NULL DEFAULT 0,
+            current_mana         REAL        NOT NULL DEFAULT 80.0,
+            max_mana             REAL        NOT NULL DEFAULT 80.0,
+            current_stamina      REAL        NOT NULL DEFAULT 100.0,
+            max_stamina          REAL        NOT NULL DEFAULT 100.0
         );
 
         CREATE INDEX IF NOT EXISTS ix_characters_account_id ON characters(account_id);
@@ -114,6 +119,37 @@ public sealed class PgSchemaMigrator : IDatabaseMigrator
             await using ConfiguredAsyncDisposable markScope = markCmd.ConfigureAwait(false);
             _ = markCmd.Parameters.AddWithValue("id", "0001_initial");
             _ = await markCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        bool hasRpgMigration;
+        NpgsqlCommand checkRpgCmd = new("SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE id = @id);", conn, tx);
+        await using (ConfiguredAsyncDisposable checkRpgScope = checkRpgCmd.ConfigureAwait(false))
+        {
+            _ = checkRpgCmd.Parameters.AddWithValue("id", "0002_rpg_progression");
+            object? scalar = await checkRpgCmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
+            hasRpgMigration = scalar is true;
+        }
+
+        if (!hasRpgMigration)
+        {
+            const string alterSql = """
+                ALTER TABLE characters
+                    ADD COLUMN IF NOT EXISTS experience      INTEGER NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS current_mana    REAL    NOT NULL DEFAULT 80.0,
+                    ADD COLUMN IF NOT EXISTS max_mana        REAL    NOT NULL DEFAULT 80.0,
+                    ADD COLUMN IF NOT EXISTS current_stamina REAL    NOT NULL DEFAULT 100.0,
+                    ADD COLUMN IF NOT EXISTS max_stamina     REAL    NOT NULL DEFAULT 100.0;
+                """;
+            NpgsqlCommand alterCmd = new(alterSql, conn, tx);
+            await using (ConfiguredAsyncDisposable alterScope = alterCmd.ConfigureAwait(false))
+            {
+                _ = await alterCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            }
+
+            NpgsqlCommand markRpgCmd = new("INSERT INTO schema_migrations (id) VALUES (@id);", conn, tx);
+            await using ConfiguredAsyncDisposable markRpgScope = markRpgCmd.ConfigureAwait(false);
+            _ = markRpgCmd.Parameters.AddWithValue("id", "0002_rpg_progression");
+            _ = await markRpgCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         }
 
         await tx.CommitAsync(ct).ConfigureAwait(false);

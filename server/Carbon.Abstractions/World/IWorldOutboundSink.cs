@@ -8,17 +8,6 @@ namespace Carbon.Abstractions.World;
 /// <summary>
 /// Snapshot sent by the authoritative simulation when an entity enters a player's Area of Interest.
 /// </summary>
-/// <param name="NetworkId">Authoritative entity network ID.</param>
-/// <param name="Kind">Entity kind.</param>
-/// <param name="ArchetypeId">Visual/archetype identifier.</param>
-/// <param name="Name">Entity display name.</param>
-/// <param name="PositionX">World X position.</param>
-/// <param name="PositionY">World Y position.</param>
-/// <param name="VelocityX">Linear X velocity.</param>
-/// <param name="VelocityY">Linear Y velocity.</param>
-/// <param name="Radius">Collider radius.</param>
-/// <param name="CurrentHealth">Current health points.</param>
-/// <param name="MaxHealth">Maximum health points.</param>
 public readonly record struct EntitySpawnSnapshot(
     ulong NetworkId,
     EntityKind Kind,
@@ -30,7 +19,15 @@ public readonly record struct EntitySpawnSnapshot(
     float VelocityY,
     float Radius,
     float CurrentHealth,
-    float MaxHealth);
+    float MaxHealth,
+    ushort EquippedHeadId = 0,
+    ushort EquippedChestId = 0,
+    ushort EquippedLegsId = 0,
+    ushort EquippedFeetId = 0,
+    ushort EquippedWeaponId = 0,
+    ushort Level = 1,
+    int LootCount = 0,
+    byte WeaponUpgradeLevel = 0);
 
 /// <summary>
 /// Per-entity delta slice collected inside a tick's AoI snapshot batch.
@@ -82,5 +79,45 @@ public interface IWorldOutboundSink
     void SendCombatHit(ReadOnlySpan<ulong> recipientConnectionIds, ulong attackerNetworkId, ulong defenderNetworkId, float damage, float remainingHealth, bool isCritical, bool isKilled);
 
     /// <summary>Sends a single updated inventory slot to the owning player connection.</summary>
-    void SendInventorySlotChanged(ulong connectionId, ushort slotIndex, uint itemId, int quantity, float durability);
+    void SendInventorySlotChanged(ulong connectionId, ushort slotIndex, uint itemId, int quantity, float durability, byte upgradeLevel = 0);
+
+    /// <summary>Broadcasts updated visible armor, held weapon, enhancement glow, and level to AoI observers.</summary>
+    void SendEntityEquipmentChanged(
+        ReadOnlySpan<ulong> recipientConnectionIds,
+        ulong entityNetworkId,
+        ushort headId,
+        ushort chestId,
+        ushort legsId,
+        ushort feetId,
+        ushort weaponId,
+        byte weaponUpgrade,
+        ushort level);
+
+    /// <summary>Synchronizes the owning player's RPG progression, MP, Stamina, Defense, and skill cooldowns.</summary>
+    void SendPlayerStatsSync(
+        ulong connectionId,
+        ushort level,
+        uint experience,
+        uint xpToNextLevel,
+        float currentHealth,
+        float maxHealth,
+        float currentMana,
+        float maxMana,
+        float currentStamina,
+        float maxStamina,
+        float defense,
+        float skill1Cd,
+        float skill2Cd,
+        float skill3Cd,
+        bool leveledUp);
+
+    /// <summary>Broadcasts active ability cast VFX coordinates to AoI observers.</summary>
+    void SendSkillCastBroadcast(
+        ReadOnlySpan<ulong> recipientConnectionIds,
+        ulong casterNetworkId,
+        byte abilitySlot,
+        float originX,
+        float originY,
+        float aimX,
+        float aimY);
 }

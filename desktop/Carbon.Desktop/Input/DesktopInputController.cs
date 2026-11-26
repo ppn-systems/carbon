@@ -17,9 +17,14 @@ internal readonly record struct DesktopInputFrame(
     float? ZoomMultiplier,
     bool SpaceActionPressed,
     bool LeftClickPressed,
+    bool RightClickPressed,
     int ScrollSlotDelta,
     Vector2 MouseScreenPosition,
     byte? NumberSlotPressed,
+    byte? SkillPressed,
+    bool ToggleInventoryPressed,
+    bool InteractOrPickupPressed,
+    bool DropItemPressed,
     bool ToggleCraftPressed,
     bool ToggleHudPressed,
     bool HarvestPressed,
@@ -63,16 +68,19 @@ internal static class DesktopInputController
         }
 
         float? zoomMultiplier = null;
-        if (keyboard.IsKeyDown(Key.Q))
+        if (keyboard.IsKeyDown(Key.Minus) || keyboard.IsKeyDown(Key.KeypadSubtract) || keyboard.IsKeyDown(Key.PageDown))
         {
             zoomMultiplier = 0.985f;
         }
-        else if (keyboard.IsKeyDown(Key.E))
+        else if (keyboard.IsKeyDown(Key.Equal) || keyboard.IsKeyDown(Key.KeypadAdd) || keyboard.IsKeyDown(Key.PageUp))
         {
             zoomMultiplier = 1.015f;
         }
 
         byte? numberSlot = PollNumberKey(keyboard);
+        byte? skillPressed = keyboard.IsKeyPressed(Key.Q)
+            ? 1
+            : (keyboard.IsKeyPressed(Key.R) ? 2 : (keyboard.IsKeyPressed(Key.V) ? 3 : null));
         int scrollDelta = mouse.ScrollDelta.Y > 0.01f
             ? -1
             : (mouse.ScrollDelta.Y < -0.01f ? 1 : 0);
@@ -83,11 +91,16 @@ internal static class DesktopInputController
             ZoomMultiplier: zoomMultiplier,
             SpaceActionPressed: keyboard.IsKeyPressed(Key.Space),
             LeftClickPressed: mouse.IsButtonPressed(MouseButton.Left),
+            RightClickPressed: mouse.IsButtonPressed(MouseButton.Right),
             ScrollSlotDelta: scrollDelta,
             MouseScreenPosition: mouse.Position,
             NumberSlotPressed: numberSlot,
+            SkillPressed: skillPressed,
+            ToggleInventoryPressed: keyboard.IsKeyPressed(Key.I) || keyboard.IsKeyPressed(Key.Tab),
+            InteractOrPickupPressed: keyboard.IsKeyPressed(Key.E),
+            DropItemPressed: keyboard.IsKeyPressed(Key.X),
             ToggleCraftPressed: keyboard.IsKeyPressed(Key.C),
-            ToggleHudPressed: keyboard.IsKeyPressed(Key.Tab),
+            ToggleHudPressed: keyboard.IsKeyPressed(Key.F1),
             HarvestPressed: keyboard.IsKeyPressed(Key.F),
             ToggleDoorPressed: keyboard.IsKeyPressed(Key.G),
             PlaceHousePressed: keyboard.IsKeyPressed(Key.H),

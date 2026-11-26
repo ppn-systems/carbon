@@ -7,6 +7,7 @@ using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Desktop.Abstractions;
+using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Maps.Streaming;
 using Carbon.Prediction.Client;
@@ -43,7 +44,7 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
     private readonly List<ClientPropImpactEvent> _propImpactEvents = new(16);
     private readonly List<(int ChunkX, int ChunkY)> _dirtyChunks = new(16);
     private readonly List<string> _hudNotifications = new(16);
-    private readonly InventoryContainer _inventory = new(27);
+    private readonly InventoryContainer _inventory = new(PlayerInventoryLayout.TotalCapacity);
     private readonly ClientPredictionReconciler _reconciler = new(128);
     private readonly SemaphoreSlim _connectGate = new(1, 1);
     private readonly Lock _worldGate = new();
@@ -74,6 +75,18 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
     private float _attackSwingTimer;
     private float _localHealth = 100f;
     private float _localMaxHealth = 100f;
+    private ushort _localLevel = 1;
+    private uint _localExperience;
+    private uint _localXpToNext = 100U;
+    private float _localMana = 80f;
+    private float _localMaxMana = 80f;
+    private float _localStamina = 100f;
+    private float _localMaxStamina = 100f;
+    private float _localDefense = 2f;
+    private float _skill1Cd;
+    private float _skill2Cd;
+    private float _skill3Cd;
+    private ushort _itemSeqId;
     private bool _wasMovingLastTick;
     private float _idleKeepAliveTimer;
     private byte _localAppearancePreset;
@@ -112,6 +125,39 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
 
     /// <inheritdoc/>
     public float LocalPlayerMaxHealth => _localMaxHealth;
+
+    /// <inheritdoc/>
+    public ushort LocalPlayerLevel => _localLevel;
+
+    /// <inheritdoc/>
+    public uint LocalPlayerExperience => _localExperience;
+
+    /// <inheritdoc/>
+    public uint LocalPlayerXpToNext => _localXpToNext;
+
+    /// <inheritdoc/>
+    public float LocalPlayerMana => _localMana;
+
+    /// <inheritdoc/>
+    public float LocalPlayerMaxMana => _localMaxMana;
+
+    /// <inheritdoc/>
+    public float LocalPlayerStamina => _localStamina;
+
+    /// <inheritdoc/>
+    public float LocalPlayerMaxStamina => _localMaxStamina;
+
+    /// <inheritdoc/>
+    public float LocalPlayerDefense => _localDefense;
+
+    /// <inheritdoc/>
+    public float GetSkillCooldown(byte skillSlot) => skillSlot switch
+    {
+        1 => _skill1Cd,
+        2 => _skill2Cd,
+        3 => _skill3Cd,
+        _ => 0f,
+    };
 
     /// <inheritdoc/>
     public byte SelectedHotbarSlot => _selectedSlot;
@@ -163,7 +209,15 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
                     s.FacingDir,
                     s.AttackAnimTimer,
                     s.AttackAnimDuration,
-                    s.HitFlashTimer));
+                    s.HitFlashTimer,
+                    s.EquippedHeadId,
+                    s.EquippedChestId,
+                    s.EquippedLegsId,
+                    s.EquippedFeetId,
+                    s.EquippedWeaponId,
+                    s.Level,
+                    s.LootCount,
+                    s.WeaponUpgradeLevel));
             }
 
             return _remoteViewSnapshot;
@@ -209,6 +263,21 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
         if (_attackSwingTimer > 0f)
         {
             _attackSwingTimer = MathF.Max(0f, _attackSwingTimer - fdt);
+        }
+
+        if (_skill1Cd > 0f)
+        {
+            _skill1Cd = MathF.Max(0f, _skill1Cd - fdt);
+        }
+
+        if (_skill2Cd > 0f)
+        {
+            _skill2Cd = MathF.Max(0f, _skill2Cd - fdt);
+        }
+
+        if (_skill3Cd > 0f)
+        {
+            _skill3Cd = MathF.Max(0f, _skill3Cd - fdt);
         }
 
         if (_localHitFlashTimer > 0f)
@@ -272,8 +341,20 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
                 _hasServerReconcile = false;
             }
 
-            float speed = sprint ? SprintSpeed : WalkSpeed;
             bool isMoving = moveDir.LengthSquared() > 0.001f;
+            bool canSprint = sprint && isMoving && _localStamina > 2f;
+            float speed = canSprint ? SprintSpeed : WalkSpeed;
+            if (canSprint)
+            {
+                _localStamina = MathF.Max(0f, _localStamina - (18f * fdt));
+            }
+            else
+            {
+                _localStamina = MathF.Min(_localMaxStamina, _localStamina + ((isMoving ? 8f : 16f) * fdt));
+            }
+
+            _localMana = MathF.Min(_localMaxMana, _localMana + (3.5f * fdt));
+
             if (isMoving)
             {
                 if (!_currentAction.IsActive)
@@ -303,7 +384,7 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
                 {
                     _wasMovingLastTick = isMoving;
                     _idleKeepAliveTimer = 0f;
-                    this.SendMoveInputAsync(moveDir, sprint);
+                    this.SendMoveInputAsync(moveDir, canSprint);
                 }
             }
 
@@ -343,6 +424,17 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
             _visualOffset = Vector2.Zero;
             _localHitFlashTimer = 0f;
             _currentAction = ClientActionState.None;
+            _localLevel = 1;
+            _localExperience = 0U;
+            _localXpToNext = 100U;
+            _localMana = 80f;
+            _localMaxMana = 80f;
+            _localStamina = 100f;
+            _localMaxStamina = 100f;
+            _localDefense = 2f;
+            _skill1Cd = 0f;
+            _skill2Cd = 0f;
+            _skill3Cd = 0f;
         }
     }
 }

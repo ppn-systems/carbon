@@ -66,6 +66,9 @@ public sealed partial class NalixMultiplayerSession
             _tcpSubscriptions.Add(tcp.On<EntityDeltaBatch>(this.OnEntityDeltaBatch));
             _tcpSubscriptions.Add(tcp.On<CombatHit>(this.OnCombatHit));
             _tcpSubscriptions.Add(tcp.On<InventorySlotChanged>(this.OnInventorySlotChanged));
+            _tcpSubscriptions.Add(tcp.On<EntityEquipmentChanged>(this.OnEntityEquipmentChanged));
+            _tcpSubscriptions.Add(tcp.On<PlayerStatsSync>(this.OnPlayerStatsSync));
+            _tcpSubscriptions.Add(tcp.On<SkillCastBroadcast>(this.OnSkillCastBroadcast));
             _tcpSubscriptions.Add(tcp.On<MapPropChanged>(this.OnMapPropChanged));
             _tcpSubscriptions.Add(tcp.On<MapStructureChanged>(this.OnMapStructureChanged));
 
@@ -98,6 +101,8 @@ public sealed partial class NalixMultiplayerSession
             _udpSubscriptions.Add(udp.On<CombatHit>(this.OnCombatHit));
             _udpSubscriptions.Add(udp.On<EntitySpawn>(this.OnEntitySpawn));
             _udpSubscriptions.Add(udp.On<EntityDespawn>(this.OnEntityDespawn));
+            _udpSubscriptions.Add(udp.On<EntityEquipmentChanged>(this.OnEntityEquipmentChanged));
+            _udpSubscriptions.Add(udp.On<SkillCastBroadcast>(this.OnSkillCastBroadcast));
 
             using CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeoutCts.CancelAfter(3000);
@@ -296,6 +301,7 @@ public sealed partial class NalixMultiplayerSession
             _localHealth = pkt.CurrentHealth;
             _localMaxHealth = pkt.MaxHealth > 0f ? pkt.MaxHealth : 100f;
             _localAppearancePreset = (byte)pkt.ArchetypeId;
+            _localLevel = Math.Max((ushort)1, pkt.Level);
             return;
         }
 
@@ -310,6 +316,14 @@ public sealed partial class NalixMultiplayerSession
             Radius = pkt.Radius > 0f ? pkt.Radius : 7f,
             CurrentHealth = pkt.CurrentHealth,
             MaxHealth = pkt.MaxHealth,
+            EquippedHeadId = pkt.EquippedHeadId,
+            EquippedChestId = pkt.EquippedChestId,
+            EquippedLegsId = pkt.EquippedLegsId,
+            EquippedFeetId = pkt.EquippedFeetId,
+            EquippedWeaponId = pkt.EquippedWeaponId,
+            Level = Math.Max((ushort)1, pkt.Level),
+            LootCount = pkt.LootCount,
+            WeaponUpgradeLevel = pkt.WeaponUpgradeLevel,
         };
         _ = state.Interpolation.PushSnapshot(new TransformSnapshot(
             _latestServerTime,
@@ -320,6 +334,74 @@ public sealed partial class NalixMultiplayerSession
 
     private void OnEntityDespawn(EntityDespawn pkt) =>
         _ = _remoteEntities.TryRemove(pkt.NetworkId, out _);
+
+    private void OnEntityEquipmentChanged(EntityEquipmentChanged pkt)
+    {
+        if (pkt.NetworkId == _localNetworkId)
+        {
+            _localLevel = Math.Max((ushort)1, pkt.Level);
+            return;
+        }
+
+        if (_remoteEntities.TryGetValue(pkt.NetworkId, out RemoteEntityState? state))
+        {
+            state.EquippedHeadId = pkt.EquippedHeadId;
+            state.EquippedChestId = pkt.EquippedChestId;
+            state.EquippedLegsId = pkt.EquippedLegsId;
+            state.EquippedFeetId = pkt.EquippedFeetId;
+            state.EquippedWeaponId = pkt.EquippedWeaponId;
+            state.WeaponUpgradeLevel = pkt.WeaponUpgradeLevel;
+            state.Level = Math.Max((ushort)1, pkt.Level);
+        }
+    }
+
+    private void OnPlayerStatsSync(PlayerStatsSync pkt)
+    {
+        _localLevel = Math.Max((ushort)1, pkt.Level);
+        _localExperience = pkt.Experience;
+        _localXpToNext = Math.Max(1U, pkt.XpToNextLevel);
+        _localHealth = pkt.CurrentHealth;
+        _localMaxHealth = MathF.Max(1f, pkt.MaxHealth);
+        _localMana = pkt.CurrentMana;
+        _localMaxMana = MathF.Max(1f, pkt.MaxMana);
+        _localStamina = pkt.CurrentStamina;
+        _localMaxStamina = MathF.Max(1f, pkt.MaxStamina);
+        _localDefense = pkt.Defense;
+        _skill1Cd = pkt.Skill1Cooldown;
+        _skill2Cd = pkt.Skill2Cooldown;
+        _skill3Cd = pkt.Skill3Cooldown;
+
+        if (pkt.LeveledUp)
+        {
+            string msg = $"LEVEL UP! Lv.{_localLevel}";
+            lock (_worldGate)
+            {
+                _combatEvents.Add(new ClientCombatEvent(
+                    this.LocalPlayerInterpolatedPosition + new Vector2(0f, -20f),
+                    _localLevel,
+                    IsCritical: true,
+                    IsHeal: true,
+                    Label: msg));
+                _hudNotifications.Add(msg);
+            }
+        }
+    }
+
+    private void OnSkillCastBroadcast(SkillCastBroadcast pkt)
+    {
+        if (pkt.CasterNetworkId != _localNetworkId &&
+            _remoteEntities.TryGetValue(pkt.CasterNetworkId, out RemoteEntityState? caster))
+        {
+            Vector2 delta = new(pkt.AimX - caster.Position.X, pkt.AimY - caster.Position.Y);
+            if (delta.LengthSquared() > 1e-4f)
+            {
+                caster.FacingDir = Vector2.Normalize(delta);
+            }
+
+            caster.AttackAnimDuration = 0.42f;
+            caster.AttackAnimTimer = 0.42f;
+        }
+    }
 
     private void OnEntityDeltaBatch(EntityDeltaBatch pkt)
     {
@@ -423,13 +505,33 @@ public sealed partial class NalixMultiplayerSession
         }
 
         ItemSlot previous = _inventory.GetSlot(pkt.SlotIndex);
-        ItemSlot next = pkt.ItemId == 0 || pkt.Count <= 0
+        ItemSlot rawNext = pkt.ItemId == 0 || pkt.Count <= 0
             ? ItemSlot.Empty
             : new ItemSlot(pkt.ItemId, pkt.Count, 0UL, pkt.Durability);
+        ItemSlot next = rawNext.IsEmpty
+            ? ItemSlot.Empty
+            : ItemEnhancementPolicy.WithUpgradeLevel(in rawNext, pkt.UpgradeLevel);
         _inventory.SetSlot(pkt.SlotIndex, in next);
 
         if (_inventoryLoaded && next.ItemId != 0 && next.Quantity > 0)
         {
+            byte prevUpg = ItemEnhancementPolicy.GetUpgradeLevel(in previous);
+            if (previous.ItemId == next.ItemId && pkt.UpgradeLevel > prevUpg)
+            {
+                string forgeMsg = $"+{pkt.UpgradeLevel} {StarterGameCatalog.GetDisplayName(next.ItemId)} Forged!";
+                lock (_worldGate)
+                {
+                    _combatEvents.Add(new ClientCombatEvent(
+                        this.LocalPlayerInterpolatedPosition + new Vector2(0f, -14f),
+                        pkt.UpgradeLevel,
+                        IsCritical: true,
+                        IsHeal: true,
+                        Label: forgeMsg));
+                    _hudNotifications.Add(forgeMsg);
+                }
+
+                return;
+            }
             int gained = previous.ItemId == next.ItemId
                 ? Math.Max(0, next.Quantity - previous.Quantity)
                 : next.Quantity;
@@ -601,6 +703,14 @@ public sealed partial class NalixMultiplayerSession
         public float Radius { get; init; }
         public float CurrentHealth { get; set; }
         public float MaxHealth { get; init; }
+        public ushort EquippedHeadId { get; set; }
+        public ushort EquippedChestId { get; set; }
+        public ushort EquippedLegsId { get; set; }
+        public ushort EquippedFeetId { get; set; }
+        public ushort EquippedWeaponId { get; set; }
+        public ushort Level { get; set; } = 1;
+        public int LootCount { get; init; }
+        public byte WeaponUpgradeLevel { get; set; }
         public SnapshotInterpolationBuffer Interpolation { get; } = new(16);
     }
 }

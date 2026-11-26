@@ -1439,6 +1439,82 @@
         }
       ]
     },
+    "cast": {
+      "duration": 0.34,
+      "loop": false,
+      "tracks": [
+        {
+          "t": 0.0,
+          "bones": {
+            "body": {
+              "dy": 1.0,
+              "rotDeg": -6.0
+            },
+            "armFront": {
+              "rotDeg": -45.0,
+              "dy": -1.5
+            },
+            "armBack": {
+              "rotDeg": 45.0,
+              "dy": -1.5
+            },
+            "cape": {
+              "rotDeg": -8.0
+            }
+          }
+        },
+        {
+          "t": 0.45,
+          "bones": {
+            "body": {
+              "dy": -1.8,
+              "rotDeg": 4.0
+            },
+            "head": {
+              "dy": -1.6
+            },
+            "headgear": {
+              "dy": -1.6
+            },
+            "armFront": {
+              "rotDeg": -125.0,
+              "dy": -2.0
+            },
+            "armBack": {
+              "rotDeg": 125.0,
+              "dy": -2.0
+            },
+            "cape": {
+              "rotDeg": 18.0
+            }
+          }
+        },
+        {
+          "t": 1.0,
+          "bones": {
+            "body": {
+              "dy": 0.0,
+              "rotDeg": 0.0
+            },
+            "head": {
+              "dy": 0.0
+            },
+            "headgear": {
+              "dy": 0.0
+            },
+            "armFront": {
+              "rotDeg": 0.0
+            },
+            "armBack": {
+              "rotDeg": 0.0
+            },
+            "cape": {
+              "rotDeg": 0.0
+            }
+          }
+        }
+      ]
+    },
     "chop": {
       "duration": 0.3,
       "loop": false,

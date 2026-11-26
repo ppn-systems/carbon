@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "itemId": 15,
+  "id": "leather_greaves",
+  "displayName": "Leather Greaves",
+  "tier": 1,
+  "categoryLabel": "Leg Armor",
+  "accentColor": "#B45309",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -6.0,
+      "y": -6.2,
+      "w": 12.0,
+      "h": 3.2,
+      "color": "#78350F",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": -3.2,
+      "y": -3.5,
+      "x2": -3.8,
+      "y2": 6.2,
+      "thickness": 4.0,
+      "color": "#92400E",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": 3.2,
+      "y": -3.5,
+      "x2": 3.8,
+      "y2": 6.2,
+      "thickness": 4.0,
+      "color": "#B45309",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -5.0,
+      "y": 1.0,
+      "w": 3.6,
+      "h": 1.6,
+      "color": "#D97706"
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": 1.4,
+      "y": 1.0,
+      "w": 3.6,
+      "h": 1.6,
+      "color": "#D97706"
+    }
+  ]
+}

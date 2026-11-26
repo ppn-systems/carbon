@@ -3,31 +3,31 @@
   "characters": [
     {
       "preset": 0,
-      "id": "ranger",
-      "title": "Forest Ranger",
+      "id": "base_hero_0",
+      "title": "Adventurer A",
       "accentColor": "#38BDF8",
-      "file": "characters/ranger.cvg.json"
+      "file": "characters/base_hero.cvg.json"
     },
     {
       "preset": 1,
-      "id": "knight",
-      "title": "Vanguard Knight",
+      "id": "base_hero_1",
+      "title": "Adventurer B",
       "accentColor": "#F87171",
-      "file": "characters/knight.cvg.json"
+      "file": "characters/base_hero.cvg.json"
     },
     {
       "preset": 2,
-      "id": "scholar",
-      "title": "Arcane Scholar",
+      "id": "base_hero_2",
+      "title": "Adventurer C",
       "accentColor": "#C084FC",
-      "file": "characters/scholar.cvg.json"
+      "file": "characters/base_hero.cvg.json"
     },
     {
       "preset": 3,
-      "id": "artisan",
-      "title": "Forge Artisan",
+      "id": "base_hero_3",
+      "title": "Adventurer D",
       "accentColor": "#FACC15",
-      "file": "characters/artisan.cvg.json"
+      "file": "characters/base_hero.cvg.json"
     }
   ],
   "monsters": [
@@ -190,6 +190,94 @@
       "tier": 3,
       "accentColor": "#22D3EE",
       "file": "items/crystal_pickaxe.cvg.json"
+    },
+    {
+      "itemId": 13,
+      "id": "leather_cap",
+      "displayName": "Leather Cap",
+      "tier": 1,
+      "accentColor": "#D97706",
+      "file": "items/leather_cap.cvg.json"
+    },
+    {
+      "itemId": 14,
+      "id": "leather_tunic",
+      "displayName": "Leather Tunic",
+      "tier": 1,
+      "accentColor": "#D97706",
+      "file": "items/leather_tunic.cvg.json"
+    },
+    {
+      "itemId": 15,
+      "id": "leather_greaves",
+      "displayName": "Leather Greaves",
+      "tier": 1,
+      "accentColor": "#B45309",
+      "file": "items/leather_greaves.cvg.json"
+    },
+    {
+      "itemId": 16,
+      "id": "leather_boots",
+      "displayName": "Leather Boots",
+      "tier": 1,
+      "accentColor": "#92400E",
+      "file": "items/leather_boots.cvg.json"
+    },
+    {
+      "itemId": 17,
+      "id": "iron_helmet",
+      "displayName": "Iron Helmet",
+      "tier": 2,
+      "accentColor": "#CBD5E1",
+      "file": "items/iron_helmet.cvg.json"
+    },
+    {
+      "itemId": 18,
+      "id": "iron_chestplate",
+      "displayName": "Iron Chestplate",
+      "tier": 2,
+      "accentColor": "#94A3B8",
+      "file": "items/iron_chestplate.cvg.json"
+    },
+    {
+      "itemId": 19,
+      "id": "iron_leggings",
+      "displayName": "Iron Leggings",
+      "tier": 2,
+      "accentColor": "#64748B",
+      "file": "items/iron_leggings.cvg.json"
+    },
+    {
+      "itemId": 20,
+      "id": "iron_boots",
+      "displayName": "Iron Boots",
+      "tier": 2,
+      "accentColor": "#94A3B8",
+      "file": "items/iron_boots.cvg.json"
+    },
+    {
+      "itemId": 21,
+      "id": "crystal_crown",
+      "displayName": "Crystal Crown",
+      "tier": 3,
+      "accentColor": "#22D3EE",
+      "file": "items/crystal_crown.cvg.json"
+    },
+    {
+      "itemId": 22,
+      "id": "crystal_robe",
+      "displayName": "Crystal Robe",
+      "tier": 3,
+      "accentColor": "#38BDF8",
+      "file": "items/crystal_robe.cvg.json"
+    },
+    {
+      "itemId": 23,
+      "id": "mana_tonic",
+      "displayName": "Mana Tonic",
+      "tier": 1,
+      "accentColor": "#38BDF8",
+      "file": "items/mana_tonic.cvg.json"
     }
   ]
 }
