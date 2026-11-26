@@ -179,11 +179,12 @@ public sealed class OfflineWorldSession : IClientWorldSession
     }
 
     /// <inheritdoc/>
-    public void TriggerPrimaryAction(Vector2 aimWorldPosition)
+    public bool TriggerPrimaryAction(Vector2 aimWorldPosition, out (int ChunkX, int ChunkY) invalidatedChunk)
     {
+        invalidatedChunk = default;
         if (!this.IsReady)
         {
-            return;
+            return false;
         }
 
         Vector2 playerPos = _simulation!.Entities.GetTransform(_localPlayer).Position;
@@ -193,12 +194,13 @@ public sealed class OfflineWorldSession : IClientWorldSession
         ulong tick = _simulation.Clock.TickCount;
         if (!_cooldowns.IsReady(PrimaryActionAbilityId, tick))
         {
-            return;
+            return false;
         }
 
         _cooldowns.StartCooldown(PrimaryActionAbilityId, tick, 16U);
 
         ItemSlot activeSlot = _inventory.GetSlot(_selectedSlot);
+        bool hasArchetype = StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? archetype);
         if (activeSlot.ItemId == StarterGameCatalog.BerryHerb && activeSlot.Quantity > 0 && _simulation.Entities.HasHealth(_localPlayer))
         {
             HealthComponent hp = _simulation.Entities.GetHealth(_localPlayer);
@@ -208,8 +210,15 @@ public sealed class OfflineWorldSession : IClientWorldSession
                 _simulation.Entities.SetHealth(_localPlayer, new HealthComponent(nextHp, hp.Max));
                 _inventory.SetSlot(_selectedSlot, activeSlot.Quantity > 1 ? activeSlot with { Quantity = activeSlot.Quantity - 1 } : ItemSlot.Empty);
                 _combatEvents.Add(new ClientCombatEvent(playerPos, 25f, false, true, "+25 HP"));
-                return;
+                return false;
             }
+        }
+
+        int aimTx = (int)MathF.Floor(aimWorldPosition.X / _options.TileSize);
+        int aimTy = (int)MathF.Floor(aimWorldPosition.Y / _options.TileSize);
+        if (activeSlot.Quantity > 0 && hasArchetype && archetype is { Category: ItemCategory.Placeable })
+        {
+            return this.TryPlaceSelectedStructure(playerPos, activeSlot, archetype, aimTx, aimTy, out invalidatedChunk);
         }
 
         _attackSwingTimer = 0.22f;
@@ -265,6 +274,136 @@ public sealed class OfflineWorldSession : IClientWorldSession
                 _simulation.DespawnEntity(target);
             }
         }
+
+        if (hitCount == 0 && activeSlot.Quantity > 0 && hasArchetype && archetype is { Category: ItemCategory.Tool })
+        {
+            return this.TryHarvestAimedProp(playerPos, aimTx, aimTy, archetype.HarvestTier, tick + 300UL, out invalidatedChunk);
+        }
+
+        return false;
+    }
+
+    private bool TryPlaceSelectedStructure(
+        Vector2 playerPos,
+        ItemSlot activeSlot,
+        ItemArchetype archetype,
+        int aimTx,
+        int aimTy,
+        out (int ChunkX, int ChunkY) invalidatedChunk)
+    {
+        invalidatedChunk = default;
+        StructureType st = (StructureType)archetype.PlaceableStructureType;
+        if (st == StructureType.None)
+        {
+            return false;
+        }
+
+        float maxRange = 5.5f * _options.TileSize;
+        float maxRangeSq = maxRange * maxRange;
+        Vector2 tileCenter = new((aimTx + 0.5f) * _options.TileSize, (aimTy + 0.5f) * _options.TileSize);
+        if (Vector2.DistanceSquared(playerPos, tileCenter) > maxRangeSq)
+        {
+            return false;
+        }
+
+        int ptx = (int)MathF.Floor(playerPos.X / _options.TileSize);
+        int pty = (int)MathF.Floor(playerPos.Y / _options.TileSize);
+        if ((st is StructureType.WoodWall or StructureType.StoneWall) && aimTx == ptx && aimTy == pty)
+        {
+            return false;
+        }
+
+        MapTile tile = _chunkWorld!.GetTileAtWorld(aimTx, aimTy);
+        bool hasProp = _chunkWorld.HasSolidPropAt(aimTx, aimTy);
+        if (_chunkWorld.Buildings.TryPlaceStructure(aimTx, aimTy, st, tile.Biome, hasProp, out _) != PlacementValidationResult.Success)
+        {
+            return false;
+        }
+
+        _inventory.SetSlot(_selectedSlot, activeSlot.Quantity > 1 ? activeSlot with { Quantity = activeSlot.Quantity - 1 } : ItemSlot.Empty);
+        _combatEvents.Add(new ClientCombatEvent(tileCenter, 1f, false, true, $"Placed {StarterGameCatalog.GetDisplayName(activeSlot.ItemId)}"));
+        invalidatedChunk = (Chunk2D.ToChunkCoord(aimTx), Chunk2D.ToChunkCoord(aimTy));
+        return true;
+    }
+
+    private bool TryHarvestAimedProp(
+        Vector2 playerPos,
+        int aimTx,
+        int aimTy,
+        byte tier,
+        ulong respawnAt,
+        out (int ChunkX, int ChunkY) invalidatedChunk)
+    {
+        invalidatedChunk = default;
+        float maxRange = 5.5f * _options.TileSize;
+        float maxRangeSq = maxRange * maxRange;
+
+        if (this.TryDamageOfflineProp(playerPos, maxRangeSq, aimTx, aimTy, tier, respawnAt, out invalidatedChunk))
+        {
+            return true;
+        }
+
+        for (int dy = -1; dy <= 1; dy++)
+        {
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                if (dx == 0 && dy == 0)
+                {
+                    continue;
+                }
+
+                if (this.TryDamageOfflineProp(playerPos, maxRangeSq, aimTx + dx, aimTy + dy, tier, respawnAt, out invalidatedChunk))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private bool TryDamageOfflineProp(
+        Vector2 playerPos,
+        float maxRangeSq,
+        int wx,
+        int wy,
+        byte tier,
+        ulong respawnAt,
+        out (int ChunkX, int ChunkY) modifiedChunk)
+    {
+        modifiedChunk = default;
+        Vector2 tileCenter = new((wx + 0.5f) * _options.TileSize, (wy + 0.5f) * _options.TileSize);
+        if (Vector2.DistanceSquared(playerPos, tileCenter) > maxRangeSq)
+        {
+            return false;
+        }
+
+        if (!_chunkWorld!.TryDamagePropAt(wx, wy, 50f, tier, respawnAt, out MapProp updated))
+        {
+            return false;
+        }
+
+        modifiedChunk = (Chunk2D.ToChunkCoord(wx), Chunk2D.ToChunkCoord(wy));
+        if (updated.Destructibility.IsDestroyed)
+        {
+            ItemSlot drop = ResolvePropDrop(updated.Type);
+            if (!drop.IsEmpty)
+            {
+                _ = _inventory.TryAdd(in drop, StarterGameCatalog.GetMaxStackSize(drop.ItemId));
+                _combatEvents.Add(new ClientCombatEvent(
+                    updated.WorldPosition,
+                    drop.Quantity,
+                    false,
+                    true,
+                    $"+{drop.Quantity} {StarterGameCatalog.GetDisplayName(drop.ItemId)}"));
+            }
+        }
+        else
+        {
+            _combatEvents.Add(new ClientCombatEvent(updated.WorldPosition, 50f, false, false));
+        }
+
+        return true;
     }
 
     /// <inheritdoc/>

@@ -19,12 +19,17 @@ public sealed class InputManager : IInputManager, IDisposable
     private readonly IKeyboard? _keyboard;
     private readonly IMouse? _mouse;
 
+    private readonly bool[] _liveKeys = new bool[MaxKeys];
+    private readonly bool[] _pressedKeyLatch = new bool[MaxKeys];
     private readonly bool[] _currentKeys = new bool[MaxKeys];
     private readonly bool[] _previousKeys = new bool[MaxKeys];
 
+    private readonly bool[] _liveButtons = new bool[MaxMouseButtons];
+    private readonly bool[] _pressedButtonLatch = new bool[MaxMouseButtons];
     private readonly bool[] _currentButtons = new bool[MaxMouseButtons];
     private readonly bool[] _previousButtons = new bool[MaxMouseButtons];
 
+    private Vector2 _liveMousePos;
     private Vector2 _currentMousePos;
     private Vector2 _previousMousePos;
     private Vector2 _accumulatedScroll;
@@ -64,7 +69,8 @@ public sealed class InputManager : IInputManager, IDisposable
             _mouse.MouseUp += this.OnMouseUp;
             _mouse.MouseMove += this.OnMouseMove;
             _mouse.Scroll += this.OnMouseScroll;
-            _currentMousePos = new Vector2(_mouse.Position.X, _mouse.Position.Y);
+            _liveMousePos = new Vector2(_mouse.Position.X, _mouse.Position.Y);
+            _currentMousePos = _liveMousePos;
             _previousMousePos = _currentMousePos;
         }
 
@@ -78,17 +84,30 @@ public sealed class InputManager : IInputManager, IDisposable
     /// </summary>
     public void Update()
     {
-        // Copy current to previous
+        // Shift the previous frame's snapshot state before latching incoming events
         Array.Copy(_currentKeys, _previousKeys, MaxKeys);
         Array.Copy(_currentButtons, _previousButtons, MaxMouseButtons);
+        _previousMousePos = _currentMousePos;
+
+        for (int i = 0; i < MaxKeys; i++)
+        {
+            _currentKeys[i] = _liveKeys[i] || _pressedKeyLatch[i];
+            _pressedKeyLatch[i] = false;
+        }
+
+        for (int i = 0; i < MaxMouseButtons; i++)
+        {
+            _currentButtons[i] = _liveButtons[i] || _pressedButtonLatch[i];
+            _pressedButtonLatch[i] = false;
+        }
+
+        _currentMousePos = _liveMousePos;
 
         Vector2 scrollDelta = _accumulatedScroll;
         _accumulatedScroll = Vector2.Zero;
 
         _keyboardSnapshot = new KeyboardSnapshot(_currentKeys, _previousKeys);
         _mouseSnapshot = new MouseSnapshot(_currentMousePos, _previousMousePos, scrollDelta, _currentButtons, _previousButtons);
-
-        _previousMousePos = _currentMousePos;
     }
 
     /// <inheritdoc/>
@@ -114,7 +133,8 @@ public sealed class InputManager : IInputManager, IDisposable
         int idx = (int)key;
         if (idx >= 0 && idx < MaxKeys)
         {
-            _currentKeys[idx] = true;
+            _liveKeys[idx] = true;
+            _pressedKeyLatch[idx] = true;
         }
     }
 
@@ -123,7 +143,7 @@ public sealed class InputManager : IInputManager, IDisposable
         int idx = (int)key;
         if (idx >= 0 && idx < MaxKeys)
         {
-            _currentKeys[idx] = false;
+            _liveKeys[idx] = false;
         }
     }
 
@@ -135,7 +155,8 @@ public sealed class InputManager : IInputManager, IDisposable
         int idx = (int)button;
         if (idx >= 0 && idx < MaxMouseButtons)
         {
-            _currentButtons[idx] = true;
+            _liveButtons[idx] = true;
+            _pressedButtonLatch[idx] = true;
         }
     }
 
@@ -144,12 +165,12 @@ public sealed class InputManager : IInputManager, IDisposable
         int idx = (int)button;
         if (idx >= 0 && idx < MaxMouseButtons)
         {
-            _currentButtons[idx] = false;
+            _liveButtons[idx] = false;
         }
     }
 
     private void OnMouseMove(IMouse mouse, Vector2 position) =>
-        _currentMousePos = position;
+        _liveMousePos = position;
 
     private void OnMouseScroll(IMouse mouse, ScrollWheel wheel) =>
         _accumulatedScroll += new Vector2(wheel.X, wheel.Y);

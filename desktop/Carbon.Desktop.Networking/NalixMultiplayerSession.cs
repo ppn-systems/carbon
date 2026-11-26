@@ -22,6 +22,7 @@ using Carbon.Desktop.Abstractions;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
+using Carbon.Items.Definitions;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
@@ -376,17 +377,24 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
     }
 
     /// <inheritdoc/>
-    public void TriggerPrimaryAction(Vector2 aimWorldPosition)
+    public bool TriggerPrimaryAction(Vector2 aimWorldPosition, out (int ChunkX, int ChunkY) invalidatedChunk)
     {
+        invalidatedChunk = default;
         if (!this.IsReady || _session is not { IsConnected: true })
         {
-            return;
+            return false;
         }
 
         Vector2 pos = this.LocalPlayerInterpolatedPosition;
         Vector2 delta = aimWorldPosition - pos;
         _lastAttackDir = delta.LengthSquared() > 1e-4f ? Vector2.Normalize(delta) : Vector2.UnitX;
-        _attackSwingTimer = 0.22f;
+
+        ItemSlot activeSlot = _inventory.GetSlot(_selectedSlot);
+        bool hasArchetype = StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? archetype);
+        if (!hasArchetype || archetype is null || archetype.Category is not (ItemCategory.Placeable or ItemCategory.Consumable))
+        {
+            _attackSwingTimer = 0.22f;
+        }
 
         uint tick = _clientTick;
         byte slot = _selectedSlot;
@@ -398,6 +406,16 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
             p.AimY = aimWorldPosition.Y;
             p.AbilitySlot = slot;
         });
+
+        if (activeSlot.Quantity > 0 && hasArchetype && archetype is { Category: ItemCategory.Placeable or ItemCategory.Tool })
+        {
+            int aimTx = (int)MathF.Floor(aimWorldPosition.X / _tileSize);
+            int aimTy = (int)MathF.Floor(aimWorldPosition.Y / _tileSize);
+            invalidatedChunk = (Chunk2D.ToChunkCoord(aimTx), Chunk2D.ToChunkCoord(aimTy));
+            return true;
+        }
+
+        return false;
     }
 
     /// <inheritdoc/>

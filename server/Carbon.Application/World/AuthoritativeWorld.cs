@@ -82,6 +82,8 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
     private readonly List<EntityDeltaEntry> _flatDeltaEntries = new(512);
     private readonly List<OutboundCombatHit> _pendingCombatHits = new(32);
     private readonly List<OutboundSlotChange> _pendingSlotChanges = new(32);
+    private readonly List<OutboundPropChange> _pendingPropChanges = new(16);
+    private readonly List<OutboundStructureChange> _pendingStructureChanges = new(16);
     private readonly List<ulong> _flatRecipients = new(256);
     private readonly List<ulong> _aoiRecipientsScratch = new(64);
     private readonly List<Entity> _dirtyResetScratch = new(256);
@@ -681,6 +683,8 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
             _flatDeltaEntries.Clear();
             _pendingCombatHits.Clear();
             _pendingSlotChanges.Clear();
+            _pendingPropChanges.Clear();
+            _pendingStructureChanges.Clear();
             _flatRecipients.Clear();
             _dirtyResetScratch.Clear();
 
@@ -860,6 +864,31 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
                 change.Slot.Quantity,
                 change.Slot.Durability);
         }
+
+        for (int i = 0; i < _pendingPropChanges.Count; i++)
+        {
+            OutboundPropChange prop = _pendingPropChanges[i];
+            _outboundSink.SendPropChanged(
+                recipientsSpan.Slice(prop.RecipientsOffset, prop.RecipientsCount),
+                prop.TileX,
+                prop.TileY,
+                prop.Revision,
+                prop.Durability,
+                prop.IsDestroyed);
+        }
+
+        for (int i = 0; i < _pendingStructureChanges.Count; i++)
+        {
+            OutboundStructureChange st = _pendingStructureChanges[i];
+            _outboundSink.SendStructureChanged(
+                recipientsSpan.Slice(st.RecipientsOffset, st.RecipientsCount),
+                st.TileX,
+                st.TileY,
+                st.StructureType,
+                st.Durability,
+                st.DoorState,
+                st.Connectivity);
+        }
     }
 
     /// <inheritdoc/>
@@ -932,6 +961,7 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
         ItemSlot activeSlot = state.Session.SelectedHotbarSlot < state.Inventory.Capacity
             ? state.Inventory.GetSlot(state.Session.SelectedHotbarSlot)
             : ItemSlot.Empty;
+        bool hasArchetype = StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? archetype);
 
         // Consumable quick-use on primary action (Berry Herb heals +25 HP).
         if (activeSlot.ItemId == StarterGameCatalog.BerryHerb &&
@@ -965,6 +995,14 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
         }
 
         Vector2 attackerPos = _simulation.Entities.GetTransform(state.Entity).Position;
+
+        // Placeable quick-build on primary action (Wood/Stone wall & door kits).
+        if (activeSlot.Quantity > 0 && hasArchetype && archetype is { Category: ItemCategory.Placeable })
+        {
+            this.ProcessPlaceablePrimaryActionLocked(state, attackerPos, activeSlot, archetype);
+            return;
+        }
+
         Vector2 rawAim = state.PendingAttackAim - attackerPos;
         Vector2 aimDir = rawAim.LengthSquared() > 1e-4f ? Vector2.Normalize(rawAim) : Vector2.UnitX;
 
@@ -988,6 +1026,12 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
         {
             _combatHitScratch[0] = explicitTarget;
             hitCount = 1;
+        }
+
+        if (hitCount == 0 && activeSlot.Quantity > 0 && hasArchetype && archetype is { Category: ItemCategory.Tool })
+        {
+            this.ProcessToolHarvestFallbackLocked(state, archetype.HarvestTier);
+            return;
         }
 
         float baseDamage = StarterGameCatalog.GetWeaponBaseDamage(activeSlot.ItemId);
@@ -1048,6 +1092,163 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
                 isCrit,
                 killed);
         }
+    }
+
+    private void ProcessPlaceablePrimaryActionLocked(
+        ActivePlayerState state,
+        Vector2 attackerPos,
+        ItemSlot activeSlot,
+        ItemArchetype archetype)
+    {
+        StructureType structureType = (StructureType)archetype.PlaceableStructureType;
+        if (structureType == StructureType.None)
+        {
+            return;
+        }
+
+        int ptx = (int)MathF.Floor(attackerPos.X / this.TileSize);
+        int pty = (int)MathF.Floor(attackerPos.Y / this.TileSize);
+        int aimTx = (int)MathF.Floor(state.PendingAttackAim.X / this.TileSize);
+        int aimTy = (int)MathF.Floor(state.PendingAttackAim.Y / this.TileSize);
+
+        if (!this.IsWithinInteractRangeLocked(state.Entity, aimTx, aimTy))
+        {
+            return;
+        }
+
+        // Prevent solid walls from trapping the player on their own occupied tile.
+        if ((structureType is StructureType.WoodWall or StructureType.StoneWall) && aimTx == ptx && aimTy == pty)
+        {
+            return;
+        }
+
+        MapTile tile = _chunkWorld.GetTileAtWorld(aimTx, aimTy);
+        bool hasProp = _chunkWorld.HasSolidPropAt(aimTx, aimTy);
+        if (_chunkWorld.Buildings.TryPlaceStructure(aimTx, aimTy, structureType, tile.Biome, hasProp, out StructureTile placed)
+            != PlacementValidationResult.Success)
+        {
+            return;
+        }
+
+        ItemSlot updatedSlot = activeSlot.Quantity > 1
+            ? activeSlot with { Quantity = activeSlot.Quantity - 1 }
+            : ItemSlot.Empty;
+        state.Inventory.SetSlot(state.Session.SelectedHotbarSlot, in updatedSlot);
+        _pendingSlotChanges.Add(new OutboundSlotChange(state.Session.ConnectionId, state.Session.SelectedHotbarSlot, updatedSlot));
+        this.MarkCharacterDirtyLocked(state);
+
+        int cx = Chunk2D.ToChunkCoord(aimTx);
+        int cy = Chunk2D.ToChunkCoord(aimTy);
+        _ = _dirtyChunks.Add(Chunk2D.PackKey(cx, cy));
+
+        (int offset, int count) = this.AppendTileRecipientsLocked(aimTx, aimTy);
+        if (count > 0)
+        {
+            _pendingStructureChanges.Add(new OutboundStructureChange(
+                offset,
+                count,
+                aimTx,
+                aimTy,
+                (byte)placed.Type,
+                placed.CurrentDurability,
+                (byte)placed.DoorState,
+                (byte)placed.Connectivity));
+        }
+    }
+
+    private void ProcessToolHarvestFallbackLocked(ActivePlayerState state, byte harvestTier)
+    {
+        int aimTx = (int)MathF.Floor(state.PendingAttackAim.X / this.TileSize);
+        int aimTy = (int)MathF.Floor(state.PendingAttackAim.Y / this.TileSize);
+        ulong respawnAt = _currentTick + (ulong)(this.TickRate * 30);
+
+        if (this.TryDamagePropAndQueueLocked(state, aimTx, aimTy, harvestTier, respawnAt))
+        {
+            return;
+        }
+
+        for (int dy = -1; dy <= 1; dy++)
+        {
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                if (dx == 0 && dy == 0)
+                {
+                    continue;
+                }
+
+                if (this.TryDamagePropAndQueueLocked(state, aimTx + dx, aimTy + dy, harvestTier, respawnAt))
+                {
+                    return;
+                }
+            }
+        }
+    }
+
+    private bool TryDamagePropAndQueueLocked(
+        ActivePlayerState state,
+        int wx,
+        int wy,
+        byte harvestTier,
+        ulong respawnAt)
+    {
+        if (!this.IsWithinInteractRangeLocked(state.Entity, wx, wy))
+        {
+            return false;
+        }
+
+        if (!_chunkWorld.TryDamagePropAt(wx, wy, 50f, harvestTier, respawnAt, out MapProp updated))
+        {
+            return false;
+        }
+
+        int cx = Chunk2D.ToChunkCoord(wx);
+        int cy = Chunk2D.ToChunkCoord(wy);
+        _ = _dirtyChunks.Add(Chunk2D.PackKey(cx, cy));
+        uint revision = _chunkWorld.TryGetDelta(cx, cy, out ChunkDelta? delta) && delta is not null
+            ? delta.Revision
+            : 0U;
+
+        if (updated.Destructibility.IsDestroyed)
+        {
+            ItemSlot drop = ResolvePropDrop(updated.Type);
+            if (!drop.IsEmpty)
+            {
+                int beforeCount = _pendingSlotChanges.Count;
+                AddPendingSlotLoot(state.Inventory, in drop, state.Session.ConnectionId, _pendingSlotChanges);
+                if (_pendingSlotChanges.Count > beforeCount)
+                {
+                    this.MarkCharacterDirtyLocked(state);
+                }
+            }
+        }
+
+        (int offset, int count) = this.AppendTileRecipientsLocked(wx, wy);
+        if (count > 0)
+        {
+            _pendingPropChanges.Add(new OutboundPropChange(
+                offset,
+                count,
+                wx,
+                wy,
+                revision,
+                updated.Destructibility.CurrentDurability,
+                updated.Destructibility.IsDestroyed));
+        }
+
+        return true;
+    }
+
+    private (int Offset, int Count) AppendTileRecipientsLocked(int tileX, int tileY)
+    {
+        this.CollectNearbyConnectionsLocked(tileX, tileY, _aoiRecipientsScratch);
+        int offset = _flatRecipients.Count;
+        int count = _aoiRecipientsScratch.Count;
+        for (int i = 0; i < count; i++)
+        {
+            _flatRecipients.Add(_aoiRecipientsScratch[i]);
+        }
+
+        return (offset, count);
     }
 
     private void ProcessAiAttacksLocked()
@@ -1632,4 +1833,23 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
         ulong ConnectionId,
         ushort SlotIndex,
         ItemSlot Slot);
+
+    private readonly record struct OutboundPropChange(
+        int RecipientsOffset,
+        int RecipientsCount,
+        int TileX,
+        int TileY,
+        uint Revision,
+        float Durability,
+        bool IsDestroyed);
+
+    private readonly record struct OutboundStructureChange(
+        int RecipientsOffset,
+        int RecipientsCount,
+        int TileX,
+        int TileY,
+        byte StructureType,
+        float Durability,
+        byte DoorState,
+        byte Connectivity);
 }

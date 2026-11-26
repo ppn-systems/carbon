@@ -40,6 +40,7 @@ public sealed class WorldGameplayScene : GameScene
     private byte _lastHeight = 255;
     private StructureType _lastStructure = StructureType.None;
     private (int X, int Y) _lastChunk = (int.MinValue, int.MinValue);
+    private Vector2 _lastMoveDirection = Vector2.UnitX;
     private int _frameCount;
     private bool _hasAutoCaptured;
 
@@ -114,6 +115,17 @@ public sealed class WorldGameplayScene : GameScene
             _hudRenderer.ShowCraftingPanel = !_hudRenderer.ShowCraftingPanel;
         }
 
+        if (input.MoveDirection.LengthSquared() > 1e-4f)
+        {
+            _lastMoveDirection = Vector2.Normalize(input.MoveDirection);
+        }
+
+        if (input.ScrollSlotDelta != 0)
+        {
+            int nextSlot = (((_session.SelectedHotbarSlot + input.ScrollSlotDelta) % 9) + 9) % 9;
+            _session.SelectHotbarSlot((byte)nextSlot);
+        }
+
         if (input.NumberSlotPressed is byte slotIdx)
         {
             if (_hudRenderer.ShowCraftingPanel && slotIdx < 6)
@@ -126,11 +138,34 @@ public sealed class WorldGameplayScene : GameScene
             }
         }
 
-        if (input.AttackPressed)
+        if (input.LeftClickPressed)
         {
             Vector2 mouseScreen = input.MouseScreenPosition;
-            Vector2 aimWorld = _camera.ScreenToWorld(in mouseScreen);
-            _session.TriggerPrimaryAction(aimWorld);
+            if (_hudRenderer.TryHitTestHotbar(mouseScreen, context.WindowWidth, context.WindowHeight, out byte hotbarSlot))
+            {
+                _session.SelectHotbarSlot(hotbarSlot);
+            }
+            else if (_hudRenderer.TryHitTestCraftingRecipe(mouseScreen, context.WindowWidth, context.WindowHeight, out ushort craftRecipeId))
+            {
+                _ = _session.TryCraftRecipe(craftRecipeId);
+            }
+            else if (!_hudRenderer.IsPointInCraftingPanel(mouseScreen, context.WindowWidth, context.WindowHeight))
+            {
+                Vector2 aimWorld = _camera.ScreenToWorld(in mouseScreen);
+                if (_session.TriggerPrimaryAction(aimWorld, out (int ChunkX, int ChunkY) clickChunk))
+                {
+                    _worldRenderer.InvalidateChunk(clickChunk.ChunkX, clickChunk.ChunkY);
+                }
+            }
+        }
+
+        if (input.SpaceActionPressed)
+        {
+            Vector2 spaceAim = _session.LocalPlayerInterpolatedPosition + (_lastMoveDirection * (_session.ChunkWorld.TileSize * 1.25f));
+            if (_session.TriggerPrimaryAction(spaceAim, out (int ChunkX, int ChunkY) spaceChunk))
+            {
+                _worldRenderer.InvalidateChunk(spaceChunk.ChunkX, spaceChunk.ChunkY);
+            }
         }
 
         if (input.ToggleDebugPressed)

@@ -71,6 +71,105 @@ public sealed class HudOverlayRenderer : IDisposable
     public bool Visible { get; set; } = true;
 
     /// <summary>
+    /// Hit-tests screen-space pointer coordinates against the 9 hotbar slots.
+    /// </summary>
+    /// <param name="mousePos">Pointer position in logical screen pixels.</param>
+    /// <param name="viewportWidth">Viewport width in pixels.</param>
+    /// <param name="viewportHeight">Viewport height in pixels.</param>
+    /// <param name="slotIndex">Resolved zero-based hotbar slot index (<c>0..8</c>).</param>
+    /// <returns><see langword="true"/> if a hotbar slot was hit; otherwise <see langword="false"/>.</returns>
+    public bool TryHitTestHotbar(Vector2 mousePos, int viewportWidth, int viewportHeight, out byte slotIndex)
+    {
+        slotIndex = 0;
+        if (!this.Visible || viewportWidth <= 0 || viewportHeight <= 0)
+        {
+            return false;
+        }
+
+        const int slotCount = 9;
+        const float slotSize = 48f;
+        const float gap = 5f;
+        const float totalW = (slotCount * slotSize) + ((slotCount - 1) * gap);
+        float startX = MathF.Floor((viewportWidth - totalW) * 0.5f);
+        float startY = viewportHeight - slotSize - 36f;
+
+        if (mousePos.Y < startY || mousePos.Y > startY + slotSize)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < slotCount; i++)
+        {
+            float sx = startX + (i * (slotSize + gap));
+            if (mousePos.X >= sx && mousePos.X <= sx + slotSize)
+            {
+                slotIndex = (byte)i;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Hit-tests screen-space pointer coordinates against rows inside the workbench crafting panel.
+    /// </summary>
+    /// <param name="mousePos">Pointer position in logical screen pixels.</param>
+    /// <param name="viewportWidth">Viewport width in pixels.</param>
+    /// <param name="viewportHeight">Viewport height in pixels.</param>
+    /// <param name="recipeId">Resolved starter recipe identifier.</param>
+    /// <returns><see langword="true"/> if a recipe row was hit; otherwise <see langword="false"/>.</returns>
+    public bool TryHitTestCraftingRecipe(Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort recipeId)
+    {
+        recipeId = 0;
+        if (!this.Visible || !this.ShowCraftingPanel || viewportWidth <= 0 || viewportHeight <= 0)
+        {
+            return false;
+        }
+
+        const float width = 560f;
+        const float height = 210f;
+        float x = MathF.Floor((viewportWidth - width) * 0.5f);
+        float y = viewportHeight - height - 102f;
+
+        if (mousePos.X < x + 12f || mousePos.X > x + width - 12f)
+        {
+            return false;
+        }
+
+        ReadOnlySpan<CraftingRecipe> recipes = StarterGameCatalog.Recipes.All;
+        for (int i = 0; i < recipes.Length; i++)
+        {
+            float rowTop = y + 36f + (i * 26f);
+            if (mousePos.Y >= rowTop && mousePos.Y < rowTop + 26f)
+            {
+                recipeId = (ushort)recipes[i].Id;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Returns whether <paramref name="mousePos"/> lies inside the expanded crafting workbench panel bounds.
+    /// </summary>
+    public bool IsPointInCraftingPanel(Vector2 mousePos, int viewportWidth, int viewportHeight)
+    {
+        if (!this.Visible || !this.ShowCraftingPanel || viewportWidth <= 0 || viewportHeight <= 0)
+        {
+            return false;
+        }
+
+        const float width = 560f;
+        const float height = 210f;
+        float x = MathF.Floor((viewportWidth - width) * 0.5f);
+        float y = viewportHeight - height - 102f;
+
+        return mousePos.X >= x && mousePos.X <= x + width && mousePos.Y >= y && mousePos.Y <= y + height;
+    }
+
+    /// <summary>
     /// Renders all screen-space HUD widgets for the current frame.
     /// </summary>
     public void Render(

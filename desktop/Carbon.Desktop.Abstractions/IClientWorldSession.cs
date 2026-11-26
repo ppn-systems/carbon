@@ -77,8 +77,13 @@ public interface IClientWorldSession : IAsyncDisposable
     /// <summary>Selects a hotbar slot (0..8) and updates active tool/weapon harvest tier.</summary>
     void SelectHotbarSlot(byte slotIndex);
 
-    /// <summary>Executes primary attack or consumable action aimed toward <paramref name="aimWorldPosition"/>.</summary>
-    void TriggerPrimaryAction(Vector2 aimWorldPosition);
+    /// <summary>
+    /// Executes primary attack, structure placement, tool harvest, or consumable action aimed toward <paramref name="aimWorldPosition"/>.
+    /// </summary>
+    /// <param name="aimWorldPosition">World-space aim coordinate.</param>
+    /// <param name="invalidatedChunk">Chunk coordinate whose terrain, prop, or structure visuals changed, if any.</param>
+    /// <returns><see langword="true"/> if chunk visuals should be invalidated; otherwise <see langword="false"/>.</returns>
+    bool TriggerPrimaryAction(Vector2 aimWorldPosition, out (int ChunkX, int ChunkY) invalidatedChunk);
 
     /// <summary>Attempts to craft one instance of <paramref name="recipeId"/>.</summary>
     bool TryCraftRecipe(ushort recipeId);
