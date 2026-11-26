@@ -38,15 +38,22 @@ public sealed class PriceBook
     /// Gets the unit price a vendor charges, or <c>-1</c> when vendors do not sell the item.
     /// </summary>
     /// <param name="itemId">Item id.</param>
+    /// <param name="buyerLevel">Buyer level; consumables are priced by <c>vendor.consumablePriceBands</c> (0 = base price).</param>
     /// <returns>Unit buy price.</returns>
-    public long GetBuyPrice(uint itemId)
+    public long GetBuyPrice(uint itemId, int buyerLevel = 0)
     {
         if (!this.Items.TryGet(itemId, out ItemCatalogEntry? item) || !item.VendorBuyable)
         {
             return -1;
         }
 
-        long price = CeilDiv(item.BasePrice * this.Config.Vendor.BuyMarkupPercent, 100);
+        long percent = this.Config.Vendor.BuyMarkupPercent;
+        if (item.Category == ItemCategory.Consumable)
+        {
+            percent = percent * this.Config.GetConsumablePricePercent(buyerLevel) / 100;
+        }
+
+        long price = CeilDiv(item.BasePrice * percent, 100);
         return item.BasePrice > 0 ? Math.Max(1, price) : 0;
     }
 
@@ -79,7 +86,8 @@ public sealed class PriceBook
         }
 
         long missingPermille = Math.Clamp((long)MathF.Ceiling(missing * 1000f / item.MaxDurability), 1L, 1000L);
-        long cost = CeilDiv(item.BasePrice * this.Config.Repair.CostPercentOfBasePrice * missingPermille, 100L * 1000L);
+        long percent = (long)this.Config.Repair.CostPercentOfBasePrice * this.Config.Repair.RarityMultiplierPercent.For(item.Rarity);
+        long cost = CeilDiv(item.BasePrice * percent * missingPermille, 100L * 100L * 1000L);
         return Math.Max(this.Config.Repair.MinimumCost, cost);
     }
 
@@ -144,10 +152,27 @@ public sealed class PriceBook
             _ => 0
         };
 
-        long proportional = recipe.Station == CraftingStation.None
-            ? 0
-            : this.GetOutputValue(recipe) * fees.OutputValueRateBps / 10_000;
-        return flat + proportional;
+        if (recipe.Station == CraftingStation.None)
+        {
+            return flat;
+        }
+
+        long proportional = this.GetOutputValue(recipe) * fees.OutputValueRateBps / 10_000;
+        return (flat + proportional) * fees.RarityMultiplierPercent.For(this.GetRarestOutput(recipe)) / 100;
+    }
+
+    private ItemRarity GetRarestOutput(CraftingRecipe recipe)
+    {
+        ItemRarity rarest = ItemRarity.Common;
+        for (int i = 0; i < recipe.OutputCount; i++)
+        {
+            if (this.Items.TryGet(recipe.GetOutput(i).ItemId, out ItemCatalogEntry? item) && item.Rarity > rarest)
+            {
+                rarest = item.Rarity;
+            }
+        }
+
+        return rarest;
     }
 
     private static long CeilDiv(long value, long divisor) => (value + divisor - 1) / divisor;
