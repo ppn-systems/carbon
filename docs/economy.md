@@ -278,8 +278,71 @@ Ids 1–39 keep the `StarterGameCatalog` ids and codes, and a test checks catego
 - `WalletSync` (S2C `0x1237`) pushes balances on world entry, after kills and after vendor operations. The HUD shows them next to the hotbar, using `resources/art/ui/coin.cvg.json` and `diamond.cvg.json`.
 - `VendorBuyItem` (`0x4007`) and `VendorSellItem` (`0x4008`) require a friendly town NPC within 175 px. `RepairInventoryItem` (`0x4009`) requires a forge station. All three reply with `MutationResult`.
 
-## 10. Changing the numbers
+## 10. Operator guide: changing the numbers
 
-1. Edit the JSON. The loaders reject unknown properties, unknown item codes, duplicate ids and out-of-range values with an `InvalidDataException` that names the file and field.
-2. Run `dotnet test tests/Carbon.Engine.Tests.slnx`. The simulation tests show the simulated gold/hour or diamonds/hour next to the design band it left, and `EconomyBalanceSimulatorTests` prints the faucet/sink table from §7.1 (use `--logger "console;verbosity=detailed"`).
-3. If the design intent changed, update `designTargets` and the tables in this document in the same PR.
+### 10.1 What to edit
+
+| Goal | Edit | Watch in the table |
+| :--- | :--- | :--- |
+| More or less gold income | `economy.json → gold` (`levelExponent`, `dropChancePercent`), or `goldBase`/`goldMax` per table in `loot.json` | Loot gold, net/h |
+| Item drop rates | `loot.json` entries (`weight`, `nothingWeight`, `min`/`max` quantities, `minLevel`) | Vendor sales |
+| Repair pressure | `repair.costPercentOfBasePrice`, `repair.rarityMultiplierPercent` | Repairs |
+| Station fees | `craftingFees` flat fees, `outputValueRateBps`, `rarityMultiplierPercent` | Station fees |
+| Consumable upkeep | `vendor.consumablePriceBands`, and `vendorBuyable` in `items.json` | Vendor buys |
+| Item value | `basePrice` in `items.json`. This moves sell price, repair cost and station fees at once. | All sinks |
+
+Rules the loaders enforce:
+- **Unknown fields fail.** Unknown properties, unknown item codes, duplicate ids and out-of-range values fail with an `InvalidDataException` that names the file and field. A typo never loads silently.
+- **No arbitrage.** `vendor.sellRatioPercent` must stay below `buyMarkupPercent`, and every consumable price band must be at least 100%, so buy-then-sell can never mint gold.
+- **No overlapping bands.** Consumable price bands must not overlap.
+
+### 10.2 Applying a change
+
+- **Restart or hot reload.** `economy.json`, `loot.json`, `items.json` and `recipes.json` hot-reload on a running server (ADR-014). The reload is atomic: a file that fails validation rejects the whole reload, and the old tables keep running. Changes to `structures.json`, `monsters.json` and `spawning.json` need a restart.
+- **Visibility to clients.** `economy.json` and `loot.json` are server-only, so clients never see prices or drop rates. `items.json` and `recipes.json` re-sync to clients.
+
+### 10.3 Running the balance simulator
+
+```bash
+export PATH=$HOME/.dotnet:$PATH
+dotnet test tests/engine/Carbon.Economy.Tests --filter "FullyQualifiedName~EconomyBalanceSimulatorTests" --logger "console;verbosity=detailed"
+```
+
+This prints the §7.1 table for 25 levels, plus the inflation slope. The run is deterministic (seed 2026), so two runs on the same config print the same numbers, and any difference comes from your edit.
+
+To check a change:
+1. Run the simulator before your edit.
+2. Run it again after.
+3. Compare the two tables.
+
+Use the whole suite, `dotnet test tests/engine/Carbon.Economy.Tests`, before opening a PR. It also checks:
+- gold/hour and diamond/hour per monster table (`EconomySimulationTests`, including the 1,000,000-kill diamond run);
+- config integrity: every code resolves and loot stays on theme;
+- the exact repair, fee and price rules.
+
+### 10.4 Reading a CI failure
+
+Each balance assertion names the metric, the level and the band. For example:
+
+```
+Expected r.SinkShare to be between 0.35 and 0.6 because sink share at level 24, but found 0.3412875...
+Expected r.Net to be between 200 and 1200 because net gold/hour at level 20, but found 1312.25.
+```
+
+| Failure | Usual cause | Fix |
+| :--- | :--- | :--- |
+| Sink share below the band | Faucet raised, or a sink cut | Raise the consumable band for that level, or rarity percents for that stage's gear |
+| Sink share above the band | Sink raised too far | Lower it; levels 1–9 may go up to 80% |
+| Net gold/h out of band | Faucet change, or a big sink change | Check the faucet columns first |
+| Inflation slope out of 10–40 | High levels earn too fast, or too slowly, relative to low levels | Adjust `gold.levelExponent` or the high-level price bands |
+| `Repairs` or `Vendor buys` is 0 at some level | A stage's weapon does not wear, or a consumable is not `vendorBuyable` | Fix `playerModel.stages` |
+| A gold/hour or diamond/hour band test fails for one table | A `loot.json` edit for that table | Adjust that table, not the global curve |
+
+### 10.5 When the design intent changes
+
+When the design changes, rather than an accidental regression:
+- update `designTargets` (`goldPerHour`, `diamondsPerHour`, `netGoldPerHour`, `sinkShare`, `inflationSlope`);
+- update `playerModel` if the expected player behaviour changed;
+- update the tables in §4, §5 and §7 of this document;
+
+all in the same PR. Never widen a band just to get CI green without stating why in the PR.
