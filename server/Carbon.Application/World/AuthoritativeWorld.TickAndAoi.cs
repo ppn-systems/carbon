@@ -150,7 +150,7 @@ public sealed partial class AuthoritativeWorld
                 if ((_currentTick % 10UL) == 0UL)
                 {
                     _chunkWorld.UpdateAroundPosition(obsPos, chunkRadius: 2, evictionRadius: 8);
-                    this.PopulateChunkActorsAroundLocked(obsPos, radius: 2);
+                    _settlements.PopulateAround(obsPos, radius: 2);
                 }
 
                 EntityDirtyMask selfDirty = _replication.ReplicateTo(

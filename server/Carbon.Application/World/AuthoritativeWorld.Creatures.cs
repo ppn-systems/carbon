@@ -2,6 +2,7 @@
 
 using System;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Actors;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.AI.Components;

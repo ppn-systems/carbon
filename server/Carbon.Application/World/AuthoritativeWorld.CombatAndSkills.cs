@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Application.World.Actors;
 using Carbon.Application.World.Actions;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Projectiles;
