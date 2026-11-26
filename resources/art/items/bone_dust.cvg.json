@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "itemId": 148,
+  "id": "bone_dust",
+  "displayName": "Bone Dust",
+  "tier": 1,
+  "categoryLabel": "Monster Drop",
+  "accentColor": "#CBD5E1",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": 3,
+      "rx": 7,
+      "ry": 3.2,
+      "color": "#E2E8F0",
+      "outlineColor": "#334155",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -2.5,
+      "y": 0.5,
+      "rx": 2.6,
+      "ry": 1.8,
+      "color": "#E2E8F0"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 2.2,
+      "y": 0.8,
+      "rx": 2.2,
+      "ry": 1.6,
+      "color": "#E2E8F0"
+    }
+  ]
+}

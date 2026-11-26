@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "itemId": 123,
+  "id": "bread",
+  "displayName": "Bread",
+  "tier": 1,
+  "categoryLabel": "Food",
+  "accentColor": "#D97706",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": 1,
+      "rx": 7.4,
+      "ry": 4.6,
+      "color": "#D97706",
+      "outlineColor": "#451A03",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -3,
+      "y": -1.5,
+      "x2": -1,
+      "y2": 1.5,
+      "thickness": 0.9,
+      "color": "#FDE68A"
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": 1,
+      "y": -2,
+      "x2": 3,
+      "y2": 1,
+      "thickness": 0.9,
+      "color": "#FDE68A"
+    }
+  ]
+}

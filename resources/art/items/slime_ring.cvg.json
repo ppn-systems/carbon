@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "itemId": 185,
+  "id": "slime_ring",
+  "displayName": "Slime Ring",
+  "tier": 2,
+  "categoryLabel": "Accessory",
+  "accentColor": "#22C55E",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "ring",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": 1.5,
+      "rx": 5.2,
+      "ry": 5.2,
+      "thickness": 1.8,
+      "color": "#CBD5E1"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": -4,
+      "rx": 2.6,
+      "ry": 2.6,
+      "color": "#22C55E",
+      "outlineColor": "#052E16",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -0.8,
+      "y": -4.7,
+      "rx": 0.8,
+      "ry": 0.8,
+      "color": "#BBF7D0"
+    }
+  ]
+}

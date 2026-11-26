@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "itemId": 108,
+  "id": "stone_brick",
+  "displayName": "Stone Brick",
+  "tier": 1,
+  "categoryLabel": "Material",
+  "accentColor": "#94A3B8",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -7,
+      "y": -3.5,
+      "w": 14,
+      "h": 7,
+      "color": "#94A3B8",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -7,
+      "y": 0,
+      "x2": 7,
+      "y2": 0,
+      "thickness": 0.8,
+      "color": "#475569"
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": -3.5,
+      "x2": 0,
+      "y2": 0,
+      "thickness": 0.8,
+      "color": "#475569"
+    }
+  ]
+}
