@@ -9,7 +9,7 @@
   "cliffStrata": "#363B41",
   "cliffHighlight": "#A5ACB4E6",
   "cliffShadow": "#24282D",
-  "detailChancePercent": 24,
+  "detailChancePercent": 15,
   "palette": {
     "pad": "#5A8A4E",
     "padShade": "#335432",
@@ -114,6 +114,339 @@
           "rx": 1.6,
           "ry": 1.4,
           "color": "$mist"
+        }
+      ]
+    }
+  ],
+  "surface": {
+    "pattern": "peat",
+    "colors": [
+      "#3A503D",
+      "#4C6445",
+      "#5F744B"
+    ],
+    "scale": 1.0,
+    "variation": 0.05,
+    "grain": 0.05,
+    "accent": "#2E3A2C"
+  },
+  "decals": [
+    {
+      "id": "puddle",
+      "chance": 0.14,
+      "maxCount": 1,
+      "placement": "any",
+      "jitter": true,
+      "variants": [
+        {
+          "shapes": [
+            {
+              "kind": "ellipse",
+              "x": 16,
+              "y": 17,
+              "rx": 7,
+              "ry": 3.6,
+              "color": "#2A3A30E8"
+            },
+            {
+              "kind": "ellipse",
+              "x": 16,
+              "y": 17,
+              "rx": 5.8,
+              "ry": 2.8,
+              "color": "#3F6460F0"
+            },
+            {
+              "kind": "line",
+              "x": 12.5,
+              "y": 16.2,
+              "x2": 16,
+              "y2": 16.2,
+              "thickness": 0.8,
+              "color": "#C6DCD3A0"
+            }
+          ]
+        },
+        {
+          "shapes": [
+            {
+              "kind": "ellipse",
+              "x": 16,
+              "y": 16,
+              "rx": 5,
+              "ry": 2.8,
+              "color": "#2A3A30E8"
+            },
+            {
+              "kind": "ellipse",
+              "x": 16,
+              "y": 16,
+              "rx": 4,
+              "ry": 2.1,
+              "color": "#456A64F0"
+            },
+            {
+              "kind": "line",
+              "x": 13.5,
+              "y": 15.4,
+              "x2": 16,
+              "y2": 15.4,
+              "thickness": 0.7,
+              "color": "#C6DCD3A0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reeds",
+      "chance": 0.2,
+      "maxCount": 1,
+      "placement": "any",
+      "jitter": true,
+      "variants": [
+        {
+          "shapes": [
+            {
+              "kind": "line",
+              "x": 13,
+              "y": 24,
+              "x2": 12.4,
+              "y2": 12,
+              "thickness": 1.1,
+              "color": "#8C9A4E"
+            },
+            {
+              "kind": "line",
+              "x": 15,
+              "y": 24,
+              "x2": 15.8,
+              "y2": 9,
+              "thickness": 1.1,
+              "color": "#6E8A44"
+            },
+            {
+              "kind": "line",
+              "x": 17.5,
+              "y": 24,
+              "x2": 16.9,
+              "y2": 14,
+              "thickness": 1.1,
+              "color": "#8C9A4E"
+            },
+            {
+              "kind": "line",
+              "x": 19.5,
+              "y": 24,
+              "x2": 20.3,
+              "y2": 11,
+              "thickness": 1.1,
+              "color": "#6E8A44"
+            },
+            {
+              "kind": "rect",
+              "x": 14.0,
+              "y": 8.5,
+              "w": 2.0,
+              "h": 3.6,
+              "color": "#6B4226"
+            }
+          ]
+        },
+        {
+          "shapes": [
+            {
+              "kind": "line",
+              "x": 13,
+              "y": 24,
+              "x2": 12.4,
+              "y2": 12,
+              "thickness": 1.1,
+              "color": "#5E7A3C"
+            },
+            {
+              "kind": "line",
+              "x": 15,
+              "y": 24,
+              "x2": 15.8,
+              "y2": 9,
+              "thickness": 1.1,
+              "color": "#7A9248"
+            },
+            {
+              "kind": "line",
+              "x": 17.5,
+              "y": 24,
+              "x2": 16.9,
+              "y2": 14,
+              "thickness": 1.1,
+              "color": "#5E7A3C"
+            },
+            {
+              "kind": "rect",
+              "x": 14.0,
+              "y": 8.5,
+              "w": 2.0,
+              "h": 3.6,
+              "color": "#7A4A2A"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "algae",
+      "chance": 0.3,
+      "maxCount": 1,
+      "placement": "any",
+      "jitter": true,
+      "variants": [
+        {
+          "shapes": [
+            {
+              "kind": "rect",
+              "x": 12.3,
+              "y": 14.3,
+              "w": 1.4,
+              "h": 1.4,
+              "color": "#8FB25AC8"
+            },
+            {
+              "kind": "rect",
+              "x": 16.3,
+              "y": 16.3,
+              "w": 1.4,
+              "h": 1.4,
+              "color": "#8FB25AC8"
+            },
+            {
+              "kind": "rect",
+              "x": 14.3,
+              "y": 19.3,
+              "w": 1.4,
+              "h": 1.4,
+              "color": "#8FB25AC8"
+            }
+          ]
+        },
+        {
+          "shapes": [
+            {
+              "kind": "rect",
+              "x": 13.4,
+              "y": 17.4,
+              "w": 1.2,
+              "h": 1.2,
+              "color": "#A3C46AC0"
+            },
+            {
+              "kind": "rect",
+              "x": 18.4,
+              "y": 14.4,
+              "w": 1.2,
+              "h": 1.2,
+              "color": "#A3C46AC0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lily",
+      "chance": 0.04,
+      "maxCount": 1,
+      "placement": "shore",
+      "jitter": true,
+      "variants": [
+        {
+          "shapes": [
+            {
+              "kind": "polygon",
+              "points": [
+                [
+                  12,
+                  17
+                ],
+                [
+                  16,
+                  14.5
+                ],
+                [
+                  20,
+                  16
+                ],
+                [
+                  19.5,
+                  19
+                ],
+                [
+                  16,
+                  19.8
+                ],
+                [
+                  12.5,
+                  19
+                ]
+              ],
+              "color": "#5A8A4E"
+            },
+            {
+              "kind": "rect",
+              "x": 15.2,
+              "y": 15.6,
+              "w": 1.6,
+              "h": 1.6,
+              "color": "#F472B6",
+              "rotDeg": 45
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mist",
+      "chance": 0.05,
+      "maxCount": 1,
+      "placement": "any",
+      "jitter": true,
+      "variants": [
+        {
+          "shapes": [
+            {
+              "kind": "polygon",
+              "points": [
+                [
+                  24.5,
+                  16.0
+                ],
+                [
+                  20.78,
+                  18.25
+                ],
+                [
+                  14.19,
+                  18.97
+                ],
+                [
+                  8.67,
+                  17.32
+                ],
+                [
+                  9.12,
+                  14.76
+                ],
+                [
+                  14.11,
+                  12.89
+                ],
+                [
+                  20.64,
+                  13.82
+                ]
+              ],
+              "color": "#C8E6D020"
+            }
+          ]
         }
       ]
     }

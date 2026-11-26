@@ -9,7 +9,7 @@
   "cliffStrata": "#363B41",
   "cliffHighlight": "#A5ACB4E6",
   "cliffShadow": "#24282D",
-  "detailChancePercent": 24,
+  "detailChancePercent": 14,
   "palette": {
     "moss": "#3D7A47CC",
     "mossLit": "#599E58CC",
@@ -121,6 +121,489 @@
           "rx": 2.8,
           "ry": 1.5,
           "color": "$moss"
+        }
+      ]
+    }
+  ],
+  "surface": {
+    "pattern": "patches",
+    "colors": [
+      "#21462B",
+      "#2F5B37",
+      "#41693B"
+    ],
+    "scale": 1.0,
+    "variation": 0.07,
+    "grain": 0.05
+  },
+  "decals": [
+    {
+      "id": "leaf_litter",
+      "chance": 0.38,
+      "maxCount": 2,
+      "placement": "any",
+      "jitter": true,
+      "variants": [
+        {
+          "shapes": [
+            {
+              "kind": "rect",
+              "x": 10.4,
+              "y": 13.2,
+              "w": 3.2,
+              "h": 1.6,
+              "color": "#8A6A32C8",
+              "rotDeg": 25
+            },
+            {
+              "kind": "rect",
+              "x": 16.4,
+              "y": 17.2,
+              "w": 3.2,
+              "h": 1.6,
+              "color": "#5E6B2EC8",
+              "rotDeg": -40
+            },
+            {
+              "kind": "rect",
+              "x": 13.4,
+              "y": 20.2,
+              "w": 3.2,
+              "h": 1.6,
+              "color": "#7A5A2CC8",
+              "rotDeg": 70
+            }
+          ]
+        },
+        {
+          "shapes": [
+            {
+              "kind": "rect",
+              "x": 12.4,
+              "y": 15.2,
+              "w": 3.2,
+              "h": 1.6,
+              "color": "#A16B2EC0",
+              "rotDeg": -15
+            },
+            {
+              "kind": "rect",
+              "x": 17.4,
+              "y": 12.2,
+              "w": 3.2,
+              "h": 1.6,
+              "color": "#6B7A34C0",
+              "rotDeg": 55
+            }
+          ]
+        },
+        {
+          "shapes": [
+            {
+              "kind": "rect",
+              "x": 14.4,
+              "y": 15.2,
+              "w": 3.2,
+              "h": 1.6,
+              "color": "#4F5F2AD0",
+              "rotDeg": 10
+            },
+            {
+              "kind": "rect",
+              "x": 10.4,
+              "y": 18.2,
+              "w": 3.2,
+              "h": 1.6,
+              "color": "#8E5F2AC0",
+              "rotDeg": -60
+            },
+            {
+              "kind": "rect",
+              "x": 18.4,
+              "y": 19.2,
+              "w": 3.2,
+              "h": 1.6,
+              "color": "#6E4E26C0",
+              "rotDeg": 35
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "moss",
+      "chance": 0.18,
+      "maxCount": 1,
+      "placement": "any",
+      "jitter": true,
+      "variants": [
+        {
+          "shapes": [
+            {
+              "kind": "polygon",
+              "points": [
+                [
+                  22.2,
+                  16.0
+                ],
+                [
+                  19.73,
+                  18.96
+                ],
+                [
+                  14.7,
+                  19.6
+                ],
+                [
+                  10.31,
+                  17.74
+                ],
+                [
+                  10.96,
+                  14.46
+                ],
+                [
+                  14.57,
+                  12.04
+                ],
+                [
+                  19.53,
+                  13.2
+                ]
+              ],
+              "color": "#3E7A3F90"
+            }
+          ]
+        },
+        {
+          "shapes": [
+            {
+              "kind": "polygon",
+              "points": [
+                [
+                  20.28,
+                  16.0
+                ],
+                [
+                  18.33,
+                  17.9
+                ],
+                [
+                  15.07,
+                  18.66
+                ],
+                [
+                  12.48,
+                  17.1
+                ],
+                [
+                  12.42,
+                  14.88
+                ],
+                [
+                  15.08,
+                  13.37
+                ],
+                [
+                  18.35,
+                  14.09
+                ]
+              ],
+              "color": "#5A9A4C80"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fern",
+      "chance": 0.14,
+      "maxCount": 1,
+      "placement": "any",
+      "jitter": true,
+      "variants": [
+        {
+          "shapes": [
+            {
+              "kind": "polygon",
+              "points": [
+                [
+                  15.69,
+                  18.43
+                ],
+                [
+                  16.31,
+                  15.57
+                ],
+                [
+                  22.69,
+                  18.45
+                ]
+              ],
+              "color": "#2C6B39"
+            },
+            {
+              "kind": "polygon",
+              "points": [
+                [
+                  14.98,
+                  17.33
+                ],
+                [
+                  17.02,
+                  16.67
+                ],
+                [
+                  17.55,
+                  21.78
+                ]
+              ],
+              "color": "#3F8545"
+            },
+            {
+              "kind": "polygon",
+              "points": [
+                [
+                  15.29,
+                  15.9
+                ],
+                [
+                  16.71,
+                  18.1
+                ],
+                [
+                  10.86,
+                  20.33
+                ]
+              ],
+              "color": "#2C6B39"
+            },
+            {
+              "kind": "polygon",
+              "points": [
+                [
+                  16.31,
+                  15.57
+                ],
+                [
+                  15.69,
+                  18.43
+                ],
+                [
+                  9.31,
+                  15.55
+                ]
+              ],
+              "color": "#3F8545"
+            },
+            {
+              "kind": "polygon",
+              "points": [
+                [
+                  17.02,
+                  16.67
+                ],
+                [
+                  14.98,
+                  17.33
+                ],
+                [
+                  14.45,
+                  12.22
+                ]
+              ],
+              "color": "#2C6B39"
+            },
+            {
+              "kind": "polygon",
+              "points": [
+                [
+                  16.71,
+                  18.1
+                ],
+                [
+                  15.29,
+                  15.9
+                ],
+                [
+                  21.14,
+                  13.67
+                ]
+              ],
+              "color": "#3F8545"
+            }
+          ]
+        },
+        {
+          "shapes": [
+            {
+              "kind": "polygon",
+              "points": [
+                [
+                  15.18,
+                  17.93
+                ],
+                [
+                  16.82,
+                  16.07
+                ],
+                [
+                  19.73,
+                  20.29
+                ]
+              ],
+              "color": "#255F33"
+            },
+            {
+              "kind": "polygon",
+              "points": [
+                [
+                  15.13,
+                  16.17
+                ],
+                [
+                  16.87,
+                  17.83
+                ],
+                [
+                  12.68,
+                  20.5
+                ]
+              ],
+              "color": "#4C9150"
+            },
+            {
+              "kind": "polygon",
+              "points": [
+                [
+                  16.28,
+                  15.56
+                ],
+                [
+                  15.72,
+                  18.44
+                ],
+                [
+                  10.22,
+                  15.87
+                ]
+              ],
+              "color": "#255F33"
+            },
+            {
+              "kind": "polygon",
+              "points": [
+                [
+                  17.05,
+                  16.94
+                ],
+                [
+                  14.95,
+                  17.06
+                ],
+                [
+                  15.75,
+                  12.8
+                ]
+              ],
+              "color": "#4C9150"
+            },
+            {
+              "kind": "polygon",
+              "points": [
+                [
+                  16.37,
+                  18.41
+                ],
+                [
+                  15.63,
+                  15.59
+                ],
+                [
+                  21.62,
+                  15.53
+                ]
+              ],
+              "color": "#255F33"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "twig",
+      "chance": 0.08,
+      "maxCount": 1,
+      "placement": "any",
+      "jitter": true,
+      "variants": [
+        {
+          "shapes": [
+            {
+              "kind": "line",
+              "x": 11,
+              "y": 18,
+              "x2": 16,
+              "y2": 16,
+              "thickness": 1.0,
+              "color": "#5C3F24D8"
+            },
+            {
+              "kind": "line",
+              "x": 16,
+              "y": 16,
+              "x2": 21,
+              "y2": 17,
+              "thickness": 1.0,
+              "color": "#5C3F24D8"
+            },
+            {
+              "kind": "line",
+              "x": 16,
+              "y": 16,
+              "x2": 18,
+              "y2": 13,
+              "thickness": 0.7,
+              "color": "#5C3F24D8"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mushroom",
+      "chance": 0.025,
+      "maxCount": 1,
+      "placement": "dry",
+      "jitter": true,
+      "variants": [
+        {
+          "shapes": [
+            {
+              "kind": "rect",
+              "x": 15.4,
+              "y": 16,
+              "w": 1.2,
+              "h": 3,
+              "color": "#F1E4C8"
+            },
+            {
+              "kind": "ellipse",
+              "x": 16,
+              "y": 16,
+              "rx": 2.4,
+              "ry": 1.4,
+              "color": "#C2410C"
+            },
+            {
+              "kind": "rect",
+              "x": 15,
+              "y": 15.4,
+              "w": 0.8,
+              "h": 0.8,
+              "color": "#FFF7ED"
+            }
+          ]
         }
       ]
     }

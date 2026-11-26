@@ -127,5 +127,15 @@ public enum MapPropType : byte
     /// <summary>
     /// Faceted pale-cyan glacial ice crystal spire with perpetual frost glow (Alpine Peaks).
     /// </summary>
-    GlacialCrystal = 22
+    GlacialCrystal = 22,
+
+    /// <summary>
+    /// Low wiry shrub of dry twigs and sparse leaves (Dune Desert, Red Mesa, Savanna open ground).
+    /// </summary>
+    DryBush = 23,
+
+    /// <summary>
+    /// Tall clump of marram grass binding the sand (Beach Sand dunes).
+    /// </summary>
+    DuneGrass = 24,
 }
