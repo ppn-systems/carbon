@@ -110,7 +110,7 @@ public sealed class InventoryContainer
                 if (slot.ItemId == incoming.ItemId && slot.IsStackable && slot.Quantity < maxStackSize)
                 {
                     int add = Math.Min(remaining, maxStackSize - slot.Quantity);
-                    this.SetSlotInternal(i, slot with { Quantity = slot.Quantity + add });
+                    this.SetSlotInternal(i, slot.MergeWith(in incoming, add));
                     remaining -= add;
                 }
             }
@@ -205,7 +205,7 @@ public sealed class InventoryContainer
         if (maxStackSize > 1 && source.IsStackable && target.IsStackable && source.ItemId == target.ItemId && target.Quantity < maxStackSize)
         {
             int transfer = Math.Min(source.Quantity, maxStackSize - target.Quantity);
-            this.SetSlotInternal(toSlot, target with { Quantity = target.Quantity + transfer });
+            this.SetSlotInternal(toSlot, target.MergeWith(in source, transfer));
             int remainder = source.Quantity - transfer;
             this.SetSlotInternal(fromSlot, remainder > 0 ? (source with { Quantity = remainder }) : ItemSlot.Empty);
             return true;

@@ -49,7 +49,7 @@ public sealed class VectorArtAndArchitectureTests
         summary.CharactersValidated.Should().Be(4);
         summary.MonstersValidated.Should().Be(9);
         summary.NpcsValidated.Should().Be(4);
-        summary.ItemsValidated.Should().Be(85);
+        summary.ItemsValidated.Should().Be(86);
         summary.PropsValidated.Should().Be(22);
         summary.BiomesValidated.Should().Be(14);
         summary.StructuresValidated.Should().Be(Enum.GetValues<StructureType>().Length - 1, "every non-None structure type has art");
