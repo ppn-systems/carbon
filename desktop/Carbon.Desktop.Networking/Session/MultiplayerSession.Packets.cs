@@ -99,6 +99,7 @@ public sealed partial class MultiplayerSession
         _tcpSubscriptions.Add(tcp.On<EntityAttackPhase>(this.OnEntityAttackPhase));
         _tcpSubscriptions.Add(tcp.On<MapPropChanged>(this.OnMapPropChanged));
         _tcpSubscriptions.Add(tcp.On<MapStructureChanged>(this.OnMapStructureChanged));
+        _tcpSubscriptions.Add(tcp.On<MapConstructionChanged>(this.OnMapConstructionChanged));
 
         _tcpSession = tcp;
         await tcp.ConnectAsync(host, tcpPort, ct).ConfigureAwait(false);
@@ -452,6 +453,7 @@ public sealed partial class MultiplayerSession
                 _worldSeed = enter.WorldSeed;
                 ProceduralWorldGenerator generator = new(_worldSeed);
                 _chunkWorld = new ChunkWorld2D(generator, _tileSize, enter.Frequency);
+                _constructionMarkers.Clear();
                 _chunkWorld.UpdateAroundPosition(rejoinPos, chunkRadius: 4, evictionRadius: 8);
                 _simulation = new WorldSimulation(_tickRate, _tileSize)
                 {
@@ -720,7 +722,11 @@ public sealed partial class MultiplayerSession
                 ChunkDelta domainDelta = ChunkDeltaPacketMapper.FromPacket(packet);
                 lock (_worldGate)
                 {
-                    _chunkWorld?.ImportDelta(domainDelta);
+                    if (_chunkWorld is not null)
+                    {
+                        _chunkWorld.ImportDelta(domainDelta);
+                        this.OnChunkDeltaImportedLocked(domainDelta);
+                    }
                     _requestedChunks[Chunk2D.PackKey(cx, cy)] = packet.Revision;
                     _dirtyChunks.Add((cx, cy));
                 }

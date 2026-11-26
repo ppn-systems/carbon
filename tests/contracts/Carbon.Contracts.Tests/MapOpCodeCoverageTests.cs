@@ -130,6 +130,33 @@ public sealed class MapOpCodeCoverageTests
         Assert.Equal(original.Rotation, copy.Rotation);
     }
 
+    [Fact]
+    public void MapConstructionChanged_RoundTrip_PreservesFields()
+    {
+        using MapConstructionChanged original = new()
+        {
+            TileX = -40,
+            TileY = 77,
+            StructureType = 11,
+            Rotation = 1,
+            Stage = 2,
+            Size = 0x21,
+            Progress = 0.4f,
+            IsDeconstruction = true,
+        };
+
+        using MapConstructionChanged copy = MapConstructionChanged.Deserialize(original.Serialize());
+
+        Assert.Equal(original.TileX, copy.TileX);
+        Assert.Equal(original.TileY, copy.TileY);
+        Assert.Equal(original.StructureType, copy.StructureType);
+        Assert.Equal(original.Rotation, copy.Rotation);
+        Assert.Equal(original.Stage, copy.Stage);
+        Assert.Equal(original.Size, copy.Size);
+        Assert.Equal(original.Progress, copy.Progress);
+        Assert.Equal(original.IsDeconstruction, copy.IsDeconstruction);
+    }
+
     private static IEnumerable<(Type Type, ushort OpCode)> PacketOpCodes(Assembly assembly) =>
         assembly.GetTypes()
             .Where(t => t is { IsClass: true, IsAbstract: false } && typeof(IPacketStaticOpcode).IsAssignableFrom(t))

@@ -52,6 +52,7 @@ public sealed class WorldSceneRenderer : IDisposable
     private readonly IVectorArtRepository? _art;
     private readonly CombatFeedbackTracker _feedback = new();
     private readonly WorldEntityOverlayRenderer _overlays = new();
+    private readonly ConstructionOverlayRenderer _construction = new();
     private readonly List<PointLight> _lights = new(64);
     private readonly List<GroundRenderItem> _groundSortList = new(2048);
     private readonly List<CanopyRenderItem> _canopySortList = new(1024);
@@ -242,6 +243,7 @@ public sealed class WorldSceneRenderer : IDisposable
         }
 
         this.CollectVisibleObjects(chunkWorld, tileSize, minX, maxX, minY, maxY, playerPos, hasAimTile, aimTileX, aimTileY);
+        _construction.BeginFrame(world);
 
         Span<DestroyedPropRenderItem> remnantSpan = CollectionsMarshal.AsSpan(_remnantList);
         for (int i = 0; i < remnantSpan.Length; i++)
@@ -250,7 +252,7 @@ public sealed class WorldSceneRenderer : IDisposable
             VectorPropRenderer.DrawDestroyedRemnant(_geometryBatch, in remnant, _art);
         }
 
-        if (hasAimTile)
+        if (hasAimTile && !_construction.TryDrawPlacementGhost(_geometryBatch, world, _art, tileSize, aimTileX, aimTileY))
         {
             DrawTargetTileHighlight(_geometryBatch, world, chunkWorld, tileSize, aimTileX, aimTileY);
         }
@@ -281,6 +283,8 @@ public sealed class WorldSceneRenderer : IDisposable
                     break;
             }
         }
+
+        _construction.DrawMarkers(_geometryBatch, _art, tileSize, minX, minY, maxX, maxY, _animTime);
 
         // Pass 4: Overhead swaying canopies, particles & action swing ribbons
         _canopySortList.Sort();
@@ -349,6 +353,7 @@ public sealed class WorldSceneRenderer : IDisposable
 
             spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
             _overlays.DrawText(spriteBatch, font, world, _art, _feedback, cameraRig, viewportWidth, viewportHeight, showCombatNumbers);
+            _construction.DrawText(spriteBatch, font, cameraRig, _art, playerPos, tileSize);
             spriteBatch.End();
         }
     }
