@@ -22,13 +22,6 @@ public sealed class WorldPortTests
     /// </summary>
     private static readonly HashSet<string> s_pendingSyncMutatorAllowlist = new(StringComparer.Ordinal)
     {
-        // ADR-017 part 2: inventory.
-        "IWorldInventoryService.TrySelectHotbarSlot",
-        "IWorldInventoryService.TryCraftRecipe",
-        "IWorldInventoryService.TryMoveInventorySlot",
-        "IWorldInventoryService.TryUpgradeInventoryItem",
-        "IWorldInventoryService.TryDropInventoryItem",
-
         // ADR-017 part 3: economy and progression.
         "IWorldInventoryService.TryVendorBuy",
         "IWorldInventoryService.TryVendorSell",
