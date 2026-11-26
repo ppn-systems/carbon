@@ -1,0 +1,85 @@
+{
+  // Character sprite sheets per visual archetype. Server monster/player definitions carry the archetype key.
+  // Sheets are third-party art imported locally by tools/assets/import-assets.sh into resources/thirdparty/
+  // (git-ignored); when a sheet is missing the client draws a procedural token instead.
+  //
+  // Per archetype: frame cell size, pivot = ground contact point (bottom-centre of the feet) inside a frame,
+  // bodyHeight = feet-to-head pixels (drives water submersion), heightTiles = on-screen body height in tiles.
+  // Sheets are horizontal strips facing right. Clip keys: idle, walk, attack_melee, attack_ranged, cast, hurt,
+  // death. Missing clips fall back: attack_ranged/cast -> attack_melee -> idle; walk/hurt -> idle.
+  // frames: 0 = every cell of the sheet. loop: defaults to true for idle/walk, false otherwise.
+  "version": 1,
+  "sheetRoot": "../thirdparty",
+  "archetypes": [
+    {
+      "key": "human_soldier",
+      "frameWidth": 96, "frameHeight": 96, "pivotX": 46, "pivotY": 58, "bodyHeight": 19, "heightTiles": 1.2,
+      "clips": {
+        "idle":         { "sheet": "characters96/Human_Soldier_Sword_Shield/No_Shadows/Human_Soldier_Sword_Shield_Idle-Sheet.png", "fps": 8 },
+        "walk":         { "sheet": "characters96/Human_Soldier_Sword_Shield/No_Shadows/Human_Soldier_Sword_Shield_Walk-Sheet.png", "fps": 10 },
+        "attack_melee": { "sheet": "characters96/Human_Soldier_Sword_Shield/No_Shadows/Human_Soldier_Sword_Shield_Attack1-Sheet.png", "fps": 14 },
+        "hurt":         { "sheet": "characters96/Human_Soldier_Sword_Shield/No_Shadows/Human_Soldier_Sword_Shield_Hurt-Sheet.png", "fps": 12 },
+        "death":        { "sheet": "characters96/Human_Soldier_Sword_Shield/No_Shadows/Human_Soldier_Sword_Shield_Death-Sheet.png", "fps": 10 }
+      }
+    },
+    {
+      "key": "slime",
+      "frameWidth": 96, "frameHeight": 96, "pivotX": 47, "pivotY": 57, "bodyHeight": 11, "heightTiles": 0.7,
+      "clips": {
+        "idle":         { "sheet": "characters96/Monster_Slime/No_Shadows/Monster_Slime_Idle-Sheet.png", "fps": 8 },
+        "walk":         { "sheet": "characters96/Monster_Slime/No_Shadows/Monster_Slime_Walk-Sheet.png", "fps": 10 },
+        "attack_melee": { "sheet": "characters96/Monster_Slime/No_Shadows/Monster_Slime_Attack1-Sheet.png", "fps": 14 },
+        "cast":         { "sheet": "characters96/Monster_Slime/No_Shadows/Monster_Slime_Attack2-Sheet.png", "fps": 12 },
+        "hurt":         { "sheet": "characters96/Monster_Slime/No_Shadows/Monster_Slime_Hurt-Sheet.png", "fps": 12 },
+        "death":        { "sheet": "characters96/Monster_Slime/No_Shadows/Monster_Slime_Death-Sheet.png", "fps": 10 }
+      }
+    },
+    {
+      "key": "soldier",
+      "frameWidth": 100, "frameHeight": 100, "pivotX": 50, "pivotY": 60, "bodyHeight": 21, "heightTiles": 1.3,
+      "clips": {
+        "idle":          { "sheet": "tinyrpg01/Soldier/Soldier/Soldier_Idle.png", "fps": 8 },
+        "walk":          { "sheet": "tinyrpg01/Soldier/Soldier/Soldier_Walk.png", "fps": 10 },
+        "attack_melee":  { "sheet": "tinyrpg01/Soldier/Soldier/Soldier_Attack01.png", "fps": 12 },
+        "attack_ranged": { "sheet": "tinyrpg01/Soldier/Soldier/Soldier_Attack03.png", "fps": 12 },
+        "hurt":          { "sheet": "tinyrpg01/Soldier/Soldier/Soldier_Hurt.png", "fps": 12 },
+        "death":         { "sheet": "tinyrpg01/Soldier/Soldier/Soldier_Death.png", "fps": 8 }
+      }
+    },
+    {
+      "key": "orc",
+      "frameWidth": 100, "frameHeight": 100, "pivotX": 51, "pivotY": 57, "bodyHeight": 15, "heightTiles": 1.0,
+      "clips": {
+        "idle":         { "sheet": "tinyrpg01/Orc/Orc/Orc_Idle.png", "fps": 8 },
+        "walk":         { "sheet": "tinyrpg01/Orc/Orc/Orc_Walk.png", "fps": 10 },
+        "attack_melee": { "sheet": "tinyrpg01/Orc/Orc/Orc_Attack01.png", "fps": 12 },
+        "hurt":         { "sheet": "tinyrpg01/Orc/Orc/Orc_Hurt.png", "fps": 12 },
+        "death":        { "sheet": "tinyrpg01/Orc/Orc/Orc_Death.png", "fps": 8 }
+      }
+    },
+    {
+      "key": "demon",
+      "frameWidth": 100, "frameHeight": 100, "pivotX": 53, "pivotY": 59, "bodyHeight": 20, "heightTiles": 1.3,
+      "clips": {
+        "idle":         { "sheet": "tinyrpg02/Demon_A/Demon_A/Demon_A_Idle.png", "fps": 8 },
+        "walk":         { "sheet": "tinyrpg02/Demon_A/Demon_A/Demon_A_Walk.png", "fps": 10 },
+        "attack_melee": { "sheet": "tinyrpg02/Demon_A/Demon_A/Demon_A_Attack01.png", "fps": 12 },
+        "cast":         { "sheet": "tinyrpg02/Demon_A/Demon_A/Demon_A_Attack02.png", "fps": 12 },
+        "hurt":         { "sheet": "tinyrpg02/Demon_A/Demon_A/Demon_A_Hurt.png", "fps": 12 },
+        "death":        { "sheet": "tinyrpg02/Demon_A/Demon_A/Demon_A_Death.png", "fps": 8 }
+      }
+    },
+    {
+      "key": "blood_monster",
+      "frameWidth": 100, "frameHeight": 100, "pivotX": 52, "pivotY": 57, "bodyHeight": 15, "heightTiles": 1.0,
+      "clips": {
+        "idle":          { "sheet": "tinyrpg02/Blood Monster_A/Blood Monster_A/Blood Monster_A_Idle.png", "fps": 8 },
+        "walk":          { "sheet": "tinyrpg02/Blood Monster_A/Blood Monster_A/Blood Monster_A_Walk.png", "fps": 10 },
+        "attack_melee":  { "sheet": "tinyrpg02/Blood Monster_A/Blood Monster_A/Blood Monster_A_Attack01.png", "fps": 12 },
+        "attack_ranged": { "sheet": "tinyrpg02/Blood Monster_A/Blood Monster_A/Blood Monster_A_Attack02.png", "fps": 12 },
+        "hurt":          { "sheet": "tinyrpg02/Blood Monster_A/Blood Monster_A/Blood Monster_A_Hurt.png", "fps": 12 },
+        "death":         { "sheet": "tinyrpg02/Blood Monster_A/Blood Monster_A/Blood Monster_A_Death.png", "fps": 8 }
+      }
+    }
+  ]
+}
