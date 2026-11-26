@@ -1,7 +1,7 @@
 # ADR-017: Tick-Queued World Commands for Packet Handlers
 
 - **Date**: 2026-11-26
-- **Status**: Proposed
+- **Status**: Accepted
 - **Scope**: `server/Carbon.Abstractions/World`, `server/Carbon.Application/World`, `server/Carbon.Handlers`, `tests/`
 - **Audit**: TS-1 in `docs/audit/2026-11-codebase-audit.md`
 
