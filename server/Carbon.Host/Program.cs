@@ -17,6 +17,8 @@ using Carbon.Infrastructure.Persistence.Postgres;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Infrastructure.Security;
 using Carbon.Server.Configuration;
+using Carbon.Survival.Config;
+using Carbon.Survival.Food;
 using Microsoft.Extensions.Logging;
 using Nalix.Hosting;
 using Npgsql;
@@ -86,7 +88,7 @@ public static class Program
         AuthService authService = new(accountStore, characterStore, hasher);
         SessionTransportRegistry transportRegistry = new();
         WorldOutboundSink outboundSink = new(transportRegistry, loggerFactory.CreateLogger<WorldOutboundSink>());
-        // Gameplay config is server-authoritative (ADR-011): the server builds its domains from the same snapshot it
+        // Gameplay config is server-authoritative (ADR-014): the server builds its domains from the same snapshot it
         // serves to clients, so both sides always run on identical bytes.
         ConfigRepository config = ConfigRepository.Load(ResolveConfigDirectory(options.ConfigDirectory));
         if (logger.IsEnabled(LogLevel.Information))
@@ -108,6 +110,10 @@ public static class Program
             ReadDocument(config, CreatureContent.MonstersFileName),
             ReadDocument(config, CreatureContent.SpawningFileName));
 
+        // Survival tuning (hunger decay, food nutrition) comes from the same served snapshot.
+        NeedsConfig needsConfig = NeedsConfig.LoadFromJson(ReadDocument(config, "needs.json"));
+        FoodCatalog foodCatalog = FoodCatalog.LoadFromJson(ReadDocument(config, "food.json"), needsConfig.FoodMax);
+
         AuthoritativeWorld world = new(
             options.WorldSeed,
             options.TileSize,
@@ -116,8 +122,11 @@ public static class Program
             chunkDeltaRepo,
             characterStore,
             outboundSink,
-            creatures: creatures,
-            economy: economy);
+            time: null,
+            needsConfig,
+            foodCatalog,
+            economy,
+            creatures: creatures);
 
         await world.InitializeFromStoreAsync().ConfigureAwait(false);
 

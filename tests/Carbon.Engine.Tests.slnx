@@ -26,4 +26,6 @@
   <Project Path="engine/Carbon.Prediction.Tests/Carbon.Prediction.Tests.csproj" />
   <Project Path="engine/Carbon.Primitives.Tests/Carbon.Primitives.Tests.csproj" />
   <Project Path="engine/Carbon.Simulation.Tests/Carbon.Simulation.Tests.csproj" />
+  <Project Path="../engine/Carbon.Survival/Carbon.Survival.csproj" />
+  <Project Path="engine/Carbon.Survival.Tests/Carbon.Survival.Tests.csproj" />
 </Solution>

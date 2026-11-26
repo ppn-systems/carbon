@@ -28,7 +28,7 @@ using Xunit;
 
 namespace Carbon.Desktop.Tests;
 
-/// <summary>ADR-011 end to end over a live TCP host: manifest push, disk cache, hash-gated downloads, hot reload.</summary>
+/// <summary>ADR-014 end to end over a live TCP host: manifest push, disk cache, hash-gated downloads, hot reload.</summary>
 [Collection(LiveHostGroup.Name)]
 public sealed class ConfigSyncLiveTests
 {
