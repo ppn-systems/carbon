@@ -719,16 +719,19 @@ public sealed partial class MultiplayerSession
                 }
 
                 ChunkDelta domainDelta = ChunkDeltaPacketMapper.FromPacket(packet);
-                lock (_worldGate)
+                _requestedChunks[Chunk2D.PackKey(cx, cy)] = packet.Revision;
+
+                // Imported on the main thread so the renderer never reads a chunk mid-import (audit TS-2).
+                this.PostWorldMutation(() =>
                 {
                     if (_chunkWorld is not null)
                     {
                         _chunkWorld.ImportDelta(domainDelta);
                         this.OnChunkDeltaImportedLocked(domainDelta);
                     }
-                    _requestedChunks[Chunk2D.PackKey(cx, cy)] = packet.Revision;
+
                     _dirtyChunks.Add((cx, cy));
-                }
+                });
             }
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -1217,6 +1220,16 @@ public sealed partial class MultiplayerSession
 
     private void OnMapPropChanged(MapPropChanged pkt)
     {
+        // Copy out of the (possibly pooled) packet; the mutation runs later on the main thread (audit TS-2).
+        int tileX = pkt.TileX;
+        int tileY = pkt.TileY;
+        float durability = pkt.Durability;
+        bool isDestroyed = pkt.IsDestroyed;
+        this.PostWorldMutation(() => this.ApplyMapPropChanged(tileX, tileY, durability, isDestroyed));
+    }
+
+    private void ApplyMapPropChanged(int tileX, int tileY, float durability, bool isDestroyed)
+    {
         lock (_worldGate)
         {
             if (_chunkWorld is null)
@@ -1224,27 +1237,27 @@ public sealed partial class MultiplayerSession
                 return;
             }
 
-            _dirtyChunks.Add((Chunk2D.ToChunkCoord(pkt.TileX), Chunk2D.ToChunkCoord(pkt.TileY)));
+            _dirtyChunks.Add((Chunk2D.ToChunkCoord(tileX), Chunk2D.ToChunkCoord(tileY)));
 
             if (_chunkWorld.TrySetPropStateAt(
-                pkt.TileX,
-                pkt.TileY,
-                pkt.Durability,
-                pkt.IsDestroyed,
+                tileX,
+                tileY,
+                durability,
+                isDestroyed,
                 out MapProp previous,
                 out MapProp updated))
             {
                 float prevDur = previous.Destructibility.CurrentDurability;
                 float nextDur = updated.Destructibility.CurrentDurability;
                 float damageDealt = MathF.Max(0f, prevDur - nextDur);
-                bool wasTierBlocked = !pkt.IsDestroyed &&
+                bool wasTierBlocked = !isDestroyed &&
                     damageDealt <= 0.01f &&
                     previous.Destructibility.IsDestructible;
 
                 Vector2 worldPos = updated.WorldPosition;
                 _propImpactEvents.Add(new PropImpactEvent(
-                    pkt.TileX,
-                    pkt.TileY,
+                    tileX,
+                    tileY,
                     worldPos,
                     updated.Type,
                     updated.Category,
@@ -1252,7 +1265,7 @@ public sealed partial class MultiplayerSession
                     nextDur,
                     updated.Destructibility.MaxDurability,
                     updated.Destructibility.HarvestTier,
-                    pkt.IsDestroyed,
+                    isDestroyed,
                     wasTierBlocked));
 
                 if (wasTierBlocked)
@@ -1286,7 +1299,7 @@ public sealed partial class MultiplayerSession
                     _combatEvents.Add(new CombatFeedbackEvent(
                         worldPos,
                         damageDealt,
-                        IsCritical: pkt.IsDestroyed,
+                        IsCritical: isDestroyed,
                         IsHeal: false));
                     if (eval.Outcome == ToolStrikeOutcome.SwordMisuseOnWood)
                     {
@@ -1299,6 +1312,16 @@ public sealed partial class MultiplayerSession
 
     private void OnMapStructureChanged(MapStructureChanged pkt)
     {
+        // Copy out of the (possibly pooled) packet; the mutation runs later on the main thread (audit TS-2).
+        int tileX = pkt.TileX;
+        int tileY = pkt.TileY;
+        byte structureType = pkt.StructureType;
+        byte doorState = pkt.DoorState;
+        this.PostWorldMutation(() => this.ApplyMapStructureChanged(tileX, tileY, structureType, doorState));
+    }
+
+    private void ApplyMapStructureChanged(int tileX, int tileY, byte structureType, byte doorState)
+    {
         lock (_worldGate)
         {
             if (_chunkWorld is null)
@@ -1306,20 +1329,20 @@ public sealed partial class MultiplayerSession
                 return;
             }
 
-            _dirtyChunks.Add((Chunk2D.ToChunkCoord(pkt.TileX), Chunk2D.ToChunkCoord(pkt.TileY)));
+            _dirtyChunks.Add((Chunk2D.ToChunkCoord(tileX), Chunk2D.ToChunkCoord(tileY)));
 
-            if (pkt.StructureType == 0)
+            if (structureType == 0)
             {
-                _ = _chunkWorld.Buildings.TryDemolishStructure(pkt.TileX, pkt.TileY);
+                _ = _chunkWorld.Buildings.TryDemolishStructure(tileX, tileY);
             }
             else
             {
-                _chunkWorld.Buildings.ForcePlaceStructure(pkt.TileX, pkt.TileY, (StructureType)pkt.StructureType);
-                if (_chunkWorld.Buildings.TryGetStructure(pkt.TileX, pkt.TileY, out StructureTile placed) &&
+                _chunkWorld.Buildings.ForcePlaceStructure(tileX, tileY, (StructureType)structureType);
+                if (_chunkWorld.Buildings.TryGetStructure(tileX, tileY, out StructureTile placed) &&
                     placed.Category == StructureCategory.Door &&
-                    (byte)placed.DoorState != pkt.DoorState)
+                    (byte)placed.DoorState != doorState)
                 {
-                    _ = _chunkWorld.Buildings.ToggleDoor(pkt.TileX, pkt.TileY, out _);
+                    _ = _chunkWorld.Buildings.ToggleDoor(tileX, tileY, out _);
                 }
             }
         }
