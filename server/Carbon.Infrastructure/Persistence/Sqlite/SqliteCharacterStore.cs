@@ -24,7 +24,7 @@ public sealed class SqliteCharacterStore : ICharacterStore
                experience, current_mana, max_mana, current_stamina, max_stamina,
                class_id, character_flags, skill_flags, progression_blob,
                gold, diamonds, wallet_sequence, diamond_pity,
-               needs_food, needs_malnutrition, needs_poison_seconds
+               needs_food, needs_malnutrition, needs_poison_seconds, needs_rest
         FROM characters
         WHERE account_id = @account_id
         ORDER BY name ASC;
@@ -36,7 +36,7 @@ public sealed class SqliteCharacterStore : ICharacterStore
                experience, current_mana, max_mana, current_stamina, max_stamina,
                class_id, character_flags, skill_flags, progression_blob,
                gold, diamonds, wallet_sequence, diamond_pity,
-               needs_food, needs_malnutrition, needs_poison_seconds
+               needs_food, needs_malnutrition, needs_poison_seconds, needs_rest
         FROM characters
         WHERE id = @id
         LIMIT 1;
@@ -49,8 +49,8 @@ public sealed class SqliteCharacterStore : ICharacterStore
             experience, current_mana, max_mana, current_stamina, max_stamina,
             class_id, character_flags, skill_flags, progression_blob,
             gold, diamonds, wallet_sequence, diamond_pity,
-            needs_food, needs_malnutrition, needs_poison_seconds)
-        VALUES (@id, @account_id, @name, @level, @preset, @px, @py, @hp, @max_hp, @slot, @inv, @updated, @xp, @mp, @max_mp, @stam, @max_stam, @class_id, @cflags, @sflags, @pblob, @gold, @diamonds, @wseq, @pity, @nfood, @nmal, @npoison)
+            needs_food, needs_malnutrition, needs_poison_seconds, needs_rest)
+        VALUES (@id, @account_id, @name, @level, @preset, @px, @py, @hp, @max_hp, @slot, @inv, @updated, @xp, @mp, @max_mp, @stam, @max_stam, @class_id, @cflags, @sflags, @pblob, @gold, @diamonds, @wseq, @pity, @nfood, @nmal, @npoison, @nrest)
         ON CONFLICT (name) DO NOTHING;
         """;
 
@@ -80,7 +80,8 @@ public sealed class SqliteCharacterStore : ICharacterStore
             diamond_pity = @pity,
             needs_food = @nfood,
             needs_malnutrition = @nmal,
-            needs_poison_seconds = @npoison
+            needs_poison_seconds = @npoison,
+            needs_rest = @nrest
         WHERE id = @id;
         """;
 
@@ -169,6 +170,7 @@ public sealed class SqliteCharacterStore : ICharacterStore
         _ = cmd.Parameters.AddWithValue("@nfood", character.NeedsFood);
         _ = cmd.Parameters.AddWithValue("@nmal", character.NeedsMalnutrition);
         _ = cmd.Parameters.AddWithValue("@npoison", character.NeedsPoisonSeconds);
+        _ = cmd.Parameters.AddWithValue("@nrest", character.NeedsRest);
 
         int affected = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         return affected == 1;
@@ -218,6 +220,7 @@ public sealed class SqliteCharacterStore : ICharacterStore
         SqliteParameter pNeedsFood = cmd.Parameters.Add("@nfood", SqliteType.Real);
         SqliteParameter pNeedsMal = cmd.Parameters.Add("@nmal", SqliteType.Real);
         SqliteParameter pNeedsPoison = cmd.Parameters.Add("@npoison", SqliteType.Real);
+        SqliteParameter pNeedsRest = cmd.Parameters.Add("@nrest", SqliteType.Real);
         await cmd.PrepareAsync(ct).ConfigureAwait(false);
 
         for (int i = 0; i < characters.Count; i++)
@@ -249,6 +252,7 @@ public sealed class SqliteCharacterStore : ICharacterStore
             pNeedsFood.Value = c.NeedsFood;
             pNeedsMal.Value = c.NeedsMalnutrition;
             pNeedsPoison.Value = c.NeedsPoisonSeconds;
+            pNeedsRest.Value = c.NeedsRest;
             _ = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         }
 
@@ -289,6 +293,7 @@ public sealed class SqliteCharacterStore : ICharacterStore
             reader.GetInt32(24),
             reader.GetFloat(25),
             reader.GetFloat(26),
-            reader.GetFloat(27));
+            reader.GetFloat(27),
+            reader.GetFloat(28));
     }
 }

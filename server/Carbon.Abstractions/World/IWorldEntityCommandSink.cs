@@ -29,4 +29,13 @@ public interface IWorldEntityCommandSink
         Contracts.Entities.PointAllocationKind kind,
         ushort targetId,
         byte amount = 1);
+
+    /// <summary>
+    /// Queues a request to start resting (sleeping in a bed within reach, otherwise sitting) or to stand the player
+    /// up (ADR-018). It runs on the next fixed tick (ADR-017).
+    /// </summary>
+    /// <param name="connectionId">Requesting connection.</param>
+    /// <param name="rest"><see langword="true"/> to rest, <see langword="false"/> to stand up.</param>
+    /// <returns>The outcome: <see cref="OpStatus.Ok"/>, or <see cref="OpStatus.Forbidden"/> when not in the world or dead.</returns>
+    ValueTask<WorldMutationOutcome> SubmitSetRestingAsync(ulong connectionId, bool rest);
 }

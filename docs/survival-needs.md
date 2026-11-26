@@ -108,18 +108,34 @@ spoil and drops the raw-food mood penalty. The cooked meal's mood bonus comes fr
 
 Raw `slime_jelly` dropped by slimes spoils. The cooked `slime_jelly_preserve` (+18 food, +2 mood) does not.
 
-## Rest
+## Rest (ADR-018)
 
-**Rest is disabled in the shipped `needs.json` (`restEnabled: false`)** until the game has a sit/sleep action;
-with it off, rest stays full and has no effect. The engine default is on. When enabled: rest is 0..100 and drains `0.8333 × multiplier` per minute while awake (idle ×0.8, walking ×1, sprint / fight /
-swim ×1.5). The `Resting` activity recovers **10 / min** (empty → full in 10 minutes).
+Rest is 0..100. It drains `0.8333 × multiplier` per minute while awake (idle ×0.8, walking ×1, sprint / fight /
+swim ×1.5), so a walking player goes from full to exhausted in 120 minutes.
 
-| State | Threshold | Walking time from full | Mood | Speed |
-| :--- | :--- | ---: | ---: | ---: |
-| Rested | ≥ 28 % | — | 0 | ×1.0 |
-| Tired | < 28 % | 86.4 min | −6 | ×1.0 |
-| VeryTired | < 14 % | 103.2 min | −12 | ×1.0 |
-| Exhausted | 0 | 120 min | −18 | ×0.85 |
+Press **T** to rest; press it again to stand up. The server picks the mode:
+
+| Mode | Where | Recovery | Empty → full |
+| :--- | :--- | ---: | ---: |
+| Sitting | anywhere (no wood bed within 1.6 tiles) | 3 / min | 33 min |
+| Sleeping | in a built `wood_bed` | 10 / min | 10 min |
+| Sleeping (comfortable) | in a bed inside an enclosed, roofed room | 15 / min | 6.7 min |
+
+- Moving, attacking, harvesting or building wakes the player, and so does taking damage, dying or the bed being
+  destroyed. Eating does not.
+- While resting, food drains at the resting rate (×0.4).
+- A `wood_bed` is 1×2 tiles, costs 10 planks, needs a floor under both tiles and a tier-1 tool to build.
+
+| State | Threshold | Walking time from full | Mood | Speed | Health regen |
+| :--- | :--- | ---: | ---: | ---: | :--- |
+| Rested | ≥ 28 % | — | 0 | ×1.0 | yes |
+| Tired | < 28 % | 86.4 min | −6 | ×1.0 | yes |
+| VeryTired | < 14 % | 103.2 min | −12 | ×0.93 | yes |
+| Exhausted | 0 | 120 min | −18 | ×0.85 | **blocked** |
+
+The HUD shows a fifth vitals bar for rest. It reads `Rest 80%`, `Tired 20%`, `Drowsy 10%`, `Exhausted`,
+`Sit 45%`, `Zzz 45%` or `Zzz+ 45%` (comfortable). Rest is saved on logout (migration `0007_character_rest`) and pauses
+while offline.
 
 ## Mood
 

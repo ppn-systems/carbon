@@ -73,4 +73,10 @@ public interface IGameplayController
 
     /// <summary>Allocates unspent attribute points or unlocks/ranks up an active skill.</summary>
     bool TryAllocateCharacterPoint(PointAllocationKind kind, ushort targetId, byte amount = 1);
+
+    /// <summary>
+    /// Asks the server to rest (sleep in a nearby bed, otherwise sit) or, when already resting, to stand up (ADR-018).
+    /// </summary>
+    /// <returns><see langword="true"/> when the request was sent.</returns>
+    bool TryToggleRest();
 }

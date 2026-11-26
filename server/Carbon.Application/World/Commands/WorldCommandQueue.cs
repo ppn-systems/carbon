@@ -24,6 +24,9 @@ internal enum WorldCommandKind : byte
     /// <summary>Open or close a door.</summary>
     ToggleDoor = 4,
 
+    /// <summary>Start resting (<c>Arg0</c> = 1) or stand up (<c>Arg0</c> = 0) (ADR-018).</summary>
+    SetResting = 5,
+
     /// <summary>Select the active hotbar slot (<c>Arg0</c> = slot).</summary>
     SelectHotbarSlot = 10,
 

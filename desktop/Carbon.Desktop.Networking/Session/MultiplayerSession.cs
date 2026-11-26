@@ -125,6 +125,10 @@ public sealed partial class MultiplayerSession : IWorldSession
     private float _localMood = 50f;
     private bool _localFoodPoisoned;
     private float _localEatProgress = -1f;
+    private float _localRest = 100f;
+    private float _localMaxRest = 100f;
+    private byte _localRestState;
+    private RestMode _localRestMode;
     private HeroArchetypeClass _localClass = HeroArchetypeClass.Vanguard;
     private CharacterTraits _localTraits = CharacterTraits.None;
     private ushort _unspentStatPoints;
@@ -233,6 +237,18 @@ public sealed partial class MultiplayerSession : IWorldSession
 
     /// <inheritdoc/>
     public float LocalPlayerEatProgress => _localEatProgress;
+
+    /// <inheritdoc/>
+    public float LocalPlayerRest => _localRest;
+
+    /// <inheritdoc/>
+    public float LocalPlayerMaxRest => _localMaxRest;
+
+    /// <inheritdoc/>
+    public byte LocalPlayerRestState => _localRestState;
+
+    /// <inheritdoc/>
+    public RestMode LocalPlayerRestMode => _localRestMode;
 
     /// <inheritdoc/>
     public HeroArchetypeClass LocalPlayerClass => _localClass;
@@ -758,6 +774,10 @@ public sealed partial class MultiplayerSession : IWorldSession
             _localMood = 50f;
             _localFoodPoisoned = false;
             _localEatProgress = -1f;
+            _localRest = 100f;
+            _localMaxRest = 100f;
+            _localRestState = 0;
+            _localRestMode = RestMode.None;
             _localClass = HeroArchetypeClass.Vanguard;
             _localTraits = CharacterTraits.None;
             _progression.Clear();

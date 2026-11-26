@@ -89,4 +89,18 @@ public static partial class EntityHandlers
             context.Packet.Amount).ConfigureAwait(false);
         await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, EntityOpCode.AllocateCharacterPoint).ConfigureAwait(false);
     }
+
+    /// <summary>Opcode <c>0x1205</c>. Starts resting (bed sleep or sitting) or stands the player up (ADR-018).</summary>
+    [PacketOpcode(EntityOpCode.RestRequest)]
+    [PacketPermission(PermissionLevel.USER)]
+    public static async ValueTask HandleRestRequestAsync(IPacketContext<EntityRestRequest> context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        bool rest = context.Packet.Rest;
+        IPacketSender sender = context.Sender;
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        WorldMutationOutcome outcome = await s_world.SubmitSetRestingAsync(connectionId, rest).ConfigureAwait(false);
+        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, EntityOpCode.RestRequest).ConfigureAwait(false);
+    }
 }

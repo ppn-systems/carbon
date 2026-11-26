@@ -48,6 +48,7 @@ internal sealed class SettingsModalWidget
         ("1..9 / Scroll", "Select Slot"),
         ("Tab", "Lock Target"),
         ("Q / R / V", "Class Skills"),
+        ("T", "Rest / Sleep"),
     ];
 
     private static readonly (string Key, string Desc)[] s_controlsRight =
@@ -252,7 +253,7 @@ internal sealed class SettingsModalWidget
             spriteBatch.DrawOutlinedString(
                 font,
                 "Drag an item outside Bag to drop it on the ground.",
-                new Vector2(ox + 36f, oy + 324f),
+                new Vector2(ox + 36f, oy + 344f),
                 CarbonUiPalette.TextMuted,
                 black,
                 1,

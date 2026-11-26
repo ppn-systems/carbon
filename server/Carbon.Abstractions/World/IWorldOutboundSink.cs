@@ -41,6 +41,10 @@ public readonly record struct PlayerStatsSnapshot(
 /// <param name="Mood">Mood, 0..100.</param>
 /// <param name="FoodPoisoned">Whether the player has food poisoning.</param>
 /// <param name="EatProgress">Meal progress 0..1, or negative when not eating.</param>
+/// <param name="Rest">Current rest level (ADR-018).</param>
+/// <param name="MaxRest">Rest capacity.</param>
+/// <param name="RestState">Rest state byte (0 Rested, 1 Tired, 2 VeryTired, 3 Exhausted).</param>
+/// <param name="RestMode">How the player is resting.</param>
 public readonly record struct PlayerNeedsSnapshot(
     float Food,
     float MaxFood,
@@ -48,7 +52,11 @@ public readonly record struct PlayerNeedsSnapshot(
     float Malnutrition,
     float Mood,
     bool FoodPoisoned,
-    float EatProgress);
+    float EatProgress,
+    float Rest = 0f,
+    float MaxRest = 0f,
+    byte RestState = 0,
+    RestMode RestMode = RestMode.None);
 
 /// <summary>
 /// Snapshot sent by the authoritative simulation when an entity enters a player's Area of Interest.
