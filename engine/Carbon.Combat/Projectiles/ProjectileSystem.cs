@@ -3,15 +3,12 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Carbon.Combat.Components;
-using Carbon.Combat.Events;
-using Carbon.Combat.Stats;
+using Carbon.Combat.Damage;
 using Carbon.Physics.Shapes;
 using Carbon.Simulation.Clock;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.ECS.Systems;
-using Carbon.Simulation.Networking;
 using Carbon.Simulation.World;
 
 namespace Carbon.Combat.Projectiles;
@@ -60,34 +57,7 @@ public sealed class ProjectileSystem : ISimulationSystem
                 Ray2D ray = new(startPos, segment, dist);
                 if (world.RaycastWorld(in ray, out WorldRaycastHit hit, proj.TargetLayerMask, proj.Owner))
                 {
-                    if (hit.Entity.IsValid && entities.HasHealth(hit.Entity))
-                    {
-                        bool invulnerable = entities.TryGetComponent(hit.Entity, out CombatStateComponent combatState) &&
-                                            combatState.IsInvulnerable;
-                        if (!invulnerable)
-                        {
-                            float effectiveDamage = proj.Damage;
-                            EntityAttachmentStore<StatSheet> statsStore = entities.GetAttachmentStore<StatSheet>();
-                            if (effectiveDamage > 0f && statsStore.TryGet(hit.Entity, out StatSheet? stats))
-                            {
-                                float defense = MathF.Max(0f, stats.GetValue(StatType.Defense));
-                                effectiveDamage *= 100f / (100f + defense);
-                            }
-
-                            ref HealthComponent health = ref entities.GetHealth(hit.Entity);
-                            bool wasDead = health.IsDead;
-                            float nextHp = MathF.Max(0f, health.Current - effectiveDamage);
-                            health = new HealthComponent(nextHp, health.Max);
-                            world.MarkDirty(hit.Entity, EntityDirtyMask.Health);
-
-                            world.PublishEvent(new DamageEvent(proj.Owner, hit.Entity, effectiveDamage, proj.IsCritical));
-                            if (!wasDead && health.IsDead)
-                            {
-                                world.PublishEvent(new EntityKilledEvent(proj.Owner, hit.Entity));
-                            }
-                        }
-                    }
-
+                    _ = CombatDamage.Apply(world, proj.Owner, hit.Entity, proj.Damage, proj.IsCritical);
                     _toDespawn.Add(projEntity);
                     continue;
                 }

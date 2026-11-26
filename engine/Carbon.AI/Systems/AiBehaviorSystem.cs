@@ -212,6 +212,11 @@ public sealed class AiBehaviorSystem : ISimulationSystem
                         break;
                     }
 
+                    if (brain.ExternalAttackControl)
+                    {
+                        break;
+                    }
+
                     if (brain.WindupTicks == 0)
                     {
                         SetEntityVelocity(world, aiEntity, Vector2.Zero);
