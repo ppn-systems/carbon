@@ -49,6 +49,16 @@ public sealed class StructureCatalogTests
     }
 
     [Fact]
+    public void LoadEmbedded_MatchesRepositoryFile()
+    {
+        StructureCatalog embedded = StructureCatalog.LoadEmbedded();
+
+        embedded.Definitions.Select(d => (d.Id, d.Type, d.WorkAmount, d.HitPoints))
+            .Should().Equal(ConstructionFixtures.Catalog.Definitions.Select(d => (d.Id, d.Type, d.WorkAmount, d.HitPoints)));
+        embedded.Rules.Should().Be(ConstructionFixtures.Catalog.Rules);
+    }
+
+    [Fact]
     public void Parse_UnknownEnumName_ThrowsFormatException()
     {
         const string json = """

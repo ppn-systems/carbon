@@ -7,7 +7,6 @@ using Carbon.Contracts.Common;
 using Carbon.Contracts.Maps.S2C;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
-using Carbon.Items.Crafting;
 using Carbon.Items.Definitions;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
@@ -140,23 +139,17 @@ public sealed partial class AuthoritativeWorld
     }
 
     /// <inheritdoc/>
-    public WorldMutationOutcome TryPlaceStructure(ulong connectionId, int tileX, int tileY, StructureType structureType)
+    public WorldMutationOutcome TryPlaceStructure(
+        ulong connectionId,
+        int tileX,
+        int tileY,
+        StructureType structureType,
+        StructureRotation rotation = StructureRotation.North)
     {
         if (structureType == StructureType.None)
         {
             return new WorldMutationOutcome(OpStatus.Invalid, 0);
         }
-
-        uint requiredKit = StarterGameCatalog.ResolveStructureKitItemId((byte)structureType);
-        if (requiredKit == 0U)
-        {
-            return new WorldMutationOutcome(OpStatus.Invalid, 0);
-        }
-
-        ulong[]? recipientsCopy = null;
-        (ushort SlotIndex, ItemSlot Slot)[] modifiedCopy;
-        uint revision = 0;
-        StructureTile placed;
 
         lock (_gate)
         {
@@ -171,83 +164,18 @@ public sealed partial class AuthoritativeWorld
                 return new WorldMutationOutcome(OpStatus.OutOfRange, 0);
             }
 
-            if (state.Inventory.CountItem(requiredKit) < 1)
-            {
-                return new WorldMutationOutcome(OpStatus.Conflict, 0);
-            }
-
-            Vector2 playerPos = _simulation.Entities.GetTransform(state.Entity).Position;
-            int ptx = (int)MathF.Floor(playerPos.X / this.TileSize);
-            int pty = (int)MathF.Floor(playerPos.Y / this.TileSize);
-            if ((structureType is StructureType.WoodWall or StructureType.StoneWall or StructureType.ForgeAnvil) && tileX == ptx && tileY == pty)
-            {
-                return new WorldMutationOutcome(OpStatus.Conflict, 0);
-            }
-
-            MapTile tile = _chunkWorld.GetTileAtWorld(tileX, tileY);
-            bool hasProp = _chunkWorld.HasSolidPropAt(tileX, tileY);
-            PlacementValidationResult result = _chunkWorld.Buildings.TryPlaceStructure(
-                tileX,
-                tileY,
-                structureType,
-                tile.Biome,
-                hasProp,
-                out placed);
-
-            if (result != PlacementValidationResult.Success)
-            {
-                OpStatus mapped = result is PlacementValidationResult.BlockedByExistingStructure or PlacementValidationResult.BlockedByNaturalObstacle
-                    ? OpStatus.Conflict
-                    : OpStatus.Invalid;
-                return new WorldMutationOutcome(mapped, 0);
-            }
-
-            _mutationSlotScratch.Clear();
-            RemoveItemTrackingChanges(state.Inventory, requiredKit, 1, _mutationSlotScratch);
-            this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
-
-            int cx = Chunk2D.ToChunkCoord(tileX);
-            int cy = Chunk2D.ToChunkCoord(tileY);
-            _ = _dirtyChunks.Add(Chunk2D.PackKey(cx, cy));
-            if (_chunkWorld.TryGetDelta(cx, cy, out ChunkDelta? delta) && delta is not null)
-            {
-                revision = delta.Revision;
-            }
-
-            this.CollectNearbyConnectionsLocked(tileX, tileY, _aoiRecipientsScratch);
-            if (_aoiRecipientsScratch.Count > 0)
-            {
-                recipientsCopy = [.. _aoiRecipientsScratch];
-            }
-
-            modifiedCopy = [.. _mutationSlotScratch];
+            BuildMutationResult result = this.PlaceBlueprintLocked(state, tileX, tileY, structureType, rotation);
+            return ToOutcome(result, this.ChunkRevisionLocked(tileX, tileY));
         }
-
-        if (recipientsCopy is not null)
-        {
-            _outboundSink.SendStructureChanged(
-                recipientsCopy,
-                tileX,
-                tileY,
-                (byte)placed.Type,
-                placed.CurrentDurability,
-                (byte)placed.DoorState,
-                (byte)placed.Connectivity);
-        }
-
-        this.SendSlotsOutbound(connectionId, modifiedCopy);
-        return new WorldMutationOutcome(OpStatus.Ok, revision);
     }
 
     /// <inheritdoc/>
     public WorldMutationOutcome TryDemolishStructure(ulong connectionId, int tileX, int tileY)
     {
-        ulong[]? recipientsCopy = null;
-        uint revision = 0;
-
         lock (_gate)
         {
-            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state))
+            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state) ||
+                !this.TryGetBuildActorLocked(state, out BuildActor actor))
             {
                 return new WorldMutationOutcome(OpStatus.Forbidden, 0);
             }
@@ -257,36 +185,40 @@ public sealed partial class AuthoritativeWorld
                 return new WorldMutationOutcome(OpStatus.OutOfRange, 0);
             }
 
-            if (!_chunkWorld.Buildings.TryGetStructure(tileX, tileY, out StructureTile existing) ||
-                !_chunkWorld.Buildings.TryDemolishStructure(tileX, tileY))
+            _playerMaterials.Bind(state);
+            BuildMutationResult result;
+            if (_building.Ledger.TryGetSiteAt(tileX, tileY, out int anchorX, out int anchorY, out _))
             {
-                return new WorldMutationOutcome(OpStatus.NotFound, 0);
+                result = _building.CancelBlueprint(actor, tileX, tileY, _playerMaterials);
+                if (result.IsSuccess && state.BuildJob == BuildJobKind.Construct &&
+                    state.BuildJobTileX == anchorX && state.BuildJobTileY == anchorY)
+                {
+                    state.BuildJob = BuildJobKind.None;
+                }
+            }
+            else
+            {
+                // The first tick of work validates ownership and reach; the job then continues every tick.
+                result = _building.ApplyDeconstructionWork(actor, tileX, tileY, _building.Catalog.Rules.BuilderWorkPerSecond / this.TickRate, _playerMaterials);
+                if (result.IsSuccess && result.Stage == ConstructionStage.Removed)
+                {
+                    this.QueueFootprintStructureChangesLocked(result);
+                }
+                else if (result.IsSuccess)
+                {
+                    state.BuildJob = BuildJobKind.Deconstruct;
+                    state.BuildJobTileX = tileX;
+                    state.BuildJobTileY = tileY;
+                }
             }
 
-            Vector2 dropWorldPos = new((tileX + 0.5f) * this.TileSize, (tileY + 0.5f) * this.TileSize);
-            this.DropStructureSalvageLocked(dropWorldPos, existing.Type);
-
-            int cx = Chunk2D.ToChunkCoord(tileX);
-            int cy = Chunk2D.ToChunkCoord(tileY);
-            _ = _dirtyChunks.Add(Chunk2D.PackKey(cx, cy));
-            if (_chunkWorld.TryGetDelta(cx, cy, out ChunkDelta? delta) && delta is not null)
+            if (result.IsSuccess)
             {
-                revision = delta.Revision;
+                this.MarkFootprintDirtyLocked(result);
             }
 
-            this.CollectNearbyConnectionsLocked(tileX, tileY, _aoiRecipientsScratch);
-            if (_aoiRecipientsScratch.Count > 0)
-            {
-                recipientsCopy = [.. _aoiRecipientsScratch];
-            }
+            return ToOutcome(result, this.ChunkRevisionLocked(tileX, tileY));
         }
-
-        if (recipientsCopy is not null)
-        {
-            _outboundSink.SendStructureChanged(recipientsCopy, tileX, tileY, 0, 0f, 0, 0);
-        }
-
-        return new WorldMutationOutcome(OpStatus.Ok, revision);
     }
 
     /// <inheritdoc/>
@@ -362,64 +294,29 @@ public sealed partial class AuthoritativeWorld
         }
     }
 
+    /// <summary>
+    /// A placeable kit in the active hotbar slot selects a blueprint: the primary action places it on the aimed tile.
+    /// The kit is not consumed; the blueprint's materials are (see <c>docs/building.md</c>).
+    /// </summary>
     private void ProcessPlaceablePrimaryActionLocked(
         ActivePlayerState state,
         Vector2 attackerPos,
         ItemSlot activeSlot,
         ItemArchetype archetype)
     {
+        _ = attackerPos;
+        _ = activeSlot;
         StructureType structureType = (StructureType)archetype.PlaceableStructureType;
         if (structureType == StructureType.None)
         {
             return;
         }
 
-        int ptx = (int)MathF.Floor(attackerPos.X / this.TileSize);
-        int pty = (int)MathF.Floor(attackerPos.Y / this.TileSize);
         int aimTx = (int)MathF.Floor(state.PendingAttackAim.X / this.TileSize);
         int aimTy = (int)MathF.Floor(state.PendingAttackAim.Y / this.TileSize);
-
-        if (!this.IsWithinInteractRangeLocked(state.Entity, aimTx, aimTy))
+        if (this.IsWithinInteractRangeLocked(state.Entity, aimTx, aimTy))
         {
-            return;
-        }
-
-        if ((structureType is StructureType.WoodWall or StructureType.StoneWall or StructureType.ForgeAnvil) && aimTx == ptx && aimTy == pty)
-        {
-            return;
-        }
-
-        MapTile tile = _chunkWorld.GetTileAtWorld(aimTx, aimTy);
-        bool hasProp = _chunkWorld.HasSolidPropAt(aimTx, aimTy);
-        if (_chunkWorld.Buildings.TryPlaceStructure(aimTx, aimTy, structureType, tile.Biome, hasProp, out StructureTile placed)
-            != PlacementValidationResult.Success)
-        {
-            return;
-        }
-
-        ItemSlot updatedSlot = activeSlot.Quantity > 1
-            ? activeSlot with { Quantity = activeSlot.Quantity - 1 }
-            : ItemSlot.Empty;
-        state.Inventory.SetSlot(state.Session.SelectedHotbarSlot, in updatedSlot);
-        _pendingSlotChanges.Add(new OutboundSlotChange(state.Session.ConnectionId, state.Session.SelectedHotbarSlot, updatedSlot));
-        this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
-
-        int cx = Chunk2D.ToChunkCoord(aimTx);
-        int cy = Chunk2D.ToChunkCoord(aimTy);
-        _ = _dirtyChunks.Add(Chunk2D.PackKey(cx, cy));
-
-        (int offset, int count) = this.AppendTileRecipientsLocked(aimTx, aimTy);
-        if (count > 0)
-        {
-            _pendingStructureChanges.Add(new OutboundStructureChange(
-                offset,
-                count,
-                aimTx,
-                aimTy,
-                (byte)placed.Type,
-                placed.CurrentDurability,
-                (byte)placed.DoorState,
-                (byte)placed.Connectivity));
+            _ = this.PlaceBlueprintLocked(state, aimTx, aimTy, structureType, StructureRotation.North);
         }
     }
 
@@ -518,7 +415,7 @@ public sealed partial class AuthoritativeWorld
             if (!activeSlot.IsEmpty && StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? toolDef))
             {
                 toolTier = Math.Max((byte)1, toolDef.HarvestTier);
-                bool isWoodStruct = targetStruct.Type is StructureType.WoodWall or StructureType.WoodDoor or StructureType.WoodFloor;
+                bool isWoodStruct = targetStruct.Material == StructureMaterial.Wood;
                 if (isWoodStruct && toolDef.Capabilities.HasFlag(ToolCapabilities.ChopFlora))
                 {
                     dmg = MathF.Max(40f, toolDef.FloraHarvestDamage);
@@ -533,66 +430,11 @@ public sealed partial class AuthoritativeWorld
                 }
             }
 
-            if (_chunkWorld.Buildings.ApplyDamage(aimTx, aimTy, dmg, toolTier, out StructureTile updatedStruct))
+            if (toolTier >= targetStruct.Destructibility.HarvestTier)
             {
-                int scx = Chunk2D.ToChunkCoord(aimTx);
-                int scy = Chunk2D.ToChunkCoord(aimTy);
-                _ = _dirtyChunks.Add(Chunk2D.PackKey(scx, scy));
-
-                if (updatedStruct.Type == StructureType.None)
-                {
-                    Vector2 salvagePos = new((aimTx + 0.5f) * this.TileSize, (aimTy + 0.5f) * this.TileSize);
-                    this.DropStructureSalvageLocked(salvagePos, targetStruct.Type);
-                }
-
-                (int sOffset, int sCount) = this.AppendTileRecipientsLocked(aimTx, aimTy);
-                if (sCount > 0)
-                {
-                    _pendingStructureChanges.Add(new OutboundStructureChange(
-                        sOffset,
-                        sCount,
-                        aimTx,
-                        aimTy,
-                        (byte)updatedStruct.Type,
-                        updatedStruct.CurrentDurability,
-                        (byte)updatedStruct.DoorState,
-                        (byte)updatedStruct.Connectivity));
-                }
+                this.DamageStructureLocked(aimTx, aimTy, dmg);
             }
         }
-    }
-
-    private void DropStructureSalvageLocked(Vector2 worldPos, StructureType structureType)
-    {
-        uint kitId = StarterGameCatalog.ResolveStructureKitItemId((byte)structureType);
-        if (kitId == 0U)
-        {
-            return;
-        }
-
-        ReadOnlySpan<CraftingRecipe> recipes = StarterGameCatalog.Recipes.All;
-        for (int i = 0; i < recipes.Length; i++)
-        {
-            CraftingRecipe rec = recipes[i];
-            if (rec.Output.ItemId != kitId)
-            {
-                continue;
-            }
-
-            int outQty = Math.Max(1, rec.Output.Quantity);
-            for (int k = 0; k < rec.Ingredients.Count; k++)
-            {
-                RecipeIngredient ing = rec.Ingredients[k];
-                int salvageQty = Math.Max(1, (int)MathF.Ceiling(ing.Quantity * 0.6f / outQty));
-                ItemSlot drop = new(ing.ItemId, salvageQty);
-                this.SpawnGroundLootLocked(worldPos + new Vector2((k - 0.5f) * 8f, 0f), in drop);
-            }
-
-            return;
-        }
-
-        ItemSlot fallback = new(kitId, 1);
-        this.SpawnGroundLootLocked(worldPos, in fallback);
     }
 
     private bool TryDamagePropAndQueueLocked(

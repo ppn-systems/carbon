@@ -20,8 +20,11 @@ public sealed record BuildingRules
     public float DeconstructWorkFraction { get; init; } = 0.5f;
 
     /// <summary>Gets the max Chebyshev distance (tiles) between a builder and the footprint to deliver or work.</summary>
-    public int BuilderReachTiles { get; init; } = 2;
+    public int BuilderReachTiles { get; init; } = 3;
 
     /// <summary>Gets the max Chebyshev distance (tiles) between a player and the footprint to place a blueprint.</summary>
     public int PlacementReachTiles { get; init; } = 12;
+
+    /// <summary>Gets the construction / deconstruction work points one builder adds per second of simulation.</summary>
+    public float BuilderWorkPerSecond { get; init; } = 60f;
 }

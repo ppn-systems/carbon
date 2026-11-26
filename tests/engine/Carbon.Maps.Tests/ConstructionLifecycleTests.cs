@@ -29,7 +29,8 @@ public sealed class ConstructionLifecycleTests
     private static BuildActor Stranger(int x = 0, int y = 0) => new(StrangerId, x, y, 3);
 
     private static FakeInventory RichInventory() => new FakeInventory()
-        .With("wood", 100).With("planks", 100).With("stone", 100).With("stone_brick", 100).With("iron_ingot", 100);
+        .With("wood_log", 100).With("wood_plank", 100).With("stone_chunk", 100).With("stone_brick", 100)
+        .With("iron_ore", 100).With("iron_ingot", 100);
 
     [Fact]
     public void PlaceBlueprint_OnWater_ReturnsBlockedByWater()
@@ -92,18 +93,18 @@ public sealed class ConstructionLifecycleTests
     [Fact]
     public void PlaceDeliverWorkComplete_WoodWall_ConsumesMaterialsAndRegistersOwnedStructure()
     {
-        FakeInventory inventory = new FakeInventory().With("planks", 7);
+        FakeInventory inventory = new FakeInventory().With("wood_log", 7);
 
         BuildMutationResult placed = _service.PlaceBlueprint(Owner(), 1, 0, StructureType.WoodWall, StructureRotation.North);
         placed.Stage.Should().Be(ConstructionStage.Blueprint);
-        inventory.CountOf("planks").Should().Be(7, "blueprints consume nothing");
+        inventory.CountOf("wood_log").Should().Be(7, "blueprints consume nothing");
         _grid.TryGetStructure(1, 0, out _).Should().BeFalse("a blueprint is not a structure yet");
 
         _service.ApplyConstructionWork(Owner(), 1, 0, 10f).Code.Should().Be(BuildResultCode.MaterialsNotDelivered);
 
         BuildMutationResult delivered = _service.DeliverMaterials(Owner(), inventory, 1, 0);
         delivered.Stage.Should().Be(ConstructionStage.Frame);
-        inventory.CountOf("planks").Should().Be(2, "a wood wall costs 5 planks");
+        inventory.CountOf("wood_log").Should().Be(4, "a wood wall costs 3 wood logs");
 
         // 120 work points at 10 per tick: 11 ticks keep it a frame, the 12th completes it.
         for (int tick = 0; tick < 11; tick++)
@@ -132,13 +133,13 @@ public sealed class ConstructionLifecycleTests
         none.Code.Should().Be(BuildResultCode.InsufficientMaterials);
         none.ToOpStatus().Should().Be(OpStatus.Conflict);
 
-        FakeInventory partial = new FakeInventory().With("planks", 3);
+        FakeInventory partial = new FakeInventory().With("wood_log", 2);
         BuildMutationResult some = _service.DeliverMaterials(Owner(), partial, 1, 0);
         some.Code.Should().Be(BuildResultCode.Ok);
-        some.Stage.Should().Be(ConstructionStage.Blueprint, "2 planks are still missing");
-        partial.CountOf("planks").Should().Be(0);
+        some.Stage.Should().Be(ConstructionStage.Blueprint, "1 wood log is still missing");
+        partial.CountOf("wood_log").Should().Be(0);
 
-        _service.DeliverMaterials(Owner(), new FakeInventory().With("planks", 10), 1, 0).Stage
+        _service.DeliverMaterials(Owner(), new FakeInventory().With("wood_log", 10), 1, 0).Stage
             .Should().Be(ConstructionStage.Frame);
     }
 
@@ -149,15 +150,15 @@ public sealed class ConstructionLifecycleTests
         this.BuildComplete(1, 1, StructureType.StoneWall);
         _service.PlaceBlueprint(Owner(), 1, 0, StructureType.StoneDoor, StructureRotation.North).IsSuccess.Should().BeTrue();
 
-        FakeInventory inventory = new FakeInventory().With("stone_brick", 3).With("planks", 1);
+        FakeInventory inventory = new FakeInventory().With("stone_chunk", 3).With("wood_log", 1);
         _service.DeliverMaterials(Owner(), inventory, 1, 0).Stage.Should().Be(ConstructionStage.Blueprint);
 
         FakeInventory refund = new();
         BuildMutationResult cancelled = _service.CancelBlueprint(Owner(), 1, 0, refund);
 
         cancelled.Stage.Should().Be(ConstructionStage.Removed);
-        refund.CountOf("stone_brick").Should().Be(3);
-        refund.CountOf("planks").Should().Be(1);
+        refund.CountOf("stone_chunk").Should().Be(3);
+        refund.CountOf("wood_log").Should().Be(1);
         _ledger.SiteCount.Should().Be(0);
     }
 
@@ -201,7 +202,7 @@ public sealed class ConstructionLifecycleTests
         BuildMutationResult removed = _service.ApplyDeconstructionWork(Owner(1, 1), 1, 0, 30f, refund);
 
         removed.Stage.Should().Be(ConstructionStage.Removed);
-        refund.CountOf("planks").Should().Be(3, "75% of 5 planks, rounded down");
+        refund.CountOf("wood_log").Should().Be(2, "75% of 3 wood logs, rounded down");
         _grid.TryGetStructure(1, 0, out _).Should().BeFalse();
         _ledger.TryGetRecord(1, 0, out _).Should().BeFalse();
         _grid.TryGetStructure(0, 0, out corner).Should().BeTrue();
@@ -275,7 +276,7 @@ public sealed class ConstructionLifecycleTests
         BuildMutationResult destroyed = _service.ApplyDamage(1, 0, 40f, drops);
 
         destroyed.Stage.Should().Be(ConstructionStage.Removed);
-        drops.CountOf("planks").Should().Be(1, "25% of 6 planks, rounded down");
+        drops.CountOf("wood_plank").Should().Be(1, "25% of 6 planks, rounded down");
         _grid.TryGetStructure(1, 0, out _).Should().BeFalse("destroyed structures do not linger as rubble");
     }
 
@@ -321,7 +322,7 @@ public sealed class ConstructionLifecycleTests
         removed.Stage.Should().Be(ConstructionStage.Removed);
         (removed.AnchorX, removed.AnchorY, removed.Width, removed.Height).Should().Be((1, 0, 1, 2));
         _grid.StructureCount.Should().Be(0);
-        refund.CountOf("planks").Should().Be(6, "75% of 8 planks");
+        refund.CountOf("wood_log").Should().Be(4, "75% of 6 wood logs, rounded down");
     }
 
     [Fact]

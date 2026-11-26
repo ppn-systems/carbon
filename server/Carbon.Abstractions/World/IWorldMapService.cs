@@ -31,10 +31,16 @@ public interface IWorldMapService
     /// <summary>Attempts to harvest or damage the natural prop on the specified world tile.</summary>
     WorldMutationOutcome TryHarvestProp(ulong connectionId, int tileX, int tileY);
 
-    /// <summary>Attempts to construct a structure on the specified world tile using the matching kit.</summary>
-    WorldMutationOutcome TryPlaceStructure(ulong connectionId, int tileX, int tileY, StructureType structureType);
+    /// <summary>
+    /// Places a construction blueprint anchored on the specified world tile. Materials are taken from the player's
+    /// inventory and construction work advances each tick while the player stays in reach (<c>docs/building.md</c>).
+    /// </summary>
+    WorldMutationOutcome TryPlaceStructure(ulong connectionId, int tileX, int tileY, StructureType structureType, StructureRotation rotation = StructureRotation.North);
 
-    /// <summary>Attempts to demolish an existing constructed structure on the specified world tile.</summary>
+    /// <summary>
+    /// Cancels the blueprint covering the tile (100% refund), or starts deconstructing the owned structure there
+    /// (work over time, partial refund).
+    /// </summary>
     WorldMutationOutcome TryDemolishStructure(ulong connectionId, int tileX, int tileY);
 
     /// <summary>Attempts to toggle an existing door on the specified world tile.</summary>

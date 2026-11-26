@@ -18,6 +18,7 @@ using Carbon.Items.Containers;
 using Carbon.Items.Serialization;
 using Carbon.Items.Systems;
 using Carbon.Maps.Biomes;
+using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Landmarks;
@@ -56,6 +57,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly Lock _gate = new();
     private readonly ProceduralWorldGenerator _generator;
     private readonly ChunkWorld2D _chunkWorld;
+    private readonly BuildingService _building;
+    private readonly PlayerMaterialAdapter _playerMaterials;
+    private readonly GroundDropSink _groundDrops;
     private readonly WorldSimulation _simulation;
     private readonly SpatialAoiTracker _aoi;
     private readonly IChunkDeltaRepository _chunkDeltaRepo;
@@ -127,7 +131,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         IChunkDeltaRepository chunkDeltaRepo,
         ICharacterStore characterStore,
         IWorldOutboundSink outboundSink,
-        TimeProvider? time = null)
+        TimeProvider? time = null,
+        StructureCatalog? structureCatalog = null)
     {
         ArgumentNullException.ThrowIfNull(chunkDeltaRepo);
         ArgumentNullException.ThrowIfNull(characterStore);
@@ -145,6 +150,13 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
 
         _generator = new ProceduralWorldGenerator(this.WorldSeed);
         _chunkWorld = new ChunkWorld2D(_generator, this.TileSize, this.Frequency);
+        _building = BuildingService.ForWorld(
+            _chunkWorld,
+            structureCatalog ?? StructureCatalog.LoadEmbedded(),
+            new BuildPermissionTable(),
+            this.IsPlayerOnTileLocked);
+        _playerMaterials = new PlayerMaterialAdapter(this);
+        _groundDrops = new GroundDropSink(this);
         _simulation = new WorldSimulation(this.TickRate, this.TileSize)
         {
             WorldPhysics = _chunkWorld,
@@ -1123,6 +1135,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         public bool LeveledUpPending { get; set; }
         public bool PersistenceDirty { get; set; }
         public bool InventoryDirty { get; set; }
+        public BuildJobKind BuildJob { get; set; }
+        public int BuildJobTileX { get; set; }
+        public int BuildJobTileY { get; set; }
     }
 
     private readonly record struct LootDropMeta(ItemSlot Item, ulong SpawnTick);

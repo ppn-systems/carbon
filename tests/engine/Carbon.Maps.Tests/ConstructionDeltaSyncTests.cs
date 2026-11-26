@@ -24,10 +24,10 @@ public sealed class ConstructionDeltaSyncTests
         BuildActor actor = new(OwnerId, wallX, wallY, ToolTier: 3);
 
         service.PlaceBlueprint(actor, wallX, wallY, StructureType.WoodWall, StructureRotation.North).IsSuccess.Should().BeTrue();
-        service.DeliverMaterials(actor, new FakeInventory().With("planks", 5), wallX, wallY);
+        service.DeliverMaterials(actor, new FakeInventory().With("wood_log", 3), wallX, wallY);
         service.ApplyConstructionWork(actor, wallX, wallY, 1000f).Stage.Should().Be(ConstructionStage.Complete);
         service.PlaceBlueprint(actor, benchX, benchY, StructureType.Workbench, StructureRotation.North).IsSuccess.Should().BeTrue();
-        service.DeliverMaterials(actor, new FakeInventory().With("planks", 3), benchX, benchY);
+        service.DeliverMaterials(actor, new FakeInventory().With("wood_log", 3), benchX, benchY);
         service.ApplyConstructionWork(actor, benchX, benchY, 1f).Code.Should().Be(BuildResultCode.MaterialsNotDelivered);
 
         ChunkWorld2D restored = new(new ProceduralWorldGenerator(1337UL));
@@ -49,9 +49,9 @@ public sealed class ConstructionDeltaSyncTests
 
         // The restored world keeps enforcing the lifecycle: the remaining 5 planks finish the frame.
         BuildingService restoredService = BuildingService.ForWorld(restored, ConstructionFixtures.Catalog, new BuildPermissionTable());
-        FakeInventory remaining = new FakeInventory().With("planks", 10);
+        FakeInventory remaining = new FakeInventory().With("wood_log", 10);
         restoredService.DeliverMaterials(actor, remaining, benchX, benchY).Stage.Should().Be(ConstructionStage.Frame);
-        remaining.CountOf("planks").Should().Be(5);
+        remaining.CountOf("wood_log").Should().Be(7, "the bench costs 6 logs and 3 were delivered before the restart");
     }
 
     [Fact]

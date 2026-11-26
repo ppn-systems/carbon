@@ -3,7 +3,7 @@
   "deconstructRefundFraction": 0.75,
   "destroyedDropFraction": 0.25,
   "deconstructWorkFraction": 0.5,
-  "builderReachTiles": 2,
+  "builderReachTiles": 3,
   "placementReachTiles": 12,
   "structures": [
     {
@@ -13,8 +13,8 @@
       "material": "Wood",
       "cost": [
         {
-          "item": "planks",
-          "qty": 5
+          "item": "wood_log",
+          "qty": 3
         }
       ],
       "work": 120,
@@ -33,8 +33,8 @@
       "material": "Stone",
       "cost": [
         {
-          "item": "stone_brick",
-          "qty": 5
+          "item": "stone_chunk",
+          "qty": 4
         }
       ],
       "work": 200,
@@ -73,8 +73,8 @@
       "material": "Wood",
       "cost": [
         {
-          "item": "planks",
-          "qty": 4
+          "item": "wood_log",
+          "qty": 3
         }
       ],
       "work": 100,
@@ -94,11 +94,11 @@
       "material": "Stone",
       "cost": [
         {
-          "item": "stone_brick",
+          "item": "stone_chunk",
           "qty": 4
         },
         {
-          "item": "planks",
+          "item": "wood_log",
           "qty": 1
         }
       ],
@@ -140,7 +140,7 @@
       "material": "Wood",
       "cost": [
         {
-          "item": "planks",
+          "item": "wood_log",
           "qty": 1
         }
       ],
@@ -161,7 +161,7 @@
       "material": "Stone",
       "cost": [
         {
-          "item": "stone_brick",
+          "item": "stone_chunk",
           "qty": 1
         }
       ],
@@ -182,7 +182,7 @@
       "material": "Stone",
       "cost": [
         {
-          "item": "stone",
+          "item": "stone_chunk",
           "qty": 4
         }
       ],
@@ -202,12 +202,12 @@
       "material": "Metal",
       "cost": [
         {
-          "item": "iron_ingot",
-          "qty": 6
+          "item": "stone_chunk",
+          "qty": 10
         },
         {
-          "item": "stone",
-          "qty": 10
+          "item": "iron_ore",
+          "qty": 6
         }
       ],
       "work": 300,
@@ -226,8 +226,8 @@
       "material": "Wood",
       "cost": [
         {
-          "item": "planks",
-          "qty": 8
+          "item": "wood_log",
+          "qty": 6
         }
       ],
       "work": 150,
@@ -272,8 +272,8 @@
       "material": "Wood",
       "cost": [
         {
-          "item": "wood",
-          "qty": 5
+          "item": "wood_log",
+          "qty": 4
         }
       ],
       "work": 40,
@@ -292,7 +292,7 @@
       "material": "Wood",
       "cost": [
         {
-          "item": "planks",
+          "item": "wood_plank",
           "qty": 6
         }
       ],
@@ -312,7 +312,7 @@
       "material": "Wood",
       "cost": [
         {
-          "item": "planks",
+          "item": "wood_plank",
           "qty": 10
         }
       ],
@@ -327,5 +327,6 @@
       "rotatable": true,
       "requiresFloor": true
     }
-  ]
+  ],
+  "builderWorkPerSecond": 60
 }

@@ -14,6 +14,9 @@ namespace Carbon.Maps.Building;
 /// </summary>
 public sealed class StructureCatalog
 {
+    /// <summary>Manifest resource name of the embedded <c>structures.json</c>.</summary>
+    public const string EmbeddedResourceName = "Carbon.Maps.Building.structures.json";
+
     private readonly Dictionary<StructureType, StructureDefinition> _byType;
     private readonly Dictionary<string, StructureDefinition> _byId;
 
@@ -58,6 +61,19 @@ public sealed class StructureCatalog
     public bool TryGet(string id, out StructureDefinition definition) =>
         _byId.TryGetValue(id, out definition!);
 
+    /// <summary>
+    /// Loads the catalog compiled into this assembly from <c>resources/config/structures.json</c>, so the server and
+    /// every client share identical definitions without locating files at runtime.
+    /// </summary>
+    /// <returns>The parsed catalog.</returns>
+    public static StructureCatalog LoadEmbedded()
+    {
+        using Stream stream = typeof(StructureCatalog).Assembly.GetManifestResourceStream(EmbeddedResourceName)
+            ?? throw new InvalidOperationException($"Embedded resource '{EmbeddedResourceName}' is missing.");
+        using StreamReader reader = new(stream);
+        return Parse(reader.ReadToEnd());
+    }
+
     /// <summary>Loads a catalog from a JSON file.</summary>
     /// <param name="path">Path to <c>structures.json</c>.</param>
     /// <returns>The parsed catalog.</returns>
@@ -88,8 +104,14 @@ public sealed class StructureCatalog
             DestroyedDropFraction = ReadFraction(root, "destroyedDropFraction", BuildingRules.Default.DestroyedDropFraction),
             DeconstructWorkFraction = ReadFraction(root, "deconstructWorkFraction", BuildingRules.Default.DeconstructWorkFraction),
             BuilderReachTiles = ReadInt(root, "builderReachTiles", BuildingRules.Default.BuilderReachTiles),
-            PlacementReachTiles = ReadInt(root, "placementReachTiles", BuildingRules.Default.PlacementReachTiles)
+            PlacementReachTiles = ReadInt(root, "placementReachTiles", BuildingRules.Default.PlacementReachTiles),
+            BuilderWorkPerSecond = ReadFloat(root, "builderWorkPerSecond", BuildingRules.Default.BuilderWorkPerSecond)
         };
+
+        if (!(rules.BuilderWorkPerSecond > 0f))
+        {
+            throw new FormatException("'builderWorkPerSecond' must be positive.");
+        }
 
         if (!root.TryGetProperty("structures", out JsonElement structures) || structures.ValueKind != JsonValueKind.Array)
         {

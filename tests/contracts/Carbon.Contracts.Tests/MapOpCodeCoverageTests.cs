@@ -120,13 +120,14 @@ public sealed class MapOpCodeCoverageTests
     [Fact]
     public void MapStructurePlace_RoundTrip_PreservesFields()
     {
-        using MapStructurePlace original = new() { TileX = -100, TileY = 250, StructureType = 3 };
+        using MapStructurePlace original = new() { TileX = -100, TileY = 250, StructureType = 3, Rotation = 1 };
 
         using MapStructurePlace copy = MapStructurePlace.Deserialize(original.Serialize());
 
         Assert.Equal(original.TileX, copy.TileX);
         Assert.Equal(original.TileY, copy.TileY);
         Assert.Equal(original.StructureType, copy.StructureType);
+        Assert.Equal(original.Rotation, copy.Rotation);
     }
 
     private static IEnumerable<(Type Type, ushort OpCode)> PacketOpCodes(Assembly assembly) =>
