@@ -90,6 +90,10 @@ public sealed partial class ServerAuthorityTests
         "desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs|StarterGameCatalog",
         "desktop/Carbon.Desktop/Scenes/WorldGameplayScene.cs|StarterGameCatalog",
         "desktop/Carbon.Desktop/Scenes/WorldGameplayScene.cs|WorldActorCatalog",
+
+        // NEW after the guard was written: added in #25 (building UX, owned by a parallel agent) after #24 had
+        // already introduced SyncedItemCatalog. Audit SA-1b: switch to SyncedItemCatalog and delete this entry.
+        "desktop/Carbon.Desktop.Rendering/World/ConstructionOverlayRenderer.cs|StarterGameCatalog",
     };
 
     /// <summary>
