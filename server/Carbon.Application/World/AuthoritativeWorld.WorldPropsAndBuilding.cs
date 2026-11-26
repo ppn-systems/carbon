@@ -4,6 +4,7 @@ using System;
 using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Construction;
 using Carbon.Application.World.Replication;
 using Carbon.Application.World.Commands;
 using Carbon.Contracts.Common;
@@ -202,7 +203,7 @@ public sealed partial class AuthoritativeWorld
             }
 
             BuildMutationResult result = this.PlaceBlueprintLocked(state, tileX, tileY, structureType, rotation);
-            return ToOutcome(result, this.ChunkRevisionLocked(tileX, tileY));
+            return ConstructionService.ToOutcome(result, _construction.ChunkRevision(tileX, tileY));
         }
     }
 
@@ -223,42 +224,8 @@ public sealed partial class AuthoritativeWorld
             }
 
             _playerMaterials.Bind(state);
-            BuildMutationResult result;
-            if (_building.Ledger.TryGetSiteAt(tileX, tileY, out int anchorX, out int anchorY, out ConstructionSite site))
-            {
-                StructureType siteType = site.Type;
-                result = _building.CancelBlueprint(actor, tileX, tileY, _playerMaterials);
-                if (result.IsSuccess)
-                {
-                    this.QueueConstructionChangeLocked(anchorX, anchorY, siteType, StructureRotation.North, ConstructionStage.Removed, result.Width, result.Height, 0f, isDeconstruction: false);
-                    if (state.BuildJob == BuildJobKind.Construct && state.BuildJobTileX == anchorX && state.BuildJobTileY == anchorY)
-                    {
-                        state.BuildJob = BuildJobKind.None;
-                    }
-                }
-            }
-            else
-            {
-                // The first tick of work validates ownership and reach; the job then continues every tick.
-                StructureType type = _chunkWorld.Buildings.TryGetStructure(tileX, tileY, out StructureTile tile) ? tile.Type : StructureType.None;
-                result = _building.ApplyDeconstructionWork(actor, tileX, tileY, _building.Catalog.Rules.BuilderWorkPerSecond / this.TickRate, _playerMaterials);
-                if (result.IsSuccess && result.Stage == ConstructionStage.Removed)
-                {
-                    this.QueueFootprintStructureChangesLocked(result);
-                }
-                else if (result.IsSuccess)
-                {
-                    this.StartBuildJobLocked(state, BuildJobKind.Deconstruct, result.AnchorX, result.AnchorY);
-                    this.PushDeconstructionProgressLocked(state, in result, type);
-                }
-            }
-
-            if (result.IsSuccess)
-            {
-                this.MarkFootprintDirtyLocked(result);
-            }
-
-            return ToOutcome(result, this.ChunkRevisionLocked(tileX, tileY));
+            BuildMutationResult result = _construction.Demolish(actor, state.Build, _playerMaterials, tileX, tileY, _construction.WorkPerTick(this.TickRate));
+            return ConstructionService.ToOutcome(result, _construction.ChunkRevision(tileX, tileY));
         }
     }
 
@@ -473,7 +440,7 @@ public sealed partial class AuthoritativeWorld
 
             if (toolTier >= targetStruct.Destructibility.HarvestTier)
             {
-                this.DamageStructureLocked(aimTx, aimTy, dmg);
+                _construction.DamageStructure(aimTx, aimTy, dmg);
             }
         }
     }
