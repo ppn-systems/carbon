@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,15 +21,31 @@ namespace Carbon.Application.Identity;
 /// Application identity service implementing account registration, password verification,
 /// and character creation without persistence-driver or transport coupling.
 /// </summary>
-public sealed class AuthService : IAuthService
+public sealed class AuthService : IAuthService, IDisposable
 {
     /// <summary>Maximum number of characters permitted per account.</summary>
     public const int MaxCharactersPerAccount = 4;
+
+    /// <summary>Maximum accepted password length, for both registration and login.</summary>
+    public const int MaxPasswordLength = 128;
+
+    /// <summary>Failed logins allowed per account within <see cref="LoginFailureWindow"/> before it is locked.</summary>
+    public const int MaxFailedLoginsPerWindow = 5;
+
+    /// <summary>Window over which failed logins are counted; a locked account unlocks when it expires.</summary>
+    public static readonly TimeSpan LoginFailureWindow = TimeSpan.FromMinutes(5);
 
     private readonly IAccountStore _accounts;
     private readonly ICharacterStore _characters;
     private readonly IPasswordHasher _hasher;
     private readonly TimeProvider _time;
+    private readonly ConcurrentDictionary<Guid, LoginFailures> _loginFailures = new();
+
+    /// <summary>
+    /// Bounds concurrent password hashing so a flood of logins cannot occupy every core; the hashing itself runs on
+    /// the thread pool instead of the network I/O thread that called in.
+    /// </summary>
+    private readonly SemaphoreSlim _hashGate = new(Math.Max(1, Environment.ProcessorCount / 2));
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AuthService"/> class.
@@ -57,14 +74,20 @@ public sealed class AuthService : IAuthService
             return new AuthOutcome(AuthStatus.ProtocolMismatch, Guid.Empty);
         }
 
-        if (!IsValidIdentifier(username, 3, 24) || string.IsNullOrEmpty(password) || password.Length < 6 || password.Length > 128)
+        if (!IsValidIdentifier(username, 3, 24) || string.IsNullOrEmpty(password) || password.Length < 6 || password.Length > MaxPasswordLength)
         {
             return new AuthOutcome(AuthStatus.InvalidInput, Guid.Empty);
         }
 
         string trimmed = username.Trim();
         string normalized = trimmed.ToUpperInvariant();
-        _hasher.HashPassword(password, out byte[] hash, out byte[] salt);
+        (byte[] hash, byte[] salt) = await this.RunHashAsync(
+            () =>
+            {
+                _hasher.HashPassword(password, out byte[] h, out byte[] s);
+                return (h, s);
+            },
+            ct).ConfigureAwait(false);
 
         AccountRecord account = new(
             Guid.NewGuid(),
@@ -89,7 +112,7 @@ public sealed class AuthService : IAuthService
             return new AuthOutcome(AuthStatus.ProtocolMismatch, Guid.Empty);
         }
 
-        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password) || password.Length > MaxPasswordLength)
         {
             return new AuthOutcome(AuthStatus.InvalidInput, Guid.Empty);
         }
@@ -106,9 +129,24 @@ public sealed class AuthService : IAuthService
             return new AuthOutcome(AuthStatus.Locked, Guid.Empty);
         }
 
-        return _hasher.Verify(password, existing.PasswordHash, existing.PasswordSalt)
-            ? new AuthOutcome(AuthStatus.Ok, existing.Id)
-            : new AuthOutcome(AuthStatus.InvalidCredentials, Guid.Empty);
+        DateTimeOffset now = _time.GetUtcNow();
+        if (this.IsLockedOut(existing.Id, now))
+        {
+            // Rejected before hashing, so brute force against a locked account costs the server nothing.
+            return new AuthOutcome(AuthStatus.Locked, Guid.Empty);
+        }
+
+        byte[] expectedHash = existing.PasswordHash;
+        byte[] salt = existing.PasswordSalt;
+        bool verified = await this.RunHashAsync(() => _hasher.Verify(password, expectedHash, salt), ct).ConfigureAwait(false);
+        if (!verified)
+        {
+            this.RecordFailedLogin(existing.Id, now);
+            return new AuthOutcome(AuthStatus.InvalidCredentials, Guid.Empty);
+        }
+
+        _ = _loginFailures.TryRemove(existing.Id, out _);
+        return new AuthOutcome(AuthStatus.Ok, existing.Id);
     }
 
     /// <inheritdoc/>
@@ -183,6 +221,36 @@ public sealed class AuthService : IAuthService
         return character is not null && character.AccountId == accountId ? character : null;
     }
 
+    /// <inheritdoc/>
+    public void Dispose() => _hashGate.Dispose();
+
+    private bool IsLockedOut(Guid accountId, DateTimeOffset now) =>
+        _loginFailures.TryGetValue(accountId, out LoginFailures failures) &&
+        failures.Count >= MaxFailedLoginsPerWindow &&
+        now - failures.WindowStart < LoginFailureWindow;
+
+    private void RecordFailedLogin(Guid accountId, DateTimeOffset now) =>
+        _loginFailures.AddOrUpdate(
+            accountId,
+            static (_, at) => new LoginFailures(1, at),
+            static (_, current, at) => at - current.WindowStart >= LoginFailureWindow
+                ? new LoginFailures(1, at)
+                : current with { Count = current.Count + 1 },
+            now);
+
+    private async Task<T> RunHashAsync<T>(Func<T> work, CancellationToken ct)
+    {
+        await _hashGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            return await Task.Run(work, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _ = _hashGate.Release();
+        }
+    }
+
     private static bool IsValidIdentifier(string? value, int minLen, int maxLen)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -208,4 +276,7 @@ public sealed class AuthService : IAuthService
 
         return true;
     }
+
+    /// <summary>Failed-login count for one account and when its counting window started.</summary>
+    private readonly record struct LoginFailures(int Count, DateTimeOffset WindowStart);
 }
