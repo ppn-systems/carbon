@@ -10,6 +10,7 @@ using Carbon.Desktop.Abstractions.Events;
 using Carbon.Desktop.Abstractions.Identity;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Items.Containers;
+using Carbon.Maps.Building;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.World;
@@ -149,4 +150,23 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile
 
     /// <summary>Drains recent loot, craft, or warning toast notifications for the HUD feed.</summary>
     void DrainHudNotifications(List<string> destination);
+
+    /// <summary>
+    /// Copies the construction sites and deconstructions currently known to the client (render-only snapshot).
+    /// </summary>
+    /// <param name="destination">Cleared and filled with the markers.</param>
+    void CopyConstructionMarkers(List<ConstructionMarker> destination);
+
+    /// <summary>
+    /// Previews a blueprint placement with the same rules the server applies (<see cref="BuildingService.ValidatePlacement"/>)
+    /// against the client's copy of the world. The server re-validates every request.
+    /// </summary>
+    /// <param name="tileX">Anchor world tile X.</param>
+    /// <param name="tileY">Anchor world tile Y.</param>
+    /// <param name="type">Structure type.</param>
+    /// <param name="rotation">Placement rotation.</param>
+    /// <param name="width">Rotated footprint width.</param>
+    /// <param name="height">Rotated footprint height.</param>
+    /// <returns><see cref="BuildResultCode.Ok"/> or the first rule the placement breaks.</returns>
+    BuildResultCode PreviewPlacement(int tileX, int tileY, StructureType type, StructureRotation rotation, out int width, out int height);
 }

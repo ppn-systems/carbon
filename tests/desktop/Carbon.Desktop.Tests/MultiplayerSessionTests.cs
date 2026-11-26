@@ -257,18 +257,43 @@ public sealed class MultiplayerSessionTests
                 }
 
                 clientA.SelectHotbarSlot(4);
+                clientA.PreviewPlacement(placeX, placeY, StructureType.WoodWall, StructureRotation.North, out _, out _)
+                    .Should().Be(BuildResultCode.Ok, "the client preview runs the same rules as the server");
                 Vector2 placeAim = new((placeX + 0.5f) * 32f, (placeY + 0.5f) * 32f);
                 clientA.TriggerPrimaryAction(placeAim, out _).Should().BeTrue();
 
                 // The kit places a blueprint; the 3 starter wood logs are delivered and 120 work takes 60 ticks.
+                // Meanwhile both clients receive the site and its progress as MapConstructionChanged pushes.
+                List<ConstructionMarker> markers = [];
+                bool sawSite = false;
+                float maxProgress = 0f;
                 for (int i = 0; i < 120 && !clientB.ChunkWorld.Buildings.TryGetStructure(placeX, placeY, out _); i++)
+                {
+                    world.StepFixedTick();
+                    await Task.Delay(20).ConfigureAwait(true);
+                    clientB.CopyConstructionMarkers(markers);
+                    foreach (ConstructionMarker marker in markers.Where(m => m.AnchorX == placeX && m.AnchorY == placeY && !m.IsDeconstruction))
+                    {
+                        sawSite = true;
+                        maxProgress = MathF.Max(maxProgress, marker.Progress);
+                    }
+                }
+
+                clientB.ChunkWorld.Buildings.TryGetStructure(placeX, placeY, out StructureTile placed).Should().BeTrue();
+                placed.Type.Should().Be(StructureType.WoodWall);
+                sawSite.Should().BeTrue("the blueprint/frame was pushed before the wall completed");
+                maxProgress.Should().BeGreaterThan(0.3f, "construction progress is pushed while the builder works");
+
+                for (int i = 0; i < 10; i++)
                 {
                     world.StepFixedTick();
                     await Task.Delay(20).ConfigureAwait(true);
                 }
 
-                clientB.ChunkWorld.Buildings.TryGetStructure(placeX, placeY, out StructureTile placed).Should().BeTrue();
-                placed.Type.Should().Be(StructureType.WoodWall);
+                clientB.CopyConstructionMarkers(markers);
+                markers.Should().NotContain(m => m.AnchorX == placeX && m.AnchorY == placeY && !m.IsDeconstruction, "the site marker is cleared on completion");
+                clientB.PreviewPlacement(placeX, placeY, StructureType.WoodWall, StructureRotation.North, out _, out _)
+                    .Should().Be(BuildResultCode.BlockedByExistingStructure);
 
                 // 5.5 Drop UDP transport and verify Update() automatically reconnects UDP on the next heartbeat.
                 await clientA.DropUdpTransportForTestingAsync().ConfigureAwait(true);

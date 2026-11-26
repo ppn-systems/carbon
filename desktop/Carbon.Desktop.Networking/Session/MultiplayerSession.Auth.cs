@@ -315,6 +315,7 @@ public sealed partial class MultiplayerSession
 
             ProceduralWorldGenerator generator = new(_worldSeed);
             _chunkWorld = new ChunkWorld2D(generator, _tileSize, enter.Frequency);
+            _constructionMarkers.Clear();
             Vector2 initialPos = new(enter.PositionX, enter.PositionY);
             _chunkWorld.UpdateAroundPosition(initialPos, chunkRadius: 4, evictionRadius: 8);
 

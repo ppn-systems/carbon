@@ -73,6 +73,47 @@ public sealed class ConstructionLedger
     public bool TryGetRecord(int worldTileX, int worldTileY, out StructureRecord record) =>
         _records.TryGetValue((worldTileX, worldTileY), out record);
 
+    /// <summary>
+    /// Applies a site pushed by the server (client side) without firing persistence callbacks, replacing any site
+    /// anchored at the same tile. Delivered quantities are not tracked on clients.
+    /// </summary>
+    /// <param name="anchorX">Anchor world tile X.</param>
+    /// <param name="anchorY">Anchor world tile Y.</param>
+    /// <param name="type">Structure type being built.</param>
+    /// <param name="rotation">Placement rotation.</param>
+    /// <param name="width">Rotated footprint width.</param>
+    /// <param name="height">Rotated footprint height.</param>
+    /// <param name="stage">Site stage (<see cref="ConstructionStage.Blueprint"/> or <see cref="ConstructionStage.Frame"/>).</param>
+    /// <param name="workDone">Accumulated work points.</param>
+    public void ImportSite(int anchorX, int anchorY, StructureType type, StructureRotation rotation, int width, int height, ConstructionStage stage, float workDone)
+    {
+        if (stage is not (ConstructionStage.Blueprint or ConstructionStage.Frame))
+        {
+            throw new ArgumentOutOfRangeException(nameof(stage), stage, "Only blueprints and frames are construction sites.");
+        }
+
+        _ = this.RemoveSiteSilently(anchorX, anchorY);
+        ConstructionSite site = new(type, rotation, ownerId: 0, width, height, costEntries: 0)
+        {
+            Stage = stage,
+            WorkDone = workDone
+        };
+        _sites[(anchorX, anchorY)] = site;
+        for (int dy = 0; dy < height; dy++)
+        {
+            for (int dx = 0; dx < width; dx++)
+            {
+                _reservations[(anchorX + dx, anchorY + dy)] = (anchorX, anchorY);
+            }
+        }
+    }
+
+    /// <summary>Removes a site the server reported as finished or cancelled (client side), without callbacks.</summary>
+    /// <param name="anchorX">Anchor world tile X.</param>
+    /// <param name="anchorY">Anchor world tile Y.</param>
+    /// <returns><c>true</c> when a site was removed.</returns>
+    public bool ForgetSite(int anchorX, int anchorY) => this.RemoveSiteSilently(anchorX, anchorY);
+
     internal void AddSite(int anchorX, int anchorY, ConstructionSite site)
     {
         _sites[(anchorX, anchorY)] = site;
