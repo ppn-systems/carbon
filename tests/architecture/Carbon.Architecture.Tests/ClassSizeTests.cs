@@ -14,8 +14,8 @@ namespace Carbon.Architecture.Tests;
 /// </summary>
 public sealed class ClassSizeTests
 {
-    /// <summary>Current maximum number of <c>AuthoritativeWorld*.cs</c> partial files.</summary>
-    private const int MaxAuthoritativeWorldPartials = 10;
+    /// <summary>Current maximum number of <c>AuthoritativeWorld*.cs</c> partial files (10 before folding Construction and DebugOverrides).</summary>
+    private const int MaxAuthoritativeWorldPartials = 8;
 
     /// <summary>
     /// Current maximum total lines across those partials. History: 5,933 before SOLID-1; 5,827 after extracting
@@ -24,9 +24,10 @@ public sealed class ClassSizeTests
     /// <c>ConstructionService</c>; 4,714 after extracting <c>AoiReplicator</c>; 4,694 after extracting
     /// <c>WorldCommandExecutor</c>; 4,639 after moving the player state to <c>PlayerState</c> / <c>PlayerRegistry</c>;
     /// 4,277 after extracting <c>InventoryService</c>; 4,107 after extracting <c>CombatService</c>; 3,870 after extracting
-    /// <c>PropHarvestService</c>; 3,722 after extracting <c>CharacterPersistence</c>.
+    /// <c>PropHarvestService</c>; 3,722 after extracting <c>CharacterPersistence</c>; 3,696 after folding the
+    /// Construction and DebugOverrides partials.
     /// </summary>
-    private const int MaxAuthoritativeWorldLines = 3_722;
+    private const int MaxAuthoritativeWorldLines = 3_696;
 
     [Fact]
     public void AuthoritativeWorld_ShouldNotGainPartialFiles()

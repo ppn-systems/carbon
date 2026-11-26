@@ -53,6 +53,6 @@ Chunk delta chỉ đến client khi fetch lại chunk, nên không đủ để v
 | `Progress` | `float` | Tiến độ xây hoặc deconstruct, `[0, 1]` |
 | `IsDeconstruction` | `bool` | `Progress` là tiến độ deconstruct |
 
-- Server (`AuthoritativeWorld.Construction.cs`) gửi khi đặt blueprint, đổi stage, mỗi bước 10% tiến độ (throttle theo job), và `Removed` khi hoàn thành, hủy, hoặc deconstruct xong / bị bỏ dở.
+- Server (`Construction/ConstructionService.cs`) gửi khi đặt blueprint, đổi stage, mỗi bước 10% tiến độ (throttle theo job), và `Removed` khi hoàn thành, hủy, hoặc deconstruct xong / bị bỏ dở.
 - Client chỉ dùng để hiển thị: `ConstructionMarkerBook` giữ marker. Site được ghi vào `ConstructionLedger` của client qua `ImportSite`/`ForgetSite` để preview đặt công trình (cùng `BuildingService.ValidatePlacement` với server) thấy blueprint mới. Mọi thay đổi vẫn do server quyết định.
 - Đây là opcode mới, không đổi layout packet cũ; client cũ không đăng ký handler thì bỏ qua packet này.
