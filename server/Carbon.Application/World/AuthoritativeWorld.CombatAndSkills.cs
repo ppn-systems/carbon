@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Application.World.Actors;
+using Carbon.Application.World.Commerce;
 using Carbon.Application.World.Actions;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Projectiles;
@@ -34,7 +35,7 @@ public sealed partial class AuthoritativeWorld
     {
         if (_actorsByNetworkId.Remove(monsterNetworkId, out NpcActorMeta meta))
         {
-            if (!this.TryRollEconomyLootLocked(attacker, meta.LootTableId ?? ResolveLootTableId(meta.ArchetypeId), meta.Level, monsterNetworkId, position))
+            if (!_commerce.TryRollLoot(attacker, meta.LootTableId ?? EconomyService.ResolveLootTableId(meta.ArchetypeId), meta.Level, monsterNetworkId, position))
             {
                 ItemSlot loot = new(meta.DropItemId, Math.Max(1, meta.DropQuantity));
                 this.SpawnGroundLootLocked(position, in loot);

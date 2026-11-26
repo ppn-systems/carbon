@@ -26,9 +26,9 @@ public sealed class ClassSizeTests
     /// 4,277 after extracting <c>InventoryService</c>; 4,107 after extracting <c>CombatService</c>; 3,870 after extracting
     /// <c>PropHarvestService</c>; 3,722 after extracting <c>CharacterPersistence</c>; 3,696 after folding the
     /// Construction and DebugOverrides partials; 3,357 after extracting <c>PlayerActionService</c>; 3,172 after extracting
-    /// <c>SettlementNpcSpawner</c>.
+    /// <c>SettlementNpcSpawner</c>; 3,072 after extracting <c>EconomyService</c>.
     /// </summary>
-    private const int MaxAuthoritativeWorldLines = 3_172;
+    private const int MaxAuthoritativeWorldLines = 3_072;
 
     [Fact]
     public void AuthoritativeWorld_ShouldNotGainPartialFiles()
