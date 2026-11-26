@@ -61,7 +61,13 @@ item from the inventory when it handles `MealCompletedEvent`.**
 | `raw_meat` | raw | 25 | 4 s | 15 % | −7 for 10 min |
 | `bread` | simple | 35 | 3 s | 1 % | — |
 | `cooked_meat` | simple | 40 | 4 s | 2 % | +2 for 10 min |
+| `roast_meat` | simple | 45 | 4 s | 0 % | +3 for 10 min |
+| `arcane_pie` | fine | 50 | 5 s | 0 % | +5 for 15 min |
 | `stew` | fine | 60 | 6 s | 1 % | +5 for 15 min |
+
+`roast_meat` and `arcane_pie` are the edible consumables in today's `StarterGameCatalog`; their HP/MP/stamina
+restores are still applied, but at the end of the meal instead of instantly. A consumable whose code is not in
+`food.json` keeps the old instant potion behaviour.
 
 Food poisoning lasts **2 minutes**: mood −12, move/attack speed ×0.85, health regen blocked. The roll is
 `FoodPoisoningRoll.Sample(seed, eater, tickIndex, foodIndex)`, a pure SplitMix64 hash, so the same world seed
@@ -69,7 +75,8 @@ replays identically and no RNG state is stored.
 
 ## Rest
 
-Rest is 0..100 and drains `0.8333 × multiplier` per minute while awake (idle ×0.8, walking ×1, sprint / fight /
+**Rest is disabled in the shipped `needs.json` (`restEnabled: false`)** until the game has a sit/sleep action;
+with it off, rest stays full and has no effect. The engine default is on. When enabled: rest is 0..100 and drains `0.8333 × multiplier` per minute while awake (idle ×0.8, walking ×1, sprint / fight /
 swim ×1.5). The `Resting` activity recovers **10 / min** (empty → full in 10 minutes).
 
 | State | Threshold | Walking time from full | Mood | Speed |
@@ -87,14 +94,40 @@ Content ≥ 65, Happy ≥ 85. A starving player is at 30 (Stressed); starving an
 
 Speed penalties multiply: starving + exhausted + poisoned = 0.65 × 0.85 × 0.85 ≈ ×0.47.
 
-## Integration
+## Server integration (`server/Carbon.Application/World/AuthoritativeWorld.Survival.cs`)
 
-1. Load `NeedsConfig.LoadFromJson` and `FoodCatalog.LoadFromJson(json, config.FoodMax)` at startup; both
-   validate every value and throw `InvalidDataException` on bad data.
-2. Register `EatActionSystem` then `NeedsSystem` (both `PostUpdate`) so a finished meal updates the hunger
-   state on the same tick.
-3. Add `NeedsComponent.CreateFull(config)` to player entities and set `Activity` every tick
-   (`NeedsSystem.SetActivity`).
-4. Movement, combat and regen code read `MoveSpeedScale`, `AttackSpeedScale` and `HealthRegenBlocked`.
-5. HUD: `NeedStateChangedEvent(entity, need, previous, current, level)` on every threshold crossing; `Need`
-   selects whether the state bytes are `HungerState`, `RestState` or `MoodState`.
+- The host copies `needs.json` / `food.json` to `<output>/config/` (also in `deploy/Dockerfile.host`) and loads
+  them at boot; bad data stops the server.
+- `EatActionSystem` then `NeedsSystem` are registered on the world simulation; every player entity gets
+  `NeedsComponent.CreateFull`.
+- Each tick the player's activity comes from server state: Fighting (hit in the last 6 s) > Sprinting >
+  Walking (moving) > Idle. Swimming is not detected yet.
+- Eating: using an edible consumable from the hotbar (the existing primary-action / `AttackInput` handler)
+  calls `BeginEat`. The item stays reserved in its slot; moving or dropping it cancels the meal. On
+  `MealCompletedEvent` one item is consumed and the slot change is sent. Monster damage interrupts the meal.
+- Effects: walk/sprint speed × `MoveSpeedScale`, basic attack cooldown ÷ `AttackSpeedScale`, out-of-combat
+  HP regen is skipped while `HealthRegenBlocked`.
+- Starvation death goes through the normal death/respawn path (full HP at the sanctuary). Any death clears
+  malnutrition and poisoning and leaves food at no less than 50 %.
+- Sync: `PlayerStatsSync` gained `Food`, `MaxFood`, `HungerState`, `Malnutrition`, `Mood`, `FoodPoisoned`
+  and `EatProgress` (serialize orders 18–24, appended). It is sent every 10 ticks and right after any
+  threshold change, meal start or meal end.
+- Not persisted yet: needs reset to full on login. Persisting them needs a `CharacterRecord` / schema change.
+
+## Client
+
+`IWorldReadModel` exposes `LocalPlayerFood`, `LocalPlayerMaxFood`, `LocalPlayerHungerState`,
+`LocalPlayerMalnutrition`, `LocalPlayerMood`, `LocalPlayerFoodPoisoned` and `LocalPlayerEatProgress`. The vitals
+cluster above the hotbar (`HotbarAndItemWidget`) has a fourth bar for hunger. Its colour follows the state
+(amber fed, orange hungry, red starving, green poisoned), its label reads "Food 82%", "Hungry 20%",
+"Ravenous 10%" or "Starving!", and a white strip shows meal progress while eating.
+
+## Engine wiring (other hosts)
+
+1. Load `NeedsConfig.LoadFromJson` and `FoodCatalog.LoadFromJson(json, config.FoodMax)`.
+2. Register `EatActionSystem` then `NeedsSystem` (both `PostUpdate`).
+3. Add `NeedsComponent.CreateFull(config)` and set `Activity` every tick (`NeedsSystem.SetActivity`).
+4. Read `MoveSpeedScale`, `AttackSpeedScale` and `HealthRegenBlocked`; consume the item on `MealCompletedEvent`.
+5. HUD: `NeedStateChangedEvent(entity, need, previous, current, level)`. If the host never calls
+   `WorldSimulation.Update`, clear the survival event buffers (and the starvation `DamageEvent` /
+   `EntityKilledEvent`) after handling them, as the server does.

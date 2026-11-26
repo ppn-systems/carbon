@@ -72,7 +72,11 @@ public sealed partial class MultiplayerSession
             bool healsHp = archetype.HealHealth > 0f;
             bool healsMp = archetype.RestoreMana > 0f;
             bool healsStam = archetype.RestoreStamina > 0f;
+            // Edible consumables also restore food, so only refuse when the hunger meter is (nearly) full too;
+            // the server's overeating cap is 90 %.
+            bool foodFull = _localFood >= _localMaxFood * 0.9f;
             if ((healsHp || healsMp || healsStam) &&
+                foodFull &&
                 (!healsHp || _localHealth >= _localMaxHealth - 0.5f) &&
                 (!healsMp || _localMana >= _localMaxMana - 0.5f) &&
                 (!healsStam || _localStamina >= _localMaxStamina - 0.5f))

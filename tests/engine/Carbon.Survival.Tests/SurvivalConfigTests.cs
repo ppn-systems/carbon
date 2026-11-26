@@ -11,7 +11,7 @@ namespace Carbon.Survival.Tests;
 
 public sealed class SurvivalConfigTests
 {
-    private static readonly string[] s_expectedFoods = ["berries", "raw_meat", "cooked_meat", "bread", "stew", "slime_jelly"];
+    private static readonly string[] s_expectedFoods = ["berries", "raw_meat", "cooked_meat", "bread", "stew", "slime_jelly", "roast_meat", "arcane_pie"];
 
     [Fact]
     public void LoadFromJson_RepositoryNeedsJson_LoadsAndMatchesDocumentedTimeline()

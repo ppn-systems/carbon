@@ -195,6 +195,11 @@ public sealed class MultiplayerSessionTests
                     await Task.Delay(15).ConfigureAwait(true);
                 }
 
+                clientA.LocalPlayerMaxFood.Should().Be(100f);
+                clientA.LocalPlayerFood.Should().BeLessThan(100f, "the server's hunger decay is synced in PlayerStatsSync").And.BeGreaterThan(99f);
+                clientA.LocalPlayerHungerState.Should().Be(0, "a fresh hero is fed");
+                clientA.LocalPlayerEatProgress.Should().BeLessThan(0f);
+
                 clientB.RemoteEntities.Should().Contain(
                     e => e.Name == "HeroA",
                     "peer spawn over encrypted TCP and UDP delta updates should replicate HeroA to clientB");

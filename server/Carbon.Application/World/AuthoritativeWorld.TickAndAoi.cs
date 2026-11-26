@@ -54,7 +54,7 @@ public sealed partial class AuthoritativeWorld
                         state.StatsDirty = true;
                     }
 
-                    float speed = (isSprinting ? SprintSpeed : BaseWalkSpeed) * state.Stats.MoveSpeedMultiplier;
+                    float speed = (isSprinting ? SprintSpeed : BaseWalkSpeed) * state.Stats.MoveSpeedMultiplier * this.GetNeedsMoveScaleLocked(state);
                     _simulation.EnqueueCommand(SimulationCommand.MoveInput(
                         state.Entity,
                         state.PendingDirection,
@@ -74,6 +74,8 @@ public sealed partial class AuthoritativeWorld
                     state.CurrentMana = MathF.Min(state.Stats.MaxMana, state.CurrentMana + (mpRegen * dt));
                 }
 
+                this.PrepareNeedsForTickLocked(state, isSprinting);
+
                 if (state.PendingPickupLootId != 0UL)
                 {
                     _ = this.TryPickupSpecificLootLocked(state, state.PendingPickupLootId, 84f * 84f);
@@ -82,6 +84,7 @@ public sealed partial class AuthoritativeWorld
             }
 
             _simulation.Tick(new FixedTickArgs(_currentTick, dt, _currentTick * dt));
+            this.ProcessSurvivalEventsLocked();
 
             this.StepProjectilesLocked();
 
@@ -205,6 +208,7 @@ public sealed partial class AuthoritativeWorld
                 // Out-of-combat natural HP regeneration (+3 HP/s after 6s without taking combat hits).
                 if ((_currentTick % this.TickRate) == 0UL &&
                     (_currentTick - observer.LastCombatDamageTick) >= (ulong)(this.TickRate * 6) &&
+                    !this.IsHealthRegenBlockedLocked(observer) &&
                     _simulation.Entities.HasHealth(observer.Entity))
                 {
                     HealthComponent php = _simulation.Entities.GetHealth(observer.Entity);
@@ -650,6 +654,7 @@ public sealed partial class AuthoritativeWorld
             victim.LastCombatDamageTick = _currentTick;
             victim.StatsDirty = true;
             this.DegradeEquippedArmorLocked(victim, 0.5f);
+            this.InterruptMealOnDamageLocked(victim);
         }
 
         float nextHp = MathF.Max(0f, hp.Current - monsterDamage);
@@ -667,6 +672,7 @@ public sealed partial class AuthoritativeWorld
 
             if (victim is not null)
             {
+                this.ResetNeedsAfterDeathLocked(victim);
                 victim.CurrentMana = victim.Stats.MaxMana;
                 victim.CurrentStamina = victim.Stats.MaxStamina;
                 victim.StatsDirty = true;

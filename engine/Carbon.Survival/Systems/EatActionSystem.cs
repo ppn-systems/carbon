@@ -115,8 +115,10 @@ public sealed class EatActionSystem : ISimulationSystem
     /// </summary>
     /// <param name="world">World simulation.</param>
     /// <param name="eater">Eating entity.</param>
+    /// <param name="reason">Reason reported in the event (e.g. <see cref="MealInterruptReason.Damaged"/> when the
+    /// host applies damage outside the simulation tick).</param>
     /// <returns><see cref="OpStatus.Ok"/> when a meal was cancelled; <see cref="OpStatus.NotFound"/> when not eating.</returns>
-    public static OpStatus CancelEat(WorldSimulation world, Entity eater)
+    public static OpStatus CancelEat(WorldSimulation world, Entity eater, MealInterruptReason reason = MealInterruptReason.Cancelled)
     {
         ArgumentNullException.ThrowIfNull(world);
 
@@ -126,7 +128,7 @@ public sealed class EatActionSystem : ISimulationSystem
         }
 
         _ = world.Entities.RemoveComponent<EatingComponent>(eater);
-        world.PublishEvent(new MealInterruptedEvent(eater, meal.FoodIndex, MealInterruptReason.Cancelled));
+        world.PublishEvent(new MealInterruptedEvent(eater, meal.FoodIndex, reason));
         return OpStatus.Ok;
     }
 

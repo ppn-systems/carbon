@@ -157,6 +157,12 @@ public sealed class NeedsSystem : ISimulationSystem
         float foodDrain = _config.FoodDecayPerMinute * _config.FoodActivity.For(needs.Activity) * minutes;
         needs.Food = Math.Clamp(needs.Food - foodDrain, 0f, needs.FoodMax);
 
+        if (!_config.RestEnabled)
+        {
+            needs.Rest = needs.RestMax;
+            return;
+        }
+
         float restDelta = needs.Activity == NeedsActivity.Resting
             ? _config.RestRecoveryPerMinute * minutes
             : -_config.RestDecayPerMinute * _config.RestActivity.For(needs.Activity) * minutes;

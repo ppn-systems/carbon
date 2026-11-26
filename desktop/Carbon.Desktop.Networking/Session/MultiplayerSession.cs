@@ -110,6 +110,13 @@ public sealed partial class MultiplayerSession : IWorldSession
     private float _localStamina = 100f;
     private float _localMaxStamina = 100f;
     private float _localDefense = 2f;
+    private float _localFood = 100f;
+    private float _localMaxFood = 100f;
+    private byte _localHungerState;
+    private float _localMalnutrition;
+    private float _localMood = 50f;
+    private bool _localFoodPoisoned;
+    private float _localEatProgress = -1f;
     private HeroArchetypeClass _localClass = HeroArchetypeClass.Vanguard;
     private CharacterTraits _localTraits = CharacterTraits.None;
     private ushort _unspentStatPoints;
@@ -188,6 +195,27 @@ public sealed partial class MultiplayerSession : IWorldSession
 
     /// <inheritdoc/>
     public float LocalPlayerDefense => _localDefense;
+
+    /// <inheritdoc/>
+    public float LocalPlayerFood => _localFood;
+
+    /// <inheritdoc/>
+    public float LocalPlayerMaxFood => _localMaxFood;
+
+    /// <inheritdoc/>
+    public byte LocalPlayerHungerState => _localHungerState;
+
+    /// <inheritdoc/>
+    public float LocalPlayerMalnutrition => _localMalnutrition;
+
+    /// <inheritdoc/>
+    public float LocalPlayerMood => _localMood;
+
+    /// <inheritdoc/>
+    public bool LocalPlayerFoodPoisoned => _localFoodPoisoned;
+
+    /// <inheritdoc/>
+    public float LocalPlayerEatProgress => _localEatProgress;
 
     /// <inheritdoc/>
     public HeroArchetypeClass LocalPlayerClass => _localClass;
@@ -666,6 +694,13 @@ public sealed partial class MultiplayerSession : IWorldSession
             _localStamina = 100f;
             _localMaxStamina = 100f;
             _localDefense = 2f;
+            _localFood = 100f;
+            _localMaxFood = 100f;
+            _localHungerState = 0;
+            _localMalnutrition = 0f;
+            _localMood = 50f;
+            _localFoodPoisoned = false;
+            _localEatProgress = -1f;
             _localClass = HeroArchetypeClass.Vanguard;
             _localTraits = CharacterTraits.None;
             _progression.Clear();

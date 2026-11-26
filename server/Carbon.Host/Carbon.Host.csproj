@@ -32,6 +32,14 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- Survival tuning (hunger, food nutrition) loaded at boot from <output>/config/. -->
+        <None Include="..\..\resources\config\needs.json;..\..\resources\config\food.json"
+              Link="config\%(Filename)%(Extension)"
+              CopyToOutputDirectory="PreserveNewest"
+              CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+
+    <ItemGroup>
         <InternalsVisibleTo Include="Carbon.Host.Tests" />
         <InternalsVisibleTo Include="Carbon.Desktop.Tests" />
     </ItemGroup>

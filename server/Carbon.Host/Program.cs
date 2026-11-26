@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,6 +13,8 @@ using Carbon.Infrastructure.Configuration;
 using Carbon.Infrastructure.Persistence.Postgres;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Infrastructure.Security;
+using Carbon.Survival.Config;
+using Carbon.Survival.Food;
 using Microsoft.Extensions.Logging;
 using Nalix.Hosting;
 using Npgsql;
@@ -81,6 +84,13 @@ public static class Program
         AuthService authService = new(accountStore, characterStore, hasher);
         SessionTransportRegistry transportRegistry = new();
         WorldOutboundSink outboundSink = new(transportRegistry, loggerFactory.CreateLogger<WorldOutboundSink>());
+        string configDir = Path.Combine(AppContext.BaseDirectory, "config");
+        NeedsConfig needsConfig = NeedsConfig.LoadFromJson(
+            await File.ReadAllTextAsync(Path.Combine(configDir, "needs.json")).ConfigureAwait(false));
+        FoodCatalog foodCatalog = FoodCatalog.LoadFromJson(
+            await File.ReadAllTextAsync(Path.Combine(configDir, "food.json")).ConfigureAwait(false),
+            needsConfig.FoodMax);
+
         AuthoritativeWorld world = new(
             options.WorldSeed,
             options.TileSize,
@@ -88,7 +98,10 @@ public static class Program
             options.TickRate,
             chunkDeltaRepo,
             characterStore,
-            outboundSink);
+            outboundSink,
+            time: null,
+            needsConfig,
+            foodCatalog);
 
         await world.InitializeFromStoreAsync().ConfigureAwait(false);
 

@@ -70,6 +70,9 @@ public sealed class NeedsConfig
     /// <summary>Gets the extra pulse damage per point of malnutrition severity (0..1).</summary>
     public float StarvationDamagePerSeverity { get; init; } = 1f;
 
+    /// <summary>Gets a value indicating whether rest drains at all. Hosts without a rest action set this to false.</summary>
+    public bool RestEnabled { get; init; } = true;
+
     /// <summary>Gets the rest capacity.</summary>
     public float RestMax { get; init; } = 100f;
 

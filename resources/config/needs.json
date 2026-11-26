@@ -22,6 +22,7 @@
   "starvationDamageIntervalSeconds": 5,
   "starvationDamageBase": 0.25,
   "starvationDamagePerSeverity": 1.0,
+  "restEnabled": false,
   "restMax": 100,
   "restDecayPerMinute": 0.8333,
   "restActivity": {

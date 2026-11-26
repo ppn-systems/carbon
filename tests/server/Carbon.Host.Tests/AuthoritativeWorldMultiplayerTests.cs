@@ -17,6 +17,8 @@ using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Serialization;
 using Carbon.Maps.Building;
+using Carbon.Survival.Config;
+using Carbon.Survival.Food;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Xunit;
@@ -596,6 +598,138 @@ public sealed class AuthoritativeWorldMultiplayerTests
         }
     }
 
+    [Fact]
+    public async Task HungryPlayerEatingFoodFromHotbar_ConsumesItemAndSyncsNeeds()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-survival-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
+            RecordingOutboundSink sink = new();
+
+            // 600 food/min (×0.5 idle) empties the meter fast enough to test in a few hundred ticks.
+            NeedsConfig needs = new() { FoodDecayPerMinute = 600f };
+            AuthoritativeWorld world = CreateSurvivalWorld(factory, sink, needs);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+            InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
+            inv.SetSlot(0, new ItemSlot(StarterGameCatalog.RoastMeat, 3));
+            CharacterRecord hero = new(
+                Guid.NewGuid(), Guid.NewGuid(), "Glutton", 1, 0,
+                world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
+                100f, 100f, SelectedHotbarSlot: 0, InventoryBlob: InventoryBinaryCodec.Serialize(inv),
+                UpdatedAtUtc: DateTimeOffset.UtcNow);
+            world.TryEnterWorld(connectionId: 700UL, sessionId: 700UL, hero).Status.Should().Be(OpStatus.Ok);
+
+            world.StepFixedTick();
+            sink.NeedsSyncs.Should().Contain(n => n.ConnectionId == 700UL && n.Needs.MaxFood == 100f && n.Needs.EatProgress < 0f);
+
+            // Full → eating is refused (overeating cap) and nothing is consumed.
+            world.EnqueueAttackInput(700UL, 0UL, world.DefaultSpawnWorldPosition, 0).Should().Be(OpStatus.Ok);
+            StepTicks(world, 130);
+            sink.SlotChanges.Should().NotContain(c => c.ConnectionId == 700UL && c.SlotIndex == 0, "a full player cannot eat");
+
+            // 6 s idle at 5 food/s → well below the 90 % cap.
+            StepTicks(world, 180);
+            float before = sink.NeedsSyncs.Last(n => n.ConnectionId == 700UL).Needs.Food;
+            before.Should().BeLessThan(60f);
+
+            world.EnqueueAttackInput(700UL, 0UL, world.DefaultSpawnWorldPosition, 0).Should().Be(OpStatus.Ok);
+            StepTicks(world, 30);
+            sink.NeedsSyncs.Last(n => n.ConnectionId == 700UL).Needs.EatProgress.Should().BeInRange(0f, 1f, "the HUD shows meal progress");
+
+            StepTicks(world, 100);
+            sink.SlotChanges.Should().Contain(c => c.ConnectionId == 700UL && c.SlotIndex == 0 && c.Quantity == 2, "one roast meat is eaten");
+            PlayerNeedsSnapshot after = sink.NeedsSyncs.Last(n => n.ConnectionId == 700UL).Needs;
+            after.EatProgress.Should().BeLessThan(0f);
+            after.Food.Should().BeGreaterThan(before + 20f, "roast meat restores 45 food (minus a few seconds of decay)");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task StarvingPlayer_DiesFromMalnutritionAndRespawnsHalfFed()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-starve-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
+            RecordingOutboundSink sink = new();
+
+            // Empty in 12 s idle, then lethal malnutrition after 60 s.
+            NeedsConfig needs = new() { FoodDecayPerMinute = 1000f, MalnutritionGainPerMinute = 1f };
+            AuthoritativeWorld world = CreateSurvivalWorld(factory, sink, needs);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+            CharacterRecord hero = new(
+                Guid.NewGuid(), Guid.NewGuid(), "Faster", 1, 0,
+                world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
+                100f, 100f, 0, [], DateTimeOffset.UtcNow);
+            EnterWorldResult enter = world.TryEnterWorld(connectionId: 701UL, sessionId: 701UL, hero);
+            enter.Status.Should().Be(OpStatus.Ok);
+
+            StepTicks(world, 30 * 30);
+            sink.NeedsSyncs.Last(n => n.ConnectionId == 701UL).Needs.HungerState.Should().Be(3, "food ran out after 12 s");
+
+            int ticksUntilDeath = 0;
+            while (!sink.CombatHits.Any(h => h.DefenderNetworkId == enter.PlayerNetworkId && h.IsKilled) && ticksUntilDeath < 30 * 70)
+            {
+                world.StepFixedTick();
+                ticksUntilDeath++;
+            }
+
+            sink.CombatHits.Should().Contain(h => h.DefenderNetworkId == enter.PlayerNetworkId && h.IsKilled, "maximum malnutrition kills");
+            ((900 + ticksUntilDeath) / 30f).Should().BeInRange(70f, 74f, "12 s to empty + 60 s of malnutrition");
+            world.StepFixedTick();
+            PlayerNeedsSnapshot respawned = sink.NeedsSyncs.Last(n => n.ConnectionId == 701UL).Needs;
+            respawned.Malnutrition.Should().BeLessThan(0.1f, "death clears malnutrition");
+            respawned.Food.Should().BeGreaterThan(40f, "respawn restores half the food meter");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
+    private static AuthoritativeWorld CreateSurvivalWorld(SqliteConnectionFactory factory, RecordingOutboundSink sink, NeedsConfig needs)
+    {
+        // food.json is copied next to the host binary (and this test assembly) under config/.
+        string foodPath = Path.Combine(AppContext.BaseDirectory, "config", "food.json");
+        FoodCatalog food = FoodCatalog.LoadFromJson(File.ReadAllText(foodPath), needs.FoodMax);
+        return new AuthoritativeWorld(
+            1337UL,
+            32f,
+            0.0008f,
+            30,
+            new SqliteChunkDeltaRepository(factory),
+            new SqliteCharacterStore(factory),
+            sink,
+            time: null,
+            needs,
+            food);
+    }
+
+    private static void StepTicks(AuthoritativeWorld world, int ticks)
+    {
+        for (int i = 0; i < ticks; i++)
+        {
+            world.StepFixedTick();
+        }
+    }
+
     private sealed class RecordingOutboundSink : IWorldOutboundSink
     {
         public List<(ulong ConnectionId, EntitySpawnSnapshot Snapshot)> Spawns { get; } = [];
@@ -607,6 +741,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
         public List<(ulong EntityNetworkId, ushort ChestId, ushort WeaponId, ushort Level)> EquipmentChanges { get; } = [];
         public List<(ulong ConnectionId, ushort Level, uint Experience, float Defense, ushort VitPoints, byte Skill1Rank)> StatsSyncs { get; } = [];
         public List<(ulong CasterNetworkId, byte AbilitySlot)> SkillCasts { get; } = [];
+        public List<(ulong ConnectionId, PlayerNeedsSnapshot Needs)> NeedsSyncs { get; } = [];
 
         public void SendEntitySpawn(ulong connectionId, in EntitySpawnSnapshot spawn) =>
             this.Spawns.Add((connectionId, spawn));
@@ -641,6 +776,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
         public void SendPlayerStatsSync(ulong connectionId, in PlayerStatsSnapshot snapshot)
         {
+            this.NeedsSyncs.Add((connectionId, snapshot.Needs));
             CharacterProgressionState prog = new();
             _ = CharacterProgressionBinaryCodec.TryDeserializeInto(snapshot.ProgressionBlob ?? [], prog);
             this.StatsSyncs.Add((
