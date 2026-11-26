@@ -6,16 +6,15 @@ using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Abstractions.World;
 using Carbon.Application.World.Commands;
+using Carbon.Application.World.Loot;
 using Carbon.Contracts.Common;
 using Carbon.Items.Catalog;
-using Carbon.Items.Components;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
 using Carbon.Items.Definitions;
 using Carbon.Maps.Building;
 
 using Carbon.Simulation.ECS;
-using Carbon.Simulation.ECS.Components;
 
 namespace Carbon.Application.World;
 
@@ -571,66 +570,7 @@ public sealed partial class AuthoritativeWorld
         }
     }
 
-    private void SpawnGroundLootLocked(Vector2 worldPos, in ItemSlot item)
-    {
-        if (item.IsEmpty)
-        {
-            return;
-        }
-
-        int maxStack = _itemRules.GetMaxStackSize(item.ItemId);
-        if (maxStack > 1 && item.IsStackable)
-        {
-            foreach (KeyValuePair<ulong, LootDropMeta> kvp in _lootByNetworkId)
-            {
-                LootDropMeta existing = kvp.Value;
-                if (existing.Item.ItemId != item.ItemId || !existing.Item.IsStackable || existing.Item.Quantity >= maxStack)
-                {
-                    continue;
-                }
-
-                if (!_simulation.TryGetEntityByNetworkId(kvp.Key, out Entity existingEnt) ||
-                    !_simulation.Entities.IsAlive(existingEnt) ||
-                    !_simulation.Entities.HasTransform(existingEnt))
-                {
-                    continue;
-                }
-
-                Vector2 existingPos = _simulation.Entities.GetTransform(existingEnt).Position;
-                if (Vector2.DistanceSquared(existingPos, worldPos) <= (24f * 24f))
-                {
-                    int room = maxStack - existing.Item.Quantity;
-                    int added = Math.Min(room, item.Quantity);
-                    ItemSlot merged = existing.Item with { Quantity = existing.Item.Quantity + added };
-                    _lootByNetworkId[kvp.Key] = existing with { Item = merged };
-                    _simulation.Entities.SetComponent(existingEnt, new LootDropComponent(merged, 0, _currentTick + LootLifetimeTicks));
-                    this.QueueLootVisualRefreshLocked(kvp.Key, existingPos);
-
-                    int leftQty = item.Quantity - added;
-                    if (leftQty <= 0)
-                    {
-                        return;
-                    }
-
-                    ItemSlot overflow = item with { Quantity = leftQty };
-                    this.SpawnNewGroundLootEntityLocked(worldPos, in overflow);
-                    return;
-                }
-            }
-        }
-
-        this.SpawnNewGroundLootEntityLocked(worldPos, in item);
-    }
-
-    private void SpawnNewGroundLootEntityLocked(Vector2 worldPos, in ItemSlot item)
-    {
-        ulong netId = ++_nextNetworkId;
-        Entity lootEntity = _simulation.SpawnNetworkEntity(netId, worldPos, 8f);
-        _simulation.Entities.SetCollider(lootEntity, new Collider2D(ColliderKind.Circle, 8f, default, IsTrigger: true, LootLayer, 0U));
-        ulong despawnTick = _currentTick + LootLifetimeTicks;
-        _simulation.Entities.SetComponent(lootEntity, new LootDropComponent(item, 0, despawnTick));
-        _lootByNetworkId[netId] = new LootDropMeta(item, _currentTick);
-    }
+    private void SpawnGroundLootLocked(Vector2 worldPos, in ItemSlot item) => _groundLoot.Spawn(worldPos, in item);
 
     private void QueueLootVisualRefreshLocked(ulong lootNetId, Vector2 pos)
     {
@@ -650,28 +590,13 @@ public sealed partial class AuthoritativeWorld
 
     private void CollectNearbyGroundLootLocked(ActivePlayerState observer, Vector2 obsPos)
     {
-        if (_lootByNetworkId.Count == 0)
+        if (_groundLoot.Count == 0)
         {
             return;
         }
 
         _staleLootScratch.Clear();
-        foreach (KeyValuePair<ulong, LootDropMeta> kv in _lootByNetworkId)
-        {
-            if (_currentTick < kv.Value.SpawnTick + 12UL)
-            {
-                continue;
-            }
-
-            if (_simulation.TryGetEntityByNetworkId(kv.Key, out Entity lootEnt) &&
-                _simulation.Entities.IsAlive(lootEnt) &&
-                _simulation.Entities.HasTransform(lootEnt) &&
-                Vector2.DistanceSquared(obsPos, _simulation.Entities.GetTransform(lootEnt).Position) <= (32f * 32f))
-            {
-                _staleLootScratch.Add(kv.Key);
-            }
-        }
-
+        _groundLoot.CollectAutoPickupCandidates(obsPos, _staleLootScratch);
         for (int i = 0; i < _staleLootScratch.Count; i++)
         {
             _ = this.TryPickupSpecificLootLocked(observer, _staleLootScratch[i], 36f * 36f);
@@ -680,7 +605,7 @@ public sealed partial class AuthoritativeWorld
 
     private bool TryPickupSpecificLootLocked(ActivePlayerState state, ulong lootNetId, float maxRangeSq)
     {
-        if (!_lootByNetworkId.TryGetValue(lootNetId, out LootDropMeta meta) ||
+        if (!_groundLoot.TryGet(lootNetId, out GroundLootEntry meta) ||
             !_simulation.TryGetEntityByNetworkId(lootNetId, out Entity lootEnt) ||
             !_simulation.Entities.IsAlive(lootEnt) ||
             !_simulation.Entities.HasTransform(lootEnt) ||
@@ -718,43 +643,8 @@ public sealed partial class AuthoritativeWorld
         }
 
         this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
-
-        if (remainder <= 0)
-        {
-            _ = _lootByNetworkId.Remove(lootNetId);
-            _simulation.DespawnEntity(lootEnt);
-        }
-        else
-        {
-            ItemSlot left = meta.Item with { Quantity = remainder };
-            _lootByNetworkId[lootNetId] = meta with { Item = left };
-            _simulation.Entities.SetComponent(lootEnt, new LootDropComponent(left, 0, _currentTick + LootLifetimeTicks));
-            this.QueueLootVisualRefreshLocked(lootNetId, lootPos);
-        }
-
+        _groundLoot.ApplyPickup(lootNetId, lootEnt, lootPos, in meta, remainder);
         return true;
-    }
-
-    private void CleanupExpiredLootMetaLocked()
-    {
-        if (_lootByNetworkId.Count == 0)
-        {
-            return;
-        }
-
-        _staleLootScratch.Clear();
-        foreach (KeyValuePair<ulong, LootDropMeta> kv in _lootByNetworkId)
-        {
-            if (!_simulation.TryGetEntityByNetworkId(kv.Key, out Entity ent) || !_simulation.Entities.IsAlive(ent))
-            {
-                _staleLootScratch.Add(kv.Key);
-            }
-        }
-
-        for (int i = 0; i < _staleLootScratch.Count; i++)
-        {
-            _ = _lootByNetworkId.Remove(_staleLootScratch[i]);
-        }
     }
 
     private byte ResolveSlotHarvestTier(InventoryContainer inventory, byte slotIndex)
