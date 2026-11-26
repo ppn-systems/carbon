@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "itemId": 121,
+  "id": "raw_meat",
+  "displayName": "Raw Meat",
+  "tier": 1,
+  "categoryLabel": "Food",
+  "accentColor": "#DC2626",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 1,
+      "y": 0,
+      "rx": 6.5,
+      "ry": 4.8,
+      "color": "#DC2626",
+      "rotDeg": -20,
+      "outlineColor": "#450A0A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": 0,
+      "rx": 3.6,
+      "ry": 2.4,
+      "color": "#FCA5A5",
+      "rotDeg": -20
+    },
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": -6.5,
+      "y": 5,
+      "x2": -4,
+      "y2": 3,
+      "thickness": 2.0,
+      "color": "#F1F5F9",
+      "outlineColor": "#334155",
+      "outlineThickness": 1.0
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "itemId": 182,
+  "id": "bone_bow",
+  "displayName": "Bone Bow",
+  "tier": 2,
+  "categoryLabel": "Ranged Bow",
+  "accentColor": "#E2E8F0",
+  "gripX": -1.5,
+  "gripY": 1.5,
+  "restAngleDeg": -18.0,
+  "worldScale": 1.05,
+  "palette": {},
+  "heldVisible": true,
+  "shapes": [
+    {
+      "kind": "ring",
+      "bone": "root",
+      "facing": "any",
+      "x": -2,
+      "y": 2,
+      "rx": 7.5,
+      "ry": 7.5,
+      "thickness": 1.8,
+      "color": "#E2E8F0"
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -7.2,
+      "y": -3.5,
+      "x2": 3.5,
+      "y2": 7.2,
+      "thickness": 0.8,
+      "color": "#F8FAFC"
+    }
+  ]
+}

@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "monsters": [
+    {
+      "id": "slime",
+      "displayName": "Slime",
+      "visualArchetype": "monster.slime",
+      "lootTableId": "slime",
+      "eliteVariant": "slime_king",
+      "radius": 8,
+      "stats": { "hp": 60, "damage": 8, "armor": 2, "speed": 110 },
+      "aggroRange": 160,
+      "leashRange": 420,
+      "engageRange": 100,
+      "retreatRange": 0,
+      "patrolRadius": 48,
+      "preferredBiomes": [ "BeachSand", "LushPlains", "MistySwamp", "TropicalJungle", "BlossomWoods" ],
+      "attacks": [
+        { "kind": "Leap", "minRange": 40, "maxRange": 110, "windupTicks": 12, "travelTicks": 10, "activeTicks": 2, "recoveryTicks": 14, "cooldownTicks": 75, "damageMultiplier": 1.4, "areaRadius": 26 },
+        { "kind": "Melee", "minRange": 0, "maxRange": 22, "windupTicks": 8, "travelTicks": 3, "activeTicks": 3, "recoveryTicks": 10, "cooldownTicks": 30, "areaRadius": 22, "halfAngleDegrees": 50, "lungeDistance": 8 }
+      ]
+    },
+    {
+      "id": "slime_king",
+      "displayName": "Slime King",
+      "visualArchetype": "monster.slime_king",
+      "lootTableId": "slime_king",
+      "isElite": true,
+      "radius": 16,
+      "stats": { "hp": 420, "damage": 18, "armor": 10, "speed": 95 },
+      "aggroRange": 200,
+      "leashRange": 520,
+      "engageRange": 150,
+      "retreatRange": 0,
+      "patrolRadius": 32,
+      "preferredBiomes": [ "BeachSand", "LushPlains", "MistySwamp", "TropicalJungle", "BlossomWoods" ],
+      "attacks": [
+        { "kind": "Leap", "minRange": 50, "maxRange": 160, "windupTicks": 18, "travelTicks": 14, "activeTicks": 2, "recoveryTicks": 20, "cooldownTicks": 90, "damageMultiplier": 1.6, "areaRadius": 48 },
+        { "kind": "Melee", "minRange": 0, "maxRange": 34, "windupTicks": 12, "travelTicks": 4, "activeTicks": 4, "recoveryTicks": 14, "cooldownTicks": 36, "areaRadius": 34, "halfAngleDegrees": 70, "lungeDistance": 12 }
+      ]
+    },
+    {
+      "id": "orc",
+      "displayName": "Orc Brute",
+      "visualArchetype": "monster.orc",
+      "lootTableId": "orc",
+      "eliteVariant": "orc_warlord",
+      "radius": 10,
+      "stats": { "hp": 140, "damage": 16, "armor": 12, "speed": 120 },
+      "aggroRange": 180,
+      "leashRange": 460,
+      "engageRange": 26,
+      "retreatRange": 0,
+      "patrolRadius": 64,
+      "preferredBiomes": [ "LushPlains", "AncientForest", "Savanna", "DuneDesert", "RedMesa" ],
+      "attacks": [
+        { "kind": "Melee", "minRange": 0, "maxRange": 26, "windupTicks": 14, "travelTicks": 4, "activeTicks": 4, "recoveryTicks": 16, "cooldownTicks": 40, "areaRadius": 28, "halfAngleDegrees": 60, "lungeDistance": 18 }
+      ]
+    },
+    {
+      "id": "orc_warlord",
+      "displayName": "Orc Warlord",
+      "visualArchetype": "monster.orc_warlord",
+      "lootTableId": "orc_warlord",
+      "isElite": true,
+      "radius": 13,
+      "stats": { "hp": 520, "damage": 28, "armor": 24, "speed": 115 },
+      "aggroRange": 220,
+      "leashRange": 540,
+      "engageRange": 150,
+      "retreatRange": 0,
+      "patrolRadius": 48,
+      "preferredBiomes": [ "LushPlains", "AncientForest", "Savanna", "DuneDesert", "RedMesa" ],
+      "attacks": [
+        { "kind": "Leap", "minRange": 60, "maxRange": 150, "windupTicks": 16, "travelTicks": 12, "activeTicks": 2, "recoveryTicks": 22, "cooldownTicks": 120, "damageMultiplier": 1.3, "areaRadius": 36 },
+        { "kind": "Melee", "minRange": 0, "maxRange": 30, "windupTicks": 16, "travelTicks": 4, "activeTicks": 5, "recoveryTicks": 16, "cooldownTicks": 42, "areaRadius": 32, "halfAngleDegrees": 75, "lungeDistance": 20 }
+      ]
+    },
+    {
+      "id": "skeleton",
+      "displayName": "Skeleton Archer",
+      "visualArchetype": "monster.skeleton",
+      "lootTableId": "skeleton",
+      "radius": 8,
+      "stats": { "hp": 70, "damage": 11, "armor": 4, "speed": 115 },
+      "aggroRange": 260,
+      "leashRange": 520,
+      "engageRange": 210,
+      "retreatRange": 110,
+      "patrolRadius": 40,
+      "preferredBiomes": [ "LushPlains", "AncientForest", "DuneDesert", "RedMesa", "FrozenTundra", "AlpinePeaks" ],
+      "attacks": [
+        { "kind": "Projectile", "minRange": 40, "maxRange": 240, "windupTicks": 18, "activeTicks": 1, "recoveryTicks": 12, "cooldownTicks": 45, "projectileSpeed": 360, "projectileRadius": 3, "arcHeight": 18 },
+        { "kind": "Melee", "minRange": 0, "maxRange": 22, "windupTicks": 10, "activeTicks": 3, "recoveryTicks": 12, "cooldownTicks": 30, "damageMultiplier": 0.7, "areaRadius": 22, "halfAngleDegrees": 45 }
+      ]
+    },
+    {
+      "id": "demon",
+      "displayName": "Ash Demon",
+      "visualArchetype": "monster.demon",
+      "lootTableId": "demon",
+      "radius": 11,
+      "stats": { "hp": 160, "damage": 20, "armor": 8, "speed": 105 },
+      "aggroRange": 240,
+      "leashRange": 500,
+      "engageRange": 170,
+      "retreatRange": 80,
+      "patrolRadius": 40,
+      "preferredBiomes": [ "RedMesa", "VolcanicAshland", "DuneDesert" ],
+      "attacks": [
+        { "kind": "Spell", "minRange": 50, "maxRange": 200, "windupTicks": 24, "travelTicks": 18, "activeTicks": 1, "recoveryTicks": 16, "cooldownTicks": 90, "damageMultiplier": 1.5, "areaRadius": 42, "shape": "Circle" },
+        { "kind": "Spell", "minRange": 0, "maxRange": 90, "windupTicks": 16, "travelTicks": 6, "activeTicks": 1, "recoveryTicks": 12, "cooldownTicks": 60, "areaRadius": 90, "halfAngleDegrees": 30, "shape": "Cone" },
+        { "kind": "Melee", "minRange": 0, "maxRange": 24, "windupTicks": 10, "travelTicks": 2, "activeTicks": 3, "recoveryTicks": 12, "cooldownTicks": 30, "damageMultiplier": 0.6, "areaRadius": 24, "halfAngleDegrees": 50, "lungeDistance": 6 }
+      ]
+    },
+    {
+      "id": "blood_monster",
+      "displayName": "Blood Fiend",
+      "visualArchetype": "monster.blood_monster",
+      "lootTableId": "blood_monster",
+      "radius": 10,
+      "stats": { "hp": 200, "damage": 18, "armor": 6, "speed": 135 },
+      "aggroRange": 220,
+      "leashRange": 520,
+      "engageRange": 170,
+      "retreatRange": 0,
+      "patrolRadius": 56,
+      "preferredBiomes": [ "MistySwamp", "TropicalJungle", "RedMesa", "VolcanicAshland" ],
+      "attacks": [
+        { "kind": "Leap", "minRange": 60, "maxRange": 180, "windupTicks": 16, "travelTicks": 12, "activeTicks": 2, "recoveryTicks": 20, "cooldownTicks": 90, "damageMultiplier": 1.2, "areaRadius": 30 },
+        { "kind": "Melee", "minRange": 0, "maxRange": 24, "windupTicks": 9, "travelTicks": 3, "activeTicks": 3, "recoveryTicks": 10, "cooldownTicks": 26, "areaRadius": 24, "halfAngleDegrees": 55, "lungeDistance": 10 }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <RootNamespace>Carbon.Economy</RootNamespace>
+        <AssemblyName>Carbon.Economy</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\contracts\Carbon.Contracts.Common\Carbon.Contracts.Common.csproj" />
+        <ProjectReference Include="..\Carbon.Primitives\Carbon.Primitives.csproj" />
+        <ProjectReference Include="..\Carbon.Data\Carbon.Data.csproj" />
+        <ProjectReference Include="..\Carbon.Items\Carbon.Items.csproj" />
+    </ItemGroup>
+</Project>

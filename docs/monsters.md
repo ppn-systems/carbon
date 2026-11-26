@@ -1,0 +1,168 @@
+# Monsters, Difficulty Scaling & Attack Kinds
+
+Server-authoritative, data-driven creatures. The code lives in `engine/Carbon.Creatures` (definitions, scaling,
+spawner, monster brain) and `engine/Carbon.Combat/Attacks` (attack timelines). Data lives in
+`resources/config/monsters.json` and `resources/config/spawning.json`.
+
+All durations are in **fixed simulation ticks** (the server runs at 30 Hz by default). All distances are in **world
+units** (32 units = 1 tile).
+
+## Pipeline
+
+| Phase | System | Role |
+| :--- | :--- | :--- |
+| PreUpdate | `AiBehaviorSystem` (`engine/Carbon.AI`) | Idle / Patrol → Chase → Attack → ReturnHome (leash). With `AiBrainComponent.ExternalAttackControl = true` it only makes state transitions while in `Attack`. |
+| PreUpdate | `MonsterBrainSystem` | In `Attack`: picks the attack, or positions the monster (kite, close in, hold). Interrupts attacks when the brain leashes home or loses its target. |
+| PreUpdate | `AttackSystem` | Runs the attack timeline, drives lunge / leap velocity, resolves hits, spawns projectiles. |
+| Physics | `ProjectileSystem` | Swept hit tests for released projectiles. |
+| PostUpdate | `MonsterSpawnerSystem` | Biome-aware, deterministic spawning around `SpawnAnchorComponent` entities. |
+
+`CreatureSystems.Register(...)` registers the first three systems and the spawner in this order. Register
+`ProjectileSystem` once on the world as well. Hit resolution happens only inside the simulation. Clients only animate.
+
+## Monster definitions (`monsters.json`)
+
+| Field | Meaning |
+| :--- | :--- |
+| `id` | Unique snake_case key. The catalog index follows file order. |
+| `visualArchetype` | Client sprite / animation key. The server never sends sprite data. |
+| `lootTableId` | Loot table key. By convention it equals `id` (economy owns `loot.json`). |
+| `isElite`, `eliteVariant` | Elite flag and the elite variant spawned on an elite roll (e.g. `slime` → `slime_king`). |
+| `stats` | Level-1 daytime `hp`, `damage`, `armor` (Defense mitigation `100 / (100 + armor)`), `speed`. |
+| `aggroRange`, `leashRange` | Detection radius. Tether radius around the spawn point. |
+| `engageRange` | Distance where chasing stops and fighting starts (`AiBrainComponent.AttackRange`). |
+| `retreatRange` | Kiting threshold: if the target is closer, the monster backs off (0 = brawler). |
+| `preferredBiomes` | `BiomeType` names. Spawn tables may only list a monster in biomes it prefers (enforced by tests). |
+| `attacks` | Attack profiles in **priority order** (see below). |
+
+Shipped roster: `slime` (leap + melee), `slime_king` (elite), `orc` (melee brute), `orc_warlord` (elite: leap + melee),
+`skeleton` (ranged archer with a melee fallback), `demon` (caster: circle and cone spells + claw), and
+`blood_monster` (charging leaper + melee).
+
+## Attack kinds and the animation phase contract
+
+Every attack uses the same four-phase timeline: `Windup → Travel → Active → Recovery`. Its meaning depends on the
+`AttackKind`. A phase with 0 ticks is skipped and never reported. **Damage is resolved only during `Active`.**
+
+| Kind | Windup | Travel | Active | Recovery |
+| :--- | :--- | :--- | :--- | :--- |
+| `Melee` | Wind-up telegraph (direction locked) | Lunge `lungeDistance` along the locked direction | Hit frames: arc (`areaRadius`, `halfAngleDegrees`) is checked **every active tick**, each target is hit at most once | Recovery |
+| `Projectile` | Aim: the aim point **tracks the target** | (none) | Release on the first active tick: spawns a projectile entity (`projectileSpeed`, `projectileRadius`) and publishes `ProjectileLaunchedEvent` | Recovery |
+| `Spell` | Cast channel: ground telegraph **locked at cast start** (`Circle` at the target point, or `Cone` from the caster) | Delayed detonation: telegraph stays on the ground | Detonation on the first active tick: everyone inside the shape is hit | Recovery |
+| `Leap` | Crouch: landing point locked (clamped to `maxRange`) | Airborne: travels to the landing point | Landing impact: circle (`areaRadius`) around the landing position on the first active tick | Recovery |
+
+### Events
+
+`AttackPhaseChangedEvent` is published on the **first tick of every phase**. It is also published with
+`Phase = None` when the attack finishes (`Progress = 1`) or is interrupted (`Interrupted = true`, for example after a
+stun or a leash).
+
+| Field | Renderer use |
+| :--- | :--- |
+| `Attacker`, `Kind`, `Phase`, `ProfileId` | Select the animation clip for `(visualArchetype, Kind, Phase)`. |
+| `Origin`, `TargetPosition`, `Direction` | Facing, lunge or leap path, telegraph placement, aim point. |
+| `AreaRadius`, `HalfAngleRadians`, `Shape` | Draw the ground telegraph (melee arc, spell circle or cone, leap landing circle). |
+| `PhaseDurationTicks` | Play the clip over `PhaseDurationTicks / tickRate` seconds. |
+| `Progress` | Normalized progress through the **whole** attack when the phase starts. Use it to resync late joiners. |
+
+`ProjectileLaunchedEvent(Owner, Projectile, Origin, Velocity, ArcHeight, FlightTicks)` carries the release. The
+simulation is planar, so the client draws a parabola with apex `ArcHeight` over `FlightTicks`. The projectile entity is
+replicated like any other entity.
+
+Renderer rules:
+
+1. Never infer hits from animation. Health changes arrive through `DamageEvent` / health replication.
+2. Advance the phase animation locally from `PhaseDurationTicks`. Do not wait for per-tick updates (none are sent).
+3. On `Phase = None` with `Interrupted = true`, blend straight back to idle.
+4. Show the telegraph from the `Windup` event until the `Active` event for `Spell` and `Leap`, and during `Windup` for
+   `Melee`.
+
+`AttackStateComponent.PhaseProgress` / `TotalProgress` expose the same data to snapshot-based consumers.
+
+## AI positioning
+
+While the brain is in `Attack` and no attack is running:
+
+1. If the target is inside `retreatRange` and the retreat path is clear, the monster backs off at 80% speed. Ranged
+   monsters and casters restore their spacing before they use close-range fallbacks. They use those fallbacks only
+   when cornered.
+2. Otherwise the first **ready** profile whose `[minRange, maxRange]` contains the target starts.
+3. Otherwise the monster closes in if a ready profile needs it closer, backs off if one needs it farther, or holds.
+
+The AI layer handles leashing: when the monster passes `leashRange` it returns home, heals, and any running attack is
+interrupted.
+
+## Difficulty scaling (`spawning.json`)
+
+`MonsterScaling.Compute(distance, isNight, def)` returns `ScaledMonsterStats` (level, band index, hp, damage, armor,
+speed). The distance is measured from the **world origin / first player spawn point**, which the host passes to the
+spawner.
+
+### Level curve
+
+`level.bands` are contiguous distance bands. Each band starts where the previous one ends, at the same level. Inside a
+band the level eases with a smoothstep:
+
+```
+t     = (d - startDistance) / (endDistance - startDistance)
+level = startLevel + (endLevel - startLevel) * t² (3 - 2t)
+```
+
+Beyond the last band: `level = lastEndLevel + (d - lastEndDistance) * levelsPerUnitBeyond`, capped at `maxLevel`. The
+integer level is `floor(level)`. The curve is continuous and never decreases. Each band reads as a plateau joined to
+the next by a smooth ramp.
+
+| Band | Distance (units) | Tiles | Levels |
+| :--- | :--- | :--- | :--- |
+| `heartland` | 0 – 6 400 | 0 – 200 | 1 → 5 |
+| `frontier` | 6 400 – 32 000 | 200 – 1 000 | 5 → 15 |
+| `outer_wilds` | 32 000 – 80 000 | 1 000 – 2 500 | 15 → 30 |
+| `endgame` | 80 000 – 160 000 | 2 500 – 5 000 | 30 → 45 |
+| beyond | > 160 000 | > 5 000 | +1 per 10 000 units, max 60 |
+
+### Stat curves
+
+Each stat is multiplied by `min(maxMultiplier, (1 + perLevel * (level - 1)) ^ exponent)`:
+
+| Stat | perLevel | exponent | cap |
+| :--- | :--- | :--- | :--- |
+| hp | 0.14 | 1.15 | ×40 |
+| damage | 0.10 | 1.10 | ×25 |
+| armor | 0.08 | 1.0 | ×10 |
+| speed | 0.005 | 1.0 | ×1.3 |
+
+### Night
+
+Night is decided from `MonsterSpawnerSystem.TimeOfDayHours`, an input the host sets every tick from authoritative
+server time (e.g. `WorldProgression.ComputeTimeOfDayHours`). The engine never reads client atmosphere state.
+`night.startHour = 19` and `night.endHour = 5` wrap past midnight. At night:
+
+- hp, damage, and armor × `statMultiplier` (1.3),
+- per-cell cap and spawn rate × `densityMultiplier` (1.6, so a cap of 3 becomes 5),
+- elite chance `eliteChance` (12%) instead of `dayEliteChance` (2%),
+- night-only table weights (`nightWeight`) favour skeletons, demons, and blood monsters.
+
+Empowerment is applied when a monster spawns: monsters spawned during the day keep their daytime stats.
+
+## Spawner
+
+- **Cells**: the world is split into `cellSize` (512) density cells. Every `scanIntervalTicks` the spawner visits the
+  cells within `activationRadiusCells` of each anchor entity (`SpawnAnchorComponent`, typically players). Each cell is
+  visited once per scan.
+- **Caps and timers**: a cell spawns while its live count is below the cap and `spawnIntervalTicks` have passed since
+  its last attempt. When one of its monsters dies, the cell waits `respawnDelayTicks` before spawning again.
+- **Safe zone**: no spawn within `safeZoneRadius` (1 600) of the world origin, and none within
+  `minSpawnDistanceFromAnchor` of any anchor.
+- **Biome tables**: the `IBiomeSampler` biome at the candidate point selects a weighted `spawnTables` entry
+  (`ChunkWorldBiomeSampler` adapts `ChunkWorld2D`). Biomes without a table (oceans) never spawn monsters.
+- **Determinism**: every attempt seeds `DeterministicRandom` from `hash(worldSeed, cell, attemptIndex)`. The same seed
+  and the same anchor history always produce the same monsters, positions, levels, and elites.
+- `MonsterSpawnedEvent(Monster, MonsterIndex, Level, IsElite, IsNight, Position)` lets the host resolve
+  `visualArchetype` and `lootTableId` from the catalog for replication and drops.
+
+## Validation
+
+`MonsterCatalog.FromJson` and `SpawningConfig.FromJson` reject unknown JSON members and unknown enum names
+(`JsonException`). They also reject inconsistent data (`ArgumentException`): missing loot or visual keys, empty attack
+lists, invalid range windows, non-contiguous level bands, night multipliers below 1, and unknown monsters in spawn
+tables. Tests in `tests/engine/Carbon.Creatures.Tests` run against the shipped files.

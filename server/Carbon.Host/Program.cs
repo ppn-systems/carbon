@@ -9,6 +9,7 @@ using Carbon.Abstractions.Configuration;
 using Carbon.Abstractions.Persistence;
 using Carbon.Application.Identity;
 using Carbon.Application.World;
+using Carbon.Economy;
 using Carbon.Infrastructure.Configuration;
 using Carbon.Infrastructure.Persistence.Postgres;
 using Carbon.Infrastructure.Persistence.Sqlite;
@@ -83,6 +84,11 @@ public static class Program
         AuthService authService = new(accountStore, characterStore, hasher);
         SessionTransportRegistry transportRegistry = new();
         WorldOutboundSink outboundSink = new(transportRegistry, loggerFactory.CreateLogger<WorldOutboundSink>());
+        // Economy data (items, recipes, loot, tunables) is server-authoritative and loaded from resources/config.
+        string economyDir = GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)
+            ?? throw new InvalidOperationException("resources/config (economy.json, items.json, recipes.json, loot.json) was not found next to the server.");
+        GameEconomy economy = GameEconomy.LoadFromDirectory(economyDir);
+
         AuthoritativeWorld world = new(
             options.WorldSeed,
             options.TileSize,
@@ -90,7 +96,8 @@ public static class Program
             options.TickRate,
             chunkDeltaRepo,
             characterStore,
-            outboundSink);
+            outboundSink,
+            economy: economy);
 
         await world.InitializeFromStoreAsync().ConfigureAwait(false);
 

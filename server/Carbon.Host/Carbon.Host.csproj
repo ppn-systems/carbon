@@ -32,6 +32,14 @@
         <PackageReference Include="Nalix.Runtime" />
     </ItemGroup>
 
+    <!-- Server-authoritative economy data, loaded at boot by GameEconomy.FindConfigDirectory. -->
+    <ItemGroup>
+        <None Include="..\..\resources\config\items.json" Link="config\items.json" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="..\..\resources\config\recipes.json" Link="config\recipes.json" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="..\..\resources\config\loot.json" Link="config\loot.json" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="..\..\resources\config\economy.json" Link="config\economy.json" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
     <ItemGroup>
         <InternalsVisibleTo Include="Carbon.Host.Tests" />
         <InternalsVisibleTo Include="Carbon.Desktop.Tests" />
