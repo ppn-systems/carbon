@@ -723,6 +723,10 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             pkt.Mood = snapshot.Needs.Mood;
             pkt.FoodPoisoned = snapshot.Needs.FoodPoisoned;
             pkt.EatProgress = snapshot.Needs.EatProgress;
+            pkt.Rest = snapshot.Needs.Rest;
+            pkt.MaxRest = snapshot.Needs.MaxRest;
+            pkt.RestState = snapshot.Needs.RestState;
+            pkt.RestMode = snapshot.Needs.RestMode;
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
             await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);

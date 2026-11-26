@@ -265,6 +265,10 @@ public sealed class ProtocolContractGuardTests
             Mood = 38f,
             FoodPoisoned = true,
             EatProgress = 0.5f,
+            Rest = 61.5f,
+            MaxRest = 100f,
+            RestState = 1,
+            RestMode = RestMode.SleepingComfortable,
         };
         using PlayerStatsSync statsCopy = PlayerStatsSync.Deserialize(stats.Serialize());
         Assert.Equal(42.5f, statsCopy.Food);
@@ -274,6 +278,15 @@ public sealed class ProtocolContractGuardTests
         Assert.Equal(38f, statsCopy.Mood);
         Assert.True(statsCopy.FoodPoisoned);
         Assert.Equal(0.5f, statsCopy.EatProgress);
+        Assert.Equal(61.5f, statsCopy.Rest);
+        Assert.Equal(100f, statsCopy.MaxRest);
+        Assert.Equal((byte)1, statsCopy.RestState);
+        Assert.Equal(RestMode.SleepingComfortable, statsCopy.RestMode);
+
+        using EntityRestRequest restRequest = new() { Rest = true };
+        using EntityRestRequest restCopy = EntityRestRequest.Deserialize(restRequest.Serialize());
+        Assert.True(restCopy.Rest);
+        Assert.Equal(EntityOpCode.RestRequest, EntityRestRequest.StaticOpCode);
         Assert.Equal((ushort)4, statsCopy.Level);
         Assert.Equal(210U, statsCopy.Experience);
         Assert.Equal(18f, statsCopy.Defense);

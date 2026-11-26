@@ -174,9 +174,14 @@ public sealed class NeedsSystem : ISimulationSystem
             return;
         }
 
-        float restDelta = needs.Activity == NeedsActivity.Resting
-            ? _config.RestRecoveryPerMinute * minutes
-            : -_config.RestDecayPerMinute * _config.RestActivity.For(needs.Activity) * minutes;
+        float restDelta = needs.Activity switch
+        {
+            NeedsActivity.Sleeping => _config.RestRecoveryPerMinute * (needs.SleepComfort ? _config.ComfortRecoveryMultiplier : 1f) * minutes,
+            NeedsActivity.Resting => _config.RestRecoveryPerMinute * _config.SitRecoveryMultiplier * minutes,
+            NeedsActivity.Idle or NeedsActivity.Walking or NeedsActivity.Sprinting or NeedsActivity.Fighting or NeedsActivity.Swimming =>
+                -_config.RestDecayPerMinute * _config.RestActivity.For(needs.Activity) * minutes,
+            _ => -_config.RestDecayPerMinute * minutes,
+        };
         needs.Rest = Math.Clamp(needs.Rest + restDelta, 0f, needs.RestMax);
     }
 
@@ -273,10 +278,14 @@ public sealed class NeedsSystem : ISimulationSystem
             _ => 1f,
         };
 
-        if (needs.Fatigue == RestState.Exhausted)
+        scale *= needs.Fatigue switch
         {
-            scale *= _config.ExhaustedSpeedScale;
-        }
+            RestState.VeryTired => _config.VeryTiredSpeedScale,
+            RestState.Exhausted => _config.ExhaustedSpeedScale,
+            RestState.Rested => 1f,
+            RestState.Tired => 1f,
+            _ => 1f,
+        };
 
         if (needs.IsPoisoned)
         {
@@ -285,6 +294,6 @@ public sealed class NeedsSystem : ISimulationSystem
 
         needs.MoveSpeedScale = scale;
         needs.AttackSpeedScale = scale;
-        needs.HealthRegenBlocked = needs.Hunger >= HungerState.UrgentlyHungry || needs.IsPoisoned;
+        needs.HealthRegenBlocked = needs.Hunger >= HungerState.UrgentlyHungry || needs.IsPoisoned || needs.Fatigue == RestState.Exhausted;
     }
 }

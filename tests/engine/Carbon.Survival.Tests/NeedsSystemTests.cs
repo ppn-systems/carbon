@@ -157,7 +157,57 @@ public sealed class NeedsSystemTests
 
         sim.Needs(player).Activity = NeedsActivity.Resting;
         sim.StepSeconds(60);
-        sim.Needs(player).Fatigue.Should().Be(RestState.Rested, "resting recovers 10 rest per minute");
+        sim.Needs(player).Fatigue.Should().Be(RestState.Rested, "sitting recovers 3 rest per minute (30 % of the bed rate)");
+    }
+
+    [Theory]
+    [InlineData(NeedsActivity.Resting, false, 3f)]
+    [InlineData(NeedsActivity.Sleeping, false, 10f)]
+    [InlineData(NeedsActivity.Sleeping, true, 15f)]
+    public void Update_WhileResting_RecoversAtSitBedOrComfortRate(NeedsActivity activity, bool comfort, float perMinute)
+    {
+        SurvivalTestWorld sim = new(new NeedsConfig { FoodDecayPerMinute = 0.001f });
+        Entity player = sim.SpawnPlayer();
+        sim.Needs(player).Rest = 20f;
+        sim.Needs(player).Activity = activity;
+        sim.Needs(player).SleepComfort = comfort;
+
+        sim.StepSeconds(60);
+
+        sim.Needs(player).Rest.Should().BeApproximately(20f + perMinute, 0.05f, $"{activity} (comfort {comfort}) recovers {perMinute}/min");
+    }
+
+    [Fact]
+    public void Update_WhenVeryTiredOrExhausted_SlowsAndExhaustionBlocksRegen()
+    {
+        SurvivalTestWorld sim = new(new NeedsConfig { FoodDecayPerMinute = 0.001f });
+        Entity drowsy = sim.SpawnPlayer();
+        Entity spent = sim.SpawnPlayer();
+        sim.Needs(drowsy).Rest = 10f;
+        sim.Needs(spent).Rest = 0f;
+
+        sim.StepSeconds(1);
+
+        sim.Needs(drowsy).Fatigue.Should().Be(RestState.VeryTired);
+        sim.Needs(drowsy).MoveSpeedScale.Should().Be(sim.Config.VeryTiredSpeedScale);
+        sim.Needs(drowsy).HealthRegenBlocked.Should().BeFalse();
+        sim.Needs(spent).Fatigue.Should().Be(RestState.Exhausted);
+        sim.Needs(spent).MoveSpeedScale.Should().Be(sim.Config.ExhaustedSpeedScale);
+        sim.Needs(spent).AttackSpeedScale.Should().Be(sim.Config.ExhaustedSpeedScale);
+        sim.Needs(spent).HealthRegenBlocked.Should().BeTrue("exhaustion stops health regen");
+    }
+
+    [Fact]
+    public void Update_WhileSleeping_FoodDrainsAtTheRestingRate()
+    {
+        SurvivalTestWorld sim = new();
+        Entity sleeper = sim.SpawnPlayer();
+        sim.Needs(sleeper).Activity = NeedsActivity.Sleeping;
+
+        sim.StepSeconds(10 * 60);
+
+        float expected = 100f - (sim.Config.FoodDecayPerMinute * sim.Config.FoodActivity.Resting * 10f);
+        sim.Needs(sleeper).Food.Should().BeApproximately(expected, 0.05f, "sleeping burns food like resting");
     }
 
     [Fact]

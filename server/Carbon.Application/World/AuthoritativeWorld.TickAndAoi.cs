@@ -49,6 +49,10 @@ public sealed partial class AuthoritativeWorld
                 if (state.HasPendingInput)
                 {
                     isMoving = state.PendingDirection.LengthSquared() > 1e-4f;
+                    if (isMoving)
+                    {
+                        this.WakeLocked(state);
+                    }
                     isSprinting = isMoving && state.PendingSprint && state.CurrentStamina > 2f;
                     if (isSprinting)
                     {

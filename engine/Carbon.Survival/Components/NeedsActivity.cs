@@ -22,6 +22,9 @@ public enum NeedsActivity : byte
     /// <summary>Swimming through water tiles.</summary>
     Swimming = 4,
 
-    /// <summary>Sitting or sleeping; recovers rest instead of draining it.</summary>
+    /// <summary>Sitting anywhere; recovers rest slowly instead of draining it.</summary>
     Resting = 5,
+
+    /// <summary>Sleeping in a bed; recovers rest fastest (more in a roofed room).</summary>
+    Sleeping = 6,
 }

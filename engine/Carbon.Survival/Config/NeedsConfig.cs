@@ -90,8 +90,17 @@ public sealed class NeedsConfig
         Resting = 0f,
     };
 
-    /// <summary>Gets the rest recovered per minute while resting.</summary>
+    /// <summary>Gets the rest recovered per minute while sleeping in a bed (the reference recovery rate).</summary>
     public float RestRecoveryPerMinute { get; init; } = 10f;
+
+    /// <summary>Gets the fraction of <see cref="RestRecoveryPerMinute"/> recovered while sitting.</summary>
+    public float SitRecoveryMultiplier { get; init; } = 0.3f;
+
+    /// <summary>Gets the recovery multiplier for sleeping in a bed inside an enclosed, roofed room.</summary>
+    public float ComfortRecoveryMultiplier { get; init; } = 1.5f;
+
+    /// <summary>Gets how far (in tiles) a bed may be from the player to sleep in it.</summary>
+    public float BedReachTiles { get; init; } = 1.6f;
 
     /// <summary>Gets the rest fraction below which the entity is <see cref="RestState.Tired"/>.</summary>
     public float TiredThreshold { get; init; } = 0.28f;
@@ -108,7 +117,10 @@ public sealed class NeedsConfig
     /// <summary>Gets the mood offset while exhausted.</summary>
     public float ExhaustedMood { get; init; } = -18f;
 
-    /// <summary>Gets the movement and attack speed multiplier while exhausted.</summary>
+    /// <summary>Gets the movement and attack speed multiplier while very tired.</summary>
+    public float VeryTiredSpeedScale { get; init; } = 0.93f;
+
+    /// <summary>Gets the movement and attack speed multiplier while exhausted (health regen is also blocked).</summary>
     public float ExhaustedSpeedScale { get; init; } = 0.85f;
 
     /// <summary>Gets the baseline mood with no thoughts.</summary>
@@ -214,7 +226,11 @@ public sealed class NeedsConfig
         RequireRange(this.TiredMood, -100f, 0f, "tiredMood");
         RequireRange(this.VeryTiredMood, -100f, this.TiredMood, "veryTiredMood");
         RequireRange(this.ExhaustedMood, -100f, this.VeryTiredMood, "exhaustedMood");
-        RequireRange(this.ExhaustedSpeedScale, 0.1f, 1f, "exhaustedSpeedScale");
+        RequireRange(this.VeryTiredSpeedScale, 0.1f, 1f, "veryTiredSpeedScale");
+        RequireRange(this.ExhaustedSpeedScale, 0.1f, this.VeryTiredSpeedScale, "exhaustedSpeedScale");
+        RequireRange(this.SitRecoveryMultiplier, 0f, 1f, "sitRecoveryMultiplier");
+        RequireRange(this.ComfortRecoveryMultiplier, 1f, 10f, "comfortRecoveryMultiplier");
+        RequireRange(this.BedReachTiles, 0.5f, 5f, "bedReachTiles");
         RequireRange(this.MoodBaseline, 0f, 100f, "moodBaseline");
         RequireRange(this.MiserableBelow, 0f, 100f, "miserableBelow");
         RequireRange(this.StressedBelow, this.MiserableBelow, 100f, "stressedBelow");
