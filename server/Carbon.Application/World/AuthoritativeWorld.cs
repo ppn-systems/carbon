@@ -13,6 +13,7 @@ using Carbon.Application.World.Actions;
 using Carbon.Application.World.Actors;
 using Carbon.Application.World.Combat;
 using Carbon.Application.World.Commands;
+using Carbon.Application.World.Commerce;
 using Carbon.Application.World.Construction;
 using Carbon.Application.World.Inventory;
 using Carbon.Application.World.Loot;
@@ -73,6 +74,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly ChunkWorld2D _chunkWorld;
     private readonly ConstructionService _construction;
     private readonly InventoryService _inventory;
+    private readonly EconomyService _commerce;
     private readonly CombatService _combat;
     private readonly PropHarvestService _props;
     private readonly SettlementNpcSpawner _settlements;
@@ -196,6 +198,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _groundLoot,
             _outbound,
             state => this.MarkCharacterDirtyLocked(state, inventoryChanged: true));
+        _commerce = new EconomyService(this.WorldSeed, () => _economy, () => _currentTick, _groundLoot, _inventory, _outbound, this.HasNearbyFriendlyNpcLocked);
         _combat = new CombatService(_simulation, _chunkWorld, MonsterLayer, _outbound, this.CollectNearbyConnectionsAroundWorldLocked, this.OnMonsterKilledLocked);
         _props = new PropHarvestService(
             _simulation,
@@ -447,7 +450,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
                 Math.Clamp(character.Gold, 0L, playerState.Wallet.GoldCap),
                 Math.Clamp(character.Diamonds, 0L, playerState.Wallet.DiamondCap),
                 character.WalletSequence);
-            this.EnqueueWalletSyncLocked(playerState);
+            _commerce.QueueWalletSync(playerState);
             startProg.CopyTo(playerState.Progression);
 
             _players.ByConnection[connectionId] = playerState;
