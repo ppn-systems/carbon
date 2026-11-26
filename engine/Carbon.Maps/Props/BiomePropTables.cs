@@ -54,7 +54,9 @@ public static class BiomePropTables
 
         t[(int)BiomeType.BeachSand] = new(0.92f, VeinExclusive: false,
             [Boulder(0.35f, 18f, 0xCBD5E1FF, 0x64748BFF)],
-            [Trees(0f, Solid(MapPropType.PalmTree, 0.035f, 34f, 0x10B981FF, 0x92400EFF))]);
+            // Every beach tile counts as near water (it lies below the coast level), so beach flora uses a scrub
+            // layer: tree-slot and away-from-water layers would never fire here.
+            [Scrub(0f, Solid(MapPropType.PalmTree, 0.012f, 34f, 0x10B981FF, 0x92400EFF), Soft(MapPropType.DuneGrass, 0.06f, 12f, 0x8A9A52FF, 0xE8D8A4FF))]);
 
         t[(int)BiomeType.LushPlains] = new(0.85f, true,
             [Ore(MapPropType.CopperVein, 0.42f, 21f, 0x78350FFF, 0x2DD4BFFF), Boulder(0.82f, 21f, 0x64748BFF, 0x334155FF)],
@@ -95,7 +97,16 @@ public static class BiomePropTables
 
         t[(int)BiomeType.DuneDesert] = new(0.84f, true,
             [Ore(MapPropType.GoldVein, 0.35f, 21f, 0x1E293BFF, 0xFACC15FF), Boulder(0.65f, 20f, 0xB45309FF, 0x78350FFF)],
-            [Scrub(0.68f, Solid(MapPropType.Cactus, 0.035f, 21f, 0x15803DFF, 0x166534FF), Solid(MapPropType.DeadTree, 0.055f, 24f, 0x71717AFF, 0x52525BFF))]);
+            [
+                Scrub(0.68f, Solid(MapPropType.Cactus, 0.035f, 21f, 0x15803DFF, 0x166534FF), Solid(MapPropType.DeadTree, 0.055f, 24f, 0x71717AFF, 0x52525BFF)),
+
+                // Open desert: a sparse scatter of cacti, dead trees and dry bushes so the sand is never empty.
+                Scrub(
+                    0.30f,
+                    Solid(MapPropType.Cactus, 0.010f, 21f, 0x15803DFF, 0x166534FF),
+                    Solid(MapPropType.DeadTree, 0.016f, 24f, 0x71717AFF, 0x52525BFF),
+                    Soft(MapPropType.DryBush, 0.046f, 14f, 0x8A6A44FF, 0x9C9A52FF)),
+            ]);
 
         t[(int)BiomeType.RedMesa] = new(0.74f, true,
             [
@@ -104,7 +115,14 @@ public static class BiomePropTables
                 Ore(MapPropType.GoldVein, 0.85f, 21f, 0x1E293BFF, 0xFACC15FF),
                 Boulder(0.95f, 20f, 0x7F1D1DFF, 0x991B1BFF),
             ],
-            [Scrub(0.70f, Solid(MapPropType.Cactus, 0.025f, 21f, 0x166534FF, 0x15803DFF), Solid(MapPropType.DeadTree, 0.045f, 22f, 0x52525BFF, 0x3F3F46FF))]);
+            [
+                Scrub(0.70f, Solid(MapPropType.Cactus, 0.025f, 21f, 0x166534FF, 0x15803DFF), Solid(MapPropType.DeadTree, 0.045f, 22f, 0x52525BFF, 0x3F3F46FF)),
+                Scrub(
+                    0.30f,
+                    Solid(MapPropType.Cactus, 0.008f, 21f, 0x166534FF, 0x15803DFF),
+                    Solid(MapPropType.DeadTree, 0.014f, 22f, 0x52525BFF, 0x3F3F46FF),
+                    Soft(MapPropType.DryBush, 0.040f, 14f, 0x9A7650FF, 0xB49A5AFF)),
+            ]);
 
         t[(int)BiomeType.TropicalJungle] = new(0.88f, true,
             [Ore(MapPropType.CopperVein, 0.45f, 21f, 0x78350FFF, 0x2DD4BFFF), Ore(MapPropType.CrystalCluster, 0.70f, 23f, 0x0D9488FF, 0x2DD4BFFF), Boulder(0.85f, 20f, 0x475569FF, 0x047857FF)],
@@ -134,7 +152,7 @@ public static class BiomePropTables
             [Ore(MapPropType.CopperVein, 0.35f, 21f, 0x78350FFF, 0x2DD4BFFF), Ore(MapPropType.IronVein, 0.65f, 21f, 0x334155FF, 0xEA580CFF), Boulder(0.80f, 20f, 0xB45309FF, 0x78350FFF)],
             [
                 Trees(0.48f, Solid(MapPropType.AcaciaTree, 0.25f, 38f, 0x65A30DFF, 0x78350FFF)),
-                Undergrowth(0f, Soft(MapPropType.Bush, 0.020f, 15f, 0xA16207FF, 0xCA8A04FF)),
+                Undergrowth(0f, Soft(MapPropType.Bush, 0.014f, 15f, 0xA16207FF, 0xCA8A04FF), Soft(MapPropType.DryBush, 0.030f, 14f, 0x8A6A44FF, 0x9C9A52FF)),
             ]);
 
         t[(int)BiomeType.BlossomWoods] = new(0.91f, true,

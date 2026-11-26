@@ -943,6 +943,18 @@
       "id": "glacial_crystal",
       "displayName": "Glacial Crystal",
       "file": "props/glacial_crystal.cvg.json"
+    },
+    {
+      "propType": 23,
+      "id": "dry_bush",
+      "displayName": "Dry Bush",
+      "file": "props/dry_bush.cvg.json"
+    },
+    {
+      "propType": 24,
+      "id": "dune_grass",
+      "displayName": "Dune Grass",
+      "file": "props/dune_grass.cvg.json"
     }
   ],
   "biomes": [
