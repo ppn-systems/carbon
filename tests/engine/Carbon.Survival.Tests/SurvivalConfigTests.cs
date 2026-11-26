@@ -108,6 +108,56 @@ public sealed class SurvivalConfigTests
     }
 
     [Fact]
+    public void RecipesJson_CookingRecipes_TurnIngredientsIntoNonSpoilingFood()
+    {
+        NeedsConfig config = NeedsConfig.LoadFromJson(File.ReadAllText(SurvivalTestWorld.FindConfigFile("needs.json")));
+        FoodCatalog catalog = FoodCatalog.LoadFromJson(File.ReadAllText(SurvivalTestWorld.FindConfigFile("food.json")), config.FoodMax);
+
+        using JsonDocument items = JsonDocument.Parse(File.ReadAllText(SurvivalTestWorld.FindConfigFile("items.json")));
+        HashSet<string> itemCodes = new(StringComparer.Ordinal);
+        foreach (JsonElement item in items.RootElement.GetProperty("items").EnumerateArray())
+        {
+            itemCodes.Add(item.GetProperty("code").GetString()!);
+        }
+
+        using JsonDocument recipes = JsonDocument.Parse(File.ReadAllText(SurvivalTestWorld.FindConfigFile("recipes.json")));
+        int cookingRecipes = 0;
+        foreach (JsonElement recipe in recipes.RootElement.GetProperty("recipes").EnumerateArray())
+        {
+            if (recipe.GetProperty("station").GetString() != "stove")
+            {
+                continue;
+            }
+
+            cookingRecipes++;
+            string code = recipe.GetProperty("code").GetString()!;
+            bool usesFoodOrCrop = false;
+            foreach (JsonElement ingredient in recipe.GetProperty("ingredients").EnumerateArray())
+            {
+                string input = ingredient.GetProperty("item").GetString()!;
+                itemCodes.Should().Contain(input, $"cooking recipe '{code}' input must be an item");
+                usesFoodOrCrop |= catalog.TryGetIndex(input, out _) || input == "wheat";
+            }
+
+            usesFoodOrCrop.Should().BeTrue($"cooking recipe '{code}' must cook a food or crop");
+
+            foreach (JsonElement output in recipe.GetProperty("outputs").EnumerateArray())
+            {
+                string produced = output.GetProperty("item").GetString()!;
+                catalog.TryGetIndex(produced, out int index).Should().BeTrue($"cooking recipe '{code}' must output a food from food.json, not '{produced}'");
+                FoodDefinition food = catalog.Get(index);
+                if (food.Quality != FoodQuality.Raw)
+                {
+                    food.IsPerishable.Should().BeFalse($"cooked '{produced}' must not spoil (cooking is how raw food is preserved)");
+                    food.MoodOffset.Should().BeGreaterThanOrEqualTo(0f, $"cooked '{produced}' must not carry a raw-food mood penalty");
+                }
+            }
+        }
+
+        cookingRecipes.Should().BeGreaterThan(0, "recipes.json must define stove/campfire cooking recipes");
+    }
+
+    [Fact]
     public void Validate_MisorderedThresholds_Throws()
     {
         NeedsConfig config = new() { HungryThreshold = 0.1f, UrgentlyHungryThreshold = 0.2f };

@@ -90,6 +90,24 @@ Raw food spoils while its owner is online. Stacks are checked about once a secon
 - Food on the ground does not age; it expires instead.
 - `spoilSeconds` and `spoilsInto` live in `food.json`.
 
+## Cooking
+
+Cooking recipes live in `recipes.json` with `"station": "stove"`. A built **stove or campfire** within 5 tiles counts
+as the station, and the economy's 1-gold stove fee applies. Cooking turns spoiling raw food into meals that never
+spoil and drops the raw-food mood penalty. The cooked meal's mood bonus comes from `food.json` when it is eaten.
+
+| Recipe | Ingredients | Output | Unlock level |
+| :--- | :--- | :--- | ---: |
+| `cooked_meat` | 1 raw_meat | 1 cooked_meat | 1 |
+| `roast_meat` | 2 raw_meat + 1 berry_herb | 1 roast_meat | 5 |
+| `bread` | 3 wheat | 1 bread | 2 |
+| `stew` | 2 raw_meat + 2 berries + 1 wheat | 1 stew | 8 |
+| `slime_jelly` | 2 slime_gel + 1 berries | 2 slime_jelly | 1 |
+| `arcane_pie` | 2 wheat + 3 berries + 1 mana_crystal | 1 arcane_pie | 15 |
+| `berry_stew` | 3 berries + 1 bread | 1 stew | 4 |
+
+`slime_jelly` is the exception: its output is raw, so it still spoils.
+
 ## Rest
 
 **Rest is disabled in the shipped `needs.json` (`restEnabled: false`)** until the game has a sit/sleep action;
