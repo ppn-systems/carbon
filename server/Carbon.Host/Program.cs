@@ -117,7 +117,7 @@ public static class Program
             ServerGameData.LoadStructures(config.Catalog),
             ServerGameData.LoadCreatures(config.Catalog));
         ServerGameData.BindHotReload(config, world);
-        AuthService authService = new(accountStore, characterStore, hasher, time: null, () => world.ItemRules);
+        using AuthService authService = new(accountStore, characterStore, hasher, time: null, () => world.ItemRules);
 
         if (options.DebugOverrides.IsActive)
         {
