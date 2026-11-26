@@ -94,6 +94,10 @@ public sealed partial class ServerAuthorityTests
         // NEW after the guard was written: added in #25 (building UX, owned by a parallel agent) after #24 had
         // already introduced SyncedItemCatalog. Audit SA-1b: switch to SyncedItemCatalog and delete this entry.
         "desktop/Carbon.Desktop.Rendering/World/ConstructionOverlayRenderer.cs|StarterGameCatalog",
+
+        // NEW after the guard was written: added in #30 (creatures, owned by a parallel agent). Uses archetype id
+        // constants only, to pick an attack clip. Audit SA-1c: declare the clip in the monster .cvg.json instead.
+        "desktop/Carbon.Desktop.Rendering/VectorArt/MonsterAttackAnimator.cs|WorldActorCatalog",
     };
 
     /// <summary>
