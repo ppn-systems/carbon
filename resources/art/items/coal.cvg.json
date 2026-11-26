@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "itemId": 105,
+  "id": "coal",
+  "displayName": "Coal",
+  "tier": 1,
+  "categoryLabel": "Material",
+  "accentColor": "#475569",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -6.5,
+          2
+        ],
+        [
+          -3,
+          -5.5
+        ],
+        [
+          4,
+          -5.8
+        ],
+        [
+          7,
+          0.5
+        ],
+        [
+          4.5,
+          5.8
+        ],
+        [
+          -3.5,
+          6
+        ]
+      ],
+      "color": "#1F2937",
+      "outlineColor": "#020617",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -1,
+      "y": -1.5,
+      "rx": 1.4,
+      "ry": 1,
+      "color": "#475569"
+    }
+  ]
+}

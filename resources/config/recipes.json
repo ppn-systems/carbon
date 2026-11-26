@@ -1,0 +1,1487 @@
+{
+  "version": 1,
+  "recipes": [
+    {
+      "id": 1,
+      "code": "wood_plank",
+      "station": "none",
+      "workTicks": 30,
+      "unlockLevel": 1,
+      "skill": "carpentry",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "wood_log",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "wood_plank",
+          "qty": 2
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "code": "rope",
+      "station": "none",
+      "workTicks": 30,
+      "unlockLevel": 1,
+      "skill": "none",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "plant_fiber",
+          "qty": 3
+        }
+      ],
+      "outputs": [
+        {
+          "item": "rope",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "code": "wood_axe",
+      "station": "none",
+      "workTicks": 60,
+      "unlockLevel": 1,
+      "skill": "none",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "wood_log",
+          "qty": 3
+        },
+        {
+          "item": "stone_chunk",
+          "qty": 2
+        },
+        {
+          "item": "rope",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "wood_axe",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "code": "workbench_kit",
+      "station": "none",
+      "workTicks": 150,
+      "unlockLevel": 1,
+      "skill": "carpentry",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "wood_plank",
+          "qty": 8
+        },
+        {
+          "item": "rope",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "workbench_kit",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "code": "wood_wall",
+      "station": "workbench",
+      "workTicks": 60,
+      "unlockLevel": 1,
+      "skill": "carpentry",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "wood_plank",
+          "qty": 4
+        }
+      ],
+      "outputs": [
+        {
+          "item": "wood_wall",
+          "qty": 2
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "code": "wood_door",
+      "station": "workbench",
+      "workTicks": 90,
+      "unlockLevel": 2,
+      "skill": "carpentry",
+      "skillLevel": 2,
+      "ingredients": [
+        {
+          "item": "wood_plank",
+          "qty": 6
+        },
+        {
+          "item": "rope",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "wood_door",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "code": "wood_floor",
+      "station": "workbench",
+      "workTicks": 45,
+      "unlockLevel": 1,
+      "skill": "carpentry",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "wood_plank",
+          "qty": 3
+        }
+      ],
+      "outputs": [
+        {
+          "item": "wood_floor",
+          "qty": 2
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "code": "roof_pillar",
+      "station": "workbench",
+      "workTicks": 75,
+      "unlockLevel": 3,
+      "skill": "carpentry",
+      "skillLevel": 3,
+      "ingredients": [
+        {
+          "item": "wood_plank",
+          "qty": 4
+        },
+        {
+          "item": "stone_chunk",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "roof_pillar",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "code": "stone_brick",
+      "station": "workbench",
+      "workTicks": 30,
+      "unlockLevel": 1,
+      "skill": "carpentry",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "stone_chunk",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "stone_brick",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "code": "stone_wall",
+      "station": "workbench",
+      "workTicks": 90,
+      "unlockLevel": 4,
+      "skill": "carpentry",
+      "skillLevel": 4,
+      "ingredients": [
+        {
+          "item": "stone_brick",
+          "qty": 4
+        }
+      ],
+      "outputs": [
+        {
+          "item": "stone_wall",
+          "qty": 2
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "code": "stone_door",
+      "station": "workbench",
+      "workTicks": 120,
+      "unlockLevel": 6,
+      "skill": "carpentry",
+      "skillLevel": 6,
+      "ingredients": [
+        {
+          "item": "stone_brick",
+          "qty": 6
+        },
+        {
+          "item": "iron_nails",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "stone_door",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "code": "stone_floor",
+      "station": "workbench",
+      "workTicks": 60,
+      "unlockLevel": 4,
+      "skill": "carpentry",
+      "skillLevel": 3,
+      "ingredients": [
+        {
+          "item": "stone_brick",
+          "qty": 3
+        }
+      ],
+      "outputs": [
+        {
+          "item": "stone_floor",
+          "qty": 2
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "code": "stone_pickaxe",
+      "station": "workbench",
+      "workTicks": 90,
+      "unlockLevel": 1,
+      "skill": "carpentry",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "wood_plank",
+          "qty": 3
+        },
+        {
+          "item": "stone_chunk",
+          "qty": 6
+        },
+        {
+          "item": "rope",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "stone_pickaxe",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "code": "hunting_bow",
+      "station": "workbench",
+      "workTicks": 120,
+      "unlockLevel": 3,
+      "skill": "carpentry",
+      "skillLevel": 3,
+      "ingredients": [
+        {
+          "item": "wood_plank",
+          "qty": 4
+        },
+        {
+          "item": "rope",
+          "qty": 2
+        },
+        {
+          "item": "bone_shard",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "hunting_bow",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "code": "bone_bow",
+      "station": "workbench",
+      "workTicks": 150,
+      "unlockLevel": 10,
+      "skill": "carpentry",
+      "skillLevel": 8,
+      "ingredients": [
+        {
+          "item": "bone",
+          "qty": 6
+        },
+        {
+          "item": "rope",
+          "qty": 2
+        },
+        {
+          "item": "wood_plank",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "bone_bow",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "code": "process_bones",
+      "station": "workbench",
+      "workTicks": 60,
+      "unlockLevel": 5,
+      "skill": "none",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "bone",
+          "qty": 3
+        }
+      ],
+      "outputs": [
+        {
+          "item": "bone_dust",
+          "qty": 2
+        },
+        {
+          "item": "bone_shard",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "code": "leather",
+      "station": "workbench",
+      "workTicks": 90,
+      "unlockLevel": 2,
+      "skill": "tailoring",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "beast_pelt",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "leather",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "code": "cloth",
+      "station": "workbench",
+      "workTicks": 60,
+      "unlockLevel": 1,
+      "skill": "tailoring",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "plant_fiber",
+          "qty": 4
+        }
+      ],
+      "outputs": [
+        {
+          "item": "cloth",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "code": "leather_cap",
+      "station": "workbench",
+      "workTicks": 120,
+      "unlockLevel": 2,
+      "skill": "tailoring",
+      "skillLevel": 1,
+      "ingredients": [
+        {
+          "item": "leather",
+          "qty": 2
+        },
+        {
+          "item": "cloth",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "leather_cap",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "code": "leather_tunic",
+      "station": "workbench",
+      "workTicks": 180,
+      "unlockLevel": 4,
+      "skill": "tailoring",
+      "skillLevel": 3,
+      "ingredients": [
+        {
+          "item": "leather",
+          "qty": 4
+        },
+        {
+          "item": "cloth",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "leather_tunic",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "code": "leather_greaves",
+      "station": "workbench",
+      "workTicks": 150,
+      "unlockLevel": 3,
+      "skill": "tailoring",
+      "skillLevel": 2,
+      "ingredients": [
+        {
+          "item": "leather",
+          "qty": 3
+        },
+        {
+          "item": "cloth",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "leather_greaves",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "code": "leather_boots",
+      "station": "workbench",
+      "workTicks": 120,
+      "unlockLevel": 2,
+      "skill": "tailoring",
+      "skillLevel": 1,
+      "ingredients": [
+        {
+          "item": "leather",
+          "qty": 2
+        },
+        {
+          "item": "rope",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "leather_boots",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "code": "forge_anvil",
+      "station": "workbench",
+      "workTicks": 240,
+      "unlockLevel": 5,
+      "skill": "smithing",
+      "skillLevel": 2,
+      "ingredients": [
+        {
+          "item": "stone_brick",
+          "qty": 10
+        },
+        {
+          "item": "iron_ingot",
+          "qty": 4
+        }
+      ],
+      "outputs": [
+        {
+          "item": "forge_anvil",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "code": "stove_kit",
+      "station": "workbench",
+      "workTicks": 180,
+      "unlockLevel": 3,
+      "skill": "cooking",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "stone_brick",
+          "qty": 8
+        },
+        {
+          "item": "iron_ingot",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "stove_kit",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "code": "alchemy_table_kit",
+      "station": "workbench",
+      "workTicks": 240,
+      "unlockLevel": 10,
+      "skill": "alchemy",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "wood_plank",
+          "qty": 6
+        },
+        {
+          "item": "mana_crystal",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "alchemy_table_kit",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "code": "crystal_bow",
+      "station": "workbench",
+      "workTicks": 240,
+      "unlockLevel": 25,
+      "skill": "carpentry",
+      "skillLevel": 20,
+      "ingredients": [
+        {
+          "item": "wood_plank",
+          "qty": 4
+        },
+        {
+          "item": "iron_ingot",
+          "qty": 2
+        },
+        {
+          "item": "mana_crystal",
+          "qty": 4
+        },
+        {
+          "item": "rope",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "crystal_bow",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "code": "copper_ingot",
+      "station": "forge",
+      "workTicks": 90,
+      "unlockLevel": 3,
+      "skill": "smithing",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "copper_ore",
+          "qty": 2
+        },
+        {
+          "item": "coal",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "copper_ingot",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "code": "iron_ingot",
+      "station": "forge",
+      "workTicks": 120,
+      "unlockLevel": 8,
+      "skill": "smithing",
+      "skillLevel": 5,
+      "ingredients": [
+        {
+          "item": "iron_ore",
+          "qty": 2
+        },
+        {
+          "item": "coal",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "iron_ingot",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "code": "smelt_crude_iron",
+      "station": "forge",
+      "workTicks": 150,
+      "unlockLevel": 12,
+      "skill": "smithing",
+      "skillLevel": 8,
+      "ingredients": [
+        {
+          "item": "crude_iron",
+          "qty": 3
+        },
+        {
+          "item": "coal",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "iron_ingot",
+          "qty": 1
+        },
+        {
+          "item": "iron_nails",
+          "qty": 4
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "code": "iron_nails",
+      "station": "forge",
+      "workTicks": 60,
+      "unlockLevel": 8,
+      "skill": "smithing",
+      "skillLevel": 5,
+      "ingredients": [
+        {
+          "item": "iron_ingot",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "iron_nails",
+          "qty": 10
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "code": "copper_sword",
+      "station": "forge",
+      "workTicks": 150,
+      "unlockLevel": 4,
+      "skill": "smithing",
+      "skillLevel": 2,
+      "ingredients": [
+        {
+          "item": "copper_ingot",
+          "qty": 3
+        },
+        {
+          "item": "wood_plank",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "copper_sword",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "code": "iron_sword",
+      "station": "forge",
+      "workTicks": 210,
+      "unlockLevel": 12,
+      "skill": "smithing",
+      "skillLevel": 10,
+      "ingredients": [
+        {
+          "item": "iron_ingot",
+          "qty": 4
+        },
+        {
+          "item": "wood_plank",
+          "qty": 1
+        },
+        {
+          "item": "leather",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "iron_sword",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "code": "iron_axe",
+      "station": "forge",
+      "workTicks": 180,
+      "unlockLevel": 10,
+      "skill": "smithing",
+      "skillLevel": 8,
+      "ingredients": [
+        {
+          "item": "iron_ingot",
+          "qty": 3
+        },
+        {
+          "item": "wood_plank",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "iron_axe",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "code": "iron_helmet",
+      "station": "forge",
+      "workTicks": 210,
+      "unlockLevel": 12,
+      "skill": "smithing",
+      "skillLevel": 10,
+      "ingredients": [
+        {
+          "item": "iron_ingot",
+          "qty": 4
+        },
+        {
+          "item": "leather",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "iron_helmet",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "code": "iron_chestplate",
+      "station": "forge",
+      "workTicks": 300,
+      "unlockLevel": 15,
+      "skill": "smithing",
+      "skillLevel": 14,
+      "ingredients": [
+        {
+          "item": "iron_ingot",
+          "qty": 7
+        },
+        {
+          "item": "leather",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "iron_chestplate",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "code": "iron_leggings",
+      "station": "forge",
+      "workTicks": 270,
+      "unlockLevel": 14,
+      "skill": "smithing",
+      "skillLevel": 12,
+      "ingredients": [
+        {
+          "item": "iron_ingot",
+          "qty": 5
+        },
+        {
+          "item": "leather",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "iron_leggings",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 37,
+      "code": "iron_boots",
+      "station": "forge",
+      "workTicks": 180,
+      "unlockLevel": 12,
+      "skill": "smithing",
+      "skillLevel": 10,
+      "ingredients": [
+        {
+          "item": "iron_ingot",
+          "qty": 3
+        },
+        {
+          "item": "leather",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "iron_boots",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 38,
+      "code": "orc_war_helm",
+      "station": "forge",
+      "workTicks": 300,
+      "unlockLevel": 20,
+      "skill": "smithing",
+      "skillLevel": 18,
+      "ingredients": [
+        {
+          "item": "iron_ingot",
+          "qty": 3
+        },
+        {
+          "item": "orc_tusk",
+          "qty": 4
+        },
+        {
+          "item": "leather",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "orc_war_helm",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 39,
+      "code": "crystal_pickaxe",
+      "station": "forge",
+      "workTicks": 270,
+      "unlockLevel": 25,
+      "skill": "smithing",
+      "skillLevel": 20,
+      "ingredients": [
+        {
+          "item": "iron_ingot",
+          "qty": 3
+        },
+        {
+          "item": "mana_crystal",
+          "qty": 4
+        },
+        {
+          "item": "wood_plank",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "crystal_pickaxe",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "code": "ember_blade",
+      "station": "forge",
+      "workTicks": 450,
+      "unlockLevel": 40,
+      "skill": "smithing",
+      "skillLevel": 30,
+      "ingredients": [
+        {
+          "item": "iron_ingot",
+          "qty": 6
+        },
+        {
+          "item": "ember_shard",
+          "qty": 5
+        },
+        {
+          "item": "demon_horn",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "ember_blade",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "code": "demon_cleaver",
+      "station": "forge",
+      "workTicks": 540,
+      "unlockLevel": 50,
+      "skill": "smithing",
+      "skillLevel": 40,
+      "ingredients": [
+        {
+          "item": "iron_ingot",
+          "qty": 8
+        },
+        {
+          "item": "demon_ember",
+          "qty": 3
+        },
+        {
+          "item": "demon_horn",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "demon_cleaver",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "code": "cooked_meat",
+      "station": "stove",
+      "workTicks": 60,
+      "unlockLevel": 1,
+      "skill": "cooking",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "raw_meat",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "cooked_meat",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "code": "roast_meat",
+      "station": "stove",
+      "workTicks": 120,
+      "unlockLevel": 5,
+      "skill": "cooking",
+      "skillLevel": 4,
+      "ingredients": [
+        {
+          "item": "raw_meat",
+          "qty": 2
+        },
+        {
+          "item": "berry_herb",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "roast_meat",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "code": "bread",
+      "station": "stove",
+      "workTicks": 90,
+      "unlockLevel": 2,
+      "skill": "cooking",
+      "skillLevel": 1,
+      "ingredients": [
+        {
+          "item": "wheat",
+          "qty": 3
+        }
+      ],
+      "outputs": [
+        {
+          "item": "bread",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 45,
+      "code": "stew",
+      "station": "stove",
+      "workTicks": 180,
+      "unlockLevel": 8,
+      "skill": "cooking",
+      "skillLevel": 8,
+      "ingredients": [
+        {
+          "item": "raw_meat",
+          "qty": 2
+        },
+        {
+          "item": "berries",
+          "qty": 2
+        },
+        {
+          "item": "wheat",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "stew",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 46,
+      "code": "slime_jelly",
+      "station": "stove",
+      "workTicks": 60,
+      "unlockLevel": 1,
+      "skill": "cooking",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "slime_gel",
+          "qty": 2
+        },
+        {
+          "item": "berries",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "slime_jelly",
+          "qty": 2
+        }
+      ]
+    },
+    {
+      "id": 47,
+      "code": "arcane_pie",
+      "station": "stove",
+      "workTicks": 150,
+      "unlockLevel": 15,
+      "skill": "cooking",
+      "skillLevel": 12,
+      "ingredients": [
+        {
+          "item": "wheat",
+          "qty": 2
+        },
+        {
+          "item": "berries",
+          "qty": 3
+        },
+        {
+          "item": "mana_crystal",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "arcane_pie",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 48,
+      "code": "small_health_potion",
+      "station": "alchemy",
+      "workTicks": 90,
+      "unlockLevel": 3,
+      "skill": "alchemy",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "berry_herb",
+          "qty": 2
+        },
+        {
+          "item": "slime_gel",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "small_health_potion",
+          "qty": 2
+        }
+      ]
+    },
+    {
+      "id": 49,
+      "code": "mana_tonic",
+      "station": "alchemy",
+      "workTicks": 90,
+      "unlockLevel": 5,
+      "skill": "alchemy",
+      "skillLevel": 2,
+      "ingredients": [
+        {
+          "item": "berry_herb",
+          "qty": 2
+        },
+        {
+          "item": "mana_crystal",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "mana_tonic",
+          "qty": 2
+        }
+      ]
+    },
+    {
+      "id": 50,
+      "code": "greater_health_potion",
+      "station": "alchemy",
+      "workTicks": 180,
+      "unlockLevel": 25,
+      "skill": "alchemy",
+      "skillLevel": 15,
+      "ingredients": [
+        {
+          "item": "blood_vial",
+          "qty": 1
+        },
+        {
+          "item": "slime_core",
+          "qty": 1
+        },
+        {
+          "item": "small_health_potion",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "greater_health_potion",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 51,
+      "code": "slime_ring",
+      "station": "alchemy",
+      "workTicks": 240,
+      "unlockLevel": 12,
+      "skill": "alchemy",
+      "skillLevel": 10,
+      "ingredients": [
+        {
+          "item": "slime_core",
+          "qty": 2
+        },
+        {
+          "item": "copper_ingot",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "slime_ring",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 52,
+      "code": "blood_amulet",
+      "station": "alchemy",
+      "workTicks": 360,
+      "unlockLevel": 35,
+      "skill": "alchemy",
+      "skillLevel": 30,
+      "ingredients": [
+        {
+          "item": "blood_vial",
+          "qty": 4
+        },
+        {
+          "item": "rough_gem",
+          "qty": 1
+        },
+        {
+          "item": "iron_ingot",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "blood_amulet",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 53,
+      "code": "abyssal_crown",
+      "station": "alchemy",
+      "workTicks": 900,
+      "unlockLevel": 60,
+      "skill": "alchemy",
+      "skillLevel": 40,
+      "ingredients": [
+        {
+          "item": "demon_horn",
+          "qty": 3
+        },
+        {
+          "item": "ember_shard",
+          "qty": 6
+        },
+        {
+          "item": "rough_gem",
+          "qty": 2
+        },
+        {
+          "item": "mana_crystal",
+          "qty": 6
+        }
+      ],
+      "outputs": [
+        {
+          "item": "abyssal_crown",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 54,
+      "code": "crystal_crown",
+      "station": "alchemy",
+      "workTicks": 240,
+      "unlockLevel": 22,
+      "skill": "alchemy",
+      "skillLevel": 18,
+      "ingredients": [
+        {
+          "item": "mana_crystal",
+          "qty": 4
+        },
+        {
+          "item": "iron_ingot",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "crystal_crown",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 55,
+      "code": "crystal_robe",
+      "station": "alchemy",
+      "workTicks": 270,
+      "unlockLevel": 22,
+      "skill": "alchemy",
+      "skillLevel": 18,
+      "ingredients": [
+        {
+          "item": "mana_crystal",
+          "qty": 6
+        },
+        {
+          "item": "cloth",
+          "qty": 4
+        }
+      ],
+      "outputs": [
+        {
+          "item": "crystal_robe",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 56,
+      "code": "arcane_staff",
+      "station": "alchemy",
+      "workTicks": 180,
+      "unlockLevel": 10,
+      "skill": "alchemy",
+      "skillLevel": 8,
+      "ingredients": [
+        {
+          "item": "wood_plank",
+          "qty": 3
+        },
+        {
+          "item": "mana_crystal",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "arcane_staff",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 57,
+      "code": "crystal_staff",
+      "station": "alchemy",
+      "workTicks": 300,
+      "unlockLevel": 28,
+      "skill": "alchemy",
+      "skillLevel": 22,
+      "ingredients": [
+        {
+          "item": "mana_crystal",
+          "qty": 6
+        },
+        {
+          "item": "iron_ingot",
+          "qty": 2
+        },
+        {
+          "item": "wood_plank",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "crystal_staff",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 58,
+      "code": "shaman_staff",
+      "station": "alchemy",
+      "workTicks": 240,
+      "unlockLevel": 20,
+      "skill": "alchemy",
+      "skillLevel": 15,
+      "ingredients": [
+        {
+          "item": "bone",
+          "qty": 4
+        },
+        {
+          "item": "orc_tusk",
+          "qty": 2
+        },
+        {
+          "item": "mana_crystal",
+          "qty": 3
+        }
+      ],
+      "outputs": [
+        {
+          "item": "shaman_staff",
+          "qty": 1
+        }
+      ]
+    }
+  ]
+}

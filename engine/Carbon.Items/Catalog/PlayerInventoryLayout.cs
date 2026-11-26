@@ -232,99 +232,13 @@ public static class PlayerInventoryLayout
         ArgumentNullException.ThrowIfNull(recipe);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxOutputStackSize);
 
-        int bagCap = Math.Min(BagLimit, inventory.Capacity);
-        for (int i = 0; i < recipe.Ingredients.Count; i++)
-        {
-            RecipeIngredient ing = recipe.Ingredients[i];
-            if (ing.Quantity <= 0)
-            {
-                continue;
-            }
-
-            int available = 0;
-            for (int s = 0; s < bagCap; s++)
-            {
-                ItemSlot slot = inventory.GetSlot(s);
-                if (slot.ItemId == ing.ItemId && slot.Quantity > 0 && slot.UpgradeLevel == 0)
-                {
-                    available += slot.Quantity;
-                }
-            }
-
-            if (available < ing.Quantity)
-            {
-                return false;
-            }
-        }
-
-        ItemSlot output = recipe.Output;
-        if (!output.IsEmpty)
-        {
-            bool stackOut = maxOutputStackSize > 1 && output.IsStackable;
-            int freeCapacity = 0;
-            for (int i = 0; i < bagCap; i++)
-            {
-                ItemSlot slot = inventory.GetSlot(i);
-                if (slot.IsEmpty)
-                {
-                    freeCapacity += stackOut ? maxOutputStackSize : 1;
-                }
-                else if (stackOut && slot.IsStackable && slot.ItemId == output.ItemId && slot.Quantity < maxOutputStackSize)
-                {
-                    freeCapacity += maxOutputStackSize - slot.Quantity;
-                }
-            }
-
-            for (int i = 0; i < recipe.Ingredients.Count && freeCapacity < output.Quantity; i++)
-            {
-                RecipeIngredient ing = recipe.Ingredients[i];
-                int needed = ing.Quantity;
-                for (int s = 0; s < bagCap && needed > 0; s++)
-                {
-                    ItemSlot cur = inventory.GetSlot(s);
-                    if (cur.ItemId != ing.ItemId || cur.Quantity <= 0 || cur.UpgradeLevel != 0)
-                    {
-                        continue;
-                    }
-
-                    if (needed >= cur.Quantity)
-                    {
-                        freeCapacity += stackOut ? maxOutputStackSize : 1;
-                        needed -= cur.Quantity;
-                    }
-                    else
-                    {
-                        needed = 0;
-                    }
-                }
-            }
-
-            if (freeCapacity < output.Quantity)
-            {
-                return false;
-            }
-        }
-
-        for (int i = 0; i < recipe.Ingredients.Count; i++)
-        {
-            RecipeIngredient ing = recipe.Ingredients[i];
-            int remaining = ing.Quantity;
-            for (int s = 0; s < bagCap && remaining > 0; s++)
-            {
-                ItemSlot cur = inventory.GetSlot(s);
-                if (cur.ItemId != ing.ItemId || cur.Quantity <= 0 || cur.UpgradeLevel != 0)
-                {
-                    continue;
-                }
-
-                int take = Math.Min(remaining, cur.Quantity);
-                int left = cur.Quantity - take;
-                inventory.SetSlot(s, left > 0 ? cur with { Quantity = left } : ItemSlot.Empty);
-                remaining -= take;
-            }
-        }
-
-        return TryAddBagItem(inventory, in output, maxOutputStackSize) == 0;
+        // All-or-nothing: staged on a draft of the bag slots and committed only if every output fits.
+        return RecipeMatcher.TryCraft(
+            inventory,
+            recipe,
+            new FixedStackSizeProvider(maxOutputStackSize),
+            CraftContext.Unrestricted,
+            Math.Min(BagLimit, inventory.Capacity)).IsOk;
     }
 
     /// <summary>Counts total un-upgraded stacked units of <paramref name="itemId"/> across bag storage slots (<c>0..BagLimit-1</c>).</summary>

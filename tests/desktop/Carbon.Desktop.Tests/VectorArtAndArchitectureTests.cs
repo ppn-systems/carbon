@@ -49,7 +49,7 @@ public sealed class VectorArtAndArchitectureTests
         summary.CharactersValidated.Should().Be(4);
         summary.MonstersValidated.Should().Be(7);
         summary.NpcsValidated.Should().Be(4);
-        summary.ItemsValidated.Should().Be(39);
+        summary.ItemsValidated.Should().Be(80);
         summary.PropsValidated.Should().Be(22);
         summary.BiomesValidated.Should().Be(14);
         summary.StructuresValidated.Should().Be(8);

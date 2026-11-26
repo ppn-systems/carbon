@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "itemId": 187,
+  "id": "abyssal_crown",
+  "displayName": "Abyssal Crown",
+  "tier": 5,
+  "categoryLabel": "Head Armor",
+  "accentColor": "#A855F7",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -7,
+      "y": 0,
+      "w": 14,
+      "h": 5,
+      "color": "#581C87",
+      "outlineColor": "#140B10",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -7,
+          0
+        ],
+        [
+          -7,
+          -4
+        ],
+        [
+          -3,
+          0
+        ]
+      ],
+      "color": "#581C87",
+      "outlineColor": "#140B10",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -3.5,
+          0
+        ],
+        [
+          0,
+          -6.5
+        ],
+        [
+          3.5,
+          0
+        ]
+      ],
+      "color": "#581C87",
+      "outlineColor": "#140B10",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          3,
+          0
+        ],
+        [
+          7,
+          -4
+        ],
+        [
+          7,
+          0
+        ]
+      ],
+      "color": "#581C87",
+      "outlineColor": "#140B10",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": 1.5,
+      "rx": 1.8,
+      "ry": 1.8,
+      "color": "#F97316"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -4.5,
+      "y": 2.5,
+      "rx": 1.1,
+      "ry": 1.1,
+      "color": "#F97316"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 4.5,
+      "y": 2.5,
+      "rx": 1.1,
+      "ry": 1.1,
+      "color": "#F97316"
+    }
+  ],
+  "armorVisual": {
+    "primaryColor": "#581C87",
+    "secondaryColor": "#A855F7",
+    "trimColor": "#FACC15"
+  }
+}

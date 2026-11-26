@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "itemId": 141,
+  "id": "slime_core",
+  "displayName": "Slime Core",
+  "tier": 2,
+  "categoryLabel": "Rare Drop",
+  "accentColor": "#16A34A",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          0,
+          -7.5
+        ],
+        [
+          6,
+          -2.5
+        ],
+        [
+          4.5,
+          6
+        ],
+        [
+          -4.5,
+          6
+        ],
+        [
+          -6,
+          -2.5
+        ]
+      ],
+      "color": "#16A34A",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          0,
+          -5
+        ],
+        [
+          3,
+          -2
+        ],
+        [
+          0,
+          3
+        ],
+        [
+          -3,
+          -2
+        ]
+      ],
+      "color": "#BBF7D0"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -2,
+      "y": -3.5,
+      "rx": 0.8,
+      "ry": 0.8,
+      "color": "#FFFFFF"
+    }
+  ]
+}

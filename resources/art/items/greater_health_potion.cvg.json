@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "itemId": 161,
+  "id": "greater_health_potion",
+  "displayName": "Greater Health Potion",
+  "tier": 3,
+  "categoryLabel": "Consumable",
+  "accentColor": "#F43F5E",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": 2.5,
+      "rx": 5.4,
+      "ry": 5.0,
+      "color": "#B91C1C",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -1.6,
+      "y": -6.8,
+      "w": 3.2,
+      "h": 4.6,
+      "color": "#CBD5E1",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -2.2,
+      "y": -8.2,
+      "w": 4.4,
+      "h": 1.6,
+      "color": "#92400E",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -1.8,
+      "y": 0.8,
+      "rx": 1.2,
+      "ry": 1.6,
+      "color": "#FDE68A"
+    }
+  ]
+}

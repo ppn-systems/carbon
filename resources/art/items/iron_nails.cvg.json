@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "itemId": 111,
+  "id": "iron_nails",
+  "displayName": "Iron Nails",
+  "tier": 1,
+  "categoryLabel": "Material",
+  "accentColor": "#94A3B8",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -4,
+      "y": -6,
+      "x2": -4,
+      "y2": 6,
+      "thickness": 1.2,
+      "color": "#94A3B8"
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": -6,
+      "x2": 0,
+      "y2": 6,
+      "thickness": 1.2,
+      "color": "#94A3B8"
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": 4,
+      "y": -6,
+      "x2": 4,
+      "y2": 6,
+      "thickness": 1.2,
+      "color": "#94A3B8"
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -5.5,
+      "y": -7.2,
+      "w": 3,
+      "h": 1.4,
+      "color": "#94A3B8"
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -1.5,
+      "y": -7.2,
+      "w": 3,
+      "h": 1.4,
+      "color": "#94A3B8"
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": 2.5,
+      "y": -7.2,
+      "w": 3,
+      "h": 1.4,
+      "color": "#94A3B8"
+    }
+  ]
+}

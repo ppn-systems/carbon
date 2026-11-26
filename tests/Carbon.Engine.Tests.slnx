@@ -5,6 +5,7 @@
   <Project Path="../engine/Carbon.Combat/Carbon.Combat.csproj" />
   <Project Path="../engine/Carbon.Creatures/Carbon.Creatures.csproj" />
   <Project Path="../engine/Carbon.Data/Carbon.Data.csproj" />
+  <Project Path="../engine/Carbon.Economy/Carbon.Economy.csproj" />
   <Project Path="../engine/Carbon.Items/Carbon.Items.csproj" />
   <Project Path="../engine/Carbon.Maps/Carbon.Maps.csproj" />
   <Project Path="../engine/Carbon.Physics/Carbon.Physics.csproj" />
@@ -15,6 +16,7 @@
   <Project Path="engine/Carbon.Combat.Tests/Carbon.Combat.Tests.csproj" />
   <Project Path="engine/Carbon.Creatures.Tests/Carbon.Creatures.Tests.csproj" />
   <Project Path="engine/Carbon.Data.Tests/Carbon.Data.Tests.csproj" />
+  <Project Path="engine/Carbon.Economy.Tests/Carbon.Economy.Tests.csproj" />
   <Project Path="engine/Carbon.Items.Tests/Carbon.Items.Tests.csproj" />
   <Project Path="engine/Carbon.Maps.Tests/Carbon.Maps.Tests.csproj" />
   <Project Path="engine/Carbon.Physics.Tests/Carbon.Physics.Tests.csproj" />

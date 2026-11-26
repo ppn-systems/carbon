@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "itemId": 107,
+  "id": "cloth",
+  "displayName": "Cloth",
+  "tier": 1,
+  "categoryLabel": "Material",
+  "accentColor": "#E7E5E4",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -7,
+          -5
+        ],
+        [
+          6,
+          -6
+        ],
+        [
+          7,
+          5
+        ],
+        [
+          -6,
+          6
+        ]
+      ],
+      "color": "#E7E5E4",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -5,
+      "y": -2,
+      "x2": 5,
+      "y2": -3,
+      "thickness": 0.8,
+      "color": "#A8A29E"
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -5,
+      "y": 2,
+      "x2": 5,
+      "y2": 1,
+      "thickness": 0.8,
+      "color": "#A8A29E"
+    }
+  ]
+}
