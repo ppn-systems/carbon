@@ -174,7 +174,22 @@ Ids 1–39 keep the `StarterGameCatalog` ids and codes, and a test checks catego
 | Armor/accessories | leather/iron sets, `crystal_crown`, `crystal_robe`, `orc_war_helm`, `abyssal_crown` (legendary), `slime_ring`, `blood_amulet` |
 | Placeables/stations | wall/door/floor/pillar kits, `forge_anvil`, `workbench_kit`, `stove_kit`, `alchemy_table_kit` |
 
-## 9. Changing the numbers
+## 9. Server integration
+
+- **Loading.** `server/Carbon.Host/Program.cs` calls `GameEconomy.FindConfigDirectory` and `GameEconomy.LoadFromDirectory` at boot. The Host copies `resources/config/*.json` to `config/` next to its binaries. A missing or invalid config fails the boot, so the server never runs with silent defaults.
+- **Kills.** `AuthoritativeWorld.TryRollEconomyLootLocked` (`server/Carbon.Application/World/AuthoritativeWorld.Economy.cs`) replaces the hardcoded `MonsterArchetypeSpec` drops for every monster that has a loot table:
+  - `WildSlime` → `slime`, `SkeletonArcher` → `skeleton`, `OrcShaman` → `orc`, `CrimsonDemon` → `demon`.
+  - Item stacks become ground loot. Gold and diamonds go into the killer's `Wallet`, and the killer's `LootPity` counter is updated.
+  - Monsters without a table (golem, wolf, wraith) keep their legacy spec drops.
+- **Crafting.** `PlayerInventoryLayout.TryCraftInBag`, which `TryCraftRecipe` uses, now runs through `RecipeMatcher` on a draft of the bag slots. It is all-or-nothing, never consumes forge-upgraded stacks, and never touches equipment slots.
+- **Art.** Every item with id ≥ 100 has a `resources/art/items/<code>.cvg.json` icon registered in `catalog.cvg.json`.
+
+**Not done yet** (these need a contracts change or a schema ADR):
+- Wallet balances aren't persisted (`CharacterRecord` has no currency columns).
+- Balances aren't synced to clients (there's no wallet packet yet).
+- Vendor and repair handlers aren't exposed over the wire.
+
+## 10. Changing the numbers
 
 1. Edit the JSON. The loaders reject unknown properties, unknown item codes, duplicate ids and out-of-range values with an `InvalidDataException` that names the file and field.
 2. Run `dotnet test tests/Carbon.Engine.Tests.slnx`. The simulation tests show the simulated gold/hour or diamonds/hour next to the design band it left.
