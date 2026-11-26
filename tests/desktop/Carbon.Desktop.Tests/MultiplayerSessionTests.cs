@@ -34,6 +34,7 @@ using Carbon.Desktop.Networking.Session;
 
 namespace Carbon.Desktop.Tests;
 
+[Collection(LiveHostGroup.Name)]
 public sealed class MultiplayerSessionTests
 {
     [Fact]

@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="../contracts/Carbon.Contracts.Config/Carbon.Contracts.Config.csproj" />
+  <Project Path="../engine/Carbon.Configuration/Carbon.Configuration.csproj" />
+  <Project Path="../engine/Carbon.Data/Carbon.Data.csproj" />
+  <Project Path="../engine/Carbon.Primitives/Carbon.Primitives.csproj" />
+  <Project Path="Carbon.Server.Configuration/Carbon.Server.Configuration.csproj" />
+</Solution>

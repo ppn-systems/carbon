@@ -3,12 +3,14 @@
 using System;
 using Carbon.Abstractions.Identity;
 using Carbon.Abstractions.World;
+using Carbon.Handlers.Config;
 using Carbon.Handlers.Entities;
 using Carbon.Handlers.Identity;
 using Carbon.Handlers.Items;
 using Carbon.Handlers.Maps;
 using Carbon.Handlers.Session;
 using Carbon.Infrastructure.Configuration;
+using Carbon.Server.Configuration;
 using Microsoft.Extensions.Logging;
 using Nalix.Environment.Options;
 using Nalix.Framework.Injection;
@@ -24,13 +26,18 @@ namespace Carbon.Host;
 internal static class Startup
 {
     /// <summary>Builds the configured <see cref="NetworkApplication"/> without starting listeners.</summary>
+    /// <remarks>
+    /// <paramref name="config"/> is the server-authoritative gameplay config (ADR-011); without one the host serves an
+    /// empty manifest. Every reload that changes it pushes the new manifest to all signed-in clients.
+    /// </remarks>
     internal static NetworkApplication Build(
         HostRuntimeOptions options,
         IAuthService authService,
         IAuthoritativeWorld world,
         WorldOutboundSink outboundSink,
         SessionTransportRegistry transportRegistry,
-        ILogger logger)
+        ILogger logger,
+        ConfigRepository? config = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(authService);
@@ -48,6 +55,11 @@ internal static class Startup
         InstanceManager.Instance.Register<IWorldSimulationLoop>(world);
         InstanceManager.Instance.Register<ISessionTransportRegistry>(transportRegistry);
 
+        ConfigRepository configRepository = config ?? ConfigRepository.CreateEmpty();
+        InstanceManager.Instance.Register<ConfigRepository>(configRepository);
+        ConfigManifestBroadcaster broadcaster = new(configRepository, transportRegistry, logger);
+        configRepository.ManifestChanged += broadcaster.OnManifestChanged;
+
         INetworkApplicationBuilder builder = NetworkApplication.CreateBuilder()
             .UseLogger(logger)
             .UseSessions()
@@ -55,6 +67,7 @@ internal static class Startup
             .UseSystemControl()
             .UseSecureConnections()
             .MapHandlers(typeof(IdentityHandlers))
+            .MapHandlers(typeof(ConfigHandlers))
             .MapHandlers(typeof(MapHandlers))
             .MapHandlers(typeof(EntityHandlers))
             .MapHandlers(typeof(ItemHandlers))
