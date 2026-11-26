@@ -1222,9 +1222,19 @@ public sealed class ChunkTerrainRenderer : IDisposable
                 ColorRgba frameColor = new(70, 75, 80, 255);
                 ColorRgba doorPanel = new(135, 95, 60, 255);
 
-                builder.AddRectangle(new RectangleF(x, y, s, s), frameColor);
-                builder.AddRectangle(new RectangleF(x + 4f, y + 4f, s - 8f, s - 8f), doorPanel);
-                builder.AddRectangle(new RectangleF(x + s - 9f, y + (s * 0.5f) - 1.5f, 3f, 3f), new ColorRgba(230, 195, 75, 255));
+                if (structure.DoorState == DoorState.Open)
+                {
+                    builder.AddRectangle(new RectangleF(x + 2f, y + 4f, s - 4f, s - 8f), new ColorRgba(120, 114, 102, 160));
+                    builder.AddRectangle(new RectangleF(x, y, 4f, s), frameColor);
+                    builder.AddRectangle(new RectangleF(x + s - 4f, y, 4f, s), frameColor);
+                    builder.AddRectangle(new RectangleF(x + 3f, y + 2f, 6f, s - 4f), doorPanel);
+                }
+                else
+                {
+                    builder.AddRectangle(new RectangleF(x, y, s, s), frameColor);
+                    builder.AddRectangle(new RectangleF(x + 4f, y + 4f, s - 8f, s - 8f), doorPanel);
+                    builder.AddRectangle(new RectangleF(x + s - 9f, y + (s * 0.5f) - 1.5f, 3f, 3f), new ColorRgba(230, 195, 75, 255));
+                }
                 break;
 
             case StructureCategory.Pillar:

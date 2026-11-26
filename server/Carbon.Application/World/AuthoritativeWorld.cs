@@ -49,9 +49,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private const uint ProjectileLayer = 16U;
     private const int PlayerInventoryCapacity = PlayerInventoryLayout.TotalCapacity;
     private const uint AttackAbilityId = 1U;
-    private const uint Skill1AbilityId = 2U;
-    private const uint Skill2AbilityId = 3U;
-    private const uint Skill3AbilityId = 4U;
+    private const uint SkillAbilityIdBase = 100U;
     private const uint ConsumableAbilityId = 5U;
     private const ulong LootLifetimeTicks = 30UL * 120UL;
 
@@ -79,18 +77,32 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly List<ulong> _scratchEntered = new(64);
     private readonly List<ulong> _scratchVisible = new(128);
     private readonly List<ulong> _scratchExited = new(64);
-    private readonly List<OutboundSpawn> _pendingSpawns = new(64);
-    private readonly List<OutboundDespawn> _pendingDespawns = new(64);
-    private readonly List<OutboundDelta> _pendingDeltas = new(64);
-    private readonly List<EntityDeltaEntry> _flatDeltaEntries = new(512);
-    private readonly List<OutboundCombatHit> _pendingCombatHits = new(32);
-    private readonly List<OutboundSlotChange> _pendingSlotChanges = new(32);
-    private readonly List<OutboundPropChange> _pendingPropChanges = new(16);
-    private readonly List<OutboundStructureChange> _pendingStructureChanges = new(16);
-    private readonly List<OutboundEquipmentChange> _pendingEquipmentChanges = new(16);
-    private readonly List<OutboundStatsSync> _pendingStatsSyncs = new(32);
-    private readonly List<OutboundSkillCast> _pendingSkillCasts = new(16);
-    private readonly List<ulong> _flatRecipients = new(256);
+    // Double-buffered staging vs dispatch queues: staging is mutated only under _gate and swapped into dispatch at tick end.
+    private List<OutboundSpawn> _pendingSpawns = new(64);
+    private List<OutboundDespawn> _pendingDespawns = new(64);
+    private List<OutboundDelta> _pendingDeltas = new(64);
+    private List<EntityDeltaEntry> _flatDeltaEntries = new(512);
+    private List<OutboundCombatHit> _pendingCombatHits = new(32);
+    private List<OutboundSlotChange> _pendingSlotChanges = new(32);
+    private List<OutboundPropChange> _pendingPropChanges = new(16);
+    private List<OutboundStructureChange> _pendingStructureChanges = new(16);
+    private List<OutboundEquipmentChange> _pendingEquipmentChanges = new(16);
+    private List<OutboundStatsSync> _pendingStatsSyncs = new(32);
+    private List<OutboundSkillCast> _pendingSkillCasts = new(16);
+    private List<ulong> _flatRecipients = new(256);
+
+    private List<OutboundSpawn> _dispatchSpawns = new(64);
+    private List<OutboundDespawn> _dispatchDespawns = new(64);
+    private List<OutboundDelta> _dispatchDeltas = new(64);
+    private List<EntityDeltaEntry> _dispatchDeltaEntries = new(512);
+    private List<OutboundCombatHit> _dispatchCombatHits = new(32);
+    private List<OutboundSlotChange> _dispatchSlotChanges = new(32);
+    private List<OutboundPropChange> _dispatchPropChanges = new(16);
+    private List<OutboundStructureChange> _dispatchStructureChanges = new(16);
+    private List<OutboundEquipmentChange> _dispatchEquipmentChanges = new(16);
+    private List<OutboundStatsSync> _dispatchStatsSyncs = new(32);
+    private List<OutboundSkillCast> _dispatchSkillCasts = new(16);
+    private List<ulong> _dispatchRecipients = new(256);
     private readonly List<ulong> _aoiRecipientsScratch = new(64);
     private readonly List<Entity> _dirtyResetScratch = new(256);
     private readonly List<ulong> _staleLootScratch = new(32);
@@ -230,20 +242,24 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             InventoryContainer inventory = new(PlayerInventoryCapacity);
             if (!InventoryBinaryCodec.TryDeserializeInto(character.InventoryBlob, inventory))
             {
-                StarterGameCatalog.GrantStarterLoadout(inventory);
+                StarterGameCatalog.GrantStarterLoadout(inventory, (byte)character.Class);
+                character = character with { Flags = character.Flags | CharacterTraits.StarterLoadoutGranted };
             }
 
             ushort startLevel = Math.Max((ushort)1, character.Level);
-            byte selectedSlot = character.SelectedHotbarSlot < 9 ? character.SelectedHotbarSlot : (byte)0;
-            CharacterAllocationPoints startAlloc = new(
-                character.VitPoints,
-                character.WisPoints,
-                character.PwrPoints,
-                character.AgiPoints,
-                character.Skill1Rank,
-                character.Skill2Rank,
-                character.Skill3Rank);
-            DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(startLevel, inventory, selectedSlot, in startAlloc);
+            byte selectedSlot = character.SelectedHotbarSlot < PlayerInventoryLayout.HotbarCount ? character.SelectedHotbarSlot : (byte)0;
+            CharacterProgressionState startProg = new();
+            if (!CharacterProgressionBinaryCodec.TryDeserializeInto(character.ProgressionBlob ?? [], startProg))
+            {
+                startProg.Clear();
+            }
+
+            if (character.UnlockedSkills != CharacterSkillMask.None && startProg.UnlockedSkillMask == CharacterSkillMask.None)
+            {
+                startProg.SetUnlockedSkillMask(character.UnlockedSkills);
+            }
+
+            DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(startLevel, inventory, selectedSlot, startProg);
             float startHp = MathF.Min(stats.MaxHealth, MathF.Max(1f, character.CurrentHealth));
             _simulation.Entities.SetHealth(entity, new HealthComponent(startHp, stats.MaxHealth));
 
@@ -266,13 +282,13 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             {
                 Level = startLevel,
                 Experience = character.Experience,
-                Allocations = startAlloc,
                 Stats = stats,
                 CurrentMana = startMana,
                 CurrentStamina = startStamina,
                 StatsDirty = true,
                 LastSavedPosition = spawnPos,
             };
+            startProg.CopyTo(playerState.Progression);
 
             _playersByConnection[connectionId] = playerState;
             _connectionByNetworkId[networkId] = connectionId;
@@ -300,7 +316,11 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
                 stats.MaxMana,
                 startStamina,
                 stats.MaxStamina,
-                stats.Defense);
+                stats.Defense,
+                (byte)character.Class,
+                character.Flags,
+                (ulong)playerState.Progression.UnlockedSkillMask,
+                CharacterProgressionBinaryCodec.Serialize(playerState.Progression));
         }
     }
 
@@ -357,6 +377,11 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     /// <inheritdoc/>
     public void EnqueueMoveInput(ulong connectionId, uint clientTick, Vector2 direction, bool sprint)
     {
+        if (!float.IsFinite(direction.X) || !float.IsFinite(direction.Y))
+        {
+            return;
+        }
+
         lock (_gate)
         {
             if (_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state))
@@ -372,6 +397,11 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     /// <inheritdoc/>
     public OpStatus EnqueueAttackInput(ulong connectionId, ulong targetNetworkId, Vector2 aimWorldPosition, byte abilitySlot)
     {
+        if (!float.IsFinite(aimWorldPosition.X) || !float.IsFinite(aimWorldPosition.Y))
+        {
+            return OpStatus.Invalid;
+        }
+
         lock (_gate)
         {
             if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state))
@@ -388,10 +418,10 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     }
 
     /// <inheritdoc/>
-    public OpStatus TryAllocateCharacterPoint(ulong connectionId, CharacterPointTarget target, byte amount = 1)
+    public OpStatus TryAllocateCharacterPoint(ulong connectionId, PointAllocationKind kind, ushort targetId, byte amount = 1)
     {
         int requested = Math.Clamp((int)amount, 1, 10);
-        ActivePlayerState? syncTarget;
+        PlayerStatsSnapshot immediateSync;
 
         lock (_gate)
         {
@@ -401,29 +431,27 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
                 return OpStatus.Forbidden;
             }
 
-            CharacterAllocationPoints alloc = state.Allocations;
-            if (target is CharacterPointTarget.Vitality or CharacterPointTarget.Wisdom or CharacterPointTarget.Power or CharacterPointTarget.Agility)
+            CharacterProgressionState prog = state.Progression;
+            if (kind == PointAllocationKind.Attribute)
             {
-                ushort unspentStats = CharacterProgressionPolicy.GetUnspentStatPoints(state.Level, in alloc);
+                PrimaryAttributeId attr = (PrimaryAttributeId)targetId;
+                if (!Enum.IsDefined(attr))
+                {
+                    return OpStatus.Invalid;
+                }
+
+                ushort unspentStats = CharacterProgressionPolicy.GetUnspentStatPoints(state.Level, prog);
                 if (unspentStats == 0)
                 {
                     return OpStatus.Conflict;
                 }
 
                 ushort spend = (ushort)Math.Min(requested, unspentStats);
-                CharacterAllocationPoints updated = target switch
-                {
-                    CharacterPointTarget.Vitality => alloc with { Vit = (ushort)(alloc.Vit + spend) },
-                    CharacterPointTarget.Wisdom => alloc with { Wis = (ushort)(alloc.Wis + spend) },
-                    CharacterPointTarget.Power => alloc with { Pwr = (ushort)(alloc.Pwr + spend) },
-                    CharacterPointTarget.Agility => alloc with { Agi = (ushort)(alloc.Agi + spend) },
-                    CharacterPointTarget.SkillWhirlwind or CharacterPointTarget.SkillArcaneNova or CharacterPointTarget.SkillVitalSurge or _ => alloc,
-                };
+                prog.AddAttribute(attr, spend);
 
                 float prevMaxHp = state.Stats.MaxHealth;
                 float prevMaxMp = state.Stats.MaxMana;
                 float prevMaxStam = state.Stats.MaxStamina;
-                state.Allocations = updated;
                 this.RecomputeDerivedStatsLocked(state);
 
                 if (_simulation.Entities.HasHealth(state.Entity) && state.Stats.MaxHealth > prevMaxHp)
@@ -446,39 +474,28 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
 
                 state.StatsDirty = true;
                 this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
-                syncTarget = state;
+                immediateSync = this.BuildPlayerStatsSnapshotLocked(state, clearLevelUpPending: false);
             }
-            else if (target is CharacterPointTarget.SkillWhirlwind or CharacterPointTarget.SkillArcaneNova or CharacterPointTarget.SkillVitalSurge)
+            else if (kind == PointAllocationKind.Skill)
             {
-                ushort unspentSkills = CharacterProgressionPolicy.GetUnspentSkillPoints(state.Level, in alloc);
-                if (unspentSkills == 0)
+                if (!SkillCatalog.Skills.TryGet(targetId, out SkillDefinition? skillDef))
+                {
+                    return OpStatus.Invalid;
+                }
+
+                ushort unspentSkills = CharacterProgressionPolicy.GetUnspentSkillPoints(state.Level, prog);
+                byte curRank = prog.GetSkillRank(targetId);
+                if (unspentSkills == 0 || curRank >= skillDef.MaxRank)
                 {
                     return OpStatus.Conflict;
                 }
 
-                byte curRank = target switch
-                {
-                    CharacterPointTarget.SkillWhirlwind => alloc.Skill1Rank,
-                    CharacterPointTarget.SkillArcaneNova => alloc.Skill2Rank,
-                    CharacterPointTarget.SkillVitalSurge => alloc.Skill3Rank,
-                    CharacterPointTarget.Vitality or CharacterPointTarget.Wisdom or CharacterPointTarget.Power or CharacterPointTarget.Agility or _ => byte.MaxValue,
-                };
-                if (curRank >= CharacterProgressionPolicy.MaxSkillRank)
-                {
-                    return OpStatus.Conflict;
-                }
-
-                byte nextRank = (byte)Math.Min(CharacterProgressionPolicy.MaxSkillRank, curRank + 1);
-                state.Allocations = target switch
-                {
-                    CharacterPointTarget.SkillWhirlwind => alloc with { Skill1Rank = nextRank },
-                    CharacterPointTarget.SkillArcaneNova => alloc with { Skill2Rank = nextRank },
-                    CharacterPointTarget.SkillVitalSurge => alloc with { Skill3Rank = nextRank },
-                    CharacterPointTarget.Vitality or CharacterPointTarget.Wisdom or CharacterPointTarget.Power or CharacterPointTarget.Agility or _ => alloc,
-                };
+                int spend = Math.Min(requested, Math.Min(unspentSkills, skillDef.MaxRank - curRank));
+                byte nextRank = (byte)(curRank + spend);
+                prog.SetSkillRank(targetId, nextRank);
                 state.StatsDirty = true;
                 this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
-                syncTarget = state;
+                immediateSync = this.BuildPlayerStatsSnapshotLocked(state, clearLevelUpPending: false);
             }
             else
             {
@@ -486,11 +503,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             }
         }
 
-        if (syncTarget is not null)
-        {
-            this.DispatchImmediateStatsSync(syncTarget, false);
-        }
-
+        _outboundSink.SendPlayerStatsSync(connectionId, in immediateSync);
         return OpStatus.Ok;
     }
 
@@ -500,7 +513,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         int centerCy = Chunk2D.ToChunkCoord((int)MathF.Floor(worldCenter.Y / this.TileSize));
         Vector2 safeOrigin = _chunkWorld.SpawnWorldPosition;
         float safeRadiusSq = 100f * this.TileSize * this.TileSize;
-        float chunkWorldSpan = Chunk2D.Size * this.TileSize;
 
         if (!_spawnedSanctuaryBlacksmith)
         {
@@ -648,8 +660,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
                     continue;
                 }
 
-                float chunkDist = Vector2.Distance(monsterPos, safeOrigin) / chunkWorldSpan;
-                byte zoneTier = (byte)Math.Clamp((int)(chunkDist / 4f), 0, 15);
+                byte zoneTier = WorldProgression.GetZoneTier(this.WorldSeed, wx, wy);
                 ushort monsterArchetype = ResolveBiomeMonsterArchetype(spawnTile.Biome, h);
                 ScaledMonsterStats scaled = WorldActorCatalog.ScaleMonsterForZone(monsterArchetype, zoneTier);
 
@@ -790,13 +801,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             SelectedHotbarSlot = state.Session.SelectedHotbarSlot,
             InventoryBlob = blob,
             UpdatedAtUtc = _time.GetUtcNow(),
-            VitPoints = state.Allocations.Vit,
-            WisPoints = state.Allocations.Wis,
-            PwrPoints = state.Allocations.Pwr,
-            AgiPoints = state.Allocations.Agi,
-            Skill1Rank = state.Allocations.Skill1Rank,
-            Skill2Rank = state.Allocations.Skill2Rank,
-            Skill3Rank = state.Allocations.Skill3Rank,
+            UnlockedSkills = state.Progression.UnlockedSkillMask,
+            ProgressionBlob = CharacterProgressionBinaryCodec.Serialize(state.Progression),
         };
     }
 
@@ -898,8 +904,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
 
     private void RecomputeDerivedStatsLocked(ActivePlayerState state)
     {
-        CharacterAllocationPoints alloc = state.Allocations;
-        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(state.Level, state.Inventory, state.Session.SelectedHotbarSlot, in alloc);
+        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(state.Level, state.Inventory, state.Session.SelectedHotbarSlot, state.Progression);
         state.Stats = stats;
         if (_simulation.Entities.HasHealth(state.Entity))
         {
@@ -944,21 +949,48 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             state.Stats.MaxHealth));
     }
 
-    private void EnqueueStatsSyncLocked(ActivePlayerState state, bool leveledUp)
+    private PlayerStatsSnapshot BuildPlayerStatsSnapshotLocked(ActivePlayerState state, bool clearLevelUpPending)
     {
         HealthComponent hp = _simulation.Entities.HasHealth(state.Entity)
             ? _simulation.Entities.GetHealth(state.Entity)
             : new HealthComponent(100f, state.Stats.MaxHealth);
         uint xpNext = CharacterProgressionPolicy.GetXpToNextLevel(state.Level);
-        float cd1 = this.GetCooldownSecondsRemaining(state.Cooldowns, Skill1AbilityId);
-        float cd2 = this.GetCooldownSecondsRemaining(state.Cooldowns, Skill2AbilityId);
-        float cd3 = this.GetCooldownSecondsRemaining(state.Cooldowns, Skill3AbilityId);
-        CharacterAllocationPoints alloc = state.Allocations;
-        ushort unspentStats = CharacterProgressionPolicy.GetUnspentStatPoints(state.Level, in alloc);
-        ushort unspentSkills = CharacterProgressionPolicy.GetUnspentSkillPoints(state.Level, in alloc);
+        bool leveledUp = state.LeveledUpPending;
+        if (clearLevelUpPending)
+        {
+            state.LeveledUpPending = false;
+        }
 
-        _pendingStatsSyncs.Add(new OutboundStatsSync(
-            state.Session.ConnectionId,
+        ReadOnlySpan<SkillDefinition> skills = SkillCatalog.Skills.All;
+        int activeCdCount = 0;
+        for (int i = 0; i < skills.Length; i++)
+        {
+            if (this.GetCooldownSecondsRemaining(state.Cooldowns, SkillAbilityIdBase + skills[i].Id) > 0f)
+            {
+                activeCdCount++;
+            }
+        }
+
+        ushort[] cdIds = activeCdCount == 0 ? [] : new ushort[activeCdCount];
+        float[] cdSecs = activeCdCount == 0 ? [] : new float[activeCdCount];
+        int cdWrite = 0;
+        for (int i = 0; i < skills.Length && cdWrite < activeCdCount; i++)
+        {
+            ushort sid = skills[i].Id;
+            float rem = this.GetCooldownSecondsRemaining(state.Cooldowns, SkillAbilityIdBase + sid);
+            if (rem > 0f)
+            {
+                cdIds[cdWrite] = sid;
+                cdSecs[cdWrite] = rem;
+                cdWrite++;
+            }
+        }
+
+        ushort unspentStats = CharacterProgressionPolicy.GetUnspentStatPoints(state.Level, state.Progression);
+        ushort unspentSkills = CharacterProgressionPolicy.GetUnspentSkillPoints(state.Level, state.Progression);
+        byte[] progBlob = CharacterProgressionBinaryCodec.Serialize(state.Progression);
+
+        return new PlayerStatsSnapshot(
             state.Level,
             state.Experience,
             xpNext,
@@ -969,54 +1001,25 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             state.CurrentStamina,
             state.Stats.MaxStamina,
             state.Stats.Defense,
-            cd1,
-            cd2,
-            cd3,
             leveledUp,
+            state.SourceCharacter.Flags,
+            state.Progression.UnlockedSkillMask,
             unspentStats,
             unspentSkills,
-            alloc.Vit,
-            alloc.Wis,
-            alloc.Pwr,
-            alloc.Agi,
-            alloc.Skill1Rank,
-            alloc.Skill2Rank,
-            alloc.Skill3Rank));
+            progBlob,
+            cdIds,
+            cdSecs);
     }
 
-    private void DispatchImmediateStatsSync(ActivePlayerState state, bool leveledUp)
+    private void EnqueueStatsSyncLocked(ActivePlayerState state, bool leveledUp)
     {
-        HealthComponent hp = _simulation.Entities.HasHealth(state.Entity)
-            ? _simulation.Entities.GetHealth(state.Entity)
-            : new HealthComponent(100f, state.Stats.MaxHealth);
-        CharacterAllocationPoints alloc = state.Allocations;
-        ushort unspentStats = CharacterProgressionPolicy.GetUnspentStatPoints(state.Level, in alloc);
-        ushort unspentSkills = CharacterProgressionPolicy.GetUnspentSkillPoints(state.Level, in alloc);
-        _outboundSink.SendPlayerStatsSync(
-            state.Session.ConnectionId,
-            state.Level,
-            state.Experience,
-            CharacterProgressionPolicy.GetXpToNextLevel(state.Level),
-            hp.Current,
-            hp.Max,
-            state.CurrentMana,
-            state.Stats.MaxMana,
-            state.CurrentStamina,
-            state.Stats.MaxStamina,
-            state.Stats.Defense,
-            this.GetCooldownSecondsRemaining(state.Cooldowns, Skill1AbilityId),
-            this.GetCooldownSecondsRemaining(state.Cooldowns, Skill2AbilityId),
-            this.GetCooldownSecondsRemaining(state.Cooldowns, Skill3AbilityId),
-            leveledUp,
-            unspentStats,
-            unspentSkills,
-            alloc.Vit,
-            alloc.Wis,
-            alloc.Pwr,
-            alloc.Agi,
-            alloc.Skill1Rank,
-            alloc.Skill2Rank,
-            alloc.Skill3Rank);
+        PlayerStatsSnapshot snap = this.BuildPlayerStatsSnapshotLocked(state, clearLevelUpPending: leveledUp);
+        if (leveledUp)
+        {
+            snap = snap with { LeveledUp = true };
+        }
+
+        _pendingStatsSyncs.Add(new OutboundStatsSync(state.Session.ConnectionId, snap));
     }
 
     private float GetCooldownSecondsRemaining(CooldownTracker tracker, uint abilityId)
@@ -1096,7 +1099,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         public ulong LastCombatDamageTick { get; set; }
         public ushort Level { get; set; } = 1;
         public uint Experience { get; set; }
-        public CharacterAllocationPoints Allocations { get; set; }
+        public CharacterProgressionState Progression { get; } = new();
+        public uint CombatRollNonce { get; set; }
         public DerivedCharacterStats Stats { get; set; } = new(100f, 80f, 100f, 2f, 1f, 1f);
         public float CurrentMana { get; set; } = 80f;
         public float CurrentStamina { get; set; } = 100f;
@@ -1134,29 +1138,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
 
     private readonly record struct OutboundStatsSync(
         ulong ConnectionId,
-        ushort Level,
-        uint Experience,
-        uint XpToNext,
-        float CurHp,
-        float MaxHp,
-        float CurMp,
-        float MaxMp,
-        float CurStam,
-        float MaxStam,
-        float Defense,
-        float Skill1Cd,
-        float Skill2Cd,
-        float Skill3Cd,
-        bool LeveledUp,
-        ushort UnspentStatPoints,
-        ushort UnspentSkillPoints,
-        ushort VitPoints,
-        ushort WisPoints,
-        ushort PwrPoints,
-        ushort AgiPoints,
-        byte Skill1Rank,
-        byte Skill2Rank,
-        byte Skill3Rank);
+        PlayerStatsSnapshot Snapshot);
 
     private readonly record struct OutboundSkillCast(
         int RecipientsOffset,

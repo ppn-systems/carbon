@@ -26,7 +26,7 @@ internal sealed class HeroVitalsWidget
     private const float CardX = 16f;
     private const float CardY = 14f;
     private const float CardW = 348f;
-    private const float CardH = 118f;
+    private const float CardH = 132f;
 
     public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin)
     {
@@ -195,7 +195,8 @@ internal sealed class HeroVitalsWidget
 
         spriteBatch.DrawOutlinedString(font, $"{itemLabel} | XP {world.LocalPlayerExperience}/{world.LocalPlayerXpToNext}", new Vector2(CardX + 10f, CardY + 87f), itemColor, black, 1, 1f);
 
-        if (world.LocalUnspentStatPoints > 0 || world.LocalUnspentSkillPoints > 0)
+        bool hasPoints = world.LocalUnspentStatPoints > 0 || world.LocalUnspentSkillPoints > 0;
+        if (hasPoints)
         {
             string ptsHint = world.LocalUnspentStatPoints > 0 && world.LocalUnspentSkillPoints > 0
                 ? $"+{world.LocalUnspentStatPoints} AP [I] | +{world.LocalUnspentSkillPoints} SP [K]"
@@ -204,11 +205,13 @@ internal sealed class HeroVitalsWidget
                     : $"+{world.LocalUnspentSkillPoints} Skill Pts [K]");
             spriteBatch.DrawOutlinedString(font, ptsHint, new Vector2(CardX + 10f, CardY + 101f), new ColorRgba(253, 224, 71, 255), black, 1, 1f);
         }
-        else if (showTelemetry)
+
+        if (showTelemetry)
         {
             int h = (int)MathF.Floor(hourOfDay) % 24;
             int m = (int)MathF.Floor((hourOfDay - MathF.Floor(hourOfDay)) * 60f);
-            spriteBatch.DrawOutlinedString(font, $"{biome} ({ptx},{pty}) | {h:D2}:{m:D2} | {(int)fps} FPS", new Vector2(CardX + 10f, CardY + 101f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
+            float teleY = hasPoints ? CardY + 115f : CardY + 101f;
+            spriteBatch.DrawOutlinedString(font, $"{biome} ({ptx},{pty}) | {h:D2}:{m:D2} | {(int)fps} FPS", new Vector2(CardX + 10f, teleY), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
         }
     }
 }

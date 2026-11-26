@@ -20,5 +20,9 @@ public interface IWorldEntityCommandSink
     OpStatus EnqueuePickupLoot(ulong connectionId, ulong lootNetworkId);
 
     /// <summary>Allocates unspent attribute points or skill mastery points for <paramref name="connectionId"/>.</summary>
-    OpStatus TryAllocateCharacterPoint(ulong connectionId, Contracts.Entities.CharacterPointTarget target, byte amount = 1);
+    OpStatus TryAllocateCharacterPoint(
+        ulong connectionId,
+        Contracts.Entities.PointAllocationKind kind,
+        ushort targetId,
+        byte amount = 1);
 }

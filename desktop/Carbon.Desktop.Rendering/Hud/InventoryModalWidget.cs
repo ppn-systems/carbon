@@ -31,12 +31,12 @@ internal sealed class InventoryModalWidget
     private const float SlotGap = 6f;
 
     private static readonly string[] s_armorLabels = ["HEAD", "CHEST", "LEGS", "FEET"];
-    private static readonly CharacterPointTarget[] s_statTargets =
+    private static readonly PrimaryAttributeId[] s_statTargets =
     [
-        CharacterPointTarget.Vitality,
-        CharacterPointTarget.Wisdom,
-        CharacterPointTarget.Power,
-        CharacterPointTarget.Agility,
+        PrimaryAttributeId.Vitality,
+        PrimaryAttributeId.Wisdom,
+        PrimaryAttributeId.Power,
+        PrimaryAttributeId.Agility,
     ];
 
     public int SelectedSlot { get; set; } = -1;
@@ -55,19 +55,19 @@ internal sealed class InventoryModalWidget
         return GetCloseButtonRect(ox, oy).Contains(mousePos);
     }
 
-    public bool TryHitTestStatPlusButton(Vector2 mousePos, int viewportWidth, int viewportHeight, out CharacterPointTarget target)
+    public bool TryHitTestStatPlusButton(Vector2 mousePos, int viewportWidth, int viewportHeight, out PrimaryAttributeId attribute)
     {
         (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
         for (int i = 0; i < s_statTargets.Length; i++)
         {
             if (GetStatPlusRect(ox, oy, i).Contains(mousePos))
             {
-                target = s_statTargets[i];
+                attribute = s_statTargets[i];
                 return true;
             }
         }
 
-        target = CharacterPointTarget.Vitality;
+        attribute = PrimaryAttributeId.Vitality;
         return false;
     }
 
@@ -334,12 +334,17 @@ internal sealed class InventoryModalWidget
             1,
             1f);
 
+        ushort vitPts = world.GetAttributePoints(PrimaryAttributeId.Vitality);
+        ushort wisPts = world.GetAttributePoints(PrimaryAttributeId.Wisdom);
+        ushort pwrPts = world.GetAttributePoints(PrimaryAttributeId.Power);
+        ushort agiPts = world.GetAttributePoints(PrimaryAttributeId.Agility);
+
         (string Name, string Detail, ushort Pts, ColorRgba Col)[] statRows =
         [
-            ("VIT", $"HP {(int)MathF.Ceiling(world.LocalPlayerMaxHealth)}", world.LocalVitPoints, new ColorRgba(248, 113, 113, 255)),
-            ("WIS", $"MP {(int)MathF.Ceiling(world.LocalPlayerMaxMana)}", world.LocalWisPoints, new ColorRgba(96, 165, 250, 255)),
-            ("PWR", $"DMG +{world.LocalPwrPoints * 3.5f:F0}%", world.LocalPwrPoints, new ColorRgba(251, 146, 60, 255)),
-            ("AGI", $"STA {(int)MathF.Ceiling(world.LocalPlayerMaxStamina)}", world.LocalAgiPoints, new ColorRgba(52, 211, 153, 255)),
+            ("VIT", $"HP {(int)MathF.Ceiling(world.LocalPlayerMaxHealth)}", vitPts, new ColorRgba(248, 113, 113, 255)),
+            ("WIS", $"MP {(int)MathF.Ceiling(world.LocalPlayerMaxMana)}", wisPts, new ColorRgba(96, 165, 250, 255)),
+            ("PWR", $"DMG +{pwrPts * 3.5f:F0}%", pwrPts, new ColorRgba(251, 146, 60, 255)),
+            ("AGI", $"STA {(int)MathF.Ceiling(world.LocalPlayerMaxStamina)}", agiPts, new ColorRgba(52, 211, 153, 255)),
         ];
 
         for (int i = 0; i < statRows.Length; i++)
@@ -366,7 +371,8 @@ internal sealed class InventoryModalWidget
         {
             byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in insp);
             string iName = StarterGameCatalog.GetDisplayName(insp.ItemId);
-            spriteBatch.DrawOutlinedString(font, upg > 0 ? $"{iName} +{upg}" : iName, new Vector2(ox + 566f, oy + 76f), ColorRgba.White, black, 1, 1f);
+            string inspName = CarbonUiSkin.TruncateToWidth(font, upg > 0 ? $"{iName} +{upg}" : iName, 128f, 1f);
+            spriteBatch.DrawOutlinedString(font, inspName, new Vector2(ox + 566f, oy + 76f), ColorRgba.White, black, 1, 1f);
             float upgMult = ItemEnhancementPolicy.GetStatMultiplier(upg);
             string statStr = StarterGameCatalog.Items.TryGet(insp.ItemId, out ItemArchetype? def)
                 ? (def.Category == ItemCategory.Armor
@@ -377,7 +383,7 @@ internal sealed class InventoryModalWidget
                             ? $"Tier {def.HarvestTier} Tool"
                             : $"Stack x{insp.Quantity}")
                 : string.Empty;
-            spriteBatch.DrawOutlinedString(font, statStr, new Vector2(ox + 566f, oy + 96f), new ColorRgba(125, 211, 252, 255), black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, statStr, 128f, 1f), new Vector2(ox + 566f, oy + 96f), new ColorRgba(125, 211, 252, 255), black, 1, 1f);
         }
 
         RectangleF useBtn = GetUseEquipButtonRect(ox, oy);
@@ -450,10 +456,10 @@ internal sealed class InventoryModalWidget
             world.CopyInventorySlots(slots);
             if (hoveredSlot < slots.Length && !slots[hoveredSlot].IsEmpty)
             {
-                float tx = Math.Clamp(mouseScreenPos.Value.X + 16f, 12f, viewportWidth - 274f);
+                float tx = Math.Clamp(mouseScreenPos.Value.X + 16f, 12f, viewportWidth - 334f);
                 float ty = Math.Clamp(mouseScreenPos.Value.Y - 94f, 12f, viewportHeight - 102f);
-                batch.FillRectangle(new RectangleF(tx, ty, 260f, 88f), new ColorRgba(8, 12, 24, 248));
-                batch.DrawRectangle(new RectangleF(tx, ty, 260f, 88f), new ColorRgba(250, 204, 21, 235), 1.5f);
+                batch.FillRectangle(new RectangleF(tx, ty, 320f, 88f), new ColorRgba(8, 12, 24, 248));
+                batch.DrawRectangle(new RectangleF(tx, ty, 320f, 88f), new ColorRgba(250, 204, 21, 235), 1.5f);
             }
         }
     }
@@ -481,12 +487,12 @@ internal sealed class InventoryModalWidget
 
         ItemSlot hItem = slots[hoveredSlot];
         ColorRgba black = new(8, 10, 16, 255);
-        float tx = Math.Clamp(mouseScreenPos.Value.X + 16f, 12f, viewportWidth - 274f);
+        float tx = Math.Clamp(mouseScreenPos.Value.X + 16f, 12f, viewportWidth - 334f);
         float ty = Math.Clamp(mouseScreenPos.Value.Y - 94f, 12f, viewportHeight - 102f);
 
         byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in hItem);
         string title = upg > 0 ? $"{StarterGameCatalog.GetDisplayName(hItem.ItemId)} +{upg}" : StarterGameCatalog.GetDisplayName(hItem.ItemId);
-        spriteBatch.DrawOutlinedString(font, title, new Vector2(tx + 8f, ty + 8f), new ColorRgba(250, 204, 21, 255), black, 1, 1.5f);
+        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, title, 304f, 1.5f), new Vector2(tx + 8f, ty + 8f), new ColorRgba(250, 204, 21, 255), black, 1, 1.5f);
 
         float upgMult = ItemEnhancementPolicy.GetStatMultiplier(upg);
         string statLine = StarterGameCatalog.Items.TryGet(hItem.ItemId, out ItemArchetype? def)
@@ -496,8 +502,8 @@ internal sealed class InventoryModalWidget
                     ? $"DMG {(int)MathF.Round(def.BaseDamage * upgMult)} | RNG {(int)def.AttackRange} | MP {(int)def.AttackManaCost}"
                     : $"Qty {hItem.Quantity} | Max {def.MaxStackSize}")
             : $"Qty {hItem.Quantity}";
-        spriteBatch.DrawOutlinedString(font, statLine, new Vector2(tx + 8f, ty + 29f), new ColorRgba(125, 211, 252, 255), black, 1, 1f);
-        spriteBatch.DrawOutlinedString(font, StarterGameCatalog.GetActionHint(hItem.ItemId), new Vector2(tx + 8f, ty + 47f), new ColorRgba(226, 232, 240, 255), black, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, statLine, 304f, 1f), new Vector2(tx + 8f, ty + 29f), new ColorRgba(125, 211, 252, 255), black, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, StarterGameCatalog.GetActionHint(hItem.ItemId), 304f, 1f), new Vector2(tx + 8f, ty + 47f), new ColorRgba(226, 232, 240, 255), black, 1, 1f);
         spriteBatch.DrawOutlinedString(font, "Click/Drag: Move | RMB/Shift: Quick-Equip", new Vector2(tx + 8f, ty + 66f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
     }
 

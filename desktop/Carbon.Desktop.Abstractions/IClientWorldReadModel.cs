@@ -3,6 +3,9 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Contracts.Common;
+using Carbon.Contracts.Entities;
+using Carbon.Contracts.Identity;
 using Carbon.Items.Containers;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS;
@@ -58,8 +61,17 @@ public interface IClientWorldReadModel : IClientConnectionStatus, IClientCharact
     /// <summary>Gets derived armor defense rating.</summary>
     float LocalPlayerDefense { get; }
 
-    /// <summary>Gets remaining cooldown in seconds for active skill slot (<c>1..3</c>).</summary>
-    float GetSkillCooldown(byte skillSlot);
+    /// <summary>Gets remaining cooldown in seconds for active skill <paramref name="skillId"/>.</summary>
+    float GetSkillCooldown(ushort skillId);
+
+    /// <summary>Gets the character's persisted archetype class.</summary>
+    HeroArchetypeClass LocalPlayerClass { get; }
+
+    /// <summary>Gets persisted character progression traits bitmask.</summary>
+    CharacterTraits LocalCharacterTraits { get; }
+
+    /// <summary>Gets the unlocked skill bitmask.</summary>
+    CharacterSkillMask LocalUnlockedSkillMask { get; }
 
     /// <summary>Gets unspent character attribute points earned from leveling.</summary>
     ushort LocalUnspentStatPoints { get; }
@@ -67,20 +79,11 @@ public interface IClientWorldReadModel : IClientConnectionStatus, IClientCharact
     /// <summary>Gets unspent skill mastery points earned from leveling.</summary>
     ushort LocalUnspentSkillPoints { get; }
 
-    /// <summary>Gets allocated Vitality attribute points.</summary>
-    ushort LocalVitPoints { get; }
+    /// <summary>Gets allocated attribute points for <paramref name="attribute"/>.</summary>
+    ushort GetAttributePoints(PrimaryAttributeId attribute);
 
-    /// <summary>Gets allocated Wisdom attribute points.</summary>
-    ushort LocalWisPoints { get; }
-
-    /// <summary>Gets allocated Power attribute points.</summary>
-    ushort LocalPwrPoints { get; }
-
-    /// <summary>Gets allocated Agility attribute points.</summary>
-    ushort LocalAgiPoints { get; }
-
-    /// <summary>Gets learned mastery rank (<c>0</c>=locked, <c>1..5</c>=learned) for <paramref name="skillSlot"/>.</summary>
-    byte GetSkillRank(byte skillSlot);
+    /// <summary>Gets learned mastery rank (<c>0</c>=locked, <c>1..MaxRank</c>=learned) for <paramref name="skillId"/>.</summary>
+    byte GetSkillRank(ushort skillId);
 
     /// <summary>Gets the active zero-based hotbar slot index (<c>0..8</c>).</summary>
     byte SelectedHotbarSlot { get; }
@@ -124,8 +127,8 @@ public interface IClientWorldReadModel : IClientConnectionStatus, IClientCharact
     /// <summary>Copies the player's inventory slots into <paramref name="destination"/> under session synchronization.</summary>
     void CopyInventorySlots(Span<ItemSlot> destination);
 
-    /// <summary>Returns <see langword="true"/> when a town Blacksmith NPC or placed <c>ForgeAnvil</c> is nearby.</summary>
-    bool IsNearForgeStation(float maxDistance = 165f);
+    /// <summary>Returns <see langword="true"/> when a Blacksmith NPC or placed <c>ForgeAnvil</c> is nearby.</summary>
+    bool IsNearForgeStation(float maxDistance = 175f);
 
     /// <summary>Drains newly buffered floating combat/loot events into <paramref name="destination"/>.</summary>
     void DrainCombatEvents(List<ClientCombatEvent> destination);

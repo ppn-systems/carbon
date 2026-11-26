@@ -60,15 +60,15 @@ internal static class ActionVfxRenderer
                 DrawMonsterStrikeArc(batch, origin + new Vector2(0f, -4f), baseAngle, progress, alpha);
                 break;
 
-            case ClientActionKind.SkillWhirlwind:
+            case ClientActionKind.SpinSlash:
                 DrawWhirlwindNova(batch, origin + new Vector2(0f, -6f), progress, alpha);
                 break;
 
-            case ClientActionKind.SkillArcaneNova:
+            case ClientActionKind.ArcaneWave:
                 DrawArcaneNovaCone(batch, origin + new Vector2(0f, -6f), baseAngle, progress, alpha);
                 break;
 
-            case ClientActionKind.SkillVitalSurge:
+            case ClientActionKind.SelfAura:
                 DrawVitalSurgeAura(batch, origin + new Vector2(0f, -8f), progress, alpha);
                 break;
 

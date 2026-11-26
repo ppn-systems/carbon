@@ -14,6 +14,7 @@ using Carbon.Contracts.Items.S2C;
 using Carbon.Desktop.Abstractions;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
+using Carbon.Items.Serialization;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS.Components;
@@ -166,7 +167,9 @@ public sealed partial class NalixMultiplayerSession
                 item.ZoneTier,
                 item.PositionX,
                 item.PositionY,
-                item.AppearancePreset));
+                item.AppearancePreset,
+                (HeroArchetypeClass)item.ClassId,
+                item.Traits));
         }
 
         return roster;
@@ -266,9 +269,19 @@ public sealed partial class NalixMultiplayerSession
             _localStamina = enter.CurrentStamina;
             _localMaxStamina = MathF.Max(1f, enter.MaxStamina);
             _localDefense = enter.Defense;
-            _skill1Cd = 0f;
-            _skill2Cd = 0f;
-            _skill3Cd = 0f;
+            _localClass = (HeroArchetypeClass)enter.ClassId;
+            _localTraits = enter.Traits;
+            _skillCooldowns.Clear();
+            _ = CharacterProgressionBinaryCodec.TryDeserializeInto(enter.ProgressionBlob ?? [], _progression);
+            if (enter.UnlockedSkillMask != 0UL)
+            {
+                _progression.SetUnlockedSkillMask(_progression.UnlockedSkillMask | (Contracts.Entities.CharacterSkillMask)enter.UnlockedSkillMask);
+            }
+
+            _unspentStatPoints = CharacterProgressionPolicy.GetUnspentStatPoints(_localLevel, _progression);
+            _unspentSkillPoints = CharacterProgressionPolicy.GetUnspentSkillPoints(_localLevel, _progression);
+            _remoteViewsDirty = true;
+            _cachedRemoteViews = [];
             _lockedTargetNetworkId = 0UL;
             _forgeFeedbackTimer = 0f;
             _lastForgeSucceeded = false;

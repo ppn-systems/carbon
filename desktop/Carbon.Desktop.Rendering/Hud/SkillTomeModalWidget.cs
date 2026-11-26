@@ -1,8 +1,8 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Numerics;
-using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching.Common;
@@ -14,12 +14,11 @@ using Carbon.Items.Catalog;
 namespace Carbon.Desktop.Rendering.Hud;
 
 /// <summary>
-/// Centered RPG Skill Mastery Tome modal (<c>[K]</c>) allowing players to unlock locked skills (<c>Rank 0 -> 1</c>)
-/// and invest earned Skill Points up to <c>Rank 5</c> across Whirlwind, Arcane Nova, and Vital Surge (SRP).
+/// Centered RPG Skill Mastery Tome modal (<c>[K]</c>) dynamically iterating <see cref="SkillCatalog.Skills"/>
+/// so players can unlock locked skills (<c>Rank 0 -> 1</c>) and invest earned Skill Points (SRP / OCP).
 /// </summary>
 internal sealed class SkillTomeModalWidget
 {
-    private const float PanelW = 640f;
     private const float PanelH = 404f;
     private const float CardW = 190f;
     private const float CardH = 304f;
@@ -27,34 +26,33 @@ internal sealed class SkillTomeModalWidget
 
     public bool ContainsPoint(Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
-        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
-        return mousePos.X >= ox && mousePos.X <= ox + PanelW && mousePos.Y >= oy && mousePos.Y <= oy + PanelH;
+        float panelW = ComputePanelWidth(SkillBarWidget.GetOrderedSkills().Count);
+        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight, panelW);
+        return mousePos.X >= ox && mousePos.X <= ox + panelW && mousePos.Y >= oy && mousePos.Y <= oy + PanelH;
     }
 
     public bool TryHitTestCloseButton(Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
-        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
-        return GetCloseButtonRect(ox, oy).Contains(mousePos);
+        float panelW = ComputePanelWidth(SkillBarWidget.GetOrderedSkills().Count);
+        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight, panelW);
+        return GetCloseButtonRect(ox, oy, panelW).Contains(mousePos);
     }
 
-    public bool TryHitTestUpgradeButton(Vector2 mousePos, int viewportWidth, int viewportHeight, out CharacterPointTarget target)
+    public bool TryHitTestUpgradeButton(Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort skillId)
     {
-        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
-        for (int i = 0; i < 3; i++)
+        IReadOnlyList<SkillDefinition> skills = SkillBarWidget.GetOrderedSkills();
+        float panelW = ComputePanelWidth(skills.Count);
+        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight, panelW);
+        for (int i = 0; i < skills.Count; i++)
         {
             if (GetUpgradeButtonRect(ox, oy, i).Contains(mousePos))
             {
-                target = i switch
-                {
-                    0 => CharacterPointTarget.SkillWhirlwind,
-                    1 => CharacterPointTarget.SkillArcaneNova,
-                    _ => CharacterPointTarget.SkillVitalSurge,
-                };
+                skillId = skills[i].Id;
                 return true;
             }
         }
 
-        target = CharacterPointTarget.SkillWhirlwind;
+        skillId = 0;
         return false;
     }
 
@@ -66,27 +64,29 @@ internal sealed class SkillTomeModalWidget
         int viewportHeight,
         Vector2? mouseScreenPos)
     {
-        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
-        skin.DrawWindow(spriteBatch, new RectangleF(ox, oy, PanelW, PanelH), new ColorRgba(56, 189, 248, 240), bodyAlpha: 246);
+        IReadOnlyList<SkillDefinition> skills = SkillBarWidget.GetOrderedSkills();
+        float panelW = ComputePanelWidth(skills.Count);
+        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight, panelW);
+        skin.DrawWindow(spriteBatch, new RectangleF(ox, oy, panelW, PanelH), new ColorRgba(56, 189, 248, 240), bodyAlpha: 246);
 
-        RectangleF closeBtn = GetCloseButtonRect(ox, oy);
+        RectangleF closeBtn = GetCloseButtonRect(ox, oy, panelW);
         bool hoverClose = mouseScreenPos.HasValue && closeBtn.Contains(mouseScreenPos.Value);
         skin.DrawButton(spriteBatch, in closeBtn, hoverClose ? new ColorRgba(220, 38, 38, 245) : new ColorRgba(153, 27, 27, 235), new ColorRgba(248, 113, 113, 245));
 
         ushort unspent = world.LocalUnspentSkillPoints;
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < skills.Count; i++)
         {
-            byte slot = (byte)(i + 1);
-            byte rank = world.GetSkillRank(slot);
+            SkillDefinition skill = skills[i];
+            byte rank = world.GetSkillRank(skill.Id);
             RectangleF cardRect = GetCardRect(ox, oy, i);
-            ColorRgba accent = ResolveAccent(slot);
+            ColorRgba accent = SkillBarWidget.ResolveAccentColor(skill);
             skin.DrawCard(spriteBatch, in cardRect, rank > 0 ? accent : new ColorRgba(71, 85, 105, 220), bodyAlpha: 236);
 
             RectangleF iconSocket = new(cardRect.X + 71f, cardRect.Y + 14f, 48f, 48f);
             skin.DrawSlot(spriteBatch, in iconSocket, new ColorRgba(10, 15, 28, 244), rank > 0 ? accent : new ColorRgba(71, 85, 105, 210));
 
             RectangleF btnRect = GetUpgradeButtonRect(ox, oy, i);
-            bool canAct = unspent > 0 && rank < CharacterProgressionPolicy.MaxSkillRank;
+            bool canAct = unspent > 0 && rank < skill.MaxRank;
             bool hover = mouseScreenPos.HasValue && btnRect.Contains(mouseScreenPos.Value);
             ColorRgba btnFill = canAct
                 ? (hover ? new ColorRgba(16, 185, 129, 245) : new ColorRgba(5, 150, 105, 235))
@@ -98,17 +98,19 @@ internal sealed class SkillTomeModalWidget
 
     public void DrawGeometry(GeometryBatch batch, IClientWorldReadModel world, int viewportWidth, int viewportHeight)
     {
-        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
-        for (int i = 0; i < 3; i++)
+        IReadOnlyList<SkillDefinition> skills = SkillBarWidget.GetOrderedSkills();
+        float panelW = ComputePanelWidth(skills.Count);
+        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight, panelW);
+        for (int i = 0; i < skills.Count; i++)
         {
-            byte slot = (byte)(i + 1);
-            byte rank = world.GetSkillRank(slot);
+            SkillDefinition skill = skills[i];
+            byte rank = world.GetSkillRank(skill.Id);
             RectangleF cardRect = GetCardRect(ox, oy, i);
             Vector2 center = new(cardRect.X + 95f, cardRect.Y + 38f);
-            SkillBarWidget.DrawSkillGlyph(batch, slot, center, ResolveAccent(slot), rank > 0);
+            SkillBarWidget.DrawSkillGlyph(batch, skill.AnimArchetype, center, SkillBarWidget.ResolveAccentColor(skill), rank > 0);
 
-            // Rank progress pips
-            for (int p = 0; p < CharacterProgressionPolicy.MaxSkillRank; p++)
+            int maxPips = Math.Min(5, (int)skill.MaxRank);
+            for (int p = 0; p < maxPips; p++)
             {
                 float px = cardRect.X + 44f + (p * 22f);
                 float py = cardRect.Y + 108f;
@@ -126,7 +128,9 @@ internal sealed class SkillTomeModalWidget
         int viewportWidth,
         int viewportHeight)
     {
-        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
+        IReadOnlyList<SkillDefinition> skills = SkillBarWidget.GetOrderedSkills();
+        float panelW = ComputePanelWidth(skills.Count);
+        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight, panelW);
         ColorRgba black = new(8, 10, 16, 255);
 
         spriteBatch.DrawOutlinedString(font, "ARCANE & MARTIAL SKILL TOME [K]", new Vector2(ox + 20f, oy + 16f), new ColorRgba(125, 211, 252, 255), black, 1, 1.5f);
@@ -140,35 +144,34 @@ internal sealed class SkillTomeModalWidget
             1,
             1f);
 
-        RectangleF closeBtn = GetCloseButtonRect(ox, oy);
+        RectangleF closeBtn = GetCloseButtonRect(ox, oy, panelW);
         CarbonUiSkin.DrawCenteredText(spriteBatch, font, "X", in closeBtn, ColorRgba.White, black, 1.5f);
 
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < skills.Count; i++)
         {
-            byte slot = (byte)(i + 1);
-            byte rank = world.GetSkillRank(slot);
+            SkillDefinition skill = skills[i];
+            byte rank = world.GetSkillRank(skill.Id);
             RectangleF cardRect = GetCardRect(ox, oy, i);
             byte previewRank = rank > 0 ? rank : (byte)1;
-            _ = CharacterProgressionPolicy.TryGetSkillSpec(slot, previewRank, out SkillSpec curSpec);
+            SkillSpec curSpec = skill.EvaluateRank(previewRank);
+            ColorRgba accent = SkillBarWidget.ResolveAccentColor(skill);
 
-            CarbonUiSkin.DrawCenteredText(spriteBatch, font, curSpec.DisplayName, new RectangleF(cardRect.X + 8f, cardRect.Y + 68f, CardW - 16f, 20f), ResolveAccent(slot), black, 1.5f);
-            string rankTag = rank == 0 ? "LOCKED (0/5)" : $"RANK {rank} / {CharacterProgressionPolicy.MaxSkillRank}";
+            string title = CarbonUiSkin.TruncateToWidth(font, curSpec.DisplayName, CardW - 16f, 1.5f);
+            CarbonUiSkin.DrawCenteredText(spriteBatch, font, title, new RectangleF(cardRect.X + 8f, cardRect.Y + 68f, CardW - 16f, 20f), accent, black, 1.5f);
+            string rankTag = rank == 0 ? $"LOCKED (0/{skill.MaxRank})" : $"RANK {rank} / {skill.MaxRank}";
             CarbonUiSkin.DrawCenteredText(spriteBatch, font, rankTag, new RectangleF(cardRect.X + 8f, cardRect.Y + 88f, CardW - 16f, 16f), rank > 0 ? new ColorRgba(253, 224, 71, 255) : new ColorRgba(248, 113, 113, 255), black, 1f);
 
-            string effectLine = slot switch
-            {
-                CharacterProgressionPolicy.SkillWhirlwind => $"AOE Cleave: {(int)MathF.Round(curSpec.DamageMultiplier * 100f)}% DMG",
-                CharacterProgressionPolicy.SkillArcaneNova => $"Arcane Cone: {(int)MathF.Round(curSpec.DamageMultiplier * 100f)}% DMG",
-                _ => $"Heal {(int)MathF.Round(curSpec.SelfHealRatio * 100f)}% HP +{(int)curSpec.StaminaRestore} STA",
-            };
-            CarbonUiSkin.DrawCenteredText(spriteBatch, font, effectLine, new RectangleF(cardRect.X + 8f, cardRect.Y + 128f, CardW - 16f, 18f), ColorRgba.White, black, 1f);
+            string effectLine = skill.EffectKind == SkillEffectKind.SelfRestore
+                ? $"Heal {(int)MathF.Round(curSpec.SelfHealRatio * 100f)}% HP +{(int)curSpec.StaminaRestore} STA"
+                : $"Potency: {(int)MathF.Round(curSpec.DamageMultiplier * 100f)}% DMG";
+            CarbonUiSkin.DrawCenteredText(spriteBatch, font, CarbonUiSkin.TruncateToWidth(font, effectLine, CardW - 16f, 1f), new RectangleF(cardRect.X + 8f, cardRect.Y + 128f, CardW - 16f, 18f), ColorRgba.White, black, 1f);
             CarbonUiSkin.DrawCenteredText(spriteBatch, font, $"MP {(int)curSpec.ManaCost} | STA {(int)curSpec.StaminaCost}", new RectangleF(cardRect.X + 8f, cardRect.Y + 150f, CardW - 16f, 16f), new ColorRgba(125, 211, 252, 255), black, 1f);
             CarbonUiSkin.DrawCenteredText(spriteBatch, font, $"Cooldown: {curSpec.CooldownSeconds:F1}s", new RectangleF(cardRect.X + 8f, cardRect.Y + 168f, CardW - 16f, 16f), new ColorRgba(203, 213, 225, 255), black, 1f);
 
-            if (rank > 0 && rank < CharacterProgressionPolicy.MaxSkillRank &&
-                CharacterProgressionPolicy.TryGetSkillSpec(slot, (byte)(rank + 1), out SkillSpec nextSpec))
+            if (rank > 0 && rank < skill.MaxRank)
             {
-                string nextBonus = slot == CharacterProgressionPolicy.SkillVitalSurge
+                SkillSpec nextSpec = skill.EvaluateRank((byte)(rank + 1));
+                string nextBonus = skill.EffectKind == SkillEffectKind.SelfRestore
                     ? $"Next: {(int)MathF.Round(nextSpec.SelfHealRatio * 100f)}% HP"
                     : $"Next: {(int)MathF.Round(nextSpec.DamageMultiplier * 100f)}% DMG";
                 CarbonUiSkin.DrawCenteredText(spriteBatch, font, nextBonus, new RectangleF(cardRect.X + 8f, cardRect.Y + 196f, CardW - 16f, 16f), new ColorRgba(74, 222, 128, 255), black, 1f);
@@ -179,17 +182,20 @@ internal sealed class SkillTomeModalWidget
             }
 
             RectangleF btnRect = GetUpgradeButtonRect(ox, oy, i);
-            string btnTxt = rank >= CharacterProgressionPolicy.MaxSkillRank
+            string btnTxt = rank >= skill.MaxRank
                 ? "MAX RANK"
                 : (rank == 0 ? "UNLOCK (1 SP)" : "RANK UP (1 SP)");
-            CarbonUiSkin.DrawCenteredText(spriteBatch, font, btnTxt, in btnRect, sp > 0 && rank < 5 ? ColorRgba.White : new ColorRgba(148, 163, 184, 225), black, 1f);
+            CarbonUiSkin.DrawCenteredText(spriteBatch, font, btnTxt, in btnRect, sp > 0 && rank < skill.MaxRank ? ColorRgba.White : new ColorRgba(148, 163, 184, 225), black, 1f);
         }
     }
 
-    private static (float Ox, float Oy) ComputeOrigin(int viewportWidth, int viewportHeight) =>
-        (MathF.Floor((viewportWidth - PanelW) * 0.5f), MathF.Floor((viewportHeight - PanelH) * 0.5f));
+    private static float ComputePanelWidth(int skillCount) =>
+        skillCount <= 0 ? 420f : MathF.Max(420f, 40f + (skillCount * CardW) + ((skillCount - 1) * CardGap));
 
-    private static RectangleF GetCloseButtonRect(float ox, float oy) => new(ox + PanelW - 38f, oy + 10f, 26f, 24f);
+    private static (float Ox, float Oy) ComputeOrigin(int viewportWidth, int viewportHeight, float panelW) =>
+        (MathF.Floor((viewportWidth - panelW) * 0.5f), MathF.Floor((viewportHeight - PanelH) * 0.5f));
+
+    private static RectangleF GetCloseButtonRect(float ox, float oy, float panelW) => new(ox + panelW - 38f, oy + 10f, 26f, 24f);
 
     private static RectangleF GetCardRect(float ox, float oy, int index) =>
         new(ox + 20f + (index * (CardW + CardGap)), oy + 68f, CardW, CardH);
@@ -199,11 +205,4 @@ internal sealed class SkillTomeModalWidget
         RectangleF card = GetCardRect(ox, oy, index);
         return new RectangleF(card.X + 16f, card.Bottom - 44f, CardW - 32f, 30f);
     }
-
-    private static ColorRgba ResolveAccent(byte skillSlot) => skillSlot switch
-    {
-        CharacterProgressionPolicy.SkillWhirlwind => new ColorRgba(249, 115, 22, 255),
-        CharacterProgressionPolicy.SkillArcaneNova => new ColorRgba(56, 189, 248, 255),
-        _ => new ColorRgba(16, 185, 129, 255),
-    };
 }

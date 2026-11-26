@@ -313,7 +313,7 @@ public static class VectorRigRenderer
                     swingOffset = EvaluateSwingArc(p, -1.85f, 0.88f, out thrustFactor);
                     break;
                 case ClientActionKind.SwordSlash:
-                case ClientActionKind.SkillWhirlwind:
+                case ClientActionKind.SpinSlash:
                     swingOffset = (action.ComboStep & 1) == 0
                         ? EvaluateSwingArc(p, -1.35f, 1.28f, out thrustFactor)
                         : EvaluateSwingArc(p, 1.35f, -1.28f, out thrustFactor);
@@ -331,8 +331,8 @@ public static class VectorRigRenderer
                     break;
                 case ClientActionKind.ConsumeItem:
                 case ClientActionKind.MonsterStrike:
-                case ClientActionKind.SkillArcaneNova:
-                case ClientActionKind.SkillVitalSurge:
+                case ClientActionKind.ArcaneWave:
+                case ClientActionKind.SelfAura:
                 case ClientActionKind.None:
                 default:
                     swingOffset = 0f;

@@ -329,7 +329,7 @@ internal sealed class HotbarAndItemWidget
         int viewportWidth,
         in ItemSlot item)
     {
-        const float cardW = 318f;
+        const float cardW = 336f;
         const float cardH = 108f;
         float x = Math.Clamp(MathF.Floor(slotX + (SlotSize * 0.5f) - (cardW * 0.5f)), 12f, viewportWidth - cardW - 12f);
         float y = hotbarTopY - cardH;
@@ -378,7 +378,7 @@ internal sealed class HotbarAndItemWidget
         int viewportWidth,
         in ItemSlot item)
     {
-        const float cardW = 318f;
+        const float cardW = 336f;
         const float cardH = 108f;
         float x = Math.Clamp(MathF.Floor(slotX + (SlotSize * 0.5f) - (cardW * 0.5f)), 12f, viewportWidth - cardW - 12f);
         float y = hotbarTopY - cardH;
@@ -398,16 +398,29 @@ internal sealed class HotbarAndItemWidget
 
         byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
         string titleName = upg > 0 ? $"{name} +{upg}" : name;
-        spriteBatch.DrawOutlinedString(font, titleName, new Vector2(x + 58f, y + 10f), titleColor, black, 1, 1.5f);
+        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, titleName, cardW - 68f, 1.5f), new Vector2(x + 58f, y + 10f), titleColor, black, 1, 1.5f);
         spriteBatch.DrawOutlinedString(font, $"Tier {tier} | {cat}", new Vector2(x + 58f, y + 29f), new ColorRgba(203, 213, 225, 255), black, 1, 1f);
 
         float upgMult = ItemEnhancementPolicy.GetStatMultiplier(upg);
-        float armorDef = StarterGameCatalog.GetArmorDefense(item.ItemId) * upgMult;
-        string stats = armorDef > 0f
-            ? $"DEF +{(int)MathF.Round(armorDef)} | +{(int)MathF.Round(StarterGameCatalog.GetArmorBonusHealth(item.ItemId) * upgMult)} HP | +{(int)MathF.Round(StarterGameCatalog.GetArmorBonusMana(item.ItemId) * upgMult)} MP"
-            : $"DMG {(int)MathF.Round(StarterGameCatalog.GetWeaponBaseDamage(item.ItemId) * upgMult)} | Chop {(int)MathF.Round(StarterGameCatalog.GetFloraHarvestDamage(item.ItemId) * upgMult)} | Mine {(int)MathF.Round(StarterGameCatalog.GetMineralHarvestDamage(item.ItemId) * upgMult)}";
-        spriteBatch.DrawOutlinedString(font, stats, new Vector2(x + 10f, y + 56f), new ColorRgba(125, 211, 252, 255), black, 1, 1f);
-        spriteBatch.DrawOutlinedString(font, StarterGameCatalog.GetActionHint(item.ItemId), new Vector2(x + 10f, y + 71f), new ColorRgba(253, 224, 71, 255), black, 1, 1f);
+        string stats;
+        if (StarterGameCatalog.Items.TryGet(item.ItemId, out ItemArchetype? def))
+        {
+            stats = def.Category switch
+            {
+                ItemCategory.Armor => $"DEF +{(int)MathF.Round(def.ArmorDefense * upgMult)} | +{(int)MathF.Round(def.BonusHealth * upgMult)} HP | +{(int)MathF.Round(def.BonusMana * upgMult)} MP",
+                ItemCategory.Weapon or ItemCategory.Tool => $"DMG {(int)MathF.Round(def.BaseDamage * upgMult)} | Chop {(int)MathF.Round(def.FloraHarvestDamage * upgMult)} | Mine {(int)MathF.Round(def.MineralHarvestDamage * upgMult)}",
+                ItemCategory.Consumable => $"Restore +{(int)def.HealHealth} HP | +{(int)def.RestoreMana} MP | +{(int)def.RestoreStamina} STA",
+                ItemCategory.Placeable => $"Buildable Structure | Stack x{item.Quantity}/{def.MaxStackSize}",
+                ItemCategory.Accessory or ItemCategory.Resource or ItemCategory.Quest or ItemCategory.None or _ => $"Stack x{item.Quantity}/{def.MaxStackSize} | Craft/Forge Material",
+            };
+        }
+        else
+        {
+            stats = $"Stack x{item.Quantity}";
+        }
+
+        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, stats, cardW - 20f, 1f), new Vector2(x + 10f, y + 56f), new ColorRgba(125, 211, 252, 255), black, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, StarterGameCatalog.GetActionHint(item.ItemId), cardW - 20f, 1f), new Vector2(x + 10f, y + 71f), new ColorRgba(253, 224, 71, 255), black, 1, 1f);
 
         if (StarterGameCatalog.Items.TryGet(item.ItemId, out ItemArchetype? archetype) && archetype.MaxDurability > 0f)
         {

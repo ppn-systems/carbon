@@ -122,6 +122,8 @@ public sealed class ProtocolContractGuardTests
             PositionX = 123.5f,
             PositionY = -45.25f,
             AppearancePreset = 3,
+            ClassId = (byte)HeroArchetypeClass.Arcanist,
+            Traits = CharacterTraits.StarterLoadoutGranted | CharacterTraits.ForgeUnlocked,
         };
         using CharacterSummary summaryCopy = CharacterSummary.Deserialize(summary.Serialize());
         Assert.Equal(cid, summaryCopy.CharacterId);
@@ -129,6 +131,8 @@ public sealed class ProtocolContractGuardTests
         Assert.Equal((ushort)7, summaryCopy.Level);
         Assert.Equal((byte)2, summaryCopy.ZoneTier);
         Assert.Equal((byte)3, summaryCopy.AppearancePreset);
+        Assert.Equal((byte)HeroArchetypeClass.Arcanist, summaryCopy.ClassId);
+        Assert.Equal(CharacterTraits.StarterLoadoutGranted | CharacterTraits.ForgeUnlocked, summaryCopy.Traits);
 
         using CharacterEnterWorld enter = new()
         {
@@ -143,10 +147,18 @@ public sealed class ProtocolContractGuardTests
             ServerTick = 120UL,
             TickRate = 30,
             AppearancePreset = 2,
+            ClassId = (byte)HeroArchetypeClass.Ranger,
+            Traits = CharacterTraits.StarterLoadoutGranted,
+            UnlockedSkillMask = 0b0101UL,
+            ProgressionBlob = [1, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         };
         using CharacterEnterWorld enterCopy = CharacterEnterWorld.Deserialize(enter.Serialize());
         Assert.Equal((byte)2, enterCopy.AppearancePreset);
         Assert.Equal(55UL, enterCopy.PlayerNetworkId);
+        Assert.Equal((byte)HeroArchetypeClass.Ranger, enterCopy.ClassId);
+        Assert.Equal(CharacterTraits.StarterLoadoutGranted, enterCopy.Traits);
+        Assert.Equal(0b0101UL, enterCopy.UnlockedSkillMask);
+        Assert.Equal(enter.ProgressionBlob, enterCopy.ProgressionBlob);
 
         using EntityDeltaBatch batch = new()
         {
@@ -194,16 +206,21 @@ public sealed class ProtocolContractGuardTests
             CurrentStamina = 85f,
             MaxStamina = 115f,
             Defense = 18f,
-            Skill1Cooldown = 1.5f,
-            Skill2Cooldown = 0f,
-            Skill3Cooldown = 4.2f,
             LeveledUp = true,
+            Traits = CharacterTraits.StarterLoadoutGranted,
+            UnlockedSkillMask = CharacterSkillMask.Whirlwind | CharacterSkillMask.VitalSurge,
+            CooldownSkillIds = [1, 3],
+            CooldownRemainingSeconds = [1.5f, 4.2f],
         };
         using PlayerStatsSync statsCopy = PlayerStatsSync.Deserialize(stats.Serialize());
         Assert.Equal((ushort)4, statsCopy.Level);
         Assert.Equal(210U, statsCopy.Experience);
         Assert.Equal(18f, statsCopy.Defense);
         Assert.True(statsCopy.LeveledUp);
+        Assert.Equal(CharacterTraits.StarterLoadoutGranted, statsCopy.Traits);
+        Assert.Equal(CharacterSkillMask.Whirlwind | CharacterSkillMask.VitalSurge, statsCopy.UnlockedSkillMask);
+        Assert.Equal([1, 3], statsCopy.CooldownSkillIds);
+        Assert.Equal([1.5f, 4.2f], statsCopy.CooldownRemainingSeconds);
 
         using EntityEquipmentChanged eq = new()
         {
@@ -246,9 +263,13 @@ public sealed class ProtocolContractGuardTests
         Assert.Equal(24f, enterFullCopy.Defense);
 
         Assert.Equal((byte)102, AbilityInputEncoding.EncodeSkill(2));
-        Assert.True(AbilityInputEncoding.TryDecodeSkill(102, out byte decodedSkill));
-        Assert.Equal((byte)2, decodedSkill);
+        Assert.True(AbilityInputEncoding.TryDecodeSkill(102, out ushort decodedSkill));
+        Assert.Equal((ushort)2, decodedSkill);
         Assert.False(AbilityInputEncoding.TryDecodeSkill(2, out _));
+        Assert.True(AbilityInputEncoding.TryDecodePlayerProjectileCast(AbilityInputEncoding.EncodePlayerProjectileCast(6), out byte pProj));
+        Assert.Equal((byte)6, pProj);
+        Assert.True(AbilityInputEncoding.TryDecodeMonsterProjectileCast(AbilityInputEncoding.EncodeMonsterProjectileCast(5), out byte mProj));
+        Assert.Equal((byte)5, mProj);
         Assert.Equal((byte)8, (byte)OpStatus.EnhancementFailed);
 
         using MoveInventorySlot move = new() { FromSlot = 9, ToSlot = 37, SequenceId = 12 };
@@ -298,35 +319,33 @@ public sealed class ProtocolContractGuardTests
 
         using EntityAllocatePoint alloc = new()
         {
-            Target = CharacterPointTarget.Vitality,
+            Kind = PointAllocationKind.Attribute,
+            TargetId = (ushort)PrimaryAttributeId.Vitality,
             Amount = 2,
             SequenceId = 11,
         };
         using EntityAllocatePoint allocCopy = EntityAllocatePoint.Deserialize(alloc.Serialize());
-        Assert.Equal(CharacterPointTarget.Vitality, allocCopy.Target);
-        Assert.Equal((ushort)2, allocCopy.Amount);
+        Assert.Equal(PointAllocationKind.Attribute, allocCopy.Kind);
+        Assert.Equal((ushort)PrimaryAttributeId.Vitality, allocCopy.TargetId);
+        Assert.Equal((byte)2, allocCopy.Amount);
         Assert.Equal(11U, allocCopy.SequenceId);
 
         using PlayerStatsSync advStats = new()
         {
             Level = 5,
+            Traits = CharacterTraits.StarterLoadoutGranted,
+            UnlockedSkillMask = CharacterSkillMask.Whirlwind | CharacterSkillMask.ArcaneNova,
             UnspentStatPoints = 16,
             UnspentSkillPoints = 3,
-            VitPoints = 2,
-            WisPoints = 1,
-            PwrPoints = 3,
-            AgiPoints = 1,
-            Skill1Rank = 2,
-            Skill2Rank = 1,
-            Skill3Rank = 0,
+            ProgressionBlob = [1, 3, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 2, 0, 1, 0, 2],
+            CooldownSkillIds = [1],
+            CooldownRemainingSeconds = [2.5f],
         };
         using PlayerStatsSync advStatsCopy = PlayerStatsSync.Deserialize(advStats.Serialize());
         Assert.Equal((ushort)16, advStatsCopy.UnspentStatPoints);
         Assert.Equal((ushort)3, advStatsCopy.UnspentSkillPoints);
-        Assert.Equal((ushort)2, advStatsCopy.VitPoints);
-        Assert.Equal((ushort)3, advStatsCopy.PwrPoints);
-        Assert.Equal((byte)2, advStatsCopy.Skill1Rank);
-        Assert.Equal((byte)1, advStatsCopy.Skill2Rank);
+        Assert.Equal(CharacterSkillMask.Whirlwind | CharacterSkillMask.ArcaneNova, advStatsCopy.UnlockedSkillMask);
+        Assert.Equal(advStats.ProgressionBlob, advStatsCopy.ProgressionBlob);
     }
 
     private static bool IsPacketType(Type t) =>

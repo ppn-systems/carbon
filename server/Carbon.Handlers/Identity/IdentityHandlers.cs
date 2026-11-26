@@ -47,6 +47,11 @@ public static partial class IdentityHandlers
 
         if (outcome.Status == AuthStatus.Ok)
         {
+            if (ConnectionAuthRegistry.TryGetAccountId(connectionId, out _))
+            {
+                _ = s_world.LeaveWorld(connectionId);
+            }
+
             ConnectionAuthRegistry.SetAuthenticated(connectionId, outcome.AccountId);
             context.Connection.Level = PermissionLevel.USER;
         }
@@ -69,6 +74,11 @@ public static partial class IdentityHandlers
 
         if (outcome.Status == AuthStatus.Ok)
         {
+            if (ConnectionAuthRegistry.TryGetAccountId(connectionId, out _))
+            {
+                _ = s_world.LeaveWorld(connectionId);
+            }
+
             ConnectionAuthRegistry.SetAuthenticated(connectionId, outcome.AccountId);
             context.Connection.Level = PermissionLevel.USER;
         }
@@ -109,6 +119,8 @@ public static partial class IdentityHandlers
                 item.PositionX = c.PositionX;
                 item.PositionY = c.PositionY;
                 item.AppearancePreset = c.AppearancePreset;
+                item.ClassId = (byte)c.Class;
+                item.Traits = c.Flags;
                 await context.Sender.ReplyAsync(item).ConfigureAwait(false);
             }
         }
@@ -152,7 +164,7 @@ public static partial class IdentityHandlers
             ? OpStatus.Ok
             : result.FailureReason switch
             {
-                "invalid_name" => OpStatus.Invalid,
+                "invalid_name" or "invalid_class" => OpStatus.Invalid,
                 "character_limit_reached" => OpStatus.Forbidden,
                 _ => OpStatus.Conflict,
             };
@@ -257,6 +269,10 @@ public static partial class IdentityHandlers
             reply.CurrentStamina = result.CurrentStamina;
             reply.MaxStamina = result.MaxStamina;
             reply.Defense = result.Defense;
+            reply.ClassId = result.ClassId;
+            reply.Traits = result.Traits;
+            reply.UnlockedSkillMask = result.UnlockedSkillMask;
+            reply.ProgressionBlob = result.ProgressionBlob ?? [];
             return context.Sender.ReplyAsync(reply).DisposeOnCompletionAsync(lease);
         }
         catch

@@ -68,23 +68,17 @@ public sealed partial class NalixMultiplayerSession
         bool hasArchetype = StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? archetype);
         if (hasArchetype && archetype is { Category: ItemCategory.Consumable })
         {
-            if (activeSlot.ItemId == StarterGameCatalog.BerryHerb && _localHealth >= _localMaxHealth - 0.1f)
+            bool healsHp = archetype.HealHealth > 0f;
+            bool healsMp = archetype.RestoreMana > 0f;
+            bool healsStam = archetype.RestoreStamina > 0f;
+            if ((healsHp || healsMp || healsStam) &&
+                (!healsHp || _localHealth >= _localMaxHealth - 0.5f) &&
+                (!healsMp || _localMana >= _localMaxMana - 0.5f) &&
+                (!healsStam || _localStamina >= _localMaxStamina - 0.5f))
             {
                 lock (_worldGate)
                 {
-                    _hudNotifications.Add("Health is already full!");
-                }
-
-                return false;
-            }
-
-            if (activeSlot.ItemId == StarterGameCatalog.ManaTonic &&
-                _localMana >= _localMaxMana - 0.1f &&
-                _localStamina >= _localMaxStamina - 0.1f)
-            {
-                lock (_worldGate)
-                {
-                    _hudNotifications.Add("Mana & Stamina already full!");
+                    _hudNotifications.Add("Vitals are already full!");
                 }
 
                 return false;
@@ -149,14 +143,16 @@ public sealed partial class NalixMultiplayerSession
     }
 
     /// <inheritdoc/>
-    public bool TryCastSkill(byte skillSlot, Vector2 aimWorldPosition)
+    public bool TryCastSkill(ushort skillId, Vector2 aimWorldPosition)
     {
-        if (!this.IsReady || _tcpSession is not { IsConnected: true })
+        if (!this.IsReady ||
+            _tcpSession is not { IsConnected: true } ||
+            !SkillCatalog.Skills.TryGet(skillId, out SkillDefinition? skillDef))
         {
             return false;
         }
 
-        byte rank = this.GetSkillRank(skillSlot);
+        byte rank = this.GetSkillRank(skillId);
         if (rank == 0)
         {
             lock (_worldGate)
@@ -167,12 +163,8 @@ public sealed partial class NalixMultiplayerSession
             return false;
         }
 
-        if (!CharacterProgressionPolicy.TryGetSkillSpec(skillSlot, rank, out SkillSpec spec))
-        {
-            return false;
-        }
-
-        if (this.GetSkillCooldown(skillSlot) > 0.05f)
+        SkillSpec spec = skillDef.EvaluateRank(rank);
+        if (this.GetSkillCooldown(skillId) > 0.05f)
         {
             return false;
         }
@@ -189,19 +181,9 @@ public sealed partial class NalixMultiplayerSession
 
         _localMana = MathF.Max(0f, _localMana - spec.ManaCost);
         _localStamina = MathF.Max(0f, _localStamina - spec.StaminaCost);
-        switch (skillSlot)
+        lock (_worldGate)
         {
-            case CharacterProgressionPolicy.SkillWhirlwind:
-                _skill1Cd = spec.CooldownSeconds;
-                break;
-            case CharacterProgressionPolicy.SkillArcaneNova:
-                _skill2Cd = spec.CooldownSeconds;
-                break;
-            case CharacterProgressionPolicy.SkillVitalSurge:
-                _skill3Cd = spec.CooldownSeconds;
-                break;
-            default:
-                break;
+            _skillCooldowns[skillId] = spec.CooldownSeconds;
         }
 
         Vector2 pos = this.LocalPlayerInterpolatedPosition;
@@ -210,13 +192,7 @@ public sealed partial class NalixMultiplayerSession
         _lastAttackDir = aimDir;
         _localFacingDir = aimDir;
 
-        ClientActionKind actionKind = skillSlot switch
-        {
-            CharacterProgressionPolicy.SkillWhirlwind => ClientActionKind.SkillWhirlwind,
-            CharacterProgressionPolicy.SkillArcaneNova => ClientActionKind.SkillArcaneNova,
-            CharacterProgressionPolicy.SkillVitalSurge => ClientActionKind.SkillVitalSurge,
-            _ => ClientActionKind.SwordSlash,
-        };
+        ClientActionKind actionKind = MapSkillAnimKind(skillDef.AnimArchetype);
         float duration = ResolveActionDuration(actionKind);
         _comboStep = (byte)(_comboStep ^ 1);
 
@@ -235,13 +211,13 @@ public sealed partial class NalixMultiplayerSession
             aimDir,
             heldItemId,
             _comboStep);
-        if (skillSlot == CharacterProgressionPolicy.SkillWhirlwind)
+        if (actionKind == ClientActionKind.SpinSlash)
         {
             _attackSwingTimer = duration;
         }
 
         uint tick = _clientTick;
-        byte abilityCode = AbilityInputEncoding.EncodeSkill(skillSlot);
+        byte abilityCode = AbilityInputEncoding.EncodeSkill(skillId);
         _ = this.SendGameplayDatagramOrTcpAsync<EntityAttackInput>(
             DeliveryMethod.ReliableUnordered,
             channel: 0,
@@ -504,16 +480,17 @@ public sealed partial class NalixMultiplayerSession
     }
 
     /// <inheritdoc/>
-    public bool TryAllocateCharacterPoint(Contracts.Entities.CharacterPointTarget target, byte amount = 1)
+    public bool TryAllocateCharacterPoint(PointAllocationKind kind, ushort targetId, byte amount = 1)
     {
         if (!this.IsReady || _tcpSession is not { IsConnected: true } || amount == 0)
         {
             return false;
         }
 
-        _ = this.SendTcpPooledAsync<Contracts.Entities.C2S.EntityAllocatePoint>(p =>
+        _ = this.SendTcpPooledAsync<EntityAllocatePoint>(p =>
         {
-            p.Target = target;
+            p.Kind = kind;
+            p.TargetId = targetId;
             p.Amount = amount;
         });
         return true;
@@ -617,10 +594,12 @@ public sealed partial class NalixMultiplayerSession
     }
 
     /// <inheritdoc/>
-    public bool TryCraftRecipe(ushort recipeId)
+    public bool TryCraftRecipe(ushort recipeId, ushort quantity = 1)
     {
         if (!this.IsReady ||
             _tcpSession is not { IsConnected: true } ||
+            quantity == 0 ||
+            quantity > 64 ||
             !StarterGameCatalog.Recipes.TryGet(recipeId, out CraftingRecipe? recipe))
         {
             return false;
@@ -628,16 +607,32 @@ public sealed partial class NalixMultiplayerSession
 
         lock (_worldGate)
         {
-            if (!RecipeMatcher.CanCraft(_inventory, recipe))
+            int bagCap = Math.Min(PlayerInventoryLayout.BagLimit, _inventory.Capacity);
+            for (int rIdx = 0; rIdx < recipe.Ingredients.Count; rIdx++)
             {
-                return false;
+                RecipeIngredient ing = recipe.Ingredients[rIdx];
+                int needed = ing.Quantity * quantity;
+                int avail = 0;
+                for (int s = 0; s < bagCap; s++)
+                {
+                    ItemSlot cur = _inventory.GetSlot(s);
+                    if (cur.ItemId == ing.ItemId && cur.Quantity > 0 && cur.UpgradeLevel == 0)
+                    {
+                        avail += cur.Quantity;
+                    }
+                }
+
+                if (avail < needed)
+                {
+                    return false;
+                }
             }
         }
 
         _ = this.SendTcpPooledAsync<CraftItem>(p =>
         {
             p.RecipeId = recipeId;
-            p.Quantity = 1;
+            p.Quantity = quantity;
         });
         return true;
     }
@@ -873,20 +868,27 @@ public sealed partial class NalixMultiplayerSession
 
         if (archetype.Category == ItemCategory.Tool)
         {
-            return archetype.MineralHarvestDamage > archetype.FloraHarvestDamage
+            return archetype.Capabilities.HasFlag(ToolCapabilities.MineMineral)
                 ? ClientActionKind.PickaxeMine
                 : ClientActionKind.AxeChop;
         }
 
         if (archetype.Category == ItemCategory.Weapon && archetype.ProjectileSpeed > 0f)
         {
-            return archetype.AttackManaCost > 0f || archetype.ProjectileArchetype == 2
+            return archetype.Capabilities.HasFlag(ToolCapabilities.MagicFocus)
                 ? ClientActionKind.StaffCast
                 : ClientActionKind.BowShot;
         }
 
         return ClientActionKind.SwordSlash;
     }
+
+    private static ClientActionKind MapSkillAnimKind(SkillAnimArchetype anim) => anim switch
+    {
+        SkillAnimArchetype.SpinSlash => ClientActionKind.SpinSlash,
+        SkillAnimArchetype.ArcaneWave => ClientActionKind.ArcaneWave,
+        SkillAnimArchetype.SelfAura or _ => ClientActionKind.SelfAura,
+    };
 
     private static float ResolveActionDuration(ClientActionKind kind) => kind switch
     {
@@ -896,9 +898,9 @@ public sealed partial class NalixMultiplayerSession
         ClientActionKind.StaffCast => 0.28f,
         ClientActionKind.ConsumeItem => 0.24f,
         ClientActionKind.PlaceStructure => 0.20f,
-        ClientActionKind.SkillWhirlwind => 0.42f,
-        ClientActionKind.SkillArcaneNova => 0.45f,
-        ClientActionKind.SkillVitalSurge => 0.48f,
+        ClientActionKind.SpinSlash => 0.42f,
+        ClientActionKind.ArcaneWave => 0.45f,
+        ClientActionKind.SelfAura => 0.48f,
         ClientActionKind.SwordSlash or ClientActionKind.MonsterStrike or ClientActionKind.None or _ => 0.24f,
     };
 }

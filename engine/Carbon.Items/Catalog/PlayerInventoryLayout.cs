@@ -223,8 +223,8 @@ public static class PlayerInventoryLayout
     }
 
     /// <summary>
-    /// Crafts <paramref name="recipe"/> using only general bag storage (<c>0..35</c>) so outputs
-    /// never spill into dedicated equipped armor slots (<c>36..39</c>).
+    /// Crafts <paramref name="recipe"/> using only general bag/hotbar storage (<c>0..35</c>) on non-upgraded
+    /// slots (<c>UpgradeLevel == 0</c>) so outputs and deductions never touch equipped or enhanced gear.
     /// </summary>
     public static bool TryCraftInBag(InventoryContainer inventory, CraftingRecipe recipe, int maxOutputStackSize = 99)
     {
@@ -233,9 +233,28 @@ public static class PlayerInventoryLayout
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxOutputStackSize);
 
         int bagCap = Math.Min(BagLimit, inventory.Capacity);
-        if (!RecipeMatcher.CanCraft(inventory, recipe))
+        for (int i = 0; i < recipe.Ingredients.Count; i++)
         {
-            return false;
+            RecipeIngredient ing = recipe.Ingredients[i];
+            if (ing.Quantity <= 0)
+            {
+                continue;
+            }
+
+            int available = 0;
+            for (int s = 0; s < bagCap; s++)
+            {
+                ItemSlot slot = inventory.GetSlot(s);
+                if (slot.ItemId == ing.ItemId && slot.Quantity > 0 && slot.UpgradeLevel == 0)
+                {
+                    available += slot.Quantity;
+                }
+            }
+
+            if (available < ing.Quantity)
+            {
+                return false;
+            }
         }
 
         ItemSlot output = recipe.Output;
@@ -263,7 +282,7 @@ public static class PlayerInventoryLayout
                 for (int s = 0; s < bagCap && needed > 0; s++)
                 {
                     ItemSlot cur = inventory.GetSlot(s);
-                    if (cur.ItemId != ing.ItemId || cur.Quantity <= 0)
+                    if (cur.ItemId != ing.ItemId || cur.Quantity <= 0 || cur.UpgradeLevel != 0)
                     {
                         continue;
                     }
@@ -289,9 +308,19 @@ public static class PlayerInventoryLayout
         for (int i = 0; i < recipe.Ingredients.Count; i++)
         {
             RecipeIngredient ing = recipe.Ingredients[i];
-            if (ing.Quantity > 0)
+            int remaining = ing.Quantity;
+            for (int s = 0; s < bagCap && remaining > 0; s++)
             {
-                _ = inventory.TryRemove(ing.ItemId, ing.Quantity);
+                ItemSlot cur = inventory.GetSlot(s);
+                if (cur.ItemId != ing.ItemId || cur.Quantity <= 0 || cur.UpgradeLevel != 0)
+                {
+                    continue;
+                }
+
+                int take = Math.Min(remaining, cur.Quantity);
+                int left = cur.Quantity - take;
+                inventory.SetSlot(s, left > 0 ? cur with { Quantity = left } : ItemSlot.Empty);
+                remaining -= take;
             }
         }
 

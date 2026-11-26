@@ -4,6 +4,7 @@ using System;
 using System.Numerics;
 using Carbon.Graphics.Windowing.Abstractions;
 using Carbon.Graphics.Windowing.Input;
+using Carbon.Items.Catalog;
 using Silk.NET.Input;
 
 namespace Carbon.Desktop.Input;
@@ -23,7 +24,7 @@ internal readonly record struct DesktopInputFrame(
     int ScrollSlotDelta,
     Vector2 MouseScreenPosition,
     byte? NumberSlotPressed,
-    byte? SkillPressed,
+    ushort? SkillPressed,
     bool ToggleInventoryPressed,
     bool CycleTargetPressed,
     bool InteractOrPickupPressed,
@@ -84,9 +85,9 @@ internal static class DesktopInputController
         }
 
         byte? numberSlot = PollNumberKey(keyboard);
-        byte? skillPressed = keyboard.IsKeyPressed(Key.Q)
-            ? 1
-            : (keyboard.IsKeyPressed(Key.R) ? 2 : (keyboard.IsKeyPressed(Key.V) ? 3 : null));
+        ushort? skillPressed = keyboard.IsKeyPressed(Key.Q)
+            ? SkillCatalog.WhirlwindId
+            : (keyboard.IsKeyPressed(Key.R) ? SkillCatalog.ArcaneNovaId : (keyboard.IsKeyPressed(Key.V) ? SkillCatalog.VitalSurgeId : null));
         int scrollDelta = mouse.ScrollDelta.Y > 0.01f
             ? -1
             : (mouse.ScrollDelta.Y < -0.01f ? 1 : 0);

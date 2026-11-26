@@ -147,12 +147,12 @@ public static class ToolUsagePolicy
             return new PropStrikeEvaluation(12f * upgradeMult, 1, 4.5f, ToolStrikeOutcome.SwordMisuseOnWood);
         }
 
-        if (def is { Category: ItemCategory.Tool } && targetKind == ToolTargetKind.Mineral && def.MineralHarvestDamage < 40f)
+        if (def is { Category: ItemCategory.Tool } && targetKind == ToolTargetKind.Mineral && !def.Capabilities.HasFlag(ToolCapabilities.MineMineral))
         {
             return new PropStrikeEvaluation(0f, 0, 4.0f, ToolStrikeOutcome.BladeBluntOnStone);
         }
 
-        if (def is { Category: ItemCategory.Tool } && targetKind == ToolTargetKind.Flora && def.MineralHarvestDamage > def.FloraHarvestDamage)
+        if (def is { Category: ItemCategory.Tool } && targetKind == ToolTargetKind.Flora && def.Capabilities.HasFlag(ToolCapabilities.MineMineral) && !def.Capabilities.HasFlag(ToolCapabilities.ChopFlora))
         {
             float pickOnWoodDmg = def.FloraHarvestDamage * 0.72f * upgradeMult;
             if (def.HarvestTier < propRequiredTier)

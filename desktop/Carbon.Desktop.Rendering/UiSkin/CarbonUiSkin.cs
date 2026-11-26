@@ -131,6 +131,66 @@ public sealed class CarbonUiSkin : IDisposable
     }
 
     /// <summary>
+    /// Truncates <paramref name="text"/> with <c>".."</c> if its measured width at <paramref name="scale"/>
+    /// exceeds <paramref name="maxWidth"/>.
+    /// </summary>
+    public static string TruncateToWidth(BitmapFont font, string text, float maxWidth, float scale = 1f)
+    {
+        ArgumentNullException.ThrowIfNull(font);
+        if (string.IsNullOrEmpty(text) || maxWidth <= 8f)
+        {
+            return string.Empty;
+        }
+
+        if (font.MeasureString(text, TextLayoutOptions.Default, scale).Width <= maxWidth)
+        {
+            return text;
+        }
+
+        const string ellipsis = "..";
+        int len = text.Length - 1;
+        while (len > 0)
+        {
+            string candidate = string.Concat(text.AsSpan(0, len), ellipsis);
+            if (font.MeasureString(candidate, TextLayoutOptions.Default, scale).Width <= maxWidth)
+            {
+                return candidate;
+            }
+
+            len--;
+        }
+
+        return ellipsis;
+    }
+
+    /// <summary>
+    /// Parses a <c>#RRGGBB</c> hex color string with a safe fallback when malformed.
+    /// </summary>
+    public static ColorRgba ParseHexColor(string? hex, ColorRgba fallback)
+    {
+        if (string.IsNullOrWhiteSpace(hex))
+        {
+            return fallback;
+        }
+
+        ReadOnlySpan<char> span = hex.AsSpan().Trim();
+        if (span.Length > 0 && span[0] == '#')
+        {
+            span = span[1..];
+        }
+
+        if (span.Length == 6 &&
+            byte.TryParse(span[..2], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out byte r) &&
+            byte.TryParse(span.Slice(2, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out byte g) &&
+            byte.TryParse(span.Slice(4, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out byte b))
+        {
+            return new ColorRgba(r, g, b, 255);
+        }
+
+        return fallback;
+    }
+
+    /// <summary>
     /// Renders a dual-layer nine-slice panel with independently tinted <paramref name="bodyColor"/>
     /// interior fill and <paramref name="frameColor"/> border filigree.
     /// </summary>

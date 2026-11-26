@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System.Numerics;
+using Carbon.Contracts.Entities;
 
 namespace Carbon.Desktop.Abstractions;
 
@@ -18,8 +19,8 @@ public interface IClientGameplayController
     /// <summary>Executes primary attack, structure placement, tool harvest, or consumable action aimed toward <paramref name="aimWorldPosition"/>.</summary>
     bool TriggerPrimaryAction(Vector2 aimWorldPosition, out (int ChunkX, int ChunkY) invalidatedChunk);
 
-    /// <summary>Attempts to craft one instance of <paramref name="recipeId"/>.</summary>
-    bool TryCraftRecipe(ushort recipeId);
+    /// <summary>Attempts to craft <paramref name="quantity"/> instances of <paramref name="recipeId"/>.</summary>
+    bool TryCraftRecipe(ushort recipeId, ushort quantity = 1);
 
     /// <summary>Attempts to harvest or damage the nearest natural prop beside the local player.</summary>
     bool TryHarvestNearbyProp(out (int ChunkX, int ChunkY) modifiedChunk);
@@ -30,8 +31,8 @@ public interface IClientGameplayController
     /// <summary>Toggles the nearest door beside the local player.</summary>
     bool TryToggleNearbyDoor(out (int ChunkX, int ChunkY) modifiedChunk);
 
-    /// <summary>Casts active skill (<c>1..3</c>) toward <paramref name="aimWorldPosition"/>.</summary>
-    bool TryCastSkill(byte skillSlot, Vector2 aimWorldPosition);
+    /// <summary>Casts active skill <paramref name="skillId"/> toward <paramref name="aimWorldPosition"/>.</summary>
+    bool TryCastSkill(ushort skillId, Vector2 aimWorldPosition);
 
     /// <summary>Requests moving, swapping, merging, or equipping between inventory slots (<c>0..39</c>).</summary>
     bool TryMoveInventorySlot(ushort fromSlot, ushort toSlot);
@@ -54,6 +55,6 @@ public interface IClientGameplayController
     /// <summary>Selects or cycles the nearest alive hostile monster within <paramref name="maxRange"/> world units.</summary>
     bool CycleNearestHostileTarget(float maxRange = 340f);
 
-    /// <summary>Allocates unspent attribute points (<c>VIT/WIS/PWR/AGI</c>) or unlocks/ranks up an active skill (<c>Q/R/V</c>).</summary>
-    bool TryAllocateCharacterPoint(Contracts.Entities.CharacterPointTarget target, byte amount = 1);
+    /// <summary>Allocates unspent attribute points or unlocks/ranks up an active skill.</summary>
+    bool TryAllocateCharacterPoint(PointAllocationKind kind, ushort targetId, byte amount = 1);
 }

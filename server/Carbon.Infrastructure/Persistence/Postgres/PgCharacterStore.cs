@@ -7,6 +7,9 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
+using Carbon.Contracts.Common;
+using Carbon.Contracts.Entities;
+using Carbon.Contracts.Identity;
 using Npgsql;
 using NpgsqlTypes;
 
@@ -21,7 +24,7 @@ public sealed class PgCharacterStore : ICharacterStore
         SELECT id, account_id, name, level, appearance_preset, position_x, position_y,
                current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
                experience, current_mana, max_mana, current_stamina, max_stamina,
-               stat_vit, stat_wis, stat_pwr, stat_agi, skill1_rank, skill2_rank, skill3_rank
+               class_id, character_flags, skill_flags, progression_blob
         FROM characters
         WHERE account_id = @account_id
         ORDER BY name ASC;
@@ -31,7 +34,7 @@ public sealed class PgCharacterStore : ICharacterStore
         SELECT id, account_id, name, level, appearance_preset, position_x, position_y,
                current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
                experience, current_mana, max_mana, current_stamina, max_stamina,
-               stat_vit, stat_wis, stat_pwr, stat_agi, skill1_rank, skill2_rank, skill3_rank
+               class_id, character_flags, skill_flags, progression_blob
         FROM characters
         WHERE id = @id
         LIMIT 1;
@@ -42,14 +45,15 @@ public sealed class PgCharacterStore : ICharacterStore
             id, account_id, name, level, appearance_preset, position_x, position_y,
             current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
             experience, current_mana, max_mana, current_stamina, max_stamina,
-            stat_vit, stat_wis, stat_pwr, stat_agi, skill1_rank, skill2_rank, skill3_rank)
-        VALUES (@id, @account_id, @name, @level, @preset, @px, @py, @hp, @max_hp, @slot, @inv, @updated, @xp, @mp, @max_mp, @stam, @max_stam, @vit, @wis, @pwr, @agi, @s1, @s2, @s3)
+            class_id, character_flags, skill_flags, progression_blob)
+        VALUES (@id, @account_id, @name, @level, @preset, @px, @py, @hp, @max_hp, @slot, @inv, @updated, @xp, @mp, @max_mp, @stam, @max_stam, @class_id, @cflags, @sflags, @pblob)
         ON CONFLICT (name) DO NOTHING;
         """;
 
     private const string UpdateSql = """
         UPDATE characters
         SET level = @level,
+            appearance_preset = @preset,
             position_x = @px,
             position_y = @py,
             current_health = @hp,
@@ -62,13 +66,10 @@ public sealed class PgCharacterStore : ICharacterStore
             max_mana = @max_mp,
             current_stamina = @stam,
             max_stamina = @max_stam,
-            stat_vit = @vit,
-            stat_wis = @wis,
-            stat_pwr = @pwr,
-            stat_agi = @agi,
-            skill1_rank = @s1,
-            skill2_rank = @s2,
-            skill3_rank = @s3
+            class_id = @class_id,
+            character_flags = @cflags,
+            skill_flags = @sflags,
+            progression_blob = @pblob
         WHERE id = @id;
         """;
 
@@ -146,13 +147,10 @@ public sealed class PgCharacterStore : ICharacterStore
         _ = cmd.Parameters.Add(new NpgsqlParameter("max_mp", NpgsqlDbType.Real) { Value = character.MaxMana });
         _ = cmd.Parameters.Add(new NpgsqlParameter("stam", NpgsqlDbType.Real) { Value = character.CurrentStamina });
         _ = cmd.Parameters.Add(new NpgsqlParameter("max_stam", NpgsqlDbType.Real) { Value = character.MaxStamina });
-        _ = cmd.Parameters.Add(new NpgsqlParameter("vit", NpgsqlDbType.Integer) { Value = (int)character.VitPoints });
-        _ = cmd.Parameters.Add(new NpgsqlParameter("wis", NpgsqlDbType.Integer) { Value = (int)character.WisPoints });
-        _ = cmd.Parameters.Add(new NpgsqlParameter("pwr", NpgsqlDbType.Integer) { Value = (int)character.PwrPoints });
-        _ = cmd.Parameters.Add(new NpgsqlParameter("agi", NpgsqlDbType.Integer) { Value = (int)character.AgiPoints });
-        _ = cmd.Parameters.Add(new NpgsqlParameter("s1", NpgsqlDbType.Smallint) { Value = (short)character.Skill1Rank });
-        _ = cmd.Parameters.Add(new NpgsqlParameter("s2", NpgsqlDbType.Smallint) { Value = (short)character.Skill2Rank });
-        _ = cmd.Parameters.Add(new NpgsqlParameter("s3", NpgsqlDbType.Smallint) { Value = (short)character.Skill3Rank });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("class_id", NpgsqlDbType.Smallint) { Value = (short)character.Class });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("cflags", NpgsqlDbType.Bigint) { Value = unchecked((long)(ulong)character.Flags) });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("sflags", NpgsqlDbType.Bigint) { Value = unchecked((long)(ulong)character.UnlockedSkills) });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("pblob", NpgsqlDbType.Bytea) { Value = character.ProgressionBlob ?? [] });
 
         int affected = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         return affected == 1;
@@ -182,6 +180,7 @@ public sealed class PgCharacterStore : ICharacterStore
             NpgsqlBatchCommand item = new(UpdateSql);
             _ = item.Parameters.Add(new NpgsqlParameter("id", NpgsqlDbType.Uuid) { Value = c.Id });
             _ = item.Parameters.Add(new NpgsqlParameter("level", NpgsqlDbType.Integer) { Value = (int)c.Level });
+            _ = item.Parameters.Add(new NpgsqlParameter("preset", NpgsqlDbType.Smallint) { Value = (short)c.AppearancePreset });
             _ = item.Parameters.Add(new NpgsqlParameter("px", NpgsqlDbType.Real) { Value = c.PositionX });
             _ = item.Parameters.Add(new NpgsqlParameter("py", NpgsqlDbType.Real) { Value = c.PositionY });
             _ = item.Parameters.Add(new NpgsqlParameter("hp", NpgsqlDbType.Real) { Value = c.CurrentHealth });
@@ -194,13 +193,10 @@ public sealed class PgCharacterStore : ICharacterStore
             _ = item.Parameters.Add(new NpgsqlParameter("max_mp", NpgsqlDbType.Real) { Value = c.MaxMana });
             _ = item.Parameters.Add(new NpgsqlParameter("stam", NpgsqlDbType.Real) { Value = c.CurrentStamina });
             _ = item.Parameters.Add(new NpgsqlParameter("max_stam", NpgsqlDbType.Real) { Value = c.MaxStamina });
-            _ = item.Parameters.Add(new NpgsqlParameter("vit", NpgsqlDbType.Integer) { Value = (int)c.VitPoints });
-            _ = item.Parameters.Add(new NpgsqlParameter("wis", NpgsqlDbType.Integer) { Value = (int)c.WisPoints });
-            _ = item.Parameters.Add(new NpgsqlParameter("pwr", NpgsqlDbType.Integer) { Value = (int)c.PwrPoints });
-            _ = item.Parameters.Add(new NpgsqlParameter("agi", NpgsqlDbType.Integer) { Value = (int)c.AgiPoints });
-            _ = item.Parameters.Add(new NpgsqlParameter("s1", NpgsqlDbType.Smallint) { Value = (short)c.Skill1Rank });
-            _ = item.Parameters.Add(new NpgsqlParameter("s2", NpgsqlDbType.Smallint) { Value = (short)c.Skill2Rank });
-            _ = item.Parameters.Add(new NpgsqlParameter("s3", NpgsqlDbType.Smallint) { Value = (short)c.Skill3Rank });
+            _ = item.Parameters.Add(new NpgsqlParameter("class_id", NpgsqlDbType.Smallint) { Value = (short)c.Class });
+            _ = item.Parameters.Add(new NpgsqlParameter("cflags", NpgsqlDbType.Bigint) { Value = unchecked((long)(ulong)c.Flags) });
+            _ = item.Parameters.Add(new NpgsqlParameter("sflags", NpgsqlDbType.Bigint) { Value = unchecked((long)(ulong)c.UnlockedSkills) });
+            _ = item.Parameters.Add(new NpgsqlParameter("pblob", NpgsqlDbType.Bytea) { Value = c.ProgressionBlob ?? [] });
             batch.BatchCommands.Add(item);
         }
 
@@ -212,6 +208,9 @@ public sealed class PgCharacterStore : ICharacterStore
     {
         byte[] inv = await reader.GetFieldValueAsync<byte[]>(10, ct).ConfigureAwait(false);
         DateTimeOffset updated = await reader.GetFieldValueAsync<DateTimeOffset>(11, ct).ConfigureAwait(false);
+        byte[] progBlob = await reader.IsDBNullAsync(20, ct).ConfigureAwait(false)
+            ? []
+            : await reader.GetFieldValueAsync<byte[]>(20, ct).ConfigureAwait(false);
         return new CharacterRecord(
             reader.GetGuid(0),
             reader.GetGuid(1),
@@ -230,12 +229,9 @@ public sealed class PgCharacterStore : ICharacterStore
             reader.GetFloat(14),
             reader.GetFloat(15),
             reader.GetFloat(16),
-            (ushort)Math.Max(0, reader.GetInt32(17)),
-            (ushort)Math.Max(0, reader.GetInt32(18)),
-            (ushort)Math.Max(0, reader.GetInt32(19)),
-            (ushort)Math.Max(0, reader.GetInt32(20)),
-            (byte)Math.Clamp((int)reader.GetInt16(21), 0, 5),
-            (byte)Math.Clamp((int)reader.GetInt16(22), 0, 5),
-            (byte)Math.Clamp((int)reader.GetInt16(23), 0, 5));
+            (HeroArchetypeClass)(byte)Math.Clamp((int)reader.GetInt16(17), 0, 255),
+            (CharacterTraits)unchecked((ulong)reader.GetInt64(18)),
+            (CharacterSkillMask)unchecked((ulong)reader.GetInt64(19)),
+            progBlob);
     }
 }

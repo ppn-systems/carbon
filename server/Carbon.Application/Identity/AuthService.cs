@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using Carbon.Abstractions.Identity;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.Security;
+using Carbon.Contracts.Common;
+using Carbon.Contracts.Entities;
 using Carbon.Contracts.Identity;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -128,28 +130,22 @@ public sealed class AuthService : IAuthService
             return new CharacterCreateResult(false, "invalid_name", null);
         }
 
+        if (!Enum.IsDefined((HeroArchetypeClass)startingClass))
+        {
+            return new CharacterCreateResult(false, "invalid_class", null);
+        }
+
         IReadOnlyList<CharacterRecord> existing = await _characters.ListByAccountAsync(accountId, ct).ConfigureAwait(false);
         if (existing.Count >= MaxCharactersPerAccount)
         {
             return new CharacterCreateResult(false, "character_limit_reached", null);
         }
 
-        byte[] invBlob = [];
-        byte selectedSlot = 0;
-        float maxHp = 100f;
-        float maxMp = 80f;
-        float maxStam = 100f;
-        if (startingClass is 1 or 2)
-        {
-            InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
-            StarterGameCatalog.GrantStarterLoadout(inv, startingClass);
-            selectedSlot = 2;
-            DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(1, inv, selectedSlot);
-            maxHp = stats.MaxHealth;
-            maxMp = stats.MaxMana;
-            maxStam = stats.MaxStamina;
-            invBlob = InventoryBinaryCodec.Serialize(inv);
-        }
+        InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
+        StarterGameCatalog.GrantStarterLoadout(inv, startingClass);
+        const byte selectedSlot = 2;
+        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(1, inv, selectedSlot);
+        byte[] invBlob = InventoryBinaryCodec.Serialize(inv);
 
         CharacterRecord created = new(
             Guid.NewGuid(),
@@ -159,16 +155,20 @@ public sealed class AuthService : IAuthService
             appearancePreset,
             spawnX,
             spawnY,
-            CurrentHealth: maxHp,
-            MaxHealth: maxHp,
+            CurrentHealth: stats.MaxHealth,
+            MaxHealth: stats.MaxHealth,
             SelectedHotbarSlot: selectedSlot,
             InventoryBlob: invBlob,
             UpdatedAtUtc: _time.GetUtcNow(),
             Experience: 0U,
-            CurrentMana: maxMp,
-            MaxMana: maxMp,
-            CurrentStamina: maxStam,
-            MaxStamina: maxStam);
+            CurrentMana: stats.MaxMana,
+            MaxMana: stats.MaxMana,
+            CurrentStamina: stats.MaxStamina,
+            MaxStamina: stats.MaxStamina,
+            Class: (HeroArchetypeClass)startingClass,
+            Flags: CharacterTraits.StarterLoadoutGranted,
+            UnlockedSkills: CharacterSkillMask.None,
+            ProgressionBlob: []);
 
         bool inserted = await _characters.TryCreateAsync(created, ct).ConfigureAwait(false);
         return inserted

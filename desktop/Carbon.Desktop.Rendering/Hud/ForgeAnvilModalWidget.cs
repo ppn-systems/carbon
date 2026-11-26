@@ -29,6 +29,9 @@ internal sealed class ForgeAnvilModalWidget
 
     private readonly List<ushort> _eligibleScratch = new(24);
     private int _selectedSlot = -1;
+    private int _scrollOffset;
+
+    public void Scroll(int delta) => _scrollOffset = Math.Max(0, _scrollOffset + delta);
 
     public bool ContainsPoint(Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
@@ -51,16 +54,29 @@ internal sealed class ForgeAnvilModalWidget
     public bool TrySelectGearAt(Vector2 mousePos, IClientWorldReadModel world, int viewportWidth, int viewportHeight)
     {
         (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
+        if (GetScrollUpRect(ox, oy).Contains(mousePos))
+        {
+            this.Scroll(-1);
+            return true;
+        }
+
+        if (GetScrollDownRect(ox, oy).Contains(mousePos))
+        {
+            this.Scroll(1);
+            return true;
+        }
+
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
         this.CollectEligibleSlots(slots);
+        this.ClampScrollOffset();
 
-        for (int i = 0; i < _eligibleScratch.Count && i < MaxVisibleGearRows; i++)
+        for (int i = 0; i < MaxVisibleGearRows && (_scrollOffset + i) < _eligibleScratch.Count; i++)
         {
             RectangleF row = new(ox + 26f, oy + 76f + (i * (RowH + 4f)), 244f, RowH);
             if (row.Contains(mousePos))
             {
-                _selectedSlot = _eligibleScratch[i];
+                _selectedSlot = _eligibleScratch[_scrollOffset + i];
                 return true;
             }
         }
@@ -100,6 +116,7 @@ internal sealed class ForgeAnvilModalWidget
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
         this.CollectEligibleSlots(slots);
+        this.ClampScrollOffset();
 
         ColorRgba frameCol = world.ForgeFeedbackTimer > 0f
             ? (world.LastForgeSucceeded ? new ColorRgba(34, 197, 94, 255) : new ColorRgba(239, 68, 68, 255))
@@ -112,10 +129,18 @@ internal sealed class ForgeAnvilModalWidget
         bool hoverClose = mouseScreenPos.HasValue && closeBtn.Contains(mouseScreenPos.Value);
         skin.DrawButton(spriteBatch, in closeBtn, hoverClose ? new ColorRgba(220, 38, 38, 245) : new ColorRgba(153, 27, 27, 230), new ColorRgba(248, 113, 113, 240));
 
-        int activeSlot = this.ResolveTargetSlot(world);
-        for (int i = 0; i < _eligibleScratch.Count && i < MaxVisibleGearRows; i++)
+        if (_eligibleScratch.Count > MaxVisibleGearRows)
         {
-            ushort sIdx = _eligibleScratch[i];
+            RectangleF upBtn = GetScrollUpRect(ox, oy);
+            RectangleF dnBtn = GetScrollDownRect(ox, oy);
+            skin.DrawButton(spriteBatch, in upBtn, new ColorRgba(20, 30, 52, 230), new ColorRgba(100, 116, 139, 220));
+            skin.DrawButton(spriteBatch, in dnBtn, new ColorRgba(20, 30, 52, 230), new ColorRgba(100, 116, 139, 220));
+        }
+
+        int activeSlot = this.ResolveTargetSlot(world);
+        for (int i = 0; i < MaxVisibleGearRows && (_scrollOffset + i) < _eligibleScratch.Count; i++)
+        {
+            ushort sIdx = _eligibleScratch[_scrollOffset + i];
             bool sel = sIdx == activeSlot;
             RectangleF row = new(ox + 26f, oy + 76f + (i * (RowH + 4f)), 244f, RowH);
             skin.DrawSlot(
@@ -155,10 +180,11 @@ internal sealed class ForgeAnvilModalWidget
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
         this.CollectEligibleSlots(slots);
+        this.ClampScrollOffset();
 
-        for (int i = 0; i < _eligibleScratch.Count && i < MaxVisibleGearRows; i++)
+        for (int i = 0; i < MaxVisibleGearRows && (_scrollOffset + i) < _eligibleScratch.Count; i++)
         {
-            ushort sIdx = _eligibleScratch[i];
+            ushort sIdx = _eligibleScratch[_scrollOffset + i];
             if (art is not null && art.TryGetItem(slots[sIdx].ItemId, out CompiledItemVectorArt? gearArt))
             {
                 VectorRigRenderer.DrawItemIcon(batch, gearArt, new Vector2(ox + 48f, oy + 100f + (i * (RowH + 4f))), 28f);
@@ -177,12 +203,12 @@ internal sealed class ForgeAnvilModalWidget
         {
             if (art is not null && m1 != 0U && art.TryGetItem(m1, out CompiledItemVectorArt? m1Art))
             {
-                VectorRigRenderer.DrawItemIcon(batch, m1Art, new Vector2(ox + 328f, oy + 246f), 22f);
+                VectorRigRenderer.DrawItemIcon(batch, m1Art, new Vector2(ox + 324f, oy + 240f), 20f);
             }
 
             if (art is not null && m2 != 0U && art.TryGetItem(m2, out CompiledItemVectorArt? m2Art))
             {
-                VectorRigRenderer.DrawItemIcon(batch, m2Art, new Vector2(ox + 500f, oy + 246f), 22f);
+                VectorRigRenderer.DrawItemIcon(batch, m2Art, new Vector2(ox + 324f, oy + 266f), 20f);
             }
 
             RectangleF barBg = new(ox + 310f, oy + 312f, 336f, 12f);
@@ -222,15 +248,25 @@ internal sealed class ForgeAnvilModalWidget
         spriteBatch.DrawOutlinedString(font, "X", new Vector2(closeBtn.X + 8f, closeBtn.Y + 4f), ColorRgba.White, black, 1, 1.5f);
 
         spriteBatch.DrawOutlinedString(font, $"UPGRADABLE GEAR ({_eligibleScratch.Count})", new Vector2(ox + 26f, oy + 54f), new ColorRgba(203, 213, 225, 255), black, 1, 1f);
-        for (int i = 0; i < _eligibleScratch.Count && i < MaxVisibleGearRows; i++)
+        if (_eligibleScratch.Count > MaxVisibleGearRows)
         {
-            ushort sIdx = _eligibleScratch[i];
+            RectangleF upBtn = GetScrollUpRect(ox, oy);
+            RectangleF dnBtn = GetScrollDownRect(ox, oy);
+            spriteBatch.DrawOutlinedString(font, "^", new Vector2(upBtn.X + 5f, upBtn.Y + 3f), ColorRgba.White, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, "v", new Vector2(dnBtn.X + 5f, dnBtn.Y + 3f), ColorRgba.White, black, 1, 1f);
+        }
+
+        this.ClampScrollOffset();
+        for (int i = 0; i < MaxVisibleGearRows && (_scrollOffset + i) < _eligibleScratch.Count; i++)
+        {
+            ushort sIdx = _eligibleScratch[_scrollOffset + i];
             ItemSlot item = slots[sIdx];
             byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
             float ry = oy + 84f + (i * (RowH + 4f));
             string tag = sIdx >= PlayerInventoryLayout.BagLimit ? "EQUIPPED" : (sIdx < 9 ? $"HOTBAR {sIdx + 1}" : "BACKPACK");
             string name = StarterGameCatalog.GetDisplayName(item.ItemId);
-            spriteBatch.DrawOutlinedString(font, upg > 0 ? $"{name} +{upg}" : name, new Vector2(ox + 72f, ry), ColorRgba.White, black, 1, 1.5f);
+            string rowLabel = CarbonUiSkin.TruncateToWidth(font, upg > 0 ? $"{name} +{upg}" : name, 190f, 1.5f);
+            spriteBatch.DrawOutlinedString(font, rowLabel, new Vector2(ox + 72f, ry), ColorRgba.White, black, 1, 1.5f);
             spriteBatch.DrawOutlinedString(font, tag, new Vector2(ox + 72f, ry + 20f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
         }
 
@@ -245,7 +281,7 @@ internal sealed class ForgeAnvilModalWidget
         }
 
         byte curLv = ItemEnhancementPolicy.GetUpgradeLevel(in target);
-        spriteBatch.DrawOutlinedString(font, $"{StarterGameCatalog.GetDisplayName(target.ItemId)} (+{curLv})", new Vector2(ox + 386f, oy + 88f), ColorRgba.White, black, 1, 2f);
+        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, $"{StarterGameCatalog.GetDisplayName(target.ItemId)} (+{curLv})", 264f, 2f), new Vector2(ox + 386f, oy + 88f), ColorRgba.White, black, 1, 2f);
 
         if (ItemEnhancementPolicy.CanUpgrade(in target, out uint m1, out int c1, out uint m2, out int c2, out float chance))
         {
@@ -267,7 +303,7 @@ internal sealed class ForgeAnvilModalWidget
                 spriteBatch.DrawOutlinedString(
                     font,
                     $"{StarterGameCatalog.GetDisplayName(m1)}: {have1}/{c1}",
-                    new Vector2(ox + 348f, oy + 240f),
+                    new Vector2(ox + 344f, oy + 232f),
                     have1 >= c1 ? new ColorRgba(74, 222, 128, 255) : new ColorRgba(248, 113, 113, 255),
                     black,
                     1,
@@ -280,7 +316,7 @@ internal sealed class ForgeAnvilModalWidget
                 spriteBatch.DrawOutlinedString(
                     font,
                     $"{StarterGameCatalog.GetDisplayName(m2)}: {have2}/{c2}",
-                    new Vector2(ox + 520f, oy + 240f),
+                    new Vector2(ox + 344f, oy + 258f),
                     have2 >= c2 ? new ColorRgba(74, 222, 128, 255) : new ColorRgba(248, 113, 113, 255),
                     black,
                     1,
@@ -355,10 +391,23 @@ internal sealed class ForgeAnvilModalWidget
         return total;
     }
 
+    private void ClampScrollOffset()
+    {
+        int maxScroll = Math.Max(0, _eligibleScratch.Count - MaxVisibleGearRows);
+        if (_scrollOffset > maxScroll)
+        {
+            _scrollOffset = maxScroll;
+        }
+    }
+
     private static (float Ox, float Oy) ComputeOrigin(int viewportWidth, int viewportHeight) =>
         (MathF.Floor((viewportWidth - PanelW) * 0.5f), MathF.Floor((viewportHeight - PanelH) * 0.5f));
 
     private static RectangleF GetCloseButtonRect(float ox, float oy) => new(ox + PanelW - 34f, oy + 10f, 24f, 24f);
+
+    private static RectangleF GetScrollUpRect(float ox, float oy) => new(ox + 232f, oy + 50f, 18f, 18f);
+
+    private static RectangleF GetScrollDownRect(float ox, float oy) => new(ox + 254f, oy + 50f, 18f, 18f);
 
     private static RectangleF GetForgeButtonRect(float ox, float oy) => new(ox + 310f, oy + 368f, 336f, 40f);
 }

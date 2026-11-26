@@ -139,7 +139,10 @@ public sealed class DesktopClientSessionTests
                 (bool createdB, _) = await clientB.CreateCharacterAsync("HeroB", appearancePreset: 2, startingClass: (byte)Contracts.Identity.HeroArchetypeClass.Arcanist).ConfigureAwait(true);
                 createdB.Should().BeTrue();
                 IReadOnlyList<ClientCharacterSummary> rosterB = await clientB.ListCharactersAsync().ConfigureAwait(true);
-                rosterB.Should().ContainSingle(c => c.Name == "HeroB" && c.AppearancePreset == 2);
+                rosterB.Should().ContainSingle(c =>
+                    c.Name == "HeroB" &&
+                    c.AppearancePreset == 2 &&
+                    c.Class == Contracts.Identity.HeroArchetypeClass.Arcanist);
 
                 float initialX = rosterA[0].PositionX;
 
@@ -172,6 +175,8 @@ public sealed class DesktopClientSessionTests
 
                 (bool enteredB, _) = await clientB.EnterWorldAsync(rosterB[0].CharacterId).ConfigureAwait(true);
                 enteredB.Should().BeTrue();
+                clientB.LocalPlayerClass.Should().Be(Contracts.Identity.HeroArchetypeClass.Arcanist);
+                clientB.LocalCharacterTraits.HasFlag(Contracts.Common.CharacterTraits.StarterLoadoutGranted).Should().BeTrue();
                 clientB.IsUdpActive.Should().BeTrue();
                 clientB.CopyInventorySlots(copiedSlots);
                 copiedSlots[2].ItemId.Should().Be(StarterGameCatalog.ArcaneStaff);

@@ -218,60 +218,11 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
     }
 
     /// <inheritdoc/>
-    public void SendPlayerStatsSync(
-        ulong connectionId,
-        ushort level,
-        uint experience,
-        uint xpToNextLevel,
-        float currentHealth,
-        float maxHealth,
-        float currentMana,
-        float maxMana,
-        float currentStamina,
-        float maxStamina,
-        float defense,
-        float skill1Cd,
-        float skill2Cd,
-        float skill3Cd,
-        bool leveledUp,
-        ushort unspentStatPoints = 0,
-        ushort unspentSkillPoints = 0,
-        ushort vitPoints = 0,
-        ushort wisPoints = 0,
-        ushort pwrPoints = 0,
-        ushort agiPoints = 0,
-        byte skill1Rank = 0,
-        byte skill2Rank = 0,
-        byte skill3Rank = 0)
+    public void SendPlayerStatsSync(ulong connectionId, in PlayerStatsSnapshot snapshot)
     {
         if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
         {
-            _ = DispatchPlayerStatsSyncAsync(
-                conn,
-                level,
-                experience,
-                xpToNextLevel,
-                currentHealth,
-                maxHealth,
-                currentMana,
-                maxMana,
-                currentStamina,
-                maxStamina,
-                defense,
-                skill1Cd,
-                skill2Cd,
-                skill3Cd,
-                leveledUp,
-                unspentStatPoints,
-                unspentSkillPoints,
-                vitPoints,
-                wisPoints,
-                pwrPoints,
-                agiPoints,
-                skill1Rank,
-                skill2Rank,
-                skill3Rank,
-                _logger);
+            _ = DispatchPlayerStatsSyncAsync(conn, snapshot, _logger);
         }
     }
 
@@ -662,58 +613,31 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
 
     private static async Task DispatchPlayerStatsSyncAsync(
         IConnection connection,
-        ushort level,
-        uint experience,
-        uint xpToNextLevel,
-        float currentHealth,
-        float maxHealth,
-        float currentMana,
-        float maxMana,
-        float currentStamina,
-        float maxStamina,
-        float defense,
-        float skill1Cd,
-        float skill2Cd,
-        float skill3Cd,
-        bool leveledUp,
-        ushort unspentStatPoints,
-        ushort unspentSkillPoints,
-        ushort vitPoints,
-        ushort wisPoints,
-        ushort pwrPoints,
-        ushort agiPoints,
-        byte skill1Rank,
-        byte skill2Rank,
-        byte skill3Rank,
+        PlayerStatsSnapshot snapshot,
         ILogger logger)
     {
         try
         {
             using PacketScope<PlayerStatsSync> lease = PacketFactory<PlayerStatsSync>.Acquire();
             PlayerStatsSync pkt = lease.Value;
-            pkt.Level = level;
-            pkt.Experience = experience;
-            pkt.XpToNextLevel = xpToNextLevel;
-            pkt.CurrentHealth = currentHealth;
-            pkt.MaxHealth = maxHealth;
-            pkt.CurrentMana = currentMana;
-            pkt.MaxMana = maxMana;
-            pkt.CurrentStamina = currentStamina;
-            pkt.MaxStamina = maxStamina;
-            pkt.Defense = defense;
-            pkt.Skill1Cooldown = skill1Cd;
-            pkt.Skill2Cooldown = skill2Cd;
-            pkt.Skill3Cooldown = skill3Cd;
-            pkt.LeveledUp = leveledUp;
-            pkt.UnspentStatPoints = unspentStatPoints;
-            pkt.UnspentSkillPoints = unspentSkillPoints;
-            pkt.VitPoints = vitPoints;
-            pkt.WisPoints = wisPoints;
-            pkt.PwrPoints = pwrPoints;
-            pkt.AgiPoints = agiPoints;
-            pkt.Skill1Rank = skill1Rank;
-            pkt.Skill2Rank = skill2Rank;
-            pkt.Skill3Rank = skill3Rank;
+            pkt.Level = snapshot.Level;
+            pkt.Experience = snapshot.Experience;
+            pkt.XpToNextLevel = snapshot.XpToNextLevel;
+            pkt.CurrentHealth = snapshot.CurrentHealth;
+            pkt.MaxHealth = snapshot.MaxHealth;
+            pkt.CurrentMana = snapshot.CurrentMana;
+            pkt.MaxMana = snapshot.MaxMana;
+            pkt.CurrentStamina = snapshot.CurrentStamina;
+            pkt.MaxStamina = snapshot.MaxStamina;
+            pkt.Defense = snapshot.Defense;
+            pkt.LeveledUp = snapshot.LeveledUp;
+            pkt.Traits = snapshot.Traits;
+            pkt.UnlockedSkillMask = snapshot.UnlockedSkillMask;
+            pkt.UnspentStatPoints = snapshot.UnspentStatPoints;
+            pkt.UnspentSkillPoints = snapshot.UnspentSkillPoints;
+            pkt.ProgressionBlob = snapshot.ProgressionBlob;
+            pkt.CooldownSkillIds = snapshot.CooldownSkillIds;
+            pkt.CooldownRemainingSeconds = snapshot.CooldownRemainingSeconds;
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
             await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);

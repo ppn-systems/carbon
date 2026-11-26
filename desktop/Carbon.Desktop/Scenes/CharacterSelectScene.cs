@@ -351,14 +351,20 @@ public sealed class CharacterSelectScene : GameScene
         {
             CompiledItemVectorArt? weaponArt = null;
             VisualEquipmentLoadout previewLoadout = default;
-            if (_isCreatorMode)
+            HeroArchetypeClass previewClass = _isCreatorMode
+                ? _selectedClass
+                : (_selectedIndex >= 0 && _selectedIndex < _characters.Count
+                    ? _characters[_selectedIndex].Class
+                    : HeroArchetypeClass.Vanguard);
+            if (_isCreatorMode || (_selectedIndex >= 0 && _selectedIndex < _characters.Count))
             {
-                uint starterWeaponId = s_classWeapons[(int)_selectedClass];
+                int classIdx = Math.Clamp((int)previewClass, 0, s_classWeapons.Length - 1);
+                uint starterWeaponId = s_classWeapons[classIdx];
                 _ = _vectorArt.TryGetItem(starterWeaponId, out weaponArt);
                 previewLoadout = new VisualEquipmentLoadout(
                     HeadId: (ushort)StarterGameCatalog.LeatherCap,
                     ChestId: (ushort)StarterGameCatalog.LeatherTunic,
-                    LegsId: (ushort)StarterGameCatalog.LeatherGreaves,
+                    LegsId: 0,
                     FeetId: (ushort)StarterGameCatalog.LeatherBoots,
                     WeaponId: (ushort)starterWeaponId,
                     WeaponUpgradeLevel: 0);
@@ -474,8 +480,9 @@ public sealed class CharacterSelectScene : GameScene
                 {
                     ClientCharacterSummary c = _characters[i];
                     ColorRgba nc = i == _selectedIndex ? new ColorRgba(250, 204, 21, 255) : ColorRgba.White;
+                    string clsLabel = s_classTitles[Math.Clamp((int)c.Class, 0, s_classTitles.Length - 1)];
                     spriteBatch.DrawOutlinedString(_font, c.Name, new Vector2(b.X + 70f, b.Y + 14f), nc, black, 1, 2f);
-                    spriteBatch.DrawOutlinedString(_font, $"LV.{c.Level} | ZONE TIER {c.ZoneTier}", new Vector2(b.X + 70f, b.Y + 42f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
+                    spriteBatch.DrawOutlinedString(_font, $"{clsLabel} | LV.{c.Level} | TIER {c.ZoneTier}", new Vector2(b.X + 70f, b.Y + 42f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
                 }
                 else
                 {
@@ -487,8 +494,9 @@ public sealed class CharacterSelectScene : GameScene
             if (_selectedIndex >= 0 && _selectedIndex < _characters.Count)
             {
                 ClientCharacterSummary sel = _characters[_selectedIndex];
+                string selCls = s_classTitles[Math.Clamp((int)sel.Class, 0, s_classTitles.Length - 1)];
                 spriteBatch.DrawOutlinedString(_font, sel.Name.ToUpperInvariant(), new Vector2(rightCard.X + 16f, rightCard.Y + 44f), ColorRgba.White, black, 1, 2.5f);
-                spriteBatch.DrawOutlinedString(_font, $"LEVEL {sel.Level}  //  ZONE TIER {sel.ZoneTier}", new Vector2(rightCard.X + 16f, rightCard.Y + 76f), new ColorRgba(125, 211, 252, 255), black, 1, 1.5f);
+                spriteBatch.DrawOutlinedString(_font, $"{selCls}  //  LV.{sel.Level}  //  TIER {sel.ZoneTier}", new Vector2(rightCard.X + 16f, rightCard.Y + 76f), new ColorRgba(125, 211, 252, 255), black, 1, 1.5f);
                 spriteBatch.DrawOutlinedString(_font, $"POS: ({(int)sel.PositionX}, {(int)sel.PositionY})", new Vector2(rightCard.X + 16f, rightCard.Y + 98f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
             }
 

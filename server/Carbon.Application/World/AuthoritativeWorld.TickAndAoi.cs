@@ -11,6 +11,7 @@ using Carbon.Abstractions.World;
 using Carbon.AI.Components;
 using Carbon.AI.Systems;
 using Carbon.AI.Threat;
+using Carbon.Contracts.Entities;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
@@ -32,18 +33,6 @@ public sealed partial class AuthoritativeWorld
     {
         lock (_gate)
         {
-            _pendingSpawns.Clear();
-            _pendingDespawns.Clear();
-            _pendingDeltas.Clear();
-            _flatDeltaEntries.Clear();
-            _pendingCombatHits.Clear();
-            _pendingSlotChanges.Clear();
-            _pendingPropChanges.Clear();
-            _pendingStructureChanges.Clear();
-            _pendingEquipmentChanges.Clear();
-            _pendingStatsSyncs.Clear();
-            _pendingSkillCasts.Clear();
-            _flatRecipients.Clear();
             _dirtyResetScratch.Clear();
 
             _currentTick++;
@@ -80,7 +69,7 @@ public sealed partial class AuthoritativeWorld
 
                 if (state.CurrentMana < state.Stats.MaxMana)
                 {
-                    float mpRegen = 6f + (state.Allocations.Wis * 0.35f);
+                    float mpRegen = 6f + (state.Progression.GetAttribute(PrimaryAttributeId.Wisdom) * 0.35f);
                     state.CurrentMana = MathF.Min(state.Stats.MaxMana, state.CurrentMana + (mpRegen * dt));
                 }
 
@@ -261,7 +250,6 @@ public sealed partial class AuthoritativeWorld
                 {
                     this.EnqueueStatsSyncLocked(observer, observer.LeveledUpPending);
                     observer.StatsDirty = false;
-                    observer.LeveledUpPending = false;
                 }
             }
 
@@ -275,9 +263,40 @@ public sealed partial class AuthoritativeWorld
             {
                 _simulation.ClearDirtyFlags(_dirtyResetScratch[i]);
             }
+
+            this.SwapOutboundBuffersLocked();
         }
 
         this.DispatchPendingTickOutputs();
+    }
+
+    private void SwapOutboundBuffersLocked()
+    {
+        (_pendingSpawns, _dispatchSpawns) = (_dispatchSpawns, _pendingSpawns);
+        (_pendingDespawns, _dispatchDespawns) = (_dispatchDespawns, _pendingDespawns);
+        (_pendingDeltas, _dispatchDeltas) = (_dispatchDeltas, _pendingDeltas);
+        (_flatDeltaEntries, _dispatchDeltaEntries) = (_dispatchDeltaEntries, _flatDeltaEntries);
+        (_pendingCombatHits, _dispatchCombatHits) = (_dispatchCombatHits, _pendingCombatHits);
+        (_pendingSlotChanges, _dispatchSlotChanges) = (_dispatchSlotChanges, _pendingSlotChanges);
+        (_pendingPropChanges, _dispatchPropChanges) = (_dispatchPropChanges, _pendingPropChanges);
+        (_pendingStructureChanges, _dispatchStructureChanges) = (_dispatchStructureChanges, _pendingStructureChanges);
+        (_pendingEquipmentChanges, _dispatchEquipmentChanges) = (_dispatchEquipmentChanges, _pendingEquipmentChanges);
+        (_pendingStatsSyncs, _dispatchStatsSyncs) = (_dispatchStatsSyncs, _pendingStatsSyncs);
+        (_pendingSkillCasts, _dispatchSkillCasts) = (_dispatchSkillCasts, _pendingSkillCasts);
+        (_flatRecipients, _dispatchRecipients) = (_dispatchRecipients, _flatRecipients);
+
+        _pendingSpawns.Clear();
+        _pendingDespawns.Clear();
+        _pendingDeltas.Clear();
+        _flatDeltaEntries.Clear();
+        _pendingCombatHits.Clear();
+        _pendingSlotChanges.Clear();
+        _pendingPropChanges.Clear();
+        _pendingStructureChanges.Clear();
+        _pendingEquipmentChanges.Clear();
+        _pendingStatsSyncs.Clear();
+        _pendingSkillCasts.Clear();
+        _flatRecipients.Clear();
     }
 
     /// <inheritdoc/>
@@ -338,36 +357,60 @@ public sealed partial class AuthoritativeWorld
             }
         }
 
-        if (chunkBatch.Count > 0)
+        if (chunkBatch.Count > 0 || characterBatch.Count > 0)
         {
-            await _chunkDeltaRepo.SaveBatchAsync(chunkBatch, ct).ConfigureAwait(false);
-        }
+            try
+            {
+                if (chunkBatch.Count > 0)
+                {
+                    await _chunkDeltaRepo.SaveBatchAsync(chunkBatch, ct).ConfigureAwait(false);
+                }
 
-        if (characterBatch.Count > 0)
-        {
-            await _characterStore.SaveBatchAsync(characterBatch, ct).ConfigureAwait(false);
+                if (characterBatch.Count > 0)
+                {
+                    await _characterStore.SaveBatchAsync(characterBatch, ct).ConfigureAwait(false);
+                }
+            }
+            catch
+            {
+                lock (_gate)
+                {
+                    for (int i = 0; i < chunkBatch.Count; i++)
+                    {
+                        _ = _dirtyChunks.Add(Chunk2D.PackKey(chunkBatch[i].ChunkX, chunkBatch[i].ChunkY));
+                    }
+
+                    for (int i = 0; i < characterBatch.Count; i++)
+                    {
+                        CharacterRecord failed = characterBatch[i];
+                        _ = _dirtyCharacters.TryAdd(failed.Id, failed);
+                    }
+                }
+
+                throw;
+            }
         }
     }
 
     private void DispatchPendingTickOutputs()
     {
-        for (int i = 0; i < _pendingSpawns.Count; i++)
+        for (int i = 0; i < _dispatchSpawns.Count; i++)
         {
-            OutboundSpawn item = _pendingSpawns[i];
+            OutboundSpawn item = _dispatchSpawns[i];
             EntitySpawnSnapshot snap = item.Snapshot;
             _outboundSink.SendEntitySpawn(item.ConnectionId, in snap);
         }
 
-        for (int i = 0; i < _pendingDespawns.Count; i++)
+        for (int i = 0; i < _dispatchDespawns.Count; i++)
         {
-            OutboundDespawn item = _pendingDespawns[i];
+            OutboundDespawn item = _dispatchDespawns[i];
             _outboundSink.SendEntityDespawn(item.ConnectionId, item.NetworkId, item.ServerTick);
         }
 
-        Span<EntityDeltaEntry> deltaSpan = CollectionsMarshal.AsSpan(_flatDeltaEntries);
-        for (int i = 0; i < _pendingDeltas.Count; i++)
+        Span<EntityDeltaEntry> deltaSpan = CollectionsMarshal.AsSpan(_dispatchDeltaEntries);
+        for (int i = 0; i < _dispatchDeltas.Count; i++)
         {
-            OutboundDelta item = _pendingDeltas[i];
+            OutboundDelta item = _dispatchDeltas[i];
             _outboundSink.SendEntityDeltaBatch(
                 item.ConnectionId,
                 item.ServerTick,
@@ -377,10 +420,10 @@ public sealed partial class AuthoritativeWorld
                 deltaSpan.Slice(item.Offset, item.Count));
         }
 
-        Span<ulong> recipientsSpan = CollectionsMarshal.AsSpan(_flatRecipients);
-        for (int i = 0; i < _pendingCombatHits.Count; i++)
+        Span<ulong> recipientsSpan = CollectionsMarshal.AsSpan(_dispatchRecipients);
+        for (int i = 0; i < _dispatchCombatHits.Count; i++)
         {
-            OutboundCombatHit hit = _pendingCombatHits[i];
+            OutboundCombatHit hit = _dispatchCombatHits[i];
             _outboundSink.SendCombatHit(
                 recipientsSpan.Slice(hit.RecipientsOffset, hit.RecipientsCount),
                 hit.AttackerNetworkId,
@@ -391,9 +434,9 @@ public sealed partial class AuthoritativeWorld
                 hit.IsKilled);
         }
 
-        for (int i = 0; i < _pendingSlotChanges.Count; i++)
+        for (int i = 0; i < _dispatchSlotChanges.Count; i++)
         {
-            OutboundSlotChange change = _pendingSlotChanges[i];
+            OutboundSlotChange change = _dispatchSlotChanges[i];
             ItemSlot slotCopy = change.Slot;
             _outboundSink.SendInventorySlotChanged(
                 change.ConnectionId,
@@ -404,9 +447,9 @@ public sealed partial class AuthoritativeWorld
                 ItemEnhancementPolicy.GetUpgradeLevel(in slotCopy));
         }
 
-        for (int i = 0; i < _pendingPropChanges.Count; i++)
+        for (int i = 0; i < _dispatchPropChanges.Count; i++)
         {
-            OutboundPropChange prop = _pendingPropChanges[i];
+            OutboundPropChange prop = _dispatchPropChanges[i];
             _outboundSink.SendPropChanged(
                 recipientsSpan.Slice(prop.RecipientsOffset, prop.RecipientsCount),
                 prop.TileX,
@@ -416,9 +459,9 @@ public sealed partial class AuthoritativeWorld
                 prop.IsDestroyed);
         }
 
-        for (int i = 0; i < _pendingStructureChanges.Count; i++)
+        for (int i = 0; i < _dispatchStructureChanges.Count; i++)
         {
-            OutboundStructureChange st = _pendingStructureChanges[i];
+            OutboundStructureChange st = _dispatchStructureChanges[i];
             _outboundSink.SendStructureChanged(
                 recipientsSpan.Slice(st.RecipientsOffset, st.RecipientsCount),
                 st.TileX,
@@ -429,9 +472,9 @@ public sealed partial class AuthoritativeWorld
                 st.Connectivity);
         }
 
-        for (int i = 0; i < _pendingEquipmentChanges.Count; i++)
+        for (int i = 0; i < _dispatchEquipmentChanges.Count; i++)
         {
-            OutboundEquipmentChange eq = _pendingEquipmentChanges[i];
+            OutboundEquipmentChange eq = _dispatchEquipmentChanges[i];
             _outboundSink.SendEntityEquipmentChanged(
                 recipientsSpan.Slice(eq.RecipientsOffset, eq.RecipientsCount),
                 eq.NetworkId,
@@ -445,39 +488,16 @@ public sealed partial class AuthoritativeWorld
                 eq.MaxHealth);
         }
 
-        for (int i = 0; i < _pendingStatsSyncs.Count; i++)
+        for (int i = 0; i < _dispatchStatsSyncs.Count; i++)
         {
-            OutboundStatsSync sync = _pendingStatsSyncs[i];
-            _outboundSink.SendPlayerStatsSync(
-                sync.ConnectionId,
-                sync.Level,
-                sync.Experience,
-                sync.XpToNext,
-                sync.CurHp,
-                sync.MaxHp,
-                sync.CurMp,
-                sync.MaxMp,
-                sync.CurStam,
-                sync.MaxStam,
-                sync.Defense,
-                sync.Skill1Cd,
-                sync.Skill2Cd,
-                sync.Skill3Cd,
-                sync.LeveledUp,
-                sync.UnspentStatPoints,
-                sync.UnspentSkillPoints,
-                sync.VitPoints,
-                sync.WisPoints,
-                sync.PwrPoints,
-                sync.AgiPoints,
-                sync.Skill1Rank,
-                sync.Skill2Rank,
-                sync.Skill3Rank);
+            OutboundStatsSync sync = _dispatchStatsSyncs[i];
+            PlayerStatsSnapshot statsSnap = sync.Snapshot;
+            _outboundSink.SendPlayerStatsSync(sync.ConnectionId, in statsSnap);
         }
 
-        for (int i = 0; i < _pendingSkillCasts.Count; i++)
+        for (int i = 0; i < _dispatchSkillCasts.Count; i++)
         {
-            OutboundSkillCast cast = _pendingSkillCasts[i];
+            OutboundSkillCast cast = _dispatchSkillCasts[i];
             _outboundSink.SendSkillCastBroadcast(
                 recipientsSpan.Slice(cast.RecipientsOffset, cast.RecipientsCount),
                 cast.CasterNetworkId,
@@ -487,6 +507,19 @@ public sealed partial class AuthoritativeWorld
                 cast.AimX,
                 cast.AimY);
         }
+
+        _dispatchSpawns.Clear();
+        _dispatchDespawns.Clear();
+        _dispatchDeltas.Clear();
+        _dispatchDeltaEntries.Clear();
+        _dispatchCombatHits.Clear();
+        _dispatchSlotChanges.Clear();
+        _dispatchPropChanges.Clear();
+        _dispatchStructureChanges.Clear();
+        _dispatchEquipmentChanges.Clear();
+        _dispatchStatsSyncs.Clear();
+        _dispatchSkillCasts.Clear();
+        _dispatchRecipients.Clear();
     }
 
     private void ProcessAiAttacksLocked()
@@ -535,7 +568,7 @@ public sealed partial class AuthoritativeWorld
                         castOffset,
                         _aoiRecipientsScratch.Count,
                         attackerNet.NetworkId,
-                        (byte)(220 + atkMeta.ProjectileArchetype),
+                        AbilityInputEncoding.EncodeMonsterProjectileCast(atkMeta.ProjectileArchetype),
                         atkPos.X,
                         atkPos.Y,
                         defPos.X,
@@ -556,7 +589,8 @@ public sealed partial class AuthoritativeWorld
                 continue;
             }
 
-            if (Vector2.DistanceSquared(atkPos, defPos) > (60f * 60f) || !this.HasLineOfSightLocked(atkPos, defPos))
+            float meleeHitRange = MathF.Max(60f, atkMeta.AttackRange + 16f);
+            if (Vector2.DistanceSquared(atkPos, defPos) > (meleeHitRange * meleeHitRange) || !this.HasLineOfSightLocked(atkPos, defPos))
             {
                 continue;
             }

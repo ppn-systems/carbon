@@ -29,7 +29,7 @@ public sealed partial class AuthoritativeWorld
             return;
         }
 
-        if (AbilityInputEncoding.TryDecodeSkill(state.PendingAttackAbility, out byte skillSlot))
+        if (AbilityInputEncoding.TryDecodeSkill(state.PendingAttackAbility, out ushort skillSlot))
         {
             this.ProcessActiveSkillLocked(state, skillSlot);
             return;
@@ -86,8 +86,8 @@ public sealed partial class AuthoritativeWorld
             }
 
             CombatStrikeEvaluation rangedEval = ToolUsagePolicy.EvaluateCombatStrike(in activeSlot);
-            bool rangedCrit = weaponDef.CritChance >= 0.18f &&
-                ((_currentTick + state.Session.PlayerNetworkId) % 5UL == 0UL);
+            bool rangedCrit = !ToolUsagePolicy.IsWornOut(in activeSlot) &&
+                RollCriticalHit(weaponDef.CritChance, ++state.CombatRollNonce);
             float rangedDmg = rangedEval.Damage * state.Stats.AttackMultiplier;
             float finalRangedDmg = rangedCrit ? rangedDmg * 1.5f : rangedDmg;
 
@@ -112,7 +112,7 @@ public sealed partial class AuthoritativeWorld
                     castOffset,
                     _aoiRecipientsScratch.Count,
                     state.Session.PlayerNetworkId,
-                    (byte)(210 + weaponDef.ProjectileArchetype),
+                    AbilityInputEncoding.EncodePlayerProjectileCast(weaponDef.ProjectileArchetype),
                     attackerPos.X,
                     attackerPos.Y,
                     attackerPos.X + (aimDir.X * 64f),
@@ -133,11 +133,18 @@ public sealed partial class AuthoritativeWorld
             return;
         }
 
+        float meleeRange = MeleeStrikeRangePx;
+        ItemArchetype? meleeDef = null;
+        if (!activeSlot.IsEmpty && StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out meleeDef) && meleeDef.Capabilities.HasFlag(ToolCapabilities.MeleeWeapon))
+        {
+            meleeRange = Math.Clamp(meleeDef.AttackRange, MeleeStrikeRangePx, 96f);
+        }
+
         HitboxQuery.QueryArc(
             _simulation,
             attackerPos,
             aimDir,
-            radius: MeleeStrikeRangePx,
+            radius: meleeRange,
             halfAngleRadians: 1.05f,
             _combatHitScratch,
             out int hitCount,
@@ -149,7 +156,7 @@ public sealed partial class AuthoritativeWorld
             _simulation.Entities.HasTransform(explicitTarget) &&
             _simulation.Entities.HasCollider(explicitTarget) &&
             (_simulation.Entities.GetCollider(explicitTarget).Layer & MonsterLayer) != 0U &&
-            Vector2.DistanceSquared(attackerPos, _simulation.Entities.GetTransform(explicitTarget).Position) <= (MeleeStrikeRangePx * MeleeStrikeRangePx))
+            Vector2.DistanceSquared(attackerPos, _simulation.Entities.GetTransform(explicitTarget).Position) <= (meleeRange * meleeRange))
         {
             _combatHitScratch[0] = explicitTarget;
             hitCount = 1;
@@ -162,9 +169,9 @@ public sealed partial class AuthoritativeWorld
         }
 
         CombatStrikeEvaluation combatEval = ToolUsagePolicy.EvaluateCombatStrike(in activeSlot);
-        bool isCrit = (activeSlot.ItemId == StarterGameCatalog.IronSword || activeSlot.ItemId == StarterGameCatalog.DemonCleaver) &&
+        bool isCrit = meleeDef is not null &&
             combatEval.Outcome == ToolStrikeOutcome.Optimal &&
-            ((_currentTick + state.Session.PlayerNetworkId) % 5UL == 0UL);
+            RollCriticalHit(meleeDef.CritChance, ++state.CombatRollNonce);
         float scaledDamage = combatEval.Damage * state.Stats.AttackMultiplier;
         float finalDamage = isCrit ? scaledDamage * 1.5f : scaledDamage;
 
@@ -255,26 +262,21 @@ public sealed partial class AuthoritativeWorld
         return true;
     }
 
-    private void ProcessActiveSkillLocked(ActivePlayerState state, byte skillSlot)
+    private void ProcessActiveSkillLocked(ActivePlayerState state, ushort skillId)
     {
-        byte rank = state.Allocations.GetSkillRank(skillSlot);
-        if (rank == 0 || !CharacterProgressionPolicy.TryGetSkillSpec(skillSlot, rank, out SkillSpec spec))
+        byte rank = state.Progression.GetSkillRank(skillId);
+        if (rank == 0 || !SkillCatalog.Skills.TryGet(skillId, out SkillDefinition? skillDef))
         {
             return;
         }
 
-        uint abilityId = skillSlot switch
-        {
-            CharacterProgressionPolicy.SkillWhirlwind => Skill1AbilityId,
-            CharacterProgressionPolicy.SkillArcaneNova => Skill2AbilityId,
-            CharacterProgressionPolicy.SkillVitalSurge => Skill3AbilityId,
-            _ => 0U,
-        };
-        if (abilityId == 0U || !state.Cooldowns.IsReady(abilityId, _currentTick))
+        uint abilityId = SkillAbilityIdBase + skillId;
+        if (!state.Cooldowns.IsReady(abilityId, _currentTick))
         {
             return;
         }
 
+        SkillSpec spec = skillDef.EvaluateRank(rank);
         if (state.CurrentMana < spec.ManaCost || state.CurrentStamina < spec.StaminaCost)
         {
             return;
@@ -302,19 +304,19 @@ public sealed partial class AuthoritativeWorld
                 castOffset,
                 _aoiRecipientsScratch.Count,
                 state.Session.PlayerNetworkId,
-                skillSlot,
+                (byte)skillId,
                 pos.X,
                 pos.Y,
                 pos.X + (aimDir.X * 64f),
                 pos.Y + (aimDir.Y * 64f)));
         }
 
-        if (skillSlot == CharacterProgressionPolicy.SkillVitalSurge)
+        if (skillDef.EffectKind == SkillEffectKind.SelfRestore)
         {
             if (_simulation.Entities.HasHealth(state.Entity))
             {
                 HealthComponent hp = _simulation.Entities.GetHealth(state.Entity);
-                float healAmt = MathF.Max(30f, hp.Max * spec.SelfHealRatio);
+                float healAmt = MathF.Max(20f, hp.Max * spec.SelfHealRatio);
                 float nextHp = MathF.Min(hp.Max, hp.Current + healAmt);
                 _simulation.Entities.SetHealth(state.Entity, new HealthComponent(nextHp, hp.Max));
                 _simulation.MarkDirty(state.Entity, EntityDirtyMask.Health);
@@ -329,16 +331,33 @@ public sealed partial class AuthoritativeWorld
         ItemSlot activeSlot = state.Session.SelectedHotbarSlot < state.Inventory.Capacity
             ? state.Inventory.GetSlot(state.Session.SelectedHotbarSlot)
             : ItemSlot.Empty;
-        float weaponBase = ToolUsagePolicy.EvaluateCombatStrike(in activeSlot).Damage * state.Stats.AttackMultiplier;
-        float skillDamage = weaponBase * spec.DamageMultiplier;
+        float basePower = skillDef.ScalingMode == SkillScalingMode.ArcaneSpell
+            ? 30f * state.Stats.SpellPowerMultiplier
+            : ToolUsagePolicy.EvaluateCombatStrike(in activeSlot).Damage * state.Stats.AttackMultiplier;
+        float skillDamage = basePower * spec.DamageMultiplier;
 
         HitboxQuery.QueryArc(_simulation, pos, aimDir, spec.Radius, spec.HalfAngleRad, _combatHitScratch, out int hitCount, MonsterLayer, state.Entity);
         if (hitCount > 0)
         {
-            _ = this.ApplyMonsterHitsFromScratchLocked(state, pos, aimDir, hitCount, skillDamage, isCritical: true, knockbackSpeed: 110f);
+            _ = this.ApplyMonsterHitsFromScratchLocked(state, pos, aimDir, hitCount, skillDamage, isCritical: false, knockbackSpeed: skillDef.KnockbackSpeed);
         }
 
         this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
+    }
+
+    private static bool RollCriticalHit(float critChance, uint nonce)
+    {
+        if (critChance <= 0f)
+        {
+            return false;
+        }
+
+        uint h = nonce * 0x9E3779B1U;
+        h ^= h >> 15;
+        h *= 0x85EBCA6BU;
+        h ^= h >> 13;
+        float roll = (h & 0xFFFFU) / 65536f;
+        return roll < critChance;
     }
 
     private bool ApplyMonsterHitsFromScratchLocked(
@@ -590,11 +609,20 @@ public sealed partial class AuthoritativeWorld
         this.MarkCharacterDirtyLocked(victim, inventoryChanged: true);
     }
 
-    private bool HasNearbyFriendlyNpcLocked(Vector2 worldPos, float radiusSq)
+    private bool HasNearbyFriendlyNpcLocked(Vector2 worldPos, float radiusSq) =>
+        this.HasNearbyNpcWithCapabilityLocked(worldPos, radiusSq, NpcCapabilities.TownGuard | NpcCapabilities.Shrine | NpcCapabilities.Harbour | NpcCapabilities.ForgeArtisan);
+
+    private bool HasNearbyNpcWithCapabilityLocked(Vector2 worldPos, float radiusSq, NpcCapabilities requiredCapabilities)
     {
         foreach (KeyValuePair<ulong, NpcActorMeta> kv in _actorsByNetworkId)
         {
             if (kv.Value.Kind != EntityKind.Npc)
+            {
+                continue;
+            }
+
+            NpcCapabilities caps = WorldActorCatalog.GetNpcSpec(kv.Value.ArchetypeId).Capabilities;
+            if ((caps & requiredCapabilities) == 0)
             {
                 continue;
             }

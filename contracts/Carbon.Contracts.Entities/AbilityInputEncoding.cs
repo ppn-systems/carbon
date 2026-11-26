@@ -3,30 +3,74 @@
 namespace Carbon.Contracts.Entities;
 
 /// <summary>
-/// Shared wire encoding helper separating hotbar slot actions (<c>0..8</c>) from
-/// active skill activations encoded into <see cref="C2S.EntityAttackInput.AbilitySlot"/>.
+/// Shared wire encoding helper separating hotbar slot actions (<c>0..8</c>),
+/// active skill activations (<c>100 + skillId</c>), and observer VFX cast codes
+/// (<c>SkillCastBroadcast.AbilitySlot</c>).
 /// </summary>
 public static class AbilityInputEncoding
 {
     /// <summary>Maximum valid hotbar slot index for standard primary actions.</summary>
     public const byte MaxHotbarSlot = 8;
 
-    /// <summary>Offset added to active skill slots (<c>1..N</c>) on the wire.</summary>
+    /// <summary>Offset added to active skill IDs (<c>1..109</c>) on <c>EntityAttackInput.AbilitySlot</c>.</summary>
     public const byte SkillCodeOffset = 100;
 
-    /// <summary>Encodes a 1-based active skill slot into an <c>AbilitySlot</c> byte.</summary>
-    public static byte EncodeSkill(byte skillSlot) => (byte)(SkillCodeOffset + skillSlot);
+    /// <summary>Base VFX code reserved for player projectile casts (<c>210..219</c>).</summary>
+    public const byte PlayerProjectileCastOffset = 210;
 
-    /// <summary>Attempts to decode an active skill slot (<c>&gt;= 1</c>) from <paramref name="abilityCode"/>.</summary>
-    public static bool TryDecodeSkill(byte abilityCode, out byte skillSlot)
+    /// <summary>Base VFX code reserved for monster projectile casts (<c>220..229</c>).</summary>
+    public const byte MonsterProjectileCastOffset = 220;
+
+    /// <summary>Encodes an active skill ID into an <c>EntityAttackInput.AbilitySlot</c> byte.</summary>
+    public static byte EncodeSkill(ushort skillId) =>
+        skillId is >= 1 and <= 109
+            ? (byte)(SkillCodeOffset + skillId)
+            : (byte)0;
+
+    /// <summary>Attempts to decode an active skill ID (<c>1..109</c>) from <paramref name="abilityCode"/>.</summary>
+    public static bool TryDecodeSkill(byte abilityCode, out ushort skillId)
     {
-        if (abilityCode > SkillCodeOffset)
+        if (abilityCode > SkillCodeOffset && abilityCode < PlayerProjectileCastOffset)
         {
-            skillSlot = (byte)(abilityCode - SkillCodeOffset);
+            skillId = (ushort)(abilityCode - SkillCodeOffset);
             return true;
         }
 
-        skillSlot = 0;
+        skillId = 0;
+        return false;
+    }
+
+    /// <summary>Encodes a player ranged projectile cast VFX code for <paramref name="projectileArchetype"/> (<c>0..9</c>).</summary>
+    public static byte EncodePlayerProjectileCast(byte projectileArchetype) =>
+        (byte)(PlayerProjectileCastOffset + (projectileArchetype % 10));
+
+    /// <summary>Encodes a monster ranged projectile cast VFX code for <paramref name="projectileArchetype"/> (<c>0..9</c>).</summary>
+    public static byte EncodeMonsterProjectileCast(byte projectileArchetype) =>
+        (byte)(MonsterProjectileCastOffset + (projectileArchetype % 10));
+
+    /// <summary>Attempts to decode a player projectile archetype from <see cref="S2C.SkillCastBroadcast.AbilitySlot"/>.</summary>
+    public static bool TryDecodePlayerProjectileCast(byte castCode, out byte projectileArchetype)
+    {
+        if (castCode >= PlayerProjectileCastOffset && castCode < MonsterProjectileCastOffset)
+        {
+            projectileArchetype = (byte)(castCode - PlayerProjectileCastOffset);
+            return true;
+        }
+
+        projectileArchetype = 0;
+        return false;
+    }
+
+    /// <summary>Attempts to decode a monster projectile archetype from <see cref="S2C.SkillCastBroadcast.AbilitySlot"/>.</summary>
+    public static bool TryDecodeMonsterProjectileCast(byte castCode, out byte projectileArchetype)
+    {
+        if (castCode >= MonsterProjectileCastOffset && castCode < MonsterProjectileCastOffset + 10)
+        {
+            projectileArchetype = (byte)(castCode - MonsterProjectileCastOffset);
+            return true;
+        }
+
+        projectileArchetype = 0;
         return false;
     }
 }

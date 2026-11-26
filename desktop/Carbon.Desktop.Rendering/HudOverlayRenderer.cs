@@ -127,6 +127,9 @@ public sealed class HudOverlayRenderer : IDisposable
     /// <summary>Scrolls the Crafting Workshop recipe list up or down.</summary>
     public void ScrollCrafting(int delta) => _craftModal.Scroll(delta);
 
+    /// <summary>Scrolls the Blacksmith Forge Anvil gear list up or down.</summary>
+    public void ScrollForge(int delta) => _forgeModal.Scroll(delta);
+
     /// <summary>Hit-tests screen-space pointer coordinates against the 9 hotbar slots.</summary>
     public bool TryHitTestHotbar(Vector2 mousePos, int viewportWidth, int viewportHeight, out byte slotIndex)
     {
@@ -166,19 +169,19 @@ public sealed class HudOverlayRenderer : IDisposable
             : SettingsModalAction.None;
 
     /// <summary>Hit-tests unlock/rank-up buttons inside the Skill Tome modal (<c>[K]</c>).</summary>
-    public bool TryHitTestSkillTomeUpgrade(Vector2 mousePos, int viewportWidth, int viewportHeight, out CharacterPointTarget target)
+    public bool TryHitTestSkillTomeUpgrade(Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort skillId)
     {
-        target = CharacterPointTarget.SkillWhirlwind;
+        skillId = 0;
         return this.Visible && this.ShowSkillsModal && viewportWidth > 0 && viewportHeight > 0 &&
-            _skillTomeModal.TryHitTestUpgradeButton(mousePos, viewportWidth, viewportHeight, out target);
+            _skillTomeModal.TryHitTestUpgradeButton(mousePos, viewportWidth, viewportHeight, out skillId);
     }
 
     /// <summary>Hit-tests <c>[+]</c> attribute allocation buttons inside the Bag &amp; Attributes modal (<c>[I]</c>).</summary>
-    public bool TryHitTestInventoryStatPlus(Vector2 mousePos, int viewportWidth, int viewportHeight, out CharacterPointTarget target)
+    public bool TryHitTestInventoryStatPlus(Vector2 mousePos, int viewportWidth, int viewportHeight, out PrimaryAttributeId attribute)
     {
-        target = CharacterPointTarget.Vitality;
+        attribute = PrimaryAttributeId.Vitality;
         return this.Visible && this.ShowInventoryModal && viewportWidth > 0 && viewportHeight > 0 &&
-            _bagModal.TryHitTestStatPlusButton(mousePos, viewportWidth, viewportHeight, out target);
+            _bagModal.TryHitTestStatPlusButton(mousePos, viewportWidth, viewportHeight, out attribute);
     }
 
     /// <summary>Returns whether <paramref name="mousePos"/> hits the <c>[X]</c> close button of whichever modal is open.</summary>
@@ -248,12 +251,12 @@ public sealed class HudOverlayRenderer : IDisposable
         return false;
     }
 
-    /// <summary>Hit-tests screen-space coordinates against the 3 active skill icons.</summary>
-    public bool TryHitTestSkill(Vector2 mousePos, int viewportWidth, int viewportHeight, out byte skillSlot)
+    /// <summary>Hit-tests screen-space coordinates against the active skill bar icons.</summary>
+    public bool TryHitTestSkill(Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort skillId)
     {
-        skillSlot = 0;
+        skillId = 0;
         return this.Visible && viewportWidth > 0 && viewportHeight > 0 &&
-            _skillBar.TryHitTestSkill(mousePos, viewportWidth, viewportHeight, this.Settings.ShowKeybindHints, out skillSlot);
+            _skillBar.TryHitTestSkill(mousePos, viewportWidth, viewportHeight, this.Settings.ShowKeybindHints, out skillId);
     }
 
     /// <summary>Hit-tests screen-space coordinates against any of the 40 slots in the Inventory/Equipment modal.</summary>
@@ -371,7 +374,7 @@ public sealed class HudOverlayRenderer : IDisposable
         }
 
         int hoveredSlot = _hotbar.DrawGeometry(_geometryBatch, _font, world, _art, viewportWidth, viewportHeight, showHints, bgMouse);
-        int hoveredSkill = _skillBar.DrawGeometry(_geometryBatch, world, viewportWidth, viewportHeight, showHints, bgMouse);
+        ushort hoveredSkill = _skillBar.DrawGeometry(_geometryBatch, world, viewportWidth, viewportHeight, showHints, bgMouse);
         _geometryBatch.End();
 
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);

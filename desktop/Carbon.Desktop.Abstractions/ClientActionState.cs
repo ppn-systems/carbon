@@ -30,14 +30,14 @@ public enum ClientActionKind : byte
     /// <summary>Structure placement animation.</summary>
     PlaceStructure = 6,
 
-    /// <summary>Skill 1: 360-degree spinning Whirlwind cleave.</summary>
-    SkillWhirlwind = 7,
+    /// <summary>360-degree spinning Whirlwind / melee burst cleave.</summary>
+    SpinSlash = 7,
 
-    /// <summary>Skill 2: Directional crystal Arcane Nova shockwave.</summary>
-    SkillArcaneNova = 8,
+    /// <summary>Directional crystal Arcane Wave / shockwave.</summary>
+    ArcaneWave = 8,
 
-    /// <summary>Skill 3: Self Vital Surge restoration aura.</summary>
-    SkillVitalSurge = 9,
+    /// <summary>Self-targeted restoration / empowerment aura.</summary>
+    SelfAura = 9,
 
     /// <summary>Ranged physical bow release shot.</summary>
     BowShot = 10,

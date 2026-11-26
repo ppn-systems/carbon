@@ -11,6 +11,7 @@ using Carbon.Abstractions.World;
 using Carbon.Application.World;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
+using Carbon.Contracts.Identity;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -207,9 +208,11 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 s.Slot.Durability < 200f &&
                 s.Slot.Durability > 0f);
 
-            // Equip starter LeatherTunic from backpack slot 9 -> Chest armor slot 37
+            // Unequip starter LeatherTunic from ChestSlot (37) -> empty backpack slot 12, then re-equip 12 -> 37
             int equipsBefore = sink.EquipmentChanges.Count;
-            world.TryMoveInventorySlot(404UL, PlayerInventoryLayout.BackpackStart, PlayerInventoryLayout.ChestSlot).Should().Be(OpStatus.Ok);
+            const ushort emptyBackpackSlot = PlayerInventoryLayout.BackpackStart + 3;
+            world.TryMoveInventorySlot(404UL, PlayerInventoryLayout.ChestSlot, emptyBackpackSlot).Should().Be(OpStatus.Ok);
+            world.TryMoveInventorySlot(404UL, emptyBackpackSlot, PlayerInventoryLayout.ChestSlot).Should().Be(OpStatus.Ok);
             world.StepFixedTick();
             sink.EquipmentChanges.Count.Should().BeGreaterThan(equipsBefore);
             sink.StatsSyncs.Should().Contain(s => s.ConnectionId == 404UL && s.Defense > 3f);
@@ -236,14 +239,14 @@ public sealed class AuthoritativeWorldMultiplayerTests
             slayerInv.Should().Contain(s => s.Slot.ItemId == StarterGameCatalog.WoodAxe);
 
             // Rank-0 skill must be rejected (not free!), then unlocked with SP before casting succeeds.
-            world.EnqueueAttackInput(404UL, 0UL, new Vector2(mobSpawn.Value.PositionX, mobSpawn.Value.PositionY), 101).Should().Be(OpStatus.Ok);
+            world.EnqueueAttackInput(404UL, 0UL, new Vector2(mobSpawn.Value.PositionX, mobSpawn.Value.PositionY), AbilityInputEncoding.EncodeSkill(SkillCatalog.WhirlwindId)).Should().Be(OpStatus.Ok);
             world.StepFixedTick();
             sink.SkillCasts.Should().BeEmpty("unlearned rank-0 skills cannot be cast for free");
 
-            world.TryAllocateCharacterPoint(404UL, CharacterPointTarget.SkillWhirlwind, 1).Should().Be(OpStatus.Ok);
-            world.EnqueueAttackInput(404UL, 0UL, new Vector2(mobSpawn.Value.PositionX, mobSpawn.Value.PositionY), 101).Should().Be(OpStatus.Ok);
+            world.TryAllocateCharacterPoint(404UL, PointAllocationKind.Skill, SkillCatalog.WhirlwindId, 1).Should().Be(OpStatus.Ok);
+            world.EnqueueAttackInput(404UL, 0UL, new Vector2(mobSpawn.Value.PositionX, mobSpawn.Value.PositionY), AbilityInputEncoding.EncodeSkill(SkillCatalog.WhirlwindId)).Should().Be(OpStatus.Ok);
             world.StepFixedTick();
-            sink.SkillCasts.Should().Contain(c => c.AbilitySlot == 1);
+            sink.SkillCasts.Should().Contain(c => c.AbilitySlot == SkillCatalog.WhirlwindId);
 
             // Forge upgrade +0 -> +1 on IronSword (slot 2) using mats in scout inventory (101UL)
             world.TryUpgradeInventoryItem(101UL, 2).Should().Be(OpStatus.Ok);
@@ -499,7 +502,9 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 MaxHealth: 120f,
                 SelectedHotbarSlot: 2,
                 InventoryBlob: invBytes,
-                UpdatedAtUtc: now);
+                UpdatedAtUtc: now,
+                Class: HeroArchetypeClass.Arcanist,
+                Flags: CharacterTraits.StarterLoadoutGranted);
             (await characters.TryCreateAsync(hero).ConfigureAwait(true)).Should().BeTrue();
 
             world.TryEnterWorld(connectionId: 601UL, sessionId: 601UL, hero).Status.Should().Be(OpStatus.Ok);
@@ -507,14 +512,27 @@ public sealed class AuthoritativeWorldMultiplayerTests
             int startTx = (int)MathF.Floor(world.DefaultSpawnWorldPosition.X / 32f);
             int startTy = (int)MathF.Floor(world.DefaultSpawnWorldPosition.Y / 32f);
             world.TryHarvestProp(601UL, startTx + 5, startTy).Status.Should().Be(OpStatus.OutOfRange);
+            world.TrySelectHotbarSlot(601UL, 9).Should().Be(OpStatus.Invalid);
+            world.EnqueueMoveInput(601UL, 99U, new Vector2(float.NaN, 0f), sprint: false);
+            world.StepFixedTick();
+            sink.DeltaBatches.Should().NotContain(d => d.ConnectionId == 601UL && d.LastProcessedClientTick == 99U);
+            world.EnqueueAttackInput(601UL, 0UL, new Vector2(float.PositiveInfinity, 0f), 2).Should().Be(OpStatus.Invalid);
 
-            world.TryAllocateCharacterPoint(601UL, CharacterPointTarget.Vitality, 2).Should().Be(OpStatus.Ok);
+            world.TryAllocateCharacterPoint(601UL, PointAllocationKind.Attribute, (ushort)PrimaryAttributeId.Vitality, 2).Should().Be(OpStatus.Ok);
+            world.TryAllocateCharacterPoint(601UL, PointAllocationKind.Skill, SkillCatalog.ArcaneNovaId, 2).Should().Be(OpStatus.Ok);
             sink.StatsSyncs.Should().Contain(s => s.ConnectionId == 601UL && s.VitPoints == 2);
 
             await world.FlushDirtyPersistenceAsync().ConfigureAwait(true);
             CharacterRecord? reloaded = await characters.FindByIdAsync(hero.Id).ConfigureAwait(true);
             reloaded.Should().NotBeNull();
-            reloaded!.VitPoints.Should().Be(2);
+            reloaded!.Class.Should().Be(HeroArchetypeClass.Arcanist);
+            reloaded.Flags.Should().HaveFlag(CharacterTraits.StarterLoadoutGranted);
+            CharacterSkillMaskHelper.HasSkill(reloaded.UnlockedSkills, SkillCatalog.ArcaneNovaId).Should().BeTrue();
+
+            CharacterProgressionState reloadedProg = new();
+            CharacterProgressionBinaryCodec.TryDeserializeInto(reloaded.ProgressionBlob ?? [], reloadedProg).Should().BeTrue();
+            reloadedProg.GetAttribute(PrimaryAttributeId.Vitality).Should().Be(2);
+            reloadedProg.GetSkillRank(SkillCatalog.ArcaneNovaId).Should().Be(2);
 
             EntitySpawnSnapshot? mobSpawn = null;
             for (int probeX = 2; probeX <= 7 && mobSpawn is null; probeX++)
@@ -606,32 +624,18 @@ public sealed class AuthoritativeWorldMultiplayerTests
         public void SendEntityEquipmentChanged(ReadOnlySpan<ulong> recipientConnectionIds, ulong entityNetworkId, ushort headId, ushort chestId, ushort legsId, ushort feetId, ushort weaponId, byte weaponUpgrade, ushort level, float maxHealth = 0f) =>
             this.EquipmentChanges.Add((entityNetworkId, chestId, weaponId, level));
 
-        public void SendPlayerStatsSync(
-            ulong connectionId,
-            ushort level,
-            uint experience,
-            uint xpToNextLevel,
-            float currentHealth,
-            float maxHealth,
-            float currentMana,
-            float maxMana,
-            float currentStamina,
-            float maxStamina,
-            float defense,
-            float skill1Cd,
-            float skill2Cd,
-            float skill3Cd,
-            bool leveledUp,
-            ushort unspentStatPoints = 0,
-            ushort unspentSkillPoints = 0,
-            ushort vitPoints = 0,
-            ushort wisPoints = 0,
-            ushort pwrPoints = 0,
-            ushort agiPoints = 0,
-            byte skill1Rank = 0,
-            byte skill2Rank = 0,
-            byte skill3Rank = 0) =>
-            this.StatsSyncs.Add((connectionId, level, experience, defense, vitPoints, skill1Rank));
+        public void SendPlayerStatsSync(ulong connectionId, in PlayerStatsSnapshot snapshot)
+        {
+            CharacterProgressionState prog = new();
+            _ = CharacterProgressionBinaryCodec.TryDeserializeInto(snapshot.ProgressionBlob ?? [], prog);
+            this.StatsSyncs.Add((
+                connectionId,
+                snapshot.Level,
+                snapshot.Experience,
+                snapshot.Defense,
+                prog.GetAttribute(PrimaryAttributeId.Vitality),
+                prog.GetSkillRank(SkillCatalog.WhirlwindId)));
+        }
 
         public void SendSkillCastBroadcast(ReadOnlySpan<ulong> recipientConnectionIds, ulong casterNetworkId, byte abilitySlot, float originX, float originY, float aimX, float aimY) =>
             this.SkillCasts.Add((casterNetworkId, abilitySlot));

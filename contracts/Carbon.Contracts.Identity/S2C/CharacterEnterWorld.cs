@@ -105,4 +105,20 @@ public sealed partial class CharacterEnterWorld : PacketBase<CharacterEnterWorld
     /// <summary>Derived armor defense rating.</summary>
     [SerializeOrder(21)]
     public float Defense { get; set; } = 2f;
+
+    /// <summary>Character starting archetype class (<see cref="HeroArchetypeClass"/>).</summary>
+    [SerializeOrder(22)]
+    public byte ClassId { get; set; }
+
+    /// <summary>Persistent character lifecycle/unlock traits.</summary>
+    [SerializeOrder(23)]
+    public CharacterTraits Traits { get; set; }
+
+    /// <summary>Bitmask of unlocked character skill IDs (<c>1..64</c>).</summary>
+    [SerializeOrder(24)]
+    public ulong UnlockedSkillMask { get; set; }
+
+    /// <summary>Versioned binary character progression payload (attributes + skill ranks).</summary>
+    [SerializeOrder(25)]
+    public byte[] ProgressionBlob { get; set; } = [];
 }

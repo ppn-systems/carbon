@@ -505,7 +505,7 @@ public sealed class WorldSceneRenderer : IDisposable
             return;
         }
 
-        Vector2 entityPos = sim.GetInterpolatedPosition(entity);
+        Vector2 entityPos = world.LocalPlayerInterpolatedPosition;
         ref readonly Collider2D col = ref sim.Entities.GetCollider(entity);
         Vector2 velocity = sim.Entities.HasVelocity(entity) ? sim.Entities.GetVelocity(entity).Linear : Vector2.Zero;
         float tileSize = world.ChunkWorld.TileSize;
@@ -535,8 +535,9 @@ public sealed class WorldSceneRenderer : IDisposable
 
         if (_art is not null && _art.TryGetCharacter(world.LocalPlayerAppearancePreset, out CompiledVectorRig? rig))
         {
-            InventoryContainer inv = world.Inventory;
-            ItemSlot activeItem = inv.GetSlot(world.SelectedHotbarSlot);
+            Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
+            world.CopyInventorySlots(slots);
+            ItemSlot activeItem = world.SelectedHotbarSlot < slots.Length ? slots[world.SelectedHotbarSlot] : ItemSlot.Empty;
             uint shownId = action.IsActive && action.EquippedItemId != 0U ? action.EquippedItemId : activeItem.ItemId;
             CompiledItemVectorArt? equipped = null;
             if (shownId != 0U)
@@ -544,10 +545,10 @@ public sealed class WorldSceneRenderer : IDisposable
                 _ = _art.TryGetItem(shownId, out equipped);
             }
 
-            ushort headId = PlayerInventoryLayout.HeadSlot < inv.Capacity ? (ushort)inv.GetSlot(PlayerInventoryLayout.HeadSlot).ItemId : (ushort)0;
-            ushort chestId = PlayerInventoryLayout.ChestSlot < inv.Capacity ? (ushort)inv.GetSlot(PlayerInventoryLayout.ChestSlot).ItemId : (ushort)0;
-            ushort legsId = PlayerInventoryLayout.LegsSlot < inv.Capacity ? (ushort)inv.GetSlot(PlayerInventoryLayout.LegsSlot).ItemId : (ushort)0;
-            ushort feetId = PlayerInventoryLayout.FeetSlot < inv.Capacity ? (ushort)inv.GetSlot(PlayerInventoryLayout.FeetSlot).ItemId : (ushort)0;
+            ushort headId = PlayerInventoryLayout.HeadSlot < slots.Length ? (ushort)slots[PlayerInventoryLayout.HeadSlot].ItemId : (ushort)0;
+            ushort chestId = PlayerInventoryLayout.ChestSlot < slots.Length ? (ushort)slots[PlayerInventoryLayout.ChestSlot].ItemId : (ushort)0;
+            ushort legsId = PlayerInventoryLayout.LegsSlot < slots.Length ? (ushort)slots[PlayerInventoryLayout.LegsSlot].ItemId : (ushort)0;
+            ushort feetId = PlayerInventoryLayout.FeetSlot < slots.Length ? (ushort)slots[PlayerInventoryLayout.FeetSlot].ItemId : (ushort)0;
             VisualEquipmentLoadout loadout = new(headId, chestId, legsId, feetId, (ushort)shownId, ItemEnhancementPolicy.GetUpgradeLevel(in activeItem));
 
             VectorRigRenderer.DrawEntityRig(
@@ -659,8 +660,8 @@ public sealed class WorldSceneRenderer : IDisposable
                     {
                         ClientActionKind.AxeChop => "chop",
                         ClientActionKind.PickaxeMine => "mine",
-                        ClientActionKind.SkillArcaneNova or ClientActionKind.SkillVitalSurge or ClientActionKind.StaffCast or ClientActionKind.BowShot => "cast",
-                        ClientActionKind.None or ClientActionKind.SwordSlash or ClientActionKind.MonsterStrike or ClientActionKind.ConsumeItem or ClientActionKind.PlaceStructure or ClientActionKind.SkillWhirlwind or _ => "slash",
+                        ClientActionKind.ArcaneWave or ClientActionKind.SelfAura or ClientActionKind.StaffCast or ClientActionKind.BowShot => "cast",
+                        ClientActionKind.None or ClientActionKind.SwordSlash or ClientActionKind.MonsterStrike or ClientActionKind.ConsumeItem or ClientActionKind.PlaceStructure or ClientActionKind.SpinSlash or _ => "slash",
                     };
                     norm = true;
                     eval = 1f - Math.Clamp(remote.AttackAnimRemaining / MathF.Max(0.05f, remote.AttackAnimDuration), 0f, 1f);
@@ -726,6 +727,13 @@ public sealed class WorldSceneRenderer : IDisposable
                 batch.FillCircle(pos, 5.0f, new ColorRgba(147, 51, 234, 230), 10);
                 batch.FillCircle(pos, 2.4f, new ColorRgba(245, 208, 254, 255), 8);
                 lights.Add(new PointLight(pos, 42f, new ColorRgba(192, 132, 252), 0.45f));
+                break;
+
+            case 6: // Shaman Hex Bolt (bright violet/magenta hex orb)
+                batch.DrawLine(pos - (vel * 13f), pos, new ColorRgba(217, 70, 239, 195), 3.6f);
+                batch.FillCircle(pos, 5.8f, new ColorRgba(168, 85, 247, 235), 12);
+                batch.FillCircle(pos, 2.8f, new ColorRgba(250, 232, 255, 255), 8);
+                lights.Add(new PointLight(pos, 52f, new ColorRgba(217, 70, 239), 0.55f));
                 break;
 
             case 3: // CrystalArrow (glowing prism arrow)
@@ -801,8 +809,8 @@ public sealed class WorldSceneRenderer : IDisposable
             {
                 ClientActionKind.AxeChop => "chop",
                 ClientActionKind.PickaxeMine => "mine",
-                ClientActionKind.SwordSlash or ClientActionKind.MonsterStrike or ClientActionKind.SkillWhirlwind => "slash",
-                ClientActionKind.SkillArcaneNova or ClientActionKind.SkillVitalSurge or ClientActionKind.StaffCast or ClientActionKind.BowShot => "cast",
+                ClientActionKind.SwordSlash or ClientActionKind.MonsterStrike or ClientActionKind.SpinSlash => "slash",
+                ClientActionKind.ArcaneWave or ClientActionKind.SelfAura or ClientActionKind.StaffCast or ClientActionKind.BowShot => "cast",
                 ClientActionKind.PlaceStructure => "chop",
                 ClientActionKind.ConsumeItem => "idle",
                 ClientActionKind.None or _ => moving ? "walk" : "idle",
@@ -841,7 +849,9 @@ public sealed class WorldSceneRenderer : IDisposable
     {
         float x = tileX * tileSize;
         float y = tileY * tileSize;
-        ItemSlot active = world.Inventory.GetSlot(world.SelectedHotbarSlot);
+        Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
+        world.CopyInventorySlots(slots);
+        ItemSlot active = world.SelectedHotbarSlot < slots.Length ? slots[world.SelectedHotbarSlot] : ItemSlot.Empty;
         bool isPlaceable = active.Quantity > 0 &&
             StarterGameCatalog.Items.TryGet(active.ItemId, out ItemArchetype? archetype) &&
             archetype is { Category: ItemCategory.Placeable };

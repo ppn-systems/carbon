@@ -2,7 +2,6 @@
 
 using System;
 using System.Numerics;
-using System.Runtime.InteropServices;
 using Carbon.Abstractions.World;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Maps.S2C;
@@ -23,10 +22,12 @@ public sealed partial class AuthoritativeWorld
     /// <inheritdoc/>
     public WorldMutationOutcome TryHarvestProp(ulong connectionId, int tileX, int tileY)
     {
-        bool broadcast;
+        OpStatus outcomeStatus = OpStatus.Ok;
+        ulong[]? recipientsCopy = null;
+        (ushort SlotIndex, ItemSlot Slot)[] modifiedCopy;
         uint revision = 0;
         float durability;
-        bool isDestroyed;
+        bool isDestroyed = false;
 
         lock (_gate)
         {
@@ -74,58 +75,67 @@ public sealed partial class AuthoritativeWorld
 
             if (!_chunkWorld.TryDamagePropAt(tileX, tileY, eval.Damage, eval.EffectiveTier, respawnAt, out MapProp updated))
             {
+                uint currentRev = _chunkWorld.TryGetDelta(cx, cy, out ChunkDelta? curDelta) && curDelta is not null
+                    ? curDelta.Revision
+                    : 0U;
+                float existingDur = existing.Destructibility.CurrentDurability;
                 this.CollectNearbyConnectionsLocked(tileX, tileY, _aoiRecipientsScratch);
                 if (_aoiRecipientsScratch.Count > 0)
                 {
-                    uint currentRev = _chunkWorld.TryGetDelta(cx, cy, out ChunkDelta? curDelta) && curDelta is not null
-                        ? curDelta.Revision
-                        : 0U;
-                    _outboundSink.SendPropChanged(
-                        CollectionsMarshal.AsSpan(_aoiRecipientsScratch),
-                        tileX,
-                        tileY,
-                        currentRev,
-                        existing.Destructibility.CurrentDurability,
-                        isDestroyed: false);
+                    recipientsCopy = [.. _aoiRecipientsScratch];
                 }
 
-                this.FlushMutationSlotsOutbound(connectionId);
-                return new WorldMutationOutcome(OpStatus.Forbidden, 0);
-            }
-
-            _ = _dirtyChunks.Add(Chunk2D.PackKey(cx, cy));
-            if (_chunkWorld.TryGetDelta(cx, cy, out ChunkDelta? delta) && delta is not null)
-            {
-                revision = delta.Revision;
-            }
-
-            durability = updated.Destructibility.CurrentDurability;
-            isDestroyed = updated.Destructibility.IsDestroyed;
-
-            if (isDestroyed)
-            {
-                ItemSlot drop = ResolvePropDrop(updated.Type);
-                if (!drop.IsEmpty)
+                modifiedCopy = [.. _mutationSlotScratch];
+                if (recipientsCopy is null && modifiedCopy.Length == 0)
                 {
-                    Vector2 propDropPos = new((tileX + 0.5f) * this.TileSize, (tileY + 0.5f) * this.TileSize);
-                    this.SpawnGroundLootLocked(propDropPos, in drop);
+                    return new WorldMutationOutcome(OpStatus.Forbidden, 0);
                 }
 
-                this.GrantExperienceLocked(state, 15U, out _);
-                this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
+                outcomeStatus = OpStatus.Forbidden;
+                durability = existingDur;
+                revision = currentRev;
             }
+            else
+            {
+                _ = _dirtyChunks.Add(Chunk2D.PackKey(cx, cy));
+                if (_chunkWorld.TryGetDelta(cx, cy, out ChunkDelta? delta) && delta is not null)
+                {
+                    revision = delta.Revision;
+                }
 
-            this.CollectNearbyConnectionsLocked(tileX, tileY, _aoiRecipientsScratch);
-            broadcast = _aoiRecipientsScratch.Count > 0;
+                durability = updated.Destructibility.CurrentDurability;
+                isDestroyed = updated.Destructibility.IsDestroyed;
+
+                if (isDestroyed)
+                {
+                    ItemSlot drop = PropHarvestCatalog.ResolveDropForPropTypeCode((byte)updated.Type, out uint propXp);
+                    if (!drop.IsEmpty)
+                    {
+                        Vector2 propDropPos = new((tileX + 0.5f) * this.TileSize, (tileY + 0.5f) * this.TileSize);
+                        this.SpawnGroundLootLocked(propDropPos, in drop);
+                    }
+
+                    this.GrantExperienceLocked(state, propXp > 0U ? propXp : 15U, out _);
+                    this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
+                }
+
+                this.CollectNearbyConnectionsLocked(tileX, tileY, _aoiRecipientsScratch);
+                if (_aoiRecipientsScratch.Count > 0)
+                {
+                    recipientsCopy = [.. _aoiRecipientsScratch];
+                }
+
+                modifiedCopy = [.. _mutationSlotScratch];
+            }
         }
 
-        if (broadcast)
+        if (recipientsCopy is not null)
         {
-            _outboundSink.SendPropChanged(CollectionsMarshal.AsSpan(_aoiRecipientsScratch), tileX, tileY, revision, durability, isDestroyed);
+            _outboundSink.SendPropChanged(recipientsCopy, tileX, tileY, revision, durability, isDestroyed);
         }
 
-        this.FlushMutationSlotsOutbound(connectionId);
-        return new WorldMutationOutcome(OpStatus.Ok, revision);
+        this.SendSlotsOutbound(connectionId, modifiedCopy);
+        return new WorldMutationOutcome(outcomeStatus, outcomeStatus == OpStatus.Ok ? revision : 0);
     }
 
     /// <inheritdoc/>
@@ -142,7 +152,8 @@ public sealed partial class AuthoritativeWorld
             return new WorldMutationOutcome(OpStatus.Invalid, 0);
         }
 
-        bool broadcast;
+        ulong[]? recipientsCopy = null;
+        (ushort SlotIndex, ItemSlot Slot)[] modifiedCopy;
         uint revision = 0;
         StructureTile placed;
 
@@ -203,13 +214,18 @@ public sealed partial class AuthoritativeWorld
             }
 
             this.CollectNearbyConnectionsLocked(tileX, tileY, _aoiRecipientsScratch);
-            broadcast = _aoiRecipientsScratch.Count > 0;
+            if (_aoiRecipientsScratch.Count > 0)
+            {
+                recipientsCopy = [.. _aoiRecipientsScratch];
+            }
+
+            modifiedCopy = [.. _mutationSlotScratch];
         }
 
-        if (broadcast)
+        if (recipientsCopy is not null)
         {
             _outboundSink.SendStructureChanged(
-                CollectionsMarshal.AsSpan(_aoiRecipientsScratch),
+                recipientsCopy,
                 tileX,
                 tileY,
                 (byte)placed.Type,
@@ -218,14 +234,14 @@ public sealed partial class AuthoritativeWorld
                 (byte)placed.Connectivity);
         }
 
-        this.FlushMutationSlotsOutbound(connectionId);
+        this.SendSlotsOutbound(connectionId, modifiedCopy);
         return new WorldMutationOutcome(OpStatus.Ok, revision);
     }
 
     /// <inheritdoc/>
     public WorldMutationOutcome TryDemolishStructure(ulong connectionId, int tileX, int tileY)
     {
-        bool broadcast;
+        ulong[]? recipientsCopy = null;
         uint revision = 0;
 
         lock (_gate)
@@ -254,12 +270,15 @@ public sealed partial class AuthoritativeWorld
             }
 
             this.CollectNearbyConnectionsLocked(tileX, tileY, _aoiRecipientsScratch);
-            broadcast = _aoiRecipientsScratch.Count > 0;
+            if (_aoiRecipientsScratch.Count > 0)
+            {
+                recipientsCopy = [.. _aoiRecipientsScratch];
+            }
         }
 
-        if (broadcast)
+        if (recipientsCopy is not null)
         {
-            _outboundSink.SendStructureChanged(CollectionsMarshal.AsSpan(_aoiRecipientsScratch), tileX, tileY, 0, 0f, 0, 0);
+            _outboundSink.SendStructureChanged(recipientsCopy, tileX, tileY, 0, 0f, 0, 0);
         }
 
         return new WorldMutationOutcome(OpStatus.Ok, revision);
@@ -268,7 +287,7 @@ public sealed partial class AuthoritativeWorld
     /// <inheritdoc/>
     public WorldMutationOutcome TryToggleDoor(ulong connectionId, int tileX, int tileY)
     {
-        bool broadcast;
+        ulong[]? recipientsCopy = null;
         uint revision = 0;
         StructureTile updated;
 
@@ -298,13 +317,16 @@ public sealed partial class AuthoritativeWorld
             }
 
             this.CollectNearbyConnectionsLocked(tileX, tileY, _aoiRecipientsScratch);
-            broadcast = _aoiRecipientsScratch.Count > 0;
+            if (_aoiRecipientsScratch.Count > 0)
+            {
+                recipientsCopy = [.. _aoiRecipientsScratch];
+            }
         }
 
-        if (broadcast)
+        if (recipientsCopy is not null)
         {
             _outboundSink.SendStructureChanged(
-                CollectionsMarshal.AsSpan(_aoiRecipientsScratch),
+                recipientsCopy,
                 tileX,
                 tileY,
                 (byte)updated.Type,
@@ -538,14 +560,14 @@ public sealed partial class AuthoritativeWorld
 
         if (updated.Destructibility.IsDestroyed)
         {
-            ItemSlot drop = ResolvePropDrop(updated.Type);
+            ItemSlot drop = PropHarvestCatalog.ResolveDropForPropTypeCode((byte)updated.Type, out uint propXp);
             if (!drop.IsEmpty)
             {
                 Vector2 propDropPos = new((wx + 0.5f) * this.TileSize, (wy + 0.5f) * this.TileSize);
                 this.SpawnGroundLootLocked(propDropPos, in drop);
             }
 
-            this.GrantExperienceLocked(state, 15U, out _);
+            this.GrantExperienceLocked(state, propXp > 0U ? propXp : 15U, out _);
             this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
         }
 
@@ -601,36 +623,4 @@ public sealed partial class AuthoritativeWorld
         category == PropCategory.Mineral
             ? ToolTargetKind.Mineral
             : ToolTargetKind.Flora;
-
-    private static ItemSlot ResolvePropDrop(MapPropType propType)
-    {
-        if (propType is MapPropType.OakTree or MapPropType.PineTree or MapPropType.SnowPine or
-            MapPropType.PalmTree or MapPropType.BirchTree or MapPropType.WillowTree or
-            MapPropType.DeadTree or MapPropType.AcaciaTree or MapPropType.CherryBlossomTree)
-        {
-            return new ItemSlot(StarterGameCatalog.WoodLog, 3);
-        }
-
-        if (propType is MapPropType.CopperVein or MapPropType.IronVein or MapPropType.GoldVein or MapPropType.SilverVein)
-        {
-            return new ItemSlot(StarterGameCatalog.IronOre, 2);
-        }
-
-        if (propType is MapPropType.CrystalCluster or MapPropType.GlacialCrystal)
-        {
-            return new ItemSlot(StarterGameCatalog.ManaCrystal, 2);
-        }
-
-        if (propType is MapPropType.Bush or MapPropType.Cactus or MapPropType.MushroomCluster)
-        {
-            return new ItemSlot(StarterGameCatalog.BerryHerb, 2);
-        }
-
-        if (propType is MapPropType.Boulder or MapPropType.BasaltPillar or MapPropType.CoalDeposit)
-        {
-            return new ItemSlot(StarterGameCatalog.StoneChunk, 3);
-        }
-
-        return ItemSlot.Empty;
-    }
 }

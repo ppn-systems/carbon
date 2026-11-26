@@ -1,5 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using Carbon.Contracts.Common;
 using Nalix.Abstractions.Networking.Packets;
 using Nalix.Abstractions.Serialization;
 using Nalix.Codec.DataFrames;
@@ -7,7 +8,8 @@ using Nalix.Codec.DataFrames;
 namespace Carbon.Contracts.Entities.S2C;
 
 /// <summary>
-/// Unilateral server push synchronizing the local player's level, XP, HP, Mana, Stamina, Defense, and skill cooldowns.
+/// Unilateral server push synchronizing the local player's level, XP, HP, Mana, Stamina, Defense,
+/// flags, binary progression blob, and active skill cooldowns.
 /// </summary>
 [Packet]
 [GenerateFormatter]
@@ -57,55 +59,35 @@ public sealed partial class PlayerStatsSync : PacketBase<PlayerStatsSync>, IPack
     [SerializeOrder(9)]
     public float Defense { get; set; }
 
-    /// <summary>Remaining cooldown in seconds for Skill 1 (Whirlwind).</summary>
-    [SerializeOrder(10)]
-    public float Skill1Cooldown { get; set; }
-
-    /// <summary>Remaining cooldown in seconds for Skill 2 (Arcane Nova).</summary>
-    [SerializeOrder(11)]
-    public float Skill2Cooldown { get; set; }
-
-    /// <summary>Remaining cooldown in seconds for Skill 3 (Vital Surge).</summary>
-    [SerializeOrder(12)]
-    public float Skill3Cooldown { get; set; }
-
     /// <summary>Indicates this sync accompanied a level-up celebration event.</summary>
-    [SerializeOrder(13)]
+    [SerializeOrder(10)]
     public bool LeveledUp { get; set; }
 
+    /// <summary>Persistent character traits bitmask.</summary>
+    [SerializeOrder(11)]
+    public CharacterTraits Traits { get; set; }
+
+    /// <summary>Bitmask of unlocked character skill IDs (<c>1..64</c>).</summary>
+    [SerializeOrder(12)]
+    public CharacterSkillMask UnlockedSkillMask { get; set; }
+
     /// <summary>Unspent character attribute points available to allocate.</summary>
-    [SerializeOrder(14)]
+    [SerializeOrder(13)]
     public ushort UnspentStatPoints { get; set; }
 
     /// <summary>Unspent skill mastery points available to unlock or rank up skills.</summary>
-    [SerializeOrder(15)]
+    [SerializeOrder(14)]
     public ushort UnspentSkillPoints { get; set; }
 
-    /// <summary>Allocated Vitality attribute points.</summary>
+    /// <summary>Versioned binary progression payload encoding attribute points and skill ranks.</summary>
+    [SerializeOrder(15)]
+    public byte[] ProgressionBlob { get; set; } = [];
+
+    /// <summary>Skill IDs currently on cooldown (parallel to <see cref="CooldownRemainingSeconds"/>).</summary>
     [SerializeOrder(16)]
-    public ushort VitPoints { get; set; }
+    public ushort[] CooldownSkillIds { get; set; } = [];
 
-    /// <summary>Allocated Wisdom attribute points.</summary>
+    /// <summary>Remaining cooldown duration in seconds matching <see cref="CooldownSkillIds"/>.</summary>
     [SerializeOrder(17)]
-    public ushort WisPoints { get; set; }
-
-    /// <summary>Allocated Power attribute points.</summary>
-    [SerializeOrder(18)]
-    public ushort PwrPoints { get; set; }
-
-    /// <summary>Allocated Agility attribute points.</summary>
-    [SerializeOrder(19)]
-    public ushort AgiPoints { get; set; }
-
-    /// <summary>Mastery rank of Skill 1 (Whirlwind), <c>0</c> = locked, <c>1..5</c> = unlocked.</summary>
-    [SerializeOrder(20)]
-    public byte Skill1Rank { get; set; }
-
-    /// <summary>Mastery rank of Skill 2 (Arcane Nova), <c>0</c> = locked, <c>1..5</c> = unlocked.</summary>
-    [SerializeOrder(21)]
-    public byte Skill2Rank { get; set; }
-
-    /// <summary>Mastery rank of Skill 3 (Vital Surge), <c>0</c> = locked, <c>1..5</c> = unlocked.</summary>
-    [SerializeOrder(22)]
-    public byte Skill3Rank { get; set; }
+    public float[] CooldownRemainingSeconds { get; set; } = [];
 }

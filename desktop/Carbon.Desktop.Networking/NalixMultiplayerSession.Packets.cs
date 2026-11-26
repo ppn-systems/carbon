@@ -14,6 +14,7 @@ using Carbon.Desktop.Abstractions;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
+using Carbon.Items.Serialization;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Networking;
@@ -337,6 +338,7 @@ public sealed partial class NalixMultiplayerSession
                 state.Position,
                 state.Velocity));
             _remoteEntities[pkt.NetworkId] = state;
+            _remoteViewsDirty = true;
         }
     }
 
@@ -345,6 +347,7 @@ public sealed partial class NalixMultiplayerSession
         lock (_worldGate)
         {
             _ = _remoteEntities.TryRemove(pkt.NetworkId, out _);
+            _remoteViewsDirty = true;
             if (pkt.NetworkId == _lockedTargetNetworkId)
             {
                 _lockedTargetNetworkId = 0UL;
@@ -380,6 +383,8 @@ public sealed partial class NalixMultiplayerSession
                 {
                     state.MaxHealth = MathF.Max(1f, pkt.MaxHealth);
                 }
+
+                _remoteViewsDirty = true;
             }
         }
     }
@@ -411,18 +416,23 @@ public sealed partial class NalixMultiplayerSession
             _localStamina = pkt.CurrentStamina;
             _localMaxStamina = MathF.Max(1f, pkt.MaxStamina);
             _localDefense = pkt.Defense;
-            _skill1Cd = pkt.Skill1Cooldown;
-            _skill2Cd = pkt.Skill2Cooldown;
-            _skill3Cd = pkt.Skill3Cooldown;
+            _localTraits = pkt.Traits;
             _unspentStatPoints = pkt.UnspentStatPoints;
             _unspentSkillPoints = pkt.UnspentSkillPoints;
-            _vitPoints = pkt.VitPoints;
-            _wisPoints = pkt.WisPoints;
-            _pwrPoints = pkt.PwrPoints;
-            _agiPoints = pkt.AgiPoints;
-            _skill1Rank = pkt.Skill1Rank;
-            _skill2Rank = pkt.Skill2Rank;
-            _skill3Rank = pkt.Skill3Rank;
+            _ = CharacterProgressionBinaryCodec.TryDeserializeInto(pkt.ProgressionBlob ?? [], _progression);
+            _progression.SetUnlockedSkillMask(_progression.UnlockedSkillMask | pkt.UnlockedSkillMask);
+
+            _skillCooldowns.Clear();
+            ushort[] cdIds = pkt.CooldownSkillIds ?? [];
+            float[] cdSecs = pkt.CooldownRemainingSeconds ?? [];
+            int cdLen = Math.Min(cdIds.Length, cdSecs.Length);
+            for (int cIdx = 0; cIdx < cdLen; cIdx++)
+            {
+                if (cdSecs[cIdx] > 0f)
+                {
+                    _skillCooldowns[cdIds[cIdx]] = cdSecs[cIdx];
+                }
+            }
 
             Vector2 localPos = _simulation is not null && _simulation.Entities.IsAlive(_localPlayer)
                 ? _simulation.GetInterpolatedPosition(_localPlayer) + _visualOffset
@@ -465,18 +475,29 @@ public sealed partial class NalixMultiplayerSession
                     caster.FacingDir = Vector2.Normalize(delta);
                 }
 
-                caster.ActiveActionKind = pkt.AbilitySlot switch
+                bool isProjectile = false;
+                if (AbilityInputEncoding.TryDecodePlayerProjectileCast(pkt.AbilitySlot, out byte projArch))
                 {
-                    CharacterProgressionPolicy.SkillWhirlwind => ClientActionKind.SkillWhirlwind,
-                    CharacterProgressionPolicy.SkillArcaneNova => ClientActionKind.SkillArcaneNova,
-                    CharacterProgressionPolicy.SkillVitalSurge => ClientActionKind.SkillVitalSurge,
-                    212 => ClientActionKind.StaffCast,
-                    >= 210 and <= 219 => ClientActionKind.BowShot,
-                    >= 220 and <= 229 => ClientActionKind.MonsterStrike,
-                    _ => ClientActionKind.SwordSlash,
-                };
-                caster.AttackAnimDuration = pkt.AbilitySlot >= 210 ? 0.28f : 0.45f;
+                    isProjectile = true;
+                    caster.ActiveActionKind = projArch is 2 or 6 ? ClientActionKind.StaffCast : ClientActionKind.BowShot;
+                }
+                else if (AbilityInputEncoding.TryDecodeMonsterProjectileCast(pkt.AbilitySlot, out _))
+                {
+                    isProjectile = true;
+                    caster.ActiveActionKind = ClientActionKind.MonsterStrike;
+                }
+                else if (SkillCatalog.Skills.TryGet(pkt.AbilitySlot, out SkillDefinition? skillDef))
+                {
+                    caster.ActiveActionKind = MapSkillAnimKind(skillDef.AnimArchetype);
+                }
+                else
+                {
+                    caster.ActiveActionKind = ClientActionKind.SwordSlash;
+                }
+
+                caster.AttackAnimDuration = isProjectile ? 0.28f : 0.45f;
                 caster.AttackAnimTimer = caster.AttackAnimDuration;
+                _remoteViewsDirty = true;
             }
         }
     }
@@ -530,6 +551,8 @@ public sealed partial class NalixMultiplayerSession
                     _ = state.Interpolation.PushSnapshot(new TransformSnapshot(snapshotTime, state.Position, state.Velocity));
                 }
             }
+
+            _remoteViewsDirty = true;
         }
     }
 
@@ -537,6 +560,7 @@ public sealed partial class NalixMultiplayerSession
     {
         lock (_worldGate)
         {
+            _remoteViewsDirty = true;
             Vector2 worldPos = _simulation is not null && _simulation.Entities.IsAlive(_localPlayer)
                 ? _simulation.GetInterpolatedPosition(_localPlayer) + _visualOffset
                 : Vector2.Zero;
@@ -780,6 +804,12 @@ public sealed partial class NalixMultiplayerSession
             else
             {
                 _chunkWorld.Buildings.ForcePlaceStructure(pkt.TileX, pkt.TileY, (StructureType)pkt.StructureType);
+                if (_chunkWorld.Buildings.TryGetStructure(pkt.TileX, pkt.TileY, out StructureTile placed) &&
+                    placed.Category == StructureCategory.Door &&
+                    (byte)placed.DoorState != pkt.DoorState)
+                {
+                    _ = _chunkWorld.Buildings.ToggleDoor(pkt.TileX, pkt.TileY, out _);
+                }
             }
         }
     }

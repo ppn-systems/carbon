@@ -1,9 +1,34 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 
 namespace Carbon.Abstractions.World;
+
+/// <summary>
+/// Immutable per-player vitals, traits, binary progression payload, and active cooldown snapshot
+/// dispatched via <see cref="IWorldOutboundSink"/>.
+/// </summary>
+public readonly record struct PlayerStatsSnapshot(
+    ushort Level,
+    uint Experience,
+    uint XpToNextLevel,
+    float CurrentHealth,
+    float MaxHealth,
+    float CurrentMana,
+    float MaxMana,
+    float CurrentStamina,
+    float MaxStamina,
+    float Defense,
+    bool LeveledUp,
+    CharacterTraits Traits,
+    CharacterSkillMask UnlockedSkillMask,
+    ushort UnspentStatPoints,
+    ushort UnspentSkillPoints,
+    byte[] ProgressionBlob,
+    ushort[] CooldownSkillIds,
+    float[] CooldownRemainingSeconds);
 
 /// <summary>
 /// Snapshot sent by the authoritative simulation when an entity enters a player's Area of Interest.
@@ -94,32 +119,8 @@ public interface IWorldOutboundSink
         ushort level,
         float maxHealth = 0f);
 
-    /// <summary>Synchronizes the owning player's RPG progression, MP, Stamina, Defense, points, and skill ranks/cooldowns.</summary>
-    void SendPlayerStatsSync(
-        ulong connectionId,
-        ushort level,
-        uint experience,
-        uint xpToNextLevel,
-        float currentHealth,
-        float maxHealth,
-        float currentMana,
-        float maxMana,
-        float currentStamina,
-        float maxStamina,
-        float defense,
-        float skill1Cd,
-        float skill2Cd,
-        float skill3Cd,
-        bool leveledUp,
-        ushort unspentStatPoints = 0,
-        ushort unspentSkillPoints = 0,
-        ushort vitPoints = 0,
-        ushort wisPoints = 0,
-        ushort pwrPoints = 0,
-        ushort agiPoints = 0,
-        byte skill1Rank = 0,
-        byte skill2Rank = 0,
-        byte skill3Rank = 0);
+    /// <summary>Synchronizes the owning player's RPG vitals, flags, progression blob, and cooldown arrays.</summary>
+    void SendPlayerStatsSync(ulong connectionId, in PlayerStatsSnapshot snapshot);
 
     /// <summary>Broadcasts active ability cast VFX coordinates to AoI observers.</summary>
     void SendSkillCastBroadcast(

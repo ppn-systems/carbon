@@ -7,7 +7,7 @@ using Nalix.Codec.DataFrames;
 namespace Carbon.Contracts.Entities.C2S;
 
 /// <summary>
-/// Client request to allocate unspent Attribute Points (<c>VIT/WIS/PWR/AGI</c>) or Skill Mastery Points (<c>Q/R/V</c>).
+/// Client request to allocate unspent Attribute Points or unlock/upgrade Skills by numeric ID.
 /// </summary>
 [Packet]
 [GenerateFormatter]
@@ -17,11 +17,15 @@ public sealed partial class EntityAllocatePoint : PacketBase<EntityAllocatePoint
     /// <inheritdoc/>
     public static ushort StaticOpCode => EntityOpCode.AllocateCharacterPoint;
 
-    /// <summary>Attribute or active skill rank to increment.</summary>
+    /// <summary>Whether <see cref="TargetId"/> refers to an attribute or skill.</summary>
     [SerializeOrder(0)]
-    public CharacterPointTarget Target { get; set; }
+    public PointAllocationKind Kind { get; set; }
+
+    /// <summary>Attribute (<see cref="PrimaryAttributeId"/>) or numeric skill identifier.</summary>
+    [SerializeOrder(1)]
+    public ushort TargetId { get; set; }
 
     /// <summary>Number of points to spend (clamped server-side).</summary>
-    [SerializeOrder(1)]
+    [SerializeOrder(2)]
     public byte Amount { get; set; } = 1;
 }

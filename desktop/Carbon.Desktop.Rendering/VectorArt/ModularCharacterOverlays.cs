@@ -456,6 +456,18 @@ internal static class ModularCharacterOverlays
             Vector2 gem = Transform(new Vector2(0f, -34.2f), pivot, headgearPose, origin, sx, sy);
             batch.FillCircle(gem, 1.5f * absS, ApplyFlash(new ColorRgba(207, 250, 254, 255), hitFlash), 8);
         }
+        else
+        {
+            (ColorRgba hoodMain, ColorRgba hoodTrim) = ResolveArmorColors(
+                headId,
+                art,
+                defaultPrimary: new ColorRgba(71, 85, 105, 255),
+                defaultTrim: new ColorRgba(203, 213, 225, 255));
+            FillQuad(poly, pivot, headgearPose, origin, sx, sy, (-7.2f, -28.6f), (7.2f, -28.6f), (5.2f, -35.6f), (-5.2f, -35.6f));
+            DrawOutlinedPoly(batch, poly, hoodMain, outlineCol, 1.0f * absS, hitFlash);
+            FillQuad(poly, pivot, headgearPose, origin, sx, sy, (-7.4f, -28.6f), (7.4f, -28.6f), (7.0f, -30.2f), (-7.0f, -30.2f));
+            DrawOutlinedPoly(batch, poly, hoodTrim, outlineCol, 0.8f * absS, hitFlash);
+        }
     }
 
     private static (ColorRgba Main, ColorRgba Trim) ResolveArmorColors(

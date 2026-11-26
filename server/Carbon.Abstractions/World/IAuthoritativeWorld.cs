@@ -29,6 +29,10 @@ namespace Carbon.Abstractions.World;
 /// <param name="CurrentStamina">Authoritative stamina points.</param>
 /// <param name="MaxStamina">Derived maximum stamina points.</param>
 /// <param name="Defense">Derived armor defense rating.</param>
+/// <param name="ClassId">Persisted hero archetype class identifier.</param>
+/// <param name="Traits">Persisted character progression traits bitmask.</param>
+/// <param name="UnlockedSkillMask">Unlocked skill bitmask.</param>
+/// <param name="ProgressionBlob">Serialized attribute and skill progression payload.</param>
 public readonly record struct EnterWorldResult(
     OpStatus Status,
     ulong PlayerNetworkId,
@@ -51,7 +55,11 @@ public readonly record struct EnterWorldResult(
     float MaxMana = 80f,
     float CurrentStamina = 100f,
     float MaxStamina = 100f,
-    float Defense = 2f);
+    float Defense = 2f,
+    byte ClassId = 0,
+    CharacterTraits Traits = CharacterTraits.StarterLoadoutGranted,
+    ulong UnlockedSkillMask = 0UL,
+    byte[]? ProgressionBlob = null);
 
 /// <summary>
 /// Outcome of an authoritative world mutation returned to handlers without allocating packet wrappers.

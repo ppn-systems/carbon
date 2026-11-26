@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using Carbon.Contracts.Common;
 using Nalix.Abstractions.Networking.Packets;
 using Nalix.Abstractions.Serialization;
 using Nalix.Codec.DataFrames;
@@ -50,7 +51,15 @@ public sealed partial class CharacterSummary : PacketBase<CharacterSummary>, IPa
     [SerializeOrder(7)]
     public float PositionY { get; set; }
 
-    /// <summary>Visual appearance preset index (0..3).</summary>
+    /// <summary>Visual appearance preset index (0..255).</summary>
     [SerializeOrder(8)]
     public byte AppearancePreset { get; set; }
+
+    /// <summary>Character starting archetype class (<see cref="HeroArchetypeClass"/>).</summary>
+    [SerializeOrder(9)]
+    public byte ClassId { get; set; }
+
+    /// <summary>Persistent character progression/unlock bitmask.</summary>
+    [SerializeOrder(10)]
+    public CharacterTraits Traits { get; set; }
 }

@@ -1,6 +1,8 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using Carbon.Contracts.Common;
+using Carbon.Contracts.Identity;
 
 namespace Carbon.Desktop.Abstractions;
 
@@ -14,6 +16,8 @@ namespace Carbon.Desktop.Abstractions;
 /// <param name="PositionX">Saved world X position.</param>
 /// <param name="PositionY">Saved world Y position.</param>
 /// <param name="AppearancePreset">Saved visual appearance preset index.</param>
+/// <param name="Class">Persisted hero archetype class.</param>
+/// <param name="Traits">Persisted character progression traits bitmask.</param>
 public sealed record ClientCharacterSummary(
     Guid CharacterId,
     string Name,
@@ -21,4 +25,6 @@ public sealed record ClientCharacterSummary(
     byte ZoneTier,
     float PositionX,
     float PositionY,
-    byte AppearancePreset = 0);
+    byte AppearancePreset = 0,
+    HeroArchetypeClass Class = HeroArchetypeClass.Vanguard,
+    CharacterTraits Traits = CharacterTraits.None);

@@ -81,7 +81,11 @@ public static partial class EntityHandlers
         ArgumentNullException.ThrowIfNull(context);
 
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
-        OpStatus status = s_world.TryAllocateCharacterPoint(connectionId, context.Packet.Target, context.Packet.Amount);
+        OpStatus status = s_world.TryAllocateCharacterPoint(
+            connectionId,
+            context.Packet.Kind,
+            context.Packet.TargetId,
+            context.Packet.Amount);
         return PacketReplyHelper.SendMutationAsync(context, status, EntityOpCode.AllocateCharacterPoint);
     }
 }

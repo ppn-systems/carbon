@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using System.Runtime.InteropServices;
 using Carbon.Abstractions.World;
 using Carbon.Contracts.Common;
 using Carbon.Items.Catalog;
@@ -49,7 +48,7 @@ public sealed partial class AuthoritativeWorld
     /// <inheritdoc/>
     public OpStatus TrySelectHotbarSlot(ulong connectionId, byte slotIndex)
     {
-        if (slotIndex > 9)
+        if (slotIndex >= PlayerInventoryLayout.HotbarCount)
         {
             return OpStatus.Invalid;
         }
@@ -58,8 +57,8 @@ public sealed partial class AuthoritativeWorld
         byte eqWeaponUpg;
         float eqMaxHp;
         ulong netId;
-        bool broadcastEq = false;
-        ActivePlayerState? snapState;
+        ulong[]? recipientsCopy = null;
+        PlayerStatsSnapshot statsSnap;
 
         lock (_gate)
         {
@@ -71,8 +70,8 @@ public sealed partial class AuthoritativeWorld
             byte tier = ResolveSlotHarvestTier(state.Inventory, slotIndex);
             state.Session = state.Session with { SelectedHotbarSlot = slotIndex, SelectedHarvestTier = tier };
             this.RecomputeDerivedStatsLocked(state);
-            snapState = state;
             this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
+            statsSnap = this.BuildPlayerStatsSnapshotLocked(state, clearLevelUpPending: false);
 
             eqNetHead = (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.HeadSlot).ItemId;
             eqNetChest = (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.ChestSlot).ItemId;
@@ -89,19 +88,19 @@ public sealed partial class AuthoritativeWorld
             {
                 Vector2 pPos = _simulation.Entities.GetTransform(state.Entity).Position;
                 this.CollectNearbyConnectionsAroundWorldLocked(pPos, _aoiRecipientsScratch);
-                broadcastEq = _aoiRecipientsScratch.Count > 0;
+                if (_aoiRecipientsScratch.Count > 0)
+                {
+                    recipientsCopy = [.. _aoiRecipientsScratch];
+                }
             }
         }
 
-        if (snapState is not null)
-        {
-            this.DispatchImmediateStatsSync(snapState, false);
-        }
+        _outboundSink.SendPlayerStatsSync(connectionId, in statsSnap);
 
-        if (broadcastEq)
+        if (recipientsCopy is not null)
         {
             _outboundSink.SendEntityEquipmentChanged(
-                CollectionsMarshal.AsSpan(_aoiRecipientsScratch),
+                recipientsCopy,
                 netId,
                 eqNetHead,
                 eqNetChest,
@@ -129,7 +128,8 @@ public sealed partial class AuthoritativeWorld
             return OpStatus.NotFound;
         }
 
-        ActivePlayerState? snapState;
+        PlayerStatsSnapshot statsSnap;
+        (ushort SlotIndex, ItemSlot Slot)[] modifiedCopy;
         lock (_gate)
         {
             if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state))
@@ -138,11 +138,6 @@ public sealed partial class AuthoritativeWorld
             }
 
             int maxOutStack = StarterGameCatalog.GetMaxStackSize(recipe.Output.ItemId);
-            if (!RecipeMatcher.CanCraft(state.Inventory, recipe))
-            {
-                return OpStatus.Conflict;
-            }
-
             _mutationSlotScratch.Clear();
             ReadOnlySpan<ItemSlot> beforeSlots = state.Inventory.Slots;
             Span<ItemSlot> beforeSnapshot = stackalloc ItemSlot[beforeSlots.Length];
@@ -161,7 +156,30 @@ public sealed partial class AuthoritativeWorld
 
             if (crafted == 0)
             {
-                return OpStatus.InventoryFull;
+                // Return Conflict if ingredients were missing on the first craft, or InventoryFull if bag lacked output space.
+                bool hasFirstCraftMats = true;
+                int bagCap = Math.Min(PlayerInventoryLayout.BagLimit, state.Inventory.Capacity);
+                for (int rIdx = 0; rIdx < recipe.Ingredients.Count; rIdx++)
+                {
+                    RecipeIngredient ing = recipe.Ingredients[rIdx];
+                    int avail = 0;
+                    for (int s = 0; s < bagCap; s++)
+                    {
+                        ItemSlot cur = state.Inventory.GetSlot(s);
+                        if (cur.ItemId == ing.ItemId && cur.Quantity > 0 && cur.UpgradeLevel == 0)
+                        {
+                            avail += cur.Quantity;
+                        }
+                    }
+
+                    if (avail < ing.Quantity)
+                    {
+                        hasFirstCraftMats = false;
+                        break;
+                    }
+                }
+
+                return hasFirstCraftMats ? OpStatus.InventoryFull : OpStatus.Conflict;
             }
 
             CollectModifiedSlots(beforeSnapshot, state.Inventory.Slots, _mutationSlotScratch);
@@ -169,15 +187,12 @@ public sealed partial class AuthoritativeWorld
             state.Session = state.Session with { SelectedHarvestTier = newTier };
             this.GrantExperienceLocked(state, (uint)(15 * crafted), out _);
             this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
-            snapState = state;
+            statsSnap = this.BuildPlayerStatsSnapshotLocked(state, clearLevelUpPending: true);
+            modifiedCopy = [.. _mutationSlotScratch];
         }
 
-        this.FlushMutationSlotsOutbound(connectionId);
-        if (snapState is not null)
-        {
-            this.DispatchImmediateStatsSync(snapState, snapState.LeveledUpPending);
-            snapState.LeveledUpPending = false;
-        }
+        this.SendSlotsOutbound(connectionId, modifiedCopy);
+        _outboundSink.SendPlayerStatsSync(connectionId, in statsSnap);
 
         return OpStatus.Ok;
     }
@@ -186,13 +201,13 @@ public sealed partial class AuthoritativeWorld
     public OpStatus TryMoveInventorySlot(ulong connectionId, ushort fromSlot, ushort toSlot)
     {
         bool statsChanged = false;
-        bool leveledUp = false;
-        bool broadcastEq = false;
         ushort headId = 0, chestId = 0, legsId = 0, feetId = 0, weaponId = 0, level = 1;
         byte weaponUpg = 0;
         float maxHp = 0f;
         ulong netId = 0UL;
-        ActivePlayerState? snapState = null;
+        ulong[]? recipientsCopy = null;
+        PlayerStatsSnapshot? statsSnap = null;
+        (ushort SlotIndex, ItemSlot Slot)[] modifiedCopy;
 
         lock (_gate)
         {
@@ -227,7 +242,7 @@ public sealed partial class AuthoritativeWorld
             {
                 this.RecomputeDerivedStatsLocked(state);
                 statsChanged = true;
-                snapState = state;
+                statsSnap = this.BuildPlayerStatsSnapshotLocked(state, clearLevelUpPending: false);
                 headId = (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.HeadSlot).ItemId;
                 chestId = (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.ChestSlot).ItemId;
                 legsId = (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.LegsSlot).ItemId;
@@ -242,24 +257,29 @@ public sealed partial class AuthoritativeWorld
                 if (_simulation.Entities.HasTransform(state.Entity))
                 {
                     this.CollectNearbyConnectionsAroundWorldLocked(_simulation.Entities.GetTransform(state.Entity).Position, _aoiRecipientsScratch);
-                    broadcastEq = _aoiRecipientsScratch.Count > 0;
+                    if (_aoiRecipientsScratch.Count > 0)
+                    {
+                        recipientsCopy = [.. _aoiRecipientsScratch];
+                    }
                 }
             }
 
             this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
+            modifiedCopy = [.. _mutationSlotScratch];
         }
 
-        this.FlushMutationSlotsOutbound(connectionId);
+        this.SendSlotsOutbound(connectionId, modifiedCopy);
 
-        if (statsChanged && snapState is not null)
+        if (statsChanged && statsSnap.HasValue)
         {
-            this.DispatchImmediateStatsSync(snapState, leveledUp);
+            PlayerStatsSnapshot s = statsSnap.Value;
+            _outboundSink.SendPlayerStatsSync(connectionId, in s);
         }
 
-        if (broadcastEq)
+        if (recipientsCopy is not null)
         {
             _outboundSink.SendEntityEquipmentChanged(
-                CollectionsMarshal.AsSpan(_aoiRecipientsScratch),
+                recipientsCopy,
                 netId,
                 headId,
                 chestId,
@@ -284,14 +304,14 @@ public sealed partial class AuthoritativeWorld
     /// </summary>
     public OpStatus TryUpgradeInventoryItem(ulong connectionId, ushort slotIndex, uint deterministicRollSeed)
     {
-        ActivePlayerState? snapState;
+        PlayerStatsSnapshot statsSnap;
         bool succeeded;
-        bool leveledUp = false;
-        bool broadcastEq = false;
         ushort headId = 0, chestId = 0, legsId = 0, feetId = 0, weaponId = 0, level = 1;
         byte weaponUpg = 0;
         float maxHp = 0f;
         ulong netId = 0UL;
+        ulong[]? recipientsCopy = null;
+        (ushort SlotIndex, ItemSlot Slot)[] modifiedCopy;
 
         lock (_gate)
         {
@@ -350,12 +370,12 @@ public sealed partial class AuthoritativeWorld
                 float nextDur = ItemEnhancementPolicy.GetEffectiveMaxDurability(def, nextLevel);
                 ItemSlot enhanced = ItemEnhancementPolicy.WithUpgradeLevel(in target, nextLevel) with { Durability = nextDur };
                 state.Inventory.SetSlot(slotIndex, in enhanced);
-                this.GrantExperienceLocked(state, (uint)(20 + (nextLevel * 5)), out leveledUp);
+                this.GrantExperienceLocked(state, (uint)(20 + (nextLevel * 5)), out _);
             }
 
             CollectModifiedSlots(beforeSnap, state.Inventory.Slots, _mutationSlotScratch);
             this.RecomputeDerivedStatsLocked(state);
-            snapState = state;
+            statsSnap = this.BuildPlayerStatsSnapshotLocked(state, clearLevelUpPending: true);
 
             headId = (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.HeadSlot).ItemId;
             chestId = (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.ChestSlot).ItemId;
@@ -373,24 +393,23 @@ public sealed partial class AuthoritativeWorld
                 (slotIndex >= PlayerInventoryLayout.BagLimit || slotIndex == state.Session.SelectedHotbarSlot))
             {
                 this.CollectNearbyConnectionsAroundWorldLocked(_simulation.Entities.GetTransform(state.Entity).Position, _aoiRecipientsScratch);
-                broadcastEq = _aoiRecipientsScratch.Count > 0;
+                if (_aoiRecipientsScratch.Count > 0)
+                {
+                    recipientsCopy = [.. _aoiRecipientsScratch];
+                }
             }
 
             this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
+            modifiedCopy = [.. _mutationSlotScratch];
         }
 
-        this.FlushMutationSlotsOutbound(connectionId);
+        this.SendSlotsOutbound(connectionId, modifiedCopy);
+        _outboundSink.SendPlayerStatsSync(connectionId, in statsSnap);
 
-        if (snapState is not null)
-        {
-            this.DispatchImmediateStatsSync(snapState, leveledUp);
-            snapState.LeveledUpPending = false;
-        }
-
-        if (broadcastEq)
+        if (recipientsCopy is not null)
         {
             _outboundSink.SendEntityEquipmentChanged(
-                CollectionsMarshal.AsSpan(_aoiRecipientsScratch),
+                recipientsCopy,
                 netId,
                 headId,
                 chestId,
@@ -408,8 +427,9 @@ public sealed partial class AuthoritativeWorld
     /// <inheritdoc/>
     public OpStatus TryDropInventoryItem(ulong connectionId, ushort slotIndex, int quantity)
     {
-        ActivePlayerState? snapState;
-        bool broadcastEq = false;
+        PlayerStatsSnapshot statsSnap;
+        ulong[]? recipientsCopy = null;
+        (ushort SlotIndex, ItemSlot Slot)[] modifiedCopy;
         ushort headId = 0, chestId = 0, legsId = 0, feetId = 0, weaponId = 0, level = 1;
         byte weaponUpg = 0;
         float maxHp = 0f;
@@ -446,7 +466,7 @@ public sealed partial class AuthoritativeWorld
             this.SpawnGroundLootLocked(playerPos + new Vector2(28f, 6f), in dropStack);
 
             this.RecomputeDerivedStatsLocked(state);
-            snapState = state;
+            statsSnap = this.BuildPlayerStatsSnapshotLocked(state, clearLevelUpPending: false);
             if (slotIndex >= PlayerInventoryLayout.BagLimit || slotIndex == state.Session.SelectedHotbarSlot)
             {
                 headId = (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.HeadSlot).ItemId;
@@ -460,23 +480,23 @@ public sealed partial class AuthoritativeWorld
                 maxHp = state.Stats.MaxHealth;
                 netId = state.Session.PlayerNetworkId;
                 this.CollectNearbyConnectionsAroundWorldLocked(playerPos, _aoiRecipientsScratch);
-                broadcastEq = _aoiRecipientsScratch.Count > 0;
+                if (_aoiRecipientsScratch.Count > 0)
+                {
+                    recipientsCopy = [.. _aoiRecipientsScratch];
+                }
             }
 
             this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
+            modifiedCopy = [.. _mutationSlotScratch];
         }
 
-        this.FlushMutationSlotsOutbound(connectionId);
+        this.SendSlotsOutbound(connectionId, modifiedCopy);
+        _outboundSink.SendPlayerStatsSync(connectionId, in statsSnap);
 
-        if (snapState is not null)
-        {
-            this.DispatchImmediateStatsSync(snapState, false);
-        }
-
-        if (broadcastEq)
+        if (recipientsCopy is not null)
         {
             _outboundSink.SendEntityEquipmentChanged(
-                CollectionsMarshal.AsSpan(_aoiRecipientsScratch),
+                recipientsCopy,
                 netId,
                 headId,
                 chestId,
@@ -506,11 +526,11 @@ public sealed partial class AuthoritativeWorld
         }
     }
 
-    private void FlushMutationSlotsOutbound(ulong connectionId)
+    private void SendSlotsOutbound(ulong connectionId, (ushort SlotIndex, ItemSlot Slot)[] slots)
     {
-        for (int i = 0; i < _mutationSlotScratch.Count; i++)
+        for (int i = 0; i < slots.Length; i++)
         {
-            (ushort idx, ItemSlot slot) = _mutationSlotScratch[i];
+            (ushort idx, ItemSlot slot) = slots[i];
             _outboundSink.SendInventorySlotChanged(
                 connectionId,
                 idx,
@@ -723,7 +743,7 @@ public sealed partial class AuthoritativeWorld
 
     private bool IsNearForgeStationLocked(Vector2 worldPos)
     {
-        if (this.HasNearbyFriendlyNpcLocked(worldPos, 175f * 175f))
+        if (this.HasNearbyNpcWithCapabilityLocked(worldPos, 175f * 175f, NpcCapabilities.ForgeArtisan))
         {
             return true;
         }

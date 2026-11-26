@@ -120,7 +120,7 @@ internal sealed class CraftingModalWidget
 
         if (GetCraft5ButtonRect(ox, oy).Contains(mousePos))
         {
-            if (StarterGameCatalog.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? rec) && CanCraftFromSpan(slots, rec))
+            if (StarterGameCatalog.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? rec) && CanCraftFromSpan(slots, rec, quantity: 5))
             {
                 craftRecipeId = _selectedRecipeId;
                 craftQuantity = 5;
@@ -147,7 +147,7 @@ internal sealed class CraftingModalWidget
                 continue;
             }
 
-            RectangleF rowRect = new(ox + 26f, oy + 84f + (shown * (CardRowH + 4f)), 326f, CardRowH);
+            RectangleF rowRect = new(ox + 26f, oy + 84f + (shown * (CardRowH + 4f)), 322f, CardRowH);
             if (rowRect.Contains(mousePos))
             {
                 _selectedRecipeId = (ushort)rec.Id;
@@ -267,6 +267,7 @@ internal sealed class CraftingModalWidget
             }
 
             bool ready = CanCraftFromSpan(slots, selectedRec);
+            bool ready5 = CanCraftFromSpan(slots, selectedRec, quantity: 5);
             RectangleF c1 = GetCraft1ButtonRect(ox, oy);
             RectangleF c5 = GetCraft5ButtonRect(ox, oy);
             skin.DrawButton(
@@ -277,8 +278,8 @@ internal sealed class CraftingModalWidget
             skin.DrawButton(
                 spriteBatch,
                 in c5,
-                ready ? new ColorRgba(180, 83, 9, 240) : new ColorRgba(24, 34, 52, 215),
-                ready ? new ColorRgba(253, 224, 71, 250) : new ColorRgba(71, 85, 105, 205));
+                ready5 ? new ColorRgba(180, 83, 9, 240) : new ColorRgba(24, 34, 52, 215),
+                ready5 ? new ColorRgba(253, 224, 71, 250) : new ColorRgba(71, 85, 105, 205));
         }
     }
 
@@ -417,8 +418,8 @@ internal sealed class CraftingModalWidget
             spriteBatch.DrawOutlinedString(font, $"{StarterGameCatalog.GetDisplayName(outId)} x{selectedRec.Output.Quantity}", new Vector2(ox + 464f, oy + 96f), new ColorRgba(250, 204, 21, 255), black, 1, 2f);
             spriteBatch.DrawOutlinedString(font, $"Owned in Bag: {owned}", new Vector2(ox + 464f, oy + 124f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
 
-            spriteBatch.DrawOutlinedString(font, FormatDetailedStats(outId), new Vector2(ox + 398f, oy + 162f), new ColorRgba(125, 211, 252, 255), black, 1, 1f);
-            spriteBatch.DrawOutlinedString(font, StarterGameCatalog.GetActionHint(outId), new Vector2(ox + 398f, oy + 182f), new ColorRgba(226, 232, 240, 255), black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, FormatDetailedStats(outId), 316f, 1f), new Vector2(ox + 398f, oy + 162f), new ColorRgba(125, 211, 252, 255), black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, StarterGameCatalog.GetActionHint(outId), 316f, 1f), new Vector2(ox + 398f, oy + 182f), new ColorRgba(226, 232, 240, 255), black, 1, 1f);
 
             spriteBatch.DrawOutlinedString(font, "REQUIRED INGREDIENTS", new Vector2(ox + 398f, oy + 224f), new ColorRgba(253, 224, 71, 255), black, 1, 1f);
             for (int k = 0; k < selectedRec.Ingredients.Count && k < 3; k++)
@@ -512,7 +513,7 @@ internal sealed class CraftingModalWidget
         int bagCount = Math.Min(PlayerInventoryLayout.BagLimit, slots.Length);
         for (int i = 0; i < bagCount; i++)
         {
-            if (slots[i].ItemId == itemId)
+            if (slots[i].ItemId == itemId && slots[i].UpgradeLevel == 0)
             {
                 total += slots[i].Quantity;
             }
@@ -521,12 +522,12 @@ internal sealed class CraftingModalWidget
         return total;
     }
 
-    private static bool CanCraftFromSpan(ReadOnlySpan<ItemSlot> slots, CraftingRecipe recipe)
+    private static bool CanCraftFromSpan(ReadOnlySpan<ItemSlot> slots, CraftingRecipe recipe, int quantity = 1)
     {
         for (int i = 0; i < recipe.Ingredients.Count; i++)
         {
             RecipeIngredient ing = recipe.Ingredients[i];
-            if (CountBagItem(slots, ing.ItemId) < ing.Quantity)
+            if (CountBagItem(slots, ing.ItemId) < ing.Quantity * quantity)
             {
                 return false;
             }

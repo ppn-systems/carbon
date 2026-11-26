@@ -89,23 +89,6 @@ internal sealed class NalixSessionTransportRegistry : ISessionTransportRegistry
             _ = _streamByDatagramId.TryRemove(cached.ConnectionId, out _);
         }
 
-        IConnectionHub? hub = this.ResolveHub();
-        if (hub is not null)
-        {
-            foreach (IConnection candidate in hub.ListConnections())
-            {
-                if (candidate is DatagramConnection dg &&
-                    !dg.IsDisposed &&
-                    dg.StreamConnectionId == streamConnectionId)
-                {
-                    _datagramByStreamId[streamConnectionId] = dg;
-                    _streamByDatagramId[dg.ConnectionId] = streamConnectionId;
-                    datagramConnection = dg;
-                    return true;
-                }
-            }
-        }
-
         datagramConnection = null;
         return false;
     }

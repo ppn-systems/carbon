@@ -142,9 +142,13 @@ internal sealed class MonsterTargetWidget
             ? new ColorRgba(253, 224, 71, 255)
             : new ColorRgba(254, 202, 202, 255);
 
-        spriteBatch.DrawOutlinedString(font, $"{levelPrefix}{_activeTarget.Name}{lockTag}", new Vector2(x + 70f, y + 12f), nameColor, black, 1, 1.5f);
-        TextMeasureResult subSize = font.MeasureString(subtitle, TextLayoutOptions.Default, 1f);
-        spriteBatch.DrawOutlinedString(font, subtitle, new Vector2(x + cardW - subSize.Width - 14f, y + 14f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
+        string safeSub = CarbonUiSkin.TruncateToWidth(font, subtitle, 108f, 1f);
+        TextMeasureResult subSize = font.MeasureString(safeSub, TextLayoutOptions.Default, 1f);
+        float maxNameWidth = MathF.Max(80f, cardW - 70f - subSize.Width - 22f);
+        string fullTitle = CarbonUiSkin.TruncateToWidth(font, $"{levelPrefix}{_activeTarget.Name}{lockTag}", maxNameWidth, 1.5f);
+
+        spriteBatch.DrawOutlinedString(font, fullTitle, new Vector2(x + 70f, y + 12f), nameColor, black, 1, 1.5f);
+        spriteBatch.DrawOutlinedString(font, safeSub, new Vector2(x + cardW - subSize.Width - 14f, y + 14f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
 
         int curHp = (int)MathF.Ceiling(_activeTarget.CurrentHealth);
         int maxHp = (int)MathF.Ceiling(MathF.Max(1f, _activeTarget.MaxHealth));

@@ -6,6 +6,9 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
+using Carbon.Contracts.Common;
+using Carbon.Contracts.Entities;
+using Carbon.Contracts.Identity;
 using Carbon.Desktop.Abstractions;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -45,10 +48,15 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
     private readonly List<ClientPropImpactEvent> _propImpactEvents = new(16);
     private readonly List<(int ChunkX, int ChunkY)> _dirtyChunks = new(16);
     private readonly List<string> _hudNotifications = new(16);
+    private readonly CharacterProgressionState _progression = new();
+    private readonly Dictionary<ushort, float> _skillCooldowns = new(8);
+    private readonly List<ushort> _cooldownKeyScratch = new(8);
     private readonly InventoryContainer _inventory = new(PlayerInventoryLayout.TotalCapacity);
     private readonly ClientPredictionReconciler _reconciler = new(128);
     private readonly SemaphoreSlim _connectGate = new(1, 1);
     private readonly Lock _worldGate = new();
+    private RemoteEntityView[] _cachedRemoteViews = [];
+    private bool _remoteViewsDirty = true;
 
     private TcpSession? _tcpSession;
     private DatagramSession? _udpSession;
@@ -84,18 +92,10 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
     private float _localStamina = 100f;
     private float _localMaxStamina = 100f;
     private float _localDefense = 2f;
-    private float _skill1Cd;
-    private float _skill2Cd;
-    private float _skill3Cd;
+    private HeroArchetypeClass _localClass = HeroArchetypeClass.Vanguard;
+    private CharacterTraits _localTraits = CharacterTraits.None;
     private ushort _unspentStatPoints;
     private ushort _unspentSkillPoints = 1;
-    private ushort _vitPoints;
-    private ushort _wisPoints;
-    private ushort _pwrPoints;
-    private ushort _agiPoints;
-    private byte _skill1Rank;
-    private byte _skill2Rank;
-    private byte _skill3Rank;
     private ushort _itemSeqId;
     private bool _wasMovingLastTick;
     private float _idleKeepAliveTimer;
@@ -172,13 +172,31 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
     public float LocalPlayerDefense => _localDefense;
 
     /// <inheritdoc/>
-    public float GetSkillCooldown(byte skillSlot) => skillSlot switch
+    public HeroArchetypeClass LocalPlayerClass => _localClass;
+
+    /// <inheritdoc/>
+    public CharacterTraits LocalCharacterTraits => _localTraits;
+
+    /// <inheritdoc/>
+    public CharacterSkillMask LocalUnlockedSkillMask
     {
-        1 => _skill1Cd,
-        2 => _skill2Cd,
-        3 => _skill3Cd,
-        _ => 0f,
-    };
+        get
+        {
+            lock (_worldGate)
+            {
+                return _progression.UnlockedSkillMask;
+            }
+        }
+    }
+
+    /// <inheritdoc/>
+    public float GetSkillCooldown(ushort skillId)
+    {
+        lock (_worldGate)
+        {
+            return _skillCooldowns.TryGetValue(skillId, out float cd) ? cd : 0f;
+        }
+    }
 
     /// <inheritdoc/>
     public ushort LocalUnspentStatPoints => _unspentStatPoints;
@@ -187,25 +205,22 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
     public ushort LocalUnspentSkillPoints => _unspentSkillPoints;
 
     /// <inheritdoc/>
-    public ushort LocalVitPoints => _vitPoints;
-
-    /// <inheritdoc/>
-    public ushort LocalWisPoints => _wisPoints;
-
-    /// <inheritdoc/>
-    public ushort LocalPwrPoints => _pwrPoints;
-
-    /// <inheritdoc/>
-    public ushort LocalAgiPoints => _agiPoints;
-
-    /// <inheritdoc/>
-    public byte GetSkillRank(byte skillSlot) => skillSlot switch
+    public ushort GetAttributePoints(PrimaryAttributeId attribute)
     {
-        1 => _skill1Rank,
-        2 => _skill2Rank,
-        3 => _skill3Rank,
-        _ => 0,
-    };
+        lock (_worldGate)
+        {
+            return _progression.GetAttribute(attribute);
+        }
+    }
+
+    /// <inheritdoc/>
+    public byte GetSkillRank(ushort skillId)
+    {
+        lock (_worldGate)
+        {
+            return _progression.GetSkillRank(skillId);
+        }
+    }
 
     /// <inheritdoc/>
     public byte SelectedHotbarSlot => _selectedSlot;
@@ -249,7 +264,7 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
     }
 
     /// <inheritdoc/>
-    public bool IsNearForgeStation(float maxDistance = 165f)
+    public bool IsNearForgeStation(float maxDistance = 175f)
     {
         if (!this.IsReady || _chunkWorld is null)
         {
@@ -263,7 +278,8 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
             foreach (KeyValuePair<ulong, RemoteEntityState> kvp in _remoteEntities)
             {
                 RemoteEntityState s = kvp.Value;
-                if (s.Kind == Contracts.Entities.EntityKind.Npc &&
+                if (s.Kind == EntityKind.Npc &&
+                    WorldActorCatalog.GetNpcSpec(s.ArchetypeId).Capabilities.HasFlag(NpcCapabilities.ForgeArtisan) &&
                     Vector2.DistanceSquared(playerPos, s.Position) <= maxDistSq)
                 {
                     return true;
@@ -297,12 +313,17 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
         {
             lock (_worldGate)
             {
+                if (!_remoteViewsDirty)
+                {
+                    return _cachedRemoteViews;
+                }
+
                 _remoteViewSnapshot.Clear();
                 double renderTime = Math.Max(0.0, _latestServerTime - InterpolationDelaySeconds);
                 foreach (KeyValuePair<ulong, RemoteEntityState> kvp in _remoteEntities)
                 {
                     RemoteEntityState s = kvp.Value;
-                    double sampleTime = s.Kind == Contracts.Entities.EntityKind.Projectile ? _latestServerTime : renderTime;
+                    double sampleTime = s.Kind == EntityKind.Projectile ? _latestServerTime : renderTime;
                     TransformSnapshot sampled = s.Interpolation.Count > 0
                         ? s.Interpolation.Sample(sampleTime, maxExtrapolationSeconds: 0.1f)
                         : new TransformSnapshot(0.0, s.Position, s.Velocity);
@@ -334,7 +355,9 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
                         s.ActiveActionKind));
                 }
 
-                return _remoteViewSnapshot;
+                _cachedRemoteViews = _remoteViewSnapshot.Count == 0 ? [] : [.. _remoteViewSnapshot];
+                _remoteViewsDirty = false;
+                return _cachedRemoteViews;
             }
         }
     }
@@ -380,21 +403,6 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
             _attackSwingTimer = MathF.Max(0f, _attackSwingTimer - fdt);
         }
 
-        if (_skill1Cd > 0f)
-        {
-            _skill1Cd = MathF.Max(0f, _skill1Cd - fdt);
-        }
-
-        if (_skill2Cd > 0f)
-        {
-            _skill2Cd = MathF.Max(0f, _skill2Cd - fdt);
-        }
-
-        if (_skill3Cd > 0f)
-        {
-            _skill3Cd = MathF.Max(0f, _skill3Cd - fdt);
-        }
-
         if (_localHitFlashTimer > 0f)
         {
             _localHitFlashTimer = MathF.Max(0f, _localHitFlashTimer - fdt);
@@ -415,6 +423,29 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
 
         lock (_worldGate)
         {
+            if (_skillCooldowns.Count > 0)
+            {
+                _cooldownKeyScratch.Clear();
+                foreach (KeyValuePair<ushort, float> kvp in _skillCooldowns)
+                {
+                    _cooldownKeyScratch.Add(kvp.Key);
+                }
+
+                for (int i = 0; i < _cooldownKeyScratch.Count; i++)
+                {
+                    ushort skillId = _cooldownKeyScratch[i];
+                    float nextCd = _skillCooldowns[skillId] - fdt;
+                    if (nextCd <= 0f)
+                    {
+                        _ = _skillCooldowns.Remove(skillId);
+                    }
+                    else
+                    {
+                        _skillCooldowns[skillId] = nextCd;
+                    }
+                }
+            }
+
             foreach (KeyValuePair<ulong, RemoteEntityState> kvp in _remoteEntities)
             {
                 RemoteEntityState rs = kvp.Value;
@@ -432,6 +463,8 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
                     rs.HitFlashTimer = MathF.Max(0f, rs.HitFlashTimer - fdt);
                 }
             }
+
+            _remoteViewsDirty = true;
 
             if (_lockedTargetNetworkId != 0UL &&
                 (!_remoteEntities.TryGetValue(_lockedTargetNetworkId, out RemoteEntityState? lockedState) ||
@@ -569,9 +602,12 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
             _localStamina = 100f;
             _localMaxStamina = 100f;
             _localDefense = 2f;
-            _skill1Cd = 0f;
-            _skill2Cd = 0f;
-            _skill3Cd = 0f;
+            _localClass = HeroArchetypeClass.Vanguard;
+            _localTraits = CharacterTraits.None;
+            _progression.Clear();
+            _skillCooldowns.Clear();
+            _cachedRemoteViews = [];
+            _remoteViewsDirty = true;
             _lockedTargetNetworkId = 0UL;
             _forgeFeedbackTimer = 0f;
             _lastForgeSucceeded = false;

@@ -35,7 +35,7 @@
       "archetypeId": 101,
       "id": "wild_slime",
       "title": "Wild Slime",
-      "subtitle": "LV.1 OOZE BEAST",
+      "subtitle": "OOZE BEAST",
       "level": 1,
       "accentColor": "#22C55E",
       "file": "monsters/wild_slime.cvg.json"
@@ -44,7 +44,7 @@
       "archetypeId": 102,
       "id": "rock_golem",
       "title": "Rock Golem",
-      "subtitle": "LV.3 STONE CONSTRUCT",
+      "subtitle": "STONE CONSTRUCT",
       "level": 3,
       "accentColor": "#F97316",
       "file": "monsters/rock_golem.cvg.json"
@@ -53,7 +53,7 @@
       "archetypeId": 103,
       "id": "frost_wolf",
       "title": "Frost Wolf",
-      "subtitle": "LV.2 FROST BEAST",
+      "subtitle": "FROST BEAST",
       "level": 2,
       "accentColor": "#38BDF8",
       "file": "monsters/frost_wolf.cvg.json"
@@ -62,7 +62,7 @@
       "archetypeId": 104,
       "id": "ash_wraith",
       "title": "Ash Wraith",
-      "subtitle": "LV.2 SPECTRAL FIEND",
+      "subtitle": "SPECTRAL FIEND",
       "level": 2,
       "accentColor": "#A855F7",
       "file": "monsters/ash_wraith.cvg.json"
@@ -71,7 +71,7 @@
       "archetypeId": 105,
       "id": "skeleton_archer",
       "title": "Skeleton Archer",
-      "subtitle": "LV.2 RANGED BOWMAN",
+      "subtitle": "RANGED BOWMAN",
       "level": 2,
       "accentColor": "#CBD5E1",
       "file": "monsters/skeleton_archer.cvg.json"
@@ -80,7 +80,7 @@
       "archetypeId": 106,
       "id": "orc_shaman",
       "title": "Orc Shaman",
-      "subtitle": "LV.5 HEX CASTER",
+      "subtitle": "HEX CASTER",
       "level": 5,
       "accentColor": "#A855F7",
       "file": "monsters/orc_shaman.cvg.json"
@@ -89,7 +89,7 @@
       "archetypeId": 107,
       "id": "crimson_demon",
       "title": "Crimson Demon",
-      "subtitle": "LV.8 ABYSSAL FIEND",
+      "subtitle": "ABYSSAL FIEND",
       "level": 8,
       "accentColor": "#EF4444",
       "file": "monsters/crimson_demon.cvg.json"

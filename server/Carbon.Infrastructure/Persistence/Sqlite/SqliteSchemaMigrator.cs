@@ -1,6 +1,8 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Buffers.Binary;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -50,16 +52,14 @@ public sealed class SqliteSchemaMigrator : IDatabaseMigrator
             max_mana             REAL    NOT NULL DEFAULT 80.0,
             current_stamina      REAL    NOT NULL DEFAULT 100.0,
             max_stamina          REAL    NOT NULL DEFAULT 100.0,
-            stat_vit             INTEGER NOT NULL DEFAULT 0,
-            stat_wis             INTEGER NOT NULL DEFAULT 0,
-            stat_pwr             INTEGER NOT NULL DEFAULT 0,
-            stat_agi             INTEGER NOT NULL DEFAULT 0,
-            skill1_rank          INTEGER NOT NULL DEFAULT 0,
-            skill2_rank          INTEGER NOT NULL DEFAULT 0,
-            skill3_rank          INTEGER NOT NULL DEFAULT 0
+            class_id             INTEGER NOT NULL DEFAULT 0,
+            character_flags      INTEGER NOT NULL DEFAULT 1,
+            skill_flags          INTEGER NOT NULL DEFAULT 0,
+            progression_blob     BLOB    NOT NULL DEFAULT X''
         );
 
         CREATE INDEX IF NOT EXISTS ix_characters_account_id ON characters(account_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_characters_lower_name ON characters(LOWER(name));
 
         CREATE TABLE IF NOT EXISTS world_chunk_deltas (
             chunk_x           INTEGER NOT NULL,
@@ -220,6 +220,200 @@ public sealed class SqliteSchemaMigrator : IDatabaseMigrator
             _ = await insertPts.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         }
 
+        bool hasExtMigration;
+        SqliteCommand checkExt = new("SELECT 1 FROM schema_migrations WHERE id = @id LIMIT 1;", conn, tx);
+        await using (ConfiguredAsyncDisposable checkExtScope = checkExt.ConfigureAwait(false))
+        {
+            _ = checkExt.Parameters.AddWithValue("@id", "0004_character_class_flags_progression_blob");
+            object? scalar = await checkExt.ExecuteScalarAsync(ct).ConfigureAwait(false);
+            hasExtMigration = scalar is not null && scalar != DBNull.Value;
+        }
+
+        if (!hasExtMigration)
+        {
+            HashSet<string> existingCols = new(StringComparer.OrdinalIgnoreCase);
+            SqliteCommand pragma = new("PRAGMA table_info(characters);", conn, tx);
+            await using (ConfiguredAsyncDisposable pragmaScope = pragma.ConfigureAwait(false))
+            {
+                SqliteDataReader colReader = await pragma.ExecuteReaderAsync(ct).ConfigureAwait(false);
+                await using ConfiguredAsyncDisposable colReaderScope = colReader.ConfigureAwait(false);
+                while (await colReader.ReadAsync(ct).ConfigureAwait(false))
+                {
+                    _ = existingCols.Add(colReader.GetString(1));
+                }
+            }
+
+            (string Col, string AlterSql)[] extMigrations =
+            [
+                ("class_id", "ALTER TABLE characters ADD COLUMN class_id INTEGER NOT NULL DEFAULT 0;"),
+                ("character_flags", "ALTER TABLE characters ADD COLUMN character_flags INTEGER NOT NULL DEFAULT 1;"),
+                ("skill_flags", "ALTER TABLE characters ADD COLUMN skill_flags INTEGER NOT NULL DEFAULT 0;"),
+                ("progression_blob", "ALTER TABLE characters ADD COLUMN progression_blob BLOB NOT NULL DEFAULT X'';"),
+            ];
+
+            for (int i = 0; i < extMigrations.Length; i++)
+            {
+                if (!existingCols.Contains(extMigrations[i].Col))
+                {
+                    SqliteCommand alter = new(extMigrations[i].AlterSql, conn, tx);
+                    await using ConfiguredAsyncDisposable alterScope = alter.ConfigureAwait(false);
+                    _ = await alter.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+                }
+            }
+
+            SqliteCommand idxCmd = new("CREATE UNIQUE INDEX IF NOT EXISTS ux_characters_lower_name ON characters(LOWER(name));", conn, tx);
+            await using (ConfiguredAsyncDisposable idxScope = idxCmd.ConfigureAwait(false))
+            {
+                _ = await idxCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            }
+
+            if (existingCols.Contains("stat_vit") && existingCols.Contains("skill1_rank"))
+            {
+                List<(string Id, long Flags, long SkillFlags, byte[] Blob)> updates = [];
+                SqliteCommand selectLegacy = new(
+                    "SELECT id, length(inventory_blob), stat_vit, stat_wis, stat_pwr, stat_agi, skill1_rank, skill2_rank, skill3_rank FROM characters WHERE length(progression_blob) = 0;",
+                    conn,
+                    tx);
+                await using (ConfiguredAsyncDisposable selectScope = selectLegacy.ConfigureAwait(false))
+                {
+                    SqliteDataReader r = await selectLegacy.ExecuteReaderAsync(ct).ConfigureAwait(false);
+                    await using ConfiguredAsyncDisposable rScope = r.ConfigureAwait(false);
+                    while (await r.ReadAsync(ct).ConfigureAwait(false))
+                    {
+                        string id = r.GetString(0);
+                        int invLen = await r.IsDBNullAsync(1, ct).ConfigureAwait(false) ? 0 : r.GetInt32(1);
+                        ushort vit = (ushort)Math.Max(0, r.GetInt32(2));
+                        ushort wis = (ushort)Math.Max(0, r.GetInt32(3));
+                        ushort pwr = (ushort)Math.Max(0, r.GetInt32(4));
+                        ushort agi = (ushort)Math.Max(0, r.GetInt32(5));
+                        byte s1 = (byte)Math.Clamp(r.GetInt32(6), 0, 5);
+                        byte s2 = (byte)Math.Clamp(r.GetInt32(7), 0, 5);
+                        byte s3 = (byte)Math.Clamp(r.GetInt32(8), 0, 5);
+
+                        byte[] blob = PackLegacyProgressionBlob(vit, wis, pwr, agi, s1, s2, s3, out long skillMask);
+                        long charFlags = invLen > 0 ? 1L : 0L;
+                        updates.Add((id, charFlags, skillMask, blob));
+                    }
+                }
+
+                for (int i = 0; i < updates.Count; i++)
+                {
+                    (string id, long charFlags, long skillMask, byte[] blob) = updates[i];
+                    SqliteCommand upd = new(
+                        "UPDATE characters SET character_flags = @cf, skill_flags = @sf, progression_blob = @pb WHERE id = @id;",
+                        conn,
+                        tx);
+                    await using ConfiguredAsyncDisposable updScope = upd.ConfigureAwait(false);
+                    _ = upd.Parameters.AddWithValue("@cf", charFlags);
+                    _ = upd.Parameters.AddWithValue("@sf", skillMask);
+                    _ = upd.Parameters.AddWithValue("@pb", blob);
+                    _ = upd.Parameters.AddWithValue("@id", id);
+                    _ = await upd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+                }
+            }
+
+            SqliteCommand insertExt = new("INSERT INTO schema_migrations (id, applied_utc) VALUES (@id, @utc);", conn, tx);
+            await using ConfiguredAsyncDisposable insertExtScope = insertExt.ConfigureAwait(false);
+            _ = insertExt.Parameters.AddWithValue("@id", "0004_character_class_flags_progression_blob");
+            _ = insertExt.Parameters.AddWithValue("@utc", DateTimeOffset.UtcNow.ToString("O"));
+            _ = await insertExt.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
         await tx.CommitAsync(ct).ConfigureAwait(false);
+    }
+
+    private static byte[] PackLegacyProgressionBlob(
+        ushort vit,
+        ushort wis,
+        ushort pwr,
+        ushort agi,
+        byte s1,
+        byte s2,
+        byte s3,
+        out long skillMask)
+    {
+        ulong mask = 0UL;
+        if (s1 > 0)
+        {
+            mask |= 1UL << 0;
+        }
+
+        if (s2 > 0)
+        {
+            mask |= 1UL << 1;
+        }
+
+        if (s3 > 0)
+        {
+            mask |= 1UL << 2;
+        }
+
+        skillMask = unchecked((long)mask);
+
+        if (vit == 0 && wis == 0 && pwr == 0 && agi == 0 && mask == 0UL)
+        {
+            return [];
+        }
+
+        List<(byte Attr, ushort Pts)> attrs = [];
+        if (vit > 0)
+        {
+            attrs.Add((0, vit));
+        }
+
+        if (wis > 0)
+        {
+            attrs.Add((1, wis));
+        }
+
+        if (pwr > 0)
+        {
+            attrs.Add((2, pwr));
+        }
+
+        if (agi > 0)
+        {
+            attrs.Add((3, agi));
+        }
+
+        List<(ushort SkillId, byte Rank)> skills = [];
+        if (s1 > 0)
+        {
+            skills.Add((1, s1));
+        }
+
+        if (s2 > 0)
+        {
+            skills.Add((2, s2));
+        }
+
+        if (s3 > 0)
+        {
+            skills.Add((3, s3));
+        }
+
+        byte[] buf = new byte[12 + (attrs.Count * 3) + (skills.Count * 3)];
+        Span<byte> span = buf;
+        span[0] = 1;
+        BinaryPrimitives.WriteUInt64LittleEndian(span.Slice(1, 8), mask);
+        span[9] = (byte)attrs.Count;
+        BinaryPrimitives.WriteUInt16LittleEndian(span.Slice(10, 2), (ushort)skills.Count);
+
+        int offset = 12;
+        for (int i = 0; i < attrs.Count; i++)
+        {
+            span[offset] = attrs[i].Attr;
+            BinaryPrimitives.WriteUInt16LittleEndian(span.Slice(offset + 1, 2), attrs[i].Pts);
+            offset += 3;
+        }
+
+        for (int i = 0; i < skills.Count; i++)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(span.Slice(offset, 2), skills[i].SkillId);
+            span[offset + 2] = skills[i].Rank;
+            offset += 3;
+        }
+
+        return buf;
     }
 }

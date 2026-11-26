@@ -56,6 +56,26 @@ public readonly record struct ScaledMonsterStats(
     float ProjectileSpeed = 0f,
     byte ProjectileArchetype = 0);
 
+/// <summary>Capability flags governing NPC services such as forging and healing shrines.</summary>
+[Flags]
+public enum NpcCapabilities : byte
+{
+    /// <summary>Standard dialogue or patrol NPC.</summary>
+    None = 0,
+
+    /// <summary>Town guard providing equipment mending.</summary>
+    TownGuard = 1 << 0,
+
+    /// <summary>Master artisan unlocking nearby Gear Enhancement Forging.</summary>
+    ForgeArtisan = 1 << 1,
+
+    /// <summary>Harbour logistics NPC.</summary>
+    Harbour = 1 << 2,
+
+    /// <summary>Sanctuary healing shrine keeper.</summary>
+    Shrine = 1 << 3,
+}
+
 /// <summary>
 /// Immutable specification for a friendly town NPC archetype.
 /// </summary>
@@ -63,7 +83,8 @@ public readonly record struct NpcArchetypeSpec(
     ushort ArchetypeId,
     string Name,
     byte Level,
-    float Radius);
+    float Radius,
+    NpcCapabilities Capabilities = NpcCapabilities.None);
 
 /// <summary>
 /// Centralized Native-AOT catalog defining monster archetypes, zone scaling, and friendly NPC metadata.
@@ -110,16 +131,16 @@ public static class WorldActorCatalog
         new(FrostWolf, "Frost Wolf", BaseLevel: 2, BaseMaxHealth: 95f, MoveSpeed: 168f, Radius: 8.5f, BaseAttackDamage: 12f, WindupTicks: 6U, StarterGameCatalog.StoneChunk, 2, 3),
         new(AshWraith, "Ash Wraith", BaseLevel: 4, BaseMaxHealth: 110f, MoveSpeed: 148f, Radius: 8.5f, BaseAttackDamage: 14f, WindupTicks: 10U, StarterGameCatalog.ManaCrystal, 1, 2, AttackRange: 215f, ProjectileSpeed: 340f, ProjectileArchetype: 4),
         new(SkeletonArcher, "Skeleton Archer", BaseLevel: 2, BaseMaxHealth: 85f, MoveSpeed: 142f, Radius: 8f, BaseAttackDamage: 13f, WindupTicks: 9U, StarterGameCatalog.WoodLog, 2, 4, AttackRange: 235f, ProjectileSpeed: 390f, ProjectileArchetype: 5),
-        new(OrcShaman, "Orc Shaman", BaseLevel: 5, BaseMaxHealth: 165f, MoveSpeed: 140f, Radius: 9.0f, BaseAttackDamage: 22f, WindupTicks: 10U, StarterGameCatalog.ManaCrystal, 1, 2, AttackRange: 195f, ProjectileSpeed: 360f, ProjectileArchetype: 2),
+        new(OrcShaman, "Orc Shaman", BaseLevel: 5, BaseMaxHealth: 165f, MoveSpeed: 140f, Radius: 9.0f, BaseAttackDamage: 22f, WindupTicks: 10U, StarterGameCatalog.ManaCrystal, 1, 2, AttackRange: 195f, ProjectileSpeed: 360f, ProjectileArchetype: 6),
         new(CrimsonDemon, "Crimson Demon", BaseLevel: 8, BaseMaxHealth: 310f, MoveSpeed: 158f, Radius: 10.5f, BaseAttackDamage: 34f, WindupTicks: 8U, StarterGameCatalog.RoastMeat, 1, 2, AttackRange: 44f),
     ];
 
     private static readonly NpcArchetypeSpec[] s_npcs =
     [
-        new(VillageGuard, "Village Guard", Level: 10, Radius: 8f),
-        new(HarbourMaster, "Harbour Master", Level: 8, Radius: 8f),
-        new(ShrineKeeper, "Shrine Keeper", Level: 12, Radius: 8f),
-        new(MasterBlacksmith, "Master Blacksmith", Level: 15, Radius: 8.5f),
+        new(VillageGuard, "Village Guard", Level: 10, Radius: 8f, NpcCapabilities.TownGuard),
+        new(HarbourMaster, "Harbour Master", Level: 8, Radius: 8f, NpcCapabilities.Harbour),
+        new(ShrineKeeper, "Shrine Keeper", Level: 12, Radius: 8f, NpcCapabilities.Shrine),
+        new(MasterBlacksmith, "Master Blacksmith", Level: 15, Radius: 8.5f, NpcCapabilities.ForgeArtisan),
     ];
 
     /// <summary>Resolves static baseline specs for <paramref name="archetypeId"/> (defaults to <see cref="WildSlime"/>).</summary>

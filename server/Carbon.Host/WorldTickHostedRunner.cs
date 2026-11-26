@@ -46,7 +46,18 @@ internal sealed class WorldTickHostedRunner
                 if (ticksSinceFlush >= _flushEveryTicks)
                 {
                     ticksSinceFlush = 0;
-                    await _world.FlushDirtyPersistenceAsync(ct).ConfigureAwait(false);
+                    try
+                    {
+                        await _world.FlushDirtyPersistenceAsync(ct).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex) when (ex is not OutOfMemoryException)
+                    {
+                        _logger.LogError(ex, "Periodic persistence flush failed; will retry on next interval.");
+                    }
                 }
             }
         }

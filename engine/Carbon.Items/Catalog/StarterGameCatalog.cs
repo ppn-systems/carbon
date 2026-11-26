@@ -116,15 +116,15 @@ public static class StarterGameCatalog
         new ItemArchetype(
             WoodAxe, "wood_axe", ItemCategory.Tool, MaxStackSize: 1, EquipmentSlotKind.Tool, HarvestTier: 1, MaxDurability: 120f,
             DisplayName: "Wood Axe", BaseDamage: 16f, FloraHarvestDamage: 55f, MineralHarvestDamage: 26f,
-            ActionHint: "Tier 1 Axe | Chop Trees (55 dmg)"),
+            ActionHint: "Tier 1 Axe | Chop Trees (55 dmg)", Capabilities: ToolCapabilities.ChopFlora),
         new ItemArchetype(
             StonePickaxe, "stone_pickaxe", ItemCategory.Tool, MaxStackSize: 1, EquipmentSlotKind.Tool, HarvestTier: 2, MaxDurability: 160f,
             DisplayName: "Stone Pick", BaseDamage: 18f, FloraHarvestDamage: 38f, MineralHarvestDamage: 68f,
-            ActionHint: "Tier 2 Pick | Mine Stone/Ore (68 dmg)"),
+            ActionHint: "Tier 2 Pick | Mine Stone/Ore (68 dmg)", Capabilities: ToolCapabilities.MineMineral),
         new ItemArchetype(
             IronSword, "iron_sword", ItemCategory.Weapon, MaxStackSize: 1, EquipmentSlotKind.MainHand, HarvestTier: 0, MaxDurability: 200f,
             DisplayName: "Iron Sword", BaseDamage: 34f, CritChance: 0.20f, FloraHarvestDamage: 28f, MineralHarvestDamage: 16f,
-            ActionHint: "Melee Blade | Combat 34 dmg (+Crit) | Not for Wood/Stone"),
+            ActionHint: "Melee Blade | Combat 34 dmg (+Crit) | Not for Wood/Stone", Capabilities: ToolCapabilities.MeleeWeapon),
         new ItemArchetype(
             WoodLog, "wood_log", ItemCategory.Resource, MaxStackSize: 99,
             DisplayName: "Wood Log", ActionHint: "Material | Craft Walls, Doors & Tools [C]"),
@@ -152,7 +152,7 @@ public static class StarterGameCatalog
         new ItemArchetype(
             CrystalPickaxe, "crystal_pickaxe", ItemCategory.Tool, MaxStackSize: 1, EquipmentSlotKind.Tool, HarvestTier: 3, MaxDurability: 250f,
             DisplayName: "Crys.Pick", BaseDamage: 24f, FloraHarvestDamage: 60f, MineralHarvestDamage: 95f,
-            ActionHint: "Tier 3 Pick | Mine All Crystal/Gold (95 dmg)"),
+            ActionHint: "Tier 3 Pick | Mine All Crystal/Gold (95 dmg)", Capabilities: ToolCapabilities.MineMineral),
         new ItemArchetype(
             LeatherCap, "leather_cap", ItemCategory.Armor, MaxStackSize: 1, EquipmentSlotKind.Head, MaxDurability: 120f,
             DisplayName: "Leather Cap", ArmorDefense: 3f, BonusMana: 10f,
@@ -200,19 +200,19 @@ public static class StarterGameCatalog
         new ItemArchetype(
             HuntingBow, "hunting_bow", ItemCategory.Weapon, MaxStackSize: 1, EquipmentSlotKind.MainHand, HarvestTier: 0, MaxDurability: 180f,
             DisplayName: "Hunt Bow", BaseDamage: 26f, CritChance: 0.22f, FloraHarvestDamage: 12f, MineralHarvestDamage: 0f,
-            ActionHint: "Ranged Bow | Shoot Arrows (26 dmg, 290 range)", AttackRange: 290f, ProjectileSpeed: 520f, ProjectileArchetype: 1),
+            ActionHint: "Ranged Bow | Shoot Arrows (26 dmg, 290 range)", AttackRange: 290f, ProjectileSpeed: 520f, ProjectileArchetype: 1, Capabilities: ToolCapabilities.RangedBow),
         new ItemArchetype(
             ArcaneStaff, "arcane_staff", ItemCategory.Weapon, MaxStackSize: 1, EquipmentSlotKind.MainHand, HarvestTier: 0, MaxDurability: 190f,
             DisplayName: "Arc.Staff", BaseDamage: 31f, CritChance: 0.18f, FloraHarvestDamage: 10f, MineralHarvestDamage: 0f, BonusMana: 30f,
-            ActionHint: "Mage Staff | Arcane Bolt (31 dmg, 4 MP, +30 MaxMP)", AttackRange: 275f, ProjectileSpeed: 460f, ProjectileArchetype: 2, AttackManaCost: 4f),
+            ActionHint: "Mage Staff | Arcane Bolt (31 dmg, 4 MP, +30 MaxMP)", AttackRange: 275f, ProjectileSpeed: 460f, ProjectileArchetype: 2, AttackManaCost: 4f, Capabilities: ToolCapabilities.MagicFocus),
         new ItemArchetype(
             CrystalBow, "crystal_bow", ItemCategory.Weapon, MaxStackSize: 1, EquipmentSlotKind.MainHand, HarvestTier: 0, MaxDurability: 250f,
             DisplayName: "Crys.Bow", BaseDamage: 38f, CritChance: 0.25f, FloraHarvestDamage: 14f, MineralHarvestDamage: 0f,
-            ActionHint: "Tier 3 Bow | Prism Arrows (38 dmg, 320 range)", AttackRange: 320f, ProjectileSpeed: 580f, ProjectileArchetype: 3),
+            ActionHint: "Tier 3 Bow | Prism Arrows (38 dmg, 320 range)", AttackRange: 320f, ProjectileSpeed: 580f, ProjectileArchetype: 3, Capabilities: ToolCapabilities.RangedBow),
         new ItemArchetype(
             CrystalStaff, "crystal_staff", ItemCategory.Weapon, MaxStackSize: 1, EquipmentSlotKind.MainHand, HarvestTier: 0, MaxDurability: 260f,
             DisplayName: "Crys.Staff", BaseDamage: 44f, CritChance: 0.22f, FloraHarvestDamage: 12f, MineralHarvestDamage: 0f, BonusMana: 50f,
-            ActionHint: "Archmage Staff | Astral Bolt (44 dmg, 6 MP, +50 MaxMP)", AttackRange: 300f, ProjectileSpeed: 500f, ProjectileArchetype: 2, AttackManaCost: 6f),
+            ActionHint: "Archmage Staff | Astral Bolt (44 dmg, 6 MP, +50 MaxMP)", AttackRange: 300f, ProjectileSpeed: 500f, ProjectileArchetype: 2, AttackManaCost: 6f, Capabilities: ToolCapabilities.MagicFocus),
         new ItemArchetype(
             ForgeAnvilKit, "forge_anvil", ItemCategory.Placeable, MaxStackSize: 20, PlaceableStructureType: 8,
             DisplayName: "Forge Anvil",
@@ -227,12 +227,12 @@ public static class StarterGameCatalog
             ActionHint: "Mystic Pastry | Use: +30 HP & +60 MP"),
         new ItemArchetype(
             DemonCleaver, "demon_cleaver", ItemCategory.Weapon, MaxStackSize: 1, EquipmentSlotKind.MainHand, HarvestTier: 0, MaxDurability: 300f,
-            DisplayName: "Dmn.Cleaver", BaseDamage: 52f, CritChance: 0.24f, FloraHarvestDamage: 24f, MineralHarvestDamage: 12f, AttackRange: 58f,
-            ActionHint: "Abyssal Blade | Heavy Cleave (52 dmg, 24% Crit)"),
+            DisplayName: "Dmn.Cleaver", BaseDamage: 52f, CritChance: 0.24f, FloraHarvestDamage: 24f, MineralHarvestDamage: 12f, AttackRange: 62f,
+            ActionHint: "Abyssal Blade | Heavy Cleave (52 dmg, 24% Crit)", Capabilities: ToolCapabilities.MeleeWeapon),
         new ItemArchetype(
             ShamanStaff, "shaman_staff", ItemCategory.Weapon, MaxStackSize: 1, EquipmentSlotKind.MainHand, HarvestTier: 0, MaxDurability: 230f,
             DisplayName: "Hex Staff", BaseDamage: 38f, CritChance: 0.20f, FloraHarvestDamage: 10f, MineralHarvestDamage: 0f, BonusMana: 40f,
-            ActionHint: "Shaman Focus | Hex Bolt (38 dmg, 5 MP, +40 MaxMP)", AttackRange: 290f, ProjectileSpeed: 480f, ProjectileArchetype: 2, AttackManaCost: 5f),
+            ActionHint: "Shaman Focus | Hex Bolt (38 dmg, 5 MP, +40 MaxMP)", AttackRange: 290f, ProjectileSpeed: 480f, ProjectileArchetype: 6, AttackManaCost: 5f, Capabilities: ToolCapabilities.MagicFocus),
     ]);
 
     /// <summary>Gets all registered crafting recipes indexed by ID (1..26).</summary>
@@ -325,27 +325,19 @@ public static class StarterGameCatalog
             inventory.SetSlot(6, new ItemSlot(ManaTonic, startingClass == 2 ? 6 : 3));
         }
 
-        if (startingClass is 1 or 2)
+        if (inventory.Capacity > PlayerInventoryLayout.HeadSlot)
         {
-            if (inventory.Capacity > PlayerInventoryLayout.HeadSlot)
-            {
-                inventory.SetSlot(PlayerInventoryLayout.HeadSlot, new ItemSlot(LeatherCap, 1, 0, 120f));
-            }
-
-            if (inventory.Capacity > PlayerInventoryLayout.ChestSlot)
-            {
-                inventory.SetSlot(PlayerInventoryLayout.ChestSlot, new ItemSlot(LeatherTunic, 1, 0, 150f));
-            }
-
-            if (inventory.Capacity > PlayerInventoryLayout.FeetSlot)
-            {
-                inventory.SetSlot(PlayerInventoryLayout.FeetSlot, new ItemSlot(LeatherBoots, 1, 0, 120f));
-            }
+            inventory.SetSlot(PlayerInventoryLayout.HeadSlot, new ItemSlot(LeatherCap, 1, 0, 120f));
         }
-        else if (inventory.Capacity > 10)
+
+        if (inventory.Capacity > PlayerInventoryLayout.ChestSlot)
         {
-            inventory.SetSlot(9, new ItemSlot(LeatherTunic, 1, 0, 150f));
-            inventory.SetSlot(10, new ItemSlot(LeatherBoots, 1, 0, 120f));
+            inventory.SetSlot(PlayerInventoryLayout.ChestSlot, new ItemSlot(LeatherTunic, 1, 0, 150f));
+        }
+
+        if (inventory.Capacity > PlayerInventoryLayout.FeetSlot)
+        {
+            inventory.SetSlot(PlayerInventoryLayout.FeetSlot, new ItemSlot(LeatherBoots, 1, 0, 120f));
         }
     }
 

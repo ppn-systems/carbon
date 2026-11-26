@@ -12,6 +12,7 @@ using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.Batching.Sprites;
 using Carbon.Graphics.Fonts.Layout;
 using Carbon.Graphics.Fonts.Rendering;
+using Carbon.Items.Catalog;
 
 namespace Carbon.Desktop.Rendering.Overlays;
 
@@ -165,7 +166,7 @@ internal sealed class WorldEntityOverlayRenderer
 
             if (!string.IsNullOrEmpty(r.Name))
             {
-                string displayName = FormatEntityTitle(in r);
+                string displayName = FormatDisplayTitle(in r, distSq);
                 TextMeasureResult measure = font.MeasureString(displayName, TextLayoutOptions.Default, 1f);
                 float pillW = measure.Width + 10f;
                 float pillX = MathF.Floor(screenPt.X - (pillW * 0.5f));
@@ -241,12 +242,7 @@ internal sealed class WorldEntityOverlayRenderer
                 : r.Kind == EntityKind.Npc
                     ? new ColorRgba(253, 224, 71, 255)
                     : new ColorRgba(110, 231, 183, 255);
-            string displayName = FormatEntityTitle(in r);
-            if (r.Kind == EntityKind.Npc && r.ArchetypeId == 204 && distSq <= (165f * 165f))
-            {
-                displayName = $"{r.Name} [U/E: FORGE]";
-            }
-
+            string displayName = FormatDisplayTitle(in r, distSq);
             TextMeasureResult measure = font.MeasureString(displayName, TextLayoutOptions.Default, 1f);
             Vector2 labelPos = new(MathF.Floor(screenPt.X - (measure.Width * 0.5f)), nameY);
             spriteBatch.DrawOutlinedString(font, displayName, labelPos, labelColor, outline, 1, 1f);
@@ -316,7 +312,7 @@ internal sealed class WorldEntityOverlayRenderer
             }
         }
 
-        float fallback = remote.Kind == EntityKind.Monster && remote.ArchetypeId == 102 ? 40f : 30f;
+        float fallback = MathF.Max(28f, remote.Radius * 3.5f);
         return fallback * zoom;
     }
 
@@ -361,10 +357,19 @@ internal sealed class WorldEntityOverlayRenderer
         batch.FillConvexPolygon(inner, fill);
     }
 
-    private static string FormatEntityTitle(in RemoteEntityView r) =>
-        (r.Kind is EntityKind.Monster or EntityKind.Player) && r.Level > 0
+    private static string FormatDisplayTitle(in RemoteEntityView r, float distSq)
+    {
+        if (r.Kind == EntityKind.Npc &&
+            WorldActorCatalog.GetNpcSpec(r.ArchetypeId).Capabilities.HasFlag(NpcCapabilities.ForgeArtisan) &&
+            distSq <= (175f * 175f))
+        {
+            return $"{r.Name} [U/E: FORGE]";
+        }
+
+        return (r.Kind is EntityKind.Monster or EntityKind.Player) && r.Level > 0
             ? $"Lv.{r.Level} {r.Name}"
             : r.Name;
+    }
 
     private static string FormatLootLabel(in RemoteEntityView r)
     {
