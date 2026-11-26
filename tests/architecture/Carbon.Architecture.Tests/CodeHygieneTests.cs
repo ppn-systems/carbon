@@ -56,6 +56,9 @@ public sealed partial class CodeHygieneTests
         // Read-only after static construction. Audit: convert to FrozenDictionary and drop this entry.
         "Carbon.Maps.Landmarks.LandmarkPlanners.s_planners",
 
+        // Read-only item-code index added in #16 (building, owned by a parallel agent). Audit: FrozenDictionary.
+        "Carbon.Application.World.AuthoritativeWorld.s_itemIdsByCode",
+
         // --- Debt (see docs/audit/2026-11-codebase-audit.md) ---
         // Nalix [Inject] static service-locator fields on packet handler classes. Audit: instance handlers + DI.
         "Carbon.Handlers.Entities.EntityHandlers.s_transports",

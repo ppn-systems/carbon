@@ -2,7 +2,7 @@
 
 | Field | Value |
 | :--- | :--- |
-| **Audited commit** | `6d6dfac` (master, PR #12). PRs #13, #17 and #18, merged afterwards, are covered by the automated guards but were not manually re-audited; line numbers in files they touched may have shifted. |
+| **Audited commit** | `6d6dfac` (master, PR #12). PRs #13, #16, #17 and #18, merged afterwards, are covered by the automated guards but were not manually re-audited; line numbers in files they touched may have shifted. |
 | **Scope** | `contracts/`, `engine/`, `server/`, `desktop/`, `graphics/`, `tests/` (~79k lines C#, 31 production projects, 15 test projects) |
 | **Method** | Manual read-through per layer against AGENTS.md, ADR-001…ADR-010, and the `csharp-style`, `carbon-engine-ecs`, `performance-aot`, `testing-style`, `carbon-handlers` skills; plus the reflection/metadata guards in `tests/architecture/Carbon.Architecture.Tests` |
 | **Status** | Report only. No production code changed in this PR (economy, combat/AI, survival, building, config sync, and biome rendering are being changed in parallel). |
@@ -117,7 +117,7 @@ Guarded by `EngineDesignTests`. Components (`*.Components` namespaces or `*Compo
 
 ## 6. Thread safety
 
-Guarded by `CodeHygieneTests`: no `async void` anywhere (none today), and no static mutable state in engine/server. 21 fields are allowlisted with reasons (type-id counters, `[ThreadStatic]` scratch, `[Inject]` statics, auth map, river caches).
+Guarded by `CodeHygieneTests`: no `async void` anywhere (none today), and no static mutable state in engine/server. 22 fields are allowlisted with reasons (type-id counters, `[ThreadStatic]` scratch, `[Inject]` statics, auth map, river caches, read-only lookup tables that should become `FrozenDictionary`).
 
 | ID | Sev | Finding | Fix |
 | :--- | :--- | :--- | :--- |
@@ -217,7 +217,7 @@ Project: `tests/architecture/Carbon.Architecture.Tests` · Solution: `tests/Carb
 | :--- | :--- | :--- |
 | `LayerDependencyTests` | Layer graph per AGENTS.md rule 3 (contracts → nothing; engine → contracts; graphics → contracts/engine; server never → graphics/desktop; desktop never → server), checked on both `.csproj` and compiled metadata. Restricted packages stay in their layer. Every production project must be referenced by the architecture test project. | none |
 | `EngineDesignTests` | ECS components are unmanaged structs with no behavior methods. Public engine classes are sealed/abstract/static unless they are inherited. | 2 allowlisted (ECS-5, ECS-5b) |
-| `CodeHygieneTests` | No `async void` in any production assembly. No static mutable state in engine/server (non-readonly statics, or `static readonly` mutable collections). Namespace = RootNamespace + folder path for all 454 source files. | 21 statics allowlisted with reasons |
+| `CodeHygieneTests` | No `async void` in any production assembly. No static mutable state in engine/server (non-readonly statics, or `static readonly` mutable collections). Namespace = RootNamespace + folder path for all 454 source files. | 22 statics allowlisted with reasons |
 | `ResourceTests` | Every `resources/**/*.json` parses strictly. `resources/art` loads through the real `CarbonVectorArtLibrary.LoadFromDirectory`. Every `.cvg.json` is referenced by the catalog (otherwise it is never validated), and every reference exists. Raster images only under `resources/ui` and `resources/fonts`. Nothing under `resources/thirdparty`. | none |
 | `ServerAuthorityTests` | Desktop must not use *new* engine balance types (`StarterGameCatalog`, `SkillCatalog`, …). No *new* gameplay-named numeric `const`/`static readonly` (speed, damage, cooldown, price, …) in desktop. Heuristic. | 36 usages + 3 constants allowlisted (SA-1, SA-3) |
 
