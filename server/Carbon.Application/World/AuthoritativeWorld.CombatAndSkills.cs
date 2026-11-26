@@ -39,7 +39,7 @@ public sealed partial class AuthoritativeWorld
 
         if (state.PendingAttackAbility < 9 && state.PendingAttackAbility != state.Session.SelectedHotbarSlot)
         {
-            byte tier = this.ResolveSlotHarvestTier(state.Inventory, state.PendingAttackAbility);
+            byte tier = _inventory.ResolveHarvestTier(state.Inventory, state.PendingAttackAbility);
             state.Session = state.Session with { SelectedHotbarSlot = state.PendingAttackAbility, SelectedHarvestTier = tier };
             this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
         }

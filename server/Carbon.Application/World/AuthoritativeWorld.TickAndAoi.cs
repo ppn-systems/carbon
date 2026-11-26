@@ -83,7 +83,7 @@ public sealed partial class AuthoritativeWorld
 
                 if (state.PendingPickupLootId != 0UL)
                 {
-                    _ = this.TryPickupSpecificLootLocked(state, state.PendingPickupLootId, 84f * 84f);
+                    _ = _inventory.TryPickup(state, state.PendingPickupLootId, 84f * 84f);
                     state.PendingPickupLootId = 0UL;
                 }
             }
@@ -209,7 +209,7 @@ public sealed partial class AuthoritativeWorld
                 }
 
                 // Auto-collect nearby stackable/bag ground loot within 32px after brief drop grace period.
-                this.CollectNearbyGroundLootLocked(observer, obsPos);
+                _inventory.CollectNearbyGroundLoot(observer, obsPos);
 
                 if (observer.StatsDirty || (_currentTick % 10UL) == 0UL)
                 {

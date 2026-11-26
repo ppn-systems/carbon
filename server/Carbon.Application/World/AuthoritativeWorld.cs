@@ -9,6 +9,7 @@ using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
 using Carbon.Application.World.Commands;
 using Carbon.Application.World.Construction;
+using Carbon.Application.World.Inventory;
 using Carbon.Application.World.Loot;
 using Carbon.Application.World.Needs;
 using Carbon.Application.World.Players;
@@ -72,6 +73,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly ProceduralWorldGenerator _generator;
     private readonly ChunkWorld2D _chunkWorld;
     private readonly ConstructionService _construction;
+    private readonly InventoryService _inventory;
     private readonly PlayerMaterialAdapter _playerMaterials;
     private readonly WorldSimulation _simulation;
     private readonly AoiReplicator _replication;
@@ -103,7 +105,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     // Outbound replication, staged under _gate during the tick and dispatched after it (OutboundTickBuffer).
     private readonly OutboundTickBuffer _outbound = new();
     private readonly List<ulong> _aoiRecipientsScratch = new(64);
-    private readonly List<ulong> _staleLootScratch = new(32);
     private readonly List<(ushort SlotIndex, ItemSlot Slot)> _mutationSlotScratch = new(8);
     private readonly List<(ushort SlotIndex, ItemSlot Slot)> _spoiledSlotsScratch = new(8);
     private readonly List<(int TileX, int TileY, uint Revision, float MaxDurability)> _respawnedPropsScratch = new(16);
@@ -189,6 +190,18 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _dirtyChunks,
             this.AppendTileRecipientsLocked,
             (pos, item) => this.SpawnGroundLootLocked(pos, in item));
+        _inventory = new InventoryService(
+            _simulation,
+            _chunkWorld.Buildings,
+            this.TileSize,
+            this.WorldSeed,
+            () => _itemRules,
+            () => _economy,
+            () => _currentTick,
+            this.HasNearbyNpcWithCapabilityLocked,
+            _groundLoot,
+            _outbound,
+            state => this.MarkCharacterDirtyLocked(state, inventoryChanged: true));
         _projectiles = new ProjectileService(_simulation, _chunkWorld, MonsterLayer, () => ++_nextNetworkId, new ProjectileHits(this));
 
         _needs = new NeedsService(
@@ -385,7 +398,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _simulation.Entities.SetHealth(entity, new HealthComponent(startHp, stats.MaxHealth));
             _simulation.Entities.SetComponent(entity, _needs.Restore(character));
 
-            byte harvestTier = this.ResolveSlotHarvestTier(inventory, selectedSlot);
+            byte harvestTier = _inventory.ResolveHarvestTier(inventory, selectedSlot);
 
             ConnectedPlayerSession session = new(
                 sessionId,
@@ -1074,7 +1087,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         return remTicks > 0U ? (float)remTicks / this.TickRate : 0f;
     }
 
-    private static ulong HashChunk(ulong seed, int cx, int cy)
+    internal static ulong HashChunk(ulong seed, int cx, int cy)
     {
         ulong x = seed ^ ((uint)cx * 0x9E3779B97F4A7C15UL) ^ ((uint)cy * 0xBF58476D1CE4E5B9UL);
         x ^= x >> 30;

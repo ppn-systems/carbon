@@ -22,9 +22,10 @@ public sealed class ClassSizeTests
     /// <c>GroundLootService</c>; 5,517 after extracting <c>OutboundTickBuffer</c>; 5,376 after extracting
     /// <c>ProjectileService</c>; 5,174 after extracting <c>NeedsService</c>; 4,831 after extracting
     /// <c>ConstructionService</c>; 4,714 after extracting <c>AoiReplicator</c>; 4,694 after extracting
-    /// <c>WorldCommandExecutor</c>; 4,639 after moving the player state to <c>PlayerState</c> / <c>PlayerRegistry</c>.
+    /// <c>WorldCommandExecutor</c>; 4,639 after moving the player state to <c>PlayerState</c> / <c>PlayerRegistry</c>;
+    /// 4,277 after extracting <c>InventoryService</c>.
     /// </summary>
-    private const int MaxAuthoritativeWorldLines = 4_639;
+    private const int MaxAuthoritativeWorldLines = 4_277;
 
     [Fact]
     public void AuthoritativeWorld_ShouldNotGainPartialFiles()
