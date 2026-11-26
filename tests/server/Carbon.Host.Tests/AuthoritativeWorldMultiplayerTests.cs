@@ -11,6 +11,7 @@ using Carbon.Abstractions.World;
 using Carbon.Application.World;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
+using Carbon.Contracts.Entities.S2C;
 using Carbon.Contracts.Identity;
 using Carbon.Economy;
 using Carbon.Infrastructure.Persistence.Sqlite;
@@ -859,6 +860,71 @@ public sealed class AuthoritativeWorldMultiplayerTests
         }
     }
 
+    [Fact]
+    public async Task NeedsPersistence_SurvivesLogoutAndMigration_AndLegacyCharactersSpawnFed()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-needs-persist-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            SqliteSchemaMigrator migrator = new(factory);
+            await migrator.MigrateAsync().ConfigureAwait(true);
+            await migrator.MigrateAsync().ConfigureAwait(true); // idempotent re-run keeps 0006_character_needs applied once
+
+            SqliteAccountStore accounts = new(factory);
+            SqliteCharacterStore characters = new(factory);
+            Guid accountId = Guid.NewGuid();
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            (await accounts.TryCreateAsync(new AccountRecord(accountId, "hungry", "HUNGRY", [1, 2, 3], [4, 5, 6], now, false)).ConfigureAwait(true)).Should().BeTrue();
+
+            RecordingOutboundSink sink = new();
+            AuthoritativeWorld world = CreateSurvivalWorld(factory, sink, new NeedsConfig(), out _, out _);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+            CharacterRecord famished = new(
+                Guid.NewGuid(), accountId, "Famished", 1, 0,
+                world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
+                100f, 100f, 0, [], now,
+                NeedsFood: 20f, NeedsMalnutrition: 0.3f, NeedsPoisonSeconds: 30f);
+            CharacterRecord legacy = famished with { Id = Guid.NewGuid(), Name = "Legacy", NeedsFood = -1f, NeedsMalnutrition = 0f, NeedsPoisonSeconds = 0f };
+            (await characters.TryCreateAsync(famished).ConfigureAwait(true)).Should().BeTrue();
+            (await characters.TryCreateAsync(legacy).ConfigureAwait(true)).Should().BeTrue();
+
+            CharacterRecord? stored = await characters.FindByIdAsync(famished.Id).ConfigureAwait(true);
+            stored!.NeedsFood.Should().Be(20f);
+            stored.NeedsMalnutrition.Should().Be(0.3f);
+            stored.NeedsPoisonSeconds.Should().Be(30f);
+
+            world.TryEnterWorld(910UL, 910UL, stored).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(911UL, 911UL, (await characters.FindByIdAsync(legacy.Id).ConfigureAwait(true))!).Status.Should().Be(OpStatus.Ok);
+            world.StepFixedTick();
+
+            PlayerNeedsSnapshot restored = sink.NeedsSyncs.Last(n => n.ConnectionId == 910UL).Needs;
+            restored.Food.Should().BeApproximately(20f, 0.1f, "logging out must not refill the hunger meter");
+            restored.HungerState.Should().Be(1, "20 % food is Hungry");
+            restored.Malnutrition.Should().BeApproximately(0.3f, 0.01f);
+            restored.FoodPoisoned.Should().BeTrue();
+            sink.NeedsSyncs.Last(n => n.ConnectionId == 911UL).Needs.Food.Should().BeGreaterThan(99f, "characters saved before 0006 spawn fully fed");
+
+            StepTicks(world, 60);
+            world.LeaveWorld(910UL).Should().BeTrue();
+            await world.FlushDirtyPersistenceAsync().ConfigureAwait(true);
+
+            CharacterRecord? reloaded = await characters.FindByIdAsync(famished.Id).ConfigureAwait(true);
+            reloaded!.NeedsFood.Should().BeInRange(19f, 20f, "two seconds of decay are saved on logout");
+            reloaded.NeedsMalnutrition.Should().BeInRange(0.29f, 0.3f, "malnutrition recovers slowly while fed");
+            reloaded.NeedsPoisonSeconds.Should().BeInRange(27.5f, 28.5f, "poisoning keeps counting down");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
     private static AuthoritativeWorld CreateSurvivalWorld(
         SqliteConnectionFactory factory,
         RecordingOutboundSink sink,
@@ -974,6 +1040,92 @@ public sealed class AuthoritativeWorldMultiplayerTests
         }
     }
 
+    [Fact]
+    public async Task DataDrivenMonster_AttacksThroughPhaseTimeline_BroadcastsPhasesAndDamagesOnlyAfterActive()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-creature-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
+            RecordingOutboundSink sink = new();
+            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), new SqliteCharacterStore(factory), sink);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+            InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);
+            StarterGameCatalog.GrantStarterLoadout(bag);
+            CharacterRecord scout = new(
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                "Scout",
+                1,
+                0,
+                world.DefaultSpawnWorldPosition.X,
+                world.DefaultSpawnWorldPosition.Y,
+                5000f,
+                5000f,
+                2,
+                InventoryBinaryCodec.Serialize(bag),
+                DateTimeOffset.UtcNow);
+
+            EntitySpawnSnapshot? mob = null;
+            for (int probeX = 1; probeX <= 6 && mob is null; probeX++)
+            {
+                CharacterRecord hunter = scout with { Id = Guid.NewGuid(), PositionX = ((probeX * 32) + 16) * 32f, PositionY = 16f * 32f };
+                world.TryEnterWorld(connectionId: 303UL, sessionId: 3UL, hunter).Status.Should().Be(OpStatus.Ok);
+                world.StepFixedTick();
+                mob = sink.Spawns.Find(s => s.ConnectionId == 303UL && s.Snapshot.Kind == EntityKind.Monster).Snapshot;
+                mob = mob is { NetworkId: > 0UL } ? mob : null;
+            }
+
+            mob.Should().NotBeNull("the data-driven spawner populates cells around an entering player");
+            mob!.Value.ArchetypeId.Should().BeInRange(101, 109, "monsters replicate their WorldActorCatalog rig archetype");
+
+            CharacterRecord bait = scout with { Id = Guid.NewGuid(), Name = "Bait", PositionX = mob.Value.PositionX + 30f, PositionY = mob.Value.PositionY };
+            EnterWorldResult baitEnter = world.TryEnterWorld(connectionId: 404UL, sessionId: 4UL, bait);
+            baitEnter.Status.Should().Be(OpStatus.Ok);
+
+            int firstActiveTick = -1;
+            int firstHitTick = -1;
+            for (int t = 0; t < 300 && firstHitTick < 0; t++)
+            {
+                int phasesBefore = sink.AttackPhases.Count;
+                int hitsBefore = sink.CombatHits.Count;
+                world.StepFixedTick();
+                for (int i = phasesBefore; i < sink.AttackPhases.Count && firstActiveTick < 0; i++)
+                {
+                    if (sink.AttackPhases[i].Snapshot.NetworkId == mob.Value.NetworkId && sink.AttackPhases[i].Snapshot.Phase == EntityAttackPhase.PhaseActive)
+                    {
+                        firstActiveTick = t;
+                    }
+                }
+
+                for (int i = hitsBefore; i < sink.CombatHits.Count && firstHitTick < 0; i++)
+                {
+                    if (sink.CombatHits[i].AttackerNetworkId == mob.Value.NetworkId && sink.CombatHits[i].DefenderNetworkId == baitEnter.PlayerNetworkId)
+                    {
+                        firstHitTick = t;
+                    }
+                }
+            }
+
+            sink.AttackPhases.Should().Contain(
+                p => p.ConnectionId == 404UL && p.Snapshot.NetworkId == mob.Value.NetworkId && p.Snapshot.Phase == EntityAttackPhase.PhaseWindup && p.Snapshot.PhaseDurationTicks > 0,
+                "observers receive the wind-up telegraph");
+            firstHitTick.Should().BeGreaterThanOrEqualTo(0, "the monster eventually lands a hit");
+            firstActiveTick.Should().BeInRange(0, firstHitTick, "damage is only resolved once an attack reaches its active phase");
+            sink.SkillCasts.Should().NotContain(c => c.CasterNetworkId == mob.Value.NetworkId, "monster attacks no longer overload SkillCastBroadcast");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
     private sealed class RecordingOutboundSink : IWorldOutboundSink
     {
         public List<(ulong ConnectionId, EntitySpawnSnapshot Snapshot)> Spawns { get; } = [];
@@ -985,6 +1137,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
         public List<(ulong EntityNetworkId, ushort ChestId, ushort WeaponId, ushort Level)> EquipmentChanges { get; } = [];
         public List<(ulong ConnectionId, ushort Level, uint Experience, float Defense, ushort VitPoints, byte Skill1Rank)> StatsSyncs { get; } = [];
         public List<(ulong CasterNetworkId, byte AbilitySlot)> SkillCasts { get; } = [];
+        public List<(ulong ConnectionId, AttackPhaseSnapshot Snapshot)> AttackPhases { get; } = [];
         public List<(ulong ConnectionId, long Gold, long Diamonds, ulong Sequence)> WalletSyncs { get; } = [];
 
         public void SendWalletSync(ulong connectionId, long gold, long diamonds, ulong sequence) =>
@@ -1053,5 +1206,13 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
         public void SendSkillCastBroadcast(ReadOnlySpan<ulong> recipientConnectionIds, ulong casterNetworkId, byte abilitySlot, float originX, float originY, float aimX, float aimY) =>
             this.SkillCasts.Add((casterNetworkId, abilitySlot));
+
+        public void SendEntityAttackPhase(ReadOnlySpan<ulong> recipientConnectionIds, in AttackPhaseSnapshot snapshot)
+        {
+            for (int i = 0; i < recipientConnectionIds.Length; i++)
+            {
+                this.AttackPhases.Add((recipientConnectionIds[i], snapshot));
+            }
+        }
     }
 }

@@ -63,6 +63,7 @@ public sealed class MonsterSpawnerTests
         {
             int expected = run.Spawner.Scaling.Compute(spawn.Position.Length(), false, run.Catalog.GetDefinition(spawn.MonsterIndex)).Level;
             spawn.Level.Should().Be(expected, "level follows distance from the world origin");
+            run.Catalog.GetDefinition(spawn.MonsterIndex).IsSpawnableAt(spawn.Level).Should().BeTrue("monsters only spawn inside their level range");
         }
     }
 

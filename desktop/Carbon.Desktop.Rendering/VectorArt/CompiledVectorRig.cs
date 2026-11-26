@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using Carbon.Graphics.Batching.Common;
 
@@ -224,12 +225,16 @@ public readonly struct CompiledKeyframe
 public sealed class CompiledVectorAnimation
 {
     /// <summary>Initializes a compiled animation track.</summary>
-    public CompiledVectorAnimation(float duration, bool loop, CompiledKeyframe[] keyframes)
+    public CompiledVectorAnimation(float duration, bool loop, CompiledKeyframe[] keyframes, AttackPhaseMarks? phaseMarks = null)
     {
         this.Duration = MathF.Max(0.05f, duration);
         this.Loop = loop;
         this.Keyframes = keyframes;
+        this.PhaseMarks = phaseMarks ?? AttackPhaseMarks.Default;
     }
+
+    /// <summary>Normalized clip times at which each server attack phase ends (attack clips only).</summary>
+    public AttackPhaseMarks PhaseMarks { get; }
 
     /// <summary>Clip duration in seconds.</summary>
     public float Duration { get; }
@@ -347,8 +352,23 @@ public sealed class CompiledVectorRig
     /// <summary>Ordered vector primitives composing the rig.</summary>
     public CompiledVectorShape[] Shapes { get; }
 
+    /// <summary>Gets a value indicating whether the art catalog marks this monster rig as an elite variant.</summary>
+    public bool IsElite { get; init; }
+
+    /// <summary>Gets the rig-local anchors for night eye-glow and the elite crown.</summary>
+    public RigMarkers Markers { get; init; } = RigMarkers.Empty;
+
     /// <summary>Available animation clip names.</summary>
     public IEnumerable<string> ClipNames => _animations.Keys;
+
+    /// <summary>
+    /// Looks up a compiled clip by name (case-insensitive).
+    /// </summary>
+    /// <param name="clipName">Clip name.</param>
+    /// <param name="animation">The clip when found.</param>
+    /// <returns><see langword="true"/> if the rig has the clip.</returns>
+    public bool TryGetAnimation(string clipName, [NotNullWhen(true)] out CompiledVectorAnimation? animation) =>
+        _animations.TryGetValue(clipName, out animation);
 
     /// <summary>
     /// Evaluates interpolated bone transforms into caller-provided <paramref name="outBones"/> (<c>stackalloc</c>) with zero allocations.

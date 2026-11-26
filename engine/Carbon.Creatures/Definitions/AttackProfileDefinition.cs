@@ -59,6 +59,9 @@ public sealed class AttackProfileDefinition
     /// <summary>Gets the visual projectile arc height.</summary>
     public float ArcHeight { get; set; }
 
+    /// <summary>Gets the client projectile visual id.</summary>
+    public byte ProjectileVisual { get; set; }
+
     /// <summary>
     /// Compiles this definition into a validated simulation <see cref="AttackProfile"/>.
     /// </summary>
@@ -82,7 +85,8 @@ public sealed class AttackProfileDefinition
             LungeDistance = this.LungeDistance,
             ProjectileSpeed = this.ProjectileSpeed,
             ProjectileRadius = this.ProjectileRadius,
-            ArcHeight = this.ArcHeight
+            ArcHeight = this.ArcHeight,
+            ProjectileVisual = this.ProjectileVisual
         };
         profile.Validate();
         return profile;

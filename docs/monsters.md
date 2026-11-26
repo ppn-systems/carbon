@@ -14,11 +14,37 @@ units** (32 units = 1 tile).
 | PreUpdate | `AiBehaviorSystem` (`engine/Carbon.AI`) | Idle / Patrol → Chase → Attack → ReturnHome (leash). With `AiBrainComponent.ExternalAttackControl = true` it only makes state transitions while in `Attack`. |
 | PreUpdate | `MonsterBrainSystem` | In `Attack`: picks the attack, or positions the monster (kite, close in, hold). Interrupts attacks when the brain leashes home or loses its target. |
 | PreUpdate | `AttackSystem` | Runs the attack timeline, drives lunge / leap velocity, resolves hits, spawns projectiles. |
-| Physics | `ProjectileSystem` | Swept hit tests for released projectiles. |
+| Physics | `ProjectileSystem` | Swept hit tests for projectiles spawned by `DefaultAttackEffects` (engine-only hosts; the server uses its own replicated projectiles). |
 | PostUpdate | `MonsterSpawnerSystem` | Biome-aware, deterministic spawning around `SpawnAnchorComponent` entities. |
 
-`CreatureSystems.Register(...)` registers the first three systems and the spawner in this order. Register
-`ProjectileSystem` once on the world as well. Hit resolution happens only inside the simulation. Clients only animate.
+`CreatureSystems.Register(...)` registers the first three systems and the spawner in this order. Hit resolution
+happens only inside the simulation. Clients only animate.
+
+### Server integration
+
+`AuthoritativeWorld` (`server/Carbon.Application/World/AuthoritativeWorld.Creatures.cs`) runs on `CreatureContent`
+(`monsters.json` and `spawning.json`). The Host builds it from `ConfigRepository.Catalog`, the same bytes it serves to
+clients (ADR-011). Clients never read these files: they render from replicated archetype ids and
+`EntityAttackPhase`.
+
+- **Spawning**: `MonsterSpawnerSystem` replaces chunk-based monster population and the old fixed 45 s respawn
+  queue. Every player entity is a `SpawnAnchorComponent`. Entering the world requests an immediate scan.
+- **Replication**: each `MonsterSpawnedEvent` is bound to a network id. Monsters replicate their `archetypeId`, and the
+  client picks the vector rig from it.
+- **Rewards**: kills roll the definition's `lootTableId` in economy's `loot.json`. The `WorldActorCatalog` drop is used
+  only when no economy is configured. Kill XP is `clamp(0.45 * maxHp + 4 * level, 25, 650)`, doubled for elites and
+  multiplied by 1.35 at night.
+- **Armor**: a monster's scaled armor (StatSheet `Defense`) mitigates player hits by `100 / (100 + armor)`.
+- **Hits and projectiles**: the server's `IAttackEffects` sends hits through the authoritative player damage path
+  (mitigation, death, `CombatHit`). It spawns projectiles as replicated server projectiles
+  (`AttackProfile.ProjectileVisual`).
+- **Phase broadcast**: every `AttackPhaseChangedEvent` is broadcast to AoI observers as `EntityAttackPhase`
+  (opcode `0x1238`, [ADR-013](adr/ADR-013-entity-attack-phase-packet.md)). Monsters no longer use
+  `SkillCastBroadcast`.
+- **Time of day**: `MonsterSpawnerSystem.TimeOfDayHours` is set every tick from
+  `WorldProgression.ComputeTimeOfDayHours`.
+- **Layers**: `spawning.json` `monsterLayer` and `targetLayerMask` must match the server collision layers
+  (2 and 1).
 
 ## Monster definitions (`monsters.json`)
 
@@ -27,7 +53,7 @@ units** (32 units = 1 tile).
 | `id` | Unique snake_case key. The catalog index follows file order. |
 | `visualArchetype` | Client sprite / animation key. The server never sends sprite data. |
 | `lootTableId` | Loot table key. By convention it equals `id` (economy owns `loot.json`). |
-| `isElite`, `eliteVariant` | Elite flag and the elite variant spawned on an elite roll (e.g. `slime` → `slime_king`). |
+| `isElite`, `eliteVariant` | Elite flag and the elite variant spawned on an elite roll (e.g. `wild_slime` → `slime_king`). |
 | `stats` | Level-1 daytime `hp`, `damage`, `armor` (Defense mitigation `100 / (100 + armor)`), `speed`. |
 | `aggroRange`, `leashRange` | Detection radius. Tether radius around the spawn point. |
 | `engageRange` | Distance where chasing stops and fighting starts (`AiBrainComponent.AttackRange`). |
@@ -35,9 +61,20 @@ units** (32 units = 1 tile).
 | `preferredBiomes` | `BiomeType` names. Spawn tables may only list a monster in biomes it prefers (enforced by tests). |
 | `attacks` | Attack profiles in **priority order** (see below). |
 
-Shipped roster: `slime` (leap + melee), `slime_king` (elite), `orc` (melee brute), `orc_warlord` (elite: leap + melee),
-`skeleton` (ranged archer with a melee fallback), `demon` (caster: circle and cone spells + claw), and
-`blood_monster` (charging leaper + melee).
+`archetypeId` is the protocol id used for the rig (`WorldActorCatalog`, 101–109). Each elite variant has its own
+archetype and rig, so clients can show elite status without any extra wire data.
+
+| Monster | Archetype | Attacks (priority order) | Role |
+| :--- | :--- | :--- | :--- |
+| `wild_slime` | 101 | leap, bite | brawler |
+| `slime_king` (elite of `wild_slime`) | 109 | big leap, bite | brawler |
+| `rock_golem` | 102 | overhead slam | brawler |
+| `frost_wolf` | 103 | pounce (leap), bite | brawler |
+| `ash_wraith` | 104 | eruption (circle spell), dark bolt | caster (retreat 90) |
+| `skeleton_archer` | 105 | bow shot, bow bash | ranged (retreat 110) |
+| `orc_shaman` | 106 | hex cone (cone spell), bolt, staff whack | caster (retreat 80) |
+| `orc_warlord` (elite of `orc_shaman`, levels 20–50) | 108 | war charge (leap), axe chop | brawler |
+| `crimson_demon` | 107 | leap, cleave | brawler |
 
 ## Attack kinds and the animation phase contract
 
@@ -79,6 +116,43 @@ Renderer rules:
 
 `AttackStateComponent.PhaseProgress` / `TotalProgress` expose the same data to snapshot-based consumers.
 
+### Desktop clips
+
+The desktop receives `EntityAttackPhase` in `MultiplayerSession`. It exposes the phase as
+`RemoteEntityView.Attack` (`AttackPhaseView`) and advances it locally between packets.
+`MonsterAttackAnimator.ResolveClip` picks one clip per kind:
+
+| Kind | Clip | Fallback |
+| :--- | :--- | :--- |
+| Melee | `attack_slam` for golem and demon, otherwise `attack` | none |
+| Projectile | `attack_bow`, otherwise `attack_cast` | `attack` |
+| Spell | `attack_spell` | `attack_cast`, then `attack` |
+| Leap | `attack_leap` | `attack` |
+
+Each attack clip declares `phaseMarks` (`windupEnd`, `travelEnd`, `activeEnd`) in normalized clip time.
+`MonsterAttackAnimator.ToClipTime` maps (phase, phase progress) into the matching segment. This keeps the key poses
+(full draw, overhead apex, airborne apex, impact) on the server's phase boundaries for any profile duration.
+`AttackTelegraphRenderer` draws the ground telegraphs.
+
+### Night and elite overlays
+
+Night empowerment and elite status are painted on the rig itself. They are never scene lights, and players never
+glow.
+
+- **Night** (client time of day is a night hour): `RigOverlay.NightGlow` draws glowing eyes at the rig's
+  `markers.eyes` / `markers.eyesSide` anchors on the head bone, plus a faint body aura in `markers.eyeGlowColor`.
+  Eyes are hidden when the rig faces north.
+- **Elite** (art catalog entry has `"elite": true`, currently `orc_warlord` and `slime_king`):
+  `RigOverlay.EliteCrown` draws a gold crown pip at `markers.crown`. Elite rigs are also larger
+  (`worldHeight`).
+
+`dotnet run --project desktop/Carbon.Desktop -c Release -- --showcase <dir>` writes:
+
+- `monsters_attack_phases.bmp`: a filmstrip of every monster attack across its phases;
+- `monsters_day_night_elite.bmp`: every rig by day and by night, normal and elite.
+
+Use them to review clip and overlay changes.
+
 ## AI positioning
 
 While the brain is in `Attack` and no attack is running:
@@ -114,11 +188,16 @@ the next by a smooth ramp.
 
 | Band | Distance (units) | Tiles | Levels |
 | :--- | :--- | :--- | :--- |
-| `heartland` | 0 – 6 400 | 0 – 200 | 1 → 5 |
-| `frontier` | 6 400 – 32 000 | 200 – 1 000 | 5 → 15 |
-| `outer_wilds` | 32 000 – 80 000 | 1 000 – 2 500 | 15 → 30 |
-| `endgame` | 80 000 – 160 000 | 2 500 – 5 000 | 30 → 45 |
-| beyond | > 160 000 | > 5 000 | +1 per 10 000 units, max 60 |
+| `heartland` | 0 – 6 400 | 0 – 200 | 1 → 8 |
+| `frontier` | 6 400 – 32 000 | 200 – 1 000 | 8 → 25 |
+| `outer_wilds` | 32 000 – 80 000 | 1 000 – 2 500 | 25 → 50 |
+| `endgame` | 80 000 – 160 000 | 2 500 – 5 000 | 50 → 80 |
+| beyond | > 160 000 | > 5 000 | +1 per 2 000 units, max 100 |
+
+Each monster also declares `minLevel` / `maxLevel`, matching its `loot.json` band, and spawns only where the
+spawn-point level lies inside that range. Elite variants follow the same rule. As a result slimes (1–15) dominate
+near spawn and demons (45–100) only appear in the endgame band. `MonsterScalingTests` checks that every spawnable
+range overlaps its loot band.
 
 ### Stat curves
 
@@ -140,7 +219,7 @@ server time (e.g. `WorldProgression.ComputeTimeOfDayHours`). The engine never re
 - hp, damage, and armor × `statMultiplier` (1.3),
 - per-cell cap and spawn rate × `densityMultiplier` (1.6, so a cap of 3 becomes 5),
 - elite chance `eliteChance` (12%) instead of `dayEliteChance` (2%),
-- night-only table weights (`nightWeight`) favour skeletons, demons, and blood monsters.
+- night-only table weights (`nightWeight`) favour skeleton archers, orc shamans, and crimson demons.
 
 Empowerment is applied when a monster spawns: monsters spawned during the day keep their daytime stats.
 
@@ -153,8 +232,9 @@ Empowerment is applied when a monster spawns: monsters spawned during the day ke
   its last attempt. When one of its monsters dies, the cell waits `respawnDelayTicks` before spawning again.
 - **Safe zone**: no spawn within `safeZoneRadius` (1 600) of the world origin, and none within
   `minSpawnDistanceFromAnchor` of any anchor.
-- **Biome tables**: the `IBiomeSampler` biome at the candidate point selects a weighted `spawnTables` entry
-  (`ChunkWorldBiomeSampler` adapts `ChunkWorld2D`). Biomes without a table (oceans) never spawn monsters.
+- **Biome tables**: `ISpawnSurface` rejects blocked candidate points (solid tiles, water, solid props) and returns
+  the biome, which selects a weighted `spawnTables` entry. `ChunkWorldSpawnSurface` adapts `ChunkWorld2D`. Biomes
+  without a table never spawn monsters.
 - **Determinism**: every attempt seeds `DeterministicRandom` from `hash(worldSeed, cell, attemptIndex)`. The same seed
   and the same anchor history always produce the same monsters, positions, levels, and elites.
 - `MonsterSpawnedEvent(Monster, MonsterIndex, Level, IsElite, IsNight, Position)` lets the host resolve

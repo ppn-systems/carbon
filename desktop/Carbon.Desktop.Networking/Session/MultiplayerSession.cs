@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
+using Carbon.Contracts.Entities.S2C;
 using Carbon.Contracts.Identity;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Events;
@@ -412,7 +413,8 @@ public sealed partial class MultiplayerSession : IWorldSession
                         s.Level,
                         s.LootCount,
                         s.WeaponUpgradeLevel,
-                        s.ActiveActionKind));
+                        s.ActiveActionKind,
+                        s.BuildAttackView()));
                 }
 
                 _cachedRemoteViews = _remoteViewSnapshot.Count == 0 ? [] : [.. _remoteViewSnapshot];
@@ -529,6 +531,12 @@ public sealed partial class MultiplayerSession : IWorldSession
                 if (rs.HitFlashTimer > 0f)
                 {
                     rs.HitFlashTimer = MathF.Max(0f, rs.HitFlashTimer - fdt);
+                }
+
+                if (rs.AttackPhase != EntityAttackPhase.PhaseNone)
+                {
+                    // Advance the announced phase locally; hold the last pose until the next phase packet arrives.
+                    rs.AttackPhaseElapsed = MathF.Min(rs.AttackPhaseDuration, rs.AttackPhaseElapsed + fdt);
                 }
             }
 

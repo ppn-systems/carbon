@@ -128,6 +128,7 @@ internal sealed class CvgArchetypeCatalogDto
     public byte Level { get; set; } = 1;
     public string AccentColor { get; set; } = "#F87171";
     public string File { get; set; } = string.Empty;
+    public bool Elite { get; set; }
 }
 
 internal sealed class CvgItemCatalogDto
@@ -187,7 +188,15 @@ internal sealed class CvgAnimDto
 {
     public float Duration { get; set; } = 1f;
     public bool Loop { get; set; } = true;
+    public CvgPhaseMarksDto? PhaseMarks { get; set; }
     public List<CvgKeyframeDto> Tracks { get; set; } = [];
+}
+
+internal sealed class CvgPhaseMarksDto
+{
+    public float WindupEnd { get; set; } = AttackPhaseMarks.Default.WindupEnd;
+    public float TravelEnd { get; set; } = AttackPhaseMarks.Default.TravelEnd;
+    public float ActiveEnd { get; set; } = AttackPhaseMarks.Default.ActiveEnd;
 }
 
 internal sealed class CvgEntityRigDto
@@ -204,6 +213,15 @@ internal sealed class CvgEntityRigDto
     public Dictionary<string, string> Palette { get; set; } = [];
     public List<CvgShapeDto> Shapes { get; set; } = [];
     public Dictionary<string, CvgAnimDto> Animations { get; set; } = [];
+    public CvgRigMarkersDto? Markers { get; set; }
+}
+
+internal sealed class CvgRigMarkersDto
+{
+    public List<CvgPointDto> Eyes { get; set; } = [];
+    public List<CvgPointDto> EyesSide { get; set; } = [];
+    public CvgPointDto? Crown { get; set; }
+    public string EyeGlowColor { get; set; } = string.Empty;
 }
 
 internal sealed class CvgEquipmentVisualDto

@@ -751,89 +751,435 @@
       ]
     },
     "attack": {
-      "duration": 0.34,
+      "duration": 0.36,
       "loop": false,
+      "phaseMarks": {
+        "windupEnd": 0.42,
+        "travelEnd": 0.58,
+        "activeEnd": 0.74
+      },
       "tracks": [
         {
           "t": 0.0,
-          "bones": {
-            "body": {
-              "dy": 1.8,
-              "rotDeg": 6.0
-            },
-            "head": {
-              "dy": 1.5
-            }
-          }
+          "bones": {}
         },
         {
-          "t": 0.25,
+          "t": 0.42,
           "bones": {
-            "body": {
+            "tail": {
               "dx": -2.0,
-              "dy": 2.4,
-              "rotDeg": 12.0
+              "rotDeg": 28.0
             },
             "legLeft": {
-              "rotDeg": -25.0
+              "rotDeg": -12.0
             },
             "legRight": {
-              "rotDeg": 25.0
+              "rotDeg": 18.0
+            },
+            "body": {
+              "dx": -2.5,
+              "dy": 2.0,
+              "rotDeg": 8.0
+            },
+            "armBack": {
+              "dx": -1.0,
+              "rotDeg": 12.0
+            },
+            "armFront": {
+              "dx": -1.0,
+              "rotDeg": 18.0
+            },
+            "head": {
+              "dx": -2.5,
+              "dy": 2.5,
+              "rotDeg": 14.0
+            },
+            "headgear": {
+              "dx": -2.5,
+              "dy": 2.5,
+              "rotDeg": 14.0
             }
           }
         },
         {
-          "t": 0.54,
+          "t": 0.58,
           "bones": {
-            "body": {
-              "dx": 6.5,
-              "dy": -3.2,
-              "rotDeg": -16.0
-            },
-            "head": {
-              "dx": 3.5,
-              "rotDeg": -18.0
+            "tail": {
+              "dx": 5.0,
+              "dy": -2.0,
+              "rotDeg": -30.0
             },
             "legLeft": {
+              "dx": 3.0,
               "rotDeg": 35.0
             },
             "legRight": {
-              "rotDeg": -35.0
+              "dx": 3.0,
+              "rotDeg": -30.0
+            },
+            "body": {
+              "dx": 6.0,
+              "dy": -2.5,
+              "rotDeg": -14.0
+            },
+            "armBack": {
+              "dx": 5.0,
+              "rotDeg": -45.0
+            },
+            "armFront": {
+              "dx": 6.0,
+              "rotDeg": -60.0
+            },
+            "head": {
+              "dx": 10.0,
+              "dy": -4.0,
+              "rotDeg": -24.0
+            },
+            "headgear": {
+              "dx": 10.0,
+              "dy": -4.0,
+              "rotDeg": -24.0
             }
           }
         },
         {
-          "t": 0.8,
+          "t": 0.66,
           "bones": {
+            "tail": {
+              "dx": 5.0,
+              "rotDeg": -10.0
+            },
+            "legLeft": {
+              "dx": 3.0,
+              "rotDeg": 10.0
+            },
+            "legRight": {
+              "dx": 3.0,
+              "rotDeg": -10.0
+            },
             "body": {
-              "dx": 2.2,
-              "dy": 0.8,
+              "dx": 6.5,
               "rotDeg": -4.0
+            },
+            "armBack": {
+              "dx": 5.5,
+              "rotDeg": -10.0
+            },
+            "armFront": {
+              "dx": 6.5,
+              "rotDeg": -20.0
+            },
+            "head": {
+              "dx": 10.0,
+              "dy": 1.0,
+              "rotDeg": 16.0
+            },
+            "headgear": {
+              "dx": 10.0,
+              "dy": 1.0,
+              "rotDeg": 16.0
+            }
+          }
+        },
+        {
+          "t": 0.74,
+          "bones": {
+            "tail": {
+              "dx": 4.0
+            },
+            "legLeft": {
+              "dx": 3.0
+            },
+            "legRight": {
+              "dx": 3.0
+            },
+            "body": {
+              "dx": 5.0,
+              "rotDeg": -2.0
+            },
+            "armBack": {
+              "dx": 5.0
+            },
+            "armFront": {
+              "dx": 5.0
+            },
+            "head": {
+              "dx": 7.5,
+              "rotDeg": 6.0
+            },
+            "headgear": {
+              "dx": 7.5,
+              "rotDeg": 6.0
             }
           }
         },
         {
           "t": 1.0,
+          "bones": {}
+        }
+      ]
+    },
+    "attack_leap": {
+      "duration": 0.62,
+      "loop": false,
+      "phaseMarks": {
+        "windupEnd": 0.3,
+        "travelEnd": 0.72,
+        "activeEnd": 0.84
+      },
+      "tracks": [
+        {
+          "t": 0.0,
+          "bones": {}
+        },
+        {
+          "t": 0.3,
           "bones": {
-            "body": {
-              "dx": 0.0,
-              "dy": 0.0,
-              "rotDeg": 0.0
-            },
-            "head": {
-              "dx": 0.0,
-              "dy": 0.0,
-              "rotDeg": 0.0
+            "tail": {
+              "dx": -1.0,
+              "dy": 3.0,
+              "rotDeg": 30.0
             },
             "legLeft": {
-              "rotDeg": 0.0
+              "dx": -1.0,
+              "dy": 3.0,
+              "rotDeg": -28.0
             },
             "legRight": {
-              "rotDeg": 0.0
+              "dx": -1.0,
+              "dy": 3.0,
+              "rotDeg": 28.0
+            },
+            "body": {
+              "dx": -1.0,
+              "dy": 3.0,
+              "rotDeg": 14.0
+            },
+            "armBack": {
+              "dx": -1.0,
+              "dy": 3.0,
+              "rotDeg": 25.0
+            },
+            "armFront": {
+              "dx": -1.0,
+              "dy": 3.0,
+              "rotDeg": 30.0
+            },
+            "head": {
+              "dx": -1.0,
+              "dy": 4.0,
+              "rotDeg": 18.0
+            },
+            "headgear": {
+              "dx": -1.0,
+              "dy": 4.0,
+              "rotDeg": 18.0
             }
           }
+        },
+        {
+          "t": 0.52,
+          "bones": {
+            "tail": {
+              "dx": 4.0,
+              "dy": -14.0,
+              "rotDeg": -35.0
+            },
+            "legLeft": {
+              "dx": 4.0,
+              "dy": -14.0,
+              "rotDeg": 45.0
+            },
+            "legRight": {
+              "dx": 4.0,
+              "dy": -14.0,
+              "rotDeg": -40.0
+            },
+            "body": {
+              "dx": 4.0,
+              "dy": -14.0,
+              "rotDeg": -14.0
+            },
+            "armBack": {
+              "dx": 4.0,
+              "dy": -14.0,
+              "rotDeg": -70.0
+            },
+            "armFront": {
+              "dx": 4.0,
+              "dy": -14.0,
+              "rotDeg": -80.0
+            },
+            "head": {
+              "dx": 4.0,
+              "dy": -14.0,
+              "rotDeg": -20.0
+            },
+            "headgear": {
+              "dx": 4.0,
+              "dy": -14.0,
+              "rotDeg": -20.0
+            }
+          }
+        },
+        {
+          "t": 0.7,
+          "bones": {
+            "tail": {
+              "dx": 7.0,
+              "dy": -4.0,
+              "rotDeg": -20.0
+            },
+            "legLeft": {
+              "dx": 7.0,
+              "dy": -4.0,
+              "rotDeg": 30.0
+            },
+            "legRight": {
+              "dx": 7.0,
+              "dy": -4.0,
+              "rotDeg": -25.0
+            },
+            "body": {
+              "dx": 7.0,
+              "dy": -4.0,
+              "rotDeg": 6.0
+            },
+            "armBack": {
+              "dx": 7.0,
+              "dy": -4.0,
+              "rotDeg": -45.0
+            },
+            "armFront": {
+              "dx": 7.0,
+              "dy": -4.0,
+              "rotDeg": -55.0
+            },
+            "head": {
+              "dx": 7.0,
+              "dy": -4.0,
+              "rotDeg": 8.0
+            },
+            "headgear": {
+              "dx": 7.0,
+              "dy": -4.0,
+              "rotDeg": 8.0
+            }
+          }
+        },
+        {
+          "t": 0.76,
+          "bones": {
+            "tail": {
+              "dx": 8.0,
+              "dy": 2.0,
+              "rotDeg": -5.0
+            },
+            "legLeft": {
+              "dx": 8.0,
+              "dy": 2.0,
+              "rotDeg": 12.0
+            },
+            "legRight": {
+              "dx": 8.0,
+              "dy": 2.0,
+              "rotDeg": -12.0
+            },
+            "body": {
+              "dx": 8.0,
+              "dy": 2.0,
+              "rotDeg": 12.0
+            },
+            "armBack": {
+              "dx": 8.0,
+              "dy": 2.0,
+              "rotDeg": -10.0
+            },
+            "armFront": {
+              "dx": 8.0,
+              "dy": 2.0,
+              "rotDeg": -15.0
+            },
+            "head": {
+              "dx": 9.0,
+              "dy": 2.0,
+              "rotDeg": 26.0
+            },
+            "headgear": {
+              "dx": 9.0,
+              "dy": 2.0,
+              "rotDeg": 26.0
+            }
+          }
+        },
+        {
+          "t": 0.84,
+          "bones": {
+            "tail": {
+              "dx": 7.0,
+              "dy": 0.5
+            },
+            "legLeft": {
+              "dx": 7.0,
+              "dy": 0.5
+            },
+            "legRight": {
+              "dx": 7.0,
+              "dy": 0.5
+            },
+            "body": {
+              "dx": 7.0,
+              "dy": 0.5,
+              "rotDeg": 4.0
+            },
+            "armBack": {
+              "dx": 7.0,
+              "dy": 0.5
+            },
+            "armFront": {
+              "dx": 7.0,
+              "dy": 0.5
+            },
+            "head": {
+              "dx": 7.0,
+              "dy": 0.5,
+              "rotDeg": 10.0
+            },
+            "headgear": {
+              "dx": 7.0,
+              "dy": 0.5,
+              "rotDeg": 10.0
+            }
+          }
+        },
+        {
+          "t": 1.0,
+          "bones": {}
         }
       ]
     }
+  },
+  "markers": {
+    "eyes": [
+      {
+        "x": -2.8,
+        "y": -22.2
+      },
+      {
+        "x": 2.8,
+        "y": -22.2
+      }
+    ],
+    "eyesSide": [
+      {
+        "x": 7.8,
+        "y": -21.6
+      }
+    ],
+    "crown": {
+      "x": 1.5,
+      "y": -27.5
+    },
+    "eyeGlowColor": "#7DD3FC"
   }
 }

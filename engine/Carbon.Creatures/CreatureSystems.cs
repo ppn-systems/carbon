@@ -45,27 +45,29 @@ public sealed class CreatureSystems
     /// <param name="world">Target world simulation.</param>
     /// <param name="catalog">Monster catalog.</param>
     /// <param name="config">Spawning configuration.</param>
-    /// <param name="biomes">Biome sampler.</param>
+    /// <param name="surface">Spawn surface (walkability + biome).</param>
     /// <param name="worldOrigin">World origin / first player spawn point.</param>
     /// <param name="seed">Deterministic world seed.</param>
     /// <param name="ai">Optional pre-built AI system (e.g. with a walkability grid); must not already be registered.</param>
+    /// <param name="effects">Optional host attack side effects (defaults to <see cref="DefaultAttackEffects"/>).</param>
     /// <returns>The registered systems.</returns>
     public static CreatureSystems Register(
         WorldSimulation world,
         MonsterCatalog catalog,
         SpawningConfig config,
-        IBiomeSampler biomes,
+        ISpawnSurface surface,
         Vector2 worldOrigin,
         ulong seed,
-        AiBehaviorSystem? ai = null)
+        AiBehaviorSystem? ai = null,
+        IAttackEffects? effects = null)
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(catalog);
 
         AiBehaviorSystem aiSystem = ai ?? new AiBehaviorSystem();
-        AttackSystem attacks = new(catalog.AttackProfiles);
+        AttackSystem attacks = new(catalog.AttackProfiles, effects);
         MonsterBrainSystem brain = new(catalog, attacks);
-        MonsterSpawnerSystem spawner = new(catalog, config, biomes, worldOrigin, seed);
+        MonsterSpawnerSystem spawner = new(catalog, config, surface, worldOrigin, seed);
 
         world.RegisterSystem(aiSystem);
         world.RegisterSystem(brain);
