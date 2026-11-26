@@ -179,6 +179,20 @@ public static class Program
         {
             spawnPoint = new Vector2((focusX + 0.5f) * TileSize, (focusY + 0.5f) * TileSize);
         }
+        // CARBON_FOCUS_BIOME=<BiomeType name> starts the player inside the nearest region of that biome.
+        else if (Enum.TryParse(Environment.GetEnvironmentVariable("CARBON_FOCUS_BIOME"), ignoreCase: true, out BiomeType focusBiome))
+        {
+            (int sx, int sy) = s_chunkWorld.SpawnTile;
+            if (BiomeLocator.TryFind(generator, focusBiome, sx, sy, out int bx, out int by))
+            {
+                spawnPoint = new Vector2((bx + 0.5f) * TileSize, (by + 0.5f) * TileSize);
+                Console.WriteLine($"[Focus] {focusBiome} found at tile ({bx}, {by}).");
+            }
+            else
+            {
+                Console.WriteLine($"[Focus] {focusBiome} not found near spawn; using spawn.");
+            }
+        }
         s_chunkWorld.UpdateAroundPosition(spawnPoint, chunkRadius: 4, evictionRadius: 8);
 
         s_world = new WorldSimulation(tickRate: 50, cellSize: TileSize)
@@ -582,8 +596,8 @@ public static class Program
             s_atmosphere.DrawAmbient(s_geometryBatch, minX, minY, maxX, maxY);
             s_geometryBatch.End();
 
-            // The player carries a soft lantern glow after dark
-            s_lights.Add(new PointLight(playerPos, 150f, new ColorRgba(255, 214, 150), 0.6f));
+            // The player emits no light of their own: light comes only from world sources (props, POIs) and,
+            // later, from an equipped light item granted by the server.
             s_geometryBatch.Begin(s_camera.ViewProjectionMatrix, Carbon.Graphics.OpenGL.States.BlendState.Additive);
             s_atmosphere.DrawLights(s_geometryBatch, s_lights);
             s_geometryBatch.End();
@@ -699,19 +713,12 @@ public static class Program
                 batch.FillCircle(entityPos, col.Radius + 4f, new ColorRgba(56, 189, 248, 75));
             }
 
-            // Player: High-contrast sleek MMORPG hero avatar token
-            // Drop shadow
-            batch.FillCircle(new Vector2(entityPos.X + 2f, entityPos.Y + 3f), col.Radius + 1f, new ColorRgba(0, 0, 0, 75));
-            // High-contrast platinum outer rim (ensures crisp visibility against dark ocean or night tiles)
-            batch.FillCircle(entityPos, col.Radius + 1.5f, new ColorRgba(248, 250, 252, 220));
-            // Outer navy mantle
-            batch.FillCircle(entityPos, col.Radius, new ColorRgba(15, 23, 42, 255));
-            // Royal blue tunic
-            batch.FillCircle(entityPos, col.Radius * 0.82f, new ColorRgba(30, 64, 175, 255));
-            // Cyan energy ring
-            batch.FillCircle(entityPos, col.Radius * 0.52f, new ColorRgba(56, 189, 248, 255));
-            // Golden core crest
-            batch.FillCircle(entityPos, col.Radius * 0.22f, new ColorRgba(250, 204, 21, 255));
+            // Player token: matte colours only. The previous white rim and saturated cyan core read as an
+            // emissive glow (especially at night, where lit tiles are darkened but the token was not).
+            batch.FillCircle(new Vector2(entityPos.X + 1.5f, entityPos.Y + 2.5f), col.Radius + 0.5f, new ColorRgba(0, 0, 0, 70));
+            batch.FillCircle(entityPos, col.Radius + 1f, new ColorRgba(28, 25, 23, 255));
+            batch.FillCircle(entityPos, col.Radius, new ColorRgba(55, 65, 110, 255));
+            batch.FillCircle(new Vector2(entityPos.X, entityPos.Y - (col.Radius * 0.35f)), col.Radius * 0.45f, new ColorRgba(214, 170, 130, 255));
         }
     }
 

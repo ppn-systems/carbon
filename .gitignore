@@ -50,3 +50,9 @@ publish/
 
 # Allow DLLs in library folder
 !library/*.dll
+
+# Third-party art imported locally by tools/assets/import-assets.sh (license forbids redistribution)
+resources/thirdparty/
+
+# Screenshot review output
+screenshots/
