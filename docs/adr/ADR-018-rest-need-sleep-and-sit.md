@@ -1,4 +1,4 @@
-# ADR-017: Rest Need — Sleep and Sit
+# ADR-018: Rest Need — Sleep and Sit
 
 - **Date**: 2026-11-26
 - **Status**: Accepted
@@ -45,3 +45,4 @@ PR #14 shipped the rest need (`NeedsComponent.Rest`, Tired / VeryTired / Exhaust
 - Rest now matters: players who stay out for two hours slow down and stop regenerating health until they sleep. Building a roofed bedroom pays off.
 - Additive wire and schema changes. Old rows spawn fully rested.
 - `PlayerNeedsSnapshot` gains four trailing optional members, so existing sink implementations compile unchanged.
+- The mutation lives in the world-side `TrySetResting`, which the handler calls. It can move to a tick-queued `Submit*Async` command (ADR-017) without changing its rules.

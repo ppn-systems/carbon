@@ -3,7 +3,7 @@
 namespace Carbon.Contracts.Entities;
 
 /// <summary>
-/// How a player is resting (ADR-017). Values are stable wire bytes: append, never renumber.
+/// How a player is resting (ADR-018). Values are stable wire bytes: append, never renumber.
 /// </summary>
 public enum RestMode : byte
 {

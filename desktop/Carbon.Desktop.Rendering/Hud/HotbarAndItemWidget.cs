@@ -274,7 +274,7 @@ internal sealed class HotbarAndItemWidget
                 new ColorRgba(255, 255, 255, 200));
         }
 
-        // Rest bar (ADR-017); a soft top highlight while sleeping or sitting
+        // Rest bar (ADR-018); a soft top highlight while sleeping or sitting
         float restX = foodX + barW + segGap;
         float restRatio = Math.Clamp(world.LocalPlayerRest / MathF.Max(1f, world.LocalPlayerMaxRest), 0f, 1f);
         ColorRgba restFill = world.LocalPlayerRestState >= VeryTiredState ? CarbonUiPalette.RestWarnFill : CarbonUiPalette.RestFill;

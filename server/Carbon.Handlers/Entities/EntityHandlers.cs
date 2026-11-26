@@ -89,7 +89,7 @@ public static partial class EntityHandlers
         return PacketReplyHelper.SendMutationAsync(context, status, EntityOpCode.AllocateCharacterPoint);
     }
 
-    /// <summary>Opcode <c>0x1205</c>. Starts resting (bed sleep or sitting) or stands the player up (ADR-017).</summary>
+    /// <summary>Opcode <c>0x1205</c>. Starts resting (bed sleep or sitting) or stands the player up (ADR-018).</summary>
     [PacketOpcode(EntityOpCode.RestRequest)]
     [PacketPermission(PermissionLevel.USER)]
     public static ValueTask HandleRestRequestAsync(IPacketContext<EntityRestRequest> context)

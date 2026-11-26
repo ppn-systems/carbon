@@ -92,7 +92,7 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile
     /// <summary>Gets the progress of the meal being eaten (<c>0..1</c>), or a negative value when not eating.</summary>
     float LocalPlayerEatProgress { get; }
 
-    /// <summary>Gets the local player's rest level (ADR-017).</summary>
+    /// <summary>Gets the local player's rest level (ADR-018).</summary>
     float LocalPlayerRest { get; }
 
     /// <summary>Gets the local player's rest capacity.</summary>

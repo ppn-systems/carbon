@@ -108,7 +108,7 @@ spoil and drops the raw-food mood penalty. The cooked meal's mood bonus comes fr
 
 Raw `slime_jelly` dropped by slimes spoils. The cooked `slime_jelly_preserve` (+18 food, +2 mood) does not.
 
-## Rest (ADR-017)
+## Rest (ADR-018)
 
 Rest is 0..100. It drains `0.8333 × multiplier` per minute while awake (idle ×0.8, walking ×1, sprint / fight /
 swim ×1.5), so a walking player goes from full to exhausted in 120 minutes.

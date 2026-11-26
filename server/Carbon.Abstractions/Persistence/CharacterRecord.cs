@@ -15,7 +15,7 @@ namespace Carbon.Abstractions.Persistence;
 /// <c>Gold</c>, <c>Diamonds</c>, <c>WalletSequence</c> and <c>DiamondPity</c> persist the server-authoritative
 /// wallet (ADR-012). <c>NeedsFood</c>, <c>NeedsMalnutrition</c> and <c>NeedsPoisonSeconds</c> persist survival
 /// needs (ADR-015); a negative <c>NeedsFood</c> means "never saved" and spawns the character fully fed. <c>NeedsRest</c>
-/// persists the rest need (ADR-017); a negative value spawns the character fully rested.
+/// persists the rest need (ADR-018); a negative value spawns the character fully rested.
 /// They are trailing optional members so existing call sites keep compiling.
 /// </remarks>
 public sealed record CharacterRecord(

@@ -304,7 +304,7 @@ public sealed class PgSchemaMigrator : IDatabaseMigrator
             ],
             ct).ConfigureAwait(false);
 
-        // ADR-017: rest need. needs_rest = -1 marks "never saved" so existing characters spawn fully rested.
+        // ADR-018: rest need. needs_rest = -1 marks "never saved" so existing characters spawn fully rested.
         await AddCharacterColumnsAsync(
             conn,
             tx,

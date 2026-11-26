@@ -27,7 +27,7 @@ public interface IWorldEntityCommandSink
         byte amount = 1);
 
     /// <summary>
-    /// Starts resting (sleeping in a bed within reach, otherwise sitting) or stands the player up (ADR-017).
+    /// Starts resting (sleeping in a bed within reach, otherwise sitting) or stands the player up (ADR-018).
     /// </summary>
     /// <param name="connectionId">Requesting connection.</param>
     /// <param name="rest"><see langword="true"/> to rest, <see langword="false"/> to stand up.</param>

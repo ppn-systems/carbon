@@ -119,7 +119,7 @@ public sealed partial class PlayerStatsSync : PacketBase<PlayerStatsSync>, IPack
     [SerializeOrder(24)]
     public float EatProgress { get; set; } = -1f;
 
-    /// <summary>Current rest level, <c>0..MaxRest</c> (ADR-017).</summary>
+    /// <summary>Current rest level, <c>0..MaxRest</c> (ADR-018).</summary>
     [SerializeOrder(25)]
     public float Rest { get; set; }
 
