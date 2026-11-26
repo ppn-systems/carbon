@@ -8,35 +8,56 @@ using System.IO;
 using System.Numerics;
 using System.Text.Json;
 using Carbon.Graphics.Batching.Common;
+using Carbon.Maps.Biomes;
 
 namespace Carbon.Desktop.Rendering.VectorArt;
 
 /// <summary>
 /// File-backed <see cref="IVectorArtRepository"/> implementation compiling external <c>.cvg.json</c> blueprints
-/// using Native-AOT JSON serialization with zero raster image dependencies.
+/// into direct <c>O(1)</c> flat lookup tables using Native-AOT JSON serialization with zero raster image dependencies.
 /// </summary>
 public sealed class CarbonVectorArtLibrary : IVectorArtRepository
 {
-    private readonly Dictionary<byte, CompiledVectorRig> _characters = [];
-    private readonly Dictionary<ushort, CompiledVectorRig> _monsters = [];
-    private readonly Dictionary<ushort, CompiledVectorRig> _npcs = [];
-    private readonly Dictionary<uint, CompiledItemVectorArt> _items = [];
+    private CompiledVectorRig?[] _characterTable = [];
+    private CompiledVectorRig?[] _monsterTable = [];
+    private CompiledVectorRig?[] _npcTable = [];
+    private CompiledItemVectorArt?[] _itemTable = [];
+    private CompiledPropArt?[] _propTable = [];
+    private CompiledBiomeArt?[] _biomeTable = [];
+    private CompiledStructureArt?[] _structureTable = [];
+
+    private int _characterCount;
+    private int _monsterCount;
+    private int _npcCount;
+    private int _itemCount;
+    private int _propCount;
+    private int _biomeCount;
+    private int _structureCount;
 
     private CarbonVectorArtLibrary()
     {
     }
 
     /// <inheritdoc/>
-    public int CharacterCount => _characters.Count;
+    public int CharacterCount => _characterCount;
 
     /// <inheritdoc/>
-    public int MonsterCount => _monsters.Count;
+    public int MonsterCount => _monsterCount;
 
     /// <inheritdoc/>
-    public int NpcCount => _npcs.Count;
+    public int NpcCount => _npcCount;
 
     /// <inheritdoc/>
-    public int ItemCount => _items.Count;
+    public int ItemCount => _itemCount;
+
+    /// <inheritdoc/>
+    public int PropCount => _propCount;
+
+    /// <inheritdoc/>
+    public int BiomeCount => _biomeCount;
+
+    /// <inheritdoc/>
+    public int StructureCount => _structureCount;
 
     /// <summary>
     /// Attempts to load external <c>.cvg.json</c> assets from <paramref name="hintDirectory"/> or discovered <c>resources/art</c>.
@@ -66,6 +87,16 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
         CarbonVectorArtLibrary lib = new();
         Dictionary<string, CompiledVectorRig> compiledCache = new(StringComparer.OrdinalIgnoreCase);
 
+        int maxCharId = 3;
+        for (int i = 0; i < catalog.Characters.Count; i++)
+        {
+            if (catalog.Characters[i].Preset > maxCharId)
+            {
+                maxCharId = catalog.Characters[i].Preset;
+            }
+        }
+
+        lib._characterTable = new CompiledVectorRig?[maxCharId + 1];
         for (int i = 0; i < catalog.Characters.Count; i++)
         {
             CvgCharacterCatalogDto entry = catalog.Characters[i];
@@ -81,13 +112,33 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
                 compiledCache[fullPath] = compiled;
             }
 
-            lib._characters[entry.Preset] = compiled;
+            if (lib._characterTable[entry.Preset] is null)
+            {
+                lib._characterCount++;
+            }
+
+            lib._characterTable[entry.Preset] = compiled;
         }
 
+        int maxMonsterId = 101;
+        for (int i = 0; i < catalog.Monsters.Count; i++)
+        {
+            if (catalog.Monsters[i].ArchetypeId > maxMonsterId)
+            {
+                maxMonsterId = catalog.Monsters[i].ArchetypeId;
+            }
+        }
+
+        lib._monsterTable = new CompiledVectorRig?[maxMonsterId + 1];
         for (int i = 0; i < catalog.Monsters.Count; i++)
         {
             CvgArchetypeCatalogDto entry = catalog.Monsters[i];
-            lib._monsters[entry.ArchetypeId] = CompileRig(
+            if (lib._monsterTable[entry.ArchetypeId] is null)
+            {
+                lib._monsterCount++;
+            }
+
+            lib._monsterTable[entry.ArchetypeId] = CompileRig(
                 Path.Combine(artRoot, entry.File),
                 entry.Title,
                 entry.Subtitle,
@@ -95,10 +146,25 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
                 entry.AccentColor);
         }
 
+        int maxNpcId = 201;
+        for (int i = 0; i < catalog.Npcs.Count; i++)
+        {
+            if (catalog.Npcs[i].ArchetypeId > maxNpcId)
+            {
+                maxNpcId = catalog.Npcs[i].ArchetypeId;
+            }
+        }
+
+        lib._npcTable = new CompiledVectorRig?[maxNpcId + 1];
         for (int i = 0; i < catalog.Npcs.Count; i++)
         {
             CvgArchetypeCatalogDto entry = catalog.Npcs[i];
-            lib._npcs[entry.ArchetypeId] = CompileRig(
+            if (lib._npcTable[entry.ArchetypeId] is null)
+            {
+                lib._npcCount++;
+            }
+
+            lib._npcTable[entry.ArchetypeId] = CompileRig(
                 Path.Combine(artRoot, entry.File),
                 entry.Title,
                 entry.Subtitle,
@@ -106,10 +172,88 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
                 entry.AccentColor);
         }
 
+        uint maxItemId = 32;
+        for (int i = 0; i < catalog.Items.Count; i++)
+        {
+            if (catalog.Items[i].ItemId > maxItemId)
+            {
+                maxItemId = catalog.Items[i].ItemId;
+            }
+        }
+
+        lib._itemTable = new CompiledItemVectorArt?[maxItemId + 1];
         for (int i = 0; i < catalog.Items.Count; i++)
         {
             CvgItemCatalogDto entry = catalog.Items[i];
-            lib._items[entry.ItemId] = CompileItem(Path.Combine(artRoot, entry.File));
+            if (lib._itemTable[entry.ItemId] is null)
+            {
+                lib._itemCount++;
+            }
+
+            lib._itemTable[entry.ItemId] = CompileItem(Path.Combine(artRoot, entry.File));
+        }
+
+        int maxPropId = 22;
+        for (int i = 0; i < catalog.Props.Count; i++)
+        {
+            if (catalog.Props[i].PropType > maxPropId)
+            {
+                maxPropId = catalog.Props[i].PropType;
+            }
+        }
+
+        lib._propTable = new CompiledPropArt?[maxPropId + 1];
+        for (int i = 0; i < catalog.Props.Count; i++)
+        {
+            CvgPropCatalogDto entry = catalog.Props[i];
+            if (lib._propTable[entry.PropType] is null)
+            {
+                lib._propCount++;
+            }
+
+            lib._propTable[entry.PropType] = CompileProp(Path.Combine(artRoot, entry.File));
+        }
+
+        int maxBiomeId = 13;
+        for (int i = 0; i < catalog.Biomes.Count; i++)
+        {
+            if (catalog.Biomes[i].BiomeId > maxBiomeId)
+            {
+                maxBiomeId = catalog.Biomes[i].BiomeId;
+            }
+        }
+
+        lib._biomeTable = new CompiledBiomeArt?[maxBiomeId + 1];
+        for (int i = 0; i < catalog.Biomes.Count; i++)
+        {
+            CvgBiomeCatalogDto entry = catalog.Biomes[i];
+            if (lib._biomeTable[entry.BiomeId] is null)
+            {
+                lib._biomeCount++;
+            }
+
+            lib._biomeTable[entry.BiomeId] = CompileBiome(Path.Combine(artRoot, entry.File));
+        }
+
+        int maxStructId = 8;
+        for (int i = 0; i < catalog.Structures.Count; i++)
+        {
+            if (catalog.Structures[i].StructureType > maxStructId)
+            {
+                maxStructId = catalog.Structures[i].StructureType;
+            }
+        }
+
+        lib._structureTable = new CompiledStructureArt?[maxStructId + 1];
+        for (int i = 0; i < catalog.Structures.Count; i++)
+        {
+            CvgStructureCatalogDto entry = catalog.Structures[i];
+            if (lib._structureTable[entry.StructureType] is null)
+            {
+                lib._structureCount++;
+            }
+
+            lib._structureTable[entry.StructureType] = CompileStructure(Path.Combine(artRoot, entry.File));
         }
 
         return lib;
@@ -118,39 +262,117 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
     /// <inheritdoc/>
     public bool TryGetCharacter(byte preset, [NotNullWhen(true)] out CompiledVectorRig? rig)
     {
-        if (_characters.TryGetValue(preset, out rig))
+        if (preset < _characterTable.Length && _characterTable[preset] is { } found)
         {
+            rig = found;
             return true;
         }
 
-        return _characters.TryGetValue(0, out rig);
+        if (_characterTable.Length > 0 && _characterTable[0] is { } fallback)
+        {
+            rig = fallback;
+            return true;
+        }
+
+        rig = null;
+        return false;
     }
 
     /// <inheritdoc/>
     public bool TryGetMonster(ushort archetypeId, [NotNullWhen(true)] out CompiledVectorRig? rig)
     {
-        if (_monsters.TryGetValue(archetypeId, out rig))
+        if (archetypeId < _monsterTable.Length && _monsterTable[archetypeId] is { } found)
         {
+            rig = found;
             return true;
         }
 
-        return _monsters.TryGetValue(101, out rig);
+        if (_monsterTable.Length > 101 && _monsterTable[101] is { } fallback)
+        {
+            rig = fallback;
+            return true;
+        }
+
+        rig = null;
+        return false;
     }
 
     /// <inheritdoc/>
     public bool TryGetNpc(ushort archetypeId, [NotNullWhen(true)] out CompiledVectorRig? rig)
     {
-        if (_npcs.TryGetValue(archetypeId, out rig))
+        if (archetypeId < _npcTable.Length && _npcTable[archetypeId] is { } found)
         {
+            rig = found;
             return true;
         }
 
-        return _npcs.TryGetValue(201, out rig);
+        if (_npcTable.Length > 201 && _npcTable[201] is { } fallback)
+        {
+            rig = fallback;
+            return true;
+        }
+
+        rig = null;
+        return false;
     }
 
     /// <inheritdoc/>
-    public bool TryGetItem(uint itemId, [NotNullWhen(true)] out CompiledItemVectorArt? item) =>
-        _items.TryGetValue(itemId, out item);
+    public bool TryGetItem(uint itemId, [NotNullWhen(true)] out CompiledItemVectorArt? item)
+    {
+        if (itemId < (uint)_itemTable.Length && _itemTable[itemId] is { } found)
+        {
+            item = found;
+            return true;
+        }
+
+        item = null;
+        return false;
+    }
+
+    /// <inheritdoc/>
+    public bool TryGetProp(byte propType, [NotNullWhen(true)] out CompiledPropArt? prop)
+    {
+        if (propType < _propTable.Length && _propTable[propType] is { } found)
+        {
+            prop = found;
+            return true;
+        }
+
+        prop = null;
+        return false;
+    }
+
+    /// <inheritdoc/>
+    public bool TryGetBiome(byte biomeId, [NotNullWhen(true)] out CompiledBiomeArt? biome)
+    {
+        if (biomeId < _biomeTable.Length && _biomeTable[biomeId] is { } found)
+        {
+            biome = found;
+            return true;
+        }
+
+        biome = null;
+        return false;
+    }
+
+    /// <inheritdoc/>
+    public bool TryGetStructure(byte structureType, [NotNullWhen(true)] out CompiledStructureArt? structureArt)
+    {
+        if (structureType < _structureTable.Length && _structureTable[structureType] is { } found)
+        {
+            structureArt = found;
+            return true;
+        }
+
+        structureArt = null;
+        return false;
+    }
+
+    /// <inheritdoc/>
+    public string GetBiomeDisplayName(byte biomeId) =>
+        this.TryGetBiome(biomeId, out CompiledBiomeArt? biome)
+            ? biome.DisplayName
+            : ((BiomeType)biomeId).ToString();
 
     private static CompiledVectorRig CompileRig(
         string filePath,
@@ -238,6 +460,142 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
             primaryArmor,
             secondaryArmor,
             trimArmor);
+    }
+
+    private static CompiledPropArt CompileProp(string filePath)
+    {
+        if (!File.Exists(filePath))
+        {
+            throw new FileNotFoundException($"Prop blueprint missing: {filePath}", filePath);
+        }
+
+        CvgPropBlueprintDto dto = JsonSerializer.Deserialize(
+            File.ReadAllText(filePath),
+            CvgJsonContext.Default.CvgPropBlueprintDto)
+            ?? throw new InvalidDataException($"Prop blueprint null: {filePath}");
+
+        if (dto.GroundShapes.Count == 0)
+        {
+            throw new InvalidDataException($"Prop '{dto.Id}' must define non-empty groundShapes in {filePath}");
+        }
+
+        if (dto.HasCanopy && dto.CanopyShapes.Count == 0)
+        {
+            throw new InvalidDataException($"Prop '{dto.Id}' declares hasCanopy=true without canopyShapes in {filePath}");
+        }
+
+        int variantCount = Math.Max(1, dto.PaletteVariants.Count);
+        CompiledVectorShape[][] groundVariants = new CompiledVectorShape[variantCount][];
+        CompiledVectorShape[][] canopyVariants = new CompiledVectorShape[variantCount][];
+        CompiledVectorShape[][] remnantVariants = new CompiledVectorShape[variantCount][];
+
+        for (int v = 0; v < variantCount; v++)
+        {
+            Dictionary<string, string>? palette = dto.PaletteVariants.Count > 0 ? dto.PaletteVariants[v] : null;
+            groundVariants[v] = CompileShapes(dto.GroundShapes, palette, filePath);
+            canopyVariants[v] = dto.CanopyShapes.Count > 0 ? CompileShapes(dto.CanopyShapes, palette, filePath) : [];
+            remnantVariants[v] = dto.RemnantShapes.Count > 0 ? CompileShapes(dto.RemnantShapes, palette, filePath) : [];
+        }
+
+        CompiledPropLight? light = dto.Light is not null
+            ? new CompiledPropLight(
+                new Vector2(dto.Light.OffsetX, dto.Light.OffsetY),
+                dto.Light.Radius,
+                ParseColor(dto.Light.Color, dto.PaletteVariants.Count > 0 ? dto.PaletteVariants[^1] : null),
+                dto.Light.Intensity,
+                dto.Light.RareOnly)
+            : null;
+
+        return new CompiledPropArt(
+            dto.PropType,
+            dto.Id,
+            dto.DisplayName,
+            dto.DesignRadius,
+            dto.HasCanopy,
+            dto.AllowMirror,
+            dto.IsWoody,
+            dto.IsIcy,
+            dto.RareLastVariantChance,
+            light,
+            groundVariants,
+            canopyVariants,
+            remnantVariants);
+    }
+
+    private static CompiledBiomeArt CompileBiome(string filePath)
+    {
+        if (!File.Exists(filePath))
+        {
+            throw new FileNotFoundException($"Biome blueprint missing: {filePath}", filePath);
+        }
+
+        CvgBiomeBlueprintDto dto = JsonSerializer.Deserialize(
+            File.ReadAllText(filePath),
+            CvgJsonContext.Default.CvgBiomeBlueprintDto)
+            ?? throw new InvalidDataException($"Biome blueprint null: {filePath}");
+
+        if (string.IsNullOrWhiteSpace(dto.DisplayName))
+        {
+            throw new InvalidDataException($"Biome '{dto.Id}' must define a non-empty displayName in {filePath}");
+        }
+
+        if (dto.DetailVariants.Count == 0)
+        {
+            throw new InvalidDataException($"Biome '{dto.Id}' must define detailVariants in {filePath}");
+        }
+
+        CompiledVectorShape[][] variants = new CompiledVectorShape[dto.DetailVariants.Count][];
+        for (int v = 0; v < dto.DetailVariants.Count; v++)
+        {
+            CvgBiomeDetailVariantDto dv = dto.DetailVariants[v];
+            if (dv.Shapes.Count == 0)
+            {
+                throw new InvalidDataException($"Biome '{dto.Id}' detailVariant[{v}] has no shapes in {filePath}");
+            }
+
+            variants[v] = CompileShapes(dv.Shapes, dto.Palette, filePath);
+        }
+
+        return new CompiledBiomeArt(
+            dto.BiomeId,
+            dto.Id,
+            dto.DisplayName,
+            ParseColor(dto.GroundColor, dto.Palette),
+            ParseColor(dto.MinimapColor, dto.Palette),
+            ParseColor(dto.CliffBase, dto.Palette),
+            ParseColor(dto.CliffStrata, dto.Palette),
+            ParseColor(dto.CliffHighlight, dto.Palette),
+            ParseColor(dto.CliffShadow, dto.Palette),
+            dto.DetailChancePercent,
+            variants);
+    }
+
+    private static CompiledStructureArt CompileStructure(string filePath)
+    {
+        if (!File.Exists(filePath))
+        {
+            throw new FileNotFoundException($"Structure blueprint missing: {filePath}", filePath);
+        }
+
+        CvgStructureBlueprintDto dto = JsonSerializer.Deserialize(
+            File.ReadAllText(filePath),
+            CvgJsonContext.Default.CvgStructureBlueprintDto)
+            ?? throw new InvalidDataException($"Structure blueprint null: {filePath}");
+
+        if (dto.Shapes.Count == 0)
+        {
+            throw new InvalidDataException($"Structure '{dto.Id}' must define non-empty shapes in {filePath}");
+        }
+
+        CompiledVectorShape[] shapes = CompileShapes(dto.Shapes, dto.Palette, filePath);
+        CompiledVectorShape[] openShapes = dto.OpenShapes.Count > 0 ? CompileShapes(dto.OpenShapes, dto.Palette, filePath) : [];
+
+        return new CompiledStructureArt(
+            dto.StructureType,
+            dto.Id,
+            dto.DisplayName,
+            shapes,
+            openShapes);
     }
 
     private static CompiledVectorShape[] CompileShapes(

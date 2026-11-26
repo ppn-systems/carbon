@@ -2,7 +2,7 @@
 
 using System;
 using System.Numerics;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
 using Carbon.Items.Catalog;
@@ -19,13 +19,13 @@ internal static class ActionVfxRenderer
     public static void DrawActionTrail(
         GeometryBatch batch,
         Vector2 origin,
-        ClientActionKind kind,
+        ActionAnimationKind kind,
         Vector2 direction,
         float progress,
         byte comboStep,
         uint itemId = 0U)
     {
-        if (kind == ClientActionKind.None || progress >= 1f)
+        if (kind == ActionAnimationKind.None || progress >= 1f)
         {
             return;
         }
@@ -37,15 +37,15 @@ internal static class ActionVfxRenderer
 
         switch (kind)
         {
-            case ClientActionKind.SwordSlash:
+            case ActionAnimationKind.SwordSlash:
                 DrawSwordCleaveRibbon(batch, origin + new Vector2(0f, -6f), baseAngle, progress, comboStep, alpha);
                 break;
 
-            case ClientActionKind.AxeChop:
+            case ActionAnimationKind.AxeChop:
                 DrawAxeTimberCleave(batch, origin + new Vector2(0f, -6f), dir, baseAngle, progress, alpha);
                 break;
 
-            case ClientActionKind.PickaxeMine:
+            case ActionAnimationKind.PickaxeMine:
                 DrawPickaxeImpactBurst(
                     batch,
                     origin + new Vector2(0f, -6f),
@@ -56,33 +56,33 @@ internal static class ActionVfxRenderer
                     isCrystalPick: itemId == StarterGameCatalog.CrystalPickaxe);
                 break;
 
-            case ClientActionKind.MonsterStrike:
+            case ActionAnimationKind.MonsterStrike:
                 DrawMonsterStrikeArc(batch, origin + new Vector2(0f, -4f), baseAngle, progress, alpha);
                 break;
 
-            case ClientActionKind.SpinSlash:
+            case ActionAnimationKind.SpinSlash:
                 DrawWhirlwindNova(batch, origin + new Vector2(0f, -6f), progress, alpha);
                 break;
 
-            case ClientActionKind.ArcaneWave:
+            case ActionAnimationKind.ArcaneWave:
                 DrawArcaneNovaCone(batch, origin + new Vector2(0f, -6f), baseAngle, progress, alpha);
                 break;
 
-            case ClientActionKind.SelfAura:
+            case ActionAnimationKind.SelfAura:
                 DrawVitalSurgeAura(batch, origin + new Vector2(0f, -8f), progress, alpha);
                 break;
 
-            case ClientActionKind.BowShot:
+            case ActionAnimationKind.BowShot:
                 DrawBowReleaseStreak(batch, origin + new Vector2(0f, -6f), dir, progress, alpha);
                 break;
 
-            case ClientActionKind.StaffCast:
+            case ActionAnimationKind.StaffCast:
                 DrawStaffCastBurst(batch, origin + new Vector2(0f, -8f), dir, progress, alpha, isCrystal: itemId == StarterGameCatalog.CrystalStaff);
                 break;
 
-            case ClientActionKind.None:
-            case ClientActionKind.ConsumeItem:
-            case ClientActionKind.PlaceStructure:
+            case ActionAnimationKind.None:
+            case ActionAnimationKind.ConsumeItem:
+            case ActionAnimationKind.PlaceStructure:
             default:
                 break;
         }

@@ -4,7 +4,9 @@ using System;
 using System.Globalization;
 using System.Numerics;
 using System.Threading.Tasks;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.Configuration;
+using Carbon.Desktop.Abstractions.Identity;
+using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Rendering;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching;
@@ -30,8 +32,8 @@ namespace Carbon.Desktop.Scenes;
 /// </summary>
 public sealed class LoginScene : GameScene
 {
-    private readonly IClientWorldSession _session;
-    private readonly DesktopClientOptions _options;
+    private readonly IWorldSession _session;
+    private readonly DesktopOptions _options;
     private readonly Camera2D _camera;
 
     private readonly MenuTextField _usernameField;
@@ -52,7 +54,7 @@ public sealed class LoginScene : GameScene
     private CarbonUiSkin? _uiSkin;
     private IInputManager? _boundInput;
 
-    private Task<ClientAuthResult>? _pendingAuthTask;
+    private Task<AuthenticationResult>? _pendingAuthTask;
     private Task? _pendingAutoEnterTask;
     private bool _registerMode;
     private bool _showGatewayEditor;
@@ -66,7 +68,7 @@ public sealed class LoginScene : GameScene
     /// <summary>
     /// Initializes a new instance of the <see cref="LoginScene"/> class.
     /// </summary>
-    public LoginScene(IClientWorldSession session, DesktopClientOptions options, Camera2D camera)
+    public LoginScene(IWorldSession session, DesktopOptions options, Camera2D camera)
         : base("Login")
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
@@ -156,11 +158,11 @@ public sealed class LoginScene : GameScene
 
         if (_pendingAuthTask is not null && _pendingAuthTask.IsCompleted)
         {
-            Task<ClientAuthResult> completedAuth = _pendingAuthTask;
+            Task<AuthenticationResult> completedAuth = _pendingAuthTask;
             _pendingAuthTask = null;
             try
             {
-                ClientAuthResult authResult = completedAuth.GetAwaiter().GetResult();
+                AuthenticationResult authResult = completedAuth.GetAwaiter().GetResult();
                 if (authResult.Succeeded)
                 {
                     CharacterSelectScene? next = null;

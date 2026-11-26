@@ -3,16 +3,26 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Reflection;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.Identity;
+using Carbon.Desktop.Abstractions.Session;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Networking;
 using Carbon.Desktop.Rendering;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
+using Carbon.Desktop.Scenes;
+using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Fonts.TrueType;
 using Carbon.Items.Catalog;
+using Carbon.Maps.Biomes;
+using Carbon.Maps.Building;
+using Carbon.Maps.Props;
+using Carbon.Prediction.Reconciliation;
 using FluentAssertions;
+using NSubstitute;
 using Xunit;
 
 namespace Carbon.Desktop.Tests;
@@ -34,6 +44,9 @@ public sealed class VectorArtAndArchitectureTests
         summary.MonstersValidated.Should().Be(7);
         summary.NpcsValidated.Should().Be(4);
         summary.ItemsValidated.Should().Be(32);
+        summary.PropsValidated.Should().Be(22);
+        summary.BiomesValidated.Should().Be(14);
+        summary.StructuresValidated.Should().Be(8);
         summary.RasterImagesFound.Should().Be(0, "declarative vector pipeline uses zero PNG/JPG images");
 
         string? uiPanelDir = CarbonUiSkin.TryFindPanelDirectory();
@@ -55,43 +68,88 @@ public sealed class VectorArtAndArchitectureTests
             rig.EvaluatePose("slash", "idle", 0.35f, isNormalized: true, pose);
             rig.EvaluatePose("cast", "idle", 0.45f, isNormalized: true, pose);
         }
+
+        foreach (MapPropType propType in Enum.GetValues<MapPropType>())
+        {
+            if (propType == MapPropType.None)
+            {
+                continue;
+            }
+
+            lib.TryGetProp((byte)propType, out CompiledPropArt? propArt).Should().BeTrue($"prop {propType} must exist in props/*.cvg.json");
+            propArt!.GroundVariants.Length.Should().BeGreaterThanOrEqualTo(1);
+            if (propArt.HasCanopy)
+            {
+                propArt.CanopyVariants[0].Length.Should().BeGreaterThan(0);
+            }
+        }
+
+        foreach (BiomeType biome in Enum.GetValues<BiomeType>())
+        {
+            lib.TryGetBiome((byte)biome, out CompiledBiomeArt? biomeArt).Should().BeTrue($"biome {biome} must exist in biomes/*.cvg.json");
+            biomeArt!.DisplayName.Should().NotBeNullOrWhiteSpace();
+            biomeArt.DetailVariants.Length.Should().BeGreaterThanOrEqualTo(3, $"every biome ({biome}) should define surface micro-detail variants");
+        }
+
+        lib.GetBiomeDisplayName((byte)BiomeType.RedMesa).Should().Be("Red Mesa");
+
+        foreach (StructureType structType in Enum.GetValues<StructureType>())
+        {
+            if (structType == StructureType.None)
+            {
+                continue;
+            }
+
+            lib.TryGetStructure((byte)structType, out CompiledStructureArt? structArt).Should().BeTrue($"structure {structType} must exist in structures/*.cvg.json");
+            structArt!.Shapes.Length.Should().BeGreaterThan(0);
+            if (structType is StructureType.WoodDoor or StructureType.StoneDoor)
+            {
+                structArt.OpenShapes.Length.Should().BeGreaterThan(0);
+            }
+        }
     }
 
     [Fact]
-    public void ClientArchitecture_ShouldEnforceSegregatedInterfacesDipAndLauncherScriptInvariants()
+    public void DesktopArchitecture_ShouldEnforceSegregatedInterfacesDipAndLauncherScriptInvariants()
     {
-        // ISP: composite session implements all 4 focused client role ports.
-        typeof(IClientWorldSession).Should().Implement<IClientAuthService>();
-        typeof(IClientWorldSession).Should().Implement<IClientCharacterService>();
-        typeof(IClientWorldSession).Should().Implement<IClientWorldReadModel>();
-        typeof(IClientWorldSession).Should().Implement<IClientGameplayController>();
-        typeof(MultiplayerSession).Should().Implement<IClientWorldSession>();
+        // ISP: composite session implements all 4 focused role ports.
+        typeof(IWorldSession).Should().Implement<IAuthenticationGateway>();
+        typeof(IWorldSession).Should().Implement<ICharacterRosterService>();
+        typeof(IWorldSession).Should().Implement<IWorldReadModel>();
+        typeof(IWorldSession).Should().Implement<IGameplayController>();
+        typeof(MultiplayerSession).Should().Implement<IWorldSession>();
 
         Assembly[] renamedAssemblies =
         [
+            typeof(WorldGameplayScene).Assembly,
             typeof(MultiplayerSession).Assembly,
-            typeof(IClientWorldSession).Assembly,
+            typeof(IWorldSession).Assembly,
             typeof(HudOverlayRenderer).Assembly,
             typeof(SkillCatalog).Assembly,
             typeof(TrueTypeFontLoader).Assembly,
+            typeof(PredictionReconciler).Assembly,
         ];
         foreach (Assembly assembly in renamedAssemblies)
         {
-            assembly.GetTypes()
-                .Where(static t => !t.Name.StartsWith('<'))
-                .Select(static t => t.Name)
-                .Should().NotContain(name => name.Contains("Nalix", StringComparison.Ordinal),
-                    because: $"types in {assembly.GetName().Name} should use simple domain names instead of Nalix* prefixes");
+            Type[] types = [.. assembly.GetTypes().Where(static t => !t.Name.StartsWith('<'))];
+            types.Select(static t => t.Name)
+                .Should().NotContain(
+                    name => name.Contains("Nalix", StringComparison.Ordinal) || name.Contains("Client", StringComparison.Ordinal),
+                    because: $"types in {assembly.GetName().Name} should use clean domain names without Nalix* or Client* prefixes");
+            types.Select(static t => t.Namespace ?? string.Empty)
+                .Should().NotContain(
+                    ns => ns.EndsWith(".Client", StringComparison.Ordinal),
+                    because: $"namespaces in {assembly.GetName().Name} should avoid trailing .Client segments");
         }
 
-        // CQRS & ISP: renderers accept read-only IClientWorldReadModel instead of mutation session.
+        // CQRS & ISP: renderers accept read-only IWorldReadModel instead of mutation session.
         MethodInfo? worldRender = typeof(WorldSceneRenderer).GetMethod(nameof(WorldSceneRenderer.Render));
         worldRender.Should().NotBeNull();
-        worldRender!.GetParameters()[0].ParameterType.Should().Be<IClientWorldReadModel>();
+        worldRender!.GetParameters()[0].ParameterType.Should().Be<IWorldReadModel>();
 
         MethodInfo? hudRender = typeof(HudOverlayRenderer).GetMethod(nameof(HudOverlayRenderer.Render));
         hudRender.Should().NotBeNull();
-        hudRender!.GetParameters()[0].ParameterType.Should().Be<IClientWorldReadModel>();
+        hudRender!.GetParameters()[0].ParameterType.Should().Be<IWorldReadModel>();
 
         // DIP: renderers accept IVectorArtRepository injection.
         typeof(WorldSceneRenderer).GetConstructors()[0].GetParameters()
@@ -102,11 +160,19 @@ public sealed class VectorArtAndArchitectureTests
         // Script folder strictly holds run-server.ps1 & run-client.ps1 only.
         string? artRoot = VectorArtValidator.TryFindArtRootDirectory();
         string repoRoot = FindRepoRoot(artRoot!);
+
+        Type[] abstractionTypes = [.. typeof(IWorldSession).Assembly.GetTypes().Where(static t => !t.Name.StartsWith('<'))];
+        abstractionTypes.Select(static t => t.Namespace ?? string.Empty)
+            .Should().AllSatisfy(ns => ns.Should().StartWith("Carbon.Desktop.Abstractions."));
+        Directory.GetFiles(Path.Combine(repoRoot, "desktop", "Carbon.Desktop.Abstractions"), "*.cs", SearchOption.TopDirectoryOnly)
+            .Should().BeEmpty("all abstractions should live inside domain subfolders");
         string scriptDir = Path.Combine(repoRoot, "script");
-        string[] ps1Files = Directory.GetFiles(scriptDir, "*.ps1")
-            .Select(Path.GetFileName)
-            .OrderBy(static n => n, StringComparer.Ordinal)
-            .ToArray()!;
+        string[] ps1Files =
+        [
+            .. Directory.GetFiles(scriptDir, "*.ps1")
+                .Select(static f => Path.GetFileName(f)!)
+                .OrderBy(static n => n, StringComparer.Ordinal),
+        ];
         ps1Files.Should().Equal("run-client.ps1", "run-server.ps1");
         Directory.GetFiles(scriptDir, "*.bat").Should().BeEmpty();
         Directory.GetFiles(scriptDir, "*.cmd").Should().BeEmpty();
@@ -115,7 +181,7 @@ public sealed class VectorArtAndArchitectureTests
         string tempCfg = Path.Combine(Path.GetTempPath(), $"carbon-ui-settings-{Guid.NewGuid():N}.cfg");
         try
         {
-            ClientUiSettings saved = new()
+            UiSettings saved = new()
             {
                 ShowMinimap = false,
                 ShowCombatNumbers = false,
@@ -125,7 +191,7 @@ public sealed class VectorArtAndArchitectureTests
             };
             saved.Save(tempCfg);
 
-            ClientUiSettings loaded = ClientUiSettings.LoadOrDefault(tempCfg);
+            UiSettings loaded = UiSettings.LoadOrDefault(tempCfg);
             loaded.ShowMinimap.Should().BeFalse();
             loaded.ShowCombatNumbers.Should().BeFalse();
             loaded.ShowTelemetry.Should().BeFalse();
@@ -138,6 +204,95 @@ public sealed class VectorArtAndArchitectureTests
             {
                 File.Delete(tempCfg);
             }
+        }
+    }
+
+    [Fact]
+    public void UnifiedPlayerModal_ShouldMaintainEqualTabWidthsAndFixedSizeAcrossAllTabs()
+    {
+        IWorldReadModel fakeWorld = Substitute.For<IWorldReadModel>();
+        InventoryModalWidget bag = new();
+        CharacterSheetModalWidget character = new();
+        CraftingModalWidget crafting = new();
+        ClassSkillsModalWidget skills = new();
+
+        (int Width, int Height)[] viewports =
+        [
+            (1280, 720),
+            (1600, 900),
+            (1920, 1080),
+            (2560, 1440),
+        ];
+
+        foreach ((int vw, int vh) in viewports)
+        {
+            PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(vw, vh);
+
+            foreach (int tabCount in new[] { 3, 4 })
+            {
+                RectangleF first = PlayerModalTabs.GetTabRect(in layout, 0, tabCount);
+                RectangleF last = PlayerModalTabs.GetTabRect(in layout, tabCount - 1, tabCount);
+                first.X.Should().Be(layout.Ox);
+                last.Right.Should().Be(layout.Ox + layout.PanelW);
+
+                for (int i = 0; i < tabCount; i++)
+                {
+                    RectangleF tab = PlayerModalTabs.GetTabRect(in layout, i, tabCount);
+                    tab.Height.Should().Be(first.Height);
+                    MathF.Abs(tab.Width - first.Width).Should().BeLessThanOrEqualTo(2f);
+                    if (i > 0)
+                    {
+                        RectangleF prev = PlayerModalTabs.GetTabRect(in layout, i - 1, tabCount);
+                        tab.X.Should().BeGreaterThan(prev.Right);
+                    }
+                }
+            }
+
+            Vector2 topLeftInside = new(layout.Ox + 4f, layout.Oy + 4f);
+            Vector2 bottomRightInside = new(layout.Ox + layout.PanelW - 4f, layout.Oy + layout.PanelH - 4f);
+            Vector2 tabPoint = new(layout.Ox + (layout.PanelW * 0.5f), layout.Oy - 8f);
+            Vector2 outsideLeft = new(layout.Ox - 4f, layout.Oy + (layout.PanelH * 0.5f));
+            Vector2 outsideBottom = new(layout.Ox + (layout.PanelW * 0.5f), layout.Oy + layout.PanelH + 4f);
+
+            RectangleF closeRect = PlayerModalTabs.GetCloseButtonRect(in layout);
+            Vector2 closeCenter = new(closeRect.X + (closeRect.Width * 0.5f), closeRect.Y + (closeRect.Height * 0.5f));
+
+            Func<Vector2, bool>[] containsChecks =
+            [
+                p => bag.ContainsPoint(fakeWorld, p, vw, vh),
+                p => character.ContainsPoint(fakeWorld, p, vw, vh),
+                p => crafting.ContainsPoint(fakeWorld, p, vw, vh),
+                p => skills.ContainsPoint(fakeWorld, p, vw, vh),
+            ];
+
+            Func<Vector2, bool>[] closeChecks =
+            [
+                p => bag.TryHitTestCloseButton(p, vw, vh),
+                p => character.TryHitTestCloseButton(p, vw, vh),
+                p => crafting.TryHitTestCloseButton(p, vw, vh),
+                p => skills.TryHitTestCloseButton(p, vw, vh),
+            ];
+
+            foreach (Func<Vector2, bool> contains in containsChecks)
+            {
+                contains(topLeftInside).Should().BeTrue();
+                contains(bottomRightInside).Should().BeTrue();
+                contains(tabPoint).Should().BeTrue();
+                contains(outsideLeft).Should().BeFalse();
+                contains(outsideBottom).Should().BeFalse();
+            }
+
+            foreach (Func<Vector2, bool> hitClose in closeChecks)
+            {
+                hitClose(closeCenter).Should().BeTrue();
+                hitClose(topLeftInside).Should().BeFalse();
+            }
+
+            RectangleF hotbar0 = InventoryModalWidget.GetSlotRectForTesting(in layout, 0);
+            RectangleF hotbar8 = InventoryModalWidget.GetSlotRectForTesting(in layout, 8);
+            hotbar0.X.Should().Be(layout.ContentX);
+            hotbar8.Right.Should().Be(layout.ContentX + layout.ContentW);
+            hotbar0.Bottom.Should().Be(layout.ContentY + layout.ContentH);
         }
     }
 

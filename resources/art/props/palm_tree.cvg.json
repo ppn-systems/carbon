@@ -1,0 +1,679 @@
+{
+  "schemaVersion": 2,
+  "propType": 4,
+  "id": "palm_tree",
+  "displayName": "Palm Tree",
+  "designRadius": 24,
+  "hasCanopy": true,
+  "allowMirror": true,
+  "isWoody": true,
+  "isIcy": false,
+  "rareLastVariantChance": 0.12,
+  "light": null,
+  "paletteVariants": [
+    {
+      "bark": "#9C6B3B",
+      "barkDark": "#6B4420",
+      "coconut": "#5C3A1E",
+      "frond": "#2E9A4E",
+      "frondDark": "#14532D",
+      "frondHi": "#6EE787"
+    },
+    {
+      "bark": "#A47445",
+      "barkDark": "#704926",
+      "coconut": "#5C3A1E",
+      "frond": "#4EA832",
+      "frondDark": "#245C1A",
+      "frondHi": "#95E06C"
+    }
+  ],
+  "groundShapes": [
+    {
+      "kind": "ellipse",
+      "x": 2,
+      "y": 16,
+      "rx": 10,
+      "ry": 4.5,
+      "color": "#00000028"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -5.2,
+          19.0
+        ],
+        [
+          5.2,
+          19.0
+        ],
+        [
+          4.42,
+          12.0
+        ],
+        [
+          -4.42,
+          12.0
+        ]
+      ],
+      "color": "$bark",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -3.38,
+          12.8
+        ],
+        [
+          6.38,
+          12.8
+        ],
+        [
+          5.65,
+          5.8
+        ],
+        [
+          -2.65,
+          5.8
+        ]
+      ],
+      "color": "$barkDark",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -0.56,
+          6.6
+        ],
+        [
+          8.56,
+          6.6
+        ],
+        [
+          7.88,
+          -0.4
+        ],
+        [
+          0.12,
+          -0.4
+        ]
+      ],
+      "color": "$bark",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          2.76,
+          0.4
+        ],
+        [
+          11.24,
+          0.4
+        ],
+        [
+          10.6,
+          -6.6
+        ],
+        [
+          3.4,
+          -6.6
+        ]
+      ],
+      "color": "$barkDark",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          5.58,
+          -5.8
+        ],
+        [
+          13.42,
+          -5.8
+        ],
+        [
+          12.83,
+          -12.8
+        ],
+        [
+          6.17,
+          -12.8
+        ]
+      ],
+      "color": "$bark",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          7.4,
+          -12.0
+        ],
+        [
+          14.6,
+          -12.0
+        ],
+        [
+          14.06,
+          -19.0
+        ],
+        [
+          7.94,
+          -19.0
+        ]
+      ],
+      "color": "$barkDark",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 0.8
+    }
+  ],
+  "canopyShapes": [
+    {
+      "kind": "ellipse",
+      "x": 9,
+      "y": -15,
+      "rx": 2.8,
+      "ry": 2.6,
+      "color": "$coconut",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 0.7
+    },
+    {
+      "kind": "ellipse",
+      "x": 13,
+      "y": -15,
+      "rx": 2.8,
+      "ry": 2.6,
+      "color": "$coconut",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 0.7
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          11,
+          -18
+        ],
+        [
+          1.44,
+          -28.03
+        ],
+        [
+          -1.77,
+          -21.15
+        ]
+      ],
+      "color": "$frond",
+      "outlineColor": "$frondDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          1.36,
+          -27.85
+        ],
+        [
+          -8.94,
+          -20.38
+        ],
+        [
+          -1.69,
+          -21.33
+        ]
+      ],
+      "color": "$frond",
+      "outlineColor": "$frondDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "line",
+      "x": 11,
+      "y": -18,
+      "x2": -0.17,
+      "y2": -24.59,
+      "thickness": 1.3,
+      "color": "$frondHi"
+    },
+    {
+      "kind": "line",
+      "x": -0.17,
+      "y": -24.59,
+      "x2": -8.06,
+      "y2": -20.8,
+      "thickness": 1.1,
+      "color": "$frondHi"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          11,
+          -18
+        ],
+        [
+          8.69,
+          -30.02
+        ],
+        [
+          2.11,
+          -26.22
+        ]
+      ],
+      "color": "$frond",
+      "outlineColor": "$frondDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          8.52,
+          -29.92
+        ],
+        [
+          1.0,
+          -26.32
+        ],
+        [
+          2.28,
+          -26.32
+        ]
+      ],
+      "color": "$frond",
+      "outlineColor": "$frondDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "line",
+      "x": 11,
+      "y": -18,
+      "x2": 5.4,
+      "y2": -28.12,
+      "thickness": 1.3,
+      "color": "$frondHi"
+    },
+    {
+      "kind": "line",
+      "x": 5.4,
+      "y": -28.12,
+      "x2": 1.44,
+      "y2": -26.5,
+      "thickness": 1.1,
+      "color": "$frondHi"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          11,
+          -18
+        ],
+        [
+          17.28,
+          -27.17
+        ],
+        [
+          9.94,
+          -29.13
+        ]
+      ],
+      "color": "$frond",
+      "outlineColor": "$frondDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          17.09,
+          -27.22
+        ],
+        [
+          15.66,
+          -30.87
+        ],
+        [
+          10.13,
+          -29.08
+        ]
+      ],
+      "color": "$frond",
+      "outlineColor": "$frondDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "line",
+      "x": 11,
+      "y": -18,
+      "x2": 13.61,
+      "y2": -28.15,
+      "thickness": 1.3,
+      "color": "$frondHi"
+    },
+    {
+      "kind": "line",
+      "x": 13.61,
+      "y": -28.15,
+      "x2": 15.45,
+      "y2": -30.59,
+      "thickness": 1.1,
+      "color": "$frondHi"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          11,
+          -18
+        ],
+        [
+          22.81,
+          -22.69
+        ],
+        [
+          18.45,
+          -28.91
+        ]
+      ],
+      "color": "$frond",
+      "outlineColor": "$frondDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          22.7,
+          -22.85
+        ],
+        [
+          28.2,
+          -26.91
+        ],
+        [
+          18.57,
+          -28.75
+        ]
+      ],
+      "color": "$frond",
+      "outlineColor": "$frondDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "line",
+      "x": 11,
+      "y": -18,
+      "x2": 20.63,
+      "y2": -25.8,
+      "thickness": 1.3,
+      "color": "$frondHi"
+    },
+    {
+      "kind": "line",
+      "x": 20.63,
+      "y": -25.8,
+      "x2": 27.45,
+      "y2": -26.8,
+      "thickness": 1.1,
+      "color": "$frondHi"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          11,
+          -18
+        ],
+        [
+          23.02,
+          -15.0
+        ],
+        [
+          24.34,
+          -22.48
+        ]
+      ],
+      "color": "$frond",
+      "outlineColor": "$frondDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          23.06,
+          -15.2
+        ],
+        [
+          33.65,
+          -15.04
+        ],
+        [
+          24.31,
+          -22.29
+        ]
+      ],
+      "color": "$frond",
+      "outlineColor": "$frondDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "line",
+      "x": 11,
+      "y": -18,
+      "x2": 23.68,
+      "y2": -18.74,
+      "thickness": 1.3,
+      "color": "$frondHi"
+    },
+    {
+      "kind": "line",
+      "x": 23.68,
+      "y": -18.74,
+      "x2": 32.65,
+      "y2": -15.41,
+      "thickness": 1.1,
+      "color": "$frondHi"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          11,
+          -18
+        ],
+        [
+          15.84,
+          -11.9
+        ],
+        [
+          21.21,
+          -17.28
+        ]
+      ],
+      "color": "$frond",
+      "outlineColor": "$frondDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          15.98,
+          -12.04
+        ],
+        [
+          24.44,
+          -3.56
+        ],
+        [
+          21.07,
+          -17.13
+        ]
+      ],
+      "color": "$frond",
+      "outlineColor": "$frondDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "line",
+      "x": 11,
+      "y": -18,
+      "x2": 18.52,
+      "y2": -14.59,
+      "thickness": 1.3,
+      "color": "$frondHi"
+    },
+    {
+      "kind": "line",
+      "x": 18.52,
+      "y": -14.59,
+      "x2": 23.84,
+      "y2": -4.66,
+      "thickness": 1.1,
+      "color": "$frondHi"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          11,
+          -18
+        ],
+        [
+          -0.25,
+          -20.41
+        ],
+        [
+          2.96,
+          -13.52
+        ]
+      ],
+      "color": "$frond",
+      "outlineColor": "$frondDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -0.16,
+          -20.23
+        ],
+        [
+          -6.22,
+          -7.56
+        ],
+        [
+          2.88,
+          -13.7
+        ]
+      ],
+      "color": "$frond",
+      "outlineColor": "$frondDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "line",
+      "x": 11,
+      "y": -18,
+      "x2": 1.36,
+      "y2": -16.97,
+      "thickness": 1.3,
+      "color": "$frondHi"
+    },
+    {
+      "kind": "line",
+      "x": 1.36,
+      "y": -16.97,
+      "x2": -5.46,
+      "y2": -8.5,
+      "thickness": 1.1,
+      "color": "$frondHi"
+    }
+  ],
+  "remnantShapes": [
+    {
+      "kind": "ellipse",
+      "x": 2.0,
+      "y": 12.0,
+      "rx": 11.5,
+      "ry": 5.5,
+      "color": "#0000002D"
+    },
+    {
+      "kind": "rect",
+      "x": -9.0,
+      "y": 4.0,
+      "w": 18.0,
+      "h": 10.0,
+      "color": "$bark",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "x": 0.0,
+      "y": 5.0,
+      "rx": 9.0,
+      "ry": 6.2,
+      "color": "#DEB887",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 1.4
+    },
+    {
+      "kind": "ring",
+      "x": 0.0,
+      "y": 5.0,
+      "rx": 5.0,
+      "ry": 5.0,
+      "thickness": 1.1,
+      "color": "#B48252"
+    },
+    {
+      "kind": "ellipse",
+      "x": -13.0,
+      "y": 10.0,
+      "rx": 2.2,
+      "ry": 1.1,
+      "color": "#D2A872",
+      "rotDeg": 22
+    },
+    {
+      "kind": "ellipse",
+      "x": 13.5,
+      "y": 11.5,
+      "rx": 2.0,
+      "ry": 1.0,
+      "color": "#D2A872",
+      "rotDeg": -18
+    },
+    {
+      "kind": "ellipse",
+      "x": 8.0,
+      "y": 14.5,
+      "rx": 2.4,
+      "ry": 1.1,
+      "color": "#C69864",
+      "rotDeg": 12
+    }
+  ]
+}

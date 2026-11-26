@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 2,
+  "structureType": 2,
+  "id": "stone_wall",
+  "displayName": "Stone Wall",
+  "palette": {
+    "top": "#8A9099",
+    "block": "#9CA3AF",
+    "front": "#5C616B",
+    "frontDark": "#3F444E",
+    "mortar": "#333740",
+    "hi": "#FFFFFF58",
+    "shadow": "#00000042"
+  },
+  "shapes": [
+    {
+      "kind": "rect",
+      "x": 0,
+      "y": 31,
+      "w": 32,
+      "h": 4,
+      "color": "$shadow"
+    },
+    {
+      "kind": "rect",
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 22,
+      "color": "$top"
+    },
+    {
+      "kind": "rect",
+      "x": 2,
+      "y": 2,
+      "w": 13,
+      "h": 8,
+      "color": "$block"
+    },
+    {
+      "kind": "rect",
+      "x": 17,
+      "y": 2,
+      "w": 13,
+      "h": 8,
+      "color": "$block"
+    },
+    {
+      "kind": "rect",
+      "x": 1,
+      "y": 12,
+      "w": 9,
+      "h": 8,
+      "color": "$block"
+    },
+    {
+      "kind": "rect",
+      "x": 12,
+      "y": 12,
+      "w": 11,
+      "h": 8,
+      "color": "$block"
+    },
+    {
+      "kind": "rect",
+      "x": 25,
+      "y": 12,
+      "w": 6,
+      "h": 8,
+      "color": "$block"
+    },
+    {
+      "kind": "rect",
+      "x": 0,
+      "y": 22,
+      "w": 32,
+      "h": 10,
+      "color": "$front"
+    },
+    {
+      "kind": "rect",
+      "x": 0,
+      "y": 29,
+      "w": 32,
+      "h": 3,
+      "color": "$frontDark"
+    },
+    {
+      "kind": "rect",
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 1.8,
+      "color": "$hi"
+    },
+    {
+      "kind": "line",
+      "x": 0,
+      "y": 11,
+      "x2": 32,
+      "y2": 11,
+      "thickness": 1.1,
+      "color": "$mortar"
+    },
+    {
+      "kind": "line",
+      "x": 15,
+      "y": 0,
+      "x2": 15,
+      "y2": 11,
+      "thickness": 1.1,
+      "color": "$mortar"
+    },
+    {
+      "kind": "line",
+      "x": 10,
+      "y": 22,
+      "x2": 10,
+      "y2": 31,
+      "thickness": 1.2,
+      "color": "$mortar"
+    },
+    {
+      "kind": "line",
+      "x": 22,
+      "y": 22,
+      "x2": 22,
+      "y2": 31,
+      "thickness": 1.2,
+      "color": "$mortar"
+    }
+  ],
+  "openShapes": []
+}

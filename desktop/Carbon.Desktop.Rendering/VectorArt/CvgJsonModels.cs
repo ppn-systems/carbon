@@ -7,11 +7,100 @@ namespace Carbon.Desktop.Rendering.VectorArt;
 
 internal sealed class CvgCatalogDto
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
     public List<CvgCharacterCatalogDto> Characters { get; set; } = [];
     public List<CvgArchetypeCatalogDto> Monsters { get; set; } = [];
     public List<CvgArchetypeCatalogDto> Npcs { get; set; } = [];
     public List<CvgItemCatalogDto> Items { get; set; } = [];
+    public List<CvgPropCatalogDto> Props { get; set; } = [];
+    public List<CvgBiomeCatalogDto> Biomes { get; set; } = [];
+    public List<CvgStructureCatalogDto> Structures { get; set; } = [];
+}
+
+internal sealed class CvgPropCatalogDto
+{
+    public byte PropType { get; set; }
+    public string Id { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string File { get; set; } = string.Empty;
+}
+
+internal sealed class CvgPointLightDto
+{
+    public float OffsetX { get; set; }
+    public float OffsetY { get; set; }
+    public float Radius { get; set; } = 64f;
+    public string Color { get; set; } = "#FFFFFF";
+    public float Intensity { get; set; } = 0.7f;
+    public bool RareOnly { get; set; }
+}
+
+internal sealed class CvgPropBlueprintDto
+{
+    public int SchemaVersion { get; set; } = 2;
+    public byte PropType { get; set; }
+    public string Id { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public float DesignRadius { get; set; } = 20f;
+    public bool HasCanopy { get; set; }
+    public bool AllowMirror { get; set; } = true;
+    public bool IsWoody { get; set; }
+    public bool IsIcy { get; set; }
+    public float RareLastVariantChance { get; set; } = 0.12f;
+    public CvgPointLightDto? Light { get; set; }
+    public List<Dictionary<string, string>> PaletteVariants { get; set; } = [];
+    public List<CvgShapeDto> GroundShapes { get; set; } = [];
+    public List<CvgShapeDto> CanopyShapes { get; set; } = [];
+    public List<CvgShapeDto> RemnantShapes { get; set; } = [];
+}
+
+internal sealed class CvgBiomeCatalogDto
+{
+    public byte BiomeId { get; set; }
+    public string Id { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string File { get; set; } = string.Empty;
+}
+
+internal sealed class CvgBiomeDetailVariantDto
+{
+    public List<CvgShapeDto> Shapes { get; set; } = [];
+}
+
+internal sealed class CvgBiomeBlueprintDto
+{
+    public int SchemaVersion { get; set; } = 2;
+    public byte BiomeId { get; set; }
+    public string Id { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string GroundColor { get; set; } = "#4A824B";
+    public string MinimapColor { get; set; } = "#56964A";
+    public string CliffBase { get; set; } = "#464C52";
+    public string CliffStrata { get; set; } = "#363B41";
+    public string CliffHighlight { get; set; } = "#A5ACB4E6";
+    public string CliffShadow { get; set; } = "#24282D";
+    public int DetailChancePercent { get; set; } = 16;
+    public Dictionary<string, string> Palette { get; set; } = [];
+    public List<CvgBiomeDetailVariantDto> DetailVariants { get; set; } = [];
+}
+
+internal sealed class CvgStructureCatalogDto
+{
+    public byte StructureType { get; set; }
+    public string Id { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string File { get; set; } = string.Empty;
+}
+
+internal sealed class CvgStructureBlueprintDto
+{
+    public int SchemaVersion { get; set; } = 2;
+    public byte StructureType { get; set; }
+    public string Id { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public Dictionary<string, string> Palette { get; set; } = [];
+    public List<CvgShapeDto> Shapes { get; set; } = [];
+    public List<CvgShapeDto> OpenShapes { get; set; } = [];
 }
 
 internal sealed class CvgCharacterCatalogDto
@@ -140,4 +229,7 @@ internal sealed class CvgItemBlueprintDto
 [JsonSerializable(typeof(CvgCatalogDto))]
 [JsonSerializable(typeof(CvgEntityRigDto))]
 [JsonSerializable(typeof(CvgItemBlueprintDto))]
+[JsonSerializable(typeof(CvgPropBlueprintDto))]
+[JsonSerializable(typeof(CvgBiomeBlueprintDto))]
+[JsonSerializable(typeof(CvgStructureBlueprintDto))]
 internal sealed partial class CvgJsonContext : JsonSerializerContext;

@@ -68,7 +68,7 @@ internal sealed class SettingsModalWidget
         return mousePos.X >= ox && mousePos.X <= ox + PanelW && mousePos.Y >= oy && mousePos.Y <= oy + PanelH;
     }
 
-    public SettingsModalAction HandleClick(Vector2 mousePos, ClientUiSettings settings, int viewportWidth, int viewportHeight)
+    public SettingsModalAction HandleClick(Vector2 mousePos, UiSettings settings, int viewportWidth, int viewportHeight)
     {
         (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
         if (GetCloseButtonRect(ox, oy).Contains(mousePos) || GetFooterButtonRect(ox, oy, 0).Contains(mousePos))
@@ -141,7 +141,7 @@ internal sealed class SettingsModalWidget
     public void DrawSkin(
         SpriteBatch spriteBatch,
         CarbonUiSkin skin,
-        ClientUiSettings settings,
+        UiSettings settings,
         int viewportWidth,
         int viewportHeight,
         Vector2? mouseScreenPos)
@@ -198,7 +198,7 @@ internal sealed class SettingsModalWidget
         skin.DrawButton(spriteBatch, GetFooterButtonRect(ox, oy, 2), CarbonUiPalette.DangerFill, CarbonUiPalette.DangerBorder);
     }
 
-    public void DrawText(SpriteBatch spriteBatch, BitmapFont font, ClientUiSettings settings, int viewportWidth, int viewportHeight)
+    public void DrawText(SpriteBatch spriteBatch, BitmapFont font, UiSettings settings, int viewportWidth, int viewportHeight)
     {
         (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
         ColorRgba black = CarbonUiPalette.TextOutline;

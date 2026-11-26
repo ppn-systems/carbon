@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Contracts.Entities;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Graphics.Animation.Directions;
@@ -19,13 +19,10 @@ namespace Carbon.Desktop.Rendering.Hud;
 
 /// <summary>
 /// Detailed Character Info &amp; Attribute Point Allocator tab (<c>[Y]</c>) hosted inside the
-/// unified <see cref="PlayerModalTabs"/> frame with restrained dark-slate styling (SRP).
+/// fixed <see cref="PlayerModalTabs"/> workspace with restrained dark-slate styling (SRP).
 /// </summary>
 internal sealed class CharacterSheetModalWidget
 {
-    private const float PanelW = InventoryModalWidget.PanelWidth;
-    private const float PanelH = InventoryModalWidget.PanelHeight;
-
     private static readonly PrimaryAttributeId[] s_statTargets =
     [
         PrimaryAttributeId.Vitality,
@@ -36,37 +33,32 @@ internal sealed class CharacterSheetModalWidget
 
     private readonly List<SkillDefinition> _skillScratch = new(8);
 
-    public bool ContainsPoint(IClientWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
+    public bool ContainsPoint(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
-        (float ox, float oy) = InventoryModalWidget.ComputeOrigin(viewportWidth, viewportHeight);
-        if (mousePos.X >= ox && mousePos.X <= ox + PanelW && mousePos.Y >= oy && mousePos.Y <= oy + PanelH)
-        {
-            return true;
-        }
-
-        bool hasSkills = PlayerModalTabs.HasClassSkills(world, _skillScratch);
-        return PlayerModalTabs.GetTabBarBounds(ox, oy, hasSkills).Contains(mousePos);
+        _ = world;
+        PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
+        return PlayerModalTabs.ContainsWindowOrTabs(in layout, mousePos);
     }
 
     public bool TryHitTestCloseButton(Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
-        (float ox, float oy) = InventoryModalWidget.ComputeOrigin(viewportWidth, viewportHeight);
-        return PlayerModalTabs.GetCloseButtonRect(ox, PanelW, oy).Contains(mousePos);
+        PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
+        return PlayerModalTabs.GetCloseButtonRect(in layout).Contains(mousePos);
     }
 
-    public bool TryHitTestTab(IClientWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight, out PlayerModalTab tab)
+    public bool TryHitTestTab(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight, out PlayerModalTab tab)
     {
-        (float ox, float oy) = InventoryModalWidget.ComputeOrigin(viewportWidth, viewportHeight);
+        PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
         bool hasSkills = PlayerModalTabs.HasClassSkills(world, _skillScratch);
-        return PlayerModalTabs.TryHitTestTab(mousePos, ox, oy, hasSkills, out tab);
+        return PlayerModalTabs.TryHitTestTab(mousePos, in layout, hasSkills, out tab);
     }
 
     public bool TryHitTestStatPlusButton(Vector2 mousePos, int viewportWidth, int viewportHeight, out PrimaryAttributeId attribute)
     {
-        (float ox, float oy) = InventoryModalWidget.ComputeOrigin(viewportWidth, viewportHeight);
+        PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
         for (int i = 0; i < s_statTargets.Length; i++)
         {
-            if (GetStatPlusRect(ox, oy, i).Contains(mousePos))
+            if (GetStatPlusRect(in layout, i).Contains(mousePos))
             {
                 attribute = s_statTargets[i];
                 return true;
@@ -80,26 +72,27 @@ internal sealed class CharacterSheetModalWidget
     public void DrawSkin(
         SpriteBatch spriteBatch,
         CarbonUiSkin skin,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         int viewportWidth,
         int viewportHeight,
         Vector2? mouseScreenPos)
     {
-        (float ox, float oy) = InventoryModalWidget.ComputeOrigin(viewportWidth, viewportHeight);
+        PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
         bool hasSkills = PlayerModalTabs.HasClassSkills(world, _skillScratch);
-        PlayerModalTabs.DrawTabsSkin(spriteBatch, skin, ox, PanelW, oy, PlayerModalTab.Character, hasSkills, mouseScreenPos);
-        skin.DrawWindow(spriteBatch, new RectangleF(ox, oy, PanelW, PanelH), CarbonUiPalette.BorderOuter, bodyAlpha: 246);
+        PlayerModalTabs.DrawWindowChromeSkin(spriteBatch, skin, in layout, PlayerModalTab.Character, hasSkills, mouseScreenPos);
 
-        skin.DrawCard(spriteBatch, new RectangleF(ox + 20f, oy + 48f, 224f, 392f), CarbonUiPalette.BorderSubtle, bodyAlpha: 236);
-        skin.DrawCard(spriteBatch, new RectangleF(ox + 256f, oy + 48f, 280f, 392f), CarbonUiPalette.BorderSubtle, bodyAlpha: 236);
+        RectangleF leftCard = GetLeftCardRect(in layout);
+        RectangleF rightCard = GetRightCardRect(in layout);
+        skin.DrawCard(spriteBatch, in leftCard, CarbonUiPalette.BorderSubtle, bodyAlpha: 236);
+        skin.DrawCard(spriteBatch, in rightCard, CarbonUiPalette.BorderSubtle, bodyAlpha: 236);
 
         bool hasAp = world.LocalUnspentStatPoints > 0;
         for (int i = 0; i < s_statTargets.Length; i++)
         {
-            RectangleF rowBox = new(ox + 270f, oy + 106f + (i * 68f), 252f, 56f);
+            RectangleF rowBox = GetStatRowRect(in layout, i);
             skin.DrawInset(spriteBatch, in rowBox, CarbonUiPalette.SlotFill, CarbonUiPalette.BorderSubtle);
 
-            RectangleF plusRect = GetStatPlusRect(ox, oy, i);
+            RectangleF plusRect = GetStatPlusRect(in layout, i);
             bool hoverPlus = mouseScreenPos.HasValue && plusRect.Contains(mouseScreenPos.Value);
             skin.DrawButton(
                 spriteBatch,
@@ -111,13 +104,15 @@ internal sealed class CharacterSheetModalWidget
 
     public void DrawGeometry(
         GeometryBatch batch,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         IVectorArtRepository? art,
         int viewportWidth,
         int viewportHeight,
         float animTime)
     {
-        (float ox, float oy) = InventoryModalWidget.ComputeOrigin(viewportWidth, viewportHeight);
+        PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
+        float s = layout.Scale;
+        RectangleF leftCard = GetLeftCardRect(in layout);
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
 
@@ -138,9 +133,10 @@ internal sealed class CharacterSheetModalWidget
                 (ushort)activeItem.ItemId,
                 ItemEnhancementPolicy.GetUpgradeLevel(in activeItem));
 
-            Vector2 pedPos = new(ox + 132f, oy + 168f);
-            batch.FillCircle(pedPos + new Vector2(0f, -6f), 28f, new ColorRgba(6, 9, 14, 145), 16);
-            batch.DrawCircle(pedPos + new Vector2(0f, -6f), 29f, CarbonUiPalette.BorderSubtle, 16, 1.2f);
+            float pedR = MathF.Round(38f * s);
+            Vector2 pedPos = new(leftCard.X + (leftCard.Width * 0.5f), leftCard.Y + MathF.Round(162f * s));
+            batch.FillCircle(pedPos + new Vector2(0f, -6f * s), pedR, new ColorRgba(6, 9, 14, 145), 16);
+            batch.DrawCircle(pedPos + new Vector2(0f, -6f * s), pedR + 1f, CarbonUiPalette.BorderSubtle, 16, 1.3f);
             VectorRigRenderer.DrawEntityRig(
                 batch,
                 rig,
@@ -149,7 +145,7 @@ internal sealed class CharacterSheetModalWidget
                 "idle",
                 animTime,
                 isNormalized: false,
-                targetHeightOverride: 82f,
+                targetHeightOverride: MathF.Round(122f * s),
                 hitFlash: 0f,
                 equippedItem: weaponArt,
                 action: default,
@@ -160,8 +156,9 @@ internal sealed class CharacterSheetModalWidget
         }
 
         // XP meter in Character card
+        float padX = MathF.Round(20f * s);
         float xpRatio = Math.Clamp(world.LocalPlayerExperience / MathF.Max(1f, world.LocalPlayerXpToNext), 0f, 1f);
-        RectangleF xpTrack = new(ox + 36f, oy + 238f, 192f, 8f);
+        RectangleF xpTrack = new(leftCard.X + padX, leftCard.Y + MathF.Round(246f * s), leftCard.Width - (padX * 2f), MathF.Max(8f, MathF.Round(10f * s)));
         batch.FillRectangle(xpTrack, CarbonUiPalette.SlotFill);
         if (xpRatio > 0.004f)
         {
@@ -174,7 +171,7 @@ internal sealed class CharacterSheetModalWidget
     public void DrawText(
         SpriteBatch spriteBatch,
         BitmapFont font,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         int viewportWidth,
         int viewportHeight,
         int ptx,
@@ -182,42 +179,59 @@ internal sealed class CharacterSheetModalWidget
         float fps,
         bool showTelemetry)
     {
-        (float ox, float oy) = InventoryModalWidget.ComputeOrigin(viewportWidth, viewportHeight);
+        PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
+        float s = layout.Scale;
         bool hasSkills = PlayerModalTabs.HasClassSkills(world, _skillScratch);
-        PlayerModalTabs.DrawTabsText(spriteBatch, font, ox, PanelW, oy, PlayerModalTab.Character, hasSkills);
+        ushort unspentAp = world.LocalUnspentStatPoints;
+        PlayerModalTabs.DrawWindowChromeText(
+            spriteBatch,
+            font,
+            in layout,
+            PlayerModalTab.Character,
+            hasSkills,
+            "Character Info",
+            $"Attribute Points: {unspentAp}",
+            unspentAp > 0);
 
+        RectangleF leftCard = GetLeftCardRect(in layout);
+        RectangleF rightCard = GetRightCardRect(in layout);
         ColorRgba black = CarbonUiPalette.TextOutline;
-        spriteBatch.DrawOutlinedString(font, "Character Info", new Vector2(ox + 28f, oy + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
 
         // Left Character Summary
+        float lx = leftCard.X + MathF.Round(20f * s);
+        float textW = leftCard.Width - MathF.Round(40f * s);
         string heroName = string.IsNullOrWhiteSpace(world.ActiveCharacterName) ? "Hero" : world.ActiveCharacterName;
-        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, heroName, 196f, 1.25f), new Vector2(ox + 36f, oy + 184f), CarbonUiPalette.TextPrimary, black, 1, 1.25f);
-        spriteBatch.DrawOutlinedString(font, $"{world.LocalPlayerClass}  Lv.{world.LocalPlayerLevel}", new Vector2(ox + 36f, oy + 212f), CarbonUiPalette.TextWarm, black, 1, 1f);
-        spriteBatch.DrawOutlinedString(font, $"XP {world.LocalPlayerExperience} / {world.LocalPlayerXpToNext}", new Vector2(ox + 36f, oy + 252f), CarbonUiPalette.TextMuted, black, 1, 1f);
+        spriteBatch.DrawOutlinedString(
+            font,
+            CarbonUiSkin.TruncateToWidth(font, heroName, textW, layout.TitleScale),
+            new Vector2(lx, leftCard.Y + MathF.Round(184f * s)),
+            CarbonUiPalette.TextPrimary,
+            black,
+            1,
+            layout.TitleScale);
+        spriteBatch.DrawOutlinedString(font, $"{world.LocalPlayerClass}  Lv.{world.LocalPlayerLevel}", new Vector2(lx, leftCard.Y + MathF.Round(216f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TextScale);
+        spriteBatch.DrawOutlinedString(font, $"XP {world.LocalPlayerExperience} / {world.LocalPlayerXpToNext}", new Vector2(lx, leftCard.Y + MathF.Round(264f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
 
-        spriteBatch.DrawOutlinedString(font, $"HP   {(int)MathF.Ceiling(world.LocalPlayerHealth)} / {(int)MathF.Ceiling(world.LocalPlayerMaxHealth)}", new Vector2(ox + 36f, oy + 284f), CarbonUiPalette.TextPrimary, black, 1, 1f);
-        spriteBatch.DrawOutlinedString(font, $"MP   {(int)MathF.Floor(world.LocalPlayerMana)} / {(int)MathF.Ceiling(world.LocalPlayerMaxMana)}", new Vector2(ox + 36f, oy + 306f), CarbonUiPalette.TextPrimary, black, 1, 1f);
-        spriteBatch.DrawOutlinedString(font, $"STA  {(int)MathF.Floor(world.LocalPlayerStamina)} / {(int)MathF.Ceiling(world.LocalPlayerMaxStamina)}", new Vector2(ox + 36f, oy + 328f), CarbonUiPalette.TextPrimary, black, 1, 1f);
-        spriteBatch.DrawOutlinedString(font, $"DEF  {(int)MathF.Round(world.LocalPlayerDefense)}", new Vector2(ox + 36f, oy + 350f), CarbonUiPalette.TextWarm, black, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, $"HP   {(int)MathF.Ceiling(world.LocalPlayerHealth)} / {(int)MathF.Ceiling(world.LocalPlayerMaxHealth)}", new Vector2(lx, leftCard.Y + MathF.Round(304f * s)), CarbonUiPalette.TextPrimary, black, 1, layout.TextScale);
+        spriteBatch.DrawOutlinedString(font, $"MP   {(int)MathF.Floor(world.LocalPlayerMana)} / {(int)MathF.Ceiling(world.LocalPlayerMaxMana)}", new Vector2(lx, leftCard.Y + MathF.Round(334f * s)), CarbonUiPalette.TextPrimary, black, 1, layout.TextScale);
+        spriteBatch.DrawOutlinedString(font, $"STA  {(int)MathF.Floor(world.LocalPlayerStamina)} / {(int)MathF.Ceiling(world.LocalPlayerMaxStamina)}", new Vector2(lx, leftCard.Y + MathF.Round(364f * s)), CarbonUiPalette.TextPrimary, black, 1, layout.TextScale);
+        spriteBatch.DrawOutlinedString(font, $"DEF  {(int)MathF.Round(world.LocalPlayerDefense)}", new Vector2(lx, leftCard.Y + MathF.Round(394f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TextScale);
 
         if (showTelemetry)
         {
-            spriteBatch.DrawOutlinedString(font, $"Pos ({ptx}, {pty})  {(int)fps} FPS", new Vector2(ox + 36f, oy + 382f), CarbonUiPalette.TextMuted, black, 1, 1f);
-            spriteBatch.DrawOutlinedString(font, $"Net: {world.TransportLabel}", new Vector2(ox + 36f, oy + 404f), CarbonUiPalette.TextMuted, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, $"Pos ({ptx}, {pty})  {(int)fps} FPS", new Vector2(lx, leftCard.Y + MathF.Round(434f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
+            spriteBatch.DrawOutlinedString(font, $"Net: {world.TransportLabel}", new Vector2(lx, leftCard.Y + MathF.Round(462f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
         }
 
         // Right Attributes Card
-        ushort unspentAp = world.LocalUnspentStatPoints;
-        spriteBatch.DrawOutlinedString(font, "Attributes", new Vector2(ox + 272f, oy + 64f), CarbonUiPalette.TextWarm, black, 1, 1f);
-        string ptsLabel = $"Points: {unspentAp}";
         spriteBatch.DrawOutlinedString(
             font,
-            ptsLabel,
-            new Vector2(ox + 422f, oy + 64f),
-            unspentAp > 0 ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextMuted,
+            "Attributes",
+            new Vector2(rightCard.X + MathF.Round(18f * s), rightCard.Y + MathF.Round(18f * s)),
+            CarbonUiPalette.TextWarm,
             black,
             1,
-            1f);
+            layout.TitleScale);
 
         ushort vitPts = world.GetAttributePoints(PrimaryAttributeId.Vitality);
         ushort wisPts = world.GetAttributePoints(PrimaryAttributeId.Wisdom);
@@ -234,14 +248,44 @@ internal sealed class CharacterSheetModalWidget
 
         for (int i = 0; i < rows.Length; i++)
         {
-            float ry = oy + 106f + (i * 68f);
-            spriteBatch.DrawOutlinedString(font, $"{rows[i].Title} ({rows[i].Pts})", new Vector2(ox + 282f, ry + 8f), CarbonUiPalette.TextPrimary, black, 1, 1f);
-            spriteBatch.DrawOutlinedString(font, rows[i].Bonus, new Vector2(ox + 282f, ry + 30f), CarbonUiPalette.TextMuted, black, 1, 1f);
-            RectangleF plusRect = GetStatPlusRect(ox, oy, i);
-            CarbonUiSkin.DrawCenteredText(spriteBatch, font, "+", in plusRect, unspentAp > 0 ? CarbonUiPalette.TextPrimary : CarbonUiPalette.TextMuted, black, 1f);
+            RectangleF rowRect = GetStatRowRect(in layout, i);
+            spriteBatch.DrawOutlinedString(font, $"{rows[i].Title} ({rows[i].Pts})", new Vector2(rowRect.X + MathF.Round(16f * s), rowRect.Y + MathF.Round(16f * s)), CarbonUiPalette.TextPrimary, black, 1, layout.TextScale);
+            spriteBatch.DrawOutlinedString(font, rows[i].Bonus, new Vector2(rowRect.X + MathF.Round(16f * s), rowRect.Y + MathF.Round(48f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
+            RectangleF plusRect = GetStatPlusRect(in layout, i);
+            CarbonUiSkin.DrawCenteredText(spriteBatch, font, "+", in plusRect, unspentAp > 0 ? CarbonUiPalette.TextPrimary : CarbonUiPalette.TextMuted, black, layout.TitleScale);
         }
     }
 
-    private static RectangleF GetStatPlusRect(float ox, float oy, int rowIndex) =>
-        new(ox + 478f, oy + 120f + (rowIndex * 68f), 32f, 28f);
+    private static RectangleF GetLeftCardRect(in PlayerModalLayout layout)
+    {
+        float leftW = MathF.Round(308f * layout.Scale);
+        return new RectangleF(layout.ContentX, layout.ContentY, leftW, layout.ContentH);
+    }
+
+    private static RectangleF GetRightCardRect(in PlayerModalLayout layout)
+    {
+        float leftW = MathF.Round(308f * layout.Scale);
+        float gap = MathF.Round(14f * layout.Scale);
+        return new RectangleF(layout.ContentX + leftW + gap, layout.ContentY, layout.ContentW - leftW - gap, layout.ContentH);
+    }
+
+    private static RectangleF GetStatRowRect(in PlayerModalLayout layout, int rowIndex)
+    {
+        float s = layout.Scale;
+        RectangleF rightCard = GetRightCardRect(in layout);
+        float pad = MathF.Round(18f * s);
+        return new RectangleF(
+            rightCard.X + pad,
+            rightCard.Y + MathF.Round(60f * s) + (rowIndex * MathF.Round(106f * s)),
+            rightCard.Width - (pad * 2f),
+            MathF.Round(90f * s));
+    }
+
+    private static RectangleF GetStatPlusRect(in PlayerModalLayout layout, int rowIndex)
+    {
+        float s = layout.Scale;
+        RectangleF row = GetStatRowRect(in layout, rowIndex);
+        float btn = MathF.Round(44f * s);
+        return new RectangleF(row.Right - btn - MathF.Round(16f * s), row.Y + MathF.Round(23f * s), btn, btn);
+    }
 }

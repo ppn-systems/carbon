@@ -11,7 +11,8 @@ using Carbon.Contracts.Identity.C2S;
 using Carbon.Contracts.Identity.S2C;
 using Carbon.Contracts.Items.C2S;
 using Carbon.Contracts.Items.S2C;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.Identity;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Serialization;
@@ -29,7 +30,7 @@ namespace Carbon.Desktop.Networking;
 public sealed partial class MultiplayerSession
 {
     /// <inheritdoc/>
-    public async Task<ClientAuthResult> LoginAsync(
+    public async Task<AuthenticationResult> LoginAsync(
         string host,
         ushort tcpPort,
         string username,
@@ -38,12 +39,12 @@ public sealed partial class MultiplayerSession
     {
         if (string.IsNullOrWhiteSpace(host) || tcpPort == 0)
         {
-            return new ClientAuthResult(false, "Invalid server host or port.");
+            return new AuthenticationResult(false, "Invalid server host or port.");
         }
 
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
         {
-            return new ClientAuthResult(false, "Username and password are required.");
+            return new AuthenticationResult(false, "Username and password are required.");
         }
 
         try
@@ -65,10 +66,14 @@ public sealed partial class MultiplayerSession
             if (result.Status == AuthStatus.Ok)
             {
                 _isAuthenticated = true;
-                return new ClientAuthResult(true, "Signed in.", result.AccountId);
+                _reconnectHost = host.Trim();
+                _reconnectPort = tcpPort;
+                _lastUsername = username.Trim();
+                _lastPassword = password;
+                return new AuthenticationResult(true, "Signed in.", result.AccountId);
             }
 
-            return new ClientAuthResult(false, FormatAuthStatus(result.Status));
+            return new AuthenticationResult(false, FormatAuthStatus(result.Status));
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -77,12 +82,12 @@ public sealed partial class MultiplayerSession
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             await this.TearDownTransportsAsync().ConfigureAwait(false);
-            return new ClientAuthResult(false, $"Connection failed: {ex.Message}");
+            return new AuthenticationResult(false, $"Connection failed: {ex.Message}");
         }
     }
 
     /// <inheritdoc/>
-    public async Task<ClientAuthResult> RegisterAsync(
+    public async Task<AuthenticationResult> RegisterAsync(
         string host,
         ushort tcpPort,
         string username,
@@ -91,18 +96,18 @@ public sealed partial class MultiplayerSession
     {
         if (string.IsNullOrWhiteSpace(host) || tcpPort == 0)
         {
-            return new ClientAuthResult(false, "Invalid server host or port.");
+            return new AuthenticationResult(false, "Invalid server host or port.");
         }
 
         string trimmedUser = username?.Trim() ?? string.Empty;
         if (trimmedUser.Length < 3 || trimmedUser.Length > 24)
         {
-            return new ClientAuthResult(false, "Username must be 3 to 24 characters.");
+            return new AuthenticationResult(false, "Username must be 3 to 24 characters.");
         }
 
         if (string.IsNullOrEmpty(password) || password.Length < 6 || password.Length > 128)
         {
-            return new ClientAuthResult(false, "Password must be 6 to 128 characters.");
+            return new AuthenticationResult(false, "Password must be 6 to 128 characters.");
         }
 
         try
@@ -124,10 +129,14 @@ public sealed partial class MultiplayerSession
             if (result.Status == AuthStatus.Ok)
             {
                 _isAuthenticated = true;
-                return new ClientAuthResult(true, "Account registered.", result.AccountId);
+                _reconnectHost = host.Trim();
+                _reconnectPort = tcpPort;
+                _lastUsername = trimmedUser;
+                _lastPassword = password;
+                return new AuthenticationResult(true, "Account registered.", result.AccountId);
             }
 
-            return new ClientAuthResult(false, FormatAuthStatus(result.Status));
+            return new AuthenticationResult(false, FormatAuthStatus(result.Status));
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -136,17 +145,17 @@ public sealed partial class MultiplayerSession
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             await this.TearDownTransportsAsync().ConfigureAwait(false);
-            return new ClientAuthResult(false, $"Connection failed: {ex.Message}");
+            return new AuthenticationResult(false, $"Connection failed: {ex.Message}");
         }
     }
 
     /// <inheritdoc/>
-    public async Task<IReadOnlyList<ClientCharacterSummary>> ListCharactersAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<CharacterRosterEntry>> ListCharactersAsync(CancellationToken ct = default)
     {
         TcpSession tcp = this.RequireAuthenticatedTcpSession();
         RequestOptions reqOpts = RequestOptions.Default.WithTimeout(5000).WithEncrypt(tcp.State.EncryptionEnabled);
 
-        List<ClientCharacterSummary> roster = [];
+        List<CharacterRosterEntry> roster = [];
         using PacketScope<CharacterListRequest> lease = PacketFactory<CharacterListRequest>.Acquire();
         await foreach (CharacterSummary item in tcp.StreamAsync<CharacterSummary>(
             lease.Value,
@@ -160,7 +169,7 @@ public sealed partial class MultiplayerSession
 
             _characterNames[item.CharacterId] = item.Name;
             _characterPresets[item.CharacterId] = item.AppearancePreset;
-            roster.Add(new ClientCharacterSummary(
+            roster.Add(new CharacterRosterEntry(
                 item.CharacterId,
                 item.Name,
                 item.Level,
@@ -290,7 +299,7 @@ public sealed partial class MultiplayerSession
             _inventoryLoaded = false;
             _localFacingDir = new Vector2(0f, 1f);
             _localHitFlashTimer = 0f;
-            _currentAction = ClientActionState.None;
+            _currentAction = ActionState.None;
             _comboStep = 0;
 
             _worldSeed = enter.WorldSeed;
@@ -318,6 +327,12 @@ public sealed partial class MultiplayerSession
             _simulation.Entities.SetVelocity(_localPlayer, new Velocity2D(0f, 0f, 5f));
         }
 
+        _activeCharacterId = characterId;
+        _autoReconnectEnabled = true;
+        _wasTcpConnectedLastFrame = true;
+        _tcpReconnectAttempt = 0;
+        _tcpReconnectTimer = 0f;
+
         await this.FetchInventorySnapshotAsync(tcp, reqOpts, ct).ConfigureAwait(false);
         this.RequestMissingChunkDeltasAround(new Vector2(enter.PositionX, enter.PositionY));
         _udpReconnectAttempt = 0;
@@ -330,9 +345,17 @@ public sealed partial class MultiplayerSession
     /// <inheritdoc/>
     public async Task LogoutAsync(CancellationToken ct = default)
     {
+        _autoReconnectEnabled = false;
+        _activeCharacterId = Guid.Empty;
+        _lastUsername = string.Empty;
+        _lastPassword = string.Empty;
+
         await _connectGate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
+            _wasTcpConnectedLastFrame = false;
+            _tcpReconnectAttempt = 0;
+            _tcpReconnectTimer = 0f;
             this.CancelSessionOperations();
             await this.TearDownUdpAsync().ConfigureAwait(false);
             _udpReconnectAttempt = 0;
@@ -366,7 +389,7 @@ public sealed partial class MultiplayerSession
     /// <inheritdoc/>
     public async Task InitializeAsync(CancellationToken ct = default)
     {
-        ClientAuthResult loginOutcome = await this.LoginAsync(
+        AuthenticationResult loginOutcome = await this.LoginAsync(
             _options.ServerHost,
             _options.ServerTcpPort,
             _options.Username,
@@ -375,7 +398,7 @@ public sealed partial class MultiplayerSession
 
         if (!loginOutcome.Succeeded)
         {
-            ClientAuthResult regOutcome = await this.RegisterAsync(
+            AuthenticationResult regOutcome = await this.RegisterAsync(
                 _options.ServerHost,
                 _options.ServerTcpPort,
                 _options.Username,
@@ -388,7 +411,7 @@ public sealed partial class MultiplayerSession
             }
         }
 
-        IReadOnlyList<ClientCharacterSummary> roster = await this.ListCharactersAsync(ct).ConfigureAwait(false);
+        IReadOnlyList<CharacterRosterEntry> roster = await this.ListCharactersAsync(ct).ConfigureAwait(false);
         Guid selectedCharacterId;
         if (roster.Count > 0)
         {
@@ -402,7 +425,7 @@ public sealed partial class MultiplayerSession
                 throw new InvalidOperationException($"Failed to create starter character: {createMsg}");
             }
 
-            IReadOnlyList<ClientCharacterSummary> updated = await this.ListCharactersAsync(ct).ConfigureAwait(false);
+            IReadOnlyList<CharacterRosterEntry> updated = await this.ListCharactersAsync(ct).ConfigureAwait(false);
             if (updated.Count == 0)
             {
                 throw new InvalidOperationException("Character list remained empty after creation.");

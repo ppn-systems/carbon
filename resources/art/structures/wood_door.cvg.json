@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 2,
+  "structureType": 3,
+  "id": "wood_door",
+  "displayName": "Wood Door",
+  "palette": {
+    "jamb": "#495057",
+    "plank": "#8A5E3B",
+    "plankDark": "#644226",
+    "strap": "#374151",
+    "handle": "#EAB308",
+    "threshold": "#787266A0"
+  },
+  "shapes": [
+    {
+      "kind": "rect",
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "color": "$jamb"
+    },
+    {
+      "kind": "rect",
+      "x": 4,
+      "y": 3,
+      "w": 24,
+      "h": 26,
+      "color": "$plank"
+    },
+    {
+      "kind": "line",
+      "x": 10,
+      "y": 3,
+      "x2": 10,
+      "y2": 29,
+      "thickness": 1.2,
+      "color": "$plankDark"
+    },
+    {
+      "kind": "line",
+      "x": 16,
+      "y": 3,
+      "x2": 16,
+      "y2": 29,
+      "thickness": 1.2,
+      "color": "$plankDark"
+    },
+    {
+      "kind": "line",
+      "x": 22,
+      "y": 3,
+      "x2": 22,
+      "y2": 29,
+      "thickness": 1.2,
+      "color": "$plankDark"
+    },
+    {
+      "kind": "rect",
+      "x": 4,
+      "y": 8,
+      "w": 12,
+      "h": 2.5,
+      "color": "$strap"
+    },
+    {
+      "kind": "rect",
+      "x": 4,
+      "y": 21,
+      "w": 12,
+      "h": 2.5,
+      "color": "$strap"
+    },
+    {
+      "kind": "ellipse",
+      "x": 23,
+      "y": 16,
+      "rx": 2.0,
+      "ry": 2.0,
+      "color": "$handle",
+      "outlineColor": "$plankDark",
+      "outlineThickness": 0.7
+    }
+  ],
+  "openShapes": [
+    {
+      "kind": "rect",
+      "x": 2,
+      "y": 4,
+      "w": 28,
+      "h": 24,
+      "color": "$threshold"
+    },
+    {
+      "kind": "rect",
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 32,
+      "color": "$jamb"
+    },
+    {
+      "kind": "rect",
+      "x": 28,
+      "y": 0,
+      "w": 4,
+      "h": 32,
+      "color": "$jamb"
+    },
+    {
+      "kind": "rect",
+      "x": 3,
+      "y": 2,
+      "w": 7,
+      "h": 28,
+      "color": "$plank",
+      "outlineColor": "$plankDark",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "rect",
+      "x": 3,
+      "y": 10,
+      "w": 7,
+      "h": 2.2,
+      "color": "$strap"
+    }
+  ]
+}

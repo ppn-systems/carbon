@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 2,
+  "propType": 19,
+  "id": "ancient_shrine",
+  "displayName": "Ancient Shrine",
+  "designRadius": 20,
+  "hasCanopy": false,
+  "allowMirror": false,
+  "isWoody": false,
+  "isIcy": false,
+  "rareLastVariantChance": 0.12,
+  "light": {
+    "offsetX": 0,
+    "offsetY": -14,
+    "radius": 82,
+    "color": "#38BDF8",
+    "intensity": 0.72,
+    "rareOnly": false
+  },
+  "paletteVariants": [
+    {
+      "stone": "#64748B",
+      "stoneShade": "#334155",
+      "stoneHi": "#94A3B8",
+      "rune": "#38BDF8",
+      "runeCore": "#E0F2FE"
+    }
+  ],
+  "groundShapes": [
+    {
+      "kind": "ellipse",
+      "x": 2,
+      "y": 14,
+      "rx": 18.0,
+      "ry": 7.5,
+      "color": "#00000048"
+    },
+    {
+      "kind": "rect",
+      "x": -15,
+      "y": 6,
+      "w": 30,
+      "h": 9,
+      "color": "$stoneShade",
+      "outlineColor": "#1E293B",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "rect",
+      "x": -12,
+      "y": 3,
+      "w": 24,
+      "h": 6,
+      "color": "$stone",
+      "outlineColor": "#1E293B",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -8,
+          4
+        ],
+        [
+          8,
+          4
+        ],
+        [
+          5,
+          -24
+        ],
+        [
+          0,
+          -30
+        ],
+        [
+          -5,
+          -24
+        ]
+      ],
+      "color": "$stone",
+      "outlineColor": "#1E293B",
+      "outlineThickness": 1.3
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          0,
+          -30
+        ],
+        [
+          5,
+          -24
+        ],
+        [
+          8,
+          4
+        ],
+        [
+          0,
+          4
+        ]
+      ],
+      "color": "$stoneShade"
+    },
+    {
+      "kind": "ellipse",
+      "x": 0,
+      "y": -13,
+      "rx": 3.4,
+      "ry": 4.6,
+      "color": "$rune"
+    },
+    {
+      "kind": "ellipse",
+      "x": 0,
+      "y": -13,
+      "rx": 1.5,
+      "ry": 2.4,
+      "color": "$runeCore"
+    },
+    {
+      "kind": "ring",
+      "x": 0,
+      "y": -29,
+      "rx": 7.5,
+      "ry": 7.5,
+      "thickness": 1.3,
+      "color": "#38BDF8AA"
+    }
+  ],
+  "canopyShapes": [],
+  "remnantShapes": []
+}

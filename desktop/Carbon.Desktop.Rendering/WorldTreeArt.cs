@@ -89,7 +89,7 @@ internal static class WorldTreeArt
         {
             float a = (i * (MathF.Tau / 14f)) + (Hash01(17u, i) * 0.2f);
             Vector2 p = foot + new Vector2(MathF.Cos(a) * 170f, (MathF.Sin(a) * 74f) + 6f);
-            MushroomArt.DrawOne(batch, p, 7f + (Hash01(18u, i) * 4f), MushroomArt.Shape.Glowing, 1000u + (uint)i, time);
+            DrawFairyMushroom(batch, p, 7f + (Hash01(18u, i) * 4f), 1000u + (uint)i, time);
         }
 
         // Wildflowers in loose drifts
@@ -533,6 +533,15 @@ internal static class WorldTreeArt
         (byte)(a.G + ((b.G - a.G) * t)),
         (byte)(a.B + ((b.B - a.B) * t)),
         (byte)(a.A + ((b.A - a.A) * t)));
+
+    private static void DrawFairyMushroom(GeometryBatch batch, Vector2 pos, float size, uint seed, float time)
+    {
+        float pulse = 0.72f + (0.28f * MathF.Sin((time * 2.2f) + (Hash01(seed, 1) * MathF.Tau)));
+        FillEllipse(batch, pos + new Vector2(0.5f, 1.5f), size * 0.85f, size * 0.42f, new ColorRgba(0, 0, 0, 42), 10);
+        FillEllipse(batch, pos + new Vector2(0f, -size * 0.25f), size * 0.26f, size * 0.42f, new ColorRgba(210, 240, 240), 8);
+        FillEllipse(batch, pos + new Vector2(0f, -size * 0.62f), size * 0.72f, size * 0.46f, new ColorRgba(34, 211, 238, (byte)(210 * pulse)), 12);
+        FillEllipse(batch, pos + new Vector2(-size * 0.22f, -size * 0.74f), size * 0.24f, size * 0.14f, new ColorRgba(224, 250, 255, 225), 8);
+    }
 
     private static ColorRgba Shade(ColorRgba c, float k) =>
         new((byte)Math.Clamp(c.R * k, 0f, 255f), (byte)Math.Clamp(c.G * k, 0f, 255f), (byte)Math.Clamp(c.B * k, 0f, 255f), c.A);

@@ -1,0 +1,356 @@
+{
+  "schemaVersion": 2,
+  "propType": 5,
+  "id": "birch_tree",
+  "displayName": "Birch Tree",
+  "designRadius": 21,
+  "hasCanopy": true,
+  "allowMirror": true,
+  "isWoody": true,
+  "isIcy": false,
+  "rareLastVariantChance": 0.12,
+  "light": null,
+  "paletteVariants": [
+    {
+      "bark": "#ECE8DE",
+      "barkDark": "#94A3B8",
+      "barkHi": "#FFFFFF",
+      "mark": "#334155",
+      "leafEdge": "#3F6212",
+      "leafDark": "#65A30D",
+      "leafMid": "#84CC16",
+      "leafLight": "#BEF264"
+    },
+    {
+      "bark": "#ECE8DE",
+      "barkDark": "#94A3B8",
+      "barkHi": "#FFFFFF",
+      "mark": "#334155",
+      "leafEdge": "#854D0E",
+      "leafDark": "#CA8A04",
+      "leafMid": "#EAB308",
+      "leafLight": "#FEF08A"
+    }
+  ],
+  "groundShapes": [
+    {
+      "kind": "ellipse",
+      "x": 2.5,
+      "y": 14.0,
+      "rx": 10.92,
+      "ry": 5.5,
+      "color": "#0000002D"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -4.94,
+          16.0
+        ],
+        [
+          4.94,
+          16.0
+        ],
+        [
+          3.9,
+          -14.0
+        ],
+        [
+          -3.9,
+          -14.0
+        ]
+      ],
+      "color": "$bark",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -8.07,
+          16.5
+        ],
+        [
+          -2.38,
+          16.5
+        ],
+        [
+          -3.32,
+          9.0
+        ]
+      ],
+      "color": "$barkDark"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          2.38,
+          16.5
+        ],
+        [
+          8.07,
+          16.5
+        ],
+        [
+          3.32,
+          10.0
+        ]
+      ],
+      "color": "$barkDark"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          0.6,
+          -14.0
+        ],
+        [
+          3.6,
+          -14.0
+        ],
+        [
+          4.56,
+          16.0
+        ],
+        [
+          0.76,
+          16.0
+        ]
+      ],
+      "color": "$barkDark"
+    },
+    {
+      "kind": "line",
+      "x": -1.9,
+      "y": 14.0,
+      "x2": -1.2,
+      "y2": -12.0,
+      "thickness": 2.0,
+      "color": "$barkHi"
+    },
+    {
+      "kind": "rect",
+      "x": -3.5,
+      "y": 7,
+      "w": 4.5,
+      "h": 1.8,
+      "color": "$mark"
+    },
+    {
+      "kind": "rect",
+      "x": 0.0,
+      "y": 0,
+      "w": 3.8,
+      "h": 1.8,
+      "color": "$mark"
+    },
+    {
+      "kind": "rect",
+      "x": -3.0,
+      "y": -7,
+      "w": 4.0,
+      "h": 1.6,
+      "color": "$mark"
+    }
+  ],
+  "canopyShapes": [
+    {
+      "kind": "ellipse",
+      "x": 7.89,
+      "y": -24.75,
+      "rx": 10.92,
+      "ry": 9.57,
+      "color": "$leafEdge"
+    },
+    {
+      "kind": "ellipse",
+      "x": 1.8,
+      "y": -19.01,
+      "rx": 12.6,
+      "ry": 11.04,
+      "color": "$leafEdge"
+    },
+    {
+      "kind": "ellipse",
+      "x": -6.44,
+      "y": -22.79,
+      "rx": 14.28,
+      "ry": 12.51,
+      "color": "$leafEdge"
+    },
+    {
+      "kind": "ellipse",
+      "x": -9.77,
+      "y": -29.78,
+      "rx": 10.92,
+      "ry": 9.57,
+      "color": "$leafEdge"
+    },
+    {
+      "kind": "ellipse",
+      "x": -1.45,
+      "y": -33.45,
+      "rx": 12.6,
+      "ry": 11.04,
+      "color": "$leafEdge"
+    },
+    {
+      "kind": "ellipse",
+      "x": 7.97,
+      "y": -32.21,
+      "rx": 14.28,
+      "ry": 12.51,
+      "color": "$leafEdge"
+    },
+    {
+      "kind": "ellipse",
+      "x": 7.14,
+      "y": -26.97,
+      "rx": 9.6,
+      "ry": 8.45,
+      "color": "$leafDark"
+    },
+    {
+      "kind": "ellipse",
+      "x": 1.66,
+      "y": -21.62,
+      "rx": 11.0,
+      "ry": 9.68,
+      "color": "$leafMid"
+    },
+    {
+      "kind": "ellipse",
+      "x": -5.83,
+      "y": -25.19,
+      "rx": 12.4,
+      "ry": 10.91,
+      "color": "$leafMid"
+    },
+    {
+      "kind": "ellipse",
+      "x": -9.02,
+      "y": -31.57,
+      "rx": 9.6,
+      "ry": 8.45,
+      "color": "$leafDark"
+    },
+    {
+      "kind": "ellipse",
+      "x": -1.31,
+      "y": -34.84,
+      "rx": 11.0,
+      "ry": 9.68,
+      "color": "$leafMid"
+    },
+    {
+      "kind": "ellipse",
+      "x": 7.36,
+      "y": -33.81,
+      "rx": 12.4,
+      "ry": 10.91,
+      "color": "$leafMid"
+    },
+    {
+      "kind": "ellipse",
+      "x": 0,
+      "y": -31.8,
+      "rx": 14.0,
+      "ry": 12.0,
+      "color": "$leafMid"
+    },
+    {
+      "kind": "ellipse",
+      "x": -5.6,
+      "y": -35.8,
+      "rx": 7.6,
+      "ry": 5.6,
+      "color": "$leafLight"
+    },
+    {
+      "kind": "ellipse",
+      "x": 2.4,
+      "y": -37.4,
+      "rx": 5.2,
+      "ry": 4.0,
+      "color": "$leafLight"
+    },
+    {
+      "kind": "ellipse",
+      "x": -9.0,
+      "y": -31.4,
+      "rx": 4.4,
+      "ry": 3.6,
+      "color": "$leafLight"
+    }
+  ],
+  "remnantShapes": [
+    {
+      "kind": "ellipse",
+      "x": 2.0,
+      "y": 12.0,
+      "rx": 11.5,
+      "ry": 5.5,
+      "color": "#0000002D"
+    },
+    {
+      "kind": "rect",
+      "x": -9.0,
+      "y": 4.0,
+      "w": 18.0,
+      "h": 10.0,
+      "color": "$bark",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "x": 0.0,
+      "y": 5.0,
+      "rx": 9.0,
+      "ry": 6.2,
+      "color": "#DEB887",
+      "outlineColor": "$barkDark",
+      "outlineThickness": 1.4
+    },
+    {
+      "kind": "ring",
+      "x": 0.0,
+      "y": 5.0,
+      "rx": 5.0,
+      "ry": 5.0,
+      "thickness": 1.1,
+      "color": "#B48252"
+    },
+    {
+      "kind": "ellipse",
+      "x": -13.0,
+      "y": 10.0,
+      "rx": 2.2,
+      "ry": 1.1,
+      "color": "#D2A872",
+      "rotDeg": 22
+    },
+    {
+      "kind": "ellipse",
+      "x": 13.5,
+      "y": 11.5,
+      "rx": 2.0,
+      "ry": 1.0,
+      "color": "#D2A872",
+      "rotDeg": -18
+    },
+    {
+      "kind": "ellipse",
+      "x": 8.0,
+      "y": 14.5,
+      "rx": 2.4,
+      "ry": 1.1,
+      "color": "#C69864",
+      "rotDeg": 12
+    }
+  ]
+}

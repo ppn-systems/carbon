@@ -10,7 +10,8 @@ using Carbon.Contracts.Entities;
 using Carbon.Contracts.Entities.C2S;
 using Carbon.Contracts.Items.C2S;
 using Carbon.Contracts.Maps.C2S;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.Events;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
@@ -96,10 +97,10 @@ public sealed partial class MultiplayerSession
             return false;
         }
 
-        ClientActionKind actionKind = ResolveActionKind(archetype);
+        ActionAnimationKind actionKind = ResolveActionKind(archetype);
         float actionDuration = ResolveActionDuration(actionKind);
         _comboStep = (byte)(_comboStep ^ 1);
-        _currentAction = new ClientActionState(
+        _currentAction = new ActionState(
             actionKind,
             actionDuration,
             actionDuration,
@@ -107,7 +108,7 @@ public sealed partial class MultiplayerSession
             activeSlot.ItemId,
             _comboStep);
 
-        if (actionKind is ClientActionKind.SwordSlash or ClientActionKind.AxeChop or ClientActionKind.PickaxeMine or ClientActionKind.BowShot or ClientActionKind.StaffCast)
+        if (actionKind is ActionAnimationKind.SwordSlash or ActionAnimationKind.AxeChop or ActionAnimationKind.PickaxeMine or ActionAnimationKind.BowShot or ActionAnimationKind.StaffCast)
         {
             _attackSwingTimer = actionDuration;
         }
@@ -197,7 +198,7 @@ public sealed partial class MultiplayerSession
         _lastAttackDir = aimDir;
         _localFacingDir = aimDir;
 
-        ClientActionKind actionKind = MapSkillAnimKind(skillDef.AnimArchetype);
+        ActionAnimationKind actionKind = MapSkillAnimKind(skillDef.AnimArchetype);
         float duration = ResolveActionDuration(actionKind);
         _comboStep = (byte)(_comboStep ^ 1);
 
@@ -209,14 +210,14 @@ public sealed partial class MultiplayerSession
             targetNetId = _lockedTargetNetworkId;
         }
 
-        _currentAction = new ClientActionState(
+        _currentAction = new ActionState(
             actionKind,
             duration,
             duration,
             aimDir,
             heldItemId,
             _comboStep);
-        if (actionKind == ClientActionKind.SpinSlash)
+        if (actionKind == ActionAnimationKind.SpinSlash)
         {
             _attackSwingTimer = duration;
         }
@@ -364,7 +365,7 @@ public sealed partial class MultiplayerSession
                     Vector2 pos = _simulation is not null && _simulation.Entities.IsAlive(_localPlayer)
                         ? _simulation.GetInterpolatedPosition(_localPlayer) + _visualOffset
                         : Vector2.Zero;
-                    _combatEvents.Add(new ClientCombatEvent(
+                    _combatEvents.Add(new CombatFeedbackEvent(
                         pos + new Vector2(0f, -16f),
                         0f,
                         IsCritical: true,
@@ -643,7 +644,7 @@ public sealed partial class MultiplayerSession
     }
 
     /// <inheritdoc/>
-    public void DrainCombatEvents(List<ClientCombatEvent> destination)
+    public void DrainCombatEvents(List<CombatFeedbackEvent> destination)
     {
         ArgumentNullException.ThrowIfNull(destination);
         lock (_worldGate)
@@ -658,7 +659,7 @@ public sealed partial class MultiplayerSession
     }
 
     /// <inheritdoc/>
-    public void DrainPropImpactEvents(List<ClientPropImpactEvent> destination)
+    public void DrainPropImpactEvents(List<PropImpactEvent> destination)
     {
         ArgumentNullException.ThrowIfNull(destination);
         lock (_worldGate)
@@ -759,11 +760,11 @@ public sealed partial class MultiplayerSession
         }
 
         _ = StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? activeArchetype);
-        ClientActionKind harvestKind = ResolveActionKind(activeArchetype);
+        ActionAnimationKind harvestKind = ResolveActionKind(activeArchetype);
         float harvestDuration = ResolveActionDuration(harvestKind);
         _comboStep = (byte)(_comboStep ^ 1);
         _attackSwingTimer = harvestDuration;
-        _currentAction = new ClientActionState(
+        _currentAction = new ActionState(
             harvestKind,
             harvestDuration,
             harvestDuration,
@@ -854,58 +855,58 @@ public sealed partial class MultiplayerSession
             });
     }
 
-    private static ClientActionKind ResolveActionKind(ItemArchetype? archetype)
+    private static ActionAnimationKind ResolveActionKind(ItemArchetype? archetype)
     {
         if (archetype is null)
         {
-            return ClientActionKind.SwordSlash;
+            return ActionAnimationKind.SwordSlash;
         }
 
         if (archetype.Category == ItemCategory.Placeable)
         {
-            return ClientActionKind.PlaceStructure;
+            return ActionAnimationKind.PlaceStructure;
         }
 
         if (archetype.Category == ItemCategory.Consumable)
         {
-            return ClientActionKind.ConsumeItem;
+            return ActionAnimationKind.ConsumeItem;
         }
 
         if (archetype.Category == ItemCategory.Tool)
         {
             return archetype.Capabilities.HasFlag(ToolCapabilities.MineMineral)
-                ? ClientActionKind.PickaxeMine
-                : ClientActionKind.AxeChop;
+                ? ActionAnimationKind.PickaxeMine
+                : ActionAnimationKind.AxeChop;
         }
 
         if (archetype.Category == ItemCategory.Weapon && archetype.ProjectileSpeed > 0f)
         {
             return archetype.Capabilities.HasFlag(ToolCapabilities.MagicFocus)
-                ? ClientActionKind.StaffCast
-                : ClientActionKind.BowShot;
+                ? ActionAnimationKind.StaffCast
+                : ActionAnimationKind.BowShot;
         }
 
-        return ClientActionKind.SwordSlash;
+        return ActionAnimationKind.SwordSlash;
     }
 
-    private static ClientActionKind MapSkillAnimKind(SkillAnimArchetype anim) => anim switch
+    private static ActionAnimationKind MapSkillAnimKind(SkillAnimArchetype anim) => anim switch
     {
-        SkillAnimArchetype.SpinSlash => ClientActionKind.SpinSlash,
-        SkillAnimArchetype.ArcaneWave => ClientActionKind.ArcaneWave,
-        SkillAnimArchetype.SelfAura or _ => ClientActionKind.SelfAura,
+        SkillAnimArchetype.SpinSlash => ActionAnimationKind.SpinSlash,
+        SkillAnimArchetype.ArcaneWave => ActionAnimationKind.ArcaneWave,
+        SkillAnimArchetype.SelfAura or _ => ActionAnimationKind.SelfAura,
     };
 
-    private static float ResolveActionDuration(ClientActionKind kind) => kind switch
+    private static float ResolveActionDuration(ActionAnimationKind kind) => kind switch
     {
-        ClientActionKind.AxeChop => 0.30f,
-        ClientActionKind.PickaxeMine => 0.30f,
-        ClientActionKind.BowShot => 0.26f,
-        ClientActionKind.StaffCast => 0.28f,
-        ClientActionKind.ConsumeItem => 0.24f,
-        ClientActionKind.PlaceStructure => 0.20f,
-        ClientActionKind.SpinSlash => 0.42f,
-        ClientActionKind.ArcaneWave => 0.45f,
-        ClientActionKind.SelfAura => 0.48f,
-        ClientActionKind.SwordSlash or ClientActionKind.MonsterStrike or ClientActionKind.None or _ => 0.24f,
+        ActionAnimationKind.AxeChop => 0.30f,
+        ActionAnimationKind.PickaxeMine => 0.30f,
+        ActionAnimationKind.BowShot => 0.26f,
+        ActionAnimationKind.StaffCast => 0.28f,
+        ActionAnimationKind.ConsumeItem => 0.24f,
+        ActionAnimationKind.PlaceStructure => 0.20f,
+        ActionAnimationKind.SpinSlash => 0.42f,
+        ActionAnimationKind.ArcaneWave => 0.45f,
+        ActionAnimationKind.SelfAura => 0.48f,
+        ActionAnimationKind.SwordSlash or ActionAnimationKind.MonsterStrike or ActionAnimationKind.None or _ => 0.24f,
     };
 }

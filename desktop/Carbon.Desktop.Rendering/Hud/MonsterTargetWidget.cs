@@ -3,7 +3,7 @@
 using System;
 using System.Numerics;
 using Carbon.Contracts.Entities;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Feedback;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -27,7 +27,7 @@ internal sealed class MonsterTargetWidget
     private bool _hasTarget;
     private bool _isLocked;
 
-    public void UpdateTarget(IClientWorldReadModel world, CombatFeedbackTracker? feedback, Vector2? aimedWorldPos)
+    public void UpdateTarget(IWorldReadModel world, CombatFeedbackTracker? feedback, Vector2? aimedWorldPos)
     {
         if (feedback is not null)
         {

@@ -4,7 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Contracts.Entities;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.Events;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
 using Carbon.Maps.Props;
@@ -33,8 +34,8 @@ public sealed class CombatFeedbackTracker
 {
     private const int MaxDebrisParticles = 256;
 
-    private readonly List<ClientCombatEvent> _combatScratch = new(16);
-    private readonly List<ClientPropImpactEvent> _propImpactScratch = new(16);
+    private readonly List<CombatFeedbackEvent> _combatScratch = new(16);
+    private readonly List<PropImpactEvent> _propImpactScratch = new(16);
     private readonly List<FloatingCombatText> _floatingTexts = new(32);
     private readonly Dictionary<long, PropHitState> _propHits = new(32);
     private readonly List<long> _expiredPropHits = new(16);
@@ -52,7 +53,7 @@ public sealed class CombatFeedbackTracker
     public float LocalGhostHpRatio { get; private set; } = 1f;
 
     /// <summary>Drains feedback events from <paramref name="world"/> and advances particles, timers, and ghost HP trails.</summary>
-    public void Update(IClientWorldReadModel world, float frameDt, float animTime, Vector2? aimedWorldPos)
+    public void Update(IWorldReadModel world, float frameDt, float animTime, Vector2? aimedWorldPos)
     {
         ArgumentNullException.ThrowIfNull(world);
 
@@ -70,7 +71,7 @@ public sealed class CombatFeedbackTracker
         world.DrainPropImpactEvents(_propImpactScratch);
         for (int i = 0; i < _propImpactScratch.Count; i++)
         {
-            ClientPropImpactEvent impact = _propImpactScratch[i];
+            PropImpactEvent impact = _propImpactScratch[i];
             long key = PackTileKey(impact.TileX, impact.TileY);
             _propHits[key] = new PropHitState(ShakeTimer: 0.26f, BarTimer: impact.IsDestroyed ? 0f : 3.5f);
             this.SpawnImpactDebris(in impact, animTime);
@@ -116,7 +117,7 @@ public sealed class CombatFeedbackTracker
         world.DrainCombatEvents(_combatScratch);
         for (int i = 0; i < _combatScratch.Count; i++)
         {
-            ClientCombatEvent ev = _combatScratch[i];
+            CombatFeedbackEvent ev = _combatScratch[i];
             string text = ev.Label ?? (ev.IsCritical
                 ? $"-{(int)MathF.Ceiling(ev.Amount)}!"
                 : ev.IsHeal
@@ -173,7 +174,7 @@ public sealed class CombatFeedbackTracker
     /// or most recently damaged/attacking monster within <c>360</c> world units for the Target Unit Frame.
     /// </summary>
     public bool TryResolveTargetEntity(
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         Vector2? aimedWorldPos,
         out RemoteEntityView target,
         out float ghostRatio)
@@ -322,7 +323,7 @@ public sealed class CombatFeedbackTracker
         }
     }
 
-    private void SpawnImpactDebris(in ClientPropImpactEvent impact, float animTime)
+    private void SpawnImpactDebris(in PropImpactEvent impact, float animTime)
     {
         int count = impact.IsDestroyed ? 22 : impact.WasTierBlocked ? 10 : 12;
         uint seed = (uint)(impact.TileX * 73856093) ^ (uint)(impact.TileY * 19349663) ^ (uint)(animTime * 1000f);

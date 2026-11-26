@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 2,
+  "biomeId": 12,
+  "id": "savanna",
+  "displayName": "Savanna",
+  "groundColor": "#C4A35A",
+  "minimapColor": "#D1AE60",
+  "cliffBase": "#AF8750",
+  "cliffStrata": "#916E3C",
+  "cliffHighlight": "#DCB478E6",
+  "cliffShadow": "#6E5028",
+  "detailChancePercent": 24,
+  "palette": {
+    "grass": "#E8C96D",
+    "grassShade": "#A37E38",
+    "clay": "#8E6838B0",
+    "seed": "#F5DEB3"
+  },
+  "detailVariants": [
+    {
+      "shapes": [
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              13,
+              21
+            ],
+            [
+              10,
+              11
+            ],
+            [
+              15,
+              20
+            ]
+          ],
+          "color": "$grassShade"
+        },
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              16,
+              21
+            ],
+            [
+              17,
+              9
+            ],
+            [
+              19,
+              21
+            ]
+          ],
+          "color": "$grass"
+        },
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              19,
+              21
+            ],
+            [
+              23,
+              13
+            ],
+            [
+              21,
+              21
+            ]
+          ],
+          "color": "$grassShade"
+        }
+      ]
+    },
+    {
+      "shapes": [
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              20.76,
+              17.33
+            ],
+            [
+              18.39,
+              18.88
+            ],
+            [
+              15.48,
+              17.83
+            ],
+            [
+              16.05,
+              15.63
+            ],
+            [
+              19.31,
+              15.32
+            ]
+          ],
+          "color": "$clay"
+        },
+        {
+          "kind": "line",
+          "x": 8,
+          "y": 14,
+          "x2": 15,
+          "y2": 16,
+          "thickness": 1.3,
+          "color": "$clay"
+        }
+      ]
+    },
+    {
+      "shapes": [
+        {
+          "kind": "line",
+          "x": 15,
+          "y": 21,
+          "x2": 14,
+          "y2": 11,
+          "thickness": 1.3,
+          "color": "$grassShade"
+        },
+        {
+          "kind": "ellipse",
+          "x": 14,
+          "y": 11,
+          "rx": 1.5,
+          "ry": 2.6,
+          "color": "$seed"
+        },
+        {
+          "kind": "line",
+          "x": 18,
+          "y": 21,
+          "x2": 20,
+          "y2": 13,
+          "thickness": 1.2,
+          "color": "$grassShade"
+        },
+        {
+          "kind": "ellipse",
+          "x": 20,
+          "y": 13,
+          "rx": 1.3,
+          "ry": 2.1,
+          "color": "$seed"
+        }
+      ]
+    }
+  ]
+}

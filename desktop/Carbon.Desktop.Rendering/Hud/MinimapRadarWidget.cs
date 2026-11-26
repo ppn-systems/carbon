@@ -4,8 +4,9 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Contracts.Entities;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
+using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.Batching.Sprites;
@@ -38,7 +39,7 @@ internal sealed class MinimapRadarWidget
         skin.DrawCard(spriteBatch, new RectangleF(mapX - pad, mapY - 24f, mapSize + (pad * 2f), mapSize + 44f), CarbonUiPalette.BorderOuter, bodyAlpha: 236);
     }
 
-    public void DrawGeometry(GeometryBatch batch, IClientWorldReadModel world, int viewportWidth, int ptx, int pty)
+    public void DrawGeometry(GeometryBatch batch, IWorldReadModel world, IVectorArtRepository? art, int viewportWidth, int ptx, int pty)
     {
         const float mapSize = 152f;
         float mapX = viewportWidth - mapSize - 24f;
@@ -57,7 +58,7 @@ internal sealed class MinimapRadarWidget
                 for (int dx = -RadarRadius; dx < RadarRadius; dx += 2)
                 {
                     MapTile tile = chunkWorld.GetTileAtWorld(ptx + dx, pty + dy);
-                    _tileCache[idx++] = ResolveMinimapBiomeColor(tile.Biome);
+                    _tileCache[idx++] = ResolveMinimapBiomeColor(tile.Biome, art);
                 }
             }
         }
@@ -118,63 +119,27 @@ internal sealed class MinimapRadarWidget
         spriteBatch.DrawOutlinedString(font, $"({ptx},{pty})", new Vector2(mapX, 191f), CarbonUiPalette.TextMuted, black, 1, 1f);
     }
 
-    private static ColorRgba ResolveMinimapBiomeColor(BiomeType biome)
+    private static ColorRgba ResolveMinimapBiomeColor(BiomeType biome, IVectorArtRepository? art)
     {
-        if (biome == BiomeType.DeepOcean)
+        if (art is not null && art.TryGetBiome((byte)biome, out CompiledBiomeArt? biomeArt))
         {
-            return new ColorRgba(17, 45, 92, 255);
+            return biomeArt.MinimapColor;
         }
 
-        if (biome == BiomeType.ShallowWater)
+        return biome switch
         {
-            return new ColorRgba(38, 109, 168, 255);
-        }
-
-        if (biome == BiomeType.BeachSand)
-        {
-            return new ColorRgba(225, 200, 140, 255);
-        }
-
-        if (biome == BiomeType.AncientForest)
-        {
-            return new ColorRgba(36, 98, 52, 255);
-        }
-
-        if (biome == BiomeType.MistySwamp)
-        {
-            return new ColorRgba(62, 92, 74, 255);
-        }
-
-        if (biome == BiomeType.DuneDesert || biome == BiomeType.Savanna)
-        {
-            return new ColorRgba(209, 174, 96, 255);
-        }
-
-        if (biome == BiomeType.RedMesa)
-        {
-            return new ColorRgba(176, 86, 54, 255);
-        }
-
-        if (biome == BiomeType.TropicalJungle)
-        {
-            return new ColorRgba(28, 124, 62, 255);
-        }
-
-        if (biome == BiomeType.FrozenTundra || biome == BiomeType.AlpinePeaks)
-        {
-            return new ColorRgba(214, 228, 240, 255);
-        }
-
-        if (biome == BiomeType.VolcanicAshland)
-        {
-            return new ColorRgba(78, 66, 68, 255);
-        }
-
-        if (biome == BiomeType.BlossomWoods)
-        {
-            return new ColorRgba(196, 114, 158, 255);
-        }
-
-        return new ColorRgba(86, 150, 74, 255);
+            BiomeType.DeepOcean => new ColorRgba(17, 45, 92, 255),
+            BiomeType.ShallowWater => new ColorRgba(38, 109, 168, 255),
+            BiomeType.BeachSand => new ColorRgba(225, 200, 140, 255),
+            BiomeType.AncientForest => new ColorRgba(36, 98, 52, 255),
+            BiomeType.MistySwamp => new ColorRgba(62, 92, 74, 255),
+            BiomeType.DuneDesert or BiomeType.Savanna => new ColorRgba(209, 174, 96, 255),
+            BiomeType.RedMesa => new ColorRgba(176, 86, 54, 255),
+            BiomeType.TropicalJungle => new ColorRgba(28, 124, 62, 255),
+            BiomeType.FrozenTundra or BiomeType.AlpinePeaks => new ColorRgba(214, 228, 240, 255),
+            BiomeType.VolcanicAshland => new ColorRgba(78, 66, 68, 255),
+            BiomeType.BlossomWoods => new ColorRgba(196, 114, 158, 255),
+            BiomeType.LushPlains or _ => new ColorRgba(86, 150, 74, 255),
+        };
     }
 }

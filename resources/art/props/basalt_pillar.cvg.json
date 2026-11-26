@@ -1,0 +1,329 @@
+{
+  "schemaVersion": 2,
+  "propType": 18,
+  "id": "basalt_pillar",
+  "displayName": "Basalt Pillar",
+  "designRadius": 17,
+  "hasCanopy": false,
+  "allowMirror": true,
+  "isWoody": false,
+  "isIcy": false,
+  "rareLastVariantChance": 0.12,
+  "light": null,
+  "paletteVariants": [
+    {
+      "stone": "#3B3A42",
+      "stoneShade": "#25242B",
+      "stoneTop": "#585763",
+      "hi": "#7C7B8890",
+      "ore": "#64748B"
+    }
+  ],
+  "groundShapes": [
+    {
+      "kind": "ellipse",
+      "x": 2,
+      "y": 9,
+      "rx": 15.5,
+      "ry": 7.5,
+      "color": "#00000045"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -11,
+          8
+        ],
+        [
+          -4,
+          10
+        ],
+        [
+          -4,
+          -10
+        ],
+        [
+          -11,
+          -12
+        ]
+      ],
+      "color": "$stone",
+      "outlineColor": "$stoneShade",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -3.5,
+          -11.0
+        ],
+        [
+          -5.5,
+          -8.83
+        ],
+        [
+          -9.5,
+          -8.83
+        ],
+        [
+          -11.5,
+          -11.0
+        ],
+        [
+          -9.5,
+          -13.17
+        ],
+        [
+          -5.5,
+          -13.17
+        ]
+      ],
+      "color": "$stoneTop",
+      "outlineColor": "$stoneShade",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          3,
+          10
+        ],
+        [
+          11,
+          8
+        ],
+        [
+          11,
+          -14
+        ],
+        [
+          3,
+          -12
+        ]
+      ],
+      "color": "$stoneShade",
+      "outlineColor": "#18171C",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          11.4,
+          -13.0
+        ],
+        [
+          9.2,
+          -10.66
+        ],
+        [
+          4.8,
+          -10.66
+        ],
+        [
+          2.6,
+          -13.0
+        ],
+        [
+          4.8,
+          -15.34
+        ],
+        [
+          9.2,
+          -15.34
+        ]
+      ],
+      "color": "$stoneTop",
+      "outlineColor": "#18171C",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -5,
+          10
+        ],
+        [
+          5,
+          10
+        ],
+        [
+          5,
+          -18
+        ],
+        [
+          -5,
+          -18
+        ]
+      ],
+      "color": "$stone",
+      "outlineColor": "#18171C",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          5.5,
+          -18.0
+        ],
+        [
+          2.75,
+          -15.23
+        ],
+        [
+          -2.75,
+          -15.23
+        ],
+        [
+          -5.5,
+          -18.0
+        ],
+        [
+          -2.75,
+          -20.77
+        ],
+        [
+          2.75,
+          -20.77
+        ]
+      ],
+      "color": "$stoneTop",
+      "outlineColor": "#18171C",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          2.5,
+          -18.5
+        ],
+        [
+          1.0,
+          -17.11
+        ],
+        [
+          -2.0,
+          -17.11
+        ],
+        [
+          -3.5,
+          -18.5
+        ],
+        [
+          -2.0,
+          -19.89
+        ],
+        [
+          1.0,
+          -19.89
+        ]
+      ],
+      "color": "$hi"
+    }
+  ],
+  "canopyShapes": [],
+  "remnantShapes": [
+    {
+      "kind": "ellipse",
+      "x": 1.0,
+      "y": 5.0,
+      "rx": 12.0,
+      "ry": 6.2,
+      "color": "#0000002A"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -0.56,
+          2.93
+        ],
+        [
+          -4.76,
+          5.6
+        ],
+        [
+          -9.29,
+          3.29
+        ],
+        [
+          -7.89,
+          -0.8
+        ],
+        [
+          -2.49,
+          -1.02
+        ]
+      ],
+      "color": "$stone",
+      "outlineColor": "$stoneShade",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          7.72,
+          5.99
+        ],
+        [
+          2.93,
+          6.87
+        ],
+        [
+          0.31,
+          3.78
+        ],
+        [
+          3.48,
+          0.99
+        ],
+        [
+          8.06,
+          2.36
+        ]
+      ],
+      "color": "$stoneShade"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          4.57,
+          -1.01
+        ],
+        [
+          0.87,
+          0.9
+        ],
+        [
+          -2.65,
+          -1.2
+        ],
+        [
+          -1.12,
+          -4.4
+        ],
+        [
+          3.34,
+          -4.29
+        ]
+      ],
+      "color": "$ore"
+    },
+    {
+      "kind": "ellipse",
+      "x": 8.0,
+      "y": 6.5,
+      "rx": 2.2,
+      "ry": 1.5,
+      "color": "$stoneShade"
+    }
+  ]
+}

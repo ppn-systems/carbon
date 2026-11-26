@@ -5,7 +5,9 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Contracts.Identity;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.Configuration;
+using Carbon.Desktop.Abstractions.Identity;
+using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Rendering;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -49,8 +51,8 @@ public sealed class CharacterSelectScene : GameScene
         "Arcane Staff | Bolts +30 MP",
     ];
 
-    private readonly IClientWorldSession _session;
-    private readonly DesktopClientOptions _options;
+    private readonly IWorldSession _session;
+    private readonly DesktopOptions _options;
     private readonly Camera2D _camera;
 
     private readonly MenuTextField _createNameField;
@@ -80,7 +82,7 @@ public sealed class CharacterSelectScene : GameScene
     private IVectorArtRepository? _vectorArt;
     private IInputManager? _boundInput;
 
-    private IReadOnlyList<ClientCharacterSummary> _characters = [];
+    private IReadOnlyList<CharacterRosterEntry> _characters = [];
     private int _selectedIndex;
     private int _turnIndex;
     private byte _hairStyle;
@@ -92,7 +94,7 @@ public sealed class CharacterSelectScene : GameScene
     private bool _isCreatorMode;
     private string? _preferSelectName;
 
-    private Task<IReadOnlyList<ClientCharacterSummary>>? _listTask;
+    private Task<IReadOnlyList<CharacterRosterEntry>>? _listTask;
     private Task<(bool Succeeded, string Message)>? _createTask;
     private Task<(bool Succeeded, string Message)>? _enterTask;
     private Task? _logoutTask;
@@ -106,7 +108,7 @@ public sealed class CharacterSelectScene : GameScene
     /// <summary>
     /// Initializes a new instance of the <see cref="CharacterSelectScene"/> class.
     /// </summary>
-    public CharacterSelectScene(IClientWorldSession session, DesktopClientOptions options, Camera2D camera)
+    public CharacterSelectScene(IWorldSession session, DesktopOptions options, Camera2D camera)
         : base("CharacterSelect")
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
@@ -478,7 +480,7 @@ public sealed class CharacterSelectScene : GameScene
                 RectangleF b = _slotBounds[i];
                 if (i < _characters.Count)
                 {
-                    ClientCharacterSummary c = _characters[i];
+                    CharacterRosterEntry c = _characters[i];
                     ColorRgba nc = i == _selectedIndex ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextPrimary;
                     string clsLabel = s_classTitles[Math.Clamp((int)c.Class, 0, s_classTitles.Length - 1)];
                     spriteBatch.DrawOutlinedString(_font, CarbonUiSkin.TruncateToWidth(_font, c.Name, b.Width - 82f, 1.25f), new Vector2(b.X + 70f, b.Y + 14f), nc, black, 1, 1.25f);
@@ -493,7 +495,7 @@ public sealed class CharacterSelectScene : GameScene
             spriteBatch.DrawOutlinedString(_font, "HERO DOSSIER", new Vector2(rightCard.X + 16f, rightCard.Y + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
             if (_selectedIndex >= 0 && _selectedIndex < _characters.Count)
             {
-                ClientCharacterSummary sel = _characters[_selectedIndex];
+                CharacterRosterEntry sel = _characters[_selectedIndex];
                 string selCls = s_classTitles[Math.Clamp((int)sel.Class, 0, s_classTitles.Length - 1)];
                 spriteBatch.DrawOutlinedString(_font, CarbonUiSkin.TruncateToWidth(_font, sel.Name.ToUpperInvariant(), rightCard.Width - 32f, 1.5f), new Vector2(rightCard.X + 16f, rightCard.Y + 44f), CarbonUiPalette.TextPrimary, black, 1, 1.5f);
                 spriteBatch.DrawOutlinedString(_font, $"{selCls}  //  LV.{sel.Level}  //  TIER {sel.ZoneTier}", new Vector2(rightCard.X + 16f, rightCard.Y + 78f), CarbonUiPalette.TextWarm, black, 1, 1f);
@@ -579,7 +581,7 @@ public sealed class CharacterSelectScene : GameScene
         bool enterKey = !busy && (kb.IsKeyPressed(Key.Enter) || kb.IsKeyPressed(Key.KeypadEnter));
         if ((_enterWorldButton.Update(mousePos, leftDown, leftPressed) || enterKey) && hasSelection)
         {
-            ClientCharacterSummary hero = _characters[_selectedIndex];
+            CharacterRosterEntry hero = _characters[_selectedIndex];
             _enterTask = _session.EnterWorldAsync(hero.CharacterId);
             _statusIsError = false;
             _statusMessage = $"Entering world as {hero.Name} (opening Authenticated UDP)...";
@@ -764,7 +766,7 @@ public sealed class CharacterSelectScene : GameScene
 
         if (_listTask is not null && _listTask.IsCompleted)
         {
-            Task<IReadOnlyList<ClientCharacterSummary>> done = _listTask;
+            Task<IReadOnlyList<CharacterRosterEntry>> done = _listTask;
             _listTask = null;
             try
             {

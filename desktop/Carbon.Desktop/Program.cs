@@ -2,7 +2,8 @@
 
 using System;
 using System.Threading.Tasks;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.Configuration;
+using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Networking;
 using Carbon.Desktop.Scenes;
 using Carbon.Graphics.Batching.Camera;
@@ -22,7 +23,7 @@ public static class Program
     /// <summary>Entry point initializing the client session and Silk.NET window loop.</summary>
     public static async Task<int> Main()
     {
-        DesktopClientOptions options = DesktopClientOptions.FromEnvironment();
+        DesktopOptions options = DesktopOptions.FromEnvironment();
         MultiplayerSession session = new(options);
 
         try
@@ -36,7 +37,7 @@ public static class Program
         }
     }
 
-    private static void RunWindowLoop(IClientWorldSession session, DesktopClientOptions options)
+    private static void RunWindowLoop(IWorldSession session, DesktopOptions options)
     {
         WindowSettings settings = new()
         {

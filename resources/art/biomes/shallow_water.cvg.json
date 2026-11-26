@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 2,
+  "biomeId": 1,
+  "id": "shallow_water",
+  "displayName": "Shallow Water",
+  "groundColor": "#389BB8",
+  "minimapColor": "#266DA8",
+  "cliffBase": "#464C52",
+  "cliffStrata": "#363B41",
+  "cliffHighlight": "#A5ACB4E6",
+  "cliffShadow": "#24282D",
+  "detailChancePercent": 16,
+  "palette": {
+    "foam": "#FFFFFF66",
+    "pebble": "#266B8288",
+    "shimmer": "#BAF0FF99"
+  },
+  "detailVariants": [
+    {
+      "shapes": [
+        {
+          "kind": "capsule",
+          "x": 7,
+          "y": 14,
+          "x2": 21,
+          "y2": 14,
+          "thickness": 1.6,
+          "color": "$foam"
+        },
+        {
+          "kind": "line",
+          "x": 11,
+          "y": 18,
+          "x2": 18,
+          "y2": 18,
+          "thickness": 1.2,
+          "color": "$shimmer"
+        }
+      ]
+    },
+    {
+      "shapes": [
+        {
+          "kind": "ellipse",
+          "x": 13,
+          "y": 16,
+          "rx": 3.0,
+          "ry": 2.0,
+          "color": "$pebble"
+        },
+        {
+          "kind": "ellipse",
+          "x": 19,
+          "y": 19,
+          "rx": 2.0,
+          "ry": 1.4,
+          "color": "$pebble"
+        },
+        {
+          "kind": "ellipse",
+          "x": 16,
+          "y": 11,
+          "rx": 2.5,
+          "ry": 1.0,
+          "color": "$foam"
+        }
+      ]
+    },
+    {
+      "shapes": [
+        {
+          "kind": "ring",
+          "x": 16,
+          "y": 16,
+          "rx": 5.2,
+          "ry": 5.2,
+          "thickness": 1.2,
+          "color": "$foam"
+        },
+        {
+          "kind": "ellipse",
+          "x": 15,
+          "y": 16,
+          "rx": 1.6,
+          "ry": 1.0,
+          "color": "$shimmer"
+        }
+      ]
+    }
+  ]
+}

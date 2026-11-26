@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 2,
+  "propType": 9,
+  "id": "bush",
+  "displayName": "Bush",
+  "designRadius": 14,
+  "hasCanopy": false,
+  "allowMirror": true,
+  "isWoody": true,
+  "isIcy": false,
+  "rareLastVariantChance": 0.12,
+  "light": null,
+  "paletteVariants": [
+    {
+      "edge": "#14452F",
+      "dark": "#1E6B43",
+      "mid": "#2E9358",
+      "light": "#68D37A",
+      "berry": "#68D37A"
+    },
+    {
+      "edge": "#14452F",
+      "dark": "#1E6B43",
+      "mid": "#2E9358",
+      "light": "#68D37A",
+      "berry": "#EF4444"
+    },
+    {
+      "edge": "#244720",
+      "dark": "#3A6B2D",
+      "mid": "#528F3A",
+      "light": "#84CC52",
+      "berry": "#FACC15"
+    }
+  ],
+  "groundShapes": [
+    {
+      "kind": "ellipse",
+      "x": 1.5,
+      "y": 7.0,
+      "rx": 14.5,
+      "ry": 6.5,
+      "color": "#00000028"
+    },
+    {
+      "kind": "ellipse",
+      "x": -7.5,
+      "y": 0.5,
+      "rx": 7.5,
+      "ry": 6.5,
+      "color": "$dark",
+      "outlineColor": "$edge",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "ellipse",
+      "x": 7.5,
+      "y": 0.5,
+      "rx": 7.5,
+      "ry": 6.5,
+      "color": "$dark",
+      "outlineColor": "$edge",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "ellipse",
+      "x": 0.0,
+      "y": -3.5,
+      "rx": 9.5,
+      "ry": 8.0,
+      "color": "$mid",
+      "outlineColor": "$edge",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "ellipse",
+      "x": -4.0,
+      "y": -2.5,
+      "rx": 5.5,
+      "ry": 4.5,
+      "color": "$mid"
+    },
+    {
+      "kind": "ellipse",
+      "x": 4.5,
+      "y": -2.0,
+      "rx": 5.2,
+      "ry": 4.2,
+      "color": "$mid"
+    },
+    {
+      "kind": "ellipse",
+      "x": -2.5,
+      "y": -6.5,
+      "rx": 4.8,
+      "ry": 3.5,
+      "color": "$light"
+    },
+    {
+      "kind": "ellipse",
+      "x": 2.5,
+      "y": -5.5,
+      "rx": 3.2,
+      "ry": 2.4,
+      "color": "$light"
+    },
+    {
+      "kind": "ellipse",
+      "x": -5.0,
+      "y": 0.0,
+      "rx": 1.7,
+      "ry": 1.7,
+      "color": "$berry"
+    },
+    {
+      "kind": "ellipse",
+      "x": 1.5,
+      "y": -2.0,
+      "rx": 1.8,
+      "ry": 1.8,
+      "color": "$berry"
+    },
+    {
+      "kind": "ellipse",
+      "x": 6.5,
+      "y": 1.0,
+      "rx": 1.6,
+      "ry": 1.6,
+      "color": "$berry"
+    }
+  ],
+  "canopyShapes": [],
+  "remnantShapes": [
+    {
+      "kind": "ellipse",
+      "x": 0,
+      "y": 4,
+      "rx": 8,
+      "ry": 4,
+      "color": "#00000024"
+    },
+    {
+      "kind": "ellipse",
+      "x": -3,
+      "y": 1,
+      "rx": 3.5,
+      "ry": 2.5,
+      "color": "$dark"
+    },
+    {
+      "kind": "ellipse",
+      "x": 3,
+      "y": 2,
+      "rx": 3.0,
+      "ry": 2.2,
+      "color": "$mid"
+    },
+    {
+      "kind": "ellipse",
+      "x": 0,
+      "y": 0,
+      "rx": 2.8,
+      "ry": 2.0,
+      "color": "$dark"
+    }
+  ]
+}

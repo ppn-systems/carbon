@@ -2,7 +2,7 @@
 
 using System;
 using System.Numerics;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Graphics.Animation.Directions;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
@@ -34,7 +34,7 @@ public static class VectorRigRenderer
         float targetHeightOverride = 0f,
         float hitFlash = 0f,
         CompiledItemVectorArt? equippedItem = null,
-        ClientActionState action = default,
+        ActionState action = default,
         float swingTimer = 0f,
         byte appearancePreset = 0,
         VisualEquipmentLoadout equipment = default,
@@ -115,44 +115,12 @@ public static class VectorRigRenderer
 
         bool isNorth = direction == Direction8.North;
         bool isSide = direction is Direction8.East or Direction8.West or Direction8.SouthEast or Direction8.SouthWest or Direction8.NorthEast or Direction8.NorthWest;
-        bool isSouth = !isNorth && !isSide;
 
-        float minX = float.MaxValue;
-        float maxX = float.MinValue;
-        float minY = float.MaxValue;
-        float maxY = float.MinValue;
-
-        for (int i = 0; i < rig.Shapes.Length; i++)
-        {
-            ref readonly CompiledVectorShape s = ref rig.Shapes[i];
-            if (s.Bone == VectorBoneId.Root && s.P0.Y >= -3f)
-            {
-                continue;
-            }
-
-            bool visible = s.Facing switch
-            {
-                VectorFacingFilter.South => isSouth,
-                VectorFacingFilter.Side => isSide,
-                VectorFacingFilter.North => isNorth,
-                VectorFacingFilter.NotNorth => !isNorth,
-                VectorFacingFilter.Any or _ => true,
-            };
-            if (!visible)
-            {
-                continue;
-            }
-
-            ExpandBoundsForShape(in s, ref minX, ref maxX, ref minY, ref maxY);
-        }
-
-        if (minX > maxX || minY > maxY)
-        {
-            minX = -10f;
-            maxX = 10f;
-            minY = -rig.DesignHeight;
-            maxY = 0f;
-        }
+        Vector4 bounds = isNorth ? rig.NorthPortraitBounds : isSide ? rig.SidePortraitBounds : rig.SouthPortraitBounds;
+        float minX = bounds.X;
+        float minY = bounds.Y;
+        float maxX = bounds.Z;
+        float maxY = bounds.W;
 
         float spanW = MathF.Max(10f, maxX - minX);
         float spanH = MathF.Max(10f, maxY - minY);
@@ -180,62 +148,16 @@ public static class VectorRigRenderer
             art: art);
     }
 
-    private static void ExpandBoundsForShape(
+    internal static void DrawShapeAt(
+        GeometryBatch batch,
         in CompiledVectorShape s,
-        ref float minX,
-        ref float maxX,
-        ref float minY,
-        ref float maxY)
-    {
-        switch (s.Kind)
-        {
-            case VectorShapeKind.Ellipse:
-                minX = MathF.Min(minX, s.P0.X - s.P1.X);
-                maxX = MathF.Max(maxX, s.P0.X + s.P1.X);
-                minY = MathF.Min(minY, s.P0.Y - s.P1.Y);
-                maxY = MathF.Max(maxY, s.P0.Y + s.P1.Y);
-                break;
-
-            case VectorShapeKind.Rect:
-                minX = MathF.Min(minX, s.P0.X);
-                maxX = MathF.Max(maxX, s.P0.X + s.P1.X);
-                minY = MathF.Min(minY, s.P0.Y);
-                maxY = MathF.Max(maxY, s.P0.Y + s.P1.Y);
-                break;
-
-            case VectorShapeKind.Capsule:
-            case VectorShapeKind.Line:
-                float half = s.Thickness * 0.5f;
-                minX = MathF.Min(minX, MathF.Min(s.P0.X, s.P1.X) - half);
-                maxX = MathF.Max(maxX, MathF.Max(s.P0.X, s.P1.X) + half);
-                minY = MathF.Min(minY, MathF.Min(s.P0.Y, s.P1.Y) - half);
-                maxY = MathF.Max(maxY, MathF.Max(s.P0.Y, s.P1.Y) + half);
-                break;
-
-            case VectorShapeKind.Polygon:
-                if (s.PolygonPoints is not null)
-                {
-                    for (int v = 0; v < s.PolygonPoints.Length; v++)
-                    {
-                        minX = MathF.Min(minX, s.PolygonPoints[v].X);
-                        maxX = MathF.Max(maxX, s.PolygonPoints[v].X);
-                        minY = MathF.Min(minY, s.PolygonPoints[v].Y);
-                        maxY = MathF.Max(maxY, s.PolygonPoints[v].Y);
-                    }
-                }
-                break;
-
-            case VectorShapeKind.Ring:
-                minX = MathF.Min(minX, s.P0.X - s.P1.X);
-                maxX = MathF.Max(maxX, s.P0.X + s.P1.X);
-                minY = MathF.Min(minY, s.P0.Y - s.P1.X);
-                maxY = MathF.Max(maxY, s.P0.Y + s.P1.X);
-                break;
-
-            default:
-                break;
-        }
-    }
+        in BonePose pose,
+        Vector2 origin,
+        float sx,
+        float sy,
+        float hitFlash = 0f,
+        byte alpha = 255) =>
+        DrawSingleShape(batch, in s, Vector2.Zero, in pose, origin, sx, sy, hitFlash, 0, false, alpha);
 
     /// <summary>
     /// Draws an inventory or UI item vector icon centered at <paramref name="center"/> scaled cleanly to <paramref name="targetSize"/>.
@@ -269,7 +191,7 @@ public static class VectorRigRenderer
         float uniformScale,
         bool mirrorX,
         in BonePose frontArmPose,
-        in ClientActionState action,
+        in ActionState action,
         float swingTimer,
         byte weaponUpgradeLevel = 0)
     {
@@ -306,34 +228,34 @@ public static class VectorRigRenderer
             float p = action.Progress;
             switch (action.Kind)
             {
-                case ClientActionKind.AxeChop:
+                case ActionAnimationKind.AxeChop:
                     swingOffset = EvaluateSwingArc(p, -1.62f, 1.05f, out thrustFactor);
                     break;
-                case ClientActionKind.PickaxeMine:
+                case ActionAnimationKind.PickaxeMine:
                     swingOffset = EvaluateSwingArc(p, -1.85f, 0.88f, out thrustFactor);
                     break;
-                case ClientActionKind.SwordSlash:
-                case ClientActionKind.SpinSlash:
+                case ActionAnimationKind.SwordSlash:
+                case ActionAnimationKind.SpinSlash:
                     swingOffset = (action.ComboStep & 1) == 0
                         ? EvaluateSwingArc(p, -1.35f, 1.28f, out thrustFactor)
                         : EvaluateSwingArc(p, 1.35f, -1.28f, out thrustFactor);
                     break;
-                case ClientActionKind.PlaceStructure:
+                case ActionAnimationKind.PlaceStructure:
                     swingOffset = -0.6f + (p * 0.8f);
                     break;
-                case ClientActionKind.BowShot:
+                case ActionAnimationKind.BowShot:
                     swingOffset = -0.35f + (MathF.Sin(p * MathF.PI) * 0.20f);
                     thrustFactor = p < 0.55f ? p / 0.55f * 0.35f : 0f;
                     break;
-                case ClientActionKind.StaffCast:
+                case ActionAnimationKind.StaffCast:
                     swingOffset = -0.92f + (MathF.Sin(p * MathF.PI) * 0.68f);
                     thrustFactor = MathF.Sin(p * MathF.PI) * 0.55f;
                     break;
-                case ClientActionKind.ConsumeItem:
-                case ClientActionKind.MonsterStrike:
-                case ClientActionKind.ArcaneWave:
-                case ClientActionKind.SelfAura:
-                case ClientActionKind.None:
+                case ActionAnimationKind.ConsumeItem:
+                case ActionAnimationKind.MonsterStrike:
+                case ActionAnimationKind.ArcaneWave:
+                case ActionAnimationKind.SelfAura:
+                case ActionAnimationKind.None:
                 default:
                     swingOffset = 0f;
                     break;
@@ -371,7 +293,7 @@ public static class VectorRigRenderer
             DrawSingleShape(batch, in item.Shapes[i], Vector2.Zero, in pose, itemCenter, itemScale, itemScale, hitFlash: 0f);
         }
 
-        if (action.IsActive && action.Kind == ClientActionKind.BowShot && action.Progress < 0.68f)
+        if (action.IsActive && action.Kind == ActionAnimationKind.BowShot && action.Progress < 0.68f)
         {
             float drawFrac = MathF.Sin(Math.Clamp(action.Progress / 0.65f, 0f, 1f) * MathF.PI);
             float pullDist = 4.6f * drawFrac;
@@ -384,7 +306,7 @@ public static class VectorRigRenderer
             batch.DrawLine(nockPt, arrowTip, new ColorRgba(253, 224, 71, 240), 1.6f * itemScale);
             batch.FillCircle(arrowTip, 1.8f * itemScale, item.AccentColor, 8);
         }
-        else if (action.IsActive && action.Kind == ClientActionKind.StaffCast)
+        else if (action.IsActive && action.Kind == ActionAnimationKind.StaffCast)
         {
             float pulse = MathF.Sin(action.Progress * MathF.PI);
             Vector2 focusPos = itemCenter + Rotate(new Vector2(6.2f, -6.2f) * itemScale, totalRot);
@@ -477,11 +399,21 @@ public static class VectorRigRenderer
         float sy,
         float hitFlash,
         byte appearancePreset = 0,
-        bool isBaseHero = false)
+        bool isBaseHero = false,
+        byte alpha = 255)
     {
         ColorRgba baseCol = ModularCharacterOverlays.ResolveModularColor(in s, appearancePreset, isBaseHero);
         ColorRgba fill = ApplyHitFlash(baseCol, hitFlash);
+        if (alpha < 255)
+        {
+            fill = new ColorRgba(fill.R, fill.G, fill.B, (byte)(fill.A * alpha / 255));
+        }
+
         ColorRgba outline = s.HasOutline ? ApplyHitFlash(s.OutlineColor, hitFlash * 0.45f) : default;
+        if (s.HasOutline && alpha < 255)
+        {
+            outline = new ColorRgba(outline.R, outline.G, outline.B, (byte)(outline.A * alpha / 255));
+        }
         float cosBone = MathF.Cos(bone.RotRad);
         float sinBone = MathF.Sin(bone.RotRad);
 

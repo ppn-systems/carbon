@@ -70,8 +70,8 @@ internal sealed class CloudSystem
             ForEachPuff(cloud, (p, r, puffLife) =>
             {
                 float a = strength * cloud.Life * puffLife;
-                MushroomArt.FillEllipse(batch, p + offset, r * 1.05f, r * 0.62f, new ColorRgba(12, 22, 38, (byte)(a * 0.55f)), 20);
-                MushroomArt.FillEllipse(batch, p + offset, r * 0.75f, r * 0.44f, new ColorRgba(12, 22, 38, (byte)(a * 0.45f)), 18);
+                FillEllipse(batch, p + offset, r * 1.05f, r * 0.62f, new ColorRgba(12, 22, 38, (byte)(a * 0.55f)), 20);
+                FillEllipse(batch, p + offset, r * 0.75f, r * 0.44f, new ColorRgba(12, 22, 38, (byte)(a * 0.45f)), 18);
             });
         }
     }
@@ -101,18 +101,18 @@ internal sealed class CloudSystem
             ForEachPuff(cloud, (p, r, puffLife) =>
             {
                 float a = baseAlpha * puffLife;
-                MushroomArt.FillEllipse(batch, p + new Vector2(0f, r * 0.22f), r * 1.02f, r * 0.82f, WithAlpha(cShade, a * 0.45f), 22);
+                FillEllipse(batch, p + new Vector2(0f, r * 0.22f), r * 1.02f, r * 0.82f, WithAlpha(cShade, a * 0.45f), 22);
             });
             ForEachPuff(cloud, (p, r, puffLife) =>
             {
                 float a = baseAlpha * puffLife;
-                MushroomArt.FillEllipse(batch, p, r, r * 0.86f, WithAlpha(cMid, a * 0.40f), 22);
-                MushroomArt.FillEllipse(batch, p, r * 0.72f, r * 0.62f, WithAlpha(cMid, a * 0.30f), 18);
+                FillEllipse(batch, p, r, r * 0.86f, WithAlpha(cMid, a * 0.40f), 22);
+                FillEllipse(batch, p, r * 0.72f, r * 0.62f, WithAlpha(cMid, a * 0.30f), 18);
             });
             ForEachPuff(cloud, (p, r, puffLife) =>
             {
                 float a = baseAlpha * puffLife;
-                MushroomArt.FillEllipse(batch, p + new Vector2(-r * 0.22f, -r * 0.26f), r * 0.6f, r * 0.48f, WithAlpha(cLit, a * 0.45f), 16);
+                FillEllipse(batch, p + new Vector2(-r * 0.22f, -r * 0.26f), r * 0.6f, r * 0.48f, WithAlpha(cLit, a * 0.45f), 16);
             });
         }
     }
@@ -316,4 +316,16 @@ internal sealed class CloudSystem
         (byte)(a.G + ((b.G - a.G) * t)),
         (byte)(a.B + ((b.B - a.B) * t)),
         (byte)(a.A + ((b.A - a.A) * t)));
+
+    private static void FillEllipse(GeometryBatch batch, Vector2 center, float rx, float ry, ColorRgba color, int segments)
+    {
+        Vector2 prev = center + new Vector2(rx, 0f);
+        for (int i = 1; i <= segments; i++)
+        {
+            float a = i * (MathF.Tau / segments);
+            Vector2 next = center + new Vector2(MathF.Cos(a) * rx, MathF.Sin(a) * ry);
+            batch.FillTriangle(center, prev, next, color);
+            prev = next;
+        }
+    }
 }

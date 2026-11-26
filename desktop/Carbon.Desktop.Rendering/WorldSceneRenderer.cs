@@ -6,7 +6,8 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Carbon.Contracts.Entities;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.Configuration;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Effects;
 using Carbon.Desktop.Rendering.Feedback;
 using Carbon.Desktop.Rendering.Overlays;
@@ -38,7 +39,7 @@ namespace Carbon.Desktop.Rendering;
 /// <summary>
 /// Orchestrates the 6-pass 2.5D world rendering pipeline using declarative <c>.cvg.json</c> vector rigs (DIP),
 /// cached terrain chunks, Y-sorted props &amp; buildings, combat VFX ribbons, day/night lighting, and screen-space overlays.
-/// Depends strictly on read-only <see cref="IClientWorldReadModel"/> (ISP).
+/// Depends strictly on read-only <see cref="IWorldReadModel"/> (ISP).
 /// </summary>
 public sealed class WorldSceneRenderer : IDisposable
 {
@@ -70,16 +71,16 @@ public sealed class WorldSceneRenderer : IDisposable
     /// <param name="artRepository">Optional injected declarative vector-art repository (DIP).</param>
     public WorldSceneRenderer(
         IGraphicsDevice device,
-        DesktopClientOptions options,
+        DesktopOptions options,
         IVectorArtRepository? artRepository = null)
     {
         _device = device ?? throw new ArgumentNullException(nameof(device));
         ArgumentNullException.ThrowIfNull(options);
 
         _geometryBatch = new GeometryBatch(device);
-        _terrainRenderer = new ChunkTerrainRenderer(device);
-        _atmosphere = new Atmosphere(options.StartHour, options.DayLengthSeconds, options.WeatherRainOverride);
         _art = artRepository ?? CarbonVectorArtLibrary.LoadOrDefault();
+        _terrainRenderer = new ChunkTerrainRenderer(device, _art);
+        _atmosphere = new Atmosphere(options.StartHour, options.DayLengthSeconds, options.WeatherRainOverride);
     }
 
     /// <summary>Gets the current in-game hour <c>[0..24)</c> from the atmospheric cycle.</summary>
@@ -95,7 +96,7 @@ public sealed class WorldSceneRenderer : IDisposable
     public bool ShowDebugOverlay { get; set; }
 
     /// <summary>Ensures deterministic landmark metadata matches the active world seed.</summary>
-    public void EnsureWorldBound(IClientWorldReadModel world)
+    public void EnsureWorldBound(IWorldReadModel world)
     {
         ArgumentNullException.ThrowIfNull(world);
 
@@ -133,7 +134,7 @@ public sealed class WorldSceneRenderer : IDisposable
 
     /// <summary>Executes the full multi-pass 2.5D frame render pipeline.</summary>
     public void Render(
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         CameraRig2D cameraRig,
         int viewportWidth,
         int viewportHeight,
@@ -235,7 +236,7 @@ public sealed class WorldSceneRenderer : IDisposable
         for (int i = 0; i < remnantSpan.Length; i++)
         {
             MapProp remnant = remnantSpan[i].Prop;
-            PropArt.DrawDestroyedRemnant(_geometryBatch, in remnant);
+            VectorPropRenderer.DrawDestroyedRemnant(_geometryBatch, in remnant, _art);
         }
 
         if (hasAimTile)
@@ -257,7 +258,7 @@ public sealed class WorldSceneRenderer : IDisposable
                     _poiRenderer?.DrawPiece(_geometryBatch, in item.Piece, _animTime, playerPos);
                     break;
                 case GroundItemKind.Prop:
-                    PropArt.DrawGround(_geometryBatch, in item.Prop, item.ShakeOffset, item.HitFlash);
+                    VectorPropRenderer.DrawGround(_geometryBatch, in item.Prop, _art, item.ShakeOffset, item.HitFlash);
                     break;
                 case GroundItemKind.LocalEntity:
                     this.DrawLocalEntity(_geometryBatch, world, item.Entity);
@@ -280,7 +281,7 @@ public sealed class WorldSceneRenderer : IDisposable
             float gust = 0.6f + (0.4f * MathF.Sin(_animTime * 0.35f));
             float sway = MathF.Sin((_animTime * 1.25f) + (tree.WorldPositionX * 0.013f) + (tree.WorldPositionY * 0.007f)) * 1.8f * gust * tree.Scale;
             byte alpha = tree.IsUnderCanopy(playerPos) ? (byte)90 : (byte)255;
-            PropArt.DrawCanopy(_geometryBatch, in tree, alpha, sway + canopyItem.ShakeX, canopyItem.DamageTilt);
+            VectorPropRenderer.DrawCanopy(_geometryBatch, in tree, _art, alpha, sway + canopyItem.ShakeX, canopyItem.DamageTilt);
         }
 
         for (int i = 0; i < _visibleWorldTrees.Count; i++)
@@ -435,7 +436,7 @@ public sealed class WorldSceneRenderer : IDisposable
                 }
 
                 _groundSortList.Add(new GroundRenderItem(prop.GroundFootprintY, in prop, shakeOffset, hitFlash));
-                if (PropArt.TryGetLight(in prop, out PointLight propLight))
+                if (VectorPropRenderer.TryGetLight(in prop, _art, out PointLight propLight))
                 {
                     _lights.Add(propLight);
                 }
@@ -469,7 +470,7 @@ public sealed class WorldSceneRenderer : IDisposable
         }
     }
 
-    private void CollectActors(IClientWorldReadModel world, float minX, float maxX, float minY, float maxY)
+    private void CollectActors(IWorldReadModel world, float minX, float maxX, float minY, float maxY)
     {
         WorldSimulation sim = world.Simulation;
         for (int i = 0; i < sim.Entities.ActiveEntities.Count; i++)
@@ -497,7 +498,7 @@ public sealed class WorldSceneRenderer : IDisposable
         }
     }
 
-    private void DrawLocalEntity(GeometryBatch batch, IClientWorldReadModel world, Entity entity)
+    private void DrawLocalEntity(GeometryBatch batch, IWorldReadModel world, Entity entity)
     {
         WorldSimulation sim = world.Simulation;
         if (entity != world.LocalPlayer || !sim.Entities.HasTransform(entity) || !sim.Entities.HasCollider(entity))
@@ -521,7 +522,7 @@ public sealed class WorldSceneRenderer : IDisposable
         batch.FillCircle(new Vector2(footPos.X + 1.5f, footPos.Y + 1.5f), col.Radius * 1.18f, new ColorRgba(0, 0, 0, 88), 12);
         batch.DrawCircle(footPos, col.Radius + 3.5f, new ColorRgba(56, 189, 248, 150), 14, 1.3f);
 
-        ClientActionState action = world.CurrentAction;
+        ActionState action = world.CurrentAction;
         Vector2 facing = action.IsActive
             ? action.AimDirection
             : (world.LocalFacingDirection.LengthSquared() > 1e-4f ? world.LocalFacingDirection : world.LastAttackDirection);
@@ -574,7 +575,7 @@ public sealed class WorldSceneRenderer : IDisposable
         }
     }
 
-    private void DrawRemoteEntity(GeometryBatch batch, IClientWorldReadModel world, in RemoteEntityView remote)
+    private void DrawRemoteEntity(GeometryBatch batch, IWorldReadModel world, in RemoteEntityView remote)
     {
         if (remote.Kind == EntityKind.Projectile)
         {
@@ -658,10 +659,10 @@ public sealed class WorldSceneRenderer : IDisposable
                 {
                     clip = remote.ActiveActionKind switch
                     {
-                        ClientActionKind.AxeChop => "chop",
-                        ClientActionKind.PickaxeMine => "mine",
-                        ClientActionKind.ArcaneWave or ClientActionKind.SelfAura or ClientActionKind.StaffCast or ClientActionKind.BowShot => "cast",
-                        ClientActionKind.None or ClientActionKind.SwordSlash or ClientActionKind.MonsterStrike or ClientActionKind.ConsumeItem or ClientActionKind.PlaceStructure or ClientActionKind.SpinSlash or _ => "slash",
+                        ActionAnimationKind.AxeChop => "chop",
+                        ActionAnimationKind.PickaxeMine => "mine",
+                        ActionAnimationKind.ArcaneWave or ActionAnimationKind.SelfAura or ActionAnimationKind.StaffCast or ActionAnimationKind.BowShot => "cast",
+                        ActionAnimationKind.None or ActionAnimationKind.SwordSlash or ActionAnimationKind.MonsterStrike or ActionAnimationKind.ConsumeItem or ActionAnimationKind.PlaceStructure or ActionAnimationKind.SpinSlash or _ => "slash",
                     };
                     norm = true;
                     eval = 1f - Math.Clamp(remote.AttackAnimRemaining / MathF.Max(0.05f, remote.AttackAnimDuration), 0f, 1f);
@@ -754,9 +755,9 @@ public sealed class WorldSceneRenderer : IDisposable
         }
     }
 
-    private void DrawActionTrails(IClientWorldReadModel world, Vector2 playerPos)
+    private void DrawActionTrails(IWorldReadModel world, Vector2 playerPos)
     {
-        ClientActionState activeAction = world.CurrentAction;
+        ActionState activeAction = world.CurrentAction;
         if (activeAction.IsActive)
         {
             ActionVfxRenderer.DrawActionTrail(
@@ -773,7 +774,7 @@ public sealed class WorldSceneRenderer : IDisposable
             ActionVfxRenderer.DrawActionTrail(
                 _geometryBatch,
                 playerPos,
-                ClientActionKind.SwordSlash,
+                ActionAnimationKind.SwordSlash,
                 world.LastAttackDirection,
                 1f - Math.Clamp(world.AttackSwingTimer / 0.24f, 0f, 1f),
                 0);
@@ -786,9 +787,9 @@ public sealed class WorldSceneRenderer : IDisposable
             if (r.AttackAnimRemaining > 0f)
             {
                 float rProg = 1f - Math.Clamp(r.AttackAnimRemaining / MathF.Max(0.05f, r.AttackAnimDuration), 0f, 1f);
-                ClientActionKind remoteKind = r.ActiveActionKind != ClientActionKind.None
+                ActionAnimationKind remoteKind = r.ActiveActionKind != ActionAnimationKind.None
                     ? r.ActiveActionKind
-                    : (r.Kind == EntityKind.Player ? ClientActionKind.SwordSlash : ClientActionKind.MonsterStrike);
+                    : (r.Kind == EntityKind.Player ? ActionAnimationKind.SwordSlash : ActionAnimationKind.MonsterStrike);
                 ActionVfxRenderer.DrawActionTrail(
                     _geometryBatch,
                     r.Position,
@@ -801,19 +802,19 @@ public sealed class WorldSceneRenderer : IDisposable
         }
     }
 
-    private static string ResolveCharacterClip(ClientActionState action, float attackSwingTimer, bool moving)
+    private static string ResolveCharacterClip(ActionState action, float attackSwingTimer, bool moving)
     {
         if (action.IsActive)
         {
             return action.Kind switch
             {
-                ClientActionKind.AxeChop => "chop",
-                ClientActionKind.PickaxeMine => "mine",
-                ClientActionKind.SwordSlash or ClientActionKind.MonsterStrike or ClientActionKind.SpinSlash => "slash",
-                ClientActionKind.ArcaneWave or ClientActionKind.SelfAura or ClientActionKind.StaffCast or ClientActionKind.BowShot => "cast",
-                ClientActionKind.PlaceStructure => "chop",
-                ClientActionKind.ConsumeItem => "idle",
-                ClientActionKind.None or _ => moving ? "walk" : "idle",
+                ActionAnimationKind.AxeChop => "chop",
+                ActionAnimationKind.PickaxeMine => "mine",
+                ActionAnimationKind.SwordSlash or ActionAnimationKind.MonsterStrike or ActionAnimationKind.SpinSlash => "slash",
+                ActionAnimationKind.ArcaneWave or ActionAnimationKind.SelfAura or ActionAnimationKind.StaffCast or ActionAnimationKind.BowShot => "cast",
+                ActionAnimationKind.PlaceStructure => "chop",
+                ActionAnimationKind.ConsumeItem => "idle",
+                ActionAnimationKind.None or _ => moving ? "walk" : "idle",
             };
         }
 
@@ -845,7 +846,7 @@ public sealed class WorldSceneRenderer : IDisposable
         }
     }
 
-    private static void DrawTargetTileHighlight(GeometryBatch batch, IClientWorldReadModel world, ChunkWorld2D chunkWorld, float tileSize, int tileX, int tileY)
+    private static void DrawTargetTileHighlight(GeometryBatch batch, IWorldReadModel world, ChunkWorld2D chunkWorld, float tileSize, int tileX, int tileY)
     {
         float x = tileX * tileSize;
         float y = tileY * tileSize;

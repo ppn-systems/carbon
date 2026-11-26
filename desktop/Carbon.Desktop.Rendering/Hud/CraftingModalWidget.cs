@@ -3,7 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Graphics.Batching.Common;
@@ -19,15 +19,12 @@ using Carbon.Items.Definitions;
 namespace Carbon.Desktop.Rendering.Hud;
 
 /// <summary>
-/// Two-pane Crafting Workshop tab (<c>[C]</c>) framed cleanly with <see cref="CarbonUiPalette"/>
-/// and shared <see cref="PlayerModalTabs"/> (SRP).
+/// Two-pane Crafting Workshop tab (<c>[C]</c>) framed inside the fixed
+/// <see cref="PlayerModalTabs"/> workspace (SRP).
 /// </summary>
 internal sealed class CraftingModalWidget
 {
-    private const float PanelW = 744f;
-    private const float PanelH = 468f;
     private const int MaxVisibleCards = 6;
-    private const float CardRowH = 54f;
 
     private static readonly string[] s_tabLabels = ["ALL", "WEAPONS", "ARMOR", "TOOLS", "BUILD", "POTIONS"];
 
@@ -37,36 +34,31 @@ internal sealed class CraftingModalWidget
     private ushort _selectedRecipeId = 1;
     private bool _craftableOnly;
 
-    public bool ContainsPoint(IClientWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
+    public bool ContainsPoint(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
-        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
-        if (mousePos.X >= ox && mousePos.X <= ox + PanelW && mousePos.Y >= oy && mousePos.Y <= oy + PanelH)
-        {
-            return true;
-        }
-
-        bool hasSkills = PlayerModalTabs.HasClassSkills(world, _skillScratch);
-        return PlayerModalTabs.GetTabBarBounds(ox, oy, hasSkills).Contains(mousePos);
+        _ = world;
+        PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
+        return PlayerModalTabs.ContainsWindowOrTabs(in layout, mousePos);
     }
 
     public bool TryHitTestCloseButton(Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
-        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
-        return PlayerModalTabs.GetCloseButtonRect(ox, PanelW, oy).Contains(mousePos);
+        PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
+        return PlayerModalTabs.GetCloseButtonRect(in layout).Contains(mousePos);
     }
 
-    public bool TryHitTestTab(IClientWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight, out PlayerModalTab tab)
+    public bool TryHitTestTab(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight, out PlayerModalTab tab)
     {
-        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
+        PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
         bool hasSkills = PlayerModalTabs.HasClassSkills(world, _skillScratch);
-        return PlayerModalTabs.TryHitTestTab(mousePos, ox, oy, hasSkills, out tab);
+        return PlayerModalTabs.TryHitTestTab(mousePos, in layout, hasSkills, out tab);
     }
 
     public void Scroll(int delta) => _scrollOffset = Math.Max(0, _scrollOffset + delta);
 
     public bool TryHandleClick(
         Vector2 mousePos,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         int viewportWidth,
         int viewportHeight,
         out ushort craftRecipeId,
@@ -75,43 +67,36 @@ internal sealed class CraftingModalWidget
         craftRecipeId = 0;
         craftQuantity = 0;
 
-        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
+        PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
         if (!this.ContainsPoint(world, mousePos, viewportWidth, viewportHeight))
         {
             return false;
         }
 
-        float tabY = oy + 42f;
-        float tabW = 90f;
-        if (mousePos.Y >= tabY && mousePos.Y <= tabY + 26f)
+        for (int t = 0; t < s_tabLabels.Length; t++)
         {
-            for (int t = 0; t < s_tabLabels.Length; t++)
+            if (GetFilterTabRect(in layout, t).Contains(mousePos))
             {
-                RectangleF tRect = new(ox + 18f + (t * (tabW + 5f)), tabY, tabW, 26f);
-                if (tRect.Contains(mousePos))
-                {
-                    _activeTab = t;
-                    _scrollOffset = 0;
-                    return true;
-                }
-            }
-
-            RectangleF filterRect = GetCraftableFilterRect(ox, oy);
-            if (filterRect.Contains(mousePos))
-            {
-                _craftableOnly = !_craftableOnly;
+                _activeTab = t;
                 _scrollOffset = 0;
                 return true;
             }
         }
 
-        if (GetScrollUpRect(ox, oy).Contains(mousePos))
+        if (GetCraftableFilterRect(in layout).Contains(mousePos))
+        {
+            _craftableOnly = !_craftableOnly;
+            _scrollOffset = 0;
+            return true;
+        }
+
+        if (GetScrollUpRect(in layout).Contains(mousePos))
         {
             this.Scroll(-1);
             return true;
         }
 
-        if (GetScrollDownRect(ox, oy).Contains(mousePos))
+        if (GetScrollDownRect(in layout).Contains(mousePos))
         {
             this.Scroll(1);
             return true;
@@ -120,7 +105,7 @@ internal sealed class CraftingModalWidget
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
 
-        if (GetCraft1ButtonRect(ox, oy).Contains(mousePos))
+        if (GetCraft1ButtonRect(in layout).Contains(mousePos))
         {
             if (StarterGameCatalog.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? rec) && CanCraftFromSpan(slots, rec))
             {
@@ -131,7 +116,7 @@ internal sealed class CraftingModalWidget
             return true;
         }
 
-        if (GetCraft5ButtonRect(ox, oy).Contains(mousePos))
+        if (GetCraft5ButtonRect(in layout).Contains(mousePos))
         {
             if (StarterGameCatalog.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? rec) && CanCraftFromSpan(slots, rec, quantity: 5))
             {
@@ -159,8 +144,7 @@ internal sealed class CraftingModalWidget
                 continue;
             }
 
-            RectangleF rowRect = new(ox + 26f, oy + 84f + (shown * (CardRowH + 4f)), 322f, CardRowH);
-            if (rowRect.Contains(mousePos))
+            if (GetRecipeRowRect(in layout, shown).Contains(mousePos))
             {
                 _selectedRecipeId = (ushort)rec.Id;
                 return true;
@@ -176,26 +160,27 @@ internal sealed class CraftingModalWidget
     public void DrawSkin(
         SpriteBatch spriteBatch,
         CarbonUiSkin skin,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         int viewportWidth,
         int viewportHeight,
         Vector2? mouseScreenPos)
     {
-        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
+        PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
+        float s = layout.Scale;
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
 
         bool hasSkills = PlayerModalTabs.HasClassSkills(world, _skillScratch);
-        PlayerModalTabs.DrawTabsSkin(spriteBatch, skin, ox, PanelW, oy, PlayerModalTab.Crafting, hasSkills, mouseScreenPos);
-        skin.DrawWindow(spriteBatch, new RectangleF(ox, oy, PanelW, PanelH), CarbonUiPalette.BorderOuter, bodyAlpha: 246);
-        skin.DrawCard(spriteBatch, new RectangleF(ox + 16f, oy + 76f, 356f, 376f), CarbonUiPalette.BorderSubtle, bodyAlpha: 236);
-        skin.DrawCard(spriteBatch, new RectangleF(ox + 382f, oy + 76f, 346f, 376f), CarbonUiPalette.BorderSubtle, bodyAlpha: 236);
+        PlayerModalTabs.DrawWindowChromeSkin(spriteBatch, skin, in layout, PlayerModalTab.Crafting, hasSkills, mouseScreenPos);
 
-        float tabY = oy + 42f;
-        float tabW = 90f;
+        RectangleF leftPane = GetLeftPaneRect(in layout);
+        RectangleF rightPane = GetRightPaneRect(in layout);
+        skin.DrawCard(spriteBatch, in leftPane, CarbonUiPalette.BorderSubtle, bodyAlpha: 236);
+        skin.DrawCard(spriteBatch, in rightPane, CarbonUiPalette.BorderSubtle, bodyAlpha: 236);
+
         for (int t = 0; t < s_tabLabels.Length; t++)
         {
-            RectangleF tRect = new(ox + 18f + (t * (tabW + 5f)), tabY, tabW, 26f);
+            RectangleF tRect = GetFilterTabRect(in layout, t);
             bool active = t == _activeTab;
             skin.DrawButton(
                 spriteBatch,
@@ -204,15 +189,15 @@ internal sealed class CraftingModalWidget
                 active ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle);
         }
 
-        RectangleF filterRect = GetCraftableFilterRect(ox, oy);
+        RectangleF filterRect = GetCraftableFilterRect(in layout);
         skin.DrawButton(
             spriteBatch,
             in filterRect,
             _craftableOnly ? CarbonUiPalette.ConfirmFill : CarbonUiPalette.SlotFill,
             _craftableOnly ? CarbonUiPalette.ConfirmBorder : CarbonUiPalette.BorderSubtle);
 
-        skin.DrawButton(spriteBatch, GetScrollUpRect(ox, oy), CarbonUiPalette.CardFill, CarbonUiPalette.BorderSubtle);
-        skin.DrawButton(spriteBatch, GetScrollDownRect(ox, oy), CarbonUiPalette.CardFill, CarbonUiPalette.BorderSubtle);
+        skin.DrawButton(spriteBatch, GetScrollUpRect(in layout), CarbonUiPalette.CardFill, CarbonUiPalette.BorderSubtle);
+        skin.DrawButton(spriteBatch, GetScrollDownRect(in layout), CarbonUiPalette.CardFill, CarbonUiPalette.BorderSubtle);
 
         ReadOnlySpan<CraftingRecipe> recipes = StarterGameCatalog.Recipes.All;
         int totalMatches = this.CountMatches(slots, recipes);
@@ -240,23 +225,22 @@ internal sealed class CraftingModalWidget
 
             bool sel = rec.Id == _selectedRecipeId;
             bool canCraft = CanCraftFromSpan(slots, rec);
-            RectangleF rowRect = new(ox + 26f, oy + 84f + (shown * (CardRowH + 4f)), 322f, CardRowH);
-            ColorRgba rowFill = sel
-                ? CarbonUiPalette.SlotSelectedFill
-                : CarbonUiPalette.SlotFill;
+            RectangleF rowRect = GetRecipeRowRect(in layout, shown);
+            ColorRgba rowFill = sel ? CarbonUiPalette.SlotSelectedFill : CarbonUiPalette.SlotFill;
             ColorRgba rowBorder = sel
                 ? CarbonUiPalette.BorderActive
                 : (canCraft ? CarbonUiPalette.ConfirmBorder : CarbonUiPalette.BorderSubtle);
             skin.DrawSlot(spriteBatch, in rowRect, rowFill, rowBorder);
 
-            RectangleF iconSocket = new(rowRect.X + 7f, rowRect.Y + 7f, 40f, 40f);
+            float iconBox = MathF.Round(48f * s);
+            RectangleF iconSocket = new(rowRect.X + MathF.Round(8f * s), rowRect.Y + MathF.Round(9f * s), iconBox, iconBox);
             skin.DrawSlot(spriteBatch, in iconSocket, CarbonUiPalette.WindowFill, CarbonUiPalette.BorderSubtle);
 
             matchIdx++;
             shown++;
         }
 
-        RectangleF outIconBox = new(ox + 398f, oy + 92f, 56f, 56f);
+        RectangleF outIconBox = GetOutputIconRect(in layout);
         skin.DrawSlot(spriteBatch, in outIconBox, CarbonUiPalette.SlotFill, CarbonUiPalette.BorderOuter);
 
         if (StarterGameCatalog.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? selectedRec))
@@ -265,7 +249,7 @@ internal sealed class CraftingModalWidget
             {
                 RecipeIngredient ing = selectedRec.Ingredients[k];
                 bool hasEnough = CountBagItem(slots, ing.ItemId) >= ing.Quantity;
-                RectangleF ingCard = new(ox + 398f, oy + 236f + (k * 46f), 314f, 40f);
+                RectangleF ingCard = GetIngredientRect(in layout, k);
                 skin.DrawSlot(
                     spriteBatch,
                     in ingCard,
@@ -277,12 +261,12 @@ internal sealed class CraftingModalWidget
             bool ready5 = CanCraftFromSpan(slots, selectedRec, quantity: 5);
             skin.DrawButton(
                 spriteBatch,
-                GetCraft1ButtonRect(ox, oy),
+                GetCraft1ButtonRect(in layout),
                 ready ? CarbonUiPalette.ConfirmFill : CarbonUiPalette.SlotFill,
                 ready ? CarbonUiPalette.ConfirmBorder : CarbonUiPalette.BorderSubtle);
             skin.DrawButton(
                 spriteBatch,
-                GetCraft5ButtonRect(ox, oy),
+                GetCraft5ButtonRect(in layout),
                 ready5 ? CarbonUiPalette.SlotSelectedFill : CarbonUiPalette.SlotFill,
                 ready5 ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle);
         }
@@ -290,12 +274,13 @@ internal sealed class CraftingModalWidget
 
     public void DrawGeometry(
         GeometryBatch batch,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         IVectorArtRepository? art,
         int viewportWidth,
         int viewportHeight)
     {
-        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
+        PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
+        float s = layout.Scale;
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
 
@@ -316,10 +301,14 @@ internal sealed class CraftingModalWidget
                 continue;
             }
 
-            RectangleF rowRect = new(ox + 26f, oy + 84f + (shown * (CardRowH + 4f)), 322f, CardRowH);
+            RectangleF rowRect = GetRecipeRowRect(in layout, shown);
             if (art is not null && art.TryGetItem(rec.Output.ItemId, out CompiledItemVectorArt? rowArt))
             {
-                VectorRigRenderer.DrawItemIcon(batch, rowArt, new Vector2(rowRect.X + 27f, rowRect.Y + 27f), 26f);
+                VectorRigRenderer.DrawItemIcon(
+                    batch,
+                    rowArt,
+                    new Vector2(rowRect.X + MathF.Round(32f * s), rowRect.Y + MathF.Round(33f * s)),
+                    MathF.Round(34f * s));
             }
 
             matchIdx++;
@@ -328,16 +317,26 @@ internal sealed class CraftingModalWidget
 
         if (StarterGameCatalog.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? selectedRec) && art is not null)
         {
+            RectangleF outBox = GetOutputIconRect(in layout);
             if (art.TryGetItem(selectedRec.Output.ItemId, out CompiledItemVectorArt? outArt))
             {
-                VectorRigRenderer.DrawItemIcon(batch, outArt, new Vector2(ox + 426f, oy + 120f), 36f);
+                VectorRigRenderer.DrawItemIcon(
+                    batch,
+                    outArt,
+                    new Vector2(outBox.X + (outBox.Width * 0.5f), outBox.Y + (outBox.Height * 0.5f)),
+                    MathF.Round(46f * s));
             }
 
             for (int k = 0; k < selectedRec.Ingredients.Count && k < 3; k++)
             {
                 if (art.TryGetItem(selectedRec.Ingredients[k].ItemId, out CompiledItemVectorArt? ingArt))
                 {
-                    VectorRigRenderer.DrawItemIcon(batch, ingArt, new Vector2(ox + 420f, oy + 256f + (k * 46f)), 24f);
+                    RectangleF ingCard = GetIngredientRect(in layout, k);
+                    VectorRigRenderer.DrawItemIcon(
+                        batch,
+                        ingArt,
+                        new Vector2(ingCard.X + MathF.Round(24f * s), ingCard.Y + (ingCard.Height * 0.5f)),
+                        MathF.Round(30f * s));
                 }
             }
         }
@@ -346,35 +345,31 @@ internal sealed class CraftingModalWidget
     public void DrawText(
         SpriteBatch spriteBatch,
         BitmapFont font,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         int viewportWidth,
         int viewportHeight)
     {
-        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
+        PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
+        float s = layout.Scale;
         bool hasSkills = PlayerModalTabs.HasClassSkills(world, _skillScratch);
-        PlayerModalTabs.DrawTabsText(spriteBatch, font, ox, PanelW, oy, PlayerModalTab.Crafting, hasSkills);
+        PlayerModalTabs.DrawWindowChromeText(spriteBatch, font, in layout, PlayerModalTab.Crafting, hasSkills, "Crafting");
 
         ColorRgba black = CarbonUiPalette.TextOutline;
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
 
-        spriteBatch.DrawOutlinedString(font, "Crafting", new Vector2(ox + 18f, oy + 13f), CarbonUiPalette.TextWarm, black, 1, 1f);
-
-        float tabY = oy + 42f;
-        float tabW = 90f;
         for (int t = 0; t < s_tabLabels.Length; t++)
         {
+            RectangleF tRect = GetFilterTabRect(in layout, t);
             ColorRgba tc = t == _activeTab ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextPrimary;
-            TextMeasureResult m = font.MeasureString(s_tabLabels[t], TextLayoutOptions.Default, 1f);
-            float tx = ox + 18f + (t * (tabW + 5f)) + ((tabW - m.Width) * 0.5f);
-            spriteBatch.DrawOutlinedString(font, s_tabLabels[t], new Vector2(MathF.Floor(tx), tabY + 5f), tc, black, 1, 1f);
+            CarbonUiSkin.DrawCenteredText(spriteBatch, font, s_tabLabels[t], in tRect, tc, black, layout.TextScale);
         }
 
-        RectangleF filterRect = GetCraftableFilterRect(ox, oy);
-        CarbonUiSkin.DrawCenteredText(spriteBatch, font, _craftableOnly ? "READY" : "ALL", in filterRect, CarbonUiPalette.TextPrimary, black, 1f);
+        RectangleF filterRect = GetCraftableFilterRect(in layout);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, _craftableOnly ? "READY" : "ALL", in filterRect, CarbonUiPalette.TextPrimary, black, layout.TextScale);
 
-        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "^", GetScrollUpRect(ox, oy), CarbonUiPalette.TextPrimary, black, 1f);
-        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "v", GetScrollDownRect(ox, oy), CarbonUiPalette.TextPrimary, black, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "^", GetScrollUpRect(in layout), CarbonUiPalette.TextPrimary, black, layout.TextScale);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "v", GetScrollDownRect(in layout), CarbonUiPalette.TextPrimary, black, layout.TextScale);
 
         ReadOnlySpan<CraftingRecipe> recipes = StarterGameCatalog.Recipes.All;
         int matchIdx = 0;
@@ -393,13 +388,14 @@ internal sealed class CraftingModalWidget
                 continue;
             }
 
-            RectangleF rowRect = new(ox + 26f, oy + 84f + (shown * (CardRowH + 4f)), 322f, CardRowH);
+            RectangleF rowRect = GetRecipeRowRect(in layout, shown);
             bool canCraft = CanCraftFromSpan(slots, rec);
-            string outName = CarbonUiSkin.TruncateToWidth(font, $"{StarterGameCatalog.GetDisplayName(rec.Output.ItemId)} x{rec.Output.Quantity}", 206f, 1f);
-            spriteBatch.DrawOutlinedString(font, outName, new Vector2(rowRect.X + 54f, rowRect.Y + 8f), canCraft ? CarbonUiPalette.TextPrimary : CarbonUiPalette.TextMuted, black, 1, 1f);
+            float textMaxW = rowRect.Width - MathF.Round(72f * s);
+            string outName = CarbonUiSkin.TruncateToWidth(font, $"{StarterGameCatalog.GetDisplayName(rec.Output.ItemId)} x{rec.Output.Quantity}", textMaxW, layout.TextScale);
+            spriteBatch.DrawOutlinedString(font, outName, new Vector2(rowRect.X + MathF.Round(64f * s), rowRect.Y + MathF.Round(10f * s)), canCraft ? CarbonUiPalette.TextPrimary : CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
 
-            string summaryTag = CarbonUiSkin.TruncateToWidth(font, FormatRecipeShortTag(rec.Output.ItemId), 206f, 1f);
-            spriteBatch.DrawOutlinedString(font, summaryTag, new Vector2(rowRect.X + 54f, rowRect.Y + 29f), CarbonUiPalette.TextMuted, black, 1, 1f);
+            string summaryTag = CarbonUiSkin.TruncateToWidth(font, FormatRecipeShortTag(rec.Output.ItemId), textMaxW, layout.TextScale);
+            spriteBatch.DrawOutlinedString(font, summaryTag, new Vector2(rowRect.X + MathF.Round(64f * s), rowRect.Y + MathF.Round(36f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
 
             matchIdx++;
             shown++;
@@ -407,31 +403,62 @@ internal sealed class CraftingModalWidget
 
         if (shown == 0)
         {
-            spriteBatch.DrawOutlinedString(font, "No matching recipes", new Vector2(ox + 92f, oy + 220f), CarbonUiPalette.TextMuted, black, 1, 1f);
+            RectangleF leftPane = GetLeftPaneRect(in layout);
+            spriteBatch.DrawOutlinedString(font, "No matching recipes", new Vector2(leftPane.X + MathF.Round(72f * s), leftPane.Y + MathF.Round(190f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
         }
 
         if (StarterGameCatalog.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? selectedRec))
         {
+            RectangleF rightPane = GetRightPaneRect(in layout);
+            RectangleF outBox = GetOutputIconRect(in layout);
             uint outId = selectedRec.Output.ItemId;
             int owned = CountBagItem(slots, outId);
-            string title = CarbonUiSkin.TruncateToWidth(font, $"{StarterGameCatalog.GetDisplayName(outId)} x{selectedRec.Output.Quantity}", 250f, 1.25f);
-            spriteBatch.DrawOutlinedString(font, title, new Vector2(ox + 464f, oy + 96f), CarbonUiPalette.TextWarm, black, 1, 1.25f);
-            spriteBatch.DrawOutlinedString(font, $"Owned: {owned}", new Vector2(ox + 464f, oy + 126f), CarbonUiPalette.TextMuted, black, 1, 1f);
+            float headerX = outBox.Right + MathF.Round(12f * s);
+            float headerMaxW = rightPane.Right - headerX - MathF.Round(14f * s);
+            string title = CarbonUiSkin.TruncateToWidth(font, $"{StarterGameCatalog.GetDisplayName(outId)} x{selectedRec.Output.Quantity}", headerMaxW, layout.TitleScale);
+            spriteBatch.DrawOutlinedString(font, title, new Vector2(headerX, outBox.Y + MathF.Round(4f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TitleScale);
+            spriteBatch.DrawOutlinedString(font, $"Owned: {owned}", new Vector2(headerX, outBox.Y + MathF.Round(38f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
 
-            spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, FormatDetailedStats(outId), 316f, 1f), new Vector2(ox + 398f, oy + 164f), CarbonUiPalette.TextPrimary, black, 1, 1f);
-            spriteBatch.DrawOutlinedString(font, "Ingredients", new Vector2(ox + 398f, oy + 212f), CarbonUiPalette.TextWarm, black, 1, 1f);
+            float detailPad = MathF.Round(16f * s);
+            spriteBatch.DrawOutlinedString(
+                font,
+                CarbonUiSkin.TruncateToWidth(font, FormatDetailedStats(outId), rightPane.Width - (detailPad * 2f), layout.TextScale),
+                new Vector2(rightPane.X + detailPad, outBox.Bottom + MathF.Round(18f * s)),
+                CarbonUiPalette.TextPrimary,
+                black,
+                1,
+                layout.TextScale);
+            spriteBatch.DrawOutlinedString(font, "Ingredients", new Vector2(rightPane.X + detailPad, outBox.Bottom + MathF.Round(54f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TextScale);
+
             for (int k = 0; k < selectedRec.Ingredients.Count && k < 3; k++)
             {
                 RecipeIngredient ing = selectedRec.Ingredients[k];
                 int have = CountBagItem(slots, ing.ItemId);
                 bool ok = have >= ing.Quantity;
-                float iy = oy + 246f + (k * 46f);
-                spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, StarterGameCatalog.GetDisplayName(ing.ItemId), 188f, 1f), new Vector2(ox + 442f, iy), CarbonUiPalette.TextPrimary, black, 1, 1f);
-                spriteBatch.DrawOutlinedString(font, $"{have}/{ing.Quantity}", new Vector2(ox + 644f, iy), ok ? CarbonUiPalette.ConfirmBorder : CarbonUiPalette.DangerBorder, black, 1, 1f);
+                RectangleF ingCard = GetIngredientRect(in layout, k);
+                float textY = ingCard.Y + MathF.Round(14f * s);
+                spriteBatch.DrawOutlinedString(
+                    font,
+                    CarbonUiSkin.TruncateToWidth(font, StarterGameCatalog.GetDisplayName(ing.ItemId), ingCard.Width - MathF.Round(120f * s), layout.TextScale),
+                    new Vector2(ingCard.X + MathF.Round(48f * s), textY),
+                    CarbonUiPalette.TextPrimary,
+                    black,
+                    1,
+                    layout.TextScale);
+                string countStr = $"{have}/{ing.Quantity}";
+                TextMeasureResult cSize = font.MeasureString(countStr, TextLayoutOptions.Default, layout.TextScale);
+                spriteBatch.DrawOutlinedString(
+                    font,
+                    countStr,
+                    new Vector2(ingCard.Right - cSize.Width - MathF.Round(12f * s), textY),
+                    ok ? CarbonUiPalette.ConfirmBorder : CarbonUiPalette.DangerBorder,
+                    black,
+                    1,
+                    layout.TextScale);
             }
 
-            CarbonUiSkin.DrawCenteredText(spriteBatch, font, "CRAFT x1", GetCraft1ButtonRect(ox, oy), CarbonUiPalette.TextPrimary, black, 1f);
-            CarbonUiSkin.DrawCenteredText(spriteBatch, font, "CRAFT x5", GetCraft5ButtonRect(ox, oy), CarbonUiPalette.TextPrimary, black, 1f);
+            CarbonUiSkin.DrawCenteredText(spriteBatch, font, "CRAFT x1", GetCraft1ButtonRect(in layout), CarbonUiPalette.TextPrimary, black, layout.TextScale);
+            CarbonUiSkin.DrawCenteredText(spriteBatch, font, "CRAFT x5", GetCraft5ButtonRect(in layout), CarbonUiPalette.TextPrimary, black, layout.TextScale);
         }
     }
 
@@ -532,16 +559,113 @@ internal sealed class CraftingModalWidget
         return true;
     }
 
-    private static (float Ox, float Oy) ComputeOrigin(int viewportWidth, int viewportHeight) =>
-        (MathF.Floor((viewportWidth - PanelW) * 0.5f), MathF.Max(42f, MathF.Floor((viewportHeight - PanelH) * 0.5f)));
+    private static RectangleF GetFilterTabRect(in PlayerModalLayout layout, int tabIndex)
+    {
+        float s = layout.Scale;
+        float filterW = MathF.Round(108f * s);
+        float gap = MathF.Round(5f * s);
+        float catsTotalW = layout.ContentW - filterW - MathF.Round(10f * s);
+        float tabW = MathF.Floor((catsTotalW - ((s_tabLabels.Length - 1) * gap)) / s_tabLabels.Length);
+        float x = layout.ContentX + (tabIndex * (tabW + gap));
+        float w = tabIndex == s_tabLabels.Length - 1 ? layout.ContentX + catsTotalW - x : tabW;
+        return new RectangleF(x, layout.ContentY, w, MathF.Round(32f * s));
+    }
 
-    private static RectangleF GetCraftableFilterRect(float ox, float oy) => new(ox + 602f, oy + 42f, 124f, 26f);
+    private static RectangleF GetCraftableFilterRect(in PlayerModalLayout layout)
+    {
+        float s = layout.Scale;
+        float filterW = MathF.Round(108f * s);
+        return new RectangleF(layout.ContentX + layout.ContentW - filterW, layout.ContentY, filterW, MathF.Round(32f * s));
+    }
 
-    private static RectangleF GetScrollUpRect(float ox, float oy) => new(ox + 350f, oy + 84f, 18f, 22f);
+    private static RectangleF GetLeftPaneRect(in PlayerModalLayout layout)
+    {
+        float s = layout.Scale;
+        float topOffset = MathF.Round(42f * s);
+        return new RectangleF(layout.ContentX, layout.ContentY + topOffset, MathF.Round(344f * s), layout.ContentH - topOffset);
+    }
 
-    private static RectangleF GetScrollDownRect(float ox, float oy) => new(ox + 350f, oy + 392f, 18f, 22f);
+    private static RectangleF GetRightPaneRect(in PlayerModalLayout layout)
+    {
+        float s = layout.Scale;
+        float topOffset = MathF.Round(42f * s);
+        float leftW = MathF.Round(344f * s);
+        float gap = MathF.Round(14f * s);
+        return new RectangleF(layout.ContentX + leftW + gap, layout.ContentY + topOffset, layout.ContentW - leftW - gap, layout.ContentH - topOffset);
+    }
 
-    private static RectangleF GetCraft1ButtonRect(float ox, float oy) => new(ox + 398f, oy + 394f, 156f, 38f);
+    private static RectangleF GetOutputIconRect(in PlayerModalLayout layout)
+    {
+        float s = layout.Scale;
+        RectangleF rightPane = GetRightPaneRect(in layout);
+        float size = MathF.Round(68f * s);
+        return new RectangleF(rightPane.X + MathF.Round(16f * s), rightPane.Y + MathF.Round(16f * s), size, size);
+    }
 
-    private static RectangleF GetCraft5ButtonRect(float ox, float oy) => new(ox + 562f, oy + 394f, 150f, 38f);
+    private static RectangleF GetRecipeRowRect(in PlayerModalLayout layout, int shownIndex)
+    {
+        float s = layout.Scale;
+        RectangleF leftPane = GetLeftPaneRect(in layout);
+        float pad = MathF.Round(10f * s);
+        float scrollW = MathF.Round(24f * s);
+        float rowW = leftPane.Width - (pad * 2f) - scrollW - MathF.Round(8f * s);
+        return new RectangleF(
+            leftPane.X + pad,
+            leftPane.Y + pad + (shownIndex * MathF.Round(72f * s)),
+            rowW,
+            MathF.Round(66f * s));
+    }
+
+    private static RectangleF GetScrollUpRect(in PlayerModalLayout layout)
+    {
+        float s = layout.Scale;
+        RectangleF leftPane = GetLeftPaneRect(in layout);
+        float pad = MathF.Round(10f * s);
+        float scrollW = MathF.Round(24f * s);
+        return new RectangleF(leftPane.Right - pad - scrollW, leftPane.Y + pad, scrollW, MathF.Round(28f * s));
+    }
+
+    private static RectangleF GetScrollDownRect(in PlayerModalLayout layout)
+    {
+        float s = layout.Scale;
+        RectangleF leftPane = GetLeftPaneRect(in layout);
+        float pad = MathF.Round(10f * s);
+        float scrollW = MathF.Round(24f * s);
+        float scrollH = MathF.Round(28f * s);
+        return new RectangleF(leftPane.Right - pad - scrollW, leftPane.Bottom - pad - scrollH, scrollW, scrollH);
+    }
+
+    private static RectangleF GetIngredientRect(in PlayerModalLayout layout, int index)
+    {
+        float s = layout.Scale;
+        RectangleF rightPane = GetRightPaneRect(in layout);
+        float pad = MathF.Round(16f * s);
+        return new RectangleF(
+            rightPane.X + pad,
+            rightPane.Y + MathF.Round(168f * s) + (index * MathF.Round(56f * s)),
+            rightPane.Width - (pad * 2f),
+            MathF.Round(48f * s));
+    }
+
+    private static RectangleF GetCraft1ButtonRect(in PlayerModalLayout layout)
+    {
+        float s = layout.Scale;
+        RectangleF rightPane = GetRightPaneRect(in layout);
+        float pad = MathF.Round(16f * s);
+        float gap = MathF.Round(10f * s);
+        float btnW = MathF.Floor((rightPane.Width - (pad * 2f) - gap) * 0.5f);
+        float btnH = MathF.Round(46f * s);
+        return new RectangleF(rightPane.X + pad, rightPane.Bottom - pad - btnH, btnW, btnH);
+    }
+
+    private static RectangleF GetCraft5ButtonRect(in PlayerModalLayout layout)
+    {
+        float s = layout.Scale;
+        RectangleF rightPane = GetRightPaneRect(in layout);
+        float pad = MathF.Round(16f * s);
+        float gap = MathF.Round(10f * s);
+        float btnW = MathF.Floor((rightPane.Width - (pad * 2f) - gap) * 0.5f);
+        float btnH = MathF.Round(46f * s);
+        return new RectangleF(rightPane.Right - pad - btnW, rightPane.Bottom - pad - btnH, btnW, btnH);
+    }
 }

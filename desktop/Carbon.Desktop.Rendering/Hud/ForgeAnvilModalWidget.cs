@@ -3,7 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Graphics.Batching.Common;
@@ -51,7 +51,7 @@ internal sealed class ForgeAnvilModalWidget
         return GetForgeButtonRect(ox, oy).Contains(mousePos);
     }
 
-    public bool TrySelectGearAt(Vector2 mousePos, IClientWorldReadModel world, int viewportWidth, int viewportHeight)
+    public bool TrySelectGearAt(Vector2 mousePos, IWorldReadModel world, int viewportWidth, int viewportHeight)
     {
         (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
         if (GetScrollUpRect(ox, oy).Contains(mousePos))
@@ -84,7 +84,7 @@ internal sealed class ForgeAnvilModalWidget
         return false;
     }
 
-    public int ResolveTargetSlot(IClientWorldReadModel world)
+    public int ResolveTargetSlot(IWorldReadModel world)
     {
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
@@ -107,7 +107,7 @@ internal sealed class ForgeAnvilModalWidget
     public void DrawSkin(
         SpriteBatch spriteBatch,
         CarbonUiSkin skin,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         int viewportWidth,
         int viewportHeight,
         Vector2? mouseScreenPos)
@@ -171,7 +171,7 @@ internal sealed class ForgeAnvilModalWidget
 
     public void DrawGeometry(
         GeometryBatch batch,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         IVectorArtRepository? art,
         int viewportWidth,
         int viewportHeight)
@@ -223,7 +223,7 @@ internal sealed class ForgeAnvilModalWidget
     public void DrawText(
         SpriteBatch spriteBatch,
         BitmapFont font,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         int viewportWidth,
         int viewportHeight)
     {

@@ -9,6 +9,10 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="Carbon.Desktop.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\..\engine\Carbon.Data\Carbon.Data.csproj" />
         <ProjectReference Include="..\..\engine\Carbon.Items\Carbon.Items.csproj" />
         <ProjectReference Include="..\..\graphics\Carbon.Graphics.Animation\Carbon.Graphics.Animation.csproj" />

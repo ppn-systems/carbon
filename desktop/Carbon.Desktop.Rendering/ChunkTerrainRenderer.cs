@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Procedural;
 using Carbon.Graphics.Batching.Shaders;
@@ -30,6 +31,7 @@ namespace Carbon.Desktop.Rendering;
 public sealed class ChunkTerrainRenderer : IDisposable
 {
     private readonly IGraphicsDevice _device;
+    private readonly IVectorArtRepository? _art;
     private readonly GlStateCache _stateCache;
     private readonly GlShader _shader;
     private readonly int _uViewProjLocation;
@@ -75,9 +77,11 @@ public sealed class ChunkTerrainRenderer : IDisposable
     /// Initializes a new instance of the <see cref="ChunkTerrainRenderer"/> class.
     /// </summary>
     /// <param name="device">The graphics device used for GPU buffer allocation.</param>
-    public ChunkTerrainRenderer(IGraphicsDevice device)
+    /// <param name="art">Optional vector art repository supplying biome &amp; structure <c>.cvg.json</c> blueprints.</param>
+    public ChunkTerrainRenderer(IGraphicsDevice device, IVectorArtRepository? art = null)
     {
         _device = device ?? throw new ArgumentNullException(nameof(device));
+        _art = art;
 
         if (device is GraphicsDevice concrete)
         {
@@ -253,7 +257,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
             {
                 float tileWorldX = cMinX + (lx * tileSize);
                 ref readonly MapTile tile = ref chunk.GetTile(lx, ly);
-                ColorRgba baseColor = GroundColor(in tile);
+                ColorRgba baseColor = GroundColor(in tile, _art);
 
                 RectangleF rect = new(tileWorldX, tileWorldY, tileSize, tileSize);
                 _builder.AddRectangle(rect, baseColor);
@@ -276,26 +280,26 @@ public sealed class ChunkTerrainRenderer : IDisposable
                 }
 
                 // Diagonal corner cuts between different surfaces (sand / grass / water ...)
-                BakeTileDiagonalCorners(_builder, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize);
-                BakeTileCoastlineTransitions(_builder, chunk, lx, ly, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize);
+                BakeTileDiagonalCorners(_builder, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize, _art);
+                BakeTileCoastlineTransitions(_builder, chunk, lx, ly, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize, _art);
 
                 // Smooth Biome-to-Biome Transition Dithering / Blending
-                BakeTileBiomeBlending(_builder, chunk, lx, ly, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize);
+                BakeTileBiomeBlending(_builder, chunk, lx, ly, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize, _art);
 
                 // 2.5D Cliff Drop Faces & Drop Shadows
-                BakeTileCliffFaces(_builder, chunk, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize);
+                BakeTileCliffFaces(_builder, chunk, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize, _art);
 
                 // Foam and spray at the foot of waterfalls
                 BakeTileWaterfallSplash(_builder, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize);
 
                 // Ramps (Incline passages connecting height levels)
-                BakeTileRamps(_builder, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize);
+                BakeTileRamps(_builder, wtx, wty, tileWorldX, tileWorldY, in tile, world, tileSize, _art);
 
-                // Building Structures (RimWorld-style Walls, Doors, Floors, Roof Interior Shading)
-                BakeTileBuildings(_builder, wtx, wty, tileWorldX, tileWorldY, world, tileSize);
+                // Building Structures (Walls, Doors, Floors, Roof Interior Shading)
+                BakeTileBuildings(_builder, wtx, wty, tileWorldX, tileWorldY, world, tileSize, _art);
 
-                // Organic surface micro-details
-                BakeTileMicroDetails(_builder, wtx, wty, tileWorldX, tileWorldY, in tile);
+                // Organic surface micro-details driven by biomes/*.cvg.json
+                BakeTileMicroDetails(_builder, wtx, wty, tileWorldX, tileWorldY, in tile, tileSize, _art);
             }
         }
 
@@ -448,14 +452,15 @@ public sealed class ChunkTerrainRenderer : IDisposable
         float y,
         in MapTile tile,
         ChunkWorld2D world,
-        float tileSize)
+        float tileSize,
+        IVectorArtRepository? art)
     {
         float s = tileSize;
         const float b = 10f;
         const float innerB = 6f;
 
-        ColorRgba deepOceanColor = HexToColor(BiomeProperties.Get(BiomeType.DeepOcean).ColorRgba);
-        ColorRgba shallowWaterColor = HexToColor(BiomeProperties.Get(BiomeType.ShallowWater).ColorRgba);
+        ColorRgba deepOceanColor = ResolveBiomeColor(BiomeType.DeepOcean, BiomeProperties.Get(BiomeType.DeepOcean).ColorRgba, art);
+        ColorRgba shallowWaterColor = ResolveBiomeColor(BiomeType.ShallowWater, BiomeProperties.Get(BiomeType.ShallowWater).ColorRgba, art);
 
         if (tile.Biome == BiomeType.ShallowWater)
         {
@@ -636,7 +641,8 @@ public sealed class ChunkTerrainRenderer : IDisposable
         float y,
         in MapTile tile,
         ChunkWorld2D world,
-        float tileSize)
+        float tileSize,
+        IVectorArtRepository? art)
     {
         // Only blend between terrestrial biomes (water transitions are handled by BakeTileCoastlineTransitions)
         if (tile.Biome is BiomeType.DeepOcean or BiomeType.ShallowWater)
@@ -661,7 +667,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
         // Cardinal edge blending
         if (n != tile.Biome && n is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
         {
-            ColorRgba col = HexToColor(BiomeProperties.Get(n).ColorRgba);
+            ColorRgba col = ResolveBiomeColor(n, BiomeProperties.Get(n).ColorRgba, art);
             builder.AddRectangle(new RectangleF(x, y, tileSize, band), new ColorRgba(col.R, col.G, col.B, 90));
             builder.AddRectangle(new RectangleF(x + 5f, y + band, 3f, 2f), new ColorRgba(col.R, col.G, col.B, 55));
             builder.AddRectangle(new RectangleF(x + 15f, y + band, 4f, 2f), new ColorRgba(col.R, col.G, col.B, 55));
@@ -670,7 +676,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
 
         if (s != tile.Biome && s is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
         {
-            ColorRgba col = HexToColor(BiomeProperties.Get(s).ColorRgba);
+            ColorRgba col = ResolveBiomeColor(s, BiomeProperties.Get(s).ColorRgba, art);
             builder.AddRectangle(new RectangleF(x, y + tileSize - band, tileSize, band), new ColorRgba(col.R, col.G, col.B, 90));
             builder.AddRectangle(new RectangleF(x + 7f, y + tileSize - band - 2f, 4f, 2f), new ColorRgba(col.R, col.G, col.B, 55));
             builder.AddRectangle(new RectangleF(x + 19f, y + tileSize - band - 2f, 3f, 2f), new ColorRgba(col.R, col.G, col.B, 55));
@@ -678,7 +684,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
 
         if (w != tile.Biome && w is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
         {
-            ColorRgba col = HexToColor(BiomeProperties.Get(w).ColorRgba);
+            ColorRgba col = ResolveBiomeColor(w, BiomeProperties.Get(w).ColorRgba, art);
             builder.AddRectangle(new RectangleF(x, y, band, tileSize), new ColorRgba(col.R, col.G, col.B, 90));
             builder.AddRectangle(new RectangleF(x + band, y + 5f, 2f, 4f), new ColorRgba(col.R, col.G, col.B, 55));
             builder.AddRectangle(new RectangleF(x + band, y + 17f, 2f, 3f), new ColorRgba(col.R, col.G, col.B, 55));
@@ -686,7 +692,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
 
         if (e != tile.Biome && e is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
         {
-            ColorRgba col = HexToColor(BiomeProperties.Get(e).ColorRgba);
+            ColorRgba col = ResolveBiomeColor(e, BiomeProperties.Get(e).ColorRgba, art);
             builder.AddRectangle(new RectangleF(x + tileSize - band, y, band, tileSize), new ColorRgba(col.R, col.G, col.B, 90));
             builder.AddRectangle(new RectangleF(x + tileSize - band - 2f, y + 9f, 2f, 4f), new ColorRgba(col.R, col.G, col.B, 55));
             builder.AddRectangle(new RectangleF(x + tileSize - band - 2f, y + 21f, 2f, 3f), new ColorRgba(col.R, col.G, col.B, 55));
@@ -695,45 +701,45 @@ public sealed class ChunkTerrainRenderer : IDisposable
         // Marching Squares diagonal corner smoothing
         if (n != tile.Biome && n == w && n is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
         {
-            ColorRgba col = HexToColor(BiomeProperties.Get(n).ColorRgba);
+            ColorRgba col = ResolveBiomeColor(n, BiomeProperties.Get(n).ColorRgba, art);
             builder.AddTriangle(new Vector2(x, y), new Vector2(x + cornerSize, y), new Vector2(x, y + cornerSize), new ColorRgba(col.R, col.G, col.B, 120));
         }
         else if (nw != tile.Biome && n == tile.Biome && w == tile.Biome && nw is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
         {
-            ColorRgba col = HexToColor(BiomeProperties.Get(nw).ColorRgba);
+            ColorRgba col = ResolveBiomeColor(nw, BiomeProperties.Get(nw).ColorRgba, art);
             builder.AddTriangle(new Vector2(x, y), new Vector2(x + innerCornerSize, y), new Vector2(x, y + innerCornerSize), new ColorRgba(col.R, col.G, col.B, 80));
         }
 
         if (n != tile.Biome && n == e && n is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
         {
-            ColorRgba col = HexToColor(BiomeProperties.Get(n).ColorRgba);
+            ColorRgba col = ResolveBiomeColor(n, BiomeProperties.Get(n).ColorRgba, art);
             builder.AddTriangle(new Vector2(x + tileSize, y), new Vector2(x + tileSize - cornerSize, y), new Vector2(x + tileSize, y + cornerSize), new ColorRgba(col.R, col.G, col.B, 120));
         }
         else if (ne != tile.Biome && n == tile.Biome && e == tile.Biome && ne is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
         {
-            ColorRgba col = HexToColor(BiomeProperties.Get(ne).ColorRgba);
+            ColorRgba col = ResolveBiomeColor(ne, BiomeProperties.Get(ne).ColorRgba, art);
             builder.AddTriangle(new Vector2(x + tileSize, y), new Vector2(x + tileSize - innerCornerSize, y), new Vector2(x + tileSize, y + innerCornerSize), new ColorRgba(col.R, col.G, col.B, 80));
         }
 
         if (s != tile.Biome && s == e && s is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
         {
-            ColorRgba col = HexToColor(BiomeProperties.Get(s).ColorRgba);
+            ColorRgba col = ResolveBiomeColor(s, BiomeProperties.Get(s).ColorRgba, art);
             builder.AddTriangle(new Vector2(x + tileSize, y + tileSize), new Vector2(x + tileSize - cornerSize, y + tileSize), new Vector2(x + tileSize, y + tileSize - cornerSize), new ColorRgba(col.R, col.G, col.B, 120));
         }
         else if (se != tile.Biome && s == tile.Biome && e == tile.Biome && se is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
         {
-            ColorRgba col = HexToColor(BiomeProperties.Get(se).ColorRgba);
+            ColorRgba col = ResolveBiomeColor(se, BiomeProperties.Get(se).ColorRgba, art);
             builder.AddTriangle(new Vector2(x + tileSize, y + tileSize), new Vector2(x + tileSize - innerCornerSize, y + tileSize), new Vector2(x + tileSize, y + tileSize - innerCornerSize), new ColorRgba(col.R, col.G, col.B, 80));
         }
 
         if (s != tile.Biome && s == w && s is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
         {
-            ColorRgba col = HexToColor(BiomeProperties.Get(s).ColorRgba);
+            ColorRgba col = ResolveBiomeColor(s, BiomeProperties.Get(s).ColorRgba, art);
             builder.AddTriangle(new Vector2(x, y + tileSize), new Vector2(x + cornerSize, y + tileSize), new Vector2(x, y + tileSize - cornerSize), new ColorRgba(col.R, col.G, col.B, 120));
         }
         else if (sw != tile.Biome && s == tile.Biome && w == tile.Biome && sw is not BiomeType.DeepOcean and not BiomeType.ShallowWater)
         {
-            ColorRgba col = HexToColor(BiomeProperties.Get(sw).ColorRgba);
+            ColorRgba col = ResolveBiomeColor(sw, BiomeProperties.Get(sw).ColorRgba, art);
             builder.AddTriangle(new Vector2(x, y + tileSize), new Vector2(x + innerCornerSize, y + tileSize), new Vector2(x, y + tileSize - innerCornerSize), new ColorRgba(col.R, col.G, col.B, 80));
         }
     }
@@ -754,8 +760,15 @@ public sealed class ChunkTerrainRenderer : IDisposable
         return world.PeekTileAtWorld(worldX, worldY).Biome;
     }
 
-    private static (ColorRgba rockBase, ColorRgba rockStrata, ColorRgba rockHighlight, ColorRgba rockShadow) GetCliffPalette(BiomeType biome)
+    private static (ColorRgba rockBase, ColorRgba rockStrata, ColorRgba rockHighlight, ColorRgba rockShadow) GetCliffPalette(
+        BiomeType biome,
+        IVectorArtRepository? art)
     {
+        if (art is not null && art.TryGetBiome((byte)biome, out CompiledBiomeArt? biomeArt))
+        {
+            return (biomeArt.CliffBase, biomeArt.CliffStrata, biomeArt.CliffHighlight, biomeArt.CliffShadow);
+        }
+
         return biome switch
         {
             BiomeType.RedMesa => (
@@ -810,11 +823,16 @@ public sealed class ChunkTerrainRenderer : IDisposable
         };
     }
 
+    private static ColorRgba ResolveBiomeColor(BiomeType biome, uint fallbackColorHex, IVectorArtRepository? art) =>
+        art is not null && art.TryGetBiome((byte)biome, out CompiledBiomeArt? biomeArt)
+            ? biomeArt.GroundColor
+            : HexToColor(fallbackColorHex);
+
     // Ground colour of a tile, with the painterly lift of higher levels (shared by the base pass and the
     // chamfered cliff corners, which repaint the lower ground inside a corner tile).
-    private static ColorRgba GroundColor(in MapTile tile)
+    private static ColorRgba GroundColor(in MapTile tile, IVectorArtRepository? art)
     {
-        ColorRgba c = HexToColor(tile.ColorRgba);
+        ColorRgba c = ResolveBiomeColor(tile.Biome, tile.ColorRgba, art);
         int lift = tile.HeightLevel * 14;
         int liftB = tile.HeightLevel == 2 ? 22 : tile.HeightLevel * 10;
         return new ColorRgba(
@@ -831,19 +849,19 @@ public sealed class ChunkTerrainRenderer : IDisposable
     // A staircase boundary between two surfaces (a sandy bank, a forest edge, a shoreline) then becomes a
     // straight 45 degree line.
     private static void BakeTileDiagonalCorners(
-        ChunkMeshBuilder builder, int wtx, int wty, float x, float y, in MapTile tile, ChunkWorld2D world, float s)
+        ChunkMeshBuilder builder, int wtx, int wty, float x, float y, in MapTile tile, ChunkWorld2D world, float s, IVectorArtRepository? art)
     {
         MapTile n = world.PeekTileAtWorld(wtx, wty - 1);
         MapTile so = world.PeekTileAtWorld(wtx, wty + 1);
         MapTile w = world.PeekTileAtWorld(wtx - 1, wty);
         MapTile e = world.PeekTileAtWorld(wtx + 1, wty);
 
-        TryCut(builder, tile, n, w, world.PeekTileAtWorld(wtx - 1, wty - 1), new Vector2(x, y), new Vector2(x + s, y), new Vector2(x, y + s));
-        TryCut(builder, tile, n, e, world.PeekTileAtWorld(wtx + 1, wty - 1), new Vector2(x + s, y), new Vector2(x + s, y + s), new Vector2(x, y));
-        TryCut(builder, tile, so, w, world.PeekTileAtWorld(wtx - 1, wty + 1), new Vector2(x, y + s), new Vector2(x, y), new Vector2(x + s, y + s));
-        TryCut(builder, tile, so, e, world.PeekTileAtWorld(wtx + 1, wty + 1), new Vector2(x + s, y + s), new Vector2(x, y + s), new Vector2(x + s, y));
+        TryCut(builder, tile, n, w, world.PeekTileAtWorld(wtx - 1, wty - 1), new Vector2(x, y), new Vector2(x + s, y), new Vector2(x, y + s), art);
+        TryCut(builder, tile, n, e, world.PeekTileAtWorld(wtx + 1, wty - 1), new Vector2(x + s, y), new Vector2(x + s, y + s), new Vector2(x, y), art);
+        TryCut(builder, tile, so, w, world.PeekTileAtWorld(wtx - 1, wty + 1), new Vector2(x, y + s), new Vector2(x, y), new Vector2(x + s, y + s), art);
+        TryCut(builder, tile, so, e, world.PeekTileAtWorld(wtx + 1, wty + 1), new Vector2(x + s, y + s), new Vector2(x, y + s), new Vector2(x + s, y), art);
 
-        static void TryCut(ChunkMeshBuilder b, in MapTile self, in MapTile a, in MapTile c, in MapTile diag, Vector2 corner, Vector2 p1, Vector2 p2)
+        static void TryCut(ChunkMeshBuilder b, in MapTile self, in MapTile a, in MapTile c, in MapTile diag, Vector2 corner, Vector2 p1, Vector2 p2, IVectorArtRepository? repo)
         {
             // Only one side of a boundary cuts (the surface with the higher enum value gives way), otherwise
             // both sides cut and the two diagonals, half a tile apart, form a sawtooth.
@@ -853,7 +871,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
                 return;
             }
 
-            b.AddTriangle(corner, p1, p2, GroundColor(in a));
+            b.AddTriangle(corner, p1, p2, GroundColor(in a, repo));
         }
     }
 
@@ -954,7 +972,8 @@ public sealed class ChunkTerrainRenderer : IDisposable
         float y,
         in MapTile tile,
         ChunkWorld2D world,
-        float tileSize)
+        float tileSize,
+        IVectorArtRepository? art)
     {
         if (tile.HeightLevel == 0)
         {
@@ -981,7 +1000,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
         }
 
         float s = tileSize;
-        (ColorRgba rockBase, ColorRgba rockStrata, ColorRgba rockHighlight, ColorRgba rockShadow) = GetCliffPalette(tile.Biome);
+        (ColorRgba rockBase, ColorRgba rockStrata, ColorRgba rockHighlight, ColorRgba rockShadow) = GetCliffPalette(tile.Biome, art);
         ColorRgba dropShadow = new(0, 0, 0, 80);
 
         const float H = CliffFaceHeight;
@@ -1002,7 +1021,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
         if (south && (east ^ west))
         {
             MapTile below = world.PeekTileAtWorld(wtx, wty + 1);
-            ColorRgba lower = GroundColor(in below);
+            ColorRgba lower = GroundColor(in below, art);
             if (east)
             {
                 Vector2 a = new(x, y + s - H);
@@ -1090,7 +1109,8 @@ public sealed class ChunkTerrainRenderer : IDisposable
         float y,
         in MapTile tile,
         ChunkWorld2D world,
-        float tileSize)
+        float tileSize,
+        IVectorArtRepository? art)
     {
         RampDirection ramp = world.NavGrid.GetRamp(wtx, wty);
         if (ramp == RampDirection.None)
@@ -1099,8 +1119,8 @@ public sealed class ChunkTerrainRenderer : IDisposable
         }
 
         float s = tileSize;
-        ColorRgba slopeBed = HexToColor(tile.ColorRgba);
-        (ColorRgba rockCheek, _, _, _) = GetCliffPalette(tile.Biome);
+        ColorRgba slopeBed = ResolveBiomeColor(tile.Biome, tile.ColorRgba, art);
+        (ColorRgba rockCheek, _, _, _) = GetCliffPalette(tile.Biome, art);
 
         // Subtle natural foot-worn trail down the center
         ColorRgba wornDirt = new(
@@ -1170,7 +1190,8 @@ public sealed class ChunkTerrainRenderer : IDisposable
         float x,
         float y,
         ChunkWorld2D world,
-        float tileSize)
+        float tileSize,
+        IVectorArtRepository? art)
     {
         if (!world.Buildings.TryGetStructure(wtx, wty, out StructureTile structure))
         {
@@ -1178,80 +1199,28 @@ public sealed class ChunkTerrainRenderer : IDisposable
         }
 
         float s = tileSize;
-
-        switch (structure.Category)
+        if (art is not null && art.TryGetStructure((byte)structure.Type, out CompiledStructureArt? structArt))
         {
-            case StructureCategory.Floor:
-                ColorRgba floorColor = structure.Material switch
-                {
-                    StructureMaterial.Wood => new ColorRgba(160, 125, 88, 255),
-                    StructureMaterial.Stone => new ColorRgba(140, 142, 148, 255),
-                    StructureMaterial.Metal => new ColorRgba(100, 110, 120, 255),
-                    _ => new ColorRgba(150, 140, 130, 255)
-                };
-
-                builder.AddRectangle(new RectangleF(x + 1f, y + 1f, s - 2f, s - 2f), floorColor);
-                builder.AddRectangle(new RectangleF(x + 1f, y + 10f, s - 2f, 1f), new ColorRgba(0, 0, 0, 45));
-                builder.AddRectangle(new RectangleF(x + 1f, y + 21f, s - 2f, 1f), new ColorRgba(0, 0, 0, 45));
-                break;
-
-            case StructureCategory.Wall:
-                ColorRgba wallTop = structure.Material switch
-                {
-                    StructureMaterial.Wood => new ColorRgba(145, 110, 75, 255),
-                    StructureMaterial.Stone => new ColorRgba(130, 135, 142, 255),
-                    StructureMaterial.Metal => new ColorRgba(95, 105, 115, 255),
-                    _ => new ColorRgba(120, 120, 125, 255)
-                };
-
-                ColorRgba wallFront = structure.Material switch
-                {
-                    StructureMaterial.Wood => new ColorRgba(95, 70, 45, 255),
-                    StructureMaterial.Stone => new ColorRgba(88, 92, 98, 255),
-                    StructureMaterial.Metal => new ColorRgba(60, 68, 76, 255),
-                    _ => new ColorRgba(80, 80, 85, 255)
-                };
-
-                builder.AddRectangle(new RectangleF(x, y, s, s - 8f), wallTop);
-                builder.AddRectangle(new RectangleF(x, y + s - 8f, s, 8f), wallFront);
-                builder.AddRectangle(new RectangleF(x, y, s, 1.5f), new ColorRgba(255, 255, 255, 90));
-                builder.AddRectangle(new RectangleF(x, y + s, s, 4f), new ColorRgba(0, 0, 0, 60));
-                break;
-
-            case StructureCategory.Door:
-                ColorRgba frameColor = new(70, 75, 80, 255);
-                ColorRgba doorPanel = new(135, 95, 60, 255);
-
-                if (structure.DoorState == DoorState.Open)
-                {
-                    builder.AddRectangle(new RectangleF(x + 2f, y + 4f, s - 4f, s - 8f), new ColorRgba(120, 114, 102, 160));
-                    builder.AddRectangle(new RectangleF(x, y, 4f, s), frameColor);
-                    builder.AddRectangle(new RectangleF(x + s - 4f, y, 4f, s), frameColor);
-                    builder.AddRectangle(new RectangleF(x + 3f, y + 2f, 6f, s - 4f), doorPanel);
-                }
-                else
-                {
-                    builder.AddRectangle(new RectangleF(x, y, s, s), frameColor);
-                    builder.AddRectangle(new RectangleF(x + 4f, y + 4f, s - 8f, s - 8f), doorPanel);
-                    builder.AddRectangle(new RectangleF(x + s - 9f, y + (s * 0.5f) - 1.5f, 3f, 3f), new ColorRgba(230, 195, 75, 255));
-                }
-                break;
-
-            case StructureCategory.Pillar:
-                builder.AddRectangle(new RectangleF(x + 4f, y + 4f, s - 8f, s - 8f), new ColorRgba(120, 125, 135, 255));
-                break;
-
-            case StructureCategory.Station:
-                builder.AddRectangle(new RectangleF(x + 2f, y + 3f, s - 4f, s - 5f), new ColorRgba(68, 76, 92, 255));
-                builder.AddRectangle(new RectangleF(x + 5f, y + 18f, s - 10f, 9f), new ColorRgba(51, 65, 85, 255));
-                builder.AddRectangle(new RectangleF(x + 7f, y + 8f, s - 14f, 11f), new ColorRgba(30, 41, 59, 255));
-                builder.AddRectangle(new RectangleF(x + 4f, y + 7f, s - 7f, 6f), new ColorRgba(148, 163, 184, 255));
-                builder.AddRectangle(new RectangleF(x + 11f, y + 9f, 5f, 3f), new ColorRgba(249, 115, 22, 255));
-                break;
-
-            case StructureCategory.None:
-            default:
-                break;
+            ReadOnlySpan<CompiledVectorShape> shapes = structure.DoorState == DoorState.Open && structArt.OpenShapes.Length > 0
+                ? structArt.OpenShapes
+                : structArt.Shapes;
+            VectorMeshBaker.StampTileShapes(builder, shapes, x, y, s);
+        }
+        else
+        {
+            ColorRgba fallbackCol = structure.Category switch
+            {
+                StructureCategory.Floor => new ColorRgba(150, 130, 100, 255),
+                StructureCategory.Wall => new ColorRgba(120, 115, 110, 255),
+                StructureCategory.Door => new ColorRgba(135, 95, 60, 255),
+                StructureCategory.Pillar => new ColorRgba(120, 125, 135, 255),
+                StructureCategory.Station => new ColorRgba(72, 82, 98, 255),
+                StructureCategory.None or _ => default,
+            };
+            if (fallbackCol.A > 0)
+            {
+                builder.AddRectangle(new RectangleF(x + 1f, y + 1f, s - 2f, s - 2f), fallbackCol);
+            }
         }
 
         if (world.Buildings.IsRoofedAt(wtx, wty))
@@ -1266,132 +1235,21 @@ public sealed class ChunkTerrainRenderer : IDisposable
         int wty,
         float x,
         float y,
-        in MapTile tile)
+        in MapTile tile,
+        float tileSize,
+        IVectorArtRepository? art)
     {
-        uint hash = (uint)((wtx * 374761393) ^ (wty * 668265263));
-        uint slot = hash % 20;
-
-        switch (tile.Biome)
+        if (art is null || !art.TryGetBiome((byte)tile.Biome, out CompiledBiomeArt? biomeArt) || biomeArt.DetailVariants.Length == 0)
         {
-            case BiomeType.LushPlains:
-                {
-                    // Rare, delicate meadow wildflowers (1 in 20 tiles)
-                    if (slot == 1)
-                    {
-                        // Golden Dandelion cluster
-                        builder.AddRectangle(new RectangleF(x + 14f, y + 12f, 3f, 3f), new ColorRgba(250, 204, 21, 230));
-                        builder.AddRectangle(new RectangleF(x + 16f, y + 14f, 2f, 2f), new ColorRgba(245, 158, 11, 220));
-                    }
-                    else if (slot == 2)
-                    {
-                        // Mountain Daisies (White with yellow center)
-                        builder.AddRectangle(new RectangleF(x + 8f, y + 18f, 3f, 3f), new ColorRgba(255, 255, 255, 230));
-                        builder.AddRectangle(new RectangleF(x + 9f, y + 19f, 1.2f, 1.2f), new ColorRgba(234, 179, 8, 255));
-                    }
-                    else if (slot == 3)
-                    {
-                        // Wild Lavender (Violet-purple)
-                        builder.AddRectangle(new RectangleF(x + 20f, y + 16f, 2.5f, 3.5f), new ColorRgba(168, 85, 247, 220));
-                    }
+            return;
+        }
 
-                    break;
-                }
-
-            case BiomeType.AncientForest:
-                {
-                    if (slot == 1)
-                    {
-                        // Forest moss or tiny woodland mushroom
-                        builder.AddRectangle(new RectangleF(x + 12f, y + 15f, 3f, 2.5f), new ColorRgba(58, 88, 52, 180));
-                        builder.AddRectangle(new RectangleF(x + 14f, y + 14f, 2f, 2f), new ColorRgba(215, 180, 130, 220));
-                    }
-                    else if (slot == 2)
-                    {
-                        // Woodland pebble
-                        builder.AddRectangle(new RectangleF(x + 18f, y + 20f, 2.5f, 2f), new ColorRgba(50, 56, 52, 160));
-                    }
-
-                    break;
-                }
-
-            case BiomeType.BeachSand:
-            case BiomeType.DuneDesert:
-                {
-                    if (slot == 1)
-                    {
-                        // Soft wind-carved sand ripple
-                        builder.AddRectangle(new RectangleF(x + 6f, y + 14f, 12f, 1.5f), new ColorRgba(245, 230, 190, 110));
-                    }
-
-                    break;
-                }
-
-            case BiomeType.ShallowWater:
-                {
-                    if (slot == 1)
-                    {
-                        // Soft watercolor ripple
-                        builder.AddRectangle(new RectangleF(x + 8f, y + 14f, 14f, 1.2f), new ColorRgba(255, 255, 255, 75));
-                    }
-
-                    break;
-                }
-
-            case BiomeType.AlpinePeaks:
-                {
-                    if (slot == 1)
-                    {
-                        // Glacial frost crystal specks
-                        builder.AddRectangle(new RectangleF(x + 10f, y + 14f, 2f, 2f), new ColorRgba(240, 250, 255, 220));
-                        builder.AddRectangle(new RectangleF(x + 18f, y + 10f, 1.5f, 1.5f), new ColorRgba(220, 240, 255, 200));
-                    }
-
-                    break;
-                }
-
-            case BiomeType.Savanna:
-                {
-                    if (slot == 1)
-                    {
-                        // Golden dry grass tuft
-                        builder.AddRectangle(new RectangleF(x + 12f, y + 14f, 4f, 3f), new ColorRgba(215, 180, 95, 210));
-                        builder.AddRectangle(new RectangleF(x + 14f, y + 11f, 2f, 3f), new ColorRgba(230, 200, 120, 230));
-                    }
-                    else if (slot == 2)
-                    {
-                        // Sun-baked clay pebble
-                        builder.AddRectangle(new RectangleF(x + 18f, y + 16f, 2.5f, 2f), new ColorRgba(160, 125, 75, 170));
-                    }
-
-                    break;
-                }
-
-            case BiomeType.BlossomWoods:
-                {
-                    if (slot == 1)
-                    {
-                        // Fallen cherry blossom petal scatter
-                        builder.AddRectangle(new RectangleF(x + 8f, y + 12f, 2.5f, 2.5f), new ColorRgba(244, 114, 182, 220));
-                        builder.AddRectangle(new RectangleF(x + 15f, y + 18f, 2f, 2f), new ColorRgba(251, 168, 202, 230));
-                        builder.AddRectangle(new RectangleF(x + 22f, y + 10f, 2.5f, 2f), new ColorRgba(249, 168, 212, 210));
-                    }
-                    else if (slot == 2)
-                    {
-                        // Delicate pink blossom bud
-                        builder.AddRectangle(new RectangleF(x + 12f, y + 16f, 3f, 3f), new ColorRgba(236, 72, 153, 220));
-                    }
-
-                    break;
-                }
-
-            case BiomeType.DeepOcean:
-            case BiomeType.MistySwamp:
-            case BiomeType.RedMesa:
-            case BiomeType.TropicalJungle:
-            case BiomeType.FrozenTundra:
-            case BiomeType.VolcanicAshland:
-            default:
-                break;
+        uint hash = (uint)((wtx * 374761393) ^ (wty * 668265263));
+        if ((hash % 100u) < (uint)biomeArt.DetailChancePercent)
+        {
+            int variantIdx = (int)((hash >> 8) % (uint)biomeArt.DetailVariants.Length);
+            bool mirrorX = ((hash >> 16) & 1u) != 0;
+            VectorMeshBaker.StampTileShapes(builder, biomeArt.DetailVariants[variantIdx], x, y, tileSize, mirrorX);
         }
     }
 

@@ -12,12 +12,18 @@ namespace Carbon.Desktop.Rendering.VectorArt;
 /// <param name="MonstersValidated">Count of monster rigs validated.</param>
 /// <param name="NpcsValidated">Count of NPC rigs validated.</param>
 /// <param name="ItemsValidated">Count of item blueprints validated.</param>
+/// <param name="PropsValidated">Count of natural prop/tree blueprints validated.</param>
+/// <param name="BiomesValidated">Count of biome blueprints validated.</param>
+/// <param name="StructuresValidated">Count of structure blueprints validated.</param>
 /// <param name="RasterImagesFound">Count of unexpected raster image files (<c>.png</c>/<c>.jpg</c>) found inside the art folder.</param>
 public readonly record struct VectorArtValidationSummary(
     int CharactersValidated,
     int MonstersValidated,
     int NpcsValidated,
     int ItemsValidated,
+    int PropsValidated,
+    int BiomesValidated,
+    int StructuresValidated,
     int RasterImagesFound);
 
 /// <summary>
@@ -66,6 +72,9 @@ public static class VectorArtValidator
             lib.MonsterCount,
             lib.NpcCount,
             lib.ItemCount,
+            lib.PropCount,
+            lib.BiomeCount,
+            lib.StructureCount,
             rasterCount);
     }
 }

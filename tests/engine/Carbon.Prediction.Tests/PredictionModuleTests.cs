@@ -4,7 +4,7 @@ using System;
 using System.Numerics;
 using Carbon.Physics.Obstacles;
 using Carbon.Physics.Shapes;
-using Carbon.Prediction.Client;
+using Carbon.Prediction.Reconciliation;
 using Carbon.Prediction.Remote;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
@@ -23,7 +23,7 @@ public sealed class PredictionModuleTests
         Entity player = sim.SpawnEntity(new Vector2(10f, 0f), radius: 5f);
         sim.Entities.SetVelocity(player, new Velocity2D(0f, 0f));
 
-        ClientPredictionReconciler reconciler = new();
+        PredictionReconciler reconciler = new();
         reconciler.RecordPredictedTick(new PredictedTickRecord(1, Vector2.UnitX, 100f, new Vector2(10f, 0f), new Vector2(100f, 0f)));
         reconciler.RecordPredictedTick(new PredictedTickRecord(2, Vector2.UnitX, 100f, new Vector2(15f, 0f), new Vector2(100f, 0f)));
 
@@ -43,7 +43,7 @@ public sealed class PredictionModuleTests
         Entity player = sim.SpawnEntity(new Vector2(20f, 0f), radius: 5f);
         sim.Entities.SetVelocity(player, new Velocity2D(100f, 0f));
 
-        ClientPredictionReconciler reconciler = new();
+        PredictionReconciler reconciler = new();
         reconciler.RecordPredictedTick(new PredictedTickRecord(1, Vector2.UnitX, 100f, new Vector2(10f, 0f), new Vector2(100f, 0f)));
         reconciler.RecordPredictedTick(new PredictedTickRecord(2, Vector2.UnitX, 100f, new Vector2(15f, 0f), new Vector2(100f, 0f)));
         reconciler.RecordPredictedTick(new PredictedTickRecord(3, Vector2.UnitX, 100f, new Vector2(20f, 0f), new Vector2(100f, 0f)));
@@ -99,7 +99,7 @@ public sealed class PredictionModuleTests
         sim.Entities.SetCollider(player, Collider2D.CreateAabb(AABB2D.FromCenterSize(Vector2.Zero, new Vector2(16f, 16f))));
         sim.Entities.SetVelocity(player, new Velocity2D(200f, 0f));
 
-        ClientPredictionReconciler reconciler = new();
+        PredictionReconciler reconciler = new();
         reconciler.RecordPredictedTick(new PredictedTickRecord(1, Vector2.UnitX, 200f, new Vector2(45f, 48f), new Vector2(200f, 0f)));
         reconciler.RecordPredictedTick(new PredictedTickRecord(2, Vector2.UnitX, 200f, new Vector2(55f, 48f), new Vector2(200f, 0f)));
 

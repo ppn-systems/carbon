@@ -5,22 +5,30 @@ using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
+using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Entities.S2C;
+using Carbon.Contracts.Identity;
+using Carbon.Contracts.Identity.C2S;
+using Carbon.Contracts.Identity.S2C;
 using Carbon.Contracts.Items.S2C;
 using Carbon.Contracts.Maps.C2S;
 using Carbon.Contracts.Maps.S2C;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.Events;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
 using Carbon.Items.Serialization;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
+using Carbon.Maps.Generators;
 using Carbon.Maps.Networking;
 using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
 using Carbon.Prediction.Remote;
+using Carbon.Simulation.ECS.Components;
+using Carbon.Simulation.World;
 using Nalix.Abstractions.Networking.Datagrams;
 using Nalix.Abstractions.Networking.Packets;
 using Nalix.Abstractions.Networking.Protocols;
@@ -52,41 +60,48 @@ public sealed partial class MultiplayerSession
             this.ClearWorldState();
             _isAuthenticated = false;
 
-            bool hasPinnedKey = !string.IsNullOrWhiteSpace(_options.ServerPublicKeyHex);
-            TcpSession tcp = new(new TransportOptions
-            {
-                Address = host,
-                Port = tcpPort,
-                ServerPublicKey = _options.ServerPublicKeyHex ?? string.Empty,
-                AllowTofu = !hasPinnedKey,
-                PersistTofuKey = false,
-                EncryptRequestsByDefault = true,
-            });
-
-            _tcpSubscriptions.Add(tcp.On<EntitySpawn>(this.OnEntitySpawn));
-            _tcpSubscriptions.Add(tcp.On<EntityDespawn>(this.OnEntityDespawn));
-            _tcpSubscriptions.Add(tcp.On<EntityDeltaBatch>(this.OnEntityDeltaBatch));
-            _tcpSubscriptions.Add(tcp.On<CombatHit>(this.OnCombatHit));
-            _tcpSubscriptions.Add(tcp.On<InventorySlotChanged>(this.OnInventorySlotChanged));
-            _tcpSubscriptions.Add(tcp.On<EntityEquipmentChanged>(this.OnEntityEquipmentChanged));
-            _tcpSubscriptions.Add(tcp.On<PlayerStatsSync>(this.OnPlayerStatsSync));
-            _tcpSubscriptions.Add(tcp.On<SkillCastBroadcast>(this.OnSkillCastBroadcast));
-            _tcpSubscriptions.Add(tcp.On<MapPropChanged>(this.OnMapPropChanged));
-            _tcpSubscriptions.Add(tcp.On<MapStructureChanged>(this.OnMapStructureChanged));
-
-            _tcpSession = tcp;
-            await tcp.ConnectAsync(host, tcpPort, ct).ConfigureAwait(false);
-            await tcp.HandshakeAsync(ct).ConfigureAwait(false);
-
-            _connectedHost = host;
-            _connectedPort = tcpPort;
-            _sessionCts = new CancellationTokenSource();
-            return tcp;
+            return await this.OpenFreshTcpTransportLockedAsync(host, tcpPort, ct).ConfigureAwait(false);
         }
         finally
         {
             _ = _connectGate.Release();
         }
+    }
+
+    private async Task<TcpSession> OpenFreshTcpTransportLockedAsync(string host, ushort tcpPort, CancellationToken ct)
+    {
+        await this.TearDownTransportsAsync().ConfigureAwait(false);
+
+        bool hasPinnedKey = !string.IsNullOrWhiteSpace(_options.ServerPublicKeyHex);
+        TcpSession tcp = new(new TransportOptions
+        {
+            Address = host,
+            Port = tcpPort,
+            ServerPublicKey = _options.ServerPublicKeyHex ?? string.Empty,
+            AllowTofu = !hasPinnedKey,
+            PersistTofuKey = false,
+            EncryptRequestsByDefault = true,
+        });
+
+        _tcpSubscriptions.Add(tcp.On<EntitySpawn>(this.OnEntitySpawn));
+        _tcpSubscriptions.Add(tcp.On<EntityDespawn>(this.OnEntityDespawn));
+        _tcpSubscriptions.Add(tcp.On<EntityDeltaBatch>(this.OnEntityDeltaBatch));
+        _tcpSubscriptions.Add(tcp.On<CombatHit>(this.OnCombatHit));
+        _tcpSubscriptions.Add(tcp.On<InventorySlotChanged>(this.OnInventorySlotChanged));
+        _tcpSubscriptions.Add(tcp.On<EntityEquipmentChanged>(this.OnEntityEquipmentChanged));
+        _tcpSubscriptions.Add(tcp.On<PlayerStatsSync>(this.OnPlayerStatsSync));
+        _tcpSubscriptions.Add(tcp.On<SkillCastBroadcast>(this.OnSkillCastBroadcast));
+        _tcpSubscriptions.Add(tcp.On<MapPropChanged>(this.OnMapPropChanged));
+        _tcpSubscriptions.Add(tcp.On<MapStructureChanged>(this.OnMapStructureChanged));
+
+        _tcpSession = tcp;
+        await tcp.ConnectAsync(host, tcpPort, ct).ConfigureAwait(false);
+        await tcp.HandshakeAsync(ct).ConfigureAwait(false);
+
+        _connectedHost = host;
+        _connectedPort = tcpPort;
+        _sessionCts = new CancellationTokenSource();
+        return tcp;
     }
 
     private async Task TryOpenAuthenticatedUdpAsync(TcpSession tcp, CancellationToken ct)
@@ -133,45 +148,328 @@ public sealed partial class MultiplayerSession
         }
     }
 
-    private void MonitorUdpHealth(float frameDt)
+    private void MonitorConnectionHealth(float frameDt)
     {
-        if (!this.IsReady || !this.IsAuthenticated || _tcpSession is not { IsConnected: true } tcp)
+        if (!this.IsReady)
         {
             return;
         }
 
-        if (this.IsUdpActive)
+        if (_tcpSession is { IsConnected: true } tcp && this.IsAuthenticated)
         {
-            _udpReconnectAttempt = 0;
-            _udpReconnectTimer = 0f;
+            _wasTcpConnectedLastFrame = true;
+            _tcpReconnectAttempt = 0;
+            _tcpReconnectTimer = 0f;
+
+            if (this.IsUdpActive)
+            {
+                _udpReconnectAttempt = 0;
+                _udpReconnectTimer = 0f;
+                return;
+            }
+
+            if (Volatile.Read(ref _udpReconnectInFlight) != 0)
+            {
+                return;
+            }
+
+            _udpReconnectTimer -= frameDt;
+            if (_udpReconnectTimer > 0f)
+            {
+                return;
+            }
+
+            int udpAttempt = _udpReconnectAttempt;
+            float nextUdpBackoff = udpAttempt switch
+            {
+                0 => 1.5f,
+                1 => 3.0f,
+                2 => 6.0f,
+                _ => 8.0f,
+            };
+            _udpReconnectAttempt = Math.Min(udpAttempt + 1, 8);
+            _udpReconnectTimer = nextUdpBackoff;
+
+            if (Interlocked.CompareExchange(ref _udpReconnectInFlight, 1, 0) == 0)
+            {
+                _ = this.ReconnectUdpBackgroundAsync(tcp);
+            }
+
             return;
         }
 
-        if (Volatile.Read(ref _udpReconnectInFlight) != 0)
+        if (!_autoReconnectEnabled || _activeCharacterId == Guid.Empty)
         {
             return;
         }
 
-        _udpReconnectTimer -= frameDt;
-        if (_udpReconnectTimer > 0f)
+        if (_wasTcpConnectedLastFrame)
+        {
+            _wasTcpConnectedLastFrame = false;
+            lock (_worldGate)
+            {
+                _remoteEntities.Clear();
+                _cachedRemoteViews = [];
+                _remoteViewsDirty = true;
+                _lockedTargetNetworkId = 0UL;
+                _hudNotifications.Add("Connection lost - reconnecting...");
+            }
+
+            _tcpReconnectAttempt = 0;
+            _tcpReconnectTimer = 1.0f;
+        }
+
+        if (Volatile.Read(ref _tcpReconnectInFlight) != 0)
         {
             return;
         }
 
-        int attempt = _udpReconnectAttempt;
+        _tcpReconnectTimer -= frameDt;
+        if (_tcpReconnectTimer > 0f)
+        {
+            return;
+        }
+
+        int attempt = _tcpReconnectAttempt;
         float nextBackoff = attempt switch
         {
             0 => 1.5f,
             1 => 3.0f,
-            2 => 6.0f,
+            2 => 5.0f,
             _ => 8.0f,
         };
-        _udpReconnectAttempt = Math.Min(attempt + 1, 8);
-        _udpReconnectTimer = nextBackoff;
+        _tcpReconnectAttempt = Math.Min(attempt + 1, 8);
+        _tcpReconnectTimer = nextBackoff;
 
-        if (Interlocked.CompareExchange(ref _udpReconnectInFlight, 1, 0) == 0)
+        if (Interlocked.CompareExchange(ref _tcpReconnectInFlight, 1, 0) == 0)
         {
-            _ = this.ReconnectUdpBackgroundAsync(tcp);
+            _ = this.ReconnectFullSessionBackgroundAsync();
+        }
+    }
+
+    private async Task ReconnectFullSessionBackgroundAsync()
+    {
+        try
+        {
+            TcpSession? restoredTcp = null;
+            Vector2 rejoinPos = Vector2.Zero;
+
+            await _connectGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                if (!_autoReconnectEnabled ||
+                    !this.IsReady ||
+                    _activeCharacterId == Guid.Empty ||
+                    string.IsNullOrWhiteSpace(_reconnectHost) ||
+                    _reconnectPort == 0 ||
+                    string.IsNullOrEmpty(_lastUsername) ||
+                    string.IsNullOrEmpty(_lastPassword))
+                {
+                    return;
+                }
+
+                if (_tcpSession is { IsConnected: true } && this.IsAuthenticated)
+                {
+                    return;
+                }
+
+                bool enteredWorld = false;
+                try
+                {
+                    using CancellationTokenSource opCts = new(TimeSpan.FromSeconds(6));
+                    TcpSession tcp = await this.OpenFreshTcpTransportLockedAsync(_reconnectHost, _reconnectPort, opCts.Token).ConfigureAwait(false);
+                    RequestOptions reqOpts = RequestOptions.Default.WithTimeout(5000).WithEncrypt(tcp.State.EncryptionEnabled);
+
+                    using PacketScope<AuthLogin> loginLease = PacketFactory<AuthLogin>.Acquire();
+                    loginLease.Value.Username = _lastUsername;
+                    loginLease.Value.Password = _lastPassword;
+                    loginLease.Value.ClientProtocolVersion = CarbonProtocol.Version;
+
+                    using AuthResult authRes = await tcp.RequestAsync<AuthResult>(
+                        loginLease.Value,
+                        reqOpts,
+                        predicate: null,
+                        opCts.Token).ConfigureAwait(false);
+
+                    if (authRes.Status is AuthStatus.InvalidCredentials or AuthStatus.Locked or AuthStatus.ProtocolMismatch)
+                    {
+                        _autoReconnectEnabled = false;
+                        lock (_worldGate)
+                        {
+                            _hudNotifications.Add("Reconnect stopped: authentication rejected");
+                        }
+
+                        return;
+                    }
+
+                    if (authRes.Status != AuthStatus.Ok)
+                    {
+                        return;
+                    }
+
+                    using PacketScope<CharacterSelect> selectLease = PacketFactory<CharacterSelect>.Acquire();
+                    selectLease.Value.CharacterId = _activeCharacterId;
+
+                    using CharacterEnterWorld enter = await tcp.RequestAsync<CharacterEnterWorld>(
+                        selectLease.Value,
+                        reqOpts,
+                        predicate: null,
+                        opCts.Token).ConfigureAwait(false);
+
+                    if (enter.Status != OpStatus.Ok)
+                    {
+                        return;
+                    }
+
+                    _isAuthenticated = true;
+                    enteredWorld = true;
+                    restoredTcp = tcp;
+                    rejoinPos = new Vector2(enter.PositionX, enter.PositionY);
+
+                    this.ApplyReconnectedWorldState(enter);
+                    try
+                    {
+                        await this.FetchInventorySnapshotAsync(tcp, reqOpts, opCts.Token).ConfigureAwait(false);
+                    }
+                    catch (Exception ex) when (ex is not OutOfMemoryException)
+                    {
+                        // Inventory snapshot sync will retry on next mutation if needed.
+                    }
+
+                    this.RequestMissingChunkDeltasAround(rejoinPos);
+                    _udpReconnectAttempt = 0;
+                    _udpReconnectTimer = 1.5f;
+                }
+                finally
+                {
+                    if (!enteredWorld)
+                    {
+                        _isAuthenticated = false;
+                        await this.TearDownTransportsAsync().ConfigureAwait(false);
+                    }
+                }
+            }
+            finally
+            {
+                _ = _connectGate.Release();
+            }
+
+            if (restoredTcp is not null)
+            {
+                CancellationToken sessionToken = _sessionCts?.Token ?? CancellationToken.None;
+                await this.TryOpenAuthenticatedUdpAsync(restoredTcp, sessionToken).ConfigureAwait(false);
+                _tcpReconnectAttempt = 0;
+                _tcpReconnectTimer = 0f;
+                _wasTcpConnectedLastFrame = true;
+                lock (_worldGate)
+                {
+                    _hudNotifications.Add(this.IsUdpActive ? "Reconnected (TCP+UDP)" : "Reconnected (TCP)");
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Session disposed or timed out during reconnect.
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Next tick backoff will retry automatically.
+        }
+        finally
+        {
+            _ = Interlocked.Exchange(ref _tcpReconnectInFlight, 0);
+        }
+    }
+
+    private void ApplyReconnectedWorldState(CharacterEnterWorld enter)
+    {
+        lock (_worldGate)
+        {
+            _remoteEntities.Clear();
+            _requestedChunks.Clear();
+            _dirtyChunks.Clear();
+            _reconciler.Clear();
+            _clientTick = 0U;
+            _latestServerTime = enter.TickRate > 0 ? enter.ServerTick / (double)enter.TickRate : 0.0;
+            _hasServerReconcile = false;
+            _visualOffset = Vector2.Zero;
+            _selectedSlot = enter.SelectedHotbarSlot < 9 ? enter.SelectedHotbarSlot : (byte)0;
+            _localLevel = Math.Max((ushort)1, enter.Level);
+            _localExperience = enter.Experience;
+            _localXpToNext = Math.Max(1U, enter.XpToNextLevel);
+            _localHealth = enter.CurrentHealth;
+            _localMaxHealth = MathF.Max(1f, enter.MaxHealth);
+            _localMana = enter.CurrentMana;
+            _localMaxMana = MathF.Max(1f, enter.MaxMana);
+            _localStamina = enter.CurrentStamina;
+            _localMaxStamina = MathF.Max(1f, enter.MaxStamina);
+            _localDefense = enter.Defense;
+            _localClass = (HeroArchetypeClass)enter.ClassId;
+            _localTraits = enter.Traits;
+            _skillCooldowns.Clear();
+            _ = CharacterProgressionBinaryCodec.TryDeserializeInto(enter.ProgressionBlob ?? [], _progression);
+            if (enter.UnlockedSkillMask != 0UL)
+            {
+                _progression.SetUnlockedSkillMask(_progression.UnlockedSkillMask | (CharacterSkillMask)enter.UnlockedSkillMask);
+            }
+
+            _unspentStatPoints = CharacterProgressionPolicy.GetUnspentStatPoints(_localLevel, _progression);
+            _unspentSkillPoints = CharacterProgressionPolicy.GetUnspentSkillPoints(_localLevel, _progression);
+            _remoteViewsDirty = true;
+            _cachedRemoteViews = [];
+            _lockedTargetNetworkId = 0UL;
+            _wasMovingLastTick = false;
+            _idleKeepAliveTimer = 0f;
+
+            _tileSize = enter.TileSize > 0f ? enter.TileSize : 32f;
+            _tickRate = enter.TickRate > 0 ? enter.TickRate : (ushort)30;
+            _localNetworkId = enter.PlayerNetworkId;
+            if (enter.AppearancePreset != 0)
+            {
+                _localAppearancePreset = enter.AppearancePreset;
+            }
+
+            Vector2 rejoinPos = new(enter.PositionX, enter.PositionY);
+            if (_chunkWorld is not null &&
+                _simulation is not null &&
+                _simulation.Entities.IsAlive(_localPlayer) &&
+                _worldSeed == enter.WorldSeed)
+            {
+                _simulation.BindNetworkIdentity(_localPlayer, _localNetworkId, ownerSessionId: 1);
+                _simulation.Entities.GetTransform(_localPlayer).Position = rejoinPos;
+                _simulation.EnqueueCommand(SimulationCommand.Teleport(_localPlayer, rejoinPos));
+                _chunkWorld.UpdateAroundPosition(rejoinPos, chunkRadius: 4, evictionRadius: 8);
+            }
+            else
+            {
+                _worldSeed = enter.WorldSeed;
+                ProceduralWorldGenerator generator = new(_worldSeed);
+                _chunkWorld = new ChunkWorld2D(generator, _tileSize, enter.Frequency);
+                _chunkWorld.UpdateAroundPosition(rejoinPos, chunkRadius: 4, evictionRadius: 8);
+                _simulation = new WorldSimulation(_tickRate, _tileSize)
+                {
+                    WorldPhysics = _chunkWorld,
+                };
+                _localPlayer = _simulation.SpawnNetworkEntity(_localNetworkId, rejoinPos, radius: 7f, ownerSessionId: 1);
+                _simulation.Entities.SetVelocity(_localPlayer, new Velocity2D(0f, 0f, 5f));
+            }
+        }
+    }
+
+    private async Task HandleTcpFaultAsync(TcpSession faultedTcp)
+    {
+        await _connectGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (ReferenceEquals(_tcpSession, faultedTcp))
+            {
+                _isAuthenticated = false;
+                await this.TearDownTransportsAsync().ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _ = _connectGate.Release();
         }
     }
 
@@ -358,7 +656,7 @@ public sealed partial class MultiplayerSession
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            // Transient send errors are handled by disconnect events.
+            _ = this.HandleTcpFaultAsync(tcp);
         }
     }
 
@@ -572,7 +870,7 @@ public sealed partial class MultiplayerSession
 
             if (xpGain > 0U && _inventoryLoaded)
             {
-                _combatEvents.Add(new ClientCombatEvent(
+                _combatEvents.Add(new CombatFeedbackEvent(
                     localPos + new Vector2(0f, -24f),
                     xpGain,
                     IsCritical: false,
@@ -583,7 +881,7 @@ public sealed partial class MultiplayerSession
             if (pkt.LeveledUp)
             {
                 string msg = $"LEVEL UP! Lv.{_localLevel}";
-                _combatEvents.Add(new ClientCombatEvent(
+                _combatEvents.Add(new CombatFeedbackEvent(
                     localPos + new Vector2(0f, -34f),
                     _localLevel,
                     IsCritical: true,
@@ -611,12 +909,12 @@ public sealed partial class MultiplayerSession
                 if (AbilityInputEncoding.TryDecodePlayerProjectileCast(pkt.AbilitySlot, out byte projArch))
                 {
                     isProjectile = true;
-                    caster.ActiveActionKind = projArch is 2 or 6 ? ClientActionKind.StaffCast : ClientActionKind.BowShot;
+                    caster.ActiveActionKind = projArch is 2 or 6 ? ActionAnimationKind.StaffCast : ActionAnimationKind.BowShot;
                 }
                 else if (AbilityInputEncoding.TryDecodeMonsterProjectileCast(pkt.AbilitySlot, out _))
                 {
                     isProjectile = true;
-                    caster.ActiveActionKind = ClientActionKind.MonsterStrike;
+                    caster.ActiveActionKind = ActionAnimationKind.MonsterStrike;
                 }
                 else if (SkillCatalog.Skills.TryGet(pkt.AbilitySlot, out SkillDefinition? skillDef))
                 {
@@ -624,7 +922,7 @@ public sealed partial class MultiplayerSession
                 }
                 else
                 {
-                    caster.ActiveActionKind = ClientActionKind.SwordSlash;
+                    caster.ActiveActionKind = ActionAnimationKind.SwordSlash;
                 }
 
                 caster.AttackAnimDuration = isProjectile ? 0.28f : 0.45f;
@@ -709,7 +1007,7 @@ public sealed partial class MultiplayerSession
                 {
                     _lockedTargetNetworkId = 0UL;
                     _hudNotifications.Add("YOU WERE SLAIN - RESPAWNED AT SANCTUARY");
-                    _combatEvents.Add(new ClientCombatEvent(
+                    _combatEvents.Add(new CombatFeedbackEvent(
                         worldPos + new Vector2(0f, -20f),
                         0f,
                         IsCritical: true,
@@ -742,15 +1040,15 @@ public sealed partial class MultiplayerSession
                 }
 
                 attackerState.ActiveActionKind = attackerState.Kind == EntityKind.Monster
-                    ? ClientActionKind.MonsterStrike
-                    : ClientActionKind.SwordSlash;
+                    ? ActionAnimationKind.MonsterStrike
+                    : ActionAnimationKind.SwordSlash;
                 attackerState.AttackAnimDuration = 0.30f;
                 attackerState.AttackAnimTimer = 0.30f;
             }
 
             bool isHeal = pkt.Damage < 0f;
             float mag = MathF.Abs(pkt.Damage);
-            _combatEvents.Add(new ClientCombatEvent(worldPos, mag, pkt.IsCritical, isHeal));
+            _combatEvents.Add(new CombatFeedbackEvent(worldPos, mag, pkt.IsCritical, isHeal));
         }
     }
 
@@ -782,7 +1080,7 @@ public sealed partial class MultiplayerSession
                 if (previous.ItemId == next.ItemId && pkt.UpgradeLevel > prevUpg)
                 {
                     string forgeMsg = $"+{pkt.UpgradeLevel} {StarterGameCatalog.GetDisplayName(next.ItemId)} Forged!";
-                    _combatEvents.Add(new ClientCombatEvent(
+                    _combatEvents.Add(new CombatFeedbackEvent(
                         localPos + new Vector2(0f, -14f),
                         pkt.UpgradeLevel,
                         IsCritical: true,
@@ -799,7 +1097,7 @@ public sealed partial class MultiplayerSession
                 if (gained > 0)
                 {
                     string popup = $"+{gained} {StarterGameCatalog.GetDisplayName(next.ItemId)}";
-                    _combatEvents.Add(new ClientCombatEvent(
+                    _combatEvents.Add(new CombatFeedbackEvent(
                         localPos + new Vector2(0f, -12f),
                         gained,
                         IsCritical: false,
@@ -814,7 +1112,7 @@ public sealed partial class MultiplayerSession
                     if (previous.Durability > 0f && next.Durability <= 0f)
                     {
                         string brokenMsg = $"{StarterGameCatalog.GetDisplayName(next.ItemId)} Worn Out!";
-                        _combatEvents.Add(new ClientCombatEvent(
+                        _combatEvents.Add(new CombatFeedbackEvent(
                             localPos + new Vector2(0f, -14f),
                             0f,
                             IsCritical: true,
@@ -825,7 +1123,7 @@ public sealed partial class MultiplayerSession
                     else if (previous.Durability <= 0f && next.Durability > 0f)
                     {
                         string mendMsg = $"{StarterGameCatalog.GetDisplayName(next.ItemId)} Mended!";
-                        _combatEvents.Add(new ClientCombatEvent(
+                        _combatEvents.Add(new CombatFeedbackEvent(
                             localPos + new Vector2(0f, -14f),
                             next.Durability,
                             IsCritical: false,
@@ -865,7 +1163,7 @@ public sealed partial class MultiplayerSession
                     previous.Destructibility.IsDestructible;
 
                 Vector2 worldPos = updated.WorldPosition;
-                _propImpactEvents.Add(new ClientPropImpactEvent(
+                _propImpactEvents.Add(new PropImpactEvent(
                     pkt.TileX,
                     pkt.TileY,
                     worldPos,
@@ -891,7 +1189,7 @@ public sealed partial class MultiplayerSession
                     string warn = eval.Outcome != ToolStrikeOutcome.Optimal
                         ? ToolUsagePolicy.GetMisuseWarning(eval.Outcome, updated.Destructibility.HarvestTier)
                         : $"Need Tier {updated.Destructibility.HarvestTier} Tool!";
-                    _combatEvents.Add(new ClientCombatEvent(worldPos, 0f, IsCritical: false, IsHeal: false, Label: warn));
+                    _combatEvents.Add(new CombatFeedbackEvent(worldPos, 0f, IsCritical: false, IsHeal: false, Label: warn));
                     _hudNotifications.Add(warn);
                 }
                 else if (damageDealt > 0.5f)
@@ -904,7 +1202,7 @@ public sealed partial class MultiplayerSession
                         in activeSlot,
                         kind,
                         updated.Destructibility.HarvestTier);
-                    _combatEvents.Add(new ClientCombatEvent(
+                    _combatEvents.Add(new CombatFeedbackEvent(
                         worldPos,
                         damageDealt,
                         IsCritical: pkt.IsDestroyed,
@@ -969,7 +1267,7 @@ public sealed partial class MultiplayerSession
         public ushort Level { get; set; } = 1;
         public int LootCount { get; init; }
         public byte WeaponUpgradeLevel { get; set; }
-        public ClientActionKind ActiveActionKind { get; set; }
+        public ActionAnimationKind ActiveActionKind { get; set; }
         public SnapshotInterpolationBuffer Interpolation { get; } = new(16);
     }
 }

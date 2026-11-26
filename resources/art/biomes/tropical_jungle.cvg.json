@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 2,
+  "biomeId": 8,
+  "id": "tropical_jungle",
+  "displayName": "Tropical Jungle",
+  "groundColor": "#23683D",
+  "minimapColor": "#1C7C3E",
+  "cliffBase": "#464C52",
+  "cliffStrata": "#363B41",
+  "cliffHighlight": "#A5ACB4E6",
+  "cliffShadow": "#24282D",
+  "detailChancePercent": 26,
+  "palette": {
+    "fern": "#34A853",
+    "fernDark": "#154D2B",
+    "orchid": "#EC4899",
+    "gold": "#FACC15",
+    "vine": "#4ADE80A0"
+  },
+  "detailVariants": [
+    {
+      "shapes": [
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              15,
+              22
+            ],
+            [
+              9,
+              12
+            ],
+            [
+              16,
+              17
+            ]
+          ],
+          "color": "$fern"
+        },
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              16,
+              22
+            ],
+            [
+              23,
+              12
+            ],
+            [
+              17,
+              17
+            ]
+          ],
+          "color": "$fern"
+        },
+        {
+          "kind": "polygon",
+          "points": [
+            [
+              16,
+              21
+            ],
+            [
+              15,
+              9
+            ],
+            [
+              18,
+              17
+            ]
+          ],
+          "color": "$vine"
+        }
+      ]
+    },
+    {
+      "shapes": [
+        {
+          "kind": "ellipse",
+          "x": 15,
+          "y": 16,
+          "rx": 4.2,
+          "ry": 2.6,
+          "color": "$fernDark"
+        },
+        {
+          "kind": "ellipse",
+          "x": 14,
+          "y": 15,
+          "rx": 2.4,
+          "ry": 2.0,
+          "color": "$orchid"
+        },
+        {
+          "kind": "ellipse",
+          "x": 14,
+          "y": 15,
+          "rx": 0.9,
+          "ry": 0.9,
+          "color": "$gold"
+        }
+      ]
+    },
+    {
+      "shapes": [
+        {
+          "kind": "capsule",
+          "x": 6,
+          "y": 19,
+          "x2": 24,
+          "y2": 13,
+          "thickness": 1.8,
+          "color": "$fernDark"
+        },
+        {
+          "kind": "ellipse",
+          "x": 12,
+          "y": 15,
+          "rx": 2.6,
+          "ry": 1.6,
+          "color": "$fern",
+          "rotDeg": -20
+        },
+        {
+          "kind": "ellipse",
+          "x": 20,
+          "y": 14,
+          "rx": 2.4,
+          "ry": 1.5,
+          "color": "$fern",
+          "rotDeg": 25
+        }
+      ]
+    }
+  ]
+}

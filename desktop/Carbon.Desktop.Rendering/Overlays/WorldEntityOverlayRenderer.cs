@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Contracts.Entities;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Feedback;
 using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Graphics.Batching.Common;
@@ -26,7 +26,7 @@ internal sealed class WorldEntityOverlayRenderer
 
     public void DrawGeometry(
         GeometryBatch batch,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         IVectorArtRepository? art,
         CombatFeedbackTracker feedback,
         CameraRig2D cameraRig,
@@ -179,7 +179,7 @@ internal sealed class WorldEntityOverlayRenderer
     public void DrawText(
         SpriteBatch spriteBatch,
         BitmapFont font,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         IVectorArtRepository? art,
         CombatFeedbackTracker feedback,
         CameraRig2D cameraRig,

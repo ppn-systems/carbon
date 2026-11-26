@@ -6,7 +6,9 @@ using System.IO;
 using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Contracts.Entities;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.Configuration;
+using Carbon.Desktop.Abstractions.Session;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Input;
 using Carbon.Desktop.Rendering;
 using Carbon.Desktop.Rendering.Hud;
@@ -30,14 +32,14 @@ using Silk.NET.OpenGL;
 namespace Carbon.Desktop.Scenes;
 
 /// <summary>
-/// Primary playable 2.5D MMORPG world scene orchestrating input polling, <see cref="IClientWorldSession"/> updates,
+/// Primary playable 2.5D MMORPG world scene orchestrating input polling, <see cref="IWorldSession"/> updates,
 /// <see cref="CameraRig2D"/> tracking, <see cref="WorldSceneRenderer"/> passes, <see cref="HudOverlayRenderer"/> HUD/Minimap,
 /// Settings/SkillTome/Bag/Workshop/Forge modals, and capture hooks.
 /// </summary>
 public sealed class WorldGameplayScene : GameScene
 {
-    private readonly IClientWorldSession _session;
-    private readonly DesktopClientOptions _options;
+    private readonly IWorldSession _session;
+    private readonly DesktopOptions _options;
     private readonly Camera2D _camera;
 
     private readonly List<(int ChunkX, int ChunkY)> _dirtyChunksScratch = new(16);
@@ -67,7 +69,7 @@ public sealed class WorldGameplayScene : GameScene
     /// <param name="session">Initialized online client world session.</param>
     /// <param name="options">Client runtime options.</param>
     /// <param name="camera">Shared 2D orthographic camera.</param>
-    public WorldGameplayScene(IClientWorldSession session, DesktopClientOptions options, Camera2D camera)
+    public WorldGameplayScene(IWorldSession session, DesktopOptions options, Camera2D camera)
         : base("WorldGameplay")
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
@@ -573,6 +575,7 @@ public sealed class WorldGameplayScene : GameScene
         }
 
         float frameDt = _options.CaptureFrames > 0 ? 1f / 15f : (float)dt;
+        _worldRenderer.EnsureWorldBound(_session);
         _worldRenderer.Render(
             _session,
             _cameraRig,
@@ -802,10 +805,12 @@ public sealed class WorldGameplayScene : GameScene
         ChunkWorld2D chunkWorld = _session.ChunkWorld;
         MapTile currentTile = chunkWorld.GetTileAtWorld(ptx, pty);
 
+        string biomeDisplayName = _worldRenderer?.VectorArt?.GetBiomeDisplayName((byte)currentTile.Biome) ?? currentTile.Biome.ToString();
+
         if (currentTile.Biome != _lastBiome)
         {
             _lastBiome = currentTile.Biome;
-            Console.WriteLine($"[Biome] Entered: {currentTile.Biome,-16} (Speed: {currentTile.MoveSpeedMultiplier * 100:F0}%)");
+            Console.WriteLine($"[Biome] Entered: {biomeDisplayName,-16} (Speed: {currentTile.MoveSpeedMultiplier * 100:F0}%)");
         }
 
         if (currentTile.HeightLevel != _lastHeight)
@@ -820,7 +825,10 @@ public sealed class WorldGameplayScene : GameScene
             {
                 _lastStructure = currentStructure.Type;
                 bool isRoofed = chunkWorld.Buildings.IsRoofedAt(ptx, pty);
-                Console.WriteLine($"[Structure] Entered: {currentStructure.Type} | Roofed: {isRoofed}");
+                string structureName = _worldRenderer?.VectorArt is { } artRepo && artRepo.TryGetStructure((byte)currentStructure.Type, out Carbon.Desktop.Rendering.VectorArt.CompiledStructureArt? structArt)
+                    ? structArt.DisplayName
+                    : currentStructure.Type.ToString();
+                Console.WriteLine($"[Structure] Entered: {structureName} | Roofed: {isRoofed}");
             }
         }
         else if (_lastStructure != StructureType.None)
@@ -832,7 +840,7 @@ public sealed class WorldGameplayScene : GameScene
         RampDirection currentRamp = chunkWorld.NavGrid.GetRamp(ptx, pty);
         string rampText = currentRamp != RampDirection.None ? $" [Ramp: {currentRamp}]" : string.Empty;
         string roofText = chunkWorld.Buildings.IsRoofedAt(ptx, pty) ? " [Roofed Room]" : string.Empty;
-        window.Title = $"Carbon MMORPG ({_session.TransportLabel}) | {_session.ActiveCharacterName} | Biome: {currentTile.Biome} | Alt: Lvl {currentTile.HeightLevel} | Nav: {walkability}{rampText}{roofText} | Peers: {_session.RemoteEntities.Count}";
+        window.Title = $"Carbon MMORPG ({_session.TransportLabel}) | {_session.ActiveCharacterName} | Biome: {biomeDisplayName} | Alt: Lvl {currentTile.HeightLevel} | Nav: {walkability}{rampText}{roofText} | Peers: {_session.RemoteEntities.Count}";
 
         int chunkX = Chunk2D.ToChunkCoord(ptx);
         int chunkY = Chunk2D.ToChunkCoord(pty);

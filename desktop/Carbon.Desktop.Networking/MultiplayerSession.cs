@@ -9,12 +9,15 @@ using System.Threading.Tasks;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Identity;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.Configuration;
+using Carbon.Desktop.Abstractions.Events;
+using Carbon.Desktop.Abstractions.Session;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Maps.Building;
 using Carbon.Maps.Streaming;
-using Carbon.Prediction.Client;
+using Carbon.Prediction.Reconciliation;
 using Carbon.Prediction.Remote;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
@@ -29,14 +32,14 @@ namespace Carbon.Desktop.Networking;
 /// low-latency movement/combat state over Authenticated UDP (<see cref="DatagramSession"/>),
 /// with automatic TCP fallback, background UDP auto-reconnect, prediction reconciliation, and snapshot interpolation.
 /// </summary>
-public sealed partial class MultiplayerSession : IClientWorldSession
+public sealed partial class MultiplayerSession : IWorldSession
 {
     private const float WalkSpeed = 250f;
     private const float SprintSpeed = 450f;
     private const double InterpolationDelaySeconds = 0.065;
     private const float IdleKeepAliveSeconds = 2.5f;
 
-    private readonly DesktopClientOptions _options;
+    private readonly DesktopOptions _options;
     private readonly List<IDisposable> _tcpSubscriptions = [];
     private readonly List<IDisposable> _udpSubscriptions = [];
     private readonly ConcurrentDictionary<ulong, RemoteEntityState> _remoteEntities = new();
@@ -44,15 +47,15 @@ public sealed partial class MultiplayerSession : IClientWorldSession
     private readonly ConcurrentDictionary<Guid, string> _characterNames = new();
     private readonly ConcurrentDictionary<Guid, byte> _characterPresets = new();
     private readonly List<RemoteEntityView> _remoteViewSnapshot = new(64);
-    private readonly List<ClientCombatEvent> _combatEvents = new(32);
-    private readonly List<ClientPropImpactEvent> _propImpactEvents = new(16);
+    private readonly List<CombatFeedbackEvent> _combatEvents = new(32);
+    private readonly List<PropImpactEvent> _propImpactEvents = new(16);
     private readonly List<(int ChunkX, int ChunkY)> _dirtyChunks = new(16);
     private readonly List<string> _hudNotifications = new(16);
     private readonly CharacterProgressionState _progression = new();
     private readonly Dictionary<ushort, float> _skillCooldowns = new(8);
     private readonly List<ushort> _cooldownKeyScratch = new(8);
     private readonly InventoryContainer _inventory = new(PlayerInventoryLayout.TotalCapacity);
-    private readonly ClientPredictionReconciler _reconciler = new(128);
+    private readonly PredictionReconciler _reconciler = new(128);
     private readonly SemaphoreSlim _connectGate = new(1, 1);
     private readonly SemaphoreSlim _udpGate = new(1, 1);
     private readonly Lock _worldGate = new();
@@ -65,6 +68,16 @@ public sealed partial class MultiplayerSession : IClientWorldSession
     private float _udpReconnectTimer;
     private int _udpReconnectAttempt;
     private int _udpReconnectInFlight;
+    private string _reconnectHost = string.Empty;
+    private ushort _reconnectPort;
+    private string _lastUsername = string.Empty;
+    private string _lastPassword = string.Empty;
+    private Guid _activeCharacterId;
+    private volatile bool _autoReconnectEnabled;
+    private bool _wasTcpConnectedLastFrame;
+    private float _tcpReconnectTimer;
+    private int _tcpReconnectAttempt;
+    private int _tcpReconnectInFlight;
     private string _connectedHost = string.Empty;
     private ushort _connectedPort;
     private bool _isAuthenticated;
@@ -108,7 +121,7 @@ public sealed partial class MultiplayerSession : IClientWorldSession
     private bool _inventoryLoaded;
     private Vector2 _localFacingDir = new(0f, 1f);
     private float _localHitFlashTimer;
-    private ClientActionState _currentAction = ClientActionState.None;
+    private ActionState _currentAction = ActionState.None;
     private byte _comboStep;
     private ulong _lockedTargetNetworkId;
     private float _forgeFeedbackTimer;
@@ -118,7 +131,7 @@ public sealed partial class MultiplayerSession : IClientWorldSession
     /// Initializes a new instance of the <see cref="MultiplayerSession"/> class.
     /// </summary>
     /// <param name="options">Client runtime options.</param>
-    public MultiplayerSession(DesktopClientOptions options) =>
+    public MultiplayerSession(DesktopOptions options) =>
         _options = options ?? throw new ArgumentNullException(nameof(options));
 
     /// <inheritdoc/>
@@ -246,7 +259,7 @@ public sealed partial class MultiplayerSession : IClientWorldSession
     public float LocalHitFlashTimer => _localHitFlashTimer;
 
     /// <inheritdoc/>
-    public ClientActionState CurrentAction => _currentAction;
+    public ActionState CurrentAction => _currentAction;
 
     /// <inheritdoc/>
     public ulong LockedTargetNetworkId => _lockedTargetNetworkId;
@@ -388,7 +401,7 @@ public sealed partial class MultiplayerSession : IClientWorldSession
     /// <inheritdoc/>
     public string TransportLabel =>
         !this.IsConnected
-            ? "OFFLINE"
+            ? (Volatile.Read(ref _tcpReconnectInFlight) != 0 ? "RECONNECTING" : "OFFLINE")
             : (this.IsUdpActive ? "TCP+UDP" : "TCP");
 
     /// <inheritdoc/>
@@ -403,7 +416,7 @@ public sealed partial class MultiplayerSession : IClientWorldSession
         }
 
         float fdt = (float)dt;
-        this.MonitorUdpHealth(fdt);
+        this.MonitorConnectionHealth(fdt);
 
         if (_attackSwingTimer > 0f)
         {
@@ -425,7 +438,7 @@ public sealed partial class MultiplayerSession : IClientWorldSession
             float rem = _currentAction.RemainingSeconds - fdt;
             _currentAction = rem > 0f
                 ? _currentAction with { RemainingSeconds = rem }
-                : ClientActionState.None;
+                : ActionState.None;
         }
 
         lock (_worldGate)
@@ -461,7 +474,7 @@ public sealed partial class MultiplayerSession : IClientWorldSession
                     rs.AttackAnimTimer = MathF.Max(0f, rs.AttackAnimTimer - fdt);
                     if (rs.AttackAnimTimer <= 0f)
                     {
-                        rs.ActiveActionKind = ClientActionKind.None;
+                        rs.ActiveActionKind = ActionAnimationKind.None;
                     }
                 }
 
@@ -579,9 +592,31 @@ public sealed partial class MultiplayerSession : IClientWorldSession
         _udpReconnectTimer = 1.5f;
     }
 
+    /// <summary>Tears down both TCP and UDP transports while keeping local world state alive to verify full OFFLINE recovery.</summary>
+    internal async Task DropAllTransportsForTestingAsync()
+    {
+        await _connectGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await this.TearDownTransportsAsync().ConfigureAwait(false);
+            _isAuthenticated = false;
+            _wasTcpConnectedLastFrame = false;
+            _tcpReconnectAttempt = 0;
+            _tcpReconnectTimer = 0.5f;
+        }
+        finally
+        {
+            _ = _connectGate.Release();
+        }
+    }
+
     /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
+        _autoReconnectEnabled = false;
+        _activeCharacterId = Guid.Empty;
+        _lastUsername = string.Empty;
+        _lastPassword = string.Empty;
         await this.TearDownTransportsAsync().ConfigureAwait(false);
         this.ClearWorldState();
         if (_sessionCts is not null)
@@ -616,7 +651,7 @@ public sealed partial class MultiplayerSession : IClientWorldSession
             _hasServerReconcile = false;
             _visualOffset = Vector2.Zero;
             _localHitFlashTimer = 0f;
-            _currentAction = ClientActionState.None;
+            _currentAction = ActionState.None;
             _localLevel = 1;
             _localExperience = 0U;
             _localXpToNext = 100U;

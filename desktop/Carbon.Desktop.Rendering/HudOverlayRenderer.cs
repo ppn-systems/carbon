@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Contracts.Entities;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Feedback;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Desktop.Rendering.UiSkin;
@@ -63,7 +63,7 @@ public sealed class HudOverlayRenderer : IDisposable
     }
 
     /// <summary>Gets the persisted client HUD &amp; display settings.</summary>
-    public ClientUiSettings Settings { get; } = ClientUiSettings.LoadOrDefault();
+    public UiSettings Settings { get; } = UiSettings.LoadOrDefault();
 
     /// <summary>Gets the primary bitmap font shared with world-space nameplates &amp; floating combat text.</summary>
     public BitmapFont Font => _font;
@@ -101,7 +101,7 @@ public sealed class HudOverlayRenderer : IDisposable
     public void PushNotification(string message) => _toasts.Push(message);
 
     /// <summary>Returns whether <paramref name="world"/> currently has at least one accessible class skill.</summary>
-    public bool HasAccessibleClassSkills(IClientWorldReadModel world)
+    public bool HasAccessibleClassSkills(IWorldReadModel world)
     {
         ArgumentNullException.ThrowIfNull(world);
         return PlayerModalTabs.HasClassSkills(world, _skillScratch);
@@ -111,7 +111,7 @@ public sealed class HudOverlayRenderer : IDisposable
     /// Opens or switches to <paramref name="tab"/>, or closes the player modal if already viewing <paramref name="tab"/>.
     /// Returns <see langword="false"/> if <paramref name="tab"/> is <see cref="PlayerModalTab.Skills"/> and the character has no class skills.
     /// </summary>
-    public bool OpenOrTogglePlayerTab(IClientWorldReadModel world, PlayerModalTab tab)
+    public bool OpenOrTogglePlayerTab(IWorldReadModel world, PlayerModalTab tab)
     {
         ArgumentNullException.ThrowIfNull(world);
         if (tab == PlayerModalTab.Skills && !this.HasAccessibleClassSkills(world))
@@ -167,7 +167,7 @@ public sealed class HudOverlayRenderer : IDisposable
 
     /// <summary>Hit-tests top-left window tab clicks when the unified player window is open.</summary>
     public bool TryHitTestPlayerModalTab(
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         Vector2 mousePos,
         int viewportWidth,
         int viewportHeight,
@@ -200,7 +200,7 @@ public sealed class HudOverlayRenderer : IDisposable
     /// <summary>Hit-tests clicks inside the Crafting tab of the player modal.</summary>
     public bool TryHandleCraftingClick(
         Vector2 mousePos,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         int viewportWidth,
         int viewportHeight,
         out ushort craftRecipeId,
@@ -221,7 +221,7 @@ public sealed class HudOverlayRenderer : IDisposable
 
     /// <summary>Hit-tests unlock/rank-up buttons inside the Class Skills tab.</summary>
     public bool TryHitTestSkillUpgrade(
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         Vector2 mousePos,
         int viewportWidth,
         int viewportHeight,
@@ -270,7 +270,7 @@ public sealed class HudOverlayRenderer : IDisposable
     }
 
     /// <summary>Returns whether <paramref name="mousePos"/> falls inside the currently open modal window (including top tabs).</summary>
-    public bool IsPointInActiveModal(IClientWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
+    public bool IsPointInActiveModal(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
         ArgumentNullException.ThrowIfNull(world);
         if (!this.Visible || viewportWidth <= 0 || viewportHeight <= 0)
@@ -304,7 +304,7 @@ public sealed class HudOverlayRenderer : IDisposable
     }
 
     /// <summary>Hit-tests screen-space coordinates against the right-edge class skill bar.</summary>
-    public bool TryHitTestSkill(IClientWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort skillId)
+    public bool TryHitTestSkill(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort skillId)
     {
         ArgumentNullException.ThrowIfNull(world);
         skillId = 0;
@@ -321,7 +321,7 @@ public sealed class HudOverlayRenderer : IDisposable
     }
 
     /// <summary>Hit-tests gear row selection inside the Blacksmith Forge Anvil modal.</summary>
-    public bool TrySelectForgeGear(Vector2 mousePos, IClientWorldReadModel world, int viewportWidth, int viewportHeight)
+    public bool TrySelectForgeGear(Vector2 mousePos, IWorldReadModel world, int viewportWidth, int viewportHeight)
     {
         ArgumentNullException.ThrowIfNull(world);
         return this.Visible && this.ShowForgeModal && viewportWidth > 0 && viewportHeight > 0 &&
@@ -334,7 +334,7 @@ public sealed class HudOverlayRenderer : IDisposable
         _forgeModal.TryHitTestForgeButton(mousePos, viewportWidth, viewportHeight);
 
     /// <summary>Resolves the selected upgradable gear slot inside the Forge Anvil modal.</summary>
-    public int ResolveForgeTargetSlot(IClientWorldReadModel world)
+    public int ResolveForgeTargetSlot(IWorldReadModel world)
     {
         ArgumentNullException.ThrowIfNull(world);
         return _forgeModal.ResolveTargetSlot(world);
@@ -342,7 +342,7 @@ public sealed class HudOverlayRenderer : IDisposable
 
     /// <summary>Renders all screen-space RPG HUD widgets and active modals in strict 3-pass Z order.</summary>
     public void Render(
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         SpriteBatch spriteBatch,
         int viewportWidth,
         int viewportHeight,
@@ -394,7 +394,7 @@ public sealed class HudOverlayRenderer : IDisposable
         _targetWidget.DrawGeometry(_geometryBatch, _art, viewportWidth, _animTime);
         if (this.Settings.ShowMinimap)
         {
-            _minimap.DrawGeometry(_geometryBatch, world, viewportWidth, ptx, pty);
+            _minimap.DrawGeometry(_geometryBatch, world, _art, viewportWidth, ptx, pty);
         }
 
         int hoveredSlot = _hotbar.DrawGeometry(_geometryBatch, world, _art, feedback, viewportWidth, viewportHeight, bgMouse);

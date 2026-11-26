@@ -3,7 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
@@ -24,7 +24,7 @@ internal sealed class SkillBarWidget
 
     private readonly List<SkillDefinition> _visibleSkills = new(8);
 
-    public bool TryHitTestSkill(IClientWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort skillId)
+    public bool TryHitTestSkill(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort skillId)
     {
         skillId = 0;
         this.CollectVisibleSkills(world);
@@ -55,7 +55,7 @@ internal sealed class SkillBarWidget
     public void DrawSkin(
         SpriteBatch spriteBatch,
         CarbonUiSkin skin,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         int viewportWidth,
         int viewportHeight)
     {
@@ -94,7 +94,7 @@ internal sealed class SkillBarWidget
 
     public ushort DrawGeometry(
         GeometryBatch batch,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         int viewportWidth,
         int viewportHeight,
         Vector2? mouseScreenPos)
@@ -171,7 +171,7 @@ internal sealed class SkillBarWidget
     public void DrawText(
         SpriteBatch spriteBatch,
         BitmapFont font,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         int viewportWidth,
         int viewportHeight,
         ushort hoveredSkillId)
@@ -282,7 +282,7 @@ internal sealed class SkillBarWidget
     internal static ColorRgba ResolveAccentColor(SkillDefinition skill) =>
         CarbonUiSkin.ParseHexColor(skill.AccentHex, CarbonUiPalette.BorderActive);
 
-    private void CollectVisibleSkills(IClientWorldReadModel world) =>
+    private void CollectVisibleSkills(IWorldReadModel world) =>
         SkillCatalog.CollectCharacterSkills(
             world.LocalPlayerClass,
             world.LocalCharacterTraits,

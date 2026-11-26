@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "characters": [
     {
       "preset": 0,
@@ -385,6 +385,276 @@
       "tier": 3,
       "accentColor": "#A855F7",
       "file": "items/shaman_staff.cvg.json"
+    }
+  ],
+  "props": [
+    {
+      "propType": 1,
+      "id": "oak_tree",
+      "displayName": "Oak Tree",
+      "file": "props/oak_tree.cvg.json"
+    },
+    {
+      "propType": 2,
+      "id": "pine_tree",
+      "displayName": "Pine Tree",
+      "file": "props/pine_tree.cvg.json"
+    },
+    {
+      "propType": 3,
+      "id": "snow_pine",
+      "displayName": "Snow Pine",
+      "file": "props/snow_pine.cvg.json"
+    },
+    {
+      "propType": 4,
+      "id": "palm_tree",
+      "displayName": "Palm Tree",
+      "file": "props/palm_tree.cvg.json"
+    },
+    {
+      "propType": 5,
+      "id": "birch_tree",
+      "displayName": "Birch Tree",
+      "file": "props/birch_tree.cvg.json"
+    },
+    {
+      "propType": 6,
+      "id": "willow_tree",
+      "displayName": "Willow Tree",
+      "file": "props/willow_tree.cvg.json"
+    },
+    {
+      "propType": 7,
+      "id": "dead_tree",
+      "displayName": "Dead Tree",
+      "file": "props/dead_tree.cvg.json"
+    },
+    {
+      "propType": 8,
+      "id": "cactus",
+      "displayName": "Cactus",
+      "file": "props/cactus.cvg.json"
+    },
+    {
+      "propType": 9,
+      "id": "bush",
+      "displayName": "Bush",
+      "file": "props/bush.cvg.json"
+    },
+    {
+      "propType": 10,
+      "id": "mushroom_cluster",
+      "displayName": "Mushroom Cluster",
+      "file": "props/mushroom_cluster.cvg.json"
+    },
+    {
+      "propType": 11,
+      "id": "copper_vein",
+      "displayName": "Copper Vein",
+      "file": "props/copper_vein.cvg.json"
+    },
+    {
+      "propType": 12,
+      "id": "iron_vein",
+      "displayName": "Iron Vein",
+      "file": "props/iron_vein.cvg.json"
+    },
+    {
+      "propType": 13,
+      "id": "gold_vein",
+      "displayName": "Gold Vein",
+      "file": "props/gold_vein.cvg.json"
+    },
+    {
+      "propType": 14,
+      "id": "coal_deposit",
+      "displayName": "Coal Deposit",
+      "file": "props/coal_deposit.cvg.json"
+    },
+    {
+      "propType": 15,
+      "id": "silver_vein",
+      "displayName": "Silver Vein",
+      "file": "props/silver_vein.cvg.json"
+    },
+    {
+      "propType": 16,
+      "id": "crystal_cluster",
+      "displayName": "Crystal Cluster",
+      "file": "props/crystal_cluster.cvg.json"
+    },
+    {
+      "propType": 17,
+      "id": "boulder",
+      "displayName": "Boulder",
+      "file": "props/boulder.cvg.json"
+    },
+    {
+      "propType": 18,
+      "id": "basalt_pillar",
+      "displayName": "Basalt Pillar",
+      "file": "props/basalt_pillar.cvg.json"
+    },
+    {
+      "propType": 19,
+      "id": "ancient_shrine",
+      "displayName": "Ancient Shrine",
+      "file": "props/ancient_shrine.cvg.json"
+    },
+    {
+      "propType": 20,
+      "id": "acacia_tree",
+      "displayName": "Acacia Tree",
+      "file": "props/acacia_tree.cvg.json"
+    },
+    {
+      "propType": 21,
+      "id": "cherry_blossom_tree",
+      "displayName": "Cherry Blossom Tree",
+      "file": "props/cherry_blossom_tree.cvg.json"
+    },
+    {
+      "propType": 22,
+      "id": "glacial_crystal",
+      "displayName": "Glacial Crystal",
+      "file": "props/glacial_crystal.cvg.json"
+    }
+  ],
+  "biomes": [
+    {
+      "biomeId": 0,
+      "id": "deep_ocean",
+      "displayName": "Deep Ocean",
+      "file": "biomes/deep_ocean.cvg.json"
+    },
+    {
+      "biomeId": 1,
+      "id": "shallow_water",
+      "displayName": "Shallow Water",
+      "file": "biomes/shallow_water.cvg.json"
+    },
+    {
+      "biomeId": 2,
+      "id": "beach_sand",
+      "displayName": "Beach Sand",
+      "file": "biomes/beach_sand.cvg.json"
+    },
+    {
+      "biomeId": 3,
+      "id": "lush_plains",
+      "displayName": "Lush Plains",
+      "file": "biomes/lush_plains.cvg.json"
+    },
+    {
+      "biomeId": 4,
+      "id": "ancient_forest",
+      "displayName": "Ancient Forest",
+      "file": "biomes/ancient_forest.cvg.json"
+    },
+    {
+      "biomeId": 5,
+      "id": "misty_swamp",
+      "displayName": "Misty Swamp",
+      "file": "biomes/misty_swamp.cvg.json"
+    },
+    {
+      "biomeId": 6,
+      "id": "dune_desert",
+      "displayName": "Dune Desert",
+      "file": "biomes/dune_desert.cvg.json"
+    },
+    {
+      "biomeId": 7,
+      "id": "red_mesa",
+      "displayName": "Red Mesa",
+      "file": "biomes/red_mesa.cvg.json"
+    },
+    {
+      "biomeId": 8,
+      "id": "tropical_jungle",
+      "displayName": "Tropical Jungle",
+      "file": "biomes/tropical_jungle.cvg.json"
+    },
+    {
+      "biomeId": 9,
+      "id": "frozen_tundra",
+      "displayName": "Frozen Tundra",
+      "file": "biomes/frozen_tundra.cvg.json"
+    },
+    {
+      "biomeId": 10,
+      "id": "volcanic_ashland",
+      "displayName": "Volcanic Ashland",
+      "file": "biomes/volcanic_ashland.cvg.json"
+    },
+    {
+      "biomeId": 11,
+      "id": "alpine_peaks",
+      "displayName": "Alpine Peaks",
+      "file": "biomes/alpine_peaks.cvg.json"
+    },
+    {
+      "biomeId": 12,
+      "id": "savanna",
+      "displayName": "Savanna",
+      "file": "biomes/savanna.cvg.json"
+    },
+    {
+      "biomeId": 13,
+      "id": "blossom_woods",
+      "displayName": "Blossom Woods",
+      "file": "biomes/blossom_woods.cvg.json"
+    }
+  ],
+  "structures": [
+    {
+      "structureType": 1,
+      "id": "wood_wall",
+      "displayName": "Wood Wall",
+      "file": "structures/wood_wall.cvg.json"
+    },
+    {
+      "structureType": 2,
+      "id": "stone_wall",
+      "displayName": "Stone Wall",
+      "file": "structures/stone_wall.cvg.json"
+    },
+    {
+      "structureType": 3,
+      "id": "wood_door",
+      "displayName": "Wood Door",
+      "file": "structures/wood_door.cvg.json"
+    },
+    {
+      "structureType": 4,
+      "id": "stone_door",
+      "displayName": "Stone Door",
+      "file": "structures/stone_door.cvg.json"
+    },
+    {
+      "structureType": 5,
+      "id": "wood_floor",
+      "displayName": "Wood Floor",
+      "file": "structures/wood_floor.cvg.json"
+    },
+    {
+      "structureType": 6,
+      "id": "stone_floor",
+      "displayName": "Stone Floor",
+      "file": "structures/stone_floor.cvg.json"
+    },
+    {
+      "structureType": 7,
+      "id": "roof_pillar",
+      "displayName": "Roof Pillar",
+      "file": "structures/roof_pillar.cvg.json"
+    },
+    {
+      "structureType": 8,
+      "id": "forge_anvil",
+      "displayName": "Forge Anvil",
+      "file": "structures/forge_anvil.cvg.json"
     }
   ]
 }

@@ -2,7 +2,7 @@
 
 using System;
 using System.Numerics;
-using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Feedback;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -31,7 +31,7 @@ internal sealed class HotbarAndItemWidget
     public void DrawSkin(
         SpriteBatch spriteBatch,
         CarbonUiSkin skin,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         int viewportWidth,
         int viewportHeight)
     {
@@ -89,7 +89,7 @@ internal sealed class HotbarAndItemWidget
 
     public int DrawGeometry(
         GeometryBatch batch,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         IVectorArtRepository? art,
         CombatFeedbackTracker? feedback,
         int viewportWidth,
@@ -157,7 +157,7 @@ internal sealed class HotbarAndItemWidget
     public void DrawText(
         SpriteBatch spriteBatch,
         BitmapFont font,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         IVectorArtRepository? art,
         int viewportWidth,
         int viewportHeight,
@@ -215,7 +215,7 @@ internal sealed class HotbarAndItemWidget
 
     private static void DrawVitalsClusterGeometry(
         GeometryBatch batch,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         CombatFeedbackTracker? feedback,
         float startX,
         float barsY,
@@ -287,7 +287,7 @@ internal sealed class HotbarAndItemWidget
     private static void DrawVitalsClusterText(
         SpriteBatch spriteBatch,
         BitmapFont font,
-        IClientWorldReadModel world,
+        IWorldReadModel world,
         float startX,
         float barsY)
     {

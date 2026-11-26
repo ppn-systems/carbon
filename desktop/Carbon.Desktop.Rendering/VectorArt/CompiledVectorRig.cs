@@ -267,6 +267,9 @@ public sealed class CompiledVectorRig
         Dictionary<string, CompiledVectorAnimation> animations,
         bool supportsModularHuman = false)
     {
+        ArgumentNullException.ThrowIfNull(shapes);
+        ArgumentNullException.ThrowIfNull(animations);
+
         this.Id = id;
         this.Title = title;
         this.Subtitle = subtitle;
@@ -284,7 +287,19 @@ public sealed class CompiledVectorRig
         this.Shapes = shapes;
         _animations = animations;
         this.SupportsModularHuman = supportsModularHuman;
+        this.SouthPortraitBounds = ComputePortraitBounds(shapes, VectorFacingFilter.South, this.DesignHeight);
+        this.SidePortraitBounds = ComputePortraitBounds(shapes, VectorFacingFilter.Side, this.DesignHeight);
+        this.NorthPortraitBounds = ComputePortraitBounds(shapes, VectorFacingFilter.North, this.DesignHeight);
     }
+
+    /// <summary>Pre-computed design-space South facing bounds <c>(minX, minY, maxX, maxY)</c> for O(1) portrait framing.</summary>
+    public Vector4 SouthPortraitBounds { get; }
+
+    /// <summary>Pre-computed design-space Side facing bounds <c>(minX, minY, maxX, maxY)</c> for O(1) portrait framing.</summary>
+    public Vector4 SidePortraitBounds { get; }
+
+    /// <summary>Pre-computed design-space North facing bounds <c>(minX, minY, maxX, maxY)</c> for O(1) portrait framing.</summary>
+    public Vector4 NorthPortraitBounds { get; }
 
     /// <summary>Whether modular skin/hair/face and armor overlays composite onto this rig.</summary>
     public bool SupportsModularHuman { get; }
@@ -423,5 +438,97 @@ public sealed class CompiledVectorRig
                 return;
             }
         }
+        return;
+    }
+
+    private static Vector4 ComputePortraitBounds(CompiledVectorShape[] shapes, VectorFacingFilter targetFacing, float designHeight)
+    {
+        bool isSouth = targetFacing == VectorFacingFilter.South;
+        bool isSide = targetFacing == VectorFacingFilter.Side;
+        bool isNorth = targetFacing == VectorFacingFilter.North;
+
+        float minX = float.MaxValue;
+        float minY = float.MaxValue;
+        float maxX = float.MinValue;
+        float maxY = float.MinValue;
+
+        for (int i = 0; i < shapes.Length; i++)
+        {
+            ref readonly CompiledVectorShape s = ref shapes[i];
+            if (s.Bone == VectorBoneId.Root && s.P0.Y >= -3f)
+            {
+                continue;
+            }
+
+            bool visible = s.Facing switch
+            {
+                VectorFacingFilter.South => isSouth,
+                VectorFacingFilter.Side => isSide,
+                VectorFacingFilter.North => isNorth,
+                VectorFacingFilter.NotNorth => !isNorth,
+                VectorFacingFilter.Any or _ => true,
+            };
+            if (!visible)
+            {
+                continue;
+            }
+
+            switch (s.Kind)
+            {
+                case VectorShapeKind.Ellipse:
+                    minX = MathF.Min(minX, s.P0.X - s.P1.X);
+                    maxX = MathF.Max(maxX, s.P0.X + s.P1.X);
+                    minY = MathF.Min(minY, s.P0.Y - s.P1.Y);
+                    maxY = MathF.Max(maxY, s.P0.Y + s.P1.Y);
+                    break;
+
+                case VectorShapeKind.Rect:
+                    minX = MathF.Min(minX, s.P0.X);
+                    maxX = MathF.Max(maxX, s.P0.X + s.P1.X);
+                    minY = MathF.Min(minY, s.P0.Y);
+                    maxY = MathF.Max(maxY, s.P0.Y + s.P1.Y);
+                    break;
+
+                case VectorShapeKind.Capsule:
+                case VectorShapeKind.Line:
+                    float half = s.Thickness * 0.5f;
+                    minX = MathF.Min(minX, MathF.Min(s.P0.X, s.P1.X) - half);
+                    maxX = MathF.Max(maxX, MathF.Max(s.P0.X, s.P1.X) + half);
+                    minY = MathF.Min(minY, MathF.Min(s.P0.Y, s.P1.Y) - half);
+                    maxY = MathF.Max(maxY, MathF.Max(s.P0.Y, s.P1.Y) + half);
+                    break;
+
+                case VectorShapeKind.Polygon:
+                    if (s.PolygonPoints is not null)
+                    {
+                        for (int v = 0; v < s.PolygonPoints.Length; v++)
+                        {
+                            minX = MathF.Min(minX, s.PolygonPoints[v].X);
+                            maxX = MathF.Max(maxX, s.PolygonPoints[v].X);
+                            minY = MathF.Min(minY, s.PolygonPoints[v].Y);
+                            maxY = MathF.Max(maxY, s.PolygonPoints[v].Y);
+                        }
+                    }
+
+                    break;
+
+                case VectorShapeKind.Ring:
+                    minX = MathF.Min(minX, s.P0.X - s.P1.X);
+                    maxX = MathF.Max(maxX, s.P0.X + s.P1.X);
+                    minY = MathF.Min(minY, s.P0.Y - s.P1.X);
+                    maxY = MathF.Max(maxY, s.P0.Y + s.P1.X);
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
+        if (minX > maxX || minY > maxY)
+        {
+            return new Vector4(-10f, -designHeight, 10f, 0f);
+        }
+
+        return new Vector4(minX, minY, maxX, maxY);
     }
 }
