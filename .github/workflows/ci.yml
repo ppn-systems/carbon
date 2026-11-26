@@ -36,3 +36,5 @@ jobs:
         run: dotnet test tests/Carbon.Host.Tests.slnx -c Release
       - name: Test desktop
         run: dotnet test tests/Carbon.Desktop.Tests.slnx -c Release
+      - name: Test architecture
+        run: dotnet test tests/Carbon.Architecture.Tests.slnx -c Release

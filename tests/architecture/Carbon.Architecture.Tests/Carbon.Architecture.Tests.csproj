@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <!-- References every production project so reflection rules can load each assembly.
+         ProductionProjects_ShouldAllBeReferencedByArchitectureTests fails when a new project is not added here. -->
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\contracts\Carbon.Contracts.Common\Carbon.Contracts.Common.csproj" />
+        <ProjectReference Include="..\..\..\contracts\Carbon.Contracts.Entities\Carbon.Contracts.Entities.csproj" />
+        <ProjectReference Include="..\..\..\contracts\Carbon.Contracts.Identity\Carbon.Contracts.Identity.csproj" />
+        <ProjectReference Include="..\..\..\contracts\Carbon.Contracts.Items\Carbon.Contracts.Items.csproj" />
+        <ProjectReference Include="..\..\..\contracts\Carbon.Contracts.Maps\Carbon.Contracts.Maps.csproj" />
+        <ProjectReference Include="..\..\..\desktop\Carbon.Desktop.Abstractions\Carbon.Desktop.Abstractions.csproj" />
+        <ProjectReference Include="..\..\..\desktop\Carbon.Desktop.Networking\Carbon.Desktop.Networking.csproj" />
+        <ProjectReference Include="..\..\..\desktop\Carbon.Desktop.Rendering\Carbon.Desktop.Rendering.csproj" />
+        <ProjectReference Include="..\..\..\desktop\Carbon.Desktop\Carbon.Desktop.csproj" />
+        <ProjectReference Include="..\..\..\engine\Carbon.AI\Carbon.AI.csproj" />
+        <ProjectReference Include="..\..\..\engine\Carbon.Combat\Carbon.Combat.csproj" />
+        <ProjectReference Include="..\..\..\engine\Carbon.Data\Carbon.Data.csproj" />
+        <ProjectReference Include="..\..\..\engine\Carbon.Items\Carbon.Items.csproj" />
+        <ProjectReference Include="..\..\..\engine\Carbon.Maps\Carbon.Maps.csproj" />
+        <ProjectReference Include="..\..\..\engine\Carbon.Physics\Carbon.Physics.csproj" />
+        <ProjectReference Include="..\..\..\engine\Carbon.Prediction\Carbon.Prediction.csproj" />
+        <ProjectReference Include="..\..\..\engine\Carbon.Primitives\Carbon.Primitives.csproj" />
+        <ProjectReference Include="..\..\..\engine\Carbon.Simulation\Carbon.Simulation.csproj" />
+        <ProjectReference Include="..\..\..\graphics\Carbon.Graphics.Animation\Carbon.Graphics.Animation.csproj" />
+        <ProjectReference Include="..\..\..\graphics\Carbon.Graphics.Assets\Carbon.Graphics.Assets.csproj" />
+        <ProjectReference Include="..\..\..\graphics\Carbon.Graphics.Batching\Carbon.Graphics.Batching.csproj" />
+        <ProjectReference Include="..\..\..\graphics\Carbon.Graphics.Fonts\Carbon.Graphics.Fonts.csproj" />
+        <ProjectReference Include="..\..\..\graphics\Carbon.Graphics.OpenGL\Carbon.Graphics.OpenGL.csproj" />
+        <ProjectReference Include="..\..\..\graphics\Carbon.Graphics.Scenes\Carbon.Graphics.Scenes.csproj" />
+        <ProjectReference Include="..\..\..\graphics\Carbon.Graphics.UI\Carbon.Graphics.UI.csproj" />
+        <ProjectReference Include="..\..\..\graphics\Carbon.Graphics.Windowing\Carbon.Graphics.Windowing.csproj" />
+        <ProjectReference Include="..\..\..\server\Carbon.Abstractions\Carbon.Abstractions.csproj" />
+        <ProjectReference Include="..\..\..\server\Carbon.Application\Carbon.Application.csproj" />
+        <ProjectReference Include="..\..\..\server\Carbon.Handlers\Carbon.Handlers.csproj" />
+        <ProjectReference Include="..\..\..\server\Carbon.Host\Carbon.Host.csproj" />
+        <ProjectReference Include="..\..\..\server\Carbon.Infrastructure\Carbon.Infrastructure.csproj" />
+    </ItemGroup>
+</Project>
