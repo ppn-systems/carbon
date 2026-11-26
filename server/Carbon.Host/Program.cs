@@ -1,8 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
-using System.IO;
-using System.Text;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,7 +8,6 @@ using Carbon.Abstractions.Configuration;
 using Carbon.Abstractions.Persistence;
 using Carbon.Application.Identity;
 using Carbon.Application.World;
-using Carbon.Creatures;
 using Carbon.Economy;
 using Carbon.Infrastructure.Configuration;
 using Carbon.Infrastructure.Persistence.Postgres;
@@ -18,8 +15,6 @@ using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Infrastructure.Security;
 using Carbon.Items.Catalog;
 using Carbon.Server.Configuration;
-using Carbon.Survival.Config;
-using Carbon.Survival.Food;
 using Microsoft.Extensions.Logging;
 using Nalix.Hosting;
 using Npgsql;
@@ -107,18 +102,10 @@ public static class Program
                 config.ManifestVersion);
         }
 
-        GameEconomy economy = GameEconomy.Load(config.Catalog);
+        ServerGameData gameData = ServerGameData.Load(config.Catalog);
 
         // Item stats and recipes used by combat, harvesting, crafting and inventory come from the same snapshot.
-        StarterGameCatalog.Install(economy.Items, economy.Recipes);
-
-        CreatureContent creatures = CreatureContent.FromJson(
-            ReadDocument(config, CreatureContent.MonstersFileName),
-            ReadDocument(config, CreatureContent.SpawningFileName));
-
-        // Survival tuning (hunger decay, food nutrition) comes from the same served snapshot.
-        NeedsConfig needsConfig = NeedsConfig.LoadFromJson(ReadDocument(config, "needs.json"));
-        FoodCatalog foodCatalog = FoodCatalog.LoadFromJson(ReadDocument(config, "food.json"), needsConfig.FoodMax);
+        StarterGameCatalog.Install(gameData.Economy.Items, gameData.Economy.Recipes);
 
         AuthoritativeWorld world = new(
             options.WorldSeed,
@@ -129,10 +116,12 @@ public static class Program
             characterStore,
             outboundSink,
             time: null,
-            needsConfig,
-            foodCatalog,
-            economy,
-            creatures: creatures);
+            gameData.Needs,
+            gameData.Food,
+            gameData.Economy,
+            ServerGameData.LoadStructures(config.Catalog),
+            ServerGameData.LoadCreatures(config.Catalog));
+        ServerGameData.BindHotReload(config, world);
 
         await world.InitializeFromStoreAsync().ConfigureAwait(false);
 
@@ -150,8 +139,7 @@ public static class Program
             return 0;
         }
 
-        // Hot reload is opt-in: domains built at boot (economy) do not swap their tables yet, and the server must never
-        // serve clients a config it is not running itself.
+        // Hot reload swaps the served manifest and the running domains together (ServerGameData.BindHotReload).
         using ConfigHotReloadWatcher? configWatcher = options.ConfigHotReload ? new(config, logger) : null;
         NetworkApplication app = Startup.Build(options, authService, world, outboundSink, transportRegistry, logger, config);
         await using ConfiguredAsyncDisposable appScope = app.ConfigureAwait(false);
@@ -197,7 +185,4 @@ public static class Program
             : GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)
                 ?? GameEconomy.FindConfigDirectory(Environment.CurrentDirectory)
                 ?? throw new InvalidOperationException("resources/config was not found; set CARBON_CONFIG_DIR.");
-
-    private static string ReadDocument(ConfigRepository config, string fileName) =>
-        Encoding.UTF8.GetString(config.Catalog.GetUtf8(Path.GetFileNameWithoutExtension(fileName)));
 }

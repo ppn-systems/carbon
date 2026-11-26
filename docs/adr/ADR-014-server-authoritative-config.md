@@ -58,9 +58,8 @@ Existing building blocks:
      binaries (every `resources/config/*.json`) or `resources/config` above them. It fails fast on invalid config.
    - Server domains are built from that same snapshot (`GameEconomy.Load(...)` reads `config.Catalog`), so the server never runs
      different bytes from the ones it serves.
-   - `ConfigHotReloadWatcher` reloads the snapshot, debounced 500 ms, when a `*.json` file changes, but only with
-     `CARBON_CONFIG_HOT_RELOAD=1`. It stays off by default until boot-built domains can swap their tables at runtime;
-     otherwise clients would get a config the server isn't running. An invalid edit is logged and ignored.
+   - `ConfigHotReloadWatcher` reloads the snapshot, debounced 500 ms, when a `*.json` file changes. It is on by default;
+     `CARBON_CONFIG_HOT_RELOAD=0` turns it off. An invalid edit is logged and ignored.
    - `IdentityHandlers` sends the manifest right after a successful login or register. `ConfigManifestBroadcaster` pushes it to
      every signed-in stream connection on `ManifestChanged`.
    - `ConfigHandlers` answers `ConfigRequest`. A rejected request still gets a stream terminator, and a stale one gets the
@@ -78,6 +77,19 @@ Existing building blocks:
     server crafting (`AuthoritativeWorld.TryCraftRecipe`) still executes those ids and `recipes.json` renumbers them. The client
     switches to `recipes.json` in the same change that moves server crafting onto `RecipeCatalog`. A test pins every compiled
     starter item to the same code and stack size in `items.json`.
+
+12. **D12 — Domains swap with the manifest.** `ConfigRepository.AddReloadStep` registers a two-phase step. On a reload
+    every step first *prepares* the new domain from the candidate snapshot without touching live state. Any
+    `InvalidDataException` rejects the whole reload, leaving the manifest and every domain unchanged. Then every step
+    *commits*, the served snapshot switches, and only then is `ManifestChanged` raised. So when clients are told, the server
+    already runs the new tables.
+    - `ServerGameData` builds the economy (`items`, `recipes`, `economy`, `loot`), `needs` and `food` the same way at boot
+      and on reload.
+    - `AuthoritativeWorld.ApplyGameData` installs them under the world lock between ticks.
+    - In-progress meals are remapped to the new food catalog by item id, or cancelled when their food was removed.
+    - Existing players keep their current needs values and wallet caps.
+    - `structures`, `monsters` and `spawning` are restart-required, because `BuildingService` and the creature systems
+      are built once: a reload that changes them is rejected.
 
 ## Alternatives Considered
 
