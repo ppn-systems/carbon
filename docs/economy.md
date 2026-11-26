@@ -5,7 +5,7 @@ Every number below is in `resources/config/*.json`. The tests in `tests/engine/C
 
 | File | Owns |
 | :--- | :--- |
-| `resources/config/items.json` | Item ids, codes, rarity, tier, stack size, **base price**, **nutrition**, durability, vendor flag, theme tags |
+| `resources/config/items.json` | Item ids, codes, rarity, tier, stack size, **base price**, durability, vendor flag, theme tags (nutrition lives in the survival agent's `food.json`) |
 | `resources/config/loot.json` | Loot table per monster family / gather node |
 | `resources/config/recipes.json` | Recipes: station, work ticks, skill/level gates, ingredients, outputs |
 | `resources/config/economy.json` | Currency caps, gold/diamond curves, pity, vendor spread, repair, crafting fees, design targets |
@@ -48,7 +48,7 @@ Currencies live in a `Wallet`, not in inventory slots, so they can't be dropped,
 
 ## 3. Loot (`Carbon.Economy.Loot`)
 
-Each table in `loot.json` is keyed by source id. Monster ids match `monsters.json`: `slime`, `skeleton`, `orc`, `blood_monster`, `demon`. There is also one gather node, `rich_ore_vein`.
+Each table in `loot.json` is keyed by source id. Every `lootTableId` in `monsters.json` has a table, and a test checks this, including the elite flag. The families are `slime`, `skeleton`, `orc`, `blood_monster`, `demon`, `golem`, `wolf` and `wraith`. The elite variants `slime_king` and `orc_warlord` are marked `"elite": true`, so they roll with elite multipliers and are excluded from the normal-monster income bands. There is also one gather node, `rich_ore_vein`.
 
 A roll proceeds in this order:
 
@@ -63,11 +63,16 @@ The roll path is zero-allocation. The caller passes a `Span<LootDrop>` sized wit
 
 | Table | Designed levels | Guaranteed | Weighted highlights (unlock level) |
 | :--- | :--- | :--- | :--- |
-| `slime` | 1–15 | `slime_gel` 1–2 | `slime_gel`, `plant_fiber`, `small_health_potion` (3), `slime_core` (5), `rough_gem` (10) |
+| `slime` | 1–15 | `slime_gel` 1–2 | `slime_gel`, `slime_jelly`, `plant_fiber`, `small_health_potion` (3), `slime_core` (5), `rough_gem` (10) |
 | `skeleton` | 8–35 | `bone` 1–3 | `bone`, `bone_dust`, `bone_shard`, `rope`, `small_health_potion` (10), `rough_gem` (20) |
 | `orc` | 15–45 | `crude_iron` 1–2 | `crude_iron`, `raw_meat`, `beast_pelt`, `orc_tusk` (18), `small_health_potion`, `rough_gem` (25) |
 | `blood_monster` | 30–70 | `blood_vial` 1 | `blood_vial`, `raw_meat`, `small_health_potion`, `rough_gem` (40) |
 | `demon` | 45–100 | `ember_shard` 1–2 | `ember_shard`, `coal`, `demon_ember` (55), `demon_horn` (60), `small_health_potion`, `rough_gem` (50) |
+| `slime_king` (elite) | 5–20 | `slime_gel` 3–6, `slime_core` 1 | `slime_jelly`, `slime_core`, `small_health_potion`, `rough_gem` (10) |
+| `orc_warlord` (elite) | 20–50 | `crude_iron` 2–4, `orc_tusk` 1–2 | `orc_tusk`, `crude_iron`, `beast_pelt`, `small_health_potion`, `rough_gem` (25) |
+| `golem` | 10–40 | `stone_chunk` 2–4 | `stone_chunk`, `iron_ore`, `stone_core` (15), `rough_gem` (20) |
+| `wolf` | 5–30 | `raw_meat` 1–2 | `wolf_pelt`, `wolf_fang` (8), `raw_meat`, `beast_pelt` |
+| `wraith` | 20–60 | `ectoplasm` 1–2 | `ectoplasm`, `mana_crystal`, `ash_essence` (30), `small_health_potion`, `rough_gem` (35) |
 | `rich_ore_vein` | 1–100 | `iron_ore` 2–4 | `copper_ore`, `coal`, `iron_ore`, `mana_crystal` (10), `rough_gem` (20) |
 
 ## 4. Gold faucet
@@ -162,12 +167,15 @@ Ids 1–39 keep the `StarterGameCatalog` ids and codes, and a test checks catego
 | Group | Item codes |
 | :--- | :--- |
 | Materials | `wood_log`, `wood_plank`, `stone_chunk`, `stone_brick`, `plant_fiber`, `rope`, `cloth`, `leather`, `beast_pelt`, `copper_ore`, `copper_ingot`, `iron_ore`, `iron_ingot`, `iron_nails`, `coal`, `mana_crystal`, `rough_gem`, `wheat` |
-| Food (nutrition) | `berries` 8, `berry_herb` 4, `raw_meat` 10, `cooked_meat` 30, `bread` 25, `stew` 55, `slime_jelly` 12, `roast_meat` 35, `arcane_pie` 20 |
+| Food (`food` tag; nutrition in `food.json`) | `berries`, `raw_meat`, `cooked_meat`, `bread`, `stew`, `slime_jelly`, `roast_meat`, `arcane_pie` |
 | Slime | `slime_gel`, `slime_core` (rare) |
 | Orc | `orc_tusk`, `crude_iron` (+ `raw_meat`, `beast_pelt`) |
 | Demon | `demon_horn` (rare), `ember_shard`, `demon_ember` (+ `coal`) |
 | Blood monster | `blood_vial` (+ `raw_meat`) |
 | Skeleton | `bone`, `bone_dust`, `bone_shard` |
+| Golem | `stone_core` (rare) (+ `stone_chunk`, `iron_ore`) |
+| Wolf | `wolf_pelt`, `wolf_fang` (+ `raw_meat`, `beast_pelt`) |
+| Wraith | `ectoplasm`, `ash_essence` (rare) (+ `mana_crystal`) |
 | Generic drops | `plant_fiber`, `rope`, `small_health_potion`, `rough_gem` |
 | Potions | `small_health_potion`, `greater_health_potion`, `mana_tonic` |
 | Tools/weapons | `wood_axe`, `stone_pickaxe`, `iron_axe`, `crystal_pickaxe`, `copper_sword`, `iron_sword`, `hunting_bow`, `bone_bow`, `crystal_bow`, `arcane_staff`, `shaman_staff`, `crystal_staff`, `ember_blade`, `demon_cleaver` |
@@ -178,16 +186,15 @@ Ids 1–39 keep the `StarterGameCatalog` ids and codes, and a test checks catego
 
 - **Loading.** `server/Carbon.Host/Program.cs` calls `GameEconomy.FindConfigDirectory` and `GameEconomy.LoadFromDirectory` at boot. The Host copies `resources/config/*.json` to `config/` next to its binaries. A missing or invalid config fails the boot, so the server never runs with silent defaults.
 - **Kills.** `AuthoritativeWorld.TryRollEconomyLootLocked` (`server/Carbon.Application/World/AuthoritativeWorld.Economy.cs`) replaces the hardcoded `MonsterArchetypeSpec` drops for every monster that has a loot table:
-  - `WildSlime` → `slime`, `SkeletonArcher` → `skeleton`, `OrcShaman` → `orc`, `CrimsonDemon` → `demon`.
+  - `WildSlime` → `slime`, `SkeletonArcher` → `skeleton`, `OrcShaman` → `orc`, `CrimsonDemon` → `demon`, `RockGolem` → `golem`, `FrostWolf` → `wolf`, `AshWraith` → `wraith`.
   - Item stacks become ground loot. Gold and diamonds go into the killer's `Wallet`, and the killer's `LootPity` counter is updated.
-  - Monsters without a table (golem, wolf, wraith) keep their legacy spec drops.
 - **Crafting.** `PlayerInventoryLayout.TryCraftInBag`, which `TryCraftRecipe` uses, now runs through `RecipeMatcher` on a draft of the bag slots. It is all-or-nothing, never consumes forge-upgraded stacks, and never touches equipment slots.
 - **Art.** Every item with id ≥ 100 has a `resources/art/items/<code>.cvg.json` icon registered in `catalog.cvg.json`.
 
-**Not done yet** (these need a contracts change or a schema ADR):
-- Wallet balances aren't persisted (`CharacterRecord` has no currency columns).
-- Balances aren't synced to clients (there's no wallet packet yet).
-- Vendor and repair handlers aren't exposed over the wire.
+**Wallet persistence, sync and sinks** ([ADR-012](adr/ADR-012-server-authoritative-wallet-persistence-and-sync.md)):
+- `CharacterRecord` persists `Gold`, `Diamonds`, `WalletSequence` and `DiamondPity` through migration `0005_character_wallet`, in both SQLite and PostgreSQL.
+- `WalletSync` (S2C `0x1237`) pushes balances on world entry, after kills and after vendor operations. The HUD shows them next to the hotbar, using `resources/art/ui/coin.cvg.json` and `diamond.cvg.json`.
+- `VendorBuyItem` (`0x4007`) and `VendorSellItem` (`0x4008`) require a friendly town NPC within 175 px. `RepairInventoryItem` (`0x4009`) requires a forge station. All three reply with `MutationResult`.
 
 ## 10. Changing the numbers
 

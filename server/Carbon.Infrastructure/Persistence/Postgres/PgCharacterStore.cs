@@ -24,7 +24,8 @@ public sealed class PgCharacterStore : ICharacterStore
         SELECT id, account_id, name, level, appearance_preset, position_x, position_y,
                current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
                experience, current_mana, max_mana, current_stamina, max_stamina,
-               class_id, character_flags, skill_flags, progression_blob
+               class_id, character_flags, skill_flags, progression_blob,
+               gold, diamonds, wallet_sequence, diamond_pity
         FROM characters
         WHERE account_id = @account_id
         ORDER BY name ASC;
@@ -34,7 +35,8 @@ public sealed class PgCharacterStore : ICharacterStore
         SELECT id, account_id, name, level, appearance_preset, position_x, position_y,
                current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
                experience, current_mana, max_mana, current_stamina, max_stamina,
-               class_id, character_flags, skill_flags, progression_blob
+               class_id, character_flags, skill_flags, progression_blob,
+               gold, diamonds, wallet_sequence, diamond_pity
         FROM characters
         WHERE id = @id
         LIMIT 1;
@@ -45,8 +47,9 @@ public sealed class PgCharacterStore : ICharacterStore
             id, account_id, name, level, appearance_preset, position_x, position_y,
             current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
             experience, current_mana, max_mana, current_stamina, max_stamina,
-            class_id, character_flags, skill_flags, progression_blob)
-        VALUES (@id, @account_id, @name, @level, @preset, @px, @py, @hp, @max_hp, @slot, @inv, @updated, @xp, @mp, @max_mp, @stam, @max_stam, @class_id, @cflags, @sflags, @pblob)
+            class_id, character_flags, skill_flags, progression_blob,
+            gold, diamonds, wallet_sequence, diamond_pity)
+        VALUES (@id, @account_id, @name, @level, @preset, @px, @py, @hp, @max_hp, @slot, @inv, @updated, @xp, @mp, @max_mp, @stam, @max_stam, @class_id, @cflags, @sflags, @pblob, @gold, @diamonds, @wseq, @pity)
         ON CONFLICT (name) DO NOTHING;
         """;
 
@@ -69,7 +72,11 @@ public sealed class PgCharacterStore : ICharacterStore
             class_id = @class_id,
             character_flags = @cflags,
             skill_flags = @sflags,
-            progression_blob = @pblob
+            progression_blob = @pblob,
+            gold = @gold,
+            diamonds = @diamonds,
+            wallet_sequence = @wseq,
+            diamond_pity = @pity
         WHERE id = @id;
         """;
 
@@ -151,6 +158,10 @@ public sealed class PgCharacterStore : ICharacterStore
         _ = cmd.Parameters.Add(new NpgsqlParameter("cflags", NpgsqlDbType.Bigint) { Value = unchecked((long)(ulong)character.Flags) });
         _ = cmd.Parameters.Add(new NpgsqlParameter("sflags", NpgsqlDbType.Bigint) { Value = unchecked((long)(ulong)character.UnlockedSkills) });
         _ = cmd.Parameters.Add(new NpgsqlParameter("pblob", NpgsqlDbType.Bytea) { Value = character.ProgressionBlob ?? [] });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("gold", NpgsqlDbType.Bigint) { Value = character.Gold });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("diamonds", NpgsqlDbType.Bigint) { Value = character.Diamonds });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("wseq", NpgsqlDbType.Bigint) { Value = unchecked((long)character.WalletSequence) });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("pity", NpgsqlDbType.Integer) { Value = character.DiamondPity });
 
         int affected = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         return affected == 1;
@@ -197,6 +208,10 @@ public sealed class PgCharacterStore : ICharacterStore
             _ = item.Parameters.Add(new NpgsqlParameter("cflags", NpgsqlDbType.Bigint) { Value = unchecked((long)(ulong)c.Flags) });
             _ = item.Parameters.Add(new NpgsqlParameter("sflags", NpgsqlDbType.Bigint) { Value = unchecked((long)(ulong)c.UnlockedSkills) });
             _ = item.Parameters.Add(new NpgsqlParameter("pblob", NpgsqlDbType.Bytea) { Value = c.ProgressionBlob ?? [] });
+            _ = item.Parameters.Add(new NpgsqlParameter("gold", NpgsqlDbType.Bigint) { Value = c.Gold });
+            _ = item.Parameters.Add(new NpgsqlParameter("diamonds", NpgsqlDbType.Bigint) { Value = c.Diamonds });
+            _ = item.Parameters.Add(new NpgsqlParameter("wseq", NpgsqlDbType.Bigint) { Value = unchecked((long)c.WalletSequence) });
+            _ = item.Parameters.Add(new NpgsqlParameter("pity", NpgsqlDbType.Integer) { Value = c.DiamondPity });
             batch.BatchCommands.Add(item);
         }
 
@@ -232,6 +247,10 @@ public sealed class PgCharacterStore : ICharacterStore
             (HeroArchetypeClass)(byte)Math.Clamp((int)reader.GetInt16(17), 0, 255),
             (CharacterTraits)unchecked((ulong)reader.GetInt64(18)),
             (CharacterSkillMask)unchecked((ulong)reader.GetInt64(19)),
-            progBlob);
+            progBlob,
+            reader.GetInt64(21),
+            reader.GetInt64(22),
+            unchecked((ulong)reader.GetInt64(23)),
+            reader.GetInt32(24));
     }
 }

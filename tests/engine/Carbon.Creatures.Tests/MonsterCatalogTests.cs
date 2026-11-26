@@ -40,8 +40,7 @@ public sealed class MonsterCatalogTests
         foreach (MonsterDefinition def in catalog.Definitions)
         {
             def.LootTableId.Should().NotBeNullOrWhiteSpace();
-            (lootTables.Contains(def.LootTableId) || def.LootTableId == def.Id).Should().BeTrue(
-                $"'{def.Id}' must reference a loot.json table, or its own id while it still uses legacy catalog drops");
+            lootTables.Should().Contain(def.LootTableId, $"'{def.Id}' must reference an economy loot.json table");
             def.VisualArchetype.Should().NotBeNullOrWhiteSpace("the client picks sprites by visual archetype key");
             def.ArchetypeId.Should().BeInRange(101, 199, "monsters use the WorldActorCatalog monster archetype range");
             def.PreferredBiomes.Should().NotBeEmpty().And.OnlyContain(b => Enum.IsDefined(b));
@@ -76,7 +75,7 @@ public sealed class MonsterCatalogTests
     [Fact]
     public void FromJson_MissingLootTable_ThrowsArgumentException()
     {
-        string json = CreatureTestData.MonstersJson.Replace("\"lootTableId\": \"rock_golem\"", "\"lootTableId\": \"\"", StringComparison.Ordinal);
+        string json = CreatureTestData.MonstersJson.Replace("\"lootTableId\": \"golem\"", "\"lootTableId\": \"\"", StringComparison.Ordinal);
 
         Action load = () => MonsterCatalog.FromJson(json);
 

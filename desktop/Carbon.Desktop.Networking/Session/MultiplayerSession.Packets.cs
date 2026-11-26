@@ -15,6 +15,7 @@ using Carbon.Contracts.Identity.S2C;
 using Carbon.Contracts.Items.S2C;
 using Carbon.Contracts.Maps.C2S;
 using Carbon.Contracts.Maps.S2C;
+using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Events;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
@@ -93,6 +94,7 @@ public sealed partial class MultiplayerSession
         _tcpSubscriptions.Add(tcp.On<InventorySlotChanged>(this.OnInventorySlotChanged));
         _tcpSubscriptions.Add(tcp.On<EntityEquipmentChanged>(this.OnEntityEquipmentChanged));
         _tcpSubscriptions.Add(tcp.On<PlayerStatsSync>(this.OnPlayerStatsSync));
+        _tcpSubscriptions.Add(tcp.On<WalletSync>(this.OnWalletSync));
         _tcpSubscriptions.Add(tcp.On<SkillCastBroadcast>(this.OnSkillCastBroadcast));
         _tcpSubscriptions.Add(tcp.On<EntityAttackPhase>(this.OnEntityAttackPhase));
         _tcpSubscriptions.Add(tcp.On<MapPropChanged>(this.OnMapPropChanged));
@@ -824,6 +826,23 @@ public sealed partial class MultiplayerSession
         }
     }
 
+    private void OnWalletSync(WalletSync pkt)
+    {
+        lock (_worldGate)
+        {
+            // Pushes can be reordered; only apply a newer server sequence (ADR-012).
+            if (_hasWalletSync && pkt.Sequence < _walletSequence)
+            {
+                return;
+            }
+
+            _hasWalletSync = true;
+            _walletSequence = pkt.Sequence;
+            _ = Interlocked.Exchange(ref _localGold, Math.Max(0L, pkt.Gold));
+            _ = Interlocked.Exchange(ref _localDiamonds, Math.Max(0L, pkt.Diamonds));
+        }
+    }
+
     private void OnPlayerStatsSync(PlayerStatsSync pkt)
     {
         lock (_worldGate)
@@ -1134,7 +1153,7 @@ public sealed partial class MultiplayerSession
                 byte prevUpg = ItemEnhancementPolicy.GetUpgradeLevel(in previous);
                 if (previous.ItemId == next.ItemId && pkt.UpgradeLevel > prevUpg)
                 {
-                    string forgeMsg = $"+{pkt.UpgradeLevel} {StarterGameCatalog.GetDisplayName(next.ItemId)} Forged!";
+                    string forgeMsg = $"+{pkt.UpgradeLevel} {SyncedItemCatalog.GetDisplayName(next.ItemId)} Forged!";
                     _combatEvents.Add(new CombatFeedbackEvent(
                         localPos + new Vector2(0f, -14f),
                         pkt.UpgradeLevel,
@@ -1151,7 +1170,7 @@ public sealed partial class MultiplayerSession
 
                 if (gained > 0)
                 {
-                    string popup = $"+{gained} {StarterGameCatalog.GetDisplayName(next.ItemId)}";
+                    string popup = $"+{gained} {SyncedItemCatalog.GetDisplayName(next.ItemId)}";
                     _combatEvents.Add(new CombatFeedbackEvent(
                         localPos + new Vector2(0f, -12f),
                         gained,
@@ -1166,7 +1185,7 @@ public sealed partial class MultiplayerSession
                 {
                     if (previous.Durability > 0f && next.Durability <= 0f)
                     {
-                        string brokenMsg = $"{StarterGameCatalog.GetDisplayName(next.ItemId)} Worn Out!";
+                        string brokenMsg = $"{SyncedItemCatalog.GetDisplayName(next.ItemId)} Worn Out!";
                         _combatEvents.Add(new CombatFeedbackEvent(
                             localPos + new Vector2(0f, -14f),
                             0f,
@@ -1177,7 +1196,7 @@ public sealed partial class MultiplayerSession
                     }
                     else if (previous.Durability <= 0f && next.Durability > 0f)
                     {
-                        string mendMsg = $"{StarterGameCatalog.GetDisplayName(next.ItemId)} Mended!";
+                        string mendMsg = $"{SyncedItemCatalog.GetDisplayName(next.ItemId)} Mended!";
                         _combatEvents.Add(new CombatFeedbackEvent(
                             localPos + new Vector2(0f, -14f),
                             next.Durability,

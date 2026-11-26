@@ -45,6 +45,9 @@ public static class EntityOpCode
     /// <summary>Broadcasts active skill cast visuals to nearby observers.</summary>
     public const ushort SkillCastBroadcast = 0x1236;
 
+    /// <summary>Unilateral push of the local player's server-authoritative gold and diamond balances (ADR-012).</summary>
+    public const ushort WalletSync = 0x1237;
+
     /// <summary>Broadcasts the start of a server-authoritative monster attack phase (telegraph, release, impact) to observers.</summary>
     public const ushort EntityAttackPhase = 0x1238;
 }

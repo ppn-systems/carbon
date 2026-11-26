@@ -69,6 +69,15 @@ Existing building blocks:
      `FileSystemConfigCacheStorage` in `DesktopOptions.ConfigCacheDirectory` (`CARBON_CONFIG_CACHE`). `EnterWorldAsync` refuses to
      enter the world until the current connection's config is verified.
    - Clients sharing one cache directory write through unique temp files, and a failed cache write never fails a sync.
+10. **D10 — Server-only documents.** `ConfigRepository.Load(directory, serverOnlyDocuments)` loads every file for the server but
+    leaves the listed ones out of the manifest; requests for them are rejected as unknown. The host marks `economy`, `loot` and
+    `spawning` server-only: drop rates, price tunables and spawn rules are server decisions that clients never see.
+11. **D11 — Client item data.** The desktop reads item names and stack sizes from the synced `items.json` through
+    `SyncedItemCatalog`, so items the server adds (ids ≥ 100) show up without a client build. Combat and tool stats are not in
+    `items.json` yet, so they still come from `StarterGameCatalog.Items`. Recipes stay on `StarterGameCatalog.Recipes`, because
+    server crafting (`AuthoritativeWorld.TryCraftRecipe`) still executes those ids and `recipes.json` renumbers them. The client
+    switches to `recipes.json` in the same change that moves server crafting onto `RecipeCatalog`. A test pins every compiled
+    starter item to the same code and stack size in `items.json`.
 
 ## Alternatives Considered
 

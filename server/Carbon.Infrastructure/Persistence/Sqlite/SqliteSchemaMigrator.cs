@@ -319,7 +319,75 @@ public sealed class SqliteSchemaMigrator : IDatabaseMigrator
             _ = await insertExt.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         }
 
+        // ADR-012: server-authoritative wallet. Later additive column migrations follow the same pattern.
+        await AddCharacterColumnsAsync(
+            conn,
+            tx,
+            "0005_character_wallet",
+            [
+                ("gold", "INTEGER NOT NULL DEFAULT 0"),
+                ("diamonds", "INTEGER NOT NULL DEFAULT 0"),
+                ("wallet_sequence", "INTEGER NOT NULL DEFAULT 0"),
+                ("diamond_pity", "INTEGER NOT NULL DEFAULT 0"),
+            ],
+            ct).ConfigureAwait(false);
+
         await tx.CommitAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Applies an additive, idempotent migration that adds missing columns to <c>characters</c> and records
+    /// <paramref name="migrationId"/> in <c>schema_migrations</c>. Column names and definitions are compile-time constants.
+    /// </summary>
+    private static async Task AddCharacterColumnsAsync(
+        SqliteConnection conn,
+        SqliteTransaction tx,
+        string migrationId,
+        (string Column, string Definition)[] columns,
+        CancellationToken ct)
+    {
+        SqliteCommand check = new("SELECT 1 FROM schema_migrations WHERE id = @id LIMIT 1;", conn, tx);
+        await using (ConfiguredAsyncDisposable checkScope = check.ConfigureAwait(false))
+        {
+            _ = check.Parameters.AddWithValue("@id", migrationId);
+            object? scalar = await check.ExecuteScalarAsync(ct).ConfigureAwait(false);
+            if (scalar is not null && scalar != DBNull.Value)
+            {
+                return;
+            }
+        }
+
+        HashSet<string> existing = new(StringComparer.OrdinalIgnoreCase);
+        SqliteCommand pragma = new("PRAGMA table_info(characters);", conn, tx);
+        await using (ConfiguredAsyncDisposable pragmaScope = pragma.ConfigureAwait(false))
+        {
+            SqliteDataReader reader = await pragma.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            await using ConfiguredAsyncDisposable readerScope = reader.ConfigureAwait(false);
+            while (await reader.ReadAsync(ct).ConfigureAwait(false))
+            {
+                _ = existing.Add(reader.GetString(1));
+            }
+        }
+
+        for (int i = 0; i < columns.Length; i++)
+        {
+            if (existing.Contains(columns[i].Column))
+            {
+                continue;
+            }
+
+#pragma warning disable CA2100 // Column names/definitions are compile-time constants, never user input.
+            SqliteCommand alter = new($"ALTER TABLE characters ADD COLUMN {columns[i].Column} {columns[i].Definition};", conn, tx);
+#pragma warning restore CA2100
+            await using ConfiguredAsyncDisposable alterScope = alter.ConfigureAwait(false);
+            _ = await alter.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        SqliteCommand mark = new("INSERT INTO schema_migrations (id, applied_utc) VALUES (@id, @utc);", conn, tx);
+        await using ConfiguredAsyncDisposable markScope = mark.ConfigureAwait(false);
+        _ = mark.Parameters.AddWithValue("@id", migrationId);
+        _ = mark.Parameters.AddWithValue("@utc", DateTimeOffset.UtcNow.ToString("O"));
+        _ = await mark.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 
     private static byte[] PackLegacyProgressionBlob(

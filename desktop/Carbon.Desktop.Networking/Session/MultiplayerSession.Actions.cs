@@ -10,6 +10,7 @@ using Carbon.Contracts.Entities;
 using Carbon.Contracts.Entities.C2S;
 using Carbon.Contracts.Items.C2S;
 using Carbon.Contracts.Maps.C2S;
+using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Events;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
@@ -624,7 +625,7 @@ public sealed partial class MultiplayerSession
     {
         if (source.IsStackable)
         {
-            int maxStack = StarterGameCatalog.GetMaxStackSize(source.ItemId);
+            int maxStack = SyncedItemCatalog.GetMaxStackSize(source.ItemId);
             for (int i = startInclusive; i < endExclusive; i++)
             {
                 ItemSlot candidate = _inventory.GetSlot(i);
@@ -687,6 +688,50 @@ public sealed partial class MultiplayerSession
             p.RecipeId = recipeId;
             p.Quantity = quantity;
         });
+        return true;
+    }
+
+    /// <inheritdoc/>
+    public bool TryVendorBuy(ushort itemId, ushort quantity = 1)
+    {
+        if (!this.IsReady || _tcpSession is not { IsConnected: true } || itemId == 0 || quantity == 0)
+        {
+            return false;
+        }
+
+        _ = this.SendTcpPooledAsync<VendorBuyItem>(p =>
+        {
+            p.ItemId = itemId;
+            p.Quantity = quantity;
+        });
+        return true;
+    }
+
+    /// <inheritdoc/>
+    public bool TryVendorSell(ushort slotIndex, ushort quantity = 1)
+    {
+        if (!this.IsReady || _tcpSession is not { IsConnected: true } || slotIndex >= PlayerInventoryLayout.BagLimit || quantity == 0)
+        {
+            return false;
+        }
+
+        _ = this.SendTcpPooledAsync<VendorSellItem>(p =>
+        {
+            p.SlotIndex = slotIndex;
+            p.Quantity = quantity;
+        });
+        return true;
+    }
+
+    /// <inheritdoc/>
+    public bool TryRepairItem(ushort slotIndex)
+    {
+        if (!this.IsReady || _tcpSession is not { IsConnected: true } || slotIndex >= PlayerInventoryLayout.TotalCapacity)
+        {
+            return false;
+        }
+
+        _ = this.SendTcpPooledAsync<RepairInventoryItem>(p => p.SlotIndex = slotIndex);
         return true;
     }
 

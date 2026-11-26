@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -373,7 +374,7 @@ internal sealed class InventoryModalWidget
         float ty = Math.Clamp(mouseScreenPos.Value.Y - tipH - MathF.Round(8f * s), 12f, viewportHeight - tipH - 12f);
 
         byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in hItem);
-        string title = upg > 0 ? $"{StarterGameCatalog.GetDisplayName(hItem.ItemId)} +{upg}" : StarterGameCatalog.GetDisplayName(hItem.ItemId);
+        string title = upg > 0 ? $"{SyncedItemCatalog.GetDisplayName(hItem.ItemId)} +{upg}" : SyncedItemCatalog.GetDisplayName(hItem.ItemId);
         float padX = MathF.Round(10f * s);
         spriteBatch.DrawOutlinedString(
             font,

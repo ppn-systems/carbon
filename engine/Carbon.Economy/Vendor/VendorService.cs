@@ -34,8 +34,9 @@ public sealed class VendorService
     /// <param name="itemId">Item to buy.</param>
     /// <param name="quantity">Positive quantity.</param>
     /// <param name="tick">Simulation tick.</param>
+    /// <param name="slotLimit">Only the first <paramref name="slotLimit"/> slots receive items (e.g. the bag, not equipment).</param>
     /// <returns>The outcome; on failure nothing changed.</returns>
-    public EconomyResult TryBuy(Wallet wallet, InventoryContainer inventory, uint itemId, int quantity, ulong tick = 0)
+    public EconomyResult TryBuy(Wallet wallet, InventoryContainer inventory, uint itemId, int quantity, ulong tick = 0, int slotLimit = int.MaxValue)
     {
         ArgumentNullException.ThrowIfNull(wallet);
         ArgumentNullException.ThrowIfNull(inventory);
@@ -68,7 +69,7 @@ public sealed class VendorService
         Span<ItemSlot> buffer = inventory.Capacity <= InventoryDraft.StackBufferLimit
             ? stackalloc ItemSlot[InventoryDraft.StackBufferLimit]
             : new ItemSlot[inventory.Capacity];
-        InventoryDraft draft = InventoryDraft.Begin(inventory, buffer);
+        InventoryDraft draft = InventoryDraft.Begin(inventory, buffer, slotLimit);
         if (draft.Add(new ItemSlot(itemId, quantity, Durability: item.MaxDurability), item.MaxStack) != 0)
         {
             return EconomyResult.Fail(EconomyError.InventoryFull);
@@ -126,6 +127,56 @@ public sealed class VendorService
         if (paid.IsOk)
         {
             _ = inventory.TryRemove(itemId, quantity);
+        }
+
+        return paid;
+    }
+
+    /// <summary>
+    /// Sells <paramref name="quantity"/> units from one specific slot (so equipped or chosen stacks are never touched implicitly).
+    /// </summary>
+    /// <param name="wallet">Seller wallet.</param>
+    /// <param name="inventory">Seller inventory.</param>
+    /// <param name="slotIndex">Slot to sell from.</param>
+    /// <param name="quantity">Positive quantity, at most the slot's quantity.</param>
+    /// <param name="tick">Simulation tick.</param>
+    /// <returns>The outcome; on failure nothing changed.</returns>
+    public EconomyResult TrySellSlot(Wallet wallet, InventoryContainer inventory, int slotIndex, int quantity, ulong tick = 0)
+    {
+        ArgumentNullException.ThrowIfNull(wallet);
+        ArgumentNullException.ThrowIfNull(inventory);
+        if (quantity <= 0 || (uint)slotIndex >= (uint)inventory.Capacity)
+        {
+            return EconomyResult.Fail(EconomyError.InvalidAmount);
+        }
+
+        ItemSlot slot = inventory.GetSlot(slotIndex);
+        if (slot.IsEmpty || slot.Quantity < quantity)
+        {
+            return EconomyResult.Fail(EconomyError.InsufficientItems);
+        }
+
+        if (!this.Prices.Items.TryGet(slot.ItemId, out _))
+        {
+            return EconomyResult.Fail(EconomyError.UnknownItem);
+        }
+
+        long unit = this.Prices.GetSellPrice(slot.ItemId);
+        if (unit <= 0)
+        {
+            return EconomyResult.Fail(EconomyError.NotForSale);
+        }
+
+        if (!TryMultiply(unit, quantity, out long total))
+        {
+            return EconomyResult.Fail(EconomyError.InvalidAmount);
+        }
+
+        EconomyResult paid = wallet.TryCredit(CurrencyKind.Gold, total, CurrencyReason.VendorSale, tick);
+        if (paid.IsOk)
+        {
+            int left = slot.Quantity - quantity;
+            inventory.SetSlot(slotIndex, left > 0 ? slot with { Quantity = left } : ItemSlot.Empty);
         }
 
         return paid;

@@ -175,6 +175,9 @@ public interface IWorldOutboundSink
     /// <summary>Synchronizes the owning player's RPG vitals, flags, progression blob, and cooldown arrays.</summary>
     void SendPlayerStatsSync(ulong connectionId, in PlayerStatsSnapshot snapshot);
 
+    /// <summary>Pushes the owning player's server-authoritative gold and diamond balances (ADR-012).</summary>
+    void SendWalletSync(ulong connectionId, long gold, long diamonds, ulong sequence);
+
     /// <summary>Broadcasts active ability cast VFX coordinates to AoI observers.</summary>
     void SendSkillCastBroadcast(
         ReadOnlySpan<ulong> recipientConnectionIds,

@@ -27,6 +27,13 @@
           "minLevel": 1
         },
         {
+          "item": "slime_jelly",
+          "weight": 10,
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        },
+        {
           "item": "plant_fiber",
           "weight": 20,
           "min": 1,
@@ -287,6 +294,276 @@
           "min": 1,
           "max": 1,
           "minLevel": 50
+        }
+      ]
+    },
+    {
+      "id": "slime_king",
+      "theme": "slime",
+      "elite": true,
+      "kind": "monster",
+      "minLevel": 5,
+      "maxLevel": 20,
+      "goldBase": 1,
+      "diamondBasePpm": 5,
+      "rolls": 2,
+      "nothingWeight": 20,
+      "guaranteed": [
+        {
+          "item": "slime_gel",
+          "min": 3,
+          "max": 6,
+          "minLevel": 1
+        },
+        {
+          "item": "slime_core",
+          "min": 1,
+          "max": 1,
+          "minLevel": 1
+        }
+      ],
+      "entries": [
+        {
+          "item": "slime_jelly",
+          "weight": 30,
+          "min": 1,
+          "max": 3,
+          "minLevel": 1
+        },
+        {
+          "item": "slime_core",
+          "weight": 10,
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        },
+        {
+          "item": "small_health_potion",
+          "weight": 10,
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        },
+        {
+          "item": "rough_gem",
+          "weight": 4,
+          "min": 1,
+          "max": 1,
+          "minLevel": 10
+        }
+      ]
+    },
+    {
+      "id": "orc_warlord",
+      "theme": "orc",
+      "elite": true,
+      "kind": "monster",
+      "minLevel": 20,
+      "maxLevel": 50,
+      "goldBase": 2,
+      "diamondBasePpm": 10,
+      "rolls": 3,
+      "nothingWeight": 20,
+      "guaranteed": [
+        {
+          "item": "crude_iron",
+          "min": 2,
+          "max": 4,
+          "minLevel": 1
+        },
+        {
+          "item": "orc_tusk",
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        }
+      ],
+      "entries": [
+        {
+          "item": "orc_tusk",
+          "weight": 30,
+          "min": 1,
+          "max": 3,
+          "minLevel": 1
+        },
+        {
+          "item": "crude_iron",
+          "weight": 25,
+          "min": 2,
+          "max": 4,
+          "minLevel": 1
+        },
+        {
+          "item": "beast_pelt",
+          "weight": 15,
+          "min": 1,
+          "max": 3,
+          "minLevel": 1
+        },
+        {
+          "item": "small_health_potion",
+          "weight": 10,
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        },
+        {
+          "item": "rough_gem",
+          "weight": 5,
+          "min": 1,
+          "max": 1,
+          "minLevel": 25
+        }
+      ]
+    },
+    {
+      "id": "golem",
+      "kind": "monster",
+      "minLevel": 10,
+      "maxLevel": 40,
+      "goldBase": 2,
+      "diamondBasePpm": 12,
+      "rolls": 1,
+      "nothingWeight": 35,
+      "guaranteed": [
+        {
+          "item": "stone_chunk",
+          "min": 2,
+          "max": 4,
+          "minLevel": 1
+        }
+      ],
+      "entries": [
+        {
+          "item": "stone_chunk",
+          "weight": 30,
+          "min": 2,
+          "max": 5,
+          "minLevel": 1
+        },
+        {
+          "item": "iron_ore",
+          "weight": 25,
+          "min": 1,
+          "max": 3,
+          "minLevel": 1
+        },
+        {
+          "item": "stone_core",
+          "weight": 4,
+          "min": 1,
+          "max": 1,
+          "minLevel": 15
+        },
+        {
+          "item": "rough_gem",
+          "weight": 2,
+          "min": 1,
+          "max": 1,
+          "minLevel": 20
+        }
+      ]
+    },
+    {
+      "id": "wolf",
+      "kind": "monster",
+      "minLevel": 5,
+      "maxLevel": 30,
+      "goldBase": 2,
+      "diamondBasePpm": 6,
+      "rolls": 1,
+      "nothingWeight": 35,
+      "guaranteed": [
+        {
+          "item": "raw_meat",
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        }
+      ],
+      "entries": [
+        {
+          "item": "wolf_pelt",
+          "weight": 35,
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        },
+        {
+          "item": "wolf_fang",
+          "weight": 20,
+          "min": 1,
+          "max": 2,
+          "minLevel": 8
+        },
+        {
+          "item": "raw_meat",
+          "weight": 25,
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        },
+        {
+          "item": "beast_pelt",
+          "weight": 10,
+          "min": 1,
+          "max": 1,
+          "minLevel": 1
+        }
+      ]
+    },
+    {
+      "id": "wraith",
+      "kind": "monster",
+      "minLevel": 20,
+      "maxLevel": 60,
+      "goldBase": 2,
+      "diamondBasePpm": 12,
+      "rolls": 1,
+      "nothingWeight": 35,
+      "guaranteed": [
+        {
+          "item": "ectoplasm",
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        }
+      ],
+      "entries": [
+        {
+          "item": "ectoplasm",
+          "weight": 35,
+          "min": 1,
+          "max": 3,
+          "minLevel": 1
+        },
+        {
+          "item": "mana_crystal",
+          "weight": 20,
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        },
+        {
+          "item": "ash_essence",
+          "weight": 5,
+          "min": 1,
+          "max": 1,
+          "minLevel": 30
+        },
+        {
+          "item": "small_health_potion",
+          "weight": 6,
+          "min": 1,
+          "max": 1,
+          "minLevel": 1
+        },
+        {
+          "item": "rough_gem",
+          "weight": 2,
+          "min": 1,
+          "max": 1,
+          "minLevel": 35
         }
       ]
     },

@@ -111,6 +111,11 @@ public sealed partial class MultiplayerSession : IWorldSession
     private float _localStamina = 100f;
     private float _localMaxStamina = 100f;
     private float _localDefense = 2f;
+    private long _localGold;
+    private long _localDiamonds;
+    private ulong _walletSequence;
+    private bool _hasWalletSync;
+
     private float _localFood = 100f;
     private float _localMaxFood = 100f;
     private byte _localHungerState;
@@ -199,6 +204,12 @@ public sealed partial class MultiplayerSession : IWorldSession
 
     /// <inheritdoc/>
     public float LocalPlayerDefense => _localDefense;
+
+    /// <inheritdoc/>
+    public long LocalPlayerGold => Interlocked.Read(ref _localGold);
+
+    /// <inheritdoc/>
+    public long LocalPlayerDiamonds => Interlocked.Read(ref _localDiamonds);
 
     /// <inheritdoc/>
     public float LocalPlayerFood => _localFood;
@@ -711,6 +722,11 @@ public sealed partial class MultiplayerSession : IWorldSession
             _localStamina = 100f;
             _localMaxStamina = 100f;
             _localDefense = 2f;
+            _localGold = 0;
+            _localDiamonds = 0;
+            _walletSequence = 0;
+            _hasWalletSync = false;
+
             _localFood = 100f;
             _localMaxFood = 100f;
             _localHungerState = 0;

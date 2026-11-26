@@ -2,6 +2,8 @@
 
 using System;
 using System.Numerics;
+using Carbon.Contracts.Common;
+using Carbon.Economy;
 using Carbon.Economy.Currency;
 using Carbon.Economy.Loot;
 using Carbon.Items.Catalog;
@@ -17,6 +19,8 @@ namespace Carbon.Application.World;
 public sealed partial class AuthoritativeWorld
 {
     private const int MaxLootStacksPerKill = 16;
+    private const ushort MaxVendorQuantity = 999;
+    private const float VendorRangeSq = 175f * 175f;
 
     /// <summary>
     /// Gets the gold and diamond balances of the player on <paramref name="connectionId"/>.
@@ -46,13 +50,16 @@ public sealed partial class AuthoritativeWorld
     /// Maps a <see cref="WorldActorCatalog"/> monster archetype to its <c>loot.json</c> table id.
     /// </summary>
     /// <param name="archetypeId">Monster archetype id.</param>
-    /// <returns>The loot table id, or <see langword="null"/> when the monster still uses its legacy spec drops.</returns>
+    /// <returns>The loot table id, or <see langword="null"/> for actors without one.</returns>
     public static string? ResolveLootTableId(ushort archetypeId) => archetypeId switch
     {
         WorldActorCatalog.WildSlime => "slime",
         WorldActorCatalog.SkeletonArcher => "skeleton",
         WorldActorCatalog.OrcShaman => "orc",
         WorldActorCatalog.CrimsonDemon => "demon",
+        WorldActorCatalog.RockGolem => "golem",
+        WorldActorCatalog.FrostWolf => "wolf",
+        WorldActorCatalog.AshWraith => "wraith",
         _ => null
     };
 
@@ -71,7 +78,7 @@ public sealed partial class AuthoritativeWorld
             return false;
         }
 
-        LootContext context = new(monsterLevel, killer.Level);
+        LootContext context = new(monsterLevel, killer.Level, IsElite: table.IsElite);
         DeterministicRandom random = LootRoller.CreateRandom(this.WorldSeed, _currentTick, victimNetworkId);
         LootPityState pity = killer.LootPity;
         Span<LootDrop> drops = stackalloc LootDrop[MaxLootStacksPerKill];
@@ -88,8 +95,112 @@ public sealed partial class AuthoritativeWorld
         }
 
         // Rejections (wallet at cap) leave the balance unchanged; the drop is simply forfeited.
+        ulong sequenceBefore = killer.Wallet.Sequence;
         _ = killer.Wallet.TryCredit(CurrencyKind.Gold, result.Gold, CurrencyReason.MonsterLoot, _currentTick);
         _ = killer.Wallet.TryCredit(CurrencyKind.Diamond, result.Diamonds, CurrencyReason.MonsterLoot, _currentTick);
+        if (killer.Wallet.Sequence != sequenceBefore)
+        {
+            this.EnqueueWalletSyncLocked(killer);
+        }
+
         return true;
     }
+
+    /// <inheritdoc/>
+    public OpStatus TryVendorBuy(ulong connectionId, ushort itemId, ushort quantity)
+    {
+        if (quantity is 0 or > MaxVendorQuantity)
+        {
+            return OpStatus.Invalid;
+        }
+
+        return this.RunVendorOperationLocked(
+            connectionId,
+            requireForge: false,
+            (economy, state, tick) => economy.Vendor.TryBuy(
+                state.Wallet, state.Inventory, itemId, quantity, tick, Math.Min(PlayerInventoryLayout.BagLimit, state.Inventory.Capacity)).Status);
+    }
+
+    /// <inheritdoc/>
+    public OpStatus TryVendorSell(ulong connectionId, ushort slotIndex, ushort quantity)
+    {
+        if (quantity == 0 || slotIndex >= PlayerInventoryLayout.BagLimit)
+        {
+            return OpStatus.Invalid;
+        }
+
+        return this.RunVendorOperationLocked(
+            connectionId,
+            requireForge: false,
+            (economy, state, tick) => economy.Vendor.TrySellSlot(state.Wallet, state.Inventory, slotIndex, quantity, tick).Status);
+    }
+
+    /// <inheritdoc/>
+    public OpStatus TryRepairItem(ulong connectionId, ushort slotIndex) =>
+        this.RunVendorOperationLocked(
+            connectionId,
+            requireForge: true,
+            (economy, state, tick) => economy.Vendor.TryRepair(state.Wallet, state.Inventory, slotIndex, tick).Status);
+
+    /// <summary>
+    /// Runs a vendor/repair mutation under the world lock after the proximity check, then pushes the changed
+    /// inventory slots and the new wallet balance to the owning client.
+    /// </summary>
+    private OpStatus RunVendorOperationLocked(
+        ulong connectionId,
+        bool requireForge,
+        Func<GameEconomy, ActivePlayerState, ulong, OpStatus> operation)
+    {
+        if (_economy is null)
+        {
+            return OpStatus.Forbidden;
+        }
+
+        (ushort SlotIndex, ItemSlot Slot)[] modifiedCopy;
+        long gold;
+        long diamonds;
+        ulong sequence;
+        lock (_gate)
+        {
+            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state) ||
+                !_simulation.Entities.HasTransform(state.Entity))
+            {
+                return OpStatus.Forbidden;
+            }
+
+            Vector2 playerPos = _simulation.Entities.GetTransform(state.Entity).Position;
+            bool inRange = requireForge
+                ? this.IsNearForgeStationLocked(playerPos)
+                : this.HasNearbyFriendlyNpcLocked(playerPos, VendorRangeSq);
+            if (!inRange)
+            {
+                return OpStatus.OutOfRange;
+            }
+
+            ReadOnlySpan<ItemSlot> beforeSlots = state.Inventory.Slots;
+            Span<ItemSlot> beforeSnapshot = stackalloc ItemSlot[beforeSlots.Length];
+            beforeSlots.CopyTo(beforeSnapshot);
+
+            OpStatus status = operation(_economy, state, _currentTick);
+            if (status != OpStatus.Ok)
+            {
+                return status;
+            }
+
+            _mutationSlotScratch.Clear();
+            CollectModifiedSlots(beforeSnapshot, state.Inventory.Slots, _mutationSlotScratch);
+            this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
+            modifiedCopy = [.. _mutationSlotScratch];
+            gold = state.Wallet.Gold;
+            diamonds = state.Wallet.Diamonds;
+            sequence = state.Wallet.Sequence;
+        }
+
+        this.SendSlotsOutbound(connectionId, modifiedCopy);
+        _outboundSink.SendWalletSync(connectionId, gold, diamonds, sequence);
+        return OpStatus.Ok;
+    }
+
+    private void EnqueueWalletSyncLocked(ActivePlayerState state) =>
+        _pendingWalletSyncs.Add(new OutboundWalletSync(state.Session.ConnectionId, state.Wallet.Gold, state.Wallet.Diamonds, state.Wallet.Sequence));
 }

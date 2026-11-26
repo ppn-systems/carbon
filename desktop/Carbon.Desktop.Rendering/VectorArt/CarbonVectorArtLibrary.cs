@@ -22,6 +22,7 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
     private CompiledVectorRig?[] _monsterTable = [];
     private CompiledVectorRig?[] _npcTable = [];
     private CompiledItemVectorArt?[] _itemTable = [];
+    private readonly Dictionary<string, CompiledItemVectorArt> _uiIcons = new(StringComparer.Ordinal);
     private CompiledPropArt?[] _propTable = [];
     private CompiledBiomeArt?[] _biomeTable = [];
     private CompiledStructureArt?[] _structureTable = [];
@@ -193,6 +194,12 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
             lib._itemTable[entry.ItemId] = CompileItem(Path.Combine(artRoot, entry.File));
         }
 
+        for (int i = 0; i < catalog.UiIcons.Count; i++)
+        {
+            CvgUiIconCatalogDto entry = catalog.UiIcons[i];
+            lib._uiIcons[entry.Id] = CompileItem(Path.Combine(artRoot, entry.File));
+        }
+
         int maxPropId = 22;
         for (int i = 0; i < catalog.Props.Count; i++)
         {
@@ -314,6 +321,13 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
 
         rig = null;
         return false;
+    }
+
+    /// <inheritdoc/>
+    public bool TryGetUiIcon(string iconId, [NotNullWhen(true)] out CompiledItemVectorArt? icon)
+    {
+        ArgumentNullException.ThrowIfNull(iconId);
+        return _uiIcons.TryGetValue(iconId, out icon);
     }
 
     /// <inheritdoc/>
