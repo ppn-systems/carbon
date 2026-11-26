@@ -68,6 +68,9 @@ public static class BuildingFoundation
         StructureType.WoodFloor or StructureType.StoneFloor => TerrainAffordance.Light,
         StructureType.WoodWall or StructureType.WoodDoor or StructureType.ForgeAnvil => TerrainAffordance.Medium,
         StructureType.StoneWall or StructureType.StoneDoor or StructureType.RoofPillar => TerrainAffordance.Heavy,
+        StructureType.MetalWall or StructureType.MetalDoor => TerrainAffordance.Heavy,
+        StructureType.Campfire => TerrainAffordance.Light,
+        StructureType.Workbench or StructureType.Stove or StructureType.WoodChest or StructureType.WoodBed => TerrainAffordance.Medium,
         _ => TerrainAffordance.Heavy
     };
 

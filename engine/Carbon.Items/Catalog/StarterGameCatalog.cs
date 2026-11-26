@@ -375,6 +375,12 @@ public static class StarterGameCatalog
             inventory.SetSlot(6, new ItemSlot(ManaTonic, startingClass == 2 ? 6 : 3));
         }
 
+        if (inventory.Capacity > 7)
+        {
+            // Building materials: wall/door kits only select blueprints, so starters carry logs for six walls.
+            inventory.SetSlot(7, new ItemSlot(WoodLog, 18));
+        }
+
         if (inventory.Capacity > PlayerInventoryLayout.HeadSlot)
         {
             inventory.SetSlot(PlayerInventoryLayout.HeadSlot, new ItemSlot(LeatherCap, 1, 0, 120f));

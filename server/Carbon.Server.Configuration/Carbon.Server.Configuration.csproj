@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <RootNamespace>Carbon.Server.Configuration</RootNamespace>
+        <AssemblyName>Carbon.Server.Configuration</AssemblyName>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\contracts\Carbon.Contracts.Config\Carbon.Contracts.Config.csproj" />
+        <ProjectReference Include="..\..\engine\Carbon.Configuration\Carbon.Configuration.csproj" />
+    </ItemGroup>
+
+</Project>

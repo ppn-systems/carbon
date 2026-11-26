@@ -135,8 +135,11 @@ public sealed partial class MultiplayerSession : IWorldSession
     /// Initializes a new instance of the <see cref="MultiplayerSession"/> class.
     /// </summary>
     /// <param name="options">Client runtime options.</param>
-    public MultiplayerSession(DesktopOptions options) =>
+    public MultiplayerSession(DesktopOptions options)
+    {
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        _configSync = this.CreateConfigSync();
+    }
 
     /// <inheritdoc/>
     public ChunkWorld2D ChunkWorld =>
@@ -640,6 +643,12 @@ public sealed partial class MultiplayerSession : IWorldSession
             await _sessionCts.CancelAsync().ConfigureAwait(false);
             _sessionCts.Dispose();
             _sessionCts = null;
+        }
+
+        lock (_configGate)
+        {
+            _pendingManifest?.Dispose();
+            _pendingManifest = null;
         }
 
         _connectGate.Dispose();

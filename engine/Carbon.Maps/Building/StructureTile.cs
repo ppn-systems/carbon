@@ -54,6 +54,7 @@ public readonly record struct StructureTile(
         StructureCategory.Door => this.DoorState is DoorState.Closed && !this.Destructibility.IsDestroyed,
         StructureCategory.Pillar => !this.Destructibility.IsDestroyed,
         StructureCategory.Station => !this.Destructibility.IsDestroyed,
+        StructureCategory.Furniture => !this.Destructibility.IsDestroyed,
         StructureCategory.Floor => false,
         StructureCategory.None => false,
         _ => false
@@ -139,4 +140,10 @@ public readonly record struct StructureTile(
     /// </summary>
     public static StructureTile CreateStation(StructureType type, StructureMaterial material, float durability = 350f, byte harvestTier = 2) =>
         new(type, material, StructureCategory.Station, PropDestructibility.Create(durability, harvestTier), DoorState.Closed, WallConnectivityMask.None, false, 0f);
+
+    /// <summary>
+    /// Creates a solid furniture tile instance (e.g. chest, bed).
+    /// </summary>
+    public static StructureTile CreateFurniture(StructureType type, StructureMaterial material, float durability = 80f, byte harvestTier = 1) =>
+        new(type, material, StructureCategory.Furniture, PropDestructibility.Create(durability, harvestTier), DoorState.Closed, WallConnectivityMask.None, false, 0f);
 }

@@ -132,7 +132,8 @@ public static partial class MapHandlers
             connectionId,
             req.TileX,
             req.TileY,
-            (StructureType)req.StructureType);
+            (StructureType)req.StructureType,
+            (StructureRotation)(req.Rotation & 0x03));
         return PacketReplyHelper.SendMutationAsync(context, outcome.Status, MapOpCode.StructurePlace, outcome.Revision);
     }
 

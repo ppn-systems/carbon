@@ -496,8 +496,11 @@ public sealed partial class MultiplayerSession
 
         int tx = (int)MathF.Floor(aimWorldPosition.X / _tileSize);
         int ty = (int)MathF.Floor(aimWorldPosition.Y / _tileSize);
-        if (!_chunkWorld.Buildings.TryGetStructure(tx, ty, out StructureTile existing) ||
-            existing.Type == StructureType.None)
+        bool hasStructure = _chunkWorld.Buildings.TryGetStructure(tx, ty, out StructureTile existing) &&
+            existing.Type != StructureType.None;
+
+        // A blueprint / frame (synced through chunk deltas) is cancelled by the same request.
+        if (!hasStructure && !_chunkWorld.Construction.IsReserved(tx, ty))
         {
             return false;
         }
