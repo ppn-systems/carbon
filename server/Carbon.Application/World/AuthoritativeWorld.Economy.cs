@@ -67,11 +67,12 @@ public sealed partial class AuthoritativeWorld
     /// Rolls the config loot table of a killed monster, spawns the item stacks as ground loot and credits gold and
     /// diamonds to the killer's wallet. Server-authoritative and deterministic per (world seed, tick, victim).
     /// </summary>
+    /// <remarks><paramref name="tableId"/> is the monster definition's <c>lootTableId</c> (falls back to <see cref="ResolveLootTableId"/>).</remarks>
     /// <returns><see langword="false"/> when no economy or table applies (caller falls back to legacy drops).</returns>
-    private bool TryRollEconomyLootLocked(ActivePlayerState killer, ushort archetypeId, ushort monsterLevel, ulong victimNetworkId, Vector2 position)
+    private bool TryRollEconomyLootLocked(ActivePlayerState killer, string? tableId, ushort monsterLevel, ulong victimNetworkId, Vector2 position)
     {
         if (_economy is null
-            || ResolveLootTableId(archetypeId) is not string tableId
+            || tableId is null
             || !_economy.Loot.TryGet(tableId, out LootTable? table))
         {
             return false;

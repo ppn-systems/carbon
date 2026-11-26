@@ -30,6 +30,7 @@ namespace Carbon.Desktop.Abstractions.World;
 /// <param name="LootCount">Stack quantity when representing a ground loot drop.</param>
 /// <param name="WeaponUpgradeLevel">Enhancement level (<c>0..10</c>) of the equipped weapon or loot drop.</param>
 /// <param name="ActiveActionKind">Current attack or skill action kind being animated.</param>
+/// <param name="Attack">Server-announced monster attack phase (inactive by default).</param>
 public readonly record struct RemoteEntityView(
     ulong NetworkId,
     EntityKind Kind,
@@ -52,4 +53,5 @@ public readonly record struct RemoteEntityView(
     ushort Level = 1,
     int LootCount = 0,
     byte WeaponUpgradeLevel = 0,
-    ActionAnimationKind ActiveActionKind = ActionAnimationKind.None);
+    ActionAnimationKind ActiveActionKind = ActionAnimationKind.None,
+    AttackPhaseView Attack = default);

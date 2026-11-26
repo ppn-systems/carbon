@@ -34,33 +34,34 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
     private readonly MonsterCatalog _catalog;
     private readonly SpawningConfig _config;
     private readonly MonsterScaling _scaling;
-    private readonly IBiomeSampler _biomes;
+    private readonly ISpawnSurface _surface;
     private readonly Vector2 _worldOrigin;
     private readonly ulong _seed;
     private readonly SpawnTableData?[] _tables = new SpawnTableData?[byte.MaxValue + 1];
     private readonly Dictionary<CellCoord, CellState> _cells = new(256);
     private readonly HashSet<CellCoord> _visited = new(64);
     private readonly List<TrackedMonster> _tracked = new(256);
+    private bool _scanRequested;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MonsterSpawnerSystem"/> class.
     /// </summary>
     /// <param name="catalog">Monster catalog.</param>
     /// <param name="config">Spawning configuration.</param>
-    /// <param name="biomes">Biome sampler.</param>
+    /// <param name="surface">Spawn surface (walkability + biome).</param>
     /// <param name="worldOrigin">World origin / first player spawn point; distance from it drives monster level.</param>
     /// <param name="seed">Deterministic world seed.</param>
     /// <exception cref="ArgumentException">Thrown when a spawn table references an unknown monster.</exception>
-    public MonsterSpawnerSystem(MonsterCatalog catalog, SpawningConfig config, IBiomeSampler biomes, Vector2 worldOrigin, ulong seed)
+    public MonsterSpawnerSystem(MonsterCatalog catalog, SpawningConfig config, ISpawnSurface surface, Vector2 worldOrigin, ulong seed)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(config);
-        ArgumentNullException.ThrowIfNull(biomes);
+        ArgumentNullException.ThrowIfNull(surface);
 
         _catalog = catalog;
         _config = config;
         _scaling = new MonsterScaling(config);
-        _biomes = biomes;
+        _surface = surface;
         _worldOrigin = worldOrigin;
         _seed = seed;
 
@@ -92,6 +93,12 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
     public int LiveMonsterCount => _tracked.Count;
 
     /// <summary>
+    /// Requests a scan on the next tick regardless of <see cref="SpawningConfig.ScanIntervalTicks"/>
+    /// (e.g. right after a player enters the world, so nearby cells populate immediately).
+    /// </summary>
+    public void RequestScan() => _scanRequested = true;
+
+    /// <summary>
     /// Converts a world position to its spawner density cell.
     /// </summary>
     /// <param name="position">World position.</param>
@@ -119,10 +126,12 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
     {
         ArgumentNullException.ThrowIfNull(world);
 
-        if (tick.TickIndex % _config.ScanIntervalTicks != 0)
+        if (!_scanRequested && tick.TickIndex % _config.ScanIntervalTicks != 0)
         {
             return;
         }
+
+        _scanRequested = false;
 
         this.ReapDead(world, tick.TickIndex);
 
@@ -203,15 +212,23 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
             }
         }
 
-        BiomeType biome = _biomes.SampleBiome(position);
+        if (!_surface.TrySampleSpawnBiome(position, out BiomeType biome))
+        {
+            return;
+        }
+
         SpawnTableData? table = _tables[(byte)biome];
-        if (table is null || !table.TryPick(rng.NextFloat(), isNight, out ushort monsterIndex))
+        // Level depends only on distance from the origin; monsters spawn only inside their level range (loot bands).
+        int level = (int)MathF.Floor(_scaling.EvaluateLevel(originDistance, out _));
+        if (table is null || !table.TryPick(rng.NextFloat(), isNight, level, out ushort monsterIndex))
         {
             return;
         }
 
         float eliteChance = isNight ? _config.Night.EliteChance : _config.DayEliteChance;
-        if (rng.NextFloat() < eliteChance && _catalog.TryGetEliteVariant(monsterIndex, out ushort eliteIndex))
+        if (rng.NextFloat() < eliteChance &&
+            _catalog.TryGetEliteVariant(monsterIndex, out ushort eliteIndex) &&
+            _catalog.GetDefinition(eliteIndex).IsSpawnableAt(level))
         {
             monsterIndex = eliteIndex;
         }
@@ -270,19 +287,16 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
         private readonly ushort[] _monsters;
         private readonly float[] _dayWeights;
         private readonly float[] _nightWeights;
-        private readonly float _dayTotal;
-        private readonly float _nightTotal;
+        private readonly int[] _minLevels;
+        private readonly int[] _maxLevels;
 
-        private SpawnTableData(ushort[] monsters, float[] dayWeights, float[] nightWeights)
+        private SpawnTableData(ushort[] monsters, float[] dayWeights, float[] nightWeights, int[] minLevels, int[] maxLevels)
         {
             _monsters = monsters;
             _dayWeights = dayWeights;
             _nightWeights = nightWeights;
-            for (int i = 0; i < monsters.Length; i++)
-            {
-                _dayTotal += dayWeights[i];
-                _nightTotal += nightWeights[i];
-            }
+            _minLevels = minLevels;
+            _maxLevels = maxLevels;
         }
 
         public static SpawnTableData Create(MonsterCatalog catalog, SpawnTable table)
@@ -291,6 +305,8 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
             ushort[] monsters = new ushort[count];
             float[] day = new float[count];
             float[] night = new float[count];
+            int[] minLevels = new int[count];
+            int[] maxLevels = new int[count];
             for (int i = 0; i < count; i++)
             {
                 SpawnTableEntry entry = table.Entries[i];
@@ -299,44 +315,57 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
                     throw new ArgumentException($"Spawn table '{table.Biome}' references unknown monster '{entry.Monster}'.", nameof(table));
                 }
 
+                MonsterDefinition def = catalog.GetDefinition(monsters[i]);
                 day[i] = entry.Weight;
                 night[i] = entry.NightWeight ?? entry.Weight;
+                minLevels[i] = def.MinLevel;
+                maxLevels[i] = def.MaxLevel;
             }
 
-            return new SpawnTableData(monsters, day, night);
+            return new SpawnTableData(monsters, day, night, minLevels, maxLevels);
         }
 
-        public bool TryPick(float roll, bool isNight, out ushort monsterIndex)
+        /// <summary>Weighted pick among entries whose monster level range contains <paramref name="level"/>.</summary>
+        public bool TryPick(float roll, bool isNight, int level, out ushort monsterIndex)
         {
             float[] weights = isNight ? _nightWeights : _dayWeights;
-            float total = isNight ? _nightTotal : _dayTotal;
             monsterIndex = 0;
+            float total = 0f;
+            for (int i = 0; i < weights.Length; i++)
+            {
+                if (this.IsEligible(i, level))
+                {
+                    total += weights[i];
+                }
+            }
+
             if (total <= 0f)
             {
                 return false;
             }
 
             float threshold = roll * total;
+            int last = -1;
             for (int i = 0; i < weights.Length; i++)
             {
+                if (!this.IsEligible(i, level) || weights[i] <= 0f)
+                {
+                    continue;
+                }
+
+                last = i;
                 threshold -= weights[i];
-                if (threshold < 0f && weights[i] > 0f)
+                if (threshold < 0f)
                 {
                     monsterIndex = _monsters[i];
                     return true;
                 }
             }
 
-            for (int i = weights.Length - 1; i >= 0; i--)
-            {
-                if (weights[i] > 0f)
-                {
-                    monsterIndex = _monsters[i];
-                    return true;
-                }
-            }
-
-            return false;
+            monsterIndex = _monsters[last];
+            return true;
         }
+
+        private bool IsEligible(int i, int level) => level >= _minLevels[i] && level <= _maxLevels[i];
     }
 }

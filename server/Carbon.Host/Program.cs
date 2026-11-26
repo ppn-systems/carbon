@@ -10,6 +10,7 @@ using Carbon.Abstractions.Configuration;
 using Carbon.Abstractions.Persistence;
 using Carbon.Application.Identity;
 using Carbon.Application.World;
+using Carbon.Creatures;
 using Carbon.Economy;
 using Carbon.Infrastructure.Configuration;
 using Carbon.Infrastructure.Persistence.Postgres;
@@ -111,6 +112,10 @@ public static class Program
             ReadDocument(config, GameEconomy.EconomyFile),
             ReadDocument(config, GameEconomy.LootFile));
 
+        CreatureContent creatures = CreatureContent.FromJson(
+            ReadDocument(config, CreatureContent.MonstersFileName),
+            ReadDocument(config, CreatureContent.SpawningFileName));
+
         // Survival tuning (hunger decay, food nutrition) comes from the same served snapshot.
         NeedsConfig needsConfig = NeedsConfig.LoadFromJson(ReadDocument(config, "needs.json"));
         FoodCatalog foodCatalog = FoodCatalog.LoadFromJson(ReadDocument(config, "food.json"), needsConfig.FoodMax);
@@ -126,7 +131,8 @@ public static class Program
             time: null,
             needsConfig,
             foodCatalog,
-            economy);
+            economy,
+            creatures: creatures);
 
         await world.InitializeFromStoreAsync().ConfigureAwait(false);
 

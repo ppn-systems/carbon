@@ -1,5 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System;
+using System.Collections.Generic;
 using Carbon.Creatures.Definitions;
 using Carbon.Creatures.Scaling;
 using FluentAssertions;
@@ -10,7 +12,7 @@ namespace Carbon.Creatures.Tests;
 public sealed class MonsterScalingTests
 {
     private readonly MonsterScaling _scaling = new(CreatureTestData.LoadSpawning());
-    private readonly MonsterDefinition _orc = CreatureTestData.LoadCatalog().GetDefinition(CreatureTestData.LoadCatalog().GetIndex("orc"));
+    private readonly MonsterDefinition _orc = CreatureTestData.LoadCatalog().GetDefinition(CreatureTestData.LoadCatalog().GetIndex("rock_golem"));
 
     [Fact]
     public void Compute_IncreasingDistance_IsMonotonicInLevelAndStats()
@@ -69,6 +71,46 @@ public sealed class MonsterScalingTests
 
         _scaling.EvaluateLevel(1e9f, out int beyond).Should().Be(config.Level.MaxLevel, "level is capped");
         beyond.Should().Be(config.Level.Bands.Count);
+    }
+
+    [Fact]
+    public void ShippedConfig_EveryMonsterSpawnableLevelRange_OverlapsItsLootBand()
+    {
+        MonsterCatalog catalog = CreatureTestData.LoadCatalog();
+        Dictionary<string, (int MinLevel, int MaxLevel)> lootBands = CreatureTestData.LoadLootBands();
+        int maxReachable = (int)_scaling.EvaluateLevel(float.MaxValue, out _);
+        maxReachable.Should().Be(100, "levels span 1..100 so every loot band is reachable");
+
+        foreach (MonsterDefinition def in catalog.Definitions)
+        {
+            int lo = Math.Max(1, def.MinLevel);
+            int hi = Math.Min(maxReachable, def.MaxLevel);
+            lo.Should().BeLessThanOrEqualTo(hi, $"'{def.Id}' must be spawnable at some reachable level");
+            if (lootBands.TryGetValue(def.LootTableId, out (int MinLevel, int MaxLevel) band))
+            {
+                (lo <= band.MaxLevel && hi >= band.MinLevel).Should().BeTrue(
+                    $"'{def.Id}' spawns at {lo}..{hi} but its loot table '{def.LootTableId}' drops at {band.MinLevel}..{band.MaxLevel}");
+            }
+        }
+    }
+
+    [Fact]
+    public void ShippedConfig_LevelGates_SlimesNearSpawnDemonsOnlyFarOut()
+    {
+        MonsterCatalog catalog = CreatureTestData.LoadCatalog();
+        MonsterDefinition slime = catalog.GetDefinition(catalog.GetIndex("wild_slime"));
+        MonsterDefinition demon = catalog.GetDefinition(catalog.GetIndex("crimson_demon"));
+
+        for (float d = 0f; d <= 6400f; d += 200f)
+        {
+            int level = (int)_scaling.EvaluateLevel(d, out _);
+            slime.IsSpawnableAt(level).Should().BeTrue($"slimes spawn in the heartland (distance {d}, level {level})");
+            demon.IsSpawnableAt(level).Should().BeFalse($"demons never spawn near the first spawn point (distance {d})");
+        }
+
+        demon.IsSpawnableAt((int)_scaling.EvaluateLevel(40_000f, out _)).Should().BeFalse("the outer wilds start below demon levels");
+        demon.IsSpawnableAt((int)_scaling.EvaluateLevel(120_000f, out _)).Should().BeTrue("demons inhabit the endgame band");
+        slime.IsSpawnableAt((int)_scaling.EvaluateLevel(120_000f, out _)).Should().BeFalse("slimes do not appear deep in the endgame");
     }
 
     [Fact]

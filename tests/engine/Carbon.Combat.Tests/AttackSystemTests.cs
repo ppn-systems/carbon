@@ -219,15 +219,54 @@ public sealed class AttackSystemTests
         h.Begin(0, victim).Should().BeTrue("the cooldown elapsed at tick 30");
     }
 
+    [Fact]
+    public void Update_WithHostEffects_RoutesHitsAndProjectileLaunchesThroughHost()
+    {
+        RecordingEffects effects = new();
+        Harness melee = new(s_melee, effects: effects);
+        Entity victim = melee.SpawnVictim(new Vector2(18f, 0f));
+        melee.Begin(0, victim);
+        melee.Run(20);
+
+        Harness ranged = new(s_projectile with { ProjectileVisual = 5 }, effects: effects);
+        Entity target = ranged.SpawnVictim(new Vector2(150f, 0f));
+        ranged.Begin(0, target);
+        ranged.Run(10);
+
+        effects.Hits.Should().Equal([(victim, 10f)], "the host applies the single melee hit");
+        melee.World.Entities.GetHealth(victim).Current.Should().Be(100f, "the default damage path is bypassed");
+        effects.Launches.Should().ContainSingle().Which.VisualArchetype.Should().Be(5);
+        ranged.Launches.Should().ContainSingle().Which.Projectile.Should().Be(Entity.Null, "the host chose not to spawn an entity");
+    }
+
+    private sealed class RecordingEffects : IAttackEffects
+    {
+        public List<(Entity Victim, float Damage)> Hits { get; } = [];
+
+        public List<ProjectileLaunchRequest> Launches { get; } = [];
+
+        public bool ApplyHit(WorldSimulation world, Entity attacker, Entity victim, float damage)
+        {
+            this.Hits.Add((victim, damage));
+            return true;
+        }
+
+        public Entity LaunchProjectile(WorldSimulation world, in ProjectileLaunchRequest request)
+        {
+            this.Launches.Add(request);
+            return Entity.Null;
+        }
+    }
+
     private sealed class Harness
     {
         private readonly AttackSystem _attacks;
         private ulong _tick;
 
-        public Harness(AttackProfile profile, bool withProjectiles = false)
+        public Harness(AttackProfile profile, bool withProjectiles = false, IAttackEffects? effects = null)
         {
             this.World = new WorldSimulation(tickRate: 20);
-            _attacks = new AttackSystem([profile]);
+            _attacks = new AttackSystem([profile], effects);
             this.World.RegisterSystem(_attacks);
             if (withProjectiles)
             {

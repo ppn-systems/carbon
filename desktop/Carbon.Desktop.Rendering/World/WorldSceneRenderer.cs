@@ -709,7 +709,18 @@ public sealed class WorldSceneRenderer : IDisposable
             }
             else if (remote.Kind == EntityKind.Monster && _art.TryGetMonster(remote.ArchetypeId, out rig))
             {
-                if (attacking)
+                if (remote.Attack.IsActive)
+                {
+                    // Server-authoritative phase timeline (ADR-013): kind-specific clip, beats aligned to phase markers.
+                    AttackTelegraphRenderer.Draw(batch, footPos, remote.Attack, _animTime);
+                    clip = MonsterAttackAnimator.ResolveClip(rig, remote.ArchetypeId, remote.Attack.AttackKind);
+                    AttackPhaseMarks marks = rig.TryGetAnimation(clip, out CompiledVectorAnimation? attackAnim)
+                        ? attackAnim.PhaseMarks
+                        : AttackPhaseMarks.Default;
+                    eval = MonsterAttackAnimator.ToClipTime(remote.Attack.Phase, remote.Attack.PhaseProgress, in marks);
+                    norm = true;
+                }
+                else if (attacking)
                 {
                     clip = remote.ActiveActionKind switch
                     {
