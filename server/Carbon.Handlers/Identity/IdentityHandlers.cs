@@ -30,6 +30,7 @@ public static partial class IdentityHandlers
 {
     [Inject] private static IAuthService s_authService = null!;
     [Inject] private static IAuthoritativeWorld s_world = null!;
+    [Inject] private static ISessionTransportRegistry s_transports = null!;
 
     /// <summary>Opcode <c>0x0101</c>. Registers a new account and elevates the session upon success.</summary>
     [PacketOpcode(IdentityOpCode.Register)]
@@ -39,7 +40,7 @@ public static partial class IdentityHandlers
         ArgumentNullException.ThrowIfNull(context);
 
         AuthRegister req = context.Packet;
-        ulong connectionId = context.Connection.ConnectionId;
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
         AuthOutcome outcome = await s_authService
             .RegisterAsync(req.Username, req.Password, req.ClientProtocolVersion, context.CancellationToken)
             .ConfigureAwait(false);
@@ -61,7 +62,7 @@ public static partial class IdentityHandlers
         ArgumentNullException.ThrowIfNull(context);
 
         AuthLogin req = context.Packet;
-        ulong connectionId = context.Connection.ConnectionId;
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
         AuthOutcome outcome = await s_authService
             .LoginAsync(req.Username, req.Password, req.ClientProtocolVersion, context.CancellationToken)
             .ConfigureAwait(false);
@@ -82,7 +83,8 @@ public static partial class IdentityHandlers
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (ConnectionAuthRegistry.TryGetAccountId(context.Connection.ConnectionId, out Guid accountId))
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        if (ConnectionAuthRegistry.TryGetAccountId(connectionId, out Guid accountId))
         {
             IReadOnlyList<CharacterRecord> characters = await s_authService
                 .ListCharactersAsync(accountId, context.CancellationToken)
@@ -124,7 +126,8 @@ public static partial class IdentityHandlers
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (!ConnectionAuthRegistry.TryGetAccountId(context.Connection.ConnectionId, out Guid accountId))
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        if (!ConnectionAuthRegistry.TryGetAccountId(connectionId, out Guid accountId))
         {
             await PacketReplyHelper.SendMutationAsync(context, OpStatus.Forbidden, IdentityOpCode.CharacterCreate).ConfigureAwait(false);
             return;
@@ -155,7 +158,7 @@ public static partial class IdentityHandlers
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        ulong connectionId = context.Connection.ConnectionId;
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
         if (!ConnectionAuthRegistry.TryGetAccountId(connectionId, out Guid accountId))
         {
             await SendEnterWorldAsync(context, new EnterWorldResult(OpStatus.Forbidden, 0, 0, 0, 0, 0, 0, 0, 0, 0)).ConfigureAwait(false);
@@ -183,7 +186,8 @@ public static partial class IdentityHandlers
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        ulong connectionId = context.Connection.ConnectionId;
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        s_transports.DisconnectPairedDatagram(connectionId);
         _ = s_world.LeaveWorld(connectionId);
         _ = ConnectionAuthRegistry.Clear(connectionId);
         context.Connection.Level = PermissionLevel.NONE;

@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.World;
@@ -10,26 +11,33 @@ using Carbon.Contracts.Items.S2C;
 using Carbon.Contracts.Maps.S2C;
 using Microsoft.Extensions.Logging;
 using Nalix.Abstractions.Networking;
+using Nalix.Abstractions.Networking.Datagrams;
+using Nalix.Abstractions.Networking.Packets;
 using Nalix.Abstractions.Security;
 using Nalix.Codec.Pooling;
+using Nalix.Network.Connections;
 using Nalix.Runtime.Extensions;
 
 namespace Carbon.Host;
 
 /// <summary>
 /// Pushes world simulation AoI updates and map edits onto live Nalix transport connections
-/// using pooled packet leases and non-blocking dispatch.
+/// (routing high-frequency deltas and combat hits over Authenticated UDP when attached, with TCP fallback).
 /// </summary>
 internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
 {
+    private readonly NalixSessionTransportRegistry _transportRegistry;
     private readonly ILogger<NalixWorldOutboundSink> _logger;
     private volatile IConnectionHub? _hub;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="NalixWorldOutboundSink"/> class.
     /// </summary>
-    public NalixWorldOutboundSink(ILogger<NalixWorldOutboundSink> logger) =>
+    public NalixWorldOutboundSink(NalixSessionTransportRegistry transportRegistry, ILogger<NalixWorldOutboundSink> logger)
+    {
+        _transportRegistry = transportRegistry ?? throw new ArgumentNullException(nameof(transportRegistry));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
 
     /// <summary>Binds the live connection hub created by the Nalix host builder.</summary>
     public void AttachHub(IConnectionHub hub) =>
@@ -79,7 +87,16 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
         float selfY,
         ReadOnlySpan<EntityDeltaEntry> entries)
     {
-        if (!this.TryResolveConnection(connectionId, out IConnection? conn) || conn is null)
+        IDatagramTransport? dgram = null;
+        IConnection? streamConn = null;
+
+        if (_transportRegistry.TryGetDatagramConnection(connectionId, out DatagramConnection? dg) &&
+            dg is not null &&
+            dg.Transport is IDatagramTransport datagramTransport)
+        {
+            dgram = datagramTransport;
+        }
+        else if (!this.TryResolveConnection(connectionId, out streamConn) || streamConn is null)
         {
             return;
         }
@@ -105,8 +122,27 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
             hp[i] = e.CurrentHealth;
         }
 
+        if (dgram is not null)
+        {
+            _ = DispatchEntityDeltaBatchDatagramAsync(
+                dgram,
+                serverTick,
+                lastProcessedClientTick,
+                selfX,
+                selfY,
+                ids,
+                masks,
+                px,
+                py,
+                vx,
+                vy,
+                hp,
+                _logger);
+            return;
+        }
+
         _ = DispatchEntityDeltaBatchAsync(
-            conn,
+            streamConn!,
             serverTick,
             lastProcessedClientTick,
             selfX,
@@ -150,7 +186,14 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
     {
         for (int i = 0; i < recipientConnectionIds.Length; i++)
         {
-            if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
+            ulong recipientId = recipientConnectionIds[i];
+            if (_transportRegistry.TryGetDatagramConnection(recipientId, out DatagramConnection? dg) &&
+                dg is not null &&
+                dg.Transport is IDatagramTransport dgramTransport)
+            {
+                _ = DispatchCombatHitDatagramAsync(dgramTransport, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, _logger);
+            }
+            else if (this.TryResolveConnection(recipientId, out IConnection? conn) && conn is not null)
             {
                 _ = DispatchCombatHitAsync(conn, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, _logger);
             }
@@ -168,14 +211,20 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
 
     private bool TryResolveConnection(ulong connectionId, out IConnection? connection)
     {
-        IConnectionHub? hub = _hub;
+        IConnectionHub? hub = _hub ?? _transportRegistry.ResolveHub();
         if (hub is null)
         {
             connection = null;
             return false;
         }
 
+        _hub = hub;
         connection = hub.GetConnection(connectionId);
+        if (connection is null && _logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("TryResolveConnection miss for ConnectionId={ConnectionId}", connectionId);
+        }
+
         return connection is not null;
     }
 
@@ -259,26 +308,69 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
         try
         {
             using PacketScope<EntityDeltaBatch> lease = PacketFactory<EntityDeltaBatch>.Acquire();
-            EntityDeltaBatch pkt = lease.Value;
-            pkt.ServerTick = serverTick;
-            pkt.LastProcessedClientTick = lastProcessedClientTick;
-            pkt.SelfPositionX = selfX;
-            pkt.SelfPositionY = selfY;
-            pkt.NetworkIds = ids;
-            pkt.DirtyMasks = masks;
-            pkt.PositionsX = px;
-            pkt.PositionsY = py;
-            pkt.VelocitiesX = vx;
-            pkt.VelocitiesY = vy;
-            pkt.CurrentHealths = hp;
+            PopulateEntityDeltaBatch(lease.Value, serverTick, lastProcessedClientTick, selfX, selfY, ids, masks, px, py, vx, vy, hp);
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
-            await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+            await connection.SendAsync(lease.Value, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogSendFailure(logger, nameof(EntityDeltaBatch), ex);
         }
+    }
+
+    private static async Task DispatchEntityDeltaBatchDatagramAsync(
+        IDatagramTransport transport,
+        ulong serverTick,
+        uint lastProcessedClientTick,
+        float selfX,
+        float selfY,
+        ulong[] ids,
+        byte[] masks,
+        float[] px,
+        float[] py,
+        float[] vx,
+        float[] vy,
+        float[] hp,
+        ILogger logger)
+    {
+        try
+        {
+            using PacketScope<EntityDeltaBatch> lease = PacketFactory<EntityDeltaBatch>.Acquire();
+            PopulateEntityDeltaBatch(lease.Value, serverTick, lastProcessedClientTick, selfX, selfY, ids, masks, px, py, vx, vy, hp);
+            await SendSerializedDatagramAsync(transport, lease.Value, DeliveryMethod.UnreliableSequenced, channel: 1).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogSendFailure(logger, nameof(EntityDeltaBatch), ex);
+        }
+    }
+
+    private static void PopulateEntityDeltaBatch(
+        EntityDeltaBatch pkt,
+        ulong serverTick,
+        uint lastProcessedClientTick,
+        float selfX,
+        float selfY,
+        ulong[] ids,
+        byte[] masks,
+        float[] px,
+        float[] py,
+        float[] vx,
+        float[] vy,
+        float[] hp)
+    {
+        pkt.ServerTick = serverTick;
+        pkt.LastProcessedClientTick = lastProcessedClientTick;
+        pkt.SelfPositionX = selfX;
+        pkt.SelfPositionY = selfY;
+        pkt.NetworkIds = ids;
+        pkt.DirtyMasks = masks;
+        pkt.PositionsX = px;
+        pkt.PositionsY = py;
+        pkt.VelocitiesX = vx;
+        pkt.VelocitiesY = vy;
+        pkt.CurrentHealths = hp;
     }
 
     private static async Task DispatchPropChangedAsync(
@@ -352,20 +444,72 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
         try
         {
             using PacketScope<CombatHit> lease = PacketFactory<CombatHit>.Acquire();
-            CombatHit pkt = lease.Value;
-            pkt.AttackerNetworkId = attackerNetworkId;
-            pkt.DefenderNetworkId = defenderNetworkId;
-            pkt.Damage = damage;
-            pkt.RemainingHealth = remainingHealth;
-            pkt.IsCritical = isCritical;
-            pkt.IsKilled = isKilled;
+            PopulateCombatHit(lease.Value, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled);
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
-            await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+            await connection.SendAsync(lease.Value, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogSendFailure(logger, nameof(CombatHit), ex);
+        }
+    }
+
+    private static async Task DispatchCombatHitDatagramAsync(
+        IDatagramTransport transport,
+        ulong attackerNetworkId,
+        ulong defenderNetworkId,
+        float damage,
+        float remainingHealth,
+        bool isCritical,
+        bool isKilled,
+        ILogger logger)
+    {
+        try
+        {
+            using PacketScope<CombatHit> lease = PacketFactory<CombatHit>.Acquire();
+            PopulateCombatHit(lease.Value, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled);
+            await SendSerializedDatagramAsync(transport, lease.Value, DeliveryMethod.ReliableUnordered, channel: 2).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogSendFailure(logger, nameof(CombatHit), ex);
+        }
+    }
+
+    private static void PopulateCombatHit(
+        CombatHit pkt,
+        ulong attackerNetworkId,
+        ulong defenderNetworkId,
+        float damage,
+        float remainingHealth,
+        bool isCritical,
+        bool isKilled)
+    {
+        pkt.AttackerNetworkId = attackerNetworkId;
+        pkt.DefenderNetworkId = defenderNetworkId;
+        pkt.Damage = damage;
+        pkt.RemainingHealth = remainingHealth;
+        pkt.IsCritical = isCritical;
+        pkt.IsKilled = isKilled;
+    }
+
+    private static async Task SendSerializedDatagramAsync(
+        IDatagramTransport transport,
+        IPacket packet,
+        DeliveryMethod method,
+        byte channel)
+    {
+        int length = packet.Length;
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(length);
+        try
+        {
+            int written = packet.Serialize(buffer.AsSpan(0, length));
+            await transport.SendAsync(buffer.AsMemory(0, written), method, channel, CancellationToken.None).ConfigureAwait(false);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
         }
     }
 

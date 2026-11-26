@@ -14,11 +14,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 WORKDIR /app
 COPY --from=build /app/publish/Carbon.Host /app/Carbon.Host
 
-ENV CARBON_TCP_PORT=57205
+ENV CARBON_TCP_PORT=57207
+ENV CARBON_UDP_PORT=57208
+ENV CARBON_WS_HOST=+
 ENV CARBON_WS_PORT=57206
 ENV CARBON_WS_PATH=/ws/
 ENV CARBON_TICK_RATE=30
 
-EXPOSE 57205 57206
+EXPOSE 57206 57207 57208/udp
 
 ENTRYPOINT ["/app/Carbon.Host"]

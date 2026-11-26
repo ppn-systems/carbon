@@ -12,8 +12,10 @@
         <ProjectReference Include="..\Carbon.Desktop.Networking\Carbon.Desktop.Networking.csproj" />
         <ProjectReference Include="..\Carbon.Desktop.Rendering\Carbon.Desktop.Rendering.csproj" />
         <ProjectReference Include="..\..\graphics\Carbon.Graphics.Batching\Carbon.Graphics.Batching.csproj" />
+        <ProjectReference Include="..\..\graphics\Carbon.Graphics.Fonts\Carbon.Graphics.Fonts.csproj" />
         <ProjectReference Include="..\..\graphics\Carbon.Graphics.OpenGL\Carbon.Graphics.OpenGL.csproj" />
         <ProjectReference Include="..\..\graphics\Carbon.Graphics.Scenes\Carbon.Graphics.Scenes.csproj" />
+        <ProjectReference Include="..\..\graphics\Carbon.Graphics.UI\Carbon.Graphics.UI.csproj" />
         <ProjectReference Include="..\..\graphics\Carbon.Graphics.Windowing\Carbon.Graphics.Windowing.csproj" />
     </ItemGroup>
 

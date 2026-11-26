@@ -24,6 +24,7 @@ namespace Carbon.Handlers.Maps;
 public static partial class MapHandlers
 {
     [Inject] private static IAuthoritativeWorld s_world = null!;
+    [Inject] private static ISessionTransportRegistry s_transports = null!;
 
     /// <summary>Opcode <c>0x1101</c>. Returns deterministic world seed, version, and starter spawn coordinates.</summary>
     [PacketOpcode(MapOpCode.WorldInfoRequest)]
@@ -113,7 +114,8 @@ public static partial class MapHandlers
         ArgumentNullException.ThrowIfNull(context);
 
         MapPropHarvest req = context.Packet;
-        WorldMutationOutcome outcome = s_world.TryHarvestProp(context.Connection.ConnectionId, req.TileX, req.TileY);
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        WorldMutationOutcome outcome = s_world.TryHarvestProp(connectionId, req.TileX, req.TileY);
         return PacketReplyHelper.SendMutationAsync(context, outcome.Status, MapOpCode.PropHarvest, outcome.Revision);
     }
 
@@ -125,8 +127,9 @@ public static partial class MapHandlers
         ArgumentNullException.ThrowIfNull(context);
 
         MapStructurePlace req = context.Packet;
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
         WorldMutationOutcome outcome = s_world.TryPlaceStructure(
-            context.Connection.ConnectionId,
+            connectionId,
             req.TileX,
             req.TileY,
             (StructureType)req.StructureType);
@@ -141,7 +144,8 @@ public static partial class MapHandlers
         ArgumentNullException.ThrowIfNull(context);
 
         MapStructureDemolish req = context.Packet;
-        WorldMutationOutcome outcome = s_world.TryDemolishStructure(context.Connection.ConnectionId, req.TileX, req.TileY);
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        WorldMutationOutcome outcome = s_world.TryDemolishStructure(connectionId, req.TileX, req.TileY);
         return PacketReplyHelper.SendMutationAsync(context, outcome.Status, MapOpCode.StructureDemolish, outcome.Revision);
     }
 
@@ -153,7 +157,8 @@ public static partial class MapHandlers
         ArgumentNullException.ThrowIfNull(context);
 
         MapDoorToggle req = context.Packet;
-        WorldMutationOutcome outcome = s_world.TryToggleDoor(context.Connection.ConnectionId, req.TileX, req.TileY);
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        WorldMutationOutcome outcome = s_world.TryToggleDoor(connectionId, req.TileX, req.TileY);
         return PacketReplyHelper.SendMutationAsync(context, outcome.Status, MapOpCode.DoorToggle, outcome.Revision);
     }
 }

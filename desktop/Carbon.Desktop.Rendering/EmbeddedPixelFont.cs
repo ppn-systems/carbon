@@ -16,13 +16,16 @@ namespace Carbon.Desktop.Rendering;
 /// Synthesizes an embedded 5x7 crisp bitmap ASCII font (<c>32..126</c>) and a 1x1 white pixel texture
 /// in GPU memory so the HUD and floating combat text require zero external image assets.
 /// </summary>
-internal static class EmbeddedPixelFont
+public static class EmbeddedPixelFont
 {
     private const int CellSize = 8;
     private const int Columns = 16;
     private const int AtlasWidth = Columns * CellSize;
     private const int AtlasHeight = 6 * CellSize;
 
+    /// <summary>
+    /// Creates an in-memory crisp pixel <see cref="BitmapFont"/> and white 1x1 pixel texture on <paramref name="device"/>.
+    /// </summary>
     public static (BitmapFont Font, Texture2D WhitePixel) Create(IGraphicsDevice device)
     {
         ArgumentNullException.ThrowIfNull(device);

@@ -29,7 +29,10 @@ public sealed class HostRuntimeOptions
     /// <summary>Gets or sets the fixed simulation tick rate in Hertz.</summary>
     public ushort TickRate { get; init; } = 30;
 
-    /// <summary>Gets or sets the WebSocket listen port.</summary>
+    /// <summary>Gets or sets the WebSocket listen host binding (<c>localhost</c> by default, or <c>+</c>).</summary>
+    public string WebSocketHost { get; init; } = "localhost";
+
+    /// <summary>Gets or sets the WebSocket listen port (<c>0</c> disables the WebSocket listener).</summary>
     public ushort WebSocketPort { get; init; } = 57206;
 
     /// <summary>Gets or sets the WebSocket endpoint path.</summary>
@@ -37,6 +40,9 @@ public sealed class HostRuntimeOptions
 
     /// <summary>Gets or sets the TCP listen port.</summary>
     public ushort TcpPort { get; init; } = 57207;
+
+    /// <summary>Gets or sets the authenticated UDP (NDP) listen port.</summary>
+    public ushort UdpPort { get; init; } = 57208;
 
     /// <summary>
     /// Loads options from environment variables with safe local SQLite defaults.
@@ -64,13 +70,21 @@ public sealed class HostRuntimeOptions
             ? tr
             : (ushort)30;
 
-        ushort wsPort = ushort.TryParse(Environment.GetEnvironmentVariable("CARBON_WS_PORT"), NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort wp) && wp > 0
+        ushort wsPort = ushort.TryParse(Environment.GetEnvironmentVariable("CARBON_WS_PORT"), NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort wp)
             ? wp
             : (ushort)57206;
 
         ushort tcpPort = ushort.TryParse(Environment.GetEnvironmentVariable("CARBON_TCP_PORT"), NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort tp) && tp > 0
             ? tp
             : (ushort)57207;
+
+        ushort udpPort = ushort.TryParse(Environment.GetEnvironmentVariable("CARBON_UDP_PORT"), NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort up) && up > 0
+            ? up
+            : (ushort)57208;
+
+        string wsHost = Environment.GetEnvironmentVariable("CARBON_WS_HOST") is { Length: > 0 } host
+            ? host.Trim()
+            : "localhost";
 
         string wsPath = Environment.GetEnvironmentVariable("CARBON_WS_PATH") is { Length: > 0 } path
             ? path
@@ -82,9 +96,11 @@ public sealed class HostRuntimeOptions
             ConnectionString = connectionString,
             WorldSeed = seed,
             TickRate = tickRate,
+            WebSocketHost = wsHost,
             WebSocketPort = wsPort,
             WebSocketPath = wsPath,
             TcpPort = tcpPort,
+            UdpPort = udpPort,
         };
     }
 }

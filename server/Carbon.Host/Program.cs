@@ -79,7 +79,8 @@ public static class Program
 
         Pbkdf2PasswordHasher hasher = new();
         AuthService authService = new(accountStore, characterStore, hasher);
-        NalixWorldOutboundSink outboundSink = new(loggerFactory.CreateLogger<NalixWorldOutboundSink>());
+        NalixSessionTransportRegistry transportRegistry = new();
+        NalixWorldOutboundSink outboundSink = new(transportRegistry, loggerFactory.CreateLogger<NalixWorldOutboundSink>());
         AuthoritativeWorld world = new(
             options.WorldSeed,
             options.TileSize,
@@ -105,7 +106,7 @@ public static class Program
             return 0;
         }
 
-        NetworkApplication app = Startup.Build(options, authService, world, outboundSink, logger);
+        NetworkApplication app = Startup.Build(options, authService, world, outboundSink, transportRegistry, logger);
         await using ConfiguredAsyncDisposable appScope = app.ConfigureAwait(false);
 
         using CancellationTokenSource cts = new();
@@ -120,14 +121,17 @@ public static class Program
 
         if (logger.IsEnabled(LogLevel.Information))
         {
+            string pubKeyHex = Convert.ToHexString(Nalix.Runtime.Handlers.HandshakeHandlers.ServerPublicKey.AsSpan());
             logger.LogInformation(
-                "Carbon.Host ready (Provider={Provider}, Seed={Seed}, TickRate={TickRate}Hz, WS={WsPort}{WsPath}, TCP={TcpPort}).",
+                "Carbon.Host ready (Provider={Provider}, Seed={Seed}, TickRate={TickRate}Hz, TCP={TcpPort}, UDP={UdpPort}, WS={WsPort}{WsPath}, PublicKey={PublicKey}).",
                 options.Provider,
                 options.WorldSeed,
                 options.TickRate,
+                options.TcpPort,
+                options.UdpPort,
                 options.WebSocketPort,
                 options.WebSocketPath,
-                options.TcpPort);
+                pubKeyHex);
         }
 
         await app.RunAsync(cts.Token).ConfigureAwait(false);

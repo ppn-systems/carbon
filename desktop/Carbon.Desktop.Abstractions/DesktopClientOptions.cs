@@ -50,11 +50,14 @@ public sealed class DesktopClientOptions
     /// <summary>Gets or sets a value indicating whether the runner closes automatically after capture.</summary>
     public bool AutoExit { get; init; }
 
-    /// <summary>Gets or sets the remote Nalix WebSocket endpoint (<c>ws://...</c>), or <see langword="null"/> for offline mode.</summary>
-    public string? ServerUrl { get; init; }
+    /// <summary>Gets or sets the remote dedicated server host or IP address.</summary>
+    public string ServerHost { get; init; } = "127.0.0.1";
 
-    /// <summary>Gets a value indicating whether multiplayer mode is configured via <see cref="ServerUrl"/>.</summary>
-    public bool IsMultiplayer => !string.IsNullOrWhiteSpace(this.ServerUrl);
+    /// <summary>Gets or sets the remote dedicated server TCP port.</summary>
+    public ushort ServerTcpPort { get; init; } = 57207;
+
+    /// <summary>Gets or sets a value indicating whether to skip interactive menus and sign in automatically using configured credentials.</summary>
+    public bool AutoLogin { get; init; }
 
     /// <summary>Gets or sets the optional pinned X25519 server public key hex string.</summary>
     public string? ServerPublicKeyHex { get; init; }
@@ -119,7 +122,25 @@ public sealed class DesktopClientOptions
             ? Math.Clamp(parsedFrames, 0, 240)
             : 0;
 
-        string? serverUrl = get("CARBON_SERVER_URL") is { Length: > 0 } url ? url.Trim() : null;
+        string serverHost = get("CARBON_SERVER_HOST") is { Length: > 0 } host ? host.Trim() : "127.0.0.1";
+        ushort serverTcpPort = ushort.TryParse(get("CARBON_TCP_PORT") ?? get("CARBON_SERVER_PORT"), NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort parsedPort) && parsedPort > 0
+            ? parsedPort
+            : (ushort)57207;
+
+        if (get("CARBON_SERVER_URL") is { Length: > 0 } rawUrl &&
+            Uri.TryCreate(rawUrl.Trim(), UriKind.Absolute, out Uri? parsedUri))
+        {
+            if (!string.IsNullOrWhiteSpace(parsedUri.Host))
+            {
+                serverHost = parsedUri.Host;
+            }
+
+            if (parsedUri.Port > 0)
+            {
+                serverTcpPort = (ushort)parsedUri.Port;
+            }
+        }
+
         string? serverKey = get("CARBON_SERVER_PUBLIC_KEY") is { Length: > 0 } key ? key.Trim() : null;
         string username = get("CARBON_USERNAME") is { Length: > 0 } user ? user.Trim() : "adventurer";
         string password = get("CARBON_PASSWORD") is { Length: > 0 } pass ? pass : "carbon123";
@@ -138,7 +159,9 @@ public sealed class DesktopClientOptions
             ScreenshotPath = screenshotPath,
             CaptureFrames = captureFrames,
             AutoExit = string.Equals(get("CARBON_AUTO_EXIT"), "1", StringComparison.Ordinal),
-            ServerUrl = serverUrl,
+            ServerHost = serverHost,
+            ServerTcpPort = serverTcpPort,
+            AutoLogin = string.Equals(get("CARBON_AUTO_LOGIN"), "1", StringComparison.Ordinal),
             ServerPublicKeyHex = serverKey,
             Username = username,
             Password = password,

@@ -24,6 +24,7 @@ namespace Carbon.Handlers.Items;
 public static partial class ItemHandlers
 {
     [Inject] private static IAuthoritativeWorld s_world = null!;
+    [Inject] private static ISessionTransportRegistry s_transports = null!;
 
     /// <summary>Opcode <c>0x4001</c>. Streams active inventory slots ending in a terminator.</summary>
     [PacketOpcode(ItemOpCode.InventoryRequest)]
@@ -33,7 +34,8 @@ public static partial class ItemHandlers
         ArgumentNullException.ThrowIfNull(context);
 
         List<(ushort SlotIndex, ItemSlot Slot)> snapshot = [];
-        if (s_world.GetInventorySnapshot(context.Connection.ConnectionId, snapshot))
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        if (s_world.GetInventorySnapshot(connectionId, snapshot))
         {
             for (int i = 0; i < snapshot.Count; i++)
             {
@@ -64,7 +66,8 @@ public static partial class ItemHandlers
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        OpStatus status = s_world.TrySelectHotbarSlot(context.Connection.ConnectionId, context.Packet.SlotIndex);
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        OpStatus status = s_world.TrySelectHotbarSlot(connectionId, context.Packet.SlotIndex);
         return PacketReplyHelper.SendMutationAsync(context, status, ItemOpCode.SelectHotbarSlot);
     }
 
@@ -75,8 +78,9 @@ public static partial class ItemHandlers
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
         OpStatus status = s_world.TryCraftRecipe(
-            context.Connection.ConnectionId,
+            connectionId,
             context.Packet.RecipeId,
             context.Packet.Quantity);
         return PacketReplyHelper.SendMutationAsync(context, status, ItemOpCode.CraftItem);

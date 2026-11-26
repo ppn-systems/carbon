@@ -14,23 +14,19 @@ using Carbon.Graphics.Windowing.Window;
 namespace Carbon.Desktop;
 
 /// <summary>
-/// Composition root for the Carbon Desktop client supporting both offline deterministic worlds
-/// and live <c>Nalix.SDK</c> multiplayer sessions.
+/// Composition root for the online Carbon Desktop client using live <c>Nalix.SDK</c>
+/// dual-transport (<c>TcpSession</c> + Authenticated UDP <c>DatagramSession</c>).
 /// </summary>
 public static class Program
 {
-    /// <summary>Entry point initializing the client world session and Silk.NET window loop.</summary>
+    /// <summary>Entry point initializing the client session and Silk.NET window loop.</summary>
     public static async Task<int> Main()
     {
         DesktopClientOptions options = DesktopClientOptions.FromEnvironment();
-
-        IClientWorldSession session = options.IsMultiplayer
-            ? new NalixMultiplayerSession(options)
-            : new OfflineWorldSession(options);
+        NalixMultiplayerSession session = new(options);
 
         try
         {
-            await session.InitializeAsync().ConfigureAwait(false);
             RunWindowLoop(session, options);
             return 0;
         }
@@ -44,7 +40,7 @@ public static class Program
     {
         WindowSettings settings = new()
         {
-            Title = options.IsMultiplayer ? "Carbon MMORPG — Connecting..." : "Carbon MMORPG — Offline Sandbox",
+            Title = "Carbon MMORPG — Online Client",
             Width = 1280,
             Height = 720,
             VSync = true,
@@ -62,11 +58,10 @@ public static class Program
                 Camera2D camera = new(w.Width, w.Height);
                 spriteBatch = new SpriteBatch(w.Device);
                 sceneManager = new SceneManager(w, camera);
-                sceneManager.ChangeScene(new WorldGameplayScene(session, options, camera));
+                sceneManager.ChangeScene(new LoginScene(session, options, camera));
 
-                Console.WriteLine("=== CARBON DESKTOP CLIENT ===");
-                Console.WriteLine($"Mode: {(session.IsOnlineMultiplayer ? "Multiplayer (Nalix WS)" : "Offline Sandbox")} | Seed: {session.WorldSeed}");
-                Console.WriteLine("Controls: [WASD] Move | [Shift] Sprint | [Q/E] Zoom | [F] Harvest | [G] Door | [H] House | [B] Colliders | [R] Reseed | [F12] Capture");
+                Console.WriteLine("=== CARBON ONLINE DESKTOP CLIENT ===");
+                Console.WriteLine($"Target Server: {options.ServerHost}:{options.ServerTcpPort} (TCP + Authenticated UDP)");
             };
 
             window.Update += (_, dt) => sceneManager?.Update(dt);

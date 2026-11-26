@@ -33,6 +33,7 @@ using Carbon.Prediction.Remote;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.World;
+using Nalix.Abstractions.Networking.Datagrams;
 using Nalix.Abstractions.Networking.Packets;
 using Nalix.Abstractions.Networking.Protocols;
 using Nalix.Codec.DataFrames;
@@ -44,27 +45,38 @@ using Nalix.SDK.Transport.Extensions;
 namespace Carbon.Desktop.Networking;
 
 /// <summary>
-/// Live WebSocket multiplayer session built on <c>Nalix.SDK</c> (<c>14.4.0</c>), featuring client prediction
-/// rewind/replay via <see cref="ClientPredictionReconciler"/>, <see cref="VisualErrorSmoother"/> smoothing,
-/// <see cref="SnapshotInterpolationBuffer"/> remote entity smoothing, inventory sync, and live combat push handling.
+/// Online-only dual-transport multiplayer client session built on <c>Nalix.SDK</c> (<c>14.4.0</c>).
+/// Runs reliable transactions over <see cref="TcpSession"/> (X25519 ECDH + AEAD) and streams
+/// low-latency movement/combat state over Authenticated UDP (<see cref="DatagramSession"/> / NDP),
+/// with automatic TCP fallback, prediction reconciliation, and snapshot interpolation.
 /// </summary>
 public sealed class NalixMultiplayerSession : IClientWorldSession
 {
     private const float WalkSpeed = 250f;
     private const float SprintSpeed = 450f;
     private const double InterpolationDelaySeconds = 0.065;
+    private const float IdleKeepAliveSeconds = 2.5f;
 
     private readonly DesktopClientOptions _options;
-    private readonly List<IDisposable> _subscriptions = [];
+    private readonly List<IDisposable> _tcpSubscriptions = [];
+    private readonly List<IDisposable> _udpSubscriptions = [];
     private readonly ConcurrentDictionary<ulong, RemoteEntityState> _remoteEntities = new();
     private readonly ConcurrentDictionary<long, uint> _requestedChunks = new();
+    private readonly ConcurrentDictionary<Guid, string> _characterNames = new();
     private readonly List<RemoteEntityView> _remoteViewSnapshot = new(64);
     private readonly List<ClientCombatEvent> _combatEvents = new(32);
     private readonly InventoryContainer _inventory = new(27);
     private readonly ClientPredictionReconciler _reconciler = new(128);
+    private readonly SemaphoreSlim _connectGate = new(1, 1);
     private readonly Lock _worldGate = new();
 
-    private WebSocketSession? _session;
+    private TcpSession? _tcpSession;
+    private DatagramSession? _udpSession;
+    private string _connectedHost = string.Empty;
+    private ushort _connectedPort;
+    private bool _isAuthenticated;
+    private string _activeCharacterName = string.Empty;
+
     private ChunkWorld2D? _chunkWorld;
     private WorldSimulation? _simulation;
     private Entity _localPlayer = Entity.Null;
@@ -84,19 +96,15 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
     private float _attackSwingTimer;
     private float _localHealth = 100f;
     private float _localMaxHealth = 100f;
+    private bool _wasMovingLastTick;
+    private float _idleKeepAliveTimer;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="NalixMultiplayerSession"/> class.
     /// </summary>
-    /// <param name="options">Client runtime options with valid <see cref="DesktopClientOptions.ServerUrl"/>.</param>
-    public NalixMultiplayerSession(DesktopClientOptions options)
-    {
+    /// <param name="options">Client runtime options.</param>
+    public NalixMultiplayerSession(DesktopClientOptions options) =>
         _options = options ?? throw new ArgumentNullException(nameof(options));
-        if (string.IsNullOrWhiteSpace(options.ServerUrl))
-        {
-            throw new ArgumentException("ServerUrl must be set for multiplayer sessions.", nameof(options));
-        }
-    }
 
     /// <inheritdoc/>
     public ChunkWorld2D ChunkWorld =>
@@ -165,93 +173,229 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
     }
 
     /// <inheritdoc/>
-    public bool IsOnlineMultiplayer => true;
+    public bool IsConnected => _tcpSession is { IsConnected: true };
+
+    /// <inheritdoc/>
+    public bool IsAuthenticated => this.IsConnected && _isAuthenticated;
+
+    /// <inheritdoc/>
+    public bool IsUdpActive => _udpSession is { IsConnected: true };
 
     /// <inheritdoc/>
     public bool IsReady => _chunkWorld is not null && _simulation is not null && _simulation.Entities.IsAlive(_localPlayer);
 
     /// <inheritdoc/>
+    public string ActiveCharacterName => _activeCharacterName;
+
+    /// <inheritdoc/>
+    public string TransportLabel =>
+        !this.IsConnected
+            ? "OFFLINE"
+            : (this.IsUdpActive ? "TCP+UDP" : "TCP");
+
+    /// <inheritdoc/>
     public ulong WorldSeed => _worldSeed;
 
     /// <inheritdoc/>
-    public async Task InitializeAsync(CancellationToken ct = default)
+    public async Task<ClientAuthResult> LoginAsync(
+        string host,
+        ushort tcpPort,
+        string username,
+        string password,
+        CancellationToken ct = default)
     {
-        Uri serverUri = new(_options.ServerUrl!, UriKind.Absolute);
-        bool useTls = string.Equals(serverUri.Scheme, "wss", StringComparison.OrdinalIgnoreCase);
-        ushort port = serverUri.Port > 0 ? (ushort)serverUri.Port : (ushort)(useTls ? 443 : 57206);
-        string path = string.IsNullOrWhiteSpace(serverUri.AbsolutePath) ? "/ws/" : serverUri.AbsolutePath;
-
-        WebSocketSession ws = new(
-            new TransportOptions
-            {
-                Address = serverUri.Host,
-                Port = port,
-                ServerPublicKey = _options.ServerPublicKeyHex ?? string.Empty,
-            },
-            new WebSocketTransportOptions
-            {
-                Path = path,
-                UseTls = useTls,
-            });
-        _session = ws;
-
-        // Subscribe to server push streams before connecting so early frames are never lost.
-        _subscriptions.Add(ws.On<EntitySpawn>(this.OnEntitySpawn));
-        _subscriptions.Add(ws.On<EntityDespawn>(this.OnEntityDespawn));
-        _subscriptions.Add(ws.On<EntityDeltaBatch>(this.OnEntityDeltaBatch));
-        _subscriptions.Add(ws.On<CombatHit>(this.OnCombatHit));
-        _subscriptions.Add(ws.On<InventorySlotChanged>(this.OnInventorySlotChanged));
-        _subscriptions.Add(ws.On<MapPropChanged>(this.OnMapPropChanged));
-        _subscriptions.Add(ws.On<MapStructureChanged>(this.OnMapStructureChanged));
-
-        await ws.ConnectAsync(null, null, ct).ConfigureAwait(false);
-        if (!string.IsNullOrWhiteSpace(_options.ServerPublicKeyHex))
+        if (string.IsNullOrWhiteSpace(host) || tcpPort == 0)
         {
-            await ws.HandshakeAsync(ct).ConfigureAwait(false);
+            return new ClientAuthResult(false, "Invalid server host or port.");
         }
 
-        RequestOptions reqOpts = RequestOptions.Default.WithTimeout(5000).WithEncrypt(ws.State.EncryptionEnabled);
-
-        using PacketScope<AuthLogin> loginLease = PacketFactory<AuthLogin>.Acquire();
-        loginLease.Value.Username = _options.Username;
-        loginLease.Value.Password = _options.Password;
-        loginLease.Value.ClientProtocolVersion = CarbonProtocol.Version;
-
-        using AuthResult loginResult = await ws.RequestAsync<AuthResult>(
-            loginLease.Value,
-            reqOpts,
-            predicate: null,
-            ct).ConfigureAwait(false);
-
-        if (loginResult.Status == AuthStatus.InvalidCredentials)
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
         {
-            using PacketScope<AuthRegister> regLease = PacketFactory<AuthRegister>.Acquire();
-            regLease.Value.Username = _options.Username;
-            regLease.Value.Password = _options.Password;
-            regLease.Value.ClientProtocolVersion = CarbonProtocol.Version;
+            return new ClientAuthResult(false, "Username and password are required.");
+        }
 
-            using AuthResult regResult = await ws.RequestAsync<AuthResult>(
-                regLease.Value,
+        try
+        {
+            TcpSession tcp = await this.EnsureTcpConnectedAsync(host.Trim(), tcpPort, ct).ConfigureAwait(false);
+            RequestOptions reqOpts = RequestOptions.Default.WithTimeout(5000).WithEncrypt(tcp.State.EncryptionEnabled);
+
+            using PacketScope<AuthLogin> lease = PacketFactory<AuthLogin>.Acquire();
+            lease.Value.Username = username.Trim();
+            lease.Value.Password = password;
+            lease.Value.ClientProtocolVersion = CarbonProtocol.Version;
+
+            using AuthResult result = await tcp.RequestAsync<AuthResult>(
+                lease.Value,
                 reqOpts,
                 predicate: null,
                 ct).ConfigureAwait(false);
 
-            if (regResult.Status != AuthStatus.Ok)
+            if (result.Status == AuthStatus.Ok)
             {
-                throw new InvalidOperationException($"Account registration failed: {regResult.Status}.");
+                _isAuthenticated = true;
+                return new ClientAuthResult(true, "Signed in.", result.AccountId);
             }
+
+            return new ClientAuthResult(false, FormatAuthStatus(result.Status));
         }
-        else if (loginResult.Status != AuthStatus.Ok)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            throw new InvalidOperationException($"Authentication failed: {loginResult.Status}.");
+            throw;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            await this.TearDownTransportsAsync().ConfigureAwait(false);
+            return new ClientAuthResult(false, $"Connection failed: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<ClientAuthResult> RegisterAsync(
+        string host,
+        ushort tcpPort,
+        string username,
+        string password,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(host) || tcpPort == 0)
+        {
+            return new ClientAuthResult(false, "Invalid server host or port.");
         }
 
-        Guid selectedCharacterId = await this.EnsureCharacterAsync(ws, reqOpts, ct).ConfigureAwait(false);
+        string trimmedUser = username?.Trim() ?? string.Empty;
+        if (trimmedUser.Length < 3 || trimmedUser.Length > 24)
+        {
+            return new ClientAuthResult(false, "Username must be 3 to 24 characters.");
+        }
+
+        if (string.IsNullOrEmpty(password) || password.Length < 6 || password.Length > 128)
+        {
+            return new ClientAuthResult(false, "Password must be 6 to 128 characters.");
+        }
+
+        try
+        {
+            TcpSession tcp = await this.EnsureTcpConnectedAsync(host.Trim(), tcpPort, ct).ConfigureAwait(false);
+            RequestOptions reqOpts = RequestOptions.Default.WithTimeout(5000).WithEncrypt(tcp.State.EncryptionEnabled);
+
+            using PacketScope<AuthRegister> lease = PacketFactory<AuthRegister>.Acquire();
+            lease.Value.Username = trimmedUser;
+            lease.Value.Password = password;
+            lease.Value.ClientProtocolVersion = CarbonProtocol.Version;
+
+            using AuthResult result = await tcp.RequestAsync<AuthResult>(
+                lease.Value,
+                reqOpts,
+                predicate: null,
+                ct).ConfigureAwait(false);
+
+            if (result.Status == AuthStatus.Ok)
+            {
+                _isAuthenticated = true;
+                return new ClientAuthResult(true, "Account registered.", result.AccountId);
+            }
+
+            return new ClientAuthResult(false, FormatAuthStatus(result.Status));
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            await this.TearDownTransportsAsync().ConfigureAwait(false);
+            return new ClientAuthResult(false, $"Connection failed: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<ClientCharacterSummary>> ListCharactersAsync(CancellationToken ct = default)
+    {
+        TcpSession tcp = this.RequireAuthenticatedTcpSession();
+        RequestOptions reqOpts = RequestOptions.Default.WithTimeout(5000).WithEncrypt(tcp.State.EncryptionEnabled);
+
+        List<ClientCharacterSummary> roster = [];
+        using PacketScope<CharacterListRequest> lease = PacketFactory<CharacterListRequest>.Acquire();
+        await foreach (CharacterSummary item in tcp.StreamAsync<CharacterSummary>(
+            lease.Value,
+            reqOpts,
+            ct).ConfigureAwait(false))
+        {
+            if (item.IsTerminator || item.CharacterId == Guid.Empty)
+            {
+                continue;
+            }
+
+            _characterNames[item.CharacterId] = item.Name;
+            roster.Add(new ClientCharacterSummary(
+                item.CharacterId,
+                item.Name,
+                item.Level,
+                item.ZoneTier,
+                item.PositionX,
+                item.PositionY));
+        }
+
+        return roster;
+    }
+
+    /// <inheritdoc/>
+    public async Task<(bool Succeeded, string Message)> CreateCharacterAsync(
+        string characterName,
+        byte appearancePreset,
+        CancellationToken ct = default)
+    {
+        TcpSession tcp = this.RequireAuthenticatedTcpSession();
+        string trimmed = characterName?.Trim() ?? string.Empty;
+        if (trimmed.Length < 2 || trimmed.Length > 20)
+        {
+            return (false, "Name must be 2 to 20 characters.");
+        }
+
+        RequestOptions reqOpts = RequestOptions.Default.WithTimeout(5000).WithEncrypt(tcp.State.EncryptionEnabled);
+        using PacketScope<CharacterCreate> lease = PacketFactory<CharacterCreate>.Acquire();
+        lease.Value.CharacterName = trimmed;
+        lease.Value.AppearancePreset = appearancePreset;
+
+        using MutationResult reply = await tcp.RequestAsync<MutationResult>(
+            lease.Value,
+            reqOpts,
+            predicate: null,
+            ct).ConfigureAwait(false);
+
+        if (reply.Status == OpStatus.Ok)
+        {
+            return (true, $"Created {trimmed}.");
+        }
+
+        if (reply.Status == OpStatus.Invalid)
+        {
+            return (false, "Invalid character name.");
+        }
+
+        if (reply.Status == OpStatus.Conflict)
+        {
+            return (false, "Name taken or character slot limit reached.");
+        }
+
+        return (false, $"Create failed: {reply.Status}");
+    }
+
+    /// <inheritdoc/>
+    public async Task<(bool Succeeded, string Message)> EnterWorldAsync(Guid characterId, CancellationToken ct = default)
+    {
+        if (characterId == Guid.Empty)
+        {
+            return (false, "No character selected.");
+        }
+
+        TcpSession tcp = this.RequireAuthenticatedTcpSession();
+        RequestOptions reqOpts = RequestOptions.Default.WithTimeout(5000).WithEncrypt(tcp.State.EncryptionEnabled);
 
         using PacketScope<CharacterSelect> selectLease = PacketFactory<CharacterSelect>.Acquire();
-        selectLease.Value.CharacterId = selectedCharacterId;
+        selectLease.Value.CharacterId = characterId;
 
-        using CharacterEnterWorld enter = await ws.RequestAsync<CharacterEnterWorld>(
+        using CharacterEnterWorld enter = await tcp.RequestAsync<CharacterEnterWorld>(
             selectLease.Value,
             reqOpts,
             predicate: null,
@@ -259,29 +403,132 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
 
         if (enter.Status != OpStatus.Ok)
         {
-            throw new InvalidOperationException($"CharacterEnterWorld rejected: {enter.Status}.");
+            return (false, $"Enter world failed: {enter.Status}");
         }
 
-        _worldSeed = enter.WorldSeed;
-        _tileSize = enter.TileSize > 0f ? enter.TileSize : 32f;
-        _tickRate = enter.TickRate > 0 ? enter.TickRate : (ushort)30;
-        _localNetworkId = enter.PlayerNetworkId;
-
-        ProceduralWorldGenerator generator = new(_worldSeed);
-        _chunkWorld = new ChunkWorld2D(generator, _tileSize, enter.Frequency);
-        Vector2 initialPos = new(enter.PositionX, enter.PositionY);
-        _chunkWorld.UpdateAroundPosition(initialPos, chunkRadius: 4, evictionRadius: 8);
-
-        _simulation = new WorldSimulation(_tickRate, _tileSize)
+        lock (_worldGate)
         {
-            WorldPhysics = _chunkWorld,
-        };
+            _remoteEntities.Clear();
+            _requestedChunks.Clear();
+            _combatEvents.Clear();
+            _reconciler.Clear();
+            _clientTick = 0U;
+            _latestServerTime = enter.TickRate > 0 ? enter.ServerTick / (double)enter.TickRate : 0.0;
+            _hasServerReconcile = false;
+            _visualOffset = Vector2.Zero;
+            _selectedSlot = 0;
+            _localHealth = 100f;
+            _localMaxHealth = 100f;
+            _wasMovingLastTick = false;
+            _idleKeepAliveTimer = 0f;
 
-        _localPlayer = _simulation.SpawnNetworkEntity(_localNetworkId, initialPos, radius: 7f, ownerSessionId: 1);
-        _simulation.Entities.SetVelocity(_localPlayer, new Velocity2D(0f, 0f, 5f));
+            _worldSeed = enter.WorldSeed;
+            _tileSize = enter.TileSize > 0f ? enter.TileSize : 32f;
+            _tickRate = enter.TickRate > 0 ? enter.TickRate : (ushort)30;
+            _localNetworkId = enter.PlayerNetworkId;
+            _activeCharacterName = _characterNames.TryGetValue(characterId, out string? cachedName)
+                ? cachedName
+                : _options.CharacterName;
 
-        await this.FetchInventorySnapshotAsync(ws, reqOpts, ct).ConfigureAwait(false);
-        this.RequestMissingChunkDeltasAround(initialPos);
+            ProceduralWorldGenerator generator = new(_worldSeed);
+            _chunkWorld = new ChunkWorld2D(generator, _tileSize, enter.Frequency);
+            Vector2 initialPos = new(enter.PositionX, enter.PositionY);
+            _chunkWorld.UpdateAroundPosition(initialPos, chunkRadius: 4, evictionRadius: 8);
+
+            _simulation = new WorldSimulation(_tickRate, _tileSize)
+            {
+                WorldPhysics = _chunkWorld,
+            };
+
+            _localPlayer = _simulation.SpawnNetworkEntity(_localNetworkId, initialPos, radius: 7f, ownerSessionId: 1);
+            _simulation.Entities.SetVelocity(_localPlayer, new Velocity2D(0f, 0f, 5f));
+        }
+
+        await this.FetchInventorySnapshotAsync(tcp, reqOpts, ct).ConfigureAwait(false);
+        this.RequestMissingChunkDeltasAround(new Vector2(enter.PositionX, enter.PositionY));
+        await this.TryOpenAuthenticatedUdpAsync(tcp, ct).ConfigureAwait(false);
+
+        return (true, "Entered world.");
+    }
+
+    /// <inheritdoc/>
+    public async Task LogoutAsync(CancellationToken ct = default)
+    {
+        await this.TearDownUdpAsync().ConfigureAwait(false);
+
+        TcpSession? tcp = _tcpSession;
+        if (tcp is { IsConnected: true } && _isAuthenticated)
+        {
+            try
+            {
+                RequestOptions reqOpts = RequestOptions.Default.WithTimeout(2000).WithEncrypt(tcp.State.EncryptionEnabled);
+                using PacketScope<AuthLogout> lease = PacketFactory<AuthLogout>.Acquire();
+                using MutationResult _ = await tcp.RequestAsync<MutationResult>(lease.Value, reqOpts, predicate: null, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                // Best-effort server logout before clearing local world state.
+            }
+        }
+
+        this.ClearWorldState();
+        _isAuthenticated = false;
+        _activeCharacterName = string.Empty;
+    }
+
+    /// <inheritdoc/>
+    public async Task InitializeAsync(CancellationToken ct = default)
+    {
+        ClientAuthResult loginOutcome = await this.LoginAsync(
+            _options.ServerHost,
+            _options.ServerTcpPort,
+            _options.Username,
+            _options.Password,
+            ct).ConfigureAwait(false);
+
+        if (!loginOutcome.Succeeded)
+        {
+            ClientAuthResult regOutcome = await this.RegisterAsync(
+                _options.ServerHost,
+                _options.ServerTcpPort,
+                _options.Username,
+                _options.Password,
+                ct).ConfigureAwait(false);
+
+            if (!regOutcome.Succeeded)
+            {
+                throw new InvalidOperationException($"Auto authentication failed: {loginOutcome.Message} / {regOutcome.Message}");
+            }
+        }
+
+        IReadOnlyList<ClientCharacterSummary> roster = await this.ListCharactersAsync(ct).ConfigureAwait(false);
+        Guid selectedCharacterId;
+        if (roster.Count > 0)
+        {
+            selectedCharacterId = roster[0].CharacterId;
+        }
+        else
+        {
+            (bool created, string createMsg) = await this.CreateCharacterAsync(_options.CharacterName, 0, ct).ConfigureAwait(false);
+            if (!created)
+            {
+                throw new InvalidOperationException($"Failed to create starter character: {createMsg}");
+            }
+
+            IReadOnlyList<ClientCharacterSummary> updated = await this.ListCharactersAsync(ct).ConfigureAwait(false);
+            if (updated.Count == 0)
+            {
+                throw new InvalidOperationException("Character list remained empty after creation.");
+            }
+
+            selectedCharacterId = updated[0].CharacterId;
+        }
+
+        (bool entered, string enterMsg) = await this.EnterWorldAsync(selectedCharacterId, ct).ConfigureAwait(false);
+        if (!entered)
+        {
+            throw new InvalidOperationException(enterMsg);
+        }
     }
 
     /// <inheritdoc/>
@@ -296,6 +543,8 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
         {
             _attackSwingTimer = MathF.Max(0f, _attackSwingTimer - (float)dt);
         }
+
+        _idleKeepAliveTimer += (float)dt;
 
         lock (_worldGate)
         {
@@ -330,7 +579,8 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
             }
 
             float speed = sprint ? SprintSpeed : WalkSpeed;
-            if (moveDir.LengthSquared() > 0.001f)
+            bool isMoving = moveDir.LengthSquared() > 0.001f;
+            if (isMoving)
             {
                 _simulation!.EnqueueCommand(SimulationCommand.MoveInput(_localPlayer, moveDir, speed, _clientTick));
             }
@@ -349,8 +599,11 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
                     _reconciler.RecordPredictedTick(new PredictedTickRecord(_clientTick, moveDir, speed, postPos, postVel));
                 }
 
-                if (_session is { IsConnected: true })
+                bool shouldTransmit = isMoving || _wasMovingLastTick || _idleKeepAliveTimer >= IdleKeepAliveSeconds;
+                if (shouldTransmit && _tcpSession is { IsConnected: true })
                 {
+                    _wasMovingLastTick = isMoving;
+                    _idleKeepAliveTimer = 0f;
                     this.SendMoveInputAsync(moveDir, sprint);
                 }
             }
@@ -370,9 +623,9 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
         }
 
         _selectedSlot = slotIndex;
-        if (_session is { IsConnected: true })
+        if (_tcpSession is { IsConnected: true })
         {
-            _ = this.SendPooledAsync<SelectHotbarSlot>(p => p.SlotIndex = slotIndex);
+            _ = this.SendTcpPooledAsync<SelectHotbarSlot>(p => p.SlotIndex = slotIndex);
         }
     }
 
@@ -380,7 +633,7 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
     public bool TriggerPrimaryAction(Vector2 aimWorldPosition, out (int ChunkX, int ChunkY) invalidatedChunk)
     {
         invalidatedChunk = default;
-        if (!this.IsReady || _session is not { IsConnected: true })
+        if (!this.IsReady || _tcpSession is not { IsConnected: true })
         {
             return false;
         }
@@ -398,14 +651,17 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
 
         uint tick = _clientTick;
         byte slot = _selectedSlot;
-        _ = this.SendPooledAsync<EntityAttackInput>(p =>
-        {
-            p.ClientTick = tick;
-            p.TargetNetworkId = 0UL;
-            p.AimX = aimWorldPosition.X;
-            p.AimY = aimWorldPosition.Y;
-            p.AbilitySlot = slot;
-        });
+        _ = this.SendGameplayDatagramOrTcpAsync<EntityAttackInput>(
+            DeliveryMethod.ReliableUnordered,
+            channel: 0,
+            p =>
+            {
+                p.ClientTick = tick;
+                p.TargetNetworkId = 0UL;
+                p.AimX = aimWorldPosition.X;
+                p.AimY = aimWorldPosition.Y;
+                p.AbilitySlot = slot;
+            });
 
         if (activeSlot.Quantity > 0 && hasArchetype && archetype is { Category: ItemCategory.Placeable or ItemCategory.Tool })
         {
@@ -421,14 +677,14 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
     /// <inheritdoc/>
     public bool TryCraftRecipe(ushort recipeId)
     {
-        if (!this.IsReady || _session is not { IsConnected: true } ||
+        if (!this.IsReady || _tcpSession is not { IsConnected: true } ||
             !StarterGameCatalog.Recipes.TryGet(recipeId, out CraftingRecipe? recipe) ||
             !RecipeMatcher.CanCraft(_inventory, recipe))
         {
             return false;
         }
 
-        _ = this.SendPooledAsync<CraftItem>(p =>
+        _ = this.SendTcpPooledAsync<CraftItem>(p =>
         {
             p.RecipeId = recipeId;
             p.Quantity = 1;
@@ -455,7 +711,7 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
     public bool TryHarvestNearbyProp(out (int ChunkX, int ChunkY) modifiedChunk)
     {
         modifiedChunk = default;
-        if (!this.IsReady || _session is not { IsConnected: true })
+        if (!this.IsReady || _tcpSession is not { IsConnected: true })
         {
             return false;
         }
@@ -472,7 +728,7 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
                 int wy = pty + dy;
                 if (_chunkWorld!.HasSolidPropAt(wx, wy))
                 {
-                    _ = this.SendPooledAsync<MapPropHarvest>(p =>
+                    _ = this.SendTcpPooledAsync<MapPropHarvest>(p =>
                     {
                         p.TileX = wx;
                         p.TileY = wy;
@@ -490,7 +746,7 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
     public bool TryPlaceTestHouse(out (int ChunkX, int ChunkY) centerChunk)
     {
         centerChunk = default;
-        if (!this.IsReady || _session is not { IsConnected: true })
+        if (!this.IsReady || _tcpSession is not { IsConnected: true })
         {
             return false;
         }
@@ -499,7 +755,7 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
         int ptx = (int)MathF.Floor(pos.X / _tileSize) + 2;
         int pty = (int)MathF.Floor(pos.Y / _tileSize);
 
-        _ = this.SendPooledAsync<MapStructurePlace>(p =>
+        _ = this.SendTcpPooledAsync<MapStructurePlace>(p =>
         {
             p.TileX = ptx;
             p.TileY = pty;
@@ -514,7 +770,7 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
     public bool TryToggleNearbyDoor(out (int ChunkX, int ChunkY) modifiedChunk)
     {
         modifiedChunk = default;
-        if (!this.IsReady || _session is not { IsConnected: true })
+        if (!this.IsReady || _tcpSession is not { IsConnected: true })
         {
             return false;
         }
@@ -531,7 +787,7 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
                 int wy = pty + dy;
                 if (_chunkWorld!.Buildings.TryGetStructure(wx, wy, out StructureTile st) && st.Category == StructureCategory.Door)
                 {
-                    _ = this.SendPooledAsync<MapDoorToggle>(p =>
+                    _ = this.SendTcpPooledAsync<MapDoorToggle>(p =>
                     {
                         p.TileX = wx;
                         p.TileY = wy;
@@ -546,104 +802,194 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
     }
 
     /// <inheritdoc/>
-    public void ReseedOffline(ulong newSeed)
-    {
-        // Authoritative world seed is controlled by the server in online mode.
-    }
-
-    /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
-        for (int i = 0; i < _subscriptions.Count; i++)
+        await this.TearDownTransportsAsync().ConfigureAwait(false);
+        this.ClearWorldState();
+        _connectGate.Dispose();
+    }
+
+    private async Task<TcpSession> EnsureTcpConnectedAsync(string host, ushort tcpPort, CancellationToken ct)
+    {
+        await _connectGate.WaitAsync(ct).ConfigureAwait(false);
+        try
         {
-            _subscriptions[i].Dispose();
+            if (_tcpSession is { IsConnected: true } existing &&
+                existing.State.EncryptionEnabled &&
+                string.Equals(_connectedHost, host, StringComparison.OrdinalIgnoreCase) &&
+                _connectedPort == tcpPort)
+            {
+                return existing;
+            }
+
+            await this.TearDownTransportsAsync().ConfigureAwait(false);
+            this.ClearWorldState();
+            _isAuthenticated = false;
+
+            bool hasPinnedKey = !string.IsNullOrWhiteSpace(_options.ServerPublicKeyHex);
+            TcpSession tcp = new(new TransportOptions
+            {
+                Address = host,
+                Port = tcpPort,
+                ServerPublicKey = _options.ServerPublicKeyHex ?? string.Empty,
+                AllowTofu = !hasPinnedKey,
+                PersistTofuKey = false,
+                EncryptRequestsByDefault = true,
+            });
+
+            // Subscribe reliable stream push handlers before connecting so early frames are never lost.
+            _tcpSubscriptions.Add(tcp.On<EntitySpawn>(this.OnEntitySpawn));
+            _tcpSubscriptions.Add(tcp.On<EntityDespawn>(this.OnEntityDespawn));
+            _tcpSubscriptions.Add(tcp.On<EntityDeltaBatch>(this.OnEntityDeltaBatch));
+            _tcpSubscriptions.Add(tcp.On<CombatHit>(this.OnCombatHit));
+            _tcpSubscriptions.Add(tcp.On<InventorySlotChanged>(this.OnInventorySlotChanged));
+            _tcpSubscriptions.Add(tcp.On<MapPropChanged>(this.OnMapPropChanged));
+            _tcpSubscriptions.Add(tcp.On<MapStructureChanged>(this.OnMapStructureChanged));
+
+            _tcpSession = tcp;
+            await tcp.ConnectAsync(host, tcpPort, ct).ConfigureAwait(false);
+            await tcp.HandshakeAsync(ct).ConfigureAwait(false);
+
+            _connectedHost = host;
+            _connectedPort = tcpPort;
+            return tcp;
+        }
+        finally
+        {
+            _ = _connectGate.Release();
+        }
+    }
+
+    private async Task TryOpenAuthenticatedUdpAsync(TcpSession tcp, CancellationToken ct)
+    {
+        await this.TearDownUdpAsync().ConfigureAwait(false);
+        if (!tcp.IsConnected || !tcp.State.EncryptionEnabled)
+        {
+            return;
         }
 
-        _subscriptions.Clear();
+        DatagramSession udp = new(tcp);
+        try
+        {
+            _udpSubscriptions.Add(udp.On<EntityDeltaBatch>(this.OnEntityDeltaBatch));
+            _udpSubscriptions.Add(udp.On<CombatHit>(this.OnCombatHit));
+            _udpSubscriptions.Add(udp.On<EntitySpawn>(this.OnEntitySpawn));
+            _udpSubscriptions.Add(udp.On<EntityDespawn>(this.OnEntityDespawn));
 
-        if (_session is not null)
+            using CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeoutCts.CancelAfter(3000);
+            await udp.ConnectAsync(_connectedHost, null, timeoutCts.Token).ConfigureAwait(false);
+            _udpSession = udp;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            await this.TearDownUdpAsync().ConfigureAwait(false);
+            await udp.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Fallback gracefully to TCP if UDP is blocked on this network.
+            await this.TearDownUdpAsync().ConfigureAwait(false);
+            await udp.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    private async Task TearDownTransportsAsync()
+    {
+        await this.TearDownUdpAsync().ConfigureAwait(false);
+
+        for (int i = 0; i < _tcpSubscriptions.Count; i++)
+        {
+            _tcpSubscriptions[i].Dispose();
+        }
+
+        _tcpSubscriptions.Clear();
+
+        if (_tcpSession is not null)
         {
             try
             {
-                if (_session.IsConnected)
+                if (_tcpSession.IsConnected)
                 {
-                    await _session.DisconnectGracefullyAsync(ProtocolReason.NONE).ConfigureAwait(false);
+                    await _tcpSession.DisconnectGracefullyAsync(ProtocolReason.NONE).ConfigureAwait(false);
                 }
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
-                // Best-effort graceful disconnect on teardown.
+                // Best-effort graceful disconnect.
             }
 
-            _session.Dispose();
-            _session = null;
+            await _tcpSession.DisposeAsync().ConfigureAwait(false);
+            _tcpSession = null;
         }
+
+        _connectedHost = string.Empty;
+        _connectedPort = 0;
     }
 
-    private async Task<Guid> EnsureCharacterAsync(WebSocketSession ws, RequestOptions reqOpts, CancellationToken ct)
+    private async Task TearDownUdpAsync()
     {
-        Guid chosen = Guid.Empty;
-        using (PacketScope<CharacterListRequest> listLease = PacketFactory<CharacterListRequest>.Acquire())
+        for (int i = 0; i < _udpSubscriptions.Count; i++)
         {
-            await foreach (CharacterSummary item in ws.StreamAsync<CharacterSummary>(
-                listLease.Value,
-                reqOpts,
-                ct).ConfigureAwait(false))
-            {
-                if (item.IsTerminator || item.CharacterId == Guid.Empty)
-                {
-                    continue;
-                }
+            _udpSubscriptions[i].Dispose();
+        }
 
-                if (chosen == Guid.Empty)
+        _udpSubscriptions.Clear();
+
+        if (_udpSession is not null)
+        {
+            try
+            {
+                if (_udpSession.IsConnected)
                 {
-                    chosen = item.CharacterId;
+                    await _udpSession.DisconnectAsync().ConfigureAwait(false);
                 }
             }
-        }
-
-        if (chosen != Guid.Empty)
-        {
-            return chosen;
-        }
-
-        using (PacketScope<CharacterCreate> createLease = PacketFactory<CharacterCreate>.Acquire())
-        {
-            createLease.Value.CharacterName = _options.CharacterName;
-            createLease.Value.AppearancePreset = 0;
-
-            using MutationResult createResult = await ws.RequestAsync<MutationResult>(
-                createLease.Value,
-                reqOpts,
-                predicate: null,
-                ct).ConfigureAwait(false);
-
-            if (createResult.Status != OpStatus.Ok)
+            catch (Exception ex) when (ex is not OutOfMemoryException)
             {
-                throw new InvalidOperationException($"Failed to create starter character: {createResult.Status}.");
+                // Best-effort datagram teardown.
             }
-        }
 
-        using PacketScope<CharacterListRequest> retryLease = PacketFactory<CharacterListRequest>.Acquire();
-        await foreach (CharacterSummary item in ws.StreamAsync<CharacterSummary>(
-            retryLease.Value,
-            reqOpts,
-            ct).ConfigureAwait(false))
-        {
-            if (!item.IsTerminator && item.CharacterId != Guid.Empty)
-            {
-                return item.CharacterId;
-            }
+            await _udpSession.DisposeAsync().ConfigureAwait(false);
+            _udpSession = null;
         }
-
-        throw new InvalidOperationException("Character list remained empty after CharacterCreate succeeded.");
     }
 
-    private async Task FetchInventorySnapshotAsync(WebSocketSession ws, RequestOptions reqOpts, CancellationToken ct)
+    private void ClearWorldState()
+    {
+        lock (_worldGate)
+        {
+            _remoteEntities.Clear();
+            _requestedChunks.Clear();
+            _combatEvents.Clear();
+            _inventory.Clear();
+            _reconciler.Clear();
+            _chunkWorld = null;
+            _simulation = null;
+            _localPlayer = Entity.Null;
+            _localNetworkId = 0UL;
+            _worldSeed = 0UL;
+            _hasServerReconcile = false;
+            _visualOffset = Vector2.Zero;
+        }
+    }
+
+    private TcpSession RequireAuthenticatedTcpSession()
+    {
+        if (_tcpSession is not { IsConnected: true } || !_isAuthenticated)
+        {
+            throw new InvalidOperationException("Session must connect and authenticate before issuing world requests.");
+        }
+
+        return _tcpSession;
+    }
+
+    private async Task FetchInventorySnapshotAsync(TcpSession tcp, RequestOptions reqOpts, CancellationToken ct)
     {
         _inventory.Clear();
         using PacketScope<InventoryRequest> lease = PacketFactory<InventoryRequest>.Acquire();
-        await foreach (InventorySlotItem item in ws.StreamAsync<InventorySlotItem>(
+        await foreach (InventorySlotItem item in tcp.StreamAsync<InventorySlotItem>(
             lease.Value,
             reqOpts,
             ct).ConfigureAwait(false))
@@ -660,20 +1006,48 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
     private void SendMoveInputAsync(Vector2 moveDir, bool sprint)
     {
         uint tick = _clientTick;
-        _ = this.SendPooledAsync<EntityMoveInput>(p =>
-        {
-            p.ClientTick = tick;
-            p.DirectionX = moveDir.X;
-            p.DirectionY = moveDir.Y;
-            p.Sprint = sprint;
-        });
+        _ = this.SendGameplayDatagramOrTcpAsync<EntityMoveInput>(
+            DeliveryMethod.UnreliableSequenced,
+            channel: 1,
+            p =>
+            {
+                p.ClientTick = tick;
+                p.DirectionX = moveDir.X;
+                p.DirectionY = moveDir.Y;
+                p.Sprint = sprint;
+            });
     }
 
-    private async Task SendPooledAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TPacket>(Action<TPacket> populate)
+    private async Task SendGameplayDatagramOrTcpAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TPacket>(
+        DeliveryMethod deliveryMethod,
+        byte channel,
+        Action<TPacket> populate)
         where TPacket : PacketBase<TPacket>, IPacketStaticOpcode, new()
     {
-        WebSocketSession? ws = _session;
-        if (ws is null || !ws.IsConnected)
+        DatagramSession? udp = _udpSession;
+        if (udp is { IsConnected: true })
+        {
+            try
+            {
+                using PacketScope<TPacket> lease = PacketFactory<TPacket>.Acquire();
+                populate(lease.Value);
+                await udp.SendAsync(lease.Value, deliveryMethod, channel, CancellationToken.None).ConfigureAwait(false);
+                return;
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                // Fall back to reliable TCP stream if datagram send rejects.
+            }
+        }
+
+        await this.SendTcpPooledAsync(populate).ConfigureAwait(false);
+    }
+
+    private async Task SendTcpPooledAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TPacket>(Action<TPacket> populate)
+        where TPacket : PacketBase<TPacket>, IPacketStaticOpcode, new()
+    {
+        TcpSession? tcp = _tcpSession;
+        if (tcp is null || !tcp.IsConnected)
         {
             return;
         }
@@ -682,17 +1056,17 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
         {
             using PacketScope<TPacket> lease = PacketFactory<TPacket>.Acquire();
             populate(lease.Value);
-            await ws.SendAsync(lease.Value, ws.State.EncryptionEnabled, CancellationToken.None).ConfigureAwait(false);
+            await tcp.SendAsync(lease.Value, tcp.State.EncryptionEnabled, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            // Transient send errors are handled by disconnect/reconnect events.
+            // Transient send errors are handled by disconnect events.
         }
     }
 
     private void RequestMissingChunkDeltasAround(Vector2 pos)
     {
-        if (_session is not { IsConnected: true } || _chunkWorld is null)
+        if (_tcpSession is not { IsConnected: true } || _chunkWorld is null)
         {
             return;
         }
@@ -716,21 +1090,21 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
 
     private async Task SyncChunkDeltaAsync(int cx, int cy)
     {
-        WebSocketSession? ws = _session;
-        if (ws is null || !ws.IsConnected)
+        TcpSession? tcp = _tcpSession;
+        if (tcp is null || !tcp.IsConnected)
         {
             return;
         }
 
         try
         {
-            RequestOptions reqOpts = RequestOptions.Default.WithTimeout(5000).WithEncrypt(ws.State.EncryptionEnabled);
+            RequestOptions reqOpts = RequestOptions.Default.WithTimeout(5000).WithEncrypt(tcp.State.EncryptionEnabled);
             using PacketScope<MapChunkRequest> reqLease = PacketFactory<MapChunkRequest>.Acquire();
             reqLease.Value.ChunkX = cx;
             reqLease.Value.ChunkY = cy;
             reqLease.Value.KnownRevision = 0U;
 
-            await foreach (MapChunkDelta packet in ws.StreamAsync<MapChunkDelta>(
+            await foreach (MapChunkDelta packet in tcp.StreamAsync<MapChunkDelta>(
                 reqLease.Value,
                 reqOpts,
                 CancellationToken.None).ConfigureAwait(false))
@@ -892,6 +1266,36 @@ public sealed class NalixMultiplayerSession : IClientWorldSession
                 _chunkWorld.Buildings.ForcePlaceStructure(pkt.TileX, pkt.TileY, (StructureType)pkt.StructureType);
             }
         }
+    }
+
+    private static string FormatAuthStatus(AuthStatus status)
+    {
+        if (status == AuthStatus.InvalidCredentials)
+        {
+            return "Invalid username or password.";
+        }
+
+        if (status == AuthStatus.AccountExists)
+        {
+            return "Account username already exists.";
+        }
+
+        if (status == AuthStatus.Locked)
+        {
+            return "Account is banned or locked.";
+        }
+
+        if (status == AuthStatus.InvalidInput)
+        {
+            return "Invalid username or password format.";
+        }
+
+        if (status == AuthStatus.ProtocolMismatch)
+        {
+            return "Client/server protocol version mismatch.";
+        }
+
+        return $"Authentication error ({status}).";
     }
 
     private sealed class RemoteEntityState

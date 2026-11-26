@@ -3,21 +3,28 @@
 using System;
 using System.IO;
 using System.Numerics;
+using System.Threading.Tasks;
 using Carbon.Desktop.Abstractions;
 using Carbon.Desktop.Input;
 using Carbon.Desktop.Rendering;
+using Carbon.Graphics.Batching;
 using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Common;
+using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.Batching.Sprites;
+using Carbon.Graphics.Fonts.Layout;
+using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Graphics.Scenes.Base;
 using Carbon.Graphics.Scenes.Management;
 using Carbon.Graphics.Windowing.Abstractions;
+using Carbon.Graphics.Windowing.Input;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Navigation;
 using Carbon.Maps.Streaming;
 using Carbon.Maps.Topography;
+using Silk.NET.Input;
 using Silk.NET.OpenGL;
 
 namespace Carbon.Desktop.Scenes;
@@ -25,7 +32,7 @@ namespace Carbon.Desktop.Scenes;
 /// <summary>
 /// Primary playable 2.5D MMORPG world scene orchestrating input polling, <see cref="IClientWorldSession"/> updates,
 /// <see cref="CameraRig2D"/> tracking, <see cref="WorldSceneRenderer"/> passes, <see cref="HudOverlayRenderer"/> HUD/Minimap,
-/// and capture hooks.
+/// pause/logout navigation, and capture hooks.
 /// </summary>
 public sealed class WorldGameplayScene : GameScene
 {
@@ -33,9 +40,16 @@ public sealed class WorldGameplayScene : GameScene
     private readonly DesktopClientOptions _options;
     private readonly Camera2D _camera;
 
+    private readonly MenuButton _resumeButton = new("RESUME GAME", MenuButtonStyle.SecondaryEmerald);
+    private readonly MenuButton _logoutButton = new("LOGOUT / SWITCH HERO", MenuButtonStyle.PrimaryGold);
+    private readonly MenuButton _quitButton = new("QUIT DESKTOP CLIENT", MenuButtonStyle.DangerRed);
+
     private CameraRig2D? _cameraRig;
     private WorldSceneRenderer? _worldRenderer;
     private HudOverlayRenderer? _hudRenderer;
+    private GeometryBatch? _menuBatch;
+    private Task? _pendingLogoutTask;
+
     private BiomeType _lastBiome = (BiomeType)255;
     private byte _lastHeight = 255;
     private StructureType _lastStructure = StructureType.None;
@@ -43,11 +57,12 @@ public sealed class WorldGameplayScene : GameScene
     private Vector2 _lastMoveDirection = Vector2.UnitX;
     private int _frameCount;
     private bool _hasAutoCaptured;
+    private bool _showEscapeMenu;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WorldGameplayScene"/> class.
     /// </summary>
-    /// <param name="session">Initialized offline or multiplayer client world session.</param>
+    /// <param name="session">Initialized online client world session.</param>
     /// <param name="options">Client runtime options.</param>
     /// <param name="camera">Shared 2D orthographic camera.</param>
     public WorldGameplayScene(IClientWorldSession session, DesktopClientOptions options, Camera2D camera)
@@ -67,6 +82,7 @@ public sealed class WorldGameplayScene : GameScene
         _cameraRig = new CameraRig2D(_camera, _options.MacroView);
         _worldRenderer = new WorldSceneRenderer(context.Device, _options);
         _hudRenderer = new HudOverlayRenderer(context.Device);
+        _menuBatch = new GeometryBatch(context.Device);
         _worldRenderer.EnsureWorldBound(_session);
 
         Vector2 focusPos = _options.FocusTileX.HasValue && _options.FocusTileY.HasValue
@@ -82,6 +98,37 @@ public sealed class WorldGameplayScene : GameScene
         ArgumentNullException.ThrowIfNull(context);
         base.Update(context, dt);
 
+        if (_pendingLogoutTask is not null)
+        {
+            if (_pendingLogoutTask.IsCompleted)
+            {
+                Task completed = _pendingLogoutTask;
+                _pendingLogoutTask = null;
+                try
+                {
+                    completed.GetAwaiter().GetResult();
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    // Proceed cleanly back to LoginScene.
+                }
+
+                LoginScene? next = null;
+                try
+                {
+                    next = new LoginScene(_session, _options, _camera);
+                    context.SceneManager.ChangeScene(next, transitionDuration: 0.16f);
+                    next = null;
+                }
+                finally
+                {
+                    next?.Dispose();
+                }
+            }
+
+            return;
+        }
+
         if (!_session.IsReady || _cameraRig is null || _worldRenderer is null || _hudRenderer is null)
         {
             return;
@@ -89,19 +136,22 @@ public sealed class WorldGameplayScene : GameScene
 
         DesktopInputFrame input = DesktopInputController.Poll(context.Input);
 
-        if (input.ExitPressed)
+        if (input.EscapePressed)
         {
-            context.Window.Close();
-            return;
+            if (_hudRenderer.ShowCraftingPanel)
+            {
+                _hudRenderer.ShowCraftingPanel = false;
+            }
+            else
+            {
+                _showEscapeMenu = !_showEscapeMenu;
+            }
         }
 
-        if (input.ReseedPressed && !_session.IsOnlineMultiplayer)
+        if (_showEscapeMenu)
         {
-            ulong nextSeed = (ulong)Environment.TickCount64 ^ 0xA5A5A5A5A5A5A5A5UL;
-            _session.ReseedOffline(nextSeed);
-            _worldRenderer.EnsureWorldBound(_session);
-            _worldRenderer.InvalidateAll();
-            _cameraRig.SnapTo(_session.LocalPlayerInterpolatedPosition);
+            this.UpdatePauseMenu(context, input);
+            _session.Update(dt, Vector2.Zero, sprint: false);
             return;
         }
 
@@ -248,6 +298,11 @@ public sealed class WorldGameplayScene : GameScene
             frameDt,
             _worldRenderer.TimeOfDayHour);
 
+        if (_showEscapeMenu && _menuBatch is not null)
+        {
+            this.RenderPauseOverlay(spriteBatch, context.WindowWidth, context.WindowHeight);
+        }
+
         base.Render(context, spriteBatch, dt);
 
         _frameCount++;
@@ -284,6 +339,8 @@ public sealed class WorldGameplayScene : GameScene
     {
         if (disposing)
         {
+            _menuBatch?.Dispose();
+            _menuBatch = null;
             _hudRenderer?.Dispose();
             _hudRenderer = null;
             _worldRenderer?.Dispose();
@@ -291,6 +348,81 @@ public sealed class WorldGameplayScene : GameScene
         }
 
         base.Dispose(disposing);
+    }
+
+    private void UpdatePauseMenu(SceneContext context, in DesktopInputFrame input)
+    {
+        this.LayoutPauseMenu(context.WindowWidth, context.WindowHeight);
+
+        MouseSnapshot mouse = context.Input.Mouse;
+        bool leftDown = mouse.IsButtonDown(MouseButton.Left);
+        bool leftPressed = input.LeftClickPressed;
+        Vector2 mousePos = input.MouseScreenPosition;
+
+        if (_resumeButton.Update(mousePos, leftDown, leftPressed) || input.NumberSlotPressed == 0)
+        {
+            _showEscapeMenu = false;
+        }
+        else if (_logoutButton.Update(mousePos, leftDown, leftPressed) || input.NumberSlotPressed == 1)
+        {
+            _pendingLogoutTask = _session.LogoutAsync();
+        }
+        else if (_quitButton.Update(mousePos, leftDown, leftPressed) || input.NumberSlotPressed == 2)
+        {
+            context.Window.Close();
+        }
+    }
+
+    private void LayoutPauseMenu(int width, int height)
+    {
+        const float cardW = 340f;
+        const float cardH = 240f;
+        float x = MathF.Floor((width - cardW) * 0.5f);
+        float y = MathF.Floor((height - cardH) * 0.5f);
+
+        _resumeButton.Bounds = new RectangleF(x + 24f, y + 58f, cardW - 48f, 44f);
+        _logoutButton.Bounds = new RectangleF(x + 24f, y + 114f, cardW - 48f, 44f);
+        _quitButton.Bounds = new RectangleF(x + 24f, y + 170f, cardW - 48f, 44f);
+    }
+
+    private void RenderPauseOverlay(SpriteBatch spriteBatch, int width, int height)
+    {
+        if (_menuBatch is null || _hudRenderer is null || width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        this.LayoutPauseMenu(width, height);
+        Matrix4x4 proj = Matrix4x4.CreateOrthographicOffCenter(0f, width, height, 0f, -1f, 1f);
+
+        const float cardW = 340f;
+        const float cardH = 240f;
+        float x = MathF.Floor((width - cardW) * 0.5f);
+        float y = MathF.Floor((height - cardH) * 0.5f);
+
+        _menuBatch.Begin(proj);
+        _menuBatch.FillRectangle(new RectangleF(0f, 0f, width, height), new ColorRgba(6, 10, 20, 145));
+        _menuBatch.FillRectangle(new RectangleF(x, y, cardW, cardH), new ColorRgba(10, 15, 28, 240));
+        _menuBatch.DrawRectangle(new RectangleF(x, y, cardW, cardH), new ColorRgba(250, 204, 21, 230), 2f);
+        _resumeButton.DrawGeometry(_menuBatch);
+        _logoutButton.DrawGeometry(_menuBatch);
+        _quitButton.DrawGeometry(_menuBatch);
+        _menuBatch.End();
+
+        spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: proj);
+        TextMeasureResult titleSize = _hudRenderer.Font.MeasureString("SYSTEM MENU", TextLayoutOptions.Default, 2.5f);
+        spriteBatch.DrawOutlinedString(
+            _hudRenderer.Font,
+            "SYSTEM MENU",
+            new Vector2(MathF.Floor(x + ((cardW - titleSize.Width) * 0.5f)), y + 18f),
+            new ColorRgba(250, 204, 21, 255),
+            new ColorRgba(8, 10, 16, 255),
+            1,
+            2.5f);
+        _resumeButton.DrawText(spriteBatch, _hudRenderer.Font);
+        _logoutButton.DrawText(spriteBatch, _hudRenderer.Font);
+        _quitButton.DrawText(spriteBatch, _hudRenderer.Font);
+        spriteBatch.End();
     }
 
     private void UpdateTelemetry(IGameWindow window, int ptx, int pty)
@@ -328,10 +460,7 @@ public sealed class WorldGameplayScene : GameScene
         RampDirection currentRamp = chunkWorld.NavGrid.GetRamp(ptx, pty);
         string rampText = currentRamp != RampDirection.None ? $" [Ramp: {currentRamp}]" : string.Empty;
         string roofText = chunkWorld.Buildings.IsRoofedAt(ptx, pty) ? " [Roofed Room]" : string.Empty;
-        string netText = _session.IsOnlineMultiplayer
-            ? $" | Online Peers: {_session.RemoteEntities.Count}"
-            : $" | Actors: {_session.RemoteEntities.Count}";
-        window.Title = $"Carbon MMORPG | Biome: {currentTile.Biome} | Alt: Lvl {currentTile.HeightLevel} | Nav: {walkability}{rampText}{roofText}{netText}";
+        window.Title = $"Carbon MMORPG ({_session.TransportLabel}) | {_session.ActiveCharacterName} | Biome: {currentTile.Biome} | Alt: Lvl {currentTile.HeightLevel} | Nav: {walkability}{rampText}{roofText} | Peers: {_session.RemoteEntities.Count}";
 
         int chunkX = Chunk2D.ToChunkCoord(ptx);
         int chunkY = Chunk2D.ToChunkCoord(pty);

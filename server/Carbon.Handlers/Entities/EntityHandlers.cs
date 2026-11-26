@@ -21,6 +21,7 @@ namespace Carbon.Handlers.Entities;
 public static partial class EntityHandlers
 {
     [Inject] private static IAuthoritativeWorld s_world = null!;
+    [Inject] private static ISessionTransportRegistry s_transports = null!;
 
     /// <summary>Opcode <c>0x1201</c>. Enqueues client directional movement onto the next fixed world tick.</summary>
     [PacketOpcode(EntityOpCode.MoveInput)]
@@ -30,8 +31,9 @@ public static partial class EntityHandlers
         ArgumentNullException.ThrowIfNull(context);
 
         EntityMoveInput req = context.Packet;
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
         s_world.EnqueueMoveInput(
-            context.Connection.ConnectionId,
+            connectionId,
             req.ClientTick,
             new Vector2(req.DirectionX, req.DirectionY),
             req.Sprint);
@@ -47,12 +49,15 @@ public static partial class EntityHandlers
         ArgumentNullException.ThrowIfNull(context);
 
         EntityAttackInput req = context.Packet;
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
         OpStatus status = s_world.EnqueueAttackInput(
-            context.Connection.ConnectionId,
+            connectionId,
             req.TargetNetworkId,
             new Vector2(req.AimX, req.AimY),
             req.AbilitySlot);
 
-        return PacketReplyHelper.SendMutationAsync(context, status, EntityOpCode.AttackInput);
+        return req.SequenceId != 0
+            ? PacketReplyHelper.SendMutationAsync(context, status, EntityOpCode.AttackInput)
+            : ValueTask.CompletedTask;
     }
 }

@@ -27,7 +27,13 @@
         <PackageReference Include="Nalix.Environment" />
         <PackageReference Include="Nalix.Framework" />
         <PackageReference Include="Nalix.Hosting" />
+        <PackageReference Include="Nalix.Network" />
         <PackageReference Include="Nalix.Runtime" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Carbon.Host.Tests" />
+        <InternalsVisibleTo Include="Carbon.Desktop.Tests" />
     </ItemGroup>
 
 </Project>

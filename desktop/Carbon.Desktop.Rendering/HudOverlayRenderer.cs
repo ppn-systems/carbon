@@ -254,9 +254,9 @@ public sealed class HudOverlayRenderer : IDisposable
         // Outer border around the health bar
         batch.DrawRectangle(new RectangleF(25f, 45f, 358f, 24f), new ColorRgba(100, 116, 139, 220), 1f);
 
-        ColorRgba badgeColor = session.IsOnlineMultiplayer
-            ? new ColorRgba(16, 185, 129, 230)
-            : new ColorRgba(37, 99, 235, 230);
+        ColorRgba badgeColor = session.IsUdpActive
+            ? new ColorRgba(16, 185, 129, 235)
+            : (session.IsConnected ? new ColorRgba(37, 99, 235, 235) : new ColorRgba(185, 28, 28, 235));
         batch.FillRectangle(new RectangleF(288f, 20f, 94f, 20f), badgeColor);
     }
 
@@ -456,8 +456,19 @@ public sealed class HudOverlayRenderer : IDisposable
         int curHp = (int)MathF.Ceiling(session.LocalPlayerHealth);
         int maxHp = (int)MathF.Ceiling(session.LocalPlayerMaxHealth);
 
-        spriteBatch.DrawOutlinedString(font, "CARBON HERO", new Vector2(26f, 23f), ColorRgba.White, black, 1, 2f);
-        spriteBatch.DrawOutlinedString(font, session.IsOnlineMultiplayer ? "ONLINE" : "OFFLINE", new Vector2(294f, 23f), ColorRgba.White, black, 1, 2f);
+        string heroName = string.IsNullOrWhiteSpace(session.ActiveCharacterName)
+            ? "CARBON HERO"
+            : session.ActiveCharacterName.ToUpperInvariant();
+        if (heroName.Length > 15)
+        {
+            heroName = heroName[..15];
+        }
+
+        spriteBatch.DrawOutlinedString(font, heroName, new Vector2(26f, 23f), ColorRgba.White, black, 1, 2f);
+        string badgeText = session.TransportLabel;
+        TextMeasureResult badgeSize = font.MeasureString(badgeText, TextLayoutOptions.Default, 1.5f);
+        float badgeX = MathF.Floor(288f + ((94f - badgeSize.Width) * 0.5f));
+        spriteBatch.DrawOutlinedString(font, badgeText, new Vector2(badgeX, 24f), ColorRgba.White, black, 1, 1.5f);
 
         string hpText = $"HP {curHp}/{maxHp}";
         TextMeasureResult hpSize = font.MeasureString(hpText, TextLayoutOptions.Default, 2f);
@@ -543,14 +554,14 @@ public sealed class HudOverlayRenderer : IDisposable
 
     private static string ResolveHintText(int viewportWidth, out float scale)
     {
-        if (viewportWidth >= 900)
+        if (viewportWidth >= 1000)
         {
             scale = 2f;
-            return "[WASD] Move [Space] Hit [F] Mine [1-9] Slot [C] Craft [Tab] HUD";
+            return "[WASD] Move [Space] Hit [F] Mine [1-9] Slot [C] Craft [Esc] Menu";
         }
 
         scale = 1f;
-        return "[WASD] Move [Space/LMB] Attack [F] Harvest [1-9] Slot [C] Craft [Tab] HUD";
+        return "[WASD] Move [Space/LMB] Hit [F] Harvest [1-9] Slot [C] Craft [Esc] Menu";
     }
 
     private static ColorRgba ResolveMinimapBiomeColor(BiomeType biome)

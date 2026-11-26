@@ -51,17 +51,59 @@ public interface IClientWorldSession : IAsyncDisposable
     /// <summary>Gets the remote players, monsters, and NPCs currently visible in the Area of Interest.</summary>
     IReadOnlyList<RemoteEntityView> RemoteEntities { get; }
 
-    /// <summary>Gets a value indicating whether the session is connected to a live remote server.</summary>
-    bool IsOnlineMultiplayer { get; }
+    /// <summary>Gets a value indicating whether the reliable TCP control channel is connected.</summary>
+    bool IsConnected { get; }
+
+    /// <summary>Gets a value indicating whether the session has authenticated an account.</summary>
+    bool IsAuthenticated { get; }
+
+    /// <summary>Gets a value indicating whether the authenticated UDP (NDP) fast channel is connected.</summary>
+    bool IsUdpActive { get; }
 
     /// <summary>Gets a value indicating whether the world and local avatar are initialized.</summary>
     bool IsReady { get; }
+
+    /// <summary>Gets the active signed-in character display name.</summary>
+    string ActiveCharacterName { get; }
+
+    /// <summary>Gets the active transport label (<c>TCP+UDP</c>, <c>TCP</c>, or <c>OFFLINE</c>).</summary>
+    string TransportLabel { get; }
 
     /// <summary>Gets the active world seed.</summary>
     ulong WorldSeed { get; }
 
     /// <summary>
-    /// Initializes the world generator, authenticates if online, and spawns the local avatar.
+    /// Connects over TCP (with X25519 AEAD handshake) and authenticates an existing account.
+    /// </summary>
+    Task<ClientAuthResult> LoginAsync(string host, ushort tcpPort, string username, string password, CancellationToken ct = default);
+
+    /// <summary>
+    /// Connects over TCP (with X25519 AEAD handshake) and registers a new account.
+    /// </summary>
+    Task<ClientAuthResult> RegisterAsync(string host, ushort tcpPort, string username, string password, CancellationToken ct = default);
+
+    /// <summary>
+    /// Queries all characters owned by the currently authenticated account.
+    /// </summary>
+    Task<IReadOnlyList<ClientCharacterSummary>> ListCharactersAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Creates a new character on the currently authenticated account.
+    /// </summary>
+    Task<(bool Succeeded, string Message)> CreateCharacterAsync(string characterName, byte appearancePreset, CancellationToken ct = default);
+
+    /// <summary>
+    /// Selects a character, enters the authoritative world, syncs inventory/chunks, and opens Authenticated UDP.
+    /// </summary>
+    Task<(bool Succeeded, string Message)> EnterWorldAsync(Guid characterId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Leaves the active world, closes Authenticated UDP, and logs out the authenticated session.
+    /// </summary>
+    Task LogoutAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Connects, signs in (auto-registering if missing), creates/selects the configured character, and enters the world.
     /// </summary>
     /// <param name="ct">Cancellation token.</param>
     Task InitializeAsync(CancellationToken ct = default);
@@ -111,10 +153,4 @@ public interface IClientWorldSession : IAsyncDisposable
     /// <param name="modifiedChunk">Chunk coordinate containing the toggled door.</param>
     /// <returns><see langword="true"/> if a door was toggled.</returns>
     bool TryToggleNearbyDoor(out (int ChunkX, int ChunkY) modifiedChunk);
-
-    /// <summary>
-    /// Regenerates the offline sandbox with a new seed (no-op in online mode).
-    /// </summary>
-    /// <param name="newSeed">Replacement seed.</param>
-    void ReseedOffline(ulong newSeed);
 }

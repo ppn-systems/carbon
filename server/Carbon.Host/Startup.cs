@@ -10,7 +10,7 @@ using Carbon.Handlers.Maps;
 using Carbon.Handlers.Session;
 using Carbon.Infrastructure.Configuration;
 using Microsoft.Extensions.Logging;
-using Nalix.Abstractions.Networking;
+using Nalix.Environment.Options;
 using Nalix.Framework.Injection;
 using Nalix.Hosting;
 using Nalix.Hosting.Protocols;
@@ -29,18 +29,21 @@ internal static class Startup
         IAuthService authService,
         IAuthoritativeWorld world,
         NalixWorldOutboundSink outboundSink,
+        NalixSessionTransportRegistry transportRegistry,
         ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(authService);
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(outboundSink);
+        ArgumentNullException.ThrowIfNull(transportRegistry);
         ArgumentNullException.ThrowIfNull(logger);
 
         InstanceManager.Instance.Register<IAuthService>(authService);
         InstanceManager.Instance.Register<IAuthoritativeWorld>(world);
+        InstanceManager.Instance.Register<ISessionTransportRegistry>(transportRegistry);
 
-        NetworkApplication app = NetworkApplication.CreateBuilder()
+        INetworkApplicationBuilder builder = NetworkApplication.CreateBuilder()
             .UseLogger(logger)
             .UseSessions()
             .UseTimeSync()
@@ -57,12 +60,17 @@ internal static class Startup
                 o.KeepAlive = true;
                 o.MaxParallel = 4;
             })
-            .Configure<NetworkWebSocketOptions>(o =>
+            .Configure<DatagramOptions>(o =>
             {
-                o.Host = "+";
-                o.Path = options.WebSocketPath;
-                o.Port = options.WebSocketPort;
-                o.MaxMessageSize = 128 * 1024;
+                o.MaxSessions = 2000;
+                o.TicketLifetimeSeconds = 30;
+                o.ReceiveWorkers = 2;
+            })
+            .Configure<DatagramEngineOptions>(o =>
+            {
+                o.ChannelCount = 8;
+                o.IdleTimeoutMs = 60_000;
+                o.UnreliableExpiryMs = 100;
             })
             .Configure<ConnectionGuardOptions>(o =>
             {
@@ -76,27 +84,35 @@ internal static class Startup
                 _ = o.WithErrorHandling((ex, opcode) =>
                     logger.LogError(ex, "Dispatch error on opcode 0x{Opcode:X4}", opcode));
             })
-            .MapWebSocket<DefaultProtocol>()
-                .OnPort(options.WebSocketPort)
-                .WithPath(options.WebSocketPath)
-                .Bind()
             .MapTcp<DefaultProtocol>()
                 .OnPort(options.TcpPort)
                 .Bind()
-            .Build();
+            .MapDatagram<DefaultProtocol>()
+                .OnPort(options.UdpPort)
+                .Bind();
 
-        IConnectionHub? hub = InstanceManager.Instance.GetExistingInstance<IConnectionHub>();
-        if (hub is not null)
+        if (options.WebSocketPort > 0)
         {
-            outboundSink.AttachHub(hub);
-            hub.ConnectionUnregistered += conn =>
-            {
-                ulong id = conn.ConnectionId;
-                _ = world.LeaveWorld(id);
-                _ = ConnectionAuthRegistry.Clear(id);
-            };
+            builder = builder
+                .Configure<NetworkWebSocketOptions>(o =>
+                {
+                    o.Host = options.WebSocketHost;
+                    o.Path = options.WebSocketPath;
+                    o.Port = options.WebSocketPort;
+                    o.MaxMessageSize = 128 * 1024;
+                })
+                .MapWebSocket<DefaultProtocol>()
+                    .OnPort(options.WebSocketPort)
+                    .WithPath(options.WebSocketPath)
+                    .Bind();
         }
 
-        return app;
+        transportRegistry.ConfigureStreamClosedCallback(streamConnectionId =>
+        {
+            _ = world.LeaveWorld(streamConnectionId);
+            _ = ConnectionAuthRegistry.Clear(streamConnectionId);
+        });
+
+        return builder.Build();
     }
 }
