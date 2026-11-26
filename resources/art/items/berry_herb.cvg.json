@@ -85,6 +85,38 @@
       "color": "#FFFFFF"
     },
     {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -5.0,
+      "y": 3.4,
+      "x2": -0.8,
+      "y2": 1.6,
+      "thickness": 0.9,
+      "color": "#86EFAC"
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": 5.0,
+      "y": 3.4,
+      "x2": 0.8,
+      "y2": 1.6,
+      "thickness": 0.9,
+      "color": "#86EFAC"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 1.9,
+      "y": -2.2,
+      "rx": 0.75,
+      "ry": 0.75,
+      "color": "#FFFFFF"
+    },
+    {
       "kind": "ellipse",
       "bone": "root",
       "facing": "any",

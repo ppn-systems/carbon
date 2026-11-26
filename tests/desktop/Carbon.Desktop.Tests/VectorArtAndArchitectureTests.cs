@@ -7,6 +7,7 @@ using System.Reflection;
 using Carbon.Desktop.Abstractions;
 using Carbon.Desktop.Networking;
 using Carbon.Desktop.Rendering;
+using Carbon.Desktop.Rendering.Hud;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
 using FluentAssertions;
@@ -28,17 +29,15 @@ public sealed class VectorArtAndArchitectureTests
 
         VectorArtValidationSummary summary = VectorArtValidator.ValidateDirectory(artRoot!);
         summary.CharactersValidated.Should().Be(4);
-        summary.MonstersValidated.Should().Be(5);
+        summary.MonstersValidated.Should().Be(7);
         summary.NpcsValidated.Should().Be(4);
-        summary.ItemsValidated.Should().Be(28);
+        summary.ItemsValidated.Should().Be(32);
         summary.RasterImagesFound.Should().Be(0, "declarative vector pipeline uses zero PNG/JPG images");
 
         string? uiPanelDir = CarbonUiSkin.TryFindPanelDirectory();
         uiPanelDir.Should().NotBeNull("standardized 9-slice UI panels must exist under resources/ui/panels/");
-        File.Exists(Path.Combine(uiPanelDir!, "0.png")).Should().BeTrue();
-        File.Exists(Path.Combine(uiPanelDir!, "1.png")).Should().BeTrue();
-        File.Exists(Path.Combine(uiPanelDir!, "9.png")).Should().BeTrue();
-        File.Exists(Path.Combine(uiPanelDir!, "14.png")).Should().BeTrue();
+        File.Exists(Path.Combine(uiPanelDir!, "10.png")).Should().BeTrue();
+        File.Exists(Path.Combine(uiPanelDir!, "5.png")).Should().BeTrue();
         File.Exists(Path.Combine(uiPanelDir!, "15.png")).Should().BeTrue();
 
         CarbonVectorArtLibrary lib = CarbonVectorArtLibrary.LoadFromDirectory(artRoot!);
@@ -93,6 +92,34 @@ public sealed class VectorArtAndArchitectureTests
         Directory.GetFiles(scriptDir, "*.bat").Should().BeEmpty();
         Directory.GetFiles(scriptDir, "*.cmd").Should().BeEmpty();
         Directory.GetFiles(scriptDir, "*.sh").Should().BeEmpty();
+
+        string tempCfg = Path.Combine(Path.GetTempPath(), $"carbon-ui-settings-{Guid.NewGuid():N}.cfg");
+        try
+        {
+            ClientUiSettings saved = new()
+            {
+                ShowMinimap = false,
+                ShowCombatNumbers = false,
+                ShowTelemetry = false,
+                ShowKeybindHints = true,
+                CameraZoomPreset = 2,
+            };
+            saved.Save(tempCfg);
+
+            ClientUiSettings loaded = ClientUiSettings.LoadOrDefault(tempCfg);
+            loaded.ShowMinimap.Should().BeFalse();
+            loaded.ShowCombatNumbers.Should().BeFalse();
+            loaded.ShowTelemetry.Should().BeFalse();
+            loaded.ShowKeybindHints.Should().BeTrue();
+            loaded.CameraZoomPreset.Should().Be(2);
+        }
+        finally
+        {
+            if (File.Exists(tempCfg))
+            {
+                File.Delete(tempCfg);
+            }
+        }
     }
 
     private static string FindRepoRoot(string startPath)

@@ -134,10 +134,15 @@ public sealed partial class NalixMultiplayerSession
 
         if (activeSlot.Quantity > 0 && hasArchetype && archetype is { Category: ItemCategory.Placeable or ItemCategory.Tool })
         {
-            int aimTx = (int)MathF.Floor(aimWorldPosition.X / _tileSize);
-            int aimTy = (int)MathF.Floor(aimWorldPosition.Y / _tileSize);
-            invalidatedChunk = (Chunk2D.ToChunkCoord(aimTx), Chunk2D.ToChunkCoord(aimTy));
-            return true;
+            float distSq = Vector2.DistanceSquared(this.LocalPlayerInterpolatedPosition, aimWorldPosition);
+            float maxDist = archetype.Category == ItemCategory.Placeable ? 3.5f * _tileSize : 56f;
+            if (distSq <= (maxDist * maxDist))
+            {
+                int aimTx = (int)MathF.Floor(aimWorldPosition.X / _tileSize);
+                int aimTy = (int)MathF.Floor(aimWorldPosition.Y / _tileSize);
+                invalidatedChunk = (Chunk2D.ToChunkCoord(aimTx), Chunk2D.ToChunkCoord(aimTy));
+                return true;
+            }
         }
 
         return false;
@@ -146,9 +151,23 @@ public sealed partial class NalixMultiplayerSession
     /// <inheritdoc/>
     public bool TryCastSkill(byte skillSlot, Vector2 aimWorldPosition)
     {
-        if (!this.IsReady ||
-            _tcpSession is not { IsConnected: true } ||
-            !CharacterProgressionPolicy.TryGetSkillSpec(skillSlot, out SkillSpec spec))
+        if (!this.IsReady || _tcpSession is not { IsConnected: true })
+        {
+            return false;
+        }
+
+        byte rank = this.GetSkillRank(skillSlot);
+        if (rank == 0)
+        {
+            lock (_worldGate)
+            {
+                _hudNotifications.Add("Skill locked! Press [K] to unlock skills with Skill Points.");
+            }
+
+            return false;
+        }
+
+        if (!CharacterProgressionPolicy.TryGetSkillSpec(skillSlot, rank, out SkillSpec spec))
         {
             return false;
         }
@@ -482,6 +501,22 @@ public sealed partial class NalixMultiplayerSession
             _lockedTargetNetworkId = candidates[nextIndex].NetworkId;
             return true;
         }
+    }
+
+    /// <inheritdoc/>
+    public bool TryAllocateCharacterPoint(Contracts.Entities.CharacterPointTarget target, byte amount = 1)
+    {
+        if (!this.IsReady || _tcpSession is not { IsConnected: true } || amount == 0)
+        {
+            return false;
+        }
+
+        _ = this.SendTcpPooledAsync<Contracts.Entities.C2S.EntityAllocatePoint>(p =>
+        {
+            p.Target = target;
+            p.Amount = amount;
+        });
+        return true;
     }
 
     /// <inheritdoc/>

@@ -98,6 +98,18 @@ public static class StarterGameCatalog
     /// <summary>Placeable blacksmith anvil workstation kit (<c>StructureType.ForgeAnvil = 8</c>).</summary>
     public const uint ForgeAnvilKit = 28;
 
+    /// <summary>Hearty roast haunch ration (+55 HP, +40 Stamina).</summary>
+    public const uint RoastMeat = 29;
+
+    /// <summary>Arcane berry pastry (+30 HP, +60 MP).</summary>
+    public const uint ArcanePie = 30;
+
+    /// <summary>Abyssal serrated demon cleaver (heavy melee crit weapon).</summary>
+    public const uint DemonCleaver = 31;
+
+    /// <summary>Tribal skull shaman staff (medium-high hex bolt caster, +40 MaxMP).</summary>
+    public const uint ShamanStaff = 32;
+
     /// <summary>Gets all registered starter item archetypes indexed by ID.</summary>
     public static DefinitionRegistry<uint, ItemArchetype> Items { get; } = new(
     [
@@ -205,9 +217,25 @@ public static class StarterGameCatalog
             ForgeAnvilKit, "forge_anvil", ItemCategory.Placeable, MaxStackSize: 20, PlaceableStructureType: 8,
             DisplayName: "Forge Anvil",
             ActionHint: "Workstation | Place Anvil to Enhance Gear ([U])"),
+        new ItemArchetype(
+            RoastMeat, "roast_meat", ItemCategory.Consumable, MaxStackSize: 20,
+            DisplayName: "Roast Meat", HealHealth: 55f, RestoreStamina: 40f,
+            ActionHint: "Hearty Ration | Use: +55 HP & +40 Stamina"),
+        new ItemArchetype(
+            ArcanePie, "arcane_pie", ItemCategory.Consumable, MaxStackSize: 20,
+            DisplayName: "Arcane Pie", HealHealth: 30f, RestoreMana: 60f,
+            ActionHint: "Mystic Pastry | Use: +30 HP & +60 MP"),
+        new ItemArchetype(
+            DemonCleaver, "demon_cleaver", ItemCategory.Weapon, MaxStackSize: 1, EquipmentSlotKind.MainHand, HarvestTier: 0, MaxDurability: 300f,
+            DisplayName: "Dmn.Cleaver", BaseDamage: 52f, CritChance: 0.24f, FloraHarvestDamage: 24f, MineralHarvestDamage: 12f, AttackRange: 58f,
+            ActionHint: "Abyssal Blade | Heavy Cleave (52 dmg, 24% Crit)"),
+        new ItemArchetype(
+            ShamanStaff, "shaman_staff", ItemCategory.Weapon, MaxStackSize: 1, EquipmentSlotKind.MainHand, HarvestTier: 0, MaxDurability: 230f,
+            DisplayName: "Hex Staff", BaseDamage: 38f, CritChance: 0.20f, FloraHarvestDamage: 10f, MineralHarvestDamage: 0f, BonusMana: 40f,
+            ActionHint: "Shaman Focus | Hex Bolt (38 dmg, 5 MP, +40 MaxMP)", AttackRange: 290f, ProjectileSpeed: 480f, ProjectileArchetype: 2, AttackManaCost: 5f),
     ]);
 
-    /// <summary>Gets all registered crafting recipes indexed by ID (1..22).</summary>
+    /// <summary>Gets all registered crafting recipes indexed by ID (1..26).</summary>
     public static DefinitionRegistry<uint, CraftingRecipe> Recipes { get; } = new(
     [
         new CraftingRecipe(1, [new RecipeIngredient(WoodLog, 4)], new ItemSlot(WoodWallKit, 2)),
@@ -232,6 +260,10 @@ public static class StarterGameCatalog
         new CraftingRecipe(20, [new RecipeIngredient(WoodLog, 5), new RecipeIngredient(IronOre, 3), new RecipeIngredient(ManaCrystal, 4)], new ItemSlot(CrystalBow, 1, 0, 250f)),
         new CraftingRecipe(21, [new RecipeIngredient(ManaCrystal, 5), new RecipeIngredient(IronOre, 3)], new ItemSlot(CrystalStaff, 1, 0, 260f)),
         new CraftingRecipe(22, [new RecipeIngredient(IronOre, 6), new RecipeIngredient(StoneChunk, 6)], new ItemSlot(ForgeAnvilKit, 1)),
+        new CraftingRecipe(23, [new RecipeIngredient(BerryHerb, 2), new RecipeIngredient(WoodLog, 1)], new ItemSlot(RoastMeat, 2)),
+        new CraftingRecipe(24, [new RecipeIngredient(BerryHerb, 2), new RecipeIngredient(ManaCrystal, 1)], new ItemSlot(ArcanePie, 2)),
+        new CraftingRecipe(25, [new RecipeIngredient(IronOre, 6), new RecipeIngredient(ManaCrystal, 4)], new ItemSlot(DemonCleaver, 1, 0, 300f)),
+        new CraftingRecipe(26, [new RecipeIngredient(WoodLog, 4), new RecipeIngredient(ManaCrystal, 3), new RecipeIngredient(IronOre, 2)], new ItemSlot(ShamanStaff, 1, 0, 230f)),
     ]);
 
     /// <summary>

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "itemId": 29,
+  "id": "roast_meat",
+  "displayName": "Roast Meat",
+  "tier": 2,
+  "categoryLabel": "Consumable",
+  "accentColor": "#F97316",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.78,
+  "palette": {},
+  "shapes": [
+    { "kind": "capsule", "bone": "root", "facing": "any", "x": -7.5, "y": 5.5, "x2": 4.2, "y2": -3.2, "thickness": 2.3, "color": "#F1F5F9", "outlineColor": "#334155", "outlineThickness": 1.0 },
+    { "kind": "ellipse", "bone": "root", "facing": "any", "x": -8.0, "y": 6.6, "rx": 1.7, "ry": 1.6, "color": "#F8FAFC", "outlineColor": "#334155", "outlineThickness": 0.9 },
+    { "kind": "ellipse", "bone": "root", "facing": "any", "x": -6.2, "y": 4.6, "rx": 1.6, "ry": 1.5, "color": "#E2E8F0", "outlineColor": "#334155", "outlineThickness": 0.9 },
+    { "kind": "ellipse", "bone": "root", "facing": "any", "x": 1.8, "y": -1.4, "rx": 6.4, "ry": 4.8, "rotDeg": -32.0, "color": "#9A3412", "outlineColor": "#431407", "outlineThickness": 1.2 },
+    { "kind": "ellipse", "bone": "root", "facing": "any", "x": 1.4, "y": -2.0, "rx": 4.8, "ry": 3.4, "rotDeg": -32.0, "color": "#EA580C" },
+    { "kind": "ellipse", "bone": "root", "facing": "any", "x": 4.8, "y": -3.6, "rx": 2.4, "ry": 1.8, "rotDeg": -32.0, "color": "#FCA5A5", "outlineColor": "#7C2D12", "outlineThickness": 0.8 },
+    { "kind": "line", "bone": "root", "facing": "any", "x": -1.2, "y": -1.0, "x2": 1.0, "y2": -4.2, "thickness": 1.1, "color": "#7C2D12" },
+    { "kind": "line", "bone": "root", "facing": "any", "x": 0.8, "y": 0.8, "x2": 3.0, "y2": -2.6, "thickness": 1.1, "color": "#7C2D12" },
+    { "kind": "ellipse", "bone": "root", "facing": "any", "x": 0.6, "y": -3.2, "rx": 1.2, "ry": 0.7, "rotDeg": -24.0, "color": "#FED7AA" }
+  ],
+  "heldVisible": false
+}

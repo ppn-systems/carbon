@@ -2,6 +2,7 @@
 
 using System;
 using System.Numerics;
+using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -18,18 +19,25 @@ using Carbon.Items.Definitions;
 namespace Carbon.Desktop.Rendering.Hud;
 
 /// <summary>
-/// Pure 40-slot MMORPG Bag, Armor Paper-Doll (<c>36..39</c>), Character Attributes Sheet,
-/// and Selected Item Inspector (<c>[EQUIP / USE]</c>, <c>[DROP 1]</c>, <c>[DROP ALL]</c>)
+/// Pure 40-slot MMORPG Bag, Armor Paper-Doll (<c>36..39</c>), Interactive Hero Attribute Point Allocator
+/// (<c>VIT/WIS/PWR/AGI</c>), and Item Inspector (<c>[EQUIP / USE]</c>, <c>[DROP 1]</c>, <c>[ALL]</c>)
 /// skinned cleanly with <see cref="CarbonUiSkin"/> — decoupled from Blacksmith Forging (SRP).
 /// </summary>
 internal sealed class InventoryModalWidget
 {
-    private const float PanelW = 700f;
-    private const float PanelH = 484f;
+    private const float PanelW = 720f;
+    private const float PanelH = 500f;
     private const float SlotSize = 44f;
     private const float SlotGap = 6f;
 
     private static readonly string[] s_armorLabels = ["HEAD", "CHEST", "LEGS", "FEET"];
+    private static readonly CharacterPointTarget[] s_statTargets =
+    [
+        CharacterPointTarget.Vitality,
+        CharacterPointTarget.Wisdom,
+        CharacterPointTarget.Power,
+        CharacterPointTarget.Agility,
+    ];
 
     public int SelectedSlot { get; set; } = -1;
 
@@ -45,6 +53,22 @@ internal sealed class InventoryModalWidget
     {
         (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
         return GetCloseButtonRect(ox, oy).Contains(mousePos);
+    }
+
+    public bool TryHitTestStatPlusButton(Vector2 mousePos, int viewportWidth, int viewportHeight, out CharacterPointTarget target)
+    {
+        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
+        for (int i = 0; i < s_statTargets.Length; i++)
+        {
+            if (GetStatPlusRect(ox, oy, i).Contains(mousePos))
+            {
+                target = s_statTargets[i];
+                return true;
+            }
+        }
+
+        target = CharacterPointTarget.Vitality;
+        return false;
     }
 
     public bool TryHitTestSlot(Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort slotIndex)
@@ -111,13 +135,26 @@ internal sealed class InventoryModalWidget
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
 
-        skin.DrawWindow(spriteBatch, new RectangleF(ox, oy, PanelW, PanelH), new ColorRgba(250, 204, 21, 238), bodyAlpha: 242);
-        skin.DrawCard(spriteBatch, new RectangleF(ox + 16f, oy + 40f, 256f, 204f), new ColorRgba(71, 85, 105, 225), bodyAlpha: 232);
-        skin.DrawCard(spriteBatch, new RectangleF(ox + 282f, oy + 40f, 402f, 204f), new ColorRgba(56, 189, 248, 195), bodyAlpha: 232);
+        skin.DrawWindow(spriteBatch, new RectangleF(ox, oy, PanelW, PanelH), new ColorRgba(250, 204, 21, 238), bodyAlpha: 245);
+        skin.DrawCard(spriteBatch, new RectangleF(ox + 18f, oy + 42f, 240f, 212f), new ColorRgba(71, 85, 105, 230), bodyAlpha: 236);
+        skin.DrawCard(spriteBatch, new RectangleF(ox + 266f, oy + 42f, 224f, 212f), new ColorRgba(56, 189, 248, 205), bodyAlpha: 236);
+        skin.DrawCard(spriteBatch, new RectangleF(ox + 498f, oy + 42f, 204f, 212f), new ColorRgba(250, 204, 21, 185), bodyAlpha: 236);
 
         RectangleF closeBtn = GetCloseButtonRect(ox, oy);
         bool hoverClose = mouseScreenPos.HasValue && closeBtn.Contains(mouseScreenPos.Value);
-        skin.DrawButton(spriteBatch, in closeBtn, hoverClose ? new ColorRgba(220, 38, 38, 245) : new ColorRgba(153, 27, 27, 230), new ColorRgba(248, 113, 113, 240));
+        skin.DrawButton(spriteBatch, in closeBtn, hoverClose ? new ColorRgba(220, 38, 38, 245) : new ColorRgba(153, 27, 27, 235), new ColorRgba(248, 113, 113, 245));
+
+        bool hasAp = world.LocalUnspentStatPoints > 0;
+        for (int i = 0; i < s_statTargets.Length; i++)
+        {
+            RectangleF plusRect = GetStatPlusRect(ox, oy, i);
+            bool hoverPlus = mouseScreenPos.HasValue && plusRect.Contains(mouseScreenPos.Value);
+            skin.DrawButton(
+                spriteBatch,
+                in plusRect,
+                hasAp ? (hoverPlus ? new ColorRgba(16, 185, 129, 245) : new ColorRgba(5, 150, 105, 235)) : new ColorRgba(20, 28, 44, 215),
+                hasAp ? new ColorRgba(110, 231, 183, 250) : new ColorRgba(71, 85, 105, 195));
+        }
 
         int targetSlot = this.ResolveActionTargetSlot(world);
         bool hasItem = targetSlot >= 0 && targetSlot < slots.Length && !slots[targetSlot].IsEmpty;
@@ -127,24 +164,27 @@ internal sealed class InventoryModalWidget
         skin.DrawButton(
             spriteBatch,
             in useBtn,
-            hasItem ? (hoverUse ? new ColorRgba(16, 185, 129, 245) : new ColorRgba(5, 150, 105, 235)) : new ColorRgba(24, 34, 52, 215),
-            hasItem ? new ColorRgba(110, 231, 183, 245) : new ColorRgba(71, 85, 105, 210));
+            hasItem ? (hoverUse ? new ColorRgba(16, 185, 129, 245) : new ColorRgba(5, 150, 105, 235)) : new ColorRgba(20, 28, 44, 215),
+            hasItem ? new ColorRgba(110, 231, 183, 245) : new ColorRgba(71, 85, 105, 200));
 
         RectangleF dropBtn = GetDropButtonRect(ox, oy);
         bool hoverDrop = mouseScreenPos.HasValue && dropBtn.Contains(mouseScreenPos.Value);
         skin.DrawButton(
             spriteBatch,
             in dropBtn,
-            hasItem ? (hoverDrop ? new ColorRgba(220, 38, 38, 245) : new ColorRgba(153, 27, 27, 235)) : new ColorRgba(24, 34, 52, 215),
-            hasItem ? new ColorRgba(248, 113, 113, 245) : new ColorRgba(71, 85, 105, 210));
+            hasItem ? (hoverDrop ? new ColorRgba(220, 38, 38, 245) : new ColorRgba(153, 27, 27, 235)) : new ColorRgba(20, 28, 44, 215),
+            hasItem ? new ColorRgba(248, 113, 113, 245) : new ColorRgba(71, 85, 105, 200));
 
         RectangleF dropAllBtn = GetDropAllButtonRect(ox, oy);
         bool hoverDropAll = mouseScreenPos.HasValue && dropAllBtn.Contains(mouseScreenPos.Value);
         skin.DrawButton(
             spriteBatch,
             in dropAllBtn,
-            hasItem ? (hoverDropAll ? new ColorRgba(185, 28, 28, 245) : new ColorRgba(127, 29, 29, 235)) : new ColorRgba(24, 34, 52, 215),
-            hasItem ? new ColorRgba(248, 113, 113, 245) : new ColorRgba(71, 85, 105, 210));
+            hasItem ? (hoverDropAll ? new ColorRgba(185, 28, 28, 245) : new ColorRgba(127, 29, 29, 235)) : new ColorRgba(20, 28, 44, 215),
+            hasItem ? new ColorRgba(248, 113, 113, 245) : new ColorRgba(71, 85, 105, 200));
+
+        RectangleF inspSocket = GetInspectorSocketRect(ox, oy);
+        skin.DrawSlot(spriteBatch, in inspSocket, new ColorRgba(12, 18, 34, 244), hasItem ? new ColorRgba(250, 204, 21, 235) : new ColorRgba(71, 85, 105, 210));
 
         for (int s = 0; s < PlayerInventoryLayout.TotalCapacity && s < slots.Length; s++)
         {
@@ -155,7 +195,7 @@ internal sealed class InventoryModalWidget
 
             ColorRgba fill = selected
                 ? new ColorRgba(38, 52, 84, 248)
-                : (hovered ? new ColorRgba(24, 36, 60, 245) : (isArmor ? new ColorRgba(16, 26, 46, 238) : new ColorRgba(12, 18, 34, 236)));
+                : (hovered ? new ColorRgba(24, 36, 60, 245) : (isArmor ? new ColorRgba(16, 26, 46, 238) : new ColorRgba(12, 18, 34, 238)));
             ColorRgba border = selected
                 ? new ColorRgba(250, 204, 21, 255)
                 : (hovered ? ColorRgba.White : (isArmor ? new ColorRgba(148, 163, 184, 225) : new ColorRgba(71, 85, 105, 225)));
@@ -193,7 +233,7 @@ internal sealed class InventoryModalWidget
                 (ushort)activeItem.ItemId,
                 ItemEnhancementPolicy.GetUpgradeLevel(in activeItem));
 
-            Vector2 pedPos = new(ox + 178f, oy + 190f);
+            Vector2 pedPos = new(ox + 174f, oy + 190f);
             batch.FillCircle(pedPos + new Vector2(0f, -6f), 32f, new ColorRgba(4, 8, 16, 130), 18);
             batch.DrawCircle(pedPos + new Vector2(0f, -6f), 33f, new ColorRgba(56, 189, 248, 185), 18, 1.5f);
             VectorRigRenderer.DrawEntityRig(
@@ -214,15 +254,12 @@ internal sealed class InventoryModalWidget
                 art: art);
         }
 
-        // Inspector item preview box
         int targetSlot = this.ResolveActionTargetSlot(world);
         ItemSlot inspected = targetSlot >= 0 && targetSlot < slots.Length ? slots[targetSlot] : ItemSlot.Empty;
-        RectangleF inspBox = new(ox + 492f, oy + 62f, 48f, 48f);
-        batch.FillRectangle(inspBox, new ColorRgba(12, 18, 34, 245));
-        batch.DrawRectangle(inspBox, inspected.IsEmpty ? new ColorRgba(71, 85, 105, 210) : new ColorRgba(250, 204, 21, 235), 1.5f);
+        RectangleF inspBox = GetInspectorSocketRect(ox, oy);
         if (!inspected.IsEmpty && art is not null && art.TryGetItem(inspected.ItemId, out CompiledItemVectorArt? inspArt))
         {
-            VectorRigRenderer.DrawItemIcon(batch, inspArt, new Vector2(inspBox.X + 24f, inspBox.Y + 24f), 30f);
+            VectorRigRenderer.DrawItemIcon(batch, inspArt, new Vector2(inspBox.X + 23f, inspBox.Y + 23f), 30f);
         }
 
         int hoveredSlot = -1;
@@ -271,34 +308,65 @@ internal sealed class InventoryModalWidget
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
 
-        spriteBatch.DrawOutlinedString(font, "INVENTORY & CHARACTER EQUIPMENT [I / B]", new Vector2(ox + 18f, oy + 14f), new ColorRgba(250, 204, 21, 255), black, 1, 1.5f);
+        spriteBatch.DrawOutlinedString(font, "HERO EQUIPMENT & INVENTORY [I]", new Vector2(ox + 20f, oy + 16f), new ColorRgba(250, 204, 21, 255), black, 1, 1.5f);
         RectangleF closeBtn = GetCloseButtonRect(ox, oy);
-        spriteBatch.DrawOutlinedString(font, "X", new Vector2(closeBtn.X + 8f, closeBtn.Y + 4f), ColorRgba.White, black, 1, 1.5f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "X", in closeBtn, ColorRgba.White, black, 1.5f);
 
-        // Left Character Stats summary inside inspector card
-        spriteBatch.DrawOutlinedString(font, "HERO ATTRIBUTES", new Vector2(ox + 294f, oy + 46f), new ColorRgba(125, 211, 252, 255), black, 1, 1f);
-        spriteBatch.DrawOutlinedString(font, $"LEVEL : {world.LocalPlayerLevel}", new Vector2(ox + 294f, oy + 66f), ColorRgba.White, black, 1, 1f);
-        spriteBatch.DrawOutlinedString(font, $"HP    : {(int)MathF.Ceiling(world.LocalPlayerHealth)}/{(int)MathF.Ceiling(world.LocalPlayerMaxHealth)}", new Vector2(ox + 294f, oy + 82f), new ColorRgba(248, 113, 113, 255), black, 1, 1f);
-        spriteBatch.DrawOutlinedString(font, $"MANA  : {(int)MathF.Floor(world.LocalPlayerMana)}/{(int)MathF.Ceiling(world.LocalPlayerMaxMana)}", new Vector2(ox + 294f, oy + 98f), new ColorRgba(96, 165, 250, 255), black, 1, 1f);
-        spriteBatch.DrawOutlinedString(font, $"STAM  : {(int)MathF.Floor(world.LocalPlayerStamina)}/{(int)MathF.Ceiling(world.LocalPlayerMaxStamina)}", new Vector2(ox + 294f, oy + 114f), new ColorRgba(52, 211, 153, 255), black, 1, 1f);
-        spriteBatch.DrawOutlinedString(font, $"DEF   : {(int)MathF.Round(world.LocalPlayerDefense)}", new Vector2(ox + 294f, oy + 130f), new ColorRgba(253, 224, 71, 255), black, 1, 1f);
-        spriteBatch.DrawOutlinedString(font, $"XP    : {world.LocalPlayerExperience}/{world.LocalPlayerXpToNext}", new Vector2(ox + 294f, oy + 146f), new ColorRgba(192, 132, 252, 255), black, 1, 1f);
-        spriteBatch.DrawOutlinedString(font, "Forge Gear at Blacksmith [U]", new Vector2(ox + 294f, oy + 220f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
+        // Center Attribute Allocation Card
+        spriteBatch.DrawOutlinedString(font, "ATTRIBUTES", new Vector2(ox + 278f, oy + 52f), new ColorRgba(125, 211, 252, 255), black, 1, 1f);
+        ushort unspentAp = world.LocalUnspentStatPoints;
+        string apText = unspentAp > 0 ? $"AP: {unspentAp}" : "AP: 0";
+        spriteBatch.DrawOutlinedString(
+            font,
+            apText,
+            new Vector2(ox + 432f, oy + 52f),
+            unspentAp > 0 ? new ColorRgba(74, 222, 128, 255) : new ColorRgba(148, 163, 184, 255),
+            black,
+            1,
+            1f);
 
-        // Right Selected Item Inspector
+        spriteBatch.DrawOutlinedString(
+            font,
+            $"LV.{world.LocalPlayerLevel} | DEF {(int)MathF.Round(world.LocalPlayerDefense)} | XP {world.LocalPlayerExperience}/{world.LocalPlayerXpToNext}",
+            new Vector2(ox + 278f, oy + 72f),
+            new ColorRgba(226, 232, 240, 255),
+            black,
+            1,
+            1f);
+
+        (string Name, string Detail, ushort Pts, ColorRgba Col)[] statRows =
+        [
+            ("VIT", $"HP {(int)MathF.Ceiling(world.LocalPlayerMaxHealth)}", world.LocalVitPoints, new ColorRgba(248, 113, 113, 255)),
+            ("WIS", $"MP {(int)MathF.Ceiling(world.LocalPlayerMaxMana)}", world.LocalWisPoints, new ColorRgba(96, 165, 250, 255)),
+            ("PWR", $"DMG +{world.LocalPwrPoints * 3.5f:F0}%", world.LocalPwrPoints, new ColorRgba(251, 146, 60, 255)),
+            ("AGI", $"STA {(int)MathF.Ceiling(world.LocalPlayerMaxStamina)}", world.LocalAgiPoints, new ColorRgba(52, 211, 153, 255)),
+        ];
+
+        for (int i = 0; i < statRows.Length; i++)
+        {
+            float ry = oy + 96f + (i * 27f);
+            spriteBatch.DrawOutlinedString(font, statRows[i].Name, new Vector2(ox + 278f, ry + 3f), statRows[i].Col, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, $"{statRows[i].Detail} ({statRows[i].Pts})", new Vector2(ox + 314f, ry + 3f), ColorRgba.White, black, 1, 1f);
+            RectangleF plusRect = GetStatPlusRect(ox, oy, i);
+            CarbonUiSkin.DrawCenteredText(spriteBatch, font, "+", in plusRect, unspentAp > 0 ? ColorRgba.White : new ColorRgba(100, 116, 139, 210), black, 1.5f);
+        }
+
+        spriteBatch.DrawOutlinedString(font, "Skills: [K] Tome | Forge: [U]", new Vector2(ox + 278f, oy + 224f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
+
+        // Right Item Inspector
         int targetSlot = this.ResolveActionTargetSlot(world);
         ItemSlot insp = targetSlot >= 0 && targetSlot < slots.Length ? slots[targetSlot] : ItemSlot.Empty;
-        spriteBatch.DrawOutlinedString(font, "ITEM INSPECTOR", new Vector2(ox + 492f, oy + 46f), new ColorRgba(250, 204, 21, 255), black, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, "ITEM INSPECTOR", new Vector2(ox + 510f, oy + 52f), new ColorRgba(250, 204, 21, 255), black, 1, 1f);
         if (insp.IsEmpty)
         {
-            spriteBatch.DrawOutlinedString(font, "Select any slot", new Vector2(ox + 548f, oy + 78f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
-            spriteBatch.DrawOutlinedString(font, "Shift+Click / RMB equips", new Vector2(ox + 492f, oy + 122f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, "Click any slot", new Vector2(ox + 566f, oy + 82f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, "RMB / Shift: Equip", new Vector2(ox + 510f, oy + 128f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
         }
         else
         {
             byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in insp);
             string iName = StarterGameCatalog.GetDisplayName(insp.ItemId);
-            spriteBatch.DrawOutlinedString(font, upg > 0 ? $"{iName} +{upg}" : iName, new Vector2(ox + 548f, oy + 68f), ColorRgba.White, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, upg > 0 ? $"{iName} +{upg}" : iName, new Vector2(ox + 566f, oy + 76f), ColorRgba.White, black, 1, 1f);
             float upgMult = ItemEnhancementPolicy.GetStatMultiplier(upg);
             string statStr = StarterGameCatalog.Items.TryGet(insp.ItemId, out ItemArchetype? def)
                 ? (def.Category == ItemCategory.Armor
@@ -306,18 +374,18 @@ internal sealed class InventoryModalWidget
                     : def.Category == ItemCategory.Weapon
                         ? $"DMG {(int)MathF.Round(def.BaseDamage * upgMult)} RNG {(int)def.AttackRange}"
                         : def.Category == ItemCategory.Tool
-                            ? $"Tier {def.HarvestTier} Harvest"
+                            ? $"Tier {def.HarvestTier} Tool"
                             : $"Stack x{insp.Quantity}")
                 : string.Empty;
-            spriteBatch.DrawOutlinedString(font, statStr, new Vector2(ox + 548f, oy + 86f), new ColorRgba(125, 211, 252, 255), black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, statStr, new Vector2(ox + 566f, oy + 96f), new ColorRgba(125, 211, 252, 255), black, 1, 1f);
         }
 
         RectangleF useBtn = GetUseEquipButtonRect(ox, oy);
-        spriteBatch.DrawOutlinedString(font, "EQUIP / MOVE", new Vector2(useBtn.X + 8f, useBtn.Y + 8f), ColorRgba.White, black, 1, 1f);
         RectangleF dropBtn = GetDropButtonRect(ox, oy);
-        spriteBatch.DrawOutlinedString(font, "DROP 1", new Vector2(dropBtn.X + 12f, dropBtn.Y + 8f), ColorRgba.White, black, 1, 1f);
         RectangleF dropAllBtn = GetDropAllButtonRect(ox, oy);
-        spriteBatch.DrawOutlinedString(font, "ALL", new Vector2(dropAllBtn.X + 12f, dropAllBtn.Y + 8f), ColorRgba.White, black, 1, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "EQUIP / USE", in useBtn, ColorRgba.White, black, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "DROP 1", in dropBtn, ColorRgba.White, black, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "ALL", in dropAllBtn, ColorRgba.White, black, 1f);
 
         for (int s = 0; s < PlayerInventoryLayout.TotalCapacity && s < slots.Length; s++)
         {
@@ -331,7 +399,7 @@ internal sealed class InventoryModalWidget
             else if (s >= PlayerInventoryLayout.BagLimit && item.IsEmpty)
             {
                 string lbl = s_armorLabels[s - PlayerInventoryLayout.BagLimit];
-                spriteBatch.DrawOutlinedString(font, lbl, new Vector2(rect.X + 6f, rect.Y + 18f), new ColorRgba(148, 163, 184, 195), black, 1, 1f);
+                CarbonUiSkin.DrawCenteredText(spriteBatch, font, lbl, in rect, new ColorRgba(148, 163, 184, 195), black, 1f);
             }
 
             if (!item.IsEmpty && s != this.DraggedSlot)
@@ -347,7 +415,7 @@ internal sealed class InventoryModalWidget
                 {
                     string qTxt = $"x{item.Quantity}";
                     TextMeasureResult qSize = font.MeasureString(qTxt, TextLayoutOptions.Default, 1.5f);
-                    spriteBatch.DrawOutlinedString(font, qTxt, new Vector2(rect.Right - qSize.Width - 4f, rect.Bottom - 18f), ColorRgba.White, black, 1, 1.5f);
+                    spriteBatch.DrawOutlinedString(font, qTxt, new Vector2(rect.Right - qSize.Width - 4f, rect.Bottom - 17f), ColorRgba.White, black, 1, 1.5f);
                 }
             }
         }
@@ -436,33 +504,35 @@ internal sealed class InventoryModalWidget
     private static (float Ox, float Oy) ComputeOrigin(int viewportWidth, int viewportHeight) =>
         (MathF.Floor((viewportWidth - PanelW) * 0.5f), MathF.Floor((viewportHeight - PanelH) * 0.5f));
 
-    private static RectangleF GetCloseButtonRect(float ox, float oy) => new(ox + PanelW - 34f, oy + 10f, 24f, 24f);
+    private static RectangleF GetCloseButtonRect(float ox, float oy) => new(ox + PanelW - 38f, oy + 10f, 26f, 24f);
 
-    private static RectangleF GetUseEquipButtonRect(float ox, float oy) => new(ox + 492f, oy + 164f, 178f, 28f);
+    private static RectangleF GetStatPlusRect(float ox, float oy, int rowIndex) => new(ox + 458f, oy + 96f + (rowIndex * 27f), 22f, 20f);
 
-    private static RectangleF GetDropButtonRect(float ox, float oy) => new(ox + 492f, oy + 198f, 102f, 28f);
+    private static RectangleF GetInspectorSocketRect(float ox, float oy) => new(ox + 510f, oy + 72f, 46f, 46f);
 
-    private static RectangleF GetDropAllButtonRect(float ox, float oy) => new(ox + 600f, oy + 198f, 70f, 28f);
+    private static RectangleF GetUseEquipButtonRect(float ox, float oy) => new(ox + 510f, oy + 174f, 180f, 28f);
+
+    private static RectangleF GetDropButtonRect(float ox, float oy) => new(ox + 510f, oy + 208f, 100f, 28f);
+
+    private static RectangleF GetDropAllButtonRect(float ox, float oy) => new(ox + 616f, oy + 208f, 74f, 28f);
 
     private static RectangleF GetSlotRect(float ox, float oy, int slotIndex)
     {
         if (slotIndex >= PlayerInventoryLayout.BagLimit)
         {
             int armorIdx = slotIndex - PlayerInventoryLayout.BagLimit;
-            return new RectangleF(ox + 34f, oy + 50f + (armorIdx * 48f), 44f, 44f);
+            return new RectangleF(ox + 34f, oy + 56f + (armorIdx * 48f), 44f, 44f);
         }
 
+        const float gridX = 138f;
         if (slotIndex < 9)
         {
-            float gridStartX = ox + 124f;
-            return new RectangleF(gridStartX + (slotIndex * (SlotSize + SlotGap)), oy + 414f, SlotSize, SlotSize);
+            return new RectangleF(ox + gridX + (slotIndex * (SlotSize + SlotGap)), oy + 428f, SlotSize, SlotSize);
         }
 
         int bagIdx = slotIndex - 9;
         int col = bagIdx % 9;
         int row = bagIdx / 9;
-        float bx = ox + 124f;
-        float by = oy + 256f;
-        return new RectangleF(bx + (col * (SlotSize + SlotGap)), by + (row * (SlotSize + SlotGap)), SlotSize, SlotSize);
+        return new RectangleF(ox + gridX + (col * (SlotSize + SlotGap)), oy + 268f + (row * (SlotSize + SlotGap)), SlotSize, SlotSize);
     }
 }

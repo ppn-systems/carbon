@@ -299,30 +299,57 @@ public static class VectorRigRenderer
         float baseItemRot = aimRad + (MathF.PI * 0.25f);
         float armFollowRot = mirrorX ? -frontArmPose.RotRad : frontArmPose.RotRad;
         float swingOffset;
+        float thrustFactor = 0f;
 
         if (action.IsActive)
         {
             float p = action.Progress;
-            swingOffset = action.Kind switch
+            switch (action.Kind)
             {
-                ClientActionKind.AxeChop => -1.55f + (MathF.Pow(p, 0.72f) * 2.55f),
-                ClientActionKind.PickaxeMine => -1.75f + (MathF.Pow(p, 0.65f) * 2.35f),
-                ClientActionKind.SwordSlash or ClientActionKind.SkillWhirlwind => (action.ComboStep & 1) == 0 ? -1.25f + (p * 2.5f) : 1.25f - (p * 2.5f),
-                ClientActionKind.PlaceStructure => -0.6f + (p * 0.8f),
-                ClientActionKind.BowShot => -0.45f + (p * 0.35f),
-                ClientActionKind.StaffCast => -0.95f + (MathF.Sin(p * MathF.PI) * 0.65f),
-                ClientActionKind.ConsumeItem or ClientActionKind.MonsterStrike or ClientActionKind.SkillArcaneNova or ClientActionKind.SkillVitalSurge or ClientActionKind.None or _ => 0f,
-            };
+                case ClientActionKind.AxeChop:
+                    swingOffset = EvaluateSwingArc(p, -1.62f, 1.05f, out thrustFactor);
+                    break;
+                case ClientActionKind.PickaxeMine:
+                    swingOffset = EvaluateSwingArc(p, -1.85f, 0.88f, out thrustFactor);
+                    break;
+                case ClientActionKind.SwordSlash:
+                case ClientActionKind.SkillWhirlwind:
+                    swingOffset = (action.ComboStep & 1) == 0
+                        ? EvaluateSwingArc(p, -1.35f, 1.28f, out thrustFactor)
+                        : EvaluateSwingArc(p, 1.35f, -1.28f, out thrustFactor);
+                    break;
+                case ClientActionKind.PlaceStructure:
+                    swingOffset = -0.6f + (p * 0.8f);
+                    break;
+                case ClientActionKind.BowShot:
+                    swingOffset = -0.35f + (MathF.Sin(p * MathF.PI) * 0.20f);
+                    thrustFactor = p < 0.55f ? p / 0.55f * 0.35f : 0f;
+                    break;
+                case ClientActionKind.StaffCast:
+                    swingOffset = -0.92f + (MathF.Sin(p * MathF.PI) * 0.68f);
+                    thrustFactor = MathF.Sin(p * MathF.PI) * 0.55f;
+                    break;
+                case ClientActionKind.ConsumeItem:
+                case ClientActionKind.MonsterStrike:
+                case ClientActionKind.SkillArcaneNova:
+                case ClientActionKind.SkillVitalSurge:
+                case ClientActionKind.None:
+                default:
+                    swingOffset = 0f;
+                    break;
+            }
         }
         else if (legacySwingTimer > 0f)
         {
             float p = 1f - Math.Clamp(legacySwingTimer / 0.24f, 0f, 1f);
-            swingOffset = -1.25f + (p * 2.5f);
+            swingOffset = EvaluateSwingArc(p, -1.30f, 1.20f, out thrustFactor);
         }
         else
         {
             swingOffset = item.RestAngleRad + armFollowRot;
         }
+
+        handWorld += dirVec * (thrustFactor * 4.5f * uniformScale);
 
         float totalRot = baseItemRot + swingOffset;
         float itemScale = uniformScale * item.WorldScale * 0.9f;
@@ -343,6 +370,54 @@ public static class VectorRigRenderer
         {
             DrawSingleShape(batch, in item.Shapes[i], Vector2.Zero, in pose, itemCenter, itemScale, itemScale, hitFlash: 0f);
         }
+
+        if (action.IsActive && action.Kind == ClientActionKind.BowShot && action.Progress < 0.68f)
+        {
+            float drawFrac = MathF.Sin(Math.Clamp(action.Progress / 0.65f, 0f, 1f) * MathF.PI);
+            float pullDist = 4.6f * drawFrac;
+            Vector2 topLimb = itemCenter + Rotate(new Vector2(-3.2f, -8.2f) * itemScale, totalRot);
+            Vector2 botLimb = itemCenter + Rotate(new Vector2(-3.2f, 8.2f) * itemScale, totalRot);
+            Vector2 nockPt = itemCenter + Rotate(new Vector2(-3.2f - pullDist, 0f) * itemScale, totalRot);
+            Vector2 arrowTip = itemCenter + Rotate(new Vector2(9.2f - (pullDist * 0.35f), 0f) * itemScale, totalRot);
+            batch.DrawLine(topLimb, nockPt, new ColorRgba(248, 250, 252, 235), 1.3f * itemScale);
+            batch.DrawLine(botLimb, nockPt, new ColorRgba(248, 250, 252, 235), 1.3f * itemScale);
+            batch.DrawLine(nockPt, arrowTip, new ColorRgba(253, 224, 71, 240), 1.6f * itemScale);
+            batch.FillCircle(arrowTip, 1.8f * itemScale, item.AccentColor, 8);
+        }
+        else if (action.IsActive && action.Kind == ClientActionKind.StaffCast)
+        {
+            float pulse = MathF.Sin(action.Progress * MathF.PI);
+            Vector2 focusPos = itemCenter + Rotate(new Vector2(6.2f, -6.2f) * itemScale, totalRot);
+            float ringRadius = (4.8f + (pulse * 5.2f)) * itemScale;
+            byte ringAlpha = (byte)Math.Clamp((int)(pulse * 220f), 40, 220);
+            batch.DrawCircle(focusPos, ringRadius, new ColorRgba(item.AccentColor.R, item.AccentColor.G, item.AccentColor.B, ringAlpha), 16, 1.4f * itemScale);
+            batch.FillCircle(focusPos, (2.4f + (pulse * 1.8f)) * itemScale, new ColorRgba(224, 242, 254, ringAlpha), 10);
+        }
+    }
+
+    private static float EvaluateSwingArc(float progress, float windupRad, float strikeRad, out float thrustFactor)
+    {
+        float p = Math.Clamp(progress, 0f, 1f);
+        if (p < 0.24f)
+        {
+            float k = p / 0.24f;
+            float easeOut = 1f - ((1f - k) * (1f - k));
+            thrustFactor = -0.22f * easeOut;
+            return windupRad * (0.45f + (0.55f * easeOut));
+        }
+
+        if (p < 0.56f)
+        {
+            float t = (p - 0.24f) / 0.32f;
+            float snap = 1f - MathF.Pow(1f - t, 3f);
+            thrustFactor = MathF.Sin(t * MathF.PI);
+            return windupRad + ((strikeRad - windupRad) * snap);
+        }
+
+        float rec = (p - 0.56f) / 0.44f;
+        float decay = 1f - ((1f - rec) * (1f - rec));
+        thrustFactor = (1f - decay) * 0.25f;
+        return strikeRad * (1f - (0.35f * decay));
     }
 
     private static void DrawPassShapes(

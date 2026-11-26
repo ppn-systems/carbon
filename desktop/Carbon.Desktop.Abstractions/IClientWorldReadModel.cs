@@ -61,6 +61,27 @@ public interface IClientWorldReadModel : IClientConnectionStatus, IClientCharact
     /// <summary>Gets remaining cooldown in seconds for active skill slot (<c>1..3</c>).</summary>
     float GetSkillCooldown(byte skillSlot);
 
+    /// <summary>Gets unspent character attribute points earned from leveling.</summary>
+    ushort LocalUnspentStatPoints { get; }
+
+    /// <summary>Gets unspent skill mastery points earned from leveling.</summary>
+    ushort LocalUnspentSkillPoints { get; }
+
+    /// <summary>Gets allocated Vitality attribute points.</summary>
+    ushort LocalVitPoints { get; }
+
+    /// <summary>Gets allocated Wisdom attribute points.</summary>
+    ushort LocalWisPoints { get; }
+
+    /// <summary>Gets allocated Power attribute points.</summary>
+    ushort LocalPwrPoints { get; }
+
+    /// <summary>Gets allocated Agility attribute points.</summary>
+    ushort LocalAgiPoints { get; }
+
+    /// <summary>Gets learned mastery rank (<c>0</c>=locked, <c>1..5</c>=learned) for <paramref name="skillSlot"/>.</summary>
+    byte GetSkillRank(byte skillSlot);
+
     /// <summary>Gets the active zero-based hotbar slot index (<c>0..8</c>).</summary>
     byte SelectedHotbarSlot { get; }
 

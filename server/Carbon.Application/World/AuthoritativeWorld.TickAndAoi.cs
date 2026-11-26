@@ -64,7 +64,7 @@ public sealed partial class AuthoritativeWorld
                         state.StatsDirty = true;
                     }
 
-                    float speed = isSprinting ? SprintSpeed : BaseWalkSpeed;
+                    float speed = (isSprinting ? SprintSpeed : BaseWalkSpeed) * state.Stats.MoveSpeedMultiplier;
                     _simulation.EnqueueCommand(SimulationCommand.MoveInput(
                         state.Entity,
                         state.PendingDirection,
@@ -80,7 +80,8 @@ public sealed partial class AuthoritativeWorld
 
                 if (state.CurrentMana < state.Stats.MaxMana)
                 {
-                    state.CurrentMana = MathF.Min(state.Stats.MaxMana, state.CurrentMana + (6f * dt));
+                    float mpRegen = 6f + (state.Allocations.Wis * 0.35f);
+                    state.CurrentMana = MathF.Min(state.Stats.MaxMana, state.CurrentMana + (mpRegen * dt));
                 }
 
                 if (state.PendingPickupLootId != 0UL)
@@ -462,7 +463,16 @@ public sealed partial class AuthoritativeWorld
                 sync.Skill1Cd,
                 sync.Skill2Cd,
                 sync.Skill3Cd,
-                sync.LeveledUp);
+                sync.LeveledUp,
+                sync.UnspentStatPoints,
+                sync.UnspentSkillPoints,
+                sync.VitPoints,
+                sync.WisPoints,
+                sync.PwrPoints,
+                sync.AgiPoints,
+                sync.Skill1Rank,
+                sync.Skill2Rank,
+                sync.Skill3Rank);
         }
 
         for (int i = 0; i < _pendingSkillCasts.Count; i++)

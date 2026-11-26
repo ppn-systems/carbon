@@ -59,6 +59,28 @@
       "outlineThickness": 0.9
     },
     {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -2.8,
+      "y": -6.2,
+      "w": 5.6,
+      "h": 1.4,
+      "color": "#E2E8F0",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0.0,
+      "y": 0.2,
+      "rx": 4.2,
+      "ry": 1.2,
+      "color": "#7DD3FC"
+    },
+    {
       "kind": "ellipse",
       "bone": "root",
       "facing": "any",

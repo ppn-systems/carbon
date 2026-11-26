@@ -17,8 +17,8 @@ using Carbon.Graphics.Fonts.Rendering;
 namespace Carbon.Desktop.Rendering.Hud;
 
 /// <summary>
-/// Top-center RPG Monster/NPC Target Frame showing a live vector portrait, threat rank,
-/// current vs. max HP readout, smooth ghost-damage trail, and attack telegraph glow (SRP).
+/// Top-center RPG Monster/NPC Target Frame skinned cleanly with <see cref="CarbonUiSkin"/>, showing a live
+/// vector portrait, threat rank, current vs. max HP readout, smooth ghost-damage trail, and attack telegraph glow (SRP).
 /// </summary>
 internal sealed class MonsterTargetWidget
 {
@@ -48,15 +48,15 @@ internal sealed class MonsterTargetWidget
             return;
         }
 
-        const float cardW = 336f;
-        const float cardH = 68f;
+        const float cardW = 340f;
+        const float cardH = 72f;
         float x = MathF.Floor((viewportWidth - cardW) * 0.5f);
         const float y = 14f;
         ColorRgba frameBorder = _activeTarget.AttackAnimRemaining > 0f
             ? new ColorRgba(248, 113, 113, (byte)(190 + (65 * MathF.Abs(MathF.Sin(animTime * 16f)))))
             : (_activeTarget.Kind == EntityKind.Npc ? new ColorRgba(234, 179, 8, 235) : new ColorRgba(225, 29, 72, 235));
-        skin.DrawPanel(spriteBatch, UiPanelStyle.OrnateHighlight, new RectangleF(x, y, cardW, cardH), new ColorRgba(10, 15, 28, 228), frameBorder);
-        skin.DrawSlot(spriteBatch, new RectangleF(x + 8f, y + 8f, 52f, 52f), new ColorRgba(14, 22, 40, 240), frameBorder);
+        skin.DrawPanel(spriteBatch, UiPanelStyle.OrnateHighlight, new RectangleF(x, y, cardW, cardH), new ColorRgba(10, 15, 28, 236), frameBorder);
+        skin.DrawSlot(spriteBatch, new RectangleF(x + 10f, y + 10f, 52f, 52f), new ColorRgba(12, 18, 34, 244), frameBorder);
     }
 
     public void DrawGeometry(GeometryBatch batch, IVectorArtRepository? art, int viewportWidth, float animTime)
@@ -66,41 +66,27 @@ internal sealed class MonsterTargetWidget
             return;
         }
 
-        const float cardW = 336f;
-        const float cardH = 68f;
+        const float cardW = 340f;
         float x = MathF.Floor((viewportWidth - cardW) * 0.5f);
         const float y = 14f;
 
-        ColorRgba frameBorder = _activeTarget.AttackAnimRemaining > 0f
-            ? new ColorRgba(248, 113, 113, (byte)(190 + (65 * MathF.Abs(MathF.Sin(animTime * 16f)))))
-            : (_activeTarget.Kind == EntityKind.Npc ? new ColorRgba(234, 179, 8, 235) : new ColorRgba(225, 29, 72, 235));
-
-        batch.FillRectangle(new RectangleF(x, y, cardW, cardH), new ColorRgba(10, 15, 28, 232));
-        batch.DrawRectangle(new RectangleF(x, y, cardW, cardH), frameBorder, 1.5f);
-
-        // Auto-framed portrait medallion
-        RectangleF pBox = new(x + 8f, y + 8f, 52f, 52f);
-        batch.FillRectangle(pBox, new ColorRgba(15, 23, 42, 245));
+        RectangleF pBox = new(x + 10f, y + 10f, 52f, 52f);
         CompiledVectorRig? rig = ResolveRig(art, in _activeTarget);
-        ColorRgba accent = rig is not null ? rig.AccentColor : frameBorder;
         if (rig is not null)
         {
             VectorRigRenderer.DrawPortraitRig(
                 batch,
                 rig,
-                new Vector2(x + 34f, y + 34f),
-                boxSize: 46f,
+                new Vector2(pBox.X + 26f, pBox.Y + 26f),
+                boxSize: 44f,
                 Direction8.South,
                 _activeTarget.AttackAnimRemaining > 0f ? "attack" : "idle",
                 animTime,
                 art: art);
         }
 
-        batch.DrawRectangle(pBox, accent, 1.5f);
-
-        // Wide target HP bar with ghost damage trail
-        float barX = x + 68f;
-        float barY = y + 36f;
+        float barX = x + 70f;
+        float barY = y + 38f;
         const float barW = 256f;
         const float barH = 18f;
         float maxHp = MathF.Max(1f, _activeTarget.MaxHealth);
@@ -137,7 +123,7 @@ internal sealed class MonsterTargetWidget
             return;
         }
 
-        const float cardW = 336f;
+        const float cardW = 340f;
         float x = MathF.Floor((viewportWidth - cardW) * 0.5f);
         const float y = 14f;
         ColorRgba black = new(10, 12, 18, 255);
@@ -156,16 +142,15 @@ internal sealed class MonsterTargetWidget
             ? new ColorRgba(253, 224, 71, 255)
             : new ColorRgba(254, 202, 202, 255);
 
-        spriteBatch.DrawOutlinedString(font, $"{levelPrefix}{_activeTarget.Name}{lockTag}", new Vector2(x + 68f, y + 10f), nameColor, black, 1, 1.5f);
+        spriteBatch.DrawOutlinedString(font, $"{levelPrefix}{_activeTarget.Name}{lockTag}", new Vector2(x + 70f, y + 12f), nameColor, black, 1, 1.5f);
         TextMeasureResult subSize = font.MeasureString(subtitle, TextLayoutOptions.Default, 1f);
-        spriteBatch.DrawOutlinedString(font, subtitle, new Vector2(x + cardW - subSize.Width - 12f, y + 13f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, subtitle, new Vector2(x + cardW - subSize.Width - 14f, y + 14f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
 
         int curHp = (int)MathF.Ceiling(_activeTarget.CurrentHealth);
         int maxHp = (int)MathF.Ceiling(MathF.Max(1f, _activeTarget.MaxHealth));
         int pct = (int)MathF.Round(Math.Clamp(_activeTarget.CurrentHealth / MathF.Max(1f, _activeTarget.MaxHealth), 0f, 1f) * 100f);
         string hpText = $"{curHp} / {maxHp} ({pct}%)";
-        TextMeasureResult hpSize = font.MeasureString(hpText, TextLayoutOptions.Default, 1.5f);
-        spriteBatch.DrawOutlinedString(font, hpText, new Vector2(MathF.Floor(x + 68f + ((256f - hpSize.Width) * 0.5f)), y + 38f), ColorRgba.White, black, 1, 1.5f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, hpText, new RectangleF(x + 70f, y + 38f, 256f, 18f), ColorRgba.White, black, 1.5f);
     }
 
     private static CompiledVectorRig? ResolveRig(IVectorArtRepository? art, in RemoteEntityView target)

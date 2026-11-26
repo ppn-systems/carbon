@@ -51,7 +51,14 @@ public sealed class PgSchemaMigrator : IDatabaseMigrator
             current_mana         REAL        NOT NULL DEFAULT 80.0,
             max_mana             REAL        NOT NULL DEFAULT 80.0,
             current_stamina      REAL        NOT NULL DEFAULT 100.0,
-            max_stamina          REAL        NOT NULL DEFAULT 100.0
+            max_stamina          REAL        NOT NULL DEFAULT 100.0,
+            stat_vit             INTEGER     NOT NULL DEFAULT 0,
+            stat_wis             INTEGER     NOT NULL DEFAULT 0,
+            stat_pwr             INTEGER     NOT NULL DEFAULT 0,
+            stat_agi             INTEGER     NOT NULL DEFAULT 0,
+            skill1_rank          SMALLINT    NOT NULL DEFAULT 0,
+            skill2_rank          SMALLINT    NOT NULL DEFAULT 0,
+            skill3_rank          SMALLINT    NOT NULL DEFAULT 0
         );
 
         CREATE INDEX IF NOT EXISTS ix_characters_account_id ON characters(account_id);
@@ -150,6 +157,39 @@ public sealed class PgSchemaMigrator : IDatabaseMigrator
             await using ConfiguredAsyncDisposable markRpgScope = markRpgCmd.ConfigureAwait(false);
             _ = markRpgCmd.Parameters.AddWithValue("id", "0002_rpg_progression");
             _ = await markRpgCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        bool hasPointsMigration;
+        NpgsqlCommand checkPtsCmd = new("SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE id = @id);", conn, tx);
+        await using (ConfiguredAsyncDisposable checkPtsScope = checkPtsCmd.ConfigureAwait(false))
+        {
+            _ = checkPtsCmd.Parameters.AddWithValue("id", "0003_stat_and_skill_points");
+            object? scalar = await checkPtsCmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
+            hasPointsMigration = scalar is true;
+        }
+
+        if (!hasPointsMigration)
+        {
+            const string alterPtsSql = """
+                ALTER TABLE characters
+                    ADD COLUMN IF NOT EXISTS stat_vit    INTEGER  NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS stat_wis    INTEGER  NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS stat_pwr    INTEGER  NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS stat_agi    INTEGER  NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS skill1_rank SMALLINT NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS skill2_rank SMALLINT NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS skill3_rank SMALLINT NOT NULL DEFAULT 0;
+                """;
+            NpgsqlCommand alterPtsCmd = new(alterPtsSql, conn, tx);
+            await using (ConfiguredAsyncDisposable alterPtsScope = alterPtsCmd.ConfigureAwait(false))
+            {
+                _ = await alterPtsCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            }
+
+            NpgsqlCommand markPtsCmd = new("INSERT INTO schema_migrations (id) VALUES (@id);", conn, tx);
+            await using ConfiguredAsyncDisposable markPtsScope = markPtsCmd.ConfigureAwait(false);
+            _ = markPtsCmd.Parameters.AddWithValue("id", "0003_stat_and_skill_points");
+            _ = await markPtsCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         }
 
         await tx.CommitAsync(ct).ConfigureAwait(false);

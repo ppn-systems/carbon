@@ -2,10 +2,8 @@
 
 using System;
 using System.Collections.Generic;
-using System.Numerics;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching.Common;
-using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.Batching.Sprites;
 using Carbon.Graphics.Fonts.Layout;
 using Carbon.Graphics.Fonts.Rendering;
@@ -47,49 +45,37 @@ internal sealed class ToastFeedWidget
         }
     }
 
-    public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin, BitmapFont font, int viewportWidth)
+    public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin, BitmapFont font, int viewportWidth, bool showMinimap)
     {
+        float baseY = showMinimap ? 218f : 24f;
         for (int i = 0; i < _toasts.Count; i++)
         {
             NotificationToast toast = _toasts[i];
-            byte alpha = (byte)(Math.Clamp(toast.RemainingSeconds / 0.8f, 0f, 1f) * 225f);
-            TextMeasureResult size = font.MeasureString(toast.Message, TextLayoutOptions.Default, 1.5f);
-            float w = size.Width + 18f;
+            byte alpha = (byte)(Math.Clamp(toast.RemainingSeconds / 0.8f, 0f, 1f) * 230f);
+            TextMeasureResult size = font.MeasureString(toast.Message, TextLayoutOptions.Default, 1f);
+            float w = size.Width + 20f;
             float x = viewportWidth - w - 16f;
-            float y = 216f + (i * 25f);
+            float y = baseY + (i * 25f);
             ColorRgba border = toast.Message.StartsWith('+') ? new ColorRgba(52, 211, 153, alpha) : new ColorRgba(250, 204, 21, alpha);
             skin.DrawInset(spriteBatch, new RectangleF(x, y, w, 22f), new ColorRgba(10, 15, 28, alpha), border);
         }
     }
 
-    public void DrawGeometry(GeometryBatch batch, BitmapFont font, int viewportWidth)
+    public void DrawText(SpriteBatch spriteBatch, BitmapFont font, int viewportWidth, bool showMinimap)
     {
-        for (int i = 0; i < _toasts.Count; i++)
-        {
-            NotificationToast toast = _toasts[i];
-            byte alpha = (byte)(Math.Clamp(toast.RemainingSeconds / 0.8f, 0f, 1f) * 215f);
-            TextMeasureResult size = font.MeasureString(toast.Message, TextLayoutOptions.Default, 1.5f);
-            float w = size.Width + 16f;
-            float x = viewportWidth - w - 16f;
-            float y = 216f + (i * 24f);
-            batch.FillRectangle(new RectangleF(x, y, w, 20f), new ColorRgba(10, 15, 28, alpha));
-            batch.DrawRectangle(new RectangleF(x, y, w, 20f), new ColorRgba(71, 85, 105, alpha), 1f);
-        }
-    }
-
-    public void DrawText(SpriteBatch spriteBatch, BitmapFont font, int viewportWidth)
-    {
+        float baseY = showMinimap ? 218f : 24f;
         for (int i = 0; i < _toasts.Count; i++)
         {
             NotificationToast toast = _toasts[i];
             byte alpha = (byte)(Math.Clamp(toast.RemainingSeconds / 0.8f, 0f, 1f) * 255f);
-            TextMeasureResult size = font.MeasureString(toast.Message, TextLayoutOptions.Default, 1.5f);
-            float x = MathF.Floor(viewportWidth - size.Width - 24f);
-            float y = MathF.Floor(220f + (i * 24f));
+            TextMeasureResult size = font.MeasureString(toast.Message, TextLayoutOptions.Default, 1f);
+            float w = size.Width + 20f;
+            float x = viewportWidth - w - 16f;
+            float y = baseY + (i * 25f);
             ColorRgba textColor = toast.Message.StartsWith('+')
                 ? new ColorRgba(74, 222, 128, alpha)
                 : new ColorRgba(251, 191, 36, alpha);
-            spriteBatch.DrawOutlinedString(font, toast.Message, new Vector2(x, y), textColor, new ColorRgba(10, 12, 18, alpha), 1, 1.5f);
+            CarbonUiSkin.DrawCenteredText(spriteBatch, font, toast.Message, new RectangleF(x, y, w, 22f), textColor, new ColorRgba(10, 12, 18, alpha), 1f);
         }
     }
 

@@ -137,8 +137,8 @@ public sealed partial class AuthoritativeWorld
             _simulation,
             attackerPos,
             aimDir,
-            radius: 72f,
-            halfAngleRadians: 1.15f,
+            radius: MeleeStrikeRangePx,
+            halfAngleRadians: 1.05f,
             _combatHitScratch,
             out int hitCount,
             layerMask: MonsterLayer,
@@ -149,7 +149,7 @@ public sealed partial class AuthoritativeWorld
             _simulation.Entities.HasTransform(explicitTarget) &&
             _simulation.Entities.HasCollider(explicitTarget) &&
             (_simulation.Entities.GetCollider(explicitTarget).Layer & MonsterLayer) != 0U &&
-            Vector2.DistanceSquared(attackerPos, _simulation.Entities.GetTransform(explicitTarget).Position) <= (72f * 72f))
+            Vector2.DistanceSquared(attackerPos, _simulation.Entities.GetTransform(explicitTarget).Position) <= (MeleeStrikeRangePx * MeleeStrikeRangePx))
         {
             _combatHitScratch[0] = explicitTarget;
             hitCount = 1;
@@ -157,12 +157,12 @@ public sealed partial class AuthoritativeWorld
 
         if (hitCount == 0)
         {
-            this.ProcessToolHarvestFallbackLocked(state, in activeSlot);
+            this.ProcessToolHarvestFallbackLocked(state, attackerPos, aimDir, in activeSlot);
             return;
         }
 
         CombatStrikeEvaluation combatEval = ToolUsagePolicy.EvaluateCombatStrike(in activeSlot);
-        bool isCrit = activeSlot.ItemId == StarterGameCatalog.IronSword &&
+        bool isCrit = (activeSlot.ItemId == StarterGameCatalog.IronSword || activeSlot.ItemId == StarterGameCatalog.DemonCleaver) &&
             combatEval.Outcome == ToolStrikeOutcome.Optimal &&
             ((_currentTick + state.Session.PlayerNetworkId) % 5UL == 0UL);
         float scaledDamage = combatEval.Damage * state.Stats.AttackMultiplier;
@@ -199,25 +199,30 @@ public sealed partial class AuthoritativeWorld
         float combatTextAmount = 0f;
         float resultingHealth = 0f;
 
-        if (activeSlot.ItemId == StarterGameCatalog.ManaTonic &&
-            (state.CurrentMana < state.Stats.MaxMana || state.CurrentStamina < state.Stats.MaxStamina))
-        {
-            state.CurrentMana = MathF.Min(state.Stats.MaxMana, state.CurrentMana + 45f);
-            state.CurrentStamina = MathF.Min(state.Stats.MaxStamina, state.CurrentStamina + 30f);
-            used = true;
-        }
-        else if (activeSlot.ItemId == StarterGameCatalog.BerryHerb && _simulation.Entities.HasHealth(state.Entity))
+        if (def.HealHealth > 0f && _simulation.Entities.HasHealth(state.Entity))
         {
             HealthComponent currentHp = _simulation.Entities.GetHealth(state.Entity);
             if (currentHp.Current < currentHp.Max)
             {
-                float healedHp = MathF.Min(currentHp.Max, currentHp.Current + 25f);
+                float healedHp = MathF.Min(currentHp.Max, currentHp.Current + def.HealHealth);
                 _simulation.Entities.SetHealth(state.Entity, new HealthComponent(healedHp, currentHp.Max));
                 _simulation.MarkDirty(state.Entity, EntityDirtyMask.Health);
-                combatTextAmount = -25f;
+                combatTextAmount = -def.HealHealth;
                 resultingHealth = healedHp;
                 used = true;
             }
+        }
+
+        if (def.RestoreMana > 0f && state.CurrentMana < state.Stats.MaxMana)
+        {
+            state.CurrentMana = MathF.Min(state.Stats.MaxMana, state.CurrentMana + def.RestoreMana);
+            used = true;
+        }
+
+        if (def.RestoreStamina > 0f && state.CurrentStamina < state.Stats.MaxStamina)
+        {
+            state.CurrentStamina = MathF.Min(state.Stats.MaxStamina, state.CurrentStamina + def.RestoreStamina);
+            used = true;
         }
 
         if (!used)
@@ -252,7 +257,8 @@ public sealed partial class AuthoritativeWorld
 
     private void ProcessActiveSkillLocked(ActivePlayerState state, byte skillSlot)
     {
-        if (!CharacterProgressionPolicy.TryGetSkillSpec(skillSlot, out SkillSpec spec))
+        byte rank = state.Allocations.GetSkillRank(skillSlot);
+        if (rank == 0 || !CharacterProgressionPolicy.TryGetSkillSpec(skillSlot, rank, out SkillSpec spec))
         {
             return;
         }
@@ -308,11 +314,11 @@ public sealed partial class AuthoritativeWorld
             if (_simulation.Entities.HasHealth(state.Entity))
             {
                 HealthComponent hp = _simulation.Entities.GetHealth(state.Entity);
-                float healAmt = MathF.Max(30f, hp.Max * 0.30f);
+                float healAmt = MathF.Max(30f, hp.Max * spec.SelfHealRatio);
                 float nextHp = MathF.Min(hp.Max, hp.Current + healAmt);
                 _simulation.Entities.SetHealth(state.Entity, new HealthComponent(nextHp, hp.Max));
                 _simulation.MarkDirty(state.Entity, EntityDirtyMask.Health);
-                state.CurrentStamina = MathF.Min(state.Stats.MaxStamina, state.CurrentStamina + 45f);
+                state.CurrentStamina = MathF.Min(state.Stats.MaxStamina, state.CurrentStamina + spec.StaminaRestore);
                 this.QueueCombatHitLocked(pos, state.Session.PlayerNetworkId, state.Session.PlayerNetworkId, -healAmt, nextHp, false, false);
             }
 
@@ -324,13 +330,9 @@ public sealed partial class AuthoritativeWorld
             ? state.Inventory.GetSlot(state.Session.SelectedHotbarSlot)
             : ItemSlot.Empty;
         float weaponBase = ToolUsagePolicy.EvaluateCombatStrike(in activeSlot).Damage * state.Stats.AttackMultiplier;
+        float skillDamage = weaponBase * spec.DamageMultiplier;
 
-        float radius = skillSlot == CharacterProgressionPolicy.SkillArcaneNova ? 170f : 96f;
-        float halfAngle = skillSlot == CharacterProgressionPolicy.SkillArcaneNova ? 0.65f : MathF.PI;
-        float dmgMult = skillSlot == CharacterProgressionPolicy.SkillArcaneNova ? 1.85f : 1.45f;
-        float skillDamage = weaponBase * dmgMult;
-
-        HitboxQuery.QueryArc(_simulation, pos, aimDir, radius, halfAngle, _combatHitScratch, out int hitCount, MonsterLayer, state.Entity);
+        HitboxQuery.QueryArc(_simulation, pos, aimDir, spec.Radius, spec.HalfAngleRad, _combatHitScratch, out int hitCount, MonsterLayer, state.Entity);
         if (hitCount > 0)
         {
             _ = this.ApplyMonsterHitsFromScratchLocked(state, pos, aimDir, hitCount, skillDamage, isCritical: true, knockbackSpeed: 110f);

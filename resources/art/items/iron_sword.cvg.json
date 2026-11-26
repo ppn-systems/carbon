@@ -76,8 +76,19 @@
       "y": 2.2,
       "x2": 8.2,
       "y2": -8.2,
-      "thickness": 1.5,
+      "thickness": 1.6,
       "color": "#F8FAFC"
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -1.4,
+      "y": 1.4,
+      "x2": 5.8,
+      "y2": -5.8,
+      "thickness": 1.0,
+      "color": "#64748B"
     },
     {
       "kind": "ellipse",
@@ -90,6 +101,16 @@
       "color": "#38BDF8",
       "outlineColor": "#0F172A",
       "outlineThickness": 0.9
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -3.1,
+      "y": 3.1,
+      "rx": 1.0,
+      "ry": 1.0,
+      "color": "#BAE6FD"
     }
   ],
   "heldVisible": true

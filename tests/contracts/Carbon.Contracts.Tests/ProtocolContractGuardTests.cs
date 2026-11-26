@@ -295,6 +295,38 @@ public sealed class ProtocolContractGuardTests
         Assert.Equal((byte)3, app.HairColor);
         Assert.Equal((byte)1, app.FaceStyle);
         Assert.Equal((byte)2, app.SkinTone);
+
+        using EntityAllocatePoint alloc = new()
+        {
+            Target = CharacterPointTarget.Vitality,
+            Amount = 2,
+            SequenceId = 11,
+        };
+        using EntityAllocatePoint allocCopy = EntityAllocatePoint.Deserialize(alloc.Serialize());
+        Assert.Equal(CharacterPointTarget.Vitality, allocCopy.Target);
+        Assert.Equal((ushort)2, allocCopy.Amount);
+        Assert.Equal(11U, allocCopy.SequenceId);
+
+        using PlayerStatsSync advStats = new()
+        {
+            Level = 5,
+            UnspentStatPoints = 16,
+            UnspentSkillPoints = 3,
+            VitPoints = 2,
+            WisPoints = 1,
+            PwrPoints = 3,
+            AgiPoints = 1,
+            Skill1Rank = 2,
+            Skill2Rank = 1,
+            Skill3Rank = 0,
+        };
+        using PlayerStatsSync advStatsCopy = PlayerStatsSync.Deserialize(advStats.Serialize());
+        Assert.Equal((ushort)16, advStatsCopy.UnspentStatPoints);
+        Assert.Equal((ushort)3, advStatsCopy.UnspentSkillPoints);
+        Assert.Equal((ushort)2, advStatsCopy.VitPoints);
+        Assert.Equal((ushort)3, advStatsCopy.PwrPoints);
+        Assert.Equal((byte)2, advStatsCopy.Skill1Rank);
+        Assert.Equal((byte)1, advStatsCopy.Skill2Rank);
     }
 
     private static bool IsPacketType(Type t) =>

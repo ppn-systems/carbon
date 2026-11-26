@@ -72,4 +72,40 @@ public sealed partial class PlayerStatsSync : PacketBase<PlayerStatsSync>, IPack
     /// <summary>Indicates this sync accompanied a level-up celebration event.</summary>
     [SerializeOrder(13)]
     public bool LeveledUp { get; set; }
+
+    /// <summary>Unspent character attribute points available to allocate.</summary>
+    [SerializeOrder(14)]
+    public ushort UnspentStatPoints { get; set; }
+
+    /// <summary>Unspent skill mastery points available to unlock or rank up skills.</summary>
+    [SerializeOrder(15)]
+    public ushort UnspentSkillPoints { get; set; }
+
+    /// <summary>Allocated Vitality attribute points.</summary>
+    [SerializeOrder(16)]
+    public ushort VitPoints { get; set; }
+
+    /// <summary>Allocated Wisdom attribute points.</summary>
+    [SerializeOrder(17)]
+    public ushort WisPoints { get; set; }
+
+    /// <summary>Allocated Power attribute points.</summary>
+    [SerializeOrder(18)]
+    public ushort PwrPoints { get; set; }
+
+    /// <summary>Allocated Agility attribute points.</summary>
+    [SerializeOrder(19)]
+    public ushort AgiPoints { get; set; }
+
+    /// <summary>Mastery rank of Skill 1 (Whirlwind), <c>0</c> = locked, <c>1..5</c> = unlocked.</summary>
+    [SerializeOrder(20)]
+    public byte Skill1Rank { get; set; }
+
+    /// <summary>Mastery rank of Skill 2 (Arcane Nova), <c>0</c> = locked, <c>1..5</c> = unlocked.</summary>
+    [SerializeOrder(21)]
+    public byte Skill2Rank { get; set; }
+
+    /// <summary>Mastery rank of Skill 3 (Vital Surge), <c>0</c> = locked, <c>1..5</c> = unlocked.</summary>
+    [SerializeOrder(22)]
+    public byte Skill3Rank { get; set; }
 }

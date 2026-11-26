@@ -87,6 +87,15 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
     private float _skill1Cd;
     private float _skill2Cd;
     private float _skill3Cd;
+    private ushort _unspentStatPoints;
+    private ushort _unspentSkillPoints = 1;
+    private ushort _vitPoints;
+    private ushort _wisPoints;
+    private ushort _pwrPoints;
+    private ushort _agiPoints;
+    private byte _skill1Rank;
+    private byte _skill2Rank;
+    private byte _skill3Rank;
     private ushort _itemSeqId;
     private bool _wasMovingLastTick;
     private float _idleKeepAliveTimer;
@@ -169,6 +178,33 @@ public sealed partial class NalixMultiplayerSession : IClientWorldSession
         2 => _skill2Cd,
         3 => _skill3Cd,
         _ => 0f,
+    };
+
+    /// <inheritdoc/>
+    public ushort LocalUnspentStatPoints => _unspentStatPoints;
+
+    /// <inheritdoc/>
+    public ushort LocalUnspentSkillPoints => _unspentSkillPoints;
+
+    /// <inheritdoc/>
+    public ushort LocalVitPoints => _vitPoints;
+
+    /// <inheritdoc/>
+    public ushort LocalWisPoints => _wisPoints;
+
+    /// <inheritdoc/>
+    public ushort LocalPwrPoints => _pwrPoints;
+
+    /// <inheritdoc/>
+    public ushort LocalAgiPoints => _agiPoints;
+
+    /// <inheritdoc/>
+    public byte GetSkillRank(byte skillSlot) => skillSlot switch
+    {
+        1 => _skill1Rank,
+        2 => _skill2Rank,
+        3 => _skill3Rank,
+        _ => 0,
     };
 
     /// <inheritdoc/>

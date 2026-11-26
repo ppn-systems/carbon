@@ -183,7 +183,8 @@ internal sealed class WorldEntityOverlayRenderer
         CombatFeedbackTracker feedback,
         CameraRig2D cameraRig,
         int viewportWidth,
-        int viewportHeight)
+        int viewportHeight,
+        bool showCombatNumbers = true)
     {
         ColorRgba outline = new(10, 12, 18, 255);
         Vector2 playerPos = world.LocalPlayerInterpolatedPosition;
@@ -249,6 +250,11 @@ internal sealed class WorldEntityOverlayRenderer
             TextMeasureResult measure = font.MeasureString(displayName, TextLayoutOptions.Default, 1f);
             Vector2 labelPos = new(MathF.Floor(screenPt.X - (measure.Width * 0.5f)), nameY);
             spriteBatch.DrawOutlinedString(font, displayName, labelPos, labelColor, outline, 1, 1f);
+        }
+
+        if (!showCombatNumbers)
+        {
+            return;
         }
 
         IReadOnlyList<FloatingCombatText> floating = feedback.FloatingTexts;

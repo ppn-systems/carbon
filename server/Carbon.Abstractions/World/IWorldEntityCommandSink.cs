@@ -18,4 +18,7 @@ public interface IWorldEntityCommandSink
 
     /// <summary>Enqueues an explicit pickup attempt for a nearby ground loot entity.</summary>
     OpStatus EnqueuePickupLoot(ulong connectionId, ulong lootNetworkId);
+
+    /// <summary>Allocates unspent attribute points or skill mastery points for <paramref name="connectionId"/>.</summary>
+    OpStatus TryAllocateCharacterPoint(ulong connectionId, Contracts.Entities.CharacterPointTarget target, byte amount = 1);
 }

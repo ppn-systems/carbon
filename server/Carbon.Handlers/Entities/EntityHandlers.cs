@@ -72,4 +72,16 @@ public static partial class EntityHandlers
         OpStatus status = s_world.EnqueuePickupLoot(connectionId, context.Packet.LootNetworkId);
         return PacketReplyHelper.SendMutationAsync(context, status, EntityOpCode.PickupLoot);
     }
+
+    /// <summary>Opcode <c>0x1204</c>. Allocates an unspent attribute or skill mastery point.</summary>
+    [PacketOpcode(EntityOpCode.AllocateCharacterPoint)]
+    [PacketPermission(PermissionLevel.USER)]
+    public static ValueTask HandleAllocatePointAsync(IPacketContext<EntityAllocatePoint> context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        OpStatus status = s_world.TryAllocateCharacterPoint(connectionId, context.Packet.Target, context.Packet.Amount);
+        return PacketReplyHelper.SendMutationAsync(context, status, EntityOpCode.AllocateCharacterPoint);
+    }
 }

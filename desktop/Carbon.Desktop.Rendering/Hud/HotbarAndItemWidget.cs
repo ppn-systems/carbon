@@ -25,29 +25,48 @@ public enum HudDockAction : byte
     /// <summary>Toggles the hero equipment and bag modal (<c>[I]</c>).</summary>
     Inventory = 1,
 
+    /// <summary>Toggles the Arcane &amp; Martial Skill Tome (<c>[K]</c>).</summary>
+    Skills = 2,
+
     /// <summary>Toggles the crafting workshop modal (<c>[C]</c>).</summary>
-    Crafting = 2,
+    Crafting = 3,
 
     /// <summary>Toggles the blacksmith forge anvil modal (<c>[U]</c>).</summary>
-    Forge = 3,
+    Forge = 4,
+
+    /// <summary>Opens the Settings &amp; Controls guide modal (<c>[ESC]</c>).</summary>
+    Settings = 5,
 }
 
 /// <summary>
-/// Renders the 9-slot RPG hotbar skinned with <see cref="CarbonUiSkin"/>, crisp <c>.cvg.json</c> vector item art,
-/// color-graded durability bars, quick-access BAG/CRAFT/FORGE buttons, and floating item tooltips (SRP).
+/// Renders the unified bottom 9-slot hotbar skinned with <see cref="CarbonUiSkin"/>, crisp <c>.cvg.json</c> vector item art,
+/// color-graded durability bars, quick-access dock (<c>BAG / SKL / CFG / CRAFT / FORGE</c>), optional hint bar, and tooltips (SRP).
 /// </summary>
 internal sealed class HotbarAndItemWidget
 {
     private const int SlotCount = 9;
-    private const float SlotSize = 50f;
-    private const float Gap = 5f;
+    private const float SlotSize = 44f;
+    private const float Gap = 4f;
 
-    public bool TryHitTestDockButton(Vector2 mousePos, int viewportWidth, int viewportHeight, out HudDockAction action)
+    public bool TryHitTestDockButton(Vector2 mousePos, int viewportWidth, int viewportHeight, bool showHints, out HudDockAction action)
     {
-        (RectangleF bag, RectangleF craft, RectangleF forge) = GetDockRects(viewportWidth, viewportHeight);
+        (RectangleF bag, RectangleF skills, RectangleF settings, RectangleF craft, RectangleF forge) =
+            GetDockRects(viewportWidth, viewportHeight, showHints);
         if (bag.Contains(mousePos))
         {
             action = HudDockAction.Inventory;
+            return true;
+        }
+
+        if (skills.Contains(mousePos))
+        {
+            action = HudDockAction.Skills;
+            return true;
+        }
+
+        if (settings.Contains(mousePos))
+        {
+            action = HudDockAction.Settings;
             return true;
         }
 
@@ -74,14 +93,17 @@ internal sealed class HotbarAndItemWidget
         int viewportWidth,
         int viewportHeight,
         bool showBag,
+        bool showSkills,
         bool showCraft,
-        bool showForge)
+        bool showForge,
+        bool showSettings,
+        bool showHints)
     {
         const float totalW = (SlotCount * SlotSize) + ((SlotCount - 1) * Gap);
         float startX = MathF.Floor((viewportWidth - totalW) * 0.5f);
-        float startY = viewportHeight - SlotSize - 36f;
+        float startY = viewportHeight - (showHints ? 75f : 56f);
 
-        skin.DrawCard(spriteBatch, new RectangleF(startX - 8f, startY - 8f, totalW + 16f, SlotSize + 16f), new ColorRgba(71, 85, 105, 225), bodyAlpha: 224);
+        skin.DrawCard(spriteBatch, new RectangleF(startX - 8f, startY - 8f, totalW + 16f, SlotSize + 16f), new ColorRgba(71, 85, 105, 225), bodyAlpha: 230);
 
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
@@ -89,41 +111,56 @@ internal sealed class HotbarAndItemWidget
         {
             float sx = startX + (i * (SlotSize + Gap));
             bool active = i == world.SelectedHotbarSlot;
-            float sy = active ? startY - 4f : startY;
+            float sy = active ? startY - 3f : startY;
             ItemSlot item = slots[i];
             ColorRgba border = active
                 ? new ColorRgba(250, 204, 21, 255)
-                : (!item.IsEmpty && ToolUsagePolicy.IsWornOut(in item) ? new ColorRgba(239, 68, 68, 255) : new ColorRgba(71, 85, 105, 225));
-            skin.DrawSlot(spriteBatch, new RectangleF(sx, sy, SlotSize, SlotSize), active ? new ColorRgba(26, 38, 62, 245) : new ColorRgba(12, 18, 34, 232), border);
+                : (!item.IsEmpty && ToolUsagePolicy.IsWornOut(in item) ? new ColorRgba(239, 68, 68, 255) : new ColorRgba(71, 85, 105, 220));
+            skin.DrawSlot(spriteBatch, new RectangleF(sx, sy, SlotSize, SlotSize), active ? new ColorRgba(26, 38, 62, 245) : new ColorRgba(12, 18, 34, 236), border);
         }
 
-        (RectangleF bagRect, RectangleF craftRect, RectangleF forgeRect) = GetDockRects(viewportWidth, viewportHeight);
+        (RectangleF bagRect, RectangleF skillsRect, RectangleF cfgRect, RectangleF craftRect, RectangleF forgeRect) =
+            GetDockRects(viewportWidth, viewportHeight, showHints);
+
+        bool hasAp = world.LocalUnspentStatPoints > 0;
+        bool hasSp = world.LocalUnspentSkillPoints > 0;
         skin.DrawButton(
             spriteBatch,
             in bagRect,
-            showBag ? new ColorRgba(180, 83, 9, 240) : new ColorRgba(16, 24, 42, 228),
-            showBag ? new ColorRgba(253, 224, 71, 255) : new ColorRgba(100, 116, 139, 220));
+            showBag ? new ColorRgba(180, 83, 9, 240) : new ColorRgba(16, 24, 42, 232),
+            showBag || hasAp ? new ColorRgba(253, 224, 71, 255) : new ColorRgba(100, 116, 139, 220));
+        skin.DrawButton(
+            spriteBatch,
+            in skillsRect,
+            showSkills ? new ColorRgba(14, 116, 144, 240) : new ColorRgba(16, 24, 42, 232),
+            showSkills || hasSp ? new ColorRgba(56, 189, 248, 255) : new ColorRgba(100, 116, 139, 220));
+        skin.DrawButton(
+            spriteBatch,
+            in cfgRect,
+            showSettings ? new ColorRgba(51, 65, 85, 240) : new ColorRgba(16, 24, 42, 232),
+            showSettings ? ColorRgba.White : new ColorRgba(100, 116, 139, 220));
         skin.DrawButton(
             spriteBatch,
             in craftRect,
-            showCraft ? new ColorRgba(180, 83, 9, 240) : new ColorRgba(16, 24, 42, 228),
+            showCraft ? new ColorRgba(180, 83, 9, 240) : new ColorRgba(16, 24, 42, 232),
             showCraft ? new ColorRgba(253, 224, 71, 255) : new ColorRgba(100, 116, 139, 220));
+
         bool nearStation = world.IsNearForgeStation();
         skin.DrawButton(
             spriteBatch,
             in forgeRect,
-            showForge ? new ColorRgba(194, 65, 12, 240) : (nearStation ? new ColorRgba(154, 52, 18, 232) : new ColorRgba(16, 24, 42, 210)),
+            showForge ? new ColorRgba(194, 65, 12, 240) : (nearStation ? new ColorRgba(154, 52, 18, 234) : new ColorRgba(16, 24, 42, 215)),
             showForge || nearStation ? new ColorRgba(251, 146, 60, 255) : new ColorRgba(71, 85, 105, 200));
     }
 
-    public bool TryHitTestHotbar(Vector2 mousePos, int viewportWidth, int viewportHeight, out byte slotIndex)
+    public bool TryHitTestHotbar(Vector2 mousePos, int viewportWidth, int viewportHeight, bool showHints, out byte slotIndex)
     {
         slotIndex = 0;
         const float totalW = (SlotCount * SlotSize) + ((SlotCount - 1) * Gap);
         float startX = MathF.Floor((viewportWidth - totalW) * 0.5f);
-        float startY = viewportHeight - SlotSize - 36f;
+        float startY = viewportHeight - (showHints ? 75f : 56f);
 
-        if (mousePos.Y < startY - 6f || mousePos.Y > startY + SlotSize)
+        if (mousePos.Y < startY - 5f || mousePos.Y > startY + SlotSize)
         {
             return false;
         }
@@ -148,15 +185,12 @@ internal sealed class HotbarAndItemWidget
         IVectorArtRepository? art,
         int viewportWidth,
         int viewportHeight,
-        uint activeItemId,
+        bool showHints,
         Vector2? mouseScreenPos)
     {
         const float totalW = (SlotCount * SlotSize) + ((SlotCount - 1) * Gap);
         float startX = MathF.Floor((viewportWidth - totalW) * 0.5f);
-        float startY = viewportHeight - SlotSize - 36f;
-
-        batch.FillRectangle(new RectangleF(startX - 8f, startY - 8f, totalW + 16f, SlotSize + 16f), new ColorRgba(8, 12, 22, 232));
-        batch.DrawRectangle(new RectangleF(startX - 8f, startY - 8f, totalW + 16f, SlotSize + 16f), new ColorRgba(51, 65, 85, 225), 1.5f);
+        float startY = viewportHeight - (showHints ? 75f : 56f);
 
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
@@ -166,50 +200,21 @@ internal sealed class HotbarAndItemWidget
         {
             float sx = startX + (i * (SlotSize + Gap));
             bool active = i == world.SelectedHotbarSlot;
-            float sy = active ? startY - 4f : startY;
-            RectangleF rect = new(sx, sy, SlotSize, SlotSize);
-            bool hovered = mouseScreenPos.HasValue &&
+            float sy = active ? startY - 3f : startY;
+            if (mouseScreenPos.HasValue &&
                 mouseScreenPos.Value.X >= sx && mouseScreenPos.Value.X <= sx + SlotSize &&
-                mouseScreenPos.Value.Y >= sy && mouseScreenPos.Value.Y <= sy + SlotSize;
-            if (hovered)
+                mouseScreenPos.Value.Y >= sy && mouseScreenPos.Value.Y <= sy + SlotSize)
             {
                 hoveredSlot = i;
             }
 
             ItemSlot item = slots[i];
-            ColorRgba accentBorder = new(71, 85, 105, 225);
-            CompiledItemVectorArt? itemArt = null;
-            if (!item.IsEmpty && art is not null && art.TryGetItem(item.ItemId, out itemArt))
-            {
-                accentBorder = new ColorRgba(itemArt.AccentColor.R, itemArt.AccentColor.G, itemArt.AccentColor.B, (byte)(active ? 255 : 175));
-            }
-
-            ColorRgba slotFill = active
-                ? new ColorRgba(26, 38, 60, 248)
-                : (hovered ? new ColorRgba(22, 32, 50, 238) : new ColorRgba(13, 20, 34, 228));
-            batch.FillRectangle(rect, slotFill);
-
-            ColorRgba border = active
-                ? new ColorRgba(250, 204, 21, 255)
-                : (hovered ? ColorRgba.White : accentBorder);
-            if (!item.IsEmpty && ToolUsagePolicy.IsWornOut(in item))
-            {
-                border = new ColorRgba(239, 68, 68, 255);
-            }
-
-            batch.DrawRectangle(rect, border, active ? 2.5f : 1.3f);
-
-            if (active)
-            {
-                batch.DrawRectangle(new RectangleF(sx + 2.5f, sy + 2.5f, SlotSize - 5f, SlotSize - 5f), accentBorder, 1f);
-            }
-
             if (!item.IsEmpty)
             {
-                Vector2 iconCenter = new(sx + (SlotSize * 0.5f), sy + (SlotSize * 0.48f));
-                if (itemArt is not null)
+                Vector2 iconCenter = new(sx + (SlotSize * 0.5f), sy + (SlotSize * 0.46f));
+                if (art is not null && art.TryGetItem(item.ItemId, out CompiledItemVectorArt? itemArt))
                 {
-                    VectorRigRenderer.DrawItemIcon(batch, itemArt, iconCenter, targetSize: 30f);
+                    VectorRigRenderer.DrawItemIcon(batch, itemArt, iconCenter, targetSize: 28f);
                 }
 
                 if (StarterGameCatalog.Items.TryGet(item.ItemId, out ItemArchetype? archetype) && archetype.MaxDurability > 0f)
@@ -220,35 +225,28 @@ internal sealed class HotbarAndItemWidget
                     ColorRgba durColor = frac <= 0f
                         ? new ColorRgba(239, 68, 68, 255)
                         : (frac > 0.5f ? new ColorRgba(56, 189, 248, 240) : (frac > 0.2f ? new ColorRgba(250, 204, 21, 240) : new ColorRgba(239, 68, 68, 245)));
-                    batch.FillRectangle(new RectangleF(sx + 5f, sy + SlotSize - 7f, SlotSize - 10f, 3.5f), new ColorRgba(15, 23, 42, 235));
-                    batch.FillRectangle(new RectangleF(sx + 5f, sy + SlotSize - 7f, MathF.Max(frac <= 0f ? SlotSize - 10f : 1f, (SlotSize - 10f) * frac), 3.5f), durColor);
+                    batch.FillRectangle(new RectangleF(sx + 5f, sy + SlotSize - 7f, SlotSize - 10f, 3f), new ColorRgba(15, 23, 42, 235));
+                    batch.FillRectangle(new RectangleF(sx + 5f, sy + SlotSize - 7f, MathF.Max(frac <= 0f ? SlotSize - 10f : 1f, (SlotSize - 10f) * frac), 3f), durColor);
                 }
             }
         }
 
-        // Hovered Item Tooltip Card above skill bar/hotbar, or compact active-item hint ribbon
         if (hoveredSlot >= 0)
         {
             ItemSlot hItem = slots[hoveredSlot];
             if (!hItem.IsEmpty)
             {
-                DrawTooltipGeometry(batch, art, startX + (hoveredSlot * (SlotSize + Gap)), startY - 62f, viewportWidth, in hItem);
+                DrawTooltipGeometry(batch, art, startX + (hoveredSlot * (SlotSize + Gap)), startY - 12f, viewportWidth, in hItem);
             }
         }
-        else
-        {
-            string actionHint = StarterGameCatalog.GetActionHint(activeItemId);
-            TextMeasureResult tipSize = font.MeasureString(actionHint, TextLayoutOptions.Default, 1f);
-            float tipW = tipSize.Width + 18f;
-            float tipX = MathF.Floor((viewportWidth - tipW) * 0.5f);
-            batch.FillRectangle(new RectangleF(tipX, startY - 26f, tipW, 15f), new ColorRgba(10, 15, 28, 215));
-            batch.DrawRectangle(new RectangleF(tipX, startY - 26f, tipW, 15f), new ColorRgba(71, 85, 105, 215), 1f);
-        }
 
-        string hint = ResolveHintText(viewportWidth, out float hintScale);
-        TextMeasureResult measure = font.MeasureString(hint, TextLayoutOptions.Default, hintScale);
-        float hintX = MathF.Floor((viewportWidth - measure.Width) * 0.5f);
-        batch.FillRectangle(new RectangleF(hintX - 8f, viewportHeight - 25f, measure.Width + 16f, 20f), new ColorRgba(10, 15, 28, 210));
+        if (showHints)
+        {
+            string hint = ResolveHintText(out float hintScale);
+            TextMeasureResult measure = font.MeasureString(hint, TextLayoutOptions.Default, hintScale);
+            float hintX = MathF.Floor((viewportWidth - measure.Width) * 0.5f);
+            batch.FillRectangle(new RectangleF(hintX - 8f, viewportHeight - 23f, measure.Width + 16f, 18f), new ColorRgba(10, 15, 28, 200));
+        }
 
         return hoveredSlot;
     }
@@ -260,12 +258,12 @@ internal sealed class HotbarAndItemWidget
         IVectorArtRepository? art,
         int viewportWidth,
         int viewportHeight,
-        uint activeItemId,
+        bool showHints,
         int hoveredSlot)
     {
         const float totalW = (SlotCount * SlotSize) + ((SlotCount - 1) * Gap);
         float startX = MathF.Floor((viewportWidth - totalW) * 0.5f);
-        float startY = viewportHeight - SlotSize - 36f;
+        float startY = viewportHeight - (showHints ? 75f : 56f);
         ColorRgba black = new(10, 12, 18, 255);
 
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
@@ -274,7 +272,7 @@ internal sealed class HotbarAndItemWidget
         for (int i = 0; i < SlotCount; i++)
         {
             float sx = startX + (i * (SlotSize + Gap));
-            float sy = i == world.SelectedHotbarSlot ? startY - 4f : startY;
+            float sy = i == world.SelectedHotbarSlot ? startY - 3f : startY;
             spriteBatch.DrawOutlinedString(font, $"{i + 1}", new Vector2(sx + 4f, sy + 4f), new ColorRgba(203, 213, 225, 255), black, 1, 1f);
             ItemSlot item = slots[i];
             byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
@@ -282,14 +280,14 @@ internal sealed class HotbarAndItemWidget
             {
                 string plusTxt = $"+{upg}";
                 ColorRgba plusCol = upg >= 6 ? new ColorRgba(34, 211, 238, 255) : new ColorRgba(250, 204, 21, 255);
-                spriteBatch.DrawOutlinedString(font, plusTxt, new Vector2(sx + SlotSize - 18f, sy + 4f), plusCol, black, 1, 1f);
+                spriteBatch.DrawOutlinedString(font, plusTxt, new Vector2(sx + SlotSize - 17f, sy + 4f), plusCol, black, 1, 1f);
             }
 
             if (!item.IsEmpty && item.Quantity > 1)
             {
                 string qty = $"x{item.Quantity}";
-                TextMeasureResult qSize = font.MeasureString(qty, TextLayoutOptions.Default, 2f);
-                spriteBatch.DrawOutlinedString(font, qty, new Vector2(MathF.Floor(sx + SlotSize - qSize.Width - 3f), sy + SlotSize - 20f), ColorRgba.White, black, 1, 2f);
+                TextMeasureResult qSize = font.MeasureString(qty, TextLayoutOptions.Default, 1.5f);
+                spriteBatch.DrawOutlinedString(font, qty, new Vector2(MathF.Floor(sx + SlotSize - qSize.Width - 4f), sy + SlotSize - 17f), ColorRgba.White, black, 1, 1.5f);
             }
         }
 
@@ -298,27 +296,29 @@ internal sealed class HotbarAndItemWidget
             ItemSlot hItem = slots[hoveredSlot];
             if (!hItem.IsEmpty)
             {
-                DrawTooltipText(spriteBatch, font, art, startX + (hoveredSlot * (SlotSize + Gap)), startY - 62f, viewportWidth, in hItem);
+                DrawTooltipText(spriteBatch, font, art, startX + (hoveredSlot * (SlotSize + Gap)), startY - 12f, viewportWidth, in hItem);
             }
         }
-        else
+
+        if (showHints)
         {
-            string actionHint = StarterGameCatalog.GetActionHint(activeItemId);
-            TextMeasureResult tipSize = font.MeasureString(actionHint, TextLayoutOptions.Default, 1f);
-            float tipX = MathF.Floor((viewportWidth - tipSize.Width) * 0.5f);
-            spriteBatch.DrawOutlinedString(font, actionHint, new Vector2(tipX, startY - 22f), new ColorRgba(253, 224, 71, 255), black, 1, 1f);
+            string hint = ResolveHintText(out float hintScale);
+            TextMeasureResult hSize = font.MeasureString(hint, TextLayoutOptions.Default, hintScale);
+            float hintX = MathF.Floor((viewportWidth - hSize.Width) * 0.5f);
+            spriteBatch.DrawOutlinedString(font, hint, new Vector2(hintX, viewportHeight - 20f), new ColorRgba(226, 232, 240, 255), black, 1, hintScale);
         }
 
-        string hint = ResolveHintText(viewportWidth, out float hintScale);
-        TextMeasureResult hSize = font.MeasureString(hint, TextLayoutOptions.Default, hintScale);
-        float hintX = MathF.Floor((viewportWidth - hSize.Width) * 0.5f);
-        spriteBatch.DrawOutlinedString(font, hint, new Vector2(hintX, viewportHeight - 22f), new ColorRgba(226, 232, 240, 255), black, 1, hintScale);
+        (RectangleF bagRect, RectangleF skillsRect, RectangleF cfgRect, RectangleF craftRect, RectangleF forgeRect) =
+            GetDockRects(viewportWidth, viewportHeight, showHints);
 
-        (RectangleF bagRect, RectangleF craftRect, RectangleF forgeRect) = GetDockRects(viewportWidth, viewportHeight);
-        spriteBatch.DrawOutlinedString(font, "[I] BAG", new Vector2(bagRect.X + 8f, bagRect.Y + 7f), ColorRgba.White, black, 1, 1f);
-        spriteBatch.DrawOutlinedString(font, "[C] CRAFT", new Vector2(craftRect.X + 6f, craftRect.Y + 7f), ColorRgba.White, black, 1, 1f);
+        string bagLabel = world.LocalUnspentStatPoints > 0 ? $"BAG+{world.LocalUnspentStatPoints}" : "[I] BAG";
+        string skLabel = world.LocalUnspentSkillPoints > 0 ? $"SKL+{world.LocalUnspentSkillPoints}" : "[K] SKL";
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, bagLabel, in bagRect, world.LocalUnspentStatPoints > 0 ? new ColorRgba(253, 224, 71, 255) : ColorRgba.White, black, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, skLabel, in skillsRect, world.LocalUnspentSkillPoints > 0 ? new ColorRgba(125, 211, 252, 255) : ColorRgba.White, black, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "CFG", in cfgRect, new ColorRgba(226, 232, 240, 255), black, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "[C] CRAFT", in craftRect, ColorRgba.White, black, 1f);
         ColorRgba forgeTxtCol = world.IsNearForgeStation() ? new ColorRgba(253, 224, 71, 255) : new ColorRgba(148, 163, 184, 255);
-        spriteBatch.DrawOutlinedString(font, "[U] FORGE ANVIL", new Vector2(forgeRect.X + 18f, forgeRect.Y + 7f), forgeTxtCol, black, 1, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "[U] FORGE", in forgeRect, forgeTxtCol, black, 1f);
     }
 
     private static void DrawTooltipGeometry(
@@ -332,7 +332,7 @@ internal sealed class HotbarAndItemWidget
         const float cardW = 318f;
         const float cardH = 108f;
         float x = Math.Clamp(MathF.Floor(slotX + (SlotSize * 0.5f) - (cardW * 0.5f)), 12f, viewportWidth - cardW - 12f);
-        float y = hotbarTopY - cardH - 14f;
+        float y = hotbarTopY - cardH;
 
         ColorRgba accent = new(148, 163, 184, 255);
         CompiledItemVectorArt? bp = null;
@@ -381,7 +381,7 @@ internal sealed class HotbarAndItemWidget
         const float cardW = 318f;
         const float cardH = 108f;
         float x = Math.Clamp(MathF.Floor(slotX + (SlotSize * 0.5f) - (cardW * 0.5f)), 12f, viewportWidth - cardW - 12f);
-        float y = hotbarTopY - cardH - 14f;
+        float y = hotbarTopY - cardH;
         ColorRgba black = new(10, 12, 18, 255);
 
         string name = StarterGameCatalog.GetDisplayName(item.ItemId);
@@ -420,27 +420,27 @@ internal sealed class HotbarAndItemWidget
         }
     }
 
-    private static (RectangleF Bag, RectangleF Craft, RectangleF Forge) GetDockRects(int viewportWidth, int viewportHeight)
+    private static (RectangleF Bag, RectangleF Skills, RectangleF Settings, RectangleF Craft, RectangleF Forge) GetDockRects(
+        int viewportWidth,
+        int viewportHeight,
+        bool showHints)
     {
         const float totalW = (SlotCount * SlotSize) + ((SlotCount - 1) * Gap);
         float startX = MathF.Floor((viewportWidth - totalW) * 0.5f);
-        float startY = viewportHeight - SlotSize - 36f;
-        float dockX = MathF.Min(viewportWidth - 146f, startX + totalW + 10f);
+        float startY = viewportHeight - (showHints ? 75f : 56f);
+        float dockX = MathF.Min(viewportWidth - 206f, startX + totalW + 12f);
+
         return (
-            new RectangleF(dockX, startY - 1f, 65f, 23f),
-            new RectangleF(dockX + 69f, startY - 1f, 69f, 23f),
-            new RectangleF(dockX, startY + 26f, 138f, 23f));
+            new RectangleF(dockX, startY - 1f, 64f, 22f),
+            new RectangleF(dockX + 67f, startY - 1f, 64f, 22f),
+            new RectangleF(dockX + 134f, startY - 1f, 58f, 22f),
+            new RectangleF(dockX, startY + 24f, 94f, 22f),
+            new RectangleF(dockX + 98f, startY + 24f, 94f, 22f));
     }
 
-    private static string ResolveHintText(int viewportWidth, out float scale)
+    private static string ResolveHintText(out float scale)
     {
-        if (viewportWidth >= 1080)
-        {
-            scale = 1.5f;
-            return "[WASD] Move [TAB] Lock [Q/R/V] Skill [E] Loot [I] Bag [C] Craft [U] Forge";
-        }
-
         scale = 1f;
-        return "[WASD] Move [TAB] Lock [Q/R/V] Skill [E] Loot [I] Bag [C] Craft [U] Forge";
+        return "[WASD] Move [TAB] Lock [Q/R/V] Skill [E] Loot/Smith [I] Bag [K] Skills [C] Craft [U] Forge [M] Map [ESC] Menu";
     }
 }

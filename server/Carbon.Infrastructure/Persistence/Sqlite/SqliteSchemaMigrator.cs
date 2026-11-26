@@ -49,7 +49,14 @@ public sealed class SqliteSchemaMigrator : IDatabaseMigrator
             current_mana         REAL    NOT NULL DEFAULT 80.0,
             max_mana             REAL    NOT NULL DEFAULT 80.0,
             current_stamina      REAL    NOT NULL DEFAULT 100.0,
-            max_stamina          REAL    NOT NULL DEFAULT 100.0
+            max_stamina          REAL    NOT NULL DEFAULT 100.0,
+            stat_vit             INTEGER NOT NULL DEFAULT 0,
+            stat_wis             INTEGER NOT NULL DEFAULT 0,
+            stat_pwr             INTEGER NOT NULL DEFAULT 0,
+            stat_agi             INTEGER NOT NULL DEFAULT 0,
+            skill1_rank          INTEGER NOT NULL DEFAULT 0,
+            skill2_rank          INTEGER NOT NULL DEFAULT 0,
+            skill3_rank          INTEGER NOT NULL DEFAULT 0
         );
 
         CREATE INDEX IF NOT EXISTS ix_characters_account_id ON characters(account_id);
@@ -160,6 +167,57 @@ public sealed class SqliteSchemaMigrator : IDatabaseMigrator
             _ = insertRpg.Parameters.AddWithValue("@id", "0002_rpg_progression");
             _ = insertRpg.Parameters.AddWithValue("@utc", DateTimeOffset.UtcNow.ToString("O"));
             _ = await insertRpg.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        bool hasPointsMigration;
+        SqliteCommand checkPts = new("SELECT 1 FROM schema_migrations WHERE id = @id LIMIT 1;", conn, tx);
+        await using (ConfiguredAsyncDisposable checkPtsScope = checkPts.ConfigureAwait(false))
+        {
+            _ = checkPts.Parameters.AddWithValue("@id", "0003_stat_and_skill_points");
+            object? scalar = await checkPts.ExecuteScalarAsync(ct).ConfigureAwait(false);
+            hasPointsMigration = scalar is not null && scalar != DBNull.Value;
+        }
+
+        if (!hasPointsMigration)
+        {
+            System.Collections.Generic.HashSet<string> existingCols = new(StringComparer.OrdinalIgnoreCase);
+            SqliteCommand pragma = new("PRAGMA table_info(characters);", conn, tx);
+            await using (ConfiguredAsyncDisposable pragmaScope = pragma.ConfigureAwait(false))
+            {
+                SqliteDataReader colReader = await pragma.ExecuteReaderAsync(ct).ConfigureAwait(false);
+                await using ConfiguredAsyncDisposable colReaderScope = colReader.ConfigureAwait(false);
+                while (await colReader.ReadAsync(ct).ConfigureAwait(false))
+                {
+                    _ = existingCols.Add(colReader.GetString(1));
+                }
+            }
+
+            (string Col, string AlterSql)[] pointMigrations =
+            [
+                ("stat_vit", "ALTER TABLE characters ADD COLUMN stat_vit INTEGER NOT NULL DEFAULT 0;"),
+                ("stat_wis", "ALTER TABLE characters ADD COLUMN stat_wis INTEGER NOT NULL DEFAULT 0;"),
+                ("stat_pwr", "ALTER TABLE characters ADD COLUMN stat_pwr INTEGER NOT NULL DEFAULT 0;"),
+                ("stat_agi", "ALTER TABLE characters ADD COLUMN stat_agi INTEGER NOT NULL DEFAULT 0;"),
+                ("skill1_rank", "ALTER TABLE characters ADD COLUMN skill1_rank INTEGER NOT NULL DEFAULT 0;"),
+                ("skill2_rank", "ALTER TABLE characters ADD COLUMN skill2_rank INTEGER NOT NULL DEFAULT 0;"),
+                ("skill3_rank", "ALTER TABLE characters ADD COLUMN skill3_rank INTEGER NOT NULL DEFAULT 0;"),
+            ];
+
+            for (int i = 0; i < pointMigrations.Length; i++)
+            {
+                if (!existingCols.Contains(pointMigrations[i].Col))
+                {
+                    SqliteCommand alter = new(pointMigrations[i].AlterSql, conn, tx);
+                    await using ConfiguredAsyncDisposable alterScope = alter.ConfigureAwait(false);
+                    _ = await alter.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+                }
+            }
+
+            SqliteCommand insertPts = new("INSERT INTO schema_migrations (id, applied_utc) VALUES (@id, @utc);", conn, tx);
+            await using ConfiguredAsyncDisposable insertPtsScope = insertPts.ConfigureAwait(false);
+            _ = insertPts.Parameters.AddWithValue("@id", "0003_stat_and_skill_points");
+            _ = insertPts.Parameters.AddWithValue("@utc", DateTimeOffset.UtcNow.ToString("O"));
+            _ = await insertPts.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         }
 
         await tx.CommitAsync(ct).ConfigureAwait(false);

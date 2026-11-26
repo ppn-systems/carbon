@@ -24,6 +24,13 @@ namespace Carbon.Abstractions.Persistence;
 /// <param name="MaxMana">Saved maximum mana points.</param>
 /// <param name="CurrentStamina">Saved current stamina points.</param>
 /// <param name="MaxStamina">Saved maximum stamina points.</param>
+/// <param name="VitPoints">Allocated Vitality attribute points.</param>
+/// <param name="WisPoints">Allocated Wisdom attribute points.</param>
+/// <param name="PwrPoints">Allocated Power attribute points.</param>
+/// <param name="AgiPoints">Allocated Agility attribute points.</param>
+/// <param name="Skill1Rank">Mastery rank for Skill 1 (Whirlwind).</param>
+/// <param name="Skill2Rank">Mastery rank for Skill 2 (Arcane Nova).</param>
+/// <param name="Skill3Rank">Mastery rank for Skill 3 (Vital Surge).</param>
 public sealed record CharacterRecord(
     Guid Id,
     Guid AccountId,
@@ -41,4 +48,11 @@ public sealed record CharacterRecord(
     float CurrentMana = 80f,
     float MaxMana = 80f,
     float CurrentStamina = 100f,
-    float MaxStamina = 100f);
+    float MaxStamina = 100f,
+    ushort VitPoints = 0,
+    ushort WisPoints = 0,
+    ushort PwrPoints = 0,
+    ushort AgiPoints = 0,
+    byte Skill1Rank = 0,
+    byte Skill2Rank = 0,
+    byte Skill3Rank = 0);

@@ -5,28 +5,23 @@ using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 using System.Threading.Tasks;
+using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions;
 using Carbon.Desktop.Input;
 using Carbon.Desktop.Rendering;
 using Carbon.Desktop.Rendering.Hud;
-using Carbon.Graphics.Batching;
 using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Common;
-using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.Batching.Sprites;
-using Carbon.Graphics.Fonts.Layout;
-using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Graphics.Scenes.Base;
 using Carbon.Graphics.Scenes.Management;
 using Carbon.Graphics.Windowing.Abstractions;
-using Carbon.Graphics.Windowing.Input;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Navigation;
 using Carbon.Maps.Streaming;
 using Carbon.Maps.Topography;
-using Silk.NET.Input;
 using Silk.NET.OpenGL;
 
 namespace Carbon.Desktop.Scenes;
@@ -34,7 +29,7 @@ namespace Carbon.Desktop.Scenes;
 /// <summary>
 /// Primary playable 2.5D MMORPG world scene orchestrating input polling, <see cref="IClientWorldSession"/> updates,
 /// <see cref="CameraRig2D"/> tracking, <see cref="WorldSceneRenderer"/> passes, <see cref="HudOverlayRenderer"/> HUD/Minimap,
-/// pause/logout navigation, and capture hooks.
+/// Settings/SkillTome/Bag/Workshop/Forge modals, and capture hooks.
 /// </summary>
 public sealed class WorldGameplayScene : GameScene
 {
@@ -42,16 +37,12 @@ public sealed class WorldGameplayScene : GameScene
     private readonly DesktopClientOptions _options;
     private readonly Camera2D _camera;
 
-    private readonly MenuButton _resumeButton = new("RESUME GAME", MenuButtonStyle.SecondaryEmerald);
-    private readonly MenuButton _logoutButton = new("LOGOUT / SWITCH HERO", MenuButtonStyle.PrimaryGold);
-    private readonly MenuButton _quitButton = new("QUIT DESKTOP CLIENT", MenuButtonStyle.DangerRed);
     private readonly List<(int ChunkX, int ChunkY)> _dirtyChunksScratch = new(16);
     private readonly List<string> _notificationsScratch = new(16);
 
     private CameraRig2D? _cameraRig;
     private WorldSceneRenderer? _worldRenderer;
     private HudOverlayRenderer? _hudRenderer;
-    private GeometryBatch? _menuBatch;
     private Task? _pendingLogoutTask;
 
     private BiomeType _lastBiome = (BiomeType)255;
@@ -64,7 +55,6 @@ public sealed class WorldGameplayScene : GameScene
     private int _frameCount;
     private int _draggingInventorySlot = -1;
     private bool _hasAutoCaptured;
-    private bool _showEscapeMenu;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WorldGameplayScene"/> class.
@@ -89,7 +79,11 @@ public sealed class WorldGameplayScene : GameScene
         _cameraRig = new CameraRig2D(_camera, _options.MacroView);
         _worldRenderer = new WorldSceneRenderer(context.Device, _options);
         _hudRenderer = new HudOverlayRenderer(context.Device, _worldRenderer.VectorArt);
-        _menuBatch = new GeometryBatch(context.Device);
+        if (!_options.MacroView)
+        {
+            this.ApplyZoomPreset(_hudRenderer.Settings.CameraZoomPreset);
+        }
+
         _worldRenderer.EnsureWorldBound(_session);
 
         Vector2 focusPos = _options.FocusTileX.HasValue && _options.FocusTileY.HasValue
@@ -147,34 +141,56 @@ public sealed class WorldGameplayScene : GameScene
 
         if (input.EscapePressed)
         {
-            if (_hudRenderer.ShowInventoryModal)
+            if (_hudRenderer.ShowSettingsModal)
             {
-                _hudRenderer.ShowInventoryModal = false;
-                _hudRenderer.SelectedInventorySlot = -1;
+                _hudRenderer.ShowSettingsModal = false;
+            }
+            else if (_hudRenderer.HasActiveModal)
+            {
+                _hudRenderer.CloseAllModals();
                 _draggingInventorySlot = -1;
-                _hudRenderer.DraggedInventorySlot = -1;
             }
-            else if (_hudRenderer.ShowCraftingPanel)
-            {
-                _hudRenderer.ShowCraftingPanel = false;
-            }
-            else if (_hudRenderer.ShowForgeModal)
-            {
-                _hudRenderer.ShowForgeModal = false;
-            }
-            else if (!_showEscapeMenu && _session.LockedTargetNetworkId != 0UL)
+            else if (_session.LockedTargetNetworkId != 0UL)
             {
                 _session.SetLockedTarget(0UL);
             }
             else
             {
-                _showEscapeMenu = !_showEscapeMenu;
+                _hudRenderer.ShowSettingsModal = true;
             }
         }
 
-        if (_showEscapeMenu)
+        if (_hudRenderer.ShowSettingsModal)
         {
-            this.UpdatePauseMenu(context, input);
+            if (input.LeftClickPressed)
+            {
+                Vector2 mouseScreen = input.MouseScreenPosition;
+                if (!_hudRenderer.IsPointInActiveModal(mouseScreen, context.WindowWidth, context.WindowHeight))
+                {
+                    _hudRenderer.ShowSettingsModal = false;
+                }
+                else
+                {
+                    SettingsModalAction act = _hudRenderer.HandleSettingsClick(mouseScreen, context.WindowWidth, context.WindowHeight);
+                    if (act == SettingsModalAction.Resume)
+                    {
+                        _hudRenderer.ShowSettingsModal = false;
+                    }
+                    else if (act == SettingsModalAction.Logout)
+                    {
+                        _pendingLogoutTask = _session.LogoutAsync();
+                    }
+                    else if (act == SettingsModalAction.Quit)
+                    {
+                        context.Window.Close();
+                    }
+                    else if (act == SettingsModalAction.ZoomChanged && !_options.MacroView)
+                    {
+                        this.ApplyZoomPreset(_hudRenderer.Settings.CameraZoomPreset);
+                    }
+                }
+            }
+
             _session.Update(dt, Vector2.Zero, sprint: false);
             return;
         }
@@ -184,6 +200,12 @@ public sealed class WorldGameplayScene : GameScene
             _hudRenderer.Visible = !_hudRenderer.Visible;
         }
 
+        if (input.ToggleMinimapPressed && !_hudRenderer.HasActiveModal)
+        {
+            _hudRenderer.Settings.ShowMinimap = !_hudRenderer.Settings.ShowMinimap;
+            _hudRenderer.Settings.Save();
+        }
+
         if (input.CycleTargetPressed && !_hudRenderer.HasActiveModal)
         {
             _ = _session.CycleNearestHostileTarget();
@@ -191,28 +213,26 @@ public sealed class WorldGameplayScene : GameScene
 
         if (input.ToggleInventoryPressed)
         {
-            _hudRenderer.ShowInventoryModal = !_hudRenderer.ShowInventoryModal;
-            _hudRenderer.SelectedInventorySlot = -1;
+            bool nextInv = !_hudRenderer.ShowInventoryModal;
+            _hudRenderer.CloseAllModals();
             _draggingInventorySlot = -1;
-            _hudRenderer.DraggedInventorySlot = -1;
-            if (_hudRenderer.ShowInventoryModal)
-            {
-                _hudRenderer.ShowCraftingPanel = false;
-                _hudRenderer.ShowForgeModal = false;
-            }
+            _hudRenderer.ShowInventoryModal = nextInv;
+        }
+
+        if (input.ToggleSkillsPressed)
+        {
+            bool nextSkills = !_hudRenderer.ShowSkillsModal;
+            _hudRenderer.CloseAllModals();
+            _draggingInventorySlot = -1;
+            _hudRenderer.ShowSkillsModal = nextSkills;
         }
 
         if (input.ToggleCraftPressed)
         {
-            _hudRenderer.ShowCraftingPanel = !_hudRenderer.ShowCraftingPanel;
-            if (_hudRenderer.ShowCraftingPanel)
-            {
-                _hudRenderer.ShowInventoryModal = false;
-                _hudRenderer.ShowForgeModal = false;
-                _hudRenderer.SelectedInventorySlot = -1;
-                _draggingInventorySlot = -1;
-                _hudRenderer.DraggedInventorySlot = -1;
-            }
+            bool nextCraft = !_hudRenderer.ShowCraftingPanel;
+            _hudRenderer.CloseAllModals();
+            _draggingInventorySlot = -1;
+            _hudRenderer.ShowCraftingPanel = nextCraft;
         }
 
         if (input.ToggleForgePressed)
@@ -253,6 +273,10 @@ public sealed class WorldGameplayScene : GameScene
                     _hudRenderer.ShowInventoryModal = false;
                     _hudRenderer.SelectedInventorySlot = -1;
                     _draggingInventorySlot = -1;
+                }
+                else if (_hudRenderer.TryHitTestInventoryStatPlus(mouseScreen, context.WindowWidth, context.WindowHeight, out CharacterPointTarget statTarget))
+                {
+                    _ = _session.TryAllocateCharacterPoint(statTarget, 1);
                 }
                 else if (_hudRenderer.TryHitTestInventoryUseEquipButton(mouseScreen, context.WindowWidth, context.WindowHeight))
                 {
@@ -327,6 +351,22 @@ public sealed class WorldGameplayScene : GameScene
 
             _hudRenderer.DraggedInventorySlot = _draggingInventorySlot;
         }
+        else if (_hudRenderer.ShowSkillsModal)
+        {
+            Vector2 mouseScreen = input.MouseScreenPosition;
+            if (input.LeftClickPressed)
+            {
+                if (_hudRenderer.TryHitTestModalCloseButton(mouseScreen, context.WindowWidth, context.WindowHeight) ||
+                    !_hudRenderer.IsPointInActiveModal(mouseScreen, context.WindowWidth, context.WindowHeight))
+                {
+                    _hudRenderer.ShowSkillsModal = false;
+                }
+                else if (_hudRenderer.TryHitTestSkillTomeUpgrade(mouseScreen, context.WindowWidth, context.WindowHeight, out CharacterPointTarget skillTarget))
+                {
+                    _ = _session.TryAllocateCharacterPoint(skillTarget, 1);
+                }
+            }
+        }
         else if (_hudRenderer.ShowCraftingPanel)
         {
             Vector2 mouseScreen = input.MouseScreenPosition;
@@ -386,19 +426,27 @@ public sealed class WorldGameplayScene : GameScene
                 {
                     if (dockAction == HudDockAction.Inventory)
                     {
+                        _hudRenderer.CloseAllModals();
                         _hudRenderer.ShowInventoryModal = true;
-                        _hudRenderer.ShowCraftingPanel = false;
-                        _hudRenderer.ShowForgeModal = false;
+                    }
+                    else if (dockAction == HudDockAction.Skills)
+                    {
+                        _hudRenderer.CloseAllModals();
+                        _hudRenderer.ShowSkillsModal = true;
                     }
                     else if (dockAction == HudDockAction.Crafting)
                     {
+                        _hudRenderer.CloseAllModals();
                         _hudRenderer.ShowCraftingPanel = true;
-                        _hudRenderer.ShowInventoryModal = false;
-                        _hudRenderer.ShowForgeModal = false;
                     }
                     else if (dockAction == HudDockAction.Forge)
                     {
                         this.ToggleForgeStationModal();
+                    }
+                    else if (dockAction == HudDockAction.Settings)
+                    {
+                        _hudRenderer.CloseAllModals();
+                        _hudRenderer.ShowSettingsModal = true;
                     }
                 }
                 else if (_hudRenderer.TryHitTestHotbar(mouseScreen, context.WindowWidth, context.WindowHeight, out byte hotbarSlot))
@@ -586,7 +634,8 @@ public sealed class WorldGameplayScene : GameScene
             _options.TimeScale,
             spriteBatch,
             _hudRenderer.Font,
-            _mouseWorldPosition);
+            _mouseWorldPosition,
+            _hudRenderer.Settings.ShowCombatNumbers);
 
         _hudRenderer.Render(
             _session,
@@ -598,11 +647,6 @@ public sealed class WorldGameplayScene : GameScene
             _mouseScreenPosition,
             _worldRenderer.FeedbackTracker,
             _mouseWorldPosition);
-
-        if (_showEscapeMenu && _menuBatch is not null)
-        {
-            this.RenderPauseOverlay(spriteBatch, context.WindowWidth, context.WindowHeight);
-        }
 
         base.Render(context, spriteBatch, dt);
 
@@ -640,8 +684,6 @@ public sealed class WorldGameplayScene : GameScene
     {
         if (disposing)
         {
-            _menuBatch?.Dispose();
-            _menuBatch = null;
             _hudRenderer?.Dispose();
             _hudRenderer = null;
             _worldRenderer?.Dispose();
@@ -651,78 +693,20 @@ public sealed class WorldGameplayScene : GameScene
         base.Dispose(disposing);
     }
 
-    private void UpdatePauseMenu(SceneContext context, in DesktopInputFrame input)
+    private void ApplyZoomPreset(int preset)
     {
-        this.LayoutPauseMenu(context.WindowWidth, context.WindowHeight);
-
-        MouseSnapshot mouse = context.Input.Mouse;
-        bool leftDown = mouse.IsButtonDown(MouseButton.Left);
-        bool leftPressed = input.LeftClickPressed;
-        Vector2 mousePos = input.MouseScreenPosition;
-
-        if (_resumeButton.Update(mousePos, leftDown, leftPressed))
-        {
-            _showEscapeMenu = false;
-        }
-        else if (_logoutButton.Update(mousePos, leftDown, leftPressed))
-        {
-            _pendingLogoutTask = _session.LogoutAsync();
-        }
-        else if (_quitButton.Update(mousePos, leftDown, leftPressed))
-        {
-            context.Window.Close();
-        }
-    }
-
-    private void LayoutPauseMenu(int width, int height)
-    {
-        const float cardW = 340f;
-        const float cardH = 240f;
-        float x = MathF.Floor((width - cardW) * 0.5f);
-        float y = MathF.Floor((height - cardH) * 0.5f);
-
-        _resumeButton.Bounds = new RectangleF(x + 24f, y + 58f, cardW - 48f, 44f);
-        _logoutButton.Bounds = new RectangleF(x + 24f, y + 114f, cardW - 48f, 44f);
-        _quitButton.Bounds = new RectangleF(x + 24f, y + 170f, cardW - 48f, 44f);
-    }
-
-    private void RenderPauseOverlay(SpriteBatch spriteBatch, int width, int height)
-    {
-        if (_menuBatch is null || _hudRenderer is null || width <= 0 || height <= 0)
+        if (_cameraRig is null)
         {
             return;
         }
 
-        this.LayoutPauseMenu(width, height);
-        Matrix4x4 proj = Matrix4x4.CreateOrthographicOffCenter(0f, width, height, 0f, -1f, 1f);
-
-        const float cardW = 340f;
-        const float cardH = 240f;
-        float x = MathF.Floor((width - cardW) * 0.5f);
-        float y = MathF.Floor((height - cardH) * 0.5f);
-
-        _menuBatch.Begin(proj);
-        _menuBatch.FillRectangle(new RectangleF(0f, 0f, width, height), new ColorRgba(6, 10, 20, 145));
-        _menuBatch.End();
-
-        spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: proj);
-        _hudRenderer.UiSkin.DrawWindow(spriteBatch, new RectangleF(x, y, cardW, cardH), new ColorRgba(250, 204, 21, 235), bodyAlpha: 242);
-        _resumeButton.DrawSkin(spriteBatch, _hudRenderer.UiSkin);
-        _logoutButton.DrawSkin(spriteBatch, _hudRenderer.UiSkin);
-        _quitButton.DrawSkin(spriteBatch, _hudRenderer.UiSkin);
-        TextMeasureResult titleSize = _hudRenderer.Font.MeasureString("SYSTEM MENU", TextLayoutOptions.Default, 2.5f);
-        spriteBatch.DrawOutlinedString(
-            _hudRenderer.Font,
-            "SYSTEM MENU",
-            new Vector2(MathF.Floor(x + ((cardW - titleSize.Width) * 0.5f)), y + 18f),
-            new ColorRgba(250, 204, 21, 255),
-            new ColorRgba(8, 10, 16, 255),
-            1,
-            2.5f);
-        _resumeButton.DrawText(spriteBatch, _hudRenderer.Font);
-        _logoutButton.DrawText(spriteBatch, _hudRenderer.Font);
-        _quitButton.DrawText(spriteBatch, _hudRenderer.Font);
-        spriteBatch.End();
+        float zoom = preset switch
+        {
+            0 => 0.85f,
+            2 => 1.25f,
+            _ => 1.0f,
+        };
+        _cameraRig.SetZoom(zoom);
     }
 
     private void ToggleForgeStationModal()
@@ -744,12 +728,9 @@ public sealed class WorldGameplayScene : GameScene
             return;
         }
 
-        _hudRenderer.ShowForgeModal = true;
-        _hudRenderer.ShowInventoryModal = false;
-        _hudRenderer.ShowCraftingPanel = false;
-        _hudRenderer.SelectedInventorySlot = -1;
+        _hudRenderer.CloseAllModals();
         _draggingInventorySlot = -1;
-        _hudRenderer.DraggedInventorySlot = -1;
+        _hudRenderer.ShowForgeModal = true;
     }
 
     private void UpdateTelemetry(IGameWindow window, int ptx, int pty)

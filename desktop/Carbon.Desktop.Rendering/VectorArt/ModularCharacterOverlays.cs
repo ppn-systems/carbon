@@ -190,14 +190,42 @@ internal static class ModularCharacterOverlays
 
         if (!isNorth)
         {
-            FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-4.6f, -20.2f), (4.6f, -20.2f), (3.5f, -13.2f), (-3.5f, -13.2f));
-            batch.FillConvexPolygon(plate, ApplyFlash(highCol, hitFlash));
-
-            FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-5.7f, -12.0f), (5.7f, -12.0f), (5.7f, -9.8f), (-5.7f, -9.8f));
-            batch.FillConvexPolygon(plate, ApplyFlash(new ColorRgba(69, 26, 3, 255), hitFlash));
-            Vector2 gemPos = Transform(new Vector2(0f, -16.2f), bodyPivot, bodyPose, origin, sx, sy);
-            batch.FillCircle(gemPos, 2.2f * MathF.Abs(sx), outlineCol, 10);
-            batch.FillCircle(gemPos, 1.6f * MathF.Abs(sx), ApplyFlash(gemCol, hitFlash), 10);
+            float absScale = MathF.Abs(sx);
+            if (isRobe)
+            {
+                // Arcane robe V-lapel & glowing diamond clasp
+                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-3.6f, -20.8f), (3.6f, -20.8f), (1.8f, -13.0f), (-1.8f, -13.0f));
+                batch.FillConvexPolygon(plate, ApplyFlash(highCol, hitFlash));
+                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-1.6f, -20.8f), (1.6f, -20.8f), (1.2f, -8.0f), (-1.2f, -8.0f));
+                batch.FillConvexPolygon(plate, ApplyFlash(trimCol, hitFlash));
+                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (0f, -19.2f), (1.9f, -17.3f), (0f, -15.4f), (-1.9f, -17.3f));
+                DrawOutlinedPoly(batch, plate, gemCol, outlineCol, 0.9f * absScale, hitFlash);
+            }
+            else if (chestId == StarterGameCatalog.IronChestplate)
+            {
+                // Sculpted steel cuirass highlight + center ridge + riveted belt
+                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-4.8f, -20.4f), (4.8f, -20.4f), (3.2f, -13.4f), (-3.2f, -13.4f));
+                batch.FillConvexPolygon(plate, ApplyFlash(highCol, hitFlash));
+                Vector2 ridgeTop = Transform(new Vector2(0f, -20.4f), bodyPivot, bodyPose, origin, sx, sy);
+                Vector2 ridgeBot = Transform(new Vector2(0f, -13.2f), bodyPivot, bodyPose, origin, sx, sy);
+                batch.DrawLine(ridgeTop, ridgeBot, ApplyFlash(outlineCol, hitFlash * 0.5f), 1.0f * absScale);
+                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-5.7f, -12.0f), (5.7f, -12.0f), (5.7f, -9.8f), (-5.7f, -9.8f));
+                batch.FillConvexPolygon(plate, ApplyFlash(new ColorRgba(51, 65, 85, 255), hitFlash));
+                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-1.5f, -12.3f), (1.5f, -12.3f), (1.5f, -9.5f), (-1.5f, -9.5f));
+                DrawOutlinedPoly(batch, plate, trimCol, outlineCol, 0.9f * absScale, hitFlash);
+            }
+            else
+            {
+                // Tunic / leather brigandine chest panel + diagonal baldric strap + brass buckle
+                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-4.4f, -20.2f), (4.4f, -20.2f), (3.4f, -13.2f), (-3.4f, -13.2f));
+                batch.FillConvexPolygon(plate, ApplyFlash(highCol, hitFlash));
+                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-5.6f, -21.0f), (-3.0f, -21.0f), (5.2f, -11.4f), (2.6f, -11.4f));
+                DrawOutlinedPoly(batch, plate, new ColorRgba(92, 46, 14, 255), outlineCol, 0.85f * absScale, hitFlash);
+                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-5.7f, -12.0f), (5.7f, -12.0f), (5.7f, -9.8f), (-5.7f, -9.8f));
+                batch.FillConvexPolygon(plate, ApplyFlash(new ColorRgba(69, 26, 3, 255), hitFlash));
+                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-1.3f, -12.2f), (1.3f, -12.2f), (1.3f, -9.6f), (-1.3f, -9.6f));
+                DrawOutlinedPoly(batch, plate, trimCol, outlineCol, 0.85f * absScale, hitFlash);
+            }
         }
 
         float absS = MathF.Abs(sx);
@@ -515,10 +543,17 @@ internal static class ModularCharacterOverlays
     private static void DrawEye(GeometryBatch batch, Vector2 center, float rx, float ry, ColorRgba iris, float hitFlash)
     {
         float r = MathF.Max(rx, ry);
-        batch.FillCircle(center, r * 1.15f, ApplyFlash(s_outline, hitFlash * 0.45f), 10);
-        batch.FillCircle(center, r * 0.95f, ApplyFlash(new ColorRgba(248, 250, 252, 255), hitFlash), 10);
-        batch.FillCircle(center, r * 0.65f, ApplyFlash(iris, hitFlash), 10);
-        batch.FillCircle(center + new Vector2(-r * 0.25f, -r * 0.28f), MathF.Max(0.8f, r * 0.30f), ColorRgba.White, 6);
+        ColorRgba lashCol = ApplyFlash(s_outline, hitFlash * 0.45f);
+        batch.FillCircle(center, r * 1.05f, lashCol, 10);
+        batch.FillCircle(center, r * 0.88f, ApplyFlash(new ColorRgba(248, 250, 252, 255), hitFlash), 10);
+        batch.FillCircle(center + new Vector2(0f, r * 0.06f), r * 0.62f, ApplyFlash(iris, hitFlash), 10);
+        batch.FillCircle(center + new Vector2(0f, r * 0.08f), r * 0.28f, lashCol, 8);
+        batch.DrawLine(
+            center + new Vector2(-r * 1.15f, -r * 0.78f),
+            center + new Vector2(r * 1.15f, -r * 0.78f),
+            lashCol,
+            MathF.Max(1.0f, r * 0.36f));
+        batch.FillCircle(center + new Vector2(-r * 0.26f, -r * 0.28f), MathF.Max(0.75f, r * 0.24f), ColorRgba.White, 6);
     }
 
     private static void DrawOutlinedPoly(GeometryBatch batch, Span<Vector2> pts, ColorRgba fill, ColorRgba outline, float stroke, float hitFlash)

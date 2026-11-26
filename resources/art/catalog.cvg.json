@@ -75,6 +75,24 @@
       "level": 2,
       "accentColor": "#CBD5E1",
       "file": "monsters/skeleton_archer.cvg.json"
+    },
+    {
+      "archetypeId": 106,
+      "id": "orc_shaman",
+      "title": "Orc Shaman",
+      "subtitle": "LV.5 HEX CASTER",
+      "level": 5,
+      "accentColor": "#A855F7",
+      "file": "monsters/orc_shaman.cvg.json"
+    },
+    {
+      "archetypeId": 107,
+      "id": "crimson_demon",
+      "title": "Crimson Demon",
+      "subtitle": "LV.8 ABYSSAL FIEND",
+      "level": 8,
+      "accentColor": "#EF4444",
+      "file": "monsters/crimson_demon.cvg.json"
     }
   ],
   "npcs": [
@@ -335,6 +353,38 @@
       "tier": 2,
       "accentColor": "#F97316",
       "file": "items/forge_anvil.cvg.json"
+    },
+    {
+      "itemId": 29,
+      "id": "roast_meat",
+      "displayName": "Roast Meat",
+      "tier": 2,
+      "accentColor": "#F97316",
+      "file": "items/roast_meat.cvg.json"
+    },
+    {
+      "itemId": 30,
+      "id": "arcane_pie",
+      "displayName": "Arcane Pie",
+      "tier": 2,
+      "accentColor": "#C084FC",
+      "file": "items/arcane_pie.cvg.json"
+    },
+    {
+      "itemId": 31,
+      "id": "demon_cleaver",
+      "displayName": "Demon Cleaver",
+      "tier": 3,
+      "accentColor": "#EF4444",
+      "file": "items/demon_cleaver.cvg.json"
+    },
+    {
+      "itemId": 32,
+      "id": "shaman_staff",
+      "displayName": "Shaman Staff",
+      "tier": 3,
+      "accentColor": "#A855F7",
+      "file": "items/shaman_staff.cvg.json"
     }
   ]
 }

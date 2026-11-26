@@ -85,6 +85,12 @@ public static class WorldActorCatalog
     /// <summary>Skeleton Archer ranged monster archetype identifier.</summary>
     public const ushort SkeletonArcher = 105;
 
+    /// <summary>Orc Shaman tribal hex caster monster archetype identifier.</summary>
+    public const ushort OrcShaman = 106;
+
+    /// <summary>Crimson Demon heavy abyssal cleaver monster archetype identifier.</summary>
+    public const ushort CrimsonDemon = 107;
+
     /// <summary>Village Guard NPC archetype identifier.</summary>
     public const ushort VillageGuard = 201;
 
@@ -104,6 +110,8 @@ public static class WorldActorCatalog
         new(FrostWolf, "Frost Wolf", BaseLevel: 2, BaseMaxHealth: 95f, MoveSpeed: 168f, Radius: 8.5f, BaseAttackDamage: 12f, WindupTicks: 6U, StarterGameCatalog.StoneChunk, 2, 3),
         new(AshWraith, "Ash Wraith", BaseLevel: 4, BaseMaxHealth: 110f, MoveSpeed: 148f, Radius: 8.5f, BaseAttackDamage: 14f, WindupTicks: 10U, StarterGameCatalog.ManaCrystal, 1, 2, AttackRange: 215f, ProjectileSpeed: 340f, ProjectileArchetype: 4),
         new(SkeletonArcher, "Skeleton Archer", BaseLevel: 2, BaseMaxHealth: 85f, MoveSpeed: 142f, Radius: 8f, BaseAttackDamage: 13f, WindupTicks: 9U, StarterGameCatalog.WoodLog, 2, 4, AttackRange: 235f, ProjectileSpeed: 390f, ProjectileArchetype: 5),
+        new(OrcShaman, "Orc Shaman", BaseLevel: 5, BaseMaxHealth: 165f, MoveSpeed: 140f, Radius: 9.0f, BaseAttackDamage: 22f, WindupTicks: 10U, StarterGameCatalog.ManaCrystal, 1, 2, AttackRange: 195f, ProjectileSpeed: 360f, ProjectileArchetype: 2),
+        new(CrimsonDemon, "Crimson Demon", BaseLevel: 8, BaseMaxHealth: 310f, MoveSpeed: 158f, Radius: 10.5f, BaseAttackDamage: 34f, WindupTicks: 8U, StarterGameCatalog.RoastMeat, 1, 2, AttackRange: 44f),
     ];
 
     private static readonly NpcArchetypeSpec[] s_npcs =

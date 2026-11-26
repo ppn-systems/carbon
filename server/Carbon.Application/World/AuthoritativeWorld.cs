@@ -38,7 +38,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
 {
     private const float BaseWalkSpeed = 250f;
     private const float SprintSpeed = 450f;
-    private const float DefaultInteractRangeTiles = 5.5f;
+    private const float BuildInteractRangeTiles = 3.5f;
+    private const float ToolHarvestRangePx = 52f;
+    private const float MeleeStrikeRangePx = 56f;
     private const float DefaultEntityRadius = 7f;
     private const uint PlayerLayer = 1U;
     private const uint MonsterLayer = 2U;
@@ -233,7 +235,15 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
 
             ushort startLevel = Math.Max((ushort)1, character.Level);
             byte selectedSlot = character.SelectedHotbarSlot < 9 ? character.SelectedHotbarSlot : (byte)0;
-            DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(startLevel, inventory, selectedSlot);
+            CharacterAllocationPoints startAlloc = new(
+                character.VitPoints,
+                character.WisPoints,
+                character.PwrPoints,
+                character.AgiPoints,
+                character.Skill1Rank,
+                character.Skill2Rank,
+                character.Skill3Rank);
+            DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(startLevel, inventory, selectedSlot, in startAlloc);
             float startHp = MathF.Min(stats.MaxHealth, MathF.Max(1f, character.CurrentHealth));
             _simulation.Entities.SetHealth(entity, new HealthComponent(startHp, stats.MaxHealth));
 
@@ -256,6 +266,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             {
                 Level = startLevel,
                 Experience = character.Experience,
+                Allocations = startAlloc,
                 Stats = stats,
                 CurrentMana = startMana,
                 CurrentStamina = startStamina,
@@ -374,6 +385,113 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             state.PendingAttackAbility = abilitySlot;
             return OpStatus.Ok;
         }
+    }
+
+    /// <inheritdoc/>
+    public OpStatus TryAllocateCharacterPoint(ulong connectionId, CharacterPointTarget target, byte amount = 1)
+    {
+        int requested = Math.Clamp((int)amount, 1, 10);
+        ActivePlayerState? syncTarget;
+
+        lock (_gate)
+        {
+            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state) ||
+                !_simulation.Entities.IsAlive(state.Entity))
+            {
+                return OpStatus.Forbidden;
+            }
+
+            CharacterAllocationPoints alloc = state.Allocations;
+            if (target is CharacterPointTarget.Vitality or CharacterPointTarget.Wisdom or CharacterPointTarget.Power or CharacterPointTarget.Agility)
+            {
+                ushort unspentStats = CharacterProgressionPolicy.GetUnspentStatPoints(state.Level, in alloc);
+                if (unspentStats == 0)
+                {
+                    return OpStatus.Conflict;
+                }
+
+                ushort spend = (ushort)Math.Min(requested, unspentStats);
+                CharacterAllocationPoints updated = target switch
+                {
+                    CharacterPointTarget.Vitality => alloc with { Vit = (ushort)(alloc.Vit + spend) },
+                    CharacterPointTarget.Wisdom => alloc with { Wis = (ushort)(alloc.Wis + spend) },
+                    CharacterPointTarget.Power => alloc with { Pwr = (ushort)(alloc.Pwr + spend) },
+                    CharacterPointTarget.Agility => alloc with { Agi = (ushort)(alloc.Agi + spend) },
+                    CharacterPointTarget.SkillWhirlwind or CharacterPointTarget.SkillArcaneNova or CharacterPointTarget.SkillVitalSurge or _ => alloc,
+                };
+
+                float prevMaxHp = state.Stats.MaxHealth;
+                float prevMaxMp = state.Stats.MaxMana;
+                float prevMaxStam = state.Stats.MaxStamina;
+                state.Allocations = updated;
+                this.RecomputeDerivedStatsLocked(state);
+
+                if (_simulation.Entities.HasHealth(state.Entity) && state.Stats.MaxHealth > prevMaxHp)
+                {
+                    HealthComponent hp = _simulation.Entities.GetHealth(state.Entity);
+                    float nextHp = MathF.Min(state.Stats.MaxHealth, hp.Current + (state.Stats.MaxHealth - prevMaxHp));
+                    _simulation.Entities.SetHealth(state.Entity, new HealthComponent(nextHp, state.Stats.MaxHealth));
+                    _simulation.MarkDirty(state.Entity, EntityDirtyMask.Health);
+                }
+
+                if (state.Stats.MaxMana > prevMaxMp)
+                {
+                    state.CurrentMana = MathF.Min(state.Stats.MaxMana, state.CurrentMana + (state.Stats.MaxMana - prevMaxMp));
+                }
+
+                if (state.Stats.MaxStamina > prevMaxStam)
+                {
+                    state.CurrentStamina = MathF.Min(state.Stats.MaxStamina, state.CurrentStamina + (state.Stats.MaxStamina - prevMaxStam));
+                }
+
+                state.StatsDirty = true;
+                this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
+                syncTarget = state;
+            }
+            else if (target is CharacterPointTarget.SkillWhirlwind or CharacterPointTarget.SkillArcaneNova or CharacterPointTarget.SkillVitalSurge)
+            {
+                ushort unspentSkills = CharacterProgressionPolicy.GetUnspentSkillPoints(state.Level, in alloc);
+                if (unspentSkills == 0)
+                {
+                    return OpStatus.Conflict;
+                }
+
+                byte curRank = target switch
+                {
+                    CharacterPointTarget.SkillWhirlwind => alloc.Skill1Rank,
+                    CharacterPointTarget.SkillArcaneNova => alloc.Skill2Rank,
+                    CharacterPointTarget.SkillVitalSurge => alloc.Skill3Rank,
+                    CharacterPointTarget.Vitality or CharacterPointTarget.Wisdom or CharacterPointTarget.Power or CharacterPointTarget.Agility or _ => byte.MaxValue,
+                };
+                if (curRank >= CharacterProgressionPolicy.MaxSkillRank)
+                {
+                    return OpStatus.Conflict;
+                }
+
+                byte nextRank = (byte)Math.Min(CharacterProgressionPolicy.MaxSkillRank, curRank + 1);
+                state.Allocations = target switch
+                {
+                    CharacterPointTarget.SkillWhirlwind => alloc with { Skill1Rank = nextRank },
+                    CharacterPointTarget.SkillArcaneNova => alloc with { Skill2Rank = nextRank },
+                    CharacterPointTarget.SkillVitalSurge => alloc with { Skill3Rank = nextRank },
+                    CharacterPointTarget.Vitality or CharacterPointTarget.Wisdom or CharacterPointTarget.Power or CharacterPointTarget.Agility or _ => alloc,
+                };
+                state.StatsDirty = true;
+                this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
+                syncTarget = state;
+            }
+            else
+            {
+                return OpStatus.Invalid;
+            }
+        }
+
+        if (syncTarget is not null)
+        {
+            this.DispatchImmediateStatsSync(syncTarget, false);
+        }
+
+        return OpStatus.Ok;
     }
 
     private void PopulateChunkActorsAroundLocked(Vector2 worldCenter, int radius)
@@ -672,6 +790,13 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             SelectedHotbarSlot = state.Session.SelectedHotbarSlot,
             InventoryBlob = blob,
             UpdatedAtUtc = _time.GetUtcNow(),
+            VitPoints = state.Allocations.Vit,
+            WisPoints = state.Allocations.Wis,
+            PwrPoints = state.Allocations.Pwr,
+            AgiPoints = state.Allocations.Agi,
+            Skill1Rank = state.Allocations.Skill1Rank,
+            Skill2Rank = state.Allocations.Skill2Rank,
+            Skill3Rank = state.Allocations.Skill3Rank,
         };
     }
 
@@ -773,7 +898,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
 
     private void RecomputeDerivedStatsLocked(ActivePlayerState state)
     {
-        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(state.Level, state.Inventory, state.Session.SelectedHotbarSlot);
+        CharacterAllocationPoints alloc = state.Allocations;
+        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(state.Level, state.Inventory, state.Session.SelectedHotbarSlot, in alloc);
         state.Stats = stats;
         if (_simulation.Entities.HasHealth(state.Entity))
         {
@@ -827,6 +953,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         float cd1 = this.GetCooldownSecondsRemaining(state.Cooldowns, Skill1AbilityId);
         float cd2 = this.GetCooldownSecondsRemaining(state.Cooldowns, Skill2AbilityId);
         float cd3 = this.GetCooldownSecondsRemaining(state.Cooldowns, Skill3AbilityId);
+        CharacterAllocationPoints alloc = state.Allocations;
+        ushort unspentStats = CharacterProgressionPolicy.GetUnspentStatPoints(state.Level, in alloc);
+        ushort unspentSkills = CharacterProgressionPolicy.GetUnspentSkillPoints(state.Level, in alloc);
 
         _pendingStatsSyncs.Add(new OutboundStatsSync(
             state.Session.ConnectionId,
@@ -843,7 +972,16 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             cd1,
             cd2,
             cd3,
-            leveledUp));
+            leveledUp,
+            unspentStats,
+            unspentSkills,
+            alloc.Vit,
+            alloc.Wis,
+            alloc.Pwr,
+            alloc.Agi,
+            alloc.Skill1Rank,
+            alloc.Skill2Rank,
+            alloc.Skill3Rank));
     }
 
     private void DispatchImmediateStatsSync(ActivePlayerState state, bool leveledUp)
@@ -851,6 +989,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         HealthComponent hp = _simulation.Entities.HasHealth(state.Entity)
             ? _simulation.Entities.GetHealth(state.Entity)
             : new HealthComponent(100f, state.Stats.MaxHealth);
+        CharacterAllocationPoints alloc = state.Allocations;
+        ushort unspentStats = CharacterProgressionPolicy.GetUnspentStatPoints(state.Level, in alloc);
+        ushort unspentSkills = CharacterProgressionPolicy.GetUnspentSkillPoints(state.Level, in alloc);
         _outboundSink.SendPlayerStatsSync(
             state.Session.ConnectionId,
             state.Level,
@@ -866,7 +1007,16 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             this.GetCooldownSecondsRemaining(state.Cooldowns, Skill1AbilityId),
             this.GetCooldownSecondsRemaining(state.Cooldowns, Skill2AbilityId),
             this.GetCooldownSecondsRemaining(state.Cooldowns, Skill3AbilityId),
-            leveledUp);
+            leveledUp,
+            unspentStats,
+            unspentSkills,
+            alloc.Vit,
+            alloc.Wis,
+            alloc.Pwr,
+            alloc.Agi,
+            alloc.Skill1Rank,
+            alloc.Skill2Rank,
+            alloc.Skill3Rank);
     }
 
     private float GetCooldownSecondsRemaining(CooldownTracker tracker, uint abilityId)
@@ -879,7 +1029,10 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     {
         if (biome is BiomeType.RedMesa or BiomeType.DuneDesert)
         {
-            return ((chunkHash >> 12) % 3UL == 0UL) ? WorldActorCatalog.SkeletonArcher : WorldActorCatalog.RockGolem;
+            ulong roll = (chunkHash >> 12) % 4UL;
+            return roll == 0UL
+                ? WorldActorCatalog.CrimsonDemon
+                : (roll == 1UL ? WorldActorCatalog.SkeletonArcher : WorldActorCatalog.RockGolem);
         }
 
         if (biome is BiomeType.FrozenTundra or BiomeType.AlpinePeaks)
@@ -887,9 +1040,19 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             return WorldActorCatalog.FrostWolf;
         }
 
-        if (biome is BiomeType.VolcanicAshland or BiomeType.BlossomWoods)
+        if (biome is BiomeType.VolcanicAshland)
+        {
+            return ((chunkHash >> 12) % 2UL == 0UL) ? WorldActorCatalog.CrimsonDemon : WorldActorCatalog.AshWraith;
+        }
+
+        if (biome is BiomeType.BlossomWoods)
         {
             return WorldActorCatalog.AshWraith;
+        }
+
+        if (biome is BiomeType.MistySwamp or BiomeType.TropicalJungle or BiomeType.Savanna)
+        {
+            return ((chunkHash >> 12) % 3UL == 0UL) ? WorldActorCatalog.OrcShaman : WorldActorCatalog.WildSlime;
         }
 
         return ((chunkHash >> 12) % 5UL <= 1UL) ? WorldActorCatalog.SkeletonArcher : WorldActorCatalog.WildSlime;
@@ -933,6 +1096,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         public ulong LastCombatDamageTick { get; set; }
         public ushort Level { get; set; } = 1;
         public uint Experience { get; set; }
+        public CharacterAllocationPoints Allocations { get; set; }
         public DerivedCharacterStats Stats { get; set; } = new(100f, 80f, 100f, 2f, 1f, 1f);
         public float CurrentMana { get; set; } = 80f;
         public float CurrentStamina { get; set; } = 100f;
@@ -983,7 +1147,16 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         float Skill1Cd,
         float Skill2Cd,
         float Skill3Cd,
-        bool LeveledUp);
+        bool LeveledUp,
+        ushort UnspentStatPoints,
+        ushort UnspentSkillPoints,
+        ushort VitPoints,
+        ushort WisPoints,
+        ushort PwrPoints,
+        ushort AgiPoints,
+        byte Skill1Rank,
+        byte Skill2Rank,
+        byte Skill3Rank);
 
     private readonly record struct OutboundSkillCast(
         int RecipientsOffset,

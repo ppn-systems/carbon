@@ -2,6 +2,7 @@
 
 using System;
 using System.Numerics;
+using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions;
 using Carbon.Desktop.Rendering.Feedback;
 using Carbon.Desktop.Rendering.Hud;
@@ -14,8 +15,6 @@ using Carbon.Graphics.Batching.Sprites;
 using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Graphics.OpenGL.Abstractions;
 using Carbon.Graphics.OpenGL.Textures;
-using Carbon.Items.Catalog;
-using Carbon.Items.Containers;
 using Carbon.Maps.Data;
 
 namespace Carbon.Desktop.Rendering;
@@ -39,6 +38,8 @@ public sealed class HudOverlayRenderer : IDisposable
     private readonly CraftingModalWidget _craftModal = new();
     private readonly InventoryModalWidget _bagModal = new();
     private readonly ForgeAnvilModalWidget _forgeModal = new();
+    private readonly SkillTomeModalWidget _skillTomeModal = new();
+    private readonly SettingsModalWidget _settingsModal = new();
     private readonly ToastFeedWidget _toasts = new();
 
     private float _smoothedFps = 60f;
@@ -59,10 +60,13 @@ public sealed class HudOverlayRenderer : IDisposable
         _art = artRepository ?? CarbonVectorArtLibrary.LoadOrDefault();
     }
 
+    /// <summary>Gets the persisted client HUD &amp; display settings.</summary>
+    public ClientUiSettings Settings { get; } = ClientUiSettings.LoadOrDefault();
+
     /// <summary>Gets the embedded bitmap pixel font shared with world-space nameplates &amp; floating combat text.</summary>
     public BitmapFont Font => _font;
 
-    /// <summary>Gets the shared standardized 9-slice UI skin for modal &amp; pause overlays.</summary>
+    /// <summary>Gets the shared standardized 9-slice UI skin.</summary>
     public CarbonUiSkin UiSkin => _uiSkin;
 
     /// <summary>Gets or sets whether the centered Crafting Workshop modal (<c>[C]</c>) is open.</summary>
@@ -71,11 +75,18 @@ public sealed class HudOverlayRenderer : IDisposable
     /// <summary>Gets or sets whether the 40-slot Inventory &amp; Equipment modal (<c>[I]</c>) is open.</summary>
     public bool ShowInventoryModal { get; set; }
 
+    /// <summary>Gets or sets whether the Arcane &amp; Martial Skill Tome modal (<c>[K]</c>) is open.</summary>
+    public bool ShowSkillsModal { get; set; }
+
     /// <summary>Gets or sets whether the Blacksmith Forge Anvil modal (<c>[U]</c>) is open.</summary>
     public bool ShowForgeModal { get; set; }
 
-    /// <summary>Gets whether any full-screen modal (Bag, Workshop, or Forge Anvil) is currently open.</summary>
-    public bool HasActiveModal => this.ShowInventoryModal || this.ShowCraftingPanel || this.ShowForgeModal;
+    /// <summary>Gets or sets whether the System Settings &amp; Controls modal (<c>[ESC]</c>) is open.</summary>
+    public bool ShowSettingsModal { get; set; }
+
+    /// <summary>Gets whether any full-screen modal (Bag, Skill Tome, Workshop, Forge, or Settings) is open.</summary>
+    public bool HasActiveModal =>
+        this.ShowInventoryModal || this.ShowSkillsModal || this.ShowCraftingPanel || this.ShowForgeModal || this.ShowSettingsModal;
 
     /// <summary>Gets or sets the currently selected inventory slot (<c>0..39</c>) inside the Bag modal, or <c>-1</c>.</summary>
     public int SelectedInventorySlot
@@ -97,6 +108,22 @@ public sealed class HudOverlayRenderer : IDisposable
     /// <summary>Queues a brief fading notification toast on the right edge of the HUD.</summary>
     public void PushNotification(string message) => _toasts.Push(message);
 
+    /// <summary>Closes all secondary gameplay modals (preserving <paramref name="keepSettings"/> if requested).</summary>
+    public void CloseAllModals(bool keepSettings = false)
+    {
+        this.ShowInventoryModal = false;
+        this.ShowSkillsModal = false;
+        this.ShowCraftingPanel = false;
+        this.ShowForgeModal = false;
+        if (!keepSettings)
+        {
+            this.ShowSettingsModal = false;
+        }
+
+        _bagModal.SelectedSlot = -1;
+        _bagModal.DraggedSlot = -1;
+    }
+
     /// <summary>Scrolls the Crafting Workshop recipe list up or down.</summary>
     public void ScrollCrafting(int delta) => _craftModal.Scroll(delta);
 
@@ -105,15 +132,15 @@ public sealed class HudOverlayRenderer : IDisposable
     {
         slotIndex = 0;
         return this.Visible && viewportWidth > 0 && viewportHeight > 0 &&
-            _hotbar.TryHitTestHotbar(mousePos, viewportWidth, viewportHeight, out slotIndex);
+            _hotbar.TryHitTestHotbar(mousePos, viewportWidth, viewportHeight, this.Settings.ShowKeybindHints, out slotIndex);
     }
 
-    /// <summary>Hit-tests screen-space pointer coordinates against the quick-access <c>BAG/CRAFT/FORGE</c> dock buttons.</summary>
+    /// <summary>Hit-tests screen-space pointer coordinates against the quick-access dock buttons.</summary>
     public bool TryHitTestHudDockButton(Vector2 mousePos, int viewportWidth, int viewportHeight, out HudDockAction action)
     {
         action = HudDockAction.None;
         return this.Visible && viewportWidth > 0 && viewportHeight > 0 &&
-            _hotbar.TryHitTestDockButton(mousePos, viewportWidth, viewportHeight, out action);
+            _hotbar.TryHitTestDockButton(mousePos, viewportWidth, viewportHeight, this.Settings.ShowKeybindHints, out action);
     }
 
     /// <summary>Hit-tests clicks inside the centered Crafting Workshop modal.</summary>
@@ -132,6 +159,28 @@ public sealed class HudOverlayRenderer : IDisposable
             _craftModal.TryHandleClick(mousePos, world, viewportWidth, viewportHeight, out craftRecipeId, out craftQuantity);
     }
 
+    /// <summary>Hit-tests clicks inside the System Settings &amp; Controls modal.</summary>
+    public SettingsModalAction HandleSettingsClick(Vector2 mousePos, int viewportWidth, int viewportHeight) =>
+        this.Visible && this.ShowSettingsModal && viewportWidth > 0 && viewportHeight > 0
+            ? _settingsModal.HandleClick(mousePos, this.Settings, viewportWidth, viewportHeight)
+            : SettingsModalAction.None;
+
+    /// <summary>Hit-tests unlock/rank-up buttons inside the Skill Tome modal (<c>[K]</c>).</summary>
+    public bool TryHitTestSkillTomeUpgrade(Vector2 mousePos, int viewportWidth, int viewportHeight, out CharacterPointTarget target)
+    {
+        target = CharacterPointTarget.SkillWhirlwind;
+        return this.Visible && this.ShowSkillsModal && viewportWidth > 0 && viewportHeight > 0 &&
+            _skillTomeModal.TryHitTestUpgradeButton(mousePos, viewportWidth, viewportHeight, out target);
+    }
+
+    /// <summary>Hit-tests <c>[+]</c> attribute allocation buttons inside the Bag &amp; Attributes modal (<c>[I]</c>).</summary>
+    public bool TryHitTestInventoryStatPlus(Vector2 mousePos, int viewportWidth, int viewportHeight, out CharacterPointTarget target)
+    {
+        target = CharacterPointTarget.Vitality;
+        return this.Visible && this.ShowInventoryModal && viewportWidth > 0 && viewportHeight > 0 &&
+            _bagModal.TryHitTestStatPlusButton(mousePos, viewportWidth, viewportHeight, out target);
+    }
+
     /// <summary>Returns whether <paramref name="mousePos"/> hits the <c>[X]</c> close button of whichever modal is open.</summary>
     public bool TryHitTestModalCloseButton(Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
@@ -143,6 +192,11 @@ public sealed class HudOverlayRenderer : IDisposable
         if (this.ShowInventoryModal)
         {
             return _bagModal.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight);
+        }
+
+        if (this.ShowSkillsModal)
+        {
+            return _skillTomeModal.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight);
         }
 
         if (this.ShowCraftingPanel)
@@ -166,9 +220,19 @@ public sealed class HudOverlayRenderer : IDisposable
             return false;
         }
 
+        if (this.ShowSettingsModal)
+        {
+            return _settingsModal.ContainsPoint(mousePos, viewportWidth, viewportHeight);
+        }
+
         if (this.ShowInventoryModal)
         {
             return _bagModal.ContainsPoint(mousePos, viewportWidth, viewportHeight);
+        }
+
+        if (this.ShowSkillsModal)
+        {
+            return _skillTomeModal.ContainsPoint(mousePos, viewportWidth, viewportHeight);
         }
 
         if (this.ShowCraftingPanel)
@@ -189,7 +253,7 @@ public sealed class HudOverlayRenderer : IDisposable
     {
         skillSlot = 0;
         return this.Visible && viewportWidth > 0 && viewportHeight > 0 &&
-            _skillBar.TryHitTestSkill(mousePos, viewportWidth, viewportHeight, out skillSlot);
+            _skillBar.TryHitTestSkill(mousePos, viewportWidth, viewportHeight, this.Settings.ShowKeybindHints, out skillSlot);
     }
 
     /// <summary>Hit-tests screen-space coordinates against any of the 40 slots in the Inventory/Equipment modal.</summary>
@@ -278,40 +342,64 @@ public sealed class HudOverlayRenderer : IDisposable
         int pty = (int)MathF.Floor(playerPos.Y / tileSize);
         MapTile tile = world.ChunkWorld.GetTileAtWorld(ptx, pty);
 
-        Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
+        Span<Carbon.Items.Containers.ItemSlot> slots = stackalloc Carbon.Items.Containers.ItemSlot[Carbon.Items.Catalog.PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
-        ItemSlot activeItem = world.SelectedHotbarSlot < slots.Length ? slots[world.SelectedHotbarSlot] : ItemSlot.Empty;
+        Carbon.Items.Containers.ItemSlot activeItem = world.SelectedHotbarSlot < slots.Length ? slots[world.SelectedHotbarSlot] : Carbon.Items.Containers.ItemSlot.Empty;
         Vector2? bgMouse = this.HasActiveModal ? null : mouseScreenPos;
+        bool showHints = this.Settings.ShowKeybindHints;
 
         // Pass 1: Background HUD (NineSlice Skins -> Vector Geometry & Bars -> Bitmap Text)
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
         _heroVitals.DrawSkin(spriteBatch, _uiSkin);
         _targetWidget.DrawSkin(spriteBatch, _uiSkin, viewportWidth, _animTime);
-        _minimap.DrawSkin(spriteBatch, _uiSkin, viewportWidth);
-        _hotbar.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight, this.ShowInventoryModal, this.ShowCraftingPanel, this.ShowForgeModal);
-        _skillBar.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight);
-        _toasts.DrawSkin(spriteBatch, _uiSkin, _font, viewportWidth);
+        if (this.Settings.ShowMinimap)
+        {
+            _minimap.DrawSkin(spriteBatch, _uiSkin, viewportWidth);
+        }
+
+        _hotbar.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight, this.ShowInventoryModal, this.ShowSkillsModal, this.ShowCraftingPanel, this.ShowForgeModal, this.ShowSettingsModal, showHints);
+        _skillBar.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight, showHints);
+        _toasts.DrawSkin(spriteBatch, _uiSkin, _font, viewportWidth, this.Settings.ShowMinimap);
         spriteBatch.End();
 
         _geometryBatch.Begin(screenProj);
         _heroVitals.DrawGeometry(_geometryBatch, world, _art, feedback, _animTime);
         _targetWidget.DrawGeometry(_geometryBatch, _art, viewportWidth, _animTime);
-        _minimap.DrawGeometry(_geometryBatch, world, viewportWidth, ptx, pty);
-        int hoveredSlot = _hotbar.DrawGeometry(_geometryBatch, _font, world, _art, viewportWidth, viewportHeight, activeItem.ItemId, bgMouse);
-        int hoveredSkill = _skillBar.DrawGeometry(_geometryBatch, world, viewportWidth, viewportHeight, bgMouse);
+        if (this.Settings.ShowMinimap)
+        {
+            _minimap.DrawGeometry(_geometryBatch, world, viewportWidth, ptx, pty);
+        }
+
+        int hoveredSlot = _hotbar.DrawGeometry(_geometryBatch, _font, world, _art, viewportWidth, viewportHeight, showHints, bgMouse);
+        int hoveredSkill = _skillBar.DrawGeometry(_geometryBatch, world, viewportWidth, viewportHeight, showHints, bgMouse);
         _geometryBatch.End();
 
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-        _heroVitals.DrawText(spriteBatch, _font, world, ptx, pty, tile.Biome, activeItem.ItemId, hourOfDay, _smoothedFps);
+        _heroVitals.DrawText(spriteBatch, _font, world, ptx, pty, tile.Biome, activeItem.ItemId, hourOfDay, _smoothedFps, this.Settings.ShowTelemetry);
         _targetWidget.DrawText(spriteBatch, _font, _art, viewportWidth);
-        _minimap.DrawText(spriteBatch, _font, viewportWidth, ptx, pty);
-        _hotbar.DrawText(spriteBatch, _font, world, _art, viewportWidth, viewportHeight, activeItem.ItemId, hoveredSlot);
-        _skillBar.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight, hoveredSkill);
-        _toasts.DrawText(spriteBatch, _font, viewportWidth);
+        if (this.Settings.ShowMinimap)
+        {
+            _minimap.DrawText(spriteBatch, _font, viewportWidth, ptx, pty);
+        }
+
+        _hotbar.DrawText(spriteBatch, _font, world, _art, viewportWidth, viewportHeight, showHints, hoveredSlot);
+        _skillBar.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight, showHints, hoveredSkill);
+        _toasts.DrawText(spriteBatch, _font, viewportWidth, this.Settings.ShowMinimap);
         spriteBatch.End();
 
         // Pass 2 & 3: Active Modal Window & Floating Tooltip/Drag Layer
-        if (this.ShowInventoryModal)
+        if (this.ShowSettingsModal)
+        {
+            _geometryBatch.Begin(screenProj);
+            _geometryBatch.FillRectangle(new RectangleF(0f, 0f, viewportWidth, viewportHeight), new ColorRgba(4, 8, 16, 150));
+            _geometryBatch.End();
+
+            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
+            _settingsModal.DrawSkin(spriteBatch, _uiSkin, this.Settings, viewportWidth, viewportHeight, mouseScreenPos);
+            _settingsModal.DrawText(spriteBatch, _font, this.Settings, viewportWidth, viewportHeight);
+            spriteBatch.End();
+        }
+        else if (this.ShowInventoryModal)
         {
             _geometryBatch.Begin(screenProj);
             _geometryBatch.FillRectangle(new RectangleF(0f, 0f, viewportWidth, viewportHeight), new ColorRgba(4, 8, 16, 138));
@@ -335,6 +423,24 @@ public sealed class HudOverlayRenderer : IDisposable
 
             spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
             _bagModal.DrawTopOverlayText(spriteBatch, _font, world, viewportWidth, viewportHeight, mouseScreenPos, hoveredModalSlot);
+            spriteBatch.End();
+        }
+        else if (this.ShowSkillsModal)
+        {
+            _geometryBatch.Begin(screenProj);
+            _geometryBatch.FillRectangle(new RectangleF(0f, 0f, viewportWidth, viewportHeight), new ColorRgba(4, 8, 16, 138));
+            _geometryBatch.End();
+
+            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
+            _skillTomeModal.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight, mouseScreenPos);
+            spriteBatch.End();
+
+            _geometryBatch.Begin(screenProj);
+            _skillTomeModal.DrawGeometry(_geometryBatch, world, viewportWidth, viewportHeight);
+            _geometryBatch.End();
+
+            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
+            _skillTomeModal.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight);
             spriteBatch.End();
         }
         else if (this.ShowCraftingPanel)

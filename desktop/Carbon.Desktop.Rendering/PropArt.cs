@@ -175,23 +175,42 @@ internal static class PropArt
                 {
                     float scaleHp = 0.74f + (0.26f * hpRatio);
                     float rb = r * scaleHp;
-                    int blobs = 3 + (int)(Hash01(h, 2) * 3f);
-                    ColorRgba dark = Vary(primary, h, 3, 0.15f);
-                    ColorRgba light = Vary(ApplyHitFlash(Hex(prop.ColorSecondary), hitFlash), h, 4, 0.15f);
+                    int blobs = 4 + (int)(Hash01(h, 2) * 3f);
+                    ColorRgba dark = Vary(primary, h, 3, 0.14f);
+                    ColorRgba contour = Shade(dark, 0.56f);
+                    ColorRgba light = Vary(ApplyHitFlash(Hex(prop.ColorSecondary), hitFlash), h, 4, 0.14f);
+                    ColorRgba sunRim = Shade(light, 1.16f);
+
+                    batch.FillCircle(pos + new Vector2(0f, rb * 0.48f), rb * 0.95f, new ColorRgba(8, 12, 20, 68), 14);
                     for (int i = 0; i < blobs; i++)
                     {
                         float a = (i / (float)blobs * MathF.Tau) + Hash01(h, 10 + i);
-                        Vector2 c = pos + new Vector2(MathF.Cos(a) * rb * 0.5f, (MathF.Sin(a) * rb * 0.3f) + 2f);
-                        batch.FillCircle(c, rb * (0.55f + (Hash01(h, 20 + i) * 0.3f)), dark, 12);
+                        Vector2 c = pos + new Vector2(MathF.Cos(a) * rb * 0.52f, (MathF.Sin(a) * rb * 0.32f) + 1.5f);
+                        float br = rb * (0.52f + (Hash01(h, 20 + i) * 0.26f));
+                        batch.FillCircle(c, br + 1.8f, contour, 12);
                     }
 
-                    batch.FillCircle(new Vector2(pos.X, pos.Y - 4f), rb * (0.8f + (Hash01(h, 5) * 0.25f)), light, 14);
-                    if (Hash01(h, 6) > 0.6f && hpRatio > 0.45f)
+                    for (int i = 0; i < blobs; i++)
+                    {
+                        float a = (i / (float)blobs * MathF.Tau) + Hash01(h, 10 + i);
+                        Vector2 c = pos + new Vector2(MathF.Cos(a) * rb * 0.52f, (MathF.Sin(a) * rb * 0.32f) + 1.5f);
+                        float br = rb * (0.52f + (Hash01(h, 20 + i) * 0.26f));
+                        batch.FillCircle(c, br, dark, 12);
+                    }
+
+                    batch.FillCircle(new Vector2(pos.X, pos.Y - 3.5f), (rb * 0.82f) + 1.4f, contour, 14);
+                    batch.FillCircle(new Vector2(pos.X, pos.Y - 3.5f), rb * 0.82f, light, 14);
+                    batch.FillCircle(new Vector2(pos.X - (rb * 0.26f), pos.Y - 5.2f), rb * 0.42f, sunRim, 10);
+
+                    if (Hash01(h, 6) > 0.55f && hpRatio > 0.45f)
                     {
                         ColorRgba berry = Hash01(h, 7) > 0.5f ? new ColorRgba(220, 38, 38) : new ColorRgba(96, 80, 200);
                         for (int i = 0; i < 4; i++)
                         {
-                            batch.FillCircle(pos + new Vector2((Hash01(h, 60 + i) - 0.5f) * rb * 1.4f, (Hash01(h, 70 + i) - 0.6f) * rb), 2f, berry, 6);
+                            Vector2 bp = pos + new Vector2((Hash01(h, 60 + i) - 0.5f) * rb * 1.3f, (Hash01(h, 70 + i) - 0.55f) * rb * 0.9f);
+                            batch.FillCircle(bp, 2.3f, contour, 6);
+                            batch.FillCircle(bp, 1.8f, berry, 6);
+                            batch.FillCircle(bp + new Vector2(-0.5f, -0.5f), 0.7f, ColorRgba.White, 5);
                         }
                     }
 
@@ -564,12 +583,22 @@ internal static class PropArt
         return (Vary(Hex(d), h, 92, 0.08f), Vary(Hex(m), h, 93, 0.08f), Vary(Hex(l), h, 94, 0.08f));
     }
 
-    // A canopy built from overlapping leaf clusters in hashed positions: dark base, mid body, lit top-left.
+    // A canopy built from overlapping leaf clusters in hashed positions: outline contour, dark base, mid body, lit top-left.
     private static void DrawLeafCloud(GeometryBatch batch, Vector2 c, float r, (ColorRgba Dark, ColorRgba Mid, ColorRgba Light) pal, uint h, byte alpha, int blobs)
     {
         byte sub = (byte)(alpha * 180 / 255);
+        ColorRgba contour = WithAlpha(Shade(pal.Dark, 0.58f), alpha);
         batch.FillCircle(c + new Vector2(0f, 8f), r * 0.8f, WithAlpha(pal.Dark, sub), 16);
         float squash = 0.75f + (Hash01(h, 4) * 0.3f);
+        for (int i = 0; i < blobs; i++)
+        {
+            float a = (i / (float)blobs * MathF.Tau) + (Hash01(h, 100 + i) * 0.9f);
+            float d = r * (0.35f + (Hash01(h, 110 + i) * 0.25f));
+            Vector2 p = c + new Vector2(MathF.Cos(a) * d, MathF.Sin(a) * d * squash);
+            float br = r * (0.5f + (Hash01(h, 120 + i) * 0.25f));
+            batch.FillCircle(p, br + 1.8f, contour, 14);
+        }
+
         for (int i = 0; i < blobs; i++)
         {
             float a = (i / (float)blobs * MathF.Tau) + (Hash01(h, 100 + i) * 0.9f);
@@ -622,15 +651,21 @@ internal static class PropArt
             shadow[i] = pts[i] + new Vector2(4f, 6f);
         }
 
-        batch.FillConvexPolygon(shadow[..n], new ColorRgba(0, 0, 0, 55));
-        batch.FillConvexPolygon(pts[..n], Shade(body, 0.8f));
+        batch.FillConvexPolygon(shadow[..n], new ColorRgba(0, 0, 0, 62));
+        batch.FillConvexPolygon(pts[..n], Shade(body, 0.76f));
+        ColorRgba outline = Shade(body, 0.42f);
         for (int i = 0; i < n; i++)
         {
-            pts[i] = pos + ((pts[i] - pos) * 0.78f) + new Vector2(-1.5f, -2.5f);
+            batch.DrawLine(pts[i], pts[(i + 1) % n], outline, 1.4f);
+        }
+
+        for (int i = 0; i < n; i++)
+        {
+            pts[i] = pos + ((pts[i] - pos) * 0.76f) + new Vector2(-1.5f, -2.5f);
         }
 
         batch.FillConvexPolygon(pts[..n], body);
-        batch.FillCircle(pos + new Vector2(-r * 0.3f, -r * 0.35f), r * 0.28f, new ColorRgba(255, 255, 255, 35), 8);
+        batch.FillCircle(pos + new Vector2(-r * 0.28f, -r * 0.34f), r * 0.26f, new ColorRgba(255, 255, 255, 45), 8);
     }
 
     private static void DrawOreNuggets(GeometryBatch batch, Vector2 pos, float r, ColorRgba ore, uint h, bool dull)

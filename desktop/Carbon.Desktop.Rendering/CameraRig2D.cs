@@ -44,6 +44,10 @@ public sealed class CameraRig2D
     public void AdjustZoom(float factor) =>
         this.UserZoom = Math.Clamp(this.UserZoom * factor, MinZoom, MaxZoom);
 
+    /// <summary>Sets the user base zoom level explicitly within allowed bounds.</summary>
+    public void SetZoom(float zoom) =>
+        this.UserZoom = Math.Clamp(zoom, MinZoom, MaxZoom);
+
     /// <summary>Immediately centers the camera on <paramref name="worldPos"/> and clears interior blend.</summary>
     public void SnapTo(Vector2 worldPos)
     {

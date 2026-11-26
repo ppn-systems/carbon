@@ -100,6 +100,30 @@
       "rotDeg": 45.0,
       "outlineColor": "#0F172A",
       "outlineThickness": 0.8
+    },
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": -5.6,
+      "y": 3.4,
+      "x2": -3.4,
+      "y2": 5.6,
+      "thickness": 3.0,
+      "color": "#451A03",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": 7.4,
+      "y": -7.8,
+      "x2": 7.8,
+      "y2": -2.6,
+      "thickness": 1.2,
+      "color": "#F8FAFC"
     }
   ],
   "heldVisible": true

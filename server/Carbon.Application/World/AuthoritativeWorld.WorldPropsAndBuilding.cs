@@ -396,7 +396,7 @@ public sealed partial class AuthoritativeWorld
         }
     }
 
-    private void ProcessToolHarvestFallbackLocked(ActivePlayerState state, in ItemSlot activeSlot)
+    private void ProcessToolHarvestFallbackLocked(ActivePlayerState state, Vector2 attackerPos, Vector2 aimDir, in ItemSlot activeSlot)
     {
         int aimTx = (int)MathF.Floor(state.PendingAttackAim.X / this.TileSize);
         int aimTy = (int)MathF.Floor(state.PendingAttackAim.Y / this.TileSize);
@@ -407,49 +407,52 @@ public sealed partial class AuthoritativeWorld
         MapProp blockedProp = default;
         bool hasBlocked = false;
 
-        if (this.TryDamagePropAndQueueLocked(state, aimTx, aimTy, in activeSlot, respawnAt, ref blockedProp))
+        if (this.IsWithinHarvestRangeLocked(attackerPos, aimTx, aimTy))
         {
-            return;
-        }
+            if (this.TryDamagePropAndQueueLocked(state, aimTx, aimTy, in activeSlot, respawnAt, ref blockedProp))
+            {
+                return;
+            }
 
-        if (blockedProp.Type != MapPropType.None)
-        {
-            blockedTx = aimTx;
-            blockedTy = aimTy;
-            hasBlocked = true;
+            if (blockedProp.Type != MapPropType.None)
+            {
+                blockedTx = aimTx;
+                blockedTy = aimTy;
+                hasBlocked = true;
+            }
         }
 
         if (!hasBlocked)
         {
-            for (int dy = -1; dy <= 1; dy++)
+            Vector2 sideDir = new(-aimDir.Y, aimDir.X);
+            ReadOnlySpan<Vector2> probes =
+            [
+                attackerPos + (aimDir * 24f),
+                attackerPos + (((aimDir * 0.85f) + (sideDir * 0.52f)) * 24f),
+                attackerPos + (((aimDir * 0.85f) - (sideDir * 0.52f)) * 24f),
+            ];
+
+            for (int i = 0; i < probes.Length; i++)
             {
-                for (int dx = -1; dx <= 1; dx++)
+                int wx = (int)MathF.Floor(probes[i].X / this.TileSize);
+                int wy = (int)MathF.Floor(probes[i].Y / this.TileSize);
+                if (!this.IsWithinHarvestRangeLocked(attackerPos, wx, wy))
                 {
-                    if (dx == 0 && dy == 0)
-                    {
-                        continue;
-                    }
-
-                    int wx = aimTx + dx;
-                    int wy = aimTy + dy;
-                    MapProp localBlocked = default;
-                    if (this.TryDamagePropAndQueueLocked(state, wx, wy, in activeSlot, respawnAt, ref localBlocked))
-                    {
-                        return;
-                    }
-
-                    if (localBlocked.Type != MapPropType.None)
-                    {
-                        blockedTx = wx;
-                        blockedTy = wy;
-                        blockedProp = localBlocked;
-                        hasBlocked = true;
-                        break;
-                    }
+                    continue;
                 }
 
-                if (hasBlocked)
+                MapProp localBlocked = default;
+                if (this.TryDamagePropAndQueueLocked(state, wx, wy, in activeSlot, respawnAt, ref localBlocked))
                 {
+                    return;
+                }
+
+                if (localBlocked.Type != MapPropType.None)
+                {
+                    blockedTx = wx;
+                    blockedTy = wy;
+                    blockedProp = localBlocked;
+                    hasBlocked = true;
                     break;
                 }
             }
@@ -486,7 +489,9 @@ public sealed partial class AuthoritativeWorld
         ulong respawnAt,
         ref MapProp tierBlockedProp)
     {
-        if (!this.IsWithinInteractRangeLocked(state.Entity, wx, wy))
+        if (!_simulation.Entities.IsAlive(state.Entity) ||
+            !_simulation.Entities.HasTransform(state.Entity) ||
+            !this.IsWithinHarvestRangeLocked(_simulation.Entities.GetTransform(state.Entity).Position, wx, wy))
         {
             return false;
         }
@@ -573,6 +578,12 @@ public sealed partial class AuthoritativeWorld
         return (offset, count);
     }
 
+    private bool IsWithinHarvestRangeLocked(Vector2 playerPos, int tileX, int tileY)
+    {
+        Vector2 tileCenter = new((tileX + 0.5f) * this.TileSize, (tileY + 0.5f) * this.TileSize);
+        return Vector2.DistanceSquared(playerPos, tileCenter) <= (ToolHarvestRangePx * ToolHarvestRangePx);
+    }
+
     private bool IsWithinInteractRangeLocked(Entity entity, int tileX, int tileY)
     {
         if (!_simulation.Entities.IsAlive(entity) || !_simulation.Entities.HasTransform(entity))
@@ -582,7 +593,7 @@ public sealed partial class AuthoritativeWorld
 
         Vector2 pos = _simulation.Entities.GetTransform(entity).Position;
         Vector2 tileCenter = new((tileX + 0.5f) * this.TileSize, (tileY + 0.5f) * this.TileSize);
-        float maxDist = DefaultInteractRangeTiles * this.TileSize;
+        float maxDist = BuildInteractRangeTiles * this.TileSize;
         return Vector2.DistanceSquared(pos, tileCenter) <= (maxDist * maxDist);
     }
 

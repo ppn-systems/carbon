@@ -19,6 +19,9 @@ public static class EntityOpCode
     /// <summary>Client request to pick up a nearby ground loot entity.</summary>
     public const ushort PickupLoot = 0x1203;
 
+    /// <summary>Client request to spend an unspent attribute or skill mastery point.</summary>
+    public const ushort AllocateCharacterPoint = 0x1204;
+
     // ── S2C: Server → Client push (0x1230–0x12FF) ───────────────────────────
 
     /// <summary>Notifies a client that an entity entered its Area of Interest.</summary>

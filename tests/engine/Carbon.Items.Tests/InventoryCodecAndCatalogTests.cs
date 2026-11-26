@@ -44,11 +44,11 @@ public sealed class InventoryCodecAndCatalogTests
         _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.StoneChunk, 90), 99);
         _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.IronOre, 90), 99);
         _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.IronOre, 90), 99);
-        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.ManaCrystal, 60), 99);
-        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.BerryHerb, 20), 99);
+        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.ManaCrystal, 90), 99);
+        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.BerryHerb, 40), 99);
 
         ReadOnlySpan<CraftingRecipe> recipes = StarterGameCatalog.Recipes.All;
-        recipes.Length.Should().Be(22);
+        recipes.Length.Should().Be(26);
 
         for (int i = 0; i < recipes.Length; i++)
         {
@@ -216,5 +216,31 @@ public sealed class InventoryCodecAndCatalogTests
         ScaledMonsterStats archer = WorldActorCatalog.ScaleMonsterForZone(WorldActorCatalog.SkeletonArcher, 1);
         archer.AttackRange.Should().BeGreaterThan(200f);
         archer.ProjectileSpeed.Should().BeGreaterThan(0f);
+
+        // Progression AP/SP math, non-free Skill Ranks (0..5), and extended catalog items/monsters
+        CharacterAllocationPoints zeroPts = new();
+        CharacterProgressionPolicy.GetUnspentStatPoints(1, in zeroPts).Should().Be(0);
+        CharacterProgressionPolicy.GetUnspentSkillPoints(1, in zeroPts).Should().Be(1);
+        CharacterProgressionPolicy.GetUnspentStatPoints(5, in zeroPts).Should().Be(16);
+        CharacterProgressionPolicy.GetUnspentSkillPoints(5, in zeroPts).Should().Be(5);
+        CharacterProgressionPolicy.TryGetSkillSpec(99, 1, out _).Should().BeFalse();
+        CharacterProgressionPolicy.TryGetSkillSpec(1, 1, out SkillSpec r1).Should().BeTrue();
+        CharacterProgressionPolicy.TryGetSkillSpec(1, 3, out SkillSpec r3).Should().BeTrue();
+        r3.DamageMultiplier.Should().BeGreaterThan(r1.DamageMultiplier);
+
+        CharacterAllocationPoints allocated = new(Vit: 3, Wis: 2, Pwr: 4, Agi: 2, Skill1Rank: 1);
+        DerivedCharacterStats boosted = CharacterProgressionPolicy.ComputeStats(5, mageBag, selectedHotbarSlot: 2, in allocated);
+        DerivedCharacterStats unboosted = CharacterProgressionPolicy.ComputeStats(5, mageBag, selectedHotbarSlot: 2);
+        boosted.MaxHealth.Should().BeGreaterThan(unboosted.MaxHealth);
+        boosted.MaxMana.Should().BeGreaterThan(unboosted.MaxMana);
+        boosted.AttackMultiplier.Should().BeGreaterThan(unboosted.AttackMultiplier);
+        boosted.MoveSpeedMultiplier.Should().BeGreaterThan(unboosted.MoveSpeedMultiplier);
+
+        StarterGameCatalog.Items.TryGet(StarterGameCatalog.RoastMeat, out _).Should().BeTrue();
+        StarterGameCatalog.Items.TryGet(StarterGameCatalog.ArcanePie, out _).Should().BeTrue();
+        StarterGameCatalog.Items.TryGet(StarterGameCatalog.DemonCleaver, out _).Should().BeTrue();
+        StarterGameCatalog.Items.TryGet(StarterGameCatalog.ShamanStaff, out _).Should().BeTrue();
+        WorldActorCatalog.ScaleMonsterForZone(WorldActorCatalog.OrcShaman, 1).ProjectileSpeed.Should().BeGreaterThan(0f);
+        WorldActorCatalog.ScaleMonsterForZone(WorldActorCatalog.CrimsonDemon, 1).AttackDamage.Should().BeGreaterThan(25f);
     }
 }

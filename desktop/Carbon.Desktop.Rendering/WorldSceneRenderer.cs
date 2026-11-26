@@ -141,7 +141,8 @@ public sealed class WorldSceneRenderer : IDisposable
         float timeScale,
         SpriteBatch? spriteBatch = null,
         BitmapFont? font = null,
-        Vector2? aimedWorldPosition = null)
+        Vector2? aimedWorldPosition = null,
+        bool showCombatNumbers = true)
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(cameraRig);
@@ -214,10 +215,18 @@ public sealed class WorldSceneRenderer : IDisposable
         bool hasAimTile = false;
         if (aimedWorldPosition.HasValue)
         {
-            aimTileX = (int)MathF.Floor(aimedWorldPosition.Value.X / tileSize);
-            aimTileY = (int)MathF.Floor(aimedWorldPosition.Value.Y / tileSize);
-            Vector2 aimCenter = new((aimTileX + 0.5f) * tileSize, (aimTileY + 0.5f) * tileSize);
-            hasAimTile = Vector2.DistanceSquared(playerPos, aimCenter) <= (5.5f * tileSize * 5.5f * tileSize);
+            Span<Carbon.Items.Containers.ItemSlot> hSlots = stackalloc Carbon.Items.Containers.ItemSlot[Carbon.Items.Catalog.PlayerInventoryLayout.TotalCapacity];
+            world.CopyInventorySlots(hSlots);
+            Carbon.Items.Containers.ItemSlot held = world.SelectedHotbarSlot < hSlots.Length ? hSlots[world.SelectedHotbarSlot] : Carbon.Items.Containers.ItemSlot.Empty;
+            if (!held.IsEmpty && Carbon.Items.Catalog.StarterGameCatalog.Items.TryGet(held.ItemId, out Carbon.Items.Definitions.ItemArchetype? heldArchetype) &&
+                heldArchetype.Category is Carbon.Items.Definitions.ItemCategory.Placeable or Carbon.Items.Definitions.ItemCategory.Tool)
+            {
+                aimTileX = (int)MathF.Floor(aimedWorldPosition.Value.X / tileSize);
+                aimTileY = (int)MathF.Floor(aimedWorldPosition.Value.Y / tileSize);
+                Vector2 aimCenter = new((aimTileX + 0.5f) * tileSize, (aimTileY + 0.5f) * tileSize);
+                float reachPx = heldArchetype.Category == Carbon.Items.Definitions.ItemCategory.Placeable ? 3.5f * tileSize : 52f;
+                hasAimTile = Vector2.DistanceSquared(playerPos, aimCenter) <= (reachPx * reachPx);
+            }
         }
 
         this.CollectVisibleObjects(chunkWorld, tileSize, minX, maxX, minY, maxY, playerPos, hasAimTile, aimTileX, aimTileY);
@@ -326,7 +335,7 @@ public sealed class WorldSceneRenderer : IDisposable
             _geometryBatch.End();
 
             spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-            _overlays.DrawText(spriteBatch, font, world, _art, _feedback, cameraRig, viewportWidth, viewportHeight);
+            _overlays.DrawText(spriteBatch, font, world, _art, _feedback, cameraRig, viewportWidth, viewportHeight, showCombatNumbers);
             spriteBatch.End();
         }
     }

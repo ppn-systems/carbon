@@ -233,7 +233,16 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
         float skill1Cd,
         float skill2Cd,
         float skill3Cd,
-        bool leveledUp)
+        bool leveledUp,
+        ushort unspentStatPoints = 0,
+        ushort unspentSkillPoints = 0,
+        ushort vitPoints = 0,
+        ushort wisPoints = 0,
+        ushort pwrPoints = 0,
+        ushort agiPoints = 0,
+        byte skill1Rank = 0,
+        byte skill2Rank = 0,
+        byte skill3Rank = 0)
     {
         if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
         {
@@ -253,6 +262,15 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
                 skill2Cd,
                 skill3Cd,
                 leveledUp,
+                unspentStatPoints,
+                unspentSkillPoints,
+                vitPoints,
+                wisPoints,
+                pwrPoints,
+                agiPoints,
+                skill1Rank,
+                skill2Rank,
+                skill3Rank,
                 _logger);
         }
     }
@@ -658,6 +676,15 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
         float skill2Cd,
         float skill3Cd,
         bool leveledUp,
+        ushort unspentStatPoints,
+        ushort unspentSkillPoints,
+        ushort vitPoints,
+        ushort wisPoints,
+        ushort pwrPoints,
+        ushort agiPoints,
+        byte skill1Rank,
+        byte skill2Rank,
+        byte skill3Rank,
         ILogger logger)
     {
         try
@@ -678,6 +705,15 @@ internal sealed class NalixWorldOutboundSink : IWorldOutboundSink
             pkt.Skill2Cooldown = skill2Cd;
             pkt.Skill3Cooldown = skill3Cd;
             pkt.LeveledUp = leveledUp;
+            pkt.UnspentStatPoints = unspentStatPoints;
+            pkt.UnspentSkillPoints = unspentSkillPoints;
+            pkt.VitPoints = vitPoints;
+            pkt.WisPoints = wisPoints;
+            pkt.PwrPoints = pwrPoints;
+            pkt.AgiPoints = agiPoints;
+            pkt.Skill1Rank = skill1Rank;
+            pkt.Skill2Rank = skill2Rank;
+            pkt.Skill3Rank = skill3Rank;
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
             await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);

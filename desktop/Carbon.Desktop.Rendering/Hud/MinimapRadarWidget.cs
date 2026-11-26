@@ -17,8 +17,8 @@ using Carbon.Maps.Streaming;
 namespace Carbon.Desktop.Rendering.Hud;
 
 /// <summary>
-/// Top-right cached radar minimap widget rendering nearby terrain biomes, actors, locked target highlight,
-/// static header, and clean cardinal orientation without per-frame terrain tile churn (SRP).
+/// Top-right cached radar minimap widget skinned with <see cref="CarbonUiSkin"/>, rendering nearby terrain biomes,
+/// actor blips, locked target highlight, cardinal indicator, and compact coordinates (SRP).
 /// </summary>
 internal sealed class MinimapRadarWidget
 {
@@ -35,19 +35,14 @@ internal sealed class MinimapRadarWidget
         const float pad = 8f;
         float mapX = viewportWidth - mapSize - 24f;
         const float mapY = 38f;
-        skin.DrawCard(spriteBatch, new RectangleF(mapX - pad, mapY - 24f, mapSize + (pad * 2f), mapSize + 44f), new ColorRgba(71, 85, 105, 235), bodyAlpha: 224);
+        skin.DrawCard(spriteBatch, new RectangleF(mapX - pad, mapY - 24f, mapSize + (pad * 2f), mapSize + 44f), new ColorRgba(71, 85, 105, 235), bodyAlpha: 232);
     }
 
     public void DrawGeometry(GeometryBatch batch, IClientWorldReadModel world, int viewportWidth, int ptx, int pty)
     {
         const float mapSize = 152f;
-        const float pad = 8f;
         float mapX = viewportWidth - mapSize - 24f;
         const float mapY = 38f;
-
-        batch.FillRectangle(new RectangleF(mapX - pad, mapY - 24f, mapSize + (pad * 2f), mapSize + 44f), new ColorRgba(10, 15, 28, 228));
-        batch.DrawRectangle(new RectangleF(mapX - pad, mapY - 24f, mapSize + (pad * 2f), mapSize + 44f), new ColorRgba(71, 85, 105, 230), 1.5f);
-
         float cellSize = mapSize / (RadarRadius * 2f);
         ChunkWorld2D chunkWorld = world.ChunkWorld;
 
@@ -118,7 +113,7 @@ internal sealed class MinimapRadarWidget
     {
         float mapX = MathF.Floor(viewportWidth - 176f);
         ColorRgba black = new(10, 12, 18, 255);
-        spriteBatch.DrawOutlinedString(font, "WORLD RADAR", new Vector2(mapX, 19f), new ColorRgba(248, 250, 252, 255), black, 1, 1.5f);
+        spriteBatch.DrawOutlinedString(font, "RADAR [M]", new Vector2(mapX, 20f), new ColorRgba(248, 250, 252, 255), black, 1, 1.5f);
         spriteBatch.DrawOutlinedString(font, "N", new Vector2(mapX + 73f, 29f), new ColorRgba(250, 204, 21, 245), black, 1, 1f);
         spriteBatch.DrawOutlinedString(font, $"({ptx},{pty})", new Vector2(mapX, 194f), new ColorRgba(148, 163, 184, 255), black, 1, 1f);
     }
@@ -180,6 +175,6 @@ internal sealed class MinimapRadarWidget
             return new ColorRgba(196, 114, 158, 255);
         }
 
-        return new ColorRgba(82, 152, 78, 255);
+        return new ColorRgba(86, 150, 74, 255);
     }
 }

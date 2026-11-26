@@ -94,7 +94,7 @@ public interface IWorldOutboundSink
         ushort level,
         float maxHealth = 0f);
 
-    /// <summary>Synchronizes the owning player's RPG progression, MP, Stamina, Defense, and skill cooldowns.</summary>
+    /// <summary>Synchronizes the owning player's RPG progression, MP, Stamina, Defense, points, and skill ranks/cooldowns.</summary>
     void SendPlayerStatsSync(
         ulong connectionId,
         ushort level,
@@ -110,7 +110,16 @@ public interface IWorldOutboundSink
         float skill1Cd,
         float skill2Cd,
         float skill3Cd,
-        bool leveledUp);
+        bool leveledUp,
+        ushort unspentStatPoints = 0,
+        ushort unspentSkillPoints = 0,
+        ushort vitPoints = 0,
+        ushort wisPoints = 0,
+        ushort pwrPoints = 0,
+        ushort agiPoints = 0,
+        byte skill1Rank = 0,
+        byte skill2Rank = 0,
+        byte skill3Rank = 0);
 
     /// <summary>Broadcasts active ability cast VFX coordinates to AoI observers.</summary>
     void SendSkillCastBroadcast(

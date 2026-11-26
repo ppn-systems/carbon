@@ -53,4 +53,7 @@ public interface IClientGameplayController
 
     /// <summary>Selects or cycles the nearest alive hostile monster within <paramref name="maxRange"/> world units.</summary>
     bool CycleNearestHostileTarget(float maxRange = 340f);
+
+    /// <summary>Allocates unspent attribute points (<c>VIT/WIS/PWR/AGI</c>) or unlocks/ranks up an active skill (<c>Q/R/V</c>).</summary>
+    bool TryAllocateCharacterPoint(Contracts.Entities.CharacterPointTarget target, byte amount = 1);
 }

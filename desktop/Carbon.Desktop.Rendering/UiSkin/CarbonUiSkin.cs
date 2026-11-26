@@ -3,9 +3,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Numerics;
 using Carbon.Graphics.Assets.Decoders;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Sprites;
+using Carbon.Graphics.Fonts.Layout;
+using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Graphics.OpenGL.Abstractions;
 using Carbon.Graphics.OpenGL.Device;
 using Carbon.Graphics.OpenGL.Textures;
@@ -18,29 +21,28 @@ namespace Carbon.Desktop.Rendering.UiSkin;
 /// </summary>
 public enum UiPanelStyle
 {
-    /// <summary>Ornate corner-bracketed frame (<c>0.png</c>) for modal dialogs and top-level menus.</summary>
+    /// <summary>Ornate corner-bracketed frame (<c>10.png</c>, downsampled 2x) for top-level dialogs.</summary>
     OrnateWindow = 0,
 
-    /// <summary>Double-line architectural card (<c>14.png</c>) for HUD panels and inspection panes.</summary>
+    /// <summary>Clean crisp bevel card (<c>15.png</c>, downsampled 2x) for HUD panels and inspection panes.</summary>
     DoubleCard = 1,
 
-    /// <summary>Trimmed square-corner bevel panel (<c>1.png</c>) for buttons and active tabs.</summary>
+    /// <summary>Clean bevel button (<c>15.png</c>, downsampled 2x) with unobstructed interior for centered text.</summary>
     Button = 2,
 
-    /// <summary>Framed inventory/equipment socket (<c>9.png</c>) for hotbar, bag, armor, and recipe slots.</summary>
+    /// <summary>Clean crisp equipment/hotbar/bag socket (<c>15.png</c>, downsampled 2x).</summary>
     Slot = 3,
 
-    /// <summary>Crisp thin inset box (<c>15.png</c>) for text fields, tooltips, and badges.</summary>
+    /// <summary>Crisp thin inset box (<c>15.png</c>, downsampled 2x) for text fields, tooltips, and badges.</summary>
     Inset = 4,
 
-    /// <summary>Double-cornered ornate highlight frame (<c>4.png</c>) for featured boss/hero cards.</summary>
+    /// <summary>Ornate highlight frame (<c>5.png</c>, downsampled 2x) for featured boss/target cards.</summary>
     OrnateHighlight = 5,
 }
 
 /// <summary>
-/// Dual-layer nine-slice UI skin splitting each standardized monochrome pixel panel from
-/// <c>resources/ui/panels/</c> into separate interior body and outer border textures so
-/// translucent obsidian fills and crisp tinted gold/cyan/emerald/red filigree borders compose cleanly.
+/// Dual-layer nine-slice UI skin downsampling <c>96x96</c> pixel templates by <c>2x</c> to crisp <c>48x48</c>
+/// textures and splitting each panel into a watertight solid interior body and crisp outer border filigree.
 /// </summary>
 public sealed class CarbonUiSkin : IDisposable
 {
@@ -64,12 +66,12 @@ public sealed class CarbonUiSkin : IDisposable
         string? panelDir = TryFindPanelDirectory();
         PanelSpec[] specs =
         [
-            new("0.png", new NineSliceMargins(20f)),
-            new("14.png", new NineSliceMargins(20f)),
-            new("1.png", new NineSliceMargins(14f)),
-            new("9.png", new NineSliceMargins(16f)),
-            new("15.png", new NineSliceMargins(12f)),
-            new("4.png", new NineSliceMargins(20f)),
+            new("10.png", new NineSliceMargins(10f)),
+            new("15.png", new NineSliceMargins(5f)),
+            new("15.png", new NineSliceMargins(4f)),
+            new("15.png", new NineSliceMargins(4f)),
+            new("15.png", new NineSliceMargins(4f)),
+            new("5.png", new NineSliceMargins(10f)),
         ];
 
         PanelSkinEntry[] entries = new PanelSkinEntry[specs.Length];
@@ -91,7 +93,7 @@ public sealed class CarbonUiSkin : IDisposable
             while (cursor is not null)
             {
                 string candidate = Path.Combine(cursor.FullName, "resources", "ui", "panels");
-                if (File.Exists(Path.Combine(candidate, "0.png")))
+                if (File.Exists(Path.Combine(candidate, "15.png")))
                 {
                     return candidate;
                 }
@@ -101,6 +103,31 @@ public sealed class CarbonUiSkin : IDisposable
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Draws <paramref name="text"/> centered cleanly inside <paramref name="bounds"/> with a crisp 1px dark outline.
+    /// </summary>
+    public static void DrawCenteredText(
+        SpriteBatch spriteBatch,
+        BitmapFont font,
+        string text,
+        in RectangleF bounds,
+        ColorRgba color,
+        ColorRgba outline,
+        float scale = 1f)
+    {
+        ArgumentNullException.ThrowIfNull(spriteBatch);
+        ArgumentNullException.ThrowIfNull(font);
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        TextMeasureResult m = font.MeasureString(text, TextLayoutOptions.Default, scale);
+        float tx = MathF.Floor(bounds.X + ((bounds.Width - m.Width) * 0.5f));
+        float ty = MathF.Floor(bounds.Y + ((bounds.Height - m.Height) * 0.5f));
+        spriteBatch.DrawOutlinedString(font, text, new Vector2(tx, ty), color, outline, 1, scale);
     }
 
     /// <summary>
@@ -138,11 +165,11 @@ public sealed class CarbonUiSkin : IDisposable
     }
 
     /// <summary>Draws an ornate dialog window backdrop and frame.</summary>
-    public void DrawWindow(SpriteBatch spriteBatch, in RectangleF bounds, ColorRgba frameColor, byte bodyAlpha = 238) =>
+    public void DrawWindow(SpriteBatch spriteBatch, in RectangleF bounds, ColorRgba frameColor, byte bodyAlpha = 242) =>
         this.DrawPanel(spriteBatch, UiPanelStyle.OrnateWindow, in bounds, new ColorRgba(10, 15, 28, bodyAlpha), frameColor);
 
-    /// <summary>Draws a double-lined panel card with obsidian dark tint.</summary>
-    public void DrawCard(SpriteBatch spriteBatch, in RectangleF bounds, ColorRgba frameColor, byte bodyAlpha = 228) =>
+    /// <summary>Draws a clean double-bevel card with obsidian dark tint.</summary>
+    public void DrawCard(SpriteBatch spriteBatch, in RectangleF bounds, ColorRgba frameColor, byte bodyAlpha = 232) =>
         this.DrawPanel(spriteBatch, UiPanelStyle.DoubleCard, in bounds, new ColorRgba(12, 19, 34, bodyAlpha), frameColor);
 
     /// <summary>Draws an inventory or hotbar slot bezel.</summary>
@@ -153,7 +180,7 @@ public sealed class CarbonUiSkin : IDisposable
     public void DrawButton(SpriteBatch spriteBatch, in RectangleF bounds, ColorRgba fillColor, ColorRgba frameColor) =>
         this.DrawPanel(spriteBatch, UiPanelStyle.Button, in bounds, fillColor, frameColor);
 
-    /// <summary>Draws a thin crisp inset panel (inputs, tooltips, pills).</summary>
+    /// <summary>Draws a thin crisp inset panel (inputs, tooltips, badges).</summary>
     public void DrawInset(SpriteBatch spriteBatch, in RectangleF bounds, ColorRgba fillColor, ColorRgba frameColor) =>
         this.DrawPanel(spriteBatch, UiPanelStyle.Inset, in bounds, fillColor, frameColor);
 
@@ -176,8 +203,8 @@ public sealed class CarbonUiSkin : IDisposable
 
     private static NineSliceMargins ClampMargins(NineSliceMargins source, in RectangleF bounds)
     {
-        float maxH = MathF.Floor(MathF.Max(1f, (bounds.Width * 0.5f) - 1f));
-        float maxV = MathF.Floor(MathF.Max(1f, (bounds.Height * 0.5f) - 1f));
+        float maxH = MathF.Floor(MathF.Max(1f, (bounds.Width * 0.45f) - 1f));
+        float maxV = MathF.Floor(MathF.Max(1f, (bounds.Height * 0.45f) - 1f));
         return new NineSliceMargins(
             MathF.Min(source.Left, maxH),
             MathF.Min(source.Top, maxV),
@@ -193,8 +220,8 @@ public sealed class CarbonUiSkin : IDisposable
             if (File.Exists(fullPath))
             {
                 DecodedImage decoded = ImageDecoder.Decode(File.ReadAllBytes(fullPath));
-                SplitBodyAndFrame(decoded, out byte[] bodyRgba, out byte[] frameRgba);
-                return CreatePanelEntry(device, (uint)decoded.Width, (uint)decoded.Height, bodyRgba, frameRgba, spec.Margins);
+                DownsampleAndSplit(decoded, out int outW, out int outH, out byte[] bodyRgba, out byte[] frameRgba);
+                return CreatePanelEntry(device, (uint)outW, (uint)outH, bodyRgba, frameRgba, spec.Margins);
             }
         }
 
@@ -207,7 +234,7 @@ public sealed class CarbonUiSkin : IDisposable
             for (int x = 0; x < size; x++)
             {
                 int i = ((y * size) + x) * 4;
-                bool border = x <= 2 || x >= size - 3 || y <= 2 || y >= size - 3;
+                bool border = x <= 1 || x >= size - 2 || y <= 1 || y >= size - 2;
                 byte[] target = border ? fallbackFrame : fallbackBody;
                 target[i] = 255;
                 target[i + 1] = 255;
@@ -216,7 +243,7 @@ public sealed class CarbonUiSkin : IDisposable
             }
         }
 
-        return CreatePanelEntry(device, size, size, fallbackBody, fallbackFrame, new NineSliceMargins(6f));
+        return CreatePanelEntry(device, size, size, fallbackBody, fallbackFrame, new NineSliceMargins(4f));
     }
 
     private static PanelSkinEntry CreatePanelEntry(
@@ -245,55 +272,124 @@ public sealed class CarbonUiSkin : IDisposable
         }
     }
 
-    private static void SplitBodyAndFrame(DecodedImage decoded, out byte[] bodyRgba, out byte[] frameRgba)
+    private static void DownsampleAndSplit(
+        DecodedImage decoded,
+        out int outW,
+        out int outH,
+        out byte[] bodyRgba,
+        out byte[] frameRgba)
     {
-        int w = decoded.Width;
-        int h = decoded.Height;
-        int pixelCount = w * h;
-        ReadOnlySpan<byte> src = decoded.Pixels;
+        int factor = decoded.Width >= 96 && decoded.Height >= 96 ? 2 : 1;
+        outW = decoded.Width / factor;
+        outH = decoded.Height / factor;
+        int pixelCount = outW * outH;
+        ReadOnlySpan<byte> raw = decoded.Pixels;
+
+        byte[] dsRgba = new byte[pixelCount * 4];
+        for (int y = 0; y < outH; y++)
+        {
+            for (int x = 0; x < outW; x++)
+            {
+                int srcIdx = ((y * factor * decoded.Width) + (x * factor)) * 4;
+                int dstIdx = ((y * outW) + x) * 4;
+                dsRgba[dstIdx] = raw[srcIdx];
+                dsRgba[dstIdx + 1] = raw[srcIdx + 1];
+                dsRgba[dstIdx + 2] = raw[srcIdx + 2];
+                dsRgba[dstIdx + 3] = raw[srcIdx + 3];
+            }
+        }
 
         bodyRgba = new byte[pixelCount * 4];
         frameRgba = new byte[pixelCount * 4];
-        bool[] isBody = new bool[pixelCount];
+        bool[] isCenterBody = new bool[pixelCount];
         bool[] visited = new bool[pixelCount];
 
-        int seedX = w / 2;
-        int seedY = h / 2;
-        int seedIdx = (seedY * w) + seedX;
-        if (src[(seedIdx * 4) + 3] > 128)
+        int seedX = outW / 2;
+        int seedY = outH / 2;
+        int seedIdx = (seedY * outW) + seedX;
+        if (dsRgba[(seedIdx * 4) + 3] > 128)
         {
             Queue<int> queue = new(pixelCount / 2);
             visited[seedIdx] = true;
-            isBody[seedIdx] = true;
+            isCenterBody[seedIdx] = true;
             queue.Enqueue(seedIdx);
 
             while (queue.Count > 0)
             {
                 int cur = queue.Dequeue();
-                int cx = cur % w;
-                int cy = cur / w;
+                int cx = cur % outW;
+                int cy = cur / outW;
 
-                CheckNeighbor(cx - 1, cy, w, h, src, visited, isBody, queue);
-                CheckNeighbor(cx + 1, cy, w, h, src, visited, isBody, queue);
-                CheckNeighbor(cx, cy - 1, w, h, src, visited, isBody, queue);
-                CheckNeighbor(cx, cy + 1, w, h, src, visited, isBody, queue);
+                CheckNeighbor(cx - 1, cy, outW, outH, dsRgba, visited, isCenterBody, queue);
+                CheckNeighbor(cx + 1, cy, outW, outH, dsRgba, visited, isCenterBody, queue);
+                CheckNeighbor(cx, cy - 1, outW, outH, dsRgba, visited, isCenterBody, queue);
+                CheckNeighbor(cx, cy + 1, outW, outH, dsRgba, visited, isCenterBody, queue);
             }
         }
 
-        for (int p = 0; p < pixelCount; p++)
-        {
-            int o = p * 4;
-            byte a = src[o + 3];
-            if (a == 0)
-            {
-                continue;
-            }
+        // Track min/max opaque span per row & column so enclosed transparent moats inside borders stay solid-filled!
+        int[] rowMin = new int[outH];
+        int[] rowMax = new int[outH];
+        int[] colMin = new int[outW];
+        int[] colMax = new int[outW];
+        Array.Fill(rowMin, int.MaxValue);
+        Array.Fill(rowMax, -1);
+        Array.Fill(colMin, int.MaxValue);
+        Array.Fill(colMax, -1);
 
-            byte[] dst = isBody[p] ? bodyRgba : frameRgba;
-            dst[o] = src[o];
-            dst[o + 1] = src[o + 1];
-            dst[o + 2] = src[o + 2];
-            dst[o + 3] = a;
+        for (int y = 0; y < outH; y++)
+        {
+            for (int x = 0; x < outW; x++)
+            {
+                if (dsRgba[(((y * outW) + x) * 4) + 3] > 128)
+                {
+                    if (x < rowMin[y])
+                    {
+                        rowMin[y] = x;
+                    }
+
+                    if (x > rowMax[y])
+                    {
+                        rowMax[y] = x;
+                    }
+
+                    if (y < colMin[x])
+                    {
+                        colMin[x] = y;
+                    }
+
+                    if (y > colMax[x])
+                    {
+                        colMax[x] = y;
+                    }
+                }
+            }
+        }
+
+        for (int y = 0; y < outH; y++)
+        {
+            for (int x = 0; x < outW; x++)
+            {
+                int p = (y * outW) + x;
+                int o = p * 4;
+                byte a = dsRgba[o + 3];
+                bool enclosed = x > rowMin[y] && x < rowMax[y] && y > colMin[x] && y < colMax[x];
+
+                if (isCenterBody[p] || (a == 0 && enclosed))
+                {
+                    bodyRgba[o] = 255;
+                    bodyRgba[o + 1] = 255;
+                    bodyRgba[o + 2] = 255;
+                    bodyRgba[o + 3] = 255;
+                }
+                else if (a > 0)
+                {
+                    frameRgba[o] = dsRgba[o];
+                    frameRgba[o + 1] = dsRgba[o + 1];
+                    frameRgba[o + 2] = dsRgba[o + 2];
+                    frameRgba[o + 3] = a;
+                }
+            }
         }
     }
 
@@ -302,7 +398,7 @@ public sealed class CarbonUiSkin : IDisposable
         int ny,
         int w,
         int h,
-        ReadOnlySpan<byte> src,
+        byte[] src,
         bool[] visited,
         bool[] isBody,
         Queue<int> queue)
@@ -328,16 +424,26 @@ public sealed class CarbonUiSkin : IDisposable
 
     private static Texture2D CreateTexture(GraphicsDevice device, uint width, uint height, byte[] rgba)
     {
-        Texture2D tex = new(
-            device.Gl,
-            device.StateCache,
-            width,
-            height,
-            TextureFormat.Rgba8,
-            TextureFilter.Nearest,
-            TextureWrap.ClampToEdge);
-        tex.SetData(rgba);
-        return tex;
+        Texture2D? tex = null;
+        try
+        {
+            tex = new Texture2D(
+                device.Gl,
+                device.StateCache,
+                width,
+                height,
+                TextureFormat.Rgba8,
+                TextureFilter.Nearest,
+                TextureWrap.ClampToEdge);
+            tex.SetData(rgba);
+            Texture2D owned = tex;
+            tex = null;
+            return owned;
+        }
+        finally
+        {
+            tex?.Dispose();
+        }
     }
 
     private readonly record struct PanelSpec(string FileName, NineSliceMargins Margins);

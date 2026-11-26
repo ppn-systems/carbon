@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
@@ -234,7 +235,12 @@ public sealed class AuthoritativeWorldMultiplayerTests
             world.GetInventorySnapshot(404UL, slayerInv).Should().BeTrue();
             slayerInv.Should().Contain(s => s.Slot.ItemId == StarterGameCatalog.WoodAxe);
 
-            // Cast Whirlwind skill (AbilitySlot = 101)
+            // Rank-0 skill must be rejected (not free!), then unlocked with SP before casting succeeds.
+            world.EnqueueAttackInput(404UL, 0UL, new Vector2(mobSpawn.Value.PositionX, mobSpawn.Value.PositionY), 101).Should().Be(OpStatus.Ok);
+            world.StepFixedTick();
+            sink.SkillCasts.Should().BeEmpty("unlearned rank-0 skills cannot be cast for free");
+
+            world.TryAllocateCharacterPoint(404UL, CharacterPointTarget.SkillWhirlwind, 1).Should().Be(OpStatus.Ok);
             world.EnqueueAttackInput(404UL, 0UL, new Vector2(mobSpawn.Value.PositionX, mobSpawn.Value.PositionY), 101).Should().Be(OpStatus.Ok);
             world.StepFixedTick();
             sink.SkillCasts.Should().Contain(c => c.AbilitySlot == 1);
@@ -454,6 +460,109 @@ public sealed class AuthoritativeWorldMultiplayerTests
         }
     }
 
+    [Fact]
+    public async Task StrictCombatReachAndPointAllocation_ShouldEnforceShortRangeAndPersistPoints()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-reach-ap-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            SqliteSchemaMigrator migrator = new(factory);
+            await migrator.MigrateAsync().ConfigureAwait(true);
+
+            SqliteAccountStore accounts = new(factory);
+            SqliteCharacterStore characters = new(factory);
+            SqliteChunkDeltaRepository chunks = new(factory);
+            RecordingOutboundSink sink = new();
+
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            Guid accountId = Guid.NewGuid();
+            AccountRecord account = new(accountId, "tester", "TESTER", [1, 2, 3], [4, 5, 6], now, false);
+            (await accounts.TryCreateAsync(account).ConfigureAwait(true)).Should().BeTrue();
+
+            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, chunks, characters, sink);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+            InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
+            StarterGameCatalog.GrantStarterLoadout(inv, startingClass: 0);
+            byte[] invBytes = InventoryBinaryCodec.Serialize(inv);
+
+            CharacterRecord hero = new(
+                Guid.NewGuid(),
+                accountId,
+                "ReachTester",
+                Level: 3,
+                AppearancePreset: 0,
+                PositionX: world.DefaultSpawnWorldPosition.X,
+                PositionY: world.DefaultSpawnWorldPosition.Y,
+                CurrentHealth: 120f,
+                MaxHealth: 120f,
+                SelectedHotbarSlot: 2,
+                InventoryBlob: invBytes,
+                UpdatedAtUtc: now);
+            (await characters.TryCreateAsync(hero).ConfigureAwait(true)).Should().BeTrue();
+
+            world.TryEnterWorld(connectionId: 601UL, sessionId: 601UL, hero).Status.Should().Be(OpStatus.Ok);
+
+            int startTx = (int)MathF.Floor(world.DefaultSpawnWorldPosition.X / 32f);
+            int startTy = (int)MathF.Floor(world.DefaultSpawnWorldPosition.Y / 32f);
+            world.TryHarvestProp(601UL, startTx + 5, startTy).Status.Should().Be(OpStatus.OutOfRange);
+
+            world.TryAllocateCharacterPoint(601UL, CharacterPointTarget.Vitality, 2).Should().Be(OpStatus.Ok);
+            sink.StatsSyncs.Should().Contain(s => s.ConnectionId == 601UL && s.VitPoints == 2);
+
+            await world.FlushDirtyPersistenceAsync().ConfigureAwait(true);
+            CharacterRecord? reloaded = await characters.FindByIdAsync(hero.Id).ConfigureAwait(true);
+            reloaded.Should().NotBeNull();
+            reloaded!.VitPoints.Should().Be(2);
+
+            EntitySpawnSnapshot? mobSpawn = null;
+            for (int probeX = 2; probeX <= 7 && mobSpawn is null; probeX++)
+            {
+                float wx = ((probeX * 32) + 16) * 32f;
+                float wy = 16f * 32f;
+                CharacterRecord scout = hero with { Id = Guid.NewGuid(), Name = $"Scout{probeX}", PositionX = wx, PositionY = wy };
+                world.TryEnterWorld((ulong)(610 + probeX), (ulong)(610 + probeX), scout).Status.Should().Be(OpStatus.Ok);
+                world.StepFixedTick();
+
+                for (int i = 0; i < sink.Spawns.Count; i++)
+                {
+                    if (sink.Spawns[i].ConnectionId == (ulong)(610 + probeX) && sink.Spawns[i].Snapshot.Kind == EntityKind.Monster)
+                    {
+                        mobSpawn = sink.Spawns[i].Snapshot;
+                        break;
+                    }
+                }
+            }
+
+            mobSpawn.Should().NotBeNull();
+
+            // Too far for melee strike (120px > MeleeStrikeRangePx = 56px)
+            CharacterRecord farStriker = hero with { Id = Guid.NewGuid(), Name = "FarStriker", PositionX = mobSpawn!.Value.PositionX + 120f, PositionY = mobSpawn.Value.PositionY };
+            world.TryEnterWorld(602UL, 602UL, farStriker).Status.Should().Be(OpStatus.Ok);
+            int hitsBeforeFar = sink.CombatHits.Count;
+            world.EnqueueAttackInput(602UL, mobSpawn.Value.NetworkId, new Vector2(mobSpawn.Value.PositionX, mobSpawn.Value.PositionY), 2).Should().Be(OpStatus.Ok);
+            world.StepFixedTick();
+            sink.CombatHits.Skip(hitsBeforeFar).Should().NotContain(h => h.DefenderNetworkId == mobSpawn.Value.NetworkId);
+
+            // Within strict melee range (36px <= MeleeStrikeRangePx = 56px)
+            CharacterRecord closeStriker = hero with { Id = Guid.NewGuid(), Name = "CloseStriker", PositionX = mobSpawn.Value.PositionX + 36f, PositionY = mobSpawn.Value.PositionY };
+            world.TryEnterWorld(603UL, 603UL, closeStriker).Status.Should().Be(OpStatus.Ok);
+            int hitsBeforeClose = sink.CombatHits.Count;
+            world.EnqueueAttackInput(603UL, mobSpawn.Value.NetworkId, new Vector2(mobSpawn.Value.PositionX, mobSpawn.Value.PositionY), 2).Should().Be(OpStatus.Ok);
+            world.StepFixedTick();
+            sink.CombatHits.Skip(hitsBeforeClose).Should().Contain(h => h.DefenderNetworkId == mobSpawn.Value.NetworkId && h.Damage > 0f);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
     private sealed class RecordingOutboundSink : IWorldOutboundSink
     {
         public List<(ulong ConnectionId, EntitySpawnSnapshot Snapshot)> Spawns { get; } = [];
@@ -463,7 +572,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
         public List<(ulong AttackerNetworkId, ulong DefenderNetworkId, float Damage, bool IsKilled)> CombatHits { get; } = [];
         public List<(ulong ConnectionId, ushort SlotIndex, uint ItemId, int Quantity)> SlotChanges { get; } = [];
         public List<(ulong EntityNetworkId, ushort ChestId, ushort WeaponId, ushort Level)> EquipmentChanges { get; } = [];
-        public List<(ulong ConnectionId, ushort Level, uint Experience, float Defense)> StatsSyncs { get; } = [];
+        public List<(ulong ConnectionId, ushort Level, uint Experience, float Defense, ushort VitPoints, byte Skill1Rank)> StatsSyncs { get; } = [];
         public List<(ulong CasterNetworkId, byte AbilitySlot)> SkillCasts { get; } = [];
 
         public void SendEntitySpawn(ulong connectionId, in EntitySpawnSnapshot spawn) =>
@@ -497,8 +606,32 @@ public sealed class AuthoritativeWorldMultiplayerTests
         public void SendEntityEquipmentChanged(ReadOnlySpan<ulong> recipientConnectionIds, ulong entityNetworkId, ushort headId, ushort chestId, ushort legsId, ushort feetId, ushort weaponId, byte weaponUpgrade, ushort level, float maxHealth = 0f) =>
             this.EquipmentChanges.Add((entityNetworkId, chestId, weaponId, level));
 
-        public void SendPlayerStatsSync(ulong connectionId, ushort level, uint experience, uint xpToNextLevel, float currentHealth, float maxHealth, float currentMana, float maxMana, float currentStamina, float maxStamina, float defense, float skill1Cd, float skill2Cd, float skill3Cd, bool leveledUp) =>
-            this.StatsSyncs.Add((connectionId, level, experience, defense));
+        public void SendPlayerStatsSync(
+            ulong connectionId,
+            ushort level,
+            uint experience,
+            uint xpToNextLevel,
+            float currentHealth,
+            float maxHealth,
+            float currentMana,
+            float maxMana,
+            float currentStamina,
+            float maxStamina,
+            float defense,
+            float skill1Cd,
+            float skill2Cd,
+            float skill3Cd,
+            bool leveledUp,
+            ushort unspentStatPoints = 0,
+            ushort unspentSkillPoints = 0,
+            ushort vitPoints = 0,
+            ushort wisPoints = 0,
+            ushort pwrPoints = 0,
+            ushort agiPoints = 0,
+            byte skill1Rank = 0,
+            byte skill2Rank = 0,
+            byte skill3Rank = 0) =>
+            this.StatsSyncs.Add((connectionId, level, experience, defense, vitPoints, skill1Rank));
 
         public void SendSkillCastBroadcast(ReadOnlySpan<ulong> recipientConnectionIds, ulong casterNetworkId, byte abilitySlot, float originX, float originY, float aimX, float aimY) =>
             this.SkillCasts.Add((casterNetworkId, abilitySlot));

@@ -32,8 +32,30 @@ public readonly record struct SkillSpec(
     float StaminaRestore);
 
 /// <summary>
-/// Central progression policy governing character leveling curves, armor stat aggregation, damage mitigation,
-/// stamina/mana economy, and active skill costs.
+/// Allocatable player attribute points and skill mastery ranks (<c>0..5</c>).
+/// </summary>
+public readonly record struct CharacterAllocationPoints(
+    ushort Vit = 0,
+    ushort Wis = 0,
+    ushort Pwr = 0,
+    ushort Agi = 0,
+    byte Skill1Rank = 0,
+    byte Skill2Rank = 0,
+    byte Skill3Rank = 0)
+{
+    /// <summary>Gets the learned rank (<c>0</c>=locked, <c>1..5</c>) for <paramref name="skillSlot"/>.</summary>
+    public byte GetSkillRank(byte skillSlot) => skillSlot switch
+    {
+        CharacterProgressionPolicy.SkillWhirlwind => this.Skill1Rank,
+        CharacterProgressionPolicy.SkillArcaneNova => this.Skill2Rank,
+        CharacterProgressionPolicy.SkillVitalSurge => this.Skill3Rank,
+        _ => 0,
+    };
+}
+
+/// <summary>
+/// Central progression policy governing character leveling curves, attribute &amp; skill point rewards,
+/// armor stat aggregation, damage mitigation, stamina/mana economy, and active skill scaling.
 /// </summary>
 public static class CharacterProgressionPolicy
 {
@@ -49,6 +71,36 @@ public static class CharacterProgressionPolicy
     /// <summary>Maximum character progression level.</summary>
     public const ushort MaxLevel = 99;
 
+    /// <summary>Maximum mastery rank per active skill.</summary>
+    public const byte MaxSkillRank = 5;
+
+    /// <summary>Attribute points granted upon each level up above Level 1.</summary>
+    public const int StatPointsPerLevel = 4;
+
+    /// <summary>Returns cumulative attribute points earned by <paramref name="level"/>.</summary>
+    public static ushort GetTotalStatPointsForLevel(ushort level) =>
+        (ushort)(Math.Max(0, level - 1) * StatPointsPerLevel);
+
+    /// <summary>Returns cumulative skill mastery points earned by <paramref name="level"/> (<c>1 SP</c> at Lv.1, <c>+1</c> per level).</summary>
+    public static ushort GetTotalSkillPointsForLevel(ushort level) =>
+        Math.Max((ushort)1, level);
+
+    /// <summary>Computes unspent attribute points remaining for <paramref name="level"/> after <paramref name="pts"/>.</summary>
+    public static ushort GetUnspentStatPoints(ushort level, in CharacterAllocationPoints pts)
+    {
+        int total = GetTotalStatPointsForLevel(level);
+        int spent = pts.Vit + pts.Wis + pts.Pwr + pts.Agi;
+        return (ushort)Math.Max(0, total - spent);
+    }
+
+    /// <summary>Computes unspent skill points remaining for <paramref name="level"/> after <paramref name="pts"/>.</summary>
+    public static ushort GetUnspentSkillPoints(ushort level, in CharacterAllocationPoints pts)
+    {
+        int total = GetTotalSkillPointsForLevel(level);
+        int spent = pts.Skill1Rank + pts.Skill2Rank + pts.Skill3Rank;
+        return (ushort)Math.Max(0, total - spent);
+    }
+
     /// <summary>Returns total XP required to advance from <paramref name="level"/> to <c>level + 1</c>.</summary>
     public static uint GetXpToNextLevel(ushort level)
     {
@@ -58,22 +110,34 @@ public static class CharacterProgressionPolicy
 
     /// <summary>Computes derived HP, MP, Stamina, Defense, and Offense scaling for <paramref name="level"/> and armor slots.</summary>
     public static DerivedCharacterStats ComputeStats(ushort level, InventoryContainer inventory) =>
-        ComputeStats(level, inventory, selectedHotbarSlot: byte.MaxValue);
+        ComputeStats(level, inventory, selectedHotbarSlot: byte.MaxValue, default);
 
     /// <summary>
     /// Computes derived HP, MP, Stamina, Defense, and Offense scaling for <paramref name="level"/>,
     /// equipped armor slots (<c>36..39</c>), and an actively held hotbar focus weapon (such as Mage Staffs).
     /// </summary>
-    public static DerivedCharacterStats ComputeStats(ushort level, InventoryContainer inventory, byte selectedHotbarSlot)
+    public static DerivedCharacterStats ComputeStats(ushort level, InventoryContainer inventory, byte selectedHotbarSlot) =>
+        ComputeStats(level, inventory, selectedHotbarSlot, default);
+
+    /// <summary>
+    /// Computes derived HP, MP, Stamina, Defense, Offense, and MoveSpeed scaling combining level,
+    /// allocated attribute points, equipped armor slots (<c>36..39</c>), and held focus weapons.
+    /// </summary>
+    public static DerivedCharacterStats ComputeStats(
+        ushort level,
+        InventoryContainer inventory,
+        byte selectedHotbarSlot,
+        in CharacterAllocationPoints points)
     {
         ArgumentNullException.ThrowIfNull(inventory);
 
         ushort lv = Math.Max((ushort)1, level);
-        float maxHp = 100f + ((lv - 1) * 14f);
-        float maxMp = 80f + ((lv - 1) * 10f);
-        float maxStam = 100f + ((lv - 1) * 6f);
-        float defTotal = 2f + ((lv - 1) * 0.5f);
-        float atkMult = 1f + ((lv - 1) * 0.04f);
+        float maxHp = 100f + ((lv - 1) * 14f) + (points.Vit * 12f);
+        float maxMp = 80f + ((lv - 1) * 10f) + (points.Wis * 10f);
+        float maxStam = 100f + ((lv - 1) * 6f) + (points.Agi * 8f);
+        float defTotal = 2f + ((lv - 1) * 0.5f) + (points.Vit * 0.5f);
+        float atkMult = 1f + ((lv - 1) * 0.04f) + (points.Pwr * 0.035f);
+        float speedMult = MathF.Min(1.24f, 1f + (points.Agi * 0.006f));
 
         for (int slotIdx = PlayerInventoryLayout.HeadSlot; slotIdx <= PlayerInventoryLayout.FeetSlot; slotIdx++)
         {
@@ -108,7 +172,7 @@ public static class CharacterProgressionPolicy
             }
         }
 
-        return new DerivedCharacterStats(maxHp, maxMp, maxStam, defTotal, atkMult, 1f);
+        return new DerivedCharacterStats(maxHp, maxMp, maxStam, defTotal, atkMult, speedMult);
     }
 
     /// <summary>Mitigates incoming raw damage using <paramref name="defense"/> with diminishing hyperbolic scaling.</summary>
@@ -123,10 +187,14 @@ public static class CharacterProgressionPolicy
         return MathF.Max(1f, rawDamage * (100f / (100f + (effDef * 4f))));
     }
 
-    /// <summary>Resolves full combat &amp; resource specs for <paramref name="skillSlot"/> (<c>1..3</c>).</summary>
-    public static bool TryGetSkillSpec(byte skillSlot, out SkillSpec spec)
+    /// <summary>Resolves baseline Rank 1 combat &amp; resource specs for <paramref name="skillSlot"/> (<c>1..3</c>).</summary>
+    public static bool TryGetSkillSpec(byte skillSlot, out SkillSpec spec) =>
+        TryGetSkillSpec(skillSlot, rank: 1, out spec);
+
+    /// <summary>Resolves rank-scaled combat &amp; resource specs for <paramref name="skillSlot"/> (<c>1..3</c>) and <paramref name="rank"/> (<c>1..5</c>).</summary>
+    public static bool TryGetSkillSpec(byte skillSlot, byte rank, out SkillSpec spec)
     {
-        spec = skillSlot switch
+        SkillSpec baseSpec = skillSlot switch
         {
             SkillWhirlwind => new SkillSpec(
                 SkillWhirlwind,
@@ -163,7 +231,30 @@ public static class CharacterProgressionPolicy
                 StaminaRestore: 45f),
             _ => default,
         };
-        return spec.SkillSlot != 0;
+
+        if (baseSpec.SkillSlot == 0)
+        {
+            spec = default;
+            return false;
+        }
+
+        byte effRank = Math.Clamp(rank, (byte)1, MaxSkillRank);
+        int bonusLevels = effRank - 1;
+        spec = baseSpec with
+        {
+            ManaCost = baseSpec.ManaCost + (bonusLevels * 3f),
+            CooldownSeconds = MathF.Max(2.2f, baseSpec.CooldownSeconds - (bonusLevels * 0.40f)),
+            DamageMultiplier = baseSpec.DamageMultiplier > 0f
+                ? baseSpec.DamageMultiplier * (1f + (bonusLevels * 0.16f))
+                : 0f,
+            SelfHealRatio = baseSpec.SelfHealRatio > 0f
+                ? baseSpec.SelfHealRatio + (bonusLevels * 0.04f)
+                : 0f,
+            StaminaRestore = baseSpec.StaminaRestore > 0f
+                ? baseSpec.StaminaRestore + (bonusLevels * 6f)
+                : 0f,
+        };
+        return true;
     }
 
     /// <summary>Returns MP cost, Stamina cost, cooldown seconds, and base name for <paramref name="skillSlot"/> (<c>1..3</c>).</summary>
@@ -174,7 +265,7 @@ public static class CharacterProgressionPolicy
         out float staminaCost,
         out float cooldownSeconds)
     {
-        if (TryGetSkillSpec(skillSlot, out SkillSpec spec))
+        if (TryGetSkillSpec(skillSlot, rank: 1, out SkillSpec spec))
         {
             displayName = spec.DisplayName;
             manaCost = spec.ManaCost;

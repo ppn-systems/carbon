@@ -414,6 +414,15 @@ public sealed partial class NalixMultiplayerSession
             _skill1Cd = pkt.Skill1Cooldown;
             _skill2Cd = pkt.Skill2Cooldown;
             _skill3Cd = pkt.Skill3Cooldown;
+            _unspentStatPoints = pkt.UnspentStatPoints;
+            _unspentSkillPoints = pkt.UnspentSkillPoints;
+            _vitPoints = pkt.VitPoints;
+            _wisPoints = pkt.WisPoints;
+            _pwrPoints = pkt.PwrPoints;
+            _agiPoints = pkt.AgiPoints;
+            _skill1Rank = pkt.Skill1Rank;
+            _skill2Rank = pkt.Skill2Rank;
+            _skill3Rank = pkt.Skill3Rank;
 
             Vector2 localPos = _simulation is not null && _simulation.Entities.IsAlive(_localPlayer)
                 ? _simulation.GetInterpolatedPosition(_localPlayer) + _visualOffset
