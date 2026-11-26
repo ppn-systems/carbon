@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
 using Carbon.Application.World.Commands;
+using Carbon.Application.World.Construction;
 using Carbon.Application.World.Loot;
 using Carbon.Application.World.Needs;
 using Carbon.Application.World.Projectiles;
@@ -68,9 +69,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly WorldCommandQueue _commands = new();
     private readonly ProceduralWorldGenerator _generator;
     private readonly ChunkWorld2D _chunkWorld;
-    private readonly BuildingService _building;
+    private readonly ConstructionService _construction;
     private readonly PlayerMaterialAdapter _playerMaterials;
-    private readonly GroundDropSink _groundDrops;
     private readonly WorldSimulation _simulation;
     private readonly SpatialAoiTracker _aoi;
     private readonly IChunkDeltaRepository _chunkDeltaRepo;
@@ -166,13 +166,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
 
         _generator = new ProceduralWorldGenerator(this.WorldSeed);
         _chunkWorld = new ChunkWorld2D(_generator, this.TileSize, this.Frequency);
-        _building = BuildingService.ForWorld(
-            _chunkWorld,
-            structureCatalog ?? StructureCatalog.LoadEmbedded(),
-            new BuildPermissionTable(),
-            this.IsPlayerOnTileLocked);
         _playerMaterials = new PlayerMaterialAdapter(this);
-        _groundDrops = new GroundDropSink(this);
         _simulation = new WorldSimulation(this.TickRate, this.TileSize)
         {
             WorldPhysics = _chunkWorld,
@@ -187,6 +181,17 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             () => ++_nextNetworkId,
             () => _currentTick,
             this.QueueLootVisualRefreshLocked);
+        _construction = new ConstructionService(
+            _chunkWorld,
+            structureCatalog ?? StructureCatalog.LoadEmbedded(),
+            this.IsPlayerOnTileLocked,
+            _simulation,
+            this.TileSize,
+            () => _itemRules,
+            _outbound,
+            _dirtyChunks,
+            this.AppendTileRecipientsLocked,
+            (pos, item) => this.SpawnGroundLootLocked(pos, in item));
         _projectiles = new ProjectileService(_simulation, _chunkWorld, MonsterLayer, () => ++_nextNetworkId, new ProjectileHits(this));
 
         _needs = new NeedsService(
@@ -1173,11 +1178,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         public RestMode RestMode { get; set; }
         public int RestBedTileX { get; set; }
         public int RestBedTileY { get; set; }
-        public BuildJobKind BuildJob { get; set; }
-        public int BuildJobTileX { get; set; }
-        public int BuildJobTileY { get; set; }
-        public int LastPushedBuildBucket { get; set; } = -1;
-        public ConstructionStage LastPushedBuildStage { get; set; }
+        public BuildJob Build { get; } = new();
 
         /// <summary>Server-authoritative gold/diamond balances (in-memory until a persistence ADR lands).</summary>
         public Wallet Wallet { get; init; } = new(session.PlayerNetworkId);
