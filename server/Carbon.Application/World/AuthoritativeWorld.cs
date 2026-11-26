@@ -75,11 +75,12 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly ICharacterStore _characterStore;
     private readonly IWorldOutboundSink _outboundSink;
     private readonly TimeProvider _time;
-    private readonly NeedsConfig _needsConfig;
-    private readonly FoodCatalog _foodCatalog;
     private readonly EatActionSystem _eatAction;
-    private readonly uint[] _spoiledItemIdByFood;
-    private readonly GameEconomy? _economy;
+    private readonly NeedsSystem _needsSystem;
+    private NeedsConfig _needsConfig;
+    private FoodCatalog _foodCatalog;
+    private GameEconomy? _economy;
+    private uint[] _spoiledItemIdByFood;
 
     private readonly Dictionary<ulong, ActivePlayerState> _playersByConnection = new();
     private readonly Dictionary<ulong, ulong> _connectionByNetworkId = new();
@@ -208,8 +209,69 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         _eatAction = new EatActionSystem(_foodCatalog, _needsConfig, worldSeed);
         _spoiledItemIdByFood = this.ResolveSpoiledItemIds();
         _simulation.RegisterSystem(_eatAction);
-        _simulation.RegisterSystem(new NeedsSystem(_needsConfig));
+        _needsSystem = new NeedsSystem(_needsConfig);
+        _simulation.RegisterSystem(_needsSystem);
         _aoi = new SpatialAoiTracker(this.TileSize * 24f);
+    }
+
+    /// <summary>
+    /// Switches the running server domains to tables rebuilt from a new config snapshot (ADR-014 hot reload).
+    /// Runs under the world lock between ticks, so a tick sees either the old or the new tables, never a mix.
+    /// Meals in progress are remapped to the new food catalog (or cancelled when their food is gone). Existing players
+    /// keep their current needs values and wallet caps; new limits apply to new state.
+    /// </summary>
+    /// <param name="economy">New economy (items, recipes, loot, tunables), or <see langword="null"/> to keep none.</param>
+    /// <param name="needsConfig">New needs tuning.</param>
+    /// <param name="foodCatalog">New edible items.</param>
+    public void ApplyGameData(GameEconomy? economy, NeedsConfig needsConfig, FoodCatalog foodCatalog)
+    {
+        ArgumentNullException.ThrowIfNull(needsConfig);
+        ArgumentNullException.ThrowIfNull(foodCatalog);
+        lock (_gate)
+        {
+            _eatAction.Reconfigure(_simulation, foodCatalog, needsConfig);
+            _needsSystem.Reconfigure(needsConfig);
+            _needsConfig = needsConfig;
+            _foodCatalog = foodCatalog;
+            _economy = economy;
+            _spoiledItemIdByFood = this.ResolveSpoiledItemIds();
+        }
+    }
+
+    /// <summary>Gets the economy the simulation currently runs on.</summary>
+    public GameEconomy? Economy
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _economy;
+            }
+        }
+    }
+
+    /// <summary>Gets the needs tuning the simulation currently runs on.</summary>
+    public NeedsConfig NeedsConfig
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _needsConfig;
+            }
+        }
+    }
+
+    /// <summary>Gets the food catalog the simulation currently runs on.</summary>
+    public FoodCatalog FoodCatalog
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _foodCatalog;
+            }
+        }
     }
 
     /// <inheritdoc/>

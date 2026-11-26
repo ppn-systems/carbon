@@ -21,8 +21,8 @@ namespace Carbon.Survival.Systems;
 /// </summary>
 public sealed class EatActionSystem : ISimulationSystem
 {
-    private readonly FoodCatalog _catalog;
-    private readonly NeedsConfig _config;
+    private FoodCatalog _catalog;
+    private NeedsConfig _config;
     private readonly ulong _poisonSeed;
 
     /// <summary>
@@ -108,6 +108,45 @@ public sealed class EatActionSystem : ISimulationSystem
         float health = hasHealth ? entities.GetHealth(eater).Current : 0f;
         entities.SetComponent(eater, new EatingComponent(foodIndex, ticks, ticks, health));
         return OpStatus.Ok;
+    }
+
+    /// <summary>
+    /// Switches to a new food catalog and tuning (config hot reload). A meal in progress keeps going when its food is
+    /// still in the catalog (its index is remapped by item id); otherwise it is cancelled with
+    /// <see cref="MealInterruptReason.Cancelled"/>, so no meal ever completes against the wrong food.
+    /// Call from the simulation thread (between ticks).
+    /// </summary>
+    /// <param name="world">World simulation holding the meals in progress.</param>
+    /// <param name="catalog">New edible items.</param>
+    /// <param name="config">New needs tuning.</param>
+    public void Reconfigure(WorldSimulation world, FoodCatalog catalog, NeedsConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        ArgumentNullException.ThrowIfNull(catalog);
+        ArgumentNullException.ThrowIfNull(config);
+
+        EntityManager entities = world.Entities;
+        ComponentPool<EatingComponent> pool = entities.GetPool<EatingComponent>();
+        ReadOnlySpan<int> slots = pool.EntitySlots;
+        Span<EatingComponent> values = pool.AsSpan();
+        for (int i = values.Length - 1; i >= 0; i--)
+        {
+            EatingComponent meal = values[i];
+            string itemId = _catalog.Get(meal.FoodIndex).ItemId;
+            if (catalog.TryGetIndex(itemId, out int newIndex))
+            {
+                values[i] = meal with { FoodIndex = newIndex };
+                continue;
+            }
+
+            int slot = slots[i];
+            Entity entity = entities.GetEntity(slot);
+            _ = pool.Remove(slot);
+            world.PublishEvent(new MealInterruptedEvent(entity, meal.FoodIndex, MealInterruptReason.Cancelled));
+        }
+
+        _catalog = catalog;
+        _config = config;
     }
 
     /// <summary>
