@@ -13,6 +13,7 @@ using Carbon.Infrastructure.Configuration;
 using Carbon.Infrastructure.Persistence.Postgres;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Infrastructure.Security;
+using Carbon.Items.Catalog;
 using Carbon.Server.Configuration;
 using Microsoft.Extensions.Logging;
 using Nalix.Hosting;
@@ -102,6 +103,9 @@ public static class Program
         }
 
         ServerGameData gameData = ServerGameData.Load(config.Catalog);
+
+        // Item stats and recipes used by combat, harvesting, crafting and inventory come from the same snapshot.
+        StarterGameCatalog.Install(gameData.Economy.Items, gameData.Economy.Recipes);
 
         AuthoritativeWorld world = new(
             options.WorldSeed,

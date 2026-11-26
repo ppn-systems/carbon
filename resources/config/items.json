@@ -14,7 +14,14 @@
       "vendorBuyable": true,
       "tags": [
         "tool"
-      ]
+      ],
+      "equipSlot": "Tool",
+      "harvestTier": 1,
+      "baseDamage": 16.0,
+      "floraHarvestDamage": 55.0,
+      "mineralHarvestDamage": 26.0,
+      "actionHint": "Tier 1 Axe | Chop Trees (55 dmg)",
+      "capabilities": "ChopFlora"
     },
     {
       "id": 2,
@@ -29,7 +36,14 @@
       "vendorBuyable": true,
       "tags": [
         "tool"
-      ]
+      ],
+      "equipSlot": "Tool",
+      "harvestTier": 2,
+      "baseDamage": 18.0,
+      "floraHarvestDamage": 38.0,
+      "mineralHarvestDamage": 68.0,
+      "actionHint": "Tier 2 Pick | Mine Stone/Ore (68 dmg)",
+      "capabilities": "MineMineral"
     },
     {
       "id": 3,
@@ -44,7 +58,14 @@
       "vendorBuyable": false,
       "tags": [
         "weapon"
-      ]
+      ],
+      "equipSlot": "MainHand",
+      "baseDamage": 34.0,
+      "critChance": 0.2,
+      "floraHarvestDamage": 28.0,
+      "mineralHarvestDamage": 16.0,
+      "actionHint": "Melee Blade | Combat 34 dmg (+Crit) | Not for Wood/Stone",
+      "capabilities": "MeleeWeapon"
     },
     {
       "id": 4,
@@ -59,7 +80,8 @@
       "vendorBuyable": true,
       "tags": [
         "wood"
-      ]
+      ],
+      "actionHint": "Material | Craft Walls, Doors & Tools [C]"
     },
     {
       "id": 5,
@@ -75,7 +97,8 @@
       "tags": [
         "stone",
         "golem"
-      ]
+      ],
+      "actionHint": "Material | Craft Stone Walls & Pickaxe [C]"
     },
     {
       "id": 6,
@@ -91,7 +114,8 @@
       "tags": [
         "ore",
         "golem"
-      ]
+      ],
+      "actionHint": "Material | Craft Iron Sword & Crystal Pick [C]"
     },
     {
       "id": 7,
@@ -108,7 +132,8 @@
         "ore",
         "crystal",
         "wraith"
-      ]
+      ],
+      "actionHint": "Rare Crystal | Craft Tier 3 Crystal Pick [C]"
     },
     {
       "id": 8,
@@ -123,7 +148,9 @@
       "vendorBuyable": true,
       "tags": [
         "plant"
-      ]
+      ],
+      "healHealth": 25.0,
+      "actionHint": "Consumable | Use: Restore +25 HP"
     },
     {
       "id": 9,
@@ -138,7 +165,9 @@
       "vendorBuyable": false,
       "tags": [
         "structure"
-      ]
+      ],
+      "placeableStructureType": 1,
+      "actionHint": "Builder | Place Wood Wall on Target Tile"
     },
     {
       "id": 10,
@@ -153,7 +182,9 @@
       "vendorBuyable": false,
       "tags": [
         "structure"
-      ]
+      ],
+      "placeableStructureType": 2,
+      "actionHint": "Builder | Place Stone Wall on Target Tile"
     },
     {
       "id": 11,
@@ -168,7 +199,9 @@
       "vendorBuyable": false,
       "tags": [
         "structure"
-      ]
+      ],
+      "placeableStructureType": 3,
+      "actionHint": "Builder | Place Wood Door ([E] Open/Close)"
     },
     {
       "id": 12,
@@ -183,7 +216,14 @@
       "vendorBuyable": false,
       "tags": [
         "tool"
-      ]
+      ],
+      "equipSlot": "Tool",
+      "harvestTier": 3,
+      "baseDamage": 24.0,
+      "floraHarvestDamage": 60.0,
+      "mineralHarvestDamage": 95.0,
+      "actionHint": "Tier 3 Pick | Mine All Crystal/Gold (95 dmg)",
+      "capabilities": "MineMineral"
     },
     {
       "id": 13,
@@ -198,7 +238,11 @@
       "vendorBuyable": false,
       "tags": [
         "armor"
-      ]
+      ],
+      "equipSlot": "Head",
+      "armorDefense": 3.0,
+      "bonusMana": 10.0,
+      "actionHint": "Leather Armor | Equip in [I] Bag to raise DEF & MP"
     },
     {
       "id": 14,
@@ -213,7 +257,11 @@
       "vendorBuyable": false,
       "tags": [
         "armor"
-      ]
+      ],
+      "equipSlot": "Chest",
+      "armorDefense": 6.0,
+      "bonusHealth": 15.0,
+      "actionHint": "Leather Armor | Equip in [I] Bag to raise DEF & HP"
     },
     {
       "id": 15,
@@ -228,7 +276,11 @@
       "vendorBuyable": false,
       "tags": [
         "armor"
-      ]
+      ],
+      "equipSlot": "Legs",
+      "armorDefense": 4.0,
+      "bonusHealth": 10.0,
+      "actionHint": "Leather Armor | Equip in [I] Bag to raise DEF & HP"
     },
     {
       "id": 16,
@@ -243,7 +295,10 @@
       "vendorBuyable": false,
       "tags": [
         "armor"
-      ]
+      ],
+      "equipSlot": "Feet",
+      "armorDefense": 3.0,
+      "actionHint": "Leather Armor | Equip in [I] Bag to raise DEF & HP"
     },
     {
       "id": 17,
@@ -258,7 +313,11 @@
       "vendorBuyable": false,
       "tags": [
         "armor"
-      ]
+      ],
+      "equipSlot": "Head",
+      "armorDefense": 7.0,
+      "bonusHealth": 18.0,
+      "actionHint": "Iron Armor | Heavy DEF & HP | Forge [+] Upgradable"
     },
     {
       "id": 18,
@@ -273,7 +332,11 @@
       "vendorBuyable": false,
       "tags": [
         "armor"
-      ]
+      ],
+      "equipSlot": "Chest",
+      "armorDefense": 14.0,
+      "bonusHealth": 40.0,
+      "actionHint": "Iron Armor | Heavy DEF & HP | Forge [+] Upgradable"
     },
     {
       "id": 19,
@@ -288,7 +351,11 @@
       "vendorBuyable": false,
       "tags": [
         "armor"
-      ]
+      ],
+      "equipSlot": "Legs",
+      "armorDefense": 10.0,
+      "bonusHealth": 25.0,
+      "actionHint": "Iron Armor | Heavy DEF & HP | Forge [+] Upgradable"
     },
     {
       "id": 20,
@@ -303,7 +370,11 @@
       "vendorBuyable": false,
       "tags": [
         "armor"
-      ]
+      ],
+      "equipSlot": "Feet",
+      "armorDefense": 6.0,
+      "bonusHealth": 12.0,
+      "actionHint": "Iron Armor | Heavy DEF & HP | Forge [+] Upgradable"
     },
     {
       "id": 21,
@@ -318,7 +389,12 @@
       "vendorBuyable": false,
       "tags": [
         "armor"
-      ]
+      ],
+      "equipSlot": "Head",
+      "armorDefense": 8.0,
+      "bonusHealth": 15.0,
+      "bonusMana": 35.0,
+      "actionHint": "Arcane Armor | High MP & DEF | Forge [+] Upgradable"
     },
     {
       "id": 22,
@@ -333,7 +409,12 @@
       "vendorBuyable": false,
       "tags": [
         "armor"
-      ]
+      ],
+      "equipSlot": "Chest",
+      "armorDefense": 15.0,
+      "bonusHealth": 28.0,
+      "bonusMana": 55.0,
+      "actionHint": "Arcane Armor | High MP & DEF | Forge [+] Upgradable"
     },
     {
       "id": 23,
@@ -348,7 +429,10 @@
       "vendorBuyable": false,
       "tags": [
         "potion"
-      ]
+      ],
+      "restoreMana": 45.0,
+      "restoreStamina": 30.0,
+      "actionHint": "Consumable | Use: +45 MP & +30 Stamina"
     },
     {
       "id": 24,
@@ -363,7 +447,17 @@
       "vendorBuyable": false,
       "tags": [
         "weapon"
-      ]
+      ],
+      "equipSlot": "MainHand",
+      "baseDamage": 26.0,
+      "critChance": 0.22,
+      "floraHarvestDamage": 12.0,
+      "mineralHarvestDamage": 0.0,
+      "actionHint": "Ranged Bow | Shoot Arrows (26 dmg, 290 range)",
+      "attackRange": 290.0,
+      "projectileSpeed": 520.0,
+      "projectileArchetype": 1,
+      "capabilities": "RangedBow"
     },
     {
       "id": 25,
@@ -378,7 +472,19 @@
       "vendorBuyable": false,
       "tags": [
         "weapon"
-      ]
+      ],
+      "equipSlot": "MainHand",
+      "baseDamage": 31.0,
+      "critChance": 0.18,
+      "floraHarvestDamage": 10.0,
+      "mineralHarvestDamage": 0.0,
+      "bonusMana": 30.0,
+      "actionHint": "Mage Staff | Arcane Bolt (31 dmg, 4 MP, +30 MaxMP)",
+      "attackRange": 275.0,
+      "projectileSpeed": 460.0,
+      "projectileArchetype": 2,
+      "attackManaCost": 4.0,
+      "capabilities": "MagicFocus"
     },
     {
       "id": 26,
@@ -393,7 +499,17 @@
       "vendorBuyable": false,
       "tags": [
         "weapon"
-      ]
+      ],
+      "equipSlot": "MainHand",
+      "baseDamage": 38.0,
+      "critChance": 0.25,
+      "floraHarvestDamage": 14.0,
+      "mineralHarvestDamage": 0.0,
+      "actionHint": "Tier 3 Bow | Prism Arrows (38 dmg, 320 range)",
+      "attackRange": 320.0,
+      "projectileSpeed": 580.0,
+      "projectileArchetype": 3,
+      "capabilities": "RangedBow"
     },
     {
       "id": 27,
@@ -408,7 +524,19 @@
       "vendorBuyable": false,
       "tags": [
         "weapon"
-      ]
+      ],
+      "equipSlot": "MainHand",
+      "baseDamage": 44.0,
+      "critChance": 0.22,
+      "floraHarvestDamage": 12.0,
+      "mineralHarvestDamage": 0.0,
+      "bonusMana": 50.0,
+      "actionHint": "Archmage Staff | Astral Bolt (44 dmg, 6 MP, +50 MaxMP)",
+      "attackRange": 300.0,
+      "projectileSpeed": 500.0,
+      "projectileArchetype": 2,
+      "attackManaCost": 6.0,
+      "capabilities": "MagicFocus"
     },
     {
       "id": 28,
@@ -424,7 +552,9 @@
       "tags": [
         "structure",
         "station"
-      ]
+      ],
+      "placeableStructureType": 8,
+      "actionHint": "Workstation | Place Anvil to Enhance Gear ([U])"
     },
     {
       "id": 29,
@@ -439,7 +569,10 @@
       "vendorBuyable": false,
       "tags": [
         "food"
-      ]
+      ],
+      "healHealth": 55.0,
+      "restoreStamina": 40.0,
+      "actionHint": "Hearty Ration | Use: +55 HP & +40 Stamina"
     },
     {
       "id": 30,
@@ -454,7 +587,10 @@
       "vendorBuyable": false,
       "tags": [
         "food"
-      ]
+      ],
+      "healHealth": 30.0,
+      "restoreMana": 60.0,
+      "actionHint": "Mystic Pastry | Use: +30 HP & +60 MP"
     },
     {
       "id": 31,
@@ -469,7 +605,15 @@
       "vendorBuyable": false,
       "tags": [
         "weapon"
-      ]
+      ],
+      "equipSlot": "MainHand",
+      "baseDamage": 52.0,
+      "critChance": 0.24,
+      "floraHarvestDamage": 24.0,
+      "mineralHarvestDamage": 12.0,
+      "actionHint": "Abyssal Blade | Heavy Cleave (52 dmg, 24% Crit)",
+      "attackRange": 62.0,
+      "capabilities": "MeleeWeapon"
     },
     {
       "id": 32,
@@ -484,7 +628,19 @@
       "vendorBuyable": false,
       "tags": [
         "weapon"
-      ]
+      ],
+      "equipSlot": "MainHand",
+      "baseDamage": 38.0,
+      "critChance": 0.2,
+      "floraHarvestDamage": 10.0,
+      "mineralHarvestDamage": 0.0,
+      "bonusMana": 40.0,
+      "actionHint": "Shaman Focus | Hex Bolt (38 dmg, 5 MP, +40 MaxMP)",
+      "attackRange": 290.0,
+      "projectileSpeed": 480.0,
+      "projectileArchetype": 6,
+      "attackManaCost": 5.0,
+      "capabilities": "MagicFocus"
     },
     {
       "id": 33,
@@ -499,7 +655,9 @@
       "vendorBuyable": false,
       "tags": [
         "structure"
-      ]
+      ],
+      "placeableStructureType": 4,
+      "actionHint": "Builder | Place Stone Door ([E] Open/Close)"
     },
     {
       "id": 34,
@@ -514,7 +672,9 @@
       "vendorBuyable": false,
       "tags": [
         "structure"
-      ]
+      ],
+      "placeableStructureType": 5,
+      "actionHint": "Builder | Place Timber Floor (+15% Speed)"
     },
     {
       "id": 35,
@@ -529,7 +689,9 @@
       "vendorBuyable": false,
       "tags": [
         "structure"
-      ]
+      ],
+      "placeableStructureType": 6,
+      "actionHint": "Builder | Place Flagstone Floor (+20% Speed)"
     },
     {
       "id": 36,
@@ -544,7 +706,9 @@
       "vendorBuyable": false,
       "tags": [
         "structure"
-      ]
+      ],
+      "placeableStructureType": 7,
+      "actionHint": "Builder | Place Support Pillar (300 HP)"
     },
     {
       "id": 37,
@@ -561,7 +725,8 @@
         "beast",
         "orc",
         "wolf"
-      ]
+      ],
+      "actionHint": "Monster Drop | Craft Leather Gear & Rations [C]"
     },
     {
       "id": 38,
@@ -576,7 +741,8 @@
       "vendorBuyable": false,
       "tags": [
         "skeleton"
-      ]
+      ],
+      "actionHint": "Monster Drop | Craft Bows & Potions [C]"
     },
     {
       "id": 39,
@@ -591,7 +757,8 @@
       "vendorBuyable": false,
       "tags": [
         "demon"
-      ]
+      ],
+      "actionHint": "Boss Drop | Craft Demon Cleaver & High Gear [C]"
     },
     {
       "id": 100,
@@ -777,6 +944,21 @@
       ]
     },
     {
+      "id": 112,
+      "code": "cactus_fiber",
+      "name": "Cactus Fiber",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 0,
+      "maxStack": 99,
+      "basePrice": 1,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "plant"
+      ]
+    },
+    {
       "id": 120,
       "code": "berries",
       "name": "Berries",
@@ -790,7 +972,9 @@
       "tags": [
         "food",
         "plant"
-      ]
+      ],
+      "healHealth": 6.0,
+      "actionHint": "Food | Use: +6 HP"
     },
     {
       "id": 121,
@@ -824,7 +1008,10 @@
       "vendorBuyable": false,
       "tags": [
         "food"
-      ]
+      ],
+      "healHealth": 25.0,
+      "restoreStamina": 20.0,
+      "actionHint": "Food | Use: +25 HP & +20 Stamina"
     },
     {
       "id": 123,
@@ -839,7 +1026,10 @@
       "vendorBuyable": false,
       "tags": [
         "food"
-      ]
+      ],
+      "healHealth": 18.0,
+      "restoreStamina": 25.0,
+      "actionHint": "Food | Use: +18 HP & +25 Stamina"
     },
     {
       "id": 124,
@@ -854,7 +1044,10 @@
       "vendorBuyable": false,
       "tags": [
         "food"
-      ]
+      ],
+      "healHealth": 45.0,
+      "restoreStamina": 45.0,
+      "actionHint": "Hearty Food | Use: +45 HP & +45 Stamina"
     },
     {
       "id": 125,
@@ -870,7 +1063,10 @@
       "tags": [
         "food",
         "slime"
-      ]
+      ],
+      "healHealth": 10.0,
+      "restoreMana": 10.0,
+      "actionHint": "Food | Use: +10 HP & +10 MP"
     },
     {
       "id": 126,
@@ -1112,7 +1308,9 @@
       "tags": [
         "generic",
         "potion"
-      ]
+      ],
+      "healHealth": 40.0,
+      "actionHint": "Consumable | Use: Restore +40 HP"
     },
     {
       "id": 161,
@@ -1127,7 +1325,10 @@
       "vendorBuyable": false,
       "tags": [
         "potion"
-      ]
+      ],
+      "healHealth": 120.0,
+      "restoreStamina": 40.0,
+      "actionHint": "Consumable | Use: +120 HP & +40 Stamina"
     },
     {
       "id": 180,
@@ -1142,7 +1343,14 @@
       "vendorBuyable": false,
       "tags": [
         "weapon"
-      ]
+      ],
+      "equipSlot": "MainHand",
+      "baseDamage": 26.0,
+      "critChance": 0.1,
+      "floraHarvestDamage": 22.0,
+      "mineralHarvestDamage": 12.0,
+      "capabilities": "MeleeWeapon",
+      "actionHint": "Melee Blade | Combat 26 dmg (+Crit)"
     },
     {
       "id": 181,
@@ -1157,7 +1365,14 @@
       "vendorBuyable": false,
       "tags": [
         "tool"
-      ]
+      ],
+      "equipSlot": "Tool",
+      "harvestTier": 2,
+      "baseDamage": 20.0,
+      "floraHarvestDamage": 80.0,
+      "mineralHarvestDamage": 30.0,
+      "capabilities": "ChopFlora",
+      "actionHint": "Tier 2 Axe | Chop Trees (80 dmg)"
     },
     {
       "id": 182,
@@ -1172,7 +1387,17 @@
       "vendorBuyable": false,
       "tags": [
         "weapon"
-      ]
+      ],
+      "equipSlot": "MainHand",
+      "baseDamage": 30.0,
+      "critChance": 0.2,
+      "floraHarvestDamage": 12.0,
+      "mineralHarvestDamage": 0.0,
+      "attackRange": 300.0,
+      "projectileSpeed": 540.0,
+      "projectileArchetype": 1,
+      "capabilities": "RangedBow",
+      "actionHint": "Ranged Bow | Shoot Arrows (30 dmg, 300 range)"
     },
     {
       "id": 183,
@@ -1187,7 +1412,15 @@
       "vendorBuyable": false,
       "tags": [
         "weapon"
-      ]
+      ],
+      "equipSlot": "MainHand",
+      "baseDamage": 58.0,
+      "critChance": 0.25,
+      "floraHarvestDamage": 24.0,
+      "mineralHarvestDamage": 12.0,
+      "attackRange": 64.0,
+      "capabilities": "MeleeWeapon",
+      "actionHint": "Ember Blade | Searing Cut (58 dmg, 25% Crit)"
     },
     {
       "id": 184,
@@ -1232,7 +1465,11 @@
       "vendorBuyable": false,
       "tags": [
         "armor"
-      ]
+      ],
+      "equipSlot": "Head",
+      "armorDefense": 9.0,
+      "bonusHealth": 24.0,
+      "actionHint": "Orc Armor | Heavy DEF & HP | Forge [+] Upgradable"
     },
     {
       "id": 187,
@@ -1247,7 +1484,12 @@
       "vendorBuyable": false,
       "tags": [
         "armor"
-      ]
+      ],
+      "equipSlot": "Head",
+      "armorDefense": 14.0,
+      "bonusHealth": 40.0,
+      "bonusMana": 60.0,
+      "actionHint": "Legendary Armor | Huge DEF, HP & MP"
     },
     {
       "id": 200,

@@ -11,5 +11,12 @@
         <ProjectReference Include="..\Carbon.Primitives\Carbon.Primitives.csproj" />
         <ProjectReference Include="..\Carbon.Data\Carbon.Data.csproj" />
         <ProjectReference Include="..\Carbon.Simulation\Carbon.Simulation.csproj" />
+        <ProjectReference Include="..\Carbon.Maps\Carbon.Maps.csproj" />
+    </ItemGroup>
+
+    <!-- Build-time copy of the shipped config: the default until the server (or a desktop config sync) installs its own. -->
+    <ItemGroup>
+        <EmbeddedResource Include="..\..\resources\config\items.json" LogicalName="Carbon.Items.Config.items.json" />
+        <EmbeddedResource Include="..\..\resources\config\recipes.json" LogicalName="Carbon.Items.Config.recipes.json" />
     </ItemGroup>
 </Project>

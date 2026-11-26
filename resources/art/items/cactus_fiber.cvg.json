@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "itemId": 112,
+  "id": "cactus_fiber",
+  "displayName": "Cactus Fiber",
+  "tier": 1,
+  "categoryLabel": "Material",
+  "accentColor": "#65A30D",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -5,
+      "y": 6,
+      "x2": -2,
+      "y2": -7,
+      "thickness": 1.2,
+      "color": "#4D7C0F"
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -1,
+      "y": 6,
+      "x2": 0,
+      "y2": -7.5,
+      "thickness": 1.2,
+      "color": "#4D7C0F"
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": 3,
+      "y": 6,
+      "x2": 3.5,
+      "y2": -7,
+      "thickness": 1.2,
+      "color": "#4D7C0F"
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -5,
+      "y": 1,
+      "w": 9,
+      "h": 2,
+      "color": "#A16207"
+    }
+  ]
+}
