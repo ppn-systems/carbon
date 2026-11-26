@@ -2,7 +2,7 @@
 
 | Field | Value |
 | :--- | :--- |
-| **Audited commit** | `6d6dfac` (master, PR #12). PRs #13, #16, #17 and #18, merged afterwards, are covered by the automated guards but were not manually re-audited; line numbers in files they touched may have shifted. |
+| **Audited commit** | `6d6dfac` (master, PR #12). PRs #13, #15, #16, #17 and #18, merged afterwards, are covered by the automated guards but were not manually re-audited; line numbers in files they touched may have shifted. |
 | **Scope** | `contracts/`, `engine/`, `server/`, `desktop/`, `graphics/`, `tests/` (~79k lines C#, 31 production projects, 15 test projects) |
 | **Method** | Manual read-through per layer against AGENTS.md, ADR-001…ADR-010, and the `csharp-style`, `carbon-engine-ecs`, `performance-aot`, `testing-style`, `carbon-handlers` skills; plus the reflection/metadata guards in `tests/architecture/Carbon.Architecture.Tests` |
 | **Status** | Report only. No production code changed in this PR (economy, combat/AI, survival, building, config sync, and biome rendering are being changed in parallel). |
@@ -30,7 +30,7 @@ The real problems sit **inside** layers:
 
 | # | ID | Severity | Title |
 | :--- | :--- | :--- | :--- |
-| 1 | SA-1 | Critical | Desktop compiles in and decides with server gameplay balance tables; no config-sync packet exists |
+| 1 | SA-1 | Critical | Desktop compiles in and decides with server gameplay balance tables (config sync from #15 exists but is not yet used by these call sites) |
 | 2 | SA-8 | Critical | `TryHarvestProp` skips the attack cooldown, line of sight and harvest range (resource/XP farming at ~240/s) |
 | 3 | TS-2 | Critical | Desktop network thread mutates `ChunkWorld2D`/`WorldSimulation` while render reads them unlocked |
 | 4 | SA-9 | High | Any player can demolish any structure and keep 60% salvage (no owner) |
@@ -59,7 +59,7 @@ The server must send gameplay config; the client may only predict and display. G
 
 | ID | Sev | Finding | Fix |
 | :--- | :--- | :--- | :--- |
-| SA-1 | **Critical** | Desktop reads `StarterGameCatalog`, `SkillCatalog`, `WorldActorCatalog`, `CharacterProgressionPolicy`, `ItemEnhancementPolicy`, `ToolUsagePolicy`, `WorldProgression` in 21 files (~70 call sites; see the allowlist in `ServerAuthorityTests`). No packet in `contracts/` carries item/recipe/skill/actor config, so a server balance change silently desyncs every client. | ADR + append-only S2C `GameConfigSync` packet (items, recipes, skills, NPC capabilities, progression curve, ranges, movement), sent at `CharacterEnterWorld`, behind a client `IGameConfigProvider`. Migrate call sites and delete allowlist entries one by one. (Coordinate with the config-sync work in flight.) |
+| SA-1 | **Critical** | Desktop reads `StarterGameCatalog`, `SkillCatalog`, `WorldActorCatalog`, `CharacterProgressionPolicy`, `ItemEnhancementPolicy`, `ToolUsagePolicy`, `WorldProgression` in 21 files (~70 call sites; see the allowlist in `ServerAuthorityTests`). At `6d6dfac` no packet carried item/recipe/skill/actor config, so a server balance change silently desynced every client. **Update:** #15 added server-authoritative config sync (`contracts/Carbon.Contracts.Config`, client `IGameConfigSource`), but all 36 allowlisted desktop usages of the engine tables still exist after the merge. | Migrate each desktop call site to the synced config (`IGameConfigSource`), extending the synced documents where a table is missing (ranges, movement, progression curve). Delete allowlist entries one by one. |
 | SA-2 | High | The client resolves skill mana/stamina costs and cooldowns from `SkillCatalog` and deducts them locally: `desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs:151-193`. | Send the cast request. Treat cost and cooldown as prediction only, from server-sent config; the authority is `PlayerStatsSync`. |
 | SA-3 | High | Movement and regen are copied from the server: `MultiplayerSession.cs:37-38` (`WalkSpeed=250f`, `SprintSpeed=450f`), `:542,546,551` (stamina/mana rates). They duplicate `server/Carbon.Application/World/AuthoritativeWorld.cs:39-40` and `AuthoritativeWorld.TickAndAoi.cs:53,68`. Terrain speed multipliers are missing, so prediction drifts. | Put them in `CharacterEnterWorld`/config sync, or in one shared engine `MovementSpec` used by both sides. |
 | SA-4 | High | The client computes the XP curve and unspent points: `MultiplayerSession.Packets.cs:416-417,835`, `MultiplayerSession.Auth.cs:290-291`. | Append `UnspentStatPoints`/`UnspentSkillPoints` (and the level threshold) to `CharacterEnterWorld`/`PlayerStatsSync`. |
@@ -117,7 +117,7 @@ Guarded by `EngineDesignTests`. Components (`*.Components` namespaces or `*Compo
 
 ## 6. Thread safety
 
-Guarded by `CodeHygieneTests`: no `async void` anywhere (none today), and no static mutable state in engine/server. 22 fields are allowlisted with reasons (type-id counters, `[ThreadStatic]` scratch, `[Inject]` statics, auth map, river caches, read-only lookup tables that should become `FrozenDictionary`).
+Guarded by `CodeHygieneTests`: no `async void` anywhere (none today), and no static mutable state in engine/server. 23 fields are allowlisted with reasons (type-id counters, `[ThreadStatic]` scratch, `[Inject]` statics, auth map, river caches, read-only lookup tables that should become `FrozenDictionary`).
 
 | ID | Sev | Finding | Fix |
 | :--- | :--- | :--- | :--- |
@@ -217,7 +217,7 @@ Project: `tests/architecture/Carbon.Architecture.Tests` · Solution: `tests/Carb
 | :--- | :--- | :--- |
 | `LayerDependencyTests` | Layer graph per AGENTS.md rule 3 (contracts → nothing; engine → contracts; graphics → contracts/engine; server never → graphics/desktop; desktop never → server), checked on both `.csproj` and compiled metadata. Restricted packages stay in their layer. Every production project must be referenced by the architecture test project. | none |
 | `EngineDesignTests` | ECS components are unmanaged structs with no behavior methods. Public engine classes are sealed/abstract/static unless they are inherited. | 2 allowlisted (ECS-5, ECS-5b) |
-| `CodeHygieneTests` | No `async void` in any production assembly. No static mutable state in engine/server (non-readonly statics, or `static readonly` mutable collections). Namespace = RootNamespace + folder path for all 454 source files. | 22 statics allowlisted with reasons |
+| `CodeHygieneTests` | No `async void` in any production assembly. No static mutable state in engine/server (non-readonly statics, or `static readonly` mutable collections). Namespace = RootNamespace + folder path for all 454 source files. | 23 statics allowlisted with reasons |
 | `ResourceTests` | Every `resources/**/*.json` parses strictly. `resources/art` loads through the real `CarbonVectorArtLibrary.LoadFromDirectory`. Every `.cvg.json` is referenced by the catalog (otherwise it is never validated), and every reference exists. Raster images only under `resources/ui` and `resources/fonts`. Nothing under `resources/thirdparty`. | none |
 | `ServerAuthorityTests` | Desktop must not use *new* engine balance types (`StarterGameCatalog`, `SkillCatalog`, …). No *new* gameplay-named numeric `const`/`static readonly` (speed, damage, cooldown, price, …) in desktop. Heuristic. | 36 usages + 3 constants allowlisted (SA-1, SA-3) |
 

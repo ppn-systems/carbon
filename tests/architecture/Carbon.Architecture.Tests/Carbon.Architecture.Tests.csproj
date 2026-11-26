@@ -3,6 +3,7 @@
          ProductionProjects_ShouldAllBeReferencedByArchitectureTests fails when a new project is not added here. -->
     <ItemGroup>
         <ProjectReference Include="..\..\..\contracts\Carbon.Contracts.Common\Carbon.Contracts.Common.csproj" />
+        <ProjectReference Include="..\..\..\contracts\Carbon.Contracts.Config\Carbon.Contracts.Config.csproj" />
         <ProjectReference Include="..\..\..\contracts\Carbon.Contracts.Entities\Carbon.Contracts.Entities.csproj" />
         <ProjectReference Include="..\..\..\contracts\Carbon.Contracts.Identity\Carbon.Contracts.Identity.csproj" />
         <ProjectReference Include="..\..\..\contracts\Carbon.Contracts.Items\Carbon.Contracts.Items.csproj" />
@@ -13,6 +14,7 @@
         <ProjectReference Include="..\..\..\desktop\Carbon.Desktop\Carbon.Desktop.csproj" />
         <ProjectReference Include="..\..\..\engine\Carbon.AI\Carbon.AI.csproj" />
         <ProjectReference Include="..\..\..\engine\Carbon.Combat\Carbon.Combat.csproj" />
+        <ProjectReference Include="..\..\..\engine\Carbon.Configuration\Carbon.Configuration.csproj" />
         <ProjectReference Include="..\..\..\engine\Carbon.Creatures\Carbon.Creatures.csproj" />
         <ProjectReference Include="..\..\..\engine\Carbon.Data\Carbon.Data.csproj" />
         <ProjectReference Include="..\..\..\engine\Carbon.Economy\Carbon.Economy.csproj" />
@@ -35,5 +37,6 @@
         <ProjectReference Include="..\..\..\server\Carbon.Handlers\Carbon.Handlers.csproj" />
         <ProjectReference Include="..\..\..\server\Carbon.Host\Carbon.Host.csproj" />
         <ProjectReference Include="..\..\..\server\Carbon.Infrastructure\Carbon.Infrastructure.csproj" />
+        <ProjectReference Include="..\..\..\server\Carbon.Server.Configuration\Carbon.Server.Configuration.csproj" />
     </ItemGroup>
 </Project>

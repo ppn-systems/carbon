@@ -61,6 +61,7 @@ public sealed partial class CodeHygieneTests
 
         // --- Debt (see docs/audit/2026-11-codebase-audit.md) ---
         // Nalix [Inject] static service-locator fields on packet handler classes. Audit: instance handlers + DI.
+        "Carbon.Handlers.Config.ConfigHandlers.s_config",
         "Carbon.Handlers.Entities.EntityHandlers.s_transports",
         "Carbon.Handlers.Entities.EntityHandlers.s_world",
         "Carbon.Handlers.Identity.IdentityHandlers.s_authService",
