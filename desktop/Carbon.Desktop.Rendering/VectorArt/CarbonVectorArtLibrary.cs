@@ -692,7 +692,10 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
             }
 
             Array.Sort(frames, static (a, b) => a.Time.CompareTo(b.Time));
-            dict[kvp.Key] = new CompiledVectorAnimation(src.Duration, src.Loop, frames);
+            AttackPhaseMarks? marks = src.PhaseMarks is null
+                ? null
+                : AttackPhaseMarks.Create(src.PhaseMarks.WindupEnd, src.PhaseMarks.TravelEnd, src.PhaseMarks.ActiveEnd);
+            dict[kvp.Key] = new CompiledVectorAnimation(src.Duration, src.Loop, frames, marks);
         }
 
         return dict;
