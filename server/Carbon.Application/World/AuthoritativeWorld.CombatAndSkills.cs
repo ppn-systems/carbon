@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Application.World.Replication;
 using Carbon.AI.Components;
 using Carbon.AI.Threat;
 using Carbon.Contracts.Entities;
@@ -97,7 +98,7 @@ public sealed partial class AuthoritativeWorld
 
             if (this.DegradeActiveSlotDurabilityLocked(state, in activeSlot, 0.8f, out ItemSlot degradedRanged))
             {
-                _pendingSlotChanges.Add(new OutboundSlotChange(
+                _outbound.Pending.SlotChanges.Add(new OutboundSlotChange(
                     state.Session.ConnectionId,
                     state.Session.SelectedHotbarSlot,
                     degradedRanged));
@@ -106,13 +107,13 @@ public sealed partial class AuthoritativeWorld
             this.CollectNearbyConnectionsAroundWorldLocked(attackerPos, _aoiRecipientsScratch);
             if (_aoiRecipientsScratch.Count > 0)
             {
-                int castOffset = _flatRecipients.Count;
+                int castOffset = _outbound.Pending.Recipients.Count;
                 for (int rIdx = 0; rIdx < _aoiRecipientsScratch.Count; rIdx++)
                 {
-                    _flatRecipients.Add(_aoiRecipientsScratch[rIdx]);
+                    _outbound.Pending.Recipients.Add(_aoiRecipientsScratch[rIdx]);
                 }
 
-                _pendingSkillCasts.Add(new OutboundSkillCast(
+                _outbound.Pending.SkillCasts.Add(new OutboundSkillCast(
                     castOffset,
                     _aoiRecipientsScratch.Count,
                     state.Session.PlayerNetworkId,
@@ -185,7 +186,7 @@ public sealed partial class AuthoritativeWorld
             combatEval.DurabilityLoss > 0f &&
             this.DegradeActiveSlotDurabilityLocked(state, in activeSlot, combatEval.DurabilityLoss, out ItemSlot degradedCombatSlot))
         {
-            _pendingSlotChanges.Add(new OutboundSlotChange(
+            _outbound.Pending.SlotChanges.Add(new OutboundSlotChange(
                 state.Session.ConnectionId,
                 state.Session.SelectedHotbarSlot,
                 degradedCombatSlot));
@@ -223,7 +224,7 @@ public sealed partial class AuthoritativeWorld
             ? activeSlot with { Quantity = activeSlot.Quantity - 1 }
             : ItemSlot.Empty;
         state.Inventory.SetSlot(state.Session.SelectedHotbarSlot, in updatedSlot);
-        _pendingSlotChanges.Add(new OutboundSlotChange(state.Session.ConnectionId, state.Session.SelectedHotbarSlot, updatedSlot));
+        _outbound.Pending.SlotChanges.Add(new OutboundSlotChange(state.Session.ConnectionId, state.Session.SelectedHotbarSlot, updatedSlot));
         this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
         return true;
     }
@@ -311,15 +312,15 @@ public sealed partial class AuthoritativeWorld
         Vector2 aimDir = rawAim.LengthSquared() > 1e-4f ? Vector2.Normalize(rawAim) : Vector2.UnitX;
 
         this.CollectNearbyConnectionsAroundWorldLocked(pos, _aoiRecipientsScratch);
-        int castOffset = _flatRecipients.Count;
+        int castOffset = _outbound.Pending.Recipients.Count;
         for (int i = 0; i < _aoiRecipientsScratch.Count; i++)
         {
-            _flatRecipients.Add(_aoiRecipientsScratch[i]);
+            _outbound.Pending.Recipients.Add(_aoiRecipientsScratch[i]);
         }
 
         if (_aoiRecipientsScratch.Count > 0)
         {
-            _pendingSkillCasts.Add(new OutboundSkillCast(
+            _outbound.Pending.SkillCasts.Add(new OutboundSkillCast(
                 castOffset,
                 _aoiRecipientsScratch.Count,
                 state.Session.PlayerNetworkId,
@@ -536,13 +537,13 @@ public sealed partial class AuthoritativeWorld
             return;
         }
 
-        int offset = _flatRecipients.Count;
+        int offset = _outbound.Pending.Recipients.Count;
         for (int i = 0; i < _aoiRecipientsScratch.Count; i++)
         {
-            _flatRecipients.Add(_aoiRecipientsScratch[i]);
+            _outbound.Pending.Recipients.Add(_aoiRecipientsScratch[i]);
         }
 
-        _pendingCombatHits.Add(new OutboundCombatHit(
+        _outbound.Pending.CombatHits.Add(new OutboundCombatHit(
             offset,
             _aoiRecipientsScratch.Count,
             attackerNetId,
@@ -645,7 +646,7 @@ public sealed partial class AuthoritativeWorld
             float nextDur = MathF.Max(0f, slot.Durability - loss);
             ItemSlot updated = slot with { Durability = nextDur };
             victim.Inventory.SetSlot(sIdx, in updated);
-            _pendingSlotChanges.Add(new OutboundSlotChange(victim.Session.ConnectionId, (ushort)sIdx, updated));
+            _outbound.Pending.SlotChanges.Add(new OutboundSlotChange(victim.Session.ConnectionId, (ushort)sIdx, updated));
             if (nextDur <= 0f)
             {
                 anyBroke = true;

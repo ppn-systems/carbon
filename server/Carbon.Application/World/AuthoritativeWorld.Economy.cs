@@ -4,6 +4,7 @@ using System;
 using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Replication;
 using Carbon.Application.World.Commands;
 using Carbon.Contracts.Common;
 using Carbon.Economy;
@@ -217,5 +218,5 @@ public sealed partial class AuthoritativeWorld
     }
 
     private void EnqueueWalletSyncLocked(ActivePlayerState state) =>
-        _pendingWalletSyncs.Add(new OutboundWalletSync(state.Session.ConnectionId, state.Wallet.Gold, state.Wallet.Diamonds, state.Wallet.Sequence));
+        _outbound.Pending.WalletSyncs.Add(new OutboundWalletSync(state.Session.ConnectionId, state.Wallet.Gold, state.Wallet.Diamonds, state.Wallet.Sequence));
 }

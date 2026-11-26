@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Replication;
 using Carbon.AI.Components;
 using Carbon.AI.Threat;
 using Carbon.Contracts.Entities;
@@ -126,7 +127,7 @@ public sealed partial class AuthoritativeWorld
                         (int offset, int count) = this.AppendTileRecipientsLocked(rtx, rty);
                         if (count > 0)
                         {
-                            _pendingPropChanges.Add(new OutboundPropChange(
+                            _outbound.Pending.PropChanges.Add(new OutboundPropChange(
                                 offset,
                                 count,
                                 rtx,
@@ -168,16 +169,16 @@ public sealed partial class AuthoritativeWorld
                     ulong targetNetId = _scratchEntered[i];
                     if (this.TryBuildSpawnSnapshotLocked(targetNetId, out EntitySpawnSnapshot snap))
                     {
-                        _pendingSpawns.Add(new OutboundSpawn(observer.Session.ConnectionId, snap));
+                        _outbound.Pending.Spawns.Add(new OutboundSpawn(observer.Session.ConnectionId, snap));
                     }
                 }
 
                 for (int i = 0; i < _scratchExited.Count; i++)
                 {
-                    _pendingDespawns.Add(new OutboundDespawn(observer.Session.ConnectionId, _scratchExited[i], _currentTick));
+                    _outbound.Pending.Despawns.Add(new OutboundDespawn(observer.Session.ConnectionId, _scratchExited[i], _currentTick));
                 }
 
-                int deltaOffset = _flatDeltaEntries.Count;
+                int deltaOffset = _outbound.Pending.DeltaEntries.Count;
                 for (int i = 0; i < _scratchVisible.Count; i++)
                 {
                     ulong visibleNetId = _scratchVisible[i];
@@ -193,16 +194,16 @@ public sealed partial class AuthoritativeWorld
                             float hp = _simulation.Entities.HasHealth(visibleEntity)
                                 ? _simulation.Entities.GetHealth(visibleEntity).Current
                                 : 100f;
-                            _flatDeltaEntries.Add(new EntityDeltaEntry(visibleNetId, (byte)mask, pos.X, pos.Y, vel.X, vel.Y, hp));
+                            _outbound.Pending.DeltaEntries.Add(new EntityDeltaEntry(visibleNetId, (byte)mask, pos.X, pos.Y, vel.X, vel.Y, hp));
                         }
                     }
                 }
 
-                int deltaCount = _flatDeltaEntries.Count - deltaOffset;
+                int deltaCount = _outbound.Pending.DeltaEntries.Count - deltaOffset;
                 EntityDirtyMask selfDirty = _simulation.GetDirtyFlags(observer.Entity);
                 if (selfDirty != EntityDirtyMask.None || deltaCount > 0)
                 {
-                    _pendingDeltas.Add(new OutboundDelta(
+                    _outbound.Pending.Deltas.Add(new OutboundDelta(
                         observer.Session.ConnectionId,
                         _currentTick,
                         observer.LastClientTick,
@@ -255,7 +256,7 @@ public sealed partial class AuthoritativeWorld
                         float mendedDur = MathF.Min(effectiveMaxDur, curSlot.Durability + 12f);
                         ItemSlot repaired = curSlot with { Durability = mendedDur };
                         observer.Inventory.SetSlot(sIdx, in repaired);
-                        _pendingSlotChanges.Add(new OutboundSlotChange(observer.Session.ConnectionId, (ushort)sIdx, repaired));
+                        _outbound.Pending.SlotChanges.Add(new OutboundSlotChange(observer.Session.ConnectionId, (ushort)sIdx, repaired));
                         this.MarkCharacterDirtyLocked(observer, inventoryChanged: true);
                     }
                 }
@@ -287,40 +288,7 @@ public sealed partial class AuthoritativeWorld
         this.DispatchPendingTickOutputs();
     }
 
-    private void SwapOutboundBuffersLocked()
-    {
-        (_pendingSpawns, _dispatchSpawns) = (_dispatchSpawns, _pendingSpawns);
-        (_pendingDespawns, _dispatchDespawns) = (_dispatchDespawns, _pendingDespawns);
-        (_pendingDeltas, _dispatchDeltas) = (_dispatchDeltas, _pendingDeltas);
-        (_flatDeltaEntries, _dispatchDeltaEntries) = (_dispatchDeltaEntries, _flatDeltaEntries);
-        (_pendingCombatHits, _dispatchCombatHits) = (_dispatchCombatHits, _pendingCombatHits);
-        (_pendingSlotChanges, _dispatchSlotChanges) = (_dispatchSlotChanges, _pendingSlotChanges);
-        (_pendingPropChanges, _dispatchPropChanges) = (_dispatchPropChanges, _pendingPropChanges);
-        (_pendingStructureChanges, _dispatchStructureChanges) = (_dispatchStructureChanges, _pendingStructureChanges);
-        (_pendingConstructionChanges, _dispatchConstructionChanges) = (_dispatchConstructionChanges, _pendingConstructionChanges);
-        (_pendingEquipmentChanges, _dispatchEquipmentChanges) = (_dispatchEquipmentChanges, _pendingEquipmentChanges);
-        (_pendingStatsSyncs, _dispatchStatsSyncs) = (_dispatchStatsSyncs, _pendingStatsSyncs);
-        (_pendingWalletSyncs, _dispatchWalletSyncs) = (_dispatchWalletSyncs, _pendingWalletSyncs);
-        (_pendingSkillCasts, _dispatchSkillCasts) = (_dispatchSkillCasts, _pendingSkillCasts);
-        (_pendingAttackPhases, _dispatchAttackPhases) = (_dispatchAttackPhases, _pendingAttackPhases);
-        (_flatRecipients, _dispatchRecipients) = (_dispatchRecipients, _flatRecipients);
-
-        _pendingSpawns.Clear();
-        _pendingDespawns.Clear();
-        _pendingDeltas.Clear();
-        _flatDeltaEntries.Clear();
-        _pendingCombatHits.Clear();
-        _pendingSlotChanges.Clear();
-        _pendingPropChanges.Clear();
-        _pendingStructureChanges.Clear();
-        _pendingConstructionChanges.Clear();
-        _pendingEquipmentChanges.Clear();
-        _pendingStatsSyncs.Clear();
-        _pendingWalletSyncs.Clear();
-        _pendingSkillCasts.Clear();
-        _pendingAttackPhases.Clear();
-        _flatRecipients.Clear();
-    }
+    private void SwapOutboundBuffersLocked() => _outbound.Swap();
 
     /// <inheritdoc/>
     public async Task FlushDirtyPersistenceAsync(CancellationToken ct = default)
@@ -438,161 +406,7 @@ public sealed partial class AuthoritativeWorld
         }
     }
 
-    private void DispatchPendingTickOutputs()
-    {
-        for (int i = 0; i < _dispatchSpawns.Count; i++)
-        {
-            OutboundSpawn item = _dispatchSpawns[i];
-            EntitySpawnSnapshot snap = item.Snapshot;
-            _outboundSink.SendEntitySpawn(item.ConnectionId, in snap);
-        }
-
-        for (int i = 0; i < _dispatchDespawns.Count; i++)
-        {
-            OutboundDespawn item = _dispatchDespawns[i];
-            _outboundSink.SendEntityDespawn(item.ConnectionId, item.NetworkId, item.ServerTick);
-        }
-
-        Span<EntityDeltaEntry> deltaSpan = CollectionsMarshal.AsSpan(_dispatchDeltaEntries);
-        for (int i = 0; i < _dispatchDeltas.Count; i++)
-        {
-            OutboundDelta item = _dispatchDeltas[i];
-            _outboundSink.SendEntityDeltaBatch(
-                item.ConnectionId,
-                item.ServerTick,
-                item.LastClientTick,
-                item.SelfX,
-                item.SelfY,
-                deltaSpan.Slice(item.Offset, item.Count));
-        }
-
-        Span<ulong> recipientsSpan = CollectionsMarshal.AsSpan(_dispatchRecipients);
-        for (int i = 0; i < _dispatchCombatHits.Count; i++)
-        {
-            OutboundCombatHit hit = _dispatchCombatHits[i];
-            _outboundSink.SendCombatHit(
-                recipientsSpan.Slice(hit.RecipientsOffset, hit.RecipientsCount),
-                hit.AttackerNetworkId,
-                hit.DefenderNetworkId,
-                hit.Damage,
-                hit.RemainingHealth,
-                hit.IsCritical,
-                hit.IsKilled);
-        }
-
-        for (int i = 0; i < _dispatchSlotChanges.Count; i++)
-        {
-            OutboundSlotChange change = _dispatchSlotChanges[i];
-            ItemSlot slotCopy = change.Slot;
-            _outboundSink.SendInventorySlotChanged(
-                change.ConnectionId,
-                change.SlotIndex,
-                slotCopy.ItemId,
-                slotCopy.Quantity,
-                slotCopy.Durability,
-                ItemEnhancementPolicy.GetUpgradeLevel(in slotCopy),
-                slotCopy.FreshnessSeconds);
-        }
-
-        for (int i = 0; i < _dispatchPropChanges.Count; i++)
-        {
-            OutboundPropChange prop = _dispatchPropChanges[i];
-            _outboundSink.SendPropChanged(
-                recipientsSpan.Slice(prop.RecipientsOffset, prop.RecipientsCount),
-                prop.TileX,
-                prop.TileY,
-                prop.Revision,
-                prop.Durability,
-                prop.IsDestroyed);
-        }
-
-        for (int i = 0; i < _dispatchStructureChanges.Count; i++)
-        {
-            OutboundStructureChange st = _dispatchStructureChanges[i];
-            _outboundSink.SendStructureChanged(
-                recipientsSpan.Slice(st.RecipientsOffset, st.RecipientsCount),
-                st.TileX,
-                st.TileY,
-                st.StructureType,
-                st.Durability,
-                st.DoorState,
-                st.Connectivity);
-        }
-
-        for (int i = 0; i < _dispatchEquipmentChanges.Count; i++)
-        {
-            OutboundEquipmentChange eq = _dispatchEquipmentChanges[i];
-            _outboundSink.SendEntityEquipmentChanged(
-                recipientsSpan.Slice(eq.RecipientsOffset, eq.RecipientsCount),
-                eq.NetworkId,
-                eq.HeadId,
-                eq.ChestId,
-                eq.LegsId,
-                eq.FeetId,
-                eq.WeaponId,
-                eq.WeaponUpgrade,
-                eq.Level,
-                eq.MaxHealth);
-        }
-
-        for (int i = 0; i < _dispatchStatsSyncs.Count; i++)
-        {
-            OutboundStatsSync sync = _dispatchStatsSyncs[i];
-            PlayerStatsSnapshot statsSnap = sync.Snapshot;
-            _outboundSink.SendPlayerStatsSync(sync.ConnectionId, in statsSnap);
-        }
-
-        for (int i = 0; i < _dispatchWalletSyncs.Count; i++)
-        {
-            OutboundWalletSync wallet = _dispatchWalletSyncs[i];
-            _outboundSink.SendWalletSync(wallet.ConnectionId, wallet.Gold, wallet.Diamonds, wallet.Sequence);
-        }
-
-        for (int i = 0; i < _dispatchSkillCasts.Count; i++)
-        {
-            OutboundSkillCast cast = _dispatchSkillCasts[i];
-            _outboundSink.SendSkillCastBroadcast(
-                recipientsSpan.Slice(cast.RecipientsOffset, cast.RecipientsCount),
-                cast.CasterNetworkId,
-                cast.AbilitySlot,
-                cast.OriginX,
-                cast.OriginY,
-                cast.AimX,
-                cast.AimY);
-        }
-
-        this.DispatchAttackPhases(recipientsSpan);
-
-        _dispatchSpawns.Clear();
-        _dispatchDespawns.Clear();
-        _dispatchDeltas.Clear();
-        _dispatchDeltaEntries.Clear();
-        _dispatchCombatHits.Clear();
-        _dispatchSlotChanges.Clear();
-        _dispatchPropChanges.Clear();
-        _dispatchStructureChanges.Clear();
-
-        for (int i = 0; i < _dispatchConstructionChanges.Count; i++)
-        {
-            OutboundConstructionChange cc = _dispatchConstructionChanges[i];
-            _outboundSink.SendConstructionChanged(
-                recipientsSpan.Slice(cc.RecipientsOffset, cc.RecipientsCount),
-                cc.TileX,
-                cc.TileY,
-                cc.StructureType,
-                cc.Rotation,
-                cc.Stage,
-                cc.Size,
-                cc.Progress,
-                cc.IsDeconstruction);
-        }
-
-        _dispatchConstructionChanges.Clear();
-        _dispatchEquipmentChanges.Clear();
-        _dispatchStatsSyncs.Clear();
-        _dispatchSkillCasts.Clear();
-        _dispatchRecipients.Clear();
-    }
+    private void DispatchPendingTickOutputs() => _outbound.Dispatch(_outboundSink);
 
     private void ApplyDamageToPlayerLocked(
         ActivePlayerState? victim,

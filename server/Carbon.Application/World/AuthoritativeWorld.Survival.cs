@@ -7,6 +7,7 @@ using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Replication;
 using Carbon.Application.World.Commands;
 using Carbon.Combat.Events;
 using Carbon.Contracts.Common;
@@ -143,7 +144,7 @@ public sealed partial class AuthoritativeWorld
                 inventory.SetSlot(i, step.Slot);
                 if (step.Outcome is SpoilageOutcome.Stamped or SpoilageOutcome.Spoiled)
                 {
-                    _pendingSlotChanges.Add(new OutboundSlotChange(state.Session.ConnectionId, (ushort)i, step.Slot));
+                    _outbound.Pending.SlotChanges.Add(new OutboundSlotChange(state.Session.ConnectionId, (ushort)i, step.Slot));
                     changed = true;
                 }
             }
@@ -290,7 +291,7 @@ public sealed partial class AuthoritativeWorld
 
         ItemSlot updated = slot.Quantity > 1 ? slot with { Quantity = slot.Quantity - 1 } : ItemSlot.Empty;
         state.Inventory.SetSlot(slotIndex, in updated);
-        _pendingSlotChanges.Add(new OutboundSlotChange(state.Session.ConnectionId, (ushort)slotIndex, updated));
+        _outbound.Pending.SlotChanges.Add(new OutboundSlotChange(state.Session.ConnectionId, (ushort)slotIndex, updated));
         this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
     }
 
