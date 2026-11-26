@@ -72,7 +72,7 @@ public sealed class DesktopOptions
     public string CharacterName { get; init; } = "Hero";
 
     /// <summary>
-    /// Gets or sets the directory where server-sent gameplay config documents are cached (ADR-011).
+    /// Gets or sets the directory where server-sent gameplay config documents are cached (ADR-014).
     /// Cached files are re-hashed against the server manifest before use, so a stale or corrupt file is only a cache miss.
     /// </summary>
     public string ConfigCacheDirectory { get; init; } = DefaultConfigCacheDirectory();

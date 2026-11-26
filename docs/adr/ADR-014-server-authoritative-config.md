@@ -1,4 +1,4 @@
-# ADR-011: Server-Authoritative Gameplay Config with Hash-Based Sync
+# ADR-014: Server-Authoritative Gameplay Config with Hash-Based Sync
 
 - **Date**: 2026-11-26
 - **Status**: Accepted

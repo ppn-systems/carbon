@@ -16,7 +16,7 @@ using Nalix.SDK.Transport.Extensions;
 namespace Carbon.Desktop.Networking.Session;
 
 /// <summary>
-/// Server-authoritative gameplay config sync (ADR-011). The server pushes a <see cref="ConfigManifest"/> after sign-in and
+/// Server-authoritative gameplay config sync (ADR-014). The server pushes a <see cref="ConfigManifest"/> after sign-in and
 /// after every hot reload; this client downloads only documents whose hash differs from the on-disk cache, verifies them,
 /// and exposes them through <see cref="GameConfig"/>. One pump runs at a time; a manifest that arrives mid-download
 /// supersedes the one being processed.

@@ -27,7 +27,7 @@ internal static class Startup
 {
     /// <summary>Builds the configured <see cref="NetworkApplication"/> without starting listeners.</summary>
     /// <remarks>
-    /// <paramref name="config"/> is the server-authoritative gameplay config (ADR-011); without one the host serves an
+    /// <paramref name="config"/> is the server-authoritative gameplay config (ADR-014); without one the host serves an
     /// empty manifest. Every reload that changes it pushes the new manifest to all signed-in clients.
     /// </remarks>
     internal static NetworkApplication Build(
