@@ -36,4 +36,8 @@ public sealed partial class InventorySlotChanged : PacketBase<InventorySlotChang
     /// <summary>Updated item enhancement level (<c>0..10</c>).</summary>
     [SerializeOrder(4)]
     public byte UpgradeLevel { get; set; }
+
+    /// <summary>Seconds until the stack spoils (ADR-016); <c>0</c> when not perishable.</summary>
+    [SerializeOrder(5)]
+    public float FreshnessSeconds { get; set; }
 }

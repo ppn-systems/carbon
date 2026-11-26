@@ -93,6 +93,26 @@
       "level": 8,
       "accentColor": "#EF4444",
       "file": "monsters/crimson_demon.cvg.json"
+    },
+    {
+      "archetypeId": 108,
+      "id": "orc_warlord",
+      "title": "Orc Warlord",
+      "subtitle": "ELITE WARCHIEF",
+      "level": 20,
+      "accentColor": "#DC2626",
+      "file": "monsters/orc_warlord.cvg.json",
+      "elite": true
+    },
+    {
+      "archetypeId": 109,
+      "id": "slime_king",
+      "title": "Slime King",
+      "subtitle": "ELITE OOZE MONARCH",
+      "level": 5,
+      "accentColor": "#EAB308",
+      "file": "monsters/slime_king.cvg.json",
+      "elite": true
     }
   ],
   "npcs": [
@@ -817,6 +837,14 @@
       "tier": 1,
       "accentColor": "#65A30D",
       "file": "items/cactus_fiber.cvg.json"
+    },
+    {
+      "itemId": 203,
+      "id": "rotten_food",
+      "displayName": "Rotten Food",
+      "tier": 0,
+      "accentColor": "#65A30D",
+      "file": "items/rotten_food.cvg.json"
     }
   ],
   "props": [

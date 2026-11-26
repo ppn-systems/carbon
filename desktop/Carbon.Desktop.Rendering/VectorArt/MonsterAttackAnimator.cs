@@ -30,7 +30,7 @@ public static class MonsterAttackAnimator
 
         string preferred = attackKind switch
         {
-            EntityAttackPhase.KindMelee => archetypeId is WorldActorCatalog.RockGolem or WorldActorCatalog.CrimsonDemon ? "attack_slam" : FallbackClip,
+            EntityAttackPhase.KindMelee => archetypeId is WorldActorCatalog.RockGolem or WorldActorCatalog.CrimsonDemon or WorldActorCatalog.OrcWarlord ? "attack_slam" : FallbackClip,
             EntityAttackPhase.KindProjectile => rig.TryGetAnimation("attack_bow", out _) ? "attack_bow" : "attack_cast",
             EntityAttackPhase.KindSpell => rig.TryGetAnimation("attack_spell", out _) ? "attack_spell" : "attack_cast",
             EntityAttackPhase.KindLeap => "attack_leap",

@@ -21,6 +21,8 @@ public sealed class MonsterAttackAnimationTests
         WorldActorCatalog.SkeletonArcher,
         WorldActorCatalog.OrcShaman,
         WorldActorCatalog.CrimsonDemon,
+        WorldActorCatalog.OrcWarlord,
+        WorldActorCatalog.SlimeKing,
     ];
 
     [Theory]
@@ -35,6 +37,9 @@ public sealed class MonsterAttackAnimationTests
     [InlineData(WorldActorCatalog.OrcShaman, EntityAttackPhase.KindProjectile, "attack_cast")]
     [InlineData(WorldActorCatalog.CrimsonDemon, EntityAttackPhase.KindLeap, "attack_leap")]
     [InlineData(WorldActorCatalog.CrimsonDemon, EntityAttackPhase.KindMelee, "attack_slam")]
+    [InlineData(WorldActorCatalog.OrcWarlord, EntityAttackPhase.KindMelee, "attack_slam")]
+    [InlineData(WorldActorCatalog.OrcWarlord, EntityAttackPhase.KindLeap, "attack_leap")]
+    [InlineData(WorldActorCatalog.SlimeKing, EntityAttackPhase.KindLeap, "attack_leap")]
     public void ResolveClip_ShippedRigs_UseDistinctClipPerAttackKind(ushort archetype, byte kind, string expected)
     {
         CompiledVectorRig rig = LoadRig(archetype);
@@ -60,6 +65,24 @@ public sealed class MonsterAttackAnimationTests
 
             clips.Count.Should().BeGreaterThanOrEqualTo(2, $"archetype {archetype} must not reuse one clip for every attack kind");
         }
+    }
+
+    [Fact]
+    public void ShippedRigs_EliteFlagsAndOverlayAnchors_AreDeclared()
+    {
+        foreach (ushort archetype in s_monsters)
+        {
+            CompiledVectorRig rig = LoadRig(archetype);
+            bool expectElite = archetype is WorldActorCatalog.OrcWarlord or WorldActorCatalog.SlimeKing;
+            rig.IsElite.Should().Be(expectElite, $"catalog elite flag for {rig.Id}");
+            rig.Markers.Eyes.Should().HaveCountGreaterThanOrEqualTo(2, $"{rig.Id} needs south-facing eye anchors for the night glow");
+            rig.Markers.EyesSide.Should().NotBeEmpty($"{rig.Id} needs a profile eye anchor");
+            rig.Markers.EyesFor(isSide: false, isNorth: true).IsEmpty.Should().BeTrue("eyes are hidden when facing away");
+            rig.Markers.Crown.Y.Should().BeLessThan(0f).And.BeGreaterThanOrEqualTo(-rig.DesignHeight * 1.3f, $"{rig.Id} crown sits near the head top");
+        }
+
+        LoadRig(WorldActorCatalog.SlimeKing).WorldHeight.Should().BeGreaterThan(LoadRig(WorldActorCatalog.WildSlime).WorldHeight, "elites read bigger");
+        LoadRig(WorldActorCatalog.OrcWarlord).WorldHeight.Should().BeGreaterThan(LoadRig(WorldActorCatalog.OrcShaman).WorldHeight);
     }
 
     [Fact]

@@ -352,6 +352,12 @@ public sealed class CompiledVectorRig
     /// <summary>Ordered vector primitives composing the rig.</summary>
     public CompiledVectorShape[] Shapes { get; }
 
+    /// <summary>Gets a value indicating whether the art catalog marks this monster rig as an elite variant.</summary>
+    public bool IsElite { get; init; }
+
+    /// <summary>Gets the rig-local anchors for night eye-glow and the elite crown.</summary>
+    public RigMarkers Markers { get; init; } = RigMarkers.Empty;
+
     /// <summary>Available animation clip names.</summary>
     public IEnumerable<string> ClipNames => _animations.Keys;
 

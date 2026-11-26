@@ -790,7 +790,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             // Full → eating is refused (overeating cap) and nothing is consumed.
             world.EnqueueAttackInput(700UL, 0UL, world.DefaultSpawnWorldPosition, 0).Should().Be(OpStatus.Ok);
             StepTicks(world, 130);
-            sink.SlotChanges.Should().NotContain(c => c.ConnectionId == 700UL && c.SlotIndex == 0, "a full player cannot eat");
+            sink.SlotChanges.Should().NotContain(c => c.ConnectionId == 700UL && c.SlotIndex == 0 && c.Quantity < 3, "a full player cannot eat (a perishable stack may still be stamped)");
 
             // 6 s idle at 5 food/s → well below the 90 % cap.
             StepTicks(world, 180);
@@ -920,6 +920,68 @@ public sealed class AuthoritativeWorldMultiplayerTests
             reloaded!.NeedsFood.Should().BeInRange(19f, 20f, "two seconds of decay are saved on logout");
             reloaded.NeedsMalnutrition.Should().BeInRange(0.29f, 0.3f, "malnutrition recovers slowly while fed");
             reloaded.NeedsPoisonSeconds.Should().BeInRange(27.5f, 28.5f, "poisoning keeps counting down");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RawFoodInInventory_IsStampedThenSpoilsIntoRottenFood()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-spoil-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
+            RecordingOutboundSink sink = new();
+
+            GameEconomy economy = GameEconomy.LoadFromDirectory(GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!);
+            NeedsConfig needs = new();
+            // Same foods as food.json, but raw meat spoils after 3 s so the test runs in a few seconds of ticks.
+            FoodCatalog food = new(
+                [
+                    new FoodDefinition { ItemId = "raw_meat", Nutrition = 25f, Quality = FoodQuality.Raw, EatSeconds = 4f, SpoilSeconds = 3f, SpoilsInto = "rotten_food" },
+                    new FoodDefinition { ItemId = "rotten_food", Nutrition = 5f, Quality = FoodQuality.Raw, EatSeconds = 2f, PoisonChance = 0.6f },
+                ],
+                needs.FoodMax);
+            AuthoritativeWorld world = new(
+                1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), new SqliteCharacterStore(factory), sink,
+                time: null, needs, food, economy);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+            uint rawMeat = economy.Items.ResolveId("raw_meat");
+            uint rotten = economy.Items.ResolveId("rotten_food");
+            InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
+            inv.SetSlot(5, new ItemSlot(rawMeat, 4));
+            CharacterRecord hero = new(
+                Guid.NewGuid(), Guid.NewGuid(), "Hoarder", 1, 0,
+                world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
+                100f, 100f, 0, InventoryBinaryCodec.Serialize(inv), DateTimeOffset.UtcNow);
+            world.TryEnterWorld(920UL, 920UL, hero).Status.Should().Be(OpStatus.Ok);
+
+            StepTicks(world, 30);
+            sink.SlotFreshness.Should().Contain(c => c.ConnectionId == 920UL && c.SlotIndex == 5 && c.ItemId == rawMeat && c.FreshnessSeconds == 3f, "the first spoilage pass stamps the stack");
+
+            List<(ushort SlotIndex, ItemSlot Slot)> snapshot = [];
+            StepTicks(world, 30);
+            world.GetInventorySnapshot(920UL, snapshot).Should().BeTrue();
+            snapshot.Single(s => s.SlotIndex == 5).Slot.FreshnessSeconds.Should().Be(2f, "aging is server-side only");
+            sink.SlotFreshness.Count(c => c.ConnectionId == 920UL && c.SlotIndex == 5).Should().Be(1, "aging sends no packets");
+
+            StepTicks(world, 30 * 3);
+            sink.SlotChanges.Should().Contain(c => c.ConnectionId == 920UL && c.SlotIndex == 5 && c.ItemId == rotten && c.Quantity == 4, "spoiled meat turns into rotten food");
+
+            snapshot.Clear();
+            world.GetInventorySnapshot(920UL, snapshot).Should().BeTrue();
+            ItemSlot spoiled = snapshot.Single(s => s.SlotIndex == 5).Slot;
+            spoiled.ItemId.Should().Be(rotten);
+            spoiled.IsPerishable.Should().BeFalse();
         }
         finally
         {
@@ -1085,7 +1147,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             }
 
             mob.Should().NotBeNull("the data-driven spawner populates cells around an entering player");
-            mob!.Value.ArchetypeId.Should().BeInRange(101, 107, "monsters replicate their WorldActorCatalog rig archetype");
+            mob!.Value.ArchetypeId.Should().BeInRange(101, 109, "monsters replicate their WorldActorCatalog rig archetype");
 
             CharacterRecord bait = scout with { Id = Guid.NewGuid(), Name = "Bait", PositionX = mob.Value.PositionX + 30f, PositionY = mob.Value.PositionY };
             EnterWorldResult baitEnter = world.TryEnterWorld(connectionId: 404UL, sessionId: 4UL, bait);
@@ -1201,6 +1263,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             this.WalletSyncs.Add((connectionId, gold, diamonds, sequence));
 
         public List<(ulong ConnectionId, PlayerNeedsSnapshot Needs)> NeedsSyncs { get; } = [];
+        public List<(ulong ConnectionId, ushort SlotIndex, uint ItemId, float FreshnessSeconds)> SlotFreshness { get; } = [];
 
         public void SendEntitySpawn(ulong connectionId, in EntitySpawnSnapshot spawn) =>
             this.Spawns.Add((connectionId, spawn));
@@ -1241,8 +1304,11 @@ public sealed class AuthoritativeWorldMultiplayerTests
         public void SendCombatHit(ReadOnlySpan<ulong> recipientConnectionIds, ulong attackerNetworkId, ulong defenderNetworkId, float damage, float remainingHealth, bool isCritical, bool isKilled) =>
             this.CombatHits.Add((attackerNetworkId, defenderNetworkId, damage, isKilled));
 
-        public void SendInventorySlotChanged(ulong connectionId, ushort slotIndex, uint itemId, int quantity, float durability, byte upgradeLevel = 0) =>
+        public void SendInventorySlotChanged(ulong connectionId, ushort slotIndex, uint itemId, int quantity, float durability, byte upgradeLevel = 0, float freshnessSeconds = 0f)
+        {
             this.SlotChanges.Add((connectionId, slotIndex, itemId, quantity));
+            this.SlotFreshness.Add((connectionId, slotIndex, itemId, freshnessSeconds));
+        }
 
         public void SendEntityEquipmentChanged(ReadOnlySpan<ulong> recipientConnectionIds, ulong entityNetworkId, ushort headId, ushort chestId, ushort legsId, ushort feetId, ushort weaponId, byte weaponUpgrade, ushort level, float maxHealth = 0f) =>
             this.EquipmentChanges.Add((entityNetworkId, chestId, weaponId, level));

@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
@@ -13,6 +14,7 @@ using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Survival.Components;
 using Carbon.Survival.Events;
+using Carbon.Survival.Food;
 using Carbon.Survival.Systems;
 
 namespace Carbon.Application.World;
@@ -26,6 +28,7 @@ public sealed partial class AuthoritativeWorld
 {
     private const float FightingWindowSeconds = 6f;
     private const float RespawnFoodFraction = 0.5f;
+    private const float SpoilageStepSeconds = 1f;
 
     private void PrepareNeedsForTickLocked(ActivePlayerState state, bool isSprinting)
     {
@@ -67,9 +70,7 @@ public sealed partial class AuthoritativeWorld
             return false;
         }
 
-        string? code = StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? builtIn)
-            ? builtIn.Code
-            : _economy is not null && _economy.Items.TryGet(activeSlot.ItemId, out ItemCatalogEntry? entry) ? entry.Code : null;
+        string? code = this.ResolveItemCode(activeSlot.ItemId);
         if (code is null || !_foodCatalog.TryGetIndex(code, out _))
         {
             return false;
@@ -86,6 +87,91 @@ public sealed partial class AuthoritativeWorld
         // Edible items are always handled here (Conflict = already eating or too full) and never fall back to an
         // instant potion use.
         return true;
+    }
+
+    /// <summary>
+    /// Ages perishable food in every online player's inventory (ADR-016). Stacks that are first seen are stamped with
+    /// the food's spoil time; spoiled stacks turn into their <c>spoilsInto</c> item. Only stamps and spoils are sent to
+    /// the client (it counts down locally between them), so the steady state sends no packets.
+    /// </summary>
+    private void AdvanceFoodSpoilageLocked(float elapsedSeconds)
+    {
+        foreach (KeyValuePair<ulong, ActivePlayerState> kvp in _playersByConnection)
+        {
+            ActivePlayerState state = kvp.Value;
+            InventoryContainer inventory = state.Inventory;
+            bool changed = false;
+            for (int i = 0; i < inventory.Capacity; i++)
+            {
+                ItemSlot slot = inventory.GetSlot(i);
+                if (slot.IsEmpty)
+                {
+                    continue;
+                }
+
+                string? code = this.ResolveItemCode(slot.ItemId);
+                if (code is null || !_foodCatalog.TryGetIndex(code, out int foodIndex))
+                {
+                    continue;
+                }
+
+                SpoilageStep step = FoodSpoilage.Advance(in slot, _foodCatalog.Get(foodIndex), elapsedSeconds, _spoiledItemIdByFood[foodIndex]);
+                if (step.Outcome == SpoilageOutcome.Unchanged)
+                {
+                    continue;
+                }
+
+                inventory.SetSlot(i, step.Slot);
+                if (step.Outcome is SpoilageOutcome.Stamped or SpoilageOutcome.Spoiled)
+                {
+                    _pendingSlotChanges.Add(new OutboundSlotChange(state.Session.ConnectionId, (ushort)i, step.Slot));
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
+            }
+        }
+    }
+
+    /// <summary>Resolves an item id to its code from the built-in catalog, then the data-driven economy catalog.</summary>
+    private string? ResolveItemCode(uint itemId) =>
+        StarterGameCatalog.Items.TryGet(itemId, out ItemArchetype? builtIn)
+            ? builtIn.Code
+            : _economy is not null && _economy.Items.TryGet(itemId, out ItemCatalogEntry? entry) ? entry.Code : null;
+
+    /// <summary>Maps every food index to the item id it spoils into (0 = removed), resolved once at construction.</summary>
+    private uint[] ResolveSpoiledItemIds()
+    {
+        uint[] ids = new uint[_foodCatalog.Count];
+        for (int i = 0; i < ids.Length; i++)
+        {
+            string target = _foodCatalog.Get(i).SpoilsInto;
+            if (target.Length == 0)
+            {
+                continue;
+            }
+
+            if (_economy is not null && _economy.Items.TryGetByCode(target, out ItemCatalogEntry? entry))
+            {
+                ids[i] = entry.Id;
+                continue;
+            }
+
+            ReadOnlySpan<ItemArchetype> builtIn = StarterGameCatalog.Items.All;
+            for (int b = 0; b < builtIn.Length; b++)
+            {
+                if (string.Equals(builtIn[b].Code, target, StringComparison.Ordinal))
+                {
+                    ids[i] = builtIn[b].Id;
+                    break;
+                }
+            }
+        }
+
+        return ids;
     }
 
     private void ProcessSurvivalEventsLocked()

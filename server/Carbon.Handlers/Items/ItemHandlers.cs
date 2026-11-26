@@ -49,6 +49,7 @@ public static partial class ItemHandlers
                 pkt.Count = slot.Quantity;
                 pkt.Durability = slot.Durability;
                 pkt.UpgradeLevel = slot.UpgradeLevel;
+                pkt.FreshnessSeconds = slot.FreshnessSeconds;
                 await context.Sender.ReplyAsync(pkt).ConfigureAwait(false);
             }
         }

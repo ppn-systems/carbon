@@ -1538,6 +1538,22 @@
         "structure",
         "station"
       ]
+    },
+    {
+      "id": 203,
+      "code": "rotten_food",
+      "name": "Rotten Food",
+      "category": "consumable",
+      "rarity": "common",
+      "tier": 0,
+      "maxStack": 99,
+      "basePrice": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "food",
+        "rotten"
+      ]
     }
   ]
 }

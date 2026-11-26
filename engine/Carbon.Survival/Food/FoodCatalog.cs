@@ -21,6 +21,9 @@ public sealed class FoodCatalog
     /// <summary>Largest allowed absolute mood offset of a food memory.</summary>
     public const float MaxMoodOffset = 30f;
 
+    /// <summary>Longest allowed spoil time: one week of online play.</summary>
+    public const float MaxSpoilSeconds = 7f * 24f * 3600f;
+
     private readonly FoodDefinition[] _foods;
     private readonly FrozenDictionary<string, int> _indexById;
 
@@ -50,6 +53,20 @@ public sealed class FoodCatalog
             }
 
             list.Add(food);
+        }
+
+        for (int i = 0; i < list.Count; i++)
+        {
+            FoodDefinition food = list[i];
+            if (food.SpoilsInto.Length > 0 && (!food.IsPerishable || string.Equals(food.SpoilsInto, food.ItemId, StringComparison.Ordinal)))
+            {
+                throw new InvalidDataException($"food.json '{food.ItemId}'.spoilsInto needs spoilSeconds > 0 and a different item.");
+            }
+
+            if (food.SpoilsInto.Length > 0 && index.TryGetValue(food.SpoilsInto, out int target) && list[target].IsPerishable)
+            {
+                throw new InvalidDataException($"food.json '{food.ItemId}' spoils into '{food.SpoilsInto}', which itself spoils.");
+            }
         }
 
         _foods = [.. list];
@@ -104,6 +121,8 @@ public sealed class FoodCatalog
         Require(food.MoodDurationSeconds >= 0f && food.MoodDurationSeconds <= 3_600f, food, "moodDurationSeconds", "[0, 3600]");
         Require(food.EatSeconds > 0f && food.EatSeconds <= MaxEatSeconds, food, "eatSeconds", $"(0, {MaxEatSeconds}]");
         Require(Enum.IsDefined(food.Quality), food, "quality", "raw|simple|fine|lavish");
+        Require(food.SpoilSeconds >= 0f && food.SpoilSeconds <= MaxSpoilSeconds, food, "spoilSeconds", $"[0, {MaxSpoilSeconds}]");
+        Require(food.SpoilsInto is not null, food, "spoilsInto", "an item id or empty");
     }
 
     private static void Require(bool condition, FoodDefinition food, string field, string range)
