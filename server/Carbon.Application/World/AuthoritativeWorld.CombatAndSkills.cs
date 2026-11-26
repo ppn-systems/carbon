@@ -190,16 +190,16 @@ public sealed partial class AuthoritativeWorld
 
     private bool TryConsumeActiveSlotPotionLocked(ActivePlayerState state, in ItemSlot activeSlot)
     {
+        if (this.TryBeginEatingActiveSlotLocked(state, in activeSlot))
+        {
+            return true;
+        }
+
         if (activeSlot.IsEmpty || activeSlot.Quantity <= 0 ||
             !StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? def) ||
             def.Category != ItemCategory.Consumable)
         {
             return false;
-        }
-
-        if (this.TryBeginEatingActiveSlotLocked(state, in activeSlot, def))
-        {
-            return true;
         }
 
         if (!state.Cooldowns.IsReady(ConsumableAbilityId, _currentTick))
@@ -450,27 +450,30 @@ public sealed partial class AuthoritativeWorld
                 if (_actorsByNetworkId.Remove(targetIdentity.NetworkId, out NpcActorMeta meta))
                 {
                     _pendingRespawns.Add(new PendingMonsterRespawn(_currentTick + (ulong)(this.TickRate * 45), meta));
-                    ItemSlot loot = new(meta.DropItemId, Math.Max(1, meta.DropQuantity));
-                    this.SpawnGroundLootLocked(targetPos, in loot);
-
-                    MonsterArchetypeSpec spec = WorldActorCatalog.GetMonsterSpec(meta.ArchetypeId);
-                    ulong rollHash = (_currentTick * 1103515245UL) + targetIdentity.NetworkId;
-                    float roll = rollHash % 1000UL / 1000f;
-                    if (spec.SecondaryDropItemId != 0U && spec.SecondaryDropQuantity > 0 && roll < spec.SecondaryDropChance)
+                    if (!this.TryRollEconomyLootLocked(attacker, meta.ArchetypeId, meta.Level, targetIdentity.NetworkId, targetPos))
                     {
-                        ItemSlot secondaryLoot = new(spec.SecondaryDropItemId, spec.SecondaryDropQuantity);
-                        this.SpawnGroundLootLocked(targetPos + new Vector2(10f, 4f), in secondaryLoot);
-                    }
+                        ItemSlot loot = new(meta.DropItemId, Math.Max(1, meta.DropQuantity));
+                        this.SpawnGroundLootLocked(targetPos, in loot);
 
-                    ulong rareHash = ((_currentTick + 17UL) * 2654435761UL) + targetIdentity.NetworkId;
-                    float rareRoll = rareHash % 1000UL / 1000f;
-                    if (spec.RareDropItemId != 0U && rareRoll < spec.RareDropChance)
-                    {
-                        float dur = StarterGameCatalog.Items.TryGet(spec.RareDropItemId, out ItemArchetype? rareDef)
-                            ? rareDef.MaxDurability
-                            : 0f;
-                        ItemSlot rareLoot = new(spec.RareDropItemId, 1, 0, dur);
-                        this.SpawnGroundLootLocked(targetPos + new Vector2(-10f, 6f), in rareLoot);
+                        MonsterArchetypeSpec spec = WorldActorCatalog.GetMonsterSpec(meta.ArchetypeId);
+                        ulong rollHash = (_currentTick * 1103515245UL) + targetIdentity.NetworkId;
+                        float roll = rollHash % 1000UL / 1000f;
+                        if (spec.SecondaryDropItemId != 0U && spec.SecondaryDropQuantity > 0 && roll < spec.SecondaryDropChance)
+                        {
+                            ItemSlot secondaryLoot = new(spec.SecondaryDropItemId, spec.SecondaryDropQuantity);
+                            this.SpawnGroundLootLocked(targetPos + new Vector2(10f, 4f), in secondaryLoot);
+                        }
+
+                        ulong rareHash = ((_currentTick + 17UL) * 2654435761UL) + targetIdentity.NetworkId;
+                        float rareRoll = rareHash % 1000UL / 1000f;
+                        if (spec.RareDropItemId != 0U && rareRoll < spec.RareDropChance)
+                        {
+                            float dur = StarterGameCatalog.Items.TryGet(spec.RareDropItemId, out ItemArchetype? rareDef)
+                                ? rareDef.MaxDurability
+                                : 0f;
+                            ItemSlot rareLoot = new(spec.RareDropItemId, 1, 0, dur);
+                            this.SpawnGroundLootLocked(targetPos + new Vector2(-10f, 6f), in rareLoot);
+                        }
                     }
 
                     this.GrantExperienceLocked(attacker, meta.ExperienceReward, out _);

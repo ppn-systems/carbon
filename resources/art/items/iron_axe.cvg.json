@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "itemId": 181,
+  "id": "iron_axe",
+  "displayName": "Iron Axe",
+  "tier": 2,
+  "categoryLabel": "Timber Tool",
+  "accentColor": "#94A3B8",
+  "gripX": -4.5,
+  "gripY": 4.5,
+  "restAngleDeg": -78.0,
+  "worldScale": 0.94,
+  "palette": {},
+  "heldVisible": true,
+  "shapes": [
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": -7,
+      "y": 7,
+      "x2": 4,
+      "y2": -4,
+      "thickness": 2.4,
+      "color": "#78350F",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          1,
+          -7
+        ],
+        [
+          7,
+          -4
+        ],
+        [
+          5.5,
+          1
+        ],
+        [
+          2,
+          -2
+        ]
+      ],
+      "color": "#94A3B8",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": 5.5,
+      "y": -4.5,
+      "x2": 6.5,
+      "y2": -1.5,
+      "thickness": 0.8,
+      "color": "#F1F5F9"
+    }
+  ]
+}

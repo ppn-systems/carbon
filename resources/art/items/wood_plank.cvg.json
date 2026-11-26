@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "itemId": 101,
+  "id": "wood_plank",
+  "displayName": "Wood Plank",
+  "tier": 1,
+  "categoryLabel": "Material",
+  "accentColor": "#D97706",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -7.5,
+      "y": -3,
+      "w": 15,
+      "h": 6,
+      "color": "#B45309",
+      "outlineColor": "#451A03",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -6,
+      "y": -0.6,
+      "x2": 6,
+      "y2": -0.6,
+      "thickness": 0.8,
+      "color": "#78350F"
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -6,
+      "y": 1.6,
+      "x2": 6,
+      "y2": 1.6,
+      "thickness": 0.8,
+      "color": "#78350F"
+    }
+  ]
+}

@@ -12,6 +12,7 @@ using Carbon.Application.World;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Identity;
+using Carbon.Economy;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -599,7 +600,91 @@ public sealed class AuthoritativeWorldMultiplayerTests
     }
 
     [Fact]
-    public async Task HungryPlayerEatingFoodFromHotbar_ConsumesItemAndSyncsNeeds()
+    public async Task MonsterKill_WithEconomyConfig_DropsThemedLootFromLootTables()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-economy-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
+            RecordingOutboundSink sink = new();
+            string configDir = GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!;
+            configDir.Should().NotBeNull("the host ships resources/config next to its binaries");
+            GameEconomy economy = GameEconomy.LoadFromDirectory(configDir);
+            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), new SqliteCharacterStore(factory), sink, economy: economy);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+            InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);
+            StarterGameCatalog.GrantStarterLoadout(bag);
+            CharacterRecord template = new(
+                Guid.NewGuid(), Guid.NewGuid(), "Hunter", 1, 0, 0f, 0f, 100f, 100f, 2, InventoryBinaryCodec.Serialize(bag), DateTimeOffset.UtcNow);
+
+            // Probe wilderness chunks until a monster backed by a loot table enters AoI.
+            EntitySpawnSnapshot? mob = null;
+            for (int probeX = 1; probeX <= 12 && mob is null; probeX++)
+            {
+                ulong probeConn = 700UL + (ulong)probeX;
+                world.TryEnterWorld(probeConn, probeConn, template with { Id = Guid.NewGuid(), PositionX = ((probeX * 32) + 16) * 32f, PositionY = 16f * 32f }).Status.Should().Be(OpStatus.Ok);
+                world.StepFixedTick();
+                mob = sink.Spawns
+                    .Where(x => x.ConnectionId == probeConn && x.Snapshot.Kind == EntityKind.Monster && AuthoritativeWorld.ResolveLootTableId(x.Snapshot.ArchetypeId) is not null)
+                    .Select(x => (EntitySpawnSnapshot?)x.Snapshot)
+                    .FirstOrDefault();
+            }
+
+            mob.Should().NotBeNull("wilderness chunks should populate a slime/skeleton/orc/demon");
+            economy.Loot.TryGet(AuthoritativeWorld.ResolveLootTableId(mob!.Value.ArchetypeId)!, out Carbon.Economy.Loot.LootTable? table).Should().BeTrue();
+
+            const ulong slayerConn = 800UL;
+            world.TryEnterWorld(slayerConn, slayerConn, template with { Id = Guid.NewGuid(), PositionX = mob.Value.PositionX + 16f, PositionY = mob.Value.PositionY }).Status.Should().Be(OpStatus.Ok);
+            int killTickSpawnIndex = -1;
+            for (int tick = 0; tick < 900 && killTickSpawnIndex < 0; tick++)
+            {
+                world.EnqueueAttackInput(slayerConn, mob.Value.NetworkId, new Vector2(mob.Value.PositionX, mob.Value.PositionY), 2);
+                int before = sink.Spawns.Count;
+                world.StepFixedTick();
+                if (sink.CombatHits.Any(h => h.DefenderNetworkId == mob.Value.NetworkId && h.IsKilled))
+                {
+                    killTickSpawnIndex = before;
+                }
+            }
+
+            killTickSpawnIndex.Should().BeGreaterThanOrEqualTo(0, "the slayer should eventually kill the monster");
+            world.StepFixedTick();
+
+            List<uint> droppedItems =
+            [
+                .. sink.Spawns
+                    .Skip(killTickSpawnIndex)
+                    .Where(x => x.ConnectionId == slayerConn && x.Snapshot.Kind == EntityKind.LootDrop)
+                    .Select(x => (uint)x.Snapshot.ArchetypeId)
+                    .Distinct(),
+            ];
+            droppedItems.Should().NotBeEmpty("loot tables always include a guaranteed drop");
+            foreach (uint itemId in droppedItems)
+            {
+                economy.Items.TryGet(itemId, out Carbon.Items.Definitions.ItemCatalogEntry? item).Should().BeTrue($"dropped item {itemId} must exist in items.json");
+                item!.Tags.Should().Contain(t => t == table!.Theme || t == "generic", $"{table!.Id} dropped '{item.Code}'");
+            }
+
+            world.TryGetWalletBalances(slayerConn, out long gold, out long diamonds).Should().BeTrue();
+            gold.Should().BeGreaterThanOrEqualTo(0);
+            diamonds.Should().BeGreaterThanOrEqualTo(0);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData("roast_meat")] // built-in StarterGameCatalog consumable
+    [InlineData("berries")] // defined only in items.json (economy catalog)
+    public async Task HungryPlayerEatingFoodFromHotbar_ConsumesItemAndSyncsNeeds(string foodCode)
     {
         string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-survival-test-{Guid.NewGuid():N}.db");
         try
@@ -610,11 +695,13 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
             // 600 food/min (×0.5 idle) empties the meter fast enough to test in a few hundred ticks.
             NeedsConfig needs = new() { FoodDecayPerMinute = 600f };
-            AuthoritativeWorld world = CreateSurvivalWorld(factory, sink, needs);
+            AuthoritativeWorld world = CreateSurvivalWorld(factory, sink, needs, out GameEconomy economy, out FoodCatalog food);
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
+            food.TryGetIndex(foodCode, out int foodIndex).Should().BeTrue();
+            float nutrition = food.Get(foodIndex).Nutrition;
 
             InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
-            inv.SetSlot(0, new ItemSlot(StarterGameCatalog.RoastMeat, 3));
+            inv.SetSlot(0, new ItemSlot(economy.Items.ResolveId(foodCode), 3));
             CharacterRecord hero = new(
                 Guid.NewGuid(), Guid.NewGuid(), "Glutton", 1, 0,
                 world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
@@ -639,11 +726,11 @@ public sealed class AuthoritativeWorldMultiplayerTests
             StepTicks(world, 30);
             sink.NeedsSyncs.Last(n => n.ConnectionId == 700UL).Needs.EatProgress.Should().BeInRange(0f, 1f, "the HUD shows meal progress");
 
-            StepTicks(world, 100);
-            sink.SlotChanges.Should().Contain(c => c.ConnectionId == 700UL && c.SlotIndex == 0 && c.Quantity == 2, "one roast meat is eaten");
+            StepTicks(world, 160);
+            sink.SlotChanges.Should().Contain(c => c.ConnectionId == 700UL && c.SlotIndex == 0 && c.Quantity == 2, $"one {foodCode} is eaten");
             PlayerNeedsSnapshot after = sink.NeedsSyncs.Last(n => n.ConnectionId == 700UL).Needs;
             after.EatProgress.Should().BeLessThan(0f);
-            after.Food.Should().BeGreaterThan(before + 20f, "roast meat restores 45 food (minus a few seconds of decay)");
+            after.Food.Should().BeGreaterThan(before + nutrition - 40f, $"{foodCode} restores {nutrition} food (minus up to ~8 s of decay)");
         }
         finally
         {
@@ -667,7 +754,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
             // Empty in 12 s idle, then lethal malnutrition after 60 s.
             NeedsConfig needs = new() { FoodDecayPerMinute = 1000f, MalnutritionGainPerMinute = 1f };
-            AuthoritativeWorld world = CreateSurvivalWorld(factory, sink, needs);
+            AuthoritativeWorld world = CreateSurvivalWorld(factory, sink, needs, out _, out _);
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
             CharacterRecord hero = new(
@@ -704,11 +791,17 @@ public sealed class AuthoritativeWorldMultiplayerTests
         }
     }
 
-    private static AuthoritativeWorld CreateSurvivalWorld(SqliteConnectionFactory factory, RecordingOutboundSink sink, NeedsConfig needs)
+    private static AuthoritativeWorld CreateSurvivalWorld(
+        SqliteConnectionFactory factory,
+        RecordingOutboundSink sink,
+        NeedsConfig needs,
+        out GameEconomy economy,
+        out FoodCatalog food)
     {
-        // food.json is copied next to the host binary (and this test assembly) under config/.
-        string foodPath = Path.Combine(AppContext.BaseDirectory, "config", "food.json");
-        FoodCatalog food = FoodCatalog.LoadFromJson(File.ReadAllText(foodPath), needs.FoodMax);
+        // food.json and the economy files are copied next to the host binary (and this test assembly) under config/.
+        string configDir = GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!;
+        economy = GameEconomy.LoadFromDirectory(configDir);
+        food = FoodCatalog.LoadFromJson(File.ReadAllText(Path.Combine(configDir, "food.json")), needs.FoodMax);
         return new AuthoritativeWorld(
             1337UL,
             32f,
@@ -719,7 +812,8 @@ public sealed class AuthoritativeWorldMultiplayerTests
             sink,
             time: null,
             needs,
-            food);
+            food,
+            economy);
     }
 
     private static void StepTicks(AuthoritativeWorld world, int ticks)

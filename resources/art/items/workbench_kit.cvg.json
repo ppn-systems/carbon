@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "itemId": 200,
+  "id": "workbench_kit",
+  "displayName": "Workbench Kit",
+  "tier": 1,
+  "categoryLabel": "Placeable Kit",
+  "accentColor": "#D97706",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -7,
+      "y": -4,
+      "w": 14,
+      "h": 10,
+      "color": "#B45309",
+      "outlineColor": "#451A03",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -7,
+      "y": -0.5,
+      "x2": 7,
+      "y2": -0.5,
+      "thickness": 0.9,
+      "color": "#78350F"
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -1.5,
+      "y": -6,
+      "w": 3,
+      "h": 2,
+      "color": "#78350F",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    }
+  ]
+}

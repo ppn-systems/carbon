@@ -1,7 +1,9 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Text.Json;
 using Carbon.Survival.Config;
 using Carbon.Survival.Food;
 using FluentAssertions;
@@ -57,6 +59,32 @@ public sealed class SurvivalConfigTests
         FoodDefinition cooked = catalog.Get(Index(catalog, "cooked_meat"));
         cooked.Nutrition.Should().BeGreaterThan(raw.Nutrition, "cooking adds value");
         cooked.PoisonChance.Should().BeLessThan(raw.PoisonChance, "cooking reduces poisoning");
+    }
+
+    [Fact]
+    public void FoodJson_EveryFood_ExistsInItemsJsonWithFoodTag()
+    {
+        NeedsConfig config = NeedsConfig.LoadFromJson(File.ReadAllText(SurvivalTestWorld.FindConfigFile("needs.json")));
+        FoodCatalog catalog = FoodCatalog.LoadFromJson(File.ReadAllText(SurvivalTestWorld.FindConfigFile("food.json")), config.FoodMax);
+
+        using JsonDocument items = JsonDocument.Parse(File.ReadAllText(SurvivalTestWorld.FindConfigFile("items.json")));
+        Dictionary<string, JsonElement> byCode = new(StringComparer.Ordinal);
+        foreach (JsonElement item in items.RootElement.GetProperty("items").EnumerateArray())
+        {
+            byCode[item.GetProperty("code").GetString()!] = item;
+        }
+
+        foreach (FoodDefinition food in catalog.All)
+        {
+            byCode.TryGetValue(food.ItemId, out JsonElement item).Should().BeTrue($"food.json '{food.ItemId}' must be an item in items.json");
+            List<string> tags = [];
+            foreach (JsonElement tag in item.GetProperty("tags").EnumerateArray())
+            {
+                tags.Add(tag.GetString()!);
+            }
+
+            tags.Should().Contain("food", $"items.json '{food.ItemId}' must carry the food tag");
+        }
     }
 
     [Fact]

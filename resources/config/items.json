@@ -1,0 +1,1301 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "id": 1,
+      "code": "wood_axe",
+      "name": "Wood Axe",
+      "category": "tool",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 1,
+      "basePrice": 15,
+      "nutrition": 0,
+      "maxDurability": 120,
+      "vendorBuyable": true,
+      "tags": [
+        "tool"
+      ]
+    },
+    {
+      "id": 2,
+      "code": "stone_pickaxe",
+      "name": "Stone Pickaxe",
+      "category": "tool",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 1,
+      "basePrice": 20,
+      "nutrition": 0,
+      "maxDurability": 160,
+      "vendorBuyable": true,
+      "tags": [
+        "tool"
+      ]
+    },
+    {
+      "id": 3,
+      "code": "iron_sword",
+      "name": "Iron Sword",
+      "category": "weapon",
+      "rarity": "uncommon",
+      "tier": 2,
+      "maxStack": 1,
+      "basePrice": 110,
+      "nutrition": 0,
+      "maxDurability": 200,
+      "vendorBuyable": false,
+      "tags": [
+        "weapon"
+      ]
+    },
+    {
+      "id": 4,
+      "code": "wood_log",
+      "name": "Wood Log",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 0,
+      "maxStack": 99,
+      "basePrice": 2,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": true,
+      "tags": [
+        "wood"
+      ]
+    },
+    {
+      "id": 5,
+      "code": "stone_chunk",
+      "name": "Stone",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 0,
+      "maxStack": 99,
+      "basePrice": 1,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": true,
+      "tags": [
+        "stone"
+      ]
+    },
+    {
+      "id": 6,
+      "code": "iron_ore",
+      "name": "Iron Ore",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 99,
+      "basePrice": 6,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "ore"
+      ]
+    },
+    {
+      "id": 7,
+      "code": "mana_crystal",
+      "name": "Mana Crystal",
+      "category": "resource",
+      "rarity": "uncommon",
+      "tier": 2,
+      "maxStack": 99,
+      "basePrice": 20,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "ore",
+        "crystal"
+      ]
+    },
+    {
+      "id": 8,
+      "code": "berry_herb",
+      "name": "Berry Herb",
+      "category": "consumable",
+      "rarity": "common",
+      "tier": 0,
+      "maxStack": 99,
+      "basePrice": 3,
+      "nutrition": 4,
+      "maxDurability": 0,
+      "vendorBuyable": true,
+      "tags": [
+        "plant"
+      ]
+    },
+    {
+      "id": 9,
+      "code": "wood_wall",
+      "name": "Wood Wall Kit",
+      "category": "placeable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 99,
+      "basePrice": 5,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "structure"
+      ]
+    },
+    {
+      "id": 10,
+      "code": "stone_wall",
+      "name": "Stone Wall Kit",
+      "category": "placeable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 99,
+      "basePrice": 7,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "structure"
+      ]
+    },
+    {
+      "id": 11,
+      "code": "wood_door",
+      "name": "Wood Door Kit",
+      "category": "placeable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 99,
+      "basePrice": 20,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "structure"
+      ]
+    },
+    {
+      "id": 12,
+      "code": "crystal_pickaxe",
+      "name": "Crystal Pickaxe",
+      "category": "tool",
+      "rarity": "rare",
+      "tier": 3,
+      "maxStack": 1,
+      "basePrice": 170,
+      "nutrition": 0,
+      "maxDurability": 250,
+      "vendorBuyable": false,
+      "tags": [
+        "tool"
+      ]
+    },
+    {
+      "id": 13,
+      "code": "leather_cap",
+      "name": "Leather Cap",
+      "category": "armor",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 1,
+      "basePrice": 35,
+      "nutrition": 0,
+      "maxDurability": 120,
+      "vendorBuyable": false,
+      "tags": [
+        "armor"
+      ]
+    },
+    {
+      "id": 14,
+      "code": "leather_tunic",
+      "name": "Leather Tunic",
+      "category": "armor",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 1,
+      "basePrice": 65,
+      "nutrition": 0,
+      "maxDurability": 150,
+      "vendorBuyable": false,
+      "tags": [
+        "armor"
+      ]
+    },
+    {
+      "id": 15,
+      "code": "leather_greaves",
+      "name": "Leather Greaves",
+      "category": "armor",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 1,
+      "basePrice": 50,
+      "nutrition": 0,
+      "maxDurability": 140,
+      "vendorBuyable": false,
+      "tags": [
+        "armor"
+      ]
+    },
+    {
+      "id": 16,
+      "code": "leather_boots",
+      "name": "Leather Boots",
+      "category": "armor",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 1,
+      "basePrice": 30,
+      "nutrition": 0,
+      "maxDurability": 120,
+      "vendorBuyable": false,
+      "tags": [
+        "armor"
+      ]
+    },
+    {
+      "id": 17,
+      "code": "iron_helmet",
+      "name": "Iron Helmet",
+      "category": "armor",
+      "rarity": "uncommon",
+      "tier": 2,
+      "maxStack": 1,
+      "basePrice": 100,
+      "nutrition": 0,
+      "maxDurability": 220,
+      "vendorBuyable": false,
+      "tags": [
+        "armor"
+      ]
+    },
+    {
+      "id": 18,
+      "code": "iron_chestplate",
+      "name": "Iron Chestplate",
+      "category": "armor",
+      "rarity": "uncommon",
+      "tier": 2,
+      "maxStack": 1,
+      "basePrice": 180,
+      "nutrition": 0,
+      "maxDurability": 260,
+      "vendorBuyable": false,
+      "tags": [
+        "armor"
+      ]
+    },
+    {
+      "id": 19,
+      "code": "iron_leggings",
+      "name": "Iron Leggings",
+      "category": "armor",
+      "rarity": "uncommon",
+      "tier": 2,
+      "maxStack": 1,
+      "basePrice": 135,
+      "nutrition": 0,
+      "maxDurability": 240,
+      "vendorBuyable": false,
+      "tags": [
+        "armor"
+      ]
+    },
+    {
+      "id": 20,
+      "code": "iron_boots",
+      "name": "Iron Boots",
+      "category": "armor",
+      "rarity": "uncommon",
+      "tier": 2,
+      "maxStack": 1,
+      "basePrice": 80,
+      "nutrition": 0,
+      "maxDurability": 200,
+      "vendorBuyable": false,
+      "tags": [
+        "armor"
+      ]
+    },
+    {
+      "id": 21,
+      "code": "crystal_crown",
+      "name": "Crystal Crown",
+      "category": "armor",
+      "rarity": "rare",
+      "tier": 3,
+      "maxStack": 1,
+      "basePrice": 150,
+      "nutrition": 0,
+      "maxDurability": 240,
+      "vendorBuyable": false,
+      "tags": [
+        "armor"
+      ]
+    },
+    {
+      "id": 22,
+      "code": "crystal_robe",
+      "name": "Crystal Robe",
+      "category": "armor",
+      "rarity": "rare",
+      "tier": 3,
+      "maxStack": 1,
+      "basePrice": 180,
+      "nutrition": 0,
+      "maxDurability": 280,
+      "vendorBuyable": false,
+      "tags": [
+        "armor"
+      ]
+    },
+    {
+      "id": 23,
+      "code": "mana_tonic",
+      "name": "Mana Tonic",
+      "category": "consumable",
+      "rarity": "uncommon",
+      "tier": 1,
+      "maxStack": 20,
+      "basePrice": 15,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "potion"
+      ]
+    },
+    {
+      "id": 24,
+      "code": "hunting_bow",
+      "name": "Hunting Bow",
+      "category": "weapon",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 1,
+      "basePrice": 40,
+      "nutrition": 0,
+      "maxDurability": 180,
+      "vendorBuyable": false,
+      "tags": [
+        "weapon"
+      ]
+    },
+    {
+      "id": 25,
+      "code": "arcane_staff",
+      "name": "Arcane Staff",
+      "category": "weapon",
+      "rarity": "uncommon",
+      "tier": 2,
+      "maxStack": 1,
+      "basePrice": 60,
+      "nutrition": 0,
+      "maxDurability": 190,
+      "vendorBuyable": false,
+      "tags": [
+        "weapon"
+      ]
+    },
+    {
+      "id": 26,
+      "code": "crystal_bow",
+      "name": "Crystal Bow",
+      "category": "weapon",
+      "rarity": "rare",
+      "tier": 3,
+      "maxStack": 1,
+      "basePrice": 170,
+      "nutrition": 0,
+      "maxDurability": 250,
+      "vendorBuyable": false,
+      "tags": [
+        "weapon"
+      ]
+    },
+    {
+      "id": 27,
+      "code": "crystal_staff",
+      "name": "Crystal Staff",
+      "category": "weapon",
+      "rarity": "rare",
+      "tier": 3,
+      "maxStack": 1,
+      "basePrice": 210,
+      "nutrition": 0,
+      "maxDurability": 260,
+      "vendorBuyable": false,
+      "tags": [
+        "weapon"
+      ]
+    },
+    {
+      "id": 28,
+      "code": "forge_anvil",
+      "name": "Forge Anvil Kit",
+      "category": "placeable",
+      "rarity": "uncommon",
+      "tier": 2,
+      "maxStack": 20,
+      "basePrice": 120,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "structure",
+        "station"
+      ]
+    },
+    {
+      "id": 29,
+      "code": "roast_meat",
+      "name": "Roast Meat",
+      "category": "consumable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 20,
+      "basePrice": 14,
+      "nutrition": 35,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "food"
+      ]
+    },
+    {
+      "id": 30,
+      "code": "arcane_pie",
+      "name": "Arcane Pie",
+      "category": "consumable",
+      "rarity": "uncommon",
+      "tier": 2,
+      "maxStack": 20,
+      "basePrice": 36,
+      "nutrition": 20,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "food"
+      ]
+    },
+    {
+      "id": 31,
+      "code": "demon_cleaver",
+      "name": "Demon Cleaver",
+      "category": "weapon",
+      "rarity": "epic",
+      "tier": 4,
+      "maxStack": 1,
+      "basePrice": 650,
+      "nutrition": 0,
+      "maxDurability": 300,
+      "vendorBuyable": false,
+      "tags": [
+        "weapon"
+      ]
+    },
+    {
+      "id": 32,
+      "code": "shaman_staff",
+      "name": "Shaman Staff",
+      "category": "weapon",
+      "rarity": "rare",
+      "tier": 3,
+      "maxStack": 1,
+      "basePrice": 140,
+      "nutrition": 0,
+      "maxDurability": 230,
+      "vendorBuyable": false,
+      "tags": [
+        "weapon"
+      ]
+    },
+    {
+      "id": 33,
+      "code": "stone_door",
+      "name": "Stone Door Kit",
+      "category": "placeable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 99,
+      "basePrice": 30,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "structure"
+      ]
+    },
+    {
+      "id": 34,
+      "code": "wood_floor",
+      "name": "Wood Floor Kit",
+      "category": "placeable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 99,
+      "basePrice": 4,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "structure"
+      ]
+    },
+    {
+      "id": 35,
+      "code": "stone_floor",
+      "name": "Stone Floor Kit",
+      "category": "placeable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 99,
+      "basePrice": 5,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "structure"
+      ]
+    },
+    {
+      "id": 36,
+      "code": "roof_pillar",
+      "name": "Roof Pillar Kit",
+      "category": "placeable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 99,
+      "basePrice": 12,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "structure"
+      ]
+    },
+    {
+      "id": 37,
+      "code": "beast_pelt",
+      "name": "Beast Pelt",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 99,
+      "basePrice": 8,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "beast",
+        "orc"
+      ]
+    },
+    {
+      "id": 38,
+      "code": "bone_shard",
+      "name": "Bone Shard",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 99,
+      "basePrice": 5,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "skeleton"
+      ]
+    },
+    {
+      "id": 39,
+      "code": "demon_ember",
+      "name": "Demon Ember",
+      "category": "resource",
+      "rarity": "rare",
+      "tier": 4,
+      "maxStack": 99,
+      "basePrice": 60,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "demon"
+      ]
+    },
+    {
+      "id": 100,
+      "code": "plant_fiber",
+      "name": "Plant Fiber",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 0,
+      "maxStack": 99,
+      "basePrice": 1,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": true,
+      "tags": [
+        "generic",
+        "plant"
+      ]
+    },
+    {
+      "id": 101,
+      "code": "wood_plank",
+      "name": "Wood Plank",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 0,
+      "maxStack": 99,
+      "basePrice": 2,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "wood"
+      ]
+    },
+    {
+      "id": 102,
+      "code": "copper_ore",
+      "name": "Copper Ore",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 99,
+      "basePrice": 4,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "ore"
+      ]
+    },
+    {
+      "id": 103,
+      "code": "copper_ingot",
+      "name": "Copper Ingot",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 99,
+      "basePrice": 14,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "metal"
+      ]
+    },
+    {
+      "id": 104,
+      "code": "iron_ingot",
+      "name": "Iron Ingot",
+      "category": "resource",
+      "rarity": "uncommon",
+      "tier": 2,
+      "maxStack": 99,
+      "basePrice": 18,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "metal"
+      ]
+    },
+    {
+      "id": 105,
+      "code": "coal",
+      "name": "Coal",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 0,
+      "maxStack": 99,
+      "basePrice": 3,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": true,
+      "tags": [
+        "ore",
+        "demon"
+      ]
+    },
+    {
+      "id": 106,
+      "code": "leather",
+      "name": "Leather",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 99,
+      "basePrice": 10,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "beast"
+      ]
+    },
+    {
+      "id": 107,
+      "code": "cloth",
+      "name": "Cloth",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 0,
+      "maxStack": 99,
+      "basePrice": 5,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": true,
+      "tags": [
+        "cloth"
+      ]
+    },
+    {
+      "id": 108,
+      "code": "stone_brick",
+      "name": "Stone Brick",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 0,
+      "maxStack": 99,
+      "basePrice": 3,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "stone"
+      ]
+    },
+    {
+      "id": 109,
+      "code": "rough_gem",
+      "name": "Rough Gem",
+      "category": "resource",
+      "rarity": "rare",
+      "tier": 3,
+      "maxStack": 50,
+      "basePrice": 150,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "generic",
+        "ore"
+      ]
+    },
+    {
+      "id": 110,
+      "code": "rope",
+      "name": "Rope",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 0,
+      "maxStack": 99,
+      "basePrice": 4,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "generic"
+      ]
+    },
+    {
+      "id": 111,
+      "code": "iron_nails",
+      "name": "Iron Nails",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 99,
+      "basePrice": 2,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "metal"
+      ]
+    },
+    {
+      "id": 120,
+      "code": "berries",
+      "name": "Berries",
+      "category": "consumable",
+      "rarity": "common",
+      "tier": 0,
+      "maxStack": 99,
+      "basePrice": 2,
+      "nutrition": 8,
+      "maxDurability": 0,
+      "vendorBuyable": true,
+      "tags": [
+        "food",
+        "plant"
+      ]
+    },
+    {
+      "id": 121,
+      "code": "raw_meat",
+      "name": "Raw Meat",
+      "category": "consumable",
+      "rarity": "common",
+      "tier": 0,
+      "maxStack": 99,
+      "basePrice": 4,
+      "nutrition": 10,
+      "maxDurability": 0,
+      "vendorBuyable": true,
+      "tags": [
+        "food",
+        "beast",
+        "orc",
+        "blood_monster"
+      ]
+    },
+    {
+      "id": 122,
+      "code": "cooked_meat",
+      "name": "Cooked Meat",
+      "category": "consumable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 50,
+      "basePrice": 6,
+      "nutrition": 30,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "food"
+      ]
+    },
+    {
+      "id": 123,
+      "code": "bread",
+      "name": "Bread",
+      "category": "consumable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 50,
+      "basePrice": 8,
+      "nutrition": 25,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "food"
+      ]
+    },
+    {
+      "id": 124,
+      "code": "stew",
+      "name": "Hearty Stew",
+      "category": "consumable",
+      "rarity": "uncommon",
+      "tier": 2,
+      "maxStack": 20,
+      "basePrice": 18,
+      "nutrition": 55,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "food"
+      ]
+    },
+    {
+      "id": 125,
+      "code": "slime_jelly",
+      "name": "Slime Jelly",
+      "category": "consumable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 50,
+      "basePrice": 5,
+      "nutrition": 12,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "food",
+        "slime"
+      ]
+    },
+    {
+      "id": 126,
+      "code": "wheat",
+      "name": "Wheat",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 0,
+      "maxStack": 99,
+      "basePrice": 2,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": true,
+      "tags": [
+        "plant",
+        "crop"
+      ]
+    },
+    {
+      "id": 140,
+      "code": "slime_gel",
+      "name": "Slime Gel",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 0,
+      "maxStack": 99,
+      "basePrice": 3,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "slime"
+      ]
+    },
+    {
+      "id": 141,
+      "code": "slime_core",
+      "name": "Slime Core",
+      "category": "resource",
+      "rarity": "rare",
+      "tier": 2,
+      "maxStack": 50,
+      "basePrice": 60,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "slime"
+      ]
+    },
+    {
+      "id": 142,
+      "code": "orc_tusk",
+      "name": "Orc Tusk",
+      "category": "resource",
+      "rarity": "uncommon",
+      "tier": 2,
+      "maxStack": 99,
+      "basePrice": 15,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "orc"
+      ]
+    },
+    {
+      "id": 143,
+      "code": "crude_iron",
+      "name": "Crude Iron",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 99,
+      "basePrice": 7,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "orc"
+      ]
+    },
+    {
+      "id": 144,
+      "code": "demon_horn",
+      "name": "Demon Horn",
+      "category": "resource",
+      "rarity": "rare",
+      "tier": 4,
+      "maxStack": 50,
+      "basePrice": 90,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "demon"
+      ]
+    },
+    {
+      "id": 145,
+      "code": "ember_shard",
+      "name": "Ember Shard",
+      "category": "resource",
+      "rarity": "uncommon",
+      "tier": 3,
+      "maxStack": 99,
+      "basePrice": 30,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "demon"
+      ]
+    },
+    {
+      "id": 146,
+      "code": "blood_vial",
+      "name": "Blood Vial",
+      "category": "resource",
+      "rarity": "uncommon",
+      "tier": 3,
+      "maxStack": 99,
+      "basePrice": 25,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "blood_monster"
+      ]
+    },
+    {
+      "id": 147,
+      "code": "bone",
+      "name": "Bone",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 0,
+      "maxStack": 99,
+      "basePrice": 4,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "skeleton"
+      ]
+    },
+    {
+      "id": 148,
+      "code": "bone_dust",
+      "name": "Bone Dust",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 0,
+      "maxStack": 99,
+      "basePrice": 4,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "skeleton"
+      ]
+    },
+    {
+      "id": 160,
+      "code": "small_health_potion",
+      "name": "Small Health Potion",
+      "category": "consumable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 20,
+      "basePrice": 12,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "generic",
+        "potion"
+      ]
+    },
+    {
+      "id": 161,
+      "code": "greater_health_potion",
+      "name": "Greater Health Potion",
+      "category": "consumable",
+      "rarity": "rare",
+      "tier": 3,
+      "maxStack": 20,
+      "basePrice": 140,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "potion"
+      ]
+    },
+    {
+      "id": 180,
+      "code": "copper_sword",
+      "name": "Copper Sword",
+      "category": "weapon",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 1,
+      "basePrice": 55,
+      "nutrition": 0,
+      "maxDurability": 150,
+      "vendorBuyable": false,
+      "tags": [
+        "weapon"
+      ]
+    },
+    {
+      "id": 181,
+      "code": "iron_axe",
+      "name": "Iron Axe",
+      "category": "tool",
+      "rarity": "uncommon",
+      "tier": 2,
+      "maxStack": 1,
+      "basePrice": 75,
+      "nutrition": 0,
+      "maxDurability": 220,
+      "vendorBuyable": false,
+      "tags": [
+        "tool"
+      ]
+    },
+    {
+      "id": 182,
+      "code": "bone_bow",
+      "name": "Bone Bow",
+      "category": "weapon",
+      "rarity": "uncommon",
+      "tier": 2,
+      "maxStack": 1,
+      "basePrice": 55,
+      "nutrition": 0,
+      "maxDurability": 170,
+      "vendorBuyable": false,
+      "tags": [
+        "weapon"
+      ]
+    },
+    {
+      "id": 183,
+      "code": "ember_blade",
+      "name": "Ember Blade",
+      "category": "weapon",
+      "rarity": "epic",
+      "tier": 4,
+      "maxStack": 1,
+      "basePrice": 480,
+      "nutrition": 0,
+      "maxDurability": 320,
+      "vendorBuyable": false,
+      "tags": [
+        "weapon"
+      ]
+    },
+    {
+      "id": 184,
+      "code": "blood_amulet",
+      "name": "Blood Amulet",
+      "category": "accessory",
+      "rarity": "epic",
+      "tier": 4,
+      "maxStack": 1,
+      "basePrice": 380,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "accessory"
+      ]
+    },
+    {
+      "id": 185,
+      "code": "slime_ring",
+      "name": "Slime Ring",
+      "category": "accessory",
+      "rarity": "uncommon",
+      "tier": 2,
+      "maxStack": 1,
+      "basePrice": 170,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "accessory"
+      ]
+    },
+    {
+      "id": 186,
+      "code": "orc_war_helm",
+      "name": "Orc War Helm",
+      "category": "armor",
+      "rarity": "rare",
+      "tier": 3,
+      "maxStack": 1,
+      "basePrice": 170,
+      "nutrition": 0,
+      "maxDurability": 260,
+      "vendorBuyable": false,
+      "tags": [
+        "armor"
+      ]
+    },
+    {
+      "id": 187,
+      "code": "abyssal_crown",
+      "name": "Abyssal Crown",
+      "category": "armor",
+      "rarity": "legendary",
+      "tier": 5,
+      "maxStack": 1,
+      "basePrice": 2500,
+      "nutrition": 0,
+      "maxDurability": 400,
+      "vendorBuyable": false,
+      "tags": [
+        "armor"
+      ]
+    },
+    {
+      "id": 200,
+      "code": "workbench_kit",
+      "name": "Workbench Kit",
+      "category": "placeable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 20,
+      "basePrice": 30,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "structure",
+        "station"
+      ]
+    },
+    {
+      "id": 201,
+      "code": "stove_kit",
+      "name": "Stove Kit",
+      "category": "placeable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 20,
+      "basePrice": 50,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "structure",
+        "station"
+      ]
+    },
+    {
+      "id": 202,
+      "code": "alchemy_table_kit",
+      "name": "Alchemy Table Kit",
+      "category": "placeable",
+      "rarity": "uncommon",
+      "tier": 2,
+      "maxStack": 20,
+      "basePrice": 65,
+      "nutrition": 0,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "structure",
+        "station"
+      ]
+    }
+  ]
+}

@@ -24,6 +24,10 @@ namespace Carbon.AI.Components;
 /// <param name="WindupTicks">Optional attack telegraph windup duration in ticks before impact (0 = instant).</param>
 /// <param name="WindupRemainingTicks">Remaining windup ticks in the current attack telegraph.</param>
 /// <param name="RepathCooldownTicks">Ticks remaining before recomputing A* pathfinding around obstacles.</param>
+/// <param name="ExternalAttackControl">
+/// When <see langword="true"/>, <see cref="AiState.Attack"/> only evaluates leash / disengage transitions: velocity, cooldowns,
+/// windups, and attack events are owned by an external attack system (e.g. data-driven creature attack profiles).
+/// </param>
 public readonly record struct AiBrainComponent(
     AiState State,
     Vector2 HomePosition,
@@ -40,4 +44,5 @@ public readonly record struct AiBrainComponent(
     uint PatrolWaitTicks = 0,
     uint WindupTicks = 0,
     uint WindupRemainingTicks = 0,
-    uint RepathCooldownTicks = 0);
+    uint RepathCooldownTicks = 0,
+    bool ExternalAttackControl = false);

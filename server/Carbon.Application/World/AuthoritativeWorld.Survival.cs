@@ -55,14 +55,26 @@ public sealed partial class AuthoritativeWorld
         }
     }
 
-    private bool TryBeginEatingActiveSlotLocked(ActivePlayerState state, in ItemSlot activeSlot, ItemArchetype def)
+    /// <summary>
+    /// Starts a meal when the active slot holds a food from <c>food.json</c>. The item code is resolved from the
+    /// built-in catalog first, then from the data-driven economy catalog (<c>items.json</c>).
+    /// </summary>
+    private bool TryBeginEatingActiveSlotLocked(ActivePlayerState state, in ItemSlot activeSlot)
     {
-        if (!_foodCatalog.TryGetIndex(def.Code, out _))
+        if (activeSlot.IsEmpty || activeSlot.Quantity <= 0)
         {
             return false;
         }
 
-        OpStatus status = _eatAction.BeginEat(_simulation, state.Entity, def.Code);
+        string? code = StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? builtIn)
+            ? builtIn.Code
+            : _economy is not null && _economy.Items.TryGet(activeSlot.ItemId, out ItemCatalogEntry? entry) ? entry.Code : null;
+        if (code is null || !_foodCatalog.TryGetIndex(code, out _))
+        {
+            return false;
+        }
+
+        OpStatus status = _eatAction.BeginEat(_simulation, state.Entity, code);
         if (status == OpStatus.Ok)
         {
             state.EatingSlot = state.Session.SelectedHotbarSlot;

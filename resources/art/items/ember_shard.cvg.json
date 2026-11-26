@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "itemId": 145,
+  "id": "ember_shard",
+  "displayName": "Ember Shard",
+  "tier": 3,
+  "categoryLabel": "Monster Drop",
+  "accentColor": "#F97316",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          0,
+          -8
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          0,
+          7.5
+        ],
+        [
+          -4,
+          0
+        ]
+      ],
+      "color": "#EA580C",
+      "outlineColor": "#431407",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          0,
+          -5
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          0,
+          4
+        ],
+        [
+          -2,
+          0
+        ]
+      ],
+      "color": "#FDBA74"
+    }
+  ]
+}

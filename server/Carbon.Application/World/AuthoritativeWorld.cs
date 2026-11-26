@@ -13,6 +13,9 @@ using Carbon.AI.Threat;
 using Carbon.Combat.Cooldowns;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
+using Carbon.Economy;
+using Carbon.Economy.Currency;
+using Carbon.Economy.Loot;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Serialization;
@@ -69,6 +72,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly NeedsConfig _needsConfig;
     private readonly FoodCatalog _foodCatalog;
     private readonly EatActionSystem _eatAction;
+    private readonly GameEconomy? _economy;
 
     private readonly Dictionary<ulong, ActivePlayerState> _playersByConnection = new();
     private readonly Dictionary<ulong, ulong> _connectionByNetworkId = new();
@@ -136,6 +140,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     /// <param name="time">Optional time provider.</param>
     /// <param name="needsConfig">Survival needs tuning (<c>needs.json</c>); defaults to built-in values.</param>
     /// <param name="foodCatalog">Edible items (<c>food.json</c>); defaults to none, so no item is eaten.</param>
+    /// <param name="economy">Optional data-driven economy (items, loot, currencies).</param>
     public AuthoritativeWorld(
         ulong worldSeed,
         float tileSize,
@@ -146,7 +151,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         IWorldOutboundSink outboundSink,
         TimeProvider? time = null,
         NeedsConfig? needsConfig = null,
-        FoodCatalog? foodCatalog = null)
+        FoodCatalog? foodCatalog = null,
+        GameEconomy? economy = null)
     {
         ArgumentNullException.ThrowIfNull(chunkDeltaRepo);
         ArgumentNullException.ThrowIfNull(characterStore);
@@ -161,6 +167,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         _characterStore = characterStore;
         _outboundSink = outboundSink;
         _time = time ?? TimeProvider.System;
+        _economy = economy;
 
         _generator = new ProceduralWorldGenerator(this.WorldSeed);
         _chunkWorld = new ChunkWorld2D(_generator, this.TileSize, this.Frequency);
@@ -313,6 +320,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
                 CurrentStamina = startStamina,
                 StatsDirty = true,
                 LastSavedPosition = spawnPos,
+                Wallet = _economy is null
+                    ? new Wallet(networkId)
+                    : new Wallet(networkId, _economy.Config.Currencies.GoldCap, _economy.Config.Currencies.DiamondCap),
             };
             startProg.CopyTo(playerState.Progression);
 
@@ -1152,6 +1162,12 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         public bool InventoryDirty { get; set; }
         public int EatingSlot { get; set; } = -1;
         public uint EatingItemId { get; set; }
+
+        /// <summary>Server-authoritative gold/diamond balances (in-memory until a persistence ADR lands).</summary>
+        public Wallet Wallet { get; init; } = new(session.PlayerNetworkId);
+
+        /// <summary>Diamond bad-luck protection counter.</summary>
+        public LootPityState LootPity { get; set; }
     }
 
     private readonly record struct LootDropMeta(ItemSlot Item, ulong SpawnTick);
