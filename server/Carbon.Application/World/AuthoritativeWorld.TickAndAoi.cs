@@ -61,7 +61,7 @@ public sealed partial class AuthoritativeWorld
                         state.StatsDirty = true;
                     }
 
-                    float speed = (isSprinting ? SprintSpeed : BaseWalkSpeed) * state.Stats.MoveSpeedMultiplier * this.GetNeedsMoveScaleLocked(state);
+                    float speed = (isSprinting ? SprintSpeed : BaseWalkSpeed) * state.Stats.MoveSpeedMultiplier * _needs.GetMoveScale(state.Entity);
                     _simulation.EnqueueCommand(SimulationCommand.MoveInput(
                         state.Entity,
                         state.PendingDirection,
@@ -221,7 +221,7 @@ public sealed partial class AuthoritativeWorld
                 // Out-of-combat natural HP regeneration (+3 HP/s after 6s without taking combat hits).
                 if ((_currentTick % this.TickRate) == 0UL &&
                     (_currentTick - observer.LastCombatDamageTick) >= (ulong)(this.TickRate * 6) &&
-                    !this.IsHealthRegenBlockedLocked(observer) &&
+                    !_needs.IsHealthRegenBlocked(observer.Entity) &&
                     _simulation.Entities.HasHealth(observer.Entity))
                 {
                     HealthComponent php = _simulation.Entities.GetHealth(observer.Entity);

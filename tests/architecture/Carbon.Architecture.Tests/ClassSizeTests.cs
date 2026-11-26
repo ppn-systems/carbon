@@ -20,9 +20,9 @@ public sealed class ClassSizeTests
     /// <summary>
     /// Current maximum total lines across those partials. History: 5,933 before SOLID-1; 5,827 after extracting
     /// <c>GroundLootService</c>; 5,517 after extracting <c>OutboundTickBuffer</c>; 5,376 after extracting
-    /// <c>ProjectileService</c>.
+    /// <c>ProjectileService</c>; 5,174 after extracting <c>NeedsService</c>.
     /// </summary>
-    private const int MaxAuthoritativeWorldLines = 5_376;
+    private const int MaxAuthoritativeWorldLines = 5_174;
 
     [Fact]
     public void AuthoritativeWorld_ShouldNotGainPartialFiles()
