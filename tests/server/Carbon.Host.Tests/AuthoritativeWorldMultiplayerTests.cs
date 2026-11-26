@@ -20,6 +20,9 @@ using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
 using Carbon.Items.Serialization;
 using Carbon.Maps.Building;
+using Carbon.Maps.Generators;
+using Carbon.Maps.Props;
+using Carbon.Maps.Streaming;
 using Carbon.Survival.Config;
 using Carbon.Survival.Food;
 using FluentAssertions;
@@ -580,6 +583,97 @@ public sealed class AuthoritativeWorldMultiplayerTests
             world.TryUpgradeInventoryItem(hunterConn, slotIndex: 2, deterministicRollSeed: 2U).Should().Be(OpStatus.Ok);
             _ = anvilTx;
             _ = anvilTy;
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task TryHarvestProp_RepeatedWithinAttackCooldown_IsRateLimitedUntilCooldownElapses()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-harvest-rate-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            SqliteSchemaMigrator migrator = new(factory);
+            await migrator.MigrateAsync().ConfigureAwait(true);
+
+            SqliteAccountStore accounts = new(factory);
+            SqliteCharacterStore characters = new(factory);
+            SqliteChunkDeltaRepository chunks = new(factory);
+            RecordingOutboundSink sink = new();
+
+            DateTimeOffset now = new(2026, 11, 26, 12, 0, 0, TimeSpan.Zero);
+            Guid accountId = Guid.NewGuid();
+            AccountRecord account = new(accountId, "harvester", "HARVESTER", [1, 2, 3], [4, 5, 6], now, false);
+            (await accounts.TryCreateAsync(account).ConfigureAwait(true)).Should().BeTrue();
+
+            const ulong seed = 1337UL;
+            AuthoritativeWorld world = new(seed, 32f, 0.0008f, 30, chunks, characters, sink);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+            // Mirror the server's deterministic generator to find a destructible prop near spawn.
+            ChunkWorld2D mirror = new(new ProceduralWorldGenerator(seed), 32f, 0.0008f);
+            int spawnTx = (int)MathF.Floor(world.DefaultSpawnWorldPosition.X / 32f);
+            int spawnTy = (int)MathF.Floor(world.DefaultSpawnWorldPosition.Y / 32f);
+            (int X, int Y)? target = null;
+            for (int r = 0; r <= 64 && target is null; r++)
+            {
+                for (int dy = -r; dy <= r && target is null; dy++)
+                {
+                    for (int dx = -r; dx <= r && target is null; dx++)
+                    {
+                        if (Math.Max(Math.Abs(dx), Math.Abs(dy)) == r &&
+                            mirror.TryGetPropAt(spawnTx + dx, spawnTy + dy, out MapProp prop) &&
+                            prop.Destructibility.IsDestructible && !prop.Destructibility.IsDestroyed)
+                        {
+                            target = (spawnTx + dx, spawnTy + dy);
+                        }
+                    }
+                }
+            }
+
+            target.Should().NotBeNull("the seeded world should have a destructible prop near spawn");
+            (int tx, int ty) = target!.Value;
+
+            InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
+            StarterGameCatalog.GrantStarterLoadout(inv, startingClass: 0);
+            CharacterRecord hero = new(
+                Guid.NewGuid(),
+                accountId,
+                "Harvester",
+                Level: 1,
+                AppearancePreset: 0,
+                PositionX: ((tx + 0.5f) * 32f) + 40f,
+                PositionY: (ty + 0.5f) * 32f,
+                CurrentHealth: 100f,
+                MaxHealth: 100f,
+                SelectedHotbarSlot: 0,
+                InventoryBlob: InventoryBinaryCodec.Serialize(inv),
+                UpdatedAtUtc: now,
+                Flags: CharacterTraits.StarterLoadoutGranted);
+            (await characters.TryCreateAsync(hero).ConfigureAwait(true)).Should().BeTrue();
+            world.TryEnterWorld(connectionId: 701UL, sessionId: 701UL, hero).Status.Should().Be(OpStatus.Ok);
+
+            OpStatus first = world.TryHarvestProp(701UL, tx, ty).Status;
+            OpStatus second = world.TryHarvestProp(701UL, tx, ty).Status;
+
+            first.Should().NotBe(OpStatus.RateLimited, "the first strike is within the interact range and off cooldown");
+            first.Should().NotBe(OpStatus.OutOfRange);
+            second.Should().Be(OpStatus.RateLimited, "a second strike in the same tick must wait for the shared attack cooldown");
+
+            for (int i = 0; i < 90; i++)
+            {
+                world.StepFixedTick();
+            }
+
+            world.TryHarvestProp(701UL, tx, ty).Status.Should().NotBe(OpStatus.RateLimited, "the cooldown has elapsed after 3 seconds");
         }
         finally
         {
