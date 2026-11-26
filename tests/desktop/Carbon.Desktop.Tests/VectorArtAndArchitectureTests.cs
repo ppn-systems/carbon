@@ -49,7 +49,7 @@ public sealed class VectorArtAndArchitectureTests
         summary.CharactersValidated.Should().Be(4);
         summary.MonstersValidated.Should().Be(7);
         summary.NpcsValidated.Should().Be(4);
-        summary.ItemsValidated.Should().Be(80);
+        summary.ItemsValidated.Should().Be(85);
         summary.PropsValidated.Should().Be(22);
         summary.BiomesValidated.Should().Be(14);
         summary.StructuresValidated.Should().Be(Enum.GetValues<StructureType>().Length - 1, "every non-None structure type has art");
@@ -438,6 +438,11 @@ public sealed class VectorArtAndArchitectureTests
             lib!.TryGetItem(item.Id, out CompiledItemVectorArt? itemArt).Should().BeTrue($"item {item.Id} ({item.DisplayName}) must have compiled cvg.json art");
             itemArt.Should().NotBeNull();
         }
+
+        lib!.TryGetUiIcon("coin", out CompiledItemVectorArt? coinIcon).Should().BeTrue("the wallet HUD needs a gold coin icon");
+        lib.TryGetUiIcon("diamond", out CompiledItemVectorArt? diamondIcon).Should().BeTrue("the wallet HUD needs a diamond icon");
+        coinIcon!.Shapes.Length.Should().BePositive();
+        diamondIcon!.Shapes.Length.Should().BePositive();
 
         string[] expectedMonsterClips =
         [

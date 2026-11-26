@@ -26,7 +26,7 @@ public sealed class EconomySimulationTests
         TheoryData<string, int> data = [];
         foreach (LootTable table in ShippedConfig.Loot.All)
         {
-            if (table.Kind != LootSourceKind.Monster)
+            if (table.Kind != LootSourceKind.Monster || table.IsElite)
             {
                 continue;
             }
@@ -105,6 +105,21 @@ public sealed class EconomySimulationTests
 
         elite.Should().BeGreaterThan(normal * 2);
         boss.Should().BeGreaterThan(elite * 2);
+    }
+
+    [Theory]
+    [InlineData("slime_king", "slime")]
+    [InlineData("orc_warlord", "orc")]
+    public void EliteVariantTables_PayMoreThanTheirFamily(string eliteId, string familyId)
+    {
+        LootTable elite = Table(eliteId);
+        LootTable family = Table(familyId);
+        int level = elite.MinLevel;
+
+        elite.IsElite.Should().BeTrue();
+        elite.Theme.Should().Be(family.Theme);
+        elite.ExpectedGoldPerKill(new LootContext(level, IsElite: true)).Should().BeGreaterThan(family.ExpectedGoldPerKill(new LootContext(level)) * 2);
+        elite.DiamondChancePpm(new LootContext(level, IsElite: true)).Should().BeGreaterThan(family.DiamondChancePpm(new LootContext(level)));
     }
 
     [Fact]

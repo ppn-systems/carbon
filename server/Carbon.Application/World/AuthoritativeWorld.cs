@@ -101,8 +101,10 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private List<OutboundSlotChange> _pendingSlotChanges = new(32);
     private List<OutboundPropChange> _pendingPropChanges = new(16);
     private List<OutboundStructureChange> _pendingStructureChanges = new(16);
+    private List<OutboundConstructionChange> _pendingConstructionChanges = new(16);
     private List<OutboundEquipmentChange> _pendingEquipmentChanges = new(16);
     private List<OutboundStatsSync> _pendingStatsSyncs = new(32);
+    private List<OutboundWalletSync> _pendingWalletSyncs = new(16);
     private List<OutboundSkillCast> _pendingSkillCasts = new(16);
     private List<ulong> _flatRecipients = new(256);
 
@@ -114,8 +116,10 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private List<OutboundSlotChange> _dispatchSlotChanges = new(32);
     private List<OutboundPropChange> _dispatchPropChanges = new(16);
     private List<OutboundStructureChange> _dispatchStructureChanges = new(16);
+    private List<OutboundConstructionChange> _dispatchConstructionChanges = new(16);
     private List<OutboundEquipmentChange> _dispatchEquipmentChanges = new(16);
     private List<OutboundStatsSync> _dispatchStatsSyncs = new(32);
+    private List<OutboundWalletSync> _dispatchWalletSyncs = new(16);
     private List<OutboundSkillCast> _dispatchSkillCasts = new(16);
     private List<ulong> _dispatchRecipients = new(256);
     private readonly List<ulong> _aoiRecipientsScratch = new(64);
@@ -336,7 +340,13 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
                 Wallet = _economy is null
                     ? new Wallet(networkId)
                     : new Wallet(networkId, _economy.Config.Currencies.GoldCap, _economy.Config.Currencies.DiamondCap),
+                LootPity = new LootPityState(Math.Max(0, character.DiamondPity)),
             };
+            playerState.Wallet.Restore(
+                Math.Clamp(character.Gold, 0L, playerState.Wallet.GoldCap),
+                Math.Clamp(character.Diamonds, 0L, playerState.Wallet.DiamondCap),
+                character.WalletSequence);
+            this.EnqueueWalletSyncLocked(playerState);
             startProg.CopyTo(playerState.Progression);
 
             _playersByConnection[connectionId] = playerState;
@@ -867,6 +877,10 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             UpdatedAtUtc = _time.GetUtcNow(),
             UnlockedSkills = state.Progression.UnlockedSkillMask,
             ProgressionBlob = CharacterProgressionBinaryCodec.Serialize(state.Progression),
+            Gold = state.Wallet.Gold,
+            Diamonds = state.Wallet.Diamonds,
+            WalletSequence = state.Wallet.Sequence,
+            DiamondPity = state.LootPity.KillsSinceDiamond,
         };
     }
 
@@ -1178,6 +1192,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         public BuildJobKind BuildJob { get; set; }
         public int BuildJobTileX { get; set; }
         public int BuildJobTileY { get; set; }
+        public int LastPushedBuildBucket { get; set; } = -1;
+        public ConstructionStage LastPushedBuildStage { get; set; }
 
         /// <summary>Server-authoritative gold/diamond balances (in-memory until a persistence ADR lands).</summary>
         public Wallet Wallet { get; init; } = new(session.PlayerNetworkId);
@@ -1211,6 +1227,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         byte WeaponUpgrade,
         ushort Level,
         float MaxHealth);
+
+    private readonly record struct OutboundWalletSync(ulong ConnectionId, long Gold, long Diamonds, ulong Sequence);
 
     private readonly record struct OutboundStatsSync(
         ulong ConnectionId,
@@ -1290,4 +1308,16 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         float Durability,
         byte DoorState,
         byte Connectivity);
+
+    private readonly record struct OutboundConstructionChange(
+        int RecipientsOffset,
+        int RecipientsCount,
+        int TileX,
+        int TileY,
+        byte StructureType,
+        byte Rotation,
+        byte Stage,
+        byte Size,
+        float Progress,
+        bool IsDeconstruction);
 }

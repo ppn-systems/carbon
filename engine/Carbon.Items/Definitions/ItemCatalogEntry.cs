@@ -7,7 +7,8 @@ namespace Carbon.Items.Definitions;
 
 /// <summary>
 /// Data-driven item definition loaded from <c>resources/config/items.json</c>.
-/// Carries the economy-facing fields (rarity, tier, base price, nutrition) shared by loot, crafting, vendors and needs.
+/// Carries the economy-facing fields (rarity, tier, base price, theme tags) shared by loot, crafting and vendors.
+/// Nutrition is owned by <c>food.json</c> (survival), not by this catalog.
 /// </summary>
 public sealed record ItemCatalogEntry : IDataDefinition<uint>
 {
@@ -34,9 +35,6 @@ public sealed record ItemCatalogEntry : IDataDefinition<uint>
 
     /// <summary>Gets the reference value in gold used for vendor buy/sell, repair and fee calculations.</summary>
     public long BasePrice { get; set; }
-
-    /// <summary>Gets the hunger restored when eaten (<c>0</c> for inedible items). Consumed by the needs system.</summary>
-    public int Nutrition { get; set; }
 
     /// <summary>Gets the maximum durability (<c>0</c> for items that never wear out).</summary>
     public float MaxDurability { get; set; }

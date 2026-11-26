@@ -85,9 +85,9 @@ public sealed class ItemCatalog : IStackSizeProvider
                 throw new InvalidDataException($"Duplicate item code '{item.Code}'.");
             }
 
-            if (item.MaxStack <= 0 || item.BasePrice < 0 || item.Nutrition < 0 || item.MaxDurability < 0f || item.Tier < 0)
+            if (item.MaxStack <= 0 || item.BasePrice < 0 || item.MaxDurability < 0f || item.Tier < 0)
             {
-                throw new InvalidDataException($"Item '{item.Code}' has an out-of-range maxStack/basePrice/nutrition/maxDurability/tier.");
+                throw new InvalidDataException($"Item '{item.Code}' has an out-of-range maxStack/basePrice/maxDurability/tier.");
             }
 
             if (item.MaxDurability > 0f && item.MaxStack != 1)

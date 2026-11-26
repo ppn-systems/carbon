@@ -120,6 +120,18 @@ public interface IWorldOutboundSink
     /// <summary>Broadcasts a constructed structure update to connections in range.</summary>
     void SendStructureChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, byte structureType, float durability, byte doorState, byte connectivity);
 
+    /// <summary>Broadcasts a construction site or deconstruction stage / progress update to connections in range.</summary>
+    void SendConstructionChanged(
+        ReadOnlySpan<ulong> recipientConnectionIds,
+        int tileX,
+        int tileY,
+        byte structureType,
+        byte rotation,
+        byte stage,
+        byte size,
+        float progress,
+        bool isDeconstruction);
+
     /// <summary>Broadcasts a combat damage event to connections observing the combatants.</summary>
     void SendCombatHit(ReadOnlySpan<ulong> recipientConnectionIds, ulong attackerNetworkId, ulong defenderNetworkId, float damage, float remainingHealth, bool isCritical, bool isKilled);
 
@@ -141,6 +153,9 @@ public interface IWorldOutboundSink
 
     /// <summary>Synchronizes the owning player's RPG vitals, flags, progression blob, and cooldown arrays.</summary>
     void SendPlayerStatsSync(ulong connectionId, in PlayerStatsSnapshot snapshot);
+
+    /// <summary>Pushes the owning player's server-authoritative gold and diamond balances (ADR-012).</summary>
+    void SendWalletSync(ulong connectionId, long gold, long diamonds, ulong sequence);
 
     /// <summary>Broadcasts active ability cast VFX coordinates to AoI observers.</summary>
     void SendSkillCastBroadcast(

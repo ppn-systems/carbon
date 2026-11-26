@@ -10,12 +10,14 @@ using System.Numerics;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using Carbon.Abstractions.Persistence;
 using Carbon.Application.Identity;
 using Carbon.Application.World;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Identity;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Abstractions.World;
+using Carbon.Economy;
 using Carbon.Host;
 using Carbon.Infrastructure.Configuration;
 using Carbon.Infrastructure.Persistence.Sqlite;
@@ -96,7 +98,8 @@ public sealed class MultiplayerSessionTests
                 hostOptions.TickRate,
                 chunkDeltas,
                 characters,
-                outboundSink);
+                outboundSink,
+                economy: GameEconomy.LoadFromDirectory(GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!));
 
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
@@ -150,6 +153,10 @@ public sealed class MultiplayerSessionTests
 
                 float initialX = rosterA[0].PositionX;
 
+                // Seed a persisted wallet balance (ADR-012) before entering the world.
+                CharacterRecord? heroARecord = await characters.FindByIdAsync(rosterA[0].CharacterId).ConfigureAwait(true);
+                await characters.SaveBatchAsync([heroARecord! with { Gold = 321, Diamonds = 4 }]).ConfigureAwait(true);
+
                 // 3. Enter world and verify Authenticated UDP (NDP) activates cleanly.
                 (bool enteredA, _) = await clientA.EnterWorldAsync(rosterA[0].CharacterId).ConfigureAwait(true);
                 enteredA.Should().BeTrue();
@@ -176,6 +183,19 @@ public sealed class MultiplayerSessionTests
                 clientA.CycleNearestHostileTarget(32f).Should().BeFalse();
                 clientA.LockedTargetNetworkId.Should().Be(0UL);
                 clientA.IsNearForgeStation().Should().BeTrue("sanctuary starter area hosts Master Blacksmith");
+                clientA.LocalPlayerGold.Should().Be(321, "WalletSync pushes the persisted balance on world entry");
+                clientA.LocalPlayerDiamonds.Should().Be(4);
+
+                // Buy 5 wood logs from the sanctuary vendor over the wire; the server charges gold and pushes WalletSync.
+                clientA.TryVendorBuy((ushort)StarterGameCatalog.WoodLog, 5).Should().BeTrue();
+                for (int t = 0; t < 40 && clientA.LocalPlayerGold == 321; t++)
+                {
+                    clientA.Update(1.0 / 30.0, Vector2.Zero, sprint: false);
+                    world.StepFixedTick();
+                    await Task.Delay(15).ConfigureAwait(true);
+                }
+
+                clientA.LocalPlayerGold.Should().Be(311, "5 wood logs at 2 gold each were bought");
 
                 (bool enteredB, _) = await clientB.EnterWorldAsync(rosterB[0].CharacterId).ConfigureAwait(true);
                 enteredB.Should().BeTrue();
@@ -263,18 +283,43 @@ public sealed class MultiplayerSessionTests
                 }
 
                 clientA.SelectHotbarSlot(4);
+                clientA.PreviewPlacement(placeX, placeY, StructureType.WoodWall, StructureRotation.North, out _, out _)
+                    .Should().Be(BuildResultCode.Ok, "the client preview runs the same rules as the server");
                 Vector2 placeAim = new((placeX + 0.5f) * 32f, (placeY + 0.5f) * 32f);
                 clientA.TriggerPrimaryAction(placeAim, out _).Should().BeTrue();
 
                 // The kit places a blueprint; the 3 starter wood logs are delivered and 120 work takes 60 ticks.
+                // Meanwhile both clients receive the site and its progress as MapConstructionChanged pushes.
+                List<ConstructionMarker> markers = [];
+                bool sawSite = false;
+                float maxProgress = 0f;
                 for (int i = 0; i < 120 && !clientB.ChunkWorld.Buildings.TryGetStructure(placeX, placeY, out _); i++)
+                {
+                    world.StepFixedTick();
+                    await Task.Delay(20).ConfigureAwait(true);
+                    clientB.CopyConstructionMarkers(markers);
+                    foreach (ConstructionMarker marker in markers.Where(m => m.AnchorX == placeX && m.AnchorY == placeY && !m.IsDeconstruction))
+                    {
+                        sawSite = true;
+                        maxProgress = MathF.Max(maxProgress, marker.Progress);
+                    }
+                }
+
+                clientB.ChunkWorld.Buildings.TryGetStructure(placeX, placeY, out StructureTile placed).Should().BeTrue();
+                placed.Type.Should().Be(StructureType.WoodWall);
+                sawSite.Should().BeTrue("the blueprint/frame was pushed before the wall completed");
+                maxProgress.Should().BeGreaterThan(0.3f, "construction progress is pushed while the builder works");
+
+                for (int i = 0; i < 10; i++)
                 {
                     world.StepFixedTick();
                     await Task.Delay(20).ConfigureAwait(true);
                 }
 
-                clientB.ChunkWorld.Buildings.TryGetStructure(placeX, placeY, out StructureTile placed).Should().BeTrue();
-                placed.Type.Should().Be(StructureType.WoodWall);
+                clientB.CopyConstructionMarkers(markers);
+                markers.Should().NotContain(m => m.AnchorX == placeX && m.AnchorY == placeY && !m.IsDeconstruction, "the site marker is cleared on completion");
+                clientB.PreviewPlacement(placeX, placeY, StructureType.WoodWall, StructureRotation.North, out _, out _)
+                    .Should().Be(BuildResultCode.BlockedByExistingStructure);
 
                 // 5.5 Drop UDP transport and verify Update() automatically reconnects UDP on the next heartbeat.
                 await clientA.DropUdpTransportForTestingAsync().ConfigureAwait(true);

@@ -28,4 +28,13 @@ public interface IWorldInventoryService
 
     /// <summary>Drops items from <paramref name="slotIndex"/> onto the ground as an authoritative loot entity.</summary>
     OpStatus TryDropInventoryItem(ulong connectionId, ushort slotIndex, int quantity);
+
+    /// <summary>Buys vendor-sold items for gold while standing near a friendly town NPC.</summary>
+    OpStatus TryVendorBuy(ulong connectionId, ushort itemId, ushort quantity);
+
+    /// <summary>Sells units from a bag slot (<c>0..35</c>) to a nearby friendly town NPC for gold.</summary>
+    OpStatus TryVendorSell(ulong connectionId, ushort slotIndex, ushort quantity);
+
+    /// <summary>Repairs the item in <paramref name="slotIndex"/> to full durability for gold at a forge station.</summary>
+    OpStatus TryRepairItem(ulong connectionId, ushort slotIndex);
 }

@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "itemId": 0,
+  "id": "diamond",
+  "displayName": "Diamond",
+  "tier": 1,
+  "categoryLabel": "Currency",
+  "accentColor": "#22D3EE",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.7,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -7,
+          -2
+        ],
+        [
+          -3.5,
+          -6
+        ],
+        [
+          3.5,
+          -6
+        ],
+        [
+          7,
+          -2
+        ],
+        [
+          0,
+          7.5
+        ]
+      ],
+      "color": "#22D3EE",
+      "outlineColor": "#0E7490",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -3.5,
+          -6
+        ],
+        [
+          3.5,
+          -6
+        ],
+        [
+          1.8,
+          -2
+        ],
+        [
+          -1.8,
+          -2
+        ]
+      ],
+      "color": "#A5F3FC"
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -1.8,
+          -2
+        ],
+        [
+          1.8,
+          -2
+        ],
+        [
+          0,
+          5
+        ]
+      ],
+      "color": "#67E8F9"
+    }
+  ]
+}

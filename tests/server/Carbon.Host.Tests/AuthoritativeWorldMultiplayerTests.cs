@@ -128,6 +128,13 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
             sink.StructureChanges.Should().Contain(c => c.TileX == buildTileX && c.TileY == buildTileY && c.StructureType == (byte)StructureType.WoodWall);
 
+            // Clients saw the frame, throttled progress steps, and the site's removal once the wall completed.
+            sink.ConstructionChanges.Should().Contain(c => c.TileX == buildTileX && c.TileY == buildTileY && c.Stage == (byte)ConstructionStage.Frame && !c.IsDeconstruction);
+            sink.ConstructionChanges.Should().Contain(c => c.TileX == buildTileX && c.Progress > 0.4f && c.Progress < 0.6f && !c.IsDeconstruction);
+            sink.ConstructionChanges.Count(c => c.TileX == buildTileX && c.TileY == buildTileY && !c.IsDeconstruction)
+                .Should().BeLessThan(20, "progress is pushed in 10% steps, not every tick");
+            sink.ConstructionChanges.Should().Contain(c => c.TileX == buildTileX && c.TileY == buildTileY && c.Stage == (byte)ConstructionStage.Removed && !c.IsDeconstruction);
+
             // Player B does not own the wall and may not deconstruct it.
             world.TryDemolishStructure(202UL, buildTileX, buildTileY).Status.Should().Be(OpStatus.Forbidden);
 
@@ -139,6 +146,8 @@ public sealed class AuthoritativeWorldMultiplayerTests
             }
 
             sink.StructureChanges.Should().Contain(c => c.TileX == buildTileX && c.TileY == buildTileY && c.StructureType == 0);
+            sink.ConstructionChanges.Should().Contain(c => c.TileX == buildTileX && c.IsDeconstruction && c.Stage == (byte)ConstructionStage.Complete && c.Progress > 0f);
+            sink.ConstructionChanges.Should().Contain(c => c.TileX == buildTileX && c.IsDeconstruction && c.Stage == (byte)ConstructionStage.Removed);
             List<(ushort SlotIndex, ItemSlot Slot)> builderSlots = [];
             world.GetInventorySnapshot(101UL, builderSlots).Should().BeTrue();
             builderSlots.Where(x => x.Slot.ItemId == StarterGameCatalog.WoodLog).Sum(x => x.Slot.Quantity).Should().Be(17);
@@ -883,6 +892,88 @@ public sealed class AuthoritativeWorldMultiplayerTests
         }
     }
 
+    [Fact]
+    public async Task Wallet_PersistsAcrossSessions_SyncsToClient_AndPaysForVendorSinks()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-wallet-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            SqliteSchemaMigrator migrator = new(factory);
+            await migrator.MigrateAsync().ConfigureAwait(true);
+            await migrator.MigrateAsync().ConfigureAwait(true); // idempotent re-run keeps 0005_character_wallet applied once
+
+            SqliteAccountStore accounts = new(factory);
+            SqliteCharacterStore characters = new(factory);
+            RecordingOutboundSink sink = new();
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            Guid accountId = Guid.NewGuid();
+            (await accounts.TryCreateAsync(new AccountRecord(accountId, "merchant", "MERCHANT", [1, 2, 3], [4, 5, 6], now, false)).ConfigureAwait(true)).Should().BeTrue();
+
+            GameEconomy economy = GameEconomy.LoadFromDirectory(GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!);
+            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), characters, sink, economy: economy);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+            InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);
+            StarterGameCatalog.GrantStarterLoadout(bag);
+            CharacterRecord trader = new(
+                Guid.NewGuid(), accountId, "Trader", 1, 0,
+                world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
+                100f, 100f, 0, InventoryBinaryCodec.Serialize(bag), now,
+                Gold: 500, Diamonds: 2, WalletSequence: 7, DiamondPity: 42);
+            (await characters.TryCreateAsync(trader).ConfigureAwait(true)).Should().BeTrue();
+            CharacterRecord? stored = await characters.FindByIdAsync(trader.Id).ConfigureAwait(true);
+            stored!.Gold.Should().Be(500);
+            stored.DiamondPity.Should().Be(42);
+
+            const ulong conn = 901UL;
+            world.TryEnterWorld(conn, conn, stored).Status.Should().Be(OpStatus.Ok);
+            world.StepFixedTick();
+            sink.WalletSyncs.Should().Contain((conn, 500L, 2L, 7UL), "the client receives its persisted balance on world entry");
+
+            // Sanctuary blacksmith next to spawn acts as vendor and repair station.
+            uint woodLog = economy.Items.ResolveId("wood_log");
+            long logPrice = economy.Prices.GetBuyPrice(woodLog);
+            world.TryVendorBuy(conn, (ushort)woodLog, 10).Should().Be(OpStatus.Ok);
+            world.TryGetWalletBalances(conn, out long gold, out _).Should().BeTrue();
+            gold.Should().Be(500 - (10 * logPrice));
+            sink.WalletSyncs[^1].Gold.Should().Be(gold);
+            sink.SlotChanges.Should().Contain(c => c.ConnectionId == conn && c.ItemId == woodLog);
+
+            world.TryVendorBuy(conn, (ushort)economy.Items.ResolveId("demon_horn"), 1).Should().Be(OpStatus.Forbidden, "rare drops are not sold by vendors");
+            world.TryVendorBuy(conn, (ushort)woodLog, 60_000).Should().Be(OpStatus.Invalid);
+            world.TryVendorSell(conn, PlayerInventoryLayout.HeadSlot, 1).Should().Be(OpStatus.Invalid, "equipped armor cannot be sold");
+
+            List<(ushort SlotIndex, ItemSlot Slot)> inventory = [];
+            world.GetInventorySnapshot(conn, inventory).Should().BeTrue();
+            (ushort swordSlot, ItemSlot sword) = inventory.First(x => x.Slot.ItemId == StarterGameCatalog.IronSword);
+            world.TryRepairItem(conn, swordSlot).Should().Be(OpStatus.Conflict, "a full-durability item needs no repair");
+            world.TryVendorSell(conn, swordSlot, 1).Should().Be(OpStatus.Ok);
+            world.TryGetWalletBalances(conn, out long afterSale, out _).Should().BeTrue();
+            afterSale.Should().Be(gold + economy.Prices.GetSellPrice(sword.ItemId));
+
+            // A player far from any town NPC is refused.
+            CharacterRecord wanderer = stored with { Id = Guid.NewGuid(), Name = "Wanderer", PositionX = stored.PositionX + 9000f };
+            world.TryEnterWorld(902UL, 902UL, wanderer).Status.Should().Be(OpStatus.Ok);
+            world.TryVendorBuy(902UL, (ushort)woodLog, 1).Should().Be(OpStatus.OutOfRange);
+
+            await world.FlushDirtyPersistenceAsync().ConfigureAwait(true);
+            CharacterRecord? reloaded = await characters.FindByIdAsync(trader.Id).ConfigureAwait(true);
+            reloaded!.Gold.Should().Be(afterSale);
+            reloaded.Diamonds.Should().Be(2);
+            reloaded.WalletSequence.Should().Be(9UL, "one purchase and one sale were recorded after the persisted sequence 7");
+            reloaded.DiamondPity.Should().Be(42);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
     private sealed class RecordingOutboundSink : IWorldOutboundSink
     {
         public List<(ulong ConnectionId, EntitySpawnSnapshot Snapshot)> Spawns { get; } = [];
@@ -894,6 +985,11 @@ public sealed class AuthoritativeWorldMultiplayerTests
         public List<(ulong EntityNetworkId, ushort ChestId, ushort WeaponId, ushort Level)> EquipmentChanges { get; } = [];
         public List<(ulong ConnectionId, ushort Level, uint Experience, float Defense, ushort VitPoints, byte Skill1Rank)> StatsSyncs { get; } = [];
         public List<(ulong CasterNetworkId, byte AbilitySlot)> SkillCasts { get; } = [];
+        public List<(ulong ConnectionId, long Gold, long Diamonds, ulong Sequence)> WalletSyncs { get; } = [];
+
+        public void SendWalletSync(ulong connectionId, long gold, long diamonds, ulong sequence) =>
+            this.WalletSyncs.Add((connectionId, gold, diamonds, sequence));
+
         public List<(ulong ConnectionId, PlayerNeedsSnapshot Needs)> NeedsSyncs { get; } = [];
 
         public void SendEntitySpawn(ulong connectionId, in EntitySpawnSnapshot spawn) =>
@@ -917,6 +1013,20 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
         public void SendStructureChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, byte structureType, float durability, byte doorState, byte connectivity) =>
             this.StructureChanges.Add((tileX, tileY, structureType));
+
+        public List<(int TileX, int TileY, byte Stage, float Progress, bool IsDeconstruction)> ConstructionChanges { get; } = [];
+
+        public void SendConstructionChanged(
+            ReadOnlySpan<ulong> recipientConnectionIds,
+            int tileX,
+            int tileY,
+            byte structureType,
+            byte rotation,
+            byte stage,
+            byte size,
+            float progress,
+            bool isDeconstruction) =>
+            this.ConstructionChanges.Add((tileX, tileY, stage, progress, isDeconstruction));
 
         public void SendCombatHit(ReadOnlySpan<ulong> recipientConnectionIds, ulong attackerNetworkId, ulong defenderNetworkId, float damage, float remainingHealth, bool isCritical, bool isKilled) =>
             this.CombatHits.Add((attackerNetworkId, defenderNetworkId, damage, isKilled));

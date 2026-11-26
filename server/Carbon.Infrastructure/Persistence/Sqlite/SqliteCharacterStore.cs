@@ -22,7 +22,8 @@ public sealed class SqliteCharacterStore : ICharacterStore
         SELECT id, account_id, name, level, appearance_preset, position_x, position_y,
                current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
                experience, current_mana, max_mana, current_stamina, max_stamina,
-               class_id, character_flags, skill_flags, progression_blob
+               class_id, character_flags, skill_flags, progression_blob,
+               gold, diamonds, wallet_sequence, diamond_pity
         FROM characters
         WHERE account_id = @account_id
         ORDER BY name ASC;
@@ -32,7 +33,8 @@ public sealed class SqliteCharacterStore : ICharacterStore
         SELECT id, account_id, name, level, appearance_preset, position_x, position_y,
                current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
                experience, current_mana, max_mana, current_stamina, max_stamina,
-               class_id, character_flags, skill_flags, progression_blob
+               class_id, character_flags, skill_flags, progression_blob,
+               gold, diamonds, wallet_sequence, diamond_pity
         FROM characters
         WHERE id = @id
         LIMIT 1;
@@ -43,8 +45,9 @@ public sealed class SqliteCharacterStore : ICharacterStore
             id, account_id, name, level, appearance_preset, position_x, position_y,
             current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
             experience, current_mana, max_mana, current_stamina, max_stamina,
-            class_id, character_flags, skill_flags, progression_blob)
-        VALUES (@id, @account_id, @name, @level, @preset, @px, @py, @hp, @max_hp, @slot, @inv, @updated, @xp, @mp, @max_mp, @stam, @max_stam, @class_id, @cflags, @sflags, @pblob)
+            class_id, character_flags, skill_flags, progression_blob,
+            gold, diamonds, wallet_sequence, diamond_pity)
+        VALUES (@id, @account_id, @name, @level, @preset, @px, @py, @hp, @max_hp, @slot, @inv, @updated, @xp, @mp, @max_mp, @stam, @max_stam, @class_id, @cflags, @sflags, @pblob, @gold, @diamonds, @wseq, @pity)
         ON CONFLICT (name) DO NOTHING;
         """;
 
@@ -67,7 +70,11 @@ public sealed class SqliteCharacterStore : ICharacterStore
             class_id = @class_id,
             character_flags = @cflags,
             skill_flags = @sflags,
-            progression_blob = @pblob
+            progression_blob = @pblob,
+            gold = @gold,
+            diamonds = @diamonds,
+            wallet_sequence = @wseq,
+            diamond_pity = @pity
         WHERE id = @id;
         """;
 
@@ -149,6 +156,10 @@ public sealed class SqliteCharacterStore : ICharacterStore
         _ = cmd.Parameters.AddWithValue("@cflags", unchecked((long)(ulong)character.Flags));
         _ = cmd.Parameters.AddWithValue("@sflags", unchecked((long)(ulong)character.UnlockedSkills));
         _ = cmd.Parameters.AddWithValue("@pblob", character.ProgressionBlob ?? []);
+        _ = cmd.Parameters.AddWithValue("@gold", character.Gold);
+        _ = cmd.Parameters.AddWithValue("@diamonds", character.Diamonds);
+        _ = cmd.Parameters.AddWithValue("@wseq", unchecked((long)character.WalletSequence));
+        _ = cmd.Parameters.AddWithValue("@pity", character.DiamondPity);
 
         int affected = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         return affected == 1;
@@ -191,6 +202,10 @@ public sealed class SqliteCharacterStore : ICharacterStore
         SqliteParameter pCflags = cmd.Parameters.Add("@cflags", SqliteType.Integer);
         SqliteParameter pSflags = cmd.Parameters.Add("@sflags", SqliteType.Integer);
         SqliteParameter pPblob = cmd.Parameters.Add("@pblob", SqliteType.Blob);
+        SqliteParameter pGold = cmd.Parameters.Add("@gold", SqliteType.Integer);
+        SqliteParameter pDiamonds = cmd.Parameters.Add("@diamonds", SqliteType.Integer);
+        SqliteParameter pWseq = cmd.Parameters.Add("@wseq", SqliteType.Integer);
+        SqliteParameter pPity = cmd.Parameters.Add("@pity", SqliteType.Integer);
         await cmd.PrepareAsync(ct).ConfigureAwait(false);
 
         for (int i = 0; i < characters.Count; i++)
@@ -215,6 +230,10 @@ public sealed class SqliteCharacterStore : ICharacterStore
             pCflags.Value = unchecked((long)(ulong)c.Flags);
             pSflags.Value = unchecked((long)(ulong)c.UnlockedSkills);
             pPblob.Value = c.ProgressionBlob ?? [];
+            pGold.Value = c.Gold;
+            pDiamonds.Value = c.Diamonds;
+            pWseq.Value = unchecked((long)c.WalletSequence);
+            pPity.Value = c.DiamondPity;
             _ = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         }
 
@@ -248,6 +267,10 @@ public sealed class SqliteCharacterStore : ICharacterStore
             (HeroArchetypeClass)(byte)Math.Clamp(reader.GetInt32(17), 0, 255),
             (CharacterTraits)unchecked((ulong)reader.GetInt64(18)),
             (CharacterSkillMask)unchecked((ulong)reader.GetInt64(19)),
-            progBlob);
+            progBlob,
+            reader.GetInt64(21),
+            reader.GetInt64(22),
+            unchecked((ulong)reader.GetInt64(23)),
+            reader.GetInt32(24));
     }
 }

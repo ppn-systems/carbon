@@ -15,6 +15,13 @@ internal sealed class CvgCatalogDto
     public List<CvgPropCatalogDto> Props { get; set; } = [];
     public List<CvgBiomeCatalogDto> Biomes { get; set; } = [];
     public List<CvgStructureCatalogDto> Structures { get; set; } = [];
+    public List<CvgUiIconCatalogDto> UiIcons { get; set; } = [];
+}
+
+internal sealed class CvgUiIconCatalogDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string File { get; set; } = string.Empty;
 }
 
 internal sealed class CvgPropCatalogDto

@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "itemId": 152,
+  "id": "ectoplasm",
+  "displayName": "Ectoplasm",
+  "tier": 2,
+  "categoryLabel": "Monster Drop",
+  "accentColor": "#818CF8",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": -1,
+      "rx": 5.5,
+      "ry": 5,
+      "color": "#A5B4FC",
+      "outlineColor": "#1E1B4B",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -5.5,
+          0
+        ],
+        [
+          -0.5,
+          0
+        ],
+        [
+          -3,
+          7
+        ]
+      ],
+      "color": "#A5B4FC"
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          0.5,
+          0
+        ],
+        [
+          5.5,
+          0
+        ],
+        [
+          3,
+          7
+        ]
+      ],
+      "color": "#A5B4FC"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -1.8,
+      "y": -2,
+      "rx": 1,
+      "ry": 1.2,
+      "color": "#312E81"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 1.8,
+      "y": -2,
+      "rx": 1,
+      "ry": 1.2,
+      "color": "#312E81"
+    }
+  ]
+}

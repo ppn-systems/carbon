@@ -59,4 +59,8 @@ public static class MapOpCode
 
     /// <summary>A structure was placed, damaged, toggled or removed (AoI broadcast).</summary>
     public const ushort StructureChanged = 0x1132;
+
+
+    /// <summary>A construction site (blueprint / frame) or a deconstruction changed stage or progress (AoI broadcast).</summary>
+    public const ushort ConstructionChanged = 0x1133;
 }

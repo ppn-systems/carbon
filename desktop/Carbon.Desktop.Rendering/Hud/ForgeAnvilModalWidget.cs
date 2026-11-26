@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -262,7 +263,7 @@ internal sealed class ForgeAnvilModalWidget
             byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
             float ry = oy + 82f + (i * (RowH + 4f));
             string tag = sIdx >= PlayerInventoryLayout.BagLimit ? "Equipped" : (sIdx < 9 ? $"Slot {sIdx + 1}" : "Bag");
-            string name = StarterGameCatalog.GetDisplayName(item.ItemId);
+            string name = SyncedItemCatalog.GetDisplayName(item.ItemId);
             string rowLabel = CarbonUiSkin.TruncateToWidth(font, upg > 0 ? $"{name} +{upg}" : name, 190f, 1f);
             spriteBatch.DrawOutlinedString(font, rowLabel, new Vector2(ox + 72f, ry), CarbonUiPalette.TextPrimary, black, 1, 1f);
             spriteBatch.DrawOutlinedString(font, tag, new Vector2(ox + 72f, ry + 20f), CarbonUiPalette.TextMuted, black, 1, 1f);
@@ -279,7 +280,7 @@ internal sealed class ForgeAnvilModalWidget
         }
 
         byte curLv = ItemEnhancementPolicy.GetUpgradeLevel(in target);
-        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, $"{StarterGameCatalog.GetDisplayName(target.ItemId)} (+{curLv})", 264f, 1.25f), new Vector2(ox + 386f, oy + 86f), CarbonUiPalette.TextPrimary, black, 1, 1.25f);
+        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, $"{SyncedItemCatalog.GetDisplayName(target.ItemId)} (+{curLv})", 264f, 1.25f), new Vector2(ox + 386f, oy + 86f), CarbonUiPalette.TextPrimary, black, 1, 1.25f);
 
         if (ItemEnhancementPolicy.CanUpgrade(in target, out uint m1, out int c1, out uint m2, out int c2, out float chance))
         {
@@ -300,7 +301,7 @@ internal sealed class ForgeAnvilModalWidget
                 int have1 = CountItemInSpan(slots, m1);
                 spriteBatch.DrawOutlinedString(
                     font,
-                    $"{StarterGameCatalog.GetDisplayName(m1)}: {have1}/{c1}",
+                    $"{SyncedItemCatalog.GetDisplayName(m1)}: {have1}/{c1}",
                     new Vector2(ox + 344f, oy + 230f),
                     have1 >= c1 ? CarbonUiPalette.ConfirmBorder : CarbonUiPalette.DangerBorder,
                     black,
@@ -313,7 +314,7 @@ internal sealed class ForgeAnvilModalWidget
                 int have2 = CountItemInSpan(slots, m2);
                 spriteBatch.DrawOutlinedString(
                     font,
-                    $"{StarterGameCatalog.GetDisplayName(m2)}: {have2}/{c2}",
+                    $"{SyncedItemCatalog.GetDisplayName(m2)}: {have2}/{c2}",
                     new Vector2(ox + 344f, oy + 256f),
                     have2 >= c2 ? CarbonUiPalette.ConfirmBorder : CarbonUiPalette.DangerBorder,
                     black,

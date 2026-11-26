@@ -227,6 +227,15 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     }
 
     /// <inheritdoc/>
+    public void SendWalletSync(ulong connectionId, long gold, long diamonds, ulong sequence)
+    {
+        if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
+        {
+            _ = DispatchWalletSyncAsync(conn, gold, diamonds, sequence, _logger);
+        }
+    }
+
+    /// <inheritdoc/>
     public void SendSkillCastBroadcast(
         ReadOnlySpan<ulong> recipientConnectionIds,
         ulong casterNetworkId,
@@ -432,6 +441,61 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogSendFailure(logger, nameof(MapPropChanged), ex);
+        }
+    }
+
+    /// <inheritdoc/>
+    public void SendConstructionChanged(
+        ReadOnlySpan<ulong> recipientConnectionIds,
+        int tileX,
+        int tileY,
+        byte structureType,
+        byte rotation,
+        byte stage,
+        byte size,
+        float progress,
+        bool isDeconstruction)
+    {
+        for (int i = 0; i < recipientConnectionIds.Length; i++)
+        {
+            if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
+            {
+                _ = DispatchConstructionChangedAsync(conn, tileX, tileY, structureType, rotation, stage, size, progress, isDeconstruction, _logger);
+            }
+        }
+    }
+
+    private static async Task DispatchConstructionChangedAsync(
+        IConnection connection,
+        int tileX,
+        int tileY,
+        byte structureType,
+        byte rotation,
+        byte stage,
+        byte size,
+        float progress,
+        bool isDeconstruction,
+        ILogger logger)
+    {
+        try
+        {
+            using PacketScope<MapConstructionChanged> lease = PacketFactory<MapConstructionChanged>.Acquire();
+            MapConstructionChanged pkt = lease.Value;
+            pkt.TileX = tileX;
+            pkt.TileY = tileY;
+            pkt.StructureType = structureType;
+            pkt.Rotation = rotation;
+            pkt.Stage = stage;
+            pkt.Size = size;
+            pkt.Progress = progress;
+            pkt.IsDeconstruction = isDeconstruction;
+
+            bool encrypt = connection.Algorithm != CipherSuiteType.None;
+            await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogSendFailure(logger, nameof(MapConstructionChanged), ex);
         }
     }
 
@@ -682,6 +746,25 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogSendFailure(logger, nameof(SkillCastBroadcast), ex);
+        }
+    }
+
+    private static async Task DispatchWalletSyncAsync(IConnection connection, long gold, long diamonds, ulong sequence, ILogger logger)
+    {
+        try
+        {
+            using PacketScope<WalletSync> lease = PacketFactory<WalletSync>.Acquire();
+            WalletSync pkt = lease.Value;
+            pkt.Gold = gold;
+            pkt.Diamonds = diamonds;
+            pkt.Sequence = sequence;
+
+            bool encrypt = connection.Algorithm != CipherSuiteType.None;
+            await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogSendFailure(logger, nameof(WalletSync), ex);
         }
     }
 

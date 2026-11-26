@@ -286,8 +286,10 @@ public sealed partial class AuthoritativeWorld
         (_pendingSlotChanges, _dispatchSlotChanges) = (_dispatchSlotChanges, _pendingSlotChanges);
         (_pendingPropChanges, _dispatchPropChanges) = (_dispatchPropChanges, _pendingPropChanges);
         (_pendingStructureChanges, _dispatchStructureChanges) = (_dispatchStructureChanges, _pendingStructureChanges);
+        (_pendingConstructionChanges, _dispatchConstructionChanges) = (_dispatchConstructionChanges, _pendingConstructionChanges);
         (_pendingEquipmentChanges, _dispatchEquipmentChanges) = (_dispatchEquipmentChanges, _pendingEquipmentChanges);
         (_pendingStatsSyncs, _dispatchStatsSyncs) = (_dispatchStatsSyncs, _pendingStatsSyncs);
+        (_pendingWalletSyncs, _dispatchWalletSyncs) = (_dispatchWalletSyncs, _pendingWalletSyncs);
         (_pendingSkillCasts, _dispatchSkillCasts) = (_dispatchSkillCasts, _pendingSkillCasts);
         (_flatRecipients, _dispatchRecipients) = (_dispatchRecipients, _flatRecipients);
 
@@ -299,8 +301,10 @@ public sealed partial class AuthoritativeWorld
         _pendingSlotChanges.Clear();
         _pendingPropChanges.Clear();
         _pendingStructureChanges.Clear();
+        _pendingConstructionChanges.Clear();
         _pendingEquipmentChanges.Clear();
         _pendingStatsSyncs.Clear();
+        _pendingWalletSyncs.Clear();
         _pendingSkillCasts.Clear();
         _flatRecipients.Clear();
     }
@@ -501,6 +505,12 @@ public sealed partial class AuthoritativeWorld
             _outboundSink.SendPlayerStatsSync(sync.ConnectionId, in statsSnap);
         }
 
+        for (int i = 0; i < _dispatchWalletSyncs.Count; i++)
+        {
+            OutboundWalletSync wallet = _dispatchWalletSyncs[i];
+            _outboundSink.SendWalletSync(wallet.ConnectionId, wallet.Gold, wallet.Diamonds, wallet.Sequence);
+        }
+
         for (int i = 0; i < _dispatchSkillCasts.Count; i++)
         {
             OutboundSkillCast cast = _dispatchSkillCasts[i];
@@ -522,6 +532,23 @@ public sealed partial class AuthoritativeWorld
         _dispatchSlotChanges.Clear();
         _dispatchPropChanges.Clear();
         _dispatchStructureChanges.Clear();
+
+        for (int i = 0; i < _dispatchConstructionChanges.Count; i++)
+        {
+            OutboundConstructionChange cc = _dispatchConstructionChanges[i];
+            _outboundSink.SendConstructionChanged(
+                recipientsSpan.Slice(cc.RecipientsOffset, cc.RecipientsCount),
+                cc.TileX,
+                cc.TileY,
+                cc.StructureType,
+                cc.Rotation,
+                cc.Stage,
+                cc.Size,
+                cc.Progress,
+                cc.IsDeconstruction);
+        }
+
+        _dispatchConstructionChanges.Clear();
         _dispatchEquipmentChanges.Clear();
         _dispatchStatsSyncs.Clear();
         _dispatchSkillCasts.Clear();
