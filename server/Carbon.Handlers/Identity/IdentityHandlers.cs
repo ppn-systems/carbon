@@ -114,11 +114,14 @@ public static partial class IdentityHandlers
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        // Captured before the first await: the pooled context may be recycled while the store runs (audit TS-4).
+        IPacketSender sender = context.Sender;
+        CancellationToken ct = context.CancellationToken;
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
         if (ConnectionAuthRegistry.TryGetAccountId(connectionId, out Guid accountId))
         {
             IReadOnlyList<CharacterRecord> characters = await s_authService
-                .ListCharactersAsync(accountId, context.CancellationToken)
+                .ListCharactersAsync(accountId, ct)
                 .ConfigureAwait(false);
 
             for (int i = 0; i < characters.Count; i++)
@@ -142,7 +145,7 @@ public static partial class IdentityHandlers
                 item.AppearancePreset = c.AppearancePreset;
                 item.ClassId = (byte)c.Class;
                 item.Traits = c.Flags;
-                await context.Sender.ReplyAsync(item).ConfigureAwait(false);
+                await sender.ReplyAsync(item).ConfigureAwait(false);
             }
         }
 
@@ -152,7 +155,7 @@ public static partial class IdentityHandlers
         terminator.IsTerminator = true;
         terminator.CharacterId = Guid.Empty;
         terminator.Name = string.Empty;
-        await context.Sender.ReplyAsync(terminator).ConfigureAwait(false);
+        await sender.ReplyAsync(terminator).ConfigureAwait(false);
     }
 
     /// <summary>Opcode <c>0x0104</c>. Creates a new character starting near the world origin spawn.</summary>
@@ -162,10 +165,16 @@ public static partial class IdentityHandlers
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        // Captured before the first await: the pooled context may be recycled while the store runs (audit TS-4).
+        IPacketSender sender = context.Sender;
+        CancellationToken ct = context.CancellationToken;
+        string characterName = context.Packet.CharacterName;
+        byte appearancePreset = context.Packet.AppearancePreset;
+        byte startingClass = context.Packet.StartingClass;
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
         if (!ConnectionAuthRegistry.TryGetAccountId(connectionId, out Guid accountId))
         {
-            await PacketReplyHelper.SendMutationAsync(context, OpStatus.Forbidden, IdentityOpCode.CharacterCreate).ConfigureAwait(false);
+            await PacketReplyHelper.SendMutationAsync(sender, OpStatus.Forbidden, IdentityOpCode.CharacterCreate).ConfigureAwait(false);
             return;
         }
 
@@ -173,12 +182,12 @@ public static partial class IdentityHandlers
         CharacterCreateResult result = await s_authService
             .CreateCharacterAsync(
                 accountId,
-                context.Packet.CharacterName,
-                context.Packet.AppearancePreset,
+                characterName,
+                appearancePreset,
                 spawn.X,
                 spawn.Y,
-                context.Packet.StartingClass,
-                context.CancellationToken)
+                startingClass,
+                ct)
             .ConfigureAwait(false);
 
         OpStatus status = result.Succeeded
@@ -190,7 +199,7 @@ public static partial class IdentityHandlers
                 _ => OpStatus.Conflict,
             };
 
-        await PacketReplyHelper.SendMutationAsync(context, status, IdentityOpCode.CharacterCreate).ConfigureAwait(false);
+        await PacketReplyHelper.SendMutationAsync(sender, status, IdentityOpCode.CharacterCreate).ConfigureAwait(false);
     }
 
     /// <summary>Opcode <c>0x0105</c>. Spawns an owned character into the authoritative world simulation.</summary>
@@ -200,20 +209,24 @@ public static partial class IdentityHandlers
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        // Captured before the first await: the pooled context may be recycled while the store runs (audit TS-4).
+        IPacketSender sender = context.Sender;
+        CancellationToken ct = context.CancellationToken;
+        Guid characterId = context.Packet.CharacterId;
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
         if (!ConnectionAuthRegistry.TryGetAccountId(connectionId, out Guid accountId))
         {
-            await SendEnterWorldAsync(context, new EnterWorldResult(OpStatus.Forbidden, 0, 0, 0, 0, 0, 0, 0, 0, 0)).ConfigureAwait(false);
+            await SendEnterWorldAsync(sender, new EnterWorldResult(OpStatus.Forbidden, 0, 0, 0, 0, 0, 0, 0, 0, 0)).ConfigureAwait(false);
             return;
         }
 
         CharacterRecord? owned = await s_authService
-            .FindOwnedCharacterAsync(accountId, context.Packet.CharacterId, context.CancellationToken)
+            .FindOwnedCharacterAsync(accountId, characterId, ct)
             .ConfigureAwait(false);
 
         if (owned is null)
         {
-            await SendEnterWorldAsync(context, new EnterWorldResult(OpStatus.NotFound, 0, 0, 0, 0, 0, 0, 0, 0, 0)).ConfigureAwait(false);
+            await SendEnterWorldAsync(sender, new EnterWorldResult(OpStatus.NotFound, 0, 0, 0, 0, 0, 0, 0, 0, 0)).ConfigureAwait(false);
             return;
         }
 
@@ -223,7 +236,7 @@ public static partial class IdentityHandlers
         }
 
         EnterWorldResult enter = s_world.TryEnterWorld(connectionId, connectionId, owned);
-        await SendEnterWorldAsync(context, enter).ConfigureAwait(false);
+        await SendEnterWorldAsync(sender, enter).ConfigureAwait(false);
     }
 
     /// <summary>Opcode <c>0x0106</c>. Logs out, removes world session, and clears connection identity.</summary>
@@ -261,7 +274,7 @@ public static partial class IdentityHandlers
         }
     }
 
-    private static ValueTask SendEnterWorldAsync(IPacketContext<CharacterSelect> context, EnterWorldResult result)
+    private static ValueTask SendEnterWorldAsync(IPacketSender sender, EnterWorldResult result)
     {
         PacketScope<CharacterEnterWorld> lease = PacketFactory<CharacterEnterWorld>.Acquire();
         try
@@ -293,7 +306,7 @@ public static partial class IdentityHandlers
             reply.Traits = result.Traits;
             reply.UnlockedSkillMask = result.UnlockedSkillMask;
             reply.ProgressionBlob = result.ProgressionBlob ?? [];
-            return context.Sender.ReplyAsync(reply).DisposeOnCompletionAsync(lease);
+            return sender.ReplyAsync(reply).DisposeOnCompletionAsync(lease);
         }
         catch
         {

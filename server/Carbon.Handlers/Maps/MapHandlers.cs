@@ -60,6 +60,8 @@ public static partial class MapHandlers
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        // Captured before the first await: the pooled context may be recycled while it is suspended (audit TS-4).
+        IPacketSender sender = context.Sender;
         MapChunkRequest req = context.Packet;
         int chunkX = req.ChunkX;
         int chunkY = req.ChunkY;
@@ -89,7 +91,7 @@ public static partial class MapHandlers
                 row.StructureDurabilities = snapshot.StructureDurabilities;
                 row.StructureDoorStates = snapshot.StructureDoorStates;
                 row.StructureConnectivities = snapshot.StructureConnectivities;
-                await context.Sender.ReplyAsync(row).ConfigureAwait(false);
+                await sender.ReplyAsync(row).ConfigureAwait(false);
             }
         }
         finally
@@ -103,7 +105,7 @@ public static partial class MapHandlers
         terminator.IsTerminator = true;
         terminator.ChunkX = chunkX;
         terminator.ChunkY = chunkY;
-        await context.Sender.ReplyAsync(terminator).ConfigureAwait(false);
+        await sender.ReplyAsync(terminator).ConfigureAwait(false);
     }
 
     /// <summary>Opcode <c>0x1103</c>. Applies tool-tiered harvesting damage to a natural prop within range.</summary>

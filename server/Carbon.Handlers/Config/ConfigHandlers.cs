@@ -33,9 +33,11 @@ public static partial class ConfigHandlers
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        // Captured before the first await: the pooled context may be recycled while it is suspended (audit TS-4).
         IPacketSender sender = context.Sender;
+        CancellationToken ct = context.CancellationToken;
         ConfigRequestStatus status = await s_config
-            .HandleRequestAsync(context.Packet, sender.ReplyAsync, context.CancellationToken)
+            .HandleRequestAsync(context.Packet, sender.ReplyAsync, ct)
             .ConfigureAwait(false);
         if (status == ConfigRequestStatus.Ok)
         {
@@ -44,7 +46,7 @@ public static partial class ConfigHandlers
 
         if (status == ConfigRequestStatus.StaleManifest)
         {
-            await SendManifestAsync(sender, context.CancellationToken).ConfigureAwait(false);
+            await SendManifestAsync(sender, ct).ConfigureAwait(false);
         }
 
         using PacketScope<ConfigDocument> lease = PacketFactory<ConfigDocument>.Acquire();
@@ -57,7 +59,7 @@ public static partial class ConfigHandlers
         terminator.TotalLength = 0;
         terminator.Offset = 0;
         terminator.Payload = [];
-        await sender.ReplyAsync(terminator, context.CancellationToken).ConfigureAwait(false);
+        await sender.ReplyAsync(terminator, ct).ConfigureAwait(false);
     }
 
     /// <summary>Sends the current config manifest to the client behind <paramref name="sender"/>.</summary>

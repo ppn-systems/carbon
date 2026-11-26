@@ -32,6 +32,8 @@ public static partial class ItemHandlers
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        // Captured before the first await: the pooled context may be recycled while it is suspended (audit TS-4).
+        IPacketSender sender = context.Sender;
         List<(ushort SlotIndex, ItemSlot Slot)> snapshot = [];
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
         if (s_world.GetInventorySnapshot(connectionId, snapshot))
@@ -49,7 +51,7 @@ public static partial class ItemHandlers
                 pkt.Durability = slot.Durability;
                 pkt.UpgradeLevel = slot.UpgradeLevel;
                 pkt.FreshnessSeconds = slot.FreshnessSeconds;
-                await context.Sender.ReplyAsync(pkt).ConfigureAwait(false);
+                await sender.ReplyAsync(pkt).ConfigureAwait(false);
             }
         }
 
@@ -57,7 +59,7 @@ public static partial class ItemHandlers
         InventorySlotItem terminator = termLease.Value;
         terminator.IsEndOfStream = true;
         terminator.IsTerminator = true;
-        await context.Sender.ReplyAsync(terminator).ConfigureAwait(false);
+        await sender.ReplyAsync(terminator).ConfigureAwait(false);
     }
 
     /// <summary>Opcode <c>0x4002</c>. Updates the active hotbar tool slot (adjusting tool harvest tier).</summary>
