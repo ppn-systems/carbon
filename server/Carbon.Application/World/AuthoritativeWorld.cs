@@ -30,6 +30,10 @@ using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.Networking;
 using Carbon.Simulation.World;
+using Carbon.Survival.Components;
+using Carbon.Survival.Config;
+using Carbon.Survival.Food;
+using Carbon.Survival.Systems;
 
 namespace Carbon.Application.World;
 
@@ -69,6 +73,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly ICharacterStore _characterStore;
     private readonly IWorldOutboundSink _outboundSink;
     private readonly TimeProvider _time;
+    private readonly NeedsConfig _needsConfig;
+    private readonly FoodCatalog _foodCatalog;
+    private readonly EatActionSystem _eatAction;
     private readonly GameEconomy? _economy;
 
     private readonly Dictionary<ulong, ActivePlayerState> _playersByConnection = new();
@@ -129,6 +136,18 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     /// <summary>
     /// Initializes a new instance of the <see cref="AuthoritativeWorld"/> class.
     /// </summary>
+    /// <param name="worldSeed">Procedural world seed (also seeds the food poisoning roll).</param>
+    /// <param name="tileSize">Tile size in world units.</param>
+    /// <param name="frequency">Terrain noise frequency.</param>
+    /// <param name="tickRate">Fixed simulation tick rate.</param>
+    /// <param name="chunkDeltaRepo">Chunk delta persistence.</param>
+    /// <param name="characterStore">Character persistence.</param>
+    /// <param name="outboundSink">Outbound packet sink.</param>
+    /// <param name="time">Optional time provider.</param>
+    /// <param name="needsConfig">Survival needs tuning (<c>needs.json</c>); defaults to built-in values.</param>
+    /// <param name="foodCatalog">Edible items (<c>food.json</c>); defaults to none, so no item is eaten.</param>
+    /// <param name="economy">Optional data-driven economy (items, loot, currencies).</param>
+    /// <param name="structureCatalog">Optional data-driven building catalog.</param>
     public AuthoritativeWorld(
         ulong worldSeed,
         float tileSize,
@@ -138,6 +157,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         ICharacterStore characterStore,
         IWorldOutboundSink outboundSink,
         TimeProvider? time = null,
+        NeedsConfig? needsConfig = null,
+        FoodCatalog? foodCatalog = null,
         GameEconomy? economy = null,
         StructureCatalog? structureCatalog = null)
     {
@@ -171,6 +192,12 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         };
         _simulation.RegisterSystem(new AiBehaviorSystem(_chunkWorld.NavGrid, this.TileSize));
         _simulation.RegisterSystem(new LootExpirationSystem());
+
+        _needsConfig = needsConfig ?? new NeedsConfig();
+        _foodCatalog = foodCatalog ?? new FoodCatalog([], _needsConfig.FoodMax);
+        _eatAction = new EatActionSystem(_foodCatalog, _needsConfig, worldSeed);
+        _simulation.RegisterSystem(_eatAction);
+        _simulation.RegisterSystem(new NeedsSystem(_needsConfig));
         _aoi = new SpatialAoiTracker(this.TileSize * 24f);
     }
 
@@ -282,6 +309,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(startLevel, inventory, selectedSlot, startProg);
             float startHp = MathF.Min(stats.MaxHealth, MathF.Max(1f, character.CurrentHealth));
             _simulation.Entities.SetHealth(entity, new HealthComponent(startHp, stats.MaxHealth));
+            _simulation.Entities.SetComponent(entity, NeedsComponent.CreateFull(_needsConfig));
 
             byte harvestTier = ResolveSlotHarvestTier(inventory, selectedSlot);
 
@@ -1046,7 +1074,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             unspentSkills,
             progBlob,
             cdIds,
-            cdSecs);
+            cdSecs,
+            this.BuildNeedsSnapshotLocked(state));
     }
 
     private void EnqueueStatsSyncLocked(ActivePlayerState state, bool leveledUp)
@@ -1146,6 +1175,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         public bool LeveledUpPending { get; set; }
         public bool PersistenceDirty { get; set; }
         public bool InventoryDirty { get; set; }
+        public int EatingSlot { get; set; } = -1;
+        public uint EatingItemId { get; set; }
         public BuildJobKind BuildJob { get; set; }
         public int BuildJobTileX { get; set; }
         public int BuildJobTileY { get; set; }

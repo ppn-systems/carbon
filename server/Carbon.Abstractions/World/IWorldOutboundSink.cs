@@ -28,7 +28,27 @@ public readonly record struct PlayerStatsSnapshot(
     ushort UnspentSkillPoints,
     byte[] ProgressionBlob,
     ushort[] CooldownSkillIds,
-    float[] CooldownRemainingSeconds);
+    float[] CooldownRemainingSeconds,
+    PlayerNeedsSnapshot Needs = default);
+
+/// <summary>
+/// Survival needs of the local player carried inside <see cref="PlayerStatsSnapshot"/>.
+/// </summary>
+/// <param name="Food">Current food level.</param>
+/// <param name="MaxFood">Food capacity.</param>
+/// <param name="HungerState">Hunger state byte (0 Fed, 1 Hungry, 2 UrgentlyHungry, 3 Starving).</param>
+/// <param name="Malnutrition">Malnutrition severity, 0..1.</param>
+/// <param name="Mood">Mood, 0..100.</param>
+/// <param name="FoodPoisoned">Whether the player has food poisoning.</param>
+/// <param name="EatProgress">Meal progress 0..1, or negative when not eating.</param>
+public readonly record struct PlayerNeedsSnapshot(
+    float Food,
+    float MaxFood,
+    byte HungerState,
+    float Malnutrition,
+    float Mood,
+    bool FoodPoisoned,
+    float EatProgress);
 
 /// <summary>
 /// Snapshot sent by the authoritative simulation when an entity enters a player's Area of Interest.

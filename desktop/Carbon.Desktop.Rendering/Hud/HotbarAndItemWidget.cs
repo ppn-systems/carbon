@@ -27,6 +27,10 @@ internal sealed class HotbarAndItemWidget
     private const float SlotSize = 54f;
     private const float Gap = 5f;
     private const float TotalWidth = (SlotCount * SlotSize) + ((SlotCount - 1) * Gap); // 526px
+    private const int VitalsBarCount = 4; // HP, MP, stamina, hunger
+    private const byte HungryState = 1;
+    private const byte UrgentHungerState = 2;
+    private const byte StarvingState = 3;
 
     public void DrawSkin(
         SpriteBatch spriteBatch,
@@ -223,7 +227,7 @@ internal sealed class HotbarAndItemWidget
     {
         const float lvW = 58f;
         const float segGap = 6f;
-        const float barW = (TotalWidth - lvW - (3 * segGap)) / 3f; // 150px
+        const float barW = (TotalWidth - lvW - (VitalsBarCount * segGap)) / VitalsBarCount; // 111px
         const float barH = 20f;
 
         // Level badge
@@ -247,6 +251,22 @@ internal sealed class HotbarAndItemWidget
         float staX = mpX + barW + segGap;
         float staRatio = Math.Clamp(world.LocalPlayerStamina / MathF.Max(1f, world.LocalPlayerMaxStamina), 0f, 1f);
         DrawMeterGeometry(batch, new RectangleF(staX, barsY, barW, barH), staRatio, staRatio, CarbonUiPalette.StaminaFill);
+
+        // Hunger bar (food meter) with a thin meal-progress strip while eating
+        float foodX = staX + barW + segGap;
+        float foodRatio = Math.Clamp(world.LocalPlayerFood / MathF.Max(1f, world.LocalPlayerMaxFood), 0f, 1f);
+        ColorRgba foodFill = world.LocalPlayerFoodPoisoned ? CarbonUiPalette.PoisonFill
+            : world.LocalPlayerHungerState >= StarvingState ? CarbonUiPalette.HpFill
+            : world.LocalPlayerHungerState >= HungryState ? CarbonUiPalette.HungerWarnFill
+            : CarbonUiPalette.HungerFill;
+        DrawMeterGeometry(batch, new RectangleF(foodX, barsY, barW, barH), foodRatio, foodRatio, foodFill);
+        float eatProgress = world.LocalPlayerEatProgress;
+        if (eatProgress >= 0f)
+        {
+            batch.FillRectangle(
+                new RectangleF(foodX, barsY + barH - 3f, barW * Math.Clamp(eatProgress, 0f, 1f), 3f),
+                new ColorRgba(255, 255, 255, 200));
+        }
 
         // Thin XP bar across the hotbar width
         float xpRatio = Math.Clamp(world.LocalPlayerExperience / MathF.Max(1f, world.LocalPlayerXpToNext), 0f, 1f);
@@ -293,7 +313,7 @@ internal sealed class HotbarAndItemWidget
     {
         const float lvW = 58f;
         const float segGap = 6f;
-        const float barW = (TotalWidth - lvW - (3 * segGap)) / 3f;
+        const float barW = (TotalWidth - lvW - (VitalsBarCount * segGap)) / VitalsBarCount;
         const float barH = 20f;
         ColorRgba black = CarbonUiPalette.TextOutline;
 
@@ -320,6 +340,26 @@ internal sealed class HotbarAndItemWidget
         float staX = mpX + barW + segGap;
         string staText = $"{(int)MathF.Floor(world.LocalPlayerStamina)}/{(int)MathF.Ceiling(world.LocalPlayerMaxStamina)}";
         CarbonUiSkin.DrawCenteredText(spriteBatch, font, staText, new RectangleF(staX, barsY, barW, barH), CarbonUiPalette.TextPrimary, black, 1f);
+
+        float foodX = staX + barW + segGap;
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, BuildHungerLabel(world), new RectangleF(foodX, barsY, barW, barH), CarbonUiPalette.TextPrimary, black, 1f);
+    }
+
+    private static string BuildHungerLabel(IWorldReadModel world)
+    {
+        if (world.LocalPlayerEatProgress >= 0f)
+        {
+            return "Eating...";
+        }
+
+        int pct = (int)MathF.Round(100f * Math.Clamp(world.LocalPlayerFood / MathF.Max(1f, world.LocalPlayerMaxFood), 0f, 1f));
+        return world.LocalPlayerHungerState switch
+        {
+            HungryState => $"Hungry {pct}%",
+            UrgentHungerState => $"Ravenous {pct}%",
+            StarvingState => "Starving!",
+            _ => world.LocalPlayerFoodPoisoned ? $"Sick {pct}%" : $"Food {pct}%",
+        };
     }
 
     private static void DrawTooltipGeometry(

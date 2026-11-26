@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Carbon.Contracts.Common;
+using Carbon.Contracts.Config;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Entities.C2S;
 using Carbon.Contracts.Entities.S2C;
@@ -26,6 +27,7 @@ public sealed class ProtocolContractGuardTests
     private static readonly Assembly[] s_contractAssemblies =
     [
         typeof(SharedOpCode).Assembly,
+        typeof(ConfigOpCode).Assembly,
         typeof(IdentityOpCode).Assembly,
         typeof(MapOpCode).Assembly,
         typeof(EntityOpCode).Assembly,
@@ -35,6 +37,7 @@ public sealed class ProtocolContractGuardTests
     public static TheoryData<Type, ushort, ushort> ModuleBands => new()
     {
         { typeof(IdentityOpCode), 0x0100, 0x01FF },
+        { typeof(ConfigOpCode), 0x0200, 0x02FF },
         { typeof(MapOpCode), 0x1100, 0x11FF },
         { typeof(EntityOpCode), 0x1200, 0x12FF },
         { typeof(ItemOpCode), 0x4000, 0x40FF },
@@ -211,8 +214,22 @@ public sealed class ProtocolContractGuardTests
             UnlockedSkillMask = CharacterSkillMask.Whirlwind | CharacterSkillMask.VitalSurge,
             CooldownSkillIds = [1, 3],
             CooldownRemainingSeconds = [1.5f, 4.2f],
+            Food = 42.5f,
+            MaxFood = 100f,
+            HungerState = 1,
+            Malnutrition = 0.25f,
+            Mood = 38f,
+            FoodPoisoned = true,
+            EatProgress = 0.5f,
         };
         using PlayerStatsSync statsCopy = PlayerStatsSync.Deserialize(stats.Serialize());
+        Assert.Equal(42.5f, statsCopy.Food);
+        Assert.Equal(100f, statsCopy.MaxFood);
+        Assert.Equal((byte)1, statsCopy.HungerState);
+        Assert.Equal(0.25f, statsCopy.Malnutrition);
+        Assert.Equal(38f, statsCopy.Mood);
+        Assert.True(statsCopy.FoodPoisoned);
+        Assert.Equal(0.5f, statsCopy.EatProgress);
         Assert.Equal((ushort)4, statsCopy.Level);
         Assert.Equal(210U, statsCopy.Experience);
         Assert.Equal(18f, statsCopy.Defense);

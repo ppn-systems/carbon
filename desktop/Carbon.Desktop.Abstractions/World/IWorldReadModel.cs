@@ -65,6 +65,27 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile
     /// <summary>Gets derived armor defense rating.</summary>
     float LocalPlayerDefense { get; }
 
+    /// <summary>Gets the local player's food level (hunger meter).</summary>
+    float LocalPlayerFood { get; }
+
+    /// <summary>Gets the local player's food capacity.</summary>
+    float LocalPlayerMaxFood { get; }
+
+    /// <summary>Gets the hunger state: <c>0</c>=Fed, <c>1</c>=Hungry, <c>2</c>=UrgentlyHungry, <c>3</c>=Starving.</summary>
+    byte LocalPlayerHungerState { get; }
+
+    /// <summary>Gets malnutrition severity, <c>0..1</c>.</summary>
+    float LocalPlayerMalnutrition { get; }
+
+    /// <summary>Gets the local player's mood, <c>0..100</c>.</summary>
+    float LocalPlayerMood { get; }
+
+    /// <summary>Gets a value indicating whether the local player has food poisoning.</summary>
+    bool LocalPlayerFoodPoisoned { get; }
+
+    /// <summary>Gets the progress of the meal being eaten (<c>0..1</c>), or a negative value when not eating.</summary>
+    float LocalPlayerEatProgress { get; }
+
     /// <summary>Gets remaining cooldown in seconds for active skill <paramref name="skillId"/>.</summary>
     float GetSkillCooldown(ushort skillId);
 

@@ -9,7 +9,7 @@ namespace Carbon.Contracts.Entities.S2C;
 
 /// <summary>
 /// Unilateral server push synchronizing the local player's level, XP, HP, Mana, Stamina, Defense,
-/// flags, binary progression blob, and active skill cooldowns.
+/// flags, binary progression blob, active skill cooldowns, and survival needs (hunger, mood, eating).
 /// </summary>
 [Packet]
 [GenerateFormatter]
@@ -90,4 +90,32 @@ public sealed partial class PlayerStatsSync : PacketBase<PlayerStatsSync>, IPack
     /// <summary>Remaining cooldown duration in seconds matching <see cref="CooldownSkillIds"/>.</summary>
     [SerializeOrder(17)]
     public float[] CooldownRemainingSeconds { get; set; } = [];
+
+    /// <summary>Current food level (hunger meter), <c>0..MaxFood</c>.</summary>
+    [SerializeOrder(18)]
+    public float Food { get; set; }
+
+    /// <summary>Food capacity.</summary>
+    [SerializeOrder(19)]
+    public float MaxFood { get; set; }
+
+    /// <summary>Hunger state: <c>0</c>=Fed, <c>1</c>=Hungry, <c>2</c>=UrgentlyHungry, <c>3</c>=Starving.</summary>
+    [SerializeOrder(20)]
+    public byte HungerState { get; set; }
+
+    /// <summary>Malnutrition severity, <c>0..1</c> (1 is lethal).</summary>
+    [SerializeOrder(21)]
+    public float Malnutrition { get; set; }
+
+    /// <summary>Mood value, <c>0..100</c>.</summary>
+    [SerializeOrder(22)]
+    public float Mood { get; set; }
+
+    /// <summary>Whether the player currently has food poisoning.</summary>
+    [SerializeOrder(23)]
+    public bool FoodPoisoned { get; set; }
+
+    /// <summary>Progress of the meal being eaten, <c>0..1</c>, or a negative value when not eating.</summary>
+    [SerializeOrder(24)]
+    public float EatProgress { get; set; } = -1f;
 }

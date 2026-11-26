@@ -45,6 +45,18 @@ public sealed class HostRuntimeOptions
     public ushort UdpPort { get; init; } = 57208;
 
     /// <summary>
+    /// Gets or sets the gameplay config directory (<c>resources/config</c>, ADR-011).
+    /// Empty means "locate <c>resources/config</c> above the working or base directory".
+    /// </summary>
+    public string ConfigDirectory { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether config file edits are hot-reloaded and pushed to clients
+    /// (<c>CARBON_CONFIG_HOT_RELOAD=1</c>). Off by default until every domain can swap its tables at runtime.
+    /// </summary>
+    public bool ConfigHotReload { get; init; }
+
+    /// <summary>
     /// Loads options from environment variables with safe local SQLite defaults.
     /// </summary>
     public static HostRuntimeOptions FromEnvironment()
@@ -90,6 +102,10 @@ public sealed class HostRuntimeOptions
             ? path
             : "/ws/";
 
+        string configDirectory = Environment.GetEnvironmentVariable("CARBON_CONFIG_DIR") is { Length: > 0 } dir
+            ? dir.Trim()
+            : string.Empty;
+
         return new HostRuntimeOptions
         {
             Provider = provider,
@@ -101,6 +117,8 @@ public sealed class HostRuntimeOptions
             WebSocketPath = wsPath,
             TcpPort = tcpPort,
             UdpPort = udpPort,
+            ConfigDirectory = configDirectory,
+            ConfigHotReload = string.Equals(Environment.GetEnvironmentVariable("CARBON_CONFIG_HOT_RELOAD"), "1", StringComparison.Ordinal),
         };
     }
 }

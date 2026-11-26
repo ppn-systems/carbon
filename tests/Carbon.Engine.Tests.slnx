@@ -1,8 +1,10 @@
 <Solution>
   <Project Path="../contracts/Carbon.Contracts.Common/Carbon.Contracts.Common.csproj" />
+  <Project Path="../contracts/Carbon.Contracts.Config/Carbon.Contracts.Config.csproj" />
   <Project Path="../contracts/Carbon.Contracts.Maps/Carbon.Contracts.Maps.csproj" />
   <Project Path="../engine/Carbon.AI/Carbon.AI.csproj" />
   <Project Path="../engine/Carbon.Combat/Carbon.Combat.csproj" />
+  <Project Path="../engine/Carbon.Configuration/Carbon.Configuration.csproj" />
   <Project Path="../engine/Carbon.Creatures/Carbon.Creatures.csproj" />
   <Project Path="../engine/Carbon.Data/Carbon.Data.csproj" />
   <Project Path="../engine/Carbon.Economy/Carbon.Economy.csproj" />
@@ -14,6 +16,7 @@
   <Project Path="../engine/Carbon.Simulation/Carbon.Simulation.csproj" />
   <Project Path="engine/Carbon.AI.Tests/Carbon.AI.Tests.csproj" />
   <Project Path="engine/Carbon.Combat.Tests/Carbon.Combat.Tests.csproj" />
+  <Project Path="engine/Carbon.Configuration.Tests/Carbon.Configuration.Tests.csproj" />
   <Project Path="engine/Carbon.Creatures.Tests/Carbon.Creatures.Tests.csproj" />
   <Project Path="engine/Carbon.Data.Tests/Carbon.Data.Tests.csproj" />
   <Project Path="engine/Carbon.Economy.Tests/Carbon.Economy.Tests.csproj" />
@@ -23,4 +26,6 @@
   <Project Path="engine/Carbon.Prediction.Tests/Carbon.Prediction.Tests.csproj" />
   <Project Path="engine/Carbon.Primitives.Tests/Carbon.Primitives.Tests.csproj" />
   <Project Path="engine/Carbon.Simulation.Tests/Carbon.Simulation.Tests.csproj" />
+  <Project Path="../engine/Carbon.Survival/Carbon.Survival.csproj" />
+  <Project Path="engine/Carbon.Survival.Tests/Carbon.Survival.Tests.csproj" />
 </Solution>
