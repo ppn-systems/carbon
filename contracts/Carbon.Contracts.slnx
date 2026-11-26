@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="Carbon.Contracts.Common/Carbon.Contracts.Common.csproj" />
+  <Project Path="Carbon.Contracts.Config/Carbon.Contracts.Config.csproj" />
   <Project Path="Carbon.Contracts.Entities/Carbon.Contracts.Entities.csproj" />
   <Project Path="Carbon.Contracts.Identity/Carbon.Contracts.Identity.csproj" />
   <Project Path="Carbon.Contracts.Items/Carbon.Contracts.Items.csproj" />
