@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Combat;
 using Carbon.Application.World.Commands;
 using Carbon.Application.World.Construction;
 using Carbon.Application.World.Inventory;
@@ -74,6 +75,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly ChunkWorld2D _chunkWorld;
     private readonly ConstructionService _construction;
     private readonly InventoryService _inventory;
+    private readonly CombatService _combat;
     private readonly PlayerMaterialAdapter _playerMaterials;
     private readonly WorldSimulation _simulation;
     private readonly AoiReplicator _replication;
@@ -109,7 +111,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly List<(ushort SlotIndex, ItemSlot Slot)> _spoiledSlotsScratch = new(8);
     private readonly List<(int TileX, int TileY, uint Revision, float MaxDurability)> _respawnedPropsScratch = new(16);
     private readonly Entity[] _combatHitScratch = new Entity[32];
-    private readonly Entity[] _packAggroScratch = new Entity[16];
 
     private bool _spawnedSanctuaryBlacksmith;
     private ulong _nextNetworkId = 1000UL;
@@ -202,6 +203,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _groundLoot,
             _outbound,
             state => this.MarkCharacterDirtyLocked(state, inventoryChanged: true));
+        _combat = new CombatService(_simulation, _chunkWorld, MonsterLayer, _outbound, this.CollectNearbyConnectionsAroundWorldLocked, this.OnMonsterKilledLocked);
         _projectiles = new ProjectileService(_simulation, _chunkWorld, MonsterLayer, () => ++_nextNetworkId, new ProjectileHits(this));
 
         _needs = new NeedsService(
