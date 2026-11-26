@@ -604,7 +604,88 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
             ParseColor(dto.CliffHighlight, dto.Palette),
             ParseColor(dto.CliffShadow, dto.Palette),
             dto.DetailChancePercent,
-            variants);
+            variants,
+            CompileSurface(dto, filePath),
+            CompileDecalLayers(dto, filePath));
+    }
+
+    private static BiomeSurfaceStyle? CompileSurface(CvgBiomeBlueprintDto dto, string filePath)
+    {
+        if (dto.Surface is not { } surface)
+        {
+            return null;
+        }
+
+        if (!Enum.TryParse(surface.Pattern, ignoreCase: true, out BiomeSurfacePattern pattern) || !Enum.IsDefined(pattern))
+        {
+            throw new InvalidDataException($"Biome '{dto.Id}' has unknown surface pattern '{surface.Pattern}' in {filePath}");
+        }
+
+        if (surface.Colors.Count == 0)
+        {
+            throw new InvalidDataException($"Biome '{dto.Id}' surface must define at least one colour in {filePath}");
+        }
+
+        Vector3[] colors = new Vector3[surface.Colors.Count];
+        for (int i = 0; i < colors.Length; i++)
+        {
+            colors[i] = ToVector(ParseColor(surface.Colors[i], dto.Palette));
+        }
+
+        Vector3 accent = surface.Accent is { Length: > 0 } a ? ToVector(ParseColor(a, dto.Palette)) : colors[0] * 0.8f;
+        return new BiomeSurfaceStyle(
+            pattern,
+            colors,
+            accent,
+            surface.Scale > 0f ? surface.Scale : 1f,
+            Math.Clamp(surface.Variation, 0f, 0.5f),
+            Math.Clamp(surface.Grain, 0f, 0.5f));
+
+        static Vector3 ToVector(ColorRgba c) => new(c.R, c.G, c.B);
+    }
+
+    private static BiomeDecalLayer[] CompileDecalLayers(CvgBiomeBlueprintDto dto, string filePath)
+    {
+        if (dto.Decals.Count == 0)
+        {
+            return BiomeDecalLayer.None;
+        }
+
+        BiomeDecalLayer[] layers = new BiomeDecalLayer[dto.Decals.Count];
+        for (int l = 0; l < layers.Length; l++)
+        {
+            CvgBiomeDecalLayerDto layer = dto.Decals[l];
+            if (layer.Variants.Count == 0)
+            {
+                throw new InvalidDataException($"Biome '{dto.Id}' decal layer '{layer.Id}' has no variants in {filePath}");
+            }
+
+            if (!Enum.TryParse(layer.Placement, ignoreCase: true, out BiomeDecalPlacement placement) || !Enum.IsDefined(placement))
+            {
+                throw new InvalidDataException($"Biome '{dto.Id}' decal layer '{layer.Id}' has unknown placement '{layer.Placement}' in {filePath}");
+            }
+
+            BiomeDecalVariant[] variants = new BiomeDecalVariant[layer.Variants.Count];
+            for (int v = 0; v < variants.Length; v++)
+            {
+                if (layer.Variants[v].Shapes.Count == 0)
+                {
+                    throw new InvalidDataException($"Biome '{dto.Id}' decal layer '{layer.Id}' variant {v} has no shapes in {filePath}");
+                }
+
+                variants[v] = BiomeDecalLayer.Measure(CompileShapes(layer.Variants[v].Shapes, dto.Palette, filePath));
+            }
+
+            layers[l] = new BiomeDecalLayer(
+                layer.Id,
+                Math.Clamp(layer.Chance, 0f, 1f),
+                Math.Clamp(layer.MaxCount, 1, 8),
+                placement,
+                layer.Jitter,
+                variants);
+        }
+
+        return layers;
     }
 
     private static CompiledStructureArt CompileStructure(string filePath)

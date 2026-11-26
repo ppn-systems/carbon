@@ -221,6 +221,7 @@ Ids 1–39 keep the `StarterGameCatalog` ids and codes, and a test checks catego
     | cactus | `cactus_fiber` |
     | bush | `berries` |
     | mushroom cluster | `berry_herb` |
+    | dry bush, dune grass | `plant_fiber` |
     | ancient shrine | nothing |
 
     A test fails CI when a new prop type has no themed drop.

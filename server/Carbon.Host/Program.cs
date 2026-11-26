@@ -123,6 +123,15 @@ public static class Program
             ServerGameData.LoadCreatures(config.Catalog));
         ServerGameData.BindHotReload(config, world);
 
+        if (options.DebugOverrides.IsActive)
+        {
+            string applied = world.ApplyDebugOverrides(options.DebugOverrides);
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning("DEBUG world overrides active ({Overrides}); never use this host build in production.", applied);
+            }
+        }
+
         await world.InitializeFromStoreAsync().ConfigureAwait(false);
 
         if (args.Length > 0 && string.Equals(args[0], "--verify-boot", StringComparison.Ordinal))

@@ -57,6 +57,12 @@ public sealed class HostRuntimeOptions
     public bool ConfigHotReload { get; init; } = true;
 
     /// <summary>
+    /// Gets the developer-only world overrides (debug spawn tile or biome, start hour). Always empty in
+    /// Release builds of the host: the <c>CARBON_DEBUG_*</c> variables are only read by Debug builds.
+    /// </summary>
+    public WorldDebugOverrides DebugOverrides { get; init; } = new();
+
+    /// <summary>
     /// Loads options from environment variables with safe local SQLite defaults.
     /// </summary>
     public static HostRuntimeOptions FromEnvironment()
@@ -119,6 +125,45 @@ public sealed class HostRuntimeOptions
             UdpPort = udpPort,
             ConfigDirectory = configDirectory,
             ConfigHotReload = !string.Equals(Environment.GetEnvironmentVariable("CARBON_CONFIG_HOT_RELOAD"), "0", StringComparison.Ordinal),
+            DebugOverrides = ReadDebugOverrides(Environment.GetEnvironmentVariable),
         };
     }
+
+    /// <summary>
+    /// Parses the developer-only <c>CARBON_DEBUG_SPAWN_TILE</c> (<c>x,y</c>), <c>CARBON_DEBUG_SPAWN_BIOME</c>
+    /// (biome name), <c>CARBON_DEBUG_SPAWN_OFFSET</c> (<c>dx,dy</c> tiles) and <c>CARBON_DEBUG_START_HOUR</c>
+    /// variables. Release builds ignore them and always return no overrides.
+    /// </summary>
+    /// <param name="readEnv">Environment variable reader.</param>
+    /// <returns>The overrides (empty when none are set, and always empty in Release builds).</returns>
+    public static WorldDebugOverrides ReadDebugOverrides(Func<string, string?> readEnv)
+    {
+        ArgumentNullException.ThrowIfNull(readEnv);
+#if DEBUG
+        float? startHour = float.TryParse(readEnv("CARBON_DEBUG_START_HOUR"), NumberStyles.Float, CultureInfo.InvariantCulture, out float h) &&
+            h >= 0f && h < 24f
+            ? h
+            : null;
+
+        return new WorldDebugOverrides
+        {
+            SpawnTile = TryParsePair(readEnv("CARBON_DEBUG_SPAWN_TILE")),
+            SpawnBiome = readEnv("CARBON_DEBUG_SPAWN_BIOME") is { Length: > 0 } biome ? biome.Trim() : null,
+            SpawnOffset = TryParsePair(readEnv("CARBON_DEBUG_SPAWN_OFFSET")) ?? default,
+            StartHour = startHour,
+        };
+#else
+        return new WorldDebugOverrides();
+#endif
+    }
+
+#if DEBUG
+    private static (int X, int Y)? TryParsePair(string? raw) =>
+        raw is { Length: > 0 } &&
+        raw.Split(',') is [string a, string b] &&
+        int.TryParse(a, NumberStyles.Integer, CultureInfo.InvariantCulture, out int x) &&
+        int.TryParse(b, NumberStyles.Integer, CultureInfo.InvariantCulture, out int y)
+            ? (x, y)
+            : null;
+#endif
 }

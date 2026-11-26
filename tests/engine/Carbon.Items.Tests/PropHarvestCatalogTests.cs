@@ -40,6 +40,8 @@ public sealed class PropHarvestCatalogTests
         [MapPropType.Cactus] = "plant",
         [MapPropType.Bush] = "plant",
         [MapPropType.MushroomCluster] = "plant",
+        [MapPropType.DryBush] = "plant",
+        [MapPropType.DuneGrass] = "plant",
     };
 
     [Fact]
@@ -69,6 +71,8 @@ public sealed class PropHarvestCatalogTests
     [InlineData(MapPropType.OakTree, "wood_log")]
     [InlineData(MapPropType.CopperVein, "copper_ore")]
     [InlineData(MapPropType.CoalDeposit, "coal")]
+    [InlineData(MapPropType.DryBush, "plant_fiber")]
+    [InlineData(MapPropType.DuneGrass, "plant_fiber")]
     public void ResolveDrop_UsesTheEnumNotRawNumbers(MapPropType type, string expectedCode)
     {
         ItemSlot drop = PropHarvestCatalog.ResolveDrop(type, out _);
