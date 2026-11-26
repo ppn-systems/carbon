@@ -12,6 +12,7 @@ using Carbon.Application.World;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Identity;
+using Carbon.Economy;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -644,6 +645,88 @@ public sealed class AuthoritativeWorldMultiplayerTests
             world.EnqueueAttackInput(603UL, mobSpawn.Value.NetworkId, new Vector2(mobSpawn.Value.PositionX, mobSpawn.Value.PositionY), 2).Should().Be(OpStatus.Ok);
             world.StepFixedTick();
             sink.CombatHits.Skip(hitsBeforeClose).Should().Contain(h => h.DefenderNetworkId == mobSpawn.Value.NetworkId && h.Damage > 0f);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task MonsterKill_WithEconomyConfig_DropsThemedLootFromLootTables()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-economy-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
+            RecordingOutboundSink sink = new();
+            string configDir = GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!;
+            configDir.Should().NotBeNull("the host ships resources/config next to its binaries");
+            GameEconomy economy = GameEconomy.LoadFromDirectory(configDir);
+            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), new SqliteCharacterStore(factory), sink, economy: economy);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+            InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);
+            StarterGameCatalog.GrantStarterLoadout(bag);
+            CharacterRecord template = new(
+                Guid.NewGuid(), Guid.NewGuid(), "Hunter", 1, 0, 0f, 0f, 100f, 100f, 2, InventoryBinaryCodec.Serialize(bag), DateTimeOffset.UtcNow);
+
+            // Probe wilderness chunks until a monster backed by a loot table enters AoI.
+            EntitySpawnSnapshot? mob = null;
+            for (int probeX = 1; probeX <= 12 && mob is null; probeX++)
+            {
+                ulong probeConn = 700UL + (ulong)probeX;
+                world.TryEnterWorld(probeConn, probeConn, template with { Id = Guid.NewGuid(), PositionX = ((probeX * 32) + 16) * 32f, PositionY = 16f * 32f }).Status.Should().Be(OpStatus.Ok);
+                world.StepFixedTick();
+                mob = sink.Spawns
+                    .Where(x => x.ConnectionId == probeConn && x.Snapshot.Kind == EntityKind.Monster && AuthoritativeWorld.ResolveLootTableId(x.Snapshot.ArchetypeId) is not null)
+                    .Select(x => (EntitySpawnSnapshot?)x.Snapshot)
+                    .FirstOrDefault();
+            }
+
+            mob.Should().NotBeNull("wilderness chunks should populate a slime/skeleton/orc/demon");
+            economy.Loot.TryGet(AuthoritativeWorld.ResolveLootTableId(mob!.Value.ArchetypeId)!, out Carbon.Economy.Loot.LootTable? table).Should().BeTrue();
+
+            const ulong slayerConn = 800UL;
+            world.TryEnterWorld(slayerConn, slayerConn, template with { Id = Guid.NewGuid(), PositionX = mob.Value.PositionX + 16f, PositionY = mob.Value.PositionY }).Status.Should().Be(OpStatus.Ok);
+            int killTickSpawnIndex = -1;
+            for (int tick = 0; tick < 900 && killTickSpawnIndex < 0; tick++)
+            {
+                world.EnqueueAttackInput(slayerConn, mob.Value.NetworkId, new Vector2(mob.Value.PositionX, mob.Value.PositionY), 2);
+                int before = sink.Spawns.Count;
+                world.StepFixedTick();
+                if (sink.CombatHits.Any(h => h.DefenderNetworkId == mob.Value.NetworkId && h.IsKilled))
+                {
+                    killTickSpawnIndex = before;
+                }
+            }
+
+            killTickSpawnIndex.Should().BeGreaterThanOrEqualTo(0, "the slayer should eventually kill the monster");
+            world.StepFixedTick();
+
+            List<uint> droppedItems =
+            [
+                .. sink.Spawns
+                    .Skip(killTickSpawnIndex)
+                    .Where(x => x.ConnectionId == slayerConn && x.Snapshot.Kind == EntityKind.LootDrop)
+                    .Select(x => (uint)x.Snapshot.ArchetypeId)
+                    .Distinct(),
+            ];
+            droppedItems.Should().NotBeEmpty("loot tables always include a guaranteed drop");
+            foreach (uint itemId in droppedItems)
+            {
+                economy.Items.TryGet(itemId, out Carbon.Items.Definitions.ItemCatalogEntry? item).Should().BeTrue($"dropped item {itemId} must exist in items.json");
+                item!.Tags.Should().Contain(t => t == table!.Theme || t == "generic", $"{table!.Id} dropped '{item.Code}'");
+            }
+
+            world.TryGetWalletBalances(slayerConn, out long gold, out long diamonds).Should().BeTrue();
+            gold.Should().BeGreaterThanOrEqualTo(0);
+            diamonds.Should().BeGreaterThanOrEqualTo(0);
         }
         finally
         {

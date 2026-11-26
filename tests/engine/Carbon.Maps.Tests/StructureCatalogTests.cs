@@ -1,7 +1,9 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.IO;
 using System.Linq;
+using Carbon.Items.Catalog;
 using Carbon.Maps.Building;
 using FluentAssertions;
 using Xunit;
@@ -45,6 +47,20 @@ public sealed class StructureCatalogTests
             fromJson.MaxDurability.Should().Be(fromGrid.MaxDurability, definition.Id);
             fromJson.Destructibility.HarvestTier.Should().Be(fromGrid.Destructibility.HarvestTier, definition.Id);
             fromJson.MoveSpeedMultiplier.Should().Be(fromGrid.MoveSpeedMultiplier, definition.Id);
+        }
+    }
+
+    [Fact]
+    public void LoadFromFile_EveryMaterialCode_ExistsInShippedItemsJson()
+    {
+        ItemCatalog items = ItemCatalog.LoadFromJson(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "config", "items.json")));
+
+        foreach (StructureDefinition definition in ConstructionFixtures.Catalog.Definitions)
+        {
+            foreach (MaterialCost cost in definition.Cost)
+            {
+                items.TryGetByCode(cost.ItemId, out _).Should().BeTrue($"{definition.Id} costs '{cost.ItemId}', which must be an item code in items.json");
+            }
         }
     }
 

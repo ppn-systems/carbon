@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <RootNamespace>Carbon.Economy.Tests</RootNamespace>
+        <AssemblyName>Carbon.Economy.Tests</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\engine\Carbon.Economy\Carbon.Economy.csproj" />
+    </ItemGroup>
+
+    <!-- The real shipped configs: tests fail CI when a config edit breaks references or balance bands. -->
+    <ItemGroup>
+        <None Include="..\..\..\resources\config\items.json" Link="config\items.json" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="..\..\..\resources\config\recipes.json" Link="config\recipes.json" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="..\..\..\resources\config\loot.json" Link="config\loot.json" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="..\..\..\resources\config\economy.json" Link="config\economy.json" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+</Project>

@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "itemId": 126,
+  "id": "wheat",
+  "displayName": "Wheat",
+  "tier": 1,
+  "categoryLabel": "Material",
+  "accentColor": "#EAB308",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": 7,
+      "x2": 0,
+      "y2": -3,
+      "thickness": 1.2,
+      "color": "#A16207"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": -4,
+      "rx": 1.6,
+      "ry": 3.2,
+      "color": "#EAB308",
+      "outlineColor": "#713F12",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -2.6,
+      "y": -1.5,
+      "rx": 1.3,
+      "ry": 2.6,
+      "color": "#EAB308",
+      "rotDeg": -30,
+      "outlineColor": "#713F12",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 2.6,
+      "y": -1.5,
+      "rx": 1.3,
+      "ry": 2.6,
+      "color": "#EAB308",
+      "rotDeg": 30,
+      "outlineColor": "#713F12",
+      "outlineThickness": 0.8
+    }
+  ]
+}

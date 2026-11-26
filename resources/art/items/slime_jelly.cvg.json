@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "itemId": 125,
+  "id": "slime_jelly",
+  "displayName": "Slime Jelly",
+  "tier": 1,
+  "categoryLabel": "Food",
+  "accentColor": "#4ADE80",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": 1.5,
+      "rx": 7.2,
+      "ry": 5.2,
+      "color": "#4ADE80",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -1.5,
+      "y": -0.5,
+      "rx": 3.8,
+      "ry": 2.6,
+      "color": "#BBF7D0"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -3,
+      "y": -2,
+      "rx": 1.1,
+      "ry": 0.8,
+      "color": "#FFFFFF"
+    }
+  ]
+}

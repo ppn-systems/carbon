@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "itemId": 180,
+  "id": "copper_sword",
+  "displayName": "Copper Sword",
+  "tier": 1,
+  "categoryLabel": "Melee Weapon",
+  "accentColor": "#F97316",
+  "gripX": -4.5,
+  "gripY": 4.5,
+  "restAngleDeg": -82.0,
+  "worldScale": 1.05,
+  "palette": {},
+  "heldVisible": true,
+  "shapes": [
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": -6,
+      "y": 6,
+      "x2": 5,
+      "y2": -5,
+      "thickness": 2.4,
+      "color": "#FB923C",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -5,
+      "y": 5,
+      "x2": 5,
+      "y2": -5,
+      "thickness": 0.7,
+      "color": "#FFFFFF"
+    },
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": -6,
+      "y": 2,
+      "x2": -2,
+      "y2": 6,
+      "thickness": 1.6,
+      "color": "#78350F",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": -8,
+      "y": 8,
+      "x2": -6.4,
+      "y2": 6.4,
+      "thickness": 1.8,
+      "color": "#78350F",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 1.0
+    }
+  ]
+}

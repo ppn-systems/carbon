@@ -39,6 +39,29 @@ public sealed partial class AuthoritativeWorld
         return index;
     }
 
+    /// <summary>
+    /// Resolves a material code from <c>structures.json</c>: the loaded <c>items.json</c> catalog is authoritative,
+    /// the built-in starter catalog is the fallback when the server runs without economy data (tests).
+    /// </summary>
+    private bool TryResolveItemId(string code, out uint itemId, out int maxStack)
+    {
+        if (_economy is not null && _economy.Items.TryGetByCode(code, out ItemCatalogEntry? entry))
+        {
+            itemId = entry.Id;
+            maxStack = entry.MaxStack;
+            return true;
+        }
+
+        if (s_itemIdsByCode.TryGetValue(code, out itemId))
+        {
+            maxStack = StarterGameCatalog.GetMaxStackSize(itemId);
+            return true;
+        }
+
+        maxStack = 0;
+        return false;
+    }
+
     private static ulong OwnerIdOf(ActivePlayerState state)
     {
         Span<byte> bytes = stackalloc byte[16];
@@ -257,11 +280,11 @@ public sealed partial class AuthoritativeWorld
         public void Bind(ActivePlayerState state) => _state = state;
 
         public int CountOf(string itemId) =>
-            _state is not null && s_itemIdsByCode.TryGetValue(itemId, out uint id) ? _state.Inventory.CountItem(id) : 0;
+            _state is not null && world.TryResolveItemId(itemId, out uint id, out _) ? _state.Inventory.CountItem(id) : 0;
 
         public int Take(string itemId, int quantity)
         {
-            if (_state is null || !s_itemIdsByCode.TryGetValue(itemId, out uint id))
+            if (_state is null || !world.TryResolveItemId(itemId, out uint id, out _))
             {
                 return 0;
             }
@@ -282,7 +305,7 @@ public sealed partial class AuthoritativeWorld
 
         public void Add(string itemId, int quantity)
         {
-            if (_state is null || quantity <= 0 || !s_itemIdsByCode.TryGetValue(itemId, out uint id))
+            if (_state is null || quantity <= 0 || !world.TryResolveItemId(itemId, out uint id, out int maxStack))
             {
                 return;
             }
@@ -291,7 +314,7 @@ public sealed partial class AuthoritativeWorld
             Span<ItemSlot> before = stackalloc ItemSlot[inventory.Slots.Length];
             inventory.Slots.CopyTo(before);
             ItemSlot item = new(id, quantity);
-            int remainder = PlayerInventoryLayout.TryAddBagItem(inventory, in item, StarterGameCatalog.GetMaxStackSize(id));
+            int remainder = PlayerInventoryLayout.TryAddBagItem(inventory, in item, maxStack);
             this.QueueSlotChanges(before);
             if (remainder > 0 && world._simulation.Entities.HasTransform(_state.Entity))
             {
@@ -328,7 +351,7 @@ public sealed partial class AuthoritativeWorld
 
         public void Add(string itemId, int quantity)
         {
-            if (quantity > 0 && s_itemIdsByCode.TryGetValue(itemId, out uint id))
+            if (quantity > 0 && world.TryResolveItemId(itemId, out uint id, out _))
             {
                 ItemSlot drop = new(id, quantity);
                 world.SpawnGroundLootLocked(this.Position, in drop);

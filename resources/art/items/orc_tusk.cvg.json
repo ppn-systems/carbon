@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "itemId": 142,
+  "id": "orc_tusk",
+  "displayName": "Orc Tusk",
+  "tier": 2,
+  "categoryLabel": "Monster Drop",
+  "accentColor": "#A3E635",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -6,
+          6.5
+        ],
+        [
+          -2,
+          6.5
+        ],
+        [
+          6.5,
+          -7.5
+        ]
+      ],
+      "color": "#F5F5F4",
+      "outlineColor": "#44403C",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -4.5,
+      "y": 5,
+      "x2": 3.5,
+      "y2": -4.5,
+      "thickness": 0.8,
+      "color": "#FFFFFF"
+    }
+  ]
+}

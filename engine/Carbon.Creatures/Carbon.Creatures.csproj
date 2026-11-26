@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <RootNamespace>Carbon.Creatures</RootNamespace>
+        <AssemblyName>Carbon.Creatures</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Carbon.Primitives\Carbon.Primitives.csproj" />
+        <ProjectReference Include="..\Carbon.Physics\Carbon.Physics.csproj" />
+        <ProjectReference Include="..\Carbon.Simulation\Carbon.Simulation.csproj" />
+        <ProjectReference Include="..\Carbon.Maps\Carbon.Maps.csproj" />
+        <ProjectReference Include="..\Carbon.Data\Carbon.Data.csproj" />
+        <ProjectReference Include="..\Carbon.AI\Carbon.AI.csproj" />
+        <ProjectReference Include="..\Carbon.Combat\Carbon.Combat.csproj" />
+    </ItemGroup>
+</Project>

@@ -2,9 +2,12 @@
     <ItemGroup>
         <ProjectReference Include="..\..\..\engine\Carbon.Maps\Carbon.Maps.csproj" />
         <ProjectReference Include="..\..\..\engine\Carbon.Physics\Carbon.Physics.csproj" />
+        <!-- Only for cross-checking structures.json material codes against the shipped items.json. -->
+        <ProjectReference Include="..\..\..\engine\Carbon.Items\Carbon.Items.csproj" />
     </ItemGroup>
 
     <ItemGroup>
         <None Include="..\..\..\resources\config\structures.json" Link="config\structures.json" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="..\..\..\resources\config\items.json" Link="config\items.json" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 </Project>

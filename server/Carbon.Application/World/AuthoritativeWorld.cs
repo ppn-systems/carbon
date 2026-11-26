@@ -13,6 +13,9 @@ using Carbon.AI.Threat;
 using Carbon.Combat.Cooldowns;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
+using Carbon.Economy;
+using Carbon.Economy.Currency;
+using Carbon.Economy.Loot;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Serialization;
@@ -66,6 +69,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly ICharacterStore _characterStore;
     private readonly IWorldOutboundSink _outboundSink;
     private readonly TimeProvider _time;
+    private readonly GameEconomy? _economy;
 
     private readonly Dictionary<ulong, ActivePlayerState> _playersByConnection = new();
     private readonly Dictionary<ulong, ulong> _connectionByNetworkId = new();
@@ -132,6 +136,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         ICharacterStore characterStore,
         IWorldOutboundSink outboundSink,
         TimeProvider? time = null,
+        GameEconomy? economy = null,
         StructureCatalog? structureCatalog = null)
     {
         ArgumentNullException.ThrowIfNull(chunkDeltaRepo);
@@ -147,6 +152,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         _characterStore = characterStore;
         _outboundSink = outboundSink;
         _time = time ?? TimeProvider.System;
+        _economy = economy;
 
         _generator = new ProceduralWorldGenerator(this.WorldSeed);
         _chunkWorld = new ChunkWorld2D(_generator, this.TileSize, this.Frequency);
@@ -299,6 +305,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
                 CurrentStamina = startStamina,
                 StatsDirty = true,
                 LastSavedPosition = spawnPos,
+                Wallet = _economy is null
+                    ? new Wallet(networkId)
+                    : new Wallet(networkId, _economy.Config.Currencies.GoldCap, _economy.Config.Currencies.DiamondCap),
             };
             startProg.CopyTo(playerState.Progression);
 
@@ -1138,6 +1147,12 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         public BuildJobKind BuildJob { get; set; }
         public int BuildJobTileX { get; set; }
         public int BuildJobTileY { get; set; }
+
+        /// <summary>Server-authoritative gold/diamond balances (in-memory until a persistence ADR lands).</summary>
+        public Wallet Wallet { get; init; } = new(session.PlayerNetworkId);
+
+        /// <summary>Diamond bad-luck protection counter.</summary>
+        public LootPityState LootPity { get; set; }
     }
 
     private readonly record struct LootDropMeta(ItemSlot Item, ulong SpawnTick);
