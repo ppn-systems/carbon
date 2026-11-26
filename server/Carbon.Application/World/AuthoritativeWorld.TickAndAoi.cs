@@ -257,34 +257,7 @@ public sealed partial class AuthoritativeWorld
                 _dirtyChunks.Clear();
             }
 
-            foreach (KeyValuePair<ulong, PlayerState> kvp in _players.ByConnection)
-            {
-                PlayerState state = kvp.Value;
-                bool movedSinceSave = _simulation.Entities.IsAlive(state.Entity) &&
-                    _simulation.Entities.HasTransform(state.Entity) &&
-                    Vector2.DistanceSquared(_simulation.Entities.GetTransform(state.Entity).Position, state.LastSavedPosition) >= 16f;
-
-                if (state.PersistenceDirty || state.InventoryDirty || movedSinceSave)
-                {
-                    CharacterRecord updated = this.BuildUpdatedRecordLocked(state, serializeInventory: state.InventoryDirty);
-                    state.SourceCharacter = updated;
-                    state.LastSavedPosition = new Vector2(updated.PositionX, updated.PositionY);
-                    state.PersistenceDirty = false;
-                    state.InventoryDirty = false;
-                    _dirtyCharacters[updated.Id] = updated;
-                }
-            }
-
-            if (_dirtyCharacters.Count > 0)
-            {
-                foreach (KeyValuePair<Guid, CharacterRecord> kvp in _dirtyCharacters)
-                {
-                    characterBatch.Add(kvp.Value);
-                    _inFlightCharacters[kvp.Key] = kvp.Value;
-                }
-
-                _dirtyCharacters.Clear();
-            }
+            _persistence.CollectBatch(_players.ByConnection.Values, characterBatch);
         }
 
         if (chunkBatch.Count > 0 || characterBatch.Count > 0)
@@ -303,7 +276,7 @@ public sealed partial class AuthoritativeWorld
 
                 lock (_gate)
                 {
-                    this.ReleaseInFlightCharactersLocked(characterBatch);
+                    _persistence.Release(characterBatch);
                 }
             }
             catch
@@ -315,31 +288,10 @@ public sealed partial class AuthoritativeWorld
                         _ = _dirtyChunks.Add(Chunk2D.PackKey(chunkBatch[i].ChunkX, chunkBatch[i].ChunkY));
                     }
 
-                    for (int i = 0; i < characterBatch.Count; i++)
-                    {
-                        CharacterRecord failed = characterBatch[i];
-                        _ = _dirtyCharacters.TryAdd(failed.Id, failed);
-                    }
-
-                    this.ReleaseInFlightCharactersLocked(characterBatch);
+                    _persistence.Requeue(characterBatch);
                 }
 
                 throw;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Drops the in-flight entries of a finished save. An entry replaced by a newer flush meanwhile is kept.
-    /// </summary>
-    private void ReleaseInFlightCharactersLocked(List<CharacterRecord> batch)
-    {
-        for (int i = 0; i < batch.Count; i++)
-        {
-            CharacterRecord saved = batch[i];
-            if (_inFlightCharacters.TryGetValue(saved.Id, out CharacterRecord? current) && ReferenceEquals(current, saved))
-            {
-                _ = _inFlightCharacters.Remove(saved.Id);
             }
         }
     }
