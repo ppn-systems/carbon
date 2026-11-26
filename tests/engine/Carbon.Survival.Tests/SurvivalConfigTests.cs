@@ -13,7 +13,7 @@ namespace Carbon.Survival.Tests;
 
 public sealed class SurvivalConfigTests
 {
-    private static readonly string[] s_expectedFoods = ["berries", "raw_meat", "cooked_meat", "bread", "stew", "slime_jelly", "roast_meat", "arcane_pie", "rotten_food"];
+    private static readonly string[] s_expectedFoods = ["berries", "raw_meat", "cooked_meat", "bread", "stew", "slime_jelly", "roast_meat", "arcane_pie", "rotten_food", "slime_jelly_preserve"];
 
     [Fact]
     public void LoadFromJson_RepositoryNeedsJson_LoadsAndMatchesDocumentedTimeline()
@@ -105,6 +105,54 @@ public sealed class SurvivalConfigTests
             item.TryGetProperty("nutrition", out _).Should().BeFalse(
                 $"food.json is the single source of nutrition; items.json '{item.GetProperty("code").GetString()}' must not define it");
         }
+    }
+
+    [Fact]
+    public void RecipesJson_CookingRecipes_TurnIngredientsIntoNonSpoilingFood()
+    {
+        NeedsConfig config = NeedsConfig.LoadFromJson(File.ReadAllText(SurvivalTestWorld.FindConfigFile("needs.json")));
+        FoodCatalog catalog = FoodCatalog.LoadFromJson(File.ReadAllText(SurvivalTestWorld.FindConfigFile("food.json")), config.FoodMax);
+
+        using JsonDocument items = JsonDocument.Parse(File.ReadAllText(SurvivalTestWorld.FindConfigFile("items.json")));
+        HashSet<string> itemCodes = new(StringComparer.Ordinal);
+        foreach (JsonElement item in items.RootElement.GetProperty("items").EnumerateArray())
+        {
+            itemCodes.Add(item.GetProperty("code").GetString()!);
+        }
+
+        using JsonDocument recipes = JsonDocument.Parse(File.ReadAllText(SurvivalTestWorld.FindConfigFile("recipes.json")));
+        int cookingRecipes = 0;
+        foreach (JsonElement recipe in recipes.RootElement.GetProperty("recipes").EnumerateArray())
+        {
+            if (recipe.GetProperty("station").GetString() != "stove")
+            {
+                continue;
+            }
+
+            cookingRecipes++;
+            string code = recipe.GetProperty("code").GetString()!;
+            bool usesFoodOrCrop = false;
+            foreach (JsonElement ingredient in recipe.GetProperty("ingredients").EnumerateArray())
+            {
+                string input = ingredient.GetProperty("item").GetString()!;
+                itemCodes.Should().Contain(input, $"cooking recipe '{code}' input must be an item");
+                usesFoodOrCrop |= catalog.TryGetIndex(input, out _) || input == "wheat";
+            }
+
+            usesFoodOrCrop.Should().BeTrue($"cooking recipe '{code}' must cook a food or crop");
+
+            foreach (JsonElement output in recipe.GetProperty("outputs").EnumerateArray())
+            {
+                string produced = output.GetProperty("item").GetString()!;
+                catalog.TryGetIndex(produced, out int index).Should().BeTrue($"cooking recipe '{code}' must output a food from food.json, not '{produced}'");
+                FoodDefinition food = catalog.Get(index);
+                food.Quality.Should().NotBe(FoodQuality.Raw, $"cooking recipe '{code}' must output cooked food, not raw '{produced}'");
+                food.IsPerishable.Should().BeFalse($"cooked '{produced}' must not spoil (cooking is how raw food is preserved)");
+                food.MoodOffset.Should().BeGreaterThanOrEqualTo(0f, $"cooked '{produced}' must not carry a raw-food mood penalty");
+            }
+        }
+
+        cookingRecipes.Should().BeGreaterThan(0, "recipes.json must define stove/campfire cooking recipes");
     }
 
     [Fact]
