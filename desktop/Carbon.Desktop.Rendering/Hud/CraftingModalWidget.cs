@@ -246,11 +246,11 @@ internal sealed class CraftingModalWidget
 
         if (StarterGameCatalog.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? selectedRec))
         {
-            for (int k = 0; k < selectedRec.Ingredients.Count && k < 3; k++)
+            for (int k = 0; k < selectedRec.Ingredients.Count; k++)
             {
                 RecipeIngredient ing = selectedRec.Ingredients[k];
                 bool hasEnough = PlayerInventoryLayout.CountItem(slots, ing.ItemId) >= ing.Quantity;
-                RectangleF ingCard = GetIngredientRect(in layout, k);
+                RectangleF ingCard = GetIngredientRect(in layout, k, selectedRec.Ingredients.Count);
                 skin.DrawSlot(
                     spriteBatch,
                     in ingCard,
@@ -328,16 +328,16 @@ internal sealed class CraftingModalWidget
                     MathF.Round(46f * s));
             }
 
-            for (int k = 0; k < selectedRec.Ingredients.Count && k < 3; k++)
+            for (int k = 0; k < selectedRec.Ingredients.Count; k++)
             {
                 if (art.TryGetItem(selectedRec.Ingredients[k].ItemId, out CompiledItemVectorArt? ingArt))
                 {
-                    RectangleF ingCard = GetIngredientRect(in layout, k);
+                    RectangleF ingCard = GetIngredientRect(in layout, k, selectedRec.Ingredients.Count);
                     VectorRigRenderer.DrawItemIcon(
                         batch,
                         ingArt,
                         new Vector2(ingCard.X + MathF.Round(24f * s), ingCard.Y + (ingCard.Height * 0.5f)),
-                        MathF.Round(30f * s));
+                        MathF.Min(MathF.Round(30f * s), ingCard.Height - MathF.Round(6f * s)));
                 }
             }
         }
@@ -432,13 +432,13 @@ internal sealed class CraftingModalWidget
                 layout.TextScale);
             spriteBatch.DrawOutlinedString(font, "Ingredients", new Vector2(rightPane.X + detailPad, outBox.Bottom + MathF.Round(54f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TextScale);
 
-            for (int k = 0; k < selectedRec.Ingredients.Count && k < 3; k++)
+            for (int k = 0; k < selectedRec.Ingredients.Count; k++)
             {
                 RecipeIngredient ing = selectedRec.Ingredients[k];
                 int have = PlayerInventoryLayout.CountItem(slots, ing.ItemId);
                 bool ok = have >= ing.Quantity;
-                RectangleF ingCard = GetIngredientRect(in layout, k);
-                float textY = ingCard.Y + MathF.Round(14f * s);
+                RectangleF ingCard = GetIngredientRect(in layout, k, selectedRec.Ingredients.Count);
+                float textY = ingCard.Y + MathF.Max(0f, (ingCard.Height * 0.5f) - MathF.Round(10f * s));
                 spriteBatch.DrawOutlinedString(
                     font,
                     CarbonUiSkin.TruncateToWidth(font, SyncedItemCatalog.GetDisplayName(ing.ItemId), ingCard.Width - MathF.Round(120f * s), layout.TextScale),
@@ -624,19 +624,28 @@ internal sealed class CraftingModalWidget
         return new RectangleF(leftPane.Right - pad - scrollW, leftPane.Bottom - pad - scrollH, scrollW, scrollH);
     }
 
-    private static RectangleF GetIngredientRect(in PlayerModalLayout layout, int index)
+    /// <summary>
+    /// Lays out ingredient row <paramref name="index"/> of <paramref name="count"/> between the stats line and the craft
+    /// buttons. Rows keep their natural 48px height (56px pitch) and shrink evenly only when every row would not fit.
+    /// </summary>
+    internal static RectangleF GetIngredientRect(in PlayerModalLayout layout, int index, int count)
     {
         float s = layout.Scale;
         RectangleF rightPane = GetRightPaneRect(in layout);
         float pad = MathF.Round(16f * s);
+        float top = rightPane.Y + MathF.Round(168f * s);
+        float bottom = GetCraft1ButtonRect(in layout).Y - MathF.Round(10f * s);
+        float gap = MathF.Round(8f * s);
+        float naturalPitch = MathF.Round(56f * s);
+        float pitch = MathF.Floor(MathF.Min(naturalPitch, (bottom - top + gap) / Math.Max(1, count)));
         return new RectangleF(
             rightPane.X + pad,
-            rightPane.Y + MathF.Round(168f * s) + (index * MathF.Round(56f * s)),
+            top + (index * pitch),
             rightPane.Width - (pad * 2f),
-            MathF.Round(48f * s));
+            MathF.Max(1f, pitch - gap));
     }
 
-    private static RectangleF GetCraft1ButtonRect(in PlayerModalLayout layout)
+    internal static RectangleF GetCraft1ButtonRect(in PlayerModalLayout layout)
     {
         float s = layout.Scale;
         RectangleF rightPane = GetRightPaneRect(in layout);

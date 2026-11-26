@@ -206,6 +206,24 @@ Ids 1–39 keep the `StarterGameCatalog` ids and codes, and a test checks catego
 
     Otherwise the craft fails with `OutOfRange`.
   - **Level gate:** the character level must meet `unlockLevel`, otherwise the craft fails with `Forbidden`. There are no crafting skills yet, so the character level also stands in for `skillLevel`.
+  - **Alchemy is a deliberate exploration gate.** Potions, staves, rings, amulets and the abyssal crown need a Shrine Keeper. Shrine Keepers spawn at mountain shrines, never at the starting sanctuary, so players have to travel before they can craft alchemy items. New mages get their starter staff from the class loadout.
+  - **Prop harvesting** (`PropHarvestCatalog`) switches on `MapPropType` and drops `items.json` items:
+
+    | Prop | Drop |
+    | :--- | :--- |
+    | trees | `wood_log` |
+    | boulder, basalt | `stone_chunk` |
+    | coal deposit | `coal` |
+    | copper vein | `copper_ore` |
+    | iron and silver veins | `iron_ore` |
+    | gold vein | `rough_gem` |
+    | crystals | `mana_crystal` |
+    | cactus | `cactus_fiber` |
+    | bush | `berries` |
+    | mushroom cluster | `berry_herb` |
+    | ancient shrine | nothing |
+
+    A test fails CI when a new prop type has no themed drop.
 - **Art.** Every item with id ≥ 100 has a `resources/art/items/<code>.cvg.json` icon registered in `catalog.cvg.json`.
 
 **Wallet persistence, sync and sinks** ([ADR-012](adr/ADR-012-server-authoritative-wallet-persistence-and-sync.md)):
