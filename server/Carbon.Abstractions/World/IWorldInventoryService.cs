@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Carbon.Contracts.Common;
 using Carbon.Items.Containers;
 
@@ -14,20 +15,29 @@ public interface IWorldInventoryService
     /// <summary>Copies occupied inventory slots for the session bound to <paramref name="connectionId"/>.</summary>
     bool GetInventorySnapshot(ulong connectionId, List<(ushort SlotIndex, ItemSlot Slot)> output);
 
-    /// <summary>Updates the player's selected hotbar slot and harvest tier.</summary>
-    OpStatus TrySelectHotbarSlot(ulong connectionId, byte slotIndex);
+    /// <summary>Queues updating the selected hotbar slot and harvest tier; completes after the next tick (ADR-017).</summary>
+    ValueTask<WorldMutationOutcome> SubmitSelectHotbarSlotAsync(ulong connectionId, byte slotIndex);
 
-    /// <summary>Validates and executes a crafting recipe request on the player's general bag storage.</summary>
-    OpStatus TryCraftRecipe(ulong connectionId, ushort recipeId, ushort quantity);
+    /// <summary>Queues a crafting recipe on the player's general bag storage; completes after the next tick (ADR-017).</summary>
+    ValueTask<WorldMutationOutcome> SubmitCraftRecipeAsync(ulong connectionId, ushort recipeId, ushort quantity);
 
-    /// <summary>Moves, swaps, merges, or equips an inventory slot (<c>0..39</c>), enforcing armor slot constraints (<c>36..39</c>).</summary>
-    OpStatus TryMoveInventorySlot(ulong connectionId, ushort fromSlot, ushort toSlot);
+    /// <summary>
+    /// Queues moving, swapping, merging or equipping an inventory slot (<c>0..39</c>), enforcing armor slot constraints
+    /// (<c>36..39</c>); completes after the next tick (ADR-017).
+    /// </summary>
+    ValueTask<WorldMutationOutcome> SubmitMoveInventorySlotAsync(ulong connectionId, ushort fromSlot, ushort toSlot);
 
-    /// <summary>Attempts to enhance an eligible weapon, tool, or armor piece in <paramref name="slotIndex"/> (<c>+0..+10</c>).</summary>
-    OpStatus TryUpgradeInventoryItem(ulong connectionId, ushort slotIndex);
+    /// <summary>
+    /// Queues enhancing the weapon, tool or armor piece in <paramref name="slotIndex"/> (<c>+0..+10</c>); completes after
+    /// the next tick (ADR-017).
+    /// </summary>
+    ValueTask<WorldMutationOutcome> SubmitUpgradeInventoryItemAsync(ulong connectionId, ushort slotIndex);
 
-    /// <summary>Drops items from <paramref name="slotIndex"/> onto the ground as an authoritative loot entity.</summary>
-    OpStatus TryDropInventoryItem(ulong connectionId, ushort slotIndex, int quantity);
+    /// <summary>
+    /// Queues dropping items from <paramref name="slotIndex"/> onto the ground as loot; completes after the next tick
+    /// (ADR-017).
+    /// </summary>
+    ValueTask<WorldMutationOutcome> SubmitDropInventoryItemAsync(ulong connectionId, ushort slotIndex, int quantity);
 
     /// <summary>Buys vendor-sold items for gold while standing near a friendly town NPC.</summary>
     OpStatus TryVendorBuy(ulong connectionId, ushort itemId, ushort quantity);

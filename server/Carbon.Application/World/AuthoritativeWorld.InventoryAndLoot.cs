@@ -1,9 +1,11 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Commands;
 using Carbon.Contracts.Common;
 using Carbon.Items.Catalog;
 using Carbon.Items.Components;
@@ -48,6 +50,26 @@ public sealed partial class AuthoritativeWorld
     }
 
     /// <inheritdoc/>
+    public ValueTask<WorldMutationOutcome> SubmitSelectHotbarSlotAsync(ulong connectionId, byte slotIndex) =>
+        _commands.Submit(WorldCommandKind.SelectHotbarSlot, connectionId, slotIndex);
+
+    /// <inheritdoc/>
+    public ValueTask<WorldMutationOutcome> SubmitCraftRecipeAsync(ulong connectionId, ushort recipeId, ushort quantity) =>
+        _commands.Submit(WorldCommandKind.CraftRecipe, connectionId, recipeId, quantity);
+
+    /// <inheritdoc/>
+    public ValueTask<WorldMutationOutcome> SubmitMoveInventorySlotAsync(ulong connectionId, ushort fromSlot, ushort toSlot) =>
+        _commands.Submit(WorldCommandKind.MoveInventorySlot, connectionId, fromSlot, toSlot);
+
+    /// <inheritdoc/>
+    public ValueTask<WorldMutationOutcome> SubmitUpgradeInventoryItemAsync(ulong connectionId, ushort slotIndex) =>
+        _commands.Submit(WorldCommandKind.UpgradeInventoryItem, connectionId, slotIndex);
+
+    /// <inheritdoc/>
+    public ValueTask<WorldMutationOutcome> SubmitDropInventoryItemAsync(ulong connectionId, ushort slotIndex, int quantity) =>
+        _commands.Submit(WorldCommandKind.DropInventoryItem, connectionId, slotIndex, arg2: quantity);
+
+    /// <summary>Updates the selected hotbar slot and harvest tier. Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
     public OpStatus TrySelectHotbarSlot(ulong connectionId, byte slotIndex)
     {
         if (slotIndex >= PlayerInventoryLayout.HotbarCount)
@@ -117,7 +139,7 @@ public sealed partial class AuthoritativeWorld
         return OpStatus.Ok;
     }
 
-    /// <inheritdoc/>
+    /// <summary>Validates and executes a crafting recipe on the player's general bag storage. Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
     public OpStatus TryCraftRecipe(ulong connectionId, ushort recipeId, ushort quantity)
     {
         if (recipeId == 0 || quantity == 0 || quantity > 64)
@@ -204,7 +226,7 @@ public sealed partial class AuthoritativeWorld
         return OpStatus.Ok;
     }
 
-    /// <inheritdoc/>
+    /// <summary>Moves, swaps, merges or equips an inventory slot, enforcing armor slot constraints. Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
     public OpStatus TryMoveInventorySlot(ulong connectionId, ushort fromSlot, ushort toSlot)
     {
         bool statsChanged = false;
@@ -301,7 +323,7 @@ public sealed partial class AuthoritativeWorld
         return OpStatus.Ok;
     }
 
-    /// <inheritdoc/>
+    /// <summary>Enhances the eligible weapon, tool or armor piece in the slot. Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
     public OpStatus TryUpgradeInventoryItem(ulong connectionId, ushort slotIndex) =>
         this.TryUpgradeInventoryItem(connectionId, slotIndex, deterministicRollSeed: 0U);
 
@@ -431,7 +453,7 @@ public sealed partial class AuthoritativeWorld
         return succeeded ? OpStatus.Ok : OpStatus.EnhancementFailed;
     }
 
-    /// <inheritdoc/>
+    /// <summary>Drops items from the slot onto the ground as loot. Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
     public OpStatus TryDropInventoryItem(ulong connectionId, ushort slotIndex, int quantity)
     {
         PlayerStatsSnapshot statsSnap;

@@ -23,6 +23,21 @@ internal enum WorldCommandKind : byte
 
     /// <summary>Open or close a door.</summary>
     ToggleDoor = 4,
+
+    /// <summary>Select the active hotbar slot (<c>Arg0</c> = slot).</summary>
+    SelectHotbarSlot = 10,
+
+    /// <summary>Craft a recipe (<c>Arg0</c> = recipe id, <c>Arg1</c> = quantity).</summary>
+    CraftRecipe = 11,
+
+    /// <summary>Move, swap, merge or equip a slot (<c>Arg0</c> = from, <c>Arg1</c> = to).</summary>
+    MoveInventorySlot = 12,
+
+    /// <summary>Enhance the item in a slot (<c>Arg0</c> = slot).</summary>
+    UpgradeInventoryItem = 13,
+
+    /// <summary>Drop items from a slot (<c>Arg0</c> = slot, <c>Arg2</c> = quantity).</summary>
+    DropInventoryItem = 14,
 }
 
 /// <summary>A mutating request waiting for the next tick, with the completion its handler awaits.</summary>
@@ -33,6 +48,9 @@ internal readonly record struct WorldCommand(
     int TileY,
     StructureType StructureType,
     StructureRotation Rotation,
+    ushort Arg0,
+    ushort Arg1,
+    int Arg2,
     TaskCompletionSource<WorldMutationOutcome> Completion);
 
 /// <summary>
@@ -60,8 +78,16 @@ internal sealed class WorldCommandQueue
         int tileX,
         int tileY,
         StructureType structureType = StructureType.None,
-        StructureRotation rotation = StructureRotation.North)
+        StructureRotation rotation = StructureRotation.North) =>
+        this.Enqueue(new WorldCommand(kind, connectionId, tileX, tileY, structureType, rotation, 0, 0, 0, null!));
+
+    /// <summary>Queues a slot-based command (inventory, crafting); see <see cref="WorldCommandKind"/> for the arguments.</summary>
+    public ValueTask<WorldMutationOutcome> Submit(WorldCommandKind kind, ulong connectionId, ushort arg0, ushort arg1 = 0, int arg2 = 0) =>
+        this.Enqueue(new WorldCommand(kind, connectionId, 0, 0, StructureType.None, StructureRotation.North, arg0, arg1, arg2, null!));
+
+    private ValueTask<WorldMutationOutcome> Enqueue(WorldCommand command)
     {
+        ulong connectionId = command.ConnectionId;
         int pending = _pendingByConnection.AddOrUpdate(connectionId, 1, static (_, n) => n + 1);
         if (pending > MaxPendingPerConnection)
         {
@@ -70,7 +96,7 @@ internal sealed class WorldCommandQueue
         }
 
         TaskCompletionSource<WorldMutationOutcome> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        _queue.Enqueue(new WorldCommand(kind, connectionId, tileX, tileY, structureType, rotation, completion));
+        _queue.Enqueue(command with { Completion = completion });
         return new ValueTask<WorldMutationOutcome>(completion.Task);
     }
 

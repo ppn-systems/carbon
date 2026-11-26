@@ -64,72 +64,77 @@ public static partial class ItemHandlers
     /// <summary>Opcode <c>0x4002</c>. Updates the active hotbar tool slot (adjusting tool harvest tier).</summary>
     [PacketOpcode(ItemOpCode.SelectHotbarSlot)]
     [PacketPermission(PermissionLevel.USER)]
-    public static ValueTask HandleSelectHotbarSlotAsync(IPacketContext<SelectHotbarSlot> context)
+    public static async ValueTask HandleSelectHotbarSlotAsync(IPacketContext<SelectHotbarSlot> context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        IPacketSender sender = context.Sender;
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
-        OpStatus status = s_world.TrySelectHotbarSlot(connectionId, context.Packet.SlotIndex);
-        return PacketReplyHelper.SendMutationAsync(context, status, ItemOpCode.SelectHotbarSlot);
+        WorldMutationOutcome outcome = await s_world.SubmitSelectHotbarSlotAsync(connectionId, context.Packet.SlotIndex).ConfigureAwait(false);
+        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.SelectHotbarSlot).ConfigureAwait(false);
     }
 
     /// <summary>Opcode <c>0x4003</c>. Validates and executes a crafting recipe request.</summary>
     [PacketOpcode(ItemOpCode.CraftItem)]
     [PacketPermission(PermissionLevel.USER)]
-    public static ValueTask HandleCraftItemAsync(IPacketContext<CraftItem> context)
+    public static async ValueTask HandleCraftItemAsync(IPacketContext<CraftItem> context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        IPacketSender sender = context.Sender;
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
-        OpStatus status = s_world.TryCraftRecipe(
+        WorldMutationOutcome outcome = await s_world.SubmitCraftRecipeAsync(
             connectionId,
             context.Packet.RecipeId,
-            context.Packet.Quantity);
-        return PacketReplyHelper.SendMutationAsync(context, status, ItemOpCode.CraftItem);
+            context.Packet.Quantity).ConfigureAwait(false);
+        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.CraftItem).ConfigureAwait(false);
     }
 
     /// <summary>Opcode <c>0x4004</c>. Moves, swaps, merges, or equips items between slots (<c>0..39</c>).</summary>
     [PacketOpcode(ItemOpCode.MoveInventorySlot)]
     [PacketPermission(PermissionLevel.USER)]
-    public static ValueTask HandleMoveInventorySlotAsync(IPacketContext<MoveInventorySlot> context)
+    public static async ValueTask HandleMoveInventorySlotAsync(IPacketContext<MoveInventorySlot> context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        IPacketSender sender = context.Sender;
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
-        OpStatus status = s_world.TryMoveInventorySlot(
+        WorldMutationOutcome outcome = await s_world.SubmitMoveInventorySlotAsync(
             connectionId,
             context.Packet.FromSlot,
-            context.Packet.ToSlot);
-        return PacketReplyHelper.SendMutationAsync(context, status, ItemOpCode.MoveInventorySlot);
+            context.Packet.ToSlot).ConfigureAwait(false);
+        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.MoveInventorySlot).ConfigureAwait(false);
     }
 
     /// <summary>Opcode <c>0x4005</c>. Enhances an eligible weapon, tool, or armor slot in the Forge.</summary>
     [PacketOpcode(ItemOpCode.UpgradeInventoryItem)]
     [PacketPermission(PermissionLevel.USER)]
-    public static ValueTask HandleUpgradeInventoryItemAsync(IPacketContext<UpgradeInventoryItem> context)
+    public static async ValueTask HandleUpgradeInventoryItemAsync(IPacketContext<UpgradeInventoryItem> context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        IPacketSender sender = context.Sender;
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
-        OpStatus status = s_world.TryUpgradeInventoryItem(
+        WorldMutationOutcome outcome = await s_world.SubmitUpgradeInventoryItemAsync(
             connectionId,
-            context.Packet.SlotIndex);
-        return PacketReplyHelper.SendMutationAsync(context, status, ItemOpCode.UpgradeInventoryItem);
+            context.Packet.SlotIndex).ConfigureAwait(false);
+        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.UpgradeInventoryItem).ConfigureAwait(false);
     }
 
     /// <summary>Opcode <c>0x4006</c>. Drops an inventory stack onto the ground as pickupable loot.</summary>
     [PacketOpcode(ItemOpCode.DropInventoryItem)]
     [PacketPermission(PermissionLevel.USER)]
-    public static ValueTask HandleDropInventoryItemAsync(IPacketContext<DropInventoryItem> context)
+    public static async ValueTask HandleDropInventoryItemAsync(IPacketContext<DropInventoryItem> context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        IPacketSender sender = context.Sender;
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
-        OpStatus status = s_world.TryDropInventoryItem(
+        WorldMutationOutcome outcome = await s_world.SubmitDropInventoryItemAsync(
             connectionId,
             context.Packet.SlotIndex,
-            context.Packet.Quantity);
-        return PacketReplyHelper.SendMutationAsync(context, status, ItemOpCode.DropInventoryItem);
+            context.Packet.Quantity).ConfigureAwait(false);
+        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.DropInventoryItem).ConfigureAwait(false);
     }
 
     /// <summary>Opcode <c>0x4007</c>. Buys vendor-sold items for gold near a friendly town NPC.</summary>

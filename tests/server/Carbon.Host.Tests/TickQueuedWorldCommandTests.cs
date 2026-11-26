@@ -74,6 +74,24 @@ public sealed class TickQueuedWorldCommandTests
     }
 
     [Fact]
+    public async Task SubmitSelectHotbarSlotAsync_BeforeTick_AppliesOnlyAfterStepFixedTick()
+    {
+        using WorldFixture f = await WorldFixture.CreateAsync().ConfigureAwait(true);
+
+        Task<WorldMutationOutcome> pending = f.World.SubmitSelectHotbarSlotAsync(ConnectionId, 4).AsTask();
+
+        pending.IsCompleted.Should().BeFalse();
+        f.World.TryGetPendingCharacterSnapshot(f.HeroId, out CharacterRecord? before).Should().BeTrue();
+        before!.SelectedHotbarSlot.Should().Be(0, "nothing changes until the tick processes the command");
+
+        f.World.StepFixedTick();
+
+        (await pending.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok);
+        f.World.TryGetPendingCharacterSnapshot(f.HeroId, out CharacterRecord? after).Should().BeTrue();
+        after!.SelectedHotbarSlot.Should().Be(4);
+    }
+
+    [Fact]
     public async Task FailPendingCommands_WithQueuedCommand_CompletesItWithConflict()
     {
         using WorldFixture f = await WorldFixture.CreateAsync().ConfigureAwait(true);
@@ -89,16 +107,19 @@ public sealed class TickQueuedWorldCommandTests
         private readonly string _dbPath;
         private readonly SqliteConnectionFactory _factory;
 
-        private WorldFixture(string dbPath, SqliteConnectionFactory factory, AuthoritativeWorld world, int propTileX, int propTileY)
+        private WorldFixture(string dbPath, SqliteConnectionFactory factory, AuthoritativeWorld world, Guid heroId, int propTileX, int propTileY)
         {
             _dbPath = dbPath;
             _factory = factory;
             this.World = world;
+            this.HeroId = heroId;
             this.PropTileX = propTileX;
             this.PropTileY = propTileY;
         }
 
         public AuthoritativeWorld World { get; }
+
+        public Guid HeroId { get; }
 
         public int PropTileX { get; }
 
@@ -139,7 +160,7 @@ public sealed class TickQueuedWorldCommandTests
             _ = await characters.TryCreateAsync(hero).ConfigureAwait(false);
             world.TryEnterWorld(ConnectionId, ConnectionId, hero).Status.Should().Be(OpStatus.Ok);
 
-            return new WorldFixture(dbPath, factory, world, tx, ty);
+            return new WorldFixture(dbPath, factory, world, hero.Id, tx, ty);
         }
 
         public void Dispose()
