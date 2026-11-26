@@ -157,7 +157,7 @@ public sealed class WorldSceneRenderer : IDisposable
                 : ev.IsCritical
                     ? new ColorRgba(250, 204, 21, 255)
                     : new ColorRgba(248, 113, 113, 255);
-            _floatingTexts.Add(new FloatingCombatText(ev.WorldPosition + new Vector2(0f, -14f), text, color, ev.IsCritical ? 1.35f : 1.05f, 0.95f));
+            _floatingTexts.Add(new FloatingCombatText(ev.WorldPosition + new Vector2(0f, -14f), text, color, 2.0f, 0.95f));
         }
 
         for (int i = _floatingTexts.Count - 1; i >= 0; i--)
@@ -415,8 +415,8 @@ public sealed class WorldSceneRenderer : IDisposable
                     : r.Kind == EntityKind.Npc
                         ? new ColorRgba(253, 224, 71, 255)
                         : new ColorRgba(110, 231, 183, 255);
-                Vector2 labelPos = new(r.Position.X - (r.Name.Length * 3f), r.Position.Y - r.Radius - 20f);
-                spriteBatch.DrawOutlinedString(font, r.Name, labelPos, labelColor, outline, 1, 1f);
+                Vector2 labelPos = new(MathF.Floor(r.Position.X - (r.Name.Length * 6f)), MathF.Floor(r.Position.Y - r.Radius - 24f));
+                spriteBatch.DrawOutlinedString(font, r.Name, labelPos, labelColor, outline, 1, 2f);
             }
 
             for (int i = 0; i < _floatingTexts.Count; i++)
@@ -425,7 +425,7 @@ public sealed class WorldSceneRenderer : IDisposable
                 byte alpha = (byte)(Math.Clamp(ft.RemainingSeconds / 0.95f, 0f, 1f) * 255f);
                 ColorRgba tint = new(ft.Color.R, ft.Color.G, ft.Color.B, alpha);
                 ColorRgba fadeOutline = new(10, 12, 18, alpha);
-                Vector2 pos = new(ft.Position.X - (ft.Text.Length * 3f * ft.Scale), ft.Position.Y);
+                Vector2 pos = new(MathF.Floor(ft.Position.X - (ft.Text.Length * 3f * ft.Scale)), MathF.Floor(ft.Position.Y));
                 spriteBatch.DrawOutlinedString(font, ft.Text, pos, tint, fadeOutline, 1, ft.Scale);
             }
 

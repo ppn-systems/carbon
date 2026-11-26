@@ -66,6 +66,9 @@ public sealed class SpriteBatch : IDisposable
         _defaultShader = BuiltinShaders.CreateSpriteShader(device.Gl, _stateCache);
         _activeShader = _defaultShader;
 
+        // Unbind any active VAO before allocating GPU buffers so GL_ELEMENT_ARRAY_BUFFER state cannot leak.
+        _stateCache.BindVertexArray(0);
+
         _vbo = new VertexBuffer<Vertex2D>(device.Gl, _stateCache, MAX_VERTICES, BufferUsage.DynamicDraw);
         _ebo = new IndexBuffer(device.Gl, _stateCache, MAX_INDICES, DrawElementsType.UnsignedInt, BufferUsage.StaticDraw);
         _vao = new VertexArray(device.Gl, _stateCache);
@@ -74,6 +77,7 @@ public sealed class SpriteBatch : IDisposable
         _vao.AttachIndexBuffer(_ebo);
 
         this.InitializeIndexBuffer();
+        _stateCache.BindVertexArray(0);
     }
 
     /// <summary>
@@ -282,7 +286,9 @@ public sealed class SpriteBatch : IDisposable
         }
 
         _stateCache.SetBlendState(in _blendState);
+        _stateCache.SetDepthStencilState(DepthStencilState.None);
         _vao.Bind();
+        _ebo.Bind();
 
         if (_sortMode == DepthSortMode.Immediate)
         {

@@ -57,6 +57,7 @@ public sealed class GeometryBatch : IDisposable
             throw new ArgumentException("The graphics device must be a valid GraphicsDevice instance.", nameof(device));
         }
 
+        _stateCache.BindVertexArray(0);
         _colorShader = BuiltinShaders.CreateColorShader(device.Gl, _stateCache);
         _vbo = new VertexBuffer<VertexColor>(device.Gl, _stateCache, MAX_VERTICES, BufferUsage.DynamicDraw);
         _ebo = new IndexBuffer(device.Gl, _stateCache, MAX_INDICES, DrawElementsType.UnsignedInt, BufferUsage.DynamicDraw);
@@ -64,6 +65,7 @@ public sealed class GeometryBatch : IDisposable
 
         _vao.AttachVertexBuffer(_vbo, VertexColor.Layout);
         _vao.AttachIndexBuffer(_ebo);
+        _stateCache.BindVertexArray(0);
     }
 
     /// <summary>
