@@ -7,6 +7,7 @@ using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
+using Carbon.Maps.Hydrology;
 using Carbon.Maps.Navigation;
 using Carbon.Maps.Props;
 using Carbon.Physics.Obstacles;
@@ -427,7 +428,69 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
             return 0f;
         }
 
+        if (tile.Biome == BiomeType.ShallowWater)
+        {
+            return WaterWading.SpeedMultiplier(this.GetWaterDepth(worldPosition));
+        }
+
         return tile.MoveSpeedMultiplier;
+    }
+
+    /// <summary>
+    /// Gets the normalized wading depth of shallow water at <paramref name="worldPosition"/> (see <see cref="WaterWading"/>).
+    /// Dry land, bridges, piers and deep (impassable) water all report 0. Allocation-free; reads at most 25 tiles.
+    /// </summary>
+    /// <param name="worldPosition">Position in world units.</param>
+    /// <returns>Depth in [0, 1]: near 0 at the waterline, 1 at full wading depth.</returns>
+    public float GetWaterDepth(Vector2 worldPosition)
+    {
+        int tx = (int)MathF.Floor(worldPosition.X / _tileSize);
+        int ty = (int)MathF.Floor(worldPosition.Y / _tileSize);
+        if (this.PeekTileAtWorld(tx, ty).Biome != BiomeType.ShallowWater ||
+            this.IsBridgeAtWorld(tx, ty) || _generator.Landmarks.IsWalkablePierTile(tx, ty))
+        {
+            return 0f;
+        }
+
+        const int Reach = 2; // tiles; covers WaterWading.ShoreRampTiles and DeepRampTiles
+        float far = Reach * _tileSize;
+        float toDry = far;
+        float toDeep = far;
+        for (int dy = -Reach; dy <= Reach; dy++)
+        {
+            for (int dx = -Reach; dx <= Reach; dx++)
+            {
+                if (dx == 0 && dy == 0)
+                {
+                    continue;
+                }
+
+                int nx = tx + dx;
+                int ny = ty + dy;
+                BiomeType biome = this.PeekTileAtWorld(nx, ny).Biome;
+                if (biome == BiomeType.ShallowWater)
+                {
+                    continue;
+                }
+
+                // Distance from the position to the neighbour tile's square.
+                float minX = nx * _tileSize;
+                float minY = ny * _tileSize;
+                float ex = MathF.Max(MathF.Max(minX - worldPosition.X, worldPosition.X - (minX + _tileSize)), 0f);
+                float ey = MathF.Max(MathF.Max(minY - worldPosition.Y, worldPosition.Y - (minY + _tileSize)), 0f);
+                float dist = MathF.Sqrt((ex * ex) + (ey * ey));
+                if (biome == BiomeType.DeepOcean)
+                {
+                    toDeep = MathF.Min(toDeep, dist);
+                }
+                else
+                {
+                    toDry = MathF.Min(toDry, dist);
+                }
+            }
+        }
+
+        return WaterWading.DepthFromDistances(toDry, toDeep, _tileSize);
     }
 
     /// <inheritdoc/>

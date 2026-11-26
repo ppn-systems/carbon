@@ -17,8 +17,9 @@ public readonly record struct BiomeProperties(
         // DeepOcean: Oceanic indigo-navy (0x1B3854FF)
         new(BiomeType.DeepOcean, IsSolid: true, MoveSpeedMultiplier: 0.0f, ColorRgba: 0x1B3854FF),
 
-        // ShallowWater: Painterly clear turquoise water (0x389BB8FF)
-        new(BiomeType.ShallowWater, IsSolid: false, MoveSpeedMultiplier: 0.7f, ColorRgba: 0x389BB8FF),
+        // ShallowWater: Painterly clear turquoise water (0x389BB8FF). The speed here is the waterline value;
+        // ChunkWorld2D slows wading further with depth (see Hydrology.WaterWading).
+        new(BiomeType.ShallowWater, IsSolid: false, MoveSpeedMultiplier: Hydrology.WaterWading.ShoreSpeedMultiplier, ColorRgba: 0x389BB8FF),
 
         // BeachSand: Soft warm natural beach sand (0xDEC89AFF)
         new(BiomeType.BeachSand, IsSolid: false, MoveSpeedMultiplier: 0.9f, ColorRgba: 0xDEC89AFF),
