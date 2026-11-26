@@ -230,8 +230,12 @@ Empowerment is applied when a monster spawns: monsters spawned during the day ke
   visited once per scan.
 - **Caps and timers**: a cell spawns while its live count is below the cap and `spawnIntervalTicks` have passed since
   its last attempt. When one of its monsters dies, the cell waits `respawnDelayTicks` before spawning again.
-- **Safe zone**: no spawn within `safeZoneRadius` (1 600) of the world origin, and none within
-  `minSpawnDistanceFromAnchor` of any anchor.
+- **Placement retries**: each spawn opportunity samples up to `placementAttempts` (6) candidate points. A rejected
+  point (safe zone, anchor distance, blocked tile, no monster eligible at the level) retries at once, so the cells
+  around a player who just entered (`RequestScan`) populate on the first scan instead of after several intervals.
+- **Safe zone**: no spawn within `safeZoneRadius` (480, 15 tiles) of the world origin, and none within
+  `minSpawnDistanceFromAnchor` (256, 8 tiles) of any anchor. A larger safe zone empties the whole activation area
+  of a player standing at the world spawn.
 - **Biome tables**: `ISpawnSurface` rejects blocked candidate points (solid tiles, water, solid props) and returns
   the biome, which selects a weighted `spawnTables` entry. `ChunkWorldSpawnSurface` adapts `ChunkWorld2D`. Biomes
   without a table never spawn monsters.
