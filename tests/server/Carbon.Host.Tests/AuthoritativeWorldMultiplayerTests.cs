@@ -1150,7 +1150,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             EnterWorldResult enter = world.TryEnterWorld(930UL, 930UL, cook);
             enter.Status.Should().Be(OpStatus.Ok);
 
-            StarterGameCatalog.RecipeCatalog.TryGetByCode("cooked_meat", out CraftingRecipe? recipe).Should().BeTrue();
+            world.ItemRules.RecipeCatalog.TryGetByCode("cooked_meat", out CraftingRecipe? recipe).Should().BeTrue();
             world.TryCraftRecipe(930UL, (ushort)recipe!.Id, 1).Should().Be(OpStatus.OutOfRange, "cooking needs a stove or campfire nearby");
 
             // Build a campfire (4 wood logs, 40 work) next to the player.
