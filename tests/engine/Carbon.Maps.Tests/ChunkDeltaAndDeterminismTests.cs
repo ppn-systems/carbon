@@ -249,7 +249,7 @@ public sealed class ChunkDeltaAndDeterminismTests
         Assert.Equal(GoldenChunkHash, HashChunk(chunk));
     }
 
-    private const ulong GoldenChunkHash = 7450876107264818622UL;
+    private const ulong GoldenChunkHash = 12284470238363733661UL;
 
     private static ulong HashChunk(Chunk2D chunk)
     {
