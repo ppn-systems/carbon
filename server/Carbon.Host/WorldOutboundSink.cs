@@ -227,6 +227,15 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     }
 
     /// <inheritdoc/>
+    public void SendWalletSync(ulong connectionId, long gold, long diamonds, ulong sequence)
+    {
+        if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
+        {
+            _ = DispatchWalletSyncAsync(conn, gold, diamonds, sequence, _logger);
+        }
+    }
+
+    /// <inheritdoc/>
     public void SendSkillCastBroadcast(
         ReadOnlySpan<ulong> recipientConnectionIds,
         ulong casterNetworkId,
@@ -682,6 +691,25 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogSendFailure(logger, nameof(SkillCastBroadcast), ex);
+        }
+    }
+
+    private static async Task DispatchWalletSyncAsync(IConnection connection, long gold, long diamonds, ulong sequence, ILogger logger)
+    {
+        try
+        {
+            using PacketScope<WalletSync> lease = PacketFactory<WalletSync>.Acquire();
+            WalletSync pkt = lease.Value;
+            pkt.Gold = gold;
+            pkt.Diamonds = diamonds;
+            pkt.Sequence = sequence;
+
+            bool encrypt = connection.Algorithm != CipherSuiteType.None;
+            await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogSendFailure(logger, nameof(WalletSync), ex);
         }
     }
 

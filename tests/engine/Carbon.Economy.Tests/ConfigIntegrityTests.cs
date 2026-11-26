@@ -67,6 +67,11 @@ public sealed class ConfigIntegrityTests
     [InlineData("demon")]
     [InlineData("blood_monster")]
     [InlineData("skeleton")]
+    [InlineData("golem")]
+    [InlineData("wolf")]
+    [InlineData("wraith")]
+    [InlineData("slime_king")]
+    [InlineData("orc_warlord")]
     public void LootTables_ExistForEveryMonsterFamily(string monsterId)
     {
         ShippedConfig.Loot.TryGet(monsterId, out LootTable? table).Should().BeTrue($"monster '{monsterId}' needs a loot table");
@@ -102,15 +107,28 @@ public sealed class ConfigIntegrityTests
     }
 
     [Fact]
-    public void Food_EveryFoodItem_HasNutrition()
+    public void Food_SurvivalFoodIds_AreTaggedConsumables()
     {
-        foreach (ItemCatalogEntry item in ShippedConfig.Items.All)
+        // food.json (survival) owns nutrition and references these ids; items.json only tags them.
+        string[] foodIds = ["berries", "raw_meat", "cooked_meat", "bread", "stew", "slime_jelly", "roast_meat", "arcane_pie"];
+        foreach (string code in foodIds)
         {
-            if (item.Tags.Contains("food"))
-            {
-                item.Category.Should().Be(ItemCategory.Consumable, $"'{item.Code}' is food");
-                item.Nutrition.Should().BePositive($"'{item.Code}' is food");
-            }
+            ShippedConfig.Items.TryGetByCode(code, out ItemCatalogEntry? item).Should().BeTrue($"food item '{code}' must exist");
+            item!.Category.Should().Be(ItemCategory.Consumable, $"'{code}' is food");
+            item.Tags.Should().Contain("food");
+        }
+    }
+
+    [Fact]
+    public void Monsters_EveryLootTableId_ExistsInLootJson()
+    {
+        using JsonDocument monsters = JsonDocument.Parse(ShippedConfig.Read("monsters.json"));
+        foreach (JsonElement monster in monsters.RootElement.GetProperty("monsters").EnumerateArray())
+        {
+            string lootTableId = monster.GetProperty("lootTableId").GetString()!;
+            ShippedConfig.Loot.TryGet(lootTableId, out LootTable? table).Should().BeTrue($"monster '{monster.GetProperty("id").GetString()}' references loot table '{lootTableId}'");
+            bool isElite = monster.TryGetProperty("isElite", out JsonElement elite) && elite.GetBoolean();
+            table!.IsElite.Should().Be(isElite, $"loot table '{lootTableId}' elite flag must match monsters.json");
         }
     }
 

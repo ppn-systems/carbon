@@ -34,6 +34,7 @@ public sealed class HudOverlayRenderer : IDisposable
     private readonly MonsterTargetWidget _targetWidget = new();
     private readonly MinimapRadarWidget _minimap = new();
     private readonly HotbarAndItemWidget _hotbar = new();
+    private readonly WalletWidget _wallet = new();
     private readonly SkillBarWidget _skillBar = new();
     private readonly InventoryModalWidget _bagModal = new();
     private readonly CharacterSheetModalWidget _characterModal = new();
@@ -386,6 +387,7 @@ public sealed class HudOverlayRenderer : IDisposable
         }
 
         _hotbar.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight);
+        _wallet.DrawSkin(spriteBatch, _uiSkin, viewportWidth, viewportHeight);
         _skillBar.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight);
         _toasts.DrawSkin(spriteBatch, _uiSkin, _font, viewportWidth, this.Settings.ShowMinimap);
         spriteBatch.End();
@@ -398,6 +400,7 @@ public sealed class HudOverlayRenderer : IDisposable
         }
 
         int hoveredSlot = _hotbar.DrawGeometry(_geometryBatch, world, _art, feedback, viewportWidth, viewportHeight, bgMouse);
+        _wallet.DrawGeometry(_geometryBatch, _art, viewportWidth, viewportHeight);
         ushort hoveredSkill = _skillBar.DrawGeometry(_geometryBatch, world, viewportWidth, viewportHeight, bgMouse);
         _geometryBatch.End();
 
@@ -409,6 +412,7 @@ public sealed class HudOverlayRenderer : IDisposable
         }
 
         _hotbar.DrawText(spriteBatch, _font, world, _art, viewportWidth, viewportHeight, hoveredSlot);
+        _wallet.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight);
         _skillBar.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight, hoveredSkill);
         _toasts.DrawText(spriteBatch, _font, viewportWidth, this.Settings.ShowMinimap);
         spriteBatch.End();

@@ -93,6 +93,7 @@ public sealed partial class MultiplayerSession
         _tcpSubscriptions.Add(tcp.On<InventorySlotChanged>(this.OnInventorySlotChanged));
         _tcpSubscriptions.Add(tcp.On<EntityEquipmentChanged>(this.OnEntityEquipmentChanged));
         _tcpSubscriptions.Add(tcp.On<PlayerStatsSync>(this.OnPlayerStatsSync));
+        _tcpSubscriptions.Add(tcp.On<WalletSync>(this.OnWalletSync));
         _tcpSubscriptions.Add(tcp.On<SkillCastBroadcast>(this.OnSkillCastBroadcast));
         _tcpSubscriptions.Add(tcp.On<MapPropChanged>(this.OnMapPropChanged));
         _tcpSubscriptions.Add(tcp.On<MapStructureChanged>(this.OnMapStructureChanged));
@@ -819,6 +820,23 @@ public sealed partial class MultiplayerSession
 
                 _remoteViewsDirty = true;
             }
+        }
+    }
+
+    private void OnWalletSync(WalletSync pkt)
+    {
+        lock (_worldGate)
+        {
+            // Pushes can be reordered; only apply a newer server sequence (ADR-012).
+            if (_hasWalletSync && pkt.Sequence < _walletSequence)
+            {
+                return;
+            }
+
+            _hasWalletSync = true;
+            _walletSequence = pkt.Sequence;
+            _ = Interlocked.Exchange(ref _localGold, Math.Max(0L, pkt.Gold));
+            _ = Interlocked.Exchange(ref _localDiamonds, Math.Max(0L, pkt.Diamonds));
         }
     }
 

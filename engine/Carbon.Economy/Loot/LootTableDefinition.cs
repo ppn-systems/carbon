@@ -15,6 +15,9 @@ public sealed record LootTableDefinition
     /// <summary>Gets the item theme tag every dropped item must carry (or <c>generic</c>); defaults to <see cref="Id"/>.</summary>
     public string? Theme { get; set; }
 
+    /// <summary>Gets a value indicating whether this table belongs to an elite variant (rolled with elite multipliers).</summary>
+    public bool Elite { get; set; }
+
     /// <summary>Gets the source kind.</summary>
     public LootSourceKind Kind { get; set; }
 

@@ -103,6 +103,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private List<OutboundStructureChange> _pendingStructureChanges = new(16);
     private List<OutboundEquipmentChange> _pendingEquipmentChanges = new(16);
     private List<OutboundStatsSync> _pendingStatsSyncs = new(32);
+    private List<OutboundWalletSync> _pendingWalletSyncs = new(16);
     private List<OutboundSkillCast> _pendingSkillCasts = new(16);
     private List<ulong> _flatRecipients = new(256);
 
@@ -116,6 +117,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private List<OutboundStructureChange> _dispatchStructureChanges = new(16);
     private List<OutboundEquipmentChange> _dispatchEquipmentChanges = new(16);
     private List<OutboundStatsSync> _dispatchStatsSyncs = new(32);
+    private List<OutboundWalletSync> _dispatchWalletSyncs = new(16);
     private List<OutboundSkillCast> _dispatchSkillCasts = new(16);
     private List<ulong> _dispatchRecipients = new(256);
     private readonly List<ulong> _aoiRecipientsScratch = new(64);
@@ -336,7 +338,13 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
                 Wallet = _economy is null
                     ? new Wallet(networkId)
                     : new Wallet(networkId, _economy.Config.Currencies.GoldCap, _economy.Config.Currencies.DiamondCap),
+                LootPity = new LootPityState(Math.Max(0, character.DiamondPity)),
             };
+            playerState.Wallet.Restore(
+                Math.Clamp(character.Gold, 0L, playerState.Wallet.GoldCap),
+                Math.Clamp(character.Diamonds, 0L, playerState.Wallet.DiamondCap),
+                character.WalletSequence);
+            this.EnqueueWalletSyncLocked(playerState);
             startProg.CopyTo(playerState.Progression);
 
             _playersByConnection[connectionId] = playerState;
@@ -867,6 +875,10 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
             UpdatedAtUtc = _time.GetUtcNow(),
             UnlockedSkills = state.Progression.UnlockedSkillMask,
             ProgressionBlob = CharacterProgressionBinaryCodec.Serialize(state.Progression),
+            Gold = state.Wallet.Gold,
+            Diamonds = state.Wallet.Diamonds,
+            WalletSequence = state.Wallet.Sequence,
+            DiamondPity = state.LootPity.KillsSinceDiamond,
         };
     }
 
@@ -1211,6 +1223,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         byte WeaponUpgrade,
         ushort Level,
         float MaxHealth);
+
+    private readonly record struct OutboundWalletSync(ulong ConnectionId, long Gold, long Diamonds, ulong Sequence);
 
     private readonly record struct OutboundStatsSync(
         ulong ConnectionId,

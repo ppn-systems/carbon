@@ -769,6 +769,46 @@
       "tier": 2,
       "accentColor": "#A855F7",
       "file": "items/alchemy_table_kit.cvg.json"
+    },
+    {
+      "itemId": 149,
+      "id": "stone_core",
+      "displayName": "Stone Core",
+      "tier": 2,
+      "accentColor": "#F59E0B",
+      "file": "items/stone_core.cvg.json"
+    },
+    {
+      "itemId": 150,
+      "id": "wolf_pelt",
+      "displayName": "Wolf Pelt",
+      "tier": 1,
+      "accentColor": "#94A3B8",
+      "file": "items/wolf_pelt.cvg.json"
+    },
+    {
+      "itemId": 151,
+      "id": "wolf_fang",
+      "displayName": "Wolf Fang",
+      "tier": 1,
+      "accentColor": "#E2E8F0",
+      "file": "items/wolf_fang.cvg.json"
+    },
+    {
+      "itemId": 152,
+      "id": "ectoplasm",
+      "displayName": "Ectoplasm",
+      "tier": 2,
+      "accentColor": "#818CF8",
+      "file": "items/ectoplasm.cvg.json"
+    },
+    {
+      "itemId": 153,
+      "id": "ash_essence",
+      "displayName": "Ash Essence",
+      "tier": 3,
+      "accentColor": "#F97316",
+      "file": "items/ash_essence.cvg.json"
     }
   ],
   "props": [
@@ -1081,6 +1121,16 @@
       "id": "wood_bed",
       "displayName": "Wood Bed",
       "file": "structures/wood_bed.cvg.json"
+    }
+  ],
+  "uiIcons": [
+    {
+      "id": "coin",
+      "file": "ui/coin.cvg.json"
+    },
+    {
+      "id": "diamond",
+      "file": "ui/diamond.cvg.json"
     }
   ]
 }

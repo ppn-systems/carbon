@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "itemId": 150,
+  "id": "wolf_pelt",
+  "displayName": "Wolf Pelt",
+  "tier": 1,
+  "categoryLabel": "Monster Drop",
+  "accentColor": "#94A3B8",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": 0,
+      "rx": 7,
+      "ry": 5,
+      "color": "#94A3B8",
+      "outlineColor": "#1E293B",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -5.5,
+      "y": -4,
+      "rx": 1.8,
+      "ry": 1.4,
+      "color": "#94A3B8",
+      "outlineColor": "#1E293B",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 5.5,
+      "y": -4,
+      "rx": 1.8,
+      "ry": 1.4,
+      "color": "#94A3B8",
+      "outlineColor": "#1E293B",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": 0,
+      "rx": 3.5,
+      "ry": 2.4,
+      "color": "#E2E8F0"
+    }
+  ]
+}

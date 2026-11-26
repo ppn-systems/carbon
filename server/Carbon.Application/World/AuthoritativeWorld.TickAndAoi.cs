@@ -288,6 +288,7 @@ public sealed partial class AuthoritativeWorld
         (_pendingStructureChanges, _dispatchStructureChanges) = (_dispatchStructureChanges, _pendingStructureChanges);
         (_pendingEquipmentChanges, _dispatchEquipmentChanges) = (_dispatchEquipmentChanges, _pendingEquipmentChanges);
         (_pendingStatsSyncs, _dispatchStatsSyncs) = (_dispatchStatsSyncs, _pendingStatsSyncs);
+        (_pendingWalletSyncs, _dispatchWalletSyncs) = (_dispatchWalletSyncs, _pendingWalletSyncs);
         (_pendingSkillCasts, _dispatchSkillCasts) = (_dispatchSkillCasts, _pendingSkillCasts);
         (_flatRecipients, _dispatchRecipients) = (_dispatchRecipients, _flatRecipients);
 
@@ -301,6 +302,7 @@ public sealed partial class AuthoritativeWorld
         _pendingStructureChanges.Clear();
         _pendingEquipmentChanges.Clear();
         _pendingStatsSyncs.Clear();
+        _pendingWalletSyncs.Clear();
         _pendingSkillCasts.Clear();
         _flatRecipients.Clear();
     }
@@ -499,6 +501,12 @@ public sealed partial class AuthoritativeWorld
             OutboundStatsSync sync = _dispatchStatsSyncs[i];
             PlayerStatsSnapshot statsSnap = sync.Snapshot;
             _outboundSink.SendPlayerStatsSync(sync.ConnectionId, in statsSnap);
+        }
+
+        for (int i = 0; i < _dispatchWalletSyncs.Count; i++)
+        {
+            OutboundWalletSync wallet = _dispatchWalletSyncs[i];
+            _outboundSink.SendWalletSync(wallet.ConnectionId, wallet.Gold, wallet.Diamonds, wallet.Sequence);
         }
 
         for (int i = 0; i < _dispatchSkillCasts.Count; i++)
