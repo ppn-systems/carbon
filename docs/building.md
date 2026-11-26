@@ -104,7 +104,7 @@ The file is compiled into `Carbon.Maps` as an embedded resource. `StructureCatal
 
 ## Server (`AuthoritativeWorld`)
 
-`server/Carbon.Application/World/AuthoritativeWorld.Construction.cs` routes every building mutation through `BuildingService`:
+`server/Carbon.Application/World/Construction/ConstructionService.cs` routes every building mutation through `BuildingService`:
 
 | Request | Behaviour |
 | :--- | :--- |
