@@ -580,7 +580,12 @@ public sealed partial class AuthoritativeWorld
         WorldCommandKind.PlaceStructure => this.TryPlaceStructure(command.ConnectionId, command.TileX, command.TileY, command.StructureType, command.Rotation),
         WorldCommandKind.DemolishStructure => this.TryDemolishStructure(command.ConnectionId, command.TileX, command.TileY),
         WorldCommandKind.ToggleDoor => this.TryToggleDoor(command.ConnectionId, command.TileX, command.TileY),
-        WorldCommandKind.SetResting => new WorldMutationOutcome(this.TrySetResting(command.ConnectionId, command.Flag), 0),
+        WorldCommandKind.SetResting => new(this.TrySetResting(command.ConnectionId, command.Arg0 != 0), 0),
+        WorldCommandKind.SelectHotbarSlot => new(this.TrySelectHotbarSlot(command.ConnectionId, (byte)command.Arg0), 0),
+        WorldCommandKind.CraftRecipe => new(this.TryCraftRecipe(command.ConnectionId, command.Arg0, command.Arg1), 0),
+        WorldCommandKind.MoveInventorySlot => new(this.TryMoveInventorySlot(command.ConnectionId, command.Arg0, command.Arg1), 0),
+        WorldCommandKind.UpgradeInventoryItem => new(this.TryUpgradeInventoryItem(command.ConnectionId, command.Arg0), 0),
+        WorldCommandKind.DropInventoryItem => new(this.TryDropInventoryItem(command.ConnectionId, command.Arg0, command.Arg2), 0),
         _ => new WorldMutationOutcome(OpStatus.Invalid, 0),
     };
 

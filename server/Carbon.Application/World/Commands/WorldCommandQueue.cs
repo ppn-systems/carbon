@@ -24,12 +24,26 @@ internal enum WorldCommandKind : byte
     /// <summary>Open or close a door.</summary>
     ToggleDoor = 4,
 
-    /// <summary>Start resting (<see cref="WorldCommand.Flag"/> = true) or stand up (ADR-018).</summary>
+    /// <summary>Start resting (<c>Arg0</c> = 1) or stand up (<c>Arg0</c> = 0) (ADR-018).</summary>
     SetResting = 5,
+
+    /// <summary>Select the active hotbar slot (<c>Arg0</c> = slot).</summary>
+    SelectHotbarSlot = 10,
+
+    /// <summary>Craft a recipe (<c>Arg0</c> = recipe id, <c>Arg1</c> = quantity).</summary>
+    CraftRecipe = 11,
+
+    /// <summary>Move, swap, merge or equip a slot (<c>Arg0</c> = from, <c>Arg1</c> = to).</summary>
+    MoveInventorySlot = 12,
+
+    /// <summary>Enhance the item in a slot (<c>Arg0</c> = slot).</summary>
+    UpgradeInventoryItem = 13,
+
+    /// <summary>Drop items from a slot (<c>Arg0</c> = slot, <c>Arg2</c> = quantity).</summary>
+    DropInventoryItem = 14,
 }
 
 /// <summary>A mutating request waiting for the next tick, with the completion its handler awaits.</summary>
-/// <remarks><see cref="Flag"/> is a boolean argument for commands that need one (e.g. rest vs. stand).</remarks>
 internal readonly record struct WorldCommand(
     WorldCommandKind Kind,
     ulong ConnectionId,
@@ -37,8 +51,10 @@ internal readonly record struct WorldCommand(
     int TileY,
     StructureType StructureType,
     StructureRotation Rotation,
-    TaskCompletionSource<WorldMutationOutcome> Completion,
-    bool Flag = false);
+    ushort Arg0,
+    ushort Arg1,
+    int Arg2,
+    TaskCompletionSource<WorldMutationOutcome> Completion);
 
 /// <summary>
 /// Lock-free queue of mutating requests submitted from network I/O threads and drained at the start of each fixed
@@ -65,9 +81,16 @@ internal sealed class WorldCommandQueue
         int tileX,
         int tileY,
         StructureType structureType = StructureType.None,
-        StructureRotation rotation = StructureRotation.North,
-        bool flag = false)
+        StructureRotation rotation = StructureRotation.North) =>
+        this.Enqueue(new WorldCommand(kind, connectionId, tileX, tileY, structureType, rotation, 0, 0, 0, null!));
+
+    /// <summary>Queues a slot-based command (inventory, crafting); see <see cref="WorldCommandKind"/> for the arguments.</summary>
+    public ValueTask<WorldMutationOutcome> Submit(WorldCommandKind kind, ulong connectionId, ushort arg0, ushort arg1 = 0, int arg2 = 0) =>
+        this.Enqueue(new WorldCommand(kind, connectionId, 0, 0, StructureType.None, StructureRotation.North, arg0, arg1, arg2, null!));
+
+    private ValueTask<WorldMutationOutcome> Enqueue(WorldCommand command)
     {
+        ulong connectionId = command.ConnectionId;
         int pending = _pendingByConnection.AddOrUpdate(connectionId, 1, static (_, n) => n + 1);
         if (pending > MaxPendingPerConnection)
         {
@@ -76,7 +99,7 @@ internal sealed class WorldCommandQueue
         }
 
         TaskCompletionSource<WorldMutationOutcome> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        _queue.Enqueue(new WorldCommand(kind, connectionId, tileX, tileY, structureType, rotation, completion, flag));
+        _queue.Enqueue(command with { Completion = completion });
         return new ValueTask<WorldMutationOutcome>(completion.Task);
     }
 
