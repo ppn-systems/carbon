@@ -253,6 +253,9 @@ public static class VectorRigRenderer
                     break;
                 case ActionAnimationKind.ConsumeItem:
                 case ActionAnimationKind.MonsterStrike:
+                case ActionAnimationKind.MonsterBowShot:
+                case ActionAnimationKind.MonsterSpellCast:
+                case ActionAnimationKind.MonsterHeavySlam:
                 case ActionAnimationKind.ArcaneWave:
                 case ActionAnimationKind.SelfAura:
                 case ActionAnimationKind.None:

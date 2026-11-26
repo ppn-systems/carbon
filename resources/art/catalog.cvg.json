@@ -385,6 +385,62 @@
       "tier": 3,
       "accentColor": "#A855F7",
       "file": "items/shaman_staff.cvg.json"
+    },
+    {
+      "itemId": 33,
+      "id": "stone_door",
+      "displayName": "Stone Door",
+      "tier": 2,
+      "accentColor": "#94A3B8",
+      "file": "items/stone_door.cvg.json"
+    },
+    {
+      "itemId": 34,
+      "id": "wood_floor",
+      "displayName": "Wood Floor",
+      "tier": 1,
+      "accentColor": "#D97706",
+      "file": "items/wood_floor.cvg.json"
+    },
+    {
+      "itemId": 35,
+      "id": "stone_floor",
+      "displayName": "Stone Floor",
+      "tier": 2,
+      "accentColor": "#94A3B8",
+      "file": "items/stone_floor.cvg.json"
+    },
+    {
+      "itemId": 36,
+      "id": "roof_pillar",
+      "displayName": "Roof Pillar",
+      "tier": 2,
+      "accentColor": "#CBD5E1",
+      "file": "items/roof_pillar.cvg.json"
+    },
+    {
+      "itemId": 37,
+      "id": "beast_pelt",
+      "displayName": "Beast Pelt",
+      "tier": 1,
+      "accentColor": "#D6D3D1",
+      "file": "items/beast_pelt.cvg.json"
+    },
+    {
+      "itemId": 38,
+      "id": "bone_shard",
+      "displayName": "Bone Shard",
+      "tier": 1,
+      "accentColor": "#F5F5F4",
+      "file": "items/bone_shard.cvg.json"
+    },
+    {
+      "itemId": 39,
+      "id": "demon_ember",
+      "displayName": "Demon Ember",
+      "tier": 3,
+      "accentColor": "#F97316",
+      "file": "items/demon_ember.cvg.json"
     }
   ],
   "props": [

@@ -4,13 +4,14 @@ using System;
 using System.Threading.Tasks;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Session;
-using Carbon.Desktop.Networking;
+using Carbon.Desktop.Capture;
 using Carbon.Desktop.Scenes;
 using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Sprites;
 using Carbon.Graphics.Scenes.Management;
 using Carbon.Graphics.Windowing.Configuration;
 using Carbon.Graphics.Windowing.Window;
+using Carbon.Desktop.Networking.Session;
 
 namespace Carbon.Desktop;
 
@@ -21,8 +22,13 @@ namespace Carbon.Desktop;
 public static class Program
 {
     /// <summary>Entry point initializing the client session and Silk.NET window loop.</summary>
-    public static async Task<int> Main()
+    public static async Task<int> Main(string[] args)
     {
+        if (args is { Length: >= 2 } && string.Equals(args[0], "--showcase", StringComparison.OrdinalIgnoreCase))
+        {
+            return ArtShowcaseRunner.Run(args[1]);
+        }
+
         DesktopOptions options = DesktopOptions.FromEnvironment();
         MultiplayerSession session = new(options);
 

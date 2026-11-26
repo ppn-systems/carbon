@@ -4,7 +4,7 @@ using System;
 using System.IO;
 using Silk.NET.OpenGL;
 
-namespace Carbon.Desktop.Rendering;
+namespace Carbon.Desktop.Rendering.Capture;
 
 /// <summary>
 /// Utility for capturing OpenGL framebuffer pixels and exporting uncompressed standard BMP image files.

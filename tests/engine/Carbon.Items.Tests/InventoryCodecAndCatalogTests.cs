@@ -40,7 +40,7 @@ public sealed class InventoryCodecAndCatalogTests
     [Fact]
     public void StarterGameCatalog_AllCraftingRecipesShouldCraftEndToEnd()
     {
-        InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);
+        InventoryContainer bag = new(64);
         _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.WoodLog, 90), 99);
         _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.WoodLog, 60), 99);
         _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.StoneChunk, 90), 99);
@@ -48,9 +48,12 @@ public sealed class InventoryCodecAndCatalogTests
         _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.IronOre, 90), 99);
         _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.ManaCrystal, 90), 99);
         _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.BerryHerb, 40), 99);
+        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.BeastPelt, 30), 99);
+        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.BoneShard, 30), 99);
+        _ = bag.TryAdd(new ItemSlot(StarterGameCatalog.DemonEmber, 30), 99);
 
         ReadOnlySpan<CraftingRecipe> recipes = StarterGameCatalog.Recipes.All;
-        recipes.Length.Should().Be(26);
+        recipes.Length.Should().Be(34);
 
         for (int i = 0; i < recipes.Length; i++)
         {
@@ -62,7 +65,7 @@ public sealed class InventoryCodecAndCatalogTests
 
         bag.CountItem(StarterGameCatalog.CrystalPickaxe).Should().Be(1);
         bag.CountItem(StarterGameCatalog.IronSword).Should().Be(1);
-        bag.CountItem(StarterGameCatalog.HuntingBow).Should().Be(1);
+        bag.CountItem(StarterGameCatalog.HuntingBow).Should().Be(2);
         bag.CountItem(StarterGameCatalog.ArcaneStaff).Should().Be(1);
         bag.CountItem(StarterGameCatalog.ForgeAnvilKit).Should().Be(1);
         bag.CountItem(StarterGameCatalog.StoneWallKit).Should().Be(2);
@@ -281,5 +284,70 @@ public sealed class InventoryCodecAndCatalogTests
         InventoryContainer craftGuardBag = new(PlayerInventoryLayout.TotalCapacity);
         craftGuardBag.SetSlot(0, new ItemSlot(StarterGameCatalog.IronOre, 5, 0UL, 0f, UpgradeLevel: 1));
         PlayerInventoryLayout.TryCraftInBag(craftGuardBag, ironHelmRecipe!, 1).Should().BeFalse();
+    }
+
+    [Fact]
+    public void All_StructureTypes_Are_Craftable_And_Monster_Scaling_Grows_With_Distance_And_Night()
+    {
+        for (byte structureType = 1; structureType <= 8; structureType++)
+        {
+            uint kitId = StarterGameCatalog.ResolveStructureKitItemId(structureType);
+            kitId.Should().NotBe(0U, $"StructureType {structureType} must have a placeable kit item");
+            StarterGameCatalog.Items.TryGet(kitId, out ItemArchetype? kitDef).Should().BeTrue();
+            kitDef!.Category.Should().Be(ItemCategory.Placeable);
+
+            bool hasRecipe = false;
+            foreach (CraftingRecipe rec in StarterGameCatalog.Recipes.All)
+            {
+                if (rec.Output.ItemId == kitId)
+                {
+                    hasRecipe = true;
+                    break;
+                }
+            }
+
+            hasRecipe.Should().BeTrue($"StructureType {structureType} kit {kitId} must have a crafting recipe");
+        }
+
+        // Distance-from-spawn scaling & night empowerment
+        ScaledMonsterStats nearDay = WorldActorCatalog.ScaleMonster(WorldActorCatalog.FrostWolf, 0, distanceTilesFromSpawn: 15f, isNight: false);
+        ScaledMonsterStats farDay = WorldActorCatalog.ScaleMonster(WorldActorCatalog.FrostWolf, 0, distanceTilesFromSpawn: 250f, isNight: false);
+        ScaledMonsterStats farNight = WorldActorCatalog.ScaleMonster(WorldActorCatalog.FrostWolf, 0, distanceTilesFromSpawn: 250f, isNight: true);
+
+        farDay.Level.Should().BeGreaterThan(nearDay.Level);
+        farDay.MaxHealth.Should().BeGreaterThan(nearDay.MaxHealth);
+        farDay.AttackDamage.Should().BeGreaterThan(nearDay.AttackDamage);
+        farDay.ExperienceReward.Should().BeGreaterThan(nearDay.ExperienceReward);
+
+        farNight.MaxHealth.Should().BeGreaterThan(farDay.MaxHealth);
+        farNight.AttackDamage.Should().BeGreaterThan(farDay.AttackDamage);
+        farNight.MoveSpeed.Should().BeGreaterThan(farDay.MoveSpeed);
+        farNight.ExperienceReward.Should().BeGreaterThan(farDay.ExperienceReward);
+
+        // Monster economy drops must all be valid catalog items
+        ushort[] monsters =
+        [
+            WorldActorCatalog.WildSlime,
+            WorldActorCatalog.RockGolem,
+            WorldActorCatalog.FrostWolf,
+            WorldActorCatalog.AshWraith,
+            WorldActorCatalog.SkeletonArcher,
+            WorldActorCatalog.OrcShaman,
+            WorldActorCatalog.CrimsonDemon,
+        ];
+        foreach (ushort m in monsters)
+        {
+            MonsterArchetypeSpec spec = WorldActorCatalog.GetMonsterSpec(m);
+            StarterGameCatalog.Items.TryGet(spec.DropItemId, out _).Should().BeTrue();
+            if (spec.SecondaryDropItemId != 0U)
+            {
+                StarterGameCatalog.Items.TryGet(spec.SecondaryDropItemId, out _).Should().BeTrue();
+            }
+
+            if (spec.RareDropItemId != 0U)
+            {
+                StarterGameCatalog.Items.TryGet(spec.RareDropItemId, out _).Should().BeTrue();
+            }
+        }
     }
 }

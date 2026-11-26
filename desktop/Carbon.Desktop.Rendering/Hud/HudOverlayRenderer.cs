@@ -6,7 +6,6 @@ using System.Numerics;
 using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Feedback;
-using Carbon.Desktop.Rendering.Hud;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Graphics.Batching;
@@ -17,8 +16,9 @@ using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Graphics.OpenGL.Abstractions;
 using Carbon.Graphics.OpenGL.Textures;
 using Carbon.Items.Catalog;
+using Carbon.Desktop.Rendering.Fonts;
 
-namespace Carbon.Desktop.Rendering;
+namespace Carbon.Desktop.Rendering.Hud;
 
 /// <summary>
 /// Screen-space MMORPG HUD facade composing single-responsibility RPG widgets

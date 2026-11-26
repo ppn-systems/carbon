@@ -21,6 +21,9 @@ public static class AbilityInputEncoding
     /// <summary>Base VFX code reserved for monster projectile casts (<c>220..229</c>).</summary>
     public const byte MonsterProjectileCastOffset = 220;
 
+    /// <summary>Base VFX code reserved for monster melee strike animations (<c>230..249</c>).</summary>
+    public const byte MonsterMeleeCastOffset = 230;
+
     /// <summary>Encodes an active skill ID into an <c>EntityAttackInput.AbilitySlot</c> byte.</summary>
     public static byte EncodeSkill(ushort skillId) =>
         skillId is >= 1 and <= 109
@@ -48,6 +51,10 @@ public static class AbilityInputEncoding
     public static byte EncodeMonsterProjectileCast(byte projectileArchetype) =>
         (byte)(MonsterProjectileCastOffset + (projectileArchetype % 10));
 
+    /// <summary>Encodes a monster melee strike VFX code for <paramref name="archetypeId"/>.</summary>
+    public static byte EncodeMonsterMeleeCast(ushort archetypeId) =>
+        (byte)(MonsterMeleeCastOffset + (archetypeId % 20));
+
     /// <summary>Attempts to decode a player projectile archetype from <see cref="S2C.SkillCastBroadcast.AbilitySlot"/>.</summary>
     public static bool TryDecodePlayerProjectileCast(byte castCode, out byte projectileArchetype)
     {
@@ -71,6 +78,19 @@ public static class AbilityInputEncoding
         }
 
         projectileArchetype = 0;
+        return false;
+    }
+
+    /// <summary>Attempts to decode a monster melee strike variant from <see cref="S2C.SkillCastBroadcast.AbilitySlot"/>.</summary>
+    public static bool TryDecodeMonsterMeleeCast(byte castCode, out byte variant)
+    {
+        if (castCode >= MonsterMeleeCastOffset && castCode < MonsterMeleeCastOffset + 20)
+        {
+            variant = (byte)(castCode - MonsterMeleeCastOffset);
+            return true;
+        }
+
+        variant = 0;
         return false;
     }
 }

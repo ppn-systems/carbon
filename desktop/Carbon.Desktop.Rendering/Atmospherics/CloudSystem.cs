@@ -6,7 +6,7 @@ using System.Numerics;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
 
-namespace Carbon.Desktop.Rendering;
+namespace Carbon.Desktop.Rendering.Atmospherics;
 
 /// <summary>
 /// Clouds with a life cycle: each cloud forms puff by puff, grows, drifts with the wind and dissolves

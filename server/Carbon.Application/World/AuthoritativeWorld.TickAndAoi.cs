@@ -13,6 +13,7 @@ using Carbon.AI.Systems;
 using Carbon.AI.Threat;
 using Carbon.Contracts.Entities;
 using Carbon.Items.Catalog;
+using Carbon.Maps.Generators;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
 using Carbon.Maps.Data;
@@ -542,7 +543,8 @@ public sealed partial class AuthoritativeWorld
             Vector2 atkPos = _simulation.Entities.GetTransform(evt.Attacker).Position;
             Vector2 defPos = _simulation.Entities.GetTransform(evt.Target).Position;
             bool hasMeta = _actorsByNetworkId.TryGetValue(attackerNet.NetworkId, out NpcActorMeta atkMeta);
-            float rawDamage = hasMeta ? atkMeta.AttackDamage : 10f;
+            bool isNight = WorldProgression.IsNightHour(WorldProgression.ComputeTimeOfDayHours(_currentTick, this.TickRate));
+            float rawDamage = (hasMeta ? atkMeta.AttackDamage : 10f) * (isNight ? 1.25f : 1f);
 
             if (hasMeta && atkMeta.ProjectileSpeed > 0f && atkMeta.AttackRange > 64f)
             {
@@ -593,6 +595,26 @@ public sealed partial class AuthoritativeWorld
             if (Vector2.DistanceSquared(atkPos, defPos) > (meleeHitRange * meleeHitRange) || !this.HasLineOfSightLocked(atkPos, defPos))
             {
                 continue;
+            }
+
+            this.CollectNearbyConnectionsAroundWorldLocked(atkPos, _aoiRecipientsScratch);
+            if (_aoiRecipientsScratch.Count > 0)
+            {
+                int castOffset = _flatRecipients.Count;
+                for (int rIdx = 0; rIdx < _aoiRecipientsScratch.Count; rIdx++)
+                {
+                    _flatRecipients.Add(_aoiRecipientsScratch[rIdx]);
+                }
+
+                _pendingSkillCasts.Add(new OutboundSkillCast(
+                    castOffset,
+                    _aoiRecipientsScratch.Count,
+                    attackerNet.NetworkId,
+                    AbilityInputEncoding.EncodeMonsterMeleeCast(atkMeta.ArchetypeId),
+                    atkPos.X,
+                    atkPos.Y,
+                    defPos.X,
+                    defPos.Y));
             }
 
             ActivePlayerState? victim = null;

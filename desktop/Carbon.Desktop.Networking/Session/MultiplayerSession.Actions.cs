@@ -25,7 +25,7 @@ using Nalix.SDK.Options;
 using Nalix.SDK.Transport;
 using Nalix.SDK.Transport.Extensions;
 
-namespace Carbon.Desktop.Networking;
+namespace Carbon.Desktop.Networking.Session;
 
 public sealed partial class MultiplayerSession
 {
@@ -486,6 +486,46 @@ public sealed partial class MultiplayerSession
     }
 
     /// <inheritdoc/>
+    public bool TryDemolishStructure(Vector2 aimWorldPosition, out (int ChunkX, int ChunkY) modifiedChunk)
+    {
+        modifiedChunk = default;
+        if (!this.IsReady || _chunkWorld is null)
+        {
+            return false;
+        }
+
+        int tx = (int)MathF.Floor(aimWorldPosition.X / _tileSize);
+        int ty = (int)MathF.Floor(aimWorldPosition.Y / _tileSize);
+        if (!_chunkWorld.Buildings.TryGetStructure(tx, ty, out StructureTile existing) ||
+            existing.Type == StructureType.None)
+        {
+            return false;
+        }
+
+        modifiedChunk = (Chunk2D.ToChunkCoord(tx), Chunk2D.ToChunkCoord(ty));
+        if (_tcpSession is { IsConnected: true })
+        {
+            _ = this.SendTcpPooledAsync<Carbon.Contracts.Maps.C2S.MapStructureDemolish>(p =>
+            {
+                p.TileX = tx;
+                p.TileY = ty;
+            });
+            return true;
+        }
+
+        lock (_worldGate)
+        {
+            if (_chunkWorld.Buildings.TryDemolishStructure(tx, ty))
+            {
+                _dirtyChunks.Add(modifiedChunk);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <inheritdoc/>
     public bool TryAllocateCharacterPoint(PointAllocationKind kind, ushort targetId, byte amount = 1)
     {
         if (!this.IsReady || _tcpSession is not { IsConnected: true } || amount == 0)
@@ -907,6 +947,12 @@ public sealed partial class MultiplayerSession
         ActionAnimationKind.SpinSlash => 0.42f,
         ActionAnimationKind.ArcaneWave => 0.45f,
         ActionAnimationKind.SelfAura => 0.48f,
-        ActionAnimationKind.SwordSlash or ActionAnimationKind.MonsterStrike or ActionAnimationKind.None or _ => 0.24f,
+        ActionAnimationKind.SwordSlash
+            or ActionAnimationKind.MonsterStrike
+            or ActionAnimationKind.MonsterBowShot
+            or ActionAnimationKind.MonsterSpellCast
+            or ActionAnimationKind.MonsterHeavySlam
+            or ActionAnimationKind.None
+            or _ => 0.24f,
     };
 }

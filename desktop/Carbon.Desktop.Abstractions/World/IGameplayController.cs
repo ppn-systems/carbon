@@ -31,6 +31,13 @@ public interface IGameplayController
     /// <summary>Toggles the nearest door beside the local player.</summary>
     bool TryToggleNearbyDoor(out (int ChunkX, int ChunkY) modifiedChunk);
 
+    /// <summary>Attempts to demolish a placed structure at <paramref name="aimWorldPosition"/>.</summary>
+    bool TryDemolishStructure(Vector2 aimWorldPosition, out (int ChunkX, int ChunkY) modifiedChunk)
+    {
+        modifiedChunk = default;
+        return false;
+    }
+
     /// <summary>Casts active skill <paramref name="skillId"/> toward <paramref name="aimWorldPosition"/>.</summary>
     bool TryCastSkill(ushort skillId, Vector2 aimWorldPosition);
 

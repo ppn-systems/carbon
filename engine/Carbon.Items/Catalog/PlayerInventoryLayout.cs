@@ -327,6 +327,43 @@ public static class PlayerInventoryLayout
         return TryAddBagItem(inventory, in output, maxOutputStackSize) == 0;
     }
 
+    /// <summary>Counts total un-upgraded stacked units of <paramref name="itemId"/> across bag storage slots (<c>0..BagLimit-1</c>).</summary>
+    public static int CountItem(ReadOnlySpan<ItemSlot> slots, uint itemId)
+    {
+        int total = 0;
+        int bagCount = Math.Min(BagLimit, slots.Length);
+        for (int i = 0; i < bagCount; i++)
+        {
+            if (slots[i].ItemId == itemId && slots[i].UpgradeLevel == 0 && slots[i].Quantity > 0)
+            {
+                total += slots[i].Quantity;
+            }
+        }
+
+        return total;
+    }
+
+    /// <summary>Returns whether <paramref name="slots"/> contains enough ingredients to craft <paramref name="quantity"/> copies of <paramref name="recipe"/>.</summary>
+    public static bool CanCraft(ReadOnlySpan<ItemSlot> slots, CraftingRecipe recipe, int quantity = 1)
+    {
+        ArgumentNullException.ThrowIfNull(recipe);
+        if (quantity <= 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < recipe.Ingredients.Count; i++)
+        {
+            RecipeIngredient ing = recipe.Ingredients[i];
+            if (CountItem(slots, ing.ItemId) < ing.Quantity * quantity)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static int FindFirstEmptyOrMergeSlot(InventoryContainer inventory, in ItemSlot source, int startInclusive, int endExclusive)
     {
         if (source.IsStackable)

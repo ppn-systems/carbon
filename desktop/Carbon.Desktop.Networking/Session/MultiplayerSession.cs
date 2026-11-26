@@ -24,7 +24,7 @@ using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.World;
 using Nalix.SDK.Transport;
 
-namespace Carbon.Desktop.Networking;
+namespace Carbon.Desktop.Networking.Session;
 
 /// <summary>
 /// Online-only dual-transport multiplayer client session.
@@ -406,6 +406,12 @@ public sealed partial class MultiplayerSession : IWorldSession
 
     /// <inheritdoc/>
     public ulong WorldSeed => _worldSeed;
+
+    /// <inheritdoc/>
+    public float? AuthoritativeTimeHour =>
+        this.IsReady && _tcpSession is { IsConnected: true } && _tickRate > 0
+            ? Carbon.Maps.Generators.WorldProgression.ComputeTimeOfDayHours((ulong)(_latestServerTime * _tickRate), _tickRate)
+            : null;
 
     /// <inheritdoc/>
     public void Update(double dt, Vector2 moveDir, bool sprint)

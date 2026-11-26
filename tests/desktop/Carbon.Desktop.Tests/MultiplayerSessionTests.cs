@@ -16,7 +16,6 @@ using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Identity;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Abstractions.World;
-using Carbon.Desktop.Networking;
 using Carbon.Host;
 using Carbon.Infrastructure.Configuration;
 using Carbon.Infrastructure.Persistence.Sqlite;
@@ -31,6 +30,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nalix.Hosting;
 using Xunit;
+using Carbon.Desktop.Networking.Session;
 
 namespace Carbon.Desktop.Tests;
 

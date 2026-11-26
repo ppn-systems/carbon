@@ -25,7 +25,7 @@ using Nalix.SDK.Options;
 using Nalix.SDK.Transport;
 using Nalix.SDK.Transport.Extensions;
 
-namespace Carbon.Desktop.Networking;
+namespace Carbon.Desktop.Networking.Session;
 
 public sealed partial class MultiplayerSession
 {

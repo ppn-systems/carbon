@@ -4,8 +4,9 @@ using System;
 using System.Numerics;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
+using Carbon.Desktop.Rendering.World;
 
-namespace Carbon.Desktop.Rendering;
+namespace Carbon.Desktop.Rendering.Atmospherics;
 
 /// <summary>
 /// Per-frame animated overlays drawn on top of the static, baked terrain meshes.

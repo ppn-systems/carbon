@@ -13,6 +13,7 @@ using Carbon.Graphics.Batching.Sprites;
 using Carbon.Graphics.Fonts.Layout;
 using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Items.Catalog;
+using Carbon.Desktop.Rendering.Camera;
 
 namespace Carbon.Desktop.Rendering.Overlays;
 

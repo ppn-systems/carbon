@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Identity;
 using Carbon.Desktop.Abstractions.Session;
-using Carbon.Desktop.Rendering;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching;
 using Carbon.Graphics.Batching.Camera;
@@ -23,6 +22,7 @@ using Carbon.Graphics.Windowing.Abstractions;
 using Carbon.Graphics.Windowing.Input;
 using Silk.NET.Input;
 using Silk.NET.OpenGL;
+using Carbon.Desktop.Rendering.Fonts;
 
 namespace Carbon.Desktop.Scenes;
 

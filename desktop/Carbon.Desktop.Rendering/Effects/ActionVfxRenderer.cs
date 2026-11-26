@@ -13,7 +13,7 @@ namespace Carbon.Desktop.Rendering.Effects;
 /// Renders action-specific combat and harvesting VFX ribbons (tapered melee slash arcs,
 /// overhead woodcutter cleaves, and mining shockwave sparks) synchronized with vector rig swings.
 /// </summary>
-internal static class ActionVfxRenderer
+public static class ActionVfxRenderer
 {
     /// <summary>Draws active player or entity swing trails in world space.</summary>
     public static void DrawActionTrail(
@@ -25,6 +25,7 @@ internal static class ActionVfxRenderer
         byte comboStep,
         uint itemId = 0U)
     {
+        ArgumentNullException.ThrowIfNull(batch);
         if (kind == ActionAnimationKind.None || progress >= 1f)
         {
             return;
@@ -78,6 +79,18 @@ internal static class ActionVfxRenderer
 
             case ActionAnimationKind.StaffCast:
                 DrawStaffCastBurst(batch, origin + new Vector2(0f, -8f), dir, progress, alpha, isCrystal: itemId == StarterGameCatalog.CrystalStaff);
+                break;
+
+            case ActionAnimationKind.MonsterBowShot:
+                DrawBowReleaseStreak(batch, origin + new Vector2(0f, -6f), dir, progress, alpha);
+                break;
+
+            case ActionAnimationKind.MonsterSpellCast:
+                DrawMonsterSpellCastBurst(batch, origin + new Vector2(0f, -8f), dir, progress, alpha);
+                break;
+
+            case ActionAnimationKind.MonsterHeavySlam:
+                DrawMonsterHeavySlam(batch, origin, dir, progress, alpha);
                 break;
 
             case ActionAnimationKind.None:
@@ -340,5 +353,30 @@ internal static class ActionVfxRenderer
         ColorRgba core = new(224, 242, 254, alpha);
         batch.DrawCircle(focal, 4f + (progress * 14f), outer, 14, 2.0f);
         batch.FillCircle(focal, 4.5f * (1f - (progress * 0.5f)), core, 10);
+    }
+
+    private static void DrawMonsterSpellCastBurst(GeometryBatch batch, Vector2 origin, Vector2 dir, float progress, byte alpha)
+    {
+        Vector2 focal = origin + (dir * 14f);
+        ColorRgba outer = new(168, 85, 247, alpha);
+        ColorRgba inner = new(244, 63, 94, (byte)(alpha * 0.85f));
+        batch.DrawCircle(origin, 10f + (progress * 14f), outer, 16, 1.8f);
+        batch.DrawCircle(focal, 4f + (progress * 16f), inner, 14, 2.2f);
+        batch.FillCircle(focal, 5f * (1f - (progress * 0.55f)), new ColorRgba(250, 204, 21, alpha), 10);
+    }
+
+    private static void DrawMonsterHeavySlam(GeometryBatch batch, Vector2 origin, Vector2 dir, float progress, byte alpha)
+    {
+        Vector2 impact = origin + (dir * 16f);
+        float radius = 10f + (progress * 30f);
+        batch.DrawCircle(impact, radius, new ColorRgba(249, 115, 22, alpha), 18, 3.0f);
+        batch.DrawCircle(impact, radius * 0.6f, new ColorRgba(254, 240, 138, (byte)(alpha * 0.85f)), 14, 2.0f);
+        for (int s = 0; s < 5; s++)
+        {
+            float ang = -1.1f + (s * 0.55f) + MathF.Atan2(dir.Y, dir.X);
+            Vector2 p0 = impact + (new Vector2(MathF.Cos(ang), MathF.Sin(ang)) * (radius * 0.45f));
+            Vector2 p1 = impact + (new Vector2(MathF.Cos(ang), MathF.Sin(ang)) * (radius * 1.15f));
+            batch.DrawLine(p0, p1, new ColorRgba(251, 146, 60, alpha), 2.2f);
+        }
     }
 }

@@ -38,7 +38,7 @@ using Nalix.SDK.Options;
 using Nalix.SDK.Transport;
 using Nalix.SDK.Transport.Extensions;
 
-namespace Carbon.Desktop.Networking;
+namespace Carbon.Desktop.Networking.Session;
 
 public sealed partial class MultiplayerSession
 {
@@ -911,10 +911,18 @@ public sealed partial class MultiplayerSession
                     isProjectile = true;
                     caster.ActiveActionKind = projArch is 2 or 6 ? ActionAnimationKind.StaffCast : ActionAnimationKind.BowShot;
                 }
-                else if (AbilityInputEncoding.TryDecodeMonsterProjectileCast(pkt.AbilitySlot, out _))
+                else if (AbilityInputEncoding.TryDecodeMonsterProjectileCast(pkt.AbilitySlot, out byte mProjArch))
                 {
                     isProjectile = true;
-                    caster.ActiveActionKind = ActionAnimationKind.MonsterStrike;
+                    caster.ActiveActionKind = mProjArch == 5
+                        ? ActionAnimationKind.MonsterBowShot
+                        : ActionAnimationKind.MonsterSpellCast;
+                }
+                else if (AbilityInputEncoding.TryDecodeMonsterMeleeCast(pkt.AbilitySlot, out _))
+                {
+                    caster.ActiveActionKind = caster.ArchetypeId is WorldActorCatalog.RockGolem or WorldActorCatalog.CrimsonDemon
+                        ? ActionAnimationKind.MonsterHeavySlam
+                        : ActionAnimationKind.MonsterStrike;
                 }
                 else if (SkillCatalog.Skills.TryGet(pkt.AbilitySlot, out SkillDefinition? skillDef))
                 {

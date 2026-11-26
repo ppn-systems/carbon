@@ -20,7 +20,7 @@ using Carbon.Maps.Topography;
 using Carbon.Maps.Transitions;
 using GlShader = Carbon.Graphics.OpenGL.Shaders.Shader;
 
-namespace Carbon.Desktop.Rendering;
+namespace Carbon.Desktop.Rendering.World;
 
 /// <summary>
 /// High-performance static GPU mesh renderer and cache for procedural terrain chunks.

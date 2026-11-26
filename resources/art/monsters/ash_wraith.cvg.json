@@ -336,6 +336,210 @@
       "color": "$horn",
       "outlineColor": "$outline",
       "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "body",
+      "facing": "any",
+      "x": 0.0,
+      "y": -18.0,
+      "rx": 3.2,
+      "ry": 4.2,
+      "color": "#A855F7"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "body",
+      "facing": "any",
+      "x": 0.0,
+      "y": -18.0,
+      "rx": 1.5,
+      "ry": 2.2,
+      "color": "#FDE047"
+    },
+    {
+      "kind": "polygon",
+      "bone": "aura",
+      "facing": "any",
+      "points": [
+        [
+          -11.0,
+          -22.0
+        ],
+        [
+          -9.0,
+          -25.0
+        ],
+        [
+          -7.5,
+          -22.0
+        ],
+        [
+          -9.0,
+          -19.0
+        ]
+      ],
+      "color": "#F97316"
+    },
+    {
+      "kind": "polygon",
+      "bone": "aura",
+      "facing": "any",
+      "points": [
+        [
+          9.0,
+          -25.0
+        ],
+        [
+          11.0,
+          -28.0
+        ],
+        [
+          12.5,
+          -25.0
+        ],
+        [
+          11.0,
+          -22.0
+        ]
+      ],
+      "color": "#C084FC"
+    },
+    {
+      "kind": "polygon",
+      "bone": "head",
+      "facing": "any",
+      "points": [
+        [
+          -5.0,
+          -32.0
+        ],
+        [
+          -6.5,
+          -37.5
+        ],
+        [
+          -2.5,
+          -33.5
+        ]
+      ],
+      "color": "#4338CA",
+      "outlineColor": "#1E1B4B",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "polygon",
+      "bone": "head",
+      "facing": "any",
+      "points": [
+        [
+          5.0,
+          -32.0
+        ],
+        [
+          6.5,
+          -37.5
+        ],
+        [
+          2.5,
+          -33.5
+        ]
+      ],
+      "color": "#4338CA",
+      "outlineColor": "#1E1B4B",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "polygon",
+      "bone": "body",
+      "facing": "any",
+      "points": [
+        [
+          -6.5,
+          -16.0
+        ],
+        [
+          6.5,
+          -16.0
+        ],
+        [
+          7.5,
+          -8.0
+        ],
+        [
+          -7.5,
+          -8.0
+        ]
+      ],
+      "color": "#312E81",
+      "outlineColor": "#1E1B4B",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "polygon",
+      "bone": "body",
+      "facing": "any",
+      "points": [
+        [
+          -7.5,
+          -8.0
+        ],
+        [
+          -3.0,
+          -8.0
+        ],
+        [
+          -5.5,
+          -3.5
+        ]
+      ],
+      "color": "#312E81",
+      "outlineColor": "#1E1B4B",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "polygon",
+      "bone": "body",
+      "facing": "any",
+      "points": [
+        [
+          -2.0,
+          -8.0
+        ],
+        [
+          2.0,
+          -8.0
+        ],
+        [
+          0.0,
+          -2.5
+        ]
+      ],
+      "color": "#312E81",
+      "outlineColor": "#1E1B4B",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "polygon",
+      "bone": "body",
+      "facing": "any",
+      "points": [
+        [
+          3.0,
+          -8.0
+        ],
+        [
+          7.5,
+          -8.0
+        ],
+        [
+          5.5,
+          -3.5
+        ]
+      ],
+      "color": "#312E81",
+      "outlineColor": "#1E1B4B",
+      "outlineThickness": 0.8
     }
   ],
   "animations": {
@@ -487,37 +691,77 @@
       ]
     },
     "attack": {
-      "duration": 0.3,
+      "duration": 0.42,
       "loop": false,
       "tracks": [
         {
           "t": 0.0,
           "bones": {
             "body": {
-              "rotDeg": -12.0
+              "dy": 1.5,
+              "rotDeg": -6.0
             },
             "armFront": {
-              "rotDeg": -70.0
+              "rotDeg": -25.0
             },
             "armBack": {
-              "rotDeg": -50.0
+              "rotDeg": -25.0
             }
           }
         },
         {
-          "t": 0.45,
+          "t": 0.3,
           "bones": {
             "body": {
-              "rotDeg": 14.0,
-              "dx": 3.5
+              "dy": -4.0,
+              "rotDeg": -10.0
             },
             "armFront": {
-              "rotDeg": 45.0,
-              "dx": 2.0
+              "rotDeg": -95.0,
+              "dy": -2.0
             },
             "armBack": {
-              "rotDeg": 35.0,
-              "dx": 1.5
+              "rotDeg": -88.0,
+              "dy": -2.0
+            },
+            "aura": {
+              "scaleX": 1.25,
+              "scaleY": 1.25
+            }
+          }
+        },
+        {
+          "t": 0.58,
+          "bones": {
+            "body": {
+              "dx": 3.0,
+              "dy": -2.0,
+              "rotDeg": 14.0
+            },
+            "armFront": {
+              "rotDeg": 32.0,
+              "dx": 3.0
+            },
+            "armBack": {
+              "rotDeg": 24.0,
+              "dx": 2.0
+            },
+            "aura": {
+              "scaleX": 1.38,
+              "scaleY": 1.38
+            }
+          }
+        },
+        {
+          "t": 0.8,
+          "bones": {
+            "body": {
+              "dx": 1.0,
+              "rotDeg": 5.0
+            },
+            "aura": {
+              "scaleX": 1.1,
+              "scaleY": 1.1
             }
           }
         },
@@ -525,6 +769,8 @@
           "t": 1.0,
           "bones": {
             "body": {
+              "dx": 0.0,
+              "dy": 0.0,
               "rotDeg": 0.0
             },
             "armFront": {
@@ -532,6 +778,107 @@
             },
             "armBack": {
               "rotDeg": 0.0
+            },
+            "aura": {
+              "scaleX": 1.0,
+              "scaleY": 1.0
+            }
+          }
+        }
+      ]
+    },
+    "attack_cast": {
+      "duration": 0.42,
+      "loop": false,
+      "tracks": [
+        {
+          "t": 0.0,
+          "bones": {
+            "body": {
+              "dy": 1.5,
+              "rotDeg": -6.0
+            },
+            "armFront": {
+              "rotDeg": -25.0
+            },
+            "armBack": {
+              "rotDeg": -25.0
+            }
+          }
+        },
+        {
+          "t": 0.3,
+          "bones": {
+            "body": {
+              "dy": -4.0,
+              "rotDeg": -10.0
+            },
+            "armFront": {
+              "rotDeg": -95.0,
+              "dy": -2.0
+            },
+            "armBack": {
+              "rotDeg": -88.0,
+              "dy": -2.0
+            },
+            "aura": {
+              "scaleX": 1.25,
+              "scaleY": 1.25
+            }
+          }
+        },
+        {
+          "t": 0.58,
+          "bones": {
+            "body": {
+              "dx": 3.0,
+              "dy": -2.0,
+              "rotDeg": 14.0
+            },
+            "armFront": {
+              "rotDeg": 32.0,
+              "dx": 3.0
+            },
+            "armBack": {
+              "rotDeg": 24.0,
+              "dx": 2.0
+            },
+            "aura": {
+              "scaleX": 1.38,
+              "scaleY": 1.38
+            }
+          }
+        },
+        {
+          "t": 0.8,
+          "bones": {
+            "body": {
+              "dx": 1.0,
+              "rotDeg": 5.0
+            },
+            "aura": {
+              "scaleX": 1.1,
+              "scaleY": 1.1
+            }
+          }
+        },
+        {
+          "t": 1.0,
+          "bones": {
+            "body": {
+              "dx": 0.0,
+              "dy": 0.0,
+              "rotDeg": 0.0
+            },
+            "armFront": {
+              "rotDeg": 0.0
+            },
+            "armBack": {
+              "rotDeg": 0.0
+            },
+            "aura": {
+              "scaleX": 1.0,
+              "scaleY": 1.0
             }
           }
         }

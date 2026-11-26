@@ -7,6 +7,7 @@ using Carbon.Contracts.Common;
 using Carbon.Contracts.Maps.S2C;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
+using Carbon.Items.Crafting;
 using Carbon.Items.Definitions;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
@@ -256,10 +257,14 @@ public sealed partial class AuthoritativeWorld
                 return new WorldMutationOutcome(OpStatus.OutOfRange, 0);
             }
 
-            if (!_chunkWorld.Buildings.TryDemolishStructure(tileX, tileY))
+            if (!_chunkWorld.Buildings.TryGetStructure(tileX, tileY, out StructureTile existing) ||
+                !_chunkWorld.Buildings.TryDemolishStructure(tileX, tileY))
             {
                 return new WorldMutationOutcome(OpStatus.NotFound, 0);
             }
+
+            Vector2 dropWorldPos = new((tileX + 0.5f) * this.TileSize, (tileY + 0.5f) * this.TileSize);
+            this.DropStructureSalvageLocked(dropWorldPos, existing.Type);
 
             int cx = Chunk2D.ToChunkCoord(tileX);
             int cy = Chunk2D.ToChunkCoord(tileY);
@@ -500,7 +505,94 @@ public sealed partial class AuthoritativeWorld
                     blockedProp.Destructibility.CurrentDurability,
                     false));
             }
+
+            return;
         }
+
+        if (this.IsWithinInteractRangeLocked(state.Entity, aimTx, aimTy) &&
+            _chunkWorld.Buildings.TryGetStructure(aimTx, aimTy, out StructureTile targetStruct) &&
+            targetStruct.Type != StructureType.None)
+        {
+            float dmg = 20f;
+            byte toolTier = 1;
+            if (!activeSlot.IsEmpty && StarterGameCatalog.Items.TryGet(activeSlot.ItemId, out ItemArchetype? toolDef))
+            {
+                toolTier = Math.Max((byte)1, toolDef.HarvestTier);
+                bool isWoodStruct = targetStruct.Type is StructureType.WoodWall or StructureType.WoodDoor or StructureType.WoodFloor;
+                if (isWoodStruct && toolDef.Capabilities.HasFlag(ToolCapabilities.ChopFlora))
+                {
+                    dmg = MathF.Max(40f, toolDef.FloraHarvestDamage);
+                }
+                else if (!isWoodStruct && toolDef.Capabilities.HasFlag(ToolCapabilities.MineMineral))
+                {
+                    dmg = MathF.Max(45f, toolDef.MineralHarvestDamage);
+                }
+                else
+                {
+                    dmg = MathF.Max(15f, toolDef.BaseDamage * 0.7f);
+                }
+            }
+
+            if (_chunkWorld.Buildings.ApplyDamage(aimTx, aimTy, dmg, toolTier, out StructureTile updatedStruct))
+            {
+                int scx = Chunk2D.ToChunkCoord(aimTx);
+                int scy = Chunk2D.ToChunkCoord(aimTy);
+                _ = _dirtyChunks.Add(Chunk2D.PackKey(scx, scy));
+
+                if (updatedStruct.Type == StructureType.None)
+                {
+                    Vector2 salvagePos = new((aimTx + 0.5f) * this.TileSize, (aimTy + 0.5f) * this.TileSize);
+                    this.DropStructureSalvageLocked(salvagePos, targetStruct.Type);
+                }
+
+                (int sOffset, int sCount) = this.AppendTileRecipientsLocked(aimTx, aimTy);
+                if (sCount > 0)
+                {
+                    _pendingStructureChanges.Add(new OutboundStructureChange(
+                        sOffset,
+                        sCount,
+                        aimTx,
+                        aimTy,
+                        (byte)updatedStruct.Type,
+                        updatedStruct.CurrentDurability,
+                        (byte)updatedStruct.DoorState,
+                        (byte)updatedStruct.Connectivity));
+                }
+            }
+        }
+    }
+
+    private void DropStructureSalvageLocked(Vector2 worldPos, StructureType structureType)
+    {
+        uint kitId = StarterGameCatalog.ResolveStructureKitItemId((byte)structureType);
+        if (kitId == 0U)
+        {
+            return;
+        }
+
+        ReadOnlySpan<CraftingRecipe> recipes = StarterGameCatalog.Recipes.All;
+        for (int i = 0; i < recipes.Length; i++)
+        {
+            CraftingRecipe rec = recipes[i];
+            if (rec.Output.ItemId != kitId)
+            {
+                continue;
+            }
+
+            int outQty = Math.Max(1, rec.Output.Quantity);
+            for (int k = 0; k < rec.Ingredients.Count; k++)
+            {
+                RecipeIngredient ing = rec.Ingredients[k];
+                int salvageQty = Math.Max(1, (int)MathF.Ceiling(ing.Quantity * 0.6f / outQty));
+                ItemSlot drop = new(ing.ItemId, salvageQty);
+                this.SpawnGroundLootLocked(worldPos + new Vector2((k - 0.5f) * 8f, 0f), in drop);
+            }
+
+            return;
+        }
+
+        ItemSlot fallback = new(kitId, 1);
+        this.SpawnGroundLootLocked(worldPos, in fallback);
     }
 
     private bool TryDamagePropAndQueueLocked(

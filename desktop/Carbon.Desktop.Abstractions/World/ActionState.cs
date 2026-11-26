@@ -44,6 +44,15 @@ public enum ActionAnimationKind : byte
 
     /// <summary>Arcane staff projectile spell cast.</summary>
     StaffCast = 11,
+
+    /// <summary>Monster ranged bow draw and arrow release.</summary>
+    MonsterBowShot = 12,
+
+    /// <summary>Monster arcane/hex spell cast.</summary>
+    MonsterSpellCast = 13,
+
+    /// <summary>Monster heavy two-handed slam / ground smash.</summary>
+    MonsterHeavySlam = 14,
 }
 
 /// <summary>

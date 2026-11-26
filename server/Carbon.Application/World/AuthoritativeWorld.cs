@@ -670,8 +670,14 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
                 }
 
                 byte zoneTier = WorldProgression.GetZoneTier(this.WorldSeed, wx, wy);
+                float distanceTilesFromSpawn = Vector2.Distance(monsterPos, safeOrigin) / this.TileSize;
+                bool isNight = WorldProgression.IsNightHour(WorldProgression.ComputeTimeOfDayHours(_currentTick, this.TickRate));
                 ushort monsterArchetype = ResolveBiomeMonsterArchetype(spawnTile.Biome, h);
-                ScaledMonsterStats scaled = WorldActorCatalog.ScaleMonsterForZone(monsterArchetype, zoneTier);
+                ScaledMonsterStats scaled = WorldActorCatalog.ScaleMonster(
+                    monsterArchetype,
+                    zoneTier,
+                    distanceTilesFromSpawn,
+                    isNight);
 
                 NpcActorMeta monsterMeta = new(
                     EntityKind.Monster,

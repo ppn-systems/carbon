@@ -21,6 +21,11 @@ namespace Carbon.Items.Catalog;
 /// <param name="AttackRange">Engagement distance before entering <c>Attack</c> state.</param>
 /// <param name="ProjectileSpeed">Projectile velocity in world units/sec (<c>0</c> = melee).</param>
 /// <param name="ProjectileArchetype">Visual projectile archetype ID for ranged monsters.</param>
+/// <param name="SecondaryDropItemId">Optional secondary drop item ID.</param>
+/// <param name="SecondaryDropQuantity">Quantity of secondary drop when rolled.</param>
+/// <param name="SecondaryDropChance">Probability [0..1] of secondary drop.</param>
+/// <param name="RareDropItemId">Optional rare equipment/trophy drop item ID.</param>
+/// <param name="RareDropChance">Probability [0..1] of rare drop.</param>
 public readonly record struct MonsterArchetypeSpec(
     ushort ArchetypeId,
     string Name,
@@ -35,7 +40,12 @@ public readonly record struct MonsterArchetypeSpec(
     int DropMaxQuantity,
     float AttackRange = 44f,
     float ProjectileSpeed = 0f,
-    byte ProjectileArchetype = 0);
+    byte ProjectileArchetype = 0,
+    uint SecondaryDropItemId = 0,
+    int SecondaryDropQuantity = 0,
+    float SecondaryDropChance = 0f,
+    uint RareDropItemId = 0,
+    float RareDropChance = 0f);
 
 /// <summary>
 /// Zone-scaled monster combat parameters computed cleanly without hardcoded server switches.
@@ -126,13 +136,13 @@ public static class WorldActorCatalog
 
     private static readonly MonsterArchetypeSpec[] s_monsters =
     [
-        new(WildSlime, "Wild Slime", BaseLevel: 1, BaseMaxHealth: 75f, MoveSpeed: 130f, Radius: 8f, BaseAttackDamage: 9f, WindupTicks: 7U, StarterGameCatalog.BerryHerb, 1, 2),
-        new(RockGolem, "Rock Golem", BaseLevel: 3, BaseMaxHealth: 150f, MoveSpeed: 105f, Radius: 11f, BaseAttackDamage: 16f, WindupTicks: 11U, StarterGameCatalog.IronOre, 2, 3),
-        new(FrostWolf, "Frost Wolf", BaseLevel: 2, BaseMaxHealth: 95f, MoveSpeed: 168f, Radius: 8.5f, BaseAttackDamage: 12f, WindupTicks: 6U, StarterGameCatalog.StoneChunk, 2, 3),
-        new(AshWraith, "Ash Wraith", BaseLevel: 4, BaseMaxHealth: 110f, MoveSpeed: 148f, Radius: 8.5f, BaseAttackDamage: 14f, WindupTicks: 10U, StarterGameCatalog.ManaCrystal, 1, 2, AttackRange: 215f, ProjectileSpeed: 340f, ProjectileArchetype: 4),
-        new(SkeletonArcher, "Skeleton Archer", BaseLevel: 2, BaseMaxHealth: 85f, MoveSpeed: 142f, Radius: 8f, BaseAttackDamage: 13f, WindupTicks: 9U, StarterGameCatalog.WoodLog, 2, 4, AttackRange: 235f, ProjectileSpeed: 390f, ProjectileArchetype: 5),
-        new(OrcShaman, "Orc Shaman", BaseLevel: 5, BaseMaxHealth: 165f, MoveSpeed: 140f, Radius: 9.0f, BaseAttackDamage: 22f, WindupTicks: 10U, StarterGameCatalog.ManaCrystal, 1, 2, AttackRange: 195f, ProjectileSpeed: 360f, ProjectileArchetype: 6),
-        new(CrimsonDemon, "Crimson Demon", BaseLevel: 8, BaseMaxHealth: 310f, MoveSpeed: 158f, Radius: 10.5f, BaseAttackDamage: 34f, WindupTicks: 8U, StarterGameCatalog.RoastMeat, 1, 2, AttackRange: 44f),
+        new(WildSlime, "Wild Slime", BaseLevel: 1, BaseMaxHealth: 75f, MoveSpeed: 130f, Radius: 8f, BaseAttackDamage: 9f, WindupTicks: 7U, StarterGameCatalog.BerryHerb, 1, 2, SecondaryDropItemId: StarterGameCatalog.ManaCrystal, SecondaryDropQuantity: 1, SecondaryDropChance: 0.22f),
+        new(RockGolem, "Rock Golem", BaseLevel: 3, BaseMaxHealth: 150f, MoveSpeed: 105f, Radius: 11f, BaseAttackDamage: 16f, WindupTicks: 11U, StarterGameCatalog.IronOre, 2, 3, SecondaryDropItemId: StarterGameCatalog.StoneChunk, SecondaryDropQuantity: 2, SecondaryDropChance: 0.65f, RareDropItemId: StarterGameCatalog.StonePickaxe, RareDropChance: 0.10f),
+        new(FrostWolf, "Frost Wolf", BaseLevel: 2, BaseMaxHealth: 95f, MoveSpeed: 168f, Radius: 8.5f, BaseAttackDamage: 12f, WindupTicks: 6U, StarterGameCatalog.BeastPelt, 1, 2, SecondaryDropItemId: StarterGameCatalog.RoastMeat, SecondaryDropQuantity: 1, SecondaryDropChance: 0.45f),
+        new(AshWraith, "Ash Wraith", BaseLevel: 4, BaseMaxHealth: 110f, MoveSpeed: 148f, Radius: 8.5f, BaseAttackDamage: 14f, WindupTicks: 10U, StarterGameCatalog.ManaCrystal, 1, 2, AttackRange: 215f, ProjectileSpeed: 340f, ProjectileArchetype: 4, SecondaryDropItemId: StarterGameCatalog.ManaTonic, SecondaryDropQuantity: 1, SecondaryDropChance: 0.45f, RareDropItemId: StarterGameCatalog.ArcaneStaff, RareDropChance: 0.08f),
+        new(SkeletonArcher, "Skeleton Archer", BaseLevel: 2, BaseMaxHealth: 85f, MoveSpeed: 142f, Radius: 8f, BaseAttackDamage: 13f, WindupTicks: 9U, StarterGameCatalog.BoneShard, 1, 3, AttackRange: 235f, ProjectileSpeed: 390f, ProjectileArchetype: 5, SecondaryDropItemId: StarterGameCatalog.WoodLog, SecondaryDropQuantity: 2, SecondaryDropChance: 0.35f, RareDropItemId: StarterGameCatalog.HuntingBow, RareDropChance: 0.08f),
+        new(OrcShaman, "Orc Shaman", BaseLevel: 5, BaseMaxHealth: 165f, MoveSpeed: 140f, Radius: 9.0f, BaseAttackDamage: 22f, WindupTicks: 10U, StarterGameCatalog.ManaCrystal, 1, 3, AttackRange: 195f, ProjectileSpeed: 360f, ProjectileArchetype: 6, SecondaryDropItemId: StarterGameCatalog.BoneShard, SecondaryDropQuantity: 2, SecondaryDropChance: 0.55f, RareDropItemId: StarterGameCatalog.ShamanStaff, RareDropChance: 0.12f),
+        new(CrimsonDemon, "Crimson Demon", BaseLevel: 8, BaseMaxHealth: 310f, MoveSpeed: 158f, Radius: 10.5f, BaseAttackDamage: 34f, WindupTicks: 8U, StarterGameCatalog.DemonEmber, 1, 2, AttackRange: 44f, SecondaryDropItemId: StarterGameCatalog.ManaCrystal, SecondaryDropQuantity: 2, SecondaryDropChance: 0.65f, RareDropItemId: StarterGameCatalog.DemonCleaver, RareDropChance: 0.15f),
     ];
 
     private static readonly NpcArchetypeSpec[] s_npcs =
@@ -172,24 +182,51 @@ public static class WorldActorCatalog
     }
 
     /// <summary>Computes level, HP, attack, loot quantity, and XP reward scaled by <paramref name="zoneTier"/>.</summary>
-    public static ScaledMonsterStats ScaleMonsterForZone(ushort archetypeId, byte zoneTier)
+    public static ScaledMonsterStats ScaleMonsterForZone(ushort archetypeId, byte zoneTier) =>
+        ScaleMonster(archetypeId, zoneTier, distanceTilesFromSpawn: 0f, isNight: false);
+
+    /// <summary>
+    /// Computes level, HP, speed, attack, loot quantity, and XP reward scaled by
+    /// <paramref name="zoneTier"/>, distance in tiles from initial player spawn, and night empowerment.
+    /// </summary>
+    public static ScaledMonsterStats ScaleMonster(
+        ushort archetypeId,
+        byte zoneTier,
+        float distanceTilesFromSpawn,
+        bool isNight)
     {
         MonsterArchetypeSpec baseSpec = GetMonsterSpec(archetypeId);
-        int tier = Math.Clamp((int)zoneTier, 0, 20);
-        ushort level = (ushort)Math.Clamp(baseSpec.BaseLevel + (tier * 2), 1, CharacterProgressionPolicy.MaxLevel);
-        float hpMult = 1f + (tier * 0.25f);
-        float dmgMult = 1f + (tier * 0.16f);
+        float distanceTier = Math.Clamp(distanceTilesFromSpawn / 110f, 0f, 12f);
+        float effectiveTier = MathF.Max(Math.Clamp((int)zoneTier, 0, 20), distanceTier);
+        int tierInt = (int)MathF.Floor(effectiveTier);
+
+        ushort level = (ushort)Math.Clamp(baseSpec.BaseLevel + (tierInt * 2), 1, CharacterProgressionPolicy.MaxLevel);
+        float hpMult = 1f + (effectiveTier * 0.25f);
+        float dmgMult = 1f + (effectiveTier * 0.17f);
+        float speed = baseSpec.MoveSpeed;
+
+        if (isNight)
+        {
+            hpMult *= 1.25f;
+            dmgMult *= 1.28f;
+            speed *= 1.12f;
+        }
+
         float maxHp = MathF.Round(baseSpec.BaseMaxHealth * hpMult);
         float atk = MathF.Round(baseSpec.BaseAttackDamage * dmgMult);
-        int qty = Math.Min(baseSpec.DropMaxQuantity, baseSpec.DropMinQuantity + (tier >= 2 ? 1 : 0));
-        uint xp = (uint)Math.Clamp((int)(maxHp * 0.45f) + (level * 4), 25, 320);
+        int qty = Math.Min(baseSpec.DropMaxQuantity + (isNight ? 1 : 0), baseSpec.DropMinQuantity + (tierInt >= 2 ? 1 : 0) + (isNight ? 1 : 0));
+        uint xp = (uint)Math.Clamp((int)(maxHp * 0.45f) + (level * 4), 25, 650);
+        if (isNight)
+        {
+            xp = (uint)MathF.Round(xp * 1.35f);
+        }
 
         return new ScaledMonsterStats(
             baseSpec.ArchetypeId,
             baseSpec.Name,
             level,
             maxHp,
-            baseSpec.MoveSpeed,
+            speed,
             baseSpec.Radius,
             atk,
             baseSpec.WindupTicks,

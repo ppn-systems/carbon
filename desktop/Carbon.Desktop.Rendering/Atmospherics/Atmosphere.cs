@@ -8,7 +8,7 @@ using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.OpenGL.States;
 using Silk.NET.OpenGL;
 
-namespace Carbon.Desktop.Rendering;
+namespace Carbon.Desktop.Rendering.Atmospherics;
 
 /// <summary>A point light: drawn additively after the ambient darkening, so lights glow at night.</summary>
 /// <param name="Position">World position.</param>
@@ -70,6 +70,10 @@ internal sealed class Atmosphere
 
     /// <summary>Gets how dark it is: 0 at noon, 1 at midnight.</summary>
     public float Night { get; private set; }
+
+    /// <summary>Synchronizes the local clock hour to an authoritative server hour.</summary>
+    public void SyncToHour(float hour) =>
+        this.Hour = ((hour % 24f) + 24f) % 24f;
 
     /// <summary>Gets the rain intensity 0..1.</summary>
     public float Rain { get; private set; }

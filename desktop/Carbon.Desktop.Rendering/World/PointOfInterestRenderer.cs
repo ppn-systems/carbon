@@ -6,8 +6,9 @@ using System.Numerics;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
 using Carbon.Maps.Landmarks;
+using Carbon.Desktop.Rendering.Atmospherics;
 
-namespace Carbon.Desktop.Rendering;
+namespace Carbon.Desktop.Rendering.World;
 
 /// <summary>
 /// Procedural 2.5D art for points of interest, in the same style as the terrain and props

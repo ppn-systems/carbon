@@ -118,6 +118,11 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile
     /// <summary>Gets the active world seed.</summary>
     ulong WorldSeed { get; }
 
+    /// <summary>
+    /// Gets the authoritative synchronized in-game time-of-day hour (<c>0..24</c>), or <see langword="null"/> when running offline.
+    /// </summary>
+    float? AuthoritativeTimeHour => null;
+
     /// <summary>Gets the network ID of the currently tab/click-locked hostile target (<c>0</c> if none).</summary>
     ulong LockedTargetNetworkId { get; }
 

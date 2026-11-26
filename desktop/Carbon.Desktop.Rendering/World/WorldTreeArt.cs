@@ -4,8 +4,9 @@ using System;
 using System.Numerics;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
+using Carbon.Desktop.Rendering.Atmospherics;
 
-namespace Carbon.Desktop.Rendering;
+namespace Carbon.Desktop.Rendering.World;
 
 /// <summary>
 /// Art for the World Tree: an organic, buttressed trunk with cylindrical shading and twisting bark,

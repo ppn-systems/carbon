@@ -5,14 +5,16 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Reflection;
+using System.Text.Json;
 using Carbon.Desktop.Abstractions.Identity;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Abstractions.World;
-using Carbon.Desktop.Networking;
-using Carbon.Desktop.Rendering;
+using Carbon.Desktop.Networking.Session;
+using Carbon.Desktop.Rendering.Camera;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
+using Carbon.Desktop.Rendering.World;
 using Carbon.Desktop.Scenes;
 using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Common;
@@ -47,7 +49,7 @@ public sealed class VectorArtAndArchitectureTests
         summary.CharactersValidated.Should().Be(4);
         summary.MonstersValidated.Should().Be(7);
         summary.NpcsValidated.Should().Be(4);
-        summary.ItemsValidated.Should().Be(32);
+        summary.ItemsValidated.Should().Be(39);
         summary.PropsValidated.Should().Be(22);
         summary.BiomesValidated.Should().Be(14);
         summary.StructuresValidated.Should().Be(8);
@@ -339,6 +341,122 @@ public sealed class VectorArtAndArchitectureTests
         screenPt.Y.Should().BeApproximately(expectedY, 0.01f);
         camera.ScreenToWorld(in screenPt).X.Should().BeApproximately(monsterWorld.X, 0.05f);
         camera.ScreenToWorld(in screenPt).Y.Should().BeApproximately(monsterWorld.Y, 0.05f);
+    }
+
+    [Fact]
+    public void Desktop_Assemblies_Have_Zero_Root_Files_And_No_Domain_Duplication()
+    {
+        string repoRoot = FindRepoRoot(AppContext.BaseDirectory);
+        string[] guardedProjects =
+        [
+            Path.Combine(repoRoot, "desktop", "Carbon.Desktop.Abstractions"),
+            Path.Combine(repoRoot, "desktop", "Carbon.Desktop.Networking"),
+            Path.Combine(repoRoot, "desktop", "Carbon.Desktop.Rendering"),
+        ];
+
+        foreach (string projDir in guardedProjects)
+        {
+            string[] rootCsFiles = Directory.GetFiles(projDir, "*.cs", SearchOption.TopDirectoryOnly);
+            rootCsFiles.Should().BeEmpty($"domain files in {Path.GetFileName(projDir)} must live in domain subfolders");
+        }
+
+        string craftWidgetPath = Path.Combine(repoRoot, "desktop", "Carbon.Desktop.Rendering", "Hud", "CraftingModalWidget.cs");
+        string craftWidgetSource = File.ReadAllText(craftWidgetPath);
+        craftWidgetSource.Should().NotContain("CanCraftFromSpan", "crafting eligibility logic belongs in PlayerInventoryLayout");
+        craftWidgetSource.Should().NotContain("CountBagItem", "bag counting logic belongs in PlayerInventoryLayout");
+    }
+
+    [Fact]
+    public void All_CvgJson_Art_Polygons_Are_Convex_And_All_Items_And_Monster_Animations_Exist()
+    {
+        string repoRoot = FindRepoRoot(AppContext.BaseDirectory);
+        string artRoot = Path.Combine(repoRoot, "resources", "art");
+        string[] allCvgFiles = Directory.GetFiles(artRoot, "*.cvg.json", SearchOption.AllDirectories);
+        allCvgFiles.Should().NotBeEmpty();
+
+        Span<Vector2> pts = stackalloc Vector2[12];
+        foreach (string file in allCvgFiles)
+        {
+            if (string.Equals(Path.GetFileName(file), "catalog.cvg.json", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(file));
+            if (!doc.RootElement.TryGetProperty("shapes", out JsonElement shapes))
+            {
+                continue;
+            }
+
+            foreach (JsonElement shape in shapes.EnumerateArray())
+            {
+                if (!shape.TryGetProperty("kind", out JsonElement kindEl) ||
+                    !string.Equals(kindEl.GetString(), "polygon", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                JsonElement ptsEl = shape.GetProperty("points");
+                int count = ptsEl.GetArrayLength();
+                count.Should().BeInRange(3, 12, $"polygon in {Path.GetFileName(file)} must have 3..12 vertices");
+
+                for (int i = 0; i < count; i++)
+                {
+                    pts[i] = new Vector2(ptsEl[i][0].GetSingle(), ptsEl[i][1].GetSingle());
+                }
+
+                int sign = 0;
+                for (int i = 0; i < count; i++)
+                {
+                    Vector2 a = pts[i];
+                    Vector2 b = pts[(i + 1) % count];
+                    Vector2 c = pts[(i + 2) % count];
+                    float cross = ((b.X - a.X) * (c.Y - b.Y)) - ((b.Y - a.Y) * (c.X - b.X));
+                    if (MathF.Abs(cross) > 1e-4f)
+                    {
+                        int s = cross > 0f ? 1 : -1;
+                        if (sign == 0)
+                        {
+                            sign = s;
+                        }
+                        else
+                        {
+                            sign.Should().Be(s, $"polygon in {Path.GetFileName(file)} must be convex");
+                        }
+                    }
+                }
+
+                sign.Should().NotBe(0, $"polygon in {Path.GetFileName(file)} must be non-degenerate");
+            }
+        }
+
+        CarbonVectorArtLibrary? lib = CarbonVectorArtLibrary.LoadFromDirectory(artRoot);
+        lib.Should().NotBeNull();
+
+        foreach (Carbon.Items.Definitions.ItemArchetype item in StarterGameCatalog.Items.All)
+        {
+            lib!.TryGetItem(item.Id, out CompiledItemVectorArt? itemArt).Should().BeTrue($"item {item.Id} ({item.DisplayName}) must have compiled cvg.json art");
+            itemArt.Should().NotBeNull();
+        }
+
+        string[] expectedMonsterClips =
+        [
+            "skeleton_archer.cvg.json:attack_bow",
+            "ash_wraith.cvg.json:attack_cast",
+            "orc_shaman.cvg.json:attack_cast",
+            "rock_golem.cvg.json:attack_slam",
+            "crimson_demon.cvg.json:attack_slam",
+        ];
+
+        foreach (string spec in expectedMonsterClips)
+        {
+            string[] parts = spec.Split(':');
+            using JsonDocument mDoc = JsonDocument.Parse(File.ReadAllText(Path.Combine(artRoot, "monsters", parts[0])));
+            JsonElement anims = mDoc.RootElement.GetProperty("animations");
+            anims.TryGetProperty("attack", out _).Should().BeTrue();
+            anims.TryGetProperty(parts[1], out JsonElement clip).Should().BeTrue($"{parts[0]} must define {parts[1]}");
+            clip.GetProperty("tracks").GetArrayLength().Should().BeGreaterThanOrEqualTo(4);
+        }
     }
 
     private sealed class StubScene : GameScene;

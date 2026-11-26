@@ -10,7 +10,6 @@ using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Input;
-using Carbon.Desktop.Rendering;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Common;
@@ -28,6 +27,9 @@ using Carbon.Maps.Navigation;
 using Carbon.Maps.Streaming;
 using Carbon.Maps.Topography;
 using Silk.NET.OpenGL;
+using Carbon.Desktop.Rendering.Camera;
+using Carbon.Desktop.Rendering.Capture;
+using Carbon.Desktop.Rendering.World;
 
 namespace Carbon.Desktop.Scenes;
 
@@ -501,6 +503,13 @@ public sealed class WorldGameplayScene : GameScene
             if (input.PlaceStructurePressed)
             {
                 _ = _session.TryPlaceStarterWall(out _);
+            }
+
+            if (input.DemolishStructurePressed ||
+                (input.RightClickPressed &&
+                 !_hudRenderer.TryHitTestHotbar(input.MouseScreenPosition, context.WindowWidth, context.WindowHeight, out _)))
+            {
+                _ = _session.TryDemolishStructure(_mouseWorldPosition, out _);
             }
         }
 

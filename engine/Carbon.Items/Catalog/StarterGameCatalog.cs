@@ -110,6 +110,27 @@ public static class StarterGameCatalog
     /// <summary>Tribal skull shaman staff (medium-high hex bolt caster, +40 MaxMP).</summary>
     public const uint ShamanStaff = 32;
 
+    /// <summary>Placeable reinforced stone door kit (<c>StructureType.StoneDoor = 4</c>).</summary>
+    public const uint StoneDoorKit = 33;
+
+    /// <summary>Placeable timber floor kit (<c>StructureType.WoodFloor = 5</c>).</summary>
+    public const uint WoodFloorKit = 34;
+
+    /// <summary>Placeable flagstone floor kit (<c>StructureType.StoneFloor = 6</c>).</summary>
+    public const uint StoneFloorKit = 35;
+
+    /// <summary>Placeable roof support pillar kit (<c>StructureType.RoofPillar = 7</c>).</summary>
+    public const uint RoofPillarKit = 36;
+
+    /// <summary>Thick wolf pelt harvested from frontier beasts.</summary>
+    public const uint BeastPelt = 37;
+
+    /// <summary>Jagged skeleton bone shard dropped by undead archers and shamans.</summary>
+    public const uint BoneShard = 38;
+
+    /// <summary>Molten abyssal core dropped by Crimson Demons.</summary>
+    public const uint DemonEmber = 39;
+
     /// <summary>Gets all registered starter item archetypes indexed by ID.</summary>
     public static DefinitionRegistry<uint, ItemArchetype> Items { get; } = new(
     [
@@ -233,9 +254,30 @@ public static class StarterGameCatalog
             ShamanStaff, "shaman_staff", ItemCategory.Weapon, MaxStackSize: 1, EquipmentSlotKind.MainHand, HarvestTier: 0, MaxDurability: 230f,
             DisplayName: "Hex Staff", BaseDamage: 38f, CritChance: 0.20f, FloraHarvestDamage: 10f, MineralHarvestDamage: 0f, BonusMana: 40f,
             ActionHint: "Shaman Focus | Hex Bolt (38 dmg, 5 MP, +40 MaxMP)", AttackRange: 290f, ProjectileSpeed: 480f, ProjectileArchetype: 6, AttackManaCost: 5f, Capabilities: ToolCapabilities.MagicFocus),
+        new ItemArchetype(
+            StoneDoorKit, "stone_door", ItemCategory.Placeable, MaxStackSize: 99, PlaceableStructureType: 4,
+            DisplayName: "Stone Door", ActionHint: "Builder | Place Stone Door ([E] Open/Close)"),
+        new ItemArchetype(
+            WoodFloorKit, "wood_floor", ItemCategory.Placeable, MaxStackSize: 99, PlaceableStructureType: 5,
+            DisplayName: "Wood Floor", ActionHint: "Builder | Place Timber Floor (+15% Speed)"),
+        new ItemArchetype(
+            StoneFloorKit, "stone_floor", ItemCategory.Placeable, MaxStackSize: 99, PlaceableStructureType: 6,
+            DisplayName: "Stone Floor", ActionHint: "Builder | Place Flagstone Floor (+20% Speed)"),
+        new ItemArchetype(
+            RoofPillarKit, "roof_pillar", ItemCategory.Placeable, MaxStackSize: 99, PlaceableStructureType: 7,
+            DisplayName: "Roof Pillar", ActionHint: "Builder | Place Support Pillar (300 HP)"),
+        new ItemArchetype(
+            BeastPelt, "beast_pelt", ItemCategory.Resource, MaxStackSize: 99,
+            DisplayName: "Beast Pelt", ActionHint: "Monster Drop | Craft Leather Gear & Rations [C]"),
+        new ItemArchetype(
+            BoneShard, "bone_shard", ItemCategory.Resource, MaxStackSize: 99,
+            DisplayName: "Bone Shard", ActionHint: "Monster Drop | Craft Bows & Potions [C]"),
+        new ItemArchetype(
+            DemonEmber, "demon_ember", ItemCategory.Resource, MaxStackSize: 99,
+            DisplayName: "Demon Ember", ActionHint: "Boss Drop | Craft Demon Cleaver & High Gear [C]"),
     ]);
 
-    /// <summary>Gets all registered crafting recipes indexed by ID (1..26).</summary>
+    /// <summary>Gets all registered crafting recipes indexed by ID (1..34).</summary>
     public static DefinitionRegistry<uint, CraftingRecipe> Recipes { get; } = new(
     [
         new CraftingRecipe(1, [new RecipeIngredient(WoodLog, 4)], new ItemSlot(WoodWallKit, 2)),
@@ -264,6 +306,14 @@ public static class StarterGameCatalog
         new CraftingRecipe(24, [new RecipeIngredient(BerryHerb, 2), new RecipeIngredient(ManaCrystal, 1)], new ItemSlot(ArcanePie, 2)),
         new CraftingRecipe(25, [new RecipeIngredient(IronOre, 6), new RecipeIngredient(ManaCrystal, 4)], new ItemSlot(DemonCleaver, 1, 0, 300f)),
         new CraftingRecipe(26, [new RecipeIngredient(WoodLog, 4), new RecipeIngredient(ManaCrystal, 3), new RecipeIngredient(IronOre, 2)], new ItemSlot(ShamanStaff, 1, 0, 230f)),
+        new CraftingRecipe(27, [new RecipeIngredient(StoneChunk, 6), new RecipeIngredient(IronOre, 1)], new ItemSlot(StoneDoorKit, 1)),
+        new CraftingRecipe(28, [new RecipeIngredient(WoodLog, 4)], new ItemSlot(WoodFloorKit, 4)),
+        new CraftingRecipe(29, [new RecipeIngredient(StoneChunk, 4)], new ItemSlot(StoneFloorKit, 4)),
+        new CraftingRecipe(30, [new RecipeIngredient(StoneChunk, 5), new RecipeIngredient(WoodLog, 2)], new ItemSlot(RoofPillarKit, 2)),
+        new CraftingRecipe(31, [new RecipeIngredient(BeastPelt, 3), new RecipeIngredient(WoodLog, 2)], new ItemSlot(LeatherTunic, 1, 0, 150f)),
+        new CraftingRecipe(32, [new RecipeIngredient(BeastPelt, 2), new RecipeIngredient(BerryHerb, 1)], new ItemSlot(RoastMeat, 2)),
+        new CraftingRecipe(33, [new RecipeIngredient(BoneShard, 3), new RecipeIngredient(WoodLog, 2)], new ItemSlot(HuntingBow, 1, 0, 180f)),
+        new CraftingRecipe(34, [new RecipeIngredient(DemonEmber, 2), new RecipeIngredient(IronOre, 4), new RecipeIngredient(ManaCrystal, 2)], new ItemSlot(DemonCleaver, 1, 0, 300f)),
     ]);
 
     /// <summary>

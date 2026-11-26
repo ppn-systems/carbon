@@ -5,6 +5,7 @@ using System.Numerics;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
 using Carbon.Maps.Props;
+using Carbon.Desktop.Rendering.Atmospherics;
 
 namespace Carbon.Desktop.Rendering.VectorArt;
 

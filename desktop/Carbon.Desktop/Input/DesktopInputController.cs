@@ -39,6 +39,7 @@ internal readonly record struct DesktopInputFrame(
     bool HarvestPressed,
     bool ToggleDoorPressed,
     bool PlaceStructurePressed,
+    bool DemolishStructurePressed,
     bool ToggleDebugPressed,
     bool ScreenshotPressed,
     bool EscapePressed);
@@ -122,6 +123,7 @@ internal static class DesktopInputController
             HarvestPressed: keyboard.IsKeyPressed(Key.F),
             ToggleDoorPressed: keyboard.IsKeyPressed(Key.G),
             PlaceStructurePressed: keyboard.IsKeyPressed(Key.H),
+            DemolishStructurePressed: keyboard.IsKeyPressed(Key.Z),
             ToggleDebugPressed: keyboard.IsKeyPressed(Key.F3),
             ScreenshotPressed: keyboard.IsKeyPressed(Key.F12),
             EscapePressed: keyboard.IsKeyPressed(Key.Escape));

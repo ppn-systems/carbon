@@ -33,8 +33,10 @@ using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.World;
 using Silk.NET.OpenGL;
+using Carbon.Desktop.Rendering.Atmospherics;
+using Carbon.Desktop.Rendering.Camera;
 
-namespace Carbon.Desktop.Rendering;
+namespace Carbon.Desktop.Rendering.World;
 
 /// <summary>
 /// Orchestrates the 6-pass 2.5D world rendering pipeline using declarative <c>.cvg.json</c> vector rigs (DIP),
@@ -154,7 +156,15 @@ public sealed class WorldSceneRenderer : IDisposable
 
         this.EnsureWorldBound(world);
         _animTime += frameDt;
-        _atmosphere.Update(frameDt * timeScale);
+        if (world.AuthoritativeTimeHour is float authHour)
+        {
+            _atmosphere.SyncToHour(authHour);
+            _atmosphere.Update(0f);
+        }
+        else
+        {
+            _atmosphere.Update(frameDt * timeScale);
+        }
         _lights.Clear();
 
         _feedback.Update(world, frameDt, _animTime, aimedWorldPosition);
@@ -624,11 +634,20 @@ public sealed class WorldSceneRenderer : IDisposable
         {
             batch.DrawCircle(footPos, r + 2.5f, new ColorRgba(253, 224, 71, 110), 12, 1.1f);
         }
-        else if (remote.Kind == EntityKind.Monster && remote.NetworkId == world.LockedTargetNetworkId)
+        else if (remote.Kind == EntityKind.Monster)
         {
-            float pulse = r + 5.5f + (MathF.Sin(_animTime * 8f) * 1.4f);
-            batch.DrawCircle(footPos, pulse, new ColorRgba(244, 63, 94, 225), 18, 1.8f);
-            batch.DrawCircle(footPos, pulse + 3f, new ColorRgba(250, 204, 21, 160), 18, 1.1f);
+            if (Carbon.Maps.Generators.WorldProgression.IsNightHour(_atmosphere.Hour))
+            {
+                float auraPulse = r + 3.5f + (MathF.Sin((_animTime * 5f) + remote.NetworkId) * 1.1f);
+                batch.DrawCircle(footPos, auraPulse, new ColorRgba(192, 38, 211, 145), 16, 1.5f);
+            }
+
+            if (remote.NetworkId == world.LockedTargetNetworkId)
+            {
+                float pulse = r + 5.5f + (MathF.Sin(_animTime * 8f) * 1.4f);
+                batch.DrawCircle(footPos, pulse, new ColorRgba(244, 63, 94, 225), 18, 1.8f);
+                batch.DrawCircle(footPos, pulse + 3f, new ColorRgba(250, 204, 21, 160), 18, 1.1f);
+            }
         }
 
         if (_art is not null)
@@ -663,7 +682,16 @@ public sealed class WorldSceneRenderer : IDisposable
                         ActionAnimationKind.AxeChop => "chop",
                         ActionAnimationKind.PickaxeMine => "mine",
                         ActionAnimationKind.ArcaneWave or ActionAnimationKind.SelfAura or ActionAnimationKind.StaffCast or ActionAnimationKind.BowShot => "cast",
-                        ActionAnimationKind.None or ActionAnimationKind.SwordSlash or ActionAnimationKind.MonsterStrike or ActionAnimationKind.ConsumeItem or ActionAnimationKind.PlaceStructure or ActionAnimationKind.SpinSlash or _ => "slash",
+                        ActionAnimationKind.None
+                        or ActionAnimationKind.SwordSlash
+                        or ActionAnimationKind.MonsterStrike
+                        or ActionAnimationKind.MonsterBowShot
+                        or ActionAnimationKind.MonsterSpellCast
+                        or ActionAnimationKind.MonsterHeavySlam
+                        or ActionAnimationKind.ConsumeItem
+                        or ActionAnimationKind.PlaceStructure
+                        or ActionAnimationKind.SpinSlash
+                        or _ => "slash",
                     };
                     norm = true;
                     eval = 1f - Math.Clamp(remote.AttackAnimRemaining / MathF.Max(0.05f, remote.AttackAnimDuration), 0f, 1f);
@@ -677,7 +705,25 @@ public sealed class WorldSceneRenderer : IDisposable
             {
                 if (attacking)
                 {
-                    clip = "attack";
+                    clip = remote.ActiveActionKind switch
+                    {
+                        ActionAnimationKind.MonsterBowShot => "attack_bow",
+                        ActionAnimationKind.MonsterSpellCast => "attack_cast",
+                        ActionAnimationKind.MonsterHeavySlam => "attack_slam",
+                        ActionAnimationKind.None
+                        or ActionAnimationKind.SwordSlash
+                        or ActionAnimationKind.AxeChop
+                        or ActionAnimationKind.PickaxeMine
+                        or ActionAnimationKind.MonsterStrike
+                        or ActionAnimationKind.ConsumeItem
+                        or ActionAnimationKind.PlaceStructure
+                        or ActionAnimationKind.SpinSlash
+                        or ActionAnimationKind.ArcaneWave
+                        or ActionAnimationKind.SelfAura
+                        or ActionAnimationKind.BowShot
+                        or ActionAnimationKind.StaffCast
+                        or _ => "attack",
+                    };
                     norm = true;
                     eval = 1f - Math.Clamp(remote.AttackAnimRemaining / MathF.Max(0.05f, remote.AttackAnimDuration), 0f, 1f);
                 }
@@ -811,7 +857,12 @@ public sealed class WorldSceneRenderer : IDisposable
             {
                 ActionAnimationKind.AxeChop => "chop",
                 ActionAnimationKind.PickaxeMine => "mine",
-                ActionAnimationKind.SwordSlash or ActionAnimationKind.MonsterStrike or ActionAnimationKind.SpinSlash => "slash",
+                ActionAnimationKind.SwordSlash
+                or ActionAnimationKind.MonsterStrike
+                or ActionAnimationKind.MonsterBowShot
+                or ActionAnimationKind.MonsterSpellCast
+                or ActionAnimationKind.MonsterHeavySlam
+                or ActionAnimationKind.SpinSlash => "slash",
                 ActionAnimationKind.ArcaneWave or ActionAnimationKind.SelfAura or ActionAnimationKind.StaffCast or ActionAnimationKind.BowShot => "cast",
                 ActionAnimationKind.PlaceStructure => "chop",
                 ActionAnimationKind.ConsumeItem => "idle",

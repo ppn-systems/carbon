@@ -107,7 +107,7 @@ internal sealed class CraftingModalWidget
 
         if (GetCraft1ButtonRect(in layout).Contains(mousePos))
         {
-            if (StarterGameCatalog.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? rec) && CanCraftFromSpan(slots, rec))
+            if (StarterGameCatalog.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? rec) && PlayerInventoryLayout.CanCraft(slots, rec))
             {
                 craftRecipeId = _selectedRecipeId;
                 craftQuantity = 1;
@@ -118,7 +118,7 @@ internal sealed class CraftingModalWidget
 
         if (GetCraft5ButtonRect(in layout).Contains(mousePos))
         {
-            if (StarterGameCatalog.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? rec) && CanCraftFromSpan(slots, rec, quantity: 5))
+            if (StarterGameCatalog.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? rec) && PlayerInventoryLayout.CanCraft(slots, rec, quantity: 5))
             {
                 craftRecipeId = _selectedRecipeId;
                 craftQuantity = 5;
@@ -224,7 +224,7 @@ internal sealed class CraftingModalWidget
             }
 
             bool sel = rec.Id == _selectedRecipeId;
-            bool canCraft = CanCraftFromSpan(slots, rec);
+            bool canCraft = PlayerInventoryLayout.CanCraft(slots, rec);
             RectangleF rowRect = GetRecipeRowRect(in layout, shown);
             ColorRgba rowFill = sel ? CarbonUiPalette.SlotSelectedFill : CarbonUiPalette.SlotFill;
             ColorRgba rowBorder = sel
@@ -248,7 +248,7 @@ internal sealed class CraftingModalWidget
             for (int k = 0; k < selectedRec.Ingredients.Count && k < 3; k++)
             {
                 RecipeIngredient ing = selectedRec.Ingredients[k];
-                bool hasEnough = CountBagItem(slots, ing.ItemId) >= ing.Quantity;
+                bool hasEnough = PlayerInventoryLayout.CountItem(slots, ing.ItemId) >= ing.Quantity;
                 RectangleF ingCard = GetIngredientRect(in layout, k);
                 skin.DrawSlot(
                     spriteBatch,
@@ -257,8 +257,8 @@ internal sealed class CraftingModalWidget
                     hasEnough ? CarbonUiPalette.ConfirmBorder : CarbonUiPalette.DangerBorder);
             }
 
-            bool ready = CanCraftFromSpan(slots, selectedRec);
-            bool ready5 = CanCraftFromSpan(slots, selectedRec, quantity: 5);
+            bool ready = PlayerInventoryLayout.CanCraft(slots, selectedRec);
+            bool ready5 = PlayerInventoryLayout.CanCraft(slots, selectedRec, quantity: 5);
             skin.DrawButton(
                 spriteBatch,
                 GetCraft1ButtonRect(in layout),
@@ -389,7 +389,7 @@ internal sealed class CraftingModalWidget
             }
 
             RectangleF rowRect = GetRecipeRowRect(in layout, shown);
-            bool canCraft = CanCraftFromSpan(slots, rec);
+            bool canCraft = PlayerInventoryLayout.CanCraft(slots, rec);
             float textMaxW = rowRect.Width - MathF.Round(72f * s);
             string outName = CarbonUiSkin.TruncateToWidth(font, $"{StarterGameCatalog.GetDisplayName(rec.Output.ItemId)} x{rec.Output.Quantity}", textMaxW, layout.TextScale);
             spriteBatch.DrawOutlinedString(font, outName, new Vector2(rowRect.X + MathF.Round(64f * s), rowRect.Y + MathF.Round(10f * s)), canCraft ? CarbonUiPalette.TextPrimary : CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
@@ -412,7 +412,7 @@ internal sealed class CraftingModalWidget
             RectangleF rightPane = GetRightPaneRect(in layout);
             RectangleF outBox = GetOutputIconRect(in layout);
             uint outId = selectedRec.Output.ItemId;
-            int owned = CountBagItem(slots, outId);
+            int owned = PlayerInventoryLayout.CountItem(slots, outId);
             float headerX = outBox.Right + MathF.Round(12f * s);
             float headerMaxW = rightPane.Right - headerX - MathF.Round(14f * s);
             string title = CarbonUiSkin.TruncateToWidth(font, $"{StarterGameCatalog.GetDisplayName(outId)} x{selectedRec.Output.Quantity}", headerMaxW, layout.TitleScale);
@@ -433,7 +433,7 @@ internal sealed class CraftingModalWidget
             for (int k = 0; k < selectedRec.Ingredients.Count && k < 3; k++)
             {
                 RecipeIngredient ing = selectedRec.Ingredients[k];
-                int have = CountBagItem(slots, ing.ItemId);
+                int have = PlayerInventoryLayout.CountItem(slots, ing.ItemId);
                 bool ok = have >= ing.Quantity;
                 RectangleF ingCard = GetIngredientRect(in layout, k);
                 float textY = ingCard.Y + MathF.Round(14f * s);
@@ -478,7 +478,7 @@ internal sealed class CraftingModalWidget
 
     private bool MatchesFilter(ReadOnlySpan<ItemSlot> slots, CraftingRecipe recipe)
     {
-        if (_craftableOnly && !CanCraftFromSpan(slots, recipe))
+        if (_craftableOnly && !PlayerInventoryLayout.CanCraft(slots, recipe))
         {
             return false;
         }
@@ -529,35 +529,6 @@ internal sealed class CraftingModalWidget
                 ItemCategory.Consumable or ItemCategory.Placeable or ItemCategory.Accessory or ItemCategory.Resource or ItemCategory.Quest or ItemCategory.None or _ => $"Max Stack {def.MaxStackSize}",
             }
             : string.Empty;
-
-    private static int CountBagItem(ReadOnlySpan<ItemSlot> slots, uint itemId)
-    {
-        int total = 0;
-        int bagCount = Math.Min(PlayerInventoryLayout.BagLimit, slots.Length);
-        for (int i = 0; i < bagCount; i++)
-        {
-            if (slots[i].ItemId == itemId && slots[i].UpgradeLevel == 0)
-            {
-                total += slots[i].Quantity;
-            }
-        }
-
-        return total;
-    }
-
-    private static bool CanCraftFromSpan(ReadOnlySpan<ItemSlot> slots, CraftingRecipe recipe, int quantity = 1)
-    {
-        for (int i = 0; i < recipe.Ingredients.Count; i++)
-        {
-            RecipeIngredient ing = recipe.Ingredients[i];
-            if (CountBagItem(slots, ing.ItemId) < ing.Quantity * quantity)
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
 
     private static RectangleF GetFilterTabRect(in PlayerModalLayout layout, int tabIndex)
     {

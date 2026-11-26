@@ -12,7 +12,7 @@ using Carbon.Graphics.OpenGL.Abstractions;
 using Carbon.Graphics.OpenGL.Device;
 using Carbon.Graphics.OpenGL.Textures;
 
-namespace Carbon.Desktop.Rendering;
+namespace Carbon.Desktop.Rendering.Fonts;
 
 /// <summary>
 /// Loads the game's primary rasterized UI font from <c>resources/fonts/thaleah_fat.ttf</c>

@@ -5,7 +5,7 @@ using System.Numerics;
 using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Common;
 
-namespace Carbon.Desktop.Rendering;
+namespace Carbon.Desktop.Rendering.Camera;
 
 /// <summary>
 /// Manages smooth player tracking, user zoom bounds, and interior building framing on top of <see cref="Camera2D"/>.
