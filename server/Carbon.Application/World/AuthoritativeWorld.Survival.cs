@@ -208,7 +208,7 @@ public sealed partial class AuthoritativeWorld
 
         if (_itemRules.Items.TryGet(slot.ItemId, out ItemArchetype? def))
         {
-            _ = this.ApplyConsumableRestoresLocked(state, def);
+            _ = _actions.ApplyConsumableRestores(state, def);
         }
 
         ItemSlot updated = slot.Quantity > 1 ? slot with { Quantity = slot.Quantity - 1 } : ItemSlot.Empty;

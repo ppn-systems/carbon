@@ -3,12 +3,10 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Carbon.Application.World.Combat;
+using Carbon.Application.World.Actions;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Projectiles;
-using Carbon.Application.World.Replication;
 using Carbon.Contracts.Entities;
-using Carbon.Combat.Hitboxes;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
@@ -20,312 +18,6 @@ namespace Carbon.Application.World;
 
 public sealed partial class AuthoritativeWorld
 {
-    private void ProcessPlayerAttackLocked(PlayerState state)
-    {
-        if (!_simulation.Entities.IsAlive(state.Entity) ||
-            !_simulation.Entities.HasTransform(state.Entity))
-        {
-            return;
-        }
-
-        if (AbilityInputEncoding.TryDecodeSkill(state.PendingAttackAbility, out ushort skillSlot))
-        {
-            this.ProcessActiveSkillLocked(state, skillSlot);
-            return;
-        }
-
-        if (state.PendingAttackAbility < 9 && state.PendingAttackAbility != state.Session.SelectedHotbarSlot)
-        {
-            byte tier = _inventory.ResolveHarvestTier(state.Inventory, state.PendingAttackAbility);
-            state.Session = state.Session with { SelectedHotbarSlot = state.PendingAttackAbility, SelectedHarvestTier = tier };
-            this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
-        }
-
-        ItemSlot activeSlot = state.Session.SelectedHotbarSlot < state.Inventory.Capacity
-            ? state.Inventory.GetSlot(state.Session.SelectedHotbarSlot)
-            : ItemSlot.Empty;
-
-        if (this.TryConsumeActiveSlotPotionLocked(state, in activeSlot))
-        {
-            return;
-        }
-
-        // Attacking, harvesting or building stands a resting player up (eating does not).
-        this.WakeLocked(state);
-
-        if (!state.Cooldowns.IsReady(AttackAbilityId, _currentTick))
-        {
-            return;
-        }
-
-        state.Cooldowns.StartCooldown(AttackAbilityId, _currentTick, _needs.ScaleAttackCooldown(state.Entity, (uint)Math.Max(10, this.TickRate / 2)));
-
-        Vector2 attackerPos = _simulation.Entities.GetTransform(state.Entity).Position;
-        if (activeSlot.Quantity > 0 &&
-            _itemRules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? archetype) &&
-            archetype.Category == ItemCategory.Placeable)
-        {
-            this.ProcessPlaceablePrimaryActionLocked(state, attackerPos, activeSlot, archetype);
-            return;
-        }
-
-        Vector2 rawAim = state.PendingAttackAim - attackerPos;
-        Vector2 aimDir = rawAim.LengthSquared() > 1e-4f ? Vector2.Normalize(rawAim) : Vector2.UnitX;
-
-        if (activeSlot.Quantity > 0 &&
-            _itemRules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? weaponDef) &&
-            weaponDef.ProjectileSpeed > 0f)
-        {
-            if (weaponDef.AttackManaCost > 0f)
-            {
-                if (state.CurrentMana < weaponDef.AttackManaCost)
-                {
-                    return;
-                }
-
-                state.CurrentMana = MathF.Max(0f, state.CurrentMana - weaponDef.AttackManaCost);
-                state.StatsDirty = true;
-            }
-
-            CombatStrikeEvaluation rangedEval = ToolUsagePolicy.EvaluateCombatStrike(_itemRules, in activeSlot);
-            bool rangedCrit = !ToolUsagePolicy.IsWornOut(_itemRules, in activeSlot) &&
-                CombatService.RollCriticalHit(weaponDef.CritChance, ++state.CombatRollNonce);
-            float rangedDmg = rangedEval.Damage * state.Stats.AttackMultiplier;
-            float finalRangedDmg = rangedCrit ? rangedDmg * 1.5f : rangedDmg;
-
-            if (this.DegradeActiveSlotDurabilityLocked(state, in activeSlot, 0.8f, out ItemSlot degradedRanged))
-            {
-                _outbound.Pending.SlotChanges.Add(new OutboundSlotChange(
-                    state.Session.ConnectionId,
-                    state.Session.SelectedHotbarSlot,
-                    degradedRanged));
-            }
-
-            _combat.QueueSkillCast(attackerPos, aimDir, state.Session.PlayerNetworkId, AbilityInputEncoding.EncodePlayerProjectileCast(weaponDef.ProjectileArchetype));
-
-            uint lifeTicks = (uint)Math.Max(12, MathF.Ceiling(weaponDef.AttackRange / weaponDef.ProjectileSpeed * this.TickRate));
-            _ = _projectiles.Spawn(
-                state.Session.PlayerNetworkId,
-                state.Session.ConnectionId,
-                fromPlayer: true,
-                attackerPos + (aimDir * 10f),
-                aimDir * weaponDef.ProjectileSpeed,
-                weaponDef.ProjectileArchetype,
-                finalRangedDmg,
-                rangedCrit,
-                lifeTicks);
-            return;
-        }
-
-        float meleeRange = MeleeStrikeRangePx;
-        ItemArchetype? meleeDef = null;
-        if (!activeSlot.IsEmpty && _itemRules.Items.TryGet(activeSlot.ItemId, out meleeDef) && meleeDef.Capabilities.HasFlag(ToolCapabilities.MeleeWeapon))
-        {
-            meleeRange = Math.Clamp(meleeDef.AttackRange, MeleeStrikeRangePx, 96f);
-        }
-
-        HitboxQuery.QueryArc(
-            _simulation,
-            attackerPos,
-            aimDir,
-            radius: meleeRange,
-            halfAngleRadians: 1.05f,
-            _combatHitScratch,
-            out int hitCount,
-            layerMask: MonsterLayer,
-            ignoreEntity: state.Entity);
-
-        if (hitCount == 0 && state.PendingAttackTargetId != 0UL &&
-            _simulation.TryGetEntityByNetworkId(state.PendingAttackTargetId, out Entity explicitTarget) &&
-            _simulation.Entities.HasTransform(explicitTarget) &&
-            _simulation.Entities.HasCollider(explicitTarget) &&
-            (_simulation.Entities.GetCollider(explicitTarget).Layer & MonsterLayer) != 0U &&
-            Vector2.DistanceSquared(attackerPos, _simulation.Entities.GetTransform(explicitTarget).Position) <= (meleeRange * meleeRange))
-        {
-            _combatHitScratch[0] = explicitTarget;
-            hitCount = 1;
-        }
-
-        if (hitCount == 0)
-        {
-            _props.SwingAtWorld(state, attackerPos, aimDir, in activeSlot);
-            return;
-        }
-
-        CombatStrikeEvaluation combatEval = ToolUsagePolicy.EvaluateCombatStrike(_itemRules, in activeSlot);
-        bool isCrit = meleeDef is not null &&
-            combatEval.Outcome == ToolStrikeOutcome.Optimal &&
-            CombatService.RollCriticalHit(meleeDef.CritChance, ++state.CombatRollNonce);
-        float scaledDamage = combatEval.Damage * state.Stats.AttackMultiplier;
-        float finalDamage = isCrit ? scaledDamage * 1.5f : scaledDamage;
-
-        bool anyDamaged = this.ApplyMonsterHitsFromScratchLocked(state, attackerPos, aimDir, hitCount, finalDamage, isCrit, knockbackSpeed: 135f);
-
-        if (anyDamaged &&
-            combatEval.DurabilityLoss > 0f &&
-            this.DegradeActiveSlotDurabilityLocked(state, in activeSlot, combatEval.DurabilityLoss, out ItemSlot degradedCombatSlot))
-        {
-            _outbound.Pending.SlotChanges.Add(new OutboundSlotChange(
-                state.Session.ConnectionId,
-                state.Session.SelectedHotbarSlot,
-                degradedCombatSlot));
-        }
-    }
-
-    private bool TryConsumeActiveSlotPotionLocked(PlayerState state, in ItemSlot activeSlot)
-    {
-        if (this.TryBeginEatingActiveSlotLocked(state, in activeSlot))
-        {
-            return true;
-        }
-
-        if (activeSlot.IsEmpty || activeSlot.Quantity <= 0 ||
-            !_itemRules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? def) ||
-            def.Category != ItemCategory.Consumable)
-        {
-            return false;
-        }
-
-        if (!state.Cooldowns.IsReady(ConsumableAbilityId, _currentTick))
-        {
-            return true;
-        }
-
-        if (!this.ApplyConsumableRestoresLocked(state, def))
-        {
-            return false;
-        }
-
-        state.Cooldowns.StartCooldown(ConsumableAbilityId, _currentTick, (uint)Math.Max(15, (int)MathF.Round(this.TickRate * 1.5f)));
-        state.StatsDirty = true;
-
-        ItemSlot updatedSlot = activeSlot.Quantity > 1
-            ? activeSlot with { Quantity = activeSlot.Quantity - 1 }
-            : ItemSlot.Empty;
-        state.Inventory.SetSlot(state.Session.SelectedHotbarSlot, in updatedSlot);
-        _outbound.Pending.SlotChanges.Add(new OutboundSlotChange(state.Session.ConnectionId, state.Session.SelectedHotbarSlot, updatedSlot));
-        this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
-        return true;
-    }
-
-    /// <summary>Applies a consumable's HP/MP/stamina restores; returns false when nothing could be restored.</summary>
-    private bool ApplyConsumableRestoresLocked(PlayerState state, ItemArchetype def)
-    {
-        bool used = false;
-        float combatTextAmount = 0f;
-        float resultingHealth = 0f;
-
-        if (def.HealHealth > 0f && _simulation.Entities.HasHealth(state.Entity))
-        {
-            HealthComponent currentHp = _simulation.Entities.GetHealth(state.Entity);
-            if (currentHp.Current < currentHp.Max)
-            {
-                float healedHp = MathF.Min(currentHp.Max, currentHp.Current + def.HealHealth);
-                _simulation.Entities.SetHealth(state.Entity, new HealthComponent(healedHp, currentHp.Max));
-                _simulation.MarkDirty(state.Entity, EntityDirtyMask.Health);
-                combatTextAmount = -def.HealHealth;
-                resultingHealth = healedHp;
-                used = true;
-            }
-        }
-
-        if (def.RestoreMana > 0f && state.CurrentMana < state.Stats.MaxMana)
-        {
-            state.CurrentMana = MathF.Min(state.Stats.MaxMana, state.CurrentMana + def.RestoreMana);
-            used = true;
-        }
-
-        if (def.RestoreStamina > 0f && state.CurrentStamina < state.Stats.MaxStamina)
-        {
-            state.CurrentStamina = MathF.Min(state.Stats.MaxStamina, state.CurrentStamina + def.RestoreStamina);
-            used = true;
-        }
-
-        if (!used)
-        {
-            return false;
-        }
-
-        if (combatTextAmount < 0f && _simulation.Entities.HasTransform(state.Entity))
-        {
-            this.QueueCombatHitLocked(
-                _simulation.Entities.GetTransform(state.Entity).Position,
-                state.Session.PlayerNetworkId,
-                state.Session.PlayerNetworkId,
-                combatTextAmount,
-                resultingHealth,
-                isCritical: false,
-                isKilled: false);
-        }
-
-        return true;
-    }
-
-    private void ProcessActiveSkillLocked(PlayerState state, ushort skillId)
-    {
-        byte rank = state.Progression.GetSkillRank(skillId);
-        if (rank == 0 || !SkillCatalog.Skills.TryGet(skillId, out SkillDefinition? skillDef))
-        {
-            return;
-        }
-
-        uint abilityId = SkillAbilityIdBase + skillId;
-        if (!state.Cooldowns.IsReady(abilityId, _currentTick))
-        {
-            return;
-        }
-
-        SkillSpec spec = skillDef.EvaluateRank(rank);
-        if (state.CurrentMana < spec.ManaCost || state.CurrentStamina < spec.StaminaCost)
-        {
-            return;
-        }
-
-        state.CurrentMana = MathF.Max(0f, state.CurrentMana - spec.ManaCost);
-        state.CurrentStamina = MathF.Max(0f, state.CurrentStamina - spec.StaminaCost);
-        state.StatsDirty = true;
-        state.Cooldowns.StartCooldown(abilityId, _currentTick, (uint)Math.Max(1, MathF.Ceiling(spec.CooldownSeconds * this.TickRate)));
-
-        Vector2 pos = _simulation.Entities.GetTransform(state.Entity).Position;
-        Vector2 rawAim = state.PendingAttackAim - pos;
-        Vector2 aimDir = rawAim.LengthSquared() > 1e-4f ? Vector2.Normalize(rawAim) : Vector2.UnitX;
-
-        _combat.QueueSkillCast(pos, aimDir, state.Session.PlayerNetworkId, (byte)skillId);
-
-        if (skillDef.EffectKind == SkillEffectKind.SelfRestore)
-        {
-            if (_simulation.Entities.HasHealth(state.Entity))
-            {
-                HealthComponent hp = _simulation.Entities.GetHealth(state.Entity);
-                float healAmt = MathF.Max(20f, hp.Max * spec.SelfHealRatio);
-                float nextHp = MathF.Min(hp.Max, hp.Current + healAmt);
-                _simulation.Entities.SetHealth(state.Entity, new HealthComponent(nextHp, hp.Max));
-                _simulation.MarkDirty(state.Entity, EntityDirtyMask.Health);
-                state.CurrentStamina = MathF.Min(state.Stats.MaxStamina, state.CurrentStamina + spec.StaminaRestore);
-                this.QueueCombatHitLocked(pos, state.Session.PlayerNetworkId, state.Session.PlayerNetworkId, -healAmt, nextHp, false, false);
-            }
-
-            this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
-            return;
-        }
-
-        ItemSlot activeSlot = state.Session.SelectedHotbarSlot < state.Inventory.Capacity
-            ? state.Inventory.GetSlot(state.Session.SelectedHotbarSlot)
-            : ItemSlot.Empty;
-        float basePower = skillDef.ScalingMode == SkillScalingMode.ArcaneSpell
-            ? 30f * state.Stats.SpellPowerMultiplier
-            : ToolUsagePolicy.EvaluateCombatStrike(_itemRules, in activeSlot).Damage * state.Stats.AttackMultiplier;
-        float skillDamage = basePower * spec.DamageMultiplier;
-
-        HitboxQuery.QueryArc(_simulation, pos, aimDir, spec.Radius, spec.HalfAngleRad, _combatHitScratch, out int hitCount, MonsterLayer, state.Entity);
-        if (hitCount > 0)
-        {
-            _ = this.ApplyMonsterHitsFromScratchLocked(state, pos, aimDir, hitCount, skillDamage, isCritical: false, knockbackSpeed: skillDef.KnockbackSpeed);
-        }
-
-        this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
-    }
-
     private bool ApplyMonsterHitsFromScratchLocked(
         PlayerState attacker,
         Vector2 attackerPos,
@@ -427,67 +119,8 @@ public sealed partial class AuthoritativeWorld
         state.PersistenceDirty = true;
     }
 
-    private bool DegradeActiveSlotDurabilityLocked(
-        PlayerState state,
-        in ItemSlot activeSlot,
-        float loss,
-        out ItemSlot updatedSlot)
-    {
-        updatedSlot = activeSlot;
-        if (loss <= 0f ||
-            activeSlot.IsEmpty ||
-            !_itemRules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? def) ||
-            def.MaxDurability <= 0f)
-        {
-            return false;
-        }
-
-        float current = MathF.Max(0f, activeSlot.Durability);
-        float next = MathF.Max(0f, current - loss);
-        if (MathF.Abs(next - current) < 0.001f)
-        {
-            return false;
-        }
-
-        updatedSlot = activeSlot with { Durability = next };
-        state.Inventory.SetSlot(state.Session.SelectedHotbarSlot, in updatedSlot);
-        this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
-        return true;
-    }
-
-    private void DegradeEquippedArmorLocked(PlayerState victim, float loss)
-    {
-        bool anyBroke = false;
-        for (int sIdx = PlayerInventoryLayout.HeadSlot; sIdx <= PlayerInventoryLayout.FeetSlot; sIdx++)
-        {
-            if (sIdx >= victim.Inventory.Capacity)
-            {
-                break;
-            }
-
-            ItemSlot slot = victim.Inventory.GetSlot(sIdx);
-            if (slot.IsEmpty || slot.Durability <= 0f)
-            {
-                continue;
-            }
-
-            float nextDur = MathF.Max(0f, slot.Durability - loss);
-            ItemSlot updated = slot with { Durability = nextDur };
-            victim.Inventory.SetSlot(sIdx, in updated);
-            _outbound.Pending.SlotChanges.Add(new OutboundSlotChange(victim.Session.ConnectionId, (ushort)sIdx, updated));
-            if (nextDur <= 0f)
-            {
-                anyBroke = true;
-            }
-        }
-
-        if (anyBroke)
-        {
-            this.RecomputeDerivedStatsLocked(victim);
-        }
-
-        this.MarkCharacterDirtyLocked(victim, inventoryChanged: true);
-    }
+    private bool DegradeActiveSlotDurabilityLocked(PlayerState state, in ItemSlot activeSlot, float loss, out ItemSlot updatedSlot) =>
+        _actions.WearActiveTool(state, in activeSlot, loss, out updatedSlot);
 
     private bool HasNearbyFriendlyNpcLocked(Vector2 worldPos, float radiusSq) =>
         this.HasNearbyNpcWithCapabilityLocked(worldPos, radiusSq, NpcCapabilities.TownGuard | NpcCapabilities.Shrine | NpcCapabilities.Harbour | NpcCapabilities.ForgeArtisan);
@@ -569,5 +202,20 @@ public sealed partial class AuthoritativeWorld
 
             return false;
         }
+    }
+
+    /// <summary><see cref="IPlayerActionHost"/> for <see cref="PlayerActionService"/>. Invoked inside the locked simulation tick.</summary>
+    private sealed class PlayerActionHost(AuthoritativeWorld owner) : IPlayerActionHost
+    {
+        public void MarkCharacterDirty(PlayerState state, bool inventoryChanged) => owner.MarkCharacterDirtyLocked(state, inventoryChanged);
+
+        public void Wake(PlayerState state) => owner.WakeLocked(state);
+
+        public bool TryBeginEating(PlayerState state, in ItemSlot activeSlot) => owner.TryBeginEatingActiveSlotLocked(state, in activeSlot);
+
+        public void UsePlaceable(PlayerState state, Vector2 attackerPos, ItemSlot activeSlot, ItemArchetype archetype) =>
+            owner.ProcessPlaceablePrimaryActionLocked(state, attackerPos, activeSlot, archetype);
+
+        public void RecomputeDerivedStats(PlayerState state) => owner.RecomputeDerivedStatsLocked(state);
     }
 }
