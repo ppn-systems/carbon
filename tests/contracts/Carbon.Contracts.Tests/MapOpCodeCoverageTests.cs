@@ -74,6 +74,18 @@ public sealed class MapOpCodeCoverageTests
             StructureDurabilities = [150f, 100f],
             StructureDoorStates = [0, 1],
             StructureConnectivities = [2, 0],
+            SiteIndices = [5],
+            SiteTypes = [11],
+            SiteRotations = [1],
+            SiteStages = [2],
+            SiteSizes = [0x21],
+            SiteWorkDone = [37.5f],
+            SiteOwnerIds = [ulong.MaxValue],
+            RecordIndices = [42],
+            RecordOwnerIds = [9],
+            RecordAnchorOffsets = [0x10],
+            RecordRotations = [3],
+            RecordFloorsBeneath = [5],
         };
 
         byte[] bytes = original.Serialize();
@@ -91,18 +103,31 @@ public sealed class MapOpCodeCoverageTests
         Assert.Equal(original.StructureDurabilities, copy.StructureDurabilities);
         Assert.Equal(original.StructureDoorStates, copy.StructureDoorStates);
         Assert.Equal(original.StructureConnectivities, copy.StructureConnectivities);
+        Assert.Equal(original.SiteIndices, copy.SiteIndices);
+        Assert.Equal(original.SiteTypes, copy.SiteTypes);
+        Assert.Equal(original.SiteRotations, copy.SiteRotations);
+        Assert.Equal(original.SiteStages, copy.SiteStages);
+        Assert.Equal(original.SiteSizes, copy.SiteSizes);
+        Assert.Equal(original.SiteWorkDone, copy.SiteWorkDone);
+        Assert.Equal(original.SiteOwnerIds, copy.SiteOwnerIds);
+        Assert.Equal(original.RecordIndices, copy.RecordIndices);
+        Assert.Equal(original.RecordOwnerIds, copy.RecordOwnerIds);
+        Assert.Equal(original.RecordAnchorOffsets, copy.RecordAnchorOffsets);
+        Assert.Equal(original.RecordRotations, copy.RecordRotations);
+        Assert.Equal(original.RecordFloorsBeneath, copy.RecordFloorsBeneath);
     }
 
     [Fact]
     public void MapStructurePlace_RoundTrip_PreservesFields()
     {
-        using MapStructurePlace original = new() { TileX = -100, TileY = 250, StructureType = 3 };
+        using MapStructurePlace original = new() { TileX = -100, TileY = 250, StructureType = 3, Rotation = 1 };
 
         using MapStructurePlace copy = MapStructurePlace.Deserialize(original.Serialize());
 
         Assert.Equal(original.TileX, copy.TileX);
         Assert.Equal(original.TileY, copy.TileY);
         Assert.Equal(original.StructureType, copy.StructureType);
+        Assert.Equal(original.Rotation, copy.Rotation);
     }
 
     private static IEnumerable<(Type Type, ushort OpCode)> PacketOpCodes(Assembly assembly) =>

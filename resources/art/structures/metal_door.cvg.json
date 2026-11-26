@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 2,
+  "structureType": 10,
+  "id": "metal_door",
+  "displayName": "Metal Door",
+  "palette": {
+    "frame": "#374151",
+    "panel": "#6B7280",
+    "handle": "#FBBF24",
+    "threshold": "#4B5563A0"
+  },
+  "shapes": [
+    {
+      "kind": "rect",
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "color": "$frame"
+    },
+    {
+      "kind": "rect",
+      "x": 4,
+      "y": 3,
+      "w": 24,
+      "h": 26,
+      "color": "$panel",
+      "outlineColor": "$frame",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "line",
+      "x": 4,
+      "y": 16,
+      "x2": 28,
+      "y2": 16,
+      "thickness": 1.2,
+      "color": "$frame"
+    },
+    {
+      "kind": "ellipse",
+      "x": 24,
+      "y": 17,
+      "rx": 1.5,
+      "ry": 1.5,
+      "color": "$handle"
+    }
+  ],
+  "openShapes": [
+    {
+      "kind": "rect",
+      "x": 2,
+      "y": 4,
+      "w": 28,
+      "h": 24,
+      "color": "$threshold"
+    },
+    {
+      "kind": "rect",
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 32,
+      "color": "$frame"
+    },
+    {
+      "kind": "rect",
+      "x": 28,
+      "y": 0,
+      "w": 4,
+      "h": 32,
+      "color": "$frame"
+    },
+    {
+      "kind": "rect",
+      "x": 3,
+      "y": 2,
+      "w": 5,
+      "h": 28,
+      "color": "$panel",
+      "outlineColor": "$frame",
+      "outlineThickness": 1.0
+    }
+  ]
+}

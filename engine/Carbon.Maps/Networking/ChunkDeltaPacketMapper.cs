@@ -78,6 +78,46 @@ public static class ChunkDeltaPacketMapper
             si++;
         }
 
+        int siteCount = delta.Sites.Count;
+        ushort[] siteIndices = siteCount == 0 ? [] : new ushort[siteCount];
+        byte[] siteTypes = siteCount == 0 ? [] : new byte[siteCount];
+        byte[] siteRotations = siteCount == 0 ? [] : new byte[siteCount];
+        byte[] siteStages = siteCount == 0 ? [] : new byte[siteCount];
+        byte[] siteSizes = siteCount == 0 ? [] : new byte[siteCount];
+        float[] siteWorkDone = siteCount == 0 ? [] : new float[siteCount];
+        ulong[] siteOwners = siteCount == 0 ? [] : new ulong[siteCount];
+        int ci = 0;
+        foreach (KeyValuePair<int, ConstructionSite> kvp in delta.Sites)
+        {
+            ConstructionSite site = kvp.Value;
+            siteIndices[ci] = (ushort)kvp.Key;
+            siteTypes[ci] = (byte)site.Type;
+            siteRotations[ci] = (byte)site.Rotation;
+            siteStages[ci] = (byte)site.Stage;
+            siteSizes[ci] = (byte)(site.Width | (site.Height << 4));
+            siteWorkDone[ci] = site.WorkDone;
+            siteOwners[ci] = site.OwnerId;
+            ci++;
+        }
+
+        int recordCount = delta.StructureRecords.Count;
+        ushort[] recordIndices = recordCount == 0 ? [] : new ushort[recordCount];
+        ulong[] recordOwners = recordCount == 0 ? [] : new ulong[recordCount];
+        byte[] recordOffsets = recordCount == 0 ? [] : new byte[recordCount];
+        byte[] recordRotations = recordCount == 0 ? [] : new byte[recordCount];
+        byte[] recordFloors = recordCount == 0 ? [] : new byte[recordCount];
+        int ri = 0;
+        foreach (KeyValuePair<int, StructureRecord> kvp in delta.StructureRecords)
+        {
+            StructureRecord record = kvp.Value;
+            recordIndices[ri] = (ushort)kvp.Key;
+            recordOwners[ri] = record.OwnerId;
+            recordOffsets[ri] = (byte)((record.AnchorOffsetX & 0x0F) | ((record.AnchorOffsetY & 0x0F) << 4));
+            recordRotations[ri] = (byte)record.Rotation;
+            recordFloors[ri] = (byte)record.FloorBeneath;
+            ri++;
+        }
+
         return new MapChunkDelta
         {
             IsEndOfStream = isEndOfStream,
@@ -97,7 +137,19 @@ public static class ChunkDeltaPacketMapper
             StructureTypes = structTypes,
             StructureDurabilities = structDurabilities,
             StructureDoorStates = structDoorStates,
-            StructureConnectivities = structConnectivities
+            StructureConnectivities = structConnectivities,
+            SiteIndices = siteIndices,
+            SiteTypes = siteTypes,
+            SiteRotations = siteRotations,
+            SiteStages = siteStages,
+            SiteSizes = siteSizes,
+            SiteWorkDone = siteWorkDone,
+            SiteOwnerIds = siteOwners,
+            RecordIndices = recordIndices,
+            RecordOwnerIds = recordOwners,
+            RecordAnchorOffsets = recordOffsets,
+            RecordRotations = recordRotations,
+            RecordFloorsBeneath = recordFloors
         };
     }
 
@@ -132,6 +184,26 @@ public static class ChunkDeltaPacketMapper
             packet.StructureConnectivities.Length != structCount)
         {
             throw new ArgumentException("Structure array lengths in MapChunkDelta must match StructureIndices.", nameof(packet));
+        }
+
+        int siteCount = packet.SiteIndices.Length;
+        if (packet.SiteTypes.Length != siteCount ||
+            packet.SiteRotations.Length != siteCount ||
+            packet.SiteStages.Length != siteCount ||
+            packet.SiteSizes.Length != siteCount ||
+            packet.SiteWorkDone.Length != siteCount ||
+            packet.SiteOwnerIds.Length != siteCount)
+        {
+            throw new ArgumentException("Site array lengths in MapChunkDelta must match SiteIndices.", nameof(packet));
+        }
+
+        int recordCount = packet.RecordIndices.Length;
+        if (packet.RecordOwnerIds.Length != recordCount ||
+            packet.RecordAnchorOffsets.Length != recordCount ||
+            packet.RecordRotations.Length != recordCount ||
+            packet.RecordFloorsBeneath.Length != recordCount)
+        {
+            throw new ArgumentException("Record array lengths in MapChunkDelta must match RecordIndices.", nameof(packet));
         }
 
         ChunkDelta delta = new(packet.ChunkX, packet.ChunkY);
@@ -207,6 +279,45 @@ public static class ChunkDeltaPacketMapper
                 Connectivity = (WallConnectivityMask)packet.StructureConnectivities[i]
             };
             delta.SetStructure(lx, ly, in structure);
+        }
+
+        for (int i = 0; i < siteCount; i++)
+        {
+            int idx = packet.SiteIndices[i];
+            int width = packet.SiteSizes[i] & 0x0F;
+            int height = packet.SiteSizes[i] >> 4;
+            ConstructionStage stage = (ConstructionStage)packet.SiteStages[i];
+            if ((uint)idx > (uint)maxLocalIndex || width == 0 || height == 0 ||
+                stage is not (ConstructionStage.Blueprint or ConstructionStage.Frame))
+            {
+                continue;
+            }
+
+            // Delivered quantities stay server-side; clients only render stage and progress.
+            ConstructionSite site = new((StructureType)packet.SiteTypes[i], (StructureRotation)packet.SiteRotations[i], packet.SiteOwnerIds[i], width, height, costEntries: 0)
+            {
+                Stage = stage,
+                WorkDone = MathF.Max(0f, packet.SiteWorkDone[i])
+            };
+            delta.SetSite(idx % Chunk2D.Size, idx / Chunk2D.Size, site);
+        }
+
+        for (int i = 0; i < recordCount; i++)
+        {
+            int idx = packet.RecordIndices[i];
+            if ((uint)idx > (uint)maxLocalIndex)
+            {
+                continue;
+            }
+
+            byte offsets = packet.RecordAnchorOffsets[i];
+            StructureRecord record = new(
+                packet.RecordOwnerIds[i],
+                (byte)(offsets & 0x0F),
+                (byte)(offsets >> 4),
+                (StructureRotation)packet.RecordRotations[i],
+                (StructureType)packet.RecordFloorsBeneath[i]);
+            delta.SetStructureRecord(idx % Chunk2D.Size, idx / Chunk2D.Size, record);
         }
 
         delta.RestoreRevision(packet.Revision);

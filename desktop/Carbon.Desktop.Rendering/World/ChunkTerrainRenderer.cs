@@ -1215,6 +1215,7 @@ public sealed class ChunkTerrainRenderer : IDisposable
                 StructureCategory.Door => new ColorRgba(135, 95, 60, 255),
                 StructureCategory.Pillar => new ColorRgba(120, 125, 135, 255),
                 StructureCategory.Station => new ColorRgba(72, 82, 98, 255),
+                StructureCategory.Furniture => new ColorRgba(140, 100, 70, 255),
                 StructureCategory.None or _ => default,
             };
             if (fallbackCol.A > 0)
