@@ -11,6 +11,7 @@ using Carbon.Application.World.Commands;
 using Carbon.Application.World.Construction;
 using Carbon.Application.World.Loot;
 using Carbon.Application.World.Needs;
+using Carbon.Application.World.Players;
 using Carbon.Application.World.Projectiles;
 using Carbon.Application.World.Replication;
 using Carbon.AI.Components;
@@ -82,8 +83,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private GameEconomy? _economy;
     private ItemRules _itemRules;
 
-    private readonly Dictionary<ulong, ActivePlayerState> _playersByConnection = new();
-    private readonly Dictionary<ulong, ulong> _connectionByNetworkId = new();
+    private readonly PlayerRegistry _players = new();
     private readonly Dictionary<ulong, NpcActorMeta> _actorsByNetworkId = new();
     private readonly GroundLootService _groundLoot;
     private readonly ProjectileService _projectiles;
@@ -328,14 +328,14 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
         lock (_gate)
         {
-            if (_playersByConnection.ContainsKey(connectionId))
+            if (_players.ByConnection.ContainsKey(connectionId))
             {
                 _ = this.RemovePlayerLocked(connectionId);
             }
 
             // Anti-duplication guard: evict any duplicate active session for the same character ID.
             ulong duplicateConnectionId = 0UL;
-            foreach (KeyValuePair<ulong, ActivePlayerState> kvp in _playersByConnection)
+            foreach (KeyValuePair<ulong, PlayerState> kvp in _players.ByConnection)
             {
                 if (kvp.Value.SourceCharacter.Id == character.Id)
                 {
@@ -400,7 +400,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             float startMana = Math.Clamp(character.CurrentMana, 0f, stats.MaxMana);
             float startStamina = Math.Clamp(character.CurrentStamina, 0f, stats.MaxStamina);
 
-            ActivePlayerState playerState = new(session, entity, character, inventory)
+            PlayerState playerState = new(session, entity, character, inventory)
             {
                 Level = startLevel,
                 Experience = character.Experience,
@@ -421,8 +421,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             this.EnqueueWalletSyncLocked(playerState);
             startProg.CopyTo(playerState.Progression);
 
-            _playersByConnection[connectionId] = playerState;
-            _connectionByNetworkId[networkId] = connectionId;
+            _players.ByConnection[connectionId] = playerState;
+            _players.ConnectionByNetworkId[networkId] = connectionId;
             _replication.Track(connectionId);
 
             return new EnterWorldResult(
@@ -469,7 +469,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     {
         lock (_gate)
         {
-            if (_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state))
+            if (_players.ByConnection.TryGetValue(connectionId, out PlayerState? state))
             {
                 session = state.Session;
                 return true;
@@ -485,7 +485,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     {
         lock (_gate)
         {
-            foreach (KeyValuePair<ulong, ActivePlayerState> kvp in _playersByConnection)
+            foreach (KeyValuePair<ulong, PlayerState> kvp in _players.ByConnection)
             {
                 if (kvp.Value.SourceCharacter.Id == characterId)
                 {
@@ -521,7 +521,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
         lock (_gate)
         {
-            if (_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state))
+            if (_players.ByConnection.TryGetValue(connectionId, out PlayerState? state))
             {
                 state.PendingDirection = direction;
                 state.PendingSprint = sprint;
@@ -541,7 +541,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
         lock (_gate)
         {
-            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state))
+            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state))
             {
                 return OpStatus.Forbidden;
             }
@@ -569,7 +569,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
         lock (_gate)
         {
-            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state) ||
+            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state) ||
                 !_simulation.Entities.IsAlive(state.Entity))
             {
                 return OpStatus.Forbidden;
@@ -826,19 +826,19 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
     private bool RemovePlayerLocked(ulong connectionId)
     {
-        if (!_playersByConnection.Remove(connectionId, out ActivePlayerState? state))
+        if (!_players.ByConnection.Remove(connectionId, out PlayerState? state))
         {
             return false;
         }
 
         this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
-        _ = _connectionByNetworkId.Remove(state.Session.PlayerNetworkId);
+        _ = _players.ConnectionByNetworkId.Remove(state.Session.PlayerNetworkId);
         _replication.Untrack(connectionId);
         _simulation.DespawnEntity(state.Entity);
         return true;
     }
 
-    private void MarkCharacterDirtyLocked(ActivePlayerState state, bool inventoryChanged = true)
+    private void MarkCharacterDirtyLocked(PlayerState state, bool inventoryChanged = true)
     {
         if (inventoryChanged)
         {
@@ -858,7 +858,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         _dirtyCharacters[updated.Id] = updated;
     }
 
-    private CharacterRecord BuildUpdatedRecordLocked(ActivePlayerState state, bool serializeInventory)
+    private CharacterRecord BuildUpdatedRecordLocked(PlayerState state, bool serializeInventory)
     {
         Vector2 pos = _simulation.Entities.IsAlive(state.Entity) && _simulation.Entities.HasTransform(state.Entity)
             ? _simulation.Entities.GetTransform(state.Entity).Position
@@ -904,8 +904,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// <summary>Resolves what a replicated entity is: a player (name, look, gear), an NPC, a loot stack or a projectile.</summary>
     private SpawnIdentity ResolveSpawnIdentityLocked(ulong networkId)
     {
-        if (_connectionByNetworkId.TryGetValue(networkId, out ulong ownerConn) &&
-            _playersByConnection.TryGetValue(ownerConn, out ActivePlayerState? state))
+        if (_players.ConnectionByNetworkId.TryGetValue(networkId, out ulong ownerConn) &&
+            _players.ByConnection.TryGetValue(ownerConn, out PlayerState? state))
         {
             ItemSlot held = state.Session.SelectedHotbarSlot < state.Inventory.Capacity
                 ? state.Inventory.GetSlot(state.Session.SelectedHotbarSlot)
@@ -947,7 +947,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             : SpawnIdentity.Unknown;
     }
 
-    private void RecomputeDerivedStatsLocked(ActivePlayerState state)
+    private void RecomputeDerivedStatsLocked(PlayerState state)
     {
         DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(_itemRules, state.Level, state.Inventory, state.Session.SelectedHotbarSlot, state.Progression);
         state.Stats = stats;
@@ -963,7 +963,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         state.CurrentStamina = Math.Clamp(state.CurrentStamina, 0f, stats.MaxStamina);
     }
 
-    private void EnqueueEquipmentBroadcastLocked(ActivePlayerState state, Vector2 worldPos)
+    private void EnqueueEquipmentBroadcastLocked(PlayerState state, Vector2 worldPos)
     {
         this.CollectNearbyConnectionsAroundWorldLocked(worldPos, _aoiRecipientsScratch);
         if (_aoiRecipientsScratch.Count == 0)
@@ -994,7 +994,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             state.Stats.MaxHealth));
     }
 
-    private PlayerStatsSnapshot BuildPlayerStatsSnapshotLocked(ActivePlayerState state, bool clearLevelUpPending)
+    private PlayerStatsSnapshot BuildPlayerStatsSnapshotLocked(PlayerState state, bool clearLevelUpPending)
     {
         HealthComponent hp = _simulation.Entities.HasHealth(state.Entity)
             ? _simulation.Entities.GetHealth(state.Entity)
@@ -1057,7 +1057,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _needs.BuildSnapshot(state.Entity, state.RestMode));
     }
 
-    private void EnqueueStatsSyncLocked(ActivePlayerState state, bool leveledUp)
+    private void EnqueueStatsSyncLocked(PlayerState state, bool leveledUp)
     {
         PlayerStatsSnapshot snap = this.BuildPlayerStatsSnapshotLocked(state, clearLevelUpPending: leveledUp);
         if (leveledUp)
@@ -1087,53 +1087,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
     private static (int X, int Y) UnpackKey(long key) =>
         ((int)(key >> 32), (int)(uint)key);
-
-    private sealed class ActivePlayerState(
-        ConnectedPlayerSession session,
-        Entity entity,
-        CharacterRecord sourceCharacter,
-        InventoryContainer inventory)
-    {
-        public ConnectedPlayerSession Session { get; set; } = session;
-        public Entity Entity { get; } = entity;
-        public CharacterRecord SourceCharacter { get; set; } = sourceCharacter;
-        public InventoryContainer Inventory { get; } = inventory;
-        public CooldownTracker Cooldowns { get; } = new();
-        public Vector2 PendingDirection { get; set; }
-        public Vector2 LastSavedPosition { get; set; }
-        public bool PendingSprint { get; set; }
-        public uint LastClientTick { get; set; }
-        public bool HasPendingInput { get; set; }
-        public bool HasPendingAttack { get; set; }
-        public ulong PendingAttackTargetId { get; set; }
-        public Vector2 PendingAttackAim { get; set; }
-        public byte PendingAttackAbility { get; set; }
-        public ulong PendingPickupLootId { get; set; }
-        public ulong LastCombatDamageTick { get; set; }
-        public ushort Level { get; set; } = 1;
-        public uint Experience { get; set; }
-        public CharacterProgressionState Progression { get; } = new();
-        public uint CombatRollNonce { get; set; }
-        public DerivedCharacterStats Stats { get; set; } = new(100f, 80f, 100f, 2f, 1f, 1f);
-        public float CurrentMana { get; set; } = 80f;
-        public float CurrentStamina { get; set; } = 100f;
-        public bool StatsDirty { get; set; }
-        public bool LeveledUpPending { get; set; }
-        public bool PersistenceDirty { get; set; }
-        public bool InventoryDirty { get; set; }
-        public int EatingSlot { get; set; } = -1;
-        public uint EatingItemId { get; set; }
-        public RestMode RestMode { get; set; }
-        public int RestBedTileX { get; set; }
-        public int RestBedTileY { get; set; }
-        public BuildJob Build { get; } = new();
-
-        /// <summary>Server-authoritative gold/diamond balances (in-memory until a persistence ADR lands).</summary>
-        public Wallet Wallet { get; init; } = new(session.PlayerNetworkId);
-
-        /// <summary>Diamond bad-luck protection counter.</summary>
-        public LootPityState LootPity { get; set; }
-    }
 
     private readonly record struct NpcActorMeta(
         EntityKind Kind,

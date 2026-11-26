@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.Application.World.Commands;
 using Carbon.Application.World.Loot;
@@ -31,7 +32,7 @@ public sealed partial class AuthoritativeWorld
 
         lock (_gate)
         {
-            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state))
+            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state))
             {
                 return false;
             }
@@ -86,7 +87,7 @@ public sealed partial class AuthoritativeWorld
 
         lock (_gate)
         {
-            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state))
+            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state))
             {
                 return OpStatus.Forbidden;
             }
@@ -160,7 +161,7 @@ public sealed partial class AuthoritativeWorld
         ulong walletSequence;
         lock (_gate)
         {
-            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state) ||
+            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state) ||
                 !_simulation.Entities.HasTransform(state.Entity))
             {
                 return OpStatus.Forbidden;
@@ -240,7 +241,7 @@ public sealed partial class AuthoritativeWorld
 
         lock (_gate)
         {
-            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state))
+            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state))
             {
                 return OpStatus.Forbidden;
             }
@@ -344,7 +345,7 @@ public sealed partial class AuthoritativeWorld
 
         lock (_gate)
         {
-            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state) ||
+            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state) ||
                 !_simulation.Entities.HasTransform(state.Entity))
             {
                 return OpStatus.Forbidden;
@@ -466,7 +467,7 @@ public sealed partial class AuthoritativeWorld
 
         lock (_gate)
         {
-            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state) ||
+            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state) ||
                 !_simulation.Entities.HasTransform(state.Entity))
             {
                 return OpStatus.Forbidden;
@@ -545,7 +546,7 @@ public sealed partial class AuthoritativeWorld
     {
         lock (_gate)
         {
-            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state))
+            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state))
             {
                 return OpStatus.Forbidden;
             }
@@ -589,7 +590,7 @@ public sealed partial class AuthoritativeWorld
         }
     }
 
-    private void CollectNearbyGroundLootLocked(ActivePlayerState observer, Vector2 obsPos)
+    private void CollectNearbyGroundLootLocked(PlayerState observer, Vector2 obsPos)
     {
         if (_groundLoot.Count == 0)
         {
@@ -604,7 +605,7 @@ public sealed partial class AuthoritativeWorld
         }
     }
 
-    private bool TryPickupSpecificLootLocked(ActivePlayerState state, ulong lootNetId, float maxRangeSq)
+    private bool TryPickupSpecificLootLocked(PlayerState state, ulong lootNetId, float maxRangeSq)
     {
         if (!_groundLoot.TryGet(lootNetId, out GroundLootEntry meta) ||
             !_simulation.TryGetEntityByNetworkId(lootNetId, out Entity lootEnt) ||

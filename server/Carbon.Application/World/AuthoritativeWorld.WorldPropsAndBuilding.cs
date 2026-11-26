@@ -5,6 +5,7 @@ using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Abstractions.World;
 using Carbon.Application.World.Construction;
+using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.Application.World.Commands;
 using Carbon.Contracts.Common;
@@ -57,7 +58,7 @@ public sealed partial class AuthoritativeWorld
 
         lock (_gate)
         {
-            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state))
+            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state))
             {
                 return new WorldMutationOutcome(OpStatus.Forbidden, 0);
             }
@@ -190,7 +191,7 @@ public sealed partial class AuthoritativeWorld
 
         lock (_gate)
         {
-            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state) ||
+            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state) ||
                 !_simulation.Entities.HasTransform(state.Entity))
             {
                 return new WorldMutationOutcome(OpStatus.Forbidden, 0);
@@ -211,7 +212,7 @@ public sealed partial class AuthoritativeWorld
     {
         lock (_gate)
         {
-            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state) ||
+            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state) ||
                 !this.TryGetBuildActorLocked(state, out BuildActor actor))
             {
                 return new WorldMutationOutcome(OpStatus.Forbidden, 0);
@@ -237,7 +238,7 @@ public sealed partial class AuthoritativeWorld
 
         lock (_gate)
         {
-            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state))
+            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state))
             {
                 return new WorldMutationOutcome(OpStatus.Forbidden, 0);
             }
@@ -306,7 +307,7 @@ public sealed partial class AuthoritativeWorld
     /// The kit is not consumed; the blueprint's materials are (see <c>docs/building.md</c>).
     /// </summary>
     private void ProcessPlaceablePrimaryActionLocked(
-        ActivePlayerState state,
+        PlayerState state,
         Vector2 attackerPos,
         ItemSlot activeSlot,
         ItemArchetype archetype)
@@ -327,7 +328,7 @@ public sealed partial class AuthoritativeWorld
         }
     }
 
-    private void ProcessToolHarvestFallbackLocked(ActivePlayerState state, Vector2 attackerPos, Vector2 aimDir, in ItemSlot activeSlot)
+    private void ProcessToolHarvestFallbackLocked(PlayerState state, Vector2 attackerPos, Vector2 aimDir, in ItemSlot activeSlot)
     {
         int aimTx = (int)MathF.Floor(state.PendingAttackAim.X / this.TileSize);
         int aimTy = (int)MathF.Floor(state.PendingAttackAim.Y / this.TileSize);
@@ -445,7 +446,7 @@ public sealed partial class AuthoritativeWorld
     }
 
     private bool TryDamagePropAndQueueLocked(
-        ActivePlayerState state,
+        PlayerState state,
         int wx,
         int wy,
         in ItemSlot activeSlot,

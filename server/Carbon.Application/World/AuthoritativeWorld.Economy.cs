@@ -4,6 +4,7 @@ using System;
 using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.Application.World.Commands;
 using Carbon.Contracts.Common;
@@ -37,7 +38,7 @@ public sealed partial class AuthoritativeWorld
     {
         lock (_gate)
         {
-            if (_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state))
+            if (_players.ByConnection.TryGetValue(connectionId, out PlayerState? state))
             {
                 gold = state.Wallet.Gold;
                 diamonds = state.Wallet.Diamonds;
@@ -73,7 +74,7 @@ public sealed partial class AuthoritativeWorld
     /// </summary>
     /// <remarks><paramref name="tableId"/> is the monster definition's <c>lootTableId</c> (falls back to <see cref="ResolveLootTableId"/>).</remarks>
     /// <returns><see langword="false"/> when no economy or table applies (caller falls back to legacy drops).</returns>
-    private bool TryRollEconomyLootLocked(ActivePlayerState killer, string? tableId, ushort monsterLevel, ulong victimNetworkId, Vector2 position)
+    private bool TryRollEconomyLootLocked(PlayerState killer, string? tableId, ushort monsterLevel, ulong victimNetworkId, Vector2 position)
     {
         if (_economy is null
             || tableId is null
@@ -165,7 +166,7 @@ public sealed partial class AuthoritativeWorld
     private OpStatus RunVendorOperationLocked(
         ulong connectionId,
         bool requireForge,
-        Func<GameEconomy, ActivePlayerState, ulong, OpStatus> operation)
+        Func<GameEconomy, PlayerState, ulong, OpStatus> operation)
     {
         if (_economy is null)
         {
@@ -178,7 +179,7 @@ public sealed partial class AuthoritativeWorld
         ulong sequence;
         lock (_gate)
         {
-            if (!_playersByConnection.TryGetValue(connectionId, out ActivePlayerState? state) ||
+            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state) ||
                 !_simulation.Entities.HasTransform(state.Entity))
             {
                 return OpStatus.Forbidden;
@@ -217,6 +218,6 @@ public sealed partial class AuthoritativeWorld
         return OpStatus.Ok;
     }
 
-    private void EnqueueWalletSyncLocked(ActivePlayerState state) =>
+    private void EnqueueWalletSyncLocked(PlayerState state) =>
         _outbound.Pending.WalletSyncs.Add(new OutboundWalletSync(state.Session.ConnectionId, state.Wallet.Gold, state.Wallet.Diamonds, state.Wallet.Sequence));
 }

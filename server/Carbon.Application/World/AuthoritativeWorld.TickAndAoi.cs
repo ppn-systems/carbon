@@ -6,6 +6,7 @@ using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
+using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.AI.Components;
 using Carbon.AI.Threat;
@@ -39,9 +40,9 @@ public sealed partial class AuthoritativeWorld
             // ADR-017: mutating requests submitted since the last tick run first, in arrival order.
             _commandExecutor.Drain(_commands);
 
-            foreach (KeyValuePair<ulong, ActivePlayerState> kvp in _playersByConnection)
+            foreach (KeyValuePair<ulong, PlayerState> kvp in _players.ByConnection)
             {
-                ActivePlayerState state = kvp.Value;
+                PlayerState state = kvp.Value;
                 bool isMoving;
                 bool isSprinting = false;
                 if (state.HasPendingInput)
@@ -99,9 +100,9 @@ public sealed partial class AuthoritativeWorld
 
             _projectiles.Step();
 
-            foreach (KeyValuePair<ulong, ActivePlayerState> kvp in _playersByConnection)
+            foreach (KeyValuePair<ulong, PlayerState> kvp in _players.ByConnection)
             {
-                ActivePlayerState state = kvp.Value;
+                PlayerState state = kvp.Value;
                 if (state.HasPendingAttack)
                 {
                     this.ProcessPlayerAttackLocked(state);
@@ -137,9 +138,9 @@ public sealed partial class AuthoritativeWorld
                 }
             }
 
-            foreach (KeyValuePair<ulong, ActivePlayerState> kvp in _playersByConnection)
+            foreach (KeyValuePair<ulong, PlayerState> kvp in _players.ByConnection)
             {
-                ActivePlayerState observer = kvp.Value;
+                PlayerState observer = kvp.Value;
                 if (!_simulation.Entities.IsAlive(observer.Entity) || !_simulation.Entities.HasTransform(observer.Entity))
                 {
                     continue;
@@ -256,9 +257,9 @@ public sealed partial class AuthoritativeWorld
                 _dirtyChunks.Clear();
             }
 
-            foreach (KeyValuePair<ulong, ActivePlayerState> kvp in _playersByConnection)
+            foreach (KeyValuePair<ulong, PlayerState> kvp in _players.ByConnection)
             {
-                ActivePlayerState state = kvp.Value;
+                PlayerState state = kvp.Value;
                 bool movedSinceSave = _simulation.Entities.IsAlive(state.Entity) &&
                     _simulation.Entities.HasTransform(state.Entity) &&
                     Vector2.DistanceSquared(_simulation.Entities.GetTransform(state.Entity).Position, state.LastSavedPosition) >= 16f;
@@ -346,7 +347,7 @@ public sealed partial class AuthoritativeWorld
     private void DispatchPendingTickOutputs() => _outbound.Dispatch(_outboundSink);
 
     private void ApplyDamageToPlayerLocked(
-        ActivePlayerState? victim,
+        PlayerState? victim,
         ulong attackerNetId,
         Entity targetEntity,
         ulong targetNetId,
@@ -460,9 +461,9 @@ public sealed partial class AuthoritativeWorld
     {
         output.Clear();
         float radiusSq = (_replication.ViewRadius + (this.TileSize * 2f)) * (_replication.ViewRadius + (this.TileSize * 2f));
-        foreach (KeyValuePair<ulong, ActivePlayerState> kvp in _playersByConnection)
+        foreach (KeyValuePair<ulong, PlayerState> kvp in _players.ByConnection)
         {
-            ActivePlayerState state = kvp.Value;
+            PlayerState state = kvp.Value;
             if (!_simulation.Entities.HasTransform(state.Entity))
             {
                 continue;

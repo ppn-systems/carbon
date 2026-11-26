@@ -2,6 +2,7 @@
 
 using System;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.AI.Components;
 using Carbon.AI.Systems;
@@ -168,10 +169,10 @@ public sealed partial class AuthoritativeWorld
             return false;
         }
 
-        ActivePlayerState? victimState = null;
-        if (_connectionByNetworkId.TryGetValue(victimNet.NetworkId, out ulong victimConn))
+        PlayerState? victimState = null;
+        if (_players.ConnectionByNetworkId.TryGetValue(victimNet.NetworkId, out ulong victimConn))
         {
-            _ = _playersByConnection.TryGetValue(victimConn, out victimState);
+            _ = _players.ByConnection.TryGetValue(victimConn, out victimState);
         }
 
         this.ApplyDamageToPlayerLocked(
