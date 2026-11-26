@@ -30,6 +30,7 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     private readonly ChunkDeltaStore _deltas = new();
     private readonly ChunkStreamer _streamer;
     private readonly BuildingGrid _buildings;
+    private readonly ConstructionLedger _construction;
     private readonly TileWalkabilityGrid _navGrid;
     private readonly WorldCollision _collision;
     private readonly Lazy<(int X, int Y)> _spawn;
@@ -38,6 +39,11 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     /// Gets the spatial building grid managing constructed structures, connected walls, and doors.
     /// </summary>
     public BuildingGrid Buildings => _buildings;
+
+    /// <summary>
+    /// Gets the store of construction sites (blueprints / frames) and structure ownership records, mirrored into chunk deltas.
+    /// </summary>
+    public ConstructionLedger Construction => _construction;
 
     /// <summary>
     /// Gets the spatial navigation grid managing terrain walkability, pathfinding traversal costs, and cliffs.
@@ -100,6 +106,7 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
         _frequency = frequency ?? generator.Settings.Frequency;
         _streamer = new ChunkStreamer(generator, _deltas, _gate, _frequency, _tileSize);
         _buildings = new BuildingGrid(this.OnStructureChanged, this.OnStructureConnectivityUpdated);
+        _construction = new ConstructionLedger(this.OnConstructionSiteChanged, this.OnStructureRecordChanged);
 
         ProceduralWorldGenerator genRef = _generator;
         float freqCopy = _frequency;
@@ -154,6 +161,7 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
             delta = delta.MigrateTo(ProceduralWorldGenerator.GeneratorVersion);
             _deltas.Set(delta);
             _buildings.ApplyChunkStructures(delta.ChunkX, delta.ChunkY, delta.Structures);
+            _construction.ApplyChunk(delta.ChunkX, delta.ChunkY, delta.Sites, delta.StructureRecords);
             _streamer.RebuildIfResident(delta.ChunkX, delta.ChunkY);
         }
     }
@@ -575,6 +583,48 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
             else
             {
                 delta.RemoveStructure(lx, ly);
+            }
+        }
+    }
+
+    private void OnConstructionSiteChanged(int anchorTileX, int anchorTileY, ConstructionSite? site)
+    {
+        int cx = Chunk2D.ToChunkCoord(anchorTileX);
+        int cy = Chunk2D.ToChunkCoord(anchorTileY);
+        int lx = Chunk2D.ToLocalCoord(anchorTileX);
+        int ly = Chunk2D.ToLocalCoord(anchorTileY);
+
+        lock (_gate)
+        {
+            ChunkDelta delta = _deltas.GetOrAdd(cx, cy);
+            if (site is null)
+            {
+                delta.RemoveSite(lx, ly);
+            }
+            else
+            {
+                delta.SetSite(lx, ly, site);
+            }
+        }
+    }
+
+    private void OnStructureRecordChanged(int worldTileX, int worldTileY, StructureRecord? record)
+    {
+        int cx = Chunk2D.ToChunkCoord(worldTileX);
+        int cy = Chunk2D.ToChunkCoord(worldTileY);
+        int lx = Chunk2D.ToLocalCoord(worldTileX);
+        int ly = Chunk2D.ToLocalCoord(worldTileY);
+
+        lock (_gate)
+        {
+            ChunkDelta delta = _deltas.GetOrAdd(cx, cy);
+            if (record is { } value)
+            {
+                delta.SetStructureRecord(lx, ly, value);
+            }
+            else
+            {
+                delta.RemoveStructureRecord(lx, ly);
             }
         }
     }

@@ -35,5 +35,10 @@ public enum StructureCategory : byte
     /// <summary>
     /// Interactive crafting or blacksmith workstation placed on Layer 2.
     /// </summary>
-    Station = 5
+    Station = 5,
+
+    /// <summary>
+    /// Solid furniture on Layer 2 (chests, beds, tables) that blocks movement but does not connect to walls.
+    /// </summary>
+    Furniture = 6
 }

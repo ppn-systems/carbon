@@ -3,4 +3,8 @@
         <ProjectReference Include="..\..\..\engine\Carbon.Maps\Carbon.Maps.csproj" />
         <ProjectReference Include="..\..\..\engine\Carbon.Physics\Carbon.Physics.csproj" />
     </ItemGroup>
+
+    <ItemGroup>
+        <None Include="..\..\..\resources\config\structures.json" Link="config\structures.json" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
 </Project>

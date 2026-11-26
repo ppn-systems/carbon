@@ -50,5 +50,40 @@ public enum StructureType : byte
     /// <summary>
     /// Placeable blacksmith anvil workstation enabling field gear enhancement (+1..+10).
     /// </summary>
-    ForgeAnvil = 8
+    ForgeAnvil = 8,
+
+    /// <summary>
+    /// Constructed iron-plated wall (Heavy affordance, 550 HP).
+    /// </summary>
+    MetalWall = 9,
+
+    /// <summary>
+    /// Constructed iron-plated door (Heavy affordance, 350 HP).
+    /// </summary>
+    MetalDoor = 10,
+
+    /// <summary>
+    /// Crafting workbench (2x1 footprint, rotatable).
+    /// </summary>
+    Workbench = 11,
+
+    /// <summary>
+    /// Cooking stove (requires floor support).
+    /// </summary>
+    Stove = 12,
+
+    /// <summary>
+    /// Open cooking campfire.
+    /// </summary>
+    Campfire = 13,
+
+    /// <summary>
+    /// Wooden storage chest.
+    /// </summary>
+    WoodChest = 14,
+
+    /// <summary>
+    /// Wooden bed (1x2 footprint, rotatable, requires floor support).
+    /// </summary>
+    WoodBed = 15
 }

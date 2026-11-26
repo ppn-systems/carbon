@@ -711,6 +711,48 @@
       "id": "forge_anvil",
       "displayName": "Forge Anvil",
       "file": "structures/forge_anvil.cvg.json"
+    },
+    {
+      "structureType": 9,
+      "id": "metal_wall",
+      "displayName": "Metal Wall",
+      "file": "structures/metal_wall.cvg.json"
+    },
+    {
+      "structureType": 10,
+      "id": "metal_door",
+      "displayName": "Metal Door",
+      "file": "structures/metal_door.cvg.json"
+    },
+    {
+      "structureType": 11,
+      "id": "workbench",
+      "displayName": "Workbench",
+      "file": "structures/workbench.cvg.json"
+    },
+    {
+      "structureType": 12,
+      "id": "stove",
+      "displayName": "Stove",
+      "file": "structures/stove.cvg.json"
+    },
+    {
+      "structureType": 13,
+      "id": "campfire",
+      "displayName": "Campfire",
+      "file": "structures/campfire.cvg.json"
+    },
+    {
+      "structureType": 14,
+      "id": "wood_chest",
+      "displayName": "Wood Chest",
+      "file": "structures/wood_chest.cvg.json"
+    },
+    {
+      "structureType": 15,
+      "id": "wood_bed",
+      "displayName": "Wood Bed",
+      "file": "structures/wood_bed.cvg.json"
     }
   ]
 }

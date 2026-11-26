@@ -1,0 +1,331 @@
+{
+  "version": 1,
+  "deconstructRefundFraction": 0.75,
+  "destroyedDropFraction": 0.25,
+  "deconstructWorkFraction": 0.5,
+  "builderReachTiles": 2,
+  "placementReachTiles": 12,
+  "structures": [
+    {
+      "id": "wood_wall",
+      "type": "WoodWall",
+      "category": "Wall",
+      "material": "Wood",
+      "cost": [
+        {
+          "item": "planks",
+          "qty": 5
+        }
+      ],
+      "work": 120,
+      "hitPoints": 150,
+      "toolTier": 1,
+      "affordance": "Medium",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "stone_wall",
+      "type": "StoneWall",
+      "category": "Wall",
+      "material": "Stone",
+      "cost": [
+        {
+          "item": "stone_brick",
+          "qty": 5
+        }
+      ],
+      "work": 200,
+      "hitPoints": 400,
+      "toolTier": 2,
+      "affordance": "Heavy",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "metal_wall",
+      "type": "MetalWall",
+      "category": "Wall",
+      "material": "Metal",
+      "cost": [
+        {
+          "item": "iron_ingot",
+          "qty": 4
+        }
+      ],
+      "work": 280,
+      "hitPoints": 550,
+      "toolTier": 3,
+      "affordance": "Heavy",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "wood_door",
+      "type": "WoodDoor",
+      "category": "Door",
+      "material": "Wood",
+      "cost": [
+        {
+          "item": "planks",
+          "qty": 4
+        }
+      ],
+      "work": 100,
+      "hitPoints": 100,
+      "toolTier": 1,
+      "affordance": "Medium",
+      "size": [
+        1,
+        1
+      ],
+      "requiresWallsOnSides": true
+    },
+    {
+      "id": "stone_door",
+      "type": "StoneDoor",
+      "category": "Door",
+      "material": "Stone",
+      "cost": [
+        {
+          "item": "stone_brick",
+          "qty": 4
+        },
+        {
+          "item": "planks",
+          "qty": 1
+        }
+      ],
+      "work": 160,
+      "hitPoints": 250,
+      "toolTier": 2,
+      "affordance": "Heavy",
+      "size": [
+        1,
+        1
+      ],
+      "requiresWallsOnSides": true
+    },
+    {
+      "id": "metal_door",
+      "type": "MetalDoor",
+      "category": "Door",
+      "material": "Metal",
+      "cost": [
+        {
+          "item": "iron_ingot",
+          "qty": 3
+        }
+      ],
+      "work": 220,
+      "hitPoints": 350,
+      "toolTier": 3,
+      "affordance": "Heavy",
+      "size": [
+        1,
+        1
+      ],
+      "requiresWallsOnSides": true
+    },
+    {
+      "id": "wood_floor",
+      "type": "WoodFloor",
+      "category": "Floor",
+      "material": "Wood",
+      "cost": [
+        {
+          "item": "planks",
+          "qty": 1
+        }
+      ],
+      "work": 30,
+      "hitPoints": 50,
+      "toolTier": 0,
+      "affordance": "Light",
+      "size": [
+        1,
+        1
+      ],
+      "moveSpeed": 1.15
+    },
+    {
+      "id": "stone_floor",
+      "type": "StoneFloor",
+      "category": "Floor",
+      "material": "Stone",
+      "cost": [
+        {
+          "item": "stone_brick",
+          "qty": 1
+        }
+      ],
+      "work": 45,
+      "hitPoints": 50,
+      "toolTier": 0,
+      "affordance": "Light",
+      "size": [
+        1,
+        1
+      ],
+      "moveSpeed": 1.2
+    },
+    {
+      "id": "roof_pillar",
+      "type": "RoofPillar",
+      "category": "Pillar",
+      "material": "Stone",
+      "cost": [
+        {
+          "item": "stone",
+          "qty": 4
+        }
+      ],
+      "work": 150,
+      "hitPoints": 300,
+      "toolTier": 1,
+      "affordance": "Heavy",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "forge_anvil",
+      "type": "ForgeAnvil",
+      "category": "Station",
+      "material": "Metal",
+      "cost": [
+        {
+          "item": "iron_ingot",
+          "qty": 6
+        },
+        {
+          "item": "stone",
+          "qty": 10
+        }
+      ],
+      "work": 300,
+      "hitPoints": 350,
+      "toolTier": 2,
+      "affordance": "Medium",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "workbench",
+      "type": "Workbench",
+      "category": "Station",
+      "material": "Wood",
+      "cost": [
+        {
+          "item": "planks",
+          "qty": 8
+        }
+      ],
+      "work": 150,
+      "hitPoints": 120,
+      "toolTier": 1,
+      "affordance": "Medium",
+      "size": [
+        2,
+        1
+      ],
+      "rotatable": true
+    },
+    {
+      "id": "stove",
+      "type": "Stove",
+      "category": "Station",
+      "material": "Stone",
+      "cost": [
+        {
+          "item": "stone_brick",
+          "qty": 6
+        },
+        {
+          "item": "iron_ingot",
+          "qty": 1
+        }
+      ],
+      "work": 180,
+      "hitPoints": 200,
+      "toolTier": 1,
+      "affordance": "Medium",
+      "size": [
+        1,
+        1
+      ],
+      "requiresFloor": true
+    },
+    {
+      "id": "campfire",
+      "type": "Campfire",
+      "category": "Station",
+      "material": "Wood",
+      "cost": [
+        {
+          "item": "wood",
+          "qty": 5
+        }
+      ],
+      "work": 40,
+      "hitPoints": 40,
+      "toolTier": 0,
+      "affordance": "Light",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "wood_chest",
+      "type": "WoodChest",
+      "category": "Furniture",
+      "material": "Wood",
+      "cost": [
+        {
+          "item": "planks",
+          "qty": 6
+        }
+      ],
+      "work": 80,
+      "hitPoints": 80,
+      "toolTier": 1,
+      "affordance": "Medium",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "wood_bed",
+      "type": "WoodBed",
+      "category": "Furniture",
+      "material": "Wood",
+      "cost": [
+        {
+          "item": "planks",
+          "qty": 10
+        }
+      ],
+      "work": 160,
+      "hitPoints": 90,
+      "toolTier": 1,
+      "affordance": "Medium",
+      "size": [
+        1,
+        2
+      ],
+      "rotatable": true,
+      "requiresFloor": true
+    }
+  ]
+}

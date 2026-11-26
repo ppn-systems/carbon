@@ -1,0 +1,105 @@
+# Building: blueprint, construction, deconstruction
+
+RimWorld-style construction for Carbon. Code: `engine/Carbon.Maps/Building/`. Data: `resources/config/structures.json`. Wire/persistence decision: [ADR-011](adr/ADR-011-construction-sites-in-chunk-delta.md).
+
+## Audit (before this change)
+
+The question was "can you build and destroy yet?". The answer was only partly yes:
+
+| Area | What existed | What was missing or wrong |
+| :--- | :--- | :--- |
+| Placement | `BuildingGrid.TryPlaceStructure` placed a finished structure instantly. The server consumed one "structure kit" item (`AuthoritativeWorld.TryPlaceStructure`). | No blueprint or frame stage, no construction work, no material costs (only kits). Placement checked one tile: no footprints, no rotation, no cliff check, no floor support, no door-between-walls rule. Entity overlap was checked only against the placing player's own tile, on the server. |
+| Data | Hit points, tool tiers and affordance were hardcoded in `BuildingGrid.CreateBlueprint` and `BuildingFoundation.GetRequiredAffordance`. | No data file for costs, work, size or placement rules. |
+| Destroy | `BuildingGrid.ApplyDamage` reduced durability. | A destroyed structure stayed on the grid as rubble forever. The server's salvage drop checked `updatedStruct.Type == StructureType.None`, which never happens, so destroying a structure never dropped anything. |
+| Demolish | `TryDemolishStructure` removed a structure instantly and dropped its kit recipe ingredients. | No work time, no configurable refund, and no ownership: any player in range could demolish anyone's walls. |
+| Cancel | — | Did not exist. |
+| Persistence | Finished structures were stored in `ChunkDelta.Structures` (format v2) and `MapChunkDelta`. | No owner, no rotation, no multi-tile anchor, no in-progress sites. |
+| Tests | Foundation, autotile, rooms, doors, collision. | No lifecycle, refund, permission or data-loading tests. |
+
+## Lifecycle
+
+```
+PlaceBlueprint ──► Blueprint ──DeliverMaterials (all)──► Frame ──ApplyConstructionWork (per tick)──► Complete
+      │                │                                   │                                          │
+      │                └──────── CancelBlueprint: 100% of delivered materials refunded ───────────────┘ (site removed)
+      │
+Complete ──ApplyDeconstructionWork (per tick)──► Removed  (refund deconstructRefundFraction, default 75%)
+Complete ──ApplyDamage until 0 HP──────────────► Removed  (drop destroyedDropFraction, default 25%)
+```
+
+- **Blueprint**: validated and reserves its footprint. Consumes nothing and does not block movement.
+- **Frame**: every cost entry has been delivered. Deliveries can be partial: whatever the builder carries is taken, and the site stays a blueprint until the cost is fully covered.
+- **Complete**: the structure is placed on `BuildingGrid` for every footprint tile, with a `StructureRecord` holding the owner, the offset from the anchor, the rotation and any floor underneath. Wall autotiling updates and the roof/room cache is cleared.
+- A frame of a solid structure does not complete while an entity stands inside its footprint (`BlockedByEntity`). Work is kept, and the next tick completes it once the tile is clear.
+- When a structure is removed it is removed as a whole footprint, a floor it covered is restored, and autotiling and room detection run again.
+
+## Rules
+
+All rules are checked on the server by `BuildingService`. Every call returns a `BuildMutationResult` with a `BuildResultCode`; `ToOpStatus()` maps it onto `MutationResult.Status`.
+
+| Rule | Code |
+| :--- | :--- |
+| Unknown type or rotation not allowed | `UnknownStructure`, `RotationNotAllowed` |
+| Water (affordance `None`) | `BlockedByWater` |
+| Cliff / solid rock, or footprint over different height levels | `BlockedByCliff` |
+| Terrain affordance below the definition's `affordance` | `InsufficientAffordance` |
+| Overlaps another blueprint or frame | `BlockedByConstructionSite` |
+| Overlaps a finished structure. Exception: a non-floor structure may stand on a finished floor | `BlockedByExistingStructure` |
+| Solid natural prop (tree, rock) | `BlockedByNaturalObstacle` |
+| Live entity on the footprint of a solid structure | `BlockedByEntity` |
+| `requiresFloor` without a finished floor under every tile | `RequiresFloor` |
+| `requiresWallsOnSides` (doors) without walls, doors, pillars or their blueprints on two opposite sides | `RequiresWallsOnSides` |
+| Builder farther than `builderReachTiles` (deliver, work, deconstruct) or `placementReachTiles` (place, cancel) away, measured as Chebyshev distance to the footprint | `OutOfReach` |
+| Actor is not the owner and was not granted access (`IBuildPermissions`) | `PermissionDenied` |
+| Builder's tool tier is below `toolTier` (construction work) | `ToolTierTooLow` |
+| No still-missing material in the inventory | `InsufficientMaterials` |
+| Work on a blueprint | `MaterialsNotDelivered` |
+
+Structures with no record (generated by the world, or placed before this change) are treated as unowned 1×1 structures that anyone may deconstruct.
+
+## `structures.json`
+
+```jsonc
+{
+  "deconstructRefundFraction": 0.75,   // refunded on deconstruct
+  "destroyedDropFraction": 0.25,       // dropped when destroyed by damage
+  "deconstructWorkFraction": 0.5,      // deconstruct work = work * fraction
+  "builderReachTiles": 2,
+  "placementReachTiles": 12,
+  "structures": [
+    {
+      "id": "workbench", "type": "Workbench",           // type = StructureType enum name
+      "category": "Station", "material": "Wood",        // StructureCategory / StructureMaterial names
+      "cost": [ { "item": "planks", "qty": 8 } ],       // item ids from the item catalog
+      "work": 150, "hitPoints": 120, "toolTier": 1,
+      "affordance": "Medium",                           // TerrainAffordance name
+      "size": [2, 1], "rotatable": true,                // East/West swap width and height
+      "requiresFloor": false, "requiresWallsOnSides": false,
+      "moveSpeed": 1.15                                 // floors only
+    }
+  ]
+}
+```
+
+`StructureCatalog.Parse` rejects unknown enum names, duplicate types or ids, non-positive work, hit points or quantities, and footprints larger than 15 tiles per side. Hit points, tool tier, category and material must match `BuildingGrid.CreateBlueprint`, because clients rebuild structures from that table when decoding `MapChunkDelta`. `StructureCatalogTests` enforces this.
+
+## Public API (engine)
+
+| Type | Purpose |
+| :--- | :--- |
+| `BuildingService` | `ValidatePlacement`, `PlaceBlueprint`, `DeliverMaterials`, `ApplyConstructionWork`, `CancelBlueprint`, `ApplyDeconstructionWork`, `ApplyDamage`. `BuildingService.ForWorld(ChunkWorld2D, catalog, permissions, isEntityAt)` wires it to a streamed world. |
+| `BuildActor` | Server-resolved actor: id, tile, tool tier. Never taken from the client. |
+| `IMaterialSource` / `IMaterialSink` | Inventory port (`CountOf`, `Take`, `Add`) so `Carbon.Maps` does not depend on `Carbon.Items`. |
+| `IConstructionEnvironment` | Terrain / prop / entity port. `ChunkWorldConstructionEnvironment` is the `ChunkWorld2D` adapter and uses `PeekTileAtWorld`, which never generates chunks. |
+| `IBuildPermissions`, `BuildPermissionTable` | Owner-or-granted policy. |
+| `StructureCatalog`, `StructureDefinition`, `BuildingRules` | Data loaded from `structures.json`. |
+| `ConstructionLedger`, `ConstructionSite`, `StructureRecord` | Site and ownership store, exposed as `ChunkWorld2D.Construction` and mirrored into `ChunkDelta`. |
+
+`BuildingService` is not thread-safe. Call it on the world tick thread or under the world lock, as `AuthoritativeWorld` already does for `BuildingGrid`. A work tick does not allocate: the delta copies site state into its existing snapshot.
+
+## Not done yet
+
+- The server (`server/Carbon.Application/World/AuthoritativeWorld.WorldPropsAndBuilding.cs`) still uses instant kit placement and demolition. Wiring it to `BuildingService` needs: an `IMaterialSource` adapter over `Inventory` (item ids from the items catalog), a `BuildActor` built from the player entity, per-tick builder jobs, C2S `Rotation` on `MapStructurePlace`, cancel and deconstruct requests, and a push packet for site changes.
+- Desktop rendering of blueprints and frames (sites are already in `MapChunkDelta`).
+- Deconstruction progress is kept in memory only and resets on restart; construction progress is persisted.
+- Frames do not block movement yet.

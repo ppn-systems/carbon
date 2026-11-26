@@ -52,7 +52,7 @@ public sealed class VectorArtAndArchitectureTests
         summary.ItemsValidated.Should().Be(39);
         summary.PropsValidated.Should().Be(22);
         summary.BiomesValidated.Should().Be(14);
-        summary.StructuresValidated.Should().Be(8);
+        summary.StructuresValidated.Should().Be(Enum.GetValues<StructureType>().Length - 1, "every non-None structure type has art");
         summary.RasterImagesFound.Should().Be(0, "declarative vector pipeline uses zero PNG/JPG images");
 
         string? uiPanelDir = CarbonUiSkin.TryFindPanelDirectory();
