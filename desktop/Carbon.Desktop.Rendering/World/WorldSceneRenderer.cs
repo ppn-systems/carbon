@@ -664,12 +664,6 @@ public sealed class WorldSceneRenderer : IDisposable
         }
         else if (remote.Kind == EntityKind.Monster)
         {
-            if (Carbon.Maps.Generators.WorldProgression.IsNightHour(_atmosphere.Hour))
-            {
-                float auraPulse = r + 3.5f + (MathF.Sin((_animTime * 5f) + remote.NetworkId) * 1.1f);
-                batch.DrawCircle(footPos, auraPulse, new ColorRgba(192, 38, 211, 145), 16, 1.5f);
-            }
-
             if (remote.NetworkId == world.LockedTargetNetworkId)
             {
                 float pulse = r + 5.5f + (MathF.Sin(_animTime * 8f) * 1.4f);
@@ -683,6 +677,7 @@ public sealed class WorldSceneRenderer : IDisposable
             CompiledVectorRig? rig = null;
             CompiledItemVectorArt? remoteWeapon = null;
             byte preset = 0;
+            RigOverlay overlays = RigOverlay.None;
             VisualEquipmentLoadout remoteLoadout = default;
             string clip = moving ? "walk" : "idle";
             bool norm = false;
@@ -731,6 +726,9 @@ public sealed class WorldSceneRenderer : IDisposable
             }
             else if (remote.Kind == EntityKind.Monster && _art.TryGetMonster(remote.ArchetypeId, out rig))
             {
+                // Night empowerment and elite status are painted on the rig (eye-glow, aura, crown), never as lights.
+                overlays = (Carbon.Maps.Generators.WorldProgression.IsNightHour(_atmosphere.Hour) ? RigOverlay.NightGlow : RigOverlay.None) |
+                           (rig.IsElite ? RigOverlay.EliteCrown : RigOverlay.None);
                 if (remote.Attack.IsActive)
                 {
                     // Server-authoritative phase timeline (ADR-013): kind-specific clip, beats aligned to phase markers.
@@ -784,7 +782,9 @@ public sealed class WorldSceneRenderer : IDisposable
                     swingTimer: remote.AttackAnimRemaining,
                     appearancePreset: preset,
                     equipment: remoteLoadout,
-                    art: _art);
+                    art: _art,
+                    overlays: overlays,
+                    overlayTime: _animTime + (remote.NetworkId % 11 * 0.37f));
                 WadingRenderer.DrawFront(batch, _art, world.ChunkWorld.TileSize, footPos, in wade, remote.Velocity, _animTime, wadeSeed);
                 return;
             }

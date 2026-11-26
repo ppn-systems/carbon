@@ -61,18 +61,19 @@ clients (ADR-011). Clients never read these files: they render from replicated a
 | `preferredBiomes` | `BiomeType` names. Spawn tables may only list a monster in biomes it prefers (enforced by tests). |
 | `attacks` | Attack profiles in **priority order** (see below). |
 
-`archetypeId` is the protocol id used for the rig (`WorldActorCatalog`, 101–107). Elite variants may share their
-base monster's archetype.
+`archetypeId` is the protocol id used for the rig (`WorldActorCatalog`, 101–109). Each elite variant has its own
+archetype and rig, so clients can show elite status without any extra wire data.
 
 | Monster | Archetype | Attacks (priority order) | Role |
 | :--- | :--- | :--- | :--- |
 | `wild_slime` | 101 | leap, bite | brawler |
-| `slime_king` (elite of `wild_slime`) | 101 | big leap, bite | brawler |
+| `slime_king` (elite of `wild_slime`) | 109 | big leap, bite | brawler |
 | `rock_golem` | 102 | overhead slam | brawler |
 | `frost_wolf` | 103 | pounce (leap), bite | brawler |
 | `ash_wraith` | 104 | eruption (circle spell), dark bolt | caster (retreat 90) |
 | `skeleton_archer` | 105 | bow shot, bow bash | ranged (retreat 110) |
 | `orc_shaman` | 106 | hex cone (cone spell), bolt, staff whack | caster (retreat 80) |
+| `orc_warlord` (elite of `orc_shaman`, levels 20–50) | 108 | war charge (leap), axe chop | brawler |
 | `crimson_demon` | 107 | leap, cleave | brawler |
 
 ## Attack kinds and the animation phase contract
@@ -133,8 +134,24 @@ Each attack clip declares `phaseMarks` (`windupEnd`, `travelEnd`, `activeEnd`) i
 (full draw, overhead apex, airborne apex, impact) on the server's phase boundaries for any profile duration.
 `AttackTelegraphRenderer` draws the ground telegraphs.
 
-`dotnet run --project desktop/Carbon.Desktop -c Release -- --showcase <dir>` writes `monsters_attack_phases.bmp`, a
-filmstrip of every monster attack across its phases. Use it to review clip changes.
+### Night and elite overlays
+
+Night empowerment and elite status are painted on the rig itself. They are never scene lights, and players never
+glow.
+
+- **Night** (client time of day is a night hour): `RigOverlay.NightGlow` draws glowing eyes at the rig's
+  `markers.eyes` / `markers.eyesSide` anchors on the head bone, plus a faint body aura in `markers.eyeGlowColor`.
+  Eyes are hidden when the rig faces north.
+- **Elite** (art catalog entry has `"elite": true`, currently `orc_warlord` and `slime_king`):
+  `RigOverlay.EliteCrown` draws a gold crown pip at `markers.crown`. Elite rigs are also larger
+  (`worldHeight`).
+
+`dotnet run --project desktop/Carbon.Desktop -c Release -- --showcase <dir>` writes:
+
+- `monsters_attack_phases.bmp`: a filmstrip of every monster attack across its phases;
+- `monsters_day_night_elite.bmp`: every rig by day and by night, normal and elite.
+
+Use them to review clip and overlay changes.
 
 ## AI positioning
 

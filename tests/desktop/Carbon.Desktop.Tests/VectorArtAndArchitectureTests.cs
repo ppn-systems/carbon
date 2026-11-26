@@ -47,7 +47,7 @@ public sealed class VectorArtAndArchitectureTests
 
         VectorArtValidationSummary summary = VectorArtValidator.ValidateDirectory(artRoot!);
         summary.CharactersValidated.Should().Be(4);
-        summary.MonstersValidated.Should().Be(7);
+        summary.MonstersValidated.Should().Be(9);
         summary.NpcsValidated.Should().Be(4);
         summary.ItemsValidated.Should().Be(85);
         summary.PropsValidated.Should().Be(24);
