@@ -6,6 +6,8 @@ using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Desktop.Abstractions;
 using Carbon.Desktop.Rendering;
+using Carbon.Desktop.Rendering.VectorArt;
+using Carbon.Graphics.Animation.Directions;
 using Carbon.Graphics.Batching;
 using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Common;
@@ -52,6 +54,7 @@ public sealed class CharacterSelectScene : GameScene
     private GeometryBatch? _geometryBatch;
     private BitmapFont? _font;
     private Texture2D? _whitePixel;
+    private IVectorArtRepository? _vectorArt;
     private IInputManager? _boundInput;
 
     private IReadOnlyList<ClientCharacterSummary> _characters = [];
@@ -91,6 +94,7 @@ public sealed class CharacterSelectScene : GameScene
 
         _geometryBatch = new GeometryBatch(context.Device);
         (_font, _whitePixel) = EmbeddedPixelFont.Create(context.Device);
+        _vectorArt = CarbonVectorArtLibrary.LoadOrDefault();
     }
 
     /// <inheritdoc/>
@@ -259,12 +263,49 @@ public sealed class CharacterSelectScene : GameScene
             _geometryBatch.DrawRectangle(_slotBounds[i], cardBorder, selected ? 2f : 1.5f);
         }
 
-        // Class preset mini-avatar preview
+        // Class preset animated vector avatar preview pedestal
         float previewCx = ox + 650f;
-        float previewCy = oy + 260f;
-        _geometryBatch.FillCircle(new Vector2(previewCx, previewCy + 16f), 14f, new ColorRgba(0, 0, 0, 95), 14);
-        _geometryBatch.FillCircle(new Vector2(previewCx, previewCy + 6f), 11f, s_presetColors[_selectedPreset], 14);
-        _geometryBatch.FillCircle(new Vector2(previewCx, previewCy - 9f), 9f, new ColorRgba(253, 224, 179, 255), 12);
+        float previewCy = oy + 262f;
+        _geometryBatch.FillCircle(new Vector2(previewCx, previewCy + 14f), 20f, new ColorRgba(0, 0, 0, 105), 16);
+        _geometryBatch.DrawCircle(new Vector2(previewCx, previewCy + 14f), 21f, s_presetColors[_selectedPreset], 18, 1.5f);
+        if (_vectorArt is not null && _vectorArt.TryGetCharacter(_selectedPreset, out CompiledVectorRig? previewRig))
+        {
+            VectorRigRenderer.DrawEntityRig(
+                _geometryBatch,
+                previewRig,
+                new Vector2(previewCx, previewCy + 20f),
+                Direction8.South,
+                "idle",
+                _elapsed,
+                isNormalized: false,
+                targetHeightOverride: 56f);
+        }
+        else
+        {
+            _geometryBatch.FillCircle(new Vector2(previewCx, previewCy + 6f), 11f, s_presetColors[_selectedPreset], 14);
+            _geometryBatch.FillCircle(new Vector2(previewCx, previewCy - 9f), 9f, new ColorRgba(253, 224, 179, 255), 12);
+        }
+
+        // Vector portrait badges inside occupied character cards
+        for (int i = 0; i < 4 && i < _characters.Count; i++)
+        {
+            RectangleF b = _slotBounds[i];
+            if (_vectorArt is not null && _vectorArt.TryGetCharacter(_characters[i].AppearancePreset, out CompiledVectorRig? cardRig))
+            {
+                RectangleF pBox = new(b.X + 8f, b.Y + 8f, 44f, 44f);
+                _geometryBatch.FillRectangle(pBox, new ColorRgba(12, 18, 32, 235));
+                _geometryBatch.DrawRectangle(pBox, cardRig.AccentColor, 1.2f);
+                VectorRigRenderer.DrawEntityRig(
+                    _geometryBatch,
+                    cardRig,
+                    new Vector2(b.X + 30f, b.Y + 48f),
+                    Direction8.South,
+                    "idle",
+                    _elapsed + (i * 0.25f),
+                    isNormalized: false,
+                    targetHeightOverride: 34f);
+            }
+        }
 
         _createNameField.DrawGeometry(_geometryBatch, _font);
         _enterWorldButton.DrawGeometry(_geometryBatch);
@@ -287,8 +328,9 @@ public sealed class CharacterSelectScene : GameScene
             {
                 ClientCharacterSummary c = _characters[i];
                 ColorRgba nameColor = i == _selectedIndex ? new ColorRgba(250, 204, 21, 255) : ColorRgba.White;
-                spriteBatch.DrawOutlinedString(_font, $"{c.Name}  (Lv.{c.Level})", new Vector2(b.X + 14f, b.Y + 12f), nameColor, black, 1, 2f);
-                spriteBatch.DrawOutlinedString(_font, $"Tier {c.ZoneTier} | Pos ({(int)c.PositionX},{(int)c.PositionY})", new Vector2(b.X + 14f, b.Y + 38f), new ColorRgba(148, 163, 184, 255), black, 1, 1.5f);
+                float textX = _vectorArt is not null ? b.X + 60f : b.X + 14f;
+                spriteBatch.DrawOutlinedString(_font, $"{c.Name}  (Lv.{c.Level})", new Vector2(textX, b.Y + 12f), nameColor, black, 1, 2f);
+                spriteBatch.DrawOutlinedString(_font, $"Tier {c.ZoneTier} | Pos ({(int)c.PositionX},{(int)c.PositionY})", new Vector2(textX, b.Y + 38f), new ColorRgba(148, 163, 184, 255), black, 1, 1.5f);
             }
             else
             {
@@ -326,6 +368,7 @@ public sealed class CharacterSelectScene : GameScene
         if (disposing)
         {
             this.DetachInput();
+            _vectorArt = null;
             _geometryBatch?.Dispose();
             _geometryBatch = null;
             _font?.Dispose();

@@ -13,10 +13,12 @@ namespace Carbon.Desktop.Abstractions;
 /// <param name="ZoneTier">Danger/progression tier at the saved world position.</param>
 /// <param name="PositionX">Saved world X position.</param>
 /// <param name="PositionY">Saved world Y position.</param>
+/// <param name="AppearancePreset">Saved visual appearance preset index.</param>
 public sealed record ClientCharacterSummary(
     Guid CharacterId,
     string Name,
     ushort Level,
     byte ZoneTier,
     float PositionX,
-    float PositionY);
+    float PositionY,
+    byte AppearancePreset = 0);

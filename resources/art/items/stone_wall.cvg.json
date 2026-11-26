@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "itemId": 10,
+  "id": "stone_wall",
+  "displayName": "Stone Wall",
+  "tier": 2,
+  "categoryLabel": "Structure Kit",
+  "accentColor": "#94A3B8",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.75,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -8.0,
+      "y": -6.5,
+      "w": 16.0,
+      "h": 13.0,
+      "color": "#64748B",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -7.0,
+      "y": -5.5,
+      "w": 6.5,
+      "h": 5.2,
+      "color": "#CBD5E1",
+      "outlineColor": "#334155",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": 0.5,
+      "y": 0.5,
+      "w": 6.5,
+      "h": 5.0,
+      "color": "#94A3B8",
+      "outlineColor": "#334155",
+      "outlineThickness": 0.8
+    }
+  ]
+}

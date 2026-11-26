@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "itemId": 7,
+  "id": "mana_crystal",
+  "displayName": "Mana Crystal",
+  "tier": 3,
+  "categoryLabel": "Arcane Gem",
+  "accentColor": "#22D3EE",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.78,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          0.0,
+          -9.5
+        ],
+        [
+          5.2,
+          -3.5
+        ],
+        [
+          4.0,
+          7.0
+        ],
+        [
+          0.0,
+          9.5
+        ],
+        [
+          -4.5,
+          6.5
+        ],
+        [
+          -5.2,
+          -3.5
+        ]
+      ],
+      "color": "#06B6D4",
+      "outlineColor": "#083344",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -0.5,
+          -8.5
+        ],
+        [
+          3.5,
+          -3.2
+        ],
+        [
+          0.5,
+          4.5
+        ],
+        [
+          -2.8,
+          -3.0
+        ]
+      ],
+      "color": "#A5F3FC"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -1.2,
+      "y": -4.5,
+      "rx": 1.0,
+      "ry": 2.0,
+      "color": "#FFFFFF"
+    }
+  ]
+}

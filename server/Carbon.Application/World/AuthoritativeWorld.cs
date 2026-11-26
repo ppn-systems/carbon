@@ -89,6 +89,7 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
     private readonly List<Entity> _dirtyResetScratch = new(256);
     private readonly List<(ushort SlotIndex, ItemSlot Slot)> _mutationSlotScratch = new(8);
     private readonly Entity[] _combatHitScratch = new Entity[32];
+    private readonly Entity[] _packAggroScratch = new Entity[16];
 
     private ulong _nextNetworkId = 1000UL;
     private ulong _currentTick;
@@ -233,7 +234,8 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
                 spawnPos.X,
                 spawnPos.Y,
                 _currentTick,
-                this.TickRate);
+                this.TickRate,
+                character.AppearancePreset);
         }
     }
 
@@ -428,14 +430,42 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
             int cx = Chunk2D.ToChunkCoord(tileX);
             int cy = Chunk2D.ToChunkCoord(tileY);
             ulong respawnAt = _currentTick + (ulong)(this.TickRate * 30);
-            const float StrikeDamage = 40f;
 
-            if (!_chunkWorld.TryDamagePropAt(tileX, tileY, StrikeDamage, state.Session.SelectedHarvestTier, respawnAt, out MapProp updated))
+            if (!_chunkWorld.TryGetPropAt(tileX, tileY, out MapProp existing) ||
+                existing.Type == MapPropType.None ||
+                existing.Destructibility.IsDestroyed)
             {
-                OpStatus rejectStatus = updated.Type == MapPropType.None
-                    ? OpStatus.NotFound
-                    : OpStatus.Forbidden;
-                return new WorldMutationOutcome(rejectStatus, 0);
+                return new WorldMutationOutcome(OpStatus.NotFound, 0);
+            }
+
+            if (!existing.Destructibility.IsDestructible)
+            {
+                return new WorldMutationOutcome(OpStatus.Forbidden, 0);
+            }
+
+            ItemSlot activeSlot = state.Session.SelectedHotbarSlot < state.Inventory.Capacity
+                ? state.Inventory.GetSlot(state.Session.SelectedHotbarSlot)
+                : ItemSlot.Empty;
+            float strikeDamage = ResolvePropStrikeDamage(activeSlot.ItemId, existing.Category);
+
+            if (!_chunkWorld.TryDamagePropAt(tileX, tileY, strikeDamage, state.Session.SelectedHarvestTier, respawnAt, out MapProp updated))
+            {
+                this.CollectNearbyConnectionsLocked(tileX, tileY, _aoiRecipientsScratch);
+                if (_aoiRecipientsScratch.Count > 0)
+                {
+                    uint currentRev = _chunkWorld.TryGetDelta(cx, cy, out ChunkDelta? curDelta) && curDelta is not null
+                        ? curDelta.Revision
+                        : 0U;
+                    _outboundSink.SendPropChanged(
+                        CollectionsMarshal.AsSpan(_aoiRecipientsScratch),
+                        tileX,
+                        tileY,
+                        currentRev,
+                        existing.Destructibility.CurrentDurability,
+                        isDestroyed: false);
+                }
+
+                return new WorldMutationOutcome(OpStatus.Forbidden, 0);
             }
 
             _ = _dirtyChunks.Add(Chunk2D.PackKey(cx, cy));
@@ -799,6 +829,21 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
                 {
                     this.MarkCharacterDirtyLocked(observer);
                 }
+
+                // Out-of-combat natural HP regeneration (+3 HP/s after 6s without taking combat hits).
+                if ((_currentTick % this.TickRate) == 0UL &&
+                    (_currentTick - observer.LastCombatDamageTick) >= (ulong)(this.TickRate * 6) &&
+                    _simulation.Entities.HasHealth(observer.Entity))
+                {
+                    HealthComponent php = _simulation.Entities.GetHealth(observer.Entity);
+                    if (php.Current > 0f && php.Current < php.Max)
+                    {
+                        float healed = MathF.Min(php.Max, php.Current + 3f);
+                        _simulation.Entities.SetHealth(observer.Entity, new HealthComponent(healed, php.Max));
+                        _simulation.MarkDirty(observer.Entity, EntityDirtyMask.Health);
+                        this.MarkCharacterDirtyLocked(observer);
+                    }
+                }
             }
 
             ReadOnlySpan<Entity> activeEntities = CollectionsMarshal.AsSpan((List<Entity>)_simulation.Entities.ActiveEntities);
@@ -958,6 +1003,13 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
 
         state.Cooldowns.StartCooldown(AttackAbilityId, _currentTick, (uint)Math.Max(10, this.TickRate / 2));
 
+        if (state.PendingAttackAbility < 9 && state.PendingAttackAbility != state.Session.SelectedHotbarSlot)
+        {
+            byte tier = ResolveSlotHarvestTier(state.Inventory, state.PendingAttackAbility);
+            state.Session = state.Session with { SelectedHotbarSlot = state.PendingAttackAbility, SelectedHarvestTier = tier };
+            this.MarkCharacterDirtyLocked(state);
+        }
+
         ItemSlot activeSlot = state.Session.SelectedHotbarSlot < state.Inventory.Capacity
             ? state.Inventory.GetSlot(state.Session.SelectedHotbarSlot)
             : ItemSlot.Empty;
@@ -1028,9 +1080,9 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
             hitCount = 1;
         }
 
-        if (hitCount == 0 && activeSlot.Quantity > 0 && hasArchetype && archetype is { Category: ItemCategory.Tool })
+        if (hitCount == 0)
         {
-            this.ProcessToolHarvestFallbackLocked(state, archetype.HarvestTier);
+            this.ProcessToolHarvestFallbackLocked(state, activeSlot.ItemId, state.Session.SelectedHarvestTier);
             return;
         }
 
@@ -1063,7 +1115,32 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
                 if (_simulation.Entities.HasComponent<AiBrainComponent>(target))
                 {
                     ref AiBrainComponent brain = ref _simulation.Entities.GetComponent<AiBrainComponent>(target);
-                    brain = brain with { State = AiState.Chase, TargetEntity = state.Entity };
+                    brain = brain with { State = AiState.Chase, TargetEntity = state.Entity, RepathCooldownTicks = 0 };
+                }
+
+                if (_simulation.Entities.HasVelocity(target))
+                {
+                    ref Velocity2D targetVel = ref _simulation.Entities.GetVelocity(target);
+                    targetVel.Linear = aimDir * 135f;
+                    _simulation.MarkDirty(target, EntityDirtyMask.Velocity);
+                }
+
+                // Pack social aggro: alert nearby allied monsters within 160px to assist.
+                _simulation.OverlapCircle(targetPos, 160f, _packAggroScratch, out int allyCount, MonsterLayer);
+                for (int a = 0; a < allyCount; a++)
+                {
+                    Entity ally = _packAggroScratch[a];
+                    if (ally == target || !_simulation.Entities.IsAlive(ally) || !_simulation.Entities.HasComponent<AiBrainComponent>(ally))
+                    {
+                        continue;
+                    }
+
+                    threatStore.GetOrAdd(ally, static () => new ThreatTable()).AddThreat(state.Entity, finalDamage * 0.8f);
+                    ref AiBrainComponent allyBrain = ref _simulation.Entities.GetComponent<AiBrainComponent>(ally);
+                    if (allyBrain.State is AiState.Idle or AiState.Patrol)
+                    {
+                        allyBrain = allyBrain with { State = AiState.Chase, TargetEntity = state.Entity, RepathCooldownTicks = 0 };
+                    }
                 }
             }
             else
@@ -1156,15 +1233,27 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
         }
     }
 
-    private void ProcessToolHarvestFallbackLocked(ActivePlayerState state, byte harvestTier)
+    private void ProcessToolHarvestFallbackLocked(ActivePlayerState state, uint activeItemId, byte harvestTier)
     {
         int aimTx = (int)MathF.Floor(state.PendingAttackAim.X / this.TileSize);
         int aimTy = (int)MathF.Floor(state.PendingAttackAim.Y / this.TileSize);
         ulong respawnAt = _currentTick + (ulong)(this.TickRate * 30);
 
-        if (this.TryDamagePropAndQueueLocked(state, aimTx, aimTy, harvestTier, respawnAt))
+        int blockedTx = 0;
+        int blockedTy = 0;
+        MapProp blockedProp = default;
+        bool hasBlocked = false;
+
+        if (this.TryDamagePropAndQueueLocked(state, aimTx, aimTy, activeItemId, harvestTier, respawnAt, ref blockedProp))
         {
             return;
+        }
+
+        if (blockedProp.Type != MapPropType.None)
+        {
+            blockedTx = aimTx;
+            blockedTy = aimTy;
+            hasBlocked = true;
         }
 
         for (int dy = -1; dy <= 1; dy++)
@@ -1176,10 +1265,43 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
                     continue;
                 }
 
-                if (this.TryDamagePropAndQueueLocked(state, aimTx + dx, aimTy + dy, harvestTier, respawnAt))
+                int wx = aimTx + dx;
+                int wy = aimTy + dy;
+                MapProp localBlocked = default;
+                if (this.TryDamagePropAndQueueLocked(state, wx, wy, activeItemId, harvestTier, respawnAt, ref localBlocked))
                 {
                     return;
                 }
+
+                if (!hasBlocked && localBlocked.Type != MapPropType.None)
+                {
+                    blockedTx = wx;
+                    blockedTy = wy;
+                    blockedProp = localBlocked;
+                    hasBlocked = true;
+                }
+            }
+        }
+
+        if (hasBlocked)
+        {
+            int cx = Chunk2D.ToChunkCoord(blockedTx);
+            int cy = Chunk2D.ToChunkCoord(blockedTy);
+            uint revision = _chunkWorld.TryGetDelta(cx, cy, out ChunkDelta? delta) && delta is not null
+                ? delta.Revision
+                : 0U;
+
+            (int offset, int count) = this.AppendTileRecipientsLocked(blockedTx, blockedTy);
+            if (count > 0)
+            {
+                _pendingPropChanges.Add(new OutboundPropChange(
+                    offset,
+                    count,
+                    blockedTx,
+                    blockedTy,
+                    revision,
+                    blockedProp.Destructibility.CurrentDurability,
+                    false));
             }
         }
     }
@@ -1188,16 +1310,32 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
         ActivePlayerState state,
         int wx,
         int wy,
+        uint activeItemId,
         byte harvestTier,
-        ulong respawnAt)
+        ulong respawnAt,
+        ref MapProp tierBlockedProp)
     {
         if (!this.IsWithinInteractRangeLocked(state.Entity, wx, wy))
         {
             return false;
         }
 
-        if (!_chunkWorld.TryDamagePropAt(wx, wy, 50f, harvestTier, respawnAt, out MapProp updated))
+        if (!_chunkWorld.TryGetPropAt(wx, wy, out MapProp existing) ||
+            existing.Type == MapPropType.None ||
+            existing.Destructibility.IsDestroyed ||
+            !existing.Destructibility.IsDestructible)
         {
+            return false;
+        }
+
+        float strikeDamage = ResolvePropStrikeDamage(activeItemId, existing.Category);
+        if (!_chunkWorld.TryDamagePropAt(wx, wy, strikeDamage, harvestTier, respawnAt, out MapProp updated))
+        {
+            if (harvestTier < existing.Destructibility.HarvestTier)
+            {
+                tierBlockedProp = existing;
+            }
+
             return false;
         }
 
@@ -1270,15 +1408,23 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
 
             Vector2 atkPos = _simulation.Entities.GetTransform(evt.Attacker).Position;
             Vector2 defPos = _simulation.Entities.GetTransform(evt.Target).Position;
-            if (Vector2.DistanceSquared(atkPos, defPos) > (56f * 56f))
+            if (Vector2.DistanceSquared(atkPos, defPos) > (60f * 60f))
             {
                 continue;
             }
 
             HealthComponent hp = _simulation.Entities.GetHealth(evt.Target);
-            const float MonsterDamage = 10f;
-            float nextHp = MathF.Max(0f, hp.Current - MonsterDamage);
+            float monsterDamage = _actorsByNetworkId.TryGetValue(attackerNet.NetworkId, out NpcActorMeta atkMeta)
+                ? atkMeta.AttackDamage
+                : 10f;
+            float nextHp = MathF.Max(0f, hp.Current - monsterDamage);
             bool killed = nextHp <= 0f;
+            if (_connectionByNetworkId.TryGetValue(targetNet.NetworkId, out ulong targetConn) &&
+                _playersByConnection.TryGetValue(targetConn, out ActivePlayerState? victim))
+            {
+                victim.LastCombatDamageTick = _currentTick;
+            }
+
             if (killed)
             {
                 _simulation.Entities.SetHealth(evt.Target, new HealthComponent(hp.Max, hp.Max));
@@ -1290,7 +1436,7 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
             }
 
             _simulation.MarkDirty(evt.Target, EntityDirtyMask.Health);
-            this.QueueCombatHitLocked(defPos, attackerNet.NetworkId, targetNet.NetworkId, MonsterDamage, killed ? hp.Max : nextHp, false, killed);
+            this.QueueCombatHitLocked(defPos, attackerNet.NetworkId, targetNet.NetworkId, monsterDamage, killed ? hp.Max : nextHp, false, killed);
         }
 
         _simulation.ClearEvents<AiAttackReadyEvent>();
@@ -1352,14 +1498,22 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
                                 : poi.Type == PointOfInterestType.MountainShrine
                                     ? "Shrine Keeper"
                                     : "Village Guard";
+                            ushort npcArchetype = poi.Type == PointOfInterestType.Harbor
+                                ? (ushort)202
+                                : poi.Type == PointOfInterestType.MountainShrine
+                                    ? (ushort)203
+                                    : (ushort)201;
                             Vector2 npcPos = new((npcTx + 0.5f) * this.TileSize, (npcTy + 0.5f) * this.TileSize);
                             NpcActorMeta npcMeta = new(
                                 EntityKind.Npc,
-                                201,
+                                npcArchetype,
                                 npcName,
                                 npcPos,
                                 200f,
                                 70f,
+                                8f,
+                                0f,
+                                0U,
                                 key,
                                 StarterGameCatalog.BerryHerb);
                             this.SpawnActorFromMetaLocked(npcMeta);
@@ -1376,23 +1530,25 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
 
                 int lx = 6 + (int)(h % 20UL);
                 int ly = 6 + (int)((h >> 8) % 20UL);
+                int wx = (cx * Chunk2D.Size) + lx;
+                int wy = (cy * Chunk2D.Size) + ly;
                 MapTile spawnTile = chunk.GetTile(lx, ly);
                 if (spawnTile.IsSolid ||
                     spawnTile.Biome == BiomeType.ShallowWater ||
-                    spawnTile.Biome == BiomeType.DeepOcean)
+                    spawnTile.Biome == BiomeType.DeepOcean ||
+                    _chunkWorld.HasSolidPropAt(wx, wy))
                 {
                     continue;
                 }
 
-                int wx = (cx * Chunk2D.Size) + lx;
-                int wy = (cy * Chunk2D.Size) + ly;
                 Vector2 monsterPos = new((wx + 0.5f) * this.TileSize, (wy + 0.5f) * this.TileSize);
                 if (Vector2.DistanceSquared(monsterPos, safeOrigin) < safeRadiusSq)
                 {
                     continue;
                 }
 
-                (string mobName, ushort archetypeId, float maxHp, float moveSpeed, uint dropId) = ResolveBiomeMonster(spawnTile.Biome);
+                (string mobName, ushort archetypeId, float maxHp, float moveSpeed, float mobRadius, float atkDamage, uint windupTicks, uint dropId) =
+                    ResolveBiomeMonster(spawnTile.Biome);
                 NpcActorMeta monsterMeta = new(
                     EntityKind.Monster,
                     archetypeId,
@@ -1400,9 +1556,29 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
                     monsterPos,
                     maxHp,
                     moveSpeed,
+                    mobRadius,
+                    atkDamage,
+                    windupTicks,
                     key,
                     dropId);
                 this.SpawnActorFromMetaLocked(monsterMeta);
+
+                // Spawn a pack companion nearby in ~25% of monster chunks.
+                if (((h >> 16) & 3UL) == 0UL)
+                {
+                    int packLx = Math.Clamp(lx + 2, 1, Chunk2D.Size - 2);
+                    int packLy = Math.Clamp(ly + 1, 1, Chunk2D.Size - 2);
+                    int packWx = (cx * Chunk2D.Size) + packLx;
+                    int packWy = (cy * Chunk2D.Size) + packLy;
+                    MapTile packTile = chunk.GetTile(packLx, packLy);
+                    if (!packTile.IsSolid &&
+                        packTile.Biome is not (BiomeType.ShallowWater or BiomeType.DeepOcean) &&
+                        !_chunkWorld.HasSolidPropAt(packWx, packWy))
+                    {
+                        Vector2 packPos = new((packWx + 0.5f) * this.TileSize, (packWy + 0.5f) * this.TileSize);
+                        this.SpawnActorFromMetaLocked(monsterMeta with { HomePos = packPos });
+                    }
+                }
             }
         }
     }
@@ -1410,9 +1586,10 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
     private void SpawnActorFromMetaLocked(in NpcActorMeta meta)
     {
         ulong netId = ++_nextNetworkId;
-        Entity entity = _simulation.SpawnNetworkEntity(netId, meta.HomePos, DefaultEntityRadius, ownerSessionId: 0UL);
+        float radius = meta.Radius > 0f ? meta.Radius : DefaultEntityRadius;
+        Entity entity = _simulation.SpawnNetworkEntity(netId, meta.HomePos, radius, ownerSessionId: 0UL);
         uint layer = meta.Kind == EntityKind.Monster ? MonsterLayer : NpcLayer;
-        _simulation.Entities.SetCollider(entity, new Collider2D(ColliderKind.Circle, DefaultEntityRadius, default, false, layer, uint.MaxValue));
+        _simulation.Entities.SetCollider(entity, new Collider2D(ColliderKind.Circle, radius, default, false, layer, uint.MaxValue));
         _simulation.Entities.SetVelocity(entity, new Velocity2D(0f, 0f, 5f));
         _simulation.Entities.SetHealth(entity, new HealthComponent(meta.MaxHealth, meta.MaxHealth));
 
@@ -1428,7 +1605,8 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
             meta.MoveSpeed,
             TargetLayerMask: targetMask,
             AttackCooldownTicks: (uint)Math.Max(15, (int)this.TickRate),
-            PatrolRadius: meta.Kind == EntityKind.Monster ? 96f : 64f);
+            PatrolRadius: meta.Kind == EntityKind.Monster ? 96f : 64f,
+            WindupTicks: meta.WindupTicks);
         _simulation.Entities.SetComponent(entity, in brain);
 
         if (meta.Kind == EntityKind.Monster)
@@ -1612,19 +1790,19 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
         if (slotIndex < inventory.Capacity)
         {
             ItemSlot slot = inventory.GetSlot(slotIndex);
-            if (!slot.IsEmpty && StarterGameCatalog.Items.TryGet(slot.ItemId, out ItemArchetype? def) && def.HarvestTier > 0)
+            if (!slot.IsEmpty && StarterGameCatalog.Items.TryGet(slot.ItemId, out ItemArchetype? def))
             {
                 return def.HarvestTier;
             }
         }
 
-        return slotIndex switch
-        {
-            1 => 2,
-            2 => 1,
-            _ => 1,
-        };
+        return 0;
     }
+
+    private static float ResolvePropStrikeDamage(uint itemId, PropCategory category) =>
+        category == PropCategory.Mineral
+            ? StarterGameCatalog.GetMineralHarvestDamage(itemId)
+            : StarterGameCatalog.GetFloraHarvestDamage(itemId);
 
     private static void AddItemTrackingChanges(
         InventoryContainer inventory,
@@ -1742,24 +1920,32 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
         return 0U;
     }
 
-    private static (string Name, ushort ArchetypeId, float MaxHp, float MoveSpeed, uint DropItemId) ResolveBiomeMonster(BiomeType biome)
+    private static (
+        string Name,
+        ushort ArchetypeId,
+        float MaxHp,
+        float MoveSpeed,
+        float Radius,
+        float AttackDamage,
+        uint WindupTicks,
+        uint DropItemId) ResolveBiomeMonster(BiomeType biome)
     {
         if (biome is BiomeType.RedMesa or BiomeType.DuneDesert)
         {
-            return ("Rock Golem", 102, 110f, 115f, StarterGameCatalog.IronOre);
+            return ("Rock Golem", 102, 150f, 105f, 11f, 16f, 11U, StarterGameCatalog.IronOre);
         }
 
         if (biome is BiomeType.FrozenTundra or BiomeType.AlpinePeaks)
         {
-            return ("Frost Wolf", 103, 85f, 150f, StarterGameCatalog.StoneChunk);
+            return ("Frost Wolf", 103, 95f, 168f, 8.5f, 12f, 6U, StarterGameCatalog.StoneChunk);
         }
 
         if (biome is BiomeType.VolcanicAshland or BiomeType.BlossomWoods)
         {
-            return ("Ash Wraith", 104, 95f, 140f, StarterGameCatalog.ManaCrystal);
+            return ("Ash Wraith", 104, 110f, 148f, 8.5f, 14f, 8U, StarterGameCatalog.ManaCrystal);
         }
 
-        return ("Wild Slime", 101, 60f, 125f, StarterGameCatalog.BerryHerb);
+        return ("Wild Slime", 101, 75f, 130f, 8f, 9f, 7U, StarterGameCatalog.BerryHerb);
     }
 
     private static ulong HashChunk(ulong seed, int cx, int cy)
@@ -1795,6 +1981,7 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
         public ulong PendingAttackTargetId { get; set; }
         public Vector2 PendingAttackAim { get; set; }
         public byte PendingAttackAbility { get; set; }
+        public ulong LastCombatDamageTick { get; set; }
     }
 
     private readonly record struct NpcActorMeta(
@@ -1804,6 +1991,9 @@ public sealed class AuthoritativeWorld : IAuthoritativeWorld
         Vector2 HomePos,
         float MaxHealth,
         float MoveSpeed,
+        float Radius,
+        float AttackDamage,
+        uint WindupTicks,
         long ChunkKey,
         uint DropItemId);
 

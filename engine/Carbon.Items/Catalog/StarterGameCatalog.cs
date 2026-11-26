@@ -146,6 +146,44 @@ public static class StarterGameCatalog
         _ => 12f,
     };
 
+    /// <summary>Returns harvest damage per strike against flora props (trees, bushes, cacti).</summary>
+    public static float GetFloraHarvestDamage(uint itemId) => itemId switch
+    {
+        WoodAxe => 55f,
+        CrystalPickaxe => 60f,
+        StonePickaxe => 38f,
+        IronSword => 28f,
+        _ => 20f,
+    };
+
+    /// <summary>Returns harvest damage per strike against mineral props (boulders, ore veins, crystals).</summary>
+    public static float GetMineralHarvestDamage(uint itemId) => itemId switch
+    {
+        CrystalPickaxe => 95f,
+        StonePickaxe => 68f,
+        WoodAxe => 26f,
+        IronSword => 16f,
+        _ => 10f,
+    };
+
+    /// <summary>Returns a concise HUD action tooltip describing the active item's role and tier.</summary>
+    public static string GetActionHint(uint itemId) => itemId switch
+    {
+        WoodAxe => "Tier 1 Axe | Chop Trees (55 dmg)",
+        StonePickaxe => "Tier 2 Pick | Mine Stone/Ore (68 dmg)",
+        CrystalPickaxe => "Tier 3 Pick | Mine All Crystal/Gold (95 dmg)",
+        IronSword => "Melee Blade | Combat 34 dmg (+Crit)",
+        BerryHerb => "Consumable | Use: Restore +25 HP",
+        WoodWallKit => "Builder | Place Wood Wall on Target Tile",
+        StoneWallKit => "Builder | Place Stone Wall on Target Tile",
+        WoodDoorKit => "Builder | Place Wood Door ([E] Open/Close)",
+        WoodLog => "Material | Craft Walls, Doors & Tools [C]",
+        StoneChunk => "Material | Craft Stone Walls & Pickaxe [C]",
+        IronOre => "Material | Craft Iron Sword & Crystal Pick [C]",
+        ManaCrystal => "Rare Crystal | Craft Tier 3 Crystal Pick [C]",
+        _ => "Empty Hand | Forage Bushes & Punch (12 dmg)",
+    };
+
     /// <summary>Maps an item's <see cref="Items"/> max stack size for crafting output bounds.</summary>
     public static int GetMaxStackSize(uint itemId) =>
         Items.TryGet(itemId, out ItemArchetype? archetype) ? Math.Max(1, archetype.MaxStackSize) : 99;

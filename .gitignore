@@ -55,3 +55,6 @@ publish/
 *.db
 *.db-wal
 *.db-shm
+
+# Runtime client screenshots
+screenshots/

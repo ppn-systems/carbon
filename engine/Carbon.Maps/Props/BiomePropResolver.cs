@@ -168,11 +168,11 @@ public static class BiomePropResolver
             }
         }
 
-        // Occasional non-vein field boulders on highlands/plains for tactical cover.
-        if (!isNearWater && isOreSlot && !table.VeinExclusive && mineralNoise >= 0.56f &&
-            (SpatialHash.Hash32(seed, worldTileX, worldTileY, 0xB01DUL) % 97) == 0)
+        // Occasional non-vein field boulders & rock outcrops on plains, woods, and highlands (spaced on 2x2 ore slots).
+        if (!isNearWater && isOreSlot && mineralNoise >= 0.44f &&
+            (SpatialHash.Hash32(seed, worldTileX, worldTileY, 0xB01DUL) % 19) == 0)
         {
-            prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 22f * scaleVar, isSolid: true, 0x7A7E84FF, 0x9CA0A6FF, scaleVar);
+            prop = MapProp.Create(MapPropType.Boulder, localX, localY, worldX, worldY, radius: 21f * scaleVar, isSolid: true, 0x7A7E84FF, 0x9CA0A6FF, scaleVar);
             return true;
         }
 

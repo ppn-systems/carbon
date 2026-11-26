@@ -119,12 +119,32 @@ public sealed class ProtocolContractGuardTests
             ZoneTier = 2,
             PositionX = 123.5f,
             PositionY = -45.25f,
+            AppearancePreset = 3,
         };
         using CharacterSummary summaryCopy = CharacterSummary.Deserialize(summary.Serialize());
         Assert.Equal(cid, summaryCopy.CharacterId);
         Assert.Equal("Aria", summaryCopy.Name);
         Assert.Equal((ushort)7, summaryCopy.Level);
         Assert.Equal((byte)2, summaryCopy.ZoneTier);
+        Assert.Equal((byte)3, summaryCopy.AppearancePreset);
+
+        using CharacterEnterWorld enter = new()
+        {
+            Status = Carbon.Contracts.Common.OpStatus.Ok,
+            PlayerNetworkId = 55UL,
+            WorldSeed = 1337UL,
+            GeneratorVersion = 2,
+            TileSize = 32f,
+            Frequency = 0.0008f,
+            PositionX = 10f,
+            PositionY = 20f,
+            ServerTick = 120UL,
+            TickRate = 30,
+            AppearancePreset = 2,
+        };
+        using CharacterEnterWorld enterCopy = CharacterEnterWorld.Deserialize(enter.Serialize());
+        Assert.Equal((byte)2, enterCopy.AppearancePreset);
+        Assert.Equal(55UL, enterCopy.PlayerNetworkId);
 
         using EntityDeltaBatch batch = new()
         {

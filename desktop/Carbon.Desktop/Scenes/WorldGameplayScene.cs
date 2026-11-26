@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 using System.Threading.Tasks;
@@ -43,6 +44,8 @@ public sealed class WorldGameplayScene : GameScene
     private readonly MenuButton _resumeButton = new("RESUME GAME", MenuButtonStyle.SecondaryEmerald);
     private readonly MenuButton _logoutButton = new("LOGOUT / SWITCH HERO", MenuButtonStyle.PrimaryGold);
     private readonly MenuButton _quitButton = new("QUIT DESKTOP CLIENT", MenuButtonStyle.DangerRed);
+    private readonly List<(int ChunkX, int ChunkY)> _dirtyChunksScratch = new(16);
+    private readonly List<string> _notificationsScratch = new(16);
 
     private CameraRig2D? _cameraRig;
     private WorldSceneRenderer? _worldRenderer;
@@ -55,6 +58,8 @@ public sealed class WorldGameplayScene : GameScene
     private StructureType _lastStructure = StructureType.None;
     private (int X, int Y) _lastChunk = (int.MinValue, int.MinValue);
     private Vector2 _lastMoveDirection = Vector2.UnitX;
+    private Vector2 _mouseScreenPosition;
+    private Vector2 _mouseWorldPosition;
     private int _frameCount;
     private bool _hasAutoCaptured;
     private bool _showEscapeMenu;
@@ -81,7 +86,7 @@ public sealed class WorldGameplayScene : GameScene
 
         _cameraRig = new CameraRig2D(_camera, _options.MacroView);
         _worldRenderer = new WorldSceneRenderer(context.Device, _options);
-        _hudRenderer = new HudOverlayRenderer(context.Device);
+        _hudRenderer = new HudOverlayRenderer(context.Device, _worldRenderer.VectorArt);
         _menuBatch = new GeometryBatch(context.Device);
         _worldRenderer.EnsureWorldBound(_session);
 
@@ -135,6 +140,8 @@ public sealed class WorldGameplayScene : GameScene
         }
 
         DesktopInputFrame input = DesktopInputController.Poll(context.Input);
+        _mouseScreenPosition = input.MouseScreenPosition;
+        _mouseWorldPosition = _camera.ScreenToWorld(in _mouseScreenPosition);
 
         if (input.EscapePressed)
         {
@@ -251,6 +258,21 @@ public sealed class WorldGameplayScene : GameScene
 
         _session.Update(dt, input.MoveDirection, input.Sprint);
 
+        _dirtyChunksScratch.Clear();
+        _session.DrainDirtyChunks(_dirtyChunksScratch);
+        for (int i = 0; i < _dirtyChunksScratch.Count; i++)
+        {
+            (int cx, int cy) = _dirtyChunksScratch[i];
+            _worldRenderer.InvalidateChunk(cx, cy);
+        }
+
+        _notificationsScratch.Clear();
+        _session.DrainHudNotifications(_notificationsScratch);
+        for (int i = 0; i < _notificationsScratch.Count; i++)
+        {
+            _hudRenderer.PushNotification(_notificationsScratch[i]);
+        }
+
         Vector2 playerPos = _session.LocalPlayerInterpolatedPosition;
         float tileSize = _session.ChunkWorld.TileSize;
         int ptx = (int)MathF.Floor(playerPos.X / tileSize);
@@ -288,7 +310,8 @@ public sealed class WorldGameplayScene : GameScene
             frameDt,
             _options.TimeScale,
             spriteBatch,
-            _hudRenderer.Font);
+            _hudRenderer.Font,
+            _mouseWorldPosition);
 
         _hudRenderer.Render(
             _session,
@@ -296,7 +319,10 @@ public sealed class WorldGameplayScene : GameScene
             context.WindowWidth,
             context.WindowHeight,
             frameDt,
-            _worldRenderer.TimeOfDayHour);
+            _worldRenderer.TimeOfDayHour,
+            _mouseScreenPosition,
+            _worldRenderer.FeedbackTracker,
+            _mouseWorldPosition);
 
         if (_showEscapeMenu && _menuBatch is not null)
         {

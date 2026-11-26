@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "itemId": 1,
+  "id": "wood_axe",
+  "displayName": "Wood Axe",
+  "tier": 1,
+  "categoryLabel": "Timber Tool",
+  "accentColor": "#F59E0B",
+  "gripX": -4.5,
+  "gripY": 4.5,
+  "restAngleDeg": -24.0,
+  "worldScale": 0.92,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": -7.0,
+      "y": 7.0,
+      "x2": 6.0,
+      "y2": -6.0,
+      "thickness": 2.8,
+      "color": "#92400E",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          1.5,
+          -4.5
+        ],
+        [
+          8.0,
+          -8.5
+        ],
+        [
+          9.5,
+          0.5
+        ],
+        [
+          3.5,
+          2.0
+        ]
+      ],
+      "color": "#94A3B8",
+      "outlineColor": "#1E293B",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": 7.5,
+      "y": -7.8,
+      "x2": 9.0,
+      "y2": 0.2,
+      "thickness": 1.5,
+      "color": "#F8FAFC"
+    }
+  ]
+}

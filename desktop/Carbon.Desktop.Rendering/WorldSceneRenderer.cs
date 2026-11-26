@@ -7,6 +7,11 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions;
+using Carbon.Desktop.Rendering.Effects;
+using Carbon.Desktop.Rendering.Feedback;
+using Carbon.Desktop.Rendering.Overlays;
+using Carbon.Desktop.Rendering.VectorArt;
+using Carbon.Graphics.Animation.Directions;
 using Carbon.Graphics.Batching;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
@@ -14,6 +19,9 @@ using Carbon.Graphics.Batching.Sprites;
 using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Graphics.OpenGL.Abstractions;
 using Carbon.Graphics.OpenGL.States;
+using Carbon.Items.Catalog;
+using Carbon.Items.Containers;
+using Carbon.Items.Definitions;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
@@ -28,9 +36,9 @@ using Silk.NET.OpenGL;
 namespace Carbon.Desktop.Rendering;
 
 /// <summary>
-/// Renders the full 2.5D top-down Carbon world scene: cached terrain VBO chunks, animated water/ripples,
-/// Y-sorted ground props, buildings/landmarks, local &amp; remote players, swaying canopies,
-/// dynamic day/night point lighting, weather overlays, and smooth interior room masking.
+/// Orchestrates the 6-pass 2.5D world rendering pipeline using declarative <c>.cvg.json</c> vector rigs (DIP),
+/// cached terrain chunks, Y-sorted props &amp; buildings, combat VFX ribbons, day/night lighting, and screen-space overlays.
+/// Depends strictly on read-only <see cref="IClientWorldReadModel"/> (ISP).
 /// </summary>
 public sealed class WorldSceneRenderer : IDisposable
 {
@@ -38,12 +46,15 @@ public sealed class WorldSceneRenderer : IDisposable
     private readonly GeometryBatch _geometryBatch;
     private readonly ChunkTerrainRenderer _terrainRenderer;
     private readonly Atmosphere _atmosphere;
+    private readonly IVectorArtRepository? _art;
+    private readonly CombatFeedbackTracker _feedback = new();
+    private readonly WorldEntityOverlayRenderer _overlays = new();
     private readonly List<PointLight> _lights = new(64);
     private readonly List<GroundRenderItem> _groundSortList = new(2048);
     private readonly List<CanopyRenderItem> _canopySortList = new(1024);
+    private readonly List<DestroyedPropRenderItem> _remnantList = new(512);
+    private readonly List<DamagedPropHudMarker> _damagedProps = new(64);
     private readonly List<PointOfInterest> _visibleWorldTrees = new(4);
-    private readonly List<ClientCombatEvent> _combatEventScratch = new(16);
-    private readonly List<FloatingCombatText> _floatingTexts = new(32);
 
     private PointOfInterestResolver? _landmarks;
     private PointOfInterestRenderer? _poiRenderer;
@@ -51,15 +62,16 @@ public sealed class WorldSceneRenderer : IDisposable
     private float _animTime;
     private bool _disposed;
 
-    /// <summary>Gets the current in-game hour [0..24) from the atmospheric cycle.</summary>
-    public float TimeOfDayHour => _atmosphere.Hour;
-
     /// <summary>
     /// Initializes a new instance of the <see cref="WorldSceneRenderer"/> class.
     /// </summary>
     /// <param name="device">Active graphics device.</param>
     /// <param name="options">Client rendering/atmosphere options.</param>
-    public WorldSceneRenderer(IGraphicsDevice device, DesktopClientOptions options)
+    /// <param name="artRepository">Optional injected declarative vector-art repository (DIP).</param>
+    public WorldSceneRenderer(
+        IGraphicsDevice device,
+        DesktopClientOptions options,
+        IVectorArtRepository? artRepository = null)
     {
         _device = device ?? throw new ArgumentNullException(nameof(device));
         ArgumentNullException.ThrowIfNull(options);
@@ -67,32 +79,37 @@ public sealed class WorldSceneRenderer : IDisposable
         _geometryBatch = new GeometryBatch(device);
         _terrainRenderer = new ChunkTerrainRenderer(device);
         _atmosphere = new Atmosphere(options.StartHour, options.DayLengthSeconds, options.WeatherRainOverride);
+        _art = artRepository ?? CarbonVectorArtLibrary.LoadOrDefault();
     }
+
+    /// <summary>Gets the current in-game hour <c>[0..24)</c> from the atmospheric cycle.</summary>
+    public float TimeOfDayHour => _atmosphere.Hour;
+
+    /// <summary>Gets the declarative vector-art repository shared with HUD widgets.</summary>
+    public IVectorArtRepository? VectorArt => _art;
+
+    /// <summary>Gets the combat &amp; gathering feedback tracker shared with HUD target unit frames.</summary>
+    public CombatFeedbackTracker FeedbackTracker => _feedback;
 
     /// <summary>Gets or sets a value indicating whether solid collision debug overlays are rendered.</summary>
     public bool ShowDebugOverlay { get; set; }
 
-    /// <summary>
-    /// Ensures deterministic landmark metadata matches the active world seed, resetting cached chunk meshes if changed.
-    /// </summary>
-    /// <param name="session">Active client world session.</param>
-    public void EnsureWorldBound(IClientWorldSession session)
+    /// <summary>Ensures deterministic landmark metadata matches the active world seed.</summary>
+    public void EnsureWorldBound(IClientWorldReadModel world)
     {
-        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(world);
 
-        if (_poiRenderer is null || _boundSeed != session.WorldSeed)
+        if (_poiRenderer is null || _boundSeed != world.WorldSeed)
         {
-            ProceduralWorldGenerator generator = new(new WorldGenSettings(session.WorldSeed, session.ChunkWorld.TileSize));
+            ProceduralWorldGenerator generator = new(new WorldGenSettings(world.WorldSeed, world.ChunkWorld.TileSize));
             _landmarks = generator.Landmarks;
-            _poiRenderer = new PointOfInterestRenderer(session.ChunkWorld.TileSize, _landmarks);
-            _boundSeed = session.WorldSeed;
+            _poiRenderer = new PointOfInterestRenderer(world.ChunkWorld.TileSize, _landmarks);
+            _boundSeed = world.WorldSeed;
             _terrainRenderer.InvalidateAll();
         }
     }
 
-    /// <summary>
-    /// Queries whether the player is currently standing inside a landmark building interior.
-    /// </summary>
+    /// <summary>Queries whether the player is currently standing inside a landmark building interior.</summary>
     public bool TryGetBuildingAt(Vector2 playerWorld, out RectangleF room)
     {
         if (_poiRenderer is not null && _poiRenderer.TryGetBuildingAt(playerWorld, out _, out room))
@@ -105,78 +122,40 @@ public sealed class WorldSceneRenderer : IDisposable
     }
 
     /// <summary>Invalidates cached GPU terrain meshes around a modified chunk.</summary>
-    public void InvalidateChunk(int chunkX, int chunkY) =>
-        _terrainRenderer.InvalidateChunk(chunkX, chunkY);
+    public void InvalidateChunk(int chunkX, int chunkY) => _terrainRenderer.InvalidateChunk(chunkX, chunkY);
 
     /// <summary>Invalidates all cached GPU terrain meshes.</summary>
-    public void InvalidateAll() =>
-        _terrainRenderer.InvalidateAll();
+    public void InvalidateAll() => _terrainRenderer.InvalidateAll();
 
     /// <summary>Evicts cached GPU terrain meshes outside the specified chunk radius.</summary>
     public void EvictDistant(int centerChunkX, int centerChunkY, int evictionRadius) =>
         _terrainRenderer.EvictDistant(centerChunkX, centerChunkY, evictionRadius);
 
-    /// <summary>
-    /// Executes the full multi-pass 2.5D frame render pipeline including melee slash VFX, nameplates, and floating combat numbers.
-    /// </summary>
+    /// <summary>Executes the full multi-pass 2.5D frame render pipeline.</summary>
     public void Render(
-        IClientWorldSession session,
+        IClientWorldReadModel world,
         CameraRig2D cameraRig,
         int viewportWidth,
         int viewportHeight,
         float frameDt,
         float timeScale,
         SpriteBatch? spriteBatch = null,
-        BitmapFont? font = null)
+        BitmapFont? font = null,
+        Vector2? aimedWorldPosition = null)
     {
-        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(cameraRig);
-        if (!session.IsReady || viewportWidth <= 0 || viewportHeight <= 0)
+        if (!world.IsReady || viewportWidth <= 0 || viewportHeight <= 0)
         {
             return;
         }
 
-        this.EnsureWorldBound(session);
-
+        this.EnsureWorldBound(world);
         _animTime += frameDt;
         _atmosphere.Update(frameDt * timeScale);
         _lights.Clear();
 
-        _combatEventScratch.Clear();
-        session.DrainCombatEvents(_combatEventScratch);
-        for (int i = 0; i < _combatEventScratch.Count; i++)
-        {
-            ClientCombatEvent ev = _combatEventScratch[i];
-            string text = ev.Label ?? (ev.IsCritical
-                ? $"-{(int)MathF.Ceiling(ev.Amount)}!"
-                : ev.IsHeal
-                    ? $"+{(int)MathF.Ceiling(ev.Amount)}"
-                    : $"-{(int)MathF.Ceiling(ev.Amount)}");
-            ColorRgba color = ev.IsHeal
-                ? new ColorRgba(74, 222, 128, 255)
-                : ev.IsCritical
-                    ? new ColorRgba(250, 204, 21, 255)
-                    : new ColorRgba(248, 113, 113, 255);
-            _floatingTexts.Add(new FloatingCombatText(ev.WorldPosition + new Vector2(0f, -14f), text, color, 2.0f, 0.95f));
-        }
-
-        for (int i = _floatingTexts.Count - 1; i >= 0; i--)
-        {
-            FloatingCombatText ft = _floatingTexts[i];
-            float nextLife = ft.RemainingSeconds - frameDt;
-            if (nextLife <= 0f)
-            {
-                _floatingTexts.RemoveAt(i);
-            }
-            else
-            {
-                _floatingTexts[i] = ft with
-                {
-                    Position = ft.Position + new Vector2(0f, -26f * frameDt),
-                    RemainingSeconds = nextLife,
-                };
-            }
-        }
+        _feedback.Update(world, frameDt, _animTime, aimedWorldPosition);
 
         _device.SetViewport(0, 0, (uint)viewportWidth, (uint)viewportHeight);
         _device.SetClearColor(new Vector4(0.04f, 0.05f, 0.08f, 1.0f));
@@ -190,10 +169,10 @@ public sealed class WorldSceneRenderer : IDisposable
         float maxY = cameraRig.Camera.Position.Y + halfH;
 
         Matrix4x4 viewProj = cameraRig.Camera.ViewProjectionMatrix;
-        ChunkWorld2D chunkWorld = session.ChunkWorld;
+        ChunkWorld2D chunkWorld = world.ChunkWorld;
         float tileSize = chunkWorld.TileSize;
 
-        // 1. Static cached terrain chunk meshes
+        // Pass 1: Static cached terrain VBO chunks
         _terrainRenderer.Begin(in viewProj);
         foreach (Chunk2D chunk in chunkWorld.ActiveChunks)
         {
@@ -208,9 +187,8 @@ public sealed class WorldSceneRenderer : IDisposable
 
         _terrainRenderer.End();
 
-        // 2. Animated water ripples, waterfalls, cloud shadows, debug solids, and POI ground
+        // Pass 2..4: Ambient ripples, ground remnants, Y-sorted props & vector-rig entities, canopies & VFX
         _geometryBatch.Begin(viewProj);
-
         foreach (Chunk2D chunk in chunkWorld.ActiveChunks)
         {
             chunk.GetBounds(tileSize, out float cMinX, out float cMinY, out float cMaxX, out float cMaxY);
@@ -230,10 +208,157 @@ public sealed class WorldSceneRenderer : IDisposable
             DrawDebugSolids(_geometryBatch, chunkWorld, tileSize, minX, minY, maxX, maxY);
         }
 
-        Vector2 playerPos = session.LocalPlayerInterpolatedPosition;
+        Vector2 playerPos = world.LocalPlayerInterpolatedPosition;
+        int aimTileX = int.MinValue;
+        int aimTileY = int.MinValue;
+        bool hasAimTile = false;
+        if (aimedWorldPosition.HasValue)
+        {
+            aimTileX = (int)MathF.Floor(aimedWorldPosition.Value.X / tileSize);
+            aimTileY = (int)MathF.Floor(aimedWorldPosition.Value.Y / tileSize);
+            Vector2 aimCenter = new((aimTileX + 0.5f) * tileSize, (aimTileY + 0.5f) * tileSize);
+            hasAimTile = Vector2.DistanceSquared(playerPos, aimCenter) <= (5.5f * tileSize * 5.5f * tileSize);
+        }
 
+        this.CollectVisibleObjects(chunkWorld, tileSize, minX, maxX, minY, maxY, playerPos, hasAimTile, aimTileX, aimTileY);
+
+        Span<DestroyedPropRenderItem> remnantSpan = CollectionsMarshal.AsSpan(_remnantList);
+        for (int i = 0; i < remnantSpan.Length; i++)
+        {
+            MapProp remnant = remnantSpan[i].Prop;
+            PropArt.DrawDestroyedRemnant(_geometryBatch, in remnant);
+        }
+
+        if (hasAimTile)
+        {
+            DrawTargetTileHighlight(_geometryBatch, world, chunkWorld, tileSize, aimTileX, aimTileY);
+        }
+
+        this.CollectActors(world, minX, maxX, minY, maxY);
+
+        // Pass 3: Strict North-to-South Y-sorted drawing
+        _groundSortList.Sort();
+        Span<GroundRenderItem> groundSpan = CollectionsMarshal.AsSpan(_groundSortList);
+        for (int i = 0; i < groundSpan.Length; i++)
+        {
+            ref readonly GroundRenderItem item = ref groundSpan[i];
+            switch (item.Kind)
+            {
+                case GroundItemKind.Piece:
+                    _poiRenderer?.DrawPiece(_geometryBatch, in item.Piece, _animTime, playerPos);
+                    break;
+                case GroundItemKind.Prop:
+                    PropArt.DrawGround(_geometryBatch, in item.Prop, item.ShakeOffset, item.HitFlash);
+                    break;
+                case GroundItemKind.LocalEntity:
+                    this.DrawLocalEntity(_geometryBatch, world, item.Entity);
+                    break;
+                case GroundItemKind.RemoteEntity:
+                    this.DrawRemoteEntity(_geometryBatch, in item.Remote);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        // Pass 4: Overhead swaying canopies, particles & action swing ribbons
+        _canopySortList.Sort();
+        Span<CanopyRenderItem> canopySpan = CollectionsMarshal.AsSpan(_canopySortList);
+        for (int i = 0; i < canopySpan.Length; i++)
+        {
+            ref readonly CanopyRenderItem canopyItem = ref canopySpan[i];
+            MapProp tree = canopyItem.Prop;
+            float gust = 0.6f + (0.4f * MathF.Sin(_animTime * 0.35f));
+            float sway = MathF.Sin((_animTime * 1.25f) + (tree.WorldPositionX * 0.013f) + (tree.WorldPositionY * 0.007f)) * 1.8f * gust * tree.Scale;
+            byte alpha = tree.IsUnderCanopy(playerPos) ? (byte)90 : (byte)255;
+            PropArt.DrawCanopy(_geometryBatch, in tree, alpha, sway + canopyItem.ShakeX, canopyItem.DamageTilt);
+        }
+
+        for (int i = 0; i < _visibleWorldTrees.Count; i++)
+        {
+            PointOfInterest tree = _visibleWorldTrees[i];
+            _poiRenderer?.DrawWorldTreeCanopy(_geometryBatch, in tree, _animTime, playerPos);
+        }
+
+        _feedback.DrawDebrisParticles(_geometryBatch);
+        this.DrawActionTrails(world, playerPos);
+        _geometryBatch.End();
+
+        // Pass 5: Day/night multiply ambient, point lights, weather overlay & interior dimming
+        _geometryBatch.Begin(viewProj, Atmosphere.Multiply);
+        _atmosphere.DrawAmbient(_geometryBatch, minX, minY, maxX, maxY);
+        _geometryBatch.End();
+
+        _lights.Add(new PointLight(playerPos, 150f, new ColorRgba(255, 214, 150), 0.6f));
+        _geometryBatch.Begin(viewProj, BlendState.Additive);
+        _atmosphere.DrawLights(_geometryBatch, _lights);
+        _geometryBatch.End();
+
+        _geometryBatch.Begin(viewProj);
+        if (cameraRig.InteriorBlend < 0.5f)
+        {
+            _atmosphere.DrawOverlay(_geometryBatch, minX, minY, maxX, maxY, playerPos);
+        }
+
+        if (cameraRig.InteriorBlend > 0.01f)
+        {
+            DrawInteriorRoomMask(_geometryBatch, cameraRig.InteriorRoom, cameraRig.InteriorBlend, minX, minY, maxX, maxY);
+        }
+
+        _geometryBatch.End();
+
+        // Pass 6: Screen-space proportional monster/NPC/player plates, ghost-trail HP bars & combat numbers
+        if (spriteBatch is not null && font is not null)
+        {
+            Matrix4x4 screenProj = Matrix4x4.CreateOrthographicOffCenter(0f, viewportWidth, viewportHeight, 0f, -1f, 1f);
+            _geometryBatch.Begin(screenProj);
+            _overlays.DrawGeometry(
+                _geometryBatch,
+                world,
+                _art,
+                _feedback,
+                cameraRig,
+                CollectionsMarshal.AsSpan(_damagedProps),
+                font,
+                viewportWidth,
+                viewportHeight,
+                _animTime);
+            _geometryBatch.End();
+
+            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
+            _overlays.DrawText(spriteBatch, font, world, _art, _feedback, cameraRig, viewportWidth, viewportHeight);
+            spriteBatch.End();
+        }
+    }
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        if (!_disposed)
+        {
+            _terrainRenderer.Dispose();
+            _geometryBatch.Dispose();
+            _disposed = true;
+            GC.SuppressFinalize(this);
+        }
+    }
+
+    private void CollectVisibleObjects(
+        ChunkWorld2D chunkWorld,
+        float tileSize,
+        float minX,
+        float maxX,
+        float minY,
+        float maxY,
+        Vector2 playerPos,
+        bool hasAimTile,
+        int aimTileX,
+        int aimTileY)
+    {
         _groundSortList.Clear();
         _canopySortList.Clear();
+        _remnantList.Clear();
+        _damagedProps.Clear();
         _visibleWorldTrees.Clear();
 
         foreach (Chunk2D chunk in chunkWorld.ActiveChunks)
@@ -262,42 +387,75 @@ public sealed class WorldSceneRenderer : IDisposable
                     _groundSortList.Add(new GroundRenderItem(pieces[k].Y * tileSize, in pieces[k]));
                 }
             }
-        }
 
-        foreach (Chunk2D chunk in chunkWorld.ActiveChunks)
-        {
             chunk.GetBounds(tileSize, out float cMinX, out float cMinY, out float cMaxX, out float cMaxY);
             if (cMaxX < minX || cMinX > maxX || cMaxY < minY || cMinY > maxY)
             {
                 continue;
             }
 
+            int baseTileX = chunk.ChunkX * Chunk2D.Size;
+            int baseTileY = chunk.ChunkY * Chunk2D.Size;
+
             for (int i = 0; i < chunk.Props.Count; i++)
             {
                 MapProp prop = chunk.Props[i];
-                if (prop.Destructibility.IsDestroyed)
+                if (prop.WorldPositionX + 96f < minX || prop.WorldPositionX - 96f > maxX ||
+                    prop.WorldPositionY + 96f < minY || prop.WorldPositionY - 96f > maxY)
                 {
                     continue;
                 }
 
-                if (prop.WorldPositionX + 96f >= minX && prop.WorldPositionX - 96f <= maxX &&
-                    prop.WorldPositionY + 96f >= minY && prop.WorldPositionY - 96f <= maxY)
+                if (prop.Destructibility.IsDestroyed)
                 {
-                    _groundSortList.Add(new GroundRenderItem(prop.GroundFootprintY, in prop));
-                    if (PropArt.TryGetLight(in prop, out PointLight propLight))
-                    {
-                        _lights.Add(propLight);
-                    }
+                    _remnantList.Add(new DestroyedPropRenderItem(in prop));
+                    continue;
+                }
 
-                    if (prop.HasCanopy)
-                    {
-                        _canopySortList.Add(new CanopyRenderItem(prop.WorldPositionY, in prop));
-                    }
+                int propWx = baseTileX + prop.LocalTileX;
+                int propWy = baseTileY + prop.LocalTileY;
+                Vector2 shakeOffset = Vector2.Zero;
+                float hitFlash = 0f;
+                bool hasRecentHit = _feedback.TryGetPropHit(propWx, propWy, out PropHitState hitState);
+                if (hasRecentHit && hitState.ShakeTimer > 0f)
+                {
+                    float frac = hitState.ShakeTimer / 0.26f;
+                    float amp = frac * 4.5f;
+                    shakeOffset = new Vector2(MathF.Sin(_animTime * 68f) * amp, MathF.Cos(_animTime * 54f) * amp * 0.45f);
+                    hitFlash = Math.Clamp(frac * 0.72f, 0f, 0.72f);
+                }
+
+                _groundSortList.Add(new GroundRenderItem(prop.GroundFootprintY, in prop, shakeOffset, hitFlash));
+                if (PropArt.TryGetLight(in prop, out PointLight propLight))
+                {
+                    _lights.Add(propLight);
+                }
+
+                if (prop.HasCanopy)
+                {
+                    float hpRatio = prop.Destructibility.IsDestructible ? prop.Destructibility.HealthPercentage : 1f;
+                    float damageTilt = hpRatio < 0.99f ? (1f - hpRatio) * ((propWx & 1) == 0 ? 5.5f : -5.5f) : 0f;
+                    _canopySortList.Add(new CanopyRenderItem(prop.WorldPositionY, in prop, shakeOffset.X, damageTilt));
+                }
+
+                bool isHovered = hasAimTile && propWx == aimTileX && propWy == aimTileY;
+                if (prop.Destructibility.IsDestructible &&
+                    prop.Destructibility.MaxDurability > 0f &&
+                    (prop.Destructibility.HealthPercentage < 0.99f || hasRecentHit || isHovered))
+                {
+                    _damagedProps.Add(new DamagedPropHudMarker(
+                        prop.WorldPosition + new Vector2(0f, prop.Category == PropCategory.Flora && prop.HasCanopy ? -prop.Radius - 22f : -prop.Radius - 10f),
+                        prop.Destructibility.CurrentDurability,
+                        prop.Destructibility.MaxDurability,
+                        prop.Category == PropCategory.Mineral));
                 }
             }
         }
+    }
 
-        WorldSimulation sim = session.Simulation;
+    private void CollectActors(IClientWorldReadModel world, float minX, float maxX, float minY, float maxY)
+    {
+        WorldSimulation sim = world.Simulation;
         for (int i = 0; i < sim.Entities.ActiveEntities.Count; i++)
         {
             Entity entity = sim.Entities.ActiveEntities[i];
@@ -311,7 +469,7 @@ public sealed class WorldSceneRenderer : IDisposable
             _groundSortList.Add(new GroundRenderItem(trans.Position.Y + col.Radius, entity));
         }
 
-        IReadOnlyList<RemoteEntityView> remotes = session.RemoteEntities;
+        IReadOnlyList<RemoteEntityView> remotes = world.RemoteEntities;
         for (int i = 0; i < remotes.Count; i++)
         {
             RemoteEntityView remote = remotes[i];
@@ -321,138 +479,182 @@ public sealed class WorldSceneRenderer : IDisposable
                 _groundSortList.Add(new GroundRenderItem(remote.Position.Y + remote.Radius, in remote));
             }
         }
-
-        // 3. Y-sorted ground pass (North-to-South 2.5D occlusion)
-        _groundSortList.Sort();
-        Span<GroundRenderItem> groundSpan = CollectionsMarshal.AsSpan(_groundSortList);
-        for (int i = 0; i < groundSpan.Length; i++)
-        {
-            ref readonly GroundRenderItem item = ref groundSpan[i];
-            switch (item.Kind)
-            {
-                case GroundItemKind.Piece:
-                    _poiRenderer?.DrawPiece(_geometryBatch, in item.Piece, _animTime, playerPos);
-                    break;
-                case GroundItemKind.Prop:
-                    PropArt.DrawGround(_geometryBatch, in item.Prop);
-                    break;
-                case GroundItemKind.LocalEntity:
-                    DrawLocalEntity(_geometryBatch, session, item.Entity);
-                    break;
-                case GroundItemKind.RemoteEntity:
-                    DrawRemoteEntity(_geometryBatch, in item.Remote);
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        // 4. Overhead swaying canopies
-        _canopySortList.Sort();
-        Span<CanopyRenderItem> canopySpan = CollectionsMarshal.AsSpan(_canopySortList);
-        for (int i = 0; i < canopySpan.Length; i++)
-        {
-            MapProp tree = canopySpan[i].Prop;
-            float gust = 0.6f + (0.4f * MathF.Sin(_animTime * 0.35f));
-            float sway = MathF.Sin((_animTime * 1.25f) + (tree.WorldPositionX * 0.013f) + (tree.WorldPositionY * 0.007f)) * 1.8f * gust * tree.Scale;
-            byte alpha = tree.IsUnderCanopy(playerPos) ? (byte)90 : (byte)255;
-            PropArt.DrawCanopy(_geometryBatch, in tree, alpha, sway);
-        }
-
-        for (int i = 0; i < _visibleWorldTrees.Count; i++)
-        {
-            PointOfInterest tree = _visibleWorldTrees[i];
-            _poiRenderer?.DrawWorldTreeCanopy(_geometryBatch, in tree, _animTime, playerPos);
-        }
-
-        if (session.AttackSwingTimer > 0f)
-        {
-            DrawMeleeSlashArc(_geometryBatch, playerPos, session.LastAttackDirection, session.AttackSwingTimer / 0.22f);
-        }
-
-        _geometryBatch.End();
-
-        // 5. Atmosphere multiply ambient, additive point lights, sky weather overlay, and interior darkening
-        _geometryBatch.Begin(viewProj, Atmosphere.Multiply);
-        _atmosphere.DrawAmbient(_geometryBatch, minX, minY, maxX, maxY);
-        _geometryBatch.End();
-
-        _lights.Add(new PointLight(playerPos, 150f, new ColorRgba(255, 214, 150), 0.6f));
-        _geometryBatch.Begin(viewProj, BlendState.Additive);
-        _atmosphere.DrawLights(_geometryBatch, _lights);
-        _geometryBatch.End();
-
-        _geometryBatch.Begin(viewProj);
-        if (cameraRig.InteriorBlend < 0.5f)
-        {
-            _atmosphere.DrawOverlay(_geometryBatch, minX, minY, maxX, maxY, playerPos);
-        }
-
-        if (cameraRig.InteriorBlend > 0.01f)
-        {
-            DrawInteriorRoomMask(_geometryBatch, cameraRig.InteriorRoom, cameraRig.InteriorBlend, minX, minY, maxX, maxY);
-        }
-
-        _geometryBatch.End();
-
-        // 6. World-space outlined entity nameplates & floating combat text
-        if (spriteBatch is not null && font is not null)
-        {
-            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: viewProj);
-            ColorRgba outline = new(10, 12, 18, 255);
-            const float NameplateRadiusSq = 340f * 340f;
-
-            for (int i = 0; i < remotes.Count; i++)
-            {
-                RemoteEntityView r = remotes[i];
-                if (string.IsNullOrEmpty(r.Name) || Vector2.DistanceSquared(playerPos, r.Position) > NameplateRadiusSq)
-                {
-                    continue;
-                }
-
-                ColorRgba labelColor = r.Kind == EntityKind.Monster
-                    ? new ColorRgba(252, 165, 165, 255)
-                    : r.Kind == EntityKind.Npc
-                        ? new ColorRgba(253, 224, 71, 255)
-                        : new ColorRgba(110, 231, 183, 255);
-                Vector2 labelPos = new(MathF.Floor(r.Position.X - (r.Name.Length * 6f)), MathF.Floor(r.Position.Y - r.Radius - 24f));
-                spriteBatch.DrawOutlinedString(font, r.Name, labelPos, labelColor, outline, 1, 2f);
-            }
-
-            for (int i = 0; i < _floatingTexts.Count; i++)
-            {
-                FloatingCombatText ft = _floatingTexts[i];
-                byte alpha = (byte)(Math.Clamp(ft.RemainingSeconds / 0.95f, 0f, 1f) * 255f);
-                ColorRgba tint = new(ft.Color.R, ft.Color.G, ft.Color.B, alpha);
-                ColorRgba fadeOutline = new(10, 12, 18, alpha);
-                Vector2 pos = new(MathF.Floor(ft.Position.X - (ft.Text.Length * 3f * ft.Scale)), MathF.Floor(ft.Position.Y));
-                spriteBatch.DrawOutlinedString(font, ft.Text, pos, tint, fadeOutline, 1, ft.Scale);
-            }
-
-            spriteBatch.End();
-        }
     }
 
-    /// <inheritdoc/>
-    public void Dispose()
+    private void DrawLocalEntity(GeometryBatch batch, IClientWorldReadModel world, Entity entity)
     {
-        if (!_disposed)
+        WorldSimulation sim = world.Simulation;
+        if (entity != world.LocalPlayer || !sim.Entities.HasTransform(entity) || !sim.Entities.HasCollider(entity))
         {
-            _terrainRenderer.Dispose();
-            _geometryBatch.Dispose();
-            _disposed = true;
-            GC.SuppressFinalize(this);
+            return;
+        }
+
+        Vector2 entityPos = sim.GetInterpolatedPosition(entity);
+        ref readonly Collider2D col = ref sim.Entities.GetCollider(entity);
+        Vector2 velocity = sim.Entities.HasVelocity(entity) ? sim.Entities.GetVelocity(entity).Linear : Vector2.Zero;
+        float tileSize = world.ChunkWorld.TileSize;
+        MapTile currentTile = world.ChunkWorld.GetTileAtWorld((int)MathF.Floor(entityPos.X / tileSize), (int)MathF.Floor(entityPos.Y / tileSize));
+
+        if (currentTile.Biome == BiomeType.ShallowWater)
+        {
+            batch.FillCircle(entityPos, col.Radius + 6f, new ColorRgba(255, 255, 255, 55));
+            batch.FillCircle(entityPos, col.Radius + 4f, new ColorRgba(56, 189, 248, 75));
+        }
+
+        Vector2 footPos = new(entityPos.X, entityPos.Y + col.Radius);
+        batch.FillCircle(new Vector2(footPos.X + 1.5f, footPos.Y + 1.5f), col.Radius * 1.18f, new ColorRgba(0, 0, 0, 88), 12);
+        batch.DrawCircle(footPos, col.Radius + 3.5f, new ColorRgba(56, 189, 248, 150), 14, 1.3f);
+
+        ClientActionState action = world.CurrentAction;
+        Vector2 facing = action.IsActive
+            ? action.AimDirection
+            : (world.LocalFacingDirection.LengthSquared() > 1e-4f ? world.LocalFacingDirection : world.LastAttackDirection);
+        Direction8 dir8 = DirectionExtensions.FromVector(facing, Direction8.South);
+        string clip = ResolveCharacterClip(action, world.AttackSwingTimer, velocity.LengthSquared() > 9f);
+        bool isNorm = action.IsActive || world.AttackSwingTimer > 0f;
+        float eval = action.IsActive
+            ? action.Progress
+            : (world.AttackSwingTimer > 0f ? 1f - Math.Clamp(world.AttackSwingTimer / 0.24f, 0f, 1f) : _animTime);
+        float flash = world.LocalHitFlashTimer > 0f ? Math.Clamp(world.LocalHitFlashTimer / 0.16f, 0f, 0.8f) : 0f;
+
+        if (_art is not null && _art.TryGetCharacter(world.LocalPlayerAppearancePreset, out CompiledVectorRig? rig))
+        {
+            ItemSlot activeItem = world.Inventory.GetSlot(world.SelectedHotbarSlot);
+            uint shownId = action.IsActive && action.EquippedItemId != 0U ? action.EquippedItemId : activeItem.ItemId;
+            CompiledItemVectorArt? equipped = null;
+            if (shownId != 0U)
+            {
+                _ = _art.TryGetItem(shownId, out equipped);
+            }
+
+            VectorRigRenderer.DrawEntityRig(batch, rig, footPos, dir8, clip, eval, isNorm, 0f, flash, equipped, action, world.AttackSwingTimer);
+        }
+        else
+        {
+            batch.FillCircle(entityPos, col.Radius, new ColorRgba(56, 189, 248, 255));
         }
     }
 
-    private static void DrawDebugSolids(
-        GeometryBatch batch,
-        ChunkWorld2D chunkWorld,
-        float tileSize,
-        float minX,
-        float minY,
-        float maxX,
-        float maxY)
+    private void DrawRemoteEntity(GeometryBatch batch, in RemoteEntityView remote)
+    {
+        float r = remote.Radius > 0f ? remote.Radius : 7f;
+        Vector2 footPos = new(remote.Position.X, remote.Position.Y + r);
+        Vector2 facing = remote.FacingDirection.LengthSquared() > 1e-4f
+            ? remote.FacingDirection
+            : (remote.Velocity.LengthSquared() > 4f ? Vector2.Normalize(remote.Velocity) : new Vector2(0f, 1f));
+        Direction8 dir8 = DirectionExtensions.FromVector(facing, Direction8.South);
+        bool moving = remote.Velocity.LengthSquared() > 9f;
+        bool attacking = remote.AttackAnimRemaining > 0f;
+        float flash = remote.HitFlashRemaining > 0f ? Math.Clamp(remote.HitFlashRemaining / 0.16f, 0f, 0.8f) : 0f;
+
+        batch.FillCircle(new Vector2(footPos.X + 1.5f, footPos.Y + 1.5f), r * 1.15f, new ColorRgba(0, 0, 0, 82), 12);
+        if (remote.Kind == EntityKind.Npc)
+        {
+            batch.DrawCircle(footPos, r + 2.5f, new ColorRgba(253, 224, 71, 110), 12, 1.1f);
+        }
+
+        if (_art is not null)
+        {
+            CompiledVectorRig? rig = null;
+            string clip = moving ? "walk" : "idle";
+            bool norm = false;
+            float eval = _animTime + (remote.NetworkId % 7 * 0.13f);
+
+            if (remote.Kind == EntityKind.Player && _art.TryGetCharacter((byte)remote.ArchetypeId, out rig))
+            {
+                if (attacking)
+                {
+                    clip = "slash";
+                    norm = true;
+                    eval = 1f - Math.Clamp(remote.AttackAnimRemaining / MathF.Max(0.05f, remote.AttackAnimDuration), 0f, 1f);
+                }
+            }
+            else if (remote.Kind == EntityKind.Npc && _art.TryGetNpc(remote.ArchetypeId, out rig))
+            {
+                // NPC rig resolved
+            }
+            else if (remote.Kind == EntityKind.Monster && _art.TryGetMonster(remote.ArchetypeId, out rig))
+            {
+                if (attacking)
+                {
+                    clip = "attack";
+                    norm = true;
+                    eval = 1f - Math.Clamp(remote.AttackAnimRemaining / MathF.Max(0.05f, remote.AttackAnimDuration), 0f, 1f);
+                }
+            }
+
+            if (rig is not null)
+            {
+                VectorRigRenderer.DrawEntityRig(batch, rig, footPos, dir8, clip, eval, norm, 0f, flash);
+                return;
+            }
+        }
+
+        batch.FillCircle(remote.Position, r, new ColorRgba(250, 204, 21, 255));
+    }
+
+    private void DrawActionTrails(IClientWorldReadModel world, Vector2 playerPos)
+    {
+        ClientActionState activeAction = world.CurrentAction;
+        if (activeAction.IsActive)
+        {
+            ActionVfxRenderer.DrawActionTrail(
+                _geometryBatch,
+                playerPos,
+                activeAction.Kind,
+                activeAction.AimDirection,
+                activeAction.Progress,
+                activeAction.ComboStep,
+                activeAction.EquippedItemId);
+        }
+        else if (world.AttackSwingTimer > 0f)
+        {
+            ActionVfxRenderer.DrawActionTrail(
+                _geometryBatch,
+                playerPos,
+                ClientActionKind.SwordSlash,
+                world.LastAttackDirection,
+                1f - Math.Clamp(world.AttackSwingTimer / 0.24f, 0f, 1f),
+                0);
+        }
+
+        IReadOnlyList<RemoteEntityView> remotes = world.RemoteEntities;
+        for (int i = 0; i < remotes.Count; i++)
+        {
+            RemoteEntityView r = remotes[i];
+            if (r.AttackAnimRemaining > 0f)
+            {
+                float rProg = 1f - Math.Clamp(r.AttackAnimRemaining / MathF.Max(0.05f, r.AttackAnimDuration), 0f, 1f);
+                ActionVfxRenderer.DrawActionTrail(
+                    _geometryBatch,
+                    r.Position,
+                    r.Kind == EntityKind.Player ? ClientActionKind.SwordSlash : ClientActionKind.MonsterStrike,
+                    r.FacingDirection,
+                    rProg,
+                    0);
+            }
+        }
+    }
+
+    private static string ResolveCharacterClip(ClientActionState action, float attackSwingTimer, bool moving)
+    {
+        if (action.IsActive)
+        {
+            return action.Kind switch
+            {
+                ClientActionKind.AxeChop => "chop",
+                ClientActionKind.PickaxeMine => "mine",
+                ClientActionKind.SwordSlash or ClientActionKind.MonsterStrike => "slash",
+                ClientActionKind.PlaceStructure => "chop",
+                ClientActionKind.ConsumeItem => "idle",
+                ClientActionKind.None or _ => moving ? "walk" : "idle",
+            };
+        }
+
+        return attackSwingTimer > 0f ? "slash" : (moving ? "walk" : "idle");
+    }
+
+    private static void DrawDebugSolids(GeometryBatch batch, ChunkWorld2D chunkWorld, float tileSize, float minX, float minY, float maxX, float maxY)
     {
         foreach (Chunk2D chunk in chunkWorld.ActiveChunks)
         {
@@ -467,8 +669,7 @@ public sealed class WorldSceneRenderer : IDisposable
                 float tileWorldY = cMinY + (ly * tileSize);
                 for (int lx = 0; lx < Chunk2D.Size; lx++)
                 {
-                    ref readonly MapTile tile = ref chunk.GetTile(lx, ly);
-                    if (tile.IsSolid)
+                    if (chunk.GetTile(lx, ly).IsSolid)
                     {
                         float tileWorldX = cMinX + (lx * tileSize);
                         batch.FillRectangle(new RectangleF(tileWorldX + 2f, tileWorldY + 2f, tileSize - 4f, tileSize - 4f), new ColorRgba(0, 0, 0, 70));
@@ -478,73 +679,38 @@ public sealed class WorldSceneRenderer : IDisposable
         }
     }
 
-    private static void DrawLocalEntity(GeometryBatch batch, IClientWorldSession session, Entity entity)
+    private static void DrawTargetTileHighlight(GeometryBatch batch, IClientWorldReadModel world, ChunkWorld2D chunkWorld, float tileSize, int tileX, int tileY)
     {
-        WorldSimulation world = session.Simulation;
-        if (entity != session.LocalPlayer || !world.Entities.HasTransform(entity) || !world.Entities.HasCollider(entity))
+        float x = tileX * tileSize;
+        float y = tileY * tileSize;
+        ItemSlot active = world.Inventory.GetSlot(world.SelectedHotbarSlot);
+        bool isPlaceable = active.Quantity > 0 &&
+            StarterGameCatalog.Items.TryGet(active.ItemId, out ItemArchetype? archetype) &&
+            archetype is { Category: ItemCategory.Placeable };
+
+        if (isPlaceable)
         {
+            MapTile tile = chunkWorld.GetTileAtWorld(tileX, tileY);
+            bool occupied = chunkWorld.HasSolidPropAt(tileX, tileY) ||
+                chunkWorld.Buildings.TryGetStructure(tileX, tileY, out _) ||
+                tile.Biome is BiomeType.DeepOcean or BiomeType.ShallowWater ||
+                tile.IsSolid;
+            ColorRgba tint = occupied ? new ColorRgba(239, 68, 68, 120) : new ColorRgba(34, 197, 94, 110);
+            ColorRgba border = occupied ? new ColorRgba(248, 113, 113, 225) : new ColorRgba(74, 222, 128, 225);
+            batch.FillRectangle(new RectangleF(x + 2f, y + 2f, tileSize - 4f, tileSize - 4f), tint);
+            batch.DrawRectangle(new RectangleF(x + 1f, y + 1f, tileSize - 2f, tileSize - 2f), border, 1.5f);
             return;
         }
 
-        Vector2 entityPos = world.GetInterpolatedPosition(entity);
-        ref readonly Collider2D col = ref world.Entities.GetCollider(entity);
-        float tileSize = session.ChunkWorld.TileSize;
-        int ptx = (int)MathF.Floor(entityPos.X / tileSize);
-        int pty = (int)MathF.Floor(entityPos.Y / tileSize);
-        MapTile currentTile = session.ChunkWorld.GetTileAtWorld(ptx, pty);
-
-        if (currentTile.Biome == BiomeType.ShallowWater)
+        if (chunkWorld.TryGetPropAt(tileX, tileY, out MapProp aimedProp) &&
+            !aimedProp.Destructibility.IsDestroyed &&
+            aimedProp.Destructibility.IsDestructible)
         {
-            batch.FillCircle(entityPos, col.Radius + 6f, new ColorRgba(255, 255, 255, 55));
-            batch.FillCircle(entityPos, col.Radius + 4f, new ColorRgba(56, 189, 248, 75));
-        }
-
-        batch.FillCircle(new Vector2(entityPos.X + 2f, entityPos.Y + 3f), col.Radius + 1f, new ColorRgba(0, 0, 0, 75));
-        batch.FillCircle(entityPos, col.Radius + 1.5f, new ColorRgba(248, 250, 252, 220));
-        batch.FillCircle(entityPos, col.Radius, new ColorRgba(15, 23, 42, 255));
-        batch.FillCircle(entityPos, col.Radius * 0.82f, new ColorRgba(30, 64, 175, 255));
-        batch.FillCircle(entityPos, col.Radius * 0.52f, new ColorRgba(56, 189, 248, 255));
-        batch.FillCircle(entityPos, col.Radius * 0.22f, new ColorRgba(250, 204, 21, 255));
-    }
-
-    private static void DrawRemoteEntity(GeometryBatch batch, in RemoteEntityView remote)
-    {
-        float r = remote.Radius > 0f ? remote.Radius : 7f;
-        (ColorRgba outerRing, ColorRgba coreColor) = remote.Kind switch
-        {
-            EntityKind.Monster => (new ColorRgba(185, 28, 28, 255), new ColorRgba(248, 113, 113, 255)),
-            EntityKind.Npc => (new ColorRgba(180, 83, 9, 255), new ColorRgba(251, 191, 36, 255)),
-            EntityKind.Projectile => (new ColorRgba(126, 34, 206, 255), new ColorRgba(216, 180, 254, 255)),
-            EntityKind.LootDrop => (new ColorRgba(161, 98, 7, 255), new ColorRgba(253, 224, 71, 255)),
-            EntityKind.Player => (new ColorRgba(4, 120, 87, 255), new ColorRgba(52, 211, 153, 255)),
-            _ => (new ColorRgba(4, 120, 87, 255), new ColorRgba(52, 211, 153, 255)),
-        };
-
-        batch.FillCircle(new Vector2(remote.Position.X + 2f, remote.Position.Y + 3f), r + 1f, new ColorRgba(0, 0, 0, 75));
-        batch.FillCircle(remote.Position, r + 1.4f, new ColorRgba(241, 245, 249, 210));
-        batch.FillCircle(remote.Position, r, new ColorRgba(15, 23, 42, 255));
-        batch.FillCircle(remote.Position, r * 0.78f, outerRing);
-        batch.FillCircle(remote.Position, r * 0.42f, coreColor);
-
-        if (remote.MaxHealth > 0f && remote.CurrentHealth < remote.MaxHealth)
-        {
-            float ratio = Math.Clamp(remote.CurrentHealth / remote.MaxHealth, 0f, 1f);
-            float barW = r * 2.8f;
-            float barX = remote.Position.X - (barW * 0.5f);
-            float barY = remote.Position.Y - r - 8f;
-            batch.FillRectangle(new RectangleF(barX, barY, barW, 3f), new ColorRgba(15, 23, 42, 200));
-            batch.FillRectangle(new RectangleF(barX, barY, barW * ratio, 3f), new ColorRgba(34, 197, 94, 240));
+            batch.DrawRectangle(new RectangleF(x + 2f, y + 2f, tileSize - 4f, tileSize - 4f), new ColorRgba(250, 204, 21, 195), 1.6f);
         }
     }
 
-    private static void DrawInteriorRoomMask(
-        GeometryBatch batch,
-        RectangleF room,
-        float interiorBlend,
-        float minX,
-        float minY,
-        float maxX,
-        float maxY)
+    private static void DrawInteriorRoomMask(GeometryBatch batch, RectangleF room, float interiorBlend, float minX, float minY, float maxX, float maxY)
     {
         const float pad = 4f;
         float left = room.X - pad;
@@ -568,42 +734,7 @@ public sealed class WorldSceneRenderer : IDisposable
         batch.FillRectangle(new RectangleF(right - 6f, topY, 6f, bottom - topY), edge);
     }
 
-    private static void DrawMeleeSlashArc(GeometryBatch batch, Vector2 origin, Vector2 direction, float lifeFraction)
-    {
-        Vector2 dir = direction.LengthSquared() > 1e-4f ? Vector2.Normalize(direction) : Vector2.UnitX;
-        float baseAngle = MathF.Atan2(dir.Y, dir.X);
-        float progress = 1f - lifeFraction;
-        float arcSpan = 1.6f;
-        float startAngle = baseAngle - (arcSpan * 0.5f);
-        byte alpha = (byte)(Math.Clamp(lifeFraction, 0f, 1f) * 230f);
-        ColorRgba slashColor = new(248, 250, 252, alpha);
-        ColorRgba coreColor = new(56, 189, 248, alpha);
-        const float reach = 42f;
-
-        Vector2 prevOuter = origin + (new Vector2(MathF.Cos(startAngle), MathF.Sin(startAngle)) * reach);
-        const int segments = 10;
-        for (int i = 1; i <= segments; i++)
-        {
-            float t = i / (float)segments;
-            if (t > progress + 0.35f)
-            {
-                break;
-            }
-
-            float angle = startAngle + (arcSpan * t);
-            Vector2 nextOuter = origin + (new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * (reach + (MathF.Sin(t * MathF.PI) * 14f)));
-            batch.DrawLine(prevOuter, nextOuter, slashColor, 3.5f);
-            batch.DrawLine(origin + ((nextOuter - origin) * 0.65f), nextOuter, coreColor, 2f);
-            prevOuter = nextOuter;
-        }
-    }
-
-    private readonly record struct FloatingCombatText(
-        Vector2 Position,
-        string Text,
-        ColorRgba Color,
-        float Scale,
-        float RemainingSeconds);
+    private readonly record struct DestroyedPropRenderItem(in MapProp Prop);
 
     private enum GroundItemKind : byte
     {
@@ -618,16 +749,20 @@ public sealed class WorldSceneRenderer : IDisposable
         public readonly float SortY;
         public readonly GroundItemKind Kind;
         public readonly MapProp Prop;
+        public readonly Vector2 ShakeOffset;
+        public readonly float HitFlash;
         public readonly Entity Entity;
         public readonly LandmarkPiece Piece;
         public readonly RemoteEntityView Remote;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public GroundRenderItem(float sortY, in MapProp prop)
+        public GroundRenderItem(float sortY, in MapProp prop, Vector2 shakeOffset, float hitFlash)
         {
             this.SortY = sortY;
             this.Kind = GroundItemKind.Prop;
             this.Prop = prop;
+            this.ShakeOffset = shakeOffset;
+            this.HitFlash = hitFlash;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -662,12 +797,16 @@ public sealed class WorldSceneRenderer : IDisposable
     {
         public readonly float SortY;
         public readonly MapProp Prop;
+        public readonly float ShakeX;
+        public readonly float DamageTilt;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public CanopyRenderItem(float sortY, in MapProp prop)
+        public CanopyRenderItem(float sortY, in MapProp prop, float shakeX, float damageTilt)
         {
             this.SortY = sortY;
             this.Prop = prop;
+            this.ShakeX = shakeX;
+            this.DamageTilt = damageTilt;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

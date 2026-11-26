@@ -25,6 +25,7 @@ namespace Carbon.Abstractions.World;
 /// <param name="PositionY">Spawned world Y coordinate.</param>
 /// <param name="ServerTick">Current server tick.</param>
 /// <param name="TickRate">Configured simulation tick rate.</param>
+/// <param name="AppearancePreset">Saved character appearance preset identifier.</param>
 public readonly record struct EnterWorldResult(
     OpStatus Status,
     ulong PlayerNetworkId,
@@ -35,7 +36,8 @@ public readonly record struct EnterWorldResult(
     float PositionX,
     float PositionY,
     ulong ServerTick,
-    ushort TickRate);
+    ushort TickRate,
+    byte AppearancePreset = 0);
 
 /// <summary>
 /// Outcome of an authoritative world mutation returned to handlers without allocating packet wrappers.

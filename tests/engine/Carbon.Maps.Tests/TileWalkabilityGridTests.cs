@@ -154,7 +154,10 @@ public sealed class TileWalkabilityGridTests
         // Pick a lowland/plateau pair away from procedural ramp slots (their positions are jittered).
         int x = 0;
         int y = 1;
-        while (TopographyHelper.IsPotentialRampSlot(x, y) || TopographyHelper.IsPotentialRampSlot(x, y - 1))
+        while (TopographyHelper.IsPotentialRampSlot(x, y) ||
+               TopographyHelper.IsPotentialRampSlot(x, y - 1) ||
+               world.HasSolidPropAt(x, y) ||
+               world.HasSolidPropAt(x, y - 1))
         {
             x++;
             if (x >= Chunk2D.Size)

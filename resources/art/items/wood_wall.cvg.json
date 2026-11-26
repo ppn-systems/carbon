@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "itemId": 9,
+  "id": "wood_wall",
+  "displayName": "Wood Wall",
+  "tier": 1,
+  "categoryLabel": "Structure Kit",
+  "accentColor": "#D97706",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.75,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -8.0,
+      "y": -6.5,
+      "w": 16.0,
+      "h": 13.0,
+      "color": "#B45309",
+      "outlineColor": "#1C1917",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -7.0,
+      "y": -5.5,
+      "w": 14.0,
+      "h": 3.5,
+      "color": "#F59E0B"
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -2.5,
+      "y": -6.5,
+      "x2": -2.5,
+      "y2": 6.5,
+      "thickness": 1.1,
+      "color": "#451A03"
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": 3.0,
+      "y": -6.5,
+      "x2": 3.0,
+      "y2": 6.5,
+      "thickness": 1.1,
+      "color": "#451A03"
+    }
+  ]
+}

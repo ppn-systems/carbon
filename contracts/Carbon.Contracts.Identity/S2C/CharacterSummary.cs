@@ -49,4 +49,8 @@ public sealed partial class CharacterSummary : PacketBase<CharacterSummary>, IPa
     /// <summary>Last saved world Y position.</summary>
     [SerializeOrder(7)]
     public float PositionY { get; set; }
+
+    /// <summary>Visual appearance preset index (0..3).</summary>
+    [SerializeOrder(8)]
+    public byte AppearancePreset { get; set; }
 }

@@ -21,6 +21,9 @@ namespace Carbon.AI.Components;
 /// <param name="PatrolRadius">Maximum patrol wander radius around <paramref name="HomePosition"/> when idle patrolling.</param>
 /// <param name="PatrolDestination">Active patrol destination in world coordinates.</param>
 /// <param name="PatrolWaitTicks">Remaining ticks to pause before selecting or moving to the next patrol waypoint.</param>
+/// <param name="WindupTicks">Optional attack telegraph windup duration in ticks before impact (0 = instant).</param>
+/// <param name="WindupRemainingTicks">Remaining windup ticks in the current attack telegraph.</param>
+/// <param name="RepathCooldownTicks">Ticks remaining before recomputing A* pathfinding around obstacles.</param>
 public readonly record struct AiBrainComponent(
     AiState State,
     Vector2 HomePosition,
@@ -34,4 +37,7 @@ public readonly record struct AiBrainComponent(
     uint CooldownRemainingTicks = 0,
     float PatrolRadius = 0f,
     Vector2 PatrolDestination = default,
-    uint PatrolWaitTicks = 0);
+    uint PatrolWaitTicks = 0,
+    uint WindupTicks = 0,
+    uint WindupRemainingTicks = 0,
+    uint RepathCooldownTicks = 0);

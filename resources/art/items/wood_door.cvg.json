@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "itemId": 11,
+  "id": "wood_door",
+  "displayName": "Wood Door",
+  "tier": 1,
+  "categoryLabel": "Structure Kit",
+  "accentColor": "#F59E0B",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.75,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -6.0,
+      "y": -8.5,
+      "w": 12.0,
+      "h": 17.0,
+      "color": "#92400E",
+      "outlineColor": "#1C1917",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -4.5,
+      "y": -7.0,
+      "w": 9.0,
+      "h": 14.0,
+      "color": "#D97706",
+      "outlineColor": "#451A03",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 2.8,
+      "y": 0.5,
+      "rx": 1.5,
+      "ry": 1.5,
+      "color": "#FACC15",
+      "outlineColor": "#1C1917",
+      "outlineThickness": 0.7
+    }
+  ]
+}

@@ -1,0 +1,248 @@
+{
+  "schemaVersion": 1,
+  "id": "wild_slime",
+  "designHeight": 24.0,
+  "worldHeight": 25.0,
+  "headTopOffset": 24.0,
+  "accentColor": "#22C55E",
+  "palette": {
+    "outline": "#123524",
+    "primary": "#22C55E",
+    "primaryLight": "#86EFAC",
+    "primaryDark": "#15803D",
+    "core": "#064E3B",
+    "glow": "#ECFDF5"
+  },
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "bone": "body",
+      "facing": "any",
+      "x": 0.0,
+      "y": -8.8,
+      "rx": 12.2,
+      "ry": 8.8,
+      "color": "$primary",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.4
+    },
+    {
+      "kind": "ellipse",
+      "bone": "body",
+      "facing": "any",
+      "x": -1.2,
+      "y": -10.6,
+      "rx": 8.2,
+      "ry": 5.4,
+      "color": "$primaryLight"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "body",
+      "facing": "any",
+      "x": 0.0,
+      "y": -6.5,
+      "rx": 4.6,
+      "ry": 3.4,
+      "color": "$core"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "body",
+      "facing": "any",
+      "x": -4.8,
+      "y": -13.2,
+      "rx": 2.8,
+      "ry": 1.5,
+      "color": "$glow",
+      "rotDeg": -18.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "south",
+      "x": -4.2,
+      "y": -8.5,
+      "rx": 1.6,
+      "ry": 2.2,
+      "color": "#0F172A"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "south",
+      "x": 4.2,
+      "y": -8.5,
+      "rx": 1.6,
+      "ry": 2.2,
+      "color": "#0F172A"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "south",
+      "x": -4.6,
+      "y": -9.4,
+      "rx": 0.7,
+      "ry": 0.7,
+      "color": "#FFFFFF"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "south",
+      "x": 3.8,
+      "y": -9.4,
+      "rx": 0.7,
+      "ry": 0.7,
+      "color": "#FFFFFF"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "side",
+      "x": 3.6,
+      "y": -8.5,
+      "rx": 1.6,
+      "ry": 2.1,
+      "color": "#0F172A"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "side",
+      "x": 7.4,
+      "y": -8.5,
+      "rx": 1.4,
+      "ry": 2.0,
+      "color": "#0F172A"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "side",
+      "x": 3.8,
+      "y": -9.3,
+      "rx": 0.65,
+      "ry": 0.65,
+      "color": "#FFFFFF"
+    }
+  ],
+  "animations": {
+    "idle": {
+      "duration": 1.1,
+      "loop": true,
+      "tracks": [
+        {
+          "t": 0.0,
+          "bones": {
+            "body": {
+              "scaleX": 1.0,
+              "scaleY": 1.0
+            }
+          }
+        },
+        {
+          "t": 0.5,
+          "bones": {
+            "body": {
+              "scaleX": 1.1,
+              "scaleY": 0.88,
+              "dy": 0.8
+            }
+          }
+        },
+        {
+          "t": 1.0,
+          "bones": {
+            "body": {
+              "scaleX": 1.0,
+              "scaleY": 1.0
+            }
+          }
+        }
+      ]
+    },
+    "walk": {
+      "duration": 0.45,
+      "loop": true,
+      "tracks": [
+        {
+          "t": 0.0,
+          "bones": {
+            "body": {
+              "scaleX": 1.12,
+              "scaleY": 0.85,
+              "dy": 0.6
+            }
+          }
+        },
+        {
+          "t": 0.45,
+          "bones": {
+            "body": {
+              "scaleX": 0.88,
+              "scaleY": 1.18,
+              "dy": -4.8
+            },
+            "head": {
+              "dy": -4.8
+            }
+          }
+        },
+        {
+          "t": 1.0,
+          "bones": {
+            "body": {
+              "scaleX": 1.12,
+              "scaleY": 0.85,
+              "dy": 0.6
+            }
+          }
+        }
+      ]
+    },
+    "attack": {
+      "duration": 0.3,
+      "loop": false,
+      "tracks": [
+        {
+          "t": 0.0,
+          "bones": {
+            "body": {
+              "scaleX": 1.24,
+              "scaleY": 0.74,
+              "dy": 1.4
+            }
+          }
+        },
+        {
+          "t": 0.4,
+          "bones": {
+            "body": {
+              "dx": 6.5,
+              "dy": -5.5,
+              "scaleX": 0.92,
+              "scaleY": 1.22
+            },
+            "head": {
+              "dx": 6.5,
+              "dy": -5.5
+            }
+          }
+        },
+        {
+          "t": 1.0,
+          "bones": {
+            "body": {
+              "dx": 0.0,
+              "dy": 0.0,
+              "scaleX": 1.0,
+              "scaleY": 1.0
+            }
+          }
+        }
+      ]
+    }
+  }
+}

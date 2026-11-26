@@ -1,0 +1,469 @@
+// Copyright (c) 2026 PPN Systems. All rights reserved.
+
+using System;
+using System.Numerics;
+using Carbon.Desktop.Abstractions;
+using Carbon.Graphics.Animation.Directions;
+using Carbon.Graphics.Batching.Common;
+using Carbon.Graphics.Batching.Geometry;
+using Carbon.Items.Catalog;
+
+namespace Carbon.Desktop.Rendering.VectorArt;
+
+/// <summary>
+/// Zero-allocation renderer for compiled <see cref="CompiledVectorRig"/> entities and <see cref="CompiledItemVectorArt"/> items.
+/// Renders straight to <see cref="GeometryBatch"/> using <c>stackalloc</c> bone &amp; vertex buffers.
+/// </summary>
+public static class VectorRigRenderer
+{
+    private const int EllipsePts = 12;
+    private static readonly Vector2[] s_unitCircle = BuildUnitCircle(EllipsePts);
+
+    /// <summary>
+    /// Draws a declarative articulated vector entity rig at <paramref name="footPosition"/> with directional visibility,
+    /// bone keyframe evaluation, hit flash tinting, and an optional dynamically swung equipped tool/weapon.
+    /// </summary>
+    public static void DrawEntityRig(
+        GeometryBatch batch,
+        CompiledVectorRig rig,
+        Vector2 footPosition,
+        Direction8 direction,
+        string clipName,
+        float timeOrNormalizedProgress,
+        bool isNormalized,
+        float targetHeightOverride = 0f,
+        float hitFlash = 0f,
+        CompiledItemVectorArt? equippedItem = null,
+        ClientActionState action = default,
+        float legacySwingTimer = 0f)
+    {
+        ArgumentNullException.ThrowIfNull(batch);
+        ArgumentNullException.ThrowIfNull(rig);
+
+        float drawHeight = targetHeightOverride > 0f ? targetHeightOverride : rig.WorldHeight;
+        float uniformScale = drawHeight / rig.DesignHeight;
+        bool mirrorX = direction is Direction8.West or Direction8.NorthWest or Direction8.SouthWest;
+        float sx = mirrorX ? -uniformScale : uniformScale;
+        float sy = uniformScale;
+
+        bool isNorth = direction == Direction8.North;
+        bool isSide = direction is Direction8.East or Direction8.West or Direction8.SouthEast or Direction8.SouthWest or Direction8.NorthEast or Direction8.NorthWest;
+        bool isSouth = !isNorth && !isSide;
+
+        Span<BonePose> bones = stackalloc BonePose[(int)VectorBoneId.Count];
+        rig.EvaluatePose(clipName, "idle", timeOrNormalizedProgress, isNormalized, bones);
+
+        // If North-facing, draw item behind torso first; render non-cape shapes, then promote Cape back shapes on top of torso.
+        if (isNorth && equippedItem is not null)
+        {
+            DrawEquippedItemOnRig(batch, rig, equippedItem, footPosition, direction, uniformScale, mirrorX, in bones[(int)VectorBoneId.ArmFront], action, legacySwingTimer);
+        }
+
+        DrawPassShapes(batch, rig.Shapes, in bones, footPosition, sx, sy, isSouth, isSide, isNorth, capePass: !isNorth, hitFlash);
+        if (isNorth)
+        {
+            DrawPassShapes(batch, rig.Shapes, in bones, footPosition, sx, sy, isSouth, isSide, isNorth, capePass: true, hitFlash);
+        }
+
+        if (!isNorth && equippedItem is not null)
+        {
+            DrawEquippedItemOnRig(batch, rig, equippedItem, footPosition, direction, uniformScale, mirrorX, in bones[(int)VectorBoneId.ArmFront], action, legacySwingTimer);
+        }
+    }
+
+    /// <summary>
+    /// Draws an inventory or UI item vector icon centered at <paramref name="center"/> scaled cleanly to <paramref name="targetSize"/>.
+    /// </summary>
+    public static void DrawItemIcon(
+        GeometryBatch batch,
+        CompiledItemVectorArt item,
+        Vector2 center,
+        float targetSize,
+        float rotationRad = 0f)
+    {
+        ArgumentNullException.ThrowIfNull(batch);
+        ArgumentNullException.ThrowIfNull(item);
+
+        // Item shapes span roughly [-10..10] -> 20 design units diameter.
+        float scale = targetSize / 20f;
+        BonePose rootPose = new() { RotRad = rotationRad, ScaleX = 1f, ScaleY = 1f };
+
+        for (int i = 0; i < item.Shapes.Length; i++)
+        {
+            DrawSingleShape(batch, in item.Shapes[i], in rootPose, center, scale, scale, hitFlash: 0f);
+        }
+    }
+
+    private static void DrawEquippedItemOnRig(
+        GeometryBatch batch,
+        CompiledVectorRig rig,
+        CompiledItemVectorArt item,
+        Vector2 footPos,
+        Direction8 dir8,
+        float uniformScale,
+        bool mirrorX,
+        in BonePose frontArmPose,
+        in ClientActionState action,
+        float legacySwingTimer)
+    {
+        bool isToolOrWeapon = item.ItemId is StarterGameCatalog.WoodAxe
+            or StarterGameCatalog.StonePickaxe
+            or StarterGameCatalog.CrystalPickaxe
+            or StarterGameCatalog.IronSword;
+        if (!isToolOrWeapon && !action.IsActive)
+        {
+            return;
+        }
+
+        Vector2 baseGrip = dir8 == Direction8.North
+            ? rig.NorthGrip
+            : (dir8 == Direction8.South ? rig.SouthGrip : rig.SideGrip);
+        float handX = (baseGrip.X + frontArmPose.Dx) * (mirrorX ? -uniformScale : uniformScale);
+        float handY = (baseGrip.Y + frontArmPose.Dy) * uniformScale;
+        Vector2 handWorld = new(footPos.X + handX, footPos.Y + handY);
+
+        Vector2 dirVec = action.IsActive && action.AimDirection.LengthSquared() > 1e-4f
+            ? action.AimDirection
+            : dir8.ToVector();
+        float aimRad = MathF.Atan2(dirVec.Y, dirVec.X);
+        float baseItemRot = aimRad + (MathF.PI * 0.25f);
+        float swingOffset;
+
+        if (action.IsActive)
+        {
+            float p = action.Progress;
+            swingOffset = action.Kind switch
+            {
+                ClientActionKind.AxeChop => -1.55f + (MathF.Pow(p, 0.72f) * 2.55f),
+                ClientActionKind.PickaxeMine => -1.75f + (MathF.Pow(p, 0.65f) * 2.35f),
+                ClientActionKind.SwordSlash => (action.ComboStep & 1) == 0 ? -1.25f + (p * 2.5f) : 1.25f - (p * 2.5f),
+                ClientActionKind.PlaceStructure => -0.6f + (p * 0.8f),
+                ClientActionKind.ConsumeItem or ClientActionKind.MonsterStrike or ClientActionKind.None or _ => 0f,
+            };
+        }
+        else if (legacySwingTimer > 0f)
+        {
+            float p = 1f - Math.Clamp(legacySwingTimer / 0.24f, 0f, 1f);
+            swingOffset = -1.25f + (p * 2.5f);
+        }
+        else
+        {
+            swingOffset = item.RestAngleRad + (frontArmPose.RotRad * 0.45f);
+        }
+
+        float totalRot = baseItemRot + swingOffset;
+        float itemScale = uniformScale * item.WorldScale * 0.9f;
+        Vector2 rotatedGrip = Rotate(item.GripPoint * itemScale, totalRot);
+        Vector2 itemCenter = handWorld - rotatedGrip;
+        BonePose pose = new() { RotRad = totalRot, ScaleX = 1f, ScaleY = 1f };
+
+        for (int i = 0; i < item.Shapes.Length; i++)
+        {
+            DrawSingleShape(batch, in item.Shapes[i], in pose, itemCenter, itemScale, itemScale, hitFlash: 0f);
+        }
+    }
+
+    private static void DrawPassShapes(
+        GeometryBatch batch,
+        CompiledVectorShape[] shapes,
+        in Span<BonePose> bones,
+        Vector2 origin,
+        float sx,
+        float sy,
+        bool isSouth,
+        bool isSide,
+        bool isNorth,
+        bool capePass,
+        float hitFlash)
+    {
+        for (int i = 0; i < shapes.Length; i++)
+        {
+            ref readonly CompiledVectorShape shape = ref shapes[i];
+            if (isNorth)
+            {
+                bool isCapeShape = shape.Bone == VectorBoneId.Cape;
+                if (isCapeShape != capePass)
+                {
+                    continue;
+                }
+            }
+
+            bool visible = shape.Facing switch
+            {
+                VectorFacingFilter.South => isSouth,
+                VectorFacingFilter.Side => isSide,
+                VectorFacingFilter.North => isNorth,
+                VectorFacingFilter.NotNorth => !isNorth,
+                VectorFacingFilter.Any or _ => true,
+            };
+            if (!visible)
+            {
+                continue;
+            }
+
+            BonePose bonePose = bones[(int)shape.Bone];
+            DrawSingleShape(batch, in shape, in bonePose, origin, sx, sy, hitFlash);
+        }
+    }
+
+    private static void DrawSingleShape(
+        GeometryBatch batch,
+        in CompiledVectorShape s,
+        in BonePose bone,
+        Vector2 origin,
+        float sx,
+        float sy,
+        float hitFlash)
+    {
+        ColorRgba fill = ApplyHitFlash(s.Color, hitFlash);
+        ColorRgba outline = s.HasOutline ? ApplyHitFlash(s.OutlineColor, hitFlash * 0.45f) : default;
+        float cosBone = MathF.Cos(bone.RotRad);
+        float sinBone = MathF.Sin(bone.RotRad);
+
+        switch (s.Kind)
+        {
+            case VectorShapeKind.Ellipse:
+                DrawEllipse(batch, in s, in bone, origin, sx, sy, cosBone, sinBone, fill, s.HasOutline, outline);
+                break;
+
+            case VectorShapeKind.Rect:
+                DrawRect(batch, in s, in bone, origin, sx, sy, cosBone, sinBone, fill, s.HasOutline, outline);
+                break;
+
+            case VectorShapeKind.Polygon:
+                DrawPolygon(batch, in s, in bone, origin, sx, sy, cosBone, sinBone, fill, s.HasOutline, outline);
+                break;
+
+            case VectorShapeKind.Capsule:
+                {
+                    Vector2 a = Transform(s.P0, in bone, origin, sx, sy, cosBone, sinBone);
+                    Vector2 b = Transform(s.P1, in bone, origin, sx, sy, cosBone, sinBone);
+                    float w = s.Thickness * MathF.Abs(sx);
+                    if (s.HasOutline)
+                    {
+                        float ow = w + (s.OutlineThickness * MathF.Abs(sx) * 1.4f);
+                        batch.DrawLine(a, b, outline, ow);
+                        batch.FillCircle(a, ow * 0.5f, outline, 10);
+                        batch.FillCircle(b, ow * 0.5f, outline, 10);
+                    }
+
+                    batch.DrawLine(a, b, fill, w);
+                    batch.FillCircle(a, w * 0.5f, fill, 10);
+                    batch.FillCircle(b, w * 0.5f, fill, 10);
+                    break;
+                }
+
+            case VectorShapeKind.Line:
+                {
+                    Vector2 a = Transform(s.P0, in bone, origin, sx, sy, cosBone, sinBone);
+                    Vector2 b = Transform(s.P1, in bone, origin, sx, sy, cosBone, sinBone);
+                    batch.DrawLine(a, b, fill, MathF.Max(1f, s.Thickness * MathF.Abs(sx)));
+                    break;
+                }
+
+            case VectorShapeKind.Ring:
+                {
+                    Vector2 c = Transform(s.P0, in bone, origin, sx, sy, cosBone, sinBone);
+                    float r = s.P1.X * MathF.Abs(sx);
+                    batch.DrawCircle(c, r, fill, 16, MathF.Max(1f, s.Thickness * MathF.Abs(sx)));
+                    break;
+                }
+
+            default:
+                break;
+        }
+    }
+
+    private static void DrawEllipse(
+        GeometryBatch batch,
+        in CompiledVectorShape s,
+        in BonePose bone,
+        Vector2 origin,
+        float sx,
+        float sy,
+        float cosB,
+        float sinB,
+        ColorRgba fill,
+        bool hasOutline,
+        ColorRgba outline)
+    {
+        Span<Vector2> pts = stackalloc Vector2[EllipsePts];
+        float cosL = MathF.Cos(s.RotRad);
+        float sinL = MathF.Sin(s.RotRad);
+        bool invertOrder = (sx * sy) < 0f;
+
+        if (hasOutline)
+        {
+            FillEllipseSpan(pts, s.P0, s.P1.X + s.OutlineThickness, s.P1.Y + s.OutlineThickness, cosL, sinL, invertOrder, in bone, origin, sx, sy, cosB, sinB);
+            batch.FillConvexPolygon(pts, outline);
+        }
+
+        FillEllipseSpan(pts, s.P0, s.P1.X, s.P1.Y, cosL, sinL, invertOrder, in bone, origin, sx, sy, cosB, sinB);
+        batch.FillConvexPolygon(pts, fill);
+    }
+
+    private static void FillEllipseSpan(
+        Span<Vector2> pts,
+        Vector2 center,
+        float rx,
+        float ry,
+        float cosL,
+        float sinL,
+        bool invertOrder,
+        in BonePose bone,
+        Vector2 origin,
+        float sx,
+        float sy,
+        float cosB,
+        float sinB)
+    {
+        for (int i = 0; i < EllipsePts; i++)
+        {
+            Vector2 u = s_unitCircle[invertOrder ? (EllipsePts - 1 - i) : i];
+            float lx = u.X * rx;
+            float ly = u.Y * ry;
+            Vector2 local = new(center.X + (lx * cosL) - (ly * sinL), center.Y + (lx * sinL) + (ly * cosL));
+            pts[i] = Transform(local, in bone, origin, sx, sy, cosB, sinB);
+        }
+    }
+
+    private static void DrawRect(
+        GeometryBatch batch,
+        in CompiledVectorShape s,
+        in BonePose bone,
+        Vector2 origin,
+        float sx,
+        float sy,
+        float cosB,
+        float sinB,
+        ColorRgba fill,
+        bool hasOutline,
+        ColorRgba outline)
+    {
+        Span<Vector2> quad = stackalloc Vector2[4];
+        Vector2 c = new(s.P0.X + (s.P1.X * 0.5f), s.P0.Y + (s.P1.Y * 0.5f));
+        float hw = s.P1.X * 0.5f;
+        float hh = s.P1.Y * 0.5f;
+        float cosL = MathF.Cos(s.RotRad);
+        float sinL = MathF.Sin(s.RotRad);
+
+        if (hasOutline)
+        {
+            float pad = s.OutlineThickness;
+            FillQuadSpan(quad, c, hw + pad, hh + pad, cosL, sinL, in bone, origin, sx, sy, cosB, sinB);
+            batch.FillConvexPolygon(quad, outline);
+        }
+
+        FillQuadSpan(quad, c, hw, hh, cosL, sinL, in bone, origin, sx, sy, cosB, sinB);
+        batch.FillConvexPolygon(quad, fill);
+    }
+
+    private static void FillQuadSpan(
+        Span<Vector2> quad,
+        Vector2 c,
+        float hw,
+        float hh,
+        float cosL,
+        float sinL,
+        in BonePose bone,
+        Vector2 origin,
+        float sx,
+        float sy,
+        float cosB,
+        float sinB)
+    {
+        quad[0] = Transform(RotateOffset(c, -hw, -hh, cosL, sinL), in bone, origin, sx, sy, cosB, sinB);
+        quad[1] = Transform(RotateOffset(c, hw, -hh, cosL, sinL), in bone, origin, sx, sy, cosB, sinB);
+        quad[2] = Transform(RotateOffset(c, hw, hh, cosL, sinL), in bone, origin, sx, sy, cosB, sinB);
+        quad[3] = Transform(RotateOffset(c, -hw, hh, cosL, sinL), in bone, origin, sx, sy, cosB, sinB);
+    }
+
+    private static void DrawPolygon(
+        GeometryBatch batch,
+        in CompiledVectorShape s,
+        in BonePose bone,
+        Vector2 origin,
+        float sx,
+        float sy,
+        float cosB,
+        float sinB,
+        ColorRgba fill,
+        bool hasOutline,
+        ColorRgba outline)
+    {
+        Vector2[]? rawPts = s.PolygonPoints;
+        if (rawPts is null || rawPts.Length < 3)
+        {
+            return;
+        }
+
+        Span<Vector2> pts = stackalloc Vector2[rawPts.Length];
+        for (int i = 0; i < rawPts.Length; i++)
+        {
+            pts[i] = Transform(rawPts[i], in bone, origin, sx, sy, cosB, sinB);
+        }
+
+        batch.FillConvexPolygon(pts, fill);
+        if (hasOutline)
+        {
+            float stroke = MathF.Max(1f, s.OutlineThickness * MathF.Abs(sx));
+            for (int i = 0; i < pts.Length; i++)
+            {
+                batch.DrawLine(pts[i], pts[(i + 1) % pts.Length], outline, stroke);
+            }
+        }
+    }
+
+    private static Vector2 Transform(
+        Vector2 local,
+        in BonePose bone,
+        Vector2 origin,
+        float sx,
+        float sy,
+        float cosB,
+        float sinB)
+    {
+        float x0 = local.X * bone.ScaleX;
+        float y0 = local.Y * bone.ScaleY;
+        float rx = (x0 * cosB) - (y0 * sinB) + bone.Dx;
+        float ry = (x0 * sinB) + (y0 * cosB) + bone.Dy;
+        return new Vector2(origin.X + (rx * sx), origin.Y + (ry * sy));
+    }
+
+    private static Vector2 RotateOffset(Vector2 c, float dx, float dy, float cos, float sin) =>
+        new(c.X + (dx * cos) - (dy * sin), c.Y + (dx * sin) + (dy * cos));
+
+    private static Vector2 Rotate(Vector2 v, float rad)
+    {
+        float c = MathF.Cos(rad);
+        float s = MathF.Sin(rad);
+        return new Vector2((v.X * c) - (v.Y * s), (v.X * s) + (v.Y * c));
+    }
+
+    private static ColorRgba ApplyHitFlash(ColorRgba src, float flash)
+    {
+        if (flash <= 0.001f)
+        {
+            return src;
+        }
+
+        float f = Math.Clamp(flash, 0f, 1f);
+        byte r = (byte)Math.Clamp(src.R + ((255f - src.R) * f), 0f, 255f);
+        byte g = (byte)Math.Clamp(src.G + ((220f - src.G) * f), 0f, 255f);
+        byte b = (byte)Math.Clamp(src.B + ((220f - src.B) * f), 0f, 255f);
+        return new ColorRgba(r, g, b, src.A);
+    }
+
+    private static Vector2[] BuildUnitCircle(int count)
+    {
+        Vector2[] arr = new Vector2[count];
+        float step = MathF.Tau / count;
+        for (int i = 0; i < count; i++)
+        {
+            float a = i * step;
+            arr[i] = new Vector2(MathF.Cos(a), MathF.Sin(a));
+        }
+
+        return arr;
+    }
+}

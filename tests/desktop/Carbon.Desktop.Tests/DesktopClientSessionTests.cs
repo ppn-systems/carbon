@@ -130,14 +130,14 @@ public sealed class DesktopClientSessionTests
                 (bool createdA, _) = await clientA.CreateCharacterAsync("HeroA", appearancePreset: 1).ConfigureAwait(true);
                 createdA.Should().BeTrue();
                 IReadOnlyList<ClientCharacterSummary> rosterA = await clientA.ListCharactersAsync().ConfigureAwait(true);
-                rosterA.Should().ContainSingle(c => c.Name == "HeroA");
+                rosterA.Should().ContainSingle(c => c.Name == "HeroA" && c.AppearancePreset == 1);
 
                 ClientAuthResult regB = await clientB.RegisterAsync("127.0.0.1", tcpPort, "playerB", "password123").ConfigureAwait(true);
                 regB.Succeeded.Should().BeTrue();
                 (bool createdB, _) = await clientB.CreateCharacterAsync("HeroB", appearancePreset: 2).ConfigureAwait(true);
                 createdB.Should().BeTrue();
                 IReadOnlyList<ClientCharacterSummary> rosterB = await clientB.ListCharactersAsync().ConfigureAwait(true);
-                rosterB.Should().ContainSingle(c => c.Name == "HeroB");
+                rosterB.Should().ContainSingle(c => c.Name == "HeroB" && c.AppearancePreset == 2);
 
                 float initialX = rosterA[0].PositionX;
 
@@ -148,6 +148,7 @@ public sealed class DesktopClientSessionTests
                 clientA.IsUdpActive.Should().BeTrue("DatagramSession should establish Authenticated UDP over NDP");
                 clientA.TransportLabel.Should().Be("TCP+UDP");
                 clientA.ActiveCharacterName.Should().Be("HeroA");
+                clientA.LocalPlayerAppearancePreset.Should().Be(1);
 
                 (bool enteredB, _) = await clientB.EnterWorldAsync(rosterB[0].CharacterId).ConfigureAwait(true);
                 enteredB.Should().BeTrue();
@@ -166,6 +167,30 @@ public sealed class DesktopClientSessionTests
                     "peer spawn over encrypted TCP and UDP delta updates should replicate HeroA to clientB");
                 RemoteEntityView heroA = clientB.RemoteEntities.First(e => e.Name == "HeroA");
                 heroA.Position.X.Should().BeGreaterThan(initialX + 32f);
+                heroA.ArchetypeId.Should().Be(1);
+
+                // 4b. Verify hotbar slots classify distinct client animations for Axe, Pickaxe, and Sword.
+                Vector2 swingAim = clientA.LocalPlayerInterpolatedPosition + new Vector2(32f, 0f);
+                clientA.SelectHotbarSlot(0);
+                _ = clientA.TriggerPrimaryAction(swingAim, out _);
+                clientA.CurrentAction.Kind.Should().Be(ClientActionKind.AxeChop);
+                clientA.AttackSwingTimer.Should().BeGreaterThan(0f);
+
+                clientA.SelectHotbarSlot(1);
+                _ = clientA.TriggerPrimaryAction(swingAim, out _);
+                clientA.CurrentAction.Kind.Should().Be(ClientActionKind.PickaxeMine);
+                clientA.AttackSwingTimer.Should().BeGreaterThan(0f);
+
+                clientA.SelectHotbarSlot(2);
+                _ = clientA.TriggerPrimaryAction(swingAim, out _);
+                clientA.CurrentAction.Kind.Should().Be(ClientActionKind.SwordSlash);
+                clientA.AttackSwingTimer.Should().BeGreaterThan(0f);
+
+                for (int i = 0; i < 18; i++)
+                {
+                    world.StepFixedTick();
+                    await Task.Delay(10).ConfigureAwait(true);
+                }
 
                 // 5. Place wood wall using hotbar slot 4 via Authenticated UDP primary action.
                 Vector2 posA = clientA.LocalPlayerInterpolatedPosition;

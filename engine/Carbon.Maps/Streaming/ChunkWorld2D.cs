@@ -225,6 +225,87 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     }
 
     /// <summary>
+    /// Reads the natural prop anchored on <paramref name="worldTileX"/>, <paramref name="worldTileY"/>, if present
+    /// (including destroyed props so remnant stumps/rubble and metadata remain inspectable).
+    /// </summary>
+    /// <param name="worldTileX">World tile X.</param>
+    /// <param name="worldTileY">World tile Y.</param>
+    /// <param name="prop">Resolved prop snapshot.</param>
+    /// <returns><see langword="true"/> when a prop exists at the coordinate; otherwise <see langword="false"/>.</returns>
+    public bool TryGetPropAt(int worldTileX, int worldTileY, out MapProp prop)
+    {
+        int cx = Chunk2D.ToChunkCoord(worldTileX);
+        int cy = Chunk2D.ToChunkCoord(worldTileY);
+        int lx = Chunk2D.ToLocalCoord(worldTileX);
+        int ly = Chunk2D.ToLocalCoord(worldTileY);
+
+        Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
+        lock (_gate)
+        {
+            int index = chunk.FindPropIndexAt(lx, ly);
+            if (index < 0)
+            {
+                prop = default;
+                return false;
+            }
+
+            prop = chunk.Props[index];
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Synchronizes an authoritative prop durability and destruction state at a world tile on the client,
+    /// returning both previous and updated prop snapshots for fracture VFX and loot/combat feedback.
+    /// </summary>
+    /// <param name="worldTileX">World tile X.</param>
+    /// <param name="worldTileY">World tile Y.</param>
+    /// <param name="currentDurability">Authoritative remaining durability.</param>
+    /// <param name="isDestroyed">Whether the prop is destroyed.</param>
+    /// <param name="previous">Prop snapshot prior to applying this state update.</param>
+    /// <param name="updated">Updated prop snapshot.</param>
+    /// <returns><see langword="true"/> if a matching prop exists on the tile; otherwise <see langword="false"/>.</returns>
+    public bool TrySetPropStateAt(
+        int worldTileX,
+        int worldTileY,
+        float currentDurability,
+        bool isDestroyed,
+        out MapProp previous,
+        out MapProp updated)
+    {
+        int cx = Chunk2D.ToChunkCoord(worldTileX);
+        int cy = Chunk2D.ToChunkCoord(worldTileY);
+        int lx = Chunk2D.ToLocalCoord(worldTileX);
+        int ly = Chunk2D.ToLocalCoord(worldTileY);
+
+        Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
+        lock (_gate)
+        {
+            int index = chunk.FindPropIndexAt(lx, ly);
+            if (index < 0)
+            {
+                previous = default;
+                updated = default;
+                return false;
+            }
+
+            previous = chunk.Props[index];
+            float maxDur = MathF.Max(1f, previous.Destructibility.MaxDurability);
+            float clamped = isDestroyed ? 0f : Math.Clamp(currentDurability, 0f, maxDur);
+            PropDestructibility nextState = previous.Destructibility with
+            {
+                CurrentDurability = clamped,
+                IsDestroyed = isDestroyed || clamped <= 0f,
+            };
+
+            updated = previous with { Destructibility = nextState };
+            chunk.SetProp(index, updated);
+            _deltas.GetOrAdd(cx, cy).SetPropState(lx, ly, nextState);
+            return true;
+        }
+    }
+
+    /// <summary>
     /// Restores any destroyed props whose scheduled respawn tick has been reached.
     /// </summary>
     /// <param name="currentTick">Current simulation tick.</param>

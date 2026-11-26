@@ -11,6 +11,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\engine\Carbon.Data\Carbon.Data.csproj" />
         <ProjectReference Include="..\..\engine\Carbon.Items\Carbon.Items.csproj" />
+        <ProjectReference Include="..\..\graphics\Carbon.Graphics.Animation\Carbon.Graphics.Animation.csproj" />
         <ProjectReference Include="..\..\graphics\Carbon.Graphics.Batching\Carbon.Graphics.Batching.csproj" />
         <ProjectReference Include="..\..\graphics\Carbon.Graphics.Fonts\Carbon.Graphics.Fonts.csproj" />
         <ProjectReference Include="..\..\graphics\Carbon.Graphics.OpenGL\Carbon.Graphics.OpenGL.csproj" />

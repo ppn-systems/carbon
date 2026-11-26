@@ -57,4 +57,8 @@ public sealed partial class CharacterEnterWorld : PacketBase<CharacterEnterWorld
     /// <summary>Fixed simulation tick rate in Hertz.</summary>
     [SerializeOrder(9)]
     public ushort TickRate { get; set; }
+
+    /// <summary>Visual appearance preset index (0..3) of the entered character.</summary>
+    [SerializeOrder(10)]
+    public byte AppearancePreset { get; set; }
 }

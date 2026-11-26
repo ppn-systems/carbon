@@ -1,0 +1,195 @@
+{
+  "schemaVersion": 1,
+  "characters": [
+    {
+      "preset": 0,
+      "id": "ranger",
+      "title": "Forest Ranger",
+      "accentColor": "#38BDF8",
+      "file": "characters/ranger.cvg.json"
+    },
+    {
+      "preset": 1,
+      "id": "knight",
+      "title": "Vanguard Knight",
+      "accentColor": "#F87171",
+      "file": "characters/knight.cvg.json"
+    },
+    {
+      "preset": 2,
+      "id": "scholar",
+      "title": "Arcane Scholar",
+      "accentColor": "#C084FC",
+      "file": "characters/scholar.cvg.json"
+    },
+    {
+      "preset": 3,
+      "id": "artisan",
+      "title": "Forge Artisan",
+      "accentColor": "#FACC15",
+      "file": "characters/artisan.cvg.json"
+    }
+  ],
+  "monsters": [
+    {
+      "archetypeId": 101,
+      "id": "wild_slime",
+      "title": "Wild Slime",
+      "subtitle": "LV.1 OOZE BEAST",
+      "level": 1,
+      "accentColor": "#22C55E",
+      "file": "monsters/wild_slime.cvg.json"
+    },
+    {
+      "archetypeId": 102,
+      "id": "rock_golem",
+      "title": "Rock Golem",
+      "subtitle": "LV.3 STONE CONSTRUCT",
+      "level": 3,
+      "accentColor": "#F97316",
+      "file": "monsters/rock_golem.cvg.json"
+    },
+    {
+      "archetypeId": 103,
+      "id": "frost_wolf",
+      "title": "Frost Wolf",
+      "subtitle": "LV.2 FROST BEAST",
+      "level": 2,
+      "accentColor": "#38BDF8",
+      "file": "monsters/frost_wolf.cvg.json"
+    },
+    {
+      "archetypeId": 104,
+      "id": "ash_wraith",
+      "title": "Ash Wraith",
+      "subtitle": "LV.2 SPECTRAL FIEND",
+      "level": 2,
+      "accentColor": "#A855F7",
+      "file": "monsters/ash_wraith.cvg.json"
+    }
+  ],
+  "npcs": [
+    {
+      "archetypeId": 201,
+      "id": "village_guard",
+      "title": "Village Guard",
+      "subtitle": "TOWN PATROL",
+      "accentColor": "#FACC15",
+      "file": "npcs/village_guard.cvg.json"
+    },
+    {
+      "archetypeId": 202,
+      "id": "harbour_master",
+      "title": "Harbour Master",
+      "subtitle": "HARBOUR NPC",
+      "accentColor": "#38BDF8",
+      "file": "npcs/harbour_master.cvg.json"
+    },
+    {
+      "archetypeId": 203,
+      "id": "shrine_keeper",
+      "title": "Shrine Keeper",
+      "subtitle": "SHRINE ORACLE",
+      "accentColor": "#34D399",
+      "file": "npcs/shrine_keeper.cvg.json"
+    }
+  ],
+  "items": [
+    {
+      "itemId": 1,
+      "id": "wood_axe",
+      "displayName": "Wood Axe",
+      "tier": 1,
+      "accentColor": "#F59E0B",
+      "file": "items/wood_axe.cvg.json"
+    },
+    {
+      "itemId": 2,
+      "id": "stone_pickaxe",
+      "displayName": "Stone Pickaxe",
+      "tier": 2,
+      "accentColor": "#94A3B8",
+      "file": "items/stone_pickaxe.cvg.json"
+    },
+    {
+      "itemId": 3,
+      "id": "iron_sword",
+      "displayName": "Iron Sword",
+      "tier": 2,
+      "accentColor": "#38BDF8",
+      "file": "items/iron_sword.cvg.json"
+    },
+    {
+      "itemId": 4,
+      "id": "wood_log",
+      "displayName": "Wood Log",
+      "tier": 1,
+      "accentColor": "#D97706",
+      "file": "items/wood_log.cvg.json"
+    },
+    {
+      "itemId": 5,
+      "id": "stone_chunk",
+      "displayName": "Stone Chunk",
+      "tier": 1,
+      "accentColor": "#CBD5E1",
+      "file": "items/stone_chunk.cvg.json"
+    },
+    {
+      "itemId": 6,
+      "id": "iron_ore",
+      "displayName": "Iron Ore",
+      "tier": 2,
+      "accentColor": "#FB923C",
+      "file": "items/iron_ore.cvg.json"
+    },
+    {
+      "itemId": 7,
+      "id": "mana_crystal",
+      "displayName": "Mana Crystal",
+      "tier": 3,
+      "accentColor": "#22D3EE",
+      "file": "items/mana_crystal.cvg.json"
+    },
+    {
+      "itemId": 8,
+      "id": "berry_herb",
+      "displayName": "Berry Herb",
+      "tier": 1,
+      "accentColor": "#4ADE80",
+      "file": "items/berry_herb.cvg.json"
+    },
+    {
+      "itemId": 9,
+      "id": "wood_wall",
+      "displayName": "Wood Wall",
+      "tier": 1,
+      "accentColor": "#D97706",
+      "file": "items/wood_wall.cvg.json"
+    },
+    {
+      "itemId": 10,
+      "id": "stone_wall",
+      "displayName": "Stone Wall",
+      "tier": 2,
+      "accentColor": "#94A3B8",
+      "file": "items/stone_wall.cvg.json"
+    },
+    {
+      "itemId": 11,
+      "id": "wood_door",
+      "displayName": "Wood Door",
+      "tier": 1,
+      "accentColor": "#F59E0B",
+      "file": "items/wood_door.cvg.json"
+    },
+    {
+      "itemId": 12,
+      "id": "crystal_pickaxe",
+      "displayName": "Crystal Pickaxe",
+      "tier": 3,
+      "accentColor": "#22D3EE",
+      "file": "items/crystal_pickaxe.cvg.json"
+    }
+  ]
+}

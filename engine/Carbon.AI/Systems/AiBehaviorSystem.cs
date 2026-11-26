@@ -27,7 +27,10 @@ namespace Carbon.AI.Systems;
 public sealed class AiBehaviorSystem : ISimulationSystem
 {
     private const int MaxAggroCandidates = 64;
+    private const int MaxSeparationNeighbors = 16;
     private const uint PatrolDefaultWaitTicks = 20;
+    private const uint ChaseRepathIntervalTicks = 10;
+    private const uint ReturnRepathIntervalTicks = 15;
 
     private readonly GridPathfinder _pathfinder = new();
     private readonly ITileWalkabilityGrid? _walkabilityGrid;
@@ -70,6 +73,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
         EntityAttachmentStore<ThreatTable> threatStore = entities.GetAttachmentStore<ThreatTable>();
         EntityAttachmentStore<PathWaypointBuffer> pathStore = entities.GetAttachmentStore<PathWaypointBuffer>();
         Span<Entity> aggroScratch = stackalloc Entity[MaxAggroCandidates];
+        Span<Entity> neighborScratch = stackalloc Entity[MaxSeparationNeighbors];
 
         for (int i = 0; i < slots.Length; i++)
         {
@@ -80,7 +84,13 @@ public sealed class AiBehaviorSystem : ISimulationSystem
             }
 
             ref AiBrainComponent brain = ref brains[i];
+            if (brain.RepathCooldownTicks > 0)
+            {
+                brain = brain with { RepathCooldownTicks = brain.RepathCooldownTicks - 1 };
+            }
+
             Vector2 pos = entities.GetTransform(aiEntity).Position;
+            float entityRadius = entities.HasCollider(aiEntity) ? entities.GetCollider(aiEntity).Radius : 7f;
 
             switch (brain.State)
             {
@@ -92,12 +102,13 @@ public sealed class AiBehaviorSystem : ISimulationSystem
                         brain = brain with
                         {
                             State = AiState.Chase,
-                            TargetEntity = target
+                            TargetEntity = target,
+                            RepathCooldownTicks = 0
                         };
                     }
                     else if (brain.State == AiState.Patrol && brain.PatrolRadius > 0f && brain.MoveSpeed > 0f)
                     {
-                        brain = this.StepPatrol(world, aiEntity, pos, in brain, tick.TickIndex, physics);
+                        brain = this.StepPatrol(world, aiEntity, pos, entityRadius, in brain, tick.TickIndex, physics);
                     }
                     else
                     {
@@ -110,7 +121,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
                     Entity highestThreat = SelectHighestThreatIfAvailable(entities, threatStore, aiEntity);
                     if (highestThreat.IsValid && highestThreat != brain.TargetEntity)
                     {
-                        brain = brain with { TargetEntity = highestThreat };
+                        brain = brain with { TargetEntity = highestThreat, RepathCooldownTicks = 0 };
                     }
 
                     if (!IsValidLivingTarget(entities, brain.TargetEntity) ||
@@ -120,7 +131,9 @@ public sealed class AiBehaviorSystem : ISimulationSystem
                         brain = brain with
                         {
                             State = AiState.ReturnHome,
-                            TargetEntity = Entity.Null
+                            TargetEntity = Entity.Null,
+                            WindupRemainingTicks = 0,
+                            RepathCooldownTicks = 0
                         };
                         break;
                     }
@@ -128,9 +141,9 @@ public sealed class AiBehaviorSystem : ISimulationSystem
                     Vector2 targetPos = entities.GetTransform(brain.TargetEntity).Position;
                     Vector2 toTarget = targetPos - pos;
                     float distSq = toTarget.LengthSquared();
-                    bool hasLos = HasLineOfSight(world, pos, targetPos);
+                    bool hasClearance = HasNavigationClearance(world, pos, targetPos, entityRadius);
 
-                    if (hasLos && distSq <= brain.AttackRange * brain.AttackRange)
+                    if (hasClearance && distSq <= brain.AttackRange * brain.AttackRange)
                     {
                         SetEntityVelocity(world, aiEntity, Vector2.Zero);
                         if (pathStore.TryGet(aiEntity, out PathWaypointBuffer? chasePath))
@@ -138,12 +151,22 @@ public sealed class AiBehaviorSystem : ISimulationSystem
                             chasePath.Clear();
                         }
 
-                        brain = brain with { State = AiState.Attack };
+                        brain = brain with { State = AiState.Attack, WindupRemainingTicks = 0 };
                     }
                     else
                     {
                         float speedMult = physics is not null ? physics.GetMoveSpeedMultiplier(pos) : 1f;
-                        Vector2 moveDir = this.ComputeChaseDirection(pos, targetPos, hasLos, pathStore, aiEntity, distSq, toTarget);
+                        Vector2 moveDir = this.ComputeChaseDirection(
+                            world,
+                            aiEntity,
+                            pos,
+                            targetPos,
+                            hasClearance,
+                            pathStore,
+                            ref brain,
+                            distSq,
+                            toTarget,
+                            neighborScratch);
                         SetEntityVelocity(world, aiEntity, moveDir * (brain.MoveSpeed * speedMult));
                     }
 
@@ -153,7 +176,13 @@ public sealed class AiBehaviorSystem : ISimulationSystem
                     Entity activeThreat = SelectHighestThreatIfAvailable(entities, threatStore, aiEntity);
                     if (activeThreat.IsValid && activeThreat != brain.TargetEntity)
                     {
-                        brain = brain with { TargetEntity = activeThreat, State = AiState.Chase };
+                        brain = brain with
+                        {
+                            TargetEntity = activeThreat,
+                            State = AiState.Chase,
+                            WindupRemainingTicks = 0,
+                            RepathCooldownTicks = 0
+                        };
                         break;
                     }
 
@@ -165,28 +194,87 @@ public sealed class AiBehaviorSystem : ISimulationSystem
                         brain = brain with
                         {
                             State = AiState.ReturnHome,
-                            TargetEntity = Entity.Null
+                            TargetEntity = Entity.Null,
+                            WindupRemainingTicks = 0,
+                            RepathCooldownTicks = 0
                         };
                         break;
                     }
 
                     Vector2 atkTargetPos = entities.GetTransform(brain.TargetEntity).Position;
-                    float disengageRange = brain.AttackRange * 1.15f;
-                    if (!HasLineOfSight(world, pos, atkTargetPos) ||
-                        Vector2.DistanceSquared(pos, atkTargetPos) > (disengageRange * disengageRange))
+                    float disengageRange = brain.AttackRange * 1.18f;
+                    bool inDisengageRange = Vector2.DistanceSquared(pos, atkTargetPos) <= (disengageRange * disengageRange);
+                    bool canSeeTarget = HasLineOfSight(world, pos, atkTargetPos);
+
+                    if (brain.WindupRemainingTicks == 0 && (!canSeeTarget || !inDisengageRange))
                     {
-                        brain = brain with { State = AiState.Chase };
+                        brain = brain with { State = AiState.Chase, RepathCooldownTicks = 0 };
                         break;
                     }
 
-                    SetEntityVelocity(world, aiEntity, Vector2.Zero);
-                    if (brain.CooldownRemainingTicks == 0)
+                    if (brain.WindupTicks == 0)
                     {
-                        world.PublishEvent(new AiAttackReadyEvent(aiEntity, brain.TargetEntity));
-                        brain = brain with { CooldownRemainingTicks = brain.AttackCooldownTicks };
+                        SetEntityVelocity(world, aiEntity, Vector2.Zero);
+                        if (brain.CooldownRemainingTicks == 0)
+                        {
+                            world.PublishEvent(new AiAttackReadyEvent(aiEntity, brain.TargetEntity));
+                            brain = brain with { CooldownRemainingTicks = brain.AttackCooldownTicks };
+                        }
+                        else
+                        {
+                            brain = brain with { CooldownRemainingTicks = brain.CooldownRemainingTicks - 1 };
+                        }
+                    }
+                    else if (brain.WindupRemainingTicks > 0)
+                    {
+                        uint nextWindup = brain.WindupRemainingTicks - 1;
+                        if (nextWindup <= 2 && nextWindup > 0)
+                        {
+                            Vector2 lungeDelta = atkTargetPos - pos;
+                            float lungeLenSq = lungeDelta.LengthSquared();
+                            Vector2 lungeVel = lungeLenSq > 1e-4f
+                                ? lungeDelta / MathF.Sqrt(lungeLenSq) * (brain.MoveSpeed * 1.4f)
+                                : Vector2.Zero;
+                            SetEntityVelocity(world, aiEntity, lungeVel);
+                            brain = brain with { WindupRemainingTicks = nextWindup };
+                        }
+                        else if (nextWindup == 0)
+                        {
+                            SetEntityVelocity(world, aiEntity, Vector2.Zero);
+                            if (inDisengageRange && canSeeTarget)
+                            {
+                                world.PublishEvent(new AiAttackReadyEvent(aiEntity, brain.TargetEntity));
+                                brain = brain with
+                                {
+                                    WindupRemainingTicks = 0,
+                                    CooldownRemainingTicks = brain.AttackCooldownTicks
+                                };
+                            }
+                            else
+                            {
+                                brain = brain with
+                                {
+                                    State = AiState.Chase,
+                                    WindupRemainingTicks = 0,
+                                    CooldownRemainingTicks = Math.Max(4U, brain.AttackCooldownTicks / 2U),
+                                    RepathCooldownTicks = 0
+                                };
+                            }
+                        }
+                        else
+                        {
+                            SetEntityVelocity(world, aiEntity, Vector2.Zero);
+                            brain = brain with { WindupRemainingTicks = nextWindup };
+                        }
+                    }
+                    else if (brain.CooldownRemainingTicks == 0)
+                    {
+                        SetEntityVelocity(world, aiEntity, Vector2.Zero);
+                        brain = brain with { WindupRemainingTicks = brain.WindupTicks };
                     }
                     else
                     {
+                        SetEntityVelocity(world, aiEntity, Vector2.Zero);
                         brain = brain with { CooldownRemainingTicks = brain.CooldownRemainingTicks - 1 };
                     }
 
@@ -217,13 +305,25 @@ public sealed class AiBehaviorSystem : ISimulationSystem
                         {
                             State = brain.PatrolRadius > 0f ? AiState.Patrol : AiState.Idle,
                             TargetEntity = Entity.Null,
-                            CooldownRemainingTicks = 0
+                            CooldownRemainingTicks = 0,
+                            WindupRemainingTicks = 0,
+                            RepathCooldownTicks = 0
                         };
                     }
                     else
                     {
-                        Vector2 dirHome = toHome / MathF.Sqrt(homeDistSq);
-                        SetEntityVelocity(world, aiEntity, dirHome * brain.MoveSpeed);
+                        float speedMult = physics is not null ? physics.GetMoveSpeedMultiplier(pos) : 1f;
+                        Vector2 dirHome = this.ComputeReturnDirection(
+                            world,
+                            aiEntity,
+                            entityRadius,
+                            pos,
+                            brain.HomePosition,
+                            pathStore,
+                            ref brain,
+                            homeDistSq,
+                            toHome);
+                        SetEntityVelocity(world, aiEntity, dirHome * (brain.MoveSpeed * speedMult));
                     }
 
                     break;
@@ -235,34 +335,136 @@ public sealed class AiBehaviorSystem : ISimulationSystem
     }
 
     private Vector2 ComputeChaseDirection(
+        WorldSimulation world,
+        Entity aiEntity,
         Vector2 pos,
         Vector2 targetPos,
-        bool hasLos,
+        bool hasClearance,
         EntityAttachmentStore<PathWaypointBuffer> pathStore,
-        Entity aiEntity,
+        ref AiBrainComponent brain,
         float directDistSq,
-        Vector2 directDelta)
+        Vector2 directDelta,
+        Span<Entity> neighborScratch)
     {
-        if (!hasLos && _walkabilityGrid is not null)
+        Vector2 desiredDir;
+        if (!hasClearance && _walkabilityGrid is not null)
         {
             PathWaypointBuffer buffer = pathStore.GetOrAdd(aiEntity, static () => new PathWaypointBuffer());
-            if (!buffer.HasPath ||
-                buffer.TryComputePath(_pathfinder, _walkabilityGrid, pos, targetPos, _tileSize) == PathSearchStatus.Found)
+            if (!buffer.HasPath || brain.RepathCooldownTicks == 0)
             {
-                if (buffer.TryGetSteeringDirection(pos, _tileSize, _tileSize * 0.45f, out Vector2 pathDir))
-                {
-                    return pathDir;
-                }
+                _ = buffer.TryComputePath(_pathfinder, _walkabilityGrid, pos, targetPos, _tileSize);
+                brain = brain with { RepathCooldownTicks = ChaseRepathIntervalTicks };
+            }
+
+            if (buffer.TryGetSteeringDirection(pos, _tileSize, _tileSize * 0.45f, out Vector2 pathDir))
+            {
+                desiredDir = pathDir;
+            }
+            else
+            {
+                desiredDir = directDistSq > 1e-6f ? (directDelta / MathF.Sqrt(directDistSq)) : Vector2.Zero;
+            }
+        }
+        else
+        {
+            if (pathStore.TryGet(aiEntity, out PathWaypointBuffer? existingPath) && existingPath.HasPath)
+            {
+                existingPath.Clear();
+            }
+
+            desiredDir = directDistSq > 1e-6f ? (directDelta / MathF.Sqrt(directDistSq)) : Vector2.Zero;
+            float flankThreshold = brain.AttackRange * 1.6f;
+            if (hasClearance && directDistSq > flankThreshold * flankThreshold && desiredDir != Vector2.Zero)
+            {
+                float flankSign = (aiEntity.Id & 1) == 0 ? 1f : -1f;
+                Vector2 perp = new(-desiredDir.Y, desiredDir.X);
+                desiredDir += perp * (flankSign * 0.20f);
             }
         }
 
-        return directDistSq > 1e-6f ? (directDelta / MathF.Sqrt(directDistSq)) : Vector2.Zero;
+        if (desiredDir == Vector2.Zero)
+        {
+            return Vector2.Zero;
+        }
+
+        Vector2 separation = ComputeCrowdSeparation(world, aiEntity, pos, neighborScratch);
+        Vector2 combined = desiredDir + separation;
+        float combinedLenSq = combined.LengthSquared();
+        return combinedLenSq > 1e-6f ? combined / MathF.Sqrt(combinedLenSq) : desiredDir;
+    }
+
+    private Vector2 ComputeReturnDirection(
+        WorldSimulation world,
+        Entity aiEntity,
+        float entityRadius,
+        Vector2 pos,
+        Vector2 homePos,
+        EntityAttachmentStore<PathWaypointBuffer> pathStore,
+        ref AiBrainComponent brain,
+        float homeDistSq,
+        Vector2 toHome)
+    {
+        if (!HasNavigationClearance(world, pos, homePos, entityRadius) && _walkabilityGrid is not null)
+        {
+            PathWaypointBuffer buffer = pathStore.GetOrAdd(aiEntity, static () => new PathWaypointBuffer());
+            if (!buffer.HasPath || brain.RepathCooldownTicks == 0)
+            {
+                _ = buffer.TryComputePath(_pathfinder, _walkabilityGrid, pos, homePos, _tileSize);
+                brain = brain with { RepathCooldownTicks = ReturnRepathIntervalTicks };
+            }
+
+            if (buffer.TryGetSteeringDirection(pos, _tileSize, _tileSize * 0.45f, out Vector2 pathDir))
+            {
+                return pathDir;
+            }
+        }
+        else if (pathStore.TryGet(aiEntity, out PathWaypointBuffer? existingPath) && existingPath.HasPath)
+        {
+            existingPath.Clear();
+        }
+
+        return homeDistSq > 1e-6f ? (toHome / MathF.Sqrt(homeDistSq)) : Vector2.Zero;
+    }
+
+    private static Vector2 ComputeCrowdSeparation(
+        WorldSimulation world,
+        Entity self,
+        Vector2 pos,
+        Span<Entity> scratch)
+    {
+        const float SeparationRadius = 26f;
+        world.OverlapCircle(pos, SeparationRadius, scratch, out int neighborCount);
+        Vector2 push = Vector2.Zero;
+
+        for (int i = 0; i < neighborCount; i++)
+        {
+            Entity other = scratch[i];
+            if (other == self ||
+                !world.Entities.IsAlive(other) ||
+                !world.Entities.HasTransform(other) ||
+                !world.Entities.HasComponent<AiBrainComponent>(other))
+            {
+                continue;
+            }
+
+            Vector2 away = pos - world.Entities.GetTransform(other).Position;
+            float distSq = away.LengthSquared();
+            if (distSq > 1e-4f && distSq < SeparationRadius * SeparationRadius)
+            {
+                float dist = MathF.Sqrt(distSq);
+                float strength = (SeparationRadius - dist) / SeparationRadius;
+                push += away / dist * (strength * 0.65f);
+            }
+        }
+
+        return push;
     }
 
     private AiBrainComponent StepPatrol(
         WorldSimulation world,
         Entity aiEntity,
         Vector2 pos,
+        float entityRadius,
         in AiBrainComponent brain,
         ulong tickIndex,
         IWorldPhysics2D? physics)
@@ -275,17 +477,37 @@ public sealed class AiBehaviorSystem : ISimulationSystem
 
         Vector2 destination = brain.PatrolDestination;
         Vector2 toDest = destination - pos;
-        if (destination == default || toDest.LengthSquared() <= 16f)
+        if (destination == default || toDest.LengthSquared() <= 16f || !HasNavigationClearance(world, pos, destination, entityRadius))
         {
-            // Pick a deterministic patrol waypoint inside PatrolRadius around HomePosition.
-            uint hash = (uint)(tickIndex * 2654435761UL) ^ (uint)(aiEntity.Id * 73856093);
-            float angle = (hash & 0xFFFF) * (6.2831853f / 65535f);
-            float radialFraction = 0.35f + (0.65f * (((hash >> 16) & 0xFFFF) / 65535f));
-            Vector2 nextDest = brain.HomePosition + (new Vector2(DeterministicMath.Cos(angle), DeterministicMath.Sin(angle)) * (brain.PatrolRadius * radialFraction));
+            // Pick a deterministic walkable patrol waypoint inside PatrolRadius around HomePosition.
+            Vector2 chosen = brain.HomePosition;
+            uint baseHash = (uint)(tickIndex * 2654435761UL) ^ (uint)(aiEntity.Id * 73856093);
+
+            for (int attempt = 0; attempt < 6; attempt++)
+            {
+                uint hash = baseHash ^ (uint)(attempt * 0x9E3779B9U);
+                float angle = (hash & 0xFFFF) * (6.2831853f / 65535f);
+                float radialFraction = 0.35f + (0.65f * (((hash >> 16) & 0xFFFF) / 65535f));
+                Vector2 candidate = brain.HomePosition + (new Vector2(DeterministicMath.Cos(angle), DeterministicMath.Sin(angle)) * (brain.PatrolRadius * radialFraction));
+
+                int tx = (int)MathF.Floor(candidate.X / _tileSize);
+                int ty = (int)MathF.Floor(candidate.Y / _tileSize);
+                if (_walkabilityGrid is not null && !_walkabilityGrid.IsWalkable(tx, ty))
+                {
+                    continue;
+                }
+
+                if (HasNavigationClearance(world, pos, candidate, entityRadius))
+                {
+                    chosen = candidate;
+                    break;
+                }
+            }
+
             SetEntityVelocity(world, aiEntity, Vector2.Zero);
             return brain with
             {
-                PatrolDestination = nextDest,
+                PatrolDestination = chosen,
                 PatrolWaitTicks = PatrolDefaultWaitTicks
             };
         }
@@ -391,6 +613,34 @@ public sealed class AiBehaviorSystem : ISimulationSystem
 
         Ray2D ray = new(from, delta / dist, dist);
         return !world.Raycast(in ray, out _);
+    }
+
+    private static bool HasNavigationClearance(WorldSimulation world, Vector2 from, Vector2 to, float entityRadius)
+    {
+        Vector2 delta = to - from;
+        float dist = delta.Length();
+        if (dist <= 1e-3f)
+        {
+            return true;
+        }
+
+        Vector2 dir = delta / dist;
+        Ray2D center = new(from, dir, dist);
+        if (world.Raycast(in center, out _))
+        {
+            return false;
+        }
+
+        float shoulder = MathF.Min(MathF.Max(entityRadius * 0.85f, 3f), 9f);
+        Vector2 perp = new(-dir.Y * shoulder, dir.X * shoulder);
+        Ray2D left = new(from + perp, dir, dist);
+        if (world.Raycast(in left, out _))
+        {
+            return false;
+        }
+
+        Ray2D right = new(from - perp, dir, dist);
+        return !world.Raycast(in right, out _);
     }
 
     private static bool IsValidLivingTarget(EntityManager entities, Entity target) =>

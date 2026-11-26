@@ -106,6 +106,7 @@ public static partial class IdentityHandlers
                     (int)MathF.Floor(c.PositionY / s_world.TileSize));
                 item.PositionX = c.PositionX;
                 item.PositionY = c.PositionY;
+                item.AppearancePreset = c.AppearancePreset;
                 await context.Sender.ReplyAsync(item).ConfigureAwait(false);
             }
         }
@@ -231,6 +232,7 @@ public static partial class IdentityHandlers
             reply.PositionY = result.PositionY;
             reply.ServerTick = result.ServerTick;
             reply.TickRate = result.TickRate;
+            reply.AppearancePreset = result.AppearancePreset;
             return context.Sender.ReplyAsync(reply).DisposeOnCompletionAsync(lease);
         }
         catch

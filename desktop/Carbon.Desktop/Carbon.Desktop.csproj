@@ -19,4 +19,8 @@
         <ProjectReference Include="..\..\graphics\Carbon.Graphics.Windowing\Carbon.Graphics.Windowing.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <Content Include="..\..\resources\art\**\*" Link="resources\art\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
 </Project>
