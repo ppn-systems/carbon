@@ -10,4 +10,8 @@
         <ProjectReference Include="..\Carbon.Primitives\Carbon.Primitives.csproj" />
         <ProjectReference Include="..\Carbon.Physics\Carbon.Physics.csproj" />
     </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="..\..\resources\config\structures.json" LogicalName="Carbon.Maps.Building.structures.json" Link="Building\structures.json" />
+    </ItemGroup>
 </Project>

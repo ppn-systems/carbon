@@ -21,6 +21,7 @@ using Carbon.Items.Containers;
 using Carbon.Items.Serialization;
 using Carbon.Items.Systems;
 using Carbon.Maps.Biomes;
+using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Landmarks;
@@ -63,6 +64,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     private readonly Lock _gate = new();
     private readonly ProceduralWorldGenerator _generator;
     private readonly ChunkWorld2D _chunkWorld;
+    private readonly BuildingService _building;
+    private readonly PlayerMaterialAdapter _playerMaterials;
+    private readonly GroundDropSink _groundDrops;
     private readonly WorldSimulation _simulation;
     private readonly SpatialAoiTracker _aoi;
     private readonly IChunkDeltaRepository _chunkDeltaRepo;
@@ -141,6 +145,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
     /// <param name="needsConfig">Survival needs tuning (<c>needs.json</c>); defaults to built-in values.</param>
     /// <param name="foodCatalog">Edible items (<c>food.json</c>); defaults to none, so no item is eaten.</param>
     /// <param name="economy">Optional data-driven economy (items, loot, currencies).</param>
+    /// <param name="structureCatalog">Optional data-driven building catalog.</param>
     public AuthoritativeWorld(
         ulong worldSeed,
         float tileSize,
@@ -152,7 +157,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         TimeProvider? time = null,
         NeedsConfig? needsConfig = null,
         FoodCatalog? foodCatalog = null,
-        GameEconomy? economy = null)
+        GameEconomy? economy = null,
+        StructureCatalog? structureCatalog = null)
     {
         ArgumentNullException.ThrowIfNull(chunkDeltaRepo);
         ArgumentNullException.ThrowIfNull(characterStore);
@@ -171,6 +177,13 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
 
         _generator = new ProceduralWorldGenerator(this.WorldSeed);
         _chunkWorld = new ChunkWorld2D(_generator, this.TileSize, this.Frequency);
+        _building = BuildingService.ForWorld(
+            _chunkWorld,
+            structureCatalog ?? StructureCatalog.LoadEmbedded(),
+            new BuildPermissionTable(),
+            this.IsPlayerOnTileLocked);
+        _playerMaterials = new PlayerMaterialAdapter(this);
+        _groundDrops = new GroundDropSink(this);
         _simulation = new WorldSimulation(this.TickRate, this.TileSize)
         {
             WorldPhysics = _chunkWorld,
@@ -1162,6 +1175,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld
         public bool InventoryDirty { get; set; }
         public int EatingSlot { get; set; } = -1;
         public uint EatingItemId { get; set; }
+        public BuildJobKind BuildJob { get; set; }
+        public int BuildJobTileX { get; set; }
+        public int BuildJobTileY { get; set; }
 
         /// <summary>Server-authoritative gold/diamond balances (in-memory until a persistence ADR lands).</summary>
         public Wallet Wallet { get; init; } = new(session.PlayerNetworkId);

@@ -98,6 +98,7 @@ public sealed partial class AuthoritativeWorld
                 }
             }
 
+            this.ProcessBuildJobsLocked(dt);
             this.ProcessAiAttacksLocked();
             this.ProcessMonsterRespawnsLocked();
             this.ProcessDespawnedEntitiesLocked();

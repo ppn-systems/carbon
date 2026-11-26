@@ -54,6 +54,8 @@ public sealed class AuthoritativeWorldMultiplayerTests
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
             DateTimeOffset now = DateTimeOffset.UtcNow;
+            InventoryContainer builderBag = new(PlayerInventoryLayout.TotalCapacity);
+            StarterGameCatalog.GrantStarterLoadout(builderBag);
             CharacterRecord charA = new(
                 Guid.NewGuid(),
                 Guid.NewGuid(),
@@ -65,7 +67,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 100f,
                 100f,
                 0,
-                [],
+                InventoryBinaryCodec.Serialize(builderBag),
                 now);
             CharacterRecord charB = new(
                 Guid.NewGuid(),
@@ -94,12 +96,55 @@ public sealed class AuthoritativeWorldMultiplayerTests
             sink.Spawns.Should().Contain(s => s.ConnectionId == 202UL && s.Snapshot.NetworkId == enterA.PlayerNetworkId);
             sink.DeltaBatches.Should().Contain(d => d.ConnectionId == 101UL && d.LastProcessedClientTick == 1U);
 
-            int buildTileX = (int)MathF.Floor(enterA.PositionX / 32f) + 2;
-            int buildTileY = (int)MathF.Floor(enterA.PositionY / 32f);
-            WorldMutationOutcome placeOutcome = world.TryPlaceStructure(101UL, buildTileX, buildTileY, StructureType.WoodWall);
-            placeOutcome.Status.Should().Be(OpStatus.Ok);
+            // Player B stands two tiles east of A, so that tile is rejected (entities block walls); find a free one.
+            int playerTileX = (int)MathF.Floor(enterA.PositionX / 32f);
+            int playerTileY = (int)MathF.Floor(enterA.PositionY / 32f);
+            world.TryPlaceStructure(101UL, playerTileX + 2, playerTileY, StructureType.WoodWall).Status
+                .Should().Be(OpStatus.Conflict, "player B occupies that tile");
+
+            WorldMutationOutcome placeOutcome = default;
+            int buildTileX = 0;
+            int buildTileY = 0;
+            foreach ((int dx, int dy) in new[] { (0, 2), (0, -2), (-2, 0), (2, 2), (-2, -2), (2, -2), (-2, 2), (1, 2), (-1, -2) })
+            {
+                buildTileX = playerTileX + dx;
+                buildTileY = playerTileY + dy;
+                placeOutcome = world.TryPlaceStructure(101UL, buildTileX, buildTileY, StructureType.WoodWall);
+                if (placeOutcome.Status == OpStatus.Ok)
+                {
+                    break;
+                }
+            }
+
+            placeOutcome.Status.Should().Be(OpStatus.Ok, "a blueprint is placed and its 3 wood logs delivered");
             placeOutcome.Revision.Should().BeGreaterThan(0U);
-            sink.StructureChanges.Should().NotBeEmpty();
+            sink.StructureChanges.Should().NotContain(c => c.TileX == buildTileX && c.TileY == buildTileY, "a blueprint is not a structure yet");
+
+            // 120 work at 60 work/s and 30 ticks/s = 60 ticks.
+            for (int tick = 0; tick < 70; tick++)
+            {
+                world.StepFixedTick();
+            }
+
+            sink.StructureChanges.Should().Contain(c => c.TileX == buildTileX && c.TileY == buildTileY && c.StructureType == (byte)StructureType.WoodWall);
+
+            // Player B does not own the wall and may not deconstruct it.
+            world.TryDemolishStructure(202UL, buildTileX, buildTileY).Status.Should().Be(OpStatus.Forbidden);
+
+            // The owner deconstructs it over 30 ticks (50% of 120 work) and gets 75% of 3 logs (2) back: 18 - 3 + 2.
+            world.TryDemolishStructure(101UL, buildTileX, buildTileY).Status.Should().Be(OpStatus.Ok);
+            for (int tick = 0; tick < 40; tick++)
+            {
+                world.StepFixedTick();
+            }
+
+            sink.StructureChanges.Should().Contain(c => c.TileX == buildTileX && c.TileY == buildTileY && c.StructureType == 0);
+            List<(ushort SlotIndex, ItemSlot Slot)> builderSlots = [];
+            world.GetInventorySnapshot(101UL, builderSlots).Should().BeTrue();
+            builderSlots.Where(x => x.Slot.ItemId == StarterGameCatalog.WoodLog).Sum(x => x.Slot.Quantity).Should().Be(17);
+
+            // Rebuild it so the persisted delta below carries a structure.
+            world.TryPlaceStructure(101UL, buildTileX, buildTileY, StructureType.WoodWall).Status.Should().Be(OpStatus.Ok);
 
             await world.FlushDirtyPersistenceAsync().ConfigureAwait(true);
             IReadOnlyList<PersistedChunkDelta> savedDeltas = await chunks.LoadAllAsync().ConfigureAwait(true);
@@ -327,7 +372,12 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
             int wallTx = (int)MathF.Floor(world.DefaultSpawnWorldPosition.X / 32f) + 2;
             int wallTy = (int)MathF.Floor(world.DefaultSpawnWorldPosition.Y / 32f);
-            world.TryPlaceStructure(701UL, wallTx, wallTy, StructureType.StoneWall).Status.Should().Be(OpStatus.Conflict);
+            // No kit needed any more: the blueprint takes 4 of the hero's 50 stone chunks.
+            world.TryPlaceStructure(701UL, wallTx, wallTy, StructureType.StoneWall).Status.Should().Be(OpStatus.Ok);
+            world.TryDemolishStructure(701UL, wallTx, wallTy).Status.Should().Be(OpStatus.Ok, "cancelling the blueprint refunds the stone");
+            List<(ushort SlotIndex, ItemSlot Slot)> refunded = [];
+            world.GetInventorySnapshot(701UL, refunded).Should().BeTrue();
+            refunded.Where(s => s.Slot.ItemId == StarterGameCatalog.StoneChunk).Sum(s => s.Slot.Quantity).Should().Be(50);
 
             // Seed 1U rolls 0.969 (> 0.85 chance at +3 -> +4), deterministically consuming mats without upgrading.
             world.TryUpgradeInventoryItem(701UL, slotIndex: 0, deterministicRollSeed: 1U).Should().Be(OpStatus.EnhancementFailed);
@@ -437,7 +487,8 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 }
             }
 
-            world.TryUpgradeInventoryItem(hunterConn, slotIndex: 2, deterministicRollSeed: 2U).Should().Be(OpStatus.Ok);
+            // The anvil is only a blueprint (10 stone + 6 iron ore delivered, 300 work = 150 ticks) until it is built.
+            world.TryUpgradeInventoryItem(hunterConn, slotIndex: 2).Should().Be(OpStatus.OutOfRange);
 
             // 3. Fire HuntingBow projectile from ~120px away towards discovered monster and step ticks until swept projectile hits.
             Vector2 shotOrigin = new(mobSpawn!.Value.PositionX - 110f, mobSpawn.Value.PositionY);
@@ -468,6 +519,14 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
             sink.Spawns.Should().Contain(s => s.Snapshot.Kind == EntityKind.Projectile && s.Snapshot.ArchetypeId == 2);
             sink.CombatHits.Count.Should().BeGreaterThan(hitsBeforeStaff);
+
+            // The hunter kept building the anvil during the fight; finish the remaining work, then forge.
+            for (int t = 0; t < 120; t++)
+            {
+                world.StepFixedTick();
+            }
+
+            world.TryUpgradeInventoryItem(hunterConn, slotIndex: 2, deterministicRollSeed: 2U).Should().Be(OpStatus.Ok);
             _ = anvilTx;
             _ = anvilTy;
         }

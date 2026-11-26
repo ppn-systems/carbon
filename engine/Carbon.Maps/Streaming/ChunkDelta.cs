@@ -23,9 +23,13 @@ public sealed class ChunkDelta
     private readonly Dictionary<int, PropDestructibility> _propStates = new();
     private readonly Dictionary<int, ulong> _propRespawnTicks = new();
     private readonly Dictionary<int, StructureTile> _structures = new();
+    private readonly Dictionary<int, ConstructionSite> _sites = new();
+    private readonly Dictionary<int, StructureRecord> _records = new();
     private readonly ReadOnlyDictionary<int, MapTile> _tilesView;
     private readonly ReadOnlyDictionary<int, PropDestructibility> _propStatesView;
     private readonly ReadOnlyDictionary<int, StructureTile> _structuresView;
+    private readonly ReadOnlyDictionary<int, ConstructionSite> _sitesView;
+    private readonly ReadOnlyDictionary<int, StructureRecord> _recordsView;
 
     /// <summary>Initializes a new instance of the <see cref="ChunkDelta"/> class.</summary>
     /// <param name="chunkX">Chunk X coordinate.</param>
@@ -37,6 +41,8 @@ public sealed class ChunkDelta
         _tilesView = _tiles.AsReadOnly();
         _propStatesView = _propStates.AsReadOnly();
         _structuresView = _structures.AsReadOnly();
+        _sitesView = _sites.AsReadOnly();
+        _recordsView = _records.AsReadOnly();
     }
 
     /// <summary>Gets the chunk X coordinate.</summary>
@@ -63,8 +69,17 @@ public sealed class ChunkDelta
     /// <summary>Gets the constructed structures in this chunk, keyed by local tile index (<c>localY * Chunk2D.Size + localX</c>).</summary>
     public ReadOnlyDictionary<int, StructureTile> Structures => _structuresView;
 
+    /// <summary>
+    /// Gets the construction sites (blueprints / frames) anchored in this chunk, keyed by the local index of the anchor tile.
+    /// Treat the values as read-only snapshots.
+    /// </summary>
+    public ReadOnlyDictionary<int, ConstructionSite> Sites => _sitesView;
+
+    /// <summary>Gets the ownership / footprint records of completed structure tiles, keyed by local tile index.</summary>
+    public ReadOnlyDictionary<int, StructureRecord> StructureRecords => _recordsView;
+
     /// <summary>Gets a value indicating whether the delta holds no changes.</summary>
-    public bool IsEmpty => _tiles.Count == 0 && _propStates.Count == 0 && _structures.Count == 0;
+    public bool IsEmpty => _tiles.Count == 0 && _propStates.Count == 0 && _structures.Count == 0 && _sites.Count == 0 && _records.Count == 0;
 
     /// <summary>Converts local tile coordinates into the delta's local index.</summary>
     /// <param name="localX">Local tile X.</param>
@@ -175,6 +190,50 @@ public sealed class ChunkDelta
         this.Revision++;
     }
 
+    /// <summary>Records or updates a construction site anchored on a tile; the delta keeps its own snapshot copy.</summary>
+    /// <param name="localX">Local tile X of the anchor.</param>
+    /// <param name="localY">Local tile Y of the anchor.</param>
+    /// <param name="site">The site state.</param>
+    public void SetSite(int localX, int localY, ConstructionSite site)
+    {
+        ArgumentNullException.ThrowIfNull(site);
+        int key = ToLocalIndex(localX, localY);
+        if (!_sites.TryGetValue(key, out ConstructionSite? existing) || !existing.TryCopyFrom(site))
+        {
+            _sites[key] = site.Clone();
+        }
+
+        this.Revision++;
+    }
+
+    /// <summary>Removes a construction site (completed, cancelled).</summary>
+    /// <param name="localX">Local tile X of the anchor.</param>
+    /// <param name="localY">Local tile Y of the anchor.</param>
+    public void RemoveSite(int localX, int localY)
+    {
+        _ = _sites.Remove(ToLocalIndex(localX, localY));
+        this.Revision++;
+    }
+
+    /// <summary>Records the ownership / footprint metadata of a completed structure tile.</summary>
+    /// <param name="localX">Local tile X.</param>
+    /// <param name="localY">Local tile Y.</param>
+    /// <param name="record">The record.</param>
+    public void SetStructureRecord(int localX, int localY, StructureRecord record)
+    {
+        _records[ToLocalIndex(localX, localY)] = record;
+        this.Revision++;
+    }
+
+    /// <summary>Removes the ownership record of a structure tile.</summary>
+    /// <param name="localX">Local tile X.</param>
+    /// <param name="localY">Local tile Y.</param>
+    public void RemoveStructureRecord(int localX, int localY)
+    {
+        _ = _records.Remove(ToLocalIndex(localX, localY));
+        this.Revision++;
+    }
+
     /// <summary>
     /// Refreshes the cached wall connectivity mask of a recorded structure when an adjacent tile changes,
     /// without bumping <see cref="Revision"/>.
@@ -227,23 +286,44 @@ public sealed class ChunkDelta
             migrated._structures[kvp.Key] = kvp.Value;
         }
 
+        foreach (KeyValuePair<int, ConstructionSite> kvp in _sites)
+        {
+            migrated._sites[kvp.Key] = kvp.Value.Clone();
+        }
+
+        foreach (KeyValuePair<int, StructureRecord> kvp in _records)
+        {
+            migrated._records[kvp.Key] = kvp.Value;
+        }
+
         migrated.Revision = this.Revision + 1;
         return migrated;
     }
 
-    // Wire format (little-endian): format, generator version, chunk X/Y, revision, tile edits, prop states, structures (v2+).
+    // Wire format (little-endian): format, generator version, chunk X/Y, revision, tile edits, prop states, structures (v2+),
+    // construction sites and structure records (v3+).
     private const byte LegacyFormatVersion = 1;
-    private const byte FormatVersion = 2;
+    private const byte StructuresFormatVersion = 2;
+    private const byte FormatVersion = 3;
     private const int HeaderSize = 1 + 2 + 4 + 4 + 4;
     private const int TileSize = 2 + 1 + 4 + 4 + 4 + 1 + 1 + 1;
     private const int PropSize = 2 + 1 + 4 + 4 + 1;
     private const int StructureSize = 2 + 1 + 1 + 1 + 1 + 1 + 1 + 4 + 4 + 4;
+    private const int SiteBaseSize = 2 + 1 + 1 + 1 + 1 + 1 + 8 + 4 + 1;
+    private const int RecordSize = 2 + 8 + 1 + 1 + 1 + 1;
 
     /// <summary>Serializes the delta for storage or the network; identical bytes on every platform.</summary>
     /// <returns>The encoded delta.</returns>
     public byte[] Serialize()
     {
-        int totalSize = HeaderSize + 2 + (_tiles.Count * TileSize) + 2 + (_propStates.Count * PropSize) + 2 + (_structures.Count * StructureSize);
+        int siteBytes = 0;
+        foreach (ConstructionSite site in _sites.Values)
+        {
+            siteBytes += SiteBaseSize + (site.CostEntryCount * 4);
+        }
+
+        int totalSize = HeaderSize + 2 + (_tiles.Count * TileSize) + 2 + (_propStates.Count * PropSize) + 2 + (_structures.Count * StructureSize) +
+            2 + siteBytes + 2 + (_records.Count * RecordSize);
         byte[] buffer = new byte[totalSize];
         Span<byte> span = buffer;
         span[0] = FormatVersion;
@@ -311,6 +391,45 @@ public sealed class ChunkDelta
             o += StructureSize;
         }
 
+        keys = [.. _sites.Keys];
+        keys.Sort();
+        BinaryPrimitives.WriteUInt16LittleEndian(span[o..], (ushort)keys.Count);
+        o += 2;
+        foreach (int key in keys)
+        {
+            ConstructionSite site = _sites[key];
+            BinaryPrimitives.WriteUInt16LittleEndian(span[o..], (ushort)key);
+            span[o + 2] = (byte)site.Type;
+            span[o + 3] = (byte)site.Rotation;
+            span[o + 4] = (byte)site.Stage;
+            span[o + 5] = (byte)site.Width;
+            span[o + 6] = (byte)site.Height;
+            BinaryPrimitives.WriteUInt64LittleEndian(span[(o + 7)..], site.OwnerId);
+            BinaryPrimitives.WriteSingleLittleEndian(span[(o + 15)..], site.WorkDone);
+            span[o + 19] = (byte)site.CostEntryCount;
+            o += SiteBaseSize;
+            for (int i = 0; i < site.CostEntryCount; i++, o += 4)
+            {
+                BinaryPrimitives.WriteInt32LittleEndian(span[o..], site.GetDelivered(i));
+            }
+        }
+
+        keys = [.. _records.Keys];
+        keys.Sort();
+        BinaryPrimitives.WriteUInt16LittleEndian(span[o..], (ushort)keys.Count);
+        o += 2;
+        foreach (int key in keys)
+        {
+            StructureRecord r = _records[key];
+            BinaryPrimitives.WriteUInt16LittleEndian(span[o..], (ushort)key);
+            BinaryPrimitives.WriteUInt64LittleEndian(span[(o + 2)..], r.OwnerId);
+            span[o + 10] = r.AnchorOffsetX;
+            span[o + 11] = r.AnchorOffsetY;
+            span[o + 12] = (byte)r.Rotation;
+            span[o + 13] = (byte)r.FloorBeneath;
+            o += RecordSize;
+        }
+
         return buffer;
     }
 
@@ -320,7 +439,7 @@ public sealed class ChunkDelta
     /// <exception cref="FormatException">The data is truncated, has an unknown format or bad tile indices.</exception>
     public static ChunkDelta Deserialize(ReadOnlySpan<byte> data)
     {
-        if (data.Length < HeaderSize + 4 || (data[0] != LegacyFormatVersion && data[0] != FormatVersion))
+        if (data.Length < HeaderSize + 4 || data[0] is not (LegacyFormatVersion or StructuresFormatVersion or FormatVersion))
         {
             throw new FormatException("Unknown or truncated chunk delta.");
         }
@@ -364,7 +483,7 @@ public sealed class ChunkDelta
                 (flags & 2) != 0);
         }
 
-        if (format == FormatVersion)
+        if (format >= StructuresFormatVersion)
         {
             Require(data, o + 2);
             int structures = BinaryPrimitives.ReadUInt16LittleEndian(data[o..]);
@@ -392,8 +511,68 @@ public sealed class ChunkDelta
             }
         }
 
+        if (format >= FormatVersion)
+        {
+            DeserializeConstruction(delta, data, o);
+        }
+
         delta.Revision = revision;
         return delta;
+    }
+
+    private static void DeserializeConstruction(ChunkDelta delta, ReadOnlySpan<byte> data, int o)
+    {
+        Require(data, o + 2);
+        int sites = BinaryPrimitives.ReadUInt16LittleEndian(data[o..]);
+        o += 2;
+        for (int i = 0; i < sites; i++)
+        {
+            Require(data, o + SiteBaseSize);
+            int key = ReadIndex(data[o..]);
+            int width = data[o + 5];
+            int height = data[o + 6];
+            int costEntries = data[o + 19];
+            if (width is < 1 or > ConstructionSite.MaxFootprintSide || height is < 1 or > ConstructionSite.MaxFootprintSide ||
+                data[o + 4] is not ((byte)ConstructionStage.Blueprint or (byte)ConstructionStage.Frame))
+            {
+                throw new FormatException("Chunk delta construction site is malformed.");
+            }
+
+            ConstructionSite site = new(
+                (StructureType)data[o + 2],
+                (StructureRotation)data[o + 3],
+                BinaryPrimitives.ReadUInt64LittleEndian(data[(o + 7)..]),
+                width,
+                height,
+                costEntries)
+            {
+                Stage = (ConstructionStage)data[o + 4],
+                WorkDone = BinaryPrimitives.ReadSingleLittleEndian(data[(o + 15)..])
+            };
+            o += SiteBaseSize;
+            Require(data, o + (costEntries * 4));
+            for (int c = 0; c < costEntries; c++, o += 4)
+            {
+                site.SetDelivered(c, BinaryPrimitives.ReadInt32LittleEndian(data[o..]));
+            }
+
+            delta._sites[key] = site;
+        }
+
+        Require(data, o + 2);
+        int records = BinaryPrimitives.ReadUInt16LittleEndian(data[o..]);
+        o += 2;
+        Require(data, o + (records * RecordSize));
+        for (int i = 0; i < records; i++, o += RecordSize)
+        {
+            int key = ReadIndex(data[o..]);
+            delta._records[key] = new StructureRecord(
+                BinaryPrimitives.ReadUInt64LittleEndian(data[(o + 2)..]),
+                data[o + 10],
+                data[o + 11],
+                (StructureRotation)data[o + 12],
+                (StructureType)data[o + 13]);
+        }
     }
 
     private static void Require(ReadOnlySpan<byte> data, int length)

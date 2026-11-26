@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 2,
+  "structureType": 15,
+  "id": "wood_bed",
+  "displayName": "Wood Bed",
+  "palette": {
+    "frame": "#78350F",
+    "sheet": "#E5E7EB",
+    "blanket": "#2563EB",
+    "pillow": "#F9FAFB"
+  },
+  "shapes": [
+    {
+      "kind": "rect",
+      "x": 3,
+      "y": 1,
+      "w": 26,
+      "h": 30,
+      "color": "$frame"
+    },
+    {
+      "kind": "rect",
+      "x": 5,
+      "y": 3,
+      "w": 22,
+      "h": 26,
+      "color": "$sheet"
+    },
+    {
+      "kind": "rect",
+      "x": 5,
+      "y": 12,
+      "w": 22,
+      "h": 17,
+      "color": "$blanket"
+    },
+    {
+      "kind": "rect",
+      "x": 8,
+      "y": 4,
+      "w": 16,
+      "h": 6,
+      "color": "$pillow"
+    }
+  ],
+  "openShapes": []
+}

@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 2,
+  "structureType": 11,
+  "id": "workbench",
+  "displayName": "Workbench",
+  "palette": {
+    "top": "#B45309",
+    "topLight": "#D97706",
+    "leg": "#78350F",
+    "tool": "#9CA3AF"
+  },
+  "shapes": [
+    {
+      "kind": "rect",
+      "x": 2,
+      "y": 6,
+      "w": 28,
+      "h": 14,
+      "color": "$top",
+      "outlineColor": "$leg",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "rect",
+      "x": 3,
+      "y": 7,
+      "w": 26,
+      "h": 4,
+      "color": "$topLight"
+    },
+    {
+      "kind": "rect",
+      "x": 4,
+      "y": 20,
+      "w": 4,
+      "h": 9,
+      "color": "$leg"
+    },
+    {
+      "kind": "rect",
+      "x": 24,
+      "y": 20,
+      "w": 4,
+      "h": 9,
+      "color": "$leg"
+    },
+    {
+      "kind": "line",
+      "x": 10,
+      "y": 12,
+      "x2": 20,
+      "y2": 12,
+      "thickness": 1.6,
+      "color": "$tool"
+    }
+  ],
+  "openShapes": []
+}
