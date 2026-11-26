@@ -56,7 +56,7 @@ public sealed class ConfigSyncLiveTests
             await new SqliteSchemaMigrator(dbFactory).MigrateAsync().ConfigureAwait(true);
             SqliteAccountStore accounts = new(dbFactory);
             SqliteCharacterStore characters = new(dbFactory);
-            AuthService authService = new(accounts, characters, new Pbkdf2PasswordHasher());
+            using AuthService authService = new(accounts, characters, new Pbkdf2PasswordHasher());
             SessionTransportRegistry transportRegistry = new();
             WorldOutboundSink outboundSink = new(transportRegistry, NullLogger<WorldOutboundSink>.Instance);
             HostRuntimeOptions hostOptions = new() { WebSocketPort = 0, TcpPort = tcpPort, UdpPort = udpPort };
