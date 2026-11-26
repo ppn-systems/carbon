@@ -31,21 +31,34 @@ public ref struct InventoryDraft
     /// <param name="source">Container to stage changes for.</param>
     /// <param name="buffer">Scratch buffer with length of at least <see cref="InventoryContainer.Capacity"/>.</param>
     /// <returns>A draft mirroring the container's current slots.</returns>
-    public static InventoryDraft Begin(InventoryContainer source, Span<ItemSlot> buffer)
+    public static InventoryDraft Begin(InventoryContainer source, Span<ItemSlot> buffer) =>
+        Begin(source, buffer, int.MaxValue);
+
+    /// <summary>
+    /// Copies the first <paramref name="slotLimit"/> slots of <paramref name="source"/> into <paramref name="buffer"/>
+    /// and returns a draft over them; slots beyond the limit (e.g. equipped armor) are never read or written.
+    /// </summary>
+    /// <param name="source">Container to stage changes for.</param>
+    /// <param name="buffer">Scratch buffer with length of at least the staged slot count.</param>
+    /// <param name="slotLimit">Maximum number of leading slots to stage.</param>
+    /// <returns>A draft mirroring the staged slots.</returns>
+    public static InventoryDraft Begin(InventoryContainer source, Span<ItemSlot> buffer, int slotLimit)
     {
         ArgumentNullException.ThrowIfNull(source);
-        if (buffer.Length < source.Capacity)
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(slotLimit);
+        int count = Math.Min(slotLimit, source.Capacity);
+        if (buffer.Length < count)
         {
-            throw new ArgumentException("Draft buffer is smaller than the container capacity.", nameof(buffer));
+            throw new ArgumentException("Draft buffer is smaller than the staged slot count.", nameof(buffer));
         }
 
-        Span<ItemSlot> slots = buffer[..source.Capacity];
-        source.Slots.CopyTo(slots);
+        Span<ItemSlot> slots = buffer[..count];
+        source.Slots[..count].CopyTo(slots);
         return new InventoryDraft(slots);
     }
 
     /// <summary>
-    /// Counts the staged quantity of <paramref name="itemId"/>.
+    /// Counts the staged quantity of <paramref name="itemId"/>, ignoring forge-upgraded slots.
     /// </summary>
     /// <param name="itemId">Item definition identifier.</param>
     /// <returns>Total staged quantity.</returns>
@@ -59,7 +72,7 @@ public ref struct InventoryDraft
         int total = 0;
         for (int i = 0; i < _slots.Length; i++)
         {
-            if (_slots[i].ItemId == itemId && _slots[i].Quantity > 0)
+            if (_slots[i].ItemId == itemId && _slots[i].Quantity > 0 && _slots[i].UpgradeLevel == 0)
             {
                 total += _slots[i].Quantity;
             }
@@ -70,6 +83,7 @@ public ref struct InventoryDraft
 
     /// <summary>
     /// Removes up to <paramref name="quantity"/> units of <paramref name="itemId"/> in slot order.
+    /// Forge-upgraded slots are never consumed.
     /// </summary>
     /// <param name="itemId">Item definition identifier.</param>
     /// <param name="quantity">Quantity to remove.</param>
@@ -85,7 +99,7 @@ public ref struct InventoryDraft
         for (int i = 0; i < _slots.Length && needed > 0; i++)
         {
             ItemSlot slot = _slots[i];
-            if (slot.ItemId != itemId || slot.Quantity <= 0)
+            if (slot.ItemId != itemId || slot.Quantity <= 0 || slot.UpgradeLevel != 0)
             {
                 continue;
             }
@@ -160,7 +174,7 @@ public ref struct InventoryDraft
     public readonly void CommitTo(InventoryContainer target)
     {
         ArgumentNullException.ThrowIfNull(target);
-        if (target.Capacity != _slots.Length)
+        if (target.Capacity < _slots.Length)
         {
             throw new ArgumentException("Draft was not started from this container.", nameof(target));
         }

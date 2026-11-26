@@ -110,6 +110,27 @@ public sealed class AtomicCraftingTests
     }
 
     [Fact]
+    public void TryCraftInBag_NeverConsumesUpgradedGearOrTouchesEquipmentSlots()
+    {
+        InventoryContainer bag = new(Catalog.PlayerInventoryLayout.TotalCapacity);
+        bag.SetSlot(0, new ItemSlot(Log, 1, UpgradeLevel: 3));
+        CraftingRecipe recipe = SawRecipe() with { Byproducts = null };
+
+        Catalog.PlayerInventoryLayout.TryCraftInBag(bag, recipe, 10).Should().BeFalse("an upgraded stack is not a crafting ingredient");
+        bag.GetSlot(0).UpgradeLevel.Should().Be(3);
+
+        for (int i = 1; i < Catalog.PlayerInventoryLayout.BagLimit; i++)
+        {
+            bag.SetSlot(i, new ItemSlot(Sword, 1, InstanceId: (ulong)i));
+        }
+
+        bag.SetSlot(1, new ItemSlot(Log, 2));
+        Catalog.PlayerInventoryLayout.TryCraftInBag(bag, recipe, 10).Should().BeFalse("the bag is full and the equipment slots are off-limits");
+        bag.CountItem(Log).Should().Be(3);
+        bag.GetSlot(Catalog.PlayerInventoryLayout.HeadSlot).IsEmpty.Should().BeTrue();
+    }
+
+    [Fact]
     public void Validate_DoesNotMutateInventory()
     {
         InventoryContainer bag = new(4);

@@ -100,6 +100,18 @@ public static class RecipeMatcher
         Run(inventory, recipe, stacks, context, consume: true, produce: true, commit: true);
 
     /// <summary>
+    /// Atomically crafts using only the first <paramref name="slotLimit"/> slots (e.g. the bag, excluding equipped armor).
+    /// </summary>
+    /// <param name="inventory">Crafter inventory.</param>
+    /// <param name="recipe">Recipe to craft.</param>
+    /// <param name="stacks">Stack size provider for outputs.</param>
+    /// <param name="context">Crafter state.</param>
+    /// <param name="slotLimit">Number of leading slots ingredients are taken from and outputs are placed into.</param>
+    /// <returns><see cref="CraftResult.Ok"/> or the rejection reason.</returns>
+    public static CraftResult TryCraft(InventoryContainer inventory, CraftingRecipe recipe, IStackSizeProvider stacks, in CraftContext context, int slotLimit) =>
+        Run(inventory, recipe, stacks, context, consume: true, produce: true, commit: true, slotLimit);
+
+    /// <summary>
     /// Starts a timed craft: atomically consumes the ingredients, provided the outputs would currently fit afterwards.
     /// Deliver the outputs with <see cref="TryDeliverOutputs"/> when the work completes.
     /// </summary>
@@ -133,7 +145,8 @@ public static class RecipeMatcher
         in CraftContext context,
         bool consume,
         bool produce,
-        bool commit)
+        bool commit,
+        int slotLimit = int.MaxValue)
     {
         ArgumentNullException.ThrowIfNull(inventory);
         ArgumentNullException.ThrowIfNull(recipe);
@@ -148,7 +161,7 @@ public static class RecipeMatcher
         Span<ItemSlot> buffer = inventory.Capacity <= InventoryDraft.StackBufferLimit
             ? stackalloc ItemSlot[InventoryDraft.StackBufferLimit]
             : new ItemSlot[inventory.Capacity];
-        InventoryDraft draft = InventoryDraft.Begin(inventory, buffer);
+        InventoryDraft draft = InventoryDraft.Begin(inventory, buffer, slotLimit);
 
         if (consume)
         {
