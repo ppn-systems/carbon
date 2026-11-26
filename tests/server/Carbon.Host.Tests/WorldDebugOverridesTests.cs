@@ -1,7 +1,9 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+#if DEBUG
 using System.Collections.Generic;
+#endif
 using System.Numerics;
 using Carbon.Abstractions.Configuration;
 using Carbon.Abstractions.Persistence;
