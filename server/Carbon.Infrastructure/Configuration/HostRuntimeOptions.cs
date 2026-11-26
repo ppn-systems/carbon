@@ -45,7 +45,7 @@ public sealed class HostRuntimeOptions
     public ushort UdpPort { get; init; } = 57208;
 
     /// <summary>
-    /// Gets or sets the gameplay config directory (<c>resources/config</c>, ADR-011).
+    /// Gets or sets the gameplay config directory (<c>resources/config</c>, ADR-014).
     /// Empty means "locate <c>resources/config</c> above the working or base directory".
     /// </summary>
     public string ConfigDirectory { get; init; } = string.Empty;

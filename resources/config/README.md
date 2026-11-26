@@ -13,4 +13,4 @@ Every gameplay config document lives here as `<name>.json`, one document per dom
 - Names: `[a-z0-9_-]`, max 64 characters. Content: strict JSON (no comments, no trailing commas, no duplicate keys).
 - Each domain owns its own file. CI (`ResourcesConfigTests`) rejects invalid JSON or names.
 
-See [ADR-011](../../docs/adr/ADR-011-server-authoritative-config.md).
+See [ADR-014](../../docs/adr/ADR-014-server-authoritative-config.md).
