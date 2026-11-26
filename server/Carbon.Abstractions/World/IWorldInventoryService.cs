@@ -2,7 +2,6 @@
 
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Carbon.Contracts.Common;
 using Carbon.Items.Containers;
 
 namespace Carbon.Abstractions.World;
@@ -39,12 +38,21 @@ public interface IWorldInventoryService
     /// </summary>
     ValueTask<WorldMutationOutcome> SubmitDropInventoryItemAsync(ulong connectionId, ushort slotIndex, int quantity);
 
-    /// <summary>Buys vendor-sold items for gold while standing near a friendly town NPC.</summary>
-    OpStatus TryVendorBuy(ulong connectionId, ushort itemId, ushort quantity);
+    /// <summary>
+    /// Queues buying vendor-sold items for gold while standing near a friendly town NPC; completes after the next tick
+    /// (ADR-017).
+    /// </summary>
+    ValueTask<WorldMutationOutcome> SubmitVendorBuyAsync(ulong connectionId, ushort itemId, ushort quantity);
 
-    /// <summary>Sells units from a bag slot (<c>0..35</c>) to a nearby friendly town NPC for gold.</summary>
-    OpStatus TryVendorSell(ulong connectionId, ushort slotIndex, ushort quantity);
+    /// <summary>
+    /// Queues selling units from a bag slot (<c>0..35</c>) to a nearby friendly town NPC for gold; completes after the
+    /// next tick (ADR-017).
+    /// </summary>
+    ValueTask<WorldMutationOutcome> SubmitVendorSellAsync(ulong connectionId, ushort slotIndex, ushort quantity);
 
-    /// <summary>Repairs the item in <paramref name="slotIndex"/> to full durability for gold at a forge station.</summary>
-    OpStatus TryRepairItem(ulong connectionId, ushort slotIndex);
+    /// <summary>
+    /// Queues repairing the item in <paramref name="slotIndex"/> to full durability for gold at a forge station;
+    /// completes after the next tick (ADR-017).
+    /// </summary>
+    ValueTask<WorldMutationOutcome> SubmitRepairItemAsync(ulong connectionId, ushort slotIndex);
 }

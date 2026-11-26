@@ -2,6 +2,9 @@
 
 using System;
 using System.Numerics;
+using System.Threading.Tasks;
+using Carbon.Abstractions.World;
+using Carbon.Application.World.Commands;
 using Carbon.Contracts.Common;
 using Carbon.Economy;
 using Carbon.Economy.Currency;
@@ -107,6 +110,18 @@ public sealed partial class AuthoritativeWorld
     }
 
     /// <inheritdoc/>
+    public ValueTask<WorldMutationOutcome> SubmitVendorBuyAsync(ulong connectionId, ushort itemId, ushort quantity) =>
+        _commands.Submit(WorldCommandKind.VendorBuy, connectionId, itemId, quantity);
+
+    /// <inheritdoc/>
+    public ValueTask<WorldMutationOutcome> SubmitVendorSellAsync(ulong connectionId, ushort slotIndex, ushort quantity) =>
+        _commands.Submit(WorldCommandKind.VendorSell, connectionId, slotIndex, quantity);
+
+    /// <inheritdoc/>
+    public ValueTask<WorldMutationOutcome> SubmitRepairItemAsync(ulong connectionId, ushort slotIndex) =>
+        _commands.Submit(WorldCommandKind.RepairItem, connectionId, slotIndex);
+
+    /// <summary>Buys vendor-sold items for gold near a friendly town NPC. Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
     public OpStatus TryVendorBuy(ulong connectionId, ushort itemId, ushort quantity)
     {
         if (quantity is 0 or > MaxVendorQuantity)
@@ -121,7 +136,7 @@ public sealed partial class AuthoritativeWorld
                 state.Wallet, state.Inventory, itemId, quantity, tick, Math.Min(PlayerInventoryLayout.BagLimit, state.Inventory.Capacity), state.Level).Status);
     }
 
-    /// <inheritdoc/>
+    /// <summary>Sells units from a bag slot to a nearby friendly town NPC for gold. Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
     public OpStatus TryVendorSell(ulong connectionId, ushort slotIndex, ushort quantity)
     {
         if (quantity == 0 || slotIndex >= PlayerInventoryLayout.BagLimit)
@@ -135,7 +150,7 @@ public sealed partial class AuthoritativeWorld
             (economy, state, tick) => economy.Vendor.TrySellSlot(state.Wallet, state.Inventory, slotIndex, quantity, tick).Status);
     }
 
-    /// <inheritdoc/>
+    /// <summary>Repairs the item in the slot to full durability for gold at a forge station. Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
     public OpStatus TryRepairItem(ulong connectionId, ushort slotIndex) =>
         this.RunVendorOperationLocked(
             connectionId,

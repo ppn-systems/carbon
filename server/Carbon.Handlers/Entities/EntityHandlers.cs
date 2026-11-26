@@ -76,16 +76,17 @@ public static partial class EntityHandlers
     /// <summary>Opcode <c>0x1204</c>. Allocates an unspent attribute or skill mastery point.</summary>
     [PacketOpcode(EntityOpCode.AllocateCharacterPoint)]
     [PacketPermission(PermissionLevel.USER)]
-    public static ValueTask HandleAllocatePointAsync(IPacketContext<EntityAllocatePoint> context)
+    public static async ValueTask HandleAllocatePointAsync(IPacketContext<EntityAllocatePoint> context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        IPacketSender sender = context.Sender;
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
-        OpStatus status = s_world.TryAllocateCharacterPoint(
+        WorldMutationOutcome outcome = await s_world.SubmitAllocateCharacterPointAsync(
             connectionId,
             context.Packet.Kind,
             context.Packet.TargetId,
-            context.Packet.Amount);
-        return PacketReplyHelper.SendMutationAsync(context, status, EntityOpCode.AllocateCharacterPoint);
+            context.Packet.Amount).ConfigureAwait(false);
+        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, EntityOpCode.AllocateCharacterPoint).ConfigureAwait(false);
     }
 }

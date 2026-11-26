@@ -7,6 +7,7 @@ using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
 using Carbon.Application.World;
 using Carbon.Contracts.Common;
+using Carbon.Contracts.Entities;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -92,6 +93,23 @@ public sealed class TickQueuedWorldCommandTests
     }
 
     [Fact]
+    public async Task SubmitAllocateCharacterPointAsync_BeforeTick_CompletesOnlyAfterStepFixedTick()
+    {
+        // Level 3 has unspent attribute points to allocate.
+        using WorldFixture f = await WorldFixture.CreateAsync(level: 3).ConfigureAwait(true);
+
+        Task<WorldMutationOutcome> pending = f.World
+            .SubmitAllocateCharacterPointAsync(ConnectionId, PointAllocationKind.Attribute, (ushort)PrimaryAttributeId.Vitality)
+            .AsTask();
+
+        pending.IsCompleted.Should().BeFalse("point allocation now runs inside the tick (ADR-017 part 3)");
+
+        f.World.StepFixedTick();
+
+        (await pending.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok);
+    }
+
+    [Fact]
     public async Task FailPendingCommands_WithQueuedCommand_CompletesItWithConflict()
     {
         using WorldFixture f = await WorldFixture.CreateAsync().ConfigureAwait(true);
@@ -125,7 +143,7 @@ public sealed class TickQueuedWorldCommandTests
 
         public int PropTileY { get; }
 
-        public static async Task<WorldFixture> CreateAsync()
+        public static async Task<WorldFixture> CreateAsync(ushort level = 1)
         {
             string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-tick-commands-{Guid.NewGuid():N}.db");
             SqliteConnectionFactory factory = new($"Data Source={dbPath}");
@@ -147,7 +165,7 @@ public sealed class TickQueuedWorldCommandTests
                 Guid.NewGuid(),
                 accountId,
                 "Queuer",
-                Level: 1,
+                Level: level,
                 AppearancePreset: 0,
                 PositionX: ((tx + 0.5f) * 32f) + 40f,
                 PositionY: (ty + 0.5f) * 32f,

@@ -38,6 +38,18 @@ internal enum WorldCommandKind : byte
 
     /// <summary>Drop items from a slot (<c>Arg0</c> = slot, <c>Arg2</c> = quantity).</summary>
     DropInventoryItem = 14,
+
+    /// <summary>Buy from a vendor (<c>Arg0</c> = item id, <c>Arg1</c> = quantity).</summary>
+    VendorBuy = 20,
+
+    /// <summary>Sell to a vendor (<c>Arg0</c> = slot, <c>Arg1</c> = quantity).</summary>
+    VendorSell = 21,
+
+    /// <summary>Repair the item in a slot (<c>Arg0</c> = slot).</summary>
+    RepairItem = 22,
+
+    /// <summary>Allocate character points (<c>Arg0</c> = <c>PointAllocationKind</c>, <c>Arg1</c> = target id, <c>Arg2</c> = amount).</summary>
+    AllocateCharacterPoint = 30,
 }
 
 /// <summary>A mutating request waiting for the next tick, with the completion its handler awaits.</summary>
