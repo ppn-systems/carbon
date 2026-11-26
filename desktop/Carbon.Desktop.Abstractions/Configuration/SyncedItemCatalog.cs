@@ -10,7 +10,7 @@ using Carbon.Items.Definitions;
 namespace Carbon.Desktop.Abstractions.Configuration;
 
 /// <summary>
-/// The client's view of the server's <c>items.json</c> (ADR-011): item names, stack sizes and durability come from the
+/// The client's view of the server's <c>items.json</c> (ADR-014): item names, stack sizes and durability come from the
 /// synced document, never from tables compiled into the client, so items the server adds show up without a client build.
 /// Replaced whole each time a sync completes; readers on any thread see either the old or the new catalog.
 /// </summary>
