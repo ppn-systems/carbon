@@ -457,6 +457,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     public bool TryHandleStatusStripClick(IWorldReadModel world, Vector2 mouseScreenPos, int viewportWidth)
     {
         ArgumentNullException.ThrowIfNull(world);
+        _statusStrip.ShowMinimap = this.Settings.ShowMinimap;
         return _statusStrip.HandleClick(mouseScreenPos, world.LocalStatusEffects, viewportWidth);
     }
 
@@ -464,6 +465,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     public bool IsOverStatusStrip(IWorldReadModel world, Vector2 mouseScreenPos, int viewportWidth)
     {
         ArgumentNullException.ThrowIfNull(world);
+        _statusStrip.ShowMinimap = this.Settings.ShowMinimap;
         return _statusStrip.IsOver(mouseScreenPos, world.LocalStatusEffects, viewportWidth);
     }
 
@@ -471,9 +473,9 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     public bool CloseStatusEffectDetails() => _statusStrip.Close();
 
     /// <summary>Gets the screen centre of status icon <paramref name="index"/> (screenshot previews).</summary>
-    public static Vector2 GetStatusIconCenter(int index, int viewportWidth)
+    public Vector2 GetStatusIconCenter(int index, int viewportWidth)
     {
-        RectangleF icon = StatusEffectStripLayout.Icon(index, viewportWidth);
+        RectangleF icon = StatusEffectStripLayout.Icon(index, viewportWidth, this.Settings.ShowMinimap);
         return new Vector2(icon.X + (icon.Width * 0.5f), icon.Y + (icon.Height * 0.5f));
     }
 
@@ -498,7 +500,6 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             return;
         }
 
-        _ = this.PrepareSkillBar(viewportWidth);
         _animTime += frameDt;
         _forgeModal.Update(frameDt, world);
         _toasts.Step(frameDt);
@@ -519,7 +520,9 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         Vector2? bgMouse = this.HasActiveModal ? null : mouseScreenPos;
         // The death screen goes on top (ADR-031): while dead the strip draws nothing and takes no clicks.
         _statusStrip.Suppressed = (this.DeathPreview ?? world.LocalDeath) is not null;
+        _statusStrip.ShowMinimap = this.Settings.ShowMinimap;
         _statusStrip.Prepare(world, _font, bgMouse, viewportWidth);
+        _ = this.PrepareSkillBar(viewportWidth); // After the strip: the skill bar starts under its last row.
 
         _geometryBatch.Begin(screenProj);
         _vignette.DrawGeometry(_geometryBatch, world, viewportWidth, viewportHeight, _animTime);
@@ -701,7 +704,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 _targetWidget.DrawSkin(spriteBatch, _uiSkin, f.ViewportWidth);
                 break;
             case HudElement.Clock:
-                _clock.DrawSkin(spriteBatch, _uiSkin, f.ViewportWidth, f.World.AuthoritativeTimeHour, f.World.AuthoritativeIsNight);
+                _clock.DrawSkin(spriteBatch, _uiSkin, f.ViewportWidth, this.Settings.ShowMinimap, f.World.AuthoritativeTimeHour, f.World.AuthoritativeIsNight);
                 break;
             case HudElement.Minimap:
                 if (this.Settings.ShowMinimap)
@@ -717,7 +720,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 _skillBar.DrawSkin(spriteBatch, _uiSkin, f.World, f.ViewportWidth, f.ViewportHeight);
                 break;
             case HudElement.Toasts:
-                _toasts.DrawSkin(spriteBatch, _uiSkin, _font, f.ViewportWidth, HudLayout.GetToastTop(f.ViewportWidth, this.Settings.ShowMinimap));
+                _toasts.DrawSkin(spriteBatch, _uiSkin, _font, f.ViewportWidth, HudLayout.GetToastTop(f.ViewportWidth, this.Settings.ShowMinimap, _statusStrip.Rows));
                 break;
             case HudElement.StatusEffects:
                 _statusStrip.DrawSkin(spriteBatch, _uiSkin, f.World, f.ViewportWidth);
@@ -749,7 +752,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 _targetWidget.DrawGeometry(_geometryBatch, _art, f.ViewportWidth, _animTime);
                 break;
             case HudElement.Clock:
-                _clock.DrawGeometry(_geometryBatch, f.ViewportWidth, f.World.AuthoritativeTimeHour, f.World.AuthoritativeIsNight);
+                _clock.DrawGeometry(_geometryBatch, f.ViewportWidth, this.Settings.ShowMinimap, f.World.AuthoritativeTimeHour, f.World.AuthoritativeIsNight);
                 break;
             case HudElement.Minimap:
                 if (this.Settings.ShowMinimap)
@@ -783,9 +786,6 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 WaterView breath = f.World.LocalWater;
                 OxygenBarWidget.DrawGeometry(_geometryBatch, in breath, f.ViewportWidth, f.ViewportHeight, _animTime);
                 break;
-            case HudElement.DeathScreen when f.Death is DeathView death:
-                DeathScreenWidget.DrawGeometry(_geometryBatch, _art, in death, f.ViewportWidth, f.ViewportHeight);
-                break;
             case HudElement.Toasts:
             case HudElement.DeathScreen:
             case HudElement.InteractPrompt:
@@ -802,7 +802,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 _targetWidget.DrawText(spriteBatch, _font, _art, f.ViewportWidth);
                 break;
             case HudElement.Clock:
-                _clock.DrawText(spriteBatch, _font, f.ViewportWidth, f.World.AuthoritativeTimeHour, f.World.AuthoritativeIsNight);
+                _clock.DrawText(spriteBatch, _font, f.ViewportWidth, this.Settings.ShowMinimap, f.World.AuthoritativeTimeHour, f.World.AuthoritativeIsNight);
                 break;
             case HudElement.Minimap:
                 if (this.Settings.ShowMinimap)
@@ -818,7 +818,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 _skillBar.DrawText(spriteBatch, _font, f.World, f.ViewportWidth, f.ViewportHeight, hoveredSkill);
                 break;
             case HudElement.Toasts:
-                _toasts.DrawText(spriteBatch, _font, f.ViewportWidth, HudLayout.GetToastTop(f.ViewportWidth, this.Settings.ShowMinimap));
+                _toasts.DrawText(spriteBatch, _font, f.ViewportWidth, HudLayout.GetToastTop(f.ViewportWidth, this.Settings.ShowMinimap, _statusStrip.Rows));
                 break;
             case HudElement.InteractPrompt:
                 if (!this.HasActiveModal && this.InteractPrompt is InteractionPrompt prompt)
@@ -861,10 +861,10 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         DeathView? Death = null,
         bool RespawnPending = false);
 
-    /// <summary>Keeps the skill bar under the clock/minimap column (<see cref="HudLayout"/>); always returns <see langword="true"/>.</summary>
+    /// <summary>Keeps the skill bar under the minimap/clock column and the status strip (<see cref="HudLayout"/>); always returns <see langword="true"/>.</summary>
     private bool PrepareSkillBar(int viewportWidth)
     {
-        _skillBar.MinTop = HudLayout.GetSkillBarMinTop(viewportWidth, this.Settings.ShowMinimap);
+        _skillBar.MinTop = HudLayout.GetSkillBarMinTop(viewportWidth, this.Settings.ShowMinimap, _statusStrip.Rows);
         return true;
     }
 

@@ -12,8 +12,8 @@ using Carbon.Graphics.Fonts.Rendering;
 namespace Carbon.Desktop.Rendering.Hud;
 
 /// <summary>
-/// Compact sun/moon dial with the world time and day phase, at the top of the right-hand HUD column
-/// (<see cref="HudLayout.GetClockRect"/>, under the status-effect strip). The hour is the server's
+/// Compact sun/moon dial with the world time and day phase in the right-hand HUD column
+/// (<see cref="HudLayout.GetClockRect"/>: under the minimap, or at the top-right corner when the minimap is hidden). The hour is the server's
 /// (<c>IWorldReadModel.AuthoritativeTimeHour</c>) and so is the night (<c>AuthoritativeIsNight</c>); the widget keeps
 /// no clock of its own and hides while offline.
 /// At dusk a second line warns that night is coming; at night it warns that monsters are stronger.
@@ -29,25 +29,25 @@ internal sealed class DayNightClockWidget
     private static readonly ColorRgba s_nightWarning = new(252, 129, 129, 255);
     private static readonly ColorRgba s_nightBorder = new(129, 98, 196, 255);
 
-    public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin, int viewportWidth, float? hour, bool? isNight)
+    public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin, int viewportWidth, bool showMinimap, float? hour, bool? isNight)
     {
         if (hour is null)
         {
             return;
         }
 
-        RectangleF rect = HudLayout.GetClockRect(viewportWidth);
+        RectangleF rect = HudLayout.GetClockRect(viewportWidth, showMinimap);
         skin.DrawCard(spriteBatch, in rect, isNight == true ? s_nightBorder : CarbonUiPalette.BorderOuter, bodyAlpha: 236);
     }
 
-    public void DrawGeometry(GeometryBatch batch, int viewportWidth, float? hour, bool? isNight)
+    public void DrawGeometry(GeometryBatch batch, int viewportWidth, bool showMinimap, float? hour, bool? isNight)
     {
         if (hour is not float h)
         {
             return;
         }
 
-        Vector2 c = GetDialCenter(viewportWidth);
+        Vector2 c = GetDialCenter(viewportWidth, showMinimap);
         DayPhase phase = WorldClock.GetPhase(h, isNight == true);
         batch.FillCircle(c, DialRadius, GetSkyColor(phase), 24);
 
@@ -79,14 +79,14 @@ internal sealed class DayNightClockWidget
         batch.DrawCircle(c, DialRadius, s_dialRim, 24, 1.4f);
     }
 
-    public void DrawText(SpriteBatch spriteBatch, BitmapFont font, int viewportWidth, float? hour, bool? isNight)
+    public void DrawText(SpriteBatch spriteBatch, BitmapFont font, int viewportWidth, bool showMinimap, float? hour, bool? isNight)
     {
         if (hour is not float h)
         {
             return;
         }
 
-        RectangleF rect = HudLayout.GetClockRect(viewportWidth);
+        RectangleF rect = HudLayout.GetClockRect(viewportWidth, showMinimap);
         ColorRgba outline = CarbonUiPalette.TextOutline;
         DayPhase phase = WorldClock.GetPhase(h, isNight == true);
         string? hintKey = HintKey(phase);
@@ -140,9 +140,9 @@ internal sealed class DayNightClockWidget
         _ => "clock.phase.day",
     };
 
-    private static Vector2 GetDialCenter(int viewportWidth)
+    private static Vector2 GetDialCenter(int viewportWidth, bool showMinimap)
     {
-        RectangleF rect = HudLayout.GetClockRect(viewportWidth);
+        RectangleF rect = HudLayout.GetClockRect(viewportWidth, showMinimap);
         return new Vector2(rect.X + 25f, rect.Y + (rect.Height * 0.5f));
     }
 

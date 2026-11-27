@@ -75,11 +75,21 @@ internal sealed class StatusEffectStripWidget
             {
                 this.SelectedEffectId = 0;
                 _count = 0;
+                this.Rows = 0;
                 _hovered = -1;
                 _tooltipText = null;
             }
         }
     }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the minimap is shown (<see cref="UiSettings.ShowMinimap"/>): the strip sits
+    /// under the clock, which moves up to the corner when the minimap is hidden.
+    /// </summary>
+    public bool ShowMinimap { get; set; } = true;
+
+    /// <summary>Gets how many rows the icons prepared this frame fill (0 while none is shown).</summary>
+    public int Rows { get; private set; }
 
     /// <summary>Gets the details panel title prepared this frame (the name with its level, ADR-036 D6).</summary>
     internal string PanelTitle => _panelTitle;
@@ -102,7 +112,7 @@ internal sealed class StatusEffectStripWidget
             return false;
         }
 
-        int hit = StatusEffectStripLayout.HitTest(mouse, Math.Min(effects.Count, Math.Min(MaxIcons, StatusEffectStripLayout.Capacity(viewportWidth))), viewportWidth);
+        int hit = StatusEffectStripLayout.HitTest(mouse, Math.Min(effects.Count, Math.Min(MaxIcons, StatusEffectStripLayout.Capacity(viewportWidth))), viewportWidth, this.ShowMinimap);
         if (hit >= 0)
         {
             ushort id = effects[hit].EffectId;
@@ -128,7 +138,7 @@ internal sealed class StatusEffectStripWidget
     public bool IsOver(Vector2 mouse, IReadOnlyList<LocalStatusEffect> effects, int viewportWidth)
     {
         ArgumentNullException.ThrowIfNull(effects);
-        return !_suppressed && (StatusEffectStripLayout.HitTest(mouse, Math.Min(effects.Count, Math.Min(MaxIcons, StatusEffectStripLayout.Capacity(viewportWidth))), viewportWidth) >= 0 ||
+        return !_suppressed && (StatusEffectStripLayout.HitTest(mouse, Math.Min(effects.Count, Math.Min(MaxIcons, StatusEffectStripLayout.Capacity(viewportWidth))), viewportWidth, this.ShowMinimap) >= 0 ||
             (this.IsPanelOpen && _panel.Contains(mouse)));
     }
 
@@ -155,7 +165,8 @@ internal sealed class StatusEffectStripWidget
 
         IReadOnlyList<LocalStatusEffect> effects = world.LocalStatusEffects;
         _count = Math.Min(effects.Count, Math.Min(MaxIcons, StatusEffectStripLayout.Capacity(viewportWidth)));
-        _hovered = mouse is Vector2 m ? StatusEffectStripLayout.HitTest(m, _count, viewportWidth) : -1;
+        this.Rows = StatusEffectStripLayout.Rows(_count, viewportWidth);
+        _hovered = mouse is Vector2 m ? StatusEffectStripLayout.HitTest(m, _count, viewportWidth, this.ShowMinimap) : -1;
         _panelLines.Clear();
         this.PrepareTooltip(world, font, effects, viewportWidth);
         if (!this.IsPanelOpen)
@@ -195,7 +206,7 @@ internal sealed class StatusEffectStripWidget
         float textWidth = StatusEffectStripLayout.PanelWidth - (PanelPadding * 2f);
         _descriptionHeight = font.MeasureString(description, new TextLayoutOptions(textWidth, wordWrap: true), 1f).Height;
         float height = (PanelPadding * 2f) + 24f + _descriptionHeight + 8f + ((_panelLines.Count + 1) * LineHeight) + 6f;
-        _panel = StatusEffectStripLayout.Panel(height, viewportWidth);
+        _panel = StatusEffectStripLayout.Panel(height, viewportWidth, this.ShowMinimap);
     }
 
     public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin, IWorldReadModel world, int viewportWidth)
@@ -207,7 +218,7 @@ internal sealed class StatusEffectStripWidget
         int count = Math.Min(_count, effects.Count);
         for (int i = 0; i < count; i++)
         {
-            RectangleF rect = StatusEffectStripLayout.Icon(i, viewportWidth);
+            RectangleF rect = StatusEffectStripLayout.Icon(i, viewportWidth, this.ShowMinimap);
             bool buff = catalog.TryGet(effects[i].EffectId, out StatusEffectDefinition def) && def.Category == StatusCategory.Buff;
             skin.DrawInset(spriteBatch, rect, CarbonUiPalette.WindowFill, buff ? s_buffFrame : s_debuffFrame);
         }
@@ -231,7 +242,7 @@ internal sealed class StatusEffectStripWidget
         int count = Math.Min(_count, effects.Count);
         for (int i = 0; i < count; i++)
         {
-            RectangleF rect = StatusEffectStripLayout.Icon(i, viewportWidth);
+            RectangleF rect = StatusEffectStripLayout.Icon(i, viewportWidth, this.ShowMinimap);
             Vector2 center = new(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.5f));
             if (art is not null && catalog.TryGet(effects[i].EffectId, out StatusEffectDefinition def) &&
                 art.TryGetUiIcon(def.Icon, out CompiledItemVectorArt? icon))
@@ -262,7 +273,7 @@ internal sealed class StatusEffectStripWidget
         Span<char> stack = stackalloc char[4];
         for (int i = 0; i < count; i++)
         {
-            RectangleF rect = StatusEffectStripLayout.Icon(i, viewportWidth);
+            RectangleF rect = StatusEffectStripLayout.Icon(i, viewportWidth, this.ShowMinimap);
             LocalStatusEffect effect = effects[i];
             if (effect.Stacks > 1)
             {
@@ -279,7 +290,7 @@ internal sealed class StatusEffectStripWidget
             if (effect.IsTimed)
             {
                 string countdown = FormatShortTime(_countdowns[i], effect.RemainingSeconds);
-                // The clock sits right under the strip, so the countdown goes inside the icon, bottom left.
+                // The next row (or the toasts) sits right under each icon, so the countdown goes inside it, bottom left.
                 spriteBatch.DrawOutlinedString(font, countdown, new Vector2(rect.X + 2f, rect.Y + rect.Height - 13f), CarbonUiPalette.TextPrimary, outline, 1, 0.75f);
             }
         }
@@ -411,7 +422,7 @@ internal sealed class StatusEffectStripWidget
     }
 
     /// <summary>
-    /// Lays out the hover tooltip in a backed box next to the clock and minimap column (see
+    /// Lays out the hover tooltip in a backed box to the left of the strip (see
     /// <see cref="StatusEffectStripLayout.Tooltip"/>).
     /// </summary>
     private void PrepareTooltip(IWorldReadModel world, BitmapFont font, IReadOnlyList<LocalStatusEffect> effects, int viewportWidth)
@@ -429,7 +440,7 @@ internal sealed class StatusEffectStripWidget
             ? _tooltip.Format("status_effects.tooltip", new TextArg("name", name), new TextArg("time", FormatTime(_tooltipTime, effect.RemainingSeconds)))
             : _tooltip.Format("status_effects.tooltip_untimed", new TextArg("name", name));
         float width = font.MeasureString(_tooltipText, TextLayoutOptions.Default, 1f).Width + 16f;
-        _tooltipBox = StatusEffectStripLayout.Tooltip(width, viewportWidth);
+        _tooltipBox = StatusEffectStripLayout.Tooltip(width, _hovered, viewportWidth, this.ShowMinimap);
     }
 
     private void DrawPanelText(SpriteBatch spriteBatch, BitmapFont font, StatusEffectDefinition def)

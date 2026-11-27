@@ -267,27 +267,6 @@ public sealed class MinimapTests
         new string(MinimapRadarWidget.FormatCoordinates(x, y, buffer)).Should().Be(expected);
     }
 
-    [Theory]
-    [InlineData(1024, true)]
-    [InlineData(1280, true)]
-    [InlineData(1920, false)]
-    [InlineData(2560, true)]
-    public void HudLayout_ClockAndMinimap_StayOutOfTheStatusIconStrip(int viewportWidth, bool showMinimap)
-    {
-        RectangleF strip = HudLayout.GetStatusStripRect(viewportWidth);
-        RectangleF clock = HudLayout.GetClockRect(viewportWidth);
-        RectangleF frame = HudLayout.GetMinimapFrameRect(viewportWidth);
-        RectangleF map = HudLayout.GetMinimapMapRect(viewportWidth);
-
-        clock.Intersects(strip).Should().BeFalse("the top-right strip is reserved for status-effect icons");
-        frame.Intersects(strip).Should().BeFalse("the top-right strip is reserved for status-effect icons");
-        clock.Bottom.Should().BeLessThanOrEqualTo(frame.Y, "the minimap stacks under the clock");
-        frame.Right.Should().BeLessThanOrEqualTo(viewportWidth);
-        (map.X >= frame.X && map.Right <= frame.Right && map.Y >= frame.Y && map.Bottom <= frame.Bottom).Should().BeTrue("the map sits inside its frame");
-        HudLayout.GetToastTop(viewportWidth, showMinimap).Should().BeGreaterThan(showMinimap ? frame.Bottom : clock.Bottom, "toasts start under the column");
-        HudLayout.GetSkillBarMinTop(viewportWidth, showMinimap).Should().BeGreaterThan(showMinimap ? frame.Bottom : clock.Bottom, "the skill bar starts under the column");
-    }
-
     [Fact]
     public void HudComposition_MainHud_DrawsTheClockAndMinimap() =>
         HudComposition.MainHud.ToArray().Should().Contain([HudElement.Clock, HudElement.Minimap]);

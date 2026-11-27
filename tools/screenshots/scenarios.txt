@@ -66,7 +66,7 @@ inventory_destroy  | CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_UI
 inventory_tiers         | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STARTER_ITEMS=3+1,3+3,3+4,3+6,3+7,3+8,3+9,3+10,18+5,21+10,187+9,31+10,24+2 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=inventory
 tiers_hover             | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STARTER_ITEMS=3+1,3+3,3+4,3+6,3+7,3+8,3+9,3+10,18+5,21+10,187+9,31+10,24+2 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=inventory-tooltip:15
 
-# --- death screen (ADR-031, CARBON_UI_PREVIEW=death: a sample slime kill that dropped 1,250 gold; visual only) ---
+# --- death screen (ADR-031, CARBON_UI_PREVIEW=death: a sample slime kill; the gold drop is not shown; visual only) ---
 death_screen       | CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=death
 death_screen_night | CARBON_DEBUG_START_HOUR=22 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=death
 
@@ -107,13 +107,15 @@ interact_trade     | CARBON_DEBUG_SPAWN_POI=RiverVillage CARBON_DEBUG_START_HOUR
 # --- classless start (ADR-030): the creator has no class choice, and new characters arrive empty-handed ---
 char_creator       | | CARBON_AUTO_LOGIN=0 CARBON_CAPTURE_SCENE=characters
 
-# --- status effects (ADR-029): top-right strip, hover tooltip, details panel, poison vignette ---
+# --- status effects (ADR-029): strip under the minimap and clock, hover tooltip, details panel, poison vignette ---
 status_strip       | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STATUS_EFFECTS=v2;poisoned:110000:2:2;bleeding:40000:1:3;slowed:90000:1:4;rested:540000:1:1 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=status-hover:2
 status_details     | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STATUS_EFFECTS=v2;poisoned:110000:2:2;bleeding:40000:1:3;slowed:90000:1:4;rested:540000:1:1 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=status-details:0
 status_monster     | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STATUS_EFFECTS=v2;weakness:110000:1:2;burning:90000:2:2;frostbite:80000:1:1 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=status-details:0
 status_blind       | CARBON_DEBUG_SPAWN_OFFSET=13,23 CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STATUS_EFFECTS=v2;blindness:110000:1:3 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=status-hover:0
+# six effects wrap onto a second row under the minimap and clock; hover one on the second row
+status_wrap        | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STATUS_EFFECTS=v2;poisoned:110000:2:2;bleeding:40000:1:3;slowed:90000:1:4;rested:540000:1:1;weakness:110000:1:2;burning:90000:2:2 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=status-hover:5
 
-# --- HUD column: day/night clock + minimap (status-effect strip stays clear at the top right) ---
+# --- HUD column: minimap at the top right, day/night clock under it, status-effect strip below ---
 hud_day            | CARBON_DEBUG_SPAWN_OFFSET=13,23 CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear
 hud_dusk           | CARBON_DEBUG_SPAWN_OFFSET=13,23 CARBON_DEBUG_START_HOUR=17.5 | CARBON_WEATHER=clear
 hud_night          | CARBON_DEBUG_SPAWN_OFFSET=13,23 CARBON_DEBUG_START_HOUR=23 | CARBON_WEATHER=clear
