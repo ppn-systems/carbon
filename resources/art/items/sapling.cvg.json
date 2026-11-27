@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "itemId": 214,
+  "id": "sapling",
+  "displayName": "Sapling",
+  "tier": 1,
+  "categoryLabel": "Material",
+  "accentColor": "#40916C",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.7,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0.0,
+      "y": 6.0,
+      "rx": 5.6,
+      "ry": 2.4,
+      "color": "#6B4A2B",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": 0.0,
+      "y": 5.5,
+      "x2": 0.4,
+      "y2": -6.0,
+      "thickness": 1.6,
+      "color": "#7C4A26"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -3.6,
+      "y": -3.0,
+      "rx": 3.0,
+      "ry": 1.5,
+      "color": "#40916C",
+      "rotDeg": -30.0,
+      "outlineColor": "#1B4332",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 3.8,
+      "y": -4.6,
+      "rx": 3.0,
+      "ry": 1.5,
+      "color": "#40916C",
+      "rotDeg": 30.0,
+      "outlineColor": "#1B4332",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0.4,
+      "y": -7.6,
+      "rx": 2.0,
+      "ry": 3.0,
+      "color": "#52B788",
+      "outlineColor": "#1B4332",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0.1,
+      "y": -8.2,
+      "rx": 0.8,
+      "ry": 1.6,
+      "color": "#B7E4C7"
+    }
+  ],
+  "heldVisible": false
+}

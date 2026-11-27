@@ -45,6 +45,14 @@ public interface IVectorArtRepository
     /// <summary>Resolves a HUD icon (e.g. <c>coin</c>, <c>diamond</c>) declared under <c>uiIcons</c> in <c>catalog.cvg.json</c>.</summary>
     bool TryGetUiIcon(string iconId, [NotNullWhen(true)] out CompiledItemVectorArt? icon);
 
+    /// <summary>
+    /// Resolves the sapling every tree shows at the sapling growth stage (ADR-040), declared as <c>treeSapling</c> in
+    /// <c>catalog.cvg.json</c>.
+    /// </summary>
+    /// <param name="sapling">The compiled art.</param>
+    /// <returns><see langword="true"/> when the catalog declares it.</returns>
+    bool TryGetTreeSapling([NotNullWhen(true)] out CompiledPropArt? sapling);
+
     /// <summary>Resolves a compiled natural prop/tree definition by <c>MapPropType</c> (<c>1..22</c>).</summary>
     bool TryGetProp(byte propType, [NotNullWhen(true)] out CompiledPropArt? prop);
 

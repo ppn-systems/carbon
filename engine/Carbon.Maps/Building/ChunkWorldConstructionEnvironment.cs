@@ -28,7 +28,9 @@ public sealed class ChunkWorldConstructionEnvironment : IConstructionEnvironment
     public MapTile GetTerrain(int worldTileX, int worldTileY) => _world.PeekTileAtWorld(worldTileX, worldTileY);
 
     /// <inheritdoc/>
-    public bool HasSolidProp(int worldTileX, int worldTileY) => _world.HasSolidPropAt(worldTileX, worldTileY);
+    /// <remarks>A stump or sapling also blocks building (ADR-040 D1): dig the stump up to clear the tile.</remarks>
+    public bool HasSolidProp(int worldTileX, int worldTileY) =>
+        _world.HasSolidPropAt(worldTileX, worldTileY) || _world.HasGrowingTreeAt(worldTileX, worldTileY);
 
     /// <inheritdoc/>
     public bool IsOccupiedByEntity(int worldTileX, int worldTileY) => _isEntityAt?.Invoke(worldTileX, worldTileY) ?? false;

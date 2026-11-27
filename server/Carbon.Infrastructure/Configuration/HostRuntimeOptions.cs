@@ -231,6 +231,7 @@ public sealed class HostRuntimeOptions
             WornGear = string.Equals(readEnv("CARBON_DEBUG_WORN_GEAR"), "1", StringComparison.Ordinal),
             WornGearPercents = ParseWornGearPercents(readEnv("CARBON_DEBUG_WORN_GEAR")),
             StatusEffects = readEnv("CARBON_DEBUG_STATUS_EFFECTS")?.Trim() ?? string.Empty,
+            TreeStages = string.Equals(readEnv("CARBON_DEBUG_TREE_STAGES"), "1", StringComparison.Ordinal),
         };
 #else
         return new WorldDebugOverrides();

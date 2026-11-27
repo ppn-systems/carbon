@@ -65,8 +65,14 @@ public sealed record WorldDebugOverrides
     /// </summary>
     public string StatusEffects { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Gets a value indicating whether the trees nearest the spawn start at each growth stage in turn (stump, sapling,
+    /// young, mature; ADR-040) and stay there, for screenshot review of the stage art.
+    /// </summary>
+    public bool TreeStages { get; init; }
+
     /// <summary>Gets a value indicating whether any override is set.</summary>
     public bool IsActive => this.SpawnTile.HasValue || this.SpawnBiome is not null || this.SpawnPoi is not null || this.StartHour.HasValue ||
         this.SpawnOffset != default || this.StartLevel.HasValue || this.ForgeKit || this.StarterItems.Count > 0 || this.WornGear || this.WornGearPercents.Count > 0 ||
-        this.StatusEffects.Length > 0;
+        this.StatusEffects.Length > 0 || this.TreeStages;
 }

@@ -241,7 +241,16 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
 
             updated = current with { Destructibility = current.Destructibility.ApplyDamage(damage) };
             chunk.SetProp(index, updated);
-            _deltas.GetOrAdd(cx, cy).SetPropState(lx, ly, updated.Destructibility, respawnAtTick);
+            ChunkDelta delta = _deltas.GetOrAdd(cx, cy);
+            TreeGrowth growth = delta.GrowthAt(ChunkDelta.ToLocalIndex(lx, ly));
+            ulong at = respawnAtTick;
+            if (growth.Stage != TreeGrowthStage.Mature && !updated.Destructibility.IsDestroyed && delta.TryGetRespawnTick(lx, ly, out ulong growsAt))
+            {
+                // A damaged stump or young tree keeps growing on schedule (ADR-040 D1).
+                at = growsAt;
+            }
+
+            delta.SetPropState(lx, ly, updated.Destructibility, at, growth);
             return true;
         }
     }
@@ -293,6 +302,28 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
         float currentDurability,
         bool isDestroyed,
         out MapProp previous,
+        out MapProp updated) =>
+        this.TrySetPropStateAt(worldTileX, worldTileY, currentDurability, isDestroyed, TreeGrowthStage.Mature, out previous, out updated);
+
+    /// <summary>
+    /// Synchronizes an authoritative prop state at a world tile on the client, including its tree growth stage (ADR-040).
+    /// A stage change resets the durability scale to the new stage's durability.
+    /// </summary>
+    /// <param name="worldTileX">World tile X.</param>
+    /// <param name="worldTileY">World tile Y.</param>
+    /// <param name="currentDurability">Authoritative remaining durability.</param>
+    /// <param name="isDestroyed">Whether the prop is destroyed.</param>
+    /// <param name="stage">The tree growth stage (mature for every other prop).</param>
+    /// <param name="previous">Prop snapshot prior to applying this state update.</param>
+    /// <param name="updated">Updated prop snapshot.</param>
+    /// <returns><see langword="true"/> if a matching prop exists on the tile; otherwise <see langword="false"/>.</returns>
+    public bool TrySetPropStateAt(
+        int worldTileX,
+        int worldTileY,
+        float currentDurability,
+        bool isDestroyed,
+        TreeGrowthStage stage,
+        out MapProp previous,
         out MapProp updated)
     {
         int cx = Chunk2D.ToChunkCoord(worldTileX);
@@ -312,50 +343,63 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
             }
 
             previous = chunk.Props[index];
-            float maxDur = MathF.Max(1f, previous.Destructibility.MaxDurability);
+            PropDestructibility basis = previous.Destructibility;
+            if (stage != previous.GrowthStage)
+            {
+                // A new stage has its own durability scale; the server's value is the full durability of that stage.
+                basis = basis with { MaxDurability = MathF.Max(1f, currentDurability) };
+            }
+
+            float maxDur = MathF.Max(1f, basis.MaxDurability);
             float clamped = isDestroyed ? 0f : Math.Clamp(currentDurability, 0f, maxDur);
-            PropDestructibility nextState = previous.Destructibility with
+            PropDestructibility nextState = basis with
             {
                 CurrentDurability = clamped,
                 IsDestroyed = isDestroyed || clamped <= 0f,
             };
 
-            updated = previous with { Destructibility = nextState };
+            updated = previous with { Destructibility = nextState, GrowthStage = stage };
             chunk.SetProp(index, updated);
-            _deltas.GetOrAdd(cx, cy).SetPropState(lx, ly, nextState);
+            _deltas.GetOrAdd(cx, cy).SetPropState(lx, ly, nextState, 0UL, stage == TreeGrowthStage.Mature ? default : new TreeGrowth(stage, previous.Type));
             return true;
         }
     }
 
     /// <summary>
-    /// Restores any destroyed props whose scheduled respawn tick has been reached.
+    /// Restores any destroyed props whose scheduled respawn tick has been reached, and grows due trees to their next stage
+    /// at once (no growth rules: a growing tree comes back mature).
     /// </summary>
     /// <param name="currentTick">Current simulation tick.</param>
-    /// <returns>The total number of props respawned.</returns>
+    /// <returns>The total number of props respawned or grown.</returns>
     public int ProcessPropRespawns(ulong currentTick) =>
-        this.ProcessPropRespawns(currentTick, blockedRetryTicks: 1UL, isTileBlocked: null, respawnedProps: null);
+        this.ProcessPropRespawns(currentTick, rules: null, tickRate: 1, isTileBlocked: null, isTileWatched: null, respawnedProps: null);
 
     /// <summary>
-    /// Restores any destroyed props whose scheduled respawn tick has been reached and optionally collects the restored
-    /// world tile coordinates &amp; max durability for network replication. A prop never comes back inside a structure or
-    /// on a construction site, or on a tile <paramref name="isTileBlocked"/> reports (e.g. a player standing there): its respawn moves
-    /// <paramref name="blockedRetryTicks"/> later instead. Allocation-free once the destination has capacity: a resident
-    /// chunk gets its prop back at full durability in place, and a chunk that is not resident regenerates it from the seed
-    /// when it next loads.
+    /// Restores destroyed props whose respawn tick has been reached and grows due trees one stage (ADR-040 D1: stump,
+    /// sapling, young, mature), optionally collecting each changed prop for replication. A prop never comes back or grows
+    /// inside a structure, on a construction site, or on a tile <paramref name="isTileBlocked"/> reports (e.g. a player
+    /// stands there). A tree also waits while <paramref name="isTileWatched"/> reports a player nearby, so a stage never
+    /// changes in front of them. A prop that waits tries again after the rules' blocked retry delay. Allocation-free once
+    /// the destination has capacity: a resident chunk is changed in place, and a chunk that is not resident applies the
+    /// delta when it next loads.
     /// </summary>
     /// <param name="currentTick">Current simulation tick.</param>
-    /// <param name="blockedRetryTicks">Ticks a blocked respawn waits before it is tried again (at least 1).</param>
+    /// <param name="rules">Regrowth rules (stage durations and durabilities, retry delay); <see langword="null"/>: due trees come back mature and blocked props retry next tick.</param>
+    /// <param name="tickRate">World ticks per second.</param>
     /// <param name="isTileBlocked">Optional check of a world tile (X, Y) the caller knows is occupied.</param>
-    /// <param name="respawnedProps">Optional destination for the restored props.</param>
-    /// <returns>The total number of props respawned.</returns>
+    /// <param name="isTileWatched">Optional check of whether a player is close enough to a world tile to see a tree grow.</param>
+    /// <param name="respawnedProps">Optional destination for the changed props: tile, chunk revision, durability and stage.</param>
+    /// <returns>The total number of props respawned or grown.</returns>
     public int ProcessPropRespawns(
         ulong currentTick,
-        ulong blockedRetryTicks,
+        PropRegrowthRules? rules,
+        int tickRate,
         Func<int, int, bool>? isTileBlocked,
-        List<(int TileX, int TileY, uint Revision, float MaxDurability)>? respawnedProps)
+        Func<int, int, bool>? isTileWatched,
+        List<(int TileX, int TileY, uint Revision, float Durability, TreeGrowthStage Stage)>? respawnedProps)
     {
         int respawned = 0;
-        ulong retryAt = currentTick + Math.Max(1UL, blockedRetryTicks);
+        ulong retryAt = currentTick + (rules?.BlockedRetryTicks(tickRate) ?? 1UL);
         lock (_gate)
         {
             ReadOnlySpan<ChunkDelta> all = _deltas.All;
@@ -383,11 +427,30 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
                     int ly = key >> Chunk2D.SizeBits;
                     int tx = baseTx + lx;
                     int ty = baseTy + ly;
+                    TreeGrowth growth = delta.GrowthAt(key);
                     if ((_buildings.TryGetStructure(tx, ty, out StructureTile structure) && structure.IsOccupied) ||
                         _construction.IsReserved(tx, ty) ||
-                        (isTileBlocked is not null && isTileBlocked(tx, ty)))
+                        (isTileBlocked is not null && isTileBlocked(tx, ty)) ||
+                        (growth.Stage != TreeGrowthStage.Mature && isTileWatched is not null && isTileWatched(tx, ty)))
                     {
                         delta.DeferRespawn(key, retryAt);
+                        continue;
+                    }
+
+                    int pIdx = resident ? chunk!.FindPropIndexAt(lx, ly) : -1;
+                    TreeGrowthStage next = TreeGrowthRules.NextStage(growth.Stage);
+                    if (growth.Stage != TreeGrowthStage.Mature && next != TreeGrowthStage.Mature && rules is not null)
+                    {
+                        // One stage further: the delta keeps the tree type, so this works while the chunk is not loaded.
+                        PropDestructibility grown = rules.Trees.StateOf(growth.Type, next);
+                        delta.SetPropState(lx, ly, grown, currentTick + rules.Trees.StageTicks(next, tickRate), new TreeGrowth(next, growth.Type));
+                        if (pIdx >= 0)
+                        {
+                            chunk!.SetProp(pIdx, chunk.Props[pIdx] with { Destructibility = grown, GrowthStage = next });
+                        }
+
+                        respawned++;
+                        respawnedProps?.Add((tx, ty, delta.Revision, grown.CurrentDurability, next));
                         continue;
                     }
 
@@ -397,17 +460,16 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
                     }
 
                     respawned++;
-                    int pIdx = resident ? chunk!.FindPropIndexAt(lx, ly) : -1;
-                    float maxDur = 100f;
+                    float durability = growth.Stage != TreeGrowthStage.Mature ? MapProp.BaselineDestructibility(growth.Type).MaxDurability : 100f;
                     if (pIdx >= 0)
                     {
                         MapProp prop = chunk!.Props[pIdx];
-                        PropDestructibility state = prop.Destructibility;
-                        maxDur = state.MaxDurability;
-                        chunk.SetProp(pIdx, prop with { Destructibility = state with { CurrentDurability = maxDur, IsDestroyed = false } });
+                        PropDestructibility baseline = MapProp.BaselineDestructibility(prop.Type);
+                        durability = baseline.MaxDurability;
+                        chunk.SetProp(pIdx, prop with { Destructibility = baseline, GrowthStage = TreeGrowthStage.Mature });
                     }
 
-                    respawnedProps?.Add((tx, ty, delta.Revision, maxDur));
+                    respawnedProps?.Add((tx, ty, delta.Revision, durability, TreeGrowthStage.Mature));
                 }
             }
 
@@ -416,6 +478,52 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
 
         return respawned;
     }
+
+    /// <summary>
+    /// Sets the tree on a world tile to a growth stage (ADR-040 D1): a felled tree becomes a stump, and a dug-up stump is
+    /// destroyed for good. Records it in the chunk delta with the tick it grows into the next stage.
+    /// </summary>
+    /// <param name="worldTileX">World tile X.</param>
+    /// <param name="worldTileY">World tile Y.</param>
+    /// <param name="stage">The stage.</param>
+    /// <param name="state">The prop state at that stage (destroyed for a dug-up stump).</param>
+    /// <param name="nextStageTick">The tick it grows into the next stage (0 = never).</param>
+    /// <param name="updated">The prop after the change.</param>
+    /// <returns><see langword="true"/> when a tree stands on the tile.</returns>
+    public bool TrySetTreeStageAt(int worldTileX, int worldTileY, TreeGrowthStage stage, PropDestructibility state, ulong nextStageTick, out MapProp updated)
+    {
+        int cx = Chunk2D.ToChunkCoord(worldTileX);
+        int cy = Chunk2D.ToChunkCoord(worldTileY);
+        int lx = Chunk2D.ToLocalCoord(worldTileX);
+        int ly = Chunk2D.ToLocalCoord(worldTileY);
+        Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
+        lock (_gate)
+        {
+            int index = chunk.FindPropIndexAt(lx, ly);
+            if (index < 0 || !MapProp.IsTree(chunk.Props[index].Type))
+            {
+                updated = default;
+                return false;
+            }
+
+            updated = chunk.Props[index] with { Destructibility = state, GrowthStage = stage };
+            chunk.SetProp(index, updated);
+            _deltas.GetOrAdd(cx, cy).SetPropState(lx, ly, state, nextStageTick, new TreeGrowth(stage, updated.Type));
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Gets whether a tree that is not full grown stands on the tile (a stump or a sapling). It does not block movement, but
+    /// nothing is built on it: dig the stump up first (ADR-040 D1).
+    /// </summary>
+    /// <param name="worldTileX">World tile X.</param>
+    /// <param name="worldTileY">World tile Y.</param>
+    /// <returns><see langword="true"/> for a standing stump or sapling.</returns>
+    public bool HasGrowingTreeAt(int worldTileX, int worldTileY) =>
+        this.TryGetPropAt(worldTileX, worldTileY, out MapProp prop) &&
+        !prop.Destructibility.IsDestroyed &&
+        prop.GrowthStage is TreeGrowthStage.Stump or TreeGrowthStage.Sapling;
 
     /// <summary>
     /// Schedules the respawn of every destroyed prop read from a storage row older than format 4 (which kept no timers;

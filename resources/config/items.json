@@ -1812,6 +1812,22 @@
       ],
       "placeableStructureType": 20,
       "actionHint": "Builder | Place Plank Deck (raised boardwalk)"
+    },
+    {
+      "id": 214,
+      "code": "sapling",
+      "name": "Sapling",
+      "category": "resource",
+      "rarity": "common",
+      "tier": 0,
+      "maxStack": 20,
+      "basePrice": 1,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "plant"
+      ],
+      "actionHint": "Seedling | From felled trees & dug-up stumps"
     }
   ]
 }

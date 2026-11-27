@@ -53,7 +53,7 @@ internal sealed class StatusRecordingSink : IWorldOutboundSink
     public void SendEntityDeltaBatch(ulong connectionId, ulong serverTick, uint lastProcessedClientTick, float selfX, float selfY, ReadOnlySpan<EntityDeltaEntry> entries) =>
         this.SelfPositions[connectionId] = new Vector2(selfX, selfY);
 
-    public void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, float durability, bool isDestroyed)
+    public void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, float durability, bool isDestroyed, byte growthStage)
     {
     }
 

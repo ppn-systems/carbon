@@ -45,16 +45,17 @@ public sealed class DeadFieldRemovalContractTests
     }
 
     [Fact]
-    public void MapPropChanged_RoundTrip_KeepsTileDurabilityAndDestroyed()
+    public void MapPropChanged_RoundTrip_KeepsTileDurabilityDestroyedAndGrowthStage()
     {
-        using MapPropChanged packet = new() { TileX = -12, TileY = 300, Durability = 7.5f, IsDestroyed = true };
+        using MapPropChanged packet = new() { TileX = -12, TileY = 300, Durability = 7.5f, IsDestroyed = true, GrowthStage = 1 };
         using MapPropChanged copy = MapPropChanged.Deserialize(packet.Serialize());
 
         Assert.Equal(-12, copy.TileX);
         Assert.Equal(300, copy.TileY);
         Assert.Equal(7.5f, copy.Durability);
         Assert.True(copy.IsDestroyed);
-        Assert.Equal((2 * sizeof(int)) + sizeof(float) + sizeof(bool), PayloadLength(packet.Serialize()));
+        Assert.Equal((byte)1, copy.GrowthStage);
+        Assert.Equal((2 * sizeof(int)) + sizeof(float) + sizeof(bool) + sizeof(byte), PayloadLength(packet.Serialize()));
     }
 
     [Fact]

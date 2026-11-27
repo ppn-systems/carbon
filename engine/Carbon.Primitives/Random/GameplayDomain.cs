@@ -43,4 +43,7 @@ public static class GameplayDomain
 
     /// <summary><see cref="GameplayKey.GetHashCode"/> (never a roll).</summary>
     public const ulong HashCode = 0x5F485341485F4B47UL; // "GK_HASH_"
+
+    /// <summary>Sapling items a felled tree or a dug-up stump drops (ADR-040 D1).</summary>
+    public const ulong SaplingDrop = 0x4E4C5041535F4B47UL; // "GK_SAPLN"
 }

@@ -3,6 +3,7 @@
 using System;
 using System.Numerics;
 using Carbon.Application.World.Construction;
+using Carbon.Application.World.Entropy;
 using Carbon.Application.World.Loot;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
@@ -13,6 +14,7 @@ using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
+using Carbon.Primitives.Random;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.World;
 using System.Collections.Generic;
@@ -38,10 +40,19 @@ internal readonly record struct PropStrikeResult(bool Damaged, MapProp Prop, uin
 /// </summary>
 internal sealed class PropHarvestService
 {
+    /// <summary>Item code of the wood a felled tree or a dug-up stump drops.</summary>
+    public const string WoodLogCode = "wood_log";
+
+    /// <summary>Item code of the sapling a felled tree or a dug-up stump may drop (ADR-040 D1).</summary>
+    public const string SaplingCode = "sapling";
+
     private readonly WorldSimulation _simulation;
     private readonly ChunkWorld2D _chunkWorld;
     private readonly float _tileSize;
     private readonly Func<MapPropType, int, int, ulong> _regrowDelayTicks;
+    private readonly Func<TreeGrowthRules> _treeRules;
+    private readonly int _tickRate;
+    private readonly GameplayEntropy _entropy;
     private readonly Func<ItemRules> _itemRules;
     private readonly Func<ulong> _currentTick;
     private readonly GroundLootService _groundLoot;
@@ -59,6 +70,9 @@ internal sealed class PropHarvestService
         ChunkWorld2D chunkWorld,
         float tileSize,
         Func<MapPropType, int, int, ulong> regrowDelayTicks,
+        Func<TreeGrowthRules> treeRules,
+        int tickRate,
+        GameplayEntropy entropy,
         Func<ItemRules> itemRules,
         Func<ulong> currentTick,
         GroundLootService groundLoot,
@@ -74,6 +88,9 @@ internal sealed class PropHarvestService
         _chunkWorld = chunkWorld ?? throw new ArgumentNullException(nameof(chunkWorld));
         _tileSize = tileSize;
         _regrowDelayTicks = regrowDelayTicks ?? throw new ArgumentNullException(nameof(regrowDelayTicks));
+        _treeRules = treeRules ?? throw new ArgumentNullException(nameof(treeRules));
+        _tickRate = tickRate;
+        _entropy = entropy ?? throw new ArgumentNullException(nameof(entropy));
         _itemRules = itemRules ?? throw new ArgumentNullException(nameof(itemRules));
         _currentTick = currentTick ?? throw new ArgumentNullException(nameof(currentTick));
         _groundLoot = groundLoot ?? throw new ArgumentNullException(nameof(groundLoot));
@@ -111,11 +128,15 @@ internal sealed class PropHarvestService
     {
         ArgumentNullException.ThrowIfNull(state);
         ItemRules rules = _itemRules();
-        PropStrikeEvaluation eval = ToolUsagePolicy.EvaluatePropStrike(
-            rules,
-            in activeSlot,
-            ToToolTargetKind(existing.Category),
-            existing.Destructibility.HarvestTier);
+        bool isTree = MapProp.IsTree(existing.Type);
+        TreeGrowthRules trees = _treeRules();
+        PropStrikeEvaluation eval = isTree && existing.GrowthStage == TreeGrowthStage.Stump
+            ? ToolUsagePolicy.EvaluateStumpDig(rules, in activeSlot, trees.DigBareHandDamage, trees.DigAxeEfficiency)
+            : ToolUsagePolicy.EvaluatePropStrike(
+                rules,
+                in activeSlot,
+                ToToolTargetKind(existing.Category),
+                existing.Destructibility.HarvestTier);
 
         toolWear = null;
         if (eval.DurabilityLoss > 0f && _wearTool(state, in activeSlot, eval.DurabilityLoss, out ItemSlot degradedSlot))
@@ -127,7 +148,8 @@ internal sealed class PropHarvestService
             }
         }
 
-        ulong regrowDelay = _regrowDelayTicks(existing.Type, tileX, tileY);
+        // Trees do not respawn whole: a felled one becomes a stump below (ADR-040 D1).
+        ulong regrowDelay = isTree ? 0UL : _regrowDelayTicks(existing.Type, tileX, tileY);
         ulong respawnAt = regrowDelay > 0UL ? _currentTick() + regrowDelay : 0UL;
         if (!_chunkWorld.TryDamagePropAt(tileX, tileY, eval.Damage, eval.EffectiveTier, respawnAt, out MapProp updated))
         {
@@ -136,7 +158,12 @@ internal sealed class PropHarvestService
 
         _ = _dirtyChunks.Add(Chunk2D.PackKey(Chunk2D.ToChunkCoord(tileX), Chunk2D.ToChunkCoord(tileY)));
         uint revision = this.ChunkRevision(tileX, tileY);
-        if (updated.Destructibility.IsDestroyed)
+        if (updated.Destructibility.IsDestroyed && isTree)
+        {
+            updated = this.FellOrDigUp(state, tileX, tileY, in existing, in updated, rules, trees);
+            revision = this.ChunkRevision(tileX, tileY);
+        }
+        else if (updated.Destructibility.IsDestroyed)
         {
             ItemSlot drop = PropHarvestCatalog.ResolveDrop(rules, updated.Type, out uint propXp);
             if (!drop.IsEmpty)
@@ -256,7 +283,7 @@ internal sealed class PropHarvestService
 
         if (hasBlocked)
         {
-            this.QueuePropChange(blockedTx, blockedTy, blockedProp.Destructibility.CurrentDurability, isDestroyed: false);
+            this.QueuePropChange(blockedTx, blockedTy, blockedProp.Destructibility.CurrentDurability, isDestroyed: false, blockedProp.GrowthStage);
             return;
         }
 
@@ -288,6 +315,45 @@ internal sealed class PropHarvestService
             {
                 _ = _construction.DamageStructure(aimTx, aimTy, dmg);
             }
+        }
+    }
+
+    /// <summary>
+    /// A tree just broke (ADR-040 D1). Felled at any stage above a stump, it becomes a stump that grows back; a stump that
+    /// broke was dug up, and the tile is clear for good. Drops the stage's wood and the sapling roll, and grants experience.
+    /// </summary>
+    private MapProp FellOrDigUp(PlayerState state, int tileX, int tileY, in MapProp existing, in MapProp broken, ItemRules rules, TreeGrowthRules trees)
+    {
+        ulong tick = _currentTick();
+        bool dugUp = existing.GrowthStage == TreeGrowthStage.Stump;
+        // Felled: a stump that grows back. Dug up: destroyed with no timer, so the tile stays clear (it can be built on).
+        PropDestructibility next = dugUp ? broken.Destructibility : trees.StateOf(existing.Type, TreeGrowthStage.Stump);
+        ulong growsAt = dugUp ? 0UL : tick + trees.StageTicks(TreeGrowthStage.Stump, _tickRate);
+        if (!_chunkWorld.TrySetTreeStageAt(tileX, tileY, TreeGrowthStage.Stump, next, growsAt, out MapProp after))
+        {
+            after = broken;
+        }
+
+        DeterministicRandom random = _entropy.KeyAt(tick).CreateRandom(GameplayDomain.SaplingDrop, tick, ((ulong)(uint)tileX << 32) | (uint)tileY);
+        int saplings = dugUp
+            ? (random.NextBool(trees.StumpSaplingChance) ? 1 : 0)
+            : (existing.GrowthStage == TreeGrowthStage.Mature ? random.NextInt(trees.SaplingDropMin, trees.SaplingDropMax + 1) : 0);
+        Vector2 dropPos = new((tileX + 0.5f) * _tileSize, (tileY + 0.5f) * _tileSize);
+        this.SpawnDrop(rules, dropPos, WoodLogCode, trees.YieldOf(existing.GrowthStage));
+        this.SpawnDrop(rules, dropPos + new Vector2(6f, 4f), SaplingCode, saplings);
+
+        _ = PropHarvestCatalog.ResolveDrop(rules, existing.Type, out uint propXp);
+        uint xp = existing.GrowthStage == TreeGrowthStage.Mature ? (propXp > 0U ? propXp : 15U) : 3U;
+        _grantHarvestExperience(state, xp);
+        return after;
+    }
+
+    private void SpawnDrop(ItemRules rules, Vector2 position, string code, int quantity)
+    {
+        if (quantity > 0 && rules.ItemCatalog.TryGetByCode(code, out ItemCatalogEntry? item))
+        {
+            ItemSlot drop = new(item.Id, quantity);
+            _groundLoot.Spawn(position, in drop);
         }
     }
 
@@ -335,16 +401,16 @@ internal sealed class PropHarvestService
             return false;
         }
 
-        this.QueuePropChange(wx, wy, strike.Prop.Destructibility.CurrentDurability, strike.Prop.Destructibility.IsDestroyed);
+        this.QueuePropChange(wx, wy, strike.Prop.Destructibility.CurrentDurability, strike.Prop.Destructibility.IsDestroyed, strike.Prop.GrowthStage);
         return true;
     }
 
-    private void QueuePropChange(int tileX, int tileY, float durability, bool isDestroyed)
+    private void QueuePropChange(int tileX, int tileY, float durability, bool isDestroyed, TreeGrowthStage stage)
     {
         (int offset, int count) = _appendTileRecipients(tileX, tileY);
         if (count > 0)
         {
-            _outbound.Pending.PropChanges.Add(new OutboundPropChange(offset, count, tileX, tileY, durability, isDestroyed));
+            _outbound.Pending.PropChanges.Add(new OutboundPropChange(offset, count, tileX, tileY, durability, isDestroyed, stage));
         }
     }
 }

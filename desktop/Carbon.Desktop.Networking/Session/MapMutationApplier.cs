@@ -50,6 +50,7 @@ internal sealed class MapMutationApplier
     /// <param name="tileY">World tile Y of the prop.</param>
     /// <param name="durability">Authoritative remaining durability.</param>
     /// <param name="isDestroyed">Whether the prop was destroyed.</param>
+    /// <param name="stage">The tree growth stage (ADR-040); a change to a stump is the tree being felled.</param>
     /// <param name="inventory">The local player's inventory (the held tool decides tier warnings).</param>
     /// <param name="selectedSlot">The selected hotbar slot.</param>
     /// <param name="items">The synced item catalog whose rules evaluate the strike.</param>
@@ -59,6 +60,7 @@ internal sealed class MapMutationApplier
         int tileY,
         float durability,
         bool isDestroyed,
+        TreeGrowthStage stage,
         InventoryContainer inventory,
         byte selectedSlot,
         SyncedItemCatalog items)
@@ -70,11 +72,20 @@ internal sealed class MapMutationApplier
             tileY,
             durability,
             isDestroyed,
+            stage,
             out MapProp previous,
             out MapProp updated))
         {
+            // ADR-040: a felled tree becomes a stump (it breaks like a destroyed prop); any other stage change is growth.
+            bool felled = updated.GrowthStage == TreeGrowthStage.Stump && previous.GrowthStage != TreeGrowthStage.Stump;
+            if (!felled && updated.GrowthStage != previous.GrowthStage)
+            {
+                return;
+            }
+
+            isDestroyed |= felled;
             float prevDur = previous.Destructibility.CurrentDurability;
-            float nextDur = updated.Destructibility.CurrentDurability;
+            float nextDur = felled ? 0f : updated.Destructibility.CurrentDurability;
             float damageDealt = MathF.Max(0f, prevDur - nextDur);
             bool wasTierBlocked = !isDestroyed &&
                 damageDealt <= 0.01f &&

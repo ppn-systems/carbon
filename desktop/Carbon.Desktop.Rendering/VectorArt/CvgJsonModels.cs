@@ -16,6 +16,7 @@ internal sealed class CvgCatalogDto
     public List<CvgBiomeCatalogDto> Biomes { get; set; } = [];
     public List<CvgStructureCatalogDto> Structures { get; set; } = [];
     public List<CvgUiIconCatalogDto> UiIcons { get; set; } = [];
+    public CvgUiIconCatalogDto? TreeSapling { get; set; }
 }
 
 internal sealed class CvgUiIconCatalogDto

@@ -138,4 +138,8 @@ public sealed partial class MapChunkDelta : PacketBase<MapChunkDelta>, IPacketSt
     /// <summary>Floor type covered by the structure per record (<c>Carbon.Maps.Building.StructureType</c>, 0 = none).</summary>
     [SerializeOrder(29)]
     public byte[] RecordFloorsBeneath { get; set; } = [];
+
+    /// <summary>Tree growth stage per prop state, parallel to <see cref="PropIndices"/> (<c>Carbon.Maps.Props.TreeGrowthStage</c>, ADR-040).</summary>
+    [SerializeOrder(30)]
+    public byte[] PropGrowthStages { get; set; } = [];
 }

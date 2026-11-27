@@ -32,14 +32,27 @@ What master (`6125a15`) does:
    - Felling a mature tree leaves a **stump**. The stump grows back through **stump → sapling → young tree → mature
      tree**. Each stage has its own duration, its own vector-art visual and its own harvest yield. The defaults add up
      to about 45 minutes of server time.
-   - A **young tree** can be felled for fewer logs; it goes back to a stump. A **stump** can be cleared for a little
-     wood. Clearing a stump removes it for good: the player cleared that land, often to build on it.
-   - Felling a mature tree also drops 0–2 **sapling** items, rolled on `GameplayEntropy` (ADR-026).
+   - A **young tree** or a **sapling** can be felled; it goes back to a stump. A young tree drops fewer logs.
+   - Felling a mature tree also drops 0–2 **sapling** items, rolled on `GameplayEntropy` (ADR-026,
+     `GameplayDomain.SaplingDrop`, keyed by tick and tile).
+   - Stumps and saplings have no collider and no canopy; a young tree has both, drawn at 60 % size. A stump draws the
+     tree's existing `remnantShapes`, a sapling the shared `props/tree_sapling.cvg.json`. All of it is vector art.
+   - Growth works while the chunk is not loaded: the chunk delta records the tree type with the stage.
    - A sapling item can be **planted** through the place flow on a natural ground tile within build reach that holds
      no structure, no construction site and no other prop. It creates a sapling-stage tree that grows like any other.
      The server validates reach, tile and occupancy.
    - Other flora (bushes, cactus, mushrooms, dune grass, dead trees, fallen branches) comes back whole after its own
      delay, with no stages.
+1b. **D1b — Digging up stumps** (owner addition). A player can dig up a stump to clear the land for building.
+   - Any tool works, and none is required. A pickaxe digs at its full mineral damage, an axe at `trees.dig.axeEfficiency`
+     (default 0.5) of its wood damage, and bare hands or anything else at `trees.dig.bareHandDamage`. That is slow, but
+     a fresh player is never blocked. A stump needs no tool tier.
+   - A dig strike is an ordinary swing: it costs stamina per ADR-033 and wears the tool. A blade dulls, as on wood.
+   - A dug-up stump is destroyed with no timer. It never regrows, it draws nothing, and the tile can be built on. An
+     undug stump or a sapling blocks building (`BuildResultCode.BlockedByNaturalObstacle`).
+   - Yield: `trees.stump.yield` logs (default 1) plus one sapling with chance `trees.stump.saplingChance` (default 0.5),
+     on the same entropy domain, so clearing land does not lose the tree.
+
 2. **D2 — Stone, boulders and ore never come back.** A destroyed mineral prop is permanent and stays persisted in its
    chunk delta. The world is infinite: exploration replaces regrowth. `props.json` cannot give a mineral a regrowth
    delay; the loader rejects it.
@@ -60,7 +73,18 @@ What master (`6125a15`) does:
    ```
 
    A prop type that is not listed never comes back. PR 2 moves the trees from `regrowSeconds` into a `trees` block
-   with per-stage `seconds` and `yield`, and PR 3 adds the sapling drop range.
+   (the loader rejects a tree in `regrowSeconds`):
+
+   ```json
+   "trees": {
+     "deferWithinTiles": 6,
+     "stump":   { "seconds": 900, "durability": 30, "yield": 1, "saplingChance": 0.5 },
+     "sapling": { "seconds": 900, "durability": 10, "yield": 0 },
+     "young":   { "seconds": 900, "durabilityShare": 0.5, "yield": 1 },
+     "mature":  { "yield": 3, "saplingDrops": { "min": 0, "max": 2 } },
+     "dig":     { "bareHandDamage": 4, "axeEfficiency": 0.5 }
+   }
+   ```
 5. **D5 — Regrowth survives a restart.** Chunk delta storage format 4 appends to each prop state the ticks left until
    it comes back (`uint32`, 0 = permanent), counted from the world tick at save time. On load the timer restarts from
    the current tick. Server downtime does not count as growth time, and a chunk saved before its last change loses at
@@ -69,8 +93,10 @@ What master (`6125a15`) does:
      (`ChunkWorld2D.ScheduleLegacyRespawns`) with the delay of their type, which needs the chunk's baseline to know the
      type. The rescheduled chunks are saved again in format 4. Mined stone and ore stay gone.
    - No SQL migration: `chunk_deltas.payload` is an opaque blob, and the format byte travels inside it.
-   - PR 2 adds the growth stage to each prop state (format 5), and PR 3 adds planted props (format 6), each with its
-     own legacy reader.
+   - Format 5 (PR 2) appends the growth stage and the tree type to each prop state. PR 3 adds planted props
+     (format 6). Each format keeps its own legacy reader.
+   - A tree felled before format 5 (destroyed, mature stage) is rescheduled with the stump stage's time and comes back
+     whole.
 6. **D6 — Nothing grows into an occupied tile.** When a prop is due, it waits `blockedRetrySeconds` and tries again
    instead if a structure, a construction site or a living player is on its tile. A stage change (PR 2) is also
    deferred while a player is within `trees.deferWithinTiles` tiles (default 6). The tree changes out of the player's
@@ -80,9 +106,11 @@ What master (`6125a15`) does:
    prop is restored in place in its resident chunk (`Chunk2D.SetProp`) instead of regenerating the chunk. A chunk that
    is not resident regenerates the prop from the seed when it next loads. `ServerTickAllocationTests` keeps its budget.
 8. **D8 — Wire.** PR 1 changes nothing on the wire: a prop that comes back is replicated through the existing
-   prop-changed path at full durability. PR 2 adds a growth stage byte array to `MapChunkDelta` and a stage field to
-   the prop-changed packet, both appended with new `[SerializeOrder]` numbers, and bumps `CarbonProtocol.Version`
-   (ADR-038 D5).
+   prop-changed path at full durability. PR 2 appends `MapChunkDelta.PropGrowthStages` (`[SerializeOrder(30)]`,
+   parallel to `PropIndices`) and `MapPropChanged.GrowthStage` (`[SerializeOrder(5)]`). It also bumps
+   `CarbonProtocol.Version` to 7. No opcode is added. Each stage change sends one `MapPropChanged` with the new stage's
+   full durability. The client treats a change to a stump as the tree breaking (fracture feedback) and any other stage
+   change as quiet growth.
 9. **D9 — Delivery.** Three PRs. (1) persistence fix, hot path, config-driven timing, permanent stone and fast spawn
    forage. (2) tree stages and stumps. (3) sapling drops and planting. `ProceduralWorldGenerator.GeneratorVersion` does
    not change: the world generator's output is the same.
