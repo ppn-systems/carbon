@@ -70,6 +70,7 @@ public static class Program
         IChunkDeltaRepository chunkDeltaRepo;
         ITraderStockRepository traderStockRepo;
         IGameplaySecretStore gameplaySecretStore;
+        IRememberTokenStore rememberTokenStore;
 
         if (pgSource is not null)
         {
@@ -79,6 +80,7 @@ public static class Program
             chunkDeltaRepo = new PgChunkDeltaRepository(pgSource);
             traderStockRepo = new PgTraderStockRepository(pgSource);
             gameplaySecretStore = new PgGameplaySecretStore(pgSource);
+            rememberTokenStore = new PgRememberTokenStore(pgSource);
         }
         else
         {
@@ -88,6 +90,7 @@ public static class Program
             chunkDeltaRepo = new SqliteChunkDeltaRepository(sqliteFactory!);
             traderStockRepo = new SqliteTraderStockRepository(sqliteFactory!);
             gameplaySecretStore = new SqliteGameplaySecretStore(sqliteFactory!);
+            rememberTokenStore = new SqliteRememberTokenStore(sqliteFactory!);
         }
 
         await migrator.MigrateAsync().ConfigureAwait(false);
@@ -140,7 +143,7 @@ public static class Program
             logger: logger);
         world.ApplyGameData(gameData.Economy, gameData.Needs, gameData.Food, gameData.Progression, gameData.StatusEffects, gameData.Stamina, gameData.Water);
         ServerGameData.BindHotReload(config, world);
-        using AuthService authService = new(accountStore, characterStore, hasher, time: null, () => world.ItemRules, () => world.Progression)
+        using AuthService authService = new(accountStore, characterStore, hasher, time: null, () => world.ItemRules, () => world.Progression, rememberTokenStore)
         {
             DebugForgeKit = options.DebugOverrides.ForgeKit,
             DebugStarterItems = options.DebugOverrides.StarterItems,

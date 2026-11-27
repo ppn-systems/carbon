@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Configuration;
@@ -47,12 +48,19 @@ public sealed class AuthService : IAuthService, IDisposable
     /// <summary>Upper bound on tracked client addresses; expired entries are pruned when it is exceeded.</summary>
     public const int MaxTrackedAddresses = 50_000;
 
+    /// <summary>Remember-me tokens one account may hold, one per remembered device; the oldest is dropped (ADR-037).</summary>
+    public const int MaxRememberTokensPerAccount = 10;
+
+    /// <summary>How long a remember-me token signs in before the player must type the password again (ADR-037).</summary>
+    public static readonly TimeSpan RememberTokenLifetime = TimeSpan.FromDays(30);
+
     private readonly IAccountStore _accounts;
     private readonly ICharacterStore _characters;
     private readonly IPasswordHasher _hasher;
     private readonly TimeProvider _time;
     private readonly Func<ItemRules> _itemRules;
     private readonly Func<ProgressionConfig> _progression;
+    private readonly IRememberTokenStore _rememberTokens;
     private readonly ConcurrentDictionary<Guid, LoginFailures> _loginFailures = new();
     private readonly ConcurrentDictionary<string, LoginFailures> _addressFailures = new(StringComparer.Ordinal);
     private readonly Lazy<(byte[] Hash, byte[] Salt)> _dummyCredentials;
@@ -81,18 +89,24 @@ public sealed class AuthService : IAuthService, IDisposable
     /// applies); defaults to the shipped item tables.
     /// </param>
     /// <param name="progression">Returns the world's current progression tuning; defaults to the shipped <c>progression.json</c>.</param>
+    /// <param name="rememberTokens">
+    /// Store of remember-me token hashes (ADR-037). The host passes its database store; the in-memory default serves
+    /// tests and forgets every token on restart.
+    /// </param>
     public AuthService(
         IAccountStore accounts,
         ICharacterStore characters,
         IPasswordHasher hasher,
         TimeProvider? time = null,
         Func<ItemRules>? itemRules = null,
-        Func<ProgressionConfig>? progression = null)
+        Func<ProgressionConfig>? progression = null,
+        IRememberTokenStore? rememberTokens = null)
     {
         _accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
         _characters = characters ?? throw new ArgumentNullException(nameof(characters));
         _hasher = hasher ?? throw new ArgumentNullException(nameof(hasher));
         _time = time ?? TimeProvider.System;
+        _rememberTokens = rememberTokens ?? new InMemoryRememberTokenStore();
         _dummyCredentials = new Lazy<(byte[], byte[])>(this.CreateDummyCredentials);
         if (itemRules is null)
         {
@@ -212,6 +226,71 @@ public sealed class AuthService : IAuthService, IDisposable
 
         _ = _loginFailures.TryRemove(existing.Id, out _);
         return new AuthOutcome(AuthStatus.Ok, existing.Id);
+    }
+
+    /// <inheritdoc/>
+    public async Task<RememberTokenIssue> IssueRememberTokenAsync(Guid accountId, CancellationToken ct = default)
+    {
+        if (accountId == Guid.Empty)
+        {
+            throw new ArgumentException("A remember-me token needs a signed-in account.", nameof(accountId));
+        }
+
+        byte[] token = RandomNumberGenerator.GetBytes(RememberTokenIssue.TokenLength);
+        DateTimeOffset expires = _time.GetUtcNow() + RememberTokenLifetime;
+        await _rememberTokens
+            .InsertAsync(new RememberTokenRecord(HashToken(token), accountId, expires), MaxRememberTokensPerAccount, ct)
+            .ConfigureAwait(false);
+        return new RememberTokenIssue(token, expires);
+    }
+
+    /// <inheritdoc/>
+    public async Task<AuthOutcome> LoginWithRememberTokenAsync(byte[] token, ushort protocolVersion, CancellationToken ct = default)
+    {
+        if (protocolVersion != Carbon.Contracts.Common.CarbonProtocol.Version)
+        {
+            return new AuthOutcome(AuthStatus.ProtocolMismatch, Guid.Empty);
+        }
+
+        if (token is not { Length: RememberTokenIssue.TokenLength })
+        {
+            return new AuthOutcome(AuthStatus.InvalidCredentials, Guid.Empty);
+        }
+
+        byte[] hash = HashToken(token);
+        RememberTokenRecord? stored = await _rememberTokens.FindAsync(hash, ct).ConfigureAwait(false);
+        if (stored is null)
+        {
+            return new AuthOutcome(AuthStatus.InvalidCredentials, Guid.Empty);
+        }
+
+        if (stored.ExpiresAtUtc <= _time.GetUtcNow())
+        {
+            _ = await _rememberTokens.DeleteAsync(hash, ct).ConfigureAwait(false);
+            return new AuthOutcome(AuthStatus.InvalidCredentials, Guid.Empty);
+        }
+
+        AccountRecord? account = await _accounts.FindByIdAsync(stored.AccountId, ct).ConfigureAwait(false);
+        if (account is null)
+        {
+            _ = await _rememberTokens.DeleteAsync(hash, ct).ConfigureAwait(false);
+            return new AuthOutcome(AuthStatus.InvalidCredentials, Guid.Empty);
+        }
+
+        return account.IsBanned
+            ? new AuthOutcome(AuthStatus.Locked, Guid.Empty)
+            : new AuthOutcome(AuthStatus.Ok, account.Id);
+    }
+
+    /// <inheritdoc/>
+    public async Task RevokeRememberTokenAsync(byte[] token, CancellationToken ct = default)
+    {
+        if (token is not { Length: RememberTokenIssue.TokenLength })
+        {
+            return;
+        }
+
+        _ = await _rememberTokens.DeleteAsync(HashToken(token), ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -402,6 +481,9 @@ public sealed class AuthService : IAuthService, IDisposable
             _ = _hashGate.Release();
         }
     }
+
+    /// <summary>SHA-256 of the token: the only form of a remember-me token the server keeps.</summary>
+    private static byte[] HashToken(byte[] token) => SHA256.HashData(token);
 
     private static bool IsValidIdentifier(string? value, int minLen, int maxLen)
     {
