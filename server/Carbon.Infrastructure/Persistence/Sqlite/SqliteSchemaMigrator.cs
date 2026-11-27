@@ -80,6 +80,15 @@ public sealed class SqliteSchemaMigrator : IDatabaseMigrator
         );
         """;
 
+    // ADR-026: the world's gameplay secret (one row). Server-only: never logged, never sent to clients.
+    private const string GameplaySecretSql = """
+        CREATE TABLE IF NOT EXISTS gameplay_secret (
+            id                INTEGER NOT NULL PRIMARY KEY CHECK (id = 1),
+            secret            BLOB    NOT NULL,
+            created_at_utc    INTEGER NOT NULL
+        );
+        """;
+
     private readonly SqliteConnectionFactory _factory;
 
     /// <summary>
@@ -362,7 +371,44 @@ public sealed class SqliteSchemaMigrator : IDatabaseMigrator
             ],
             ct).ConfigureAwait(false);
 
+        // ADR-026: secret key for gameplay rolls, persisted so trader stock survives restarts.
+        await ApplyDdlMigrationAsync(conn, tx, "0008_gameplay_secret", GameplaySecretSql, ct).ConfigureAwait(false);
+
         await tx.CommitAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Applies an idempotent DDL migration once and records <paramref name="migrationId"/>.</summary>
+    private static async Task ApplyDdlMigrationAsync(
+        SqliteConnection conn,
+        SqliteTransaction tx,
+        string migrationId,
+        string ddl,
+        CancellationToken ct)
+    {
+        SqliteCommand check = new("SELECT 1 FROM schema_migrations WHERE id = @id LIMIT 1;", conn, tx);
+        await using (ConfiguredAsyncDisposable checkScope = check.ConfigureAwait(false))
+        {
+            _ = check.Parameters.AddWithValue("@id", migrationId);
+            object? scalar = await check.ExecuteScalarAsync(ct).ConfigureAwait(false);
+            if (scalar is not null && scalar != DBNull.Value)
+            {
+                return;
+            }
+        }
+
+#pragma warning disable CA2100 // DDL is a compile-time constant, never user input.
+        SqliteCommand apply = new(ddl, conn, tx);
+#pragma warning restore CA2100
+        await using (ConfiguredAsyncDisposable applyScope = apply.ConfigureAwait(false))
+        {
+            _ = await apply.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        SqliteCommand mark = new("INSERT INTO schema_migrations (id, applied_utc) VALUES (@id, @utc);", conn, tx);
+        await using ConfiguredAsyncDisposable markScope = mark.ConfigureAwait(false);
+        _ = mark.Parameters.AddWithValue("@id", migrationId);
+        _ = mark.Parameters.AddWithValue("@utc", DateTimeOffset.UtcNow.ToString("O"));
+        _ = await mark.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 
     /// <summary>

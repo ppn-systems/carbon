@@ -169,7 +169,7 @@ public sealed class InventoryServiceTests
                 this.Simulation,
                 this.Buildings,
                 TileSize,
-                42UL,
+                TestGameplayEntropy.Create(42UL),
                 () => this.Rules,
                 () => null,
                 () => 100UL,

@@ -8,6 +8,7 @@ using Carbon.Abstractions.Configuration;
 using Carbon.Abstractions.Persistence;
 using Carbon.Application.Identity;
 using Carbon.Application.World;
+using Carbon.Application.World.Entropy;
 using Carbon.Economy;
 using Carbon.Infrastructure.Configuration;
 using Carbon.Infrastructure.Persistence.Postgres;
@@ -68,6 +69,7 @@ public static class Program
         ICharacterStore characterStore;
         IChunkDeltaRepository chunkDeltaRepo;
         ITraderStockRepository traderStockRepo;
+        IGameplaySecretStore gameplaySecretStore;
 
         if (pgSource is not null)
         {
@@ -76,6 +78,7 @@ public static class Program
             characterStore = new PgCharacterStore(pgSource);
             chunkDeltaRepo = new PgChunkDeltaRepository(pgSource);
             traderStockRepo = new PgTraderStockRepository(pgSource);
+            gameplaySecretStore = new PgGameplaySecretStore(pgSource);
         }
         else
         {
@@ -84,9 +87,19 @@ public static class Program
             characterStore = new SqliteCharacterStore(sqliteFactory!);
             chunkDeltaRepo = new SqliteChunkDeltaRepository(sqliteFactory!);
             traderStockRepo = new SqliteTraderStockRepository(sqliteFactory!);
+            gameplaySecretStore = new SqliteGameplaySecretStore(sqliteFactory!);
         }
 
         await migrator.MigrateAsync().ConfigureAwait(false);
+
+        // ADR-026: gameplay rolls use a server-only secret (persisted per world, or injected for tests and replays),
+        // never the public world seed. The secret is never logged.
+        GameplayEntropy entropy = await GameplayEntropy.LoadAsync(
+            gameplaySecretStore,
+            options.GameplaySecret,
+            options.GameplayBootSalt,
+            options.TickRate,
+            options.GameplayEpochSeconds).ConfigureAwait(false);
 
         Pbkdf2PasswordHasher hasher = new();
         SessionTransportRegistry transportRegistry = new();
@@ -120,7 +133,8 @@ public static class Program
             ServerGameData.LoadStructures(config.Catalog),
             ServerGameData.LoadCreatures(config.Catalog),
             gameData.Progression,
-            traderStock: traderStockRepo);
+            traderStock: traderStockRepo,
+            entropy: entropy);
         ServerGameData.BindHotReload(config, world);
         using AuthService authService = new(accountStore, characterStore, hasher, time: null, () => world.ItemRules, () => world.Progression)
         {

@@ -12,6 +12,7 @@ using Carbon.Combat.Damage;
 using Carbon.Items.Progression;
 using Carbon.Physics.Obstacles;
 using Carbon.Physics.Shapes;
+using Carbon.Primitives.Random;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.Networking;
@@ -59,9 +60,18 @@ internal sealed class CombatService
         _currentTick = currentTick ?? throw new ArgumentNullException(nameof(currentTick));
     }
 
-    /// <summary>Rolls a critical hit from <paramref name="critChance"/> with a deterministic hash of <paramref name="nonce"/>.</summary>
-    public static bool RollCriticalHit(float critChance, uint nonce) =>
-        CombatRoll.Roll(critChance, nonce, CombatRoll.CriticalSalt);
+    /// <summary>
+    /// Rolls a critical hit from <paramref name="critChance"/>: a keyed PRF of the secret roll key, the tick, the attacker
+    /// and its nonce (ADR-026), so a client that knows the world seed, the tick and its nonce cannot predict it.
+    /// </summary>
+    /// <param name="critChance">Crit probability.</param>
+    /// <param name="key">Secret roll key of the tick's epoch.</param>
+    /// <param name="tick">Simulation tick.</param>
+    /// <param name="attackerId">Attacker network id.</param>
+    /// <param name="nonce">Attacker's monotonic roll counter.</param>
+    /// <returns>Whether the hit crits.</returns>
+    public static bool RollCriticalHit(float critChance, in GameplayKey key, ulong tick, ulong attackerId, uint nonce) =>
+        CombatRoll.Roll(critChance, key, CombatRoll.CriticalDomain, tick, attackerId, nonce);
 
     /// <summary>
     /// Applies a player's hit of <paramref name="damage"/> to each of <paramref name="targets"/> it can see. Survivors aggro

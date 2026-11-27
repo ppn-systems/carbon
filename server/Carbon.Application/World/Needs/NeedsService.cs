@@ -12,6 +12,7 @@ using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
 using Carbon.Maps.Building;
+using Carbon.Primitives.Random;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.World;
 using Carbon.Survival.Components;
@@ -50,7 +51,7 @@ internal sealed class NeedsService
         Func<GameEconomy?> economy,
         NeedsConfig? config,
         FoodCatalog? foodCatalog,
-        ulong worldSeed)
+        IGameplayEntropy entropy)
     {
         _simulation = simulation ?? throw new ArgumentNullException(nameof(simulation));
         _buildings = buildings ?? throw new ArgumentNullException(nameof(buildings));
@@ -59,7 +60,7 @@ internal sealed class NeedsService
         _economy = economy ?? throw new ArgumentNullException(nameof(economy));
         this.Config = config ?? new NeedsConfig();
         this.Food = foodCatalog ?? new FoodCatalog([], this.Config.FoodMax);
-        _eatAction = new EatActionSystem(this.Food, this.Config, worldSeed);
+        _eatAction = new EatActionSystem(this.Food, this.Config, entropy);
         _spoiledItemIdByFood = this.ResolveSpoiledItemIds();
         _simulation.RegisterSystem(_eatAction);
         _needsSystem = new NeedsSystem(this.Config);

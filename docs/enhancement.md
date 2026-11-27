@@ -77,7 +77,7 @@ removes 70,000–200,000 gold. Enhancement is opt-in, so it is not part of the `
 2. On the next tick `AuthoritativeWorld.TryEnhanceInventoryItem` checks forge reach, then `ForgeEnhancer.TryEnhance`
    checks the item, the level, every material, the scroll and the gold **before spending anything**. It then spends the
    gold fee (`CurrencyReason.Enhancement`), the materials and the scroll once, and rolls on
-   `ForgeEnhancer.CreateRandom(worldSeed, tick, player, attemptNonce)`.
+   `ForgeEnhancer.CreateRandom(key, tick, player, attemptNonce)`, where `key` is the server-only epoch subkey (ADR-026), not the public world seed.
 3. The outcome is written to the slot under the world lock, the character is marked dirty (inventory and wallet are
    persisted together), and the owner gets `InventorySlotChanged`, `PlayerStatsSync` and (with the tick dispatch) `WalletSync`. Nearby players
    get the new look when equipped gear changed.

@@ -18,6 +18,7 @@ using Carbon.Items.Containers;
 using Carbon.Physics.Obstacles;
 using Carbon.Physics.Raycast;
 using Carbon.Physics.Shapes;
+using Carbon.Primitives.Random;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.World;
@@ -34,9 +35,10 @@ public sealed class CombatServiceTests
     [Fact]
     public void RollCriticalHit_IsDeterministicAndBoundedByTheChance()
     {
-        CombatService.RollCriticalHit(0f, 123U).Should().BeFalse();
-        CombatService.RollCriticalHit(1f, 123U).Should().BeTrue();
-        CombatService.RollCriticalHit(0.5f, 99U).Should().Be(CombatService.RollCriticalHit(0.5f, 99U));
+        GameplayKey key = TestGameplayEntropy.Key(3UL);
+        CombatService.RollCriticalHit(0f, key, 10UL, 900UL, 123U).Should().BeFalse();
+        CombatService.RollCriticalHit(1f, key, 10UL, 900UL, 123U).Should().BeTrue();
+        CombatService.RollCriticalHit(0.5f, key, 10UL, 900UL, 99U).Should().Be(CombatService.RollCriticalHit(0.5f, key, 10UL, 900UL, 99U));
     }
 
     [Fact]

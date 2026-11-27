@@ -27,6 +27,10 @@ public sealed class DawnCombatGuardTests
     private const ulong ScoutConnection = 77UL;
     private const ulong FighterConnection = 88UL;
 
+    // Spawn rolls use the gameplay secret, not the world seed (ADR-026): this fixed secret pins a frontier monster a
+    // level-1 fighter can fight through dawn, as the world seed did before.
+    private const ulong DawnFightSecret = 7UL;
+
     [Fact]
     public async Task StepFixedTick_FightingAMonsterThroughDawn_MonsterLeavesOnlyWhenKilled()
     {
@@ -36,7 +40,15 @@ public sealed class DawnCombatGuardTests
             using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
             await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
             AuthoritativeWorldMultiplayerTests.RecordingOutboundSink sink = new();
-            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), new SqliteCharacterStore(factory), sink);
+            AuthoritativeWorld world = new(
+                1337UL,
+                32f,
+                0.0008f,
+                30,
+                new SqliteChunkDeltaRepository(factory),
+                new SqliteCharacterStore(factory),
+                sink,
+                entropy: TestGameplayEntropy.Create(DawnFightSecret));
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
             _ = world.ApplyDebugOverrides(new WorldDebugOverrides { StartHour = 4.95f });
 

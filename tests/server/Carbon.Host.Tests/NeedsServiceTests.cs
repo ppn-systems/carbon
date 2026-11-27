@@ -158,7 +158,7 @@ public sealed class NeedsServiceTests
             this.RawMeatId = IdOf(rules, "raw_meat");
             this.CookedMeatId = IdOf(rules, "cooked_meat");
             this.RottenFoodId = IdOf(rules, "rotten_food");
-            this.Needs = new NeedsService(this.Simulation, this.Buildings, TileSize, () => rules, () => null, new NeedsConfig(), food, 42UL);
+            this.Needs = new NeedsService(this.Simulation, this.Buildings, TileSize, () => rules, () => null, new NeedsConfig(), food, TestGameplayEntropy.Create(42UL));
         }
 
         public WorldSimulation Simulation { get; } = new();

@@ -2,6 +2,7 @@
 
 - **Date**: 2026-11-27
 - **Status**: Accepted
+- **Amended by**: [ADR-026](ADR-026-server-secret-gameplay-entropy.md) — gameplay rolls use a server-only secret, not the world seed
 - **Scope**: `contracts/`, `engine/Carbon.Items`, `engine/Carbon.Economy`, `server/`, `desktop/`, `resources/config/enhancement.json`, `tests/`, `docs/`
 
 ## Context
