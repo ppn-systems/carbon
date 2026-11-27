@@ -3,7 +3,8 @@
 namespace Carbon.Contracts.Identity;
 
 /// <summary>
-/// Starter combat discipline selected when creating a new hero character.
+/// Combat discipline of a hero. Characters created before ADR-030 picked one of the first three; characters created since
+/// start <see cref="None"/>.
 /// </summary>
 public enum HeroArchetypeClass : byte
 {
@@ -15,4 +16,7 @@ public enum HeroArchetypeClass : byte
 
     /// <summary>Spellcaster mage starting with <c>ArcaneStaff</c>, bonus Mana Tonics, and crystalline focus.</summary>
     Arcanist = 2,
+
+    /// <summary>No class: the classless start of every character created since ADR-030 (empty bag, no gear).</summary>
+    None = 255,
 }

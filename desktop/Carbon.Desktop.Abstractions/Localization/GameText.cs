@@ -112,7 +112,7 @@ public static class GameText
     /// <returns>The display name.</returns>
     public static string MonsterName(string monsterId, string fallbackName) => Derived(s_monsterNameKeys, "monster.", monsterId, ".name", fallbackName);
 
-    /// <summary>Returns the localized hero class name (<c>character.class.*</c>).</summary>
+    /// <summary>Returns the localized hero class name (<c>character.class.*</c>; a classless hero is a survivor).</summary>
     /// <param name="heroClass">The class.</param>
     /// <returns>The display name.</returns>
     public static string ClassName(HeroArchetypeClass heroClass) => heroClass switch
@@ -120,6 +120,7 @@ public static class GameText
         HeroArchetypeClass.Vanguard => Current.Text("character.class.vanguard"),
         HeroArchetypeClass.Ranger => Current.Text("character.class.ranger"),
         HeroArchetypeClass.Arcanist => Current.Text("character.class.arcanist"),
+        HeroArchetypeClass.None => Current.Text("character_creator.survivor"),
         _ => heroClass.ToString(),
     };
 

@@ -10,6 +10,7 @@ using Carbon.Application.World.Persistence;
 using Carbon.Application.World.Players;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
+using Carbon.Contracts.Identity;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Serialization;
@@ -34,6 +35,18 @@ public sealed class CharacterPersistenceTests
 
         loaded.Flags.HasFlag(CharacterTraits.StarterLoadoutGranted).Should().BeTrue();
         inventory.Slots.ToArray().Should().Contain(s => !s.IsEmpty);
+    }
+
+    [Fact]
+    public void LoadInventory_UnreadableBlobOfAClasslessCharacter_LeavesTheBagEmpty()
+    {
+        CharacterRecord fresh = Character() with { InventoryBlob = [], Flags = CharacterTraits.None, Class = HeroArchetypeClass.None };
+        InventoryContainer inventory = new(PlayerInventoryLayout.TotalCapacity);
+
+        CharacterRecord loaded = CharacterPersistence.LoadInventory(fresh, inventory);
+
+        loaded.Flags.HasFlag(CharacterTraits.StarterLoadoutGranted).Should().BeTrue();
+        inventory.Slots.ToArray().Should().OnlyContain(s => s.IsEmpty, "a classless character has no starter kit to fall back to (ADR-030)");
     }
 
     [Fact]
