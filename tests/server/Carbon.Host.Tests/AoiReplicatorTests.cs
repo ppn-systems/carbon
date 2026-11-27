@@ -1,5 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System.Linq;
 using System.Numerics;
 using Carbon.Application.World.Replication;
 using Carbon.Contracts.Entities;
@@ -85,6 +86,44 @@ public sealed class AoiReplicatorTests
         _ = h.Replicate();
 
         h.Outbound.Pending.Spawns.Should().ContainSingle(s => s.Snapshot.NetworkId == MobNetId);
+    }
+
+    [Fact]
+    public void Dispatch_TwoObserversFarApart_EachReceivesOnlyTheDeltasOfEntitiesInItsOwnView()
+    {
+        // Both observers are replicated into the same tick buffer, so their delta entries share one list and each
+        // batch is a slice of it. A wrong offset or count would hand observer B the entities observer A sees.
+        WorldSimulation simulation = new();
+        OutboundTickBuffer outbound = new();
+        AoiReplicator replication = new(simulation, outbound, viewRadius: 768f, defaultRadius: 7f, _ => SpawnIdentity.Unknown);
+        const ulong connA = 21UL, connB = 22UL, observerA = 300UL, observerB = 301UL, mobNearA = 400UL, mobNearB = 401UL;
+        Vector2 posA = Vector2.Zero;
+        Vector2 posB = new(5_000f, 0f);
+        Entity a = simulation.SpawnNetworkEntity(observerA, posA, 7f);
+        Entity b = simulation.SpawnNetworkEntity(observerB, posB, 7f);
+        Entity mobA = simulation.SpawnNetworkEntity(mobNearA, posA + new Vector2(50f, 0f), 9f);
+        Entity mobB = simulation.SpawnNetworkEntity(mobNearB, posB + new Vector2(50f, 0f), 9f);
+        replication.Track(connA);
+        replication.Track(connB);
+        ReplicateBoth();
+        replication.ClearDirtyFlags();
+        outbound.Swap();
+
+        simulation.MarkDirty(mobA, EntityDirtyMask.Health);
+        simulation.MarkDirty(mobB, EntityDirtyMask.Health);
+        ReplicateBoth();
+        outbound.Swap();
+        AuthoritativeWorldMultiplayerTests.RecordingOutboundSink sink = new();
+        outbound.Dispatch(sink);
+
+        sink.DeltaEntityIds.Where(d => d.ConnectionId == connA).Select(d => d.NetworkId).Should().Equal([mobNearA], "A sees only the mob next to it");
+        sink.DeltaEntityIds.Where(d => d.ConnectionId == connB).Select(d => d.NetworkId).Should().Equal([mobNearB], "B must not receive A's view");
+
+        void ReplicateBoth()
+        {
+            _ = replication.ReplicateTo(connA, observerA, a, posA, lastClientTick: 1U, serverTick: 9UL);
+            _ = replication.ReplicateTo(connB, observerB, b, posB, lastClientTick: 1U, serverTick: 9UL);
+        }
     }
 
     [Fact]
