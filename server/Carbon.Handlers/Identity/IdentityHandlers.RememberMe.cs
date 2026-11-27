@@ -77,7 +77,7 @@ public static partial class IdentityHandlers
             connection.Level = PermissionLevel.USER;
         }
 
-        await SendAuthResultAsync(sender, outcome, connectionId).ConfigureAwait(false);
+        await SendAuthResultAsync(sender, outcome).ConfigureAwait(false);
         if (outcome.Status == AuthStatus.Ok)
         {
             await ConfigHandlers.SendManifestAsync(sender, ct).ConfigureAwait(false);

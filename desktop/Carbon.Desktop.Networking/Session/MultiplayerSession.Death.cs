@@ -33,7 +33,7 @@ public sealed partial class MultiplayerSession
 
         RequestOptions options = RequestOptions.Default.WithTimeout(5000).WithEncrypt(tcp.State.EncryptionEnabled);
         using PacketScope<RespawnRequest> lease = PacketFactory<RespawnRequest>.Acquire();
-        using MutationResult reply = await tcp.RequestAsync<MutationResult>(lease.Value, options, predicate: null, CancellationToken.None).ConfigureAwait(false);
+        using MutationResult reply = await tcp.RequestAsync<MutationResult>(lease.Value, options, MutationReplies.Respawn, CancellationToken.None).ConfigureAwait(false);
         return reply.Status;
     }
 }

@@ -30,7 +30,5 @@ public sealed partial class MapStructurePlace : PacketBase<MapStructurePlace>, I
     [SerializeOrder(2)]
     public byte StructureType { get; set; }
 
-    /// <summary>Placement rotation (<c>Carbon.Maps.Building.StructureRotation</c>: 0 = North, 1 = East, 2 = South, 3 = West).</summary>
-    [SerializeOrder(3)]
-    public byte Rotation { get; set; }
+    // [SerializeOrder(3)] was Rotation, never written; removed by ADR-038.
 }

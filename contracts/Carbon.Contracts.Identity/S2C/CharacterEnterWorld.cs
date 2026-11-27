@@ -30,9 +30,7 @@ public sealed partial class CharacterEnterWorld : PacketBase<CharacterEnterWorld
     [SerializeOrder(2)]
     public ulong WorldSeed { get; set; }
 
-    /// <summary>Generator version expected by the server.</summary>
-    [SerializeOrder(3)]
-    public ushort GeneratorVersion { get; set; }
+    // [SerializeOrder(3)] was GeneratorVersion, never read; removed by ADR-038.
 
     /// <summary>Physical tile dimension in world units.</summary>
     [SerializeOrder(4)]

@@ -228,6 +228,7 @@ public static partial class ItemHandlers
         RepairItemResult reply = lease.Value;
         reply.Status = outcome.Status;
         reply.Error = outcome.Status == OpStatus.Ok ? RepairError.None : receipt.Error;
+        reply.SlotIndex = slotIndex;
         reply.Steps = receipt.Steps;
         await sender.ReplyAsync(reply).ConfigureAwait(false);
     }

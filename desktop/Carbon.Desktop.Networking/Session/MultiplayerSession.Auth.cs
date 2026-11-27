@@ -234,7 +234,7 @@ public sealed partial class MultiplayerSession
             lease.Value.Token = token;
             try
             {
-                using MutationResult _ = await tcp.RequestAsync<MutationResult>(lease.Value, reqOpts, predicate: null, ct).ConfigureAwait(false);
+                using MutationResult _ = await tcp.RequestAsync<MutationResult>(lease.Value, reqOpts, MutationReplies.RememberTokenRevoke, ct).ConfigureAwait(false);
             }
             finally
             {
@@ -308,7 +308,7 @@ public sealed partial class MultiplayerSession
         using MutationResult reply = await tcp.RequestAsync<MutationResult>(
             lease.Value,
             reqOpts,
-            predicate: null,
+            MutationReplies.CharacterCreate,
             ct).ConfigureAwait(false);
 
         if (reply.Status == OpStatus.Ok)
@@ -493,7 +493,7 @@ public sealed partial class MultiplayerSession
                 {
                     RequestOptions reqOpts = RequestOptions.Default.WithTimeout(2000).WithEncrypt(tcp.State.EncryptionEnabled);
                     using PacketScope<AuthLogout> lease = PacketFactory<AuthLogout>.Acquire();
-                    using MutationResult _ = await tcp.RequestAsync<MutationResult>(lease.Value, reqOpts, predicate: null, ct).ConfigureAwait(false);
+                    using MutationResult _ = await tcp.RequestAsync<MutationResult>(lease.Value, reqOpts, MutationReplies.Logout, ct).ConfigureAwait(false);
                 }
                 catch (Exception ex) when (ex is not OutOfMemoryException)
                 {

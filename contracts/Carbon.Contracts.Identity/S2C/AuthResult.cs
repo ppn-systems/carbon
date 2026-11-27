@@ -1,7 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
-using Carbon.Contracts.Common;
 using Nalix.Abstractions.Networking.Packets;
 using Nalix.Abstractions.Serialization;
 using Nalix.Codec.DataFrames;
@@ -27,11 +26,7 @@ public sealed partial class AuthResult : PacketBase<AuthResult>, IPacketStaticOp
     [SerializeOrder(1)]
     public Guid AccountId { get; set; }
 
-    /// <summary>Assigned server session identifier.</summary>
-    [SerializeOrder(2)]
-    public ulong SessionId { get; set; }
+    // [SerializeOrder(2)] was SessionId, never read; removed by ADR-038.
 
-    /// <summary>Server protocol version for client verification.</summary>
-    [SerializeOrder(3)]
-    public ushort ServerProtocolVersion { get; set; } = CarbonProtocol.Version;
+    // [SerializeOrder(3)] was ServerProtocolVersion, never read; removed by ADR-038.
 }

@@ -111,6 +111,23 @@ public sealed class RemoteEntityStateTests
         state.AttackTarget.Should().Be(new Vector2(100f, 200f));
     }
 
+    [Theory]
+    [InlineData(0.25f, 0.125f)]
+    [InlineData(1.5f, 0.5f)]
+    [InlineData(float.NaN, 0f)]
+    [InlineData(-1f, 0f)]
+    public void ApplyAttackPhase_PhaseAlreadyUnderWay_StartsTheTelegraphAtItsProgress(float progress, float expectedElapsed)
+    {
+        RemoteEntityState state = Spawned();
+        using EntityAttackPhase pkt = Phase(EntityAttackPhase.PhaseWindup, directionX: 1f, directionY: 0f);
+        pkt.PhaseDurationTicks = 15;
+        pkt.Progress = progress;
+
+        state.ApplyAttackPhase(pkt, tickRate: 30);
+
+        state.AttackPhaseElapsed.Should().BeApproximately(expectedElapsed, Precision, "Progress is the fraction of the 0.5 s phase already done");
+    }
+
     [Fact]
     public void ApplyAttackPhase_PhaseNone_KeepsFacingButStillRecordsTheDirection()
     {

@@ -6,6 +6,7 @@ using System.Numerics;
 using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions.Events;
 using Carbon.Desktop.Abstractions.World;
+using Carbon.Desktop.Rendering.Hud;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
 using Carbon.Maps.Props;
@@ -46,6 +47,7 @@ public sealed class CombatFeedbackTracker
     private readonly Dictionary<ulong, float> _entityGhostRatios = new(64);
     private readonly List<ulong> _ghostRemoveScratch = new(16);
     private readonly DebrisParticle[] _particles = new DebrisParticle[MaxDebrisParticles];
+    private readonly StatusLevelLabels _levels = new();
     private int _nextParticleCursor;
     private ulong _engagedTargetId;
     private float _engagedTargetTimer;
@@ -129,11 +131,7 @@ public sealed class CombatFeedbackTracker
         for (int i = 0; i < _combatScratch.Count; i++)
         {
             CombatFeedbackEvent ev = _combatScratch[i];
-            string text = ev.Label ?? (ev.IsCritical
-                ? $"-{(int)MathF.Ceiling(ev.Amount)}!"
-                : ev.IsHeal
-                    ? $"+{(int)MathF.Ceiling(ev.Amount)}"
-                    : $"-{(int)MathF.Ceiling(ev.Amount)}");
+            string text = ComposeText(ev, _levels);
             bool isXpPopup = ev.Label is not null && ev.Label.StartsWith('+') && ev.Label.EndsWith(" XP", StringComparison.Ordinal);
             ColorRgba color = ev.StatusEffectId != 0 && !ev.IsHeal
                 ? StatusEffectTints.ForEffect(world.StatusEffectDefinitions, ev.StatusEffectId)
@@ -169,6 +167,22 @@ public sealed class CombatFeedbackTracker
         }
 
         this.UpdateRemoteGhostRatios(world.RemoteEntities, frameDt, aimedWorldPos);
+    }
+
+    /// <summary>
+    /// The floating text of a combat event: its label, or the signed amount. A pulse from a status effect of level II or
+    /// higher adds the level numeral ("-3 II"), so a stronger poison reads as stronger (ADR-036 D4).
+    /// </summary>
+    internal static string ComposeText(in CombatFeedbackEvent ev, StatusLevelLabels levels)
+    {
+        if (ev.Label is not null)
+        {
+            return ev.Label;
+        }
+
+        int amount = (int)MathF.Ceiling(ev.Amount);
+        string text = ev.IsCritical ? $"-{amount}!" : ev.IsHeal ? $"+{amount}" : $"-{amount}";
+        return ev.StatusEffectId != 0 && ev.StatusEffectLevel > 1 ? $"{text} {levels.Numeral(ev.StatusEffectLevel)}" : text;
     }
 
     /// <summary>Gets whether the tile at (<paramref name="tileX"/>, <paramref name="tileY"/>) has an active shake or bar timer.</summary>

@@ -3,6 +3,8 @@
 - **Date**: 2026-11-27
 - **Status**: Accepted
 - **Amends**: [ADR-001](ADR-001-map-delta-sync.md) (`MapWorldInfo` and `MapTileChanged` are retired),
+  [ADR-013](ADR-013-entity-attack-phase-packet.md) (`EntityAttackPhase` loses `ServerTick` and `Interrupted`),
+  [ADR-031](ADR-031-player-death-state-respawn-and-gold-drop.md) (`PlayerDeath` loses `KillerNetworkId` and `GoldDropped`),
   [ADR-025](ADR-025-villages-from-real-structures-and-trader-npcs.md) (the single-line trader opcodes are retired, D18
   is the only trade path)
 - **Scope**: `contracts/`, `server/`, `desktop/`, `engine/` (doc comments), `tests/`, `docs/`
@@ -67,10 +69,30 @@ from losing its sender or its handler: `ProtocolContractGuardTests` checks uniqu
    | Batch | Version | Removed |
    | :--- | :--- | :--- |
    | 1 | 4 | Every dead opcode: `0x1101` `MapWorldInfoRequest`, `0x1110` `MapWorldInfo`, `0x1130` `MapTileChanged`, `0x4007` `VendorBuyItem`, `0x4008` `VendorSellItem`, `0x4041` `TraderBuyRequest`, `0x4042` `TraderSellRequest`. Server paths only they reached: `MapHandlers.HandleWorldInfoAsync` and the `IWorldMapService` world parameters; the vendor handlers, `IWorldInventoryService.SubmitVendorBuyAsync` / `SubmitVendorSellAsync`, `AuthoritativeWorld.TryVendorBuy` / `TryVendorSell`, `EconomyService.RunVendorOperation`, `WorldCommandKind.VendorBuy` / `VendorSell`; `IWorldTradeService.SubmitTraderBuyAsync` / `SubmitTraderSellAsync`, `TradeService.BuyLocked` / `SellLocked`, `WorldCommandKind.TraderBuy` / `TraderSell`. Client: `IGameplayController.TryVendorBuy` / `TryVendorSell` |
-   | 2 | 5 | Never-read fields (audit W-6 … W-12): `TraderStock.RepairSlots` (11), `RepairCosts` (12); `SkillCastBroadcast.OriginX` (2), `OriginY` (3); `EntityDespawn.ServerTick` (1); `MapPropChanged.Revision` (2); `MapStructureChanged.Durability` (3), `Connectivity` (5); `EntityAttackInput.ClientTick` (0); `EnhancementResult.SlotIndex` (1), `PreviousLevel` (4), `IsDestroyed` (6); `EnhancementAnnouncement.PlayerNetworkId` (0); `PlayerOxygenSync.SwimState` (0), `DepthTier` (1); `ItemDurabilityAlert.SlotIndex` (1). Also `TraderStockSnapshot.RepairSlots` / `RepairCosts` (always empty since ADR-028). |
+   | 2 | 5 | Never-read fields (audit W-6 … W-13 and the class B decisions in D7): `TraderStock.RepairSlots` (11), `RepairCosts` (12); `SkillCastBroadcast.OriginX` (2), `OriginY` (3); `EntityDespawn.ServerTick` (1); `MapPropChanged.Revision` (2); `MapStructureChanged.Durability` (3), `Connectivity` (5); `EntityAttackInput.ClientTick` (0); `EnhancementResult.SlotIndex` (1), `PreviousLevel` (4), `IsDestroyed` (6); `EnhancementAnnouncement.PlayerNetworkId` (0); `PlayerOxygenSync.SwimState` (0), `DepthTier` (1); `ItemDurabilityAlert.SlotIndex` (1); `EntityAttackPhase.ServerTick` (1), `Interrupted` (5); `PlayerDeath.KillerNetworkId` (2), `GoldDropped` (3); `MutationResult.Revision` (2); `AuthResult.SessionId` (2), `ServerProtocolVersion` (3); `CharacterEnterWorld.GeneratorVersion` (3). Never written: `MapStructurePlace.Rotation` (3). Also `TraderStockSnapshot.RepairSlots` / `RepairCosts` (always empty since ADR-028). |
 
    A later batch adds its row here: `EntityDeltaBatch.DirtyMasks`.
-   The auth fields (W-13) wait for the login redesign (ADR-037).
+
+7. **D7 — Class B decisions.** The owner's rule: when the consumer is small and visibly improves the game, the client
+   gets it in the same PR, with a test. Otherwise the field goes, and the ADR that promised it is amended.
+
+   | Field | Decision |
+   | :--- | :--- |
+   | `CombatHit.StatusEffectLevel` (ADR-036 D4) | **Kept, consumer added.** A pulse from a level II+ effect shows its numeral (`-3 III`, `CombatFeedbackTracker.ComposeText`). Level I keeps the bare number, like the strip icon. |
+   | `EntityAttackPhase.Progress` (ADR-013 D2) | **Kept, consumer added.** `RemoteEntityState.ApplyAttackPhase` starts the local phase clock at `Progress × duration`, so a phase sent partway through lines up with the server's telegraph. |
+   | `EntityAttackPhase.ServerTick`, `Interrupted` (ADR-013 D1) | **Removed.** `Progress` already resyncs a late phase, and an interruption arrives as `Phase = None`. Amends ADR-013. |
+   | `MutationResult.RequestOpCode` | **Kept, consumer added.** Every client wait for a `MutationResult` passes a `MutationReplies` filter. A fire-and-forget map edit's reply could otherwise be taken as the answer to a character create, logout, respawn or token revoke. `MutationReplyFilterTests` keeps it that way. |
+   | `MutationResult.Revision` | **Removed.** No client reads it. Chunk revisions travel in `MapChunkDelta`. |
+   | `PlayerDeath.KillerNetworkId`, `GoldDropped` (ADR-031) | **Removed.** The death screen names the killer from `KillerArchetypeId`, and the gold drop is silent (#159). Amends ADR-031. |
+   | `MapStructurePlace.Rotation` (ADR-011) | **Removed.** The only sender, the starter wall, never sets it, so the server always placed `North`. A build UI that rotates adds its field back with its own bump. |
+   | `AuthResult.SessionId`, `ServerProtocolVersion` (ADR-004) | **Removed.** The client never read them. A version mismatch already comes back as `AuthStatus.ProtocolMismatch`. |
+   | `CharacterEnterWorld.GeneratorVersion` | **Removed.** No client checks it, and a generator change ships with a protocol bump. |
+8. **D8 — Fixed 32-byte values are `Bytes32`.** A field that carries a fixed 32-byte value (hash, key, token, nonce) is
+   `Nalix.Abstractions.Primitives.Bytes32`, never `byte[]`. The codec writes it as exactly 32 bytes, with no length
+   prefix, as in the Nalix `SessionChallenge` / `SessionInit` frames. ADR-037's remember-me tokens (`0x40A0`–`0x40A3`)
+   already use it. No other packet field carries a fixed 32-byte value today: every remaining `byte[]` is a
+   variable-length column or blob (`MapChunkDelta`, `StatusEffectSync`, `ProgressionBlob`, `ConfigDocument.Payload`,
+   `TraderBuyBatchRequest.StockSlots`). So D8 changes no layout and costs no bump.
 
 ## Alternatives Considered
 

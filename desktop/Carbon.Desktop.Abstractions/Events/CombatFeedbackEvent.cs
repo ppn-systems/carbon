@@ -14,6 +14,7 @@ namespace Carbon.Desktop.Abstractions.Events;
 /// <param name="Label">Optional preformatted override label (e.g., <c>+3 Wood Log</c>).</param>
 /// <param name="StatusEffectId">Status effect whose pulse dealt the damage (ADR-029), 0 for a direct hit; tints the number.</param>
 /// <param name="IsLocalVictim">Whether the local player took this damage.</param>
+/// <param name="StatusEffectLevel">Level of the pulsing effect (ADR-036 D4), 0 for a direct hit; level II and up adds its numeral.</param>
 public readonly record struct CombatFeedbackEvent(
     Vector2 WorldPosition,
     float Amount,
@@ -21,4 +22,5 @@ public readonly record struct CombatFeedbackEvent(
     bool IsHeal,
     string? Label = null,
     ushort StatusEffectId = 0,
-    bool IsLocalVictim = false);
+    bool IsLocalVictim = false,
+    byte StatusEffectLevel = 0);

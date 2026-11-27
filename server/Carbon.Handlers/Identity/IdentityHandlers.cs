@@ -64,7 +64,7 @@ public static partial class IdentityHandlers
             connection.Level = PermissionLevel.USER;
         }
 
-        await SendAuthResultAsync(sender, outcome, connectionId).ConfigureAwait(false);
+        await SendAuthResultAsync(sender, outcome).ConfigureAwait(false);
         if (outcome.Status == AuthStatus.Ok)
         {
             await ConfigHandlers.SendManifestAsync(sender, ct).ConfigureAwait(false);
@@ -100,7 +100,7 @@ public static partial class IdentityHandlers
             connection.Level = PermissionLevel.USER;
         }
 
-        await SendAuthResultAsync(sender, outcome, connectionId).ConfigureAwait(false);
+        await SendAuthResultAsync(sender, outcome).ConfigureAwait(false);
         if (outcome.Status == AuthStatus.Ok)
         {
             await ConfigHandlers.SendManifestAsync(sender, ct).ConfigureAwait(false);
@@ -253,7 +253,7 @@ public static partial class IdentityHandlers
         return PacketReplyHelper.SendMutationAsync(context, OpStatus.Ok, IdentityOpCode.Logout);
     }
 
-    private static ValueTask SendAuthResultAsync(IPacketSender sender, AuthOutcome outcome, ulong connectionId)
+    private static ValueTask SendAuthResultAsync(IPacketSender sender, AuthOutcome outcome)
     {
         PacketScope<AuthResult> lease = PacketFactory<AuthResult>.Acquire();
         try
@@ -261,8 +261,6 @@ public static partial class IdentityHandlers
             AuthResult reply = lease.Value;
             reply.Status = outcome.Status;
             reply.AccountId = outcome.AccountId;
-            reply.SessionId = outcome.Status == AuthStatus.Ok ? connectionId : 0UL;
-            reply.ServerProtocolVersion = CarbonProtocol.Version;
             return sender.ReplyAsync(reply).DisposeOnCompletionAsync(lease);
         }
         catch
@@ -281,7 +279,6 @@ public static partial class IdentityHandlers
             reply.Status = result.Status;
             reply.PlayerNetworkId = result.PlayerNetworkId;
             reply.WorldSeed = result.WorldSeed;
-            reply.GeneratorVersion = result.GeneratorVersion;
             reply.TileSize = result.TileSize;
             reply.Frequency = result.Frequency;
             reply.PositionX = result.PositionX;
