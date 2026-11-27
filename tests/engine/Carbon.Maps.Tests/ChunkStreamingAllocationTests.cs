@@ -1,7 +1,10 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Streaming;
@@ -15,8 +18,10 @@ namespace Carbon.Maps.Tests;
 /// <summary>
 /// Audit round 3, ALLOC-12: a player's streaming update runs every 10 ticks on the server tick, and in the client's frame
 /// update. Once the chunk pool is warm and the strip has been generated before (road sites cached, prop lists at
-/// capacity), what a load step still allocates is the streamer's own bookkeeping.
+/// capacity), what a load step still allocates is the streamer's own bookkeeping. Runs in the generation group: the
+/// strip's hydrology regions live in <c>RiverNetwork</c>'s process-wide cache, which other tests would trim.
 /// </summary>
+[Collection(GenerationAllocationGroup.Name)]
 public sealed class ChunkStreamingAllocationTests(ITestOutputHelper output)
 {
     private const int StripChunks = 24;
@@ -66,6 +71,69 @@ public sealed class ChunkStreamingAllocationTests(ITestOutputHelper output)
                 }
             }
         }
+    }
+
+    [Fact]
+    public void UpdateAroundPosition_EveryStep_BuildsOneSnapshotWhenTheResidentSetChanges()
+    {
+        ChunkWorld2D world = new(new ProceduralWorldGenerator(1337UL), tileSize: 32f);
+        Walker walker = new(world);
+        walker.Pass();
+        int changedSteps = 0;
+        for (int step = 0; step < StripChunks * 2; step++)
+        {
+            HashSet<long> before = ResidentKeys(world);
+            int buildsBefore = world.SnapshotBuilds;
+            walker.Step();
+
+            bool changed = !before.SetEquals(ResidentKeys(world));
+            changedSteps += changed ? 1 : 0;
+            world.SnapshotBuilds.Should().Be(buildsBefore + (changed ? 1 : 0),
+                $"step {step}: one snapshot when chunks load or are evicted, none otherwise, never one per loaded chunk");
+        }
+
+        changedSteps.Should().BeGreaterThan(StripChunks / 2, "the walk loads and evicts chunks");
+    }
+
+    private static HashSet<long> ResidentKeys(ChunkWorld2D world)
+    {
+        HashSet<long> keys = [];
+        foreach (Chunk2D chunk in world.ActiveChunks)
+        {
+            _ = keys.Add(chunk.Key);
+        }
+
+        return keys;
+    }
+
+    [Fact]
+    public void UpdateAroundPosition_AReaderHoldingTheOldSnapshot_StillSeesTheSameArray()
+    {
+        // Readers walk ActiveChunks without the lock, so a step must publish a new array and leave the old one alone.
+        ChunkWorld2D world = new(new ProceduralWorldGenerator(1337UL), tileSize: 32f);
+        Walker walker = new(world);
+        walker.Pass();
+        int changedSteps = 0;
+        for (int step = 0; step < StripChunks; step++)
+        {
+            ReadOnlySpan<Chunk2D> held = world.ActiveChunks;
+            Chunk2D[] copy = held.ToArray();
+            HashSet<long> before = ResidentKeys(world);
+            walker.Step();
+            bool changed = !before.SetEquals(ResidentKeys(world));
+
+            held.Length.Should().Be(copy.Length, $"step {step}: the held snapshot keeps its length");
+            for (int i = 0; i < copy.Length; i++)
+            {
+                held[i].Should().BeSameAs(copy[i], $"step {step}: the held snapshot is never written");
+            }
+
+            Unsafe.AreSame(ref MemoryMarshal.GetReference(held), ref MemoryMarshal.GetReference(world.ActiveChunks))
+                .Should().Be(!changed, $"step {step}: a changed resident set is published as a new array, an unchanged one is not rebuilt");
+            changedSteps += changed ? 1 : 0;
+        }
+
+        changedSteps.Should().BeGreaterThan(StripChunks / 2, "the walk loads and evicts chunks");
     }
 
     private static bool Contains(ReadOnlySpan<Chunk2D> chunks, int chunkX, int chunkY)

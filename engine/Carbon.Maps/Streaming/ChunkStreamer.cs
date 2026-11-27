@@ -49,6 +49,9 @@ internal sealed class ChunkStreamer
     /// <summary>Gets the number of pooled chunks.</summary>
     public int PooledCount => _pool.Count;
 
+    /// <summary>Gets the number of resident snapshots built so far (ALLOC-12 guard: one per streaming step).</summary>
+    public int SnapshotBuilds { get; private set; }
+
     /// <summary>Gets a resident chunk without generating it.</summary>
     public bool TryGet(int chunkX, int chunkY, out Chunk2D? chunk) =>
         _active.TryGetValue(Chunk2D.PackKey(chunkX, chunkY), out chunk);
@@ -168,6 +171,7 @@ internal sealed class ChunkStreamer
 
     private void RebuildActiveSnapshotLocked()
     {
+        this.SnapshotBuilds++;
         int count = _active.Count;
         if (count == 0)
         {
