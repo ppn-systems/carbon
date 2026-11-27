@@ -151,7 +151,7 @@ public sealed class CharacterPersistenceTests
         {
             ulong netId = ++_nextNetworkId;
             CharacterRecord character = Character() with { PositionX = position.X, PositionY = position.Y };
-            ConnectedPlayerSession session = new(1UL, netId, character.AccountId, character.Id, character.Name, netId, 0, 0);
+            ConnectedPlayerSession session = new(netId, character.AccountId, character.Id, character.Name, netId, 0, 0);
             PlayerState state = new(session, this.Simulation.SpawnNetworkEntity(netId, position, 7f), character, new InventoryContainer(4))
             {
                 LastSavedPosition = position,

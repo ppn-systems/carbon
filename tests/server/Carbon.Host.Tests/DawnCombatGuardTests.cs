@@ -55,13 +55,13 @@ public sealed class DawnCombatGuardTests
             // A scout in the frontier (seed 1337, chunk 6) finds a monster; a fighter then enters right next to it.
             Vector2 frontier = new(((6 * 32) + 16) * 32f, 16f * 32f);
             CharacterRecord scout = new(Guid.NewGuid(), Guid.NewGuid(), "Scout", 1, 0, frontier.X, frontier.Y, 100f, 100f, 0, [], DateTimeOffset.UtcNow);
-            world.TryEnterWorld(ScoutConnection, ScoutConnection, scout).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(ScoutConnection, scout).Status.Should().Be(OpStatus.Ok);
             world.StepFixedTick();
             EntitySpawnSnapshot mob = sink.Spawns.Find(s => s.ConnectionId == ScoutConnection && s.Snapshot.Kind == EntityKind.Monster).Snapshot;
             mob.NetworkId.Should().NotBe(0UL, "the frontier populates monsters on the first scan");
 
             CharacterRecord fighter = scout with { Id = Guid.NewGuid(), Name = "Fighter", PositionX = mob.PositionX + 16f, PositionY = mob.PositionY };
-            world.TryEnterWorld(FighterConnection, FighterConnection, fighter).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(FighterConnection, fighter).Status.Should().Be(OpStatus.Ok);
             Hour(world).Should().BeLessThan(5f, "the fight starts at night");
 
             bool killed = false;

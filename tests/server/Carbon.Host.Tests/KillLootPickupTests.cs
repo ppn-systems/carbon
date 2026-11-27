@@ -341,7 +341,7 @@ public sealed class KillLootPickupTests
         private PlayerState CreatePlayer(ulong connectionId, ulong networkId, string name, Guid characterId = default)
         {
             Guid id = characterId == Guid.Empty ? Guid.NewGuid() : characterId;
-            ConnectedPlayerSession session = new(connectionId, connectionId, Guid.NewGuid(), id, name, networkId, 0, 0);
+            ConnectedPlayerSession session = new(connectionId, Guid.NewGuid(), id, name, networkId, 0, 0);
             this.OnlineNetworkIds[id] = networkId;
             CharacterRecord character = new(session.CharacterId, session.AccountId, name, 1, 0, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
             return new PlayerState(session, this.Simulation.SpawnNetworkEntity(networkId, Vector2.Zero, 7f), character, new InventoryContainer(PlayerInventoryLayout.TotalCapacity));
