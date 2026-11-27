@@ -13,26 +13,43 @@ namespace Carbon.Application.World;
 /// <summary>
 /// Tracks Area of Interest (AoI) visibility sets per connected session and computes entered/exited/visible
 /// entity slices using reusable scratch buffers so tick synchronization stays allocation-free and $O(1)$ per lookup.
+/// An entity enters within <see cref="ViewRadius"/> but only leaves beyond <see cref="ExitRadius"/>, so one wandering
+/// along the view edge does not despawn and respawn on the client every few ticks.
 /// </summary>
 public sealed class SpatialAoiTracker
 {
     private const int InitialScratchCapacity = 256;
 
+    /// <summary>
+    /// Default hysteresis band, in world units, between the enter radius and the exit radius. It equals the two-tile
+    /// slack the world adds to the view radius for nearby-connection broadcasts, so an entity in the band still gets
+    /// its combat and attack-phase broadcasts.
+    /// </summary>
+    public const float DefaultExitMargin = 64f;
+
     private readonly Dictionary<ulong, HashSet<ulong>> _visibleByConnection = new();
     private readonly HashSet<ulong> _currentIds = new(InitialScratchCapacity);
     private readonly List<ulong> _exitedIds = new(64);
     private readonly float _viewRadius;
+    private readonly float _exitRadius;
     private int[] _broadphaseBuffer = new int[InitialScratchCapacity];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SpatialAoiTracker"/> class.
     /// </summary>
-    /// <param name="viewRadius">Visibility half-extent in world units.</param>
-    public SpatialAoiTracker(float viewRadius = 768f) =>
+    /// <param name="viewRadius">Visibility half-extent in world units: entities enter the view inside it.</param>
+    /// <param name="exitMargin">Extra distance beyond <paramref name="viewRadius"/> before a visible entity leaves.</param>
+    public SpatialAoiTracker(float viewRadius = 768f, float exitMargin = DefaultExitMargin)
+    {
         _viewRadius = viewRadius > 0f ? viewRadius : 768f;
+        _exitRadius = _viewRadius + MathF.Max(0f, exitMargin);
+    }
 
-    /// <summary>Gets the configured Area of Interest radius in world units.</summary>
+    /// <summary>Gets the configured Area of Interest radius in world units (the enter radius).</summary>
     public float ViewRadius => _viewRadius;
+
+    /// <summary>Gets the radius beyond which an already-visible entity leaves the view.</summary>
+    public float ExitRadius => _exitRadius;
 
     /// <summary>
     /// Registers or resets the visibility set for a session connection.
@@ -88,15 +105,19 @@ public sealed class SpatialAoiTracker
         }
 
         CellCoord centerCell = simulation.SpatialGrid.WorldToCell(observerPosition);
-        int cellRadius = Math.Max(1, (int)MathF.Ceiling(_viewRadius / simulation.SpatialGrid.CellSize));
+        int cellRadius = Math.Max(1, (int)MathF.Ceiling(_exitRadius / simulation.SpatialGrid.CellSize));
         simulation.SpatialGrid.QueryCellRadius(in centerCell, cellRadius, _broadphaseBuffer, out int hits);
-        if (hits >= _broadphaseBuffer.Length && _broadphaseBuffer.Length < 4096)
+
+        // A full buffer may have clipped the query: grow and re-query in this same tick, because any entity left out
+        // would read as "exited" and be despawned on the client, then respawned on the next tick.
+        while (hits >= _broadphaseBuffer.Length)
         {
             _broadphaseBuffer = new int[_broadphaseBuffer.Length * 2];
             simulation.SpatialGrid.QueryCellRadius(in centerCell, cellRadius, _broadphaseBuffer, out hits);
         }
 
-        float radiusSq = _viewRadius * _viewRadius;
+        float enterRadiusSq = _viewRadius * _viewRadius;
+        float exitRadiusSq = _exitRadius * _exitRadius;
         for (int i = 0; i < hits; i++)
         {
             Entity candidate = simulation.Entities.GetEntity(_broadphaseBuffer[i]);
@@ -108,20 +129,22 @@ public sealed class SpatialAoiTracker
                 continue;
             }
 
-            Vector2 pos = simulation.Entities.GetTransform(candidate).Position;
-            if (Vector2.DistanceSquared(observerPosition, pos) > radiusSq)
+            float distSq = Vector2.DistanceSquared(observerPosition, simulation.Entities.GetTransform(candidate).Position);
+            bool wasVisible = known.Contains(identity.NetworkId);
+            if (distSq > (wasVisible ? exitRadiusSq : enterRadiusSq))
             {
                 continue;
             }
 
             _ = _currentIds.Add(identity.NetworkId);
-            if (known.Add(identity.NetworkId))
+            if (wasVisible)
             {
-                enteredIds.Add(identity.NetworkId);
+                visibleIds.Add(identity.NetworkId);
             }
             else
             {
-                visibleIds.Add(identity.NetworkId);
+                _ = known.Add(identity.NetworkId);
+                enteredIds.Add(identity.NetworkId);
             }
         }
 
