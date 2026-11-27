@@ -17,16 +17,17 @@ public sealed class SyncedStaminaConfigTests
     [Fact]
     public void Apply_SyncedStaminaJson_ExposesTheServerTuningAndIgnoresInvalidDocuments()
     {
+        SyncedStaminaConfig synced = new();
         byte[] shipped = File.ReadAllBytes(Path.Combine(FindRepositoryRoot(), "resources", "config", "stamina.json"));
 
-        SyncedStaminaConfig.Apply(Catalog(1, shipped)).Should().BeTrue();
-        StaminaConfig? applied = SyncedStaminaConfig.Current;
+        synced.Apply(Catalog(1, shipped)).Should().BeTrue();
+        StaminaConfig? applied = synced.Current;
         applied.Should().NotBeNull();
         applied!.SprintDrainPerSecond.Should().Be(16f);
 
-        SyncedStaminaConfig.Apply(Catalog(2, "{\"sprintDrainPerSecond\": -1}"u8.ToArray())).Should().BeFalse();
-        SyncedStaminaConfig.Apply(new ConfigCatalog(3, [])).Should().BeFalse("a catalog without stamina.json keeps the last config");
-        SyncedStaminaConfig.Current!.SprintDrainPerSecond.Should().Be(16f);
+        synced.Apply(Catalog(2, "{\"sprintDrainPerSecond\": -1}"u8.ToArray())).Should().BeFalse();
+        synced.Apply(new ConfigCatalog(3, [])).Should().BeFalse("a catalog without stamina.json keeps the last config");
+        synced.Current!.SprintDrainPerSecond.Should().Be(16f);
     }
 
     private static ConfigCatalog Catalog(uint version, byte[] stamina) =>

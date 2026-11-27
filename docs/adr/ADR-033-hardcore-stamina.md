@@ -88,12 +88,13 @@ Stamina before this ADR (all on `master` at `7b7e627`):
      edits conflict-free.
    - The change is additive: an older client ignores the unknown opcode.
 7. **D7 — Client.**
-   - `SyncedStaminaConfig` exposes the synced document. The desktop no longer contains stamina numbers.
+   - `SyncedStaminaConfig`, owned by the session, exposes the synced document. The desktop no longer contains stamina
+     numbers.
    - `MultiplayerSession.Stamina.cs` predicts sprint drain and regen with `StaminaMeter`. It mirrors the server's
      exhaustion from `StaminaStatusSync`, and `PlayerStatsSync` overwrites the predicted value.
    - While exhausted, the client refuses a swing or harvest locally instead of sending it (the server would refuse it
      anyway). The bar flashes and the HUD shows `stamina.too_tired`. A skill whose cost exceeds the predicted meter is
-     refused the same way.
+     refused the same way, with `hud.not_enough_stamina` when the player is not exhausted.
    - The bar flashes red for 0.6 s whenever the server's `RefusalCount` grows.
    - While exhausted, the bar turns a dull ochre (`StaminaExhaustedFill`), pulses like slow breathing (one breath every
      1.6 s) and reads `stamina.exhausted` instead of the numbers.

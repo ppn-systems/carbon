@@ -41,6 +41,6 @@ public sealed partial class MultiplayerSession
         _ = _entityNames.Apply(catalog);
         _ = SyncedFoodCatalog.Apply(catalog);
         _ = SyncedProgressionConfig.Apply(catalog);
-        _ = SyncedStaminaConfig.Apply(catalog);
+        _ = _staminaConfig.Apply(catalog);
     }
 }

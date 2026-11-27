@@ -18,8 +18,10 @@ namespace Carbon.Desktop.Networking.Session;
 /// </summary>
 public sealed partial class MultiplayerSession
 {
-    /// <summary>How long the stamina bar flashes after a refused action.</summary>
-    private const float StaminaFlashSeconds = 0.6f;
+    /// <summary>HUD animation: how long the bar flashes after a refused action (presentation, not gameplay).</summary>
+    private const float BarFlashSeconds = 0.6f;
+
+    private readonly SyncedStaminaConfig _staminaConfig = new();
 
     private uint _staminaRefusals;
     private float _staminaFlashTimer;
@@ -28,7 +30,7 @@ public sealed partial class MultiplayerSession
     public bool LocalPlayerStaminaExhausted => _stamina.Exhausted;
 
     /// <inheritdoc/>
-    public float LocalPlayerStaminaFlash => _staminaFlashTimer / StaminaFlashSeconds;
+    public float LocalPlayerStaminaFlash => _staminaFlashTimer / BarFlashSeconds;
 
     /// <summary>Starts a fresh meter (world entry, logout).</summary>
     private void ResetStaminaPrediction(float current)
@@ -49,7 +51,7 @@ public sealed partial class MultiplayerSession
             _staminaFlashTimer = MathF.Max(0f, _staminaFlashTimer - deltaSeconds);
         }
 
-        StaminaConfig? config = SyncedStaminaConfig.Current;
+        StaminaConfig? config = _staminaConfig.Current;
         if (config is null)
         {
             return wantsSprint && _stamina.CanSprint;
@@ -72,11 +74,12 @@ public sealed partial class MultiplayerSession
     /// <summary>Predicts paying <paramref name="cost"/>; flashes and tells the player when it would be refused.</summary>
     private bool TryPredictStaminaSpend(float cost)
     {
-        StaminaConfig? config = SyncedStaminaConfig.Current;
+        bool wasExhausted = _stamina.Exhausted;
+        StaminaConfig? config = _staminaConfig.Current;
         bool paid = config is null ? _stamina.CanAfford(cost) : _stamina.TrySpend(cost, config);
         if (!paid)
         {
-            this.FlashStaminaRefusal();
+            this.FlashStaminaRefusal(wasExhausted ? "stamina.too_tired" : "hud.not_enough_stamina");
         }
 
         return paid;
@@ -88,22 +91,22 @@ public sealed partial class MultiplayerSession
     /// </summary>
     private bool RefuseSwingWhileExhausted(ItemArchetype? held)
     {
-        StaminaConfig? config = SyncedStaminaConfig.Current;
+        StaminaConfig? config = _staminaConfig.Current;
         if (!_stamina.Exhausted || (config is not null && config.GetSwingCost(held) <= 0f))
         {
             return false;
         }
 
-        this.FlashStaminaRefusal();
+        this.FlashStaminaRefusal("stamina.too_tired");
         return true;
     }
 
-    private void FlashStaminaRefusal()
+    private void FlashStaminaRefusal(string messageKey)
     {
         lock (_worldGate)
         {
-            _staminaFlashTimer = StaminaFlashSeconds;
-            _hudNotifications.Add(GameText.Get("stamina.too_tired"));
+            _staminaFlashTimer = BarFlashSeconds;
+            _hudNotifications.Add(GameText.Get(messageKey));
         }
     }
 
@@ -114,7 +117,7 @@ public sealed partial class MultiplayerSession
             _stamina.Exhausted = pkt.Exhausted;
             if (pkt.RefusalCount > _staminaRefusals)
             {
-                _staminaFlashTimer = StaminaFlashSeconds;
+                _staminaFlashTimer = BarFlashSeconds;
             }
 
             _staminaRefusals = pkt.RefusalCount;
