@@ -121,7 +121,7 @@ A level 1 character has 100 stamina. The attack cooldown is 0.5 s at 30 Hz.
 | Iron axe swing (pine: 140 HP / 80 per hit) | 10 | 10 swings, 5 pines |
 | Stone pickaxe swing (boulder: 140 HP / 68 per hit) | 10 | 10 swings, about 3 boulders |
 | Crystal pickaxe swing (gold vein: 320 HP / 95 per hit) | 12 | 8 swings, 2 veins |
-| Bare-hand swing (bush: 40 HP / 20 per hit) | 4 | 25 swings, 12 bushes |
+| Bare-hand swing (bush: 40 HP / 20 per hit; oak: 100 HP / 8 per punch since #129) | 4 | 25 swings: 12 bushes, or about 2 oaks |
 | Copper sword / iron sword / demon cleaver / ember blade | 8 / 10 / 14 / 15 | 12 / 10 / 7 / 6 swings |
 | Bow shot (hunting / bone / crystal) | 6 / 7 / 8 | 16 / 14 / 12 shots |
 | Staff cast | 0 (mana) | — |
@@ -144,7 +144,10 @@ After the 1.75 s delay plus 31 / 6 s, the player is back to 35%: about 7 s of re
 work is therefore about 4 swings every 9 s instead of 2 swings a second, while a single fight or a single tree still
 feels normal. That gap is the "meaningful wait".
 
-**No soft-lock for a fresh character.** With an empty inventory (bare hands), a bush costs 8 stamina.
+**No soft-lock for a fresh character.** Every hero now starts empty-handed (#132). With bare hands a bush costs 8
+stamina, and punching an oak for the first logs (#129: 13 punches) costs 52, about half a level-1 pool, then about 18 s
+of rest. The first stone axe is therefore a few minutes away, which is the hardcore start the owner asked for, never a
+dead end:
 - Regen never stops: the floor is `minimumRegenScale` 0.25, and validation rejects 0.
 - Even starving and exhausted from lack of sleep, a player still regenerates 1.5/s standing, so exhaustion lifts in
   about 25 s.

@@ -152,7 +152,7 @@ internal sealed class RecordingWorldSession : IWorldSession
     public Task LogoutAsync(CancellationToken ct = default) => Unused<Task>();
     public Task InitializeAsync(CancellationToken ct = default) => Unused<Task>();
     public Task<IReadOnlyList<CharacterRosterEntry>> ListCharactersAsync(CancellationToken ct = default) => Unused<Task<IReadOnlyList<CharacterRosterEntry>>>();
-    public Task<(bool Succeeded, string Message)> CreateCharacterAsync(string characterName, byte appearancePreset, byte startingClass = 0, CancellationToken ct = default) => Unused<Task<(bool, string)>>();
+    public Task<(bool Succeeded, string Message)> CreateCharacterAsync(string characterName, byte appearancePreset, CancellationToken ct = default) => Unused<Task<(bool, string)>>();
     public Task<(bool Succeeded, string Message)> EnterWorldAsync(Guid characterId, CancellationToken ct = default) => Unused<Task<(bool, string)>>();
     public Task<ConfigCatalog> WaitForGameConfigAsync(CancellationToken ct = default) => Unused<Task<ConfigCatalog>>();
     public void Update(double dt, Vector2 moveDir, bool sprint) => Unused<bool>();

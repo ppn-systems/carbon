@@ -48,7 +48,7 @@ public sealed class WorldDebugOverridesTests
         overrides.SpawnBiome.Should().Be("DuneDesert");
         overrides.SpawnOffset.Should().Be((3, 4));
         overrides.StartHour.Should().Be(23.5f);
-        overrides.StartLevel.Should().Be((ushort)25);
+        overrides.StartLevel.Should().Be(25);
         overrides.ForgeKit.Should().BeTrue();
     }
 

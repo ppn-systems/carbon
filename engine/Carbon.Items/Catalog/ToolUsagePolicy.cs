@@ -71,6 +71,12 @@ public readonly record struct PropStrikeEvaluation(
 /// </summary>
 public static class ToolUsagePolicy
 {
+    /// <summary>Highest flora tier an empty hand can punch down (oak, birch, willow, palm and acacia trees).</summary>
+    public const byte BareHandFloraTier = 1;
+
+    /// <summary>Damage of a bare-hand punch on a tree the hand can fell: slow, so the first axe is the obvious goal.</summary>
+    public const float BareHandTreeDamage = 8f;
+
     /// <summary>
     /// Returns <see langword="true"/> when <paramref name="slot"/> holds a breakable tool/weapon whose durability is exhausted.
     /// </summary>
@@ -130,6 +136,12 @@ public static class ToolUsagePolicy
         bool hasDef = !slot.IsEmpty && rules.Items.TryGet(slot.ItemId, out def);
         bool isDurabilityTool = hasDef && def is not null && def.MaxDurability > 0f;
         float upgradeMult = ItemEnhancementPolicy.GetStatMultiplier(ItemEnhancementPolicy.GetUpgradeLevel(in slot));
+
+        // Bare hands: anything up to tier 1 flora comes down, trees only slowly (a fresh character starts with nothing).
+        if (slot.IsEmpty && targetKind == ToolTargetKind.Flora && propRequiredTier > 0 && propRequiredTier <= BareHandFloraTier)
+        {
+            return new PropStrikeEvaluation(BareHandTreeDamage, BareHandFloraTier, 0f, ToolStrikeOutcome.Optimal);
+        }
 
         if (isDurabilityTool && slot.Durability <= 0f)
         {

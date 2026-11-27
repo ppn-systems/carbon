@@ -50,7 +50,7 @@ public sealed class VectorArtAndArchitectureTests
         summary.MonstersValidated.Should().Be(9);
         summary.NpcsValidated.Should().Be(6, "guard, harbour master, shrine keeper, blacksmith, village merchant, general trader");
         summary.ItemsValidated.Should().Be(90);
-        summary.PropsValidated.Should().Be(24);
+        summary.PropsValidated.Should().Be(Enum.GetValues<MapPropType>().Length - 1, "every non-None prop type has art");
         summary.BiomesValidated.Should().Be(14);
         summary.StructuresValidated.Should().Be(Enum.GetValues<StructureType>().Length - 1, "every non-None structure type has art");
         summary.RasterImagesFound.Should().Be(0, "declarative vector pipeline uses zero PNG/JPG images");
