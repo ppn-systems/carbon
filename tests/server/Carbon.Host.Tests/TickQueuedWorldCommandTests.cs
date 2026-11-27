@@ -93,6 +93,57 @@ public sealed class TickQueuedWorldCommandTests
     }
 
     [Fact]
+    public async Task SubmitSplitInventorySlotAsync_BeforeTick_AppliesOnlyAfterStepFixedTickAndPersists()
+    {
+        using WorldFixture f = await WorldFixture.CreateAsync().ConfigureAwait(true);
+
+        // Starter loadout: slot 4 holds 6 wood wall kits.
+        Task<WorldMutationOutcome> pending = f.World
+            .SubmitSplitInventorySlotAsync(ConnectionId, 4, 20, 2, (ushort)StarterGameCatalog.WoodWallKit)
+            .AsTask();
+        pending.IsCompleted.Should().BeFalse("splits run inside the tick (ADR-020, ADR-017)");
+
+        f.World.StepFixedTick();
+
+        (await pending.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok);
+        InventoryContainer saved = LoadSavedInventory(f);
+        saved.GetSlot(4).Should().Be(new ItemSlot(StarterGameCatalog.WoodWallKit, 4));
+        saved.GetSlot(20).Should().Be(new ItemSlot(StarterGameCatalog.WoodWallKit, 2));
+    }
+
+    [Fact]
+    public async Task SubmitDestroyInventoryItemAsync_WithStaleExpectedItem_IsConflictAndKeepsTheItem()
+    {
+        using WorldFixture f = await WorldFixture.CreateAsync().ConfigureAwait(true);
+
+        Task<WorldMutationOutcome> move = f.World.SubmitMoveInventorySlotAsync(ConnectionId, 4, 5, (ushort)StarterGameCatalog.WoodWallKit).AsTask();
+        Task<WorldMutationOutcome> destroy = f.World
+            .SubmitDestroyInventoryItemAsync(ConnectionId, 4, -1, (ushort)StarterGameCatalog.WoodWallKit)
+            .AsTask();
+
+        f.World.StepFixedTick();
+
+        (await move.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok);
+        (await destroy.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true)).Status
+            .Should().Be(OpStatus.Conflict, "the move ran first in the same tick and put the door kit in slot 4");
+        InventoryContainer saved = LoadSavedInventory(f);
+        saved.GetSlot(4).ItemId.Should().Be(StarterGameCatalog.WoodDoorKit);
+        saved.GetSlot(5).ItemId.Should().Be(StarterGameCatalog.WoodWallKit);
+    }
+
+    [Fact]
+    public async Task SubmitSortInventoryAsync_BeforeTick_CompletesAfterStepFixedTick()
+    {
+        using WorldFixture f = await WorldFixture.CreateAsync().ConfigureAwait(true);
+        Task<WorldMutationOutcome> pending = f.World.SubmitSortInventoryAsync(ConnectionId).AsTask();
+
+        pending.IsCompleted.Should().BeFalse();
+        f.World.StepFixedTick();
+
+        (await pending.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok);
+    }
+
+    [Fact]
     public async Task SubmitAllocateCharacterPointAsync_BeforeTick_CompletesOnlyAfterStepFixedTick()
     {
         // Level 3 has unspent attribute points to allocate.
@@ -118,6 +169,14 @@ public sealed class TickQueuedWorldCommandTests
         f.World.FailPendingCommands();
 
         (await pending.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true)).Status.Should().Be(OpStatus.Conflict);
+    }
+
+    private static InventoryContainer LoadSavedInventory(WorldFixture f)
+    {
+        f.World.TryGetPendingCharacterSnapshot(f.HeroId, out CharacterRecord? record).Should().BeTrue();
+        InventoryContainer inventory = new(PlayerInventoryLayout.TotalCapacity);
+        InventoryBinaryCodec.TryDeserializeInto(record!.InventoryBlob, inventory).Should().BeTrue();
+        return inventory;
     }
 
     private sealed class WorldFixture : IDisposable

@@ -33,14 +33,23 @@ internal enum WorldCommandKind : byte
     /// <summary>Craft a recipe (<c>Arg0</c> = recipe id, <c>Arg1</c> = quantity).</summary>
     CraftRecipe = 11,
 
-    /// <summary>Move, swap, merge or equip a slot (<c>Arg0</c> = from, <c>Arg1</c> = to).</summary>
+    /// <summary>Move, swap, merge or equip a slot (<c>Arg0</c> = from, <c>Arg1</c> = to, <c>Arg3</c> = expected item id).</summary>
     MoveInventorySlot = 12,
 
     /// <summary>Enhance the item in a slot (<c>Arg0</c> = slot).</summary>
     UpgradeInventoryItem = 13,
 
-    /// <summary>Drop items from a slot (<c>Arg0</c> = slot, <c>Arg2</c> = quantity).</summary>
+    /// <summary>Drop items from a slot (<c>Arg0</c> = slot, <c>Arg2</c> = quantity, <c>Arg3</c> = expected item id).</summary>
     DropInventoryItem = 14,
+
+    /// <summary>Split part of a bag stack (<c>Arg0</c> = from, <c>Arg1</c> = to, <c>Arg2</c> = quantity, <c>Arg3</c> = expected item id; ADR-020).</summary>
+    SplitInventorySlot = 15,
+
+    /// <summary>Merge and sort the backpack (ADR-020).</summary>
+    SortInventory = 16,
+
+    /// <summary>Destroy items in a slot (<c>Arg0</c> = slot, <c>Arg2</c> = quantity, <c>Arg3</c> = expected item id; ADR-020).</summary>
+    DestroyInventoryItem = 17,
 
     /// <summary>Buy from a vendor (<c>Arg0</c> = item id, <c>Arg1</c> = quantity).</summary>
     VendorBuy = 20,
@@ -66,6 +75,7 @@ internal readonly record struct WorldCommand(
     ushort Arg0,
     ushort Arg1,
     int Arg2,
+    ushort Arg3,
     TaskCompletionSource<WorldMutationOutcome> Completion);
 
 /// <summary>
@@ -94,11 +104,11 @@ internal sealed class WorldCommandQueue
         int tileY,
         StructureType structureType = StructureType.None,
         StructureRotation rotation = StructureRotation.North) =>
-        this.Enqueue(new WorldCommand(kind, connectionId, tileX, tileY, structureType, rotation, 0, 0, 0, null!));
+        this.Enqueue(new WorldCommand(kind, connectionId, tileX, tileY, structureType, rotation, 0, 0, 0, 0, null!));
 
     /// <summary>Queues a slot-based command (inventory, crafting); see <see cref="WorldCommandKind"/> for the arguments.</summary>
-    public ValueTask<WorldMutationOutcome> Submit(WorldCommandKind kind, ulong connectionId, ushort arg0, ushort arg1 = 0, int arg2 = 0) =>
-        this.Enqueue(new WorldCommand(kind, connectionId, 0, 0, StructureType.None, StructureRotation.North, arg0, arg1, arg2, null!));
+    public ValueTask<WorldMutationOutcome> Submit(WorldCommandKind kind, ulong connectionId, ushort arg0, ushort arg1 = 0, int arg2 = 0, ushort arg3 = 0) =>
+        this.Enqueue(new WorldCommand(kind, connectionId, 0, 0, StructureType.None, StructureRotation.North, arg0, arg1, arg2, arg3, null!));
 
     private ValueTask<WorldMutationOutcome> Enqueue(WorldCommand command)
     {
