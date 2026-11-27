@@ -18,13 +18,9 @@ public sealed partial class PlayerOxygenSync : PacketBase<PlayerOxygenSync>, IPa
     /// <inheritdoc/>
     public static ushort StaticOpCode => ItemOpCode.PlayerOxygenSync;
 
-    /// <summary>Gets or sets the swim state: 0 walking, 1 wading, 2 swimming, 3 diving.</summary>
-    [SerializeOrder(0)]
-    public byte SwimState { get; set; }
+    // [SerializeOrder(0)] was SwimState, never read; removed by ADR-038.
 
-    /// <summary>Gets or sets the water depth tier under the player: 0 dry, 1 shore … 5 abyss.</summary>
-    [SerializeOrder(1)]
-    public byte DepthTier { get; set; }
+    // [SerializeOrder(1)] was DepthTier, never read; removed by ADR-038.
 
     /// <summary>Gets or sets the oxygen left, in milliseconds of diving.</summary>
     [SerializeOrder(2)]

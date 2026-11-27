@@ -24,9 +24,7 @@ public sealed partial class ItemDurabilityAlert : PacketBase<ItemDurabilityAlert
     [SerializeOrder(0)]
     public DurabilityAlertKind Kind { get; set; }
 
-    /// <summary>Inventory slot the item is (or was) in.</summary>
-    [SerializeOrder(1)]
-    public ushort SlotIndex { get; set; }
+    // [SerializeOrder(1)] was SlotIndex, never read; removed by ADR-038.
 
     /// <summary>Item archetype id.</summary>
     [SerializeOrder(2)]

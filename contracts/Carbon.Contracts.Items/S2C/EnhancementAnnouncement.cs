@@ -19,9 +19,7 @@ public sealed partial class EnhancementAnnouncement : PacketBase<EnhancementAnno
     /// <inheritdoc/>
     public static ushort StaticOpCode => ItemOpCode.EnhancementAnnouncement;
 
-    /// <summary>Network id of the player who forged.</summary>
-    [SerializeOrder(0)]
-    public ulong PlayerNetworkId { get; set; }
+    // [SerializeOrder(0)] was PlayerNetworkId, never read; removed by ADR-038.
 
     /// <summary>Character name of the player who forged.</summary>
     [SerializeOrder(1)]

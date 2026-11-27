@@ -67,8 +67,9 @@ from losing its sender or its handler: `ProtocolContractGuardTests` checks uniqu
    | Batch | Version | Removed |
    | :--- | :--- | :--- |
    | 1 | 4 | Every dead opcode: `0x1101` `MapWorldInfoRequest`, `0x1110` `MapWorldInfo`, `0x1130` `MapTileChanged`, `0x4007` `VendorBuyItem`, `0x4008` `VendorSellItem`, `0x4041` `TraderBuyRequest`, `0x4042` `TraderSellRequest`. Server paths only they reached: `MapHandlers.HandleWorldInfoAsync` and the `IWorldMapService` world parameters; the vendor handlers, `IWorldInventoryService.SubmitVendorBuyAsync` / `SubmitVendorSellAsync`, `AuthoritativeWorld.TryVendorBuy` / `TryVendorSell`, `EconomyService.RunVendorOperation`, `WorldCommandKind.VendorBuy` / `VendorSell`; `IWorldTradeService.SubmitTraderBuyAsync` / `SubmitTraderSellAsync`, `TradeService.BuyLocked` / `SellLocked`, `WorldCommandKind.TraderBuy` / `TraderSell`. Client: `IGameplayController.TryVendorBuy` / `TryVendorSell` |
+   | 2 | 5 | Never-read fields (audit W-6 … W-12): `TraderStock.RepairSlots` (11), `RepairCosts` (12); `SkillCastBroadcast.OriginX` (2), `OriginY` (3); `EntityDespawn.ServerTick` (1); `MapPropChanged.Revision` (2); `MapStructureChanged.Durability` (3), `Connectivity` (5); `EntityAttackInput.ClientTick` (0); `EnhancementResult.SlotIndex` (1), `PreviousLevel` (4), `IsDestroyed` (6); `EnhancementAnnouncement.PlayerNetworkId` (0); `PlayerOxygenSync.SwimState` (0), `DepthTier` (1); `ItemDurabilityAlert.SlotIndex` (1). Also `TraderStockSnapshot.RepairSlots` / `RepairCosts` (always empty since ADR-028). |
 
-   Later batches add their rows here: the dead fields W-6 … W-12, and `EntityDeltaBatch.DirtyMasks`.
+   A later batch adds its row here: `EntityDeltaBatch.DirtyMasks`.
    The auth fields (W-13) wait for the login redesign (ADR-037).
 
 ## Alternatives Considered
@@ -90,3 +91,7 @@ from losing its sender or its handler: `ProtocolContractGuardTests` checks uniqu
 - A new packet now needs both ends before CI is green, so a half-finished feature cannot ship a dead opcode.
 - Single-line trades are no longer possible. Every trade goes through the D18 batches with their `ExpectedGold` check.
 - The class B fields stay on the wire until the owner decides. They cost bytes until then.
+- Batch 2 stops at the wire. The server port `IWorldOutboundSink` still takes some of the removed values (despawn
+  tick, prop revision, structure durability and connectivity, cast origin, alert slot, announcer id), because the
+  world's outbound buffer and six sink implementations share those signatures. Trimming them is a server-internal
+  refactor with no wire effect, so it is left to the code-structure audit.

@@ -21,7 +21,5 @@ public sealed partial class EntityDespawn : PacketBase<EntityDespawn>, IPacketSt
     [SerializeOrder(0)]
     public ulong NetworkId { get; set; }
 
-    /// <summary>Server simulation tick at despawn.</summary>
-    [SerializeOrder(1)]
-    public ulong ServerTick { get; set; }
+    // [SerializeOrder(1)] was ServerTick, never read; removed by ADR-038.
 }

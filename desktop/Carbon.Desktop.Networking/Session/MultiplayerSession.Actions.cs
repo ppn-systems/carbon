@@ -126,14 +126,12 @@ public sealed partial class MultiplayerSession
             _attackSwingTimer = actionDuration;
         }
 
-        uint tick = _clientTick;
         byte slot = _selectedSlot;
         _ = this.SendGameplayDatagramOrTcpAsync<EntityAttackInput>(
             DeliveryMethod.ReliableUnordered,
             channel: 0,
             p =>
             {
-                p.ClientTick = tick;
                 p.TargetNetworkId = targetNetId;
                 p.AimX = aimWorldPosition.X;
                 p.AimY = aimWorldPosition.Y;
@@ -239,14 +237,12 @@ public sealed partial class MultiplayerSession
             _attackSwingTimer = duration;
         }
 
-        uint tick = _clientTick;
         byte abilityCode = AbilityInputEncoding.EncodeSkill(skillId);
         _ = this.SendGameplayDatagramOrTcpAsync<EntityAttackInput>(
             DeliveryMethod.ReliableUnordered,
             channel: 0,
             p =>
             {
-                p.ClientTick = tick;
                 p.TargetNetworkId = targetNetId;
                 p.AimX = aimWorldPosition.X;
                 p.AimY = aimWorldPosition.Y;

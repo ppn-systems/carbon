@@ -23,9 +23,7 @@ public sealed partial class EnhancementResult : PacketBase<EnhancementResult>, I
     [SerializeOrder(0)]
     public OpStatus Status { get; set; }
 
-    /// <summary>The slot the request named.</summary>
-    [SerializeOrder(1)]
-    public ushort SlotIndex { get; set; }
+    // [SerializeOrder(1)] was SlotIndex, never read; removed by ADR-038.
 
     /// <summary>Item id that was enhanced (also set when it was destroyed).</summary>
     [SerializeOrder(2)]
@@ -35,17 +33,13 @@ public sealed partial class EnhancementResult : PacketBase<EnhancementResult>, I
     [SerializeOrder(3)]
     public EnhancementOutcome Outcome { get; set; }
 
-    /// <summary>Level before the attempt.</summary>
-    [SerializeOrder(4)]
-    public byte PreviousLevel { get; set; }
+    // [SerializeOrder(4)] was PreviousLevel, never read; removed by ADR-038.
 
     /// <summary>Level after the attempt (<c>0</c> when destroyed).</summary>
     [SerializeOrder(5)]
     public byte NewLevel { get; set; }
 
-    /// <summary>Whether the item was destroyed.</summary>
-    [SerializeOrder(6)]
-    public bool IsDestroyed { get; set; }
+    // [SerializeOrder(6)] was IsDestroyed, never read; removed by ADR-038.
 
     /// <summary>Whether a protection scroll was spent and changed the outcome or guarded it.</summary>
     [SerializeOrder(7)]

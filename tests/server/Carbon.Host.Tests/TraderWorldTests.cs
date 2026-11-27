@@ -60,7 +60,6 @@ public sealed class TraderWorldTests
             TraderStockSnapshot stock = sink.TraderStocks.Last(t => t.ConnectionId == Conn).Stock;
             stock.Kind.Should().Be(TraderStock.KindMerchant);
             stock.CanRepair.Should().BeFalse("only the blacksmith repairs");
-            stock.RepairSlots.Should().BeEmpty();
             stock.ItemIds.Should().NotBeEmpty();
             stock.SecondsUntilRestock.Should().BeInRange(1, 30 * 60);
             int slot = Array.FindIndex(stock.Remaining, r => r >= 2);
@@ -160,10 +159,6 @@ public sealed class TraderWorldTests
             stock.CanRepair.Should().BeTrue();
             economy.Traders!.TryGet("blacksmith", out TraderProfile profile).Should().BeTrue();
             stock.ItemIds.Should().NotBeEmpty().And.OnlyContain(id => profile.Entries.Any(e => e.ItemId == id), "weapons, armor, tools and smithing stock only");
-
-            // ADR-028: the window prices repairs from the synced repair.json; the old gold-only quote fields stay empty.
-            stock.RepairSlots.Should().BeEmpty();
-            stock.RepairCosts.Should().BeEmpty();
 
             // The village blacksmith repairs the worn sword (50/200, 8 steps) for 3 iron ingots and a 25 gold fee.
             long goldBefore = sink.WalletSyncs.Count > 0 ? sink.WalletSyncs.Last(w => w.ConnectionId == Conn).Gold : 5_000L;

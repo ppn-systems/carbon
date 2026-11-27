@@ -402,8 +402,7 @@ internal sealed class TradeService : IWorldTradeService
             }
         }
 
-        // A blacksmith repairs (ADR-028). The window prices a repair from the synced repair.json, so the old gold-only
-        // quote fields stay empty.
+        // A blacksmith repairs (ADR-028). The window prices a repair from the synced repair.json.
         bool canRepair = trader.ProfileId == BlacksmithProfile;
 
         _outbound.Pending.TraderStocks.Add(new OutboundTraderStock(
@@ -419,9 +418,7 @@ internal sealed class TradeService : IWorldTradeService
                 remaining,
                 [.. sellIds],
                 [.. sellPrices],
-                canRepair,
-                [],
-                [])));
+                canRepair)));
         return OpStatus.Ok;
     }
 

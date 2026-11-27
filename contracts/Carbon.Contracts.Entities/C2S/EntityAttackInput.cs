@@ -17,9 +17,7 @@ public sealed partial class EntityAttackInput : PacketBase<EntityAttackInput>, I
     /// <inheritdoc/>
     public static ushort StaticOpCode => EntityOpCode.AttackInput;
 
-    /// <summary>Client simulation tick.</summary>
-    [SerializeOrder(0)]
-    public uint ClientTick { get; set; }
+    // [SerializeOrder(0)] was ClientTick, never read; removed by ADR-038.
 
     /// <summary>Optional target network entity identifier, or zero for positional swing.</summary>
     [SerializeOrder(1)]

@@ -375,8 +375,6 @@ public sealed class ProtocolContractGuardTests
         {
             CasterNetworkId = 55UL,
             AbilitySlot = 2,
-            OriginX = 10f,
-            OriginY = 20f,
             AimX = 40f,
             AimY = 60f,
         };
@@ -474,19 +472,17 @@ public sealed class ProtocolContractGuardTests
     }
 
     [Fact]
-    public void ItemDurabilityAlert_RoundTrip_PreservesKindSlotItemAndLevel()
+    public void ItemDurabilityAlert_RoundTrip_PreservesKindItemAndLevel()
     {
         using ItemDurabilityAlert alert = new()
         {
             Kind = DurabilityAlertKind.Broke,
-            SlotIndex = 37,
             ItemId = 18,
             UpgradeLevel = 7,
         };
         using ItemDurabilityAlert copy = ItemDurabilityAlert.Deserialize(alert.Serialize());
 
         Assert.Equal(DurabilityAlertKind.Broke, copy.Kind);
-        Assert.Equal((ushort)37, copy.SlotIndex);
         Assert.Equal((ushort)18, copy.ItemId);
         Assert.Equal((byte)7, copy.UpgradeLevel);
         Assert.Equal((ushort)0x4090, ItemDurabilityAlert.StaticOpCode);

@@ -38,27 +38,20 @@ public sealed class EnhancementPacketTests
         using EnhancementResult result = new()
         {
             Status = OpStatus.Ok,
-            SlotIndex = 2,
             ItemId = 183,
             Outcome = EnhancementOutcome.Destroyed,
-            PreviousLevel = 9,
             NewLevel = 0,
-            IsDestroyed = true,
             ProtectionConsumed = false,
         };
         using EnhancementResult copy = EnhancementResult.Deserialize(result.Serialize());
         Assert.Equal(OpStatus.Ok, copy.Status);
-        Assert.Equal((ushort)2, copy.SlotIndex);
         Assert.Equal((ushort)183, copy.ItemId);
         Assert.Equal(EnhancementOutcome.Destroyed, copy.Outcome);
-        Assert.Equal((byte)9, copy.PreviousLevel);
         Assert.Equal((byte)0, copy.NewLevel);
-        Assert.True(copy.IsDestroyed);
         Assert.False(copy.ProtectionConsumed);
 
-        using EnhancementAnnouncement notice = new() { PlayerNetworkId = 77UL, PlayerName = "Smith", ItemId = 31, Outcome = EnhancementOutcome.Success, Level = 8 };
+        using EnhancementAnnouncement notice = new() { PlayerName = "Smith", ItemId = 31, Outcome = EnhancementOutcome.Success, Level = 8 };
         using EnhancementAnnouncement noticeCopy = EnhancementAnnouncement.Deserialize(notice.Serialize());
-        Assert.Equal(77UL, noticeCopy.PlayerNetworkId);
         Assert.Equal("Smith", noticeCopy.PlayerName);
         Assert.Equal((ushort)31, noticeCopy.ItemId);
         Assert.Equal(EnhancementOutcome.Success, noticeCopy.Outcome);

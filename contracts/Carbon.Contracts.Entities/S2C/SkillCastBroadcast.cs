@@ -25,13 +25,9 @@ public sealed partial class SkillCastBroadcast : PacketBase<SkillCastBroadcast>,
     [SerializeOrder(1)]
     public byte AbilitySlot { get; set; }
 
-    /// <summary>Caster world X coordinate.</summary>
-    [SerializeOrder(2)]
-    public float OriginX { get; set; }
+    // [SerializeOrder(2)] was OriginX, never read; removed by ADR-038.
 
-    /// <summary>Caster world Y coordinate.</summary>
-    [SerializeOrder(3)]
-    public float OriginY { get; set; }
+    // [SerializeOrder(3)] was OriginY, never read; removed by ADR-038.
 
     /// <summary>Target world aim X coordinate.</summary>
     [SerializeOrder(4)]
