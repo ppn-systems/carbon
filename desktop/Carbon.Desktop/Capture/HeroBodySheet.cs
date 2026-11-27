@@ -14,7 +14,6 @@ using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.Batching.Sprites;
 using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Graphics.Windowing.Abstractions;
-using Carbon.Items.Catalog;
 using Carbon.Items.Races;
 using Silk.NET.OpenGL;
 
@@ -34,6 +33,13 @@ internal static class HeroBodySheet
     private const float RowHeight = 80f;
     private const float FootRadius = 7f;
 
+    // Item ids of the shipped catalogue (items.json), as in HeroAttackFilmstrip: an offline capture has no config sync.
+    private const uint WoodAxe = 1U;
+    private const uint IronSword = 3U;
+    private const ushort LeatherCap = 13;
+    private const ushort LeatherBoots = 16;
+    private const ushort IronChestplate = 18;
+
     // (label, clip or null for an attack, attack kind, held item, direction, normalized progress or loop time)
     private static readonly (string Label, string? Clip, ActionAnimationKind Kind, uint ItemId, Direction8 Dir, float T)[] s_columns =
     [
@@ -41,8 +47,8 @@ internal static class HeroBodySheet
         ("walk S", "walk", ActionAnimationKind.None, 0U, Direction8.South, 0.12f),
         ("walk E", "walk", ActionAnimationKind.None, 0U, Direction8.East, 0.30f),
         ("north", "idle", ActionAnimationKind.None, 0U, Direction8.North, 0.2f),
-        ("sword", null, ActionAnimationKind.SwordSlash, StarterGameCatalog.IronSword, Direction8.East, 0.45f),
-        ("axe", null, ActionAnimationKind.AxeChop, StarterGameCatalog.WoodAxe, Direction8.East, 0.5f),
+        ("sword", null, ActionAnimationKind.SwordSlash, IronSword, Direction8.East, 0.45f),
+        ("axe", null, ActionAnimationKind.AxeChop, WoodAxe, Direction8.East, 0.5f),
         ("swim", "swim", ActionAnimationKind.None, 0U, Direction8.East, 0.25f),
         ("dive", "dive", ActionAnimationKind.None, 0U, Direction8.East, 0.25f),
         ("downed", "downed", ActionAnimationKind.None, 0U, Direction8.South, 1f),
@@ -87,10 +93,10 @@ internal static class HeroBodySheet
         window.Device.SetClearColor(new Vector4(0.07f, 0.09f, 0.12f, 1.0f));
         window.Device.Clear(ClearBufferMask.ColorBufferBit);
         VisualEquipmentLoadout gear = new(
-            (ushort)StarterGameCatalog.LeatherCap,
-            (ushort)StarterGameCatalog.IronChestplate,
+            LeatherCap,
+            IronChestplate,
             0,
-            (ushort)StarterGameCatalog.LeatherBoots,
+            LeatherBoots,
             0,
             0);
 
