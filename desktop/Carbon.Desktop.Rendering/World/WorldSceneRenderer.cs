@@ -70,6 +70,7 @@ public sealed class WorldSceneRenderer : IDisposable
     private readonly ConstructionOverlayRenderer _construction = new();
     private RoofRenderer? _roofs;
     private readonly List<PointLight> _lights = new(128);
+    private SunShadow.State _sun;
     private readonly List<GroundRenderItem> _groundSortList = new(2048);
     private readonly List<CanopyRenderItem> _canopySortList = new(1024);
     private readonly List<DestroyedPropRenderItem> _remnantList = new(512);
@@ -319,6 +320,15 @@ public sealed class WorldSceneRenderer : IDisposable
 
         this.CollectVisibleObjects(chunkWorld, tileSize, minX, maxX, minY, maxY, playerPos, hasAimTile, aimTileX, aimTileY);
         _construction.BeginFrame(world);
+
+        // Sun shadows of the trees, on the ground under everything that stands (docs/art/graphics-quality.md).
+        _sun = SunShadow.At(_atmosphere.Hour, _atmosphere.Rain);
+        Span<CanopyRenderItem> shadowTrees = CollectionsMarshal.AsSpan(_canopySortList);
+        for (int i = 0; i < shadowTrees.Length; i++)
+        {
+            ref readonly MapProp tree = ref shadowTrees[i].Prop;
+            SunShadow.Draw(_geometryBatch, in _sun, new Vector2(tree.WorldPositionX, tree.WorldPositionY + (10f * tree.Scale)), tree.CanopyRadius * 0.75f, -2f * tree.CanopyOffsetY, 62f);
+        }
 
         Span<DestroyedPropRenderItem> remnantSpan = CollectionsMarshal.AsSpan(_remnantList);
         for (int i = 0; i < remnantSpan.Length; i++)
@@ -685,6 +695,16 @@ public sealed class WorldSceneRenderer : IDisposable
         }
     }
 
+    /// <summary>
+    /// An actor's shadow: a soft contact shadow right under the feet (always, so actors stay grounded at night), plus a
+    /// short sun shadow cast by its body.
+    /// </summary>
+    private static void DrawActorShadow(GeometryBatch batch, in SunShadow.State sun, Vector2 footPos, float radius)
+    {
+        SunShadow.Draw(batch, in sun, footPos, radius * 0.8f, 26f, 54f);
+        batch.FillRadialGradient(new Vector2(footPos.X, footPos.Y + 1f), radius * 1.3f, new ColorRgba(0, 0, 0, 105), new ColorRgba(0, 0, 0, 0), 14, 0.55f);
+    }
+
     /// <summary>Gets whether the local player has an effect that lowers move speed (ADR-029).</summary>
     private static bool IsSlowed(IWorldReadModel world)
     {
@@ -726,7 +746,7 @@ public sealed class WorldSceneRenderer : IDisposable
         }
         else
         {
-            batch.FillCircle(new Vector2(footPos.X + 1.5f, footPos.Y + 1.5f), col.Radius * 1.18f, new ColorRgba(0, 0, 0, 88), 12);
+            DrawActorShadow(batch, in _sun, footPos, col.Radius);
             batch.DrawCircle(footPos, col.Radius + 3.5f, new ColorRgba(56, 189, 248, 150), 14, 1.3f);
         }
 
@@ -892,7 +912,7 @@ public sealed class WorldSceneRenderer : IDisposable
         }
         else
         {
-            batch.FillCircle(new Vector2(footPos.X + 1.5f, footPos.Y + 1.5f), r * 1.15f, new ColorRgba(0, 0, 0, 82), 12);
+            DrawActorShadow(batch, in _sun, footPos, r);
         }
 
         if (remote.Kind == EntityKind.Npc)
