@@ -956,6 +956,79 @@ public sealed class AuthoritativeWorldMultiplayerTests
         }
     }
 
+    [Fact]
+    public async Task MonsterKill_ThatLevelsUp_DoesNotRefillHealth()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-levelup-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
+            RecordingOutboundSink sink = new();
+            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), new SqliteCharacterStore(factory), sink);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+            InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);
+            StarterGameCatalog.GrantStarterLoadout(bag);
+            CharacterRecord template = new(
+                Guid.NewGuid(), Guid.NewGuid(), "Hunter", 1, 0, 0f, 0f, 30f, 100f, 2, InventoryBinaryCodec.Serialize(bag), DateTimeOffset.UtcNow);
+
+            EntitySpawnSnapshot? mob = null;
+            for (int probeX = 1; probeX <= 12 && mob is null; probeX++)
+            {
+                ulong probeConn = 700UL + (ulong)probeX;
+                world.TryEnterWorld(probeConn, probeConn, template with { Id = Guid.NewGuid(), PositionX = ((probeX * 32) + 16) * 32f, PositionY = 16f * 32f }).Status.Should().Be(OpStatus.Ok);
+                world.StepFixedTick();
+                mob = sink.Spawns
+                    .Where(x => x.ConnectionId == probeConn && x.Snapshot.Kind == EntityKind.Monster)
+                    .Select(x => (EntitySpawnSnapshot?)x.Snapshot)
+                    .FirstOrDefault();
+            }
+
+            mob.Should().NotBeNull("wilderness chunks should populate monsters");
+
+            // One experience point short of level 2, so the kill levels the slayer up; health is far below max.
+            const ulong slayerConn = 800UL;
+            CharacterRecord slayer = template with
+            {
+                Id = Guid.NewGuid(),
+                PositionX = mob!.Value.PositionX + 16f,
+                PositionY = mob.Value.PositionY,
+                Experience = CharacterProgressionPolicy.GetXpToNextLevel(1) - 1U,
+            };
+            world.TryEnterWorld(slayerConn, slayerConn, slayer).Status.Should().Be(OpStatus.Ok);
+            world.TryGetPendingCharacterSnapshot(slayer.Id, out CharacterRecord? before).Should().BeTrue();
+            float maxBefore = before!.MaxHealth;
+
+            bool killed = false;
+            for (int tick = 0; tick < 900 && !killed; tick++)
+            {
+                world.EnqueueAttackInput(slayerConn, mob.Value.NetworkId, new Vector2(mob.Value.PositionX, mob.Value.PositionY), 2);
+                world.StepFixedTick();
+                killed = sink.CombatHits.Any(h => h.DefenderNetworkId == mob.Value.NetworkId && h.IsKilled);
+            }
+
+            killed.Should().BeTrue("the slayer should eventually kill the monster");
+            world.StepFixedTick();
+
+            world.TryGetPendingCharacterSnapshot(slayer.Id, out CharacterRecord? after).Should().BeTrue();
+            after!.Level.Should().BeGreaterThan(1, "the kill grants enough experience to level up");
+            float growth = after.MaxHealth - maxBefore;
+            after.CurrentHealth.Should().BeLessThanOrEqualTo(
+                before.CurrentHealth + growth,
+                "a level-up only adds the max-health growth; killing a monster must not heal the player to full");
+            after.CurrentHealth.Should().BeLessThan(after.MaxHealth);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
     [Theory]
     [InlineData("roast_meat")] // built-in StarterGameCatalog consumable
     [InlineData("berries")] // defined only in items.json (economy catalog)

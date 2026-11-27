@@ -101,15 +101,22 @@ public sealed partial class AuthoritativeWorld
 
         if (leveledUp)
         {
+            // A level-up never refills vitals (killing a monster must not heal): only the max-pool growth is added,
+            // so the current/max ratio does not drop.
+            float prevMaxHp = state.Stats.MaxHealth;
+            float prevMaxMp = state.Stats.MaxMana;
+            float prevMaxStam = state.Stats.MaxStamina;
             this.RecomputeDerivedStatsLocked(state);
-            if (_simulation.Entities.HasHealth(state.Entity))
+            if (_simulation.Entities.HasHealth(state.Entity) && state.Stats.MaxHealth > prevMaxHp)
             {
-                _simulation.Entities.SetHealth(state.Entity, new HealthComponent(state.Stats.MaxHealth, state.Stats.MaxHealth));
+                HealthComponent hp = _simulation.Entities.GetHealth(state.Entity);
+                float nextHp = MathF.Min(state.Stats.MaxHealth, hp.Current + (state.Stats.MaxHealth - prevMaxHp));
+                _simulation.Entities.SetHealth(state.Entity, new HealthComponent(nextHp, state.Stats.MaxHealth));
                 _simulation.MarkDirty(state.Entity, EntityDirtyMask.Health);
             }
 
-            state.CurrentMana = state.Stats.MaxMana;
-            state.CurrentStamina = state.Stats.MaxStamina;
+            state.CurrentMana = MathF.Min(state.Stats.MaxMana, state.CurrentMana + MathF.Max(0f, state.Stats.MaxMana - prevMaxMp));
+            state.CurrentStamina = MathF.Min(state.Stats.MaxStamina, state.CurrentStamina + MathF.Max(0f, state.Stats.MaxStamina - prevMaxStam));
 
             if (_simulation.Entities.HasTransform(state.Entity))
             {
