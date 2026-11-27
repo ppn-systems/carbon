@@ -93,6 +93,18 @@ public sealed class StatusEffectWorldTests
         sink.StatusSyncs.Last(s => s.ConnectionId == 1UL).Entries.Should().NotContain(e => e.EffectId == Slowed);
     }
 
+    [Fact]
+    public void TryEnterWorld_DebugStatusEffects_ApplyNeverSavedEffectsAtTheGivenDuration()
+    {
+        (AuthoritativeWorld world, StatusRecordingSink sink) = CreateWorld(new WorldDebugOverrides { StatusEffects = "slowed:60000:1" });
+        _ = world.TryEnterWorld(1UL, Character(statusEffects: "slowed:60000:1"));
+
+        Step(world, 1);
+
+        sink.StatusSyncs.Last(s => s.ConnectionId == 1UL).Entries
+            .Should().ContainSingle(e => e.EffectId == Slowed).Which.RemainingMs.Should().Be(59_966U, "the review knob is not clamped; the saved row is ignored for a never-saved effect");
+    }
+
     private static float WalkDistance(string statusEffects, int waitTicks)
     {
         (AuthoritativeWorld world, StatusRecordingSink sink) = CreateWorld(new WorldDebugOverrides { StatusEffects = statusEffects });
