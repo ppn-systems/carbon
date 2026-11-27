@@ -91,14 +91,13 @@ What master (`12a3897`) does:
   - Night shows the art's colours inside warm light pools, under a cool, desaturated, vignetted ambient.
   - Villages glow from doors, windows, forges and the well, and fireflies light the grass.
   - The per-light vertex cost drops about 7×.
-  - The draw count holds on Medium and High: the light map and the composite replace the ambient and light batches,
-    and the weather overlay (clouds, rain, fireflies, interior dimming) joins the scene batch, so it is lit and graded
-    too.
+  - The draw count holds or drops on every preset: the light map and the composite replace the ambient and light
+    batches, and the weather overlay (clouds, rain, fireflies, interior dimming) joins the scene batch before the
+    lighting, so it is lit (and on Medium/High graded) like the world.
 - **Cost:**
   - Two offscreen targets: 1280×720 plus 640×360, RGBA8, about 4.6 MB.
   - One full-screen composite with 2 texture reads (14 on High).
   - Under a software rasterizer, each target switch flushes the pipeline, which roughly doubles CPU frame time there.
     That is why such GPUs default to Low.
 - **Debt:**
-  - On Low the weather overlay still draws after the lighting, as before.
   - Pass 6 nameplates and the HUD are deliberately left ungraded.

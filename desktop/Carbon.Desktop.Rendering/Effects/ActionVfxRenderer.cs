@@ -94,6 +94,7 @@ public static class ActionVfxRenderer
                 break;
 
             case ActionAnimationKind.None:
+            case ActionAnimationKind.Punch:
             case ActionAnimationKind.ConsumeItem:
             case ActionAnimationKind.PlaceStructure:
             default:

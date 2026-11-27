@@ -59,9 +59,9 @@ public sealed class TimeOfDayGradingTests
     }
 
     [Theory]
-    [InlineData(-1f, 23f)]
-    [InlineData(25.5f, 1.5f)]
-    [InlineData(48f, 0f)]
+    [InlineData(-12f, 12f)]
+    [InlineData(30f, 6f)]
+    [InlineData(42.5f, 18.5f)]
     public void Sample_HourOutsideTheDay_Wraps(float hour, float wrapped) =>
         TimeOfDayGrading.Sample(hour, 0f).Should().Be(TimeOfDayGrading.Sample(wrapped, 0f));
 

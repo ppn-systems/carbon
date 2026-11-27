@@ -515,7 +515,8 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
 
     /// <summary>
     /// Plants a sapling on a world tile (ADR-040 D1): natural ground (no water, rock, road or bridge) in a biome that grows
-    /// trees, with no structure, construction site or other prop on it. A dug-up stump's tile can be planted again. The
+    /// trees, with no structure, construction site or other prop on it. A cleared tree's tile (a dug-up stump, a cut sapling
+    /// or young tree) can be planted again. The
     /// sapling grows into the biome's tree (a dug-up stump's tile: the tree it was) on the rules' stage times.
     /// </summary>
     /// <param name="worldTileX">World tile X.</param>
@@ -557,8 +558,9 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
             if (index >= 0)
             {
                 MapProp existing = chunk.Props[index];
-                bool dugStump = MapProp.IsTree(existing.Type) && existing.Destructibility.IsDestroyed && existing.GrowthStage == TreeGrowthStage.Stump;
-                if (!dugStump)
+                // A tree cleared at a growing stage (a dug-up stump, a cut sapling or young tree) left the tile free.
+                bool cleared = MapProp.IsTree(existing.Type) && existing.Destructibility.IsDestroyed && existing.GrowthStage != TreeGrowthStage.Mature;
+                if (!cleared)
                 {
                     return PlantResult.Occupied;
                 }

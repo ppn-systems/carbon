@@ -152,14 +152,13 @@ public sealed class PropRegrowthRules
         _ = Required(trees, "sapling", out JsonElement sapling);
         _ = Required(trees, "young", out JsonElement young);
         _ = Required(trees, "mature", out JsonElement mature);
-        _ = Required(mature, "saplingDrops", out JsonElement drops);
         _ = Required(trees, "dig", out JsonElement dig);
         TreeStageRule stumpRule = Stage(stump, "trees.stump", "durability", 1f, 10_000f);
         TreeStageRule saplingRule = Stage(sapling, "trees.sapling", "durability", 1f, 10_000f);
         TreeStageRule youngRule = Stage(young, "trees.young", "durabilityShare", 0.05f, 1f);
         int matureYield = Integer(mature, "yield", 0, 99, "trees.mature.yield");
-        int dropMin = Integer(drops, "min", 0, 20, "trees.mature.saplingDrops.min");
-        int dropMax = Integer(drops, "max", dropMin, 20, "trees.mature.saplingDrops.max");
+        float matureChance = Number(mature, "saplingChance");
+        Range(matureChance, 0f, 1f, "trees.mature.saplingChance");
         float chance = Number(stump, "saplingChance");
         Range(chance, 0f, 1f, "trees.stump.saplingChance");
         int defer = Integer(trees, "deferWithinTiles", 0, 64, "trees.deferWithinTiles");
@@ -167,7 +166,7 @@ public sealed class PropRegrowthRules
         Range(bareHand, 0.1f, 10_000f, "trees.dig.bareHandDamage");
         float axe = Number(dig, "axeEfficiency");
         Range(axe, 0f, 1f, "trees.dig.axeEfficiency");
-        return new TreeGrowthRules(stumpRule, saplingRule, youngRule, matureYield, dropMin, dropMax, chance, defer, bareHand, axe);
+        return new TreeGrowthRules(stumpRule, saplingRule, youngRule, matureYield, matureChance, chance, defer, bareHand, axe);
     }
 
     private static TreeStageRule Stage(JsonElement stage, string name, string durabilityKey, float minDurability, float maxDurability)

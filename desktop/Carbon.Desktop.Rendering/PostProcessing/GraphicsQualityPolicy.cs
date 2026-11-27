@@ -9,11 +9,15 @@ namespace Carbon.Desktop.Rendering.PostProcessing;
 /// </summary>
 public static class GraphicsQualityPolicy
 {
-    // Software rasterizers: every offscreen pass costs CPU fill rate, so they get Low.
-    private static readonly string[] s_softwareRenderers = ["llvmpipe", "softpipe", "swiftshader", "microsoft basic render", "gdi generic", "software rasterizer"];
+    // Words of GL_RENDERER that name a software rasterizer: every offscreen pass costs CPU fill rate, so Low.
+    // ("Microsoft Basic Render Driver" and "GDI Generic" are the Windows fallbacks.)
+    private static readonly string[] s_softwareWords = ["llvmpipe", "softpipe", "swiftshader", "basic", "generic"];
 
-    // Integrated GPUs: shared memory bandwidth, so they get Medium (light map and grading, no bloom taps).
-    private static readonly string[] s_integratedRenderers = ["intel", "uhd graphics", "iris", "radeon(tm) graphics", "radeon graphics", "vega", "mali", "adreno", "powervr", "apple m"];
+    // Words that name an integrated GPU (shared memory bandwidth), so Medium. AMD APUs report "Radeon Graphics"
+    // (discrete cards report a model, "Radeon RX 6700"), handled separately.
+    private static readonly string[] s_integratedWords = ["intel", "iris", "uhd", "vega", "mali", "adreno", "powervr", "apple"];
+    private static readonly string[] s_radeonWord = ["radeon"];
+    private static readonly string[] s_graphicsWord = ["graphics"];
 
     /// <summary>Parses a setting value (<c>low</c>, <c>medium</c>, <c>high</c>, case-insensitive).</summary>
     /// <param name="value">The setting text.</param>
@@ -58,12 +62,13 @@ public static class GraphicsQualityPolicy
             return GraphicsQuality.Medium;
         }
 
-        if (ContainsAny(renderer, s_softwareRenderers))
+        if (HasWord(renderer, s_softwareWords))
         {
             return GraphicsQuality.Low;
         }
 
-        return ContainsAny(renderer, s_integratedRenderers) ? GraphicsQuality.Medium : GraphicsQuality.High;
+        bool amdApu = HasWord(renderer, s_radeonWord) && HasWord(renderer, s_graphicsWord);
+        return amdApu || HasWord(renderer, s_integratedWords) ? GraphicsQuality.Medium : GraphicsQuality.High;
     }
 
     /// <summary>Resolves the preset to use: an explicit override, else the saved setting, else the GPU default.</summary>
@@ -74,13 +79,30 @@ public static class GraphicsQualityPolicy
     public static GraphicsQuality Resolve(string? overrideValue, GraphicsQuality? saved, string? renderer) =>
         TryParse(overrideValue, out GraphicsQuality forced) ? forced : saved ?? DefaultFor(renderer);
 
-    private static bool ContainsAny(string text, string[] needles)
+    // Whether any of the renderer string's words (runs of letters and digits, case-insensitive) is in the list.
+    private static bool HasWord(string renderer, string[] words)
     {
-        for (int i = 0; i < needles.Length; i++)
+        ReadOnlySpan<char> text = renderer;
+        int start = -1;
+        for (int i = 0; i <= text.Length; i++)
         {
-            if (text.Contains(needles[i], StringComparison.OrdinalIgnoreCase))
+            bool letter = i < text.Length && char.IsLetterOrDigit(text[i]);
+            if (letter && start < 0)
             {
-                return true;
+                start = i;
+            }
+            else if (!letter && start >= 0)
+            {
+                ReadOnlySpan<char> word = text[start..i];
+                for (int w = 0; w < words.Length; w++)
+                {
+                    if (word.Equals(words[w], StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+
+                start = -1;
             }
         }
 

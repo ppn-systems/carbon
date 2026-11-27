@@ -32,9 +32,10 @@ What master (`6125a15`) does:
    - Felling a mature tree leaves a **stump**. The stump grows back through **stump → sapling → young tree → mature
      tree**. Each stage has its own duration, its own vector-art visual and its own harvest yield. The defaults add up
      to about 45 minutes of server time.
-   - A **young tree** or a **sapling** can be felled; it goes back to a stump. A young tree drops fewer logs.
-   - Felling a mature tree also drops 0–2 **sapling** items, rolled on `GameplayEntropy` (ADR-026,
-     `GameplayDomain.SaplingDrop`, keyed by tick and tile).
+   - **Only a mature tree leaves a stump** (amended, D1c). Felling a **young tree** drops `trees.young.yield` logs and
+     clears the tile. Cutting a **sapling** uproots it back into its item. Neither leaves a stump or a timer.
+   - Felling a mature tree also drops one **sapling** item with chance `trees.mature.saplingChance` (0.03), rolled on
+     `GameplayEntropy` (ADR-026, `GameplayDomain.SaplingDrop`, keyed by tick and tile; D1c).
    - Stumps and saplings have no collider and no canopy; a young tree has both, drawn at 60 % size. A stump draws the
      tree's existing `remnantShapes`, a sapling the shared `props/tree_sapling.cvg.json`. All of it is vector art.
    - Growth works while the chunk is not loaded: the chunk delta records the tree type with the stage.
@@ -58,8 +59,8 @@ What master (`6125a15`) does:
    - A dig strike is an ordinary swing: it costs stamina per ADR-033 and wears the tool. A blade dulls, as on wood.
    - A dug-up stump is destroyed with no timer. It never regrows, it draws nothing, and the tile can be built on. An
      undug stump or a sapling blocks building (`BuildResultCode.BlockedByNaturalObstacle`).
-   - Yield: `trees.stump.yield` logs (default 1) plus one sapling with chance `trees.stump.saplingChance` (default 0.5),
-     on the same entropy domain, so clearing land does not lose the tree.
+   - Yield: `trees.stump.yield` logs (default 1) plus one sapling with chance `trees.stump.saplingChance` (0.01; D1c), on
+     the same entropy domain.
 
 2. **D2 — Stone, boulders and ore never come back.** A destroyed mineral prop is permanent and stays persisted in its
    chunk delta. The world is infinite: exploration replaces regrowth. `props.json` cannot give a mineral a regrowth
@@ -86,10 +87,10 @@ What master (`6125a15`) does:
    ```json
    "trees": {
      "deferWithinTiles": 6,
-     "stump":   { "seconds": 900, "durability": 30, "yield": 1, "saplingChance": 0.5 },
+     "stump":   { "seconds": 900, "durability": 30, "yield": 1, "saplingChance": 0.01 },
      "sapling": { "seconds": 900, "durability": 10, "yield": 0 },
      "young":   { "seconds": 900, "durabilityShare": 0.5, "yield": 1 },
-     "mature":  { "yield": 3, "saplingDrops": { "min": 0, "max": 2 } },
+     "mature":  { "yield": 3, "saplingChance": 0.03 },
      "dig":     { "bareHandDamage": 4, "axeEfficiency": 0.5 }
    }
    ```
@@ -126,6 +127,28 @@ What master (`6125a15`) does:
 9. **D9 — Delivery.** Three PRs. (1) persistence fix, hot path, config-driven timing, permanent stone and fast spawn
    forage. (2) tree stages and stumps. (3) sapling drops and planting. `ProceduralWorldGenerator.GeneratorVersion` does
    not change: the world generator's output is the same.
+
+1c. **D1c — Sapling drop rate and clearing (amendment, owner reports after PR 3).**
+   - **Drop rate (owner decision).** The first values (0–2 saplings per felled mature tree, so 1 on average, plus a 50 %
+     chance per dug stump) made saplings common loot, and a player clearing a grove ended up with more saplings than
+     trees cut. The owner set the shipped values: at most **one** sapling, at **3 %** per felled mature tree and **1 %**
+     per dug-up stump. ("Below 10 % is better, I don't want anyone farming whole forests; even 1 % is fine since the map
+     is infinite.") Why:
+     - The world is infinite, so wild trees are plentiful everywhere. Wood never runs out without saplings.
+     - Replanting a felled tree needs no sapling: its stump grows back by itself (D1). A sapling only plants a **new**
+       tree, for a garden or a windbreak, so it is a rare find rather than a resource loop.
+     - At 3 %, a player fells about 33 mature trees per sapling on average. A stand of trees grows back where it was
+       cut, but planting whole forests is not a strategy.
+     - Bounds: tune both chances within 0–10 %. Above 10 %, saplings become loot to farm. 0 is allowed: no wild tree is
+       ever needed to plant one, since the map holds endless wild trees.
+     - Both values live in `props.json` (`trees.mature.saplingChance`, `trees.stump.saplingChance`) and are pinned by
+       `TreeGrowthTests.LoadEmbedded_SaplingDrops_AreRareButSustainable`.
+   - **Clearing rule: only a mature tree leaves a stump.** Before, felling a sapling or a young tree left a stump that
+     regrew, so a misplaced sapling could never be removed and a tile could not be cleared except by digging a stump.
+     Now cutting a **sapling** uproots it back into the sapling item, so it can be moved. Felling a **young** tree drops
+     its logs. Both clear the tile for good: destroyed at their stage, with no timer, drawn as nothing, free for
+     building or planting. A stump is what is left of a full-grown trunk; a young or a sapling stem has no stump worth
+     leaving.
 
 ## Alternatives Considered
 
