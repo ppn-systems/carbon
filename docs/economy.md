@@ -224,14 +224,16 @@ Ids 1–39 keep the `StarterGameCatalog` ids and codes, and a test checks catego
 | Wraith | `ectoplasm`, `ash_essence` (rare) (+ `mana_crystal`) |
 | Generic drops | `plant_fiber`, `rope`, `small_health_potion`, `rough_gem` |
 | Potions | `small_health_potion`, `greater_health_potion`, `mana_tonic` |
-| Tools/weapons | `wood_axe`, `stone_pickaxe`, `iron_axe`, `crystal_pickaxe`, `copper_sword`, `iron_sword`, `hunting_bow`, `bone_bow`, `crystal_bow`, `arcane_staff`, `shaman_staff`, `crystal_staff`, `ember_blade`, `demon_cleaver` |
+| Tools/weapons | `wood_axe`, `wood_pickaxe`, `wood_sword`, `stone_axe`, `stone_pickaxe`, `iron_axe`, `crystal_pickaxe`, `copper_sword`, `iron_sword`, `hunting_bow`, `bone_bow`, `crystal_bow`, `arcane_staff`, `shaman_staff`, `crystal_staff`, `ember_blade`, `demon_cleaver` |
 | Armor/accessories | leather/iron sets, `crystal_crown`, `crystal_robe`, `orc_war_helm`, `abyssal_crown` (legendary), `slime_ring`, `blood_amulet` |
 | Placeables/stations | wall/door/floor/pillar kits, `forge_anvil`, `workbench_kit`, `stove_kit`, `alchemy_table_kit` |
+
+**Tool tiers.** Wood tools (`wood_axe`, `wood_pickaxe`, `wood_sword`) are hand recipes from logs, planks, fiber and rope. They have harvest tier 1, low durability and a modest edge. Stone tools (`stone_axe`, `stone_pickaxe`) are made at a workbench: harvest tier 2, more durability and more damage. Copper and iron come next, at the forge.
 
 ## 9. Server integration
 
 - **Loading.** The Host builds `GameEconomy.Load(ConfigRepository.Catalog)` from the same snapshot it serves to clients (ADR-014). A missing or invalid config fails the boot.
-- **One source for item stats and recipes.** `items.json` holds combat, tool, armor and consumable stats: `equipSlot`, `harvestTier`, `baseDamage`, `critChance`, harvest damage, `armorDefense`, bonuses, heals, `attackRange`, projectile fields and `capabilities`. `recipes.json` holds every recipe. Both are compiled into one immutable `ItemRules` instance (`engine/Carbon.Items/Catalog/ItemRules.cs`), and there is no process-wide installed table.
+- **One source for item stats and recipes.** `items.json` holds combat, tool, armor and consumable stats: `equipSlot`, `harvestTier`, `baseDamage`, `critChance`, harvest damage, `armorDefense`, bonuses, heals, `attackRange`, projectile fields, `capabilities`, `material` (`wood` or `stone`) and a held weapon's `attackSpeedBonus` (0..1). `recipes.json` holds every recipe. Both are compiled into one immutable `ItemRules` instance (`engine/Carbon.Items/Catalog/ItemRules.cs`), and there is no process-wide installed table.
   - **Server.** `GameEconomy.ItemRules` is owned by `AuthoritativeWorld` and swapped whole with the economy on hot reload (`ApplyGameData`). `AuthService` reads the world's current rules when it computes a new character's stats.
   - **Desktop.** Each session owns a `SyncedItemCatalog` (`IWorldReadModel.Items`). It rebuilds its `Rules` after every verified config sync, so tooltips, the hotbar, the crafting window and client prediction use the server's bytes. Before the first sync it falls back to the build-time copy of the shipped `resources/config` embedded in `Carbon.Items`.
   - **Policies.** `ToolUsagePolicy`, `CharacterProgressionPolicy`, `PlayerInventoryLayout`, `ItemEnhancementPolicy` and `PropHarvestCatalog` take the `ItemRules` to evaluate against as a parameter. `StarterGameCatalog` keeps only the stable id constants and the starter loadout.

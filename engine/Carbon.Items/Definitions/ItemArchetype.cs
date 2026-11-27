@@ -30,6 +30,8 @@ namespace Carbon.Items.Definitions;
 /// <param name="AttackRange">Effective melee strike or ballistic projectile range in world units.</param>
 /// <param name="ProjectileSpeed">World units per second when firing projectiles (<c>0</c> = melee strike).</param>
 /// <param name="ProjectileArchetype">Visual projectile archetype byte (<c>1</c>=Arrow, <c>2</c>=ArcaneBolt, <c>3</c>=CrystalArrow).</param>
+/// <param name="Material">What the tool or weapon is made of.</param>
+/// <param name="AttackSpeedBonus">Attack speed added while the weapon is held (<c>0..1</c>).</param>
 /// <param name="AttackManaCost">Mana consumed per primary projectile shot/cast (<c>0</c> for physical weapons).</param>
 /// <param name="Capabilities">Explicit capability bitmask replacing heuristic damage-threshold checks.</param>
 public sealed record ItemArchetype(
@@ -57,4 +59,6 @@ public sealed record ItemArchetype(
     float ProjectileSpeed = 0f,
     byte ProjectileArchetype = 0,
     float AttackManaCost = 0f,
-    ToolCapabilities Capabilities = ToolCapabilities.None) : IDataDefinition<uint>;
+    ToolCapabilities Capabilities = ToolCapabilities.None,
+    ItemMaterial Material = ItemMaterial.None,
+    float AttackSpeedBonus = 0f) : IDataDefinition<uint>;

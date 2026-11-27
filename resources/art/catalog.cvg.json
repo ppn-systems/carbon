@@ -727,6 +727,30 @@
       "file": "items/copper_sword.cvg.json"
     },
     {
+      "itemId": 188,
+      "id": "wood_pickaxe",
+      "displayName": "Wood Pickaxe",
+      "tier": 1,
+      "accentColor": "#D97706",
+      "file": "items/wood_pickaxe.cvg.json"
+    },
+    {
+      "itemId": 189,
+      "id": "wood_sword",
+      "displayName": "Wood Sword",
+      "tier": 1,
+      "accentColor": "#D97706",
+      "file": "items/wood_sword.cvg.json"
+    },
+    {
+      "itemId": 190,
+      "id": "stone_axe",
+      "displayName": "Stone Axe",
+      "tier": 2,
+      "accentColor": "#A8A29E",
+      "file": "items/stone_axe.cvg.json"
+    },
+    {
       "itemId": 181,
       "id": "iron_axe",
       "displayName": "Iron Axe",
