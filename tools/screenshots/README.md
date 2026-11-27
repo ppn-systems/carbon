@@ -45,7 +45,7 @@ Requirements: the .NET SDK (`$HOME/.dotnet` is added to `PATH`), `xvfb-run`, GLF
 | `CARBON_DEBUG_START_LEVEL=n` | Characters enter the world at level `n` or higher (shots of mid-level UI such as the character panel). |
 | `CARBON_DEBUG_FORGE_KIT=1` | New characters start with a +8 iron sword, enhancement materials, protection scrolls and 50,000 gold (forge review). |
 | `CARBON_DEBUG_STARTER_ITEMS=id[xQty][+Level],...` | New characters also get these items (e.g. `3+10,4x40`: a +10 iron sword and 40 logs), to review enhanced gear. |
-| `CARBON_DEBUG_WORN_GEAR=1` | New characters start with their gear worn to 40 % durability (blacksmith repair review). |
+| `CARBON_DEBUG_WORN_GEAR=1` | Gear from the other Debug kits starts worn to 40 % durability (blacksmith repair review; new characters otherwise start with nothing, ADR-030). |
 
 These overrides are compiled into Debug builds of the host only (`HostRuntimeOptions.ReadDebugOverrides`);
 Release builds ignore the variables, and nothing is ever taken from a client. The host logs a warning when

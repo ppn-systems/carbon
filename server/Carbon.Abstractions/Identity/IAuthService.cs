@@ -51,7 +51,7 @@ public interface IAuthService
     Task<IReadOnlyList<CharacterRecord>> ListCharactersAsync(Guid accountId, CancellationToken ct = default);
 
     /// <summary>
-    /// Creates a new character spawning at the world's starter spawn tile with optional <paramref name="startingClass"/>.
+    /// Creates a new classless character with an empty bag at the world's starter spawn tile (ADR-030).
     /// </summary>
     Task<CharacterCreateResult> CreateCharacterAsync(
         Guid accountId,
@@ -59,7 +59,6 @@ public interface IAuthService
         byte appearancePreset,
         float spawnX,
         float spawnY,
-        byte startingClass = 0,
         CancellationToken ct = default);
 
     /// <summary>

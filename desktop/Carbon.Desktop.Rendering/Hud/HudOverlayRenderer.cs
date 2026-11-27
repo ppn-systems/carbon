@@ -38,7 +38,6 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     private readonly MonsterTargetWidget _targetWidget = new();
     private readonly MinimapRadarWidget _minimap = new();
     private readonly HotbarAndItemWidget _hotbar = new();
-    private readonly WalletWidget _wallet = new();
     private readonly SkillBarWidget _skillBar = new();
     private readonly InventoryModalWidget _bagModal = new();
     private readonly CharacterSheetModalWidget _characterModal = new();
@@ -486,47 +485,9 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         _vignette.DrawGeometry(_geometryBatch, world, viewportWidth, viewportHeight, _animTime);
         _geometryBatch.End();
 
-        // Pass 1: Background HUD (NineSlice Skins -> Vector Geometry & Bars -> Bitmap Text)
-        spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-        _targetWidget.DrawSkin(spriteBatch, _uiSkin, viewportWidth);
-        if (this.Settings.ShowMinimap)
-        {
-            _minimap.DrawSkin(spriteBatch, _uiSkin, viewportWidth);
-        }
-
-        _hotbar.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight);
-        _wallet.DrawSkin(spriteBatch, _uiSkin, viewportWidth, viewportHeight);
-        _skillBar.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight);
-        _toasts.DrawSkin(spriteBatch, _uiSkin, _font, viewportWidth, this.Settings.ShowMinimap);
-        _statusStrip.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, this.Settings.ShowMinimap);
-        spriteBatch.End();
-
-        _geometryBatch.Begin(screenProj);
-        _targetWidget.DrawGeometry(_geometryBatch, _art, viewportWidth, _animTime);
-        if (this.Settings.ShowMinimap)
-        {
-            _minimap.DrawGeometry(_geometryBatch, world, _art, viewportWidth, ptx, pty);
-        }
-
-        int hoveredSlot = _hotbar.DrawGeometry(_geometryBatch, world, _art, feedback, viewportWidth, viewportHeight, bgMouse, _animTime);
-        _wallet.DrawGeometry(_geometryBatch, _art, viewportWidth, viewportHeight);
-        ushort hoveredSkill = _skillBar.DrawGeometry(_geometryBatch, world, viewportWidth, viewportHeight, bgMouse);
-        _statusStrip.DrawGeometry(_geometryBatch, world, _art, viewportWidth, this.Settings.ShowMinimap);
-        _geometryBatch.End();
-
-        spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-        _targetWidget.DrawText(spriteBatch, _font, _art, viewportWidth);
-        if (this.Settings.ShowMinimap)
-        {
-            _minimap.DrawText(spriteBatch, _font, viewportWidth, ptx, pty);
-        }
-
-        _hotbar.DrawText(spriteBatch, _font, world, _art, viewportWidth, viewportHeight, hoveredSlot);
-        _wallet.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight);
-        _skillBar.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight, hoveredSkill);
-        _toasts.DrawText(spriteBatch, _font, viewportWidth, this.Settings.ShowMinimap);
-        _statusStrip.DrawText(spriteBatch, _font, world, viewportWidth, this.Settings.ShowMinimap);
-        spriteBatch.End();
+        // Pass 1: Background HUD (NineSlice Skins -> Vector Geometry & Bars -> Bitmap Text), walked from HudComposition.MainHud.
+        HudFrame frame = new(world, viewportWidth, viewportHeight, ptx, pty, bgMouse, feedback);
+        this.DrawElements(HudComposition.MainHud, spriteBatch, screenProj, in frame);
 
         // Pass 2 & 3: Active Modal Window & Floating Tooltip/Drag Layer
         if (this.ShowSettingsModal)
@@ -560,6 +521,8 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                     spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
                     _bagModal.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight);
                     spriteBatch.End();
+
+                    this.DrawElements(HudComposition.InventoryHeader, spriteBatch, screenProj, in frame);
 
                     _geometryBatch.Begin(screenProj);
                     _bagModal.DrawTopOverlayGeometry(_geometryBatch, world, _art, viewportWidth, viewportHeight, mouseScreenPos, hoveredModalSlot);
@@ -639,6 +602,149 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             spriteBatch.End();
         }
     }
+
+    /// <summary>
+    /// Draws <paramref name="elements"/> in three passes (skins, geometry, text). Every list goes through this one
+    /// dispatcher, so whatever a <see cref="HudComposition"/> list names is exactly what reaches the screen.
+    /// </summary>
+    private void DrawElements(ReadOnlySpan<HudElement> elements, SpriteBatch spriteBatch, Matrix4x4 screenProj, in HudFrame frame)
+    {
+        spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
+        for (int i = 0; i < elements.Length; i++)
+        {
+            this.DrawElementSkin(elements[i], spriteBatch, in frame);
+        }
+
+        spriteBatch.End();
+
+        int hoveredSlot = -1;
+        ushort hoveredSkill = 0;
+        _geometryBatch.Begin(screenProj);
+        for (int i = 0; i < elements.Length; i++)
+        {
+            this.DrawElementGeometry(elements[i], in frame, ref hoveredSlot, ref hoveredSkill);
+        }
+
+        _geometryBatch.End();
+
+        spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
+        for (int i = 0; i < elements.Length; i++)
+        {
+            this.DrawElementText(elements[i], spriteBatch, in frame, hoveredSlot, hoveredSkill);
+        }
+
+        spriteBatch.End();
+    }
+
+    private void DrawElementSkin(HudElement element, SpriteBatch spriteBatch, in HudFrame f)
+    {
+        switch (element)
+        {
+            case HudElement.TargetFrame:
+                _targetWidget.DrawSkin(spriteBatch, _uiSkin, f.ViewportWidth);
+                break;
+            case HudElement.Minimap:
+                if (this.Settings.ShowMinimap)
+                {
+                    _minimap.DrawSkin(spriteBatch, _uiSkin, f.ViewportWidth);
+                }
+
+                break;
+            case HudElement.Hotbar:
+                _hotbar.DrawSkin(spriteBatch, _uiSkin, f.World, f.ViewportWidth, f.ViewportHeight);
+                break;
+            case HudElement.SkillBar:
+                _skillBar.DrawSkin(spriteBatch, _uiSkin, f.World, f.ViewportWidth, f.ViewportHeight);
+                break;
+            case HudElement.Toasts:
+                _toasts.DrawSkin(spriteBatch, _uiSkin, _font, f.ViewportWidth, this.Settings.ShowMinimap);
+                break;
+            case HudElement.StatusEffects:
+                _statusStrip.DrawSkin(spriteBatch, _uiSkin, f.World, f.ViewportWidth, this.Settings.ShowMinimap);
+                break;
+            case HudElement.Wallet:
+            default:
+                break;
+        }
+    }
+
+    private void DrawElementGeometry(HudElement element, in HudFrame f, ref int hoveredSlot, ref ushort hoveredSkill)
+    {
+        switch (element)
+        {
+            case HudElement.TargetFrame:
+                _targetWidget.DrawGeometry(_geometryBatch, _art, f.ViewportWidth, _animTime);
+                break;
+            case HudElement.Minimap:
+                if (this.Settings.ShowMinimap)
+                {
+                    _minimap.DrawGeometry(_geometryBatch, f.World, _art, f.ViewportWidth, f.Ptx, f.Pty);
+                }
+
+                break;
+            case HudElement.Hotbar:
+                hoveredSlot = _hotbar.DrawGeometry(_geometryBatch, f.World, _art, f.Feedback, f.ViewportWidth, f.ViewportHeight, f.BackgroundMouse, _animTime);
+                break;
+            case HudElement.SkillBar:
+                hoveredSkill = _skillBar.DrawGeometry(_geometryBatch, f.World, f.ViewportWidth, f.ViewportHeight, f.BackgroundMouse);
+                break;
+            case HudElement.Wallet:
+                PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(f.ViewportWidth, f.ViewportHeight);
+                WalletWidget.DrawGeometry(_geometryBatch, _art, in layout);
+                break;
+            case HudElement.StatusEffects:
+                _statusStrip.DrawGeometry(_geometryBatch, f.World, _art, f.ViewportWidth, this.Settings.ShowMinimap);
+                break;
+            case HudElement.Toasts:
+            default:
+                break;
+        }
+    }
+
+    private void DrawElementText(HudElement element, SpriteBatch spriteBatch, in HudFrame f, int hoveredSlot, ushort hoveredSkill)
+    {
+        switch (element)
+        {
+            case HudElement.TargetFrame:
+                _targetWidget.DrawText(spriteBatch, _font, _art, f.ViewportWidth);
+                break;
+            case HudElement.Minimap:
+                if (this.Settings.ShowMinimap)
+                {
+                    _minimap.DrawText(spriteBatch, _font, f.ViewportWidth, f.Ptx, f.Pty);
+                }
+
+                break;
+            case HudElement.Hotbar:
+                _hotbar.DrawText(spriteBatch, _font, f.World, _art, f.ViewportWidth, f.ViewportHeight, hoveredSlot);
+                break;
+            case HudElement.SkillBar:
+                _skillBar.DrawText(spriteBatch, _font, f.World, f.ViewportWidth, f.ViewportHeight, hoveredSkill);
+                break;
+            case HudElement.Toasts:
+                _toasts.DrawText(spriteBatch, _font, f.ViewportWidth, this.Settings.ShowMinimap);
+                break;
+            case HudElement.StatusEffects:
+                _statusStrip.DrawText(spriteBatch, _font, f.World, f.ViewportWidth, this.Settings.ShowMinimap);
+                break;
+            case HudElement.Wallet:
+                PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(f.ViewportWidth, f.ViewportHeight);
+                WalletWidget.DrawText(spriteBatch, _font, f.World, in layout);
+                break;
+            default:
+                break;
+        }
+    }
+
+    /// <summary>Per-frame inputs shared by every element of a draw list.</summary>
+    private readonly record struct HudFrame(
+        IWorldReadModel World,
+        int ViewportWidth,
+        int ViewportHeight,
+        int Ptx,
+        int Pty,
+        Vector2? BackgroundMouse,
+        CombatFeedbackTracker? Feedback);
 
     /// <inheritdoc/>
     private void ReloadFontIfLanguageChanged()

@@ -6,15 +6,17 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Threading.Tasks;
+using Carbon.Abstractions.Identity;
 using Carbon.Abstractions.Persistence;
+using Carbon.Application.Identity;
 using Carbon.Application.World;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Infrastructure.Persistence.Sqlite;
+using Carbon.Infrastructure.Security;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
-using Carbon.Items.Serialization;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
@@ -25,7 +27,7 @@ using Xunit;
 namespace Carbon.Host.Tests;
 
 /// <summary>
-/// A character who enters the world with nothing must reach its first tool with server commands alone: gather loose
+/// A newly created character enters the world with nothing and must reach its first tool with server commands alone: gather loose
 /// stones, branches and fiber by hand at spawn, craft rope and the stone axe, and then fell trees faster than by hand.
 /// </summary>
 public sealed class SurvivalBootstrapWorldTests
@@ -46,30 +48,18 @@ public sealed class SurvivalBootstrapWorldTests
             SqliteCharacterStore characters = new(factory);
             AuthoritativeWorldMultiplayerTests.RecordingOutboundSink sink = new();
 
-            DateTimeOffset now = new(2026, 11, 27, 9, 0, 0, TimeSpan.Zero);
-            Guid accountId = Guid.NewGuid();
-            (await accounts.TryCreateAsync(new AccountRecord(accountId, "bootstrap", "BOOTSTRAP", [1], [2], now, false)).ConfigureAwait(true)).Should().BeTrue();
-
             AuthoritativeWorld world = new(Seed, TileSize, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), characters, sink, entropy: TestGameplayEntropy.Create(Seed));
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
+            // A fresh character, created the way the CharacterCreate handler creates one (at the world spawn).
             Vector2 spawn = world.DefaultSpawnWorldPosition;
-            CharacterRecord hero = new(
-                Guid.NewGuid(),
-                accountId,
-                "Bootstrap",
-                Level: 1,
-                AppearancePreset: 0,
-                PositionX: spawn.X,
-                PositionY: spawn.Y,
-                CurrentHealth: 100f,
-                MaxHealth: 100f,
-                SelectedHotbarSlot: 0,
-                InventoryBlob: InventoryBinaryCodec.Serialize(new InventoryContainer(PlayerInventoryLayout.TotalCapacity)),
-                UpdatedAtUtc: now);
-            (await characters.TryCreateAsync(hero).ConfigureAwait(true)).Should().BeTrue();
+            using AuthService auth = new(accounts, characters, new Pbkdf2PasswordHasher());
+            AuthOutcome account = await auth.RegisterAsync("bootstrap", "secret-pass", CarbonProtocol.Version).ConfigureAwait(true);
+            CharacterCreateResult created = await auth.CreateCharacterAsync(account.AccountId, "Bootstrap", 0, spawn.X, spawn.Y).ConfigureAwait(true);
+            created.Succeeded.Should().BeTrue();
+            CharacterRecord hero = (await characters.FindByIdAsync(created.Character!.Id).ConfigureAwait(true))!;
             world.TryEnterWorld(Connection, hero).Status.Should().Be(OpStatus.Ok);
-            Inventory(world).Should().BeEmpty("the character starts with nothing");
+            Inventory(world).Should().BeEmpty("a new character starts with nothing (ADR-030)");
 
             // 1. Gather the stone axe's materials by hand from the forage the generator leaves at spawn.
             ChunkWorld2D mirror = new(new ProceduralWorldGenerator(Seed), TileSize, 0.0008f);
