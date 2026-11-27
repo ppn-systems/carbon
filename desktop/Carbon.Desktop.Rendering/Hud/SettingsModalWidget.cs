@@ -65,7 +65,7 @@ internal sealed class SettingsModalWidget
         ("settings.key.menu", "settings.action.menu"),
     ];
 
-    private static readonly string[] s_toggleLabels = ["settings.show_minimap", "settings.show_combat_numbers", "settings.show_telemetry"];
+    private static readonly string[] s_toggleLabels = ["settings.show_minimap", "settings.show_combat_numbers", "settings.show_telemetry", "combat_feel.screen_shake", "combat_feel.reduce_flashes"];
     private static readonly string[] s_zoomLabels = ["settings.zoom.wide", "settings.zoom.standard", "settings.zoom.close"];
 
     private int _activeTab;
@@ -115,7 +115,7 @@ internal sealed class SettingsModalWidget
             return SettingsModalAction.None;
         }
 
-        for (int row = 0; row < 3; row++)
+        for (int row = 0; row < s_toggleLabels.Length; row++)
         {
             if (GetToggleButtonRect(ox, oy, row).Contains(mousePos))
             {
@@ -127,8 +127,14 @@ internal sealed class SettingsModalWidget
                     case 1:
                         settings.ShowCombatNumbers = !settings.ShowCombatNumbers;
                         break;
-                    default:
+                    case 2:
                         settings.ShowTelemetry = !settings.ShowTelemetry;
+                        break;
+                    case 3:
+                        settings.ScreenShake = !settings.ScreenShake;
+                        break;
+                    default:
+                        settings.ReduceFlashes = !settings.ReduceFlashes;
                         break;
                 }
 
@@ -193,7 +199,7 @@ internal sealed class SettingsModalWidget
 
         if (_activeTab == 0)
         {
-            bool[] values = [settings.ShowMinimap, settings.ShowCombatNumbers, settings.ShowTelemetry];
+            bool[] values = [settings.ShowMinimap, settings.ShowCombatNumbers, settings.ShowTelemetry, settings.ScreenShake, settings.ReduceFlashes];
             for (int r = 0; r < values.Length; r++)
             {
                 RectangleF btn = GetToggleButtonRect(ox, oy, r);
@@ -245,7 +251,9 @@ internal sealed class SettingsModalWidget
                 {
                     0 => settings.ShowMinimap,
                     1 => settings.ShowCombatNumbers,
-                    _ => settings.ShowTelemetry,
+                    2 => settings.ShowTelemetry,
+                    3 => settings.ScreenShake,
+                    _ => settings.ReduceFlashes,
                 };
                 RectangleF toggleRect = GetToggleButtonRect(ox, oy, r);
                 spriteBatch.DrawOutlinedString(font, GameText.Get(s_toggleLabels[r]), new Vector2(ox + 38f, toggleRect.Y + 4f), CarbonUiPalette.TextPrimary, black, 1, 1f);
@@ -256,7 +264,7 @@ internal sealed class SettingsModalWidget
             spriteBatch.DrawOutlinedString(font, GameText.Get("settings.language"), new Vector2(ox + 38f, langButton.Y + 4f), CarbonUiPalette.TextPrimary, black, 1, 1f);
             CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Current.Locale.NativeName, in langButton, CarbonUiPalette.TextPrimary, black, 1f);
 
-            spriteBatch.DrawOutlinedString(font, GameText.Get("settings.camera_zoom"), new Vector2(ox + 38f, oy + 292f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, GameText.Get("settings.camera_zoom"), new Vector2(ox + 38f, oy + 306f), CarbonUiPalette.TextPrimary, black, 1, 1f);
             for (int z = 0; z < s_zoomLabels.Length; z++)
             {
                 CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Get(s_zoomLabels[z]), GetZoomButtonRect(ox, oy, z), CarbonUiPalette.TextPrimary, black, 1f);
@@ -305,10 +313,10 @@ internal sealed class SettingsModalWidget
         new(ox + 22f + (index * 158f), oy + 48f, 150f, 28f);
 
     private static RectangleF GetToggleButtonRect(float ox, float oy, int row) =>
-        new(ox + PanelW - 116f, oy + 104f + (row * 44f), 78f, 26f);
+        new(ox + PanelW - 116f, oy + 100f + (row * 32f), 78f, 26f);
 
     private static RectangleF GetLanguageButtonRect(float ox, float oy) =>
-        new(ox + PanelW - 196f, oy + 104f + (3 * 44f), 158f, 26f);
+        new(ox + PanelW - 196f, oy + 100f + (5 * 32f), 158f, 26f);
 
     private static string NextLocaleCode(ILocalizer localizer)
     {
@@ -325,7 +333,7 @@ internal sealed class SettingsModalWidget
     }
 
     private static RectangleF GetZoomButtonRect(float ox, float oy, int index) =>
-        new(ox + PanelW - 224f + (index * 64f), oy + 288f, 58f, 26f);
+        new(ox + PanelW - 224f + (index * 64f), oy + 302f, 58f, 26f);
 
     private static RectangleF GetFooterButtonRect(float ox, float oy, int index) =>
         new(ox + 20f + (index * 184f), oy + 372f, 172f, 38f);

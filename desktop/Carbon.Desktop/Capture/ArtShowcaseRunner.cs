@@ -248,6 +248,7 @@ internal static class ArtShowcaseRunner
             RenderAttackPhaseSheet(window, geom, sprites, font, art, ortho, s_bossAttackLineup, "ABYSS LEVIATHAN ATTACK PATTERNS AND TELEGRAPHS (ADR-032 D15)", Path.Combine(outputDir, "boss_attack_phases.bmp"));
             RenderDayNightEliteSheet(window, geom, sprites, font, art, ortho, Path.Combine(outputDir, "monsters_day_night_elite.bmp"));
             HeroAttackFilmstrip.Render(window, geom, sprites, font, art, ortho, Path.Combine(outputDir, "hero_attacks.bmp"));
+            HeroImpactFilmstrip.Render(window, geom, sprites, font, art, ortho, Path.Combine(outputDir, "hero_impact.bmp"));
         }
         finally
         {

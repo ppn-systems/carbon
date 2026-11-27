@@ -19,6 +19,7 @@ using Carbon.Desktop.Gameplay.Repair;
 using Carbon.Desktop.Gameplay.Trade;
 using Carbon.Desktop.Input;
 using Carbon.Desktop.Menu;
+using Carbon.Desktop.Rendering.Feedback;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Common;
@@ -488,6 +489,7 @@ public sealed class WorldGameplayScene : GameScene
 
         float frameDt = _options.CaptureFrames > 0 ? 1f / 15f : (float)dt;
         _worldRenderer.EnsureWorldBound(_session);
+        _worldRenderer.Feel = new ImpactFeelOptions(_hudRenderer.Settings.ScreenShake, _hudRenderer.Settings.ReduceFlashes);
         _worldRenderer.Render(
             _session,
             _cameraRig,
