@@ -68,6 +68,7 @@ public sealed class WorldSceneRenderer : IDisposable
     private readonly List<DestroyedPropRenderItem> _remnantList = new(512);
     private readonly List<DamagedPropHudMarker> _damagedProps = new(64);
     private readonly List<PointOfInterest> _visibleWorldTrees = new(4);
+    private readonly List<(int TileX, int TileY)> _drawnPois = new(16);
 
     private PointOfInterestResolver? _landmarks;
     private PointOfInterestRenderer? _poiRenderer;
@@ -442,6 +443,7 @@ public sealed class WorldSceneRenderer : IDisposable
         _remnantList.Clear();
         _damagedProps.Clear();
         _visibleWorldTrees.Clear();
+        _drawnPois.Clear();
 
         foreach (Chunk2D chunk in chunkWorld.ActiveChunks)
         {
@@ -452,6 +454,13 @@ public sealed class WorldSceneRenderer : IDisposable
                 float px = (poi.TileX + 0.5f) * tileSize;
                 float py = (poi.TileY + 0.5f) * tileSize;
                 if (px + reach < minX || px - reach > maxX || py + reach < minY || py - reach > maxY || _poiRenderer is null)
+                {
+                    continue;
+                }
+
+                // LandmarkStage lists a point of interest in every chunk within its radius: draw it, and collect its
+                // lights, once per frame, not once per chunk that lists it.
+                if (!TryMarkDrawn(_drawnPois, in poi))
                 {
                     continue;
                 }
@@ -540,6 +549,24 @@ public sealed class WorldSceneRenderer : IDisposable
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Records <paramref name="poi"/> as drawn this frame. A point of interest is listed by every chunk within its
+    /// radius (<c>LandmarkStage</c>), so the frame loop meets it several times.
+    /// </summary>
+    /// <param name="drawn">Points of interest already drawn this frame (cleared each frame).</param>
+    /// <param name="poi">The point of interest met.</param>
+    /// <returns><see langword="true"/> the first time this frame; <see langword="false"/> after that.</returns>
+    internal static bool TryMarkDrawn(List<(int TileX, int TileY)> drawn, in PointOfInterest poi)
+    {
+        if (drawn.Contains((poi.TileX, poi.TileY)))
+        {
+            return false;
+        }
+
+        drawn.Add((poi.TileX, poi.TileY));
+        return true;
     }
 
     private void CollectActors(IWorldReadModel world, float minX, float maxX, float minY, float maxY)
