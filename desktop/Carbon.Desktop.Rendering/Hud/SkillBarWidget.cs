@@ -30,6 +30,9 @@ internal sealed class SkillBarWidget
 
     private readonly List<SkillDefinition> _visibleSkills = new(8);
 
+    /// <summary>Gets or sets the lowest top the bar may start at (under the HUD column, see <see cref="HudLayout"/>).</summary>
+    public float MinTop { get; set; }
+
     public bool TryHitTestSkill(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort skillId)
     {
         skillId = 0;
@@ -39,7 +42,7 @@ internal sealed class SkillBarWidget
             return false;
         }
 
-        (float startX, float startY) = ComputeOrigin(viewportWidth, viewportHeight, _visibleSkills.Count);
+        (float startX, float startY) = this.ComputeOrigin(viewportWidth, viewportHeight, _visibleSkills.Count);
         if (mousePos.X < startX || mousePos.X > startX + SlotSize)
         {
             return false;
@@ -71,7 +74,7 @@ internal sealed class SkillBarWidget
             return;
         }
 
-        (float startX, float startY) = ComputeOrigin(viewportWidth, viewportHeight, _visibleSkills.Count);
+        (float startX, float startY) = this.ComputeOrigin(viewportWidth, viewportHeight, _visibleSkills.Count);
         float totalH = (_visibleSkills.Count * SlotSize) + ((_visibleSkills.Count - 1) * Gap);
         skin.DrawCard(
             spriteBatch,
@@ -111,7 +114,7 @@ internal sealed class SkillBarWidget
             return 0;
         }
 
-        (float startX, float startY) = ComputeOrigin(viewportWidth, viewportHeight, _visibleSkills.Count);
+        (float startX, float startY) = this.ComputeOrigin(viewportWidth, viewportHeight, _visibleSkills.Count);
         SkillDefinition? hoveredDef = null;
         float hoveredY = startY;
 
@@ -188,7 +191,7 @@ internal sealed class SkillBarWidget
             return;
         }
 
-        (float startX, float startY) = ComputeOrigin(viewportWidth, viewportHeight, _visibleSkills.Count);
+        (float startX, float startY) = this.ComputeOrigin(viewportWidth, viewportHeight, _visibleSkills.Count);
         ColorRgba black = CarbonUiPalette.TextOutline;
         SkillDefinition? hoveredDef = null;
         float hoveredY = startY;
@@ -304,11 +307,11 @@ internal sealed class SkillBarWidget
             world.LocalUnlockedSkillMask,
             _visibleSkills);
 
-    private static (float StartX, float StartY) ComputeOrigin(int viewportWidth, int viewportHeight, int count)
+    private (float StartX, float StartY) ComputeOrigin(int viewportWidth, int viewportHeight, int count)
     {
         float totalH = count > 0 ? (count * SlotSize) + ((count - 1) * Gap) : 0f;
         float startX = viewportWidth - SlotSize - 14f;
-        float startY = MathF.Floor((viewportHeight - totalH) * 0.5f);
+        float startY = MathF.Max(MathF.Floor((viewportHeight - totalH) * 0.5f), this.MinTop);
         return (startX, startY);
     }
 }

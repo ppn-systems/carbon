@@ -44,6 +44,11 @@ internal interface IWorldCommandHandlers
     OpStatus TryRepairItem(ulong connectionId, ushort slotIndex);
 
     OpStatus TryAllocateCharacterPoint(ulong connectionId, PointAllocationKind kind, ushort targetId, byte amount);
+
+    OpStatus TryRespawn(ulong connectionId);
+
+    /// <summary>Gets whether the connection's player is dead and waiting to respawn (ADR-031).</summary>
+    bool IsPlayerDead(ulong connectionId);
 }
 
 /// <summary>
@@ -70,8 +75,16 @@ internal sealed class WorldCommandExecutor
         queue.Drain(_execute);
     }
 
-    /// <summary>Runs one command; an unknown kind is <see cref="OpStatus.Invalid"/>.</summary>
-    public WorldMutationOutcome Execute(WorldCommand command) => command.Kind switch
+    /// <summary>
+    /// Runs one command; an unknown kind is <see cref="OpStatus.Invalid"/>. A dead player may only respawn: every other
+    /// command is <see cref="OpStatus.Forbidden"/> (ADR-031).
+    /// </summary>
+    public WorldMutationOutcome Execute(WorldCommand command) =>
+        command.Kind != WorldCommandKind.Respawn && _handlers.IsPlayerDead(command.ConnectionId)
+            ? new WorldMutationOutcome(OpStatus.Forbidden, 0)
+            : this.Run(command);
+
+    private WorldMutationOutcome Run(WorldCommand command) => command.Kind switch
     {
         WorldCommandKind.HarvestProp => _handlers.TryHarvestProp(command.ConnectionId, command.TileX, command.TileY),
         WorldCommandKind.PlaceStructure => _handlers.TryPlaceStructure(command.ConnectionId, command.TileX, command.TileY, command.StructureType, command.Rotation),
@@ -94,6 +107,7 @@ internal sealed class WorldCommandExecutor
         WorldCommandKind.AllocateCharacterPoint => new(
             _handlers.TryAllocateCharacterPoint(command.ConnectionId, (PointAllocationKind)command.Arg0, command.Arg1, (byte)command.Arg2),
             0),
+        WorldCommandKind.Respawn => new(_handlers.TryRespawn(command.ConnectionId), 0),
         // Trading runs on TradeService's own queue (drained on the same tick, under the same lock).
         WorldCommandKind.TraderOpen or WorldCommandKind.TraderBuy or WorldCommandKind.TraderSell => new WorldMutationOutcome(OpStatus.Invalid, 0),
         _ => new WorldMutationOutcome(OpStatus.Invalid, 0),

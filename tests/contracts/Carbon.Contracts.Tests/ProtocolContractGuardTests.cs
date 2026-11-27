@@ -358,11 +358,10 @@ public sealed class ProtocolContractGuardTests
         {
             CharacterName = "Spellweaver",
             AppearancePreset = 7,
-            StartingClass = (byte)HeroArchetypeClass.Arcanist,
         };
         using CharacterCreate charCreateCopy = CharacterCreate.Deserialize(charCreate.Serialize());
         Assert.Equal("Spellweaver", charCreateCopy.CharacterName);
-        Assert.Equal((byte)HeroArchetypeClass.Arcanist, charCreateCopy.StartingClass);
+        Assert.Equal((byte)7, charCreateCopy.AppearancePreset);
 
         using DropInventoryItem drop = new() { SlotIndex = 5, Quantity = 2, SequenceId = 9 };
         using DropInventoryItem dropCopy = DropInventoryItem.Deserialize(drop.Serialize());
@@ -452,6 +451,26 @@ public sealed class ProtocolContractGuardTests
         Assert.Equal((ushort)3, advStatsCopy.UnspentSkillPoints);
         Assert.Equal(CharacterSkillMask.Whirlwind | CharacterSkillMask.ArcaneNova, advStatsCopy.UnlockedSkillMask);
         Assert.Equal(advStats.ProgressionBlob, advStatsCopy.ProgressionBlob);
+    }
+
+    [Fact]
+    public void PlayerDeath_RoundTrip_PreservesKillerAndGold()
+    {
+        using PlayerDeath death = new()
+        {
+            Cause = DeathCause.Monster,
+            KillerArchetypeId = 40,
+            KillerNetworkId = 1_234_567UL,
+            GoldDropped = 2_999L,
+        };
+        using PlayerDeath copy = PlayerDeath.Deserialize(death.Serialize());
+
+        Assert.Equal(DeathCause.Monster, copy.Cause);
+        Assert.Equal((ushort)40, copy.KillerArchetypeId);
+        Assert.Equal(1_234_567UL, copy.KillerNetworkId);
+        Assert.Equal(2_999L, copy.GoldDropped);
+        Assert.Equal((ushort)0x4078, PlayerDeath.StaticOpCode);
+        Assert.Equal((ushort)0x4079, RespawnRequest.StaticOpCode);
     }
 
     private static bool IsPacketType(Type t) =>

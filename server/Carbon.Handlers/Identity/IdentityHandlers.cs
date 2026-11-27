@@ -170,7 +170,6 @@ public static partial class IdentityHandlers
         CancellationToken ct = context.CancellationToken;
         string characterName = context.Packet.CharacterName;
         byte appearancePreset = context.Packet.AppearancePreset;
-        byte startingClass = context.Packet.StartingClass;
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
         if (!ConnectionAuthRegistry.TryGetAccountId(connectionId, out Guid accountId))
         {
@@ -186,7 +185,6 @@ public static partial class IdentityHandlers
                 appearancePreset,
                 spawn.X,
                 spawn.Y,
-                startingClass,
                 ct)
             .ConfigureAwait(false);
 
@@ -194,7 +192,7 @@ public static partial class IdentityHandlers
             ? OpStatus.Ok
             : result.FailureReason switch
             {
-                "invalid_name" or "invalid_class" => OpStatus.Invalid,
+                "invalid_name" => OpStatus.Invalid,
                 "character_limit_reached" => OpStatus.Forbidden,
                 _ => OpStatus.Conflict,
             };
@@ -235,7 +233,7 @@ public static partial class IdentityHandlers
             owned = pendingSnapshot;
         }
 
-        EnterWorldResult enter = s_world.TryEnterWorld(connectionId, connectionId, owned);
+        EnterWorldResult enter = s_world.TryEnterWorld(connectionId, owned);
         await SendEnterWorldAsync(sender, enter).ConfigureAwait(false);
     }
 

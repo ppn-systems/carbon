@@ -8,8 +8,11 @@ using Carbon.Abstractions.World;
 using Carbon.Application.World.Needs;
 using Carbon.Application.World.Persistence;
 using Carbon.Application.World.Players;
+using Carbon.Application.World.StatusEffects;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
+using Carbon.Contracts.Identity;
+using Carbon.Creatures;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Serialization;
@@ -34,6 +37,18 @@ public sealed class CharacterPersistenceTests
 
         loaded.Flags.HasFlag(CharacterTraits.StarterLoadoutGranted).Should().BeTrue();
         inventory.Slots.ToArray().Should().Contain(s => !s.IsEmpty);
+    }
+
+    [Fact]
+    public void LoadInventory_UnreadableBlobOfAClasslessCharacter_LeavesTheBagEmpty()
+    {
+        CharacterRecord fresh = Character() with { InventoryBlob = [], Flags = CharacterTraits.None, Class = HeroArchetypeClass.None };
+        InventoryContainer inventory = new(PlayerInventoryLayout.TotalCapacity);
+
+        CharacterRecord loaded = CharacterPersistence.LoadInventory(fresh, inventory);
+
+        loaded.Flags.HasFlag(CharacterTraits.StarterLoadoutGranted).Should().BeTrue();
+        inventory.Slots.ToArray().Should().OnlyContain(s => s.IsEmpty, "a classless character has no starter kit to fall back to (ADR-030)");
     }
 
     [Fact]
@@ -138,7 +153,8 @@ public sealed class CharacterPersistenceTests
         {
             ItemRules rules = ItemRules.LoadShippedDefaults();
             NeedsService needs = new(this.Simulation, new BuildingGrid(), 32f, () => rules, () => null, new NeedsConfig(), null, TestGameplayEntropy.Create(1UL));
-            this.Persistence = new CharacterPersistence(this.Simulation, needs, TimeProvider.System);
+            StatusEffectService statusEffects = new(this.Simulation, 30, null, CreatureContent.LoadDefault().Catalog, TestGameplayEntropy.Create(1UL));
+            this.Persistence = new CharacterPersistence(this.Simulation, needs, statusEffects, TimeProvider.System);
         }
 
         public WorldSimulation Simulation { get; } = new();
@@ -151,7 +167,7 @@ public sealed class CharacterPersistenceTests
         {
             ulong netId = ++_nextNetworkId;
             CharacterRecord character = Character() with { PositionX = position.X, PositionY = position.Y };
-            ConnectedPlayerSession session = new(1UL, netId, character.AccountId, character.Id, character.Name, netId, 0, 0);
+            ConnectedPlayerSession session = new(netId, character.AccountId, character.Id, character.Name, netId, 0, 0);
             PlayerState state = new(session, this.Simulation.SpawnNetworkEntity(netId, position, 7f), character, new InventoryContainer(4))
             {
                 LastSavedPosition = position,

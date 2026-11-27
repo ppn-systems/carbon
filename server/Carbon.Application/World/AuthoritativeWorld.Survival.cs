@@ -8,7 +8,9 @@ using Carbon.Abstractions.World;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.Application.World.Commands;
+using Carbon.Application.World.StatusEffects;
 using Carbon.Combat.Events;
+using Carbon.Combat.Statuses;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Items.Containers;
@@ -50,6 +52,7 @@ public sealed partial class AuthoritativeWorld
         }
 
         _needs.SetActivity(state.Entity, state.RestMode, isFighting, isSprinting, isMoving);
+        _statusEffects.MirrorPoisonIntoNeeds(state.Entity);
 
         // Cancel the meal if the food left its reserved slot (dropped, moved, traded) so nothing is eaten for free.
         if (state.EatingSlot >= 0 && EatActionSystem.IsEating(_simulation, state.Entity))
@@ -124,6 +127,12 @@ public sealed partial class AuthoritativeWorld
             if (_players.TryGetByEntity(_simulation, meals[i].Entity, out PlayerState? state))
             {
                 this.ConsumeEatenItemLocked(state);
+
+                // ADR-029 D6: food poisoning is the poisoned status effect.
+                if (meals[i].Poisoned)
+                {
+                    _ = _statusEffects.Apply(state.Entity, StatusEffectKeys.Poisoned, StatusSource.Food, durationSeconds: _needs.Config.PoisonDurationSeconds);
+                }
             }
         }
 
@@ -167,19 +176,10 @@ public sealed partial class AuthoritativeWorld
                 _players.TryGetByEntity(_simulation, kill.Victim, out PlayerState? state) &&
                 _simulation.Entities.HasTransform(state.Entity))
             {
-                // Route starvation death through the standard death/respawn path (health is already 0).
-                this.ApplyDamageToPlayerLocked(
-                    null,
-                    state.Session.PlayerNetworkId,
-                    state.Entity,
-                    state.Session.PlayerNetworkId,
-                    _simulation.Entities.GetTransform(state.Entity).Position,
-                    1f);
-                this.ResetNeedsAfterDeathLocked(state);
-                state.CurrentMana = state.Stats.MaxMana;
-                state.CurrentStamina = state.Stats.MaxStamina;
-                state.StatsDirty = true;
-                this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
+                // Starvation (health is already 0) enters the same dead state as a monster kill (ADR-031).
+                Vector2 deathPos = _simulation.Entities.GetTransform(state.Entity).Position;
+                this.KillPlayerLocked(state, 0UL, deathPos, DeathCause.Starvation);
+                this.QueueCombatHitLocked(deathPos, state.Session.PlayerNetworkId, state.Session.PlayerNetworkId, 0f, 0f, false, true);
             }
         }
 
@@ -279,6 +279,11 @@ public sealed partial class AuthoritativeWorld
         if (state.RestMode == RestMode.None)
         {
             return;
+        }
+
+        if (state.RestMode is RestMode.Sleeping or RestMode.SleepingComfortable)
+        {
+            _ = _statusEffects.TryGrantRested(state.Entity);
         }
 
         state.RestMode = RestMode.None;

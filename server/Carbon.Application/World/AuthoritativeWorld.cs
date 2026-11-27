@@ -25,6 +25,8 @@ using Carbon.Application.World.Progression;
 using Carbon.Application.World.Projectiles;
 using Carbon.Application.World.Props;
 using Carbon.Application.World.Replication;
+using Carbon.Application.World.StatusEffects;
+using Carbon.Combat.Statuses.Config;
 using Carbon.Combat.Cooldowns;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
@@ -103,6 +105,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly HashSet<long> _dirtyChunks = new();
     private readonly CharacterPersistence _persistence;
     private readonly GameplayEntropy _entropy;
+    private readonly StatusEffectService _statusEffects;
 
     // Reusable scratch buffers (zero per-tick heap allocations under steady state).
     // Outbound replication, staged under _gate during the tick and dispatched after it (OutboundTickBuffer).
@@ -137,6 +140,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// <param name="entropy">
     /// Secret source of every gameplay roll (ADR-026); defaults to a random secret that lives only in this process.
     /// </param>
+    /// <param name="statusEffects">Status effect definitions (<c>status_effects.json</c>, ADR-029); defaults to the shipped copy.</param>
     public AuthoritativeWorld(
         ulong worldSeed,
         float tileSize,
@@ -153,7 +157,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         CreatureContent? creatures = null,
         ProgressionConfig? progression = null,
         ITraderStockRepository? traderStock = null,
-        GameplayEntropy? entropy = null)
+        GameplayEntropy? entropy = null,
+        StatusEffectCatalog? statusEffects = null)
     {
         ArgumentNullException.ThrowIfNull(chunkDeltaRepo);
         ArgumentNullException.ThrowIfNull(characterStore);
@@ -263,7 +268,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _needs,
             new PlayerActionHost(this),
             _entropy);
-        _persistence = new CharacterPersistence(_simulation, _needs, _time);
+        _statusEffects = new StatusEffectService(_simulation, this.TickRate, statusEffects, _creatureCatalog, _entropy);
+        _persistence = new CharacterPersistence(_simulation, _needs, _statusEffects, _time);
         _commandExecutor = new WorldCommandExecutor(this);
         _trade = new TradeService(_gate, _entropy.TraderStockKey, _players, _simulation, _actorsByNetworkId, () => _economy, _outbound, _time, () => _currentTick, s => this.MarkCharacterDirtyLocked(s), traderStock);
         _replication = new AoiReplicator(_simulation, _outbound, this.TileSize * 24f, DefaultEntityRadius, this.ResolveSpawnIdentityLocked);
@@ -279,7 +285,13 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// <param name="needsConfig">New needs tuning.</param>
     /// <param name="foodCatalog">New edible items.</param>
     /// <param name="progression">New progression tuning (players are re-evaluated, ADR-021 D7), or <see langword="null"/> to keep it.</param>
-    public void ApplyGameData(GameEconomy? economy, NeedsConfig needsConfig, FoodCatalog foodCatalog, ProgressionConfig? progression = null)
+    /// <param name="statusEffects">New status effect definitions (ADR-029), or <see langword="null"/> to keep them.</param>
+    public void ApplyGameData(
+        GameEconomy? economy,
+        NeedsConfig needsConfig,
+        FoodCatalog foodCatalog,
+        ProgressionConfig? progression = null,
+        StatusEffectCatalog? statusEffects = null)
     {
         ArgumentNullException.ThrowIfNull(needsConfig);
         ArgumentNullException.ThrowIfNull(foodCatalog);
@@ -289,11 +301,18 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _itemRules = economy?.ItemRules ?? _itemRules;
             _needs.Reconfigure(needsConfig, foodCatalog);
             _progressionService.Reconfigure(progression, _players.ByConnection.Values);
+            if (statusEffects is not null)
+            {
+                _statusEffects.Reconfigure(statusEffects);
+            }
         }
     }
 
     /// <summary>Gets trading with village traders (ADR-025).</summary>
     public IWorldTradeService Trade => _trade;
+
+    /// <summary>Gets the status effect definitions the simulation currently runs on (ADR-029; immutable, swapped atomically).</summary>
+    public StatusEffectCatalog StatusEffects => _statusEffects.Catalog;
 
     /// <summary>Gets the progression tuning the simulation currently runs on (an immutable snapshot, swapped atomically).</summary>
     public ProgressionConfig Progression => _progressionService.Config;
@@ -396,7 +415,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     }
 
     /// <inheritdoc/>
-    public EnterWorldResult TryEnterWorld(ulong connectionId, ulong sessionId, CharacterRecord character)
+    public EnterWorldResult TryEnterWorld(ulong connectionId, CharacterRecord character)
     {
         ArgumentNullException.ThrowIfNull(character);
 
@@ -423,12 +442,15 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
                 _ = this.RemovePlayerLocked(duplicateConnectionId);
             }
 
-            Vector2 spawnPos = _debugSpawnPosition ?? new Vector2(character.PositionX, character.PositionY);
+            // ADR-031: a character saved dead (it logged out before respawning) respawns at the sanctuary with full vitals.
+            bool diedBeforeLogout = character.CurrentHealth <= 0f;
+            Vector2 spawnPos = _debugSpawnPosition
+                ?? (diedBeforeLogout ? _chunkWorld.SpawnWorldPosition : new Vector2(character.PositionX, character.PositionY));
             _chunkWorld.UpdateAroundPosition(spawnPos, chunkRadius: 2, evictionRadius: 8);
             _settlements.PopulateAround(spawnPos, radius: 2);
 
             ulong networkId = ++_nextNetworkId;
-            Entity entity = _simulation.SpawnNetworkEntity(networkId, spawnPos, DefaultEntityRadius, sessionId);
+            Entity entity = _simulation.SpawnNetworkEntity(networkId, spawnPos, DefaultEntityRadius);
             _simulation.Entities.SetCollider(entity, new Collider2D(ColliderKind.Circle, DefaultEntityRadius, default, false, PlayerLayer, uint.MaxValue));
             _simulation.Entities.SetVelocity(entity, new Velocity2D(0f, 0f, 5f));
             _simulation.Entities.SetComponent(entity, default(SpawnAnchorComponent));
@@ -443,14 +465,25 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             bool refunded = _progressionService.RefundIfOverBudget(startLevel, startProg);
 
             DerivedCharacterStats stats = CharacterStatCalculator.Compute(_itemRules, _progressionService.Config, startLevel, inventory, selectedSlot, startProg);
-            float startHp = MathF.Min(stats.MaxHealth, MathF.Max(1f, character.CurrentHealth));
+            float startHp = diedBeforeLogout ? stats.MaxHealth : MathF.Min(stats.MaxHealth, MathF.Max(1f, character.CurrentHealth));
             _simulation.Entities.SetHealth(entity, new HealthComponent(startHp, stats.MaxHealth));
             _simulation.Entities.SetComponent(entity, _needs.Restore(character));
+            _statusEffects.Restore(entity, character.StatusEffects, character.NeedsPoisonSeconds, _needs.Config);
+            if (_debugStatusEffects.Length > 0)
+            {
+                _statusEffects.Restore(entity, _debugStatusEffects, 0f, _needs.Config, persistedOnly: false);
+            }
+
+            _statusEffects.MirrorPoisonIntoNeeds(entity);
+            if (diedBeforeLogout)
+            {
+                _statusEffects.Clear(entity);
+                _needs.ResetAfterDeath(entity);
+            }
 
             byte harvestTier = _inventory.ResolveHarvestTier(inventory, selectedSlot);
 
             ConnectedPlayerSession session = new(
-                sessionId,
                 connectionId,
                 character.AccountId,
                 character.Id,
@@ -459,8 +492,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
                 selectedSlot,
                 harvestTier);
 
-            float startMana = Math.Clamp(character.CurrentMana, 0f, stats.MaxMana);
-            float startStamina = Math.Clamp(character.CurrentStamina, 0f, stats.MaxStamina);
+            float startMana = diedBeforeLogout ? stats.MaxMana : Math.Clamp(character.CurrentMana, 0f, stats.MaxMana);
+            float startStamina = diedBeforeLogout ? stats.MaxStamina : Math.Clamp(character.CurrentStamina, 0f, stats.MaxStamina);
 
             PlayerState playerState = new(session, entity, character, inventory)
             {
@@ -486,7 +519,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _players.ByConnection[connectionId] = playerState;
             _players.ConnectionByNetworkId[networkId] = connectionId;
             _replication.Track(connectionId);
-            if (refunded)
+            if (refunded || diedBeforeLogout)
             {
                 this.MarkCharacterDirtyLocked(playerState, inventoryChanged: false);
             }
@@ -565,7 +598,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
         lock (_gate)
         {
-            if (_players.ByConnection.TryGetValue(connectionId, out PlayerState? state))
+            if (_players.ByConnection.TryGetValue(connectionId, out PlayerState? state) && !state.IsDead)
             {
                 state.PendingDirection = direction;
                 state.PendingSprint = sprint;
@@ -585,7 +618,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
         lock (_gate)
         {
-            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state))
+            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state) || state.IsDead)
             {
                 return OpStatus.Forbidden;
             }
@@ -861,6 +894,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     // Where every character enters the world while a debug spawn override is active.
     private Vector2? _debugSpawnPosition;
     private ushort _debugStartLevel; // minimum level of entering characters (CARBON_DEBUG_START_LEVEL)
+    private string _debugStatusEffects = string.Empty; // effects of entering characters (CARBON_DEBUG_STATUS_EFFECTS)
 
     /// <summary>Gets the forced debug spawn position, if a debug override set one.</summary>
     public Vector2? DebugSpawnPosition
@@ -899,6 +933,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             }
 
             _debugStartLevel = overrides.StartLevel ?? 0;
+            _debugStatusEffects = overrides.StatusEffects;
             if (overrides.StartHour is float hour)
             {
                 // The clock is a pure function of the tick (WorldProgression), so the start hour is a tick offset.

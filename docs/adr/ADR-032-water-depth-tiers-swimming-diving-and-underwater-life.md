@@ -14,7 +14,7 @@ The owner's request: "The black sea is deep water: make it enterable, so you act
 step by step like terrain levels. Underwater: darker, a smaller view radius, remaining oxygen, monsters and a boss.
 The rivers look rather small, yet they have black water too? Optimise and rework the map generation."
 
-State before this ADR (generator version 16):
+State before this ADR (generator version 16; 17 only added starter forage):
 
 - **Water was two biomes cut from noise.** `WhittakerBiomeResolver.Resolve` made every tile below elevation 0.22
   `DeepOcean` and every tile below `SeaLevel` (0.32) `ShallowWater` (`engine/Carbon.Maps/Biomes/WhittakerBiomeResolver.cs:21-29`).
@@ -56,7 +56,7 @@ function of `WorldGenSettings` and must never touch `GameplayEntropy`.
 
 ## Decision
 
-### Generation (PR 1, generator version 17)
+### Generation (PR 1, generator version 18)
 
 - **D1 — One continuous depth field.**
   - Water depth is measured in elevation units below the surface. A water tile stores it as
@@ -106,7 +106,7 @@ function of `WorldGenSettings` and must never touch `GameplayEntropy`.
 - **D7 — Villages need room.** A village-sized site (radius ≥ 16) is chosen only if at least 6 of 8 points on
   its plot ring (0.7 × radius) are dry at its level. Wider rivers had exposed the 6-tile flatness probe: it
   accepted peninsulas that fit two buildings.
-- **D8 — Versioning.** `GeneratorVersion` becomes 17. Stored chunk deltas migrate through the existing
+- **D8 — Versioning.** `GeneratorVersion` becomes 18 (17 was taken by the starter forage that landed meanwhile). Stored chunk deltas migrate through the existing
   `ChunkDelta.MigrateTo` path: tile edits and player structures are kept, natural prop states and faction villages
   are dropped and regenerated.
 - **D9 — Cost.**
@@ -173,4 +173,4 @@ function of `WorldGenSettings` and must never touch `GameplayEntropy`.
     about +224 KiB per region and up to about 28 MiB more across the 128 cached regions.
   - The sea shelf has a uniform width everywhere.
   - Small islands rising out of open sea drop straight into deep water.
-- Every world regenerates (v17): stored natural prop states and village layouts reset.
+- Every world regenerates (v18): stored natural prop states and village layouts reset.

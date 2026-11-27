@@ -15,7 +15,7 @@ namespace Carbon.Maps.Tests;
 
 public sealed class VillageGenerationTests
 {
-    // Pins every village plot (template, origin, turns) of seed 42 over a 13x13 site window (generator version 17:
+    // Pins every village plot (template, origin, turns) of seed 42 over a 13x13 site window (generator version 18:
     // villages need dry room round their plot ring beside the wider rivers of ADR-032). Update it only together
     // with GeneratorVersion.
     private const ulong GoldenVillagePlotFingerprint = 10445364790306295951UL;

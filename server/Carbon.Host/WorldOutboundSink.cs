@@ -125,7 +125,19 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     }
 
     /// <inheritdoc/>
-    public void SendCombatHit(ReadOnlySpan<ulong> recipientConnectionIds, ulong attackerNetworkId, ulong defenderNetworkId, float damage, float remainingHealth, bool isCritical, bool isKilled)
+    public void SendCombatHit(ReadOnlySpan<ulong> recipientConnectionIds, ulong attackerNetworkId, ulong defenderNetworkId, float damage, float remainingHealth, bool isCritical, bool isKilled) =>
+        this.SendCombatHit(recipientConnectionIds, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId: 0);
+
+    /// <inheritdoc/>
+    public void SendCombatHit(
+        ReadOnlySpan<ulong> recipientConnectionIds,
+        ulong attackerNetworkId,
+        ulong defenderNetworkId,
+        float damage,
+        float remainingHealth,
+        bool isCritical,
+        bool isKilled,
+        ushort statusEffectId)
     {
         for (int i = 0; i < recipientConnectionIds.Length; i++)
         {
@@ -134,11 +146,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
                 dg is not null &&
                 dg.Transport is IDatagramTransport dgramTransport)
             {
-                _ = DispatchCombatHitDatagramAsync(dgramTransport, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, _logger);
+                _ = DispatchCombatHitDatagramAsync(dgramTransport, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId, _logger);
             }
             else if (this.TryResolveConnection(recipientId, out IConnection? conn) && conn is not null)
             {
-                _ = DispatchCombatHitAsync(conn, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, _logger);
+                _ = DispatchCombatHitAsync(conn, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId, _logger);
             }
         }
     }
@@ -211,6 +223,46 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         {
             _ = DispatchTraderStockAsync(conn, stock, _logger);
         }
+    }
+
+    /// <inheritdoc/>
+    public void SendPlayerDeath(ulong connectionId, in PlayerDeathSnapshot death)
+    {
+        if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
+        {
+            _ = DispatchPlayerDeathAsync(conn, death, _logger);
+        }
+    }
+
+    /// <inheritdoc/>
+    public void SendStatusEffects(ulong connectionId, ReadOnlySpan<StatusEffectEntry> entries)
+    {
+        if (!this.TryResolveConnection(connectionId, out IConnection? conn) || conn is null)
+        {
+            return;
+        }
+
+        // Change-driven (ADR-029 D9), never per tick: the arrays are built here because the span does not outlive the call.
+        ushort[] ids = new ushort[entries.Length];
+        byte[] stacks = new byte[entries.Length];
+        uint[] remaining = new uint[entries.Length];
+        uint[] duration = new uint[entries.Length];
+        float[] magnitudes = new float[entries.Length];
+        byte[] sourceKinds = new byte[entries.Length];
+        ushort[] sourceIds = new ushort[entries.Length];
+        for (int i = 0; i < entries.Length; i++)
+        {
+            StatusEffectEntry entry = entries[i];
+            ids[i] = entry.EffectId;
+            stacks[i] = entry.Stacks;
+            remaining[i] = entry.RemainingMs;
+            duration[i] = entry.DurationMs;
+            magnitudes[i] = entry.Magnitude;
+            sourceKinds[i] = entry.SourceKind;
+            sourceIds[i] = entry.SourceId;
+        }
+
+        _ = DispatchStatusEffectsAsync(conn, ids, stacks, remaining, duration, magnitudes, sourceKinds, sourceIds, _logger);
     }
 
     /// <inheritdoc/>
@@ -581,12 +633,13 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         float remainingHealth,
         bool isCritical,
         bool isKilled,
+        ushort statusEffectId,
         ILogger logger)
     {
         try
         {
             using PacketScope<CombatHit> lease = PacketFactory<CombatHit>.Acquire();
-            PopulateCombatHit(lease.Value, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled);
+            PopulateCombatHit(lease.Value, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId);
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
             await connection.SendAsync(lease.Value, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
@@ -605,12 +658,13 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         float remainingHealth,
         bool isCritical,
         bool isKilled,
+        ushort statusEffectId,
         ILogger logger)
     {
         try
         {
             using PacketScope<CombatHit> lease = PacketFactory<CombatHit>.Acquire();
-            PopulateCombatHit(lease.Value, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled);
+            PopulateCombatHit(lease.Value, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId);
             await SendSerializedDatagramAsync(transport, lease.Value, DeliveryMethod.ReliableUnordered, channel: 2).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -626,8 +680,10 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         float damage,
         float remainingHealth,
         bool isCritical,
-        bool isKilled)
+        bool isKilled,
+        ushort statusEffectId)
     {
+        pkt.StatusEffectId = statusEffectId;
         pkt.AttackerNetworkId = attackerNetworkId;
         pkt.DefenderNetworkId = defenderNetworkId;
         pkt.Damage = damage;
@@ -848,6 +904,26 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         }
     }
 
+    private static async Task DispatchPlayerDeathAsync(IConnection connection, PlayerDeathSnapshot death, ILogger logger)
+    {
+        try
+        {
+            using PacketScope<PlayerDeath> lease = PacketFactory<PlayerDeath>.Acquire();
+            PlayerDeath pkt = lease.Value;
+            pkt.Cause = death.Cause;
+            pkt.KillerArchetypeId = death.KillerArchetypeId;
+            pkt.KillerNetworkId = death.KillerNetworkId;
+            pkt.GoldDropped = death.GoldDropped;
+
+            bool encrypt = connection.Algorithm != CipherSuiteType.None;
+            await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogSendFailure(logger, nameof(PlayerDeath), ex);
+        }
+    }
+
     private static async Task DispatchTraderStockAsync(IConnection connection, TraderStockSnapshot stock, ILogger logger)
     {
         try
@@ -874,6 +950,38 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogSendFailure(logger, nameof(TraderStock), ex);
+        }
+    }
+
+    private static async Task DispatchStatusEffectsAsync(
+        IConnection connection,
+        ushort[] ids,
+        byte[] stacks,
+        uint[] remaining,
+        uint[] duration,
+        float[] magnitudes,
+        byte[] sourceKinds,
+        ushort[] sourceIds,
+        ILogger logger)
+    {
+        try
+        {
+            using PacketScope<StatusEffectSync> lease = PacketFactory<StatusEffectSync>.Acquire();
+            StatusEffectSync pkt = lease.Value;
+            pkt.EffectIds = ids;
+            pkt.Stacks = stacks;
+            pkt.RemainingMs = remaining;
+            pkt.DurationMs = duration;
+            pkt.Magnitudes = magnitudes;
+            pkt.SourceKinds = sourceKinds;
+            pkt.SourceIds = sourceIds;
+
+            bool encrypt = connection.Algorithm != CipherSuiteType.None;
+            await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogSendFailure(logger, nameof(StatusEffectSync), ex);
         }
     }
 

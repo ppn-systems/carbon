@@ -190,7 +190,6 @@ public sealed partial class MultiplayerSession
     public async Task<(bool Succeeded, string Message)> CreateCharacterAsync(
         string characterName,
         byte appearancePreset,
-        byte startingClass = 0,
         CancellationToken ct = default)
     {
         TcpSession tcp = this.RequireAuthenticatedTcpSession();
@@ -204,7 +203,6 @@ public sealed partial class MultiplayerSession
         using PacketScope<CharacterCreate> lease = PacketFactory<CharacterCreate>.Acquire();
         lease.Value.CharacterName = trimmed;
         lease.Value.AppearancePreset = appearancePreset;
-        lease.Value.StartingClass = startingClass;
 
         using MutationResult reply = await tcp.RequestAsync<MutationResult>(
             lease.Value,
@@ -344,7 +342,7 @@ public sealed partial class MultiplayerSession
                 WorldPhysics = _chunkWorld,
             };
 
-            _localPlayer = _simulation.SpawnNetworkEntity(_localNetworkId, initialPos, radius: 7f, ownerSessionId: 1);
+            _localPlayer = _simulation.SpawnNetworkEntity(_localNetworkId, initialPos, radius: 7f);
             _simulation.Entities.SetVelocity(_localPlayer, new Velocity2D(0f, 0f, 5f));
         }
 

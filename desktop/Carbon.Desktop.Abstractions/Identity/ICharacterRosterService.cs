@@ -16,8 +16,8 @@ public interface ICharacterRosterService : ICharacterProfile
     /// <summary>Queries all characters owned by the currently authenticated account.</summary>
     Task<IReadOnlyList<CharacterRosterEntry>> ListCharactersAsync(CancellationToken ct = default);
 
-    /// <summary>Creates a new character on the currently authenticated account with an optional starting class.</summary>
-    Task<(bool Succeeded, string Message)> CreateCharacterAsync(string characterName, byte appearancePreset, byte startingClass = 0, CancellationToken ct = default);
+    /// <summary>Creates a new classless character with an empty bag on the currently authenticated account (ADR-030).</summary>
+    Task<(bool Succeeded, string Message)> CreateCharacterAsync(string characterName, byte appearancePreset, CancellationToken ct = default);
 
     /// <summary>Selects a character, enters the authoritative world, syncs inventory/chunks, and opens Authenticated UDP.</summary>
     Task<(bool Succeeded, string Message)> EnterWorldAsync(Guid characterId, CancellationToken ct = default);

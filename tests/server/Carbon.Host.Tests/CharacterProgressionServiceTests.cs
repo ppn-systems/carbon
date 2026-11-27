@@ -210,6 +210,22 @@ public sealed class CharacterProgressionServiceTests
         }
     }
 
+    [Fact]
+    public void RecomputeDerivedStats_DeadPlayerLevelsUp_StaysAtZeroHealth()
+    {
+        // A dead player's arrow still in flight can kill a monster and level them up (ADR-031): that must not revive them.
+        Fixture f = new(level: 5);
+        f.Player.IsDead = true;
+        f.Simulation.Entities.SetHealth(f.Player.Entity, new HealthComponent(0f, f.Player.Stats.MaxHealth));
+        (float Health, float Mana, float Stamina) previous = VitalPools.Capture(f.Player);
+        f.Player.Level = 6;
+
+        f.Service.RecomputeDerivedStats(f.Player);
+        VitalPools.AddGrowth(f.Simulation, f.Player, previous);
+
+        f.Simulation.Entities.GetHealth(f.Player.Entity).Current.Should().Be(0f, "only a respawn request brings a dead player back");
+    }
+
     private static ushort Archetype(string id) =>
         s_creatures.Catalog.GetDefinition(s_creatures.Catalog.GetIndex(id)).ArchetypeId;
 
@@ -217,7 +233,7 @@ public sealed class CharacterProgressionServiceTests
     {
         public Fixture(ushort level, long gold = 0)
         {
-            ConnectedPlayerSession session = new(1UL, 9UL, Guid.NewGuid(), Guid.NewGuid(), "Tester", 900UL, 0, 0);
+            ConnectedPlayerSession session = new(9UL, Guid.NewGuid(), Guid.NewGuid(), "Tester", 900UL, 0, 0);
             CharacterRecord character = new(
                 session.CharacterId, session.AccountId, "Tester", level, 0, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
             this.Player = new PlayerState(session, this.Simulation.SpawnNetworkEntity(900UL, Vector2.Zero, 7f), character, new InventoryContainer(PlayerInventoryLayout.TotalCapacity))

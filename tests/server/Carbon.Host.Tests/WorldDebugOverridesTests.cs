@@ -48,7 +48,7 @@ public sealed class WorldDebugOverridesTests
         overrides.SpawnBiome.Should().Be("DuneDesert");
         overrides.SpawnOffset.Should().Be((3, 4));
         overrides.StartHour.Should().Be(23.5f);
-        overrides.StartLevel.Should().Be((ushort)25);
+        overrides.StartLevel.Should().Be(25);
         overrides.ForgeKit.Should().BeTrue();
     }
 
@@ -105,7 +105,7 @@ public sealed class WorldDebugOverridesTests
         _ = world.ApplyDebugOverrides(new WorldDebugOverrides { StartLevel = 25 });
         CharacterRecord hero = new(Guid.NewGuid(), Guid.NewGuid(), "Shot", 1, 0, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
 
-        EnterWorldResult entered = world.TryEnterWorld(5UL, 5UL, hero);
+        EnterWorldResult entered = world.TryEnterWorld(5UL, hero);
 
         entered.Level.Should().Be(25, "screenshots of the character panel need a mid-level character with points");
     }
