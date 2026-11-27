@@ -55,11 +55,8 @@ public static class ItemOpCode
     /// <summary>C2S: open a trader's window (answered with <see cref="TraderStock"/>).</summary>
     public const ushort TraderOpen = 0x4040;
 
-    /// <summary>C2S: buy units from a trader stock slot (answered with <c>MutationResult</c>). The desktop client sends <see cref="TraderBuyBatch"/> instead (ADR-025 D18).</summary>
-    public const ushort TraderBuy = 0x4041;
-
-    /// <summary>C2S: sell a bag stack to a trader (answered with <c>MutationResult</c>). The desktop client sends <see cref="TraderSellBatch"/> instead (ADR-025 D18).</summary>
-    public const ushort TraderSell = 0x4042;
+    // 0x4041 / 0x4042 were TraderBuy / TraderSell (one line, no basket total), superseded by TraderBuyBatch /
+    // TraderSellBatch (ADR-025 D18) and retired by ADR-038: never reuse them.
 
     /// <summary>S2C: a trader's stock, prices, restock countdown and the player's sell prices.</summary>
     public const ushort TraderStock = 0x4048;

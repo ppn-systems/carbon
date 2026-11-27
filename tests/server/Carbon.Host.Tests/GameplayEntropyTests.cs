@@ -11,7 +11,6 @@ using Carbon.Application.World;
 using Carbon.Application.World.Entropy;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Identity.S2C;
-using Carbon.Contracts.Maps.S2C;
 using Carbon.Economy;
 using Carbon.Economy.Trading;
 using Carbon.Economy.Vendor;
@@ -264,14 +263,7 @@ public sealed class GameplayEntropyTests
             entered.Status.Should().Be(OpStatus.Ok);
             world.StepFixedTick();
 
-            // Built exactly as MapHandlers.HandleWorldInfoAsync and IdentityHandlers.SendEnterWorldAsync build them.
-            using MapWorldInfo info = new()
-            {
-                Seed = world.WorldSeed,
-                GeneratorVersion = world.GeneratorVersion,
-                TileSize = world.TileSize,
-                Frequency = world.Frequency,
-            };
+            // Built exactly as IdentityHandlers.SendEnterWorldAsync builds it: the only packet that carries the world seed.
             using CharacterEnterWorld enter = new()
             {
                 Status = entered.Status,
@@ -285,7 +277,7 @@ public sealed class GameplayEntropyTests
             };
 
             List<byte[]> secrets = SecretMaterial(TestGameplayEntropy.Key(SecretLabel), entropy, world.CurrentTick);
-            foreach (byte[] wire in new[] { info.Serialize(), enter.Serialize() })
+            foreach (byte[] wire in new[] { enter.Serialize() })
             {
                 foreach (byte[] secret in secrets)
                 {

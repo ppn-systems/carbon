@@ -45,5 +45,5 @@ public sealed class StatusEffectLevelPacketTests
     }
 
     [Fact]
-    public void Version_IsThreeSinceStatusEffectLevels() => Assert.Equal((ushort)3, CarbonProtocol.Version);
+    public void Version_IsAtLeastThreeSinceStatusEffectLevels() => Assert.True(CarbonProtocol.Version >= 3, $"protocol {CarbonProtocol.Version} predates status effect levels");
 }

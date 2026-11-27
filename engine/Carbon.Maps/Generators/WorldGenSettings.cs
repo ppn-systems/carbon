@@ -6,7 +6,7 @@ namespace Carbon.Maps.Generators;
 
 /// <summary>
 /// Everything that defines a generated world. The server builds it once and sends it to clients in
-/// <c>MapWorldInfo</c> (Seed, TileSize, Frequency, GeneratorVersion); both sides then generate the same world.
+/// <c>CharacterEnterWorld</c> (WorldSeed, TileSize, Frequency, GeneratorVersion); both sides then generate the same world.
 /// </summary>
 /// <param name="Seed">64-bit world seed.</param>
 /// <param name="Frequency">Macro noise frequency (continent scale).</param>

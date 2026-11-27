@@ -11,21 +11,6 @@ namespace Carbon.Abstractions.World;
 /// </summary>
 public interface IWorldMapService
 {
-    /// <summary>Gets the world generation seed.</summary>
-    ulong WorldSeed { get; }
-
-    /// <summary>Gets the world generator version.</summary>
-    ushort GeneratorVersion { get; }
-
-    /// <summary>Gets the tile size in world units.</summary>
-    float TileSize { get; }
-
-    /// <summary>Gets the macro terrain noise frequency.</summary>
-    float Frequency { get; }
-
-    /// <summary>Gets the default safe starter spawn world position.</summary>
-    System.Numerics.Vector2 DefaultSpawnWorldPosition { get; }
-
     /// <summary>Builds a thread-safe wire delta packet snapshot for the requested chunk when its revision exceeds <paramref name="knownRevision"/>.</summary>
     bool TryCreateChunkDeltaPacket(int chunkX, int chunkY, uint knownRevision, out MapChunkDelta? packet);
 
