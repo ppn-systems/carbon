@@ -15,8 +15,11 @@ public sealed class GenerationPipelineTests
 {
     // Pins tiles (all fields), props and landmarks over 81 scattered chunks plus 90k pure samples (generator
     // version 20: villages off the road network, wider and drier (ADR-027 revision 2); on top of 19's water depth tiers
-    // (ADR-032), 17's starter forage and 18's street villages). Update it only together with GeneratorVersion.
-    private const ulong GoldenWorldFingerprint = 11158157292991560029UL;
+    // (ADR-032), 17's starter forage and 18's street villages). Update it only together with GeneratorVersion, or when a
+    // pinned record gains a field the generator never sets: ADR-040 added MapProp.GrowthStage (always Mature when
+    // generated), which changes MapProp.GetHashCode but not the world; a field-by-field fingerprint of the props matched
+    // master (11932762227007444962 on both), so GeneratorVersion stayed 20.
+    private const ulong GoldenWorldFingerprint = 4553454877917676149UL;
 
     [Fact]
     public void Generate_WorldFingerprint_IsStable()
