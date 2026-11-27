@@ -387,12 +387,9 @@ public sealed class WorldSceneRenderer : IDisposable
 
         _feedback.DrawDebrisParticles(_geometryBatch);
         this.DrawActionTrails(world, playerPos);
-        if (post is not null)
-        {
-            // Offscreen presets draw the weather into the scene batch: it is lit by the light map, and the separate
-            // overlay batch (one draw call) goes away.
-            this.DrawWeatherOverlay(cameraRig, minX, minY, maxX, maxY, playerPos);
-        }
+        // The weather joins the scene batch, before the lighting: it is lit like the rest of the world, and it needs no
+        // overlay batch (one draw call) of its own.
+        this.DrawWeatherOverlay(cameraRig, minX, minY, maxX, maxY, playerPos);
 
         _geometryBatch.End();
 
@@ -417,10 +414,6 @@ public sealed class WorldSceneRenderer : IDisposable
 
             _geometryBatch.Begin(viewProj, BlendState.Additive);
             _atmosphere.DrawLights(_geometryBatch, _lights);
-            _geometryBatch.End();
-
-            _geometryBatch.Begin(viewProj);
-            this.DrawWeatherOverlay(cameraRig, minX, minY, maxX, maxY, playerPos);
             _geometryBatch.End();
         }
 
