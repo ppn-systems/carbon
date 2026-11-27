@@ -60,6 +60,48 @@ public sealed class HotPathGuardTests
         Violations.ShouldBeEmpty(s_linqAllowlist.Where(e => !found.Contains(e)), "fixed entries must be removed from the allowlist");
     }
 
+    [Fact]
+    public void HotPathCode_EnumHasFlagCalls_AreTheOnesListedToday()
+    {
+        // Audit round 3, ALLOC-14 characterisation: Enum.HasFlag boxes until its caller tiers up (48 B a call), and a busy
+        // process defers tier-up. These are the hot-path calls today, per file (22 calls: ALLOC-14 lists 12 on tick paths, #235 fixes 1 more, and 9 are on client frame paths).
+        Dictionary<string, int> expected = new(StringComparer.Ordinal)
+        {
+            ["desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs"] = 2,
+            ["desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.cs"] = 2,
+            ["desktop/Carbon.Desktop.Rendering/Overlays/WorldEntityOverlayRenderer.cs"] = 1,
+            ["desktop/Carbon.Desktop/Gameplay/Input/WorldInteractionInput.cs"] = 1,
+            ["desktop/Carbon.Desktop/Gameplay/Interaction/InteractionController.cs"] = 2,
+            ["desktop/Carbon.Desktop/Scenes/WorldGameplayScene.cs"] = 1,
+            ["engine/Carbon.Items/Catalog/SkillCatalog.cs"] = 1,
+            ["engine/Carbon.Items/Catalog/ToolUsagePolicy.cs"] = 5,
+            ["engine/Carbon.Survival/Stamina/StaminaConfig.cs"] = 3,
+            ["server/Carbon.Application/World/Actions/PlayerActionService.cs"] = 2,
+            ["server/Carbon.Application/World/Props/PropHarvestService.cs"] = 2,
+        };
+
+        Dictionary<string, int> found = FindHasFlagCalls()
+            .GroupBy(call => call.Path, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
+
+        found.Should().Equal(expected);
+    }
+
+    // Every x.HasFlag(y) call in hot-path code.
+    private static IEnumerable<(string Path, int Line)> FindHasFlagCalls()
+    {
+        foreach ((string path, CompilationUnitSyntax root) in ParseSources(s_hotPathFolders))
+        {
+            foreach (InvocationExpressionSyntax call in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
+            {
+                if (call.Expression is MemberAccessExpressionSyntax { Name.Identifier.Text: "HasFlag" })
+                {
+                    yield return (path, call.GetLocation().GetLineSpan().StartLinePosition.Line + 1);
+                }
+            }
+        }
+    }
+
     private static IEnumerable<string> FindLinqImports()
     {
         foreach ((string path, CompilationUnitSyntax root) in ParseSources(s_hotPathFolders))
