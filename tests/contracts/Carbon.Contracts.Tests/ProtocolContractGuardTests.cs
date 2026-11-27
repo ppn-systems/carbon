@@ -454,6 +454,26 @@ public sealed class ProtocolContractGuardTests
         Assert.Equal(advStats.ProgressionBlob, advStatsCopy.ProgressionBlob);
     }
 
+    [Fact]
+    public void PlayerDeath_RoundTrip_PreservesKillerAndGold()
+    {
+        using PlayerDeath death = new()
+        {
+            Cause = DeathCause.Monster,
+            KillerArchetypeId = 40,
+            KillerNetworkId = 1_234_567UL,
+            GoldDropped = 2_999L,
+        };
+        using PlayerDeath copy = PlayerDeath.Deserialize(death.Serialize());
+
+        Assert.Equal(DeathCause.Monster, copy.Cause);
+        Assert.Equal((ushort)40, copy.KillerArchetypeId);
+        Assert.Equal(1_234_567UL, copy.KillerNetworkId);
+        Assert.Equal(2_999L, copy.GoldDropped);
+        Assert.Equal((ushort)0x4078, PlayerDeath.StaticOpCode);
+        Assert.Equal((ushort)0x4079, RespawnRequest.StaticOpCode);
+    }
+
     private static bool IsPacketType(Type t) =>
         t is { IsClass: true, IsAbstract: false } && typeof(IPacketStaticOpcode).IsAssignableFrom(t);
 

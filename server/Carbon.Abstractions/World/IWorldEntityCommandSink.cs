@@ -38,4 +38,10 @@ public interface IWorldEntityCommandSink
     /// <param name="rest"><see langword="true"/> to rest, <see langword="false"/> to stand up.</param>
     /// <returns>The outcome: <see cref="OpStatus.Ok"/>, or <see cref="OpStatus.Forbidden"/> when not in the world or dead.</returns>
     ValueTask<WorldMutationOutcome> SubmitSetRestingAsync(ulong connectionId, bool rest);
+
+    /// <summary>
+    /// Queues a dead player's respawn request (ADR-031). It runs on the next fixed tick and is
+    /// <see cref="Contracts.Common.OpStatus.Forbidden"/> unless the player is dead.
+    /// </summary>
+    ValueTask<WorldMutationOutcome> SubmitRespawnAsync(ulong connectionId);
 }

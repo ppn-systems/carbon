@@ -35,6 +35,9 @@ public static class GameplayDomain
     /// <summary>Monster spawn placement, species and elite rolls.</summary>
     public const ulong Spawn = 0x4E574150535F4B47UL; // "GK_SPAWN"
 
+    /// <summary>Split and scatter of the gold a dying player drops (ADR-031).</summary>
+    public const ulong DeathDrop = 0x48544145445F4B47UL; // "GK_DEATH"
+
     /// <summary><see cref="GameplayKey.GetHashCode"/> (never a roll).</summary>
     public const ulong HashCode = 0x5F485341485F4B47UL; // "GK_HASH_"
 }

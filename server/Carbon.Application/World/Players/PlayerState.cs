@@ -64,4 +64,10 @@ internal sealed class PlayerState(
 
     /// <summary>Diamond bad-luck protection counter.</summary>
     public LootPityState LootPity { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the player is dead and waiting to respawn (ADR-031): health stays at 0, and every action
+    /// except a respawn request is refused until the player asks to respawn.
+    /// </summary>
+    public bool IsDead { get; set; }
 }

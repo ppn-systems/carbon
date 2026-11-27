@@ -83,6 +83,26 @@ public sealed class WorldCommandExecutorTests
     }
 
     [Fact]
+    public async Task Drain_DeadPlayer_RefusesEveryCommandButRespawn()
+    {
+        RecordingHandlers handlers = new() { Dead = true };
+        WorldCommandExecutor executor = new(handlers);
+        WorldCommandQueue queue = new();
+
+        Task<WorldMutationOutcome> sort = queue.Submit(WorldCommandKind.SortInventory, Connection, 0).AsTask();
+        Task<WorldMutationOutcome> harvest = queue.Submit(WorldCommandKind.HarvestProp, Connection, 3, -4, StructureType.None, StructureRotation.North).AsTask();
+        Task<WorldMutationOutcome> buy = queue.Submit(WorldCommandKind.VendorBuy, Connection, 5, 1).AsTask();
+        Task<WorldMutationOutcome> respawn = queue.Submit(WorldCommandKind.Respawn, Connection, 0).AsTask();
+        executor.Drain(queue);
+
+        handlers.Calls.Should().Equal(["Respawn 42"], "a dead player can do nothing but ask to respawn (ADR-031)");
+        (await sort.ConfigureAwait(true)).Status.Should().Be(OpStatus.Forbidden);
+        (await harvest.ConfigureAwait(true)).Status.Should().Be(OpStatus.Forbidden);
+        (await buy.ConfigureAwait(true)).Status.Should().Be(OpStatus.Forbidden);
+        (await respawn.ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok);
+    }
+
+    [Fact]
     public void Execute_UnknownKind_IsInvalidAndCallsNothing()
     {
         RecordingHandlers handlers = new();
@@ -134,6 +154,12 @@ public sealed class WorldCommandExecutorTests
         public OpStatus TryVendorSell(ulong connectionId, ushort slotIndex, ushort quantity) => this.Slot($"VendorSell {connectionId} {slotIndex} {quantity}");
 
         public OpStatus TryRepairItem(ulong connectionId, ushort slotIndex) => this.Slot($"RepairItem {connectionId} {slotIndex}");
+
+        public OpStatus TryRespawn(ulong connectionId) => this.Slot($"Respawn {connectionId}");
+
+        public bool Dead { get; set; }
+
+        public bool IsPlayerDead(ulong connectionId) => this.Dead;
 
         public OpStatus TryAllocateCharacterPoint(ulong connectionId, PointAllocationKind kind, ushort targetId, byte amount) =>
             this.Slot($"AllocateCharacterPoint {connectionId} {kind} {targetId} {amount}");

@@ -71,6 +71,9 @@ internal enum WorldCommandKind : byte
 
     /// <summary>Allocate character points (<c>Arg0</c> = <c>PointAllocationKind</c>, <c>Arg1</c> = target id, <c>Arg2</c> = amount).</summary>
     AllocateCharacterPoint = 30,
+
+    /// <summary>Respawn a dead player at the sanctuary (ADR-031).</summary>
+    Respawn = 31,
 }
 
 /// <summary>A mutating request waiting for the next tick, with the completion its handler awaits.</summary>

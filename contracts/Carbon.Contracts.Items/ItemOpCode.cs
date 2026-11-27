@@ -65,6 +65,14 @@ public static class ItemOpCode
     /// <summary>S2C: a trader's stock, prices, restock countdown and the player's sell prices.</summary>
     public const ushort TraderStock = 0x4048;
 
+    // ── Death and respawn (0x4078–0x407F, ADR-031) ──────────────────────────
+
+    /// <summary>S2C: the local player died; carries the killer and the gold dropped.</summary>
+    public const ushort PlayerDeath = 0x4078;
+
+    /// <summary>C2S: a dead player asks to respawn (answered with <c>MutationResult</c>).</summary>
+    public const ushort RespawnRequest = 0x4079;
+
     // ── S2C: Server → Client push (0x4030–0x40FF) ───────────────────────────
 
     /// <summary>Unilateral notification that a player inventory slot changed.</summary>
