@@ -131,6 +131,18 @@ public static class WorldActorCatalog
     /// <summary>Slime King elite (of <see cref="WildSlime"/>) monster archetype identifier.</summary>
     public const ushort SlimeKing = 109;
 
+    /// <summary>Shore Crab water creature (Shore to Medium water, ADR-032 D14) archetype identifier.</summary>
+    public const ushort ShoreCrab = 110;
+
+    /// <summary>Piranha Slime water creature (Shallow to Deep water) archetype identifier.</summary>
+    public const ushort PiranhaSlime = 111;
+
+    /// <summary>Drift Jelly water creature (Medium and Deep water) archetype identifier.</summary>
+    public const ushort DriftJelly = 112;
+
+    /// <summary>Abyss Eel water creature (Deep and Abyss water) archetype identifier.</summary>
+    public const ushort AbyssEel = 113;
+
     /// <summary>Village Guard NPC archetype identifier.</summary>
     public const ushort VillageGuard = 201;
 

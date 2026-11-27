@@ -113,6 +113,42 @@
       "accentColor": "#EAB308",
       "file": "monsters/slime_king.cvg.json",
       "elite": true
+    },
+    {
+      "archetypeId": 110,
+      "id": "shore_crab",
+      "title": "Shore Crab",
+      "subtitle": "TIDE PINCHER",
+      "level": 1,
+      "accentColor": "#F97316",
+      "file": "monsters/shore_crab.cvg.json"
+    },
+    {
+      "archetypeId": 111,
+      "id": "piranha_slime",
+      "title": "Piranha Slime",
+      "subtitle": "SHOAL BITER",
+      "level": 1,
+      "accentColor": "#14B8A6",
+      "file": "monsters/piranha_slime.cvg.json"
+    },
+    {
+      "archetypeId": 112,
+      "id": "drift_jelly",
+      "title": "Drift Jelly",
+      "subtitle": "STINGING BELL",
+      "level": 1,
+      "accentColor": "#E879F9",
+      "file": "monsters/drift_jelly.cvg.json"
+    },
+    {
+      "archetypeId": 113,
+      "id": "abyss_eel",
+      "title": "Abyss Eel",
+      "subtitle": "DEEP LURKER",
+      "level": 1,
+      "accentColor": "#22D3EE",
+      "file": "monsters/abyss_eel.cvg.json"
     }
   ],
   "npcs": [

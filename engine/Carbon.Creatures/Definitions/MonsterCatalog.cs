@@ -244,6 +244,11 @@ public sealed class MonsterCatalog
 
         ValidateBehavior(def);
 
+        if (def.Habitat is { IsValid: false })
+        {
+            throw new ArgumentException($"Monster '{id}' habitat must run from a shallower to a deeper water tier (Shore..Abyss).");
+        }
+
         if (def.MinLevel < 1 || def.MaxLevel < def.MinLevel)
         {
             throw new ArgumentException($"Monster '{id}' must satisfy 1 <= minLevel <= maxLevel.");

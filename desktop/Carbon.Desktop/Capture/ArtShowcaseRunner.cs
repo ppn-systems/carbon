@@ -32,6 +32,15 @@ namespace Carbon.Desktop.Capture;
 /// </summary>
 internal static class ArtShowcaseRunner
 {
+    // ADR-032 D14 water creatures, from the shore to the abyss: (archetype, attack clip, name, habitat).
+    private static readonly (ushort ArchetypeId, string AttackClip, string Name, string Habitat)[] s_waterLineup =
+    [
+        (WorldActorCatalog.ShoreCrab, "attack", "Shore Crab", "Shore - Medium"),
+        (WorldActorCatalog.PiranhaSlime, "attack_leap", "Piranha Slime", "Shallow - Deep"),
+        (WorldActorCatalog.DriftJelly, "attack_spell", "Drift Jelly", "Medium - Deep"),
+        (WorldActorCatalog.AbyssEel, "attack_leap", "Abyss Eel", "Deep - Abyss"),
+    ];
+
     private static readonly (ushort ArchetypeId, string AttackClip, ActionAnimationKind VfxKind)[] s_monsterLineup =
     [
         (WorldActorCatalog.WildSlime, "attack_leap", ActionAnimationKind.MonsterStrike),
@@ -187,6 +196,7 @@ internal static class ArtShowcaseRunner
 
             sprites.End();
             ScreenshotHelper.Capture(window.Device.Gl, w, h, Path.Combine(outputDir, "monsters_showcase.bmp"));
+            CaptureWaterCreatures(window, art, geom, sprites, font, ortho, outputDir);
 
             // Sheet 2: All 39 Items Grid
             window.Device.SetClearColor(new Vector4(0.09f, 0.11f, 0.15f, 1.0f));
@@ -406,5 +416,57 @@ internal static class ArtShowcaseRunner
 
         sprites.End();
         ScreenshotHelper.Capture(window.Device.Gl, window.Width, window.Height, path);
+    }
+
+    private static void CaptureWaterCreatures(
+        IGameWindow window,
+        CarbonVectorArtLibrary art,
+        GeometryBatch geom,
+        SpriteBatch sprites,
+        BitmapFont font,
+        Matrix4x4 ortho,
+        string outputDir)
+    {
+        int w = window.Width;
+        int h = window.Height;
+        window.Device.SetClearColor(new Vector4(0.03f, 0.12f, 0.18f, 1.0f));
+        window.Device.Clear(ClearBufferMask.ColorBufferBit);
+
+        geom.Begin(ortho);
+        float step = w / (float)(s_waterLineup.Length + 1);
+        for (int i = 0; i < s_waterLineup.Length; i++)
+        {
+            (ushort archId, string atkClip, _, _) = s_waterLineup[i];
+            if (!art.TryGetMonster(archId, out CompiledVectorRig? rig))
+            {
+                continue;
+            }
+
+            float cx = step * (i + 1);
+            geom.FillCircle(new Vector2(cx, 258f), 40f, new ColorRgba(14, 64, 84, 230), 20);
+            VectorRigRenderer.DrawEntityRig(geom, rig, new Vector2(cx, 258f), Direction8.South, "idle", 0.25f, isNormalized: false, targetHeightOverride: 120f);
+            geom.FillCircle(new Vector2(cx, 540f), 40f, new ColorRgba(10, 40, 66, 230), 20);
+            VectorRigRenderer.DrawEntityRig(geom, rig, new Vector2(cx, 540f), Direction8.East, atkClip, 0.5f, isNormalized: true, targetHeightOverride: 120f);
+        }
+
+        geom.End();
+
+        sprites.Begin(DepthSortMode.Immediate, transformMatrix: ortho);
+        ColorRgba black = new(0, 0, 0, 255);
+        ColorRgba white = new(241, 245, 249, 255);
+        ColorRgba cyan = new(103, 232, 249, 255);
+        sprites.DrawOutlinedString(font, "CARBON WATER CREATURES (ADR-032 D14)", new Vector2(28f, 24f), cyan, black, 1, 1.4f);
+        sprites.DrawOutlinedString(font, "TOP ROW: IDLE   |   BOTTOM ROW: ATTACK", new Vector2(28f, 52f), white, black, 1, 1.0f);
+        for (int i = 0; i < s_waterLineup.Length; i++)
+        {
+            (_, string atkClip, string name, string habitat) = s_waterLineup[i];
+            float cx = step * (i + 1);
+            sprites.DrawOutlinedString(font, name, new Vector2(cx - 52f, 306f), white, black, 1, 1.0f);
+            sprites.DrawOutlinedString(font, habitat, new Vector2(cx - 52f, 328f), cyan, black, 1, 0.85f);
+            sprites.DrawOutlinedString(font, $"Clip: {atkClip}", new Vector2(cx - 48f, 592f), new ColorRgba(125, 211, 252, 255), black, 1, 0.9f);
+        }
+
+        sprites.End();
+        ScreenshotHelper.Capture(window.Device.Gl, w, h, Path.Combine(outputDir, "water_creatures.bmp"));
     }
 }

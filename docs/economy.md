@@ -49,7 +49,7 @@ Currencies live in a `Wallet`, not in inventory slots, so they can't be dropped,
 
 ## 3. Loot (`Carbon.Economy.Loot`)
 
-Each table in `loot.json` is keyed by source id. Every `lootTableId` in `monsters.json` has a table, and a test checks this, including the elite flag. The families are `slime`, `skeleton`, `orc`, `blood_monster`, `demon`, `golem`, `wolf` and `wraith`. The elite variants `slime_king` and `orc_warlord` are marked `"elite": true`, so they roll with elite multipliers and are excluded from the normal-monster income bands. There is also one gather node, `rich_ore_vein`.
+Each table in `loot.json` is keyed by source id. Every `lootTableId` in `monsters.json` has a table, and a test checks this, including the elite flag. The families are `slime`, `skeleton`, `orc`, `blood_monster`, `demon`, `golem`, `wolf` and `wraith`, plus the four `water` tables of ADR-032's water creatures (`crab`, `piranha_slime`, `jelly`, `eel`). The elite variants `slime_king` and `orc_warlord` are marked `"elite": true`, so they roll with elite multipliers and are excluded from the normal-monster income bands. There is also one gather node, `rich_ore_vein`.
 
 A roll proceeds in this order:
 
@@ -75,6 +75,12 @@ The roll path is zero-allocation. The caller passes a `Span<LootDrop>` sized wit
 | `wolf` | 5–30 | `raw_meat` 1–2 | `wolf_pelt`, `wolf_fang` (8), `raw_meat`, `beast_pelt` |
 | `wraith` | 20–60 | `ectoplasm` 1–2 | `ectoplasm`, `mana_crystal`, `ash_essence` (30), `small_health_potion`, `rough_gem` (35) |
 | `rich_ore_vein` | 1–100 | `iron_ore` 2–4 | `copper_ore`, `coal`, `iron_ore`, `mana_crystal` (10), `rough_gem` (20) |
+| `crab` (water) | 1–100 | `raw_meat` 1 | `raw_meat`, `stone_chunk`, `small_health_potion` (3), `mana_crystal` (30), `slime_core` (45), `greater_health_potion` (60), `rough_gem` (60) |
+| `piranha_slime` (water) | 10–100 | `slime_gel` 1–2 | `slime_gel`, `raw_meat`, `slime_jelly`, `slime_core` (20), `mana_crystal` (30), `greater_health_potion` (55), `rough_gem` (60) |
+| `jelly` (water) | 10–100 | `slime_jelly` 1–2 | `slime_jelly`, `ectoplasm`, `mana_crystal`, `mana_tonic`, `slime_core` (35), `greater_health_potion` (55), `rough_gem` (60) |
+| `eel` (water) | 25–100 | `raw_meat` 1–2 | `raw_meat`, `leather`, `slime_core` (45), `greater_health_potion` (50), `rough_gem` (60) |
+
+The water tables span wide level ranges because the sea's level follows distance like the land's. The items they drop carry the `water` tag, and their stack sizes and level-gated valuables keep the per-level gold, net and sink-share bands of §7.1 green.
 
 ## 4. Gold faucet
 
@@ -205,6 +211,18 @@ Each simulated hour runs this model:
 | 100 | 4,937 | 258 | 5 % | 4,937 | 703 | 324 | 1,046 | **2,864** | 42 % | 1,600–3,600 |
 
 From level 10 up the sink share is now 39–52% (it was 4–12%). The inflation slope fell from about 49 to about 28 net gold/hour per level, so a level-100 player keeps about 2,900 gold/hour instead of 4,700. The faucets are unchanged; only sinks moved. Within each stage the fixed sinks (repair, station fees) stay flat while income grows, so the share drifts down toward the end of each stage. The consumable price bands are stepped to keep it above 35%.
+
+**With the water creatures (ADR-032 D14)**, the simulator also farms the water tables at each level they cover:
+
+| Level | Faucets | Repairs | Station fees | Vendor buys | **Net/h** | **Sink share** | Net band |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | :--- |
+| 1 | 125 | 35 | 8 | 8 | **73** | 41 % | 0–900 |
+| 10 | 764 | 94 | 32 | 168 | **471** | 38 % | 200–1,200 |
+| 24 | 1,359 | 94 | 32 | 364 | **869** | 36 % | 200–1,200 |
+| 49 | 2,669 | 128 | 84 | 860 | **1,597** | 40 % | 450–2,200 |
+| 50 | 2,766 | 484 | 310 | 648 | **1,324** | 52 % | 1,000–3,000 |
+| 75 | 3,774 | 703 | 324 | 906 | **1,840** | 51 % | 1,600–3,600 |
+| 100 | 4,302 | 703 | 324 | 1,046 | **2,230** | 48 % | 1,600–3,600 |
 
 The diamond column of the printed table has too few kills (2,400 per level) to be meaningful. The diamond band is gated by the 1,000,000-kill test in `EconomySimulationTests`.
 

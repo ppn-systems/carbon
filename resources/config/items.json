@@ -98,7 +98,8 @@
       "vendorBuyable": true,
       "tags": [
         "stone",
-        "golem"
+        "golem",
+        "water"
       ],
       "actionHint": "Material | Craft Stone Walls & Pickaxe [C]"
     },
@@ -133,7 +134,8 @@
       "tags": [
         "ore",
         "crystal",
-        "wraith"
+        "wraith",
+        "water"
       ],
       "actionHint": "Rare Crystal | Craft Tier 3 Crystal Pick [C]"
     },
@@ -430,7 +432,8 @@
       "maxDurability": 0,
       "vendorBuyable": true,
       "tags": [
-        "potion"
+        "potion",
+        "water"
       ],
       "restoreMana": 45.0,
       "restoreStamina": 30.0,
@@ -866,7 +869,8 @@
       "maxDurability": 0,
       "vendorBuyable": false,
       "tags": [
-        "beast"
+        "beast",
+        "water"
       ]
     },
     {
@@ -994,7 +998,8 @@
         "beast",
         "orc",
         "blood_monster",
-        "wolf"
+        "wolf",
+        "water"
       ]
     },
     {
@@ -1064,7 +1069,8 @@
       "vendorBuyable": false,
       "tags": [
         "food",
-        "slime"
+        "slime",
+        "water"
       ],
       "healHealth": 10.0,
       "restoreMana": 10.0,
@@ -1098,7 +1104,8 @@
       "maxDurability": 0,
       "vendorBuyable": false,
       "tags": [
-        "slime"
+        "slime",
+        "water"
       ]
     },
     {
@@ -1113,7 +1120,8 @@
       "maxDurability": 0,
       "vendorBuyable": false,
       "tags": [
-        "slime"
+        "slime",
+        "water"
       ]
     },
     {
@@ -1278,7 +1286,8 @@
       "maxDurability": 0,
       "vendorBuyable": false,
       "tags": [
-        "wraith"
+        "wraith",
+        "water"
       ]
     },
     {
@@ -1326,7 +1335,8 @@
       "maxDurability": 0,
       "vendorBuyable": true,
       "tags": [
-        "potion"
+        "potion",
+        "water"
       ],
       "healHealth": 120.0,
       "restoreStamina": 40.0,

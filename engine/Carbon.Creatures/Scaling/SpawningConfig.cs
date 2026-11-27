@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using Carbon.Creatures.Serialization;
+using Carbon.Maps.Hydrology;
 
 namespace Carbon.Creatures.Scaling;
 
@@ -66,6 +67,9 @@ public sealed class SpawningConfig
 
     /// <summary>Gets the biome spawn tables.</summary>
     public IReadOnlyList<SpawnTable> SpawnTables { get; set; } = [];
+
+    /// <summary>Gets the spawn tables of water depth tiers (ADR-032 D14); water without a table spawns nothing.</summary>
+    public IReadOnlyList<WaterSpawnTable> WaterSpawnTables { get; set; } = [];
 
     /// <summary>
     /// Parses and validates a <c>spawning.json</c> document.
@@ -149,6 +153,24 @@ public sealed class SpawningConfig
                 if (string.IsNullOrWhiteSpace(entry.Monster) || entry.Weight < 0f || entry.NightWeight < 0f)
                 {
                     throw new ArgumentException($"Spawn table '{table.Biome}' entry #{e} is invalid.");
+                }
+            }
+        }
+
+        for (int t = 0; t < this.WaterSpawnTables.Count; t++)
+        {
+            WaterSpawnTable table = this.WaterSpawnTables[t];
+            if (table.Tier is < WaterDepthTier.Shore or > WaterDepthTier.Abyss)
+            {
+                throw new ArgumentException($"Water spawn table #{t} must name a water tier (Shore..Abyss), not '{table.Tier}'.");
+            }
+
+            for (int e = 0; e < table.Entries.Count; e++)
+            {
+                SpawnTableEntry entry = table.Entries[e];
+                if (string.IsNullOrWhiteSpace(entry.Monster) || entry.Weight < 0f || entry.NightWeight < 0f)
+                {
+                    throw new ArgumentException($"Water spawn table '{table.Tier}' entry #{e} is invalid.");
                 }
             }
         }

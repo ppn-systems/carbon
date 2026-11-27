@@ -9,6 +9,7 @@ using Carbon.Creatures.Definitions;
 using Carbon.Creatures.Scaling;
 using Carbon.Creatures.Spawning;
 using Carbon.Maps.Biomes;
+using Carbon.Maps.Hydrology;
 using Carbon.Primitives.Random;
 using Carbon.Simulation.Clock;
 using Carbon.Simulation.ECS;
@@ -38,6 +39,7 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
     private readonly Vector2 _worldOrigin;
     private readonly IGameplayEntropy _entropy;
     private readonly SpawnTableData?[] _tables = new SpawnTableData?[byte.MaxValue + 1];
+    private readonly SpawnTableData?[] _waterTables = new SpawnTableData?[(int)WaterDepthTier.Abyss + 1];
     private readonly Dictionary<CellCoord, CellState> _cells = new(256);
     private readonly HashSet<CellCoord> _visited = new(64);
     private readonly List<TrackedMonster> _tracked = new(256);
@@ -74,7 +76,20 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
                 throw new ArgumentException($"Duplicate spawn table for biome '{table.Biome}'.", nameof(config));
             }
 
-            _tables[(byte)table.Biome] = SpawnTableData.Create(catalog, table);
+            _tables[(byte)table.Biome] = SpawnTableData.Create(catalog, table.Entries, table.Biome.ToString());
+            RequireHabitat(catalog, table.Entries, table.Biome.ToString(), tier: null);
+        }
+
+        for (int t = 0; t < config.WaterSpawnTables.Count; t++)
+        {
+            WaterSpawnTable table = config.WaterSpawnTables[t];
+            if (_waterTables[(int)table.Tier] is not null)
+            {
+                throw new ArgumentException($"Duplicate water spawn table for tier '{table.Tier}'.", nameof(config));
+            }
+
+            _waterTables[(int)table.Tier] = SpawnTableData.Create(catalog, table.Entries, table.Tier.ToString());
+            RequireHabitat(catalog, table.Entries, table.Tier.ToString(), table.Tier);
         }
     }
 
@@ -232,12 +247,20 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
             }
         }
 
-        if (!_surface.TrySampleSpawnBiome(position, out BiomeType biome))
+        SpawnTableData? table;
+        if (_surface.TrySampleSpawnBiome(position, out BiomeType biome))
+        {
+            table = _tables[(byte)biome];
+        }
+        else if (_surface.TrySampleSpawnWater(position, out WaterDepthTier tier))
+        {
+            table = _waterTables[(int)tier]; // ADR-032 D14: water creatures of that depth tier
+        }
+        else
         {
             return false;
         }
 
-        SpawnTableData? table = _tables[(byte)biome];
         // Level depends only on distance from the origin; monsters spawn only inside their level range (loot bands).
         int level = (int)MathF.Floor(_scaling.EvaluateLevel(originDistance, out _));
         if (table is null || !table.TryPick(rng.NextFloat(), isNight, level, out ushort monsterIndex))
@@ -266,6 +289,21 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
 
         _tracked.Add(new TrackedMonster(monster, cell));
         return true;
+    }
+
+    // A land table (no tier) may hold only land monsters, and a water table only creatures living in its tier.
+    private static void RequireHabitat(MonsterCatalog catalog, IReadOnlyList<SpawnTableEntry> entries, string table, WaterDepthTier? tier)
+    {
+        for (int i = 0; i < entries.Count; i++)
+        {
+            _ = catalog.TryGetIndex(entries[i].Monster, out ushort index);
+            WaterHabitat? habitat = catalog.GetDefinition(index).Habitat;
+            bool fits = tier is { } waterTier ? habitat is { } h && h.Contains(waterTier) : habitat is null;
+            if (!fits)
+            {
+                throw new ArgumentException($"Spawn table '{table}' lists '{entries[i].Monster}', which does not live there.");
+            }
+        }
     }
 
     private void ReapDead(WorldSimulation world, ulong tickIndex)
@@ -319,9 +357,9 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
             _maxLevels = maxLevels;
         }
 
-        public static SpawnTableData Create(MonsterCatalog catalog, SpawnTable table)
+        public static SpawnTableData Create(MonsterCatalog catalog, IReadOnlyList<SpawnTableEntry> entries, string name)
         {
-            int count = table.Entries.Count;
+            int count = entries.Count;
             ushort[] monsters = new ushort[count];
             float[] day = new float[count];
             float[] night = new float[count];
@@ -329,10 +367,10 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
             int[] maxLevels = new int[count];
             for (int i = 0; i < count; i++)
             {
-                SpawnTableEntry entry = table.Entries[i];
+                SpawnTableEntry entry = entries[i];
                 if (!catalog.TryGetIndex(entry.Monster, out monsters[i]))
                 {
-                    throw new ArgumentException($"Spawn table '{table.Biome}' references unknown monster '{entry.Monster}'.", nameof(table));
+                    throw new ArgumentException($"Spawn table '{name}' references unknown monster '{entry.Monster}'.", nameof(entries));
                 }
 
                 MonsterDefinition def = catalog.GetDefinition(monsters[i]);

@@ -173,15 +173,47 @@ function of `WorldGenSettings` and must never touch `GameplayEntropy`.
     shoulders, and a diver is drawn under a water veil with rising bubbles, for the local player and for others.
   - All strings live in a new `[water]` section of `en.ini` and `vi.ini`.
 
-### Creatures (PR 4)
+### Creatures (PR 4a: water creatures; PR 4b: the abyss boss)
 
-- **D14**
-  - Three to four water creatures per tier band (shore crab; shallow piranha-slime; medium jelly; deep eel),
-    spawned only in their tier at the density rules of `spawning.json`. Their AI paths through water tiers only.
-  - One abyss boss with a rare, fixed lair anchor derived from world data. It has telegraphed attack patterns,
-    level-scaled loot through the economy tables, and a respawn timer. It never despawns while a player fights in
-    its chunk.
-  - All combat rolls use `GameplayEntropy` (ADR-026).
+- **D14 — Water creatures (PR 4a).**
+  - Four creatures, from the shore to the abyss. Each has a `habitat` (a range of tiers) in `monsters.json`:
+
+    | Creature | Habitat | Levels | Role |
+    | :--- | :--- | :--- | :--- |
+    | `shore_crab` | Shore–Medium | 1–100 | claw brawler |
+    | `piranha_slime` | Shallow–Deep | 10–100 | lunging pack biter |
+    | `drift_jelly` | Medium–Deep | 10–100 | stinging caster |
+    | `abyss_eel` | Deep–Abyss | 25–100 | striking brawler |
+
+  - **Spawning.** A spawn point in open water picks from `spawning.json` `waterSpawnTables[tier]` instead of a biome
+    table. Water and land share each density cell's cap and timers, so a coast is no busier than inland. The loader
+    rejects a land table that lists a water creature, and a water table that lists a creature not living in its
+    tier. Levels follow distance as on land, so the water near the world spawn holds only crabs.
+  - **Movement.** A water creature's collider clears the new `TerrainMask.LandWalker` bit and keeps only its tiers'
+    bits (`TerrainMask.WaterBound`).
+    - `WorldCollision` and `TileWalkabilityGrid.CanTraverse` treat dry land and every other tier as a wall, and
+      it swims under bridges and piers.
+    - Its own water does not slow it (`IWorldPhysics2D.GetMoveSpeedMultiplier(position, mask)`).
+    - Walkers and swimmers are unchanged.
+  - **AI.** `AiBehaviorSystem` paths each creature on `ITileWalkabilityGrid.ForTerrainMask(mask)`, a cached view in
+    which only its tiers are open. Line-of-travel checks walk that grid instead of the terrain raycast. A creature
+    chases a player up to the edge of its water and no further.
+  - **Loot.** Four `water`-themed tables (`crab`, `piranha_slime`, `jelly`, `eel`) drop existing items, now also
+    tagged `water`. They stay inside every gold, diamond, net and sink-share band of `economy.json`.
+  - **Combat.** Attacks are ordinary attack profiles, telegraphed by `EntityAttackPhase`. Each creature has ADR-036
+    effect procs in `status_effects.json`:
+    - crab: bleeding 20 %;
+    - piranha slime: bleeding 35 %;
+    - jelly: poisoned 30 % and slowed 20 %;
+    - eel: stunned on a hit of at least 12 % of max HP, and bleeding 20 %.
+
+    Every roll stays on the `GameplayEntropy` path (ADR-026); nothing new is rolled.
+  - **Art.** Vector rigs `shore_crab`, `piranha_slime`, `drift_jelly` and `abyss_eel` (`resources/art/monsters`).
+    Names are in the existing `[monster]` locale section.
+  - No new packets or opcodes.
+- **D15 — Abyss boss (PR 4b).** One abyss boss has a rare, fixed lair anchor derived from world data. It has
+  telegraphed attack patterns, level-scaled loot through the economy tables, and a respawn timer. It never despawns
+  while a player fights in its chunk. All combat rolls use `GameplayEntropy` (ADR-026).
 
 ## Alternatives Considered
 

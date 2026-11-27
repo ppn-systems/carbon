@@ -41,6 +41,11 @@ public sealed class AiBehaviorSystem : ISimulationSystem
 
     private readonly GridPathfinder _pathfinder = new();
     private readonly ITileWalkabilityGrid? _walkabilityGrid;
+
+    // The entity being updated: its collision mask and the grid as it sees it (a water creature paths only through
+    // its own depth tiers, ADR-032 D14). Set at the top of each entity's update; the system is single-threaded.
+    private uint _terrainMask = uint.MaxValue;
+    private ITileWalkabilityGrid? _grid;
     private readonly float _tileSize;
     private int _pathSearchesThisTick;
     private int _pathSearchesDeferredThisTick;
@@ -124,6 +129,8 @@ public sealed class AiBehaviorSystem : ISimulationSystem
 
             Vector2 pos = entities.GetTransform(aiEntity).Position;
             float entityRadius = entities.HasCollider(aiEntity) ? entities.GetCollider(aiEntity).Radius : 7f;
+            _terrainMask = entities.HasCollider(aiEntity) ? entities.GetCollider(aiEntity).Mask : uint.MaxValue;
+            _grid = _walkabilityGrid?.ForTerrainMask(_terrainMask);
             AiTacticsComponent tactics = entities.TryGetComponent(aiEntity, out AiTacticsComponent t) ? t : s_noTactics;
             float aggroMult = this.IsNight && tactics.NightAggroMultiplier > 0f ? tactics.NightAggroMultiplier : 1f;
             float leashMult = this.IsNight && tactics.NightLeashMultiplier > 0f ? tactics.NightLeashMultiplier : 1f;
@@ -182,7 +189,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
                     Vector2 targetPos = entities.GetTransform(brain.TargetEntity).Position;
                     Vector2 toTarget = targetPos - pos;
                     float distSq = toTarget.LengthSquared();
-                    bool hasClearance = HasNavigationClearance(world, pos, targetPos, entityRadius);
+                    bool hasClearance = this.HasNavigationClearance(world, pos, targetPos, entityRadius);
 
                     if (hasClearance && distSq <= brain.AttackRange * brain.AttackRange)
                     {
@@ -197,7 +204,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
                     else
                     {
                         brain = brain with { ChaseTicks = brain.ChaseTicks + 1 };
-                        float speedMult = physics is not null ? physics.GetMoveSpeedMultiplier(pos) : 1f;
+                        float speedMult = physics is not null ? physics.GetMoveSpeedMultiplier(pos, _terrainMask) : 1f;
                         Vector2 moveDir = this.ComputeChaseDirection(
                             world,
                             aiEntity,
@@ -265,7 +272,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
                     Vector2 fleeVelocity = Vector2.Zero;
                     if (AiSteering.TryFindOpenDirection(world, pos, fleeDir, FleeProbeDistance, side, out Vector2 openDir))
                     {
-                        float fleeSpeedMult = physics is not null ? physics.GetMoveSpeedMultiplier(pos) : 1f;
+                        float fleeSpeedMult = physics is not null ? physics.GetMoveSpeedMultiplier(pos, _terrainMask) : 1f;
                         fleeVelocity = openDir * (brain.MoveSpeed * fleeSpeedMult);
                     }
 
@@ -316,7 +323,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
                             }
                         }
 
-                        float speedMult = physics is not null ? physics.GetMoveSpeedMultiplier(pos) : 1f;
+                        float speedMult = physics is not null ? physics.GetMoveSpeedMultiplier(pos, _terrainMask) : 1f;
                         Vector2 dirHome = this.ComputeReturnDirection(
                             world,
                             aiEntity,
@@ -489,7 +496,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
                 if (awayLenSq > 1e-4f && awayLenSq < (kiteThreshold * kiteThreshold))
                 {
                     Vector2 retreatDir = away / MathF.Sqrt(awayLenSq);
-                    if (HasNavigationClearance(world, pos, pos + (retreatDir * 24f), entityRadius))
+                    if (this.HasNavigationClearance(world, pos, pos + (retreatDir * 24f), entityRadius))
                     {
                         cooldownVel = retreatDir * (brain.MoveSpeed * 0.65f);
                     }
@@ -515,7 +522,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
         Span<Entity> neighborScratch)
     {
         Vector2 desiredDir;
-        if (!hasClearance && _walkabilityGrid is not null)
+        if (!hasClearance && _grid is not null)
         {
             PathWaypointBuffer buffer = pathStore.GetOrAdd(aiEntity, static () => new PathWaypointBuffer());
             if (!buffer.HasPath || brain.RepathCooldownTicks == 0)
@@ -590,7 +597,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
         float homeDistSq,
         Vector2 toHome)
     {
-        if (!HasNavigationClearance(world, pos, homePos, entityRadius) && _walkabilityGrid is not null)
+        if (!this.HasNavigationClearance(world, pos, homePos, entityRadius) && _grid is not null)
         {
             PathWaypointBuffer buffer = pathStore.GetOrAdd(aiEntity, static () => new PathWaypointBuffer());
             if (!buffer.HasPath || brain.RepathCooldownTicks == 0)
@@ -613,7 +620,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
 
     private void TryRepath(PathWaypointBuffer buffer, Vector2 from, Vector2 to, uint intervalTicks, ref AiBrainComponent brain)
     {
-        if (_walkabilityGrid is null)
+        if (_grid is null)
         {
             return;
         }
@@ -627,7 +634,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
 
         _pathSearchesThisTick++;
         int nodeBudget = Math.Clamp(this.MaxPathNodesPerSearch, 1, _pathfinder.MaxNodes);
-        _ = buffer.TryComputePath(_pathfinder, _walkabilityGrid, from, to, _tileSize, nodeBudget);
+        _ = buffer.TryComputePath(_pathfinder, _grid, from, to, _tileSize, nodeBudget);
         brain = brain with { RepathCooldownTicks = intervalTicks };
     }
 
@@ -682,7 +689,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
 
         Vector2 destination = brain.PatrolDestination;
         Vector2 toDest = destination - pos;
-        if (destination == default || toDest.LengthSquared() <= 16f || !HasNavigationClearance(world, pos, destination, entityRadius))
+        if (destination == default || toDest.LengthSquared() <= 16f || !this.HasNavigationClearance(world, pos, destination, entityRadius))
         {
             // Pick a deterministic walkable patrol waypoint inside PatrolRadius around HomePosition.
             Vector2 chosen = brain.HomePosition;
@@ -697,12 +704,12 @@ public sealed class AiBehaviorSystem : ISimulationSystem
 
                 int tx = (int)MathF.Floor(candidate.X / _tileSize);
                 int ty = (int)MathF.Floor(candidate.Y / _tileSize);
-                if (_walkabilityGrid is not null && !_walkabilityGrid.IsWalkable(tx, ty))
+                if (_grid is not null && !_grid.IsWalkable(tx, ty))
                 {
                     continue;
                 }
 
-                if (HasNavigationClearance(world, pos, candidate, entityRadius))
+                if (this.HasNavigationClearance(world, pos, candidate, entityRadius))
                 {
                     chosen = candidate;
                     break;
@@ -718,7 +725,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
         }
 
         float dist = MathF.Sqrt(toDest.LengthSquared());
-        float speedMult = physics is not null ? physics.GetMoveSpeedMultiplier(pos) : 1f;
+        float speedMult = physics is not null ? physics.GetMoveSpeedMultiplier(pos, _terrainMask) : 1f;
         SetEntityVelocity(world, aiEntity, toDest * (brain.MoveSpeed * 0.6f * speedMult / dist));
         return brain;
     }
@@ -826,13 +833,19 @@ public sealed class AiBehaviorSystem : ISimulationSystem
         return !world.Raycast(in ray, out _);
     }
 
-    private static bool HasNavigationClearance(WorldSimulation world, Vector2 from, Vector2 to, float entityRadius)
+    private bool HasNavigationClearance(WorldSimulation world, Vector2 from, Vector2 to, float entityRadius)
     {
         Vector2 delta = to - from;
         float dist = delta.Length();
         if (dist <= 1e-3f)
         {
             return true;
+        }
+
+        if (TerrainMask.IsWaterBound(_terrainMask) && _grid is not null)
+        {
+            // A water creature's walls are the tiers it does not live in, which the terrain raycast cannot see.
+            return this.HasWaterClearance(from, to, dist);
         }
 
         Vector2 dir = delta / dist;
@@ -852,6 +865,21 @@ public sealed class AiBehaviorSystem : ISimulationSystem
 
         Ray2D right = new(from - perp, dir, dist);
         return !world.Raycast(in right, out _);
+    }
+
+    private bool HasWaterClearance(Vector2 from, Vector2 to, float dist)
+    {
+        int steps = Math.Max(1, (int)MathF.Ceiling(dist / (_tileSize * 0.5f)));
+        for (int step = 1; step <= steps; step++)
+        {
+            Vector2 at = Vector2.Lerp(from, to, step / (float)steps);
+            if (!_grid!.IsWalkable((int)MathF.Floor(at.X / _tileSize), (int)MathF.Floor(at.Y / _tileSize)))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool IsValidLivingTarget(EntityManager entities, Entity target) =>

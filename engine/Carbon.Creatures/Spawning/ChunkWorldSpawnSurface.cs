@@ -4,13 +4,14 @@ using System;
 using System.Numerics;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
+using Carbon.Maps.Hydrology;
 using Carbon.Maps.Streaming;
 
 namespace Carbon.Creatures.Spawning;
 
 /// <summary>
 /// <see cref="ISpawnSurface"/> backed by a procedural <see cref="ChunkWorld2D"/>: rejects solid tiles, water and solid
-/// props using allocation-free tile peeks.
+/// props using allocation-free tile peeks. Water creatures sample open water instead (ADR-032 D14).
 /// </summary>
 public sealed class ChunkWorldSpawnSurface : ISpawnSurface
 {
@@ -36,5 +37,16 @@ public sealed class ChunkWorldSpawnSurface : ISpawnSurface
         return !tile.IsSolid &&
                tile.Biome is not (BiomeType.DeepOcean or BiomeType.ShallowWater) &&
                !_world.HasSolidPropAt(tx, ty);
+    }
+
+    /// <inheritdoc/>
+    public bool TrySampleSpawnWater(Vector2 worldPosition, out WaterDepthTier tier)
+    {
+        int tx = (int)MathF.Floor(worldPosition.X / _world.TileSize);
+        int ty = (int)MathF.Floor(worldPosition.Y / _world.TileSize);
+        tier = _world.GetWaterTierAt(worldPosition);
+        return tier != WaterDepthTier.Dry &&
+               !_world.HasSolidPropAt(tx, ty) &&
+               !_world.Buildings.TryGetStructure(tx, ty, out _);
     }
 }

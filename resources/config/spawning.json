@@ -264,5 +264,75 @@
         }
       ]
     }
+  ],
+  "waterSpawnTables": [
+    {
+      "tier": "Shore",
+      "entries": [
+        {
+          "monster": "shore_crab",
+          "weight": 100
+        }
+      ]
+    },
+    {
+      "tier": "Shallow",
+      "entries": [
+        {
+          "monster": "shore_crab",
+          "weight": 40
+        },
+        {
+          "monster": "piranha_slime",
+          "weight": 60
+        }
+      ]
+    },
+    {
+      "tier": "Medium",
+      "entries": [
+        {
+          "monster": "shore_crab",
+          "weight": 20
+        },
+        {
+          "monster": "piranha_slime",
+          "weight": 45,
+          "nightWeight": 35
+        },
+        {
+          "monster": "drift_jelly",
+          "weight": 35,
+          "nightWeight": 45
+        }
+      ]
+    },
+    {
+      "tier": "Deep",
+      "entries": [
+        {
+          "monster": "piranha_slime",
+          "weight": 20
+        },
+        {
+          "monster": "drift_jelly",
+          "weight": 35
+        },
+        {
+          "monster": "abyss_eel",
+          "weight": 45,
+          "nightWeight": 60
+        }
+      ]
+    },
+    {
+      "tier": "Abyss",
+      "entries": [
+        {
+          "monster": "abyss_eel",
+          "weight": 100
+        }
+      ]
+    }
   ]
 }

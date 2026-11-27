@@ -112,7 +112,8 @@ public sealed class MonsterBrainSystem : ISimulationSystem
             Vector2 toTarget = targetPos - pos;
             float dist = toTarget.Length();
 
-            float speedMult = physics is not null ? physics.GetMoveSpeedMultiplier(pos) : 1f;
+            uint terrainMask = entities.HasCollider(entity) ? entities.GetCollider(entity).Mask : uint.MaxValue;
+            float speedMult = physics is not null ? physics.GetMoveSpeedMultiplier(pos, terrainMask) : 1f;
             float speed = brain.MoveSpeed * speedMult;
             Vector2 dir = dist > 1e-3f ? toTarget / dist : Vector2.Zero;
             MonsterBehaviorDefinition behavior = def.Behavior;

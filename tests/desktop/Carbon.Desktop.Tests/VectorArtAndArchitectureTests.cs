@@ -47,7 +47,10 @@ public sealed class VectorArtAndArchitectureTests
 
         VectorArtValidationSummary summary = VectorArtValidator.ValidateDirectory(artRoot!);
         summary.CharactersValidated.Should().Be(4);
-        summary.MonstersValidated.Should().Be(9);
+        using JsonDocument monsters = JsonDocument.Parse(File.ReadAllText(Path.Combine(repoRoot, "resources", "config", "monsters.json")));
+        int monsterArchetypes = monsters.RootElement.GetProperty("monsters").EnumerateArray()
+            .Select(m => m.GetProperty("archetypeId").GetUInt16()).Distinct().Count();
+        summary.MonstersValidated.Should().Be(monsterArchetypes, "every monsters.json archetype has a rig");
         summary.NpcsValidated.Should().Be(6, "guard, harbour master, shrine keeper, blacksmith, village merchant, general trader");
         summary.ItemsValidated.Should().Be(ItemRules.LoadShippedDefaults().ItemCatalog.Count, "every items.json item has art");
         summary.PropsValidated.Should().Be(Enum.GetValues<MapPropType>().Length - 1, "every non-None prop type has art");

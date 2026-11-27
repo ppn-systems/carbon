@@ -50,7 +50,13 @@ public static class MonsterFactory
         EntityManager entities = world.Entities;
 
         Entity monster = world.SpawnEntity(position, def.Radius);
-        entities.SetCollider(monster, Collider2D.CreateCircle(def.Radius) with { Layer = monsterLayer });
+        Collider2D collider = Collider2D.CreateCircle(def.Radius) with { Layer = monsterLayer };
+        if (def.Habitat is { } habitat)
+        {
+            collider = collider with { Mask = habitat.ToTerrainMask(collider.Mask) }; // ADR-032 D14: never leaves its water
+        }
+
+        entities.SetCollider(monster, collider);
         entities.SetVelocity(monster, new Velocity2D(Vector2.Zero));
         entities.SetHealth(monster, new HealthComponent(stats.MaxHealth, stats.MaxHealth));
 
