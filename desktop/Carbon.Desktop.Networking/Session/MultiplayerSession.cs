@@ -424,9 +424,13 @@ public sealed partial class MultiplayerSession : IWorldSession
                 }
             }
 
-            return StationReach.IsNearStructure(_chunkWorld.Buildings, playerPos, _tileSize, StructureType.ForgeAnvil, StructureType.ForgeAnvil, StationReach.StructureTiles);
+            return IsAnvilInReach(_chunkWorld.Buildings, playerPos, _tileSize);
         }
     }
+
+    /// <summary>Returns whether an intact forge anvil stands within the server's crafting reach (<see cref="StationReach"/>).</summary>
+    internal static bool IsAnvilInReach(IReadOnlyBuildingGrid buildings, Vector2 playerPos, float tileSize) =>
+        StationReach.IsNearStructure(buildings, playerPos, tileSize, StructureType.ForgeAnvil, StructureType.ForgeAnvil, StationReach.StructureTiles);
 
     /// <inheritdoc/>
     public int GetRepairStationTier(RepairVenue venue)

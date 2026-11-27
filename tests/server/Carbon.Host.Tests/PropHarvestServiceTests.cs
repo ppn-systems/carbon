@@ -113,6 +113,18 @@ public sealed class PropHarvestServiceTests
         h.Props.IsWithinHarvestRange(new Vector2(16f, 16f), 2, 0).Should().BeFalse("64px is past the 52px reach");
     }
 
+    [Theory]
+    [InlineData(28f, 16f, true)] // 52 px from tile (2,0)'s centre (80,16): the edge of the reach
+    [InlineData(27.5f, 16f, false)] // 52.5 px
+    [InlineData(48f, 56f, true)] // (32,40) off the centre: 51.2 px
+    [InlineData(40f, 64f, false)] // (40,48) off the centre: 62.5 px
+    public void IsWithinHarvestRange_PlayerAt_ReachesTileTwoZeroWithin52PxOfItsCentre(float x, float y, bool expected)
+    {
+        Harness h = new();
+
+        h.Props.IsWithinHarvestRange(new Vector2(x, y), 2, 0).Should().Be(expected);
+    }
+
     private sealed class Harness
     {
         private ulong _nextNetworkId = 8000UL;

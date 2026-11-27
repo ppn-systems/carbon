@@ -465,7 +465,7 @@ public sealed partial class MultiplayerSession
             else
             {
                 _worldSeed = worldSeed;
-                ProceduralWorldGenerator generator = new(_worldSeed);
+                ProceduralWorldGenerator generator = this.CreateWorldGenerator(_worldSeed);
                 _chunkWorld = new ChunkWorld2D(generator, _tileSize, frequency) { WaterRules = _waterRules.Current };
                 _constructionMarkers.Clear();
                 _chunkWorld.UpdateAroundPosition(rejoinPos, chunkRadius: 4, evictionRadius: 8);

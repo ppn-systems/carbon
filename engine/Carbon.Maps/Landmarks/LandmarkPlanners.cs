@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using Carbon.Maps.Biomes;
+using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Settlements;
 using Carbon.Primitives.Hashing;
@@ -62,9 +63,10 @@ public sealed class LandmarkPlanContext
     private readonly List<LandmarkPath> _paths = new();
     private readonly List<(int X, int Y)> _paved = new();
 
-    internal LandmarkPlanContext(in PointOfInterest poi, ITileSource tiles, Func<int, int, bool>? isRoad = null, Roads.RoadNetwork? roads = null)
+    internal LandmarkPlanContext(in PointOfInterest poi, ITileSource tiles, StructureCatalog structures, Func<int, int, bool>? isRoad = null, Roads.RoadNetwork? roads = null)
     {
         _tiles = tiles;
+        this.Structures = structures;
         _isRoad = isRoad;
         _roads = roads;
         this.Poi = poi;
@@ -92,6 +94,9 @@ public sealed class LandmarkPlanContext
 
     /// <summary>Gets the layout seed.</summary>
     public ulong Seed { get; }
+
+    /// <summary>Gets the building catalog (<c>structures.json</c>) whose footprints size village furniture.</summary>
+    public StructureCatalog Structures { get; }
 
     /// <summary>Gets the pieces placed so far.</summary>
     public IReadOnlyList<LandmarkPiece> Pieces => _pieces;

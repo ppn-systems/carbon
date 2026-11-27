@@ -142,9 +142,11 @@ public sealed partial class MultiplayerSession
 
         if (activeSlot.Quantity > 0 && hasArchetype && archetype is { Category: ItemCategory.Placeable or ItemCategory.Tool })
         {
-            float distSq = Vector2.DistanceSquared(this.LocalPlayerInterpolatedPosition, aimWorldPosition);
-            float maxDist = archetype.Category == ItemCategory.Placeable ? this.BuildReachTiles * _tileSize : 56f;
-            if (distSq <= (maxDist * maxDist))
+            Vector2 playerPos = this.LocalPlayerInterpolatedPosition;
+            bool inReach = archetype.Category == ItemCategory.Placeable
+                ? IsPlacementInReach(playerPos, aimWorldPosition, _tileSize, this.BuildReachTiles)
+                : IsToolStrikeInReach(playerPos, aimWorldPosition, _tileSize);
+            if (inReach)
             {
                 int aimTx = (int)MathF.Floor(aimWorldPosition.X / _tileSize);
                 int aimTy = (int)MathF.Floor(aimWorldPosition.Y / _tileSize);
@@ -154,6 +156,28 @@ public sealed partial class MultiplayerSession
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Returns whether a tool swing aimed at <paramref name="aimWorldPosition"/> reaches the aimed tile, measured as the
+    /// server measures it (<see cref="ToolReach"/>: player centre to tile centre), so the client never predicts a strike
+    /// the server refuses.
+    /// </summary>
+    internal static bool IsToolStrikeInReach(Vector2 playerPos, Vector2 aimWorldPosition, float tileSize) =>
+        ToolReach.IsWithin(playerPos, (int)MathF.Floor(aimWorldPosition.X / tileSize), (int)MathF.Floor(aimWorldPosition.Y / tileSize), tileSize);
+
+    /// <summary>
+    /// Returns whether a placement aimed at <paramref name="aimWorldPosition"/> is within build reach, measured as the server
+    /// measures it (<c>AuthoritativeWorld.IsWithinInteractRangeLocked</c>): player centre to the aimed tile's centre, at most
+    /// <paramref name="reachTiles"/> tiles (<c>structures.json → placementReachTiles</c>).
+    /// </summary>
+    internal static bool IsPlacementInReach(Vector2 playerPos, Vector2 aimWorldPosition, float tileSize, float reachTiles)
+    {
+        Vector2 tileCentre = new(
+            (MathF.Floor(aimWorldPosition.X / tileSize) + 0.5f) * tileSize,
+            (MathF.Floor(aimWorldPosition.Y / tileSize) + 0.5f) * tileSize);
+        float maxDist = reachTiles * tileSize;
+        return Vector2.DistanceSquared(playerPos, tileCentre) <= maxDist * maxDist;
     }
 
     /// <inheritdoc/>

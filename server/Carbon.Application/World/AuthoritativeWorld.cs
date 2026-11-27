@@ -195,7 +195,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         _economy = economy;
         _itemRules = economy?.ItemRules ?? ItemRules.LoadShippedDefaults();
 
-        _generator = new ProceduralWorldGenerator(this.WorldSeed);
+        StructureCatalog structures = structureCatalog ?? StructureCatalog.LoadEmbedded();
+        _generator = new ProceduralWorldGenerator(this.WorldSeed, structures: structures); // villages are planned with the served catalog
         _chunkWorld = new ChunkWorld2D(_generator, this.TileSize, this.Frequency);
         _playerMaterials = new PlayerMaterialAdapter(this);
         _simulation = new WorldSimulation(this.TickRate, this.TileSize)
@@ -216,7 +217,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             () => _economy?.Config.GroundLoot);
         _construction = new ConstructionService(
             _chunkWorld,
-            structureCatalog ?? StructureCatalog.LoadEmbedded(),
+            structures,
             this.IsPlayerOnTileLocked,
             _simulation,
             this.TileSize,
@@ -445,6 +446,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
     /// <inheritdoc/>
     public ushort GeneratorVersion => ProceduralWorldGenerator.GeneratorVersion;
+
+    /// <summary>Gets the world generator (tests: villages are planned with the served <c>structures.json</c>).</summary>
+    internal ProceduralWorldGenerator Generator => _generator;
 
     /// <inheritdoc/>
     public float TileSize { get; }

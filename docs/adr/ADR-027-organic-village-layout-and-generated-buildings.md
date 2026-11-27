@@ -25,7 +25,7 @@
 
 ## Decision
 
-1. **D1 — Generated footprints.** `VillageBuildingGenerator.Generate(role, seed)` builds a `VillageBuildingTemplate`:
+1. **D1 — Generated footprints.** `VillageBuildingGenerator.Generate(role, seed, structures)` builds a `VillageBuildingTemplate`:
    - a rectangle (houses 5–8 × 5–7 tiles, shops 6–8 × 6–7) or an L-shape (a back corner cut away);
    - one to three rooms, split by straight interior walls, each with an interior door. A split never walls off a door
      and always leaves at least two tiles of floor on each side; a shop keeps a large front room for its counter;

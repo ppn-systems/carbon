@@ -128,6 +128,15 @@ public sealed partial class ServerAuthorityTests
     }
 
     [Fact]
+    public void Desktop_ShouldBuildWorldGeneratorsOnlyWithTheSyncedStructureCatalog()
+    {
+        // Villages are sized by structures.json footprints: the client's generator must take the synced catalog
+        // (MultiplayerSession.CreateWorldGenerator), or its villages drift from the server's.
+        List<string> violations = [.. DesktopSources().Where(s => ExplicitWorldGeneratorRegex().IsMatch(s.Text)).Select(s => s.Path)];
+        Violations.ShouldBeEmpty(violations, "build the client's ProceduralWorldGenerator through MultiplayerSession.CreateWorldGenerator");
+    }
+
+    [Fact]
     public void BalanceTypeUsageAllowlist_ShouldNotContainStaleEntries()
     {
         HashSet<string> found = [.. FindBalanceTypeUsages()];
@@ -193,6 +202,9 @@ public sealed partial class ServerAuthorityTests
     /// </summary>
     [GeneratedRegex(@"\b(?:const|static\s+readonly)\s+(?:(?:s?byte|u?short|u?int|u?long|float|double|decimal)(?:\[\])?|(?:Frozen|IReadOnly)?Dictionary<[^;=]*,\s*(?:s?byte|u?short|u?int|u?long|float|double|decimal)>)\s+(?<name>[A-Za-z_][A-Za-z0-9_]*)\s*=")]
     private static partial Regex NumericConstantRegex();
+
+    [GeneratedRegex(@"\bnew\s+ProceduralWorldGenerator\s*\(|\bProceduralWorldGenerator\s+\w+\s*=\s*new\s*\(")]
+    private static partial Regex ExplicitWorldGeneratorRegex();
 
     [GeneratedRegex(@"\bStructureCatalog\s*\.\s*LoadEmbedded\b")]
     private static partial Regex EmbeddedStructureCatalogRegex();

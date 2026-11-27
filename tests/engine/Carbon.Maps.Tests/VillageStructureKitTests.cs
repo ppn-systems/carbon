@@ -12,6 +12,8 @@ namespace Carbon.Maps.Tests;
 
 public sealed class VillageStructureKitTests
 {
+    private static readonly StructureCatalog s_structures = StructureCatalog.LoadEmbedded();
+
     // Villages are built from what players can build (ADR-025, ADR-027): every structure a village can emit, in any
     // style and role, has a placeable kit item that selects it in the build tool. Positive check: the emitted types come
     // from the generator itself, so a new furniture piece or palette entry without a kit fails here.
@@ -28,7 +30,7 @@ public sealed class VillageStructureKitTests
             {
                 for (ulong seed = 1; seed <= 200; seed++)
                 {
-                    VillageBuildingTemplate template = VillageBuildingGenerator.Generate(role, seed);
+                    VillageBuildingTemplate template = VillageBuildingGenerator.Generate(role, seed, s_structures);
                     (int w, int h) = template.RotatedSize(0);
                     VillagePlot plot = new(template, role, style, 0, 0, 0, (byte)w, (byte)h);
                     placements.Clear();

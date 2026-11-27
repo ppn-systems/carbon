@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Settlements;
 
@@ -54,31 +55,35 @@ public sealed class LandmarkLayout
     /// <summary>Builds the layout of a point of interest.</summary>
     /// <param name="poi">The point of interest.</param>
     /// <param name="tileAt">Pure terrain sampler.</param>
+    /// <param name="structures">Building catalog whose footprints size village furniture.</param>
     /// <returns>The layout.</returns>
-    public static LandmarkLayout Build(in PointOfInterest poi, ITileSource tileAt) => Build(poi, tileAt, isRoad: null);
+    public static LandmarkLayout Build(in PointOfInterest poi, ITileSource tileAt, StructureCatalog structures) => Build(poi, tileAt, structures, isRoad: null);
 
     /// <summary>Builds the layout of a point of interest, keeping village buildings off roads.</summary>
     /// <param name="poi">The point of interest.</param>
     /// <param name="tileAt">Pure terrain sampler.</param>
+    /// <param name="structures">Building catalog whose footprints size village furniture.</param>
     /// <param name="isRoad">Pure road query, or <see langword="null"/>.</param>
     /// <returns>The layout.</returns>
-    public static LandmarkLayout Build(in PointOfInterest poi, ITileSource tileAt, Func<int, int, bool>? isRoad)
+    public static LandmarkLayout Build(in PointOfInterest poi, ITileSource tileAt, StructureCatalog structures, Func<int, int, bool>? isRoad)
     {
         ArgumentNullException.ThrowIfNull(tileAt);
+        ArgumentNullException.ThrowIfNull(structures);
         if (poi.Type == PointOfInterestType.None)
         {
             return Empty;
         }
 
-        LandmarkPlanContext context = new(poi, tileAt, isRoad);
+        LandmarkPlanContext context = new(poi, tileAt, structures, isRoad);
         LandmarkPlanners.Get(poi.Type)?.Plan(context);
         return context.ToLayout();
     }
 
     /// <summary>Builds the layout of a point of interest with the world's road network.</summary>
-    internal static LandmarkLayout Build(in PointOfInterest poi, ITileSource tileAt, Roads.RoadNetwork? roads)
+    internal static LandmarkLayout Build(in PointOfInterest poi, ITileSource tileAt, StructureCatalog structures, Roads.RoadNetwork? roads)
     {
         ArgumentNullException.ThrowIfNull(tileAt);
+        ArgumentNullException.ThrowIfNull(structures);
         if (poi.Type == PointOfInterestType.None)
         {
             return Empty;
@@ -87,7 +92,7 @@ public sealed class LandmarkLayout
         Func<int, int, bool>? isRoad = roads is null
             ? null
             : (x, y) => roads.IsRoadOrBridgeAtTile(x, y, bridgeOnly: false) || roads.IsRoadOrBridgeAtTile(x, y, bridgeOnly: true);
-        LandmarkPlanContext context = new(poi, tileAt, isRoad, roads);
+        LandmarkPlanContext context = new(poi, tileAt, structures, isRoad, roads);
         LandmarkPlanners.Get(poi.Type)?.Plan(context);
         return context.ToLayout();
     }
