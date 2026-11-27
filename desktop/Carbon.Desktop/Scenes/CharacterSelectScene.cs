@@ -135,6 +135,27 @@ public sealed class CharacterSelectScene : GameScene
         };
     }
 
+    /// <summary>Gets the status line under the panels (behaviour tests).</summary>
+    internal string StatusMessage => _statusMessage;
+
+    /// <summary>Gets whether the status line is an error (behaviour tests).</summary>
+    internal bool StatusIsError => _statusIsError;
+
+    /// <summary>Gets whether the creator panel is shown instead of the roster (behaviour tests).</summary>
+    internal bool IsCreatorMode => _isCreatorMode;
+
+    /// <summary>Gets the heroes last loaded from the server (behaviour tests).</summary>
+    internal IReadOnlyList<CharacterRosterEntry> Characters => _characters;
+
+    /// <summary>Gets the selected roster row (behaviour tests).</summary>
+    internal int SelectedIndex => _selectedIndex;
+
+    /// <summary>Gets the packed appearance the creator would send (behaviour tests).</summary>
+    internal byte AppearancePreset => _selectedPreset;
+
+    /// <summary>Gets the preview turntable direction index (behaviour tests).</summary>
+    internal int TurnIndex => _turnIndex;
+
     /// <inheritdoc/>
     public override void Load(SceneContext context)
     {
