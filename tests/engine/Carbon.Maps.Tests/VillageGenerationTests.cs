@@ -621,7 +621,7 @@ public sealed class VillageGenerationTests
 
     internal static IEnumerable<(ProceduralWorldGenerator Generator, PointOfInterest Poi, LandmarkLayout Layout)> Villages(ulong seed)
     {
-        ProceduralWorldGenerator gen = new(seed);
+        ProceduralWorldGenerator gen = SharedGenerators.ForSeed(seed);
         for (int sy = -8; sy <= 8; sy++)
         {
             for (int sx = -8; sx <= 8; sx++)

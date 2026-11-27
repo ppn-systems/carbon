@@ -136,10 +136,14 @@ What this shows:
 - Background CPU use rises a little: sites near a player are planned whether or not the player ends up there.
 - Generator code gains a second concurrent cache. D2's `Lazy` and D3's tests keep it deterministic.
 - The host stops the generator's background builds on shutdown (D10).
-- Generators with the same seed no longer share regions (D7). The production server has one world. The desktop client
-  builds its menu backdrop's generator and its session's separately, so entering the world builds the backdrop's
-  regions again. The test suites build many same-seed generators: Maps took 105 s instead of 85 s, Host 37 s instead
-  of 25 s.
+- Generators with the same seed no longer share regions (D7).
+  - The production server has one world.
+  - The desktop session keeps one generator per seed and catalog, and hands the menu backdrop's to the world it enters:
+    world entry at spawn stays at 43–140 ms. A fresh generator would take 348–394 ms.
+  - Tests share one generator per seed where they only read generated content (`SharedGenerators`). Tests of
+    determinism across generators, and of the caches, still build their own. Maps takes 26–32 s, down from 85 s on the
+    shared cache (the generator's road and landmark caches are shared too). Host takes 37 s, up from 25 s: its tests
+    build about 40 worlds, each with its own generator.
 - A world's hydrology memory is its own (D7). Two worlds in one process each keep their regions instead of sharing
   and trimming one cache.
 - The client streams with the same generator, so its frame hitches on new land shrink too.
