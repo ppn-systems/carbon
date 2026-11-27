@@ -3,7 +3,6 @@
 using System;
 using Carbon.Economy.Currency;
 using Carbon.Economy.Vendor;
-using Carbon.Items.Components;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
 
@@ -53,44 +52,6 @@ public sealed class CraftingCheckout
         if (result.IsOk)
         {
             _ = wallet.TrySpend(CurrencyKind.Gold, fee, CurrencyReason.CraftingFee, tick);
-        }
-
-        return result;
-    }
-
-    /// <summary>
-    /// Starts a timed craft: consumes ingredients, charges the station fee and returns the job to attach to the
-    /// crafter entity. Outputs are delivered with <see cref="RecipeMatcher.TryDeliverOutputs"/> on completion.
-    /// </summary>
-    /// <param name="wallet">Crafter wallet.</param>
-    /// <param name="inventory">Crafter inventory.</param>
-    /// <param name="recipe">Recipe.</param>
-    /// <param name="context">Crafter state (its skill level also sets the work speed).</param>
-    /// <param name="job">The new job on success.</param>
-    /// <param name="tick">Simulation tick.</param>
-    /// <returns>The craft result; on failure nothing changed.</returns>
-    public CraftResult TryStartJob(
-        Wallet wallet,
-        InventoryContainer inventory,
-        CraftingRecipe recipe,
-        in CraftContext context,
-        out CraftingJobComponent job,
-        ulong tick = 0)
-    {
-        ArgumentNullException.ThrowIfNull(wallet);
-        job = default;
-        long fee = this.Prices.GetCraftingFee(recipe);
-        if (!wallet.CanAfford(CurrencyKind.Gold, fee))
-        {
-            CraftResult requirements = RecipeMatcher.CheckRequirements(recipe, context);
-            return requirements.IsOk ? CraftResult.Fail(CraftFailure.InsufficientFunds) : requirements;
-        }
-
-        CraftResult result = RecipeMatcher.TryConsumeIngredients(inventory, recipe, this.Prices.Items, context);
-        if (result.IsOk)
-        {
-            _ = wallet.TrySpend(CurrencyKind.Gold, fee, CurrencyReason.CraftingFee, tick);
-            job = CraftingJobComponent.Start(recipe, context.SkillLevel);
         }
 
         return result;
