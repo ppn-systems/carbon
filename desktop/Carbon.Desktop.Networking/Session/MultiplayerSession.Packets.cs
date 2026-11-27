@@ -773,29 +773,9 @@ public sealed partial class MultiplayerSession
             return;
         }
 
-        RemoteEntityState state = new()
-        {
-            NetworkId = pkt.NetworkId,
-            Kind = pkt.Kind,
-            ArchetypeId = pkt.ArchetypeId,
-            Name = pkt.Name,
-            Position = new Vector2(pkt.PositionX, pkt.PositionY),
-            Velocity = new Vector2(pkt.VelocityX, pkt.VelocityY),
-            Radius = pkt.Radius > 0f ? pkt.Radius : 7f,
-            CurrentHealth = pkt.CurrentHealth,
-            MaxHealth = pkt.MaxHealth,
-            EquippedHeadId = pkt.EquippedHeadId,
-            EquippedChestId = pkt.EquippedChestId,
-            EquippedLegsId = pkt.EquippedLegsId,
-            EquippedFeetId = pkt.EquippedFeetId,
-            EquippedWeaponId = pkt.EquippedWeaponId,
-            Level = Math.Max((ushort)1, pkt.Level),
-            LootCount = pkt.LootCount,
-            WeaponUpgradeLevel = pkt.WeaponUpgradeLevel,
-            LootCurrency = pkt.LootCurrency,
-            LootOwnerNetworkId = pkt.LootOwnerNetworkId,
-            LootProtectionRemaining = pkt.LootProtectionMs / 1000f,
-        };
+        RemoteEntityState state = RemoteEntityState.FromSpawn(
+            pkt,
+            _entityNames.Resolve(pkt.Kind, pkt.ArchetypeId, pkt.LootCurrency, pkt.Kind == EntityKind.Npc ? WorldActorCatalog.GetNpcSpec(pkt.ArchetypeId).Name : null));
 
         lock (_worldGate)
         {
@@ -1405,6 +1385,7 @@ public sealed partial class MultiplayerSession
         public EntityKind Kind { get; init; }
         public ushort ArchetypeId { get; init; }
         public string Name { get; init; } = string.Empty;
+        public string? NameKey { get; init; }
         public Vector2 Position { get; set; }
         public Vector2 Velocity { get; set; }
         public Vector2 FacingDir { get; set; } = new(0f, 1f);
@@ -1436,6 +1417,31 @@ public sealed partial class MultiplayerSession
         public float AttackHalfAngle { get; set; }
         public byte AttackShape { get; set; }
         public SnapshotInterpolationBuffer Interpolation { get; } = new(16);
+
+        public static RemoteEntityState FromSpawn(EntitySpawn pkt, string? nameKey) => new()
+        {
+            NetworkId = pkt.NetworkId,
+            Kind = pkt.Kind,
+            ArchetypeId = pkt.ArchetypeId,
+            Name = pkt.Name,
+            NameKey = nameKey,
+            Position = new Vector2(pkt.PositionX, pkt.PositionY),
+            Velocity = new Vector2(pkt.VelocityX, pkt.VelocityY),
+            Radius = pkt.Radius > 0f ? pkt.Radius : 7f,
+            CurrentHealth = pkt.CurrentHealth,
+            MaxHealth = pkt.MaxHealth,
+            EquippedHeadId = pkt.EquippedHeadId,
+            EquippedChestId = pkt.EquippedChestId,
+            EquippedLegsId = pkt.EquippedLegsId,
+            EquippedFeetId = pkt.EquippedFeetId,
+            EquippedWeaponId = pkt.EquippedWeaponId,
+            Level = Math.Max((ushort)1, pkt.Level),
+            LootCount = pkt.LootCount,
+            WeaponUpgradeLevel = pkt.WeaponUpgradeLevel,
+            LootCurrency = pkt.LootCurrency,
+            LootOwnerNetworkId = pkt.LootOwnerNetworkId,
+            LootProtectionRemaining = pkt.LootProtectionMs / 1000f,
+        };
 
         public AttackPhaseView BuildAttackView() => new(
             this.AttackKind,

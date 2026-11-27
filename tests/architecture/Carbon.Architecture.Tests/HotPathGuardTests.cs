@@ -68,7 +68,7 @@ public sealed class HotPathGuardTests
         ["Carbon.Desktop.Rendering.World.WorldSceneRenderer"] = 1000, // 986 today
         ["Carbon.Desktop.Scenes.CharacterSelectScene"] = 900, // 885 today
         ["Carbon.Desktop.Scenes.LoginScene"] = 700, // 665 today
-        ["Carbon.Desktop.Scenes.WorldGameplayScene"] = 1113, // TODO(audit round 2): split input/modal routing out of the scene and lower; 1113 after #77/#81
+        ["Carbon.Desktop.Scenes.WorldGameplayScene"] = 812, // TODO(audit round 2): split hotkey/interaction routing out of the scene and lower; 812 after InventoryInputController + #108
         ["Carbon.Graphics.Fonts.TrueType.TrueTypeFontLoader"] = 1000, // 953 today
     };
 
@@ -96,7 +96,7 @@ public sealed class HotPathGuardTests
         ["Carbon.Desktop.Scenes.CharacterSelectScene.Render"] = 290, // 284 today
         ["Carbon.Desktop.Scenes.LoginScene.Render"] = 140, // 130 today
         ["Carbon.Desktop.Scenes.LoginScene.Update"] = 180, // 175 today
-        ["Carbon.Desktop.Scenes.WorldGameplayScene.HandleInventoryTabInput"] = 148, // TODO(audit round 2): extract split/destroy/sort input handlers and lower; 148 after #77/#81
+        ["Carbon.Desktop.Scenes.InventoryInputController.HandleTabInput"] = 148, // TODO(audit round 2): extract split/destroy/sort input handlers and lower; moved from WorldGameplayScene.HandleInventoryTabInput (148)
         ["Carbon.Desktop.Scenes.WorldGameplayScene.Update"] = 504, // TODO(audit round 2): extract per-modal update steps and lower; 504 after #77/#81
         ["Carbon.Graphics.Fonts.Layout.TextLayoutEngine.LayoutAndDraw"] = 190, // 186 today
         ["Carbon.Graphics.Fonts.Layout.TextLayoutEngine.Measure"] = 130, // 125 today

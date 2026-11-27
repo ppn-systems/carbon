@@ -116,6 +116,12 @@ internal static partial class LocalizationRepository
             keys.Add($"skill.{skill.Code}.summary");
         }
 
+        // Every NPC archetype the client can be sent (GetNpcSpec falls back to the first one for unknown ids).
+        for (int id = 0; id <= ushort.MaxValue; id++)
+        {
+            keys.Add(EntityNameKeys.NpcKey(Carbon.Items.Catalog.WorldActorCatalog.GetNpcSpec((ushort)id).Name));
+        }
+
         foreach (Carbon.Maps.Building.StructureType structure in Enum.GetValues<Carbon.Maps.Building.StructureType>())
         {
             if (structure != Carbon.Maps.Building.StructureType.None)

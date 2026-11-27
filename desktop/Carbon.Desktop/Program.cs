@@ -90,7 +90,8 @@ public static class Program
                 if (sceneManager is not null && spriteBatch is not null)
                 {
                     sceneManager.Render(spriteBatch, dt);
-                    frameStats?.EndFrame(sceneManager.CurrentScene?.GetType().Name ?? "none");
+                    // Render can close the window (auto-exit), and Closing nulls sceneManager: re-read it.
+                    frameStats?.EndFrame(sceneManager?.CurrentScene?.GetType().Name ?? "none");
                 }
             };
             window.Resize += (_, width, height) => sceneManager?.Resize(width, height);
