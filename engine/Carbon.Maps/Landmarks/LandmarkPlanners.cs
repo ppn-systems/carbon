@@ -55,14 +55,17 @@ public sealed class LandmarkPlanContext
 
     private readonly ITileSource _tiles;
     private readonly Func<int, int, bool>? _isRoad;
+    private readonly Roads.RoadNetwork? _roads;
     private readonly List<LandmarkPiece> _pieces = new();
     private readonly List<LandmarkField> _fields = new();
     private readonly List<VillagePlot> _plots = new();
+    private readonly List<LandmarkPath> _paths = new();
 
-    internal LandmarkPlanContext(in PointOfInterest poi, ITileSource tiles, Func<int, int, bool>? isRoad = null)
+    internal LandmarkPlanContext(in PointOfInterest poi, ITileSource tiles, Func<int, int, bool>? isRoad = null, Roads.RoadNetwork? roads = null)
     {
         _tiles = tiles;
         _isRoad = isRoad;
+        _roads = roads;
         this.Poi = poi;
         this.CenterX = poi.TileX + 0.5f;
         this.CenterY = poi.TileY + 0.5f;
@@ -101,11 +104,60 @@ public sealed class LandmarkPlanContext
     /// <summary>Adds a village building plot (built from real building-grid structures, ADR-025).</summary>
     public void Add(VillagePlot plot) => _plots.Add(plot);
 
+    /// <summary>Adds a dirt path.</summary>
+    public void Add(LandmarkPath path) => _paths.Add(path);
+
+    /// <summary>Returns whether a rectangle (tile units) comes within <paramref name="margin"/> of a dirt path's edge.</summary>
+    public bool NearPath(float minX, float minY, float maxX, float maxY, float margin)
+    {
+        foreach (LandmarkPath p in _paths)
+        {
+            float reach = (p.Width * 0.5f) + margin;
+            float length = MathF.Sqrt(((p.X1 - p.X0) * (p.X1 - p.X0)) + ((p.Y1 - p.Y0) * (p.Y1 - p.Y0)));
+            int steps = Math.Max(1, (int)MathF.Ceiling(length * 4f));
+            for (int k = 0; k <= steps; k++)
+            {
+                float t = k / (float)steps;
+                float px = p.X0 + ((p.X1 - p.X0) * t);
+                float py = p.Y0 + ((p.Y1 - p.Y0) * t);
+                float ex = Math.Clamp(px, minX, maxX) - px;
+                float ey = Math.Clamp(py, minY, maxY) - py;
+                if ((ex * ex) + (ey * ey) <= reach * reach)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>Samples the pure terrain at a world tile.</summary>
     public MapTile SampleTile(int tileX, int tileY) => _tiles.SampleTile(tileX, tileY);
 
     /// <summary>Returns whether a road or bridge runs over a world tile (always <c>false</c> without a road network).</summary>
     public bool IsRoad(int tileX, int tileY) => _isRoad?.Invoke(tileX, tileY) ?? false;
+
+    /// <summary>
+    /// Marks the road and bridge tiles of a rectangle (row-major, <paramref name="width"/> per row). Uses the road network
+    /// in one pass when there is one, else <see cref="IsRoad"/> per tile.
+    /// </summary>
+    public void RasterizeRoads(int minX, int minY, int width, int height, Span<bool> output)
+    {
+        if (_roads is not null)
+        {
+            _roads.Rasterize(minX, minY, width, height, output);
+            return;
+        }
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                output[(y * width) + x] = this.IsRoad(minX + x, minY + y);
+            }
+        }
+    }
 
     /// <summary>Returns whether a world tile is dry, flat ground at the site's level.</summary>
     public bool IsBuildableTile(int tileX, int tileY)
@@ -182,168 +234,7 @@ public sealed class LandmarkPlanContext
     /// <summary>Deterministic cosine (identical on every platform).</summary>
     public static float Cos(float a) => DeterministicMath.Cos(a);
 
-    internal LandmarkLayout ToLayout() => new([.. _pieces], [.. _fields], [.. _plots]);
-}
-
-/// <summary>
-/// A well on a small square, real buildings from <c>village_buildings.json</c> around it (a market stall, the smithy, the
-/// general store and houses, every entrance facing the square), optional crop fields and a barrel (ADR-025).
-/// </summary>
-internal sealed class VillagePlanner(VillageStyle style, bool withFields) : ILandmarkPlanner
-{
-    /// <summary>Most houses a village gets.</summary>
-    public const int MaxHouses = 5;
-
-    private const int Attempts = 40;
-
-    // Required buildings first, so a cramped site still gets its traders and smith.
-    private static readonly VillageBuildingRole[] s_order =
-    [
-        VillageBuildingRole.Stall,
-        VillageBuildingRole.Smithy,
-        VillageBuildingRole.Store,
-        VillageBuildingRole.House,
-        VillageBuildingRole.House,
-        VillageBuildingRole.House,
-        VillageBuildingRole.House,
-        VillageBuildingRole.House,
-        VillageBuildingRole.House,
-        VillageBuildingRole.House,
-    ];
-
-    public void Plan(LandmarkPlanContext c)
-    {
-        const float Px = LandmarkPlanContext.Px;
-        float cx = c.CenterX;
-        float cy = c.CenterY;
-        float r = c.Radius;
-        c.Add(new LandmarkPiece(LandmarkPieceKind.Well, cx, cy + (10f * Px), 1f, 0));
-
-        VillageBuildingCatalog catalog = VillageBuildingCatalog.Default;
-        int houses = 0;
-        for (int k = 0; k < s_order.Length && houses < MaxHouses; k++)
-        {
-            VillageBuildingRole role = s_order[k];
-            int templateIndex = catalog.Pick(role, style, c.Hash(300 + k));
-            if (templateIndex >= 0 && this.TryPlace(c, catalog, templateIndex, role, k) && role == VillageBuildingRole.House)
-            {
-                houses++;
-            }
-        }
-
-        for (int i = 0; i < (withFields ? 6 : 0); i++)
-        {
-            float a = (i * (MathF.Tau / 6f)) + 0.5f + (c.Hash01(i + 200) * 0.3f);
-            float fx = cx + (LandmarkPlanContext.Cos(a) * r * 0.86f);
-            float fy = cy + (LandmarkPlanContext.Sin(a) * r * 0.86f);
-            float hx = (36f + (c.Hash01(i + 210) * 18f)) * Px;
-            float hy = (22f + (c.Hash01(i + 220) * 12f)) * Px;
-            bool clearOfBuildings = !c.OverlapsPlot(
-                (int)MathF.Floor(fx - hx), (int)MathF.Floor(fy - hy), (int)MathF.Floor(fx + hx), (int)MathF.Floor(fy + hy), margin: 1);
-            if (clearOfBuildings && c.IsBuildable(fx, fy, hx * 2f) && !c.Overlaps(fx, fy, hx + (40f * Px)))
-            {
-                c.Add(new LandmarkField(fx - hx, fy - hy, fx + hx, fy + hy, (byte)(c.Hash(i + 230) % 3)));
-            }
-        }
-
-        float barrelX = cx + (42f * Px);
-        float barrelY = cy + (34f * Px);
-        if (!c.OverlapsPlot((int)MathF.Floor(barrelX) - 1, (int)MathF.Floor(barrelY), (int)MathF.Floor(barrelX), (int)MathF.Floor(barrelY), margin: 0))
-        {
-            c.Add(new LandmarkPiece(LandmarkPieceKind.Barrel, barrelX, barrelY, 1f, 0));
-        }
-    }
-
-    private bool TryPlace(LandmarkPlanContext c, VillageBuildingCatalog catalog, int templateIndex, VillageBuildingRole role, int order)
-    {
-        VillageBuildingTemplate template = catalog.Templates[templateIndex];
-        int centerX = c.Poi.TileX;
-        int centerY = c.Poi.TileY;
-        float start = (order * 2.39996f) + (c.Hash01(400 + order) * 0.6f);
-
-        // Pass 0 turns every entrance to the square; pass 1 (a cramped or broken site) accepts any facing.
-        for (int pass = 0; pass < 2; pass++)
-        {
-            for (int j = 0; j < Attempts; j++)
-            {
-                float a = start + (j * (MathF.Tau / Attempts));
-                float dist = role == VillageBuildingRole.Stall
-                    ? 4.5f + (j % 2)
-                    : 6.5f + (((j * 3) + order) % 7);
-                float bx = c.CenterX + (LandmarkPlanContext.Cos(a) * dist);
-                float by = c.CenterY + (LandmarkPlanContext.Sin(a) * dist);
-
-                // The entrance faces the square: pick the side pointing back at the well.
-                float dx = c.CenterX - bx;
-                float dy = c.CenterY - by;
-                int facing = MathF.Abs(dx) > MathF.Abs(dy) ? (dx > 0f ? 3 : 1) : (dy > 0f ? 0 : 2);
-
-                for (int t = 0; t < (pass == 0 ? 1 : 4); t++)
-                {
-                    int turns = (facing + t) & 3;
-                    (int w, int h) = template.RotatedSize(turns);
-                    int ox = (int)MathF.Floor(bx - (w * 0.5f));
-                    int oy = (int)MathF.Floor(by - (h * 0.5f));
-                    VillagePlot plot = new((ushort)templateIndex, role, style, ox, oy, (byte)turns, (byte)w, (byte)h);
-                    if (this.IsValid(c, catalog, plot, centerX, centerY))
-                    {
-                        c.Add(plot);
-                        return true;
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private bool IsValid(LandmarkPlanContext c, VillageBuildingCatalog catalog, in VillagePlot plot, int centerX, int centerY)
-    {
-        int minX = plot.OriginX;
-        int minY = plot.OriginY;
-        int maxX = minX + plot.Width - 1;
-        int maxY = minY + plot.Height - 1;
-        float limit = c.Radius - 0.5f;
-
-        // Inside the cleared footprint, off the well square and at least one tile from every other building.
-        if (!WithinRadius(minX, minY, centerX, centerY, limit) || !WithinRadius(maxX, minY, centerX, centerY, limit) ||
-            !WithinRadius(minX, maxY, centerX, centerY, limit) || !WithinRadius(maxX, maxY, centerX, centerY, limit))
-        {
-            return false;
-        }
-
-        if (minX <= centerX + 2 && maxX >= centerX - 2 && minY <= centerY + 2 && maxY >= centerY - 2)
-        {
-            return false;
-        }
-
-        if (c.OverlapsPlot(minX, minY, maxX, maxY, margin: 1))
-        {
-            return false;
-        }
-
-        for (int y = minY - 1; y <= maxY + 1; y++)
-        {
-            for (int x = minX - 1; x <= maxX + 1; x++)
-            {
-                bool inside = x >= minX && x <= maxX && y >= minY && y <= maxY;
-                if (!c.IsBuildableTile(x, y) || (inside && c.IsRoad(x, y)))
-                {
-                    return false;
-                }
-            }
-        }
-
-        (int fx, int fy) = VillageBlueprint.FrontTile(catalog, plot);
-        return c.IsBuildableTile(fx, fy);
-    }
-
-    private static bool WithinRadius(int x, int y, int centerX, int centerY, float limit)
-    {
-        float ex = x + 0.5f - (centerX + 0.5f);
-        float ey = y + 0.5f - (centerY + 0.5f);
-        return (ex * ex) + (ey * ey) <= limit * limit;
-    }
+    internal LandmarkLayout ToLayout() => new([.. _pieces], [.. _fields], [.. _plots], [.. _paths]);
 }
 
 /// <summary>A warehouse facing the sea, flanking houses and barrels on the quay.</summary>

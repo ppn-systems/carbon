@@ -14,8 +14,8 @@ namespace Carbon.Maps.Tests;
 public sealed class GenerationPipelineTests
 {
     // Pins tiles (all fields), props and landmarks over 81 scattered chunks plus 90k pure samples (generator
-    // version 18: water depth tiers, wide rivers as deep as they are wide, the sea shelf, ADR-032; on top of 17's
-    // starter forage in the spawn clearing). Update it only together with GeneratorVersion.
+    // version 19: water depth tiers, wide rivers as deep as they are wide, the sea shelf, ADR-032; on top of 17's
+    // starter forage and 18's street villages). Update it only together with GeneratorVersion.
     private const ulong GoldenWorldFingerprint = 12340578232168992544UL;
 
     [Fact]

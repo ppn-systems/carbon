@@ -165,6 +165,56 @@ public sealed class RoadNetwork
         return false;
     }
 
+    /// <summary>
+    /// Marks every tile of a rectangle that a dry road or a bridge covers: the same rule as
+    /// <see cref="IsRoadOrBridgeAtTile"/> (tile centre within the half width of a span), for a whole area at once.
+    /// </summary>
+    /// <param name="minX">Left tile of the rectangle.</param>
+    /// <param name="minY">Top tile of the rectangle.</param>
+    /// <param name="width">Width in tiles.</param>
+    /// <param name="height">Height in tiles.</param>
+    /// <param name="output">Receives <c>true</c> for road tiles, row-major, <paramref name="width"/> per row (not cleared).</param>
+    public void Rasterize(int minX, int minY, int width, int height, Span<bool> output)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(output.Length, width * height);
+        List<RoadLink> links = [];
+        this.Query(minX, minY, minX + width - 1, minY + height - 1, links);
+        foreach (RoadLink link in links)
+        {
+            float limit = link.IsBridge ? BridgeHalfWidth : HalfWidth;
+            float[] p = link.Points;
+            for (int i = 0; i + 3 < p.Length; i += 2)
+            {
+                float ax = p[i];
+                float ay = p[i + 1];
+                float bx = p[i + 2];
+                float by = p[i + 3];
+                int x0 = Math.Max(minX, (int)MathF.Floor(MathF.Min(ax, bx) - limit - 0.5f));
+                int x1 = Math.Min(minX + width - 1, (int)MathF.Floor(MathF.Max(ax, bx) + limit + 0.5f));
+                int y0 = Math.Max(minY, (int)MathF.Floor(MathF.Min(ay, by) - limit - 0.5f));
+                int y1 = Math.Min(minY + height - 1, (int)MathF.Floor(MathF.Max(ay, by) + limit + 0.5f));
+                float dx = bx - ax;
+                float dy = by - ay;
+                float len2 = (dx * dx) + (dy * dy);
+                for (int y = y0; y <= y1; y++)
+                {
+                    for (int x = x0; x <= x1; x++)
+                    {
+                        float px = x + 0.5f;
+                        float py = y + 0.5f;
+                        float t = len2 > 1e-6f ? Math.Clamp((((px - ax) * dx) + ((py - ay) * dy)) / len2, 0f, 1f) : 0f;
+                        float ex = ax + (dx * t) - px;
+                        float ey = ay + (dy * t) - py;
+                        if (MathF.Sqrt((ex * ex) + (ey * ey)) <= limit)
+                        {
+                            output[((y - minY) * width) + (x - minX)] = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// <summary>Distance in tiles from a point to a road polyline.</summary>
     public static float Distance(RoadLink link, float x, float y)
     {
