@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "maxLevel": 99,
+  "experience": {
+    "xpToNext": [
+      { "level": 1, "xp": 450 },
+      { "level": 5, "xp": 1700 },
+      { "level": 10, "xp": 5000 },
+      { "level": 15, "xp": 9500 },
+      { "level": 20, "xp": 16000 },
+      { "level": 25, "xp": 28000 },
+      { "level": 30, "xp": 44000 },
+      { "level": 40, "xp": 84000 },
+      { "level": 50, "xp": 135000 },
+      { "level": 60, "xp": 220000 },
+      { "level": 70, "xp": 315000 },
+      { "level": 80, "xp": 470000 },
+      { "level": 90, "xp": 700000 },
+      { "level": 98, "xp": 870000 }
+    ],
+    "kill": {
+      "maxHealthFactor": 0.45,
+      "levelFactor": 4,
+      "minXp": 25,
+      "maxXp": 4000,
+      "eliteMultiplier": 2,
+      "nightMultiplier": 1.35,
+      "levelDifference": {
+        "graceLevels": 5,
+        "penaltyPerLevel": 0.1,
+        "minMultiplier": 0.1,
+        "bonusPerLevel": 0.05,
+        "maxMultiplier": 1.25
+      }
+    }
+  },
+  "statPoints": {
+    "brackets": [
+      { "fromLevel": 2, "toLevel": 20, "pointsPerLevel": 4 },
+      { "fromLevel": 21, "toLevel": 50, "pointsPerLevel": 5 },
+      { "fromLevel": 51, "toLevel": 80, "pointsPerLevel": 6 },
+      { "fromLevel": 81, "toLevel": 99, "pointsPerLevel": 7 }
+    ],
+    "milestoneEvery": 10,
+    "milestoneBonus": 5
+  },
+  "baseStats": {
+    "maxHealth": 100,
+    "maxMana": 80,
+    "maxStamina": 100,
+    "defense": 2,
+    "magicResist": 1,
+    "attack": 1,
+    "spellPower": 1,
+    "critChance": 0,
+    "critDamage": 1.5,
+    "attackSpeed": 1,
+    "moveSpeed": 1,
+    "evasion": 0,
+    "healthRegen": 3,
+    "manaRegen": 6
+  },
+  "perLevel": {
+    "maxHealth": 18,
+    "maxMana": 8,
+    "maxStamina": 5,
+    "defense": 1,
+    "magicResist": 0.6,
+    "attack": 0.03,
+    "spellPower": 0.03,
+    "healthRegen": 0.25,
+    "manaRegen": 0.1
+  },
+  "attributes": {
+    "vitality": { "maxHealth": 14, "defense": 0.7, "healthRegen": 0.15 },
+    "wisdom": { "maxMana": 10, "spellPower": 0.012, "magicResist": 0.6, "manaRegen": 0.3 },
+    "power": { "attack": 0.012, "maxStamina": 2 },
+    "agility": { "attackSpeed": 0.0025, "moveSpeed": 0.002, "evasion": 1, "maxStamina": 6 },
+    "dexterity": { "critChance": 0.002, "critDamage": 0.0035, "attack": 0.003 }
+  },
+  "caps": {
+    "critChance": 0.5,
+    "critDamage": 2.5,
+    "attackSpeed": 1.5,
+    "moveSpeed": 1.25
+  },
+  "healthRegenMaxHealthFraction": 0.01,
+  "armorMagicResistFraction": 0.5,
+  "mitigation": {
+    "physical": { "k": 50, "perAttackerLevel": 5, "cap": 0.75 },
+    "magical": { "k": 50, "perAttackerLevel": 5, "cap": 0.75 },
+    "evasion": { "k": 100, "perAttackerLevel": 2, "cap": 0.3 }
+  },
+  "respec": {
+    "freeThroughLevel": 10,
+    "baseGold": 50,
+    "goldPerLevel": 20
+  }
+}
