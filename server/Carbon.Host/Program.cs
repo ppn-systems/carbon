@@ -14,6 +14,7 @@ using Carbon.Infrastructure.Configuration;
 using Carbon.Infrastructure.Persistence.Postgres;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Infrastructure.Security;
+using Carbon.Maps.Roads;
 using Carbon.Server.Configuration;
 using Microsoft.Extensions.Logging;
 using Nalix.Hosting;
@@ -142,7 +143,8 @@ public static class Program
             entropy: entropy,
             statusEffects: gameData.StatusEffects,
             stamina: gameData.Stamina,
-            logger: logger);
+            logger: logger,
+            roadPrewarm: new RoadPrewarmOptions(options.RoadPrewarmWorkers));
         world.ApplyGameData(gameData.Economy, gameData.Needs, gameData.Food, gameData.Progression, gameData.StatusEffects, gameData.Stamina, gameData.Water, gameData.Props, gameData.Races);
         ServerGameData.BindHotReload(config, world);
         using AuthService authService = new(accountStore, characterStore, hasher, time: null, () => world.ItemRules, () => world.Progression, rememberTokenStore, () => world.Races)

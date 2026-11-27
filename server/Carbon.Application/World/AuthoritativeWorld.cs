@@ -48,6 +48,7 @@ using Carbon.Maps.Building;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Hydrology;
 using Carbon.Maps.Props;
+using Carbon.Maps.Roads;
 using Carbon.Maps.Settlements;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS;
@@ -158,6 +159,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// <param name="stamina">Stamina tuning (<c>stamina.json</c>, ADR-033); defaults to the shipped copy.</param>
     /// <param name="logger">Diagnostics (chunk delta rows dropped at boot, ADR-039); defaults to none.</param>
     /// <param name="propRegrowth">Natural prop regrowth (<c>props.json</c>, ADR-040); defaults to the shipped copy.</param>
+    /// <param name="roadPrewarm">How road sites are planned ahead of players (ADR-045); the defaults when <see langword="null"/>.</param>
     public AuthoritativeWorld(
         ulong worldSeed,
         float tileSize,
@@ -178,7 +180,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         StatusEffectCatalog? statusEffects = null,
         StaminaConfig? stamina = null,
         ILogger? logger = null,
-        PropRegrowthRules? propRegrowth = null)
+        PropRegrowthRules? propRegrowth = null,
+        RoadPrewarmOptions? roadPrewarm = null)
     {
         ArgumentNullException.ThrowIfNull(chunkDeltaRepo);
         ArgumentNullException.ThrowIfNull(characterStore);
@@ -200,7 +203,10 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         _itemRules = economy?.ItemRules ?? ItemRules.LoadShippedDefaults();
 
         StructureCatalog structures = structureCatalog ?? StructureCatalog.LoadEmbedded();
-        _generator = new ProceduralWorldGenerator(this.WorldSeed, structures: structures); // villages are planned with the served catalog
+        _generator = new ProceduralWorldGenerator(this.WorldSeed, structures: structures) // villages are planned with the served catalog
+        {
+            RoadPrewarm = roadPrewarm ?? RoadPrewarmOptions.Default,
+        };
         _chunkWorld = new ChunkWorld2D(_generator, this.TileSize, this.Frequency);
         _playerMaterials = new PlayerMaterialAdapter(this);
         _simulation = new WorldSimulation(this.TickRate, this.TileSize)

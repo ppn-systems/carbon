@@ -638,7 +638,7 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
 
     /// <summary>Releases what <paramref name="stream"/> kept cached (a player left the world).</summary>
     /// <param name="stream">The stream passed to <see cref="UpdateAroundPosition"/>.</param>
-    public void ReleaseStream(ulong stream) => _generator.ReleaseHydrologyStream(stream);
+    public void ReleaseStream(ulong stream) => _generator.ReleaseStream(stream);
 
     /// <summary>
     /// Streams and loads all chunks within <paramref name="chunkRadius"/> around the target world position,
@@ -659,6 +659,15 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
             (centerChunkX * Chunk2D.Size) + (Chunk2D.Size / 2),
             (centerChunkY * Chunk2D.Size) + (Chunk2D.Size / 2),
             (chunkRadius + 8) * Chunk2D.Size,
+            stream);
+
+        // 0b. ADR-045 D1: plan the road sites of the loaded chunks in the background. A road query reads two sites (about
+        // 14 chunks) beyond its rectangle, so this also covers every chunk the player can walk into before the next step.
+        _generator.PrewarmRoads(
+            (centerChunkX - chunkRadius) * Chunk2D.Size,
+            (centerChunkY - chunkRadius) * Chunk2D.Size,
+            ((centerChunkX + chunkRadius + 1) * Chunk2D.Size) - 1,
+            ((centerChunkY + chunkRadius + 1) * Chunk2D.Size) - 1,
             stream);
 
         // 1. Load the chunks in range; recycle those far away (their edits stay in the delta store).
