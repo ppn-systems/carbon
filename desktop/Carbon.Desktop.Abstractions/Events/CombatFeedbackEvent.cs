@@ -12,9 +12,13 @@ namespace Carbon.Desktop.Abstractions.Events;
 /// <param name="IsCritical">Whether the combat hit was critical.</param>
 /// <param name="IsHeal">Whether this event represents a heal or helpful status gain.</param>
 /// <param name="Label">Optional preformatted override label (e.g., <c>+3 Wood Log</c>).</param>
+/// <param name="StatusEffectId">Status effect whose pulse dealt the damage (ADR-029), 0 for a direct hit; tints the number.</param>
+/// <param name="IsLocalVictim">Whether the local player took this damage.</param>
 public readonly record struct CombatFeedbackEvent(
     Vector2 WorldPosition,
     float Amount,
     bool IsCritical,
     bool IsHeal,
-    string? Label = null);
+    string? Label = null,
+    ushort StatusEffectId = 0,
+    bool IsLocalVictim = false);

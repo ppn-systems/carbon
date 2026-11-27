@@ -64,12 +64,7 @@ public sealed class SpawnClearingStage : IChunkStage
 
         if (chunk.Props.Count > 0)
         {
-            _ = chunk.RemoveProps(p =>
-            {
-                int dx = x0 + p.LocalTileX - sx;
-                int dy = y0 + p.LocalTileY - sy;
-                return (dx * dx) + (dy * dy) <= Radius * Radius;
-            });
+            ClearAround(chunk, x0 - sx, y0 - sy);
         }
 
         for (int i = 0; i < s_forage.Length; i++)
@@ -96,4 +91,14 @@ public sealed class SpawnClearingStage : IChunkStage
             chunk.AddProp(MapProp.Create(type, lx, ly, worldX, worldY, radius, isSolid: false, primary, secondary));
         }
     }
+
+    // Kept out of Populate: a lambda capturing its locals makes the compiler allocate the closure on entry to
+    // Populate, for every chunk, not only the few around the spawn.
+    private static void ClearAround(Chunk2D chunk, int offsetX, int offsetY) =>
+        _ = chunk.RemoveProps(p =>
+        {
+            int dx = offsetX + p.LocalTileX;
+            int dy = offsetY + p.LocalTileY;
+            return (dx * dx) + (dy * dy) <= Radius * Radius;
+        });
 }

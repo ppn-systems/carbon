@@ -95,8 +95,15 @@ interact_trade     | CARBON_DEBUG_SPAWN_POI=RiverVillage CARBON_DEBUG_START_HOUR
 # --- classless start (ADR-030): the creator has no class choice, and new characters arrive empty-handed ---
 char_creator       | | CARBON_AUTO_LOGIN=0 CARBON_CAPTURE_SCENE=characters
 
+# --- status effects (ADR-029): top-right strip, hover tooltip, details panel, poison vignette ---
+status_strip       | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STATUS_EFFECTS=poisoned:110000:2;bleeding:40000:1;slowed:90000:1;rested:540000:1 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=status-hover:2
+status_details     | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STATUS_EFFECTS=poisoned:110000:2;bleeding:40000:1;slowed:90000:1;rested:540000:1 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=status-details:0
+
 # --- HUD column: day/night clock + minimap (status-effect strip stays clear at the top right) ---
 hud_day            | CARBON_DEBUG_SPAWN_OFFSET=13,23 CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear
 hud_dusk           | CARBON_DEBUG_SPAWN_OFFSET=13,23 CARBON_DEBUG_START_HOUR=17.5 | CARBON_WEATHER=clear
 hud_night          | CARBON_DEBUG_SPAWN_OFFSET=13,23 CARBON_DEBUG_START_HOUR=23 | CARBON_WEATHER=clear
 hud_village        | CARBON_DEBUG_SPAWN_POI=RiverVillage CARBON_DEBUG_START_HOUR=6 | CARBON_WEATHER=clear
+river_trunk        | CARBON_DEBUG_SPAWN_TILE=-344,444 CARBON_DEBUG_START_HOUR=11           | CARBON_WEATHER=clear
+river_macro        | CARBON_DEBUG_SPAWN_TILE=-344,444 CARBON_DEBUG_START_HOUR=11           | CARBON_WEATHER=clear CARBON_MACRO_VIEW=1
+sea_shelf          | CARBON_WORLD_SEED=42 CARBON_DEBUG_SPAWN_TILE=950,-6000 CARBON_DEBUG_START_HOUR=11 | CARBON_SEED=42 CARBON_WEATHER=clear CARBON_MACRO_VIEW=1

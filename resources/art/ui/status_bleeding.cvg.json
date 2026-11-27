@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "itemId": 0,
+  "id": "status_bleeding",
+  "displayName": "Bleeding",
+  "tier": 1,
+  "categoryLabel": "Status",
+  "accentColor": "#DC2626",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.7,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -1.5,
+          -7
+        ],
+        [
+          1.8,
+          -1.8
+        ],
+        [
+          1.4,
+          1.2
+        ],
+        [
+          -1.5,
+          2.8
+        ],
+        [
+          -4.4,
+          1.2
+        ],
+        [
+          -4.8,
+          -1.8
+        ]
+      ],
+      "color": "#B91C1C",
+      "outlineColor": "#450A0A",
+      "outlineThickness": 1.0,
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          3.6,
+          -1
+        ],
+        [
+          6,
+          3.2
+        ],
+        [
+          5.6,
+          5.2
+        ],
+        [
+          3.6,
+          6.4
+        ],
+        [
+          1.6,
+          5.2
+        ],
+        [
+          1.2,
+          3.2
+        ]
+      ],
+      "color": "#DC2626",
+      "outlineColor": "#450A0A",
+      "outlineThickness": 0.9,
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "ellipse",
+      "x": -2.8,
+      "y": -1.6,
+      "rx": 0.8,
+      "ry": 0.6,
+      "color": "#FECACA",
+      "bone": "root",
+      "facing": "any"
+    }
+  ]
+}

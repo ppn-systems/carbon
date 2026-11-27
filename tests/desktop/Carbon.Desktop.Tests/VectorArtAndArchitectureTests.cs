@@ -444,6 +444,13 @@ public sealed class VectorArtAndArchitectureTests
         coinIcon!.Shapes.Length.Should().BePositive();
         diamondIcon!.Shapes.Length.Should().BePositive();
 
+        // ADR-029: every status effect in the shipped config has its vector icon.
+        foreach (Carbon.Combat.Statuses.Config.StatusEffectDefinition effect in Carbon.Combat.Statuses.Config.StatusEffectCatalog.LoadShippedDefaults().Effects)
+        {
+            lib.TryGetUiIcon(effect.Icon, out CompiledItemVectorArt? statusIcon).Should().BeTrue($"status effect '{effect.Key}' needs its '{effect.Icon}' icon");
+            statusIcon!.Shapes.Length.Should().BePositive();
+        }
+
         string[] expectedMonsterClips =
         [
             "skeleton_archer.cvg.json:attack_bow",

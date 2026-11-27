@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "itemId": 0,
+  "id": "status_tired",
+  "displayName": "Tired",
+  "tier": 1,
+  "categoryLabel": "Status",
+  "accentColor": "#A78BFA",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.7,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "x": -0.6,
+      "y": 0.4,
+      "rx": 6.2,
+      "ry": 6.2,
+      "color": "#6D28D9",
+      "outlineColor": "#2E1065",
+      "outlineThickness": 1.0,
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "ellipse",
+      "x": 2.2,
+      "y": -1.6,
+      "rx": 5.0,
+      "ry": 5.0,
+      "color": "#1E1B2E",
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "line",
+      "x": 2.4,
+      "y": -6,
+      "x2": 6.4,
+      "y2": -6,
+      "thickness": 1.1,
+      "color": "#EDE9FE",
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "line",
+      "x": 6.4,
+      "y": -6,
+      "x2": 2.4,
+      "y2": -2.6,
+      "thickness": 1.1,
+      "color": "#EDE9FE",
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "line",
+      "x": 2.4,
+      "y": -2.6,
+      "x2": 6.4,
+      "y2": -2.6,
+      "thickness": 1.1,
+      "color": "#EDE9FE",
+      "bone": "root",
+      "facing": "any"
+    }
+  ]
+}

@@ -19,6 +19,7 @@ internal static class HudComposition
         HudElement.SkillBar,
         HudElement.InteractPrompt,
         HudElement.Toasts,
+        HudElement.StatusEffects,
     ];
 
     private static readonly HudElement[] s_inventoryHeader = [HudElement.Wallet];

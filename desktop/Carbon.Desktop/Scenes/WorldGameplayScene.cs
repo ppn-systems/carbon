@@ -201,6 +201,10 @@ public sealed class WorldGameplayScene : GameScene
             {
                 _hudRenderer.InventoryDialog.Close();
             }
+            else if (_hudRenderer.CloseStatusEffectDetails())
+            {
+                // ADR-029: Esc closes the status effect details first.
+            }
             else if (_hudRenderer.ShowSettingsModal)
             {
                 _hudRenderer.ShowSettingsModal = false;
@@ -480,7 +484,11 @@ public sealed class WorldGameplayScene : GameScene
             if (input.LeftClickPressed)
             {
                 Vector2 mouseScreen = input.MouseScreenPosition;
-                if (_hudRenderer.TryHitTestHotbar(mouseScreen, context.WindowWidth, context.WindowHeight, out byte hotbarSlot))
+                if (_hudRenderer.TryHandleStatusStripClick(_session, mouseScreen, context.WindowWidth))
+                {
+                    // An icon opened its details, or a click outside closed them.
+                }
+                else if (_hudRenderer.TryHitTestHotbar(mouseScreen, context.WindowWidth, context.WindowHeight, out byte hotbarSlot))
                 {
                     _session.SelectHotbarSlot(hotbarSlot);
                 }
@@ -527,7 +535,8 @@ public sealed class WorldGameplayScene : GameScene
             else if (input.LeftMouseDown && !_session.CurrentAction.IsActive)
             {
                 Vector2 mouseScreen = input.MouseScreenPosition;
-                if (!_hudRenderer.TryHitTestHotbar(mouseScreen, context.WindowWidth, context.WindowHeight, out _) &&
+                if (!_hudRenderer.IsOverStatusStrip(_session, mouseScreen, context.WindowWidth) &&
+                    !_hudRenderer.TryHitTestHotbar(mouseScreen, context.WindowWidth, context.WindowHeight, out _) &&
                     !_hudRenderer.TryHitTestSkill(_session, mouseScreen, context.WindowWidth, context.WindowHeight, out _))
                 {
                     Span<ItemSlot> curSlots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];

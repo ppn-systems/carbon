@@ -6,6 +6,7 @@ using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Procedural;
 using Carbon.Maps.Biomes;
+using Carbon.Maps.Hydrology;
 using Carbon.Maps.Noise;
 
 namespace Carbon.Desktop.Rendering.World;
@@ -35,6 +36,18 @@ internal static class TerrainSurface
     /// <param name="biome">The biome.</param>
     /// <returns><c>true</c> for shallow and deep water.</returns>
     public static bool IsWater(BiomeType biome) => biome is BiomeType.ShallowWater or BiomeType.DeepOcean;
+
+    /// <summary>
+    /// Brightness of water at a depth (ADR-032): 1 at the waterline, darkening smoothly to 0.5 on the abyss floor,
+    /// so the sea fades from turquoise shelf to dark open ocean and a river's channel shows its deep middle.
+    /// </summary>
+    /// <param name="depth">Water depth (see <see cref="WaterDepth"/>).</param>
+    /// <returns>A colour multiplier.</returns>
+    public static float WaterDepthShade(float depth)
+    {
+        float t = Math.Clamp(depth / WaterDepth.MaxDepth, 0f, 1f);
+        return 1f - (0.5f * Smooth(t));
+    }
 
     /// <summary>Samples the noise field at a point given in world tile units.</summary>
     /// <param name="x">World X in tiles.</param>

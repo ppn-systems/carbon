@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "itemId": 0,
+  "id": "status_hungry",
+  "displayName": "Hungry",
+  "tier": 1,
+  "categoryLabel": "Status",
+  "accentColor": "#F59E0B",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.7,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -7,
+          -1
+        ],
+        [
+          7,
+          -1
+        ],
+        [
+          5.4,
+          3.6
+        ],
+        [
+          2.6,
+          5.6
+        ],
+        [
+          -2.6,
+          5.6
+        ],
+        [
+          -5.4,
+          3.6
+        ]
+      ],
+      "color": "#92400E",
+      "outlineColor": "#451A03",
+      "outlineThickness": 1.0,
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "rect",
+      "x": -7.4,
+      "y": -2.4,
+      "w": 14.8,
+      "h": 1.8,
+      "color": "#B45309",
+      "outlineColor": "#451A03",
+      "outlineThickness": 0.8,
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "capsule",
+      "x": -3,
+      "y": -5,
+      "x2": -1.5,
+      "y2": -3,
+      "thickness": 1.1,
+      "color": "#FDE68A",
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "capsule",
+      "x": 1,
+      "y": -6,
+      "x2": 2.2,
+      "y2": -3.6,
+      "thickness": 1.1,
+      "color": "#FDE68A",
+      "bone": "root",
+      "facing": "any"
+    }
+  ]
+}

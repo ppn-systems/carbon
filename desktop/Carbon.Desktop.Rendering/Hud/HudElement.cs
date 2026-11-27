@@ -26,6 +26,9 @@ internal enum HudElement : byte
     /// <summary>Gold and diamond balances.</summary>
     Wallet,
 
+    /// <summary>The top-right status effect strip and its details panel (ADR-029).</summary>
+    StatusEffects,
+
     /// <summary>Dark veil over the world while the player is dead (ADR-031).</summary>
     DeathVeil,
 

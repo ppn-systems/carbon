@@ -124,7 +124,9 @@ public sealed class CombatFeedbackTracker
                     ? $"+{(int)MathF.Ceiling(ev.Amount)}"
                     : $"-{(int)MathF.Ceiling(ev.Amount)}");
             bool isXpPopup = ev.Label is not null && ev.Label.StartsWith('+') && ev.Label.EndsWith(" XP", StringComparison.Ordinal);
-            ColorRgba color = isXpPopup
+            ColorRgba color = ev.StatusEffectId != 0 && !ev.IsHeal
+                ? StatusEffectTints.ForEffect(world.StatusEffectDefinitions, ev.StatusEffectId)
+                : isXpPopup
                 ? new ColorRgba(192, 132, 252, 255)
                 : ev.Label is not null && !ev.IsHeal
                     ? new ColorRgba(251, 146, 60, 255)
@@ -133,7 +135,7 @@ public sealed class CombatFeedbackTracker
                         : ev.IsCritical
                             ? new ColorRgba(250, 204, 21, 255)
                             : new ColorRgba(248, 113, 113, 255);
-            float scale = ev.IsCritical || ev.IsHeal ? 1.25f : 1.0f;
+            float scale = ev.IsCritical || ev.IsHeal ? 1.25f : ev.StatusEffectId != 0 ? 0.9f : 1.0f;
             _floatingTexts.Add(new FloatingCombatText(ev.WorldPosition + new Vector2(0f, -14f), text, color, scale, 0.95f));
         }
 
