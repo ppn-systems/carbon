@@ -222,7 +222,7 @@ internal sealed class CharacterSheetModalWidget
             black,
             1,
             layout.TitleScale);
-        spriteBatch.DrawOutlinedString(font, _classLevel.Format("hud.character.class_level", new TextArg("class", ClassLabel(world.LocalPlayerClass)), new TextArg("level", world.LocalPlayerLevel)), new Vector2(lx, leftCard.Y + MathF.Round(216f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TextScale);
+        spriteBatch.DrawOutlinedString(font, _classLevel.Format("hud.character.class_level", new TextArg("class", GameText.ClassName(world.LocalPlayerClass)), new TextArg("level", world.LocalPlayerLevel)), new Vector2(lx, leftCard.Y + MathF.Round(216f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TextScale);
         spriteBatch.DrawOutlinedString(font, _xp.Format("hud.character.xp", new TextArg("current", world.LocalPlayerExperience), new TextArg("next", world.LocalPlayerXpToNext)), new Vector2(lx, leftCard.Y + MathF.Round(264f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
 
         spriteBatch.DrawOutlinedString(font, _hp.Format("hud.character.hp", new TextArg("current", (int)MathF.Ceiling(world.LocalPlayerHealth)), new TextArg("max", (int)MathF.Ceiling(world.LocalPlayerMaxHealth))), new Vector2(lx, leftCard.Y + MathF.Round(304f * s)), CarbonUiPalette.TextPrimary, black, 1, layout.TextScale);
@@ -268,10 +268,6 @@ internal sealed class CharacterSheetModalWidget
             CarbonUiSkin.DrawCenteredText(spriteBatch, font, "+", in plusRect, unspentAp > 0 ? CarbonUiPalette.TextPrimary : CarbonUiPalette.TextMuted, black, layout.TitleScale);
         }
     }
-
-    /// <summary>Class display name; the <c>character.class.*</c> keys arrive with the character-select migration.</summary>
-    private static string ClassLabel<TClass>(TClass playerClass)
-        where TClass : struct, Enum => playerClass.ToString();
 
     private static RectangleF GetLeftCardRect(in PlayerModalLayout layout)
     {

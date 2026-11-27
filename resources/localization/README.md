@@ -9,7 +9,7 @@ Player-facing text for the desktop client ([ADR-023](../../docs/adr/ADR-023-clie
 - **Never start a second copy of a `[section]`.** Add new keys inside the existing section. When two branches both add keys to one section, resolve the git conflict by keeping both sets of lines.
 - Placeholders are named: `{count}`, `{name}`. Write `{{` and `}}` for literal braces. Every language must use the same placeholders as `en`.
 - A plural string is two keys, `<key>.one` and `<key>.other`. Vietnamese has no plural, so give both the same text.
-- Derived names use stable ids: `item.<code>.name`, `item.<code>.hint`, `monster.<id>.name`, `biome.<biome>` and `structure.<structure>`. Read them with `GameText.ItemName`, `MonsterName`, `BiomeName` and `StructureName`. `SyncedItemCatalog.GetDisplayName` already returns localized item names.
+- Derived names use stable ids: `item.<code>.name`, `item.<code>.hint`, `monster.<id>.name`, `biome.<biome>`, `structure.<structure>` and `skill.<code>.name` / `.summary`. Read them with `GameText.ItemName`, `MonsterName`, `BiomeName` and `StructureName`. `SyncedItemCatalog.GetDisplayName` already returns localized item names.
 - `locales.ini` lists the selectable languages and each one's font stack (`fonts = file@pixelSize, ...`). Every character in a locale file must exist in its fonts.
 - CI (`LocalizationTests`, `LocalizationLiteralTests`) enforces all of the above.
 
@@ -27,6 +27,7 @@ Player-facing text for the desktop client ([ADR-023](../../docs/adr/ADR-023-clie
    - `GameText.Format("hud.picked_up", new TextArg("name", itemName))`
    - `GameText.Plural("hud.coins", count)`
    - For text drawn every frame, keep a `CachedText` field and call `_label.Format(...)`. It re-formats only when an argument or the language changes.
+   - For names derived from an id in a widget, keep a `DerivedTextCache` field, such as `new("skill.", ".name")`. It builds each key once. Pass decimals as `new TextArg("cd", seconds, decimals: 1)`.
 
    The namespace is `Carbon.Desktop.Abstractions.Localization`.
 3. If you replaced a literal, delete its line from `tests/architecture/Carbon.Architecture.Tests/LocalizationLiteralAllowlist.txt`.

@@ -191,7 +191,7 @@ internal sealed class HotbarAndItemWidget
         float barsY = xpY - 24f;
         ColorRgba black = CarbonUiPalette.TextOutline;
 
-        DrawVitalsClusterText(spriteBatch, font, world, startX, barsY);
+        this.DrawVitalsClusterText(spriteBatch, font, world, startX, barsY);
 
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
@@ -227,7 +227,7 @@ internal sealed class HotbarAndItemWidget
             ItemSlot hItem = slots[hoveredSlot];
             if (!hItem.IsEmpty)
             {
-                DrawTooltipText(spriteBatch, font, world, art, startX + (hoveredSlot * (SlotSize + Gap)), barsY - 10f, viewportWidth, in hItem);
+                this.DrawTooltipText(spriteBatch, font, world, startX + (hoveredSlot * (SlotSize + Gap)), barsY - 10f, viewportWidth, in hItem);
             }
         }
     }
@@ -455,7 +455,6 @@ internal sealed class HotbarAndItemWidget
         SpriteBatch spriteBatch,
         BitmapFont font,
         IWorldReadModel world,
-        IVectorArtRepository? art,
         float slotX,
         float topY,
         int viewportWidth,

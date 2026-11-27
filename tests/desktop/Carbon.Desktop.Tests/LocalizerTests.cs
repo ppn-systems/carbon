@@ -191,6 +191,27 @@ public sealed class LocalizerTests
         new TextArg("count", 2).SameAs(new TextArg("count", "2")).Should().BeFalse();
     }
 
+    [Theory]
+    [InlineData(1.5, 1, "1.5")]
+    [InlineData(12.0, 1, "12.0")]
+    [InlineData(0.25, 2, "0.25")]
+    [InlineData(3.0, 0, "3")]
+    public void TextArg_FixedPoint_FormatsWithInvariantCulture(double value, int decimals, string expected)
+    {
+        TextTemplate.TryParse("CD {cd}s", out TextTemplate template, out _).Should().BeTrue();
+
+        template.Format(new TextArg("cd", value, decimals)).Should().Be($"CD {expected}s");
+        new TextArg("cd", value, decimals).ToString().Should().Be(expected);
+    }
+
+    [Fact]
+    public void TextArg_FixedPoint_ComparesByScaledValue()
+    {
+        new TextArg("cd", 1.5, 1).SameAs(new TextArg("cd", 1.5, 1)).Should().BeTrue();
+        new TextArg("cd", 1.5, 1).SameAs(new TextArg("cd", 1.6, 1)).Should().BeFalse();
+        new TextArg("cd", 1.5, 1).SameAs(new TextArg("cd", 15)).Should().BeFalse("the scale is part of the value");
+    }
+
     private static Localizer CreateLocalizer(out List<string> reports)
     {
         LocaleManifest manifest = new()

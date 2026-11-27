@@ -672,7 +672,24 @@ public sealed class WorldGameplayScene : GameScene
         _frameCount++;
         if (_frameCount == 15 && _options.CaptureModal.Length > 0)
         {
-            _hudRenderer.OpenSettings(string.Equals(_options.CaptureModal, "controls", StringComparison.Ordinal) ? 1 : 0);
+            switch (_options.CaptureModal)
+            {
+                case "inventory":
+                    _ = _hudRenderer.OpenOrTogglePlayerTab(_session, PlayerModalTab.Inventory);
+                    break;
+                case "character":
+                    _ = _hudRenderer.OpenOrTogglePlayerTab(_session, PlayerModalTab.Character);
+                    break;
+                case "skills":
+                    _ = _hudRenderer.OpenOrTogglePlayerTab(_session, PlayerModalTab.Skills);
+                    break;
+                case "crafting":
+                    _ = _hudRenderer.OpenOrTogglePlayerTab(_session, PlayerModalTab.Crafting);
+                    break;
+                default:
+                    _hudRenderer.OpenSettings(string.Equals(_options.CaptureModal, "controls", StringComparison.Ordinal) ? 1 : 0);
+                    break;
+            }
         }
 
         if (_frameCount >= 20 && !_hasAutoCaptured)

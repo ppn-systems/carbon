@@ -45,7 +45,7 @@ The owner asked for real i18n: English stays the default, Vietnamese comes first
    - **Allocation rules.** `Get` returns the string stored at load, so there is no allocation per frame. `Format` and `Plural` allocate one string, so per-frame callers cache the result and re-format only when an argument or `ILocalizer.Version` changes.
 4. **D4 — Server stays language-neutral.**
    - The server never sends translated prose. It sends stable ids, or message keys with arguments, and the client localizes them.
-   - Display keys are derived from stable ids: `item.<code>.name`, `item.<code>.hint`, `monster.<id>.name`, `biome.<biome_snake_case>` and `structure.<structure_snake_case>` (from `StructureType`).
+   - Display keys are derived from stable ids: `item.<code>.name`, `item.<code>.hint`, `monster.<id>.name`, `biome.<biome_snake_case>`, `structure.<structure_snake_case>` (from `StructureType`) and `skill.<code>.name` / `.summary` (from `SkillCatalog` codes).
    - Engine helpers return codes, not prose. The client turns a code into text, for example `BuildResultCode` → `build.result.*` and `ToolStrikeOutcome` → `tool.*`.
    - Config `name`, `displayName` and `actionHint` fields stay as the English fallback for tools and logs.
    - Moving `EntitySpawn.Name` and server notices to keys is a follow-up PR. It changes what the field means but not the wire layout, and it gets its own section in this ADR when it lands.
@@ -70,7 +70,7 @@ The owner asked for real i18n: English stays the default, Vietnamese comes first
    - every key literal used in `desktop/`, `graphics/` or `server/` code exists in `en.ini`;
    - every locale has exactly the `en` key set;
    - placeholders match `en` for every key;
-   - every `en` key is used, either as a literal in code or derived from a config id or a `BiomeType` / `StructureType` name;
+   - every `en` key is used, either as a literal in code or derived from a config id, a `BiomeType` / `StructureType` name or a skill code;
    - values are NFC and use valid template syntax;
    - every character in a locale file has a glyph in that locale's font stack;
    - no new hardcoded user-facing literals appear in desktop or graphics UI code. A Roslyn scan checks this against `LocalizationLiteralAllowlist.txt`, and an allowlist entry that no longer matches fails the test, so the list can only shrink.

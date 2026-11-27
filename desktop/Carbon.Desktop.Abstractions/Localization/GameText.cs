@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
+using Carbon.Contracts.Identity;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 
@@ -25,8 +26,6 @@ public static class GameText
     private static readonly Dictionary<string, string> s_itemNameKeys = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, string> s_itemHintKeys = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, string> s_monsterNameKeys = new(StringComparer.Ordinal);
-    private static readonly Dictionary<string, string> s_skillNameKeys = new(StringComparer.Ordinal);
-    private static readonly Dictionary<string, string> s_skillSummaryKeys = new(StringComparer.Ordinal);
     private static ILocalizer? s_current;
 
     /// <summary>Gets or sets the active localizer (tests may replace it).</summary>
@@ -113,17 +112,16 @@ public static class GameText
     /// <returns>The display name.</returns>
     public static string MonsterName(string monsterId, string fallbackName) => Derived(s_monsterNameKeys, "monster.", monsterId, ".name", fallbackName);
 
-    /// <summary>Returns the localized name of a class skill (<c>skill.&lt;code&gt;.name</c>), or <paramref name="fallbackName"/> when unknown.</summary>
-    /// <param name="code">Stable skill code from <c>SkillCatalog</c>.</param>
-    /// <param name="fallbackName">The catalog display name used when no locale has the key.</param>
+    /// <summary>Returns the localized hero class name (<c>character.class.*</c>).</summary>
+    /// <param name="heroClass">The class.</param>
     /// <returns>The display name.</returns>
-    public static string SkillName(string code, string fallbackName) => Derived(s_skillNameKeys, "skill.", code, ".name", fallbackName);
-
-    /// <summary>Returns the localized one-line summary of a class skill (<c>skill.&lt;code&gt;.summary</c>).</summary>
-    /// <param name="code">Stable skill code from <c>SkillCatalog</c>.</param>
-    /// <param name="fallbackSummary">The catalog summary used when no locale has the key.</param>
-    /// <returns>The summary text.</returns>
-    public static string SkillSummary(string code, string fallbackSummary) => Derived(s_skillSummaryKeys, "skill.", code, ".summary", fallbackSummary);
+    public static string ClassName(HeroArchetypeClass heroClass) => heroClass switch
+    {
+        HeroArchetypeClass.Vanguard => Current.Text("character.class.vanguard"),
+        HeroArchetypeClass.Ranger => Current.Text("character.class.ranger"),
+        HeroArchetypeClass.Arcanist => Current.Text("character.class.arcanist"),
+        _ => heroClass.ToString(),
+    };
 
     /// <summary>Returns the localized biome name (<c>biome.&lt;snake_case&gt;</c>).</summary>
     /// <param name="biome">The biome.</param>

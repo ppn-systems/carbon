@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching.Common;
@@ -19,7 +20,15 @@ namespace Carbon.Desktop.Rendering.Hud;
 /// </summary>
 internal sealed class ClassSkillsModalWidget
 {
+    private const int MaxVisibleSkills = 4;
+
     private readonly List<SkillDefinition> _skills = new(8);
+    private readonly DerivedTextCache _skillNames = new("skill.", ".name");
+    private readonly DerivedTextCache _skillSummaries = new("skill.", ".summary");
+    private readonly CachedText _title = new();
+    private readonly CachedText _points = new();
+    private readonly CachedText[] _rankLines = [new(), new(), new(), new()];
+    private readonly CachedText[] _details = [new(), new(), new(), new()];
 
     public bool ContainsPoint(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
@@ -45,7 +54,7 @@ internal sealed class ClassSkillsModalWidget
     {
         _ = PlayerModalTabs.HasClassSkills(world, _skills);
         PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
-        for (int i = 0; i < _skills.Count && i < 4; i++)
+        for (int i = 0; i < _skills.Count && i < MaxVisibleSkills; i++)
         {
             if (GetUpgradeButtonRect(in layout, i).Contains(mousePos))
             {
@@ -130,8 +139,8 @@ internal sealed class ClassSkillsModalWidget
             in layout,
             PlayerModalTab.Skills,
             hasSkills,
-            $"{world.LocalPlayerClass} Skills",
-            $"Skill Points: {sp}",
+            _title.Format("hud.skills.title", new TextArg("class", GameText.ClassName(world.LocalPlayerClass))),
+            _points.Format("hud.skills.points", new TextArg("points", sp)),
             sp > 0);
 
         ColorRgba black = CarbonUiPalette.TextOutline;
@@ -146,13 +155,21 @@ internal sealed class ClassSkillsModalWidget
 
             spriteBatch.DrawOutlinedString(
                 font,
-                $"{skill.DisplayName}  (Rank {rank}/{skill.MaxRank})",
+                _rankLines[i].Format(
+                    "hud.skills.rank_line",
+                    new TextArg("name", _skillNames.Text(skill.Code, skill.DisplayName)),
+                    new TextArg("rank", rank),
+                    new TextArg("max", skill.MaxRank)),
                 new Vector2(textX, cardRect.Y + MathF.Round(20f * s)),
                 CarbonUiPalette.TextPrimary,
                 black,
                 1,
                 layout.TitleScale);
-            string detail = $"{skill.Summary}  |  MP {(int)curSpec.ManaCost}  CD {curSpec.CooldownSeconds:F1}s";
+            string detail = _details[i].Format(
+                "hud.skills.detail",
+                new TextArg("summary", _skillSummaries.Text(skill.Code, skill.Summary)),
+                new TextArg("mp", (int)curSpec.ManaCost),
+                new TextArg("cd", curSpec.CooldownSeconds, decimals: 1));
             spriteBatch.DrawOutlinedString(
                 font,
                 CarbonUiSkin.TruncateToWidth(font, detail, cardRect.Width - MathF.Round(264f * s), layout.TextScale),
@@ -163,7 +180,7 @@ internal sealed class ClassSkillsModalWidget
                 layout.TextScale);
 
             RectangleF btnRect = GetUpgradeButtonRect(in layout, i);
-            string btnTxt = rank >= skill.MaxRank ? "MAX" : (rank == 0 ? "UNLOCK" : "RANK UP");
+            string btnTxt = GameText.Get(rank >= skill.MaxRank ? "hud.skills.max" : (rank == 0 ? "hud.skills.unlock" : "hud.skills.rank_up"));
             CarbonUiSkin.DrawCenteredText(spriteBatch, font, btnTxt, in btnRect, sp > 0 && rank < skill.MaxRank ? CarbonUiPalette.TextPrimary : CarbonUiPalette.TextMuted, black, layout.TextScale);
         }
     }

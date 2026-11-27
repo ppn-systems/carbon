@@ -12,8 +12,11 @@ namespace Carbon.Desktop.Abstractions.Localization;
 /// </summary>
 public readonly struct TextArg
 {
+    private static readonly string[] s_fixedFormats = ["F0", "F1", "F2", "F3"];
+
     private readonly string? _text;
     private readonly long _number;
+    private readonly byte _decimals;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TextArg"/> struct with a text value.
@@ -26,6 +29,7 @@ public readonly struct TextArg
         this.Name = name;
         _text = value ?? string.Empty;
         _number = 0;
+        _decimals = 0;
     }
 
     /// <summary>
@@ -39,6 +43,25 @@ public readonly struct TextArg
         this.Name = name;
         _text = null;
         _number = value;
+        _decimals = 0;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TextArg"/> struct with a fixed-point value such as a cooldown
+    /// (<c>1.5</c> with one decimal). The value is stored scaled, so comparing and caching it never allocates.
+    /// </summary>
+    /// <param name="name">Placeholder name without braces.</param>
+    /// <param name="value">Substituted value.</param>
+    /// <param name="decimals">Digits after the decimal point (0..3).</param>
+    public TextArg(string name, double value, int decimals)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name, nameof(name));
+        ArgumentOutOfRangeException.ThrowIfNegative(decimals, nameof(decimals));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(decimals, s_fixedFormats.Length - 1, nameof(decimals));
+        this.Name = name;
+        _text = null;
+        _decimals = (byte)decimals;
+        _number = (long)Math.Round(value * Math.Pow(10, decimals), MidpointRounding.AwayFromZero);
     }
 
     /// <summary>Gets the placeholder name.</summary>
@@ -52,7 +75,10 @@ public readonly struct TextArg
 
     /// <summary>Gets the text value, or the invariant integer text for numeric arguments.</summary>
     /// <returns>The substituted text.</returns>
-    public override string ToString() => _text ?? _number.ToString(CultureInfo.InvariantCulture);
+    public override string ToString() =>
+        _text ?? (_decimals == 0
+            ? _number.ToString(CultureInfo.InvariantCulture)
+            : this.ScaledValue().ToString(s_fixedFormats[_decimals], CultureInfo.InvariantCulture));
 
     /// <summary>Returns whether this argument has the same name and value as <paramref name="other"/> (no allocation).</summary>
     /// <param name="other">The argument to compare.</param>
@@ -60,7 +86,7 @@ public readonly struct TextArg
     public bool SameAs(in TextArg other) =>
         string.Equals(this.Name, other.Name, StringComparison.Ordinal)
         && (_text is null
-            ? other._text is null && _number == other._number
+            ? other._text is null && _number == other._number && _decimals == other._decimals
             : string.Equals(_text, other._text, StringComparison.Ordinal));
 
     /// <summary>Appends the argument value to <paramref name="builder"/> without boxing.</summary>
@@ -73,10 +99,24 @@ public readonly struct TextArg
             return;
         }
 
-        Span<char> digits = stackalloc char[24];
-        if (_number.TryFormat(digits, out int written, default, CultureInfo.InvariantCulture))
+        Span<char> digits = stackalloc char[32];
+        bool formatted = _decimals == 0
+            ? _number.TryFormat(digits, out int written, default, CultureInfo.InvariantCulture)
+            : this.ScaledValue().TryFormat(digits, out written, s_fixedFormats[_decimals], CultureInfo.InvariantCulture);
+        if (formatted)
         {
             _ = builder.Append(digits[..written]);
         }
+    }
+
+    private decimal ScaledValue()
+    {
+        decimal scale = 1m;
+        for (int i = 0; i < _decimals; i++)
+        {
+            scale *= 10m;
+        }
+
+        return _number / scale;
     }
 }
