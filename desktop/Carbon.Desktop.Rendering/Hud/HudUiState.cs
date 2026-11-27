@@ -40,8 +40,8 @@ public sealed class HudUiState
     /// <summary>Gets or sets the bag slot being dragged towards the basket, or -1.</summary>
     public int TradeDragSlot { get; set; } = -1;
 
-    /// <summary>Gets the repair window (ADR-028); open while <see cref="RepairModalWidget.IsOpen"/>.</summary>
-    public RepairModalWidget Repair { get; } = new();
+    /// <summary>Gets the repair window (ADR-028); open while <see cref="RepairWindowState.IsOpen"/>.</summary>
+    public RepairWindowState Repair { get; } = new();
 
     /// <summary>Gets or sets the inventory slot index currently held/carried by the cursor, or <c>-1</c>.</summary>
     public int CarriedInventorySlot { get; set; } = -1;
