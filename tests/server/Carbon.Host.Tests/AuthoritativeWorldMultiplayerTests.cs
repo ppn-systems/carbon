@@ -1835,6 +1835,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             ReadOnlySpan<EntityDeltaEntry> entries)
         {
             this.DeltaBatches.Add((connectionId, lastProcessedClientTick));
+            this.SelfPositions[connectionId] = new Vector2(selfX, selfY);
             foreach (EntityDeltaEntry entry in entries)
             {
                 this.LastPositions[entry.NetworkId] = new Vector2(entry.PositionX, entry.PositionY);
@@ -1846,6 +1847,8 @@ public sealed class AuthoritativeWorldMultiplayerTests
         public List<(ulong ConnectionId, ulong NetworkId)> DeltaEntityIds { get; } = [];
 
         public Dictionary<ulong, Vector2> LastPositions { get; } = [];
+
+        public Dictionary<ulong, Vector2> SelfPositions { get; } = [];
 
         public void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, uint revision, float durability, bool isDestroyed)
         {

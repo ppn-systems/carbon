@@ -53,7 +53,7 @@ public sealed class PropHarvestServiceTests
     public void Strike_WithBareHandsOnAToughProp_IsBlockedAndChangesNothing()
     {
         Harness h = new();
-        (int tx, int ty, MapProp prop) = h.FindDestructibleProp(minimumTier: 1);
+        (int tx, int ty, MapProp prop) = h.FindDestructibleProp(minimumTier: 2);
 
         PropStrikeResult strike = h.Props.Strike(h.Player, tx, ty, in prop, ItemSlot.Empty, replicateToolWear: false, out ItemSlot? wear);
 
