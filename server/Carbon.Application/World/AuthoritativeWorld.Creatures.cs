@@ -172,7 +172,7 @@ public sealed partial class AuthoritativeWorld
         }
 
         AttackKind kind = _simulation.Entities.TryGetComponent(attacker, out AttackStateComponent attack) ? attack.Kind : AttackKind.Melee;
-        this.ApplyDamageToPlayerLocked(
+        _ = this.ApplyDamageToPlayerLocked(
             victimState,
             attackerNet.NetworkId,
             victim,

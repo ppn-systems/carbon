@@ -339,6 +339,16 @@ public sealed class PgSchemaMigrator : IDatabaseMigrator
 
         await ApplyDdlMigrationAsync(conn, tx, "0009_trader_stock", TraderStockSql, ct).ConfigureAwait(false);
 
+        // ADR-029: persisted status effects (key:remainingMs:stacks;...); empty for existing characters.
+        await AddCharacterColumnsAsync(
+            conn,
+            tx,
+            "0010_character_status_effects",
+            [
+                ("status_effects", "TEXT NOT NULL DEFAULT ''"),
+            ],
+            ct).ConfigureAwait(false);
+
         await tx.CommitAsync(ct).ConfigureAwait(false);
     }
 

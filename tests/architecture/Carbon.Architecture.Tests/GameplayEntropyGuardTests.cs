@@ -45,6 +45,8 @@ public sealed class GameplayEntropyGuardTests
         ["TradeService"] = [".ctor"],
         ["PlayerActionService"] = [".ctor"],
         ["CharacterProgressionService"] = [".ctor"],
+        ["StatusProcRoll"] = ["Sample"],
+        ["StatusEffectService"] = [".ctor"],
     };
 
     /// <summary>Calls whose arguments feed a gameplay roll or the gameplay key itself (source scan).</summary>
@@ -52,7 +54,7 @@ public sealed class GameplayEntropyGuardTests
     {
         "CreateRandom", "RollCriticalHit", "Simulate", "FromBytes",
         "TraderBook", "EatActionSystem", "MonsterSpawnerSystem", "InventoryService", "EconomyService", "NeedsService",
-        "TradeService", "PlayerActionService", "CharacterProgressionService", "GameplayEntropy",
+        "TradeService", "PlayerActionService", "CharacterProgressionService", "GameplayEntropy", "StatusEffectService",
     };
 
     /// <summary>Receivers whose <c>Roll</c> / <c>Register</c> are gameplay rolls (other types have unrelated <c>Roll</c> methods).</summary>
