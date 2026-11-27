@@ -112,7 +112,7 @@ public sealed class CharacterSelectScene : GameScene
         _session = flow.Session;
         _requests = new CharacterRosterRequests(_session, flow.SignOutAsync, _roster);
         DesktopOptions options = flow.Options;
-        _capture = new MenuSceneCapture(options, "characters");
+        _capture = new MenuSceneCapture(options, string.Equals(options.CaptureScene, RosterCapture.SceneName, StringComparison.Ordinal) ? RosterCapture.SceneName : "characters");
         _turntable = new HeroTurntable(options.MenuMotion);
 
         _createNameField = new MenuTextField(GameText.Get("character.field.name"), GameText.Get("character.hint.name"), options.CharacterName, isPassword: false, maxLength: AccountRules.MaxHeroName)
