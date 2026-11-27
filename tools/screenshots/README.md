@@ -45,7 +45,7 @@ Requirements: the .NET SDK (`$HOME/.dotnet` is added to `PATH`), `xvfb-run`, GLF
 | `CARBON_DEBUG_START_LEVEL=n` | Characters enter the world at level `n` or higher (shots of mid-level UI such as the character panel). |
 | `CARBON_DEBUG_FORGE_KIT=1` | New characters start with a +8 iron sword, enhancement materials, protection scrolls and 50,000 gold (forge review). |
 | `CARBON_DEBUG_STARTER_ITEMS=id[xQty][+Level],...` | New characters also get these items (e.g. `3+10,4x40`: a +10 iron sword and 40 logs), to review enhanced gear. |
-| `CARBON_DEBUG_WORN_GEAR=1` | Gear from the other Debug kits starts worn to 40 % durability (blacksmith repair review; new characters otherwise start with nothing, ADR-030). |
+| `CARBON_DEBUG_WORN_GEAR=1` or `=p1,p2,...` | Gear from the other Debug kits starts worn to 40 % durability (blacksmith repair review; new characters otherwise start with nothing, ADR-030). A list of percents wears the durable items in slot order to those shares of their maximum, the last one repeating (durability warning review, ADR-035). |
 
 These overrides are compiled into Debug builds of the host only (`HostRuntimeOptions.ReadDebugOverrides`);
 Release builds ignore the variables, and nothing is ever taken from a client. The host logs a warning when
@@ -64,7 +64,7 @@ they are active.
 | `CARBON_CAPTURE_MODAL=settings\|controls\|inventory\|character\|skills\|crafting` | Open the Settings window (Display or Controls tab) or a player-window tab before the capture, to review localized UI. |
 | `CARBON_CAPTURE_SCENE=login\|characters` | Capture a menu screen instead of the world. `login` needs `CARBON_AUTO_LOGIN=0` in the scenario; `characters` also needs it, registers the scenario's fresh account and captures the character creator. |
 | `CARBON_FORGE_PREVIEW=<kind>[:s]` | Open the forge window and play one enhancement effect (`charge`, `success`, `nochange`, `downgrade`, `destroyed`), frozen at `s` seconds when given. Visual only: nothing is sent, the server alone rolls outcomes. The `forge_*` scenarios use it. |
-| `CARBON_UI_PREVIEW=<state>` | Open a UI state for review: `inventory`, or `inventory-tooltip:N`, `inventory-split:N`, `inventory-destroy:N` for slot `N`, `status-hover:N` / `status-details:N` for the N-th status effect icon (ADR-029), or `death` (the ADR-031 death screen for a sample slime kill that dropped 1,250 gold, with the player drawn downed). Visual only; nothing is sent to the server. |
+| `CARBON_UI_PREVIEW=<state>` | Open a UI state for review: `inventory`, or `inventory-tooltip:N`, `inventory-split:N`, `inventory-destroy:N` for slot `N`, `status-hover:N` / `status-details:N` for the N-th status effect icon (ADR-029), `death` (the ADR-031 death screen for a sample slime kill that dropped 1,250 gold, with the player drawn downed), or `item-break:N` (the ADR-035 break toast for the item in slot `N`, with its shatter shards replayed every 0.4 s). Visual only; nothing is sent to the server. |
 | `CARBON_OPEN_TRADER=1` | Open the nearest trader's window once its stock arrives. The `trade_*` scenarios use it. |
 | `CARBON_TRADE_PREVIEW=basket` | With `CARBON_OPEN_TRADER=1`: stage every sellable bag stack in the "To sell" basket and two stock rows in the cart (ADR-025 D18). Visual only: nothing is sent until Sell or Buy is pressed. The `trade_basket` scenario uses it. |
 | `CARBON_OPEN_REPAIR=blacksmith\|station` | Open the repair window (ADR-028) at the blacksmith or at a player station. The `repair_*` scenarios use it. |

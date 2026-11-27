@@ -5,6 +5,7 @@ using System.Linq;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Hud;
+using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -134,9 +135,23 @@ public sealed class InventoryUiModelTests
         ItemTooltipBuilder.Build(s_items, new ItemSlot(StarterGameCatalog.WoodLog, 12), 9, lines);
         lines.Select(l => l.Text).Should().Contain(t => t.Contains("for 12", System.StringComparison.Ordinal), "a stack shows its total value");
 
-        ItemTooltipBuilder.Build(s_items, new ItemSlot(StarterGameCatalog.LeatherTunic, 1, 0, 0f), PlayerInventoryLayout.ChestSlot, lines);
+        ItemTooltipBuilder.Build(s_items, new ItemSlot(StarterGameCatalog.LeatherTunic, 1, 0, 120f), PlayerInventoryLayout.ChestSlot, lines);
         lines[1].Text.Should().EndWith("(equipped)");
-        lines.Select(l => l.Text).Should().Contain(t => t.StartsWith("Broken", System.StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(120f, false, false)]
+    [InlineData(37.5f, true, false)]
+    [InlineData(15f, false, true)]
+    public void ItemTooltip_DurabilityLine_TurnsYellowAtTheLowShareAndRedAtTheCriticalShare(float durability, bool yellow, bool red)
+    {
+        // Leather tunic: 150 max; repair.json → durabilityWarning: low 25 % (37.5), critical 10 % (15) (ADR-035).
+        List<ItemTooltipLine> lines = [];
+        ItemTooltipBuilder.Build(s_items, new ItemSlot(StarterGameCatalog.LeatherTunic, 1, 0, durability), 9, lines);
+
+        ItemTooltipLine line = lines.Single(l => l.Text.StartsWith("Durability", System.StringComparison.Ordinal));
+        (line.Color == CarbonUiPalette.DurabilityLowFill).Should().Be(yellow);
+        (line.Color == CarbonUiPalette.HpFill).Should().Be(red);
     }
 
     [Fact]

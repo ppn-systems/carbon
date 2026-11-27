@@ -1,6 +1,7 @@
 {
   "version": 1,
   "stepPercent": 10,
+  "durabilityWarning": { "lowPercent": 25, "criticalPercent": 10 },
   "tierPercent": [100, 100, 150, 200, 300, 400],
   "stations": {
     "workbench": 1,

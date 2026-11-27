@@ -11,6 +11,7 @@ using Carbon.Application.World.Props;
 using Carbon.Application.World.Replication;
 using Carbon.Application.World.Stamina;
 using Carbon.Combat.Hitboxes;
+using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -41,6 +42,9 @@ internal interface IPlayerActionHost
 
     /// <summary>Recomputes the player's derived stats from level, gear and progression.</summary>
     void RecomputeDerivedStats(PlayerState state);
+
+    /// <summary>Broadcasts the player's visible armor and held weapon to nearby players (after an item broke, ADR-035).</summary>
+    void BroadcastEquipment(PlayerState state);
 }
 
 /// <summary>
@@ -201,8 +205,7 @@ internal sealed class PlayerActionService
             }
 
             CombatStrikeEvaluation rangedEval = ToolUsagePolicy.EvaluateCombatStrike(this.Rules, in activeSlot);
-            bool rangedCrit = !ToolUsagePolicy.IsWornOut(this.Rules, in activeSlot) &&
-                this.RollCritical(state);
+            bool rangedCrit = this.RollCritical(state);
 
             // Staffs (MagicFocus) scale with spell power, bows with physical attack (ADR-021 D4).
             float rangedScale = weaponDef.Capabilities.HasFlag(ToolCapabilities.MagicFocus) ? state.Stats.SpellPowerMultiplier : state.Stats.AttackMultiplier;
@@ -457,37 +460,51 @@ internal sealed class PlayerActionService
         _host.MarkCharacterDirty(state, inventoryChanged: false);
     }
 
+    /// <summary>
+    /// Wears the held item by <paramref name="loss"/> (ADR-035). The step that takes it to 0 destroys it: the slot is
+    /// emptied, stats are recomputed, the new look is broadcast and the owner gets a <see cref="DurabilityAlertKind.Broke"/>
+    /// alert; reaching the critical share queues a one-time <see cref="DurabilityAlertKind.AboutToBreak"/>. The caller
+    /// pushes <paramref name="updatedSlot"/> (<see cref="ItemSlot.Empty"/> after a break) to the owner.
+    /// </summary>
+    /// <returns><see langword="true"/> when the item changed.</returns>
     public bool WearActiveTool(
         PlayerState state,
         in ItemSlot activeSlot,
         float loss,
         out ItemSlot updatedSlot)
     {
-        updatedSlot = activeSlot;
-        if (loss <= 0f ||
-            activeSlot.IsEmpty ||
-            !this.Rules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? def) ||
-            def.MaxDurability <= 0f)
+        DurabilityWearResult wear = DurabilityWear.Apply(this.Rules, in activeSlot, loss);
+        updatedSlot = wear.Slot;
+        if (!wear.Changed)
         {
             return false;
         }
 
-        float current = MathF.Max(0f, activeSlot.Durability);
-        float next = MathF.Max(0f, current - loss);
-        if (MathF.Abs(next - current) < 0.001f)
+        ushort slotIndex = state.Session.SelectedHotbarSlot;
+        state.Inventory.SetSlot(slotIndex, in updatedSlot);
+        this.QueueWearAlert(state, slotIndex, in activeSlot, in wear);
+        if (wear.Broke)
         {
-            return false;
+            // The held weapon feeds the derived stats and the look other players see.
+            _host.RecomputeDerivedStats(state);
+            _host.BroadcastEquipment(state);
+            state.StatsDirty = true;
         }
 
-        updatedSlot = activeSlot with { Durability = next };
-        state.Inventory.SetSlot(state.Session.SelectedHotbarSlot, in updatedSlot);
         _host.MarkCharacterDirty(state, inventoryChanged: true);
         return true;
     }
 
+    /// <summary>
+    /// Wears every equipped armor piece (slots <c>36..39</c>) by <paramref name="loss"/> and pushes each change to the
+    /// owner. A piece taken to 0 is destroyed (ADR-035): its slot empties, the owner gets a break alert, and stats are
+    /// recomputed and the new look broadcast once.
+    /// </summary>
     public void WearArmor(PlayerState victim, float loss)
     {
         bool anyBroke = false;
+        bool anyChanged = false;
+        ItemRules rules = this.Rules;
         for (int sIdx = PlayerInventoryLayout.HeadSlot; sIdx <= PlayerInventoryLayout.FeetSlot; sIdx++)
         {
             if (sIdx >= victim.Inventory.Capacity)
@@ -496,26 +513,48 @@ internal sealed class PlayerActionService
             }
 
             ItemSlot slot = victim.Inventory.GetSlot(sIdx);
-            if (slot.IsEmpty || slot.Durability <= 0f)
+            DurabilityWearResult wear = DurabilityWear.Apply(rules, in slot, loss);
+            if (!wear.Changed)
             {
                 continue;
             }
 
-            float nextDur = MathF.Max(0f, slot.Durability - loss);
-            ItemSlot updated = slot with { Durability = nextDur };
+            anyChanged = true;
+            ItemSlot updated = wear.Slot;
             victim.Inventory.SetSlot(sIdx, in updated);
             _outbound.Pending.SlotChanges.Add(new OutboundSlotChange(victim.Session.ConnectionId, (ushort)sIdx, updated));
-            if (nextDur <= 0f)
-            {
-                anyBroke = true;
-            }
+            this.QueueWearAlert(victim, (ushort)sIdx, in slot, in wear);
+            anyBroke |= wear.Broke;
         }
 
         if (anyBroke)
         {
             _host.RecomputeDerivedStats(victim);
+            _host.BroadcastEquipment(victim);
+            victim.StatsDirty = true;
         }
 
-        _host.MarkCharacterDirty(victim, inventoryChanged: true);
+        if (anyChanged)
+        {
+            _host.MarkCharacterDirty(victim, inventoryChanged: true);
+        }
+    }
+
+    private void QueueWearAlert(PlayerState owner, ushort slotIndex, in ItemSlot before, in DurabilityWearResult wear)
+    {
+        DurabilityAlertKind kind = wear.Broke
+            ? DurabilityAlertKind.Broke
+            : wear.ReachedCritical ? DurabilityAlertKind.AboutToBreak : DurabilityAlertKind.None;
+        if (kind == DurabilityAlertKind.None)
+        {
+            return;
+        }
+
+        _outbound.Pending.DurabilityAlerts.Add(new OutboundDurabilityAlert(
+            owner.Session.ConnectionId,
+            kind,
+            slotIndex,
+            before.ItemId,
+            ItemEnhancementPolicy.GetUpgradeLevel(in before)));
     }
 }
