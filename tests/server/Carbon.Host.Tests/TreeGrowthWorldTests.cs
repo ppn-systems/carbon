@@ -57,13 +57,60 @@ public sealed class TreeGrowthWorldTests
         f.ClearDrops();
         f.Step(11 * TickRate);
         f.Probe(x, y).Stage.Should().Be(TreeGrowthStage.Young);
-        _ = f.StrikeUntil(x, y, p => p.Stage == TreeGrowthStage.Stump);
+        _ = f.StrikeUntil(x, y, p => p.Destroyed);
         f.DroppedQuantity(StarterGameCatalog.WoodLog).Should().Be(trees.Young.Yield, "a young tree drops fewer logs");
-        f.DroppedQuantity(SaplingId(f.World)).Should().Be(0, "only a mature tree drops saplings when felled");
+        f.DroppedQuantity(SaplingId(f.World)).Should().Be(0, "a felled young tree drops no sapling");
+    }
 
+    [Fact]
+    public async Task TryHarvestProp_YoungTreeFelled_LeavesNoStumpAndTheTileStaysClear()
+    {
+        (int x, int y) = FindTree();
+        using RegrowthWorldFixture f = await RegrowthWorldFixture.CreateAsync(RegrowthWorldFixture.Rules(), x, y, ItemSlot.Empty).ConfigureAwait(true);
+        _ = f.StrikeUntil(x, y, p => p.Stage == TreeGrowthStage.Stump);
+        f.Step(11 * TickRate);
+        f.Probe(x, y).Stage.Should().Be(TreeGrowthStage.Young);
+
+        _ = f.StrikeUntil(x, y, p => p.Destroyed || p.Stage == TreeGrowthStage.Stump);
+
+        f.Probe(x, y).Should().Be((true, TreeGrowthStage.Young), "only a mature tree leaves a stump (ADR-040 D1 amendment)");
+        f.Step(60 * TickRate);
+        f.Probe(x, y).Destroyed.Should().BeTrue("a felled young tree never regrows");
+        f.World.TryPlaceStructure(RegrowthWorldFixture.Conn, x, y, StructureType.WoodFloor).Status.Should().Be(OpStatus.Ok, "the tile is free");
+    }
+
+    [Fact]
+    public async Task TryHarvestProp_SaplingCut_IsUprootedBackIntoItsItemAndTheTileStaysClear()
+    {
+        (int x, int y) = FindTree();
+        using RegrowthWorldFixture f = await RegrowthWorldFixture.CreateAsync(RegrowthWorldFixture.Rules(), x, y, ItemSlot.Empty).ConfigureAwait(true);
+        _ = f.StrikeUntil(x, y, p => p.Stage == TreeGrowthStage.Stump);
+        f.Step(7 * TickRate);
+        f.Probe(x, y).Stage.Should().Be(TreeGrowthStage.Sapling);
+        f.ClearDrops();
+
+        _ = f.StrikeUntil(x, y, p => p.Destroyed || p.Stage == TreeGrowthStage.Stump);
+
+        f.Probe(x, y).Should().Be((true, TreeGrowthStage.Sapling), "a cut sapling does not turn into a stump");
+        f.DroppedQuantity(SaplingId(f.World)).Should().Be(1, "the uprooted sapling comes back as its item");
+        f.DroppedQuantity(StarterGameCatalog.WoodLog).Should().Be(0);
+        f.Step(60 * TickRate);
+        f.Probe(x, y).Destroyed.Should().BeTrue("nothing regrows on the tile");
+        f.World.TryPlaceStructure(RegrowthWorldFixture.Conn, x, y, StructureType.WoodFloor).Status.Should().Be(OpStatus.Ok, "the tile is free");
+    }
+
+    [Fact]
+    public async Task TryHarvestProp_MatureAndStumpSaplingChances_AreEachTheirOwn()
+    {
+        (int x, int y) = FindTree();
+        using RegrowthWorldFixture f = await RegrowthWorldFixture.CreateAsync(
+            RegrowthWorldFixture.Rules(matureSaplingChance: 1f, stumpSaplingChance: 0f), x, y, ItemSlot.Empty).ConfigureAwait(true);
+
+        _ = f.StrikeUntil(x, y, p => p.Stage == TreeGrowthStage.Stump);
+        f.DroppedQuantity(SaplingId(f.World)).Should().Be(1, "trees.mature.saplingChance 1 always drops one");
         f.ClearDrops();
         _ = f.StrikeUntil(x, y, p => p.Destroyed);
-        f.DroppedQuantity(StarterGameCatalog.WoodLog).Should().Be(trees.Stump.Yield, "a dug-up stump drops trees.stump.yield logs");
+        f.DroppedQuantity(SaplingId(f.World)).Should().Be(0, "trees.stump.saplingChance 0 never drops one");
     }
 
     [Fact]
@@ -77,7 +124,7 @@ public sealed class TreeGrowthWorldTests
 
         DeterministicRandom roll = TestGameplayEntropy.Create(RegrowthWorldFixture.Seed).KeyAt(f.LastStrikeTick)
             .CreateRandom(GameplayDomain.SaplingDrop, f.LastStrikeTick, TileKey(x, y));
-        int expected = roll.NextInt(trees.SaplingDropMin, trees.SaplingDropMax + 1);
+        int expected = roll.NextBool(trees.MatureSaplingChance) ? 1 : 0;
         f.DroppedQuantity(SaplingId(f.World)).Should().Be(expected, "the sapling count is rolled on GameplayEntropy (ADR-026), keyed by tick and tile");
     }
 

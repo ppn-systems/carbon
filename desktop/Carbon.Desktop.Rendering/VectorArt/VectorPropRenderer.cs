@@ -136,8 +136,8 @@ internal static class VectorPropRenderer
         in MapProp prop,
         IVectorArtRepository? art)
     {
-        // A dug-up stump (ADR-040) leaves a clear tile: nothing to draw.
-        if (prop.GrowthStage == TreeGrowthStage.Stump || art is null || !art.TryGetProp((byte)prop.Type, out CompiledPropArt? propArt))
+        // A tree cleared at a growing stage (a dug-up stump, a cut sapling or young tree; ADR-040) leaves a clear tile.
+        if (prop.GrowthStage != TreeGrowthStage.Mature || art is null || !art.TryGetProp((byte)prop.Type, out CompiledPropArt? propArt))
         {
             return;
         }

@@ -319,31 +319,38 @@ internal sealed class PropHarvestService
     }
 
     /// <summary>
-    /// A tree just broke (ADR-040 D1). Felled at any stage above a stump, it becomes a stump that grows back; a stump that
-    /// broke was dug up, and the tile is clear for good. Drops the stage's wood and the sapling roll, and grants experience.
+    /// A tree just broke (ADR-040 D1, amended). Only a felled mature tree leaves a stump that grows back. A stump dug up, a
+    /// young tree felled or a sapling cut clears the tile for good: destroyed at its stage, with no timer, so nothing
+    /// regrows and the tile can be built on or planted. Drops the stage's wood, a cut sapling comes back as its item, and
+    /// a mature tree or a stump may drop a sapling (rolled on GameplayEntropy). Grants experience.
     /// </summary>
     private MapProp FellOrDigUp(PlayerState state, int tileX, int tileY, in MapProp existing, in MapProp broken, ItemRules rules, TreeGrowthRules trees)
     {
         ulong tick = _currentTick();
-        bool dugUp = existing.GrowthStage == TreeGrowthStage.Stump;
-        // Felled: a stump that grows back. Dug up: destroyed with no timer, so the tile stays clear (it can be built on).
-        PropDestructibility next = dugUp ? broken.Destructibility : trees.StateOf(existing.Type, TreeGrowthStage.Stump);
-        ulong growsAt = dugUp ? 0UL : tick + trees.StageTicks(TreeGrowthStage.Stump, _tickRate);
-        if (!_chunkWorld.TrySetTreeStageAt(tileX, tileY, TreeGrowthStage.Stump, next, growsAt, out MapProp after))
+        TreeGrowthStage stage = existing.GrowthStage;
+        bool leavesStump = stage == TreeGrowthStage.Mature;
+        PropDestructibility next = leavesStump ? trees.StateOf(existing.Type, TreeGrowthStage.Stump) : broken.Destructibility;
+        ulong growsAt = leavesStump ? tick + trees.StageTicks(TreeGrowthStage.Stump, _tickRate) : 0UL;
+        if (!_chunkWorld.TrySetTreeStageAt(tileX, tileY, leavesStump ? TreeGrowthStage.Stump : stage, next, growsAt, out MapProp after))
         {
             after = broken;
         }
 
         DeterministicRandom random = _entropy.KeyAt(tick).CreateRandom(GameplayDomain.SaplingDrop, tick, ((ulong)(uint)tileX << 32) | (uint)tileY);
-        int saplings = dugUp
-            ? (random.NextBool(trees.StumpSaplingChance) ? 1 : 0)
-            : (existing.GrowthStage == TreeGrowthStage.Mature ? random.NextInt(trees.SaplingDropMin, trees.SaplingDropMax + 1) : 0);
+        int saplings = stage switch
+        {
+            TreeGrowthStage.Mature => random.NextBool(trees.MatureSaplingChance) ? 1 : 0,
+            TreeGrowthStage.Stump => random.NextBool(trees.StumpSaplingChance) ? 1 : 0,
+            TreeGrowthStage.Sapling => 1, // uprooted: the sapling comes back, so a misplaced one can be moved
+            TreeGrowthStage.Young => 0,
+            _ => 0,
+        };
         Vector2 dropPos = new((tileX + 0.5f) * _tileSize, (tileY + 0.5f) * _tileSize);
-        this.SpawnDrop(rules, dropPos, WoodLogCode, trees.YieldOf(existing.GrowthStage));
+        this.SpawnDrop(rules, dropPos, WoodLogCode, trees.YieldOf(stage));
         this.SpawnDrop(rules, dropPos + new Vector2(6f, 4f), SaplingCode, saplings);
 
         _ = PropHarvestCatalog.ResolveDrop(rules, existing.Type, out uint propXp);
-        uint xp = existing.GrowthStage == TreeGrowthStage.Mature ? (propXp > 0U ? propXp : 15U) : 3U;
+        uint xp = stage == TreeGrowthStage.Mature ? (propXp > 0U ? propXp : 15U) : 3U;
         _grantHarvestExperience(state, xp);
         return after;
     }
