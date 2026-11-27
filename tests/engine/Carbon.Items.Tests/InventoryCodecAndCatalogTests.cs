@@ -1,7 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
-using System.Buffers.Binary;
 using Carbon.Contracts.Entities;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -184,7 +183,7 @@ public sealed class InventoryCodecAndCatalogTests
         PlayerInventoryLayout.TryCraftInBag(fullBag, wallRecipe!, s_rules.GetMaxStackSize(StarterGameCatalog.WoodWallKit)).Should().BeFalse();
         fullBag.GetSlot(PlayerInventoryLayout.HeadSlot).IsEmpty.Should().BeTrue();
 
-        // Codec v2 preserves UpgradeLevel & explicit InstanceId cleanly.
+        // The codec preserves UpgradeLevel and an explicit InstanceId.
         InventoryContainer v2Source = new(PlayerInventoryLayout.TotalCapacity);
         v2Source.SetSlot(2, new ItemSlot(StarterGameCatalog.IronSword, 1, 42UL, 250f, UpgradeLevel: 7));
         byte[] v2Bytes = InventoryBinaryCodec.Serialize(v2Source);
@@ -192,22 +191,6 @@ public sealed class InventoryCodecAndCatalogTests
         InventoryBinaryCodec.TryDeserializeInto(v2Bytes, v2Restored).Should().BeTrue();
         v2Restored.GetSlot(2).UpgradeLevel.Should().Be(7);
         v2Restored.GetSlot(2).InstanceId.Should().Be(42UL);
-
-        // Synthetic Format v1 payload migrates legacy InstanceId (<= 10) into UpgradeLevel.
-        byte[] v1Payload = new byte[5 + 22];
-        v1Payload[0] = 1;
-        BinaryPrimitives.WriteUInt16LittleEndian(v1Payload.AsSpan(1, 2), 40);
-        BinaryPrimitives.WriteUInt16LittleEndian(v1Payload.AsSpan(3, 2), 1);
-        BinaryPrimitives.WriteUInt16LittleEndian(v1Payload.AsSpan(5, 2), 3);
-        BinaryPrimitives.WriteUInt32LittleEndian(v1Payload.AsSpan(7, 4), StarterGameCatalog.IronSword);
-        BinaryPrimitives.WriteInt32LittleEndian(v1Payload.AsSpan(11, 4), 1);
-        BinaryPrimitives.WriteUInt64LittleEndian(v1Payload.AsSpan(15, 8), 4UL);
-        BinaryPrimitives.WriteInt32LittleEndian(v1Payload.AsSpan(23, 4), BitConverter.SingleToInt32Bits(200f));
-
-        InventoryContainer v1Restored = new(PlayerInventoryLayout.TotalCapacity);
-        InventoryBinaryCodec.TryDeserializeInto(v1Payload, v1Restored).Should().BeTrue();
-        v1Restored.GetSlot(3).UpgradeLevel.Should().Be(4);
-        v1Restored.GetSlot(3).InstanceId.Should().Be(0UL);
 
         // Zone scaling produces monotonically stronger monster stats for deeper tiers.
         ScaledMonsterStats scaled = WorldActorCatalog.ScaleMonsterForZone(WorldActorCatalog.RockGolem, 3);

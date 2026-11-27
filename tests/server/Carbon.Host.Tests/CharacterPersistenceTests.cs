@@ -39,6 +39,22 @@ public sealed class CharacterPersistenceTests
         inventory.Slots.ToArray().Should().Contain(s => !s.IsEmpty);
     }
 
+    [Theory]
+    [InlineData((byte)1)]
+    [InlineData((byte)2)]
+    public void LoadInventory_RetiredFormatBlob_GrantsTheStarterLoadoutAndFlagsIt(byte retiredVersion)
+    {
+        // A dev database row written before inventory format v3: header (version, capacity, count) and no entries.
+        byte[] blob = [retiredVersion, 40, 0, 0, 0];
+        CharacterRecord old = Character() with { InventoryBlob = blob, Flags = CharacterTraits.None };
+        InventoryContainer inventory = new(PlayerInventoryLayout.TotalCapacity);
+
+        CharacterRecord loaded = CharacterPersistence.LoadInventory(old, inventory);
+
+        loaded.Flags.HasFlag(CharacterTraits.StarterLoadoutGranted).Should().BeTrue("the old row is reset, not crashed on");
+        inventory.Slots.ToArray().Should().Contain(s => !s.IsEmpty);
+    }
+
     [Fact]
     public void LoadInventory_UnreadableBlobOfAClasslessCharacter_LeavesTheBagEmpty()
     {
