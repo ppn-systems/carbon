@@ -69,9 +69,9 @@ public sealed class SyncedStructureCatalogTests : IDisposable
     }
 
     [Fact]
-    public async Task TryCreateWorldGenerator_SameSeedTwice_BuildsASecondGenerator()
+    public async Task TryCreateWorldGenerator_SameSeedAndCatalog_HandsTheBackdropsGeneratorToTheWorld()
     {
-        // Characterisation (ADR-045 D7): the menu backdrop and the world it enters each get their own generator.
+        // ADR-045 D7: one generator per world, so entering the world reuses the regions the backdrop built.
         MultiplayerSession session = this.NewSession();
         await using (session.ConfigureAwait(true))
         {
@@ -79,8 +79,14 @@ public sealed class SyncedStructureCatalogTests : IDisposable
 
             ProceduralWorldGenerator? backdrop = session.TryCreateWorldGenerator(1337UL);
             ProceduralWorldGenerator? world = session.TryCreateWorldGenerator(1337UL);
+            world.Should().BeSameAs(backdrop, "the world reuses the backdrop's generator");
 
-            world.Should().NotBeSameAs(backdrop);
+            session.TryCreateWorldGenerator(42UL).Should().NotBeSameAs(world, "another world gets its own generator");
+
+            session.ApplyConfigCatalog(Catalog(2, ServerTuned(reachTiles: 5, workbenchWidth: 3)));
+            ProceduralWorldGenerator? resynced = session.TryCreateWorldGenerator(1337UL);
+            resynced.Should().NotBeSameAs(world, "a new structures.json plans villages differently");
+            resynced!.Structures.Rules.PlacementReachTiles.Should().Be(5);
         }
     }
 
