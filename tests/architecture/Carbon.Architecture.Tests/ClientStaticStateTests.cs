@@ -32,11 +32,6 @@ public sealed class ClientStaticStateTests
 
         // Glyph set accumulated across font loads. Audit: per-loader instance state.
         "Carbon.Desktop.Rendering.Fonts.GameFontLoader.s_glyphs",
-
-        // Process-wide terrain bake scratch lists (first audit TS-11). Audit: instance fields on the renderer.
-        "Carbon.Desktop.Rendering.World.ChunkTerrainRenderer.s_bakingRipples",
-        "Carbon.Desktop.Rendering.World.ChunkTerrainRenderer.s_bakingWaterfalls",
-        "Carbon.Desktop.Rendering.World.ChunkTerrainRenderer.s_roadLinks",
     };
 
     [Fact]
