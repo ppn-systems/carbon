@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Carbon.Abstractions.World;
 using Carbon.Application.World;
+using Carbon.Combat.Statuses.Config;
 using Carbon.Contracts.Config.S2C;
 using Carbon.Economy;
 using Carbon.Infrastructure.Persistence.Sqlite;
@@ -89,6 +90,30 @@ public sealed partial class ConfigHotReloadDomainsTests : IDisposable
         reload.Should().Throw<InvalidDataException>();
         _world.Progression.Should().BeSameAs(before);
         _config.ManifestVersion.Should().Be(manifestBefore);
+    }
+
+    [Fact]
+    public void Reload_ChangedStatusEffects_SwapsTheRunningDefinitions()
+    {
+        this.Edit("status_effects.json", json => json.Replace("\"moveSpeedMultiplier\": 0.6", "\"moveSpeedMultiplier\": 0.5", StringComparison.Ordinal));
+
+        ConfigReloadResult result = _config.Reload();
+
+        result.Changed.Should().BeEquivalentTo("status_effects");
+        _world.StatusEffects.TryGetByKey("slowed", out StatusEffectDefinition slowed).Should().BeTrue();
+        slowed.MoveSpeedMultiplier.Should().Be(0.5f);
+    }
+
+    [Fact]
+    public void Reload_StatusEffectProcOnUnknownMonster_IsRejected()
+    {
+        StatusEffectCatalog before = _world.StatusEffects;
+        this.Edit("status_effects.json", json => json.Replace("\"monster\": \"ash_wraith\"", "\"monster\": \"giant_spider\"", StringComparison.Ordinal));
+
+        Action reload = () => _config.Reload();
+
+        reload.Should().Throw<InvalidDataException>().WithMessage("*giant_spider*");
+        _world.StatusEffects.Should().BeSameAs(before);
     }
 
     [Fact]

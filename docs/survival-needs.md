@@ -69,7 +69,9 @@ item from the inventory when it handles `MealCompletedEvent`.**
 restores are still applied, but at the end of the meal instead of instantly. A consumable whose code is not in
 `food.json` keeps the old instant potion behaviour.
 
-Food poisoning lasts **2 minutes**: mood −12, move/attack speed ×0.85, health regen blocked. The roll is
+Food poisoning lasts **2 minutes**: mood −12, move/attack speed ×0.85, health regen blocked. It is the `poisoned`
+status effect (ADR-029 D6), so it also deals 1 damage every 2 s but never takes the last hit point, and a monster's
+poison gets the same penalties. The roll is
 `FoodPoisoningRoll.Sample(key, eater, tickIndex, foodIndex)`, a keyed SipHash PRF of the server-only epoch subkey
 (ADR-026), so the same secret replays identically, no RNG state is stored, and the public world seed predicts nothing.
 
