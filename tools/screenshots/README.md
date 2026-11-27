@@ -60,6 +60,7 @@ they are active.
 | `CARBON_WEATHER=rain\|clear` | Force the weather. |
 | `CARBON_MACRO_VIEW=1` | Zoomed-out overview. |
 | `CARBON_AUTO_WALK=x,y` | Walk in a constant direction (actors in motion, wakes). |
+| `CARBON_AUTO_ATTACK=s` | Hold hotbar slot 1 and swing the primary action due east every `s` seconds without moving (combat frame stats; the `combat_*` scenarios). It sends real swings, so the server stays authoritative. |
 | `CARBON_CAPTURE_FRAMES=n` | Also capture `n` consecutive frames after the main capture. |
 | `CARBON_OPEN_PANEL=character` | Open the Character tab of the player panel on entry. |
 | `CARBON_CAPTURE_MOUSE=x,y` | Pin the cursor at window pixel `x,y` so hover states (e.g. the stat preview) render. |
@@ -77,6 +78,13 @@ they are active.
 
 Script knobs: `SKIP_BUILD=1`, `CARBON_SEED`, `BASE_PORT` (TCP; UDP is `BASE_PORT+1`), `WIDTH`/`HEIGHT`,
 `CLIENT_TIMEOUT`, `SERVER_BOOT_TIMEOUT`, `SCENARIOS` (alternative scenario file).
+
+## Hero attack filmstrips
+
+`tools/screenshots/filmstrip.sh [out_dir]` runs the offline art showcase (`Carbon.Desktop --showcase`, no server) under
+xvfb. It writes its pages as PNG, including `hero_attacks.png`: one row per hero attack, sampled through the swing at
+world scale x2, with the same clip mapping, rig renderer and swing VFX as the world. Run it on two commits to compare
+attack animation before and after (`docs/art/combat-animation.md`). `SKIP_BUILD=1` reuses the last Release build.
 
 ## Smoke test
 
