@@ -46,4 +46,10 @@ public static class ItemOpCode
 
     /// <summary>Unilateral notification that a player inventory slot changed.</summary>
     public const ushort InventorySlotChanged = 0x4030;
+
+    /// <summary>Reply to <see cref="UpgradeInventoryItem"/>: the rolled enhancement outcome (ADR-020).</summary>
+    public const ushort EnhancementResult = 0x4031;
+
+    /// <summary>World-wide notice of a notable enhancement (a high-level success or a destroyed item).</summary>
+    public const ushort EnhancementAnnouncement = 0x4032;
 }

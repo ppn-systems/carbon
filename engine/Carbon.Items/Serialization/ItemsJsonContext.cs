@@ -3,6 +3,7 @@
 using System.Text.Json.Serialization;
 using Carbon.Items.Crafting;
 using Carbon.Items.Definitions;
+using Carbon.Items.Enhancement;
 
 namespace Carbon.Items.Serialization;
 
@@ -18,4 +19,5 @@ namespace Carbon.Items.Serialization;
     UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow)]
 [JsonSerializable(typeof(ItemCatalogDocument))]
 [JsonSerializable(typeof(RecipeCatalogDocument))]
+[JsonSerializable(typeof(EnhancementDocument))]
 public sealed partial class ItemsJsonContext : JsonSerializerContext;

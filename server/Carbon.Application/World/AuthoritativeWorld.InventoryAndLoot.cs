@@ -9,6 +9,7 @@ using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.Application.World.Commands;
 using Carbon.Contracts.Common;
+using Carbon.Economy.Enhancement;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
@@ -56,8 +57,8 @@ public sealed partial class AuthoritativeWorld
         _commands.Submit(WorldCommandKind.MoveInventorySlot, connectionId, fromSlot, toSlot);
 
     /// <inheritdoc/>
-    public ValueTask<WorldMutationOutcome> SubmitUpgradeInventoryItemAsync(ulong connectionId, ushort slotIndex) =>
-        _commands.Submit(WorldCommandKind.UpgradeInventoryItem, connectionId, slotIndex);
+    public ValueTask<WorldMutationOutcome> SubmitUpgradeInventoryItemAsync(ulong connectionId, ushort slotIndex, ushort protectionItemId = 0) =>
+        _commands.Submit(WorldCommandKind.UpgradeInventoryItem, connectionId, slotIndex, protectionItemId);
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitDropInventoryItemAsync(ulong connectionId, ushort slotIndex, int quantity) =>
@@ -211,18 +212,23 @@ public sealed partial class AuthoritativeWorld
         return OpStatus.Ok;
     }
 
-    /// <summary>Enhances the eligible weapon, tool or armor piece in the slot. Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
-    public OpStatus TryUpgradeInventoryItem(ulong connectionId, ushort slotIndex) =>
-        this.TryUpgradeInventoryItem(connectionId, slotIndex, deterministicRollSeed: 0U);
+    /// <summary>Enhances the item in the slot (tests): <see cref="OpStatus.Ok"/> on a success, <see cref="OpStatus.EnhancementFailed"/> on a failed roll.</summary>
+    public OpStatus TryUpgradeInventoryItem(ulong connectionId, ushort slotIndex, uint deterministicRollSeed = 0U)
+    {
+        WorldMutationOutcome outcome = this.TryEnhanceInventoryItem(connectionId, slotIndex, protectionItemId: 0, deterministicRollSeed);
+        return outcome.Status != OpStatus.Ok || ForgeEnhancementReceipt.Unpack(outcome.Revision).Outcome == EnhancementOutcome.Success
+            ? outcome.Status
+            : OpStatus.EnhancementFailed;
+    }
 
     /// <summary>
-    /// Attempts to enhance an eligible weapon, tool, or armor piece in <paramref name="slotIndex"/>,
-    /// using <paramref name="deterministicRollSeed"/> when non-zero for deterministic test runs.
+    /// Runs one forge enhancement attempt (ADR-020): <see cref="OpStatus.Ok"/> with a packed
+    /// <see cref="ForgeEnhancementReceipt"/> once it ran, or why nothing was spent. Called by the tick (ADR-017) and tests.
     /// </summary>
-    public OpStatus TryUpgradeInventoryItem(ulong connectionId, ushort slotIndex, uint deterministicRollSeed)
+    public WorldMutationOutcome TryEnhanceInventoryItem(ulong connectionId, ushort slotIndex, ushort protectionItemId, uint deterministicRollSeed = 0U)
     {
         PlayerStatsSnapshot statsSnap;
-        bool succeeded;
+        ForgeAttempt attempt;
         EquipmentLook look;
         ulong[]? recipients = null;
         (ushort SlotIndex, ItemSlot Slot)[] modifiedCopy;
@@ -232,14 +238,15 @@ public sealed partial class AuthoritativeWorld
             if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state) ||
                 !_simulation.Entities.HasTransform(state.Entity))
             {
-                return OpStatus.Forbidden;
+                return new WorldMutationOutcome(OpStatus.Forbidden, 0U);
             }
 
             Vector2 playerPos = _simulation.Entities.GetTransform(state.Entity).Position;
-            OpStatus status = _inventory.Upgrade(state, slotIndex, playerPos, deterministicRollSeed, _mutationSlotScratch, out succeeded, out uint experience);
+            OpStatus status = _inventory.Upgrade(
+                state, slotIndex, protectionItemId, playerPos, deterministicRollSeed, _players.ByConnection.Keys, _mutationSlotScratch, out attempt, out uint experience);
             if (status != OpStatus.Ok)
             {
-                return status;
+                return new WorldMutationOutcome(status, 0U);
             }
 
             if (experience > 0U)
@@ -250,7 +257,7 @@ public sealed partial class AuthoritativeWorld
             this.RecomputeDerivedStatsLocked(state);
             statsSnap = this.BuildPlayerStatsSnapshotLocked(state, clearLevelUpPending: true);
             look = EquipmentLook.Of(state);
-            if (succeeded && (slotIndex >= PlayerInventoryLayout.BagLimit || slotIndex == state.Session.SelectedHotbarSlot))
+            if (attempt.Outcome != EnhancementOutcome.NoChange && (slotIndex >= PlayerInventoryLayout.BagLimit || slotIndex == state.Session.SelectedHotbarSlot))
             {
                 recipients = this.CopyNearbyRecipientsLocked(state);
             }
@@ -266,7 +273,7 @@ public sealed partial class AuthoritativeWorld
             look.SendTo(_outboundSink, recipients);
         }
 
-        return succeeded ? OpStatus.Ok : OpStatus.EnhancementFailed;
+        return new WorldMutationOutcome(OpStatus.Ok, new ForgeEnhancementReceipt(attempt.Outcome, (ushort)attempt.ItemId, attempt.PreviousLevel, attempt.NewLevel, attempt.ProtectionConsumed).Pack());
     }
 
     /// <summary>Drops items from the slot onto the ground as loot. Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>

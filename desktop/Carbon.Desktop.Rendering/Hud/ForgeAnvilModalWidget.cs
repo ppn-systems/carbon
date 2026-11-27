@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Contracts.Common;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -12,7 +13,8 @@ using Carbon.Graphics.Batching.Sprites;
 using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
-using Carbon.Items.Definitions;
+using Carbon.Items.Crafting;
+using Carbon.Items.Enhancement;
 
 namespace Carbon.Desktop.Rendering.Hud;
 
@@ -26,6 +28,15 @@ internal sealed class ForgeAnvilModalWidget
     private const float PanelH = 440f;
     private const int MaxVisibleGearRows = 7;
     private const float RowH = 48f;
+    private const int MaxMaterialRows = 3;
+    private const float MaterialRowY = 172f;
+    private const float MaterialRowH = 24f;
+    private const float OutcomeBarY = 268f;
+
+    private static readonly ColorRgba s_successColor = new(16, 185, 129, 240);
+    private static readonly ColorRgba s_noChangeColor = new(148, 163, 184, 240);
+    private static readonly ColorRgba s_downgradeColor = new(249, 115, 22, 240);
+    private static readonly ColorRgba s_destroyColor = new(225, 29, 72, 240);
 
     private readonly List<ushort> _eligibleScratch = new(24);
     private int _selectedSlot = -1;
@@ -154,10 +165,9 @@ internal sealed class ForgeAnvilModalWidget
         skin.DrawSlot(spriteBatch, in anvilBox, CarbonUiPalette.SlotFill, CarbonUiPalette.BorderOuter);
 
         ItemSlot target = activeSlot >= 0 && activeSlot < slots.Length ? slots[activeSlot] : ItemSlot.Empty;
-        bool canForge = !target.IsEmpty &&
-            ItemEnhancementPolicy.CanUpgrade(world.Items.Rules, in target, out uint m1, out int c1, out uint m2, out int c2, out _) &&
-            CountItemInSpan(slots, m1) >= c1 &&
-            (m2 == 0U || CountItemInSpan(slots, m2) >= c2) &&
+        bool canForge = ItemEnhancementPolicy.TryGetStep(world.Items.Rules, in target, out EnhancementStep? step) &&
+            HasMaterials(slots, step) &&
+            world.LocalPlayerGold >= ItemEnhancementPolicy.GetGoldFee(world.Items.Rules, in target, step) &&
             world.IsNearForgeStation();
 
         RectangleF forgeBtn = GetForgeButtonRect(ox, oy);
@@ -198,26 +208,42 @@ internal sealed class ForgeAnvilModalWidget
             VectorRigRenderer.DrawItemIcon(batch, targetArt, new Vector2(ox + 342f, oy + 114f), 40f);
         }
 
-        if (!target.IsEmpty &&
-            ItemEnhancementPolicy.CanUpgrade(world.Items.Rules, in target, out uint m1, out int c1, out uint m2, out int c2, out float chance))
+        if (ItemEnhancementPolicy.TryGetStep(world.Items.Rules, in target, out EnhancementStep? step))
         {
-            if (art is not null && m1 != 0U && art.TryGetItem(m1, out CompiledItemVectorArt? m1Art))
+            ReadOnlySpan<RecipeIngredient> materials = step.MaterialSpan;
+            for (int i = 0; i < materials.Length && i < MaxMaterialRows; i++)
             {
-                VectorRigRenderer.DrawItemIcon(batch, m1Art, new Vector2(ox + 324f, oy + 240f), 20f);
+                if (art is not null && art.TryGetItem(materials[i].ItemId, out CompiledItemVectorArt? matArt))
+                {
+                    VectorRigRenderer.DrawItemIcon(batch, matArt, new Vector2(ox + 324f, oy + MaterialRowY + 8f + (i * MaterialRowH)), 18f);
+                }
             }
 
-            if (art is not null && m2 != 0U && art.TryGetItem(m2, out CompiledItemVectorArt? m2Art))
-            {
-                VectorRigRenderer.DrawItemIcon(batch, m2Art, new Vector2(ox + 324f, oy + 266f), 20f);
-            }
-
-            RectangleF barBg = new(ox + 310f, oy + 312f, 336f, 12f);
-            batch.FillRectangle(barBg, new ColorRgba(12, 18, 34, 240));
-            batch.FillRectangle(new RectangleF(barBg.X, barBg.Y, barBg.Width * Math.Clamp(chance, 0f, 1f), barBg.Height), new ColorRgba(16, 185, 129, 240));
-            batch.DrawRectangle(barBg, new ColorRgba(100, 116, 139, 220), 1f);
-            _ = c1;
-            _ = c2;
+            DrawOutcomeBar(batch, new RectangleF(ox + 310f, oy + OutcomeBarY, 336f, 12f), step);
         }
+    }
+
+    /// <summary>Draws the four outcome chances of <paramref name="step"/> as one stacked bar (success, no change, downgrade, destroy).</summary>
+    private static void DrawOutcomeBar(GeometryBatch batch, RectangleF bar, EnhancementStep step)
+    {
+        batch.FillRectangle(bar, new ColorRgba(12, 18, 34, 240));
+        float x = bar.X;
+        x = FillSegment(batch, bar, x, step.SuccessPermille, s_successColor);
+        x = FillSegment(batch, bar, x, step.NoChangePermille, s_noChangeColor);
+        x = FillSegment(batch, bar, x, step.DowngradePermille, s_downgradeColor);
+        _ = FillSegment(batch, bar, x, step.DestroyPermille, s_destroyColor);
+        batch.DrawRectangle(bar, new ColorRgba(100, 116, 139, 220), 1f);
+    }
+
+    private static float FillSegment(GeometryBatch batch, RectangleF bar, float x, int permille, ColorRgba color)
+    {
+        float w = bar.Width * permille / EnhancementTable.WeightTotal;
+        if (w > 0f)
+        {
+            batch.FillRectangle(new RectangleF(x, bar.Y, w, bar.Height), color);
+        }
+
+        return x + w;
     }
 
     public void DrawText(
@@ -281,7 +307,7 @@ internal sealed class ForgeAnvilModalWidget
         byte curLv = ItemEnhancementPolicy.GetUpgradeLevel(in target);
         spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, $"{world.Items.GetDisplayName(target.ItemId)} (+{curLv})", 264f, 1.25f), new Vector2(ox + 386f, oy + 86f), CarbonUiPalette.TextPrimary, black, 1, 1.25f);
 
-        if (ItemEnhancementPolicy.CanUpgrade(world.Items.Rules, in target, out uint m1, out int c1, out uint m2, out int c2, out float chance))
+        if (ItemEnhancementPolicy.TryGetStep(world.Items.Rules, in target, out EnhancementStep? step))
         {
             float multNow = ItemEnhancementPolicy.GetStatMultiplier(curLv);
             float multNext = ItemEnhancementPolicy.GetStatMultiplier((byte)(curLv + 1));
@@ -294,41 +320,42 @@ internal sealed class ForgeAnvilModalWidget
                 1,
                 1f);
 
-            spriteBatch.DrawOutlinedString(font, "Materials", new Vector2(ox + 310f, oy + 204f), CarbonUiPalette.TextWarm, black, 1, 1f);
-            if (m1 != 0U)
+            spriteBatch.DrawOutlinedString(font, "Materials", new Vector2(ox + 310f, oy + MaterialRowY - 22f), CarbonUiPalette.TextWarm, black, 1, 1f);
+            ReadOnlySpan<RecipeIngredient> materials = step.MaterialSpan;
+            for (int i = 0; i < materials.Length && i < MaxMaterialRows; i++)
             {
-                int have1 = CountItemInSpan(slots, m1);
+                int have = CountItemInSpan(slots, materials[i].ItemId);
                 spriteBatch.DrawOutlinedString(
                     font,
-                    $"{world.Items.GetDisplayName(m1)}: {have1}/{c1}",
-                    new Vector2(ox + 344f, oy + 230f),
-                    have1 >= c1 ? CarbonUiPalette.ConfirmBorder : CarbonUiPalette.DangerBorder,
+                    $"{world.Items.GetDisplayName(materials[i].ItemId)}: {have}/{materials[i].Quantity}",
+                    new Vector2(ox + 344f, oy + MaterialRowY + (i * MaterialRowH)),
+                    have >= materials[i].Quantity ? CarbonUiPalette.ConfirmBorder : CarbonUiPalette.DangerBorder,
                     black,
                     1,
                     1f);
             }
 
-            if (m2 != 0U)
-            {
-                int have2 = CountItemInSpan(slots, m2);
-                spriteBatch.DrawOutlinedString(
-                    font,
-                    $"{world.Items.GetDisplayName(m2)}: {have2}/{c2}",
-                    new Vector2(ox + 344f, oy + 256f),
-                    have2 >= c2 ? CarbonUiPalette.ConfirmBorder : CarbonUiPalette.DangerBorder,
-                    black,
-                    1,
-                    1f);
-            }
+            long fee = ItemEnhancementPolicy.GetGoldFee(world.Items.Rules, in target, step);
+            spriteBatch.DrawOutlinedString(
+                font,
+                $"Fee: {fee} gold",
+                new Vector2(ox + 310f, oy + OutcomeBarY - 24f),
+                world.LocalPlayerGold >= fee ? CarbonUiPalette.TextWarm : CarbonUiPalette.DangerBorder,
+                black,
+                1,
+                1f);
 
-            spriteBatch.DrawOutlinedString(font, $"Success: {(int)MathF.Round(chance * 100f)}%", new Vector2(ox + 310f, oy + 290f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            DrawChance(spriteBatch, font, "Success", step.SuccessPermille, new Vector2(ox + 310f, oy + OutcomeBarY + 18f), s_successColor);
+            DrawChance(spriteBatch, font, "No change", step.NoChangePermille, new Vector2(ox + 480f, oy + OutcomeBarY + 18f), s_noChangeColor);
+            DrawChance(spriteBatch, font, "Drop -1", step.DowngradePermille, new Vector2(ox + 310f, oy + OutcomeBarY + 38f), s_downgradeColor);
+            DrawChance(spriteBatch, font, "Destroy", step.DestroyPermille, new Vector2(ox + 480f, oy + OutcomeBarY + 38f), s_destroyColor);
 
             if (world.ForgeFeedbackTimer > 0f)
             {
                 spriteBatch.DrawOutlinedString(
                     font,
-                    world.LastForgeSucceeded ? "Enhanced!" : "Failed!",
-                    new Vector2(ox + 310f, oy + 336f),
+                    DescribeOutcome(world.LastForgeOutcome, world.LastForgeNewLevel),
+                    new Vector2(ox + 310f, oy + 344f),
                     world.LastForgeSucceeded ? CarbonUiPalette.ConfirmBorder : CarbonUiPalette.DangerBorder,
                     black,
                     1,
@@ -339,8 +366,42 @@ internal sealed class ForgeAnvilModalWidget
         }
         else
         {
-            spriteBatch.DrawOutlinedString(font, "Max enhancement (+10)", new Vector2(ox + 386f, oy + 122f), CarbonUiPalette.TextWarm, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, $"Max enhancement (+{world.Items.Rules.Enhancement.MaxLevel})", new Vector2(ox + 386f, oy + 122f), CarbonUiPalette.TextWarm, black, 1, 1f);
         }
+    }
+
+    private static void DrawChance(SpriteBatch spriteBatch, BitmapFont font, string label, int permille, Vector2 pos, ColorRgba color) =>
+        spriteBatch.DrawOutlinedString(
+            font,
+            $"{label} {permille / 10}.{permille % 10}%",
+            pos,
+            permille > 0 ? color : CarbonUiPalette.TextMuted,
+            CarbonUiPalette.TextOutline,
+            1,
+            1f);
+
+    private static string DescribeOutcome(EnhancementOutcome outcome, byte newLevel) => outcome switch
+    {
+        EnhancementOutcome.Success => $"Enhanced to +{newLevel}!",
+        EnhancementOutcome.NoChange => "Failed - no change.",
+        EnhancementOutcome.Downgrade => $"Failed - dropped to +{newLevel}.",
+        EnhancementOutcome.Destroyed => "The item shattered!",
+        EnhancementOutcome.None => string.Empty,
+        _ => string.Empty,
+    };
+
+    private static bool HasMaterials(ReadOnlySpan<ItemSlot> slots, EnhancementStep step)
+    {
+        ReadOnlySpan<RecipeIngredient> materials = step.MaterialSpan;
+        for (int i = 0; i < materials.Length; i++)
+        {
+            if (CountItemInSpan(slots, materials[i].ItemId) < materials[i].Quantity)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private void CollectEligibleSlots(ItemRules rules, ReadOnlySpan<ItemSlot> slots)
@@ -365,9 +426,7 @@ internal sealed class ForgeAnvilModalWidget
     }
 
     private static bool IsEligibleGear(ItemRules rules, in ItemSlot slot) =>
-        !slot.IsEmpty &&
-        rules.Items.TryGet(slot.ItemId, out ItemArchetype? def) &&
-        def.MaxDurability > 0f;
+        !slot.IsEmpty && ItemEnhancementPolicy.IsEnhanceable(rules, slot.ItemId);
 
     private static int CountItemInSpan(ReadOnlySpan<ItemSlot> slots, uint itemId)
     {

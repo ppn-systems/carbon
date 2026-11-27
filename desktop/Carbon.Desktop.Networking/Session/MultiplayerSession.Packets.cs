@@ -94,6 +94,7 @@ public sealed partial class MultiplayerSession
         _tcpSubscriptions.Add(tcp.On<EntityEquipmentChanged>(this.OnEntityEquipmentChanged));
         _tcpSubscriptions.Add(tcp.On<PlayerStatsSync>(this.OnPlayerStatsSync));
         _tcpSubscriptions.Add(tcp.On<WalletSync>(this.OnWalletSync));
+        _tcpSubscriptions.Add(tcp.On<EnhancementAnnouncement>(this.OnEnhancementAnnouncement));
         _tcpSubscriptions.Add(tcp.On<SkillCastBroadcast>(this.OnSkillCastBroadcast));
         _tcpSubscriptions.Add(tcp.On<EntityAttackPhase>(this.OnEntityAttackPhase));
         _tcpSubscriptions.Add(tcp.On<MapPropChanged>(this.OnMapPropChanged));
@@ -846,6 +847,23 @@ public sealed partial class MultiplayerSession
                 }
 
                 _remoteViewsDirty = true;
+            }
+        }
+    }
+
+    private void OnEnhancementAnnouncement(EnhancementAnnouncement pkt)
+    {
+        lock (_worldGate)
+        {
+            string item = _items.GetDisplayName(pkt.ItemId);
+            string who = string.IsNullOrWhiteSpace(pkt.PlayerName) ? "Someone" : pkt.PlayerName;
+            if (pkt.Outcome == EnhancementOutcome.Success)
+            {
+                _hudNotifications.Add($"{who} forged {item} to +{pkt.Level}!");
+            }
+            else if (pkt.Outcome == EnhancementOutcome.Destroyed)
+            {
+                _hudNotifications.Add($"{who}'s +{pkt.Level} {item} shattered at the forge!");
             }
         }
     }

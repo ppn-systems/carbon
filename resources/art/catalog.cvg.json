@@ -853,6 +853,22 @@
       "tier": 1,
       "accentColor": "#22C55E",
       "file": "items/slime_jelly_preserve.cvg.json"
+    },
+    {
+      "itemId": 205,
+      "id": "forge_ward_scroll",
+      "displayName": "Forge Ward Scroll",
+      "tier": 2,
+      "accentColor": "#60A5FA",
+      "file": "items/forge_ward_scroll.cvg.json"
+    },
+    {
+      "itemId": 206,
+      "id": "blessed_forge_scroll",
+      "displayName": "Blessed Forge Scroll",
+      "tier": 3,
+      "accentColor": "#FACC15",
+      "file": "items/blessed_forge_scroll.cvg.json"
     }
   ],
   "props": [

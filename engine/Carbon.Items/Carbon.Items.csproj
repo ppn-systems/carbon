@@ -18,5 +18,6 @@
     <ItemGroup>
         <EmbeddedResource Include="..\..\resources\config\items.json" LogicalName="Carbon.Items.Config.items.json" />
         <EmbeddedResource Include="..\..\resources\config\recipes.json" LogicalName="Carbon.Items.Config.recipes.json" />
+        <EmbeddedResource Include="..\..\resources\config\enhancement.json" LogicalName="Carbon.Items.Config.enhancement.json" />
     </ItemGroup>
 </Project>

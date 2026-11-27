@@ -9,11 +9,13 @@ using Carbon.Application.World.Replication;
 using Carbon.Contracts.Common;
 using Carbon.Economy;
 using Carbon.Economy.Currency;
+using Carbon.Economy.Enhancement;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
 using Carbon.Items.Definitions;
 using Carbon.Maps.Building;
+using Carbon.Primitives.Random;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.World;
 
@@ -42,6 +44,7 @@ internal sealed class InventoryService
     private readonly OutboundTickBuffer _outbound;
     private readonly Action<PlayerState> _markInventoryDirty;
     private readonly List<ulong> _pickupScratch = new(32);
+    private ulong _enhancementAttempts;
 
     /// <summary>Initializes a new instance of the <see cref="InventoryService"/> class.</summary>
     public InventoryService(
@@ -226,26 +229,32 @@ internal sealed class InventoryService
     }
 
     /// <summary>
-    /// Spends the materials and rolls to enhance the item in <paramref name="slotIndex"/> at a forge. The roll is
-    /// deterministic when <paramref name="deterministicRollSeed"/> is non-zero. Returns <see cref="OpStatus.Ok"/> once the
-    /// attempt was made (<paramref name="succeeded"/> tells the outcome; <paramref name="experience"/> is what a success
-    /// earns), or the reason it could not be attempted.
+    /// Runs one forge enhancement attempt on the item in <paramref name="slotIndex"/> (ADR-020): requires a forge in reach,
+    /// then <see cref="ForgeEnhancer"/> checks every cost, spends the gold fee, materials and the optional protection
+    /// scroll exactly once, rolls on the server's deterministic stream and writes the outcome. Returns
+    /// <see cref="OpStatus.Ok"/> once the attempt ran (<paramref name="attempt"/> tells the outcome;
+    /// <paramref name="experience"/> is what a success earns), or the reason nothing was spent.
+    /// <paramref name="deterministicRollSeed"/> (tests) is mixed into the roll stream when non-zero. Stages the wallet sync
+    /// and, for notable outcomes, a world-wide announcement to <paramref name="worldConnections"/> for the tick dispatch.
     /// </summary>
     public OpStatus Upgrade(
         PlayerState state,
         ushort slotIndex,
+        ushort protectionItemId,
         Vector2 playerPos,
         uint deterministicRollSeed,
+        Dictionary<ulong, PlayerState>.KeyCollection worldConnections,
         List<(ushort SlotIndex, ItemSlot Slot)> modified,
-        out bool succeeded,
+        out ForgeAttempt attempt,
         out uint experience)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(modified);
-        succeeded = false;
+        attempt = ForgeAttempt.Rejected(OpStatus.Invalid);
         experience = 0U;
         if (!this.IsNearForgeStation(playerPos))
         {
+            attempt = ForgeAttempt.Rejected(OpStatus.OutOfRange);
             return OpStatus.OutOfRange;
         }
 
@@ -254,46 +263,42 @@ internal sealed class InventoryService
             return OpStatus.Invalid;
         }
 
-        ItemRules rules = _itemRules();
-        ItemSlot target = state.Inventory.GetSlot(slotIndex);
-        if (!ItemEnhancementPolicy.CanUpgrade(rules, in target, out uint mat1, out int c1, out uint mat2, out int c2, out float successChance))
-        {
-            return OpStatus.Invalid;
-        }
-
-        if ((mat1 != 0U && state.Inventory.CountItem(mat1) < c1) ||
-            (mat2 != 0U && state.Inventory.CountItem(mat2) < c2))
-        {
-            return OpStatus.Conflict;
-        }
-
         modified.Clear();
         ReadOnlySpan<ItemSlot> before = state.Inventory.Slots;
         Span<ItemSlot> beforeSnap = stackalloc ItemSlot[before.Length];
         before.CopyTo(beforeSnap);
 
-        if (mat1 != 0U)
+        ulong tick = _currentTick();
+        ulong nonce = ++_enhancementAttempts ^ ((ulong)deterministicRollSeed << 32);
+        DeterministicRandom random = ForgeEnhancer.CreateRandom(_worldSeed, tick, state.Session.PlayerNetworkId, nonce);
+        attempt = ForgeEnhancer.TryEnhance(_itemRules(), state.Wallet, state.Inventory, slotIndex, protectionItemId, ref random, tick);
+        if (attempt.Status != OpStatus.Ok)
         {
-            _ = state.Inventory.TryRemove(mat1, c1);
+            return attempt.Status;
         }
 
-        if (mat2 != 0U)
+        if (attempt.Outcome == EnhancementOutcome.Success)
         {
-            _ = state.Inventory.TryRemove(mat2, c2);
+            experience = (uint)(20 + (attempt.NewLevel * 5));
         }
 
-        double roll = deterministicRollSeed != 0U
-            ? AuthoritativeWorld.HashChunk(_worldSeed ^ deterministicRollSeed, slotIndex, (int)_currentTick()) % 1000UL / 1000.0
-            : Random.Shared.NextDouble();
-
-        succeeded = roll <= successChance;
-        if (succeeded && rules.Items.TryGet(target.ItemId, out ItemArchetype? def))
+        OutboundBatch pending = _outbound.Pending;
+        if (attempt.GoldSpent > 0)
         {
-            byte nextLevel = (byte)(ItemEnhancementPolicy.GetUpgradeLevel(in target) + 1);
-            float nextDur = ItemEnhancementPolicy.GetEffectiveMaxDurability(def, nextLevel);
-            ItemSlot enhanced = ItemEnhancementPolicy.WithUpgradeLevel(in target, nextLevel) with { Durability = nextDur };
-            state.Inventory.SetSlot(slotIndex, in enhanced);
-            experience = (uint)(20 + (nextLevel * 5));
+            pending.WalletSyncs.Add(new OutboundWalletSync(state.Session.ConnectionId, state.Wallet.Gold, state.Wallet.Diamonds, state.Wallet.Sequence));
+        }
+
+        if (_itemRules().Enhancement.IsAnnounced(attempt.Outcome, attempt.NewLevel))
+        {
+            int offset = pending.Recipients.Count;
+            foreach (ulong connection in worldConnections)
+            {
+                pending.Recipients.Add(connection);
+            }
+
+            byte level = attempt.IsDestroyed ? attempt.PreviousLevel : attempt.NewLevel;
+            pending.EnhancementAnnouncements.Add(new OutboundEnhancementAnnouncement(
+                offset, pending.Recipients.Count - offset, state.Session.PlayerNetworkId, state.SourceCharacter.Name, (ushort)attempt.ItemId, attempt.Outcome, level));
         }
 
         CollectModifiedSlots(beforeSnap, state.Inventory.Slots, modified);

@@ -10,6 +10,7 @@ using Carbon.Application.World.Loot;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.Contracts.Common;
+using Carbon.Economy.Enhancement;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
@@ -103,9 +104,9 @@ public sealed class InventoryServiceTests
     {
         Harness h = new();
 
-        h.Inventory.Upgrade(h.Player, 0, Vector2.Zero, 1U, [], out bool succeeded, out uint experience)
+        h.Inventory.Upgrade(h.Player, 0, 0, Vector2.Zero, 1U, new Dictionary<ulong, PlayerState>().Keys, [], out ForgeAttempt attempt, out uint experience)
             .Should().Be(OpStatus.OutOfRange);
-        succeeded.Should().BeFalse();
+        attempt.Outcome.Should().Be(EnhancementOutcome.None);
         experience.Should().Be(0U);
     }
 

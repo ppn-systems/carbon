@@ -218,4 +218,15 @@ public interface IWorldOutboundSink
 
     /// <summary>Broadcasts the start of a monster attack phase to AoI observers.</summary>
     void SendEntityAttackPhase(ReadOnlySpan<ulong> recipientConnectionIds, in AttackPhaseSnapshot snapshot);
+
+    /// <summary>
+    /// Sends a world-wide forge announcement (ADR-020): a high-level success or a destroyed item.
+    /// </summary>
+    void SendEnhancementAnnouncement(
+        ReadOnlySpan<ulong> recipientConnectionIds,
+        ulong playerNetworkId,
+        string playerName,
+        ushort itemId,
+        EnhancementOutcome outcome,
+        byte level);
 }
