@@ -170,7 +170,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     public MultiplayerSession(DesktopOptions options)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
-        _configSync = this.CreateConfigSync();
+        _config = this.CreateConfigSync();
         _entityNames = new EntityNameKeys(_items);
         _trading = new TraderSession(() => this.IsReady ? _tcpSession : null, text => { lock (_worldGate) { _hudNotifications.Add(text); } });
     }
@@ -782,11 +782,7 @@ public sealed partial class MultiplayerSession : IWorldSession
             _sessionCts = null;
         }
 
-        lock (_configGate)
-        {
-            _pendingManifest?.Dispose();
-            _pendingManifest = null;
-        }
+        _config.DiscardPendingManifest();
 
         _connectGate.Dispose();
         _udpGate.Dispose();
