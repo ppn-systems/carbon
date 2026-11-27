@@ -176,7 +176,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             () => _itemRules,
             () => ++_nextNetworkId,
             () => _currentTick,
-            this.QueueLootVisualRefreshLocked);
+            this.QueueLootVisualRefreshLocked,
+            _players.GetNetworkIdOfCharacter);
         _construction = new ConstructionService(
             _chunkWorld,
             structureCatalog ?? StructureCatalog.LoadEmbedded(),
@@ -201,7 +202,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _outbound,
             state => this.MarkCharacterDirtyLocked(state, inventoryChanged: true));
         _commerce = new EconomyService(this.WorldSeed, this.TickRate, () => _economy, () => _currentTick, _groundLoot, _inventory, _outbound, this.HasNearbyFriendlyNpcLocked);
-        _combat = new CombatService(_simulation, _chunkWorld, MonsterLayer, _outbound, this.CollectNearbyConnectionsAroundWorldLocked, this.OnMonsterKilledLocked);
+        _combat = new CombatService(_simulation, _chunkWorld, MonsterLayer, _outbound, this.CollectNearbyConnectionsAroundWorldLocked, this.OnMonsterKilledLocked, () => _currentTick);
         _props = new PropHarvestService(
             _simulation,
             _chunkWorld,
@@ -617,28 +618,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
                 ushort spend = (ushort)Math.Min(requested, unspentStats);
                 prog.AddAttribute(attr, spend);
 
-                float prevMaxHp = state.Stats.MaxHealth;
-                float prevMaxMp = state.Stats.MaxMana;
-                float prevMaxStam = state.Stats.MaxStamina;
+                (float Health, float Mana, float Stamina) previousMax = VitalPools.Capture(state);
                 this.RecomputeDerivedStatsLocked(state);
-
-                if (_simulation.Entities.HasHealth(state.Entity) && state.Stats.MaxHealth > prevMaxHp)
-                {
-                    HealthComponent hp = _simulation.Entities.GetHealth(state.Entity);
-                    float nextHp = MathF.Min(state.Stats.MaxHealth, hp.Current + (state.Stats.MaxHealth - prevMaxHp));
-                    _simulation.Entities.SetHealth(state.Entity, new HealthComponent(nextHp, state.Stats.MaxHealth));
-                    _simulation.MarkDirty(state.Entity, EntityDirtyMask.Health);
-                }
-
-                if (state.Stats.MaxMana > prevMaxMp)
-                {
-                    state.CurrentMana = MathF.Min(state.Stats.MaxMana, state.CurrentMana + (state.Stats.MaxMana - prevMaxMp));
-                }
-
-                if (state.Stats.MaxStamina > prevMaxStam)
-                {
-                    state.CurrentStamina = MathF.Min(state.Stats.MaxStamina, state.CurrentStamina + (state.Stats.MaxStamina - prevMaxStam));
-                }
+                VitalPools.AddGrowth(_simulation, state, previousMax);
 
                 state.StatsDirty = true;
                 this.MarkCharacterDirtyLocked(state, inventoryChanged: false);

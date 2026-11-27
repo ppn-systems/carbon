@@ -83,6 +83,36 @@ public sealed class MonsterCatalogTests
     }
 
     [Fact]
+    public void FromJson_ShippedMonstersJson_DeclaresBehaviorPerArchetype()
+    {
+        MonsterCatalog catalog = CreatureTestData.LoadCatalog();
+
+        catalog.GetDefinition(catalog.GetIndex("skeleton_archer")).Behavior.Role.Should().Be(MonsterRole.Ranged);
+        catalog.GetDefinition(catalog.GetIndex("orc_shaman")).Behavior.Role.Should().Be(MonsterRole.Caster);
+        catalog.GetDefinition(catalog.GetIndex("rock_golem")).Behavior.SurroundRadius.Should().BePositive();
+        catalog.GetPackId(catalog.GetIndex("wild_slime")).Should().NotBe(0)
+            .And.Be(catalog.GetPackId(catalog.GetIndex("slime_king")), "the slime king leads the slime pack");
+        catalog.GetPackId(catalog.GetIndex("rock_golem")).Should().NotBe(catalog.GetPackId(catalog.GetIndex("wild_slime")));
+        catalog.GetPackId(catalog.GetIndex("crimson_demon")).Should().Be(0, "demons hunt alone");
+        catalog.GetPreferredRange(catalog.GetIndex("skeleton_archer")).Should().Be(170f);
+    }
+
+    [Theory]
+    [InlineData("\"surroundRadius\": 20,", "\"surroundRadius\": 40,", "*rock_golem*surroundRadius*")]
+    [InlineData("\"preferredRange\": 170,", "\"preferredRange\": 90,", "*skeleton_archer*preferredRange*")]
+    [InlineData("\"fleeTicks\": 75,", "\"fleeTicks\": 0,", "*frost_wolf*flee*")]
+    [InlineData("\"pack\": \"golem\",", "", "*rock_golem*assistRadius*pack*")]
+    public void FromJson_InvalidBehavior_ThrowsArgumentException(string find, string replace, string message)
+    {
+        string json = CreatureTestData.MonstersJson.Replace(find, replace, StringComparison.Ordinal);
+        json.Should().NotBe(CreatureTestData.MonstersJson, "the test must actually mutate the shipped file");
+
+        Action load = () => MonsterCatalog.FromJson(json);
+
+        load.Should().Throw<ArgumentException>().WithMessage(message);
+    }
+
+    [Fact]
     public void FromJson_ShippedSpawningJson_TablesReferenceMonstersThatPreferTheBiome()
     {
         MonsterCatalog catalog = CreatureTestData.LoadCatalog();

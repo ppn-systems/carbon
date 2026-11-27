@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Abstractions.World;
 using Carbon.Application.World.Inventory;
 using Carbon.Application.World.Loot;
 using Carbon.Application.World.Players;
@@ -124,7 +125,7 @@ internal sealed class EconomyService
         LootRollResult result = LootRoller.Roll(table, context, ref random, ref pity, drops);
         killer.LootPity = pity;
 
-        LootClaim claim = this.CreateKillClaim(economy.Config.GroundLoot, killer.Session.PlayerNetworkId, tick);
+        LootClaim claim = this.CreateKillClaim(economy.Config.GroundLoot, killer.Session, tick);
         for (int i = 0; i < result.ItemCount; i++)
         {
             LootDrop drop = drops[i];
@@ -199,10 +200,12 @@ internal sealed class EconomyService
     }
 
     /// <summary>Builds the claim of a kill at <paramref name="tick"/>: owner protection and ground lifetime from config.</summary>
-    private LootClaim CreateKillClaim(GroundLootRules rules, ulong killerNetworkId, ulong tick)
+    private LootClaim CreateKillClaim(GroundLootRules rules, ConnectedPlayerSession killer, ulong tick)
     {
         ulong protectionTicks = (ulong)Math.Max(0, rules.OwnerProtectionSeconds) * _tickRate;
         ulong lifetimeTicks = (ulong)Math.Max(1, rules.KillLootLifetimeSeconds) * _tickRate;
-        return new LootClaim(protectionTicks == 0UL ? 0UL : killerNetworkId, tick + protectionTicks, lifetimeTicks);
+        return protectionTicks == 0UL
+            ? new LootClaim(Guid.Empty, 0UL, tick, lifetimeTicks)
+            : new LootClaim(killer.CharacterId, killer.PlayerNetworkId, tick + protectionTicks, lifetimeTicks);
     }
 }

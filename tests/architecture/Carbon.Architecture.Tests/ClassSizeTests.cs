@@ -28,7 +28,7 @@ public sealed class ClassSizeTests
     /// Construction and DebugOverrides partials; 3,357 after extracting <c>PlayerActionService</c>; 3,172 after extracting
     /// <c>SettlementNpcSpawner</c>; 3,072 after extracting <c>EconomyService</c>.
     /// </summary>
-    private const int MaxAuthoritativeWorldLines = 3_072;
+    private const int MaxAuthoritativeWorldLines = 3_040;
 
     [Fact]
     public void AuthoritativeWorld_ShouldNotGainPartialFiles()

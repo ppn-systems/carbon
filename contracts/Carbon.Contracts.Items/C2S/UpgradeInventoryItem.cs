@@ -17,7 +17,7 @@ public sealed partial class UpgradeInventoryItem : PacketBase<UpgradeInventoryIt
     /// <inheritdoc/>
     public static ushort StaticOpCode => ItemOpCode.UpgradeInventoryItem;
 
-    /// <summary>Target inventory slot index (<c>0..39</c>).</summary>
+    /// <summary>Target inventory slot index (<c>0..41</c>).</summary>
     [SerializeOrder(0)]
     public ushort SlotIndex { get; set; }
 }

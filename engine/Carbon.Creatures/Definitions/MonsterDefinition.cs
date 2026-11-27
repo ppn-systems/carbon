@@ -66,6 +66,9 @@ public sealed class MonsterDefinition : IDataDefinition<string>
     /// <summary>Gets the biomes this monster naturally inhabits.</summary>
     public IReadOnlyList<BiomeType> PreferredBiomes { get; set; } = [];
 
+    /// <summary>Gets the tactical personality (positioning role, pack, flee, give-up, night aggression).</summary>
+    public MonsterBehaviorDefinition Behavior { get; set; } = new();
+
     /// <summary>Gets the attack profiles in priority order.</summary>
     public IReadOnlyList<AttackProfileDefinition> Attacks { get; set; } = [];
 

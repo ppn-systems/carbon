@@ -39,6 +39,7 @@ internal sealed class PlayerState(
     public Vector2 PendingAttackAim { get; set; }
     public byte PendingAttackAbility { get; set; }
     public ulong PendingPickupLootId { get; set; }
+    /// <summary>Gets or sets the last tick this player took or dealt combat damage (gates out-of-combat regeneration).</summary>
     public ulong LastCombatDamageTick { get; set; }
     public ushort Level { get; set; } = 1;
     public uint Experience { get; set; }
