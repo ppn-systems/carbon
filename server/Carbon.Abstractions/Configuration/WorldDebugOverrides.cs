@@ -1,5 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System.Collections.Generic;
+
 namespace Carbon.Abstractions.Configuration;
 
 /// <summary>
@@ -38,6 +40,9 @@ public sealed record WorldDebugOverrides
     /// </summary>
     public bool ForgeKit { get; init; }
 
+    /// <summary>Gets extra items granted to newly created characters (screenshots of enhanced gear, ADR-020).</summary>
+    public IReadOnlyList<DebugStarterItem> StarterItems { get; init; } = [];
+
     /// <summary>
     /// Gets a value indicating whether new characters start with their gear worn to 40 % durability, for screenshot
     /// review of the blacksmith's repair mode (ADR-025).
@@ -46,5 +51,5 @@ public sealed record WorldDebugOverrides
 
     /// <summary>Gets a value indicating whether any override is set.</summary>
     public bool IsActive => this.SpawnTile.HasValue || this.SpawnBiome is not null || this.SpawnPoi is not null || this.StartHour.HasValue ||
-        this.SpawnOffset != default || this.ForgeKit || this.WornGear;
+        this.SpawnOffset != default || this.ForgeKit || this.StarterItems.Count > 0 || this.WornGear;
 }

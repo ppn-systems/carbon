@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Contracts.Common;
@@ -32,7 +31,6 @@ using Carbon.Maps.Streaming;
 using Carbon.Maps.Topography;
 using Silk.NET.OpenGL;
 using Carbon.Desktop.Rendering.Camera;
-using Carbon.Desktop.Rendering.Capture;
 using Carbon.Desktop.Rendering.World;
 
 namespace Carbon.Desktop.Scenes;
@@ -54,6 +52,7 @@ public sealed class WorldGameplayScene : GameScene
     private CameraRig2D? _cameraRig;
     private WorldSceneRenderer? _worldRenderer;
     private HudOverlayRenderer? _hudRenderer;
+    private TradeInteraction? _trade;
     private Task? _pendingLogoutTask;
 
     private BiomeType _lastBiome = (BiomeType)255;
@@ -64,11 +63,10 @@ public sealed class WorldGameplayScene : GameScene
     private Vector2 _mouseScreenPosition;
     private Vector2 _mouseWorldPosition;
     private int _frameCount;
-    private int _capturedAtFrame;
     private int _carriedInventorySlot = -1;
     private Vector2 _pressStartMousePos;
     private bool _isHoldDragging;
-    private bool _hasAutoCaptured;
+    private readonly AutoCapture _capture;
     private bool _forgePreviewStarted;
 
     /// <summary>
@@ -82,6 +80,7 @@ public sealed class WorldGameplayScene : GameScene
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        _capture = new AutoCapture(options);
         _camera = camera ?? throw new ArgumentNullException(nameof(camera));
     }
 
@@ -95,6 +94,7 @@ public sealed class WorldGameplayScene : GameScene
         _cameraRig.Resize(context.WindowWidth, context.WindowHeight);
         _worldRenderer = new WorldSceneRenderer(context.Device, _options);
         _hudRenderer = new HudOverlayRenderer(context.Device, _worldRenderer.VectorArt);
+        _trade = new TradeInteraction(_session, _hudRenderer, _options, IsTraderNpc, this.OpenForgeWindow);
         if (!_options.MacroView)
         {
             this.ApplyZoomPreset(_hudRenderer.Settings.CameraZoomPreset);
@@ -167,28 +167,28 @@ public sealed class WorldGameplayScene : GameScene
             return;
         }
 
-        // Checked before the modal early-returns below, so a capture with CARBON_CAPTURE_MODAL still exits.
-        if (_options.AutoExit && _hasAutoCaptured && _frameCount >= _capturedAtFrame + 5 + _options.CaptureFrames)
-        {
-            context.Window.Close();
-            return;
-        }
-
         _cameraRig.Resize(context.WindowWidth, context.WindowHeight);
         DesktopInputFrame input = DesktopInputController.Poll(context.Input);
         _mouseScreenPosition = input.MouseScreenPosition;
         _mouseWorldPosition = _camera.ScreenToWorld(in _mouseScreenPosition);
+        if (_options.UiPreview is { Length: > 0 } preview)
+        {
+            this.ApplyUiPreview(preview, context.WindowWidth, context.WindowHeight);
+        }
 
         if (input.EscapePressed)
         {
-            if (_hudRenderer.ShowSettingsModal)
+            if (_hudRenderer.InventoryDialog.IsOpen)
+            {
+                _hudRenderer.InventoryDialog.Close();
+            }
+            else if (_hudRenderer.ShowSettingsModal)
             {
                 _hudRenderer.ShowSettingsModal = false;
             }
             else if (_hudRenderer.HasActiveModal)
             {
                 _hudRenderer.CloseAllModals();
-                _session.CloseTrader();
                 this.ResetInventoryDragState();
             }
             else if (_session.LockedTargetNetworkId != 0UL)
@@ -201,19 +201,7 @@ public sealed class WorldGameplayScene : GameScene
             }
         }
 
-        // The trader window (ADR-025) shows while the server's stock is held; another window or walking away closes it.
-        if (_session.ActiveTrader is TraderView openTrader &&
-            (_hudRenderer.ShowPlayerModal || _hudRenderer.ShowForgeModal || !IsTraderStillNear(_session, openTrader.TraderNetworkId)))
-        {
-            _session.CloseTrader();
-        }
-
-        _hudRenderer.ShowTradeModal = _session.ActiveTrader is not null;
-        if (!_hudRenderer.ShowTradeModal)
-        {
-            _hudRenderer.TradeRepairMode = false;
-        }
-
+        _trade?.Sync(_frameCount);
         if (_hudRenderer.ShowSettingsModal)
         {
             if (input.LeftClickPressed)
@@ -319,7 +307,11 @@ public sealed class WorldGameplayScene : GameScene
 
         if (input.ScrollSlotDelta != 0)
         {
-            if (_hudRenderer.ShowPlayerModal && _hudRenderer.ActivePlayerTab == PlayerModalTab.Crafting)
+            if (_hudRenderer.InventoryDialog.IsOpen)
+            {
+                _hudRenderer.InventoryDialog.Adjust(-input.ScrollSlotDelta);
+            }
+            else if (_hudRenderer.ShowPlayerModal && _hudRenderer.ActivePlayerTab == PlayerModalTab.Crafting)
             {
                 _hudRenderer.ScrollCrafting(input.ScrollSlotDelta);
             }
@@ -334,12 +326,22 @@ public sealed class WorldGameplayScene : GameScene
             }
         }
 
-        if (input.NumberSlotPressed is byte slotIdx)
+        if (input.NumberSlotPressed is byte slotIdx && !this.TryBindHoveredSlotToHotbar(slotIdx, input.MouseScreenPosition, context.WindowWidth, context.WindowHeight))
         {
             _session.SelectHotbarSlot(slotIdx);
         }
 
-        if (_hudRenderer.ShowPlayerModal)
+        if (!_hudRenderer.ShowPlayerModal || _hudRenderer.ActivePlayerTab != PlayerModalTab.Inventory)
+        {
+            _hudRenderer.InventoryDialog.Close();
+        }
+
+        if (_hudRenderer.ShowPlayerModal && _hudRenderer.InventoryDialog.IsOpen && _hudRenderer.ActivePlayerTab == PlayerModalTab.Inventory)
+        {
+            this.HandleInventoryTabInput(in input, context.WindowWidth, context.WindowHeight);
+            _hudRenderer.CarriedInventorySlot = _carriedInventorySlot;
+        }
+        else if (_hudRenderer.ShowPlayerModal)
         {
             Vector2 mouseScreen = input.MouseScreenPosition;
             if (input.LeftClickPressed &&
@@ -430,9 +432,9 @@ public sealed class WorldGameplayScene : GameScene
                 }
             }
         }
-        else if (_hudRenderer.ShowTradeModal)
+        else if (_hudRenderer.Trader is not null)
         {
-            this.HandleTradeWindowInput(input, context.WindowWidth, context.WindowHeight);
+            _trade?.HandleWindowInput(input, context.WindowWidth, context.WindowHeight);
         }
         else
         {
@@ -452,14 +454,8 @@ public sealed class WorldGameplayScene : GameScene
                 else
                 {
                     Vector2 aimWorld = _camera.ScreenToWorld(in mouseScreen);
-                    bool openedForgeNpc = false;
+                    bool openedForgeNpc = _trade?.TryClick(aimWorld) ?? false;
                     IReadOnlyList<RemoteEntityView> remotes = _session.RemoteEntities;
-                    if (TryFindTraderUnderCursor(remotes, aimWorld, out ulong clickedTrader))
-                    {
-                        openedForgeNpc = _session.TryOpenTrader(clickedTrader);
-                    }
-
-                    // The blacksmith is a trader too: his window offers Enhance, so the click does not also open the forge.
                     for (int i = 0; !openedForgeNpc && i < remotes.Count; i++)
                     {
                         RemoteEntityView entity = remotes[i];
@@ -548,14 +544,7 @@ public sealed class WorldGameplayScene : GameScene
 
             if (input.InteractOrPickupPressed)
             {
-                if (_session.TryPickupNearbyLoot())
-                {
-                }
-                else if (TryFindNearestTrader(_session.RemoteEntities, _session.LocalPlayerInterpolatedPosition, TraderTalkRadius, out ulong nearTrader))
-                {
-                    _ = _session.TryOpenTrader(nearTrader);
-                }
-                else if (!_session.TryToggleNearbyDoor(out _) && _session.IsNearForgeStation())
+                if (!_session.TryPickupNearbyLoot() && _trade?.TryTalk() != true && !_session.TryToggleNearbyDoor(out _) && _session.IsNearForgeStation())
                 {
                     this.ToggleForgeStationModal();
                 }
@@ -584,9 +573,9 @@ public sealed class WorldGameplayScene : GameScene
             }
         }
 
-        if (input.DropItemPressed && _hudRenderer.ShowPlayerModal && _carriedInventorySlot >= 0)
+        if (input.DropItemPressed && _hudRenderer.ShowPlayerModal && _carriedInventorySlot >= 0 && !_hudRenderer.InventoryDialog.IsOpen)
         {
-            _ = _session.TryDropInventoryItem((ushort)_carriedInventorySlot, 1);
+            _ = this.RequestDrop(_carriedInventorySlot, 1);
             Span<ItemSlot> afterDrop = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
             _session.CopyInventorySlots(afterDrop);
             if (_carriedInventorySlot >= afterDrop.Length || afterDrop[_carriedInventorySlot].Quantity <= 1)
@@ -603,7 +592,7 @@ public sealed class WorldGameplayScene : GameScene
 
         if (input.ScreenshotPressed)
         {
-            this.CaptureScreenshot(context.Window, _options.ScreenshotPath);
+            AutoCapture.Capture(context.Window, _options.ScreenshotPath);
         }
 
         if (input.ZoomMultiplier.HasValue)
@@ -639,18 +628,6 @@ public sealed class WorldGameplayScene : GameScene
         bool inside = _worldRenderer.TryGetBuildingAt(playerPos, out RectangleF room);
         float rateDt = _options.CaptureFrames > 0 ? 1f / 15f : (float)dt;
         _cameraRig.Update(playerPos, inside, in room, rateDt);
-
-        // Screenshot tool: open the nearest trader once its NPC has replicated (CARBON_OPEN_TRADER).
-        if (_options.OpenTrader && _session.ActiveTrader is null && _frameCount >= 6 && _frameCount % 10 == 6 &&
-            TryFindNearestTrader(_session.RemoteEntities, playerPos, TraderWindowRadius, out ulong autoTrader))
-        {
-            _ = _session.TryOpenTrader(autoTrader);
-        }
-
-        if (_options.OpenTraderRepair && _session.ActiveTrader is { CanRepair: true } && !_hasAutoCaptured)
-        {
-            _hudRenderer.TradeRepairMode = true;
-        }
     }
 
     /// <inheritdoc/>
@@ -697,20 +674,7 @@ public sealed class WorldGameplayScene : GameScene
             _hudRenderer.OpenSettings(string.Equals(_options.CaptureModal, "controls", StringComparison.Ordinal) ? 1 : 0);
         }
 
-        bool waitingForTrader = _options.OpenTrader && _session.ActiveTrader is null && _frameCount < 150;
-        if (_frameCount >= 20 && !_hasAutoCaptured && !waitingForTrader)
-        {
-            _hasAutoCaptured = true;
-            _capturedAtFrame = _frameCount;
-            this.CaptureScreenshot(context.Window, _options.ScreenshotPath);
-        }
-        else if (_options.CaptureFrames > 0 && _hasAutoCaptured && _frameCount > _capturedAtFrame && _frameCount <= _capturedAtFrame + _options.CaptureFrames)
-        {
-            string path = Path.Combine(
-                Path.GetDirectoryName(_options.ScreenshotPath) ?? string.Empty,
-                $"{Path.GetFileNameWithoutExtension(_options.ScreenshotPath)}_{_frameCount - _capturedAtFrame:D3}.bmp");
-            ScreenshotHelper.Capture(context.Device.Gl, context.WindowWidth, context.WindowHeight, path);
-        }
+        _capture.AfterFrame(context, _frameCount, _trade?.IsCaptureWaiting(_frameCount) == true);
 
         GLEnum glError = context.Device.Gl.GetError();
         if (glError != GLEnum.NoError)
@@ -752,6 +716,25 @@ public sealed class WorldGameplayScene : GameScene
         Span<ItemSlot> invSlots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         _session.CopyInventorySlots(invSlots);
 
+        if (this.HandleInventoryDialogInput(in input, invSlots, viewportWidth, viewportHeight))
+        {
+            return;
+        }
+
+        if (input.DeletePressed)
+        {
+            int target = _carriedInventorySlot >= 0
+                ? _carriedInventorySlot
+                : (_hudRenderer.TryHitTestInventorySlot(mouseScreen, viewportWidth, viewportHeight, out ushort hoverSlot) ? hoverSlot : -1);
+            if (target >= 0 && target < invSlots.Length && !invSlots[target].IsEmpty)
+            {
+                this.ResetInventoryDragState();
+                _hudRenderer.InventoryDialog.OpenConfirmDestroy(target, in invSlots[target]);
+            }
+
+            return;
+        }
+
         if (_carriedInventorySlot < 0)
         {
             if (input.LeftClickPressed)
@@ -762,9 +745,26 @@ public sealed class WorldGameplayScene : GameScene
                     return;
                 }
 
+                if (_hudRenderer.TryHitTestInventorySortButton(mouseScreen, viewportWidth, viewportHeight))
+                {
+                    if (_session.TrySortInventory())
+                    {
+                        _hudRenderer.PushNotification(GameText.Get("inventory.sorted"));
+                    }
+
+                    return;
+                }
+
                 if (_hudRenderer.TryHitTestInventorySlot(mouseScreen, viewportWidth, viewportHeight, out ushort clickedSlot))
                 {
-                    if (input.ShiftHeld)
+                    if (input.CtrlHeld && clickedSlot < invSlots.Length)
+                    {
+                        if (!_hudRenderer.InventoryDialog.OpenSplit(clickedSlot, in invSlots[clickedSlot]))
+                        {
+                            _hudRenderer.PushNotification(GameText.Get("inventory.split.needs_stack"));
+                        }
+                    }
+                    else if (input.ShiftHeld)
                     {
                         _ = _session.TryQuickMoveInventorySlot(clickedSlot);
                     }
@@ -792,8 +792,9 @@ public sealed class WorldGameplayScene : GameScene
                 _isHoldDragging = false;
                 if (!_hudRenderer.IsPointInActiveModal(_session, mouseScreen, viewportWidth, viewportHeight))
                 {
-                    _ = _session.TryDropInventoryItem((ushort)_carriedInventorySlot, -1);
+                    int dropSlot = _carriedInventorySlot;
                     this.ResetInventoryDragState();
+                    _ = this.RequestDrop(dropSlot, -1);
                 }
                 else if (_hudRenderer.TryHitTestInventorySlot(mouseScreen, viewportWidth, viewportHeight, out ushort releaseSlot) &&
                          releaseSlot != _carriedInventorySlot)
@@ -815,8 +816,9 @@ public sealed class WorldGameplayScene : GameScene
         {
             if (!_hudRenderer.IsPointInActiveModal(_session, mouseScreen, viewportWidth, viewportHeight))
             {
-                _ = _session.TryDropInventoryItem((ushort)_carriedInventorySlot, -1);
+                int dropSlot = _carriedInventorySlot;
                 this.ResetInventoryDragState();
+                _ = this.RequestDrop(dropSlot, -1);
             }
             else if (_hudRenderer.TryHitTestInventorySlot(mouseScreen, viewportWidth, viewportHeight, out ushort targetSlot))
             {
@@ -837,8 +839,11 @@ public sealed class WorldGameplayScene : GameScene
             if (!_hudRenderer.IsPointInActiveModal(_session, mouseScreen, viewportWidth, viewportHeight))
             {
                 int currentQty = _carriedInventorySlot < invSlots.Length ? invSlots[_carriedInventorySlot].Quantity : 0;
-                _ = _session.TryDropInventoryItem((ushort)_carriedInventorySlot, 1);
-                if (currentQty <= 1)
+                if (this.RequestDrop(_carriedInventorySlot, 1))
+                {
+                    this.ResetInventoryDragState();
+                }
+                else if (currentQty <= 1)
                 {
                     this.ResetInventoryDragState();
                 }
@@ -846,6 +851,145 @@ public sealed class WorldGameplayScene : GameScene
             else
             {
                 this.ResetInventoryDragState();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Drops <paramref name="quantity"/> of <paramref name="slotIndex"/>, or opens the confirmation first for rare,
+    /// enhanced or equipped items (ADR-020). Returns <see langword="true"/> when the confirmation opened.
+    /// </summary>
+    private bool RequestDrop(int slotIndex, int quantity)
+    {
+        if (_hudRenderer is null || slotIndex < 0 || slotIndex >= PlayerInventoryLayout.TotalCapacity)
+        {
+            return false;
+        }
+
+        Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
+        _session.CopyInventorySlots(slots);
+        ItemSlot item = slots[slotIndex];
+        if (InventoryActionPolicy.RequiresDropConfirmation(_session.Items.Rules, in item, slotIndex))
+        {
+            _hudRenderer.InventoryDialog.OpenConfirmDrop(slotIndex, in item, quantity);
+            return true;
+        }
+
+        _ = _session.TryDropInventoryItem((ushort)slotIndex, quantity);
+        return false;
+    }
+
+    /// <summary>Routes input to the open split/confirm dialog. Returns <see langword="true"/> when the dialog took the frame.</summary>
+    private bool HandleInventoryDialogInput(in DesktopInputFrame input, ReadOnlySpan<ItemSlot> slots, int viewportWidth, int viewportHeight)
+    {
+        InventoryDialogState dialog = _hudRenderer!.InventoryDialog;
+        if (!dialog.IsOpen)
+        {
+            return false;
+        }
+
+        if (dialog.SlotIndex < 0 || dialog.SlotIndex >= slots.Length || dialog.IsStale(in slots[dialog.SlotIndex]))
+        {
+            dialog.Close();
+            return true;
+        }
+
+        InventoryDialogButton button = input.LeftClickPressed
+            ? _hudRenderer.HitTestInventoryDialog(input.MouseScreenPosition, viewportWidth, viewportHeight)
+            : InventoryDialogButton.Body;
+        if (input.ConfirmPressed)
+        {
+            button = InventoryDialogButton.Confirm;
+        }
+
+        switch (button)
+        {
+            case InventoryDialogButton.Minus:
+                dialog.Adjust(input.ShiftHeld ? -10 : -1);
+                break;
+            case InventoryDialogButton.Plus:
+                dialog.Adjust(input.ShiftHeld ? 10 : 1);
+                break;
+            case InventoryDialogButton.Confirm:
+                ushort slot = (ushort)dialog.SlotIndex;
+                _ = dialog.Kind switch
+                {
+                    InventoryDialogKind.Split => _session.TrySplitInventorySlot(slot, dialog.Quantity),
+                    InventoryDialogKind.ConfirmDrop => _session.TryDropInventoryItem(slot, dialog.Quantity),
+                    InventoryDialogKind.ConfirmDestroy => _session.TryDestroyInventoryItem(slot, dialog.Quantity),
+                    InventoryDialogKind.None or _ => false,
+                };
+                dialog.Close();
+                break;
+            case InventoryDialogButton.Cancel:
+            case InventoryDialogButton.None when input.LeftClickPressed:
+                dialog.Close();
+                break;
+            case InventoryDialogButton.None:
+            case InventoryDialogButton.Body:
+            default:
+                break;
+        }
+
+        return true;
+    }
+
+    /// <summary>With the inventory open, "hover a slot and press 1..9" puts that item on the hotbar slot (ADR-020).</summary>
+    private bool TryBindHoveredSlotToHotbar(byte hotbarIndex, Vector2 mouseScreen, int viewportWidth, int viewportHeight)
+    {
+        if (_hudRenderer is null ||
+            _hudRenderer.InventoryDialog.IsOpen ||
+            !_hudRenderer.TryHitTestInventorySlot(mouseScreen, viewportWidth, viewportHeight, out ushort hovered))
+        {
+            return false;
+        }
+
+        Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
+        _session.CopyInventorySlots(slots);
+        if (!InventoryActionPolicy.TryResolveHotbarBind(slots, hovered, hotbarIndex, out ushort from, out ushort to))
+        {
+            return hovered < slots.Length && !slots[hovered].IsEmpty;
+        }
+
+        this.ResetInventoryDragState();
+        _ = _session.TryMoveInventorySlot(from, to);
+        return true;
+    }
+
+    /// <summary>Opens the inventory UI state named by <c>CARBON_UI_PREVIEW</c> for screenshots (client-only, visual).</summary>
+    private void ApplyUiPreview(string preview, int viewportWidth, int viewportHeight)
+    {
+        if (_hudRenderer is null || !preview.StartsWith("inventory", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _hudRenderer.ShowPlayerModal = true;
+        _hudRenderer.ActivePlayerTab = PlayerModalTab.Inventory;
+        int colon = preview.IndexOf(':', StringComparison.Ordinal);
+        if (colon < 0 ||
+            !int.TryParse(preview.AsSpan(colon + 1), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int slot) ||
+            slot < 0 || slot >= PlayerInventoryLayout.TotalCapacity)
+        {
+            return;
+        }
+
+        Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
+        _session.CopyInventorySlots(slots);
+        string mode = preview[..colon];
+        if (mode == "inventory-tooltip")
+        {
+            _mouseScreenPosition = HudOverlayRenderer.GetInventorySlotCenter(slot, viewportWidth, viewportHeight);
+        }
+        else if (!_hudRenderer.InventoryDialog.IsOpen && !slots[slot].IsEmpty)
+        {
+            if (mode == "inventory-split")
+            {
+                _ = _hudRenderer.InventoryDialog.OpenSplit(slot, in slots[slot]);
+            }
+            else if (mode == "inventory-destroy")
+            {
+                _hudRenderer.InventoryDialog.OpenConfirmDestroy(slot, in slots[slot]);
             }
         }
     }
@@ -929,125 +1073,14 @@ public sealed class WorldGameplayScene : GameScene
         }
 
         _hudRenderer.CloseAllModals();
-        _session.CloseTrader();
         this.ResetInventoryDragState();
         _hudRenderer.ShowForgeModal = true;
         return true;
     }
 
-    // Trade window clicks: a stock row buys 1 (Shift: 5), a bag item sells 1 (Shift: the whole stack), X or outside closes.
-    private void HandleTradeWindowInput(DesktopInputFrame input, int width, int height)
-    {
-        if (!input.LeftClickPressed || _hudRenderer is null)
-        {
-            return;
-        }
-
-        Vector2 mouse = input.MouseScreenPosition;
-        if (_hudRenderer.TryHitTestModalCloseButton(mouse, width, height) || !_hudRenderer.IsPointInActiveModal(_session, mouse, width, height))
-        {
-            _session.CloseTrader();
-            _hudRenderer.ShowTradeModal = false;
-            return;
-        }
-
-        // Blacksmith (ADR-025 D17): Repair toggles repair mode; Enhance hands off to the forge window (ADR-024).
-        if (_hudRenderer.HitTradeRepairButton(_session, mouse, width, height))
-        {
-            _hudRenderer.TradeRepairMode = !_hudRenderer.TradeRepairMode;
-            return;
-        }
-
-        if (_hudRenderer.HitTradeEnhanceButton(_session, mouse, width, height))
-        {
-            _ = this.OpenForgeWindow();
-            return;
-        }
-
-        int stockRow = _hudRenderer.HitTradeStockRow(_session, mouse, width, height);
-        if (stockRow >= 0)
-        {
-            _ = _session.TryTraderBuy((byte)stockRow, input.ShiftHeld ? (ushort)5 : (ushort)1);
-            return;
-        }
-
-        int bagSlot = _hudRenderer.HitTradeBagSlot(_session, mouse, width, height);
-        if (bagSlot >= 0 && _hudRenderer.TradeRepairMode)
-        {
-            _ = _session.TryTraderRepair((ushort)bagSlot);
-        }
-        else if (bagSlot >= 0)
-        {
-            Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
-            _session.CopyInventorySlots(slots);
-            ushort quantity = input.ShiftHeld ? (ushort)Math.Max(1, slots[bagSlot].Quantity) : (ushort)1;
-            _ = _session.TryTraderSell((ushort)bagSlot, quantity);
-        }
-    }
-
-    // --- Village traders (ADR-025): which trader the player can talk to, and when its window closes. ---
-
-    /// <summary>UI: distance in world pixels within which the interact key opens a trader (the server re-checks 175 px).</summary>
-    private const float TraderTalkRadius = 150f;
-
-    /// <summary>UI: distance in world pixels beyond which an open trade window closes.</summary>
-    private const float TraderWindowRadius = 190f;
-
-    /// <summary>Gets whether an NPC archetype trades.</summary>
+    /// <summary>Gets whether an NPC archetype trades (the village and sanctuary traders, ADR-025).</summary>
     private static bool IsTraderNpc(in RemoteEntityView entity) =>
         entity.Kind == EntityKind.Npc && WorldActorCatalog.GetNpcSpec(entity.ArchetypeId).Capabilities.HasFlag(NpcCapabilities.Trader);
-
-    /// <summary>Finds the nearest trader NPC within <paramref name="reach"/> of <paramref name="position"/>.</summary>
-    private static bool TryFindNearestTrader(IReadOnlyList<RemoteEntityView> remotes, Vector2 position, float reach, out ulong networkId)
-    {
-        networkId = 0UL;
-        float best = reach * reach;
-        for (int i = 0; i < remotes.Count; i++)
-        {
-            RemoteEntityView entity = remotes[i];
-            float d = Vector2.DistanceSquared(position, entity.Position);
-            if (IsTraderNpc(in entity) && d <= best)
-            {
-                best = d;
-                networkId = entity.NetworkId;
-            }
-        }
-
-        return networkId != 0UL;
-    }
-
-    /// <summary>Finds the trader NPC under the cursor (24 px).</summary>
-    private static bool TryFindTraderUnderCursor(IReadOnlyList<RemoteEntityView> remotes, Vector2 aimWorld, out ulong networkId)
-    {
-        for (int i = 0; i < remotes.Count; i++)
-        {
-            RemoteEntityView entity = remotes[i];
-            if (IsTraderNpc(in entity) && Vector2.DistanceSquared(aimWorld, entity.Position) <= 24f * 24f)
-            {
-                networkId = entity.NetworkId;
-                return true;
-            }
-        }
-
-        networkId = 0UL;
-        return false;
-    }
-
-    /// <summary>Gets whether the open trader is still visible and close enough to keep its window open.</summary>
-    private static bool IsTraderStillNear(IWorldSession session, ulong traderNetworkId)
-    {
-        IReadOnlyList<RemoteEntityView> remotes = session.RemoteEntities;
-        Vector2 me = session.LocalPlayerInterpolatedPosition;
-        for (int i = 0; i < remotes.Count; i++)
-        {
-            if (remotes[i].NetworkId == traderNetworkId)
-            {
-                return Vector2.DistanceSquared(me, remotes[i].Position) <= TraderWindowRadius * TraderWindowRadius;
-            }
-        }
-
-        return false;
-    }
 
     private void UpdateTelemetry(IGameWindow window, int ptx, int pty)
     {
@@ -1098,19 +1131,6 @@ public sealed class WorldGameplayScene : GameScene
             _lastChunk = (chunkX, chunkY);
             Console.WriteLine($"[ChunkStream] Chunk ({chunkX}, {chunkY}) | Active: {chunkWorld.LoadedChunkCount} | Pooled: {chunkWorld.PooledChunkCount}");
             _worldRenderer?.EvictDistant(chunkX, chunkY, 7);
-        }
-    }
-
-    private void CaptureScreenshot(IGameWindow window, string filePath)
-    {
-        try
-        {
-            ScreenshotHelper.Capture(window.Device.Gl, window.Width, window.Height, filePath);
-            Console.WriteLine($"[Screenshot] Saved capture to: {filePath}");
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
-        {
-            Console.WriteLine($"[Screenshot Error] {ex.Message}");
         }
     }
 }

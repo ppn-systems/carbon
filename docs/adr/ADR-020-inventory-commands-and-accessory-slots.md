@@ -52,6 +52,10 @@ can move, drop, upgrade, repair and sell, and every mutation is tick-queued (ADR
    `InventoryContainer.TryAdd`), matching `InventoryDraft.Add` (INV-2).
 7. **D7 — Client confirmation is a client concern.** Drop and destroy confirmation, the split dialog, rarity borders and
    tooltips live in the desktop client. The server trusts nothing from them beyond the request fields above.
+8. **D8 — Enhancement tiers are a client data table.** `EnhancementTierStyles` maps `UpgradeLevel` to a tier (fill,
+   badge accent, glow, shimmer). Rarity is the slot border and enhancement is the fill and badge, so the two never
+   compete. Screenshots seed enhanced gear with the Debug-only `CARBON_DEBUG_STARTER_ITEMS` host variable (Release
+   hosts ignore it, like the other `CARBON_DEBUG_*` overrides).
 
 ## Alternatives Considered
 

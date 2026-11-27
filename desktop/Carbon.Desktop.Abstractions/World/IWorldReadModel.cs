@@ -188,9 +188,6 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile
     /// <summary>Copies the player's inventory slots into <paramref name="destination"/> under session synchronization.</summary>
     void CopyInventorySlots(Span<ItemSlot> destination);
 
-    /// <summary>Gets the open trader window's stock (ADR-025), or <see langword="null"/> when no trader is open.</summary>
-    TraderView? ActiveTrader { get; }
-
     /// <summary>Returns <see langword="true"/> when a Blacksmith NPC or placed <c>ForgeAnvil</c> is nearby.</summary>
     bool IsNearForgeStation(float maxDistance = 175f);
 

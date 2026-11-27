@@ -86,6 +86,11 @@ public sealed partial class ServerAuthorityTests
         // NEW after the guard was written: added in #30 (creatures, owned by a parallel agent). Uses archetype id
         // constants only, to pick an attack clip. Audit SA-1c: declare the clip in the monster .cvg.json instead.
         "desktop/Carbon.Desktop.Rendering/VectorArt/MonsterAttackAnimator.cs|WorldActorCatalog",
+
+        // MOVED, not new (ADR-020): the inventory tooltip's +N stat multiplier and effective max durability were computed
+        // in InventoryModalWidget (allowlisted above) and now live in the cached tooltip builder. Same calls. Audit
+        // SA-1: sync the enhancement curve from the server and drop both entries.
+        "desktop/Carbon.Desktop.Rendering/Hud/ItemTooltipBuilder.cs|ItemEnhancementPolicy",
     };
 
     /// <summary>
@@ -100,7 +105,7 @@ public sealed partial class ServerAuthorityTests
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.cs|WalkSpeed",
 
         // Visual only: terrain apron mesh extent ("reach" is a false positive).
-        "desktop/Carbon.Desktop.Rendering/World/ChunkTerrainRenderer.cs|apronReach",
+        "desktop/Carbon.Desktop.Rendering/World/ChunkGeometryBaker.cs|apronReach",
 
         // Hunger state code mirrored from the survival enum (#14), used for HUD labels. Not a balance number,
         // but a duplicated wire value. Audit: use the shared HungerState enum from contracts.

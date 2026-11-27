@@ -45,7 +45,6 @@ public sealed class HudOverlayRenderer : IDisposable
     private readonly CraftingModalWidget _craftModal = new();
     private readonly ClassSkillsModalWidget _skillsModal = new();
     private readonly ForgeAnvilModalWidget _forgeModal = new();
-    private readonly TradeModalWidget _tradeModal = new();
     private readonly SettingsModalWidget _settingsModal = new();
     private readonly ToastFeedWidget _toasts = new();
     private readonly List<SkillDefinition> _skillScratch = new(8);
@@ -88,22 +87,18 @@ public sealed class HudOverlayRenderer : IDisposable
     /// <summary>Gets or sets whether the Blacksmith Forge Anvil modal is open.</summary>
     public bool ShowForgeModal { get; set; }
 
-    /// <summary>Gets or sets whether the trader window is open (the scene mirrors <c>IWorldReadModel.ActiveTrader</c>).</summary>
-    public bool ShowTradeModal { get; set; }
+    /// <summary>Gets or sets the open trader window's stock (ADR-025), or <see langword="null"/> when it is closed.</summary>
+    public TraderView? Trader { get; set; }
 
     /// <summary>Gets or sets whether the blacksmith's trade window is in repair mode (bag clicks repair instead of sell).</summary>
-    public bool TradeRepairMode
-    {
-        get => _tradeModal.RepairMode;
-        set => _tradeModal.RepairMode = value;
-    }
+    public bool TradeRepairMode { get; set; }
 
     /// <summary>Gets or sets whether the System Settings &amp; Controls modal is open.</summary>
     public bool ShowSettingsModal { get; set; }
 
     /// <summary>Gets whether any full-screen modal (Player Window, Forge, or Settings) is open.</summary>
     public bool HasActiveModal =>
-        this.ShowPlayerModal || this.ShowForgeModal || this.ShowSettingsModal || this.ShowTradeModal;
+        this.ShowPlayerModal || this.ShowForgeModal || this.ShowSettingsModal || this.Trader is not null;
 
     /// <summary>Gets or sets the inventory slot index currently held/carried by the cursor, or <c>-1</c>.</summary>
     public int CarriedInventorySlot
@@ -111,6 +106,9 @@ public sealed class HudOverlayRenderer : IDisposable
         get => _bagModal.CarriedSlot;
         set => _bagModal.CarriedSlot = value;
     }
+
+    /// <summary>Gets the inventory split/confirm dialog state (ADR-020).</summary>
+    public InventoryDialogState InventoryDialog => _bagModal.Dialog;
 
     /// <summary>Gets or sets whether the HUD overlay is visible.</summary>
     public bool Visible { get; set; } = true;
@@ -170,7 +168,7 @@ public sealed class HudOverlayRenderer : IDisposable
     {
         this.ShowPlayerModal = false;
         this.ShowForgeModal = false;
-        this.ShowTradeModal = false;
+        this.Trader = null;
         if (!keepSettings)
         {
             this.ShowSettingsModal = false;
@@ -300,9 +298,9 @@ public sealed class HudOverlayRenderer : IDisposable
             return _forgeModal.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight);
         }
 
-        if (this.ShowTradeModal)
+        if (this.Trader is not null)
         {
-            return _tradeModal.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight);
+            return TradeModalWidget.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight);
         }
 
         return false;
@@ -339,46 +337,12 @@ public sealed class HudOverlayRenderer : IDisposable
             return _forgeModal.ContainsPoint(mousePos, viewportWidth, viewportHeight);
         }
 
-        if (this.ShowTradeModal)
+        if (this.Trader is not null)
         {
-            return _tradeModal.ContainsPoint(mousePos, viewportWidth, viewportHeight);
+            return TradeModalWidget.ContainsPoint(mousePos, viewportWidth, viewportHeight);
         }
 
         return false;
-    }
-
-    /// <summary>Gets the trader stock slot under the mouse in the trade window, or -1.</summary>
-    public int HitTradeStockRow(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
-    {
-        ArgumentNullException.ThrowIfNull(world);
-        return this.Visible && this.ShowTradeModal && world.ActiveTrader is TraderView trader
-            ? _tradeModal.HitStockRow(mousePos, trader, viewportWidth, viewportHeight)
-            : -1;
-    }
-
-    /// <summary>Gets whether the blacksmith's Repair toggle in the trade window is under the mouse.</summary>
-    public bool HitTradeRepairButton(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
-    {
-        ArgumentNullException.ThrowIfNull(world);
-        return this.Visible && this.ShowTradeModal && world.ActiveTrader is TraderView trader &&
-            TradeModalWidget.HitRepairButton(mousePos, trader, viewportWidth, viewportHeight);
-    }
-
-    /// <summary>Gets whether the blacksmith's Enhance button (hand-off to the forge window) is under the mouse.</summary>
-    public bool HitTradeEnhanceButton(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
-    {
-        ArgumentNullException.ThrowIfNull(world);
-        return this.Visible && this.ShowTradeModal && world.ActiveTrader is TraderView trader &&
-            TradeModalWidget.HitEnhanceButton(mousePos, trader, viewportWidth, viewportHeight);
-    }
-
-    /// <summary>Gets the bag slot under the mouse in the trade window, or -1.</summary>
-    public int HitTradeBagSlot(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
-    {
-        ArgumentNullException.ThrowIfNull(world);
-        return this.Visible && this.ShowTradeModal && world.ActiveTrader is not null
-            ? _tradeModal.HitBagSlot(mousePos, world, viewportWidth, viewportHeight)
-            : -1;
     }
 
     /// <summary>Hit-tests screen-space coordinates against the right-edge class skill bar.</summary>
@@ -390,7 +354,24 @@ public sealed class HudOverlayRenderer : IDisposable
             _skillBar.TryHitTestSkill(world, mousePos, viewportWidth, viewportHeight, out skillId);
     }
 
-    /// <summary>Hit-tests screen-space coordinates against any of the 40 slots in the Inventory tab.</summary>
+    /// <summary>Gets the screen-space centre of inventory slot <paramref name="slotIndex"/> (screenshot previews).</summary>
+    public static Vector2 GetInventorySlotCenter(int slotIndex, int viewportWidth, int viewportHeight)
+    {
+        PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
+        RectangleF rect = InventoryModalWidget.GetSlotRectForTesting(in layout, slotIndex);
+        return new Vector2(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.5f));
+    }
+
+    /// <summary>Hit-tests the inventory dialog's buttons.</summary>
+    public InventoryDialogButton HitTestInventoryDialog(Vector2 mousePos, int viewportWidth, int viewportHeight) =>
+        _bagModal.HitTestDialog(mousePos, viewportWidth, viewportHeight);
+
+    /// <summary>Hit-tests the inventory tab's Sort button.</summary>
+    public bool TryHitTestInventorySortButton(Vector2 mousePos, int viewportWidth, int viewportHeight) =>
+        this.Visible && this.ShowPlayerModal && this.ActivePlayerTab == PlayerModalTab.Inventory &&
+        _bagModal.TryHitTestSortButton(mousePos, viewportWidth, viewportHeight);
+
+    /// <summary>Hit-tests screen-space coordinates against any of the 42 slots in the Inventory tab.</summary>
     public bool TryHitTestInventorySlot(Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort slotIndex)
     {
         slotIndex = 0;
@@ -478,7 +459,7 @@ public sealed class HudOverlayRenderer : IDisposable
             _minimap.DrawGeometry(_geometryBatch, world, _art, viewportWidth, ptx, pty);
         }
 
-        int hoveredSlot = _hotbar.DrawGeometry(_geometryBatch, world, _art, feedback, viewportWidth, viewportHeight, bgMouse);
+        int hoveredSlot = _hotbar.DrawGeometry(_geometryBatch, world, _art, feedback, viewportWidth, viewportHeight, bgMouse, _animTime);
         _wallet.DrawGeometry(_geometryBatch, _art, viewportWidth, viewportHeight);
         ushort hoveredSkill = _skillBar.DrawGeometry(_geometryBatch, world, viewportWidth, viewportHeight, bgMouse);
         _geometryBatch.End();
@@ -584,23 +565,9 @@ public sealed class HudOverlayRenderer : IDisposable
                     break;
             }
         }
-        else if (this.ShowTradeModal && world.ActiveTrader is TraderView trader)
+        else if (this.Trader is TraderView trader)
         {
-            _geometryBatch.Begin(screenProj);
-            _geometryBatch.FillRectangle(new RectangleF(0f, 0f, viewportWidth, viewportHeight), new ColorRgba(4, 6, 12, 120));
-            _geometryBatch.End();
-
-            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-            _tradeModal.DrawSkin(spriteBatch, _uiSkin, world, trader, viewportWidth, viewportHeight, mouseScreenPos);
-            spriteBatch.End();
-
-            _geometryBatch.Begin(screenProj);
-            _tradeModal.DrawGeometry(_geometryBatch, world, trader, _art, viewportWidth, viewportHeight);
-            _geometryBatch.End();
-
-            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-            _tradeModal.DrawText(spriteBatch, _font, world, trader, viewportWidth, viewportHeight);
-            spriteBatch.End();
+            TradeModalWidget.Render(spriteBatch, _geometryBatch, _uiSkin, _font, _art, screenProj, world, trader, this.TradeRepairMode, viewportWidth, viewportHeight, mouseScreenPos);
         }
         else if (this.ShowForgeModal)
         {

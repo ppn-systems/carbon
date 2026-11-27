@@ -31,23 +31,8 @@ public interface IGameplayController
     /// <summary>Requests repairing the item in <paramref name="slotIndex"/> at a forge station for gold.</summary>
     bool TryRepairItem(ushort slotIndex);
 
-    /// <summary>Asks to trade with the trader NPC <paramref name="traderNetworkId"/>; the window opens when its stock arrives.</summary>
-    bool TryOpenTrader(ulong traderNetworkId);
-
-    /// <summary>Buys <paramref name="quantity"/> units from stock slot <paramref name="slotIndex"/> of the open trader.</summary>
-    bool TryTraderBuy(byte slotIndex, ushort quantity = 1);
-
-    /// <summary>Sells <paramref name="quantity"/> units from bag slot <paramref name="slotIndex"/> to the open trader.</summary>
-    bool TryTraderSell(ushort slotIndex, ushort quantity = 1);
-
-    /// <summary>
-    /// Repairs the worn gear in bag slot <paramref name="slotIndex"/> at the open blacksmith, for the gold it quoted; the
-    /// window refreshes its quotes once the repair is done.
-    /// </summary>
-    bool TryTraderRepair(ushort slotIndex);
-
-    /// <summary>Closes the trader window.</summary>
-    void CloseTrader();
+    /// <summary>Gets trading with village traders (ADR-025).</summary>
+    ITraderSession Trading { get; }
 
     /// <summary>Attempts to harvest or damage the nearest natural prop beside the local player.</summary>
     bool TryHarvestNearbyProp(out (int ChunkX, int ChunkY) modifiedChunk);
@@ -68,7 +53,7 @@ public interface IGameplayController
     /// <summary>Casts active skill <paramref name="skillId"/> toward <paramref name="aimWorldPosition"/>.</summary>
     bool TryCastSkill(ushort skillId, Vector2 aimWorldPosition);
 
-    /// <summary>Requests moving, swapping, merging, or equipping between inventory slots (<c>0..39</c>).</summary>
+    /// <summary>Requests moving, swapping, merging, or equipping between inventory slots (<c>0..41</c>).</summary>
     bool TryMoveInventorySlot(ushort fromSlot, ushort toSlot);
 
     /// <summary>Right-click quick-equips armor or shuttles an item between backpack and hotbar.</summary>
@@ -82,6 +67,18 @@ public interface IGameplayController
 
     /// <summary>Drops <paramref name="quantity"/> units from <paramref name="slotIndex"/> onto the ground.</summary>
     bool TryDropInventoryItem(ushort slotIndex, int quantity);
+
+    /// <summary>
+    /// Requests moving <paramref name="quantity"/> units of the bag stack in <paramref name="fromSlot"/> into the first
+    /// empty bag slot (ADR-020).
+    /// </summary>
+    bool TrySplitInventorySlot(ushort fromSlot, int quantity);
+
+    /// <summary>Requests a server-side merge and sort of the backpack (ADR-020).</summary>
+    bool TrySortInventory();
+
+    /// <summary>Requests destroying <paramref name="quantity"/> units (<c>&lt;= 0</c> = all) of <paramref name="slotIndex"/> permanently (ADR-020).</summary>
+    bool TryDestroyInventoryItem(ushort slotIndex, int quantity);
 
     /// <summary>Attempts to pick up the closest ground loot item within range.</summary>
     bool TryPickupNearbyLoot();

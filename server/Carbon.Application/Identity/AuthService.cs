@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Carbon.Abstractions.Configuration;
 using Carbon.Abstractions.Identity;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.Security;
@@ -61,6 +62,12 @@ public sealed class AuthService : IAuthService, IDisposable
     /// the thread pool instead of the network I/O thread that called in.
     /// </summary>
     private readonly SemaphoreSlim _hashGate = new(Math.Max(1, Environment.ProcessorCount / 2));
+
+    /// <summary>
+    /// Gets extra items granted to new characters. Set only by Debug hosts from <c>CARBON_DEBUG_STARTER_ITEMS</c>
+    /// (screenshot review); empty otherwise.
+    /// </summary>
+    public IReadOnlyList<DebugStarterItem> DebugStarterItems { get; init; } = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AuthService"/> class.
@@ -253,6 +260,7 @@ public sealed class AuthService : IAuthService, IDisposable
 
         InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
         StarterGameCatalog.GrantStarterLoadout(inv, startingClass);
+        this.GrantDebugStarterItems(inv);
         const byte selectedSlot = 2;
         if (this.DebugForgeKit)
         {
@@ -342,6 +350,34 @@ public sealed class AuthService : IAuthService, IDisposable
         }
 
         RecordFailure(_addressFailures, address, now);
+    }
+
+    private void GrantDebugStarterItems(InventoryContainer inventory)
+    {
+        if (this.DebugStarterItems.Count == 0)
+        {
+            return;
+        }
+
+        ItemRules rules = _itemRules();
+        foreach (DebugStarterItem extra in this.DebugStarterItems)
+        {
+            if (!rules.Items.TryGet(extra.ItemId, out ItemArchetype? def))
+            {
+                continue;
+            }
+
+            ItemSlot slot = new(extra.ItemId, extra.Quantity, 0UL, def.MaxDurability);
+            if (extra.UpgradeLevel > 0)
+            {
+                slot = ItemEnhancementPolicy.WithUpgradeLevel(in slot, extra.UpgradeLevel) with
+                {
+                    Durability = ItemEnhancementPolicy.GetEffectiveMaxDurability(def, extra.UpgradeLevel),
+                };
+            }
+
+            _ = PlayerInventoryLayout.TryAddBagItem(inventory, in slot, rules.GetMaxStackSize(extra.ItemId));
+        }
     }
 
     private (byte[] Hash, byte[] Salt) CreateDummyCredentials()

@@ -509,33 +509,14 @@ public sealed partial class MultiplayerSession
         }
     }
 
-    private static string FormatAuthStatus(AuthStatus status)
+    private static string FormatAuthStatus(AuthStatus status) => status switch
     {
-        if (status == AuthStatus.InvalidCredentials)
-        {
-            return "Invalid username or password.";
-        }
-
-        if (status == AuthStatus.AccountExists)
-        {
-            return "Account username already exists.";
-        }
-
-        if (status == AuthStatus.Locked)
-        {
-            return "Account is banned or locked.";
-        }
-
-        if (status == AuthStatus.InvalidInput)
-        {
-            return "Invalid username or password format.";
-        }
-
-        if (status == AuthStatus.ProtocolMismatch)
-        {
-            return "Client/server protocol version mismatch.";
-        }
-
-        return $"Authentication error ({status}).";
-    }
+        AuthStatus.InvalidCredentials => "Invalid username or password.",
+        AuthStatus.AccountExists => "Account username already exists.",
+        AuthStatus.Locked => "Account is banned or locked.",
+        AuthStatus.InvalidInput => "Invalid username or password format.",
+        AuthStatus.ProtocolMismatch => "Client/server protocol version mismatch.",
+        AuthStatus.Ok => $"Authentication error ({status}).",
+        _ => $"Authentication error ({status}).",
+    };
 }

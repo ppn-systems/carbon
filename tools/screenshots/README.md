@@ -42,6 +42,7 @@ Requirements: the .NET SDK (`$HOME/.dotnet` is added to `PATH`), `xvfb-run`, GLF
 | `CARBON_DEBUG_SPAWN_OFFSET=dx,dy` | Offset in tiles added to the resolved spawn (e.g. far from the starter area). |
 | `CARBON_DEBUG_START_HOUR=h` | The world clock starts at hour `h` (0..24); clients follow the server clock. |
 | `CARBON_DEBUG_FORGE_KIT=1` | New characters start with a +8 iron sword, enhancement materials, protection scrolls and 50,000 gold (forge review). |
+| `CARBON_DEBUG_STARTER_ITEMS=id[xQty][+Level],...` | New characters also get these items (e.g. `3+10,4x40`: a +10 iron sword and 40 logs), to review enhanced gear. |
 | `CARBON_DEBUG_WORN_GEAR=1` | New characters start with their gear worn to 40 % durability (blacksmith repair review). |
 
 These overrides are compiled into Debug builds of the host only (`HostRuntimeOptions.ReadDebugOverrides`);
@@ -58,6 +59,7 @@ they are active.
 | `CARBON_CAPTURE_FRAMES=n` | Also capture `n` consecutive frames after the main capture. |
 | `CARBON_CAPTURE_MODAL=settings\|controls` | Open the Settings window (Display or Controls tab) before the capture, to review localized UI. |
 | `CARBON_FORGE_PREVIEW=<kind>[:s]` | Open the forge window and play one enhancement effect (`charge`, `success`, `nochange`, `downgrade`, `destroyed`), frozen at `s` seconds when given. Visual only: nothing is sent, the server alone rolls outcomes. The `forge_*` scenarios use it. |
+| `CARBON_UI_PREVIEW=<state>` | Open a UI state for review: `inventory`, or `inventory-tooltip:N`, `inventory-split:N`, `inventory-destroy:N` for slot `N` (visual only; nothing is sent to the server). |
 | `CARBON_OPEN_TRADER=1\|repair` | Open the nearest trader's window once its stock arrives (`repair`: a blacksmith's window in repair mode). The `trade_*` scenarios use it. |
 
 `--lang <code>` (or `CARBON_LANG`) sets the client language for every scenario; the code must have a file in
