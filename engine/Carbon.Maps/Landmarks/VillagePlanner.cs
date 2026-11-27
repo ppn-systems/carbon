@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using Carbon.Maps.Building;
 using Carbon.Maps.Settlements;
 
 namespace Carbon.Maps.Landmarks;
@@ -390,7 +391,7 @@ internal sealed class VillagePlanner(VillageStyle style, bool withFields) : ILan
         for (int attempt = 0; attempt < FootprintTries; attempt++)
         {
             ulong seed = c.Seed ^ ((ulong)c.Hash(900 + (order * 16) + attempt) << 32) ^ c.Hash(1900 + (order * 16) + attempt);
-            VillageBuildingTemplate template = VillageBuildingGenerator.Generate(role, seed, compact);
+            VillageBuildingTemplate template = VillageBuildingGenerator.Generate(role, seed, c.Structures, compact);
             if (role != VillageBuildingRole.Stall && built.Exists(t => t.HasSameFootprint(template)))
             {
                 continue; // Every building of a village has its own footprint: roll another.
@@ -778,6 +779,8 @@ internal sealed class VillagePlanner(VillageStyle style, bool withFields) : ILan
         public float Radius => context.Radius;
 
         public ulong Seed => context.Seed ^ (ulong)salt;
+
+        public StructureCatalog Structures => context.Structures;
 
         public int Houses => this.Plots.FindAll(static p => p.Role == VillageBuildingRole.House).Count;
 

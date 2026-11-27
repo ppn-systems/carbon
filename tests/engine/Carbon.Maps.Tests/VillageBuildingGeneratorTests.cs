@@ -10,6 +10,8 @@ namespace Carbon.Maps.Tests;
 
 public sealed class VillageBuildingGeneratorTests
 {
+    private static readonly StructureCatalog s_structures = StructureCatalog.LoadEmbedded();
+
     private const int Seeds = 300;
 
     private static readonly (int Dx, int Dy)[] s_steps = [(1, 0), (-1, 0), (0, 1), (0, -1)];
@@ -22,8 +24,8 @@ public sealed class VillageBuildingGeneratorTests
     {
         for (ulong seed = 1; seed <= 50; seed++)
         {
-            VillageBuildingTemplate a = VillageBuildingGenerator.Generate(role, seed);
-            VillageBuildingTemplate b = VillageBuildingGenerator.Generate(role, seed);
+            VillageBuildingTemplate a = VillageBuildingGenerator.Generate(role, seed, s_structures);
+            VillageBuildingTemplate b = VillageBuildingGenerator.Generate(role, seed, s_structures);
 
             Assert.True(a.HasSameFootprint(b), $"seed {seed} gave two different footprints");
             Assert.Equal(a.Furniture, b.Furniture);
@@ -39,7 +41,7 @@ public sealed class VillageBuildingGeneratorTests
         int lShapes = 0;
         for (ulong seed = 1; seed <= Seeds; seed++)
         {
-            VillageBuildingTemplate t = VillageBuildingGenerator.Generate(VillageBuildingRole.House, seed);
+            VillageBuildingTemplate t = VillageBuildingGenerator.Generate(VillageBuildingRole.House, seed, s_structures);
             _ = sizes.Add((t.Width, t.Height));
             _ = roomCounts.Add(CountRooms(t));
             lShapes += IsLShaped(t) ? 1 : 0;
@@ -62,7 +64,7 @@ public sealed class VillageBuildingGeneratorTests
     {
         for (ulong seed = 1; seed <= Seeds; seed++)
         {
-            VillageBuildingTemplate t = VillageBuildingGenerator.Generate(role, seed);
+            VillageBuildingTemplate t = VillageBuildingGenerator.Generate(role, seed, s_structures);
             int entrances = 0;
             for (int y = 0; y < t.Height; y++)
             {
@@ -102,7 +104,7 @@ public sealed class VillageBuildingGeneratorTests
         StructureCatalog structures = StructureCatalog.LoadEmbedded();
         for (ulong seed = 1; seed <= Seeds; seed++)
         {
-            VillageBuildingTemplate t = VillageBuildingGenerator.Generate(role, seed);
+            VillageBuildingTemplate t = VillageBuildingGenerator.Generate(role, seed, s_structures);
             bool[] blocked = FurnitureMask(t, structures);
             HashSet<(int, int)> reach = Reach(t, blocked);
             for (int y = 0; y < t.Height; y++)
@@ -131,14 +133,14 @@ public sealed class VillageBuildingGeneratorTests
     {
         for (ulong seed = 1; seed <= Seeds; seed++)
         {
-            VillageBuildingTemplate house = VillageBuildingGenerator.Generate(VillageBuildingRole.House, seed);
+            VillageBuildingTemplate house = VillageBuildingGenerator.Generate(VillageBuildingRole.House, seed, s_structures);
             Assert.True(Count(house, StructureType.WoodBed) >= 1, $"{house.Id} (seed {seed}) has no bed");
             Assert.True(Count(house, StructureType.Stove) == 1, $"{house.Id} (seed {seed}) needs one stove to cook on");
             Assert.True(Count(house, StructureType.WoodTable) >= 1, $"{house.Id} (seed {seed}) has no table");
             Assert.Equal(0, Count(house, StructureType.ForgeAnvil));
             Assert.Null(house.NpcSpot);
 
-            VillageBuildingTemplate smithy = VillageBuildingGenerator.Generate(VillageBuildingRole.Smithy, seed);
+            VillageBuildingTemplate smithy = VillageBuildingGenerator.Generate(VillageBuildingRole.Smithy, seed, s_structures);
             Assert.Equal(1, Count(smithy, StructureType.ForgeAnvil));
             Assert.True(smithy.NpcSpot is (int sx, int sy) && NextTo(smithy, StructureType.ForgeAnvil, sx, sy), $"{smithy.Id} (seed {seed}): the smith must stand at the anvil");
 
@@ -147,13 +149,13 @@ public sealed class VillageBuildingGeneratorTests
             Assert.Equal(2, CountCells(smithy, VillageBuildingTemplate.PillarCell));
             Assert.True(Count(smithy, StructureType.Stove) == 1, $"{smithy.Id} (seed {seed}) needs its forge fire");
 
-            VillageBuildingTemplate store = VillageBuildingGenerator.Generate(VillageBuildingRole.Store, seed);
+            VillageBuildingTemplate store = VillageBuildingGenerator.Generate(VillageBuildingRole.Store, seed, s_structures);
             Assert.True(Count(store, StructureType.WoodShelf) >= 2, $"{store.Id} (seed {seed}) has fewer than two shelves");
             Assert.Equal(0, Count(store, StructureType.ForgeAnvil));
             Assert.True(store.NpcSpot is (int tx, int ty) && NextTo(store, StructureType.WoodTable, tx, ty), $"{store.Id} (seed {seed}): the trader must stand at the counter");
             Assert.True(CountCells(store, VillageBuildingTemplate.YardCell) >= 2 * store.Width, $"{store.Id} (seed {seed}): the store has a paved frontage");
 
-            VillageBuildingTemplate storehouse = VillageBuildingGenerator.Generate(VillageBuildingRole.Storehouse, seed);
+            VillageBuildingTemplate storehouse = VillageBuildingGenerator.Generate(VillageBuildingRole.Storehouse, seed, s_structures);
             int storage = Count(storehouse, StructureType.WoodShelf) + Count(storehouse, StructureType.WoodChest);
             Assert.True(storage >= 8, $"{storehouse.Id} (seed {seed}) holds only {storage} shelves and chests");
             Assert.Equal(1, storehouse.RoomCount);
@@ -165,7 +167,7 @@ public sealed class VillageBuildingGeneratorTests
     [Fact]
     public void Generate_Stall_IsOpenWithACounterAndAMerchant()
     {
-        VillageBuildingTemplate stall = VillageBuildingGenerator.Generate(VillageBuildingRole.Stall, 7UL);
+        VillageBuildingTemplate stall = VillageBuildingGenerator.Generate(VillageBuildingRole.Stall, 7UL, s_structures);
 
         Assert.Equal(0, stall.RoomCount);
         Assert.Equal(1, Count(stall, StructureType.MarketStall));

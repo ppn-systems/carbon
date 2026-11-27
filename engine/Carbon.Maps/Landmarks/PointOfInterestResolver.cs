@@ -4,6 +4,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Numerics;
 using Carbon.Maps.Biomes;
+using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Hydrology;
@@ -47,6 +48,7 @@ public sealed class PointOfInterestResolver
     ];
 
     private readonly ulong _seed;
+    private readonly StructureCatalog _structures;
     private readonly ITileSource _tiles;
     private readonly IRiverDistanceSource _rivers;
     private readonly ConcurrentDictionary<long, PointOfInterest> _sites = new();
@@ -58,9 +60,11 @@ public sealed class PointOfInterestResolver
     /// <param name="seed">World seed.</param>
     /// <param name="tiles">Pure tile sampler.</param>
     /// <param name="rivers">Width-scaled distance to rivers and lakes.</param>
-    public PointOfInterestResolver(ulong seed, ITileSource tiles, IRiverDistanceSource rivers)
+    /// <param name="structures">Building catalog whose footprints size village furniture.</param>
+    public PointOfInterestResolver(ulong seed, ITileSource tiles, IRiverDistanceSource rivers, StructureCatalog structures)
     {
         _seed = seed;
+        _structures = structures ?? throw new ArgumentNullException(nameof(structures));
         _tiles = tiles ?? throw new ArgumentNullException(nameof(tiles));
         _rivers = rivers ?? throw new ArgumentNullException(nameof(rivers));
     }
@@ -160,7 +164,7 @@ public sealed class PointOfInterestResolver
         }
 
         TrimQueue(_layouts, _layoutOrder, MaxCachedSites);
-        layout = LandmarkLayout.Build(this.GetSite(siteX, siteY), _tiles, this.Roads);
+        layout = LandmarkLayout.Build(this.GetSite(siteX, siteY), _tiles, _structures, this.Roads);
         if (_layouts.TryAdd(key, layout))
         {
             _layoutOrder.Enqueue(key);

@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json.Nodes;
@@ -10,6 +11,8 @@ using Carbon.Configuration.Catalog;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Networking.Session;
 using Carbon.Maps.Building;
+using Carbon.Maps.Generators;
+using Carbon.Maps.Settlements;
 using FluentAssertions;
 using Xunit;
 
@@ -89,6 +92,25 @@ public sealed class SyncedStructureCatalogTests : IDisposable
         bed.GetFootprint(StructureRotation.North).Should().Be((1, 2));
     }
 
+    [Fact]
+    public async Task CreateWorldGenerator_SyncedCatalogDiffersFromTheBuiltIn_PlansVillagesLikeTheServer()
+    {
+        MultiplayerSession session = this.NewSession();
+        await using (session.ConfigureAwait(true))
+        {
+            FluentActions.Invoking(() => session.CreateWorldGenerator(42UL)).Should().Throw<InvalidOperationException>("villages need the server's structures.json");
+
+            string served = ServerTuned(reachTiles: 4, workbenchWidth: 3);
+            session.ApplyConfigCatalog(Catalog(1, served));
+            ProceduralWorldGenerator client = session.CreateWorldGenerator(42UL);
+
+            // What the server builds with the same served file (AuthoritativeWorld passes its catalog to the generator).
+            ProceduralWorldGenerator server = new(42UL, structures: StructureCatalog.Parse(served));
+            VillagePlots(client).Should().Equal(VillagePlots(server), "client and server plan villages from the same served structures.json");
+            VillagePlots(client).Should().NotEqual(VillagePlots(new ProceduralWorldGenerator(42UL)), "a 3x1 workbench changes the layout, so the synced catalog really reaches the planner");
+        }
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_cacheDirectory))
@@ -109,6 +131,23 @@ public sealed class SyncedStructureCatalogTests : IDisposable
     {
         byte[] utf8 = Encoding.UTF8.GetBytes(structuresJson);
         return new ConfigCatalog(version, [new ConfigCatalogEntry("structures", ConfigContentHash.Compute(utf8), version, utf8)]);
+    }
+
+    private static List<string> VillagePlots(ProceduralWorldGenerator generator)
+    {
+        List<string> plots = [];
+        for (int sy = -4; sy <= 4; sy++)
+        {
+            for (int sx = -4; sx <= 4; sx++)
+            {
+                foreach (VillagePlot plot in generator.Landmarks.GetLayout(sx, sy).Plots)
+                {
+                    plots.Add($"{plot.Role}@{plot.OriginX},{plot.OriginY} {plot.Width}x{plot.Height} t{plot.Turns} {plot.Template.Id} {string.Join(';', plot.Template.Furniture)}");
+                }
+            }
+        }
+
+        return plots;
     }
 
     private static string ServerTuned(int reachTiles, int workbenchWidth)
