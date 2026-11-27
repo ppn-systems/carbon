@@ -9,6 +9,7 @@ using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
 using Carbon.Application.World;
 using Carbon.Contracts.Common;
+using Carbon.Economy;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Testing;
 using Nalix.Abstractions.Primitives;
@@ -42,6 +43,9 @@ internal sealed class TickAllocationHarness : IDisposable
     /// <summary>Gets the character store the world saves to.</summary>
     public SqliteCharacterStore Characters { get; }
 
+    /// <summary>Gets the connection ids of the entered characters, in entry order.</summary>
+    public IReadOnlyList<ulong> Connections => _connections;
+
     /// <summary>Gets the ids of the entered characters, in entry order.</summary>
     public List<Guid> CharacterIds { get; } = [];
 
@@ -49,7 +53,9 @@ internal sealed class TickAllocationHarness : IDisposable
     /// <param name="players">Characters to enter near spawn.</param>
     /// <param name="sink">Outbound sink to observe; a no-op sink when <see langword="null"/>.</param>
     /// <param name="overrides">Developer overrides applied before anyone enters (for example status effects on entry).</param>
-    public static TickAllocationHarness Create(int players, IWorldOutboundSink? sink = null, WorldDebugOverrides? overrides = null)
+    /// <param name="economy">Economy (loot tables, items) the world runs with; none when <see langword="null"/>.</param>
+    /// <param name="inventoryBlob">Serialized bag every character enters with; an empty bag when <see langword="null"/>.</param>
+    public static TickAllocationHarness Create(int players, IWorldOutboundSink? sink = null, WorldDebugOverrides? overrides = null, GameEconomy? economy = null, byte[]? inventoryBlob = null)
     {
         string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-tick-alloc-{Guid.NewGuid():N}.db");
         SqliteConnectionFactory factory = new($"Data Source={dbPath}");
@@ -64,6 +70,7 @@ internal sealed class TickAllocationHarness : IDisposable
             new SqliteChunkDeltaRepository(factory),
             characters,
             sink ?? new NullOutboundSink(),
+            economy: economy,
             entropy: TestGameplayEntropy.Create(1337UL));
         world.InitializeFromStoreAsync().GetAwaiter().GetResult();
         if (overrides is not null)
@@ -80,7 +87,7 @@ internal sealed class TickAllocationHarness : IDisposable
             // A 4-wide grid two tiles apart, so every player sees the others and the same monsters.
             Vector2 position = world.DefaultSpawnWorldPosition + (new Vector2(i % 4, i / 4) * 64f);
             Guid accountId = Guid.NewGuid();
-            CharacterRecord hero = new(Guid.NewGuid(), accountId, $"Bench{i}", 1, default, position.X, position.Y, 100f, 100f, 0, [], createdAt);
+            CharacterRecord hero = new(Guid.NewGuid(), accountId, $"Bench{i}", 1, default, position.X, position.Y, 100f, 100f, 0, inventoryBlob ?? [], createdAt);
             _ = accounts.TryCreateAsync(new AccountRecord(accountId, $"bench{i}", $"BENCH{i}", Bytes32.Zero, [1], createdAt, false)).GetAwaiter().GetResult();
             _ = characters.TryCreateAsync(hero).GetAwaiter().GetResult();
             harness.CharacterIds.Add(hero.Id);

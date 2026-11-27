@@ -275,7 +275,7 @@ internal sealed class PlayerActionService
     private int FindMeleeTargets(PlayerState state, in ItemSlot activeSlot, Vector2 attackerPos, Vector2 aimDir)
     {
         float meleeRange = MeleeStrikeRangePx;
-        if (!activeSlot.IsEmpty && this.Rules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? meleeDef) && meleeDef.Capabilities.HasFlag(ToolCapabilities.MeleeWeapon))
+        if (!activeSlot.IsEmpty && this.Rules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? meleeDef) && (meleeDef.Capabilities & ToolCapabilities.MeleeWeapon) != 0)
         {
             meleeRange = Math.Clamp(meleeDef.AttackRange, MeleeStrikeRangePx, 96f);
         }

@@ -220,7 +220,7 @@ public sealed class Wallet
 
     private EconomyResult ValidateCredit(CurrencyKind currency, long amount)
     {
-        if (amount < 0 || !Enum.IsDefined(currency))
+        if (amount < 0 || currency is not (CurrencyKind.Gold or CurrencyKind.Diamond))
         {
             return EconomyResult.Fail(EconomyError.InvalidAmount);
         }
@@ -230,7 +230,7 @@ public sealed class Wallet
 
     private EconomyResult ValidateSpend(CurrencyKind currency, long amount)
     {
-        if (amount < 0 || !Enum.IsDefined(currency))
+        if (amount < 0 || currency is not (CurrencyKind.Gold or CurrencyKind.Diamond))
         {
             return EconomyResult.Fail(EconomyError.InvalidAmount);
         }
