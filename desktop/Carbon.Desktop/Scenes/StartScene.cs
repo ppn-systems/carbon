@@ -71,6 +71,10 @@ internal sealed class StartScene : MenuScene
     /// <summary>Gets the button with keyboard focus (tests read this).</summary>
     internal StartMenuAction Focus => _model.Focus;
 
+    /// <summary>Gets where <paramref name="action"/>'s button sits, in canvas units (tests click it).</summary>
+    internal RectangleF ButtonBounds(StartMenuAction action) =>
+        action == StartMenuAction.Quit ? _quitButton.Bounds : _buttons[action].Bounds;
+
     /// <inheritdoc/>
     protected override string? FooterHint => GameText.Get("login.footer.start");
 
@@ -162,7 +166,7 @@ internal sealed class StartScene : MenuScene
 
         bool leftDown = mouse.IsButtonDown(MouseButton.Left);
         bool leftPressed = mouse.IsButtonPressed(MouseButton.Left);
-        Vector2 mousePos = mouse.Position;
+        Vector2 mousePos = this.PointerPosition(in mouse);
         bool busy = this.Busy;
 
         bool shift = kb.IsKeyDown(Key.ShiftLeft) || kb.IsKeyDown(Key.ShiftRight);
