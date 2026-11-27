@@ -66,6 +66,9 @@ internal abstract class MenuScene : GameScene
     /// <summary>Gets the caps-lock state inferred from typed letters (password fields warn with it).</summary>
     protected CapsLockTracker CapsLock { get; } = new();
 
+    /// <summary>Gets or sets whether this scene is handing over to the world (its <c>Leave</c> frees the backdrop's meshes).</summary>
+    protected bool EnteringWorld { get; set; }
+
     /// <summary>Gets whether the form-feedback screenshot preview is on.</summary>
     protected bool IsFormFeedbackPreview => string.Equals(this.Flow.Options.UiPreview, FormFeedbackPreview, StringComparison.Ordinal);
 
@@ -95,12 +98,20 @@ internal abstract class MenuScene : GameScene
         this.DetachInput();
         _boundInput = context.Input;
         _boundInput.CharacterReceived += this.ReceiveCharacter;
+        this.Flow.Backdrop.Resume();
     }
 
     /// <inheritdoc/>
     public override void Leave(SceneContext context)
     {
         this.DetachInput();
+        this.Flow.Backdrop.Pause();
+        if (this.EnteringWorld)
+        {
+            // No menu draws the backdrop again until the player comes back; free its meshes for the world.
+            this.Flow.Backdrop.ReleaseGpu();
+        }
+
         base.Leave(context);
     }
 
@@ -110,6 +121,7 @@ internal abstract class MenuScene : GameScene
         ArgumentNullException.ThrowIfNull(context);
         base.Update(context, dt);
         this.Elapsed += (float)dt;
+        this.Flow.Backdrop.Advance((float)dt);
         _ = this.Layout(context.WindowWidth, context.WindowHeight);
         KeyboardSnapshot kb = context.Input.Keyboard;
         _shiftDown = kb.IsKeyDown(Key.ShiftLeft) || kb.IsKeyDown(Key.ShiftRight);
@@ -147,9 +159,7 @@ internal abstract class MenuScene : GameScene
         RectangleF statusPill = new(card.X + 28f, card.Bottom - 46f, card.Width - 56f, 30f);
         bool showStatus = this.StatusMessage.Length > 0;
 
-        geometry.Begin(proj);
-        MenuBackdropRenderer.Draw(geometry, width, height, this.Elapsed);
-        geometry.End();
+        this.Flow.Backdrop.Render(context.Device, geometry, width, height);
 
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: proj);
         skin.DrawWindow(spriteBatch, in card, CarbonUiPalette.BorderOuter, bodyAlpha: 242);
@@ -200,7 +210,7 @@ internal abstract class MenuScene : GameScene
         spriteBatch.End();
 
         base.Render(context, spriteBatch, dt);
-        _capture.AfterRender(context, this.ReadyForCapture);
+        _capture.AfterRender(context, this.ReadyForCapture && this.Flow.Backdrop.IsSettled(expectWorld: this.Flow.Session.GameConfig is not null));
     }
 
     /// <summary>Places the controls for the window size and returns the menu window rectangle.</summary>
