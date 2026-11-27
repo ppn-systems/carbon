@@ -264,7 +264,8 @@ internal sealed class ForgeAnvilModalWidget
             string tag = sIdx >= PlayerInventoryLayout.BagLimit ? "Equipped" : (sIdx < 9 ? $"Slot {sIdx + 1}" : "Bag");
             string name = world.Items.GetDisplayName(item.ItemId);
             string rowLabel = CarbonUiSkin.TruncateToWidth(font, upg > 0 ? $"{name} +{upg}" : name, 190f, 1f);
-            spriteBatch.DrawOutlinedString(font, rowLabel, new Vector2(ox + 72f, ry), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            ColorRgba rowColor = upg > 0 ? EnhancementTierStyles.Get(upg).Accent : CarbonUiPalette.TextPrimary;
+            spriteBatch.DrawOutlinedString(font, rowLabel, new Vector2(ox + 72f, ry), rowColor, black, 1, 1f);
             spriteBatch.DrawOutlinedString(font, tag, new Vector2(ox + 72f, ry + 20f), CarbonUiPalette.TextMuted, black, 1, 1f);
         }
 

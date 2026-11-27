@@ -39,6 +39,7 @@ Requirements: the .NET SDK (`$HOME/.dotnet` is added to `PATH`), `xvfb-run`, GLF
 | `CARBON_DEBUG_SPAWN_TILE=x,y` | Every character enters at this world tile (wins over the biome). |
 | `CARBON_DEBUG_SPAWN_OFFSET=dx,dy` | Offset in tiles added to the resolved spawn (e.g. far from the starter area). |
 | `CARBON_DEBUG_START_HOUR=h` | The world clock starts at hour `h` (0..24); clients follow the server clock. |
+| `CARBON_DEBUG_STARTER_ITEMS=id[xQty][+Level],...` | New characters also get these items (e.g. `3+10,4x40`: a +10 iron sword and 40 logs), to review enhanced gear. |
 
 These overrides are compiled into Debug builds of the host only (`HostRuntimeOptions.ReadDebugOverrides`);
 Release builds ignore the variables, and nothing is ever taken from a client. The host logs a warning when

@@ -89,7 +89,8 @@ internal sealed class ItemTooltipBuilder
 
             if (upg > 0)
             {
-                output.Add(new ItemTooltipLine(string.Create(inv, $"Enhanced +{upg}: stats x{mult:0.00}"), CarbonUiPalette.TextWarm));
+                ref readonly EnhancementTierStyle tierStyle = ref EnhancementTierStyles.Get(upg);
+                output.Add(new ItemTooltipLine(string.Create(inv, $"Enhanced +{upg} ({tierStyle.Name}): stats x{mult:0.00}"), tierStyle.Accent));
             }
 
             if (def.MaxDurability > 0f)

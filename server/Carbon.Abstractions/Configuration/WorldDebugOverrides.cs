@@ -1,5 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System.Collections.Generic;
+
 namespace Carbon.Abstractions.Configuration;
 
 /// <summary>
@@ -24,7 +26,10 @@ public sealed record WorldDebugOverrides
     /// <summary>Gets the in-game hour (0..24) the world clock starts at, if any.</summary>
     public float? StartHour { get; init; }
 
+    /// <summary>Gets extra items granted to newly created characters (screenshots of enhanced gear, ADR-020).</summary>
+    public IReadOnlyList<DebugStarterItem> StarterItems { get; init; } = [];
+
     /// <summary>Gets a value indicating whether any override is set.</summary>
     public bool IsActive => this.SpawnTile.HasValue || this.SpawnBiome is not null || this.StartHour.HasValue ||
-        this.SpawnOffset != default;
+        this.SpawnOffset != default || this.StarterItems.Count > 0;
 }
