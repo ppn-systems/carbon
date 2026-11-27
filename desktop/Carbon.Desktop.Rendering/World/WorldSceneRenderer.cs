@@ -48,11 +48,14 @@ namespace Carbon.Desktop.Rendering.World;
 public sealed class WorldSceneRenderer : IDisposable
 {
     private readonly IGraphicsDevice _device;
-    private readonly GeometryBatch _geometryBatch;
+
+    // GPU resources, created on first draw (EnsureGpuResources) so the renderer can be built without a GL context.
+    private GeometryBatch _geometryBatch = null!;
+    private ChunkTerrainRenderer _terrainRenderer = null!;
+    private bool _gpuReady;
     private readonly SlowTrail _slowTrail = new();
     private readonly MonsterEffectTints _monsterTints = new();
     private float _slowTrailTime;
-    private readonly ChunkTerrainRenderer _terrainRenderer;
     private readonly Atmosphere _atmosphere;
     private readonly IVectorArtRepository? _art;
     private readonly CombatFeedbackTracker _feedback = new();
@@ -73,9 +76,10 @@ public sealed class WorldSceneRenderer : IDisposable
     private bool _disposed;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="WorldSceneRenderer"/> class.
+    /// Initializes a new instance of the <see cref="WorldSceneRenderer"/> class. GPU resources (geometry batch, terrain
+    /// renderer) are created on the first <see cref="Render"/>, so construction needs no GL context.
     /// </summary>
-    /// <param name="device">Active graphics device.</param>
+    /// <param name="device">Graphics device the world renders with.</param>
     /// <param name="options">Client rendering/atmosphere options.</param>
     /// <param name="artRepository">Optional injected declarative vector-art repository (DIP).</param>
     public WorldSceneRenderer(
@@ -86,9 +90,7 @@ public sealed class WorldSceneRenderer : IDisposable
         _device = device ?? throw new ArgumentNullException(nameof(device));
         ArgumentNullException.ThrowIfNull(options);
 
-        _geometryBatch = new GeometryBatch(device);
         _art = artRepository ?? CarbonVectorArtLibrary.LoadOrDefault();
-        _terrainRenderer = new ChunkTerrainRenderer(device, _art);
         _atmosphere = new Atmosphere(options.StartHour, options.DayLengthSeconds, options.WeatherRainOverride);
     }
 
@@ -116,7 +118,7 @@ public sealed class WorldSceneRenderer : IDisposable
             _poiRenderer = new PointOfInterestRenderer(world.ChunkWorld.TileSize, _landmarks);
             _roofs = new RoofRenderer(world.ChunkWorld.TileSize);
             _boundSeed = world.WorldSeed;
-            _terrainRenderer.InvalidateAll();
+            this.InvalidateAll();
         }
     }
 
@@ -138,15 +140,32 @@ public sealed class WorldSceneRenderer : IDisposable
         return false;
     }
 
-    /// <summary>Invalidates cached GPU terrain meshes around a modified chunk.</summary>
-    public void InvalidateChunk(int chunkX, int chunkY) => _terrainRenderer.InvalidateChunk(chunkX, chunkY);
+    /// <summary>Invalidates cached GPU terrain meshes around a modified chunk (nothing is cached before the first draw).</summary>
+    public void InvalidateChunk(int chunkX, int chunkY)
+    {
+        if (_gpuReady)
+        {
+            _terrainRenderer.InvalidateChunk(chunkX, chunkY);
+        }
+    }
 
-    /// <summary>Invalidates all cached GPU terrain meshes.</summary>
-    public void InvalidateAll() => _terrainRenderer.InvalidateAll();
+    /// <summary>Invalidates all cached GPU terrain meshes (nothing is cached before the first draw).</summary>
+    public void InvalidateAll()
+    {
+        if (_gpuReady)
+        {
+            _terrainRenderer.InvalidateAll();
+        }
+    }
 
-    /// <summary>Evicts cached GPU terrain meshes outside the specified chunk radius.</summary>
-    public void EvictDistant(int centerChunkX, int centerChunkY, int evictionRadius) =>
-        _terrainRenderer.EvictDistant(centerChunkX, centerChunkY, evictionRadius);
+    /// <summary>Evicts cached GPU terrain meshes outside the specified chunk radius (nothing is cached before the first draw).</summary>
+    public void EvictDistant(int centerChunkX, int centerChunkY, int evictionRadius)
+    {
+        if (_gpuReady)
+        {
+            _terrainRenderer.EvictDistant(centerChunkX, centerChunkY, evictionRadius);
+        }
+    }
 
     /// <summary>Executes the full multi-pass 2.5D frame render pipeline.</summary>
     public void Render(
@@ -168,6 +187,7 @@ public sealed class WorldSceneRenderer : IDisposable
             return;
         }
 
+        this.EnsureGpuResources();
         this.EnsureWorldBound(world);
         _animTime += frameDt;
         if (world.AuthoritativeTimeHour is float authHour)
@@ -380,11 +400,29 @@ public sealed class WorldSceneRenderer : IDisposable
     {
         if (!_disposed)
         {
-            _terrainRenderer.Dispose();
-            _geometryBatch.Dispose();
+            if (_gpuReady)
+            {
+                _terrainRenderer.Dispose();
+                _geometryBatch.Dispose();
+            }
+
             _disposed = true;
             GC.SuppressFinalize(this);
         }
+    }
+
+    // Creates the GPU resources once, in the original order; later frames only read a flag and allocate nothing here.
+    private void EnsureGpuResources()
+    {
+        if (_gpuReady)
+        {
+            return;
+        }
+
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _geometryBatch = new GeometryBatch(_device);
+        _terrainRenderer = new ChunkTerrainRenderer(_device, _art);
+        _gpuReady = true;
     }
 
     private void CollectVisibleObjects(
