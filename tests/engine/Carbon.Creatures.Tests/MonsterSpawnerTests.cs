@@ -118,6 +118,30 @@ public sealed class MonsterSpawnerTests
         run.Spawns.Should().Contain(s => emptied.Contains(run.Spawner.GetCell(s.Position)), "cells refill after the respawn delay");
     }
 
+    [Fact]
+    public void Update_DawnLowersTheCellCap_NeverDespawnsOrRecyclesLiveMonstersAroundThePlayer()
+    {
+        SpawnRun run = new(seed: 5UL, anchor: s_frontier, hour: 23f);
+        run.Step(6000);
+        List<Entity> nightMonsters = run.LiveMonsters();
+        Dictionary<CellCoord, int> nightCounts = run.CountLiveMonstersPerCell();
+        nightCounts.Values.Should().Contain(c => c > run.Config.BaseCellCap, "night fills cells above the day cap");
+
+        // Dawn: the cap drops back to the base cap while the player is still standing among the night monsters.
+        run.Spawner.TimeOfDayHours = 5.5f;
+        run.Spawner.IsNight.Should().BeFalse();
+        run.Spawns.Clear();
+        run.Step(3000);
+
+        nightMonsters.Should().OnlyContain(m => run.World.Entities.IsAlive(m), "dawn must not despawn or recycle live monsters");
+        run.Spawner.LiveMonsterCount.Should().BeGreaterThanOrEqualTo(nightMonsters.Count);
+        Dictionary<CellCoord, int> dayCounts = run.CountLiveMonstersPerCell();
+        foreach ((CellCoord cell, int count) in nightCounts)
+        {
+            dayCounts.GetValueOrDefault(cell).Should().BeGreaterThanOrEqualTo(count, $"cell {cell} keeps its night monsters");
+        }
+    }
+
     private sealed class SpawnRun
     {
         public SpawnRun(ulong seed, Vector2 anchor, BiomeType biome = BiomeType.LushPlains, float hour = 12f)
@@ -154,6 +178,18 @@ public sealed class MonsterSpawnerTests
                     this.Spawns.Add(e with { Monster = Entity.Null });
                 }
             }
+        }
+
+        public List<Entity> LiveMonsters()
+        {
+            List<Entity> monsters = [];
+            ComponentPool<MonsterComponent> pool = this.World.Entities.GetPool<MonsterComponent>();
+            for (int i = 0; i < pool.EntitySlots.Length; i++)
+            {
+                monsters.Add(this.World.Entities.GetEntity(pool.EntitySlots[i]));
+            }
+
+            return monsters;
         }
 
         public Dictionary<CellCoord, int> CountLiveMonstersPerCell()

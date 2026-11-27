@@ -1681,8 +1681,16 @@ public sealed class AuthoritativeWorldMultiplayerTests
             uint lastProcessedClientTick,
             float selfX,
             float selfY,
-            ReadOnlySpan<EntityDeltaEntry> entries) =>
+            ReadOnlySpan<EntityDeltaEntry> entries)
+        {
             this.DeltaBatches.Add((connectionId, lastProcessedClientTick));
+            foreach (EntityDeltaEntry entry in entries)
+            {
+                this.LastPositions[entry.NetworkId] = new Vector2(entry.PositionX, entry.PositionY);
+            }
+        }
+
+        public Dictionary<ulong, Vector2> LastPositions { get; } = [];
 
         public void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, uint revision, float durability, bool isDestroyed)
         {
