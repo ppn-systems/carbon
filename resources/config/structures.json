@@ -4,7 +4,7 @@
   "destroyedDropFraction": 0.25,
   "deconstructWorkFraction": 0.5,
   "builderReachTiles": 3,
-  "placementReachTiles": 12,
+  "placementReachTiles": 4,
   "structures": [
     {
       "id": "wood_wall",

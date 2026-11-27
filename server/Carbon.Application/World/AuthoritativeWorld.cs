@@ -67,7 +67,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 {
     private const float BaseWalkSpeed = 250f;
     private const float SprintSpeed = 450f;
-    private const float BuildInteractRangeTiles = 3.5f;
     private const float DefaultEntityRadius = 7f;
     private const uint PlayerLayer = 1U;
     private const uint MonsterLayer = 2U;

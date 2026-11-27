@@ -68,7 +68,7 @@ Village buildings are real structures owned by a world faction (`StructureOwners
   "destroyedDropFraction": 0.25,       // dropped when destroyed by damage
   "deconstructWorkFraction": 0.5,      // deconstruct work = work * fraction
   "builderReachTiles": 3,
-  "placementReachTiles": 12,
+  "placementReachTiles": 4,          // build reach: server gate, engine placement check and client preview
   "builderWorkPerSecond": 60,          // work one builder adds per second
   "structures": [
     {

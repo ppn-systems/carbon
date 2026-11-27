@@ -22,8 +22,11 @@ public sealed record BuildingRules
     /// <summary>Gets the max Chebyshev distance (tiles) between a builder and the footprint to deliver or work.</summary>
     public int BuilderReachTiles { get; init; } = 3;
 
-    /// <summary>Gets the max Chebyshev distance (tiles) between a player and the footprint to place a blueprint.</summary>
-    public int PlacementReachTiles { get; init; } = 12;
+    /// <summary>
+    /// Gets the build reach in tiles: the max Chebyshev distance between a player and the footprint to place a blueprint
+    /// here, and the Euclidean radius the server and the client preview use for placing, demolishing and doors.
+    /// </summary>
+    public int PlacementReachTiles { get; init; } = 4;
 
     /// <summary>Gets the construction / deconstruction work points one builder adds per second of simulation.</summary>
     public float BuilderWorkPerSecond { get; init; } = 60f;

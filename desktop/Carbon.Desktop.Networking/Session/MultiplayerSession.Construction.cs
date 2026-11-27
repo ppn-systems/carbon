@@ -19,6 +19,9 @@ public sealed partial class MultiplayerSession
 {
     private static readonly Lazy<StructureCatalog> s_structureCatalog = new(StructureCatalog.LoadEmbedded);
 
+    /// <inheritdoc/>
+    public float BuildReachTiles => s_structureCatalog.Value.Rules.PlacementReachTiles;
+
     private readonly ConstructionMarkerBook _constructionMarkers = new();
     private readonly BuildPermissionTable _previewPermissions = new();
     private BuildingService? _previewService;

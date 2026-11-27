@@ -39,6 +39,9 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile, INpcCap
     /// <summary>Gets the local player's ECS entity handle.</summary>
     Entity LocalPlayer { get; }
 
+    /// <summary>Gets the build reach in tiles (<c>structures.json → placementReachTiles</c>), which the server enforces.</summary>
+    float BuildReachTiles { get; }
+
     /// <summary>Gets the frame-interpolated local player world position (with prediction smoothing).</summary>
     Vector2 LocalPlayerInterpolatedPosition { get; }
 
