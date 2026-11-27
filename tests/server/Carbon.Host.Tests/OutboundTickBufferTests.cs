@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using Carbon.Application.World.Replication;
+using Carbon.Contracts.Common;
 using Carbon.Items.Containers;
 using FluentAssertions;
 using Xunit;
@@ -53,5 +54,30 @@ public sealed class OutboundTickBufferTests
         buffer.Dispatch(sink);
 
         sink.Despawns.Should().Equal((1UL, 1UL), (2UL, 2UL));
+    }
+
+    [Fact]
+    public void Dispatch_TrimmedMessages_ForwardEachRemainingFieldInPlace()
+    {
+        // ADR-038: these sink calls lost the values the wire no longer carries; what is left must still line up.
+        OutboundTickBuffer buffer = new();
+        AuthoritativeWorldMultiplayerTests.RecordingOutboundSink sink = new();
+        buffer.Pending.Recipients.Add(9UL);
+        buffer.Pending.PropChanges.Add(new OutboundPropChange(0, 1, -3, 8, 12.5f, IsDestroyed: false));
+        buffer.Pending.StructureChanges.Add(new OutboundStructureChange(0, 1, 4, -6, 7, 1));
+        buffer.Pending.DurabilityAlerts.Add(new OutboundDurabilityAlert(9UL, DurabilityAlertKind.AboutToBreak, 18U, 5));
+        buffer.Pending.EnhancementAnnouncements.Add(new OutboundEnhancementAnnouncement(0, 1, "Smith", 31, EnhancementOutcome.Success, 8));
+        buffer.Pending.SkillCasts.Add(new OutboundSkillCast(0, 1, 55UL, 2, 40f, 60f));
+
+        buffer.Swap();
+        buffer.Dispatch(sink);
+
+        sink.PropChanges.Should().ContainSingle().Which.Should().Be((-3, 8, 12.5f));
+        sink.StructureChanges.Should().ContainSingle().Which.Should().Be((4, -6, 7, 1));
+        sink.DurabilityAlerts.Should().ContainSingle().Which.Should().Be((9UL, DurabilityAlertKind.AboutToBreak, 18U, 5));
+        (ulong[] recipients, string name, ushort itemId, EnhancementOutcome outcome, byte level) = sink.Announcements.Should().ContainSingle().Which;
+        recipients.Should().Equal(9UL);
+        (name, itemId, outcome, level).Should().Be(("Smith", 31, EnhancementOutcome.Success, 8));
+        sink.SkillCasts.Should().ContainSingle().Which.Should().Be((55UL, 2));
     }
 }

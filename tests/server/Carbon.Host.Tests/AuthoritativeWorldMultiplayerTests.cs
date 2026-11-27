@@ -1792,7 +1792,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
         public List<(ulong ConnectionId, EntitySpawnSnapshot Snapshot)> Spawns { get; } = [];
         public List<(ulong ConnectionId, ulong NetworkId)> Despawns { get; } = [];
         public List<(ulong ConnectionId, uint LastProcessedClientTick)> DeltaBatches { get; } = [];
-        public List<(int TileX, int TileY, byte StructureType)> StructureChanges { get; } = [];
+        public List<(int TileX, int TileY, byte StructureType, byte DoorState)> StructureChanges { get; } = [];
         public List<(ulong AttackerNetworkId, ulong DefenderNetworkId, float Damage, bool IsKilled)> CombatHits { get; } = [];
         public List<(ulong ConnectionId, ushort SlotIndex, uint ItemId, int Quantity)> SlotChanges { get; } = [];
         public List<(ulong EntityNetworkId, ushort ChestId, ushort WeaponId, ushort Level)> EquipmentChanges { get; } = [];
@@ -1862,7 +1862,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             this.StaminaStatuses.Add((connectionId, exhausted, refusalCount));
 
         public void SendStructureChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, byte structureType, byte doorState) =>
-            this.StructureChanges.Add((tileX, tileY, structureType));
+            this.StructureChanges.Add((tileX, tileY, structureType, doorState));
 
         public List<(int TileX, int TileY, byte Stage, float Progress, bool IsDeconstruction)> ConstructionChanges { get; } = [];
 
