@@ -55,8 +55,8 @@ internal sealed class ScreenshotAids(DesktopOptions options)
         }
     }
 
-    // CARBON_UI_PREVIEW=item-break:N (ADR-035): the break toast for the item in slot N once, and its shatter shards every
-    // second so any capture frame shows them. Visual only: the item is not touched and nothing is sent.
+    // CARBON_UI_PREVIEW=item-break:N (ADR-035): the break toast for the item in slot N once, and its shatter shards every 0.4 s
+    // so any capture frame shows them. Visual only: the item is not touched and nothing is sent.
     private void PreviewItemBreak(HudOverlayRenderer hud, IWorldSession session, CombatFeedbackTracker? feedback)
     {
         const string prefix = "item-break:";
@@ -85,8 +85,8 @@ internal sealed class ScreenshotAids(DesktopOptions options)
         long now = Environment.TickCount64;
         if (feedback is not null && now >= _nextShatterMs)
         {
-            _nextShatterMs = now + 1000L;
-            feedback.SpawnItemBreakShatter(new ItemBreakEvent(session.LocalPlayerInterpolatedPosition, item.ItemId, ItemEnhancementPolicy.GetUpgradeLevel(in item)), now / 1000f);
+            _nextShatterMs = now + 400L;
+            feedback.SpawnItemBreakShatter(new ItemBreakEvent(session.LocalPlayerInterpolatedPosition, item.ItemId, item.UpgradeLevel), now / 1000f);
         }
     }
 
