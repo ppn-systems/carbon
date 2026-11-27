@@ -51,9 +51,10 @@ not pool in our setup is not visible through the public API. The server never re
    not rely on the manager, so a pool manager that does not reset cannot leak data. `PacketResetCoverageTests` checks,
    by reflection over every server-to-client packet type in the contracts assemblies, that no `[SerializeOrder]` field
    keeps a previous value after `ResetForPool`. It found no leftover in the 31 types. A field with an initializer
-   (`Level = 1`, `XpToNextLevel = 100`, `EatProgress = -1`) resets to its type default instead. The same test requires
-   the sink to set every such field on every send, so a pooled packet never sends 0 where a fresh one would send the
-   initializer.
+   (`Level = 1`, `XpToNextLevel = 100`, `EatProgress = -1`) resets to its type default instead. Two more tests cover
+   this. One requires a reset packet of every pooled type to equal a fresh one, except an explicit list of known
+   deviations, so a new field with an initializer fails until someone looks at it. The other requires the sink to set
+   every such field on every send, so a pooled packet never sends 0 where a fresh one would send the initializer.
 4. **D4 — Guard.** `RealOutboundSinkTests.StepFixedTick_RealSinkWithSynchronousConnections_StaysWithinTheTickAllocationBudget`
    measures the steady tick through the real sink with the shared `AllocationProbe` and asserts the existing 32 B/tick
    budget. It measured 974 B/tick before and 1.2 B/tick after, the same as with the null sink.

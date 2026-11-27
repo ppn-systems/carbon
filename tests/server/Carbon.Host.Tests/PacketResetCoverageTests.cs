@@ -61,6 +61,45 @@ public sealed partial class PacketResetCoverageTests
         }
     }
 
+    /// <summary>
+    /// The fields where a reset packet differs from a freshly constructed one: the reset gives the type default, the
+    /// constructor the initializer. Each is set by the sink on every send (next test). A new field with an initializer
+    /// fails the test below until it is added here and set by its sender.
+    /// </summary>
+    private static readonly string[] s_knownResetDeviations =
+    [
+        "EntityEquipmentChanged.Level",
+        "EntitySpawn.Level",
+        "PlayerStatsSync.EatProgress",
+        "PlayerStatsSync.Level",
+        "PlayerStatsSync.XpToNextLevel",
+    ];
+
+    [Fact]
+    public void ResetForPool_EveryPooledType_MatchesAFreshPacketExceptTheKnownDeviations()
+    {
+        string sink = File.ReadAllText(Path.Combine(RepositoryRoot(), "server", "Carbon.Host", "WorldOutboundSink.cs"));
+        HashSet<string> rented = [.. RentedType().Matches(sink).Select(m => m.Groups[1].Value)];
+        List<string> deviations = [];
+        foreach (Type type in AllServerToClientPackets().Where(t => rented.Contains(t.Name)))
+        {
+            IPoolable reset = (IPoolable)Activator.CreateInstance(type)!;
+            foreach (PropertyInfo property in SerializedProperties(type))
+            {
+                property.SetValue(reset, Sample(property.PropertyType, property.GetValue(reset)));
+            }
+
+            reset.ResetForPool();
+            object fresh = Activator.CreateInstance(type)!;
+            deviations.AddRange(SerializedProperties(type)
+                .Where(p => !SameValue(p.GetValue(reset), p.GetValue(fresh)))
+                .Select(p => $"{type.Name}.{p.Name}"));
+        }
+
+        deviations.Order(StringComparer.Ordinal).Should().Equal(s_knownResetDeviations,
+            "a reset packet must equal a fresh one, or the field must be listed here and set by the sink on every send");
+    }
+
     [Fact]
     public void ResetForPool_FieldsWithAnInitializer_AreAlwaysSetByTheSink()
     {

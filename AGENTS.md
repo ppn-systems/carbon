@@ -39,7 +39,7 @@ carbon/
    - `graphics/` (client rendering) depends only on `contracts/` and `engine/`; it must never be referenced by `server/`.
    - `server/` consumes `contracts/` and `engine/`.
    - `desktop/` and `wasm/` consume `contracts/`, `engine/`, and `graphics/`.
-4. **No Allocations on Hot Paths**: Game tick loops and packet dispatching must be zero-allocation (struct components, `Span<T>`, outbound packets leased from `PacketPool.Rent<T>()`; `PacketFactory<T>.Acquire()` allocates a packet per call, ADR-043).
+4. **No Allocations on Hot Paths**: Game tick loops and packet dispatching must be zero-allocation (struct components, `Span<T>`). Hot-path sends lease packets from `PacketPool.Rent<T>()`. `PacketFactory<T>.Acquire()` allocates one packet per call and is fine only on cold paths, such as handler replies (ADR-043).
 5. **No Blind Architecture Changes**: No new frameworks, database shifts, or breaking wire protocol changes without an Architecture Decision Record (ADR) in `docs/adr/`.
 6. **Names Say What Things Are**: namespace = project root + folder path; no `*Manager`/`*Helper`/`*Utils`; interfaces start with `I`; `Async` on task-returning methods; camelCase JSON properties and lower_snake ids. Details in `csharp-style`, enforced by `NamingConventionTests`.
 7. **No Speculative Code**: Follow Karpathy Guidelines — implement only what is requested, make surgical edits, and verify with tests.
