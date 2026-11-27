@@ -33,6 +33,7 @@ public sealed partial class ServerAuthorityTests
         "WorldProgression",
         "ToolUsagePolicy",
         "RecipeMatcher",
+        "ForgeEnhancer",
     ];
 
     /// <summary>

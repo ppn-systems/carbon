@@ -53,6 +53,20 @@ public sealed class WorldCommandExecutorTests
     }
 
     [Fact]
+    public async Task Drain_UpgradeCommand_PassesTheProtectionScrollAndReturnsThePackedReceipt()
+    {
+        RecordingHandlers handlers = new();
+        WorldCommandExecutor executor = new(handlers);
+        WorldCommandQueue queue = new();
+
+        Task<WorldMutationOutcome> upgrade = queue.Submit(WorldCommandKind.UpgradeInventoryItem, Connection, (ushort)4, (ushort)206).AsTask();
+        executor.Drain(queue);
+
+        handlers.Calls.Should().Equal("UpgradeInventoryItem 42 4 206");
+        (await upgrade.ConfigureAwait(true)).Should().Be(new WorldMutationOutcome(OpStatus.Ok, 0x1234_5678U), "the enhancement receipt rides in the revision (ADR-024)");
+    }
+
+    [Fact]
     public void Drain_EveryTickWithNothingQueued_AllocatesNothing()
     {
         WorldCommandExecutor executor = new(new RecordingHandlers());
@@ -101,7 +115,8 @@ public sealed class WorldCommandExecutorTests
         public OpStatus TryMoveInventorySlot(ulong connectionId, ushort fromSlot, ushort toSlot, ushort expectedItemId) =>
             this.Slot($"MoveInventorySlot {connectionId} {fromSlot} {toSlot} {expectedItemId}");
 
-        public OpStatus TryUpgradeInventoryItem(ulong connectionId, ushort slotIndex) => this.Slot($"UpgradeInventoryItem {connectionId} {slotIndex}");
+        public WorldMutationOutcome TryEnhanceInventoryItem(ulong connectionId, ushort slotIndex, ushort protectionItemId, uint deterministicRollSeed = 0U) =>
+            new(this.Slot($"UpgradeInventoryItem {connectionId} {slotIndex} {protectionItemId}"), 0x1234_5678U);
 
         public OpStatus TryDropInventoryItem(ulong connectionId, ushort slotIndex, int quantity, ushort expectedItemId) =>
             this.Slot($"DropInventoryItem {connectionId} {slotIndex} {quantity} {expectedItemId}");
