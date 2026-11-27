@@ -2,9 +2,11 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Numerics;
 using System.Threading.Tasks;
+using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Localization;
@@ -66,6 +68,7 @@ public sealed class WorldGameplayScene : GameScene
     private Vector2 _pressStartMousePos;
     private bool _isHoldDragging;
     private bool _hasAutoCaptured;
+    private bool _forgePreviewStarted;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WorldGameplayScene"/> class.
@@ -290,7 +293,12 @@ public sealed class WorldGameplayScene : GameScene
             _lastMoveDirection = Vector2.Normalize(input.MoveDirection);
         }
 
-        if (_hudRenderer.ShowForgeModal && !_session.IsNearForgeStation(185f))
+        if (_options.ForgePreview is not null && !_forgePreviewStarted)
+        {
+            this.StartForgePreview(_options.ForgePreview);
+        }
+
+        if (_hudRenderer.ShowForgeModal && _options.ForgePreview is null && !_session.IsNearForgeStation(185f))
         {
             _hudRenderer.ShowForgeModal = false;
         }
@@ -409,9 +417,11 @@ public sealed class WorldGameplayScene : GameScene
                 else if (_hudRenderer.TryHitTestForgeAnvilButton(mouseScreen, context.WindowWidth, context.WindowHeight))
                 {
                     int targetGear = _hudRenderer.ResolveForgeTargetSlot(_session);
-                    if (targetGear >= 0)
+                    if (targetGear >= 0 && !_hudRenderer.ForgeVfx.IsActive &&
+                        _session.TryUpgradeInventoryItem((ushort)targetGear, _hudRenderer.ResolveForgeProtection(_session)))
                     {
-                        _ = _session.TryUpgradeInventoryItem((ushort)targetGear);
+                        // The hammer charges while the server rolls; the outcome effect plays when its result arrives.
+                        _hudRenderer.ForgeVfx.BeginCharge();
                     }
                 }
                 else
@@ -448,8 +458,7 @@ public sealed class WorldGameplayScene : GameScene
                             Vector2.DistanceSquared(aimWorld, entity.Position) <= (24f * 24f) &&
                             _session.IsNearForgeStation())
                         {
-                            this.ToggleForgeStationModal();
-                            openedForgeNpc = true;
+                            openedForgeNpc = this.OpenForgeWindow();
                             break;
                         }
 
@@ -1013,28 +1022,65 @@ public sealed class WorldGameplayScene : GameScene
         _cameraRig.SetZoom(zoom);
     }
 
+    /// <summary>
+    /// Opens the forge window and freezes its animation on one outcome for screenshot review (<c>CARBON_FORGE_PREVIEW</c>).
+    /// Visual only: no request is sent, so it cannot change any item.
+    /// </summary>
+    private void StartForgePreview(string spec)
+    {
+        _forgePreviewStarted = true;
+        string[] parts = spec.Split(':', 2, StringSplitOptions.TrimEntries);
+        EnhancementOutcome outcome = parts[0].ToUpperInvariant() switch
+        {
+            "SUCCESS" => EnhancementOutcome.Success,
+            "NOCHANGE" => EnhancementOutcome.NoChange,
+            "DOWNGRADE" => EnhancementOutcome.Downgrade,
+            "DESTROYED" => EnhancementOutcome.Destroyed,
+            _ => EnhancementOutcome.None,
+        };
+        float seconds = 0f;
+        bool frozen = parts.Length == 2 && float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out seconds);
+        _hudRenderer!.ShowForgeModal = true;
+        _hudRenderer.ForgeVfx.SfxCue += static cue => Console.WriteLine($"[ForgeSfx] {cue}");
+        _hudRenderer.ForgeVfx.Preview(outcome, seconds, frozen);
+        Console.WriteLine($"[ForgePreview] {outcome} {(frozen ? $"frozen at {seconds.ToString(CultureInfo.InvariantCulture)} s" : "playing")}");
+    }
+
     private void ToggleForgeStationModal()
     {
-        if (_hudRenderer is null)
-        {
-            return;
-        }
-
-        if (_hudRenderer.ShowForgeModal)
+        if (_hudRenderer is { ShowForgeModal: true })
         {
             _hudRenderer.ShowForgeModal = false;
             return;
         }
 
+        _ = this.OpenForgeWindow();
+    }
+
+    /// <summary>
+    /// Opens the forge enhancement window (ADR-024). This is the one entry point for every forge context: the
+    /// <c>U</c> key, interacting at a placed Forge Anvil, and clicking any NPC whose spec has
+    /// <see cref="NpcCapabilities.ForgeArtisan"/> (the sanctuary or a village blacksmith). The server accepts the enhance
+    /// command near the same stations (<c>InventoryService.IsNearForgeStation</c>).
+    /// </summary>
+    /// <returns><see langword="true"/> when the window is open; <see langword="false"/> when no forge station is in reach.</returns>
+    public bool OpenForgeWindow()
+    {
+        if (_hudRenderer is null)
+        {
+            return false;
+        }
+
         if (!_session.IsNearForgeStation())
         {
-            _hudRenderer.PushNotification("Visit Master Blacksmith or place a Forge Anvil to enhance gear!");
-            return;
+            _hudRenderer.PushNotification(GameText.Get("forge.need_station"));
+            return false;
         }
 
         _hudRenderer.CloseAllModals();
         this.ResetInventoryDragState();
         _hudRenderer.ShowForgeModal = true;
+        return true;
     }
 
     private void UpdateTelemetry(IGameWindow window, int ptx, int pty)

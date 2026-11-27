@@ -467,7 +467,7 @@ internal sealed class HotbarAndItemWidget
 
         byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
         string titleName = upg > 0 ? $"{name} +{upg}" : name;
-        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, titleName, cardW - 62f, 1f), new Vector2(x + 54f, y + 8f), CarbonUiPalette.TextWarm, black, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, titleName, cardW - 62f, 1f), new Vector2(x + 54f, y + 8f), upg > 0 ? EnhancementTierStyles.Get(upg).Accent : CarbonUiPalette.TextWarm, black, 1, 1f);
 
         float upgMult = ItemEnhancementPolicy.GetStatMultiplier(upg);
         string stats = world.Items.Rules.Items.TryGet(item.ItemId, out ItemArchetype? def)

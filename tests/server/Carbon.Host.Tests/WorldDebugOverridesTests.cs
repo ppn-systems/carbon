@@ -37,6 +37,7 @@ public sealed class WorldDebugOverridesTests
             ["CARBON_DEBUG_SPAWN_BIOME"] = "DuneDesert",
             ["CARBON_DEBUG_SPAWN_OFFSET"] = "3,4",
             ["CARBON_DEBUG_START_HOUR"] = "23.5",
+            ["CARBON_DEBUG_FORGE_KIT"] = "1",
         };
 
         WorldDebugOverrides overrides = HostRuntimeOptions.ReadDebugOverrides(k => env.GetValueOrDefault(k));
@@ -45,6 +46,7 @@ public sealed class WorldDebugOverridesTests
         overrides.SpawnBiome.Should().Be("DuneDesert");
         overrides.SpawnOffset.Should().Be((3, 4));
         overrides.StartHour.Should().Be(23.5f);
+        overrides.ForgeKit.Should().BeTrue();
     }
 
     [Fact]

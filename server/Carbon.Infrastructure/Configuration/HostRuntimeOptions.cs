@@ -151,6 +151,7 @@ public sealed class HostRuntimeOptions
             SpawnBiome = readEnv("CARBON_DEBUG_SPAWN_BIOME") is { Length: > 0 } biome ? biome.Trim() : null,
             SpawnOffset = TryParsePair(readEnv("CARBON_DEBUG_SPAWN_OFFSET")) ?? default,
             StartHour = startHour,
+            ForgeKit = string.Equals(readEnv("CARBON_DEBUG_FORGE_KIT"), "1", StringComparison.Ordinal),
             StarterItems = ParseStarterItems(readEnv("CARBON_DEBUG_STARTER_ITEMS")),
         };
 #else
