@@ -217,7 +217,7 @@ server time (e.g. `WorldProgression.ComputeTimeOfDayHours`). The engine never re
 `night.startHour = 19` and `night.endHour = 5` wrap past midnight. At night:
 
 - hp, damage, and armor × `statMultiplier` (1.3),
-- per-cell cap and spawn rate × `densityMultiplier` (1.6, so a cap of 3 becomes 5),
+- per-cell cap and spawn rate × `densityMultiplier` (1.5, so a cap of 2 becomes 3),
 - elite chance `eliteChance` (12%) instead of `dayEliteChance` (2%),
 - night-only table weights (`nightWeight`) favour skeleton archers, orc shamans, and crimson demons.
 
@@ -225,16 +225,20 @@ Empowerment is applied when a monster spawns: monsters spawned during the day ke
 
 ## Spawner
 
-- **Cells**: the world is split into `cellSize` (512) density cells. Every `scanIntervalTicks` the spawner visits the
+- **Cells**: the world is split into `cellSize` (768) density cells. Every `scanIntervalTicks` the spawner visits the
   cells within `activationRadiusCells` of each anchor entity (`SpawnAnchorComponent`, typically players). Each cell is
   visited once per scan.
 - **Caps and timers**: a cell spawns while its live count is below the cap and `spawnIntervalTicks` have passed since
   its last attempt. When one of its monsters dies, the cell waits `respawnDelayTicks` before spawning again.
+- **Density budget**: with a 768 cell and a cap of 2 (3 at night), a fully populated area shows about 3 monsters on a
+  1280×720 screen by day and about 5 at night. `spawnIntervalTicks` (300, 10 s at 30 Hz) and `respawnDelayTicks` (1800, 60 s)
+  keep cleared areas quiet for a while. `ShippedConfig_SpawnDensity_StaysWithinScreenBudget` fails CI if a config
+  change pushes the per-screen count above 3.5 (day) or 5.5 (night).
 - **Placement retries**: each spawn opportunity samples up to `placementAttempts` (6) candidate points. A rejected
   point (safe zone, anchor distance, blocked tile, no monster eligible at the level) retries at once, so the cells
   around a player who just entered (`RequestScan`) populate on the first scan instead of after several intervals.
 - **Safe zone**: no spawn within `safeZoneRadius` (480, 15 tiles) of the world origin, and none within
-  `minSpawnDistanceFromAnchor` (256, 8 tiles) of any anchor. A larger safe zone empties the whole activation area
+  `minSpawnDistanceFromAnchor` (384, 12 tiles) of any anchor. A larger safe zone empties the whole activation area
   of a player standing at the world spawn.
 - **Biome tables**: `ISpawnSurface` rejects blocked candidate points (solid tiles, water, solid props) and returns
   the biome, which selects a weighted `spawnTables` entry. `ChunkWorldSpawnSurface` adapts `ChunkWorld2D`. Biomes
