@@ -229,6 +229,7 @@ public sealed class HostRuntimeOptions
             ForgeKit = string.Equals(readEnv("CARBON_DEBUG_FORGE_KIT"), "1", StringComparison.Ordinal),
             StarterItems = ParseStarterItems(readEnv("CARBON_DEBUG_STARTER_ITEMS")),
             WornGear = string.Equals(readEnv("CARBON_DEBUG_WORN_GEAR"), "1", StringComparison.Ordinal),
+            WornGearPercents = ParseWornGearPercents(readEnv("CARBON_DEBUG_WORN_GEAR")),
             StatusEffects = readEnv("CARBON_DEBUG_STATUS_EFFECTS")?.Trim() ?? string.Empty,
         };
 #else
@@ -237,6 +238,26 @@ public sealed class HostRuntimeOptions
     }
 
 #if DEBUG
+    /// <summary>Parses <c>p1,p2,...</c> durability percents (1..100; ADR-035 screenshots); <c>1</c> alone keeps the 40 % kit wear.</summary>
+    private static int[] ParseWornGearPercents(string? raw)
+    {
+        if (raw is null || string.Equals(raw.Trim(), "1", StringComparison.Ordinal))
+        {
+            return [];
+        }
+
+        System.Collections.Generic.List<int> percents = [];
+        foreach (string part in raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (int.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out int percent) && percent is >= 1 and <= 100)
+            {
+                percents.Add(percent);
+            }
+        }
+
+        return [.. percents];
+    }
+
     /// <summary>Parses <c>id[xQty][+Level]</c> entries separated by commas (e.g. <c>3+10,4x40</c>); bad entries are skipped.</summary>
     private static System.Collections.Generic.List<DebugStarterItem> ParseStarterItems(string? raw)
     {

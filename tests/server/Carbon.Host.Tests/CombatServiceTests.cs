@@ -14,6 +14,7 @@ using Carbon.Combat.Components;
 using Carbon.Combat.Damage;
 using Carbon.Combat.Stats;
 using Carbon.Combat.Statuses;
+using Carbon.Combat.Statuses.Config;
 using Carbon.Items.Containers;
 using Carbon.Physics.Obstacles;
 using Carbon.Physics.Raycast;
@@ -61,6 +62,22 @@ public sealed class CombatServiceTests
         hit.IsCritical.Should().BeTrue();
         hit.IsKilled.Should().BeFalse();
         h.Kills.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ApplyMonsterHits_WeakenedAttacker_DealsTheConfiguredShareOfTheDamage()
+    {
+        Harness h = new();
+        Entity mob = h.SpawnMonster(500UL, new Vector2(20f, 0f), health: 50f);
+        StatusEffectCatalog catalog = StatusEffectCatalog.LoadShippedDefaults();
+        catalog.TryGetByKey("weakness", out StatusEffectDefinition weakness).Should().BeTrue();
+        _ = h.Simulation.Entities.GetAttachmentStore<StatusEffectBuffer>().GetOrAdd(h.Player.Entity, static () => new StatusEffectBuffer())
+            .ApplyOrRefresh(StatusEffectCatalog.CreateActive(weakness, 30, Entity.Null, StatusSource.Monster, 106, level: 2));
+
+        _ = h.Combat.ApplyMonsterHits(h.Player, Vector2.Zero, Vector2.UnitX, [mob], 10f, isCritical: false, knockbackSpeed: 0f);
+
+        h.Simulation.Entities.GetHealth(mob).Current.Should().BeApproximately(43.5f, 1e-4f, "weakness II deals 65 % of 10");
+        h.Outbound.Pending.CombatHits.Should().ContainSingle().Which.Damage.Should().BeApproximately(6.5f, 1e-4f);
     }
 
     [Fact]

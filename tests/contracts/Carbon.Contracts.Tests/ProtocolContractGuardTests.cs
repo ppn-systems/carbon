@@ -473,6 +473,27 @@ public sealed class ProtocolContractGuardTests
         Assert.Equal((ushort)0x4079, RespawnRequest.StaticOpCode);
     }
 
+    [Fact]
+    public void ItemDurabilityAlert_RoundTrip_PreservesKindSlotItemAndLevel()
+    {
+        using ItemDurabilityAlert alert = new()
+        {
+            Kind = DurabilityAlertKind.Broke,
+            SlotIndex = 37,
+            ItemId = 18,
+            UpgradeLevel = 7,
+        };
+        using ItemDurabilityAlert copy = ItemDurabilityAlert.Deserialize(alert.Serialize());
+
+        Assert.Equal(DurabilityAlertKind.Broke, copy.Kind);
+        Assert.Equal((ushort)37, copy.SlotIndex);
+        Assert.Equal((ushort)18, copy.ItemId);
+        Assert.Equal((byte)7, copy.UpgradeLevel);
+        Assert.Equal((ushort)0x4090, ItemDurabilityAlert.StaticOpCode);
+        Assert.Equal((byte)1, (byte)DurabilityAlertKind.AboutToBreak);
+        Assert.Equal((byte)2, (byte)DurabilityAlertKind.Broke);
+    }
+
     private static bool IsPacketType(Type t) =>
         t is { IsClass: true, IsAbstract: false } && typeof(IPacketStaticOpcode).IsAssignableFrom(t);
 

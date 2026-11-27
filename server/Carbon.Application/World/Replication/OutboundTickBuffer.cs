@@ -37,6 +37,9 @@ internal readonly record struct OutboundCombatHit(
 
 internal readonly record struct OutboundSlotChange(ulong ConnectionId, ushort SlotIndex, ItemSlot Slot);
 
+/// <summary>An item about to break, or broken and destroyed, pushed to its owner (ADR-035).</summary>
+internal readonly record struct OutboundDurabilityAlert(ulong ConnectionId, DurabilityAlertKind Kind, ushort SlotIndex, uint ItemId, byte UpgradeLevel);
+
 internal readonly record struct OutboundPropChange(
     int RecipientsOffset,
     int RecipientsCount,
@@ -138,6 +141,8 @@ internal sealed class OutboundBatch
 
     public List<OutboundSlotChange> SlotChanges { get; } = new(32);
 
+    public List<OutboundDurabilityAlert> DurabilityAlerts { get; } = new(8);
+
     public List<OutboundPropChange> PropChanges { get; } = new(16);
 
     public List<OutboundStructureChange> StructureChanges { get; } = new(16);
@@ -178,6 +183,7 @@ internal sealed class OutboundBatch
         this.DeltaEntries.Clear();
         this.CombatHits.Clear();
         this.SlotChanges.Clear();
+        this.DurabilityAlerts.Clear();
         this.PropChanges.Clear();
         this.StructureChanges.Clear();
         this.ConstructionChanges.Clear();
@@ -278,6 +284,13 @@ internal sealed class OutboundTickBuffer
                 slotCopy.Durability,
                 ItemEnhancementPolicy.GetUpgradeLevel(in slotCopy),
                 slotCopy.FreshnessSeconds);
+        }
+
+        // After the slot changes, so the client already holds the emptied slot when it shows the break (ADR-035).
+        for (int i = 0; i < batch.DurabilityAlerts.Count; i++)
+        {
+            OutboundDurabilityAlert alert = batch.DurabilityAlerts[i];
+            sink.SendItemDurabilityAlert(alert.ConnectionId, alert.Kind, alert.SlotIndex, alert.ItemId, alert.UpgradeLevel);
         }
 
         for (int i = 0; i < batch.PropChanges.Count; i++)

@@ -413,7 +413,8 @@ public sealed partial class AuthoritativeWorld
             if (victim is not null && _actorsByNetworkId.TryGetValue(attackerNetId, out NpcActorMeta hitter) &&
                 _simulation.TryGetEntityByNetworkId(attackerNetId, out Entity attackerEntity))
             {
-                _ = _statusEffects.OnMonsterHit(targetEntity, targetNetId, attackerEntity, attackerNetId, hitter.ArchetypeId, monsterDamage, hp.Max, _currentTick);
+                // ADR-036 D8: the proc level grows with the monster's level (distance from the origin) and with the night now.
+                _ = _statusEffects.OnMonsterHit(targetEntity, targetNetId, attackerEntity, attackerNetId, hitter.ArchetypeId, monsterDamage, hp.Max, _currentTick, hitter.Level, _creatures.Spawner.IsNight);
             }
         }
 

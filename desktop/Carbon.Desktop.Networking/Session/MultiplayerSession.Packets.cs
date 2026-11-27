@@ -22,7 +22,6 @@ using Carbon.Desktop.Abstractions.StatusEffects;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
-using Carbon.Items.Definitions;
 using Carbon.Items.Serialization;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
@@ -96,6 +95,7 @@ public sealed partial class MultiplayerSession
         _tcpSubscriptions.Add(tcp.On<PlayerStatsSync>(this.OnPlayerStatsSync));
         _tcpSubscriptions.Add(tcp.On<StatusEffectSync>(this.OnStatusEffectSync));
         _tcpSubscriptions.Add(tcp.On<StaminaStatusSync>(this.OnStaminaStatusSync));
+        _tcpSubscriptions.Add(tcp.On<ItemDurabilityAlert>(this.OnItemDurabilityAlert));
         _tcpSubscriptions.Add(tcp.On<WalletSync>(this.OnWalletSync));
         _tcpSubscriptions.Add(tcp.On<TraderStock>(_trading.OnStock));
         _tcpSubscriptions.Add(tcp.On<PlayerDeath>(_death.OnPlayerDeath));
@@ -1127,8 +1127,10 @@ public sealed partial class MultiplayerSession
         }
     }
 
-    /// <summary>Replaces the local status effect list (ADR-029 D9); sent by the server only when it changes.</summary>
-    private void OnStatusEffectSync(StatusEffectSync pkt)
+    /// <summary>
+    /// Converts a <c>StatusEffectSync</c> into local entries (ADR-029 D9). A missing or zero level reads as I (ADR-036 D4).
+    /// </summary>
+    internal static LocalStatusEffect[] ToLocalStatusEffects(StatusEffectSync pkt)
     {
         int count = Math.Min(
             pkt.EffectIds.Length,
@@ -1143,9 +1145,17 @@ public sealed partial class MultiplayerSession
                 pkt.DurationMs[i] / 1000f,
                 pkt.Magnitudes[i],
                 pkt.SourceKinds[i],
-                pkt.SourceIds[i]);
+                pkt.SourceIds[i],
+                i < pkt.Levels.Length && pkt.Levels[i] > 0 ? pkt.Levels[i] : (byte)1);
         }
 
+        return effects;
+    }
+
+    /// <summary>Replaces the local status effect list (ADR-029 D9); sent by the server only when it changes.</summary>
+    private void OnStatusEffectSync(StatusEffectSync pkt)
+    {
+        LocalStatusEffect[] effects = ToLocalStatusEffects(pkt);
         lock (_worldGate)
         {
             _localStatusEffects = effects;
@@ -1205,35 +1215,27 @@ public sealed partial class MultiplayerSession
                         Label: popup));
                     _hudNotifications.Add(popup);
                 }
-                else if (previous.ItemId == next.ItemId &&
-                         _items.Rules.Items.TryGet(next.ItemId, out ItemArchetype? slotDef) &&
-                         slotDef.MaxDurability > 0f)
-                {
-                    if (previous.Durability > 0f && next.Durability <= 0f)
-                    {
-                        string brokenItem = _items.GetDisplayName(next.ItemId);
-                        string brokenMsg = GameText.Format("hud.item_worn_out", new TextArg("item", brokenItem));
-                        _combatEvents.Add(new CombatFeedbackEvent(
-                            localPos + new Vector2(0f, -14f),
-                            0f,
-                            IsCritical: true,
-                            IsHeal: false,
-                            Label: brokenMsg));
-                        _hudNotifications.Add(GameText.Format("hud.item_worn_out_hint", new TextArg("item", brokenItem)));
-                    }
-                    else if (previous.Durability <= 0f && next.Durability > 0f)
-                    {
-                        string mendMsg = GameText.Format("hud.item_mended", new TextArg("item", _items.GetDisplayName(next.ItemId)));
-                        _combatEvents.Add(new CombatFeedbackEvent(
-                            localPos + new Vector2(0f, -14f),
-                            next.Durability,
-                            IsCritical: false,
-                            IsHeal: true,
-                            Label: mendMsg));
-                        _hudNotifications.Add(mendMsg);
-                    }
-                }
             }
+        }
+    }
+
+    // ADR-035: an item about to break, or broken and destroyed. The slot itself arrives in InventorySlotChanged.
+    private void OnItemDurabilityAlert(ItemDurabilityAlert pkt)
+    {
+        lock (_worldGate)
+        {
+            Vector2 localPos = _simulation is not null && _simulation.Entities.IsAlive(_localPlayer)
+                ? _simulation.GetInterpolatedPosition(_localPlayer) + _visualOffset
+                : Vector2.Zero;
+            DurabilityAlertFeedback.Apply(
+                pkt.Kind,
+                pkt.ItemId,
+                pkt.UpgradeLevel,
+                _items.GetDisplayName(pkt.ItemId),
+                localPos,
+                _hudNotifications,
+                _combatEvents,
+                _itemBreakEvents);
         }
     }
 

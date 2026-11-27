@@ -35,8 +35,7 @@ public enum ToolStrikeOutcome : byte
     /// <summary>Striking hard rock with a sword or wood axe deflects cleanly and chips the blade.</summary>
     BladeBluntOnStone = 2,
 
-    /// <summary>Equipped tool has reached zero durability and performs at heavily degraded effectiveness.</summary>
-    WornOutTool = 3,
+    // 3 was WornOutTool: retired by ADR-035 (an item at 0 durability is destroyed, so none is ever "worn out").
 
     /// <summary>Matching tool type lacks the harvest tier required by this resource node.</summary>
     InsufficientTier = 4,
@@ -67,7 +66,8 @@ public readonly record struct PropStrikeEvaluation(
     ToolStrikeOutcome Outcome);
 
 /// <summary>
-/// Central domain policy governing tool durability wear, wrong-tool misuse penalties, and broken-tool degradation.
+/// Central domain policy governing tool durability wear and wrong-tool misuse penalties. An item never strikes at 0
+/// durability: it is destroyed by the wear step that empties it (ADR-035, <see cref="DurabilityWear"/>).
 /// </summary>
 public static class ToolUsagePolicy
 {
@@ -76,20 +76,6 @@ public static class ToolUsagePolicy
 
     /// <summary>Damage of a bare-hand punch on a tree the hand can fell: slow, so the first axe is the obvious goal.</summary>
     public const float BareHandTreeDamage = 8f;
-
-    /// <summary>
-    /// Returns <see langword="true"/> when <paramref name="slot"/> holds a breakable tool/weapon whose durability is exhausted.
-    /// </summary>
-    public static bool IsWornOut(ItemRules rules, in ItemSlot slot)
-    {
-        ArgumentNullException.ThrowIfNull(rules);
-        if (slot.IsEmpty || !rules.Items.TryGet(slot.ItemId, out ItemArchetype? def))
-        {
-            return false;
-        }
-
-        return def.MaxDurability > 0f && slot.Durability <= 0f;
-    }
 
     /// <summary>
     /// Evaluates melee combat damage and durability wear for <paramref name="slot"/>.
@@ -102,14 +88,6 @@ public static class ToolUsagePolicy
         if (slot.IsEmpty || !rules.Items.TryGet(slot.ItemId, out ItemArchetype? def) || def.MaxDurability <= 0f)
         {
             return new CombatStrikeEvaluation(baseDamage, 0f, ToolStrikeOutcome.Optimal);
-        }
-
-        if (slot.Durability <= 0f)
-        {
-            return new CombatStrikeEvaluation(
-                MathF.Max(8f, baseDamage * 0.45f),
-                0f,
-                ToolStrikeOutcome.WornOutTool);
         }
 
         float loss = def.Category == ItemCategory.Weapon ? 1.5f : 2.2f;
@@ -141,16 +119,6 @@ public static class ToolUsagePolicy
         if (slot.IsEmpty && targetKind == ToolTargetKind.Flora && propRequiredTier > 0 && propRequiredTier <= BareHandFloraTier)
         {
             return new PropStrikeEvaluation(BareHandTreeDamage, BareHandFloraTier, 0f, ToolStrikeOutcome.Optimal);
-        }
-
-        if (isDurabilityTool && slot.Durability <= 0f)
-        {
-            // Worn-out tools cannot cleave hard timber or stone veins, but still allow zero-tier bush foraging.
-            return new PropStrikeEvaluation(
-                targetKind == ToolTargetKind.Mineral ? 3f : 8f,
-                0,
-                0f,
-                ToolStrikeOutcome.WornOutTool);
         }
 
         if (def is { Category: ItemCategory.Weapon })

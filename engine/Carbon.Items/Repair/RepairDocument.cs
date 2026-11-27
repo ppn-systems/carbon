@@ -25,6 +25,22 @@ public sealed record RepairDocument
 
     /// <summary>Gets or sets the material families; every item with durability belongs to exactly one.</summary>
     public IReadOnlyList<RepairFamilyDefinition> Families { get; set; } = [];
+
+    /// <summary>Gets or sets when a durability bar warns before the item breaks (ADR-035).</summary>
+    public DurabilityWarningDefinition DurabilityWarning { get; set; } = new();
+}
+
+/// <summary>
+/// The durability shares (in percent of the item's maximum) at which the client colours the durability bar and the
+/// server sends the one-time "about to break" alert (ADR-035).
+/// </summary>
+public sealed record DurabilityWarningDefinition
+{
+    /// <summary>Gets or sets the share at or below which the bar turns yellow.</summary>
+    public int LowPercent { get; set; }
+
+    /// <summary>Gets or sets the share at or below which the bar turns red and the owner is warned once.</summary>
+    public int CriticalPercent { get; set; }
 }
 
 /// <summary>The tier each repair venue provides.</summary>

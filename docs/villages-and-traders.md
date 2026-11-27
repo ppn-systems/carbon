@@ -172,30 +172,34 @@ The traders of §3 use the `store` and `stall` NPC spots.
   - Only the quantity sold in the current epoch is state (`TraderBook`), kept in the `trader_stock` table. The table is created idempotently with the base schema in SQLite and PostgreSQL.
   - The trader key mixes the village centre with the building role (`SettlementNpcSpawner.TraderKeyOf`), so it is stable for a given world.
 - **Prices.** A unit price is the list price (`PriceBook.GetListPrice`: base × buy markup, consumables by the buyer's level band), shifted by the slot's rolled offset. It is never at or below the vendor buy-back price.
-- **Server.** `TradeService` (`server/Carbon.Application/World/Commerce`) has its own command queue, drained on the world tick, and pushes stock through the outbound tick buffer. The `ItemHandlers.Trade` partial routes the three C2S opcodes.
+- **Server.** `TradeService` (`server/Carbon.Application/World/Commerce`) has its own command queue, drained on the world tick, and pushes stock through the outbound tick buffer. The `ItemHandlers.Trade` partial routes the C2S opcodes.
 - **Wire.**
-  - C2S: `TraderOpen` `0x4040`, `TraderBuy` `0x4041` (carries the epoch it was priced in), `TraderSell` `0x4042`.
-  - S2C: `TraderStock` `0x4048` carries items, prices, remaining quantities, sell prices and seconds until restock.
-  - Results come back as `MutationResult`, followed by `TraderStock` and `WalletSync`.
-- **Rules.** The player must be within 175 px of a live trader. A buy needs a valid slot, enough remaining stock, gold and bag space, and commits all of them atomically. A stale epoch is refused with `Conflict`. A sell pays the economy sell price (25 % spread, a gold sink).
+  - C2S: `TraderOpen` `0x4040`; `TraderSellBatch` `0x4052` (a whole basket: bag slot, item and units per line, and the total the window showed); `TraderBuyBatch` `0x4053` (a whole cart, priced in an epoch).
+  - S2C: `TraderStock` `0x4048` carries items, prices, remaining quantities, sell prices and seconds until restock. `TraderBatchResult` `0x4054` answers a batch with a `TradeBatchError` code and the failing line, after the changed slots, `WalletSync` and a fresh `TraderStock`.
+  - The single-item `TraderBuy` `0x4041` and `TraderSell` `0x4042` (answered with `MutationResult`) still work for older clients; the desktop client no longer sends them (ADR-025 D19).
+- **Rules.** The player must be within 175 px of a live trader. A buy needs a valid slot, enough remaining stock, gold and bag space, and commits all of them atomically. A stale epoch is refused with `Conflict`. A sell pays the economy sell price (25 % spread, a gold sink). A batch is all or nothing: every line is checked and every price recomputed before anything changes, and a total other than the confirmed one is refused as `PricesChanged` (ADR-025 D20).
 - **Desktop.** `TradeModalWidget` (nine-slice, ADR-008) shows:
   - the stock rows: icon, name, units left with a gauge, and the price, in red when unaffordable;
   - the bag grid, with what the trader pays per item; items the trader does not buy are dimmed;
-  - the wallet and a live restock countdown.
+  - the wallet and a live restock countdown;
+  - the **Cart** and the **To sell** basket (ADR-025 D18): one line per item with −/+, the subtotal, and the running total.
 
-  Controls:
+  Controls. Nothing is bought or sold until **Buy** or **Sell** is pressed:
   - `E` near a trader, or clicking one, opens the window.
-  - Clicking a row buys 1; Shift-click buys 5.
-  - Clicking a bag item sells 1; Shift-click sells the stack.
-  - Walking away, opening another window or `Esc` closes it.
+  - Clicking a stock row adds 1 to the cart; Shift-click adds 5.
+  - Clicking a bag item moves 1 to the basket; Shift-click or dragging it onto To sell moves the whole stack. Equipment cannot be added.
+  - −/+ change a line (Shift: by 10); **Clear** returns a side.
+  - When prices change (a restock, or the server refused the total) or the basket holds enhanced gear, the button reads **Confirm**: the first press accepts, the next one sends.
+  - Walking away, opening another window or `Esc` closes the window, and everything staged returns (it never left the bag).
 
-  All strings are in `resources/localization/{en,vi}.ini` under `[trade]` (ADR-023).
+  All strings are in `resources/localization/{en,vi}.ini` under `[trade]` and `[trade_basket]` (ADR-023).
 
   The code is split to stay within the client size caps (audit round 2):
-  - `TraderSession` (networking) holds the pushed stock and sends the requests. It is reached through `IGameplayController.Trading`.
-  - `TradeInteraction` (scene) decides when to talk, click, open and close.
+  - `TraderSession` (networking) holds the pushed stock, sends the committed batches and queues their answers. It is reached through `IGameplayController.Trading`.
+  - `TradeBasket` (abstractions) holds the staged lines, re-prices them and decides when a press re-confirms.
+  - `TradeInteraction` (scene) decides when to talk, click, open and close; `TradeWindowController` maps clicks and drags to the basket.
   - `TradeModalWidget` (HUD) is stateless; it draws the window and hit-tests it.
-- **Screenshots.** `tools/screenshots/capture.sh <out> '^trade_'` spawns the player in front of the market stall and opens the trader (`CARBON_OPEN_TRADER=1`).
+- **Screenshots.** `tools/screenshots/capture.sh <out> '^trade_'` spawns the player in front of the market stall and opens the trader (`CARBON_OPEN_TRADER=1`). `trade_basket` also stages a sample basket and cart (`CARBON_TRADE_PREVIEW=basket`, visual only).
 
 ## 4. Blacksmith
 

@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "itemId": 0,
+  "id": "status_weakness",
+  "displayName": "Weakness",
+  "tier": 1,
+  "categoryLabel": "Status",
+  "accentColor": "#A78BFA",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.7,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "x": 0,
+      "y": 0,
+      "rx": 6.2,
+      "ry": 7.2,
+      "color": "#4C1D95",
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -1.9,
+          -7.4
+        ],
+        [
+          1.9,
+          -7.4
+        ],
+        [
+          1.9,
+          -2.4
+        ],
+        [
+          -1.9,
+          -1.2
+        ]
+      ],
+      "color": "#E2E8F0",
+      "outlineColor": "#1E1B4B",
+      "outlineThickness": 0.8,
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -1.9,
+          0.0
+        ],
+        [
+          1.9,
+          -1.2
+        ],
+        [
+          1.9,
+          2.4
+        ],
+        [
+          -1.9,
+          2.4
+        ]
+      ],
+      "color": "#E2E8F0",
+      "outlineColor": "#1E1B4B",
+      "outlineThickness": 0.8,
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -4.2,
+          2.4
+        ],
+        [
+          4.2,
+          2.4
+        ],
+        [
+          4.2,
+          3.9
+        ],
+        [
+          -4.2,
+          3.9
+        ]
+      ],
+      "color": "#A78BFA",
+      "outlineColor": "#1E1B4B",
+      "outlineThickness": 0.8,
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -1.1,
+          3.9
+        ],
+        [
+          1.1,
+          3.9
+        ],
+        [
+          1.1,
+          7.2
+        ],
+        [
+          -1.1,
+          7.2
+        ]
+      ],
+      "color": "#7C3AED",
+      "outlineColor": "#1E1B4B",
+      "outlineThickness": 0.8,
+      "bone": "root",
+      "facing": "any"
+    }
+  ]
+}

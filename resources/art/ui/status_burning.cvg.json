@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "itemId": 0,
+  "id": "status_burning",
+  "displayName": "Burning",
+  "tier": 1,
+  "categoryLabel": "Status",
+  "accentColor": "#F97316",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.7,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          0,
+          -7.6
+        ],
+        [
+          3.4,
+          -3.2
+        ],
+        [
+          5,
+          1.2
+        ],
+        [
+          4,
+          4.6
+        ],
+        [
+          0,
+          6.6
+        ],
+        [
+          -4,
+          4.6
+        ],
+        [
+          -5,
+          1.2
+        ],
+        [
+          -3.4,
+          -3.2
+        ]
+      ],
+      "color": "#EA580C",
+      "outlineColor": "#431407",
+      "outlineThickness": 1.1,
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          0,
+          -3.6
+        ],
+        [
+          2.4,
+          0.4
+        ],
+        [
+          2.6,
+          3.2
+        ],
+        [
+          0,
+          5
+        ],
+        [
+          -2.6,
+          3.2
+        ],
+        [
+          -2.4,
+          0.4
+        ]
+      ],
+      "color": "#FBBF24",
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "ellipse",
+      "x": 0,
+      "y": 3,
+      "rx": 1.2,
+      "ry": 1.3,
+      "color": "#FEF3C7",
+      "bone": "root",
+      "facing": "any"
+    }
+  ]
+}

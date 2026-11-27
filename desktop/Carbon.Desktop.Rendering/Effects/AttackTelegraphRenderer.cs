@@ -30,7 +30,9 @@ public static class AttackTelegraphRenderer
     /// <param name="attackerPos">Attacker foot position.</param>
     /// <param name="attack">Attack phase view.</param>
     /// <param name="animTime">Global animation time in seconds (for pulses).</param>
-    public static void Draw(GeometryBatch batch, Vector2 attackerPos, in AttackPhaseView attack, float animTime)
+    /// <param name="effectTint">Colour of the status effect the attack may apply (ADR-036 D10), replacing the attack kind's
+    /// colour; <see langword="null"/> keeps it.</param>
+    public static void Draw(GeometryBatch batch, Vector2 attackerPos, in AttackPhaseView attack, float animTime, ColorRgba? effectTint = null)
     {
         ArgumentNullException.ThrowIfNull(batch);
         if (!attack.IsActive || attack.Phase == EntityAttackPhase.PhaseRecovery)
@@ -44,17 +46,21 @@ public static class AttackTelegraphRenderer
         float pulse = 0.5f + (0.5f * MathF.Sin(animTime * 14f));
         Vector2 dir = attack.Direction.LengthSquared() > 1e-4f ? Vector2.Normalize(attack.Direction) : Vector2.UnitX;
 
+        ColorRgba meleeColor = effectTint ?? s_meleeColor;
+        ColorRgba shotColor = effectTint ?? s_shotColor;
+        ColorRgba spellColor = effectTint ?? s_spellColor;
+        ColorRgba leapColor = effectTint ?? s_leapColor;
         switch (attack.AttackKind)
         {
             case EntityAttackPhase.KindMelee:
                 if (windup || attack.Phase == EntityAttackPhase.PhaseTravel)
                 {
                     float grow = windup ? p : 1f;
-                    DrawWedge(batch, attackerPos, dir, attack.AreaRadius, attack.HalfAngleRadians, s_meleeColor, fillAlpha: (byte)(40 + (60 * grow)), fillScale: grow);
+                    DrawWedge(batch, attackerPos, dir, attack.AreaRadius, attack.HalfAngleRadians, meleeColor, fillAlpha: (byte)(40 + (60 * grow)), fillScale: grow);
                 }
                 else if (active)
                 {
-                    DrawWedge(batch, attackerPos, dir, attack.AreaRadius, attack.HalfAngleRadians, s_meleeColor, fillAlpha: (byte)(150 * (1f - p)), fillScale: 1f);
+                    DrawWedge(batch, attackerPos, dir, attack.AreaRadius, attack.HalfAngleRadians, meleeColor, fillAlpha: (byte)(150 * (1f - p)), fillScale: 1f);
                 }
 
                 break;
@@ -62,11 +68,11 @@ public static class AttackTelegraphRenderer
             case EntityAttackPhase.KindProjectile:
                 if (windup)
                 {
-                    DrawDashedLine(batch, attackerPos, attack.Target, WithAlpha(s_shotColor, (byte)(70 + (150 * p))), 1.2f + (1.4f * p));
+                    DrawDashedLine(batch, attackerPos, attack.Target, WithAlpha(shotColor, (byte)(70 + (150 * p))), 1.2f + (1.4f * p));
                     float reticle = 9f - (4f * p);
-                    batch.DrawCircle(attack.Target, reticle, WithAlpha(s_shotColor, (byte)(120 + (120 * p))), 12, 1.4f);
-                    batch.DrawLine(attack.Target - new Vector2(reticle + 3f, 0f), attack.Target + new Vector2(reticle + 3f, 0f), WithAlpha(s_shotColor, 150), 1f);
-                    batch.DrawLine(attack.Target - new Vector2(0f, reticle + 3f), attack.Target + new Vector2(0f, reticle + 3f), WithAlpha(s_shotColor, 150), 1f);
+                    batch.DrawCircle(attack.Target, reticle, WithAlpha(shotColor, (byte)(120 + (120 * p))), 12, 1.4f);
+                    batch.DrawLine(attack.Target - new Vector2(reticle + 3f, 0f), attack.Target + new Vector2(reticle + 3f, 0f), WithAlpha(shotColor, 150), 1f);
+                    batch.DrawLine(attack.Target - new Vector2(0f, reticle + 3f), attack.Target + new Vector2(0f, reticle + 3f), WithAlpha(shotColor, 150), 1f);
                 }
 
                 break;
@@ -78,11 +84,11 @@ public static class AttackTelegraphRenderer
                     byte alpha = active ? (byte)(190 * (1f - p)) : (byte)(windup ? 35 + (45 * p) : 70 + (60 * pulse));
                     if (cone)
                     {
-                        DrawWedge(batch, attackerPos, dir, attack.AreaRadius, attack.HalfAngleRadians, s_spellColor, alpha, fill);
+                        DrawWedge(batch, attackerPos, dir, attack.AreaRadius, attack.HalfAngleRadians, spellColor, alpha, fill);
                     }
                     else
                     {
-                        DrawZone(batch, attack.Target, attack.AreaRadius, s_spellColor, alpha, fill, runes: !active, animTime);
+                        DrawZone(batch, attack.Target, attack.AreaRadius, spellColor, alpha, fill, runes: !active, animTime);
                     }
                 }
 
@@ -92,10 +98,10 @@ public static class AttackTelegraphRenderer
                 {
                     float fill = windup ? p : 1f;
                     byte alpha = active ? (byte)(200 * (1f - p)) : (byte)(windup ? 40 + (50 * p) : 90 + (60 * pulse));
-                    DrawZone(batch, attack.Target, attack.AreaRadius, s_leapColor, alpha, fill, runes: false, animTime);
+                    DrawZone(batch, attack.Target, attack.AreaRadius, leapColor, alpha, fill, runes: false, animTime);
                     if (!active)
                     {
-                        DrawDashedLine(batch, attackerPos, attack.Target, WithAlpha(s_leapColor, 110), 1.2f);
+                        DrawDashedLine(batch, attackerPos, attack.Target, WithAlpha(leapColor, 110), 1.2f);
                     }
                 }
 

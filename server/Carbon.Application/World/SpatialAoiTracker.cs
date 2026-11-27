@@ -76,7 +76,8 @@ public sealed class SpatialAoiTracker
 
     /// <summary>
     /// Evaluates visible network entities around <paramref name="observerPosition"/>, populating
-    /// newly entered network IDs, still-visible network IDs, and departed network IDs.
+    /// newly entered network IDs, still-visible network IDs, and departed network IDs. <paramref name="radiusScale"/>
+    /// shrinks both the enter and the exit radius for this observer (blindness, ADR-036 D9).
     /// </summary>
     public void ComputeVisibility(
         ulong connectionId,
@@ -85,7 +86,8 @@ public sealed class SpatialAoiTracker
         WorldSimulation simulation,
         List<ulong> enteredIds,
         List<ulong> visibleIds,
-        List<ulong> exitedIds)
+        List<ulong> exitedIds,
+        float radiusScale = 1f)
     {
         ArgumentNullException.ThrowIfNull(simulation);
         ArgumentNullException.ThrowIfNull(enteredIds);
@@ -116,8 +118,9 @@ public sealed class SpatialAoiTracker
             simulation.SpatialGrid.QueryCellRadius(in centerCell, cellRadius, _broadphaseBuffer, out hits);
         }
 
-        float enterRadiusSq = _viewRadius * _viewRadius;
-        float exitRadiusSq = _exitRadius * _exitRadius;
+        float scale = float.IsFinite(radiusScale) ? Math.Clamp(radiusScale, 0f, 1f) : 1f;
+        float enterRadiusSq = _viewRadius * scale * _viewRadius * scale;
+        float exitRadiusSq = _exitRadius * scale * _exitRadius * scale;
         for (int i = 0; i < hits; i++)
         {
             Entity candidate = simulation.Entities.GetEntity(_broadphaseBuffer[i]);

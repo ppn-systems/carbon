@@ -33,7 +33,8 @@ public sealed class RepairTable
         int[] tierPercent,
         int stepPercent,
         RepairStationTiers stations,
-        RepairFeeDefinition fee)
+        RepairFeeDefinition fee,
+        DurabilityWarningDefinition warning)
     {
         _items = items;
         _tierPercent = tierPercent;
@@ -47,6 +48,8 @@ public sealed class RepairTable
         this.BlacksmithReach = stations.BlacksmithReach;
         this.FeePercentOfBasePrice = fee.PercentOfBasePrice;
         this.MinimumFee = fee.Minimum;
+        this.WarningLowPercent = warning.LowPercent;
+        this.WarningCriticalPercent = warning.CriticalPercent;
     }
 
     /// <summary>Gets the durability one step restores, in percent of the item's maximum.</summary>
@@ -78,6 +81,29 @@ public sealed class RepairTable
 
     /// <summary>Gets every family.</summary>
     public IReadOnlyList<RepairFamily> Families { get; }
+
+    /// <summary>Gets the durability share (percent of max) at or below which the bar turns yellow (ADR-035).</summary>
+    public int WarningLowPercent { get; }
+
+    /// <summary>Gets the durability share (percent of max) at or below which the bar turns red and the owner is warned once (ADR-035).</summary>
+    public int WarningCriticalPercent { get; }
+
+    /// <summary>Classifies <paramref name="durability"/> out of <paramref name="maxDurability"/> against the warning shares (ADR-035).</summary>
+    /// <param name="durability">Current durability.</param>
+    /// <param name="maxDurability">Effective maximum (enhancement included); an item without durability is always healthy.</param>
+    /// <returns>The band the durability bar is drawn in.</returns>
+    public DurabilityBand GetDurabilityBand(float durability, float maxDurability)
+    {
+        if (maxDurability <= 0f)
+        {
+            return DurabilityBand.Healthy;
+        }
+
+        float percent = durability * 100f / maxDurability;
+        return percent <= this.WarningCriticalPercent
+            ? DurabilityBand.Critical
+            : percent <= this.WarningLowPercent ? DurabilityBand.Low : DurabilityBand.Healthy;
+    }
 
     /// <summary>Parses, validates and compiles a <c>repair.json</c> document.</summary>
     /// <param name="json">Document text.</param>
@@ -125,6 +151,12 @@ public sealed class RepairTable
         if (stations.StationReachTiles < 1 || stations.BlacksmithReach <= 0f)
         {
             throw new InvalidDataException("repair.json stations.stationReachTiles and stations.blacksmithReach must be positive.");
+        }
+
+        DurabilityWarningDefinition warning = document.DurabilityWarning ?? new DurabilityWarningDefinition();
+        if (warning.CriticalPercent < 1 || warning.LowPercent <= warning.CriticalPercent || warning.LowPercent >= 100)
+        {
+            throw new InvalidDataException("repair.json needs 1 <= durabilityWarning.criticalPercent < durabilityWarning.lowPercent < 100.");
         }
 
         RepairFeeDefinition fee = document.BlacksmithFee ?? new RepairFeeDefinition();
@@ -207,7 +239,7 @@ public sealed class RepairTable
             }
         }
 
-        return new RepairTable(byItem.ToFrozenDictionary(), families, tierPercent, document.StepPercent, stations, fee);
+        return new RepairTable(byItem.ToFrozenDictionary(), families, tierPercent, document.StepPercent, stations, fee, warning);
     }
 
     /// <summary>Gets the family of <paramref name="itemId"/>.</summary>
@@ -243,7 +275,8 @@ public sealed class RepairTable
             return RepairError.EmptySlot;
         }
 
-        if (!_items.TryGetValue(slot.ItemId, out Entry entry))
+        // ADR-035: an item is repairable only while it still has durability; at 0 it no longer exists.
+        if (!_items.TryGetValue(slot.ItemId, out Entry entry) || slot.Durability <= 0f)
         {
             return RepairError.NotRepairable;
         }
