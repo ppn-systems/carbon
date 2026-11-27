@@ -88,14 +88,6 @@ desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Tool  Tier {}
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	WEAPONS
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Weapon  {} DMG
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Workbench
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Active
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Bag
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Blacksmith Forge
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Enhance
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Equipped
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Materials
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Need Forge
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	No upgradable gear
 desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	+{} DEF  +{} HP
 desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	+{} DMG  RNG {}
 desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	+{} HP  +{} MP
@@ -256,5 +248,4 @@ desktop/Carbon.Desktop/Scenes/LoginScene.cs	repeat password
 desktop/Carbon.Desktop/Scenes/WorldGameplayScene.cs	 [Roofed Room]
 desktop/Carbon.Desktop/Scenes/WorldGameplayScene.cs	Carbon MMORPG ({}) | {} | Biome: {} | Alt: Lvl {} | Nav: {}{}{} | Peers: {}
 desktop/Carbon.Desktop/Scenes/WorldGameplayScene.cs	Skills unlock upon class advancement
-desktop/Carbon.Desktop/Scenes/WorldGameplayScene.cs	Visit Master Blacksmith or place a Forge Anvil to enhance gear!
 desktop/Carbon.Desktop/Scenes/WorldGameplayScene.cs	WorldGameplay
