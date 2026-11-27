@@ -127,6 +127,9 @@ internal sealed class RiverNetwork : IRiverDistanceSource
     private readonly ConcurrentDictionary<Task, byte> _builds = new();
     private int _stopped;
 
+    // Regions built per thread (ADR-045 D8 guards: a tick step after a prewarm builds none itself).
+    private readonly ConcurrentDictionary<int, int> _regionBuildsByThread = new();
+
     private readonly ulong _seed;
     private readonly int _maxCachedRegions;
     private int _regionBuilds;
@@ -152,6 +155,9 @@ internal sealed class RiverNetwork : IRiverDistanceSource
 
     /// <summary>Gets the number of regions this network has built (tests: a cache hit builds none).</summary>
     internal int RegionBuilds => Volatile.Read(ref _regionBuilds);
+
+    /// <summary>Gets the number of regions this network built on the calling thread (tests).</summary>
+    internal int RegionBuildsOnThisThread => _regionBuildsByThread.GetValueOrDefault(Environment.CurrentManagedThreadId);
 
     /// <summary>Gets the number of regions cached (tests: the bound and the pins).</summary>
     internal int CachedRegions => _regions.Count;
@@ -466,6 +472,7 @@ internal sealed class RiverNetwork : IRiverDistanceSource
         this.ThrowIfStopped();
 
         _ = Interlocked.Increment(ref _regionBuilds);
+        _ = _regionBuildsByThread.AddOrUpdate(Environment.CurrentManagedThreadId, 1, static (_, n) => n + 1);
         int x0 = rx * RegionSize;
         int y0 = ry * RegionSize;
 

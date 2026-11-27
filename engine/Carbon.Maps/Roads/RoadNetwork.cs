@@ -4,6 +4,8 @@ using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
 using Carbon.Maps.Hydrology;
@@ -56,8 +58,26 @@ public sealed class RoadNetwork
     private readonly PointOfInterestResolver _landmarks;
     private readonly ITileSource _tiles;
     private readonly IRiverDistanceSource _rivers;
-    private readonly ConcurrentDictionary<long, RoadSiteData> _bySite = new();
+    // Road sites built per thread (ADR-045 D8 guards: a tick step after a prewarm builds none itself).
+    private readonly ConcurrentDictionary<int, int> _siteBuildsByThread = new();
+
+    // ADR-045 D2: one build per site, which a caller needing it joins (ExecutionAndPublication), never a duplicate.
+    private readonly ConcurrentDictionary<long, Lazy<RoadSiteData>> _bySite = new();
     private readonly ConcurrentQueue<long> _siteOrder = new();
+
+    // ADR-045 D1, D5: sites queued for the background workers, at most MaxWorkers of them running.
+    private readonly ConcurrentQueue<long> _queue = new();
+    private readonly ConcurrentDictionary<long, byte> _queued = new();
+    private readonly ConcurrentDictionary<Task, byte> _workers = new();
+    private int _runningWorkers;
+    private int _maxWorkers;
+    private int _stopped;
+    private int _backgroundSiteBuilds;
+    private int _peakWorkers;
+
+    // Each stream's latest prewarm rectangle, in sites: a queued site outside all of them is dropped before it starts.
+    private readonly Lock _wantGate = new();
+    private readonly Dictionary<ulong, (int X0, int Y0, int X1, int Y1)> _wanted = [];
     private readonly ConcurrentDictionary<long, (int X, int Y)[]> _choices = new();
     private readonly ConcurrentQueue<long> _choiceOrder = new();
 
@@ -76,15 +96,104 @@ public sealed class RoadNetwork
         PointOfInterestType.Harbor or PointOfInterestType.MineEntrance or
         PointOfInterestType.Watchtower or PointOfInterestType.AncientRuins;
 
+    /// <summary>Gets the number of road sites built by the background workers (tests).</summary>
+    internal int BackgroundSiteBuilds => Volatile.Read(ref _backgroundSiteBuilds);
+
+    /// <summary>Gets the most background workers that ran at once (tests: the D5 cap).</summary>
+    internal int PeakWorkers => Volatile.Read(ref _peakWorkers);
+
+    /// <summary>Gets the number of road sites queued or being built in the background (tests).</summary>
+    internal int PendingBuilds => _queued.Count + Volatile.Read(ref _runningWorkers);
+
+    /// <summary>
+    /// Plans, in the background, every road site a <see cref="Query"/> of the tile rectangle would read, so the tick finds
+    /// them built (ADR-045 D1). At most <paramref name="maxWorkers"/> build at once; 0 plans nothing ahead. The rectangle
+    /// is <paramref name="stream"/>'s latest: queued sites no stream still wants are dropped before they start.
+    /// </summary>
+    /// <param name="minX">Rectangle left, in tiles.</param>
+    /// <param name="minY">Rectangle top, in tiles.</param>
+    /// <param name="maxX">Rectangle right, in tiles.</param>
+    /// <param name="maxY">Rectangle bottom, in tiles.</param>
+    /// <param name="stream">Who is streaming (one per player on the server).</param>
+    /// <param name="maxWorkers">Background road builds allowed at once.</param>
+    public void Prewarm(int minX, int minY, int maxX, int maxY, ulong stream, int maxWorkers)
+    {
+        (int sx0, int sy0, int sx1, int sy1) = QueriedSites(minX, minY, maxX, maxY);
+        lock (_wantGate)
+        {
+            _wanted[stream] = (sx0, sy0, sx1, sy1);
+        }
+
+        if (maxWorkers <= 0 || Volatile.Read(ref _stopped) != 0)
+        {
+            return;
+        }
+
+        Volatile.Write(ref _maxWorkers, maxWorkers);
+        bool queuedAny = false;
+        for (int sy = sy0; sy <= sy1; sy++)
+        {
+            for (int sx = sx0; sx <= sx1; sx++)
+            {
+                long key = SiteKey(sx, sy);
+                if ((_bySite.TryGetValue(key, out Lazy<RoadSiteData>? lazy) && lazy.IsValueCreated) || !_queued.TryAdd(key, 0))
+                {
+                    continue;
+                }
+
+                _queue.Enqueue(key);
+                queuedAny = true;
+            }
+        }
+
+        if (queuedAny)
+        {
+            this.StartWorkers();
+        }
+    }
+
+    /// <summary>Stops wanting the sites of <paramref name="stream"/> (a player left the world).</summary>
+    /// <param name="stream">The stream passed to <see cref="Prewarm"/>.</param>
+    public void ReleaseStream(ulong stream)
+    {
+        lock (_wantGate)
+        {
+            _ = _wanted.Remove(stream);
+        }
+    }
+
+    /// <summary>
+    /// ADR-045 D10: stops the background road builds on shutdown. Queued sites are dropped, running builds finish, and
+    /// every worker is awaited and observed.
+    /// </summary>
+    /// <param name="timeout">How long to wait for running builds.</param>
+    /// <returns><see langword="true"/> if every worker finished within <paramref name="timeout"/>.</returns>
+    public bool StopBackgroundBuilds(TimeSpan timeout)
+    {
+        _ = Interlocked.Exchange(ref _stopped, 1);
+        while (_queue.TryDequeue(out long key))
+        {
+            _ = _queued.TryRemove(key, out _);
+        }
+
+        Task[] running = [.. _workers.Keys];
+        try
+        {
+            return Task.WaitAll(running, timeout);
+        }
+        catch (AggregateException)
+        {
+            // A failed worker already ran its observing continuation.
+            return true;
+        }
+    }
+
     /// <summary>Collects the roads and bridge spans that may cross a tile rectangle.</summary>
     public void Query(int minX, int minY, int maxX, int maxY, List<RoadLink> result)
     {
         ArgumentNullException.ThrowIfNull(result);
 
-        int sx0 = FloorDiv(minX, PointOfInterestResolver.SiteSize) - Reach - 1;
-        int sy0 = FloorDiv(minY, PointOfInterestResolver.SiteSize) - Reach - 1;
-        int sx1 = FloorDiv(maxX, PointOfInterestResolver.SiteSize) + Reach + 1;
-        int sy1 = FloorDiv(maxY, PointOfInterestResolver.SiteSize) + Reach + 1;
+        (int sx0, int sy0, int sx1, int sy1) = QueriedSites(minX, minY, maxX, maxY);
         for (int sy = sy0; sy <= sy1; sy++)
         {
             for (int sx = sx0; sx <= sx1; sx++)
@@ -237,26 +346,142 @@ public sealed class RoadNetwork
         return MathF.Sqrt(best);
     }
 
+    // The sites a query of the tile rectangle reads.
+    private static (int X0, int Y0, int X1, int Y1) QueriedSites(int minX, int minY, int maxX, int maxY) => (
+        FloorDiv(minX, PointOfInterestResolver.SiteSize) - Reach - 1,
+        FloorDiv(minY, PointOfInterestResolver.SiteSize) - Reach - 1,
+        FloorDiv(maxX, PointOfInterestResolver.SiteSize) + Reach + 1,
+        FloorDiv(maxY, PointOfInterestResolver.SiteSize) + Reach + 1);
+
+    private static long SiteKey(int siteX, int siteY) => ((long)siteX << 32) | (uint)siteY;
+
+    // A site whose build a caller needs now: joins a build already running (background or another caller), or builds it.
     private RoadSiteData GetSiteData(int siteX, int siteY)
     {
-        long key = ((long)siteX << 32) | (uint)siteY;
-        if (_bySite.TryGetValue(key, out RoadSiteData cached))
+        long key = SiteKey(siteX, siteY);
+        if (_bySite.TryGetValue(key, out Lazy<RoadSiteData>? cached))
         {
-            return cached;
+            return cached.Value;
         }
 
-        TrimQueue(_bySite, _siteOrder, MaxCachedSites);
-        RoadSiteData built = this.BuildSiteData(siteX, siteY);
-        if (_bySite.TryAdd(key, built))
+        return this.GetOrRegisterSite(key, siteX, siteY).Value;
+    }
+
+    private Lazy<RoadSiteData> GetOrRegisterSite(long key, int siteX, int siteY)
+    {
+        this.TrimSites();
+        Lazy<RoadSiteData> created = new(() => this.BuildSiteData(siteX, siteY), LazyThreadSafetyMode.ExecutionAndPublication);
+        Lazy<RoadSiteData> active = _bySite.GetOrAdd(key, created);
+        if (ReferenceEquals(active, created))
         {
             _siteOrder.Enqueue(key);
         }
 
-        return _bySite.TryGetValue(key, out RoadSiteData published) ? published : built;
+        return active;
     }
+
+    // First in, first out; ADR-045 D6: a site not built yet (queued or being built) is never trimmed under its caller.
+    private void TrimSites()
+    {
+        int guard = 0;
+        while (_bySite.Count >= MaxCachedSites && guard < 8 && _siteOrder.TryDequeue(out long oldest))
+        {
+            guard++;
+            if (_bySite.TryGetValue(oldest, out Lazy<RoadSiteData>? site) && !site.IsValueCreated)
+            {
+                _siteOrder.Enqueue(oldest);
+                continue;
+            }
+
+            _ = _bySite.TryRemove(oldest, out _);
+        }
+    }
+
+    private void StartWorkers()
+    {
+        while (true)
+        {
+            int running = Volatile.Read(ref _runningWorkers);
+            if (running >= Volatile.Read(ref _maxWorkers) || _queue.IsEmpty || Volatile.Read(ref _stopped) != 0)
+            {
+                return;
+            }
+
+            if (Interlocked.CompareExchange(ref _runningWorkers, running + 1, running) != running)
+            {
+                continue;
+            }
+
+            int peak;
+            while ((peak = Volatile.Read(ref _peakWorkers)) < running + 1 &&
+                   Interlocked.CompareExchange(ref _peakWorkers, running + 1, peak) != peak)
+            {
+            }
+
+            Task worker = Task.Run(this.DrainQueue);
+            _ = _workers.TryAdd(worker, 0);
+            _ = worker.ContinueWith(
+                static (t, state) =>
+                {
+                    _ = t.Exception; // observed: a failed build never surfaces as an unobserved task exception
+                    _ = ((ConcurrentDictionary<Task, byte>)state!).TryRemove(t, out _);
+                },
+                _workers,
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        }
+    }
+
+    // One background worker: builds queued sites until the queue is empty or the network stops.
+    private void DrainQueue()
+    {
+        try
+        {
+            while (Volatile.Read(ref _stopped) == 0 && _queue.TryDequeue(out long key))
+            {
+                _ = _queued.TryRemove(key, out _);
+                int siteX = (int)(key >> 32);
+                int siteY = (int)key;
+                Lazy<RoadSiteData> site = this.GetOrRegisterSite(key, siteX, siteY);
+                if (!site.IsValueCreated && this.IsWanted(siteX, siteY))
+                {
+                    _ = site.Value;
+                    _ = Interlocked.Increment(ref _backgroundSiteBuilds);
+                }
+            }
+        }
+        finally
+        {
+            _ = Interlocked.Decrement(ref _runningWorkers);
+        }
+
+        // A site queued while this worker was finishing: keep it served.
+        this.StartWorkers();
+    }
+
+    private bool IsWanted(int siteX, int siteY)
+    {
+        lock (_wantGate)
+        {
+            foreach ((int x0, int y0, int x1, int y1) in _wanted.Values)
+            {
+                if (siteX >= x0 && siteX <= x1 && siteY >= y0 && siteY <= y1)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
+    /// <summary>Gets the number of road sites this network built on the calling thread (tests).</summary>
+    internal int SiteBuildsOnThisThread => _siteBuildsByThread.GetValueOrDefault(Environment.CurrentManagedThreadId);
 
     private RoadSiteData BuildSiteData(int siteX, int siteY)
     {
+        _ = _siteBuildsByThread.AddOrUpdate(Environment.CurrentManagedThreadId, 1, static (_, n) => n + 1);
         (int X, int Y)[] mine = this.Choose(siteX, siteY);
         if (mine.Length == 0)
         {
