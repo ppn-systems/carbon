@@ -2,6 +2,7 @@
 
 using System;
 using Carbon.Desktop.Rendering.Atmospherics;
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
 
@@ -69,13 +70,9 @@ public sealed class SunShadowTests
     [Fact]
     public void At_EveryFrame_AllocatesNothing()
     {
-        _ = SunShadow.At(9f, 0f);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 2000; i++)
-        {
-            _ = SunShadow.At(i * 0.012f, 0.2f);
-        }
+        AllocationResult window = AllocationProbe.Measure(2000, warmupIterations: 2000, i =>
+            _ = SunShadow.At(i * 0.012f, 0.2f));
 
-        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0);
+        window.Bytes.Should().Be(0, $"the sun shadow is sampled every frame ({window})");
     }
 }
