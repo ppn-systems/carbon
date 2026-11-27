@@ -20,7 +20,8 @@ internal delegate bool TraderFilter(in RemoteEntityView entity);
 
 /// <summary>
 /// The scene's side of trading with village traders (ADR-025): which trader the player can talk to (E or a click), when
-/// the window opens and closes, and what a click in it does. The server validates every request.
+/// the window opens and closes, and routing the mouse to <see cref="TradeWindowController"/>, which stages trades in the
+/// basket and cart (D18). Closing the window, by any route, returns everything staged. The server validates every request.
 /// </summary>
 /// <param name="session">World session.</param>
 /// <param name="hud">HUD that draws the window.</param>
@@ -39,16 +40,15 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
     /// <summary>UI: a click on an NPC within this many world pixels of it talks to it.</summary>
     private const float ClickRadius = 24f;
 
-    /// <summary>UI: Shift+click buys this many units.</summary>
-    private const ushort BulkBuy = 5;
-
     private readonly IWorldSession _session = session ?? throw new ArgumentNullException(nameof(session));
     private readonly HudOverlayRenderer _hud = hud ?? throw new ArgumentNullException(nameof(hud));
     private readonly DesktopOptions _options = options ?? throw new ArgumentNullException(nameof(options));
     private readonly TraderFilter _isTrader = isTrader ?? throw new ArgumentNullException(nameof(isTrader));
     private readonly Func<bool> _openForge = openForge ?? throw new ArgumentNullException(nameof(openForge));
     private readonly Action _openRepair = openRepair ?? throw new ArgumentNullException(nameof(openRepair));
+    private readonly TradeWindowController _window = new(hud.TradeBasket);
     private bool _shown;
+    private bool _previewed;
 
     /// <summary>Gets whether a screenshot should wait for the trader window (up to <paramref name="frame"/> 150).</summary>
     public bool IsCaptureWaiting(int frame) => _options.OpenTrader && _session.Trading.ActiveTrader is null && frame < 150;
@@ -70,6 +70,15 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
 
         _hud.Trader = active;
         _shown = active is not null;
+        Span<ItemSlot> bag = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
+        _session.CopyInventorySlots(bag);
+        _window.Sync(active, bag, trading);
+        _hud.TradeDragSlot = _window.DraggedSlot;
+        if (active is not null)
+        {
+            this.StagePreview(active, bag);
+        }
+
         if (_options.OpenTrader && active is null && frame >= 6 && frame % 10 == 6 &&
             this.TryFindNearest(_session.LocalPlayerInterpolatedPosition, WindowRadius, out ulong nearest))
         {
@@ -86,51 +95,65 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
         this.TryFindNearest(aimWorld, ClickRadius, out ulong trader) && _session.Trading.TryOpen(trader);
 
     /// <summary>
-    /// Handles a click in the open window: a stock row buys 1 (Shift: 5), a bag item sells 1 (Shift: the whole stack), the
-    /// X or a click outside closes it. At a blacksmith (ADR-025 D17), Repair hands off to the repair window (ADR-028) and
-    /// Enhance to the forge window.
+    /// Handles the mouse in the open window, once a frame: the X or a click outside closes it (returning what is staged);
+    /// Repair and Enhance hand off to their windows at a blacksmith (ADR-025 D17); everything else stages trades.
     /// </summary>
     public void HandleWindowInput(DesktopInputFrame input, int width, int height)
     {
-        if (!input.LeftClickPressed || _hud.Trader is not TraderView trader)
+        if (_hud.Trader is not TraderView trader)
         {
             return;
         }
 
         Vector2 mouse = input.MouseScreenPosition;
-        if (_hud.TryHitTestModalCloseButton(mouse, width, height) || !_hud.IsPointInActiveModal(_session, mouse, width, height))
+        if (input.LeftClickPressed &&
+            (_hud.TryHitTestModalCloseButton(mouse, width, height) || !_hud.IsPointInActiveModal(_session, mouse, width, height)))
         {
             _hud.Trader = null;
             return;
         }
 
-        if (TradeModalWidget.HitRepairButton(mouse, trader, width, height))
+        TradeWindowHit hit = TradeModalWidget.HitTest(mouse, trader, _hud.TradeBasket, _session, width, height);
+        if (input.LeftClickPressed && hit.Target == TradeWindowTarget.Repair)
         {
             _openRepair();
             return;
         }
 
-        if (TradeModalWidget.HitEnhanceButton(mouse, trader, width, height))
+        if (input.LeftClickPressed && hit.Target == TradeWindowTarget.Enhance)
         {
             _ = _openForge();
             return;
         }
 
-        int stockRow = TradeModalWidget.HitStockRow(mouse, trader, width, height);
-        if (stockRow >= 0)
+        Span<ItemSlot> bag = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
+        _session.CopyInventorySlots(bag);
+        string? toast = _window.Handle(hit, input.LeftClickPressed, input.LeftMouseDown, input.ShiftHeld, mouse, bag, trader, _session.LocalPlayerGold, _session.Trading);
+        _hud.TradeDragSlot = _window.DraggedSlot;
+        if (toast is not null)
         {
-            _ = _session.Trading.TryBuy((byte)stockRow, input.ShiftHeld ? BulkBuy : (ushort)1);
+            _hud.PushNotification(toast);
+        }
+    }
+
+    // CARBON_TRADE_PREVIEW=basket (screenshots): stages every sellable bag stack and the first two stock rows locally.
+    // Visual only: nothing is sent until a button is pressed.
+    private void StagePreview(TraderView trader, ReadOnlySpan<ItemSlot> bag)
+    {
+        if (_previewed || !_options.TradePreview)
+        {
             return;
         }
 
-        int bagSlot = TradeModalWidget.HitBagSlot(mouse, _session, width, height);
-        if (bagSlot >= 0)
+        _previewed = true;
+        TradeBasket basket = _hud.TradeBasket;
+        for (int s = 0; s < PlayerInventoryLayout.BagLimit; s++)
         {
-            Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
-            _session.CopyInventorySlots(slots);
-            ushort quantity = input.ShiftHeld ? (ushort)Math.Max(1, slots[bagSlot].Quantity) : (ushort)1;
-            _ = _session.Trading.TrySell((ushort)bagSlot, quantity);
+            _ = basket.AddFromBag(s, bag[s], trader, wholeStack: true);
         }
+
+        _ = basket.AddFromStock(0, trader, 1);
+        _ = basket.AddFromStock(1, trader, 3);
     }
 
     private bool TryFindNearest(Vector2 position, float reach, out ulong networkId)

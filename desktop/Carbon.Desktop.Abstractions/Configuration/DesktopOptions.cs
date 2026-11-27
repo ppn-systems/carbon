@@ -77,6 +77,12 @@ public sealed class DesktopOptions
     public bool OpenTrader { get; init; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the open trader window stages a sample basket and cart for screenshot
+    /// review (<c>CARBON_TRADE_PREVIEW=basket</c>, ADR-025 D18). Visual only: nothing is sent to the server.
+    /// </summary>
+    public bool TradePreview { get; init; }
+
+    /// <summary>
     /// Gets or sets the venue at which the scene opens the repair window once in the world (ADR-028;
     /// <c>CARBON_OPEN_REPAIR=blacksmith|station</c>; screenshot tool), or <see cref="RepairVenue.None"/>.
     /// </summary>
@@ -253,6 +259,7 @@ public sealed class DesktopOptions
             FrameStatsFrames = frameStatsFrames,
             AutoExit = string.Equals(get("CARBON_AUTO_EXIT"), "1", StringComparison.Ordinal),
             OpenTrader = string.Equals(get("CARBON_OPEN_TRADER"), "1", StringComparison.Ordinal),
+            TradePreview = string.Equals(get("CARBON_TRADE_PREVIEW"), "basket", StringComparison.Ordinal),
             OpenRepair = get("CARBON_OPEN_REPAIR") switch
             {
                 "blacksmith" => RepairVenue.Blacksmith,
