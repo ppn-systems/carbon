@@ -13,21 +13,34 @@ namespace Carbon.Maps.Tests;
 
 public sealed class GenerationPipelineTests
 {
-    // Pins tiles (all fields), props and landmarks over 81 scattered chunks plus 90k pure samples (generator
-    // version 20: villages off the road network, wider and drier (ADR-027 revision 2); on top of 19's water depth tiers
-    // (ADR-032), 17's starter forage and 18's street villages). Update it only together with GeneratorVersion, or when a
-    // pinned record gains a field the generator never sets: ADR-040 added MapProp.GrowthStage (always Mature when
-    // generated), which changes MapProp.GetHashCode but not the world; a field-by-field fingerprint of the props matched
-    // master (11932762227007444962 on both), so GeneratorVersion stayed 20.
-    private const ulong GoldenWorldFingerprint = 4553454877917676149UL;
+    // Pins tiles, props and landmarks over 81 scattered chunks plus 90k pure samples (generator version 20: villages off
+    // the road network, wider and drier (ADR-027 revision 2); on top of 19's water depth tiers (ADR-032), 17's starter
+    // forage and 18's street villages). Every generated field is hashed by value, never a record's GetHashCode, so a field
+    // the generator never sets (such as MapProp.GrowthStage, ADR-040) does not move it. Update it only together with
+    // GeneratorVersion.
+    private const ulong GoldenWorldFingerprint = 14213290101313462171UL;
 
     [Fact]
-    public void Generate_WorldFingerprint_IsStable()
+    public void Generate_WorldFingerprint_IsStable() =>
+        Assert.Equal(GoldenWorldFingerprint, WorldFingerprint(new ProceduralWorldGenerator(42UL)));
+
+    /// <summary>FNV-1a over every generated tile, prop and landmark field of a fixed sample of the world.</summary>
+    internal static ulong WorldFingerprint(ProceduralWorldGenerator generator)
     {
         ulong h = 1469598103934665603UL;
         void Mix(ulong v) => h = (h ^ v) * 1099511628211UL;
+        void MixFloat(float v) => Mix(BitConverter.SingleToUInt32Bits(v));
+        void MixTile(in MapTile t)
+        {
+            Mix((ulong)t.Biome);
+            MixFloat(t.Elevation);
+            MixFloat(t.Temperature);
+            MixFloat(t.Moisture);
+            Mix(t.IsSolid ? 1UL : 0UL);
+            Mix(t.Variant);
+            Mix(t.HeightLevel);
+        }
 
-        ProceduralWorldGenerator generator = new(42UL);
         for (int cy = -4; cy <= 4; cy++)
         {
             for (int cx = -4; cx <= 4; cx++)
@@ -37,21 +50,42 @@ public sealed class GenerationPipelineTests
                 {
                     for (int x = 0; x < Chunk2D.Size; x++)
                     {
-                        MapTile t = chunk.GetTile(x, y);
-                        Mix((ulong)t.GetHashCode());
-                        Mix(BitConverter.SingleToUInt32Bits(t.Temperature));
-                        Mix(BitConverter.SingleToUInt32Bits(t.Moisture));
+                        MixTile(chunk.GetTile(x, y));
                     }
                 }
 
                 for (int i = 0; i < chunk.Props.Count; i++)
                 {
-                    Mix((ulong)chunk.Props[i].GetHashCode());
+                    MapProp p = chunk.Props[i];
+                    Mix((ulong)p.Type);
+                    Mix((ulong)p.Category);
+                    Mix(p.Destructibility.IsDestructible ? 1UL : 0UL);
+                    MixFloat(p.Destructibility.MaxDurability);
+                    MixFloat(p.Destructibility.CurrentDurability);
+                    Mix(p.Destructibility.HarvestTier);
+                    Mix(p.Destructibility.IsDestroyed ? 1UL : 0UL);
+                    Mix((uint)p.LocalTileX);
+                    Mix((uint)p.LocalTileY);
+                    MixFloat(p.WorldPositionX);
+                    MixFloat(p.WorldPositionY);
+                    MixFloat(p.Radius);
+                    MixFloat(p.CollisionRadius);
+                    MixFloat(p.CanopyRadius);
+                    MixFloat(p.CanopyOffsetY);
+                    Mix(p.IsSolid ? 1UL : 0UL);
+                    Mix(p.ColorPrimary);
+                    Mix(p.ColorSecondary);
+                    MixFloat(p.Scale);
                 }
 
                 foreach (PointOfInterest poi in chunk.PointsOfInterest)
                 {
-                    Mix((ulong)poi.GetHashCode());
+                    Mix((ulong)poi.Type);
+                    Mix((uint)poi.TileX);
+                    Mix((uint)poi.TileY);
+                    Mix((uint)poi.Radius);
+                    MixFloat(poi.FacingX);
+                    MixFloat(poi.FacingY);
                 }
             }
         }
@@ -60,11 +94,11 @@ public sealed class GenerationPipelineTests
         {
             for (int x = 0; x < 300; x++)
             {
-                Mix((ulong)generator.SampleTile((x * 13) - 2000, (y * 11) + 900).GetHashCode());
+                MixTile(generator.SampleTile((x * 13) - 2000, (y * 11) + 900));
             }
         }
 
-        Assert.Equal(GoldenWorldFingerprint, h);
+        return h;
     }
 
     [Fact]
