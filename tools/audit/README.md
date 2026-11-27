@@ -25,5 +25,6 @@ reported. Known blind spots:
   attribute are skipped.
 - an interface that is implemented but never consumed. The base list counts as a use.
 
-The folder has its own `Directory.Build.props` and `Directory.Packages.props`, so the Roslyn workspace packages never
-reach the product's central package list.
+`DeadCode/` has its own `Directory.Build.props` and `Directory.Packages.props`, so the Roslyn workspace packages never
+reach the product's central package list. `WireAudit/` and `wire-audit.sh` belong to the protocol session's
+[wire audit](../../docs/audit/2026-11-wire-protocol.md).

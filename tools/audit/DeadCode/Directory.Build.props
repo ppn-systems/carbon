@@ -1,6 +1,6 @@
 <Project>
-    <!-- Audit tools are dev-only and live outside every product solution. This file stops the repo-wide
-         Directory.Build.props (artifacts output, analyzers as errors, AOT flags) from applying to them. -->
+    <!-- DeadCode is dev-only and lives outside every product solution. This file stops the repo-wide
+         Directory.Build.props (artifacts output, analyzers as errors, AOT flags) from applying to it. -->
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <LangVersion>latest</LangVersion>
