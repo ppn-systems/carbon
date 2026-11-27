@@ -5,6 +5,7 @@ using System.Numerics;
 using Carbon.Desktop.Rendering.Atmospherics;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Maps.Props;
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
 
@@ -144,17 +145,13 @@ public sealed class FoliageWindTests
     public void WindAndLeaves_EveryFrame_AllocateNothing()
     {
         Vector2 canopy = new(500f, 200f);
-        _ = WindField.Sway(1f, s_tree, 0f, 1f);
-        _ = FallingLeaves.Sample(3u, 1, 1f, canopy, 60f, 0f, out _, out _);
-
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 2000; i++)
+        AllocationResult window = AllocationProbe.Measure(2000, warmupIterations: 2000, i =>
         {
             _ = WindField.Sway(i * 0.016f, s_tree, 0.5f, 1f);
             _ = FallingLeaves.Sample((uint)i, i & 1, i * 0.016f, canopy, 60f, 0.5f, out _, out _);
-        }
+        });
 
-        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0);
+        window.Bytes.Should().Be(0, $"wind and leaves are sampled for every tree every frame ({window})");
     }
 
     // Finds a tree seed and a time at which slot 0 has just started falling.
