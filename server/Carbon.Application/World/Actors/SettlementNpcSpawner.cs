@@ -357,7 +357,7 @@ internal sealed class SettlementNpcSpawner
     {
         ulong netId = _allocateNetworkId();
         float radius = meta.Radius > 0f ? meta.Radius : _defaultRadius;
-        Entity entity = _simulation.SpawnNetworkEntity(netId, meta.HomePos, radius, ownerSessionId: 0UL);
+        Entity entity = _simulation.SpawnNetworkEntity(netId, meta.HomePos, radius);
         uint layer = meta.Kind == EntityKind.Monster ? _monsterLayer : _npcLayer;
         _simulation.Entities.SetCollider(entity, new Collider2D(ColliderKind.Circle, radius, default, false, layer, uint.MaxValue));
         _simulation.Entities.SetVelocity(entity, new Velocity2D(0f, 0f, 5f));
