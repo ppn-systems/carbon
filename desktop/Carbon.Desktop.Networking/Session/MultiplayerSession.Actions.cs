@@ -580,7 +580,7 @@ public sealed partial class MultiplayerSession
             foreach (KeyValuePair<ulong, RemoteEntityState> kvp in _remoteEntities)
             {
                 RemoteEntityState s = kvp.Value;
-                if (s.Kind != EntityKind.LootDrop)
+                if (s.Kind != EntityKind.LootDrop || this.IsLootLockedForLocalPlayer(s))
                 {
                     continue;
                 }

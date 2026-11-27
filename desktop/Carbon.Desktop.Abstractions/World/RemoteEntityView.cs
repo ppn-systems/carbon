@@ -31,6 +31,8 @@ namespace Carbon.Desktop.Abstractions.World;
 /// <param name="WeaponUpgradeLevel">Enhancement level (<c>0..10</c>) of the equipped weapon or loot drop.</param>
 /// <param name="ActiveActionKind">Current attack or skill action kind being animated.</param>
 /// <param name="Attack">Server-announced monster attack phase (inactive by default).</param>
+/// <param name="LootCurrency">For a ground loot drop: an item stack, or a gold or diamond pile of <c>LootCount</c> (ADR-019).</param>
+/// <param name="IsLootLocked">Whether a ground loot drop is still reserved for another player (ADR-019).</param>
 public readonly record struct RemoteEntityView(
     ulong NetworkId,
     EntityKind Kind,
@@ -54,4 +56,6 @@ public readonly record struct RemoteEntityView(
     int LootCount = 0,
     byte WeaponUpgradeLevel = 0,
     ActionAnimationKind ActiveActionKind = ActionAnimationKind.None,
-    AttackPhaseView Attack = default);
+    AttackPhaseView Attack = default,
+    LootCurrency LootCurrency = LootCurrency.None,
+    bool IsLootLocked = false);

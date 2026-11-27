@@ -92,4 +92,19 @@ public sealed partial class EntitySpawn : PacketBase<EntitySpawn>, IPacketStatic
     /// <summary>Enhancement level (<c>0..10</c>) of the equipped weapon or dropped item.</summary>
     [SerializeOrder(18)]
     public byte WeaponUpgradeLevel { get; set; }
+
+    /// <summary>
+    /// What a <see cref="EntityKind.LootDrop"/> carries: an item stack, or a gold or diamond pile whose amount is
+    /// <see cref="LootCount"/>. ADR-019.
+    /// </summary>
+    [SerializeOrder(19)]
+    public LootCurrency LootCurrency { get; set; }
+
+    /// <summary>Network id of the only player who may pick this loot up while protected (0 = anyone). ADR-019.</summary>
+    [SerializeOrder(20)]
+    public ulong LootOwnerNetworkId { get; set; }
+
+    /// <summary>Milliseconds of owner protection left when this spawn was sent (0 = anyone may pick it up). ADR-019.</summary>
+    [SerializeOrder(21)]
+    public uint LootProtectionMs { get; set; }
 }

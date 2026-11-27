@@ -9,6 +9,7 @@ using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.Contracts.Common;
 using Carbon.Economy;
+using Carbon.Economy.Config;
 using Carbon.Economy.Currency;
 using Carbon.Economy.Loot;
 using Carbon.Items.Catalog;
@@ -33,7 +34,7 @@ internal enum VendorOperation : byte
 
 /// <summary>
 /// The world's economy (audit SOLID-1, extracted from <see cref="AuthoritativeWorld"/>): config-driven monster loot rolled
-/// on kills (item stacks dropped as ground loot, gold and diamonds credited to the killer's wallet), vendor buy/sell and
+/// on kills (item stacks and gold/diamond piles dropped as ground loot reserved for the killer, ADR-019), vendor buy/sell and
 /// forge repair with their proximity rules, and wallet sync messages. Deterministic per (world seed, tick, victim).
 /// Called only under the world lock.
 /// </summary>
@@ -49,6 +50,7 @@ internal sealed class EconomyService
     public const float VendorRangeSq = 175f * 175f;
 
     private readonly ulong _worldSeed;
+    private readonly ushort _tickRate;
     private readonly Func<GameEconomy?> _economy;
     private readonly Func<ulong> _currentTick;
     private readonly GroundLootService _groundLoot;
@@ -59,6 +61,7 @@ internal sealed class EconomyService
     /// <summary>Initializes a new instance of the <see cref="EconomyService"/> class.</summary>
     public EconomyService(
         ulong worldSeed,
+        ushort tickRate,
         Func<GameEconomy?> economy,
         Func<ulong> currentTick,
         GroundLootService groundLoot,
@@ -67,6 +70,7 @@ internal sealed class EconomyService
         Func<Vector2, float, bool> hasNearbyFriendlyNpc)
     {
         _worldSeed = worldSeed;
+        _tickRate = tickRate == 0 ? (ushort)30 : tickRate;
         _economy = economy ?? throw new ArgumentNullException(nameof(economy));
         _currentTick = currentTick ?? throw new ArgumentNullException(nameof(currentTick));
         _groundLoot = groundLoot ?? throw new ArgumentNullException(nameof(groundLoot));
@@ -94,8 +98,10 @@ internal sealed class EconomyService
     };
 
     /// <summary>
-    /// Rolls the config loot table of a killed monster, spawns the item stacks as ground loot and credits gold and
-    /// diamonds to the killer's wallet (syncing it when the balance changed).
+    /// Rolls the config loot table of a killed monster and drops everything near the corpse: the item stacks and one pile
+    /// each of gold and diamonds. The drops are reserved for <paramref name="killer"/> for
+    /// <c>economy.json → groundLoot.ownerProtectionSeconds</c> and despawn after <c>killLootLifetimeSeconds</c>; picking a
+    /// pile up credits the wallet (<see cref="InventoryService.TryPickup"/>).
     /// </summary>
     /// <remarks><paramref name="tableId"/> is the monster definition's <c>lootTableId</c> (falls back to <see cref="ResolveLootTableId"/>).</remarks>
     /// <returns><see langword="false"/> when no economy or table applies (caller falls back to legacy drops).</returns>
@@ -118,24 +124,18 @@ internal sealed class EconomyService
         LootRollResult result = LootRoller.Roll(table, context, ref random, ref pity, drops);
         killer.LootPity = pity;
 
+        LootClaim claim = this.CreateKillClaim(economy.Config.GroundLoot, killer.Session.PlayerNetworkId, tick);
         for (int i = 0; i < result.ItemCount; i++)
         {
             LootDrop drop = drops[i];
             float durability = economy.Items.TryGet(drop.ItemId, out ItemCatalogEntry? item) ? item.MaxDurability : 0f;
             ItemSlot stack = new(drop.ItemId, drop.Quantity, Durability: durability);
             Vector2 offset = new(((i % 4) - 1.5f) * 10f, i / 4 * 8f);
-            _groundLoot.Spawn(position + offset, in stack);
+            _groundLoot.SpawnClaimed(position + offset, in stack, in claim);
         }
 
-        // Rejections (wallet at cap) leave the balance unchanged; the drop is simply forfeited.
-        ulong sequenceBefore = killer.Wallet.Sequence;
-        _ = killer.Wallet.TryCredit(CurrencyKind.Gold, result.Gold, CurrencyReason.MonsterLoot, tick);
-        _ = killer.Wallet.TryCredit(CurrencyKind.Diamond, result.Diamonds, CurrencyReason.MonsterLoot, tick);
-        if (killer.Wallet.Sequence != sequenceBefore)
-        {
-            this.QueueWalletSync(killer);
-        }
-
+        _groundLoot.SpawnCurrency(position + new Vector2(-6f, -10f), CurrencyKind.Gold, result.Gold, in claim);
+        _groundLoot.SpawnCurrency(position + new Vector2(6f, -10f), CurrencyKind.Diamond, result.Diamonds, in claim);
         return true;
     }
 
@@ -196,5 +196,13 @@ internal sealed class EconomyService
     {
         ArgumentNullException.ThrowIfNull(state);
         _outbound.Pending.WalletSyncs.Add(new OutboundWalletSync(state.Session.ConnectionId, state.Wallet.Gold, state.Wallet.Diamonds, state.Wallet.Sequence));
+    }
+
+    /// <summary>Builds the claim of a kill at <paramref name="tick"/>: owner protection and ground lifetime from config.</summary>
+    private LootClaim CreateKillClaim(GroundLootRules rules, ulong killerNetworkId, ulong tick)
+    {
+        ulong protectionTicks = (ulong)Math.Max(0, rules.OwnerProtectionSeconds) * _tickRate;
+        ulong lifetimeTicks = (ulong)Math.Max(1, rules.KillLootLifetimeSeconds) * _tickRate;
+        return new LootClaim(protectionTicks == 0UL ? 0UL : killerNetworkId, tick + protectionTicks, lifetimeTicks);
     }
 }
