@@ -281,86 +281,10 @@ public static class VectorRigRenderer
             return;
         }
 
-        Vector2 baseGrip = dir8 == Direction8.North
-            ? rig.NorthGrip
-            : (dir8 == Direction8.South ? rig.SouthGrip : rig.SideGrip);
-        Vector2 armPivot = rig.GetBonePivot(VectorBoneId.ArmFront);
-        Vector2 gripRel = new(
-            (baseGrip.X - armPivot.X) * frontArmPose.ScaleX,
-            (baseGrip.Y - armPivot.Y) * frontArmPose.ScaleY);
-        Vector2 rotatedRel = Rotate(gripRel, frontArmPose.RotRad);
-        float handLocalX = armPivot.X + rotatedRel.X + frontArmPose.Dx;
-        float handLocalY = armPivot.Y + rotatedRel.Y + frontArmPose.Dy;
-        Vector2 handWorld = new(
-            footPos.X + (handLocalX * (mirrorX ? -uniformScale : uniformScale)),
-            footPos.Y + (handLocalY * uniformScale));
-
-        Vector2 dirVec = action.IsActive && action.AimDirection.LengthSquared() > 1e-4f
-            ? action.AimDirection
-            : dir8.ToVector();
-        float aimRad = MathF.Atan2(dirVec.Y, dirVec.X);
-        float baseItemRot = aimRad + (MathF.PI * 0.25f);
-        float armFollowRot = mirrorX ? -frontArmPose.RotRad : frontArmPose.RotRad;
-        float swingOffset;
-        float thrustFactor = 0f;
-
-        if (action.IsActive)
-        {
-            float p = action.Progress;
-            switch (action.Kind)
-            {
-                case ActionAnimationKind.AxeChop:
-                    swingOffset = EvaluateSwingArc(p, -1.62f, 1.05f, out thrustFactor);
-                    break;
-                case ActionAnimationKind.PickaxeMine:
-                    swingOffset = EvaluateSwingArc(p, -1.85f, 0.88f, out thrustFactor);
-                    break;
-                case ActionAnimationKind.SwordSlash:
-                case ActionAnimationKind.SpinSlash:
-                    swingOffset = (action.ComboStep & 1) == 0
-                        ? EvaluateSwingArc(p, -1.35f, 1.28f, out thrustFactor)
-                        : EvaluateSwingArc(p, 1.35f, -1.28f, out thrustFactor);
-                    break;
-                case ActionAnimationKind.PlaceStructure:
-                    swingOffset = -0.6f + (p * 0.8f);
-                    break;
-                case ActionAnimationKind.BowShot:
-                    swingOffset = -0.35f + (MathF.Sin(p * MathF.PI) * 0.20f);
-                    thrustFactor = p < 0.55f ? p / 0.55f * 0.35f : 0f;
-                    break;
-                case ActionAnimationKind.StaffCast:
-                    swingOffset = -0.92f + (MathF.Sin(p * MathF.PI) * 0.68f);
-                    thrustFactor = MathF.Sin(p * MathF.PI) * 0.55f;
-                    break;
-                case ActionAnimationKind.ConsumeItem:
-                case ActionAnimationKind.MonsterStrike:
-                case ActionAnimationKind.MonsterBowShot:
-                case ActionAnimationKind.MonsterSpellCast:
-                case ActionAnimationKind.MonsterHeavySlam:
-                case ActionAnimationKind.ArcaneWave:
-                case ActionAnimationKind.SelfAura:
-                case ActionAnimationKind.None:
-                default:
-                    swingOffset = 0f;
-                    break;
-            }
-        }
-        else if (swingTimer > 0f)
-        {
-            float p = 1f - Math.Clamp(swingTimer / 0.24f, 0f, 1f);
-            swingOffset = EvaluateSwingArc(p, -1.30f, 1.20f, out thrustFactor);
-        }
-        else
-        {
-            swingOffset = item.RestAngleRad + armFollowRot;
-        }
-
-        handWorld += dirVec * (thrustFactor * 4.5f * uniformScale);
-
-        float totalRot = baseItemRot + swingOffset;
-        float itemScale = uniformScale * item.WorldScale * 0.9f;
-        Vector2 rotatedGrip = Rotate(item.GripPoint * itemScale, totalRot);
-        Vector2 itemCenter = handWorld - rotatedGrip;
+        HeldItemPose held = ComputeHeldItemPose(rig, item, footPos, dir8, uniformScale, mirrorX, in frontArmPose, in action, swingTimer);
+        float totalRot = held.Rotation;
+        float itemScale = held.Scale;
+        Vector2 itemCenter = held.Center;
         BonePose pose = new() { RotRad = totalRot, ScaleX = 1f, ScaleY = 1f };
 
         if (weaponUpgradeLevel > 0)
@@ -377,9 +301,12 @@ public static class VectorRigRenderer
             DrawSingleShape(batch, in item.Shapes[i], Vector2.Zero, in pose, itemCenter, itemScale, itemScale, hitFlash: 0f);
         }
 
-        if (action.IsActive && action.Kind == ActionAnimationKind.BowShot && action.Progress < 0.68f)
+        HeroAttackTiming bowTiming = HeroAttackTiming.For(HeroAttackStyle.BowShot);
+        if (action.IsActive && action.Kind == ActionAnimationKind.BowShot && action.Progress < bowTiming.ContactFraction)
         {
-            float drawFrac = MathF.Sin(Math.Clamp(action.Progress / 0.65f, 0f, 1f) * MathF.PI);
+            // Draw to the apex, hold, then the string snaps forward at release (the arrow leaves with the server's shot).
+            float apex = HeroAttackPose.ApexShareOfAnticipation * bowTiming.ContactFraction;
+            float drawFrac = KeyframeEasing.Apply(KeyframeEase.InOut, Math.Clamp(action.Progress / apex, 0f, 1f));
             float pullDist = 4.6f * drawFrac;
             Vector2 topLimb = itemCenter + Rotate(new Vector2(-3.2f, -8.2f) * itemScale, totalRot);
             Vector2 botLimb = itemCenter + Rotate(new Vector2(-3.2f, 8.2f) * itemScale, totalRot);
@@ -399,6 +326,126 @@ public static class VectorRigRenderer
             batch.DrawCircle(focusPos, ringRadius, new ColorRgba(item.AccentColor.R, item.AccentColor.G, item.AccentColor.B, ringAlpha), 16, 1.4f * itemScale);
             batch.FillCircle(focusPos, (2.4f + (pulse * 1.8f)) * itemScale, new ColorRgba(224, 242, 254, ringAlpha), 10);
         }
+    }
+
+    /// <summary>
+    /// Places a held item in the front hand: where the hand is, the item's centre, rotation and scale. Shared by the item
+    /// drawing and the weapon trail, which samples it along the swing (<c>docs/art/combat-animation.md</c> §3.5).
+    /// </summary>
+    /// <param name="rig">Character rig.</param>
+    /// <param name="item">Held item art.</param>
+    /// <param name="footPos">Foot position in world units.</param>
+    /// <param name="dir8">Facing.</param>
+    /// <param name="uniformScale">Rig scale.</param>
+    /// <param name="mirrorX">Whether the rig is mirrored (facing west).</param>
+    /// <param name="frontArmPose">Evaluated front-arm bone.</param>
+    /// <param name="action">Active action.</param>
+    /// <param name="swingTimer">Legacy swing seconds when no action is active.</param>
+    /// <returns>The held item pose.</returns>
+    internal static HeldItemPose ComputeHeldItemPose(
+        CompiledVectorRig rig,
+        CompiledItemVectorArt item,
+        Vector2 footPos,
+        Direction8 dir8,
+        float uniformScale,
+        bool mirrorX,
+        in BonePose frontArmPose,
+        in ActionState action,
+        float swingTimer)
+    {
+        Vector2 handWorld = ComputeHand(rig, footPos, dir8, uniformScale, mirrorX, in frontArmPose);
+
+        Vector2 dirVec = action.IsActive && action.AimDirection.LengthSquared() > 1e-4f
+            ? action.AimDirection
+            : dir8.ToVector();
+        float aimRad = MathF.Atan2(dirVec.Y, dirVec.X);
+        float baseItemRot = aimRad + (MathF.PI * 0.25f);
+        float armFollowRot = mirrorX ? -frontArmPose.RotRad : frontArmPose.RotRad;
+        float swingOffset;
+        float thrustFactor = 0f;
+        HeroAttackStyle style = action.IsActive ? HeroAttackTiming.StyleOf(action.Kind, action.ComboStep) : HeroAttackStyle.None;
+        float wristDeg = HeroAttackPose.WristDegrees(style, action.Progress, out float swingWeight);
+
+        if (HeroAttackPose.HasWristCurve(style))
+        {
+            // The item is locked to the hand: its tip points along the arm turned by the wrist curve (rig space, mirrored
+            // with the rig), blended from the rest pose around the swing (docs/art/combat-animation.md §3.3).
+            float tipRig = (MathF.PI * 0.5f) + frontArmPose.RotRad + (wristDeg * (MathF.PI / 180f));
+            float tipWorld = mirrorX ? MathF.PI - tipRig : tipRig;
+            float restRot = item.RestAngleRad + armFollowRot;
+            float swingRot = tipWorld + (MathF.PI * 0.25f) - baseItemRot;
+            swingOffset = restRot + (WrapAngle(swingRot - restRot) * swingWeight);
+        }
+        else if (action.IsActive && style == HeroAttackStyle.BowShot)
+        {
+            // Bow: held at the aim; a small recoil kick at release (start of the active window).
+            HeroAttackTiming bow = HeroAttackTiming.For(style);
+            float sinceRelease = action.Progress - bow.ContactFraction;
+            float kick = sinceRelease >= 0f ? MathF.Exp(-sinceRelease * 18f) * 0.22f : 0f;
+            swingOffset = -0.35f - kick;
+        }
+        else if (action.IsActive)
+        {
+            float p = action.Progress;
+            if (action.Kind == ActionAnimationKind.SpinSlash)
+            {
+                swingOffset = (action.ComboStep & 1) == 0
+                    ? EvaluateSwingArc(p, -1.35f, 1.28f, out thrustFactor)
+                    : EvaluateSwingArc(p, 1.35f, -1.28f, out thrustFactor);
+            }
+            else
+            {
+                // A held material or piece of gear rides in the punching hand; other actions hold the item at the aim.
+                swingOffset = action.Kind == ActionAnimationKind.Punch ? item.RestAngleRad + armFollowRot : 0f;
+            }
+        }
+        else if (swingTimer > 0f)
+        {
+            float p = 1f - Math.Clamp(swingTimer / 0.24f, 0f, 1f);
+            swingOffset = EvaluateSwingArc(p, -1.30f, 1.20f, out thrustFactor);
+        }
+        else
+        {
+            swingOffset = item.RestAngleRad + armFollowRot;
+        }
+
+        handWorld += dirVec * (thrustFactor * 4.5f * uniformScale);
+
+        float totalRot = baseItemRot + swingOffset;
+        float itemScale = uniformScale * item.WorldScale * 0.9f;
+        Vector2 rotatedGrip = Rotate(item.GripPoint * itemScale, totalRot);
+        return new HeldItemPose(handWorld, handWorld - rotatedGrip, totalRot, itemScale);
+    }
+
+    /// <summary>Gets the world position of the front hand (the weapon grip) for an evaluated front-arm bone.</summary>
+    /// <param name="rig">Character rig.</param>
+    /// <param name="footPos">Foot position in world units.</param>
+    /// <param name="dir8">Facing.</param>
+    /// <param name="uniformScale">Rig scale.</param>
+    /// <param name="mirrorX">Whether the rig is mirrored (facing west).</param>
+    /// <param name="frontArmPose">Evaluated front-arm bone.</param>
+    /// <returns>Hand position.</returns>
+    internal static Vector2 ComputeHand(CompiledVectorRig rig, Vector2 footPos, Direction8 dir8, float uniformScale, bool mirrorX, in BonePose frontArmPose)
+    {
+        Vector2 baseGrip = dir8 == Direction8.North
+            ? rig.NorthGrip
+            : (dir8 == Direction8.South ? rig.SouthGrip : rig.SideGrip);
+        Vector2 armPivot = rig.GetBonePivot(VectorBoneId.ArmFront);
+        Vector2 gripRel = new(
+            (baseGrip.X - armPivot.X) * frontArmPose.ScaleX,
+            (baseGrip.Y - armPivot.Y) * frontArmPose.ScaleY);
+        Vector2 rotatedRel = Rotate(gripRel, frontArmPose.RotRad);
+        float handLocalX = armPivot.X + rotatedRel.X + frontArmPose.Dx;
+        float handLocalY = armPivot.Y + rotatedRel.Y + frontArmPose.Dy;
+        return new Vector2(
+            footPos.X + (handLocalX * (mirrorX ? -uniformScale : uniformScale)),
+            footPos.Y + (handLocalY * uniformScale));
+    }
+
+    private static float WrapAngle(float radians)
+    {
+        float a = radians % (2f * MathF.PI);
+        return a > MathF.PI ? a - (2f * MathF.PI) : a < -MathF.PI ? a + (2f * MathF.PI) : a;
     }
 
     private static float EvaluateSwingArc(float progress, float windupRad, float strikeRad, out float thrustFactor)

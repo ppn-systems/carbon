@@ -149,7 +149,7 @@ internal sealed class Atmosphere
 
     /// <summary>
     /// The light-map pass (ADR-041): lights added into a map cleared to the ambient, which the composite multiplies
-    /// over the scene. The map stores half the light, so these peaks (0.52 × intensity) light the scene up to about 1.1×.
+    /// over the scene. The map stores half the light, so these peaks (0.7 × intensity) light the scene up to about 1.4×.
     /// </summary>
     public void DrawLightMapLights(GeometryBatch batch, List<PointLight> lights)
     {
@@ -159,7 +159,7 @@ internal sealed class Atmosphere
             return;
         }
 
-        DrawGlows(batch, lights, strength, 0.30f, 0.22f);
+        DrawGlows(batch, lights, strength, 0.40f, 0.30f);
     }
 
     /// <summary>

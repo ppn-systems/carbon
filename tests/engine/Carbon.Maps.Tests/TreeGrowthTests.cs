@@ -40,6 +40,17 @@ public sealed class TreeGrowthTests
     }
 
     [Fact]
+    public void LoadEmbedded_SaplingDrops_AreRareButSustainable()
+    {
+        // ADR-040 D1c (owner): at most one sapling, 3 % per felled mature tree and 1 % per dug-up stump. The world is
+        // infinite, so wild trees are plentiful; saplings stay rare so farming whole forests is not a strategy.
+        TreeGrowthRules trees = PropRegrowthRules.LoadEmbedded().Trees;
+
+        Assert.Equal(0.03f, trees.MatureSaplingChance);
+        Assert.Equal(0.01f, trees.StumpSaplingChance);
+    }
+
+    [Fact]
     public void LoadFromJson_TreeInRegrowSeconds_IsRejected()
     {
         string json = """{ "spawnForage": { "respawnSeconds": 45 }, "blockedRetrySeconds": 5, "regrowSeconds": { "oakTree": 60 }, """ + PropRegrowthTests.TreesJson + "}";

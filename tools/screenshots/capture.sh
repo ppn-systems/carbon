@@ -90,7 +90,7 @@ run_client() { # $1 = scenario name, $2 = client env words
     (cd "$(dirname "$CLIENT_DLL")" && env LIBGL_ALWAYS_SOFTWARE=1 \
         CARBON_SERVER_HOST=127.0.0.1 CARBON_TCP_PORT="$BASE_PORT" CARBON_SEED="$SEED" \
         CARBON_LANG="$CLIENT_LANG" CARBON_AUTO_LOGIN=1 CARBON_AUTO_EXIT=1 CARBON_USERNAME="shots_$name" CARBON_PASSWORD=carbon123 \
-        CARBON_SCREENSHOT_PATH="$OUT_DIR/$name.bmp" CARBON_ACCOUNT_FILE="$WORK/$name.account.ini" \
+        CARBON_SCREENSHOT_PATH="$OUT_DIR/$name.bmp" CARBON_ACCOUNT_FILE="$WORK/$name.account.ini" CARBON_WINDOW_SIZE="${WIDTH}x${HEIGHT}" \
         ${GRAPHICS_QUALITY:+CARBON_GRAPHICS_QUALITY=$GRAPHICS_QUALITY} $env_words \
         timeout "$CLIENT_TIMEOUT" xvfb-run -a -s "-screen 0 ${WIDTH}x${HEIGHT}x24" dotnet "$CLIENT_DLL") \
         >"$WORK/$name.client.log" 2>&1

@@ -42,6 +42,7 @@ public sealed class GraphicsQualityTests
     [InlineData("llvmpipe (LLVM 19.1.1, 256 bits)", GraphicsQuality.Low)]
     [InlineData("SwiftShader Device (Subzero)", GraphicsQuality.Low)]
     [InlineData("Mesa Intel(R) UHD Graphics 620 (KBL GT2)", GraphicsQuality.Medium)]
+    [InlineData("Intel(R) HD Graphics 4000", GraphicsQuality.Medium)]
     [InlineData("AMD Radeon(TM) Graphics (radeonsi, renoir)", GraphicsQuality.Medium)]
     [InlineData("NVIDIA GeForce RTX 3060/PCIe/SSE2", GraphicsQuality.High)]
     [InlineData("AMD Radeon RX 6700 XT (navi22)", GraphicsQuality.High)]
