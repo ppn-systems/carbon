@@ -120,6 +120,14 @@ public sealed partial class ServerAuthorityTests
     }
 
     [Fact]
+    public void Desktop_ShouldNotLoadTheEmbeddedStructureCatalog()
+    {
+        // The client builds with the server's synced structures.json (audit COUP-5), never the copy compiled into Carbon.Maps.
+        List<string> violations = [.. DesktopSources().Where(s => EmbeddedStructureCatalogRegex().IsMatch(s.Text)).Select(s => s.Path)];
+        Violations.ShouldBeEmpty(violations, "the desktop client must take structures.json from the config sync (SyncedStructureCatalog)");
+    }
+
+    [Fact]
     public void BalanceTypeUsageAllowlist_ShouldNotContainStaleEntries()
     {
         HashSet<string> found = [.. FindBalanceTypeUsages()];
@@ -185,6 +193,9 @@ public sealed partial class ServerAuthorityTests
     /// </summary>
     [GeneratedRegex(@"\b(?:const|static\s+readonly)\s+(?:(?:s?byte|u?short|u?int|u?long|float|double|decimal)(?:\[\])?|(?:Frozen|IReadOnly)?Dictionary<[^;=]*,\s*(?:s?byte|u?short|u?int|u?long|float|double|decimal)>)\s+(?<name>[A-Za-z_][A-Za-z0-9_]*)\s*=")]
     private static partial Regex NumericConstantRegex();
+
+    [GeneratedRegex(@"\bStructureCatalog\s*\.\s*LoadEmbedded\b")]
+    private static partial Regex EmbeddedStructureCatalogRegex();
 
     [GeneratedRegex(@"[A-Z]{2,}(?=[A-Z][a-z]|\d|\b|_)|[A-Z]?[a-z]+|[A-Z]+|\d+")]
     private static partial Regex WordPartRegex();

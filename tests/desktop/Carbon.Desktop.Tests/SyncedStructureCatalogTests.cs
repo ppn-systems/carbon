@@ -3,6 +3,7 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Carbon.Configuration;
 using Carbon.Configuration.Catalog;
@@ -35,6 +36,59 @@ public sealed class SyncedStructureCatalogTests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task BuildReachTiles_BeforeAnySync_IsZeroAndNothingCanBePlaced()
+    {
+        MultiplayerSession session = this.NewSession();
+        await using (session.ConfigureAwait(true))
+        {
+            session.BuildReachTiles.Should().Be(0f, "the client has no structures.json of its own");
+            session.PreviewPlacement(0, 0, StructureType.Workbench, StructureRotation.North, out _, out _)
+                .Should().Be(BuildResultCode.UnknownStructure);
+        }
+    }
+
+    [Fact]
+    public async Task ApplyConfigCatalog_ServerChangedStructuresJson_ClientUsesTheServersReachAndFootprint()
+    {
+        MultiplayerSession session = this.NewSession();
+        await using (session.ConfigureAwait(true))
+        {
+            session.ApplyConfigCatalog(Catalog(1, ServerTuned(reachTiles: 7, workbenchWidth: 3)));
+
+            session.BuildReachTiles.Should().Be(7f);
+            session.PreviewPlacement(0, 0, StructureType.Workbench, StructureRotation.North, out int width, out int height);
+            (width, height).Should().Be((3, 1), "the footprint comes from the synced document, not a client copy");
+        }
+    }
+
+    [Fact]
+    public async Task ApplyConfigCatalog_HotReload_ReplacesTheCatalogAndKeepsItOnAnInvalidDocument()
+    {
+        MultiplayerSession session = this.NewSession();
+        await using (session.ConfigureAwait(true))
+        {
+            session.ApplyConfigCatalog(Catalog(1, ShippedJson()));
+            session.ApplyConfigCatalog(Catalog(2, ServerTuned(reachTiles: 6, workbenchWidth: 2)));
+            session.BuildReachTiles.Should().Be(6f, "a newer manifest replaces the catalog");
+
+            session.ApplyConfigCatalog(Catalog(3, "{\"structures\": 5}"));
+            session.ApplyConfigCatalog(new ConfigCatalog(4, []));
+            session.BuildReachTiles.Should().Be(6f, "an invalid or missing document keeps the last valid one");
+        }
+    }
+
+    [Fact]
+    public void Apply_ShippedDocument_ParsesIt()
+    {
+        SyncedStructureCatalog synced = new();
+
+        synced.Apply(Catalog(1, ShippedJson())).Should().BeTrue();
+
+        synced.Current!.TryGet(StructureType.WoodBed, out StructureDefinition bed).Should().BeTrue();
+        bed.GetFootprint(StructureRotation.North).Should().Be((1, 2));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_cacheDirectory))
@@ -55,6 +109,21 @@ public sealed class SyncedStructureCatalogTests : IDisposable
     {
         byte[] utf8 = Encoding.UTF8.GetBytes(structuresJson);
         return new ConfigCatalog(version, [new ConfigCatalogEntry("structures", ConfigContentHash.Compute(utf8), version, utf8)]);
+    }
+
+    private static string ServerTuned(int reachTiles, int workbenchWidth)
+    {
+        JsonNode root = JsonNode.Parse(ShippedJson())!;
+        root["placementReachTiles"] = reachTiles;
+        foreach (JsonNode? structure in root["structures"]!.AsArray())
+        {
+            if ((string?)structure!["id"] == "workbench")
+            {
+                structure["size"] = new JsonArray(workbenchWidth, 1);
+            }
+        }
+
+        return root.ToJsonString();
     }
 
     private MultiplayerSession NewSession() => new(new DesktopOptions { ConfigCacheDirectory = _cacheDirectory });
