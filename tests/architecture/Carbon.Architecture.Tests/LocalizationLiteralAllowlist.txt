@@ -5,36 +5,6 @@ desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Config.cs	Config do
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.cs	TCP
 desktop/Carbon.Desktop.Rendering/Fonts/GameFontLoader.cs	CarbonPixelFallback
 desktop/Carbon.Desktop.Rendering/Fonts/GameFontLoader.cs	ThaleahFat
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	ALL
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	ARMOR
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Accessory
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Armor  +{} DEF
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	BUILD
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	CRAFT x1
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	CRAFT x5
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Consumable
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Crafting
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	DEF +{}  HP +{}  MP +{}
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	DMG {}  Crit {}%  RNG {}
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Forge
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Hand
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Ingredients
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Material
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Max Stack {}
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	No matching recipes
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Owned: {}  |  {}
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	POTIONS
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Quest Item
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	READY
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Shrine
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Structure
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	TOOLS
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Tier {}  Chop {}  Mine {}
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Tool  Tier {}
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	WEAPONS
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Weapon  {} DMG
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Workbench
-desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	{} Lv {}
 desktop/Carbon.Desktop.Rendering/VectorArt/CarbonVectorArtLibrary.cs	ADVENTURER
 desktop/Carbon.Desktop.Rendering/VectorArt/CvgJsonModels.cs	Item
 desktop/Carbon.Desktop/Program.cs	Carbon MMORPG — Online Client
