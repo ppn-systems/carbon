@@ -857,11 +857,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         return true;
     }
 
-    /// <summary>
-    /// Stops the world generator's background builds on server shutdown (ADR-045 D10), after the tick has stopped.
-    /// </summary>
-    /// <param name="timeout">How long to wait for running builds.</param>
-    /// <returns><see langword="true"/> if every build finished within <paramref name="timeout"/>.</returns>
+    /// <inheritdoc/>
     public bool StopBackgroundBuilds(TimeSpan timeout) => _generator.StopBackgroundBuilds(timeout);
 
     private void MarkCharacterDirtyLocked(PlayerState state, bool inventoryChanged = true) =>

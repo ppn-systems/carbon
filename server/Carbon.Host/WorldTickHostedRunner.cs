@@ -18,6 +18,8 @@ internal sealed class WorldTickHostedRunner
     private readonly TimeSpan _tickInterval;
     private readonly int _flushEveryTicks;
 
+    private static readonly TimeSpan s_shutdownBuildTimeout = TimeSpan.FromSeconds(5);
+
     /// <summary>
     /// Initializes a new instance of the <see cref="WorldTickHostedRunner"/> class.
     /// </summary>
@@ -76,6 +78,12 @@ internal sealed class WorldTickHostedRunner
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 _logger.LogError(ex, "Final persistence flush failed during host shutdown.");
+            }
+
+            // ADR-045 D10: no tick will need a region or road again, so the generator's background builds stop.
+            if (!_world.StopBackgroundBuilds(s_shutdownBuildTimeout))
+            {
+                _logger.LogWarning("World generation builds were still running {Timeout} after shutdown.", s_shutdownBuildTimeout);
             }
         }
     }

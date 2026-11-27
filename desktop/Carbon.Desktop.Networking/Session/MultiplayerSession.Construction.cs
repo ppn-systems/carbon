@@ -56,7 +56,7 @@ public sealed partial class MultiplayerSession
         {
             if (_generator is null || _generatorSeed != seed || !ReferenceEquals(_generatorStructures, structures))
             {
-                _generator = new ProceduralWorldGenerator(seed, structures: structures);
+                _generator = new(seed, structures: structures);
                 _generatorSeed = seed;
                 _generatorStructures = structures;
             }
