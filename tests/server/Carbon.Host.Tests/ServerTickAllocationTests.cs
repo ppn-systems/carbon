@@ -22,7 +22,7 @@ public sealed class ServerTickAllocationTests(ITestOutputHelper output)
     /// Allowed average bytes per tick. Measured at 136 before PERF-1 and about 2 after. The remainder is monster
     /// respawn (stat sheets, attachment stores; audit ECS-3). Lower this as allocations are removed; never raise it.
     /// </summary>
-    private const double MaxBytesPerTick = 32;
+    internal const double MaxBytesPerTick = 32;
 
     [Fact]
     public void StepFixedTick_SteadyStateWithPlayersAndMonsters_StaysWithinAllocationBudget()
