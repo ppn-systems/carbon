@@ -601,7 +601,7 @@ public sealed class WorldGameplayScene : GameScene
         float rateDt = _options.CaptureFrames > 0 ? 1f / 15f : (float)dt;
         _cameraRig.Update(playerPos, inside, in room, rateDt);
 
-        if (_options.AutoExit && _frameCount >= 25 + _options.CaptureFrames)
+        if (_options.AutoExit && _frameCount >= 25 + Math.Max(_options.CaptureFrames, _options.FrameStatsFrames))
         {
             context.Window.Close();
         }
