@@ -72,7 +72,8 @@ internal sealed class GroundLootService
     public const uint LootLayer = 8U;
 
     private const float MergeRadius = 24f;
-    private const float AutoCollectRadius = 32f;
+    /// <summary>How close a player walks to a stack to collect it without a key press.</summary>
+    public const float AutoCollectRadius = 32f;
     private const ulong AutoCollectGraceTicks = 12UL;
 
     /// <summary>How far the dropper must walk from a stack it threw away before walking over it collects it again.</summary>
