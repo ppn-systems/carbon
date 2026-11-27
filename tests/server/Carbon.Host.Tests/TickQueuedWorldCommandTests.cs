@@ -163,7 +163,7 @@ public sealed class TickQueuedWorldCommandTests
     [Fact]
     public async Task SubmitAllocateCharacterPointAsync_RetiredResetKind_IsRejectedAndKeepsPoints()
     {
-        // The gold attribute reset (kind 2, ADR-021 D6) is retired by ADR-027: a respec scroll will replace it, so a
+        // The gold attribute reset (kind 2, ADR-021 D6) is retired by ADR-034: a respec scroll will replace it, so a
         // client must not be able to reset points over the wire any more.
         const PointAllocationKind retiredReset = (PointAllocationKind)2;
         using WorldFixture f = await WorldFixture.CreateAsync(level: 5).ConfigureAwait(true);

@@ -13,6 +13,6 @@ public enum PointAllocationKind : byte
     /// <summary>Skill mastery unlock or rank upgrade identified by numeric <c>SkillId</c>.</summary>
     Skill = 1,
 
-    // Value 2 was the gold attribute reset (ADR-021 D6). It is retired (ADR-027) and the server rejects it as Invalid;
+    // Value 2 was the gold attribute reset (ADR-021 D6). It is retired (ADR-034) and the server rejects it as Invalid;
     // do not reuse it.
 }

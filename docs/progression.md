@@ -200,7 +200,7 @@ health bar.
 
 ## 6. Respec
 
-Retired from the UI and the wire by [ADR-027](adr/ADR-027-retire-gold-attribute-reset.md): a respec-scroll item will
+Retired from the UI and the wire by [ADR-034](adr/ADR-034-retire-gold-attribute-reset.md): a respec-scroll item will
 replace it. `CharacterProgressionService.TryResetAttributes` keeps the refund logic and price below for that item; no
 packet reaches it today.
 

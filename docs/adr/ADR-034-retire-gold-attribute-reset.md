@@ -1,7 +1,7 @@
-# ADR-027: Retire the Gold Attribute Reset from the UI and the Wire
+# ADR-034: Retire the Gold Attribute Reset from the UI and the Wire
 
 - **Date**: 2026-11-27
-- **Status**: Proposed
+- **Status**: Accepted
 - **Scope**: `contracts/Carbon.Contracts.Entities` (`PointAllocationKind`), `server/Carbon.Application/World`
   (`AuthoritativeWorld.TryAllocateCharacterPoint`), `desktop/Carbon.Desktop.Rendering/Hud` (character sheet),
   `desktop/Carbon.Desktop/Scenes` (click routing)
