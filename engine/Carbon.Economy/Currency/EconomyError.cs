@@ -31,12 +31,6 @@ public enum EconomyError : byte
     /// <summary>The inventory does not hold enough of the item.</summary>
     InsufficientItems = 7,
 
-    /// <summary>The item has no durability to repair, or the slot is empty.</summary>
-    NotRepairable = 8,
-
-    /// <summary>The item is already at full durability.</summary>
-    AlreadyRepaired = 9,
-
     /// <summary>The craft itself was rejected; see the accompanying crafting failure.</summary>
     CraftRejected = 10,
 

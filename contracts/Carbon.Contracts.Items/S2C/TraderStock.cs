@@ -72,11 +72,11 @@ public sealed partial class TraderStock : PacketBase<TraderStock>, IPacketStatic
     [SerializeOrder(10)]
     public bool CanRepair { get; set; }
 
-    /// <summary>Bag slots holding worn gear this trader can repair (only when <see cref="CanRepair"/>).</summary>
+    /// <summary>Retired by ADR-028: always empty (the repair window prices from the synced <c>repair.json</c>). Kept for the wire layout.</summary>
     [SerializeOrder(11)]
     public ushort[] RepairSlots { get; set; } = [];
 
-    /// <summary>Gold to restore each of <see cref="RepairSlots"/> to full durability.</summary>
+    /// <summary>Retired by ADR-028: always empty. Kept for the wire layout.</summary>
     [SerializeOrder(12)]
     public int[] RepairCosts { get; set; } = [];
 }
