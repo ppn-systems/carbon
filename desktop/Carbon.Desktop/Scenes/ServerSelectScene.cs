@@ -51,6 +51,9 @@ internal sealed class ServerSelectScene : MenuScene
         }
     }
 
+    /// <inheritdoc/>
+    protected override string? Header => GameText.Get("login.header.server");
+
     /// <summary>Returns the name the player sees for <paramref name="server"/>.</summary>
     public static string DisplayName(GameServer server)
     {
@@ -63,14 +66,14 @@ internal sealed class ServerSelectScene : MenuScene
     {
         const float panelW = 500f;
         float listH = _rows.Count * 52f;
-        float panelH = 196f + listH + (_customField is null ? 0f : 70f);
+        float panelH = 208f + listH + (_customField is null ? 0f : 70f);
         float px = MathF.Floor((width - panelW) * 0.5f);
         float py = MathF.Floor((height - panelH) * 0.5f) + 22f;
         _card = new RectangleF(px, py, panelW, panelH);
 
         float fx = px + 28f;
         float fw = panelW - 56f;
-        float y = py + 64f;
+        float y = py + 76f;
         foreach ((GameServer server, MenuButton button) in _rows)
         {
             button.Bounds = new RectangleF(fx, y, fw, 42f);
@@ -152,7 +155,6 @@ internal sealed class ServerSelectScene : MenuScene
     /// <inheritdoc/>
     protected override void DrawTexts(SpriteBatch spriteBatch, BitmapFont font)
     {
-        spriteBatch.DrawOutlinedString(font, GameText.Get("login.header.server"), new Vector2(_card.X + 28f, _card.Y + 24f), CarbonUiPalette.TextWarm, CarbonUiPalette.TextOutline, 1, 1f);
         foreach ((_, MenuButton button) in _rows)
         {
             button.DrawText(spriteBatch, font);

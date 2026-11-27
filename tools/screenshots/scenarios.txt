@@ -112,6 +112,8 @@ menu_start_in      | | CARBON_AUTO_LOGIN=0 CARBON_CAPTURE_SCENE=start CARBON_UI_
 menu_login         | | CARBON_AUTO_LOGIN=0 CARBON_CAPTURE_SCENE=login
 menu_register      | | CARBON_AUTO_LOGIN=0 CARBON_CAPTURE_SCENE=register
 menu_server        | | CARBON_AUTO_LOGIN=0 CARBON_CAPTURE_SCENE=server
+menu_login_errors  | | CARBON_AUTO_LOGIN=0 CARBON_CAPTURE_SCENE=login CARBON_UI_PREVIEW=form-feedback
+menu_register_errs | | CARBON_AUTO_LOGIN=0 CARBON_CAPTURE_SCENE=register CARBON_UI_PREVIEW=form-feedback
 
 # --- status effects (ADR-029): strip under the minimap and clock, hover tooltip, details panel, poison vignette ---
 status_strip       | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STATUS_EFFECTS=v2;poisoned:110000:2:2;bleeding:40000:1:3;slowed:90000:1:4;rested:540000:1:1 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=status-hover:2
@@ -146,3 +148,7 @@ tree_stages        | CARBON_DEBUG_SPAWN_BIOME=BlossomWoods CARBON_DEBUG_TREE_STA
 tree_stages_forest | CARBON_DEBUG_SPAWN_BIOME=AncientForest CARBON_DEBUG_TREE_STAGES=1 CARBON_DEBUG_START_HOUR=11 | CARBON_FOCUS_BIOME=AncientForest CARBON_WEATHER=clear
 sapling_item       | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STARTER_ITEMS=214x2 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=inventory-tooltip:0
 planted_grove      | CARBON_DEBUG_PLANTED_GROVE=1 CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear
+# --- combat feel (docs/art/combat-animation.md): swing due east every 0.55 s in place (CARBON_AUTO_ATTACK), bare hands and an iron
+#     sword; run with CARBON_FRAME_STATS=n in the client env to measure frames with attacks, trails and hit feedback ---
+combat_fists       | CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_AUTO_ATTACK=0.55
+combat_sword       | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STARTER_ITEMS=3 | CARBON_WEATHER=clear CARBON_AUTO_ATTACK=0.55

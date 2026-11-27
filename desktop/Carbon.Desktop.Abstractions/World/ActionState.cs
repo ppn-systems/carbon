@@ -53,6 +53,9 @@ public enum ActionAnimationKind : byte
 
     /// <summary>Monster heavy two-handed slam / ground smash.</summary>
     MonsterHeavySlam = 14,
+
+    /// <summary>Bare-hand punch (no weapon or tool held): jab and hook alternate.</summary>
+    Punch = 15,
 }
 
 /// <summary>
@@ -63,7 +66,7 @@ public enum ActionAnimationKind : byte
 /// <param name="RemainingSeconds">Remaining seconds before completion.</param>
 /// <param name="AimDirection">Normalized direction of the swing/strike.</param>
 /// <param name="EquippedItemId">Equipped item ID at the moment the action began.</param>
-/// <param name="ComboStep">Alternating swing cadence bit (0 or 1).</param>
+/// <param name="ComboStep">Combo step (0-based, see <see cref="AttackComboCounter"/>).</param>
 public readonly record struct ActionState(
     ActionAnimationKind Kind,
     float DurationSeconds,
