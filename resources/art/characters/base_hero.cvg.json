@@ -1195,6 +1195,54 @@
           }
         }
       ]
+    },
+    "downed": {
+      "duration": 0.6,
+      "loop": false,
+      "tracks": [
+        {
+          "t": 0.0,
+          "bones": {
+            "cape": { "rotDeg": 0.0, "dx": 0.0, "dy": 0.0 },
+            "legLeft": { "rotDeg": 0.0, "dx": 0.0, "dy": 0.0 },
+            "legRight": { "rotDeg": 0.0, "dx": 0.0, "dy": 0.0 },
+            "body": { "rotDeg": 0.0, "dx": 0.0, "dy": 0.0 },
+            "armBack": { "rotDeg": 0.0, "dx": 0.0, "dy": 0.0 },
+            "armFront": { "rotDeg": 0.0, "dx": 0.0, "dy": 0.0 },
+            "head": { "rotDeg": 0.0, "dx": 0.0, "dy": 0.0 },
+            "headgear": { "rotDeg": 0.0, "dx": 0.0, "dy": 0.0 },
+            "aura": { "rotDeg": 0.0, "dx": 0.0, "dy": 0.0 }
+          }
+        },
+        {
+          "t": 0.45,
+          "bones": {
+            "cape": { "rotDeg": 28.0, "dx": 6.86, "dy": 4.46 },
+            "legLeft": { "rotDeg": 28.0, "dx": 2.23, "dy": 1.81 },
+            "legRight": { "rotDeg": 28.0, "dx": 1.53, "dy": 4.63 },
+            "body": { "rotDeg": 28.0, "dx": 4.04, "dy": 3.76 },
+            "armBack": { "rotDeg": 38.0, "dx": 6.88, "dy": 1.37 },
+            "armFront": { "rotDeg": 46.0, "dx": 5.43, "dy": 7.19 },
+            "head": { "rotDeg": 36.0, "dx": 7.56, "dy": 4.63 },
+            "headgear": { "rotDeg": 36.0, "dx": 10.15, "dy": 5.28 },
+            "aura": { "rotDeg": 28.0, "dx": 8.27, "dy": 4.81 }
+          }
+        },
+        {
+          "t": 1.0,
+          "bones": {
+            "cape": { "rotDeg": 90.0, "dx": 8.8, "dy": 21.08 },
+            "legLeft": { "rotDeg": 78.0, "dx": 0.88, "dy": 8.98 },
+            "legRight": { "rotDeg": 87.0, "dx": -4.28, "dy": 14.92 },
+            "body": { "rotDeg": 82.0, "dx": 2.85, "dy": 15.91 },
+            "armBack": { "rotDeg": 68.0, "dx": 12.65, "dy": 13.65 },
+            "armFront": { "rotDeg": 108.0, "dx": 1.97, "dy": 25.93 },
+            "head": { "rotDeg": 92.0, "dx": 10.28, "dy": 22.37 },
+            "headgear": { "rotDeg": 92.0, "dx": 15.73, "dy": 27.1 },
+            "aura": { "rotDeg": 82.0, "dx": 11.77, "dy": 23.66 }
+          }
+        }
+      ]
     }
   },
   "supportsModularHuman": true

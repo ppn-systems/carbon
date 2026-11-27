@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Combat.Statuses.Config;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Identity;
@@ -10,6 +11,7 @@ using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Events;
 using Carbon.Desktop.Abstractions.Identity;
 using Carbon.Desktop.Abstractions.Session;
+using Carbon.Desktop.Abstractions.StatusEffects;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Maps.Building;
@@ -66,6 +68,12 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile, INpcCap
 
     /// <summary>Gets derived maximum stamina points.</summary>
     float LocalPlayerMaxStamina { get; }
+
+    /// <summary>Gets whether the local player is exhausted: no stamina actions and no sprint until the pool recovers (ADR-033).</summary>
+    bool LocalPlayerStaminaExhausted { get; }
+
+    /// <summary>Gets the stamina bar flash after a refused action, from 1 (just refused) down to 0.</summary>
+    float LocalPlayerStaminaFlash { get; }
 
     /// <summary>Gets derived armor defense rating.</summary>
     float LocalPlayerDefense { get; }
@@ -169,6 +177,15 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile, INpcCap
     float? AuthoritativeTimeHour => null;
 
     /// <summary>
+    /// Gets the local player's death while they are dead and waiting to respawn (ADR-031), or <see langword="null"/>
+    /// while alive.
+    /// </summary>
+    DeathView? LocalDeath => null;
+
+    /// <summary>Gets whether a respawn request was sent and the server has not answered it yet.</summary>
+    bool IsRespawnPending => false;
+
+    /// <summary>
     /// Gets whether the authoritative world time is in the night window (monsters empowered), or <see langword="null"/>
     /// when running offline.
     /// </summary>
@@ -195,11 +212,35 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile, INpcCap
     /// <summary>Gets a counter that increases with every forge result, so the UI can start one outcome effect per result.</summary>
     uint ForgeResultSerial => 0U;
 
+    /// <summary>
+    /// Gets the local player's active status effects (ADR-029), counted down locally between server syncs. Empty when
+    /// the player has none or the session has no status effects.
+    /// </summary>
+    IReadOnlyList<LocalStatusEffect> LocalStatusEffects => [];
+
+    /// <summary>Gets the status effect definitions synced from the server config (ADR-029); empty before the sync.</summary>
+    StatusEffectCatalog StatusEffectDefinitions => StatusEffectCatalog.Empty;
+
+    /// <summary>Gets the localization key of a monster archetype's name, or <see langword="null"/> when unknown.</summary>
+    /// <param name="archetypeId">Monster archetype id.</param>
+    /// <returns>The key, or <see langword="null"/>.</returns>
+    string? ResolveMonsterNameKey(ushort archetypeId) => null;
+
+    /// <summary>Gets the seconds left on the red damage vignette (&gt; 0 just after the local player took damage).</summary>
+    float LocalDamageVignetteTimer => 0f;
+
     /// <summary>Copies the player's inventory slots into <paramref name="destination"/> under session synchronization.</summary>
     void CopyInventorySlots(Span<ItemSlot> destination);
 
     /// <summary>Returns <see langword="true"/> when a Blacksmith NPC or placed <c>ForgeAnvil</c> is nearby.</summary>
     bool IsNearForgeStation(float maxDistance = 175f);
+
+    /// <summary>
+    /// Returns the tier (<c>repair.json → stations</c>) of the <paramref name="venue"/> in reach, as the server measures
+    /// it (ADR-028): a blacksmith NPC, or a forge anvil, else a workbench, within the synced reach. <c>0</c> when
+    /// none. For display only; the server re-checks.
+    /// </summary>
+    int GetRepairStationTier(RepairVenue venue) => 0;
 
     /// <summary>Drains newly buffered floating combat/loot events into <paramref name="destination"/>.</summary>
     void DrainCombatEvents(List<CombatFeedbackEvent> destination);

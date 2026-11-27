@@ -28,8 +28,8 @@ public interface IGameplayController
     /// <summary>Requests selling <paramref name="quantity"/> units from bag slot <paramref name="slotIndex"/> to a nearby vendor.</summary>
     bool TryVendorSell(ushort slotIndex, ushort quantity = 1);
 
-    /// <summary>Requests repairing the item in <paramref name="slotIndex"/> at a forge station for gold.</summary>
-    bool TryRepairItem(ushort slotIndex);
+    /// <summary>Gets repairing one item at a station or blacksmith (ADR-028).</summary>
+    IRepairSession Repair { get; }
 
     /// <summary>Gets trading with village traders (ADR-025).</summary>
     ITraderSession Trading { get; }
@@ -40,8 +40,11 @@ public interface IGameplayController
     /// <summary>Places a starter structure near the player's current position.</summary>
     bool TryPlaceStarterWall(out (int ChunkX, int ChunkY) centerChunk);
 
-    /// <summary>Toggles the nearest door beside the local player.</summary>
-    bool TryToggleNearbyDoor(out (int ChunkX, int ChunkY) modifiedChunk);
+    /// <summary>
+    /// Asks the server to open or close the door at a world tile. The caller picks the door
+    /// (<see cref="InteractionTargeting.SelectNearest"/>); the server checks the range.
+    /// </summary>
+    bool TryToggleDoor(int tileX, int tileY);
 
     /// <summary>Attempts to demolish a placed structure at <paramref name="aimWorldPosition"/>.</summary>
     bool TryDemolishStructure(Vector2 aimWorldPosition, out (int ChunkX, int ChunkY) modifiedChunk)
@@ -80,8 +83,11 @@ public interface IGameplayController
     /// <summary>Requests destroying <paramref name="quantity"/> units (<c>&lt;= 0</c> = all) of <paramref name="slotIndex"/> permanently (ADR-020).</summary>
     bool TryDestroyInventoryItem(ushort slotIndex, int quantity);
 
-    /// <summary>Attempts to pick up the closest ground loot item within range.</summary>
-    bool TryPickupNearbyLoot();
+    /// <summary>
+    /// Asks the server to pick up a ground loot drop. The caller picks the drop
+    /// (<see cref="InteractionTargeting.SelectNearest"/>); the server checks the range and the loot lock.
+    /// </summary>
+    bool TryPickupLoot(ulong lootNetworkId);
 
     /// <summary>Sets or clears the locked target network ID (<c>0</c> clears lock).</summary>
     void SetLockedTarget(ulong networkId);
@@ -97,4 +103,10 @@ public interface IGameplayController
     /// </summary>
     /// <returns><see langword="true"/> when the request was sent.</returns>
     bool TryToggleRest();
+
+    /// <summary>
+    /// Asks the server to respawn the dead local player (ADR-031). Sends at most one request until the server answers.
+    /// </summary>
+    /// <returns><see langword="true"/> when a request was sent; <see langword="false"/> when alive or already waiting.</returns>
+    bool TryRequestRespawn() => false;
 }

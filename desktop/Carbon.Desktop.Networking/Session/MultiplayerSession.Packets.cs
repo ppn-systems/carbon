@@ -18,6 +18,7 @@ using Carbon.Contracts.Maps.S2C;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.Events;
+using Carbon.Desktop.Abstractions.StatusEffects;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -93,8 +94,11 @@ public sealed partial class MultiplayerSession
         _tcpSubscriptions.Add(tcp.On<InventorySlotChanged>(this.OnInventorySlotChanged));
         _tcpSubscriptions.Add(tcp.On<EntityEquipmentChanged>(this.OnEntityEquipmentChanged));
         _tcpSubscriptions.Add(tcp.On<PlayerStatsSync>(this.OnPlayerStatsSync));
+        _tcpSubscriptions.Add(tcp.On<StatusEffectSync>(this.OnStatusEffectSync));
+        _tcpSubscriptions.Add(tcp.On<StaminaStatusSync>(this.OnStaminaStatusSync));
         _tcpSubscriptions.Add(tcp.On<WalletSync>(this.OnWalletSync));
         _tcpSubscriptions.Add(tcp.On<TraderStock>(_trading.OnStock));
+        _tcpSubscriptions.Add(tcp.On<PlayerDeath>(_death.OnPlayerDeath));
         _tcpSubscriptions.Add(tcp.On<EnhancementAnnouncement>(this.OnEnhancementAnnouncement));
         _tcpSubscriptions.Add(tcp.On<SkillCastBroadcast>(this.OnSkillCastBroadcast));
         _tcpSubscriptions.Add(tcp.On<EntityAttackPhase>(this.OnEntityAttackPhase));
@@ -410,7 +414,7 @@ public sealed partial class MultiplayerSession
             _localMaxHealth = MathF.Max(1f, enter.MaxHealth);
             _localMana = enter.CurrentMana;
             _localMaxMana = MathF.Max(1f, enter.MaxMana);
-            _localStamina = enter.CurrentStamina;
+            this.ResetStaminaPrediction(enter.CurrentStamina);
             _localMaxStamina = MathF.Max(1f, enter.MaxStamina);
             _localDefense = enter.Defense;
             _localClass = (HeroArchetypeClass)enter.ClassId;
@@ -881,7 +885,7 @@ public sealed partial class MultiplayerSession
             _localMaxHealth = MathF.Max(1f, pkt.MaxHealth);
             _localMana = pkt.CurrentMana;
             _localMaxMana = MathF.Max(1f, pkt.MaxMana);
-            _localStamina = pkt.CurrentStamina;
+            _stamina.Current = pkt.CurrentStamina;
             _localMaxStamina = MathF.Max(1f, pkt.MaxStamina);
             _localDefense = pkt.Defense;
             if (pkt.MaxFood > 0f)
@@ -1046,6 +1050,9 @@ public sealed partial class MultiplayerSession
         }
     }
 
+    /// <summary>Seconds the red hit vignette fades over (visual only) after the local player is hit.</summary>
+    private const float HitVignetteFadeSeconds = 0.45f;
+
     private void OnCombatHit(CombatHit pkt)
     {
         lock (_worldGate)
@@ -1061,12 +1068,12 @@ public sealed partial class MultiplayerSession
                 if (pkt.Damage > 0f)
                 {
                     _localHitFlashTimer = 0.16f;
+                    _damageVignetteTimer = HitVignetteFadeSeconds;
                 }
 
                 if (pkt.IsKilled)
                 {
                     _lockedTargetNetworkId = 0UL;
-                    _hudNotifications.Add(GameText.Get("hud.slain"));
                     _combatEvents.Add(new CombatFeedbackEvent(
                         worldPos + new Vector2(0f, -20f),
                         0f,
@@ -1108,7 +1115,39 @@ public sealed partial class MultiplayerSession
 
             bool isHeal = pkt.Damage < 0f;
             float mag = MathF.Abs(pkt.Damage);
-            _combatEvents.Add(new CombatFeedbackEvent(worldPos, mag, pkt.IsCritical, isHeal, pkt.Damage == 0f && !pkt.IsKilled ? GameText.Get("character.miss") : null)); // 0-damage non-kill = dodge (ADR-021)
+            _combatEvents.Add(new CombatFeedbackEvent(
+                worldPos,
+                mag,
+                pkt.IsCritical,
+                isHeal,
+                pkt.Damage == 0f && !pkt.IsKilled ? GameText.Get("character.miss") : null, // 0-damage non-kill = dodge (ADR-021)
+                pkt.StatusEffectId,
+                pkt.DefenderNetworkId == _localNetworkId));
+        }
+    }
+
+    /// <summary>Replaces the local status effect list (ADR-029 D9); sent by the server only when it changes.</summary>
+    private void OnStatusEffectSync(StatusEffectSync pkt)
+    {
+        int count = Math.Min(
+            pkt.EffectIds.Length,
+            Math.Min(Math.Min(pkt.Stacks.Length, pkt.RemainingMs.Length), Math.Min(Math.Min(pkt.DurationMs.Length, pkt.Magnitudes.Length), Math.Min(pkt.SourceKinds.Length, pkt.SourceIds.Length))));
+        LocalStatusEffect[] effects = new LocalStatusEffect[count];
+        for (int i = 0; i < count; i++)
+        {
+            effects[i] = new LocalStatusEffect(
+                pkt.EffectIds[i],
+                pkt.Stacks[i],
+                pkt.RemainingMs[i] / 1000f,
+                pkt.DurationMs[i] / 1000f,
+                pkt.Magnitudes[i],
+                pkt.SourceKinds[i],
+                pkt.SourceIds[i]);
+        }
+
+        lock (_worldGate)
+        {
+            _localStatusEffects = effects;
         }
     }
 

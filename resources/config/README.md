@@ -3,7 +3,8 @@
 Every gameplay config document lives here as `<name>.json`, one document per domain
 (`items.json`, `monsters.json`, `loot.json`, `recipes.json`, `needs.json`, `structures.json`, `economy.json`,
 `enhancement.json` (forge outcomes, [docs/enhancement.md](../../docs/enhancement.md)), `repair.json` (repair
-materials and fees, [ADR-028](../../docs/adr/ADR-028-material-repair-per-item.md)), ...).
+materials and fees, [ADR-028](../../docs/adr/ADR-028-material-repair-per-item.md)), `stamina.json` (action costs,
+sprint and regen, [ADR-033](../../docs/adr/ADR-033-hardcore-stamina.md)), ...).
 
 - The **server** loads this folder at startup (`Carbon.Server.Configuration.ConfigRepository`), hashes each
   document and sends clients a manifest. Clients download only documents whose cached hash differs.

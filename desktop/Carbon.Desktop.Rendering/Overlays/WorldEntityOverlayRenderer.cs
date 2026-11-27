@@ -76,7 +76,6 @@ internal sealed class WorldEntityOverlayRenderer
 
         // 2. Monster / NPC / Remote Player proportional overhead plates & ground loot labels
         IReadOnlyList<RemoteEntityView> remotes = world.RemoteEntities;
-        ulong closestLootId = FindClosestLootId(playerPos, remotes);
         for (int i = 0; i < remotes.Count; i++)
         {
             RemoteEntityView r = remotes[i];
@@ -92,8 +91,7 @@ internal sealed class WorldEntityOverlayRenderer
                 {
                     Vector2 lootWorld = r.Position;
                     Vector2 lootScreen = cameraRig.Camera.WorldToScreen(in lootWorld);
-                    bool canPromptE = r.NetworkId == closestLootId;
-                    string lootLabel = canPromptE ? $"[E] {FormatLootLabel(in r)}" : FormatLootLabel(in r);
+                    string lootLabel = FormatLootLabel(in r);
                     TextMeasureResult lSize = font.MeasureString(lootLabel, TextLayoutOptions.Default, 1f);
                     float lpW = lSize.Width + 10f;
                     batch.FillRectangle(new RectangleF(MathF.Floor(lootScreen.X - (lpW * 0.5f)), MathF.Floor(lootScreen.Y - 30f), lpW, 18f), new ColorRgba(10, 13, 20, 200));
@@ -191,7 +189,6 @@ internal sealed class WorldEntityOverlayRenderer
         ColorRgba outline = new(10, 12, 18, 255);
         Vector2 playerPos = world.LocalPlayerInterpolatedPosition;
         IReadOnlyList<RemoteEntityView> remotes = world.RemoteEntities;
-        ulong closestLootId = FindClosestLootId(playerPos, remotes);
 
         for (int i = 0; i < remotes.Count; i++)
         {
@@ -208,12 +205,9 @@ internal sealed class WorldEntityOverlayRenderer
                 {
                     Vector2 lootWorld = r.Position;
                     Vector2 lootScreen = cameraRig.Camera.WorldToScreen(in lootWorld);
-                    bool canPromptE = r.NetworkId == closestLootId;
-                    string lootLabel = canPromptE ? $"[E] {FormatLootLabel(in r)}" : FormatLootLabel(in r);
+                    string lootLabel = FormatLootLabel(in r);
                     TextMeasureResult lSize = font.MeasureString(lootLabel, TextLayoutOptions.Default, 1f);
-                    ColorRgba lootCol = r.WeaponUpgradeLevel > 0
-                        ? new ColorRgba(34, 211, 238, 255)
-                        : (canPromptE ? new ColorRgba(110, 231, 183, 255) : new ColorRgba(253, 224, 71, 255));
+                    ColorRgba lootCol = r.WeaponUpgradeLevel > 0 ? new ColorRgba(34, 211, 238, 255) : new ColorRgba(253, 224, 71, 255);
                     spriteBatch.DrawOutlinedString(font, lootLabel, new Vector2(MathF.Floor(lootScreen.X - (lSize.Width * 0.5f)), MathF.Floor(lootScreen.Y - 29f)), lootCol, outline, 1, 1f);
                 }
 
@@ -266,30 +260,6 @@ internal sealed class WorldEntityOverlayRenderer
             Vector2 pos = new(MathF.Floor(screenFt.X - (ftSize.Width * 0.5f)), MathF.Floor(screenFt.Y));
             spriteBatch.DrawOutlinedString(font, ft.Text, pos, tint, fadeOutline, 1, ft.Scale);
         }
-    }
-
-    private static ulong FindClosestLootId(Vector2 playerPos, IReadOnlyList<RemoteEntityView> remotes)
-    {
-        const float maxSq = 84f * 84f;
-        float bestSq = maxSq;
-        ulong bestId = 0UL;
-        for (int i = 0; i < remotes.Count; i++)
-        {
-            RemoteEntityView r = remotes[i];
-            if (r.Kind != EntityKind.LootDrop)
-            {
-                continue;
-            }
-
-            float dSq = Vector2.DistanceSquared(playerPos, r.Position);
-            if (dSq <= bestSq)
-            {
-                bestSq = dSq;
-                bestId = r.NetworkId;
-            }
-        }
-
-        return bestId;
     }
 
     private static Vector2 ResolveHeadCrownWorld(in RemoteEntityView remote, IVectorArtRepository? art)
@@ -360,19 +330,12 @@ internal sealed class WorldEntityOverlayRenderer
 
     private static string FormatDisplayTitle(in RemoteEntityView r, float distSq)
     {
-        // Near enough to talk: E trades with a trader (the blacksmith too), U opens the forge (ADR-024 / ADR-025).
-        if (r.Kind == EntityKind.Npc && distSq <= (175f * 175f))
+        // Near a forge artisan (the village blacksmith too), U opens the forge (ADR-024). What E does is shown by the
+        // interact prompt over its one target, not on name tags (InteractionController).
+        if (r.Kind == EntityKind.Npc && distSq <= (175f * 175f) &&
+            WorldActorCatalog.GetNpcSpec(r.ArchetypeId).Capabilities.HasFlag(NpcCapabilities.ForgeArtisan))
         {
-            NpcCapabilities caps = WorldActorCatalog.GetNpcSpec(r.ArchetypeId).Capabilities;
-            if (caps.HasFlag(NpcCapabilities.Trader))
-            {
-                return GameText.Format(caps.HasFlag(NpcCapabilities.ForgeArtisan) ? "trade.prompt_smith" : "trade.prompt", new TextArg("name", r.Name));
-            }
-
-            if (caps.HasFlag(NpcCapabilities.ForgeArtisan))
-            {
-                return GameText.Format("hud.nameplate.forge", new TextArg("name", r.Name));
-            }
+            return GameText.Format("hud.nameplate.forge", new TextArg("name", r.Name));
         }
 
         return (r.Kind is EntityKind.Monster or EntityKind.Player) && r.Level > 0

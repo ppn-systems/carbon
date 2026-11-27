@@ -9,19 +9,20 @@
       "rarity": "common",
       "tier": 1,
       "maxStack": 1,
-      "basePrice": 15,
-      "maxDurability": 120,
+      "basePrice": 12,
+      "maxDurability": 80,
       "vendorBuyable": true,
       "tags": [
         "tool"
       ],
       "equipSlot": "Tool",
       "harvestTier": 1,
-      "baseDamage": 16.0,
-      "floraHarvestDamage": 55.0,
-      "mineralHarvestDamage": 26.0,
-      "actionHint": "Tier 1 Axe | Chop Trees (55 dmg)",
-      "capabilities": "ChopFlora"
+      "baseDamage": 12.0,
+      "floraHarvestDamage": 40.0,
+      "mineralHarvestDamage": 12.0,
+      "actionHint": "Wood Axe | Chop Trees (40 dmg)",
+      "capabilities": "ChopFlora",
+      "material": "wood"
     },
     {
       "id": 2,
@@ -43,7 +44,8 @@
       "floraHarvestDamage": 38.0,
       "mineralHarvestDamage": 68.0,
       "actionHint": "Tier 2 Pick | Mine Stone/Ore (68 dmg)",
-      "capabilities": "MineMineral"
+      "capabilities": "MineMineral",
+      "material": "stone"
     },
     {
       "id": 3,
@@ -1604,6 +1606,76 @@
         "enhancement"
       ],
       "actionHint": "Forge Protection | Spent on an attempt from +5: the item never drops a level or breaks"
+    },
+    {
+      "id": 188,
+      "code": "wood_pickaxe",
+      "name": "Wood Pickaxe",
+      "category": "tool",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 1,
+      "basePrice": 14,
+      "maxDurability": 80,
+      "vendorBuyable": false,
+      "tags": [
+        "tool"
+      ],
+      "equipSlot": "Tool",
+      "harvestTier": 1,
+      "baseDamage": 12.0,
+      "floraHarvestDamage": 18.0,
+      "mineralHarvestDamage": 40.0,
+      "actionHint": "Wood Pick | Mine Rock & Copper (40 dmg)",
+      "capabilities": "MineMineral",
+      "material": "wood"
+    },
+    {
+      "id": 189,
+      "code": "wood_sword",
+      "name": "Wood Sword",
+      "category": "weapon",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 1,
+      "basePrice": 10,
+      "maxDurability": 70,
+      "vendorBuyable": false,
+      "tags": [
+        "weapon"
+      ],
+      "equipSlot": "MainHand",
+      "baseDamage": 15.0,
+      "critChance": 0.05,
+      "floraHarvestDamage": 10.0,
+      "mineralHarvestDamage": 0.0,
+      "actionHint": "Wood Blade | Combat 15 dmg, Fast Swing",
+      "capabilities": "MeleeWeapon",
+      "material": "wood",
+      "attackSpeedBonus": 0.25
+    },
+    {
+      "id": 190,
+      "code": "stone_axe",
+      "name": "Stone Axe",
+      "category": "tool",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 1,
+      "basePrice": 20,
+      "maxDurability": 160,
+      "vendorBuyable": false,
+      "tags": [
+        "tool"
+      ],
+      "equipSlot": "Tool",
+      "harvestTier": 2,
+      "baseDamage": 18.0,
+      "floraHarvestDamage": 60.0,
+      "mineralHarvestDamage": 20.0,
+      "actionHint": "Stone Axe | Fells Pines Too (60 dmg)",
+      "capabilities": "ChopFlora",
+      "material": "stone"
     }
   ]
 }

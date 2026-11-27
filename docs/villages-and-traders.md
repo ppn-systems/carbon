@@ -194,7 +194,7 @@ The village blacksmith (at the smithy's forge) and the sanctuary blacksmith (bes
   - The sanctuary smith's key comes from the spawn tile, and his style is temperate.
 - **Repair.** Replaced by [ADR-028](adr/ADR-028-material-repair-per-item.md): the blacksmith repairs one chosen item for materials and a gold fee (`RepairItemRequest`, `0x4050`). `TraderStock.RepairSlots` and `RepairCosts` are always empty.
 - **Enhancement.** The enhancement work owns this (`ItemEnhancementPolicy` and the forge window, ADR-022/024). The window's **Enhance…** button only calls the scene's existing forge entry point, `WorldGameplayScene.OpenForgeWindow`, which closes the trade window and opens the forge. Nothing in the enhancement window is duplicated. `U` still opens the forge directly.
-- **Input.** `E` or a click on the blacksmith opens his trade window; the click no longer also opens the forge. His nameplate reads `[E: TRADE  U: FORGE]`.
+- **Input.** `E` (when he is the nearest thing in reach, see the interact prompt) or a click on the blacksmith opens his trade window; the click no longer also opens the forge. His nameplate reads `[U: FORGE]`.
 
 ## 5. Tests
 
@@ -205,11 +205,11 @@ The village blacksmith (at the smithy's forge) and the sanctuary blacksmith (bes
 | `SettlementNpcSpawnerTests` (Host) | A village is built once with one guard; the blacksmith stands next to the forge; deconstruct and damage are refused. |
 | `VectorArtAndArchitectureTests` (Desktop) | Every structure type has art (doors with open shapes). |
 | `TraderTests` (Economy) | Shipped profiles load; invalid documents are rejected (unknown item, variance, quantities, too few entries, jitter, style); stock is deterministic per epoch and changes at restock; slots are distinct and style-correct, within quantity and variance ranges; prices stay within variance and above the buy-back price at levels 1/30/80; the epoch clock and per-trader jitter; limited quantity sells out and the next epoch restocks; failures change nothing (funds, full bag, slot, quantity, stale epoch, unknown trader); sales drain and import. |
-| `TraderWorldTests` (Host) | Through the real world: open a merchant and buy (wallet and stock change); more than is left, a stale epoch, a bad slot and an unknown trader are refused; selling pays less than the buy price; a far player is out of range; sales persist across a server restart on SQLite; the next epoch is fully restocked. The smithy's blacksmith sells only `blacksmith` profile items, quotes a worn sword at exactly `PriceBook.GetRepairCost`, repairs it for that gold, and quotes nothing afterwards. The sanctuary blacksmith trades too. The merchant quotes no repairs. |
+| `TraderWorldTests` (Host) | Through the real world: open a merchant and buy (wallet and stock change); more than is left, a stale epoch, a bad slot and an unknown trader are refused; selling pays less than the buy price; a far player is out of range; sales persist across a server restart on SQLite; the next epoch is fully restocked. The smithy's blacksmith sells only `blacksmith` profile items, sends no gold-only repair quotes, and repairs a worn sword for its `repair.json` materials and fee (ADR-028). The sanctuary blacksmith trades too. The merchant quotes no repairs. |
 
 Screenshots:
 - `tools/screenshots/capture.sh <out> '^village_'` captures one village per style, a macro view and a night view (`CARBON_DEBUG_SPAWN_POI=<PointOfInterestType>`).
-- `'^trade_'` captures the merchant, a desert trader and the blacksmith, in sell mode and in repair mode.
+- `'^trade_'` captures the merchant, a desert trader and the blacksmith. `'^repair_'` captures the repair window (ADR-028) at the blacksmith, its animation, and at a player station.
   - `CARBON_DEBUG_SPAWN_POI=RiverVillage:Smithy` spawns in front of a named building.
   - `CARBON_DEBUG_WORN_GEAR=1` wears the starting gear to 40 %.
-  - `CARBON_OPEN_TRADER=repair` opens the window in repair mode.
+  - `CARBON_OPEN_REPAIR=blacksmith|station` opens the repair window; `CARBON_REPAIR_PREVIEW=work|success[:s]` plays its animation.

@@ -66,6 +66,27 @@ public sealed class CharacterPersistenceTests
     }
 
     [Fact]
+    public void ClampDurability_ItemsAboveTheirMax_AreCappedAndEverythingElseIsLeftAlone()
+    {
+        ItemRules rules = ItemRules.LoadShippedDefaults();
+        float axeMax = rules.Items.GetRequired(StarterGameCatalog.WoodAxe).MaxDurability;
+        float pickMax = rules.Items.GetRequired(StarterGameCatalog.StonePickaxe).MaxDurability;
+        InventoryContainer inventory = new(PlayerInventoryLayout.TotalCapacity);
+        inventory.SetSlot(0, new ItemSlot(StarterGameCatalog.WoodAxe, 1, 0, axeMax + 40f));
+        inventory.SetSlot(1, new ItemSlot(StarterGameCatalog.StonePickaxe, 1, 0, pickMax - 10f));
+        inventory.SetSlot(2, ItemEnhancementPolicy.WithUpgradeLevel(new ItemSlot(StarterGameCatalog.WoodAxe, 1, 0, axeMax), 5) with { Durability = axeMax * 1.5f });
+        inventory.SetSlot(3, new ItemSlot(StarterGameCatalog.WoodLog, 12));
+
+        int clamped = CharacterPersistence.ClampDurability(rules, inventory);
+
+        clamped.Should().Be(1);
+        inventory.GetSlot(0).Durability.Should().Be(axeMax, "an axe saved under a higher max loads as full, not above 100 %");
+        inventory.GetSlot(1).Durability.Should().Be(pickMax - 10f, "worn gear keeps its wear");
+        inventory.GetSlot(2).Durability.Should().Be(axeMax * 1.5f, "a +5 axe may hold 150 % of the base max");
+        inventory.GetSlot(3).Should().Be(new ItemSlot(StarterGameCatalog.WoodLog, 12));
+    }
+
+    [Fact]
     public void LoadProgression_LegacySkillMaskOnly_IsCarriedOver()
     {
         CharacterRecord legacy = Character() with { ProgressionBlob = null, UnlockedSkills = (CharacterSkillMask)0b101UL };

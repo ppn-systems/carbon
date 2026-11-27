@@ -3,6 +3,7 @@
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Items.Catalog;
+using System;
 using FluentAssertions;
 using Xunit;
 
@@ -19,6 +20,30 @@ public sealed class HudCompositionTests
     {
         HudComposition.MainHud.ToArray().Should().NotContain(HudElement.Wallet, "currency is shown only inside the inventory");
         HudComposition.MainHud.ToArray().Should().Contain(HudElement.Hotbar, "the main HUD list is the one the renderer walks every frame");
+    }
+
+    [Fact]
+    public void MainHud_DrawList_DrawsTheStatusStripLastSoItsPanelSitsOverTheOtherWidgets()
+    {
+        ReadOnlySpan<HudElement> main = HudComposition.MainHud;
+        main[^1].Should().Be(HudElement.StatusEffects, "the status details panel (ADR-029) must not be covered by toasts or the minimap");
+    }
+
+    [Fact]
+    public void DeathOverlay_DrawLists_VeilThenScreen_AndNeverOnTheMainHud()
+    {
+        HudComposition.DeathVeil.ToArray().Should().Equal([HudElement.DeathVeil], "the veil is drawn first, under the panel (ADR-031)");
+        HudComposition.DeathScreen.ToArray().Should().Equal([HudElement.DeathScreen]);
+        HudComposition.MainHud.ToArray().Should().NotContain([HudElement.DeathVeil, HudElement.DeathScreen], "the death screen shows only while dead");
+    }
+
+    [Fact]
+    public void DeathOverlay_DrawLists_NeverIncludeTheStatusStrip_SoTheDeathScreenStaysOnTop()
+    {
+        // The renderer draws MainHud first and the death lists last; the strip belongs to MainHud only (ADR-029, ADR-031).
+        HudComposition.MainHud.ToArray().Should().Contain(HudElement.StatusEffects);
+        HudComposition.DeathVeil.ToArray().Should().NotContain(HudElement.StatusEffects, "nothing of the strip may draw over the veil");
+        HudComposition.DeathScreen.ToArray().Should().NotContain(HudElement.StatusEffects, "nothing of the strip may draw over the death panel");
     }
 
     [Fact]

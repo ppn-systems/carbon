@@ -11,6 +11,7 @@ using Carbon.Economy.Loot;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Simulation.ECS;
+using Carbon.Survival.Stamina;
 
 namespace Carbon.Application.World.Players;
 
@@ -47,7 +48,23 @@ internal sealed class PlayerState(
     public uint CombatRollNonce { get; set; }
     public DerivedCharacterStats Stats { get; set; } = new(100f, 80f, 100f, 2f, 1f, 1f);
     public float CurrentMana { get; set; } = 80f;
-    public float CurrentStamina { get; set; } = 100f;
+    private StaminaMeter _stamina = new(100f);
+
+    /// <summary>Gets the stamina meter (ADR-033); mutate through the reference.</summary>
+    public ref StaminaMeter Stamina => ref _stamina;
+
+    /// <summary>Gets or sets the current stamina (the meter's value).</summary>
+    public float CurrentStamina
+    {
+        get => _stamina.Current;
+        set => _stamina.Current = value;
+    }
+
+    /// <summary>Gets or sets how many actions were refused for lack of stamina this session (ADR-033).</summary>
+    public uint StaminaRefusals { get; set; }
+
+    /// <summary>Gets or sets the exhaustion and refusal count last pushed to the client.</summary>
+    public (bool Exhausted, uint Refusals) StaminaStatusSent { get; set; }
     public bool StatsDirty { get; set; }
     public bool LeveledUpPending { get; set; }
     public bool PersistenceDirty { get; set; }

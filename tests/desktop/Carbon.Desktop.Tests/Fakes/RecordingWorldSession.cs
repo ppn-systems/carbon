@@ -62,6 +62,44 @@ internal sealed class RecordingWorldSession : IWorldSession
 
     public bool TryUpgradeInventoryItem(ushort slotIndex, ushort protectionItemId = 0) => this.Record($"Upgrade({slotIndex},{protectionItemId})");
 
+    /// <summary>Gets or sets the death the death screen reads (ADR-031); <see langword="null"/> while alive.</summary>
+    public DeathView? LocalDeath { get; set; }
+
+    /// <summary>Gets or sets what <see cref="TryRequestRespawn"/> does; by default it records <c>Respawn()</c>.</summary>
+    public Func<bool>? RespawnHandler { get; set; }
+
+    public bool TryRequestRespawn() => this.RespawnHandler is { } handler ? this.Record("Respawn()") && handler() : this.Record("Respawn()");
+
+    // ---- Interact key (InteractionController tests): opt-in world state. Left unset, these members stay unsupported. ----
+
+    /// <summary>Gets or sets the world the interact key scans for doors and anvils (null: unsupported).</summary>
+    public ChunkWorld2D? World { get; set; }
+
+    /// <summary>Gets or sets the local player's position in world pixels.</summary>
+    public Vector2 PlayerPosition { get; set; }
+
+    /// <summary>Gets the replicated entities around the player.</summary>
+    public List<RemoteEntityView> Remotes { get; } = [];
+
+    /// <summary>Gets what each NPC archetype offers.</summary>
+    public Dictionary<ushort, NpcCapabilities> NpcRoles { get; } = [];
+
+    public ChunkWorld2D ChunkWorld => this.World ?? Unused<ChunkWorld2D>();
+
+    public Vector2 LocalPlayerInterpolatedPosition => this.World is null ? Unused<Vector2>() : this.PlayerPosition;
+
+    public IReadOnlyList<RemoteEntityView> RemoteEntities => this.World is null ? Unused<IReadOnlyList<RemoteEntityView>>() : this.Remotes;
+
+    public bool IsReady => this.World is not null || Unused<bool>();
+
+    public ITraderSession Trading => this.World is null ? Unused<ITraderSession>() : new RecordingTrader(this);
+
+    public NpcCapabilities GetNpcCapabilities(ushort archetypeId) => this.NpcRoles.GetValueOrDefault(archetypeId);
+
+    public bool TryToggleDoor(int tileX, int tileY) => this.Record($"Door({tileX},{tileY})");
+
+    public bool TryPickupLoot(ulong lootNetworkId) => this.Record($"PickUp({lootNetworkId})");
+
     private bool Record(string command)
     {
         this.Commands.Add(command);
@@ -79,10 +117,8 @@ internal sealed class RecordingWorldSession : IWorldSession
     public string ActiveCharacterName => Unused<string>();
     public byte LocalPlayerAppearancePreset => Unused<byte>();
     public bool IsAuthenticated => Unused<bool>();
-    public ChunkWorld2D ChunkWorld => Unused<ChunkWorld2D>();
     public WorldSimulation Simulation => Unused<WorldSimulation>();
     public Entity LocalPlayer => Unused<Entity>();
-    public Vector2 LocalPlayerInterpolatedPosition => Unused<Vector2>();
     public float LocalPlayerHealth => Unused<float>();
     public float LocalPlayerMaxHealth => Unused<float>();
     public ushort LocalPlayerLevel => Unused<ushort>();
@@ -92,6 +128,10 @@ internal sealed class RecordingWorldSession : IWorldSession
     public float LocalPlayerMaxMana => Unused<float>();
     public float LocalPlayerStamina => Unused<float>();
     public float LocalPlayerMaxStamina => Unused<float>();
+
+    public bool LocalPlayerStaminaExhausted => Unused<bool>();
+
+    public float LocalPlayerStaminaFlash => Unused<float>();
     public float LocalPlayerDefense => Unused<float>();
     public long LocalPlayerGold => Unused<long>();
     public long LocalPlayerDiamonds => Unused<long>();
@@ -118,13 +158,10 @@ internal sealed class RecordingWorldSession : IWorldSession
     public Vector2 LocalFacingDirection => Unused<Vector2>();
     public float LocalHitFlashTimer => Unused<float>();
     public ActionState CurrentAction => Unused<ActionState>();
-    public IReadOnlyList<RemoteEntityView> RemoteEntities => Unused<IReadOnlyList<RemoteEntityView>>();
-    public bool IsReady => Unused<bool>();
     public ulong WorldSeed => Unused<ulong>();
     public ulong LockedTargetNetworkId => Unused<ulong>();
     public float ForgeFeedbackTimer => Unused<float>();
     public bool LastForgeSucceeded => Unused<bool>();
-    public ITraderSession Trading => Unused<ITraderSession>();
     public ConfigCatalog? GameConfig => Unused<ConfigCatalog?>();
 
     public event Action<ConfigCatalog>? GameConfigChanged
@@ -157,15 +194,28 @@ internal sealed class RecordingWorldSession : IWorldSession
     public bool TryCraftRecipe(ushort recipeId, ushort quantity = 1) => Unused<bool>();
     public bool TryVendorBuy(ushort itemId, ushort quantity = 1) => Unused<bool>();
     public bool TryVendorSell(ushort slotIndex, ushort quantity = 1) => Unused<bool>();
-    public bool TryRepairItem(ushort slotIndex) => Unused<bool>();
+    public IRepairSession Repair => Unused<IRepairSession>();
     public bool TryHarvestNearbyProp(out (int ChunkX, int ChunkY) modifiedChunk) => throw NotUsed();
     public bool TryPlaceStarterWall(out (int ChunkX, int ChunkY) centerChunk) => throw NotUsed();
-    public bool TryToggleNearbyDoor(out (int ChunkX, int ChunkY) modifiedChunk) => throw NotUsed();
     public bool TryCastSkill(ushort skillId, Vector2 aimWorldPosition) => Unused<bool>();
-    public bool TryPickupNearbyLoot() => Unused<bool>();
     public void SetLockedTarget(ulong networkId) => Unused<bool>();
     public bool CycleNearestHostileTarget(float maxRange = 340f) => Unused<bool>();
     public bool TryAllocateCharacterPoint(PointAllocationKind kind, ushort targetId, byte amount = 1) => Unused<bool>();
     public bool TryToggleRest() => Unused<bool>();
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    private sealed class RecordingTrader(RecordingWorldSession owner) : ITraderSession
+    {
+        public TraderView? ActiveTrader => null;
+
+        public bool TryOpen(ulong traderNetworkId) => owner.Record($"Trade({traderNetworkId})");
+
+        public bool TryBuy(byte slotIndex, ushort quantity = 1) => throw NotUsed();
+
+        public bool TrySell(ushort slotIndex, ushort quantity = 1) => throw NotUsed();
+
+        public bool TryRepair(ushort slotIndex) => throw NotUsed();
+
+        public void Close() => throw NotUsed();
+    }
 }

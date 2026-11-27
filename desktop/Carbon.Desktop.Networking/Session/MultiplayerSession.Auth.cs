@@ -292,7 +292,7 @@ public sealed partial class MultiplayerSession
             _localMaxHealth = MathF.Max(1f, enter.MaxHealth);
             _localMana = enter.CurrentMana;
             _localMaxMana = MathF.Max(1f, enter.MaxMana);
-            _localStamina = enter.CurrentStamina;
+            this.ResetStaminaPrediction(enter.CurrentStamina);
             _localMaxStamina = MathF.Max(1f, enter.MaxStamina);
             _localDefense = enter.Defense;
             _localClass = (HeroArchetypeClass)enter.ClassId;
@@ -317,6 +317,8 @@ public sealed partial class MultiplayerSession
             _inventoryLoaded = false;
             _localFacingDir = new Vector2(0f, 1f);
             _localHitFlashTimer = 0f;
+            _damageVignetteTimer = 0f;
+            _localStatusEffects = [];
             _currentAction = ActionState.None;
             _comboStep = 0;
 

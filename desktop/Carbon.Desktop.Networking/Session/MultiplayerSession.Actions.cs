@@ -82,7 +82,7 @@ public sealed partial class MultiplayerSession
                 foodFull &&
                 (!healsHp || _localHealth >= _localMaxHealth - 0.5f) &&
                 (!healsMp || _localMana >= _localMaxMana - 0.5f) &&
-                (!healsStam || _localStamina >= _localMaxStamina - 0.5f))
+                (!healsStam || _stamina.Current >= _localMaxStamina - 0.5f))
             {
                 lock (_worldGate)
                 {
@@ -91,6 +91,12 @@ public sealed partial class MultiplayerSession
 
                 return false;
             }
+        }
+
+        if (!(hasArchetype && archetype is { Category: ItemCategory.Placeable or ItemCategory.Consumable }) &&
+            this.RefuseSwingWhileExhausted(hasArchetype ? archetype : null))
+        {
+            return false;
         }
 
         if (hasArchetype && archetype is { ProjectileSpeed: > 0f, AttackManaCost: > 0f } &&
@@ -182,18 +188,22 @@ public sealed partial class MultiplayerSession
             return false;
         }
 
-        if (_localMana < spec.ManaCost || _localStamina < spec.StaminaCost)
+        if (_localMana < spec.ManaCost)
         {
             lock (_worldGate)
             {
-                _hudNotifications.Add(_localMana < spec.ManaCost ? GameText.Get("hud.not_enough_mana") : GameText.Get("hud.not_enough_stamina"));
+                _hudNotifications.Add(GameText.Get("hud.not_enough_mana"));
             }
 
             return false;
         }
 
+        if (!this.TryPredictStaminaSpend(spec.StaminaCost))
+        {
+            return false;
+        }
+
         _localMana = MathF.Max(0f, _localMana - spec.ManaCost);
-        _localStamina = MathF.Max(0f, _localStamina - spec.StaminaCost);
         lock (_worldGate)
         {
             _skillCooldowns[skillId] = spec.CooldownSeconds;
@@ -705,43 +715,14 @@ public sealed partial class MultiplayerSession
     }
 
     /// <inheritdoc/>
-    public bool TryPickupNearbyLoot()
+    public bool TryPickupLoot(ulong lootNetworkId)
     {
-        if (!this.IsReady || _tcpSession is not { IsConnected: true })
+        if (lootNetworkId == 0UL || !this.IsReady || _tcpSession is not { IsConnected: true })
         {
             return false;
         }
 
-        Vector2 pos = this.LocalPlayerInterpolatedPosition;
-        const float maxDistSq = 84f * 84f;
-        ulong bestId = 0UL;
-        float bestDistSq = maxDistSq;
-
-        lock (_worldGate)
-        {
-            foreach (KeyValuePair<ulong, RemoteEntityState> kvp in _remoteEntities)
-            {
-                RemoteEntityState s = kvp.Value;
-                if (s.Kind != EntityKind.LootDrop || this.IsLootLockedForLocalPlayer(s))
-                {
-                    continue;
-                }
-
-                float d2 = Vector2.DistanceSquared(pos, s.Position);
-                if (d2 <= bestDistSq)
-                {
-                    bestDistSq = d2;
-                    bestId = s.NetworkId;
-                }
-            }
-        }
-
-        if (bestId == 0UL)
-        {
-            return false;
-        }
-
-        _ = this.SendTcpPooledAsync<EntityPickupLoot>(p => p.LootNetworkId = bestId);
+        _ = this.SendTcpPooledAsync<EntityPickupLoot>(p => p.LootNetworkId = lootNetworkId);
         return true;
     }
 
@@ -878,18 +859,6 @@ public sealed partial class MultiplayerSession
     }
 
     /// <inheritdoc/>
-    public bool TryRepairItem(ushort slotIndex)
-    {
-        if (!this.IsReady || _tcpSession is not { IsConnected: true } || slotIndex >= PlayerInventoryLayout.TotalCapacity)
-        {
-            return false;
-        }
-
-        _ = this.SendTcpPooledAsync<RepairInventoryItem>(p => p.SlotIndex = slotIndex);
-        return true;
-    }
-
-    /// <inheritdoc/>
     public void DrainCombatEvents(List<CombatFeedbackEvent> destination)
     {
         ArgumentNullException.ThrowIfNull(destination);
@@ -994,6 +963,17 @@ public sealed partial class MultiplayerSession
             return false;
         }
 
+        ItemSlot heldSlot;
+        lock (_worldGate)
+        {
+            heldSlot = _inventory.GetSlot(_selectedSlot);
+        }
+
+        if (this.RefuseSwingWhileExhausted(_items.Rules.Items.TryGet(heldSlot.ItemId, out ItemArchetype? held) ? held : null))
+        {
+            return false;
+        }
+
         Vector2 toProp = bestProp.WorldPosition - pos;
         Vector2 aimDir = toProp.LengthSquared() > 1e-4f ? Vector2.Normalize(toProp) : _localFacingDir;
         _lastAttackDir = aimDir;
@@ -1052,38 +1032,20 @@ public sealed partial class MultiplayerSession
     }
 
     /// <inheritdoc/>
-    public bool TryToggleNearbyDoor(out (int ChunkX, int ChunkY) modifiedChunk)
+    public bool TryToggleDoor(int tileX, int tileY)
     {
-        modifiedChunk = default;
-        if (!this.IsReady || _tcpSession is not { IsConnected: true })
+        if (!this.IsReady || _tcpSession is not { IsConnected: true } ||
+            !_chunkWorld!.Buildings.TryGetStructure(tileX, tileY, out StructureTile st) || st.Category != StructureCategory.Door)
         {
             return false;
         }
 
-        Vector2 pos = this.LocalPlayerInterpolatedPosition;
-        int ptx = (int)MathF.Floor(pos.X / _tileSize);
-        int pty = (int)MathF.Floor(pos.Y / _tileSize);
-
-        for (int dy = -2; dy <= 2; dy++)
+        _ = this.SendTcpPooledAsync<MapDoorToggle>(p =>
         {
-            for (int dx = -2; dx <= 2; dx++)
-            {
-                int wx = ptx + dx;
-                int wy = pty + dy;
-                if (_chunkWorld!.Buildings.TryGetStructure(wx, wy, out StructureTile st) && st.Category == StructureCategory.Door)
-                {
-                    _ = this.SendTcpPooledAsync<MapDoorToggle>(p =>
-                    {
-                        p.TileX = wx;
-                        p.TileY = wy;
-                    });
-                    modifiedChunk = (Chunk2D.ToChunkCoord(wx), Chunk2D.ToChunkCoord(wy));
-                    return true;
-                }
-            }
-        }
-
-        return false;
+            p.TileX = tileX;
+            p.TileY = tileY;
+        });
+        return true;
     }
 
     private void SendMoveInputAsync(Vector2 moveDir, bool sprint)

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
+using Carbon.Maps.Hydrology;
 using Carbon.Maps.Roads;
 
 namespace Carbon.Maps.Generators.Stages;
@@ -70,7 +71,7 @@ public sealed class RoadStage : IChunkStage
                         }
                     }
                     else if (tile.Biome is BiomeType.ShallowWater or BiomeType.DeepOcean &&
-                             tile.Elevation >= 0.24f &&
+                             (tiles[row + lx].RiverDistance <= WorldConstants.RiverChannel || WaterDepth.Of(tile) < WaterDepth.DeepFrom) &&
                              dist <= RoadNetwork.BridgeHalfWidth)
                     {
                         // Bridge shallow water / river channels clipped along a road polyline.

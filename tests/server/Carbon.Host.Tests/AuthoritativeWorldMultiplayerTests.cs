@@ -1862,9 +1862,15 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
         public Dictionary<ulong, Vector2> SelfPositions { get; } = [];
 
-        public void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, uint revision, float durability, bool isDestroyed)
-        {
-        }
+        public List<(int TileX, int TileY, float Durability)> PropChanges { get; } = [];
+
+        public void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, uint revision, float durability, bool isDestroyed) =>
+            this.PropChanges.Add((tileX, tileY, durability));
+
+        public List<(ulong ConnectionId, bool Exhausted, uint RefusalCount)> StaminaStatuses { get; } = [];
+
+        public void SendStaminaStatus(ulong connectionId, bool exhausted, uint refusalCount) =>
+            this.StaminaStatuses.Add((connectionId, exhausted, refusalCount));
 
         public void SendStructureChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, byte structureType, float durability, byte doorState, byte connectivity) =>
             this.StructureChanges.Add((tileX, tileY, structureType));

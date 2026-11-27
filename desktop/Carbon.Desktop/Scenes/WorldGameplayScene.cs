@@ -55,6 +55,7 @@ public sealed class WorldGameplayScene : GameScene
     private WorldSceneRenderer? _worldRenderer;
     private HudOverlayRenderer? _hudRenderer;
     private TradeInteraction? _trade;
+    private RepairInteraction? _repair;
     private Task? _pendingLogoutTask;
 
     private BiomeType _lastBiome = (BiomeType)255;
@@ -68,6 +69,8 @@ public sealed class WorldGameplayScene : GameScene
     private WindowTitleKey _lastTitleKey;
     private readonly AutoCapture _capture;
     private readonly InventoryInputController _inventoryInput;
+    private readonly InteractionController _interaction;
+    private readonly Func<Vector2, Vector2> _worldToScreen;
     private bool _forgePreviewStarted;
 
     /// <summary>
@@ -84,7 +87,9 @@ public sealed class WorldGameplayScene : GameScene
         _screenshotAids = new ScreenshotAids(_options);
         _capture = new AutoCapture(options);
         _inventoryInput = new InventoryInputController(_session);
+        _interaction = new InteractionController(_session);
         _camera = camera ?? throw new ArgumentNullException(nameof(camera));
+        _worldToScreen = world => _camera.WorldToScreen(in world);
     }
 
     /// <inheritdoc/>
@@ -98,7 +103,8 @@ public sealed class WorldGameplayScene : GameScene
         _worldRenderer = new WorldSceneRenderer(context.Device, _options);
         _hudRenderer = new HudOverlayRenderer(context.Device, _worldRenderer.VectorArt);
         _inventoryInput.AttachHud(_hudRenderer);
-        _trade = new TradeInteraction(_session, _hudRenderer, _options, IsTraderNpc, this.OpenForgeWindow);
+        _repair = new RepairInteraction(_session, _hudRenderer, _options);
+        _trade = new TradeInteraction(_session, _hudRenderer, _options, IsTraderNpc, this.OpenForgeWindow, () => _repair.Open(RepairVenue.Blacksmith));
         if (!_options.MacroView)
         {
             this.ApplyZoomPreset(_hudRenderer.Settings.CameraZoomPreset);
@@ -175,12 +181,29 @@ public sealed class WorldGameplayScene : GameScene
         DesktopInputFrame input = _screenshotAids.PinMouse(DesktopInputController.Poll(context.Input));
         _mouseScreenPosition = _screenshotAids.Apply(_hudRenderer, _session, context.WindowWidth, context.WindowHeight) ?? input.MouseScreenPosition;
         _mouseWorldPosition = _camera.ScreenToWorld(in _mouseScreenPosition);
+        _worldRenderer.PreviewDowned = _hudRenderer.DeathPreview is not null;
+
+        if (DeathScreenInput.Handle(_session, input.ConfirmPressed, input.LeftClickPressed, input.MouseScreenPosition, context.WindowWidth, context.WindowHeight))
+        {
+            if (_hudRenderer.HasActiveModal)
+            {
+                _hudRenderer.CloseAllModals();
+                _inventoryInput.ResetDragState();
+            }
+
+            _session.Update(dt, Vector2.Zero, sprint: false);
+            return;
+        }
 
         if (input.EscapePressed)
         {
             if (_hudRenderer.InventoryDialog.IsOpen)
             {
                 _hudRenderer.InventoryDialog.Close();
+            }
+            else if (_hudRenderer.CloseStatusEffectDetails())
+            {
+                // ADR-029: Esc closes the status effect details first.
             }
             else if (_hudRenderer.ShowSettingsModal)
             {
@@ -202,6 +225,10 @@ public sealed class WorldGameplayScene : GameScene
         }
 
         _trade?.Sync(_frameCount);
+        _repair?.Update((float)dt, _frameCount);
+
+        // One target per frame: the E prompt is drawn over it and E acts on it (InteractionController).
+        _ = _interaction.Refresh();
         if (_hudRenderer.ShowSettingsModal)
         {
             if (input.LeftClickPressed)
@@ -288,6 +315,12 @@ public sealed class WorldGameplayScene : GameScene
         if (input.ToggleForgePressed)
         {
             this.ToggleForgeStationModal();
+        }
+
+        if (input.ToggleRepairPressed)
+        {
+            _inventoryInput.ResetDragState();
+            _repair?.Toggle();
         }
 
         if (input.MoveDirection.LengthSquared() > 1e-4f)
@@ -440,6 +473,10 @@ public sealed class WorldGameplayScene : GameScene
         {
             _trade?.HandleWindowInput(input, context.WindowWidth, context.WindowHeight);
         }
+        else if (_hudRenderer.Repair.IsOpen)
+        {
+            _repair?.HandleWindowInput(input, context.WindowWidth, context.WindowHeight);
+        }
         else
         {
             _inventoryInput.ResetDragState();
@@ -447,7 +484,11 @@ public sealed class WorldGameplayScene : GameScene
             if (input.LeftClickPressed)
             {
                 Vector2 mouseScreen = input.MouseScreenPosition;
-                if (_hudRenderer.TryHitTestHotbar(mouseScreen, context.WindowWidth, context.WindowHeight, out byte hotbarSlot))
+                if (_hudRenderer.TryHandleStatusStripClick(_session, mouseScreen, context.WindowWidth))
+                {
+                    // An icon opened its details, or a click outside closed them.
+                }
+                else if (_hudRenderer.TryHitTestHotbar(mouseScreen, context.WindowWidth, context.WindowHeight, out byte hotbarSlot))
                 {
                     _session.SelectHotbarSlot(hotbarSlot);
                 }
@@ -494,7 +535,8 @@ public sealed class WorldGameplayScene : GameScene
             else if (input.LeftMouseDown && !_session.CurrentAction.IsActive)
             {
                 Vector2 mouseScreen = input.MouseScreenPosition;
-                if (!_hudRenderer.TryHitTestHotbar(mouseScreen, context.WindowWidth, context.WindowHeight, out _) &&
+                if (!_hudRenderer.IsOverStatusStrip(_session, mouseScreen, context.WindowWidth) &&
+                    !_hudRenderer.TryHitTestHotbar(mouseScreen, context.WindowWidth, context.WindowHeight, out _) &&
                     !_hudRenderer.TryHitTestSkill(_session, mouseScreen, context.WindowWidth, context.WindowHeight, out _))
                 {
                     Span<ItemSlot> curSlots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
@@ -548,10 +590,7 @@ public sealed class WorldGameplayScene : GameScene
 
             if (input.InteractOrPickupPressed)
             {
-                if (!_session.TryPickupNearbyLoot() && _trade?.TryTalk() != true && !_session.TryToggleNearbyDoor(out _) && _session.IsNearForgeStation())
-                {
-                    this.ToggleForgeStationModal();
-                }
+                _ = _interaction.TryInteract(this.OpenForgeWindow);
             }
 
             if (input.HarvestPressed)
@@ -561,7 +600,7 @@ public sealed class WorldGameplayScene : GameScene
 
             if (input.ToggleDoorPressed)
             {
-                _ = _session.TryToggleNearbyDoor(out _);
+                _ = _interaction.TryToggleNearestDoor();
             }
 
             if (input.PlaceStructurePressed)
@@ -660,6 +699,8 @@ public sealed class WorldGameplayScene : GameScene
             _mouseWorldPosition,
             _hudRenderer.Settings.ShowCombatNumbers);
 
+        // No prompt while dead: Update stops refreshing the target then (ADR-031 death screen).
+        _hudRenderer.InteractPrompt = _session.LocalDeath is null ? _interaction.BuildPrompt(_worldToScreen) : null;
         _hudRenderer.Render(
             _session,
             spriteBatch,
@@ -678,7 +719,7 @@ public sealed class WorldGameplayScene : GameScene
             CaptureModalOpener.Open(_hudRenderer, _session, _options.CaptureModal);
         }
 
-        _capture.AfterFrame(context, _frameCount, _trade?.IsCaptureWaiting(_frameCount) == true);
+        _capture.AfterFrame(context, _frameCount, _trade?.IsCaptureWaiting(_frameCount) == true || _repair?.IsCaptureWaiting(_frameCount) == true);
 
         GLEnum glError = context.Device.Gl.GetError();
         if (glError != GLEnum.NoError)

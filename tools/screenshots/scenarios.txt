@@ -66,6 +66,10 @@ inventory_destroy  | CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_UI
 inventory_tiers         | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STARTER_ITEMS=3+1,3+3,3+4,3+6,3+7,3+8,3+9,3+10,18+5,21+10,187+9,31+10,24+2 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=inventory
 tiers_hover             | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STARTER_ITEMS=3+1,3+3,3+4,3+6,3+7,3+8,3+9,3+10,18+5,21+10,187+9,31+10,24+2 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=inventory-tooltip:15
 
+# --- death screen (ADR-031, CARBON_UI_PREVIEW=death: a sample slime kill that dropped 1,250 gold; visual only) ---
+death_screen       | CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=death
+death_screen_night | CARBON_DEBUG_START_HOUR=22 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=death
+
 # --- villages built from real structures (ADR-025), one per style, midday ---
 village_temperate  | CARBON_DEBUG_SPAWN_POI=RiverVillage CARBON_DEBUG_START_HOUR=11  | CARBON_WEATHER=clear
 village_desert     | CARBON_DEBUG_SPAWN_POI=DesertVillage CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear
@@ -81,12 +85,27 @@ village_swmp_macro | CARBON_WORLD_SEED=2 CARBON_DEBUG_SPAWN_POI=SwampVillage CAR
 trade_merchant     | CARBON_DEBUG_SPAWN_POI=RiverVillage CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_OPEN_TRADER=1
 trade_desert       | CARBON_DEBUG_SPAWN_POI=DesertVillage CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_OPEN_TRADER=1
 trade_blacksmith   | CARBON_DEBUG_SPAWN_POI=RiverVillage:Smithy CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STARTER_ITEMS=3,13,14,16 CARBON_DEBUG_WORN_GEAR=1 | CARBON_WEATHER=clear CARBON_OPEN_TRADER=1
-trade_repair       | CARBON_DEBUG_SPAWN_POI=RiverVillage:Smithy CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STARTER_ITEMS=3,13,14,16 CARBON_DEBUG_WORN_GEAR=1 | CARBON_WEATHER=clear CARBON_OPEN_TRADER=repair
+repair_smith       | CARBON_DEBUG_SPAWN_POI=RiverVillage:Smithy CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STARTER_ITEMS=3,13,14,16,1,104x2,106x1,4x6,100x6 CARBON_DEBUG_WORN_GEAR=1 | CARBON_WEATHER=clear CARBON_OPEN_REPAIR=blacksmith
+repair_work        | CARBON_DEBUG_SPAWN_POI=RiverVillage:Smithy CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STARTER_ITEMS=3,13,14,16,1,104x2,106x1,4x6,100x6 CARBON_DEBUG_WORN_GEAR=1 | CARBON_WEATHER=clear CARBON_OPEN_REPAIR=blacksmith CARBON_REPAIR_PREVIEW=work:0.62
+repair_done        | CARBON_DEBUG_SPAWN_POI=RiverVillage:Smithy CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STARTER_ITEMS=3,13,14,16,1,104x2,106x1,4x6,100x6 CARBON_DEBUG_WORN_GEAR=1 | CARBON_WEATHER=clear CARBON_OPEN_REPAIR=blacksmith CARBON_REPAIR_PREVIEW=success:0.32
+repair_station     | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STARTER_ITEMS=3,13,14,16,1,104x2,106x1,4x6,100x6 CARBON_DEBUG_WORN_GEAR=1 | CARBON_WEATHER=clear CARBON_OPEN_REPAIR=station
+# --- interact prompt: one "E" prompt over the nearest thing E acts on (a house door from its front step, the stall merchant) ---
+interact_door      | CARBON_DEBUG_SPAWN_POI=RiverVillage:House CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear
+interact_trade     | CARBON_DEBUG_SPAWN_POI=RiverVillage CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear
 # --- classless start (ADR-030): the creator has no class choice, and new characters arrive empty-handed ---
 char_creator       | | CARBON_AUTO_LOGIN=0 CARBON_CAPTURE_SCENE=characters
+
+# --- status effects (ADR-029): top-right strip, hover tooltip, details panel, poison vignette ---
+status_strip       | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STATUS_EFFECTS=poisoned:110000:2;bleeding:40000:1;slowed:90000:1;rested:540000:1 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=status-hover:2
+status_details     | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STATUS_EFFECTS=poisoned:110000:2;bleeding:40000:1;slowed:90000:1;rested:540000:1 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=status-details:0
 
 # --- HUD column: day/night clock + minimap (status-effect strip stays clear at the top right) ---
 hud_day            | CARBON_DEBUG_SPAWN_OFFSET=13,23 CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear
 hud_dusk           | CARBON_DEBUG_SPAWN_OFFSET=13,23 CARBON_DEBUG_START_HOUR=17.5 | CARBON_WEATHER=clear
 hud_night          | CARBON_DEBUG_SPAWN_OFFSET=13,23 CARBON_DEBUG_START_HOUR=23 | CARBON_WEATHER=clear
 hud_village        | CARBON_DEBUG_SPAWN_POI=RiverVillage CARBON_DEBUG_START_HOUR=6 | CARBON_WEATHER=clear
+river_trunk        | CARBON_DEBUG_SPAWN_TILE=-344,444 CARBON_DEBUG_START_HOUR=11           | CARBON_WEATHER=clear
+river_macro        | CARBON_DEBUG_SPAWN_TILE=-344,444 CARBON_DEBUG_START_HOUR=11           | CARBON_WEATHER=clear CARBON_MACRO_VIEW=1
+sea_shelf          | CARBON_WORLD_SEED=42 CARBON_DEBUG_SPAWN_TILE=950,-6000 CARBON_DEBUG_START_HOUR=11 | CARBON_SEED=42 CARBON_WEATHER=clear CARBON_MACRO_VIEW=1
+# --- wood and stone tool tiers: the wood axe, pickaxe and sword, then the stone axe and pickaxe, in the bag ---
+wood_tools         | CARBON_DEBUG_STARTER_ITEMS=1,188,189,190,2 CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=inventory

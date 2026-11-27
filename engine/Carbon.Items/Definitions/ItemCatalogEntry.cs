@@ -99,6 +99,15 @@ public sealed record ItemCatalogEntry : IDataDefinition<uint>
     /// <summary>Gets the explicit tool/weapon capability flags.</summary>
     public ToolCapabilities Capabilities { get; set; }
 
+    /// <summary>Gets what the tool or weapon is made of (<see cref="ItemMaterial.None"/> when not stated).</summary>
+    public ItemMaterial Material { get; set; }
+
+    /// <summary>
+    /// Gets the attack speed a held weapon adds (<c>0..1</c>; <c>0.25</c> = 25 % faster swings), capped with every other
+    /// attack speed source by <c>progression.json</c> <c>caps.attackSpeed</c>.
+    /// </summary>
+    public float AttackSpeedBonus { get; set; }
+
     /// <summary>Gets the theme tags (monster family such as <c>slime</c>, or <c>generic</c>) used by loot validation.</summary>
     public IReadOnlyList<string> Tags { get; set; } = [];
 }

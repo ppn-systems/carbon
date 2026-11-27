@@ -119,7 +119,7 @@ public sealed partial class AuthoritativeWorld
         state.IsDead = false;
         this.ResetNeedsAfterDeathLocked(state);
         state.CurrentMana = state.Stats.MaxMana;
-        state.CurrentStamina = state.Stats.MaxStamina;
+        state.Stamina.Refill(state.Stats.MaxStamina);
         state.StatsDirty = true;
         this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
     }
