@@ -14,14 +14,19 @@ using Nalix.Abstractions.Security;
 namespace Carbon.Host.Tests.Fakes;
 
 /// <summary>
-/// A stream connection whose sends complete synchronously and are only counted: lets the tick allocation guard run the
+/// A stream connection whose sends complete synchronously (or, created with <c>holdSends</c>, stay pending until the
+/// test completes, fails or cancels them) and are only counted: lets the tick allocation guard run the
 /// real <c>WorldOutboundSink</c> (audit round 3, ALLOC-1) without a socket. Written by hand rather than with NSubstitute,
 /// whose interception allocates on every call and would be measured too. Members the send path does not use throw, so a
 /// change in what it uses shows up as a logged send failure rather than silently.
 /// </summary>
-internal sealed class SynchronousConnection(ulong connectionId) : IConnection, IConnection.ITransport
+internal sealed class SynchronousConnection(ulong connectionId, bool holdSends = false) : IConnection, IConnection.ITransport
 {
+    private readonly Queue<TaskCompletionSource> _pending = new();
     private uint _sendSequence;
+
+    /// <summary>Gets the number of held sends not yet completed.</summary>
+    public int PendingSends => _pending.Count;
 
     /// <summary>Gets the number of frames sent.</summary>
     public long Frames { get; private set; }
@@ -92,8 +97,24 @@ internal sealed class SynchronousConnection(ulong connectionId) : IConnection, I
     public ValueTask SendAsync(ReadOnlyMemory<byte> message, CancellationToken cancellationToken)
     {
         this.Count(message.Length);
-        return ValueTask.CompletedTask;
+        if (!holdSends)
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        TaskCompletionSource pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _pending.Enqueue(pending);
+        return new ValueTask(pending.Task);
     }
+
+    /// <summary>Completes the oldest held send.</summary>
+    public void CompleteNext() => _pending.Dequeue().SetResult();
+
+    /// <summary>Fails the oldest held send with <paramref name="error"/>.</summary>
+    public void FailNext(Exception error) => _pending.Dequeue().SetException(error);
+
+    /// <summary>Cancels the oldest held send.</summary>
+    public void CancelNext() => _pending.Dequeue().SetCanceled();
 
     public uint NextSendSequence() => ++_sendSequence;
 

@@ -25,9 +25,9 @@ namespace Carbon.Architecture.Tests;
 /// <c>StreamAsync&lt;T&gt;</c>. A packet that loses either end is dead and is retired (opcode and type), not kept.
 /// </summary>
 /// <remarks>
-/// A side "sends" <c>T</c> when its sources rent <c>PacketFactory&lt;T&gt;</c>, call <c>T.Create()</c> or
-/// <c>new T</c>, or call one of its own generic helpers with <c>T</c>, where the helper rents its own type parameter
-/// from <c>PacketFactory</c>.
+/// A side "sends" <c>T</c> when its sources rent <c>PacketFactory&lt;T&gt;</c> or lease a <c>PacketLease&lt;T&gt;</c>
+/// (ADR-043), call <c>T.Create()</c> or <c>new T</c>, or call one of its own generic helpers with <c>T</c>, where the
+/// helper rents its own type parameter.
 /// </remarks>
 public sealed class OpcodeWiringTests
 {
@@ -140,7 +140,7 @@ public sealed class OpcodeWiringTests
             .Select(TypeArgumentName),
     ];
 
-    private static bool IsPacketFactory(GenericNameSyntax generic) => generic.Identifier.ValueText == "PacketFactory";
+    private static bool IsPacketFactory(GenericNameSyntax generic) => generic.Identifier.ValueText is "PacketFactory" or "PacketLease";
 
     private static string TypeArgumentName(GenericNameSyntax generic) =>
         generic.TypeArgumentList.Arguments.Count == 1 ? SimpleName(generic.TypeArgumentList.Arguments[0]) : string.Empty;
