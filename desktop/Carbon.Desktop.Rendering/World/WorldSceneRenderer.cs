@@ -377,10 +377,16 @@ public sealed class WorldSceneRenderer : IDisposable
         {
             ref readonly CanopyRenderItem canopyItem = ref canopySpan[i];
             MapProp tree = canopyItem.Prop;
-            float gust = 0.6f + (0.4f * MathF.Sin(_animTime * 0.35f));
-            float sway = MathF.Sin((_animTime * 1.25f) + (tree.WorldPositionX * 0.013f) + (tree.WorldPositionY * 0.007f)) * 1.8f * gust * tree.Scale;
+            float sway = WindField.Sway(_animTime, tree.WorldPosition, _atmosphere.Rain, tree.Scale);
             byte alpha = tree.IsUnderCanopy(playerPos) ? (byte)90 : (byte)255;
             VectorPropRenderer.DrawCanopy(_geometryBatch, in tree, _art, alpha, sway + canopyItem.ShakeX, canopyItem.DamageTilt);
+            if (alpha == 255)
+            {
+                // Leaves leave the canopy centre and land on the ground about 12 units below the prop origin.
+                Vector2 canopy = tree.WorldPosition + new Vector2(sway, tree.CanopyOffsetY);
+                uint seed = ((uint)(int)tree.WorldPositionX * 73856093u) ^ ((uint)(int)tree.WorldPositionY * 19349663u);
+                FallingLeaves.Draw(_geometryBatch, in tree, seed, canopy, (12f * tree.Scale) - tree.CanopyOffsetY, _animTime, _atmosphere.Rain);
+            }
         }
 
         for (int i = 0; i < _visibleWorldTrees.Count; i++)
