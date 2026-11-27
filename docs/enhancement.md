@@ -88,10 +88,28 @@ removes 70,000–200,000 gold. Enhancement is opt-in, so it is not part of the `
 ## Desktop
 
 The forge window (`ForgeAnvilModalWidget`, key `U`) reads the synced `enhancement.json` through
-`IWorldReadModel.Items.Rules.Enhancement`: materials with owned counts, the gold fee, and the four chances as numbers
-and as one stacked bar. It never rolls. Outcome visuals (hammer charge-up and sparks at the anvil, then a glow burst,
-dull clank, cracks with a red flash, or shatter particles) are driven by `IWorldReadModel.ForgeResultSerial` /
-`LastForgeOutcome`, the server's result.
+`IWorldReadModel.Items.Rules.Enhancement` and never rolls:
+
+- the selected item on the anvil, its `+N`, the next stat multiplier and whether the level is safe or risky;
+- materials with owned counts, the gold fee, and the four chances as numbers and as one stacked bar;
+- a protection picker (no scroll / each scroll with its count) on risky levels; the pick is sent as `ProtectionItemId`.
+
+`ForgeEnhancementVfx` (`desktop/Carbon.Desktop.Rendering/Effects`) animates the anvil:
+
+| Phase | Visual | Sound cue (`ForgeSfxCue`) |
+| :--- | :--- | :--- |
+| Request sent | Hammer charge-up: three strikes with sparks and a growing ember glow (at least 0.9 s, while the server rolls) | `ChargeStart`, `HammerStrike` per strike |
+| Success | Final strike, golden glow burst, rays, rising sparkles | `SuccessChime` |
+| No change | Dull gray clank ring and dust, the hammer bounces, the item shakes | `DullClank` |
+| Downgrade | Red flash, cracks spread over the item, red sparks | `Crack` |
+| Destroyed | Flash, the item vanishes into shards and smoke | `Shatter` |
+
+The outcome plays only from the server result (`ForgeResultSerial` / `LastForgeOutcome`); a lost reply stops the
+charge-up after 6 s. No audio backend exists yet, so `SfxCue` is the hook for one. Item icons in the hotbar, bag and
+forge show `+N` in tier colors (warm +1..+4, cyan +5..+7, violet +8..+10), and tooltips show the `+N` name.
+
+Screenshots: `tools/screenshots/capture.sh <out> '^forge_'` renders the five `forge_*` scenarios
+(`CARBON_DEBUG_FORGE_KIT` + `CARBON_FORGE_PREVIEW`).
 
 ## Tuning
 
