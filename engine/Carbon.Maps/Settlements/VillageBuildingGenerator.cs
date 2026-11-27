@@ -13,28 +13,29 @@ namespace Carbon.Maps.Settlements;
 /// shop's paved frontage, or the smithy's open-sided work yard) and furniture chosen by the building's role: a home gets
 /// beds, a stove, a table and storage; the smithy its anvil and workbench out in the yard with the smith beside them; the
 /// store shelves and a counter; the storehouse rows of shelves and chests. The result is a pure function of
-/// <c>(role, seed)</c>, so the server and every client generate the same building. Plan time only.
+/// <c>(role, seed, structures)</c>: furniture is sized by the <c>structures.json</c> footprints, so the server and every
+/// client generate the same building as long as they pass the same catalog (the client's synced copy). Plan time only.
 /// </summary>
 public static class VillageBuildingGenerator
 {
-    private static readonly Lazy<StructureCatalog> s_structures = new(StructureCatalog.LoadEmbedded);
-
     private static readonly (int Dx, int Dy)[] s_steps = [(1, 0), (-1, 0), (0, 1), (0, -1)];
 
     /// <summary>Generates a building.</summary>
     /// <param name="role">What the building is for.</param>
     /// <param name="seed">Seed; the same seed always gives the same building.</param>
+    /// <param name="structures">Building catalog whose footprints size the furniture.</param>
     /// <param name="compact">Whether to keep to the smallest sizes (for a crowded site).</param>
     /// <returns>The building footprint.</returns>
-    public static VillageBuildingTemplate Generate(VillageBuildingRole role, ulong seed, bool compact = false)
+    public static VillageBuildingTemplate Generate(VillageBuildingRole role, ulong seed, StructureCatalog structures, bool compact = false)
     {
+        ArgumentNullException.ThrowIfNull(structures);
         if (role == VillageBuildingRole.Stall)
         {
             return Stall(seed);
         }
 
         DeterministicRandom rng = new(seed);
-        Builder b = Shape(role, compact, ref rng);
+        Builder b = Shape(role, compact, structures, ref rng);
         b.MinEntranceRoom = role == VillageBuildingRole.House ? 8 : 14;
         int rooms = TargetRooms(role, b, ref rng);
         for (int i = 1; i < rooms; i++)
@@ -64,7 +65,7 @@ public static class VillageBuildingGenerator
         return new VillageBuildingTemplate("stall", VillageBuildingRole.Stall, 4, 3, cells, furniture, (mirror ? 1 : 2, 0), 0);
     }
 
-    private static Builder Shape(VillageBuildingRole role, bool compact, ref DeterministicRandom rng)
+    private static Builder Shape(VillageBuildingRole role, bool compact, StructureCatalog structures, ref DeterministicRandom rng)
     {
         // Sizes include the walls: a 3x4 bedroom needs a 5x6 shell. Aprons: homes and the storehouse get a porch row,
         // the store a two-row paved frontage, the smithy a three-row work yard with roof pillars at its outer corners.
@@ -87,7 +88,7 @@ public static class VillageBuildingGenerator
 
         int w = rng.NextInt(minW, maxW + 1);
         int bodyH = rng.NextInt(minH, maxH + 1);
-        Builder b = new(w, bodyH, apronRows, apronCell);
+        Builder b = new(w, bodyH, apronRows, apronCell, structures);
         if (role == VillageBuildingRole.Smithy)
         {
             b.SetPillars();
@@ -231,20 +232,19 @@ public static class VillageBuildingGenerator
         return bed;
     }
 
-    private static (int W, int H) FootprintOf(StructureType type, StructureRotation rotation) =>
-        s_structures.Value.TryGet(type, out StructureDefinition def) ? def.GetFootprint(rotation) : (1, 1);
-
     /// <summary>Mutable grid the generator works on. The body is rows 0..BodyHeight-1; the last row is the porch.</summary>
     private sealed class Builder
     {
         private readonly bool[] _inside;
         private readonly bool[] _blocked;
         private readonly bool[] _reserved;
+        private readonly StructureCatalog _structures;
         private int[] _room = [];
         private int _doorX;
 
-        public Builder(int width, int bodyHeight, int apronRows, char apronCell)
+        public Builder(int width, int bodyHeight, int apronRows, char apronCell, StructureCatalog structures)
         {
+            _structures = structures;
             this.Width = width;
             this.BodyHeight = bodyHeight;
             this.Height = bodyHeight + apronRows;
@@ -457,7 +457,7 @@ public static class VillageBuildingGenerator
 
         public bool TryPlace(StructureType type, int room, StructureRotation rotation, bool againstWall, ref DeterministicRandom rng)
         {
-            (int fw, int fh) = FootprintOf(type, rotation);
+            (int fw, int fh) = this.FootprintOf(type, rotation);
             List<(int X, int Y)> anchors = this.Anchors(room, fw, fh, againstWall);
             Shuffle(anchors, ref rng);
             foreach ((int ax, int ay) in anchors)
@@ -499,7 +499,7 @@ public static class VillageBuildingGenerator
         // Furniture out on the apron (the smithy's yard), optionally with the NPC standing beside it.
         public bool TryPlaceInApron(StructureType type, bool withNpc, ref DeterministicRandom rng)
         {
-            (int fw, int fh) = FootprintOf(type, StructureRotation.North);
+            (int fw, int fh) = this.FootprintOf(type, StructureRotation.North);
             List<(int X, int Y)> anchors = [];
             for (int y = this.BodyHeight; y + fh <= this.Height; y++)
             {
@@ -993,5 +993,8 @@ public static class VillageBuildingGenerator
                 (list[i], list[j]) = (list[j], list[i]);
             }
         }
+
+        private (int W, int H) FootprintOf(StructureType type, StructureRotation rotation) =>
+            _structures.TryGet(type, out StructureDefinition def) ? def.GetFootprint(rotation) : (1, 1);
     }
 }

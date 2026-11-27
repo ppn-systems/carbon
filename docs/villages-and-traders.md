@@ -39,9 +39,14 @@ The work ships as three pull requests:
 
 - **Validation:** `VillageBuildingCatalog.Parse` rejects unknown styles or structure types, a missing style, and a palette
   entry of the wrong category (for example a floor type used as a wall).
-- **World-generation data:** the file is embedded into `Carbon.Maps`, like `structures.json`, so the server and every
-  client plan the same villages. Editing it changes the generated world: bump `ProceduralWorldGenerator.GeneratorVersion`
-  and update `VillageGenerationTests.GoldenVillagePlotFingerprint` in the same change.
+- **World-generation data:** the file is embedded into `Carbon.Maps`, so the server and every client plan the same
+  villages. Editing it changes the generated world: bump `ProceduralWorldGenerator.GeneratorVersion` and update
+  `VillageGenerationTests.GoldenVillagePlotFingerprint` in the same change.
+- **Furniture sizes come from the served `structures.json`:** the generator sizes beds, workbenches and stalls by their
+  footprints, so it takes a `StructureCatalog`. The server passes the one it loaded from its config directory and the
+  client its synced copy (`MultiplayerSession.CreateWorldGenerator`, after the config sync), so both lay villages out
+  alike even when the served file differs from the build-time copy. Nothing on the client generates terrain before the
+  sync.
 
 ### 2.2 Buildings and layout (deterministic, ADR-027 revision 2)
 

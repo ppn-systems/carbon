@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators.Stages;
 using Carbon.Maps.Hydrology;
@@ -34,6 +35,9 @@ public sealed class ProceduralWorldGenerator : ITileSource
     /// </summary>
     public const float DefaultFrequency = 0.0008f;
 
+    /// <summary>The shipped catalog, for generators built without one (tools and tests).</summary>
+    private static readonly Lazy<StructureCatalog> s_shippedStructures = new(StructureCatalog.LoadEmbedded);
+
     [ThreadStatic]
     private static TileSample[]? s_chunkSamples;
 
@@ -53,6 +57,12 @@ public sealed class ProceduralWorldGenerator : ITileSource
     /// <summary>Gets the world settings (seed, frequency, tile size).</summary>
     public WorldGenSettings Settings { get; }
 
+    /// <summary>
+    /// Gets the building catalog (<c>structures.json</c>) village planning sizes furniture with. The server passes the one it
+    /// loaded and the client its synced copy, so both lay villages out identically.
+    /// </summary>
+    public StructureCatalog Structures { get; }
+
     /// <summary>Gets the resolver that places villages, harbours, camps and shrines.</summary>
     public PointOfInterestResolver Landmarks => _landmarks;
 
@@ -71,11 +81,13 @@ public sealed class ProceduralWorldGenerator : ITileSource
     /// <param name="extraTileStages">Optional tile stages run after the biome stage (e.g. local overrides).</param>
     /// <param name="extraChunkStages">Optional chunk stages run after props (e.g. caves, roads). Give each its own
     /// seed with <see cref="StageSeed.Derive"/> so it never disturbs the existing stages.</param>
+    /// <param name="structures">Building catalog for village planning; the shipped one when <see langword="null"/>.</param>
     public ProceduralWorldGenerator(
         ulong seed,
         IReadOnlyList<ITileStage>? extraTileStages = null,
-        IReadOnlyList<IChunkStage>? extraChunkStages = null)
-        : this(new WorldGenSettings(seed), extraTileStages, extraChunkStages)
+        IReadOnlyList<IChunkStage>? extraChunkStages = null,
+        StructureCatalog? structures = null)
+        : this(new WorldGenSettings(seed), extraTileStages, extraChunkStages, structures)
     {
     }
 
@@ -86,19 +98,22 @@ public sealed class ProceduralWorldGenerator : ITileSource
     /// <param name="settings">World settings.</param>
     /// <param name="extraTileStages">Optional tile stages run after the biome stage.</param>
     /// <param name="extraChunkStages">Optional chunk stages run after props.</param>
+    /// <param name="structures">Building catalog for village planning; the shipped one when <see langword="null"/>.</param>
     public ProceduralWorldGenerator(
         WorldGenSettings settings,
         IReadOnlyList<ITileStage>? extraTileStages = null,
-        IReadOnlyList<IChunkStage>? extraChunkStages = null)
+        IReadOnlyList<IChunkStage>? extraChunkStages = null,
+        StructureCatalog? structures = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         settings.Validate();
         this.Settings = settings;
+        this.Structures = structures ?? s_shippedStructures.Value;
         ulong seed = settings.Seed;
         _seed = seed;
         ElevationStage elevation = new(seed, settings.Frequency);
         _rivers = new RiverNetwork(seed, settings.Frequency, elevation);
-        _landmarks = new PointOfInterestResolver(seed, this, _rivers);
+        _landmarks = new PointOfInterestResolver(seed, this, _rivers, this.Structures);
         _roads = new RoadNetwork(StageSeed.Derive(seed, "roads"), _landmarks, this, _rivers);
         _landmarks.Roads = _roads;
         _spawn = new Lazy<(int X, int Y)>(() => SpawnLocator.Locate(this, settings.Frequency));

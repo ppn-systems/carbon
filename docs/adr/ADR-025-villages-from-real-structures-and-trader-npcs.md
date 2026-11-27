@@ -40,8 +40,9 @@
      the entrance on the south row, furniture with an anchor and rotation, and an optional NPC spot. Roles are `house`,
      `store`, `smithy` and `stall`.
 
-   The file is world-generation data. It is embedded into `Carbon.Maps`, like `structures.json`, so the server and every
-   client plan identical villages. A change to it changes the world: bump `ProceduralWorldGenerator.GeneratorVersion` and
+   The file is world-generation data. It is embedded into `Carbon.Maps`, so the server and every client plan identical
+   villages. Furniture is sized by the served `structures.json` footprints: the server plans with the catalog it loaded
+   and the client with its synced copy (audit COUP-5), never the build-time copy. A change to it changes the world: bump `ProceduralWorldGenerator.GeneratorVersion` and
    update the golden test (`VillageGenerationTests.GoldenVillagePlotFingerprint`).
 3. **D3 — Deterministic placement.** The planner places the stall, smithy, store and up to five houses on rings around
    the well, with every entrance turned to face the square. Plots keep a one-tile gap between buildings, stay inside the

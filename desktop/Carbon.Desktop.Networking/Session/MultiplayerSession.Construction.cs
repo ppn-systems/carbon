@@ -8,6 +8,7 @@ using Carbon.Contracts.Maps.S2C;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Maps.Building;
+using Carbon.Maps.Generators;
 using Carbon.Maps.Streaming;
 
 namespace Carbon.Desktop.Networking.Session;
@@ -32,6 +33,14 @@ public sealed partial class MultiplayerSession
     private IReadOnlyList<RemoteEntityView> _previewRemotes = [];
     private int _previewLocalTileX = int.MinValue;
     private int _previewLocalTileY = int.MinValue;
+
+    /// <summary>
+    /// Creates the local world generator for <paramref name="seed"/>. Villages are planned from <c>structures.json</c>
+    /// footprints, so the generator takes the server's synced catalog; entering the world waits for the config sync.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown before the first config sync.</exception>
+    internal ProceduralWorldGenerator CreateWorldGenerator(ulong seed) =>
+        new(seed, structures: _structures.Current ?? throw new InvalidOperationException("structures.json has not been synced from the server yet."));
 
     /// <inheritdoc/>
     public void CopyConstructionMarkers(List<ConstructionMarker> destination)
