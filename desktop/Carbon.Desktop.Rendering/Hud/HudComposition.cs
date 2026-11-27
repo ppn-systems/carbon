@@ -17,6 +17,7 @@ internal static class HudComposition
         HudElement.Minimap,
         HudElement.Hotbar,
         HudElement.SkillBar,
+        HudElement.InteractPrompt,
         HudElement.Toasts,
         HudElement.StatusEffects,
     ];

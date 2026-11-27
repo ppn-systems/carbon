@@ -34,4 +34,7 @@ internal enum HudElement : byte
 
     /// <summary>The death screen panel: title, killer, gold lost and the Respawn button (ADR-031).</summary>
     DeathScreen,
+
+    /// <summary>The interact-key prompt over its one target (doors, traders, forges, ground drops).</summary>
+    InteractPrompt,
 }

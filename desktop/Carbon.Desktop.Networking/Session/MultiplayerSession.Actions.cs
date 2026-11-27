@@ -715,43 +715,14 @@ public sealed partial class MultiplayerSession
     }
 
     /// <inheritdoc/>
-    public bool TryPickupNearbyLoot()
+    public bool TryPickupLoot(ulong lootNetworkId)
     {
-        if (!this.IsReady || _tcpSession is not { IsConnected: true })
+        if (lootNetworkId == 0UL || !this.IsReady || _tcpSession is not { IsConnected: true })
         {
             return false;
         }
 
-        Vector2 pos = this.LocalPlayerInterpolatedPosition;
-        const float maxDistSq = 84f * 84f;
-        ulong bestId = 0UL;
-        float bestDistSq = maxDistSq;
-
-        lock (_worldGate)
-        {
-            foreach (KeyValuePair<ulong, RemoteEntityState> kvp in _remoteEntities)
-            {
-                RemoteEntityState s = kvp.Value;
-                if (s.Kind != EntityKind.LootDrop || this.IsLootLockedForLocalPlayer(s))
-                {
-                    continue;
-                }
-
-                float d2 = Vector2.DistanceSquared(pos, s.Position);
-                if (d2 <= bestDistSq)
-                {
-                    bestDistSq = d2;
-                    bestId = s.NetworkId;
-                }
-            }
-        }
-
-        if (bestId == 0UL)
-        {
-            return false;
-        }
-
-        _ = this.SendTcpPooledAsync<EntityPickupLoot>(p => p.LootNetworkId = bestId);
+        _ = this.SendTcpPooledAsync<EntityPickupLoot>(p => p.LootNetworkId = lootNetworkId);
         return true;
     }
 
@@ -1061,38 +1032,20 @@ public sealed partial class MultiplayerSession
     }
 
     /// <inheritdoc/>
-    public bool TryToggleNearbyDoor(out (int ChunkX, int ChunkY) modifiedChunk)
+    public bool TryToggleDoor(int tileX, int tileY)
     {
-        modifiedChunk = default;
-        if (!this.IsReady || _tcpSession is not { IsConnected: true })
+        if (!this.IsReady || _tcpSession is not { IsConnected: true } ||
+            !_chunkWorld!.Buildings.TryGetStructure(tileX, tileY, out StructureTile st) || st.Category != StructureCategory.Door)
         {
             return false;
         }
 
-        Vector2 pos = this.LocalPlayerInterpolatedPosition;
-        int ptx = (int)MathF.Floor(pos.X / _tileSize);
-        int pty = (int)MathF.Floor(pos.Y / _tileSize);
-
-        for (int dy = -2; dy <= 2; dy++)
+        _ = this.SendTcpPooledAsync<MapDoorToggle>(p =>
         {
-            for (int dx = -2; dx <= 2; dx++)
-            {
-                int wx = ptx + dx;
-                int wy = pty + dy;
-                if (_chunkWorld!.Buildings.TryGetStructure(wx, wy, out StructureTile st) && st.Category == StructureCategory.Door)
-                {
-                    _ = this.SendTcpPooledAsync<MapDoorToggle>(p =>
-                    {
-                        p.TileX = wx;
-                        p.TileY = wy;
-                    });
-                    modifiedChunk = (Chunk2D.ToChunkCoord(wx), Chunk2D.ToChunkCoord(wy));
-                    return true;
-                }
-            }
-        }
-
-        return false;
+            p.TileX = tileX;
+            p.TileY = tileY;
+        });
+        return true;
     }
 
     private void SendMoveInputAsync(Vector2 moveDir, bool sprint)

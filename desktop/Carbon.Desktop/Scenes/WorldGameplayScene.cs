@@ -69,6 +69,8 @@ public sealed class WorldGameplayScene : GameScene
     private WindowTitleKey _lastTitleKey;
     private readonly AutoCapture _capture;
     private readonly InventoryInputController _inventoryInput;
+    private readonly InteractionController _interaction;
+    private readonly Func<Vector2, Vector2> _worldToScreen;
     private bool _forgePreviewStarted;
 
     /// <summary>
@@ -85,7 +87,9 @@ public sealed class WorldGameplayScene : GameScene
         _screenshotAids = new ScreenshotAids(_options);
         _capture = new AutoCapture(options);
         _inventoryInput = new InventoryInputController(_session);
+        _interaction = new InteractionController(_session);
         _camera = camera ?? throw new ArgumentNullException(nameof(camera));
+        _worldToScreen = world => _camera.WorldToScreen(in world);
     }
 
     /// <inheritdoc/>
@@ -222,6 +226,9 @@ public sealed class WorldGameplayScene : GameScene
 
         _trade?.Sync(_frameCount);
         _repair?.Update((float)dt, _frameCount);
+
+        // One target per frame: the E prompt is drawn over it and E acts on it (InteractionController).
+        _ = _interaction.Refresh();
         if (_hudRenderer.ShowSettingsModal)
         {
             if (input.LeftClickPressed)
@@ -583,10 +590,7 @@ public sealed class WorldGameplayScene : GameScene
 
             if (input.InteractOrPickupPressed)
             {
-                if (!_session.TryPickupNearbyLoot() && _trade?.TryTalk() != true && !_session.TryToggleNearbyDoor(out _) && _session.IsNearForgeStation())
-                {
-                    this.ToggleForgeStationModal();
-                }
+                _ = _interaction.TryInteract(this.OpenForgeWindow);
             }
 
             if (input.HarvestPressed)
@@ -596,7 +600,7 @@ public sealed class WorldGameplayScene : GameScene
 
             if (input.ToggleDoorPressed)
             {
-                _ = _session.TryToggleNearbyDoor(out _);
+                _ = _interaction.TryToggleNearestDoor();
             }
 
             if (input.PlaceStructurePressed)
@@ -695,6 +699,8 @@ public sealed class WorldGameplayScene : GameScene
             _mouseWorldPosition,
             _hudRenderer.Settings.ShowCombatNumbers);
 
+        // No prompt while dead: Update stops refreshing the target then (ADR-031 death screen).
+        _hudRenderer.InteractPrompt = _session.LocalDeath is null ? _interaction.BuildPrompt(_worldToScreen) : null;
         _hudRenderer.Render(
             _session,
             spriteBatch,
