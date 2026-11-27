@@ -8,6 +8,7 @@ using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Hydrology;
 using Carbon.Primitives.Hashing;
+using Carbon.Primitives.Math;
 
 namespace Carbon.Maps.Landmarks;
 
@@ -32,6 +33,9 @@ public sealed class PointOfInterestResolver
     /// (radius ≤ 16 tiles, structures inside it), so a point of interest never reaches into another site.
     /// </summary>
     public const int SiteMargin = 24;
+
+    // Landmarks at least this big are villages: they are placed only where their plot ring is mostly dry.
+    private const int VillageRadius = 16;
 
     private const int Candidates = 40;
     private const int MaxCachedSites = 2048;
@@ -230,7 +234,7 @@ public sealed class PointOfInterestResolver
 
             bool flat = this.IsFlat(x, y, tile.HeightLevel);
             (PointOfInterestType type, float score, int radius) = LandmarkRules.Evaluate(in tile, river, flat, nearSea, zoneTier);
-            if (score > bestScore)
+            if (score > bestScore && (radius < VillageRadius || this.HasRoom(x, y, tile.HeightLevel, radius)))
             {
                 bestScore = score;
                 best = type == PointOfInterestType.Harbor
@@ -331,6 +335,24 @@ public sealed class PointOfInterestResolver
             this.IsDryAtLevel(x, y - 1, level);
     }
 
+    // A village needs dry ground most of the way round its plot ring, not just at its centre: a narrow
+    // peninsula between wide rivers or a lake passes the flatness probe yet fits only a building or two.
+    private bool HasRoom(int x, int y, byte level, int radius)
+    {
+        float reach = radius * 0.7f;
+        int dry = 0;
+        for (int i = 0; i < 8; i++)
+        {
+            float a = i * (MathF.PI / 4f);
+            if (this.IsDryAtLevel(x + (int)MathF.Round(DeterministicMath.Cos(a) * reach), y + (int)MathF.Round(DeterministicMath.Sin(a) * reach), level))
+            {
+                dry++;
+            }
+        }
+
+        return dry >= 6;
+    }
+
     private bool IsDryAtLevel(int x, int y, byte level)
     {
         MapTile t = _tiles.SampleTile(x, y);
@@ -348,8 +370,8 @@ public sealed class PointOfInterestResolver
             int sx = x + ox;
             int sy = y + oy;
             MapTile t = _tiles.SampleTile(sx, sy);
-            // Open coastal sea only (distinguish from inland DeepOcean river channels whose Elevation == 0.25f).
-            if (t.Elevation < 0.22f && t.Biome == BiomeType.DeepOcean)
+            // Open sea at least waist-deep, not a river or lake (those lie inside the river network's channels).
+            if (WaterDepth.TierOf(t) >= WaterDepthTier.Shallow && _rivers.GetDistance(sx, sy) > WorldConstants.RiverChannel)
             {
                 dirX += ox;
                 dirY += oy;

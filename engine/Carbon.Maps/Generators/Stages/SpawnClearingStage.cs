@@ -38,11 +38,16 @@ public sealed class SpawnClearingStage : IChunkStage
             return;
         }
 
+        ClearAround(chunk, x0 - sx, y0 - sy);
+    }
+
+    // Kept out of Populate: a lambda capturing its locals makes the compiler allocate the closure on entry to
+    // Populate, for every chunk, not only the few around the spawn.
+    private static void ClearAround(Chunk2D chunk, int offsetX, int offsetY) =>
         _ = chunk.RemoveProps(p =>
         {
-            int dx = x0 + p.LocalTileX - sx;
-            int dy = y0 + p.LocalTileY - sy;
+            int dx = offsetX + p.LocalTileX;
+            int dy = offsetY + p.LocalTileY;
             return (dx * dx) + (dy * dy) <= Radius * Radius;
         });
-    }
 }

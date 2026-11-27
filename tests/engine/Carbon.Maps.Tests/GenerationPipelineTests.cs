@@ -14,9 +14,9 @@ namespace Carbon.Maps.Tests;
 public sealed class GenerationPipelineTests
 {
     // Pins tiles (all fields), props and landmarks over 81 scattered chunks plus 90k pure samples (generator
-    // version 15: open-ground desert/mesa scrub, savanna dry bushes, beach palms and dune grass). Update it only together
-    // with GeneratorVersion.
-    private const ulong GoldenWorldFingerprint = 15484457229927832935UL;
+    // version 17: water depth tiers, wide rivers as deep as they are wide, the sea shelf, ADR-032). Update it only
+    // together with GeneratorVersion.
+    private const ulong GoldenWorldFingerprint = 643034113118985358UL;
 
     [Fact]
     public void Generate_WorldFingerprint_IsStable()
