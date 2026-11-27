@@ -58,24 +58,6 @@ public sealed class DurabilityWearTests
         DurabilityWear.Apply(s_rules, ItemSlot.Empty, 3f).Changed.Should().BeFalse();
     }
 
-    [Fact]
-    public void RestoreLegacyBrokenItems_WornOutGear_GetsOneDurabilityAndOthersAreUntouched()
-    {
-        InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);
-        bag.SetSlot(0, Sword(0f, level: 7));
-        bag.SetSlot(1, new ItemSlot(StarterGameCatalog.WoodLog, 5));
-        bag.SetSlot(2, Sword(50f));
-        bag.SetSlot(PlayerInventoryLayout.ChestSlot, new ItemSlot(StarterGameCatalog.IronChestplate, 1, InstanceId: 4, Durability: -2f));
-
-        int restored = DurabilityWear.RestoreLegacyBrokenItems(s_rules, bag);
-
-        restored.Should().Be(2);
-        bag.GetSlot(0).Should().Be(Sword(1f, level: 7));
-        bag.GetSlot(PlayerInventoryLayout.ChestSlot).Durability.Should().Be(1f);
-        bag.GetSlot(1).Should().Be(new ItemSlot(StarterGameCatalog.WoodLog, 5));
-        bag.GetSlot(2).Should().Be(Sword(50f));
-    }
-
     private static ItemSlot Sword(float durability, byte level = 0) =>
         new(StarterGameCatalog.IronSword, 1, InstanceId: 3, Durability: durability, UpgradeLevel: level);
 }

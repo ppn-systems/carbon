@@ -55,8 +55,6 @@ using Carbon.Simulation.World;
 using Carbon.Survival.Config;
 using Carbon.Survival.Food;
 using Carbon.Survival.Stamina;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Carbon.Application.World;
 
@@ -78,7 +76,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private const uint SkillAbilityIdBase = PlayerActionService.SkillAbilityIdBase;
 
     private readonly Lock _gate = new();
-    private readonly ILogger _logger;
     private readonly WorldCommandQueue _commands = new();
     private readonly WorldCommandExecutor _commandExecutor;
     private readonly TradeService _trade;
@@ -154,7 +151,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// </param>
     /// <param name="statusEffects">Status effect definitions (<c>status_effects.json</c>, ADR-029); defaults to the shipped copy.</param>
     /// <param name="stamina">Stamina tuning (<c>stamina.json</c>, ADR-033); defaults to the shipped copy.</param>
-    /// <param name="logger">Diagnostics (legacy save fix-ups on enter, ADR-035); defaults to none.</param>
     /// <param name="propRegrowth">Natural prop regrowth (<c>props.json</c>, ADR-040); defaults to the shipped copy.</param>
     public AuthoritativeWorld(
         ulong worldSeed,
@@ -175,14 +171,12 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         GameplayEntropy? entropy = null,
         StatusEffectCatalog? statusEffects = null,
         StaminaConfig? stamina = null,
-        ILogger? logger = null,
         PropRegrowthRules? propRegrowth = null)
     {
         ArgumentNullException.ThrowIfNull(chunkDeltaRepo);
         ArgumentNullException.ThrowIfNull(characterStore);
         ArgumentNullException.ThrowIfNull(outboundSink);
 
-        _logger = logger ?? NullLogger.Instance;
         _propRegrowth = propRegrowth ?? PropRegrowthRules.LoadEmbedded();
         this.WorldSeed = worldSeed;
         this.TileSize = tileSize > 0f ? tileSize : 32f;
@@ -547,17 +541,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             character = CharacterPersistence.LoadInventory(character, inventory);
             _ = CharacterPersistence.ClampDurability(_itemRules, inventory);
 
-            // ADR-035: items no longer exist at 0 durability; one saved in the retired "worn out" state gets 1 back.
-            int legacyRestored = DurabilityWear.RestoreLegacyBrokenItems(_itemRules, inventory);
-            if (legacyRestored > 0 && _logger.IsEnabled(LogLevel.Warning))
-            {
-                _logger.LogWarning(
-                    "Character {CharacterId} had {Count} item(s) saved at 0 durability; restored them to {Durability} (ADR-035).",
-                    character.Id,
-                    legacyRestored,
-                    DurabilityWear.LegacyRestoredDurability);
-            }
-
             ushort startLevel = (ushort)Math.Min(Math.Max(Math.Max((ushort)1, character.Level), _debugStartLevel), _progressionService.Config.MaxLevel);
             byte selectedSlot = character.SelectedHotbarSlot < PlayerInventoryLayout.HotbarCount ? character.SelectedHotbarSlot : (byte)0;
             CharacterProgressionState startProg = CharacterPersistence.LoadProgression(character);
@@ -618,11 +601,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _players.ByConnection[connectionId] = playerState;
             _players.ConnectionByNetworkId[networkId] = connectionId;
             _replication.Track(connectionId);
-            if (legacyRestored > 0)
-            {
-                this.MarkCharacterDirtyLocked(playerState, inventoryChanged: true);
-            }
-            else if (refunded || diedBeforeLogout)
+            if (refunded || diedBeforeLogout)
             {
                 this.MarkCharacterDirtyLocked(playerState, inventoryChanged: false);
             }
