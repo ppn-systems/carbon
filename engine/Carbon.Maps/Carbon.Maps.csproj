@@ -16,4 +16,8 @@
         <EmbeddedResource Include="..\..\resources\config\village_buildings.json" LogicalName="Carbon.Maps.Settlements.village_buildings.json" Link="Settlements\village_buildings.json" />
         <EmbeddedResource Include="..\..\resources\config\props.json" LogicalName="Carbon.Maps.Props.props.json" Link="Props\props.json" />
     </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Carbon.Maps.Tests" />
+    </ItemGroup>
 </Project>

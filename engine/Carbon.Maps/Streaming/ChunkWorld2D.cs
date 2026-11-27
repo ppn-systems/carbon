@@ -100,6 +100,9 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     /// </summary>
     public int LoadedChunkCount => _streamer.ActiveCount;
 
+    /// <summary>Gets the number of resident snapshots the streamer has built (tests: one per streaming step).</summary>
+    internal int SnapshotBuilds => _streamer.SnapshotBuilds;
+
     /// <summary>
     /// Gets the count of idle recycled chunks currently held in the object pool.
     /// </summary>
