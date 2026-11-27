@@ -108,6 +108,8 @@ internal sealed class RiverNetwork : IRiverDistanceSource
 
     private readonly ulong _seed;
     private readonly int _frequencyBits;
+    private readonly int _maxCachedRegions;
+    private int _regionBuilds;
     private readonly IRoutingTerrain _relief;
     private readonly SimplexNoise2D _shoreWarp;
 
@@ -116,12 +118,22 @@ internal sealed class RiverNetwork : IRiverDistanceSource
     /// <param name="frequency">Macro spatial frequency.</param>
     /// <param name="relief">Terrain elevation used for routing at a world tile; must be deterministic.</param>
     public RiverNetwork(ulong seed, float frequency, IRoutingTerrain relief)
+        : this(seed, frequency, relief, MaxCachedRegions)
     {
+    }
+
+    /// <summary>Initializes a new instance with a region bound of <paramref name="maxCachedRegions"/> (tests).</summary>
+    internal RiverNetwork(ulong seed, float frequency, IRoutingTerrain relief, int maxCachedRegions)
+    {
+        _maxCachedRegions = maxCachedRegions;
         _seed = seed;
         _frequencyBits = BitConverter.SingleToInt32Bits(frequency);
         _relief = relief ?? throw new ArgumentNullException(nameof(relief));
         _shoreWarp = new SimplexNoise2D(seed ^ 0x6C8E9CF570932BD5UL);
     }
+
+    /// <summary>Gets the number of regions this network has built (tests: a cache hit builds none).</summary>
+    internal int RegionBuilds => Volatile.Read(ref _regionBuilds);
 
     /// <inheritdoc/>
     public float GetDistance(int worldX, int worldY) =>
@@ -211,7 +223,7 @@ internal sealed class RiverNetwork : IRiverDistanceSource
 
     private Lazy<RegionData> GetOrRegisterRegionLazy(CacheKey key, int rx, int ry)
     {
-        TrimCache(s_sharedRegions, s_regionOrder, key, MaxCachedRegions);
+        TrimCache(s_sharedRegions, s_regionOrder, key, _maxCachedRegions);
         Lazy<RegionData> created = new(() => this.BuildRegion(rx, ry), LazyThreadSafetyMode.ExecutionAndPublication);
         Lazy<RegionData> active = s_sharedRegions.GetOrAdd(key, created);
         if (ReferenceEquals(active, created))
@@ -310,6 +322,7 @@ internal sealed class RiverNetwork : IRiverDistanceSource
 
     private RegionData BuildRegion(int rx, int ry)
     {
+        _ = Interlocked.Increment(ref _regionBuilds);
         int x0 = rx * RegionSize;
         int y0 = ry * RegionSize;
 

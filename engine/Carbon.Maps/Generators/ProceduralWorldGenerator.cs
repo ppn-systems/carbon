@@ -231,6 +231,9 @@ public sealed class ProceduralWorldGenerator : ITileSource
     /// <returns>Width-scaled distance to the nearest river or lake.</returns>
     public float GetRiverDistance(int worldX, int worldY) => _rivers.GetDistance(worldX, worldY);
 
+    /// <summary>Gets the river network (tests: region builds and cache state).</summary>
+    internal RiverNetwork Rivers => _rivers;
+
     /// <summary>
     /// Builds the river regions around a point on the thread pool ahead of time, so streaming chunks in
     /// does not stall on a region build (~0.3 s each). Safe to call every frame.
