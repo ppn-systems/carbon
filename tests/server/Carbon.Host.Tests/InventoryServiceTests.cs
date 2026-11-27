@@ -67,6 +67,20 @@ public sealed class InventoryServiceTests
     }
 
     [Fact]
+    public void Drop_WithShippedEconomy_ReservesTheStackForTheDropperLikeKillLoot()
+    {
+        Harness h = new() { Economy = Carbon.Economy.GameEconomy.LoadFromDirectory(Carbon.Economy.GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!) };
+        h.Player.Inventory.SetSlot(2, new ItemSlot(StackableItemId, 5));
+
+        h.Inventory.Drop(h.Player, 2, 0, new Vector2(100f, 100f), []).Should().Be(OpStatus.Ok);
+
+        h.GroundLoot.TryGet(h.LastLootNetworkId, out GroundLootEntry dropped).Should().BeTrue();
+        dropped.CanBePickedUpBy(Guid.NewGuid(), 100UL + (59UL * 30UL)).Should().BeFalse("another player waits out the drop protection");
+        dropped.CanBePickedUpBy(Guid.NewGuid(), 100UL + (60UL * 30UL)).Should().BeTrue("after groundLoot.ownerProtectionSeconds (60 s) anyone may take it");
+        dropped.CanBePickedUpBy(h.Player.Session.CharacterId, 100UL).Should().BeTrue("the dropper can always take it back by hand");
+    }
+
+    [Fact]
     public void Drop_EmptySlot_IsNotFound()
     {
         Harness h = new();
@@ -172,7 +186,7 @@ public sealed class InventoryServiceTests
                 TileSize,
                 TestGameplayEntropy.Create(42UL),
                 () => this.Rules,
-                () => null,
+                () => this.Economy,
                 () => 100UL,
                 (_, _, _) => false,
                 this.GroundLoot,
@@ -190,6 +204,8 @@ public sealed class InventoryServiceTests
         }
 
         public ItemRules Rules { get; } = ItemRules.LoadShippedDefaults();
+
+        public Carbon.Economy.GameEconomy? Economy { get; set; }
 
         public WorldSimulation Simulation { get; } = new();
 

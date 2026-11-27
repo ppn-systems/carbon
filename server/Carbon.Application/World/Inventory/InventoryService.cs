@@ -8,6 +8,7 @@ using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.Contracts.Common;
 using Carbon.Economy;
+using Carbon.Economy.Config;
 using Carbon.Economy.Enhancement;
 using Carbon.Economy.Repair;
 using Carbon.Items.Catalog;
@@ -33,6 +34,7 @@ internal sealed class InventoryService
 {
     private const int CraftingStationReachTiles = 5;
 
+    private readonly ushort _tickRate;
     private readonly WorldSimulation _simulation;
     private readonly BuildingGrid _buildings;
     private readonly float _tileSize;
@@ -59,8 +61,10 @@ internal sealed class InventoryService
         Func<Vector2, float, NpcCapabilities, bool> hasNearbyNpc,
         GroundLootService groundLoot,
         OutboundTickBuffer outbound,
-        Action<PlayerState> markInventoryDirty)
+        Action<PlayerState> markInventoryDirty,
+        ushort tickRate = 30)
     {
+        _tickRate = tickRate == 0 ? (ushort)30 : tickRate;
         _simulation = simulation ?? throw new ArgumentNullException(nameof(simulation));
         _buildings = buildings ?? throw new ArgumentNullException(nameof(buildings));
         _tileSize = tileSize;
@@ -507,7 +511,13 @@ internal sealed class InventoryService
 
         modified.Clear();
         modified.Add((slotIndex, remainder));
-        _groundLoot.Spawn(playerPos + new Vector2(28f, 6f), in dropStack, state.Session.CharacterId);
+        // Same ground rules as kill loot (economy.json → groundLoot): reserved for the dropper, then anyone's, then gone.
+        GroundLootRules? rules = _economy()?.Config.GroundLoot;
+        ulong now = _currentTick();
+        ulong protectionTicks = (ulong)Math.Max(0, rules?.OwnerProtectionSeconds ?? 0) * _tickRate;
+        ulong lifetimeTicks = rules is null ? GroundLootService.LootLifetimeTicks : (ulong)Math.Max(1, rules.KillLootLifetimeSeconds) * _tickRate;
+        LootClaim claim = new(state.Session.CharacterId, state.Session.PlayerNetworkId, now + protectionTicks, lifetimeTicks);
+        _groundLoot.SpawnDropped(playerPos + new Vector2(28f, 6f), in dropStack, in claim);
         return OpStatus.Ok;
     }
 

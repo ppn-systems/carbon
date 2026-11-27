@@ -124,10 +124,9 @@ internal sealed class GroundLootService
 
     /// <summary>
     /// Drops <paramref name="item"/> at <paramref name="worldPos"/>, topping up a nearby stack of the same stackable item
-    /// first and spawning a new loot entity for whatever does not fit. A stack thrown out by <paramref name="droppedBy"/> is
-    /// not auto-collected by that character until it walks away from it (manual pickup still works).
+    /// first and spawning a new loot entity for whatever does not fit.
     /// </summary>
-    public void Spawn(Vector2 worldPos, in ItemSlot item, Guid droppedBy = default)
+    public void Spawn(Vector2 worldPos, in ItemSlot item)
     {
         if (item.IsEmpty)
         {
@@ -159,9 +158,7 @@ internal sealed class GroundLootService
                     int room = maxStack - existing.Item.Quantity;
                     int added = Math.Min(room, item.Quantity);
                     ItemSlot merged = existing.Item with { Quantity = existing.Item.Quantity + added };
-                    _byNetworkId[kvp.Key] = droppedBy == Guid.Empty
-                        ? existing with { Item = merged }
-                        : existing with { Item = merged, DroppedBy = droppedBy, DropperRearmed = false };
+                    _byNetworkId[kvp.Key] = existing with { Item = merged };
                     _simulation.Entities.SetComponent(existingEnt, new LootDropComponent(merged, 0, _currentTick() + LootLifetimeTicks));
                     _onStackChanged(kvp.Key, existingPos);
 
@@ -172,13 +169,30 @@ internal sealed class GroundLootService
                     }
 
                     ItemSlot overflow = item with { Quantity = leftQty };
-                    this.SpawnNewEntity(worldPos, in overflow, droppedBy);
+                    this.SpawnNewEntity(worldPos, in overflow);
                     return;
                 }
             }
         }
 
-        this.SpawnNewEntity(worldPos, in item, droppedBy);
+        this.SpawnNewEntity(worldPos, in item);
+    }
+
+    /// <summary>
+    /// Drops a stack a player threw out of its bag at <paramref name="worldPos"/> under <paramref name="claim"/>, the same
+    /// rules as kill loot (ADR-019): its own entity (never merged), only the dropper may take it while protected, and it
+    /// lives the claim's lifetime. The dropper's own auto-collect also ignores it until the dropper walks away.
+    /// </summary>
+    public void SpawnDropped(Vector2 worldPos, in ItemSlot item, in LootClaim claim)
+    {
+        if (item.IsEmpty)
+        {
+            return;
+        }
+
+        ulong netId = this.SpawnEntity(worldPos, in item, in claim, 0, 0L);
+        Guid dropperCharacterId = claim.OwnerCharacterId;
+        _byNetworkId[netId] = _byNetworkId[netId] with { DroppedBy = dropperCharacterId };
     }
 
     /// <summary>
@@ -330,14 +344,8 @@ internal sealed class GroundLootService
         }
     }
 
-    private void SpawnNewEntity(Vector2 worldPos, in ItemSlot item, Guid droppedBy)
-    {
-        ulong netId = this.SpawnEntity(worldPos, in item, new LootClaim(Guid.Empty, 0UL, 0UL, LootLifetimeTicks), 0, 0L);
-        if (droppedBy != Guid.Empty)
-        {
-            _byNetworkId[netId] = _byNetworkId[netId] with { DroppedBy = droppedBy };
-        }
-    }
+    private void SpawnNewEntity(Vector2 worldPos, in ItemSlot item) =>
+        _ = this.SpawnEntity(worldPos, in item, new LootClaim(Guid.Empty, 0UL, 0UL, LootLifetimeTicks), 0, 0L);
 
     private ulong SpawnEntity(Vector2 worldPos, in ItemSlot item, in LootClaim claim, CurrencyKind currency, long amount, CurrencyReason creditReason = CurrencyReason.MonsterLoot)
     {

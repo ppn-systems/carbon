@@ -61,7 +61,7 @@ public sealed class GroundLootServiceTests
     {
         Harness h = new();
         System.Guid dropper = System.Guid.NewGuid();
-        h.Loot.Spawn(new Vector2(100f, 100f), new ItemSlot(StackableItemId, 1), dropper);
+        h.Loot.SpawnDropped(new Vector2(100f, 100f), new ItemSlot(StackableItemId, 1), new LootClaim(dropper, 900UL, h.Tick, 180UL * 30UL));
         h.Tick += 60;
         List<ulong> candidates = [];
 
@@ -77,7 +77,7 @@ public sealed class GroundLootServiceTests
     {
         Harness h = new();
         System.Guid dropper = System.Guid.NewGuid();
-        h.Loot.Spawn(new Vector2(100f, 100f), new ItemSlot(StackableItemId, 1), dropper);
+        h.Loot.SpawnDropped(new Vector2(100f, 100f), new ItemSlot(StackableItemId, 1), new LootClaim(dropper, 900UL, h.Tick, 180UL * 30UL));
         h.Tick += 60;
         List<ulong> candidates = [];
 
@@ -91,18 +91,19 @@ public sealed class GroundLootServiceTests
     }
 
     [Fact]
-    public void Spawn_DropMergedIntoAnotherStack_IsAlsoSkippedByTheDropper()
+    public void SpawnDropped_WithProtection_NeverMergesAndIsReservedForTheDropper()
     {
         Harness h = new();
         System.Guid dropper = System.Guid.NewGuid();
         h.Loot.Spawn(new Vector2(100f, 100f), new ItemSlot(StackableItemId, 3));
-        h.Loot.Spawn(new Vector2(110f, 100f), new ItemSlot(StackableItemId, 2), dropper);
-        h.Tick += 60;
-        List<ulong> candidates = [];
 
-        h.Loot.CollectAutoPickupCandidates(new Vector2(100f, 100f), dropper, candidates);
+        h.Loot.SpawnDropped(new Vector2(110f, 100f), new ItemSlot(StackableItemId, 2), new LootClaim(dropper, 900UL, h.Tick + (60UL * 30UL), 180UL * 30UL));
 
-        candidates.Should().BeEmpty("merging the drop into a nearby stack must not hand it straight back");
+        h.Loot.Count.Should().Be(2, "a reserved drop must not slip its protection by merging into a public stack");
+        h.Loot.TryGet(h.FirstNetworkId + 1UL, out GroundLootEntry dropped).Should().BeTrue();
+        dropped.CanBePickedUpBy(System.Guid.NewGuid(), h.Tick + (60UL * 30UL) - 1UL).Should().BeFalse();
+        dropped.CanBePickedUpBy(System.Guid.NewGuid(), h.Tick + (60UL * 30UL)).Should().BeTrue();
+        dropped.DroppedBy.Should().Be(dropper);
     }
 
     [Fact]
