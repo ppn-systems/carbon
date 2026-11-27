@@ -56,6 +56,7 @@ public sealed class KillLootPickupTests
         h.Outbound.Pending.WalletSyncs.Should().BeEmpty("nothing was credited, so there is no balance to sync");
         GroundLootEntry gold = h.SingleGoldPile();
         gold.CurrencyAmount.Should().BePositive();
+        gold.OwnerCharacterId.Should().Be(h.Killer.Session.CharacterId);
         gold.OwnerNetworkId.Should().Be(h.Killer.Session.PlayerNetworkId);
         gold.ProtectedUntilTick.Should().Be(KillTick + ProtectionTicks, "groundLoot.ownerProtectionSeconds is 60 at 30 Hz");
         gold.LifetimeTicks.Should().Be(LifetimeTicks, "groundLoot.killLootLifetimeSeconds is 180 at 30 Hz");
@@ -70,7 +71,7 @@ public sealed class KillLootPickupTests
 
         List<GroundLootEntry> items = [.. h.Entries().Where(e => !e.IsCurrency)];
         items.Should().NotBeEmpty("the slime table has a guaranteed drop");
-        items.Should().OnlyContain(e => e.OwnerNetworkId == h.Killer.Session.PlayerNetworkId && e.LifetimeTicks == LifetimeTicks);
+        items.Should().OnlyContain(e => e.OwnerCharacterId == h.Killer.Session.CharacterId && e.LifetimeTicks == LifetimeTicks);
     }
 
     [Fact]
@@ -121,6 +122,39 @@ public sealed class KillLootPickupTests
         h.Bystander.Inventory.Slots.ToArray().Should().OnlyContain(s => s.IsEmpty);
 
         h.Inventory.TryPickup(h.Killer, itemId, PickupRangeSq).Should().BeTrue();
+    }
+
+    [Fact]
+    public void TryPickup_KillerReconnectsDuringProtection_KeepsTheReservation()
+    {
+        Harness h = new();
+        h.Kill();
+        (ulong goldId, GroundLootEntry gold) = h.SingleGoldPileWithId();
+        h.Tick = KillTick + 300UL;
+
+        PlayerState reconnected = h.ReconnectKiller();
+
+        reconnected.Session.PlayerNetworkId.Should().NotBe(h.Killer.Session.PlayerNetworkId, "a reconnect gets a new entity");
+        h.Inventory.TryPickup(h.Bystander, goldId, PickupRangeSq).Should().BeFalse("the reservation survives the owner's reconnect");
+        h.Inventory.TryPickup(reconnected, goldId, PickupRangeSq).Should().BeTrue("the reservation is keyed by character, not network id");
+        reconnected.Wallet.Gold.Should().Be(gold.CurrencyAmount);
+    }
+
+    [Fact]
+    public void TryGetSpawnIdentity_OwnerReconnectedOrOffline_ReplicatesTheCurrentOrLastKnownNetworkId()
+    {
+        Harness h = new();
+        h.Kill();
+        (ulong goldId, _) = h.SingleGoldPileWithId();
+        ulong killedAs = h.Killer.Session.PlayerNetworkId;
+
+        _ = h.OnlineNetworkIds.Remove(h.Killer.Session.CharacterId);
+        h.GroundLoot.TryGetSpawnIdentity(goldId, TickRate, out SpawnIdentity offline).Should().BeTrue();
+        offline.LootOwnerNetworkId.Should().Be(killedAs, "an offline owner keeps the pile locked for everyone else");
+
+        PlayerState reconnected = h.ReconnectKiller();
+        h.GroundLoot.TryGetSpawnIdentity(goldId, TickRate, out SpawnIdentity online).Should().BeTrue();
+        online.LootOwnerNetworkId.Should().Be(reconnected.Session.PlayerNetworkId, "the reconnected owner's client must see the pile as its own");
     }
 
     [Fact]
@@ -223,7 +257,13 @@ public sealed class KillLootPickupTests
         public Harness()
         {
             GameEconomy economy = s_alwaysGold;
-            this.GroundLoot = new GroundLootService(this.Simulation, () => economy.ItemRules, this.AllocateLootId, () => this.Tick, (_, _) => { });
+            this.GroundLoot = new GroundLootService(
+                this.Simulation,
+                () => economy.ItemRules,
+                this.AllocateLootId,
+                () => this.Tick,
+                (_, _) => { },
+                characterId => this.OnlineNetworkIds.GetValueOrDefault(characterId));
             this.Inventory = new InventoryService(
                 this.Simulation,
                 new BuildingGrid(),
@@ -259,6 +299,17 @@ public sealed class KillLootPickupTests
 
         public Dictionary<PlayerState, int> DirtyMarks { get; } = [];
 
+        /// <summary>Gets the current player network id of each online character.</summary>
+        public Dictionary<Guid, ulong> OnlineNetworkIds { get; } = [];
+
+        /// <summary>The killer logs out and back in: same character, new connection and new network id.</summary>
+        public PlayerState ReconnectKiller()
+        {
+            _ = this.OnlineNetworkIds.Remove(this.Killer.Session.CharacterId);
+            this.Simulation.DespawnEntity(this.Killer.Entity);
+            return this.CreatePlayer(3UL, 950UL, "Killer", this.Killer.Session.CharacterId);
+        }
+
         public bool Kill() => this.Commerce.TryRollLoot(this.Killer, "slime", 3, 77UL, Vector2.Zero);
 
         public IEnumerable<ulong> Ids() => _lootIds.Where(id => this.GroundLoot.TryGet(id, out _));
@@ -287,9 +338,11 @@ public sealed class KillLootPickupTests
             return id;
         }
 
-        private PlayerState CreatePlayer(ulong connectionId, ulong networkId, string name)
+        private PlayerState CreatePlayer(ulong connectionId, ulong networkId, string name, Guid characterId = default)
         {
-            ConnectedPlayerSession session = new(connectionId, connectionId, Guid.NewGuid(), Guid.NewGuid(), name, networkId, 0, 0);
+            Guid id = characterId == Guid.Empty ? Guid.NewGuid() : characterId;
+            ConnectedPlayerSession session = new(connectionId, connectionId, Guid.NewGuid(), id, name, networkId, 0, 0);
+            this.OnlineNetworkIds[id] = networkId;
             CharacterRecord character = new(session.CharacterId, session.AccountId, name, 1, 0, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
             return new PlayerState(session, this.Simulation.SpawnNetworkEntity(networkId, Vector2.Zero, 7f), character, new InventoryContainer(PlayerInventoryLayout.TotalCapacity));
         }
