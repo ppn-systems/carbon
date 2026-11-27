@@ -161,23 +161,23 @@ public sealed class TickQueuedWorldCommandTests
     }
 
     [Fact]
-    public async Task SubmitAllocateCharacterPointAsync_ResetAttributes_RefundsAllPointsAfterTick()
+    public async Task SubmitAllocateCharacterPointAsync_RetiredResetKind_IsRejectedAndKeepsPoints()
     {
+        // The gold attribute reset (kind 2, ADR-021 D6) is retired by ADR-034: a respec scroll will replace it, so a
+        // client must not be able to reset points over the wire any more.
+        const PointAllocationKind retiredReset = (PointAllocationKind)2;
         using WorldFixture f = await WorldFixture.CreateAsync(level: 5).ConfigureAwait(true);
         f.World.TryAllocateCharacterPoint(ConnectionId, PointAllocationKind.Attribute, (ushort)PrimaryAttributeId.Dexterity, 4).Should().Be(OpStatus.Ok);
 
-        Task<WorldMutationOutcome> pending = f.World
-            .SubmitAllocateCharacterPointAsync(ConnectionId, PointAllocationKind.ResetAttributes, 0)
-            .AsTask();
-        pending.IsCompleted.Should().BeFalse("the reset is tick-queued like every allocation (ADR-017)");
-
+        Task<WorldMutationOutcome> pending = f.World.SubmitAllocateCharacterPointAsync(ConnectionId, retiredReset, 0).AsTask();
         f.World.StepFixedTick();
 
-        (await pending.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok, "level 5 resets for free");
+        (await pending.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true)).Status
+            .Should().Be(OpStatus.Invalid, "the reset entry point is gone; level 5 used to reset for free");
         f.World.TryGetPendingCharacterSnapshot(f.HeroId, out CharacterRecord? saved).Should().BeTrue();
         CharacterProgressionState prog = new();
         CharacterProgressionBinaryCodec.TryDeserializeInto(saved!.ProgressionBlob ?? [], prog).Should().BeTrue();
-        prog.GetTotalSpentAttributePoints().Should().Be(0);
+        prog.GetAttribute(PrimaryAttributeId.Dexterity).Should().Be(4, "the allocated points must stay spent");
     }
 
     [Fact]
