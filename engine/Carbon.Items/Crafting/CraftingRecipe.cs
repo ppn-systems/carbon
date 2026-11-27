@@ -13,10 +13,8 @@ namespace Carbon.Items.Crafting;
 /// <param name="Id">Unique recipe identifier.</param>
 /// <param name="Ingredients">Required input ingredients.</param>
 /// <param name="Output">Primary produced output item entry.</param>
-/// <param name="CraftSeconds">Craft duration in seconds (0 for instant). Legacy; see <paramref name="WorkTicks"/>.</param>
 /// <param name="Byproducts">Additional outputs produced alongside <paramref name="Output"/> (multi-output recipes).</param>
 /// <param name="Station">Required crafting station.</param>
-/// <param name="WorkTicks">Work amount in simulation ticks at baseline crafting speed (0 for instant).</param>
 /// <param name="UnlockLevel">Minimum character level.</param>
 /// <param name="Skill">Crafting skill the recipe is gated by.</param>
 /// <param name="SkillLevel">Minimum <paramref name="Skill"/> level.</param>
@@ -25,10 +23,8 @@ public sealed record CraftingRecipe(
     uint Id,
     IReadOnlyList<RecipeIngredient> Ingredients,
     ItemSlot Output,
-    float CraftSeconds = 0f,
     IReadOnlyList<ItemSlot>? Byproducts = null,
     CraftingStation Station = CraftingStation.None,
-    int WorkTicks = 0,
     int UnlockLevel = 0,
     CraftingSkill Skill = CraftingSkill.None,
     int SkillLevel = 0,

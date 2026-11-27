@@ -141,7 +141,7 @@ A recipe needs a **station** and passes **level and skill gates**. Crafting is *
 
 - **Stations:** `none` (hand), `workbench`, `forge`, `stove`, `alchemy`. `RecipeMatcher` returns `WrongStation` when the crafter isn't at the right one.
 - **Gates:** `unlockLevel` (character level) and `skill` + `skillLevel` (`carpentry`, `smithing`, `cooking`, `alchemy`, `tailoring`).
-- **Work:** each recipe still carries `workTicks` in `recipes.json`, but nothing reads it. A timed-crafting model (work per tick scaled by skill, delivered on completion) existed in the engine and was never wired to the server; it was removed in audit round 3 (DEAD-7), and git history keeps it.
+- **No work time:** recipes carry no work amount. A timed-crafting model (work per tick scaled by skill, delivered on completion) existed in the engine and was never wired to the server; audit round 3 removed it (DEAD-7) and then the unused `workTicks` key (the strict loader now rejects it). Git history keeps both.
 - **Atomicity:** every mutation is staged on an `InventoryDraft` (a stack-allocated copy of the slots) and committed only if every ingredient was removed *and* every output, including byproducts, fit. Inventory-full and missing-ingredient failures leave the inventory untouched.
 - **Multi-output:** `outputs[0]` is the primary product and later entries are byproducts. Examples: `smelt_crude_iron` gives `iron_ingot` + `iron_nails`, and `process_bones` gives `bone_dust` + `bone_shard`.
 - **Value rule:** at base prices, crafting never destroys value (output value ≥ ingredient value). A test enforces this for all recipes.

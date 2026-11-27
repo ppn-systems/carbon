@@ -59,6 +59,20 @@ public sealed class SyncedItemCatalogTests
     }
 
     [Fact]
+    public void Apply_RecipesDocumentWithWorkTicks_IsRejectedAndKeepsPreviousCatalog()
+    {
+        SyncedItemCatalog synced = new();
+        synced.Apply(Config(1, s_itemsJson)).Should().BeTrue();
+        ItemRules rulesBefore = synced.Rules;
+        string recipes = System.Text.Encoding.UTF8.GetString(s_recipesJson)
+            .Replace("\"code\": \"wood_plank\",", "\"code\": \"wood_plank\", \"workTicks\": 30,", StringComparison.Ordinal);
+
+        synced.Apply(Config(2, s_itemsJson, System.Text.Encoding.UTF8.GetBytes(recipes))).Should().BeFalse("recipes carry no work amount any more");
+
+        synced.Rules.Should().BeSameAs(rulesBefore);
+    }
+
+    [Fact]
     public void Apply_ServerChangedCombatStatsAndRecipes_DesktopUsesSyncedValuesNotCompiledOnes()
     {
         // The server edits items.json/recipes.json; the client must show and predict with the synced values.
