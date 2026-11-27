@@ -101,12 +101,16 @@ What this shows:
    `AuthoritativeWorld`'s lock or `ChunkWorld2D`'s gate, and never touches chunks, entities or deltas. So a build can
    never deadlock with, or be blocked by, the tick. **Test:** with the world lock held by the test thread, prewarmed
    builds still complete.
-10. **D10 — Clean shutdown.** The generator owns a cancellation source for its background builds. On server shutdown
-    (generator disposal), queued builds are dropped and running ones stop at their next cancellation check. Every
-    background task is awaited or observed, so no `TaskScheduler.UnobservedTaskException` is raised. A tick joining a
-    build cancelled by shutdown gets an `OperationCanceledException` it does not catch, because the world is stopping.
-    **Test:** dispose a generator while builds are queued and running; all tasks finish and no unobserved exception
-    is raised (asserted through `UnobservedTaskException` after a forced collection).
+10. **D10 — Clean shutdown.** On server shutdown, after the tick has stopped, the host calls
+    `AuthoritativeWorld.StopBackgroundBuilds`, which reaches the generator's background builds. Builds not started yet
+    are skipped, and running ones stop at their next check. Every background task is observed, and the stop waits for
+    them, so no `TaskScheduler.UnobservedTaskException` is raised. A caller joining a build cancelled by shutdown gets an
+    `OperationCanceledException` it does not catch, because the world is stopping. **Test:** stop a network while
+    builds are queued and running; all tasks finish, the queued ones are skipped, and no unobserved exception is raised
+    (asserted through `UnobservedTaskException` after a forced collection).
+    - **Amended in implementation:** an explicit stop instead of disposing the generator. A disposable generator would
+      have to be disposed at its 149 creation sites (CA2000 is an error), and a `CancellationTokenSource` field would
+      make it disposable too (CA1001). A stop flag the builds check gives the same behaviour.
 
 ## Alternatives Considered
 
@@ -131,7 +135,11 @@ What this shows:
   unexplored land can still join an in-flight build and wait for its rest.
 - Background CPU use rises a little: sites near a player are planned whether or not the player ends up there.
 - Generator code gains a second concurrent cache. D2's `Lazy` and D3's tests keep it deterministic.
-- The generator becomes disposable (D10). The host disposes it on shutdown.
+- The host stops the generator's background builds on shutdown (D10).
+- Generators with the same seed no longer share regions (D7). The production server has one world. The desktop client
+  builds its menu backdrop's generator and its session's separately, so entering the world builds the backdrop's
+  regions again. The test suites build many same-seed generators: Maps took 105 s instead of 85 s, Host 37 s instead
+  of 25 s.
 - A world's hydrology memory is its own (D7). Two worlds in one process each keep their regions instead of sharing
   and trimming one cache.
 - The client streams with the same generator, so its frame hitches on new land shrink too.
