@@ -102,9 +102,12 @@
     - Stock = `TraderStockRoller.Roll(profile, worldSeed, TraderKey, epoch, style)`, a pure function seeded by
       `DeterministicRandom`.
     - Only the quantity sold in the current epoch is state.
-14. **D14 — Persistence.** A new table, `trader_stock(trader_key, epoch, sold)`, is added by migration `0008_trader_stock`
-    (SQLite and PostgreSQL) through `ITraderStockRepository`. It is saved in the world's persistence batch. Rows from an
-    older epoch are ignored.
+14. **D14 — Persistence.** A new table, `trader_stock(trader_key, epoch, sold, updated_at_utc)`, is reached through
+    `ITraderStockRepository` (SQLite, PostgreSQL and in-memory).
+    - It is created idempotently with the base schema (`CREATE TABLE IF NOT EXISTS`). There is no numbered migration,
+      so its number cannot clash with migrations that other sessions add.
+    - `TradeService` loads it at boot and upserts changed rows in the world's persistence flush, retrying on failure.
+    - Rows from an older epoch are ignored.
 15. **D15 — Wire.** New opcodes in the items band, outside the ranges other sessions reserved (`0x400A–0x400C`):
     - C2S `TraderOpen` `0x4040` (trader network id);
     - C2S `TraderBuy` `0x4041` (trader, stock slot, quantity, epoch);
@@ -112,7 +115,11 @@
     - S2C `TraderStock` `0x4048`: trader network id, profile, epoch, seconds to restock, and parallel arrays of item id,
       unit price and remaining quantity, plus the sell price of each item the player could sell.
 
-    Buy and sell reply with `MutationResult`. On success the server pushes a fresh `TraderStock` and `WalletSync`.
+    Buy and sell reply with `MutationResult`. Open replies only on failure. On success the server pushes a fresh
+    `TraderStock` and `WalletSync`.
+    - `IWorldOutboundSink.SendTraderStock` has a default empty body, so existing sinks need no change.
+    - Requests run on `TradeService`'s own `WorldCommandQueue`, drained right after the world's queue on the same tick
+      (ADR-017).
     A buy that names a stale epoch is rejected with `Conflict`, so a restock can never change what a click buys.
 16. **D16 — Validation.** Every request needs a live trader NPC within `VendorRangeSq` (175 px) of the player. A buy
     checks the slot, the remaining stock, gold (`Wallet.CanAfford`) and bag space (`InventoryDraft`) before committing
@@ -152,4 +159,8 @@
   per chunk per client.
 - The roof renderer also gives player-built rooms roofs. Irregular rooms get a simple per-tile roof.
 - The new structure types have no kits yet, and harbours still use decorative houses.
-- Trader state adds one small table. New UI strings live in one constants class until the i18n work lands.
+- Trader state adds one small table. UI strings are `GameText` keys (`[trade]` in `resources/localization/*.ini`).
+- Client code stays within the audit round 2 size caps:
+  - trading lives in `TraderSession` (behind `IGameplayController.Trading`), `TradeInteraction` (the scene's talk, click
+    and window input), and a stateless `TradeModalWidget`;
+  - the scene's screenshot schedule moved to `AutoCapture`, so the trader capture can wait for the stock.

@@ -25,4 +25,7 @@ internal readonly record struct NpcActorMeta(
     float ProjectileSpeed = 0f,
     byte ProjectileArchetype = 0,
     string? LootTableId = null,
-    float PatrolRadius = 64f);
+    float PatrolRadius = 64f,
+    string? TraderProfileId = null,
+    ulong TraderKey = 0UL,
+    byte TraderStyle = 0);

@@ -71,6 +71,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly Lock _gate = new();
     private readonly WorldCommandQueue _commands = new();
     private readonly WorldCommandExecutor _commandExecutor;
+    private readonly TradeService _trade;
     private readonly ProceduralWorldGenerator _generator;
     private readonly ChunkWorld2D _chunkWorld;
     private readonly ConstructionService _construction;
@@ -130,6 +131,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// <param name="structureCatalog">Optional data-driven building catalog.</param>
     /// <param name="creatures">Monster catalog and spawning config; defaults to <see cref="CreatureContent.LoadDefault"/> (<c>resources/config</c>).</param>
     /// <param name="progression">Character progression tuning (<c>progression.json</c>, ADR-021); defaults to the shipped copy.</param>
+    /// <param name="traderStock">Trader sales store (ADR-025); defaults to in memory.</param>
     public AuthoritativeWorld(
         ulong worldSeed,
         float tileSize,
@@ -144,7 +146,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         GameEconomy? economy = null,
         StructureCatalog? structureCatalog = null,
         CreatureContent? creatures = null,
-        ProgressionConfig? progression = null)
+        ProgressionConfig? progression = null,
+        ITraderStockRepository? traderStock = null)
     {
         ArgumentNullException.ThrowIfNull(chunkDeltaRepo);
         ArgumentNullException.ThrowIfNull(characterStore);
@@ -254,6 +257,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             new PlayerActionHost(this));
         _persistence = new CharacterPersistence(_simulation, _needs, _time);
         _commandExecutor = new WorldCommandExecutor(this);
+        _trade = new TradeService(_gate, worldSeed, _players, _simulation, _actorsByNetworkId, () => _economy, _outbound, _time, () => _currentTick, s => this.MarkCharacterDirtyLocked(s), traderStock);
         _replication = new AoiReplicator(_simulation, _outbound, this.TileSize * 24f, DefaultEntityRadius, this.ResolveSpawnIdentityLocked);
     }
 
@@ -279,6 +283,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _progressionService.Reconfigure(progression, _players.ByConnection.Values);
         }
     }
+
+    /// <summary>Gets trading with village traders (ADR-025).</summary>
+    public IWorldTradeService Trade => _trade;
 
     /// <summary>Gets the progression tuning the simulation currently runs on (an immutable snapshot, swapped atomically).</summary>
     public ProgressionConfig Progression => _progressionService.Config;
@@ -365,6 +372,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     public async Task InitializeFromStoreAsync(CancellationToken ct = default)
     {
         IReadOnlyList<PersistedChunkDelta> deltas = await _chunkDeltaRepo.LoadAllAsync(ct).ConfigureAwait(false);
+        await _trade.LoadAsync(ct).ConfigureAwait(false);
         lock (_gate)
         {
             for (int i = 0; i < deltas.Count; i++)

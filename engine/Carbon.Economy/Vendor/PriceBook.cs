@@ -40,9 +40,19 @@ public sealed class PriceBook
     /// <param name="itemId">Item id.</param>
     /// <param name="buyerLevel">Buyer level; consumables are priced by <c>vendor.consumablePriceBands</c> (0 = base price).</param>
     /// <returns>Unit buy price.</returns>
-    public long GetBuyPrice(uint itemId, int buyerLevel = 0)
+    public long GetBuyPrice(uint itemId, int buyerLevel = 0) =>
+        this.Items.TryGet(itemId, out ItemCatalogEntry? item) && item.VendorBuyable ? this.GetListPrice(itemId, buyerLevel) : -1;
+
+    /// <summary>
+    /// Gets the list price of an item whether or not the generic vendor sells it: base price × buy markup, consumables
+    /// by the buyer's level band. Traders (ADR-025) price their stock from it. <c>-1</c> for unknown items.
+    /// </summary>
+    /// <param name="itemId">Item id.</param>
+    /// <param name="buyerLevel">Buyer level (0 = base band).</param>
+    /// <returns>Unit list price.</returns>
+    public long GetListPrice(uint itemId, int buyerLevel = 0)
     {
-        if (!this.Items.TryGet(itemId, out ItemCatalogEntry? item) || !item.VendorBuyable)
+        if (!this.Items.TryGet(itemId, out ItemCatalogEntry? item))
         {
             return -1;
         }

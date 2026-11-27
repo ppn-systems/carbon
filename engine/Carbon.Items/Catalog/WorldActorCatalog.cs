@@ -84,6 +84,9 @@ public enum NpcCapabilities : byte
 
     /// <summary>Sanctuary healing shrine keeper.</summary>
     Shrine = 1 << 3,
+
+    /// <summary>Trades from a stock that the server restocks (ADR-025).</summary>
+    Trader = 1 << 4,
 }
 
 /// <summary>
@@ -140,6 +143,12 @@ public static class WorldActorCatalog
     /// <summary>Master Blacksmith NPC archetype identifier.</summary>
     public const ushort MasterBlacksmith = 204;
 
+    /// <summary>Village market-stall merchant NPC archetype identifier (ADR-025).</summary>
+    public const ushort VillageMerchant = 205;
+
+    /// <summary>Village general goods trader NPC archetype identifier (ADR-025).</summary>
+    public const ushort GeneralTrader = 206;
+
     private static readonly MonsterArchetypeSpec[] s_monsters =
     [
         new(WildSlime, "Wild Slime", BaseLevel: 1, BaseMaxHealth: 75f, MoveSpeed: 130f, Radius: 8f, BaseAttackDamage: 9f, WindupTicks: 7U, StarterGameCatalog.BerryHerb, 1, 2, SecondaryDropItemId: StarterGameCatalog.ManaCrystal, SecondaryDropQuantity: 1, SecondaryDropChance: 0.22f),
@@ -157,6 +166,8 @@ public static class WorldActorCatalog
         new(HarbourMaster, "Harbour Master", Level: 8, Radius: 8f, NpcCapabilities.Harbour),
         new(ShrineKeeper, "Shrine Keeper", Level: 12, Radius: 8f, NpcCapabilities.Shrine),
         new(MasterBlacksmith, "Master Blacksmith", Level: 15, Radius: 8.5f, NpcCapabilities.ForgeArtisan),
+        new(VillageMerchant, "Village Merchant", Level: 8, Radius: 8f, NpcCapabilities.Trader),
+        new(GeneralTrader, "General Trader", Level: 8, Radius: 8f, NpcCapabilities.Trader),
     ];
 
     /// <summary>Resolves static baseline specs for <paramref name="archetypeId"/> (defaults to <see cref="WildSlime"/>).</summary>

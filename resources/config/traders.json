@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "maxPriceVariancePercent": 50,
+  "profiles": [
+    {
+      "id": "merchant",
+      "slots": 7,
+      "priceVariancePercent": 20,
+      "restockMinutes": 30,
+      "restockJitterMinutes": 12,
+      "entries": [
+        { "item": "wheat", "weight": 6, "min": 6, "max": 20, "styles": ["temperate", "swamp"] },
+        { "item": "berries", "weight": 5, "min": 5, "max": 15, "styles": ["temperate", "swamp"] },
+        { "item": "bread", "weight": 5, "min": 3, "max": 8 },
+        { "item": "raw_meat", "weight": 4, "min": 3, "max": 10, "styles": ["snow", "temperate"] },
+        { "item": "roast_meat", "weight": 3, "min": 2, "max": 6, "styles": ["snow"] },
+        { "item": "stew", "weight": 2, "min": 1, "max": 4 },
+        { "item": "cooked_meat", "weight": 3, "min": 2, "max": 6 },
+        { "item": "cactus_fiber", "weight": 5, "min": 6, "max": 20, "styles": ["desert"] },
+        { "item": "cloth", "weight": 4, "min": 3, "max": 10, "styles": ["desert", "temperate"] },
+        { "item": "leather", "weight": 3, "min": 2, "max": 6, "styles": ["snow"] },
+        { "item": "wolf_pelt", "weight": 3, "min": 1, "max": 4, "styles": ["snow"] },
+        { "item": "slime_jelly_preserve", "weight": 3, "min": 2, "max": 6, "styles": ["swamp"] },
+        { "item": "plant_fiber", "weight": 3, "min": 8, "max": 25, "styles": ["swamp", "desert"] },
+        { "item": "rough_gem", "weight": 1, "min": 1, "max": 1, "styles": ["desert"] },
+        { "item": "arcane_pie", "weight": 1, "min": 1, "max": 2 }
+      ]
+    },
+    {
+      "id": "general",
+      "slots": 9,
+      "priceVariancePercent": 15,
+      "restockMinutes": 45,
+      "restockJitterMinutes": 15,
+      "entries": [
+        { "item": "wood_log", "weight": 5, "min": 10, "max": 40 },
+        { "item": "wood_plank", "weight": 5, "min": 10, "max": 30 },
+        { "item": "stone_chunk", "weight": 4, "min": 10, "max": 40 },
+        { "item": "stone_brick", "weight": 3, "min": 8, "max": 24 },
+        { "item": "rope", "weight": 4, "min": 3, "max": 10 },
+        { "item": "cloth", "weight": 3, "min": 3, "max": 10 },
+        { "item": "coal", "weight": 3, "min": 5, "max": 20 },
+        { "item": "iron_nails", "weight": 3, "min": 10, "max": 30 },
+        { "item": "small_health_potion", "weight": 5, "min": 2, "max": 8 },
+        { "item": "mana_tonic", "weight": 4, "min": 2, "max": 6 },
+        { "item": "greater_health_potion", "weight": 1, "min": 1, "max": 2 },
+        { "item": "wood_axe", "weight": 2, "min": 1, "max": 2 },
+        { "item": "stone_pickaxe", "weight": 2, "min": 1, "max": 2 },
+        { "item": "workbench_kit", "weight": 2, "min": 1, "max": 1 },
+        { "item": "stove_kit", "weight": 1, "min": 1, "max": 1 },
+        { "item": "wood_wall", "weight": 2, "min": 4, "max": 12 },
+        { "item": "wood_door", "weight": 1, "min": 1, "max": 3 },
+        { "item": "wood_floor", "weight": 2, "min": 6, "max": 16 }
+      ]
+    },
+    {
+      "id": "blacksmith",
+      "slots": 8,
+      "priceVariancePercent": 15,
+      "restockMinutes": 60,
+      "restockJitterMinutes": 20,
+      "entries": [
+        { "item": "copper_sword", "weight": 4, "min": 1, "max": 2 },
+        { "item": "iron_sword", "weight": 3, "min": 1, "max": 1 },
+        { "item": "hunting_bow", "weight": 3, "min": 1, "max": 2 },
+        { "item": "bone_bow", "weight": 2, "min": 1, "max": 1 },
+        { "item": "iron_axe", "weight": 3, "min": 1, "max": 2 },
+        { "item": "wood_axe", "weight": 2, "min": 1, "max": 3 },
+        { "item": "stone_pickaxe", "weight": 2, "min": 1, "max": 3 },
+        { "item": "crystal_pickaxe", "weight": 1, "min": 1, "max": 1 },
+        { "item": "leather_cap", "weight": 3, "min": 1, "max": 2 },
+        { "item": "leather_tunic", "weight": 3, "min": 1, "max": 2 },
+        { "item": "leather_greaves", "weight": 3, "min": 1, "max": 2 },
+        { "item": "leather_boots", "weight": 3, "min": 1, "max": 2 },
+        { "item": "iron_helmet", "weight": 2, "min": 1, "max": 1 },
+        { "item": "iron_chestplate", "weight": 1, "min": 1, "max": 1 },
+        { "item": "iron_leggings", "weight": 1, "min": 1, "max": 1 },
+        { "item": "iron_boots", "weight": 2, "min": 1, "max": 1 },
+        { "item": "iron_ingot", "weight": 4, "min": 4, "max": 12 },
+        { "item": "copper_ingot", "weight": 3, "min": 4, "max": 12 },
+        { "item": "coal", "weight": 3, "min": 8, "max": 24 }
+      ]
+    }
+  ]
+}

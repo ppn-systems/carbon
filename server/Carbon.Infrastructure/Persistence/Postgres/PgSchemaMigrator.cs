@@ -72,6 +72,14 @@ public sealed class PgSchemaMigrator : IDatabaseMigrator
             updated_at_utc    TIMESTAMPTZ NOT NULL,
             PRIMARY KEY (chunk_x, chunk_y)
         );
+
+        -- ADR-025: trader sales per restock epoch (stock is derived from the seed and the epoch).
+        CREATE TABLE IF NOT EXISTS trader_stock (
+            trader_key        BIGINT      NOT NULL PRIMARY KEY,
+            epoch             BIGINT      NOT NULL,
+            sold              BYTEA       NOT NULL,
+            updated_at_utc    TIMESTAMPTZ NOT NULL
+        );
         """;
 
     private readonly NpgsqlDataSource _dataSource;

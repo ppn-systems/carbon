@@ -5,6 +5,7 @@ using Carbon.Abstractions.Configuration;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Landmarks;
+using Carbon.Maps.Settlements;
 
 namespace Carbon.Application.World;
 
@@ -68,7 +69,8 @@ internal static class DebugSpawnResolver
         return (spawn.X + overrides.SpawnOffset.X, spawn.Y + overrides.SpawnOffset.Y);
     }
 
-    // Nearest point of interest of a type by site rings around the spawn; returns the tile three south of its centre.
+    // Nearest point of interest of a type by site rings around the spawn: in front of a village's market stall, else
+    // three tiles south of its centre.
     private static (int X, int Y)? FindNearestPoi(ProceduralWorldGenerator generator, PointOfInterestType type, (int X, int Y) from)
     {
         int sx0 = (int)MathF.Floor(from.X / (float)PointOfInterestResolver.SiteSize);
@@ -85,10 +87,22 @@ internal static class DebugSpawnResolver
                     }
 
                     PointOfInterest poi = generator.Landmarks.GetSite(sx0 + dx, sy0 + dy);
-                    if (poi.Type == type)
+                    if (poi.Type != type)
                     {
-                        return (poi.TileX, poi.TileY + 3);
+                        continue;
                     }
+
+                    // Villages: in front of the market stall, so the square, its buildings and the merchant are in view.
+                    foreach (VillagePlot plot in generator.Landmarks.GetLayout(sx0 + dx, sy0 + dy).Plots)
+                    {
+                        if (plot.Role == VillageBuildingRole.Stall)
+                        {
+                            (int fx, int fy) = VillageBlueprint.FrontTile(VillageBuildingCatalog.Default, plot);
+                            return (fx, fy + 1);
+                        }
+                    }
+
+                    return (poi.TileX, poi.TileY + 3);
                 }
             }
         }

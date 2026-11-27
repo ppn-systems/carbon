@@ -60,6 +60,15 @@ internal enum WorldCommandKind : byte
     /// <summary>Repair the item in a slot (<c>Arg0</c> = slot).</summary>
     RepairItem = 22,
 
+    /// <summary>Open a trader's window (ADR-025; trader network id packed in TileX/TileY).</summary>
+    TraderOpen = 40,
+
+    /// <summary>Buy from a trader stock slot (Arg0 slot, Arg1 quantity, Arg2 epoch).</summary>
+    TraderBuy = 41,
+
+    /// <summary>Sell a bag slot to a trader (Arg0 slot, Arg1 quantity).</summary>
+    TraderSell = 42,
+
     /// <summary>Allocate character points (<c>Arg0</c> = <c>PointAllocationKind</c>, <c>Arg1</c> = target id, <c>Arg2</c> = amount).</summary>
     AllocateCharacterPoint = 30,
 }
@@ -109,6 +118,10 @@ internal sealed class WorldCommandQueue
     /// <summary>Queues a slot-based command (inventory, crafting); see <see cref="WorldCommandKind"/> for the arguments.</summary>
     public ValueTask<WorldMutationOutcome> Submit(WorldCommandKind kind, ulong connectionId, ushort arg0, ushort arg1 = 0, int arg2 = 0, ushort arg3 = 0) =>
         this.Enqueue(new WorldCommand(kind, connectionId, 0, 0, StructureType.None, StructureRotation.North, arg0, arg1, arg2, arg3, null!));
+
+    /// <summary>Queues a command carrying a 64-bit target (split over TileX/TileY) and three arguments.</summary>
+    public ValueTask<WorldMutationOutcome> SubmitTargeted(WorldCommandKind kind, ulong connectionId, ulong target, ushort arg0, ushort arg1, int arg2) =>
+        this.Enqueue(new WorldCommand(kind, connectionId, (int)(uint)target, (int)(uint)(target >> 32), StructureType.None, StructureRotation.North, arg0, arg1, arg2, 0, null!));
 
     private ValueTask<WorldMutationOutcome> Enqueue(WorldCommand command)
     {

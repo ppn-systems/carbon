@@ -29,7 +29,7 @@ public static class Program
     /// Config documents the server uses but never sends to clients: drop rates, price tunables and spawn rules are
     /// server decisions a client has no reason to see.
     /// </summary>
-    private static readonly string[] s_serverOnlyDocuments = ["economy", "loot", "spawning"];
+    private static readonly string[] s_serverOnlyDocuments = ["economy", "loot", "spawning", "traders"];
 
     /// <summary>Boots migrations, initializes the authoritative world, and runs listeners until shutdown.</summary>
     public static async Task<int> Main(string[] args)
@@ -67,6 +67,7 @@ public static class Program
         IAccountStore accountStore;
         ICharacterStore characterStore;
         IChunkDeltaRepository chunkDeltaRepo;
+        ITraderStockRepository traderStockRepo;
 
         if (pgSource is not null)
         {
@@ -74,6 +75,7 @@ public static class Program
             accountStore = new PgAccountStore(pgSource);
             characterStore = new PgCharacterStore(pgSource);
             chunkDeltaRepo = new PgChunkDeltaRepository(pgSource);
+            traderStockRepo = new PgTraderStockRepository(pgSource);
         }
         else
         {
@@ -81,6 +83,7 @@ public static class Program
             accountStore = new SqliteAccountStore(sqliteFactory!);
             characterStore = new SqliteCharacterStore(sqliteFactory!);
             chunkDeltaRepo = new SqliteChunkDeltaRepository(sqliteFactory!);
+            traderStockRepo = new SqliteTraderStockRepository(sqliteFactory!);
         }
 
         await migrator.MigrateAsync().ConfigureAwait(false);
@@ -116,7 +119,8 @@ public static class Program
             gameData.Economy,
             ServerGameData.LoadStructures(config.Catalog),
             ServerGameData.LoadCreatures(config.Catalog),
-            gameData.Progression);
+            gameData.Progression,
+            traderStock: traderStockRepo);
         ServerGameData.BindHotReload(config, world);
         using AuthService authService = new(accountStore, characterStore, hasher, time: null, () => world.ItemRules, () => world.Progression)
         {

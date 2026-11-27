@@ -87,12 +87,15 @@ public sealed class HudOverlayRenderer : IDisposable
     /// <summary>Gets or sets whether the Blacksmith Forge Anvil modal is open.</summary>
     public bool ShowForgeModal { get; set; }
 
+    /// <summary>Gets or sets the open trader window's stock (ADR-025), or <see langword="null"/> when it is closed.</summary>
+    public TraderView? Trader { get; set; }
+
     /// <summary>Gets or sets whether the System Settings &amp; Controls modal is open.</summary>
     public bool ShowSettingsModal { get; set; }
 
     /// <summary>Gets whether any full-screen modal (Player Window, Forge, or Settings) is open.</summary>
     public bool HasActiveModal =>
-        this.ShowPlayerModal || this.ShowForgeModal || this.ShowSettingsModal;
+        this.ShowPlayerModal || this.ShowForgeModal || this.ShowSettingsModal || this.Trader is not null;
 
     /// <summary>Gets or sets the inventory slot index currently held/carried by the cursor, or <c>-1</c>.</summary>
     public int CarriedInventorySlot
@@ -162,6 +165,7 @@ public sealed class HudOverlayRenderer : IDisposable
     {
         this.ShowPlayerModal = false;
         this.ShowForgeModal = false;
+        this.Trader = null;
         if (!keepSettings)
         {
             this.ShowSettingsModal = false;
@@ -299,6 +303,11 @@ public sealed class HudOverlayRenderer : IDisposable
             return _forgeModal.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight);
         }
 
+        if (this.Trader is not null)
+        {
+            return TradeModalWidget.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight);
+        }
+
         return false;
     }
 
@@ -331,6 +340,11 @@ public sealed class HudOverlayRenderer : IDisposable
         if (this.ShowForgeModal)
         {
             return _forgeModal.ContainsPoint(mousePos, viewportWidth, viewportHeight);
+        }
+
+        if (this.Trader is not null)
+        {
+            return TradeModalWidget.ContainsPoint(mousePos, viewportWidth, viewportHeight);
         }
 
         return false;
@@ -555,6 +569,10 @@ public sealed class HudOverlayRenderer : IDisposable
                 default:
                     break;
             }
+        }
+        else if (this.Trader is TraderView trader)
+        {
+            TradeModalWidget.Render(spriteBatch, _geometryBatch, _uiSkin, _font, _art, screenProj, world, trader, viewportWidth, viewportHeight, mouseScreenPos);
         }
         else if (this.ShowForgeModal)
         {
