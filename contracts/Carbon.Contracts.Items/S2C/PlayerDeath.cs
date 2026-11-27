@@ -27,11 +27,7 @@ public sealed partial class PlayerDeath : PacketBase<PlayerDeath>, IPacketStatic
     [SerializeOrder(1)]
     public ushort KillerArchetypeId { get; set; }
 
-    /// <summary>The killer's network id (0 when none).</summary>
-    [SerializeOrder(2)]
-    public ulong KillerNetworkId { get; set; }
+    // [SerializeOrder(2)] was KillerNetworkId, never read; removed by ADR-038.
 
-    /// <summary>Gold taken from the wallet and dropped as piles at the death spot.</summary>
-    [SerializeOrder(3)]
-    public long GoldDropped { get; set; }
+    // [SerializeOrder(3)] was GoldDropped, never read; removed by ADR-038.
 }

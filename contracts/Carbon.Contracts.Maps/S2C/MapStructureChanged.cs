@@ -30,15 +30,11 @@ public sealed partial class MapStructureChanged : PacketBase<MapStructureChanged
     [SerializeOrder(2)]
     public byte StructureType { get; set; }
 
-    /// <summary>Remaining durability.</summary>
-    [SerializeOrder(3)]
-    public float Durability { get; set; }
+    // [SerializeOrder(3)] was Durability, never read; removed by ADR-038.
 
     /// <summary>Door state (<c>Carbon.Maps.Building.DoorState</c>).</summary>
     [SerializeOrder(4)]
     public byte DoorState { get; set; }
 
-    /// <summary>Wall connectivity mask (<c>Carbon.Maps.Building.WallConnectivityMask</c>).</summary>
-    [SerializeOrder(5)]
-    public byte Connectivity { get; set; }
+    // [SerializeOrder(5)] was Connectivity, never read; removed by ADR-038.
 }

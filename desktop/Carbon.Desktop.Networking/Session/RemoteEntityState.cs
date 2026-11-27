@@ -112,8 +112,11 @@ internal sealed class RemoteEntityState
 
         this.AttackKind = pkt.AttackKind;
         this.AttackPhase = pkt.Phase > EntityAttackPhase.PhaseRecovery ? EntityAttackPhase.PhaseNone : pkt.Phase;
-        this.AttackPhaseElapsed = 0f;
         this.AttackPhaseDuration = pkt.PhaseDurationTicks / (float)Math.Max((ushort)1, tickRate);
+
+        // A phase that was already under way when it was sent starts the local clock there, so the telegraph lines up
+        // with the server's (ADR-013 D2).
+        this.AttackPhaseElapsed = float.IsFinite(pkt.Progress) ? Math.Clamp(pkt.Progress, 0f, 1f) * this.AttackPhaseDuration : 0f;
         this.AttackTarget = float.IsFinite(pkt.TargetX) && float.IsFinite(pkt.TargetY)
             ? new Vector2(pkt.TargetX, pkt.TargetY)
             : this.Position;

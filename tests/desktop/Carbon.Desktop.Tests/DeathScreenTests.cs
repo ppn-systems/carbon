@@ -35,7 +35,7 @@ public sealed class DeathScreenTests
         DeathSession death = new(() => Task.FromResult(OpStatus.Ok), id => id == 40 ? "monster.wild_slime.name" : null);
         death.Death.Should().BeNull("a living player sees no death screen");
 
-        using PlayerDeath packet = new() { Cause = DeathCause.Monster, KillerArchetypeId = 40, KillerNetworkId = 9_001UL, GoldDropped = 500L };
+        using PlayerDeath packet = new() { Cause = DeathCause.Monster, KillerArchetypeId = 40 };
         death.OnPlayerDeath(packet);
 
         death.Death.Should().Be(new DeathView(DeathCause.Monster, 40, "monster.wild_slime.name"));
@@ -47,7 +47,7 @@ public sealed class DeathScreenTests
     public void GetText_DeathThatDropped1250Gold_ShowsTitleKillerAndRespawnButNothingAboutTheGold(bool pending)
     {
         DeathSession session = new(() => Task.FromResult(OpStatus.Ok), id => id == 40 ? "monster.wild_slime.name" : null);
-        using PlayerDeath packet = new() { Cause = DeathCause.Monster, KillerArchetypeId = 40, GoldDropped = 1_250L };
+        using PlayerDeath packet = new() { Cause = DeathCause.Monster, KillerArchetypeId = 40 };
         session.OnPlayerDeath(packet);
         DeathView death = session.Death!.Value;
 
@@ -209,7 +209,7 @@ public sealed class DeathScreenTests
     private static DeathSession Dead(Func<Task<OpStatus>> send)
     {
         DeathSession death = new(send, _ => null);
-        using PlayerDeath packet = new() { Cause = DeathCause.Monster, KillerArchetypeId = 40, GoldDropped = 100L };
+        using PlayerDeath packet = new() { Cause = DeathCause.Monster, KillerArchetypeId = 40 };
         death.OnPlayerDeath(packet);
         return death;
     }

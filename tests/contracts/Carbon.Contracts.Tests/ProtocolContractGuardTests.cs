@@ -179,7 +179,6 @@ public sealed class ProtocolContractGuardTests
             Status = Carbon.Contracts.Common.OpStatus.Ok,
             PlayerNetworkId = 55UL,
             WorldSeed = 1337UL,
-            GeneratorVersion = 2,
             TileSize = 32f,
             Frequency = 0.0008f,
             PositionX = 10f,
@@ -375,8 +374,6 @@ public sealed class ProtocolContractGuardTests
         {
             CasterNetworkId = 55UL,
             AbilitySlot = 2,
-            OriginX = 10f,
-            OriginY = 20f,
             AimX = 40f,
             AimY = 60f,
         };
@@ -386,11 +383,9 @@ public sealed class ProtocolContractGuardTests
         using EntityAttackPhase phase = new()
         {
             NetworkId = 77UL,
-            ServerTick = 123_456UL,
             AttackKind = EntityAttackPhase.KindSpell,
             Phase = EntityAttackPhase.PhaseWindup,
             Shape = 1,
-            Interrupted = true,
             TargetX = 12.5f,
             TargetY = -4f,
             DirectionX = 0.6f,
@@ -402,11 +397,9 @@ public sealed class ProtocolContractGuardTests
         };
         using EntityAttackPhase phaseCopy = EntityAttackPhase.Deserialize(phase.Serialize());
         Assert.Equal(77UL, phaseCopy.NetworkId);
-        Assert.Equal(123_456UL, phaseCopy.ServerTick);
         Assert.Equal(EntityAttackPhase.KindSpell, phaseCopy.AttackKind);
         Assert.Equal(EntityAttackPhase.PhaseWindup, phaseCopy.Phase);
         Assert.Equal((byte)1, phaseCopy.Shape);
-        Assert.True(phaseCopy.Interrupted);
         Assert.Equal(12.5f, phaseCopy.TargetX);
         Assert.Equal(-4f, phaseCopy.TargetY);
         Assert.Equal(0.8f, phaseCopy.DirectionY);
@@ -454,39 +447,33 @@ public sealed class ProtocolContractGuardTests
     }
 
     [Fact]
-    public void PlayerDeath_RoundTrip_PreservesKillerAndGold()
+    public void PlayerDeath_RoundTrip_PreservesCauseAndKiller()
     {
         using PlayerDeath death = new()
         {
             Cause = DeathCause.Monster,
             KillerArchetypeId = 40,
-            KillerNetworkId = 1_234_567UL,
-            GoldDropped = 2_999L,
         };
         using PlayerDeath copy = PlayerDeath.Deserialize(death.Serialize());
 
         Assert.Equal(DeathCause.Monster, copy.Cause);
         Assert.Equal((ushort)40, copy.KillerArchetypeId);
-        Assert.Equal(1_234_567UL, copy.KillerNetworkId);
-        Assert.Equal(2_999L, copy.GoldDropped);
         Assert.Equal((ushort)0x4078, PlayerDeath.StaticOpCode);
         Assert.Equal((ushort)0x4079, RespawnRequest.StaticOpCode);
     }
 
     [Fact]
-    public void ItemDurabilityAlert_RoundTrip_PreservesKindSlotItemAndLevel()
+    public void ItemDurabilityAlert_RoundTrip_PreservesKindItemAndLevel()
     {
         using ItemDurabilityAlert alert = new()
         {
             Kind = DurabilityAlertKind.Broke,
-            SlotIndex = 37,
             ItemId = 18,
             UpgradeLevel = 7,
         };
         using ItemDurabilityAlert copy = ItemDurabilityAlert.Deserialize(alert.Serialize());
 
         Assert.Equal(DurabilityAlertKind.Broke, copy.Kind);
-        Assert.Equal((ushort)37, copy.SlotIndex);
         Assert.Equal((ushort)18, copy.ItemId);
         Assert.Equal((byte)7, copy.UpgradeLevel);
         Assert.Equal((ushort)0x4090, ItemDurabilityAlert.StaticOpCode);

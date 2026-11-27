@@ -121,7 +121,7 @@ public sealed class UnderwaterViewTests
     public void ViewAt_AfterAnOxygenSync_CarriesTheServersBreathAndThePredictedDepth()
     {
         WaterSession water = new();
-        using PlayerOxygenSync sync = new() { SwimState = 3, DepthTier = 4, OxygenMs = 12_500U, MaxOxygenMs = 30_000U };
+        using PlayerOxygenSync sync = new() { OxygenMs = 12_500U, MaxOxygenMs = 30_000U };
         water.OnPlayerOxygenSync(sync);
         ChunkWorld2D world = CreateLake();
 

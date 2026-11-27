@@ -51,9 +51,7 @@ public sealed partial class EntityAttackPhase : PacketBase<EntityAttackPhase>, I
     [SerializeOrder(0)]
     public ulong NetworkId { get; set; }
 
-    /// <summary>Server tick on which the phase started.</summary>
-    [SerializeOrder(1)]
-    public ulong ServerTick { get; set; }
+    // [SerializeOrder(1)] was ServerTick, never read; removed by ADR-038.
 
     /// <summary>Attack kind (<see cref="KindMelee"/> .. <see cref="KindLeap"/>).</summary>
     [SerializeOrder(2)]
@@ -67,9 +65,7 @@ public sealed partial class EntityAttackPhase : PacketBase<EntityAttackPhase>, I
     [SerializeOrder(4)]
     public byte Shape { get; set; }
 
-    /// <summary>Whether a <see cref="PhaseNone"/> packet reports an interruption (stun, leash) rather than completion.</summary>
-    [SerializeOrder(5)]
-    public bool Interrupted { get; set; }
+    // [SerializeOrder(5)] was Interrupted, never read; removed by ADR-038.
 
     /// <summary>Locked target / aim / landing point X.</summary>
     [SerializeOrder(6)]

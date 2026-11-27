@@ -2,6 +2,7 @@
 
 - **Date**: 2026-11-27
 - **Status**: Accepted
+- **Amended by**: [ADR-038](ADR-038-retire-dead-wire-opcodes-and-fields.md) D7 (`PlayerDeath` carries only `Cause` and `KillerArchetypeId`)
 - **Scope**: `contracts/Carbon.Contracts.Common`, `contracts/Carbon.Contracts.Items`, `engine/Carbon.Economy` (Config, Death,
   Currency), `engine/Carbon.Primitives` (Random), `server/Carbon.Abstractions`, `server/Carbon.Application` (World),
   `server/Carbon.Handlers`, `server/Carbon.Host`, `resources/config/economy.json`, `desktop/`, `resources/localization/`, `tests/`

@@ -1117,7 +1117,8 @@ public sealed partial class MultiplayerSession
                 isHeal,
                 pkt.Damage == 0f && !pkt.IsKilled ? GameText.Get("character.miss") : null, // 0-damage non-kill = dodge (ADR-021)
                 pkt.StatusEffectId,
-                pkt.DefenderNetworkId == _localNetworkId));
+                pkt.DefenderNetworkId == _localNetworkId,
+                pkt.StatusEffectLevel));
         }
     }
 

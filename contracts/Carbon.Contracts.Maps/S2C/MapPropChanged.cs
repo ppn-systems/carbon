@@ -25,9 +25,7 @@ public sealed partial class MapPropChanged : PacketBase<MapPropChanged>, IPacket
     [SerializeOrder(1)]
     public int TileY { get; set; }
 
-    /// <summary>Chunk revision after the change.</summary>
-    [SerializeOrder(2)]
-    public uint Revision { get; set; }
+    // [SerializeOrder(2)] was Revision, never read; removed by ADR-038.
 
     /// <summary>Remaining durability.</summary>
     [SerializeOrder(3)]

@@ -63,7 +63,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             return;
         }
 
-        _ = DispatchEntityDespawnAsync(conn, networkId, serverTick, _logger);
+        _ = DispatchEntityDespawnAsync(conn, networkId, _logger);
     }
 
     /// <inheritdoc/>
@@ -107,7 +107,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         {
             if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
             {
-                _ = DispatchPropChangedAsync(conn, tileX, tileY, revision, durability, isDestroyed, _logger);
+                _ = DispatchPropChangedAsync(conn, tileX, tileY, durability, isDestroyed, _logger);
             }
         }
     }
@@ -119,7 +119,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         {
             if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
             {
-                _ = DispatchStructureChangedAsync(conn, tileX, tileY, structureType, durability, doorState, connectivity, _logger);
+                _ = DispatchStructureChangedAsync(conn, tileX, tileY, structureType, doorState, _logger);
             }
         }
     }
@@ -222,7 +222,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     {
         if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
         {
-            _ = DispatchItemDurabilityAlertAsync(conn, kind, slotIndex, itemId, upgradeLevel, _logger);
+            _ = DispatchItemDurabilityAlertAsync(conn, kind, itemId, upgradeLevel, _logger);
         }
     }
 
@@ -288,7 +288,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         {
             if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
             {
-                _ = DispatchSkillCastAsync(conn, casterNetworkId, abilitySlot, originX, originY, aimX, aimY, _logger);
+                _ = DispatchSkillCastAsync(conn, casterNetworkId, abilitySlot, aimX, aimY, _logger);
             }
         }
     }
@@ -306,14 +306,13 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         {
             if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
             {
-                _ = DispatchEnhancementAnnouncementAsync(conn, playerNetworkId, playerName, itemId, outcome, level, _logger);
+                _ = DispatchEnhancementAnnouncementAsync(conn, playerName, itemId, outcome, level, _logger);
             }
         }
     }
 
     private static async Task DispatchEnhancementAnnouncementAsync(
         IConnection connection,
-        ulong playerNetworkId,
         string playerName,
         ushort itemId,
         EnhancementOutcome outcome,
@@ -324,7 +323,6 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         {
             using PacketScope<EnhancementAnnouncement> lease = PacketFactory<EnhancementAnnouncement>.Acquire();
             EnhancementAnnouncement pkt = lease.Value;
-            pkt.PlayerNetworkId = playerNetworkId;
             pkt.PlayerName = playerName ?? string.Empty;
             pkt.ItemId = itemId;
             pkt.Outcome = outcome;
@@ -402,7 +400,6 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     private static async Task DispatchEntityDespawnAsync(
         IConnection connection,
         ulong networkId,
-        ulong serverTick,
         ILogger logger)
     {
         try
@@ -410,7 +407,6 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             using PacketScope<EntityDespawn> lease = PacketFactory<EntityDespawn>.Acquire();
             EntityDespawn pkt = lease.Value;
             pkt.NetworkId = networkId;
-            pkt.ServerTick = serverTick;
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
             await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
@@ -525,7 +521,6 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         IConnection connection,
         int tileX,
         int tileY,
-        uint revision,
         float durability,
         bool isDestroyed,
         ILogger logger)
@@ -536,7 +531,6 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             MapPropChanged pkt = lease.Value;
             pkt.TileX = tileX;
             pkt.TileY = tileY;
-            pkt.Revision = revision;
             pkt.Durability = durability;
             pkt.IsDestroyed = isDestroyed;
 
@@ -609,9 +603,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         int tileX,
         int tileY,
         byte structureType,
-        float durability,
         byte doorState,
-        byte connectivity,
         ILogger logger)
     {
         try
@@ -621,9 +613,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             pkt.TileX = tileX;
             pkt.TileY = tileY;
             pkt.StructureType = structureType;
-            pkt.Durability = durability;
             pkt.DoorState = doorState;
-            pkt.Connectivity = connectivity;
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
             await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
@@ -846,11 +836,9 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             using PacketScope<EntityAttackPhase> lease = PacketFactory<EntityAttackPhase>.Acquire();
             EntityAttackPhase pkt = lease.Value;
             pkt.NetworkId = snapshot.NetworkId;
-            pkt.ServerTick = snapshot.ServerTick;
             pkt.AttackKind = snapshot.AttackKind;
             pkt.Phase = snapshot.Phase;
             pkt.Shape = snapshot.Shape;
-            pkt.Interrupted = snapshot.Interrupted;
             pkt.TargetX = snapshot.TargetX;
             pkt.TargetY = snapshot.TargetY;
             pkt.DirectionX = snapshot.DirectionX;
@@ -873,8 +861,6 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         IConnection connection,
         ulong casterNetworkId,
         byte abilitySlot,
-        float originX,
-        float originY,
         float aimX,
         float aimY,
         ILogger logger)
@@ -885,8 +871,6 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             SkillCastBroadcast pkt = lease.Value;
             pkt.CasterNetworkId = casterNetworkId;
             pkt.AbilitySlot = abilitySlot;
-            pkt.OriginX = originX;
-            pkt.OriginY = originY;
             pkt.AimX = aimX;
             pkt.AimY = aimY;
 
@@ -918,14 +902,13 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         }
     }
 
-    private static async Task DispatchItemDurabilityAlertAsync(IConnection connection, DurabilityAlertKind kind, ushort slotIndex, uint itemId, byte upgradeLevel, ILogger logger)
+    private static async Task DispatchItemDurabilityAlertAsync(IConnection connection, DurabilityAlertKind kind, uint itemId, byte upgradeLevel, ILogger logger)
     {
         try
         {
             using PacketScope<ItemDurabilityAlert> lease = PacketFactory<ItemDurabilityAlert>.Acquire();
             ItemDurabilityAlert pkt = lease.Value;
             pkt.Kind = kind;
-            pkt.SlotIndex = slotIndex;
             pkt.ItemId = (ushort)itemId;
             pkt.UpgradeLevel = upgradeLevel;
 
@@ -964,8 +947,6 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             PlayerDeath pkt = lease.Value;
             pkt.Cause = death.Cause;
             pkt.KillerArchetypeId = death.KillerArchetypeId;
-            pkt.KillerNetworkId = death.KillerNetworkId;
-            pkt.GoldDropped = death.GoldDropped;
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
             await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
@@ -982,8 +963,6 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         {
             using PacketScope<PlayerOxygenSync> lease = PacketFactory<PlayerOxygenSync>.Acquire();
             PlayerOxygenSync pkt = lease.Value;
-            pkt.SwimState = oxygen.SwimState;
-            pkt.DepthTier = oxygen.DepthTier;
             pkt.OxygenMs = oxygen.OxygenMs;
             pkt.MaxOxygenMs = oxygen.MaxOxygenMs;
 
@@ -1013,8 +992,6 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             pkt.SellItemIds = stock.SellItemIds;
             pkt.SellPrices = stock.SellPrices;
             pkt.CanRepair = stock.CanRepair;
-            pkt.RepairSlots = stock.RepairSlots;
-            pkt.RepairCosts = stock.RepairCosts;
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
             await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
