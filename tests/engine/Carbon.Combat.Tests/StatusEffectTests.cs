@@ -163,6 +163,112 @@ public sealed class StatusEffectTests
     }
 
     [Fact]
+    public void StatusEffectSystem_PoisonLevelTwo_DealsTheConfiguredLevelTwoDamagePerPulse()
+    {
+        (WorldSimulation levelOneWorld, Entity levelOneTarget, StatusEffectBuffer levelOne) = CreateWorld(health: 100f);
+        (WorldSimulation levelTwoWorld, Entity levelTwoTarget, StatusEffectBuffer levelTwo) = CreateWorld(health: 100f);
+        _ = levelOne.ApplyOrRefresh(Create("poisoned", level: 1));
+        _ = levelTwo.ApplyOrRefresh(Create("poisoned", level: 2));
+
+        Step(levelOneWorld, 60);
+        Step(levelTwoWorld, 60);
+
+        levelOneWorld.Entities.GetHealth(levelOneTarget).Current.Should().Be(99f, "poison I deals magnitude 1 per pulse");
+        levelTwoWorld.Entities.GetHealth(levelTwoTarget).Current.Should().Be(98f, "poison II deals magnitude 1 + magnitudePerLevel 1 = 2 per pulse");
+        levelTwoWorld.ReadEvents<StatusPulseEvent>()[0].Level.Should().Be(2, "the pulse carries the level to the tinted combat hit");
+    }
+
+    [Fact]
+    public void ApplyOrRefresh_StrongestRule_LevelThreeThenLevelOne_KeepsLevelThreeAndItsDuration()
+    {
+        StatusEffectBuffer buffer = new();
+        _ = buffer.ApplyOrRefresh(Create("slowed", level: 3));
+        Advance(buffer, 60);
+
+        buffer.ApplyOrRefresh(Create("slowed", level: 1)).Should().BeFalse("a lower level is ignored");
+
+        buffer.TryGet(2, out ActiveStatusEffect slow).Should().BeTrue();
+        slow.Level.Should().Be(3);
+        slow.RemainingTicks.Should().Be(30U, "a lower level never shortens or refreshes a higher one");
+        buffer.MoveSpeedScale.Should().BeApproximately(0.4f, 1e-6f, "slow III is 0.6 - 2 x 0.1");
+
+        buffer.ApplyOrRefresh(Create("slowed", level: 4)).Should().BeTrue("a higher level replaces the active one");
+        buffer.TryGet(2, out ActiveStatusEffect upgraded).Should().BeTrue();
+        (upgraded.Level, upgraded.RemainingTicks).Should().Be((4, 90U));
+        buffer.MoveSpeedScale.Should().BeApproximately(0.3f, 1e-6f);
+    }
+
+    [Fact]
+    public void ApplyOrRefresh_RefreshRule_SameLevelRefreshesHigherUpgradesLowerIsIgnored()
+    {
+        StatusEffectBuffer buffer = new();
+        ActiveStatusEffect stun = Create("stunned");
+        _ = buffer.ApplyOrRefresh(stun with { Level = 2 });
+        Advance(buffer, 10);
+
+        buffer.ApplyOrRefresh(stun with { Level = 2 }).Should().BeTrue();
+        buffer.TryGet(stun.EffectId, out ActiveStatusEffect refreshed).Should().BeTrue();
+        (refreshed.Level, refreshed.RemainingTicks).Should().Be((2, 15U), "the same level restarts the full duration");
+
+        Advance(buffer, 10);
+        buffer.ApplyOrRefresh(stun with { Level = 1 }).Should().BeFalse("a lower level cannot cut a higher one short");
+        buffer.TryGet(stun.EffectId, out ActiveStatusEffect kept).Should().BeTrue();
+        (kept.Level, kept.RemainingTicks).Should().Be((2, 5U));
+
+        buffer.ApplyOrRefresh(stun with { Level = 3 }).Should().BeTrue();
+        buffer.TryGet(stun.EffectId, out ActiveStatusEffect upgraded).Should().BeTrue();
+        (upgraded.Level, upgraded.RemainingTicks).Should().Be((3, 15U), "a higher level upgrades and refreshes");
+    }
+
+    [Fact]
+    public void ApplyOrRefresh_StackRule_LowerLevelAddsAStackButKeepsTheHigherLevelAndItsDamage()
+    {
+        StatusEffectBuffer buffer = new();
+        _ = buffer.ApplyOrRefresh(Create("poisoned", level: 3));
+        _ = buffer.ApplyOrRefresh(Create("poisoned", level: 1));
+
+        buffer.TryGet(1, out ActiveStatusEffect stacked).Should().BeTrue();
+        (stacked.Stacks, stacked.Level, stacked.MagnitudePerStack).Should().Be((2, 3, 3f), "the weaker source counts as a hit, not a downgrade");
+
+        _ = buffer.ApplyOrRefresh(Create("poisoned", level: 4));
+        buffer.TryGet(1, out ActiveStatusEffect upgraded).Should().BeTrue();
+        (upgraded.Stacks, upgraded.Level, upgraded.MagnitudePerStack).Should().Be((3, 4, 4f), "an upgrade keeps the stacks");
+    }
+
+    [Fact]
+    public void CreateActive_SlowAtMaxLevelAndBeyond_NeverStopsTheTarget()
+    {
+        s_shipped.TryGetByKey("slowed", out StatusEffectDefinition slowed).Should().BeTrue();
+        ActiveStatusEffect shippedMax = Create("slowed", level: byte.MaxValue);
+        shippedMax.Level.Should().Be(slowed.MaxLevel, "levels clamp to maxLevel");
+        shippedMax.MoveSpeedMultiplier.Should().BeApproximately(0.2f, 1e-6f, "slow V is 0.6 - 4 x 0.1");
+
+        StatusEffectCatalog steep = StatusEffectCatalog.LoadFromJson(
+            """{ "schemaVersion": 1, "effects": [ { "id": 1, "key": "slowed", "icon": "i", "durationSeconds": 3, "stacking": "Strongest", "moveSpeedMultiplier": 0.6, "maxLevel": 255, "moveSpeedMultiplierPerLevel": -0.3 } ] }""");
+        steep.TryGet(1, out StatusEffectDefinition def).Should().BeTrue();
+        StatusEffectBuffer buffer = new();
+        _ = buffer.ApplyOrRefresh(StatusEffectCatalog.CreateActive(def, TickRate, Entity.Null, StatusSource.Monster, 101, level: 255));
+
+        buffer.MoveSpeedScale.Should().Be(StatusEffectDefinition.MinMoveSpeedMultiplier, "speed is clamped above 0 at any level");
+        def.MoveSpeedMultiplierAt(3).Should().Be(StatusEffectDefinition.MinMoveSpeedMultiplier, "0.6 - 2 x 0.3 would be 0");
+    }
+
+    [Fact]
+    public void CreateActive_RegenBuffLevels_ScaleTheMultiplierAndLevelZeroIsLevelOne()
+    {
+        StatusEffectCatalog catalog = StatusEffectCatalog.LoadFromJson(
+            """{ "schemaVersion": 1, "effects": [ { "id": 1, "key": "fed", "icon": "i", "durationSeconds": 60, "healthRegenMultiplier": 1.5, "staminaRegenMultiplier": 1.2, "maxLevel": 3, "healthRegenMultiplierPerLevel": 0.25, "staminaRegenMultiplierPerLevel": 0.1 } ] }""");
+        catalog.TryGet(1, out StatusEffectDefinition def).Should().BeTrue();
+
+        ActiveStatusEffect none = StatusEffectCatalog.CreateActive(def, TickRate, Entity.Null, StatusSource.None, 0, level: 0);
+        ActiveStatusEffect third = StatusEffectCatalog.CreateActive(def, TickRate, Entity.Null, StatusSource.None, 0, level: 3);
+
+        (none.Level, none.HealthRegenMultiplier).Should().Be((1, 1.5f), "0 is not a level; it applies as I");
+        third.HealthRegenMultiplier.Should().Be(2f);
+        third.StaminaRegenMultiplier.Should().BeApproximately(1.4f, 1e-6f);
+    }
+
+    [Fact]
     public void LoadFromJson_InvalidDocuments_AreRejected()
     {
         const string Effect = """{ "id": 1, "key": "a", "icon": "i", "durationSeconds": 1 }""";
@@ -174,6 +280,9 @@ public sealed class StatusEffectTests
             """{ "schemaVersion": 1, "effects": [ { "id": 1, "key": "a", "icon": "i", "durationSeconds": 1, "magnitude": 2 } ] }""",
             """{ "schemaVersion": 1, "effects": [ { "id": 1, "key": "A b", "icon": "i", "durationSeconds": 1 } ] }""",
             """{ "schemaVersion": 1, "effects": [], "unknown": 1 }""",
+            """{ "schemaVersion": 1, "effects": [ { "id": 1, "key": "a", "icon": "i", "durationSeconds": 1, "maxLevel": 0 } ] }""",
+            """{ "schemaVersion": 1, "effects": [ { "id": 1, "key": "a", "icon": "i", "durationSeconds": 1, "tickIntervalSeconds": 1, "magnitude": 1, "magnitudePerLevel": 1 } ] }""",
+            """{ "schemaVersion": 1, "effects": [ { "id": 1, "key": "a", "icon": "i", "durationSeconds": 1, "maxLevel": 3, "magnitudePerLevel": 1 } ] }""",
         ];
 
         foreach (string json in invalid)
@@ -200,10 +309,10 @@ public sealed class StatusEffectTests
         drowning.HealthRegenMultiplier.Should().Be(0f);
     }
 
-    private static ActiveStatusEffect Create(string key)
+    private static ActiveStatusEffect Create(string key, byte level = 1)
     {
         s_shipped.TryGetByKey(key, out StatusEffectDefinition def).Should().BeTrue();
-        return StatusEffectCatalog.CreateActive(def, TickRate, Entity.Null, StatusSource.Monster, 101);
+        return StatusEffectCatalog.CreateActive(def, TickRate, Entity.Null, StatusSource.Monster, 101, level: level);
     }
 
     private static void Advance(StatusEffectBuffer buffer, int ticks)

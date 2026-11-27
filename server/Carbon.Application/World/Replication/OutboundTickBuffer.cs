@@ -32,7 +32,8 @@ internal readonly record struct OutboundCombatHit(
     float RemainingHealth,
     bool IsCritical,
     bool IsKilled,
-    ushort StatusEffectId = 0);
+    ushort StatusEffectId = 0,
+    byte StatusEffectLevel = 0);
 
 internal readonly record struct OutboundSlotChange(ulong ConnectionId, ushort SlotIndex, ItemSlot Slot);
 
@@ -267,7 +268,8 @@ internal sealed class OutboundTickBuffer
                 hit.RemainingHealth,
                 hit.IsCritical,
                 hit.IsKilled,
-                hit.StatusEffectId);
+                hit.StatusEffectId,
+                hit.StatusEffectLevel);
         }
 
         for (int i = 0; i < batch.SlotChanges.Count; i++)

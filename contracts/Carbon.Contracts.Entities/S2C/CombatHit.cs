@@ -44,4 +44,8 @@ public sealed partial class CombatHit : PacketBase<CombatHit>, IPacketStaticOpco
     /// <summary>Status effect whose pulse dealt this damage (ADR-029 D9), 0 for a direct hit.</summary>
     [SerializeOrder(6)]
     public ushort StatusEffectId { get; set; }
+
+    /// <summary>Level of the pulsing status effect (ADR-036), 0 for a direct hit.</summary>
+    [SerializeOrder(7)]
+    public byte StatusEffectLevel { get; set; }
 }

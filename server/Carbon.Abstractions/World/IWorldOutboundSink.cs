@@ -165,6 +165,7 @@ public readonly record struct AttackPhaseSnapshot(
 /// <param name="Magnitude">Damage per pulse (all stacks) for damage effects, otherwise the effect's multiplier.</param>
 /// <param name="SourceKind">What applied it (<c>StatusSource</c> byte).</param>
 /// <param name="SourceId">Source detail: the monster archetype id, or 0.</param>
+/// <param name="Level">Effect level (amplifier), 1 = I (ADR-036).</param>
 public readonly record struct StatusEffectEntry(
     ushort EffectId,
     byte Stacks,
@@ -172,7 +173,8 @@ public readonly record struct StatusEffectEntry(
     uint DurationMs,
     float Magnitude,
     byte SourceKind,
-    ushort SourceId);
+    ushort SourceId,
+    byte Level = 1);
 
 /// <summary>
 /// Decoupled transport sink used by <c>Carbon.Application</c> to dispatch AoI entity updates and map edits
@@ -218,7 +220,7 @@ public interface IWorldOutboundSink
 
     /// <summary>
     /// Broadcasts a combat hit caused by a status effect pulse (ADR-029 D9); <paramref name="statusEffectId"/> is 0 for a
-    /// direct hit. Sinks that do not tint damage numbers fall back to <see cref="SendCombatHit(ReadOnlySpan{ulong}, ulong, ulong, float, float, bool, bool)"/>.
+    /// direct hit, and <paramref name="statusEffectLevel"/> is the pulsing effect's level (ADR-036; 0 for a direct hit). Sinks that do not tint damage numbers fall back to <see cref="SendCombatHit(ReadOnlySpan{ulong}, ulong, ulong, float, float, bool, bool)"/>.
     /// </summary>
     void SendCombatHit(
         ReadOnlySpan<ulong> recipientConnectionIds,
@@ -228,7 +230,8 @@ public interface IWorldOutboundSink
         float remainingHealth,
         bool isCritical,
         bool isKilled,
-        ushort statusEffectId) =>
+        ushort statusEffectId,
+        byte statusEffectLevel) =>
         this.SendCombatHit(recipientConnectionIds, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled);
 
     /// <summary>

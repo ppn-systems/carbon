@@ -59,7 +59,8 @@ public sealed record WorldDebugOverrides
     public IReadOnlyList<int> WornGearPercents { get; init; } = [];
 
     /// <summary>
-    /// Gets status effects every character enters the world with (ADR-029), as <c>key:remainingMs:stacks</c> entries joined
+    /// Gets status effects every character enters the world with (ADR-029), in the persisted format: <c>v2</c> then
+    /// <c>key:remainingMs:stacks:level</c> entries (ADR-036 D5), or level-1 <c>key:remainingMs:stacks</c> entries, joined
     /// by <c>;</c>, for screenshot review of the status strip; empty for none.
     /// </summary>
     public string StatusEffects { get; init; } = string.Empty;

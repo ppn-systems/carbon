@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "itemId": 213,
+  "id": "plank_deck",
+  "displayName": "Plank Deck Kit",
+  "tier": 1,
+  "categoryLabel": "Placeable Kit",
+  "accentColor": "#A8774A",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -7,
+      "y": -5,
+      "w": 14,
+      "h": 10,
+      "color": "#8B5E34",
+      "outlineColor": "#3B2412",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -7,
+      "y": -2,
+      "x2": 7,
+      "y2": -2,
+      "thickness": 0.8,
+      "color": "#3B2412"
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -7,
+      "y": 1,
+      "x2": 7,
+      "y2": 1,
+      "thickness": 0.8,
+      "color": "#3B2412"
+    }
+  ]
+}

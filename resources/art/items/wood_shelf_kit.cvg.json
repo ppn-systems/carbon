@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "itemId": 211,
+  "id": "wood_shelf_kit",
+  "displayName": "Wood Shelf Kit",
+  "tier": 1,
+  "categoryLabel": "Placeable Kit",
+  "accentColor": "#A16207",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -7,
+      "y": -5,
+      "w": 14,
+      "h": 10,
+      "color": "#854D0E",
+      "outlineColor": "#3F2A0C",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -7,
+      "y": -2,
+      "x2": 7,
+      "y2": -2,
+      "thickness": 0.9,
+      "color": "#3F2A0C"
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -7,
+      "y": 1.5,
+      "x2": 7,
+      "y2": 1.5,
+      "thickness": 0.9,
+      "color": "#3F2A0C"
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -5,
+      "y": -4.5,
+      "w": 2,
+      "h": 2,
+      "color": "#60A5FA",
+      "outlineColor": "#3F2A0C",
+      "outlineThickness": 0.5
+    }
+  ]
+}
