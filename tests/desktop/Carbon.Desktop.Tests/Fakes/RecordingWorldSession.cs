@@ -182,6 +182,9 @@ internal sealed class RecordingWorldSession : IWorldSession
     public BuildResultCode PreviewPlacement(int tileX, int tileY, StructureType type, StructureRotation rotation, out int width, out int height) => throw NotUsed();
     public Task<AuthenticationResult> LoginAsync(string host, ushort tcpPort, string username, string password, CancellationToken ct = default) => Unused<Task<AuthenticationResult>>();
     public Task<AuthenticationResult> RegisterAsync(string host, ushort tcpPort, string username, string password, CancellationToken ct = default) => Unused<Task<AuthenticationResult>>();
+    public Task<AuthenticationResult> LoginWithTokenAsync(string host, ushort tcpPort, byte[] token, CancellationToken ct = default) => Unused<Task<AuthenticationResult>>();
+    public Task<RememberTokenGrant?> RequestRememberTokenAsync(CancellationToken ct = default) => Unused<Task<RememberTokenGrant?>>();
+    public Task RevokeRememberTokenAsync(string host, ushort tcpPort, byte[] token, CancellationToken ct = default) => Unused<Task>();
     public Task LogoutAsync(CancellationToken ct = default) => Unused<Task>();
     public Task InitializeAsync(CancellationToken ct = default) => Unused<Task>();
     public Task<IReadOnlyList<CharacterRosterEntry>> ListCharactersAsync(CancellationToken ct = default) => Unused<Task<IReadOnlyList<CharacterRosterEntry>>>();

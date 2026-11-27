@@ -151,6 +151,18 @@ public sealed class DesktopOptions
     public string CharacterName { get; init; } = "Hero";
 
     /// <summary>
+    /// Gets or sets the file that keeps the "Remember me" account (<c>CARBON_ACCOUNT_FILE</c>; ADR-037). It holds a
+    /// revocable server token, never a password. Defaults to <c>account.ini</c> in the per-user Carbon data folder.
+    /// </summary>
+    public string AccountFile { get; init; } = DefaultAccountFile();
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the Server screen also offers a typed server address
+    /// (<c>CARBON_DEV_SERVERS=1</c>; developers only, players pick a listed server).
+    /// </summary>
+    public bool CustomServerEntry { get; init; }
+
+    /// <summary>
     /// Gets or sets the directory where server-sent gameplay config documents are cached (ADR-014).
     /// Cached files are re-hashed against the server manifest before use, so a stale or corrupt file is only a cache miss.
     /// </summary>
@@ -282,8 +294,13 @@ public sealed class DesktopOptions
             Password = password,
             CharacterName = charName,
             ConfigCacheDirectory = configCache,
+            AccountFile = get("CARBON_ACCOUNT_FILE") is { Length: > 0 } accountFile ? accountFile.Trim() : DefaultAccountFile(),
+            CustomServerEntry = string.Equals(get("CARBON_DEV_SERVERS"), "1", StringComparison.Ordinal),
         };
     }
+
+    private static string DefaultAccountFile() =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Carbon", "account.ini");
 
     private static string DefaultConfigCacheDirectory() =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Carbon", "config-cache");

@@ -276,8 +276,7 @@ public sealed partial class MultiplayerSession
                     _activeCharacterId == Guid.Empty ||
                     string.IsNullOrWhiteSpace(_reconnectHost) ||
                     _reconnectPort == 0 ||
-                    string.IsNullOrEmpty(_lastUsername) ||
-                    string.IsNullOrEmpty(_lastPassword))
+                    ((string.IsNullOrEmpty(_lastUsername) || string.IsNullOrEmpty(_lastPassword)) && _lastToken.Length == 0))
                 {
                     return;
                 }
@@ -294,16 +293,10 @@ public sealed partial class MultiplayerSession
                     TcpSession tcp = await this.OpenFreshTcpTransportLockedAsync(_reconnectHost, _reconnectPort, opCts.Token).ConfigureAwait(false);
                     RequestOptions reqOpts = RequestOptions.Default.WithTimeout(5000).WithEncrypt(tcp.State.EncryptionEnabled);
 
-                    using PacketScope<AuthLogin> loginLease = PacketFactory<AuthLogin>.Acquire();
-                    loginLease.Value.Username = _lastUsername;
-                    loginLease.Value.Password = _lastPassword;
-                    loginLease.Value.ClientProtocolVersion = CarbonProtocol.Version;
-
-                    using AuthResult authRes = await tcp.RequestAsync<AuthResult>(
-                        loginLease.Value,
-                        reqOpts,
-                        predicate: null,
-                        opCts.Token).ConfigureAwait(false);
+                    // A remembered sign-in reconnects with its token; a typed one with the password kept in memory.
+                    using AuthResult authRes = string.IsNullOrEmpty(_lastPassword)
+                        ? await RequestTokenSignInAsync(tcp, reqOpts, _lastToken, opCts.Token).ConfigureAwait(false)
+                        : await RequestPasswordSignInAsync(tcp, reqOpts, _lastUsername, _lastPassword, opCts.Token).ConfigureAwait(false);
 
                     if (authRes.Status is AuthStatus.InvalidCredentials or AuthStatus.Locked or AuthStatus.ProtocolMismatch)
                     {

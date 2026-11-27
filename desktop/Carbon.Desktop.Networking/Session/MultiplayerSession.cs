@@ -93,6 +93,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     private ushort _reconnectPort;
     private string _lastUsername = string.Empty;
     private string _lastPassword = string.Empty;
+    private byte[] _lastToken = [];
     private Guid _activeCharacterId;
     private volatile bool _autoReconnectEnabled;
     private bool _wasTcpConnectedLastFrame;
@@ -866,6 +867,7 @@ public sealed partial class MultiplayerSession : IWorldSession
         _activeCharacterId = Guid.Empty;
         _lastUsername = string.Empty;
         _lastPassword = string.Empty;
+        _lastToken = [];
         await this.TearDownTransportsAsync().ConfigureAwait(false);
         this.ClearWorldState();
         if (_sessionCts is not null)

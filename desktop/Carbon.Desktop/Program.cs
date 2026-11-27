@@ -70,7 +70,7 @@ public static class Program
                 Camera2D camera = new(w.Width, w.Height);
                 spriteBatch = new SpriteBatch(w.Device);
                 sceneManager = new SceneManager(w, camera);
-                sceneManager.ChangeScene(new LoginScene(session, options, camera));
+                sceneManager.ChangeScene(new StartScene(MenuFlow.Create(session, options, camera)));
 
                 Console.WriteLine("=== CARBON ONLINE DESKTOP CLIENT ===");
                 Console.WriteLine($"Target Server: {options.ServerHost}:{options.ServerTcpPort} (TCP + Authenticated UDP)");
