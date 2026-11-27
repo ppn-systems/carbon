@@ -14,7 +14,6 @@ using Nalix.Abstractions.Networking;
 using Nalix.Abstractions.Networking.Datagrams;
 using Nalix.Abstractions.Networking.Packets;
 using Nalix.Abstractions.Security;
-using Nalix.Codec.Pooling;
 using Nalix.Network.Connections;
 using Nalix.Runtime.Extensions;
 
@@ -29,15 +28,20 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     private readonly SessionTransportRegistry _transportRegistry;
     private readonly ILogger<WorldOutboundSink> _logger;
     private readonly DeltaColumnPool _deltaColumns = new();
+    private readonly PacketPool _packets;
     private volatile IConnectionHub? _hub;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WorldOutboundSink"/> class.
     /// </summary>
-    public WorldOutboundSink(SessionTransportRegistry transportRegistry, ILogger<WorldOutboundSink> logger)
+    /// <param name="transportRegistry">Stream and datagram connections by session.</param>
+    /// <param name="logger">Send failures.</param>
+    /// <param name="packets">Where outbound packets are leased from (ADR-043); owned by the caller.</param>
+    public WorldOutboundSink(SessionTransportRegistry transportRegistry, ILogger<WorldOutboundSink> logger, PacketPool packets)
     {
         _transportRegistry = transportRegistry ?? throw new ArgumentNullException(nameof(transportRegistry));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _packets = packets ?? throw new ArgumentNullException(nameof(packets));
     }
 
     /// <summary>Binds the live connection hub created by the host builder.</summary>
@@ -52,7 +56,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             return;
         }
 
-        _ = DispatchEntitySpawnAsync(conn, spawn, _logger);
+        _ = DispatchEntitySpawnAsync(conn, spawn, _packets, _logger);
     }
 
     /// <inheritdoc/>
@@ -63,7 +67,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             return;
         }
 
-        _ = DispatchEntityDespawnAsync(conn, networkId, _logger);
+        _ = DispatchEntityDespawnAsync(conn, networkId, _packets, _logger);
     }
 
     /// <inheritdoc/>
@@ -93,11 +97,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         DeltaColumns columns = _deltaColumns.Rent(entries);
         if (dgram is not null)
         {
-            _ = DispatchEntityDeltaBatchDatagramAsync(dgram, serverTick, lastProcessedClientTick, selfX, selfY, columns, _deltaColumns, _logger);
+            _ = DispatchEntityDeltaBatchDatagramAsync(dgram, serverTick, lastProcessedClientTick, selfX, selfY, columns, _deltaColumns, _packets, _logger);
             return;
         }
 
-        _ = DispatchEntityDeltaBatchAsync(streamConn!, serverTick, lastProcessedClientTick, selfX, selfY, columns, _deltaColumns, _logger);
+        _ = DispatchEntityDeltaBatchAsync(streamConn!, serverTick, lastProcessedClientTick, selfX, selfY, columns, _deltaColumns, _packets, _logger);
     }
 
     /// <inheritdoc/>
@@ -107,7 +111,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         {
             if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
             {
-                _ = DispatchPropChangedAsync(conn, tileX, tileY, durability, isDestroyed, growthStage, _logger);
+                _ = DispatchPropChangedAsync(conn, tileX, tileY, durability, isDestroyed, growthStage, _packets, _logger);
             }
         }
     }
@@ -119,7 +123,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         {
             if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
             {
-                _ = DispatchStructureChangedAsync(conn, tileX, tileY, structureType, doorState, _logger);
+                _ = DispatchStructureChangedAsync(conn, tileX, tileY, structureType, doorState, _packets, _logger);
             }
         }
     }
@@ -147,11 +151,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
                 dg is not null &&
                 dg.Transport is IDatagramTransport dgramTransport)
             {
-                _ = DispatchCombatHitDatagramAsync(dgramTransport, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId, statusEffectLevel, _logger);
+                _ = DispatchCombatHitDatagramAsync(dgramTransport, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId, statusEffectLevel, _packets, _logger);
             }
             else if (this.TryResolveConnection(recipientId, out IConnection? conn) && conn is not null)
             {
-                _ = DispatchCombatHitAsync(conn, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId, statusEffectLevel, _logger);
+                _ = DispatchCombatHitAsync(conn, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId, statusEffectLevel, _packets, _logger);
             }
         }
     }
@@ -161,7 +165,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     {
         if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
         {
-            _ = DispatchInventorySlotChangedAsync(conn, slotIndex, itemId, quantity, durability, upgradeLevel, freshnessSeconds, _logger);
+            _ = DispatchInventorySlotChangedAsync(conn, slotIndex, itemId, quantity, durability, upgradeLevel, freshnessSeconds, _packets, _logger);
         }
     }
 
@@ -182,7 +186,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         {
             if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
             {
-                _ = DispatchEquipmentChangedAsync(conn, entityNetworkId, headId, chestId, legsId, feetId, weaponId, weaponUpgrade, level, maxHealth, _logger);
+                _ = DispatchEquipmentChangedAsync(conn, entityNetworkId, headId, chestId, legsId, feetId, weaponId, weaponUpgrade, level, maxHealth, _packets, _logger);
             }
         }
     }
@@ -192,7 +196,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     {
         if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
         {
-            _ = DispatchPlayerStatsSyncAsync(conn, snapshot, _logger);
+            _ = DispatchPlayerStatsSyncAsync(conn, snapshot, _packets, _logger);
         }
     }
 
@@ -203,7 +207,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         {
             if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
             {
-                _ = DispatchAttackPhaseAsync(conn, snapshot, _logger);
+                _ = DispatchAttackPhaseAsync(conn, snapshot, _packets, _logger);
             }
         }
     }
@@ -213,7 +217,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     {
         if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
         {
-            _ = DispatchWalletSyncAsync(conn, gold, diamonds, sequence, _logger);
+            _ = DispatchWalletSyncAsync(conn, gold, diamonds, sequence, _packets, _logger);
         }
     }
 
@@ -222,7 +226,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     {
         if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
         {
-            _ = DispatchItemDurabilityAlertAsync(conn, kind, itemId, upgradeLevel, _logger);
+            _ = DispatchItemDurabilityAlertAsync(conn, kind, itemId, upgradeLevel, _packets, _logger);
         }
     }
 
@@ -231,7 +235,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     {
         if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
         {
-            _ = DispatchStaminaStatusAsync(conn, exhausted, refusalCount, _logger);
+            _ = DispatchStaminaStatusAsync(conn, exhausted, refusalCount, _packets, _logger);
         }
     }
 
@@ -240,7 +244,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     {
         if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
         {
-            _ = DispatchTraderStockAsync(conn, stock, _logger);
+            _ = DispatchTraderStockAsync(conn, stock, _packets, _logger);
         }
     }
 
@@ -249,7 +253,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     {
         if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
         {
-            _ = DispatchPlayerDeathAsync(conn, death, _logger);
+            _ = DispatchPlayerDeathAsync(conn, death, _packets, _logger);
         }
     }
 
@@ -258,7 +262,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     {
         if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
         {
-            _ = DispatchPlayerOxygenAsync(conn, oxygen, _logger);
+            _ = DispatchPlayerOxygenAsync(conn, oxygen, _packets, _logger);
         }
     }
 
@@ -271,7 +275,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         }
 
         // Change-driven (ADR-029 D9), never per tick: the entries are copied because the span does not outlive the call.
-        _ = DispatchStatusEffectsAsync(conn, entries.ToArray(), _logger);
+        _ = DispatchStatusEffectsAsync(conn, entries.ToArray(), _packets, _logger);
     }
 
     /// <inheritdoc/>
@@ -286,7 +290,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         {
             if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
             {
-                _ = DispatchSkillCastAsync(conn, casterNetworkId, abilitySlot, aimX, aimY, _logger);
+                _ = DispatchSkillCastAsync(conn, casterNetworkId, abilitySlot, aimX, aimY, _packets, _logger);
             }
         }
     }
@@ -303,7 +307,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         {
             if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
             {
-                _ = DispatchEnhancementAnnouncementAsync(conn, playerName, itemId, outcome, level, _logger);
+                _ = DispatchEnhancementAnnouncementAsync(conn, playerName, itemId, outcome, level, _packets, _logger);
             }
         }
     }
@@ -314,11 +318,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         ushort itemId,
         EnhancementOutcome outcome,
         byte level,
-        ILogger logger)
+        PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<EnhancementAnnouncement> lease = PacketFactory<EnhancementAnnouncement>.Acquire();
+            using PacketLease<EnhancementAnnouncement> lease = packets.Rent<EnhancementAnnouncement>();
             EnhancementAnnouncement pkt = lease.Value;
             pkt.PlayerName = playerName ?? string.Empty;
             pkt.ItemId = itemId;
@@ -356,11 +360,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     private static async Task DispatchEntitySpawnAsync(
         IConnection connection,
         EntitySpawnSnapshot spawn,
-        ILogger logger)
+        PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<EntitySpawn> lease = PacketFactory<EntitySpawn>.Acquire();
+            using PacketLease<EntitySpawn> lease = packets.Rent<EntitySpawn>();
             EntitySpawn pkt = lease.Value;
             pkt.NetworkId = spawn.NetworkId;
             pkt.Kind = spawn.Kind;
@@ -400,11 +404,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     private static async Task DispatchEntityDespawnAsync(
         IConnection connection,
         ulong networkId,
-        ILogger logger)
+        PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<EntityDespawn> lease = PacketFactory<EntityDespawn>.Acquire();
+            using PacketLease<EntityDespawn> lease = packets.Rent<EntityDespawn>();
             EntityDespawn pkt = lease.Value;
             pkt.NetworkId = networkId;
 
@@ -425,11 +429,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         float selfY,
         DeltaColumns columns,
         DeltaColumnPool pool,
-        ILogger logger)
+        PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<EntityDeltaBatch> lease = PacketFactory<EntityDeltaBatch>.Acquire();
+            using PacketLease<EntityDeltaBatch> lease = packets.Rent<EntityDeltaBatch>();
             PopulateEntityDeltaBatch(lease.Value, serverTick, lastProcessedClientTick, selfX, selfY, columns);
             try
             {
@@ -459,11 +463,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         float selfY,
         DeltaColumns columns,
         DeltaColumnPool pool,
-        ILogger logger)
+        PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<EntityDeltaBatch> lease = PacketFactory<EntityDeltaBatch>.Acquire();
+            using PacketLease<EntityDeltaBatch> lease = packets.Rent<EntityDeltaBatch>();
             PopulateEntityDeltaBatch(lease.Value, serverTick, lastProcessedClientTick, selfX, selfY, columns);
             try
             {
@@ -522,11 +526,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         float durability,
         bool isDestroyed,
         byte growthStage,
-        ILogger logger)
+        PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<MapPropChanged> lease = PacketFactory<MapPropChanged>.Acquire();
+            using PacketLease<MapPropChanged> lease = packets.Rent<MapPropChanged>();
             MapPropChanged pkt = lease.Value;
             pkt.TileX = tileX;
             pkt.TileY = tileY;
@@ -559,7 +563,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         {
             if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
             {
-                _ = DispatchConstructionChangedAsync(conn, tileX, tileY, structureType, rotation, stage, size, progress, isDeconstruction, _logger);
+                _ = DispatchConstructionChangedAsync(conn, tileX, tileY, structureType, rotation, stage, size, progress, isDeconstruction, _packets, _logger);
             }
         }
     }
@@ -574,11 +578,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         byte size,
         float progress,
         bool isDeconstruction,
-        ILogger logger)
+        PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<MapConstructionChanged> lease = PacketFactory<MapConstructionChanged>.Acquire();
+            using PacketLease<MapConstructionChanged> lease = packets.Rent<MapConstructionChanged>();
             MapConstructionChanged pkt = lease.Value;
             pkt.TileX = tileX;
             pkt.TileY = tileY;
@@ -604,11 +608,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         int tileY,
         byte structureType,
         byte doorState,
-        ILogger logger)
+        PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<MapStructureChanged> lease = PacketFactory<MapStructureChanged>.Acquire();
+            using PacketLease<MapStructureChanged> lease = packets.Rent<MapStructureChanged>();
             MapStructureChanged pkt = lease.Value;
             pkt.TileX = tileX;
             pkt.TileY = tileY;
@@ -634,11 +638,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         bool isKilled,
         ushort statusEffectId,
         byte statusEffectLevel,
-        ILogger logger)
+        PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<CombatHit> lease = PacketFactory<CombatHit>.Acquire();
+            using PacketLease<CombatHit> lease = packets.Rent<CombatHit>();
             PopulateCombatHit(lease.Value, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId, statusEffectLevel);
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
@@ -660,11 +664,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         bool isKilled,
         ushort statusEffectId,
         byte statusEffectLevel,
-        ILogger logger)
+        PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<CombatHit> lease = PacketFactory<CombatHit>.Acquire();
+            using PacketLease<CombatHit> lease = packets.Rent<CombatHit>();
             PopulateCombatHit(lease.Value, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId, statusEffectLevel);
             await SendSerializedDatagramAsync(transport, lease.Value, DeliveryMethod.ReliableUnordered, channel: 2).ConfigureAwait(false);
         }
@@ -723,11 +727,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         float durability,
         byte upgradeLevel,
         float freshnessSeconds,
-        ILogger logger)
+        PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<InventorySlotChanged> lease = PacketFactory<InventorySlotChanged>.Acquire();
+            using PacketLease<InventorySlotChanged> lease = packets.Rent<InventorySlotChanged>();
             InventorySlotChanged pkt = lease.Value;
             pkt.SlotIndex = slotIndex;
             pkt.ItemId = (ushort)itemId;
@@ -756,11 +760,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         byte weaponUpgrade,
         ushort level,
         float maxHealth,
-        ILogger logger)
+        PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<EntityEquipmentChanged> lease = PacketFactory<EntityEquipmentChanged>.Acquire();
+            using PacketLease<EntityEquipmentChanged> lease = packets.Rent<EntityEquipmentChanged>();
             EntityEquipmentChanged pkt = lease.Value;
             pkt.NetworkId = entityNetworkId;
             pkt.EquippedHeadId = headId;
@@ -784,11 +788,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     private static async Task DispatchPlayerStatsSyncAsync(
         IConnection connection,
         PlayerStatsSnapshot snapshot,
-        ILogger logger)
+        PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<PlayerStatsSync> lease = PacketFactory<PlayerStatsSync>.Acquire();
+            using PacketLease<PlayerStatsSync> lease = packets.Rent<PlayerStatsSync>();
             PlayerStatsSync pkt = lease.Value;
             pkt.Level = snapshot.Level;
             pkt.Experience = snapshot.Experience;
@@ -829,11 +833,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         }
     }
 
-    private static async Task DispatchAttackPhaseAsync(IConnection connection, AttackPhaseSnapshot snapshot, ILogger logger)
+    private static async Task DispatchAttackPhaseAsync(IConnection connection, AttackPhaseSnapshot snapshot, PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<EntityAttackPhase> lease = PacketFactory<EntityAttackPhase>.Acquire();
+            using PacketLease<EntityAttackPhase> lease = packets.Rent<EntityAttackPhase>();
             EntityAttackPhase pkt = lease.Value;
             pkt.NetworkId = snapshot.NetworkId;
             pkt.AttackKind = snapshot.AttackKind;
@@ -863,11 +867,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         byte abilitySlot,
         float aimX,
         float aimY,
-        ILogger logger)
+        PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<SkillCastBroadcast> lease = PacketFactory<SkillCastBroadcast>.Acquire();
+            using PacketLease<SkillCastBroadcast> lease = packets.Rent<SkillCastBroadcast>();
             SkillCastBroadcast pkt = lease.Value;
             pkt.CasterNetworkId = casterNetworkId;
             pkt.AbilitySlot = abilitySlot;
@@ -883,11 +887,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         }
     }
 
-    private static async Task DispatchWalletSyncAsync(IConnection connection, long gold, long diamonds, ulong sequence, ILogger logger)
+    private static async Task DispatchWalletSyncAsync(IConnection connection, long gold, long diamonds, ulong sequence, PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<WalletSync> lease = PacketFactory<WalletSync>.Acquire();
+            using PacketLease<WalletSync> lease = packets.Rent<WalletSync>();
             WalletSync pkt = lease.Value;
             pkt.Gold = gold;
             pkt.Diamonds = diamonds;
@@ -902,11 +906,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         }
     }
 
-    private static async Task DispatchItemDurabilityAlertAsync(IConnection connection, DurabilityAlertKind kind, uint itemId, byte upgradeLevel, ILogger logger)
+    private static async Task DispatchItemDurabilityAlertAsync(IConnection connection, DurabilityAlertKind kind, uint itemId, byte upgradeLevel, PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<ItemDurabilityAlert> lease = PacketFactory<ItemDurabilityAlert>.Acquire();
+            using PacketLease<ItemDurabilityAlert> lease = packets.Rent<ItemDurabilityAlert>();
             ItemDurabilityAlert pkt = lease.Value;
             pkt.Kind = kind;
             pkt.ItemId = (ushort)itemId;
@@ -921,11 +925,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         }
     }
 
-    private static async Task DispatchStaminaStatusAsync(IConnection connection, bool exhausted, uint refusalCount, ILogger logger)
+    private static async Task DispatchStaminaStatusAsync(IConnection connection, bool exhausted, uint refusalCount, PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<StaminaStatusSync> lease = PacketFactory<StaminaStatusSync>.Acquire();
+            using PacketLease<StaminaStatusSync> lease = packets.Rent<StaminaStatusSync>();
             StaminaStatusSync pkt = lease.Value;
             pkt.Exhausted = exhausted;
             pkt.RefusalCount = refusalCount;
@@ -939,11 +943,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         }
     }
 
-    private static async Task DispatchPlayerDeathAsync(IConnection connection, PlayerDeathSnapshot death, ILogger logger)
+    private static async Task DispatchPlayerDeathAsync(IConnection connection, PlayerDeathSnapshot death, PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<PlayerDeath> lease = PacketFactory<PlayerDeath>.Acquire();
+            using PacketLease<PlayerDeath> lease = packets.Rent<PlayerDeath>();
             PlayerDeath pkt = lease.Value;
             pkt.Cause = death.Cause;
             pkt.KillerArchetypeId = death.KillerArchetypeId;
@@ -957,11 +961,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         }
     }
 
-    private static async Task DispatchPlayerOxygenAsync(IConnection connection, PlayerOxygenSnapshot oxygen, ILogger logger)
+    private static async Task DispatchPlayerOxygenAsync(IConnection connection, PlayerOxygenSnapshot oxygen, PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<PlayerOxygenSync> lease = PacketFactory<PlayerOxygenSync>.Acquire();
+            using PacketLease<PlayerOxygenSync> lease = packets.Rent<PlayerOxygenSync>();
             PlayerOxygenSync pkt = lease.Value;
             pkt.OxygenMs = oxygen.OxygenMs;
             pkt.MaxOxygenMs = oxygen.MaxOxygenMs;
@@ -975,11 +979,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         }
     }
 
-    private static async Task DispatchTraderStockAsync(IConnection connection, TraderStockSnapshot stock, ILogger logger)
+    private static async Task DispatchTraderStockAsync(IConnection connection, TraderStockSnapshot stock, PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<TraderStock> lease = PacketFactory<TraderStock>.Acquire();
+            using PacketLease<TraderStock> lease = packets.Rent<TraderStock>();
             TraderStock pkt = lease.Value;
             pkt.TraderNetworkId = stock.TraderNetworkId;
             pkt.Kind = stock.Kind;
@@ -1036,11 +1040,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         pkt.Levels = levels;
     }
 
-    private static async Task DispatchStatusEffectsAsync(IConnection connection, StatusEffectEntry[] entries, ILogger logger)
+    private static async Task DispatchStatusEffectsAsync(IConnection connection, StatusEffectEntry[] entries, PacketPool packets, ILogger logger)
     {
         try
         {
-            using PacketScope<StatusEffectSync> lease = PacketFactory<StatusEffectSync>.Acquire();
+            using PacketLease<StatusEffectSync> lease = packets.Rent<StatusEffectSync>();
             StatusEffectSync pkt = lease.Value;
             PopulateStatusEffectSync(pkt, entries);
 
