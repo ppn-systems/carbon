@@ -17,6 +17,7 @@ using Carbon.Graphics.Scenes.Abstractions;
 using Carbon.Graphics.Scenes.Management;
 using Carbon.Graphics.Windowing.Abstractions;
 using Carbon.Graphics.Windowing.Input;
+using Carbon.Desktop.Tests.Fakes;
 using FluentAssertions;
 using NSubstitute;
 using Silk.NET.Input;
@@ -64,6 +65,7 @@ public sealed class CharacterSelectSceneTests : IDisposable
     public CharacterSelectSceneTests()
     {
         _session.ListCharactersAsync(Arg.Any<CancellationToken>()).Returns(_ => _list.Task);
+        _session.Races.Returns(TestRaces.Synced());
         _input.Keyboard.Returns(_ => _keyboard);
         _input.Mouse.Returns(_ => _mouse);
         IGameWindow window = Substitute.For<IGameWindow>();
@@ -214,32 +216,32 @@ public sealed class CharacterSelectSceneTests : IDisposable
     }
 
     [Fact]
-    public void CreatorTraitButtons_CycleEachTraitAndWrap()
+    public void CreatorOptionButtons_CycleEachRaceOptionAndWrap()
     {
         this.LoadRoster(s_ayla);
         this.Click(s_openCreator);
 
         this.Click(s_hairNext);
         this.Click(s_hairNext);
-        _scene.AppearancePreset.Should().Be(CharacterAppearance.Pack(2, 0, 0, 0), "hair style 0 → 2");
+        _scene.Look.Should().Be(new CharacterLook(1, 0, [2, 0, 0, 0]), "hair style 0 → 2");
 
         this.Click(s_hairPrev);
         this.Click(s_hairPrev);
         this.Click(s_hairPrev);
-        _scene.AppearancePreset.Should().Be(CharacterAppearance.Pack(3, 0, 0, 0), "previous from 0 wraps to 3");
+        _scene.Look.Should().Be(new CharacterLook(1, 0, [3, 0, 0, 0]), "previous from 0 wraps to the last of 4 choices");
 
         this.Click(s_hairColorNext);
         this.Click(s_faceNext);
         this.Click(s_skinPrev);
-        _scene.AppearancePreset.Should().Be(CharacterAppearance.Pack(3, 1, 1, 3), "each button moves only its own trait");
+        _scene.Look.Should().Be(new CharacterLook(1, 0, [3, 1, 1, 3]), "each row's buttons move only that option");
     }
 
     [Fact]
-    public void CreateHero_SendsTheTypedNameAndPresetThenSelectsTheNewHero()
+    public void CreateHero_SendsTheTypedNameAndLookThenSelectsTheNewHero()
     {
         this.LoadRoster(s_ayla);
         TaskCompletionSource<(bool, string)> create = new();
-        _session.CreateCharacterAsync(Arg.Any<string>(), Arg.Any<byte>(), Arg.Any<CancellationToken>()).Returns(create.Task);
+        _session.CreateCharacterAsync(Arg.Any<string>(), Arg.Any<CharacterLook>(), Arg.Any<CancellationToken>()).Returns(create.Task);
         this.Click(s_openCreator);
         this.ClearName();
         this.Type("Cora");
@@ -247,7 +249,7 @@ public sealed class CharacterSelectSceneTests : IDisposable
 
         this.Click(s_createWithHeroes);
 
-        _session.Received(1).CreateCharacterAsync("Cora", CharacterAppearance.Pack(1, 0, 0, 0), Arg.Any<CancellationToken>());
+        _session.Received(1).CreateCharacterAsync("Cora", new CharacterLook(1, 0, [1, 0, 0, 0]), Arg.Any<CancellationToken>());
         _scene.StatusMessage.Should().Be(GameText.Format("character.status.creating", new TextArg("name", "Cora")));
 
         CharacterRosterEntry cora = new(Guid.NewGuid(), "cora", 1, 1, 0f, 0f);
@@ -267,7 +269,7 @@ public sealed class CharacterSelectSceneTests : IDisposable
     public void CreateFirstHero_Refused_ShowsTheMessageAndStaysInTheCreator()
     {
         this.LoadRoster();
-        _session.CreateCharacterAsync(Arg.Any<string>(), Arg.Any<byte>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult((false, "Name taken")));
+        _session.CreateCharacterAsync(Arg.Any<string>(), Arg.Any<CharacterLook>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult((false, "Name taken")));
 
         this.Click(s_createFirstHero);
         this.Frame();
@@ -292,7 +294,7 @@ public sealed class CharacterSelectSceneTests : IDisposable
     public void TypedCharacters_ReachTheNameOnlyInTheCreator()
     {
         this.LoadRoster(s_ayla);
-        _session.CreateCharacterAsync(Arg.Any<string>(), Arg.Any<byte>(), Arg.Any<CancellationToken>()).Returns(new TaskCompletionSource<(bool, string)>().Task);
+        _session.CreateCharacterAsync(Arg.Any<string>(), Arg.Any<CharacterLook>(), Arg.Any<CancellationToken>()).Returns(new TaskCompletionSource<(bool, string)>().Task);
         this.Type("zz"); // roster mode: ignored
         this.Click(s_openCreator);
         this.ClearName();
@@ -300,7 +302,7 @@ public sealed class CharacterSelectSceneTests : IDisposable
 
         this.Click(s_createWithHeroes);
 
-        _session.Received(1).CreateCharacterAsync("Dex", Arg.Any<byte>(), Arg.Any<CancellationToken>());
+        _session.Received(1).CreateCharacterAsync("Dex", Arg.Any<CharacterLook>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

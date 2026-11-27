@@ -88,7 +88,7 @@ internal sealed class RegrowthWorldFixture : IDisposable
             accountId,
             "Grower",
             Level: 1,
-            AppearancePreset: 0,
+            Look: default,
             PositionX: ((propX + 0.5f) * TileSize) + (standOnTile ? 0f : 40f),
             PositionY: (propY + 0.5f) * TileSize,
             CurrentHealth: 100f,

@@ -31,6 +31,9 @@ public sealed partial class MultiplayerSession
     public SyncedItemCatalog Items => _items;
 
     /// <inheritdoc/>
+    public SyncedRaceCatalog Races => _races;
+
+    /// <inheritdoc/>
     public Task<ConfigCatalog> WaitForGameConfigAsync(CancellationToken ct = default) => _config.WaitForGameConfigAsync(ct);
 
     private SessionConfigSync CreateConfigSync() =>
@@ -47,6 +50,7 @@ public sealed partial class MultiplayerSession
             _statusEffectDefinitions = statusEffects;
         }
         _ = _staminaConfig.Apply(catalog);
+        _ = _races.Apply(catalog);
         _ = _structures.Apply(catalog);
         if (_waterRules.Apply(catalog) && _chunkWorld is not null)
         {

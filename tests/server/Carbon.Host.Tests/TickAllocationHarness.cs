@@ -60,7 +60,7 @@ internal sealed class TickAllocationHarness : IDisposable
         {
             // A 4-wide grid two tiles apart, so every player sees the others and the same monsters.
             Vector2 position = world.DefaultSpawnWorldPosition + (new Vector2(i % 4, i / 4) * 64f);
-            CharacterRecord hero = new(Guid.NewGuid(), Guid.NewGuid(), $"Bench{i}", 1, 0, position.X, position.Y, 100f, 100f, 0, [], createdAt);
+            CharacterRecord hero = new(Guid.NewGuid(), Guid.NewGuid(), $"Bench{i}", 1, default, position.X, position.Y, 100f, 100f, 0, [], createdAt);
             connections[i] = 1_000UL + (ulong)i;
             OpStatus status = world.TryEnterWorld(connections[i], hero).Status;
             if (status != OpStatus.Ok)

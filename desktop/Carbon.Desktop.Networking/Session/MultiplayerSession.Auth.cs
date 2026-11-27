@@ -271,7 +271,7 @@ public sealed partial class MultiplayerSession
             }
 
             _characterNames[item.CharacterId] = item.Name;
-            _characterPresets[item.CharacterId] = item.AppearancePreset;
+            _ = CharacterLook.TryCreate(item.RaceId, item.BodyType, item.AppearanceOptions, out CharacterLook look);
             roster.Add(new CharacterRosterEntry(
                 item.CharacterId,
                 item.Name,
@@ -279,7 +279,7 @@ public sealed partial class MultiplayerSession
                 item.ZoneTier,
                 item.PositionX,
                 item.PositionY,
-                item.AppearancePreset,
+                look,
                 (HeroArchetypeClass)item.ClassId,
                 item.Traits));
         }
@@ -290,7 +290,7 @@ public sealed partial class MultiplayerSession
     /// <inheritdoc/>
     public async Task<(bool Succeeded, string Message)> CreateCharacterAsync(
         string characterName,
-        byte appearancePreset,
+        CharacterLook look,
         CancellationToken ct = default)
     {
         TcpSession tcp = this.RequireAuthenticatedTcpSession();
@@ -303,7 +303,9 @@ public sealed partial class MultiplayerSession
         RequestOptions reqOpts = RequestOptions.Default.WithTimeout(5000).WithEncrypt(tcp.State.EncryptionEnabled);
         using PacketScope<CharacterCreate> lease = PacketFactory<CharacterCreate>.Acquire();
         lease.Value.CharacterName = trimmed;
-        lease.Value.AppearancePreset = appearancePreset;
+        lease.Value.RaceId = look.RaceId;
+        lease.Value.BodyType = look.BodyType;
+        lease.Value.AppearanceOptions = look.ToOptionArray();
 
         using MutationResult reply = await tcp.RequestAsync<MutationResult>(
             lease.Value,
@@ -313,7 +315,7 @@ public sealed partial class MultiplayerSession
 
         if (reply.Status == OpStatus.Ok)
         {
-            _localAppearancePreset = appearancePreset;
+            _localLook = look;
             return (true, GameText.Format("auth.character_created", new TextArg("name", trimmed)));
         }
 
@@ -428,9 +430,7 @@ public sealed partial class MultiplayerSession
             _tileSize = enter.TileSize > 0f ? enter.TileSize : 32f;
             _tickRate = enter.TickRate > 0 ? enter.TickRate : (ushort)30;
             _localNetworkId = enter.PlayerNetworkId;
-            _localAppearancePreset = enter.AppearancePreset != 0
-                ? enter.AppearancePreset
-                : (_characterPresets.TryGetValue(characterId, out byte cachedPreset) ? cachedPreset : _localAppearancePreset);
+            _ = CharacterLook.TryCreate(enter.RaceId, enter.BodyType, enter.AppearanceOptions, out _localLook);
             _activeCharacterName = _characterNames.TryGetValue(characterId, out string? cachedName)
                 ? cachedName
                 : _options.CharacterName;
@@ -544,7 +544,10 @@ public sealed partial class MultiplayerSession
         }
         else
         {
-            (bool created, string createMsg) = await this.CreateCharacterAsync(_options.CharacterName, 0, ct: ct).ConfigureAwait(false);
+            // The starter look is the creator's default from the server's races.json (ADR-042).
+            _ = _races.Apply(await this.WaitForGameConfigAsync(ct).ConfigureAwait(false));
+            CharacterLook starterLook = _races.Current?.DefaultLook() ?? default;
+            (bool created, string createMsg) = await this.CreateCharacterAsync(_options.CharacterName, starterLook, ct: ct).ConfigureAwait(false);
             if (!created)
             {
                 throw new InvalidOperationException($"Failed to create starter character: {createMsg}");

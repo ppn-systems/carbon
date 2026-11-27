@@ -53,8 +53,8 @@ public sealed class SqlitePersistenceRoundTripTests
             loggedIn.Status.Should().Be(AuthStatus.Ok);
             loggedIn.AccountId.Should().Be(registered.AccountId);
 
-            byte packedPreset = CharacterAppearance.Pack(2, 3, 1, 2);
-            CharacterCreateResult created = await auth.CreateCharacterAsync(loggedIn.AccountId, "Ranger", packedPreset, 128f, 256f).ConfigureAwait(true);
+            CharacterLook look = new(1, 0, [2, 3, 1, 2]);
+            CharacterCreateResult created = await auth.CreateCharacterAsync(loggedIn.AccountId, "Ranger", look, 128f, 256f).ConfigureAwait(true);
             created.Succeeded.Should().BeTrue();
             created.Character.Should().NotBeNull();
 
@@ -73,7 +73,7 @@ public sealed class SqlitePersistenceRoundTripTests
             IReadOnlyList<CharacterRecord> roster = await auth.ListCharactersAsync(loggedIn.AccountId).ConfigureAwait(true);
             roster.Should().ContainSingle(c =>
                 c.Name == "Ranger" &&
-                c.AppearancePreset == packedPreset &&
+                c.Look == look &&
                 c.Level == 4 &&
                 c.Experience == 240U &&
                 c.CurrentMana == 62f &&

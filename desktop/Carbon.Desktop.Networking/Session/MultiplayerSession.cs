@@ -48,13 +48,13 @@ public sealed partial class MultiplayerSession : IWorldSession
 
     private readonly DesktopOptions _options;
     private readonly SyncedItemCatalog _items = new();
+    private readonly SyncedRaceCatalog _races = new();
     private readonly EntityNameKeys _entityNames;
     private readonly List<IDisposable> _tcpSubscriptions = [];
     private readonly List<IDisposable> _udpSubscriptions = [];
     private readonly ConcurrentDictionary<ulong, RemoteEntityState> _remoteEntities = new();
     private readonly ConcurrentDictionary<long, uint> _requestedChunks = new();
     private readonly ConcurrentDictionary<Guid, string> _characterNames = new();
-    private readonly ConcurrentDictionary<Guid, byte> _characterPresets = new();
     private readonly RemoteViewBuffer _remoteViewsA = new();
     private readonly RemoteViewBuffer _remoteViewsB = new();
     private readonly List<CombatFeedbackEvent> _combatEvents = new(32);
@@ -157,7 +157,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     private ushort _itemSeqId;
     private bool _wasMovingLastTick;
     private float _idleKeepAliveTimer;
-    private byte _localAppearancePreset;
+    private CharacterLook _localLook;
     private bool _inventoryLoaded;
     private Vector2 _localFacingDir = new(0f, 1f);
     private float _localHitFlashTimer;
@@ -534,7 +534,8 @@ public sealed partial class MultiplayerSession : IWorldSession
                         s.ActiveActionKind,
                         s.BuildAttackView(),
                         s.LootCurrency,
-                        this.IsLootLockedForLocalPlayer(s)));
+                        this.IsLootLockedForLocalPlayer(s),
+                        s.Look));
                 }
 
                 _cachedRemoteViews = target;
@@ -561,7 +562,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     public string ActiveCharacterName => _activeCharacterName;
 
     /// <inheritdoc/>
-    public byte LocalPlayerAppearancePreset => _localAppearancePreset;
+    public CharacterLook LocalPlayerLook => _localLook;
 
     /// <inheritdoc/>
     public string ConnectionLabel =>

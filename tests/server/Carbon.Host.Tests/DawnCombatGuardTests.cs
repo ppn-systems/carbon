@@ -57,7 +57,7 @@ public sealed class DawnCombatGuardTests
             // A scout in the frontier (seed 1337, chunk 8, inland: the chunk-6 coast now spawns water creatures, ADR-032 D14)
             // finds a monster; a fighter then enters right next to it.
             Vector2 frontier = new(((8 * 32) + 16) * 32f, 16f * 32f);
-            CharacterRecord scout = new(Guid.NewGuid(), Guid.NewGuid(), "Scout", 1, 0, frontier.X, frontier.Y, 100f, 100f, 0, [], DateTimeOffset.UtcNow);
+            CharacterRecord scout = new(Guid.NewGuid(), Guid.NewGuid(), "Scout", 1, default, frontier.X, frontier.Y, 100f, 100f, 0, [], DateTimeOffset.UtcNow);
             world.TryEnterWorld(ScoutConnection, scout).Status.Should().Be(OpStatus.Ok);
             world.StepFixedTick();
             EntitySpawnSnapshot mob = sink.Spawns.Find(s => s.ConnectionId == ScoutConnection && s.Snapshot.Kind == EntityKind.Monster).Snapshot;

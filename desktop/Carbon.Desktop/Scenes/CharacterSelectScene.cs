@@ -25,6 +25,7 @@ using Carbon.Graphics.Scenes.Management;
 using Carbon.Graphics.Windowing.Abstractions;
 using Carbon.Graphics.Windowing.Input;
 using Carbon.Items.Catalog;
+using Carbon.Items.Races;
 using Silk.NET.Input;
 using Silk.NET.OpenGL;
 using Carbon.Desktop.Rendering.Fonts;
@@ -38,10 +39,6 @@ namespace Carbon.Desktop.Scenes;
 /// </summary>
 public sealed class CharacterSelectScene : GameScene
 {
-    private static readonly string[] s_hairStyles = ["character.hair.crop", "character.hair.spiky", "character.hair.long", "character.hair.bob"];
-    private static readonly string[] s_hairColors = ["character.hair_color.raven", "character.hair_color.brown", "character.hair_color.gold", "character.hair_color.silver"];
-    private static readonly string[] s_faceStyles = ["character.eyes.cobalt", "character.eyes.crimson", "character.eyes.emerald", "character.eyes.mystic"];
-    private static readonly string[] s_skinTones = ["character.skin.fair", "character.skin.tan", "character.skin.bronze", "character.skin.umber"];
     private static readonly Direction8[] s_turnDirs = [Direction8.South, Direction8.West, Direction8.North, Direction8.East];
     private static readonly uint[] s_classWeapons = [StarterGameCatalog.IronSword, StarterGameCatalog.HuntingBow, StarterGameCatalog.ArcaneStaff];
     private static readonly string[] s_freshStartLines =
@@ -69,14 +66,8 @@ public sealed class CharacterSelectScene : GameScene
     private readonly MenuButton _turnLeftBtn = new(GameText.Get("character.turn_left"), MenuButtonStyle.NeutralSlate);
     private readonly MenuButton _turnRightBtn = new(GameText.Get("character.turn_right"), MenuButtonStyle.NeutralSlate);
     private readonly MenuButton _randomizeBtn = new(GameText.Get("character.randomize"), MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _hairPrevBtn = new("<", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _hairNextBtn = new(">", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _hColPrevBtn = new("<", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _hColNextBtn = new(">", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _facePrevBtn = new("<", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _faceNextBtn = new(">", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _skinPrevBtn = new("<", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _skinNextBtn = new(">", MenuButtonStyle.NeutralSlate);
+    private readonly MenuButton[] _optionPrevButtons = CreateArrowButtons("<");
+    private readonly MenuButton[] _optionNextButtons = CreateArrowButtons(">");
     private readonly MenuButton _logoutButton = new(GameText.Get("character.logout"), MenuButtonStyle.DangerRed);
     private readonly RectangleF[] _slotBounds = new RectangleF[CharacterRoster.MaxHeroes];
     private RectangleF _freshStartBounds;
@@ -97,10 +88,7 @@ public sealed class CharacterSelectScene : GameScene
     private readonly MenuSceneCapture _capture;
     private readonly CachedText _headerText = new();
     private readonly CachedText _netText = new();
-    private readonly CachedText _hairText = new();
-    private readonly CachedText _toneText = new();
-    private readonly CachedText _eyesText = new();
-    private readonly CachedText _skinText = new();
+    private readonly CachedText[] _optionRowText = [new(), new(), new(), new()];
     private readonly CachedText _dossierText = new();
     private readonly CachedText _positionText = new();
     private readonly CachedText[] _rosterRowText = [new(), new(), new(), new()];
@@ -138,8 +126,14 @@ public sealed class CharacterSelectScene : GameScene
     /// <summary>Gets the selected roster row (behaviour tests).</summary>
     internal int SelectedIndex => _roster.SelectedIndex;
 
-    /// <summary>Gets the packed appearance the creator would send (behaviour tests).</summary>
-    internal byte AppearancePreset => _appearance.Preset;
+    /// <summary>Gets the look the creator would send (behaviour tests).</summary>
+    internal CharacterLook Look => _appearance.Look;
+
+    /// <summary>Gets how many option rows the creator panel has room for.</summary>
+    internal static int VisibleOptionRows => 4;
+
+    /// <summary>Gets how many option rows the selected race fills (at most <see cref="VisibleOptionRows"/>).</summary>
+    private int ShownOptionRows => Math.Min(_appearance.OptionCount, VisibleOptionRows);
 
     /// <summary>Gets the preview turntable direction index (behaviour tests).</summary>
     internal int TurnIndex => _turnIndex;
@@ -180,6 +174,7 @@ public sealed class CharacterSelectScene : GameScene
         base.Update(context, dt);
 
         _elapsed += (float)dt;
+        _appearance.Bind(_session.Races.Current);
         this.PollRequests(context);
 
         if (_requests.IsSigningOut || _requests.IsEnteringWorld)
@@ -309,14 +304,12 @@ public sealed class CharacterSelectScene : GameScene
         {
             _uiSkin.DrawPanel(spriteBatch, UiPanelStyle.DoubleCard, in _freshStartBounds, CarbonUiPalette.SlotFill, CarbonUiPalette.BorderSubtle);
 
-            _hairPrevBtn.DrawSkin(spriteBatch, _uiSkin);
-            _hairNextBtn.DrawSkin(spriteBatch, _uiSkin);
-            _hColPrevBtn.DrawSkin(spriteBatch, _uiSkin);
-            _hColNextBtn.DrawSkin(spriteBatch, _uiSkin);
-            _facePrevBtn.DrawSkin(spriteBatch, _uiSkin);
-            _faceNextBtn.DrawSkin(spriteBatch, _uiSkin);
-            _skinPrevBtn.DrawSkin(spriteBatch, _uiSkin);
-            _skinNextBtn.DrawSkin(spriteBatch, _uiSkin);
+            for (int row = 0; row < this.ShownOptionRows; row++)
+            {
+                _optionPrevButtons[row].DrawSkin(spriteBatch, _uiSkin);
+                _optionNextButtons[row].DrawSkin(spriteBatch, _uiSkin);
+            }
+
             _randomizeBtn.DrawSkin(spriteBatch, _uiSkin);
             _createNameField.DrawSkin(spriteBatch, _uiSkin);
             _createButton.DrawSkin(spriteBatch, _uiSkin);
@@ -363,10 +356,13 @@ public sealed class CharacterSelectScene : GameScene
         _geometryBatch.FillCircle(new Vector2(stageCx, stageCy), 44f, new ColorRgba(6, 10, 18, 145), 22);
         _geometryBatch.DrawCircle(new Vector2(stageCx, stageCy), 45f, CarbonUiPalette.BorderOuter, 22, 1.8f);
 
-        byte previewPreset = _isCreatorMode || !_roster.HasSelection
-            ? _appearance.Preset
-            : _roster.Heroes[_roster.SelectedIndex].AppearancePreset;
-        if (_vectorArt is not null && _vectorArt.TryGetCharacter(previewPreset, out CompiledVectorRig? stageRig))
+        CharacterLook previewLook = _isCreatorMode || !_roster.HasSelection
+            ? _appearance.Look
+            : _roster.Heroes[_roster.SelectedIndex].Look;
+        RaceCatalog? races = _session.Races.Current;
+        if (_vectorArt is not null &&
+            CharacterLookResolver.TryResolve(_vectorArt, races, previewLook, out CompiledVectorRig? stageRig, out CharacterPalette stagePalette) &&
+            stageRig is not null)
         {
             CompiledItemVectorArt? weaponArt = null;
             VisualEquipmentLoadout previewLoadout = default;
@@ -400,7 +396,7 @@ public sealed class CharacterSelectScene : GameScene
                 equippedItem: weaponArt,
                 action: default,
                 swingTimer: 0f,
-                appearancePreset: previewPreset,
+                palette: stagePalette,
                 equipment: previewLoadout,
                 art: _vectorArt);
         }
@@ -413,7 +409,8 @@ public sealed class CharacterSelectScene : GameScene
         {
             for (int i = 0; i < _roster.Count; i++)
             {
-                if (_vectorArt.TryGetCharacter(_roster.Heroes[i].AppearancePreset, out CompiledVectorRig? cardRig))
+                if (CharacterLookResolver.TryResolve(_vectorArt, races, _roster.Heroes[i].Look, out CompiledVectorRig? cardRig, out CharacterPalette cardPalette) &&
+                    cardRig is not null)
                 {
                     RectangleF b = _slotBounds[i];
                     VectorRigRenderer.DrawPortraitRig(
@@ -424,7 +421,7 @@ public sealed class CharacterSelectScene : GameScene
                         Direction8.South,
                         "idle",
                         _elapsed + (i * 0.25f),
-                        appearancePreset: _roster.Heroes[i].AppearancePreset,
+                        palette: cardPalette,
                         art: _vectorArt);
                 }
             }
@@ -456,19 +453,19 @@ public sealed class CharacterSelectScene : GameScene
             }
 
             spriteBatch.DrawOutlinedString(_font, GameText.Get("character.appearance"), new Vector2(rightCard.X + 16f, rightCard.Y + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
-            spriteBatch.DrawOutlinedString(_font, _hairText.Format("character.appearance.hair", new TextArg("value", GameText.Get(s_hairStyles[_appearance.HairStyle]))), new Vector2(rightCard.X + 52f, rightCard.Y + 49f), CarbonUiPalette.TextPrimary, black, 1, 1f);
-            spriteBatch.DrawOutlinedString(_font, _toneText.Format("character.appearance.hair_color", new TextArg("value", GameText.Get(s_hairColors[_appearance.HairColor]))), new Vector2(rightCard.X + 52f, rightCard.Y + 83f), CarbonUiPalette.TextPrimary, black, 1, 1f);
-            spriteBatch.DrawOutlinedString(_font, _eyesText.Format("character.appearance.eyes", new TextArg("value", GameText.Get(s_faceStyles[_appearance.FaceStyle]))), new Vector2(rightCard.X + 52f, rightCard.Y + 117f), CarbonUiPalette.TextPrimary, black, 1, 1f);
-            spriteBatch.DrawOutlinedString(_font, _skinText.Format("character.appearance.skin", new TextArg("value", GameText.Get(s_skinTones[_appearance.SkinTone]))), new Vector2(rightCard.X + 52f, rightCard.Y + 151f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            RaceDefinition? race = _appearance.Race;
+            for (int row = 0; row < this.ShownOptionRows; row++)
+            {
+                AppearanceOptionDefinition option = race!.Options[row];
+                string label = _optionRowText[row].Format(
+                    "appearance.row",
+                    new TextArg("label", GameText.Get(option.NameKey)),
+                    new TextArg("value", GameText.Get(option.Choices[_appearance.GetChoice(row)].NameKey)));
+                spriteBatch.DrawOutlinedString(_font, label, new Vector2(rightCard.X + 52f, rightCard.Y + 49f + (row * 34f)), CarbonUiPalette.TextPrimary, black, 1, 1f);
+                _optionPrevButtons[row].DrawText(spriteBatch, _font);
+                _optionNextButtons[row].DrawText(spriteBatch, _font);
+            }
 
-            _hairPrevBtn.DrawText(spriteBatch, _font);
-            _hairNextBtn.DrawText(spriteBatch, _font);
-            _hColPrevBtn.DrawText(spriteBatch, _font);
-            _hColNextBtn.DrawText(spriteBatch, _font);
-            _facePrevBtn.DrawText(spriteBatch, _font);
-            _faceNextBtn.DrawText(spriteBatch, _font);
-            _skinPrevBtn.DrawText(spriteBatch, _font);
-            _skinNextBtn.DrawText(spriteBatch, _font);
             _randomizeBtn.DrawText(spriteBatch, _font);
             _createNameField.DrawText(spriteBatch, _font);
             _createButton.DrawText(spriteBatch, _font);
@@ -587,52 +584,26 @@ public sealed class CharacterSelectScene : GameScene
     private void UpdateCreatorMode(KeyboardSnapshot kb, Vector2 mousePos, bool leftDown, bool leftPressed, float dt, bool busy)
     {
         _createNameField.Update(dt, mousePos, leftPressed && !busy);
-        _hairPrevBtn.IsEnabled = !busy;
-        _hairNextBtn.IsEnabled = !busy;
-        _hColPrevBtn.IsEnabled = !busy;
-        _hColNextBtn.IsEnabled = !busy;
-        _facePrevBtn.IsEnabled = !busy;
-        _faceNextBtn.IsEnabled = !busy;
-        _skinPrevBtn.IsEnabled = !busy;
-        _skinNextBtn.IsEnabled = !busy;
+        for (int row = 0; row < VisibleOptionRows; row++)
+        {
+            _optionPrevButtons[row].IsEnabled = !busy;
+            _optionNextButtons[row].IsEnabled = !busy;
+        }
+
         _randomizeBtn.IsEnabled = !busy;
         _createButton.IsEnabled = !busy && _roster.HasFreeSlot;
         _backToRosterButton.IsEnabled = !busy && _roster.Count > 0;
 
-        if (_hairPrevBtn.Update(mousePos, leftDown, leftPressed))
+        for (int row = 0; row < this.ShownOptionRows; row++)
         {
-            _appearance.CycleHairStyle(-1);
-        }
-        else if (_hairNextBtn.Update(mousePos, leftDown, leftPressed))
-        {
-            _appearance.CycleHairStyle(1);
-        }
-
-        if (_hColPrevBtn.Update(mousePos, leftDown, leftPressed))
-        {
-            _appearance.CycleHairColor(-1);
-        }
-        else if (_hColNextBtn.Update(mousePos, leftDown, leftPressed))
-        {
-            _appearance.CycleHairColor(1);
-        }
-
-        if (_facePrevBtn.Update(mousePos, leftDown, leftPressed))
-        {
-            _appearance.CycleFaceStyle(-1);
-        }
-        else if (_faceNextBtn.Update(mousePos, leftDown, leftPressed))
-        {
-            _appearance.CycleFaceStyle(1);
-        }
-
-        if (_skinPrevBtn.Update(mousePos, leftDown, leftPressed))
-        {
-            _appearance.CycleSkinTone(-1);
-        }
-        else if (_skinNextBtn.Update(mousePos, leftDown, leftPressed))
-        {
-            _appearance.CycleSkinTone(1);
+            if (_optionPrevButtons[row].Update(mousePos, leftDown, leftPressed))
+            {
+                _appearance.CycleOption(row, -1);
+            }
+            else if (_optionNextButtons[row].Update(mousePos, leftDown, leftPressed))
+            {
+                _appearance.CycleOption(row, 1);
+            }
         }
 
         if (_randomizeBtn.Update(mousePos, leftDown, leftPressed))
@@ -650,7 +621,7 @@ public sealed class CharacterSelectScene : GameScene
         bool enterKey = !busy && (kb.IsKeyPressed(Key.Enter) || kb.IsKeyPressed(Key.KeypadEnter));
         if (_createButton.Update(mousePos, leftDown, leftPressed) || (enterKey && _createNameField.IsFocused && _roster.HasFreeSlot))
         {
-            _requests.Create(_createNameField.Text, _appearance.Preset);
+            _requests.Create(_createNameField.Text, _appearance.Look);
         }
     }
 
@@ -727,14 +698,12 @@ public sealed class CharacterSelectScene : GameScene
 
         float rx = ox + 592f;
         float ry = oy + 68f;
-        _hairPrevBtn.Bounds = new RectangleF(rx + 16f, ry + 44f, 28f, 26f);
-        _hairNextBtn.Bounds = new RectangleF(rx + 262f, ry + 44f, 28f, 26f);
-        _hColPrevBtn.Bounds = new RectangleF(rx + 16f, ry + 78f, 28f, 26f);
-        _hColNextBtn.Bounds = new RectangleF(rx + 262f, ry + 78f, 28f, 26f);
-        _facePrevBtn.Bounds = new RectangleF(rx + 16f, ry + 112f, 28f, 26f);
-        _faceNextBtn.Bounds = new RectangleF(rx + 262f, ry + 112f, 28f, 26f);
-        _skinPrevBtn.Bounds = new RectangleF(rx + 16f, ry + 146f, 28f, 26f);
-        _skinNextBtn.Bounds = new RectangleF(rx + 262f, ry + 146f, 28f, 26f);
+        for (int row = 0; row < VisibleOptionRows; row++)
+        {
+            _optionPrevButtons[row].Bounds = new RectangleF(rx + 16f, ry + 44f + (row * 34f), 28f, 26f);
+            _optionNextButtons[row].Bounds = new RectangleF(rx + 262f, ry + 44f + (row * 34f), 28f, 26f);
+        }
+
         _randomizeBtn.Bounds = new RectangleF(rx + 16f, ry + 184f, 274f, 32f);
 
         _createNameField.Bounds = new RectangleF(rx + 16f, ry + 250f, 274f, 36f);
@@ -803,5 +772,16 @@ public sealed class CharacterSelectScene : GameScene
             bound.CharacterReceived -= this.OnCharacterReceived;
             _boundInput = null;
         }
+    }
+
+    private static MenuButton[] CreateArrowButtons(string glyph)
+    {
+        MenuButton[] buttons = new MenuButton[VisibleOptionRows];
+        for (int i = 0; i < buttons.Length; i++)
+        {
+            buttons[i] = new MenuButton(glyph, MenuButtonStyle.NeutralSlate);
+        }
+
+        return buttons;
     }
 }

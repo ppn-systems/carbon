@@ -186,7 +186,7 @@ public sealed class StatusEffectAbilityServerTests
     }
 
     private static CharacterRecord WaterCharacter(Vector2 position) => new(
-        Guid.NewGuid(), Guid.NewGuid(), "Burner", 1, 0, position.X, position.Y, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
+        Guid.NewGuid(), Guid.NewGuid(), "Burner", 1, default, position.X, position.Y, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
 
     private static (AuthoritativeWorld World, StatusRecordingSink Sink) WaterWorld(string statusEffects)
     {

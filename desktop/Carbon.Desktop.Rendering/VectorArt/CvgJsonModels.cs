@@ -136,7 +136,6 @@ internal sealed class CvgStructureBlueprintDto
 
 internal sealed class CvgCharacterCatalogDto
 {
-    public byte Preset { get; set; }
     public string Id { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string AccentColor { get; set; } = "#38BDF8";
