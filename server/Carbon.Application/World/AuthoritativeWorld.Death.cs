@@ -83,6 +83,7 @@ public sealed partial class AuthoritativeWorld
         victim.EatingSlot = -1;
         this.WakeLocked(victim);
         this.ClearAggroAgainstTargetLocked(victim.Entity, deathPos);
+        _statusEffects.Clear(victim.Entity); // ADR-029: death clears every status effect
 
         ushort killerArchetype = 0;
         if (cause == DeathCause.Monster && _actorsByNetworkId.TryGetValue(killerNetworkId, out NpcActorMeta killer))

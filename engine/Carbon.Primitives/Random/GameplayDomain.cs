@@ -38,6 +38,9 @@ public static class GameplayDomain
     /// <summary>Split and scatter of the gold a dying player drops (ADR-031).</summary>
     public const ulong DeathDrop = 0x48544145445F4B47UL; // "GK_DEATH"
 
+    /// <summary>Monster hit status effect proc roll (ADR-029 D7).</summary>
+    public const ulong StatusProc = 0x53544154535F4B47UL; // "GK_STATS"
+
     /// <summary><see cref="GameplayKey.GetHashCode"/> (never a roll).</summary>
     public const ulong HashCode = 0x5F485341485F4B47UL; // "GK_HASH_"
 }

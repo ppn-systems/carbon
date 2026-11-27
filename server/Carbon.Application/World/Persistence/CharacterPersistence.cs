@@ -6,6 +6,7 @@ using System.Numerics;
 using Carbon.Abstractions.Persistence;
 using Carbon.Application.World.Needs;
 using Carbon.Application.World.Players;
+using Carbon.Application.World.StatusEffects;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Items.Catalog;
@@ -26,6 +27,7 @@ namespace Carbon.Application.World.Persistence;
 internal sealed class CharacterPersistence
 {
     private readonly WorldSimulation _simulation;
+    private readonly StatusEffectService _statusEffects;
     private readonly NeedsService _needs;
     private readonly TimeProvider _time;
     private readonly Dictionary<Guid, CharacterRecord> _dirty = new();
@@ -37,8 +39,9 @@ internal sealed class CharacterPersistence
     private readonly Dictionary<Guid, CharacterRecord> _inFlight = new();
 
     /// <summary>Initializes a new instance of the <see cref="CharacterPersistence"/> class.</summary>
-    public CharacterPersistence(WorldSimulation simulation, NeedsService needs, TimeProvider time)
+    public CharacterPersistence(WorldSimulation simulation, NeedsService needs, StatusEffectService statusEffects, TimeProvider time)
     {
+        _statusEffects = statusEffects ?? throw new ArgumentNullException(nameof(statusEffects));
         _simulation = simulation ?? throw new ArgumentNullException(nameof(simulation));
         _needs = needs ?? throw new ArgumentNullException(nameof(needs));
         _time = time ?? throw new ArgumentNullException(nameof(time));
@@ -144,6 +147,7 @@ internal sealed class CharacterPersistence
             NeedsMalnutrition = needs.Malnutrition,
             NeedsPoisonSeconds = needs.PoisonRemainingSeconds,
             NeedsRest = needs.Rest,
+            StatusEffects = _statusEffects.Serialize(state.Entity),
         };
     }
 

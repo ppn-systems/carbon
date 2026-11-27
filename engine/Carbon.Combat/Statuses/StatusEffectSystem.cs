@@ -21,7 +21,6 @@ namespace Carbon.Combat.Statuses;
 public sealed class StatusEffectSystem : ISimulationSystem
 {
     private const int MaxPulsesPerEntity = 32;
-    private const float SlowMoveSpeedScale = 0.5f;
 
     /// <inheritdoc/>
     public SimulationPhase Phase => SimulationPhase.PreUpdate;
@@ -47,11 +46,7 @@ public sealed class StatusEffectSystem : ISimulationSystem
             buffer.AdvanceTick(entity, pulses, out int pulseCount);
             CrowdControlMask controlMask = buffer.ActiveControlMask;
 
-            float moveScale = (controlMask & (CrowdControlMask.Stunned | CrowdControlMask.Rooted)) != 0
-                ? 0f
-                : (controlMask & CrowdControlMask.Slowed) != 0
-                    ? SlowMoveSpeedScale
-                    : 1f;
+            float moveScale = buffer.MoveSpeedScale;
 
             entities.SetComponent(entity, new CombatStateComponent(controlMask, moveScale));
 
@@ -67,44 +62,44 @@ public sealed class StatusEffectSystem : ISimulationSystem
 
             for (int p = 0; p < pulseCount; p++)
             {
-                ref readonly StatusPulseEvent pulse = ref pulses[p];
-                world.PublishEvent(in pulse);
-
-                if (pulse.TotalMagnitude <= 0f || !entities.HasHealth(entity))
+                StatusPulseEvent pulse = pulses[p];
+                float applied = 0f;
+                bool killed = false;
+                if (pulse.TotalMagnitude > 0f && entities.HasHealth(entity))
                 {
-                    continue;
-                }
-
-                ref HealthComponent health = ref entities.GetHealth(entity);
-                if (health.IsDead)
-                {
-                    continue;
-                }
-
-                if (pulse.IsDamage)
-                {
-                    if ((controlMask & CrowdControlMask.Invulnerable) != 0)
+                    ref HealthComponent health = ref entities.GetHealth(entity);
+                    if (!health.IsDead && pulse.IsDamage && (controlMask & CrowdControlMask.Invulnerable) == 0)
                     {
-                        continue;
+                        // ADR-029 D5: a non-lethal effect never takes the last hit point.
+                        float floor = pulse.Lethal ? 0f : MathF.Min(1f, health.Current);
+                        float nextHp = MathF.Max(floor, health.Current - pulse.TotalMagnitude);
+                        applied = health.Current - nextHp;
+                        if (applied > 0f)
+                        {
+                            health = new HealthComponent(nextHp, health.Max);
+                            world.MarkDirty(entity, EntityDirtyMask.Health);
+                            killed = health.IsDead;
+                        }
                     }
+                    else if (!health.IsDead && !pulse.IsDamage)
+                    {
+                        float nextHp = MathF.Min(health.Max, health.Current + pulse.TotalMagnitude);
+                        applied = nextHp - health.Current;
+                        if (applied > 0f)
+                        {
+                            health = new HealthComponent(nextHp, health.Max);
+                            world.MarkDirty(entity, EntityDirtyMask.Health);
+                        }
+                    }
+                }
 
-                    float nextHp = MathF.Max(0f, health.Current - pulse.TotalMagnitude);
-                    health = new HealthComponent(nextHp, health.Max);
-                    world.MarkDirty(entity, EntityDirtyMask.Health);
-                    world.PublishEvent(new DamageEvent(pulse.Caster, entity, pulse.TotalMagnitude, IsCritical: false));
-
-                    if (health.IsDead)
+                world.PublishEvent(pulse with { Applied = applied });
+                if (applied > 0f && pulse.IsDamage)
+                {
+                    world.PublishEvent(new DamageEvent(pulse.Caster, entity, applied, IsCritical: false));
+                    if (killed)
                     {
                         world.PublishEvent(new EntityKilledEvent(pulse.Caster, entity));
-                    }
-                }
-                else
-                {
-                    float nextHp = MathF.Min(health.Max, health.Current + pulse.TotalMagnitude);
-                    if (nextHp != health.Current)
-                    {
-                        health = new HealthComponent(nextHp, health.Max);
-                        world.MarkDirty(entity, EntityDirtyMask.Health);
                     }
                 }
             }

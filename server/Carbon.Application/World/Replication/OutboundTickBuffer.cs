@@ -31,7 +31,8 @@ internal readonly record struct OutboundCombatHit(
     float Damage,
     float RemainingHealth,
     bool IsCritical,
-    bool IsKilled);
+    bool IsKilled,
+    ushort StatusEffectId = 0);
 
 internal readonly record struct OutboundSlotChange(ulong ConnectionId, ushort SlotIndex, ItemSlot Slot);
 
@@ -80,6 +81,9 @@ internal readonly record struct OutboundEquipmentChange(
     float MaxHealth);
 
 internal readonly record struct OutboundStatsSync(ulong ConnectionId, PlayerStatsSnapshot Snapshot);
+
+/// <summary>The owner's status effect list (ADR-029 D9), a slice of <see cref="OutboundBatch.StatusEntries"/>.</summary>
+internal readonly record struct OutboundStatusSync(ulong ConnectionId, int Offset, int Count);
 
 internal readonly record struct OutboundWalletSync(ulong ConnectionId, long Gold, long Diamonds, ulong Sequence);
 
@@ -140,6 +144,10 @@ internal sealed class OutboundBatch
 
     public List<OutboundWalletSync> WalletSyncs { get; } = new(16);
 
+    public List<OutboundStatusSync> StatusSyncs { get; } = new(16);
+
+    public List<StatusEffectEntry> StatusEntries { get; } = new(64);
+
     public List<OutboundTraderStock> TraderStocks { get; } = new(4);
 
     public List<OutboundPlayerDeath> PlayerDeaths { get; } = new(4);
@@ -166,6 +174,8 @@ internal sealed class OutboundBatch
         this.EquipmentChanges.Clear();
         this.StatsSyncs.Clear();
         this.WalletSyncs.Clear();
+        this.StatusSyncs.Clear();
+        this.StatusEntries.Clear();
         this.TraderStocks.Clear();
         this.PlayerDeaths.Clear();
         this.SkillCasts.Clear();
@@ -239,7 +249,8 @@ internal sealed class OutboundTickBuffer
                 hit.Damage,
                 hit.RemainingHealth,
                 hit.IsCritical,
-                hit.IsKilled);
+                hit.IsKilled,
+                hit.StatusEffectId);
         }
 
         for (int i = 0; i < batch.SlotChanges.Count; i++)
@@ -308,6 +319,13 @@ internal sealed class OutboundTickBuffer
         {
             OutboundWalletSync wallet = batch.WalletSyncs[i];
             sink.SendWalletSync(wallet.ConnectionId, wallet.Gold, wallet.Diamonds, wallet.Sequence);
+        }
+
+        Span<StatusEffectEntry> statusSpan = CollectionsMarshal.AsSpan(batch.StatusEntries);
+        for (int i = 0; i < batch.StatusSyncs.Count; i++)
+        {
+            OutboundStatusSync status = batch.StatusSyncs[i];
+            sink.SendStatusEffects(status.ConnectionId, statusSpan.Slice(status.Offset, status.Count));
         }
 
         for (int i = 0; i < batch.TraderStocks.Count; i++)

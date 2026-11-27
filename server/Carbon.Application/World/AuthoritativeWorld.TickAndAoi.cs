@@ -63,7 +63,8 @@ public sealed partial class AuthoritativeWorld
                         state.StatsDirty = true;
                     }
 
-                    float speed = (isSprinting ? SprintSpeed : BaseWalkSpeed) * state.Stats.MoveSpeedMultiplier * _needs.GetMoveScale(state.Entity);
+                    float speed = (isSprinting ? SprintSpeed : BaseWalkSpeed) * state.Stats.MoveSpeedMultiplier * _needs.GetMoveScale(state.Entity)
+                        * _statusEffects.GetMoveScale(state.Entity);
                     _simulation.EnqueueCommand(SimulationCommand.MoveInput(
                         state.Entity,
                         state.PendingDirection,
@@ -74,7 +75,7 @@ public sealed partial class AuthoritativeWorld
 
                 if (!isSprinting && state.CurrentStamina < state.Stats.MaxStamina)
                 {
-                    state.CurrentStamina = MathF.Min(state.Stats.MaxStamina, state.CurrentStamina + (18f * dt));
+                    state.CurrentStamina = MathF.Min(state.Stats.MaxStamina, state.CurrentStamina + (18f * dt * _statusEffects.GetStaminaRegenMultiplier(state.Entity)));
                 }
 
                 if (state.CurrentMana < state.Stats.MaxMana)
@@ -94,6 +95,7 @@ public sealed partial class AuthoritativeWorld
             _creatures.Spawner.TimeOfDayHours = WorldProgression.ComputeTimeOfDayHours(_currentTick, this.TickRate);
             _creatures.Ai.IsNight = _creatures.Spawner.IsNight;
             _simulation.Tick(new FixedTickArgs(_currentTick, dt, _currentTick * dt));
+            this.ProcessStatusPulsesLocked();
             this.ProcessSurvivalEventsLocked();
             if ((_currentTick % this.TickRate) == 0UL)
             {
@@ -109,7 +111,12 @@ public sealed partial class AuthoritativeWorld
                 PlayerState state = kvp.Value;
                 if (state.HasPendingAttack)
                 {
-                    _actions.Attack(state);
+                    // ADR-029 D5: a stunned player's attack input is dropped.
+                    if (!_statusEffects.IsStunned(state.Entity))
+                    {
+                        _actions.Attack(state);
+                    }
+
                     state.HasPendingAttack = false;
                 }
             }
@@ -178,7 +185,7 @@ public sealed partial class AuthoritativeWorld
                     HealthComponent php = _simulation.Entities.GetHealth(observer.Entity);
                     if (php.Current > 0f && php.Current < php.Max)
                     {
-                        float healed = MathF.Min(php.Max, php.Current + MathF.Max(0f, observer.Stats.HealthRegenPerSecond));
+                        float healed = MathF.Min(php.Max, php.Current + (MathF.Max(0f, observer.Stats.HealthRegenPerSecond) * _statusEffects.GetHealthRegenMultiplier(observer.Entity, _needs.Config)));
                         _simulation.Entities.SetHealth(observer.Entity, new HealthComponent(healed, php.Max));
                         _simulation.MarkDirty(observer.Entity, EntityDirtyMask.Health);
                         observer.PersistenceDirty = true;
@@ -217,6 +224,8 @@ public sealed partial class AuthoritativeWorld
                 {
                     _inventory.CollectNearbyGroundLoot(observer, obsPos);
                 }
+
+                this.QueueStatusEffectSyncLocked(observer);
 
                 if (observer.StatsDirty || (_currentTick % 10UL) == 0UL)
                 {
@@ -339,7 +348,8 @@ public sealed partial class AuthoritativeWorld
 
     private void DispatchPendingTickOutputs() => _outbound.Dispatch(_outboundSink);
 
-    private void ApplyDamageToPlayerLocked(
+    /// <returns>The damage dealt after mitigation; 0 when the hit was avoided or the target cannot be damaged.</returns>
+    private float ApplyDamageToPlayerLocked(
         PlayerState? victim,
         ulong attackerNetId,
         Entity targetEntity,
@@ -350,7 +360,7 @@ public sealed partial class AuthoritativeWorld
     {
         if (!_simulation.Entities.IsAlive(targetEntity) || !_simulation.Entities.HasHealth(targetEntity) || victim?.IsDead == true)
         {
-            return;
+            return 0f;
         }
 
         HealthComponent hp = _simulation.Entities.GetHealth(targetEntity);
@@ -363,7 +373,7 @@ public sealed partial class AuthoritativeWorld
             {
                 // A dodged (or refused) hit deals nothing and does not count as a hit; clients show it as a miss.
                 this.QueueCombatHitLocked(defPos, attackerNetId, targetNetId, 0f, hp.Current, false, false);
-                return;
+                return 0f;
             }
 
             victim.LastCombatDamageTick = _currentTick;
@@ -391,14 +401,21 @@ public sealed partial class AuthoritativeWorld
             }
 
             this.ClearAggroAgainstTargetLocked(targetEntity, defPos);
+            _statusEffects.Clear(targetEntity);
         }
         else
         {
             _simulation.Entities.SetHealth(targetEntity, new HealthComponent(nextHp, hp.Max));
+            if (victim is not null && _actorsByNetworkId.TryGetValue(attackerNetId, out NpcActorMeta hitter) &&
+                _simulation.TryGetEntityByNetworkId(attackerNetId, out Entity attackerEntity))
+            {
+                _ = _statusEffects.OnMonsterHit(targetEntity, targetNetId, attackerEntity, attackerNetId, hitter.ArchetypeId, monsterDamage, hp.Max, _currentTick);
+            }
         }
 
         _simulation.MarkDirty(targetEntity, EntityDirtyMask.Health);
         this.QueueCombatHitLocked(defPos, attackerNetId, targetNetId, monsterDamage, killed && victim is null ? hp.Max : nextHp, false, killed);
+        return monsterDamage;
     }
 
     private void ClearAggroAgainstTargetLocked(Entity victimEntity, Vector2 deathPos)

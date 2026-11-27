@@ -34,8 +34,8 @@ Before this change:
 
 1. **D1 — Dead is HP 0 plus a flag.** On a lethal hit the player keeps 0 HP and `PlayerState.IsDead` is set
    (`AuthoritativeWorld.KillPlayerLocked`, `AuthoritativeWorld.Death.cs`). Velocity, queued movement, attack and pickup are
-   cleared, any meal is cancelled, a resting player stands up, and nearby monster aggro is cleared. Monster and
-   starvation deaths both use this path. Settlement NPCs keep the old instant refill, since they have no client.
+   cleared, any meal is cancelled, a resting player stands up, nearby monster aggro is cleared and every status effect is
+   cleared (ADR-029). Monster hits, starvation and lethal status pulses all use this path. Settlement NPCs keep the old instant refill, since they have no client.
 2. **D2 — A dead player cannot act.** `WorldCommandExecutor.Execute` answers every tick-queued command except `Respawn`
    with `Forbidden` while the player is dead. This covers building, harvesting, doors, resting, hotbar, crafting,
    inventory, enhancement, vendors, repair and point allocation. `TradeService` refuses dead players too.
@@ -146,7 +146,9 @@ Before this change:
   it reconnects (D6).
 - `PlayerDeathTests` (#118) asserted the old instant respawn. It now sends a `RespawnRequest` first and keeps its checks
   on vitals and the sanctuary (no respawn next to the killer).
-- Status effects (ADR-029, in progress elsewhere) should be cleared in `KillPlayerLocked`, the single death path.
+- Status effects (ADR-029) are cleared in `KillPlayerLocked`, the single death path, and on a respawn at login. A
+  lethal status pulse (bleeding) enters the same dead state. `StatusEffectWorldTests` now expects a dead player
+  until the respawn request.
 - Tests: `DeathGoldPenaltyTests` (pinned floor, cap and newbie values; split conservation and determinism; config
   validation), `DeathGoldDropTests` (debit equals piles, diamonds kept, owner priority, bystander pickup only after the
   window), `PlayerDeathStateTests` (stays dead, every action refused, no hits on the corpse, respawn only when dead,
