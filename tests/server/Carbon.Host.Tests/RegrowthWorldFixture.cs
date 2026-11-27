@@ -104,7 +104,7 @@ internal sealed class RegrowthWorldFixture : IDisposable
     }
 
     /// <summary>Builds a <c>props.json</c> with short delays for tests; trees grow stump 6 s, sapling 4 s, young 20 s.</summary>
-    public static PropRegrowthRules Rules(int forageSeconds = 5, int deferWithinTiles = 0) =>
+    public static PropRegrowthRules Rules(int forageSeconds = 5, int deferWithinTiles = 0, float matureSaplingChance = 0.2f, float stumpSaplingChance = 0.5f) =>
         PropRegrowthRules.LoadFromJson(
             $$"""
             {
@@ -113,10 +113,10 @@ internal sealed class RegrowthWorldFixture : IDisposable
               "regrowSeconds": { "bush": 600 },
               "trees": {
                 "deferWithinTiles": {{deferWithinTiles}},
-                "stump": { "seconds": 6, "durability": 30, "yield": 1, "saplingChance": 0.5 },
+                "stump": { "seconds": 6, "durability": 30, "yield": 1, "saplingChance": {{stumpSaplingChance.ToString(System.Globalization.CultureInfo.InvariantCulture)}} },
                 "sapling": { "seconds": 4, "durability": 10, "yield": 0 },
                 "young": { "seconds": 20, "durabilityShare": 0.5, "yield": 2 },
-                "mature": { "yield": 3, "saplingDrops": { "min": 0, "max": 2 } },
+                "mature": { "yield": 3, "saplingChance": {{matureSaplingChance.ToString(System.Globalization.CultureInfo.InvariantCulture)}} },
                 "dig": { "bareHandDamage": 4, "axeEfficiency": 0.5 }
               }
             }

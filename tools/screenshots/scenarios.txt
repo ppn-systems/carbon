@@ -146,3 +146,7 @@ tree_stages        | CARBON_DEBUG_SPAWN_BIOME=BlossomWoods CARBON_DEBUG_TREE_STA
 tree_stages_forest | CARBON_DEBUG_SPAWN_BIOME=AncientForest CARBON_DEBUG_TREE_STAGES=1 CARBON_DEBUG_START_HOUR=11 | CARBON_FOCUS_BIOME=AncientForest CARBON_WEATHER=clear
 sapling_item       | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STARTER_ITEMS=214x2 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=inventory-tooltip:0
 planted_grove      | CARBON_DEBUG_PLANTED_GROVE=1 CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear
+# --- combat feel (docs/art/combat-animation.md): swing due east every 0.55 s in place (CARBON_AUTO_ATTACK), bare hands and an iron
+#     sword; run with CARBON_FRAME_STATS=n in the client env to measure frames with attacks, trails and hit feedback ---
+combat_fists       | CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_AUTO_ATTACK=0.55
+combat_sword       | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STARTER_ITEMS=3 | CARBON_WEATHER=clear CARBON_AUTO_ATTACK=0.55

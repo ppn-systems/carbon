@@ -12,6 +12,7 @@ using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Capture;
+using Carbon.Desktop.Diagnostics;
 using Carbon.Desktop.Gameplay.Input;
 using Carbon.Desktop.Gameplay.Interaction;
 using Carbon.Desktop.Gameplay.Repair;
@@ -49,6 +50,7 @@ public sealed class WorldGameplayScene : GameScene
 {
     private readonly MenuFlow _flow;
     private readonly IWorldSession _session;
+    private readonly AutoAttackDriver _autoAttack = new();
     private readonly DesktopOptions _options;
     private readonly ScreenshotAids _screenshotAids;
     private readonly Camera2D _camera;
@@ -435,6 +437,11 @@ public sealed class WorldGameplayScene : GameScene
         if (input.ZoomMultiplier.HasValue)
         {
             _cameraRig.AdjustZoom(input.ZoomMultiplier.Value);
+        }
+
+        if (_options.AutoAttackSeconds > 0f)
+        {
+            _autoAttack.Update((float)dt, _options.AutoAttackSeconds, _session, _session);
         }
 
         Vector2 move = _options.AutoWalk is (float awx, float awy) ? new Vector2(awx, awy) : input.MoveDirection;

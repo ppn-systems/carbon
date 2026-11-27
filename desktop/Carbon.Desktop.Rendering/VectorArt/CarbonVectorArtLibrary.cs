@@ -828,7 +828,7 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
                     };
                 }
 
-                frames[i] = new CompiledKeyframe(kfDto.T, bones);
+                frames[i] = new CompiledKeyframe(kfDto.T, bones, KeyframeEasing.Parse(kfDto.Ease));
             }
 
             Array.Sort(frames, static (a, b) => a.Time.CompareTo(b.Time));

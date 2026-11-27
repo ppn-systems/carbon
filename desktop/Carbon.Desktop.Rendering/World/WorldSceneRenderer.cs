@@ -68,6 +68,7 @@ public sealed class WorldSceneRenderer : IDisposable
     private readonly List<DestroyedPropRenderItem> _remnantList = new(512);
     private readonly List<DamagedPropHudMarker> _damagedProps = new(64);
     private readonly List<PointOfInterest> _visibleWorldTrees = new(4);
+    private readonly List<(int TileX, int TileY)> _drawnPois = new(16);
 
     private PointOfInterestResolver? _landmarks;
     private PointOfInterestRenderer? _poiRenderer;
@@ -442,6 +443,7 @@ public sealed class WorldSceneRenderer : IDisposable
         _remnantList.Clear();
         _damagedProps.Clear();
         _visibleWorldTrees.Clear();
+        _drawnPois.Clear();
 
         foreach (Chunk2D chunk in chunkWorld.ActiveChunks)
         {
@@ -452,6 +454,13 @@ public sealed class WorldSceneRenderer : IDisposable
                 float px = (poi.TileX + 0.5f) * tileSize;
                 float py = (poi.TileY + 0.5f) * tileSize;
                 if (px + reach < minX || px - reach > maxX || py + reach < minY || py - reach > maxY || _poiRenderer is null)
+                {
+                    continue;
+                }
+
+                // LandmarkStage lists a point of interest in every chunk within its radius: draw it, and collect its
+                // lights, once per frame, not once per chunk that lists it.
+                if (!TryMarkDrawn(_drawnPois, in poi))
                 {
                     continue;
                 }
@@ -540,6 +549,24 @@ public sealed class WorldSceneRenderer : IDisposable
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Records <paramref name="poi"/> as drawn this frame. A point of interest is listed by every chunk within its
+    /// radius (<c>LandmarkStage</c>), so the frame loop meets it several times.
+    /// </summary>
+    /// <param name="drawn">Points of interest already drawn this frame (cleared each frame).</param>
+    /// <param name="poi">The point of interest met.</param>
+    /// <returns><see langword="true"/> the first time this frame; <see langword="false"/> after that.</returns>
+    internal static bool TryMarkDrawn(List<(int TileX, int TileY)> drawn, in PointOfInterest poi)
+    {
+        if (drawn.Contains((poi.TileX, poi.TileY)))
+        {
+            return false;
+        }
+
+        drawn.Add((poi.TileX, poi.TileY));
+        return true;
     }
 
     private void CollectActors(IWorldReadModel world, float minX, float maxX, float minY, float maxY)
@@ -634,6 +661,12 @@ public sealed class WorldSceneRenderer : IDisposable
                 ? action.Progress
                 : (world.AttackSwingTimer > 0f ? 1f - Math.Clamp(world.AttackSwingTimer / 0.24f, 0f, 1f) : _animTime);
         float flash = world.LocalHitFlashTimer > 0f ? Math.Clamp(world.LocalHitFlashTimer / 0.16f, 0f, 0.8f) : 0f;
+
+        if (action.IsActive)
+        {
+            // The body commits toward the target in every facing (docs/art/combat-animation.md §3.3).
+            footPos += AttackLean(in action);
+        }
 
         if (_art is not null && hasRig && rig is not null)
         {
@@ -802,6 +835,7 @@ public sealed class WorldSceneRenderer : IDisposable
             RigOverlay overlays = RigOverlay.None;
             VisualEquipmentLoadout remoteLoadout = default;
             string clip = moving ? "walk" : "idle";
+            ActionState remoteAction = default;
             bool norm = false;
             float eval = _animTime + (remote.NetworkId % 7 * 0.13f);
 
@@ -829,13 +863,21 @@ public sealed class WorldSceneRenderer : IDisposable
                 }
                 else if (attacking)
                 {
-                    clip = remote.ActiveActionKind switch
+                    remoteAction = new ActionState(
+                        remote.ActiveActionKind,
+                        MathF.Max(0.05f, remote.AttackAnimDuration),
+                        remote.AttackAnimRemaining,
+                        facing,
+                        remote.EquippedWeaponId,
+                        remote.ComboStep);
+                    clip = HeroAttackPose.ClipName(HeroAttackTiming.StyleOf(remote.ActiveActionKind, remote.ComboStep)) ?? remote.ActiveActionKind switch
                     {
                         ActionAnimationKind.AxeChop => "chop",
                         ActionAnimationKind.PickaxeMine => "mine",
                         ActionAnimationKind.ArcaneWave or ActionAnimationKind.SelfAura or ActionAnimationKind.StaffCast or ActionAnimationKind.BowShot => "cast",
                         ActionAnimationKind.None
                         or ActionAnimationKind.SwordSlash
+                        or ActionAnimationKind.Punch
                         or ActionAnimationKind.MonsterStrike
                         or ActionAnimationKind.MonsterBowShot
                         or ActionAnimationKind.MonsterSpellCast
@@ -846,7 +888,7 @@ public sealed class WorldSceneRenderer : IDisposable
                         or _ => "slash",
                     };
                     norm = true;
-                    eval = 1f - Math.Clamp(remote.AttackAnimRemaining / MathF.Max(0.05f, remote.AttackAnimDuration), 0f, 1f);
+                    eval = remoteAction.Progress;
                 }
                 else if (SwimClip(wade.State) is string swimClip)
                 {
@@ -883,6 +925,7 @@ public sealed class WorldSceneRenderer : IDisposable
                         ActionAnimationKind.MonsterSpellCast => "attack_cast",
                         ActionAnimationKind.MonsterHeavySlam => "attack_slam",
                         ActionAnimationKind.None
+                        or ActionAnimationKind.Punch
                         or ActionAnimationKind.SwordSlash
                         or ActionAnimationKind.AxeChop
                         or ActionAnimationKind.PickaxeMine
@@ -906,7 +949,7 @@ public sealed class WorldSceneRenderer : IDisposable
                 VectorRigRenderer.DrawEntityRig(
                     batch,
                     rig,
-                    footPos + new Vector2(0f, wade.Sink),
+                    footPos + new Vector2(0f, wade.Sink) + (remoteAction.IsActive ? AttackLean(in remoteAction) : Vector2.Zero),
                     dir8,
                     clip,
                     eval,
@@ -914,7 +957,8 @@ public sealed class WorldSceneRenderer : IDisposable
                     0f,
                     flash,
                     equippedItem: remoteWeapon,
-                    swingTimer: remote.AttackAnimRemaining,
+                    action: remoteAction,
+                    swingTimer: remoteAction.IsActive ? 0f : remote.AttackAnimRemaining,
                     appearancePreset: preset,
                     equipment: remoteLoadout,
                     art: _art,
@@ -1024,8 +1068,21 @@ public sealed class WorldSceneRenderer : IDisposable
         }
     }
 
-    private static string ResolveCharacterClip(ActionState action, float attackSwingTimer, bool moving)
+    /// <summary>
+    /// Gets the hero rig clip for the local player's action (<c>base_hero.cvg.json</c>). Public so the offline art
+    /// showcase (<c>--showcase</c>) renders hero attack filmstrips through the same mapping as the world.
+    /// </summary>
+    /// <param name="action">The local action.</param>
+    /// <param name="attackSwingTimer">Remaining legacy swing seconds.</param>
+    /// <param name="moving">Whether the player is moving.</param>
+    /// <returns>The clip name.</returns>
+    public static string ResolveCharacterClip(ActionState action, float attackSwingTimer, bool moving)
     {
+        if (action.IsActive && HeroAttackPose.ClipName(HeroAttackTiming.StyleOf(action.Kind, action.ComboStep)) is string attackClip)
+        {
+            return attackClip;
+        }
+
         if (action.IsActive)
         {
             return action.Kind switch
@@ -1041,11 +1098,23 @@ public sealed class WorldSceneRenderer : IDisposable
                 ActionAnimationKind.ArcaneWave or ActionAnimationKind.SelfAura or ActionAnimationKind.StaffCast or ActionAnimationKind.BowShot => "cast",
                 ActionAnimationKind.PlaceStructure => "chop",
                 ActionAnimationKind.ConsumeItem => "idle",
-                ActionAnimationKind.None or _ => moving ? "walk" : "idle",
+                ActionAnimationKind.Punch or ActionAnimationKind.None or _ => moving ? "walk" : "idle",
             };
         }
 
         return attackSwingTimer > 0f ? "slash" : (moving ? "walk" : "idle");
+    }
+
+    /// <summary>World-unit shift of a hero toward its aim for the attack lean (zero for non-attacks).</summary>
+    /// <param name="action">Active action.</param>
+    /// <returns>Offset added to the foot position.</returns>
+    public static Vector2 AttackLean(in ActionState action)
+    {
+        HeroAttackTiming timing = HeroAttackTiming.For(HeroAttackTiming.StyleOf(action.Kind, action.ComboStep));
+        Vector2 aim = action.AimDirection;
+        return timing.Total > 0f && aim.LengthSquared() > 1e-4f
+            ? Vector2.Normalize(aim) * timing.LeanAt(action.Progress)
+            : Vector2.Zero;
     }
 
     private static void DrawDebugSolids(GeometryBatch batch, ChunkWorld2D chunkWorld, float tileSize, float minX, float minY, float maxX, float maxY)
