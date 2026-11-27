@@ -76,7 +76,8 @@ How durability worked before this ADR (all on `master` at `11dfed6`):
    engine-only, never on the wire), the degraded combat and prop strikes, the worn-out exclusions in `SumGear`, the
    desktop's slot-diff "Worn Out!"/"Mended!" toasts and the `tooltip.broken` line are deleted. Their localization keys
    are deleted from every locale.
-7. **D7 — Legacy saves: restore 1 durability, do not delete.** On entering the world, every durable item stored at
+7. **D7 — Legacy saves: restore 1 durability, do not delete.** *Removed by
+   [ADR-039](ADR-039-no-save-compatibility-before-release.md) D3: there are no saves to keep.* On entering the world, every durable item stored at
    `<= 0` (the retired worn-out state) is given `1` durability, capped at its maximum
    (`DurabilityWear.RestoreLegacyBrokenItems`). This runs before stats are computed. The server logs one warning per
    character with the count, and the character is marked dirty so the fix is saved. Nothing throws. Why restore instead

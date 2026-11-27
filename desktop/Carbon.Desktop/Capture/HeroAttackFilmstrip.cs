@@ -35,17 +35,17 @@ internal static class HeroAttackFilmstrip
 
     // (label, action kind, held item id, combo step): item ids are the shipped catalogue (items.json). Bare hands
     // render as a punch once the hero has one (ActionAnimationKind.Punch); before that they played the sword clip.
-    private static readonly (string Label, ActionAnimationKind Kind, uint ItemId, byte Combo)[] s_rows =
+    private static readonly (string Label, ActionAnimationKind Kind, uint ItemId, byte Combo, byte Upgrade)[] s_rows =
     [
-        ("Bare hands 1", ActionAnimationKind.Punch, 0U, 0),
-        ("Bare hands 2", ActionAnimationKind.Punch, 0U, 1),
-        ("Iron Sword 1", ActionAnimationKind.SwordSlash, 3U, 0),
-        ("Iron Sword 2", ActionAnimationKind.SwordSlash, 3U, 1),
-        ("Iron Sword 3", ActionAnimationKind.SwordSlash, 3U, 2),
-        ("Wood Axe", ActionAnimationKind.AxeChop, 1U, 0),
-        ("Stone Pickaxe", ActionAnimationKind.PickaxeMine, 2U, 0),
-        ("Hunting Bow", ActionAnimationKind.BowShot, 24U, 0),
-        ("Arcane Staff", ActionAnimationKind.StaffCast, 25U, 0),
+        ("Bare hands 1", ActionAnimationKind.Punch, 0U, 0, 0),
+        ("Bare hands 2", ActionAnimationKind.Punch, 0U, 1, 0),
+        ("Iron Sword 1", ActionAnimationKind.SwordSlash, 3U, 0, 0),
+        ("Iron Sword 2 +3", ActionAnimationKind.SwordSlash, 3U, 1, 3),
+        ("Iron Sword 3 +7", ActionAnimationKind.SwordSlash, 3U, 2, 7),
+        ("Wood Axe", ActionAnimationKind.AxeChop, 1U, 0, 0),
+        ("Stone Pickaxe", ActionAnimationKind.PickaxeMine, 2U, 0, 0),
+        ("Hunting Bow", ActionAnimationKind.BowShot, 24U, 0, 0),
+        ("Arcane Staff", ActionAnimationKind.StaffCast, 25U, 0, 0),
     ];
 
     private static readonly float[] s_samples = [0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.65f, 0.8f, 0.95f];
@@ -79,7 +79,7 @@ internal static class HeroAttackFilmstrip
         geom.Begin(Matrix4x4.CreateScale(Zoom, Zoom, 1f) * ortho);
         for (int row = 0; row < s_rows.Length; row++)
         {
-            (_, ActionAnimationKind kind, uint itemId, byte combo) = s_rows[row];
+            (_, ActionAnimationKind kind, uint itemId, byte combo, byte upgrade) = s_rows[row];
             CompiledItemVectorArt? item = null;
             if (itemId != 0U)
             {
@@ -104,7 +104,11 @@ internal static class HeroAttackFilmstrip
                 }
 
                 geom.FillCircle(new Vector2(footPos.X + 1.5f, footPos.Y + 1.5f), FootRadius * 1.18f, new ColorRgba(0, 0, 0, 88), 12);
-                ActionVfxRenderer.DrawActionTrail(geom, entityPos, action.Kind, action.AimDirection, action.Progress, action.ComboStep, action.EquippedItemId);
+                if (WorldSceneRenderer.ReleaseVfxProgress(action.Kind, action.ComboStep, action.Progress) is float vfx)
+                {
+                    ActionVfxRenderer.DrawActionTrail(geom, entityPos, action.Kind, action.AimDirection, vfx, action.ComboStep, action.EquippedItemId);
+                }
+
                 VectorRigRenderer.DrawEntityRig(
                     geom,
                     rig,
@@ -114,7 +118,9 @@ internal static class HeroAttackFilmstrip
                     action.Progress,
                     isNormalized: true,
                     equippedItem: item,
-                    action: action);
+                    action: action,
+                    equipment: new VisualEquipmentLoadout(0, 0, 0, 0, (ushort)itemId, upgrade));
+                WeaponTrailRenderer.Draw(geom, rig, item, footPos, Direction8.East, in action, upgrade);
             }
         }
 
@@ -134,7 +140,7 @@ internal static class HeroAttackFilmstrip
 
         for (int row = 0; row < s_rows.Length; row++)
         {
-            (string label, ActionAnimationKind kind, uint itemId, byte combo) = s_rows[row];
+            (string label, ActionAnimationKind kind, uint itemId, byte combo, _) = s_rows[row];
             float y = FirstRowY + (row * RowHeight) + 18f;
             ActionState probe = new(kind, 1f, 0.5f, Vector2.UnitX, itemId, combo);
             sprites.DrawOutlinedString(font, label, new Vector2(12f, y), white, black, 1, 0.9f);

@@ -173,32 +173,21 @@ public sealed class PropRegrowthTests
         Assert.Equal(1UL, due);
     }
 
-    [Fact]
-    public void ScheduleLegacyRespawns_RowFromFormat3_ReschedulesFloraAndKeepsStoneGone()
+    [Theory]
+    [InlineData((byte)1)]
+    [InlineData((byte)2)]
+    [InlineData((byte)3)]
+    public void Deserialize_RowInARetiredFormat_IsRefused(byte format)
     {
         ChunkWorld2D source = new(new ProceduralWorldGenerator(Seed));
-        ((int tx, int ty), (int sx, int sy)) = FindTreeAndStoneInOneChunk(source);
+        ((int tx, int ty), _) = FindTreeAndStoneInOneChunk(source);
         Assert.True(source.TryDamagePropAt(tx, ty, float.MaxValue, out _));
-        Assert.True(source.TryDamagePropAt(sx, sy, float.MaxValue, out _));
         Assert.True(source.TryGetDelta(Chunk2D.ToChunkCoord(tx), Chunk2D.ToChunkCoord(ty), out ChunkDelta? delta));
-        byte[] legacyRow = ToFormat3(delta!.Serialize(currentTick: 0UL));
+        byte[] oldRow = ToFormat3(delta!.Serialize(currentTick: 0UL));
+        oldRow[0] = format;
 
-        ChunkWorld2D world = new(new ProceduralWorldGenerator(Seed));
-        world.ImportDelta(ChunkDelta.Deserialize(legacyRow, currentTick: 0UL));
-        List<long> resave = [];
-        int scheduled = world.ScheduleLegacyRespawns(
-            (type, _, _) => MapProp.CategoryOf(type) == PropCategory.Flora ? 300UL : 0UL,
-            currentTick: 50UL,
-            resave);
-
-        Assert.Equal(1, scheduled);
-        Assert.Equal([Chunk2D.PackKey(Chunk2D.ToChunkCoord(tx), Chunk2D.ToChunkCoord(ty))], resave);
-        Assert.Equal(1, world.ProcessPropRespawns(350UL));
-        Assert.True(world.TryGetPropAt(tx, ty, out MapProp tree));
-        Assert.False(tree.Destructibility.IsDestroyed, "a tree felled before format 4 regrows");
-        Assert.True(world.TryGetPropAt(sx, sy, out MapProp stone));
-        Assert.True(stone.Destructibility.IsDestroyed, "stone mined before format 4 stays gone");
-        Assert.Equal(0, world.ScheduleLegacyRespawns((_, _, _) => 1UL, 50UL, resave));
+        FormatException refused = Assert.Throws<FormatException>(() => ChunkDelta.Deserialize(oldRow, currentTick: 0UL));
+        Assert.Contains($"format {format} is retired", refused.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -326,7 +315,7 @@ public sealed class PropRegrowthTests
         throw new InvalidOperationException("the seeded world has no such prop near the origin");
     }
 
-    /// <summary>Rewrites a current (format 5) row as format 3 (no respawn timers), what a server saved before ADR-040.</summary>
+    /// <summary>Rewrites a current row as format 3 (no respawn timers), what a server saved before ADR-040; now retired.</summary>
     private static byte[] ToFormat3(byte[] row)
     {
         const int Header = 15;

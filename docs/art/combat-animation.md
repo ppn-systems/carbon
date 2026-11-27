@@ -246,7 +246,7 @@ Keyframes gain an optional `ease` (`linear`, `in`, `out`, `inOut`; default `inOu
   - It is sampled analytically from the same pose function the renderer uses, at fixed steps across the active window up to the current time.
   - It needs no per-frame history, so it is exact at any frame rate and allocates nothing.
 - It appears only in the active window, plus a 60 ms fade.
-- Colour comes from the weapon tier (wood, stone, copper, iron, crystal, demon). An enhancement level of +4 or more adds a brighter edge, and +7 or more a cyan glow edge, matching the forge sheen.
+- Colour: the held item's accent colour mixed halfway to white, more opaque for higher tiers. The edge matches the forge sheen on the held item: white unenhanced, gold for +1 to +5, cyan for +6 and above.
 - Fists draw a short streak from the knuckles.
 
 ### 3.6 Performance
