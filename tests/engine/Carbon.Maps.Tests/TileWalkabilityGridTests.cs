@@ -25,6 +25,9 @@ public sealed class TileWalkabilityGridTests
         world.UpdateAroundPosition(Vector2.Zero, chunkRadius: 1, evictionRadius: 3);
         Chunk2D chunk = world.GetOrCreateChunk(0, 0);
 
+        // Only the painted terrain is under test: generated trees or rocks on these tiles would block them.
+        chunk.ClearProps();
+
         // 1. Deep Ocean -> Impassable, infinite cost
         chunk.SetTile(0, 0, new MapTile(BiomeType.DeepOcean, 0.1f, 0.5f, 0.5f, true, 0));
         Assert.Equal(TileWalkability.Impassable, world.NavGrid.GetWalkability(0, 0));

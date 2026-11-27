@@ -22,12 +22,18 @@ public interface IRiverDistanceSource
     float GetDistance(int worldX, int worldY);
 
     /// <summary>
-    /// Gets the width-scaled distance to the nearest river or lake and whether that coordinate falls in an
-    /// impassable deep-water channel core rather than a wadeable shoal or ford.
+    /// Gets the width-scaled distance to the nearest river or lake and, on its water, how deep it is there
+    /// (see <see cref="WaterDepth"/>): a river is as deep as it is wide, deepest mid-stream.
     /// </summary>
     /// <param name="worldX">World tile X.</param>
     /// <param name="worldY">World tile Y.</param>
-    /// <param name="isDeepChannel">Outputs <see langword="true"/> when inside a deep navigable/impassable river core.</param>
+    /// <param name="waterDepth">The water depth when the distance is at most <see cref="WorldConstants.RiverChannel"/>; otherwise 0.</param>
     /// <returns>The width-scaled distance; <see cref="float.MaxValue"/> when far from any river.</returns>
-    float GetDistance(int worldX, int worldY, out bool isDeepChannel);
+    float GetDistance(int worldX, int worldY, out float waterDepth);
+
+    /// <summary>Gets the distance from a sea tile to the nearest coast, in tiles: the sea deepens with it.</summary>
+    /// <param name="worldX">World tile X.</param>
+    /// <param name="worldY">World tile Y.</param>
+    /// <returns>The distance in tiles, capped at a few hundred.</returns>
+    float GetCoastDistance(int worldX, int worldY);
 }
