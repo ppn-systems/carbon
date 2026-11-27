@@ -260,5 +260,7 @@ internal sealed class SubstituteWorldSession : IWorldSession
 
     global::System.Threading.Tasks.Task<global::Carbon.Configuration.Catalog.ConfigCatalog> global::Carbon.Desktop.Abstractions.Configuration.IGameConfigSource.WaitForGameConfigAsync(global::System.Threading.CancellationToken ct) => this.Inner.WaitForGameConfigAsync(ct);
 
+    global::Carbon.Maps.Generators.ProceduralWorldGenerator? global::Carbon.Desktop.Abstractions.Configuration.IGameConfigSource.TryCreateWorldGenerator(ulong seed) => this.Inner.TryCreateWorldGenerator(seed);
+
     global::System.Threading.Tasks.ValueTask global::System.IAsyncDisposable.DisposeAsync() => this.Inner.DisposeAsync();
 }

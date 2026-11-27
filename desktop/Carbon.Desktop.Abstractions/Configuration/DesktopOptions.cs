@@ -77,6 +77,12 @@ public sealed class DesktopOptions
     public (int Width, int Height) WindowSize { get; init; } = (1280, 720);
 
     /// <summary>
+    /// Gets or sets whether the menu backdrop moves (<c>CARBON_MENU_MOTION=0</c> holds it still, for players who prefer
+    /// less motion; docs/art/menu-ui.md rule 15). On by default.
+    /// </summary>
+    public bool MenuMotion { get; init; } = true;
+
+    /// <summary>
     /// Gets or sets a value indicating whether the scene opens the nearest trader's window once in the world
     /// (<c>CARBON_OPEN_TRADER=1</c>; screenshot tool). The capture waits for the trader's stock to arrive.
     /// </summary>
@@ -289,6 +295,7 @@ public sealed class DesktopOptions
             CaptureFrames = captureFrames,
             FrameStatsFrames = frameStatsFrames,
             WindowSize = ParseSize(get("CARBON_WINDOW_SIZE")) ?? (1280, 720),
+            MenuMotion = !string.Equals(get("CARBON_MENU_MOTION")?.Trim(), "0", StringComparison.Ordinal),
             AutoExit = string.Equals(get("CARBON_AUTO_EXIT"), "1", StringComparison.Ordinal),
             OpenTrader = string.Equals(get("CARBON_OPEN_TRADER"), "1", StringComparison.Ordinal),
             TradePreview = string.Equals(get("CARBON_TRADE_PREVIEW"), "basket", StringComparison.Ordinal),
