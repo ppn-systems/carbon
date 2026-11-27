@@ -66,7 +66,6 @@ public sealed class LoginScene : GameScene
     private float _backspaceRepeatTime;
     private readonly MenuSceneCapture _capture;
     private readonly CachedText _gatewayText = new();
-    private readonly CachedText _connectingText = new();
     private string _statusMessage = GameText.Get("login.status.ready");
     private bool _statusIsError;
 
@@ -114,7 +113,7 @@ public sealed class LoginScene : GameScene
         {
             _autoStarted = true;
             _statusIsError = false;
-            _statusMessage = GameText.Format("login.status.auto_sign_in", new TextArg("host", _options.ServerHost), new TextArg("port", _options.ServerTcpPort));
+            _statusMessage = GameText.Get("login.status.auto_sign_in");
             _pendingAutoEnterTask = _session.InitializeAsync();
         }
         else if (!_autoStarted && string.Equals(_options.CaptureScene, "characters", StringComparison.Ordinal))
@@ -165,8 +164,9 @@ public sealed class LoginScene : GameScene
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
+                Console.Error.WriteLine($"[Auth] Request failed: {ex.Message}");
                 _statusIsError = true;
-                _statusMessage = ex.Message;
+                _statusMessage = GameText.Get("auth.server_unreachable");
             }
         }
 
@@ -199,8 +199,9 @@ public sealed class LoginScene : GameScene
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
+                Console.Error.WriteLine($"[Auth] Sign-in failed: {ex.Message}");
                 _statusIsError = true;
-                _statusMessage = GameText.Format("login.status.auth_error", new TextArg("error", ex.Message));
+                _statusMessage = GameText.Get("login.status.auth_error");
             }
         }
 
@@ -307,7 +308,7 @@ public sealed class LoginScene : GameScene
         {
             _statusIsError = false;
             _statusMessage = _pendingAutoEnterTask is not null
-                ? _connectingText.Format("login.status.entering", new TextArg("host", _options.ServerHost), new TextArg("port", _options.ServerTcpPort))
+                ? GameText.Get("login.status.entering")
                 : (_registerMode ? GameText.Get("login.status.registering") : GameText.Get("login.status.signing_in"));
         }
     }

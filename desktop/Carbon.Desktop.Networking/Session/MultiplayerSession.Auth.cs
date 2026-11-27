@@ -84,7 +84,10 @@ public sealed partial class MultiplayerSession
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             await this.TearDownTransportsAsync().ConfigureAwait(false);
-            return new AuthenticationResult(false, GameText.Format("auth.connection_failed", new TextArg("error", ex.Message)));
+
+            // The exception text names sockets and addresses: log it for developers, show the player plain words.
+            await Console.Error.WriteLineAsync($"[Auth] Connection failed: {ex.Message}").ConfigureAwait(false);
+            return new AuthenticationResult(false, GameText.Get("auth.server_unreachable"));
         }
     }
 
@@ -147,7 +150,10 @@ public sealed partial class MultiplayerSession
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             await this.TearDownTransportsAsync().ConfigureAwait(false);
-            return new AuthenticationResult(false, GameText.Format("auth.connection_failed", new TextArg("error", ex.Message)));
+
+            // The exception text names sockets and addresses: log it for developers, show the player plain words.
+            await Console.Error.WriteLineAsync($"[Auth] Connection failed: {ex.Message}").ConfigureAwait(false);
+            return new AuthenticationResult(false, GameText.Get("auth.server_unreachable"));
         }
     }
 

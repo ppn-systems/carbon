@@ -432,7 +432,7 @@ public sealed class CharacterSelectScene : GameScene
             ? GameText.Get("character.header.creator")
             : _headerText.Format("character.header.roster", new TextArg("count", _characters.Count), new TextArg("max", 4));
         spriteBatch.DrawOutlinedString(_font, header, new Vector2(ox + 22f, oy + 18f), CarbonUiPalette.TextWarm, black, 2, 1.5f);
-        spriteBatch.DrawOutlinedString(_font, _netText.Format("character.net", new TextArg("transport", _session.TransportLabel)), new Vector2(ox + 686f, oy + 22f), CarbonUiPalette.TextMuted, black, 1, 1f);
+        spriteBatch.DrawOutlinedString(_font, _netText.Format("character.connection", new TextArg("status", _session.ConnectionLabel)), new Vector2(ox + 686f, oy + 22f), CarbonUiPalette.TextMuted, black, 1, 1f);
 
         string stageTitle = GameText.Get("character.stage");
         TextMeasureResult stSize = _font.MeasureString(stageTitle, TextLayoutOptions.Default, 1f);
@@ -723,8 +723,9 @@ public sealed class CharacterSelectScene : GameScene
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
+                Console.Error.WriteLine($"[Characters] Request failed: {ex.Message}");
                 _statusIsError = true;
-                _statusMessage = ex.Message;
+                _statusMessage = GameText.Get("auth.server_unreachable");
             }
         }
 
@@ -746,8 +747,9 @@ public sealed class CharacterSelectScene : GameScene
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
+                Console.Error.WriteLine($"[Characters] Request failed: {ex.Message}");
                 _statusIsError = true;
-                _statusMessage = ex.Message;
+                _statusMessage = GameText.Get("auth.server_unreachable");
             }
         }
 
@@ -792,8 +794,9 @@ public sealed class CharacterSelectScene : GameScene
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
+                Console.Error.WriteLine($"[Characters] Roster load failed: {ex.Message}");
                 _statusIsError = true;
-                _statusMessage = GameText.Format("character.status.load_failed", new TextArg("error", ex.Message));
+                _statusMessage = GameText.Get("character.status.load_failed");
             }
         }
     }
