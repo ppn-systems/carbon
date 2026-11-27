@@ -262,7 +262,7 @@ internal sealed class CharacterSheetModalWidget
             new TextArg("max_hp", (long)MathF.Ceiling(world.LocalPlayerMaxHealth)),
             new TextArg("mp", (long)MathF.Floor(world.LocalPlayerMana)),
             new TextArg("max_mp", (long)MathF.Ceiling(world.LocalPlayerMaxMana)));
-        spriteBatch.DrawOutlinedString(font, vitals, new Vector2(idX, leftCard.Y + MathF.Round(76f * s)), CarbonUiPalette.TextMuted, black, 1, ts);
+        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, vitals, idW, ts), new Vector2(idX, leftCard.Y + MathF.Round(76f * s)), CarbonUiPalette.TextMuted, black, 1, ts);
         RectangleF xpTrack = GetXpTrackRect(in layout);
         spriteBatch.DrawOutlinedString(font, GameText.Format("character.xp", new TextArg("xp", world.LocalPlayerExperience.ToString("N0", CultureInfo.InvariantCulture)), new TextArg("next", world.LocalPlayerXpToNext.ToString("N0", CultureInfo.InvariantCulture))), new Vector2(xpTrack.X, xpTrack.Bottom + MathF.Round(6f * s)), CarbonUiPalette.TextMuted, black, 1, ts);
 
@@ -286,12 +286,14 @@ internal sealed class CharacterSheetModalWidget
                 int row = i % perColumn;
                 float x = statsBox.X + MathF.Round(10f * s) + (col * colW);
                 float y = statsBox.Y + MathF.Round(34f * s) + (row * rowH);
-                spriteBatch.DrawOutlinedString(font, CharacterStatsPreview.StatLabel(i), new Vector2(x, y), CarbonUiPalette.TextMuted, black, 1, ts);
-
                 bool changes = _preview.PreviewChanges(i);
                 string value = changes ? _preview.FormatStat(i, in next) : _preview.FormatStat(i, in now);
                 float valueW = font.MeasureString(value, scale: ts).Width;
                 float valueRight = x + colW - MathF.Round(12f * s);
+
+                // Labels give way to values (translations differ in width).
+                float labelW = MathF.Max(0f, valueRight - valueW - x - MathF.Round(6f * s));
+                spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, CharacterStatsPreview.StatLabel(i), labelW, ts), new Vector2(x, y), CarbonUiPalette.TextMuted, black, 1, ts);
                 spriteBatch.DrawOutlinedString(font, value, new Vector2(valueRight - valueW, y), changes ? s_previewText : CarbonUiPalette.TextPrimary, black, 1, ts);
             }
         }
