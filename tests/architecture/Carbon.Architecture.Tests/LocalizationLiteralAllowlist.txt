@@ -3,10 +3,6 @@
 desktop/Carbon.Desktop.Abstractions/Configuration/DesktopOptions.cs	Hero
 desktop/Carbon.Desktop.Abstractions/Configuration/SyncedFoodCatalog.cs	{}  Spoils in {}
 desktop/Carbon.Desktop.Abstractions/Configuration/SyncedItemCatalog.cs	Empty
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs	FORGE FAILED!
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs	Forge failed - materials consumed!
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs	Missing upgrade materials!
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs	Move near a Blacksmith or Forge Anvil to enhance gear!
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs	Not enough Mana!
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs	Not enough Stamina!
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs	Skill locked
@@ -96,11 +92,8 @@ desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Active
 desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Bag
 desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Blacksmith Forge
 desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Enhance
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Enhanced!
 desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Equipped
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Failed!
 desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Materials
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Max enhancement (+10)
 desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Need Forge
 desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	No upgradable gear
 desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	+{} DEF  +{} HP
