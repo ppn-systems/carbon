@@ -29,7 +29,7 @@ public sealed class EconomyBalanceSimulatorTests
     public void Simulate_PlayerHoursAtEveryStage_NetGoldAndSinkShareStayInsideDesignBands()
     {
         EconomySimulator simulator = new(Economy);
-        List<EconomyHourReport> reports = [.. s_levels.Select(level => simulator.Simulate(level, Hours, seed: 2026))];
+        List<EconomyHourReport> reports = [.. s_levels.Select(level => simulator.Simulate(level, Hours, TestGameplayKeys.Key(2026)))];
         _output.WriteLine(EconomySimulator.FormatTable(reports));
         DesignTargets targets = ShippedConfig.Economy.DesignTargets;
 
@@ -54,7 +54,7 @@ public sealed class EconomyBalanceSimulatorTests
     {
         EconomySimulator simulator = new(Economy);
 
-        simulator.Simulate(30, 3, seed: 7).Should().Be(simulator.Simulate(30, 3, seed: 7));
+        simulator.Simulate(30, 3, TestGameplayKeys.Key(7)).Should().Be(simulator.Simulate(30, 3, TestGameplayKeys.Key(7)));
     }
 
     [Fact]

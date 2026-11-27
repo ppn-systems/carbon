@@ -250,8 +250,9 @@ Empowerment is applied when a monster spawns: monsters spawned during the day ke
 - **Biome tables**: `ISpawnSurface` rejects blocked candidate points (solid tiles, water, solid props) and returns
   the biome, which selects a weighted `spawnTables` entry. `ChunkWorldSpawnSurface` adapts `ChunkWorld2D`. Biomes
   without a table never spawn monsters.
-- **Determinism**: every attempt seeds `DeterministicRandom` from `hash(worldSeed, cell, attemptIndex)`. The same seed
-  and the same anchor history always produce the same monsters, positions, levels, and elites.
+- **Determinism**: every attempt seeds `DeterministicRandom` from `PRF(key, cell, attemptIndex, tick)`, where `key` is
+  the server-only epoch subkey (ADR-026), never the public world seed. The same key and the same anchor history always
+  produce the same monsters, positions, levels, and elites; a client that knows the world seed cannot predict elites.
 - `MonsterSpawnedEvent(Monster, MonsterIndex, Level, IsElite, IsNight, Position)` lets the host resolve
   `visualArchetype` and `lootTableId` from the catalog for replication and drops.
 

@@ -234,7 +234,8 @@ public sealed class CharacterProgressionServiceTests
                 () => s_rules,
                 () => 7UL,
                 this.Dirty.Add,
-                this.WalletSyncs.Add);
+                this.WalletSyncs.Add,
+                TestGameplayEntropy.Create(1UL));
             this.Service.RecomputeDerivedStats(this.Player);
         }
 

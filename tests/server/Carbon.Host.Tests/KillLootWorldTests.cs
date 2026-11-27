@@ -39,7 +39,16 @@ public sealed class KillLootWorldTests
             SqliteCharacterStore characters = new(factory);
             RecordingOutboundSink sink = new();
             GameEconomy economy = KillLootPickupTests.AlwaysGoldEconomy;
-            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), characters, sink, economy: economy);
+            AuthoritativeWorld world = new(
+                1337UL,
+                32f,
+                0.0008f,
+                30,
+                new SqliteChunkDeltaRepository(factory),
+                characters,
+                sink,
+                economy: economy,
+                entropy: TestGameplayEntropy.Create(1337UL));
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
             InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);

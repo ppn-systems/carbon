@@ -257,7 +257,15 @@ public sealed class TickQueuedWorldCommandTests
             Guid accountId = Guid.NewGuid();
             _ = await accounts.TryCreateAsync(new AccountRecord(accountId, "queuer", "QUEUER", [1], [2], now, false)).ConfigureAwait(false);
 
-            AuthoritativeWorld world = new(Seed, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), characters, new AuthoritativeWorldMultiplayerTests.RecordingOutboundSink());
+            AuthoritativeWorld world = new(
+                Seed,
+                32f,
+                0.0008f,
+                30,
+                new SqliteChunkDeltaRepository(factory),
+                characters,
+                new AuthoritativeWorldMultiplayerTests.RecordingOutboundSink(),
+                entropy: TestGameplayEntropy.Create(1337UL));
             await world.InitializeFromStoreAsync().ConfigureAwait(false);
 
             (int tx, int ty) = FindDestructibleProp(world);

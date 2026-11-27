@@ -45,7 +45,15 @@ public sealed class AuthoritativeWorldMultiplayerTests
             using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
             await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
             RecordingOutboundSink sink = new();
-            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), new SqliteCharacterStore(factory), sink);
+            AuthoritativeWorld world = new(
+                1337UL,
+                32f,
+                0.0008f,
+                30,
+                new SqliteChunkDeltaRepository(factory),
+                new SqliteCharacterStore(factory),
+                sink,
+                entropy: TestGameplayEntropy.Create(1337UL));
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
             Vector2 position = world.DefaultSpawnWorldPosition + (new Vector2(offsetTilesX, offsetTilesY) * 32f);
@@ -90,7 +98,8 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 tickRate: 30,
                 chunks,
                 characters,
-                sink);
+                sink,
+                entropy: TestGameplayEntropy.Create(1337UL));
 
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
@@ -228,7 +237,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             SqliteChunkDeltaRepository chunks = new(factory);
             RecordingOutboundSink sink = new();
 
-            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, chunks, characters, sink);
+            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, chunks, characters, sink, entropy: TestGameplayEntropy.Create(1337UL));
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
             InventoryContainer seededBag = new(PlayerInventoryLayout.TotalCapacity);
@@ -399,7 +408,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             SqliteChunkDeltaRepository chunks = new(factory);
             RecordingOutboundSink sink = new();
 
-            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, chunks, characters, sink);
+            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, chunks, characters, sink, entropy: TestGameplayEntropy.Create(1337UL));
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
             InventoryContainer seeded = new(PlayerInventoryLayout.TotalCapacity);
@@ -487,7 +496,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             SqliteChunkDeltaRepository chunks = new(factory);
             RecordingOutboundSink sink = new();
 
-            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, chunks, characters, sink);
+            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, chunks, characters, sink, entropy: TestGameplayEntropy.Create(1337UL));
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
             // 1. Discover a wilderness monster away from starter sanctuary.
@@ -625,7 +634,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             (await accounts.TryCreateAsync(account).ConfigureAwait(true)).Should().BeTrue();
 
             const ulong seed = 1337UL;
-            AuthoritativeWorld world = new(seed, 32f, 0.0008f, 30, chunks, characters, sink);
+            AuthoritativeWorld world = new(seed, 32f, 0.0008f, 30, chunks, characters, sink, entropy: TestGameplayEntropy.Create(1337UL));
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
             // Mirror the server's deterministic generator to find a destructible prop near spawn.
@@ -715,7 +724,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             AccountRecord account = new(accountId, "saver", "SAVER", [1, 2, 3], [4, 5, 6], now, false);
             (await accounts.TryCreateAsync(account).ConfigureAwait(true)).Should().BeTrue();
 
-            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, chunks, characters, sink);
+            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, chunks, characters, sink, entropy: TestGameplayEntropy.Create(1337UL));
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
             InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
@@ -785,7 +794,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             AccountRecord account = new(accountId, "tester", "TESTER", [1, 2, 3], [4, 5, 6], now, false);
             (await accounts.TryCreateAsync(account).ConfigureAwait(true)).Should().BeTrue();
 
-            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, chunks, characters, sink);
+            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, chunks, characters, sink, entropy: TestGameplayEntropy.Create(1337UL));
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
             InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
@@ -895,7 +904,16 @@ public sealed class AuthoritativeWorldMultiplayerTests
             string configDir = GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!;
             configDir.Should().NotBeNull("the host ships resources/config next to its binaries");
             GameEconomy economy = GameEconomy.LoadFromDirectory(configDir);
-            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), new SqliteCharacterStore(factory), sink, economy: economy);
+            AuthoritativeWorld world = new(
+                1337UL,
+                32f,
+                0.0008f,
+                30,
+                new SqliteChunkDeltaRepository(factory),
+                new SqliteCharacterStore(factory),
+                sink,
+                economy: economy,
+                entropy: TestGameplayEntropy.Create(1337UL));
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
             InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);
@@ -974,7 +992,15 @@ public sealed class AuthoritativeWorldMultiplayerTests
             using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
             await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
             RecordingOutboundSink sink = new();
-            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), new SqliteCharacterStore(factory), sink);
+            AuthoritativeWorld world = new(
+                1337UL,
+                32f,
+                0.0008f,
+                30,
+                new SqliteChunkDeltaRepository(factory),
+                new SqliteCharacterStore(factory),
+                sink,
+                entropy: TestGameplayEntropy.Create(1337UL));
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
             InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);
@@ -1234,7 +1260,8 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 needs.FoodMax);
             AuthoritativeWorld world = new(
                 1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), new SqliteCharacterStore(factory), sink,
-                time: null, needs, food, economy);
+                time: null, needs, food, economy,
+                entropy: TestGameplayEntropy.Create(1337UL));
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
             uint rawMeat = economy.Items.ResolveId("raw_meat");
@@ -1475,7 +1502,8 @@ public sealed class AuthoritativeWorldMultiplayerTests
             time: null,
             needs,
             food,
-            economy);
+            economy,
+            entropy: TestGameplayEntropy.Create(1337UL));
     }
 
     private static void StepTicks(AuthoritativeWorld world, int ticks)
@@ -1505,7 +1533,16 @@ public sealed class AuthoritativeWorldMultiplayerTests
             (await accounts.TryCreateAsync(new AccountRecord(accountId, "merchant", "MERCHANT", [1, 2, 3], [4, 5, 6], now, false)).ConfigureAwait(true)).Should().BeTrue();
 
             GameEconomy economy = GameEconomy.LoadFromDirectory(GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!);
-            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), characters, sink, economy: economy);
+            AuthoritativeWorld world = new(
+                1337UL,
+                32f,
+                0.0008f,
+                30,
+                new SqliteChunkDeltaRepository(factory),
+                characters,
+                sink,
+                economy: economy,
+                entropy: TestGameplayEntropy.Create(1337UL));
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
             InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);
@@ -1577,7 +1614,15 @@ public sealed class AuthoritativeWorldMultiplayerTests
             using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
             await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
             RecordingOutboundSink sink = new();
-            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), new SqliteCharacterStore(factory), sink);
+            AuthoritativeWorld world = new(
+                1337UL,
+                32f,
+                0.0008f,
+                30,
+                new SqliteChunkDeltaRepository(factory),
+                new SqliteCharacterStore(factory),
+                sink,
+                entropy: TestGameplayEntropy.Create(1337UL));
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
             InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);
@@ -1665,7 +1710,16 @@ public sealed class AuthoritativeWorldMultiplayerTests
             await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
             RecordingOutboundSink sink = new();
             GameEconomy economy = GameEconomy.LoadFromDirectory(GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!);
-            AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), new SqliteCharacterStore(factory), sink, economy: economy);
+            AuthoritativeWorld world = new(
+                1337UL,
+                32f,
+                0.0008f,
+                30,
+                new SqliteChunkDeltaRepository(factory),
+                new SqliteCharacterStore(factory),
+                sink,
+                economy: economy,
+                entropy: TestGameplayEntropy.Create(1337UL));
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
             economy.Recipes.TryGetByCode("copper_ingot", out CraftingRecipe? copper).Should().BeTrue();

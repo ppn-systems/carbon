@@ -1,37 +1,38 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using Carbon.Primitives.Random;
+
 namespace Carbon.Items.Progression;
 
 /// <summary>
-/// Deterministic chance rolls for combat (critical hits, evasion). A roll is a pure function of a per-character nonce
-/// and a salt, so a replayed tick produces the same outcome and tests need no random source.
+/// Deterministic chance rolls for combat (critical hits, evasion). A roll is a keyed PRF (ADR-026) of the server's secret
+/// roll key, the tick, the actor and a per-character nonce, so a replay with the same key produces the same outcome, tests
+/// need no random source, and a client that knows the world seed, the tick and its own nonce still cannot predict it.
 /// </summary>
 public static class CombatRoll
 {
-    /// <summary>Salt for critical hit rolls.</summary>
-    public const uint CriticalSalt = 0U;
+    /// <summary>Domain of critical hit rolls.</summary>
+    public const ulong CriticalDomain = GameplayDomain.Critical;
 
-    /// <summary>Salt for evasion rolls (keeps them independent from crit rolls on the same nonce).</summary>
-    public const uint EvasionSalt = 0x5BD1E995U;
+    /// <summary>Domain of evasion rolls (keeps them independent from crit rolls on the same nonce).</summary>
+    public const ulong EvasionDomain = GameplayDomain.Evasion;
 
-    /// <summary>Returns whether a roll of <paramref name="nonce"/> succeeds with probability <paramref name="chance"/>.</summary>
+    /// <summary>Returns whether one roll succeeds with probability <paramref name="chance"/>.</summary>
     /// <param name="chance">Success probability (<c>&lt;= 0</c> never, <c>&gt;= 1</c> always).</param>
+    /// <param name="key">Secret roll key of the tick's epoch (server-only, never the world seed).</param>
+    /// <param name="domain">Roll kind (<see cref="CriticalDomain"/> or <see cref="EvasionDomain"/>).</param>
+    /// <param name="tick">Simulation tick of the roll.</param>
+    /// <param name="actorId">Rolling character (network id).</param>
     /// <param name="nonce">Monotonic per-character counter.</param>
-    /// <param name="salt">Roll kind salt.</param>
     /// <returns><see langword="true"/> on success.</returns>
-    public static bool Roll(float chance, uint nonce, uint salt = CriticalSalt)
+    public static bool Roll(float chance, in GameplayKey key, ulong domain, ulong tick, ulong actorId, uint nonce)
     {
         if (!(chance > 0f))
         {
             return false;
         }
 
-        uint h = (nonce ^ salt) * 0x9E3779B1U;
-        h ^= h >> 15;
-        h *= 0x85EBCA6BU;
-        h ^= h >> 13;
-        float roll = (h & 0xFFFFU) / 65536f;
-        return roll < chance;
+        return chance >= 1f || key.Sample(domain, tick, actorId, nonce) < chance;
     }
 
     /// <summary>Applies the critical multiplier to <paramref name="damage"/> when <paramref name="isCritical"/>.</summary>

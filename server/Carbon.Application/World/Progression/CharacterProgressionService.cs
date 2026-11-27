@@ -12,6 +12,7 @@ using Carbon.Creatures.Definitions;
 using Carbon.Economy.Currency;
 using Carbon.Items.Catalog;
 using Carbon.Items.Progression;
+using Carbon.Primitives.Random;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.Networking;
 using Carbon.Simulation.World;
@@ -28,6 +29,7 @@ internal sealed class CharacterProgressionService
     private readonly WorldSimulation _simulation;
     private readonly Func<ItemRules> _itemRules;
     private readonly Func<ulong> _currentTick;
+    private readonly IGameplayEntropy _entropy;
     private readonly Action<PlayerState> _markCharacterDirty;
     private readonly Action<PlayerState> _queueWalletSync;
     private readonly HashSet<ushort> _casterArchetypes;
@@ -41,6 +43,7 @@ internal sealed class CharacterProgressionService
     /// <param name="currentTick">Returns the current tick (wallet ledger).</param>
     /// <param name="markCharacterDirty">Queues a character for persistence.</param>
     /// <param name="queueWalletSync">Queues a wallet sync after a paid reset.</param>
+    /// <param name="entropy">Secret roll key source for evasion rolls (ADR-026).</param>
     public CharacterProgressionService(
         WorldSimulation simulation,
         ProgressionConfig config,
@@ -48,7 +51,8 @@ internal sealed class CharacterProgressionService
         Func<ItemRules> itemRules,
         Func<ulong> currentTick,
         Action<PlayerState> markCharacterDirty,
-        Action<PlayerState> queueWalletSync)
+        Action<PlayerState> queueWalletSync,
+        IGameplayEntropy entropy)
     {
         _simulation = simulation ?? throw new ArgumentNullException(nameof(simulation));
         _config = config ?? throw new ArgumentNullException(nameof(config));
@@ -57,6 +61,7 @@ internal sealed class CharacterProgressionService
         _currentTick = currentTick ?? throw new ArgumentNullException(nameof(currentTick));
         _markCharacterDirty = markCharacterDirty ?? throw new ArgumentNullException(nameof(markCharacterDirty));
         _queueWalletSync = queueWalletSync ?? throw new ArgumentNullException(nameof(queueWalletSync));
+        _entropy = entropy ?? throw new ArgumentNullException(nameof(entropy));
         _casterArchetypes = BuildCasterArchetypes(monsters);
     }
 
@@ -221,7 +226,14 @@ internal sealed class CharacterProgressionService
         ArgumentNullException.ThrowIfNull(victim);
         ProgressionConfig config = this.Config;
         DerivedCharacterStats stats = victim.Stats;
-        if (CombatRoll.Roll(config.GetEvasionChance(in stats, attackerLevel), ++victim.CombatRollNonce, CombatRoll.EvasionSalt))
+        ulong tick = _currentTick();
+        if (CombatRoll.Roll(
+            config.GetEvasionChance(in stats, attackerLevel),
+            _entropy.KeyAt(tick),
+            CombatRoll.EvasionDomain,
+            tick,
+            victim.Session.PlayerNetworkId,
+            ++victim.CombatRollNonce))
         {
             avoided = true;
             return 0f;

@@ -19,6 +19,7 @@ using Carbon.Economy;
 using Carbon.Economy.Trading;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
+using Carbon.Primitives.Random;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.World;
 
@@ -53,7 +54,7 @@ internal sealed class TradeService : IWorldTradeService
     /// <summary>Initializes a new instance of the <see cref="TradeService"/> class.</summary>
     public TradeService(
         Lock gate,
-        ulong worldSeed,
+        GameplayKey stockKey,
         PlayerRegistry players,
         WorldSimulation simulation,
         Dictionary<ulong, NpcActorMeta> actors,
@@ -65,7 +66,7 @@ internal sealed class TradeService : IWorldTradeService
         ITraderStockRepository? repository)
     {
         _gate = gate ?? throw new ArgumentNullException(nameof(gate));
-        _book = new TraderBook(worldSeed);
+        _book = new TraderBook(stockKey);
         _players = players ?? throw new ArgumentNullException(nameof(players));
         _simulation = simulation ?? throw new ArgumentNullException(nameof(simulation));
         _actors = actors ?? throw new ArgumentNullException(nameof(actors));

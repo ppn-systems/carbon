@@ -6,6 +6,7 @@ using Carbon.Economy.Currency;
 using Carbon.Economy.Vendor;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
+using Carbon.Primitives.Random;
 
 namespace Carbon.Economy.Trading;
 
@@ -16,19 +17,20 @@ namespace Carbon.Economy.Trading;
 public sealed record TraderSalesRecord(ulong TraderKey, long Epoch, int[] Sold);
 
 /// <summary>
-/// Server-side trader state and rules (ADR-025): the stock of each epoch is rolled from the world seed, only units sold
+/// Server-side trader state and rules (ADR-025): the stock of each epoch is rolled from the secret trader stock key
+/// (ADR-026), only units sold
 /// are remembered, and a purchase checks slot, epoch, remaining stock, gold and bag space before it commits wallet,
 /// inventory and the sold count together. Not thread-safe: call on the world tick (the world lock).
 /// </summary>
 public sealed class TraderBook
 {
-    private readonly ulong _worldSeed;
+    private readonly GameplayKey _stockKey;
     private readonly Dictionary<ulong, TraderSalesRecord> _sales = new();
     private readonly HashSet<ulong> _dirty = new();
 
     /// <summary>Initializes a new instance of the <see cref="TraderBook"/> class.</summary>
-    /// <param name="worldSeed">World seed.</param>
-    public TraderBook(ulong worldSeed) => _worldSeed = worldSeed;
+    /// <param name="stockKey">Secret trader stock key (server-only, never the world seed).</param>
+    public TraderBook(GameplayKey stockKey) => _stockKey = stockKey;
 
     /// <summary>Gets the number of traders with sales recorded.</summary>
     public int TrackedTraders => _sales.Count;
@@ -67,7 +69,7 @@ public sealed class TraderBook
         epoch = TraderClock.EpochAt(trader.Key, profile, unixSeconds);
         secondsToRestock = TraderClock.SecondsUntilRestock(trader.Key, profile, unixSeconds);
         Span<TraderStockSlot> slots = stackalloc TraderStockSlot[TraderCatalog.MaxSlots];
-        int count = Math.Min(TraderStockRoller.Roll(profile, _worldSeed, trader.Key, epoch, trader.Style, slots), destination.Length);
+        int count = Math.Min(TraderStockRoller.Roll(profile, _stockKey, trader.Key, epoch, trader.Style, slots), destination.Length);
         int[]? sold = this.SoldIn(trader.Key, epoch);
         for (int i = 0; i < count; i++)
         {

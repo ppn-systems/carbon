@@ -8,6 +8,7 @@ using Carbon.Economy.Currency;
 using Carbon.Economy.Trading;
 using Carbon.Economy.Vendor;
 using Carbon.Items.Containers;
+using Carbon.Primitives.Random;
 using FluentAssertions;
 using Xunit;
 
@@ -15,7 +16,7 @@ namespace Carbon.Economy.Tests;
 
 public sealed class TraderTests
 {
-    private const ulong Seed = 2026UL;
+    private static readonly GameplayKey s_stockKey = TestGameplayKeys.Key(2026UL);
     private const long Now = 1_800_000_000L;
 
     private static readonly Lazy<TraderCatalog> s_catalog = new(() => TraderCatalog.LoadFromJson(ShippedConfig.Read("traders.json"), ShippedConfig.Items, ShippedConfig.Economy));
@@ -54,20 +55,20 @@ public sealed class TraderTests
         Catalog.TryGet("merchant", out TraderProfile profile);
         Span<TraderStockSlot> a = stackalloc TraderStockSlot[TraderCatalog.MaxSlots];
         Span<TraderStockSlot> b = stackalloc TraderStockSlot[TraderCatalog.MaxSlots];
-        int na = TraderStockRoller.Roll(profile, Seed, 77UL, 1000L, 0, a);
-        int nb = TraderStockRoller.Roll(profile, Seed, 77UL, 1000L, 0, b);
+        int na = TraderStockRoller.Roll(profile, s_stockKey, 77UL, 1000L, 0, a);
+        int nb = TraderStockRoller.Roll(profile, s_stockKey, 77UL, 1000L, 0, b);
         na.Should().Be(profile.Slots);
         a[..na].SequenceEqual(b[..nb]).Should().BeTrue("the same (seed, trader, epoch) always rolls the same stock");
 
         int changed = 0;
         for (long epoch = 1001; epoch < 1021; epoch++)
         {
-            int n = TraderStockRoller.Roll(profile, Seed, 77UL, epoch, 0, b);
+            int n = TraderStockRoller.Roll(profile, s_stockKey, 77UL, epoch, 0, b);
             changed += a[..na].SequenceEqual(b[..n]) ? 0 : 1;
         }
 
         changed.Should().BeGreaterThan(17, "restocks roll new stock");
-        TraderStockRoller.Roll(profile, Seed, 78UL, 1000L, 0, b);
+        TraderStockRoller.Roll(profile, s_stockKey, 78UL, 1000L, 0, b);
         a[..na].SequenceEqual(b[..na]).Should().BeFalse("two villages stock differently");
     }
 
@@ -81,7 +82,7 @@ public sealed class TraderTests
             {
                 for (long epoch = 0; epoch < 50; epoch++)
                 {
-                    int n = TraderStockRoller.Roll(profile, Seed, (ulong)epoch * 31UL, epoch, style, slots);
+                    int n = TraderStockRoller.Roll(profile, s_stockKey, (ulong)epoch * 31UL, epoch, style, slots);
                     n.Should().BeGreaterThan(0);
                     HashSet<uint> ids = [];
                     for (int i = 0; i < n; i++)
@@ -144,7 +145,7 @@ public sealed class TraderTests
     [Fact]
     public void TryBuy_LimitedQuantity_SellsOutAndRestocksNextEpoch()
     {
-        TraderBook book = new(Seed);
+        TraderBook book = new(s_stockKey);
         TraderIdentity trader = new(9UL, "general", 0);
         (TraderOffer offer, long epoch) = FirstOffer(book, trader, Now);
         Wallet wallet = RichWallet();
@@ -171,7 +172,7 @@ public sealed class TraderTests
     [Fact]
     public void TryBuy_Failures_ChangeNothing()
     {
-        TraderBook book = new(Seed);
+        TraderBook book = new(s_stockKey);
         TraderIdentity trader = new(10UL, "blacksmith", 2);
         (TraderOffer offer, long epoch) = FirstOffer(book, trader, Now);
 
@@ -202,7 +203,7 @@ public sealed class TraderTests
     [Fact]
     public void Sales_DrainAndImport_RestoreRemainingStock()
     {
-        TraderBook book = new(Seed);
+        TraderBook book = new(s_stockKey);
         TraderIdentity trader = new(11UL, "merchant", 1);
         (TraderOffer offer, long epoch) = FirstOffer(book, trader, Now);
         book.TryBuy(Catalog, Prices, trader, Now, RichWallet(), new InventoryContainer(48), 0, 1, epoch, 10, 40).Should().Be(TradeResult.Ok);
@@ -214,7 +215,7 @@ public sealed class TraderTests
         book.DrainDirty(again);
         again.Should().BeEmpty("only changes are persisted");
 
-        TraderBook restored = new(Seed);
+        TraderBook restored = new(s_stockKey);
         restored.Import(drained[0]);
         FirstOffer(restored, trader, Now).Offer.Remaining.Should().Be(offer.Remaining - 1, "sales survive a restart");
     }

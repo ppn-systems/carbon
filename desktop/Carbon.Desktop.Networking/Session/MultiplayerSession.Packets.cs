@@ -86,8 +86,8 @@ public sealed partial class MultiplayerSession
             EncryptRequestsByDefault = true,
         });
 
-        this.ResetConfigSyncForNewConnection();
-        _tcpSubscriptions.Add(tcp.On<ConfigManifest>(this.OnConfigManifest));
+        _config.ResetForNewConnection();
+        _tcpSubscriptions.Add(tcp.On<ConfigManifest>(_config.OnConfigManifest));
         _tcpSubscriptions.Add(tcp.On<EntitySpawn>(this.OnEntitySpawn));
         _tcpSubscriptions.Add(tcp.On<EntityDespawn>(this.OnEntityDespawn));
         _tcpSubscriptions.Add(tcp.On<EntityDeltaBatch>(this.OnEntityDeltaBatch));

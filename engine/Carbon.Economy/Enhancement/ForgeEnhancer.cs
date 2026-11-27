@@ -21,22 +21,17 @@ namespace Carbon.Economy.Enhancement;
 public static class ForgeEnhancer
 {
     /// <summary>
-    /// Derives the roll stream of one attempt from the world seed, the tick, the character and a per-world attempt counter,
-    /// so two attempts never share a stream and a replay of the same inputs rolls the same outcome.
+    /// Derives the roll stream of one attempt from the server's secret roll key (ADR-026), the tick, the character and a
+    /// per-world attempt counter, so two attempts never share a stream, a replay with the same key rolls the same outcome,
+    /// and a client that knows the public world seed and the tick still cannot predict it.
     /// </summary>
-    /// <param name="worldSeed">World seed (server-only).</param>
+    /// <param name="key">Secret roll key of the tick's epoch (server-only, never the world seed).</param>
     /// <param name="tick">Current server tick.</param>
     /// <param name="ownerId">Character or wallet owner id.</param>
     /// <param name="attemptNonce">Monotonic per-world attempt counter.</param>
     /// <returns>The roll stream.</returns>
-    public static DeterministicRandom CreateRandom(ulong worldSeed, ulong tick, ulong ownerId, ulong attemptNonce)
-    {
-        ulong mixed = worldSeed
-            ^ (tick * 0x9E3779B97F4A7C15UL)
-            ^ ((ownerId + 0x632BE59BD9B4E019UL) * 0xC2B2AE3D27D4EB4FUL)
-            ^ ((attemptNonce + 0x165667B19E3779F9UL) * 0xD6E8FEB86659FD93UL);
-        return new DeterministicRandom(mixed);
-    }
+    public static DeterministicRandom CreateRandom(in GameplayKey key, ulong tick, ulong ownerId, ulong attemptNonce) =>
+        key.CreateRandom(GameplayDomain.Forge, tick, ownerId, attemptNonce);
 
     /// <summary>Attempts to enhance the item in <paramref name="slotIndex"/>.</summary>
     /// <param name="rules">Item rules holding the enhancement table.</param>

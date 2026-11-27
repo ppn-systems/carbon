@@ -55,7 +55,7 @@ public sealed class EconomySimulationTests
 
         for (int kill = 0; kill < GoldKills; kill++)
         {
-            DeterministicRandom rng = LootRoller.CreateRandom(2026, (ulong)kill, (ulong)level);
+            DeterministicRandom rng = LootRoller.CreateRandom(TestGameplayKeys.Key(2026), (ulong)kill, (ulong)level);
             LootRollResult result = LootRoller.Roll(table, context, ref rng, ref pity, drops);
             wallet.TryCredit(CurrencyKind.Gold, result.Gold, CurrencyReason.MonsterLoot, (ulong)kill).IsOk.Should().BeTrue();
         }
@@ -79,7 +79,7 @@ public sealed class EconomySimulationTests
         LootContext context = new(level, PlayerLevel: level);
         LootPityState pity = default;
         Span<LootDrop> drops = stackalloc LootDrop[16];
-        DeterministicRandom rng = LootRoller.CreateRandom(77, (ulong)level, (ulong)table.Id.Length);
+        DeterministicRandom rng = LootRoller.CreateRandom(TestGameplayKeys.Key(77), (ulong)level, (ulong)table.Id.Length);
         long diamonds = 0;
         int longestDrought = 0;
 
