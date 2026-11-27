@@ -17,6 +17,7 @@ using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
+using Carbon.Items.Repair;
 using Carbon.Maps.Building;
 using Carbon.Maps.Streaming;
 using Carbon.Prediction.Reconciliation;
@@ -58,6 +59,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     private readonly List<string> _hudNotifications = new(16);
     private readonly MapMutationApplier _mapMutations;
     private readonly TraderSession _trading;
+    private readonly RepairSession _repair;
     private readonly CharacterProgressionState _progression = new();
     private readonly Dictionary<ushort, float> _skillCooldowns = new(8);
     private readonly List<ushort> _cooldownKeyScratch = new(8);
@@ -164,6 +166,9 @@ public sealed partial class MultiplayerSession : IWorldSession
     /// <inheritdoc/>
     public ITraderSession Trading => _trading;
 
+    /// <inheritdoc/>
+    public IRepairSession Repair => _repair;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="MultiplayerSession"/> class.
     /// </summary>
@@ -175,6 +180,7 @@ public sealed partial class MultiplayerSession : IWorldSession
         _entityNames = new EntityNameKeys(_items);
         _mapMutations = new MapMutationApplier(_dirtyChunks, _propImpactEvents, _combatEvents, _hudNotifications);
         _trading = new TraderSession(() => this.IsReady ? _tcpSession : null, text => { lock (_worldGate) { _hudNotifications.Add(text); } });
+        _repair = new RepairSession(() => this.IsReady ? _tcpSession : null, text => { lock (_worldGate) { _hudNotifications.Add(text); } });
     }
 
     /// <inheritdoc/>
@@ -413,6 +419,56 @@ public sealed partial class MultiplayerSession : IWorldSession
         }
 
         return false;
+    }
+
+    /// <inheritdoc/>
+    public int GetRepairStationTier(RepairVenue venue)
+    {
+        RepairTable table = _items.Rules.Repair;
+        if (!this.IsReady || _chunkWorld is null || venue == RepairVenue.None)
+        {
+            return 0;
+        }
+
+        Vector2 playerPos = this.LocalPlayerInterpolatedPosition;
+        lock (_worldGate)
+        {
+            if (venue == RepairVenue.Blacksmith)
+            {
+                foreach (KeyValuePair<ulong, RemoteEntityState> kvp in _remoteEntities)
+                {
+                    RemoteEntityState s = kvp.Value;
+                    if (s.Kind == EntityKind.Npc &&
+                        WorldActorCatalog.GetNpcSpec(s.ArchetypeId).Capabilities.HasFlag(NpcCapabilities.ForgeArtisan) &&
+                        Vector2.DistanceSquared(playerPos, s.Position) <= table.BlacksmithReach * table.BlacksmithReach)
+                    {
+                        return table.BlacksmithTier;
+                    }
+                }
+
+                return 0;
+            }
+
+            int ptx = (int)MathF.Floor(playerPos.X / _tileSize);
+            int pty = (int)MathF.Floor(playerPos.Y / _tileSize);
+            int best = 0;
+            int reach = table.StationReachTiles;
+            for (int dy = -reach; dy <= reach; dy++)
+            {
+                for (int dx = -reach; dx <= reach; dx++)
+                {
+                    if (_chunkWorld.Buildings.TryGetStructure(ptx + dx, pty + dy, out StructureTile st) && !st.IsDestroyed)
+                    {
+                        int tier = st.Type == StructureType.ForgeAnvil ? table.ForgeAnvilTier
+                            : st.Type == StructureType.Workbench ? table.WorkbenchTier
+                            : 0;
+                        best = Math.Max(best, tier);
+                    }
+                }
+            }
+
+            return best;
+        }
     }
 
     /// <inheritdoc/>

@@ -1249,6 +1249,10 @@
     {
       "id": "diamond",
       "file": "ui/diamond.cvg.json"
+    },
+    {
+      "id": "repair",
+      "file": "ui/repair.cvg.json"
     }
   ]
 }
