@@ -58,7 +58,7 @@ public sealed class HotPathGuardTests
     /// </summary>
     private static readonly Dictionary<string, int> s_classSizeAllowlist = new(StringComparer.Ordinal)
     {
-        ["Carbon.Desktop.Networking.Session.MultiplayerSession"] = 4123, // TODO(audit round 2): split by responsibility (auth, packets, actions, inventory) and lower; 4123 after #77/#81
+        ["Carbon.Desktop.Networking.Session.MultiplayerSession"] = 3931, // TODO(audit round 2): split by responsibility (auth, packets, actions, inventory) and lower; 3931 after SessionConfigSync
         ["Carbon.Desktop.Rendering.Hud.CraftingModalWidget"] = 650, // 644 today
         ["Carbon.Desktop.Rendering.VectorArt.CarbonVectorArtLibrary"] = 950, // 920 today
         ["Carbon.Desktop.Rendering.VectorArt.ModularCharacterOverlays"] = 650, // 625 today

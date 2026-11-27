@@ -245,7 +245,7 @@ public sealed partial class MultiplayerSession
         try
         {
             using CancellationTokenSource configTimeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            configTimeout.CancelAfter(ConfigSyncTimeoutMs);
+            configTimeout.CancelAfter(SessionConfigSync.ConfigSyncTimeoutMs);
             _ = await this.WaitForGameConfigAsync(configTimeout.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
