@@ -43,6 +43,7 @@ public sealed partial class MultiplayerSession : IWorldSession
 
     private readonly DesktopOptions _options;
     private readonly SyncedItemCatalog _items = new();
+    private readonly EntityNameKeys _entityNames;
     private readonly List<IDisposable> _tcpSubscriptions = [];
     private readonly List<IDisposable> _udpSubscriptions = [];
     private readonly ConcurrentDictionary<ulong, RemoteEntityState> _remoteEntities = new();
@@ -71,6 +72,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     private readonly ConcurrentQueue<Action> _worldInbox = new();
     private RemoteEntityView[] _cachedRemoteViews = [];
     private bool _remoteViewsDirty = true;
+    private int _remoteViewsTextVersion;
 
     private TcpSession? _tcpSession;
     private DatagramSession? _udpSession;
@@ -168,6 +170,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _configSync = this.CreateConfigSync();
+        _entityNames = new EntityNameKeys(_items);
         _trading = new TraderSession(() => this.IsReady ? _tcpSession : null, text => { lock (_worldGate) { _hudNotifications.Add(text); } });
     }
 
@@ -416,7 +419,8 @@ public sealed partial class MultiplayerSession : IWorldSession
         {
             lock (_worldGate)
             {
-                if (!_remoteViewsDirty)
+                ILocalizer text = GameText.Current;
+                if (!_remoteViewsDirty && _remoteViewsTextVersion == text.Version)
                 {
                     return _cachedRemoteViews;
                 }
@@ -436,7 +440,7 @@ public sealed partial class MultiplayerSession : IWorldSession
                     _remoteViewSnapshot.Add(new RemoteEntityView(
                         s.NetworkId,
                         s.Kind,
-                        s.Name,
+                        s.NameKey is not null && text.TryGet(s.NameKey, out string localizedName) ? localizedName : s.Name,
                         viewPos,
                         viewVel,
                         s.Radius,
@@ -463,6 +467,7 @@ public sealed partial class MultiplayerSession : IWorldSession
 
                 _cachedRemoteViews = _remoteViewSnapshot.Count == 0 ? [] : [.. _remoteViewSnapshot];
                 _remoteViewsDirty = false;
+                _remoteViewsTextVersion = text.Version;
                 return _cachedRemoteViews;
             }
         }
