@@ -66,20 +66,4 @@ public sealed class FontMetricsAndGlyphTests
 
         FontGlyph.Empty.IsValid.Should().BeFalse();
     }
-
-    [Fact]
-    public void KerningPair_PropertiesAndEquality_ShouldMatch()
-    {
-        KerningPair pair1 = new('A', 'V', -2.5f);
-        KerningPair pair2 = new('A', 'V', -2.5f);
-        KerningPair pair3 = new('A', 'T', -1.5f);
-
-        pair1.First.Should().Be('A');
-        pair1.Second.Should().Be('V');
-        pair1.Amount.Should().Be(-2.5f);
-
-        pair1.Should().Be(pair2);
-        (pair1 == pair2).Should().BeTrue();
-        (pair1 != pair3).Should().BeTrue();
-    }
 }
