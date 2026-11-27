@@ -111,28 +111,28 @@ internal sealed class WorldCommandQueue
     /// Queues a command and returns a task that completes once a tick has processed it, or immediately with
     /// <see cref="OpStatus.RateLimited"/> when the connection already has <see cref="MaxPendingPerConnection"/> queued.
     /// </summary>
-    public ValueTask<WorldMutationOutcome> Submit(
+    public ValueTask<WorldMutationOutcome> SubmitAsync(
         WorldCommandKind kind,
         ulong connectionId,
         int tileX,
         int tileY,
         StructureType structureType = StructureType.None,
         StructureRotation rotation = StructureRotation.North) =>
-        this.Enqueue(new WorldCommand(kind, connectionId, tileX, tileY, structureType, rotation, 0, 0, 0, 0, null!));
+        this.EnqueueAsync(new WorldCommand(kind, connectionId, tileX, tileY, structureType, rotation, 0, 0, 0, 0, null!));
 
     /// <summary>Queues a slot-based command (inventory, crafting); see <see cref="WorldCommandKind"/> for the arguments.</summary>
-    public ValueTask<WorldMutationOutcome> Submit(WorldCommandKind kind, ulong connectionId, ushort arg0, ushort arg1 = 0, int arg2 = 0, ushort arg3 = 0) =>
-        this.Enqueue(new WorldCommand(kind, connectionId, 0, 0, StructureType.None, StructureRotation.North, arg0, arg1, arg2, arg3, null!));
+    public ValueTask<WorldMutationOutcome> SubmitAsync(WorldCommandKind kind, ulong connectionId, ushort arg0, ushort arg1 = 0, int arg2 = 0, ushort arg3 = 0) =>
+        this.EnqueueAsync(new WorldCommand(kind, connectionId, 0, 0, StructureType.None, StructureRotation.North, arg0, arg1, arg2, arg3, null!));
 
     /// <summary>Queues a command carrying a 64-bit target (split over TileX/TileY) and three arguments.</summary>
-    public ValueTask<WorldMutationOutcome> SubmitTargeted(WorldCommandKind kind, ulong connectionId, ulong target, ushort arg0, ushort arg1, int arg2) =>
-        this.Enqueue(new WorldCommand(kind, connectionId, (int)(uint)target, (int)(uint)(target >> 32), StructureType.None, StructureRotation.North, arg0, arg1, arg2, 0, null!));
+    public ValueTask<WorldMutationOutcome> SubmitTargetedAsync(WorldCommandKind kind, ulong connectionId, ulong target, ushort arg0, ushort arg1, int arg2) =>
+        this.EnqueueAsync(new WorldCommand(kind, connectionId, (int)(uint)target, (int)(uint)(target >> 32), StructureType.None, StructureRotation.North, arg0, arg1, arg2, 0, null!));
 
     /// <summary>Queues a command carrying a 64-bit target and a variable-length <paramref name="payload"/> (normal path, not the tick).</summary>
-    public ValueTask<WorldMutationOutcome> SubmitTargeted(WorldCommandKind kind, ulong connectionId, ulong target, object payload) =>
-        this.Enqueue(new WorldCommand(kind, connectionId, (int)(uint)target, (int)(uint)(target >> 32), StructureType.None, StructureRotation.North, 0, 0, 0, 0, null!, payload));
+    public ValueTask<WorldMutationOutcome> SubmitTargetedAsync(WorldCommandKind kind, ulong connectionId, ulong target, object payload) =>
+        this.EnqueueAsync(new WorldCommand(kind, connectionId, (int)(uint)target, (int)(uint)(target >> 32), StructureType.None, StructureRotation.North, 0, 0, 0, 0, null!, payload));
 
-    private ValueTask<WorldMutationOutcome> Enqueue(WorldCommand command)
+    private ValueTask<WorldMutationOutcome> EnqueueAsync(WorldCommand command)
     {
         ulong connectionId = command.ConnectionId;
         int pending = _pendingByConnection.AddOrUpdate(connectionId, 1, static (_, n) => n + 1);

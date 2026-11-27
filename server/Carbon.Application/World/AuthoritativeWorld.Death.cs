@@ -25,7 +25,7 @@ public sealed partial class AuthoritativeWorld
 {
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitRespawnAsync(ulong connectionId) =>
-        _commands.Submit(WorldCommandKind.Respawn, connectionId, 0);
+        _commands.SubmitAsync(WorldCommandKind.Respawn, connectionId, 0);
 
     /// <summary>
     /// Respawns a dead player at the sanctuary with full health, mana and stamina and refilled needs. Synchronous form used

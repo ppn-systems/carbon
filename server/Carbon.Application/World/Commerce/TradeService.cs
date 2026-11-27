@@ -96,7 +96,7 @@ internal sealed class TradeService : IWorldTradeService
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitTraderOpenAsync(ulong connectionId, ulong traderNetworkId) =>
-        _commands.SubmitTargeted(WorldCommandKind.TraderOpen, connectionId, traderNetworkId, 0, 0, 0);
+        _commands.SubmitTargetedAsync(WorldCommandKind.TraderOpen, connectionId, traderNetworkId, 0, 0, 0);
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitTraderSellBatchAsync(ulong connectionId, ulong traderNetworkId, ushort[] slotIndices, ushort[] itemIds, ushort[] quantities, long expectedGold)
@@ -106,7 +106,7 @@ internal sealed class TradeService : IWorldTradeService
         ArgumentNullException.ThrowIfNull(quantities);
         return !IsWellFormed(slotIndices.Length, itemIds.Length, quantities.Length, PlayerInventoryLayout.BagLimit)
             ? ValueTask.FromResult(Refused(OpStatus.Invalid, TradeBatchError.InvalidRequest))
-            : _commands.SubmitTargeted(WorldCommandKind.TraderSellBatch, connectionId, traderNetworkId, new BatchPayload(slotIndices, itemIds, quantities, 0, expectedGold));
+            : _commands.SubmitTargetedAsync(WorldCommandKind.TraderSellBatch, connectionId, traderNetworkId, new BatchPayload(slotIndices, itemIds, quantities, 0, expectedGold));
     }
 
     /// <inheritdoc/>
@@ -126,7 +126,7 @@ internal sealed class TradeService : IWorldTradeService
             slots[i] = stockSlots[i];
         }
 
-        return _commands.SubmitTargeted(WorldCommandKind.TraderBuyBatch, connectionId, traderNetworkId, new BatchPayload(slots, itemIds, quantities, epoch, expectedGold));
+        return _commands.SubmitTargetedAsync(WorldCommandKind.TraderBuyBatch, connectionId, traderNetworkId, new BatchPayload(slots, itemIds, quantities, epoch, expectedGold));
     }
 
     /// <summary>Runs the queued trade requests. Call on the tick, under the world lock.</summary>

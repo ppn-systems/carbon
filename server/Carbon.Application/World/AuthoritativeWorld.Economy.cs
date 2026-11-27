@@ -51,7 +51,7 @@ public sealed partial class AuthoritativeWorld
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitRepairItemAsync(ulong connectionId, ushort slotIndex, ushort expectedItemId, byte steps, RepairVenue venue) =>
-        _commands.Submit(WorldCommandKind.RepairItem, connectionId, slotIndex, expectedItemId, steps, (ushort)venue);
+        _commands.SubmitAsync(WorldCommandKind.RepairItem, connectionId, slotIndex, expectedItemId, steps, (ushort)venue);
 
     /// <summary>
     /// Repairs ONE item for materials (and the blacksmith fee) at <paramref name="venue"/> (ADR-028). Returns
