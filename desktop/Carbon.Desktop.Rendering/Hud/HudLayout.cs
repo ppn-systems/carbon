@@ -77,6 +77,27 @@ internal static class HudLayout
         return last.Y + last.Height;
     }
 
+    /// <summary>Width of the oxygen bar (ADR-032).</summary>
+    internal const float OxygenBarWidth = 220f;
+
+    /// <summary>Height of the oxygen bar.</summary>
+    internal const float OxygenBarHeight = 14f;
+
+    /// <summary>Top of the vitals cluster (level, health, mana, stamina, food, rest) above the hotbar and XP strip.</summary>
+    /// <param name="viewportHeight">Viewport height in pixels.</param>
+    /// <returns>The cluster's top edge.</returns>
+    internal static float GetVitalsTop(int viewportHeight) => viewportHeight - 54f - 16f - 15f - 24f;
+
+    /// <summary>
+    /// Gets the oxygen bar (ADR-032 D13): centred just above the vitals cluster, so it reads as one of the vitals
+    /// while staying clear of them, the hotbar, the status strip and the right-hand column.
+    /// </summary>
+    /// <param name="viewportWidth">Viewport width in pixels.</param>
+    /// <param name="viewportHeight">Viewport height in pixels.</param>
+    /// <returns>The bar rectangle.</returns>
+    internal static RectangleF GetOxygenBarRect(int viewportWidth, int viewportHeight) =>
+        new(MathF.Floor((viewportWidth - OxygenBarWidth) * 0.5f), GetVitalsTop(viewportHeight) - Gap - OxygenBarHeight, OxygenBarWidth, OxygenBarHeight);
+
     /// <summary>Gets the top of the first toast, under the column.</summary>
     internal static float GetToastTop(int viewportWidth, bool showMinimap) => GetColumnBottom(viewportWidth, showMinimap) + 8f;
 

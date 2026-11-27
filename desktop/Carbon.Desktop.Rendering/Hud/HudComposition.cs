@@ -12,10 +12,12 @@ internal static class HudComposition
 {
     private static readonly HudElement[] s_mainHud =
     [
+        HudElement.UnderwaterVeil,
         HudElement.TargetFrame,
         HudElement.Clock,
         HudElement.Minimap,
         HudElement.Hotbar,
+        HudElement.OxygenBar,
         HudElement.SkillBar,
         HudElement.InteractPrompt,
         HudElement.Toasts,
