@@ -74,7 +74,7 @@ What ADR-029 shipped on `master`:
    entry without four fields or with level 0 is skipped, and a level above `maxLevel` is clamped. The
    `CARBON_DEBUG_STATUS_EFFECTS` review knob accepts both formats.
 6. **D6 — Client.** The level is shown as a Roman numeral I to X (Arabic digits from 11 up, as Minecraft does) on the
-   icon (bottom right, opposite the countdown) and in the details panel. Level I shows no numeral on the icon and the bare
+   icon (top left; the stack count keeps the top right and the countdown the bottom left) and in the details panel. Level I shows no numeral on the icon and the bare
    name ("Poisoned", not "Poisoned I"), also as in Minecraft. The panel title and the hover tooltip read
    "Poisoned II". The numerals and the name-with-level format are keys in a new `[status_levels]` section of `en.ini` and
    `vi.ini`; there are no literals in code.
