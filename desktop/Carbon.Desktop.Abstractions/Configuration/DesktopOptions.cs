@@ -116,9 +116,10 @@ public sealed class DesktopOptions
     public string CaptureModal { get; init; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets a menu scene to capture instead of the world (<c>CARBON_CAPTURE_SCENE=login|characters</c>, ADR-023 D8).
-    /// <c>login</c> needs <c>CARBON_AUTO_LOGIN=0</c>; <c>characters</c> registers the configured account and captures the
-    /// character screen. Empty when unset.
+    /// Gets or sets a menu scene to capture instead of the world
+    /// (<c>CARBON_CAPTURE_SCENE=start|login|register|server|characters</c>, ADR-023 D8, ADR-037). Each needs
+    /// <c>CARBON_AUTO_LOGIN=0</c>; <c>characters</c> registers the configured account and captures the character screen.
+    /// Empty when unset.
     /// </summary>
     public string CaptureScene { get; init; } = string.Empty;
 
@@ -149,6 +150,18 @@ public sealed class DesktopOptions
 
     /// <summary>Gets or sets the preferred character display name when creating a starter character.</summary>
     public string CharacterName { get; init; } = "Hero";
+
+    /// <summary>
+    /// Gets or sets the file that keeps the "Remember me" account (<c>CARBON_ACCOUNT_FILE</c>; ADR-037). It holds a
+    /// revocable server token, never a password. Defaults to <c>account.ini</c> in the per-user Carbon data folder.
+    /// </summary>
+    public string AccountFile { get; init; } = DefaultAccountFile();
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the Server screen also offers a typed server address
+    /// (<c>CARBON_DEV_SERVERS=1</c>; developers only, players pick a listed server).
+    /// </summary>
+    public bool CustomServerEntry { get; init; }
 
     /// <summary>
     /// Gets or sets the directory where server-sent gameplay config documents are cached (ADR-014).
@@ -282,8 +295,13 @@ public sealed class DesktopOptions
             Password = password,
             CharacterName = charName,
             ConfigCacheDirectory = configCache,
+            AccountFile = get("CARBON_ACCOUNT_FILE") is { Length: > 0 } accountFile ? accountFile.Trim() : DefaultAccountFile(),
+            CustomServerEntry = string.Equals(get("CARBON_DEV_SERVERS"), "1", StringComparison.Ordinal),
         };
     }
+
+    private static string DefaultAccountFile() =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Carbon", "account.ini");
 
     private static string DefaultConfigCacheDirectory() =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Carbon", "config-cache");

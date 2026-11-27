@@ -3,6 +3,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Desktop.Abstractions.Session;
+using Nalix.Abstractions.Primitives;
 
 namespace Carbon.Desktop.Abstractions.Identity;
 
@@ -20,6 +21,15 @@ public interface IAuthenticationGateway : IConnectionStatus
 
     /// <summary>Connects over encrypted TCP (X25519 AEAD handshake) and registers a new account.</summary>
     Task<AuthenticationResult> RegisterAsync(string host, ushort tcpPort, string username, string password, CancellationToken ct = default);
+
+    /// <summary>Connects and signs in with a remember-me token instead of a password (ADR-037).</summary>
+    Task<AuthenticationResult> LoginWithTokenAsync(string host, ushort tcpPort, Bytes32 token, CancellationToken ct = default);
+
+    /// <summary>Asks the server for a remember-me token for the signed-in account, or returns <see langword="null"/> when refused (ADR-037).</summary>
+    Task<RememberTokenGrant?> RequestRememberTokenAsync(CancellationToken ct = default);
+
+    /// <summary>Best-effort: connects and revokes a remember-me token on the server so it can never sign in again (ADR-037).</summary>
+    Task RevokeRememberTokenAsync(string host, ushort tcpPort, Bytes32 token, CancellationToken ct = default);
 
     /// <summary>Leaves the active world, closes Authenticated UDP, and logs out the authenticated session.</summary>
     Task LogoutAsync(CancellationToken ct = default);

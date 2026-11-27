@@ -94,6 +94,18 @@ public sealed class PgSchemaMigrator : IDatabaseMigrator
         );
         """;
 
+    // ADR-037: remember-me tokens. Only the SHA-256 of a token is stored; deleting the row revokes it.
+    private const string RememberTokensSql = """
+        CREATE TABLE IF NOT EXISTS remember_tokens (
+            token_hash        BYTEA       NOT NULL PRIMARY KEY,
+            account_id        UUID        NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+            created_at_utc    TIMESTAMPTZ NOT NULL,
+            expires_at_utc    TIMESTAMPTZ NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS ix_remember_tokens_account_id ON remember_tokens(account_id);
+        """;
+
     private readonly NpgsqlDataSource _dataSource;
 
     /// <summary>
@@ -348,6 +360,9 @@ public sealed class PgSchemaMigrator : IDatabaseMigrator
                 ("status_effects", "TEXT NOT NULL DEFAULT ''"),
             ],
             ct).ConfigureAwait(false);
+
+        // ADR-037: remember-me token hashes.
+        await ApplyDdlMigrationAsync(conn, tx, "0020_remember_tokens", RememberTokensSql, ct).ConfigureAwait(false);
 
         await tx.CommitAsync(ct).ConfigureAwait(false);
     }
