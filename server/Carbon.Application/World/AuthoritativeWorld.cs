@@ -218,7 +218,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _groundLoot,
             _outbound,
             state => this.MarkCharacterDirtyLocked(state, inventoryChanged: true));
-        _commerce = new EconomyService(_entropy, this.TickRate, () => _economy, () => _currentTick, _groundLoot, _inventory, _outbound, this.HasNearbyFriendlyNpcLocked);
+        _commerce = new EconomyService(_entropy, this.TickRate, () => _economy, () => _currentTick, _groundLoot, _outbound, this.HasNearbyFriendlyNpcLocked);
         _progressionService = new CharacterProgressionService(_simulation, progression ?? ProgressionConfig.LoadShippedDefaults(), _creatureCatalog, () => _itemRules,
             () => _currentTick, state => this.MarkCharacterDirtyLocked(state, inventoryChanged: false), _commerce.QueueWalletSync, _entropy);
         _combat = new CombatService(_simulation, _chunkWorld, MonsterLayer, _outbound, this.CollectNearbyConnectionsAroundWorldLocked, this.OnMonsterKilledLocked, () => _currentTick);
@@ -442,7 +442,10 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
                 _ = this.RemovePlayerLocked(duplicateConnectionId);
             }
 
-            Vector2 spawnPos = _debugSpawnPosition ?? new Vector2(character.PositionX, character.PositionY);
+            // ADR-031: a character saved dead (it logged out before respawning) respawns at the sanctuary with full vitals.
+            bool diedBeforeLogout = character.CurrentHealth <= 0f;
+            Vector2 spawnPos = _debugSpawnPosition
+                ?? (diedBeforeLogout ? _chunkWorld.SpawnWorldPosition : new Vector2(character.PositionX, character.PositionY));
             _chunkWorld.UpdateAroundPosition(spawnPos, chunkRadius: 2, evictionRadius: 8);
             _settlements.PopulateAround(spawnPos, radius: 2);
 
@@ -463,7 +466,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             bool refunded = _progressionService.RefundIfOverBudget(startLevel, startProg);
 
             DerivedCharacterStats stats = CharacterStatCalculator.Compute(_itemRules, _progressionService.Config, startLevel, inventory, selectedSlot, startProg);
-            float startHp = MathF.Min(stats.MaxHealth, MathF.Max(1f, character.CurrentHealth));
+            float startHp = diedBeforeLogout ? stats.MaxHealth : MathF.Min(stats.MaxHealth, MathF.Max(1f, character.CurrentHealth));
             _simulation.Entities.SetHealth(entity, new HealthComponent(startHp, stats.MaxHealth));
             _simulation.Entities.SetComponent(entity, _needs.Restore(character));
             _statusEffects.Restore(entity, character.StatusEffects, character.NeedsPoisonSeconds, _needs.Config);
@@ -473,6 +476,11 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             }
 
             _statusEffects.MirrorPoisonIntoNeeds(entity);
+            if (diedBeforeLogout)
+            {
+                _statusEffects.Clear(entity);
+                _needs.ResetAfterDeath(entity);
+            }
 
             byte harvestTier = _inventory.ResolveHarvestTier(inventory, selectedSlot);
 
@@ -485,8 +493,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
                 selectedSlot,
                 harvestTier);
 
-            float startMana = Math.Clamp(character.CurrentMana, 0f, stats.MaxMana);
-            float startStamina = Math.Clamp(character.CurrentStamina, 0f, stats.MaxStamina);
+            float startMana = diedBeforeLogout ? stats.MaxMana : Math.Clamp(character.CurrentMana, 0f, stats.MaxMana);
+            float startStamina = diedBeforeLogout ? stats.MaxStamina : Math.Clamp(character.CurrentStamina, 0f, stats.MaxStamina);
 
             PlayerState playerState = new(session, entity, character, inventory)
             {
@@ -512,7 +520,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _players.ByConnection[connectionId] = playerState;
             _players.ConnectionByNetworkId[networkId] = connectionId;
             _replication.Track(connectionId);
-            if (refunded)
+            if (refunded || diedBeforeLogout)
             {
                 this.MarkCharacterDirtyLocked(playerState, inventoryChanged: false);
             }
@@ -591,7 +599,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
         lock (_gate)
         {
-            if (_players.ByConnection.TryGetValue(connectionId, out PlayerState? state))
+            if (_players.ByConnection.TryGetValue(connectionId, out PlayerState? state) && !state.IsDead)
             {
                 state.PendingDirection = direction;
                 state.PendingSprint = sprint;
@@ -611,7 +619,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
         lock (_gate)
         {
-            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state))
+            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state) || state.IsDead)
             {
                 return OpStatus.Forbidden;
             }
@@ -646,11 +654,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             }
 
             CharacterProgressionState prog = state.Progression;
-            if (kind is PointAllocationKind.Attribute or PointAllocationKind.ResetAttributes)
+            if (kind == PointAllocationKind.Attribute)
             {
-                OpStatus allocStatus = kind == PointAllocationKind.ResetAttributes
-                    ? _progressionService.TryResetAttributes(state)
-                    : _progressionService.TryAllocateAttribute(state, (PrimaryAttributeId)targetId, requested);
+                OpStatus allocStatus = _progressionService.TryAllocateAttribute(state, (PrimaryAttributeId)targetId, requested);
                 if (allocStatus != OpStatus.Ok)
                 {
                     return allocStatus;

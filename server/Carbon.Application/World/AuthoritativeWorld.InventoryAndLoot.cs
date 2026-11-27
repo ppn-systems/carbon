@@ -317,7 +317,7 @@ public sealed partial class AuthoritativeWorld
     {
         lock (_gate)
         {
-            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state))
+            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state) || state.IsDead)
             {
                 return OpStatus.Forbidden;
             }

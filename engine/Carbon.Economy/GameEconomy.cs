@@ -13,6 +13,7 @@ using Carbon.Economy.Vendor;
 using Carbon.Items.Catalog;
 using Carbon.Items.Crafting;
 using Carbon.Items.Enhancement;
+using Carbon.Items.Repair;
 
 namespace Carbon.Economy;
 
@@ -37,17 +38,20 @@ public sealed class GameEconomy
     /// <summary>File name of the forge enhancement table (ADR-024).</summary>
     public const string EnhancementFile = "enhancement.json";
 
+    /// <summary>File name of the repair rules (ADR-028).</summary>
+    public const string RepairFile = "repair.json";
+
     /// <summary>File name of the trader profiles (optional, ADR-025).</summary>
     public const string TradersFile = TraderCatalog.FileName;
 
-    private GameEconomy(ItemCatalog items, RecipeCatalog recipes, EconomyConfig config, LootCatalog loot, EnhancementTable enhancement, TraderCatalog? traders)
+    private GameEconomy(ItemCatalog items, RecipeCatalog recipes, EconomyConfig config, LootCatalog loot, EnhancementTable enhancement, RepairTable repair, TraderCatalog? traders)
     {
         this.Traders = traders;
         this.Items = items;
         this.Recipes = recipes;
         this.Config = config;
         this.Loot = loot;
-        this.ItemRules = new ItemRules(items, recipes, enhancement);
+        this.ItemRules = new ItemRules(items, recipes, enhancement, repair);
         this.Prices = new PriceBook(items, config);
         this.Vendor = new VendorService(this.Prices);
         this.Checkout = new CraftingCheckout(this.Prices);
@@ -81,7 +85,8 @@ public sealed class GameEconomy
     public CraftingCheckout Checkout { get; }
 
     /// <summary>
-    /// Builds the economy from the four JSON documents, with the build-time copy of the shipped <c>enhancement.json</c>
+    /// Builds the economy from the four JSON documents, with the build-time copies of the shipped <c>enhancement.json</c>
+    /// and <c>repair.json</c>
     /// (tests and offline tools; the server uses <see cref="Load(ConfigCatalog)"/>).
     /// </summary>
     /// <param name="itemsJson"><c>items.json</c> text.</param>
@@ -91,35 +96,37 @@ public sealed class GameEconomy
     /// <returns>The validated economy.</returns>
     /// <exception cref="InvalidDataException">Thrown when any document is malformed or inconsistent.</exception>
     public static GameEconomy Load(string itemsJson, string recipesJson, string economyJson, string lootJson) =>
-        Load(itemsJson, recipesJson, economyJson, lootJson, ItemRules.ReadShippedDocument(EnhancementFile));
+        Load(itemsJson, recipesJson, economyJson, lootJson, ItemRules.ReadShippedDocument(EnhancementFile), ItemRules.ReadShippedDocument(RepairFile));
 
     /// <summary>
-    /// Builds the economy from the five JSON documents, plus the optional trader profiles.
+    /// Builds the economy from the six JSON documents, plus the optional trader profiles.
     /// </summary>
     /// <param name="itemsJson"><c>items.json</c> text.</param>
     /// <param name="recipesJson"><c>recipes.json</c> text.</param>
     /// <param name="economyJson"><c>economy.json</c> text.</param>
     /// <param name="lootJson"><c>loot.json</c> text.</param>
     /// <param name="enhancementJson"><c>enhancement.json</c> text.</param>
+    /// <param name="repairJson"><c>repair.json</c> text.</param>
     /// <param name="tradersJson"><c>traders.json</c> text, or <see langword="null"/> for no traders.</param>
     /// <returns>The validated economy.</returns>
     /// <exception cref="InvalidDataException">Thrown when any document is malformed or inconsistent.</exception>
-    public static GameEconomy Load(string itemsJson, string recipesJson, string economyJson, string lootJson, string enhancementJson, string? tradersJson = null)
+    public static GameEconomy Load(string itemsJson, string recipesJson, string economyJson, string lootJson, string enhancementJson, string repairJson, string? tradersJson = null)
     {
         ItemCatalog items = ItemCatalog.LoadFromJson(itemsJson);
         RecipeCatalog recipes = RecipeCatalog.LoadFromJson(recipesJson, items);
         EconomyConfig config = EconomyConfig.LoadFromJson(economyJson);
         LootCatalog loot = LootCatalog.LoadFromJson(lootJson, items, config);
         EnhancementTable enhancement = EnhancementTable.LoadFromJson(enhancementJson, items);
+        RepairTable repair = RepairTable.LoadFromJson(repairJson, items);
         TraderCatalog? traders = tradersJson is null ? null : TraderCatalog.LoadFromJson(tradersJson, items, config);
-        return new GameEconomy(items, recipes, config, loot, enhancement, traders);
+        return new GameEconomy(items, recipes, config, loot, enhancement, repair, traders);
     }
 
     /// <summary>
     /// Builds the economy from the server's config snapshot (<c>ConfigRepository.Catalog</c>), so the server simulates
     /// exactly the bytes it serves to clients.
     /// </summary>
-    /// <param name="config">Config snapshot holding <c>items</c>, <c>recipes</c>, <c>economy</c>, <c>loot</c> and <c>enhancement</c>.</param>
+    /// <param name="config">Config snapshot holding <c>items</c>, <c>recipes</c>, <c>economy</c>, <c>loot</c>, <c>enhancement</c> and <c>repair</c>.</param>
     /// <returns>The validated economy.</returns>
     /// <exception cref="InvalidDataException">Thrown when a document is malformed or inconsistent.</exception>
     /// <exception cref="KeyNotFoundException">Thrown when a document is missing.</exception>
@@ -132,13 +139,14 @@ public sealed class GameEconomy
             Read(config, EconomyFile),
             Read(config, LootFile),
             Read(config, EnhancementFile),
+            Read(config, RepairFile),
             config.Contains(Path.GetFileNameWithoutExtension(TradersFile)) ? Read(config, TradersFile) : null);
     }
 
     /// <summary>
     /// Loads the economy from a directory containing the four config files.
     /// </summary>
-    /// <param name="configDirectory">Directory holding <c>items.json</c>, <c>recipes.json</c>, <c>economy.json</c>, <c>loot.json</c> and <c>enhancement.json</c>.</param>
+    /// <param name="configDirectory">Directory holding <c>items.json</c>, <c>recipes.json</c>, <c>economy.json</c>, <c>loot.json</c>, <c>enhancement.json</c> and <c>repair.json</c>.</param>
     /// <returns>The validated economy.</returns>
     /// <exception cref="InvalidDataException">Thrown when any document is malformed or inconsistent.</exception>
     /// <exception cref="FileNotFoundException">Thrown when a file is missing.</exception>
@@ -151,6 +159,7 @@ public sealed class GameEconomy
             File.ReadAllText(Path.Combine(configDirectory, EconomyFile)),
             File.ReadAllText(Path.Combine(configDirectory, LootFile)),
             File.ReadAllText(Path.Combine(configDirectory, EnhancementFile)),
+            File.ReadAllText(Path.Combine(configDirectory, RepairFile)),
             File.Exists(Path.Combine(configDirectory, TradersFile)) ? File.ReadAllText(Path.Combine(configDirectory, TradersFile)) : null);
     }
 

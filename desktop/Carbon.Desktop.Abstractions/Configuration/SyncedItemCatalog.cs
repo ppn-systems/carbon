@@ -10,6 +10,7 @@ using Carbon.Items.Catalog;
 using Carbon.Items.Crafting;
 using Carbon.Items.Definitions;
 using Carbon.Items.Enhancement;
+using Carbon.Items.Repair;
 
 namespace Carbon.Desktop.Abstractions.Configuration;
 
@@ -31,6 +32,9 @@ public sealed class SyncedItemCatalog
     /// <summary>Name of the synced forge enhancement document (ADR-024).</summary>
     public const string EnhancementDocumentName = "enhancement";
 
+    /// <summary>Name of the synced repair document (ADR-028).</summary>
+    public const string RepairDocumentName = "repair";
+
     private readonly Lazy<ItemRules> _fallback = new(ItemRules.LoadShippedDefaults);
     private volatile ItemRules? _synced;
 
@@ -45,7 +49,7 @@ public sealed class SyncedItemCatalog
 
     /// <summary>Rebuilds the rules from a verified config sync.</summary>
     /// <param name="config">Verified server config.</param>
-    /// <returns><see langword="true"/> when <c>items.json</c>, <c>recipes.json</c> and <c>enhancement.json</c> were present and valid; otherwise the previous rules stay.</returns>
+    /// <returns><see langword="true"/> when <c>items.json</c>, <c>recipes.json</c>, <c>enhancement.json</c> and <c>repair.json</c> were present and valid; otherwise the previous rules stay.</returns>
     public bool Apply(ConfigCatalog config)
     {
         ArgumentNullException.ThrowIfNull(config);
@@ -53,7 +57,8 @@ public sealed class SyncedItemCatalog
         // Recipe ids must match the server's, so a sync without a valid recipes.json is rejected as a whole.
         if (!config.TryGet(DocumentName, out ConfigCatalogEntry? entry)
             || !config.TryGet(RecipesDocumentName, out ConfigCatalogEntry? recipesEntry)
-            || !config.TryGet(EnhancementDocumentName, out ConfigCatalogEntry? enhancementEntry))
+            || !config.TryGet(EnhancementDocumentName, out ConfigCatalogEntry? enhancementEntry)
+            || !config.TryGet(RepairDocumentName, out ConfigCatalogEntry? repairEntry))
         {
             return false;
         }
@@ -63,7 +68,8 @@ public sealed class SyncedItemCatalog
             ItemCatalog items = ItemCatalog.LoadFromJson(Encoding.UTF8.GetString(entry.Utf8.Span));
             RecipeCatalog recipes = RecipeCatalog.LoadFromJson(Encoding.UTF8.GetString(recipesEntry.Utf8.Span), items);
             EnhancementTable enhancement = EnhancementTable.LoadFromJson(Encoding.UTF8.GetString(enhancementEntry.Utf8.Span), items);
-            _synced = new ItemRules(items, recipes, enhancement);
+            RepairTable repair = RepairTable.LoadFromJson(Encoding.UTF8.GetString(repairEntry.Utf8.Span), items);
+            _synced = new ItemRules(items, recipes, enhancement, repair);
             return true;
         }
         catch (InvalidDataException)

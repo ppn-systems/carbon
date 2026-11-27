@@ -31,14 +31,15 @@ public sealed record EconomyConfig
     /// <summary>Gets the vendor price spread.</summary>
     public VendorRules Vendor { get; set; } = new();
 
-    /// <summary>Gets the repair sink.</summary>
-    public RepairRules Repair { get; set; } = new();
 
     /// <summary>Gets the crafting fee sink.</summary>
     public CraftingFeeRules CraftingFees { get; set; } = new();
 
     /// <summary>Gets the owner protection and lifetime of monster kill loot on the ground.</summary>
     public GroundLootRules GroundLoot { get; set; } = new();
+
+    /// <summary>Gets the gold a player drops on death (ADR-031).</summary>
+    public DeathPenaltyRules DeathPenalty { get; set; } = new();
 
     /// <summary>Gets the designed income bands asserted by tests.</summary>
     public DesignTargets DesignTargets { get; set; } = new();
@@ -101,8 +102,6 @@ public sealed record EconomyConfig
         Require(
             this.Vendor.SellRatioPercent >= 0 && this.Vendor.SellRatioPercent < this.Vendor.BuyMarkupPercent,
             "vendor.sellRatioPercent must be >= 0 and below buyMarkupPercent (otherwise buy-then-sell mints gold)");
-        Require(this.Repair.CostPercentOfBasePrice >= 0 && this.Repair.MinimumCost >= 0, "repair costs must be >= 0");
-        Require(this.Repair.RarityMultiplierPercent.IsValid, "repair.rarityMultiplierPercent values must be >= 0");
         Require(
             this.CraftingFees.None >= 0 && this.CraftingFees.Workbench >= 0 && this.CraftingFees.Forge >= 0
             && this.CraftingFees.Stove >= 0 && this.CraftingFees.Alchemy >= 0 && this.CraftingFees.OutputValueRateBps is >= 0 and <= 10000,
@@ -113,6 +112,18 @@ public sealed record EconomyConfig
             && this.GroundLoot.OwnerProtectionSeconds >= 0
             && this.GroundLoot.OwnerProtectionSeconds <= this.GroundLoot.KillLootLifetimeSeconds,
             "groundLoot needs 1 <= killLootLifetimeSeconds <= 3600 and 0 <= ownerProtectionSeconds <= killLootLifetimeSeconds");
+        Require(
+            this.DeathPenalty.MinLevel >= 1 && this.DeathPenalty.DropPercent is >= 0 and <= 100
+            && this.DeathPenalty.FloorGoldPerLevel >= 0 && this.DeathPenalty.CapGoldPerLevel >= this.DeathPenalty.FloorGoldPerLevel,
+            "deathPenalty needs minLevel >= 1, dropPercent in [0, 100] and 0 <= floorGoldPerLevel <= capGoldPerLevel");
+        Require(
+            this.DeathPenalty.GoldPerPile >= 1 && this.DeathPenalty.MaxPiles is >= 1 and <= Death.DeathGoldPenalty.MaxPilesLimit,
+            "deathPenalty needs goldPerPile >= 1 and maxPiles in [1, 16]");
+        Require(
+            this.DeathPenalty.LootLifetimeSeconds is >= 1 and <= 3600
+            && this.DeathPenalty.OwnerProtectionSeconds >= 0
+            && this.DeathPenalty.OwnerProtectionSeconds <= this.DeathPenalty.LootLifetimeSeconds,
+            "deathPenalty needs 1 <= lootLifetimeSeconds <= 3600 and 0 <= ownerProtectionSeconds <= lootLifetimeSeconds");
         this.ValidateConsumablePriceBands();
         Require(this.DesignTargets.KillsPerHour > 0, "designTargets.killsPerHour must be positive");
         Require(this.DesignTargets.InflationSlope.Min <= this.DesignTargets.InflationSlope.Max, "designTargets.inflationSlope min must be <= max");

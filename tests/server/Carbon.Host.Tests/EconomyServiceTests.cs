@@ -5,7 +5,6 @@ using System.Numerics;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
 using Carbon.Application.World.Commerce;
-using Carbon.Application.World.Inventory;
 using Carbon.Application.World.Loot;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
@@ -13,7 +12,6 @@ using Carbon.Contracts.Common;
 using Carbon.Economy;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
-using Carbon.Maps.Building;
 using Carbon.Simulation.World;
 using FluentAssertions;
 using Xunit;
@@ -74,14 +72,6 @@ public sealed class EconomyServiceTests
     }
 
     [Fact]
-    public void RunVendorOperation_RepairAwayFromAForge_IsOutOfRangeEvenNextToATownNpc()
-    {
-        Harness h = new(s_shipped) { NpcNearby = true };
-
-        h.Commerce.RunVendorOperation(h.Player, Vector2.Zero, VendorOperation.Repair, 0, 0, []).Should().Be(OpStatus.OutOfRange);
-    }
-
-    [Fact]
     public void QueueWalletSync_StagesTheCurrentBalances()
     {
         Harness h = new(s_shipped);
@@ -101,8 +91,7 @@ public sealed class EconomyServiceTests
             ItemRules rules = economy?.ItemRules ?? ItemRules.LoadShippedDefaults();
             WorldSimulation simulation = new();
             this.GroundLoot = new GroundLootService(simulation, () => rules, () => ++_nextNetworkId, () => 50UL, (_, _) => { });
-            InventoryService inventory = new(simulation, new BuildingGrid(), 32f, TestGameplayEntropy.Create(1UL), () => rules, () => economy, () => 50UL, (_, _, _) => false, this.GroundLoot, this.Outbound, _ => { });
-            this.Commerce = new EconomyService(TestGameplayEntropy.Create(42UL), 30, () => economy, () => 50UL, this.GroundLoot, inventory, this.Outbound, (_, _) => this.NpcNearby);
+            this.Commerce = new EconomyService(TestGameplayEntropy.Create(42UL), 30, () => economy, () => 50UL, this.GroundLoot, this.Outbound, (_, _) => this.NpcNearby);
 
             ConnectedPlayerSession session = new(9UL, Guid.NewGuid(), Guid.NewGuid(), "Tester", 900UL, 0, 0);
             CharacterRecord character = new(

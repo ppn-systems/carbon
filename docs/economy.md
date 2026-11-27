@@ -8,7 +8,8 @@ Every number below is in `resources/config/*.json`. The tests in `tests/engine/C
 | `resources/config/items.json` | Item ids, codes, rarity, tier, stack size, **base price**, durability, vendor flag, theme tags (nutrition lives in the survival agent's `food.json`) |
 | `resources/config/loot.json` | Loot table per monster family / gather node |
 | `resources/config/recipes.json` | Recipes: station, work ticks, skill/level gates, ingredients, outputs |
-| `resources/config/economy.json` | Currency caps, gold/diamond curves, pity, vendor spread, repair, crafting fees, design targets |
+| `resources/config/economy.json` | Currency caps, gold/diamond curves, pity, vendor spread, crafting fees, design targets |
+| `resources/config/repair.json` | Repair materials per family and tier, station tiers, blacksmith fee ([ADR-028](adr/ADR-028-material-repair-per-item.md)); synced to clients |
 
 Code: `engine/Carbon.Economy` (wallet, loot, vendor, fees) and `engine/Carbon.Items` (item catalog, recipes, atomic crafting, crafting jobs).
 
@@ -41,9 +42,9 @@ Currencies live in a `Wallet`, not in inventory slots, so they can't be dropped,
 | `EconomyError` | `OpStatus` |
 | :--- | :--- |
 | `InvalidAmount`, `SameWallet`, `CraftRejected` | `Invalid` |
-| `InsufficientFunds`, `BalanceCapExceeded`, `InsufficientItems`, `AlreadyRepaired` | `Conflict` |
+| `InsufficientFunds`, `BalanceCapExceeded`, `InsufficientItems` | `Conflict` |
 | `UnknownItem` | `NotFound` |
-| `NotForSale`, `NotRepairable` | `Forbidden` |
+| `NotForSale` | `Forbidden` |
 | `InventoryFull` | `InventoryFull` |
 
 ## 3. Loot (`Carbon.Economy.Loot`)
@@ -158,14 +159,15 @@ The design target is that sinks remove **35–60% of faucet gold from level 10 u
 | :--- | :--- | :--- |
 | Vendor spread | Buy at 100% of base price; sell at `floor(25%)`. Vendors sell `vendorBuyable` basics (logs, stone, fiber, coal, wheat, berries, raw meat, cloth, tier-1 tools) and consumables (cooked meat, bread, stew, roast meat, arcane pie, health potions, mana tonic). | `orc_tusk` (15 g) sells for 3 g |
 | Consumable upkeep | Consumables cost `vendor.consumablePriceBands[buyer level]` percent of the buy price: 100% at levels 1–14, rising in 5-level steps to 790% at 95–100. This tracks the level-scaled gold faucet. A band is never below 100%, so buy-then-sell never mints gold. | Small health potion: 12 g at level 10, 59 g at level 60 |
-| Repair | `ceil(basePrice × 30% × rarity% × missing/max durability)`, minimum 1 g. `repair.rarityMultiplierPercent`: common 50, uncommon 100, rare 175, epic 300, legendary 400. Only the active weapon or tool wears (1.5 per weapon strike, `ToolUsagePolicy`); armor does not. | Half-worn: copper sword 5 g, iron sword 17 g, ember blade 216 g |
+| Repair | Blacksmith fee (`repair.json → blacksmithFee`): `ceil(basePrice × 30% × rarity% × restored/max durability)`, minimum 1 g; rarity: common 50, uncommon 100, rare 175, epic 300, legendary 400. Every repair also spends materials, and a player workbench or anvil charges no gold (ADR-028). Only the active weapon or tool wears (1.5 per weapon strike, `ToolUsagePolicy`); armor does not. | Half-worn, full repair: copper sword 5 g, iron sword 17 g (+ 2 iron ingots), ember blade 216 g |
 | Station fee | `(flat + 10% of the outputs' base value) × rarity%` of the rarest output. Flat: hand 0, workbench 0, forge 2, stove 1, alchemy 5. `craftingFees.rarityMultiplierPercent`: common 100, uncommon 150, rare 250, epic 400, legendary 600. Hand crafting stays free. | Ember blade: (2 + 48) × 400% = 200 g; abyssal crown: (5 + 250) × 600% = 1,530 g |
+| Death drop | From level 10 (`deathPenalty.minLevel`): `clamp(10% of carried gold, 2 × level, 30 × level)`, at most what is carried; diamonds never. The gold drops as 1–5 piles, reserved for the dead player for 120 s. Anyone else may take it after that, and it despawns after 300 s. Only unclaimed gold leaves the economy; ledger reason `DeathDrop` ([ADR-031](adr/ADR-031-player-death-state-respawn-and-gold-drop.md)). | Level 20 carrying 5,000 g drops 500 g; carrying 100 g drops 40 g |
 
 `VendorService.TryBuy` checks funds, wallet cap and inventory space before committing both sides; the server passes the buyer's level. A full bag is never charged, and a capped wallet never loses the items it tried to sell. `CraftingCheckout` charges the station fee only when the craft (or job start) succeeds, and refuses the craft with `InsufficientFunds` before touching the inventory.
 
 ### 7.1 Player-hour balance simulation (`Carbon.Economy.Simulation`)
 
-`EconomySimulator` plays the engaged player described in `economy.json → playerModel` for N hours at one level. It uses the real tables: `LootRoller` for loot, `PriceBook` sell prices, `ToolUsagePolicy` weapon wear, `VendorService.TryRepair` and `TryBuy`, and `PriceBook.GetCraftingFee`. Every gold movement goes through a `Wallet`, and the report is read back from the ledger by `CurrencyReason`.
+`EconomySimulator` plays the engaged player described in `economy.json → playerModel` for N hours at one level. It uses the real tables: `LootRoller` for loot, `PriceBook` sell prices, `ToolUsagePolicy` weapon wear, the blacksmith fee of a full repair (`RepairTable.TryQuoteFull`; materials are gathered, not bought), `VendorService.TryBuy`, and `PriceBook.GetCraftingFee`. Every gold movement goes through a `Wallet`, and the report is read back from the ledger by `CurrencyReason`.
 
 Each simulated hour runs this model:
 
@@ -174,7 +176,7 @@ Each simulated hour runs this model:
 - **Weapon wear and repair:**
   - Each kill takes the stage's `strikesPerKill` strikes (monster HP over the stage weapon's damage): 3 at levels 1–24, 2 from level 25.
   - Each strike wears the stage's `weapon` by the server's per-strike loss.
-  - The weapon is repaired at the vendor once it drops below `repairBelowPercent`.
+  - The weapon is repaired at the blacksmith once it drops below `repairBelowPercent`.
 - **Crafting fees:** `craftsPerHour` station fees are paid, cycling through the stage's recipes.
 - **Consumables:** the stage's `consumables` are bought at the buyer's level-band price.
 
@@ -278,7 +280,7 @@ Ids 1–39 keep the `StarterGameCatalog` ids and codes, and a test checks catego
 **Wallet persistence, sync and sinks** ([ADR-012](adr/ADR-012-server-authoritative-wallet-persistence-and-sync.md)):
 - `CharacterRecord` persists `Gold`, `Diamonds`, `WalletSequence` and `DiamondPity` through migration `0005_character_wallet`, in both SQLite and PostgreSQL.
 - `WalletSync` (S2C `0x1237`) pushes balances on world entry, after a gold or diamond pile is picked up and after vendor operations. The inventory window shows them in its header (not the main HUD, owner request; the trader window shows gold for prices), using `resources/art/ui/coin.cvg.json` and `diamond.cvg.json`.
-- `VendorBuyItem` (`0x4007`) and `VendorSellItem` (`0x4008`) require a friendly town NPC within 175 px. `RepairInventoryItem` (`0x4009`) requires a forge station. All three reply with `MutationResult`.
+- `VendorBuyItem` (`0x4007`) and `VendorSellItem` (`0x4008`) require a friendly town NPC within 175 px. Both reply with `MutationResult`. Repair is `RepairItemRequest` (`0x4050`, ADR-028), answered with `RepairItemResult` (`0x4051`).
 
 ## 10. Operator guide: changing the numbers
 
@@ -288,7 +290,7 @@ Ids 1–39 keep the `StarterGameCatalog` ids and codes, and a test checks catego
 | :--- | :--- | :--- |
 | More or less gold income | `economy.json → gold` (`levelExponent`, `dropChancePercent`), or `goldBase`/`goldMax` per table in `loot.json` | Loot gold, net/h |
 | Item drop rates | `loot.json` entries (`weight`, `nothingWeight`, `min`/`max` quantities, `minLevel`) | Vendor sales |
-| Repair pressure | `repair.costPercentOfBasePrice`, `repair.rarityMultiplierPercent` | Repairs |
+| Repair pressure | `repair.json → blacksmithFee` (`percentOfBasePrice`, `rarityPercent`) | Repairs |
 | Station fees | `craftingFees` flat fees, `outputValueRateBps`, `rarityMultiplierPercent` | Station fees |
 | Consumable upkeep | `vendor.consumablePriceBands`, and `vendorBuyable` in `items.json` | Vendor buys |
 | Item value | `basePrice` in `items.json`. This moves sell price, repair cost and station fees at once. | All sinks |

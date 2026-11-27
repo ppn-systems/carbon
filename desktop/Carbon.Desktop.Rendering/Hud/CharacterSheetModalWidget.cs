@@ -17,30 +17,21 @@ using Carbon.Graphics.Batching.Sprites;
 using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
-using Carbon.Items.Progression;
 
 namespace Carbon.Desktop.Rendering.Hud;
 
 /// <summary>
 /// Character tab (<c>[Y]</c>) of the <see cref="PlayerModalTabs"/> workspace (ADR-021). Left card: portrait, level and
 /// experience, and every derived stat. Right card: the five attributes with their per-point effects and <c>+</c>
-/// buttons, the unspent point count, and the attribute reset button. Hovering a <c>+</c> button previews, in green,
+/// buttons and the unspent point count. Hovering a <c>+</c> button previews, in green,
 /// each stat that point would change. All numbers come from the synced <c>progression.json</c>.
 /// </summary>
 internal sealed class CharacterSheetModalWidget
 {
-    /// <summary>Seconds the reset button stays armed waiting for the confirming click.</summary>
-    private const float ResetConfirmWindowSeconds = 4f;
-
     private static readonly ColorRgba s_previewText = new(120, 226, 150, 255);
 
     private readonly List<SkillDefinition> _skillScratch = new(8);
     private readonly CharacterStatsPreview _preview = new();
-    private float _resetArmedUntil = -1f;
-    private float _clock;
-
-    /// <summary>Gets whether the reset button is armed (the next click on it confirms).</summary>
-    public bool IsResetArmed => _clock < _resetArmedUntil;
 
     public bool ContainsPoint(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
@@ -75,29 +66,6 @@ internal sealed class CharacterSheetModalWidget
         }
 
         attribute = PrimaryAttributeId.Vitality;
-        return false;
-    }
-
-    /// <summary>
-    /// Handles a click on the reset button: the first click arms it, a second click within a few seconds confirms.
-    /// Returns <see langword="true"/> only for the confirming click.
-    /// </summary>
-    public bool TryClickResetButton(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
-    {
-        ArgumentNullException.ThrowIfNull(world);
-        PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
-        if (!GetResetRect(in layout).Contains(mousePos) || !HasAllocatedPoints(world))
-        {
-            return false;
-        }
-
-        if (this.IsResetArmed)
-        {
-            _resetArmedUntil = -1f;
-            return true;
-        }
-
-        _resetArmedUntil = _clock + ResetConfirmWindowSeconds;
         return false;
     }
 
@@ -141,15 +109,6 @@ internal sealed class CharacterSheetModalWidget
         RectangleF statsBox = GetStatsRect(in layout);
         skin.DrawInset(spriteBatch, in statsBox, CarbonUiPalette.SlotFill, CarbonUiPalette.BorderSubtle);
 
-        RectangleF reset = GetResetRect(in layout);
-        bool canReset = HasAllocatedPoints(world);
-        bool hoverReset = mouseScreenPos.HasValue && reset.Contains(mouseScreenPos.Value);
-        skin.DrawButton(
-            spriteBatch,
-            in reset,
-            !canReset ? CarbonUiPalette.SlotFill : this.IsResetArmed ? CarbonUiPalette.DangerFill : hoverReset ? CarbonUiPalette.SlotHoverFill : CarbonUiPalette.CardFill,
-            this.IsResetArmed ? CarbonUiPalette.DangerBorder : CarbonUiPalette.BorderSubtle);
-
         // The model is refreshed once per frame here (the skin pass runs first), so the text pass reads a consistent preview.
         _ = _preview.Update(world, SyncedProgressionConfig.Current, hovered);
     }
@@ -162,7 +121,6 @@ internal sealed class CharacterSheetModalWidget
         int viewportHeight,
         float animTime)
     {
-        _clock = animTime;
         PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
         float s = layout.Scale;
         RectangleF leftCard = GetLeftCardRect(in layout);
@@ -312,46 +270,15 @@ internal sealed class CharacterSheetModalWidget
             CarbonUiSkin.DrawCenteredText(spriteBatch, font, "+", in plusRect, unspentAp > 0 ? CarbonUiPalette.TextPrimary : CarbonUiPalette.TextMuted, black, layout.TitleScale);
         }
 
-        RectangleF reset = GetResetRect(in layout);
+        RectangleF hint = GetHintRect(in layout);
         spriteBatch.DrawOutlinedString(
             font,
-            CarbonUiSkin.TruncateToWidth(font, GameText.Get("character.hint"), reset.Width, ts),
-            new Vector2(reset.X, reset.Bottom + MathF.Round(12f * s)),
+            CarbonUiSkin.TruncateToWidth(font, GameText.Get("character.hint"), hint.Width, ts),
+            new Vector2(hint.X, hint.Y),
             CarbonUiPalette.TextMuted,
             black,
             1,
             ts);
-        CarbonUiSkin.DrawCenteredText(
-            spriteBatch,
-            font,
-            this.ResetLabel(world),
-            in reset,
-            HasAllocatedPoints(world) ? CarbonUiPalette.TextPrimary : CarbonUiPalette.TextMuted,
-            black,
-            ts);
-    }
-
-    private static bool HasAllocatedPoints(IWorldReadModel world)
-    {
-        for (int i = 0; i < CharacterStatsPreview.Attributes.Length; i++)
-        {
-            if (world.GetAttributePoints(CharacterStatsPreview.Attributes[i]) > 0)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private string ResetLabel(IWorldReadModel world)
-    {
-        ProgressionConfig? config = _preview.Config;
-        long cost = config?.GetRespecCost(world.LocalPlayerLevel) ?? 0L;
-        string price = cost > 0L
-            ? GameText.Format("character.price_gold", new TextArg("amount", cost.ToString("N0", CultureInfo.InvariantCulture)))
-            : GameText.Get("character.price_free");
-        return GameText.Format(this.IsResetArmed ? "character.reset_confirm" : "character.reset", new TextArg("price", price));
     }
 
     private static RectangleF GetLeftCardRect(in PlayerModalLayout layout)
@@ -405,14 +332,12 @@ internal sealed class CharacterSheetModalWidget
         return new RectangleF(row.Right - btn - MathF.Round(12f * s), row.Y + MathF.Round((62f - 38f) * 0.5f * s), btn, btn);
     }
 
-    private static RectangleF GetResetRect(in PlayerModalLayout layout)
+    /// <summary>The one-line allocation hint under the last attribute row.</summary>
+    private static RectangleF GetHintRect(in PlayerModalLayout layout)
     {
         float s = layout.Scale;
         RectangleF lastRow = GetStatRowRect(in layout, CharacterStatsPreview.Attributes.Length - 1);
-        RectangleF rightCard = GetRightCardRect(in layout);
-        float top = lastRow.Bottom + MathF.Round(12f * s);
-        float h = MathF.Min(MathF.Round(40f * s), rightCard.Bottom - top - MathF.Round(10f * s));
-        return new RectangleF(lastRow.X, top, lastRow.Width, h);
+        return new RectangleF(lastRow.X, lastRow.Bottom + MathF.Round(14f * s), lastRow.Width, MathF.Round(20f * s));
     }
 
     /// <summary>Draws the derived-stats card: two columns of label + value; previewed changes show the next value in green.</summary>

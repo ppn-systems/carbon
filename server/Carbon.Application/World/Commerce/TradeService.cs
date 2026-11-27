@@ -259,7 +259,7 @@ internal sealed class TradeService : IWorldTradeService
             WorldCommandKind.CraftRecipe or WorldCommandKind.MoveInventorySlot or WorldCommandKind.UpgradeInventoryItem or
             WorldCommandKind.DropInventoryItem or WorldCommandKind.SplitInventorySlot or WorldCommandKind.SortInventory or
             WorldCommandKind.DestroyInventoryItem or WorldCommandKind.VendorBuy or WorldCommandKind.VendorSell or
-            WorldCommandKind.RepairItem or WorldCommandKind.AllocateCharacterPoint => OpStatus.Invalid,
+            WorldCommandKind.RepairItem or WorldCommandKind.AllocateCharacterPoint or WorldCommandKind.Respawn => OpStatus.Invalid,
             _ => OpStatus.Invalid,
         };
         return new WorldMutationOutcome(status, 0);
@@ -269,7 +269,7 @@ internal sealed class TradeService : IWorldTradeService
     {
         trader = default;
         economy = _economy();
-        if (!_players.ByConnection.TryGetValue(connectionId, out state) || !_simulation.Entities.HasTransform(state.Entity))
+        if (!_players.ByConnection.TryGetValue(connectionId, out state) || state.IsDead || !_simulation.Entities.HasTransform(state.Entity))
         {
             return OpStatus.Forbidden;
         }
@@ -353,19 +353,9 @@ internal sealed class TradeService : IWorldTradeService
             }
         }
 
-        // A blacksmith also quotes the repair of every worn item in the bag (the forge repair price, PriceBook.GetRepairCost).
+        // A blacksmith repairs (ADR-028). The window prices a repair from the synced repair.json, so the old gold-only
+        // quote fields stay empty.
         bool canRepair = trader.ProfileId == BlacksmithProfile;
-        List<ushort> repairSlots = [];
-        List<int> repairCosts = [];
-        for (int i = 0; canRepair && i < Math.Min(PlayerInventoryLayout.BagLimit, slots.Length); i++)
-        {
-            long cost = economy.Prices.GetRepairCost(slots[i]);
-            if (cost > 0)
-            {
-                repairSlots.Add((ushort)i);
-                repairCosts.Add((int)Math.Min(int.MaxValue, cost));
-            }
-        }
 
         _outbound.Pending.TraderStocks.Add(new OutboundTraderStock(
             state.Session.ConnectionId,
@@ -381,8 +371,8 @@ internal sealed class TradeService : IWorldTradeService
                 [.. sellIds],
                 [.. sellPrices],
                 canRepair,
-                [.. repairSlots],
-                [.. repairCosts])));
+                [],
+                [])));
         return OpStatus.Ok;
     }
 }

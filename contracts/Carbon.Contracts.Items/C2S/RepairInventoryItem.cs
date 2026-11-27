@@ -7,8 +7,8 @@ using Nalix.Codec.DataFrames;
 namespace Carbon.Contracts.Items.C2S;
 
 /// <summary>
-/// Client requests restoring full durability of the item in <see cref="SlotIndex"/> for gold at a forge station.
-/// Server responds with <see cref="Common.MutationResult"/>.
+/// Retired by ADR-028: a gold-only full repair. The server no longer handles it; clients send
+/// <see cref="RepairItemRequest"/>. Kept until the desktop stops referencing it.
 /// </summary>
 [Packet]
 [GenerateFormatter]

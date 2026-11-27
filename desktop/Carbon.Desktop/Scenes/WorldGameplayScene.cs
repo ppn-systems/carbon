@@ -376,10 +376,6 @@ public sealed class WorldGameplayScene : GameScene
                     {
                         _ = _session.TryAllocateCharacterPoint(PointAllocationKind.Attribute, (ushort)statTarget, input.ShiftHeld ? (byte)5 : (byte)1); // Shift: 5 (server clamps)
                     }
-                    else if (_hudRenderer.TryClickCharacterReset(_session, mouseScreen, context.WindowWidth, context.WindowHeight))
-                    {
-                        _ = _session.TryAllocateCharacterPoint(PointAllocationKind.ResetAttributes, 0, 1);
-                    }
                 }
             }
             else if (_hudRenderer.ActivePlayerTab == PlayerModalTab.Skills)

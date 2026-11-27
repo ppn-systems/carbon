@@ -4,11 +4,14 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Carbon.Contracts.Common;
 using Carbon.Configuration;
 using Carbon.Configuration.Catalog;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Items.Catalog;
+using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
+using Carbon.Items.Repair;
 using FluentAssertions;
 using Xunit;
 
@@ -20,6 +23,7 @@ public sealed class SyncedItemCatalogTests
     private static readonly byte[] s_itemsJson = File.ReadAllBytes(Path.Combine(FindRepositoryRoot(), "resources", "config", "items.json"));
     private static readonly byte[] s_recipesJson = File.ReadAllBytes(Path.Combine(FindRepositoryRoot(), "resources", "config", "recipes.json"));
     private static readonly byte[] s_enhancementJson = File.ReadAllBytes(Path.Combine(FindRepositoryRoot(), "resources", "config", "enhancement.json"));
+    private static readonly byte[] s_repairJson = File.ReadAllBytes(Path.Combine(FindRepositoryRoot(), "resources", "config", "repair.json"));
 
     [Fact]
     public void Apply_SyncedItemsDocument_ServesNamesAndStacksForItemsTheClientNeverCompiled()
@@ -124,16 +128,37 @@ public sealed class SyncedItemCatalogTests
         ])).Should().BeFalse("enhancement.json must sync with items.json");
     }
 
-    private static ConfigCatalog Config(uint version, byte[] items, byte[]? recipes = null, byte[]? enhancement = null)
+    [Fact]
+    public void Apply_ServerChangedRepairMaterials_DesktopQuotesTheSyncedTable()
+    {
+        SyncedItemCatalog synced = new();
+        string repair = System.Text.Encoding.UTF8.GetString(s_repairJson)
+            .Replace("\"item\": \"iron_ingot\", \"qty\": 2 } ],\n      \"items\": [ \"iron_sword\"", "\"item\": \"iron_ingot\", \"qty\": 6 } ],\n      \"items\": [ \"iron_sword\"", StringComparison.Ordinal);
+
+        synced.Apply(Config(6, s_itemsJson, repair: System.Text.Encoding.UTF8.GetBytes(repair))).Should().BeTrue();
+
+        uint sword = synced.Rules.ItemCatalog.ResolveId("iron_sword");
+        synced.Rules.Repair.TryQuoteFull(new ItemSlot(sword, 1, Durability: 0f), RepairVenue.Station, out RepairQuote quote).Should().Be(RepairError.None);
+        quote.GetMaterial(0).Quantity.Should().Be(9, "6 ingots at tier 2 (150 %) come from the synced repair.json (ADR-028), never from the client build");
+        synced.Apply(new ConfigCatalog(7, [
+            new ConfigCatalogEntry("items", 0, 1, s_itemsJson),
+            new ConfigCatalogEntry("recipes", 0, 1, s_recipesJson),
+            new ConfigCatalogEntry("enhancement", 0, 1, s_enhancementJson),
+        ])).Should().BeFalse("repair.json must sync with items.json");
+    }
+
+    private static ConfigCatalog Config(uint version, byte[] items, byte[]? recipes = null, byte[]? enhancement = null, byte[]? repair = null)
     {
         byte[] recipeBytes = recipes ?? s_recipesJson;
         byte[] enhancementBytes = enhancement ?? s_enhancementJson;
+        byte[] repairBytes = repair ?? s_repairJson;
         return new ConfigCatalog(
             version,
             [
                 new ConfigCatalogEntry("items", ConfigContentHash.Compute(items), version, items),
                 new ConfigCatalogEntry("recipes", ConfigContentHash.Compute(recipeBytes), version, recipeBytes),
                 new ConfigCatalogEntry("enhancement", ConfigContentHash.Compute(enhancementBytes), version, enhancementBytes),
+                new ConfigCatalogEntry("repair", ConfigContentHash.Compute(repairBytes), version, repairBytes),
             ]);
     }
 

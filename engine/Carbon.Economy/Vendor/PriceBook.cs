@@ -11,7 +11,7 @@ namespace Carbon.Economy.Vendor;
 
 /// <summary>
 /// Integer price rules derived from item base prices and <see cref="EconomyConfig"/>: vendor buy/sell spread,
-/// repair costs and crafting station fees (the gold sinks).
+/// and crafting station fees (the gold sinks; the repair fee is in <c>repair.json</c>, ADR-028).
 /// </summary>
 public sealed class PriceBook
 {
@@ -76,32 +76,6 @@ public sealed class PriceBook
         this.Items.TryGet(itemId, out ItemCatalogEntry? item)
             ? item.BasePrice * this.Config.Vendor.SellRatioPercent / 100
             : 0;
-
-    /// <summary>
-    /// Gets the gold cost of restoring <paramref name="slot"/> to full durability (<c>0</c> when nothing to repair).
-    /// </summary>
-    /// <param name="slot">Equipment slot.</param>
-    /// <returns>Repair cost.</returns>
-    public long GetRepairCost(in ItemSlot slot)
-    {
-        if (slot.IsEmpty || !this.Items.TryGet(slot.ItemId, out ItemCatalogEntry? item) || item.MaxDurability <= 0f)
-        {
-            return 0;
-        }
-
-        // Enhanced gear has a higher maximum (+10% per level); repair prices the missing share of that maximum.
-        float maxDurability = ItemEnhancementPolicy.GetEffectiveMaxDurability(item.MaxDurability, ItemEnhancementPolicy.GetUpgradeLevel(in slot));
-        float missing = Math.Clamp(maxDurability - slot.Durability, 0f, maxDurability);
-        if (missing <= 0f)
-        {
-            return 0;
-        }
-
-        long missingPermille = Math.Clamp((long)MathF.Ceiling(missing * 1000f / maxDurability), 1L, 1000L);
-        long percent = (long)this.Config.Repair.CostPercentOfBasePrice * this.Config.Repair.RarityMultiplierPercent.For(item.Rarity);
-        long cost = CeilDiv(item.BasePrice * percent * missingPermille, 100L * 100L * 1000L);
-        return Math.Max(this.Config.Repair.MinimumCost, cost);
-    }
 
     /// <summary>
     /// Gets the base value of every output of <paramref name="recipe"/>.

@@ -67,6 +67,20 @@ public sealed class WorldCommandExecutorTests
     }
 
     [Fact]
+    public async Task Drain_RepairCommand_DecodesSlotItemStepsAndVenueAndReturnsThePackedReceipt()
+    {
+        RecordingHandlers handlers = new();
+        WorldCommandExecutor executor = new(handlers);
+        WorldCommandQueue queue = new();
+
+        Task<WorldMutationOutcome> repair = queue.Submit(WorldCommandKind.RepairItem, Connection, 37, 3, 4, (ushort)RepairVenue.Blacksmith).AsTask();
+        executor.Drain(queue);
+
+        handlers.Calls.Should().Equal("RepairItem 42 37 3 4 Blacksmith");
+        (await repair.ConfigureAwait(true)).Should().Be(new WorldMutationOutcome(OpStatus.Ok, 0x0000_0304U), "the repair receipt rides in the revision (ADR-028)");
+    }
+
+    [Fact]
     public void Drain_EveryTickWithNothingQueued_AllocatesNothing()
     {
         WorldCommandExecutor executor = new(new RecordingHandlers());
@@ -80,6 +94,26 @@ public sealed class WorldCommandExecutorTests
         }
 
         (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0, "the drain runs at the start of every fixed tick (AGENTS.md rule 4)");
+    }
+
+    [Fact]
+    public async Task Drain_DeadPlayer_RefusesEveryCommandButRespawn()
+    {
+        RecordingHandlers handlers = new() { Dead = true };
+        WorldCommandExecutor executor = new(handlers);
+        WorldCommandQueue queue = new();
+
+        Task<WorldMutationOutcome> sort = queue.Submit(WorldCommandKind.SortInventory, Connection, 0).AsTask();
+        Task<WorldMutationOutcome> harvest = queue.Submit(WorldCommandKind.HarvestProp, Connection, 3, -4, StructureType.None, StructureRotation.North).AsTask();
+        Task<WorldMutationOutcome> buy = queue.Submit(WorldCommandKind.VendorBuy, Connection, 5, 1).AsTask();
+        Task<WorldMutationOutcome> respawn = queue.Submit(WorldCommandKind.Respawn, Connection, 0).AsTask();
+        executor.Drain(queue);
+
+        handlers.Calls.Should().Equal(["Respawn 42"], "a dead player can do nothing but ask to respawn (ADR-031)");
+        (await sort.ConfigureAwait(true)).Status.Should().Be(OpStatus.Forbidden);
+        (await harvest.ConfigureAwait(true)).Status.Should().Be(OpStatus.Forbidden);
+        (await buy.ConfigureAwait(true)).Status.Should().Be(OpStatus.Forbidden);
+        (await respawn.ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok);
     }
 
     [Fact]
@@ -133,7 +167,14 @@ public sealed class WorldCommandExecutorTests
 
         public OpStatus TryVendorSell(ulong connectionId, ushort slotIndex, ushort quantity) => this.Slot($"VendorSell {connectionId} {slotIndex} {quantity}");
 
-        public OpStatus TryRepairItem(ulong connectionId, ushort slotIndex) => this.Slot($"RepairItem {connectionId} {slotIndex}");
+        public WorldMutationOutcome TryRepairItem(ulong connectionId, ushort slotIndex, ushort expectedItemId, byte steps, RepairVenue venue) =>
+            new(this.Slot($"RepairItem {connectionId} {slotIndex} {expectedItemId} {steps} {venue}"), 0x0000_0304U);
+
+        public OpStatus TryRespawn(ulong connectionId) => this.Slot($"Respawn {connectionId}");
+
+        public bool Dead { get; set; }
+
+        public bool IsPlayerDead(ulong connectionId) => this.Dead;
 
         public OpStatus TryAllocateCharacterPoint(ulong connectionId, PointAllocationKind kind, ushort targetId, byte amount) =>
             this.Slot($"AllocateCharacterPoint {connectionId} {kind} {targetId} {amount}");
