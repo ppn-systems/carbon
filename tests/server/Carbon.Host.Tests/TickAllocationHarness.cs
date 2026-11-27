@@ -1,14 +1,17 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Numerics;
+using Carbon.Abstractions.Configuration;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
 using Carbon.Application.World;
 using Carbon.Contracts.Common;
 using Carbon.Infrastructure.Persistence.Sqlite;
+using Nalix.Abstractions.Primitives;
 using Microsoft.Data.Sqlite;
 
 namespace Carbon.Host.Tests;
@@ -25,42 +28,62 @@ internal sealed class TickAllocationHarness : IDisposable
     private readonly ulong[] _connections;
     private uint _clientTick;
 
-    private TickAllocationHarness(string dbPath, SqliteConnectionFactory factory, AuthoritativeWorld world, ulong[] connections)
+    private TickAllocationHarness(string dbPath, SqliteConnectionFactory factory, AuthoritativeWorld world, SqliteCharacterStore characters, ulong[] connections)
     {
         _dbPath = dbPath;
         _factory = factory;
         this.World = world;
+        this.Characters = characters;
         _connections = connections;
     }
 
     public AuthoritativeWorld World { get; }
 
+    /// <summary>Gets the character store the world saves to.</summary>
+    public SqliteCharacterStore Characters { get; }
+
+    /// <summary>Gets the ids of the entered characters, in entry order.</summary>
+    public List<Guid> CharacterIds { get; } = [];
+
     /// <summary>Creates a world on a temporary SQLite file and enters <paramref name="players"/> characters near spawn.</summary>
     /// <param name="players">Characters to enter near spawn.</param>
     /// <param name="sink">Outbound sink to observe; a no-op sink when <see langword="null"/>.</param>
-    public static TickAllocationHarness Create(int players, IWorldOutboundSink? sink = null)
+    /// <param name="overrides">Developer overrides applied before anyone enters (for example status effects on entry).</param>
+    public static TickAllocationHarness Create(int players, IWorldOutboundSink? sink = null, WorldDebugOverrides? overrides = null)
     {
         string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-tick-alloc-{Guid.NewGuid():N}.db");
         SqliteConnectionFactory factory = new($"Data Source={dbPath}");
         new SqliteSchemaMigrator(factory).MigrateAsync().GetAwaiter().GetResult();
+        SqliteCharacterStore characters = new(factory);
+        SqliteAccountStore accounts = new(factory);
         AuthoritativeWorld world = new(
             1337UL,
             32f,
             0.0008f,
             30,
             new SqliteChunkDeltaRepository(factory),
-            new SqliteCharacterStore(factory),
+            characters,
             sink ?? new NullOutboundSink(),
             entropy: TestGameplayEntropy.Create(1337UL));
         world.InitializeFromStoreAsync().GetAwaiter().GetResult();
+        if (overrides is not null)
+        {
+            _ = world.ApplyDebugOverrides(overrides);
+        }
 
-        ulong[] connections = new ulong[players];
+        TickAllocationHarness harness = new(dbPath, factory, world, characters, new ulong[players]);
+
+        ulong[] connections = harness._connections;
         DateTimeOffset createdAt = new(2026, 11, 1, 0, 0, 0, TimeSpan.Zero);
         for (int i = 0; i < players; i++)
         {
             // A 4-wide grid two tiles apart, so every player sees the others and the same monsters.
             Vector2 position = world.DefaultSpawnWorldPosition + (new Vector2(i % 4, i / 4) * 64f);
-            CharacterRecord hero = new(Guid.NewGuid(), Guid.NewGuid(), $"Bench{i}", 1, 0, position.X, position.Y, 100f, 100f, 0, [], createdAt);
+            Guid accountId = Guid.NewGuid();
+            CharacterRecord hero = new(Guid.NewGuid(), accountId, $"Bench{i}", 1, 0, position.X, position.Y, 100f, 100f, 0, [], createdAt);
+            _ = accounts.TryCreateAsync(new AccountRecord(accountId, $"bench{i}", $"BENCH{i}", Bytes32.Zero, [1], createdAt, false)).GetAwaiter().GetResult();
+            _ = characters.TryCreateAsync(hero).GetAwaiter().GetResult();
+            harness.CharacterIds.Add(hero.Id);
             connections[i] = 1_000UL + (ulong)i;
             OpStatus status = world.TryEnterWorld(connections[i], hero).Status;
             if (status != OpStatus.Ok)
@@ -69,7 +92,7 @@ internal sealed class TickAllocationHarness : IDisposable
             }
         }
 
-        return new TickAllocationHarness(dbPath, factory, world, connections);
+        return harness;
     }
 
     /// <summary>Feeds every player a move input that walks a small circle (they stay inside loaded chunks), then ticks.</summary>
