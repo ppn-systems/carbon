@@ -679,11 +679,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             }
 
             CharacterProgressionState prog = state.Progression;
-            if (kind is PointAllocationKind.Attribute or PointAllocationKind.ResetAttributes)
+            if (kind == PointAllocationKind.Attribute)
             {
-                OpStatus allocStatus = kind == PointAllocationKind.ResetAttributes
-                    ? _progressionService.TryResetAttributes(state)
-                    : _progressionService.TryAllocateAttribute(state, (PrimaryAttributeId)targetId, requested);
+                OpStatus allocStatus = _progressionService.TryAllocateAttribute(state, (PrimaryAttributeId)targetId, requested);
                 if (allocStatus != OpStatus.Ok)
                 {
                     return allocStatus;
