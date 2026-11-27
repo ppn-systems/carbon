@@ -182,6 +182,9 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile, INpcCap
     /// </summary>
     DeathView? LocalDeath => null;
 
+    /// <summary>Gets the local player in the water (ADR-032): swim state, depth and oxygen. Dry land when offline.</summary>
+    WaterView LocalWater => default;
+
     /// <summary>Gets whether a respawn request was sent and the server has not answered it yet.</summary>
     bool IsRespawnPending => false;
 

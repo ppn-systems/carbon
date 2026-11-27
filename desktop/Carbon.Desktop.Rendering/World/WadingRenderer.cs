@@ -6,6 +6,7 @@ using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
 using Carbon.Maps.Biomes;
+using Carbon.Maps.Hydrology;
 using Carbon.Maps.Streaming;
 
 namespace Carbon.Desktop.Rendering.World;
@@ -29,11 +30,19 @@ internal static class WadingRenderer
 
     private static readonly Vector3 s_shoreShelf = new(150f, 206f, 204f);
 
+    /// <summary>Fraction of the body height a swimmer sinks: head and shoulders stay above the surface (ADR-032).</summary>
+    public const float SwimSinkFraction = 0.62f;
+
+    /// <summary>Fraction of the body height a diver is drawn below the surface (ADR-032).</summary>
+    public const float DiveSinkFraction = 0.55f;
+
     /// <summary>The per-frame wading state of one actor.</summary>
-    /// <param name="Depth">Normalised wading depth (0..1).</param>
+    /// <param name="Depth">Normalised wading depth (0..1); 1 when swimming or diving.</param>
     /// <param name="Sink">How far the rig is drawn below its foot position, in world units.</param>
     /// <param name="HalfWidth">Half width of the body at the waterline, in world units.</param>
-    public readonly record struct Wade(float Depth, float Sink, float HalfWidth)
+    /// <param name="State">Walking or wading, swimming on the surface, or diving under it (ADR-032).</param>
+    /// <param name="BodyHeight">The drawn body height, in world units.</param>
+    public readonly record struct Wade(float Depth, float Sink, float HalfWidth, SwimState State = SwimState.Wading, float BodyHeight = 35f)
     {
         /// <summary>Gets a value indicating whether the actor is in the water at all.</summary>
         public bool IsWading => this.Depth > MinDepth;
@@ -48,9 +57,16 @@ internal static class WadingRenderer
     public static Wade Resolve(ChunkWorld2D world, Vector2 position, float bodyHeight, float radius)
     {
         ArgumentNullException.ThrowIfNull(world);
-        float depth = world.GetWaterDepth(position);
         float halfWidth = MathF.Max(radius * 1.45f, bodyHeight * 0.27f);
-        return new Wade(depth, depth * MaxSinkFraction * bodyHeight, halfWidth);
+        SwimState state = world.GetSwimStateAt(position);
+        if (state is SwimState.Swimming or SwimState.Diving)
+        {
+            float sink = (state == SwimState.Swimming ? SwimSinkFraction : DiveSinkFraction) * bodyHeight;
+            return new Wade(1f, sink, halfWidth, state, bodyHeight);
+        }
+
+        float depth = world.GetWaterDepth(position);
+        return new Wade(depth, depth * MaxSinkFraction * bodyHeight, halfWidth, depth > MinDepth ? SwimState.Wading : SwimState.Walking, bodyHeight);
     }
 
     /// <summary>Draws the far half of the waterline ring (call before the rig).</summary>
@@ -62,7 +78,7 @@ internal static class WadingRenderer
     public static void DrawBehind(GeometryBatch batch, Vector2 foot, in Wade wade, float time, uint seed)
     {
         ArgumentNullException.ThrowIfNull(batch);
-        if (!wade.IsWading)
+        if (!wade.IsWading || wade.State == SwimState.Diving)
         {
             return;
         }
@@ -102,6 +118,11 @@ internal static class WadingRenderer
 
         float hw = wade.HalfWidth;
         float phase = seed * 0.37f;
+        if (wade.State == SwimState.Diving)
+        {
+            DrawDiver(batch, art, tileSize, foot, in wade, time, seed);
+            return;
+        }
 
         // Water veil over everything below the surface: a band from the waterline down past the sunk feet with
         // a flattened round bottom, in the colour of the water here. Not fully opaque: the legs show faintly.
@@ -157,6 +178,35 @@ internal static class WadingRenderer
                     prev = next;
                 }
             }
+        }
+    }
+
+    // A diver is under the surface from head to foot: one translucent veil of deep water over the whole body, and a
+    // trail of bubbles rising to the surface above it.
+    private static void DrawDiver(GeometryBatch batch, IVectorArtRepository? art, float tileSize, Vector2 foot, in Wade wade, float time, uint seed)
+    {
+        float hw = wade.HalfWidth * 1.15f;
+        float top = foot.Y + wade.Sink - wade.BodyHeight - 4f;
+        float bottom = foot.Y + wade.Sink + 4f;
+        Vector3 water = WaterColor(art, foot, tileSize, 1f) * 0.62f;
+        // A capsule hugging the body: round at the head and the feet, so it reads as water, not a box.
+        Span<Vector2> veil = stackalloc Vector2[16];
+        float cap = MathF.Min(hw, (bottom - top) * 0.5f);
+        for (int i = 0; i < 8; i++)
+        {
+            float a = MathF.PI + (i / 7f * MathF.PI);
+            veil[i] = new Vector2(foot.X + (MathF.Cos(a) * hw), top + cap + (MathF.Sin(a) * cap));
+            float b = i / 7f * MathF.PI;
+            veil[8 + i] = new Vector2(foot.X + (MathF.Cos(b) * hw), bottom - cap + (MathF.Sin(b) * cap));
+        }
+
+        batch.FillConvexPolygon(veil, TerrainSurface.ToColor(water, 135));
+
+        for (int i = 0; i < 4; i++)
+        {
+            float t = Frac((time * 0.6f) + (i * 0.25f) + (seed * 0.017f));
+            Vector2 p = new(foot.X + (MathF.Sin((time * 3f) + i + seed) * 3f), top - (t * wade.BodyHeight * 0.6f));
+            batch.DrawCircle(p, 1.2f + (i % 2) + (t * 0.8f), new ColorRgba(225, 250, 255, (byte)(160 * (1f - t))), 8, 0.9f);
         }
     }
 

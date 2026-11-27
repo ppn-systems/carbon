@@ -154,10 +154,24 @@ function of `WorldGenSettings` and must never touch `GameplayEntropy`.
 
 ### Client (PR 3)
 
-- **D13** An underwater post-filter scales with the tier: darker, a blue-green tint, a fog or vignette that
-  narrows the view, and faint caustics or bubbles. An oxygen bar sits beside the vitals (placed through the HUD
-  layout code) and shows only while diving or not full. Swim and dive poses come from vector art (`.cvg.json`).
-  All strings live in a new `[water]` section of `en.ini` and `vi.ini`.
+- **D13 — Underwater view.**
+  - **What the client knows.** `WaterView` (swim state, tier, depth, oxygen, full pool) is read from
+    `IWorldReadModel.LocalWater`. The swim state and depth come from the client-generated terrain under the
+    *predicted* position, so the view changes the moment the player crosses a tier border. The oxygen is the last
+    `PlayerOxygenSync` (D12); the client never simulates it.
+  - **The filter** (`UnderwaterLook`, a pure function of the view, drawn first in the main HUD so it covers the
+    world but not the HUD):
+    - Walking and wading: nothing.
+    - Swimming (head above the surface): a light blue-green tint and surface caustics, no fog.
+    - Diving: from the top of Deep water to the abyss floor (depth 0.10 → 0.30) the tint darkens towards a near
+      black blue, the clear circle of view shrinks from 0.52 to 0.22 of the screen's half diagonal inside a fog of
+      rings, the caustics fade out, and bubbles rise from the player.
+  - **The oxygen bar** sits centred just above the vitals (`HudLayout.GetOxygenBarRect`), clear of the hotbar, the
+    status strip and the minimap column. It shows while diving, or until the breath has refilled, and turns red and
+    pulses under a quarter. Its text is `water.oxygen_left` / `water.out_of_air`.
+  - **Poses.** `base_hero.cvg.json` gains looping `swim` (0.9 s) and `dive` (1.1 s) clips. A swimmer sinks to the
+    shoulders, and a diver is drawn under a water veil with rising bubbles, for the local player and for others.
+  - All strings live in a new `[water]` section of `en.ini` and `vi.ini`.
 
 ### Creatures (PR 4)
 

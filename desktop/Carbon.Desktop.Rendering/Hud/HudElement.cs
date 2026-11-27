@@ -37,4 +37,10 @@ internal enum HudElement : byte
 
     /// <summary>The interact-key prompt over its one target (doors, traders, forges, ground drops).</summary>
     InteractPrompt,
+
+    /// <summary>The underwater post-filter over the world, under the rest of the HUD (ADR-032).</summary>
+    UnderwaterVeil,
+
+    /// <summary>The oxygen bar above the vitals while diving (ADR-032).</summary>
+    OxygenBar,
 }

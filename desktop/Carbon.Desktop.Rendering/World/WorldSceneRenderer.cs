@@ -27,6 +27,7 @@ using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
+using Carbon.Maps.Hydrology;
 using Carbon.Maps.Landmarks;
 using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
@@ -583,6 +584,11 @@ public sealed class WorldSceneRenderer : IDisposable
         bool downed = this.PreviewDowned || world.LocalDeath is not null;
         string clip = downed ? DownedClip : ResolveCharacterClip(action, world.AttackSwingTimer, velocity.LengthSquared() > 9f);
         bool isNorm = downed || action.IsActive || world.AttackSwingTimer > 0f;
+        if (!isNorm && SwimClip(wade.State) is string swimClip)
+        {
+            clip = swimClip; // ADR-032: strokes on the surface, a breaststroke under it
+        }
+
         float eval = downed
             ? 1f
             : action.IsActive
@@ -673,6 +679,17 @@ public sealed class WorldSceneRenderer : IDisposable
         float size = remote.LootCurrency == LootCurrency.None ? 18f : 14f;
         VectorRigRenderer.DrawItemIcon(batch, lootArt, new Vector2(remote.Position.X, remote.Position.Y + bob), size, alpha: alpha);
     }
+
+    /// <summary>Gets the character clip for a swim state (ADR-032, <c>base_hero.cvg.json</c>), or <see langword="null"/> out of deep water.</summary>
+    /// <param name="state">The swim state.</param>
+    /// <returns><c>swim</c>, <c>dive</c>, or <see langword="null"/>.</returns>
+    internal static string? SwimClip(SwimState state) => state switch
+    {
+        SwimState.Swimming => "swim",
+        SwimState.Diving => "dive",
+        SwimState.Walking or SwimState.Wading => null,
+        _ => null,
+    };
 
     /// <summary>Character clip of a dead player lying on the ground (ADR-031, <c>base_hero.cvg.json</c>).</summary>
     private const string DownedClip = "downed";
@@ -791,6 +808,11 @@ public sealed class WorldSceneRenderer : IDisposable
                     };
                     norm = true;
                     eval = 1f - Math.Clamp(remote.AttackAnimRemaining / MathF.Max(0.05f, remote.AttackAnimDuration), 0f, 1f);
+                }
+                else if (SwimClip(wade.State) is string swimClip)
+                {
+                    // The terrain is generated on the client, so a remote swimmer's depth needs no extra wire data.
+                    clip = swimClip;
                 }
             }
             else if (remote.Kind == EntityKind.Npc && _art.TryGetNpc(remote.ArchetypeId, out rig))
