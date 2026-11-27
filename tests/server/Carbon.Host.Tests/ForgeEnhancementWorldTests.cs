@@ -65,7 +65,7 @@ public sealed class ForgeEnhancementWorldTests
         long expectedGold = 100_000 - (feePerAttempt * attempts);
         f.Sink.WalletSyncs.Should().Contain(w => w.ConnectionId == Smith && w.Gold == expectedGold, "the owner gets its new balance");
         f.Sink.Announcements.Should().ContainSingle("only the +8 success is notable (announce.successMinLevel = 7)");
-        (ulong[] recipients, _, string name, ushort itemId, EnhancementOutcome announced, byte level) = f.Sink.Announcements[0];
+        (ulong[] recipients, string name, ushort itemId, EnhancementOutcome announced, byte level) = f.Sink.Announcements[0];
         recipients.Should().BeEquivalentTo([Smith, Watcher], "the announcement goes to the whole world");
         name.Should().Be("Smith");
         itemId.Should().Be((ushort)StarterGameCatalog.IronSword);

@@ -39,7 +39,7 @@ public sealed class ItemBreakWorldTests
         f.Snapshot().Should().NotContain(s => s.SlotIndex == 0 && !s.Slot.IsEmpty, "ADR-035: the swing that takes the axe to 0 destroys it");
         f.Sink.SlotChanges.Should().Contain((Conn, 0, 0U, 0), "the owner learns the slot is empty");
         f.World.StepFixedTick();
-        f.Sink.DurabilityAlerts.Should().ContainSingle().Which.Should().Be((Conn, DurabilityAlertKind.Broke, 0, StarterGameCatalog.WoodAxe, 0));
+        f.Sink.DurabilityAlerts.Should().ContainSingle().Which.Should().Be((Conn, DurabilityAlertKind.Broke, StarterGameCatalog.WoodAxe, 0));
         f.SavedInventory().GetSlot(0).IsEmpty.Should().BeTrue("the character was marked dirty, so the break is persisted");
     }
 

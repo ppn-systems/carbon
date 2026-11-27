@@ -15,7 +15,7 @@ internal sealed class StatusRecordingSink : IWorldOutboundSink
     {
     }
 
-    public void SendEntityDespawn(ulong connectionId, ulong networkId, ulong serverTick)
+    public void SendEntityDespawn(ulong connectionId, ulong networkId)
     {
     }
 
@@ -53,11 +53,11 @@ internal sealed class StatusRecordingSink : IWorldOutboundSink
     public void SendEntityDeltaBatch(ulong connectionId, ulong serverTick, uint lastProcessedClientTick, float selfX, float selfY, ReadOnlySpan<EntityDeltaEntry> entries) =>
         this.SelfPositions[connectionId] = new Vector2(selfX, selfY);
 
-    public void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, uint revision, float durability, bool isDestroyed)
+    public void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, float durability, bool isDestroyed)
     {
     }
 
-    public void SendStructureChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, byte structureType, float durability, byte doorState, byte connectivity)
+    public void SendStructureChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, byte structureType, byte doorState)
     {
     }
 
@@ -85,7 +85,7 @@ internal sealed class StatusRecordingSink : IWorldOutboundSink
     {
     }
 
-    public void SendSkillCastBroadcast(ReadOnlySpan<ulong> recipientConnectionIds, ulong casterNetworkId, byte abilitySlot, float originX, float originY, float aimX, float aimY)
+    public void SendSkillCastBroadcast(ReadOnlySpan<ulong> recipientConnectionIds, ulong casterNetworkId, byte abilitySlot, float aimX, float aimY)
     {
     }
 
@@ -93,7 +93,7 @@ internal sealed class StatusRecordingSink : IWorldOutboundSink
     {
     }
 
-    public void SendEnhancementAnnouncement(ReadOnlySpan<ulong> recipientConnectionIds, ulong playerNetworkId, string playerName, ushort itemId, EnhancementOutcome outcome, byte level)
+    public void SendEnhancementAnnouncement(ReadOnlySpan<ulong> recipientConnectionIds, string playerName, ushort itemId, EnhancementOutcome outcome, byte level)
     {
     }
 }

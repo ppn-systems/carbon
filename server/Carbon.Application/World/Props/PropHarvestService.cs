@@ -261,7 +261,7 @@ internal sealed class PropHarvestService
 
         if (hasBlocked)
         {
-            this.QueuePropChange(blockedTx, blockedTy, this.ChunkRevision(blockedTx, blockedTy), blockedProp.Destructibility.CurrentDurability, isDestroyed: false);
+            this.QueuePropChange(blockedTx, blockedTy, blockedProp.Destructibility.CurrentDurability, isDestroyed: false);
             return;
         }
 
@@ -340,16 +340,16 @@ internal sealed class PropHarvestService
             return false;
         }
 
-        this.QueuePropChange(wx, wy, strike.Revision, strike.Prop.Destructibility.CurrentDurability, strike.Prop.Destructibility.IsDestroyed);
+        this.QueuePropChange(wx, wy, strike.Prop.Destructibility.CurrentDurability, strike.Prop.Destructibility.IsDestroyed);
         return true;
     }
 
-    private void QueuePropChange(int tileX, int tileY, uint revision, float durability, bool isDestroyed)
+    private void QueuePropChange(int tileX, int tileY, float durability, bool isDestroyed)
     {
         (int offset, int count) = _appendTileRecipients(tileX, tileY);
         if (count > 0)
         {
-            _outbound.Pending.PropChanges.Add(new OutboundPropChange(offset, count, tileX, tileY, revision, durability, isDestroyed));
+            _outbound.Pending.PropChanges.Add(new OutboundPropChange(offset, count, tileX, tileY, durability, isDestroyed));
         }
     }
 }

@@ -356,7 +356,7 @@ public sealed partial class AuthoritativeWorld
         for (int i = 0; i < _aoiRecipientsScratch.Count; i++)
         {
             ulong recipient = _aoiRecipientsScratch[i];
-            _outbound.Pending.Despawns.Add(new OutboundDespawn(recipient, lootNetId, _currentTick));
+            _outbound.Pending.Despawns.Add(new OutboundDespawn(recipient, lootNetId));
             _outbound.Pending.Spawns.Add(new OutboundSpawn(recipient, updatedSnap));
         }
     }

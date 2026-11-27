@@ -132,7 +132,7 @@ public sealed partial class AuthoritativeWorld
                 {
                     for (int i = 0; i < _respawnedPropsScratch.Count; i++)
                     {
-                        (int rtx, int rty, uint rRev, float maxDur) = _respawnedPropsScratch[i];
+                        (int rtx, int rty, _, float maxDur) = _respawnedPropsScratch[i];
                         _ = _dirtyChunks.Add(Chunk2D.PackKey(Chunk2D.ToChunkCoord(rtx), Chunk2D.ToChunkCoord(rty)));
                         (int offset, int count) = this.AppendTileRecipientsLocked(rtx, rty);
                         if (count > 0)
@@ -142,7 +142,6 @@ public sealed partial class AuthoritativeWorld
                                 count,
                                 rtx,
                                 rty,
-                                rRev,
                                 maxDur,
                                 IsDestroyed: false));
                         }

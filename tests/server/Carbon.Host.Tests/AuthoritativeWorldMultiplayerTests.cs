@@ -1800,10 +1800,10 @@ public sealed class AuthoritativeWorldMultiplayerTests
         public List<(ulong CasterNetworkId, byte AbilitySlot)> SkillCasts { get; } = [];
         public List<(ulong ConnectionId, AttackPhaseSnapshot Snapshot)> AttackPhases { get; } = [];
         public List<(ulong ConnectionId, long Gold, long Diamonds, ulong Sequence)> WalletSyncs { get; } = [];
-        public List<(ulong[] Recipients, ulong PlayerNetworkId, string PlayerName, ushort ItemId, EnhancementOutcome Outcome, byte Level)> Announcements { get; } = [];
+        public List<(ulong[] Recipients, string PlayerName, ushort ItemId, EnhancementOutcome Outcome, byte Level)> Announcements { get; } = [];
 
-        public void SendEnhancementAnnouncement(ReadOnlySpan<ulong> recipientConnectionIds, ulong playerNetworkId, string playerName, ushort itemId, EnhancementOutcome outcome, byte level) =>
-            this.Announcements.Add((recipientConnectionIds.ToArray(), playerNetworkId, playerName, itemId, outcome, level));
+        public void SendEnhancementAnnouncement(ReadOnlySpan<ulong> recipientConnectionIds, string playerName, ushort itemId, EnhancementOutcome outcome, byte level) =>
+            this.Announcements.Add((recipientConnectionIds.ToArray(), playerName, itemId, outcome, level));
 
         public void SendWalletSync(ulong connectionId, long gold, long diamonds, ulong sequence) =>
             this.WalletSyncs.Add((connectionId, gold, diamonds, sequence));
@@ -1824,7 +1824,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
         public void SendEntitySpawn(ulong connectionId, in EntitySpawnSnapshot spawn) =>
             this.Spawns.Add((connectionId, spawn));
 
-        public void SendEntityDespawn(ulong connectionId, ulong networkId, ulong serverTick) =>
+        public void SendEntityDespawn(ulong connectionId, ulong networkId) =>
             this.Despawns.Add((connectionId, networkId));
 
         public void SendEntityDeltaBatch(
@@ -1853,7 +1853,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
         public List<(int TileX, int TileY, float Durability)> PropChanges { get; } = [];
 
-        public void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, uint revision, float durability, bool isDestroyed) =>
+        public void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, float durability, bool isDestroyed) =>
             this.PropChanges.Add((tileX, tileY, durability));
 
         public List<(ulong ConnectionId, bool Exhausted, uint RefusalCount)> StaminaStatuses { get; } = [];
@@ -1861,7 +1861,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
         public void SendStaminaStatus(ulong connectionId, bool exhausted, uint refusalCount) =>
             this.StaminaStatuses.Add((connectionId, exhausted, refusalCount));
 
-        public void SendStructureChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, byte structureType, float durability, byte doorState, byte connectivity) =>
+        public void SendStructureChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, byte structureType, byte doorState) =>
             this.StructureChanges.Add((tileX, tileY, structureType));
 
         public List<(int TileX, int TileY, byte Stage, float Progress, bool IsDeconstruction)> ConstructionChanges { get; } = [];
@@ -1881,10 +1881,10 @@ public sealed class AuthoritativeWorldMultiplayerTests
         public void SendCombatHit(ReadOnlySpan<ulong> recipientConnectionIds, ulong attackerNetworkId, ulong defenderNetworkId, float damage, float remainingHealth, bool isCritical, bool isKilled) =>
             this.CombatHits.Add((attackerNetworkId, defenderNetworkId, damage, isKilled));
 
-        public List<(ulong ConnectionId, DurabilityAlertKind Kind, ushort SlotIndex, uint ItemId, byte UpgradeLevel)> DurabilityAlerts { get; } = [];
+        public List<(ulong ConnectionId, DurabilityAlertKind Kind, uint ItemId, byte UpgradeLevel)> DurabilityAlerts { get; } = [];
 
-        public void SendItemDurabilityAlert(ulong connectionId, DurabilityAlertKind kind, ushort slotIndex, uint itemId, byte upgradeLevel) =>
-            this.DurabilityAlerts.Add((connectionId, kind, slotIndex, itemId, upgradeLevel));
+        public void SendItemDurabilityAlert(ulong connectionId, DurabilityAlertKind kind, uint itemId, byte upgradeLevel) =>
+            this.DurabilityAlerts.Add((connectionId, kind, itemId, upgradeLevel));
 
         public void SendInventorySlotChanged(ulong connectionId, ushort slotIndex, uint itemId, int quantity, float durability, byte upgradeLevel = 0, float freshnessSeconds = 0f)
         {
@@ -1909,7 +1909,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 prog.GetSkillRank(SkillCatalog.WhirlwindId)));
         }
 
-        public void SendSkillCastBroadcast(ReadOnlySpan<ulong> recipientConnectionIds, ulong casterNetworkId, byte abilitySlot, float originX, float originY, float aimX, float aimY) =>
+        public void SendSkillCastBroadcast(ReadOnlySpan<ulong> recipientConnectionIds, ulong casterNetworkId, byte abilitySlot, float aimX, float aimY) =>
             this.SkillCasts.Add((casterNetworkId, abilitySlot));
 
         public void SendEntityAttackPhase(ReadOnlySpan<ulong> recipientConnectionIds, in AttackPhaseSnapshot snapshot)

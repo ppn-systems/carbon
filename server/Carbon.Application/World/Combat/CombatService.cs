@@ -257,8 +257,6 @@ internal sealed class CombatService
             _recipients.Count,
             casterNetId,
             abilitySlot,
-            origin.X,
-            origin.Y,
             origin.X + (aimDir.X * 64f),
             origin.Y + (aimDir.Y * 64f)));
     }

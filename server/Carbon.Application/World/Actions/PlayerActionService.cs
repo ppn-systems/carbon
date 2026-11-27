@@ -500,7 +500,7 @@ internal sealed class PlayerActionService
 
         ushort slotIndex = state.Session.SelectedHotbarSlot;
         state.Inventory.SetSlot(slotIndex, in updatedSlot);
-        this.QueueWearAlert(state, slotIndex, in activeSlot, in wear);
+        this.QueueWearAlert(state, in activeSlot, in wear);
         if (wear.Broke)
         {
             // The held weapon feeds the derived stats and the look other players see.
@@ -541,7 +541,7 @@ internal sealed class PlayerActionService
             ItemSlot updated = wear.Slot;
             victim.Inventory.SetSlot(sIdx, in updated);
             _outbound.Pending.SlotChanges.Add(new OutboundSlotChange(victim.Session.ConnectionId, (ushort)sIdx, updated));
-            this.QueueWearAlert(victim, (ushort)sIdx, in slot, in wear);
+            this.QueueWearAlert(victim, in slot, in wear);
             anyBroke |= wear.Broke;
         }
 
@@ -558,7 +558,7 @@ internal sealed class PlayerActionService
         }
     }
 
-    private void QueueWearAlert(PlayerState owner, ushort slotIndex, in ItemSlot before, in DurabilityWearResult wear)
+    private void QueueWearAlert(PlayerState owner, in ItemSlot before, in DurabilityWearResult wear)
     {
         DurabilityAlertKind kind = wear.Broke
             ? DurabilityAlertKind.Broke
@@ -571,7 +571,6 @@ internal sealed class PlayerActionService
         _outbound.Pending.DurabilityAlerts.Add(new OutboundDurabilityAlert(
             owner.Session.ConnectionId,
             kind,
-            slotIndex,
             before.ItemId,
             ItemEnhancementPolicy.GetUpgradeLevel(in before)));
     }
