@@ -50,6 +50,38 @@ public sealed class AtmosphereClockTests
     }
 
     [Fact]
+    public void AdvanceAtmosphere_ServerOwnsTheHour_RainFalls()
+    {
+        Atmosphere atmosphere = new(11f, 1440f, forcedRain: true);
+        WorldSceneRenderer.AdvanceAtmosphere(atmosphere, 11f, 1f / 60f, 1f);
+        Vector2 before = atmosphere.RainStreak(7, 0f, 0f, 1280f, 720f);
+
+        WorldSceneRenderer.AdvanceAtmosphere(atmosphere, 11f, 1f / 60f, 1f);
+        Vector2 after = atmosphere.RainStreak(7, 0f, 0f, 1280f, 720f);
+
+        atmosphere.Rain.Should().Be(1f);
+        after.Y.Should().BeGreaterThan(before.Y, "a rain streak falls between two online frames");
+    }
+
+    [Fact]
+    public void AdvanceAtmosphere_ServerOwnsTheHour_CloudsDrift()
+    {
+        Atmosphere atmosphere = new(11f, 1440f, forcedRain: true);
+        WorldSceneRenderer.AdvanceAtmosphere(atmosphere, 11f, 1f / 60f, 1f);
+        atmosphere.UpdateClouds(-2000f, -2000f, 2000f, 2000f);
+        atmosphere.Clouds.VisibleCount.Should().BeGreaterThan(0, "an overcast sky has clouds around the view");
+        Vector2 before = atmosphere.Clouds.VisibleCentre(0);
+
+        for (int frame = 0; frame < 60; frame++)
+        {
+            WorldSceneRenderer.AdvanceAtmosphere(atmosphere, 11f, 1f / 60f, 1f);
+        }
+
+        atmosphere.UpdateClouds(-2000f, -2000f, 2000f, 2000f);
+        atmosphere.Clouds.VisibleCentre(0).Should().NotBe(before, "clouds drift with the wind between online frames");
+    }
+
+    [Fact]
     public void AdvanceAtmosphere_ServerOwnsTheHour_KeepsTheWeatherWhereItWas()
     {
         Atmosphere atmosphere = new(12f, 1440f, forcedRain: null);

@@ -128,7 +128,7 @@ internal sealed class Atmosphere
     /// </summary>
     public void DrawCloudShadows(GeometryBatch batch, float minX, float minY, float maxX, float maxY)
     {
-        _clouds.Update(_anim, this.Rain, minX, minY, maxX, maxY);
+        this.UpdateClouds(minX, minY, maxX, maxY);
         _clouds.DrawShadows(batch, this.Hour, this.Night, this.Rain);
     }
 
@@ -255,6 +255,22 @@ internal sealed class Atmosphere
         return (p, glow);
     }
 
+    /// <summary>Gets the top of rain streak <paramref name="i"/> in a view, falling with the animation clock.</summary>
+    internal Vector2 RainStreak(int i, float minX, float minY, float width, float height)
+    {
+        float speed = 0.9f + (AmbientAnimator.Hash01(61u, i) * 0.5f);
+        float phase = AmbientAnimator.Frac((_anim * speed * 1.6f) + AmbientAnimator.Hash01(62u, i));
+        float x = minX + (AmbientAnimator.Frac(AmbientAnimator.Hash01(63u, i) + (phase * 0.12f)) * width);
+        return new Vector2(x, minY + (phase * height));
+    }
+
+    /// <summary>Gets the clouds of the last <see cref="UpdateClouds"/>.</summary>
+    internal CloudSystem Clouds => _clouds;
+
+    /// <summary>Works out the clouds alive around the view for this frame, drifting with the animation clock.</summary>
+    internal void UpdateClouds(float minX, float minY, float maxX, float maxY) =>
+        _clouds.Update(_anim, this.Rain, minX, minY, maxX, maxY);
+
     private void DrawRain(GeometryBatch batch, float minX, float minY, float maxX, float maxY)
     {
         float w = maxX - minX;
@@ -263,11 +279,8 @@ internal sealed class Atmosphere
         ColorRgba streak = new(200, 214, 236, (byte)(150 * this.Rain));
         for (int i = 0; i < drops; i++)
         {
-            float speed = 0.9f + (AmbientAnimator.Hash01(61u, i) * 0.5f);
-            float phase = AmbientAnimator.Frac((_anim * speed * 1.6f) + AmbientAnimator.Hash01(62u, i));
-            float x = minX + (AmbientAnimator.Frac(AmbientAnimator.Hash01(63u, i) + (phase * 0.12f)) * w);
-            float y = minY + (phase * h);
-            batch.DrawLine(new Vector2(x, y), new Vector2(x - 4f, y + 16f), streak, 1.3f);
+            Vector2 head = this.RainStreak(i, minX, minY, w, h);
+            batch.DrawLine(head, new Vector2(head.X - 4f, head.Y + 16f), streak, 1.3f);
         }
 
         // Splash rings on the ground
