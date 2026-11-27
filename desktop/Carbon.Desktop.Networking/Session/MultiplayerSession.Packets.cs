@@ -23,11 +23,9 @@ using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
 using Carbon.Items.Serialization;
-using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Networking;
-using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
 using Carbon.Prediction.Remote;
 using Carbon.Simulation.ECS.Components;
@@ -1264,76 +1262,7 @@ public sealed partial class MultiplayerSession
                 return;
             }
 
-            _dirtyChunks.Add((Chunk2D.ToChunkCoord(tileX), Chunk2D.ToChunkCoord(tileY)));
-
-            if (_chunkWorld.TrySetPropStateAt(
-                tileX,
-                tileY,
-                durability,
-                isDestroyed,
-                out MapProp previous,
-                out MapProp updated))
-            {
-                float prevDur = previous.Destructibility.CurrentDurability;
-                float nextDur = updated.Destructibility.CurrentDurability;
-                float damageDealt = MathF.Max(0f, prevDur - nextDur);
-                bool wasTierBlocked = !isDestroyed &&
-                    damageDealt <= 0.01f &&
-                    previous.Destructibility.IsDestructible;
-
-                Vector2 worldPos = updated.WorldPosition;
-                _propImpactEvents.Add(new PropImpactEvent(
-                    tileX,
-                    tileY,
-                    worldPos,
-                    updated.Type,
-                    updated.Category,
-                    damageDealt,
-                    nextDur,
-                    updated.Destructibility.MaxDurability,
-                    updated.Destructibility.HarvestTier,
-                    isDestroyed,
-                    wasTierBlocked));
-
-                if (wasTierBlocked)
-                {
-                    ItemSlot activeSlot = _inventory.GetSlot(_selectedSlot);
-                    ToolTargetKind kind = updated.Category == PropCategory.Mineral
-                        ? ToolTargetKind.Mineral
-                        : ToolTargetKind.Flora;
-                    PropStrikeEvaluation eval = ToolUsagePolicy.EvaluatePropStrike(
-                        _items.Rules,
-                        in activeSlot,
-                        kind,
-                        updated.Destructibility.HarvestTier);
-                    string warn = eval.Outcome != ToolStrikeOutcome.Optimal
-                        ? ToolWarningText.Describe(eval.Outcome, updated.Destructibility.HarvestTier)
-                        : ToolWarningText.Describe(ToolStrikeOutcome.InsufficientTier, updated.Destructibility.HarvestTier);
-                    _combatEvents.Add(new CombatFeedbackEvent(worldPos, 0f, IsCritical: false, IsHeal: false, Label: warn));
-                    _hudNotifications.Add(warn);
-                }
-                else if (damageDealt > 0.5f)
-                {
-                    ItemSlot activeSlot = _inventory.GetSlot(_selectedSlot);
-                    ToolTargetKind kind = updated.Category == PropCategory.Mineral
-                        ? ToolTargetKind.Mineral
-                        : ToolTargetKind.Flora;
-                    PropStrikeEvaluation eval = ToolUsagePolicy.EvaluatePropStrike(
-                        _items.Rules,
-                        in activeSlot,
-                        kind,
-                        updated.Destructibility.HarvestTier);
-                    _combatEvents.Add(new CombatFeedbackEvent(
-                        worldPos,
-                        damageDealt,
-                        IsCritical: isDestroyed,
-                        IsHeal: false));
-                    if (eval.Outcome == ToolStrikeOutcome.SwordMisuseOnWood)
-                    {
-                        _hudNotifications.Add(ToolWarningText.Describe(eval.Outcome, updated.Destructibility.HarvestTier));
-                    }
-                }
-            }
+            _mapMutations.ApplyPropChanged(_chunkWorld, tileX, tileY, durability, isDestroyed, _inventory, _selectedSlot, _items);
         }
     }
 
@@ -1356,22 +1285,7 @@ public sealed partial class MultiplayerSession
                 return;
             }
 
-            _dirtyChunks.Add((Chunk2D.ToChunkCoord(tileX), Chunk2D.ToChunkCoord(tileY)));
-
-            if (structureType == 0)
-            {
-                _ = _chunkWorld.Buildings.TryDemolishStructure(tileX, tileY);
-            }
-            else
-            {
-                _chunkWorld.Buildings.ForcePlaceStructure(tileX, tileY, (StructureType)structureType);
-                if (_chunkWorld.Buildings.TryGetStructure(tileX, tileY, out StructureTile placed) &&
-                    placed.Category == StructureCategory.Door &&
-                    (byte)placed.DoorState != doorState)
-                {
-                    _ = _chunkWorld.Buildings.ToggleDoor(tileX, tileY, out _);
-                }
-            }
+            _mapMutations.ApplyStructureChanged(_chunkWorld, tileX, tileY, structureType, doorState);
         }
     }
 
