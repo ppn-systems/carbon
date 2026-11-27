@@ -41,7 +41,7 @@ internal interface IWorldCommandHandlers
 
     OpStatus TryVendorSell(ulong connectionId, ushort slotIndex, ushort quantity);
 
-    OpStatus TryRepairItem(ulong connectionId, ushort slotIndex);
+    WorldMutationOutcome TryRepairItem(ulong connectionId, ushort slotIndex, ushort expectedItemId, byte steps, RepairVenue venue);
 
     OpStatus TryAllocateCharacterPoint(ulong connectionId, PointAllocationKind kind, ushort targetId, byte amount);
 
@@ -103,7 +103,7 @@ internal sealed class WorldCommandExecutor
         WorldCommandKind.DestroyInventoryItem => new(_handlers.TryDestroyInventoryItem(command.ConnectionId, command.Arg0, command.Arg2, command.Arg3), 0),
         WorldCommandKind.VendorBuy => new(_handlers.TryVendorBuy(command.ConnectionId, command.Arg0, command.Arg1), 0),
         WorldCommandKind.VendorSell => new(_handlers.TryVendorSell(command.ConnectionId, command.Arg0, command.Arg1), 0),
-        WorldCommandKind.RepairItem => new(_handlers.TryRepairItem(command.ConnectionId, command.Arg0), 0),
+        WorldCommandKind.RepairItem => _handlers.TryRepairItem(command.ConnectionId, command.Arg0, command.Arg1, (byte)command.Arg2, (RepairVenue)command.Arg3),
         WorldCommandKind.AllocateCharacterPoint => new(
             _handlers.TryAllocateCharacterPoint(command.ConnectionId, (PointAllocationKind)command.Arg0, command.Arg1, (byte)command.Arg2),
             0),

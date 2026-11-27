@@ -4,7 +4,6 @@ using Carbon.Contracts.Common;
 using Carbon.Economy.Crafting;
 using Carbon.Economy.Currency;
 using Carbon.Economy.Vendor;
-using Carbon.Items.Catalog;
 using Carbon.Items.Components;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
@@ -18,9 +17,6 @@ public sealed class VendorAndCheckoutTests
     private static readonly PriceBook s_prices = new(ShippedConfig.Items, ShippedConfig.Economy);
 
     private static uint Id(string code) => ShippedConfig.Items.ResolveId(code);
-
-    private static Items.Definitions.ItemCatalogEntry Item(string code) =>
-        ShippedConfig.Items.TryGetByCode(code, out Items.Definitions.ItemCatalogEntry? item) ? item : throw new System.Collections.Generic.KeyNotFoundException(code);
 
     private static CraftingRecipe Recipe(string code) =>
         ShippedConfig.Recipes.TryGetByCode(code, out CraftingRecipe? recipe) ? recipe : throw new System.Collections.Generic.KeyNotFoundException(code);
@@ -101,76 +97,6 @@ public sealed class VendorAndCheckoutTests
     }
 
     [Fact]
-    public void TryRepair_ChargesProportionalCostAndRestoresDurability()
-    {
-        VendorService vendor = new(s_prices);
-        Wallet wallet = new(1);
-        wallet.TryCredit(CurrencyKind.Gold, 1_000, CurrencyReason.Admin);
-        InventoryContainer bag = new(2);
-        uint sword = Id("iron_sword");
-        bag.SetSlot(0, new ItemSlot(sword, 1, InstanceId: 5, Durability: 100f));
-
-        long expected = s_prices.GetRepairCost(bag.GetSlot(0));
-        EconomyResult result = vendor.TryRepair(wallet, bag, 0);
-
-        expected.Should().Be(17, "110g sword at half durability → ceil(110 × 30% × 0.5)");
-        result.IsOk.Should().BeTrue();
-        wallet.Gold.Should().Be(1_000 - expected);
-        bag.GetSlot(0).Durability.Should().Be(200f);
-        vendor.TryRepair(wallet, bag, 0).Error.Should().Be(EconomyError.AlreadyRepaired);
-        vendor.TryRepair(wallet, bag, 1).Error.Should().Be(EconomyError.NotRepairable);
-    }
-
-    [Fact]
-    public void TryRepair_EnhancedItem_RestoresTheEffectiveMaxForItsLevel()
-    {
-        // Audit DOM-4: a +5 iron sword has 200 × 1.5 = 300 max durability, so repair at the base 200 is not "full".
-        VendorService vendor = new(s_prices);
-        Wallet wallet = new(1);
-        wallet.TryCredit(CurrencyKind.Gold, 1_000, CurrencyReason.Admin);
-        InventoryContainer bag = new(1);
-        uint sword = Id("iron_sword");
-        float effectiveMax = ItemEnhancementPolicy.GetEffectiveMaxDurability(Item("iron_sword").MaxDurability, 5);
-        bag.SetSlot(0, new ItemSlot(sword, 1, InstanceId: 5, Durability: 200f, UpgradeLevel: 5));
-
-        long cost = s_prices.GetRepairCost(bag.GetSlot(0));
-        EconomyResult result = vendor.TryRepair(wallet, bag, 0);
-
-        effectiveMax.Should().Be(300f);
-        cost.Should().BeGreaterThan(0, "a +5 item at the base maximum is still a third worn");
-        result.IsOk.Should().BeTrue();
-        wallet.Gold.Should().Be(1_000 - cost);
-        bag.GetSlot(0).Durability.Should().Be(effectiveMax, "repair restores the enhanced maximum");
-        bag.GetSlot(0).UpgradeLevel.Should().Be(5);
-        vendor.TryRepair(wallet, bag, 0).Error.Should().Be(EconomyError.AlreadyRepaired);
-    }
-
-    [Fact]
-    public void GetRepairCost_SameWear_EpicCostsMorePerGoldOfValueThanCommon()
-    {
-        // Rarity (economy.json repair.rarityMultiplierPercent) makes high-tier gear the main recurring gold sink:
-        // at the same wear, an epic blade must cost a larger share of its value to repair than a common one.
-        double commonShare = s_prices.GetRepairCost(Worn("copper_sword", 0.5f)) / (double)Item("copper_sword").BasePrice;
-        double epicShare = s_prices.GetRepairCost(Worn("ember_blade", 0.5f)) / (double)Item("ember_blade").BasePrice;
-
-        epicShare.Should().BeGreaterThan(commonShare * 2, "epic repair is priced at a multiple of common repair per gold of value");
-    }
-
-    [Fact]
-    public void GetRepairCost_ByWear_GrowsWithMissingDurabilityAndIsFreeWhenFull()
-    {
-        long light = s_prices.GetRepairCost(Worn("ember_blade", 0.25f));
-        long heavy = s_prices.GetRepairCost(Worn("ember_blade", 0.75f));
-        long broken = s_prices.GetRepairCost(Worn("ember_blade", 1f));
-
-        light.Should().BePositive();
-        heavy.Should().BeGreaterThan(light, "more missing durability costs more to restore");
-        broken.Should().BeGreaterThan(heavy);
-        s_prices.GetRepairCost(Worn("ember_blade", 0f)).Should().Be(0, "nothing to repair");
-        s_prices.GetRepairCost(Worn("copper_sword", 0.001f)).Should().BePositive("a scratch still costs at least the minimum");
-    }
-
-    [Fact]
     public void GetCraftingFee_SameStation_EpicOutputPaysMorePerGoldOfValue()
     {
         CraftingRecipe common = Recipe("copper_sword");
@@ -197,12 +123,6 @@ public sealed class VendorAndCheckoutTests
         s_prices.GetBuyPrice(potion, buyerLevel: 60).Should().BeGreaterThan(s_prices.GetBuyPrice(potion, buyerLevel: 20));
         s_prices.GetBuyPrice(log, buyerLevel: 60).Should().Be(s_prices.GetBuyPrice(log), "only consumables are level-banded");
         s_prices.GetSellPrice(potion).Should().BeLessThan(basePotion, "a high-level price never lets buy-then-sell mint gold");
-    }
-
-    private static ItemSlot Worn(string code, float missingFraction)
-    {
-        Items.Definitions.ItemCatalogEntry item = Item(code);
-        return new ItemSlot(item.Id, 1, InstanceId: 1, Durability: item.MaxDurability * (1f - missingFraction));
     }
 
     [Fact]

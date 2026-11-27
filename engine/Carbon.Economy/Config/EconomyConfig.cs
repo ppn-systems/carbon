@@ -31,8 +31,6 @@ public sealed record EconomyConfig
     /// <summary>Gets the vendor price spread.</summary>
     public VendorRules Vendor { get; set; } = new();
 
-    /// <summary>Gets the repair sink.</summary>
-    public RepairRules Repair { get; set; } = new();
 
     /// <summary>Gets the crafting fee sink.</summary>
     public CraftingFeeRules CraftingFees { get; set; } = new();
@@ -104,8 +102,6 @@ public sealed record EconomyConfig
         Require(
             this.Vendor.SellRatioPercent >= 0 && this.Vendor.SellRatioPercent < this.Vendor.BuyMarkupPercent,
             "vendor.sellRatioPercent must be >= 0 and below buyMarkupPercent (otherwise buy-then-sell mints gold)");
-        Require(this.Repair.CostPercentOfBasePrice >= 0 && this.Repair.MinimumCost >= 0, "repair costs must be >= 0");
-        Require(this.Repair.RarityMultiplierPercent.IsValid, "repair.rarityMultiplierPercent values must be >= 0");
         Require(
             this.CraftingFees.None >= 0 && this.CraftingFees.Workbench >= 0 && this.CraftingFees.Forge >= 0
             && this.CraftingFees.Stove >= 0 && this.CraftingFees.Alchemy >= 0 && this.CraftingFees.OutputValueRateBps is >= 0 and <= 10000,

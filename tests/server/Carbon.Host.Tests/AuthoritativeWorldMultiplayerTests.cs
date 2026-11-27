@@ -1585,7 +1585,9 @@ public sealed class AuthoritativeWorldMultiplayerTests
             List<(ushort SlotIndex, ItemSlot Slot)> inventory = [];
             world.GetInventorySnapshot(conn, inventory).Should().BeTrue();
             (ushort swordSlot, ItemSlot sword) = inventory.First(x => x.Slot.ItemId == StarterGameCatalog.IronSword);
-            world.TryRepairItem(conn, swordSlot).Should().Be(OpStatus.Conflict, "a full-durability item needs no repair");
+            WorldMutationOutcome whole = world.TryRepairItem(conn, swordSlot, (ushort)sword.ItemId, 1, RepairVenue.Blacksmith);
+            whole.Status.Should().Be(OpStatus.Conflict);
+            RepairReceipt.Unpack(whole.Revision).Error.Should().Be(RepairError.NotDamaged, "a full-durability item needs no repair");
             world.TryVendorSell(conn, swordSlot, 1).Should().Be(OpStatus.Ok);
             world.TryGetWalletBalances(conn, out long afterSale, out _).Should().BeTrue();
             afterSale.Should().Be(gold + economy.Prices.GetSellPrice(sword.ItemId));

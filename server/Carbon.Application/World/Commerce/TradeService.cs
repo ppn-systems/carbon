@@ -353,19 +353,9 @@ internal sealed class TradeService : IWorldTradeService
             }
         }
 
-        // A blacksmith also quotes the repair of every worn item in the bag (the forge repair price, PriceBook.GetRepairCost).
+        // A blacksmith repairs (ADR-028). The window prices a repair from the synced repair.json, so the old gold-only
+        // quote fields stay empty.
         bool canRepair = trader.ProfileId == BlacksmithProfile;
-        List<ushort> repairSlots = [];
-        List<int> repairCosts = [];
-        for (int i = 0; canRepair && i < Math.Min(PlayerInventoryLayout.BagLimit, slots.Length); i++)
-        {
-            long cost = economy.Prices.GetRepairCost(slots[i]);
-            if (cost > 0)
-            {
-                repairSlots.Add((ushort)i);
-                repairCosts.Add((int)Math.Min(int.MaxValue, cost));
-            }
-        }
 
         _outbound.Pending.TraderStocks.Add(new OutboundTraderStock(
             state.Session.ConnectionId,
@@ -381,8 +371,8 @@ internal sealed class TradeService : IWorldTradeService
                 [.. sellIds],
                 [.. sellPrices],
                 canRepair,
-                [.. repairSlots],
-                [.. repairCosts])));
+                [],
+                [])));
         return OpStatus.Ok;
     }
 }

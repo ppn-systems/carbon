@@ -2,6 +2,7 @@
 
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Carbon.Contracts.Common;
 using Carbon.Items.Containers;
 
 namespace Carbon.Abstractions.World;
@@ -65,10 +66,11 @@ public interface IWorldInventoryService
     ValueTask<WorldMutationOutcome> SubmitVendorSellAsync(ulong connectionId, ushort slotIndex, ushort quantity);
 
     /// <summary>
-    /// Queues repairing the item in <paramref name="slotIndex"/> to full durability for gold at a forge station;
-    /// completes after the next tick (ADR-017).
+    /// Queues repairing ONE item (ADR-028): <paramref name="steps"/> steps of the item in <paramref name="slotIndex"/>
+    /// at <paramref name="venue"/>, for the materials and fee in <c>repair.json</c>. Completes after the next tick
+    /// (ADR-017) with a packed <see cref="RepairReceipt"/> in <see cref="WorldMutationOutcome.Revision"/>.
     /// </summary>
-    ValueTask<WorldMutationOutcome> SubmitRepairItemAsync(ulong connectionId, ushort slotIndex);
+    ValueTask<WorldMutationOutcome> SubmitRepairItemAsync(ulong connectionId, ushort slotIndex, ushort expectedItemId, byte steps, RepairVenue venue);
 
     /// <summary>Gets trading with village traders (ADR-025).</summary>
     IWorldTradeService Trade { get; }
