@@ -109,7 +109,8 @@ internal sealed class WorldCommandExecutor
             0),
         WorldCommandKind.Respawn => new(_handlers.TryRespawn(command.ConnectionId), 0),
         // Trading runs on TradeService's own queue (drained on the same tick, under the same lock).
-        WorldCommandKind.TraderOpen or WorldCommandKind.TraderBuy or WorldCommandKind.TraderSell => new WorldMutationOutcome(OpStatus.Invalid, 0),
+        WorldCommandKind.TraderOpen or WorldCommandKind.TraderBuy or WorldCommandKind.TraderSell or
+        WorldCommandKind.TraderSellBatch or WorldCommandKind.TraderBuyBatch => new WorldMutationOutcome(OpStatus.Invalid, 0),
         _ => new WorldMutationOutcome(OpStatus.Invalid, 0),
     };
 }
