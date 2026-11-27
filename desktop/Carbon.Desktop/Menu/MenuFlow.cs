@@ -14,8 +14,9 @@ namespace Carbon.Desktop.Menu;
 /// </summary>
 internal sealed class MenuFlow
 {
-    public MenuFlow(IWorldSession session, DesktopOptions options, Camera2D camera, IRememberedAccountStore accounts, ServerDirectory servers)
+    public MenuFlow(IWorldSession session, DesktopOptions options, Camera2D camera, IRememberedAccountStore accounts, ServerDirectory servers, IServerProbe? probe = null)
     {
+        this.Probe = probe ?? new TcpServerProbe();
         this.Session = session ?? throw new ArgumentNullException(nameof(session));
         this.Options = options ?? throw new ArgumentNullException(nameof(options));
         this.Camera = camera ?? throw new ArgumentNullException(nameof(camera));
@@ -34,6 +35,9 @@ internal sealed class MenuFlow
     public IRememberedAccountStore Accounts { get; }
 
     public ServerDirectory Servers { get; }
+
+    /// <summary>Gets the reachability check the Server screen runs once per visit.</summary>
+    public IServerProbe Probe { get; }
 
     /// <summary>Gets the living world behind the menus; shared so it keeps panning across screen changes.</summary>
     public MenuBackdrop Backdrop { get; }

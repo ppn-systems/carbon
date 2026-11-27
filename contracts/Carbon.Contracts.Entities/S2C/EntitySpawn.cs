@@ -25,7 +25,7 @@ public sealed partial class EntitySpawn : PacketBase<EntitySpawn>, IPacketStatic
     [SerializeOrder(1)]
     public EntityKind Kind { get; set; }
 
-    /// <summary>Archetype or visual preset identifier.</summary>
+    /// <summary>Monster, NPC or item archetype id (0 for players, whose look is <see cref="RaceId"/> onward).</summary>
     [SerializeOrder(2)]
     public ushort ArchetypeId { get; set; }
 
@@ -107,4 +107,16 @@ public sealed partial class EntitySpawn : PacketBase<EntitySpawn>, IPacketStatic
     /// <summary>Milliseconds of owner protection left when this spawn was sent (0 = anyone may pick it up). ADR-019.</summary>
     [SerializeOrder(21)]
     public uint LootProtectionMs { get; set; }
+
+    /// <summary>Race id of a player (0 for non-players) (<c>races.json</c>, ADR-042).</summary>
+    [SerializeOrder(22)]
+    public ushort RaceId { get; set; }
+
+    /// <summary>Body type id within the race (ADR-042).</summary>
+    [SerializeOrder(23)]
+    public byte BodyType { get; set; }
+
+    /// <summary>One choice index per appearance option of the race, in the race's option order; empty for non-players (ADR-042).</summary>
+    [SerializeOrder(24)]
+    public byte[] AppearanceOptions { get; set; } = [];
 }

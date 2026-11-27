@@ -19,6 +19,7 @@ using Carbon.Simulation.Clock;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.World;
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
 using Xunit.Abstractions;
@@ -446,19 +447,9 @@ public sealed class MonsterTacticsTests(ITestOutputHelper output)
     {
         TacticsArena arena = BuildMixedArena(out _);
 
-        for (int i = 0; i < 400; i++)
-        {
-            arena.StepTick();
-        }
+        AllocationResult window = AllocationProbe.Measure(300, warmupIterations: 400, i => arena.StepTick());
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 300; i++)
-        {
-            arena.StepTick();
-        }
-
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        allocated.Should().Be(0, "kiting, surround, pack, flee, threat, and budgeted pathing ticks are zero-allocation");
+        window.Bytes.Should().Be(0, $"kiting, surround, pack, flee, threat, and budgeted pathing ticks are zero-allocation ({window})");
     }
 
     [Fact]

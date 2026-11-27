@@ -66,6 +66,7 @@ public sealed class WorldSceneRenderer : IDisposable
     private readonly Atmosphere _atmosphere;
     private readonly IVectorArtRepository? _art;
     private readonly CombatFeedbackTracker _feedback = new();
+    private readonly ImpactPresenter _impact = new();
     private readonly WorldEntityOverlayRenderer _overlays = new();
     private readonly ConstructionOverlayRenderer _construction = new();
     private RoofRenderer? _roofs;
@@ -235,6 +236,7 @@ public sealed class WorldSceneRenderer : IDisposable
         _lights.Clear();
 
         _feedback.Update(world, frameDt, _animTime, aimedWorldPosition);
+        _impact.Update(world, frameDt, this.Feel, _feedback);
 
         _device.SetViewport(0, 0, (uint)viewportWidth, (uint)viewportHeight);
         cameraRig.Resize(viewportWidth, viewportHeight);
@@ -257,7 +259,9 @@ public sealed class WorldSceneRenderer : IDisposable
         float minY = cameraRig.Camera.Position.Y - halfH;
         float maxY = cameraRig.Camera.Position.Y + halfH;
 
-        Matrix4x4 viewProj = cameraRig.Camera.ViewProjectionMatrix;
+        // Screen shake offsets the world view only (HUD and camera follow are untouched); zero when the setting is off.
+        Vector2 shake = _impact.CameraOffset(this.Feel);
+        Matrix4x4 viewProj = Matrix4x4.CreateTranslation(-shake.X, -shake.Y, 0f) * cameraRig.Camera.ViewProjectionMatrix;
         ChunkWorld2D chunkWorld = world.ChunkWorld;
         float tileSize = chunkWorld.TileSize;
 
@@ -707,7 +711,8 @@ public sealed class WorldSceneRenderer : IDisposable
         float tileSize = world.ChunkWorld.TileSize;
         Vector2 footPos = new(entityPos.X, entityPos.Y + col.Radius);
         CompiledVectorRig? rig = null;
-        bool hasRig = _art is not null && _art.TryGetCharacter(world.LocalPlayerAppearancePreset, out rig);
+        CharacterPalette palette = CharacterPalette.Default;
+        bool hasRig = _art is not null && CharacterLookResolver.TryResolve(_art, world.Races.Current, world.LocalPlayerLook, out rig, out palette);
         WadingRenderer.Wade wade = WadingRenderer.Resolve(world.ChunkWorld, entityPos, hasRig ? rig!.WorldHeight : 35f, col.Radius);
         _slowTrail.Update(footPos, _animTime - _slowTrailTime, IsSlowed(world));
         _slowTrailTime = _animTime;
@@ -723,7 +728,7 @@ public sealed class WorldSceneRenderer : IDisposable
             batch.DrawCircle(footPos, col.Radius + 3.5f, new ColorRgba(56, 189, 248, 150), 14, 1.3f);
         }
 
-        ActionState action = world.CurrentAction;
+        ActionState action = ShownAction(world.CurrentAction, _impact);
         Vector2 facing = action.IsActive
             ? action.AimDirection
             : (world.LocalFacingDirection.LengthSquared() > 1e-4f ? world.LocalFacingDirection : world.LastAttackDirection);
@@ -741,7 +746,7 @@ public sealed class WorldSceneRenderer : IDisposable
             : action.IsActive
                 ? action.Progress
                 : (world.AttackSwingTimer > 0f ? 1f - Math.Clamp(world.AttackSwingTimer / 0.24f, 0f, 1f) : _animTime);
-        float flash = world.LocalHitFlashTimer > 0f ? Math.Clamp(world.LocalHitFlashTimer / 0.16f, 0f, 0.8f) : 0f;
+        float flash = this.Feel.ScaleFlash(world.LocalHitFlashTimer > 0f ? Math.Clamp(world.LocalHitFlashTimer / 0.16f, 0f, 0.8f) : 0f);
 
         // The body commits toward the target in every facing (docs/art/combat-animation.md §3.3).
         Vector2 lean = action.IsActive ? AttackLean(in action) : Vector2.Zero;
@@ -777,7 +782,7 @@ public sealed class WorldSceneRenderer : IDisposable
                 equipped,
                 action,
                 world.AttackSwingTimer,
-                world.LocalPlayerAppearancePreset,
+                palette,
                 loadout,
                 _art);
             if (!downed)
@@ -845,6 +850,9 @@ public sealed class WorldSceneRenderer : IDisposable
         _ => null,
     };
 
+    /// <summary>Gets or sets the impact feedback settings (screen shake, reduced flashes).</summary>
+    public ImpactFeelOptions Feel { get; set; } = ImpactFeelOptions.Default;
+
     /// <summary>Character clip of a dead player lying on the ground (ADR-031, <c>base_hero.cvg.json</c>).</summary>
     private const string DownedClip = "downed";
 
@@ -874,12 +882,13 @@ public sealed class WorldSceneRenderer : IDisposable
         Direction8 dir8 = DirectionExtensions.FromVector(facing, Direction8.South);
         bool moving = remote.Velocity.LengthSquared() > 9f;
         bool attacking = remote.AttackAnimRemaining > 0f;
-        float flash = remote.HitFlashRemaining > 0f ? Math.Clamp(remote.HitFlashRemaining / 0.16f, 0f, 0.8f) : 0f;
+        float sessionFlash = remote.HitFlashRemaining > 0f ? Math.Clamp(remote.HitFlashRemaining / 0.16f, 0f, 0.8f) : 0f;
+        float flash = this.Feel.ScaleFlash(MathF.Max(sessionFlash, _impact.FlashFor(remote.NetworkId) * 0.9f));
 
         CompiledVectorRig? wadeRig = null;
         bool hasWadeRig = _art is not null && remote.Kind switch
         {
-            EntityKind.Player => _art.TryGetCharacter((byte)remote.ArchetypeId, out wadeRig),
+            EntityKind.Player => CharacterLookResolver.TryResolve(_art, world.Races.Current, remote.Look, out wadeRig, out _),
             EntityKind.Npc => _art.TryGetNpc(remote.ArchetypeId, out wadeRig),
             EntityKind.Monster => _art.TryGetMonster(remote.ArchetypeId, out wadeRig),
             EntityKind.Projectile or EntityKind.LootDrop or _ => false,
@@ -913,7 +922,7 @@ public sealed class WorldSceneRenderer : IDisposable
         {
             CompiledVectorRig? rig = null;
             CompiledItemVectorArt? remoteWeapon = null;
-            byte preset = 0;
+            CharacterPalette palette = CharacterPalette.Default;
             RigOverlay overlays = RigOverlay.None;
             VisualEquipmentLoadout remoteLoadout = default;
             string clip = moving ? "walk" : "idle";
@@ -921,9 +930,8 @@ public sealed class WorldSceneRenderer : IDisposable
             bool norm = false;
             float eval = _animTime + (remote.NetworkId % 7 * 0.13f);
 
-            if (remote.Kind == EntityKind.Player && _art.TryGetCharacter((byte)remote.ArchetypeId, out rig))
+            if (remote.Kind == EntityKind.Player && CharacterLookResolver.TryResolve(_art, world.Races.Current, remote.Look, out rig, out palette))
             {
-                preset = (byte)remote.ArchetypeId;
                 remoteLoadout = new VisualEquipmentLoadout(
                     remote.EquippedHeadId,
                     remote.EquippedChestId,
@@ -1041,7 +1049,7 @@ public sealed class WorldSceneRenderer : IDisposable
                     equippedItem: remoteWeapon,
                     action: remoteAction,
                     swingTimer: remoteAction.IsActive ? 0f : remote.AttackAnimRemaining,
-                    appearancePreset: preset,
+                    palette: palette,
                     equipment: remoteLoadout,
                     art: _art,
                     overlays: overlays,
@@ -1221,6 +1229,25 @@ public sealed class WorldSceneRenderer : IDisposable
 
         float contact = HeroAttackTiming.For(style).ContactFraction;
         return progress < contact ? null : (progress - contact) / MathF.Max(1e-4f, 1f - contact);
+    }
+
+    /// <summary>
+    /// Gets the local action as drawn this frame: the same swing with its clip time remapped by any hit-stop. The session's
+    /// own action (input, cooldown, simulation) is never changed.
+    /// </summary>
+    /// <param name="action">The session's local action.</param>
+    /// <param name="impact">Impact presenter holding the hit-stop.</param>
+    /// <returns>The action to draw.</returns>
+    public static ActionState ShownAction(ActionState action, ImpactPresenter impact)
+    {
+        ArgumentNullException.ThrowIfNull(impact);
+        if (!action.IsActive)
+        {
+            return action;
+        }
+
+        float shown = MathF.Min(impact.DisplayedProgress(in action), 0.9999f);
+        return action with { RemainingSeconds = action.DurationSeconds * (1f - shown) };
     }
 
     /// <summary>World-unit shift of a hero toward its aim for the attack lean (zero for non-attacks).</summary>

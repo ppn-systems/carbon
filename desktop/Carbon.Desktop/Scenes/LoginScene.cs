@@ -75,6 +75,9 @@ internal sealed class LoginScene : MenuScene
     internal MenuTextField PasswordField => _passwordField;
 
     /// <inheritdoc/>
+    protected override string? FooterHint => GameText.Get("login.footer.form");
+
+    /// <inheritdoc/>
     protected override string? Header => GameText.Get("login.header.login");
 
     private bool Busy => _pendingAuth is not null || _pendingRemember is not null;
@@ -85,7 +88,7 @@ internal sealed class LoginScene : MenuScene
         const float panelW = 500f;
         const float panelH = 494f;
         float px = MathF.Floor((width - panelW) * 0.5f);
-        float py = MathF.Floor((height - panelH) * 0.5f) + 40f;
+        float py = PanelTop(height, panelH);
         _card = new RectangleF(px, py, panelW, panelH);
 
         float fx = px + 32f;
@@ -231,8 +234,8 @@ internal sealed class LoginScene : MenuScene
             return;
         }
 
-        _usernameField.AppendChar(ch);
-        _passwordField.AppendChar(ch);
+        _ = _usernameField.AppendChar(ch);
+        _ = _passwordField.AppendChar(ch);
     }
 
     /// <inheritdoc/>

@@ -14,7 +14,9 @@ public static class CarbonProtocol
     /// <c>0x1130</c>, <c>0x4007</c>, <c>0x4008</c>, <c>0x4041</c> and <c>0x4042</c> are retired (ADR-038). 5: the never-read fields of ADR-038
     /// batch 2 leave their packets. 6: <c>EntityDeltaBatch</c> no longer carries <c>DirtyMasks</c>
     /// (ADR-038 batch 3). 7: <c>MapChunkDelta</c> and <c>MapPropChanged</c> carry the tree growth stage, and
-    /// <c>MapChunkDelta</c> the trees players planted (ADR-040).
+    /// <c>MapChunkDelta</c> the trees players planted (ADR-040). 8: the packed appearance byte leaves
+    /// <c>CharacterCreate</c>, <c>CharacterSummary</c> and <c>CharacterEnterWorld</c> for a structured look (race id, body
+    /// type, option choices), which <c>EntitySpawn</c> also carries for players (ADR-042).
     /// </summary>
-    public const ushort Version = 7;
+    public const ushort Version = 8;
 }

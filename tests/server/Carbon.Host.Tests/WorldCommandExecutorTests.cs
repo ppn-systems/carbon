@@ -1,6 +1,5 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Carbon.Abstractions.World;
@@ -8,6 +7,7 @@ using Carbon.Application.World.Commands;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Maps.Building;
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
 
@@ -85,15 +85,9 @@ public sealed class WorldCommandExecutorTests
     {
         WorldCommandExecutor executor = new(new RecordingHandlers());
         WorldCommandQueue queue = new();
-        executor.Drain(queue);
+        AllocationResult window = AllocationProbe.Measure(1_000, warmupIterations: 1_000, tick => executor.Drain(queue));
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int tick = 0; tick < 1_000; tick++)
-        {
-            executor.Drain(queue);
-        }
-
-        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0, "the drain runs at the start of every fixed tick (AGENTS.md rule 4)");
+        window.Bytes.Should().Be(0, $"the drain runs at the start of every fixed tick (AGENTS.md rule 4) ({window})");
     }
 
     [Fact]

@@ -24,6 +24,7 @@ public static class CharacterStatCalculator
     /// <param name="inventory">Inventory with equipment slots.</param>
     /// <param name="selectedHotbarSlot">Held hotbar slot (<see cref="byte.MaxValue"/> = none).</param>
     /// <param name="progression">Attribute allocations.</param>
+    /// <param name="raceModifiers">The character's race stat changes (ADR-042), or <see langword="null"/>.</param>
     /// <returns>The derived stats.</returns>
     public static DerivedCharacterStats Compute(
         ItemRules rules,
@@ -31,11 +32,12 @@ public static class CharacterStatCalculator
         ushort level,
         InventoryContainer inventory,
         byte selectedHotbarSlot,
-        CharacterProgressionState? progression)
+        CharacterProgressionState? progression,
+        StatBlock? raceModifiers = null)
     {
         ArgumentNullException.ThrowIfNull(config);
         GearStatBonus gear = SumGear(rules, inventory, selectedHotbarSlot);
-        return config.ComputeStats(level, progression, in gear);
+        return config.ComputeStats(level, progression, in gear, raceModifiers);
     }
 
     /// <summary>

@@ -434,10 +434,7 @@ public sealed partial class MultiplayerSession
             _tileSize = enter.TileSize > 0f ? enter.TileSize : 32f;
             _tickRate = enter.TickRate > 0 ? enter.TickRate : (ushort)30;
             _localNetworkId = enter.PlayerNetworkId;
-            if (enter.AppearancePreset != 0)
-            {
-                _localAppearancePreset = enter.AppearancePreset;
-            }
+            _ = CharacterLook.TryCreate(enter.RaceId, enter.BodyType, enter.AppearanceOptions, out _localLook);
 
             // The world swap runs on the main thread, before the chunk deltas requested next (same FIFO inbox), so the
             // renderer never sees ChunkWorld2D/WorldSimulation replaced mid-frame (audit TS-2). Only plain values are
@@ -765,7 +762,7 @@ public sealed partial class MultiplayerSession
             {
                 _localHealth = pkt.CurrentHealth;
                 _localMaxHealth = pkt.MaxHealth > 0f ? pkt.MaxHealth : 100f;
-                _localAppearancePreset = (byte)pkt.ArchetypeId;
+                _ = CharacterLook.TryCreate(pkt.RaceId, pkt.BodyType, pkt.AppearanceOptions, out _localLook);
                 _localLevel = Math.Max((ushort)1, pkt.Level);
             }
 
@@ -1049,6 +1046,35 @@ public sealed partial class MultiplayerSession
     /// <summary>Seconds the red hit vignette fades over (visual only) after the local player is hit.</summary>
     private const float HitVignetteFadeSeconds = 0.45f;
 
+    /// <summary>
+    /// Gets whether the session flashes a hit's defender as soon as the hit arrives. The local player's own hits are left
+    /// to the impact presentation, which flashes the target when the swing makes contact (docs/art/combat-animation.md §3.1).
+    /// </summary>
+    internal static bool FlashesDefenderOnArrival(ulong attackerNetworkId, ulong localNetworkId) => attackerNetworkId != localNetworkId;
+
+    /// <summary>Gets the impact-presentation event for a <c>CombatHit</c>, or <see langword="null"/> when it dealt no damage (a dodge or a heal).</summary>
+    internal static StrikeImpactEvent? ToStrikeImpact(
+        ulong attackerNetworkId,
+        ulong defenderNetworkId,
+        ulong localNetworkId,
+        Vector2 worldPosition,
+        float damage,
+        float defenderMaxHealth,
+        bool isCritical,
+        bool isKilled) =>
+        damage > 0f
+            ? new StrikeImpactEvent(
+                attackerNetworkId,
+                defenderNetworkId,
+                worldPosition,
+                damage,
+                defenderMaxHealth,
+                isCritical,
+                isKilled,
+                attackerNetworkId == localNetworkId,
+                defenderNetworkId == localNetworkId)
+            : null;
+
     private void OnCombatHit(CombatHit pkt)
     {
         lock (_worldGate)
@@ -1082,7 +1108,7 @@ public sealed partial class MultiplayerSession
             {
                 defenderState.CurrentHealth = pkt.RemainingHealth;
                 worldPos = defenderState.Position;
-                if (pkt.Damage > 0f)
+                if (pkt.Damage > 0f && FlashesDefenderOnArrival(pkt.AttackerNetworkId, _localNetworkId))
                 {
                     defenderState.HitFlashTimer = 0.16f;
                 }
@@ -1106,6 +1132,14 @@ public sealed partial class MultiplayerSession
                     ? ActionAnimationKind.MonsterStrike
                     : ResolveActionKind(_items.Rules.Items.TryGet(attackerState.EquippedWeaponId, out ItemArchetype? attackerWeapon) ? attackerWeapon : null);
                 attackerState.StartSwing(attackerKind, 0.30f, _comboClock);
+            }
+
+            float defenderMax = pkt.DefenderNetworkId == _localNetworkId
+                ? _localMaxHealth
+                : _remoteEntities.TryGetValue(pkt.DefenderNetworkId, out RemoteEntityState? hitState) ? hitState.MaxHealth : 0f;
+            if (ToStrikeImpact(pkt.AttackerNetworkId, pkt.DefenderNetworkId, _localNetworkId, worldPos, pkt.Damage, defenderMax, pkt.IsCritical, pkt.IsKilled) is StrikeImpactEvent strike)
+            {
+                _strikeImpactEvents.Add(strike);
             }
 
             bool isHeal = pkt.Damage < 0f;

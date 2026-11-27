@@ -102,7 +102,7 @@ public sealed class BuildReachTests
             entropy: TestGameplayEntropy.Create(1337UL),
             structureCatalog: catalog);
         Vector2 at = world.DefaultSpawnWorldPosition;
-        CharacterRecord hero = new(Guid.NewGuid(), Guid.NewGuid(), "Mason", 1, 0, at.X, at.Y, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
+        CharacterRecord hero = new(Guid.NewGuid(), Guid.NewGuid(), "Mason", 1, default, at.X, at.Y, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
         EnterWorldResult entered = world.TryEnterWorld(Builder, hero);
         entered.Status.Should().Be(OpStatus.Ok);
         return (world, new Vector2(entered.PositionX, entered.PositionY));

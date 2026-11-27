@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
+using Carbon.Items.Races;
 using Microsoft.Data.Sqlite;
 
 namespace Carbon.Infrastructure.Persistence.Sqlite;
@@ -404,7 +405,84 @@ public sealed class SqliteSchemaMigrator : IDatabaseMigrator
         // ADR-037: remember-me token hashes.
         await ApplyDdlMigrationAsync(conn, tx, "0020_remember_tokens", RememberTokensSql, ct).ConfigureAwait(false);
 
+        // ADR-042: the packed appearance byte becomes a versioned look blob (race, body type, option choices).
+        await MigrateCharacterLookAsync(conn, tx, ct).ConfigureAwait(false);
+
         await tx.CommitAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Migration 0022: adds <c>characters.appearance</c>, fills it from <c>appearance_preset</c> through
+    /// <see cref="LegacyAppearanceMigration"/>, then drops the retired column.
+    /// </summary>
+    private static async Task MigrateCharacterLookAsync(SqliteConnection conn, SqliteTransaction tx, CancellationToken ct)
+    {
+        SqliteCommand check = new("SELECT 1 FROM schema_migrations WHERE id = @id LIMIT 1;", conn, tx);
+        await using (ConfiguredAsyncDisposable checkScope = check.ConfigureAwait(false))
+        {
+            _ = check.Parameters.AddWithValue("@id", LegacyAppearanceMigration.MigrationId);
+            object? scalar = await check.ExecuteScalarAsync(ct).ConfigureAwait(false);
+            if (scalar is not null && scalar != DBNull.Value)
+            {
+                return;
+            }
+        }
+
+        bool hasAppearance = false;
+        SqliteCommand pragma = new("PRAGMA table_info(characters);", conn, tx);
+        await using (ConfiguredAsyncDisposable pragmaScope = pragma.ConfigureAwait(false))
+        {
+            SqliteDataReader reader = await pragma.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            await using ConfiguredAsyncDisposable readerScope = reader.ConfigureAwait(false);
+            while (await reader.ReadAsync(ct).ConfigureAwait(false))
+            {
+                hasAppearance |= string.Equals(reader.GetString(1), "appearance", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        if (!hasAppearance)
+        {
+            SqliteCommand add = new("ALTER TABLE characters ADD COLUMN appearance BLOB NOT NULL DEFAULT X'';", conn, tx);
+            await using ConfiguredAsyncDisposable addScope = add.ConfigureAwait(false);
+            _ = await add.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        List<(string Id, byte Preset)> legacy = [];
+        SqliteCommand select = new("SELECT id, appearance_preset FROM characters;", conn, tx);
+        await using (ConfiguredAsyncDisposable selectScope = select.ConfigureAwait(false))
+        {
+            SqliteDataReader reader = await select.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            await using ConfiguredAsyncDisposable readerScope = reader.ConfigureAwait(false);
+            while (await reader.ReadAsync(ct).ConfigureAwait(false))
+            {
+                legacy.Add((reader.GetString(0), (byte)reader.GetInt32(1)));
+            }
+        }
+
+        SqliteCommand update = new("UPDATE characters SET appearance = @appearance WHERE id = @id;", conn, tx);
+        await using (ConfiguredAsyncDisposable updateScope = update.ConfigureAwait(false))
+        {
+            SqliteParameter pId = update.Parameters.Add("@id", SqliteType.Text);
+            SqliteParameter pAppearance = update.Parameters.Add("@appearance", SqliteType.Blob);
+            for (int i = 0; i < legacy.Count; i++)
+            {
+                pId.Value = legacy[i].Id;
+                pAppearance.Value = CharacterLookBinaryCodec.Serialize(LegacyAppearanceMigration.ToLook(legacy[i].Preset));
+                _ = await update.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            }
+        }
+
+        SqliteCommand drop = new("ALTER TABLE characters DROP COLUMN appearance_preset;", conn, tx);
+        await using (ConfiguredAsyncDisposable dropScope = drop.ConfigureAwait(false))
+        {
+            _ = await drop.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        SqliteCommand mark = new("INSERT INTO schema_migrations (id, applied_utc) VALUES (@id, @utc);", conn, tx);
+        await using ConfiguredAsyncDisposable markScope = mark.ConfigureAwait(false);
+        _ = mark.Parameters.AddWithValue("@id", LegacyAppearanceMigration.MigrationId);
+        _ = mark.Parameters.AddWithValue("@utc", DateTimeOffset.UtcNow.ToString("O"));
+        _ = await mark.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 
     /// <summary>Applies an idempotent DDL migration once and records <paramref name="migrationId"/>.</summary>

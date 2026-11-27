@@ -132,7 +132,7 @@ public sealed class NeedsServiceTests
         Guid.NewGuid(),
         "Tester",
         1,
-        0,
+        default,
         0f,
         0f,
         100f,

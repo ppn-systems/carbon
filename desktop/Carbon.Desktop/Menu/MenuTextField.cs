@@ -174,22 +174,25 @@ internal sealed class MenuTextField
         }
     }
 
-    public void AppendChar(char ch)
+    /// <summary>Types <paramref name="ch"/> into a focused field.</summary>
+    /// <returns><see langword="false"/> when the field's character filter refused a printable character (the scene can explain why).</returns>
+    public bool AppendChar(char ch)
     {
         if (!this.IsFocused || char.IsControl(ch) || _buffer.Length >= this.MaxLength)
         {
-            return;
+            return true;
         }
 
         if (this.CharacterFilter is not null && !this.CharacterFilter(ch))
         {
-            return;
+            return false;
         }
 
         _ = _buffer.Append(ch);
         _revision++;
         _cursorTimer = 0f;
         _cursorVisible = true;
+        return true;
     }
 
     public void Backspace()

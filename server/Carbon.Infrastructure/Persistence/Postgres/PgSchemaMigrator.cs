@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
+using Carbon.Items.Races;
 using Npgsql;
 
 namespace Carbon.Infrastructure.Persistence.Postgres;
@@ -364,7 +365,65 @@ public sealed class PgSchemaMigrator : IDatabaseMigrator
         // ADR-037: remember-me token hashes.
         await ApplyDdlMigrationAsync(conn, tx, "0020_remember_tokens", RememberTokensSql, ct).ConfigureAwait(false);
 
+        // ADR-042: the packed appearance byte becomes a versioned look blob (race, body type, option choices).
+        await MigrateCharacterLookAsync(conn, tx, ct).ConfigureAwait(false);
+
         await tx.CommitAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Migration 0022: adds <c>characters.appearance</c>, fills it from <c>appearance_preset</c> through
+    /// <see cref="LegacyAppearanceMigration"/>, then drops the retired column.
+    /// </summary>
+    private static async Task MigrateCharacterLookAsync(NpgsqlConnection conn, NpgsqlTransaction tx, CancellationToken ct)
+    {
+        NpgsqlCommand check = new("SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE id = @id);", conn, tx);
+        await using (ConfiguredAsyncDisposable checkScope = check.ConfigureAwait(false))
+        {
+            _ = check.Parameters.AddWithValue("id", LegacyAppearanceMigration.MigrationId);
+            if (await check.ExecuteScalarAsync(ct).ConfigureAwait(false) is true)
+            {
+                return;
+            }
+        }
+
+        NpgsqlCommand add = new("ALTER TABLE characters ADD COLUMN IF NOT EXISTS appearance BYTEA NOT NULL DEFAULT '\\x'::bytea;", conn, tx);
+        await using (ConfiguredAsyncDisposable addScope = add.ConfigureAwait(false))
+        {
+            _ = await add.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        List<(Guid Id, byte Preset)> legacy = [];
+        NpgsqlCommand select = new("SELECT id, appearance_preset FROM characters;", conn, tx);
+        await using (ConfiguredAsyncDisposable selectScope = select.ConfigureAwait(false))
+        {
+            NpgsqlDataReader reader = await select.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            await using ConfiguredAsyncDisposable readerScope = reader.ConfigureAwait(false);
+            while (await reader.ReadAsync(ct).ConfigureAwait(false))
+            {
+                legacy.Add((reader.GetGuid(0), (byte)reader.GetInt16(1)));
+            }
+        }
+
+        for (int i = 0; i < legacy.Count; i++)
+        {
+            NpgsqlCommand update = new("UPDATE characters SET appearance = @appearance WHERE id = @id;", conn, tx);
+            await using ConfiguredAsyncDisposable updateScope = update.ConfigureAwait(false);
+            _ = update.Parameters.AddWithValue("id", legacy[i].Id);
+            _ = update.Parameters.AddWithValue("appearance", CharacterLookBinaryCodec.Serialize(LegacyAppearanceMigration.ToLook(legacy[i].Preset)));
+            _ = await update.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        NpgsqlCommand drop = new("ALTER TABLE characters DROP COLUMN IF EXISTS appearance_preset;", conn, tx);
+        await using (ConfiguredAsyncDisposable dropScope = drop.ConfigureAwait(false))
+        {
+            _ = await drop.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        NpgsqlCommand mark = new("INSERT INTO schema_migrations (id) VALUES (@id);", conn, tx);
+        await using ConfiguredAsyncDisposable markScope = mark.ConfigureAwait(false);
+        _ = mark.Parameters.AddWithValue("id", LegacyAppearanceMigration.MigrationId);
+        _ = await mark.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 
     /// <summary>Applies an idempotent DDL migration once and records <paramref name="migrationId"/>.</summary>

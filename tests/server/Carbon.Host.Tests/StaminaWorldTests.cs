@@ -213,7 +213,7 @@ public sealed class StaminaWorldTests
                 Guid.NewGuid(),
                 "Stamina",
                 Level: 1,
-                AppearancePreset: 0,
+                Look: default,
                 PositionX: ((tx + 0.5f) * 32f) + 40f,
                 PositionY: (ty + 0.5f) * 32f,
                 CurrentHealth: starving ? 1f : 100f,

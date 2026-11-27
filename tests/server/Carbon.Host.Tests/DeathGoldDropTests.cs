@@ -163,7 +163,7 @@ public sealed class DeathGoldDropTests
         private PlayerState CreatePlayer(ulong connectionId, ulong networkId, string name)
         {
             ConnectedPlayerSession session = new(connectionId, Guid.NewGuid(), Guid.NewGuid(), name, networkId, 0, 0);
-            CharacterRecord character = new(session.CharacterId, session.AccountId, name, 1, 0, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
+            CharacterRecord character = new(session.CharacterId, session.AccountId, name, 1, default, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
             return new PlayerState(session, this.Simulation.SpawnNetworkEntity(networkId, Vector2.Zero, 7f), character, new InventoryContainer(PlayerInventoryLayout.TotalCapacity));
         }
     }

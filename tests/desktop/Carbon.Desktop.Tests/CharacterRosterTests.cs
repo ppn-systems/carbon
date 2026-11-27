@@ -4,6 +4,8 @@ using System;
 using Carbon.Contracts.Identity;
 using Carbon.Desktop.Abstractions.Identity;
 using Carbon.Desktop.Menu;
+using Carbon.Desktop.Tests.Fakes;
+using Carbon.Items.Races;
 using FluentAssertions;
 using Xunit;
 
@@ -82,18 +84,66 @@ public sealed class CharacterRosterTests
     }
 
     [Fact]
-    public void Randomize_SeededRandom_PicksValidVariantsAndPacksThem()
+    public void Look_BeforeRacesSync_IsDefault()
     {
         HeroAppearance appearance = new();
 
+        appearance.Look.Should().Be(default(CharacterLook), "the creator has nothing to offer before races.json arrives");
+        appearance.OptionCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void Bind_ShippedRaces_StartsOnFirstRaceBodyAndChoices()
+    {
+        HeroAppearance appearance = new();
+
+        appearance.Bind(TestRaces.Synced().Current);
+
+        appearance.Look.Should().Be(new CharacterLook(1, 0, [0, 0, 0, 0]), "human, male body, first choice of each of its four options");
+    }
+
+    [Fact]
+    public void CycleOption_PastLastChoice_WrapsAndMovesOnlyThatOption()
+    {
+        HeroAppearance appearance = new();
+        appearance.Bind(TestRaces.Synced().Current);
+
+        appearance.CycleOption(3, -1);
+        appearance.CycleOption(1, 1);
+        appearance.CycleOption(1, 4);
+
+        appearance.Look.Should().Be(new CharacterLook(1, 0, [0, 1, 0, 3]), "skin wraps 0 → 3 and hair colour 1 + 4 wraps back to 1");
+    }
+
+    [Fact]
+    public void Bind_NewCatalogWithFewerChoices_ClampsChoicesAndKeepsRace()
+    {
+        HeroAppearance appearance = new();
+        appearance.Bind(TestRaces.Synced().Current);
+        appearance.CycleOption(0, 3);
+
+        RaceCatalog smaller = RaceCatalog.LoadFromJson("""
+            {"schemaVersion":1,"races":[{"id":1,"code":"human","nameKey":"race.human",
+             "bodies":[{"id":0,"code":"male","nameKey":"race.body.male","rig":"characters/base_hero.cvg.json"}],
+             "options":[{"code":"hair_style","nameKey":"appearance.hair","role":"hair","choices":[{"nameKey":"appearance.hair.crop","part":"hair_crop"}]}]}]}
+            """);
+        appearance.Bind(smaller);
+
+        appearance.Look.Should().Be(new CharacterLook(1, 0, [0]), "a choice the new catalog no longer offers falls back to its first");
+    }
+
+    [Fact]
+    public void Randomize_SeededRandom_PicksAValidChoicePerOption()
+    {
+        HeroAppearance appearance = new();
+        RaceCatalog races = TestRaces.Synced().Current!;
+        appearance.Bind(races);
+
         appearance.Randomize(new Random(7));
 
-        byte[] traits = [appearance.HairStyle, appearance.HairColor, appearance.FaceStyle, appearance.SkinTone];
-        traits.Should().OnlyContain(t => t < CharacterAppearance.TraitVariantCount);
-        appearance.Preset.Should().Be(CharacterAppearance.Pack(appearance.HairStyle, appearance.HairColor, appearance.FaceStyle, appearance.SkinTone));
-
+        races.Check(appearance.Look).Should().Be(CharacterLookStatus.Valid);
         Random a = new(7);
         byte[] expected = [(byte)a.Next(4), (byte)a.Next(4), (byte)a.Next(4), (byte)a.Next(4)];
-        traits.Should().Equal(expected, "hair, color, eyes, skin are drawn in that order");
+        appearance.Look.Should().Be(new CharacterLook(1, 0, expected), "options are drawn in the race's order, each within its choices");
     }
 }

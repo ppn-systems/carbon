@@ -258,7 +258,7 @@ public sealed class GameplayEntropyTests
                 new AuthoritativeWorldMultiplayerTests.RecordingOutboundSink(),
                 entropy: entropy);
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
-            CharacterRecord hero = new(Guid.NewGuid(), Guid.NewGuid(), "Leaky", 1, 0, world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y, 100f, 100f, 0, [], DateTimeOffset.UtcNow);
+            CharacterRecord hero = new(Guid.NewGuid(), Guid.NewGuid(), "Leaky", 1, default, world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y, 100f, 100f, 0, [], DateTimeOffset.UtcNow);
             EnterWorldResult entered = world.TryEnterWorld(7UL, hero);
             entered.Status.Should().Be(OpStatus.Ok);
             world.StepFixedTick();

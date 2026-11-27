@@ -106,6 +106,7 @@ interact_door      | CARBON_DEBUG_SPAWN_POI=RiverVillage:House CARBON_DEBUG_STAR
 interact_trade     | CARBON_DEBUG_SPAWN_POI=RiverVillage CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear
 # --- classless start (ADR-030): the creator has no class choice, and new characters arrive empty-handed ---
 char_creator       | | CARBON_AUTO_LOGIN=0 CARBON_CAPTURE_SCENE=characters
+char_roster        | | CARBON_AUTO_LOGIN=0 CARBON_CAPTURE_SCENE=roster
 # --- account menus (ADR-037): start screen signed out and signed in, login, register, server ---
 menu_start_out     | | CARBON_AUTO_LOGIN=0 CARBON_CAPTURE_SCENE=start
 menu_start_in      | | CARBON_AUTO_LOGIN=0 CARBON_CAPTURE_SCENE=start CARBON_UI_PREVIEW=signed-in
@@ -152,3 +153,18 @@ planted_grove      | CARBON_DEBUG_PLANTED_GROVE=1 CARBON_DEBUG_START_HOUR=11 | C
 #     sword; run with CARBON_FRAME_STATS=n in the client env to measure frames with attacks, trails and hit feedback ---
 combat_fists       | CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_AUTO_ATTACK=0.55
 combat_sword       | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STARTER_ITEMS=3 | CARBON_WEATHER=clear CARBON_AUTO_ATTACK=0.55
+
+# --- body types (ADR-042): the same scene on the male and the female human body (CARBON_CHARACTER_BODY picks the
+#     auto-login character's body by its races.json code); walking, a sword swing, swimming, diving and downed ---
+body_walk_male     | CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_AUTO_WALK=1,0.3 CARBON_CHARACTER_BODY=male
+body_walk_female   | CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_AUTO_WALK=1,0.3 CARBON_CHARACTER_BODY=female
+body_sword_male    | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STARTER_ITEMS=3,18,13 | CARBON_WEATHER=clear CARBON_AUTO_ATTACK=0.55 CARBON_CHARACTER_BODY=male
+body_sword_female  | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STARTER_ITEMS=3,18,13 | CARBON_WEATHER=clear CARBON_AUTO_ATTACK=0.55 CARBON_CHARACTER_BODY=female
+body_swim_male     | CARBON_WORLD_SEED=42 CARBON_DEBUG_SPAWN_TILE=985,-6000 CARBON_DEBUG_START_HOUR=11  | CARBON_SEED=42 CARBON_WEATHER=clear CARBON_CHARACTER_BODY=male
+body_swim_female   | CARBON_WORLD_SEED=42 CARBON_DEBUG_SPAWN_TILE=985,-6000 CARBON_DEBUG_START_HOUR=11  | CARBON_SEED=42 CARBON_WEATHER=clear CARBON_CHARACTER_BODY=female
+body_dive_female   | CARBON_WORLD_SEED=42 CARBON_DEBUG_SPAWN_TILE=1050,-6000 CARBON_DEBUG_START_HOUR=11 | CARBON_SEED=42 CARBON_WEATHER=clear CARBON_CHARACTER_BODY=female
+body_downed_male   | CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=death CARBON_CHARACTER_BODY=male
+body_downed_female | CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=death CARBON_CHARACTER_BODY=female
+# --- creator with race, body type and option rows (ADR-042): the male and the female human body ---
+creator_male       | | CARBON_AUTO_LOGIN=0 CARBON_CAPTURE_SCENE=characters CARBON_CHARACTER_BODY=male
+creator_female     | | CARBON_AUTO_LOGIN=0 CARBON_CAPTURE_SCENE=characters CARBON_CHARACTER_BODY=female
