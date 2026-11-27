@@ -184,7 +184,7 @@ public interface IWorldOutboundSink
     void SendEntitySpawn(ulong connectionId, in EntitySpawnSnapshot spawn);
 
     /// <summary>Sends an entity despawn notification to the target connection.</summary>
-    void SendEntityDespawn(ulong connectionId, ulong networkId, ulong serverTick);
+    void SendEntityDespawn(ulong connectionId, ulong networkId);
 
     /// <summary>Sends a batched AoI entity delta update to the target connection.</summary>
     void SendEntityDeltaBatch(
@@ -196,10 +196,10 @@ public interface IWorldOutboundSink
         ReadOnlySpan<EntityDeltaEntry> entries);
 
     /// <summary>Broadcasts a natural prop state update to connections in range.</summary>
-    void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, uint revision, float durability, bool isDestroyed);
+    void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, float durability, bool isDestroyed);
 
     /// <summary>Broadcasts a constructed structure update to connections in range.</summary>
-    void SendStructureChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, byte structureType, float durability, byte doorState, byte connectivity);
+    void SendStructureChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, byte structureType, byte doorState);
 
     /// <summary>Broadcasts a construction site or deconstruction stage / progress update to connections in range.</summary>
     void SendConstructionChanged(
@@ -247,7 +247,7 @@ public interface IWorldOutboundSink
     /// <summary>
     /// Pushes to the owner that an item is about to break, or broke and was destroyed (ADR-035). Sinks without a client ignore it.
     /// </summary>
-    void SendItemDurabilityAlert(ulong connectionId, DurabilityAlertKind kind, ushort slotIndex, uint itemId, byte upgradeLevel)
+    void SendItemDurabilityAlert(ulong connectionId, DurabilityAlertKind kind, uint itemId, byte upgradeLevel)
     {
     }
 
@@ -299,8 +299,6 @@ public interface IWorldOutboundSink
         ReadOnlySpan<ulong> recipientConnectionIds,
         ulong casterNetworkId,
         byte abilitySlot,
-        float originX,
-        float originY,
         float aimX,
         float aimY);
 
@@ -312,7 +310,6 @@ public interface IWorldOutboundSink
     /// </summary>
     void SendEnhancementAnnouncement(
         ReadOnlySpan<ulong> recipientConnectionIds,
-        ulong playerNetworkId,
         string playerName,
         ushort itemId,
         EnhancementOutcome outcome,

@@ -108,7 +108,7 @@ internal sealed class AoiReplicator
 
         for (int i = 0; i < _exited.Count; i++)
         {
-            pending.Despawns.Add(new OutboundDespawn(connectionId, _exited[i], serverTick));
+            pending.Despawns.Add(new OutboundDespawn(connectionId, _exited[i]));
         }
 
         int deltaOffset = pending.DeltaEntries.Count;

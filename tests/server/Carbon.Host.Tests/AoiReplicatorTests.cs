@@ -73,7 +73,7 @@ public sealed class AoiReplicatorTests
         _ = h.Replicate();
 
         h.Outbound.Pending.Despawns.Should().ContainSingle()
-            .Which.Should().Be(new OutboundDespawn(Connection, MobNetId, 7UL));
+            .Which.Should().Be(new OutboundDespawn(Connection, MobNetId));
     }
 
     [Fact]

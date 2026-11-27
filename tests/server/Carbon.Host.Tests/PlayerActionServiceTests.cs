@@ -160,7 +160,7 @@ public sealed class PlayerActionServiceTests
         h.Outbound.Pending.SlotChanges.Should().ContainSingle().Which.Should().Be(
             new OutboundSlotChange(h.Player.Session.ConnectionId, PlayerInventoryLayout.ChestSlot, ItemSlot.Empty));
         h.Outbound.Pending.DurabilityAlerts.Should().ContainSingle().Which.Should().Be(
-            new OutboundDurabilityAlert(h.Player.Session.ConnectionId, DurabilityAlertKind.Broke, PlayerInventoryLayout.ChestSlot, chest, 0));
+            new OutboundDurabilityAlert(h.Player.Session.ConnectionId, DurabilityAlertKind.Broke, chest, 0));
     }
 
     [Fact]
@@ -190,7 +190,7 @@ public sealed class PlayerActionServiceTests
         h.Player.Inventory.GetSlot(0).IsEmpty.Should().BeTrue("a 1.5 wear step takes the sword from 1 to below 0");
         h.Outbound.Pending.SlotChanges.Should().ContainSingle().Which.Should().Be(new OutboundSlotChange(h.Player.Session.ConnectionId, 0, ItemSlot.Empty));
         h.Outbound.Pending.DurabilityAlerts.Should().ContainSingle().Which.Should().Be(
-            new OutboundDurabilityAlert(h.Player.Session.ConnectionId, DurabilityAlertKind.Broke, 0, StarterGameCatalog.IronSword, 0));
+            new OutboundDurabilityAlert(h.Player.Session.ConnectionId, DurabilityAlertKind.Broke, StarterGameCatalog.IronSword, 0));
         h.Host.StatRecomputes.Should().Be(1, "the held weapon fed the derived stats");
         h.Host.EquipmentBroadcasts.Should().Be(1);
     }
@@ -222,7 +222,7 @@ public sealed class PlayerActionServiceTests
         after.Should().Be(ItemSlot.Empty, "ADR-035 D2: enhancement does not protect an item from breaking");
         h.Player.Inventory.GetSlot(0).IsEmpty.Should().BeTrue();
         h.Outbound.Pending.DurabilityAlerts.Should().ContainSingle().Which.Should().Be(
-            new OutboundDurabilityAlert(h.Player.Session.ConnectionId, DurabilityAlertKind.Broke, 0, StarterGameCatalog.IronSword, 10));
+            new OutboundDurabilityAlert(h.Player.Session.ConnectionId, DurabilityAlertKind.Broke, StarterGameCatalog.IronSword, 10));
     }
 
     [Fact]
@@ -235,7 +235,7 @@ public sealed class PlayerActionServiceTests
 
         h.Actions.WearActiveTool(h.Player, in held, 1.5f, out held).Should().BeTrue();
         h.Outbound.Pending.DurabilityAlerts.Should().ContainSingle().Which.Should().Be(
-            new OutboundDurabilityAlert(h.Player.Session.ConnectionId, DurabilityAlertKind.AboutToBreak, 0, StarterGameCatalog.IronSword, 0),
+            new OutboundDurabilityAlert(h.Player.Session.ConnectionId, DurabilityAlertKind.AboutToBreak, StarterGameCatalog.IronSword, 0),
             "21 → 19.5 crosses 10 % of 200");
 
         int steps = 1;

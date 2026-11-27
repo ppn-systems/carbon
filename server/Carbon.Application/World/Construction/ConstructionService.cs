@@ -446,9 +446,7 @@ internal sealed class ConstructionService
                     tx,
                     ty,
                     (byte)tile.Type,
-                    tile.CurrentDurability,
-                    (byte)tile.DoorState,
-                    (byte)tile.Connectivity));
+                    (byte)tile.DoorState));
             }
         }
     }

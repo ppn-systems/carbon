@@ -136,7 +136,7 @@ public sealed partial class AuthoritativeWorld
 
         if (recipientsCopy is not null)
         {
-            _outboundSink.SendPropChanged(recipientsCopy, tileX, tileY, revision, durability, isDestroyed);
+            _outboundSink.SendPropChanged(recipientsCopy, tileX, tileY, durability, isDestroyed);
         }
 
         this.SendSlotsOutbound(connectionId, modifiedCopy);
@@ -242,9 +242,7 @@ public sealed partial class AuthoritativeWorld
                 tileX,
                 tileY,
                 (byte)updated.Type,
-                updated.CurrentDurability,
-                (byte)updated.DoorState,
-                (byte)updated.Connectivity);
+                (byte)updated.DoorState);
         }
 
         return new WorldMutationOutcome(OpStatus.Ok, revision);

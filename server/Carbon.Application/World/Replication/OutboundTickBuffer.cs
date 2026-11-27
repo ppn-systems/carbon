@@ -12,7 +12,7 @@ namespace Carbon.Application.World.Replication;
 
 internal readonly record struct OutboundSpawn(ulong ConnectionId, EntitySpawnSnapshot Snapshot);
 
-internal readonly record struct OutboundDespawn(ulong ConnectionId, ulong NetworkId, ulong ServerTick);
+internal readonly record struct OutboundDespawn(ulong ConnectionId, ulong NetworkId);
 
 internal readonly record struct OutboundDelta(
     ulong ConnectionId,
@@ -38,14 +38,13 @@ internal readonly record struct OutboundCombatHit(
 internal readonly record struct OutboundSlotChange(ulong ConnectionId, ushort SlotIndex, ItemSlot Slot);
 
 /// <summary>An item about to break, or broken and destroyed, pushed to its owner (ADR-035).</summary>
-internal readonly record struct OutboundDurabilityAlert(ulong ConnectionId, DurabilityAlertKind Kind, ushort SlotIndex, uint ItemId, byte UpgradeLevel);
+internal readonly record struct OutboundDurabilityAlert(ulong ConnectionId, DurabilityAlertKind Kind, uint ItemId, byte UpgradeLevel);
 
 internal readonly record struct OutboundPropChange(
     int RecipientsOffset,
     int RecipientsCount,
     int TileX,
     int TileY,
-    uint Revision,
     float Durability,
     bool IsDestroyed);
 
@@ -55,9 +54,7 @@ internal readonly record struct OutboundStructureChange(
     int TileX,
     int TileY,
     byte StructureType,
-    float Durability,
-    byte DoorState,
-    byte Connectivity);
+    byte DoorState);
 
 internal readonly record struct OutboundConstructionChange(
     int RecipientsOffset,
@@ -107,8 +104,6 @@ internal readonly record struct OutboundSkillCast(
     int RecipientsCount,
     ulong CasterNetworkId,
     byte AbilitySlot,
-    float OriginX,
-    float OriginY,
     float AimX,
     float AimY);
 
@@ -117,7 +112,6 @@ internal readonly record struct OutboundAttackPhase(int RecipientsOffset, int Re
 internal readonly record struct OutboundEnhancementAnnouncement(
     int RecipientsOffset,
     int RecipientsCount,
-    ulong PlayerNetworkId,
     string PlayerName,
     ushort ItemId,
     EnhancementOutcome Outcome,
@@ -240,7 +234,7 @@ internal sealed class OutboundTickBuffer
         for (int i = 0; i < batch.Despawns.Count; i++)
         {
             OutboundDespawn item = batch.Despawns[i];
-            sink.SendEntityDespawn(item.ConnectionId, item.NetworkId, item.ServerTick);
+            sink.SendEntityDespawn(item.ConnectionId, item.NetworkId);
         }
 
         Span<EntityDeltaEntry> deltaSpan = CollectionsMarshal.AsSpan(batch.DeltaEntries);
@@ -290,7 +284,7 @@ internal sealed class OutboundTickBuffer
         for (int i = 0; i < batch.DurabilityAlerts.Count; i++)
         {
             OutboundDurabilityAlert alert = batch.DurabilityAlerts[i];
-            sink.SendItemDurabilityAlert(alert.ConnectionId, alert.Kind, alert.SlotIndex, alert.ItemId, alert.UpgradeLevel);
+            sink.SendItemDurabilityAlert(alert.ConnectionId, alert.Kind, alert.ItemId, alert.UpgradeLevel);
         }
 
         for (int i = 0; i < batch.PropChanges.Count; i++)
@@ -300,7 +294,6 @@ internal sealed class OutboundTickBuffer
                 recipientsSpan.Slice(prop.RecipientsOffset, prop.RecipientsCount),
                 prop.TileX,
                 prop.TileY,
-                prop.Revision,
                 prop.Durability,
                 prop.IsDestroyed);
         }
@@ -313,9 +306,7 @@ internal sealed class OutboundTickBuffer
                 st.TileX,
                 st.TileY,
                 st.StructureType,
-                st.Durability,
-                st.DoorState,
-                st.Connectivity);
+                st.DoorState);
         }
 
         for (int i = 0; i < batch.EquipmentChanges.Count; i++)
@@ -385,7 +376,6 @@ internal sealed class OutboundTickBuffer
             OutboundEnhancementAnnouncement notice = batch.EnhancementAnnouncements[i];
             sink.SendEnhancementAnnouncement(
                 recipientsSpan.Slice(notice.RecipientsOffset, notice.RecipientsCount),
-                notice.PlayerNetworkId,
                 notice.PlayerName,
                 notice.ItemId,
                 notice.Outcome,
@@ -399,8 +389,6 @@ internal sealed class OutboundTickBuffer
                 recipientsSpan.Slice(cast.RecipientsOffset, cast.RecipientsCount),
                 cast.CasterNetworkId,
                 cast.AbilitySlot,
-                cast.OriginX,
-                cast.OriginY,
                 cast.AimX,
                 cast.AimY);
         }

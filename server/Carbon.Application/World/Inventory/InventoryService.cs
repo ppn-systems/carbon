@@ -478,7 +478,7 @@ internal sealed class InventoryService
 
             byte level = attempt.IsDestroyed ? attempt.PreviousLevel : attempt.NewLevel;
             pending.EnhancementAnnouncements.Add(new OutboundEnhancementAnnouncement(
-                offset, pending.Recipients.Count - offset, state.Session.PlayerNetworkId, state.SourceCharacter.Name, (ushort)attempt.ItemId, attempt.Outcome, level));
+                offset, pending.Recipients.Count - offset, state.SourceCharacter.Name, (ushort)attempt.ItemId, attempt.Outcome, level));
         }
 
         CollectModifiedSlots(beforeSnap, state.Inventory.Slots, modified);

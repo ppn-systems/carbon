@@ -56,7 +56,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     }
 
     /// <inheritdoc/>
-    public void SendEntityDespawn(ulong connectionId, ulong networkId, ulong serverTick)
+    public void SendEntityDespawn(ulong connectionId, ulong networkId)
     {
         if (!this.TryResolveConnection(connectionId, out IConnection? conn) || conn is null)
         {
@@ -101,7 +101,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     }
 
     /// <inheritdoc/>
-    public void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, uint revision, float durability, bool isDestroyed)
+    public void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, float durability, bool isDestroyed)
     {
         for (int i = 0; i < recipientConnectionIds.Length; i++)
         {
@@ -113,7 +113,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     }
 
     /// <inheritdoc/>
-    public void SendStructureChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, byte structureType, float durability, byte doorState, byte connectivity)
+    public void SendStructureChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, byte structureType, byte doorState)
     {
         for (int i = 0; i < recipientConnectionIds.Length; i++)
         {
@@ -218,7 +218,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     }
 
     /// <inheritdoc/>
-    public void SendItemDurabilityAlert(ulong connectionId, DurabilityAlertKind kind, ushort slotIndex, uint itemId, byte upgradeLevel)
+    public void SendItemDurabilityAlert(ulong connectionId, DurabilityAlertKind kind, uint itemId, byte upgradeLevel)
     {
         if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
         {
@@ -279,8 +279,6 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         ReadOnlySpan<ulong> recipientConnectionIds,
         ulong casterNetworkId,
         byte abilitySlot,
-        float originX,
-        float originY,
         float aimX,
         float aimY)
     {
@@ -296,7 +294,6 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     /// <inheritdoc/>
     public void SendEnhancementAnnouncement(
         ReadOnlySpan<ulong> recipientConnectionIds,
-        ulong playerNetworkId,
         string playerName,
         ushort itemId,
         EnhancementOutcome outcome,
