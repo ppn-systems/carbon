@@ -8,8 +8,8 @@ using Carbon.Items.Definitions;
 namespace Carbon.Items.Catalog;
 
 /// <summary>
-/// Authoritative 40-slot Minecraft-style player inventory layout partitioning Hotbar (<c>0..8</c>),
-/// 3x9 Backpack (<c>9..35</c>), and 4 dedicated Armor paper-doll slots (<c>36..39</c>).
+/// Authoritative 42-slot player inventory layout partitioning Hotbar (<c>0..8</c>), 3x9 Backpack (<c>9..35</c>),
+/// 4 dedicated Armor paper-doll slots (<c>36..39</c>) and 2 Accessory slots (<c>40..41</c>, ADR-019).
 /// </summary>
 public static class PlayerInventoryLayout
 {
@@ -37,8 +37,14 @@ public static class PlayerInventoryLayout
     /// <summary>Dedicated Feet armor slot index.</summary>
     public const int FeetSlot = 39;
 
-    /// <summary>Total capacity of a player's inventory (<c>40</c>).</summary>
-    public const int TotalCapacity = 40;
+    /// <summary>First accessory (ring/amulet) slot index (ADR-019).</summary>
+    public const int Accessory1Slot = 40;
+
+    /// <summary>Second accessory (ring/amulet) slot index (ADR-019).</summary>
+    public const int Accessory2Slot = 41;
+
+    /// <summary>Total capacity of a player's inventory (<c>42</c>).</summary>
+    public const int TotalCapacity = 42;
 
     /// <summary>Returns the required <see cref="EquipmentSlotKind"/> for <paramref name="slotIndex"/>, or <see cref="EquipmentSlotKind.None"/> for general bag slots.</summary>
     public static EquipmentSlotKind GetRequiredEquipKind(int slotIndex) => slotIndex switch
@@ -47,8 +53,34 @@ public static class PlayerInventoryLayout
         ChestSlot => EquipmentSlotKind.Chest,
         LegsSlot => EquipmentSlotKind.Legs,
         FeetSlot => EquipmentSlotKind.Feet,
+        Accessory1Slot => EquipmentSlotKind.Accessory1,
+        Accessory2Slot => EquipmentSlotKind.Accessory2,
         _ => EquipmentSlotKind.None,
     };
+
+    /// <summary>Returns whether <paramref name="kind"/> is one of the two interchangeable accessory kinds.</summary>
+    public static bool IsAccessoryKind(EquipmentSlotKind kind) =>
+        kind is EquipmentSlotKind.Accessory1 or EquipmentSlotKind.Accessory2;
+
+    /// <summary>
+    /// Returns the equipment slot index an item of <paramref name="kind"/> goes to on quick-equip: the matching armor
+    /// slot, or the first empty accessory slot (the first accessory slot when both are taken); <c>-1</c> otherwise.
+    /// </summary>
+    public static int GetQuickEquipSlotIndex(ReadOnlySpan<ItemSlot> slots, EquipmentSlotKind kind)
+    {
+        int armor = GetArmorSlotIndex(kind);
+        if (armor >= 0)
+        {
+            return armor < slots.Length ? armor : -1;
+        }
+
+        if (!IsAccessoryKind(kind) || Accessory2Slot >= slots.Length)
+        {
+            return -1;
+        }
+
+        return slots[Accessory1Slot].IsEmpty || !slots[Accessory2Slot].IsEmpty ? Accessory1Slot : Accessory2Slot;
+    }
 
     /// <summary>Returns the dedicated armor slot index for <paramref name="kind"/>, or <c>-1</c> if non-armor.</summary>
     public static int GetArmorSlotIndex(EquipmentSlotKind kind) => kind switch
@@ -76,7 +108,13 @@ public static class PlayerInventoryLayout
             return true;
         }
 
-        return rules.Items.TryGet(slot.ItemId, out ItemArchetype? def) && def.EquipSlot == required;
+        if (!rules.Items.TryGet(slot.ItemId, out ItemArchetype? def))
+        {
+            return false;
+        }
+
+        // Rings and amulets fit either accessory slot.
+        return def.EquipSlot == required || (IsAccessoryKind(required) && IsAccessoryKind(def.EquipSlot));
     }
 
     /// <summary>
@@ -129,19 +167,18 @@ public static class PlayerInventoryLayout
             return false;
         }
 
-        // 1. Armor piece inside bag -> equip directly into matching armor slot.
+        // 1. Armor piece or accessory inside bag -> equip directly into its equipment slot.
         if (slotIndex < BagLimit &&
             rules.Items.TryGet(source.ItemId, out ItemArchetype? def) &&
-            GetArmorSlotIndex(def.EquipSlot) is int armorSlot &&
+            GetQuickEquipSlotIndex(inventory.Slots, def.EquipSlot) is int armorSlot &&
             armorSlot >= 0 &&
-            armorSlot < inventory.Capacity &&
             TryMoveOrEquipSlot(rules, inventory, slotIndex, armorSlot))
         {
             destinationSlot = armorSlot;
             return true;
         }
 
-        // 2. From armor slot -> first open bag slot (9..35 then 0..8).
+        // 2. From an equipment slot -> first open bag slot (9..35 then 0..8).
         if (slotIndex >= BagLimit)
         {
             int targetBag = FindFirstEmptyOrMergeSlot(rules, inventory, in source, BackpackStart, Math.Min(BagLimit, inventory.Capacity));
@@ -213,16 +250,62 @@ public static class PlayerInventoryLayout
             return remaining;
         }
 
+        // Items that cannot stack take one slot per unit (as InventoryDraft.Add does).
         for (int i = 0; i < bagCap && remaining > 0; i++)
         {
             if (inventory.GetSlot(i).IsEmpty)
             {
-                inventory.SetSlot(i, incoming);
-                remaining = 0;
+                inventory.SetSlot(i, incoming with { Quantity = 1 });
+                remaining--;
             }
         }
 
         return remaining;
+    }
+
+    /// <summary>
+    /// Moves <paramref name="quantity"/> units of the stack in bag slot <paramref name="fromSlot"/> into bag slot
+    /// <paramref name="toSlot"/>, which must be empty or hold the same stackable item with room for all of them.
+    /// <paramref name="quantity"/> must leave at least one unit behind (moving the whole stack is a move).
+    /// Quantity is conserved: nothing is created or destroyed.
+    /// </summary>
+    /// <returns><see langword="true"/> when the split was applied; otherwise nothing changed.</returns>
+    public static bool TrySplitStack(ItemRules rules, InventoryContainer inventory, int fromSlot, int toSlot, int quantity)
+    {
+        ArgumentNullException.ThrowIfNull(rules);
+        ArgumentNullException.ThrowIfNull(inventory);
+        int bagCap = Math.Min(BagLimit, inventory.Capacity);
+        if (fromSlot == toSlot || (uint)fromSlot >= (uint)bagCap || (uint)toSlot >= (uint)bagCap)
+        {
+            return false;
+        }
+
+        ItemSlot source = inventory.GetSlot(fromSlot);
+        if (source.IsEmpty || !source.IsStackable || quantity <= 0 || quantity >= source.Quantity)
+        {
+            return false;
+        }
+
+        ItemSlot target = inventory.GetSlot(toSlot);
+        ItemSlot merged;
+        if (target.IsEmpty)
+        {
+            merged = source with { Quantity = quantity };
+        }
+        else if (target.ItemId == source.ItemId &&
+                 target.IsStackable &&
+                 target.Quantity + quantity <= rules.GetMaxStackSize(source.ItemId))
+        {
+            merged = target.MergeWith(in source, quantity);
+        }
+        else
+        {
+            return false;
+        }
+
+        inventory.SetSlot(fromSlot, source with { Quantity = source.Quantity - quantity });
+        inventory.SetSlot(toSlot, in merged);
+        return true;
     }
 
     /// <summary>

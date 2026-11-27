@@ -70,6 +70,7 @@ public static class InventoryBinaryCodec
     /// <summary>
     /// Attempts to deserialize <paramref name="data"/> into <paramref name="target"/>.
     /// Accepts the current format v3 and the legacy v2/v1 payloads (which carry no freshness, so they load as not perishable).
+    /// Non-finite or negative durability loads as <c>0</c>, and a repeated slot index keeps its first entry.
     /// </summary>
     /// <param name="data">Raw persisted inventory bytes.</param>
     /// <param name="target">Destination container cleared and populated when valid.</param>
@@ -101,6 +102,11 @@ public static class InventoryBinaryCodec
             int quantity = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(offset + 6, 4));
             ulong instanceId = BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(offset + 10, 8));
             float durability = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32LittleEndian(data.Slice(offset + 18, 4)));
+            if (!float.IsFinite(durability) || durability < 0f)
+            {
+                // A NaN durability would never wear out (NaN <= 0 is false); treat corrupt values as broken.
+                durability = 0f;
+            }
             byte upgradeLevel = isV2
                 ? data[offset + 22]
                 : (byte)(instanceId <= 10UL ? instanceId : 0UL);
@@ -119,7 +125,8 @@ public static class InventoryBinaryCodec
 
             offset += entryBytes;
 
-            if (slotIndex < target.Capacity && itemId > 0 && quantity > 0)
+            // A repeated slot index keeps the first entry rather than silently overwriting it.
+            if (slotIndex < target.Capacity && itemId > 0 && quantity > 0 && target.GetSlot(slotIndex).IsEmpty)
             {
                 target.SetSlot(slotIndex, new ItemSlot(itemId, quantity, instanceId, durability, upgradeLevel, freshness));
             }

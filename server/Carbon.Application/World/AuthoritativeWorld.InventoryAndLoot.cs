@@ -8,6 +8,7 @@ using Carbon.Abstractions.World;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.Application.World.Commands;
+using Carbon.Application.World.Inventory;
 using Carbon.Contracts.Common;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -52,16 +53,28 @@ public sealed partial class AuthoritativeWorld
         _commands.Submit(WorldCommandKind.CraftRecipe, connectionId, recipeId, quantity);
 
     /// <inheritdoc/>
-    public ValueTask<WorldMutationOutcome> SubmitMoveInventorySlotAsync(ulong connectionId, ushort fromSlot, ushort toSlot) =>
-        _commands.Submit(WorldCommandKind.MoveInventorySlot, connectionId, fromSlot, toSlot);
+    public ValueTask<WorldMutationOutcome> SubmitMoveInventorySlotAsync(ulong connectionId, ushort fromSlot, ushort toSlot, ushort expectedItemId) =>
+        _commands.Submit(WorldCommandKind.MoveInventorySlot, connectionId, fromSlot, toSlot, arg3: expectedItemId);
+
+    /// <inheritdoc/>
+    public ValueTask<WorldMutationOutcome> SubmitSplitInventorySlotAsync(ulong connectionId, ushort fromSlot, ushort toSlot, ushort quantity, ushort expectedItemId) =>
+        _commands.Submit(WorldCommandKind.SplitInventorySlot, connectionId, fromSlot, toSlot, quantity, expectedItemId);
+
+    /// <inheritdoc/>
+    public ValueTask<WorldMutationOutcome> SubmitSortInventoryAsync(ulong connectionId) =>
+        _commands.Submit(WorldCommandKind.SortInventory, connectionId, arg0: 0);
+
+    /// <inheritdoc/>
+    public ValueTask<WorldMutationOutcome> SubmitDestroyInventoryItemAsync(ulong connectionId, ushort slotIndex, int quantity, ushort expectedItemId) =>
+        _commands.Submit(WorldCommandKind.DestroyInventoryItem, connectionId, slotIndex, arg2: quantity, arg3: expectedItemId);
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitUpgradeInventoryItemAsync(ulong connectionId, ushort slotIndex) =>
         _commands.Submit(WorldCommandKind.UpgradeInventoryItem, connectionId, slotIndex);
 
     /// <inheritdoc/>
-    public ValueTask<WorldMutationOutcome> SubmitDropInventoryItemAsync(ulong connectionId, ushort slotIndex, int quantity) =>
-        _commands.Submit(WorldCommandKind.DropInventoryItem, connectionId, slotIndex, arg2: quantity);
+    public ValueTask<WorldMutationOutcome> SubmitDropInventoryItemAsync(ulong connectionId, ushort slotIndex, int quantity, ushort expectedItemId) =>
+        _commands.Submit(WorldCommandKind.DropInventoryItem, connectionId, slotIndex, arg2: quantity, arg3: expectedItemId);
 
     /// <summary>Updates the selected hotbar slot and harvest tier. Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
     public OpStatus TrySelectHotbarSlot(ulong connectionId, byte slotIndex)
@@ -158,58 +171,20 @@ public sealed partial class AuthoritativeWorld
     }
 
     /// <summary>Moves, swaps, merges or equips an inventory slot, enforcing armor slot constraints. Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
-    public OpStatus TryMoveInventorySlot(ulong connectionId, ushort fromSlot, ushort toSlot)
-    {
-        EquipmentLook look = default;
-        ulong[]? recipients = null;
-        PlayerStatsSnapshot? statsSnap = null;
-        (ushort SlotIndex, ItemSlot Slot)[] modifiedCopy;
+    public OpStatus TryMoveInventorySlot(ulong connectionId, ushort fromSlot, ushort toSlot, ushort expectedItemId = 0) =>
+        this.ExecuteSlotCommand(connectionId, new InventorySlotCommand(InventorySlotCommandKind.Move, fromSlot, toSlot, ExpectedItemId: expectedItemId));
 
-        lock (_gate)
-        {
-            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state))
-            {
-                return OpStatus.Forbidden;
-            }
+    /// <summary>Moves part of a bag stack into another bag slot (ADR-019). Synchronous form used by the tick and tests.</summary>
+    public OpStatus TrySplitInventorySlot(ulong connectionId, ushort fromSlot, ushort toSlot, ushort quantity, ushort expectedItemId = 0) =>
+        this.ExecuteSlotCommand(connectionId, new InventorySlotCommand(InventorySlotCommandKind.Split, fromSlot, toSlot, quantity, expectedItemId));
 
-            OpStatus status = _inventory.Move(state, fromSlot, toSlot, _mutationSlotScratch);
-            if (status != OpStatus.Ok)
-            {
-                return status;
-            }
+    /// <summary>Merges and sorts the backpack on the server (ADR-019). Synchronous form used by the tick and tests.</summary>
+    public OpStatus TrySortInventory(ulong connectionId) =>
+        this.ExecuteSlotCommand(connectionId, new InventorySlotCommand(InventorySlotCommandKind.Sort, 0));
 
-            byte newTier = _inventory.ResolveHarvestTier(state.Inventory, state.Session.SelectedHotbarSlot);
-            state.Session = state.Session with { SelectedHarvestTier = newTier };
-
-            if (fromSlot >= PlayerInventoryLayout.BagLimit ||
-                toSlot >= PlayerInventoryLayout.BagLimit ||
-                fromSlot == state.Session.SelectedHotbarSlot ||
-                toSlot == state.Session.SelectedHotbarSlot)
-            {
-                this.RecomputeDerivedStatsLocked(state);
-                statsSnap = this.BuildPlayerStatsSnapshotLocked(state, clearLevelUpPending: false);
-                look = EquipmentLook.Of(state);
-                recipients = this.CopyNearbyRecipientsLocked(state);
-            }
-
-            this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
-            modifiedCopy = [.. _mutationSlotScratch];
-        }
-
-        this.SendSlotsOutbound(connectionId, modifiedCopy);
-        if (statsSnap.HasValue)
-        {
-            PlayerStatsSnapshot s = statsSnap.Value;
-            _outboundSink.SendPlayerStatsSync(connectionId, in s);
-        }
-
-        if (recipients is not null)
-        {
-            look.SendTo(_outboundSink, recipients);
-        }
-
-        return OpStatus.Ok;
-    }
+    /// <summary>Destroys items in a slot permanently (ADR-019). Synchronous form used by the tick and tests.</summary>
+    public OpStatus TryDestroyInventoryItem(ulong connectionId, ushort slotIndex, int quantity, ushort expectedItemId = 0) =>
+        this.ExecuteSlotCommand(connectionId, new InventorySlotCommand(InventorySlotCommandKind.Destroy, slotIndex, Quantity: quantity, ExpectedItemId: expectedItemId));
 
     /// <summary>Enhances the eligible weapon, tool or armor piece in the slot. Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
     public OpStatus TryUpgradeInventoryItem(ulong connectionId, ushort slotIndex) =>
@@ -270,31 +245,51 @@ public sealed partial class AuthoritativeWorld
     }
 
     /// <summary>Drops items from the slot onto the ground as loot. Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
-    public OpStatus TryDropInventoryItem(ulong connectionId, ushort slotIndex, int quantity)
+    public OpStatus TryDropInventoryItem(ulong connectionId, ushort slotIndex, int quantity, ushort expectedItemId = 0) =>
+        this.ExecuteSlotCommand(connectionId, new InventorySlotCommand(InventorySlotCommandKind.Drop, slotIndex, Quantity: quantity, ExpectedItemId: expectedItemId));
+
+    /// <summary>
+    /// Runs a slot command for the player and replicates it: the changed slots to the owner; stats when gear, the held
+    /// slot, or a drop/destroy changed them; and the look to nearby players when gear or the held item changed.
+    /// </summary>
+    private OpStatus ExecuteSlotCommand(ulong connectionId, in InventorySlotCommand command)
     {
-        PlayerStatsSnapshot statsSnap;
+        PlayerStatsSnapshot? statsSnap = null;
         EquipmentLook look = default;
         ulong[]? recipients = null;
         (ushort SlotIndex, ItemSlot Slot)[] modifiedCopy;
 
         lock (_gate)
         {
-            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state) ||
-                !_simulation.Entities.HasTransform(state.Entity))
+            bool needsTransform = command.Kind == InventorySlotCommandKind.Drop;
+            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state) || (needsTransform && !_simulation.Entities.HasTransform(state.Entity)))
             {
                 return OpStatus.Forbidden;
             }
 
-            Vector2 playerPos = _simulation.Entities.GetTransform(state.Entity).Position;
-            OpStatus status = _inventory.Drop(state, slotIndex, quantity, playerPos, _mutationSlotScratch);
+            Vector2 playerPos = needsTransform ? _simulation.Entities.GetTransform(state.Entity).Position : Vector2.Zero;
+            OpStatus status = _inventory.Execute(state, in command, playerPos, _mutationSlotScratch);
             if (status != OpStatus.Ok)
             {
                 return status;
             }
 
-            this.RecomputeDerivedStatsLocked(state);
-            statsSnap = this.BuildPlayerStatsSnapshotLocked(state, clearLevelUpPending: false);
-            if (slotIndex >= PlayerInventoryLayout.BagLimit || slotIndex == state.Session.SelectedHotbarSlot)
+            if (_mutationSlotScratch.Count == 0)
+            {
+                return OpStatus.Ok;
+            }
+
+            byte selected = state.Session.SelectedHotbarSlot;
+            state.Session = state.Session with { SelectedHarvestTier = _inventory.ResolveHarvestTier(state.Inventory, selected) };
+            bool gearChanged = InventoryService.TouchesGear(_mutationSlotScratch, selected);
+
+            if (gearChanged || command.Kind is InventorySlotCommandKind.Drop or InventorySlotCommandKind.Destroy)
+            {
+                this.RecomputeDerivedStatsLocked(state);
+                statsSnap = this.BuildPlayerStatsSnapshotLocked(state, clearLevelUpPending: false);
+            }
+
+            if (gearChanged)
             {
                 look = EquipmentLook.Of(state);
                 recipients = this.CopyNearbyRecipientsLocked(state);
@@ -305,7 +300,12 @@ public sealed partial class AuthoritativeWorld
         }
 
         this.SendSlotsOutbound(connectionId, modifiedCopy);
-        _outboundSink.SendPlayerStatsSync(connectionId, in statsSnap);
+        if (statsSnap.HasValue)
+        {
+            PlayerStatsSnapshot s = statsSnap.Value;
+            _outboundSink.SendPlayerStatsSync(connectionId, in s);
+        }
+
         if (recipients is not null)
         {
             look.SendTo(_outboundSink, recipients);

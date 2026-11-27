@@ -18,7 +18,7 @@ public sealed partial class RepairInventoryItem : PacketBase<RepairInventoryItem
     /// <inheritdoc/>
     public static ushort StaticOpCode => ItemOpCode.RepairInventoryItem;
 
-    /// <summary>Inventory slot index (<c>0..39</c>, equipped armor included).</summary>
+    /// <summary>Inventory slot index (<c>0..41</c>, equipped armor included).</summary>
     [SerializeOrder(0)]
     public ushort SlotIndex { get; set; }
 }

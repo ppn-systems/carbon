@@ -21,10 +21,23 @@ public interface IWorldInventoryService
     ValueTask<WorldMutationOutcome> SubmitCraftRecipeAsync(ulong connectionId, ushort recipeId, ushort quantity);
 
     /// <summary>
-    /// Queues moving, swapping, merging or equipping an inventory slot (<c>0..39</c>), enforcing armor slot constraints
-    /// (<c>36..39</c>); completes after the next tick (ADR-017).
+    /// Queues moving, swapping, merging or equipping an inventory slot (<c>0..41</c>), enforcing armor and accessory slot
+    /// constraints (<c>36..41</c>); completes after the next tick (ADR-017). A non-zero <paramref name="expectedItemId"/>
+    /// that no longer matches the source slot is <c>Conflict</c> (ADR-019 D2).
     /// </summary>
-    ValueTask<WorldMutationOutcome> SubmitMoveInventorySlotAsync(ulong connectionId, ushort fromSlot, ushort toSlot);
+    ValueTask<WorldMutationOutcome> SubmitMoveInventorySlotAsync(ulong connectionId, ushort fromSlot, ushort toSlot, ushort expectedItemId);
+
+    /// <summary>
+    /// Queues moving <paramref name="quantity"/> units of a bag stack into an empty bag slot or onto a matching stack
+    /// (ADR-019); completes after the next tick.
+    /// </summary>
+    ValueTask<WorldMutationOutcome> SubmitSplitInventorySlotAsync(ulong connectionId, ushort fromSlot, ushort toSlot, ushort quantity, ushort expectedItemId);
+
+    /// <summary>Queues merging and sorting the backpack (<c>9..35</c>) (ADR-019); completes after the next tick.</summary>
+    ValueTask<WorldMutationOutcome> SubmitSortInventoryAsync(ulong connectionId);
+
+    /// <summary>Queues destroying items in <paramref name="slotIndex"/> permanently (ADR-019); completes after the next tick.</summary>
+    ValueTask<WorldMutationOutcome> SubmitDestroyInventoryItemAsync(ulong connectionId, ushort slotIndex, int quantity, ushort expectedItemId);
 
     /// <summary>
     /// Queues enhancing the weapon, tool or armor piece in <paramref name="slotIndex"/> (<c>+0..+10</c>); completes after
@@ -36,7 +49,7 @@ public interface IWorldInventoryService
     /// Queues dropping items from <paramref name="slotIndex"/> onto the ground as loot; completes after the next tick
     /// (ADR-017).
     /// </summary>
-    ValueTask<WorldMutationOutcome> SubmitDropInventoryItemAsync(ulong connectionId, ushort slotIndex, int quantity);
+    ValueTask<WorldMutationOutcome> SubmitDropInventoryItemAsync(ulong connectionId, ushort slotIndex, int quantity, ushort expectedItemId);
 
     /// <summary>
     /// Queues buying vendor-sold items for gold while standing near a friendly town NPC; completes after the next tick
