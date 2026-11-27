@@ -69,6 +69,22 @@ public sealed class SyncedStructureCatalogTests : IDisposable
     }
 
     [Fact]
+    public async Task TryCreateWorldGenerator_SameSeedTwice_BuildsASecondGenerator()
+    {
+        // Characterisation (ADR-045 D7): the menu backdrop and the world it enters each get their own generator.
+        MultiplayerSession session = this.NewSession();
+        await using (session.ConfigureAwait(true))
+        {
+            session.ApplyConfigCatalog(Catalog(1, ServerTuned(reachTiles: 7, workbenchWidth: 3)));
+
+            ProceduralWorldGenerator? backdrop = session.TryCreateWorldGenerator(1337UL);
+            ProceduralWorldGenerator? world = session.TryCreateWorldGenerator(1337UL);
+
+            world.Should().NotBeSameAs(backdrop);
+        }
+    }
+
+    [Fact]
     public async Task ApplyConfigCatalog_ServerChangedStructuresJson_ClientUsesTheServersReachAndFootprint()
     {
         MultiplayerSession session = this.NewSession();
