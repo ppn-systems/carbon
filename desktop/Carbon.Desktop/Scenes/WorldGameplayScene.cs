@@ -167,6 +167,7 @@ public sealed class WorldGameplayScene : GameScene
         if (_options.AutoExit && _frameCount >= 25 + _options.CaptureFrames)
         {
             context.Window.Close();
+            return;
         }
 
         _cameraRig.Resize(context.WindowWidth, context.WindowHeight);
