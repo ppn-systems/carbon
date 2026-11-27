@@ -161,6 +161,7 @@ public sealed class StaminaWorldTests
                 new SqliteChunkDeltaRepository(factory),
                 new SqliteCharacterStore(factory),
                 sink,
+                time: new FixedTime(new DateTimeOffset(2026, 11, 27, 12, 0, 0, TimeSpan.Zero)),
                 entropy: TestGameplayEntropy.Create(Seed),
                 stamina: StaminaTestConfig.Create());
             await world.InitializeFromStoreAsync().ConfigureAwait(false);
@@ -183,7 +184,7 @@ public sealed class StaminaWorldTests
                 InventoryBlob: InventoryBinaryCodec.Serialize(inv),
                 UpdatedAtUtc: new DateTimeOffset(2026, 11, 27, 12, 0, 0, TimeSpan.Zero),
                 CurrentStamina: stamina);
-            world.TryEnterWorld(ConnectionId, ConnectionId, hero).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(ConnectionId, hero).Status.Should().Be(OpStatus.Ok);
             return new StaminaWorld(dbPath, factory, world, sink, hero.Id, tx, ty);
         }
 
@@ -259,6 +260,11 @@ public sealed class StaminaWorldTests
             }
 
             throw new InvalidOperationException("No choppable prop near spawn for the test seed.");
+        }
+
+        private sealed class FixedTime(DateTimeOffset now) : TimeProvider
+        {
+            public override DateTimeOffset GetUtcNow() => now;
         }
 
         private static (int Dx, int Dy)[] Ring(int r) =>
