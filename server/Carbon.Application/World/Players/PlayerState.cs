@@ -51,6 +51,12 @@ internal sealed class PlayerState(
     public bool StatsDirty { get; set; }
     public bool LeveledUpPending { get; set; }
     public bool PersistenceDirty { get; set; }
+
+    /// <summary>Gets or sets the status effect buffer version last sent to the owner (ADR-029 D9); max forces a send.</summary>
+    public uint StatusSyncedVersion { get; set; } = uint.MaxValue;
+
+    /// <summary>Gets or sets the derived status signature last sent to the owner; -1 forces a send.</summary>
+    public int StatusSyncedDerived { get; set; } = -1;
     public bool InventoryDirty { get; set; }
     public int EatingSlot { get; set; } = -1;
     public uint EatingItemId { get; set; }
