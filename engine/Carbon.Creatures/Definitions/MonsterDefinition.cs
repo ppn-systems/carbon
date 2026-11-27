@@ -3,6 +3,7 @@
 using System.Collections.Generic;
 using Carbon.Data.Abstractions;
 using Carbon.Maps.Biomes;
+using Carbon.Maps.Hydrology;
 
 namespace Carbon.Creatures.Definitions;
 
@@ -65,6 +66,12 @@ public sealed class MonsterDefinition : IDataDefinition<string>
 
     /// <summary>Gets the biomes this monster naturally inhabits.</summary>
     public IReadOnlyList<BiomeType> PreferredBiomes { get; set; } = [];
+
+    /// <summary>
+    /// Gets the depth tiers a water creature lives in (ADR-032 D14), or <see langword="null"/> for a land monster. A
+    /// water creature spawns only from the water spawn tables of those tiers and never leaves them.
+    /// </summary>
+    public WaterHabitat? Habitat { get; set; }
 
     /// <summary>Gets the tactical personality (positioning role, pack, flee, give-up, night aggression).</summary>
     public MonsterBehaviorDefinition Behavior { get; set; } = new();

@@ -20,6 +20,15 @@ public interface IWorldPhysics2D
     float GetMoveSpeedMultiplier(Vector2 worldPosition);
 
     /// <summary>
+    /// Gets the movement speed multiplier for a collider with <paramref name="terrainMask"/> (see
+    /// <see cref="TerrainMask"/>): water slows walkers and swimmers but not the creatures that live in it.
+    /// </summary>
+    /// <param name="worldPosition">World position in world units.</param>
+    /// <param name="terrainMask">The collider's collision mask.</param>
+    /// <returns>The speed multiplier.</returns>
+    float GetMoveSpeedMultiplier(Vector2 worldPosition, uint terrainMask) => this.GetMoveSpeedMultiplier(worldPosition);
+
+    /// <summary>
     /// Resolves circular entity collision against static world obstacles, modifying <paramref name="position"/> in-place for smooth sliding.
     /// </summary>
     /// <param name="position">Entity position in world coordinates.</param>

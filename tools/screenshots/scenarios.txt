@@ -109,3 +109,6 @@ river_macro        | CARBON_DEBUG_SPAWN_TILE=-344,444 CARBON_DEBUG_START_HOUR=11
 sea_shelf          | CARBON_WORLD_SEED=42 CARBON_DEBUG_SPAWN_TILE=950,-6000 CARBON_DEBUG_START_HOUR=11 | CARBON_SEED=42 CARBON_WEATHER=clear CARBON_MACRO_VIEW=1
 # --- wood and stone tool tiers: the wood axe, pickaxe and sword, then the stone axe and pickaxe, in the bag ---
 wood_tools         | CARBON_DEBUG_STARTER_ITEMS=1,188,189,190,2 CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=inventory
+
+# --- ADR-032 D14 water creatures (seed 42 sea; macro view to fit creatures spawned 12+ tiles away) ---
+creatures_coast    | CARBON_WORLD_SEED=42 CARBON_DEBUG_SPAWN_TILE=958,-6000 CARBON_DEBUG_START_HOUR=11 | CARBON_SEED=42 CARBON_WEATHER=clear CARBON_MACRO_VIEW=1

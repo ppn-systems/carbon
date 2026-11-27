@@ -8,6 +8,7 @@ using Carbon.Maps.Data;
 using Carbon.Maps.Hydrology;
 using Carbon.Maps.Streaming;
 using Carbon.Maps.Topography;
+using Carbon.Physics.Obstacles;
 
 namespace Carbon.Maps.Navigation;
 
@@ -24,6 +25,7 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
     private readonly Func<int, int, bool> _waterQuery;
     private readonly Func<int, int, byte> _heightLevelQuery;
     private readonly Func<int, int, RampDirection> _rampQuery;
+    private readonly WaterBoundGrid?[] _waterGrids = new WaterBoundGrid?[32];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TileWalkabilityGrid"/> class.
@@ -179,6 +181,18 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
     }
 
     /// <inheritdoc/>
+    public ITileWalkabilityGrid ForTerrainMask(uint terrainMask)
+    {
+        if (!TerrainMask.IsWaterBound(terrainMask))
+        {
+            return this;
+        }
+
+        int key = (int)((terrainMask & TerrainMask.WaterTiers) >> 24);
+        return _waterGrids[key] ??= new WaterBoundGrid(this, terrainMask & TerrainMask.WaterTiers);
+    }
+
+    /// <inheritdoc/>
     public bool IsWalkable(int worldTileX, int worldTileY) =>
         this.GetWalkability(worldTileX, worldTileY) != TileWalkability.Impassable;
 
@@ -210,10 +224,25 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
     /// <param name="includeLandmarks">Whether buildings and other landmark structures block tiles.</param>
     /// <param name="canSwim">Whether the mover swims and dives.</param>
     /// <returns><c>true</c> when the move is allowed.</returns>
-    public bool CanTraverse(int fromX, int fromY, int toX, int toY, bool includeLandmarks, bool canSwim)
+    public bool CanTraverse(int fromX, int fromY, int toX, int toY, bool includeLandmarks, bool canSwim) =>
+        this.CanTraverse(fromX, fromY, toX, toY, includeLandmarks, canSwim ? ~TerrainMask.DeepWater : uint.MaxValue);
+
+    /// <summary>
+    /// Evaluates whether a collider with <paramref name="terrainMask"/> (see <see cref="TerrainMask"/>) may move
+    /// between two tiles: a walker as before, a swimmer through deep water too, and a water creature only through the
+    /// depth tiers it lives in (ADR-032 D14). Height steps and cliffs apply to all of them.
+    /// </summary>
+    /// <param name="fromX">Source tile X.</param>
+    /// <param name="fromY">Source tile Y.</param>
+    /// <param name="toX">Target tile X.</param>
+    /// <param name="toY">Target tile Y.</param>
+    /// <param name="includeLandmarks">Whether buildings and other landmark structures block tiles.</param>
+    /// <param name="terrainMask">The mover's collision mask.</param>
+    /// <returns><c>true</c> when the move is allowed.</returns>
+    public bool CanTraverse(int fromX, int fromY, int toX, int toY, bool includeLandmarks, uint terrainMask)
     {
         // Target tile must be walkable
-        if (!this.IsOpen(toX, toY, includeLandmarks, canSwim))
+        if (!this.IsOpen(toX, toY, includeLandmarks, terrainMask))
         {
             return false;
         }
@@ -225,8 +254,8 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
         if (dx != 0 && dy != 0)
         {
             // Moving diagonally: check adjacent orthogonals
-            bool adj1Walkable = this.IsOpen(fromX + dx, fromY, includeLandmarks, canSwim);
-            bool adj2Walkable = this.IsOpen(fromX, fromY + dy, includeLandmarks, canSwim);
+            bool adj1Walkable = this.IsOpen(fromX + dx, fromY, includeLandmarks, terrainMask);
+            bool adj2Walkable = this.IsOpen(fromX, fromY + dy, includeLandmarks, terrainMask);
 
             if (!adj1Walkable && !adj2Walkable)
             {
@@ -253,23 +282,54 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
         return true;
     }
 
-    // Dry river bank close to the channel (width-scaled distance just outside the water threshold).
-    // A tile a mover can stand on: walkable, or deep water for a swimmer (only the water itself makes it impassable,
-    // so a swimmer is still stopped by props, structures and landmarks in or beside it).
-    private bool IsOpen(int x, int y, bool includeLandmarks, bool canSwim)
+    /// <summary>
+    /// Gets whether a collider with <paramref name="terrainMask"/> may stand on a tile: walkable ground, deep water for
+    /// a swimmer, or one of its own depth tiers for a water creature. Water itself is the only thing a swimmer or water
+    /// creature passes; props, structures and landmarks in or beside it still stop them.
+    /// </summary>
+    /// <param name="x">World tile X.</param>
+    /// <param name="y">World tile Y.</param>
+    /// <param name="includeLandmarks">Whether landmark structures block tiles.</param>
+    /// <param name="terrainMask">The mover's collision mask.</param>
+    /// <returns><c>true</c> when the tile is open.</returns>
+    public bool IsOpen(int x, int y, bool includeLandmarks, uint terrainMask)
     {
-        TileWalkability walkability = this.GetWalkability(x, y, includeLandmarks);
-        if (walkability != TileWalkability.Impassable)
+        bool waterBound = TerrainMask.IsWaterBound(terrainMask);
+        if (!waterBound && this.GetWalkability(x, y, includeLandmarks) != TileWalkability.Impassable)
         {
             return true;
         }
 
-        return canSwim &&
-            WaterWading.IsWater(_world.PeekTileAtWorld(x, y).Biome) &&
+        MapTile tile = _world.PeekTileAtWorld(x, y);
+        bool waterOpen = waterBound
+            ? TerrainMask.AllowsWaterTier(terrainMask, (int)WaterDepth.TierOf(tile))
+            : TerrainMask.CanSwim(terrainMask) && WaterWading.IsWater(tile.Biome);
+        return waterOpen &&
             !_world.HasSolidPropAt(x, y) &&
             !_world.Buildings.TryGetStructure(x, y, out _) &&
             !(includeLandmarks && _world.Generator.Landmarks.IsTileBlocked(x, y));
     }
 
+    // Dry river bank close to the channel (width-scaled distance just outside the water threshold).
     private static bool IsRiverside(float riverDistance) => riverDistance is > WorldConstants.RiverChannel and <= 4.0f;
+
+    /// <summary>The grid as a water creature sees it: only its own depth tiers are open (ADR-032 D14).</summary>
+    private sealed class WaterBoundGrid(TileWalkabilityGrid grid, uint terrainMask) : ITileWalkabilityGrid
+    {
+        public TileWalkability GetWalkability(int worldTileX, int worldTileY) =>
+            grid.IsOpen(worldTileX, worldTileY, includeLandmarks: true, terrainMask) ? TileWalkability.WalkableNormal : TileWalkability.Impassable;
+
+        public float GetMoveCost(int worldTileX, int worldTileY) =>
+            this.IsWalkable(worldTileX, worldTileY) ? 1f : float.PositiveInfinity;
+
+        public bool IsWalkable(int worldTileX, int worldTileY) =>
+            grid.IsOpen(worldTileX, worldTileY, includeLandmarks: true, terrainMask);
+
+        public byte GetHeightLevel(int worldTileX, int worldTileY) => grid.GetHeightLevel(worldTileX, worldTileY);
+
+        public bool CanTraverse(int fromX, int fromY, int toX, int toY) =>
+            grid.CanTraverse(fromX, fromY, toX, toY, includeLandmarks: true, terrainMask);
+
+        public ITileWalkabilityGrid ForTerrainMask(uint mask) => grid.ForTerrainMask(mask);
+    }
 }

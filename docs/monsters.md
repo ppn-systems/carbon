@@ -61,6 +61,7 @@ clients (ADR-011). Clients never read these files: they render from replicated a
 | `engageRange` | Distance where chasing stops and fighting starts (`AiBrainComponent.AttackRange`). |
 | `retreatRange` | Kiting threshold: if the target is closer, the monster backs off (0 = brawler). |
 | `preferredBiomes` | `BiomeType` names. Spawn tables may only list a monster in biomes it prefers (enforced by tests). |
+| `habitat` | Water creatures only (ADR-032 D14): `{ "shallowest": tier, "deepest": tier }`, from `Shore` to `Abyss`. The creature spawns only from `waterSpawnTables` of those tiers. Its collider (`TerrainMask.WaterBound`) treats dry land and every other tier as a wall, it paths only through its tiers, and its own water does not slow it. Land monsters omit it. |
 | `attacks` | Attack profiles in **priority order** (see below). |
 
 `archetypeId` is the protocol id used for the rig (`WorldActorCatalog`, 101–109). Each elite variant has its own
@@ -77,6 +78,10 @@ archetype and rig, so clients can show elite status without any extra wire data.
 | `orc_shaman` | 106 | hex cone (cone spell), bolt, staff whack | caster (retreat 80) |
 | `orc_warlord` (elite of `orc_shaman`, levels 20–50) | 108 | war charge (leap), axe chop | brawler |
 | `crimson_demon` | 107 | leap, cleave | brawler |
+| `shore_crab` (water, Shore–Medium, levels 1–100) | 110 | claw pinch | brawler |
+| `piranha_slime` (water, Shallow–Deep, levels 10–100) | 111 | lunge (leap), bite | brawler, `piranha` pack |
+| `drift_jelly` (water, Medium–Deep, levels 10–100) | 112 | sting pulse (circle spell), tentacle lash | caster (retreat 50) |
+| `abyss_eel` (water, Deep–Abyss, levels 25–100) | 113 | strike (leap), bite | brawler |
 
 ## Attack kinds and the animation phase contract
 
@@ -250,6 +255,19 @@ Empowerment is applied when a monster spawns: monsters spawned during the day ke
 - **Biome tables**: `ISpawnSurface` rejects blocked candidate points (solid tiles, water, solid props) and returns
   the biome, which selects a weighted `spawnTables` entry. `ChunkWorldSpawnSurface` adapts `ChunkWorld2D`. Biomes
   without a table never spawn monsters.
+- **Water tables** (ADR-032 D14): a candidate point in open water (no prop, structure or deck) samples its depth
+  tier instead (`ISpawnSurface.TrySampleSpawnWater`) and picks from that tier's `waterSpawnTables` entry. Water and land
+  share each cell's cap, so a coast is no busier than inland.
+
+  | Tier | Creatures (weight) |
+  | :--- | :--- |
+  | Shore | `shore_crab` 100 |
+  | Shallow | `shore_crab` 40, `piranha_slime` 60 |
+  | Medium | `shore_crab` 20, `piranha_slime` 45 (night 35), `drift_jelly` 35 (night 45) |
+  | Deep | `piranha_slime` 20, `drift_jelly` 35, `abyss_eel` 45 (night 60) |
+  | Abyss | `abyss_eel` 100 |
+
+  Level ranges apply as on land, so the water near the world spawn holds only crabs.
 - **Determinism**: every attempt seeds `DeterministicRandom` from `PRF(key, cell, attemptIndex, tick)`, where `key` is
   the server-only epoch subkey (ADR-026), never the public world seed. The same key and the same anchor history always
   produce the same monsters, positions, levels, and elites; a client that knows the world seed cannot predict elites.
@@ -261,4 +279,6 @@ Empowerment is applied when a monster spawns: monsters spawned during the day ke
 `MonsterCatalog.FromJson` and `SpawningConfig.FromJson` reject unknown JSON members and unknown enum names
 (`JsonException`). They also reject inconsistent data (`ArgumentException`): missing loot or visual keys, empty attack
 lists, invalid range windows, non-contiguous level bands, night multipliers below 1, and unknown monsters in spawn
-tables. Tests in `tests/engine/Carbon.Creatures.Tests` run against the shipped files.
+tables. A land table that lists a water creature, a water table that lists a creature not living in its tier, and a
+habitat that is not a Shore..Abyss range are rejected too. Tests in `tests/engine/Carbon.Creatures.Tests` run against
+the shipped files.

@@ -535,6 +535,10 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     }
 
     /// <inheritdoc/>
+    public float GetMoveSpeedMultiplier(Vector2 worldPosition, uint terrainMask) =>
+        TerrainMask.IsWaterBound(terrainMask) ? 1f : this.GetMoveSpeedMultiplier(worldPosition);
+
+    /// <inheritdoc/>
     public float GetMoveSpeedMultiplier(Vector2 worldPosition)
     {
         int tx = (int)MathF.Floor(worldPosition.X / _tileSize);
@@ -673,7 +677,7 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
 
     /// <inheritdoc/>
     public bool ResolveCircleCollision(ref Vector2 position, float radius, uint terrainMask, out Vector2 pushNormal) =>
-        _collision.Resolve(ref position, radius, TerrainMask.CanSwim(terrainMask), out pushNormal);
+        _collision.Resolve(ref position, radius, terrainMask, out pushNormal);
 
     /// <inheritdoc/>
     public bool ResolveAabbCollision(ref Vector2 position, in AABB2D localBox, out Vector2 pushNormal) =>

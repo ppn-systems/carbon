@@ -106,7 +106,20 @@ internal sealed class WorldCollision
     /// <param name="canSwim">Whether the entity can swim and dive.</param>
     /// <param name="pushNormal">Combined surface push normal if a collision occurred; otherwise Vector2.Zero.</param>
     /// <returns>True if a collision was resolved; otherwise false.</returns>
-    public bool Resolve(ref Vector2 position, float radius, bool canSwim, out Vector2 pushNormal)
+    public bool Resolve(ref Vector2 position, float radius, bool canSwim, out Vector2 pushNormal) =>
+        this.Resolve(ref position, radius, canSwim ? ~TerrainMask.DeepWater : uint.MaxValue, out pushNormal);
+
+    /// <summary>
+    /// Resolves a circle against the terrain as a collider with <paramref name="terrainMask"/> sees it (see
+    /// <see cref="TerrainMask"/>): a walker wades, a swimmer also enters deep water, and a water creature is held
+    /// inside the depth tiers it lives in, with dry land and other tiers as walls (ADR-032 D14).
+    /// </summary>
+    /// <param name="position">Entity position in world coordinates, modified in place to slide around obstacles.</param>
+    /// <param name="radius">Entity collision radius.</param>
+    /// <param name="terrainMask">The collider's collision mask.</param>
+    /// <param name="pushNormal">Combined surface push normal if a collision occurred; otherwise Vector2.Zero.</param>
+    /// <returns>True if a collision was resolved; otherwise false.</returns>
+    public bool Resolve(ref Vector2 position, float radius, uint terrainMask, out Vector2 pushNormal)
     {
         pushNormal = Vector2.Zero;
         bool collided = false;
@@ -125,13 +138,14 @@ internal sealed class WorldCollision
             for (int tx = minTileX; tx <= maxTileX; tx++)
             {
                 MapTile tile = _world.PeekTileAtWorld(tx, ty);
-                bool hasDeck = _world.IsBridgeAtWorld(tx, ty) || _world.Generator.Landmarks.IsWalkablePierTile(tx, ty);
-                bool swimsHere = canSwim && WaterWading.IsWater(tile.Biome);
-                bool isImpassable = !hasDeck && tile.IsSolid && !swimsHere;
+                bool waterBound = TerrainMask.IsWaterBound(terrainMask);
+                bool hasDeck = !waterBound && (_world.IsBridgeAtWorld(tx, ty) || _world.Generator.Landmarks.IsWalkablePierTile(tx, ty));
+                bool swimsHere = WaterWading.IsWater(tile.Biome) && TerrainMask.AllowsWaterTier(terrainMask, (int)WaterDepth.TierOf(tile));
+                bool isImpassable = waterBound ? !swimsHere : !hasDeck && tile.IsSolid && !swimsHere;
 
                 if (!isImpassable && !hasDeck && (tx != currentTileX || ty != currentTileY))
                 {
-                    if (!_world.NavGrid.CanTraverse(currentTileX, currentTileY, tx, ty, includeLandmarks: false, canSwim))
+                    if (!_world.NavGrid.CanTraverse(currentTileX, currentTileY, tx, ty, includeLandmarks: false, terrainMask))
                     {
                         isImpassable = true;
                     }

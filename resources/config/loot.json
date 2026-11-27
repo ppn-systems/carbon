@@ -624,6 +624,272 @@
           "minLevel": 20
         }
       ]
+    },
+    {
+      "id": "crab",
+      "theme": "water",
+      "kind": "monster",
+      "minLevel": 1,
+      "maxLevel": 100,
+      "goldBase": 2,
+      "diamondBasePpm": 8,
+      "rolls": 1,
+      "nothingWeight": 40,
+      "guaranteed": [
+        {
+          "item": "raw_meat",
+          "min": 1,
+          "max": 1,
+          "minLevel": 1
+        }
+      ],
+      "entries": [
+        {
+          "item": "raw_meat",
+          "weight": 30,
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        },
+        {
+          "item": "stone_chunk",
+          "weight": 30,
+          "min": 1,
+          "max": 3,
+          "minLevel": 1
+        },
+        {
+          "item": "small_health_potion",
+          "weight": 6,
+          "min": 1,
+          "max": 1,
+          "minLevel": 3
+        },
+        {
+          "item": "mana_crystal",
+          "weight": 12,
+          "min": 2,
+          "max": 3,
+          "minLevel": 30
+        },
+        {
+          "item": "slime_core",
+          "weight": 8,
+          "min": 1,
+          "max": 2,
+          "minLevel": 45
+        },
+        {
+          "item": "greater_health_potion",
+          "weight": 10,
+          "min": 1,
+          "max": 2,
+          "minLevel": 60
+        },
+        {
+          "item": "rough_gem",
+          "weight": 4,
+          "min": 1,
+          "max": 1,
+          "minLevel": 60
+        }
+      ]
+    },
+    {
+      "id": "piranha_slime",
+      "theme": "water",
+      "kind": "monster",
+      "minLevel": 10,
+      "maxLevel": 100,
+      "goldBase": 3,
+      "diamondBasePpm": 8,
+      "rolls": 1,
+      "nothingWeight": 40,
+      "guaranteed": [
+        {
+          "item": "slime_gel",
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        }
+      ],
+      "entries": [
+        {
+          "item": "slime_gel",
+          "weight": 35,
+          "min": 1,
+          "max": 3,
+          "minLevel": 1
+        },
+        {
+          "item": "raw_meat",
+          "weight": 25,
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        },
+        {
+          "item": "slime_jelly",
+          "weight": 12,
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        },
+        {
+          "item": "slime_core",
+          "weight": 6,
+          "min": 1,
+          "max": 2,
+          "minLevel": 20
+        },
+        {
+          "item": "mana_crystal",
+          "weight": 12,
+          "min": 2,
+          "max": 3,
+          "minLevel": 30
+        },
+        {
+          "item": "greater_health_potion",
+          "weight": 10,
+          "min": 1,
+          "max": 2,
+          "minLevel": 55
+        },
+        {
+          "item": "rough_gem",
+          "weight": 4,
+          "min": 1,
+          "max": 1,
+          "minLevel": 60
+        }
+      ]
+    },
+    {
+      "id": "jelly",
+      "theme": "water",
+      "kind": "monster",
+      "minLevel": 10,
+      "maxLevel": 100,
+      "goldBase": 3,
+      "diamondBasePpm": 10,
+      "rolls": 2,
+      "nothingWeight": 35,
+      "guaranteed": [
+        {
+          "item": "slime_jelly",
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        }
+      ],
+      "entries": [
+        {
+          "item": "slime_jelly",
+          "weight": 30,
+          "min": 1,
+          "max": 3,
+          "minLevel": 1
+        },
+        {
+          "item": "ectoplasm",
+          "weight": 20,
+          "min": 1,
+          "max": 3,
+          "minLevel": 1
+        },
+        {
+          "item": "mana_crystal",
+          "weight": 10,
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        },
+        {
+          "item": "mana_tonic",
+          "weight": 5,
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        },
+        {
+          "item": "slime_core",
+          "weight": 8,
+          "min": 1,
+          "max": 2,
+          "minLevel": 35
+        },
+        {
+          "item": "greater_health_potion",
+          "weight": 8,
+          "min": 1,
+          "max": 2,
+          "minLevel": 55
+        },
+        {
+          "item": "rough_gem",
+          "weight": 3,
+          "min": 1,
+          "max": 1,
+          "minLevel": 60
+        }
+      ]
+    },
+    {
+      "id": "eel",
+      "theme": "water",
+      "kind": "monster",
+      "minLevel": 25,
+      "maxLevel": 100,
+      "goldBase": 3,
+      "diamondBasePpm": 12,
+      "rolls": 2,
+      "nothingWeight": 35,
+      "guaranteed": [
+        {
+          "item": "raw_meat",
+          "min": 1,
+          "max": 2,
+          "minLevel": 1
+        }
+      ],
+      "entries": [
+        {
+          "item": "raw_meat",
+          "weight": 30,
+          "min": 1,
+          "max": 3,
+          "minLevel": 1
+        },
+        {
+          "item": "leather",
+          "weight": 25,
+          "min": 1,
+          "max": 3,
+          "minLevel": 1
+        },
+        {
+          "item": "slime_core",
+          "weight": 8,
+          "min": 1,
+          "max": 2,
+          "minLevel": 45
+        },
+        {
+          "item": "greater_health_potion",
+          "weight": 6,
+          "min": 1,
+          "max": 2,
+          "minLevel": 50
+        },
+        {
+          "item": "rough_gem",
+          "weight": 4,
+          "min": 1,
+          "max": 1,
+          "minLevel": 60
+        }
+      ]
     }
   ]
 }

@@ -34,4 +34,13 @@ public interface ITileWalkabilityGrid
     /// respecting obstacles, walls, cliffs, ramp alignments, and corner cutting.
     /// </summary>
     bool CanTraverse(int fromX, int fromY, int toX, int toY);
+
+    /// <summary>
+    /// Gets this grid as a collider with <paramref name="terrainMask"/> sees it (see
+    /// <see cref="Carbon.Physics.Obstacles.TerrainMask"/>): a water creature walks only its own depth tiers
+    /// (ADR-032 D14). Grids without water return themselves.
+    /// </summary>
+    /// <param name="terrainMask">The mover's collision mask.</param>
+    /// <returns>The grid for that mover.</returns>
+    ITileWalkabilityGrid ForTerrainMask(uint terrainMask) => this;
 }
