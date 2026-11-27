@@ -415,7 +415,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     }
 
     /// <inheritdoc/>
-    public EnterWorldResult TryEnterWorld(ulong connectionId, ulong sessionId, CharacterRecord character)
+    public EnterWorldResult TryEnterWorld(ulong connectionId, CharacterRecord character)
     {
         ArgumentNullException.ThrowIfNull(character);
 
@@ -447,7 +447,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _settlements.PopulateAround(spawnPos, radius: 2);
 
             ulong networkId = ++_nextNetworkId;
-            Entity entity = _simulation.SpawnNetworkEntity(networkId, spawnPos, DefaultEntityRadius, sessionId);
+            Entity entity = _simulation.SpawnNetworkEntity(networkId, spawnPos, DefaultEntityRadius);
             _simulation.Entities.SetCollider(entity, new Collider2D(ColliderKind.Circle, DefaultEntityRadius, default, false, PlayerLayer, uint.MaxValue));
             _simulation.Entities.SetVelocity(entity, new Velocity2D(0f, 0f, 5f));
             _simulation.Entities.SetComponent(entity, default(SpawnAnchorComponent));
@@ -476,7 +476,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             byte harvestTier = _inventory.ResolveHarvestTier(inventory, selectedSlot);
 
             ConnectedPlayerSession session = new(
-                sessionId,
                 connectionId,
                 character.AccountId,
                 character.Id,

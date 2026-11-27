@@ -424,9 +424,8 @@ public sealed class WorldSimulation
     /// <param name="networkId">Non-zero unique network identifier.</param>
     /// <param name="position">Starting world position.</param>
     /// <param name="radius">Collision radius.</param>
-    /// <param name="ownerSessionId">Optional owning session identifier.</param>
     /// <returns>A new <see cref="Entity"/> handle.</returns>
-    public Entity SpawnNetworkEntity(ulong networkId, Vector2 position, float radius = 0.5f, ulong ownerSessionId = 0)
+    public Entity SpawnNetworkEntity(ulong networkId, Vector2 position, float radius = 0.5f)
     {
         if (networkId == 0)
         {
@@ -439,7 +438,7 @@ public sealed class WorldSimulation
         }
 
         Entity entity = this.SpawnEntity(position, radius);
-        this.BindNetworkIdentity(entity, networkId, ownerSessionId);
+        this.BindNetworkIdentity(entity, networkId);
         return entity;
     }
 
@@ -448,8 +447,7 @@ public sealed class WorldSimulation
     /// </summary>
     /// <param name="entity">Target entity handle.</param>
     /// <param name="networkId">Non-zero network identifier.</param>
-    /// <param name="ownerSessionId">Optional owning session identifier.</param>
-    public void BindNetworkIdentity(Entity entity, ulong networkId, ulong ownerSessionId = 0)
+    public void BindNetworkIdentity(Entity entity, ulong networkId)
     {
         if (!_entities.IsAlive(entity))
         {
@@ -471,7 +469,7 @@ public sealed class WorldSimulation
             _ = _networkIdToEntity.Remove(previousIdentity.NetworkId);
         }
 
-        _entities.SetComponent(entity, new NetworkIdentity(networkId, ownerSessionId));
+        _entities.SetComponent(entity, new NetworkIdentity(networkId));
         _networkIdToEntity[networkId] = entity;
     }
 

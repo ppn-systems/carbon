@@ -287,7 +287,7 @@ public sealed class TickQueuedWorldCommandTests
                 Flags: CharacterTraits.StarterLoadoutGranted,
                 ProgressionBlob: progressionBlob);
             _ = await characters.TryCreateAsync(hero).ConfigureAwait(false);
-            world.TryEnterWorld(ConnectionId, ConnectionId, hero).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(ConnectionId, hero).Status.Should().Be(OpStatus.Ok);
 
             return new WorldFixture(dbPath, factory, world, hero.Id, tx, ty);
         }
