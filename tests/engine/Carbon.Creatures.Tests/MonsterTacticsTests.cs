@@ -5,10 +5,12 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
 using Carbon.AI.Components;
+using Carbon.AI.Navigation;
 using Carbon.AI.Systems;
 using Carbon.AI.Threat;
 using Carbon.Combat.Attacks;
 using Carbon.Combat.Projectiles;
+using Carbon.Combat.Stats;
 using Carbon.Creatures.Definitions;
 using Carbon.Creatures.Scaling;
 using Carbon.Creatures.Spawning;
@@ -572,6 +574,58 @@ public sealed class MonsterTacticsTests(ITestOutputHelper output)
         public byte GetHeightLevel(int worldTileX, int worldTileY) => 0;
 
         public bool CanTraverse(int fromX, int fromY, int toX, int toY) => this.IsWalkable(toX, toY);
+    }
+
+    [Fact]
+    public void Respawn_PathingGolemIntoTheSameSlot_AllocatesItsAttachmentsAgain()
+    {
+        // Characterisation (ADR-044): each life of a monster gets new attachments, even in the slot of the previous one.
+        TacticsArena arena = new(withWalls: true);
+        for (int y = 4; y <= 14; y++)
+        {
+            arena.Grid!.SetSolid(10, y, true);
+        }
+
+        Entity player = arena.SpawnPlayer(TacticsArena.TileCenter(13, 9), health: 1e6f);
+        List<(Entity Golem, StatSheet Sheet, ThreatTable Threat, PathWaypointBuffer Path)> lives = [];
+        for (int life = 0; life < 4; life++)
+        {
+            lives.Add(LivePathingLife(arena, player));
+        }
+
+        lives.Should().OnlyContain(l => l.Golem.Id == lives[0].Golem.Id, "every life respawns into the freed slot");
+        for (int i = 1; i < lives.Count; i++)
+        {
+            lives[i].Sheet.Should().NotBeSameAs(lives[i - 1].Sheet);
+            lives[i].Threat.Should().NotBeSameAs(lives[i - 1].Threat);
+            lives[i].Path.Should().NotBeSameAs(lives[i - 1].Path);
+        }
+
+        AllocationResult window = AllocationProbe.Measure(1, warmupIterations: 2, i => _ = LivePathingLife(arena, player));
+        window.Bytes.Should().BeGreaterThan(0, $"a respawn allocates its StatSheet, ThreatTable and PathWaypointBuffer again ({window})");
+    }
+
+    /// <summary>Spawns a golem behind the wall, lets it path towards the player, and despawns it (one monster life).</summary>
+    private static (Entity Golem, StatSheet Sheet, ThreatTable Threat, PathWaypointBuffer Path) LivePathingLife(TacticsArena arena, Entity player)
+    {
+        Entity golem = arena.SpawnMonster("rock_golem", TacticsArena.TileCenter(7, 9));
+        ThreatTable threat = arena.Threat(golem);
+        threat.AddThreat(player, 50f);
+        for (int t = 0; t < 30; t++)
+        {
+            arena.StepTick();
+        }
+
+        EntityManager entities = arena.World.Entities;
+        if (!entities.GetAttachmentStore<StatSheet>().TryGet(golem, out StatSheet? sheet) ||
+            !entities.GetAttachmentStore<PathWaypointBuffer>().TryGet(golem, out PathWaypointBuffer? path))
+        {
+            throw new InvalidOperationException("the golem should have a stat sheet and a path around the wall");
+        }
+
+        arena.World.DespawnEntity(golem);
+        arena.StepTick();
+        return (golem, sheet, threat, path);
     }
 
     private sealed class TacticsArena
