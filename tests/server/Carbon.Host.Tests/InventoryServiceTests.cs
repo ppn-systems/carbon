@@ -126,6 +126,45 @@ public sealed class InventoryServiceTests
         h.DirtyMarks.Should().Be(0);
     }
 
+    [Theory]
+    [InlineData(5, true)]
+    [InlineData(6, false)]
+    public void IsNearForgeStation_AnvilTilesAway_IsInReachUpToFiveTiles(int tilesAway, bool expected)
+    {
+        Harness h = new();
+        h.Buildings.ForcePlaceStructure(tilesAway, 0, StructureType.ForgeAnvil);
+
+        h.Inventory.IsNearForgeStation(new Vector2(0.5f * TileSize, 0.5f * TileSize)).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData(StructureType.Workbench, CraftingStation.Workbench, 5, true)]
+    [InlineData(StructureType.Workbench, CraftingStation.Workbench, 6, false)]
+    [InlineData(StructureType.Campfire, CraftingStation.Stove, 5, true)]
+    [InlineData(StructureType.Campfire, CraftingStation.Stove, 6, false)]
+    public void IsCraftingStationAvailable_StationTilesAway_IsInReachUpToFiveTiles(StructureType built, CraftingStation station, int tilesAway, bool expected)
+    {
+        Harness h = new();
+        h.Buildings.ForcePlaceStructure(0, -tilesAway, built);
+
+        h.Inventory.IsCraftingStationAvailable(station, new Vector2(0.5f * TileSize, 0.5f * TileSize)).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData(31f, 112UL, true)]
+    [InlineData(33f, 112UL, false)]
+    [InlineData(31f, 111UL, false)]
+    public void CollectNearbyGroundLoot_StackAtDistance_IsCollectedWithin32PxAfterTheGrace(float distance, ulong now, bool expected)
+    {
+        Harness h = new();
+        h.GroundLoot.Spawn(new Vector2(distance, 0f), new ItemSlot(StackableItemId, 4));
+        h.Tick = now;
+
+        h.Inventory.CollectNearbyGroundLoot(h.Player, Vector2.Zero);
+
+        h.Player.Inventory.CountItem(StackableItemId).Should().Be(expected ? 4 : 0);
+    }
+
     [Fact]
     public void Upgrade_AwayFromAnyForge_IsOutOfRange()
     {
@@ -191,7 +230,7 @@ public sealed class InventoryServiceTests
 
         public Harness()
         {
-            this.GroundLoot = new GroundLootService(this.Simulation, () => this.Rules, () => this.LastLootNetworkId = ++_nextNetworkId, () => 100UL, (_, _) => { });
+            this.GroundLoot = new GroundLootService(this.Simulation, () => this.Rules, () => this.LastLootNetworkId = ++_nextNetworkId, () => this.Tick, (_, _) => { });
             this.Inventory = new InventoryService(
                 this.Simulation,
                 this.Buildings,
@@ -199,7 +238,7 @@ public sealed class InventoryServiceTests
                 TestGameplayEntropy.Create(42UL),
                 () => this.Rules,
                 () => this.Economy,
-                () => 100UL,
+                () => this.Tick,
                 (_, _, _) => false,
                 this.GroundLoot,
                 this.Outbound,
@@ -214,6 +253,8 @@ public sealed class InventoryServiceTests
                 character,
                 new InventoryContainer(PlayerInventoryLayout.TotalCapacity));
         }
+
+        public ulong Tick { get; set; } = 100UL;
 
         public ItemRules Rules { get; } = ItemRules.LoadShippedDefaults();
 
