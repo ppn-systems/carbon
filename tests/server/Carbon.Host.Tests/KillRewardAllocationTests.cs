@@ -43,7 +43,7 @@ public sealed class KillRewardAllocationTests(ITestOutputHelper output)
     private const int Rounds = 24;
 
     [Fact]
-    public void MonsterKill_SteadyState_BytesPerKill()
+    public void MonsterKill_SteadyState_AllocatesNothingPerKill()
     {
         string configDir = GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)
             ?? throw new InvalidOperationException("the host ships resources/config next to its binaries");
@@ -67,7 +67,8 @@ public sealed class KillRewardAllocationTests(ITestOutputHelper output)
             $"{(double)window.RepeatBytes!.Value / Math.Max(1, repeatKills):F1} over {repeatKills} in the repeat window ({window})");
 
         kills.Should().BeGreaterThanOrEqualTo(24, "the measured rounds killed monsters through the attack path");
-        window.Bytes.Should().BeGreaterThan(0, $"characterisation: kill rewards allocate today ({window})");
+        window.Bytes.Should().Be(0, $"a kill only flags the killer for saving; the flush builds the record (ALLOC-13) ({window})");
+        window.RepeatBytes.Should().Be(0, $"warm-up growth is over ({window})");
     }
 
     /// <summary>
