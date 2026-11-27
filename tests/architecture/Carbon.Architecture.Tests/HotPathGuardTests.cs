@@ -63,7 +63,7 @@ public sealed class HotPathGuardTests
         ["Carbon.Desktop.Rendering.VectorArt.CarbonVectorArtLibrary"] = 950, // 920 today
         ["Carbon.Desktop.Rendering.VectorArt.ModularCharacterOverlays"] = 650, // 625 today
         ["Carbon.Desktop.Rendering.VectorArt.VectorRigRenderer"] = 750, // 741 today
-        ["Carbon.Desktop.Rendering.World.ChunkTerrainRenderer"] = 1200, // 1154 today
+        ["Carbon.Desktop.Rendering.World.ChunkGeometryBaker"] = 950, // 935 today: the bake half of ChunkTerrainRenderer (1,154 before the split)
         ["Carbon.Desktop.Rendering.World.PointOfInterestRenderer"] = 1150, // 1125 today
         ["Carbon.Desktop.Rendering.World.WorldSceneRenderer"] = 1000, // 986 today
         ["Carbon.Desktop.Scenes.CharacterSelectScene"] = 900, // 885 today
@@ -86,7 +86,7 @@ public sealed class HotPathGuardTests
         ["Carbon.Desktop.Rendering.Overlays.WorldEntityOverlayRenderer.DrawGeometry"] = 140, // 139 today
         ["Carbon.Desktop.Rendering.VectorArt.CarbonVectorArtLibrary.LoadFromDirectory"] = 200, // 195 today
         ["Carbon.Desktop.Rendering.VectorArt.VectorRigRenderer.DrawEquippedItemOnRig"] = 130, // 125 today
-        ["Carbon.Desktop.Rendering.World.ChunkTerrainRenderer.BakeTileCliffFaces"] = 140, // 131 today
+        ["Carbon.Desktop.Rendering.World.ChunkGeometryBaker.BakeTileCliffFaces"] = 140, // 131 today
         ["Carbon.Desktop.Rendering.World.PointOfInterestRenderer.DrawHouse"] = 190, // 185 today
         ["Carbon.Desktop.Rendering.World.PointOfInterestRenderer.DrawInterior"] = 150, // 145 today
         ["Carbon.Desktop.Rendering.World.WorldSceneRenderer.DrawRemoteEntity"] = 180, // 177 today
