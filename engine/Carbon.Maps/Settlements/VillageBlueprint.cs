@@ -30,7 +30,7 @@ public static class VillageBlueprint
         {
             for (int x = 0; x < template.Width; x++)
             {
-                StructureType type = CellType(template.CellAt(x, y), palette);
+                StructureType type = CellType(template.CellAt(x, y), palette, plot.Role);
                 if (type == StructureType.None)
                 {
                     continue;
@@ -131,12 +131,22 @@ public static class VillageBlueprint
         };
     }
 
-    private static StructureType CellType(char cell, in VillageStylePalette palette) => cell switch
+    // Materials by role (ADR-027 design rules): the smithy is masonry (fireproof walls, a stone floor round the forge), the
+    // storehouse has a stone floor for heavy goods, homes and the store use the style's wood or stone. Yards and frontages
+    // are paved in stone; the swamp builds everything on its raised plank deck.
+    private static StructureType CellType(char cell, in VillageStylePalette palette, VillageBuildingRole role)
     {
-        VillageBuildingTemplate.WallCell => palette.Wall,
-        VillageBuildingTemplate.DoorCell => palette.Door,
-        VillageBuildingTemplate.FloorCell => palette.Floor,
-        VillageBuildingTemplate.PorchCell => palette.Porch,
-        _ => StructureType.None,
-    };
+        bool deck = palette.Floor == StructureType.PlankDeck;
+        StructureType masonryFloor = deck ? StructureType.PlankDeck : StructureType.StoneFloor;
+        return cell switch
+        {
+            VillageBuildingTemplate.WallCell => role == VillageBuildingRole.Smithy && palette.Wall == StructureType.WoodWall ? StructureType.StoneWall : palette.Wall,
+            VillageBuildingTemplate.DoorCell => palette.Door,
+            VillageBuildingTemplate.FloorCell => role is VillageBuildingRole.Smithy or VillageBuildingRole.Storehouse ? masonryFloor : palette.Floor,
+            VillageBuildingTemplate.PorchCell => palette.Porch,
+            VillageBuildingTemplate.YardCell => masonryFloor,
+            VillageBuildingTemplate.PillarCell => StructureType.RoofPillar,
+            _ => StructureType.None,
+        };
+    }
 }

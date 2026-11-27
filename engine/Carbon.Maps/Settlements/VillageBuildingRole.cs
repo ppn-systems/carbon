@@ -16,4 +16,7 @@ public enum VillageBuildingRole : byte
 
     /// <summary>An open market stall on the square (merchant NPC).</summary>
     Stall = 3,
+
+    /// <summary>The village storehouse: one stone-floored hall of shelves and chests.</summary>
+    Storehouse = 4,
 }

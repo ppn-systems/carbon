@@ -40,11 +40,17 @@ public sealed class TileWalkabilityGridTests
         Assert.True(world.NavGrid.IsWalkable(1, 0));
         Assert.True(world.NavGrid.GetMoveCost(1, 0) > 1.2f);
 
-        // 3. Normal Plains -> WalkableNormal, cost = 1.0f
-        chunk.SetTile(2, 0, new MapTile(BiomeType.LushPlains, 0.5f, 0.5f, 0.5f, false, 0));
-        Assert.Equal(TileWalkability.WalkableNormal, world.NavGrid.GetWalkability(2, 0));
-        Assert.True(world.NavGrid.IsWalkable(2, 0));
-        Assert.Equal(1.0f, world.NavGrid.GetMoveCost(2, 0));
+        // 3. Normal Plains -> WalkableNormal, cost = 1.0f (on a tile without a generated tree or boulder)
+        int plain = 2;
+        while (world.HasSolidPropAt(plain, 0))
+        {
+            plain++;
+        }
+
+        chunk.SetTile(plain, 0, new MapTile(BiomeType.LushPlains, 0.5f, 0.5f, 0.5f, false, 0));
+        Assert.Equal(TileWalkability.WalkableNormal, world.NavGrid.GetWalkability(plain, 0));
+        Assert.True(world.NavGrid.IsWalkable(plain, 0));
+        Assert.Equal(1.0f, world.NavGrid.GetMoveCost(plain, 0));
     }
 
     [Fact]

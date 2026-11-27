@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
@@ -16,9 +17,9 @@ namespace Carbon.Maps.Tests;
 public sealed class VillageGenerationTests
 {
     // Pins every village plot (generated footprint, furniture, origin, turns) of seed 42 over a 13x13 site window
-    // (generator version 19: villages along streets with generated buildings, ADR-027, that need dry room round their
-    // plot ring beside the wider rivers of ADR-032). Update it only together with GeneratorVersion.
-    private const ulong GoldenVillagePlotFingerprint = 11495324889950601071UL;
+    // (generator version 20: wider villages off the road network with yards, a storehouse and gardens, ADR-027
+    // revision 2, beside the wider rivers of ADR-032). Update it only together with GeneratorVersion.
+    private const ulong GoldenVillagePlotFingerprint = 17363636075112210928UL;
 
     private readonly ITestOutputHelper _output;
 
@@ -67,17 +68,18 @@ public sealed class VillageGenerationTests
             _ = gen;
             villages++;
             byType[poi.Type] = byType.GetValueOrDefault(poi.Type) + 1;
-            bool stall = false, smithy = false, store = false;
+            bool stall = false, smithy = false, store = false, storehouse = false;
             int houses = 0;
             foreach (VillagePlot plot in layout.Plots)
             {
                 stall |= plot.Role == VillageBuildingRole.Stall;
                 smithy |= plot.Role == VillageBuildingRole.Smithy;
                 store |= plot.Role == VillageBuildingRole.Store;
+                storehouse |= plot.Role == VillageBuildingRole.Storehouse;
                 houses += plot.Role == VillageBuildingRole.House ? 1 : 0;
             }
 
-            if (stall && smithy && store && houses >= 2)
+            if (stall && smithy && store && storehouse && houses >= 3)
             {
                 complete++;
             }
@@ -87,13 +89,13 @@ public sealed class VillageGenerationTests
 
         _output.WriteLine($"{villages} villages, {complete} complete; {string.Join(", ", byType)}");
         Assert.True(villages >= 8, $"Only {villages} villages found.");
-        Assert.True(complete * 10 >= villages * 9, $"Only {complete} of {villages} villages have stall, smithy, store and 2+ houses.");
+        Assert.True(complete * 10 >= villages * 9, $"Only {complete} of {villages} villages have stall, smithy, store, storehouse and 3+ houses.");
     }
 
     [Theory]
     [InlineData(42UL)]
     [InlineData(2UL)]
-    public void Plan_Plots_StayInsideTheFootprintAndApart(ulong seed)
+    public void Plan_Plots_StayInsideTheFootprintWithTwoTilesBetweenBuildings(ulong seed)
     {
         foreach ((_, PointOfInterest poi, LandmarkLayout layout) in Villages(seed))
         {
@@ -105,9 +107,10 @@ public sealed class VillageGenerationTests
                 for (int j = i + 1; j < plots.Length; j++)
                 {
                     VillagePlot b = plots[j];
-                    bool apart = a.OriginX + a.Width < b.OriginX || b.OriginX + b.Width < a.OriginX ||
-                        a.OriginY + a.Height < b.OriginY || b.OriginY + b.Height < a.OriginY;
-                    Assert.True(apart, $"Plots {i} and {j} of the village at {poi.TileX},{poi.TileY} touch.");
+                    // At least two tiles of open ground between any two buildings (yards and alleys, ADR-027).
+                    bool apart = a.OriginX + a.Width + 2 <= b.OriginX || b.OriginX + b.Width + 2 <= a.OriginX ||
+                        a.OriginY + a.Height + 2 <= b.OriginY || b.OriginY + b.Height + 2 <= a.OriginY;
+                    Assert.True(apart, $"Plots {i} and {j} of the village at {poi.TileX},{poi.TileY} are closer than two tiles.");
                 }
             }
         }
@@ -199,8 +202,9 @@ public sealed class VillageGenerationTests
         foreach ((ProceduralWorldGenerator gen, PointOfInterest poi, LandmarkLayout layout) in Villages(seed))
         {
             byte level = gen.SampleTile(poi.TileX, poi.TileY).HeightLevel;
-            foreach (VillagePlot plot in layout.Plots)
+            for (int index = 0; index < layout.Plots.Length; index++)
             {
+                VillagePlot plot = layout.Plots[index];
                 for (int y = plot.OriginY - 1; y <= plot.OriginY + plot.Height; y++)
                 {
                     for (int x = plot.OriginX - 1; x <= plot.OriginX + plot.Width; x++)
@@ -217,9 +221,9 @@ public sealed class VillageGenerationTests
 
                 foreach (LandmarkPath path in layout.Paths)
                 {
-                    if (path.Width < 1f)
+                    if (DoorPathOwner(layout, path) == index)
                     {
-                        continue; // The spur to a door may cross its own porch.
+                        continue; // The path to a door crosses its own porch or yard, never another building.
                     }
 
                     for (int y = plot.OriginY; y < plot.OriginY + plot.Height; y++)
@@ -229,7 +233,7 @@ public sealed class VillageGenerationTests
                             float reach = path.Width * 0.5f;
                             Assert.True(
                                 path.DistanceSquaredTo(x + 0.5f, y + 0.5f) > reach * reach,
-                                $"{plot.Template.Id} at {poi.TileX},{poi.TileY} is built over a street at {x},{y}");
+                                $"{plot.Template.Id} at {poi.TileX},{poi.TileY} is built over a street or another building's door path at {x},{y}");
                         }
                     }
                 }
@@ -249,7 +253,7 @@ public sealed class VillageGenerationTests
             List<LandmarkPath> streets = [];
             foreach (LandmarkPath path in layout.Paths)
             {
-                if (path.Width >= 1f)
+                if (!IsDoorPath(layout, path))
                 {
                     streets.Add(path);
                 }
@@ -359,6 +363,133 @@ public sealed class VillageGenerationTests
         }
 
         Assert.True(doors > 100, $"only {doors} doors checked");
+    }
+
+    // Villages are built only from what a player can build: every tile is a structures.json definition with a build
+    // cost, furniture stands at its catalog footprint for its rotation, and every door sits between walls, as the build
+    // tool requires (ADR-027). A positive check against the catalog: no list of allowed types to keep in step.
+    [Theory]
+    [InlineData(42UL)]
+    [InlineData(1337UL)]
+    public void Plan_EveryVillageStructure_IsAPlayerBuildableCatalogStructure(ulong seed)
+    {
+        StructureCatalog catalog = StructureCatalog.LoadEmbedded();
+        List<VillagePlacement> placements = [];
+        int checkedTiles = 0;
+        foreach ((_, PointOfInterest poi, LandmarkLayout layout) in Villages(seed))
+        {
+            foreach (VillagePlot plot in layout.Plots)
+            {
+                placements.Clear();
+                VillageBlueprint.Expand(VillageBuildingCatalog.Default, catalog, plot, placements);
+                HashSet<(int, int)> walls = [];
+                foreach (VillagePlacement p in placements)
+                {
+                    Assert.True(catalog.TryGet(p.Type, out StructureDefinition def), $"{plot.Template.Id} at {poi.TileX},{poi.TileY} emits {p.Type}, which is not in structures.json");
+                    Assert.NotEmpty(def.Cost);
+                    (int fw, int fh) = def.GetFootprint(p.Rotation);
+                    Assert.InRange(p.X - p.AnchorX, 0, fw - 1);
+                    Assert.InRange(p.Y - p.AnchorY, 0, fh - 1);
+                    if (def.Category is StructureCategory.Wall or StructureCategory.Door or StructureCategory.Pillar)
+                    {
+                        _ = walls.Add((p.X, p.Y));
+                    }
+
+                    checkedTiles++;
+                }
+
+                // A multi-tile piece covers exactly its catalog footprint.
+                foreach (IGrouping<(int, int, StructureType), VillagePlacement> piece in placements.GroupBy(p => (p.AnchorX, p.AnchorY, p.Type)))
+                {
+                    VillagePlacement first = piece.First();
+                    (int fw, int fh) = catalog.TryGet(first.Type, out StructureDefinition def) ? def.GetFootprint(first.Rotation) : (1, 1);
+                    Assert.Equal(fw * fh, piece.Count());
+                }
+
+                foreach (VillagePlacement door in placements.Where(p => catalog.TryGet(p.Type, out StructureDefinition d) && d.RequiresWallsOnSides))
+                {
+                    bool eastWest = walls.Contains((door.X - 1, door.Y)) && walls.Contains((door.X + 1, door.Y));
+                    bool northSouth = walls.Contains((door.X, door.Y - 1)) && walls.Contains((door.X, door.Y + 1));
+                    Assert.True(eastWest || northSouth, $"{plot.Template.Id} door at {door.X},{door.Y} is not set between walls");
+                }
+            }
+        }
+
+        Assert.True(checkedTiles > 10_000, $"only {checkedTiles} tiles checked");
+    }
+
+    // The owner asked for the roads between villages to go: no road or bridge crosses any village (ADR-027).
+    [Theory]
+    [InlineData(42UL)]
+    [InlineData(1UL)]
+    [InlineData(1337UL)]
+    public void Plan_Villages_HaveNoRoadOrBridgeTiles(ulong seed)
+    {
+        int villages = 0;
+        foreach ((ProceduralWorldGenerator gen, PointOfInterest poi, _) in Villages(seed))
+        {
+            int r = poi.Radius;
+            bool[] roads = new bool[((2 * r) + 1) * ((2 * r) + 1)];
+            gen.Roads.Rasterize(poi.TileX - r, poi.TileY - r, (2 * r) + 1, (2 * r) + 1, roads);
+            for (int i = 0; i < roads.Length; i++)
+            {
+                int x = poi.TileX - r + (i % ((2 * r) + 1));
+                int y = poi.TileY - r + (i / ((2 * r) + 1));
+                Assert.False(roads[i] && poi.Contains(x, y), $"a road crosses the {poi.Type} at {poi.TileX},{poi.TileY} at tile {x},{y}");
+            }
+
+            villages++;
+        }
+
+        Assert.True(villages >= 30, $"only {villages} villages");
+    }
+
+    // Homes get kitchen gardens beside them, on dry ground, clear of every building and street.
+    [Theory]
+    [InlineData(42UL)]
+    [InlineData(1UL)]
+    [InlineData(2UL)]
+    [InlineData(1337UL)]
+    [InlineData(5UL)]
+    [InlineData(7UL)]
+    public void Plan_Gardens_LieBesideHomesClearOfBuildingsAndStreets(ulong seed)
+    {
+        int gardens = 0;
+        foreach ((ProceduralWorldGenerator gen, PointOfInterest poi, LandmarkLayout layout) in Villages(seed))
+        {
+            byte level = gen.SampleTile(poi.TileX, poi.TileY).HeightLevel;
+            foreach (LandmarkField field in layout.Fields)
+            {
+                gardens++;
+                int x0 = (int)field.MinX;
+                int y0 = (int)field.MinY;
+                int x1 = (int)field.MaxX - 1;
+                int y1 = (int)field.MaxY - 1;
+                bool besideHome = false;
+                foreach (VillagePlot plot in layout.Plots)
+                {
+                    Assert.False(x0 <= plot.OriginX + plot.Width - 1 && x1 >= plot.OriginX && y0 <= plot.OriginY + plot.Height - 1 && y1 >= plot.OriginY, $"a garden at {x0},{y0} overlaps {plot.Template.Id}");
+                    besideHome |= plot.Role == VillageBuildingRole.House &&
+                        x0 <= plot.OriginX + plot.Width + 1 && x1 >= plot.OriginX - 2 && y0 <= plot.OriginY + plot.Height + 1 && y1 >= plot.OriginY - 2;
+                }
+
+                Assert.True(besideHome, $"the garden at {x0},{y0} of {poi.TileX},{poi.TileY} is not beside a home");
+                for (int y = y0; y <= y1; y++)
+                {
+                    for (int x = x0; x <= x1; x++)
+                    {
+                        MapTile t = gen.SampleTile(x, y);
+                        Assert.True(!t.IsSolid && t.HeightLevel == level && t.Biome is not (Biomes.BiomeType.ShallowWater or Biomes.BiomeType.DeepOcean), $"garden tile {x},{y} is not dry level ground");
+                        foreach (LandmarkPath path in layout.Paths)
+                        {
+                            Assert.True(path.DistanceSquaredTo(x + 0.5f, y + 0.5f) > path.Width * path.Width * 0.25f, $"garden tile {x},{y} lies on a path");
+                        }
+                    }
+                }
+            }
+        }
+
+        Assert.True(gardens > 50, $"only {gardens} gardens");
     }
 
     [Fact]
@@ -577,6 +708,24 @@ public sealed class VillageGenerationTests
         }
 
         return h;
+    }
+
+    // A door path starts on the tile in front of a building's entrance; every other path is a street or a lane.
+    private static bool IsDoorPath(LandmarkLayout layout, in LandmarkPath path) => DoorPathOwner(layout, path) >= 0;
+
+    // The index of the plot whose front door the path starts at, or -1 for a street.
+    private static int DoorPathOwner(LandmarkLayout layout, in LandmarkPath path)
+    {
+        for (int i = 0; i < layout.Plots.Length; i++)
+        {
+            (int fx, int fy) = VillageBlueprint.FrontTile(layout.Plots[i]);
+            if (MathF.Abs(path.X0 - (fx + 0.5f)) < 0.01f && MathF.Abs(path.Y0 - (fy + 0.5f)) < 0.01f)
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     // Tiles reachable on foot from the square: doors open (players open them), walls, furniture and solid terrain block.

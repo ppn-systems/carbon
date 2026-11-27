@@ -43,43 +43,55 @@ The work ships as three pull requests:
   client plan the same villages. Editing it changes the generated world: bump `ProceduralWorldGenerator.GeneratorVersion`
   and update `VillageGenerationTests.GoldenVillagePlotFingerprint` in the same change.
 
-### 2.2 Buildings and layout (deterministic, ADR-027)
+### 2.2 Buildings and layout (deterministic, ADR-027 revision 2)
 
-**Buildings.** `VillageBuildingGenerator.Generate(role, seed)` (`engine/Carbon.Maps/Settlements`) makes every building:
+**Buildings.** `VillageBuildingGenerator.Generate(role, seed)` (`engine/Carbon.Maps/Settlements`) makes every building
+from player-buildable pieces only (each has a kit, §2.1):
 
-- a rectangle (houses 5–8 × 5–7 tiles, shops 6–8 × 6–7) or an L-shape, with its entrance in the south wall and a porch
-  row in front (decked in the swamp palette);
-- one to three rooms, split by straight interior walls with doors; a split never walls off a door and leaves at least
-  two tiles of floor on each side;
-- furniture by role, each piece on a free floor tile away from doors, and only where every free tile and the NPC spot
-  stay reachable from the entrance:
+- a rectangle or an L-shape, with its entrance in the south wall. Houses are 7–11 × 6–9 tiles, smithies 8–10 × 6–7,
+  stores 7–9 × 6–8 and storehouses 8–11 × 6–7;
+- in front, an apron: one porch row for houses and storehouses (decked in the swamp palette), a two-row paved frontage
+  for the store, and a three-row paved work yard with roof pillars at its outer corners for the smithy. The column in
+  front of the door is always kept free;
+- one to three rooms (a storehouse has one), split by straight interior walls with doors. A split never walls off a
+  door and leaves at least two tiles of floor on each side and three on one;
+- furniture by role, against walls where it can be, each piece on a free tile away from doors, and only where every
+  free tile, the yard and the NPC spot stay reachable from the entrance:
 
-| Role | Front room | Back rooms |
+| Role | Inside | Apron |
 | :--- | :--- | :--- |
-| House | stove, table, shelf or chest; beds when it has one room | bedroom (beds, chest), storeroom or workroom |
-| Smithy | forge anvil with the smith beside it, stove, workbench, shelf, chest | bedroom, storeroom or workroom |
-| Store | shelves, a counter of two tables with the trader behind it, chest | storeroom |
+| House | stove, table, shelf or chest; beds when it has one room; back rooms are a bedroom (beds, chest), a storeroom or a workroom | porch |
+| Smithy | stove, shelf, two chests (stone walls, masonry floor) | work yard: forge anvil with the smith beside it, workbench, pillars |
+| Store | shelves, a counter of two tables with the trader behind it, chest | paved frontage |
+| Storehouse | chests and shelves along the walls, free-standing shelves (masonry floor), no NPC | porch |
 | Stall | open market stall, crate, merchant behind the counter | — |
 
-**Streets.** `VillagePlanner` (`engine/Carbon.Maps/Landmarks/VillagePlanner.cs`) keeps the well on a small square,
-then lays a main street through it, lined up with the roads that reach the village (`RoadNetwork.Rasterize` over the
-site), with a bend in each arm, plus one or two side lanes. Streets stop at water and cliffs.
+Materials follow the village style's palette, except that the smithy is built in stone where the palette walls are
+wood, and the smithy, the storehouse and paved aprons use a masonry floor (plank deck in the swamp)
+(`VillageBlueprint.CellType`).
 
-**Placement.** The smithy, the store, the stall and four to seven houses, in that order:
+**Streets.** `VillagePlanner` (`engine/Carbon.Maps/Landmarks/VillagePlanner.cs`) keeps the well on a square, then lays
+a main street through it in a heading taken from the layout hash (two arms, sometimes a third), each with a bend, plus
+three or four side lanes of 7–13 tiles. Villages are not on the road network (`RoadNetwork.IsConnected`), so no road
+reaches or crosses them. Streets stop at water and cliffs.
+
+**Placement.** The smithy, the store, the stall, the storehouse and six to ten houses, in that order:
 
 - beside a street first, the door turned to the street, at a varied setback; when no frontage is left, anywhere on the
-  site with the door facing the nearest street (at most 8 tiles away);
-- a short path joins every front door to its street (`LandmarkLayout.Paths`, drawn by `PointOfInterestRenderer`);
-- a plot stays inside `radius − 0.5`, off the square, streets, paths and roads, one or two tiles from other plots, on
-  dry level ground with a one-tile ring, and its path crosses open ground only;
+  site with the door facing the nearest street (at most 9 tiles away);
+- a short path joins every front door to its street (`LandmarkLayout.Paths`, drawn by `PointOfInterestRenderer`). It
+  crosses open ground and its own apron only, never another building or a garden;
+- a plot stays inside the 26-tile site radius, off the square, streets, paths, roads and gardens, two or three tiles from
+  other plots, on dry level ground with a one-tile ring;
 - no two buildings of a village share a footprint;
-- a footprint with no room is retried compact; after three houses that do not fit, the site counts as full; with fewer
-  than two houses, the streets are laid out another way (up to four layouts) and the best layout is kept.
+- beside a home, a kitchen garden (`LandmarkLayout.Fields`) is added at its side or back, never in front of a door;
+- a footprint with no room is retried compact; when a layout gets fewer than three houses, the streets are laid out
+  another way (up to four layouts) and the best layout is kept.
 
-**Measured.** Across seeds 42, 1, 2 and 1337 (17×17 sites each), 94–97 % of villages get a stall, a smithy, a store and
-at least 2 houses (`VillageGenerationTests.Plan_Villages_GetStallSmithyStoreAndHouses` enforces 90 %). The mean
-alignment of doors with the direction to the well is 0.50–0.56; the old ring scored 0.83–0.84
-(`Plan_Layout_IsNotARingFacingTheWell` enforces below 0.7). Planning takes about 15 ms per village, once per process.
+**Measured.** Across seeds 42, 1, 2 and 1337 (17×17 sites each), every village gets a stall, a smithy, a store, a
+storehouse and at least three houses (`Plan_Villages_GetStallSmithyStoreAndHouses`), with about 4.5–4.7 houses and
+2–2.9 gardens per village. Door-to-well alignment stays below the ring's 0.83 (`Plan_Layout_IsNotARingFacingTheWell`
+enforces below 0.7). Planning takes about 15 ms per village, once per process.
 
 `LandmarkLayout.Plots` holds the result. It is a pure function of the seed and the generator version.
 
@@ -200,9 +212,10 @@ The village blacksmith (at the smithy's forge) and the sanctuary blacksmith (bes
 
 | Test | Checks |
 | :--- | :--- |
-| `VillageGenerationTests` (Maps) | Catalog parsing and rejection; same seed gives the same plots and the same structures; golden plot fingerprint; completeness across 4 seeds; plots inside the footprint and apart; every interior floor is an enclosed room, reachable from its door, with reachable NPC spots; idempotent and fully village-owned materialization; chunk-delta round trip; migration drops village tiles but keeps player builds; players cannot deconstruct, damage or build. |
+| `VillageGenerationTests` (Maps) | Catalog parsing and rejection; same seed gives the same plots and the same structures; golden plot fingerprint; completeness across 4 seeds; plots inside the footprint and at least two tiles apart; no road or bridge tile in a village; every emitted structure is a catalog structure with a cost and its real footprint; gardens beside homes, off buildings, streets and paths; every interior floor is an enclosed room, reachable from its door, with reachable NPC spots; idempotent and fully village-owned materialization; chunk-delta round trip; migration drops village tiles but keeps player builds; players cannot deconstruct, damage or build. |
 | `LandmarkCollisionTests` (Maps) | Real village house: walls push out, a closed door blocks and an open one lets you in, the interior is roofed, and the ground in front is free. |
 | `SettlementNpcSpawnerTests` (Host) | A village is built once with one guard; the blacksmith stands next to the forge; deconstruct and damage are refused. |
+| `VillageStructureKitTests` (Maps) | Every structure type any village building can emit has a placeable kit item with a build cost. |
 | `VectorArtAndArchitectureTests` (Desktop) | Every structure type has art (doors with open shapes). |
 | `TraderTests` (Economy) | Shipped profiles load; invalid documents are rejected (unknown item, variance, quantities, too few entries, jitter, style); stock is deterministic per epoch and changes at restock; slots are distinct and style-correct, within quantity and variance ranges; prices stay within variance and above the buy-back price at levels 1/30/80; the epoch clock and per-trader jitter; limited quantity sells out and the next epoch restocks; failures change nothing (funds, full bag, slot, quantity, stale epoch, unknown trader); sales drain and import. |
 | `TraderWorldTests` (Host) | Through the real world: open a merchant and buy (wallet and stock change); more than is left, a stale epoch, a bad slot and an unknown trader are refused; selling pays less than the buy price; a far player is out of range; sales persist across a server restart on SQLite; the next epoch is fully restocked. The smithy's blacksmith sells only `blacksmith` profile items, sends no gold-only repair quotes, and repairs a worn sword for its `repair.json` materials and fee (ADR-028). The sanctuary blacksmith trades too. The merchant quotes no repairs. |
