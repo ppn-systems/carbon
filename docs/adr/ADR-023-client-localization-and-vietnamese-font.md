@@ -74,7 +74,7 @@ The owner asked for real i18n: English stays the default, Vietnamese comes first
    - values are NFC and use valid template syntax;
    - every character in a locale file has a glyph in that locale's font stack;
    - no new hardcoded user-facing literals appear in desktop or graphics UI code. A Roslyn scan checks this against `LocalizationLiteralAllowlist.txt`, and an allowlist entry that no longer matches fails the test, so the list can only shrink.
-8. **D8 — Screenshots.** `tools/screenshots/capture.sh` gains `--lang <code>`, which sets `CARBON_LANG` for the client, so the main screens can be captured in both `en` and `vi`. The client knob `CARBON_CAPTURE_MODAL=settings|controls` opens the Settings window before the capture, so localized UI can be reviewed headlessly.
+8. **D8 — Screenshots.** `tools/screenshots/capture.sh` gains `--lang <code>`, which sets `CARBON_LANG` for the client, so the main screens can be captured in both `en` and `vi`. The client knob `CARBON_CAPTURE_MODAL=settings|controls` opens the Settings window before the capture, and `CARBON_CAPTURE_SCENE=login|characters` captures the login or character screen instead of the world, so localized UI can be reviewed headlessly.
 
 ## Alternatives Considered
 
