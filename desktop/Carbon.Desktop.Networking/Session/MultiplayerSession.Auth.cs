@@ -22,6 +22,7 @@ using Carbon.Maps.Generators;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.World;
+using Nalix.Abstractions.Primitives;
 using Nalix.Codec.Pooling;
 using Nalix.SDK.Options;
 using Nalix.SDK.Transport;
@@ -54,16 +55,7 @@ public sealed partial class MultiplayerSession
             TcpSession tcp = await this.EnsureTcpConnectedAsync(host.Trim(), tcpPort, ct).ConfigureAwait(false);
             RequestOptions reqOpts = RequestOptions.Default.WithTimeout(5000).WithEncrypt(tcp.State.EncryptionEnabled);
 
-            using PacketScope<AuthLogin> lease = PacketFactory<AuthLogin>.Acquire();
-            lease.Value.Username = username.Trim();
-            lease.Value.Password = password;
-            lease.Value.ClientProtocolVersion = CarbonProtocol.Version;
-
-            using AuthResult result = await tcp.RequestAsync<AuthResult>(
-                lease.Value,
-                reqOpts,
-                predicate: null,
-                ct).ConfigureAwait(false);
+            using AuthResult result = await RequestPasswordSignInAsync(tcp, reqOpts, username.Trim(), password, ct).ConfigureAwait(false);
 
             if (result.Status == AuthStatus.Ok)
             {
@@ -72,6 +64,7 @@ public sealed partial class MultiplayerSession
                 _reconnectPort = tcpPort;
                 _lastUsername = username.Trim();
                 _lastPassword = password;
+                Bytes32.Wipe(ref _lastToken);
                 return new AuthenticationResult(true, GameText.Get("auth.signed_in"), result.AccountId);
             }
 
@@ -138,6 +131,7 @@ public sealed partial class MultiplayerSession
                 _reconnectPort = tcpPort;
                 _lastUsername = trimmedUser;
                 _lastPassword = password;
+                Bytes32.Wipe(ref _lastToken);
                 return new AuthenticationResult(true, GameText.Get("auth.registered"), result.AccountId);
             }
 
@@ -154,6 +148,107 @@ public sealed partial class MultiplayerSession
             // The exception text names sockets and addresses: log it for developers, show the player plain words.
             await Console.Error.WriteLineAsync($"[Auth] Connection failed: {ex.Message}").ConfigureAwait(false);
             return new AuthenticationResult(false, GameText.Get("auth.server_unreachable"));
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<AuthenticationResult> LoginWithTokenAsync(
+        string host,
+        ushort tcpPort,
+        Bytes32 token,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(host) || tcpPort == 0)
+        {
+            return new AuthenticationResult(false, GameText.Get("auth.invalid_endpoint"));
+        }
+
+        if (token.IsZero)
+        {
+            return new AuthenticationResult(false, GameText.Get("auth.invalid_credentials"));
+        }
+
+        try
+        {
+            TcpSession tcp = await this.EnsureTcpConnectedAsync(host.Trim(), tcpPort, ct).ConfigureAwait(false);
+            RequestOptions reqOpts = RequestOptions.Default.WithTimeout(5000).WithEncrypt(tcp.State.EncryptionEnabled);
+            using AuthResult result = await RequestTokenSignInAsync(tcp, reqOpts, token, ct).ConfigureAwait(false);
+
+            if (result.Status == AuthStatus.Ok)
+            {
+                _isAuthenticated = true;
+                _reconnectHost = host.Trim();
+                _reconnectPort = tcpPort;
+                _lastUsername = string.Empty;
+                _lastPassword = string.Empty;
+                _lastToken = token;
+                return new AuthenticationResult(true, GameText.Get("auth.signed_in"), result.AccountId);
+            }
+
+            return new AuthenticationResult(false, FormatAuthStatus(result.Status), CredentialsRejected: result.Status == AuthStatus.InvalidCredentials);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            await this.TearDownTransportsAsync().ConfigureAwait(false);
+            await Console.Error.WriteLineAsync($"[Auth] Connection failed: {ex.Message}").ConfigureAwait(false);
+            return new AuthenticationResult(false, GameText.Get("auth.server_unreachable"));
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<RememberTokenGrant?> RequestRememberTokenAsync(CancellationToken ct = default)
+    {
+        TcpSession tcp = this.RequireAuthenticatedTcpSession();
+        RequestOptions reqOpts = RequestOptions.Default.WithTimeout(5000).WithEncrypt(tcp.State.EncryptionEnabled);
+        using PacketScope<RememberTokenRequest> lease = PacketFactory<RememberTokenRequest>.Acquire();
+        using RememberTokenResult reply = await tcp.RequestAsync<RememberTokenResult>(
+            lease.Value,
+            reqOpts,
+            predicate: null,
+            ct).ConfigureAwait(false);
+
+        RememberTokenGrant? grant = reply.Status == OpStatus.Ok && !reply.Token.IsZero
+            ? new RememberTokenGrant(reply.Token, DateTimeOffset.FromUnixTimeSeconds(reply.ExpiresAtUnixSeconds))
+            : null;
+        reply.Token = Bytes32.Zero; // the pooled reply must not keep the secret
+        return grant;
+    }
+
+    /// <inheritdoc/>
+    public async Task RevokeRememberTokenAsync(string host, ushort tcpPort, Bytes32 token, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(host) || tcpPort == 0 || token.IsZero)
+        {
+            return;
+        }
+
+        try
+        {
+            TcpSession tcp = await this.EnsureTcpConnectedAsync(host.Trim(), tcpPort, ct).ConfigureAwait(false);
+            RequestOptions reqOpts = RequestOptions.Default.WithTimeout(3000).WithEncrypt(tcp.State.EncryptionEnabled);
+            using PacketScope<RememberTokenRevoke> lease = PacketFactory<RememberTokenRevoke>.Acquire();
+            lease.Value.Token = token;
+            try
+            {
+                using MutationResult _ = await tcp.RequestAsync<MutationResult>(lease.Value, reqOpts, predicate: null, ct).ConfigureAwait(false);
+            }
+            finally
+            {
+                lease.Value.Token = Bytes32.Zero; // the pooled request must not keep the secret
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Best effort: the local copy is deleted regardless, and the token expires on the server by itself.
+            await Console.Error.WriteLineAsync($"[Auth] Could not revoke the remembered sign-in: {ex.Message}").ConfigureAwait(false);
         }
     }
 
@@ -378,6 +473,7 @@ public sealed partial class MultiplayerSession
         _activeCharacterId = Guid.Empty;
         _lastUsername = string.Empty;
         _lastPassword = string.Empty;
+        Bytes32.Wipe(ref _lastToken);
 
         await _connectGate.WaitAsync(ct).ConfigureAwait(false);
         try
@@ -467,6 +563,30 @@ public sealed partial class MultiplayerSession
         if (!entered)
         {
             throw new InvalidOperationException(enterMsg);
+        }
+    }
+
+    private static async Task<AuthResult> RequestPasswordSignInAsync(TcpSession tcp, RequestOptions reqOpts, string username, string password, CancellationToken ct)
+    {
+        using PacketScope<AuthLogin> lease = PacketFactory<AuthLogin>.Acquire();
+        lease.Value.Username = username;
+        lease.Value.Password = password;
+        lease.Value.ClientProtocolVersion = CarbonProtocol.Version;
+        return await tcp.RequestAsync<AuthResult>(lease.Value, reqOpts, predicate: null, ct).ConfigureAwait(false);
+    }
+
+    private static async Task<AuthResult> RequestTokenSignInAsync(TcpSession tcp, RequestOptions reqOpts, Bytes32 token, CancellationToken ct)
+    {
+        using PacketScope<TokenSignInRequest> lease = PacketFactory<TokenSignInRequest>.Acquire();
+        lease.Value.Token = token;
+        lease.Value.ClientProtocolVersion = CarbonProtocol.Version;
+        try
+        {
+            return await tcp.RequestAsync<AuthResult>(lease.Value, reqOpts, predicate: null, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            lease.Value.Token = Bytes32.Zero; // the pooled request must not keep the secret
         }
     }
 

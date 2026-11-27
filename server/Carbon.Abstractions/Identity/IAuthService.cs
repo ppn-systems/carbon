@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
 using Carbon.Contracts.Identity;
+using Nalix.Abstractions.Primitives;
 
 namespace Carbon.Abstractions.Identity;
 
@@ -23,6 +24,11 @@ public readonly record struct AuthOutcome(AuthStatus Status, Guid AccountId);
 /// <param name="FailureReason">Human-readable rejection code when unsuccessful.</param>
 /// <param name="Character">Created record when <paramref name="Succeeded"/> is <see langword="true"/>.</param>
 public readonly record struct CharacterCreateResult(bool Succeeded, string? FailureReason, CharacterRecord? Character);
+
+/// <summary>A newly issued remember-me token (ADR-037). The plaintext token exists only here and on the client.</summary>
+/// <param name="Token">The bearer token: 32 random bytes.</param>
+/// <param name="ExpiresAtUtc">When it stops working.</param>
+public readonly record struct RememberTokenIssue(Bytes32 Token, DateTimeOffset ExpiresAtUtc);
 
 /// <summary>
 /// Application identity service handling registration, login, and character roster management.
@@ -44,6 +50,22 @@ public interface IAuthService
     /// attempts per <paramref name="clientAddress"/> (normalized IP, no port) so one address cannot spray usernames.
     /// </summary>
     Task<AuthOutcome> LoginAsync(string username, string password, ushort protocolVersion, string? clientAddress, CancellationToken ct = default);
+
+    /// <summary>
+    /// Issues a remember-me token for an account that just signed in (ADR-037). Only the token's hash is stored.
+    /// </summary>
+    Task<RememberTokenIssue> IssueRememberTokenAsync(Guid accountId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Signs in with a remember-me token: <see cref="AuthStatus.InvalidCredentials"/> for an unknown, expired or revoked
+    /// token, <see cref="AuthStatus.Locked"/> for a banned account (ADR-037).
+    /// </summary>
+    Task<AuthOutcome> LoginWithRememberTokenAsync(Bytes32 token, ushort protocolVersion, CancellationToken ct = default);
+
+    /// <summary>
+    /// Revokes a remember-me token so it can never sign in again; revoking an unknown token does nothing (ADR-037).
+    /// </summary>
+    Task RevokeRememberTokenAsync(Bytes32 token, CancellationToken ct = default);
 
     /// <summary>
     /// Lists all characters belonging to the authenticated account.

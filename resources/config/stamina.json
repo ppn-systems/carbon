@@ -1,11 +1,11 @@
 {
-  "sprintDrainPerSecond": 16,
+  "sprintDrainPerSecond": 12,
   "swimDrainPerSecond": 5,
-  "regenDelaySeconds": 1.75,
-  "regenPerSecondStill": 6,
-  "regenPerSecondMoving": 3,
+  "regenDelaySeconds": 1,
+  "regenPerSecondStill": 14,
+  "regenPerSecondMoving": 8,
   "restingRegenMultiplier": 1.5,
-  "exhaustedRecoverFraction": 0.35,
+  "exhaustedRecoverFraction": 0.25,
   "minimumRegenScale": 0.25,
   "fatigueRegenScale": {
     "tired": 0.8,
@@ -18,27 +18,27 @@
     "starving": 0.4
   },
   "swingCosts": {
-    "bareHand": 4,
-    "melee": 9,
-    "tool": 9,
-    "ranged": 6,
+    "bareHand": 2,
+    "melee": 5,
+    "tool": 5,
+    "ranged": 4,
     "spell": 0
   },
   "itemSwingCosts": {
-    "wood_axe": 8,
-    "wood_pickaxe": 8,
-    "wood_sword": 6,
-    "stone_axe": 9,
-    "iron_axe": 10,
-    "stone_pickaxe": 10,
-    "crystal_pickaxe": 12,
-    "copper_sword": 8,
-    "iron_sword": 10,
-    "demon_cleaver": 14,
-    "ember_blade": 15,
-    "hunting_bow": 6,
-    "bone_bow": 7,
-    "crystal_bow": 8
+    "wood_axe": 4,
+    "wood_pickaxe": 4,
+    "wood_sword": 4,
+    "stone_axe": 5,
+    "iron_axe": 6,
+    "stone_pickaxe": 6,
+    "crystal_pickaxe": 7,
+    "copper_sword": 5,
+    "iron_sword": 6,
+    "demon_cleaver": 8,
+    "ember_blade": 9,
+    "hunting_bow": 4,
+    "bone_bow": 4,
+    "crystal_bow": 5
   },
   "buildWorkPerSecond": 4
 }

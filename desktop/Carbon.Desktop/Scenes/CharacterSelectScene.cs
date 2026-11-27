@@ -14,7 +14,6 @@ using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Graphics.Animation.Directions;
 using Carbon.Graphics.Batching;
-using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.Batching.Sprites;
@@ -56,9 +55,8 @@ public sealed class CharacterSelectScene : GameScene
         "character_creator.fresh_start.line7",
     ];
 
+    private readonly MenuFlow _flow;
     private readonly IWorldSession _session;
-    private readonly DesktopOptions _options;
-    private readonly Camera2D _camera;
 
     private readonly MenuTextField _createNameField;
     private readonly MenuButton _enterWorldButton = new(GameText.Get("character.enter_world"), MenuButtonStyle.SecondaryEmerald);
@@ -122,12 +120,12 @@ public sealed class CharacterSelectScene : GameScene
     /// <summary>
     /// Initializes a new instance of the <see cref="CharacterSelectScene"/> class.
     /// </summary>
-    public CharacterSelectScene(IWorldSession session, DesktopOptions options, Camera2D camera)
+    internal CharacterSelectScene(MenuFlow flow)
         : base("CharacterSelect")
     {
-        _session = session ?? throw new ArgumentNullException(nameof(session));
-        _options = options ?? throw new ArgumentNullException(nameof(options));
-        _camera = camera ?? throw new ArgumentNullException(nameof(camera));
+        _flow = flow ?? throw new ArgumentNullException(nameof(flow));
+        _session = flow.Session;
+        DesktopOptions options = flow.Options;
         _capture = new MenuSceneCapture(options, "characters");
 
         _createNameField = new MenuTextField(GameText.Get("character.field.name"), GameText.Get("character.hint.name"), options.CharacterName, isPassword: false, maxLength: 20)
@@ -676,13 +674,13 @@ public sealed class CharacterSelectScene : GameScene
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
-                // Always return cleanly to LoginScene.
+                // Always return cleanly to the start screen.
             }
 
-            LoginScene? next = null;
+            StartScene? next = null;
             try
             {
-                next = new LoginScene(_session, _options, _camera);
+                next = new StartScene(_flow);
                 context.SceneManager.ChangeScene(next, transitionDuration: 0.15f);
                 next = null;
             }
@@ -706,7 +704,7 @@ public sealed class CharacterSelectScene : GameScene
                     WorldGameplayScene? next = null;
                     try
                     {
-                        next = new WorldGameplayScene(_session, _options, _camera);
+                        next = new WorldGameplayScene(_flow);
                         context.SceneManager.ChangeScene(next, transitionDuration: 0.18f);
                         next = null;
                     }
@@ -848,7 +846,7 @@ public sealed class CharacterSelectScene : GameScene
 
     private void BeginLogout()
     {
-        _logoutTask = _session.LogoutAsync();
+        _logoutTask = _flow.SignOutAsync();
         _statusIsError = false;
         _statusMessage = GameText.Get("character.status.signing_out");
     }

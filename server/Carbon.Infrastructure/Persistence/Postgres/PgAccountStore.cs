@@ -23,6 +23,13 @@ public sealed class PgAccountStore : IAccountStore
         LIMIT 1;
         """;
 
+    private const string FindByIdSql = """
+        SELECT id, username, normalized_username, password_hash, password_salt, created_at_utc, is_banned
+        FROM accounts
+        WHERE id = @id
+        LIMIT 1;
+        """;
+
     private const string InsertSql = """
         INSERT INTO accounts (id, username, normalized_username, password_hash, password_salt, created_at_utc, is_banned)
         VALUES (@id, @name, @norm, @hash, @salt, @created, @banned)
@@ -49,26 +56,19 @@ public sealed class PgAccountStore : IAccountStore
         NpgsqlCommand cmd = new(FindSql, conn);
         await using ConfiguredAsyncDisposable cmdScope = cmd.ConfigureAwait(false);
         _ = cmd.Parameters.Add(new NpgsqlParameter("norm", NpgsqlDbType.Varchar) { Value = normalizedUsername });
+        return await ReadAccountAsync(cmd, ct).ConfigureAwait(false);
+    }
 
-        DbDataReader reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
-        await using ConfiguredAsyncDisposable readerScope = reader.ConfigureAwait(false);
-        if (!await reader.ReadAsync(ct).ConfigureAwait(false))
-        {
-            return null;
-        }
+    /// <inheritdoc/>
+    public async Task<AccountRecord?> FindByIdAsync(Guid accountId, CancellationToken ct = default)
+    {
+        NpgsqlConnection conn = await _dataSource.OpenConnectionAsync(ct).ConfigureAwait(false);
+        await using ConfiguredAsyncDisposable connScope = conn.ConfigureAwait(false);
 
-        byte[] hash = await reader.GetFieldValueAsync<byte[]>(3, ct).ConfigureAwait(false);
-        byte[] salt = await reader.GetFieldValueAsync<byte[]>(4, ct).ConfigureAwait(false);
-        DateTimeOffset created = await reader.GetFieldValueAsync<DateTimeOffset>(5, ct).ConfigureAwait(false);
-
-        return new AccountRecord(
-            reader.GetGuid(0),
-            reader.GetString(1),
-            reader.GetString(2),
-            hash,
-            salt,
-            created,
-            reader.GetBoolean(6));
+        NpgsqlCommand cmd = new(FindByIdSql, conn);
+        await using ConfiguredAsyncDisposable cmdScope = cmd.ConfigureAwait(false);
+        _ = cmd.Parameters.Add(new NpgsqlParameter("id", NpgsqlDbType.Uuid) { Value = accountId });
+        return await ReadAccountAsync(cmd, ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -91,5 +91,28 @@ public sealed class PgAccountStore : IAccountStore
 
         int affected = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         return affected == 1;
+    }
+
+    private static async Task<AccountRecord?> ReadAccountAsync(NpgsqlCommand cmd, CancellationToken ct)
+    {
+        DbDataReader reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        await using ConfiguredAsyncDisposable readerScope = reader.ConfigureAwait(false);
+        if (!await reader.ReadAsync(ct).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        byte[] hash = await reader.GetFieldValueAsync<byte[]>(3, ct).ConfigureAwait(false);
+        byte[] salt = await reader.GetFieldValueAsync<byte[]>(4, ct).ConfigureAwait(false);
+        DateTimeOffset created = await reader.GetFieldValueAsync<DateTimeOffset>(5, ct).ConfigureAwait(false);
+
+        return new AccountRecord(
+            reader.GetGuid(0),
+            reader.GetString(1),
+            reader.GetString(2),
+            hash,
+            salt,
+            created,
+            reader.GetBoolean(6));
     }
 }

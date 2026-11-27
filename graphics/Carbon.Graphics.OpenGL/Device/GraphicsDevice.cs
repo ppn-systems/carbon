@@ -113,20 +113,6 @@ public sealed class GraphicsDevice : IGraphicsDevice
         texture.Bind(textureUnit);
     }
 
-    /// <inheritdoc/>
-    public void SetRenderTarget(IRenderTarget? renderTarget)
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        if (renderTarget is null)
-        {
-            this.StateCache.BindFramebuffer(0);
-        }
-        else
-        {
-            renderTarget.Bind();
-        }
-    }
-
     /// <summary>Gets the number of draw calls issued through this device since it was created (frame statistics).</summary>
     public long DrawCallCount { get; private set; }
 
