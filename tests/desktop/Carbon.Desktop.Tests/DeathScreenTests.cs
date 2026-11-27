@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.IO;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -21,7 +22,7 @@ namespace Carbon.Desktop.Tests;
 
 /// <summary>
 /// ADR-031 client side: the server's <see cref="PlayerDeath"/> push opens the death screen, and Respawn (Enter or the
-/// button) sends exactly one <c>RespawnRequest</c> until the server answers.
+/// button) sends exactly one <c>RespawnRequest</c> until the server answers. The gold drop is not shown.
 /// </summary>
 public sealed class DeathScreenTests
 {
@@ -29,7 +30,7 @@ public sealed class DeathScreenTests
     private const int Height = 720;
 
     [Fact]
-    public void OnPlayerDeath_MonsterKill_OpensTheDeathScreenWithKillerAndGold()
+    public void OnPlayerDeath_MonsterKill_OpensTheDeathScreenWithTheKiller()
     {
         DeathSession death = new(() => Task.FromResult(OpStatus.Ok), id => id == 40 ? "monster.wild_slime.name" : null);
         death.Death.Should().BeNull("a living player sees no death screen");
@@ -37,7 +38,49 @@ public sealed class DeathScreenTests
         using PlayerDeath packet = new() { Cause = DeathCause.Monster, KillerArchetypeId = 40, KillerNetworkId = 9_001UL, GoldDropped = 500L };
         death.OnPlayerDeath(packet);
 
-        death.Death.Should().Be(new DeathView(DeathCause.Monster, 40, 500L, "monster.wild_slime.name"));
+        death.Death.Should().Be(new DeathView(DeathCause.Monster, 40, "monster.wild_slime.name"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void GetText_DeathThatDropped1250Gold_ShowsTitleKillerAndRespawnButNothingAboutTheGold(bool pending)
+    {
+        DeathSession session = new(() => Task.FromResult(OpStatus.Ok), id => id == 40 ? "monster.wild_slime.name" : null);
+        using PlayerDeath packet = new() { Cause = DeathCause.Monster, KillerArchetypeId = 40, GoldDropped = 1_250L };
+        session.OnPlayerDeath(packet);
+        DeathView death = session.Death!.Value;
+
+        DeathScreenText text = new DeathScreenWidget().GetText(in death, pending);
+
+        string[] lines = [text.Title, text.Cause, text.Button, text.Hint];
+        lines.Should().Equal(
+            GameText.Get("death.title"),
+            GameText.Format("death.killed_by", new TextArg("name", GameText.Get("monster.wild_slime.name"))),
+            GameText.Get(pending ? "death.respawning" : "death.respawn"),
+            GameText.Get("death.respawn_hint"));
+        foreach (string line in lines)
+        {
+            line.Should().NotContainAny(["1,250", "1250", "1.250"], "the gold drop is silent");
+            line.Should().NotContainEquivalentOf("gold", "no line mentions the dropped gold");
+            line.Should().NotStartWith("death.", "every drawn line resolves to a localized string");
+        }
+    }
+
+    [Theory]
+    [InlineData("en.ini")]
+    [InlineData("vi.ini")]
+    public void DeathSection_LocaleFiles_HaveNoGoldDropKeysAndNoGoldWording(string file)
+    {
+        string[] lines = File.ReadAllLines(Path.Combine(FindRepoRoot(), "resources", "localization", file));
+        int start = Array.IndexOf(lines, "[death]");
+        start.Should().BeGreaterThanOrEqualTo(0);
+        int end = Array.FindIndex(lines, start + 1, l => l.StartsWith('['));
+        string[] death = lines[(start + 1)..(end < 0 ? lines.Length : end)];
+
+        death.Should().NotContain(l => l.StartsWith("gold_", StringComparison.Ordinal), "the gold-drop lines were removed from the death screen");
+        death.Should().NotContain(l => l.Contains("{amount}", StringComparison.Ordinal));
+        death.Should().NotContain(l => l.Contains("gold", StringComparison.OrdinalIgnoreCase) || l.Contains("vàng", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -84,7 +127,7 @@ public sealed class DeathScreenTests
     [Fact]
     public void DescribeCause_Drowning_NamesDrowningNotAnUnknownEnd()
     {
-        string text = new DeathScreenWidget().DescribeCause(new DeathView(DeathCause.Drowning, 0, 0L));
+        string text = new DeathScreenWidget().DescribeCause(new DeathView(DeathCause.Drowning, 0));
 
         text.Should().Be(GameText.Get("death.cause.drowning"));
         text.Should().NotBe("death.cause.drowning", "the key must exist in the locale files");
@@ -129,7 +172,7 @@ public sealed class DeathScreenTests
     [Fact]
     public async Task Handle_ClickOnRespawnButton_RequestsRespawn_ClickElsewhere_DoesNot()
     {
-        RecordingWorldSession session = new() { LocalDeath = new DeathView(DeathCause.Starvation, 0, 0L) };
+        RecordingWorldSession session = new() { LocalDeath = new DeathView(DeathCause.Starvation, 0) };
         await using ConfiguredAsyncDisposable scope = session.ConfigureAwait(true);
         RectangleF button = HudOverlayRenderer.GetRespawnButtonRect(Width, Height);
 
@@ -150,6 +193,17 @@ public sealed class DeathScreenTests
         DeathScreenInput.Handle(session, confirmPressed: true, leftClickPressed: true, Vector2.Zero, Width, Height).Should().BeFalse();
 
         session.Commands.Should().BeEmpty();
+    }
+
+    private static string FindRepoRoot()
+    {
+        DirectoryInfo? dir = new(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Carbon.slnx")))
+        {
+            dir = dir.Parent;
+        }
+
+        return dir?.FullName ?? throw new InvalidOperationException("Carbon.slnx not found above the test output directory.");
     }
 
     private static DeathSession Dead(Func<Task<OpStatus>> send)
