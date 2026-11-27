@@ -131,6 +131,19 @@ public static class VillageBlueprint
         };
     }
 
+    /// <summary>
+    /// Gets the floor a village paves its square, streets and door paths with (ADR-027 revision 3): the masonry of its
+    /// yards, which in the swamp is the raised plank deck.
+    /// </summary>
+    /// <param name="catalog">Village style palettes.</param>
+    /// <param name="style">The village style.</param>
+    /// <returns>A player-buildable floor structure.</returns>
+    public static StructureType PavingType(VillageBuildingCatalog catalog, VillageStyle style)
+    {
+        ArgumentNullException.ThrowIfNull(catalog);
+        return CellType(VillageBuildingTemplate.YardCell, catalog.Palette(style), VillageBuildingRole.House);
+    }
+
     // Materials by role (ADR-027 design rules): the smithy is masonry (fireproof walls, a stone floor round the forge), the
     // storehouse has a stone floor for heavy goods, homes and the store use the style's wood or stone. Yards and frontages
     // are paved in stone; the swamp builds everything on its raised plank deck.

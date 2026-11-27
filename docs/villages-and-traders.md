@@ -72,8 +72,14 @@ wood, and the smithy, the storehouse and paved aprons use a masonry floor (plank
 
 **Streets.** `VillagePlanner` (`engine/Carbon.Maps/Landmarks/VillagePlanner.cs`) keeps the well on a square, then lays
 a main street through it in a heading taken from the layout hash (two arms, sometimes a third), each with a bend, plus
-three or four side lanes of 7–13 tiles. Villages are not on the road network (`RoadNetwork.IsConnected`), so no road
-reaches or crosses them. Streets stop at water and cliffs.
+three or four side lanes of 7–13 tiles that branch from a point on the arm. Villages are not on the road network
+(`RoadNetwork.IsConnected`), so no road reaches or crosses them. Streets stop at water and cliffs. Once the buildings
+stand, a lane that no door path joins is dropped and every street ends a tile past its last junction (ADR-027 D13).
+
+**Paving.** The square, the streets and the door paths are paved with the village's yard masonry (stone floor, or plank
+deck in the swamp), a player-buildable floor (ADR-027 D14). `LandmarkLayout.PavedTiles` lists them: dry level ground
+outside plots and gardens along each centre line, plus each front step, joined edge to edge where they would only touch
+at a corner. The materializer places them as village-owned structures.
 
 **Placement.** The smithy, the store, the stall, the storehouse and six to ten houses, in that order:
 
@@ -144,9 +150,11 @@ These rules are server-enforced through `BuildingService`, and the client previe
 
   - The roof stops on the top of the south wall row, so façades and front doors stay visible. Side and back entrances get a small awning.
   - Stoves get a chimney with smoke. A room with a forge gets an anvil sign; one with three or more shelves gets a goods sign.
-  - The room the local player stands in is cut away, and the camera's interior zoom uses the same rooms.
+  - Rooms that share a wall form one building. The whole roof of the building the local player stands in is cut away,
+    and the roofs of nearby buildings fade with distance: 0.3 opacity right outside, opaque from 3.5 tiles
+    (ADR-027 D15). The camera's interior zoom uses the same rooms.
   - Player-built rooms get roofs too.
-- **No more decorative houses.** The village house painting is gone: villages emit no `House` pieces, and harbours keep theirs. Paths now run from the square to each building's entrance. The square shrank to the well area so it never paints over the stall.
+- **No more decorative houses.** The village house painting is gone: villages emit no `House` pieces, and harbours keep theirs. The square and paths are real paving (§2.2), so the client paints no dirt paths or square for villages.
 
 ### 2.6 NPCs
 
@@ -220,6 +228,8 @@ The village blacksmith (at the smithy's forge) and the sanctuary blacksmith (bes
 | `LandmarkCollisionTests` (Maps) | Real village house: walls push out, a closed door blocks and an open one lets you in, the interior is roofed, and the ground in front is free. |
 | `SettlementNpcSpawnerTests` (Host) | A village is built once with one guard; the blacksmith stands next to the forge; deconstruct and damage are refused. |
 | `VillageStructureKitTests` (Maps) | Every structure type any village building can emit has a placeable kit item with a build cost. |
+| `VillageStreetTests` (Maps) | Every street leads to a building and stops a tile past its last junction; paving covers the square, every front step and every dry path tile outside plots and gardens, and forms one network from the well to every door; materialized paving is a village-owned buildable floor of the village's style. |
+| `RoofRendererTests` (Desktop) | Inside one room, the roof of the other room of the same building is cut away too; the neighbour stays roofed; from the doorstep the roof is faded; walking away it fades in and is opaque far away. |
 | `VectorArtAndArchitectureTests` (Desktop) | Every structure type has art (doors with open shapes). |
 | `TraderTests` (Economy) | Shipped profiles load; invalid documents are rejected (unknown item, variance, quantities, too few entries, jitter, style); stock is deterministic per epoch and changes at restock; slots are distinct and style-correct, within quantity and variance ranges; prices stay within variance and above the buy-back price at levels 1/30/80; the epoch clock and per-trader jitter; limited quantity sells out and the next epoch restocks; failures change nothing (funds, full bag, slot, quantity, stale epoch, unknown trader); sales drain and import. |
 | `TraderWorldTests` (Host) | Through the real world: open a merchant and buy (wallet and stock change); more than is left, a stale epoch, a bad slot and an unknown trader are refused; selling pays less than the buy price; a far player is out of range; sales persist across a server restart on SQLite; the next epoch is fully restocked. The smithy's blacksmith sells only `blacksmith` profile items, sends no gold-only repair quotes, and repairs a worn sword for its `repair.json` materials and fee (ADR-028). The sanctuary blacksmith trades too. The merchant quotes no repairs. |
@@ -227,6 +237,6 @@ The village blacksmith (at the smithy's forge) and the sanctuary blacksmith (bes
 Screenshots:
 - `tools/screenshots/capture.sh <out> '^village_'` captures one village per style, a macro view and a night view (`CARBON_DEBUG_SPAWN_POI=<PointOfInterestType>`).
 - `'^trade_'` captures the merchant, a desert trader and the blacksmith. `'^repair_'` captures the repair window (ADR-028) at the blacksmith, its animation, and at a player station.
-  - `CARBON_DEBUG_SPAWN_POI=RiverVillage:Smithy` spawns in front of a named building.
+  - `CARBON_DEBUG_SPAWN_POI=RiverVillage:Smithy` spawns in front of a named building; `RiverVillage:House:inside` one step through its door (`village_roof_near`, `village_roof_in`, `village_forge_in`).
   - `CARBON_DEBUG_WORN_GEAR=1` wears the starting gear to 40 %.
   - `CARBON_OPEN_REPAIR=blacksmith|station` opens the repair window; `CARBON_REPAIR_PREVIEW=work|success[:s]` plays its animation.

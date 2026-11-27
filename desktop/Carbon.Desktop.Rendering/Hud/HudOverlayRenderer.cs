@@ -9,6 +9,7 @@ using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Effects;
 using Carbon.Desktop.Rendering.Feedback;
 using Carbon.Desktop.Rendering.UiSkin;
+using Carbon.Desktop.Rendering.Water;
 using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Graphics.Batching;
 using Carbon.Graphics.Batching.Common;
@@ -28,6 +29,7 @@ namespace Carbon.Desktop.Rendering.Hud;
 /// </summary>
 public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
 {
+    private readonly OxygenBarWidget _oxygenBar = new();
     private readonly GeometryBatch _geometryBatch;
     private readonly IGraphicsDevice _device;
     private BitmapFont _font;
@@ -732,6 +734,8 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 break;
             case HudElement.Wallet:
             case HudElement.DeathVeil:
+            case HudElement.UnderwaterVeil:
+            case HudElement.OxygenBar:
             default:
                 break;
         }
@@ -769,6 +773,15 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 break;
             case HudElement.DeathVeil:
                 DeathScreenWidget.DrawVeil(_geometryBatch, f.ViewportWidth, f.ViewportHeight);
+                break;
+            case HudElement.UnderwaterVeil:
+                WaterView water = f.World.LocalWater;
+                UnderwaterLook look = UnderwaterLook.For(in water);
+                UnderwaterFilterWidget.DrawGeometry(_geometryBatch, in look, f.ViewportWidth, f.ViewportHeight, _animTime);
+                break;
+            case HudElement.OxygenBar:
+                WaterView breath = f.World.LocalWater;
+                OxygenBarWidget.DrawGeometry(_geometryBatch, in breath, f.ViewportWidth, f.ViewportHeight, _animTime);
                 break;
             case HudElement.DeathScreen when f.Death is DeathView death:
                 DeathScreenWidget.DrawGeometry(_geometryBatch, _art, in death, f.ViewportWidth, f.ViewportHeight);
@@ -824,8 +837,13 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             case HudElement.DeathScreen when f.Death is DeathView death:
                 _deathScreen.DrawText(spriteBatch, _font, in death, f.RespawnPending, f.ViewportWidth, f.ViewportHeight);
                 break;
+            case HudElement.OxygenBar:
+                WaterView breath = f.World.LocalWater;
+                _oxygenBar.DrawText(spriteBatch, _font, in breath, f.ViewportWidth, f.ViewportHeight);
+                break;
             case HudElement.DeathVeil:
             case HudElement.DeathScreen:
+            case HudElement.UnderwaterVeil:
             default:
                 break;
         }
