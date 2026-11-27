@@ -31,6 +31,9 @@ public interface IGameplayController
     /// <summary>Requests repairing the item in <paramref name="slotIndex"/> at a forge station for gold.</summary>
     bool TryRepairItem(ushort slotIndex);
 
+    /// <summary>Gets trading with village traders (ADR-025).</summary>
+    ITraderSession Trading { get; }
+
     /// <summary>Attempts to harvest or damage the nearest natural prop beside the local player.</summary>
     bool TryHarvestNearbyProp(out (int ChunkX, int ChunkY) modifiedChunk);
 

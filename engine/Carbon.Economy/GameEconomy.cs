@@ -8,6 +8,7 @@ using Carbon.Configuration.Catalog;
 using Carbon.Economy.Config;
 using Carbon.Economy.Crafting;
 using Carbon.Economy.Loot;
+using Carbon.Economy.Trading;
 using Carbon.Economy.Vendor;
 using Carbon.Items.Catalog;
 using Carbon.Items.Crafting;
@@ -36,8 +37,12 @@ public sealed class GameEconomy
     /// <summary>File name of the forge enhancement table (ADR-024).</summary>
     public const string EnhancementFile = "enhancement.json";
 
-    private GameEconomy(ItemCatalog items, RecipeCatalog recipes, EconomyConfig config, LootCatalog loot, EnhancementTable enhancement)
+    /// <summary>File name of the trader profiles (optional, ADR-025).</summary>
+    public const string TradersFile = TraderCatalog.FileName;
+
+    private GameEconomy(ItemCatalog items, RecipeCatalog recipes, EconomyConfig config, LootCatalog loot, EnhancementTable enhancement, TraderCatalog? traders)
     {
+        this.Traders = traders;
         this.Items = items;
         this.Recipes = recipes;
         this.Config = config;
@@ -66,6 +71,9 @@ public sealed class GameEconomy
     /// <summary>Gets the price rules.</summary>
     public PriceBook Prices { get; }
 
+    /// <summary>Gets the trader profiles, or <see langword="null"/> when no <c>traders.json</c> was loaded.</summary>
+    public TraderCatalog? Traders { get; }
+
     /// <summary>Gets the vendor service.</summary>
     public VendorService Vendor { get; }
 
@@ -86,23 +94,25 @@ public sealed class GameEconomy
         Load(itemsJson, recipesJson, economyJson, lootJson, ItemRules.ReadShippedDocument(EnhancementFile));
 
     /// <summary>
-    /// Builds the economy from the five JSON documents.
+    /// Builds the economy from the five JSON documents, plus the optional trader profiles.
     /// </summary>
     /// <param name="itemsJson"><c>items.json</c> text.</param>
     /// <param name="recipesJson"><c>recipes.json</c> text.</param>
     /// <param name="economyJson"><c>economy.json</c> text.</param>
     /// <param name="lootJson"><c>loot.json</c> text.</param>
     /// <param name="enhancementJson"><c>enhancement.json</c> text.</param>
+    /// <param name="tradersJson"><c>traders.json</c> text, or <see langword="null"/> for no traders.</param>
     /// <returns>The validated economy.</returns>
     /// <exception cref="InvalidDataException">Thrown when any document is malformed or inconsistent.</exception>
-    public static GameEconomy Load(string itemsJson, string recipesJson, string economyJson, string lootJson, string enhancementJson)
+    public static GameEconomy Load(string itemsJson, string recipesJson, string economyJson, string lootJson, string enhancementJson, string? tradersJson = null)
     {
         ItemCatalog items = ItemCatalog.LoadFromJson(itemsJson);
         RecipeCatalog recipes = RecipeCatalog.LoadFromJson(recipesJson, items);
         EconomyConfig config = EconomyConfig.LoadFromJson(economyJson);
         LootCatalog loot = LootCatalog.LoadFromJson(lootJson, items, config);
         EnhancementTable enhancement = EnhancementTable.LoadFromJson(enhancementJson, items);
-        return new GameEconomy(items, recipes, config, loot, enhancement);
+        TraderCatalog? traders = tradersJson is null ? null : TraderCatalog.LoadFromJson(tradersJson, items, config);
+        return new GameEconomy(items, recipes, config, loot, enhancement, traders);
     }
 
     /// <summary>
@@ -121,7 +131,8 @@ public sealed class GameEconomy
             Read(config, RecipesFile),
             Read(config, EconomyFile),
             Read(config, LootFile),
-            Read(config, EnhancementFile));
+            Read(config, EnhancementFile),
+            config.Contains(Path.GetFileNameWithoutExtension(TradersFile)) ? Read(config, TradersFile) : null);
     }
 
     /// <summary>
@@ -139,7 +150,8 @@ public sealed class GameEconomy
             File.ReadAllText(Path.Combine(configDirectory, RecipesFile)),
             File.ReadAllText(Path.Combine(configDirectory, EconomyFile)),
             File.ReadAllText(Path.Combine(configDirectory, LootFile)),
-            File.ReadAllText(Path.Combine(configDirectory, EnhancementFile)));
+            File.ReadAllText(Path.Combine(configDirectory, EnhancementFile)),
+            File.Exists(Path.Combine(configDirectory, TradersFile)) ? File.ReadAllText(Path.Combine(configDirectory, TradersFile)) : null);
     }
 
     /// <summary>

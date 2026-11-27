@@ -510,33 +510,14 @@ public sealed partial class MultiplayerSession
         }
     }
 
-    private static string FormatAuthStatus(AuthStatus status)
+    private static string FormatAuthStatus(AuthStatus status) => status switch
     {
-        if (status == AuthStatus.InvalidCredentials)
-        {
-            return GameText.Get("auth.invalid_credentials");
-        }
-
-        if (status == AuthStatus.AccountExists)
-        {
-            return GameText.Get("auth.username_exists");
-        }
-
-        if (status == AuthStatus.Locked)
-        {
-            return GameText.Get("auth.banned");
-        }
-
-        if (status == AuthStatus.InvalidInput)
-        {
-            return GameText.Get("auth.invalid_format");
-        }
-
-        if (status == AuthStatus.ProtocolMismatch)
-        {
-            return GameText.Get("auth.version_mismatch");
-        }
-
-        return GameText.Format("auth.error_status", new TextArg("status", status.ToString()));
-    }
+        AuthStatus.InvalidCredentials => GameText.Get("auth.invalid_credentials"),
+        AuthStatus.AccountExists => GameText.Get("auth.username_exists"),
+        AuthStatus.Locked => GameText.Get("auth.banned"),
+        AuthStatus.InvalidInput => GameText.Get("auth.invalid_format"),
+        AuthStatus.ProtocolMismatch => GameText.Get("auth.version_mismatch"),
+        AuthStatus.Ok => GameText.Format("auth.error_status", new TextArg("status", status.ToString())),
+        _ => GameText.Format("auth.error_status", new TextArg("status", status.ToString())),
+    };
 }

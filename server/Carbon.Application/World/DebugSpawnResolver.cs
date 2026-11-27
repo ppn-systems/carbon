@@ -5,6 +5,7 @@ using Carbon.Abstractions.Configuration;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Landmarks;
+using Carbon.Maps.Settlements;
 
 namespace Carbon.Application.World;
 
@@ -53,13 +54,16 @@ internal static class DebugSpawnResolver
         }
         else if (overrides.SpawnPoi is { } poiName)
         {
-            if (!Enum.TryParse(poiName, ignoreCase: true, out PointOfInterestType poiType) || !Enum.IsDefined(poiType) ||
-                poiType == PointOfInterestType.None)
+            string[] parts = poiName.Split(':', 2, StringSplitOptions.TrimEntries);
+            VillageBuildingRole role = VillageBuildingRole.Stall;
+            if (!Enum.TryParse(parts[0], ignoreCase: true, out PointOfInterestType poiType) || !Enum.IsDefined(poiType) ||
+                poiType == PointOfInterestType.None ||
+                (parts.Length == 2 && (!Enum.TryParse(parts[1], ignoreCase: true, out role) || !Enum.IsDefined(role))))
             {
                 throw new ArgumentException($"Unknown point of interest type '{poiName}'.", nameof(overrides));
             }
 
-            spawn = FindNearestPoi(generator, poiType, spawn)
+            spawn = FindNearestPoi(generator, poiType, role, spawn)
                 ?? throw new ArgumentException($"No {poiType} within {PoiSearchSites} sites of spawn.", nameof(overrides));
         }
 
@@ -68,8 +72,9 @@ internal static class DebugSpawnResolver
         return (spawn.X + overrides.SpawnOffset.X, spawn.Y + overrides.SpawnOffset.Y);
     }
 
-    // Nearest point of interest of a type by site rings around the spawn; returns the tile three south of its centre.
-    private static (int X, int Y)? FindNearestPoi(ProceduralWorldGenerator generator, PointOfInterestType type, (int X, int Y) from)
+    // Nearest point of interest of a type by site rings around the spawn: in front of a village building (the market
+    // stall unless another role is asked for), else three tiles south of its centre.
+    private static (int X, int Y)? FindNearestPoi(ProceduralWorldGenerator generator, PointOfInterestType type, VillageBuildingRole role, (int X, int Y) from)
     {
         int sx0 = (int)MathF.Floor(from.X / (float)PointOfInterestResolver.SiteSize);
         int sy0 = (int)MathF.Floor(from.Y / (float)PointOfInterestResolver.SiteSize);
@@ -85,10 +90,22 @@ internal static class DebugSpawnResolver
                     }
 
                     PointOfInterest poi = generator.Landmarks.GetSite(sx0 + dx, sy0 + dy);
-                    if (poi.Type == type)
+                    if (poi.Type != type)
                     {
-                        return (poi.TileX, poi.TileY + 3);
+                        continue;
                     }
+
+                    // Villages: in front of the building, so the square, its buildings and its NPC are in view.
+                    foreach (VillagePlot plot in generator.Landmarks.GetLayout(sx0 + dx, sy0 + dy).Plots)
+                    {
+                        if (plot.Role == role)
+                        {
+                            (int fx, int fy) = VillageBlueprint.FrontTile(VillageBuildingCatalog.Default, plot);
+                            return role == VillageBuildingRole.Stall ? (fx, fy + 1) : (fx, fy);
+                        }
+                    }
+
+                    return (poi.TileX, poi.TileY + 3);
                 }
             }
         }

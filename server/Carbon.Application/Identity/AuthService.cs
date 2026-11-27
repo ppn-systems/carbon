@@ -226,6 +226,12 @@ public sealed class AuthService : IAuthService, IDisposable
     /// </summary>
     public bool DebugForgeKit { get; init; }
 
+    /// <summary>
+    /// Gets or sets whether new characters start with their gear worn to 40 % durability (Debug host only,
+    /// <c>CARBON_DEBUG_WORN_GEAR</c>), for review of the blacksmith's repair mode.
+    /// </summary>
+    public bool DebugWornGear { get; init; }
+
     /// <inheritdoc/>
     public async Task<CharacterCreateResult> CreateCharacterAsync(
         Guid accountId,
@@ -259,6 +265,11 @@ public sealed class AuthService : IAuthService, IDisposable
         if (this.DebugForgeKit)
         {
             GrantForgeKit(_itemRules(), inv, selectedSlot);
+        }
+
+        if (this.DebugWornGear)
+        {
+            WearGear(inv);
         }
 
         DerivedCharacterStats stats = CharacterStatCalculator.Compute(_itemRules(), _progression(), 1, inv, selectedSlot, progression: null);
@@ -416,6 +427,18 @@ public sealed class AuthService : IAuthService, IDisposable
 
     /// <summary>Failed-login count for one account and when its counting window started.</summary>
     private readonly record struct LoginFailures(int Count, DateTimeOffset WindowStart);
+
+    private static void WearGear(InventoryContainer inv)
+    {
+        for (int i = 0; i < inv.Capacity; i++)
+        {
+            ItemSlot slot = inv.GetSlot(i);
+            if (!slot.IsEmpty && slot.Durability > 0f)
+            {
+                inv.SetSlot(i, slot with { Durability = slot.Durability * 0.4f });
+            }
+        }
+    }
 
     private static void GrantForgeKit(ItemRules rules, InventoryContainer inv, byte selectedSlot)
     {

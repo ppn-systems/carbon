@@ -96,6 +96,7 @@ public sealed partial class MultiplayerSession
         _tcpSubscriptions.Add(tcp.On<EntityEquipmentChanged>(this.OnEntityEquipmentChanged));
         _tcpSubscriptions.Add(tcp.On<PlayerStatsSync>(this.OnPlayerStatsSync));
         _tcpSubscriptions.Add(tcp.On<WalletSync>(this.OnWalletSync));
+        _tcpSubscriptions.Add(tcp.On<TraderStock>(_trading.OnStock));
         _tcpSubscriptions.Add(tcp.On<EnhancementAnnouncement>(this.OnEnhancementAnnouncement));
         _tcpSubscriptions.Add(tcp.On<SkillCastBroadcast>(this.OnSkillCastBroadcast));
         _tcpSubscriptions.Add(tcp.On<EntityAttackPhase>(this.OnEntityAttackPhase));

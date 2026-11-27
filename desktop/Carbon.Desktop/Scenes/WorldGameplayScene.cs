@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Contracts.Common;
@@ -33,7 +32,6 @@ using Carbon.Maps.Streaming;
 using Carbon.Maps.Topography;
 using Silk.NET.OpenGL;
 using Carbon.Desktop.Rendering.Camera;
-using Carbon.Desktop.Rendering.Capture;
 using Carbon.Desktop.Rendering.World;
 
 namespace Carbon.Desktop.Scenes;
@@ -56,6 +54,7 @@ public sealed class WorldGameplayScene : GameScene
     private CameraRig2D? _cameraRig;
     private WorldSceneRenderer? _worldRenderer;
     private HudOverlayRenderer? _hudRenderer;
+    private TradeInteraction? _trade;
     private Task? _pendingLogoutTask;
 
     private BiomeType _lastBiome = (BiomeType)255;
@@ -69,7 +68,7 @@ public sealed class WorldGameplayScene : GameScene
     private int _carriedInventorySlot = -1;
     private Vector2 _pressStartMousePos;
     private bool _isHoldDragging;
-    private bool _hasAutoCaptured;
+    private readonly AutoCapture _capture;
     private bool _forgePreviewStarted;
 
     /// <summary>
@@ -84,6 +83,7 @@ public sealed class WorldGameplayScene : GameScene
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _screenshotAids = new ScreenshotAids(_options);
+        _capture = new AutoCapture(options);
         _camera = camera ?? throw new ArgumentNullException(nameof(camera));
     }
 
@@ -97,6 +97,7 @@ public sealed class WorldGameplayScene : GameScene
         _cameraRig.Resize(context.WindowWidth, context.WindowHeight);
         _worldRenderer = new WorldSceneRenderer(context.Device, _options);
         _hudRenderer = new HudOverlayRenderer(context.Device, _worldRenderer.VectorArt);
+        _trade = new TradeInteraction(_session, _hudRenderer, _options, IsTraderNpc, this.OpenForgeWindow);
         if (!_options.MacroView)
         {
             this.ApplyZoomPreset(_hudRenderer.Settings.CameraZoomPreset);
@@ -169,13 +170,6 @@ public sealed class WorldGameplayScene : GameScene
             return;
         }
 
-        // Checked before the modal early-returns below, so a capture with CARBON_CAPTURE_MODAL still exits.
-        if (_options.AutoExit && _frameCount >= 25 + Math.Max(_options.CaptureFrames, _options.FrameStatsFrames))
-        {
-            context.Window.Close();
-            return;
-        }
-
         _cameraRig.Resize(context.WindowWidth, context.WindowHeight);
         DesktopInputFrame input = _screenshotAids.PinMouse(DesktopInputController.Poll(context.Input));
         _mouseScreenPosition = _screenshotAids.Apply(_hudRenderer, _session, context.WindowWidth, context.WindowHeight) ?? input.MouseScreenPosition;
@@ -206,6 +200,7 @@ public sealed class WorldGameplayScene : GameScene
             }
         }
 
+        _trade?.Sync(_frameCount);
         if (_hudRenderer.ShowSettingsModal)
         {
             if (input.LeftClickPressed)
@@ -440,6 +435,10 @@ public sealed class WorldGameplayScene : GameScene
                 }
             }
         }
+        else if (_hudRenderer.Trader is not null)
+        {
+            _trade?.HandleWindowInput(input, context.WindowWidth, context.WindowHeight);
+        }
         else
         {
             this.ResetInventoryDragState();
@@ -458,9 +457,9 @@ public sealed class WorldGameplayScene : GameScene
                 else
                 {
                     Vector2 aimWorld = _camera.ScreenToWorld(in mouseScreen);
-                    bool openedForgeNpc = false;
+                    bool openedForgeNpc = _trade?.TryClick(aimWorld) ?? false;
                     IReadOnlyList<RemoteEntityView> remotes = _session.RemoteEntities;
-                    for (int i = 0; i < remotes.Count; i++)
+                    for (int i = 0; !openedForgeNpc && i < remotes.Count; i++)
                     {
                         RemoteEntityView entity = remotes[i];
                         if (entity.Kind == EntityKind.Npc &&
@@ -548,7 +547,7 @@ public sealed class WorldGameplayScene : GameScene
 
             if (input.InteractOrPickupPressed)
             {
-                if (!_session.TryPickupNearbyLoot() && !_session.TryToggleNearbyDoor(out _) && _session.IsNearForgeStation())
+                if (!_session.TryPickupNearbyLoot() && _trade?.TryTalk() != true && !_session.TryToggleNearbyDoor(out _) && _session.IsNearForgeStation())
                 {
                     this.ToggleForgeStationModal();
                 }
@@ -596,7 +595,7 @@ public sealed class WorldGameplayScene : GameScene
 
         if (input.ScreenshotPressed)
         {
-            this.CaptureScreenshot(context.Window, _options.ScreenshotPath);
+            AutoCapture.Capture(context.Window, _options.ScreenshotPath);
         }
 
         if (input.ZoomMultiplier.HasValue)
@@ -678,18 +677,7 @@ public sealed class WorldGameplayScene : GameScene
             CaptureModalOpener.Open(_hudRenderer, _session, _options.CaptureModal);
         }
 
-        if (_frameCount >= 20 && !_hasAutoCaptured)
-        {
-            _hasAutoCaptured = true;
-            this.CaptureScreenshot(context.Window, _options.ScreenshotPath);
-        }
-        else if (_options.CaptureFrames > 0 && _frameCount > 20 && _frameCount <= 20 + _options.CaptureFrames)
-        {
-            string path = Path.Combine(
-                Path.GetDirectoryName(_options.ScreenshotPath) ?? string.Empty,
-                $"{Path.GetFileNameWithoutExtension(_options.ScreenshotPath)}_{_frameCount - 20:D3}.bmp");
-            ScreenshotHelper.Capture(context.Device.Gl, context.WindowWidth, context.WindowHeight, path);
-        }
+        _capture.AfterFrame(context, _frameCount, _trade?.IsCaptureWaiting(_frameCount) == true);
 
         GLEnum glError = context.Device.Gl.GetError();
         if (glError != GLEnum.NoError)
@@ -1055,6 +1043,10 @@ public sealed class WorldGameplayScene : GameScene
         return true;
     }
 
+    /// <summary>Gets whether an NPC archetype trades (the village and sanctuary traders, ADR-025).</summary>
+    private static bool IsTraderNpc(in RemoteEntityView entity) =>
+        entity.Kind == EntityKind.Npc && WorldActorCatalog.GetNpcSpec(entity.ArchetypeId).Capabilities.HasFlag(NpcCapabilities.Trader);
+
     private void UpdateTelemetry(IGameWindow window, int ptx, int pty)
     {
         ChunkWorld2D chunkWorld = _session.ChunkWorld;
@@ -1104,19 +1096,6 @@ public sealed class WorldGameplayScene : GameScene
             _lastChunk = (chunkX, chunkY);
             Console.WriteLine($"[ChunkStream] Chunk ({chunkX}, {chunkY}) | Active: {chunkWorld.LoadedChunkCount} | Pooled: {chunkWorld.PooledChunkCount}");
             _worldRenderer?.EvictDistant(chunkX, chunkY, 7);
-        }
-    }
-
-    private void CaptureScreenshot(IGameWindow window, string filePath)
-    {
-        try
-        {
-            ScreenshotHelper.Capture(window.Device.Gl, window.Width, window.Height, filePath);
-            Console.WriteLine($"[Screenshot] Saved capture to: {filePath}");
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
-        {
-            Console.WriteLine($"[Screenshot Error] {ex.Message}");
         }
     }
 }

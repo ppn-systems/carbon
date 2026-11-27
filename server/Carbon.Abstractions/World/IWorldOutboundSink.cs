@@ -206,6 +206,11 @@ public interface IWorldOutboundSink
     /// <summary>Pushes the owning player's server-authoritative gold and diamond balances (ADR-012).</summary>
     void SendWalletSync(ulong connectionId, long gold, long diamonds, ulong sequence);
 
+    /// <summary>Pushes a trader's stock to the player trading with it (ADR-025). Sinks without trading ignore it.</summary>
+    void SendTraderStock(ulong connectionId, TraderStockSnapshot stock)
+    {
+    }
+
     /// <summary>Broadcasts active ability cast VFX coordinates to AoI observers.</summary>
     void SendSkillCastBroadcast(
         ReadOnlySpan<ulong> recipientConnectionIds,

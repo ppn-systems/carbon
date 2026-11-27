@@ -152,19 +152,49 @@ The traders of §3 use the `store` and `stall` NPC spots.
 
 - **Profiles.** `resources/config/traders.json` is server-only and hot-reloads with the economy. Each profile has a slot count, weighted entries (item code, quantity range, optional styles), a price variance and a restock period with jitter. The loader rejects unknown items, and rejects any variance that could sell an item at or below the vendor's buy-back price.
 - **Epochs.** A restock epoch is `floor((unixSeconds + jitter(trader)) / period)`, using server wall-clock time, so stock survives restarts and villages restock at different moments.
-- **Stock.** The stock of an epoch is a pure function `(world seed, trader key, epoch, profile, style)`, rolled with `DeterministicRandom`. Only the quantity sold in the current epoch is state, kept in the `trader_stock` table.
+- **Stock.** The stock of an epoch is a pure function `(world seed, trader key, epoch, profile, style)`, rolled by `TraderStockRoller` with `DeterministicRandom`.
+  - `TraderStockRoller` picks distinct weighted entries, filtered by village style.
+  - Only the quantity sold in the current epoch is state (`TraderBook`), kept in the `trader_stock` table. The table is created idempotently with the base schema in SQLite and PostgreSQL.
+  - The trader key mixes the village centre with the building role (`SettlementNpcSpawner.TraderKeyOf`), so it is stable for a given world.
+- **Prices.** A unit price is the list price (`PriceBook.GetListPrice`: base × buy markup, consumables by the buyer's level band), shifted by the slot's rolled offset. It is never at or below the vendor buy-back price.
+- **Server.** `TradeService` (`server/Carbon.Application/World/Commerce`) has its own command queue, drained on the world tick, and pushes stock through the outbound tick buffer. The `ItemHandlers.Trade` partial routes the three C2S opcodes.
 - **Wire.**
   - C2S: `TraderOpen` `0x4040`, `TraderBuy` `0x4041` (carries the epoch it was priced in), `TraderSell` `0x4042`.
   - S2C: `TraderStock` `0x4048` carries items, prices, remaining quantities, sell prices and seconds until restock.
   - Results come back as `MutationResult`, followed by `TraderStock` and `WalletSync`.
 - **Rules.** The player must be within 175 px of a live trader. A buy needs a valid slot, enough remaining stock, gold and bag space, and commits all of them atomically. A stale epoch is refused with `Conflict`. A sell pays the economy sell price (25 % spread, a gold sink).
-- **Desktop.** A trade window (nine-slice, ADR-008) has buy and sell grids with icons, prices, stock counts, the wallet and a restock countdown. Its strings live in one constants class until the i18n work lands.
+- **Desktop.** `TradeModalWidget` (nine-slice, ADR-008) shows:
+  - the stock rows: icon, name, units left with a gauge, and the price, in red when unaffordable;
+  - the bag grid, with what the trader pays per item; items the trader does not buy are dimmed;
+  - the wallet and a live restock countdown.
+
+  Controls:
+  - `E` near a trader, or clicking one, opens the window.
+  - Clicking a row buys 1; Shift-click buys 5.
+  - Clicking a bag item sells 1; Shift-click sells the stack.
+  - Walking away, opening another window or `Esc` closes it.
+
+  All strings are in `resources/localization/{en,vi}.ini` under `[trade]` (ADR-023).
+
+  The code is split to stay within the client size caps (audit round 2):
+  - `TraderSession` (networking) holds the pushed stock and sends the requests. It is reached through `IGameplayController.Trading`.
+  - `TradeInteraction` (scene) decides when to talk, click, open and close.
+  - `TradeModalWidget` (HUD) is stateless; it draws the window and hit-tests it.
+- **Screenshots.** `tools/screenshots/capture.sh <out> '^trade_'` spawns the player in front of the market stall and opens the trader (`CARBON_OPEN_TRADER=1`).
 
 ## 4. Blacksmith
 
-The village and sanctuary blacksmith (`MasterBlacksmith`) trades from the `blacksmith` profile (weapons, armor, tools) and repairs at the forge (`RepairInventoryItem`).
+The village blacksmith (at the smithy's forge) and the sanctuary blacksmith (beside the world spawn) are both traders. Their `MasterBlacksmith` spec has `NpcCapabilities.ForgeArtisan | NpcCapabilities.Trader`.
 
-Enhancement is owned by the enhancement work (`ItemEnhancementPolicy`, its own forge window, ADR-022). The blacksmith window only calls `IGameplayController.OpenEnhancementWindow` and does not duplicate it.
+- **Stock.** He trades from the `blacksmith` profile: weapons, armor, tools and smithing materials, with the same seeded, restocking, limited stock as the other traders (§3).
+  - The village smith's key is `TraderKeyOf(village, Smithy)` and his style is the village's.
+  - The sanctuary smith's key comes from the spawn tile, and his style is temperate.
+- **Repair.** The `TraderStock` push carries `RepairSlots` and `RepairCosts`, the server's quotes (`PriceBook.GetRepairCost`) for each worn item in the bag.
+  - The window's **Repair** button switches the bag to repair mode. Worn gear shows the server's repair quote; everything else is dimmed. The client never prices a repair.
+  - A click sends the existing `RepairInventoryItem`. The server already accepts it next to a forge-artisan NPC (`InventoryService.IsNearForgeStation`).
+  - On success the window re-opens the trader to refresh the quotes. A `Conflict` (not enough gold) shows a toast.
+- **Enhancement.** The enhancement work owns this (`ItemEnhancementPolicy` and the forge window, ADR-022/024). The window's **Enhance…** button only calls the scene's existing forge entry point, `WorldGameplayScene.OpenForgeWindow`, which closes the trade window and opens the forge. Nothing in the enhancement window is duplicated. `U` still opens the forge directly.
+- **Input.** `E` or a click on the blacksmith opens his trade window; the click no longer also opens the forge. His nameplate reads `[E: TRADE  U: FORGE]`.
 
 ## 5. Tests
 
@@ -174,5 +204,12 @@ Enhancement is owned by the enhancement work (`ItemEnhancementPolicy`, its own f
 | `LandmarkCollisionTests` (Maps) | Real village house: walls push out, a closed door blocks and an open one lets you in, the interior is roofed, and the ground in front is free. |
 | `SettlementNpcSpawnerTests` (Host) | A village is built once with one guard; the blacksmith stands next to the forge; deconstruct and damage are refused. |
 | `VectorArtAndArchitectureTests` (Desktop) | Every structure type has art (doors with open shapes). |
+| `TraderTests` (Economy) | Shipped profiles load; invalid documents are rejected (unknown item, variance, quantities, too few entries, jitter, style); stock is deterministic per epoch and changes at restock; slots are distinct and style-correct, within quantity and variance ranges; prices stay within variance and above the buy-back price at levels 1/30/80; the epoch clock and per-trader jitter; limited quantity sells out and the next epoch restocks; failures change nothing (funds, full bag, slot, quantity, stale epoch, unknown trader); sales drain and import. |
+| `TraderWorldTests` (Host) | Through the real world: open a merchant and buy (wallet and stock change); more than is left, a stale epoch, a bad slot and an unknown trader are refused; selling pays less than the buy price; a far player is out of range; sales persist across a server restart on SQLite; the next epoch is fully restocked. The smithy's blacksmith sells only `blacksmith` profile items, quotes a worn sword at exactly `PriceBook.GetRepairCost`, repairs it for that gold, and quotes nothing afterwards. The sanctuary blacksmith trades too. The merchant quotes no repairs. |
 
-Screenshots: `tools/screenshots/capture.sh <out> '^village_'` captures one village per style, a macro view and a night view (`CARBON_DEBUG_SPAWN_POI=<PointOfInterestType>`).
+Screenshots:
+- `tools/screenshots/capture.sh <out> '^village_'` captures one village per style, a macro view and a night view (`CARBON_DEBUG_SPAWN_POI=<PointOfInterestType>`).
+- `'^trade_'` captures the merchant, a desert trader and the blacksmith, in sell mode and in repair mode.
+  - `CARBON_DEBUG_SPAWN_POI=RiverVillage:Smithy` spawns in front of a named building.
+  - `CARBON_DEBUG_WORN_GEAR=1` wears the starting gear to 40 %.
+  - `CARBON_OPEN_TRADER=repair` opens the window in repair mode.

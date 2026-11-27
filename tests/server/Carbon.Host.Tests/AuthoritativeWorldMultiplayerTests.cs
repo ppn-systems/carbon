@@ -1756,6 +1756,11 @@ public sealed class AuthoritativeWorldMultiplayerTests
         public void SendWalletSync(ulong connectionId, long gold, long diamonds, ulong sequence) =>
             this.WalletSyncs.Add((connectionId, gold, diamonds, sequence));
 
+        public List<(ulong ConnectionId, TraderStockSnapshot Stock)> TraderStocks { get; } = [];
+
+        public void SendTraderStock(ulong connectionId, TraderStockSnapshot stock) =>
+            this.TraderStocks.Add((connectionId, stock));
+
         public List<(ulong ConnectionId, PlayerNeedsSnapshot Needs)> NeedsSyncs { get; } = [];
         public List<(ulong ConnectionId, ushort SlotIndex, uint ItemId, float FreshnessSeconds)> SlotFreshness { get; } = [];
 

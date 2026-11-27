@@ -83,6 +83,9 @@ internal readonly record struct OutboundStatsSync(ulong ConnectionId, PlayerStat
 
 internal readonly record struct OutboundWalletSync(ulong ConnectionId, long Gold, long Diamonds, ulong Sequence);
 
+/// <summary>A trader's stock pushed to one player (ADR-025).</summary>
+internal readonly record struct OutboundTraderStock(ulong ConnectionId, TraderStockSnapshot Stock);
+
 internal readonly record struct OutboundSkillCast(
     int RecipientsOffset,
     int RecipientsCount,
@@ -134,6 +137,8 @@ internal sealed class OutboundBatch
 
     public List<OutboundWalletSync> WalletSyncs { get; } = new(16);
 
+    public List<OutboundTraderStock> TraderStocks { get; } = new(4);
+
     public List<OutboundSkillCast> SkillCasts { get; } = new(16);
 
     public List<OutboundAttackPhase> AttackPhases { get; } = new(32);
@@ -156,6 +161,7 @@ internal sealed class OutboundBatch
         this.EquipmentChanges.Clear();
         this.StatsSyncs.Clear();
         this.WalletSyncs.Clear();
+        this.TraderStocks.Clear();
         this.SkillCasts.Clear();
         this.AttackPhases.Clear();
         this.EnhancementAnnouncements.Clear();
@@ -296,6 +302,12 @@ internal sealed class OutboundTickBuffer
         {
             OutboundWalletSync wallet = batch.WalletSyncs[i];
             sink.SendWalletSync(wallet.ConnectionId, wallet.Gold, wallet.Diamonds, wallet.Sequence);
+        }
+
+        for (int i = 0; i < batch.TraderStocks.Count; i++)
+        {
+            OutboundTraderStock trader = batch.TraderStocks[i];
+            sink.SendTraderStock(trader.ConnectionId, trader.Stock);
         }
 
         for (int i = 0; i < batch.EnhancementAnnouncements.Count; i++)
