@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using System.Threading.Tasks;
 using Carbon.Contracts.Identity;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Identity;
@@ -58,6 +57,9 @@ public sealed class CharacterSelectScene : GameScene
 
     private readonly MenuFlow _flow;
     private readonly IWorldSession _session;
+    private readonly CharacterRoster _roster = new();
+    private readonly HeroAppearance _appearance = new();
+    private readonly CharacterRosterRequests _requests;
 
     private readonly MenuTextField _createNameField;
     private readonly MenuButton _enterWorldButton = new(GameText.Get("character.enter_world"), MenuButtonStyle.SecondaryEmerald);
@@ -76,7 +78,7 @@ public sealed class CharacterSelectScene : GameScene
     private readonly MenuButton _skinPrevBtn = new("<", MenuButtonStyle.NeutralSlate);
     private readonly MenuButton _skinNextBtn = new(">", MenuButtonStyle.NeutralSlate);
     private readonly MenuButton _logoutButton = new(GameText.Get("character.logout"), MenuButtonStyle.DangerRed);
-    private readonly RectangleF[] _slotBounds = new RectangleF[4];
+    private readonly RectangleF[] _slotBounds = new RectangleF[CharacterRoster.MaxHeroes];
     private RectangleF _freshStartBounds;
 
     private GeometryBatch? _geometryBatch;
@@ -86,21 +88,8 @@ public sealed class CharacterSelectScene : GameScene
     private IVectorArtRepository? _vectorArt;
     private IInputManager? _boundInput;
 
-    private IReadOnlyList<CharacterRosterEntry> _characters = [];
-    private int _selectedIndex;
     private int _turnIndex;
-    private byte _hairStyle;
-    private byte _hairColor;
-    private byte _faceStyle;
-    private byte _skinTone;
-    private byte _selectedPreset;
     private bool _isCreatorMode;
-    private string? _preferSelectName;
-
-    private Task<IReadOnlyList<CharacterRosterEntry>>? _listTask;
-    private Task<(bool Succeeded, string Message)>? _createTask;
-    private Task<(bool Succeeded, string Message)>? _enterTask;
-    private Task? _logoutTask;
 
     private float _elapsed;
     private float _backspaceHoldTime;
@@ -115,8 +104,6 @@ public sealed class CharacterSelectScene : GameScene
     private readonly CachedText _dossierText = new();
     private readonly CachedText _positionText = new();
     private readonly CachedText[] _rosterRowText = [new(), new(), new(), new()];
-    private string _statusMessage = GameText.Get("character.status.loading");
-    private bool _statusIsError;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CharacterSelectScene"/> class.
@@ -126,6 +113,7 @@ public sealed class CharacterSelectScene : GameScene
     {
         _flow = flow ?? throw new ArgumentNullException(nameof(flow));
         _session = flow.Session;
+        _requests = new CharacterRosterRequests(_session, flow.SignOutAsync, _roster);
         DesktopOptions options = flow.Options;
         _capture = new MenuSceneCapture(options, "characters");
 
@@ -136,22 +124,22 @@ public sealed class CharacterSelectScene : GameScene
     }
 
     /// <summary>Gets the status line under the panels (behaviour tests).</summary>
-    internal string StatusMessage => _statusMessage;
+    internal string StatusMessage => _requests.StatusMessage;
 
     /// <summary>Gets whether the status line is an error (behaviour tests).</summary>
-    internal bool StatusIsError => _statusIsError;
+    internal bool StatusIsError => _requests.StatusIsError;
 
     /// <summary>Gets whether the creator panel is shown instead of the roster (behaviour tests).</summary>
     internal bool IsCreatorMode => _isCreatorMode;
 
     /// <summary>Gets the heroes last loaded from the server (behaviour tests).</summary>
-    internal IReadOnlyList<CharacterRosterEntry> Characters => _characters;
+    internal IReadOnlyList<CharacterRosterEntry> Characters => _roster.Heroes;
 
     /// <summary>Gets the selected roster row (behaviour tests).</summary>
-    internal int SelectedIndex => _selectedIndex;
+    internal int SelectedIndex => _roster.SelectedIndex;
 
     /// <summary>Gets the packed appearance the creator would send (behaviour tests).</summary>
-    internal byte AppearancePreset => _selectedPreset;
+    internal byte AppearancePreset => _appearance.Preset;
 
     /// <summary>Gets the preview turntable direction index (behaviour tests).</summary>
     internal int TurnIndex => _turnIndex;
@@ -175,7 +163,7 @@ public sealed class CharacterSelectScene : GameScene
         base.Enter(context);
 
         this.AttachInput(context.Input);
-        _listTask = _session.ListCharactersAsync();
+        _requests.LoadRoster();
     }
 
     /// <inheritdoc/>
@@ -192,9 +180,9 @@ public sealed class CharacterSelectScene : GameScene
         base.Update(context, dt);
 
         _elapsed += (float)dt;
-        this.PollAsyncTasks(context);
+        this.PollRequests(context);
 
-        if (_logoutTask is not null || _enterTask is not null)
+        if (_requests.IsSigningOut || _requests.IsEnteringWorld)
         {
             return;
         }
@@ -205,7 +193,7 @@ public sealed class CharacterSelectScene : GameScene
 
         KeyboardSnapshot kb = context.Input.Keyboard;
         MouseSnapshot mouse = context.Input.Mouse;
-        bool busy = _listTask is not null || _createTask is not null;
+        bool busy = _requests.IsLoadingRoster || _requests.IsCreating;
 
         if (kb.IsKeyPressed(Key.Escape))
         {
@@ -213,7 +201,7 @@ public sealed class CharacterSelectScene : GameScene
             {
                 _createNameField.IsFocused = false;
             }
-            else if (_isCreatorMode && _characters.Count > 0)
+            else if (_isCreatorMode && _roster.Count > 0)
             {
                 _isCreatorMode = false;
             }
@@ -224,15 +212,15 @@ public sealed class CharacterSelectScene : GameScene
             }
         }
 
-        if (!_isCreatorMode && _characters.Count > 0)
+        if (!_isCreatorMode && _roster.Count > 0)
         {
             if (kb.IsKeyPressed(Key.Up))
             {
-                _selectedIndex = (_selectedIndex + _characters.Count - 1) % _characters.Count;
+                _roster.SelectPrevious();
             }
             else if (kb.IsKeyPressed(Key.Down))
             {
-                _selectedIndex = (_selectedIndex + 1) % _characters.Count;
+                _roster.SelectNext();
             }
         }
 
@@ -332,17 +320,17 @@ public sealed class CharacterSelectScene : GameScene
             _randomizeBtn.DrawSkin(spriteBatch, _uiSkin);
             _createNameField.DrawSkin(spriteBatch, _uiSkin);
             _createButton.DrawSkin(spriteBatch, _uiSkin);
-            if (_characters.Count > 0)
+            if (_roster.Count > 0)
             {
                 _backToRosterButton.DrawSkin(spriteBatch, _uiSkin);
             }
         }
         else
         {
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < CharacterRoster.MaxHeroes; i++)
             {
-                bool occupied = i < _characters.Count;
-                bool sel = occupied && i == _selectedIndex;
+                bool occupied = i < _roster.Count;
+                bool sel = occupied && i == _roster.SelectedIndex;
                 ColorRgba border = sel ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle;
                 ColorRgba body = sel ? CarbonUiPalette.SlotSelectedFill : new ColorRgba(CarbonUiPalette.SlotFill.R, CarbonUiPalette.SlotFill.G, CarbonUiPalette.SlotFill.B, occupied ? (byte)234 : (byte)175);
                 _uiSkin.DrawPanel(spriteBatch, UiPanelStyle.DoubleCard, in _slotBounds[i], body, border);
@@ -353,7 +341,7 @@ public sealed class CharacterSelectScene : GameScene
                 }
             }
 
-            if (_characters.Count < 4)
+            if (_roster.HasFreeSlot)
             {
                 _openCreatorButton.DrawSkin(spriteBatch, _uiSkin);
             }
@@ -364,7 +352,7 @@ public sealed class CharacterSelectScene : GameScene
         _turnLeftBtn.DrawSkin(spriteBatch, _uiSkin);
         _turnRightBtn.DrawSkin(spriteBatch, _uiSkin);
         _logoutButton.DrawSkin(spriteBatch, _uiSkin);
-        _uiSkin.DrawInset(spriteBatch, in statusPill, CarbonUiPalette.SlotFill, _statusIsError ? CarbonUiPalette.DangerBorder : CarbonUiPalette.BorderSubtle);
+        _uiSkin.DrawInset(spriteBatch, in statusPill, CarbonUiPalette.SlotFill, _requests.StatusIsError ? CarbonUiPalette.DangerBorder : CarbonUiPalette.BorderSubtle);
         spriteBatch.End();
 
         // Pass 3: Live Vector Hero Pedestal, Portraits & Cursor
@@ -375,16 +363,16 @@ public sealed class CharacterSelectScene : GameScene
         _geometryBatch.FillCircle(new Vector2(stageCx, stageCy), 44f, new ColorRgba(6, 10, 18, 145), 22);
         _geometryBatch.DrawCircle(new Vector2(stageCx, stageCy), 45f, CarbonUiPalette.BorderOuter, 22, 1.8f);
 
-        byte previewPreset = _isCreatorMode || _selectedIndex < 0 || _selectedIndex >= _characters.Count
-            ? _selectedPreset
-            : _characters[_selectedIndex].AppearancePreset;
+        byte previewPreset = _isCreatorMode || !_roster.HasSelection
+            ? _appearance.Preset
+            : _roster.Heroes[_roster.SelectedIndex].AppearancePreset;
         if (_vectorArt is not null && _vectorArt.TryGetCharacter(previewPreset, out CompiledVectorRig? stageRig))
         {
             CompiledItemVectorArt? weaponArt = null;
             VisualEquipmentLoadout previewLoadout = default;
             // A new hero arrives with nothing (ADR-030); a hero created with a class shows that class's starter kit.
-            HeroArchetypeClass previewClass = !_isCreatorMode && _selectedIndex >= 0 && _selectedIndex < _characters.Count
-                ? _characters[_selectedIndex].Class
+            HeroArchetypeClass previewClass = !_isCreatorMode && _roster.HasSelection
+                ? _roster.Heroes[_roster.SelectedIndex].Class
                 : HeroArchetypeClass.None;
             if ((int)previewClass < s_classWeapons.Length)
             {
@@ -423,9 +411,9 @@ public sealed class CharacterSelectScene : GameScene
         }
         else if (_vectorArt is not null)
         {
-            for (int i = 0; i < 4 && i < _characters.Count; i++)
+            for (int i = 0; i < _roster.Count; i++)
             {
-                if (_vectorArt.TryGetCharacter(_characters[i].AppearancePreset, out CompiledVectorRig? cardRig))
+                if (_vectorArt.TryGetCharacter(_roster.Heroes[i].AppearancePreset, out CompiledVectorRig? cardRig))
                 {
                     RectangleF b = _slotBounds[i];
                     VectorRigRenderer.DrawPortraitRig(
@@ -436,7 +424,7 @@ public sealed class CharacterSelectScene : GameScene
                         Direction8.South,
                         "idle",
                         _elapsed + (i * 0.25f),
-                        appearancePreset: _characters[i].AppearancePreset,
+                        appearancePreset: _roster.Heroes[i].AppearancePreset,
                         art: _vectorArt);
                 }
             }
@@ -450,7 +438,7 @@ public sealed class CharacterSelectScene : GameScene
 
         string header = _isCreatorMode
             ? GameText.Get("character.header.creator")
-            : _headerText.Format("character.header.roster", new TextArg("count", _characters.Count), new TextArg("max", 4));
+            : _headerText.Format("character.header.roster", new TextArg("count", _roster.Count), new TextArg("max", CharacterRoster.MaxHeroes));
         spriteBatch.DrawOutlinedString(_font, header, new Vector2(ox + 22f, oy + 18f), CarbonUiPalette.TextWarm, black, 2, 1.5f);
         spriteBatch.DrawOutlinedString(_font, _netText.Format("character.connection", new TextArg("status", _session.ConnectionLabel)), new Vector2(ox + 686f, oy + 22f), CarbonUiPalette.TextMuted, black, 1, 1f);
 
@@ -468,10 +456,10 @@ public sealed class CharacterSelectScene : GameScene
             }
 
             spriteBatch.DrawOutlinedString(_font, GameText.Get("character.appearance"), new Vector2(rightCard.X + 16f, rightCard.Y + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
-            spriteBatch.DrawOutlinedString(_font, _hairText.Format("character.appearance.hair", new TextArg("value", GameText.Get(s_hairStyles[_hairStyle]))), new Vector2(rightCard.X + 52f, rightCard.Y + 49f), CarbonUiPalette.TextPrimary, black, 1, 1f);
-            spriteBatch.DrawOutlinedString(_font, _toneText.Format("character.appearance.hair_color", new TextArg("value", GameText.Get(s_hairColors[_hairColor]))), new Vector2(rightCard.X + 52f, rightCard.Y + 83f), CarbonUiPalette.TextPrimary, black, 1, 1f);
-            spriteBatch.DrawOutlinedString(_font, _eyesText.Format("character.appearance.eyes", new TextArg("value", GameText.Get(s_faceStyles[_faceStyle]))), new Vector2(rightCard.X + 52f, rightCard.Y + 117f), CarbonUiPalette.TextPrimary, black, 1, 1f);
-            spriteBatch.DrawOutlinedString(_font, _skinText.Format("character.appearance.skin", new TextArg("value", GameText.Get(s_skinTones[_skinTone]))), new Vector2(rightCard.X + 52f, rightCard.Y + 151f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(_font, _hairText.Format("character.appearance.hair", new TextArg("value", GameText.Get(s_hairStyles[_appearance.HairStyle]))), new Vector2(rightCard.X + 52f, rightCard.Y + 49f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(_font, _toneText.Format("character.appearance.hair_color", new TextArg("value", GameText.Get(s_hairColors[_appearance.HairColor]))), new Vector2(rightCard.X + 52f, rightCard.Y + 83f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(_font, _eyesText.Format("character.appearance.eyes", new TextArg("value", GameText.Get(s_faceStyles[_appearance.FaceStyle]))), new Vector2(rightCard.X + 52f, rightCard.Y + 117f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(_font, _skinText.Format("character.appearance.skin", new TextArg("value", GameText.Get(s_skinTones[_appearance.SkinTone]))), new Vector2(rightCard.X + 52f, rightCard.Y + 151f), CarbonUiPalette.TextPrimary, black, 1, 1f);
 
             _hairPrevBtn.DrawText(spriteBatch, _font);
             _hairNextBtn.DrawText(spriteBatch, _font);
@@ -484,20 +472,20 @@ public sealed class CharacterSelectScene : GameScene
             _randomizeBtn.DrawText(spriteBatch, _font);
             _createNameField.DrawText(spriteBatch, _font);
             _createButton.DrawText(spriteBatch, _font);
-            if (_characters.Count > 0)
+            if (_roster.Count > 0)
             {
                 _backToRosterButton.DrawText(spriteBatch, _font);
             }
         }
         else
         {
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < CharacterRoster.MaxHeroes; i++)
             {
                 RectangleF b = _slotBounds[i];
-                if (i < _characters.Count)
+                if (i < _roster.Count)
                 {
-                    CharacterRosterEntry c = _characters[i];
-                    ColorRgba nc = i == _selectedIndex ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextPrimary;
+                    CharacterRosterEntry c = _roster.Heroes[i];
+                    ColorRgba nc = i == _roster.SelectedIndex ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextPrimary;
                     string clsLabel = GameText.ClassName(c.Class);
                     spriteBatch.DrawOutlinedString(_font, CarbonUiSkin.TruncateToWidth(_font, c.Name, b.Width - 82f, 1.25f), new Vector2(b.X + 70f, b.Y + 14f), nc, black, 1, 1.25f);
                     spriteBatch.DrawOutlinedString(_font, _rosterRowText[i].Format("character.roster_row", new TextArg("class", clsLabel), new TextArg("level", c.Level)), new Vector2(b.X + 70f, b.Y + 42f), CarbonUiPalette.TextMuted, black, 1, 1f);
@@ -509,16 +497,16 @@ public sealed class CharacterSelectScene : GameScene
             }
 
             spriteBatch.DrawOutlinedString(_font, GameText.Get("character.dossier"), new Vector2(rightCard.X + 16f, rightCard.Y + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
-            if (_selectedIndex >= 0 && _selectedIndex < _characters.Count)
+            if (_roster.HasSelection)
             {
-                CharacterRosterEntry sel = _characters[_selectedIndex];
+                CharacterRosterEntry sel = _roster.Heroes[_roster.SelectedIndex];
                 string selCls = GameText.ClassName(sel.Class);
                 spriteBatch.DrawOutlinedString(_font, CarbonUiSkin.TruncateToWidth(_font, sel.Name.ToUpperInvariant(), rightCard.Width - 32f, 1.5f), new Vector2(rightCard.X + 16f, rightCard.Y + 44f), CarbonUiPalette.TextPrimary, black, 1, 1.5f);
                 spriteBatch.DrawOutlinedString(_font, _dossierText.Format("character.dossier_line", new TextArg("class", selCls), new TextArg("level", sel.Level), new TextArg("tier", sel.ZoneTier)), new Vector2(rightCard.X + 16f, rightCard.Y + 78f), CarbonUiPalette.TextWarm, black, 1, 1f);
                 spriteBatch.DrawOutlinedString(_font, _positionText.Format("character.position", new TextArg("x", (int)sel.PositionX), new TextArg("y", (int)sel.PositionY)), new Vector2(rightCard.X + 16f, rightCard.Y + 102f), CarbonUiPalette.TextMuted, black, 1, 1f);
             }
 
-            if (_characters.Count < 4)
+            if (_roster.HasFreeSlot)
             {
                 _openCreatorButton.DrawText(spriteBatch, _font);
             }
@@ -530,16 +518,16 @@ public sealed class CharacterSelectScene : GameScene
         _turnRightBtn.DrawText(spriteBatch, _font);
         _logoutButton.DrawText(spriteBatch, _font);
 
-        ColorRgba statusColor = _statusIsError
+        ColorRgba statusColor = _requests.StatusIsError
             ? new ColorRgba(235, 130, 130, 255)
             : CarbonUiPalette.TextPrimary;
-        string status = CarbonUiSkin.TruncateToWidth(_font, _statusMessage, statusPill.Width - 20f, 1f);
+        string status = CarbonUiSkin.TruncateToWidth(_font, _requests.StatusMessage, statusPill.Width - 20f, 1f);
         spriteBatch.DrawOutlinedString(_font, status, new Vector2(statusPill.X + 10f, statusPill.Y + 7f), statusColor, black, 1, 1f);
         spriteBatch.End();
 
         base.Render(context, spriteBatch, dt);
 
-        _capture.AfterRender(context, ready: _listTask is null && _createTask is null);
+        _capture.AfterRender(context, ready: !_requests.IsLoadingRoster && !_requests.IsCreating);
     }
 
     /// <inheritdoc/>
@@ -567,29 +555,22 @@ public sealed class CharacterSelectScene : GameScene
         _createNameField.IsFocused = false;
         if (leftPressed && !busy)
         {
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < CharacterRoster.MaxHeroes; i++)
             {
-                if (_slotBounds[i].Contains(mousePos))
+                if (_slotBounds[i].Contains(mousePos) && !_roster.TrySelect(i) && _roster.HasFreeSlot)
                 {
-                    if (i < _characters.Count)
-                    {
-                        _selectedIndex = i;
-                    }
-                    else if (_characters.Count < 4)
-                    {
-                        _isCreatorMode = true;
-                        _createNameField.IsFocused = true;
-                        return;
-                    }
+                    _isCreatorMode = true;
+                    _createNameField.IsFocused = true;
+                    return;
                 }
             }
         }
 
-        bool hasSelection = _selectedIndex >= 0 && _selectedIndex < _characters.Count;
+        bool hasSelection = _roster.HasSelection;
         _enterWorldButton.IsEnabled = !busy && hasSelection;
-        _openCreatorButton.IsEnabled = !busy && _characters.Count < 4;
+        _openCreatorButton.IsEnabled = !busy && _roster.HasFreeSlot;
 
-        if (_characters.Count < 4 && _openCreatorButton.Update(mousePos, leftDown, leftPressed))
+        if (_roster.HasFreeSlot && _openCreatorButton.Update(mousePos, leftDown, leftPressed))
         {
             _isCreatorMode = true;
             _createNameField.IsFocused = true;
@@ -599,10 +580,7 @@ public sealed class CharacterSelectScene : GameScene
         bool enterKey = !busy && (kb.IsKeyPressed(Key.Enter) || kb.IsKeyPressed(Key.KeypadEnter));
         if ((_enterWorldButton.Update(mousePos, leftDown, leftPressed) || enterKey) && hasSelection)
         {
-            CharacterRosterEntry hero = _characters[_selectedIndex];
-            _enterTask = _session.EnterWorldAsync(hero.CharacterId);
-            _statusIsError = false;
-            _statusMessage = GameText.Format("character.status.entering", new TextArg("name", hero.Name));
+            _requests.EnterWorld(_roster.Selected);
         }
     }
 
@@ -618,56 +596,51 @@ public sealed class CharacterSelectScene : GameScene
         _skinPrevBtn.IsEnabled = !busy;
         _skinNextBtn.IsEnabled = !busy;
         _randomizeBtn.IsEnabled = !busy;
-        _createButton.IsEnabled = !busy && _characters.Count < 4;
-        _backToRosterButton.IsEnabled = !busy && _characters.Count > 0;
+        _createButton.IsEnabled = !busy && _roster.HasFreeSlot;
+        _backToRosterButton.IsEnabled = !busy && _roster.Count > 0;
 
         if (_hairPrevBtn.Update(mousePos, leftDown, leftPressed))
         {
-            _hairStyle = (byte)((_hairStyle + 3) % 4);
+            _appearance.CycleHairStyle(-1);
         }
         else if (_hairNextBtn.Update(mousePos, leftDown, leftPressed))
         {
-            _hairStyle = (byte)((_hairStyle + 1) % 4);
+            _appearance.CycleHairStyle(1);
         }
 
         if (_hColPrevBtn.Update(mousePos, leftDown, leftPressed))
         {
-            _hairColor = (byte)((_hairColor + 3) % 4);
+            _appearance.CycleHairColor(-1);
         }
         else if (_hColNextBtn.Update(mousePos, leftDown, leftPressed))
         {
-            _hairColor = (byte)((_hairColor + 1) % 4);
+            _appearance.CycleHairColor(1);
         }
 
         if (_facePrevBtn.Update(mousePos, leftDown, leftPressed))
         {
-            _faceStyle = (byte)((_faceStyle + 3) % 4);
+            _appearance.CycleFaceStyle(-1);
         }
         else if (_faceNextBtn.Update(mousePos, leftDown, leftPressed))
         {
-            _faceStyle = (byte)((_faceStyle + 1) % 4);
+            _appearance.CycleFaceStyle(1);
         }
 
         if (_skinPrevBtn.Update(mousePos, leftDown, leftPressed))
         {
-            _skinTone = (byte)((_skinTone + 3) % 4);
+            _appearance.CycleSkinTone(-1);
         }
         else if (_skinNextBtn.Update(mousePos, leftDown, leftPressed))
         {
-            _skinTone = (byte)((_skinTone + 1) % 4);
+            _appearance.CycleSkinTone(1);
         }
 
         if (_randomizeBtn.Update(mousePos, leftDown, leftPressed))
         {
-            _hairStyle = (byte)Random.Shared.Next(4);
-            _hairColor = (byte)Random.Shared.Next(4);
-            _faceStyle = (byte)Random.Shared.Next(4);
-            _skinTone = (byte)Random.Shared.Next(4);
+            _appearance.Randomize(Random.Shared);
         }
 
-        _selectedPreset = CharacterAppearance.Pack(_hairStyle, _hairColor, _faceStyle, _skinTone);
-
-        if (_characters.Count > 0 && _backToRosterButton.Update(mousePos, leftDown, leftPressed))
+        if (_roster.Count > 0 && _backToRosterButton.Update(mousePos, leftDown, leftPressed))
         {
             _isCreatorMode = false;
             _createNameField.IsFocused = false;
@@ -675,30 +648,17 @@ public sealed class CharacterSelectScene : GameScene
         }
 
         bool enterKey = !busy && (kb.IsKeyPressed(Key.Enter) || kb.IsKeyPressed(Key.KeypadEnter));
-        if (_createButton.Update(mousePos, leftDown, leftPressed) || (enterKey && _createNameField.IsFocused && _characters.Count < 4))
+        if (_createButton.Update(mousePos, leftDown, leftPressed) || (enterKey && _createNameField.IsFocused && _roster.HasFreeSlot))
         {
-            _preferSelectName = _createNameField.Text.Trim();
-            _createTask = _session.CreateCharacterAsync(_createNameField.Text, _selectedPreset);
-            _statusIsError = false;
-            _statusMessage = GameText.Format("character.status.creating", new TextArg("name", _preferSelectName));
+            _requests.Create(_createNameField.Text, _appearance.Preset);
         }
     }
 
-    private void PollAsyncTasks(SceneContext context)
+    private void PollRequests(SceneContext context)
     {
-        if (_logoutTask is not null && _logoutTask.IsCompleted)
+        RosterPollResult result = _requests.Poll();
+        if (result.Outcome == RosterRequestOutcome.SignedOut)
         {
-            Task done = _logoutTask;
-            _logoutTask = null;
-            try
-            {
-                done.GetAwaiter().GetResult();
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException)
-            {
-                // Always return cleanly to the start screen.
-            }
-
             StartScene? next = null;
             try
             {
@@ -714,110 +674,33 @@ public sealed class CharacterSelectScene : GameScene
             return;
         }
 
-        if (_enterTask is not null && _enterTask.IsCompleted)
+        if (result.Outcome == RosterRequestOutcome.EnteredWorld)
         {
-            Task<(bool Succeeded, string Message)> done = _enterTask;
-            _enterTask = null;
+            WorldGameplayScene? next = null;
             try
             {
-                (bool ok, string msg) = done.GetAwaiter().GetResult();
-                if (ok)
-                {
-                    WorldGameplayScene? next = null;
-                    try
-                    {
-                        next = new WorldGameplayScene(_flow);
-                        context.SceneManager.ChangeScene(next, transitionDuration: 0.18f);
-                        next = null;
-                    }
-                    finally
-                    {
-                        next?.Dispose();
-                    }
-
-                    return;
-                }
-
-                _statusIsError = true;
-                _statusMessage = msg;
+                next = new WorldGameplayScene(_flow);
+                context.SceneManager.ChangeScene(next, transitionDuration: 0.18f);
+                next = null;
             }
-            catch (Exception ex) when (ex is not OutOfMemoryException)
+            finally
             {
-                Console.Error.WriteLine($"[Characters] Request failed: {ex.Message}");
-                _statusIsError = true;
-                _statusMessage = GameText.Get("auth.server_unreachable");
+                next?.Dispose();
             }
+
+            return;
         }
 
-        if (_createTask is not null && _createTask.IsCompleted)
+        if (result.HeroCreated)
         {
-            Task<(bool Succeeded, string Message)> done = _createTask;
-            _createTask = null;
-            try
-            {
-                (bool ok, string msg) = done.GetAwaiter().GetResult();
-                _statusIsError = !ok;
-                _statusMessage = msg;
-                if (ok)
-                {
-                    _isCreatorMode = false;
-                    _createNameField.IsFocused = false;
-                    _listTask = _session.ListCharactersAsync();
-                }
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException)
-            {
-                Console.Error.WriteLine($"[Characters] Request failed: {ex.Message}");
-                _statusIsError = true;
-                _statusMessage = GameText.Get("auth.server_unreachable");
-            }
+            _isCreatorMode = false;
+            _createNameField.IsFocused = false;
         }
 
-        if (_listTask is not null && _listTask.IsCompleted)
+        if (result.RosterLoadedEmpty)
         {
-            Task<IReadOnlyList<CharacterRosterEntry>> done = _listTask;
-            _listTask = null;
-            try
-            {
-                _characters = done.GetAwaiter().GetResult();
-                if (!string.IsNullOrEmpty(_preferSelectName))
-                {
-                    for (int i = 0; i < _characters.Count; i++)
-                    {
-                        if (string.Equals(_characters[i].Name, _preferSelectName, StringComparison.OrdinalIgnoreCase))
-                        {
-                            _selectedIndex = i;
-                            break;
-                        }
-                    }
-
-                    _preferSelectName = null;
-                }
-                else if (_selectedIndex >= _characters.Count)
-                {
-                    _selectedIndex = Math.Max(0, _characters.Count - 1);
-                }
-
-                if (_characters.Count == 0)
-                {
-                    _isCreatorMode = true;
-                    _createNameField.IsFocused = true;
-                }
-
-                if (_createTask is null)
-                {
-                    _statusIsError = false;
-                    _statusMessage = _characters.Count > 0
-                        ? GameText.Plural("character.status.found", _characters.Count)
-                        : GameText.Get("character.status.welcome");
-                }
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException)
-            {
-                Console.Error.WriteLine($"[Characters] Roster load failed: {ex.Message}");
-                _statusIsError = true;
-                _statusMessage = GameText.Get("character.status.load_failed");
-            }
+            _isCreatorMode = true;
+            _createNameField.IsFocused = true;
         }
     }
 
@@ -832,7 +715,7 @@ public sealed class CharacterSelectScene : GameScene
         _turnLeftBtn.Bounds = new RectangleF(ox + 324f, oy + 404f, 112f, 32f);
         _turnRightBtn.Bounds = new RectangleF(ox + 448f, oy + 404f, 112f, 32f);
 
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < CharacterRoster.MaxHeroes; i++)
         {
             _slotBounds[i] = new RectangleF(ox + 22f, oy + 68f + (i * 84f), 270f, 76f);
         }
@@ -855,7 +738,7 @@ public sealed class CharacterSelectScene : GameScene
         _randomizeBtn.Bounds = new RectangleF(rx + 16f, ry + 184f, 274f, 32f);
 
         _createNameField.Bounds = new RectangleF(rx + 16f, ry + 250f, 274f, 36f);
-        if (_characters.Count > 0)
+        if (_roster.Count > 0)
         {
             _createButton.Bounds = new RectangleF(rx + 16f, ry + 302f, 182f, 44f);
             _backToRosterButton.Bounds = new RectangleF(rx + 206f, ry + 302f, 84f, 44f);
@@ -866,12 +749,7 @@ public sealed class CharacterSelectScene : GameScene
         }
     }
 
-    private void BeginLogout()
-    {
-        _logoutTask = _flow.SignOutAsync();
-        _statusIsError = false;
-        _statusMessage = GameText.Get("character.status.signing_out");
-    }
+    private void BeginLogout() => _requests.SignOut();
 
     private void HandleBackspaceRepeat(in KeyboardSnapshot kb, float dt)
     {
@@ -905,7 +783,7 @@ public sealed class CharacterSelectScene : GameScene
 
     private void OnCharacterReceived(char ch)
     {
-        if (_isCreatorMode && _createTask is null && _enterTask is null && _logoutTask is null)
+        if (_isCreatorMode && !_requests.IsCreating && !_requests.IsEnteringWorld && !_requests.IsSigningOut)
         {
             _createNameField.AppendChar(ch);
         }
