@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "itemId": 205,
+  "id": "forge_ward_scroll",
+  "displayName": "Forge Ward Scroll",
+  "tier": 2,
+  "categoryLabel": "Forge Protection",
+  "accentColor": "#60A5FA",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -5.0,
+      "y": -5.2,
+      "w": 10.0,
+      "h": 10.4,
+      "color": "#F1E4C3",
+      "outlineColor": "#3F2A14",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": -5.4,
+      "rx": 5.8,
+      "ry": 1.5,
+      "color": "#E7D3A8",
+      "outlineColor": "#3F2A14",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": 5.4,
+      "rx": 5.8,
+      "ry": 1.5,
+      "color": "#D9C08C",
+      "outlineColor": "#3F2A14",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -3.4,
+      "y": -3.0,
+      "w": 6.8,
+      "h": 0.7,
+      "color": "#8B6B3E"
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -3.4,
+      "y": -1.6,
+      "w": 5.2,
+      "h": 0.7,
+      "color": "#8B6B3E"
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -3.4,
+      "y": 2.0,
+      "w": 6.0,
+      "h": 0.7,
+      "color": "#8B6B3E"
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -5.4,
+      "y": -0.6,
+      "w": 10.8,
+      "h": 1.6,
+      "color": "#2563EB",
+      "outlineColor": "#1F2937",
+      "outlineThickness": 0.7
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          0,
+          -2.6
+        ],
+        [
+          2.4,
+          -0.4
+        ],
+        [
+          1.6,
+          2.6
+        ],
+        [
+          -1.6,
+          2.6
+        ],
+        [
+          -2.4,
+          -0.4
+        ]
+      ],
+      "color": "#1D4ED8",
+      "outlineColor": "#111827",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          0,
+          -1.4
+        ],
+        [
+          1.1,
+          -0.2
+        ],
+        [
+          0,
+          1.2
+        ],
+        [
+          -1.1,
+          -0.2
+        ]
+      ],
+      "color": "#93C5FD"
+    }
+  ],
+  "heldVisible": false
+}
