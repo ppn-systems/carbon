@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Numerics;
 using Carbon.Abstractions.Configuration;
@@ -11,6 +10,7 @@ using Carbon.Abstractions.World;
 using Carbon.Application.World;
 using Carbon.Contracts.Common;
 using Carbon.Infrastructure.Persistence.Sqlite;
+using Carbon.Testing;
 using Nalix.Abstractions.Primitives;
 using Microsoft.Data.Sqlite;
 
@@ -109,20 +109,11 @@ internal sealed class TickAllocationHarness : IDisposable
         this.World.StepFixedTick();
     }
 
-    /// <summary>Runs <paramref name="ticks"/> ticks and returns bytes allocated per tick and mean milliseconds per tick.</summary>
-    public (double BytesPerTick, double MillisecondsPerTick) Measure(int ticks)
-    {
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        long start = Stopwatch.GetTimestamp();
-        for (int i = 0; i < ticks; i++)
-        {
-            this.Step();
-        }
-
-        TimeSpan elapsed = Stopwatch.GetElapsedTime(start);
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        return ((double)allocated / ticks, elapsed.TotalMilliseconds / ticks);
-    }
+    /// <summary>
+    /// Runs <paramref name="ticks"/> ticks twice through the shared probe (warm the world up first) and returns the first
+    /// window; <see cref="AllocationResult.BytesPerIteration"/> is the bytes per tick.
+    /// </summary>
+    public AllocationResult Measure(int ticks) => AllocationProbe.Measure(ticks, warmupIterations: 0, i => this.Step());
 
     public void Dispose()
     {

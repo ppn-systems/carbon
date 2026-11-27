@@ -3,6 +3,7 @@
 using System.Threading.Tasks;
 using Carbon.Abstractions.Configuration;
 using Carbon.Abstractions.Persistence;
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
 using Xunit.Abstractions;
@@ -46,11 +47,11 @@ public sealed class StatusPulsePersistenceTests(ITestOutputHelper output)
             harness.Step();
         }
 
-        (double bytesPerTick, _) = harness.Measure(900);
-        output.WriteLine($"8 poisoned players: {bytesPerTick:F1} B/tick");
+        AllocationResult window = harness.Measure(900);
+        output.WriteLine($"8 poisoned players: {window.BytesPerIteration:F1} B/tick ({window})");
 
-        bytesPerTick.Should().BeLessThanOrEqualTo(
+        window.BytesPerIteration.Should().BeLessThanOrEqualTo(
             ServerTickAllocationTests.MaxBytesPerTick,
-            "a status pulse only flags the player; the record is built at flush time (AGENTS.md rule 4)");
+            $"a status pulse only flags the player; the record is built at flush time (AGENTS.md rule 4) ({window})");
     }
 }
