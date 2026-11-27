@@ -99,12 +99,12 @@ public sealed class StaminaConfig
             return StaminaSwingKind.BareHand;
         }
 
-        if (item.Capabilities.HasFlag(ToolCapabilities.MagicFocus))
+        if ((item.Capabilities & ToolCapabilities.MagicFocus) != 0)
         {
             return StaminaSwingKind.Spell;
         }
 
-        if (item.Capabilities.HasFlag(ToolCapabilities.RangedBow))
+        if ((item.Capabilities & ToolCapabilities.RangedBow) != 0)
         {
             return StaminaSwingKind.Ranged;
         }
@@ -114,7 +114,7 @@ public sealed class StaminaConfig
             return StaminaSwingKind.Tool;
         }
 
-        return item.Category == ItemCategory.Weapon || item.Capabilities.HasFlag(ToolCapabilities.MeleeWeapon)
+        return item.Category == ItemCategory.Weapon || (item.Capabilities & ToolCapabilities.MeleeWeapon) != 0
             ? StaminaSwingKind.Melee
             : StaminaSwingKind.BareHand;
     }

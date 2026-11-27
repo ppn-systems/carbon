@@ -217,7 +217,7 @@ internal sealed class PlayerActionService
             bool rangedCrit = this.RollCritical(state);
 
             // Staffs (MagicFocus) scale with spell power, bows with physical attack (ADR-021 D4).
-            float rangedScale = rangedDef.Capabilities.HasFlag(ToolCapabilities.MagicFocus) ? state.Stats.SpellPowerMultiplier : state.Stats.AttackMultiplier;
+            float rangedScale = (rangedDef.Capabilities & ToolCapabilities.MagicFocus) != 0 ? state.Stats.SpellPowerMultiplier : state.Stats.AttackMultiplier;
             float finalRangedDmg = CombatRoll.ApplyCritical(rangedEval.Damage * rangedScale, rangedCrit, state.Stats.CritDamage);
 
             if (this.WearActiveTool(state, in activeSlot, 0.8f, out ItemSlot degradedRanged))
@@ -275,7 +275,7 @@ internal sealed class PlayerActionService
     private int FindMeleeTargets(PlayerState state, in ItemSlot activeSlot, Vector2 attackerPos, Vector2 aimDir)
     {
         float meleeRange = MeleeStrikeRangePx;
-        if (!activeSlot.IsEmpty && this.Rules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? meleeDef) && meleeDef.Capabilities.HasFlag(ToolCapabilities.MeleeWeapon))
+        if (!activeSlot.IsEmpty && this.Rules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? meleeDef) && (meleeDef.Capabilities & ToolCapabilities.MeleeWeapon) != 0)
         {
             meleeRange = Math.Clamp(meleeDef.AttackRange, MeleeStrikeRangePx, 96f);
         }

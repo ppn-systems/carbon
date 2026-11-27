@@ -225,7 +225,7 @@ public static class SkillCatalog
             return true;
         }
 
-        return traits.HasFlag(CharacterTraits.ClassAdvanced) && skill.RequiredClass == heroClass;
+        return (traits & CharacterTraits.ClassAdvanced) != 0 && skill.RequiredClass == heroClass;
     }
 
     /// <summary>

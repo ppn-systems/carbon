@@ -1106,14 +1106,14 @@ public sealed partial class MultiplayerSession
 
         if (archetype.Category == ItemCategory.Tool)
         {
-            return archetype.Capabilities.HasFlag(ToolCapabilities.MineMineral)
+            return (archetype.Capabilities & ToolCapabilities.MineMineral) != 0
                 ? ActionAnimationKind.PickaxeMine
                 : ActionAnimationKind.AxeChop;
         }
 
         if (archetype.Category == ItemCategory.Weapon && archetype.ProjectileSpeed > 0f)
         {
-            return archetype.Capabilities.HasFlag(ToolCapabilities.MagicFocus)
+            return (archetype.Capabilities & ToolCapabilities.MagicFocus) != 0
                 ? ActionAnimationKind.StaffCast
                 : ActionAnimationKind.BowShot;
         }

@@ -61,30 +61,14 @@ public sealed class HotPathGuardTests
     }
 
     [Fact]
-    public void HotPathCode_EnumHasFlagCalls_AreTheOnesListedToday()
+    public void HotPathCode_ShouldNotCallEnumHasFlag()
     {
-        // Audit round 3, ALLOC-14 characterisation: Enum.HasFlag boxes until its caller tiers up (48 B a call), and a busy
-        // process defers tier-up. These are the hot-path calls today, per file (22 calls: ALLOC-14 lists 12 on tick paths, #235 fixes 1 more, and 9 are on client frame paths).
-        Dictionary<string, int> expected = new(StringComparer.Ordinal)
-        {
-            ["desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs"] = 2,
-            ["desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.cs"] = 2,
-            ["desktop/Carbon.Desktop.Rendering/Overlays/WorldEntityOverlayRenderer.cs"] = 1,
-            ["desktop/Carbon.Desktop/Gameplay/Input/WorldInteractionInput.cs"] = 1,
-            ["desktop/Carbon.Desktop/Gameplay/Interaction/InteractionController.cs"] = 2,
-            ["desktop/Carbon.Desktop/Scenes/WorldGameplayScene.cs"] = 1,
-            ["engine/Carbon.Items/Catalog/SkillCatalog.cs"] = 1,
-            ["engine/Carbon.Items/Catalog/ToolUsagePolicy.cs"] = 5,
-            ["engine/Carbon.Survival/Stamina/StaminaConfig.cs"] = 3,
-            ["server/Carbon.Application/World/Actions/PlayerActionService.cs"] = 2,
-            ["server/Carbon.Application/World/Props/PropHarvestService.cs"] = 2,
-        };
-
-        Dictionary<string, int> found = FindHasFlagCalls()
-            .GroupBy(call => call.Path, StringComparer.Ordinal)
-            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
-
-        found.Should().Equal(expected);
+        // Audit round 3, ALLOC-13/14: Enum.HasFlag boxes both operands until its caller tiers up (48 B a call), and a busy
+        // process keeps deferring tier-up. An allocation probe cannot catch it once another test has tiered the method up,
+        // so the call itself is the rule. Test the bits: (flags & Flag) != 0 for a single-bit flag.
+        Violations.ShouldBeEmpty(
+            FindHasFlagCalls().Select(call => $"{call.Path}:{call.Line}"),
+            "Enum.HasFlag allocates until its caller is optimized; test the bits directly on the tick and frame paths (performance-aot)");
     }
 
     // Every x.HasFlag(y) call in hot-path code.

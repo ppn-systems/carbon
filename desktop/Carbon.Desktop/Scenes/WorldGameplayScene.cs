@@ -635,7 +635,7 @@ public sealed class WorldGameplayScene : GameScene
 
     /// <summary>Gets whether an NPC archetype trades (the village and sanctuary traders, ADR-025).</summary>
     private static bool IsTraderNpc(in RemoteEntityView entity) =>
-        entity.Kind == EntityKind.Npc && WorldActorCatalog.GetNpcSpec(entity.ArchetypeId).Capabilities.HasFlag(NpcCapabilities.Trader);
+        entity.Kind == EntityKind.Npc && (WorldActorCatalog.GetNpcSpec(entity.ArchetypeId).Capabilities & NpcCapabilities.Trader) != 0;
 
     private void UpdateTelemetry(IGameWindow window, int ptx, int pty)
     {
