@@ -483,6 +483,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// <summary>Gets the world generator (tests: villages are planned with the served <c>structures.json</c>).</summary>
     internal ProceduralWorldGenerator Generator => _generator;
 
+    /// <summary>Gets the simulation, for tests that drive entities directly (kill and respawn guards).</summary>
+    internal WorldSimulation Simulation => _simulation;
+
     /// <inheritdoc/>
     public float TileSize { get; }
 
