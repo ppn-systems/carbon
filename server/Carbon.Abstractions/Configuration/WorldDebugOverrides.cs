@@ -24,7 +24,13 @@ public sealed record WorldDebugOverrides
     /// <summary>Gets the in-game hour (0..24) the world clock starts at, if any.</summary>
     public float? StartHour { get; init; }
 
+    /// <summary>
+    /// Gets a value indicating whether new characters start with a forge review kit (a +8 iron sword, enhancement
+    /// materials, protection scrolls and gold), for screenshot review of the forge window (ADR-020).
+    /// </summary>
+    public bool ForgeKit { get; init; }
+
     /// <summary>Gets a value indicating whether any override is set.</summary>
     public bool IsActive => this.SpawnTile.HasValue || this.SpawnBiome is not null || this.StartHour.HasValue ||
-        this.SpawnOffset != default;
+        this.SpawnOffset != default || this.ForgeKit;
 }
