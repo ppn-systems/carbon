@@ -60,7 +60,6 @@ public sealed class HotPathGuardTests
     {
         ["Carbon.Desktop.Networking.Session.MultiplayerSession"] = 4123, // TODO(audit round 2): split by responsibility (auth, packets, actions, inventory) and lower; 4123 after #77/#81
         ["Carbon.Desktop.Rendering.Hud.CraftingModalWidget"] = 650, // 644 today
-        ["Carbon.Desktop.Rendering.Hud.InventoryModalWidget"] = 876, // TODO(audit round 2): split dialogs/tooltip/paper doll out of the modal and lower; 876 after #77/#81
         ["Carbon.Desktop.Rendering.Hud.ForgeAnvilModalWidget"] = 627, // TODO(audit round 2): split layout from VFX state after #81 lands, then delete this entry
         ["Carbon.Desktop.Rendering.VectorArt.CarbonVectorArtLibrary"] = 950, // 920 today
         ["Carbon.Desktop.Rendering.VectorArt.ModularCharacterOverlays"] = 650, // 625 today
