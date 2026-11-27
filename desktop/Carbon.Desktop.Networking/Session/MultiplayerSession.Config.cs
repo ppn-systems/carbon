@@ -36,7 +36,7 @@ public sealed partial class MultiplayerSession
     private SessionConfigSync CreateConfigSync() =>
         new(_options.ConfigCacheDirectory, (version, names) => SessionConfigSync.OpenTcpStream(_tcpSession, version, names), this.ApplyConfigCatalog);
 
-    private void ApplyConfigCatalog(ConfigCatalog catalog)
+    internal void ApplyConfigCatalog(ConfigCatalog catalog)
     {
         _ = _items.Apply(catalog);
         _ = _entityNames.Apply(catalog);
