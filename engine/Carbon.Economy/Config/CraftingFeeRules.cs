@@ -1,5 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using Carbon.Items.Definitions;
+
 namespace Carbon.Economy.Config;
 
 /// <summary>

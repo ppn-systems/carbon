@@ -21,6 +21,13 @@ public sealed class SqliteAccountStore : IAccountStore
         LIMIT 1;
         """;
 
+    private const string FindByIdSql = """
+        SELECT id, username, normalized_username, password_hash, password_salt, created_at_utc, is_banned
+        FROM accounts
+        WHERE id = @id
+        LIMIT 1;
+        """;
+
     private const string InsertSql = """
         INSERT INTO accounts (id, username, normalized_username, password_hash, password_salt, created_at_utc, is_banned)
         VALUES (@id, @name, @norm, @hash, @salt, @created, @banned)
@@ -47,25 +54,19 @@ public sealed class SqliteAccountStore : IAccountStore
         SqliteCommand cmd = new(FindSql, conn);
         await using ConfiguredAsyncDisposable cmdScope = cmd.ConfigureAwait(false);
         _ = cmd.Parameters.AddWithValue("@norm", normalizedUsername);
+        return await ReadAccountAsync(cmd, ct).ConfigureAwait(false);
+    }
 
-        SqliteDataReader reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
-        await using ConfiguredAsyncDisposable readerScope = reader.ConfigureAwait(false);
-        if (!await reader.ReadAsync(ct).ConfigureAwait(false))
-        {
-            return null;
-        }
+    /// <inheritdoc/>
+    public async Task<AccountRecord?> FindByIdAsync(Guid accountId, CancellationToken ct = default)
+    {
+        SqliteConnection conn = await _factory.OpenAsync(ct).ConfigureAwait(false);
+        await using ConfiguredAsyncDisposable connScope = conn.ConfigureAwait(false);
 
-        byte[] hash = await reader.GetFieldValueAsync<byte[]>(3, ct).ConfigureAwait(false);
-        byte[] salt = await reader.GetFieldValueAsync<byte[]>(4, ct).ConfigureAwait(false);
-
-        return new AccountRecord(
-            Guid.Parse(reader.GetString(0)),
-            reader.GetString(1),
-            reader.GetString(2),
-            hash,
-            salt,
-            DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(5)),
-            reader.GetInt64(6) != 0);
+        SqliteCommand cmd = new(FindByIdSql, conn);
+        await using ConfiguredAsyncDisposable cmdScope = cmd.ConfigureAwait(false);
+        _ = cmd.Parameters.AddWithValue("@id", accountId.ToString("D"));
+        return await ReadAccountAsync(cmd, ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -88,5 +89,27 @@ public sealed class SqliteAccountStore : IAccountStore
 
         int affected = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         return affected == 1;
+    }
+
+    private static async Task<AccountRecord?> ReadAccountAsync(SqliteCommand cmd, CancellationToken ct)
+    {
+        SqliteDataReader reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        await using ConfiguredAsyncDisposable readerScope = reader.ConfigureAwait(false);
+        if (!await reader.ReadAsync(ct).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        byte[] hash = await reader.GetFieldValueAsync<byte[]>(3, ct).ConfigureAwait(false);
+        byte[] salt = await reader.GetFieldValueAsync<byte[]>(4, ct).ConfigureAwait(false);
+
+        return new AccountRecord(
+            Guid.Parse(reader.GetString(0)),
+            reader.GetString(1),
+            reader.GetString(2),
+            hash,
+            salt,
+            DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(5)),
+            reader.GetInt64(6) != 0);
     }
 }

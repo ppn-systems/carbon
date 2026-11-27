@@ -2,6 +2,7 @@
 
 using System.Collections.Generic;
 using Carbon.Items.Crafting;
+using Carbon.Items.Definitions;
 
 namespace Carbon.Items.Repair;
 
@@ -72,26 +73,7 @@ public sealed record RepairFeeDefinition
     public long Minimum { get; set; }
 
     /// <summary>Gets or sets the fee multiplier per rarity, in percent.</summary>
-    public RepairRarityPercents RarityPercent { get; set; } = new();
-}
-
-/// <summary>Fee multiplier per rarity, in percent.</summary>
-public sealed record RepairRarityPercents
-{
-    /// <summary>Gets or sets the common multiplier.</summary>
-    public int Common { get; set; } = 100;
-
-    /// <summary>Gets or sets the uncommon multiplier.</summary>
-    public int Uncommon { get; set; } = 100;
-
-    /// <summary>Gets or sets the rare multiplier.</summary>
-    public int Rare { get; set; } = 100;
-
-    /// <summary>Gets or sets the epic multiplier.</summary>
-    public int Epic { get; set; } = 100;
-
-    /// <summary>Gets or sets the legendary multiplier.</summary>
-    public int Legendary { get; set; } = 100;
+    public RarityPercents RarityPercent { get; set; } = new();
 }
 
 /// <summary>One <c>families[]</c> entry: the materials a group of items is repaired with.</summary>

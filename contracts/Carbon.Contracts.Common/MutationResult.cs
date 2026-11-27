@@ -8,8 +8,8 @@ namespace Carbon.Contracts.Common;
 
 /// <summary>
 /// Canonical result returned by every write handler across all modules.
-/// <see cref="Status"/> carries the outcome; <see cref="Revision"/> is the affected entity's new
-/// revision (e.g. the chunk revision after a map edit), or zero when not applicable.
+/// <see cref="Status"/> carries the outcome and <see cref="RequestOpCode"/> the request it answers, so a client can wait for
+/// the reply to its own request.
 /// </summary>
 [Packet]
 [GenerateFormatter]
@@ -27,7 +27,5 @@ public sealed partial class MutationResult : PacketBase<MutationResult>, IPacket
     [SerializeOrder(1)]
     public ushort RequestOpCode { get; set; }
 
-    /// <summary>New revision of the affected entity, or zero.</summary>
-    [SerializeOrder(2)]
-    public uint Revision { get; set; }
+    // [SerializeOrder(2)] was Revision, never read; removed by ADR-038.
 }

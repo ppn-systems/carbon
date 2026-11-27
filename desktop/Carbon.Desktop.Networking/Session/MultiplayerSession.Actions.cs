@@ -93,8 +93,10 @@ public sealed partial class MultiplayerSession
             }
         }
 
-        if (!(hasArchetype && archetype is { Category: ItemCategory.Placeable or ItemCategory.Consumable }) &&
-            this.RefuseSwingWhileExhausted(hasArchetype ? archetype : null))
+        // ADR-033 amendment: a melee, tool or bare-hand whiff is free, so only the server knows whether an exhausted swing
+        // connects (refused, the bar flashes from StaminaStatusSync) or whiffs. A shot always pays, so it is refused here.
+        if (hasArchetype && archetype is { ProjectileSpeed: > 0f } &&
+            this.RefuseSwingWhileExhausted(archetype))
         {
             return false;
         }

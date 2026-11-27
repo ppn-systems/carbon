@@ -5,10 +5,12 @@ using System.Collections.Generic;
 using System.Linq;
 using Carbon.Combat.Statuses.Config;
 using Carbon.Contracts.Items.S2C;
+using Carbon.Desktop.Abstractions.Events;
 using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.StatusEffects;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Networking.Session;
+using Carbon.Desktop.Rendering.Feedback;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Fonts.Atlases;
@@ -150,6 +152,19 @@ public sealed class StatusEffectLevelTests
 
         effects.Select(static e => e.Level).Should().Equal([2, 1, 1], "level 0 and a short array both mean I");
         (effects[0].EffectId, effects[0].Stacks, effects[0].RemainingSeconds).Should().Be((1, 2, 8f));
+    }
+
+    [Fact]
+    public void ComposeText_PulseOfALevelThreeEffect_ShowsTheNumeral()
+    {
+        StatusLevelLabels labels = new(s_english);
+
+        CombatFeedbackTracker.ComposeText(new CombatFeedbackEvent(default, 2.4f, false, false, StatusEffectId: 1, StatusEffectLevel: 3), labels)
+            .Should().Be("-3 III", "CombatHit.StatusEffectLevel names the pulse's level (ADR-036 D4)");
+        CombatFeedbackTracker.ComposeText(new CombatFeedbackEvent(default, 2.4f, false, false, StatusEffectId: 1, StatusEffectLevel: 1), labels)
+            .Should().Be("-3", "level I keeps the bare number, like the strip icon");
+        CombatFeedbackTracker.ComposeText(new CombatFeedbackEvent(default, 7f, true, false, StatusEffectLevel: 3), labels)
+            .Should().Be("-7!", "a direct hit has no effect level");
     }
 
     private static Localizer CreateLocalizer(string language)

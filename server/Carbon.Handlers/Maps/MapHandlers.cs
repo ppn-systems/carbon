@@ -102,7 +102,7 @@ public static partial class MapHandlers
         IPacketSender sender = context.Sender;
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
         WorldMutationOutcome outcome = await s_world.SubmitHarvestPropAsync(connectionId, req.TileX, req.TileY).ConfigureAwait(false);
-        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, MapOpCode.PropHarvest, outcome.Revision).ConfigureAwait(false);
+        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, MapOpCode.PropHarvest).ConfigureAwait(false);
     }
 
     /// <summary>Opcode <c>0x1104</c>. Places a player structure on a valid walkable tile within range.</summary>
@@ -119,9 +119,8 @@ public static partial class MapHandlers
             connectionId,
             req.TileX,
             req.TileY,
-            (StructureType)req.StructureType,
-            (StructureRotation)(req.Rotation & 0x03)).ConfigureAwait(false);
-        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, MapOpCode.StructurePlace, outcome.Revision).ConfigureAwait(false);
+            (StructureType)req.StructureType).ConfigureAwait(false);
+        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, MapOpCode.StructurePlace).ConfigureAwait(false);
     }
 
     /// <summary>Opcode <c>0x1105</c>. Demolishes an existing constructed structure within range.</summary>
@@ -135,7 +134,7 @@ public static partial class MapHandlers
         IPacketSender sender = context.Sender;
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
         WorldMutationOutcome outcome = await s_world.SubmitDemolishStructureAsync(connectionId, req.TileX, req.TileY).ConfigureAwait(false);
-        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, MapOpCode.StructureDemolish, outcome.Revision).ConfigureAwait(false);
+        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, MapOpCode.StructureDemolish).ConfigureAwait(false);
     }
 
     /// <summary>Opcode <c>0x1106</c>. Toggles a constructed door open or closed within range.</summary>
@@ -149,6 +148,6 @@ public static partial class MapHandlers
         IPacketSender sender = context.Sender;
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
         WorldMutationOutcome outcome = await s_world.SubmitToggleDoorAsync(connectionId, req.TileX, req.TileY).ConfigureAwait(false);
-        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, MapOpCode.DoorToggle, outcome.Revision).ConfigureAwait(false);
+        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, MapOpCode.DoorToggle).ConfigureAwait(false);
     }
 }

@@ -26,12 +26,12 @@ public sealed class EnhancementTable
 
     private readonly EnhancementStep[] _steps;
     private readonly EnhancementProtection[] _protections;
-    private readonly EnhancementRarityPercents _rarity;
+    private readonly RarityPercents _rarity;
 
     private EnhancementTable(
         EnhancementStep[] steps,
         EnhancementProtection[] protections,
-        EnhancementRarityPercents rarity,
+        RarityPercents rarity,
         byte downgradeMinLevel,
         byte destroyMinLevel,
         byte announceSuccessMinLevel,
@@ -117,8 +117,8 @@ public sealed class EnhancementTable
             throw new InvalidDataException("enhancement.json needs 1 <= downgradeMinLevel <= destroyMinLevel.");
         }
 
-        EnhancementRarityPercents rarity = document.GoldRarityPercent ?? new EnhancementRarityPercents();
-        if (rarity.Common < 0 || rarity.Uncommon < 0 || rarity.Rare < 0 || rarity.Epic < 0 || rarity.Legendary < 0)
+        RarityPercents rarity = document.GoldRarityPercent ?? new RarityPercents();
+        if (!rarity.IsValid)
         {
             throw new InvalidDataException("enhancement.json goldRarityPercent values must not be negative.");
         }
@@ -219,16 +219,7 @@ public sealed class EnhancementTable
     public long GetGoldFee(EnhancementStep step, ItemRarity rarity)
     {
         ArgumentNullException.ThrowIfNull(step);
-        int percent = rarity switch
-        {
-            ItemRarity.Common => _rarity.Common,
-            ItemRarity.Uncommon => _rarity.Uncommon,
-            ItemRarity.Rare => _rarity.Rare,
-            ItemRarity.Epic => _rarity.Epic,
-            ItemRarity.Legendary => _rarity.Legendary,
-            _ => 100,
-        };
-        return step.BaseGold * percent / 100;
+        return step.BaseGold * _rarity.For(rarity) / 100;
     }
 
     /// <summary>

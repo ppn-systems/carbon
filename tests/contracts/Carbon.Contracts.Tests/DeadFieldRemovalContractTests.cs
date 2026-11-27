@@ -1,10 +1,14 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using Carbon.Contracts.Common;
+using System;
 using Carbon.Contracts.Entities.C2S;
 using Carbon.Contracts.Entities.S2C;
+using Carbon.Contracts.Identity;
+using Carbon.Contracts.Identity.S2C;
 using Carbon.Contracts.Items.C2S;
 using Carbon.Contracts.Items.S2C;
+using Carbon.Contracts.Maps.C2S;
 using Carbon.Contracts.Maps.S2C;
 using Xunit;
 
@@ -165,6 +169,100 @@ public sealed class DeadFieldRemovalContractTests
         Assert.Equal(packet.SellItemIds, copy.SellItemIds);
         Assert.Equal(packet.SellPrices, copy.SellPrices);
         Assert.True(copy.CanRepair);
+    }
+
+    [Fact]
+    public void EntityAttackPhase_RoundTrip_KeepsShapeTimingAndProgress()
+    {
+        using EntityAttackPhase packet = new()
+        {
+            NetworkId = 77UL,
+            AttackKind = EntityAttackPhase.KindSpell,
+            Phase = EntityAttackPhase.PhaseWindup,
+            Shape = 1,
+            TargetX = 12.5f,
+            TargetY = -4f,
+            DirectionX = 0.6f,
+            DirectionY = 0.8f,
+            AreaRadius = 42f,
+            HalfAngleRadians = 0.5f,
+            PhaseDurationTicks = 24,
+            Progress = 0.25f,
+        };
+        using EntityAttackPhase copy = EntityAttackPhase.Deserialize(packet.Serialize());
+
+        Assert.Equal(77UL, copy.NetworkId);
+        Assert.Equal(EntityAttackPhase.KindSpell, copy.AttackKind);
+        Assert.Equal(EntityAttackPhase.PhaseWindup, copy.Phase);
+        Assert.Equal((byte)1, copy.Shape);
+        Assert.Equal(12.5f, copy.TargetX);
+        Assert.Equal(-4f, copy.TargetY);
+        Assert.Equal(0.6f, copy.DirectionX);
+        Assert.Equal(0.8f, copy.DirectionY);
+        Assert.Equal(42f, copy.AreaRadius);
+        Assert.Equal(0.5f, copy.HalfAngleRadians);
+        Assert.Equal((ushort)24, copy.PhaseDurationTicks);
+        Assert.Equal(0.25f, copy.Progress);
+        Assert.Equal(sizeof(ulong) + (3 * sizeof(byte)) + (6 * sizeof(float)) + sizeof(ushort) + sizeof(float), PayloadLength(packet.Serialize()));
+    }
+
+    [Fact]
+    public void PlayerDeath_RoundTrip_KeepsCauseAndKillerArchetype()
+    {
+        using PlayerDeath packet = new() { Cause = DeathCause.Monster, KillerArchetypeId = 40 };
+        using PlayerDeath copy = PlayerDeath.Deserialize(packet.Serialize());
+
+        Assert.Equal(DeathCause.Monster, copy.Cause);
+        Assert.Equal((ushort)40, copy.KillerArchetypeId);
+        Assert.Equal(sizeof(byte) + sizeof(ushort), PayloadLength(packet.Serialize()));
+    }
+
+    [Fact]
+    public void MutationResult_RoundTrip_KeepsStatusAndTheRequestItAnswers()
+    {
+        using MutationResult packet = new() { Status = OpStatus.Conflict, RequestOpCode = IdentityOpCode.CharacterCreate };
+        using MutationResult copy = MutationResult.Deserialize(packet.Serialize());
+
+        Assert.Equal(OpStatus.Conflict, copy.Status);
+        Assert.Equal(IdentityOpCode.CharacterCreate, copy.RequestOpCode);
+        Assert.Equal(sizeof(byte) + sizeof(ushort), PayloadLength(packet.Serialize()));
+    }
+
+    [Fact]
+    public void AuthResult_RoundTrip_KeepsStatusAndAccount()
+    {
+        Guid account = Guid.NewGuid();
+        using AuthResult packet = new() { Status = AuthStatus.Ok, AccountId = account };
+        using AuthResult copy = AuthResult.Deserialize(packet.Serialize());
+
+        Assert.Equal(AuthStatus.Ok, copy.Status);
+        Assert.Equal(account, copy.AccountId);
+        Assert.Equal(sizeof(byte) + 16, PayloadLength(packet.Serialize()));
+    }
+
+    [Fact]
+    public void CharacterEnterWorld_RoundTrip_KeepsTheWorldParameters()
+    {
+        using CharacterEnterWorld packet = new() { Status = OpStatus.Ok, PlayerNetworkId = 55UL, WorldSeed = 1337UL, TileSize = 32f, Frequency = 0.0008f, TickRate = 30 };
+        using CharacterEnterWorld copy = CharacterEnterWorld.Deserialize(packet.Serialize());
+
+        Assert.Equal(55UL, copy.PlayerNetworkId);
+        Assert.Equal(1337UL, copy.WorldSeed);
+        Assert.Equal(32f, copy.TileSize);
+        Assert.Equal(0.0008f, copy.Frequency);
+        Assert.Equal((ushort)30, copy.TickRate);
+    }
+
+    [Fact]
+    public void MapStructurePlace_RoundTrip_KeepsTileAndType()
+    {
+        using MapStructurePlace packet = new() { TileX = -100, TileY = 250, StructureType = 3 };
+        using MapStructurePlace copy = MapStructurePlace.Deserialize(packet.Serialize());
+
+        Assert.Equal(-100, copy.TileX);
+        Assert.Equal(250, copy.TileY);
+        Assert.Equal((byte)3, copy.StructureType);
+        Assert.Equal((2 * sizeof(int)) + sizeof(byte), PayloadLength(packet.Serialize()));
     }
 
     [Fact]

@@ -6,7 +6,6 @@ using Carbon.Items.Components;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
 using Carbon.Items.Definitions;
-using Carbon.Items.Equipment;
 using Carbon.Items.Systems;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.World;
@@ -42,24 +41,6 @@ public sealed class ItemsModuleTests
     }
 
     [Fact]
-    public void EquipmentContainer_EquipSwapAndHarvestTier_WorksCorrectly()
-    {
-        DefinitionRegistry<uint, ItemArchetype> registry = CreateSampleRegistry();
-        ItemArchetype pickaxeDef = registry.GetRequired(10);
-        EquipmentContainer equipment = new();
-
-        ItemSlot pickaxe = new(10, 1, InstanceId: 7001UL, Durability: 200f);
-        equipment.TryEquip(EquipmentSlotKind.MainHand, in pickaxe, pickaxeDef, out _).Should().BeFalse("wrong slot");
-        equipment.TryEquip(EquipmentSlotKind.Tool, in pickaxe, pickaxeDef, out ItemSlot prev).Should().BeTrue();
-        prev.IsEmpty.Should().BeTrue();
-
-        equipment.GetMaxHarvestTier(registry).Should().Be(2);
-        equipment.TryUnequip(EquipmentSlotKind.Tool, out ItemSlot removed).Should().BeTrue();
-        removed.InstanceId.Should().Be(7001UL);
-        equipment.GetMaxHarvestTier(registry).Should().Be(0);
-    }
-
-    [Fact]
     public void RecipeMatcher_TryCraft_ConsumesIngredientsAndAddsOutput()
     {
         InventoryContainer bag = new(capacity: 2);
@@ -80,14 +61,12 @@ public sealed class ItemsModuleTests
     }
 
     [Fact]
-    public void EntityManager_WithInventoryAndLootDropComponents_StoresUnmanagedComponents()
+    public void EntityManager_WithLootDropComponent_StoresUnmanagedComponent()
     {
         EntityManager entities = new(16);
         Entity e = entities.CreateEntity();
-        entities.SetComponent(e, new InventoryRef(ContainerId: 42, Capacity: 24));
         entities.SetComponent(e, new LootDropComponent(new ItemSlot(1, 5), OwnerEntityId: e.Id, DespawnAtTick: 600));
 
-        entities.GetComponent<InventoryRef>(e).Capacity.Should().Be(24);
         entities.GetComponent<LootDropComponent>(e).Item.Quantity.Should().Be(5);
     }
 

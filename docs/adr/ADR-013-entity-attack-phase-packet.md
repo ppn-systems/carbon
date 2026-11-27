@@ -2,6 +2,7 @@
 
 - **Date**: 2026-11-26
 - **Status**: Accepted
+- **Amended by**: [ADR-038](ADR-038-retire-dead-wire-opcodes-and-fields.md) D7 (`ServerTick` and `Interrupted` are removed; the client resyncs from `Progress`)
 - **Scope**: `contracts/`, `engine/`, `server/`, `desktop/`, `tests/`
 
 ## Context

@@ -834,11 +834,9 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             using PacketScope<EntityAttackPhase> lease = PacketFactory<EntityAttackPhase>.Acquire();
             EntityAttackPhase pkt = lease.Value;
             pkt.NetworkId = snapshot.NetworkId;
-            pkt.ServerTick = snapshot.ServerTick;
             pkt.AttackKind = snapshot.AttackKind;
             pkt.Phase = snapshot.Phase;
             pkt.Shape = snapshot.Shape;
-            pkt.Interrupted = snapshot.Interrupted;
             pkt.TargetX = snapshot.TargetX;
             pkt.TargetY = snapshot.TargetY;
             pkt.DirectionX = snapshot.DirectionX;
@@ -947,8 +945,6 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             PlayerDeath pkt = lease.Value;
             pkt.Cause = death.Cause;
             pkt.KillerArchetypeId = death.KillerArchetypeId;
-            pkt.KillerNetworkId = death.KillerNetworkId;
-            pkt.GoldDropped = death.GoldDropped;
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
             await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);

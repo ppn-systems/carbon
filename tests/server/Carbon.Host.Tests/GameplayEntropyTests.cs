@@ -269,7 +269,6 @@ public sealed class GameplayEntropyTests
                 Status = entered.Status,
                 PlayerNetworkId = entered.PlayerNetworkId,
                 WorldSeed = entered.WorldSeed,
-                GeneratorVersion = entered.GeneratorVersion,
                 TileSize = entered.TileSize,
                 Frequency = entered.Frequency,
                 ServerTick = entered.ServerTick,
