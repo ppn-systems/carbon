@@ -16,8 +16,8 @@ using Carbon.Contracts.Items.S2C;
 using Carbon.Contracts.Maps.C2S;
 using Carbon.Contracts.Maps.S2C;
 using Carbon.Desktop.Abstractions.Configuration;
-using Carbon.Desktop.Abstractions.Events;
 using Carbon.Desktop.Abstractions.Localization;
+using Carbon.Desktop.Abstractions.Events;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -1175,7 +1175,7 @@ public sealed partial class MultiplayerSession
 
             bool isHeal = pkt.Damage < 0f;
             float mag = MathF.Abs(pkt.Damage);
-            _combatEvents.Add(new CombatFeedbackEvent(worldPos, mag, pkt.IsCritical, isHeal));
+            _combatEvents.Add(new CombatFeedbackEvent(worldPos, mag, pkt.IsCritical, isHeal, pkt.Damage == 0f && !pkt.IsKilled ? GameText.Get("character.miss") : null)); // 0-damage non-kill = dodge (ADR-021)
         }
     }
 

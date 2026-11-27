@@ -72,7 +72,7 @@ internal static class TimeToLevelSimulation
         ProgressionConfig config = data.Progression;
         CharacterProgressionState allocations = Allocate(config.GetTotalStatPoints(level), build);
         InventoryContainer inventory = Gear(level, out byte weaponSlot);
-        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(data.Rules, config, (ushort)level, inventory, weaponSlot, allocations);
+        DerivedCharacterStats stats = CharacterStatCalculator.Compute(data.Rules, config, (ushort)level, inventory, weaponSlot, allocations);
         ItemSlot weapon = inventory.GetSlot(weaponSlot);
         float weaponDamage = data.Rules.GetWeaponBaseDamage(weapon.ItemId) * ItemEnhancementPolicy.GetStatMultiplier(weapon.UpgradeLevel);
         float swingsPerSecond = stats.AttackSpeedMultiplier / BaseAttackIntervalSeconds;

@@ -216,7 +216,7 @@ health bar.
 | :--- | :--- |
 | Config | `progression.json` is loaded and validated by `ProgressionConfig.LoadFromJson` (fails fast at boot, rejected on a bad hot reload) and served to clients by the normal manifest (not server-only: clients need it for the panel preview). |
 | Server | `CharacterProgressionService` (`server/Carbon.Application/World/Progression`) uses the config for level-ups, kill XP, point budget, derived stats, mitigation, evasion, crits and attack speed. Allocation and reset requests are tick-queued commands (ADR-017) and validated against the budget and the wallet. No DB migration: allocations already persist in the progression blob by attribute id. |
-| Client | The character panel shows the five attributes with + buttons, unspent points, all derived stats and a preview of the change from the next point, computed from the synced `progression.json` with the same engine code. The server stays authoritative: the client never decides a point is affordable. |
+| Client | The Character tab (`[Y]`, `CharacterSheetModalWidget`) shows the five attributes with their per-point effects and + buttons (Shift+click spends 5), the unspent points, the 14 derived stats (DEF, MRES and evasion as a % against a same-level monster), and a two-click reset button with its price. Hovering a + previews in green every stat that point changes. `CharacterStatsPreview` computes it from the synced `progression.json` and `items.json` with `CharacterStatCalculator`, the same code the server runs. The server stays authoritative: the client never decides a point is affordable. A dodged monster hit shows "Miss". Screenshots: `tools/screenshots/capture.sh <dir> '^stats_panel'`. |
 
 ## 8. Tuning
 

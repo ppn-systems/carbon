@@ -1,7 +1,7 @@
 # World screenshot review
 
 `capture.sh` renders a fixed list of world scenarios (every biome, day/night, rain, macro view, wading,
-monsters) with the real online client against a throwaway local server, and lays the results out on a
+monsters, the character panel) with the real online client against a throwaway local server, and lays the results out on a
 labelled contact sheet. Use it to review terrain, props, lighting and actor art before and after a change.
 
 ```bash
@@ -40,6 +40,7 @@ Requirements: the .NET SDK (`$HOME/.dotnet` is added to `PATH`), `xvfb-run`, GLF
 | `CARBON_DEBUG_SPAWN_TILE=x,y` | Every character enters at this world tile (wins over the biome). |
 | `CARBON_DEBUG_SPAWN_OFFSET=dx,dy` | Offset in tiles added to the resolved spawn (e.g. far from the starter area). |
 | `CARBON_DEBUG_START_HOUR=h` | The world clock starts at hour `h` (0..24); clients follow the server clock. |
+| `CARBON_DEBUG_START_LEVEL=n` | Characters enter the world at level `n` or higher (shots of mid-level UI such as the character panel). |
 | `CARBON_DEBUG_FORGE_KIT=1` | New characters start with a +8 iron sword, enhancement materials, protection scrolls and 50,000 gold (forge review). |
 | `CARBON_DEBUG_STARTER_ITEMS=id[xQty][+Level],...` | New characters also get these items (e.g. `3+10,4x40`: a +10 iron sword and 40 logs), to review enhanced gear. |
 
@@ -55,6 +56,8 @@ they are active.
 | `CARBON_MACRO_VIEW=1` | Zoomed-out overview. |
 | `CARBON_AUTO_WALK=x,y` | Walk in a constant direction (actors in motion, wakes). |
 | `CARBON_CAPTURE_FRAMES=n` | Also capture `n` consecutive frames after the main capture. |
+| `CARBON_OPEN_PANEL=character` | Open the Character tab of the player panel on entry. |
+| `CARBON_CAPTURE_MOUSE=x,y` | Pin the cursor at window pixel `x,y` so hover states (e.g. the stat preview) render. |
 | `CARBON_CAPTURE_MODAL=settings\|controls` | Open the Settings window (Display or Controls tab) before the capture, to review localized UI. |
 | `CARBON_CAPTURE_SCENE=login\|characters` | Capture a menu screen instead of the world. `login` needs `CARBON_AUTO_LOGIN=0` in the scenario; `characters` also needs it, registers the scenario's fresh account and captures the character creator. |
 | `CARBON_FORGE_PREVIEW=<kind>[:s]` | Open the forge window and play one enhancement effect (`charge`, `success`, `nochange`, `downgrade`, `destroyed`), frozen at `s` seconds when given. Visual only: nothing is sent, the server alone rolls outcomes. The `forge_*` scenarios use it. |

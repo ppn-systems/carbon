@@ -12,6 +12,7 @@ using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Abstractions.World;
+using Carbon.Desktop.Capture;
 using Carbon.Desktop.Input;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Graphics.Batching.Camera;
@@ -46,6 +47,7 @@ public sealed class WorldGameplayScene : GameScene
 {
     private readonly IWorldSession _session;
     private readonly DesktopOptions _options;
+    private readonly ScreenshotAids _screenshotAids;
     private readonly Camera2D _camera;
 
     private readonly List<(int ChunkX, int ChunkY)> _dirtyChunksScratch = new(16);
@@ -81,6 +83,7 @@ public sealed class WorldGameplayScene : GameScene
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        _screenshotAids = new ScreenshotAids(_options);
         _camera = camera ?? throw new ArgumentNullException(nameof(camera));
     }
 
@@ -174,13 +177,9 @@ public sealed class WorldGameplayScene : GameScene
         }
 
         _cameraRig.Resize(context.WindowWidth, context.WindowHeight);
-        DesktopInputFrame input = DesktopInputController.Poll(context.Input);
-        _mouseScreenPosition = input.MouseScreenPosition;
+        DesktopInputFrame input = _screenshotAids.PinMouse(DesktopInputController.Poll(context.Input));
+        _mouseScreenPosition = _screenshotAids.Apply(_hudRenderer, _session, context.WindowWidth, context.WindowHeight) ?? input.MouseScreenPosition;
         _mouseWorldPosition = _camera.ScreenToWorld(in _mouseScreenPosition);
-        if (_options.UiPreview is { Length: > 0 } preview)
-        {
-            this.ApplyUiPreview(preview, context.WindowWidth, context.WindowHeight);
-        }
 
         if (input.EscapePressed)
         {
@@ -375,7 +374,11 @@ public sealed class WorldGameplayScene : GameScene
                     }
                     else if (_hudRenderer.TryHitTestCharacterStatPlus(mouseScreen, context.WindowWidth, context.WindowHeight, out PrimaryAttributeId statTarget))
                     {
-                        _ = _session.TryAllocateCharacterPoint(PointAllocationKind.Attribute, (ushort)statTarget, 1);
+                        _ = _session.TryAllocateCharacterPoint(PointAllocationKind.Attribute, (ushort)statTarget, input.ShiftHeld ? (byte)5 : (byte)1); // Shift: 5 (server clamps)
+                    }
+                    else if (_hudRenderer.TryClickCharacterReset(_session, mouseScreen, context.WindowWidth, context.WindowHeight))
+                    {
+                        _ = _session.TryAllocateCharacterPoint(PointAllocationKind.ResetAttributes, 0, 1);
                     }
                 }
             }
@@ -966,44 +969,6 @@ public sealed class WorldGameplayScene : GameScene
         this.ResetInventoryDragState();
         _ = _session.TryMoveInventorySlot(from, to);
         return true;
-    }
-
-    /// <summary>Opens the inventory UI state named by <c>CARBON_UI_PREVIEW</c> for screenshots (client-only, visual).</summary>
-    private void ApplyUiPreview(string preview, int viewportWidth, int viewportHeight)
-    {
-        if (_hudRenderer is null || !preview.StartsWith("inventory", StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        _hudRenderer.ShowPlayerModal = true;
-        _hudRenderer.ActivePlayerTab = PlayerModalTab.Inventory;
-        int colon = preview.IndexOf(':', StringComparison.Ordinal);
-        if (colon < 0 ||
-            !int.TryParse(preview.AsSpan(colon + 1), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int slot) ||
-            slot < 0 || slot >= PlayerInventoryLayout.TotalCapacity)
-        {
-            return;
-        }
-
-        Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
-        _session.CopyInventorySlots(slots);
-        string mode = preview[..colon];
-        if (mode == "inventory-tooltip")
-        {
-            _mouseScreenPosition = HudOverlayRenderer.GetInventorySlotCenter(slot, viewportWidth, viewportHeight);
-        }
-        else if (!_hudRenderer.InventoryDialog.IsOpen && !slots[slot].IsEmpty)
-        {
-            if (mode == "inventory-split")
-            {
-                _ = _hudRenderer.InventoryDialog.OpenSplit(slot, in slots[slot]);
-            }
-            else if (mode == "inventory-destroy")
-            {
-                _hudRenderer.InventoryDialog.OpenConfirmDestroy(slot, in slots[slot]);
-            }
-        }
     }
 
     private void ResetInventoryDragState()
