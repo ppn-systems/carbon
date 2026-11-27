@@ -8,6 +8,9 @@ internal enum HudElement : byte
     /// <summary>Locked or aimed monster target frame (top centre).</summary>
     TargetFrame,
 
+    /// <summary>Day/night clock (server world time) at the top of the right-hand column.</summary>
+    Clock,
+
     /// <summary>Radar minimap (when enabled in the settings).</summary>
     Minimap,
 

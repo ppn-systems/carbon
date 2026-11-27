@@ -84,3 +84,9 @@ repair_done        | CARBON_DEBUG_SPAWN_POI=RiverVillage:Smithy CARBON_DEBUG_STA
 repair_station     | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STARTER_ITEMS=3,13,14,16,1,104x2,106x1,4x6,100x6 CARBON_DEBUG_WORN_GEAR=1 | CARBON_WEATHER=clear CARBON_OPEN_REPAIR=station
 # --- classless start (ADR-030): the creator has no class choice, and new characters arrive empty-handed ---
 char_creator       | | CARBON_AUTO_LOGIN=0 CARBON_CAPTURE_SCENE=characters
+
+# --- HUD column: day/night clock + minimap (status-effect strip stays clear at the top right) ---
+hud_day            | CARBON_DEBUG_SPAWN_OFFSET=13,23 CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear
+hud_dusk           | CARBON_DEBUG_SPAWN_OFFSET=13,23 CARBON_DEBUG_START_HOUR=17.5 | CARBON_WEATHER=clear
+hud_night          | CARBON_DEBUG_SPAWN_OFFSET=13,23 CARBON_DEBUG_START_HOUR=23 | CARBON_WEATHER=clear
+hud_village        | CARBON_DEBUG_SPAWN_POI=RiverVillage CARBON_DEBUG_START_HOUR=6 | CARBON_WEATHER=clear

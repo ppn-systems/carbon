@@ -12,6 +12,7 @@ using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.AI.Components;
 using Carbon.AI.Threat;
+using Carbon.Contracts.Common;
 using Carbon.Items.Catalog;
 using Carbon.Maps.Generators;
 using Carbon.Items.Containers;
@@ -219,7 +220,10 @@ public sealed partial class AuthoritativeWorld
                 }
 
                 // Auto-collect nearby stackable/bag ground loot within 32px after brief drop grace period.
-                _inventory.CollectNearbyGroundLoot(observer, obsPos);
+                if (!observer.IsDead)
+                {
+                    _inventory.CollectNearbyGroundLoot(observer, obsPos);
+                }
 
                 this.QueueStatusEffectSyncLocked(observer);
 
@@ -354,7 +358,7 @@ public sealed partial class AuthoritativeWorld
         float rawDamage,
         DamageKind kind = DamageKind.Physical)
     {
-        if (!_simulation.Entities.IsAlive(targetEntity) || !_simulation.Entities.HasHealth(targetEntity))
+        if (!_simulation.Entities.IsAlive(targetEntity) || !_simulation.Entities.HasHealth(targetEntity) || victim?.IsDead == true)
         {
             return 0f;
         }
@@ -381,7 +385,12 @@ public sealed partial class AuthoritativeWorld
         float nextHp = MathF.Max(0f, hp.Current - monsterDamage);
         bool killed = nextHp <= 0f;
 
-        if (killed)
+        if (killed && victim is not null)
+        {
+            // ADR-031: the player stays dead where they fell until they ask to respawn.
+            this.KillPlayerLocked(victim, attackerNetId, defPos, DeathCause.Monster);
+        }
+        else if (killed)
         {
             Vector2 sanctuaryPos = _chunkWorld.SpawnWorldPosition;
             _simulation.Entities.SetHealth(targetEntity, new HealthComponent(hp.Max, hp.Max));
@@ -389,15 +398,6 @@ public sealed partial class AuthoritativeWorld
             if (_simulation.Entities.HasVelocity(targetEntity))
             {
                 _simulation.Entities.SetVelocity(targetEntity, new Velocity2D(0f, 0f, 5f));
-            }
-
-            if (victim is not null)
-            {
-                this.ResetNeedsAfterDeathLocked(victim);
-                victim.CurrentMana = victim.Stats.MaxMana;
-                victim.CurrentStamina = victim.Stats.MaxStamina;
-                victim.StatsDirty = true;
-                this.MarkCharacterDirtyLocked(victim, inventoryChanged: false);
             }
 
             this.ClearAggroAgainstTargetLocked(targetEntity, defPos);
@@ -414,7 +414,7 @@ public sealed partial class AuthoritativeWorld
         }
 
         _simulation.MarkDirty(targetEntity, EntityDirtyMask.Health);
-        this.QueueCombatHitLocked(defPos, attackerNetId, targetNetId, monsterDamage, killed ? hp.Max : nextHp, false, killed);
+        this.QueueCombatHitLocked(defPos, attackerNetId, targetNetId, monsterDamage, killed && victim is null ? hp.Max : nextHp, false, killed);
         return monsterDamage;
     }
 

@@ -32,6 +32,7 @@ internal readonly record struct LootClaim(Guid OwnerCharacterId, ulong OwnerNetw
 /// <param name="LifetimeTicks">Ticks the stack lies on the ground.</param>
 /// <param name="Currency">Currency of a coin or diamond pile; 0 for an item stack.</param>
 /// <param name="CurrencyAmount">Amount a currency pile credits to the wallet.</param>
+/// <param name="CreditReason">Ledger reason of the credit when a currency pile is picked up.</param>
 internal readonly record struct GroundLootEntry(
     ItemSlot Item,
     ulong SpawnTick,
@@ -40,7 +41,8 @@ internal readonly record struct GroundLootEntry(
     ulong ProtectedUntilTick = 0UL,
     ulong LifetimeTicks = GroundLootService.LootLifetimeTicks,
     CurrencyKind Currency = 0,
-    long CurrencyAmount = 0L)
+    long CurrencyAmount = 0L,
+    CurrencyReason CreditReason = CurrencyReason.MonsterLoot)
 {
     /// <summary>Gets whether this is a gold or diamond pile rather than an item stack.</summary>
     public bool IsCurrency => this.Currency != 0;
@@ -180,12 +182,15 @@ internal sealed class GroundLootService
         }
     }
 
-    /// <summary>Drops a pile of <paramref name="amount"/> gold or diamonds at <paramref name="worldPos"/> under <paramref name="claim"/>.</summary>
-    public void SpawnCurrency(Vector2 worldPos, CurrencyKind currency, long amount, in LootClaim claim)
+    /// <summary>
+    /// Drops a pile of <paramref name="amount"/> gold or diamonds at <paramref name="worldPos"/> under <paramref name="claim"/>;
+    /// picking it up credits the wallet with <paramref name="creditReason"/>.
+    /// </summary>
+    public void SpawnCurrency(Vector2 worldPos, CurrencyKind currency, long amount, in LootClaim claim, CurrencyReason creditReason = CurrencyReason.MonsterLoot)
     {
         if (amount > 0L && currency != 0)
         {
-            this.SpawnEntity(worldPos, ItemSlot.Empty, in claim, currency, amount);
+            this.SpawnEntity(worldPos, ItemSlot.Empty, in claim, currency, amount, creditReason);
         }
     }
 
@@ -299,14 +304,14 @@ internal sealed class GroundLootService
     private void SpawnNewEntity(Vector2 worldPos, in ItemSlot item) =>
         this.SpawnEntity(worldPos, in item, new LootClaim(Guid.Empty, 0UL, 0UL, LootLifetimeTicks), 0, 0L);
 
-    private void SpawnEntity(Vector2 worldPos, in ItemSlot item, in LootClaim claim, CurrencyKind currency, long amount)
+    private void SpawnEntity(Vector2 worldPos, in ItemSlot item, in LootClaim claim, CurrencyKind currency, long amount, CurrencyReason creditReason = CurrencyReason.MonsterLoot)
     {
         ulong netId = _allocateNetworkId();
         ulong now = _currentTick();
         Entity lootEntity = _simulation.SpawnNetworkEntity(netId, worldPos, 8f);
         _simulation.Entities.SetCollider(lootEntity, new Collider2D(ColliderKind.Circle, 8f, default, IsTrigger: true, LootLayer, 0U));
         _simulation.Entities.SetComponent(lootEntity, new LootDropComponent(item, 0, now + claim.LifetimeTicks));
-        _byNetworkId[netId] = new GroundLootEntry(item, now, claim.OwnerCharacterId, claim.OwnerNetworkId, claim.ProtectedUntilTick, claim.LifetimeTicks, currency, amount);
+        _byNetworkId[netId] = new GroundLootEntry(item, now, claim.OwnerCharacterId, claim.OwnerNetworkId, claim.ProtectedUntilTick, claim.LifetimeTicks, currency, amount, creditReason);
     }
 
     private ulong ResolveOwnerNetworkId(in GroundLootEntry entry)

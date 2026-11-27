@@ -328,6 +328,10 @@ public sealed class WorldGameplayScene : GameScene
             {
                 _hudRenderer.ScrollForge(input.ScrollSlotDelta);
             }
+            else if (_hudRenderer.TryZoomMinimap(input.MouseScreenPosition, -input.ScrollSlotDelta, context.WindowWidth))
+            {
+                // The wheel over the minimap zooms it instead of cycling the hotbar.
+            }
             else if (!_hudRenderer.HasActiveModal)
             {
                 int nextSlot = (((_session.SelectedHotbarSlot + input.ScrollSlotDelta) % 9) + 9) % 9;
@@ -626,6 +630,7 @@ public sealed class WorldGameplayScene : GameScene
         {
             (int cx, int cy) = _dirtyChunksScratch[i];
             _worldRenderer.InvalidateChunk(cx, cy);
+            _hudRenderer.InvalidateMinimapChunk(cx, cy);
         }
 
         _notificationsScratch.Clear();
@@ -678,7 +683,6 @@ public sealed class WorldGameplayScene : GameScene
             context.WindowWidth,
             context.WindowHeight,
             frameDt,
-            _worldRenderer.TimeOfDayHour,
             _mouseScreenPosition,
             _worldRenderer.FeedbackTracker,
             _mouseWorldPosition);

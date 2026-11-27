@@ -38,6 +38,9 @@ public sealed record EconomyConfig
     /// <summary>Gets the owner protection and lifetime of monster kill loot on the ground.</summary>
     public GroundLootRules GroundLoot { get; set; } = new();
 
+    /// <summary>Gets the gold a player drops on death (ADR-031).</summary>
+    public DeathPenaltyRules DeathPenalty { get; set; } = new();
+
     /// <summary>Gets the designed income bands asserted by tests.</summary>
     public DesignTargets DesignTargets { get; set; } = new();
 
@@ -109,6 +112,18 @@ public sealed record EconomyConfig
             && this.GroundLoot.OwnerProtectionSeconds >= 0
             && this.GroundLoot.OwnerProtectionSeconds <= this.GroundLoot.KillLootLifetimeSeconds,
             "groundLoot needs 1 <= killLootLifetimeSeconds <= 3600 and 0 <= ownerProtectionSeconds <= killLootLifetimeSeconds");
+        Require(
+            this.DeathPenalty.MinLevel >= 1 && this.DeathPenalty.DropPercent is >= 0 and <= 100
+            && this.DeathPenalty.FloorGoldPerLevel >= 0 && this.DeathPenalty.CapGoldPerLevel >= this.DeathPenalty.FloorGoldPerLevel,
+            "deathPenalty needs minLevel >= 1, dropPercent in [0, 100] and 0 <= floorGoldPerLevel <= capGoldPerLevel");
+        Require(
+            this.DeathPenalty.GoldPerPile >= 1 && this.DeathPenalty.MaxPiles is >= 1 and <= Death.DeathGoldPenalty.MaxPilesLimit,
+            "deathPenalty needs goldPerPile >= 1 and maxPiles in [1, 16]");
+        Require(
+            this.DeathPenalty.LootLifetimeSeconds is >= 1 and <= 3600
+            && this.DeathPenalty.OwnerProtectionSeconds >= 0
+            && this.DeathPenalty.OwnerProtectionSeconds <= this.DeathPenalty.LootLifetimeSeconds,
+            "deathPenalty needs 1 <= lootLifetimeSeconds <= 3600 and 0 <= ownerProtectionSeconds <= lootLifetimeSeconds");
         this.ValidateConsumablePriceBands();
         Require(this.DesignTargets.KillsPerHour > 0, "designTargets.killsPerHour must be positive");
         Require(this.DesignTargets.InflationSlope.Min <= this.DesignTargets.InflationSlope.Max, "designTargets.inflationSlope min must be <= max");

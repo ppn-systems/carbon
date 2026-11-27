@@ -72,6 +72,14 @@ public static class ItemOpCode
     /// <summary>S2C: the outcome of <see cref="RepairItemRequest"/>.</summary>
     public const ushort RepairItemResult = 0x4051;
 
+    // ── Death and respawn (0x4078–0x407F, ADR-031) ──────────────────────────
+
+    /// <summary>S2C: the local player died; carries the killer and the gold dropped.</summary>
+    public const ushort PlayerDeath = 0x4078;
+
+    /// <summary>C2S: a dead player asks to respawn (answered with <c>MutationResult</c>).</summary>
+    public const ushort RespawnRequest = 0x4079;
+
     // ── Status effects (0x4058–0x405F, ADR-029) ─────────────────────────────
 
     /// <summary>S2C: the local player's active status effects, sent to the owner only when they change.</summary>
