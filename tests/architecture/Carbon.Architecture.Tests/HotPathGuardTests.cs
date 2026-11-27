@@ -61,7 +61,6 @@ public sealed class HotPathGuardTests
         ["Carbon.Desktop.Networking.Session.MultiplayerSession"] = 4123, // TODO(audit round 2): split by responsibility (auth, packets, actions, inventory) and lower; 4123 after #77/#81
         ["Carbon.Desktop.Rendering.Hud.CraftingModalWidget"] = 650, // 644 today
         ["Carbon.Desktop.Rendering.Hud.InventoryModalWidget"] = 876, // TODO(audit round 2): split dialogs/tooltip/paper doll out of the modal and lower; 876 after #77/#81
-        ["Carbon.Desktop.Rendering.Hud.ForgeAnvilModalWidget"] = 627, // TODO(audit round 2): split layout from VFX state after #81 lands, then delete this entry
         ["Carbon.Desktop.Rendering.VectorArt.CarbonVectorArtLibrary"] = 950, // 920 today
         ["Carbon.Desktop.Rendering.VectorArt.ModularCharacterOverlays"] = 650, // 625 today
         ["Carbon.Desktop.Rendering.VectorArt.VectorRigRenderer"] = 750, // 741 today
@@ -84,7 +83,6 @@ public sealed class HotPathGuardTests
         ["Carbon.Desktop.Networking.Session.MultiplayerSession.EnterWorldAsync"] = 130, // 128 today
         ["Carbon.Desktop.Networking.Session.MultiplayerSession.ReconnectFullSessionBackgroundAsync"] = 140, // 132 today
         ["Carbon.Desktop.Networking.Session.MultiplayerSession.Update"] = 190, // 189 today
-        ["Carbon.Desktop.Rendering.Hud.ForgeAnvilModalWidget.DrawText"] = 173, // TODO(audit round 2): extract named steps after #81 lands, then delete this entry
         ["Carbon.Desktop.Rendering.Hud.HudOverlayRenderer.Render"] = 180, // 173 today
         ["Carbon.Desktop.Rendering.Overlays.WorldEntityOverlayRenderer.DrawGeometry"] = 140, // 139 today
         ["Carbon.Desktop.Rendering.VectorArt.CarbonVectorArtLibrary.LoadFromDirectory"] = 200, // 195 today
