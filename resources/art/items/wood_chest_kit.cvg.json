@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "itemId": 207,
+  "id": "wood_chest_kit",
+  "displayName": "Wood Chest Kit",
+  "tier": 1,
+  "categoryLabel": "Placeable Kit",
+  "accentColor": "#B45309",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -7,
+      "y": -5,
+      "w": 14,
+      "h": 10,
+      "color": "#92400E",
+      "outlineColor": "#451A03",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -7,
+      "y": -1,
+      "x2": 7,
+      "y2": -1,
+      "thickness": 0.9,
+      "color": "#451A03"
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -1,
+      "y": -2,
+      "w": 2,
+      "h": 2.5,
+      "color": "#FACC15",
+      "outlineColor": "#451A03",
+      "outlineThickness": 0.6
+    }
+  ]
+}
