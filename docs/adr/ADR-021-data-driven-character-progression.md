@@ -46,6 +46,8 @@ needs an ADR (`AGENTS.md` rule 5).
    existing `EntityAllocatePoint` (`0x1204`); `TargetId` and `Amount` are ignored. No new opcode and no packet layout
    change. The server tick-queues it (ADR-017), charges `respec` gold through the wallet ledger with a new
    `CurrencyReason`, and rejects it without change when the player cannot pay. Free through `respec.freeThroughLevel`.
+   *Amended by [ADR-034](ADR-034-retire-gold-attribute-reset.md): the reset is retired from the UI and the wire until a
+   respec-scroll item replaces it.*
 7. **D7 — Budget safety.** Every level grants at least the old 4 points, so saved characters keep valid allocations.
    If a future config leaves a character over budget, the server refunds the allocation on load (free). Allocation
    requests are rejected when no point is unspent (`Conflict`) or the attribute is unknown (`Invalid`), as today.

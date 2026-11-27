@@ -3,6 +3,7 @@
 using System;
 using System.Globalization;
 using System.IO;
+using Carbon.Contracts.Common;
 using Carbon.Maps.Biomes;
 
 namespace Carbon.Desktop.Abstractions.Configuration;
@@ -76,10 +77,17 @@ public sealed class DesktopOptions
     public bool OpenTrader { get; init; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the trader window opened by <see cref="OpenTrader"/> starts in the
-    /// blacksmith's repair mode (<c>CARBON_OPEN_TRADER=repair</c>; screenshot tool).
+    /// Gets or sets the venue at which the scene opens the repair window once in the world (ADR-028;
+    /// <c>CARBON_OPEN_REPAIR=blacksmith|station</c>; screenshot tool), or <see cref="RepairVenue.None"/>.
     /// </summary>
-    public bool OpenTraderRepair { get; init; }
+    public RepairVenue OpenRepair { get; init; }
+
+    /// <summary>
+    /// Gets or sets the repair animation to show for screenshot review (<c>CARBON_REPAIR_PREVIEW</c>, e.g.
+    /// <c>success:0.4</c>): <c>work</c> or <c>success</c>, with an optional frozen time in seconds. Visual only; nothing is
+    /// sent to the server.
+    /// </summary>
+    public string? RepairPreview { get; init; }
 
     /// <summary>
     /// Gets or sets the forge animation to show for screenshot review (<c>CARBON_FORGE_PREVIEW</c>, e.g.
@@ -244,8 +252,14 @@ public sealed class DesktopOptions
             CaptureFrames = captureFrames,
             FrameStatsFrames = frameStatsFrames,
             AutoExit = string.Equals(get("CARBON_AUTO_EXIT"), "1", StringComparison.Ordinal),
-            OpenTrader = get("CARBON_OPEN_TRADER") is "1" or "repair",
-            OpenTraderRepair = string.Equals(get("CARBON_OPEN_TRADER"), "repair", StringComparison.Ordinal),
+            OpenTrader = string.Equals(get("CARBON_OPEN_TRADER"), "1", StringComparison.Ordinal),
+            OpenRepair = get("CARBON_OPEN_REPAIR") switch
+            {
+                "blacksmith" => RepairVenue.Blacksmith,
+                "station" => RepairVenue.Station,
+                _ => RepairVenue.None,
+            },
+            RepairPreview = get("CARBON_REPAIR_PREVIEW") is { Length: > 0 } repairPreview ? repairPreview.Trim() : null,
             AutoWalk = ParsePoint(get("CARBON_AUTO_WALK")),
             OpenPanel = get("CARBON_OPEN_PANEL") is { Length: > 0 } panel ? panel.Trim() : null,
             CaptureMouse = ParsePoint(get("CARBON_CAPTURE_MOUSE")),

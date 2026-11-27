@@ -85,7 +85,8 @@ How repair worked before this ADR:
      `TooManySteps`, `OutOfRange`, `StationTierTooLow`, `MissingMaterials`, `NotEnoughGold`). The client maps each
      error to a `[repair]` key in `en.ini` and `vi.ini`; the server sends no text.
    - `0x4052–0x4057` stay free for this feature.
-   - `RepairInventoryItem` (`0x4009`) is retired: the server no longer handles it, and the value is never reused.
+   - `RepairInventoryItem` (`0x4009`) is retired: the server no longer handles it, the packet and constant are deleted
+     with the client change, and a comment in `ItemOpCode` keeps the value from being reused.
      `TraderStock.RepairSlots` and `RepairCosts` (`SerializeOrder` 11, 12) stay in the layout but are always empty.
      Client and server ship together.
 8. **D8 — Server.** The handler queues the request (ADR-017). `AuthoritativeWorld.TryRepairItem` runs it under the

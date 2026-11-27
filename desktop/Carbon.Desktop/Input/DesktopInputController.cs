@@ -46,7 +46,8 @@ internal readonly record struct DesktopInputFrame(
     bool EscapePressed,
     bool CtrlHeld = false,
     bool DeletePressed = false,
-    bool ConfirmPressed = false);
+    bool ConfirmPressed = false,
+    bool ToggleRepairPressed = false);
 
 /// <summary>
 /// Decodes raw keyboard and mouse state from <see cref="IInputManager"/> into game actions.
@@ -134,7 +135,8 @@ internal static class DesktopInputController
             EscapePressed: keyboard.IsKeyPressed(Key.Escape),
             CtrlHeld: keyboard.IsKeyDown(Key.ControlLeft) || keyboard.IsKeyDown(Key.ControlRight),
             DeletePressed: keyboard.IsKeyPressed(Key.Delete),
-            ConfirmPressed: keyboard.IsKeyPressed(Key.Enter) || keyboard.IsKeyPressed(Key.KeypadEnter));
+            ConfirmPressed: keyboard.IsKeyPressed(Key.Enter) || keyboard.IsKeyPressed(Key.KeypadEnter),
+            ToggleRepairPressed: keyboard.IsKeyPressed(Key.N));
     }
 
     private static byte? PollNumberKey(in KeyboardSnapshot keyboard)
