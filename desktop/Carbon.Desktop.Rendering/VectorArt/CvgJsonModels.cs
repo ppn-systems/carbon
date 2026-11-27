@@ -204,6 +204,7 @@ internal sealed class CvgBonePoseDto
 internal sealed class CvgKeyframeDto
 {
     public float T { get; set; }
+    public string? Ease { get; set; }
     public Dictionary<string, CvgBonePoseDto> Bones { get; set; } = [];
 }
 

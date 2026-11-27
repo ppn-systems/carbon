@@ -11,8 +11,9 @@ namespace Carbon.Maps.Props;
 public readonly record struct TreeStageRule(float Seconds, float Durability, int Yield);
 
 /// <summary>
-/// How trees grow back (ADR-040 D1): a felled tree leaves a stump, which grows through sapling and young tree to mature.
-/// Felling a young tree or a sapling leaves a stump again. Digging up a stump removes it for good. Part of
+/// How trees grow back (ADR-040 D1): a felled mature tree leaves a stump, which grows through sapling and young tree to
+/// mature. Cutting a sapling or a young tree, or digging up a stump, clears the tile for good (a sapling comes back as its
+/// item). Part of
 /// <see cref="PropRegrowthRules"/>.
 /// </summary>
 public sealed class TreeGrowthRules
@@ -22,8 +23,7 @@ public sealed class TreeGrowthRules
     /// <param name="sapling">The sapling stage.</param>
     /// <param name="young">The young stage (<see cref="TreeStageRule.Durability"/> is a share of the mature durability).</param>
     /// <param name="matureYield">Wood logs a felled mature tree drops.</param>
-    /// <param name="saplingDropMin">Fewest sapling items a felled mature tree drops.</param>
-    /// <param name="saplingDropMax">Most sapling items a felled mature tree drops.</param>
+    /// <param name="matureSaplingChance">Chance (0..1) that a felled mature tree drops one sapling item.</param>
     /// <param name="stumpSaplingChance">Chance (0..1) that a dug-up stump drops one sapling item.</param>
     /// <param name="deferWithinTiles">A stage change waits while a player is within this many tiles (0: never waits).</param>
     /// <param name="digBareHandDamage">Damage of a bare-hand strike on a stump.</param>
@@ -33,8 +33,7 @@ public sealed class TreeGrowthRules
         TreeStageRule sapling,
         TreeStageRule young,
         int matureYield,
-        int saplingDropMin,
-        int saplingDropMax,
+        float matureSaplingChance,
         float stumpSaplingChance,
         int deferWithinTiles,
         float digBareHandDamage,
@@ -44,8 +43,7 @@ public sealed class TreeGrowthRules
         this.Sapling = sapling;
         this.Young = young;
         this.MatureYield = matureYield;
-        this.SaplingDropMin = saplingDropMin;
-        this.SaplingDropMax = saplingDropMax;
+        this.MatureSaplingChance = matureSaplingChance;
         this.StumpSaplingChance = stumpSaplingChance;
         this.DeferWithinTiles = deferWithinTiles;
         this.DigBareHandDamage = digBareHandDamage;
@@ -64,11 +62,8 @@ public sealed class TreeGrowthRules
     /// <summary>Gets the wood logs a felled mature tree drops.</summary>
     public int MatureYield { get; }
 
-    /// <summary>Gets the fewest sapling items a felled mature tree drops.</summary>
-    public int SaplingDropMin { get; }
-
-    /// <summary>Gets the most sapling items a felled mature tree drops.</summary>
-    public int SaplingDropMax { get; }
+    /// <summary>Gets the chance (0..1) that a felled mature tree drops one sapling item.</summary>
+    public float MatureSaplingChance { get; }
 
     /// <summary>Gets the chance (0..1) that a dug-up stump drops one sapling item.</summary>
     public float StumpSaplingChance { get; }

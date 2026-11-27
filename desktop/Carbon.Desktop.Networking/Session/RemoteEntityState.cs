@@ -53,7 +53,23 @@ internal sealed class RemoteEntityState
     public float AttackAreaRadius { get; set; }
     public float AttackHalfAngle { get; set; }
     public byte AttackShape { get; set; }
+    public byte ComboStep { get; set; }
     public SnapshotInterpolationBuffer Interpolation { get; } = new(16);
+
+    private AttackComboCounter _combo;
+
+    /// <summary>Starts a swing animation of <paramref name="kind"/> lasting <paramref name="duration"/> seconds.</summary>
+    /// <param name="kind">Action kind.</param>
+    /// <param name="duration">Clip seconds; a hero attack style uses its <see cref="HeroAttackTiming"/> instead.</param>
+    /// <param name="nowSeconds">Monotonic client time, for the combo step.</param>
+    public void StartSwing(ActionAnimationKind kind, float duration, float nowSeconds)
+    {
+        this.ComboStep = _combo.Next(kind, nowSeconds);
+        HeroAttackTiming timing = HeroAttackTiming.For(HeroAttackTiming.StyleOf(kind, this.ComboStep));
+        this.ActiveActionKind = kind;
+        this.AttackAnimDuration = timing.Total > 0f ? timing.Total : duration;
+        this.AttackAnimTimer = this.AttackAnimDuration;
+    }
 
     public static RemoteEntityState FromSpawn(EntitySpawn pkt, string? nameKey) => new()
     {

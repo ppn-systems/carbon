@@ -33,4 +33,17 @@ public sealed class DesktopOptionsTests
         options.FocusBiome.Should().BeNull();
         options.AutoWalk.Should().BeNull();
     }
+
+    [Theory]
+    [InlineData("0.55", 0.55f)]
+    [InlineData("500", 60f)]
+    [InlineData("-1", 0f)]
+    [InlineData("fast", 0f)]
+    [InlineData(null, 0f)]
+    public void FromEnvironment_AutoAttack_ParsesClampedSeconds(string? value, float expected)
+    {
+        DesktopOptions options = DesktopOptions.FromEnvironment(k => k == "CARBON_AUTO_ATTACK" ? value : null);
+
+        options.AutoAttackSeconds.Should().BeApproximately(expected, 1e-4f, "CARBON_AUTO_ATTACK is seconds between swings, 0 = off");
+    }
 }

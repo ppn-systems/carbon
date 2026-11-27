@@ -166,6 +166,8 @@ public sealed partial class MultiplayerSession : IWorldSession
     private volatile StatusEffectCatalog _statusEffectDefinitions = StatusEffectCatalog.Empty;
     private ActionState _currentAction = ActionState.None;
     private byte _comboStep;
+    private AttackComboCounter _combo;
+    private float _comboClock;
     private ulong _lockedTargetNetworkId;
     private float _forgeFeedbackTimer;
     private bool _lastForgeSucceeded;
@@ -535,6 +537,7 @@ public sealed partial class MultiplayerSession : IWorldSession
                         s.BuildAttackView(),
                         s.LootCurrency,
                         this.IsLootLockedForLocalPlayer(s),
+                        s.ComboStep,
                         s.Look));
                 }
 
@@ -638,6 +641,7 @@ public sealed partial class MultiplayerSession : IWorldSession
         float fdt = (float)dt;
         this.MonitorConnectionHealth(fdt);
 
+        _comboClock += fdt;
         if (_attackSwingTimer > 0f)
         {
             _attackSwingTimer = MathF.Max(0f, _attackSwingTimer - fdt);

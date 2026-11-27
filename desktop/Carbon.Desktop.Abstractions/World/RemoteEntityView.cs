@@ -34,6 +34,7 @@ namespace Carbon.Desktop.Abstractions.World;
 /// <param name="Attack">Server-announced monster attack phase (inactive by default).</param>
 /// <param name="LootCurrency">For a ground loot drop: an item stack, or a gold or diamond pile of <c>LootCount</c> (ADR-019).</param>
 /// <param name="IsLootLocked">Whether a ground loot drop is still reserved for another player (ADR-019).</param>
+/// <param name="ComboStep">Combo step of the current swing (see <see cref="AttackComboCounter"/>).</param>
 /// <param name="Look">A player's race, body type and option choices (ADR-042); default for other kinds.</param>
 public readonly record struct RemoteEntityView(
     ulong NetworkId,
@@ -61,4 +62,5 @@ public readonly record struct RemoteEntityView(
     AttackPhaseView Attack = default,
     LootCurrency LootCurrency = LootCurrency.None,
     bool IsLootLocked = false,
+    byte ComboStep = 0,
     CharacterLook Look = default);
