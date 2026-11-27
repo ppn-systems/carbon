@@ -197,7 +197,7 @@ public sealed class CombatServiceTests
                 (_, netId, pos) => this.Kills.Add((netId, pos)),
                 () => this.Tick);
 
-            ConnectedPlayerSession session = new(1UL, 9UL, Guid.NewGuid(), Guid.NewGuid(), "Tester", 900UL, 0, 0);
+            ConnectedPlayerSession session = new(9UL, Guid.NewGuid(), Guid.NewGuid(), "Tester", 900UL, 0, 0);
             CharacterRecord character = new(
                 session.CharacterId, session.AccountId, "Tester", 1, 0, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
             this.Player = new PlayerState(session, this.Simulation.SpawnNetworkEntity(900UL, Vector2.Zero, 7f), character, new InventoryContainer(4));

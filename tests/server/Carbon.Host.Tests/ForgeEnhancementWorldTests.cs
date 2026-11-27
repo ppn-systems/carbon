@@ -40,8 +40,8 @@ public sealed class ForgeEnhancementWorldTests
         bag.SetSlot(20, new ItemSlot(blessed, 20));
         CharacterRecord smith = await f.CreateCharacterAsync("Smith", bag, gold: 100_000).ConfigureAwait(true);
         CharacterRecord watcher = await f.CreateCharacterAsync("Watcher", new InventoryContainer(PlayerInventoryLayout.TotalCapacity), gold: 0).ConfigureAwait(true);
-        f.World.TryEnterWorld(Smith, Smith, smith).Status.Should().Be(OpStatus.Ok);
-        f.World.TryEnterWorld(Watcher, Watcher, watcher).Status.Should().Be(OpStatus.Ok);
+        f.World.TryEnterWorld(Smith, smith).Status.Should().Be(OpStatus.Ok);
+        f.World.TryEnterWorld(Watcher, watcher).Status.Should().Be(OpStatus.Ok);
 
         ForgeEnhancementReceipt receipt = default;
         int attempts = 0;
@@ -112,7 +112,7 @@ public sealed class ForgeEnhancementWorldTests
         f.AddMaterials(bag, 297, swords + 2, "mana_crystal");
         f.AddMaterials(bag, 100, swords + 5, "rough_gem");
         CharacterRecord smith = await f.CreateCharacterAsync("Seer", bag, gold: 10_000_000).ConfigureAwait(true);
-        f.World.TryEnterWorld(Smith, Smith, smith).Status.Should().Be(OpStatus.Ok);
+        f.World.TryEnterWorld(Smith, smith).Status.Should().Be(OpStatus.Ok);
 
         List<EnhancementOutcome> outcomes = [];
         for (ushort s = 0; s < swords; s++)
@@ -140,7 +140,7 @@ public sealed class ForgeEnhancementWorldTests
         f.AddMaterials(bag, 297, swords + 2, "mana_crystal");
         f.AddMaterials(bag, 100, swords + 5, "rough_gem");
         CharacterRecord smith = await f.CreateCharacterAsync("Breaker", bag, gold: 10_000_000).ConfigureAwait(true);
-        f.World.TryEnterWorld(Smith, Smith, smith).Status.Should().Be(OpStatus.Ok);
+        f.World.TryEnterWorld(Smith, smith).Status.Should().Be(OpStatus.Ok);
 
         ForgeEnhancementReceipt destroyed = default;
         ushort destroyedSlot = 0;
@@ -178,7 +178,7 @@ public sealed class ForgeEnhancementWorldTests
         bag.SetSlot(0, new ItemSlot(StarterGameCatalog.IronSword, 1, Durability: 200f, UpgradeLevel: 6));
         f.AddMaterials(bag, 10, 9, "iron_ingot", "mana_crystal");
         CharacterRecord smith = await f.CreateCharacterAsync("Pauper", bag, gold: 1).ConfigureAwait(true);
-        f.World.TryEnterWorld(Smith, Smith, smith).Status.Should().Be(OpStatus.Ok);
+        f.World.TryEnterWorld(Smith, smith).Status.Should().Be(OpStatus.Ok);
         List<(ushort SlotIndex, ItemSlot Slot)> before = [];
         f.World.GetInventorySnapshot(Smith, before).Should().BeTrue();
 

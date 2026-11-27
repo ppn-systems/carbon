@@ -27,7 +27,7 @@ public interface IWorldSessionGateway
     Vector2 DefaultSpawnWorldPosition { get; }
 
     /// <summary>Spawns the selected character into the authoritative simulation and binds the session to <paramref name="connectionId"/>.</summary>
-    EnterWorldResult TryEnterWorld(ulong connectionId, ulong sessionId, CharacterRecord character);
+    EnterWorldResult TryEnterWorld(ulong connectionId, CharacterRecord character);
 
     /// <summary>Removes the session bound to <paramref name="connectionId"/> and despawns its entity.</summary>
     bool LeaveWorld(ulong connectionId);

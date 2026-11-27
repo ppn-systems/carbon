@@ -263,7 +263,7 @@ public sealed class WorldSimulationTests
     public void NetworkIdentityAndDirtyFlags_TracksSpawnMoveDespawnAndAoiDiff()
     {
         WorldSimulation world = new(tickRate: 20, cellSize: 32f);
-        Entity e1 = world.SpawnNetworkEntity(9001UL, new Vector2(16f, 16f), radius: 5f, ownerSessionId: 77UL);
+        Entity e1 = world.SpawnNetworkEntity(9001UL, new Vector2(16f, 16f), radius: 5f);
         world.Entities.SetVelocity(e1, new Velocity2D(0f, 0f));
         Entity e2 = world.SpawnNetworkEntity(9002UL, new Vector2(80f, 16f), radius: 5f);
 

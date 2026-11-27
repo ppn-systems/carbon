@@ -61,7 +61,7 @@ public sealed class KillLootWorldTests
             for (int probeX = 1; probeX <= 12 && mob is null; probeX++)
             {
                 ulong probeConn = 700UL + (ulong)probeX;
-                world.TryEnterWorld(probeConn, probeConn, template with { Id = Guid.NewGuid(), PositionX = ((probeX * 32) + 16) * 32f, PositionY = 16f * 32f }).Status.Should().Be(OpStatus.Ok);
+                world.TryEnterWorld(probeConn, template with { Id = Guid.NewGuid(), PositionX = ((probeX * 32) + 16) * 32f, PositionY = 16f * 32f }).Status.Should().Be(OpStatus.Ok);
                 world.StepFixedTick();
                 mob = sink.Spawns
                     .Where(x => x.ConnectionId == probeConn && x.Snapshot.Kind == EntityKind.Monster && AuthoritativeWorld.ResolveLootTableId(x.Snapshot.ArchetypeId) is not null)
@@ -77,7 +77,7 @@ public sealed class KillLootWorldTests
             (await characters.TryCreateAsync(slayer).ConfigureAwait(true)).Should().BeTrue();
 
             const ulong slayerConn = 800UL;
-            EnterWorldResult entered = world.TryEnterWorld(slayerConn, slayerConn, slayer);
+            EnterWorldResult entered = world.TryEnterWorld(slayerConn, slayer);
             entered.Status.Should().Be(OpStatus.Ok);
             int killSpawnIndex = -1;
             for (int tick = 0; tick < 900 && killSpawnIndex < 0; tick++)
@@ -112,7 +112,7 @@ public sealed class KillLootWorldTests
                 world.LeaveWorld(slayerConn).Should().BeTrue();
                 pickupConn = 801UL;
                 int beforeReentry = sink.Spawns.Count;
-                EnterWorldResult reentered = world.TryEnterWorld(pickupConn, pickupConn, slayer with { PositionX = goldPile.PositionX + 40f, PositionY = goldPile.PositionY });
+                EnterWorldResult reentered = world.TryEnterWorld(pickupConn, slayer with { PositionX = goldPile.PositionX + 40f, PositionY = goldPile.PositionY });
                 reentered.Status.Should().Be(OpStatus.Ok);
                 reentered.PlayerNetworkId.Should().NotBe(entered.PlayerNetworkId, "a reconnect gets a new entity");
                 world.StepFixedTick();
