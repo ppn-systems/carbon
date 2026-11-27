@@ -80,6 +80,21 @@ internal sealed class HeroAppearance
         this.ClampChoices();
     }
 
+    /// <summary>Selects the body type of the current race with code <paramref name="bodyCode"/>, when it has one.</summary>
+    /// <param name="bodyCode">Body type code from <c>races.json</c> (e.g. <c>female</c>).</param>
+    /// <returns><see langword="true"/> when the race has that body.</returns>
+    public bool SelectBody(string bodyCode)
+    {
+        int index = this.Race?.Bodies.FindIndex(b => string.Equals(b.Code, bodyCode, StringComparison.OrdinalIgnoreCase)) ?? -1;
+        if (index < 0)
+        {
+            return false;
+        }
+
+        _bodyIndex = index;
+        return true;
+    }
+
     /// <summary>Moves to the next or previous race (<paramref name="step"/> ±1), wrapping; body and choices reset.</summary>
     /// <param name="step">Direction.</param>
     public void CycleRace(int step)

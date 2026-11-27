@@ -71,6 +71,7 @@ public sealed class CharacterSelectScene : GameScene
     private readonly MenuButton _logoutButton = new(GameText.Get("character.logout"), MenuButtonStyle.DangerRed);
     private readonly RectangleF[] _slotBounds = new RectangleF[CharacterRoster.MaxHeroes];
     private RectangleF _freshStartBounds;
+    private RectangleF _optionsBounds;
 
     private GeometryBatch? _geometryBatch;
     private BitmapFont? _font;
@@ -81,6 +82,7 @@ public sealed class CharacterSelectScene : GameScene
 
     private bool _enteringWorld;
     private int _turnIndex;
+    private int _optionScroll;
     private bool _isCreatorMode;
 
     private float _elapsed;
@@ -89,7 +91,7 @@ public sealed class CharacterSelectScene : GameScene
     private readonly MenuSceneCapture _capture;
     private readonly CachedText _headerText = new();
     private readonly CachedText _netText = new();
-    private readonly CachedText[] _optionRowText = [new(), new(), new(), new()];
+    private readonly CachedText[] _optionRowText = [new(), new(), new(), new(), new(), new()];
     private readonly CachedText _dossierText = new();
     private readonly CachedText _positionText = new();
     private readonly CachedText[] _rosterRowText = [new(), new(), new(), new()];
@@ -130,11 +132,24 @@ public sealed class CharacterSelectScene : GameScene
     /// <summary>Gets the look the creator would send (behaviour tests).</summary>
     internal CharacterLook Look => _appearance.Look;
 
-    /// <summary>Gets how many option rows the creator panel has room for.</summary>
-    internal static int VisibleOptionRows => 4;
+    /// <summary>Gets how many selector rows the creator panel has room for: race, body type, then option rows.</summary>
+    internal static int VisibleOptionRows => 6;
 
-    /// <summary>Gets how many option rows the selected race fills (at most <see cref="VisibleOptionRows"/>).</summary>
-    private int ShownOptionRows => Math.Min(_appearance.OptionCount, VisibleOptionRows);
+    /// <summary>Gets how many option rows fit under the race and body rows.</summary>
+    internal static int VisibleAppearanceRows => VisibleOptionRows - FirstOptionRow;
+
+    /// <summary>Gets the first option shown when the race has more options than fit (the mouse wheel scrolls them).</summary>
+    internal int OptionScroll => _optionScroll;
+
+    /// <summary>Gets how many selector rows are shown: race and body (once races.json has synced), then options.</summary>
+    private int ShownOptionRows => _appearance.Race is null
+        ? 0
+        : FirstOptionRow + Math.Min(_appearance.OptionCount, VisibleAppearanceRows);
+
+    private const int RaceRow = 0;
+    private const int BodyRow = 1;
+    private const int FirstOptionRow = 2;
+    private const float SelectorRowStep = 27f;
 
     /// <summary>Gets the preview turntable direction index (behaviour tests).</summary>
     internal int TurnIndex => _turnIndex;
@@ -184,7 +199,14 @@ public sealed class CharacterSelectScene : GameScene
 
         _elapsed += (float)dt;
         _flow.Backdrop.Advance((float)dt);
+        bool firstCatalog = _appearance.Catalog is null;
         _appearance.Bind(_session.Races.Current);
+        if (firstCatalog && _appearance.Catalog is not null && _flow.Options.CharacterBodyCode is { } bodyCode)
+        {
+            _ = _appearance.SelectBody(bodyCode); // CARBON_CHARACTER_BODY preselects a body (screenshot capture)
+        }
+
+        this.ScrollOptions(0);
         this.PollRequests(context);
 
         if (_requests.IsSigningOut || _requests.IsEnteringWorld)
@@ -257,7 +279,7 @@ public sealed class CharacterSelectScene : GameScene
 
         if (_isCreatorMode)
         {
-            this.UpdateCreatorMode(kb, mousePos, leftDown, leftPressed, (float)dt, busy);
+            this.UpdateCreatorMode(kb, mousePos, mouse.ScrollDelta.Y, leftDown, leftPressed, (float)dt, busy);
         }
         else
         {
@@ -461,15 +483,15 @@ public sealed class CharacterSelectScene : GameScene
             }
 
             spriteBatch.DrawOutlinedString(_font, GameText.Get("character.appearance"), new Vector2(rightCard.X + 16f, rightCard.Y + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
-            RaceDefinition? race = _appearance.Race;
             for (int row = 0; row < this.ShownOptionRows; row++)
             {
-                AppearanceOptionDefinition option = race!.Options[row];
+                (string labelKey, string valueKey) = this.RowKeys(row);
                 string label = _optionRowText[row].Format(
                     "appearance.row",
-                    new TextArg("label", GameText.Get(option.NameKey)),
-                    new TextArg("value", GameText.Get(option.Choices[_appearance.GetChoice(row)].NameKey)));
-                spriteBatch.DrawOutlinedString(_font, label, new Vector2(rightCard.X + 52f, rightCard.Y + 49f + (row * 34f)), CarbonUiPalette.TextPrimary, black, 1, 1f);
+                    new TextArg("label", GameText.Get(labelKey)),
+                    new TextArg("value", GameText.Get(valueKey)));
+                label = CarbonUiSkin.TruncateToWidth(_font, label, 204f, 1f);
+                spriteBatch.DrawOutlinedString(_font, label, new Vector2(rightCard.X + 52f, rightCard.Y + 47f + (row * SelectorRowStep)), CarbonUiPalette.TextPrimary, black, 1, 1f);
                 _optionPrevButtons[row].DrawText(spriteBatch, _font);
                 _optionNextButtons[row].DrawText(spriteBatch, _font);
             }
@@ -589,28 +611,34 @@ public sealed class CharacterSelectScene : GameScene
         }
     }
 
-    private void UpdateCreatorMode(KeyboardSnapshot kb, Vector2 mousePos, bool leftDown, bool leftPressed, float dt, bool busy)
+    private void UpdateCreatorMode(KeyboardSnapshot kb, Vector2 mousePos, float scrollY, bool leftDown, bool leftPressed, float dt, bool busy)
     {
         _createNameField.Update(dt, mousePos, leftPressed && !busy);
         for (int row = 0; row < VisibleOptionRows; row++)
         {
-            _optionPrevButtons[row].IsEnabled = !busy;
-            _optionNextButtons[row].IsEnabled = !busy;
+            bool cycles = !busy && this.RowChoiceCount(row) > 1;
+            _optionPrevButtons[row].IsEnabled = cycles;
+            _optionNextButtons[row].IsEnabled = cycles;
         }
 
         _randomizeBtn.IsEnabled = !busy;
         _createButton.IsEnabled = !busy && _roster.HasFreeSlot;
         _backToRosterButton.IsEnabled = !busy && _roster.Count > 0;
 
+        if (scrollY != 0f && _optionsBounds.Contains(mousePos))
+        {
+            this.ScrollOptions(scrollY > 0f ? -1 : 1);
+        }
+
         for (int row = 0; row < this.ShownOptionRows; row++)
         {
             if (_optionPrevButtons[row].Update(mousePos, leftDown, leftPressed))
             {
-                _appearance.CycleOption(row, -1);
+                this.CycleRow(row, -1);
             }
             else if (_optionNextButtons[row].Update(mousePos, leftDown, leftPressed))
             {
-                _appearance.CycleOption(row, 1);
+                this.CycleRow(row, 1);
             }
         }
 
@@ -709,11 +737,12 @@ public sealed class CharacterSelectScene : GameScene
         float ry = oy + 68f;
         for (int row = 0; row < VisibleOptionRows; row++)
         {
-            _optionPrevButtons[row].Bounds = new RectangleF(rx + 16f, ry + 44f + (row * 34f), 28f, 26f);
-            _optionNextButtons[row].Bounds = new RectangleF(rx + 262f, ry + 44f + (row * 34f), 28f, 26f);
+            _optionPrevButtons[row].Bounds = new RectangleF(rx + 16f, ry + 42f + (row * SelectorRowStep), 28f, 26f);
+            _optionNextButtons[row].Bounds = new RectangleF(rx + 262f, ry + 42f + (row * SelectorRowStep), 28f, 26f);
         }
 
-        _randomizeBtn.Bounds = new RectangleF(rx + 16f, ry + 184f, 274f, 32f);
+        _optionsBounds = new RectangleF(rx + 16f, ry + 42f + (FirstOptionRow * SelectorRowStep), 274f, VisibleAppearanceRows * SelectorRowStep);
+        _randomizeBtn.Bounds = new RectangleF(rx + 16f, ry + 42f + (VisibleOptionRows * SelectorRowStep) + 1f, 274f, 24f);
 
         _createNameField.Bounds = new RectangleF(rx + 16f, ry + 250f, 274f, 36f);
         if (_roster.Count > 0)
@@ -793,4 +822,60 @@ public sealed class CharacterSelectScene : GameScene
 
         return buttons;
     }
+
+    /// <summary>Gets the label and value keys of selector row <paramref name="row"/>, all from <c>races.json</c> (behaviour tests).</summary>
+    internal (string LabelKey, string ValueKey) RowKeys(int row)
+    {
+        RaceDefinition race = _appearance.Race!;
+        if (row == RaceRow)
+        {
+            return ("character_creator.race", race.NameKey);
+        }
+
+        if (row == BodyRow)
+        {
+            return ("character_creator.body", _appearance.Body!.NameKey);
+        }
+
+        int option = row - FirstOptionRow + _optionScroll;
+        AppearanceOptionDefinition definition = race.Options[option];
+        return (definition.NameKey, definition.Choices[_appearance.GetChoice(option)].NameKey);
+    }
+
+    /// <summary>How many values selector row <paramref name="row"/> cycles through (0 when the row is not shown).</summary>
+    private int RowChoiceCount(int row)
+    {
+        RaceDefinition? race = _appearance.Race;
+        if (race is null || row >= this.ShownOptionRows)
+        {
+            return 0;
+        }
+
+        return row switch
+        {
+            RaceRow => _appearance.Catalog!.Races.Count,
+            BodyRow => race.Bodies.Count,
+            _ => race.Options[row - FirstOptionRow + _optionScroll].Choices.Count,
+        };
+    }
+
+    private void CycleRow(int row, int step)
+    {
+        switch (row)
+        {
+            case RaceRow:
+                _appearance.CycleRace(step);
+                _optionScroll = 0;
+                break;
+            case BodyRow:
+                _appearance.CycleBody(step);
+                break;
+            default:
+                _appearance.CycleOption(row - FirstOptionRow + _optionScroll, step);
+                break;
+        }
+    }
+
+    private void ScrollOptions(int step) =>
+        _optionScroll = Math.Clamp(_optionScroll + step, 0, Math.Max(0, _appearance.OptionCount - VisibleAppearanceRows));
 }

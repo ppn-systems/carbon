@@ -17,6 +17,7 @@ using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
+using Carbon.Items.Races;
 using Carbon.Items.Serialization;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Streaming;
@@ -547,7 +548,7 @@ public sealed partial class MultiplayerSession
         {
             // The starter look is the creator's default from the server's races.json (ADR-042).
             _ = _races.Apply(await this.WaitForGameConfigAsync(ct).ConfigureAwait(false));
-            CharacterLook starterLook = _races.Current?.DefaultLook() ?? default;
+            CharacterLook starterLook = StarterLook(_races.Current, _options.CharacterBodyCode);
             (bool created, string createMsg) = await this.CreateCharacterAsync(_options.CharacterName, starterLook, ct: ct).ConfigureAwait(false);
             if (!created)
             {
@@ -652,4 +653,29 @@ public sealed partial class MultiplayerSession
         AuthStatus.Ok => GameText.Format("auth.error_status", new TextArg("status", status.ToString())),
         _ => GameText.Format("auth.error_status", new TextArg("status", status.ToString())),
     };
+
+    /// <summary>
+    /// The auto-login starter look: the catalog's default, on the first race's body named <paramref name="bodyCode"/>
+    /// when it has one (ADR-042).
+    /// </summary>
+    internal static CharacterLook StarterLook(RaceCatalog? races, string? bodyCode)
+    {
+        if (races is null)
+        {
+            return default;
+        }
+
+        CharacterLook look = races.DefaultLook();
+        BodyTypeDefinition? body = bodyCode is null
+            ? null
+            : races.Races[0].Bodies.Find(b => string.Equals(b.Code, bodyCode, StringComparison.OrdinalIgnoreCase));
+        if (body is null)
+        {
+            return look;
+        }
+
+        Span<byte> options = stackalloc byte[look.OptionCount];
+        look.CopyOptionsTo(options);
+        return new CharacterLook(look.RaceId, body.Id, options);
+    }
 }

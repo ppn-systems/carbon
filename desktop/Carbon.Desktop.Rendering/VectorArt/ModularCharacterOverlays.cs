@@ -149,49 +149,51 @@ internal static class ModularCharacterOverlays
         ref readonly BonePose bodyPose = ref bones[(int)VectorBoneId.Body];
         bool isRobe = chestId == StarterGameCatalog.CrystalRobe;
 
+        // Body-bone pieces follow the body's torso width (ADR-042 D11); arm pieces follow the arm bones.
+        float tsx = sx * rig.TorsoWidthScale;
         Span<Vector2> plate = stackalloc Vector2[4];
         float bottomY = isRobe ? -7.2f : -10.8f;
         float bottomW = isRobe ? 6.6f : 5.5f;
-        FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-6.7f, -21.3f), (6.7f, -21.3f), (bottomW, bottomY), (-bottomW, bottomY));
+        FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (-6.7f, -21.3f), (6.7f, -21.3f), (bottomW, bottomY), (-bottomW, bottomY));
         ColorRgba outlineCol = ApplyFlash(s_outline, hitFlash * 0.45f);
-        DrawOutlinedPoly(batch, plate, bodyCol, outlineCol, 1.1f * MathF.Abs(sx), hitFlash);
+        DrawOutlinedPoly(batch, plate, bodyCol, outlineCol, 1.1f * MathF.Abs(tsx), hitFlash);
 
         if (!isNorth)
         {
-            float absScale = MathF.Abs(sx);
+            float absScale = MathF.Abs(tsx);
             if (isRobe)
             {
                 // Arcane robe V-lapel & glowing diamond clasp
-                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-3.6f, -20.8f), (3.6f, -20.8f), (1.8f, -13.0f), (-1.8f, -13.0f));
+                FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (-3.6f, -20.8f), (3.6f, -20.8f), (1.8f, -13.0f), (-1.8f, -13.0f));
                 batch.FillConvexPolygon(plate, ApplyFlash(highCol, hitFlash));
-                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-1.6f, -20.8f), (1.6f, -20.8f), (1.2f, -8.0f), (-1.2f, -8.0f));
+                FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (-1.6f, -20.8f), (1.6f, -20.8f), (1.2f, -8.0f), (-1.2f, -8.0f));
                 batch.FillConvexPolygon(plate, ApplyFlash(trimCol, hitFlash));
-                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (0f, -19.2f), (1.9f, -17.3f), (0f, -15.4f), (-1.9f, -17.3f));
+                FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (0f, -19.2f), (1.9f, -17.3f), (0f, -15.4f), (-1.9f, -17.3f));
                 DrawOutlinedPoly(batch, plate, gemCol, outlineCol, 0.9f * absScale, hitFlash);
             }
             else if (chestId == StarterGameCatalog.IronChestplate)
             {
                 // Sculpted steel cuirass highlight + center ridge + riveted belt
-                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-4.8f, -20.4f), (4.8f, -20.4f), (3.2f, -13.4f), (-3.2f, -13.4f));
+                FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (-4.8f, -20.4f), (4.8f, -20.4f), (3.2f, -13.4f), (-3.2f, -13.4f));
                 batch.FillConvexPolygon(plate, ApplyFlash(highCol, hitFlash));
-                Vector2 ridgeTop = Transform(new Vector2(0f, -20.4f), bodyPivot, bodyPose, origin, sx, sy);
-                Vector2 ridgeBot = Transform(new Vector2(0f, -13.2f), bodyPivot, bodyPose, origin, sx, sy);
+                Vector2 ridgeTop = Transform(new Vector2(0f, -20.4f), bodyPivot, bodyPose, origin, tsx, sy);
+                Vector2 ridgeBot = Transform(new Vector2(0f, -13.2f), bodyPivot, bodyPose, origin, tsx, sy);
                 batch.DrawLine(ridgeTop, ridgeBot, ApplyFlash(outlineCol, hitFlash * 0.5f), 1.0f * absScale);
-                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-5.7f, -12.0f), (5.7f, -12.0f), (5.7f, -9.8f), (-5.7f, -9.8f));
+                FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (-5.7f, -12.0f), (5.7f, -12.0f), (5.7f, -9.8f), (-5.7f, -9.8f));
                 batch.FillConvexPolygon(plate, ApplyFlash(new ColorRgba(51, 65, 85, 255), hitFlash));
-                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-1.5f, -12.3f), (1.5f, -12.3f), (1.5f, -9.5f), (-1.5f, -9.5f));
+                FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (-1.5f, -12.3f), (1.5f, -12.3f), (1.5f, -9.5f), (-1.5f, -9.5f));
                 DrawOutlinedPoly(batch, plate, trimCol, outlineCol, 0.9f * absScale, hitFlash);
             }
             else
             {
                 // Tunic / leather brigandine chest panel + diagonal baldric strap + brass buckle
-                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-4.4f, -20.2f), (4.4f, -20.2f), (3.4f, -13.2f), (-3.4f, -13.2f));
+                FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (-4.4f, -20.2f), (4.4f, -20.2f), (3.4f, -13.2f), (-3.4f, -13.2f));
                 batch.FillConvexPolygon(plate, ApplyFlash(highCol, hitFlash));
-                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-5.6f, -21.0f), (-3.0f, -21.0f), (5.2f, -11.4f), (2.6f, -11.4f));
+                FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (-5.6f, -21.0f), (-3.0f, -21.0f), (5.2f, -11.4f), (2.6f, -11.4f));
                 DrawOutlinedPoly(batch, plate, new ColorRgba(92, 46, 14, 255), outlineCol, 0.85f * absScale, hitFlash);
-                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-5.7f, -12.0f), (5.7f, -12.0f), (5.7f, -9.8f), (-5.7f, -9.8f));
+                FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (-5.7f, -12.0f), (5.7f, -12.0f), (5.7f, -9.8f), (-5.7f, -9.8f));
                 batch.FillConvexPolygon(plate, ApplyFlash(new ColorRgba(69, 26, 3, 255), hitFlash));
-                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-1.3f, -12.2f), (1.3f, -12.2f), (1.3f, -9.6f), (-1.3f, -9.6f));
+                FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (-1.3f, -12.2f), (1.3f, -12.2f), (1.3f, -9.6f), (-1.3f, -9.6f));
                 DrawOutlinedPoly(batch, plate, trimCol, outlineCol, 0.85f * absScale, hitFlash);
             }
         }
@@ -199,7 +201,7 @@ internal static class ModularCharacterOverlays
         float absS = MathF.Abs(sx);
         Vector2 armFPivot = rig.GetBonePivot(VectorBoneId.ArmFront);
         ref readonly BonePose armFPose = ref bones[(int)VectorBoneId.ArmFront];
-        Vector2 pauldronPos = Transform(new Vector2(isSide ? 2.2f : 6.4f, -19.5f), armFPivot, armFPose, origin, sx, sy);
+        Vector2 pauldronPos = Transform(isSide ? new Vector2(2.2f, -19.5f) : armFPivot + new Vector2(0.2f, 0f), armFPivot, armFPose, origin, sx, sy);
         batch.FillCircle(pauldronPos, 3.2f * absS, outlineCol, 12);
         batch.FillCircle(pauldronPos, 2.4f * absS, ApplyFlash(trimCol, hitFlash), 12);
 
@@ -207,7 +209,7 @@ internal static class ModularCharacterOverlays
         {
             Vector2 armBPivot = rig.GetBonePivot(VectorBoneId.ArmBack);
             ref readonly BonePose armBPose = ref bones[(int)VectorBoneId.ArmBack];
-            Vector2 backPauldron = Transform(new Vector2(-6.4f, -19.5f), armBPivot, armBPose, origin, sx, sy);
+            Vector2 backPauldron = Transform(armBPivot + new Vector2(-0.2f, 0f), armBPivot, armBPose, origin, sx, sy);
             batch.FillCircle(backPauldron, 3.0f * absS, outlineCol, 12);
             batch.FillCircle(backPauldron, 2.2f * absS, ApplyFlash(highCol, hitFlash), 12);
         }

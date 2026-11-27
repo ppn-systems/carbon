@@ -77,8 +77,11 @@ What master (`12a3897`) does:
     (`CharacterLookResolverTests`).
 11. **D11 — Bodies share one skeleton.** Every body rig uses the same `VectorBoneId` bones and names, so every clip
     (walk, attacks, tool use, swim, dive, downed) and every equipment and held-item attachment works on every body
-    without per-clip copies. A body rig differs only in its shapes. A test checks bone and clip parity between body
-    rigs. The female human rig lands as config plus art on top of this ADR.
+    without per-clip copies. A body rig differs only in its shapes: it borrows its race's first body's clips with
+    `"animationsFrom"`, and its `torsoWidthScale` fits the modular chest armor and cape to its torso. Pauldrons
+    follow the arm pivots, held items the rig's `weaponGrip`. `BodyRigParityTests` checks bone names and identical
+    poses for every clip. The female human rig (`characters/human_female.cvg.json`, body 1) is config plus art on top
+    of this ADR; see [docs/art/character-bodies.md](../art/character-bodies.md).
 12. **D12 — Creator.** The creator lists whatever `races.json` holds: race, then the race's body types, then its
     options, with labels from the config's `nameKey`s (`appearance.row = {label}: {value}`). No literal names.
 
