@@ -96,6 +96,12 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     /// <summary>Gets or sets the open trader window's stock (ADR-025), or <see langword="null"/> when it is closed.</summary>
     public TraderView? Trader { get; set; }
 
+    /// <summary>Gets the trade window's staged sell basket and buy cart (ADR-025 D18).</summary>
+    public TradeBasket TradeBasket { get; } = new();
+
+    /// <summary>Gets or sets the bag slot being dragged towards the basket, or -1.</summary>
+    public int TradeDragSlot { get; set; } = -1;
+
     /// <summary>Gets the repair window (ADR-028); open while <see cref="RepairModalWidget.IsOpen"/>.</summary>
     public RepairModalWidget Repair { get; } = new();
 
@@ -615,7 +621,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         }
         else if (this.Trader is TraderView trader)
         {
-            TradeModalWidget.Render(spriteBatch, _geometryBatch, _uiSkin, _font, _art, screenProj, world, trader, viewportWidth, viewportHeight, mouseScreenPos);
+            TradeModalWidget.Render(spriteBatch, _geometryBatch, _uiSkin, _font, _art, screenProj, world, trader, this.TradeBasket, this.TradeDragSlot, viewportWidth, viewportHeight, mouseScreenPos);
         }
         else if (this.Repair.IsOpen)
         {

@@ -234,9 +234,7 @@ internal sealed class InventoryModalWidget
                     byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
                     float effMax = MathF.Max(1f, ItemEnhancementPolicy.GetEffectiveMaxDurability(def, upg));
                     float frac = Math.Clamp(item.Durability / effMax, 0f, 1f);
-                    ColorRgba dCol = frac <= 0f
-                        ? CarbonUiPalette.HpFill
-                        : (frac > 0.35f ? CarbonUiPalette.StaminaFill : CarbonUiPalette.XpFill);
+                    ColorRgba dCol = DurabilityBarStyle.GetFill(world.Items.Rules.Repair, item.Durability, effMax);
                     float barW = rect.Width - (barInset * 2f);
                     float barY = rect.Bottom - barH - MathF.Round(4f * s);
                     batch.FillRectangle(new RectangleF(rect.X + barInset, barY, barW, barH), new ColorRgba(8, 10, 14, 240));

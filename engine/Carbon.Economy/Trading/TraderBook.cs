@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using Carbon.Contracts.Common;
 using Carbon.Economy.Currency;
 using Carbon.Economy.Vendor;
 using Carbon.Items.Containers;
@@ -170,6 +171,133 @@ public sealed class TraderBook
         draft.CommitTo(inventory);
         this.RecordSale(trader.Key, epoch, slotIndex, quantity, count);
         return TradeResult.Ok;
+    }
+
+    /// <summary>
+    /// Buys a whole cart of stock lines (ADR-025 D18): the epoch must be current, every line must name a distinct stock
+    /// slot that still offers the item the buyer saw with enough units left, the server's total must equal
+    /// <paramref name="expectedGold"/>, the wallet must pay it and everything must fit in the bag. Then wallet, bag and
+    /// sold counts change together; on any failure nothing changes.
+    /// </summary>
+    /// <param name="catalog">Trader profiles.</param>
+    /// <param name="prices">Price rules.</param>
+    /// <param name="trader">The trader.</param>
+    /// <param name="unixSeconds">Server wall-clock time.</param>
+    /// <param name="wallet">Buyer wallet.</param>
+    /// <param name="inventory">Buyer inventory.</param>
+    /// <param name="lines">Cart lines (stock slot, item, units).</param>
+    /// <param name="expectedEpoch">The epoch the buyer's view was priced in.</param>
+    /// <param name="expectedGold">The total the buyer confirmed.</param>
+    /// <param name="buyerLevel">Buyer level.</param>
+    /// <param name="slotLimit">Only the first <paramref name="slotLimit"/> inventory slots receive items (the bag).</param>
+    /// <param name="tick">Simulation tick (ledger).</param>
+    /// <returns>The outcome.</returns>
+    public TradeBatchOutcome TryBuyBatch(
+        TraderCatalog catalog,
+        PriceBook prices,
+        in TraderIdentity trader,
+        long unixSeconds,
+        Wallet wallet,
+        InventoryContainer inventory,
+        ReadOnlySpan<TradeLine> lines,
+        long expectedEpoch,
+        long expectedGold,
+        int buyerLevel,
+        int slotLimit,
+        ulong tick = 0)
+    {
+        ArgumentNullException.ThrowIfNull(wallet);
+        ArgumentNullException.ThrowIfNull(inventory);
+        Span<TraderOffer> offers = stackalloc TraderOffer[TraderCatalog.MaxSlots];
+        int count = this.GetOffers(catalog, prices, trader, unixSeconds, buyerLevel, offers, out long epoch, out _);
+        if (count < 0 || lines.IsEmpty || lines.Length > count)
+        {
+            return TradeBatchOutcome.Fail(TradeBatchError.InvalidRequest);
+        }
+
+        if (epoch != expectedEpoch)
+        {
+            return TradeBatchOutcome.Fail(TradeBatchError.PricesChanged);
+        }
+
+        long total = 0;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            TradeLine line = lines[i];
+            if ((uint)line.Slot >= (uint)count || line.Quantity <= 0)
+            {
+                return TradeBatchOutcome.Fail(TradeBatchError.InvalidRequest, i);
+            }
+
+            for (int j = 0; j < i; j++)
+            {
+                if (lines[j].Slot == line.Slot)
+                {
+                    return TradeBatchOutcome.Fail(TradeBatchError.DuplicateLine, i);
+                }
+            }
+
+            TraderOffer offer = offers[line.Slot];
+            if (offer.ItemId != line.ItemId)
+            {
+                return TradeBatchOutcome.Fail(TradeBatchError.PricesChanged, i);
+            }
+
+            if (offer.Remaining < line.Quantity)
+            {
+                return TradeBatchOutcome.Fail(TradeBatchError.SoldOut, i);
+            }
+
+            try
+            {
+                total = checked(total + (offer.UnitPrice * line.Quantity));
+            }
+            catch (OverflowException)
+            {
+                return TradeBatchOutcome.Fail(TradeBatchError.InvalidRequest, i);
+            }
+        }
+
+        if (total != expectedGold)
+        {
+            return TradeBatchOutcome.Fail(TradeBatchError.PricesChanged);
+        }
+
+        if (!wallet.CanAfford(CurrencyKind.Gold, total))
+        {
+            return TradeBatchOutcome.Fail(TradeBatchError.NotEnoughGold);
+        }
+
+        Span<ItemSlot> buffer = inventory.Capacity <= InventoryDraft.StackBufferLimit
+            ? stackalloc ItemSlot[InventoryDraft.StackBufferLimit]
+            : new ItemSlot[inventory.Capacity];
+        InventoryDraft draft = InventoryDraft.Begin(inventory, buffer, slotLimit);
+        for (int i = 0; i < lines.Length; i++)
+        {
+            TraderOffer offer = offers[lines[i].Slot];
+            if (!prices.Items.TryGet(offer.ItemId, out ItemCatalogEntry? item))
+            {
+                return TradeBatchOutcome.Fail(TradeBatchError.InvalidRequest, i);
+            }
+
+            if (draft.Add(new ItemSlot(offer.ItemId, lines[i].Quantity, Durability: item.MaxDurability), item.MaxStack) != 0)
+            {
+                return TradeBatchOutcome.Fail(TradeBatchError.BagFull, i);
+            }
+        }
+
+        if (!wallet.TrySpend(CurrencyKind.Gold, total, CurrencyReason.VendorPurchase, tick).IsOk)
+        {
+            return TradeBatchOutcome.Fail(TradeBatchError.NotEnoughGold);
+        }
+
+        draft.CommitTo(inventory);
+        for (int i = 0; i < lines.Length; i++)
+        {
+            this.RecordSale(trader.Key, epoch, lines[i].Slot, lines[i].Quantity, count);
+        }
+
+        return TradeBatchOutcome.Ok(total);
     }
 
     /// <summary>Restores persisted sales (stale epochs are simply never matched).</summary>

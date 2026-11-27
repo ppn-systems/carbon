@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
@@ -16,9 +17,11 @@ using Carbon.Application.World.Projectiles;
 using Carbon.Application.World.Props;
 using Carbon.Application.World.Replication;
 using Carbon.Application.World.Stamina;
+using Carbon.Contracts.Common;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
+using Carbon.Items.Progression;
 using Carbon.Maps.Building;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Streaming;
@@ -139,16 +142,114 @@ public sealed class PlayerActionServiceTests
     }
 
     [Fact]
-    public void WearArmor_PieceBreaks_RecomputesStats()
+    public void WearArmor_ChestplateAtOneDurabilityTakesAHit_IsDestroyedAndStatsLoseItsDefense()
     {
         Harness h = new();
-        h.Player.Inventory.SetSlot(PlayerInventoryLayout.HeadSlot, new ItemSlot(h.Find(a => a.MaxDurability > 0f).Id, 1, Durability: 0.4f));
+        uint chest = h.Rules.ItemCatalog.ResolveId("iron_chestplate");
+        h.Player.Inventory.SetSlot(PlayerInventoryLayout.ChestSlot, new ItemSlot(chest, 1, InstanceId: 5, Durability: 0.4f));
+        h.Host.RecomputeDerivedStats(h.Player);
+        float defenseWithArmor = h.Player.Stats.Defense;
 
         h.Actions.WearArmor(h.Player, 0.5f);
 
-        h.Player.Inventory.GetSlot(PlayerInventoryLayout.HeadSlot).Durability.Should().Be(0f);
-        h.Host.StatRecomputes.Should().Be(1);
-        h.Outbound.Pending.SlotChanges.Should().ContainSingle();
+        h.Player.Inventory.GetSlot(PlayerInventoryLayout.ChestSlot).IsEmpty.Should().BeTrue("ADR-035: armor worn to 0 is destroyed, not left worn out");
+        h.Player.Stats.Defense.Should().BeLessThan(defenseWithArmor, "the broken chestplate no longer adds its defense");
+        h.Player.StatsDirty.Should().BeTrue("the owner must receive the recomputed stats");
+        h.Host.EquipmentBroadcasts.Should().Be(1, "nearby players stop seeing the chestplate");
+        h.Host.InventoryDirtyMarks.Should().Be(1, "the empty slot is saved");
+        h.Outbound.Pending.SlotChanges.Should().ContainSingle().Which.Should().Be(
+            new OutboundSlotChange(h.Player.Session.ConnectionId, PlayerInventoryLayout.ChestSlot, ItemSlot.Empty));
+        h.Outbound.Pending.DurabilityAlerts.Should().ContainSingle().Which.Should().Be(
+            new OutboundDurabilityAlert(h.Player.Session.ConnectionId, DurabilityAlertKind.Broke, PlayerInventoryLayout.ChestSlot, chest, 0));
+    }
+
+    [Fact]
+    public void WearArmor_HealthyPiece_OnlyWearsItWithoutAnAlert()
+    {
+        Harness h = new();
+        uint chest = h.Rules.ItemCatalog.ResolveId("iron_chestplate");
+        h.Player.Inventory.SetSlot(PlayerInventoryLayout.ChestSlot, new ItemSlot(chest, 1, InstanceId: 5, Durability: 200f));
+
+        h.Actions.WearArmor(h.Player, 0.5f);
+
+        h.Player.Inventory.GetSlot(PlayerInventoryLayout.ChestSlot).Durability.Should().Be(199.5f);
+        h.Outbound.Pending.DurabilityAlerts.Should().BeEmpty();
+        h.Host.EquipmentBroadcasts.Should().Be(0);
+    }
+
+    [Fact]
+    public void Attack_MeleeWeaponOnItsLastHit_HitsThenIsDestroyedAndTheOwnerGetsTheEmptySlotAndABreak()
+    {
+        Harness h = new();
+        Entity mob = h.SpawnMonster(1000f);
+        h.Hold(new ItemSlot(StarterGameCatalog.IronSword, 1, InstanceId: 9, Durability: 1f));
+
+        h.Actions.Attack(h.Player);
+
+        h.Simulation.Entities.GetHealth(mob).Current.Should().BeLessThan(1000f, "the last hit still lands");
+        h.Player.Inventory.GetSlot(0).IsEmpty.Should().BeTrue("a 1.5 wear step takes the sword from 1 to below 0");
+        h.Outbound.Pending.SlotChanges.Should().ContainSingle().Which.Should().Be(new OutboundSlotChange(h.Player.Session.ConnectionId, 0, ItemSlot.Empty));
+        h.Outbound.Pending.DurabilityAlerts.Should().ContainSingle().Which.Should().Be(
+            new OutboundDurabilityAlert(h.Player.Session.ConnectionId, DurabilityAlertKind.Broke, 0, StarterGameCatalog.IronSword, 0));
+        h.Host.StatRecomputes.Should().Be(1, "the held weapon fed the derived stats");
+        h.Host.EquipmentBroadcasts.Should().Be(1);
+    }
+
+    [Fact]
+    public void Attack_BowOnItsLastShot_FiresThenIsDestroyed()
+    {
+        Harness h = new();
+        ItemArchetype bow = h.Find(a => a.ProjectileSpeed > 0f && a.AttackManaCost <= 0f);
+        h.Hold(new ItemSlot(bow.Id, 1, InstanceId: 9, Durability: 0.5f));
+        h.Player.PendingAttackAim = new Vector2(100f, 0f);
+
+        h.Actions.Attack(h.Player);
+
+        h.Projectiles.Count.Should().Be(1, "the last shot still flies");
+        h.Player.Inventory.GetSlot(0).IsEmpty.Should().BeTrue();
+        h.Outbound.Pending.DurabilityAlerts.Should().ContainSingle().Which.Kind.Should().Be(DurabilityAlertKind.Broke);
+    }
+
+    [Fact]
+    public void WearActiveTool_EnhancedSwordAtOne_BreaksLikeAnyOtherAndReportsItsLevel()
+    {
+        Harness h = new();
+        ItemSlot held = new(StarterGameCatalog.IronSword, 1, InstanceId: 9, Durability: 1f, UpgradeLevel: 10);
+        h.Hold(held);
+
+        h.Actions.WearActiveTool(h.Player, in held, 1.5f, out ItemSlot after).Should().BeTrue();
+
+        after.Should().Be(ItemSlot.Empty, "ADR-035 D2: enhancement does not protect an item from breaking");
+        h.Player.Inventory.GetSlot(0).IsEmpty.Should().BeTrue();
+        h.Outbound.Pending.DurabilityAlerts.Should().ContainSingle().Which.Should().Be(
+            new OutboundDurabilityAlert(h.Player.Session.ConnectionId, DurabilityAlertKind.Broke, 0, StarterGameCatalog.IronSword, 10));
+    }
+
+    [Fact]
+    public void WearActiveTool_WornDownStepByStep_WarnsExactlyOnceAtTheCriticalShareThenBreaksOnce()
+    {
+        // Iron sword: 200 max, so the critical share (10 %) is 20. Start just above it and wear 1.5 per step.
+        Harness h = new();
+        ItemSlot held = new(StarterGameCatalog.IronSword, 1, InstanceId: 9, Durability: 21f);
+        h.Hold(held);
+
+        h.Actions.WearActiveTool(h.Player, in held, 1.5f, out held).Should().BeTrue();
+        h.Outbound.Pending.DurabilityAlerts.Should().ContainSingle().Which.Should().Be(
+            new OutboundDurabilityAlert(h.Player.Session.ConnectionId, DurabilityAlertKind.AboutToBreak, 0, StarterGameCatalog.IronSword, 0),
+            "21 → 19.5 crosses 10 % of 200");
+
+        int steps = 1;
+        while (!held.IsEmpty && steps < 100)
+        {
+            h.Actions.WearActiveTool(h.Player, in held, 1.5f, out held).Should().BeTrue();
+            steps++;
+        }
+
+        held.IsEmpty.Should().BeTrue();
+        h.Outbound.Pending.DurabilityAlerts.Select(a => a.Kind).Should().Equal(
+            [DurabilityAlertKind.AboutToBreak, DurabilityAlertKind.Broke],
+            "the warning fires once per descent, not on every step below 10 %");
+        h.Host.StatRecomputes.Should().Be(1, "only the break changes the stats");
     }
 
     [Fact]
@@ -438,11 +539,16 @@ public sealed class PlayerActionServiceTests
 
     private sealed class RecordingHost : IPlayerActionHost
     {
+        private static readonly ItemRules s_rules = ItemRules.LoadShippedDefaults();
+        private static readonly ProgressionConfig s_progression = ProgressionConfig.LoadShippedDefaults();
+
         public int Wakes { get; private set; }
 
         public int InventoryDirtyMarks { get; private set; }
 
         public int StatRecomputes { get; private set; }
+
+        public int EquipmentBroadcasts { get; private set; }
 
         public void MarkCharacterDirty(PlayerState state, bool inventoryChanged)
         {
@@ -460,7 +566,13 @@ public sealed class PlayerActionServiceTests
         {
         }
 
-        public void RecomputeDerivedStats(PlayerState state) => this.StatRecomputes++;
+        public void RecomputeDerivedStats(PlayerState state)
+        {
+            this.StatRecomputes++;
+            state.Stats = CharacterStatCalculator.Compute(s_rules, s_progression, state.Level, state.Inventory, state.Session.SelectedHotbarSlot, state.Progression);
+        }
+
+        public void BroadcastEquipment(PlayerState state) => this.EquipmentBroadcasts++;
     }
 
     private sealed class NoProjectileHits : IProjectileHitHandler

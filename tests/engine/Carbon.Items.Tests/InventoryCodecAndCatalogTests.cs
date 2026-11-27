@@ -130,15 +130,11 @@ public sealed class InventoryCodecAndCatalogTests
     }
 
     [Fact]
-    public void ToolUsagePolicy_ShouldPenalizeMisuseDeflectRockAndDegradeWhenWornOut()
+    public void ToolUsagePolicy_ShouldPenalizeMisuseAndDeflectRock()
     {
         ItemSlot freshSword = new(StarterGameCatalog.IronSword, 1, 0, 200f);
         ItemSlot freshAxe = new(StarterGameCatalog.WoodAxe, 1, 0, 120f);
         ItemSlot freshPick = new(StarterGameCatalog.StonePickaxe, 1, 0, 160f);
-        ItemSlot wornSword = new(StarterGameCatalog.IronSword, 1, 0, 0f);
-
-        ToolUsagePolicy.IsWornOut(s_rules, in freshSword).Should().BeFalse();
-        ToolUsagePolicy.IsWornOut(s_rules, in wornSword).Should().BeTrue();
 
         PropStrikeEvaluation swordOnTree = ToolUsagePolicy.EvaluatePropStrike(s_rules, in freshSword, ToolTargetKind.Flora, 1);
         swordOnTree.Outcome.Should().Be(ToolStrikeOutcome.SwordMisuseOnWood);
@@ -155,10 +151,6 @@ public sealed class InventoryCodecAndCatalogTests
 
         PropStrikeEvaluation pickOnOre = ToolUsagePolicy.EvaluatePropStrike(s_rules, in freshPick, ToolTargetKind.Mineral, 2);
         pickOnOre.Outcome.Should().Be(ToolStrikeOutcome.Optimal);
-
-        CombatStrikeEvaluation wornHit = ToolUsagePolicy.EvaluateCombatStrike(s_rules, in wornSword);
-        wornHit.Outcome.Should().Be(ToolStrikeOutcome.WornOutTool);
-        wornHit.Damage.Should().BeLessThan(s_rules.GetWeaponBaseDamage(StarterGameCatalog.IronSword));
     }
 
     [Fact]

@@ -277,6 +277,7 @@ public sealed partial class MultiplayerSession
             _requestedChunks.Clear();
             _combatEvents.Clear();
             _propImpactEvents.Clear();
+            _itemBreakEvents.Clear();
             _dirtyChunks.Clear();
             _hudNotifications.Clear();
             _reconciler.Clear();

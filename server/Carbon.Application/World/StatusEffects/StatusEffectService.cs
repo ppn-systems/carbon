@@ -8,6 +8,7 @@ using Carbon.Abstractions.World;
 using Carbon.Combat.Statuses;
 using Carbon.Combat.Statuses.Config;
 using Carbon.Creatures.Definitions;
+using Carbon.Maps.Hydrology;
 using Carbon.Primitives.Random;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.World;
@@ -23,6 +24,9 @@ namespace Carbon.Application.World.StatusEffects;
 /// </summary>
 internal sealed class StatusEffectService
 {
+    /// <summary>Leading token of the persisted format with levels (ADR-036 D5).</summary>
+    private const string FormatV2 = "v2";
+
     private readonly WorldSimulation _simulation;
     private readonly ushort _tickRate;
     private readonly IGameplayEntropy _entropy;
@@ -76,7 +80,8 @@ internal sealed class StatusEffectService
         StatusSource source,
         ushort sourceId,
         float durationSeconds = 0f,
-        byte stacks = 1)
+        byte stacks = 1,
+        byte level = 1)
     {
         ArgumentNullException.ThrowIfNull(definition);
         if (definition.Derived != StatusDerivation.None || !this.TryGetBuffer(target, out StatusEffectBuffer buffer))
@@ -84,14 +89,14 @@ internal sealed class StatusEffectService
             return false;
         }
 
-        ActiveStatusEffect active = StatusEffectCatalog.CreateActive(definition, _tickRate, caster, source, sourceId, durationSeconds, stacks);
+        ActiveStatusEffect active = StatusEffectCatalog.CreateActive(definition, _tickRate, caster, source, sourceId, durationSeconds, stacks, level);
         return buffer.ApplyOrRefresh(in active);
     }
 
-    /// <summary>Applies the effect with <paramref name="key"/>; returns whether the buffer changed.</summary>
-    public bool Apply(Entity target, string key, StatusSource source, ushort sourceId = 0, float durationSeconds = 0f) =>
+    /// <summary>Applies the effect with <paramref name="key"/> at <paramref name="level"/>; returns whether the buffer changed.</summary>
+    public bool Apply(Entity target, string key, StatusSource source, ushort sourceId = 0, float durationSeconds = 0f, byte level = 1) =>
         this.Catalog.TryGetByKey(key, out StatusEffectDefinition definition) &&
-        this.Apply(target, definition, Entity.Null, source, sourceId, durationSeconds);
+        this.Apply(target, definition, Entity.Null, source, sourceId, durationSeconds, level: level);
 
     /// <summary>Removes every effect (death).</summary>
     public void Clear(Entity entity)
@@ -109,6 +114,19 @@ internal sealed class StatusEffectService
     /// <summary>Gets whether <paramref name="entity"/> is stunned.</summary>
     public bool IsStunned(Entity entity) =>
         this.TryGetBuffer(entity, out StatusEffectBuffer buffer) && (buffer.ActiveControlMask & CrowdControlMask.Stunned) != 0;
+
+    /// <summary>Gets the multiplier on damage <paramref name="entity"/> deals (weakness, ADR-036 D9).</summary>
+    public float GetDamageDealtMultiplier(Entity entity) =>
+        this.TryGetBuffer(entity, out StatusEffectBuffer buffer) ? buffer.DamageDealtMultiplier : 1f;
+
+    /// <summary>Gets the multiplier on the view (AoI) radius of <paramref name="entity"/> (blindness, ADR-036 D9).</summary>
+    public float GetViewRadiusMultiplier(Entity entity) =>
+        this.TryGetBuffer(entity, out StatusEffectBuffer buffer) ? buffer.ViewRadiusMultiplier : 1f;
+
+    /// <summary>Puts out every effect water removes (burning) while <paramref name="tier"/> is at least shallow (ADR-036 D9).</summary>
+    /// <returns>Whether an effect was removed.</returns>
+    public bool ExtinguishInWater(Entity entity, WaterDepthTier tier) =>
+        tier >= WaterDepthTier.Shallow && this.TryGetBuffer(entity, out StatusEffectBuffer buffer) && buffer.RemoveExtinguishedByWater();
 
     /// <summary>Gets the stamina regeneration multiplier from effects.</summary>
     public float GetStaminaRegenMultiplier(Entity entity) =>
@@ -152,7 +170,9 @@ internal sealed class StatusEffectService
 
     /// <summary>
     /// Applies the effects of one landed monster hit (ADR-029 D7): the heavy-hit effect when the mitigated damage reaches
-    /// the configured share of max HP, and each proc of the attacker's monster type on the secret proc roll.
+    /// the configured share of max HP, and each proc of the attacker's monster type on the secret proc roll. A proc with
+    /// <c>minDamageFraction</c> rolls only on a hit that heavy. The proc's level grows with the attacker's level and at
+    /// night (ADR-036 D8).
     /// </summary>
     /// <returns>Whether the victim's buffer changed.</returns>
     public bool OnMonsterHit(
@@ -163,7 +183,9 @@ internal sealed class StatusEffectService
         ushort attackerArchetypeId,
         float dealt,
         float victimMaxHealth,
-        ulong tick)
+        ulong tick,
+        int attackerLevel = 1,
+        bool isNight = false)
     {
         if (dealt <= 0f)
         {
@@ -186,9 +208,15 @@ internal sealed class StatusEffectService
         for (int i = 0; i < procs.Length; i++)
         {
             MonsterProcEntry proc = procs[i];
+            if (proc.MinDamageFraction > 0f && (victimMaxHealth <= 0f || dealt < proc.MinDamageFraction * victimMaxHealth))
+            {
+                continue;
+            }
+
             if (StatusProcRoll.Sample(in key, tick, victimNetworkId, attackerNetworkId, i) < proc.Chance)
             {
-                changed |= this.Apply(victim, proc.Effect, attacker, StatusSource.Monster, attackerArchetypeId);
+                byte level = catalog.ResolveProcLevel(proc, attackerLevel, isNight);
+                changed |= this.Apply(victim, proc.Effect, attacker, StatusSource.Monster, attackerArchetypeId, proc.DurationSeconds, level: level);
             }
         }
 
@@ -232,6 +260,8 @@ internal sealed class StatusEffectService
                 ActiveStatusEffect effect = active[i];
                 float magnitude = effect.MagnitudePerStack > 0f ? effect.MagnitudePerStack * effect.Stacks
                     : effect.MoveSpeedMultiplier != 1f ? effect.MoveSpeedMultiplier
+                    : effect.DamageDealtMultiplier != 1f ? effect.DamageDealtMultiplier
+                    : effect.ViewRadiusMultiplier != 1f ? effect.ViewRadiusMultiplier
                     : effect.HealthRegenMultiplier != 1f ? effect.HealthRegenMultiplier
                     : effect.StaminaRegenMultiplier;
                 output.Add(new StatusEffectEntry(
@@ -241,7 +271,8 @@ internal sealed class StatusEffectService
                     this.TicksToMs(effect.DurationTicks),
                     magnitude,
                     (byte)effect.Source,
-                    effect.SourceId));
+                    effect.SourceId,
+                    effect.Level));
             }
         }
 
@@ -292,8 +323,8 @@ internal sealed class StatusEffectService
     }
 
     /// <summary>
-    /// Serializes the effects marked <c>persist</c> as <c>key:remainingMs:stacks</c> entries joined by <c>;</c>
-    /// (ADR-029 D8). Cold path (saves).
+    /// Serializes the effects marked <c>persist</c> as format <c>v2</c> (ADR-036 D5): a leading <c>v2</c> token, then
+    /// <c>key:remainingMs:stacks:level</c> entries, all joined by <c>;</c>. Cold path (saves).
     /// </summary>
     public string Serialize(Entity entity)
     {
@@ -311,24 +342,25 @@ internal sealed class StatusEffectService
                 continue;
             }
 
-            if (text.Length > 0)
-            {
-                _ = text.Append(';');
-            }
-
-            _ = text.Append(def.Key)
+            _ = text.Append(text.Length == 0 ? FormatV2 : string.Empty)
+                .Append(';')
+                .Append(def.Key)
                 .Append(':')
                 .Append(this.TicksToMs(active[i].RemainingTicks).ToString(CultureInfo.InvariantCulture))
                 .Append(':')
-                .Append(active[i].Stacks.ToString(CultureInfo.InvariantCulture));
+                .Append(active[i].Stacks.ToString(CultureInfo.InvariantCulture))
+                .Append(':')
+                .Append(active[i].Level.ToString(CultureInfo.InvariantCulture));
         }
 
         return text.ToString();
     }
 
     /// <summary>
-    /// Restores persisted effects at world entry (ADR-029 D8). Unknown keys and malformed entries are skipped, durations are
-    /// clamped to the definition. A record saved before ADR-029 restores <c>poisoned</c> from the needs poison seconds.
+    /// Restores persisted effects at world entry (ADR-029 D8, ADR-036 D5). A value starting with the <c>v2</c> token holds
+    /// <c>key:remainingMs:stacks:level</c> entries; any other value is the ADR-029 format <c>key:remainingMs:stacks</c> and
+    /// loads at level 1. Unknown keys and malformed entries are skipped, durations and levels are clamped to the definition.
+    /// A record saved before ADR-029 restores <c>poisoned</c> from the needs poison seconds.
     /// <paramref name="persistedOnly"/> false also accepts effects that are never saved, at any duration (the screenshot debug
     /// override).
     /// </summary>
@@ -337,10 +369,14 @@ internal sealed class StatusEffectService
         ArgumentNullException.ThrowIfNull(needsConfig);
         _ = this.Attach(entity);
         bool restoredAny = false;
-        foreach (string item in (persisted ?? string.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        string[] items = (persisted ?? string.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        bool v2 = items.Length > 0 && string.Equals(items[0], FormatV2, StringComparison.Ordinal);
+        for (int index = v2 ? 1 : 0; index < items.Length; index++)
         {
-            string[] parts = item.Split(':');
-            if (parts.Length != 3 ||
+            string[] parts = items[index].Split(':');
+            byte level = 1;
+            if (parts.Length != (v2 ? 4 : 3) ||
+                (v2 && (!byte.TryParse(parts[3], NumberStyles.None, CultureInfo.InvariantCulture, out level) || level == 0)) ||
                 !this.Catalog.TryGetByKey(parts[0], out StatusEffectDefinition def) ||
                 (persistedOnly && !def.Persist) ||
                 def.Derived != StatusDerivation.None ||
@@ -354,7 +390,7 @@ internal sealed class StatusEffectService
             float maxSeconds = MaxRestoreSeconds(def, needsConfig);
             // The screenshot debug override (persistedOnly false) may hold an effect longer than one application lasts.
             float seconds = persistedOnly ? MathF.Min(remainingMs / 1000f, maxSeconds) : remainingMs / 1000f;
-            restoredAny |= this.Apply(entity, def, Entity.Null, StatusSource.None, 0, seconds, stacks);
+            restoredAny |= this.Apply(entity, def, Entity.Null, StatusSource.None, 0, seconds, stacks, level);
         }
 
         if (!restoredAny && float.IsFinite(legacyPoisonSeconds) && legacyPoisonSeconds > 0f &&

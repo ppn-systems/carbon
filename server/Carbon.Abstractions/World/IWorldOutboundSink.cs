@@ -165,6 +165,7 @@ public readonly record struct AttackPhaseSnapshot(
 /// <param name="Magnitude">Damage per pulse (all stacks) for damage effects, otherwise the effect's multiplier.</param>
 /// <param name="SourceKind">What applied it (<c>StatusSource</c> byte).</param>
 /// <param name="SourceId">Source detail: the monster archetype id, or 0.</param>
+/// <param name="Level">Effect level (amplifier), 1 = I (ADR-036).</param>
 public readonly record struct StatusEffectEntry(
     ushort EffectId,
     byte Stacks,
@@ -172,7 +173,8 @@ public readonly record struct StatusEffectEntry(
     uint DurationMs,
     float Magnitude,
     byte SourceKind,
-    ushort SourceId);
+    ushort SourceId,
+    byte Level = 1);
 
 /// <summary>
 /// Decoupled transport sink used by <c>Carbon.Application</c> to dispatch AoI entity updates and map edits
@@ -218,7 +220,7 @@ public interface IWorldOutboundSink
 
     /// <summary>
     /// Broadcasts a combat hit caused by a status effect pulse (ADR-029 D9); <paramref name="statusEffectId"/> is 0 for a
-    /// direct hit. Sinks that do not tint damage numbers fall back to <see cref="SendCombatHit(ReadOnlySpan{ulong}, ulong, ulong, float, float, bool, bool)"/>.
+    /// direct hit, and <paramref name="statusEffectLevel"/> is the pulsing effect's level (ADR-036; 0 for a direct hit). Sinks that do not tint damage numbers fall back to <see cref="SendCombatHit(ReadOnlySpan{ulong}, ulong, ulong, float, float, bool, bool)"/>.
     /// </summary>
     void SendCombatHit(
         ReadOnlySpan<ulong> recipientConnectionIds,
@@ -228,7 +230,8 @@ public interface IWorldOutboundSink
         float remainingHealth,
         bool isCritical,
         bool isKilled,
-        ushort statusEffectId) =>
+        ushort statusEffectId,
+        byte statusEffectLevel) =>
         this.SendCombatHit(recipientConnectionIds, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled);
 
     /// <summary>
@@ -242,6 +245,13 @@ public interface IWorldOutboundSink
     /// <summary>Sends a single updated inventory slot to the owning player connection.</summary>
     /// <remarks><paramref name="freshnessSeconds"/> is the food spoilage countdown (ADR-016), 0 when not perishable.</remarks>
     void SendInventorySlotChanged(ulong connectionId, ushort slotIndex, uint itemId, int quantity, float durability, byte upgradeLevel = 0, float freshnessSeconds = 0f);
+
+    /// <summary>
+    /// Pushes to the owner that an item is about to break, or broke and was destroyed (ADR-035). Sinks without a client ignore it.
+    /// </summary>
+    void SendItemDurabilityAlert(ulong connectionId, DurabilityAlertKind kind, ushort slotIndex, uint itemId, byte upgradeLevel)
+    {
+    }
 
     /// <summary>Broadcasts updated visible armor, held weapon, enhancement glow, and level to AoI observers.</summary>
     void SendEntityEquipmentChanged(

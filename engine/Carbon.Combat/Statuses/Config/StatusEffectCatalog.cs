@@ -51,7 +51,13 @@ public sealed class StatusEffectCatalog
 
         foreach (MonsterStatusProc proc in document.MonsterProcs)
         {
-            _procs.Add(new MonsterProcEntry(proc.Monster, _byKey[proc.Effect], proc.Chance));
+            _procs.Add(new MonsterProcEntry(proc.Monster, _byKey[proc.Effect], proc.Chance, proc.Level, proc.DurationSeconds, proc.MinDamageFraction));
+        }
+
+        if (document.ProcLevelScaling is { } scaling)
+        {
+            this.MonsterLevelsPerEffectLevel = scaling.MonsterLevelsPerEffectLevel;
+            this.NightBonusLevels = scaling.NightBonusLevels;
         }
     }
 
@@ -72,6 +78,12 @@ public sealed class StatusEffectCatalog
 
     /// <summary>Gets the minimum rest fraction at wake-up for <see cref="RestedEffect"/>.</summary>
     public float RestedMinRestFraction { get; } = 1f;
+
+    /// <summary>Gets the monster levels per extra proc level (ADR-036 D8); 0 when monster level does not scale procs.</summary>
+    public int MonsterLevelsPerEffectLevel { get; }
+
+    /// <summary>Gets the extra proc levels at night (ADR-036 D8).</summary>
+    public int NightBonusLevels { get; }
 
     /// <summary>Gets every monster proc in document order.</summary>
     public IReadOnlyList<MonsterProcEntry> MonsterProcs => _procs;
@@ -125,6 +137,7 @@ public sealed class StatusEffectCatalog
     /// <param name="sourceId">Source detail (monster archetype id).</param>
     /// <param name="durationSeconds">Duration override; non-positive uses the definition's duration.</param>
     /// <param name="stacks">Initial stacks (clamped to the cap).</param>
+    /// <param name="level">Level (amplifier), clamped to <c>[1, maxLevel]</c>; the level-scaled values are resolved here (ADR-036).</param>
     /// <returns>The active entry.</returns>
     public static ActiveStatusEffect CreateActive(
         StatusEffectDefinition definition,
@@ -133,28 +146,61 @@ public sealed class StatusEffectCatalog
         StatusSource source,
         ushort sourceId,
         float durationSeconds = 0f,
-        byte stacks = 1)
+        byte stacks = 1,
+        byte level = 1)
     {
         ArgumentNullException.ThrowIfNull(definition);
+        byte resolved = definition.ClampLevel(level);
+        float moveSpeed = definition.MoveSpeedMultiplierAt(resolved);
         uint duration = SecondsToTicks(durationSeconds > 0f ? durationSeconds : definition.DurationSeconds, tickRate);
         return new ActiveStatusEffect(
             definition.Id,
             caster,
-            ControlMaskOf(definition),
-            definition.Magnitude,
+            ControlMaskOf(definition.Stun, moveSpeed),
+            definition.MagnitudeAt(resolved),
             duration,
             PulseIntervalTicks: SecondsToTicks(definition.TickIntervalSeconds, tickRate),
             Stacks: Math.Clamp(stacks, (byte)1, definition.MaxStacks),
             MaxStacks: definition.MaxStacks,
             IsDamage: true,
             Stacking: definition.Stacking,
-            MoveSpeedMultiplier: definition.MoveSpeedMultiplier,
+            MoveSpeedMultiplier: moveSpeed,
             DurationTicks: duration,
             Lethal: definition.Lethal,
-            HealthRegenMultiplier: definition.HealthRegenMultiplier,
-            StaminaRegenMultiplier: definition.StaminaRegenMultiplier,
+            HealthRegenMultiplier: definition.HealthRegenMultiplierAt(resolved),
+            StaminaRegenMultiplier: definition.StaminaRegenMultiplierAt(resolved),
             Source: source,
-            SourceId: sourceId);
+            SourceId: sourceId,
+            Level: resolved,
+            DamageDealtMultiplier: definition.DamageDealtMultiplierAt(resolved),
+            ViewRadiusMultiplier: definition.ViewRadiusMultiplierAt(resolved),
+            ExtinguishedByWater: definition.ExtinguishedByWater);
+    }
+
+    /// <summary>
+    /// Resolves the level a proc applies (ADR-036 D8): its base level, plus one per
+    /// <see cref="MonsterLevelsPerEffectLevel"/> monster levels above 1 (monster level already grows with distance from the
+    /// world origin), plus <see cref="NightBonusLevels"/> at night, clamped to the effect's <c>maxLevel</c>.
+    /// </summary>
+    /// <param name="proc">The proc.</param>
+    /// <param name="monsterLevel">Attacker's level.</param>
+    /// <param name="isNight">Whether the hit lands at night.</param>
+    /// <returns>The level, 1..maxLevel.</returns>
+    public byte ResolveProcLevel(MonsterProcEntry proc, int monsterLevel, bool isNight)
+    {
+        ArgumentNullException.ThrowIfNull(proc);
+        int level = proc.Level;
+        if (this.MonsterLevelsPerEffectLevel > 0)
+        {
+            level += Math.Max(0, monsterLevel - 1) / this.MonsterLevelsPerEffectLevel;
+        }
+
+        if (isNight)
+        {
+            level += this.NightBonusLevels;
+        }
+
+        return proc.Effect.ClampLevel((byte)Math.Clamp(level, 1, byte.MaxValue));
     }
 
     /// <summary>Gets a definition by wire id.</summary>
@@ -195,10 +241,10 @@ public sealed class StatusEffectCatalog
     public StatusEffectDefinition? GetDerived(StatusDerivation derivation) =>
         derivation is > StatusDerivation.None and <= StatusDerivation.WellFed ? _derived[(int)derivation] : null;
 
-    private static CrowdControlMask ControlMaskOf(StatusEffectDefinition definition)
+    private static CrowdControlMask ControlMaskOf(bool stun, float moveSpeedMultiplier)
     {
-        CrowdControlMask mask = definition.Stun ? CrowdControlMask.Stunned : CrowdControlMask.None;
-        return definition.MoveSpeedMultiplier < 1f ? mask | CrowdControlMask.Slowed : mask;
+        CrowdControlMask mask = stun ? CrowdControlMask.Stunned : CrowdControlMask.None;
+        return moveSpeedMultiplier < 1f ? mask | CrowdControlMask.Slowed : mask;
     }
 
     private static void Validate(StatusEffectsDocument document)
@@ -243,6 +289,26 @@ public sealed class StatusEffectCatalog
             RequireRange(def.MoveSpeedMultiplier, 0.05f, 3f, def.Key, "moveSpeedMultiplier");
             RequireRange(def.HealthRegenMultiplier, 0f, 10f, def.Key, "healthRegenMultiplier");
             RequireRange(def.StaminaRegenMultiplier, 0f, 10f, def.Key, "staminaRegenMultiplier");
+            RequireRange(def.MaxLevel, 1f, byte.MaxValue, def.Key, "maxLevel");
+            RequireRange(def.MagnitudePerLevel, 0f, 10_000f, def.Key, "magnitudePerLevel");
+            RequireRange(def.MoveSpeedMultiplierPerLevel, -1f, 1f, def.Key, "moveSpeedMultiplierPerLevel");
+            RequireRange(def.HealthRegenMultiplierPerLevel, -1f, 1f, def.Key, "healthRegenMultiplierPerLevel");
+            RequireRange(def.StaminaRegenMultiplierPerLevel, -1f, 1f, def.Key, "staminaRegenMultiplierPerLevel");
+            RequireRange(def.DamageDealtMultiplier, 0.05f, 3f, def.Key, "damageDealtMultiplier");
+            RequireRange(def.DamageDealtMultiplierPerLevel, -1f, 1f, def.Key, "damageDealtMultiplierPerLevel");
+            RequireRange(def.ViewRadiusMultiplier, StatusEffectDefinition.MinViewRadiusMultiplier, 3f, def.Key, "viewRadiusMultiplier");
+            RequireRange(def.ViewRadiusMultiplierPerLevel, -1f, 1f, def.Key, "viewRadiusMultiplierPerLevel");
+            if (def.MaxLevel == 1 && (def.MagnitudePerLevel != 0f || def.MoveSpeedMultiplierPerLevel != 0f ||
+                def.HealthRegenMultiplierPerLevel != 0f || def.StaminaRegenMultiplierPerLevel != 0f ||
+                def.DamageDealtMultiplierPerLevel != 0f || def.ViewRadiusMultiplierPerLevel != 0f))
+            {
+                throw new InvalidDataException($"{FileName} effect '{def.Key}' scales per level but has maxLevel 1.");
+            }
+
+            if (def.MagnitudePerLevel > 0f && def.TickIntervalSeconds <= 0f)
+            {
+                throw new InvalidDataException($"{FileName} effect '{def.Key}' has a magnitudePerLevel but no tickIntervalSeconds.");
+            }
             if (def.Magnitude > 0f && def.TickIntervalSeconds <= 0f)
             {
                 throw new InvalidDataException($"{FileName} effect '{def.Key}' has a magnitude but no tickIntervalSeconds.");
@@ -270,6 +336,15 @@ public sealed class StatusEffectCatalog
 
             RequireTimed(keys, proc.Effect, $"monsterProcs[{proc.Monster}]");
             RequireRange(proc.Chance, 0f, 1f, proc.Monster, "chance");
+            RequireRange(proc.Level, 1f, byte.MaxValue, proc.Monster, "level");
+            RequireRange(proc.DurationSeconds, 0f, 86_400f, proc.Monster, "durationSeconds");
+            RequireRange(proc.MinDamageFraction, 0f, 1f, proc.Monster, "minDamageFraction");
+        }
+
+        if (document.ProcLevelScaling is { } scaling)
+        {
+            RequireRange(scaling.MonsterLevelsPerEffectLevel, 0f, 1000f, "procLevelScaling", "monsterLevelsPerEffectLevel");
+            RequireRange(scaling.NightBonusLevels, 0f, byte.MaxValue, "procLevelScaling", "nightBonusLevels");
         }
     }
 
@@ -309,4 +384,13 @@ public sealed class StatusEffectCatalog
 /// <param name="Monster">Monster id from <c>monsters.json</c>.</param>
 /// <param name="Effect">Timed effect applied.</param>
 /// <param name="Chance">Chance per landed hit.</param>
-public sealed record MonsterProcEntry(string Monster, StatusEffectDefinition Effect, float Chance);
+/// <param name="Level">Base level before monster level and night scaling (ADR-036 D7).</param>
+/// <param name="DurationSeconds">Duration override; 0 uses the effect's duration.</param>
+/// <param name="MinDamageFraction">Minimum mitigated damage as a fraction of max HP for the proc to roll (0 = any hit).</param>
+public sealed record MonsterProcEntry(
+    string Monster,
+    StatusEffectDefinition Effect,
+    float Chance,
+    byte Level = 1,
+    float DurationSeconds = 0f,
+    float MinDamageFraction = 0f);

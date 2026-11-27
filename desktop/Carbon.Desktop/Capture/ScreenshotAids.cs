@@ -5,9 +5,12 @@ using System.Globalization;
 using System.Numerics;
 using Carbon.Contracts.Common;
 using Carbon.Desktop.Abstractions.Configuration;
+using Carbon.Desktop.Abstractions.Events;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Input;
+using Carbon.Desktop.Rendering.Feedback;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -21,6 +24,8 @@ namespace Carbon.Desktop.Capture;
 internal sealed class ScreenshotAids(DesktopOptions options)
 {
     private bool _openedPanel;
+    private bool _breakToastShown;
+    private long _nextShatterMs;
 
     /// <summary>Pins the cursor when <c>CARBON_CAPTURE_MOUSE</c> is set, so hover states render deterministically.</summary>
     public DesktopInputFrame PinMouse(DesktopInputFrame input) =>
@@ -30,11 +35,12 @@ internal sealed class ScreenshotAids(DesktopOptions options)
     /// Applies the per-frame UI aids: opens the <c>CARBON_OPEN_PANEL</c> tab once, then the <c>CARBON_UI_PREVIEW</c>
     /// state. Returns the mouse position to use for a tooltip preview, or <see langword="null"/> to keep the real one.
     /// </summary>
-    public Vector2? Apply(HudOverlayRenderer? hud, IWorldSession session, int viewportWidth, int viewportHeight)
+    public Vector2? Apply(HudOverlayRenderer? hud, IWorldSession session, int viewportWidth, int viewportHeight, CombatFeedbackTracker? feedback = null)
     {
         if (hud is not null)
         {
             this.OpenRequestedPanel(hud, session);
+            this.PreviewItemBreak(hud, session, feedback);
         }
 
         return this.ApplyUiPreview(hud, session, viewportWidth, viewportHeight);
@@ -46,6 +52,41 @@ internal sealed class ScreenshotAids(DesktopOptions options)
         {
             _openedPanel = true;
             _ = hud.OpenOrTogglePlayerTab(session, PlayerModalTab.Character);
+        }
+    }
+
+    // CARBON_UI_PREVIEW=item-break:N (ADR-035): the break toast for the item in slot N once, and its shatter shards every 0.4 s
+    // so any capture frame shows them. Visual only: the item is not touched and nothing is sent.
+    private void PreviewItemBreak(HudOverlayRenderer hud, IWorldSession session, CombatFeedbackTracker? feedback)
+    {
+        const string prefix = "item-break:";
+        if (options.UiPreview is not { } preview ||
+            !preview.StartsWith(prefix, StringComparison.Ordinal) ||
+            !int.TryParse(preview.AsSpan(prefix.Length), NumberStyles.Integer, CultureInfo.InvariantCulture, out int slot) ||
+            slot < 0 || slot >= PlayerInventoryLayout.TotalCapacity)
+        {
+            return;
+        }
+
+        Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
+        session.CopyInventorySlots(slots);
+        ItemSlot item = slots[slot];
+        if (item.IsEmpty)
+        {
+            return;
+        }
+
+        if (!_breakToastShown)
+        {
+            _breakToastShown = true;
+            hud.PushNotification(GameText.Format("durability.broke", new TextArg("item", session.Items.GetDisplayName(item.ItemId))));
+        }
+
+        long now = Environment.TickCount64;
+        if (feedback is not null && now >= _nextShatterMs)
+        {
+            _nextShatterMs = now + 400L;
+            feedback.SpawnItemBreakShatter(new ItemBreakEvent(session.LocalPlayerInterpolatedPosition, item.ItemId, item.UpgradeLevel), now / 1000f);
         }
     }
 

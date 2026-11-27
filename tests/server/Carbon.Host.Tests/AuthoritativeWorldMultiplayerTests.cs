@@ -1892,6 +1892,11 @@ public sealed class AuthoritativeWorldMultiplayerTests
         public void SendCombatHit(ReadOnlySpan<ulong> recipientConnectionIds, ulong attackerNetworkId, ulong defenderNetworkId, float damage, float remainingHealth, bool isCritical, bool isKilled) =>
             this.CombatHits.Add((attackerNetworkId, defenderNetworkId, damage, isKilled));
 
+        public List<(ulong ConnectionId, DurabilityAlertKind Kind, ushort SlotIndex, uint ItemId, byte UpgradeLevel)> DurabilityAlerts { get; } = [];
+
+        public void SendItemDurabilityAlert(ulong connectionId, DurabilityAlertKind kind, ushort slotIndex, uint itemId, byte upgradeLevel) =>
+            this.DurabilityAlerts.Add((connectionId, kind, slotIndex, itemId, upgradeLevel));
+
         public void SendInventorySlotChanged(ulong connectionId, ushort slotIndex, uint itemId, int quantity, float durability, byte upgradeLevel = 0, float freshnessSeconds = 0f)
         {
             this.SlotChanges.Add((connectionId, slotIndex, itemId, quantity));

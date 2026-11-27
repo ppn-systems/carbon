@@ -9,6 +9,7 @@ using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
+using Carbon.Items.Repair;
 using Carbon.Survival.Food;
 
 namespace Carbon.Desktop.Rendering.Hud;
@@ -114,11 +115,9 @@ internal sealed class ItemTooltipBuilder
             if (def.MaxDurability > 0f)
             {
                 float max = MathF.Max(1f, ItemEnhancementPolicy.GetEffectiveMaxDurability(def, upg));
-                float frac = Math.Clamp(slot.Durability / max, 0f, 1f);
-                string text = frac <= 0f
-                    ? GameText.Format("tooltip.broken", Num("max", max))
-                    : GameText.Format("tooltip.durability", Num("value", slot.Durability), Num("max", max));
-                output.Add(new ItemTooltipLine(text, frac <= 0f ? CarbonUiPalette.DangerBorder : frac <= 0.35f ? CarbonUiPalette.XpFill : CarbonUiPalette.TextMuted));
+                string text = GameText.Format("tooltip.durability", Num("value", slot.Durability), Num("max", max));
+                DurabilityBand band = rules.Repair.GetDurabilityBand(slot.Durability, max);
+                output.Add(new ItemTooltipLine(text, band == DurabilityBand.Healthy ? CarbonUiPalette.TextMuted : DurabilityBarStyle.GetFill(rules.Repair, slot.Durability, max)));
             }
         }
 

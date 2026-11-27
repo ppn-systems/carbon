@@ -73,8 +73,9 @@ public sealed partial class AuthoritativeWorld
         float remainingHealth,
         bool isCritical,
         bool isKilled,
-        ushort statusEffectId = 0) =>
-        _combat.QueueCombatHit(worldPos, attackerNetId, defenderNetId, damage, remainingHealth, isCritical, isKilled, statusEffectId);
+        ushort statusEffectId = 0,
+        byte statusEffectLevel = 0) =>
+        _combat.QueueCombatHit(worldPos, attackerNetId, defenderNetId, damage, remainingHealth, isCritical, isKilled, statusEffectId, statusEffectLevel);
 
     private void GrantExperienceLocked(PlayerState state, uint amount, out bool leveledUp)
     {
@@ -215,5 +216,13 @@ public sealed partial class AuthoritativeWorld
             owner.ProcessPlaceablePrimaryActionLocked(state, attackerPos, activeSlot, archetype);
 
         public void RecomputeDerivedStats(PlayerState state) => owner.RecomputeDerivedStatsLocked(state);
+
+        public void BroadcastEquipment(PlayerState state)
+        {
+            if (owner._simulation.Entities.HasTransform(state.Entity))
+            {
+                owner.EnqueueEquipmentBroadcastLocked(state, owner._simulation.Entities.GetTransform(state.Entity).Position);
+            }
+        }
     }
 }

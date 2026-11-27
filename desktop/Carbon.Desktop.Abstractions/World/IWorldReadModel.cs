@@ -251,6 +251,11 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile, INpcCap
     /// <summary>Drains newly buffered prop impact/fracture events into <paramref name="destination"/>.</summary>
     void DrainPropImpactEvents(List<PropImpactEvent> destination);
 
+    /// <summary>Drains the local player's items that broke since the last call (ADR-035) into <paramref name="destination"/>.</summary>
+    void DrainItemBreakEvents(List<ItemBreakEvent> destination)
+    {
+    }
+
     /// <summary>Drains chunk coordinates invalidated by incoming network prop/structure/delta updates.</summary>
     void DrainDirtyChunks(List<(int ChunkX, int ChunkY)> destination);
 

@@ -138,7 +138,7 @@ public sealed class SyncedItemCatalogTests
         synced.Apply(Config(6, s_itemsJson, repair: System.Text.Encoding.UTF8.GetBytes(repair))).Should().BeTrue();
 
         uint sword = synced.Rules.ItemCatalog.ResolveId("iron_sword");
-        synced.Rules.Repair.TryQuoteFull(new ItemSlot(sword, 1, Durability: 0f), RepairVenue.Station, out RepairQuote quote).Should().Be(RepairError.None);
+        synced.Rules.Repair.TryQuoteFull(new ItemSlot(sword, 1, Durability: 1f), RepairVenue.Station, out RepairQuote quote).Should().Be(RepairError.None);
         quote.GetMaterial(0).Quantity.Should().Be(9, "6 ingots at tier 2 (150 %) come from the synced repair.json (ADR-028), never from the client build");
         synced.Apply(new ConfigCatalog(7, [
             new ConfigCatalogEntry("items", 0, 1, s_itemsJson),

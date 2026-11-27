@@ -46,4 +46,8 @@ public sealed partial class StatusEffectSync : PacketBase<StatusEffectSync>, IPa
     /// <summary>Source detail per entry: the monster archetype id, or 0.</summary>
     [SerializeOrder(6)]
     public ushort[] SourceIds { get; set; } = [];
+
+    /// <summary>Level (amplifier) per entry, 1 = I (ADR-036); derived effects are level 1.</summary>
+    [SerializeOrder(7)]
+    public byte[] Levels { get; set; } = [];
 }

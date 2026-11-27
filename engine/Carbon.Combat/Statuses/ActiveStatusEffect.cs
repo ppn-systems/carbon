@@ -26,6 +26,11 @@ namespace Carbon.Combat.Statuses;
 /// <param name="StaminaRegenMultiplier">Stamina regeneration multiplier while active.</param>
 /// <param name="Source">What applied the effect.</param>
 /// <param name="SourceId">Source detail (monster archetype id), 0 when none.</param>
+/// <param name="Level">Effect level (amplifier), 1 = I (ADR-036). The level-scaled values are already resolved into the
+/// magnitude and multipliers; the level decides how repeated applications merge and is shown to the owner.</param>
+/// <param name="DamageDealtMultiplier">Multiplier on damage the owner deals while active (weakness).</param>
+/// <param name="ViewRadiusMultiplier">Multiplier on the owner's view radius while active (blindness).</param>
+/// <param name="ExtinguishedByWater">Whether water removes the effect (burning).</param>
 public readonly record struct ActiveStatusEffect(
     uint EffectId,
     Entity Caster,
@@ -44,8 +49,16 @@ public readonly record struct ActiveStatusEffect(
     float HealthRegenMultiplier = 1f,
     float StaminaRegenMultiplier = 1f,
     StatusSource Source = StatusSource.None,
-    ushort SourceId = 0)
+    ushort SourceId = 0,
+    byte Level = 1,
+    float DamageDealtMultiplier = 1f,
+    float ViewRadiusMultiplier = 1f,
+    bool ExtinguishedByWater = false)
 {
-    /// <summary>Gets the strength used by <see cref="StatusStacking.Strongest"/>: magnitude plus the speed reduction.</summary>
-    public float Strength => this.MagnitudePerStack + (1f - this.MoveSpeedMultiplier);
+    /// <summary>
+    /// Gets the strength used by <see cref="StatusStacking.Strongest"/> at one level: magnitude plus the speed, damage and
+    /// view reductions.
+    /// </summary>
+    public float Strength =>
+        this.MagnitudePerStack + (1f - this.MoveSpeedMultiplier) + (1f - this.DamageDealtMultiplier) + (1f - this.ViewRadiusMultiplier);
 }
