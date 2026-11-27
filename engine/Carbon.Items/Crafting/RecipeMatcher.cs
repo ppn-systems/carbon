@@ -111,33 +111,6 @@ public static class RecipeMatcher
     public static CraftResult TryCraft(InventoryContainer inventory, CraftingRecipe recipe, IStackSizeProvider stacks, in CraftContext context, int slotLimit) =>
         Run(inventory, recipe, stacks, context, consume: true, produce: true, commit: true, slotLimit);
 
-    /// <summary>
-    /// Starts a timed craft: atomically consumes the ingredients, provided the outputs would currently fit afterwards.
-    /// Deliver the outputs with <see cref="TryDeliverOutputs"/> when the work completes.
-    /// </summary>
-    /// <param name="inventory">Crafter inventory.</param>
-    /// <param name="recipe">Recipe to start.</param>
-    /// <param name="stacks">Stack size provider for outputs.</param>
-    /// <param name="context">Crafter state.</param>
-    /// <returns><see cref="CraftResult.Ok"/> or the rejection reason.</returns>
-    public static CraftResult TryConsumeIngredients(InventoryContainer inventory, CraftingRecipe recipe, IStackSizeProvider stacks, in CraftContext context)
-    {
-        CraftResult check = Run(inventory, recipe, stacks, context, consume: true, produce: true, commit: false);
-        return check.IsOk
-            ? Run(inventory, recipe, stacks, context, consume: true, produce: false, commit: true)
-            : check;
-    }
-
-    /// <summary>
-    /// Adds every output of <paramref name="recipe"/> or nothing at all.
-    /// </summary>
-    /// <param name="inventory">Receiving inventory.</param>
-    /// <param name="recipe">Completed recipe.</param>
-    /// <param name="stacks">Stack size provider for outputs.</param>
-    /// <returns><see cref="CraftResult.Ok"/> or <see cref="CraftFailure.InventoryFull"/>.</returns>
-    public static CraftResult TryDeliverOutputs(InventoryContainer inventory, CraftingRecipe recipe, IStackSizeProvider stacks) =>
-        Run(inventory, recipe, stacks, CraftContext.Unrestricted, consume: false, produce: true, commit: true);
-
     private static CraftResult Run(
         InventoryContainer inventory,
         CraftingRecipe recipe,

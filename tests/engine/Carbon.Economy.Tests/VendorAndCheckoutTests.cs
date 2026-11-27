@@ -4,7 +4,6 @@ using Carbon.Contracts.Common;
 using Carbon.Economy.Crafting;
 using Carbon.Economy.Currency;
 using Carbon.Economy.Vendor;
-using Carbon.Items.Components;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
 using FluentAssertions;
@@ -161,31 +160,5 @@ public sealed class VendorAndCheckoutTests
         wallet.Gold.Should().Be(100 - fee);
         bag.CountItem(Id("iron_ingot")).Should().Be(1);
         bag.CountItem(Id("iron_ore")).Should().Be(0);
-    }
-
-    [Fact]
-    public void CraftingCheckout_TryStartJob_ConsumesIngredientsAndReturnsSkillScaledJob()
-    {
-        CraftingCheckout checkout = new(s_prices);
-        CraftingRecipe stew = Recipe("stew");
-        InventoryContainer bag = new(6);
-        bag.TryAdd(new ItemSlot(Id("raw_meat"), 2));
-        bag.TryAdd(new ItemSlot(Id("berries"), 2));
-        bag.TryAdd(new ItemSlot(Id("wheat"), 1));
-        Wallet wallet = new(1);
-        wallet.TryCredit(CurrencyKind.Gold, 50, CurrencyReason.Admin);
-
-        CraftResult wrongPlace = checkout.TryStartJob(wallet, bag, stew, new CraftContext(CraftingStation.Forge, 20, 20), out _);
-        wrongPlace.Failure.Should().Be(CraftFailure.WrongStation);
-
-        CraftResult result = checkout.TryStartJob(wallet, bag, stew, new CraftContext(CraftingStation.Stove, 20, 25), out CraftingJobComponent job);
-
-        result.IsOk.Should().BeTrue();
-        bag.CountItem(Id("raw_meat")).Should().Be(0);
-        bag.CountItem(Id("stew")).Should().Be(0, "outputs arrive when the work completes");
-        job.RecipeId.Should().Be(stew.Id);
-        job.WorkRequired.Should().Be(stew.WorkTicks * CraftingWork.BaselineUnitsPerTick);
-        job.WorkPerTick.Should().Be(CraftingWork.UnitsPerTick(25));
-        wallet.Gold.Should().Be(50 - s_prices.GetCraftingFee(stew));
     }
 }

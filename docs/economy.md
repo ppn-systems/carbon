@@ -11,7 +11,7 @@ Every number below is in `resources/config/*.json`. The tests in `tests/engine/C
 | `resources/config/economy.json` | Currency caps, gold/diamond curves, pity, vendor spread, crafting fees, design targets |
 | `resources/config/repair.json` | Repair materials per family and tier, station tiers, blacksmith fee ([ADR-028](adr/ADR-028-material-repair-per-item.md)), durability warning shares ([ADR-035](adr/ADR-035-items-break-at-zero-durability.md)); synced to clients |
 
-Code: `engine/Carbon.Economy` (wallet, loot, vendor, fees) and `engine/Carbon.Items` (item catalog, recipes, atomic crafting, crafting jobs).
+Code: `engine/Carbon.Economy` (wallet, loot, vendor, fees) and `engine/Carbon.Items` (item catalog, recipes, atomic crafting).
 
 ## 1. Design principles
 
@@ -137,14 +137,12 @@ Design bands for diamonds per hour from normal monsters: L1–24 0.006–0.02, L
 
 ## 6. Crafting (`Carbon.Items.Crafting`)
 
-This follows the RimWorld model: a recipe needs a **station**, a **work amount** and a **skill**.
+A recipe needs a **station** and passes **level and skill gates**. Crafting is **instant**: the server crafts in the tick that handles the request (`InventoryService.Craft` → `CraftingCheckout.TryCraft`).
 
 - **Stations:** `none` (hand), `workbench`, `forge`, `stove`, `alchemy`. `RecipeMatcher` returns `WrongStation` when the crafter isn't at the right one.
 - **Gates:** `unlockLevel` (character level) and `skill` + `skillLevel` (`carpentry`, `smithing`, `cooking`, `alchemy`, `tailoring`).
-- **Work:** `workTicks` is measured at baseline speed (30 ticks = 1 s at the default 30 Hz). A crafter contributes `100 + 4 × skill` work units per tick, capped at skill 50 (3× speed). `CraftingJobComponent` + `CraftingJobSystem` advance the work each tick and publish `CraftingJobCompletedEvent` when it's done.
+- **Work:** each recipe still carries `workTicks` in `recipes.json`, but nothing reads it. A timed-crafting model (work per tick scaled by skill, delivered on completion) existed in the engine and was never wired to the server; it was removed in audit round 3 (DEAD-7), and git history keeps it.
 - **Atomicity:** every mutation is staged on an `InventoryDraft` (a stack-allocated copy of the slots) and committed only if every ingredient was removed *and* every output, including byproducts, fit. Inventory-full and missing-ingredient failures leave the inventory untouched.
-  - Timed jobs consume ingredients at start, and only if the outputs would fit at that moment.
-  - On completion, `TryDeliverOutputs` adds everything or nothing. If the bag filled up in the meantime, the job stays `Completed` and delivery can be retried, so nothing is lost.
 - **Multi-output:** `outputs[0]` is the primary product and later entries are byproducts. Examples: `smelt_crude_iron` gives `iron_ingot` + `iron_nails`, and `process_bones` gives `bone_dust` + `bone_shard`.
 - **Value rule:** at base prices, crafting never destroys value (output value ≥ ingredient value). A test enforces this for all recipes.
 
@@ -170,7 +168,7 @@ The design target is that sinks remove **35–60% of faucet gold from level 10 u
 | Station fee | `(flat + 10% of the outputs' base value) × rarity%` of the rarest output. Flat: hand 0, workbench 0, forge 2, stove 1, alchemy 5. `craftingFees.rarityMultiplierPercent`: common 100, uncommon 150, rare 250, epic 400, legendary 600. Hand crafting stays free. | Ember blade: (2 + 48) × 400% = 200 g; abyssal crown: (5 + 250) × 600% = 1,530 g |
 | Death drop | From level 10 (`deathPenalty.minLevel`): `clamp(10% of carried gold, 2 × level, 30 × level)`, at most what is carried; diamonds never. The gold drops as 1–5 piles, reserved for the dead player for 120 s. Anyone else may take it after that, and it despawns after 300 s. Only unclaimed gold leaves the economy; ledger reason `DeathDrop` ([ADR-031](adr/ADR-031-player-death-state-respawn-and-gold-drop.md)). | Level 20 carrying 5,000 g drops 500 g; carrying 100 g drops 40 g |
 
-`VendorService.TryBuy` checks funds, wallet cap and inventory space before committing both sides; the server passes the buyer's level. A full bag is never charged, and a capped wallet never loses the items it tried to sell. `CraftingCheckout` charges the station fee only when the craft (or job start) succeeds, and refuses the craft with `InsufficientFunds` before touching the inventory.
+`VendorService.TryBuy` checks funds, wallet cap and inventory space before committing both sides; the server passes the buyer's level. A full bag is never charged, and a capped wallet never loses the items it tried to sell. `CraftingCheckout` charges the station fee only when the craft succeeds, and refuses the craft with `InsufficientFunds` before touching the inventory.
 
 ### 7.1 Player-hour balance simulation (`Carbon.Economy.Simulation`)
 

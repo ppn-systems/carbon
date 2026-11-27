@@ -1,15 +1,8 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
-using System.Numerics;
 using Carbon.Contracts.Common;
-using Carbon.Items.Components;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
-using Carbon.Items.Events;
-using Carbon.Items.Systems;
-using Carbon.Simulation.Clock;
-using Carbon.Simulation.ECS;
-using Carbon.Simulation.World;
 using FluentAssertions;
 using Xunit;
 
@@ -139,75 +132,5 @@ public sealed class AtomicCraftingTests
         RecipeMatcher.Validate(bag, SawRecipe(), s_stacks, s_atBench).IsOk.Should().BeTrue();
         bag.CountItem(Log).Should().Be(1);
         bag.CountItem(Plank).Should().Be(0);
-    }
-
-    [Fact]
-    public void CraftingJob_ProgressesPerTickAndDeliversOutputsAllOrNothing()
-    {
-        WorldSimulation world = new();
-        world.RegisterSystem(new CraftingJobSystem());
-        Entity crafter = world.SpawnEntity(Vector2.Zero);
-        CraftingRecipe recipe = SawRecipe(workTicks: 10);
-        InventoryContainer bag = new(3);
-        bag.TryAdd(new ItemSlot(Log, 1));
-
-        RecipeMatcher.TryConsumeIngredients(bag, recipe, s_stacks, s_atBench).IsOk.Should().BeTrue();
-        bag.CountItem(Log).Should().Be(0, "ingredients are reserved when the job starts");
-        CraftingJobComponent job = CraftingJobComponent.Start(recipe, skillLevel: 0);
-        world.Entities.GetPool<CraftingJobComponent>().Set(crafter.Id, job);
-
-        for (ulong tick = 1; tick <= 9; tick++)
-        {
-            world.Tick(new FixedTickArgs(tick, 1f / 30f, tick / 30d));
-        }
-
-        ComponentPool<CraftingJobComponent> pool = world.Entities.GetPool<CraftingJobComponent>();
-        pool.Get(crafter.Id).State.Should().Be(CraftingJobState.Running);
-        pool.Get(crafter.Id).Progress.Should().BeApproximately(0.9f, 0.001f);
-        world.ReadEvents<CraftingJobCompletedEvent>().Length.Should().Be(0);
-
-        world.Tick(new FixedTickArgs(10, 1f / 30f, 10 / 30d));
-        pool.Get(crafter.Id).State.Should().Be(CraftingJobState.Completed);
-        world.ReadEvents<CraftingJobCompletedEvent>().ToArray().Should().ContainSingle()
-            .Which.Should().Be(new CraftingJobCompletedEvent(crafter, recipe.Id));
-
-        // Inventory filled up meanwhile: delivery must wait without losing anything.
-        bag.TryAdd(new ItemSlot(Sword, 1, InstanceId: 1));
-        bag.TryAdd(new ItemSlot(Sword, 1, InstanceId: 2));
-        bag.TryAdd(new ItemSlot(Sword, 1, InstanceId: 3));
-        RecipeMatcher.TryDeliverOutputs(bag, recipe, s_stacks).Failure.Should().Be(CraftFailure.InventoryFull);
-        bag.CountItem(Plank).Should().Be(0);
-
-        bag.TryRemove(Sword, 2);
-        RecipeMatcher.TryDeliverOutputs(bag, recipe, s_stacks).IsOk.Should().BeTrue();
-        bag.CountItem(Plank).Should().Be(4);
-        bag.CountItem(Sawdust).Should().Be(2);
-    }
-
-    [Fact]
-    public void CraftingWork_HigherSkill_FinishesFaster()
-    {
-        CraftingRecipe recipe = SawRecipe(workTicks: 300);
-        CraftingJobComponent novice = CraftingJobComponent.Start(recipe, 0);
-        CraftingJobComponent master = CraftingJobComponent.Start(recipe, 50);
-
-        int noviceTicks = TicksToFinish(novice);
-        int masterTicks = TicksToFinish(master);
-
-        noviceTicks.Should().Be(300);
-        masterTicks.Should().Be(100, "skill 50 works at 3x baseline");
-        CraftingJobComponent.Start(recipe with { WorkTicks = 0 }, 0).State.Should().Be(CraftingJobState.Completed);
-    }
-
-    private static int TicksToFinish(CraftingJobComponent job)
-    {
-        int ticks = 0;
-        while (job.State == CraftingJobState.Running)
-        {
-            job = job.Advance();
-            ticks++;
-        }
-
-        return ticks;
     }
 }
