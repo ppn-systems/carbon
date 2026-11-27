@@ -34,8 +34,12 @@ public sealed class CombatFeedbackTracker
 {
     private const int MaxDebrisParticles = 256;
 
+    /// <summary>Shards a broken item throws before its enhancement bonus (ADR-035).</summary>
+    internal const int ItemBreakShardCount = 26;
+
     private readonly List<CombatFeedbackEvent> _combatScratch = new(16);
     private readonly List<PropImpactEvent> _propImpactScratch = new(16);
+    private readonly List<ItemBreakEvent> _itemBreakScratch = new(4);
     private readonly List<FloatingCombatText> _floatingTexts = new(32);
     private readonly Dictionary<long, PropHitState> _propHits = new(32);
     private readonly List<long> _expiredPropHits = new(16);
@@ -75,6 +79,13 @@ public sealed class CombatFeedbackTracker
             long key = PackTileKey(impact.TileX, impact.TileY);
             _propHits[key] = new PropHitState(ShakeTimer: 0.26f, BarTimer: impact.IsDestroyed ? 0f : 3.5f);
             this.SpawnImpactDebris(in impact, animTime);
+        }
+
+        _itemBreakScratch.Clear();
+        world.DrainItemBreakEvents(_itemBreakScratch);
+        for (int i = 0; i < _itemBreakScratch.Count; i++)
+        {
+            this.SpawnItemBreakShatter(_itemBreakScratch[i], animTime);
         }
 
         if (_propHits.Count > 0)
@@ -350,6 +361,57 @@ public sealed class CombatFeedbackTracker
                 size: impact.IsDestroyed ? 3.2f : 2.5f,
                 remainingLife: 0.48f + (i % 4 * 0.08f),
                 maxLife: 0.72f);
+            _nextParticleCursor = (_nextParticleCursor + 1) % MaxDebrisParticles;
+        }
+    }
+
+    /// <summary>Gets how many debris and shatter particles are alive (tests and diagnostics).</summary>
+    internal int LiveParticleCount
+    {
+        get
+        {
+            int live = 0;
+            for (int i = 0; i < MaxDebrisParticles; i++)
+            {
+                if (_particles[i].RemainingLife > 0f)
+                {
+                    live++;
+                }
+            }
+
+            return live;
+        }
+    }
+
+    /// <summary>
+    /// Throws the shatter shards of a broken item at the player (ADR-035): steel and splinter shards burst upward and
+    /// fall, with a few bright sparks; an enhanced item throws more. Allocation-free (ring buffer).
+    /// </summary>
+    public void SpawnItemBreakShatter(in ItemBreakEvent broke, float animTime)
+    {
+        int count = ItemBreakShardCount + Math.Min((int)broke.UpgradeLevel, 10);
+        uint seed = (broke.ItemId * 2654435761U) ^ (uint)(animTime * 1000f);
+        for (int i = 0; i < count; i++)
+        {
+            seed = (seed * 1664525U) + 1013904223U;
+            float angle = (seed & 0xFFFF) / 65535f * MathF.Tau;
+            float speed = 70f + (((seed >> 16) & 0xFF) / 255f * 80f);
+            Vector2 vel = new(MathF.Cos(angle) * speed, (MathF.Sin(angle) * speed * 0.6f) - 85f);
+            ColorRgba color = (i % 4) switch
+            {
+                0 => new ColorRgba(255, 236, 179, 255),
+                1 => new ColorRgba(148, 163, 184, 255),
+                2 => new ColorRgba(203, 213, 225, 255),
+                _ => new ColorRgba(180, 132, 84, 255),
+            };
+
+            _particles[_nextParticleCursor] = new DebrisParticle(
+                broke.WorldPosition + new Vector2(0f, -10f),
+                vel,
+                color,
+                size: i % 4 == 0 ? 2.2f : 3.4f,
+                remainingLife: 0.6f + (i % 5 * 0.08f),
+                maxLife: 0.92f);
             _nextParticleCursor = (_nextParticleCursor + 1) % MaxDebrisParticles;
         }
     }

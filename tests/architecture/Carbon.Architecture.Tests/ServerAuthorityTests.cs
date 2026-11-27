@@ -70,7 +70,6 @@ public sealed partial class ServerAuthorityTests
         "desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs|ItemEnhancementPolicy",
         "desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs|ItemEnhancementPolicy",
         "desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs|ItemEnhancementPolicy",
-        "desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs|ToolUsagePolicy",
         "desktop/Carbon.Desktop.Rendering/Hud/InventoryModalWidget.cs|ItemEnhancementPolicy",
         "desktop/Carbon.Desktop.Rendering/Hud/InventoryDialogRenderer.cs|ItemEnhancementPolicy", // moved with the dialog text out of InventoryModalWidget
         "desktop/Carbon.Desktop.Rendering/Hud/PlayerModalTabs.cs|SkillCatalog",

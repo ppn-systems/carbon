@@ -15,7 +15,6 @@ public static class ToolWarningText
     {
         ToolStrikeOutcome.SwordMisuseOnWood => GameText.Get("tool.sword_on_wood"),
         ToolStrikeOutcome.BladeBluntOnStone => GameText.Get("tool.blade_on_stone"),
-        ToolStrikeOutcome.WornOutTool => GameText.Get("tool.worn_out"),
         ToolStrikeOutcome.InsufficientTier => GameText.Format("tool.need_tier", new TextArg("tier", requiredTier)),
         ToolStrikeOutcome.Optimal or _ => string.Empty,
     };

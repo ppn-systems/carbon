@@ -36,7 +36,7 @@ public sealed class RepairTableTests
     [InlineData("crystal_pickaxe", "mana_crystal", null)]
     public void TryQuoteFull_ShippedFamilies_UseTheItemsOwnMaterial(string item, string first, string? second)
     {
-        Table.TryQuoteFull(Item(item, 0f), RepairVenue.Station, out RepairQuote quote).Should().Be(RepairError.None);
+        Table.TryQuoteFull(Item(item, 1f), RepairVenue.Station, out RepairQuote quote).Should().Be(RepairError.None);
 
         quote.MaterialCount.Should().Be(second is null ? 1 : 2);
         quote.GetMaterial(0).ItemId.Should().Be(Id(first));
@@ -78,9 +78,9 @@ public sealed class RepairTableTests
     }
 
     [Fact]
-    public void TryQuoteFull_BrokenWoodAxe_TakesTwoLogsAndTwoFibres()
+    public void TryQuoteFull_NearlyBrokenWoodAxe_TakesTwoLogsAndTwoFibres()
     {
-        Table.TryQuoteFull(Item("wood_axe", 0f), RepairVenue.Blacksmith, out RepairQuote quote).Should().Be(RepairError.None);
+        Table.TryQuoteFull(Item("wood_axe", 1f), RepairVenue.Blacksmith, out RepairQuote quote).Should().Be(RepairError.None);
 
         quote.StepsNeeded.Should().Be(10);
         quote.GetMaterial(0).Should().Be(new RecipeIngredient(Id("wood_log"), 2));
@@ -117,6 +117,7 @@ public sealed class RepairTableTests
     {
         Table.TryQuote(Item("iron_sword", 200f), 1, RepairVenue.Station, out _).Should().Be(RepairError.NotDamaged);
         Table.TryQuote(new ItemSlot(Id("wood_log"), 5), 1, RepairVenue.Station, out _).Should().Be(RepairError.NotRepairable);
+        Table.TryQuote(Item("iron_sword", 0f), 1, RepairVenue.Station, out _).Should().Be(RepairError.NotRepairable, "ADR-035: an item at 0 durability no longer exists and cannot be repaired back");
         Table.TryQuote(ItemSlot.Empty, 1, RepairVenue.Station, out _).Should().Be(RepairError.EmptySlot);
         Table.TryQuote(Item("iron_sword", 100f), 6, RepairVenue.Station, out _).Should().Be(RepairError.TooManySteps);
         Table.TryQuote(Item("iron_sword", 100f), 0, RepairVenue.Station, out _).Should().Be(RepairError.InvalidRequest);
@@ -128,7 +129,7 @@ public sealed class RepairTableTests
     {
         ItemSlot[] bag = [new ItemSlot(Id("iron_ingot"), 1), ItemSlot.Empty];
 
-        Table.GetAffordableSteps(Item("iron_sword", 0f), RepairVenue.Station, bag, gold: 0)
+        Table.GetAffordableSteps(Item("iron_sword", 1f), RepairVenue.Station, bag, gold: 0)
             .Should().Be(3, "one ingot covers up to 3 steps (3 × 10 % × 2 × 150 % = 0.9 ingots)");
     }
 
@@ -161,6 +162,8 @@ public sealed class RepairTableTests
     [InlineData("\"items\": [ \"bone_bow\" ]", "\"items\": [ \"bone_bow\", \"iron_sword\" ]", "an item belongs to one family")]
     [InlineData("\"stepPercent\": 10", "\"stepPercent\": 7", "steps must divide a full repair")]
     [InlineData("\"stationReachTiles\": 5", "\"stationReachTiles\": 0", "a station must be reachable")]
+    [InlineData("\"criticalPercent\": 10", "\"criticalPercent\": 25", "the critical share must be below the low share")]
+    [InlineData("\"criticalPercent\": 10", "\"criticalPercent\": 0", "a break needs a warning share above 0")]
     [InlineData("{ \"item\": \"leather\", \"qty\": 2 }", "{ \"item\": \"iron_sword\", \"qty\": 2 }", "a material cannot itself have durability")]
     [InlineData("\"stationTier\": 3,\n      \"materials\": [ { \"item\": \"mana_crystal\"", "\"stationTier\": 4,\n      \"materials\": [ { \"item\": \"mana_crystal\"", "a family needs a tier some station provides")]
     public void LoadFromJson_InvalidDocument_IsRejected(string find, string replace, string because)
@@ -173,5 +176,21 @@ public sealed class RepairTableTests
         Action load = () => RepairTable.LoadFromJson(broken, s_rules.ItemCatalog);
 
         load.Should().Throw<InvalidDataException>(because);
+    }
+
+    [Theory]
+    [InlineData(200f, 200f, DurabilityBand.Healthy)]
+    [InlineData(50.1f, 200f, DurabilityBand.Healthy)]
+    [InlineData(50f, 200f, DurabilityBand.Low)]
+    [InlineData(20.1f, 200f, DurabilityBand.Low)]
+    [InlineData(20f, 200f, DurabilityBand.Critical)]
+    [InlineData(1f, 200f, DurabilityBand.Critical)]
+    [InlineData(0f, 0f, DurabilityBand.Healthy)]
+    public void GetDurabilityBand_ShippedShares_SplitAt25And10Percent(float durability, float max, DurabilityBand expected)
+    {
+        Table.WarningLowPercent.Should().Be(25);
+        Table.WarningCriticalPercent.Should().Be(10);
+
+        Table.GetDurabilityBand(durability, max).Should().Be(expected, "repair.json → durabilityWarning is 25 % / 10 % (ADR-035)");
     }
 }

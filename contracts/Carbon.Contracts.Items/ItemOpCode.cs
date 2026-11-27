@@ -100,4 +100,9 @@ public static class ItemOpCode
 
     /// <summary>S2C: the local player's stamina exhaustion and refused-action count (ADR-033).</summary>
     public const ushort StaminaStatusSync = 0x4088;
+
+    // ── Durability (0x4090–0x4097, ADR-035) ─────────────────────────────────
+
+    /// <summary>S2C: the owner's item is about to break, or broke and was destroyed (ADR-035).</summary>
+    public const ushort ItemDurabilityAlert = 0x4090;
 }

@@ -217,6 +217,15 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     }
 
     /// <inheritdoc/>
+    public void SendItemDurabilityAlert(ulong connectionId, DurabilityAlertKind kind, ushort slotIndex, uint itemId, byte upgradeLevel)
+    {
+        if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
+        {
+            _ = DispatchItemDurabilityAlertAsync(conn, kind, slotIndex, itemId, upgradeLevel, _logger);
+        }
+    }
+
+    /// <inheritdoc/>
     public void SendStaminaStatus(ulong connectionId, bool exhausted, uint refusalCount)
     {
         if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
@@ -910,6 +919,26 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogSendFailure(logger, nameof(WalletSync), ex);
+        }
+    }
+
+    private static async Task DispatchItemDurabilityAlertAsync(IConnection connection, DurabilityAlertKind kind, ushort slotIndex, uint itemId, byte upgradeLevel, ILogger logger)
+    {
+        try
+        {
+            using PacketScope<ItemDurabilityAlert> lease = PacketFactory<ItemDurabilityAlert>.Acquire();
+            ItemDurabilityAlert pkt = lease.Value;
+            pkt.Kind = kind;
+            pkt.SlotIndex = slotIndex;
+            pkt.ItemId = (ushort)itemId;
+            pkt.UpgradeLevel = upgradeLevel;
+
+            bool encrypt = connection.Algorithm != CipherSuiteType.None;
+            await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogSendFailure(logger, nameof(ItemDurabilityAlert), ex);
         }
     }
 

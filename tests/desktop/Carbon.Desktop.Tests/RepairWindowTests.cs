@@ -33,8 +33,8 @@ public sealed class RepairWindowTests
     [Fact]
     public void Build_FullRepairAtTheBlacksmith_ListsSyncedMaterialsFeeAndStationWithMissingOnesUnmet()
     {
-        // Broken iron sword (0/200, tier 2 = 150 %): 6 × 1.5 = 9 ingots, fee ceil(110 × 30 % × 100 %) = 33 gold.
-        ItemSlot[] slots = Bag(swordDurability: 0f, ingots: 4);
+        // Nearly broken iron sword (1/200, tier 2 = 150 %; ADR-035: 0 no longer exists): 6 × 1.5 = 9 ingots, fee ceil(110 × 30 % × 199/200) = 33 gold.
+        ItemSlot[] slots = Bag(swordDurability: 1f, ingots: 4);
         Span<RepairRequirement> rows = stackalloc RepairRequirement[RepairPlan.MaxRequirements];
 
         RepairPlan plan = RepairPlan.Build(s_synced.Repair, slots, SwordSlot, RepairVenue.Blacksmith, stationTier: 3, gold: 20, partial: false, rows);
@@ -55,14 +55,14 @@ public sealed class RepairWindowTests
     public void Build_PartialRepair_PlansTheLargestStepCountTheBagAndWalletPay()
     {
         // 4 ingots pay 4 steps (ceil(0.9 × 4) = 4); 20 gold pays 6 (ceil(3.3 × 6) = 20): 4 steps, 4 ingots, 14 gold.
-        ItemSlot[] slots = Bag(swordDurability: 0f, ingots: 4);
+        ItemSlot[] slots = Bag(swordDurability: 1f, ingots: 4);
         Span<RepairRequirement> rows = stackalloc RepairRequirement[RepairPlan.MaxRequirements];
 
         RepairPlan plan = RepairPlan.Build(s_synced.Repair, slots, SwordSlot, RepairVenue.Blacksmith, stationTier: 3, gold: 20, partial: true, rows);
 
         plan.IsPartial.Should().BeTrue();
         plan.Quote.Steps.Should().Be(4);
-        plan.Quote.NewDurability.Should().Be(80f);
+        plan.Quote.NewDurability.Should().Be(81f);
         rows[0].Should().Be(new RepairRequirement(RepairRequirementKind.Material, Id("iron_ingot"), 4, 4));
         rows[1].Should().Be(new RepairRequirement(RepairRequirementKind.Gold, 0U, 14, 20));
         plan.CanRepair.Should().BeTrue();
@@ -72,7 +72,7 @@ public sealed class RepairWindowTests
     public void Build_PartialAtTheBlacksmithShortOfGold_StopsAtTheStepsTheWalletPays()
     {
         // 9 ingots pay the full 10 steps, but 20 gold pays only 6 (ceil(3.3 × 6) = 20; 7 steps would cost 24).
-        ItemSlot[] slots = Bag(swordDurability: 0f, ingots: 9);
+        ItemSlot[] slots = Bag(swordDurability: 1f, ingots: 9);
         Span<RepairRequirement> rows = stackalloc RepairRequirement[RepairPlan.MaxRequirements];
 
         RepairPlan plan = RepairPlan.Build(s_synced.Repair, slots, SwordSlot, RepairVenue.Blacksmith, stationTier: 3, gold: 20, partial: true, rows);
@@ -85,7 +85,7 @@ public sealed class RepairWindowTests
     [Fact]
     public void Build_AtAWorkbench_ShowsNoFeeAndTheStationTierItemNeeds()
     {
-        ItemSlot[] slots = Bag(swordDurability: 0f, ingots: 9);
+        ItemSlot[] slots = Bag(swordDurability: 1f, ingots: 9);
         Span<RepairRequirement> rows = stackalloc RepairRequirement[RepairPlan.MaxRequirements];
 
         RepairPlan plan = RepairPlan.Build(s_synced.Repair, slots, SwordSlot, RepairVenue.Station, stationTier: 1, gold: 0, partial: false, rows);

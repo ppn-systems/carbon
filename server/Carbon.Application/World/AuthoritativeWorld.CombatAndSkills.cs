@@ -215,5 +215,13 @@ public sealed partial class AuthoritativeWorld
             owner.ProcessPlaceablePrimaryActionLocked(state, attackerPos, activeSlot, archetype);
 
         public void RecomputeDerivedStats(PlayerState state) => owner.RecomputeDerivedStatsLocked(state);
+
+        public void BroadcastEquipment(PlayerState state)
+        {
+            if (owner._simulation.Entities.HasTransform(state.Entity))
+            {
+                owner.EnqueueEquipmentBroadcastLocked(state, owner._simulation.Entities.GetTransform(state.Entity).Position);
+            }
+        }
     }
 }

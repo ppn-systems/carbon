@@ -56,6 +56,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     private readonly RemoteViewBuffer _remoteViewsB = new();
     private readonly List<CombatFeedbackEvent> _combatEvents = new(32);
     private readonly List<PropImpactEvent> _propImpactEvents = new(16);
+    private readonly List<ItemBreakEvent> _itemBreakEvents = new(4);
     private readonly List<(int ChunkX, int ChunkY)> _dirtyChunks = new(16);
     private readonly List<string> _hudNotifications = new(16);
     private readonly MapMutationApplier _mapMutations;
@@ -857,6 +858,7 @@ public sealed partial class MultiplayerSession : IWorldSession
             _requestedChunks.Clear();
             _combatEvents.Clear();
             _propImpactEvents.Clear();
+            _itemBreakEvents.Clear();
             _dirtyChunks.Clear();
             _hudNotifications.Clear();
             _inventory.Clear();

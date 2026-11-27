@@ -39,7 +39,7 @@ public static class CharacterStatCalculator
     }
 
     /// <summary>
-    /// Sums the bonuses of equipped, non-broken armor and accessories (slots <c>36..41</c>) and the held weapon, enhancement included.
+    /// Sums the bonuses of equipped armor and accessories (slots <c>36..41</c>) and the held weapon, enhancement included.
     /// </summary>
     /// <param name="rules">Item rules.</param>
     /// <param name="inventory">Inventory with equipment slots.</param>
@@ -57,7 +57,7 @@ public static class CharacterStatCalculator
         for (int slotIdx = PlayerInventoryLayout.HeadSlot; slotIdx <= PlayerInventoryLayout.Accessory2Slot && slotIdx < inventory.Capacity; slotIdx++)
         {
             ItemSlot armor = inventory.GetSlot(slotIdx);
-            if (armor.IsEmpty || ToolUsagePolicy.IsWornOut(rules, in armor))
+            if (armor.IsEmpty)
             {
                 continue;
             }
@@ -72,7 +72,6 @@ public static class CharacterStatCalculator
         {
             ItemSlot held = inventory.GetSlot(selectedHotbarSlot);
             if (!held.IsEmpty &&
-                !ToolUsagePolicy.IsWornOut(rules, in held) &&
                 rules.Items.TryGet(held.ItemId, out ItemArchetype? heldDef) &&
                 heldDef.Category == ItemCategory.Weapon)
             {

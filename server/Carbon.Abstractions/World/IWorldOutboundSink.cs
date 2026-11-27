@@ -236,6 +236,13 @@ public interface IWorldOutboundSink
     /// <remarks><paramref name="freshnessSeconds"/> is the food spoilage countdown (ADR-016), 0 when not perishable.</remarks>
     void SendInventorySlotChanged(ulong connectionId, ushort slotIndex, uint itemId, int quantity, float durability, byte upgradeLevel = 0, float freshnessSeconds = 0f);
 
+    /// <summary>
+    /// Pushes to the owner that an item is about to break, or broke and was destroyed (ADR-035). Sinks without a client ignore it.
+    /// </summary>
+    void SendItemDurabilityAlert(ulong connectionId, DurabilityAlertKind kind, ushort slotIndex, uint itemId, byte upgradeLevel)
+    {
+    }
+
     /// <summary>Broadcasts updated visible armor, held weapon, enhancement glow, and level to AoI observers.</summary>
     void SendEntityEquipmentChanged(
         ReadOnlySpan<ulong> recipientConnectionIds,
