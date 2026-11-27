@@ -339,6 +339,13 @@ public sealed class CarbonUiSkin : IDisposable
     }
 
     /// <summary>
+    /// Gets or sets the screen pixels per layout unit the panels are drawn at (the UI scale; 1 by default). Above 1, each
+    /// panel snaps to whole screen pixels and its corners draw <c>floor(scale)</c> pixels per texel, so a fractional scale
+    /// never makes corner texels uneven.
+    /// </summary>
+    public float PixelScale { get; set; } = 1f;
+
+    /// <summary>
     /// Renders a dual-layer nine-slice panel with independently tinted <paramref name="bodyColor"/>
     /// interior fill and <paramref name="frameColor"/> border filigree.
     /// </summary>
@@ -359,17 +366,19 @@ public sealed class CarbonUiSkin : IDisposable
         }
 
         PanelSkinEntry entry = _entries[idx];
-        NineSliceMargins clampedMargins = ClampMargins(entry.Margins, bounds);
+        float cornerScale = CornerScale(this.PixelScale);
+        RectangleF destination = SnapToPixels(in bounds, this.PixelScale);
+        NineSliceMargins clampedMargins = ClampMargins(entry.Margins, destination, cornerScale);
         if (bodyColor.A > 0)
         {
             RectangleF bodySource = entry.BodySource;
-            spriteBatch.DrawNineSlice(_atlas, in bodySource, in clampedMargins, in bounds, bodyColor);
+            spriteBatch.DrawNineSliceAtScale(_atlas, in bodySource, in clampedMargins, in destination, bodyColor, cornerScale);
         }
 
         if (frameColor.A > 0)
         {
             RectangleF frameSource = entry.FrameSource;
-            spriteBatch.DrawNineSlice(_atlas, in frameSource, in clampedMargins, in bounds, frameColor);
+            spriteBatch.DrawNineSliceAtScale(_atlas, in frameSource, in clampedMargins, in destination, frameColor, cornerScale);
         }
     }
 
@@ -405,10 +414,36 @@ public sealed class CarbonUiSkin : IDisposable
         _disposed = true;
     }
 
-    private static NineSliceMargins ClampMargins(NineSliceMargins source, in RectangleF bounds)
+    /// <summary>
+    /// Layout units per corner texel at <paramref name="pixelScale"/>: <c>floor(scale)</c> whole screen pixels per texel.
+    /// </summary>
+    /// <param name="pixelScale">Screen pixels per layout unit.</param>
+    /// <returns>The nine-slice corner scale.</returns>
+    internal static float CornerScale(float pixelScale) =>
+        pixelScale == 1f ? 1f : MathF.Max(1f, MathF.Floor(pixelScale)) / pixelScale;
+
+    /// <summary>Moves every edge of <paramref name="bounds"/> onto the nearest whole screen pixel at <paramref name="pixelScale"/>.</summary>
+    /// <param name="bounds">The rectangle in layout units.</param>
+    /// <param name="pixelScale">Screen pixels per layout unit.</param>
+    /// <returns>The snapped rectangle, in layout units.</returns>
+    internal static RectangleF SnapToPixels(in RectangleF bounds, float pixelScale)
     {
-        float maxH = MathF.Floor(MathF.Max(1f, (bounds.Width * 0.45f) - 1f));
-        float maxV = MathF.Floor(MathF.Max(1f, (bounds.Height * 0.45f) - 1f));
+        if (pixelScale == 1f)
+        {
+            return bounds;
+        }
+
+        float left = MathF.Round(bounds.X * pixelScale) / pixelScale;
+        float top = MathF.Round(bounds.Y * pixelScale) / pixelScale;
+        float right = MathF.Round(bounds.Right * pixelScale) / pixelScale;
+        float bottom = MathF.Round(bounds.Bottom * pixelScale) / pixelScale;
+        return new RectangleF(left, top, right - left, bottom - top);
+    }
+
+    private static NineSliceMargins ClampMargins(NineSliceMargins source, in RectangleF bounds, float cornerScale)
+    {
+        float maxH = MathF.Floor(MathF.Max(1f, (bounds.Width / cornerScale * 0.45f) - 1f));
+        float maxV = MathF.Floor(MathF.Max(1f, (bounds.Height / cornerScale * 0.45f) - 1f));
         return new NineSliceMargins(
             MathF.Min(source.Left, maxH),
             MathF.Min(source.Top, maxV),

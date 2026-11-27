@@ -358,13 +358,85 @@ public static class TrueTypeFontLoader
     /// <param name="faces">Ordered face stack (primary first).</param>
     /// <param name="ranges">Code-point ranges to bake.</param>
     /// <returns>GPU-backed <see cref="BitmapFont"/>.</returns>
-    public static BitmapFont CreateFromTrueType(string name, IGraphicsDevice device, IReadOnlyList<FontFaceSource> faces, IReadOnlyList<CodePointRange> ranges)
+    public static BitmapFont CreateFromTrueType(string name, IGraphicsDevice device, IReadOnlyList<FontFaceSource> faces, IReadOnlyList<CodePointRange> ranges) =>
+        CreateFromTrueType(name, device, faces, ranges, texelsPerUnit: 1f);
+
+    /// <summary>
+    /// Rasterizes an ordered face stack <paramref name="texelsPerUnit"/> times larger than each face's pixel size and uploads
+    /// it as a font that lays text out exactly like the unscaled one (<see cref="BitmapFontAtlas.TexelsPerUnit"/>): for a UI
+    /// drawn <paramref name="texelsPerUnit"/> times larger, every glyph texel then covers one screen pixel.
+    /// </summary>
+    /// <param name="name">Friendly font identifier.</param>
+    /// <param name="device">Active graphics device.</param>
+    /// <param name="faces">Ordered face stack (primary first) at their unscaled pixel sizes.</param>
+    /// <param name="ranges">Code-point ranges to bake.</param>
+    /// <param name="texelsPerUnit">The UI scale the font is baked for (1 = the faces' own size).</param>
+    /// <returns>GPU-backed <see cref="BitmapFont"/>.</returns>
+    public static BitmapFont CreateFromTrueType(string name, IGraphicsDevice device, IReadOnlyList<FontFaceSource> faces, IReadOnlyList<CodePointRange> ranges, float texelsPerUnit)
     {
         ArgumentNullException.ThrowIfNull(device);
-        return Upload(device, Rasterize(name, faces, ranges));
+        return Upload(device, RasterizeAtScale(name, faces, ranges, texelsPerUnit), texelsPerUnit);
     }
 
-    private static BitmapFont Upload(IGraphicsDevice device, TrueTypeRasterizedFont rasterized)
+    /// <summary>
+    /// Rasterizes an ordered face stack <paramref name="texelsPerUnit"/> times larger than each face's pixel size
+    /// (CPU only; <see cref="CreateFont"/> turns the result into a font).
+    /// </summary>
+    /// <param name="name">Friendly font name.</param>
+    /// <param name="faces">Ordered face stack (primary first) at their unscaled pixel sizes.</param>
+    /// <param name="ranges">Code-point ranges to bake.</param>
+    /// <param name="texelsPerUnit">The UI scale the font is baked for (1 = the faces' own size).</param>
+    /// <returns>The packed atlas and metrics, in texels.</returns>
+    public static TrueTypeRasterizedFont RasterizeAtScale(string name, IReadOnlyList<FontFaceSource> faces, IReadOnlyList<CodePointRange> ranges, float texelsPerUnit)
+    {
+        ArgumentNullException.ThrowIfNull(faces);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(texelsPerUnit, nameof(texelsPerUnit));
+        if (texelsPerUnit == 1f)
+        {
+            return Rasterize(name, faces, ranges);
+        }
+
+        FontFaceSource[] scaled = new FontFaceSource[faces.Count];
+        for (int i = 0; i < faces.Count; i++)
+        {
+            scaled[i] = new FontFaceSource(faces[i].Name, faces[i].Data, faces[i].PixelSize * texelsPerUnit);
+        }
+
+        return Rasterize(name, scaled, ranges);
+    }
+
+    /// <summary>
+    /// Builds a <see cref="BitmapFont"/> over <paramref name="texture"/> (which holds <paramref name="rasterized"/>'s pixels)
+    /// whose offsets, advances and metrics are divided by <paramref name="texelsPerUnit"/> into layout units.
+    /// </summary>
+    /// <param name="rasterized">The rasterized atlas and metrics, in texels.</param>
+    /// <param name="texture">The texture holding the atlas pixels; the font owns it from here.</param>
+    /// <param name="texelsPerUnit">The UI scale the atlas was baked for.</param>
+    /// <returns>The font.</returns>
+    public static BitmapFont CreateFont(TrueTypeRasterizedFont rasterized, ITexture texture, float texelsPerUnit = 1f)
+    {
+        ArgumentNullException.ThrowIfNull(rasterized);
+        ArgumentNullException.ThrowIfNull(texture);
+        float u = 1f / texelsPerUnit;
+        BitmapFontAtlas atlas = new(texture, texelsPerUnit);
+        for (int i = 0; i < rasterized.Glyphs.Count; i++)
+        {
+            RasterizedGlyphInfo g = rasterized.Glyphs[i];
+            RectangleF rect = g.Bounds;
+            FontGlyph glyph = new(g.CodePoint, in rect, g.XOffset * u, g.YOffset * u, g.XAdvance * u);
+            atlas.AddGlyph(glyph);
+            if (g.CodePoint == '?')
+            {
+                atlas.FallbackGlyph = glyph;
+            }
+        }
+
+        FontMetrics t = rasterized.Metrics;
+        FontMetrics m = new(t.FontSize * u, t.LineHeight * u, t.BaseLine * u, t.SpaceWidth * u, t.TabWidth * u);
+        return new BitmapFont(rasterized.Name, atlas, in m);
+    }
+
+    private static BitmapFont Upload(IGraphicsDevice device, TrueTypeRasterizedFont rasterized, float texelsPerUnit = 1f)
     {
         ArgumentNullException.ThrowIfNull(device);
         if (device is not GraphicsDevice concrete)
@@ -385,24 +457,8 @@ public static class TrueTypeFontLoader
                 TextureFilter.Nearest,
                 TextureWrap.ClampToEdge);
             texture.SetData(rasterized.RgbaPixels);
-
-            BitmapFontAtlas atlas = new(texture);
+            font = CreateFont(rasterized, texture, texelsPerUnit);
             texture = null;
-
-            for (int i = 0; i < rasterized.Glyphs.Count; i++)
-            {
-                RasterizedGlyphInfo g = rasterized.Glyphs[i];
-                RectangleF rect = g.Bounds;
-                FontGlyph glyph = new(g.CodePoint, in rect, g.XOffset, g.YOffset, g.XAdvance);
-                atlas.AddGlyph(glyph);
-                if (g.CodePoint == '?')
-                {
-                    atlas.FallbackGlyph = glyph;
-                }
-            }
-
-            FontMetrics m = rasterized.Metrics;
-            font = new BitmapFont(rasterized.Name, atlas, in m);
             BitmapFont result = font;
             font = null;
             return result;
