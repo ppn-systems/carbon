@@ -202,7 +202,7 @@ internal sealed class HotbarAndItemWidget
             byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
             if (upg > 0)
             {
-                spriteBatch.DrawOutlinedString(font, $"+{upg}", new Vector2(sx + SlotSize - 22f, sy + 2f), CarbonUiPalette.TextWarm, black, 1, 1f);
+                spriteBatch.DrawOutlinedString(font, $"+{upg}", new Vector2(sx + SlotSize - 22f, sy + 2f), EnhancementLabelStyle.ColorFor(upg), black, 1, 1f);
             }
 
             if (!item.IsEmpty && item.Quantity > 1)
@@ -464,7 +464,7 @@ internal sealed class HotbarAndItemWidget
 
         byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
         string titleName = upg > 0 ? $"{name} +{upg}" : name;
-        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, titleName, cardW - 62f, 1f), new Vector2(x + 54f, y + 8f), CarbonUiPalette.TextWarm, black, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, titleName, cardW - 62f, 1f), new Vector2(x + 54f, y + 8f), upg > 0 ? EnhancementLabelStyle.ColorFor(upg) : CarbonUiPalette.TextWarm, black, 1, 1f);
 
         float upgMult = ItemEnhancementPolicy.GetStatMultiplier(upg);
         string stats = world.Items.Rules.Items.TryGet(item.ItemId, out ItemArchetype? def)
