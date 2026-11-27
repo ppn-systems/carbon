@@ -77,6 +77,13 @@ public sealed class DesktopOptions
     /// </summary>
     public string CaptureModal { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Gets or sets a menu scene to capture instead of the world (<c>CARBON_CAPTURE_SCENE=login|characters</c>, ADR-023 D8).
+    /// <c>login</c> needs <c>CARBON_AUTO_LOGIN=0</c>; <c>characters</c> registers the configured account and captures the
+    /// character screen. Empty when unset.
+    /// </summary>
+    public string CaptureScene { get; init; } = string.Empty;
+
     /// <summary>Gets or sets the remote dedicated server host or IP address.</summary>
     public string ServerHost { get; init; } = "127.0.0.1";
 
@@ -210,6 +217,7 @@ public sealed class DesktopOptions
             AutoExit = string.Equals(get("CARBON_AUTO_EXIT"), "1", StringComparison.Ordinal),
             AutoWalk = autoWalk,
             CaptureModal = get("CARBON_CAPTURE_MODAL") is { Length: > 0 } modal ? modal.Trim().ToLowerInvariant() : string.Empty,
+            CaptureScene = get("CARBON_CAPTURE_SCENE") is { Length: > 0 } captureScene ? captureScene.Trim().ToLowerInvariant() : string.Empty,
             ForgePreview = get("CARBON_FORGE_PREVIEW") is { Length: > 0 } forgePreview ? forgePreview.Trim() : null,
             ServerHost = serverHost,
             ServerTcpPort = serverTcpPort,

@@ -55,6 +55,7 @@ they are active.
 | `CARBON_AUTO_WALK=x,y` | Walk in a constant direction (actors in motion, wakes). |
 | `CARBON_CAPTURE_FRAMES=n` | Also capture `n` consecutive frames after the main capture. |
 | `CARBON_CAPTURE_MODAL=settings\|controls` | Open the Settings window (Display or Controls tab) before the capture, to review localized UI. |
+| `CARBON_CAPTURE_SCENE=login\|characters` | Capture a menu screen instead of the world. `login` needs `CARBON_AUTO_LOGIN=0` in the scenario; `characters` also needs it, registers the scenario's fresh account and captures the character creator. |
 | `CARBON_FORGE_PREVIEW=<kind>[:s]` | Open the forge window and play one enhancement effect (`charge`, `success`, `nochange`, `downgrade`, `destroyed`), frozen at `s` seconds when given. Visual only: nothing is sent, the server alone rolls outcomes. The `forge_*` scenarios use it. |
 
 `--lang <code>` (or `CARBON_LANG`) sets the client language for every scenario; the code must have a file in

@@ -2,28 +2,6 @@
 # Format: <repo path><TAB><literal>. When you replace a literal with a GameText key, delete its line.
 desktop/Carbon.Desktop.Abstractions/Configuration/DesktopOptions.cs	Hero
 desktop/Carbon.Desktop.Abstractions/Configuration/SyncedFoodCatalog.cs	{}  Spoils in {}
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Account is banned or locked.
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Account registered.
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Account username already exists.
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Authentication error ({}).
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Client/server protocol version mismatch.
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Connection failed: {}
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Create failed: {}
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Created {}.
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Enter world failed: {}
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Entered world.
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Invalid character name.
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Invalid server host or port.
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Invalid username or password format.
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Invalid username or password.
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Name must be 2 to 20 characters.
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Name taken or character slot limit reached.
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	No character selected.
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Password must be 6 to 128 characters.
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Signed in.
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Timed out syncing game config from the server.
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Username and password are required.
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Username must be 3 to 24 characters.
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Config.cs	Config download failed: {}
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.cs	TCP
 desktop/Carbon.Desktop.Rendering/Fonts/GameFontLoader.cs	CarbonPixelFallback
@@ -125,89 +103,8 @@ desktop/Carbon.Desktop.Rendering/Overlays/WorldEntityOverlayRenderer.cs	Lv.{} {}
 desktop/Carbon.Desktop.Rendering/VectorArt/CarbonVectorArtLibrary.cs	ADVENTURER
 desktop/Carbon.Desktop.Rendering/VectorArt/CvgJsonModels.cs	Item
 desktop/Carbon.Desktop/Program.cs	Carbon MMORPG — Online Client
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	+ EMPTY SLOT
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	+ NEW HERO
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	APPEARANCE
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	ARCANIST
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	Arcane Staff | Bolts +30 MP
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	BACK
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	BOB
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	BRONZE
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	BROWN
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	CHARACTER CREATOR
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	COBALT
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	CREATE HERO
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	CRIMSON
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	CROP
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	CharacterSelect
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	Creating {} ({})...
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	EMERALD
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	ENTER WORLD
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	EYES: {}
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	Entering world as {} (opening Authenticated UDP)...
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	FAIR
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	Failed to load roster: {}
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	Found {} hero(es). Select one and click ENTER WORLD.
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	GOLD
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	HAIR: {}
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	HERO DOSSIER
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	HERO NAME
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	HERO ROSTER ({}/4)
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	HERO STAGE
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	Hunt Bow | 290 Ranged Crit
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	Iron Sword | Melee HP/DEF
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	LOGOUT
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	LONG
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	Loading characters from server...
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	MYSTIC
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	NET: {}
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	POS: ({}, {})
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	RANDOMIZE
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	RANGER
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	RAVEN
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	SILVER
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	SKIN: {}
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	SPIKY
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	STARTING CLASS
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	Signing out...
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	TAN
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	TONE: {}
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	UMBER
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	VANGUARD
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	Welcome! Pick a starting class, customize your hero, and click CREATE HERO.
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	{}  //  LV.{}  //  TIER {}
-desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	{}  LV.{}
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	3-24 letters or digits
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	ACCOUNT USERNAME
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	Authentication error: {}
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	Auto-signing in to {}:{}...
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	CARBON REALMS
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	CONFIRM PASSWORD
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	CREATE ACCOUNT
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	Choose a unique username (3-24 chars) and password.
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	Connecting & entering world ({}:{})...
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	Creating account via TCP X25519...
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	DONE
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	EDIT
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	Enter credentials to connect via TCP + Authenticated UDP.
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	GATEWAY: {}
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	HIDE
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	Invalid server gateway. Use host:port.
 desktop/Carbon.Desktop/Scenes/LoginScene.cs	Login
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	ONLINE MMORPG  //  TCP + AUTH UDP
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	PASSWORD
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	Password confirmation does not match.
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	Password must be at least 6 characters.
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	QUIT
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	Ready. Sign in or create an online account.
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	SERVER GATEWAY (HOST:PORT)
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	SHOW
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	SIGN IN
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	SIGN IN TO REALM
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	Signing in via TCP X25519...
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	Username must be between 3 and 24 characters.
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	min 6 chars
-desktop/Carbon.Desktop/Scenes/LoginScene.cs	repeat password
 desktop/Carbon.Desktop/Scenes/WorldGameplayScene.cs	 [Ramp: {}]
 desktop/Carbon.Desktop/Scenes/WorldGameplayScene.cs	 [Roofed Room]
 desktop/Carbon.Desktop/Scenes/WorldGameplayScene.cs	Carbon MMORPG ({}) | {} | Biome: {} | Alt: Lvl {} | Nav: {}{}{} | Peers: {}

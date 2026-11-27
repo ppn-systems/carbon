@@ -12,6 +12,7 @@ using Carbon.Contracts.Identity.S2C;
 using Carbon.Contracts.Items.C2S;
 using Carbon.Contracts.Items.S2C;
 using Carbon.Desktop.Abstractions.Identity;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -39,12 +40,12 @@ public sealed partial class MultiplayerSession
     {
         if (string.IsNullOrWhiteSpace(host) || tcpPort == 0)
         {
-            return new AuthenticationResult(false, "Invalid server host or port.");
+            return new AuthenticationResult(false, GameText.Get("auth.invalid_endpoint"));
         }
 
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
         {
-            return new AuthenticationResult(false, "Username and password are required.");
+            return new AuthenticationResult(false, GameText.Get("auth.credentials_required"));
         }
 
         try
@@ -70,7 +71,7 @@ public sealed partial class MultiplayerSession
                 _reconnectPort = tcpPort;
                 _lastUsername = username.Trim();
                 _lastPassword = password;
-                return new AuthenticationResult(true, "Signed in.", result.AccountId);
+                return new AuthenticationResult(true, GameText.Get("auth.signed_in"), result.AccountId);
             }
 
             return new AuthenticationResult(false, FormatAuthStatus(result.Status));
@@ -82,7 +83,7 @@ public sealed partial class MultiplayerSession
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             await this.TearDownTransportsAsync().ConfigureAwait(false);
-            return new AuthenticationResult(false, $"Connection failed: {ex.Message}");
+            return new AuthenticationResult(false, GameText.Format("auth.connection_failed", new TextArg("error", ex.Message)));
         }
     }
 
@@ -96,18 +97,18 @@ public sealed partial class MultiplayerSession
     {
         if (string.IsNullOrWhiteSpace(host) || tcpPort == 0)
         {
-            return new AuthenticationResult(false, "Invalid server host or port.");
+            return new AuthenticationResult(false, GameText.Get("auth.invalid_endpoint"));
         }
 
         string trimmedUser = username?.Trim() ?? string.Empty;
         if (trimmedUser.Length < 3 || trimmedUser.Length > 24)
         {
-            return new AuthenticationResult(false, "Username must be 3 to 24 characters.");
+            return new AuthenticationResult(false, GameText.Get("auth.username_length"));
         }
 
         if (string.IsNullOrEmpty(password) || password.Length < 6 || password.Length > 128)
         {
-            return new AuthenticationResult(false, "Password must be 6 to 128 characters.");
+            return new AuthenticationResult(false, GameText.Get("auth.password_length"));
         }
 
         try
@@ -133,7 +134,7 @@ public sealed partial class MultiplayerSession
                 _reconnectPort = tcpPort;
                 _lastUsername = trimmedUser;
                 _lastPassword = password;
-                return new AuthenticationResult(true, "Account registered.", result.AccountId);
+                return new AuthenticationResult(true, GameText.Get("auth.registered"), result.AccountId);
             }
 
             return new AuthenticationResult(false, FormatAuthStatus(result.Status));
@@ -145,7 +146,7 @@ public sealed partial class MultiplayerSession
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             await this.TearDownTransportsAsync().ConfigureAwait(false);
-            return new AuthenticationResult(false, $"Connection failed: {ex.Message}");
+            return new AuthenticationResult(false, GameText.Format("auth.connection_failed", new TextArg("error", ex.Message)));
         }
     }
 
@@ -195,7 +196,7 @@ public sealed partial class MultiplayerSession
         string trimmed = characterName?.Trim() ?? string.Empty;
         if (trimmed.Length < 2 || trimmed.Length > 20)
         {
-            return (false, "Name must be 2 to 20 characters.");
+            return (false, GameText.Get("auth.name_length"));
         }
 
         RequestOptions reqOpts = RequestOptions.Default.WithTimeout(5000).WithEncrypt(tcp.State.EncryptionEnabled);
@@ -213,20 +214,20 @@ public sealed partial class MultiplayerSession
         if (reply.Status == OpStatus.Ok)
         {
             _localAppearancePreset = appearancePreset;
-            return (true, $"Created {trimmed}.");
+            return (true, GameText.Format("auth.character_created", new TextArg("name", trimmed)));
         }
 
         if (reply.Status == OpStatus.Invalid)
         {
-            return (false, "Invalid character name.");
+            return (false, GameText.Get("auth.invalid_name"));
         }
 
         if (reply.Status == OpStatus.Conflict)
         {
-            return (false, "Name taken or character slot limit reached.");
+            return (false, GameText.Get("auth.name_taken"));
         }
 
-        return (false, $"Create failed: {reply.Status}");
+        return (false, GameText.Format("auth.create_failed", new TextArg("status", reply.Status.ToString())));
     }
 
     /// <inheritdoc/>
@@ -234,7 +235,7 @@ public sealed partial class MultiplayerSession
     {
         if (characterId == Guid.Empty)
         {
-            return (false, "No character selected.");
+            return (false, GameText.Get("auth.no_character"));
         }
 
         TcpSession tcp = this.RequireAuthenticatedTcpSession();
@@ -248,7 +249,7 @@ public sealed partial class MultiplayerSession
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            return (false, "Timed out syncing game config from the server.");
+            return (false, GameText.Get("auth.config_timeout"));
         }
         catch (InvalidOperationException ex)
         {
@@ -268,7 +269,7 @@ public sealed partial class MultiplayerSession
 
         if (enter.Status != OpStatus.Ok)
         {
-            return (false, $"Enter world failed: {enter.Status}");
+            return (false, GameText.Format("auth.enter_failed", new TextArg("status", enter.Status.ToString())));
         }
 
         lock (_worldGate)
@@ -357,7 +358,7 @@ public sealed partial class MultiplayerSession
         _udpReconnectTimer = 1.5f;
         await this.TryOpenAuthenticatedUdpAsync(tcp, ct).ConfigureAwait(false);
 
-        return (true, "Entered world.");
+        return (true, GameText.Get("auth.entered"));
     }
 
     /// <inheritdoc/>
@@ -511,29 +512,29 @@ public sealed partial class MultiplayerSession
     {
         if (status == AuthStatus.InvalidCredentials)
         {
-            return "Invalid username or password.";
+            return GameText.Get("auth.invalid_credentials");
         }
 
         if (status == AuthStatus.AccountExists)
         {
-            return "Account username already exists.";
+            return GameText.Get("auth.username_exists");
         }
 
         if (status == AuthStatus.Locked)
         {
-            return "Account is banned or locked.";
+            return GameText.Get("auth.banned");
         }
 
         if (status == AuthStatus.InvalidInput)
         {
-            return "Invalid username or password format.";
+            return GameText.Get("auth.invalid_format");
         }
 
         if (status == AuthStatus.ProtocolMismatch)
         {
-            return "Client/server protocol version mismatch.";
+            return GameText.Get("auth.version_mismatch");
         }
 
-        return $"Authentication error ({status}).";
+        return GameText.Format("auth.error_status", new TextArg("status", status.ToString()));
     }
 }
