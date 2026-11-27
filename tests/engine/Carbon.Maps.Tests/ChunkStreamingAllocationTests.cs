@@ -21,8 +21,15 @@ public sealed class ChunkStreamingAllocationTests(ITestOutputHelper output)
 {
     private const int StripChunks = 24;
 
+    /// <summary>
+    /// Allowed average bytes per load step. Measured at 2,365 before ALLOC-12, when the resident snapshot was rebuilt for
+    /// every loaded chunk, and 535 after: one snapshot array per step and the dictionary nodes of the loaded chunks.
+    /// Lower this as allocations are removed; never raise it.
+    /// </summary>
+    private const double MaxBytesPerLoadStep = 600;
+
     [Fact]
-    public void UpdateAroundPosition_WalkingAWarmStrip_RebuildsTheSnapshotPerLoadedChunk()
+    public void UpdateAroundPosition_WalkingAWarmStrip_StaysWithinTheLoadStepBudget()
     {
         ChunkWorld2D world = new(new ProceduralWorldGenerator(1337UL), tileSize: 32f);
         Walker walker = new(world);
@@ -35,8 +42,8 @@ public sealed class ChunkStreamingAllocationTests(ITestOutputHelper output)
         AllocationResult window = AllocationProbe.Measure(StripChunks * 2, warmupIterations: 0, i => walker.Step());
         output.WriteLine($"{window.BytesPerIteration:F1} B per load step ({window})");
 
-        // Characterisation: 2,365 B per step, most of it a new resident snapshot array for every loaded chunk.
-        window.BytesPerIteration.Should().BeGreaterThan(2000, $"each loaded chunk rebuilds the resident snapshot ({window})");
+        window.BytesPerIteration.Should().BeLessThanOrEqualTo(MaxBytesPerLoadStep,
+            $"a streaming step rebuilds the resident snapshot once, not once per loaded chunk ({window})");
     }
 
     [Fact]

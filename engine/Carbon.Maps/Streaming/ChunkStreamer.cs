@@ -64,18 +64,12 @@ internal sealed class ChunkStreamer
 
         lock (_gate)
         {
-            // Double-check: another thread may have created it while we waited.
-            if (_active.TryGetValue(key, out existing))
+            Chunk2D chunk = this.GetOrCreateLocked(key, chunkX, chunkY, out bool created);
+            if (created)
             {
-                return existing;
+                this.RebuildActiveSnapshotLocked();
             }
 
-            Chunk2D chunk = _pool.TryDequeue(out Chunk2D? recycled) ? recycled : new Chunk2D(chunkX, chunkY);
-            this.Build(chunk, chunkX, chunkY);
-
-            // Publish only once fully populated, so readers never see a half-built chunk.
-            _active[key] = chunk;
-            this.RebuildActiveSnapshotLocked();
             return chunk;
         }
     }
@@ -98,20 +92,34 @@ internal sealed class ChunkStreamer
     /// <summary>Loads every chunk within <paramref name="loadRadius"/> and recycles those beyond <paramref name="evictRadius"/>.</summary>
     public void Stream(int centerChunkX, int centerChunkY, int loadRadius, int evictRadius)
     {
+        // ALLOC-12: the snapshot is rebuilt once per call, after the loads and the evictions, not once per loaded chunk.
+        // Until then it lacks only the chunks loaded by this call; they are inside the load radius, so the eviction pass
+        // below never needs them, and readers see them when the call returns.
+        bool changed = false;
         for (int cy = centerChunkY - loadRadius; cy <= centerChunkY + loadRadius; cy++)
         {
             for (int cx = centerChunkX - loadRadius; cx <= centerChunkX + loadRadius; cx++)
             {
-                _ = this.GetOrCreate(cx, cy);
+                long key = Chunk2D.PackKey(cx, cy);
+                if (_active.ContainsKey(key))
+                {
+                    continue;
+                }
+
+                lock (_gate)
+                {
+                    _ = this.GetOrCreateLocked(key, cx, cy, out bool created);
+                    changed |= created;
+                }
             }
         }
 
         // Evicted chunks keep their edits in the delta store.
         lock (_gate)
         {
-            // The snapshot holds exactly the resident chunks: every change to _active happens under this lock and
-            // rebuilds it. Walking the array instead of the ConcurrentDictionary avoids allocating an enumerator
-            // on every call, which runs for each player streaming update (audit round 2, PERF-4).
+            // The snapshot holds every resident chunk except those loaded above: every other change to _active happens
+            // under this lock and rebuilds it. Walking the array instead of the ConcurrentDictionary avoids allocating
+            // an enumerator on every call, which runs for each player streaming update (audit round 2, PERF-4).
             _evictionBuffer.Clear();
             Chunk2D[] resident = _activeSnapshot;
             for (int i = 0; i < resident.Length; i++)
@@ -123,21 +131,39 @@ internal sealed class ChunkStreamer
                 }
             }
 
-            bool evictedAny = false;
             for (int i = 0; i < _evictionBuffer.Count; i++)
             {
                 if (_active.TryRemove(_evictionBuffer[i], out Chunk2D? evicted))
                 {
                     _pool.Enqueue(evicted);
-                    evictedAny = true;
+                    changed = true;
                 }
             }
 
-            if (evictedAny)
+            if (changed)
             {
                 this.RebuildActiveSnapshotLocked();
             }
         }
+    }
+
+    // Call under the lock. Publishes a fully built chunk to _active; the caller rebuilds the snapshot.
+    private Chunk2D GetOrCreateLocked(long key, int chunkX, int chunkY, out bool created)
+    {
+        // Double-check: another thread may have created it while we waited for the lock.
+        if (_active.TryGetValue(key, out Chunk2D? existing))
+        {
+            created = false;
+            return existing;
+        }
+
+        Chunk2D chunk = _pool.TryDequeue(out Chunk2D? recycled) ? recycled : new Chunk2D(chunkX, chunkY);
+        this.Build(chunk, chunkX, chunkY);
+
+        // Publish only once fully populated, so readers never see a half-built chunk.
+        _active[key] = chunk;
+        created = true;
+        return chunk;
     }
 
     private void RebuildActiveSnapshotLocked()
