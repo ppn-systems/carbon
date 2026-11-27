@@ -50,3 +50,9 @@ forge_success      | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_FORGE_KIT=1 | CARBO
 forge_nochange     | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_FORGE_KIT=1 | CARBON_WEATHER=clear CARBON_FORGE_PREVIEW=nochange:0.2
 forge_downgrade    | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_FORGE_KIT=1 | CARBON_WEATHER=clear CARBON_FORGE_PREVIEW=downgrade:0.3
 forge_destroyed    | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_FORGE_KIT=1 | CARBON_WEATHER=clear CARBON_FORGE_PREVIEW=destroyed:0.3
+
+# --- inventory UI (CARBON_UI_PREVIEW, client-only; starter loadout) ---
+inventory_open     | CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=inventory
+inventory_tooltip  | CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=inventory-tooltip:2
+inventory_split    | CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=inventory-split:4
+inventory_destroy  | CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=inventory-destroy:2

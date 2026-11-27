@@ -86,6 +86,11 @@ public sealed partial class ServerAuthorityTests
         // NEW after the guard was written: added in #30 (creatures, owned by a parallel agent). Uses archetype id
         // constants only, to pick an attack clip. Audit SA-1c: declare the clip in the monster .cvg.json instead.
         "desktop/Carbon.Desktop.Rendering/VectorArt/MonsterAttackAnimator.cs|WorldActorCatalog",
+
+        // MOVED, not new (ADR-020): the inventory tooltip's +N stat multiplier and effective max durability were computed
+        // in InventoryModalWidget (allowlisted above) and now live in the cached tooltip builder. Same calls. Audit
+        // SA-1: sync the enhancement curve from the server and drop both entries.
+        "desktop/Carbon.Desktop.Rendering/Hud/ItemTooltipBuilder.cs|ItemEnhancementPolicy",
     };
 
     /// <summary>
