@@ -82,6 +82,19 @@ public sealed partial class MultiplayerSession
     }
 
     /// <inheritdoc/>
+    public bool TryTraderRepair(ushort slotIndex)
+    {
+        TraderView? trader = this.ActiveTrader;
+        if (trader is not { CanRepair: true } || trader.RepairCostOf(slotIndex) <= 0 || _tcpSession is not { IsConnected: true } tcp)
+        {
+            return false;
+        }
+
+        _ = this.RepairAtTraderAsync(tcp, trader.TraderNetworkId, slotIndex);
+        return true;
+    }
+
+    /// <inheritdoc/>
     public void CloseTrader()
     {
         Volatile.Write(ref _requestedTrader, 0UL);
@@ -118,8 +131,39 @@ public sealed partial class MultiplayerSession
             [.. pkt.Remaining],
             [.. pkt.SellItemIds],
             [.. pkt.SellPrices],
-            pkt.CanRepair);
+            pkt.CanRepair,
+            [.. pkt.RepairSlots],
+            [.. pkt.RepairCosts]);
         Volatile.Write(ref _activeTrader, view);
+    }
+
+    // Forge repair (RepairInventoryItem) through the blacksmith's window; on success the window asks for fresh quotes.
+    private async Task RepairAtTraderAsync(TcpSession tcp, ulong traderNetworkId, ushort slotIndex)
+    {
+        OpStatus status;
+        try
+        {
+            RequestOptions options = RequestOptions.Default.WithTimeout(4000).WithEncrypt(tcp.State.EncryptionEnabled);
+            using PacketScope<RepairInventoryItem> lease = PacketFactory<RepairInventoryItem>.Acquire();
+            lease.Value.SlotIndex = slotIndex;
+            using MutationResult reply = await tcp.RequestAsync<MutationResult>(lease.Value, options, predicate: null, CancellationToken.None).ConfigureAwait(false);
+            status = reply.Status;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            status = OpStatus.Invalid;
+        }
+
+        if (status == OpStatus.Ok)
+        {
+            _ = this.TryOpenTrader(traderNetworkId);
+            return;
+        }
+
+        lock (_worldGate)
+        {
+            _hudNotifications.Add(status == OpStatus.Conflict ? GameText.Get("trade.failed_repair") : DescribeTradeFailure(status));
+        }
     }
 
     private async Task RequestTradeAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TPacket>(TcpSession tcp, Action<TPacket> populate)

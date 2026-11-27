@@ -14,6 +14,8 @@ namespace Carbon.Abstractions.World;
 /// <param name="SellItemIds">Items the player carries that the trader buys.</param>
 /// <param name="SellPrices">Gold per unit the trader pays.</param>
 /// <param name="CanRepair">Whether the trader repairs gear.</param>
+/// <param name="RepairSlots">Bag slots holding worn gear the trader can repair.</param>
+/// <param name="RepairCosts">Gold to fully repair each of <paramref name="RepairSlots"/>.</param>
 public sealed record TraderStockSnapshot(
     ulong TraderNetworkId,
     byte Kind,
@@ -25,4 +27,6 @@ public sealed record TraderStockSnapshot(
     ushort[] Remaining,
     ushort[] SellItemIds,
     int[] SellPrices,
-    bool CanRepair);
+    bool CanRepair,
+    ushort[] RepairSlots,
+    int[] RepairCosts);

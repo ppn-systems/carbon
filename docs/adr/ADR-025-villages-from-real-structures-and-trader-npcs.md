@@ -128,11 +128,15 @@
 
 ### Blacksmith
 
-17. **D17 — Blacksmith.** The village blacksmith (`MasterBlacksmith`) gets the `blacksmith` trader profile (weapons,
-    armor, tools) and keeps forge repair (`RepairInventoryItem`).
-    - Enhancement belongs to the enhancement work (`ItemEnhancementPolicy`, its own forge window, ADR-022).
-    - The blacksmith's trade window only exposes a hook, `IGameplayController.OpenEnhancementWindow`, which opens that
-      window. It does not duplicate it.
+17. **D17 — Blacksmith.** The village and sanctuary blacksmiths (`MasterBlacksmith`, now
+    `ForgeArtisan | Trader`) trade from the `blacksmith` profile (weapons, armor, tools) and keep forge repair
+    (`RepairInventoryItem`, which the server already accepts next to a forge artisan).
+    - **Repair quotes.** `TraderStock` gains `RepairSlots` and `RepairCosts` (`SerializeOrder` 11 and 12). These are the
+      server's `PriceBook.GetRepairCost` quote for each worn bag item, sent only by a blacksmith. The window's Repair mode
+      shows the quotes and sends `RepairInventoryItem`, then refreshes. The client never prices a repair.
+    - **Enhancement.** It belongs to the enhancement work (`ItemEnhancementPolicy`, its own forge window, ADR-022/024).
+      The trade window's Enhance button calls the existing forge entry point, `WorldGameplayScene.OpenForgeWindow`. It
+      adds no enhancement UI and no new controller method.
 
 ## Alternatives Considered
 

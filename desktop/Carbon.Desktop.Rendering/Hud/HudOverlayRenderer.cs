@@ -91,6 +91,13 @@ public sealed class HudOverlayRenderer : IDisposable
     /// <summary>Gets or sets whether the trader window is open (the scene mirrors <c>IWorldReadModel.ActiveTrader</c>).</summary>
     public bool ShowTradeModal { get; set; }
 
+    /// <summary>Gets or sets whether the blacksmith's trade window is in repair mode (bag clicks repair instead of sell).</summary>
+    public bool TradeRepairMode
+    {
+        get => _tradeModal.RepairMode;
+        set => _tradeModal.RepairMode = value;
+    }
+
     /// <summary>Gets or sets whether the System Settings &amp; Controls modal is open.</summary>
     public bool ShowSettingsModal { get; set; }
 
@@ -347,6 +354,22 @@ public sealed class HudOverlayRenderer : IDisposable
         return this.Visible && this.ShowTradeModal && world.ActiveTrader is TraderView trader
             ? _tradeModal.HitStockRow(mousePos, trader, viewportWidth, viewportHeight)
             : -1;
+    }
+
+    /// <summary>Gets whether the blacksmith's Repair toggle in the trade window is under the mouse.</summary>
+    public bool HitTradeRepairButton(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        return this.Visible && this.ShowTradeModal && world.ActiveTrader is TraderView trader &&
+            TradeModalWidget.HitRepairButton(mousePos, trader, viewportWidth, viewportHeight);
+    }
+
+    /// <summary>Gets whether the blacksmith's Enhance button (hand-off to the forge window) is under the mouse.</summary>
+    public bool HitTradeEnhanceButton(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        return this.Visible && this.ShowTradeModal && world.ActiveTrader is TraderView trader &&
+            TradeModalWidget.HitEnhanceButton(mousePos, trader, viewportWidth, viewportHeight);
     }
 
     /// <summary>Gets the bag slot under the mouse in the trade window, or -1.</summary>

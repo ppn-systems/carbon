@@ -11,6 +11,7 @@ using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Items.S2C;
 using Carbon.Economy;
+using Carbon.Economy.Trading;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -52,6 +53,8 @@ public sealed class TraderWorldTests
             (await Run(world, world.Trade.SubmitTraderOpenAsync(Conn, merchant))).Should().Be(OpStatus.Ok);
             TraderStockSnapshot stock = sink.TraderStocks.Last(t => t.ConnectionId == Conn).Stock;
             stock.Kind.Should().Be(TraderStock.KindMerchant);
+            stock.CanRepair.Should().BeFalse("only the blacksmith repairs");
+            stock.RepairSlots.Should().BeEmpty();
             stock.ItemIds.Should().NotBeEmpty();
             stock.SecondsUntilRestock.Should().BeInRange(1, 30 * 60);
             int slot = Array.FindIndex(stock.Remaining, r => r >= 2);
@@ -118,6 +121,76 @@ public sealed class TraderWorldTests
         }
     }
 
+    [Fact]
+    public async Task Blacksmith_AtSmithyAndSanctuary_SellsGearQuotesRepairsAndRepairs()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-smith-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
+            ManualTime time = new(DateTimeOffset.FromUnixTimeSeconds(1_800_000_000L));
+            (int fx, int fy) = FrontTileOf(VillageBuildingRole.Smithy);
+
+            RecordingOutboundSink sink = new();
+            AuthoritativeWorld world = CreateWorld(factory, sink, time);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+            GameEconomy economy = world.Economy!;
+            ItemSlot worn = new(StarterGameCatalog.IronSword, 1, 9_001UL, Durability: 50f);
+            world.TryEnterWorld(Conn, Conn, Character("Smith Client", fx, fy, gold: 5_000, worn)).Status.Should().Be(OpStatus.Ok);
+            Step(world, 12);
+
+            // The village blacksmith works at the smithy's forge: the nearest Master Blacksmith to its door.
+            System.Numerics.Vector2 door = new((fx + 0.5f) * 32f, (fy + 0.5f) * 32f);
+            ulong smith = sink.Spawns
+                .Where(s => s.Snapshot.Kind == EntityKind.Npc && s.Snapshot.ArchetypeId == WorldActorCatalog.MasterBlacksmith)
+                .OrderBy(s => System.Numerics.Vector2.DistanceSquared(new(s.Snapshot.PositionX, s.Snapshot.PositionY), door))
+                .First().Snapshot.NetworkId;
+
+            (await Run(world, world.Trade.SubmitTraderOpenAsync(Conn, smith))).Should().Be(OpStatus.Ok);
+            TraderStockSnapshot stock = sink.TraderStocks.Last(t => t.ConnectionId == Conn).Stock;
+            stock.Kind.Should().Be(TraderStock.KindBlacksmith);
+            stock.CanRepair.Should().BeTrue();
+            economy.Traders!.TryGet("blacksmith", out TraderProfile profile).Should().BeTrue();
+            stock.ItemIds.Should().NotBeEmpty().And.OnlyContain(id => profile.Entries.Any(e => e.ItemId == id), "weapons, armor, tools and smithing stock only");
+
+            // The worn sword (bag slot 0) is quoted at the forge's repair price.
+            long quote = economy.Prices.GetRepairCost(worn);
+            quote.Should().BePositive();
+            stock.RepairSlots.Should().Equal(0);
+            stock.RepairCosts.Should().Equal((int)quote);
+
+            long goldBefore = sink.WalletSyncs.Count > 0 ? sink.WalletSyncs.Last(w => w.ConnectionId == Conn).Gold : 5_000L;
+            (await Run(world, world.SubmitRepairItemAsync(Conn, 0))).Should().Be(OpStatus.Ok, "the blacksmith is a forge station");
+            sink.WalletSyncs.Last(w => w.ConnectionId == Conn).Gold.Should().Be(goldBefore - quote, "the repair costs exactly the quote");
+            (await Run(world, world.Trade.SubmitTraderOpenAsync(Conn, smith))).Should().Be(OpStatus.Ok);
+            sink.TraderStocks.Last(t => t.ConnectionId == Conn).Stock.RepairSlots.Should().BeEmpty("the sword is whole again");
+
+            // The sanctuary blacksmith at the world spawn trades too, from his own (stable) stock.
+            System.Numerics.Vector2 spawn = world.DefaultSpawnWorldPosition;
+            world.TryEnterWorld(Conn + 1, Conn + 1, Character("Spawn Client", (int)(spawn.X / 32f), (int)(spawn.Y / 32f), gold: 0)).Status.Should().Be(OpStatus.Ok);
+            Step(world, 4);
+            ulong sanctuarySmith = sink.Spawns
+                .Where(s => s.Snapshot.Kind == EntityKind.Npc && s.Snapshot.ArchetypeId == WorldActorCatalog.MasterBlacksmith)
+                .OrderBy(s => System.Numerics.Vector2.DistanceSquared(new(s.Snapshot.PositionX, s.Snapshot.PositionY), spawn))
+                .First().Snapshot.NetworkId;
+            sanctuarySmith.Should().NotBe(smith);
+            (await Run(world, world.Trade.SubmitTraderOpenAsync(Conn + 1, sanctuarySmith))).Should().Be(OpStatus.Ok);
+            TraderStockSnapshot sanctuary = sink.TraderStocks.Last(t => t.ConnectionId == Conn + 1).Stock;
+            sanctuary.Kind.Should().Be(TraderStock.KindBlacksmith);
+            sanctuary.CanRepair.Should().BeTrue();
+            sanctuary.ItemIds.Should().OnlyContain(id => profile.Entries.Any(e => e.ItemId == id));
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
     private static async Task<OpStatus> Run(AuthoritativeWorld world, ValueTask<WorldMutationOutcome> pending)
     {
         world.StepFixedTick();
@@ -150,23 +223,35 @@ public sealed class TraderWorldTests
             traderStock: new SqliteTraderStockRepository(factory));
     }
 
-    private static CharacterRecord Character(string name, int tileX, int tileY, long gold) => new(
-        Guid.NewGuid(),
-        Guid.NewGuid(),
-        name,
-        10,
-        0,
-        (tileX + 0.5f) * 32f,
-        (tileY + 0.5f) * 32f,
-        100f,
-        100f,
-        SelectedHotbarSlot: 0,
-        InventoryBlob: InventoryBinaryCodec.Serialize(new InventoryContainer(PlayerInventoryLayout.TotalCapacity)),
-        UpdatedAtUtc: DateTimeOffset.UtcNow,
-        Gold: gold);
+    private static CharacterRecord Character(string name, int tileX, int tileY, long gold, ItemSlot firstBagItem = default)
+    {
+        InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);
+        if (!firstBagItem.IsEmpty)
+        {
+            bag.SetSlot(0, in firstBagItem);
+        }
+
+        return new(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            name,
+            10,
+            0,
+            (tileX + 0.5f) * 32f,
+            (tileY + 0.5f) * 32f,
+            100f,
+            100f,
+            SelectedHotbarSlot: 0,
+            InventoryBlob: InventoryBinaryCodec.Serialize(bag),
+            UpdatedAtUtc: DateTimeOffset.UtcNow,
+            Gold: gold);
+    }
 
     // The tile in front of the nearest river village's market stall (free ground, beside the merchant).
-    private static (int X, int Y) MerchantFrontTile()
+    private static (int X, int Y) MerchantFrontTile() => FrontTileOf(VillageBuildingRole.Stall);
+
+    // The tile in front of the entrance of the nearest river village's building with this role.
+    private static (int X, int Y) FrontTileOf(VillageBuildingRole role)
     {
         ProceduralWorldGenerator gen = new(Seed);
         for (int ring = 0; ring < 6; ring++)
@@ -182,7 +267,7 @@ public sealed class TraderWorldTests
 
                     foreach (VillagePlot plot in gen.Landmarks.GetLayout(sx, sy).Plots)
                     {
-                        if (plot.Role == VillageBuildingRole.Stall)
+                        if (plot.Role == role)
                         {
                             return VillageBlueprint.FrontTile(VillageBuildingCatalog.Default, plot);
                         }
@@ -191,7 +276,7 @@ public sealed class TraderWorldTests
             }
         }
 
-        throw new InvalidOperationException("No river village with a market stall near the origin.");
+        throw new InvalidOperationException($"No river village with a {role} near the origin.");
     }
 
     private sealed class ManualTime(DateTimeOffset start) : TimeProvider

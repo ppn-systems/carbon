@@ -209,6 +209,10 @@ public sealed class WorldGameplayScene : GameScene
         }
 
         _hudRenderer.ShowTradeModal = _session.ActiveTrader is not null;
+        if (!_hudRenderer.ShowTradeModal)
+        {
+            _hudRenderer.TradeRepairMode = false;
+        }
 
         if (_hudRenderer.ShowSettingsModal)
         {
@@ -455,7 +459,8 @@ public sealed class WorldGameplayScene : GameScene
                         openedForgeNpc = _session.TryOpenTrader(clickedTrader);
                     }
 
-                    for (int i = 0; i < remotes.Count; i++)
+                    // The blacksmith is a trader too: his window offers Enhance, so the click does not also open the forge.
+                    for (int i = 0; !openedForgeNpc && i < remotes.Count; i++)
                     {
                         RemoteEntityView entity = remotes[i];
                         if (entity.Kind == EntityKind.Npc &&
@@ -640,6 +645,11 @@ public sealed class WorldGameplayScene : GameScene
             TryFindNearestTrader(_session.RemoteEntities, playerPos, TraderWindowRadius, out ulong autoTrader))
         {
             _ = _session.TryOpenTrader(autoTrader);
+        }
+
+        if (_options.OpenTraderRepair && _session.ActiveTrader is { CanRepair: true } && !_hasAutoCaptured)
+        {
+            _hudRenderer.TradeRepairMode = true;
         }
     }
 
@@ -941,6 +951,19 @@ public sealed class WorldGameplayScene : GameScene
             return;
         }
 
+        // Blacksmith (ADR-025 D17): Repair toggles repair mode; Enhance hands off to the forge window (ADR-024).
+        if (_hudRenderer.HitTradeRepairButton(_session, mouse, width, height))
+        {
+            _hudRenderer.TradeRepairMode = !_hudRenderer.TradeRepairMode;
+            return;
+        }
+
+        if (_hudRenderer.HitTradeEnhanceButton(_session, mouse, width, height))
+        {
+            _ = this.OpenForgeWindow();
+            return;
+        }
+
         int stockRow = _hudRenderer.HitTradeStockRow(_session, mouse, width, height);
         if (stockRow >= 0)
         {
@@ -949,7 +972,11 @@ public sealed class WorldGameplayScene : GameScene
         }
 
         int bagSlot = _hudRenderer.HitTradeBagSlot(_session, mouse, width, height);
-        if (bagSlot >= 0)
+        if (bagSlot >= 0 && _hudRenderer.TradeRepairMode)
+        {
+            _ = _session.TryTraderRepair((ushort)bagSlot);
+        }
+        else if (bagSlot >= 0)
         {
             Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
             _session.CopyInventorySlots(slots);

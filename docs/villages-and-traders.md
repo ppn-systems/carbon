@@ -179,9 +179,17 @@ The traders of §3 use the `store` and `stall` NPC spots.
 
 ## 4. Blacksmith
 
-The village and sanctuary blacksmith (`MasterBlacksmith`) trades from the `blacksmith` profile (weapons, armor, tools) and repairs at the forge (`RepairInventoryItem`).
+The village blacksmith (at the smithy's forge) and the sanctuary blacksmith (beside the world spawn) are both traders. Their `MasterBlacksmith` spec has `NpcCapabilities.ForgeArtisan | NpcCapabilities.Trader`.
 
-Enhancement is owned by the enhancement work (`ItemEnhancementPolicy`, its own forge window, ADR-022). The blacksmith window only calls `IGameplayController.OpenEnhancementWindow` and does not duplicate it.
+- **Stock.** He trades from the `blacksmith` profile: weapons, armor, tools and smithing materials, with the same seeded, restocking, limited stock as the other traders (§3).
+  - The village smith's key is `TraderKeyOf(village, Smithy)` and his style is the village's.
+  - The sanctuary smith's key comes from the spawn tile, and his style is temperate.
+- **Repair.** The `TraderStock` push carries `RepairSlots` and `RepairCosts`, the server's quotes (`PriceBook.GetRepairCost`) for each worn item in the bag.
+  - The window's **Repair** button switches the bag to repair mode. Worn gear shows its durability bar and its quote; everything else is dimmed.
+  - A click sends the existing `RepairInventoryItem`. The server already accepts it next to a forge-artisan NPC (`InventoryService.IsNearForgeStation`).
+  - On success the window re-opens the trader to refresh the quotes. A `Conflict` (not enough gold) shows a toast.
+- **Enhancement.** The enhancement work owns this (`ItemEnhancementPolicy` and the forge window, ADR-022/024). The window's **Enhance…** button only calls the scene's existing forge entry point, `WorldGameplayScene.OpenForgeWindow`, which closes the trade window and opens the forge. Nothing in the enhancement window is duplicated. `U` still opens the forge directly.
+- **Input.** `E` or a click on the blacksmith opens his trade window; the click no longer also opens the forge. His nameplate reads `[E: TRADE  U: FORGE]`.
 
 ## 5. Tests
 
@@ -192,6 +200,11 @@ Enhancement is owned by the enhancement work (`ItemEnhancementPolicy`, its own f
 | `SettlementNpcSpawnerTests` (Host) | A village is built once with one guard; the blacksmith stands next to the forge; deconstruct and damage are refused. |
 | `VectorArtAndArchitectureTests` (Desktop) | Every structure type has art (doors with open shapes). |
 | `TraderTests` (Economy) | Shipped profiles load; invalid documents are rejected (unknown item, variance, quantities, too few entries, jitter, style); stock is deterministic per epoch and changes at restock; slots are distinct and style-correct, within quantity and variance ranges; prices stay within variance and above the buy-back price at levels 1/30/80; the epoch clock and per-trader jitter; limited quantity sells out and the next epoch restocks; failures change nothing (funds, full bag, slot, quantity, stale epoch, unknown trader); sales drain and import. |
-| `TraderWorldTests` (Host) | Through the real world: open a merchant and buy (wallet and stock change); more than is left, a stale epoch, a bad slot and an unknown trader are refused; selling pays less than the buy price; a far player is out of range; sales persist across a server restart on SQLite; the next epoch is fully restocked. |
+| `TraderWorldTests` (Host) | Through the real world: open a merchant and buy (wallet and stock change); more than is left, a stale epoch, a bad slot and an unknown trader are refused; selling pays less than the buy price; a far player is out of range; sales persist across a server restart on SQLite; the next epoch is fully restocked. The smithy's blacksmith sells only `blacksmith` profile items, quotes a worn sword at exactly `PriceBook.GetRepairCost`, repairs it for that gold, and quotes nothing afterwards. The sanctuary blacksmith trades too. The merchant quotes no repairs. |
 
-Screenshots: `tools/screenshots/capture.sh <out> '^village_'` captures one village per style, a macro view and a night view (`CARBON_DEBUG_SPAWN_POI=<PointOfInterestType>`).
+Screenshots:
+- `tools/screenshots/capture.sh <out> '^village_'` captures one village per style, a macro view and a night view (`CARBON_DEBUG_SPAWN_POI=<PointOfInterestType>`).
+- `'^trade_'` captures the merchant, a desert trader and the blacksmith, in sell mode and in repair mode.
+  - `CARBON_DEBUG_SPAWN_POI=RiverVillage:Smithy` spawns in front of a named building.
+  - `CARBON_DEBUG_WORN_GEAR=1` wears the starting gear to 40 %.
+  - `CARBON_OPEN_TRADER=repair` opens the window in repair mode.

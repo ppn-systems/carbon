@@ -153,6 +153,7 @@ public sealed class HostRuntimeOptions
             SpawnOffset = TryParsePair(readEnv("CARBON_DEBUG_SPAWN_OFFSET")) ?? default,
             StartHour = startHour,
             ForgeKit = string.Equals(readEnv("CARBON_DEBUG_FORGE_KIT"), "1", StringComparison.Ordinal),
+            WornGear = string.Equals(readEnv("CARBON_DEBUG_WORN_GEAR"), "1", StringComparison.Ordinal),
         };
 #else
         return new WorldDebugOverrides();

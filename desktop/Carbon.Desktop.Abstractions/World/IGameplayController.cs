@@ -40,6 +40,12 @@ public interface IGameplayController
     /// <summary>Sells <paramref name="quantity"/> units from bag slot <paramref name="slotIndex"/> to the open trader.</summary>
     bool TryTraderSell(ushort slotIndex, ushort quantity = 1);
 
+    /// <summary>
+    /// Repairs the worn gear in bag slot <paramref name="slotIndex"/> at the open blacksmith, for the gold it quoted; the
+    /// window refreshes its quotes once the repair is done.
+    /// </summary>
+    bool TryTraderRepair(ushort slotIndex);
+
     /// <summary>Closes the trader window.</summary>
     void CloseTrader();
 

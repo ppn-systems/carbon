@@ -20,7 +20,9 @@ public sealed record WorldDebugOverrides
 
     /// <summary>
     /// Gets the name of a point of interest type (e.g. <c>DesertVillage</c>): characters enter the world just south of
-    /// the well of the nearest one. <see cref="SpawnTile"/> and <see cref="SpawnBiome"/> win when set.
+    /// the well of the nearest one (in front of a village's market stall). A village type may name a building role after a
+    /// colon (e.g. <c>RiverVillage:Smithy</c>) to stand in front of that building instead. <see cref="SpawnTile"/> and
+    /// <see cref="SpawnBiome"/> win when set.
     /// </summary>
     public string? SpawnPoi { get; init; }
 
@@ -36,7 +38,13 @@ public sealed record WorldDebugOverrides
     /// </summary>
     public bool ForgeKit { get; init; }
 
+    /// <summary>
+    /// Gets a value indicating whether new characters start with their gear worn to 40 % durability, for screenshot
+    /// review of the blacksmith's repair mode (ADR-025).
+    /// </summary>
+    public bool WornGear { get; init; }
+
     /// <summary>Gets a value indicating whether any override is set.</summary>
     public bool IsActive => this.SpawnTile.HasValue || this.SpawnBiome is not null || this.SpawnPoi is not null || this.StartHour.HasValue ||
-        this.SpawnOffset != default || this.ForgeKit;
+        this.SpawnOffset != default || this.ForgeKit || this.WornGear;
 }
