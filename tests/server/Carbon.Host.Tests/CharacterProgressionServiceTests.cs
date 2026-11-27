@@ -8,6 +8,8 @@ using Carbon.Abstractions.World;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Progression;
 using Carbon.Combat.Attacks;
+using Carbon.Combat.Components;
+using Carbon.Combat.Statuses;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Creatures;
@@ -177,6 +179,18 @@ public sealed class CharacterProgressionServiceTests
 
         (dodges / (float)Hits).Should().BeApproximately(chance, 0.015f);
         expectedHit.Should().BeLessThan(500f);
+    }
+
+    [Fact]
+    public void ResolveIncomingDamage_InvulnerablePlayer_AvoidsTheHit()
+    {
+        Fixture f = new(level: 10);
+        f.Simulation.Entities.SetComponent(f.Player.Entity, new CombatStateComponent(CrowdControlMask.Invulnerable));
+
+        float dealt = f.Service.ResolveIncomingDamage(f.Player, 80f, DamageKind.Physical, 10, out bool avoided);
+
+        avoided.Should().BeTrue("monster hits on players go through CombatDamage.TryResolve too (audit DOM-1)");
+        dealt.Should().Be(0f);
     }
 
     [Fact]

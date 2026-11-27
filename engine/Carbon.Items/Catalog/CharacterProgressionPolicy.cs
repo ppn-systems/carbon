@@ -110,7 +110,7 @@ public static class CharacterProgressionPolicy
     }
 
     /// <summary>
-    /// Sums the bonuses of equipped, non-broken armor (slots <c>36..39</c>) and the held weapon, enhancement included.
+    /// Sums the bonuses of equipped, non-broken armor and accessories (slots <c>36..41</c>) and the held weapon, enhancement included.
     /// </summary>
     /// <param name="rules">Item rules.</param>
     /// <param name="inventory">Inventory with equipment slots.</param>
@@ -125,7 +125,7 @@ public static class CharacterProgressionPolicy
         float mp = 0f;
         float def = 0f;
         float crit = 0f;
-        for (int slotIdx = PlayerInventoryLayout.HeadSlot; slotIdx <= PlayerInventoryLayout.FeetSlot && slotIdx < inventory.Capacity; slotIdx++)
+        for (int slotIdx = PlayerInventoryLayout.HeadSlot; slotIdx <= PlayerInventoryLayout.Accessory2Slot && slotIdx < inventory.Capacity; slotIdx++)
         {
             ItemSlot armor = inventory.GetSlot(slotIdx);
             if (armor.IsEmpty || ToolUsagePolicy.IsWornOut(rules, in armor))

@@ -318,10 +318,10 @@ public sealed partial class AuthoritativeWorld
         if (victim is not null)
         {
             int attackerLevel = _actorsByNetworkId.TryGetValue(attackerNetId, out NpcActorMeta attackerMeta) ? attackerMeta.Level : victim.Level;
-            monsterDamage = _progressionService.ResolveIncomingDamage(victim, rawDamage, kind, attackerLevel, out bool dodged);
-            if (dodged)
+            monsterDamage = _progressionService.ResolveIncomingDamage(victim, rawDamage, kind, attackerLevel, out bool avoided);
+            if (avoided)
             {
-                // A dodge deals nothing and does not count as a hit (regen keeps running); clients show it as a miss.
+                // A dodged (or refused) hit deals nothing and does not count as a hit; clients show it as a miss.
                 this.QueueCombatHitLocked(defPos, attackerNetId, targetNetId, 0f, hp.Current, false, false);
                 return;
             }
