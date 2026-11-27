@@ -49,41 +49,4 @@ public static class DurabilityWear
             rules.Repair.GetDurabilityBand(next, max) == DurabilityBand.Critical;
         return new DurabilityWearResult(slot with { Durability = next }, Changed: true, Broke: false, reachedCritical);
     }
-
-    /// <summary>
-    /// Durability a legacy item saved at 0 (the retired "worn out" state) comes back with on load (ADR-035): one point,
-    /// so it survives to be repaired but breaks on its next wear step.
-    /// </summary>
-    public const float LegacyRestoredDurability = 1f;
-
-    /// <summary>
-    /// Gives every durable item in <paramref name="inventory"/> saved at 0 or less (ADR-035 retired that state) back
-    /// <see cref="LegacyRestoredDurability"/> durability, capped at its effective maximum. Items without durability are left alone.
-    /// </summary>
-    /// <param name="rules">Item rules.</param>
-    /// <param name="inventory">A freshly loaded inventory.</param>
-    /// <returns>How many items were restored (the caller logs and persists them).</returns>
-    public static int RestoreLegacyBrokenItems(ItemRules rules, InventoryContainer inventory)
-    {
-        ArgumentNullException.ThrowIfNull(rules);
-        ArgumentNullException.ThrowIfNull(inventory);
-        int restored = 0;
-        for (int i = 0; i < inventory.Capacity; i++)
-        {
-            ItemSlot slot = inventory.GetSlot(i);
-            if (slot.IsEmpty ||
-                slot.Durability > 0f ||
-                !rules.Items.TryGet(slot.ItemId, out ItemArchetype? def) ||
-                def.MaxDurability <= 0f)
-            {
-                continue;
-            }
-
-            float max = ItemEnhancementPolicy.GetEffectiveMaxDurability(def, ItemEnhancementPolicy.GetUpgradeLevel(in slot));
-            inventory.SetSlot(i, slot with { Durability = MathF.Min(LegacyRestoredDurability, max) });
-            restored++;
-        }
-
-        return restored;
-    }
 }

@@ -1,7 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -22,8 +21,7 @@ namespace Carbon.Desktop.Rendering.Hud;
 /// camera_zoom = 1
 /// graphics_quality = auto
 /// </code>
-/// <c>CARBON_LANG</c> overrides <c>[general] language</c> at startup. A legacy <c>ui_settings.cfg</c> is read once when
-/// <c>settings.ini</c> does not exist yet.
+/// <c>CARBON_LANG</c> overrides <c>[general] language</c> at startup.
 /// </summary>
 public sealed class UiSettings
 {
@@ -32,7 +30,6 @@ public sealed class UiSettings
         "Carbon");
 
     private static readonly string s_settingsPath = Path.Combine(s_configDirectory, "settings.ini");
-    private static readonly string s_legacySettingsPath = Path.Combine(s_configDirectory, "ui_settings.cfg");
 
     /// <summary>Gets or sets whether the minimap under the HUD clock is visible (on by default; <c>[M]</c> toggles it).</summary>
     public bool ShowMinimap { get; set; } = true;
@@ -71,18 +68,13 @@ public sealed class UiSettings
     /// <returns>The loaded settings, or defaults when the file is missing, unreadable or malformed.</returns>
     public static UiSettings LoadOrDefault(string? filePath = null)
     {
-        bool useDefaultPath = string.IsNullOrWhiteSpace(filePath);
-        string path = useDefaultPath ? s_settingsPath : filePath!;
+        string path = string.IsNullOrWhiteSpace(filePath) ? s_settingsPath : filePath;
         UiSettings settings = new();
         try
         {
             if (File.Exists(path))
             {
                 settings.Apply(IniDocument.Load(path));
-            }
-            else if (useDefaultPath && File.Exists(s_legacySettingsPath))
-            {
-                settings.ApplyLegacy(File.ReadAllLines(s_legacySettingsPath));
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -144,30 +136,6 @@ public sealed class UiSettings
         foreach (IniEntry entry in document.InSection("display"))
         {
             this.Set(entry.Key, entry.Value);
-        }
-    }
-
-    private void ApplyLegacy(IEnumerable<string> lines)
-    {
-        foreach (string raw in lines)
-        {
-            string line = raw.Trim();
-            int eq = line.IndexOf('=', StringComparison.Ordinal);
-            if (eq <= 0)
-            {
-                continue;
-            }
-
-            string key = line[..eq].Trim() switch
-            {
-                nameof(this.ShowMinimap) => "show_minimap",
-                nameof(this.ShowCombatNumbers) => "show_combat_numbers",
-                nameof(this.ShowTelemetry) => "show_telemetry",
-                nameof(this.ShowKeybindHints) => "show_keybind_hints",
-                nameof(this.CameraZoomPreset) => "camera_zoom",
-                _ => string.Empty,
-            };
-            this.Set(key, line[(eq + 1)..].Trim());
         }
     }
 
