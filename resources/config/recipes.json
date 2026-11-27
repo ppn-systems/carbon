@@ -1507,6 +1507,35 @@
           "qty": 1
         }
       ]
+    },
+    {
+      "id": 60,
+      "code": "blessed_forge_scroll",
+      "station": "alchemy",
+      "workTicks": 120,
+      "unlockLevel": 8,
+      "skill": "alchemy",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "forge_ward_scroll",
+          "qty": 1
+        },
+        {
+          "item": "mana_crystal",
+          "qty": 3
+        },
+        {
+          "item": "rough_gem",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "blessed_forge_scroll",
+          "qty": 1
+        }
+      ]
     }
   ]
 }

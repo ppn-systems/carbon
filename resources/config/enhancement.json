@@ -1,0 +1,219 @@
+{
+  "version": 1,
+  "maxLevel": 10,
+  "downgradeMinLevel": 5,
+  "destroyMinLevel": 8,
+  "goldRarityPercent": {
+    "common": 100,
+    "uncommon": 150,
+    "rare": 250,
+    "epic": 400,
+    "legendary": 700
+  },
+  "announce": {
+    "successMinLevel": 7,
+    "destroyed": true
+  },
+  "levels": [
+    {
+      "from": 0,
+      "success": 1000,
+      "noChange": 0,
+      "downgrade": 0,
+      "destroy": 0,
+      "gold": 20,
+      "materials": [
+        {
+          "item": "stone_chunk",
+          "qty": 2
+        },
+        {
+          "item": "iron_ore",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "from": 1,
+      "success": 950,
+      "noChange": 50,
+      "downgrade": 0,
+      "destroy": 0,
+      "gold": 40,
+      "materials": [
+        {
+          "item": "stone_chunk",
+          "qty": 3
+        },
+        {
+          "item": "iron_ore",
+          "qty": 2
+        }
+      ]
+    },
+    {
+      "from": 2,
+      "success": 900,
+      "noChange": 100,
+      "downgrade": 0,
+      "destroy": 0,
+      "gold": 70,
+      "materials": [
+        {
+          "item": "stone_chunk",
+          "qty": 4
+        },
+        {
+          "item": "iron_ore",
+          "qty": 3
+        }
+      ]
+    },
+    {
+      "from": 3,
+      "success": 800,
+      "noChange": 200,
+      "downgrade": 0,
+      "destroy": 0,
+      "gold": 120,
+      "materials": [
+        {
+          "item": "iron_ore",
+          "qty": 3
+        },
+        {
+          "item": "mana_crystal",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "from": 4,
+      "success": 700,
+      "noChange": 300,
+      "downgrade": 0,
+      "destroy": 0,
+      "gold": 200,
+      "materials": [
+        {
+          "item": "iron_ore",
+          "qty": 4
+        },
+        {
+          "item": "mana_crystal",
+          "qty": 2
+        }
+      ]
+    },
+    {
+      "from": 5,
+      "success": 600,
+      "noChange": 250,
+      "downgrade": 150,
+      "destroy": 0,
+      "gold": 320,
+      "materials": [
+        {
+          "item": "iron_ore",
+          "qty": 5
+        },
+        {
+          "item": "mana_crystal",
+          "qty": 3
+        }
+      ]
+    },
+    {
+      "from": 6,
+      "success": 500,
+      "noChange": 280,
+      "downgrade": 220,
+      "destroy": 0,
+      "gold": 500,
+      "materials": [
+        {
+          "item": "iron_ingot",
+          "qty": 2
+        },
+        {
+          "item": "mana_crystal",
+          "qty": 4
+        }
+      ]
+    },
+    {
+      "from": 7,
+      "success": 400,
+      "noChange": 300,
+      "downgrade": 300,
+      "destroy": 0,
+      "gold": 800,
+      "materials": [
+        {
+          "item": "iron_ingot",
+          "qty": 3
+        },
+        {
+          "item": "mana_crystal",
+          "qty": 5
+        }
+      ]
+    },
+    {
+      "from": 8,
+      "success": 300,
+      "noChange": 300,
+      "downgrade": 300,
+      "destroy": 100,
+      "gold": 1200,
+      "materials": [
+        {
+          "item": "iron_ingot",
+          "qty": 4
+        },
+        {
+          "item": "mana_crystal",
+          "qty": 6
+        },
+        {
+          "item": "rough_gem",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "from": 9,
+      "success": 200,
+      "noChange": 300,
+      "downgrade": 350,
+      "destroy": 150,
+      "gold": 2000,
+      "materials": [
+        {
+          "item": "iron_ingot",
+          "qty": 5
+        },
+        {
+          "item": "mana_crystal",
+          "qty": 8
+        },
+        {
+          "item": "rough_gem",
+          "qty": 2
+        }
+      ]
+    }
+  ],
+  "protections": [
+    {
+      "item": "forge_ward_scroll",
+      "preventsDowngrade": true,
+      "preventsDestroy": false
+    },
+    {
+      "item": "blessed_forge_scroll",
+      "preventsDowngrade": true,
+      "preventsDestroy": true
+    }
+  ]
+}

@@ -16,6 +16,7 @@ using Carbon.Contracts.Items.S2C;
 using Carbon.Contracts.Maps.C2S;
 using Carbon.Contracts.Maps.S2C;
 using Carbon.Desktop.Abstractions.Events;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -94,6 +95,7 @@ public sealed partial class MultiplayerSession
         _tcpSubscriptions.Add(tcp.On<EntityEquipmentChanged>(this.OnEntityEquipmentChanged));
         _tcpSubscriptions.Add(tcp.On<PlayerStatsSync>(this.OnPlayerStatsSync));
         _tcpSubscriptions.Add(tcp.On<WalletSync>(this.OnWalletSync));
+        _tcpSubscriptions.Add(tcp.On<EnhancementAnnouncement>(this.OnEnhancementAnnouncement));
         _tcpSubscriptions.Add(tcp.On<SkillCastBroadcast>(this.OnSkillCastBroadcast));
         _tcpSubscriptions.Add(tcp.On<EntityAttackPhase>(this.OnEntityAttackPhase));
         _tcpSubscriptions.Add(tcp.On<MapPropChanged>(this.OnMapPropChanged));
@@ -846,6 +848,23 @@ public sealed partial class MultiplayerSession
                 }
 
                 _remoteViewsDirty = true;
+            }
+        }
+    }
+
+    private void OnEnhancementAnnouncement(EnhancementAnnouncement pkt)
+    {
+        lock (_worldGate)
+        {
+            string item = _items.GetDisplayName(pkt.ItemId);
+            string who = string.IsNullOrWhiteSpace(pkt.PlayerName) ? GameText.Get("forge.announce.someone") : pkt.PlayerName;
+            if (pkt.Outcome is EnhancementOutcome.Success or EnhancementOutcome.Destroyed)
+            {
+                _hudNotifications.Add(GameText.Format(
+                    pkt.Outcome == EnhancementOutcome.Success ? "forge.announce.success" : "forge.announce.destroyed",
+                    new TextArg("player", who),
+                    new TextArg("item", item),
+                    new TextArg("level", pkt.Level)));
             }
         }
     }

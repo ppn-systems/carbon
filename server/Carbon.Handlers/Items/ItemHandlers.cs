@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Carbon.Abstractions.World;
+using Carbon.Contracts.Common;
 using Carbon.Contracts.Items;
 using Carbon.Contracts.Items.C2S;
 using Carbon.Contracts.Items.S2C;
@@ -108,7 +109,7 @@ public static partial class ItemHandlers
         await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.MoveInventorySlot).ConfigureAwait(false);
     }
 
-    /// <summary>Opcode <c>0x4005</c>. Enhances an eligible weapon, tool, or armor slot in the Forge.</summary>
+    /// <summary>Opcode <c>0x4005</c>. Queues a forge enhancement attempt and answers with <see cref="EnhancementResult"/> (ADR-024).</summary>
     [PacketOpcode(ItemOpCode.UpgradeInventoryItem)]
     [PacketPermission(PermissionLevel.USER)]
     public static async ValueTask HandleUpgradeInventoryItemAsync(IPacketContext<UpgradeInventoryItem> context)
@@ -117,10 +118,27 @@ public static partial class ItemHandlers
 
         IPacketSender sender = context.Sender;
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        ushort slotIndex = context.Packet.SlotIndex;
         WorldMutationOutcome outcome = await s_world.SubmitUpgradeInventoryItemAsync(
             connectionId,
-            context.Packet.SlotIndex).ConfigureAwait(false);
-        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.UpgradeInventoryItem).ConfigureAwait(false);
+            slotIndex,
+            context.Packet.ProtectionItemId).ConfigureAwait(false);
+
+        // The reply carries the server-rolled outcome (ADR-024); the request only names the slot and the scroll.
+        ForgeEnhancementReceipt receipt = outcome.Status == OpStatus.Ok
+            ? ForgeEnhancementReceipt.Unpack(outcome.Revision)
+            : default;
+        using PacketScope<EnhancementResult> lease = PacketFactory<EnhancementResult>.Acquire();
+        EnhancementResult reply = lease.Value;
+        reply.Status = outcome.Status;
+        reply.SlotIndex = slotIndex;
+        reply.ItemId = receipt.ItemId;
+        reply.Outcome = receipt.Outcome;
+        reply.PreviousLevel = receipt.PreviousLevel;
+        reply.NewLevel = receipt.NewLevel;
+        reply.IsDestroyed = receipt.Outcome == EnhancementOutcome.Destroyed;
+        reply.ProtectionConsumed = receipt.ProtectionConsumed;
+        await sender.ReplyAsync(reply).ConfigureAwait(false);
     }
 
     /// <summary>Opcode <c>0x4006</c>. Drops an inventory stack onto the ground as pickupable loot.</summary>
