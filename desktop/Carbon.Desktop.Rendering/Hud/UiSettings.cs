@@ -43,6 +43,12 @@ public sealed class UiSettings
     /// <summary>Gets or sets whether the optional bottom keybind hint ribbon is displayed (off by default).</summary>
     public bool ShowKeybindHints { get; set; }
 
+    /// <summary>Gets or sets whether hits shake the camera (on by default; off means no camera offset at all).</summary>
+    public bool ScreenShake { get; set; } = true;
+
+    /// <summary>Gets or sets whether hit flashes are softened to a gentle tint (off by default; accessibility).</summary>
+    public bool ReduceFlashes { get; set; }
+
     /// <summary>Gets or sets discrete camera zoom preset (<c>0</c>=Wide, <c>1</c>=Standard, <c>2</c>=Close).</summary>
     public int CameraZoomPreset { get; set; } = 1;
 
@@ -113,6 +119,8 @@ public sealed class UiSettings
                 $"show_combat_numbers = {Bool(this.ShowCombatNumbers)}",
                 $"show_telemetry = {Bool(this.ShowTelemetry)}",
                 $"show_keybind_hints = {Bool(this.ShowKeybindHints)}",
+                $"screen_shake = {Bool(this.ScreenShake)}",
+                $"reduce_flashes = {Bool(this.ReduceFlashes)}",
                 $"camera_zoom = {this.CameraZoomPreset.ToString(CultureInfo.InvariantCulture)}",
                 $"graphics_quality = {(this.GraphicsQuality is { } quality ? GraphicsQualityPolicy.ToSettingValue(quality) : "auto")}",
             ];
@@ -155,6 +163,12 @@ public sealed class UiSettings
                 break;
             case "show_keybind_hints" when isBool:
                 this.ShowKeybindHints = flag;
+                break;
+            case "screen_shake" when isBool:
+                this.ScreenShake = flag;
+                break;
+            case "reduce_flashes" when isBool:
+                this.ReduceFlashes = flag;
                 break;
             case "camera_zoom" when int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int zoom):
                 this.CameraZoomPreset = Math.Clamp(zoom, 0, 2);
