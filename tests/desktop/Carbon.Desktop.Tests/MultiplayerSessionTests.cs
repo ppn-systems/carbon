@@ -81,7 +81,8 @@ public sealed class MultiplayerSessionTests
             Pbkdf2PasswordHasher hasher = new();
             using AuthService authService = new(accounts, characters, hasher);
             SessionTransportRegistry transportRegistry = new();
-            WorldOutboundSink outboundSink = new(transportRegistry, NullLogger<WorldOutboundSink>.Instance);
+            using PacketPool outboundPackets = new();
+            WorldOutboundSink outboundSink = new(transportRegistry, NullLogger<WorldOutboundSink>.Instance, outboundPackets);
 
             HostRuntimeOptions hostOptions = new()
             {
