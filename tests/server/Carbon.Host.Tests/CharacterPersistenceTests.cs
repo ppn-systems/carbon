@@ -136,6 +136,19 @@ public sealed class CharacterPersistenceTests
     }
 
     [Fact]
+    public void MarkDirty_PlayerInTheWorld_SnapshotsItsRecordNow()
+    {
+        // ALLOC-13 characterisation: every mark builds the whole record (about 560 B), even though the flush builds it again.
+        Harness h = new();
+        PlayerState player = h.Join(new Vector2(40f, 0f));
+        player.Level = 7;
+
+        h.Persistence.MarkDirty(player, inventoryChanged: false);
+
+        player.SourceCharacter.Level.Should().Be(7, "the mark snapshotted the record");
+    }
+
+    [Fact]
     public void Requeue_FailedSave_IsSavedAgainByTheNextFlush()
     {
         Harness h = new();
