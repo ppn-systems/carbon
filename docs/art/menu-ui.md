@@ -224,8 +224,19 @@ The rules here and in 2.4 apply as each screen is reworked.
       - Left alone, the turntable turns a quarter every 2.5 s so every side is shown. A manual turn pauses that for
         6 s.
       - With motion off it only turns when asked.
-    - **Pickers.** Each selector row (race, body type, then the race's options from `races.json`, ADR-042) shows
-      its index ("2/4") when it has more than one choice. Randomize picks every option, so the result is a complete look.
+    - **Layout.** The panel is 920 × 580.
+      - Left column: the selector rows, then Randomize at the bottom.
+      - Middle: the turntable.
+      - Right column: the name, Create, and a slim lore strip with the fresh-start note.
+    - **Selector rows** (`Menu/MenuPicker.cs`): race, body type, then the race's options from `races.json`
+      (ADR-042), 36 px apart.
+      - Each row reads `◀ LABEL: value  n/N ▶`; the arrows, or Left/Right on the focused row, step and wrap.
+      - A row with a single choice is dimmed and does not cycle.
+      - The mouse wheel over the option rows scrolls options that do not fit.
+      - Tab walks the rows and then the name field.
+      - Randomize picks every option, so the result is a complete look.
+    - **Body type** (`Menu/MenuToggle.cs`): when the race has exactly two bodies, the body row is a two-state toggle,
+      the chosen half lit gold. Otherwise it is a selector row.
     - **Hero name.**
       - The field mirrors the server's rule (`AccountRules.HeroNameError`, matching `AuthService.IsValidIdentifier`):
         2–20 ASCII letters, digits or `_`.

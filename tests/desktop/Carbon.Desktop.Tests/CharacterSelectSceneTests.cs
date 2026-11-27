@@ -34,26 +34,28 @@ namespace Carbon.Desktop.Tests;
 /// </summary>
 public sealed class CharacterSelectSceneTests : IDisposable
 {
-    // LayoutControls at 1280×720: ox = 180, oy = 110, rx = 772, ry = 178.
-    private static readonly Vector2 s_slot0 = new(337f, 216f);
-    private static readonly Vector2 s_slot3 = new(337f, 216f + (3 * 84f));
-    private static readonly Vector2 s_openCreator = new(337f, 540f);
-    private static readonly Vector2 s_enterWorld = new(925f, 525f);
-    private static readonly Vector2 s_logout = new(1028f, 141f);
-    private static readonly Vector2 s_turnLeft = new(560f, 530f);
-    private static readonly Vector2 s_turnRight = new(684f, 530f);
-    // Selector rows, 27 px apart: race, body type, then the race's options (human: hair, hair colour, eyes, skin).
-    private static readonly Vector2 s_raceNext = new(1048f, 233f);
-    private static readonly Vector2 s_bodyNext = new(1048f, 260f);
-    private static readonly Vector2 s_hairPrev = new(802f, 287f);
-    private static readonly Vector2 s_hairNext = new(1048f, 287f);
-    private static readonly Vector2 s_hairColorNext = new(1048f, 314f);
-    private static readonly Vector2 s_faceNext = new(1048f, 341f);
-    private static readonly Vector2 s_skinPrev = new(802f, 368f);
-    private static readonly Vector2 s_lastOptionRow = new(1048f, 368f);
-    private static readonly Vector2 s_createWithHeroes = new(879f, 502f);
-    private static readonly Vector2 s_createFirstHero = new(925f, 502f);
-    private static readonly Vector2 s_backToRoster = new(1020f, 502f);
+    // LayoutControls at 1280×720 (a 920 × 580 panel): ox = 180, oy = 80. In the creator the selector rows sit in the left
+    // column, 36 px apart from y = 206 (arrows at x = 232 and 442): race, body type, then the race's options (human: hair,
+    // hair colour, eyes, skin). With two bodies the body row is a toggle whose right half picks the second body. The
+    // right column (rx = 772, ry = 148) holds the name, then Create at ry + 120.
+    private static readonly Vector2 s_slot0 = new(337f, 186f);
+    private static readonly Vector2 s_slot3 = new(337f, 186f + (3 * 84f));
+    private static readonly Vector2 s_openCreator = new(337f, 578f);
+    private static readonly Vector2 s_enterWorld = new(925f, 563f);
+    private static readonly Vector2 s_logout = new(1028f, 111f);
+    private static readonly Vector2 s_turnLeft = new(560f, 568f);
+    private static readonly Vector2 s_turnRight = new(684f, 568f);
+    private static readonly Vector2 s_raceNext = new(442f, 206f);
+    private static readonly Vector2 s_bodyNext = new(442f, 242f);
+    private static readonly Vector2 s_hairPrev = new(232f, 278f);
+    private static readonly Vector2 s_hairNext = new(442f, 278f);
+    private static readonly Vector2 s_hairColorNext = new(442f, 314f);
+    private static readonly Vector2 s_faceNext = new(442f, 350f);
+    private static readonly Vector2 s_skinPrev = new(232f, 386f);
+    private static readonly Vector2 s_lastOptionRow = new(442f, 386f);
+    private static readonly Vector2 s_createWithHeroes = new(879f, 290f);
+    private static readonly Vector2 s_createFirstHero = new(925f, 290f);
+    private static readonly Vector2 s_backToRoster = new(1020f, 290f);
 
     private static readonly CharacterRosterEntry s_ayla = new(Guid.NewGuid(), "Ayla", 3, 1, 0f, 0f);
     private static readonly CharacterRosterEntry s_bram = new(Guid.NewGuid(), "Bram", 7, 1, 0f, 0f);
@@ -459,6 +461,37 @@ public sealed class CharacterSelectSceneTests : IDisposable
         this.Press(Key.Left);
         this.Press(Key.Left);
         _scene.TurnIndex.Should().Be(3, "left wraps from south to east");
+    }
+
+    [Fact]
+    public void CreatorKeys_TabToASelectorRowThenRightStepsIt()
+    {
+        this.LoadRoster(s_ayla);
+        this.Click(s_openCreator);
+
+        this.Press(Key.Tab);
+        this.Press(Key.Tab);
+        this.Press(Key.Tab);
+        this.Press(Key.Right);
+
+        _scene.Look.Should().Be(new CharacterLook(1, 0, [1, 0, 0, 0]), "Tab from the name walks race, body, then hair; Right steps hair");
+        _scene.TurnIndex.Should().Be(0, "a focused selector row takes Left/Right instead of the turntable");
+        _scene.HeroName.IsFocused.Should().BeFalse("typing goes nowhere while a selector row has focus");
+    }
+
+    [Fact]
+    public void CreatorBodyToggle_ClickEitherHalfPicksThatBody()
+    {
+        this.LoadRoster(s_ayla);
+        this.Click(s_openCreator);
+        Vector2 leftHalf = new(s_hairPrev.X + 20f, s_bodyNext.Y);
+
+        this.Click(s_bodyNext);
+        _scene.Look.BodyType.Should().Be(1, "the right half is the second body");
+        this.Click(s_bodyNext);
+        _scene.Look.BodyType.Should().Be(1, "clicking the chosen half again keeps it");
+        this.Click(leftHalf);
+        _scene.Look.BodyType.Should().Be(0, "the left half is the first body");
     }
 
     private void LoadRoster(params CharacterRosterEntry[] heroes)
