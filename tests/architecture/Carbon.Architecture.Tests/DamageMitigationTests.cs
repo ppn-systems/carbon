@@ -20,6 +20,8 @@ public sealed partial class DamageMitigationTests
     private const string ArmorPolicyPath = "engine/Carbon.Combat/Damage/ArmorDamageMitigation.cs";
     private const string PlayerPolicyPath = "server/Carbon.Application/World/Progression/ProgressionDamageMitigation.cs";
 
+    private static readonly string[] s_scannedLayers = ["engine", "server"];
+
     [Fact]
     public void ArmorFormula_OnlyInTheArmorPolicy()
     {
@@ -60,7 +62,7 @@ public sealed partial class DamageMitigationTests
     }
 
     private static IEnumerable<(string Path, string Text)> SourceFiles() =>
-        new[] { "engine", "server" }
+        s_scannedLayers
             .SelectMany(RepositoryLayout.TrackedFiles)
             .Where(p => p.EndsWith(".cs", StringComparison.Ordinal) && File.Exists(Path.Combine(RepositoryLayout.Root, p)))
             .Select(p => (p, CommentRegex().Replace(File.ReadAllText(Path.Combine(RepositoryLayout.Root, p)), string.Empty)));
