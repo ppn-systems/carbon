@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Maps.S2C;
+using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Maps.Building;
 using Carbon.Maps.Streaming;
@@ -13,19 +14,21 @@ namespace Carbon.Desktop.Networking.Session;
 
 /// <summary>
 /// Client-side construction view: tracks sites and deconstructions pushed by the server and previews placements with
-/// the same <see cref="BuildingService"/> rules the server uses. Nothing here mutates authoritative state.
+/// the same <see cref="BuildingService"/> rules the server uses, from the server's synced <c>structures.json</c>
+/// (<see cref="SyncedStructureCatalog"/>). Nothing here mutates authoritative state.
 /// </summary>
 public sealed partial class MultiplayerSession
 {
-    private static readonly Lazy<StructureCatalog> s_structureCatalog = new(StructureCatalog.LoadEmbedded);
+    private readonly SyncedStructureCatalog _structures = new();
 
     /// <inheritdoc/>
-    public float BuildReachTiles => s_structureCatalog.Value.Rules.PlacementReachTiles;
+    public float BuildReachTiles => _structures.Current?.Rules.PlacementReachTiles ?? 0f;
 
     private readonly ConstructionMarkerBook _constructionMarkers = new();
     private readonly BuildPermissionTable _previewPermissions = new();
     private BuildingService? _previewService;
     private ChunkWorld2D? _previewWorld;
+    private StructureCatalog? _previewCatalog;
     private IReadOnlyList<RemoteEntityView> _previewRemotes = [];
     private int _previewLocalTileX = int.MinValue;
     private int _previewLocalTileY = int.MinValue;
@@ -45,7 +48,7 @@ public sealed partial class MultiplayerSession
     {
         width = 1;
         height = 1;
-        if (!s_structureCatalog.Value.TryGet(type, out StructureDefinition definition))
+        if (_structures.Current is not { } catalog || !catalog.TryGet(type, out StructureDefinition definition))
         {
             return BuildResultCode.UnknownStructure;
         }
@@ -63,10 +66,11 @@ public sealed partial class MultiplayerSession
                 return BuildResultCode.NotFound;
             }
 
-            if (!ReferenceEquals(_previewWorld, _chunkWorld) || _previewService is null)
+            if (!ReferenceEquals(_previewWorld, _chunkWorld) || !ReferenceEquals(_previewCatalog, catalog) || _previewService is null)
             {
                 _previewWorld = _chunkWorld;
-                _previewService = BuildingService.ForWorld(_chunkWorld, s_structureCatalog.Value, _previewPermissions, this.IsEntityOnTileForPreview);
+                _previewCatalog = catalog;
+                _previewService = BuildingService.ForWorld(_chunkWorld, catalog, _previewPermissions, this.IsEntityOnTileForPreview);
             }
 
             _previewRemotes = remotes;
@@ -130,7 +134,7 @@ public sealed partial class MultiplayerSession
             // Keep the client's ledger in step so placement previews see fresh sites before the next chunk refetch.
             if (marker.Stage is ConstructionStage.Blueprint or ConstructionStage.Frame)
             {
-                float work = s_structureCatalog.Value.TryGet(marker.Type, out StructureDefinition definition) ? definition.WorkAmount : 0f;
+                float work = _structures.Current is { } catalog && catalog.TryGet(marker.Type, out StructureDefinition definition) ? definition.WorkAmount : 0f;
                 _chunkWorld.Construction.ImportSite(marker.AnchorX, marker.AnchorY, marker.Type, marker.Rotation, marker.Width, marker.Height, marker.Stage, marker.Progress * work);
             }
             else
@@ -141,6 +145,11 @@ public sealed partial class MultiplayerSession
     }
 
     /// <summary>Refreshes site markers from a chunk delta just imported under the world lock.</summary>
-    private void OnChunkDeltaImportedLocked(ChunkDelta delta) =>
-        _constructionMarkers.ReplaceChunkSites(delta.ChunkX, delta.ChunkY, delta.Sites, s_structureCatalog.Value);
+    private void OnChunkDeltaImportedLocked(ChunkDelta delta)
+    {
+        if (_structures.Current is { } catalog)
+        {
+            _constructionMarkers.ReplaceChunkSites(delta.ChunkX, delta.ChunkY, delta.Sites, catalog);
+        }
+    }
 }
