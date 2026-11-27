@@ -39,6 +39,7 @@ Requirements: the .NET SDK (`$HOME/.dotnet` is added to `PATH`), `xvfb-run`, GLF
 | `CARBON_DEBUG_SPAWN_BIOME=<BiomeType>` | Every character enters at the nearest representative tile of the biome (`BiomeLocator`: ±10-tile interior; `ShallowWater` is framed wading by a shore). |
 | `CARBON_DEBUG_SPAWN_TILE=x,y` | Every character enters at this world tile (wins over the biome). |
 | `CARBON_DEBUG_SPAWN_POI=<PointOfInterestType>` | Every character enters just south of the well of the nearest point of interest of that type (e.g. `DesertVillage`; searched 12 sites out). A village type may name a building after a colon (`RiverVillage:Smithy`, `:Store`, `:Stall`, `:House`) to stand in front of it. Villages default to the market stall. Combine with `CARBON_WORLD_SEED` in the server env (and `CARBON_SEED` in the client env) for a seed that has one. |
+| `CARBON_DEBUG_STATUS_EFFECTS=key:ms:stacks;...` | Every character enters the world with these status effects (ADR-029), e.g. `poisoned:110000:2;slowed:90000:1`. Durations are not clamped, so short effects last long enough to capture. |
 | `CARBON_DEBUG_SPAWN_OFFSET=dx,dy` | Offset in tiles added to the resolved spawn (e.g. far from the starter area). |
 | `CARBON_DEBUG_START_HOUR=h` | The world clock starts at hour `h` (0..24); clients follow the server clock. |
 | `CARBON_DEBUG_START_LEVEL=n` | Characters enter the world at level `n` or higher (shots of mid-level UI such as the character panel). |
@@ -63,7 +64,7 @@ they are active.
 | `CARBON_CAPTURE_MODAL=settings\|controls\|inventory\|character\|skills\|crafting` | Open the Settings window (Display or Controls tab) or a player-window tab before the capture, to review localized UI. |
 | `CARBON_CAPTURE_SCENE=login\|characters` | Capture a menu screen instead of the world. `login` needs `CARBON_AUTO_LOGIN=0` in the scenario; `characters` also needs it, registers the scenario's fresh account and captures the character creator. |
 | `CARBON_FORGE_PREVIEW=<kind>[:s]` | Open the forge window and play one enhancement effect (`charge`, `success`, `nochange`, `downgrade`, `destroyed`), frozen at `s` seconds when given. Visual only: nothing is sent, the server alone rolls outcomes. The `forge_*` scenarios use it. |
-| `CARBON_UI_PREVIEW=<state>` | Open a UI state for review: `inventory`, or `inventory-tooltip:N`, `inventory-split:N`, `inventory-destroy:N` for slot `N` (visual only; nothing is sent to the server). |
+| `CARBON_UI_PREVIEW=<state>` | Open a UI state for review: `inventory`, or `inventory-tooltip:N`, `inventory-split:N`, `inventory-destroy:N` for slot `N`, or `status-hover:N` / `status-details:N` for the N-th status effect icon (ADR-029) (visual only; nothing is sent to the server). |
 | `CARBON_OPEN_TRADER=1\|repair` | Open the nearest trader's window once its stock arrives (`repair`: a blacksmith's window in repair mode). The `trade_*` scenarios use it. |
 
 `--lang <code>` (or `CARBON_LANG`) sets the client language for every scenario; the code must have a file in

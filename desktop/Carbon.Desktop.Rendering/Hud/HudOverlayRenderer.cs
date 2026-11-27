@@ -47,6 +47,8 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     private readonly ForgeAnvilModalWidget _forgeModal = new();
     private readonly SettingsModalWidget _settingsModal = new();
     private readonly ToastFeedWidget _toasts = new();
+    private readonly StatusEffectStripWidget _statusStrip = new();
+    private readonly DamageVignetteWidget _vignette = new();
     private readonly List<SkillDefinition> _skillScratch = new(8);
 
     private float _smoothedFps = 60f;
@@ -407,6 +409,39 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         return _forgeModal.ResolveTargetSlot(world);
     }
 
+    /// <summary>Gets a value indicating whether the status effect details panel is open (ADR-029).</summary>
+    public bool IsStatusEffectDetailsOpen => _statusStrip.IsPanelOpen;
+
+    /// <summary>
+    /// Routes a left click to the top-right status strip: an icon opens its details, and any click closes an open panel.
+    /// </summary>
+    /// <returns>Whether the strip consumed the click.</returns>
+    public bool TryHandleStatusStripClick(IWorldReadModel world, Vector2 mouseScreenPos, int viewportWidth)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        return _statusStrip.HandleClick(mouseScreenPos, world.LocalStatusEffects, viewportWidth, this.Settings.ShowMinimap);
+    }
+
+    /// <summary>Gets whether <paramref name="mouseScreenPos"/> is over a status icon or the open details panel.</summary>
+    public bool IsOverStatusStrip(IWorldReadModel world, Vector2 mouseScreenPos, int viewportWidth)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        return _statusStrip.IsOver(mouseScreenPos, world.LocalStatusEffects, viewportWidth, this.Settings.ShowMinimap);
+    }
+
+    /// <summary>Closes the status effect details panel; returns whether it was open (Esc).</summary>
+    public bool CloseStatusEffectDetails() => _statusStrip.Close();
+
+    /// <summary>Gets the screen centre of status icon <paramref name="index"/> (screenshot previews).</summary>
+    public Vector2 GetStatusIconCenter(int index, int viewportWidth)
+    {
+        RectangleF icon = StatusEffectStripLayout.Icon(index, viewportWidth, this.Settings.ShowMinimap);
+        return new Vector2(icon.X + (icon.Width * 0.5f), icon.Y + (icon.Height * 0.5f));
+    }
+
+    /// <summary>Opens the details of <paramref name="effectId"/> (screenshot previews).</summary>
+    public void OpenStatusEffectDetails(ushort effectId) => _statusStrip.Open(effectId);
+
     /// <summary>Renders all screen-space RPG HUD widgets and active modals in strict 3-pass Z order.</summary>
     public void Render(
         IWorldReadModel world,
@@ -445,6 +480,11 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         int ptx = (int)MathF.Floor(playerPos.X / tileSize);
         int pty = (int)MathF.Floor(playerPos.Y / tileSize);
         Vector2? bgMouse = this.HasActiveModal ? null : mouseScreenPos;
+        _statusStrip.Prepare(world, _font, bgMouse, viewportWidth, this.Settings.ShowMinimap);
+
+        _geometryBatch.Begin(screenProj);
+        _vignette.DrawGeometry(_geometryBatch, world, viewportWidth, viewportHeight, _animTime);
+        _geometryBatch.End();
 
         // Pass 1: Background HUD (NineSlice Skins -> Vector Geometry & Bars -> Bitmap Text)
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
@@ -458,6 +498,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         _wallet.DrawSkin(spriteBatch, _uiSkin, viewportWidth, viewportHeight);
         _skillBar.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, viewportHeight);
         _toasts.DrawSkin(spriteBatch, _uiSkin, _font, viewportWidth, this.Settings.ShowMinimap);
+        _statusStrip.DrawSkin(spriteBatch, _uiSkin, world, viewportWidth, this.Settings.ShowMinimap);
         spriteBatch.End();
 
         _geometryBatch.Begin(screenProj);
@@ -470,6 +511,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         int hoveredSlot = _hotbar.DrawGeometry(_geometryBatch, world, _art, feedback, viewportWidth, viewportHeight, bgMouse, _animTime);
         _wallet.DrawGeometry(_geometryBatch, _art, viewportWidth, viewportHeight);
         ushort hoveredSkill = _skillBar.DrawGeometry(_geometryBatch, world, viewportWidth, viewportHeight, bgMouse);
+        _statusStrip.DrawGeometry(_geometryBatch, world, _art, viewportWidth, this.Settings.ShowMinimap);
         _geometryBatch.End();
 
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
@@ -483,6 +525,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         _wallet.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight);
         _skillBar.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight, hoveredSkill);
         _toasts.DrawText(spriteBatch, _font, viewportWidth, this.Settings.ShowMinimap);
+        _statusStrip.DrawText(spriteBatch, _font, world, viewportWidth, this.Settings.ShowMinimap);
         spriteBatch.End();
 
         // Pass 2 & 3: Active Modal Window & Floating Tooltip/Drag Layer

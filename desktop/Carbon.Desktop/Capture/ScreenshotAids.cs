@@ -50,6 +50,11 @@ internal sealed class ScreenshotAids(DesktopOptions options)
     private Vector2? ApplyUiPreview(HudOverlayRenderer? hud, IWorldSession session, int viewportWidth, int viewportHeight)
     {
         ArgumentNullException.ThrowIfNull(session);
+        if (hud is not null && options.UiPreview is { Length: > 0 } statusPreview && statusPreview.StartsWith("status-", StringComparison.Ordinal))
+        {
+            return ApplyStatusPreview(hud, session, statusPreview, viewportWidth);
+        }
+
         if (hud is null || options.UiPreview is not { Length: > 0 } preview || !preview.StartsWith("inventory", StringComparison.Ordinal))
         {
             return null;
@@ -86,5 +91,32 @@ internal sealed class ScreenshotAids(DesktopOptions options)
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// <c>status-hover:N</c> hovers the N-th status icon; <c>status-details:N</c> opens its details panel (ADR-029).
+    /// </summary>
+    private static Vector2? ApplyStatusPreview(HudOverlayRenderer hud, IWorldSession session, string preview, int viewportWidth)
+    {
+        int colon = preview.IndexOf(':', StringComparison.Ordinal);
+        if (colon < 0 ||
+            !int.TryParse(preview.AsSpan(colon + 1), NumberStyles.Integer, CultureInfo.InvariantCulture, out int index) ||
+            index < 0 || index >= session.LocalStatusEffects.Count)
+        {
+            return null;
+        }
+
+        Vector2 centre = hud.GetStatusIconCenter(index, viewportWidth);
+        if (preview.StartsWith("status-details", StringComparison.Ordinal))
+        {
+            if (!hud.IsStatusEffectDetailsOpen)
+            {
+                hud.OpenStatusEffectDetails(session.LocalStatusEffects[index].EffectId);
+            }
+
+            return null;
+        }
+
+        return centre;
     }
 }

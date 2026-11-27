@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
+using Carbon.Combat.Statuses.Config;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Entities.S2C;
@@ -13,6 +14,7 @@ using Carbon.Contracts.Identity;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Events;
 using Carbon.Desktop.Abstractions.Session;
+using Carbon.Desktop.Abstractions.StatusEffects;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Items.Catalog;
@@ -152,6 +154,9 @@ public sealed partial class MultiplayerSession : IWorldSession
     private bool _inventoryLoaded;
     private Vector2 _localFacingDir = new(0f, 1f);
     private float _localHitFlashTimer;
+    private float _damageVignetteTimer;
+    private LocalStatusEffect[] _localStatusEffects = [];
+    private volatile StatusEffectCatalog _statusEffectDefinitions = StatusEffectCatalog.Empty;
     private ActionState _currentAction = ActionState.None;
     private byte _comboStep;
     private ulong _lockedTargetNetworkId;
@@ -339,6 +344,18 @@ public sealed partial class MultiplayerSession : IWorldSession
 
     /// <inheritdoc/>
     public float LocalHitFlashTimer => _localHitFlashTimer;
+
+    /// <inheritdoc/>
+    public IReadOnlyList<LocalStatusEffect> LocalStatusEffects => _localStatusEffects;
+
+    /// <inheritdoc/>
+    public float LocalDamageVignetteTimer => _damageVignetteTimer;
+
+    /// <inheritdoc/>
+    public StatusEffectCatalog StatusEffectDefinitions => _statusEffectDefinitions;
+
+    /// <inheritdoc/>
+    public string? ResolveMonsterNameKey(ushort archetypeId) => _entityNames.Resolve(EntityKind.Monster, archetypeId, LootCurrency.None, null);
 
     /// <inheritdoc/>
     public ActionState CurrentAction => _currentAction;
@@ -571,6 +588,21 @@ public sealed partial class MultiplayerSession : IWorldSession
         if (_localHitFlashTimer > 0f)
         {
             _localHitFlashTimer = MathF.Max(0f, _localHitFlashTimer - fdt);
+        }
+
+        if (_damageVignetteTimer > 0f)
+        {
+            _damageVignetteTimer = MathF.Max(0f, _damageVignetteTimer - fdt);
+        }
+
+        // ADR-029 D9: the server sends status effects only when they change; the timers run down here.
+        LocalStatusEffect[] effects = _localStatusEffects;
+        for (int i = 0; i < effects.Length; i++)
+        {
+            if (effects[i].IsTimed && effects[i].RemainingSeconds > 0f)
+            {
+                effects[i] = effects[i] with { RemainingSeconds = MathF.Max(0f, effects[i].RemainingSeconds - fdt) };
+            }
         }
 
         if (_forgeFeedbackTimer > 0f)
@@ -812,6 +844,8 @@ public sealed partial class MultiplayerSession : IWorldSession
             _hasServerReconcile = false;
             _visualOffset = Vector2.Zero;
             _localHitFlashTimer = 0f;
+            _damageVignetteTimer = 0f;
+            _localStatusEffects = [];
             _currentAction = ActionState.None;
             _localLevel = 1;
             _localExperience = 0U;

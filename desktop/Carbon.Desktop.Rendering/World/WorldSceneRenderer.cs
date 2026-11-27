@@ -5,8 +5,10 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Carbon.Combat.Statuses.Config;
 using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions.Configuration;
+using Carbon.Desktop.Abstractions.StatusEffects;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Effects;
 using Carbon.Desktop.Rendering.Feedback;
@@ -46,6 +48,8 @@ public sealed class WorldSceneRenderer : IDisposable
 {
     private readonly IGraphicsDevice _device;
     private readonly GeometryBatch _geometryBatch;
+    private readonly SlowTrail _slowTrail = new();
+    private float _slowTrailTime;
     private readonly ChunkTerrainRenderer _terrainRenderer;
     private readonly Atmosphere _atmosphere;
     private readonly IVectorArtRepository? _art;
@@ -526,6 +530,21 @@ public sealed class WorldSceneRenderer : IDisposable
         }
     }
 
+    /// <summary>Gets whether the local player has an effect that lowers move speed (ADR-029).</summary>
+    private static bool IsSlowed(IWorldReadModel world)
+    {
+        IReadOnlyList<LocalStatusEffect> effects = world.LocalStatusEffects;
+        for (int i = 0; i < effects.Count; i++)
+        {
+            if (world.StatusEffectDefinitions.TryGet(effects[i].EffectId, out StatusEffectDefinition def) && def.MoveSpeedMultiplier < 1f)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void DrawLocalEntity(GeometryBatch batch, IWorldReadModel world, Entity entity)
     {
         WorldSimulation sim = world.Simulation;
@@ -542,6 +561,10 @@ public sealed class WorldSceneRenderer : IDisposable
         CompiledVectorRig? rig = null;
         bool hasRig = _art is not null && _art.TryGetCharacter(world.LocalPlayerAppearancePreset, out rig);
         WadingRenderer.Wade wade = WadingRenderer.Resolve(world.ChunkWorld, entityPos, hasRig ? rig!.WorldHeight : 35f, col.Radius);
+        _slowTrail.Update(footPos, _animTime - _slowTrailTime, IsSlowed(world));
+        _slowTrailTime = _animTime;
+        _slowTrail.Draw(batch, col.Radius * 1.1f);
+
         if (wade.IsWading)
         {
             WadingRenderer.DrawBehind(batch, footPos, in wade, _animTime, 1u);

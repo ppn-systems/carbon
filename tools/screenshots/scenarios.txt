@@ -79,3 +79,7 @@ trade_merchant     | CARBON_DEBUG_SPAWN_POI=RiverVillage CARBON_DEBUG_START_HOUR
 trade_desert       | CARBON_DEBUG_SPAWN_POI=DesertVillage CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_OPEN_TRADER=1
 trade_blacksmith   | CARBON_DEBUG_SPAWN_POI=RiverVillage:Smithy CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_WORN_GEAR=1 | CARBON_WEATHER=clear CARBON_OPEN_TRADER=1
 trade_repair       | CARBON_DEBUG_SPAWN_POI=RiverVillage:Smithy CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_WORN_GEAR=1 | CARBON_WEATHER=clear CARBON_OPEN_TRADER=repair
+
+# --- status effects (ADR-029): top-right strip, hover tooltip, details panel, poison vignette ---
+status_strip       | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STATUS_EFFECTS=poisoned:110000:2;bleeding:40000:1;slowed:90000:1;rested:540000:1 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=status-hover:2
+status_details     | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_STATUS_EFFECTS=poisoned:110000:2;bleeding:40000:1;slowed:90000:1;rested:540000:1 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=status-details:0
