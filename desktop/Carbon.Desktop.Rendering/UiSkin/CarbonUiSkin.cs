@@ -196,11 +196,25 @@ public sealed class CarbonUiSkin : IDisposable
         in RectangleF bounds,
         ColorRgba color,
         ColorRgba outline,
+        float scale = 1f) =>
+        DrawCenteredText(spriteBatch, font, text.AsSpan(), in bounds, color, outline, scale);
+
+    /// <summary>
+    /// Span overload of <see cref="DrawCenteredText(SpriteBatch, BitmapFont, string, in RectangleF, ColorRgba, ColorRgba, float)"/>
+    /// for labels formatted into a stack buffer each frame (no string allocation; audit round 2, PERF-7).
+    /// </summary>
+    public static void DrawCenteredText(
+        SpriteBatch spriteBatch,
+        BitmapFont font,
+        ReadOnlySpan<char> text,
+        in RectangleF bounds,
+        ColorRgba color,
+        ColorRgba outline,
         float scale = 1f)
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);
         ArgumentNullException.ThrowIfNull(font);
-        if (string.IsNullOrEmpty(text))
+        if (text.IsEmpty)
         {
             return;
         }

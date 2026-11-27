@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Globalization;
 using System.Numerics;
 using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions.Configuration;
@@ -27,6 +28,9 @@ namespace Carbon.Desktop.Rendering.Hud;
 /// </summary>
 internal sealed class HotbarAndItemWidget
 {
+    // Hotbar key labels "1".."9", built once instead of formatted per slot per frame (audit round 2, PERF-7).
+    private static readonly string[] s_slotNumbers = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
+
     private const int SlotCount = 9;
     private const float SlotSize = 54f;
     private const float Gap = 5f;
@@ -196,6 +200,7 @@ internal sealed class HotbarAndItemWidget
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
 
+        Span<char> qtyBuffer = stackalloc char[11];
         for (int i = 0; i < SlotCount; i++)
         {
             float sx = startX + (i * (SlotSize + Gap));
@@ -203,7 +208,7 @@ internal sealed class HotbarAndItemWidget
             float sy = active ? hotbarY - 3f : hotbarY;
             spriteBatch.DrawOutlinedString(
                 font,
-                $"{i + 1}",
+                s_slotNumbers[i],
                 new Vector2(sx + 4f, sy + 2f),
                 active ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextMuted,
                 black,
@@ -216,7 +221,8 @@ internal sealed class HotbarAndItemWidget
 
             if (!item.IsEmpty && item.Quantity > 1)
             {
-                string qty = $"{item.Quantity}";
+                _ = item.Quantity.TryFormat(qtyBuffer, out int qtyLength, provider: CultureInfo.CurrentCulture);
+                ReadOnlySpan<char> qty = qtyBuffer[..qtyLength];
                 TextMeasureResult qSize = font.MeasureString(qty, TextLayoutOptions.Default, 1f);
                 spriteBatch.DrawOutlinedString(font, qty, new Vector2(MathF.Floor(sx + SlotSize - qSize.Width - 4f), sy + SlotSize - 19f), CarbonUiPalette.TextPrimary, black, 1, 1f);
             }
@@ -355,15 +361,21 @@ internal sealed class HotbarAndItemWidget
             1f);
 
         float hpX = startX + lvW + segGap;
-        string hpText = $"{(int)MathF.Ceiling(world.LocalPlayerHealth)}/{(int)MathF.Ceiling(world.LocalPlayerMaxHealth)}";
+        Span<char> hpBuffer = stackalloc char[24];
+        _ = hpBuffer.TryWrite($"{(int)MathF.Ceiling(world.LocalPlayerHealth)}/{(int)MathF.Ceiling(world.LocalPlayerMaxHealth)}", out int hpTextLength);
+        ReadOnlySpan<char> hpText = hpBuffer[..hpTextLength];
         CarbonUiSkin.DrawCenteredText(spriteBatch, font, hpText, new RectangleF(hpX, barsY, barW, barH), CarbonUiPalette.TextPrimary, black, 1f);
 
         float mpX = hpX + barW + segGap;
-        string mpText = $"{(int)MathF.Floor(world.LocalPlayerMana)}/{(int)MathF.Ceiling(world.LocalPlayerMaxMana)}";
+        Span<char> mpBuffer = stackalloc char[24];
+        _ = mpBuffer.TryWrite($"{(int)MathF.Floor(world.LocalPlayerMana)}/{(int)MathF.Ceiling(world.LocalPlayerMaxMana)}", out int mpTextLength);
+        ReadOnlySpan<char> mpText = mpBuffer[..mpTextLength];
         CarbonUiSkin.DrawCenteredText(spriteBatch, font, mpText, new RectangleF(mpX, barsY, barW, barH), CarbonUiPalette.TextPrimary, black, 1f);
 
         float staX = mpX + barW + segGap;
-        string staText = $"{(int)MathF.Floor(world.LocalPlayerStamina)}/{(int)MathF.Ceiling(world.LocalPlayerMaxStamina)}";
+        Span<char> staBuffer = stackalloc char[24];
+        _ = staBuffer.TryWrite($"{(int)MathF.Floor(world.LocalPlayerStamina)}/{(int)MathF.Ceiling(world.LocalPlayerMaxStamina)}", out int staTextLength);
+        ReadOnlySpan<char> staText = staBuffer[..staTextLength];
         CarbonUiSkin.DrawCenteredText(spriteBatch, font, staText, new RectangleF(staX, barsY, barW, barH), CarbonUiPalette.TextPrimary, black, 1f);
 
         float foodX = staX + barW + segGap;
