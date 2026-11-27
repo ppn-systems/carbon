@@ -286,15 +286,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _needs.Reconfigure(needsConfig, foodCatalog);
             if (progression is not null)
             {
-                _progressionService.Reconfigure(progression);
-                foreach (KeyValuePair<ulong, PlayerState> kvp in _players.ByConnection)
-                {
-                    PlayerState state = kvp.Value;
-                    state.Level = (ushort)Math.Min(state.Level, progression.MaxLevel);
-                    _ = _progressionService.RefundIfOverBudget(state);
-                    this.RecomputeDerivedStatsLocked(state);
-                    state.StatsDirty = true;
-                }
+                _progressionService.Reconfigure(progression, _players.ByConnection.Values);
             }
         }
     }

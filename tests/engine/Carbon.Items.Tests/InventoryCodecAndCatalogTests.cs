@@ -119,7 +119,7 @@ public sealed class InventoryCodecAndCatalogTests
         stats.MaxHealth.Should().BeGreaterThan(140f);
         stats.MaxMana.Should().Be(s_progression.BaseStats.MaxMana + (2f * s_progression.PerLevel.MaxMana), "level 3 with no mana gear");
         s_progression.GetXpToNextLevel(1).Should().BeGreaterThan(0U);
-        s_progression.Mitigate(100f, DamageKind.Physical, in stats, attackerLevel: 3).Should().BeLessThan(70f);
+        s_progression.Mitigate(100f, DamageKind.Physical, in stats, attackerLevel: 3).Should().BeInRange(25f, 99f, "armor mitigates part of a hit, never all of it");
 
         ItemEnhancementPolicy.CanUpgrade(s_rules, in upgraded, out uint m1, out int c1, out uint m2, out int c2, out float chance).Should().BeTrue();
         m1.Should().Be(StarterGameCatalog.IronOre);

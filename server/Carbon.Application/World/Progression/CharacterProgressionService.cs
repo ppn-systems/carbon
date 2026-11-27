@@ -60,10 +60,24 @@ internal sealed class CharacterProgressionService
     /// <summary>Gets the progression tuning currently in use.</summary>
     public ProgressionConfig Config { get; private set; }
 
-    /// <summary>Switches to a new tuning (hot reload). Callers recompute connected players afterwards.</summary>
+    /// <summary>
+    /// Switches to a new tuning (hot reload) and re-evaluates <paramref name="players"/>: levels are clamped to the new
+    /// cap, allocations the new budget no longer covers are refunded, and derived stats are recomputed.
+    /// </summary>
     /// <param name="config">New tuning.</param>
-    public void Reconfigure(ProgressionConfig config) =>
+    /// <param name="players">Connected players.</param>
+    public void Reconfigure(ProgressionConfig config, IEnumerable<PlayerState> players)
+    {
         this.Config = config ?? throw new ArgumentNullException(nameof(config));
+        ArgumentNullException.ThrowIfNull(players);
+        foreach (PlayerState state in players)
+        {
+            state.Level = (ushort)Math.Min(state.Level, config.MaxLevel);
+            _ = this.RefundIfOverBudget(state);
+            this.RecomputeDerivedStats(state);
+            state.StatsDirty = true;
+        }
+    }
 
     /// <summary>Recomputes <see cref="PlayerState.Stats"/> and clamps current health, mana and stamina to the new maxima.</summary>
     /// <param name="state">Player.</param>
