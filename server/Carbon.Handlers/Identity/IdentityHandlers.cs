@@ -235,7 +235,7 @@ public static partial class IdentityHandlers
             owned = pendingSnapshot;
         }
 
-        EnterWorldResult enter = s_world.TryEnterWorld(connectionId, connectionId, owned);
+        EnterWorldResult enter = s_world.TryEnterWorld(connectionId, owned);
         await SendEnterWorldAsync(sender, enter).ConfigureAwait(false);
     }
 

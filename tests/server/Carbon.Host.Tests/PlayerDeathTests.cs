@@ -50,7 +50,7 @@ public sealed class PlayerDeathTests
             CurrentMana = 3f,
             CurrentStamina = 2f,
         };
-        EnterWorldResult entered = world.TryEnterWorld(victimConn, victimConn, victim);
+        EnterWorldResult entered = world.TryEnterWorld(victimConn, victim);
         entered.Status.Should().Be(OpStatus.Ok);
 
         bool died = false;
@@ -79,7 +79,7 @@ public sealed class PlayerDeathTests
         for (int probeX = 1; probeX <= 12; probeX++)
         {
             ulong probeConn = 700UL + (ulong)probeX;
-            world.TryEnterWorld(probeConn, probeConn, Character($"Probe{probeX}") with
+            world.TryEnterWorld(probeConn, Character($"Probe{probeX}") with
             {
                 PositionX = ((probeX * 32) + 16) * 32f,
                 PositionY = 16f * 32f,
