@@ -1,12 +1,10 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System;
 using Carbon.Graphics.Batching.Camera;
-using Carbon.Graphics.Batching.Common;
-using Carbon.Graphics.Batching.Sprites;
 using Carbon.Graphics.Scenes.Abstractions;
 using Carbon.Graphics.Scenes.Base;
 using Carbon.Graphics.Scenes.Management;
-using Carbon.Graphics.Scenes.Objects;
 using Carbon.Graphics.Windowing.Abstractions;
 using FluentAssertions;
 using NSubstitute;
@@ -14,19 +12,12 @@ using Xunit;
 
 namespace Carbon.Graphics.Scenes.Tests;
 
+/// <summary>
+/// The base-scene contract the desktop scenes rely on (they call <c>base.Load/Update/Render/Dispose</c>): naming, the
+/// loaded flag and argument checks. Written against the scene before its unused object roster was removed.
+/// </summary>
 public sealed class GameSceneLifecycleTests
 {
-    private sealed class TestGameScene : GameScene
-    {
-        public TestGameScene() : base("TestScene") { }
-    }
-
-    private sealed class TestRenderObject : RenderObject
-    {
-        public override RectangleF Bounds => new(this.Position.X, this.Position.Y, 10f, 10f);
-        public override void Draw(SpriteBatch spriteBatch) { }
-    }
-
     private readonly SceneContext _context;
 
     public GameSceneLifecycleTests()
@@ -38,40 +29,65 @@ public sealed class GameSceneLifecycleTests
     }
 
     [Fact]
-    public void Add_EnqueuesObject_AndMountsOnNextUpdate()
+    public void Constructor_WithoutName_UsesTheTypeName()
     {
-        // Arrange
-        using TestGameScene scene = new();
-        TestRenderObject obj = new() { Tag = "player" };
+        using UnnamedScene scene = new();
 
-        // Act
-        scene.Add(obj);
-        scene.Objects.Should().BeEmpty("object is pending in double-buffered queue until Update");
-
-        scene.Update(_context, dt: 0.016);
-
-        // Assert
-        scene.Objects.Should().ContainSingle().Which.Should().Be(obj);
-        scene.FindFirstByTag<TestRenderObject>("player").Should().Be(obj);
+        scene.Name.Should().Be(nameof(UnnamedScene), "a scene without a name is known by its type");
     }
 
     [Fact]
-    public void Remove_EnqueuesObject_AndUnmountsOnNextUpdate()
+    public void Constructor_WithName_KeepsIt()
     {
-        // Arrange
-        using TestGameScene scene = new();
-        TestRenderObject obj = new() { Tag = "enemy" };
-        scene.Add(obj);
-        scene.Update(_context, dt: 0.016);
+        using NamedScene scene = new("World");
 
-        // Act
-        scene.Remove(obj);
-        scene.Objects.Should().ContainSingle("still mounted until next tick");
-
-        scene.Update(_context, dt: 0.016);
-
-        // Assert
-        scene.Objects.Should().BeEmpty();
-        scene.FindFirstByTag<TestRenderObject>("enemy").Should().BeNull();
+        scene.Name.Should().Be("World");
     }
+
+    [Fact]
+    public void LoadThenUnload_TogglesIsLoaded()
+    {
+        using NamedScene scene = new("World");
+        scene.IsLoaded.Should().BeFalse("a new scene is not loaded");
+
+        scene.Load(_context);
+        scene.IsLoaded.Should().BeTrue("Load marks the scene loaded");
+
+        scene.Unload(_context);
+        scene.IsLoaded.Should().BeFalse("Unload marks the scene unloaded");
+    }
+
+    [Fact]
+    public void Update_PlainScene_DoesNotThrowAndKeepsTheSceneLoaded()
+    {
+        using NamedScene scene = new("World");
+        scene.Load(_context);
+
+        scene.Update(_context, dt: 0.016);
+
+        scene.IsLoaded.Should().BeTrue("updating a scene does not change its lifecycle state");
+    }
+
+    [Fact]
+    public void Render_NullArguments_AreRejected()
+    {
+        using NamedScene scene = new("World");
+
+        FluentActions.Invoking(() => scene.Render(null!, null!, 0.016)).Should().Throw<ArgumentNullException>().WithParameterName("context");
+        FluentActions.Invoking(() => scene.Render(_context, null!, 0.016)).Should().Throw<ArgumentNullException>().WithParameterName("spriteBatch");
+    }
+
+    [Fact]
+    public void Dispose_Twice_IsSafe()
+    {
+        NamedScene scene = new("World");
+
+        scene.Dispose();
+
+        FluentActions.Invoking(scene.Dispose).Should().NotThrow("disposing twice is a no-op");
+    }
+
+    private sealed class UnnamedScene : GameScene;
+
+    private sealed class NamedScene(string name) : GameScene(name);
 }

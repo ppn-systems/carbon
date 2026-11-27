@@ -56,12 +56,6 @@ public interface IGraphicsDevice : IDisposable
     void SetTexture(int textureUnit, ITexture texture);
 
     /// <summary>
-    /// Binds a render target as the active framebuffer for off-screen rendering.
-    /// </summary>
-    /// <param name="renderTarget">The render target to bind, or null to bind the default backbuffer.</param>
-    void SetRenderTarget(IRenderTarget? renderTarget);
-
-    /// <summary>
     /// Executes an indexed draw call using the currently bound VAO, VBO, EBO, and shader.
     /// </summary>
     /// <param name="primitiveType">The OpenGL primitive type (e.g. Triangles).</param>
