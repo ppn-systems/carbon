@@ -254,6 +254,7 @@ public sealed partial class MultiplayerSession
             return false;
         }
 
+        ushort expectedItemId;
         lock (_worldGate)
         {
             ItemSlot src = _inventory.GetSlot(fromSlot);
@@ -264,6 +265,8 @@ public sealed partial class MultiplayerSession
             {
                 return false;
             }
+
+            expectedItemId = (ushort)src.ItemId;
         }
 
         ushort seq = ++_itemSeqId;
@@ -271,6 +274,7 @@ public sealed partial class MultiplayerSession
         {
             p.FromSlot = fromSlot;
             p.ToSlot = toSlot;
+            p.ExpectedItemId = expectedItemId;
             p.SequenceId = seq;
         });
         return true;
@@ -402,12 +406,16 @@ public sealed partial class MultiplayerSession
             return false;
         }
 
+        ushort expectedItemId;
         lock (_worldGate)
         {
-            if (_inventory.GetSlot(slotIndex).IsEmpty)
+            ItemSlot slot = _inventory.GetSlot(slotIndex);
+            if (slot.IsEmpty)
             {
                 return false;
             }
+
+            expectedItemId = (ushort)slot.ItemId;
         }
 
         ushort seq = ++_itemSeqId;
@@ -415,6 +423,92 @@ public sealed partial class MultiplayerSession
         {
             p.SlotIndex = slotIndex;
             p.Quantity = quantity;
+            p.ExpectedItemId = expectedItemId;
+            p.SequenceId = seq;
+        });
+        return true;
+    }
+
+    /// <inheritdoc/>
+    public bool TrySplitInventorySlot(ushort fromSlot, int quantity)
+    {
+        if (!this.IsReady || _tcpSession is not { IsConnected: true } || fromSlot >= PlayerInventoryLayout.BagLimit)
+        {
+            return false;
+        }
+
+        ushort expectedItemId;
+        int target;
+        lock (_worldGate)
+        {
+            ItemSlot source = _inventory.GetSlot(fromSlot);
+            if (source.IsEmpty || !source.IsStackable || quantity <= 0 || quantity >= source.Quantity)
+            {
+                return false;
+            }
+
+            Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
+            _inventory.Slots.CopyTo(slots);
+            target = InventoryActionPolicy.FindSplitTargetSlot(slots, fromSlot);
+            expectedItemId = (ushort)source.ItemId;
+            if (target < 0)
+            {
+                _hudNotifications.Add("No free bag slot to split into");
+                return false;
+            }
+        }
+
+        ushort seq = ++_itemSeqId;
+        _ = this.SendTcpPooledAsync<SplitInventorySlot>(p =>
+        {
+            p.FromSlot = fromSlot;
+            p.ToSlot = (ushort)target;
+            p.Quantity = (ushort)quantity;
+            p.ExpectedItemId = expectedItemId;
+            p.SequenceId = seq;
+        });
+        return true;
+    }
+
+    /// <inheritdoc/>
+    public bool TrySortInventory()
+    {
+        if (!this.IsReady || _tcpSession is not { IsConnected: true })
+        {
+            return false;
+        }
+
+        ushort seq = ++_itemSeqId;
+        _ = this.SendTcpPooledAsync<SortInventory>(p => p.SequenceId = seq);
+        return true;
+    }
+
+    /// <inheritdoc/>
+    public bool TryDestroyInventoryItem(ushort slotIndex, int quantity)
+    {
+        if (!this.IsReady || _tcpSession is not { IsConnected: true } || slotIndex >= PlayerInventoryLayout.TotalCapacity)
+        {
+            return false;
+        }
+
+        ushort expectedItemId;
+        lock (_worldGate)
+        {
+            ItemSlot slot = _inventory.GetSlot(slotIndex);
+            if (slot.IsEmpty)
+            {
+                return false;
+            }
+
+            expectedItemId = (ushort)slot.ItemId;
+        }
+
+        ushort seq = ++_itemSeqId;
+        _ = this.SendTcpPooledAsync<DestroyInventoryItem>(p =>
+        {
+            p.SlotIndex = slotIndex;
+            p.Quantity = quantity;
+            p.ExpectedItemId = expectedItemId;
             p.SequenceId = seq;
         });
         return true;

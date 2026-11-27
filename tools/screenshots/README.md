@@ -52,6 +52,7 @@ they are active.
 | `CARBON_MACRO_VIEW=1` | Zoomed-out overview. |
 | `CARBON_AUTO_WALK=x,y` | Walk in a constant direction (actors in motion, wakes). |
 | `CARBON_CAPTURE_FRAMES=n` | Also capture `n` consecutive frames after the main capture. |
+| `CARBON_UI_PREVIEW=<state>` | Open a UI state for review: `inventory`, or `inventory-tooltip:N`, `inventory-split:N`, `inventory-destroy:N` for slot `N` (visual only; nothing is sent to the server). |
 
 Script knobs: `SKIP_BUILD=1`, `CARBON_SEED`, `BASE_PORT` (TCP; UDP is `BASE_PORT+1`), `WIDTH`/`HEIGHT`,
 `CLIENT_TIMEOUT`, `SERVER_BOOT_TIMEOUT`, `SCENARIOS` (alternative scenario file).
