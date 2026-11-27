@@ -198,7 +198,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _groundLoot,
             _outbound,
             state => this.MarkCharacterDirtyLocked(state, inventoryChanged: true));
-        _commerce = new EconomyService(this.WorldSeed, () => _economy, () => _currentTick, _groundLoot, _inventory, _outbound, this.HasNearbyFriendlyNpcLocked);
+        _commerce = new EconomyService(this.WorldSeed, this.TickRate, () => _economy, () => _currentTick, _groundLoot, _inventory, _outbound, this.HasNearbyFriendlyNpcLocked);
         _combat = new CombatService(_simulation, _chunkWorld, MonsterLayer, _outbound, this.CollectNearbyConnectionsAroundWorldLocked, this.OnMonsterKilledLocked);
         _props = new PropHarvestService(
             _simulation,
@@ -715,17 +715,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             return SpawnIdentity.Unknown with { Kind = meta.Kind, Name = meta.Name, Archetype = meta.ArchetypeId, Level = meta.Level };
         }
 
-        if (_groundLoot.TryGet(networkId, out GroundLootEntry lootMeta))
+        if (_groundLoot.TryGetSpawnIdentity(networkId, this.TickRate, out SpawnIdentity lootIdentity))
         {
-            ItemSlot lootItem = lootMeta.Item;
-            return SpawnIdentity.Unknown with
-            {
-                Kind = EntityKind.LootDrop,
-                Name = _itemRules.GetDisplayName(lootItem.ItemId),
-                Archetype = (ushort)lootItem.ItemId,
-                LootCount = lootItem.Quantity,
-                WeaponUpgrade = ItemEnhancementPolicy.GetUpgradeLevel(in lootItem),
-            };
+            return lootIdentity;
         }
 
         return _projectiles.TryGet(networkId, out ProjectileState projMeta)

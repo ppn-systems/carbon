@@ -8,6 +8,7 @@ using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.Contracts.Common;
 using Carbon.Economy;
+using Carbon.Economy.Currency;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
@@ -472,9 +473,15 @@ internal sealed class InventoryService
 
         Vector2 playerPos = _simulation.Entities.GetTransform(state.Entity).Position;
         Vector2 lootPos = _simulation.Entities.GetTransform(lootEnt).Position;
-        if (Vector2.DistanceSquared(playerPos, lootPos) > maxRangeSq)
+        if (Vector2.DistanceSquared(playerPos, lootPos) > maxRangeSq ||
+            !meta.CanBePickedUpBy(state.Session.PlayerNetworkId, _currentTick()))
         {
             return false;
+        }
+
+        if (meta.IsCurrency)
+        {
+            return this.TryPickupCurrency(state, lootNetId, lootEnt, lootPos, in meta);
         }
 
         ItemSlot metaItem = meta.Item;
@@ -500,6 +507,23 @@ internal sealed class InventoryService
 
         _markInventoryDirty(state);
         _groundLoot.ApplyPickup(lootNetId, lootEnt, lootPos, in meta, remainder);
+        return true;
+    }
+
+    /// <summary>
+    /// Credits a gold or diamond pile to the wallet, persists it and syncs the balance. A pile the wallet cannot take whole
+    /// (at its cap) stays on the ground.
+    /// </summary>
+    private bool TryPickupCurrency(PlayerState state, ulong lootNetId, Entity lootEnt, Vector2 lootPos, in GroundLootEntry meta)
+    {
+        if (!state.Wallet.TryCredit(meta.Currency, meta.CurrencyAmount, CurrencyReason.MonsterLoot, _currentTick()).IsOk)
+        {
+            return false;
+        }
+
+        _outbound.Pending.WalletSyncs.Add(new OutboundWalletSync(state.Session.ConnectionId, state.Wallet.Gold, state.Wallet.Diamonds, state.Wallet.Sequence));
+        _markInventoryDirty(state); // marks the character dirty, so the new balance is saved with it (ADR-012 D2)
+        _groundLoot.ApplyPickup(lootNetId, lootEnt, lootPos, in meta, 0);
         return true;
     }
 

@@ -247,7 +247,8 @@ public static class VectorRigRenderer
         CompiledItemVectorArt item,
         Vector2 center,
         float targetSize,
-        float rotationRad = 0f)
+        float rotationRad = 0f,
+        byte alpha = 255)
     {
         ArgumentNullException.ThrowIfNull(batch);
         ArgumentNullException.ThrowIfNull(item);
@@ -258,7 +259,7 @@ public static class VectorRigRenderer
 
         for (int i = 0; i < item.Shapes.Length; i++)
         {
-            DrawSingleShape(batch, in item.Shapes[i], Vector2.Zero, in rootPose, center, scale, scale, hitFlash: 0f);
+            DrawSingleShape(batch, in item.Shapes[i], Vector2.Zero, in rootPose, center, scale, scale, hitFlash: 0f, alpha: alpha);
         }
     }
 

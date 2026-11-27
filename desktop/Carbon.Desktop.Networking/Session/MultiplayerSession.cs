@@ -438,7 +438,9 @@ public sealed partial class MultiplayerSession : IWorldSession
                         s.LootCount,
                         s.WeaponUpgradeLevel,
                         s.ActiveActionKind,
-                        s.BuildAttackView()));
+                        s.BuildAttackView(),
+                        s.LootCurrency,
+                        this.IsLootLockedForLocalPlayer(s)));
                 }
 
                 _cachedRemoteViews = _remoteViewSnapshot.Count == 0 ? [] : [.. _remoteViewSnapshot];
@@ -598,6 +600,11 @@ public sealed partial class MultiplayerSession : IWorldSession
                 if (rs.HitFlashTimer > 0f)
                 {
                     rs.HitFlashTimer = MathF.Max(0f, rs.HitFlashTimer - fdt);
+                }
+
+                if (rs.LootProtectionRemaining > 0f)
+                {
+                    rs.LootProtectionRemaining = MathF.Max(0f, rs.LootProtectionRemaining - fdt);
                 }
 
                 if (rs.AttackPhase != EntityAttackPhase.PhaseNone)
