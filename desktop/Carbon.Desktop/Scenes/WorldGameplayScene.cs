@@ -7,6 +7,7 @@ using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions.Configuration;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Input;
@@ -261,7 +262,7 @@ public sealed class WorldGameplayScene : GameScene
             this.ResetInventoryDragState();
             if (!_hudRenderer.OpenOrTogglePlayerTab(_session, PlayerModalTab.Skills))
             {
-                _hudRenderer.PushNotification("Skills unlock upon class advancement");
+                _hudRenderer.PushNotification(GameText.Get("notice.skills_need_class"));
             }
         }
 
@@ -636,6 +637,11 @@ public sealed class WorldGameplayScene : GameScene
         base.Render(context, spriteBatch, dt);
 
         _frameCount++;
+        if (_frameCount == 15 && _options.CaptureModal.Length > 0)
+        {
+            _hudRenderer.OpenSettings(string.Equals(_options.CaptureModal, "controls", StringComparison.Ordinal) ? 1 : 0);
+        }
+
         if (_frameCount >= 20 && !_hasAutoCaptured)
         {
             _hasAutoCaptured = true;
@@ -825,7 +831,7 @@ public sealed class WorldGameplayScene : GameScene
 
         if (!_session.IsNearForgeStation())
         {
-            _hudRenderer.PushNotification("Visit Master Blacksmith or place a Forge Anvil to enhance gear!");
+            _hudRenderer.PushNotification(GameText.Get("notice.forge_hint"));
             return;
         }
 

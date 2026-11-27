@@ -42,28 +42,36 @@ internal sealed class SettingsModalWidget
     private const float PanelW = 580f;
     private const float PanelH = 432f;
 
-    private static readonly (string Key, string Desc)[] s_controlsLeft =
+    /// <summary>Keybind reference rows as (key label, action label) localization keys (ADR-023).</summary>
+    private static readonly (string KeyLabel, string ActionLabel)[] s_controlsLeft =
     [
-        ("WASD", "Move"),
-        ("Shift", "Sprint"),
-        ("LMB / Space", "Attack / Harvest"),
-        ("1..9 / Scroll", "Select Slot"),
-        ("Tab", "Lock Target"),
-        ("Q / R / V", "Class Skills"),
-        ("T", "Rest / Sleep"),
+        ("settings.key.move", "settings.action.move"),
+        ("settings.key.sprint", "settings.action.sprint"),
+        ("settings.key.attack", "settings.action.attack"),
+        ("settings.key.select_slot", "settings.action.select_slot"),
+        ("settings.key.lock_target", "settings.action.lock_target"),
+        ("settings.key.class_skills", "settings.action.class_skills"),
+        ("settings.key.rest", "settings.action.rest"),
     ];
 
-    private static readonly (string Key, string Desc)[] s_controlsRight =
+    private static readonly (string KeyLabel, string ActionLabel)[] s_controlsRight =
     [
-        ("E", "Pickup / Smith"),
-        ("I", "Inventory Bag"),
-        ("Y", "Character & Stats"),
-        ("C / U", "Craft / Forge"),
-        ("M / F1", "Map / Toggle HUD"),
-        ("Esc", "Menu"),
+        ("settings.key.pickup", "settings.action.pickup"),
+        ("settings.key.inventory", "settings.action.inventory"),
+        ("settings.key.character", "settings.action.character"),
+        ("settings.key.craft", "settings.action.craft"),
+        ("settings.key.map", "settings.action.map"),
+        ("settings.key.menu", "settings.action.menu"),
     ];
+
+    private static readonly string[] s_toggleLabels = ["settings.show_minimap", "settings.show_combat_numbers", "settings.show_telemetry"];
+    private static readonly string[] s_zoomLabels = ["settings.zoom.wide", "settings.zoom.standard", "settings.zoom.close"];
 
     private int _activeTab;
+
+    /// <summary>Selects the Display (<c>0</c>) or Controls (<c>1</c>) tab.</summary>
+    /// <param name="tab">Tab index.</param>
+    public void SelectTab(int tab) => _activeTab = Math.Clamp(tab, 0, 1);
 
     public bool ContainsPoint(Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
@@ -223,59 +231,58 @@ internal sealed class SettingsModalWidget
         (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
         ColorRgba black = CarbonUiPalette.TextOutline;
 
-        spriteBatch.DrawOutlinedString(font, "Settings", new Vector2(ox + 20f, oy + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, GameText.Get("settings.title"), new Vector2(ox + 20f, oy + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
         CarbonUiSkin.DrawCenteredText(spriteBatch, font, "X", GetCloseButtonRect(ox, oy), CarbonUiPalette.TextPrimary, black, 1f);
-        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "Display", GetTabRect(ox, oy, 0), CarbonUiPalette.TextPrimary, black, 1f);
-        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "Controls", GetTabRect(ox, oy, 1), CarbonUiPalette.TextPrimary, black, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Get("settings.tab.display"), GetTabRect(ox, oy, 0), CarbonUiPalette.TextPrimary, black, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Get("settings.tab.controls"), GetTabRect(ox, oy, 1), CarbonUiPalette.TextPrimary, black, 1f);
 
         if (_activeTab == 0)
         {
-            (string Label, bool Val)[] rows =
-            [
-                ("Show Minimap (M)", settings.ShowMinimap),
-                ("Show Combat Numbers", settings.ShowCombatNumbers),
-                ("Show FPS & Coords in Character Info", settings.ShowTelemetry),
-            ];
-            for (int r = 0; r < rows.Length; r++)
+            for (int r = 0; r < s_toggleLabels.Length; r++)
             {
+                bool on = r switch
+                {
+                    0 => settings.ShowMinimap,
+                    1 => settings.ShowCombatNumbers,
+                    _ => settings.ShowTelemetry,
+                };
                 RectangleF toggleRect = GetToggleButtonRect(ox, oy, r);
-                spriteBatch.DrawOutlinedString(font, rows[r].Label, new Vector2(ox + 38f, toggleRect.Y + 4f), CarbonUiPalette.TextPrimary, black, 1, 1f);
-                CarbonUiSkin.DrawCenteredText(spriteBatch, font, rows[r].Val ? "ON" : "OFF", in toggleRect, CarbonUiPalette.TextPrimary, black, 1f);
+                spriteBatch.DrawOutlinedString(font, GameText.Get(s_toggleLabels[r]), new Vector2(ox + 38f, toggleRect.Y + 4f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+                CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Get(on ? "settings.on" : "settings.off"), in toggleRect, CarbonUiPalette.TextPrimary, black, 1f);
             }
 
             RectangleF langButton = GetLanguageButtonRect(ox, oy);
             spriteBatch.DrawOutlinedString(font, GameText.Get("settings.language"), new Vector2(ox + 38f, langButton.Y + 4f), CarbonUiPalette.TextPrimary, black, 1, 1f);
             CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Current.Locale.NativeName, in langButton, CarbonUiPalette.TextPrimary, black, 1f);
 
-            spriteBatch.DrawOutlinedString(font, "Camera Zoom", new Vector2(ox + 38f, oy + 292f), CarbonUiPalette.TextPrimary, black, 1, 1f);
-            string[] zoomLabels = ["WIDE", "STD", "CLOSE"];
-            for (int z = 0; z < 3; z++)
+            spriteBatch.DrawOutlinedString(font, GameText.Get("settings.camera_zoom"), new Vector2(ox + 38f, oy + 292f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            for (int z = 0; z < s_zoomLabels.Length; z++)
             {
-                CarbonUiSkin.DrawCenteredText(spriteBatch, font, zoomLabels[z], GetZoomButtonRect(ox, oy, z), CarbonUiPalette.TextPrimary, black, 1f);
+                CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Get(s_zoomLabels[z]), GetZoomButtonRect(ox, oy, z), CarbonUiPalette.TextPrimary, black, 1f);
             }
         }
         else
         {
-            spriteBatch.DrawOutlinedString(font, "Combat", new Vector2(ox + 36f, oy + 100f), CarbonUiPalette.TextWarm, black, 1, 1f);
-            spriteBatch.DrawOutlinedString(font, "Menus", new Vector2(ox + 302f, oy + 100f), CarbonUiPalette.TextWarm, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, GameText.Get("settings.section.combat"), new Vector2(ox + 36f, oy + 100f), CarbonUiPalette.TextWarm, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, GameText.Get("settings.section.menus"), new Vector2(ox + 302f, oy + 100f), CarbonUiPalette.TextWarm, black, 1, 1f);
 
             for (int i = 0; i < s_controlsLeft.Length; i++)
             {
                 float y = oy + 128f + (i * 30f);
-                spriteBatch.DrawOutlinedString(font, s_controlsLeft[i].Key, new Vector2(ox + 36f, y), CarbonUiPalette.TextWarm, black, 1, 1f);
-                spriteBatch.DrawOutlinedString(font, s_controlsLeft[i].Desc, new Vector2(ox + 148f, y), CarbonUiPalette.TextPrimary, black, 1, 1f);
+                spriteBatch.DrawOutlinedString(font, GameText.Get(s_controlsLeft[i].KeyLabel), new Vector2(ox + 36f, y), CarbonUiPalette.TextWarm, black, 1, 1f);
+                spriteBatch.DrawOutlinedString(font, GameText.Get(s_controlsLeft[i].ActionLabel), new Vector2(ox + 148f, y), CarbonUiPalette.TextPrimary, black, 1, 1f);
             }
 
             for (int i = 0; i < s_controlsRight.Length; i++)
             {
                 float y = oy + 128f + (i * 30f);
-                spriteBatch.DrawOutlinedString(font, s_controlsRight[i].Key, new Vector2(ox + 302f, y), CarbonUiPalette.TextWarm, black, 1, 1f);
-                spriteBatch.DrawOutlinedString(font, s_controlsRight[i].Desc, new Vector2(ox + 402f, y), CarbonUiPalette.TextPrimary, black, 1, 1f);
+                spriteBatch.DrawOutlinedString(font, GameText.Get(s_controlsRight[i].KeyLabel), new Vector2(ox + 302f, y), CarbonUiPalette.TextWarm, black, 1, 1f);
+                spriteBatch.DrawOutlinedString(font, GameText.Get(s_controlsRight[i].ActionLabel), new Vector2(ox + 402f, y), CarbonUiPalette.TextPrimary, black, 1, 1f);
             }
 
             spriteBatch.DrawOutlinedString(
                 font,
-                "Drag an item outside Bag to drop it on the ground.",
+                GameText.Get("settings.drop_hint"),
                 new Vector2(ox + 36f, oy + 344f),
                 CarbonUiPalette.TextMuted,
                 black,
@@ -283,9 +290,9 @@ internal sealed class SettingsModalWidget
                 1f);
         }
 
-        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "RESUME", GetFooterButtonRect(ox, oy, 0), CarbonUiPalette.TextPrimary, black, 1f);
-        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "LOGOUT", GetFooterButtonRect(ox, oy, 1), CarbonUiPalette.TextPrimary, black, 1f);
-        CarbonUiSkin.DrawCenteredText(spriteBatch, font, "QUIT", GetFooterButtonRect(ox, oy, 2), CarbonUiPalette.TextPrimary, black, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Get("settings.resume"), GetFooterButtonRect(ox, oy, 0), CarbonUiPalette.TextPrimary, black, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Get("settings.logout"), GetFooterButtonRect(ox, oy, 1), CarbonUiPalette.TextPrimary, black, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Get("settings.quit"), GetFooterButtonRect(ox, oy, 2), CarbonUiPalette.TextPrimary, black, 1f);
     }
 
     private static (float Ox, float Oy) ComputeOrigin(int viewportWidth, int viewportHeight) =>

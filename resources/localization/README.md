@@ -8,7 +8,7 @@ Player-facing text for the desktop client ([ADR-023](../../docs/adr/ADR-023-clie
 - Duplicate keys or sections, and malformed lines, fail to load with the file and line.
 - Placeholders are named: `{count}`, `{name}`. Write `{{` and `}}` for literal braces. Every language must use the same placeholders as `en`.
 - A plural string is two keys, `<key>.one` and `<key>.other`. Vietnamese has no plural, so give both the same text.
-- Config-derived names use stable ids: `item.<code>.name`, `item.<code>.hint`, `monster.<id>.name` and `biome.<biome>`.
+- Derived names use stable ids: `item.<code>.name`, `item.<code>.hint`, `monster.<id>.name`, `biome.<biome>` and `structure.<structure>`. Read them with `GameText.ItemName`, `MonsterName`, `BiomeName` and `StructureName`. `SyncedItemCatalog.GetDisplayName` already returns localized item names.
 - `locales.ini` lists the selectable languages and each one's font stack (`fonts = file@pixelSize, ...`). Every character in a locale file must exist in its fonts.
 - CI (`LocalizationTests`, `LocalizationLiteralTests`) enforces all of the above.
 

@@ -12,6 +12,7 @@ using Carbon.Contracts.Items.C2S;
 using Carbon.Contracts.Maps.C2S;
 using Carbon.Desktop.Abstractions.Events;
 using Carbon.Desktop.Abstractions.World;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
@@ -83,7 +84,7 @@ public sealed partial class MultiplayerSession
             {
                 lock (_worldGate)
                 {
-                    _hudNotifications.Add("Vitals are already full!");
+                    _hudNotifications.Add(GameText.Get("hud.vitals_full"));
                 }
 
                 return false;
@@ -95,7 +96,7 @@ public sealed partial class MultiplayerSession
         {
             lock (_worldGate)
             {
-                _hudNotifications.Add("Not enough Mana!");
+                _hudNotifications.Add(GameText.Get("hud.not_enough_mana"));
             }
 
             return false;
@@ -167,7 +168,7 @@ public sealed partial class MultiplayerSession
         {
             lock (_worldGate)
             {
-                _hudNotifications.Add("Skill locked");
+                _hudNotifications.Add(GameText.Get("hud.skill_locked"));
             }
 
             return false;
@@ -183,7 +184,7 @@ public sealed partial class MultiplayerSession
         {
             lock (_worldGate)
             {
-                _hudNotifications.Add(_localMana < spec.ManaCost ? "Not enough Mana!" : "Not enough Stamina!");
+                _hudNotifications.Add(_localMana < spec.ManaCost ? GameText.Get("hud.not_enough_mana") : GameText.Get("hud.not_enough_stamina"));
             }
 
             return false;

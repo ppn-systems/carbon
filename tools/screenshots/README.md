@@ -53,6 +53,7 @@ they are active.
 | `CARBON_MACRO_VIEW=1` | Zoomed-out overview. |
 | `CARBON_AUTO_WALK=x,y` | Walk in a constant direction (actors in motion, wakes). |
 | `CARBON_CAPTURE_FRAMES=n` | Also capture `n` consecutive frames after the main capture. |
+| `CARBON_CAPTURE_MODAL=settings\|controls` | Open the Settings window (Display or Controls tab) before the capture, to review localized UI. |
 
 `--lang <code>` (or `CARBON_LANG`) sets the client language for every scenario; the code must have a file in
 `resources/localization/` (`<code>.ini`, ADR-023). Capture `en` and `vi` into separate output directories to compare them.
