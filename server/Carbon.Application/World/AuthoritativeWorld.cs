@@ -27,6 +27,7 @@ using Carbon.Application.World.Props;
 using Carbon.Application.World.Replication;
 using Carbon.Application.World.Stamina;
 using Carbon.Application.World.StatusEffects;
+using Carbon.Application.World.Water;
 using Carbon.Combat.Statuses.Config;
 using Carbon.Combat.Cooldowns;
 using Carbon.Contracts.Common;
@@ -113,6 +114,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly CharacterPersistence _persistence;
     private readonly GameplayEntropy _entropy;
     private readonly StatusEffectService _statusEffects;
+    private readonly OxygenService _oxygen;
 
     // Reusable scratch buffers (zero per-tick heap allocations under steady state).
     // Outbound replication, staged under _gate during the tick and dispatched after it (OutboundTickBuffer).
@@ -292,6 +294,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             new PlayerActionHost(this),
             _entropy);
         _statusEffects = new StatusEffectService(_simulation, this.TickRate, statusEffects, _creatureCatalog, _entropy);
+        _oxygen = new OxygenService(_simulation, _chunkWorld, _statusEffects, _outbound);
         _persistence = new CharacterPersistence(_simulation, _needs, _statusEffects, _time);
         _commandExecutor = new WorldCommandExecutor(this);
         _trade = new TradeService(_gate, _entropy.TraderStockKey, _players, _simulation, _actorsByNetworkId, () => _economy, _outbound, _time, () => _currentTick, s => this.MarkCharacterDirtyLocked(s), traderStock);
