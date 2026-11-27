@@ -65,10 +65,8 @@ public sealed class WorldGameplayScene : GameScene
     private Vector2 _mouseScreenPosition;
     private Vector2 _mouseWorldPosition;
     private int _frameCount;
-    private int _carriedInventorySlot = -1;
-    private Vector2 _pressStartMousePos;
-    private bool _isHoldDragging;
     private readonly AutoCapture _capture;
+    private readonly InventoryInputController _inventoryInput;
     private bool _forgePreviewStarted;
 
     /// <summary>
@@ -84,6 +82,7 @@ public sealed class WorldGameplayScene : GameScene
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _screenshotAids = new ScreenshotAids(_options);
         _capture = new AutoCapture(options);
+        _inventoryInput = new InventoryInputController(_session);
         _camera = camera ?? throw new ArgumentNullException(nameof(camera));
     }
 
@@ -97,6 +96,7 @@ public sealed class WorldGameplayScene : GameScene
         _cameraRig.Resize(context.WindowWidth, context.WindowHeight);
         _worldRenderer = new WorldSceneRenderer(context.Device, _options);
         _hudRenderer = new HudOverlayRenderer(context.Device, _worldRenderer.VectorArt);
+        _inventoryInput.AttachHud(_hudRenderer);
         _trade = new TradeInteraction(_session, _hudRenderer, _options, IsTraderNpc, this.OpenForgeWindow);
         if (!_options.MacroView)
         {
@@ -188,7 +188,7 @@ public sealed class WorldGameplayScene : GameScene
             else if (_hudRenderer.HasActiveModal)
             {
                 _hudRenderer.CloseAllModals();
-                this.ResetInventoryDragState();
+                _inventoryInput.ResetDragState();
             }
             else if (_session.LockedTargetNetworkId != 0UL)
             {
@@ -259,19 +259,19 @@ public sealed class WorldGameplayScene : GameScene
 
         if (input.ToggleInventoryPressed)
         {
-            this.ResetInventoryDragState();
+            _inventoryInput.ResetDragState();
             _ = _hudRenderer.OpenOrTogglePlayerTab(_session, PlayerModalTab.Inventory);
         }
 
         if (input.ToggleCharacterPressed)
         {
-            this.ResetInventoryDragState();
+            _inventoryInput.ResetDragState();
             _ = _hudRenderer.OpenOrTogglePlayerTab(_session, PlayerModalTab.Character);
         }
 
         if (input.ToggleSkillsPressed)
         {
-            this.ResetInventoryDragState();
+            _inventoryInput.ResetDragState();
             if (!_hudRenderer.OpenOrTogglePlayerTab(_session, PlayerModalTab.Skills))
             {
                 _hudRenderer.PushNotification(GameText.Get("notice.skills_need_class"));
@@ -280,7 +280,7 @@ public sealed class WorldGameplayScene : GameScene
 
         if (input.ToggleCraftPressed)
         {
-            this.ResetInventoryDragState();
+            _inventoryInput.ResetDragState();
             _ = _hudRenderer.OpenOrTogglePlayerTab(_session, PlayerModalTab.Crafting);
         }
 
@@ -325,7 +325,7 @@ public sealed class WorldGameplayScene : GameScene
             }
         }
 
-        if (input.NumberSlotPressed is byte slotIdx && !this.TryBindHoveredSlotToHotbar(slotIdx, input.MouseScreenPosition, context.WindowWidth, context.WindowHeight))
+        if (input.NumberSlotPressed is byte slotIdx && !_inventoryInput.TryBindHoveredSlotToHotbar(slotIdx, input.MouseScreenPosition, context.WindowWidth, context.WindowHeight))
         {
             _session.SelectHotbarSlot(slotIdx);
         }
@@ -337,8 +337,8 @@ public sealed class WorldGameplayScene : GameScene
 
         if (_hudRenderer.ShowPlayerModal && _hudRenderer.InventoryDialog.IsOpen && _hudRenderer.ActivePlayerTab == PlayerModalTab.Inventory)
         {
-            this.HandleInventoryTabInput(in input, context.WindowWidth, context.WindowHeight);
-            _hudRenderer.CarriedInventorySlot = _carriedInventorySlot;
+            _inventoryInput.HandleTabInput(in input, context.WindowWidth, context.WindowHeight);
+            _hudRenderer.CarriedInventorySlot = _inventoryInput.CarriedSlot;
         }
         else if (_hudRenderer.ShowPlayerModal)
         {
@@ -347,17 +347,17 @@ public sealed class WorldGameplayScene : GameScene
                 _hudRenderer.TryHitTestModalCloseButton(mouseScreen, context.WindowWidth, context.WindowHeight))
             {
                 _hudRenderer.ShowPlayerModal = false;
-                this.ResetInventoryDragState();
+                _inventoryInput.ResetDragState();
             }
             else if (input.LeftClickPressed &&
                      _hudRenderer.TryHitTestPlayerModalTab(_session, mouseScreen, context.WindowWidth, context.WindowHeight, out PlayerModalTab nextTab))
             {
-                this.ResetInventoryDragState();
+                _inventoryInput.ResetDragState();
                 _hudRenderer.ActivePlayerTab = nextTab;
             }
             else if (_hudRenderer.ActivePlayerTab == PlayerModalTab.Inventory)
             {
-                this.HandleInventoryTabInput(in input, context.WindowWidth, context.WindowHeight);
+                _inventoryInput.HandleTabInput(in input, context.WindowWidth, context.WindowHeight);
             }
             else if (_hudRenderer.ActivePlayerTab == PlayerModalTab.Character)
             {
@@ -407,7 +407,7 @@ public sealed class WorldGameplayScene : GameScene
                 }
             }
 
-            _hudRenderer.CarriedInventorySlot = _carriedInventorySlot;
+            _hudRenderer.CarriedInventorySlot = _inventoryInput.CarriedSlot;
         }
         else if (_hudRenderer.ShowForgeModal)
         {
@@ -441,7 +441,7 @@ public sealed class WorldGameplayScene : GameScene
         }
         else
         {
-            this.ResetInventoryDragState();
+            _inventoryInput.ResetDragState();
 
             if (input.LeftClickPressed)
             {
@@ -576,14 +576,14 @@ public sealed class WorldGameplayScene : GameScene
             }
         }
 
-        if (input.DropItemPressed && _hudRenderer.ShowPlayerModal && _carriedInventorySlot >= 0 && !_hudRenderer.InventoryDialog.IsOpen)
+        if (input.DropItemPressed && _hudRenderer.ShowPlayerModal && _inventoryInput.CarriedSlot >= 0 && !_hudRenderer.InventoryDialog.IsOpen)
         {
-            _ = this.RequestDrop(_carriedInventorySlot, 1);
+            _ = _inventoryInput.RequestDrop(_inventoryInput.CarriedSlot, 1);
             Span<ItemSlot> afterDrop = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
             _session.CopyInventorySlots(afterDrop);
-            if (_carriedInventorySlot >= afterDrop.Length || afterDrop[_carriedInventorySlot].Quantity <= 1)
+            if (_inventoryInput.CarriedSlot >= afterDrop.Length || afterDrop[_inventoryInput.CarriedSlot].Quantity <= 1)
             {
-                this.ResetInventoryDragState();
+                _inventoryInput.ResetDragState();
             }
         }
 
@@ -699,6 +699,7 @@ public sealed class WorldGameplayScene : GameScene
     {
         if (disposing)
         {
+            _inventoryInput.AttachHud(null);
             _hudRenderer?.Dispose();
             _hudRenderer = null;
             _worldRenderer?.Dispose();
@@ -706,264 +707,6 @@ public sealed class WorldGameplayScene : GameScene
         }
 
         base.Dispose(disposing);
-    }
-
-    private void HandleInventoryTabInput(in DesktopInputFrame input, int viewportWidth, int viewportHeight)
-    {
-        if (_hudRenderer is null)
-        {
-            return;
-        }
-
-        Vector2 mouseScreen = input.MouseScreenPosition;
-        Span<ItemSlot> invSlots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
-        _session.CopyInventorySlots(invSlots);
-
-        if (this.HandleInventoryDialogInput(in input, invSlots, viewportWidth, viewportHeight))
-        {
-            return;
-        }
-
-        if (input.DeletePressed)
-        {
-            int target = _carriedInventorySlot >= 0
-                ? _carriedInventorySlot
-                : (_hudRenderer.TryHitTestInventorySlot(mouseScreen, viewportWidth, viewportHeight, out ushort hoverSlot) ? hoverSlot : -1);
-            if (target >= 0 && target < invSlots.Length && !invSlots[target].IsEmpty)
-            {
-                this.ResetInventoryDragState();
-                _hudRenderer.InventoryDialog.OpenConfirmDestroy(target, in invSlots[target]);
-            }
-
-            return;
-        }
-
-        if (_carriedInventorySlot < 0)
-        {
-            if (input.LeftClickPressed)
-            {
-                if (!_hudRenderer.IsPointInActiveModal(_session, mouseScreen, viewportWidth, viewportHeight))
-                {
-                    _hudRenderer.ShowPlayerModal = false;
-                    return;
-                }
-
-                if (_hudRenderer.TryHitTestInventorySortButton(mouseScreen, viewportWidth, viewportHeight))
-                {
-                    if (_session.TrySortInventory())
-                    {
-                        _hudRenderer.PushNotification(GameText.Get("inventory.sorted"));
-                    }
-
-                    return;
-                }
-
-                if (_hudRenderer.TryHitTestInventorySlot(mouseScreen, viewportWidth, viewportHeight, out ushort clickedSlot))
-                {
-                    if (input.CtrlHeld && clickedSlot < invSlots.Length)
-                    {
-                        if (!_hudRenderer.InventoryDialog.OpenSplit(clickedSlot, in invSlots[clickedSlot]))
-                        {
-                            _hudRenderer.PushNotification(GameText.Get("inventory.split.needs_stack"));
-                        }
-                    }
-                    else if (input.ShiftHeld)
-                    {
-                        _ = _session.TryQuickMoveInventorySlot(clickedSlot);
-                    }
-                    else if (clickedSlot < invSlots.Length && !invSlots[clickedSlot].IsEmpty)
-                    {
-                        _carriedInventorySlot = clickedSlot;
-                        _pressStartMousePos = mouseScreen;
-                        _isHoldDragging = true;
-                    }
-                }
-            }
-            else if (input.RightClickPressed &&
-                     _hudRenderer.TryHitTestInventorySlot(mouseScreen, viewportWidth, viewportHeight, out ushort rightSlot))
-            {
-                _ = _session.TryQuickMoveInventorySlot(rightSlot);
-            }
-
-            return;
-        }
-
-        if (_isHoldDragging)
-        {
-            if (!input.LeftMouseDown)
-            {
-                _isHoldDragging = false;
-                if (!_hudRenderer.IsPointInActiveModal(_session, mouseScreen, viewportWidth, viewportHeight))
-                {
-                    int dropSlot = _carriedInventorySlot;
-                    this.ResetInventoryDragState();
-                    _ = this.RequestDrop(dropSlot, -1);
-                }
-                else if (_hudRenderer.TryHitTestInventorySlot(mouseScreen, viewportWidth, viewportHeight, out ushort releaseSlot) &&
-                         releaseSlot != _carriedInventorySlot)
-                {
-                    _ = _session.TryMoveInventorySlot((ushort)_carriedInventorySlot, releaseSlot);
-                    this.ResetInventoryDragState();
-                }
-                else if (Vector2.DistanceSquared(mouseScreen, _pressStartMousePos) > 36f)
-                {
-                    this.ResetInventoryDragState();
-                }
-            }
-
-            return;
-        }
-
-        // Click-pickup carried item mode: place into target slot or drop outside modal window
-        if (input.LeftClickPressed)
-        {
-            if (!_hudRenderer.IsPointInActiveModal(_session, mouseScreen, viewportWidth, viewportHeight))
-            {
-                int dropSlot = _carriedInventorySlot;
-                this.ResetInventoryDragState();
-                _ = this.RequestDrop(dropSlot, -1);
-            }
-            else if (_hudRenderer.TryHitTestInventorySlot(mouseScreen, viewportWidth, viewportHeight, out ushort targetSlot))
-            {
-                if (targetSlot != _carriedInventorySlot)
-                {
-                    _ = _session.TryMoveInventorySlot((ushort)_carriedInventorySlot, targetSlot);
-                }
-
-                this.ResetInventoryDragState();
-            }
-            else
-            {
-                this.ResetInventoryDragState();
-            }
-        }
-        else if (input.RightClickPressed)
-        {
-            if (!_hudRenderer.IsPointInActiveModal(_session, mouseScreen, viewportWidth, viewportHeight))
-            {
-                int currentQty = _carriedInventorySlot < invSlots.Length ? invSlots[_carriedInventorySlot].Quantity : 0;
-                if (this.RequestDrop(_carriedInventorySlot, 1))
-                {
-                    this.ResetInventoryDragState();
-                }
-                else if (currentQty <= 1)
-                {
-                    this.ResetInventoryDragState();
-                }
-            }
-            else
-            {
-                this.ResetInventoryDragState();
-            }
-        }
-    }
-
-    /// <summary>
-    /// Drops <paramref name="quantity"/> of <paramref name="slotIndex"/>, or opens the confirmation first for rare,
-    /// enhanced or equipped items (ADR-020). Returns <see langword="true"/> when the confirmation opened.
-    /// </summary>
-    private bool RequestDrop(int slotIndex, int quantity)
-    {
-        if (_hudRenderer is null || slotIndex < 0 || slotIndex >= PlayerInventoryLayout.TotalCapacity)
-        {
-            return false;
-        }
-
-        Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
-        _session.CopyInventorySlots(slots);
-        ItemSlot item = slots[slotIndex];
-        if (InventoryActionPolicy.RequiresDropConfirmation(_session.Items.Rules, in item, slotIndex))
-        {
-            _hudRenderer.InventoryDialog.OpenConfirmDrop(slotIndex, in item, quantity);
-            return true;
-        }
-
-        _ = _session.TryDropInventoryItem((ushort)slotIndex, quantity);
-        return false;
-    }
-
-    /// <summary>Routes input to the open split/confirm dialog. Returns <see langword="true"/> when the dialog took the frame.</summary>
-    private bool HandleInventoryDialogInput(in DesktopInputFrame input, ReadOnlySpan<ItemSlot> slots, int viewportWidth, int viewportHeight)
-    {
-        InventoryDialogState dialog = _hudRenderer!.InventoryDialog;
-        if (!dialog.IsOpen)
-        {
-            return false;
-        }
-
-        if (dialog.SlotIndex < 0 || dialog.SlotIndex >= slots.Length || dialog.IsStale(in slots[dialog.SlotIndex]))
-        {
-            dialog.Close();
-            return true;
-        }
-
-        InventoryDialogButton button = input.LeftClickPressed
-            ? _hudRenderer.HitTestInventoryDialog(input.MouseScreenPosition, viewportWidth, viewportHeight)
-            : InventoryDialogButton.Body;
-        if (input.ConfirmPressed)
-        {
-            button = InventoryDialogButton.Confirm;
-        }
-
-        switch (button)
-        {
-            case InventoryDialogButton.Minus:
-                dialog.Adjust(input.ShiftHeld ? -10 : -1);
-                break;
-            case InventoryDialogButton.Plus:
-                dialog.Adjust(input.ShiftHeld ? 10 : 1);
-                break;
-            case InventoryDialogButton.Confirm:
-                ushort slot = (ushort)dialog.SlotIndex;
-                _ = dialog.Kind switch
-                {
-                    InventoryDialogKind.Split => _session.TrySplitInventorySlot(slot, dialog.Quantity),
-                    InventoryDialogKind.ConfirmDrop => _session.TryDropInventoryItem(slot, dialog.Quantity),
-                    InventoryDialogKind.ConfirmDestroy => _session.TryDestroyInventoryItem(slot, dialog.Quantity),
-                    InventoryDialogKind.None or _ => false,
-                };
-                dialog.Close();
-                break;
-            case InventoryDialogButton.Cancel:
-            case InventoryDialogButton.None when input.LeftClickPressed:
-                dialog.Close();
-                break;
-            case InventoryDialogButton.None:
-            case InventoryDialogButton.Body:
-            default:
-                break;
-        }
-
-        return true;
-    }
-
-    /// <summary>With the inventory open, "hover a slot and press 1..9" puts that item on the hotbar slot (ADR-020).</summary>
-    private bool TryBindHoveredSlotToHotbar(byte hotbarIndex, Vector2 mouseScreen, int viewportWidth, int viewportHeight)
-    {
-        if (_hudRenderer is null ||
-            _hudRenderer.InventoryDialog.IsOpen ||
-            !_hudRenderer.TryHitTestInventorySlot(mouseScreen, viewportWidth, viewportHeight, out ushort hovered))
-        {
-            return false;
-        }
-
-        Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
-        _session.CopyInventorySlots(slots);
-        if (!InventoryActionPolicy.TryResolveHotbarBind(slots, hovered, hotbarIndex, out ushort from, out ushort to))
-        {
-            return hovered < slots.Length && !slots[hovered].IsEmpty;
-        }
-
-        this.ResetInventoryDragState();
-        _ = _session.TryMoveInventorySlot(from, to);
-        return true;
-    }
-
-    private void ResetInventoryDragState()
-    {
-        _carriedInventorySlot = -1;
-        _isHoldDragging = false;
-        _hudRenderer?.CarriedInventorySlot = -1;
     }
 
     private void ApplyZoomPreset(int preset)
@@ -1038,7 +781,7 @@ public sealed class WorldGameplayScene : GameScene
         }
 
         _hudRenderer.CloseAllModals();
-        this.ResetInventoryDragState();
+        _inventoryInput.ResetDragState();
         _hudRenderer.ShowForgeModal = true;
         return true;
     }
