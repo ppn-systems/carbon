@@ -1,10 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
-using System.Globalization;
-using System.Text;
 using FluentAssertions;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Carbon.Items.Tests;
 
@@ -12,7 +9,7 @@ namespace Carbon.Items.Tests;
 /// Verifies the experience curve against the time-to-level targets in docs/progression.md §5, using the deterministic
 /// <see cref="TimeToLevelSimulation"/> over the shipped configs.
 /// </summary>
-public sealed class TimeToLevelSimulationTests(ITestOutputHelper output)
+public sealed class TimeToLevelSimulationTests
 {
     [Theory]
     [InlineData(1, 3f)]
@@ -79,27 +76,5 @@ public sealed class TimeToLevelSimulationTests(ITestOutputHelper output)
                 (minutes / balanced).Should().BeInRange(0.6f, 1.7f, $"the {build.Name} build at level {lv} must stay viable without dominating");
             }
         }
-    }
-
-    [Fact]
-    public void Simulate_Report_PrintsTable()
-    {
-        StringBuilder sb = new();
-        sb.AppendLine("lvl | kills/h | xp/min | min->next | TTK day s | hp lost/kill | tank | glass | skirm");
-        foreach (int lv in new[] { 1, 2, 5, 9, 10, 15, 19, 20, 25, 29, 30, 39, 40, 49, 50, 60, 64, 70, 79, 80, 90, 98 })
-        {
-            SimulatedLevel r = TimeToLevelSimulation.Simulate(lv, TimeToLevelSimulation.Balanced);
-            sb.AppendLine(string.Create(
-                CultureInfo.InvariantCulture,
-                $"{lv,3} | {r.KillsPerHour,7:F0} | {r.XpPerMinute,6:F0} | {r.MinutesToNext,9:F1} | {r.DayTimeToKillSeconds,9:F1} | {r.HealthLostPerKill * 100f,11:F0}% | {TimeToLevelSimulation.Simulate(lv, TimeToLevelSimulation.Tank).MinutesToNext,4:F0} | {TimeToLevelSimulation.Simulate(lv, TimeToLevelSimulation.GlassCannon).MinutesToNext,5:F0} | {TimeToLevelSimulation.Simulate(lv, TimeToLevelSimulation.Skirmisher).MinutesToNext,5:F0}"));
-        }
-
-        foreach ((int a, int b) in new[] { (1, 10), (10, 20), (20, 30), (30, 50), (50, 80), (80, 99), (1, 99) })
-        {
-            sb.AppendLine(string.Create(CultureInfo.InvariantCulture, $"{a}->{b}: {TimeToLevelSimulation.MinutesBetween(a, b, TimeToLevelSimulation.Balanced) / 60f:F1} h"));
-        }
-
-        output.WriteLine(sb.ToString());
-        sb.Length.Should().BePositive();
     }
 }

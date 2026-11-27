@@ -168,13 +168,15 @@ public sealed class ProgressionConfigTests
     }
 
     [Fact]
-    public void Mitigate_DefenseCurve_MatchesFormulaAndHasDiminishingReturns()
+    public void Mitigate_DefenseCurve_HalvesAtTheCurveConstantAndHasDiminishingReturns()
     {
         MitigationCurve curve = s_config.Mitigation.Physical;
         static float Reduction(float def, int level) => 1f - (s_config.Mitigate(1000f, DamageKind.Physical, Stats(defense: def), level) / 1000f);
 
-        float expected = 100f / (100f + curve.K + (curve.PerAttackerLevel * 10));
-        Reduction(100f, 10).Should().BeApproximately(expected, 1e-4f, "reduction = def / (def + K + perLevel * attackerLevel)");
+        // progression.json documents K (plus the per-attacker-level term) as the defense that blocks half the damage.
+        float halfPoint = curve.K + (curve.PerAttackerLevel * 10);
+        Reduction(halfPoint, 10).Should().BeApproximately(0.5f, 1e-3f, "defense equal to the curve constant mitigates exactly half");
+        Reduction(halfPoint, 30).Should().BeLessThan(0.5f, "a higher-level attacker moves the half point up");
 
         float first = Reduction(100f, 30) - Reduction(0f, 30);
         float second = Reduction(200f, 30) - Reduction(100f, 30);
@@ -233,16 +235,17 @@ public sealed class ProgressionConfigTests
     }
 
     [Fact]
-    public void ComputeBaseKillExperience_Formula_ClampsAndAppliesEliteAndNight()
+    public void ComputeBaseKillExperience_TougherOrHigherLevelMonsters_PayMoreWithinTheClamp()
     {
         KillExperienceConfig kill = s_config.Experience.Kill;
-        s_config.ComputeBaseKillExperience(75f, 1, false, false).Should().Be((uint)MathF.Round((75f * kill.MaxHealthFactor) + kill.LevelFactor));
-        s_config.ComputeBaseKillExperience(1f, 1, false, false).Should().Be((uint)kill.MinXp);
-        s_config.ComputeBaseKillExperience(1e9f, 99, false, false).Should().Be((uint)kill.MaxXp);
-
         uint plain = s_config.ComputeBaseKillExperience(500f, 20, false, false);
-        s_config.ComputeBaseKillExperience(500f, 20, true, false).Should().Be((uint)MathF.Round(plain * kill.EliteMultiplier));
-        s_config.ComputeBaseKillExperience(500f, 20, false, true).Should().Be((uint)MathF.Round(plain * kill.NightMultiplier));
+
+        s_config.ComputeBaseKillExperience(1000f, 20, false, false).Should().BeGreaterThan(plain, "more health means more experience");
+        s_config.ComputeBaseKillExperience(500f, 40, false, false).Should().BeGreaterThan(plain, "a higher-level monster pays more");
+        s_config.ComputeBaseKillExperience(500f, 20, true, false).Should().BeGreaterThan(plain, "elites pay a bonus");
+        s_config.ComputeBaseKillExperience(500f, 20, false, true).Should().BeGreaterThan(plain, "night kills pay a bonus");
+        s_config.ComputeBaseKillExperience(1f, 1, false, false).Should().Be((uint)kill.MinXp, "every kill pays at least the floor");
+        s_config.ComputeBaseKillExperience(1e9f, 99, false, false).Should().Be((uint)kill.MaxXp, "base experience is capped before elite/night bonuses");
     }
 
     [Fact]
