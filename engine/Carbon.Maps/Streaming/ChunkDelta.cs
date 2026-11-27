@@ -25,7 +25,6 @@ public sealed class ChunkDelta
     private readonly Dictionary<int, TreeGrowth> _propStages = new();
     private readonly Dictionary<int, MapPropType> _planted = new();
     private readonly ReadOnlyDictionary<int, MapPropType> _plantedView;
-    private List<int>? _unscheduledLegacyKeys;
     private readonly Dictionary<int, StructureTile> _structures = new();
     private readonly Dictionary<int, ConstructionSite> _sites = new();
     private readonly Dictionary<int, StructureRecord> _records = new();
@@ -190,13 +189,6 @@ public sealed class ChunkDelta
         _propRespawnTicks.TryGetValue(ToLocalIndex(localX, localY), out respawnAtTick);
 
     /// <summary>
-    /// Gets a value indicating whether the delta was read from a row older than format 4, which did not store respawn
-    /// timers: its destroyed props must be rescheduled once (<see cref="ScheduleLegacyRespawns"/>), or they would stay
-    /// gone forever.
-    /// </summary>
-    public bool HasUnscheduledLegacyRespawns => _unscheduledLegacyKeys is { Count: > 0 };
-
-    /// <summary>
     /// Adds the local tile index of every destroyed prop whose scheduled respawn tick has arrived to <paramref name="due"/>.
     /// Changes nothing; complete each with <see cref="CompleteRespawn"/> or push it back with <see cref="DeferRespawn"/>.
     /// </summary>
@@ -243,37 +235,6 @@ public sealed class ChunkDelta
         {
             _propRespawnTicks[key] = respawnAtTick;
         }
-    }
-
-    /// <summary>
-    /// Schedules the respawn of destroyed props read from a pre-format-4 row (see <see cref="HasUnscheduledLegacyRespawns"/>).
-    /// A prop whose delay is 0 stays destroyed for good.
-    /// </summary>
-    /// <param name="delayTicks">Ticks until the prop anchored on a local tile index comes back (0 = never).</param>
-    /// <param name="currentTick">Current world tick.</param>
-    /// <returns>The number of props scheduled.</returns>
-    public int ScheduleLegacyRespawns(Func<int, ulong> delayTicks, ulong currentTick)
-    {
-        ArgumentNullException.ThrowIfNull(delayTicks);
-        if (_unscheduledLegacyKeys is null)
-        {
-            return 0;
-        }
-
-        int scheduled = 0;
-        for (int i = 0; i < _unscheduledLegacyKeys.Count; i++)
-        {
-            int key = _unscheduledLegacyKeys[i];
-            ulong delay = _propStates.TryGetValue(key, out PropDestructibility state) && state.IsDestroyed ? delayTicks(key) : 0UL;
-            if (delay > 0UL)
-            {
-                _propRespawnTicks[key] = currentTick + delay;
-                scheduled++;
-            }
-        }
-
-        _unscheduledLegacyKeys = null;
-        return scheduled;
     }
 
     /// <summary>Records or updates a constructed structure on a tile within the chunk.</summary>
@@ -415,20 +376,17 @@ public sealed class ChunkDelta
         return migrated;
     }
 
-    // Storage format (little-endian): format, generator version, chunk X/Y, revision, tile edits, prop states, structures (v2+),
-    // construction sites and structure records (v3+). v4 appends to each prop state the ticks left until it respawns
-    // (0 = permanent), relative to the world tick at save time, because the world tick restarts at 0 with the server.
-    // v5 appends the tree growth stage and tree type (ADR-040 D1). v6 appends the planted trees (index, type) at the end.
-    private const byte LegacyFormatVersion = 1;
-    private const byte StructuresFormatVersion = 2;
-    private const byte ConstructionFormatVersion = 3;
+    // Storage format (little-endian): format, generator version, chunk X/Y, revision, tile edits, prop states, structures,
+    // construction sites and structure records. Each prop state carries the ticks left until it respawns (0 = permanent),
+    // relative to the world tick at save time, because the world tick restarts at 0 with the server. v5 appends the tree
+    // growth stage and tree type (ADR-040 D1). v6 appends the planted trees (index, type) at the end. Formats 1 to 3 are
+    // retired and refused (ADR-039).
     private const byte TimersFormatVersion = 4;
     private const byte StagesFormatVersion = 5;
     private const byte FormatVersion = 6;
     private const int HeaderSize = 1 + 2 + 4 + 4 + 4;
     private const int TileSize = 2 + 1 + 4 + 4 + 4 + 1 + 1 + 1;
-    private const int LegacyPropSize = 2 + 1 + 4 + 4 + 1;
-    private const int TimersPropSize = LegacyPropSize + 4;
+    private const int TimersPropSize = 2 + 1 + 4 + 4 + 1 + 4;
     private const int PropSize = TimersPropSize + 2;
     private const int StructureSize = 2 + 1 + 1 + 1 + 1 + 1 + 1 + 4 + 4 + 4;
     private const int SiteBaseSize = 2 + 1 + 1 + 1 + 1 + 1 + 8 + 4 + 1;
@@ -587,12 +545,16 @@ public sealed class ChunkDelta
     /// <param name="data">The encoded delta.</param>
     /// <param name="currentTick">The world tick now: stored respawn delays are rescheduled from it.</param>
     /// <returns>The delta, at the generator version it was recorded with.</returns>
-    /// <exception cref="FormatException">The data is truncated, has an unknown format or bad tile indices.</exception>
+    /// <exception cref="FormatException">
+    /// The data is truncated, has an unknown or retired format (1 to 3, ADR-039) or bad tile indices.
+    /// </exception>
     public static ChunkDelta Deserialize(ReadOnlySpan<byte> data, ulong currentTick)
     {
-        if (data.Length < HeaderSize + 4 || data[0] is not (LegacyFormatVersion or StructuresFormatVersion or ConstructionFormatVersion or TimersFormatVersion or StagesFormatVersion or FormatVersion))
+        if (data.Length < HeaderSize + 4 || data[0] is not (TimersFormatVersion or StagesFormatVersion or FormatVersion))
         {
-            throw new FormatException("Unknown or truncated chunk delta.");
+            throw new FormatException(data.Length > 0 && data[0] is > 0 and < TimersFormatVersion
+                ? $"Chunk delta format {data[0]} is retired."
+                : "Unknown or truncated chunk delta.");
         }
 
         byte format = data[0];
@@ -621,7 +583,7 @@ public sealed class ChunkDelta
 
         int props = BinaryPrimitives.ReadUInt16LittleEndian(data[o..]);
         o += 2;
-        int propSize = format >= StagesFormatVersion ? PropSize : (format >= TimersFormatVersion ? TimersPropSize : LegacyPropSize);
+        int propSize = format >= StagesFormatVersion ? PropSize : TimersPropSize;
         Require(data, o + (props * propSize));
         for (int i = 0; i < props; i++, o += propSize)
         {
@@ -650,49 +612,38 @@ public sealed class ChunkDelta
                 continue;
             }
 
-            if (format < TimersFormatVersion)
-            {
-                // Rows before v4 kept no timer: the prop is rescheduled once its type is known (ScheduleLegacyRespawns).
-                (delta._unscheduledLegacyKeys ??= []).Add(key);
-            }
-            else if (BinaryPrimitives.ReadUInt32LittleEndian(data[(o + 12)..]) is uint ticksLeft and > 0U)
+            if (BinaryPrimitives.ReadUInt32LittleEndian(data[(o + 12)..]) is uint ticksLeft and > 0U)
             {
                 delta._propRespawnTicks[key] = currentTick + ticksLeft;
             }
         }
 
-        if (format >= StructuresFormatVersion)
+        Require(data, o + 2);
+        int structures = BinaryPrimitives.ReadUInt16LittleEndian(data[o..]);
+        o += 2;
+        Require(data, o + (structures * StructureSize));
+        for (int i = 0; i < structures; i++, o += StructureSize)
         {
-            Require(data, o + 2);
-            int structures = BinaryPrimitives.ReadUInt16LittleEndian(data[o..]);
-            o += 2;
-            Require(data, o + (structures * StructureSize));
-            for (int i = 0; i < structures; i++, o += StructureSize)
-            {
-                int key = ReadIndex(data[o..]);
-                byte flags = data[o + 5];
-                PropDestructibility destructibility = new(
-                    (flags & 1) != 0,
-                    BinaryPrimitives.ReadSingleLittleEndian(data[(o + 8)..]),
-                    BinaryPrimitives.ReadSingleLittleEndian(data[(o + 12)..]),
-                    data[o + 6],
-                    (flags & 2) != 0);
-                delta._structures[key] = new StructureTile(
-                    (StructureType)data[o + 2],
-                    (StructureMaterial)data[o + 3],
-                    (StructureCategory)data[o + 4],
-                    destructibility,
-                    (flags & 8) != 0 ? DoorState.Open : DoorState.Closed,
-                    (WallConnectivityMask)data[o + 7],
-                    (flags & 4) != 0,
-                    BinaryPrimitives.ReadSingleLittleEndian(data[(o + 16)..]));
-            }
+            int key = ReadIndex(data[o..]);
+            byte flags = data[o + 5];
+            PropDestructibility destructibility = new(
+                (flags & 1) != 0,
+                BinaryPrimitives.ReadSingleLittleEndian(data[(o + 8)..]),
+                BinaryPrimitives.ReadSingleLittleEndian(data[(o + 12)..]),
+                data[o + 6],
+                (flags & 2) != 0);
+            delta._structures[key] = new StructureTile(
+                (StructureType)data[o + 2],
+                (StructureMaterial)data[o + 3],
+                (StructureCategory)data[o + 4],
+                destructibility,
+                (flags & 8) != 0 ? DoorState.Open : DoorState.Closed,
+                (WallConnectivityMask)data[o + 7],
+                (flags & 4) != 0,
+                BinaryPrimitives.ReadSingleLittleEndian(data[(o + 16)..]));
         }
 
-        if (format >= ConstructionFormatVersion)
-        {
-            o = DeserializeConstruction(delta, data, o);
-        }
+        o = DeserializeConstruction(delta, data, o);
 
         if (format >= FormatVersion)
         {

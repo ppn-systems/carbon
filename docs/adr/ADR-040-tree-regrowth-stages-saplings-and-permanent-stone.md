@@ -98,9 +98,9 @@ What master (`6125a15`) does:
    it comes back (`uint32`, 0 = permanent), counted from the world tick at save time. On load the timer restarts from
    the current tick. Server downtime does not count as growth time, and a chunk saved before its last change loses at
    most the time since its last save.
-   - Rows in formats 1–3 have no timer. Their destroyed props are rescheduled once at startup
-     (`ChunkWorld2D.ScheduleLegacyRespawns`) with the delay of their type, which needs the chunk's baseline to know the
-     type. The rescheduled chunks are saved again in format 4. Mined stone and ore stay gone.
+   - Rows in formats 1–3 have no timer. *Amended by [ADR-039](ADR-039-no-save-compatibility-before-release.md) D4:
+     they are no longer read or rescheduled. Boot drops such a row with a warning and the chunk comes back from its
+     baseline.*
    - No SQL migration: `chunk_deltas.payload` is an opaque blob, and the format byte travels inside it.
    - Format 5 (PR 2) appends the growth stage and the tree type to each prop state. Format 6 (PR 3) appends the planted
      trees (tile index and tree type). They are added to the chunk before the prop states are applied. Each format
@@ -165,7 +165,7 @@ What master (`6125a15`) does:
 ## Consequences
 
 - Felled trees, cleared bushes and spawn forage come back after a restart. Mined stone and ore are gone for good.
-- Chunk delta rows in format 4 grow by 4 bytes per prop state. Old rows load and are rewritten once.
+- Chunk delta rows in format 4 grow by 4 bytes per prop state. Older rows are dropped at boot (ADR-039 D4).
 - Changing a delay needs only a `props.json` edit, applied by hot reload.
 - A player camping on a stump keeps it a stump. That is intended.
 - Growth stages (PR 2) add a protocol bump. Older clients must update.
