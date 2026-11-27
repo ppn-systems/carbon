@@ -1,5 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System;
+
 namespace Carbon.Economy.Config;
 
 /// <summary>
@@ -13,4 +15,9 @@ public sealed record GroundLootRules
 
     /// <summary>Gets the seconds kill loot (items, gold and diamonds) lies on the ground before it despawns.</summary>
     public int KillLootLifetimeSeconds { get; set; } = 180;
+
+    /// <summary>Returns <see cref="KillLootLifetimeSeconds"/> in ticks at <paramref name="tickRate"/> (at least one second).</summary>
+    /// <param name="tickRate">Simulation ticks per second.</param>
+    /// <returns>The ground lifetime in ticks.</returns>
+    public ulong LifetimeTicks(int tickRate) => (ulong)Math.Max(1, this.KillLootLifetimeSeconds) * (ulong)Math.Max(1, tickRate);
 }

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Application.World.Replication;
 using Carbon.Contracts.Entities;
+using Carbon.Economy.Config;
 using Carbon.Economy.Currency;
 using Carbon.Items.Catalog;
 using Carbon.Items.Components;
@@ -41,7 +42,7 @@ internal readonly record struct GroundLootEntry(
     Guid OwnerCharacterId = default,
     ulong OwnerNetworkId = 0UL,
     ulong ProtectedUntilTick = 0UL,
-    ulong LifetimeTicks = GroundLootService.LootLifetimeTicks,
+    ulong LifetimeTicks = 0UL,
     CurrencyKind Currency = 0,
     long CurrencyAmount = 0L,
     CurrencyReason CreditReason = CurrencyReason.MonsterLoot,
@@ -70,9 +71,6 @@ internal sealed class GroundLootService
     /// <summary>Physics layer of loot trigger colliders.</summary>
     public const uint LootLayer = 8U;
 
-    /// <summary>Ticks a ground stack lives before it despawns (120 s at 30 Hz).</summary>
-    public const ulong LootLifetimeTicks = 30UL * 120UL;
-
     private const float MergeRadius = 24f;
     private const float AutoCollectRadius = 32f;
     private const ulong AutoCollectGraceTicks = 12UL;
@@ -86,6 +84,7 @@ internal sealed class GroundLootService
     private readonly Func<ulong> _currentTick;
     private readonly Action<ulong, Vector2> _onStackChanged;
     private readonly Func<Guid, ulong> _ownerNetworkId;
+    private readonly Func<GroundLootRules?> _groundLootRules;
     private readonly Dictionary<ulong, GroundLootEntry> _byNetworkId = new();
     private readonly List<ulong> _scratch = new(32);
     private readonly List<ulong> _rearmScratch = new(8);
@@ -100,13 +99,18 @@ internal sealed class GroundLootService
     /// Current player network id of an online character (0 when offline), so a reconnected owner is replicated under its
     /// new id. Defaults to "offline", which replicates the id recorded at the kill.
     /// </param>
+    /// <param name="groundLootRules">
+    /// Current <c>economy.json → groundLoot</c> rules (they can be swapped by a config reload), for the lifetime of unclaimed
+    /// stacks. Defaults to none, which uses the <see cref="GroundLootRules"/> defaults.
+    /// </param>
     public GroundLootService(
         WorldSimulation simulation,
         Func<ItemRules> itemRules,
         Func<ulong> allocateNetworkId,
         Func<ulong> currentTick,
         Action<ulong, Vector2> onStackChanged,
-        Func<Guid, ulong>? ownerNetworkId = null)
+        Func<Guid, ulong>? ownerNetworkId = null,
+        Func<GroundLootRules?>? groundLootRules = null)
     {
         _simulation = simulation ?? throw new ArgumentNullException(nameof(simulation));
         _itemRules = itemRules ?? throw new ArgumentNullException(nameof(itemRules));
@@ -114,6 +118,7 @@ internal sealed class GroundLootService
         _currentTick = currentTick ?? throw new ArgumentNullException(nameof(currentTick));
         _onStackChanged = onStackChanged ?? throw new ArgumentNullException(nameof(onStackChanged));
         _ownerNetworkId = ownerNetworkId ?? (static _ => 0UL);
+        _groundLootRules = groundLootRules ?? (static () => null);
     }
 
     /// <summary>Gets the number of tracked ground stacks.</summary>
@@ -159,7 +164,7 @@ internal sealed class GroundLootService
                     int added = Math.Min(room, item.Quantity);
                     ItemSlot merged = existing.Item with { Quantity = existing.Item.Quantity + added };
                     _byNetworkId[kvp.Key] = existing with { Item = merged };
-                    _simulation.Entities.SetComponent(existingEnt, new LootDropComponent(merged, 0, _currentTick() + LootLifetimeTicks));
+                    _simulation.Entities.SetComponent(existingEnt, new LootDropComponent(merged, 0, _currentTick() + this.UnclaimedLifetimeTicks()));
                     _onStackChanged(kvp.Key, existingPos);
 
                     int leftQty = item.Quantity - added;
@@ -345,7 +350,13 @@ internal sealed class GroundLootService
     }
 
     private void SpawnNewEntity(Vector2 worldPos, in ItemSlot item) =>
-        _ = this.SpawnEntity(worldPos, in item, new LootClaim(Guid.Empty, 0UL, 0UL, LootLifetimeTicks), 0, 0L);
+        _ = this.SpawnEntity(worldPos, in item, new LootClaim(Guid.Empty, 0UL, 0UL, this.UnclaimedLifetimeTicks()), 0, 0L);
+
+    /// <summary>
+    /// Lifetime of an unclaimed stack (harvest drops, top-ups): <c>economy.json → groundLoot.killLootLifetimeSeconds</c> at
+    /// the world's tick rate, or the <see cref="GroundLootRules"/> default when no economy is loaded (audit MAGIC-1).
+    /// </summary>
+    private ulong UnclaimedLifetimeTicks() => (_groundLootRules() ?? new GroundLootRules()).LifetimeTicks(_simulation.Clock.TickRate);
 
     private ulong SpawnEntity(Vector2 worldPos, in ItemSlot item, in LootClaim claim, CurrencyKind currency, long amount, CurrencyReason creditReason = CurrencyReason.MonsterLoot)
     {
