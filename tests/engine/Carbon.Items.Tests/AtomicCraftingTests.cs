@@ -17,13 +17,12 @@ public sealed class AtomicCraftingTests
 
     private static readonly IStackSizeProvider s_stacks = new FixedStackSizeProvider(10);
 
-    private static CraftingRecipe SawRecipe(int workTicks = 0) => new(
+    private static CraftingRecipe SawRecipe() => new(
         Id: 1,
         Ingredients: [new RecipeIngredient(Log, 1)],
         Output: new ItemSlot(Plank, 4),
         Byproducts: [new ItemSlot(Sawdust, 2)],
         Station: CraftingStation.Workbench,
-        WorkTicks: workTicks,
         UnlockLevel: 3,
         Skill: CraftingSkill.Carpentry,
         SkillLevel: 2,

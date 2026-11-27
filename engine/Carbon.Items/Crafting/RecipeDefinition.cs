@@ -18,9 +18,6 @@ public sealed record RecipeDefinition
     /// <summary>Gets the required station.</summary>
     public CraftingStation Station { get; set; }
 
-    /// <summary>Gets the work amount in ticks at baseline speed.</summary>
-    public int WorkTicks { get; set; }
-
     /// <summary>Gets the minimum character level.</summary>
     public int UnlockLevel { get; set; }
 

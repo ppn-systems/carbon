@@ -40,6 +40,16 @@ public sealed class RecipeCatalogLoadTests
         load.Should().Throw<InvalidDataException>().WithMessage("*bogus*");
     }
 
+    [Fact]
+    public void LoadFromJson_WorkTicksKey_IsRejected()
+    {
+        string json = InsertIntoFirstRecipe(s_recipesJson, "\"workTicks\": 30,");
+
+        Action load = () => RecipeCatalog.LoadFromJson(json, s_rules.ItemCatalog);
+
+        load.Should().Throw<InvalidDataException>("crafting is instant; recipes carry no work amount").WithMessage("*workTicks*");
+    }
+
     private static string InsertIntoFirstRecipe(string json, string member)
     {
         const string Anchor = "\"code\": \"wood_plank\",";

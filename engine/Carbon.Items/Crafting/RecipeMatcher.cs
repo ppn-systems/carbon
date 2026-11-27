@@ -181,7 +181,7 @@ public static class RecipeMatcher
 
     private static bool IsWellFormed(CraftingRecipe recipe)
     {
-        if (recipe.Output.IsEmpty || recipe.WorkTicks < 0)
+        if (recipe.Output.IsEmpty)
         {
             return false;
         }
