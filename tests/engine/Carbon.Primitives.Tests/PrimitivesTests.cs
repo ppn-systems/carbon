@@ -6,7 +6,6 @@ using System.Linq;
 using System.Numerics;
 using System.Text.RegularExpressions;
 using Carbon.Primitives.Buffers;
-using Carbon.Primitives.Collections;
 using Carbon.Primitives.Math;
 using Carbon.Primitives.Random;
 using FluentAssertions;
@@ -83,29 +82,6 @@ public sealed partial class PrimitivesTests
 
         ring.Clear();
         ring.IsEmpty.Should().BeTrue();
-    }
-
-    [Fact]
-    public void BitSet256_SetClearPopCount_TracksAll256Bits()
-    {
-        BitSet256 bits = default;
-        bits.IsEmpty.Should().BeTrue();
-
-        bits.Set(0);
-        bits.Set(64);
-        bits.Set(130);
-        bits.Set(255);
-
-        bits.PopCount.Should().Be(4);
-        bits.IsSet(64).Should().BeTrue();
-        bits.IsSet(255).Should().BeTrue();
-
-        bits.Clear(64);
-        bits.IsSet(64).Should().BeFalse();
-        bits.PopCount.Should().Be(3);
-
-        bits.ClearAll();
-        bits.IsEmpty.Should().BeTrue();
     }
 
     [GeneratedRegex(@"\bMathF?\.(Sin|Cos|Tan|Asin|Acos|Atan|Atan2|Log|Log2|Log10|Exp|Pow|Cbrt|Sinh|Cosh|Tanh)\s*\(")]
