@@ -255,7 +255,7 @@ internal sealed class CharacterSheetModalWidget
         float idW = leftCard.Right - idX - MathF.Round(12f * s);
         string heroName = string.IsNullOrWhiteSpace(world.ActiveCharacterName) ? GameText.Get("character.hero") : world.ActiveCharacterName;
         spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, heroName, idW, layout.TitleScale), new Vector2(idX, leftCard.Y + MathF.Round(22f * s)), CarbonUiPalette.TextPrimary, black, 1, layout.TitleScale);
-        spriteBatch.DrawOutlinedString(font, GameText.Format("character.class_level", new TextArg("class", world.LocalPlayerClass.ToString()), new TextArg("level", world.LocalPlayerLevel)), new Vector2(idX, leftCard.Y + MathF.Round(52f * s)), CarbonUiPalette.TextWarm, black, 1, ts);
+        spriteBatch.DrawOutlinedString(font, GameText.Format("character.class_level", new TextArg("class", GameText.ClassName(world.LocalPlayerClass)), new TextArg("level", world.LocalPlayerLevel)), new Vector2(idX, leftCard.Y + MathF.Round(52f * s)), CarbonUiPalette.TextWarm, black, 1, ts);
         string vitals = GameText.Format(
             "character.vitals",
             new TextArg("hp", (long)MathF.Ceiling(world.LocalPlayerHealth)),

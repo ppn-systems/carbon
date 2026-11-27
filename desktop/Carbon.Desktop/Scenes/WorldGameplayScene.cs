@@ -675,7 +675,7 @@ public sealed class WorldGameplayScene : GameScene
         _frameCount++;
         if (_frameCount == 15 && _options.CaptureModal.Length > 0)
         {
-            _hudRenderer.OpenSettings(string.Equals(_options.CaptureModal, "controls", StringComparison.Ordinal) ? 1 : 0);
+            CaptureModalOpener.Open(_hudRenderer, _session, _options.CaptureModal);
         }
 
         if (_frameCount >= 20 && !_hasAutoCaptured)

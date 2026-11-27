@@ -2,10 +2,12 @@
 
 using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Text.Json;
 using Carbon.Configuration.Catalog;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Items.Definitions;
 using Carbon.Survival.Config;
 using Carbon.Survival.Food;
@@ -85,14 +87,14 @@ public static class SyncedFoodCatalog
     {
         ArgumentNullException.ThrowIfNull(food);
 
-        string nutrition = $"+{(int)MathF.Round(food.Nutrition)} food";
+        int nutrition = (int)MathF.Round(food.Nutrition);
         if (!food.IsPerishable)
         {
-            return nutrition;
+            return GameText.Format("food.tooltip", new TextArg("nutrition", nutrition));
         }
 
         float seconds = freshnessSeconds > 0f ? freshnessSeconds : food.SpoilSeconds;
-        return $"{nutrition}  Spoils in {FormatDuration(seconds)}";
+        return GameText.Format("food.tooltip_perishable", new TextArg("nutrition", nutrition), new TextArg("time", FormatDuration(seconds)));
     }
 
     /// <summary>Formats a duration as <c>"1h 05m"</c>, <c>"12m"</c> or <c>"45s"</c>.</summary>
@@ -102,7 +104,9 @@ public static class SyncedFoodCatalog
     {
         int total = (int)MathF.Ceiling(MathF.Max(0f, seconds));
         return total >= 3600
-            ? $"{total / 3600}h {total % 3600 / 60:00}m"
-            : total >= 60 ? $"{(int)MathF.Ceiling(total / 60f)}m" : $"{total}s";
+            ? GameText.Format("time.hours_minutes", new TextArg("hours", total / 3600), new TextArg("minutes", (total % 3600 / 60).ToString("00", CultureInfo.InvariantCulture)))
+            : total >= 60
+                ? GameText.Format("time.minutes", new TextArg("minutes", (int)MathF.Ceiling(total / 60f)))
+                : GameText.Format("time.seconds", new TextArg("seconds", total));
     }
 }

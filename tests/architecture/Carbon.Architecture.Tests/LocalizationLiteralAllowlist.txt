@@ -1,18 +1,10 @@
 # Existing hardcoded player-facing literals (ADR-023 D7). This list may only shrink.
 # Format: <repo path><TAB><literal>. When you replace a literal with a GameText key, delete its line.
 desktop/Carbon.Desktop.Abstractions/Configuration/DesktopOptions.cs	Hero
-desktop/Carbon.Desktop.Abstractions/Configuration/SyncedFoodCatalog.cs	{}  Spoils in {}
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Config.cs	Config download failed: {}
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.cs	TCP
 desktop/Carbon.Desktop.Rendering/Fonts/GameFontLoader.cs	CarbonPixelFallback
 desktop/Carbon.Desktop.Rendering/Fonts/GameFontLoader.cs	ThaleahFat
-desktop/Carbon.Desktop.Rendering/Hud/ClassSkillsModalWidget.cs	MAX
-desktop/Carbon.Desktop.Rendering/Hud/ClassSkillsModalWidget.cs	RANK UP
-desktop/Carbon.Desktop.Rendering/Hud/ClassSkillsModalWidget.cs	Skill Points: {}
-desktop/Carbon.Desktop.Rendering/Hud/ClassSkillsModalWidget.cs	UNLOCK
-desktop/Carbon.Desktop.Rendering/Hud/ClassSkillsModalWidget.cs	{}  (Rank {}/{})
-desktop/Carbon.Desktop.Rendering/Hud/ClassSkillsModalWidget.cs	{}  |  MP {}  CD {}s
-desktop/Carbon.Desktop.Rendering/Hud/ClassSkillsModalWidget.cs	{} Skills
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	ALL
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	ARMOR
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Accessory
@@ -43,38 +35,6 @@ desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	WEAPONS
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Weapon  {} DMG
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Workbench
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	{} Lv {}
-desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	+{} DEF  +{} HP
-desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	+{} DMG  RNG {}
-desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	+{} HP  +{} MP
-desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Drowsy {}%
-desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Eating...
-desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Exhausted
-desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Food {}%
-desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Hungry {}%
-desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Lv.{}
-desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Lv.{}+
-desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Ravenous
-desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Rest {}%
-desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Sick {}%
-desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Sit {}%
-desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Stack {}/{}
-desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Starving!
-desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Tier {} Tool
-desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Tired {}%
-desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Zzz {}%
-desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Zzz+ {}%
-desktop/Carbon.Desktop.Rendering/Hud/InventoryModalWidget.cs	Inventory
-desktop/Carbon.Desktop.Rendering/Hud/MinimapRadarWidget.cs	MAP
-desktop/Carbon.Desktop.Rendering/Hud/MonsterTargetWidget.cs	HOSTILE
-desktop/Carbon.Desktop.Rendering/Hud/MonsterTargetWidget.cs	LOCKED
-desktop/Carbon.Desktop.Rendering/Hud/MonsterTargetWidget.cs	Lv.{} 
-desktop/Carbon.Desktop.Rendering/Hud/MonsterTargetWidget.cs	NPC
-desktop/Carbon.Desktop.Rendering/Hud/PlayerModalTabs.cs	Bag
-desktop/Carbon.Desktop.Rendering/Hud/PlayerModalTabs.cs	Character
-desktop/Carbon.Desktop.Rendering/Hud/PlayerModalTabs.cs	Crafting
-desktop/Carbon.Desktop.Rendering/Hud/PlayerModalTabs.cs	Skills
-desktop/Carbon.Desktop.Rendering/Hud/SkillBarWidget.cs	MP {}  STA {}  CD {}s
-desktop/Carbon.Desktop.Rendering/Overlays/WorldEntityOverlayRenderer.cs	Lv.{} {}
 desktop/Carbon.Desktop.Rendering/VectorArt/CarbonVectorArtLibrary.cs	ADVENTURER
 desktop/Carbon.Desktop.Rendering/VectorArt/CvgJsonModels.cs	Item
 desktop/Carbon.Desktop/Program.cs	Carbon MMORPG — Online Client

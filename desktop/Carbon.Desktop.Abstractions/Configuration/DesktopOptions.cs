@@ -84,7 +84,7 @@ public sealed class DesktopOptions
     public (float X, float Y)? AutoWalk { get; init; }
 
     /// <summary>
-    /// Gets or sets a HUD window to open before the automatic capture (<c>CARBON_CAPTURE_MODAL=settings|controls</c>;
+    /// Gets or sets a HUD window to open before the automatic capture (<c>CARBON_CAPTURE_MODAL=settings|controls|inventory|character|skills|crafting</c>;
     /// used by the screenshot tool to review localized UI, ADR-023 D8). Empty when unset.
     /// </summary>
     public string CaptureModal { get; init; } = string.Empty;
