@@ -3,6 +3,7 @@
 using System;
 using System.Globalization;
 using Carbon.Desktop.Rendering.Hud;
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
 
@@ -31,15 +32,12 @@ public sealed class HudNumberFormattingTests
     [Fact]
     public void WalletFormat_SteadyState_AllocatesNothing()
     {
-        Span<char> buffer = stackalloc char[32];
-        _ = WalletWidget.Format(1_234_567L, buffer);
-
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 1_000; i++)
+        AllocationResult window = AllocationProbe.Measure(1_000, warmupIterations: 1_000, i =>
         {
+            Span<char> buffer = stackalloc char[32];
             _ = WalletWidget.Format(1_234_567L + i, buffer);
-        }
+        });
 
-        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0, "the wallet is drawn every frame");
+        window.Bytes.Should().Be(0, $"the wallet is drawn every frame ({window})");
     }
 }

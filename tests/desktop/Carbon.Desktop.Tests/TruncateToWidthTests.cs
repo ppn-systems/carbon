@@ -8,6 +8,7 @@ using Carbon.Graphics.Fonts.Layout;
 using Carbon.Graphics.Fonts.Model;
 using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Graphics.OpenGL.Abstractions;
+using Carbon.Testing;
 using FluentAssertions;
 using NSubstitute;
 using Xunit;
@@ -43,12 +44,12 @@ public sealed class TruncateToWidthTests
         string text = "Crystal Staff of the Ancient Mage, Tier Five";
         _ = CarbonUiSkin.TruncateToWidth(s_font, text, 90f);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        AllocationWindow open = AllocationProbe.Start();
         string result = CarbonUiSkin.TruncateToWidth(s_font, text, 90f);
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        AllocationResult window = open.Stop(1);
 
         long resultBytes = 22 + (2L * result.Length) + 8;
-        allocated.Should().BeLessThanOrEqualTo(resultBytes, "only the returned string may be allocated (it was one string per step)");
+        window.Bytes.Should().BeLessThanOrEqualTo(resultBytes, $"only the returned string may be allocated (it was one string per step) ({window})");
     }
 
     // The implementation before PERF-9: one string.Concat per candidate length.
