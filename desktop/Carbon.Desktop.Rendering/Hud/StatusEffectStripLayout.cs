@@ -7,8 +7,9 @@ using Carbon.Graphics.Batching.Common;
 namespace Carbon.Desktop.Rendering.Hud;
 
 /// <summary>
-/// Screen rectangles of the top-right status strip (ADR-029 D10): one icon per active effect, right-aligned left of the
-/// minimap card (or at the corner when the minimap is hidden), six per row, and the details panel under the strip.
+/// Screen rectangles of the top-right status strip (ADR-029 D10). The icons live in the strip that
+/// <see cref="HudLayout.GetStatusStripRect"/> reserves above the clock and minimap column: one right-aligned row, as many
+/// as fit (nine at the full 360 px). The details panel opens to the left of the column so the clock and map stay visible.
 /// </summary>
 internal static class StatusEffectStripLayout
 {
@@ -18,43 +19,37 @@ internal static class StatusEffectStripLayout
     /// <summary>Horizontal gap between icons.</summary>
     public const float Gap = 6f;
 
-    /// <summary>Icons per row before the strip wraps.</summary>
-    public const int PerRow = 6;
-
-    /// <summary>Row height: the icon plus its countdown label.</summary>
-    public const float RowHeight = IconSize + 16f;
-
-    /// <summary>Distance from the top of the screen.</summary>
-    public const float Top = 14f;
-
     /// <summary>Details panel width.</summary>
     public const float PanelWidth = 300f;
 
-    /// <summary>Left edge of the minimap card (see <c>MinimapRadarWidget</c>): <c>viewport − 152 − 24 − 8</c>.</summary>
-    private const float MinimapCardInset = 184f;
+    /// <summary>Space between the strip edge and the icons.</summary>
+    private const float Inset = 3f;
 
-    private const float EdgeMargin = 16f;
+    private const float PanelGap = 8f;
 
-    /// <summary>Gets the right edge of the strip.</summary>
-    public static float Right(int viewportWidth, bool showMinimap) =>
-        viewportWidth - (showMinimap ? MinimapCardInset + 8f : EdgeMargin);
+    /// <summary>Gets how many icons fit in the reserved strip.</summary>
+    public static int Capacity(int viewportWidth)
+    {
+        RectangleF strip = HudLayout.GetStatusStripRect(viewportWidth);
+        return Math.Max(0, (int)MathF.Floor((strip.Width - (Inset * 2f) + Gap) / (IconSize + Gap)));
+    }
 
-    /// <summary>Gets the rectangle of icon <paramref name="index"/>.</summary>
-    public static RectangleF Icon(int index, int viewportWidth, bool showMinimap)
+    /// <summary>Gets the rectangle of icon <paramref name="index"/> (0 is the rightmost).</summary>
+    public static RectangleF Icon(int index, int viewportWidth)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(index);
-        int row = index / PerRow;
-        int column = index % PerRow;
-        float x = Right(viewportWidth, showMinimap) - ((column + 1) * IconSize) - (column * Gap);
-        return new RectangleF(x, Top + (row * RowHeight), IconSize, IconSize);
+        RectangleF strip = HudLayout.GetStatusStripRect(viewportWidth);
+        float x = strip.X + strip.Width - Inset - ((index + 1) * IconSize) - (index * Gap);
+        return new RectangleF(x, strip.Y + ((strip.Height - IconSize) * 0.5f), IconSize, IconSize);
     }
 
     /// <summary>Gets the index of the icon under <paramref name="point"/>, or -1.</summary>
-    public static int HitTest(Vector2 point, int count, int viewportWidth, bool showMinimap)
+    public static int HitTest(Vector2 point, int count, int viewportWidth)
     {
-        for (int i = 0; i < count; i++)
+        int shown = Math.Min(count, Capacity(viewportWidth));
+        for (int i = 0; i < shown; i++)
         {
-            if (Icon(i, viewportWidth, showMinimap).Contains(point))
+            if (Icon(i, viewportWidth).Contains(point))
             {
                 return i;
             }
@@ -63,11 +58,12 @@ internal static class StatusEffectStripLayout
         return -1;
     }
 
-    /// <summary>Gets the details panel rectangle under a strip of <paramref name="count"/> icons.</summary>
-    public static RectangleF Panel(int count, float height, int viewportWidth, bool showMinimap)
+    /// <summary>Gets the details panel rectangle: under the strip, to the left of the clock and minimap column.</summary>
+    public static RectangleF Panel(float height, int viewportWidth)
     {
-        int rows = Math.Max(1, (count + PerRow - 1) / PerRow);
-        float x = MathF.Max(8f, Right(viewportWidth, showMinimap) - PanelWidth);
-        return new RectangleF(x, Top + (rows * RowHeight) + 4f, PanelWidth, height);
+        RectangleF strip = HudLayout.GetStatusStripRect(viewportWidth);
+        RectangleF column = HudLayout.GetClockRect(viewportWidth);
+        float x = MathF.Max(8f, column.X - PanelGap - PanelWidth);
+        return new RectangleF(x, strip.Y + strip.Height + HudLayout.Gap, PanelWidth, height);
     }
 }

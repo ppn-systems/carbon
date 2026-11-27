@@ -23,33 +23,31 @@ public sealed class StatusEffectStripTests
     ];
 
     [Theory]
-    [InlineData(1280, 720, true)]
-    [InlineData(1920, 1080, true)]
-    [InlineData(1024, 600, false)]
-    [InlineData(2560, 1440, true)]
-    public void Icon_NineEffects_RightAlignedInTwoRowsClearOfTheMinimapAndEachOther(int width, int height, bool showMinimap)
+    [InlineData(1280)]
+    [InlineData(1920)]
+    [InlineData(1024)]
+    [InlineData(2560)]
+    public void Icon_NineEffects_FillOneRightAlignedRowInsideTheReservedStripClearOfTheClockAndMinimap(int width)
     {
-        RectangleF minimapCard = new(width - 184f, 14f, 168f, 196f);
+        RectangleF strip = HudLayout.GetStatusStripRect(width);
+        RectangleF clock = HudLayout.GetClockRect(width);
+        RectangleF minimap = HudLayout.GetMinimapFrameRect(width);
+        StatusEffectStripLayout.Capacity(width).Should().Be(9, "nine 34 px icons with 6 px gaps fill the 360 px strip");
+
         List<RectangleF> icons = [];
         for (int i = 0; i < 9; i++)
         {
-            icons.Add(StatusEffectStripLayout.Icon(i, width, showMinimap));
+            icons.Add(StatusEffectStripLayout.Icon(i, width));
         }
 
-        (icons[0].X + icons[0].Width).Should().Be(showMinimap ? width - 192f : width - 16f, "the first effect sits at the strip's right edge");
-        icons[0].Y.Should().Be(14f);
-        icons[1].X.Should().Be(icons[0].X - 40f, "34 px icons with a 6 px gap grow to the left");
-        icons[6].Y.Should().Be(64f, "the seventh effect wraps to a second row");
-        icons[6].X.Should().Be(icons[0].X);
+        (icons[0].X + icons[0].Width).Should().Be(strip.X + strip.Width - 3f, "the first effect sits at the strip's right edge");
+        icons[0].Y.Should().Be(11f, "icons are centred in the 40 px strip at y = 8");
+        icons[1].X.Should().Be(icons[0].X - 40f, "icons grow to the left at a 40 px pitch");
         for (int i = 0; i < icons.Count; i++)
         {
-            icons[i].Y.Should().BeLessThan(height);
-            icons[i].X.Should().BeGreaterThan(0f);
-            if (showMinimap)
-            {
-                Overlaps(icons[i], minimapCard).Should().BeFalse($"icon {i} must not cover the minimap");
-            }
-
+            Contains(strip, icons[i]).Should().BeTrue($"icon {i} must stay inside the strip HudLayout reserves");
+            Overlaps(icons[i], clock).Should().BeFalse($"icon {i} must not cover the clock");
+            Overlaps(icons[i], minimap).Should().BeFalse($"icon {i} must not cover the minimap");
             for (int j = i + 1; j < icons.Count; j++)
             {
                 Overlaps(icons[i], icons[j]).Should().BeFalse($"icons {i} and {j} overlap");
@@ -57,15 +55,36 @@ public sealed class StatusEffectStripTests
         }
     }
 
+    [Theory]
+    [InlineData(1280)]
+    [InlineData(1920)]
+    public void Panel_OpensUnderTheStripLeftOfTheClockAndMinimapColumn(int width)
+    {
+        RectangleF panel = StatusEffectStripLayout.Panel(160f, width);
+
+        panel.Y.Should().Be(HudLayout.GetStatusStripRect(width).Y + 46f);
+        Overlaps(panel, HudLayout.GetClockRect(width)).Should().BeFalse("the clock stays readable while the details are open");
+        Overlaps(panel, HudLayout.GetMinimapFrameRect(width)).Should().BeFalse("so does the minimap");
+    }
+
+    [Fact]
+    public void HitTest_NarrowWindow_OnlyIconsThatFitAreClickable()
+    {
+        int width = 300;
+        int fit = StatusEffectStripLayout.Capacity(width);
+        fit.Should().Be(6, "a 268 px strip holds six icons");
+        StatusEffectStripLayout.HitTest(Centre(StatusEffectStripLayout.Icon(fit, width)), 9, width).Should().Be(-1, "an icon that does not fit is not drawn or clickable");
+    }
+
     [Fact]
     public void HitTest_IconCentreAndGap_ReturnsThatIconOrNone()
     {
-        RectangleF second = StatusEffectStripLayout.Icon(1, 1280, showMinimap: true);
+        RectangleF second = StatusEffectStripLayout.Icon(1, 1280);
 
-        StatusEffectStripLayout.HitTest(Centre(second), 3, 1280, showMinimap: true).Should().Be(1);
-        StatusEffectStripLayout.HitTest(new Vector2(second.X + second.Width + 3f, second.Y + 10f), 3, 1280, showMinimap: true)
+        StatusEffectStripLayout.HitTest(Centre(second), 3, 1280).Should().Be(1);
+        StatusEffectStripLayout.HitTest(new Vector2(second.X + second.Width + 3f, second.Y + 10f), 3, 1280)
             .Should().Be(-1, "the gap between icons is not an icon");
-        StatusEffectStripLayout.HitTest(Centre(StatusEffectStripLayout.Icon(3, 1280, true)), 3, 1280, showMinimap: true)
+        StatusEffectStripLayout.HitTest(Centre(StatusEffectStripLayout.Icon(3, 1280)), 3, 1280)
             .Should().Be(-1, "only active effects have icons");
     }
 
@@ -73,16 +92,16 @@ public sealed class StatusEffectStripTests
     public void HandleClick_OnTheSecondIcon_OpensTheSlowDetailsAndAClickElsewhereClosesThem()
     {
         StatusEffectStripWidget strip = new();
-        Vector2 slowIcon = Centre(StatusEffectStripLayout.Icon(1, 1280, showMinimap: true));
+        Vector2 slowIcon = Centre(StatusEffectStripLayout.Icon(1, 1280));
 
-        strip.HandleClick(new Vector2(600f, 400f), s_effects, 1280, showMinimap: true).Should().BeFalse("with no panel open a world click passes through");
-        strip.HandleClick(slowIcon, s_effects, 1280, showMinimap: true).Should().BeTrue();
+        strip.HandleClick(new Vector2(600f, 400f), s_effects, 1280).Should().BeFalse("with no panel open a world click passes through");
+        strip.HandleClick(slowIcon, s_effects, 1280).Should().BeTrue();
         strip.SelectedEffectId.Should().Be(2, "the second icon is the slow");
 
-        strip.HandleClick(Centre(StatusEffectStripLayout.Icon(2, 1280, true)), s_effects, 1280, showMinimap: true).Should().BeTrue();
+        strip.HandleClick(Centre(StatusEffectStripLayout.Icon(2, 1280)), s_effects, 1280).Should().BeTrue();
         strip.SelectedEffectId.Should().Be(8, "another icon switches the details");
 
-        strip.HandleClick(new Vector2(600f, 400f), s_effects, 1280, showMinimap: true).Should().BeTrue("the closing click is consumed");
+        strip.HandleClick(new Vector2(600f, 400f), s_effects, 1280).Should().BeTrue("the closing click is consumed");
         strip.IsPanelOpen.Should().BeFalse();
     }
 
@@ -90,14 +109,14 @@ public sealed class StatusEffectStripTests
     public void HandleClick_SameIconTwiceAndEscape_TogglesAndCloses()
     {
         StatusEffectStripWidget strip = new();
-        Vector2 poisonIcon = Centre(StatusEffectStripLayout.Icon(0, 1920, showMinimap: false));
+        Vector2 poisonIcon = Centre(StatusEffectStripLayout.Icon(0, 1920));
 
-        _ = strip.HandleClick(poisonIcon, s_effects, 1920, showMinimap: false);
+        _ = strip.HandleClick(poisonIcon, s_effects, 1920);
         strip.SelectedEffectId.Should().Be(1);
-        _ = strip.HandleClick(poisonIcon, s_effects, 1920, showMinimap: false);
+        _ = strip.HandleClick(poisonIcon, s_effects, 1920);
         strip.IsPanelOpen.Should().BeFalse("clicking the open icon again closes it");
 
-        _ = strip.HandleClick(poisonIcon, s_effects, 1920, showMinimap: false);
+        _ = strip.HandleClick(poisonIcon, s_effects, 1920);
         strip.Close().Should().BeTrue("Esc closes an open panel");
         strip.Close().Should().BeFalse("and then falls through to the next Esc handler");
     }
@@ -122,6 +141,9 @@ public sealed class StatusEffectStripTests
     }
 
     private static Vector2 Centre(RectangleF rect) => new(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.5f));
+
+    private static bool Contains(RectangleF outer, RectangleF inner) =>
+        inner.X >= outer.X && inner.Y >= outer.Y && inner.X + inner.Width <= outer.X + outer.Width && inner.Y + inner.Height <= outer.Y + outer.Height;
 
     private static bool Overlaps(RectangleF a, RectangleF b) =>
         a.X < b.X + b.Width && b.X < a.X + a.Width && a.Y < b.Y + b.Height && b.Y < a.Y + a.Height;

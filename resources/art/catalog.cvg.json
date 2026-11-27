@@ -1297,6 +1297,18 @@
     {
       "id": "status_rested",
       "file": "ui/status_rested.cvg.json"
+    },
+    {
+      "id": "minimap_village",
+      "file": "ui/minimap_village.cvg.json"
+    },
+    {
+      "id": "minimap_trader",
+      "file": "ui/minimap_trader.cvg.json"
+    },
+    {
+      "id": "minimap_smith",
+      "file": "ui/minimap_smith.cvg.json"
     }
   ]
 }

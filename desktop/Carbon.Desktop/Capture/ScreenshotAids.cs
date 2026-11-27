@@ -106,7 +106,7 @@ internal sealed class ScreenshotAids(DesktopOptions options)
             return null;
         }
 
-        Vector2 centre = hud.GetStatusIconCenter(index, viewportWidth);
+        Vector2 centre = HudOverlayRenderer.GetStatusIconCenter(index, viewportWidth);
         if (preview.StartsWith("status-details", StringComparison.Ordinal))
         {
             if (!hud.IsStatusEffectDetailsOpen)
