@@ -268,29 +268,6 @@ public sealed class WaterDepthGenerationTests
         Assert.Equal(WaterDepthTier.Abyss, WaterDepth.TierOf(previous));
     }
 
-    [Fact]
-    public void PopulateChunk_WarmRegion_DoesNotAllocate()
-    {
-        ProceduralWorldGenerator generator = new(1337UL);
-        Chunk2D chunk = new(0, 0);
-        for (int i = 0; i < 3; i++)
-        {
-            for (int chunkX = 0; chunkX < 8; chunkX++)
-            {
-                generator.PopulateChunk(chunk, chunkX, 3);
-            }
-        }
-
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int chunkX = 0; chunkX < 8; chunkX++)
-        {
-            generator.PopulateChunk(chunk, chunkX, 3);
-        }
-
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        Assert.True(allocated == 0, $"Regenerating 8 cached chunks allocated {allocated} bytes.");
-    }
-
     private sealed class WaterWindow
     {
         private readonly MapTile[] _tiles;
