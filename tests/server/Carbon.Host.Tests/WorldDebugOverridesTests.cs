@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Abstractions.Configuration;
 using Carbon.Abstractions.Persistence;
+using Carbon.Abstractions.World;
 using Carbon.Application.World;
 using Carbon.Infrastructure.Configuration;
 using Carbon.Maps.Biomes;
@@ -37,6 +38,7 @@ public sealed class WorldDebugOverridesTests
             ["CARBON_DEBUG_SPAWN_BIOME"] = "DuneDesert",
             ["CARBON_DEBUG_SPAWN_OFFSET"] = "3,4",
             ["CARBON_DEBUG_START_HOUR"] = "23.5",
+            ["CARBON_DEBUG_START_LEVEL"] = "25",
             ["CARBON_DEBUG_FORGE_KIT"] = "1",
         };
 
@@ -46,6 +48,7 @@ public sealed class WorldDebugOverridesTests
         overrides.SpawnBiome.Should().Be("DuneDesert");
         overrides.SpawnOffset.Should().Be((3, 4));
         overrides.StartHour.Should().Be(23.5f);
+        overrides.StartLevel.Should().Be((ushort)25);
         overrides.ForgeKit.Should().BeTrue();
     }
 
@@ -93,6 +96,18 @@ public sealed class WorldDebugOverridesTests
 
         WorldProgression.ComputeTimeOfDayHours(world.CurrentTick, world.TickRate).Should().BeApproximately(22f, 0.01f);
         world.DebugSpawnPosition.Should().BeNull();
+    }
+
+    [Fact]
+    public void ApplyDebugOverrides_StartLevel_RaisesEnteringCharacters()
+    {
+        AuthoritativeWorld world = CreateWorld();
+        _ = world.ApplyDebugOverrides(new WorldDebugOverrides { StartLevel = 25 });
+        CharacterRecord hero = new(Guid.NewGuid(), Guid.NewGuid(), "Shot", 1, 0, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
+
+        EnterWorldResult entered = world.TryEnterWorld(5UL, 5UL, hero);
+
+        entered.Level.Should().Be(25, "screenshots of the character panel need a mid-level character with points");
     }
 
     [Fact]
