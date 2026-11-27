@@ -7,6 +7,7 @@ using Carbon.Application.World.Players;
 using Carbon.Application.World.Commands;
 using Carbon.Application.World.Commerce;
 using Carbon.Contracts.Common;
+using Carbon.Economy.Repair;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 
@@ -57,8 +58,8 @@ public sealed partial class AuthoritativeWorld
         _commands.Submit(WorldCommandKind.VendorSell, connectionId, slotIndex, quantity);
 
     /// <inheritdoc/>
-    public ValueTask<WorldMutationOutcome> SubmitRepairItemAsync(ulong connectionId, ushort slotIndex) =>
-        _commands.Submit(WorldCommandKind.RepairItem, connectionId, slotIndex);
+    public ValueTask<WorldMutationOutcome> SubmitRepairItemAsync(ulong connectionId, ushort slotIndex, ushort expectedItemId, byte steps, RepairVenue venue) =>
+        _commands.Submit(WorldCommandKind.RepairItem, connectionId, slotIndex, expectedItemId, steps, (ushort)venue);
 
     /// <summary>Buys vendor-sold items for gold near a friendly town NPC. Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
     public OpStatus TryVendorBuy(ulong connectionId, ushort itemId, ushort quantity) =>
@@ -72,12 +73,46 @@ public sealed partial class AuthoritativeWorld
             ? OpStatus.Invalid
             : this.RunVendorOperation(connectionId, VendorOperation.Sell, slotIndex, quantity);
 
-    /// <summary>Repairs the item in the slot to full durability for gold at a forge station. Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
-    public OpStatus TryRepairItem(ulong connectionId, ushort slotIndex) =>
-        this.RunVendorOperation(connectionId, VendorOperation.Repair, slotIndex, 0);
+    /// <summary>
+    /// Repairs ONE item for materials (and the blacksmith fee) at <paramref name="venue"/> (ADR-028). Returns
+    /// <see cref="OpStatus.Ok"/> with a packed <see cref="RepairReceipt"/>; a refusal is <see cref="OpStatus.Conflict"/>
+    /// (or <see cref="OpStatus.OutOfRange"/>) with the reason in the receipt, and nothing spent. Synchronous form used by
+    /// the tick and tests; handlers use <see cref="SubmitRepairItemAsync"/> (ADR-017).
+    /// </summary>
+    public WorldMutationOutcome TryRepairItem(ulong connectionId, ushort slotIndex, ushort expectedItemId, byte steps, RepairVenue venue)
+    {
+        PlayerStatsSnapshot statsSnap;
+        RepairAttempt attempt;
+        (ushort SlotIndex, ItemSlot Slot)[] modifiedCopy;
+        lock (_gate)
+        {
+            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state) ||
+                !_simulation.Entities.HasTransform(state.Entity))
+            {
+                return new WorldMutationOutcome(OpStatus.Forbidden, 0U);
+            }
+
+            Vector2 playerPos = _simulation.Entities.GetTransform(state.Entity).Position;
+            attempt = _inventory.Repair(state, slotIndex, expectedItemId, steps, venue, playerPos, _mutationSlotScratch);
+            if (!attempt.IsOk)
+            {
+                OpStatus refused = attempt.Error == RepairError.OutOfRange ? OpStatus.OutOfRange : OpStatus.Conflict;
+                return new WorldMutationOutcome(refused, new RepairReceipt(attempt.Error, 0).Pack());
+            }
+
+            this.RecomputeDerivedStatsLocked(state);
+            statsSnap = this.BuildPlayerStatsSnapshotLocked(state, clearLevelUpPending: false);
+            this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
+            modifiedCopy = [.. _mutationSlotScratch];
+        }
+
+        this.SendSlotsOutbound(connectionId, modifiedCopy);
+        _outboundSink.SendPlayerStatsSync(connectionId, in statsSnap);
+        return new WorldMutationOutcome(OpStatus.Ok, new RepairReceipt(RepairError.None, (byte)attempt.Steps).Pack());
+    }
 
     /// <summary>
-    /// Runs a vendor/repair mutation under the world lock, then pushes the changed inventory slots and the new wallet
+    /// Runs a vendor mutation under the world lock, then pushes the changed inventory slots and the new wallet
     /// balance to the owning client.
     /// </summary>
     private OpStatus RunVendorOperation(ulong connectionId, VendorOperation operation, ushort arg, ushort quantity)

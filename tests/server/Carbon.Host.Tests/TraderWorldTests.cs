@@ -143,7 +143,8 @@ public sealed class TraderWorldTests
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
             GameEconomy economy = world.Economy!;
             ItemSlot worn = new(StarterGameCatalog.IronSword, 1, 9_001UL, Durability: 50f);
-            world.TryEnterWorld(Conn, Character("Smith Client", fx, fy, gold: 5_000, worn)).Status.Should().Be(OpStatus.Ok);
+            uint ingot = economy.Items.ResolveId("iron_ingot");
+            world.TryEnterWorld(Conn, Character("Smith Client", fx, fy, gold: 5_000, worn, new ItemSlot(ingot, 5))).Status.Should().Be(OpStatus.Ok);
             Step(world, 12);
 
             // The village blacksmith works at the smithy's forge: the nearest Master Blacksmith to its door.
@@ -160,17 +161,18 @@ public sealed class TraderWorldTests
             economy.Traders!.TryGet("blacksmith", out TraderProfile profile).Should().BeTrue();
             stock.ItemIds.Should().NotBeEmpty().And.OnlyContain(id => profile.Entries.Any(e => e.ItemId == id), "weapons, armor, tools and smithing stock only");
 
-            // The worn sword (bag slot 0) is quoted at the forge's repair price.
-            long quote = economy.Prices.GetRepairCost(worn);
-            quote.Should().BePositive();
-            stock.RepairSlots.Should().Equal(0);
-            stock.RepairCosts.Should().Equal((int)quote);
+            // ADR-028: the window prices repairs from the synced repair.json; the old gold-only quote fields stay empty.
+            stock.RepairSlots.Should().BeEmpty();
+            stock.RepairCosts.Should().BeEmpty();
 
+            // The village blacksmith repairs the worn sword (50/200, 8 steps) for 3 iron ingots and a 25 gold fee.
             long goldBefore = sink.WalletSyncs.Count > 0 ? sink.WalletSyncs.Last(w => w.ConnectionId == Conn).Gold : 5_000L;
-            (await Run(world, world.SubmitRepairItemAsync(Conn, 0))).Should().Be(OpStatus.Ok, "the blacksmith is a forge station");
-            sink.WalletSyncs.Last(w => w.ConnectionId == Conn).Gold.Should().Be(goldBefore - quote, "the repair costs exactly the quote");
-            (await Run(world, world.Trade.SubmitTraderOpenAsync(Conn, smith))).Should().Be(OpStatus.Ok);
-            sink.TraderStocks.Last(t => t.ConnectionId == Conn).Stock.RepairSlots.Should().BeEmpty("the sword is whole again");
+            (await Run(world, world.SubmitRepairItemAsync(Conn, 0, (ushort)worn.ItemId, 8, RepairVenue.Blacksmith))).Should().Be(OpStatus.Ok);
+            sink.WalletSyncs.Last(w => w.ConnectionId == Conn).Gold.Should().Be(goldBefore - 25);
+            System.Collections.Generic.List<(ushort SlotIndex, ItemSlot Slot)> inventory = [];
+            world.GetInventorySnapshot(Conn, inventory).Should().BeTrue();
+            inventory.First(x => x.SlotIndex == 0).Slot.Durability.Should().Be(200f, "the sword is whole again");
+            inventory.First(x => x.SlotIndex == 1).Slot.Quantity.Should().Be(2, "3 of the 5 ingots were spent");
 
             // The sanctuary blacksmith at the world spawn trades too, from his own (stable) stock.
             System.Numerics.Vector2 spawn = world.DefaultSpawnWorldPosition;
@@ -449,12 +451,17 @@ public sealed class TraderWorldTests
             entropy: entropy);
     }
 
-    private static CharacterRecord Character(string name, int tileX, int tileY, long gold, ItemSlot firstBagItem = default)
+    private static CharacterRecord Character(string name, int tileX, int tileY, long gold, ItemSlot firstBagItem = default, ItemSlot secondBagItem = default)
     {
         InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);
         if (!firstBagItem.IsEmpty)
         {
             bag.SetSlot(0, in firstBagItem);
+        }
+
+        if (!secondBagItem.IsEmpty)
+        {
+            bag.SetSlot(1, in secondBagItem);
         }
 
         return new(
