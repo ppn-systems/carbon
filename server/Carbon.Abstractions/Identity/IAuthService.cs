@@ -73,12 +73,14 @@ public interface IAuthService
     Task<IReadOnlyList<CharacterRecord>> ListCharactersAsync(Guid accountId, CancellationToken ct = default);
 
     /// <summary>
-    /// Creates a new classless character with an empty bag at the world's starter spawn tile (ADR-030).
+    /// Creates a new classless character with an empty bag at the world's starter spawn tile (ADR-030). Fails with
+    /// <c>invalid_look</c> when <paramref name="look"/> names a race, body type or option choice <c>races.json</c> does
+    /// not define (ADR-042).
     /// </summary>
     Task<CharacterCreateResult> CreateCharacterAsync(
         Guid accountId,
         string characterName,
-        byte appearancePreset,
+        CharacterLook look,
         float spawnX,
         float spawnY,
         CancellationToken ct = default);

@@ -10,6 +10,7 @@ using Carbon.Economy.Currency;
 using Carbon.Economy.Loot;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
+using Carbon.Items.Progression;
 using Carbon.Maps.Hydrology;
 using Carbon.Simulation.ECS;
 using Carbon.Survival.Stamina;
@@ -46,6 +47,9 @@ internal sealed class PlayerState(
     public ushort Level { get; set; } = 1;
     public uint Experience { get; set; }
     public CharacterProgressionState Progression { get; } = new();
+
+    /// <summary>Gets or sets the stat changes of this character's race from <c>races.json</c> (ADR-042).</summary>
+    public StatBlock? RaceModifiers { get; set; }
     public uint CombatRollNonce { get; set; }
     public DerivedCharacterStats Stats { get; set; } = new(100f, 80f, 100f, 2f, 1f, 1f);
     public float CurrentMana { get; set; } = 80f;

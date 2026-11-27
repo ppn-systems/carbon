@@ -272,7 +272,7 @@ public sealed class ForgeEnhancementWorldTests
                 _accountId,
                 name,
                 1,
-                0,
+                default,
                 this.World.DefaultSpawnWorldPosition.X,
                 this.World.DefaultSpawnWorldPosition.Y,
                 100f,

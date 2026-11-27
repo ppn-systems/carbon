@@ -103,7 +103,7 @@ public sealed class WorldDebugOverridesTests
     {
         AuthoritativeWorld world = CreateWorld();
         _ = world.ApplyDebugOverrides(new WorldDebugOverrides { StartLevel = 25 });
-        CharacterRecord hero = new(Guid.NewGuid(), Guid.NewGuid(), "Shot", 1, 0, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
+        CharacterRecord hero = new(Guid.NewGuid(), Guid.NewGuid(), "Shot", 1, default, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
 
         EnterWorldResult entered = world.TryEnterWorld(5UL, hero);
 

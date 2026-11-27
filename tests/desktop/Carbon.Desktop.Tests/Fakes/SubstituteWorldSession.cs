@@ -46,13 +46,14 @@ internal sealed class SubstituteWorldSession : IWorldSession
 
     global::System.Threading.Tasks.Task<global::System.Collections.Generic.IReadOnlyList<global::Carbon.Desktop.Abstractions.Identity.CharacterRosterEntry>> global::Carbon.Desktop.Abstractions.Identity.ICharacterRosterService.ListCharactersAsync(global::System.Threading.CancellationToken ct) => this.Inner.ListCharactersAsync(ct);
 
-    global::System.Threading.Tasks.Task<(global::System.Boolean, global::System.String)> global::Carbon.Desktop.Abstractions.Identity.ICharacterRosterService.CreateCharacterAsync(global::System.String characterName, global::System.Byte appearancePreset, global::System.Threading.CancellationToken ct) => this.Inner.CreateCharacterAsync(characterName, appearancePreset, ct);
+    global::System.Threading.Tasks.Task<(global::System.Boolean, global::System.String)> global::Carbon.Desktop.Abstractions.Identity.ICharacterRosterService.CreateCharacterAsync(global::System.String characterName, global::Carbon.Contracts.Identity.CharacterLook look, global::System.Threading.CancellationToken ct) => this.Inner.CreateCharacterAsync(characterName, look, ct);
 
     global::System.Threading.Tasks.Task<(global::System.Boolean, global::System.String)> global::Carbon.Desktop.Abstractions.Identity.ICharacterRosterService.EnterWorldAsync(global::System.Guid characterId, global::System.Threading.CancellationToken ct) => this.Inner.EnterWorldAsync(characterId, ct);
 
     global::System.String global::Carbon.Desktop.Abstractions.Identity.ICharacterProfile.ActiveCharacterName => this.Inner.ActiveCharacterName;
 
-    global::System.Byte global::Carbon.Desktop.Abstractions.Identity.ICharacterProfile.LocalPlayerAppearancePreset => this.Inner.LocalPlayerAppearancePreset;
+    global::Carbon.Contracts.Identity.CharacterLook global::Carbon.Desktop.Abstractions.Identity.ICharacterProfile.LocalPlayerLook => this.Inner.LocalPlayerLook;
+    global::Carbon.Desktop.Abstractions.Configuration.SyncedRaceCatalog global::Carbon.Desktop.Abstractions.Identity.ICharacterProfile.Races => this.Inner.Races;
 
     global::Carbon.Desktop.Abstractions.Configuration.SyncedItemCatalog global::Carbon.Desktop.Abstractions.World.IWorldReadModel.Items => this.Inner.Items;
 

@@ -23,6 +23,7 @@ using Carbon.Graphics.Scenes.Base;
 using Carbon.Graphics.Scenes.Management;
 using Carbon.Graphics.Windowing.Abstractions;
 using Carbon.Items.Catalog;
+using Carbon.Items.Races;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Props;
@@ -46,7 +47,7 @@ public sealed class VectorArtAndArchitectureTests
         Directory.Exists(Path.Combine(repoRoot, "resources", "vector-art")).Should().BeFalse("duplicate vector-art folder must not exist");
 
         VectorArtValidationSummary summary = VectorArtValidator.ValidateDirectory(artRoot!);
-        summary.CharactersValidated.Should().Be(4);
+        summary.CharactersValidated.Should().Be(1, "catalog.cvg.json lists each character body rig once, keyed by file (ADR-042)");
         using JsonDocument monsters = JsonDocument.Parse(File.ReadAllText(Path.Combine(repoRoot, "resources", "config", "monsters.json")));
         int monsterArchetypes = monsters.RootElement.GetProperty("monsters").EnumerateArray()
             .Select(m => m.GetProperty("archetypeId").GetUInt16()).Distinct().Count();
@@ -66,16 +67,19 @@ public sealed class VectorArtAndArchitectureTests
 
         CarbonVectorArtLibrary lib = CarbonVectorArtLibrary.LoadFromDirectory(artRoot!);
         Span<BonePose> pose = stackalloc BonePose[(int)VectorBoneId.Count];
-        for (byte p = 0; p < 4; p++)
+        foreach (RaceDefinition race in RaceCatalog.LoadShippedDefaults().Races)
         {
-            lib.TryGetCharacter(p, out CompiledVectorRig? rig).Should().BeTrue();
-            rig!.GetBonePivot(VectorBoneId.ArmFront).Y.Should().BeLessThan(0f, "shoulder pivot must sit in upper body");
-            rig.GetBonePivot(VectorBoneId.LegLeft).Y.Should().BeLessThan(0f, "hip pivot must sit above boots");
-            rig.ClipNames.Should().Contain(["idle", "walk", "slash", "chop", "mine", "cast"]);
-            rig.EvaluatePose("chop", "idle", 0.42f, isNormalized: true, pose);
-            rig.EvaluatePose("mine", "idle", 0.40f, isNormalized: true, pose);
-            rig.EvaluatePose("slash", "idle", 0.35f, isNormalized: true, pose);
-            rig.EvaluatePose("cast", "idle", 0.45f, isNormalized: true, pose);
+            foreach (BodyTypeDefinition body in race.Bodies)
+            {
+                lib.TryGetCharacterRig(body.Rig, out CompiledVectorRig? rig).Should().BeTrue($"races.json body '{race.Code}/{body.Code}' names a rig the art catalog declares");
+                rig!.GetBonePivot(VectorBoneId.ArmFront).Y.Should().BeLessThan(0f, "shoulder pivot must sit in upper body");
+                rig.GetBonePivot(VectorBoneId.LegLeft).Y.Should().BeLessThan(0f, "hip pivot must sit above boots");
+                rig.ClipNames.Should().Contain(["idle", "walk", "slash", "chop", "mine", "cast"]);
+                rig.EvaluatePose("chop", "idle", 0.42f, isNormalized: true, pose);
+                rig.EvaluatePose("mine", "idle", 0.40f, isNormalized: true, pose);
+                rig.EvaluatePose("slash", "idle", 0.35f, isNormalized: true, pose);
+                rig.EvaluatePose("cast", "idle", 0.45f, isNormalized: true, pose);
+            }
         }
 
         foreach (MapPropType propType in Enum.GetValues<MapPropType>())

@@ -21,5 +21,6 @@
         <EmbeddedResource Include="..\..\resources\config\enhancement.json" LogicalName="Carbon.Items.Config.enhancement.json" />
         <EmbeddedResource Include="..\..\resources\config\repair.json" LogicalName="Carbon.Items.Config.repair.json" />
         <EmbeddedResource Include="..\..\resources\config\progression.json" LogicalName="Carbon.Items.Config.progression.json" />
+        <EmbeddedResource Include="..\..\resources\config\races.json" LogicalName="Carbon.Items.Config.races.json" />
     </ItemGroup>
 </Project>
