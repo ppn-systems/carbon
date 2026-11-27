@@ -109,13 +109,17 @@ internal sealed class ChunkStreamer
         // Evicted chunks keep their edits in the delta store.
         lock (_gate)
         {
+            // The snapshot holds exactly the resident chunks: every change to _active happens under this lock and
+            // rebuilds it. Walking the array instead of the ConcurrentDictionary avoids allocating an enumerator
+            // on every call, which runs for each player streaming update (audit round 2, PERF-4).
             _evictionBuffer.Clear();
-            foreach (KeyValuePair<long, Chunk2D> kvp in _active)
+            Chunk2D[] resident = _activeSnapshot;
+            for (int i = 0; i < resident.Length; i++)
             {
-                (int kx, int ky) = Chunk2D.UnpackKey(kvp.Key);
-                if (Math.Max(Math.Abs(kx - centerChunkX), Math.Abs(ky - centerChunkY)) > evictRadius)
+                Chunk2D chunk = resident[i];
+                if (Math.Max(Math.Abs(chunk.ChunkX - centerChunkX), Math.Abs(chunk.ChunkY - centerChunkY)) > evictRadius)
                 {
-                    _evictionBuffer.Add(kvp.Key);
+                    _evictionBuffer.Add(chunk.Key);
                 }
             }
 
