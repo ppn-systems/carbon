@@ -317,7 +317,7 @@ public sealed partial class AuthoritativeWorld
 
         Vector2 pos = _simulation.Entities.GetTransform(entity).Position;
         Vector2 tileCenter = new((tileX + 0.5f) * this.TileSize, (tileY + 0.5f) * this.TileSize);
-        float maxDist = BuildInteractRangeTiles * this.TileSize;
+        float maxDist = _construction.Catalog.Rules.PlacementReachTiles * this.TileSize; // structures.json (audit DUP-1)
         return Vector2.DistanceSquared(pos, tileCenter) <= (maxDist * maxDist);
     }
 

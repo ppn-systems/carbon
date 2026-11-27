@@ -250,7 +250,7 @@ public sealed class WorldSceneRenderer : IDisposable
                 aimTileX = (int)MathF.Floor(aimedWorldPosition.Value.X / tileSize);
                 aimTileY = (int)MathF.Floor(aimedWorldPosition.Value.Y / tileSize);
                 Vector2 aimCenter = new((aimTileX + 0.5f) * tileSize, (aimTileY + 0.5f) * tileSize);
-                float reachPx = heldArchetype.Category == Carbon.Items.Definitions.ItemCategory.Placeable ? 3.5f * tileSize : 52f;
+                float reachPx = heldArchetype.Category == Carbon.Items.Definitions.ItemCategory.Placeable ? world.BuildReachTiles * tileSize : 52f;
                 hasAimTile = Vector2.DistanceSquared(playerPos, aimCenter) <= (reachPx * reachPx);
             }
         }

@@ -143,7 +143,7 @@ public sealed partial class MultiplayerSession
         if (activeSlot.Quantity > 0 && hasArchetype && archetype is { Category: ItemCategory.Placeable or ItemCategory.Tool })
         {
             float distSq = Vector2.DistanceSquared(this.LocalPlayerInterpolatedPosition, aimWorldPosition);
-            float maxDist = archetype.Category == ItemCategory.Placeable ? 3.5f * _tileSize : 56f;
+            float maxDist = archetype.Category == ItemCategory.Placeable ? this.BuildReachTiles * _tileSize : 56f;
             if (distSq <= (maxDist * maxDist))
             {
                 int aimTx = (int)MathF.Floor(aimWorldPosition.X / _tileSize);
