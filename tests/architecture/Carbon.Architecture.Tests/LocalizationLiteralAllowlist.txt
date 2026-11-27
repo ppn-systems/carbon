@@ -110,11 +110,7 @@ desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Exhausted
 desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Ravenous
 desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Starving!
 desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Tier {} Tool
-desktop/Carbon.Desktop.Rendering/Hud/InventoryModalWidget.cs	+{} DEF  +{} HP
-desktop/Carbon.Desktop.Rendering/Hud/InventoryModalWidget.cs	+{} DMG  RNG {}
-desktop/Carbon.Desktop.Rendering/Hud/InventoryModalWidget.cs	+{} HP  +{} MP
 desktop/Carbon.Desktop.Rendering/Hud/InventoryModalWidget.cs	Inventory
-desktop/Carbon.Desktop.Rendering/Hud/InventoryModalWidget.cs	Tier {} Tool
 desktop/Carbon.Desktop.Rendering/Hud/MinimapRadarWidget.cs	MAP
 desktop/Carbon.Desktop.Rendering/Hud/MonsterTargetWidget.cs	HOSTILE
 desktop/Carbon.Desktop.Rendering/Hud/MonsterTargetWidget.cs	LOCKED

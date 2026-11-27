@@ -1,5 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Items.Catalog;
@@ -33,13 +34,13 @@ internal static class ItemRarityColors
     public static ItemRarity GetRarity(ItemRules rules, uint itemId) =>
         rules.ItemCatalog.TryGet(itemId, out ItemCatalogEntry? entry) ? entry.Rarity : ItemRarity.Common;
 
-    /// <summary>Gets the display name of <paramref name="rarity"/>.</summary>
+    /// <summary>Gets the localized display name of <paramref name="rarity"/>.</summary>
     public static string GetName(ItemRarity rarity) => rarity switch
     {
-        ItemRarity.Uncommon => "Uncommon",
-        ItemRarity.Rare => "Rare",
-        ItemRarity.Epic => "Epic",
-        ItemRarity.Legendary => "Legendary",
-        ItemRarity.Common or _ => "Common",
+        ItemRarity.Uncommon => GameText.Get("tooltip.rarity.uncommon"),
+        ItemRarity.Rare => GameText.Get("tooltip.rarity.rare"),
+        ItemRarity.Epic => GameText.Get("tooltip.rarity.epic"),
+        ItemRarity.Legendary => GameText.Get("tooltip.rarity.legendary"),
+        ItemRarity.Common or _ => GameText.Get("tooltip.rarity.common"),
     };
 }

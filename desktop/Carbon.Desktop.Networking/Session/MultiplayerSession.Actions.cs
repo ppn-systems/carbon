@@ -11,6 +11,7 @@ using Carbon.Contracts.Entities.C2S;
 using Carbon.Contracts.Items.C2S;
 using Carbon.Contracts.Maps.C2S;
 using Carbon.Desktop.Abstractions.Events;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -453,7 +454,7 @@ public sealed partial class MultiplayerSession
             expectedItemId = (ushort)source.ItemId;
             if (target < 0)
             {
-                _hudNotifications.Add("No free bag slot to split into");
+                _hudNotifications.Add(GameText.Get("inventory.split.no_space"));
                 return false;
             }
         }
