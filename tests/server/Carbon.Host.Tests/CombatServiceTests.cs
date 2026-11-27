@@ -10,6 +10,10 @@ using Carbon.AI.Threat;
 using Carbon.Application.World.Combat;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
+using Carbon.Combat.Components;
+using Carbon.Combat.Damage;
+using Carbon.Combat.Stats;
+using Carbon.Combat.Statuses;
 using Carbon.Items.Containers;
 using Carbon.Physics.Obstacles;
 using Carbon.Physics.Raycast;
@@ -55,6 +59,35 @@ public sealed class CombatServiceTests
         hit.IsCritical.Should().BeTrue();
         hit.IsKilled.Should().BeFalse();
         h.Kills.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ApplyMonsterHits_InvulnerableMonster_TakesNoDamage()
+    {
+        Harness h = new();
+        Entity mob = h.SpawnMonster(500UL, new Vector2(20f, 0f), health: 50f);
+        h.Simulation.Entities.SetComponent(mob, new CombatStateComponent(CrowdControlMask.Invulnerable));
+
+        bool damaged = h.Combat.ApplyMonsterHits(h.Player, Vector2.Zero, Vector2.UnitX, [mob], 10f, isCritical: false, knockbackSpeed: 0f);
+
+        damaged.Should().BeFalse("player hits go through CombatDamage.TryResolve, which honours invulnerability (audit DOM-1)");
+        h.Simulation.Entities.GetHealth(mob).Current.Should().Be(50f);
+        h.Outbound.Pending.CombatHits.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ApplyMonsterHits_ArmoredMonster_UsesTheSharedArmorMitigation()
+    {
+        Harness h = new();
+        Entity mob = h.SpawnMonster(500UL, new Vector2(20f, 0f), health: 500f);
+        StatSheet sheet = h.Simulation.Entities.GetAttachmentStore<StatSheet>().GetOrAdd(mob, static () => new StatSheet());
+        sheet.SetBase(StatType.Defense, 100f);
+        float expected = new ArmorDamageMitigation().Mitigate(h.Simulation, mob, 100f);
+
+        _ = h.Combat.ApplyMonsterHits(h.Player, Vector2.Zero, Vector2.UnitX, [mob], 100f, isCritical: false, knockbackSpeed: 0f);
+
+        expected.Should().BeApproximately(50f, 1e-3f);
+        h.Simulation.Entities.GetHealth(mob).Current.Should().BeApproximately(500f - expected, 1e-3f);
     }
 
     [Fact]

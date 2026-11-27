@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Abstractions.World;
+using Carbon.Application.World.Actions;
 using Carbon.Application.World.Commands;
 using Carbon.Application.World.Construction;
 using Carbon.Application.World.Players;
@@ -90,7 +91,7 @@ public sealed partial class AuthoritativeWorld
                 return new WorldMutationOutcome(OpStatus.Forbidden, 0);
             }
 
-            state.Cooldowns.StartCooldown(AttackAbilityId, _currentTick, _needs.ScaleAttackCooldown(state.Entity, (uint)Math.Max(10, this.TickRate / 2)));
+            state.Cooldowns.StartCooldown(AttackAbilityId, _currentTick, _needs.ScaleAttackCooldown(state.Entity, PlayerActionService.GetAttackCooldownTicks(this.TickRate, state.Stats.AttackSpeedMultiplier)));
 
             ItemSlot activeSlot = state.Session.SelectedHotbarSlot < state.Inventory.Capacity
                 ? state.Inventory.GetSlot(state.Session.SelectedHotbarSlot)

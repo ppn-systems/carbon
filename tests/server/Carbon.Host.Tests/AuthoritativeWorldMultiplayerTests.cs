@@ -1003,7 +1003,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 Id = Guid.NewGuid(),
                 PositionX = mob!.Value.PositionX + 16f,
                 PositionY = mob.Value.PositionY,
-                Experience = CharacterProgressionPolicy.GetXpToNextLevel(1) - 1U,
+                Experience = world.Progression.GetXpToNextLevel(1) - 1U,
             };
             world.TryEnterWorld(slayerConn, slayerConn, slayer).Status.Should().Be(OpStatus.Ok);
             world.TryGetPendingCharacterSnapshot(slayer.Id, out CharacterRecord? before).Should().BeTrue();

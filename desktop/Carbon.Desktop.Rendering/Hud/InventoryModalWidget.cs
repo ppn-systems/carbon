@@ -254,7 +254,7 @@ internal sealed class InventoryModalWidget
                         font,
                         upgTxt,
                         new Vector2(rect.Right - uSize.Width - MathF.Round(4f * s), rect.Y + MathF.Round(3f * s)),
-                        CarbonUiPalette.TextWarm,
+                        EnhancementLabelStyle.ColorFor(upg),
                         black,
                         1,
                         layout.TextScale);

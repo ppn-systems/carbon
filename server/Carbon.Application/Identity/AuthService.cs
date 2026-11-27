@@ -13,6 +13,8 @@ using Carbon.Contracts.Entities;
 using Carbon.Contracts.Identity;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
+using Carbon.Items.Definitions;
+using Carbon.Items.Progression;
 using Carbon.Items.Serialization;
 
 namespace Carbon.Application.Identity;
@@ -49,6 +51,7 @@ public sealed class AuthService : IAuthService, IDisposable
     private readonly IPasswordHasher _hasher;
     private readonly TimeProvider _time;
     private readonly Func<ItemRules> _itemRules;
+    private readonly Func<ProgressionConfig> _progression;
     private readonly ConcurrentDictionary<Guid, LoginFailures> _loginFailures = new();
     private readonly ConcurrentDictionary<string, LoginFailures> _addressFailures = new(StringComparer.Ordinal);
     private readonly Lazy<(byte[] Hash, byte[] Salt)> _dummyCredentials;
@@ -70,12 +73,14 @@ public sealed class AuthService : IAuthService, IDisposable
     /// Returns the item rules new characters' starting stats are computed with (the world's current rules, so a hot reload
     /// applies); defaults to the shipped item tables.
     /// </param>
+    /// <param name="progression">Returns the world's current progression tuning; defaults to the shipped <c>progression.json</c>.</param>
     public AuthService(
         IAccountStore accounts,
         ICharacterStore characters,
         IPasswordHasher hasher,
         TimeProvider? time = null,
-        Func<ItemRules>? itemRules = null)
+        Func<ItemRules>? itemRules = null,
+        Func<ProgressionConfig>? progression = null)
     {
         _accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
         _characters = characters ?? throw new ArgumentNullException(nameof(characters));
@@ -89,6 +94,13 @@ public sealed class AuthService : IAuthService, IDisposable
         }
 
         _itemRules = itemRules;
+        if (progression is null)
+        {
+            ProgressionConfig defaults = ProgressionConfig.LoadShippedDefaults();
+            progression = () => defaults;
+        }
+
+        _progression = progression;
     }
 
     /// <inheritdoc/>
@@ -199,6 +211,14 @@ public sealed class AuthService : IAuthService, IDisposable
     public Task<IReadOnlyList<CharacterRecord>> ListCharactersAsync(Guid accountId, CancellationToken ct = default) =>
         _characters.ListByAccountAsync(accountId, ct);
 
+    private const long DebugForgeKitGold = 50_000L;
+
+    /// <summary>
+    /// Gets or sets whether new characters receive the forge review kit (Debug host only, <c>CARBON_DEBUG_FORGE_KIT</c>):
+    /// a +8 iron sword in the selected hotbar slot, enhancement materials, protection scrolls and gold.
+    /// </summary>
+    public bool DebugForgeKit { get; init; }
+
     /// <inheritdoc/>
     public async Task<CharacterCreateResult> CreateCharacterAsync(
         Guid accountId,
@@ -228,7 +248,12 @@ public sealed class AuthService : IAuthService, IDisposable
         InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
         StarterGameCatalog.GrantStarterLoadout(inv, startingClass);
         const byte selectedSlot = 2;
-        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(_itemRules(), 1, inv, selectedSlot);
+        if (this.DebugForgeKit)
+        {
+            GrantForgeKit(_itemRules(), inv, selectedSlot);
+        }
+
+        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(_itemRules(), _progression(), 1, inv, selectedSlot, progression: null);
         byte[] invBlob = InventoryBinaryCodec.Serialize(inv);
 
         CharacterRecord created = new(
@@ -252,7 +277,8 @@ public sealed class AuthService : IAuthService, IDisposable
             Class: (HeroArchetypeClass)startingClass,
             Flags: CharacterTraits.StarterLoadoutGranted,
             UnlockedSkills: CharacterSkillMask.None,
-            ProgressionBlob: []);
+            ProgressionBlob: [],
+            Gold: this.DebugForgeKit ? DebugForgeKitGold : 0L);
 
         bool inserted = await _characters.TryCreateAsync(created, ct).ConfigureAwait(false);
         return inserted
@@ -354,4 +380,16 @@ public sealed class AuthService : IAuthService, IDisposable
 
     /// <summary>Failed-login count for one account and when its counting window started.</summary>
     private readonly record struct LoginFailures(int Count, DateTimeOffset WindowStart);
+
+    private static void GrantForgeKit(ItemRules rules, InventoryContainer inv, byte selectedSlot)
+    {
+        ItemCatalog items = rules.ItemCatalog;
+        uint sword = items.ResolveId("iron_sword");
+        float durability = rules.Items.TryGet(sword, out ItemArchetype? def) ? ItemEnhancementPolicy.GetEffectiveMaxDurability(def, 8) : 0f;
+        inv.SetSlot(selectedSlot, new ItemSlot(sword, 1, Durability: durability, UpgradeLevel: 8));
+        foreach ((string code, int quantity) in (ReadOnlySpan<(string, int)>)[("iron_ingot", 40), ("mana_crystal", 60), ("rough_gem", 10), ("forge_ward_scroll", 5), ("blessed_forge_scroll", 3)])
+        {
+            _ = PlayerInventoryLayout.TryAddBagItem(inv, new ItemSlot(items.ResolveId(code), quantity), items.GetMaxStack(items.ResolveId(code)));
+        }
+    }
 }

@@ -161,6 +161,49 @@ public sealed class TickQueuedWorldCommandTests
     }
 
     [Fact]
+    public async Task SubmitAllocateCharacterPointAsync_ResetAttributes_RefundsAllPointsAfterTick()
+    {
+        using WorldFixture f = await WorldFixture.CreateAsync(level: 5).ConfigureAwait(true);
+        f.World.TryAllocateCharacterPoint(ConnectionId, PointAllocationKind.Attribute, (ushort)PrimaryAttributeId.Dexterity, 4).Should().Be(OpStatus.Ok);
+
+        Task<WorldMutationOutcome> pending = f.World
+            .SubmitAllocateCharacterPointAsync(ConnectionId, PointAllocationKind.ResetAttributes, 0)
+            .AsTask();
+        pending.IsCompleted.Should().BeFalse("the reset is tick-queued like every allocation (ADR-017)");
+
+        f.World.StepFixedTick();
+
+        (await pending.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok, "level 5 resets for free");
+        f.World.TryGetPendingCharacterSnapshot(f.HeroId, out CharacterRecord? saved).Should().BeTrue();
+        CharacterProgressionState prog = new();
+        CharacterProgressionBinaryCodec.TryDeserializeInto(saved!.ProgressionBlob ?? [], prog).Should().BeTrue();
+        prog.GetTotalSpentAttributePoints().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task TryAllocateCharacterPoint_LevelOneWithoutPoints_IsRejected()
+    {
+        using WorldFixture f = await WorldFixture.CreateAsync(level: 1).ConfigureAwait(true);
+
+        f.World.TryAllocateCharacterPoint(ConnectionId, PointAllocationKind.Attribute, (ushort)PrimaryAttributeId.Power, 1)
+            .Should().Be(OpStatus.Conflict, "the client cannot spend points the server never granted");
+    }
+
+    [Fact]
+    public async Task TryEnterWorld_AllocationOverBudget_RefundsItForFree()
+    {
+        CharacterProgressionState overBudget = new();
+        overBudget.SetAttribute(PrimaryAttributeId.Vitality, 400);
+        using WorldFixture f = await WorldFixture.CreateAsync(level: 2, progressionBlob: CharacterProgressionBinaryCodec.Serialize(overBudget)).ConfigureAwait(true);
+
+        f.World.TryGetPendingCharacterSnapshot(f.HeroId, out CharacterRecord? saved).Should().BeTrue("the refund is persisted");
+        CharacterProgressionState prog = new();
+        CharacterProgressionBinaryCodec.TryDeserializeInto(saved!.ProgressionBlob ?? [], prog).Should().BeTrue();
+        prog.GetTotalSpentAttributePoints().Should().Be(0);
+        f.World.TryAllocateCharacterPoint(ConnectionId, PointAllocationKind.Attribute, (ushort)PrimaryAttributeId.Vitality, 10).Should().Be(OpStatus.Ok);
+    }
+
+    [Fact]
     public async Task FailPendingCommands_WithQueuedCommand_CompletesItWithConflict()
     {
         using WorldFixture f = await WorldFixture.CreateAsync().ConfigureAwait(true);
@@ -202,7 +245,7 @@ public sealed class TickQueuedWorldCommandTests
 
         public int PropTileY { get; }
 
-        public static async Task<WorldFixture> CreateAsync(ushort level = 1)
+        public static async Task<WorldFixture> CreateAsync(ushort level = 1, byte[]? progressionBlob = null)
         {
             string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-tick-commands-{Guid.NewGuid():N}.db");
             SqliteConnectionFactory factory = new($"Data Source={dbPath}");
@@ -233,7 +276,8 @@ public sealed class TickQueuedWorldCommandTests
                 SelectedHotbarSlot: 0,
                 InventoryBlob: InventoryBinaryCodec.Serialize(inv),
                 UpdatedAtUtc: now,
-                Flags: CharacterTraits.StarterLoadoutGranted);
+                Flags: CharacterTraits.StarterLoadoutGranted,
+                ProgressionBlob: progressionBlob);
             _ = await characters.TryCreateAsync(hero).ConfigureAwait(false);
             world.TryEnterWorld(ConnectionId, ConnectionId, hero).Status.Should().Be(OpStatus.Ok);
 
