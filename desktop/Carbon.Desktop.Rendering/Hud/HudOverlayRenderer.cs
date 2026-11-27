@@ -6,6 +6,7 @@ using System.Numerics;
 using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
+using Carbon.Desktop.Rendering.Effects;
 using Carbon.Desktop.Rendering.Feedback;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -103,6 +104,15 @@ public sealed class HudOverlayRenderer : IDisposable
     /// <summary>Gets or sets whether the HUD overlay is visible.</summary>
     public bool Visible { get; set; } = true;
 
+    /// <summary>Opens the Settings modal on the Display (<c>0</c>) or Controls (<c>1</c>) tab.</summary>
+    /// <param name="tab">Tab index.</param>
+    public void OpenSettings(int tab)
+    {
+        this.CloseAllModals();
+        _settingsModal.SelectTab(tab);
+        this.ShowSettingsModal = true;
+    }
+
     /// <summary>Queues a brief fading notification toast on the right edge of the HUD.</summary>
     public void PushNotification(string message) => _toasts.Push(message);
 
@@ -159,6 +169,12 @@ public sealed class HudOverlayRenderer : IDisposable
 
     /// <summary>Scrolls the Crafting Workshop recipe list up or down.</summary>
     public void ScrollCrafting(int delta) => _craftModal.Scroll(delta);
+
+    /// <summary>Gets the forge hammer animation (outcome VFX and SFX cues, ADR-020).</summary>
+    public ForgeEnhancementVfx ForgeVfx => _forgeModal.Vfx;
+
+    /// <summary>Returns the protection scroll picked in the forge window for the selected item (<c>0</c> for none).</summary>
+    public ushort ResolveForgeProtection(IWorldReadModel world) => _forgeModal.ResolveProtection(world);
 
     /// <summary>Scrolls the Blacksmith Forge Anvil gear list up or down.</summary>
     public void ScrollForge(int delta) => _forgeModal.Scroll(delta);
@@ -367,6 +383,7 @@ public sealed class HudOverlayRenderer : IDisposable
 
         _ = hourOfDay;
         _animTime += frameDt;
+        _forgeModal.Update(frameDt, world);
         _toasts.Step(frameDt);
         if (frameDt > 0.0001f)
         {
