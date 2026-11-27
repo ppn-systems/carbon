@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
@@ -52,7 +53,7 @@ public sealed class WorldFeatureStageTests
     }
 
     [Fact]
-    public void SpawnClearing_LeavesNoPropsAroundSpawn()
+    public void SpawnClearing_LeavesOnlyStarterForageAroundSpawn()
     {
         foreach (ulong seed in new[] { 1UL, 42UL, 1337UL })
         {
@@ -67,11 +68,57 @@ public sealed class WorldFeatureStageTests
                     {
                         int dx = (cx * Chunk2D.Size) + prop.LocalTileX - sx;
                         int dy = (cy * Chunk2D.Size) + prop.LocalTileY - sy;
-                        Assert.True((dx * dx) + (dy * dy) > SpawnClearingStage.Radius * SpawnClearingStage.Radius);
+                        if ((dx * dx) + (dy * dy) > SpawnClearingStage.Radius * SpawnClearingStage.Radius)
+                        {
+                            continue;
+                        }
+
+                        Assert.False(prop.IsSolid, "nothing in the spawn clearing blocks new players");
+                        Assert.Equal(0, prop.Destructibility.HarvestTier);
+                        Assert.Contains(prop.Type, new[] { Props.MapPropType.LooseStones, Props.MapPropType.FallenBranch, Props.MapPropType.DryBush });
                     }
                 }
             }
         }
+    }
+
+    [Theory]
+    [InlineData(1UL)]
+    [InlineData(42UL)]
+    [InlineData(1337UL)]
+    public void SpawnClearing_PlacesStonesBranchesAndFiberWithinReach_TheSameEveryGeneration(ulong seed)
+    {
+        List<(Props.MapPropType Type, int Dx, int Dy)> first = CollectSpawnForage(new ProceduralWorldGenerator(seed));
+        List<(Props.MapPropType Type, int Dx, int Dy)> second = CollectSpawnForage(new ProceduralWorldGenerator(seed));
+
+        Assert.Equal(first, second);
+        Assert.True(first.Count(f => f.Type == Props.MapPropType.LooseStones) >= 2, "a stone axe needs two stones");
+        Assert.True(first.Count(f => f.Type == Props.MapPropType.FallenBranch) >= 3, "a stone axe needs three logs");
+        Assert.True(first.Count(f => f.Type == Props.MapPropType.DryBush) >= 2, "one rope needs three fiber, two per bush");
+    }
+
+    private static List<(Props.MapPropType Type, int Dx, int Dy)> CollectSpawnForage(ProceduralWorldGenerator generator)
+    {
+        (int sx, int sy) = generator.SpawnTile;
+        List<(Props.MapPropType Type, int Dx, int Dy)> forage = [];
+        for (int cy = Chunk2D.ToChunkCoord(sy - SpawnClearingStage.Radius); cy <= Chunk2D.ToChunkCoord(sy + SpawnClearingStage.Radius); cy++)
+        {
+            for (int cx = Chunk2D.ToChunkCoord(sx - SpawnClearingStage.Radius); cx <= Chunk2D.ToChunkCoord(sx + SpawnClearingStage.Radius); cx++)
+            {
+                foreach (Props.MapProp prop in generator.GenerateChunk(cx, cy).Props)
+                {
+                    int dx = (cx * Chunk2D.Size) + prop.LocalTileX - sx;
+                    int dy = (cy * Chunk2D.Size) + prop.LocalTileY - sy;
+                    if ((dx * dx) + (dy * dy) <= SpawnClearingStage.Radius * SpawnClearingStage.Radius)
+                    {
+                        forage.Add((prop.Type, dx, dy));
+                    }
+                }
+            }
+        }
+
+        forage.Sort();
+        return forage;
     }
 
     [Fact]

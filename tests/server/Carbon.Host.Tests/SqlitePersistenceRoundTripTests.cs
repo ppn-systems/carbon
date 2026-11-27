@@ -66,6 +66,7 @@ public sealed class SqlitePersistenceRoundTripTests
                 MaxMana = 110f,
                 CurrentStamina = 74f,
                 MaxStamina = 118f,
+                StatusEffects = "poisoned:4000:2;rested:600000:1",
             };
             await characters.SaveBatchAsync([progressed]).ConfigureAwait(true);
 
@@ -78,7 +79,8 @@ public sealed class SqlitePersistenceRoundTripTests
                 c.CurrentMana == 62f &&
                 c.MaxMana == 110f &&
                 c.CurrentStamina == 74f &&
-                c.MaxStamina == 118f);
+                c.MaxStamina == 118f &&
+                c.StatusEffects == "poisoned:4000:2;rested:600000:1");
 
             CharacterRecord? unauthorizedLookup = await auth.FindOwnedCharacterAsync(Guid.NewGuid(), created.Character!.Id).ConfigureAwait(true);
             unauthorizedLookup.Should().BeNull();
