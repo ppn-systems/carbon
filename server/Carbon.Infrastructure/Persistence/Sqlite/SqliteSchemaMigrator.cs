@@ -70,8 +70,11 @@ public sealed class SqliteSchemaMigrator : IDatabaseMigrator
             updated_at_utc    INTEGER NOT NULL,
             PRIMARY KEY (chunk_x, chunk_y)
         );
+        """;
 
-        -- ADR-025: trader sales per restock epoch (stock is derived from the seed and the epoch).
+    // ADR-025: trader sales per restock epoch (stock is derived from the gameplay secret and the epoch). A separate
+    // migration, not part of 0001_initial, so databases created before villages also get the table.
+    private const string TraderStockSql = """
         CREATE TABLE IF NOT EXISTS trader_stock (
             trader_key        INTEGER NOT NULL PRIMARY KEY,
             epoch             INTEGER NOT NULL,
@@ -373,6 +376,8 @@ public sealed class SqliteSchemaMigrator : IDatabaseMigrator
 
         // ADR-026: secret key for gameplay rolls, persisted so trader stock survives restarts.
         await ApplyDdlMigrationAsync(conn, tx, "0008_gameplay_secret", GameplaySecretSql, ct).ConfigureAwait(false);
+
+        await ApplyDdlMigrationAsync(conn, tx, "0009_trader_stock", TraderStockSql, ct).ConfigureAwait(false);
 
         await tx.CommitAsync(ct).ConfigureAwait(false);
     }
