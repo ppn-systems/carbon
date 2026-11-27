@@ -105,9 +105,7 @@ public sealed class WorldSceneRenderer : IDisposable
 
         if (_poiRenderer is null || _boundSeed != world.WorldSeed || !ReferenceEquals(_landmarks, world.ChunkWorld.Generator.Landmarks))
         {
-            // The session's own generator: it was built with the server's seed and frequency (MapWorldInfo). A separate
-            // generator built from the seed alone used the default frequency and resolved different points of interest,
-            // so village pieces (well, barrels, paths) were never drawn.
+            // The session's generator has the server's seed and frequency (MapWorldInfo); a seed-only one resolves other POIs.
             _landmarks = world.ChunkWorld.Generator.Landmarks;
             _poiRenderer = new PointOfInterestRenderer(world.ChunkWorld.TileSize, _landmarks);
             _roofs = new RoofRenderer(world.ChunkWorld.TileSize);
@@ -296,11 +294,8 @@ public sealed class WorldSceneRenderer : IDisposable
         _construction.DrawMarkers(_geometryBatch, _art, tileSize, minX, minY, maxX, maxY, _animTime);
 
         // Roofs over enclosed rooms (ADR-025), above everything walking inside them; the player's own room stays open.
-        if (_roofs is not null)
-        {
-            _roofs.Refresh(chunkWorld.Buildings, minX, minY, maxX, maxY);
-            _roofs.Draw(_geometryBatch, chunkWorld.Buildings, playerPos, minX, minY, maxX, maxY, _animTime);
-        }
+        _roofs?.Refresh(chunkWorld.Buildings, minX, minY, maxX, maxY);
+        _roofs?.Draw(_geometryBatch, chunkWorld.Buildings, playerPos, minX, minY, maxX, maxY, _animTime);
 
         // Pass 4: Overhead swaying canopies, particles & action swing ribbons
         _canopySortList.Sort();

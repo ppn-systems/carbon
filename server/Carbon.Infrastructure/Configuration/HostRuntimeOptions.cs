@@ -153,6 +153,7 @@ public sealed class HostRuntimeOptions
             SpawnOffset = TryParsePair(readEnv("CARBON_DEBUG_SPAWN_OFFSET")) ?? default,
             StartHour = startHour,
             ForgeKit = string.Equals(readEnv("CARBON_DEBUG_FORGE_KIT"), "1", StringComparison.Ordinal),
+            StarterItems = ParseStarterItems(readEnv("CARBON_DEBUG_STARTER_ITEMS")),
         };
 #else
         return new WorldDebugOverrides();
@@ -160,6 +161,51 @@ public sealed class HostRuntimeOptions
     }
 
 #if DEBUG
+    /// <summary>Parses <c>id[xQty][+Level]</c> entries separated by commas (e.g. <c>3+10,4x40</c>); bad entries are skipped.</summary>
+    private static System.Collections.Generic.List<DebugStarterItem> ParseStarterItems(string? raw)
+    {
+        System.Collections.Generic.List<DebugStarterItem> items = [];
+        if (raw is not { Length: > 0 })
+        {
+            return items;
+        }
+
+        foreach (string part in raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            string rest = part;
+            byte level = 0;
+            int plus = rest.IndexOf('+', StringComparison.Ordinal);
+            if (plus >= 0)
+            {
+                if (!byte.TryParse(rest.AsSpan(plus + 1), NumberStyles.Integer, CultureInfo.InvariantCulture, out level) || level > 10)
+                {
+                    continue;
+                }
+
+                rest = rest[..plus];
+            }
+
+            int quantity = 1;
+            int x = rest.IndexOf('x', StringComparison.Ordinal);
+            if (x >= 0)
+            {
+                if (!int.TryParse(rest.AsSpan(x + 1), NumberStyles.Integer, CultureInfo.InvariantCulture, out quantity) || quantity <= 0)
+                {
+                    continue;
+                }
+
+                rest = rest[..x];
+            }
+
+            if (uint.TryParse(rest, NumberStyles.Integer, CultureInfo.InvariantCulture, out uint id) && id > 0)
+            {
+                items.Add(new DebugStarterItem(id, quantity, level));
+            }
+        }
+
+        return items;
+    }
+
     private static (int X, int Y)? TryParsePair(string? raw) =>
         raw is { Length: > 0 } &&
         raw.Split(',') is [string a, string b] &&

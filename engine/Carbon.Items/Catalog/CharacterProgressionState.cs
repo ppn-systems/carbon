@@ -21,6 +21,21 @@ public sealed class CharacterProgressionState
     /// <summary>Gets or sets unlocked skill bitmask (<c>1..64</c>).</summary>
     public CharacterSkillMask UnlockedSkillMask { get; private set; }
 
+    /// <summary>
+    /// Gets a counter that changes on every mutation, so derived data (such as the serialized blob) can be cached
+    /// and reused until the state changes.
+    /// </summary>
+    public uint Revision { get; private set; }
+
+    /// <summary>Learned skill ranks, read by the binary codec without copying.</summary>
+    internal Dictionary<ushort, byte> SkillRanks => _skillRanks;
+
+    /// <summary>Blob cached by <c>CharacterProgressionBinaryCodec.GetOrSerializeShared</c>.</summary>
+    internal byte[]? CachedBlob { get; set; }
+
+    /// <summary>The <see cref="Revision"/> that <see cref="CachedBlob"/> was built from.</summary>
+    internal uint CachedBlobRevision { get; set; }
+
     /// <summary>Returns allocated points for <paramref name="attr"/>.</summary>
     public ushort GetAttribute(PrimaryAttributeId attr)
     {
@@ -35,6 +50,7 @@ public sealed class CharacterProgressionState
         if ((uint)idx < MaxAttributeSlots)
         {
             _attributePoints[idx] = points;
+            this.Revision++;
         }
     }
 
@@ -46,6 +62,7 @@ public sealed class CharacterProgressionState
         {
             int next = Math.Min(ushort.MaxValue, _attributePoints[idx] + delta);
             _attributePoints[idx] = (ushort)next;
+            this.Revision++;
         }
     }
 
@@ -73,6 +90,7 @@ public sealed class CharacterProgressionState
     public void SetSkillRank(ushort skillId, byte rank)
     {
         CharacterSkillMask bit = CharacterSkillMaskHelper.BitForSkill(skillId);
+        this.Revision++;
         if (rank == 0)
         {
             _ = _skillRanks.Remove(skillId);
@@ -130,6 +148,7 @@ public sealed class CharacterProgressionState
         Array.Clear(_attributePoints);
         _skillRanks.Clear();
         this.UnlockedSkillMask = CharacterSkillMask.None;
+        this.Revision++;
     }
 
     /// <summary>Copies all state into <paramref name="destination"/> without mutating source.</summary>
@@ -144,9 +163,13 @@ public sealed class CharacterProgressionState
         }
 
         destination.UnlockedSkillMask = this.UnlockedSkillMask;
+        destination.Revision++;
     }
 
     /// <summary>Forces synchronization of <see cref="UnlockedSkillMask"/> from loaded skill ranks.</summary>
-    public void SetUnlockedSkillMask(CharacterSkillMask mask) =>
+    public void SetUnlockedSkillMask(CharacterSkillMask mask)
+    {
         this.UnlockedSkillMask = mask;
+        this.Revision++;
+    }
 }
