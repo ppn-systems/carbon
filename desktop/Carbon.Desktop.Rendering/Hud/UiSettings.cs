@@ -31,6 +31,11 @@ public sealed class UiSettings
     /// <summary>Gets or sets discrete camera zoom preset (<c>0</c>=Wide, <c>1</c>=Standard, <c>2</c>=Close).</summary>
     public int CameraZoomPreset { get; set; } = 1;
 
+    /// <summary>
+    /// Gets or sets the chosen UI language code (empty = default). <c>CARBON_LANG</c> overrides it at startup (ADR-020 D3).
+    /// </summary>
+    public string Language { get; set; } = string.Empty;
+
     /// <summary>Loads settings from <paramref name="filePath"/> (or default local config path) if present.</summary>
     public static UiSettings LoadOrDefault(string? filePath = null)
     {
@@ -92,6 +97,9 @@ public sealed class UiSettings
                         }
 
                         break;
+                    case nameof(Language):
+                        settings.Language = val;
+                        break;
                     default:
                         break;
                 }
@@ -124,6 +132,7 @@ public sealed class UiSettings
                 $"{nameof(this.ShowTelemetry)}={this.ShowTelemetry}",
                 $"{nameof(this.ShowKeybindHints)}={this.ShowKeybindHints}",
                 $"{nameof(this.CameraZoomPreset)}={this.CameraZoomPreset.ToString(CultureInfo.InvariantCulture)}",
+                $"{nameof(this.Language)}={this.Language}",
             ];
             File.WriteAllLines(path, lines);
         }

@@ -15,7 +15,7 @@ Applies to all documentation, markdown files, architecture records, and executio
 | **Agent-facing docs** (`AGENTS.md`, `.claude/skills/*`) | English | Maximum precision and consistency across LLM agents |
 | **Execution prompts** (`docs/execution/*`) | English | Explicit DOD, verified citations with `file:line` |
 | **Architecture Decision Records** (`docs/adr/*`) | Vietnamese or English | Vietnamese for internal project ADRs; technical terms in English |
-| **Game localization & Player texts** (`resources/locales/*`) | Vietnamese & English | Structured localization keys (`text_vi.json`, `text_en.json`) |
+| **Game localization & Player texts** (`resources/localization/*`) | English (`en.json`, source of truth) & Vietnamese (`vi.json`) | Flat dot-namespaced keys, natural Vietnamese with correct diacritics; rules in `resources/localization/README.md` (ADR-020) |
 
 ## Architecture Decision Records (ADR)
 

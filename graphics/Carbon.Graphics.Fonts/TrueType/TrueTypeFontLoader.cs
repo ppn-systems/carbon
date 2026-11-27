@@ -84,13 +84,16 @@ public sealed class TrueTypeRasterizedFont
 }
 
 /// <summary>
-/// Zero-dependency, Native-AOT-safe TrueType (<c>.ttf</c>) ASCII rasterizer producing packed RGBA8 glyph atlases
+/// Zero-dependency, Native-AOT-safe TrueType (<c>.ttf</c>) rasterizer producing packed RGBA8 glyph atlases
 /// compatible with <see cref="BitmapFont"/> without requiring external native font libraries.
+/// Supports ordered multi-face font stacks so a fallback face can fill glyphs the primary face lacks (ADR-020 D5).
 /// </summary>
 public static class TrueTypeFontLoader
 {
     private const int CellPadding = 2;
-    private const int AtlasWidth = 256;
+    private const int NarrowAtlasWidth = 256;
+    private const int WideAtlasWidth = 512;
+    private const int WideAtlasGlyphThreshold = 256;
 
     /// <summary>
     /// Parses a TrueType font payload and rasterizes printable ASCII (<c>32..126</c>) glyphs at <paramref name="pixelSize"/>.
@@ -102,105 +105,126 @@ public static class TrueTypeFontLoader
     public static TrueTypeRasterizedFont RasterizeAscii(string name, ReadOnlySpan<byte> ttfData, float pixelSize = 16f)
     {
         ArgumentException.ThrowIfNullOrEmpty(name, nameof(name));
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pixelSize, nameof(pixelSize));
+        return Rasterize(name, [new FontFaceSource(name, ttfData.ToArray(), pixelSize)], UnicodeGlyphRanges.Ascii);
+    }
 
-        if (ttfData.Length < 12)
+    /// <summary>
+    /// Rasterizes every code point of <paramref name="ranges"/> found in the ordered <paramref name="faces"/> stack.
+    /// The first face defines line metrics and the baseline; a later face only supplies code points that every earlier face lacks.
+    /// Code points no face maps are skipped (they render as the atlas fallback glyph).
+    /// </summary>
+    /// <param name="name">Friendly font identifier.</param>
+    /// <param name="faces">Ordered face stack; must contain at least one face.</param>
+    /// <param name="ranges">Code-point ranges to bake.</param>
+    /// <returns>CPU-side packed atlas pixels and glyph metrics.</returns>
+    public static TrueTypeRasterizedFont Rasterize(string name, IReadOnlyList<FontFaceSource> faces, IReadOnlyList<CodePointRange> ranges)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name, nameof(name));
+        ArgumentNullException.ThrowIfNull(faces);
+        ArgumentNullException.ThrowIfNull(ranges);
+        if (faces.Count == 0)
         {
-            throw new InvalidOperationException("TrueType font data is truncated.");
+            throw new ArgumentException("At least one font face is required.", nameof(faces));
         }
 
-        ushort numTables = ReadU16(ttfData, 4);
-        int headOff = FindTable(ttfData, numTables, "head");
-        int hheaOff = FindTable(ttfData, numTables, "hhea");
-        int maxpOff = FindTable(ttfData, numTables, "maxp");
-        int cmapOff = FindTable(ttfData, numTables, "cmap");
-        int locaOff = FindTable(ttfData, numTables, "loca");
-        int glyfOff = FindTable(ttfData, numTables, "glyf");
-        int hmtxOff = FindTable(ttfData, numTables, "hmtx");
-
-        if (headOff < 0 || hheaOff < 0 || maxpOff < 0 || cmapOff < 0 || locaOff < 0 || glyfOff < 0 || hmtxOff < 0)
+        FaceLayout[] layouts = new FaceLayout[faces.Count];
+        for (int i = 0; i < faces.Count; i++)
         {
-            throw new InvalidOperationException("TrueType font is missing required outline tables (head/hhea/maxp/cmap/loca/glyf/hmtx).");
+            layouts[i] = FaceLayout.Parse(faces[i]);
         }
 
-        ushort unitsPerEm = Math.Max((ushort)1, ReadU16(ttfData, headOff + 18));
-        short indexToLocFormat = ReadS16(ttfData, headOff + 50);
-        short ascent = ReadS16(ttfData, hheaOff + 4);
-        short descent = ReadS16(ttfData, hheaOff + 6);
-        short lineGap = ReadS16(ttfData, hheaOff + 8);
-        ushort numHMetrics = Math.Max((ushort)1, ReadU16(ttfData, hheaOff + 34));
-        ushort numGlyphs = ReadU16(ttfData, maxpOff + 4);
-
-        int cmapFormat4Off = FindCmapFormat4Subtable(ttfData, cmapOff);
-        int cmapFormat0Off = cmapFormat4Off < 0 ? FindCmapFormat0Subtable(ttfData, cmapOff) : -1;
-        if (cmapFormat4Off < 0 && cmapFormat0Off < 0)
-        {
-            throw new InvalidOperationException("TrueType font lacks a supported cmap encoding subtable (format 4 or format 0).");
-        }
-
-        float scale = pixelSize / unitsPerEm;
-        float baselinePx = MathF.Round(ascent * scale);
-        float lineHeightPx = MathF.Ceiling((ascent - descent + lineGap) * scale);
+        FaceLayout primary = layouts[0];
+        float pixelSize = faces[0].PixelSize;
+        float primaryScale = pixelSize / primary.UnitsPerEm;
+        float baselinePx = MathF.Round(primary.Ascent * primaryScale);
+        float lineHeightPx = MathF.Ceiling((primary.Ascent - primary.Descent + primary.LineGap) * primaryScale);
         if (lineHeightPx < pixelSize)
         {
             lineHeightPx = pixelSize;
         }
 
-        int spaceGlyphId = MapCodePoint(ttfData, cmapFormat4Off, cmapFormat0Off, ' ');
-        float spaceAdvance = ReadAdvanceWidth(ttfData, hmtxOff, numHMetrics, spaceGlyphId) * scale;
+        int spaceGlyphId = primary.Map(' ');
+        float spaceAdvance = primary.AdvanceWidth(spaceGlyphId) * primaryScale;
         if (spaceAdvance <= 0.5f)
         {
             spaceAdvance = MathF.Round(pixelSize * 0.35f);
         }
 
-        List<GlyphBitmap> renderedGlyphs = new(95);
+        List<GlyphBitmap> renderedGlyphs = new(128);
         List<EdgeSegment> edgeScratch = new(64);
         List<int> endPointScratch = new(8);
         List<byte> flagScratch = new(64);
         List<Vector2> pointScratch = new(64);
+        HashSet<int> seen = [];
 
-        for (int cp = 32; cp <= 126; cp++)
+        for (int r = 0; r < ranges.Count; r++)
         {
-            int glyphId = MapCodePoint(ttfData, cmapFormat4Off, cmapFormat0Off, cp);
-            if (glyphId == 0 && cp != ' ')
+            CodePointRange range = ranges[r];
+            for (int cp = range.First; cp <= range.Last; cp++)
             {
-                continue;
+                if (!seen.Add(cp))
+                {
+                    continue;
+                }
+
+                int faceIndex = -1;
+                int glyphId = 0;
+                for (int f = 0; f < layouts.Length; f++)
+                {
+                    glyphId = layouts[f].Map(cp);
+                    if (glyphId != 0 || (cp == ' ' && f == 0))
+                    {
+                        faceIndex = f;
+                        break;
+                    }
+                }
+
+                if (faceIndex < 0)
+                {
+                    continue;
+                }
+
+                FaceLayout face = layouts[faceIndex];
+                float scale = faces[faceIndex].PixelSize / face.UnitsPerEm;
+                float advance = face.AdvanceWidth(glyphId) * scale;
+                bool isCombiningMark = UnicodeGlyphRanges.CombiningDiacriticalMarks.Contains(cp);
+                float finalAdvance = isCombiningMark ? MathF.Max(0f, advance) : MathF.Max(1f, advance);
+                if (cp == ' ' || !TryBuildGlyphEdges(
+                    face.Data,
+                    face.LocaOffset,
+                    face.GlyfOffset,
+                    face.IndexToLocFormat,
+                    face.NumGlyphs,
+                    glyphId,
+                    Matrix3x2.Identity,
+                    edgeScratch,
+                    endPointScratch,
+                    flagScratch,
+                    pointScratch,
+                    out short xMin,
+                    out short yMin,
+                    out short xMax,
+                    out short yMax))
+                {
+                    renderedGlyphs.Add(new GlyphBitmap(cp, 0, 0, 0f, 0f, cp == ' ' ? spaceAdvance : finalAdvance, []));
+                    continue;
+                }
+
+                int gx0 = (int)MathF.Floor(xMin * scale);
+                int gx1 = (int)MathF.Ceiling(xMax * scale);
+                int gy0 = (int)MathF.Floor(yMin * scale);
+                int gy1 = (int)MathF.Ceiling(yMax * scale);
+                int gw = Math.Max(1, gx1 - gx0);
+                int gh = Math.Max(1, gy1 - gy0);
+
+                byte[] alpha = RasterizeEdgesToAlpha(edgeScratch, gx0, gy1, gw, gh, scale);
+                float xOffset = gx0;
+                float yOffset = baselinePx - gy1;
+                renderedGlyphs.Add(new GlyphBitmap(cp, gw, gh, xOffset, yOffset, finalAdvance, alpha));
             }
-
-            float advance = ReadAdvanceWidth(ttfData, hmtxOff, numHMetrics, glyphId) * scale;
-            if (cp == ' ' || !TryBuildGlyphEdges(
-                ttfData,
-                locaOff,
-                glyfOff,
-                indexToLocFormat,
-                numGlyphs,
-                glyphId,
-                Matrix3x2.Identity,
-                edgeScratch,
-                endPointScratch,
-                flagScratch,
-                pointScratch,
-                out short xMin,
-                out short yMin,
-                out short xMax,
-                out short yMax))
-            {
-                renderedGlyphs.Add(new GlyphBitmap(cp, 0, 0, 0f, 0f, advance, []));
-                continue;
-            }
-
-            int gx0 = (int)MathF.Floor(xMin * scale);
-            int gx1 = (int)MathF.Ceiling(xMax * scale);
-            int gy0 = (int)MathF.Floor(yMin * scale);
-            int gy1 = (int)MathF.Ceiling(yMax * scale);
-            int gw = Math.Max(1, gx1 - gx0);
-            int gh = Math.Max(1, gy1 - gy0);
-
-            byte[] alpha = RasterizeEdgesToAlpha(edgeScratch, gx0, gy1, gw, gh, scale);
-            float xOffset = gx0;
-            float yOffset = baselinePx - gy1;
-            renderedGlyphs.Add(new GlyphBitmap(cp, gw, gh, xOffset, yOffset, MathF.Max(1f, advance), alpha));
         }
+
+        int atlasWidth = renderedGlyphs.Count > WideAtlasGlyphThreshold ? WideAtlasWidth : NarrowAtlasWidth;
 
         // Pack into power-of-two atlas height with 2px cell margins
         int cursorX = CellPadding;
@@ -214,7 +238,7 @@ public static class TrueTypeFontLoader
                 continue;
             }
 
-            if (cursorX + g.Width + CellPadding > AtlasWidth)
+            if (cursorX + g.Width + CellPadding > atlasWidth)
             {
                 cursorX = CellPadding;
                 cursorY += rowHeight + CellPadding;
@@ -235,7 +259,7 @@ public static class TrueTypeFontLoader
             atlasHeight *= 2;
         }
 
-        byte[] atlasPixels = new byte[AtlasWidth * atlasHeight * 4];
+        byte[] atlasPixels = new byte[atlasWidth * atlasHeight * 4];
         List<RasterizedGlyphInfo> glyphInfos = new(renderedGlyphs.Count);
 
         cursorX = CellPadding;
@@ -250,7 +274,7 @@ public static class TrueTypeFontLoader
                 continue;
             }
 
-            if (cursorX + g.Width + CellPadding > AtlasWidth)
+            if (cursorX + g.Width + CellPadding > atlasWidth)
             {
                 cursorX = CellPadding;
                 cursorY += rowHeight + CellPadding;
@@ -267,7 +291,7 @@ public static class TrueTypeFontLoader
                         continue;
                     }
 
-                    int dstIdx = (((cursorY + py) * AtlasWidth) + cursorX + px) * 4;
+                    int dstIdx = (((cursorY + py) * atlasWidth) + cursorX + px) * 4;
                     atlasPixels[dstIdx] = 255;
                     atlasPixels[dstIdx + 1] = 255;
                     atlasPixels[dstIdx + 2] = 255;
@@ -286,18 +310,61 @@ public static class TrueTypeFontLoader
         }
 
         FontMetrics metrics = new(pixelSize, lineHeightPx, baselinePx, spaceAdvance, spaceAdvance * 4f);
-        return new TrueTypeRasterizedFont(name, AtlasWidth, (uint)atlasHeight, atlasPixels, in metrics, glyphInfos);
+        return new TrueTypeRasterizedFont(name, (uint)atlasWidth, (uint)atlasHeight, atlasPixels, in metrics, glyphInfos);
     }
 
     /// <summary>
-    /// Rasterizes a TrueType font payload and uploads the packed atlas onto <paramref name="device"/>.
+    /// Returns whether the TrueType font in <paramref name="ttfData"/> maps <paramref name="codePoint"/> to a real glyph
+    /// (used by font-coverage CI guards).
+    /// </summary>
+    /// <param name="ttfData">Raw bytes of the <c>.ttf</c> file.</param>
+    /// <param name="codePoint">Unicode code point.</param>
+    /// <returns><see langword="true"/> when the cmap maps the code point to a glyph other than <c>.notdef</c>.</returns>
+    public static bool HasGlyph(ReadOnlySpan<byte> ttfData, int codePoint)
+    {
+        if (ttfData.Length < 12)
+        {
+            return false;
+        }
+
+        ushort numTables = ReadU16(ttfData, 4);
+        int cmapOff = FindTable(ttfData, numTables, "cmap");
+        if (cmapOff < 0)
+        {
+            return false;
+        }
+
+        int fmt4 = FindCmapFormat4Subtable(ttfData, cmapOff);
+        int fmt0 = fmt4 < 0 ? FindCmapFormat0Subtable(ttfData, cmapOff) : -1;
+        return MapCodePoint(ttfData, fmt4, fmt0, codePoint) != 0;
+    }
+
+    /// <summary>
+    /// Rasterizes a TrueType font payload (printable ASCII) and uploads the packed atlas onto <paramref name="device"/>.
     /// </summary>
     /// <param name="name">Friendly font identifier.</param>
     /// <param name="device">Active graphics device.</param>
     /// <param name="ttfData">Raw bytes of the <c>.ttf</c> file.</param>
     /// <param name="pixelSize">Target pixel height.</param>
     /// <returns>GPU-backed <see cref="BitmapFont"/>.</returns>
-    public static BitmapFont CreateFromTrueType(string name, IGraphicsDevice device, ReadOnlySpan<byte> ttfData, float pixelSize = 16f)
+    public static BitmapFont CreateFromTrueType(string name, IGraphicsDevice device, ReadOnlySpan<byte> ttfData, float pixelSize = 16f) =>
+        Upload(device, RasterizeAscii(name, ttfData, pixelSize));
+
+    /// <summary>
+    /// Rasterizes an ordered face stack over <paramref name="ranges"/> and uploads the packed atlas onto <paramref name="device"/>.
+    /// </summary>
+    /// <param name="name">Friendly font identifier.</param>
+    /// <param name="device">Active graphics device.</param>
+    /// <param name="faces">Ordered face stack (primary first).</param>
+    /// <param name="ranges">Code-point ranges to bake.</param>
+    /// <returns>GPU-backed <see cref="BitmapFont"/>.</returns>
+    public static BitmapFont CreateFromTrueType(string name, IGraphicsDevice device, IReadOnlyList<FontFaceSource> faces, IReadOnlyList<CodePointRange> ranges)
+    {
+        ArgumentNullException.ThrowIfNull(device);
+        return Upload(device, Rasterize(name, faces, ranges));
+    }
+
+    private static BitmapFont Upload(IGraphicsDevice device, TrueTypeRasterizedFont rasterized)
     {
         ArgumentNullException.ThrowIfNull(device);
         if (device is not GraphicsDevice concrete)
@@ -305,7 +372,6 @@ public static class TrueTypeFontLoader
             throw new ArgumentException("Requires concrete GraphicsDevice to upload TrueType font atlas.", nameof(device));
         }
 
-        TrueTypeRasterizedFont rasterized = RasterizeAscii(name, ttfData, pixelSize);
         Texture2D? texture = null;
         BitmapFont? font = null;
         try
@@ -972,6 +1038,88 @@ public static class TrueTypeFontLoader
         ReadS16(data, offset) / 16384f;
 
     private readonly record struct EdgeSegment(Vector2 A, Vector2 B);
+
+    /// <summary>Table offsets and header metrics of one parsed face in a font stack.</summary>
+    private sealed class FaceLayout
+    {
+        private FaceLayout(byte[] data) => this.Data = data;
+
+        public byte[] Data { get; }
+
+        public int LocaOffset { get; private init; }
+
+        public int GlyfOffset { get; private init; }
+
+        public int HmtxOffset { get; private init; }
+
+        public int CmapFormat4Offset { get; private init; }
+
+        public int CmapFormat0Offset { get; private init; }
+
+        public ushort UnitsPerEm { get; private init; }
+
+        public short IndexToLocFormat { get; private init; }
+
+        public short Ascent { get; private init; }
+
+        public short Descent { get; private init; }
+
+        public short LineGap { get; private init; }
+
+        public ushort NumHMetrics { get; private init; }
+
+        public ushort NumGlyphs { get; private init; }
+
+        public static FaceLayout Parse(FontFaceSource source)
+        {
+            byte[] data = source.Data;
+            if (data.Length < 12)
+            {
+                throw new InvalidOperationException($"TrueType font '{source.Name}' data is truncated.");
+            }
+
+            ushort numTables = ReadU16(data, 4);
+            int headOff = FindTable(data, numTables, "head");
+            int hheaOff = FindTable(data, numTables, "hhea");
+            int maxpOff = FindTable(data, numTables, "maxp");
+            int cmapOff = FindTable(data, numTables, "cmap");
+            int locaOff = FindTable(data, numTables, "loca");
+            int glyfOff = FindTable(data, numTables, "glyf");
+            int hmtxOff = FindTable(data, numTables, "hmtx");
+
+            if (headOff < 0 || hheaOff < 0 || maxpOff < 0 || cmapOff < 0 || locaOff < 0 || glyfOff < 0 || hmtxOff < 0)
+            {
+                throw new InvalidOperationException($"TrueType font '{source.Name}' is missing required outline tables (head/hhea/maxp/cmap/loca/glyf/hmtx).");
+            }
+
+            int fmt4 = FindCmapFormat4Subtable(data, cmapOff);
+            int fmt0 = fmt4 < 0 ? FindCmapFormat0Subtable(data, cmapOff) : -1;
+            if (fmt4 < 0 && fmt0 < 0)
+            {
+                throw new InvalidOperationException($"TrueType font '{source.Name}' lacks a supported cmap encoding subtable (format 4 or format 0).");
+            }
+
+            return new FaceLayout(data)
+            {
+                LocaOffset = locaOff,
+                GlyfOffset = glyfOff,
+                HmtxOffset = hmtxOff,
+                CmapFormat4Offset = fmt4,
+                CmapFormat0Offset = fmt0,
+                UnitsPerEm = Math.Max((ushort)1, ReadU16(data, headOff + 18)),
+                IndexToLocFormat = ReadS16(data, headOff + 50),
+                Ascent = ReadS16(data, hheaOff + 4),
+                Descent = ReadS16(data, hheaOff + 6),
+                LineGap = ReadS16(data, hheaOff + 8),
+                NumHMetrics = Math.Max((ushort)1, ReadU16(data, hheaOff + 34)),
+                NumGlyphs = ReadU16(data, maxpOff + 4),
+            };
+        }
+
+        public int Map(int codePoint) => MapCodePoint(this.Data, this.CmapFormat4Offset, this.CmapFormat0Offset, codePoint);
+
+        public ushort AdvanceWidth(int glyphId) => ReadAdvanceWidth(this.Data, this.HmtxOffset, this.NumHMetrics, glyphId);
+    }
 
     private readonly record struct GlyphBitmap(
         int CodePoint,
