@@ -2,11 +2,13 @@
 
 using System;
 using System.Globalization;
+using System.Numerics;
 using Carbon.Contracts.Common;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Input;
 using Carbon.Desktop.Rendering.Hud;
+using Carbon.Desktop.Rendering.UiSkin;
 
 namespace Carbon.Desktop.Gameplay.Repair;
 
@@ -17,8 +19,10 @@ namespace Carbon.Desktop.Gameplay.Repair;
 /// <param name="session">World session.</param>
 /// <param name="hud">HUD that draws the window.</param>
 /// <param name="options">Desktop options (the screenshot tool's <c>CARBON_OPEN_REPAIR</c> and <c>CARBON_REPAIR_PREVIEW</c>).</param>
-internal sealed class RepairInteraction(IWorldSession session, HudUiState hud, DesktopOptions options)
+/// <param name="ui">The UI scale the window is drawn at (clicks are mapped onto its canvas).</param>
+internal sealed class RepairInteraction(IWorldSession session, HudUiState hud, DesktopOptions options, UiScaleState ui)
 {
+    private readonly UiScaleState _ui = ui ?? throw new ArgumentNullException(nameof(ui));
     private readonly IWorldSession _session = session ?? throw new ArgumentNullException(nameof(session));
     private readonly HudUiState _hud = hud ?? throw new ArgumentNullException(nameof(hud));
     private readonly DesktopOptions _options = options ?? throw new ArgumentNullException(nameof(options));
@@ -67,13 +71,18 @@ internal sealed class RepairInteraction(IWorldSession session, HudUiState hud, D
             return;
         }
 
-        if (!RepairModalWidget.ContainsPoint(input.MouseScreenPosition, width, height))
+        // The window is laid out on the UI-scale canvas (docs/art/menu-ui.md rule 21): hit-test there.
+        _ui.Resize(width, height);
+        Vector2 mouse = _ui.ToCanvas(input.MouseScreenPosition);
+        width = _ui.CanvasWidth;
+        height = _ui.CanvasHeight;
+        if (!RepairModalWidget.ContainsPoint(mouse, width, height))
         {
             _hud.Repair.Close();
             return;
         }
 
-        switch (_hud.Repair.HandleClick(input.MouseScreenPosition, _session, width, height))
+        switch (_hud.Repair.HandleClick(mouse, _session, width, height))
         {
             case RepairClick.Close:
                 _hud.Repair.Close();

@@ -41,8 +41,6 @@ internal abstract class MenuScene : GameScene
     private float _backspaceHoldTime;
     private float _backspaceRepeatTime;
     private bool _shiftDown;
-    private ScaledFontCache? _fonts;
-    private float? _uiScaleChoice;
 
     protected MenuScene(string name, MenuFlow flow, string captureName)
         : base(name)
@@ -54,19 +52,19 @@ internal abstract class MenuScene : GameScene
 
     protected MenuFlow Flow { get; }
 
-    protected BitmapFont? Font => _fonts?.Font;
+    protected BitmapFont? Font => this.Flow.Ui.Fonts?.Font;
 
     /// <summary>
     /// Gets the screen pixels per layout unit (docs/art/menu-ui.md rule 21): layouts work on a canvas of the window size
     /// divided by this, so the 1280×720 design fills a 1080p window at 1.5.
     /// </summary>
-    internal float UiScale { get; private set; } = 1f;
+    internal float UiScale => this.Flow.Ui.Scale;
 
     /// <summary>Gets the menu window rectangle from the last layout, in canvas units (tests check it fits).</summary>
     internal RectangleF PanelBounds { get; private set; }
 
     /// <summary>Gets the font cache (tests check a steady frame never re-bakes).</summary>
-    internal ScaledFontCache? Fonts => _fonts;
+    internal ScaledFontCache? Fonts => this.Flow.Ui.Fonts;
 
     protected CarbonUiSkin? Skin { get; private set; }
 
@@ -107,7 +105,7 @@ internal abstract class MenuScene : GameScene
         this.Geometry = new GeometryBatch(context.Device);
         this.Skin = CarbonUiSkin.Load(context.Device);
         IGraphicsDevice device = context.Device;
-        this.UseFonts(new ScaledFontCache(scale => GameFontLoader.LoadFont(device, locale: null, scale)), context.WindowWidth, context.WindowHeight);
+        this.UseFonts(() => new ScaledFontCache(scale => GameFontLoader.LoadFont(device, locale: null, scale)), context.WindowWidth, context.WindowHeight);
     }
 
     /// <inheritdoc/>
@@ -250,21 +248,19 @@ internal abstract class MenuScene : GameScene
     }
 
     /// <summary>Gets the canvas width in layout units (the window width divided by <see cref="UiScale"/>).</summary>
-    protected int CanvasWidth { get; private set; }
+    protected int CanvasWidth => this.Flow.Ui.CanvasWidth;
 
     /// <summary>Gets the canvas height in layout units (the window height divided by <see cref="UiScale"/>).</summary>
-    protected int CanvasHeight { get; private set; }
+    protected int CanvasHeight => this.Flow.Ui.CanvasHeight;
 
     /// <summary>
-    /// Takes over <paramref name="fonts"/> and reads the player's UI scale choice: once per screen, never per frame. Load
-    /// calls it with the real font loader; tests hand in a fake one.
+    /// Supplies the shared font cache if no screen has yet and re-reads the player's UI scale choice: once per screen,
+    /// never per frame. Load calls it with the real font loader; tests hand in a fake one.
     /// </summary>
-    internal void UseFonts(ScaledFontCache fonts, int windowWidth, int windowHeight)
+    internal void UseFonts(Func<ScaledFontCache> createFonts, int windowWidth, int windowHeight)
     {
-        ArgumentNullException.ThrowIfNull(fonts);
-        _fonts?.Dispose();
-        _fonts = fonts;
-        _uiScaleChoice = this.Flow.ReadUiScaleChoice();
+        this.Flow.Ui.EnsureFonts(createFonts);
+        this.Flow.Ui.ReloadChoice();
         this.ApplyScale(windowWidth, windowHeight);
     }
 
@@ -335,8 +331,6 @@ internal abstract class MenuScene : GameScene
             this.Skin = null;
             this.Geometry?.Dispose();
             this.Geometry = null;
-            _fonts?.Dispose();
-            _fonts = null;
         }
 
         base.Dispose(disposing);
@@ -347,14 +341,12 @@ internal abstract class MenuScene : GameScene
     /// </summary>
     private void ApplyScale(int windowWidth, int windowHeight)
     {
-        float scale = Rendering.UiSkin.UiScale.Resolve(_uiScaleChoice, windowWidth, windowHeight);
-        this.UiScale = scale;
-        this.CanvasWidth = (int)MathF.Floor(windowWidth / scale);
-        this.CanvasHeight = (int)MathF.Floor(windowHeight / scale);
-        _ = _fonts?.Get(scale);
+        UiScaleState ui = this.Flow.Ui;
+        ui.Resize(windowWidth, windowHeight);
+        _ = ui.Font; // re-bakes only when the scale changed
         if (this.Skin is { } skin)
         {
-            skin.PixelScale = scale;
+            skin.PixelScale = ui.Scale;
         }
     }
 

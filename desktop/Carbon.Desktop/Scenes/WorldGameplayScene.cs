@@ -117,9 +117,9 @@ public sealed class WorldGameplayScene : GameScene
         _cameraRig.Resize(context.WindowWidth, context.WindowHeight);
         _worldRenderer = new WorldSceneRenderer(context.Device, _options);
         _hudState = new HudUiState();
-        _hudRenderer = new HudOverlayRenderer(context.Device, _worldRenderer.VectorArt, _hudState);
+        _hudRenderer = new HudOverlayRenderer(context.Device, _worldRenderer.VectorArt, _hudState, _flow.Ui);
         _inventoryInput.AttachHud(_hudRenderer);
-        _repair = new RepairInteraction(_session, _hudState, _options);
+        _repair = new RepairInteraction(_session, _hudState, _options, _flow.Ui);
         _trade = new TradeInteraction(_session, _hudRenderer, _options, IsTraderNpc, this.OpenForgeWindow, () => _repair.Open(RepairVenue.Blacksmith));
         _hotkeys = new GameplayHotkeyRouter(_session, _hudRenderer, _hudState, _inventoryInput, _repair, this.ToggleForgeStationModal);
         _worldInput = new WorldInteractionInput(_session, _hudRenderer, _inventoryInput, _interaction, _trade, _camera, this.OpenForgeWindow);
@@ -201,7 +201,7 @@ public sealed class WorldGameplayScene : GameScene
         _mouseWorldPosition = _camera.ScreenToWorld(in _mouseScreenPosition);
         _worldRenderer.PreviewDowned = _hudState.DeathPreview is not null;
 
-        if (DeathScreenInput.Handle(_session, input.ConfirmPressed, input.LeftClickPressed, input.MouseScreenPosition, context.WindowWidth, context.WindowHeight))
+        if (DeathScreenInput.Handle(_session, _hudRenderer, input.ConfirmPressed, input.LeftClickPressed, input.MouseScreenPosition, context.WindowWidth, context.WindowHeight))
         {
             if (_hudState.HasActiveModal)
             {

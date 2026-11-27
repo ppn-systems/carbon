@@ -125,7 +125,7 @@ internal sealed class ScreenshotAids(DesktopOptions options)
         string mode = preview[..colon];
         if (mode == "inventory-tooltip")
         {
-            return HudOverlayRenderer.GetInventorySlotCenter(slot, viewportWidth, viewportHeight);
+            return hud.GetInventorySlotCenter(slot, viewportWidth, viewportHeight);
         }
 
         if (!hud.InventoryDialog.IsOpen && !slots[slot].IsEmpty)
