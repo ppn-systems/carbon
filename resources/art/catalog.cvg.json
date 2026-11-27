@@ -1031,6 +1031,18 @@
       "id": "dune_grass",
       "displayName": "Dune Grass",
       "file": "props/dune_grass.cvg.json"
+    },
+    {
+      "propType": 25,
+      "id": "loose_stones",
+      "displayName": "Loose Stones",
+      "file": "props/loose_stones.cvg.json"
+    },
+    {
+      "propType": 26,
+      "id": "fallen_branch",
+      "displayName": "Fallen Branch",
+      "file": "props/fallen_branch.cvg.json"
     }
   ],
   "biomes": [
