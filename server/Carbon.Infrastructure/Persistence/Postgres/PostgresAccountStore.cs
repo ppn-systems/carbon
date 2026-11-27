@@ -15,7 +15,7 @@ namespace Carbon.Infrastructure.Persistence.Postgres;
 /// <summary>
 /// Pure <c>Npgsql</c> account store with zero reflection and Native AOT compatibility.
 /// </summary>
-public sealed class PgAccountStore : IAccountStore
+public sealed class PostgresAccountStore : IAccountStore
 {
     private const string FindSql = """
         SELECT id, username, normalized_username, password_hash, password_salt, created_at_utc, is_banned
@@ -40,10 +40,10 @@ public sealed class PgAccountStore : IAccountStore
     private readonly NpgsqlDataSource _dataSource;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="PgAccountStore"/> class.
+    /// Initializes a new instance of the <see cref="PostgresAccountStore"/> class.
     /// </summary>
     /// <param name="dataSource">PostgreSQL data source.</param>
-    public PgAccountStore(NpgsqlDataSource dataSource) =>
+    public PostgresAccountStore(NpgsqlDataSource dataSource) =>
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 
     /// <inheritdoc/>

@@ -44,14 +44,14 @@ public static class Program
 
         ILogger logger = loggerFactory.CreateLogger("Carbon.Host");
 
-        using NpgsqlDataSource? pgSource = options.Provider == DatabaseProvider.Postgres
-            ? PgDataSourceFactory.Create(options.ConnectionString)
+        using NpgsqlDataSource? postgresSource = options.Provider == DatabaseProvider.Postgres
+            ? PostgresDataSourceFactory.Create(options.ConnectionString)
             : null;
         using SqliteConnectionFactory? sqliteFactory = options.Provider == DatabaseProvider.Sqlite
             ? new SqliteConnectionFactory(options.ConnectionString)
             : null;
 
-        return await RunWithDatabaseAsync(args, options, loggerFactory, logger, pgSource, sqliteFactory)
+        return await RunWithDatabaseAsync(args, options, loggerFactory, logger, postgresSource, sqliteFactory)
             .ConfigureAwait(false);
     }
 
@@ -60,7 +60,7 @@ public static class Program
         HostRuntimeOptions options,
         ILoggerFactory loggerFactory,
         ILogger logger,
-        NpgsqlDataSource? pgSource,
+        NpgsqlDataSource? postgresSource,
         SqliteConnectionFactory? sqliteFactory)
     {
 
@@ -72,15 +72,15 @@ public static class Program
         IGameplaySecretStore gameplaySecretStore;
         IRememberTokenStore rememberTokenStore;
 
-        if (pgSource is not null)
+        if (postgresSource is not null)
         {
-            migrator = new PgSchemaMigrator(pgSource);
-            accountStore = new PgAccountStore(pgSource);
-            characterStore = new PgCharacterStore(pgSource);
-            chunkDeltaRepo = new PgChunkDeltaRepository(pgSource);
-            traderStockRepo = new PgTraderStockRepository(pgSource);
-            gameplaySecretStore = new PgGameplaySecretStore(pgSource);
-            rememberTokenStore = new PgRememberTokenStore(pgSource);
+            migrator = new PostgresSchemaMigrator(postgresSource);
+            accountStore = new PostgresAccountStore(postgresSource);
+            characterStore = new PostgresCharacterStore(postgresSource);
+            chunkDeltaRepo = new PostgresChunkDeltaRepository(postgresSource);
+            traderStockRepo = new PostgresTraderStockRepository(postgresSource);
+            gameplaySecretStore = new PostgresGameplaySecretStore(postgresSource);
+            rememberTokenStore = new PostgresRememberTokenStore(postgresSource);
         }
         else
         {

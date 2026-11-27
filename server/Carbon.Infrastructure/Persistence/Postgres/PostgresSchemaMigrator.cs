@@ -14,7 +14,7 @@ namespace Carbon.Infrastructure.Persistence.Postgres;
 /// <summary>
 /// Idempotent pure-SQL schema migrator for PostgreSQL protected by a transaction advisory lock.
 /// </summary>
-public sealed class PgSchemaMigrator : IDatabaseMigrator
+public sealed class PostgresSchemaMigrator : IDatabaseMigrator
 {
     private const long MigrationAdvisoryLockId = 0x434152424F4E4442L;
 
@@ -109,10 +109,10 @@ public sealed class PgSchemaMigrator : IDatabaseMigrator
     private readonly NpgsqlDataSource _dataSource;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="PgSchemaMigrator"/> class.
+    /// Initializes a new instance of the <see cref="PostgresSchemaMigrator"/> class.
     /// </summary>
     /// <param name="dataSource">PostgreSQL data source.</param>
-    public PgSchemaMigrator(NpgsqlDataSource dataSource) =>
+    public PostgresSchemaMigrator(NpgsqlDataSource dataSource) =>
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 
     /// <inheritdoc/>

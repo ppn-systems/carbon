@@ -18,7 +18,7 @@ namespace Carbon.Infrastructure.Persistence.Postgres;
 /// <summary>
 /// Pure <c>Npgsql</c> character persistence store using explicit <see cref="NpgsqlBatch"/> transactions.
 /// </summary>
-public sealed class PgCharacterStore : ICharacterStore
+public sealed class PostgresCharacterStore : ICharacterStore
 {
     private const string ListSql = """
         SELECT id, account_id, name, level, appearance_preset, position_x, position_y,
@@ -91,10 +91,10 @@ public sealed class PgCharacterStore : ICharacterStore
     private readonly NpgsqlDataSource _dataSource;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="PgCharacterStore"/> class.
+    /// Initializes a new instance of the <see cref="PostgresCharacterStore"/> class.
     /// </summary>
     /// <param name="dataSource">PostgreSQL data source.</param>
-    public PgCharacterStore(NpgsqlDataSource dataSource) =>
+    public PostgresCharacterStore(NpgsqlDataSource dataSource) =>
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 
     /// <inheritdoc/>
