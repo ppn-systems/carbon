@@ -30,12 +30,15 @@ namespace Carbon.Desktop.Rendering.Hud;
 public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
 {
     private readonly OxygenBarWidget _oxygenBar = new();
-    private readonly GeometryBatch _geometryBatch;
     private readonly IGraphicsDevice _device;
-    private BitmapFont _font;
+
+    // GPU resources, created on first use (EnsureGpuResources) so the HUD's UI state can be built without a GL context.
+    private GeometryBatch _geometryBatch = null!;
+    private BitmapFont _font = null!;
     private int _fontLanguageVersion;
-    private readonly Texture2D _whitePixel;
-    private readonly CarbonUiSkin _uiSkin;
+    private Texture2D _whitePixel = null!;
+    private CarbonUiSkin _uiSkin = null!;
+    private bool _gpuReady;
     private readonly IVectorArtRepository? _art;
     private readonly MonsterTargetWidget _targetWidget = new();
     private readonly MinimapRadarWidget _minimap;
@@ -59,18 +62,15 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     private bool _disposed;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="HudOverlayRenderer"/> class.
+    /// Initializes a new instance of the <see cref="HudOverlayRenderer"/> class. GPU resources (geometry batch, fonts, UI
+    /// skin) are created on first use, from the thread that renders, so construction needs no GL context.
     /// </summary>
-    /// <param name="device">Active OpenGL graphics device.</param>
+    /// <param name="device">OpenGL graphics device the HUD renders with.</param>
     /// <param name="artRepository">Optional injected declarative vector-art repository (DIP).</param>
     public HudOverlayRenderer(IGraphicsDevice device, IVectorArtRepository? artRepository = null)
     {
         ArgumentNullException.ThrowIfNull(device);
         _device = device;
-        _geometryBatch = new GeometryBatch(device);
-        _fontLanguageVersion = GameText.Current.Version;
-        (_font, _whitePixel) = GameFontLoader.Load(device);
-        _uiSkin = CarbonUiSkin.Load(device);
         _art = artRepository ?? CarbonVectorArtLibrary.LoadOrDefault();
         _minimap = new MinimapRadarWidget(device);
     }
@@ -79,10 +79,24 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     public UiSettings Settings { get; } = UiSettings.LoadOrDefault();
 
     /// <summary>Gets the primary bitmap font shared with world-space nameplates &amp; floating combat text.</summary>
-    public BitmapFont Font => _font;
+    public BitmapFont Font
+    {
+        get
+        {
+            this.EnsureGpuResources();
+            return _font;
+        }
+    }
 
     /// <summary>Gets the shared standardized 9-slice UI skin.</summary>
-    public CarbonUiSkin UiSkin => _uiSkin;
+    public CarbonUiSkin UiSkin
+    {
+        get
+        {
+            this.EnsureGpuResources();
+            return _uiSkin;
+        }
+    }
 
     /// <summary>Gets or sets whether the unified tabbed player window (Inventory/Character/Crafting/Skills) is open.</summary>
     public bool ShowPlayerModal { get; set; }
@@ -509,6 +523,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             _smoothedFps += (instFps - _smoothedFps) * 0.08f;
         }
 
+        this.EnsureGpuResources();
         this.ReloadFontIfLanguageChanged();
         _targetWidget.UpdateTarget(world, feedback, aimedWorldPos);
 
@@ -868,6 +883,22 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         return true;
     }
 
+    // Creates the GPU resources once; later calls only read a flag, so frames after the first allocate nothing here.
+    private void EnsureGpuResources()
+    {
+        if (_gpuReady)
+        {
+            return;
+        }
+
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _geometryBatch = new GeometryBatch(_device);
+        _fontLanguageVersion = GameText.Current.Version;
+        (_font, _whitePixel) = GameFontLoader.Load(_device);
+        _uiSkin = CarbonUiSkin.Load(_device);
+        _gpuReady = true;
+    }
+
     /// <inheritdoc/>
     private void ReloadFontIfLanguageChanged()
     {
@@ -888,11 +919,19 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     {
         if (!_disposed)
         {
-            _uiSkin.Dispose();
+            if (_gpuReady)
+            {
+                _uiSkin.Dispose();
+            }
+
             _minimap.Dispose();
-            _geometryBatch.Dispose();
-            _font.Dispose();
-            _whitePixel.Dispose();
+            if (_gpuReady)
+            {
+                _geometryBatch.Dispose();
+                _font.Dispose();
+                _whitePixel.Dispose();
+            }
+
             _disposed = true;
             GC.SuppressFinalize(this);
         }
