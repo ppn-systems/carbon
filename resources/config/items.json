@@ -1509,7 +1509,8 @@
       "tags": [
         "structure",
         "station"
-      ]
+      ],
+      "placeableStructureType": 11
     },
     {
       "id": 201,
@@ -1525,7 +1526,8 @@
       "tags": [
         "structure",
         "station"
-      ]
+      ],
+      "placeableStructureType": 12
     },
     {
       "id": 202,
@@ -1676,6 +1678,130 @@
       "actionHint": "Stone Axe | Fells Pines Too (60 dmg)",
       "capabilities": "ChopFlora",
       "material": "stone"
+    },
+    {
+      "id": 207,
+      "code": "wood_chest_kit",
+      "name": "Wood Chest Kit",
+      "category": "placeable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 20,
+      "basePrice": 25,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "structure",
+        "furniture"
+      ],
+      "placeableStructureType": 14,
+      "actionHint": "Furniture | Place a Wood Chest"
+    },
+    {
+      "id": 208,
+      "code": "wood_bed_kit",
+      "name": "Wood Bed Kit",
+      "category": "placeable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 20,
+      "basePrice": 40,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "structure",
+        "furniture"
+      ],
+      "placeableStructureType": 15,
+      "actionHint": "Furniture | Place a Wood Bed (1x2)"
+    },
+    {
+      "id": 209,
+      "code": "sandstone_wall",
+      "name": "Sandstone Wall Kit",
+      "category": "placeable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 99,
+      "basePrice": 6,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "structure"
+      ],
+      "placeableStructureType": 16,
+      "actionHint": "Builder | Place Sandstone Wall on Target Tile"
+    },
+    {
+      "id": 210,
+      "code": "wood_table_kit",
+      "name": "Wood Table Kit",
+      "category": "placeable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 20,
+      "basePrice": 20,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "structure",
+        "furniture"
+      ],
+      "placeableStructureType": 17,
+      "actionHint": "Furniture | Place a Wood Table"
+    },
+    {
+      "id": 211,
+      "code": "wood_shelf_kit",
+      "name": "Wood Shelf Kit",
+      "category": "placeable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 20,
+      "basePrice": 18,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "structure",
+        "furniture"
+      ],
+      "placeableStructureType": 18,
+      "actionHint": "Furniture | Place a Wood Shelf"
+    },
+    {
+      "id": 212,
+      "code": "market_stall_kit",
+      "name": "Market Stall Kit",
+      "category": "placeable",
+      "rarity": "uncommon",
+      "tier": 2,
+      "maxStack": 10,
+      "basePrice": 60,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "structure",
+        "station"
+      ],
+      "placeableStructureType": 19,
+      "actionHint": "Workstation | Place a Market Stall (2x1)"
+    },
+    {
+      "id": 213,
+      "code": "plank_deck",
+      "name": "Plank Deck Kit",
+      "category": "placeable",
+      "rarity": "common",
+      "tier": 1,
+      "maxStack": 99,
+      "basePrice": 4,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "structure"
+      ],
+      "placeableStructureType": 20,
+      "actionHint": "Builder | Place Plank Deck (raised boardwalk)"
     }
   ]
 }

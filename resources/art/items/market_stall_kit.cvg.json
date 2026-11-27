@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "itemId": 212,
+  "id": "market_stall_kit",
+  "displayName": "Market Stall Kit",
+  "tier": 2,
+  "categoryLabel": "Placeable Kit",
+  "accentColor": "#EF4444",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -7,
+      "y": -5,
+      "w": 14,
+      "h": 10,
+      "color": "#B45309",
+      "outlineColor": "#451A03",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -7,
+      "y": -7,
+      "w": 14,
+      "h": 4,
+      "color": "#EF4444",
+      "outlineColor": "#451A03",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -2,
+      "y": -7,
+      "w": 4,
+      "h": 4,
+      "color": "#F5F5F4",
+      "outlineColor": "#451A03",
+      "outlineThickness": 0.5
+    }
+  ]
+}
