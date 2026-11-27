@@ -14,6 +14,7 @@ using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Events;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Abstractions.World;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Maps.Building;
@@ -483,7 +484,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     /// <inheritdoc/>
     public string TransportLabel =>
         !this.IsConnected
-            ? (Volatile.Read(ref _tcpReconnectInFlight) != 0 ? "RECONNECTING" : "OFFLINE")
+            ? (Volatile.Read(ref _tcpReconnectInFlight) != 0 ? GameText.Get("net.status_reconnecting") : GameText.Get("net.status_offline"))
             : (this.IsUdpActive ? "TCP+UDP" : "TCP");
 
     /// <inheritdoc/>

@@ -107,6 +107,15 @@ public sealed class HudOverlayRenderer : IDisposable
     /// <summary>Gets or sets whether the HUD overlay is visible.</summary>
     public bool Visible { get; set; } = true;
 
+    /// <summary>Opens the Settings modal on the Display (<c>0</c>) or Controls (<c>1</c>) tab.</summary>
+    /// <param name="tab">Tab index.</param>
+    public void OpenSettings(int tab)
+    {
+        this.CloseAllModals();
+        _settingsModal.SelectTab(tab);
+        this.ShowSettingsModal = true;
+    }
+
     /// <summary>Queues a brief fading notification toast on the right edge of the HUD.</summary>
     public void PushNotification(string message) => _toasts.Push(message);
 

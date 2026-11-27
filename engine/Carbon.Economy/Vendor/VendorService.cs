@@ -2,6 +2,7 @@
 
 using System;
 using Carbon.Economy.Currency;
+using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
 
@@ -206,8 +207,9 @@ public sealed class VendorService
             return EconomyResult.Fail(EconomyError.NotRepairable);
         }
 
+        float maxDurability = ItemEnhancementPolicy.GetEffectiveMaxDurability(item.MaxDurability, ItemEnhancementPolicy.GetUpgradeLevel(in slot));
         long cost = this.Prices.GetRepairCost(slot);
-        if (cost <= 0 && slot.Durability >= item.MaxDurability)
+        if (cost <= 0 && slot.Durability >= maxDurability)
         {
             return EconomyResult.Fail(EconomyError.AlreadyRepaired);
         }
@@ -215,7 +217,7 @@ public sealed class VendorService
         EconomyResult paid = wallet.TrySpend(CurrencyKind.Gold, cost, CurrencyReason.Repair, tick);
         if (paid.IsOk)
         {
-            inventory.SetSlot(slotIndex, slot with { Durability = item.MaxDurability });
+            inventory.SetSlot(slotIndex, slot with { Durability = maxDurability });
         }
 
         return paid;
