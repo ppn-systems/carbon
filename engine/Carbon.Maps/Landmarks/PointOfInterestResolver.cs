@@ -61,6 +61,12 @@ public sealed class PointOfInterestResolver
         _rivers = rivers ?? throw new ArgumentNullException(nameof(rivers));
     }
 
+    /// <summary>
+    /// Gets or sets the pure road query village planners use to keep buildings off roads. Set once by the generator
+    /// before any layout is built; roads only read site centres, never layouts, so there is no cycle.
+    /// </summary>
+    internal Func<int, int, bool>? RoadQuery { get; set; }
+
     /// <summary>Gets the point of interest of a site, or one with <see cref="PointOfInterestType.None"/>.</summary>
     public PointOfInterest GetSite(int siteX, int siteY)
     {
@@ -150,7 +156,7 @@ public sealed class PointOfInterestResolver
         }
 
         TrimQueue(_layouts, _layoutOrder, MaxCachedSites);
-        layout = LandmarkLayout.Build(this.GetSite(siteX, siteY), _tiles);
+        layout = LandmarkLayout.Build(this.GetSite(siteX, siteY), _tiles, this.RoadQuery);
         if (_layouts.TryAdd(key, layout))
         {
             _layoutOrder.Enqueue(key);

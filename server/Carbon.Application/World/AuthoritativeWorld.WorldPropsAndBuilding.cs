@@ -248,6 +248,8 @@ public sealed partial class AuthoritativeWorld
     {
         lock (_gate)
         {
+            // A village chunk is never served before its buildings exist (ADR-025).
+            _settlements.EnsureVillageBuilt(chunkX, chunkY);
             if (_chunkWorld.TryGetDelta(chunkX, chunkY, out ChunkDelta? delta) &&
                 delta is not null &&
                 !delta.IsEmpty &&

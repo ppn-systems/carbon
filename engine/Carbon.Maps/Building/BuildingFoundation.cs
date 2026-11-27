@@ -71,6 +71,9 @@ public static class BuildingFoundation
         StructureType.MetalWall or StructureType.MetalDoor => TerrainAffordance.Heavy,
         StructureType.Campfire => TerrainAffordance.Light,
         StructureType.Workbench or StructureType.Stove or StructureType.WoodChest or StructureType.WoodBed => TerrainAffordance.Medium,
+        StructureType.WoodTable or StructureType.WoodShelf or StructureType.MarketStall => TerrainAffordance.Medium,
+        StructureType.PlankDeck => TerrainAffordance.Light,
+        StructureType.SandstoneWall => TerrainAffordance.Medium,
         _ => TerrainAffordance.Heavy
     };
 

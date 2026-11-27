@@ -64,7 +64,10 @@ public enum BuildResultCode : byte
     ToolTierTooLow = 17,
 
     /// <summary>The argument is invalid (non-positive work or damage, type None).</summary>
-    InvalidArgument = 18
+    InvalidArgument = 18,
+
+    /// <summary>The tile belongs to a settlement faction (a generated village) that players may not build on or modify.</summary>
+    ProtectedSettlement = 19
 }
 
 /// <summary>
@@ -101,6 +104,7 @@ public readonly record struct BuildMutationResult(
     {
         BuildResultCode.Ok => OpStatus.Ok,
         BuildResultCode.PermissionDenied => OpStatus.Forbidden,
+        BuildResultCode.ProtectedSettlement => OpStatus.Forbidden,
         BuildResultCode.NotFound => OpStatus.NotFound,
         BuildResultCode.OutOfReach => OpStatus.OutOfRange,
         BuildResultCode.BlockedByNaturalObstacle or

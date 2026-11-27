@@ -85,5 +85,30 @@ public enum StructureType : byte
     /// <summary>
     /// Wooden bed (1x2 footprint, rotatable, requires floor support).
     /// </summary>
-    WoodBed = 15
+    WoodBed = 15,
+
+    /// <summary>
+    /// Cut sandstone block wall of desert settlements (Heavy affordance, 320 HP).
+    /// </summary>
+    SandstoneWall = 16,
+
+    /// <summary>
+    /// Wooden table (1x1 furniture).
+    /// </summary>
+    WoodTable = 17,
+
+    /// <summary>
+    /// Wooden storage shelf standing against a wall (1x1 furniture).
+    /// </summary>
+    WoodShelf = 18,
+
+    /// <summary>
+    /// Canopied market stall counter where a village merchant trades (2x1, rotatable).
+    /// </summary>
+    MarketStall = 19,
+
+    /// <summary>
+    /// Raised plank deck on stilts used by swamp settlements (floor, +10% movement speed).
+    /// </summary>
+    PlankDeck = 20
 }

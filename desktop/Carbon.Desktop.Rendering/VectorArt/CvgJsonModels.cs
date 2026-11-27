@@ -130,6 +130,7 @@ internal sealed class CvgStructureBlueprintDto
     public Dictionary<string, string> Palette { get; set; } = [];
     public List<CvgShapeDto> Shapes { get; set; } = [];
     public List<CvgShapeDto> OpenShapes { get; set; } = [];
+    public List<int> Size { get; set; } = [];
 }
 
 internal sealed class CvgCharacterCatalogDto

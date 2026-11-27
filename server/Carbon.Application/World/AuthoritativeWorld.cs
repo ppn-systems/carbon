@@ -38,9 +38,9 @@ using Carbon.Items.Containers;
 using Carbon.Items.Progression;
 using Carbon.Items.Serialization;
 using Carbon.Items.Systems;
-using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Generators;
+using Carbon.Maps.Settlements;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
@@ -226,7 +226,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
                 this.GrantExperienceLocked(state, xp, out _);
                 this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
             });
-        _settlements = new SettlementNpcSpawner(_simulation, _chunkWorld, _actorsByNetworkId, () => ++_nextNetworkId, this.TileSize, this.TickRate, DefaultEntityRadius, PlayerLayer, MonsterLayer, NpcLayer);
+        VillageMaterializer villages = new(_chunkWorld, VillageBuildingCatalog.Default, _construction.Catalog);
+        _settlements = new SettlementNpcSpawner(_simulation, _chunkWorld, _actorsByNetworkId, () => ++_nextNetworkId, this.TileSize, this.TickRate, DefaultEntityRadius, PlayerLayer, MonsterLayer, NpcLayer, villages, _dirtyChunks);
         _projectiles = new ProjectileService(_simulation, _chunkWorld, MonsterLayer, () => ++_nextNetworkId, new ProjectileHits(this));
 
         _needs = new NeedsService(
@@ -841,8 +842,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     // Developer-only overrides for the screenshot review tool: a forced spawn tile and a start hour. They come
     // from the host configuration (Debug builds only), never from a client packet.
 
-    private const int DebugBiomeSearchRadius = 4000;
-
     // Where every character enters the world while a debug spawn override is active.
     private Vector2? _debugSpawnPosition;
     private ushort _debugStartLevel; // minimum level of entering characters (CARBON_DEBUG_START_LEVEL)
@@ -877,31 +876,10 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
         lock (_gate)
         {
-            (int X, int Y) spawn = _chunkWorld.SpawnTile;
-            if (overrides.SpawnTile is { } tile)
-            {
-                spawn = tile;
-            }
-            else if (overrides.SpawnBiome is { } biomeName)
-            {
-                if (!Enum.TryParse(biomeName, ignoreCase: true, out BiomeType biome) || !Enum.IsDefined(biome))
-                {
-                    throw new ArgumentException($"Unknown biome '{biomeName}'.", nameof(overrides));
-                }
-
-                if (!BiomeLocator.TryFind(_generator, biome, spawn.X, spawn.Y, DebugBiomeSearchRadius, out int bx, out int by))
-                {
-                    throw new ArgumentException($"No {biome} tile within {DebugBiomeSearchRadius} tiles of spawn.", nameof(overrides));
-                }
-
-                spawn = (bx, by);
-            }
-
-            spawn = (spawn.X + overrides.SpawnOffset.X, spawn.Y + overrides.SpawnOffset.Y);
-            bool movesSpawn = overrides.SpawnTile.HasValue || overrides.SpawnBiome is not null || overrides.SpawnOffset != default;
+            (int spawnX, int spawnY) = DebugSpawnResolver.Resolve(_generator, _chunkWorld.SpawnTile, overrides, out bool movesSpawn);
             if (movesSpawn)
             {
-                _debugSpawnPosition = new Vector2((spawn.X + 0.5f) * this.TileSize, (spawn.Y + 0.5f) * this.TileSize);
+                _debugSpawnPosition = new Vector2((spawnX + 0.5f) * this.TileSize, (spawnY + 0.5f) * this.TileSize);
             }
 
             _debugStartLevel = overrides.StartLevel ?? 0;
@@ -913,7 +891,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
                 _currentTick = (ulong)Math.Round(seconds * this.TickRate);
             }
 
-            string spawnText = movesSpawn ? $"{spawn.X},{spawn.Y}" : "default";
+            string spawnText = movesSpawn ? $"{spawnX},{spawnY}" : "default";
             string hourText = overrides.StartHour?.ToString("0.##", CultureInfo.InvariantCulture) ?? "default";
             return $"spawn={spawnText}, startHour={hourText}, startLevel={overrides.StartLevel?.ToString(CultureInfo.InvariantCulture) ?? "default"}";
         }

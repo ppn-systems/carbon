@@ -20,6 +20,12 @@ public sealed record WorldDebugOverrides
     /// </summary>
     public string? SpawnBiome { get; init; }
 
+    /// <summary>
+    /// Gets the name of a point of interest type (e.g. <c>DesertVillage</c>): characters enter the world just south of
+    /// the well of the nearest one. <see cref="SpawnTile"/> and <see cref="SpawnBiome"/> win when set.
+    /// </summary>
+    public string? SpawnPoi { get; init; }
+
     /// <summary>Gets the offset, in tiles, applied to the resolved spawn tile.</summary>
     public (int X, int Y) SpawnOffset { get; init; }
 
@@ -39,6 +45,6 @@ public sealed record WorldDebugOverrides
     public IReadOnlyList<DebugStarterItem> StarterItems { get; init; } = [];
 
     /// <summary>Gets a value indicating whether any override is set.</summary>
-    public bool IsActive => this.SpawnTile.HasValue || this.SpawnBiome is not null || this.StartHour.HasValue ||
+    public bool IsActive => this.SpawnTile.HasValue || this.SpawnBiome is not null || this.SpawnPoi is not null || this.StartHour.HasValue ||
         this.SpawnOffset != default || this.StartLevel.HasValue || this.ForgeKit || this.StarterItems.Count > 0;
 }

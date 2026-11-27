@@ -1,0 +1,309 @@
+{
+  "schemaVersion": 2,
+  "structureType": 19,
+  "id": "market_stall",
+  "displayName": "Market Stall",
+  "size": [
+    2,
+    1
+  ],
+  "palette": {
+    "post": "#5B3A1E",
+    "counter": "#A16207",
+    "counterDark": "#78350F",
+    "stripeA": "#DC2626",
+    "stripeB": "#FEF3C7",
+    "apple": "#EF4444",
+    "cabbage": "#65A30D",
+    "bread": "#D97706",
+    "crate": "#92400E",
+    "shadow": "#00000040",
+    "coin": "#FBBF24"
+  },
+  "shapes": [
+    {
+      "kind": "rect",
+      "x": 2,
+      "y": 29,
+      "w": 60,
+      "h": 3,
+      "color": "$shadow"
+    },
+    {
+      "kind": "rect",
+      "x": 4,
+      "y": 4,
+      "w": 3,
+      "h": 26,
+      "color": "$post"
+    },
+    {
+      "kind": "rect",
+      "x": 57,
+      "y": 4,
+      "w": 3,
+      "h": 26,
+      "color": "$post"
+    },
+    {
+      "kind": "rect",
+      "x": 3,
+      "y": 17,
+      "w": 58,
+      "h": 12,
+      "color": "$counter",
+      "outlineColor": "$counterDark",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "rect",
+      "x": 3,
+      "y": 26,
+      "w": 58,
+      "h": 3,
+      "color": "$counterDark"
+    },
+    {
+      "kind": "rect",
+      "x": 7,
+      "y": 13,
+      "w": 14,
+      "h": 6,
+      "color": "$crate"
+    },
+    {
+      "kind": "ellipse",
+      "x": 10,
+      "y": 14,
+      "rx": 2.2,
+      "ry": 2,
+      "color": "$apple"
+    },
+    {
+      "kind": "ellipse",
+      "x": 14,
+      "y": 13.5,
+      "rx": 2.2,
+      "ry": 2,
+      "color": "$apple"
+    },
+    {
+      "kind": "ellipse",
+      "x": 18,
+      "y": 14,
+      "rx": 2.2,
+      "ry": 2,
+      "color": "$apple"
+    },
+    {
+      "kind": "ellipse",
+      "x": 12,
+      "y": 12,
+      "rx": 2,
+      "ry": 1.8,
+      "color": "$apple"
+    },
+    {
+      "kind": "rect",
+      "x": 24,
+      "y": 13,
+      "w": 14,
+      "h": 6,
+      "color": "$crate"
+    },
+    {
+      "kind": "ellipse",
+      "x": 28,
+      "y": 13.5,
+      "rx": 3,
+      "ry": 2.4,
+      "color": "$cabbage"
+    },
+    {
+      "kind": "ellipse",
+      "x": 34,
+      "y": 13.5,
+      "rx": 3,
+      "ry": 2.4,
+      "color": "$cabbage"
+    },
+    {
+      "kind": "rect",
+      "x": 41,
+      "y": 13,
+      "w": 16,
+      "h": 6,
+      "color": "$crate"
+    },
+    {
+      "kind": "ellipse",
+      "x": 45,
+      "y": 13,
+      "rx": 3.5,
+      "ry": 2,
+      "color": "$bread"
+    },
+    {
+      "kind": "ellipse",
+      "x": 52,
+      "y": 13,
+      "rx": 3.5,
+      "ry": 2,
+      "color": "$bread"
+    },
+    {
+      "kind": "ellipse",
+      "x": 48,
+      "y": 22,
+      "rx": 1.6,
+      "ry": 1.2,
+      "color": "$coin"
+    },
+    {
+      "kind": "ellipse",
+      "x": 51,
+      "y": 22.5,
+      "rx": 1.6,
+      "ry": 1.2,
+      "color": "$coin"
+    },
+    {
+      "kind": "rect",
+      "x": 1.0,
+      "y": 0,
+      "w": 7.75,
+      "h": 8,
+      "color": "$stripeA"
+    },
+    {
+      "kind": "rect",
+      "x": 8.75,
+      "y": 0,
+      "w": 7.75,
+      "h": 8,
+      "color": "$stripeB"
+    },
+    {
+      "kind": "rect",
+      "x": 16.5,
+      "y": 0,
+      "w": 7.75,
+      "h": 8,
+      "color": "$stripeA"
+    },
+    {
+      "kind": "rect",
+      "x": 24.25,
+      "y": 0,
+      "w": 7.75,
+      "h": 8,
+      "color": "$stripeB"
+    },
+    {
+      "kind": "rect",
+      "x": 32.0,
+      "y": 0,
+      "w": 7.75,
+      "h": 8,
+      "color": "$stripeA"
+    },
+    {
+      "kind": "rect",
+      "x": 39.75,
+      "y": 0,
+      "w": 7.75,
+      "h": 8,
+      "color": "$stripeB"
+    },
+    {
+      "kind": "rect",
+      "x": 47.5,
+      "y": 0,
+      "w": 7.75,
+      "h": 8,
+      "color": "$stripeA"
+    },
+    {
+      "kind": "rect",
+      "x": 55.25,
+      "y": 0,
+      "w": 7.75,
+      "h": 8,
+      "color": "$stripeB"
+    },
+    {
+      "kind": "ellipse",
+      "x": 4.9,
+      "y": 8,
+      "rx": 3.9,
+      "ry": 2.4,
+      "color": "$stripeA"
+    },
+    {
+      "kind": "ellipse",
+      "x": 12.65,
+      "y": 8,
+      "rx": 3.9,
+      "ry": 2.4,
+      "color": "$stripeB"
+    },
+    {
+      "kind": "ellipse",
+      "x": 20.4,
+      "y": 8,
+      "rx": 3.9,
+      "ry": 2.4,
+      "color": "$stripeA"
+    },
+    {
+      "kind": "ellipse",
+      "x": 28.15,
+      "y": 8,
+      "rx": 3.9,
+      "ry": 2.4,
+      "color": "$stripeB"
+    },
+    {
+      "kind": "ellipse",
+      "x": 35.9,
+      "y": 8,
+      "rx": 3.9,
+      "ry": 2.4,
+      "color": "$stripeA"
+    },
+    {
+      "kind": "ellipse",
+      "x": 43.65,
+      "y": 8,
+      "rx": 3.9,
+      "ry": 2.4,
+      "color": "$stripeB"
+    },
+    {
+      "kind": "ellipse",
+      "x": 51.4,
+      "y": 8,
+      "rx": 3.9,
+      "ry": 2.4,
+      "color": "$stripeA"
+    },
+    {
+      "kind": "ellipse",
+      "x": 59.15,
+      "y": 8,
+      "rx": 3.9,
+      "ry": 2.4,
+      "color": "$stripeB"
+    },
+    {
+      "kind": "line",
+      "x": 1,
+      "y": 0,
+      "x2": 63,
+      "y2": 0,
+      "thickness": 1.2,
+      "color": "$post"
+    }
+  ],
+  "openShapes": []
+}

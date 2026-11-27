@@ -255,7 +255,7 @@ internal sealed class PropHarvestService
 
             if (toolTier >= targetStruct.Destructibility.HarvestTier)
             {
-                _construction.DamageStructure(aimTx, aimTy, dmg);
+                _ = _construction.DamageStructure(aimTx, aimTy, dmg);
             }
         }
     }

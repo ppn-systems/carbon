@@ -264,7 +264,8 @@ public sealed class ChunkDelta
     /// Returns this delta carried over to another generator version. Tile edits and constructed structures are kept:
     /// they are what players placed or dug and stay meaningful on any terrain. Natural prop states (chopped trees,
     /// mined ores) are dropped: the new generator may put different props on those tiles, so the old states would
-    /// damage the wrong objects; resources simply grow back.
+    /// damage the wrong objects; resources simply grow back. Faction-owned structures (generated villages) are dropped
+    /// too and rebuilt from the new layout.
     /// </summary>
     /// <param name="generatorVersion">The target version.</param>
     /// <returns>This delta when the version already matches, otherwise a migrated copy.</returns>
@@ -281,9 +282,14 @@ public sealed class ChunkDelta
             migrated._tiles[kvp.Key] = kvp.Value;
         }
 
+        // Faction-owned structures (generated villages, ADR-025) are world content of the old generator: they are dropped
+        // so the new generator's layout is materialized in their place.
         foreach (KeyValuePair<int, StructureTile> kvp in _structures)
         {
-            migrated._structures[kvp.Key] = kvp.Value;
+            if (!(_records.TryGetValue(kvp.Key, out StructureRecord owner) && StructureOwners.IsFaction(owner.OwnerId)))
+            {
+                migrated._structures[kvp.Key] = kvp.Value;
+            }
         }
 
         foreach (KeyValuePair<int, ConstructionSite> kvp in _sites)
@@ -293,7 +299,10 @@ public sealed class ChunkDelta
 
         foreach (KeyValuePair<int, StructureRecord> kvp in _records)
         {
-            migrated._records[kvp.Key] = kvp.Value;
+            if (!StructureOwners.IsFaction(kvp.Value.OwnerId))
+            {
+                migrated._records[kvp.Key] = kvp.Value;
+            }
         }
 
         migrated.Revision = this.Revision + 1;

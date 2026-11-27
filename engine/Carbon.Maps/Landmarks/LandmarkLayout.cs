@@ -2,6 +2,7 @@
 
 using System;
 using Carbon.Maps.Data;
+using Carbon.Maps.Settlements;
 
 namespace Carbon.Maps.Landmarks;
 
@@ -13,15 +14,23 @@ public sealed class LandmarkLayout
 {
     private readonly LandmarkPiece[] _pieces;
     private readonly LandmarkField[] _fields;
+    private readonly VillagePlot[] _plots;
 
-    internal LandmarkLayout(LandmarkPiece[] pieces, LandmarkField[] fields)
+    internal LandmarkLayout(LandmarkPiece[] pieces, LandmarkField[] fields, VillagePlot[] plots)
     {
         _pieces = pieces;
         _fields = fields;
+        _plots = plots;
     }
 
     /// <summary>Gets the empty layout.</summary>
-    public static LandmarkLayout Empty { get; } = new([], []);
+    public static LandmarkLayout Empty { get; } = new([], [], []);
+
+    /// <summary>
+    /// Gets the village buildings. They are not drawn or collided as landmark pieces: the server materializes them as
+    /// real building-grid structures owned by the village faction (ADR-025).
+    /// </summary>
+    public ReadOnlySpan<VillagePlot> Plots => _plots;
 
     /// <summary>Gets the upright structures.</summary>
     public ReadOnlySpan<LandmarkPiece> Pieces => _pieces;
@@ -33,7 +42,14 @@ public sealed class LandmarkLayout
     /// <param name="poi">The point of interest.</param>
     /// <param name="tileAt">Pure terrain sampler.</param>
     /// <returns>The layout.</returns>
-    public static LandmarkLayout Build(in PointOfInterest poi, ITileSource tileAt)
+    public static LandmarkLayout Build(in PointOfInterest poi, ITileSource tileAt) => Build(poi, tileAt, isRoad: null);
+
+    /// <summary>Builds the layout of a point of interest, keeping village buildings off roads.</summary>
+    /// <param name="poi">The point of interest.</param>
+    /// <param name="tileAt">Pure terrain sampler.</param>
+    /// <param name="isRoad">Pure road query, or <see langword="null"/>.</param>
+    /// <returns>The layout.</returns>
+    public static LandmarkLayout Build(in PointOfInterest poi, ITileSource tileAt, Func<int, int, bool>? isRoad)
     {
         ArgumentNullException.ThrowIfNull(tileAt);
         if (poi.Type == PointOfInterestType.None)
@@ -41,7 +57,7 @@ public sealed class LandmarkLayout
             return Empty;
         }
 
-        LandmarkPlanContext context = new(poi, tileAt);
+        LandmarkPlanContext context = new(poi, tileAt, isRoad);
         LandmarkPlanners.Get(poi.Type)?.Plan(context);
         return context.ToLayout();
     }

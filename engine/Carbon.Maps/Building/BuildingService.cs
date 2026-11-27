@@ -314,6 +314,11 @@ public sealed class BuildingService
             return BuildMutationResult.Fail(BuildResultCode.NotFound);
         }
 
+        if (StructureOwners.IsFaction(resolved.Record.OwnerId) && actor.ActorId != resolved.Record.OwnerId)
+        {
+            return resolved.Result(BuildResultCode.ProtectedSettlement, ConstructionStage.Complete, 0f);
+        }
+
         if (!_permissions.CanModify(actor.ActorId, resolved.Record.OwnerId))
         {
             return resolved.Result(BuildResultCode.PermissionDenied, ConstructionStage.Complete, 0f);
@@ -349,7 +354,30 @@ public sealed class BuildingService
     /// <param name="damage">Damage amount (positive).</param>
     /// <param name="dropSink">Optional receiver of dropped materials (ground loot).</param>
     /// <returns>The result; <see cref="BuildMutationResult.Progress"/> is the remaining hit point fraction.</returns>
-    public BuildMutationResult ApplyDamage(int worldTileX, int worldTileY, float damage, IMaterialSink? dropSink)
+    public BuildMutationResult ApplyDamage(int worldTileX, int worldTileY, float damage, IMaterialSink? dropSink) =>
+        this.ApplyDamageCore(worldTileX, worldTileY, damage, dropSink, attackerId: null);
+
+    /// <summary>
+    /// Damages a completed structure on behalf of a player (tool strikes). Structures owned by a world faction
+    /// (<see cref="StructureOwners"/>) are refused with <see cref="BuildResultCode.ProtectedSettlement"/>.
+    /// </summary>
+    /// <param name="attackerId">Owner id of the striking player.</param>
+    /// <param name="worldTileX">Any footprint tile X.</param>
+    /// <param name="worldTileY">Any footprint tile Y.</param>
+    /// <param name="damage">Damage amount (positive).</param>
+    /// <param name="dropSink">Optional receiver of dropped materials (ground loot).</param>
+    /// <returns>The result; see <see cref="ApplyDamage(int, int, float, IMaterialSink?)"/>.</returns>
+    public BuildMutationResult ApplyPlayerDamage(ulong attackerId, int worldTileX, int worldTileY, float damage, IMaterialSink? dropSink) =>
+        this.ApplyDamageCore(worldTileX, worldTileY, damage, dropSink, attackerId);
+
+    /// <summary>Gets whether the tile carries a structure owned by a world faction (a generated village).</summary>
+    /// <param name="worldTileX">World tile X.</param>
+    /// <param name="worldTileY">World tile Y.</param>
+    /// <returns><see langword="true"/> when players may not modify or build on the tile.</returns>
+    public bool IsFactionProtected(int worldTileX, int worldTileY) =>
+        _ledger.TryGetRecord(worldTileX, worldTileY, out StructureRecord record) && StructureOwners.IsFaction(record.OwnerId);
+
+    private BuildMutationResult ApplyDamageCore(int worldTileX, int worldTileY, float damage, IMaterialSink? dropSink, ulong? attackerId)
     {
         if (!(damage > 0f))
         {
@@ -359,6 +387,11 @@ public sealed class BuildingService
         if (!this.TryResolveStructure(worldTileX, worldTileY, out ResolvedStructure resolved))
         {
             return BuildMutationResult.Fail(BuildResultCode.NotFound);
+        }
+
+        if (attackerId is ulong attacker && StructureOwners.IsFaction(resolved.Record.OwnerId) && attacker != resolved.Record.OwnerId)
+        {
+            return resolved.Result(BuildResultCode.ProtectedSettlement, ConstructionStage.Complete, 1f);
         }
 
         StructureTile anchorTile = StructureTile.Empty;
@@ -423,6 +456,11 @@ public sealed class BuildingService
         if (_ledger.IsReserved(x, y))
         {
             return BuildResultCode.BlockedByConstructionSite;
+        }
+
+        if (this.IsFactionProtected(x, y))
+        {
+            return BuildResultCode.ProtectedSettlement;
         }
 
         bool hasFloor = false;

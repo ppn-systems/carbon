@@ -35,6 +35,7 @@ public static class BuildResultText
         BuildResultCode.MaterialsNotDelivered => GameText.Get("build.result.materials_not_delivered"),
         BuildResultCode.ToolTierTooLow => GameText.Get("build.result.tool_tier_too_low"),
         BuildResultCode.InvalidArgument => GameText.Get("build.result.invalid_argument"),
+        BuildResultCode.ProtectedSettlement => GameText.Get("build.result.protected_settlement"),
         _ => GameText.Get("build.result.failed"),
     };
 }

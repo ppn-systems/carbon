@@ -708,12 +708,21 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
         CompiledVectorShape[] shapes = CompileShapes(dto.Shapes, dto.Palette, filePath);
         CompiledVectorShape[] openShapes = dto.OpenShapes.Count > 0 ? CompileShapes(dto.OpenShapes, dto.Palette, filePath) : [];
 
+        int footW = dto.Size.Count == 2 ? dto.Size[0] : 1;
+        int footH = dto.Size.Count == 2 ? dto.Size[1] : 1;
+        if (footW is < 1 or > 4 || footH is < 1 or > 4)
+        {
+            throw new InvalidDataException($"Structure '{dto.Id}' size must be [1..4, 1..4] in {filePath}");
+        }
+
         return new CompiledStructureArt(
             dto.StructureType,
             dto.Id,
             dto.DisplayName,
             shapes,
-            openShapes);
+            openShapes,
+            footW,
+            footH);
     }
 
     private static CompiledVectorShape[] CompileShapes(
