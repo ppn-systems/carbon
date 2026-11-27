@@ -174,7 +174,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             () => _itemRules,
             () => ++_nextNetworkId,
             () => _currentTick,
-            this.QueueLootVisualRefreshLocked);
+            this.QueueLootVisualRefreshLocked,
+            _players.GetNetworkIdOfCharacter);
         _construction = new ConstructionService(
             _chunkWorld,
             structureCatalog ?? StructureCatalog.LoadEmbedded(),

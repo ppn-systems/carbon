@@ -72,6 +72,11 @@ public sealed class EconomySimulator
                 LootTable table = tables[(int)(killIndex % (ulong)tables.Count)];
                 DeterministicRandom random = LootRoller.CreateRandom(seed, killIndex, (ulong)level);
                 LootRollResult roll = LootRoller.Roll(table, context, ref random, ref pity, drops);
+
+                // In the world, kill gold and diamonds drop as ground piles reserved for the killer for
+                // groundLoot.ownerProtectionSeconds (ADR-019). The engaged player modelled here picks up every drop
+                // inside that window, as it does the item stacks it sells below, so crediting at the kill gives the
+                // same gold and diamonds per hour. Unpicked loot is a player choice, not a faucet change.
                 _ = wallet.TryCredit(CurrencyKind.Gold, roll.Gold, CurrencyReason.MonsterLoot, killIndex);
                 _ = wallet.TryCredit(CurrencyKind.Diamond, roll.Diamonds, CurrencyReason.MonsterLoot, killIndex);
                 for (int d = 0; d < roll.ItemCount; d++)
