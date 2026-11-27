@@ -68,6 +68,10 @@
     "outputValueRateBps": 1000,
     "rarityMultiplierPercent": { "common": 100, "uncommon": 150, "rare": 250, "epic": 400, "legendary": 600 }
   },
+  "groundLoot": {
+    "ownerProtectionSeconds": 60,
+    "killLootLifetimeSeconds": 180
+  },
   "designTargets": {
     "killsPerHour": 120,
     "goldPerHour": [

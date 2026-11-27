@@ -931,7 +931,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             [
                 .. sink.Spawns
                     .Skip(killTickSpawnIndex)
-                    .Where(x => x.ConnectionId == slayerConn && x.Snapshot.Kind == EntityKind.LootDrop)
+                    .Where(x => x.ConnectionId == slayerConn && x.Snapshot.Kind == EntityKind.LootDrop && x.Snapshot.LootCurrency == LootCurrency.None)
                     .Select(x => (uint)x.Snapshot.ArchetypeId)
                     .Distinct(),
             ];
@@ -943,8 +943,8 @@ public sealed class AuthoritativeWorldMultiplayerTests
             }
 
             world.TryGetWalletBalances(slayerConn, out long gold, out long diamonds).Should().BeTrue();
-            gold.Should().BeGreaterThanOrEqualTo(0);
-            diamonds.Should().BeGreaterThanOrEqualTo(0);
+            gold.Should().Be(0L, "kill gold drops on the ground instead of being credited (ADR-019)");
+            diamonds.Should().Be(0L);
         }
         finally
         {

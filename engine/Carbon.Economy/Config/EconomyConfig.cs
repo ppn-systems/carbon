@@ -37,6 +37,9 @@ public sealed record EconomyConfig
     /// <summary>Gets the crafting fee sink.</summary>
     public CraftingFeeRules CraftingFees { get; set; } = new();
 
+    /// <summary>Gets the owner protection and lifetime of monster kill loot on the ground.</summary>
+    public GroundLootRules GroundLoot { get; set; } = new();
+
     /// <summary>Gets the designed income bands asserted by tests.</summary>
     public DesignTargets DesignTargets { get; set; } = new();
 
@@ -105,6 +108,11 @@ public sealed record EconomyConfig
             && this.CraftingFees.Stove >= 0 && this.CraftingFees.Alchemy >= 0 && this.CraftingFees.OutputValueRateBps is >= 0 and <= 10000,
             "crafting fees must be >= 0 and outputValueRateBps in [0, 10000]");
         Require(this.CraftingFees.RarityMultiplierPercent.IsValid, "craftingFees.rarityMultiplierPercent values must be >= 0");
+        Require(
+            this.GroundLoot.KillLootLifetimeSeconds is >= 1 and <= 3600
+            && this.GroundLoot.OwnerProtectionSeconds >= 0
+            && this.GroundLoot.OwnerProtectionSeconds <= this.GroundLoot.KillLootLifetimeSeconds,
+            "groundLoot needs 1 <= killLootLifetimeSeconds <= 3600 and 0 <= ownerProtectionSeconds <= killLootLifetimeSeconds");
         this.ValidateConsumablePriceBands();
         Require(this.DesignTargets.KillsPerHour > 0, "designTargets.killsPerHour must be positive");
         Require(this.DesignTargets.InflationSlope.Min <= this.DesignTargets.InflationSlope.Max, "designTargets.inflationSlope min must be <= max");
