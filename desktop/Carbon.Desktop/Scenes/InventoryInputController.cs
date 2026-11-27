@@ -20,7 +20,7 @@ namespace Carbon.Desktop.Scenes;
 internal sealed class InventoryInputController
 {
     private readonly IWorldSession _session;
-    private HudOverlayRenderer? _hud;
+    private IInventoryInputHud? _hud;
     private int _carriedSlot = -1;
     private Vector2 _pressStartMousePos;
     private bool _isHoldDragging;
@@ -32,7 +32,7 @@ internal sealed class InventoryInputController
     public int CarriedSlot => _carriedSlot;
 
     /// <summary>Binds the HUD the controller hit-tests and drives (<see langword="null"/> while the scene is unloaded).</summary>
-    public void AttachHud(HudOverlayRenderer? hud) => _hud = hud;
+    public void AttachHud(IInventoryInputHud? hud) => _hud = hud;
 
     public void HandleTabInput(in DesktopInputFrame input, int viewportWidth, int viewportHeight)
     {
