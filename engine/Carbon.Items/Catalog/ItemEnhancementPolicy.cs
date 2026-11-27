@@ -34,13 +34,12 @@ public static class ItemEnhancementPolicy
     public static float GetEffectiveMaxDurability(ItemArchetype archetype, byte upgradeLevel)
     {
         ArgumentNullException.ThrowIfNull(archetype);
-        if (archetype.MaxDurability <= 0f)
-        {
-            return 0f;
-        }
-
-        return archetype.MaxDurability * (1f + (Math.Clamp(upgradeLevel, (byte)0, MaxUpgradeLevel) * 0.10f));
+        return GetEffectiveMaxDurability(archetype.MaxDurability, upgradeLevel);
     }
+
+    /// <summary>Returns <paramref name="baseMaxDurability"/> scaled by <paramref name="upgradeLevel"/> (<c>+10%</c> per level).</summary>
+    public static float GetEffectiveMaxDurability(float baseMaxDurability, byte upgradeLevel) =>
+        baseMaxDurability <= 0f ? 0f : baseMaxDurability * (1f + (Math.Clamp(upgradeLevel, (byte)0, MaxUpgradeLevel) * 0.10f));
 
     /// <summary>Returns whether <paramref name="itemId"/> is gear the forge can enhance (it has durability).</summary>
     /// <param name="rules">Item rules.</param>

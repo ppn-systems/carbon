@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text;
 using Carbon.Configuration.Catalog;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Items.Catalog;
 using Carbon.Items.Crafting;
 using Carbon.Items.Definitions;
@@ -87,17 +88,22 @@ public sealed class SyncedItemCatalog
         return false;
     }
 
-    /// <summary>Returns the display name of an item, <c>"Empty"</c> for id 0, or <c>"Item #id"</c> when unknown.</summary>
+    /// <summary>
+    /// Returns the localized display name of an item (<c>item.&lt;code&gt;.name</c>, falling back to the config name; ADR-023),
+    /// the localized "empty" label for id 0, or a localized "unknown item" label when the catalog lacks the id.
+    /// </summary>
     /// <param name="itemId">Item id.</param>
     /// <returns>The display name.</returns>
     public string GetDisplayName(uint itemId)
     {
         if (itemId == 0U)
         {
-            return "Empty";
+            return GameText.Get("item.empty");
         }
 
-        return this.TryGet(itemId, out ItemCatalogEntry? item) && item.Name.Length > 0 ? item.Name : $"Item #{itemId}";
+        return this.TryGet(itemId, out ItemCatalogEntry? item) && item.Name.Length > 0
+            ? (item.Code.Length > 0 ? GameText.ItemName(item.Code, item.Name) : item.Name)
+            : GameText.Format("item.unknown", new TextArg("id", itemId));
     }
 
     /// <summary>Returns the maximum stack size of an item (1 when unknown).</summary>

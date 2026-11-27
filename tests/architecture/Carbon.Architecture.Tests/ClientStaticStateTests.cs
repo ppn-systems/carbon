@@ -19,6 +19,7 @@ public sealed class ClientStaticStateTests
         // Ambient "current" globals written on config sync / locale change and read by widgets directly.
         // Audit round 2 COUP-2: expose through IWorldReadModel / an injected ILocalizer instead.
         "Carbon.Desktop.Abstractions.Configuration.SyncedFoodCatalog.s_current",
+        "Carbon.Desktop.Abstractions.Configuration.SyncedProgressionConfig.s_current",
         "Carbon.Desktop.Abstractions.Localization.GameText.s_current",
 
         // Lazily filled key caches (ADR-023). Audit: build once per catalog and make them readonly (FrozenDictionary).

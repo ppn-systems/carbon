@@ -179,16 +179,4 @@ public static class ToolUsagePolicy
 
         return new PropStrikeEvaluation(dmg, tier, isDurabilityTool ? 1.0f : 0f, ToolStrikeOutcome.Optimal);
     }
-
-    /// <summary>
-    /// Formats a concise HUD warning message when a tool strike suffers misuse, dulling, or insufficient tier.
-    /// </summary>
-    public static string GetMisuseWarning(ToolStrikeOutcome outcome, byte requiredTier) => outcome switch
-    {
-        ToolStrikeOutcome.SwordMisuseOnWood => "Sword dulled on wood (-dur)! Equip Wood Axe [1]",
-        ToolStrikeOutcome.BladeBluntOnStone => "Blade chipped on rock! Equip Pickaxe [2]",
-        ToolStrikeOutcome.WornOutTool => "Tool Worn Out! Stand near Village Guard / NPC to mend",
-        ToolStrikeOutcome.InsufficientTier => $"Need Tier {requiredTier} Tool!",
-        ToolStrikeOutcome.Optimal or _ => string.Empty,
-    };
 }

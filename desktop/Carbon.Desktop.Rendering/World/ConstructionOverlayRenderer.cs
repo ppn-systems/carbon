@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Camera;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -132,15 +133,12 @@ internal sealed class ConstructionOverlayRenderer
     }
 
     /// <summary>Draws the ghost reason label and site / deconstruction labels near the player (screen space).</summary>
-    public void DrawText(SpriteBatch spriteBatch, BitmapFont font, CameraRig2D cameraRig, IVectorArtRepository? art, Vector2 playerPos, float tileSize)
+    public void DrawText(SpriteBatch spriteBatch, BitmapFont font, CameraRig2D cameraRig, Vector2 playerPos, float tileSize)
     {
         if (_hasGhost)
         {
-            string name = art is not null && art.TryGetStructure((byte)_ghostType, out CompiledStructureArt? structArt)
-                ? structArt.DisplayName
-                : _ghostType.ToString();
             string label = _ghostCode == BuildResultCode.Ok
-                ? $"{name} - [LMB] place blueprint"
+                ? GameText.Format("build.place_blueprint", new TextArg("name", GameText.StructureName(_ghostType)))
                 : BuildResultText.Describe(_ghostCode);
             ColorRgba color = _ghostCode == BuildResultCode.Ok ? new ColorRgba(134, 239, 172, 255) : new ColorRgba(252, 165, 165, 255);
             Vector2 top = new((_ghostX + (_ghostWidth * 0.5f)) * tileSize, _ghostY * tileSize);
@@ -159,10 +157,10 @@ internal sealed class ConstructionOverlayRenderer
 
             int percent = (int)MathF.Round(m.Progress * 100f);
             string label = m.IsDeconstruction
-                ? $"Deconstructing {percent}%"
+                ? GameText.Format("build.deconstructing", new TextArg("percent", percent))
                 : m.Stage == ConstructionStage.Frame
-                    ? $"Building {percent}% - [Z] cancel"
-                    : "Blueprint - needs materials - [Z] cancel";
+                    ? GameText.Format("build.progress", new TextArg("percent", percent))
+                    : GameText.Get("build.needs_materials");
             ColorRgba color = m.IsDeconstruction ? new ColorRgba(253, 186, 116, 255) : new ColorRgba(191, 219, 254, 255);
             DrawCenteredLabel(spriteBatch, font, cameraRig, top, label, color, offsetY: 22f);
         }
