@@ -35,6 +35,33 @@ public static class NineSliceRenderer
         ColorRgba color,
         float depth = 0f,
         float footY = 0f,
+        int layer = 0) =>
+        DrawNineSliceAtScale(spriteBatch, texture, in sourceBounds, in margins, in destination, color, cornerScale: 1f, depth, footY, layer);
+
+    /// <summary>
+    /// Renders a nine-slice panel whose corners and border strips are drawn <paramref name="cornerScale"/> destination units
+    /// per source texel (a UI drawn at a fractional scale keeps its corners at a whole number of screen pixels per texel).
+    /// </summary>
+    /// <param name="spriteBatch">The target sprite batch.</param>
+    /// <param name="texture">The panel skin texture.</param>
+    /// <param name="sourceBounds">The pixel rectangle on the source texture.</param>
+    /// <param name="margins">The border margins, in source texels.</param>
+    /// <param name="destination">The destination rectangle on screen.</param>
+    /// <param name="color">The color tint applied to the panel.</param>
+    /// <param name="cornerScale">Destination units per source texel for the corners and border strips.</param>
+    /// <param name="depth">Depth buffer value.</param>
+    /// <param name="footY">2.5D base feet Y coordinate for depth sorting.</param>
+    /// <param name="layer">Rendering layer index.</param>
+    public static void DrawNineSliceAtScale(
+        this SpriteBatch spriteBatch,
+        ITexture texture,
+        in RectangleF sourceBounds,
+        in NineSliceMargins margins,
+        in RectangleF destination,
+        ColorRgba color,
+        float cornerScale,
+        float depth = 0f,
+        float footY = 0f,
         int layer = 0)
     {
         ArgumentNullException.ThrowIfNull(spriteBatch, nameof(spriteBatch));
@@ -45,7 +72,7 @@ public static class NineSliceRenderer
             return;
         }
 
-        NineSliceGrid grid = NineSliceGrid.Create(sourceBounds, margins, destination);
+        NineSliceGrid grid = NineSliceGrid.Create(sourceBounds, margins, destination, cornerScale);
         float finalFootY = footY == 0f ? destination.Bottom : footY;
 
         // Render each valid slice

@@ -62,12 +62,23 @@ internal static class AmbientAnimator
     /// Ripples on open water: pairs of light glints that swell, drift with the current and fade, each on
     /// its own phase so the surface twinkles instead of pulsing in unison.
     /// </summary>
-    public static void DrawRipples(GeometryBatch batch, ReadOnlySpan<ChunkTerrainRenderer.RippleSpot> spots, float time)
+    public static void DrawRipples(GeometryBatch batch, ReadOnlySpan<ChunkTerrainRenderer.RippleSpot> spots, float time, float tileSize)
     {
         for (int i = 0; i < spots.Length; i++)
         {
             ChunkTerrainRenderer.RippleSpot spot = spots[i];
             uint seed = (uint)spot.Seed;
+            if (spot.IsShore)
+            {
+                DrawShoreFoam(batch, in spot, time, tileSize);
+                continue;
+            }
+
+            if (!spot.IsDeep)
+            {
+                DrawCaustic(batch, in spot, time, tileSize);
+            }
+
             float phase = Frac((time * (0.22f + (Hash01(seed, 1) * 0.12f))) + Hash01(seed, 2));
             float life = MathF.Sin(phase * MathF.PI);
             if (life < 0.05f)
@@ -82,6 +93,61 @@ internal static class AmbientAnimator
             ColorRgba glint = spot.IsDeep ? new ColorRgba(150, 190, 230, a) : new ColorRgba(230, 248, 255, a);
             batch.FillRectangle(new RectangleF(c.X - (w * 0.5f), c.Y, w, 1.5f), glint);
             batch.FillRectangle(new RectangleF(c.X - (w * 0.3f) + 4f, c.Y + 4f, w * 0.6f, 1.5f), new ColorRgba(glint.R, glint.G, glint.B, (byte)(a * 0.6f)));
+        }
+    }
+
+    /// <summary>
+    /// Gets the lapping wave on a shoreline tile at <paramref name="time"/>: how far the crest has rolled toward the
+    /// shore (0 = tile centre, 1 = the waterline) and how bright the foam is. A wave rolls in over the first 60 % of
+    /// its cycle, then its wash fades at the waterline; neighbouring tiles are out of step.
+    /// </summary>
+    /// <param name="seed">The tile's seed.</param>
+    /// <param name="time">Animation time in seconds.</param>
+    /// <returns>The crest position and the foam alpha, 0..1.</returns>
+    public static (float Crest, float Alpha) ShoreWave(uint seed, float time)
+    {
+        float period = 3.2f + (Hash01(seed, 5) * 1.2f);
+        float phase = Frac((time / period) + Hash01(seed, 6));
+        if (phase < 0.6f)
+        {
+            float t = phase / 0.6f;
+            float crest = 1f - ((1f - t) * (1f - t)); // eases in as it reaches the shore
+            return (crest, 0.35f + (0.65f * t));
+        }
+
+        return (1f, 1f - ((phase - 0.6f) / 0.4f));
+    }
+
+    // A foam crest rolling in along the tile toward the shore, then a fading wash line at the waterline.
+    private static void DrawShoreFoam(GeometryBatch batch, in ChunkTerrainRenderer.RippleSpot spot, float time, float tileSize)
+    {
+        uint seed = (uint)spot.Seed;
+        (float crest, float alpha) = ShoreWave(seed, time);
+        Vector2 across = new(-spot.ToShore.Y, spot.ToShore.X);
+        float half = tileSize * 0.55f;
+        Vector2 line = spot.Centre + (spot.ToShore * (crest * tileSize * 0.46f));
+        float wobble = MathF.Sin((time * 2.1f) + Hash01(seed, 7)) * 1.2f;
+        Vector2 a = line - (across * half) + (spot.ToShore * wobble);
+        Vector2 b = line + (across * half) - (spot.ToShore * wobble);
+        batch.DrawLine(a, b, new ColorRgba(240, 252, 255, (byte)(190f * alpha)), 2.2f);
+
+        // Bubbly trail a little behind the crest.
+        Vector2 trail = line - (spot.ToShore * 3.5f);
+        batch.DrawLine(trail - (across * half * 0.7f), trail + (across * half * 0.6f), new ColorRgba(220, 244, 250, (byte)(90f * alpha)), 1.3f);
+    }
+
+    // Shallow water: a faint, slowly drifting web of light on the bottom.
+    private static void DrawCaustic(GeometryBatch batch, in ChunkTerrainRenderer.RippleSpot spot, float time, float tileSize)
+    {
+        uint seed = (uint)spot.Seed;
+        float r = tileSize * 0.42f;
+        for (int k = 0; k < 3; k++)
+        {
+            float a0 = (time * (0.35f + (k * 0.11f))) + (Hash01(seed, 40 + k) * MathF.Tau);
+            Vector2 p0 = spot.Centre + new Vector2(MathF.Cos(a0) * r, MathF.Sin(a0 * 1.3f) * r * 0.6f);
+            Vector2 p1 = spot.Centre + new Vector2(MathF.Cos(a0 + 2.1f) * r * 0.8f, MathF.Sin((a0 * 0.9f) + 2.1f) * r * 0.7f);
+            float pulse = 0.5f + (0.5f * MathF.Sin((time * 1.7f) + k + Hash01(seed, 50)));
+            batch.DrawLine(p0, p1, new ColorRgba(225, 250, 255, (byte)(28f + (36f * pulse))), 1.1f);
         }
     }
 

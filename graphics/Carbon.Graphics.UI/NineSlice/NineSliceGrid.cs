@@ -111,7 +111,23 @@ public readonly struct NineSliceGrid
     public static NineSliceGrid Create(
         in RectangleF source,
         in NineSliceMargins margins,
-        in RectangleF destination)
+        in RectangleF destination) =>
+        Create(source, margins, destination, cornerScale: 1f);
+
+    /// <summary>
+    /// Computes the 9-slice grid with the destination corners and border strips <paramref name="cornerScale"/> units per
+    /// source texel.
+    /// </summary>
+    /// <param name="source">The bounding box on the source texture.</param>
+    /// <param name="margins">The border margins, in source texels.</param>
+    /// <param name="destination">The destination rectangle on screen.</param>
+    /// <param name="cornerScale">Destination units per source texel for the corners and border strips.</param>
+    /// <returns>A populated <see cref="NineSliceGrid"/> instance.</returns>
+    public static NineSliceGrid Create(
+        in RectangleF source,
+        in NineSliceMargins margins,
+        in RectangleF destination,
+        float cornerScale)
     {
         // Source column widths & row heights
         float srcCol0W = margins.Left;
@@ -132,13 +148,15 @@ public readonly struct NineSliceGrid
         float srcY2 = srcY1 + srcRow1H;
 
         // Destination scaling if destination is smaller than margins
-        float scaleX = destination.Width < margins.Horizontal && margins.Horizontal > 0f
+        float destHorizontal = margins.Horizontal * cornerScale;
+        float destVertical = margins.Vertical * cornerScale;
+        float scaleX = destination.Width < destHorizontal && destHorizontal > 0f
             ? destination.Width / margins.Horizontal
-            : 1.0f;
+            : cornerScale;
 
-        float scaleY = destination.Height < margins.Vertical && margins.Vertical > 0f
+        float scaleY = destination.Height < destVertical && destVertical > 0f
             ? destination.Height / margins.Vertical
-            : 1.0f;
+            : cornerScale;
 
         float dstCol0W = margins.Left * scaleX;
         float dstCol2W = margins.Right * scaleX;

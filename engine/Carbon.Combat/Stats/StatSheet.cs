@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using Carbon.Simulation.ECS;
 
 namespace Carbon.Combat.Stats;
 
@@ -9,7 +10,7 @@ namespace Carbon.Combat.Stats;
 /// Dirty-cached stat aggregator recomputing <c>(Base + Flat) * (1 + SumPercentAdd) * Prod(1 + PercentMult)</c>
 /// from base values and tagged <see cref="StatModifier"/> entries without cumulative float drift.
 /// </summary>
-public sealed class StatSheet
+public sealed class StatSheet : IReusableAttachment
 {
     private const int StatCount = (int)StatType.CritMultiplier + 1;
 
@@ -17,6 +18,15 @@ public sealed class StatSheet
     private readonly float[] _cachedValues = new float[StatCount];
     private readonly List<StatModifier> _modifiers = new(16);
     private ulong _dirtyMask = ulong.MaxValue;
+
+    /// <inheritdoc/>
+    public void ResetForReuse()
+    {
+        Array.Clear(_baseValues);
+        Array.Clear(_cachedValues);
+        _modifiers.Clear();
+        _dirtyMask = ulong.MaxValue;
+    }
 
     /// <summary>
     /// Sets the base value for <paramref name="stat"/> and marks it dirty for recomputation.

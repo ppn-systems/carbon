@@ -3,17 +3,25 @@
 using System;
 using System.Numerics;
 using Carbon.Maps.Navigation;
+using Carbon.Simulation.ECS;
 
 namespace Carbon.AI.Navigation;
 
 /// <summary>
 /// Reusable tile-path waypoint buffer connecting <see cref="GridPathfinder"/> output to continuous world-space steering.
 /// </summary>
-public sealed class PathWaypointBuffer
+public sealed class PathWaypointBuffer : IReusableAttachment
 {
     private readonly (int X, int Y)[] _waypoints;
     private int _count;
     private int _cursor;
+
+    /// <inheritdoc/>
+    public void ResetForReuse()
+    {
+        this.Clear();
+        Array.Clear(_waypoints);
+    }
 
     /// <summary>
     /// Gets the number of waypoints remaining from the current cursor to the goal.

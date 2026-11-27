@@ -8,7 +8,7 @@ namespace Carbon.AI.Threat;
 /// <summary>
 /// Per-NPC aggro / threat table tracking threat accumulated by hostile targets and selecting the top target.
 /// </summary>
-public sealed class ThreatTable
+public sealed class ThreatTable : IReusableAttachment
 {
     private struct ThreatEntry
     {
@@ -20,6 +20,14 @@ public sealed class ThreatTable
     private int _count;
     private Entity _tauntTarget;
     private ulong _tauntUntilTick;
+
+    /// <inheritdoc/>
+    /// <remarks>An entries array grown past its initial capacity keeps its length, zeroed.</remarks>
+    public void ResetForReuse()
+    {
+        this.Clear();
+        Array.Clear(_entries);
+    }
 
     /// <summary>
     /// Gets the number of targets currently tracked in this table.

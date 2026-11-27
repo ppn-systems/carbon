@@ -14,15 +14,16 @@ namespace Carbon.Desktop.Gameplay.Input;
 internal static class DeathScreenInput
 {
     /// <summary>Handles one frame of input; returns <see langword="true"/> while the player is dead (the scene skips the rest).</summary>
-    public static bool Handle(IWorldSession session, bool confirmPressed, bool leftClickPressed, Vector2 mouseScreen, int viewportWidth, int viewportHeight)
+    public static bool Handle(IWorldSession session, HudOverlayRenderer hud, bool confirmPressed, bool leftClickPressed, Vector2 mouseScreen, int viewportWidth, int viewportHeight)
     {
         ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(hud);
         if (session.LocalDeath is null)
         {
             return false;
         }
 
-        bool clickedRespawn = leftClickPressed && HudOverlayRenderer.GetRespawnButtonRect(viewportWidth, viewportHeight).Contains(in mouseScreen);
+        bool clickedRespawn = leftClickPressed && hud.GetRespawnButtonRect(viewportWidth, viewportHeight).Contains(in mouseScreen);
         if (confirmPressed || clickedRespawn)
         {
             _ = session.TryRequestRespawn();

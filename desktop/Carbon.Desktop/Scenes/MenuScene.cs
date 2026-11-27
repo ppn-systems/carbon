@@ -13,7 +13,7 @@ using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.Batching.Sprites;
 using Carbon.Graphics.Fonts.Layout;
 using Carbon.Graphics.Fonts.Rendering;
-using Carbon.Graphics.OpenGL.Textures;
+using Carbon.Graphics.OpenGL.Abstractions;
 using Carbon.Graphics.Scenes.Base;
 using Carbon.Graphics.Scenes.Management;
 using Carbon.Graphics.Windowing.Abstractions;
@@ -41,7 +41,6 @@ internal abstract class MenuScene : GameScene
     private float _backspaceHoldTime;
     private float _backspaceRepeatTime;
     private bool _shiftDown;
-    private Texture2D? _whitePixel;
 
     protected MenuScene(string name, MenuFlow flow, string captureName)
         : base(name)
@@ -53,7 +52,19 @@ internal abstract class MenuScene : GameScene
 
     protected MenuFlow Flow { get; }
 
-    protected BitmapFont? Font { get; private set; }
+    protected BitmapFont? Font => this.Flow.Ui.Fonts?.Font;
+
+    /// <summary>
+    /// Gets the screen pixels per layout unit (docs/art/menu-ui.md rule 21): layouts work on a canvas of the window size
+    /// divided by this, so the 1280×720 design fills a 1080p window at 1.5.
+    /// </summary>
+    internal float UiScale => this.Flow.Ui.Scale;
+
+    /// <summary>Gets the menu window rectangle from the last layout, in canvas units (tests check it fits).</summary>
+    internal RectangleF PanelBounds { get; private set; }
+
+    /// <summary>Gets the font cache (tests check a steady frame never re-bakes).</summary>
+    internal ScaledFontCache? Fonts => this.Flow.Ui.Fonts;
 
     protected CarbonUiSkin? Skin { get; private set; }
 
@@ -92,10 +103,9 @@ internal abstract class MenuScene : GameScene
         ArgumentNullException.ThrowIfNull(context);
         base.Load(context);
         this.Geometry = new GeometryBatch(context.Device);
-        (BitmapFont font, Texture2D whitePixel) = GameFontLoader.Load(context.Device);
-        this.Font = font;
-        _whitePixel = whitePixel;
         this.Skin = CarbonUiSkin.Load(context.Device);
+        IGraphicsDevice device = context.Device;
+        this.UseFonts(() => new ScaledFontCache(scale => GameFontLoader.LoadFont(device, locale: null, scale)), context.WindowWidth, context.WindowHeight);
     }
 
     /// <inheritdoc/>
@@ -132,7 +142,8 @@ internal abstract class MenuScene : GameScene
         this.Elapsed += (float)dt;
         _transition.Advance((float)dt);
         this.Flow.Backdrop.Advance((float)dt);
-        _ = this.Layout(context.WindowWidth, context.WindowHeight);
+        this.ApplyScale(context.WindowWidth, context.WindowHeight);
+        this.PanelBounds = this.Layout(this.CanvasWidth, this.CanvasHeight);
         KeyboardSnapshot kb = context.Input.Keyboard;
         _shiftDown = kb.IsKeyDown(Key.ShiftLeft) || kb.IsKeyDown(Key.ShiftRight);
         if (kb.IsKeyPressed(Key.CapsLock))
@@ -164,8 +175,12 @@ internal abstract class MenuScene : GameScene
         context.Device.SetClearColor(new Vector4(0.04f, 0.06f, 0.11f, 1f));
         context.Device.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-        RectangleF card = this.Layout(width, height);
-        Matrix4x4 proj = Matrix4x4.CreateOrthographicOffCenter(0f, width, height, 0f, -1f, 1f);
+        this.ApplyScale(width, height);
+        RectangleF card = this.Layout(this.CanvasWidth, this.CanvasHeight);
+        this.PanelBounds = card;
+        Matrix4x4 proj = Matrix4x4.CreateOrthographicOffCenter(0f, width / this.UiScale, height / this.UiScale, 0f, -1f, 1f);
+        int canvasWidth = this.CanvasWidth;
+        int canvasHeight = this.CanvasHeight;
 
         // The panel slides in while the backdrop, title and footer stay put (docs/art/menu-ui.md rule 16).
         Matrix4x4 panel = Matrix4x4.CreateTranslation(0f, _transition.Offset, 0f) * proj;
@@ -198,8 +213,8 @@ internal abstract class MenuScene : GameScene
 
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: proj);
         ColorRgba black = CarbonUiPalette.TextOutline;
-        DrawTitle(spriteBatch, font, width, TitleTop(height));
-        this.DrawFooter(spriteBatch, font, width, height);
+        DrawTitle(spriteBatch, font, canvasWidth, TitleTop(canvasHeight));
+        this.DrawFooter(spriteBatch, font, canvasWidth, canvasHeight);
         spriteBatch.End();
 
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: panel);
@@ -232,7 +247,27 @@ internal abstract class MenuScene : GameScene
         _capture.AfterRender(context, this.ReadyForCapture && _transition.IsDone && this.Flow.Backdrop.IsSettled(expectWorld: this.Flow.Session.GameConfig is not null));
     }
 
-    /// <summary>Places the controls for the window size and returns the menu window rectangle.</summary>
+    /// <summary>Gets the canvas width in layout units (the window width divided by <see cref="UiScale"/>).</summary>
+    protected int CanvasWidth => this.Flow.Ui.CanvasWidth;
+
+    /// <summary>Gets the canvas height in layout units (the window height divided by <see cref="UiScale"/>).</summary>
+    protected int CanvasHeight => this.Flow.Ui.CanvasHeight;
+
+    /// <summary>
+    /// Supplies the shared font cache if no screen has yet and re-reads the player's UI scale choice: once per screen,
+    /// never per frame. Load calls it with the real font loader; tests hand in a fake one.
+    /// </summary>
+    internal void UseFonts(Func<ScaledFontCache> createFonts, int windowWidth, int windowHeight)
+    {
+        this.Flow.Ui.EnsureFonts(createFonts);
+        this.Flow.Ui.ReloadChoice();
+        this.ApplyScale(windowWidth, windowHeight);
+    }
+
+    /// <summary>Maps the mouse from window pixels to canvas units, where every hit rectangle lives.</summary>
+    protected Vector2 PointerPosition(in MouseSnapshot mouse) => mouse.Position / this.UiScale;
+
+    /// <summary>Places the controls for the canvas size and returns the menu window rectangle.</summary>
     protected abstract RectangleF Layout(int width, int height);
 
     /// <summary>Handles input and pending work for one frame (layout is already done).</summary>
@@ -296,13 +331,23 @@ internal abstract class MenuScene : GameScene
             this.Skin = null;
             this.Geometry?.Dispose();
             this.Geometry = null;
-            this.Font?.Dispose();
-            this.Font = null;
-            _whitePixel?.Dispose();
-            _whitePixel = null;
         }
 
         base.Dispose(disposing);
+    }
+
+    /// <summary>
+    /// Resolves the UI scale for the window (re-baking the font only when it changes) and the canvas it leaves.
+    /// </summary>
+    private void ApplyScale(int windowWidth, int windowHeight)
+    {
+        UiScaleState ui = this.Flow.Ui;
+        ui.Resize(windowWidth, windowHeight);
+        _ = ui.Font; // re-bakes only when the scale changed
+        if (this.Skin is { } skin)
+        {
+            skin.PixelScale = ui.Scale;
+        }
     }
 
     private void HandleBackspaceRepeat(in KeyboardSnapshot kb, float dt)

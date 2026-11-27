@@ -62,7 +62,11 @@ internal sealed class Atmosphere
 
     private readonly bool? _forcedRain;
     private readonly CloudSystem _clouds = new();
+    // Weather clock: advances only with the local day cycle (frozen while the server owns the hour, as before).
     private float _time;
+
+    // Animation clock: always advances with frame time, so rain falls, clouds drift and fireflies move online too.
+    private float _anim;
 
     /// <summary>Gets the current hour of day (0..24).</summary>
     public float Hour { get; private set; }
@@ -83,10 +87,21 @@ internal sealed class Atmosphere
     /// <summary>Gets the ambient light multiplier for the current hour and weather.</summary>
     public Vector3 Ambient { get; private set; } = Vector3.One;
 
+    /// <summary>
+    /// Advances only the animation clock (rain, splashes, cloud drift, fireflies) by real frame time. Call it each frame
+    /// while the server owns the hour: <see cref="Update"/> then runs with zero time so the hour and weather stay put.
+    /// </summary>
+    /// <param name="dt">Frame time in seconds.</param>
+    public void Animate(float dt) => _anim += dt;
+
+    /// <summary>Gets the animation clock in seconds (what rain, clouds and fireflies move with).</summary>
+    public float AnimationTime => _anim;
+
     /// <summary>Advances the clock and the weather.</summary>
     public void Update(float dt)
     {
         _time += dt;
+        _anim += dt;
         this.Hour = (this.Hour + (dt * 24f / this.DayLength)) % 24f;
 
         // Weather: a slow, smooth cycle; showers take about a quarter of the time.
@@ -113,7 +128,7 @@ internal sealed class Atmosphere
     /// </summary>
     public void DrawCloudShadows(GeometryBatch batch, float minX, float minY, float maxX, float maxY)
     {
-        _clouds.Update(_time, this.Rain, minX, minY, maxX, maxY);
+        this.UpdateClouds(minX, minY, maxX, maxY);
         _clouds.DrawShadows(batch, this.Hour, this.Night, this.Rain);
         AmbientLife.DrawBirdShadows(batch, _time, new Vector2(minX, minY), new Vector2(maxX, maxY), AmbientLife.DayActivity(this.Night, this.Rain));
     }
@@ -233,14 +248,30 @@ internal sealed class Atmosphere
 
     private (Vector2 Position, float Glow) Firefly(int i, Vector2 player)
     {
-        float t = _time * (0.18f + (AmbientAnimator.Hash01(51u, i) * 0.2f));
+        float t = _anim * (0.18f + (AmbientAnimator.Hash01(51u, i) * 0.2f));
         Vector2 home = new(
             (MathF.Floor(player.X / 600f) * 600f) + (AmbientAnimator.Hash01(52u, i) * 1200f) - 300f,
             (MathF.Floor(player.Y / 600f) * 600f) + (AmbientAnimator.Hash01(53u, i) * 900f) - 200f);
         Vector2 p = home + new Vector2(MathF.Sin(t + i) * 60f, MathF.Cos((t * 1.4f) + (i * 0.7f)) * 40f);
-        float glow = 0.5f + (0.5f * MathF.Sin((_time * 3.5f) + (i * 2.1f)));
+        float glow = 0.5f + (0.5f * MathF.Sin((_anim * 3.5f) + (i * 2.1f)));
         return (p, glow);
     }
+
+    /// <summary>Gets the top of rain streak <paramref name="i"/> in a view, falling with the animation clock.</summary>
+    internal Vector2 RainStreak(int i, float minX, float minY, float width, float height)
+    {
+        float speed = 0.9f + (AmbientAnimator.Hash01(61u, i) * 0.5f);
+        float phase = AmbientAnimator.Frac((_anim * speed * 1.6f) + AmbientAnimator.Hash01(62u, i));
+        float x = minX + (AmbientAnimator.Frac(AmbientAnimator.Hash01(63u, i) + (phase * 0.12f)) * width);
+        return new Vector2(x, minY + (phase * height));
+    }
+
+    /// <summary>Gets the clouds of the last <see cref="UpdateClouds"/>.</summary>
+    internal CloudSystem Clouds => _clouds;
+
+    /// <summary>Works out the clouds alive around the view for this frame, drifting with the animation clock.</summary>
+    internal void UpdateClouds(float minX, float minY, float maxX, float maxY) =>
+        _clouds.Update(_anim, this.Rain, minX, minY, maxX, maxY);
 
     private void DrawRain(GeometryBatch batch, float minX, float minY, float maxX, float maxY)
     {
@@ -250,19 +281,16 @@ internal sealed class Atmosphere
         ColorRgba streak = new(200, 214, 236, (byte)(150 * this.Rain));
         for (int i = 0; i < drops; i++)
         {
-            float speed = 0.9f + (AmbientAnimator.Hash01(61u, i) * 0.5f);
-            float phase = AmbientAnimator.Frac((_time * speed * 1.6f) + AmbientAnimator.Hash01(62u, i));
-            float x = minX + (AmbientAnimator.Frac(AmbientAnimator.Hash01(63u, i) + (phase * 0.12f)) * w);
-            float y = minY + (phase * h);
-            batch.DrawLine(new Vector2(x, y), new Vector2(x - 4f, y + 16f), streak, 1.3f);
+            Vector2 head = this.RainStreak(i, minX, minY, w, h);
+            batch.DrawLine(head, new Vector2(head.X - 4f, head.Y + 16f), streak, 1.3f);
         }
 
         // Splash rings on the ground
         int splashes = (int)(70 * this.Rain);
         for (int i = 0; i < splashes; i++)
         {
-            float phase = AmbientAnimator.Frac((_time * 2.2f) + AmbientAnimator.Hash01(64u, i));
-            int cycle = (int)((_time * 2.2f) + AmbientAnimator.Hash01(64u, i));
+            float phase = AmbientAnimator.Frac((_anim * 2.2f) + AmbientAnimator.Hash01(64u, i));
+            int cycle = (int)((_anim * 2.2f) + AmbientAnimator.Hash01(64u, i));
             float x = minX + (AmbientAnimator.Hash01(65u, i + (cycle * 97)) * w);
             float y = minY + (AmbientAnimator.Hash01(66u, i + (cycle * 89)) * h);
             float r = 2f + (phase * 7f);

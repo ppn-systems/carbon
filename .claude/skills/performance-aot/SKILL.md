@@ -11,7 +11,7 @@ Carbon is designed for high-throughput, low-latency MMORPG gameplay across dedic
 
 - **Hot Paths (Game Simulation & Networking)**:
   - Zero heap allocation during steady-state tick loop.
-  - Packet buffers and DTOs must use object pooling (`PacketFactory<T>.Acquire()`, `ArrayPool<byte>.Shared`).
+  - Packet buffers and DTOs must use object pooling (`PacketPool.Rent<T>()` for outbound packets, ADR-043; `ArrayPool<byte>.Shared`).
   - Use `Span<T>`, `ReadOnlySpan<T>`, and `Memory<T>` for slicing packet data and byte streams without copying.
   - Entity components in `engine/` should be unmanaged structs to ensure cache locality and zero GC pressure.
 - **Cold Paths (Initialization, Asset Loading, Configs, Auth)**:
@@ -31,7 +31,7 @@ Carbon is designed for high-throughput, low-latency MMORPG gameplay across dedic
 1. **No LINQ on the Tick Path**: Avoid `.Where()`, `.Select()`, `.ToList()` in systems executing every tick (20Hz/30Hz/60Hz). Use direct `for` loops or struct enumerators.
 2. **Object Pooling**:
    - Packets and network messages are rented from pools and returned promptly upon send/serialization.
-   - Use `using PacketScope<T> lease = PacketFactory<T>.Acquire();` with `try/catch` safety to prevent pool leaks.
+   - Use `using PacketLease<T> lease = packets.Rent<T>();` around the awaited send, inside `try/catch`, so a failed or cancelled send still returns the packet exactly once (ADR-043).
 3. **Broadcasting & Fan-out**:
    - Serialize once, send to many. When broadcasting a world state snapshot to multiple players in an AoI (Area of Interest), serialize the packet buffer once and dispatch references to each player's socket sender.
 4. **Boxing Prevention**:

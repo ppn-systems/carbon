@@ -19,7 +19,7 @@ using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.Batching.Sprites;
 using Carbon.Graphics.Fonts.Layout;
 using Carbon.Graphics.Fonts.Rendering;
-using Carbon.Graphics.OpenGL.Textures;
+using Carbon.Graphics.OpenGL.Abstractions;
 using Carbon.Graphics.Scenes.Base;
 using Carbon.Graphics.Scenes.Management;
 using Carbon.Graphics.Windowing.Abstractions;
@@ -75,8 +75,6 @@ public sealed class CharacterSelectScene : GameScene
     private RectangleF _optionsBounds;
 
     private GeometryBatch? _geometryBatch;
-    private BitmapFont? _font;
-    private Texture2D? _whitePixel;
     private CarbonUiSkin? _uiSkin;
     private IVectorArtRepository? _vectorArt;
     private IInputManager? _boundInput;
@@ -163,6 +161,12 @@ public sealed class CharacterSelectScene : GameScene
     /// <summary>Gets the hero name field (behaviour tests read its text and feedback).</summary>
     internal MenuTextField HeroName => _createNameField;
 
+    /// <summary>Gets the screen pixels per layout unit (docs/art/menu-ui.md rule 21).</summary>
+    internal float UiScale => _flow.Ui.Scale;
+
+    /// <summary>Gets the main window rectangle from the last layout, in canvas units (tests check it fits).</summary>
+    internal RectangleF PanelBounds { get; private set; }
+
     /// <summary>Gets the preview turntable direction index (behaviour tests).</summary>
     internal int TurnIndex => _turntable.Index;
 
@@ -173,8 +177,11 @@ public sealed class CharacterSelectScene : GameScene
         base.Load(context);
 
         _geometryBatch = new GeometryBatch(context.Device);
-        (_font, _whitePixel) = GameFontLoader.Load(context.Device);
         _uiSkin = CarbonUiSkin.Load(context.Device);
+        IGraphicsDevice device = context.Device;
+        _flow.Ui.EnsureFonts(() => new ScaledFontCache(scale => GameFontLoader.LoadFont(device, locale: null, scale)));
+        _flow.Ui.ReloadChoice();
+        this.ApplyScale(context.WindowWidth, context.WindowHeight);
         _vectorArt = CarbonVectorArtLibrary.LoadOrDefault();
     }
 
@@ -229,9 +236,8 @@ public sealed class CharacterSelectScene : GameScene
             return;
         }
 
-        int width = context.WindowWidth;
-        int height = context.WindowHeight;
-        this.LayoutControls(width, height);
+        this.ApplyScale(context.WindowWidth, context.WindowHeight);
+        this.LayoutControls(_flow.Ui.CanvasWidth, _flow.Ui.CanvasHeight);
 
         KeyboardSnapshot kb = context.Input.Keyboard;
         MouseSnapshot mouse = context.Input.Mouse;
@@ -300,7 +306,7 @@ public sealed class CharacterSelectScene : GameScene
 
         bool leftDown = mouse.IsButtonDown(MouseButton.Left);
         bool leftPressed = mouse.IsButtonPressed(MouseButton.Left);
-        Vector2 mousePos = mouse.Position;
+        Vector2 mousePos = mouse.Position / this.UiScale; // window pixels to canvas units, where the hit rectangles live
 
         _logoutButton.IsEnabled = !busy;
         _turnLeftBtn.IsEnabled = !busy;
@@ -338,7 +344,7 @@ public sealed class CharacterSelectScene : GameScene
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(spriteBatch);
 
-        if (_geometryBatch is null || _font is null || _uiSkin is null)
+        if (_geometryBatch is null || _flow.Ui.Fonts is null || _uiSkin is null)
         {
             return;
         }
@@ -353,8 +359,19 @@ public sealed class CharacterSelectScene : GameScene
         context.Device.SetClearColor(new Vector4(0.04f, 0.06f, 0.11f, 1f));
         context.Device.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
+        int windowWidth = width;
+        int windowHeight = height;
+        this.ApplyScale(windowWidth, windowHeight);
+        BitmapFont? font = _flow.Ui.Font;
+        if (font is null)
+        {
+            return;
+        }
+
+        width = _flow.Ui.CanvasWidth;
+        height = _flow.Ui.CanvasHeight;
         this.LayoutControls(width, height);
-        Matrix4x4 proj = Matrix4x4.CreateOrthographicOffCenter(0f, width, height, 0f, -1f, 1f);
+        Matrix4x4 proj = Matrix4x4.CreateOrthographicOffCenter(0f, windowWidth / this.UiScale, windowHeight / this.UiScale, 0f, -1f, 1f);
 
         const float totalW = 920f;
         const float totalH = 580f;
@@ -367,7 +384,7 @@ public sealed class CharacterSelectScene : GameScene
         RectangleF statusPill = new(ox + 22f, oy + totalH - 46f, totalW - 44f, 30f);
 
         // Pass 1: the menus' shared living backdrop (docs/art/menu-ui.md rule 15)
-        _flow.Backdrop.Render(context.Device, _geometryBatch, width, height);
+        _flow.Backdrop.Render(context.Device, _geometryBatch, windowWidth, windowHeight);
 
         // Pass 2: Standardized 9-Slice Windows, Cards, Hero Slots & Buttons
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: proj);
@@ -493,7 +510,7 @@ public sealed class CharacterSelectScene : GameScene
 
         if (_isCreatorMode)
         {
-            _createNameField.DrawCursorGeometry(_geometryBatch, _font);
+            _createNameField.DrawCursorGeometry(_geometryBatch, font);
             for (int row = 0; row < this.ShownOptionRows; row++)
             {
                 if (row == BodyRow && this.BodyUsesToggle)
@@ -568,46 +585,46 @@ public sealed class CharacterSelectScene : GameScene
         string header = _isCreatorMode
             ? GameText.Get("character.header.creator")
             : _headerText.Format("character.header.roster", new TextArg("count", _roster.Count), new TextArg("max", CharacterRoster.MaxHeroes));
-        spriteBatch.DrawOutlinedString(_font, header, new Vector2(ox + 22f, oy + 18f), CarbonUiPalette.TextWarm, black, 2, 1.5f);
+        spriteBatch.DrawOutlinedString(font, header, new Vector2(ox + 22f, oy + 18f), CarbonUiPalette.TextWarm, black, 2, 1.5f);
         // Right-aligned against Log out so a longer translation never runs under the button.
         string connection = _netText.Format("character.connection", new TextArg("status", _session.ConnectionLabel));
-        TextMeasureResult connectionSize = _font.MeasureString(connection, TextLayoutOptions.Default, 1f);
-        spriteBatch.DrawOutlinedString(_font, connection, new Vector2(MathF.Floor(_logoutButton.Bounds.X - 14f - connectionSize.Width), oy + 22f), CarbonUiPalette.TextMuted, black, 1, 1f);
+        TextMeasureResult connectionSize = font.MeasureString(connection, TextLayoutOptions.Default, 1f);
+        spriteBatch.DrawOutlinedString(font, connection, new Vector2(MathF.Floor(_logoutButton.Bounds.X - 14f - connectionSize.Width), oy + 22f), CarbonUiPalette.TextMuted, black, 1, 1f);
 
         string stageTitle = GameText.Get("character.stage");
-        TextMeasureResult stSize = _font.MeasureString(stageTitle, TextLayoutOptions.Default, 1f);
-        spriteBatch.DrawOutlinedString(_font, stageTitle, new Vector2(MathF.Floor(stageCard.X + ((stageCard.Width - stSize.Width) * 0.5f)), stageCard.Y + 14f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+        TextMeasureResult stSize = font.MeasureString(stageTitle, TextLayoutOptions.Default, 1f);
+        spriteBatch.DrawOutlinedString(font, stageTitle, new Vector2(MathF.Floor(stageCard.X + ((stageCard.Width - stSize.Width) * 0.5f)), stageCard.Y + 14f), CarbonUiPalette.TextPrimary, black, 1, 1f);
 
         if (_isCreatorMode)
         {
             // A slimmer lore strip under the name: the fresh-start note (ADR-030) in small type.
-            spriteBatch.DrawOutlinedString(_font, GameText.Get("character_creator.fresh_start"), new Vector2(_loreStrip.X + 12f, _loreStrip.Y + 10f), CarbonUiPalette.TextWarm, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, GameText.Get("character_creator.fresh_start"), new Vector2(_loreStrip.X + 12f, _loreStrip.Y + 10f), CarbonUiPalette.TextWarm, black, 1, 1f);
             for (int line = 0; line < s_freshStartLines.Length; line++)
             {
-                string text = CarbonUiSkin.TruncateToWidth(_font, GameText.Get(s_freshStartLines[line]), _loreStrip.Width - 24f, 1f);
-                spriteBatch.DrawOutlinedString(_font, text, new Vector2(_loreStrip.X + 12f, _loreStrip.Y + 34f + (line * 21f)), CarbonUiPalette.TextMuted, black, 1, 1f);
+                string text = CarbonUiSkin.TruncateToWidth(font, GameText.Get(s_freshStartLines[line]), _loreStrip.Width - 24f, 1f);
+                spriteBatch.DrawOutlinedString(font, text, new Vector2(_loreStrip.X + 12f, _loreStrip.Y + 34f + (line * 21f)), CarbonUiPalette.TextMuted, black, 1, 1f);
             }
 
-            spriteBatch.DrawOutlinedString(_font, GameText.Get("character.appearance"), new Vector2(_appearanceCard.X + 16f, _appearanceCard.Y + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, GameText.Get("character.appearance"), new Vector2(_appearanceCard.X + 16f, _appearanceCard.Y + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
             this.SyncRows();
             for (int row = 0; row < this.ShownOptionRows; row++)
             {
                 if (row == BodyRow && this.BodyUsesToggle)
                 {
-                    _bodyToggle.DrawText(spriteBatch, _font);
+                    _bodyToggle.DrawText(spriteBatch, font);
                 }
                 else
                 {
-                    _rows[row].DrawText(spriteBatch, _font);
+                    _rows[row].DrawText(spriteBatch, font);
                 }
             }
 
-            _randomizeBtn.DrawText(spriteBatch, _font);
-            _createNameField.DrawText(spriteBatch, _font);
-            _createButton.DrawText(spriteBatch, _font);
+            _randomizeBtn.DrawText(spriteBatch, font);
+            _createNameField.DrawText(spriteBatch, font);
+            _createButton.DrawText(spriteBatch, font);
             if (_roster.Count > 0)
             {
-                _backToRosterButton.DrawText(spriteBatch, _font);
+                _backToRosterButton.DrawText(spriteBatch, font);
             }
         }
         else
@@ -620,44 +637,44 @@ public sealed class CharacterSelectScene : GameScene
                     CharacterRosterEntry c = _roster.Heroes[i];
                     ColorRgba nc = i == _roster.SelectedIndex ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextPrimary;
                     string clsLabel = GameText.ClassName(c.Class);
-                    spriteBatch.DrawOutlinedString(_font, CarbonUiSkin.TruncateToWidth(_font, c.Name, b.Width - 82f, 1.25f), new Vector2(b.X + 70f, b.Y + 14f), nc, black, 1, 1.25f);
-                    spriteBatch.DrawOutlinedString(_font, _rosterRowText[i].Format("character.roster_row", new TextArg("class", clsLabel), new TextArg("level", c.Level)), new Vector2(b.X + 70f, b.Y + 42f), CarbonUiPalette.TextMuted, black, 1, 1f);
+                    spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, c.Name, b.Width - 82f, 1.25f), new Vector2(b.X + 70f, b.Y + 14f), nc, black, 1, 1.25f);
+                    spriteBatch.DrawOutlinedString(font, _rosterRowText[i].Format("character.roster_row", new TextArg("class", clsLabel), new TextArg("level", c.Level)), new Vector2(b.X + 70f, b.Y + 42f), CarbonUiPalette.TextMuted, black, 1, 1f);
                 }
                 else
                 {
-                    spriteBatch.DrawOutlinedString(_font, CarbonUiSkin.TruncateToWidth(_font, GameText.Get("character.empty_slot"), b.Width - 82f, 1f), new Vector2(b.X + 70f, b.Y + 30f), i == _hoveredSlot ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextMuted, black, 1, 1f);
+                    spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, GameText.Get("character.empty_slot"), b.Width - 82f, 1f), new Vector2(b.X + 70f, b.Y + 30f), i == _hoveredSlot ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextMuted, black, 1, 1f);
                 }
             }
 
-            spriteBatch.DrawOutlinedString(_font, GameText.Get("character.dossier"), new Vector2(rightCard.X + 16f, rightCard.Y + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, GameText.Get("character.dossier"), new Vector2(rightCard.X + 16f, rightCard.Y + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
             if (_roster.HasSelection)
             {
                 CharacterRosterEntry sel = _roster.Heroes[_roster.SelectedIndex];
                 string selCls = GameText.ClassName(sel.Class);
-                spriteBatch.DrawOutlinedString(_font, CarbonUiSkin.TruncateToWidth(_font, sel.Name.ToUpperInvariant(), rightCard.Width - 32f, 1.5f), new Vector2(rightCard.X + 16f, rightCard.Y + 44f), CarbonUiPalette.TextPrimary, black, 1, 1.5f);
-                spriteBatch.DrawOutlinedString(_font, _dossierText.Format("character.dossier_line", new TextArg("class", selCls), new TextArg("level", sel.Level), new TextArg("tier", sel.ZoneTier)), new Vector2(rightCard.X + 16f, rightCard.Y + 78f), CarbonUiPalette.TextWarm, black, 1, 1f);
-                spriteBatch.DrawOutlinedString(_font, _positionText.Format("character.position", new TextArg("x", (int)sel.PositionX), new TextArg("y", (int)sel.PositionY)), new Vector2(rightCard.X + 16f, rightCard.Y + 102f), CarbonUiPalette.TextMuted, black, 1, 1f);
+                spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, sel.Name.ToUpperInvariant(), rightCard.Width - 32f, 1.5f), new Vector2(rightCard.X + 16f, rightCard.Y + 44f), CarbonUiPalette.TextPrimary, black, 1, 1.5f);
+                spriteBatch.DrawOutlinedString(font, _dossierText.Format("character.dossier_line", new TextArg("class", selCls), new TextArg("level", sel.Level), new TextArg("tier", sel.ZoneTier)), new Vector2(rightCard.X + 16f, rightCard.Y + 78f), CarbonUiPalette.TextWarm, black, 1, 1f);
+                spriteBatch.DrawOutlinedString(font, _positionText.Format("character.position", new TextArg("x", (int)sel.PositionX), new TextArg("y", (int)sel.PositionY)), new Vector2(rightCard.X + 16f, rightCard.Y + 102f), CarbonUiPalette.TextMuted, black, 1, 1f);
             }
 
             if (_roster.HasFreeSlot)
             {
-                _openCreatorButton.DrawText(spriteBatch, _font);
+                _openCreatorButton.DrawText(spriteBatch, font);
             }
 
-            _enterWorldButton.DrawText(spriteBatch, _font);
+            _enterWorldButton.DrawText(spriteBatch, font);
         }
 
-        _turnLeftBtn.DrawText(spriteBatch, _font);
-        _turnRightBtn.DrawText(spriteBatch, _font);
-        _logoutButton.DrawText(spriteBatch, _font);
+        _turnLeftBtn.DrawText(spriteBatch, font);
+        _turnRightBtn.DrawText(spriteBatch, font);
+        _logoutButton.DrawText(spriteBatch, font);
 
         ColorRgba statusColor = _requests.StatusIsError ? MenuPalette.ErrorText : CarbonUiPalette.TextPrimary;
-        string status = CarbonUiSkin.TruncateToWidth(_font, _requests.StatusMessage, statusPill.Width - 20f, 1f);
-        spriteBatch.DrawOutlinedString(_font, status, new Vector2(statusPill.X + 10f, statusPill.Y + 7f), statusColor, black, 1, 1f);
+        string status = CarbonUiSkin.TruncateToWidth(font, _requests.StatusMessage, statusPill.Width - 20f, 1f);
+        spriteBatch.DrawOutlinedString(font, status, new Vector2(statusPill.X + 10f, statusPill.Y + 7f), statusColor, black, 1, 1f);
 
-        string footer = CarbonUiSkin.TruncateToWidth(_font, GameText.Get(_isCreatorMode ? "character.footer.creator" : "character.footer.roster"), width - 32f, 1f);
-        TextMeasureResult footerSize = _font.MeasureString(footer, TextLayoutOptions.Default, 1f);
-        spriteBatch.DrawOutlinedString(_font, footer, new Vector2(MathF.Floor((width - footerSize.Width) * 0.5f), height - 30f), CarbonUiPalette.TextMuted, black, 1, 1f);
+        string footer = CarbonUiSkin.TruncateToWidth(font, GameText.Get(_isCreatorMode ? "character.footer.creator" : "character.footer.roster"), width - 32f, 1f);
+        TextMeasureResult footerSize = font.MeasureString(footer, TextLayoutOptions.Default, 1f);
+        spriteBatch.DrawOutlinedString(font, footer, new Vector2(MathF.Floor((width - footerSize.Width) * 0.5f), height - 30f), CarbonUiPalette.TextMuted, black, 1, 1f);
         spriteBatch.End();
 
         base.Render(context, spriteBatch, dt);
@@ -676,10 +693,6 @@ public sealed class CharacterSelectScene : GameScene
             _uiSkin = null;
             _geometryBatch?.Dispose();
             _geometryBatch = null;
-            _font?.Dispose();
-            _font = null;
-            _whitePixel?.Dispose();
-            _whitePixel = null;
         }
 
         base.Dispose(disposing);
@@ -866,12 +879,27 @@ public sealed class CharacterSelectScene : GameScene
         }
     }
 
+    /// <summary>
+    /// Resolves the UI scale for the window (re-baking the font only when it changes) and the canvas it leaves.
+    /// </summary>
+    private void ApplyScale(int windowWidth, int windowHeight)
+    {
+        _flow.Ui.Resize(windowWidth, windowHeight);
+        _ = _flow.Ui.Font; // re-bakes only when the scale changed
+
+        if (_uiSkin is { } skin)
+        {
+            skin.PixelScale = _flow.Ui.Scale;
+        }
+    }
+
     private void LayoutControls(int width, int height)
     {
         const float totalW = 920f;
         const float totalH = 580f;
         float ox = MathF.Floor((width - totalW) * 0.5f);
         float oy = MathF.Floor((height - totalH) * 0.5f) + 10f;
+        this.PanelBounds = new RectangleF(ox, oy, totalW, totalH);
 
         _logoutButton.Bounds = new RectangleF(ox + totalW - 122f, oy + 14f, 100f, 34f);
         _turnLeftBtn.Bounds = new RectangleF(ox + 324f, oy + 472f, 112f, 32f);
