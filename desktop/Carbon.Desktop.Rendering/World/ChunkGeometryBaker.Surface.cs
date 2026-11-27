@@ -89,11 +89,20 @@ internal sealed partial class ChunkGeometryBaker
                     TerrainSurface.ToColor(sw),
                     TerrainSurface.ToColor(Vector3.Lerp(own, (nw + ne + se + sw) * 0.25f, 0.5f)));
 
-                // About one water tile in ten gets an animated ripple
+                // Every water tile on the shoreline gets lapping foam; about one open-water tile in ten gets a ripple.
                 if (TerrainSurface.IsWater(tile.Biome))
                 {
                     int rippleSeed = (wtx * 92837111) ^ (wty * 689287499);
-                    if (((uint)rippleSeed % 100u) < 11u)
+                    Vector2 toShore = this.ToShore(lx, ly);
+                    if (toShore != Vector2.Zero)
+                    {
+                        _ripples.Add(new RippleSpot(
+                            new Vector2(tileWorldX + (tileSize * 0.5f), tileWorldY + (tileSize * 0.5f)),
+                            rippleSeed,
+                            tile.Biome == BiomeType.DeepOcean,
+                            toShore));
+                    }
+                    else if (((uint)rippleSeed % 100u) < 11u)
                     {
                         _ripples.Add(new RippleSpot(
                             new Vector2(tileWorldX + (tileSize * 0.5f), tileWorldY + (tileSize * 0.5f)),
@@ -253,6 +262,25 @@ internal sealed partial class ChunkGeometryBaker
     }
 
     private readonly record struct CornerSlot(int Key, Vector3 Value);
+
+    // The direction from a water tile toward the land beside it (sum of the land side neighbours, normalised), or
+    // zero when no side touches land.
+    private Vector2 ToShore(int lx, int ly)
+    {
+        Vector2 sum = Vector2.Zero;
+        for (int i = 0; i < 4; i++)
+        {
+            int dx = i switch { 0 => 1, 1 => -1, _ => 0 };
+            int dy = i switch { 2 => 1, 3 => -1, _ => 0 };
+            MapTile n = this.BakeTile(lx + dx, ly + dy);
+            if (!TerrainSurface.IsWater(n.Biome))
+            {
+                sum += new Vector2(dx, dy);
+            }
+        }
+
+        return sum == Vector2.Zero ? Vector2.Zero : Vector2.Normalize(sum);
+    }
 
     private bool IsNearWater(int lx, int ly, in MapTile self)
     {
