@@ -143,9 +143,8 @@ public sealed partial class MultiplayerSession
         if (activeSlot.Quantity > 0 && hasArchetype && archetype is { Category: ItemCategory.Placeable or ItemCategory.Tool })
         {
             Vector2 playerPos = this.LocalPlayerInterpolatedPosition;
-            float buildReach = this.BuildReachTiles * _tileSize;
             bool inReach = archetype.Category == ItemCategory.Placeable
-                ? Vector2.DistanceSquared(playerPos, aimWorldPosition) <= buildReach * buildReach
+                ? IsPlacementInReach(playerPos, aimWorldPosition, _tileSize, this.BuildReachTiles)
                 : IsToolStrikeInReach(playerPos, aimWorldPosition, _tileSize);
             if (inReach)
             {
@@ -166,6 +165,20 @@ public sealed partial class MultiplayerSession
     /// </summary>
     internal static bool IsToolStrikeInReach(Vector2 playerPos, Vector2 aimWorldPosition, float tileSize) =>
         ToolReach.IsWithin(playerPos, (int)MathF.Floor(aimWorldPosition.X / tileSize), (int)MathF.Floor(aimWorldPosition.Y / tileSize), tileSize);
+
+    /// <summary>
+    /// Returns whether a placement aimed at <paramref name="aimWorldPosition"/> is within build reach, measured as the server
+    /// measures it (<c>AuthoritativeWorld.IsWithinInteractRangeLocked</c>): player centre to the aimed tile's centre, at most
+    /// <paramref name="reachTiles"/> tiles (<c>structures.json → placementReachTiles</c>).
+    /// </summary>
+    internal static bool IsPlacementInReach(Vector2 playerPos, Vector2 aimWorldPosition, float tileSize, float reachTiles)
+    {
+        Vector2 tileCentre = new(
+            (MathF.Floor(aimWorldPosition.X / tileSize) + 0.5f) * tileSize,
+            (MathF.Floor(aimWorldPosition.Y / tileSize) + 0.5f) * tileSize);
+        float maxDist = reachTiles * tileSize;
+        return Vector2.DistanceSquared(playerPos, tileCentre) <= maxDist * maxDist;
+    }
 
     /// <inheritdoc/>
     public bool TryCastSkill(ushort skillId, Vector2 aimWorldPosition)
