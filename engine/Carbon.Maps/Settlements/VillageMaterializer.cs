@@ -10,7 +10,7 @@ using Carbon.Maps.Streaming;
 namespace Carbon.Maps.Settlements;
 
 /// <summary>
-/// Puts the buildings of a village's plan on the world's building grid as real structures owned by
+/// Puts the buildings and paved streets of a village's plan on the world's building grid as real structures owned by
 /// <see cref="StructureOwners.Village"/> (ADR-025). Every placement goes through <see cref="BuildingGrid.PlaceStructure"/>
 /// and <see cref="ConstructionLedger"/>, so the structures are written to chunk deltas, persisted and replicated exactly
 /// like player builds. Idempotent: tiles that already hold a structure or a construction site are left alone, so running
@@ -53,7 +53,8 @@ public sealed class VillageMaterializer
     /// <returns>Number of structure tiles placed.</returns>
     public int Materialize(int siteX, int siteY, ISet<long>? touchedChunks = null)
     {
-        ReadOnlySpan<VillagePlot> plots = this.PlotsOf(siteX, siteY);
+        LandmarkLayout layout = _world.Generator.Landmarks.GetLayout(siteX, siteY);
+        ReadOnlySpan<VillagePlot> plots = layout.Plots;
         int placed = 0;
         for (int i = 0; i < plots.Length; i++)
         {
@@ -76,6 +77,20 @@ public sealed class VillageMaterializer
                         placed++;
                         _ = touchedChunks?.Add(Chunk2D.PackKey(Chunk2D.ToChunkCoord(p.X), Chunk2D.ToChunkCoord(p.Y)));
                     }
+                }
+            }
+        }
+
+        // The square, the streets and the door paths, paved with the village's floor (ADR-027 revision 3).
+        if (plots.Length > 0)
+        {
+            StructureType paving = VillageBlueprint.PavingType(_villages, plots[0].Style);
+            foreach ((int x, int y) in layout.PavedTiles)
+            {
+                if (this.TryPlace(new VillagePlacement(x, y, paving, StructureRotation.North, x, y, StructureType.None)))
+                {
+                    placed++;
+                    _ = touchedChunks?.Add(Chunk2D.PackKey(Chunk2D.ToChunkCoord(x), Chunk2D.ToChunkCoord(y)));
                 }
             }
         }

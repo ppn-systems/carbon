@@ -12,14 +12,22 @@ namespace Carbon.Desktop.Rendering.World;
 /// <summary>
 /// Draws roofs over enclosed rooms of the building grid, for village houses and player builds alike (ADR-025). Rooms are
 /// found from their walls, cached until <see cref="BuildingGrid.Revision"/> changes, and roofed in the style of their
-/// walls: timber shingles, swamp thatch, tundra slate under snow, or a flat desert roof with a parapet. The roof of the
-/// room the local player stands in is lifted off so the interior shows. Stoves get a chimney; a forge or a row of shelves
-/// gets a shop sign. Steady-state frames do not allocate.
+/// walls: timber shingles, swamp thatch, tundra slate under snow, or a flat desert roof with a parapet. Rooms that share a
+/// wall form one building. RimWorld-style cutaway (ADR-027 revision 3): the whole roof of the building the local player
+/// stands in is lifted off, and the roofs of buildings near the player fade with distance, so interiors show when you are
+/// inside or next to them. Stoves get a chimney; a forge or a row of shelves gets a shop sign. Steady-state frames do not
+/// allocate.
 /// </summary>
 internal sealed class RoofRenderer
 {
     /// <summary>Largest interior (tiles) treated as a room; bigger enclosures are courtyards and stay open.</summary>
     public const int MaxRoomTiles = 120;
+
+    /// <summary>UI: distance in tiles from a building's walls beyond which its roof is fully opaque.</summary>
+    internal const float FadeStartTiles = 3.5f;
+
+    /// <summary>UI: opacity of a roof seen from right outside its walls (porch, yard, doorstep).</summary>
+    internal const float NearAlpha = 0.3f;
 
     private const int ScanMargin = 12;
 
@@ -27,6 +35,9 @@ internal sealed class RoofRenderer
 
     private readonly float _tileSize;
     private readonly List<RoofRoom> _rooms = new(64);
+    private readonly List<int> _buildingOf = new(64);
+    private readonly List<(int MinX, int MinY, int MaxX, int MaxY)> _buildings = new(32);
+    private readonly Queue<int> _roomQueue = new(16);
     private readonly List<(int X, int Y)> _roomTiles = new(1024);
     private readonly Dictionary<(int X, int Y), int> _tileToRoom = new(1024);
     private readonly Queue<(int X, int Y)> _queue = new(MaxRoomTiles * 2);
@@ -94,16 +105,95 @@ internal sealed class RoofRenderer
                 }
             }
         }
+
+        this.GroupBuildings();
     }
 
-    /// <summary>Draws every visible roof except the one over the local player.</summary>
+    /// <summary>
+    /// Gets the opacity of the roof over a tile, as <see cref="Draw"/> draws it, for a player at a position: 0 inside that
+    /// building, fading in from <see cref="NearAlpha"/> at its walls to 1 at <see cref="FadeStartTiles"/>. 1 for a tile
+    /// under no roof.
+    /// </summary>
+    /// <param name="tileX">World tile X (inside a room).</param>
+    /// <param name="tileY">World tile Y.</param>
+    /// <param name="playerWorld">Local player position in world pixels.</param>
+    /// <returns>The roof opacity, 0..1.</returns>
+    public float RoofAlphaAt(int tileX, int tileY, Vector2 playerWorld) =>
+        _tileToRoom.TryGetValue((tileX, tileY), out int room)
+            ? this.BuildingAlpha(_buildingOf[room], playerWorld, this.PlayerBuilding(playerWorld))
+            : 1f;
+
+    /// <summary>The roof opacity for a player outside a building at a distance (tiles) from its walls.</summary>
+    /// <param name="inside">Whether the player stands in a room of the building.</param>
+    /// <param name="distanceTiles">Distance from the player to the building's outline, in tiles.</param>
+    /// <returns>0 inside; <see cref="NearAlpha"/> at the walls rising linearly to 1 at <see cref="FadeStartTiles"/>.</returns>
+    internal static float FadeFor(bool inside, float distanceTiles) =>
+        inside ? 0f : NearAlpha + ((1f - NearAlpha) * Math.Clamp(distanceTiles / FadeStartTiles, 0f, 1f));
+
+    private int PlayerBuilding(Vector2 playerWorld)
+    {
+        int ptx = (int)MathF.Floor(playerWorld.X / _tileSize);
+        int pty = (int)MathF.Floor(playerWorld.Y / _tileSize);
+        return _tileToRoom.TryGetValue((ptx, pty), out int room) ? _buildingOf[room] : -1;
+    }
+
+    private float BuildingAlpha(int building, Vector2 playerWorld, int playerBuilding)
+    {
+        (int minX, int minY, int maxX, int maxY) = _buildings[building];
+        float px = playerWorld.X / _tileSize;
+        float py = playerWorld.Y / _tileSize;
+        float dx = MathF.Max(MathF.Max(minX - px, px - (maxX + 1)), 0f);
+        float dy = MathF.Max(MathF.Max(minY - py, py - (maxY + 1)), 0f);
+        return FadeFor(building == playerBuilding, MathF.Sqrt((dx * dx) + (dy * dy)));
+    }
+
+    // Rooms whose outlines (interior plus walls) touch share a wall or a door: they are one building and fade together.
+    private void GroupBuildings()
+    {
+        _buildingOf.Clear();
+        _buildings.Clear();
+        for (int i = 0; i < _rooms.Count; i++)
+        {
+            _buildingOf.Add(-1);
+        }
+
+        for (int i = 0; i < _rooms.Count; i++)
+        {
+            if (_buildingOf[i] >= 0)
+            {
+                continue;
+            }
+
+            int building = _buildings.Count;
+            (int MinX, int MinY, int MaxX, int MaxY) box = (_rooms[i].MinX, _rooms[i].MinY, _rooms[i].MaxX, _rooms[i].MaxY);
+            _buildingOf[i] = building;
+            _roomQueue.Clear();
+            _roomQueue.Enqueue(i);
+            while (_roomQueue.Count > 0)
+            {
+                RoofRoom a = _rooms[_roomQueue.Dequeue()];
+                for (int j = 0; j < _rooms.Count; j++)
+                {
+                    RoofRoom b = _rooms[j];
+                    if (_buildingOf[j] < 0 && a.MinX <= b.MaxX && a.MaxX >= b.MinX && a.MinY <= b.MaxY && a.MaxY >= b.MinY)
+                    {
+                        _buildingOf[j] = building;
+                        box = (Math.Min(box.MinX, b.MinX), Math.Min(box.MinY, b.MinY), Math.Max(box.MaxX, b.MaxX), Math.Max(box.MaxY, b.MaxY));
+                        _roomQueue.Enqueue(j);
+                    }
+                }
+            }
+
+            _buildings.Add(box);
+        }
+    }
+
+    /// <summary>Draws every visible roof, cut away over the player's building and faded near it (<see cref="RoofAlphaAt"/>).</summary>
     public void Draw(GeometryBatch batch, BuildingGrid grid, Vector2 playerWorld, float minX, float minY, float maxX, float maxY, float time)
     {
         ArgumentNullException.ThrowIfNull(batch);
         ArgumentNullException.ThrowIfNull(grid);
-        int ptx = (int)MathF.Floor(playerWorld.X / _tileSize);
-        int pty = (int)MathF.Floor(playerWorld.Y / _tileSize);
-        int playerRoom = _tileToRoom.TryGetValue((ptx, pty), out int pr) ? pr : -1;
+        int playerBuilding = this.PlayerBuilding(playerWorld);
         for (int i = 0; i < _rooms.Count; i++)
         {
             RoofRoom room = _rooms[i];
@@ -111,18 +201,24 @@ internal sealed class RoofRenderer
             float ry0 = room.MinY * _tileSize;
             float rx1 = (room.MaxX + 1) * _tileSize;
             float ry1 = (room.MaxY + 1) * _tileSize;
-            if (i == playerRoom || rx1 < minX || rx0 > maxX || ry1 < minY - _tileSize || ry0 > maxY)
+            if (rx1 < minX || rx0 > maxX || ry1 < minY - _tileSize || ry0 > maxY)
+            {
+                continue;
+            }
+
+            float alpha = this.BuildingAlpha(_buildingOf[i], playerWorld, playerBuilding);
+            if (alpha <= 0.01f)
             {
                 continue;
             }
 
             if (room.IsRectangular)
             {
-                this.DrawRectRoof(batch, in room, rx0, ry0, rx1, ry1, time);
+                this.DrawRectRoof(batch, in room, rx0, ry0, rx1, ry1, time, alpha);
             }
             else
             {
-                this.DrawTileRoof(batch, grid, in room);
+                this.DrawTileRoof(batch, grid, in room, alpha);
             }
         }
     }
@@ -230,9 +326,9 @@ internal sealed class RoofRenderer
         floor == StructureType.PlankDeck ? RoofStyle.Thatch :
         RoofStyle.Shingle;
 
-    private void DrawRectRoof(GeometryBatch batch, in RoofRoom room, float x0, float y0, float x1, float y1, float time)
+    private void DrawRectRoof(GeometryBatch batch, in RoofRoom room, float x0, float y0, float x1, float y1, float time, float alpha)
     {
-        RoofPalette p = RoofPalette.For(room.Style);
+        RoofPalette p = RoofPalette.For(room.Style).Faded(alpha);
         const float Lift = 7f;   // the roof floats above the wall tops (2.5D)
         const float Eave = 3f;   // overhang past the walls
 
@@ -246,7 +342,7 @@ internal sealed class RoofRenderer
 
         // Shadow cast on the ground south of the house, then the front fascia that sells the height.
         // Soft shadow along the eaves on the facade, then the fascia board under the roof edge.
-        batch.FillRectangle(new RectangleF(x0, bottom, x1 - x0, 5f), new ColorRgba(0, 0, 0, 60));
+        batch.FillRectangle(new RectangleF(x0, bottom, x1 - x0, 5f), Fade(new ColorRgba(0, 0, 0, 60), alpha));
         batch.FillRectangle(new RectangleF(left, bottom - 2f, w, 4f), p.Fascia);
 
         if (room.Style == RoofStyle.FlatClay)
@@ -321,38 +417,38 @@ internal sealed class RoofRenderer
             float cx = ((room.StoveX + 0.5f) * _tileSize) - 5f;
             float cy = (room.StoveY * _tileSize) - Lift - 6f;
             batch.FillRectangle(new RectangleF(cx - 1f, cy - 1f, 12f, 14f), p.Outline);
-            batch.FillRectangle(new RectangleF(cx, cy, 10f, 12f), new ColorRgba(120, 113, 108, 255));
-            batch.FillRectangle(new RectangleF(cx, cy, 10f, 3f), new ColorRgba(87, 83, 78, 255));
+            batch.FillRectangle(new RectangleF(cx, cy, 10f, 12f), Fade(new ColorRgba(120, 113, 108, 255), alpha));
+            batch.FillRectangle(new RectangleF(cx, cy, 10f, 3f), Fade(new ColorRgba(87, 83, 78, 255), alpha));
             for (int k = 0; k < 3; k++)
             {
                 float phase = ((time * 0.45f) + (k * 0.33f)) % 1f;
                 float r = 2.5f + (phase * 4f);
-                byte alpha = (byte)(110 * (1f - phase));
-                batch.FillCircle(new Vector2(cx + 5f + (MathF.Sin((time * 1.3f) + k) * 3f), cy - 3f - (phase * 22f)), r, new ColorRgba(210, 210, 215, alpha), 10);
+                byte smoke = (byte)(110 * (1f - phase));
+                batch.FillCircle(new Vector2(cx + 5f + (MathF.Sin((time * 1.3f) + k) * 3f), cy - 3f - (phase * 22f)), r, Fade(new ColorRgba(210, 210, 215, smoke), alpha), 10);
             }
         }
 
         // Entrances on the side or back walls are hidden under the roof: mark them with a small awning and door.
         if (room.DoorX != int.MinValue && room.DoorY != room.MaxY)
         {
-            this.DrawSideEntrance(batch, in room, p);
+            this.DrawSideEntrance(batch, in room, p, alpha);
         }
 
         if (room.Emblem != RoofEmblem.None)
         {
             float sx = left + (w * 0.5f);
             float sy = bottom - 2f;
-            this.DrawSign(batch, room.Emblem, sx, sy);
+            this.DrawSign(batch, room.Emblem, sx, sy, alpha);
         }
     }
 
-    private void DrawSideEntrance(GeometryBatch batch, in RoofRoom room, in RoofPalette p)
+    private void DrawSideEntrance(GeometryBatch batch, in RoofRoom room, in RoofPalette p, float alpha)
     {
         float tx = room.DoorX * _tileSize;
         float ty = room.DoorY * _tileSize;
         float s = _tileSize;
-        ColorRgba door = new(120, 72, 36, 255);
-        ColorRgba frame = new(64, 38, 20, 255);
+        ColorRgba door = Fade(new ColorRgba(120, 72, 36, 255), alpha);
+        ColorRgba frame = Fade(new ColorRgba(64, 38, 20, 255), alpha);
         if (room.DoorX == room.MinX || room.DoorX == room.MaxX)
         {
             // West or east wall: the door leaf seen edge-on under a little lean-to roof.
@@ -374,32 +470,32 @@ internal sealed class RoofRenderer
         }
     }
 
-    private void DrawSign(GeometryBatch batch, RoofEmblem emblem, float cx, float cy)
+    private void DrawSign(GeometryBatch batch, RoofEmblem emblem, float cx, float cy, float alpha)
     {
         RectangleF board = new(cx - 11f, cy - 2f, 22f, 14f);
-        batch.FillRectangle(new RectangleF(board.X - 1f, board.Y - 1f, board.Width + 2f, board.Height + 2f), new ColorRgba(41, 28, 18, 255));
-        batch.FillRectangle(board, new ColorRgba(146, 98, 52, 255));
+        batch.FillRectangle(new RectangleF(board.X - 1f, board.Y - 1f, board.Width + 2f, board.Height + 2f), Fade(new ColorRgba(41, 28, 18, 255), alpha));
+        batch.FillRectangle(board, Fade(new ColorRgba(146, 98, 52, 255), alpha));
         if (emblem == RoofEmblem.Anvil)
         {
             _poly[0] = new Vector2(cx - 7f, cy + 2f);
             _poly[1] = new Vector2(cx + 8f, cy + 2f);
             _poly[2] = new Vector2(cx + 4f, cy + 5f);
             _poly[3] = new Vector2(cx - 3f, cy + 5f);
-            batch.FillConvexPolygon(_poly.AsSpan(0, 4), new ColorRgba(55, 60, 68, 255));
-            batch.FillRectangle(new RectangleF(cx - 2f, cy + 5f, 4f, 3f), new ColorRgba(55, 60, 68, 255));
-            batch.FillRectangle(new RectangleF(cx - 5f, cy + 8f, 10f, 2f), new ColorRgba(55, 60, 68, 255));
+            batch.FillConvexPolygon(_poly.AsSpan(0, 4), Fade(new ColorRgba(55, 60, 68, 255), alpha));
+            batch.FillRectangle(new RectangleF(cx - 2f, cy + 5f, 4f, 3f), Fade(new ColorRgba(55, 60, 68, 255), alpha));
+            batch.FillRectangle(new RectangleF(cx - 5f, cy + 8f, 10f, 2f), Fade(new ColorRgba(55, 60, 68, 255), alpha));
         }
         else
         {
-            batch.FillCircle(new Vector2(cx, cy + 5f), 4.5f, new ColorRgba(180, 120, 20, 255), 14);
-            batch.FillCircle(new Vector2(cx, cy + 5f), 3.2f, new ColorRgba(251, 191, 36, 255), 14);
-            batch.FillRectangle(new RectangleF(cx - 0.6f, cy + 2.8f, 1.2f, 4.4f), new ColorRgba(180, 120, 20, 255));
+            batch.FillCircle(new Vector2(cx, cy + 5f), 4.5f, Fade(new ColorRgba(180, 120, 20, 255), alpha), 14);
+            batch.FillCircle(new Vector2(cx, cy + 5f), 3.2f, Fade(new ColorRgba(251, 191, 36, 255), alpha), 14);
+            batch.FillRectangle(new RectangleF(cx - 0.6f, cy + 2.8f, 1.2f, 4.4f), Fade(new ColorRgba(180, 120, 20, 255), alpha));
         }
     }
 
-    private void DrawTileRoof(GeometryBatch batch, BuildingGrid grid, in RoofRoom room)
+    private void DrawTileRoof(GeometryBatch batch, BuildingGrid grid, in RoofRoom room, float alpha)
     {
-        RoofPalette p = RoofPalette.For(room.Style);
+        RoofPalette p = RoofPalette.For(room.Style).Faded(alpha);
         for (int i = room.TileStart; i < room.TileStart + room.TileCount; i++)
         {
             (int tx, int ty) = _roomTiles[i];
@@ -421,6 +517,8 @@ internal sealed class RoofRenderer
             }
         }
     }
+
+    private static ColorRgba Fade(ColorRgba color, float alpha) => color with { A = (byte)(color.A * alpha) };
 
     private enum RoofStyle : byte
     {
@@ -455,6 +553,15 @@ internal sealed class RoofRenderer
 
     private readonly record struct RoofPalette(ColorRgba Light, ColorRgba Dark, ColorRgba Line, ColorRgba Ridge, ColorRgba Fascia, ColorRgba Outline, ColorRgba Snow)
     {
+        public RoofPalette Faded(float alpha) => new(
+            Fade(this.Light, alpha),
+            Fade(this.Dark, alpha),
+            Fade(this.Line, alpha),
+            Fade(this.Ridge, alpha),
+            Fade(this.Fascia, alpha),
+            Fade(this.Outline, alpha),
+            Fade(this.Snow, alpha));
+
         public static RoofPalette For(RoofStyle style) => style switch
         {
             RoofStyle.Thatch => new(new(176, 148, 82), new(138, 112, 58), new(112, 90, 46), new(96, 76, 38), new(92, 70, 40), new(58, 44, 26), default),

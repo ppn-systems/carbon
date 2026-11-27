@@ -16,17 +16,19 @@ public sealed class LandmarkLayout
     private readonly LandmarkField[] _fields;
     private readonly VillagePlot[] _plots;
     private readonly LandmarkPath[] _paths;
+    private readonly (int X, int Y)[] _paved;
 
-    internal LandmarkLayout(LandmarkPiece[] pieces, LandmarkField[] fields, VillagePlot[] plots, LandmarkPath[] paths)
+    internal LandmarkLayout(LandmarkPiece[] pieces, LandmarkField[] fields, VillagePlot[] plots, LandmarkPath[] paths, (int X, int Y)[] paved)
     {
         _pieces = pieces;
         _fields = fields;
         _plots = plots;
         _paths = paths;
+        _paved = paved;
     }
 
     /// <summary>Gets the empty layout.</summary>
-    public static LandmarkLayout Empty { get; } = new([], [], [], []);
+    public static LandmarkLayout Empty { get; } = new([], [], [], [], []);
 
     /// <summary>
     /// Gets the village buildings. They are not drawn or collided as landmark pieces: the server materializes them as
@@ -34,8 +36,14 @@ public sealed class LandmarkLayout
     /// </summary>
     public ReadOnlySpan<VillagePlot> Plots => _plots;
 
-    /// <summary>Gets the dirt paths: village streets, lanes and the spurs to front doors (ADR-027).</summary>
+    /// <summary>Gets the centre lines of the village streets, lanes and the spurs to front doors (ADR-027).</summary>
     public ReadOnlySpan<LandmarkPath> Paths => _paths;
+
+    /// <summary>
+    /// Gets the world tiles of the square, the streets and the door paths that the server paves with a player-buildable
+    /// floor structure (ADR-027 revision 3), in a deterministic order.
+    /// </summary>
+    public ReadOnlySpan<(int X, int Y)> PavedTiles => _paved;
 
     /// <summary>Gets the upright structures.</summary>
     public ReadOnlySpan<LandmarkPiece> Pieces => _pieces;

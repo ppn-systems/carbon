@@ -16,10 +16,10 @@ namespace Carbon.Maps.Tests;
 
 public sealed class VillageGenerationTests
 {
-    // Pins every village plot (generated footprint, furniture, origin, turns) of seed 42 over a 13x13 site window
-    // (generator version 20: wider villages off the road network with yards, a storehouse and gardens, ADR-027
-    // revision 2, beside the wider rivers of ADR-032). Update it only together with GeneratorVersion.
-    private const ulong GoldenVillagePlotFingerprint = 17363636075112210928UL;
+    // Pins every village plot (generated footprint, furniture, origin, turns) and every paved tile of seed 42 over a 13x13
+    // site window (generator version 21: streets pruned to the buildings they serve and paved with a buildable floor,
+    // ADR-027 revision 3). Update it only together with GeneratorVersion.
+    private const ulong GoldenVillagePlotFingerprint = 4882946201328673321UL;
 
     private readonly ITestOutputHelper _output;
 
@@ -677,6 +677,11 @@ public sealed class VillageGenerationTests
                     Mix((uint)p.OriginY);
                     Mix(p.Turns);
                 }
+
+                foreach ((int x, int y) in gen.Landmarks.GetLayout(sx, sy).PavedTiles)
+                {
+                    Mix(((ulong)(uint)x << 32) | (uint)y);
+                }
             }
         }
 
@@ -714,7 +719,7 @@ public sealed class VillageGenerationTests
     private static bool IsDoorPath(LandmarkLayout layout, in LandmarkPath path) => DoorPathOwner(layout, path) >= 0;
 
     // The index of the plot whose front door the path starts at, or -1 for a street.
-    private static int DoorPathOwner(LandmarkLayout layout, in LandmarkPath path)
+    internal static int DoorPathOwner(LandmarkLayout layout, in LandmarkPath path)
     {
         for (int i = 0; i < layout.Plots.Length; i++)
         {
