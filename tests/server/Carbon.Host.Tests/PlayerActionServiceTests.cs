@@ -161,8 +161,8 @@ public sealed class PlayerActionServiceTests
             ConstructionService construction = new(chunks, StructureCatalog.LoadEmbedded(), (_, _) => false, this.Simulation, 32f, () => this.Rules, this.Outbound, dirty, (_, _) => (0, 0), (_, _) => { });
             CombatService combat = new(this.Simulation, chunks, MonsterLayer, this.Outbound, (_, output) => output.Clear(), (_, _, _) => { }, () => this.Tick);
             this.Projectiles = new ProjectileService(this.Simulation, chunks, MonsterLayer, () => ++_nextNetworkId, new NoProjectileHits());
-            NeedsService needs = new(this.Simulation, new BuildingGrid(), 32f, () => this.Rules, () => null, new NeedsConfig(), null, 1UL);
-            InventoryService inventory = new(this.Simulation, new BuildingGrid(), 32f, 1UL, () => this.Rules, () => null, () => this.Tick, (_, _, _) => false, loot, this.Outbound, _ => { });
+            NeedsService needs = new(this.Simulation, new BuildingGrid(), 32f, () => this.Rules, () => null, new NeedsConfig(), null, TestGameplayEntropy.Create(1UL));
+            InventoryService inventory = new(this.Simulation, new BuildingGrid(), 32f, TestGameplayEntropy.Create(1UL), () => this.Rules, () => null, () => this.Tick, (_, _, _) => false, loot, this.Outbound, _ => { });
             PropHarvestService props = new(
                 this.Simulation, chunks, 32f, 30, () => this.Rules, () => this.Tick, loot, construction, this.Outbound, dirty,
                 (_, _) => (0, 0), (_, _, _) => false, (_, in slot, _, out updated) =>
@@ -171,7 +171,7 @@ public sealed class PlayerActionServiceTests
                     return false;
                 },
                 (_, _) => { });
-            this.Actions = new PlayerActionService(this.Simulation, 30, MonsterLayer, () => this.Rules, () => this.Tick, this.Outbound, combat, this.Projectiles, props, inventory, needs, this.Host);
+            this.Actions = new PlayerActionService(this.Simulation, 30, MonsterLayer, () => this.Rules, () => this.Tick, this.Outbound, combat, this.Projectiles, props, inventory, needs, this.Host, TestGameplayEntropy.Create(1UL));
 
             ConnectedPlayerSession session = new(1UL, 9UL, Guid.NewGuid(), Guid.NewGuid(), "Tester", 900UL, 0, 0);
             CharacterRecord character = new(

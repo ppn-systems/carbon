@@ -15,6 +15,7 @@ using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
 using Carbon.Items.Progression;
+using Carbon.Primitives.Random;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.Networking;
@@ -73,6 +74,7 @@ internal sealed class PlayerActionService
     private readonly InventoryService _inventory;
     private readonly NeedsService _needs;
     private readonly IPlayerActionHost _host;
+    private readonly IGameplayEntropy _entropy;
     private readonly Entity[] _hitScratch = new Entity[32];
 
     /// <summary>Initializes a new instance of the <see cref="PlayerActionService"/> class.</summary>
@@ -88,7 +90,8 @@ internal sealed class PlayerActionService
         PropHarvestService props,
         InventoryService inventory,
         NeedsService needs,
-        IPlayerActionHost host)
+        IPlayerActionHost host,
+        IGameplayEntropy entropy)
     {
         _simulation = simulation ?? throw new ArgumentNullException(nameof(simulation));
         _tickRate = tickRate;
@@ -102,9 +105,16 @@ internal sealed class PlayerActionService
         _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
         _needs = needs ?? throw new ArgumentNullException(nameof(needs));
         _host = host ?? throw new ArgumentNullException(nameof(host));
+        _entropy = entropy ?? throw new ArgumentNullException(nameof(entropy));
     }
 
     private ItemRules Rules => _itemRules();
+
+    private bool RollCritical(PlayerState state)
+    {
+        ulong tick = _currentTick();
+        return CombatService.RollCriticalHit(state.Stats.CritChance, _entropy.KeyAt(tick), tick, state.Session.PlayerNetworkId, ++state.CombatRollNonce);
+    }
 
     private ulong Tick => _currentTick();
 
@@ -177,7 +187,7 @@ internal sealed class PlayerActionService
 
             CombatStrikeEvaluation rangedEval = ToolUsagePolicy.EvaluateCombatStrike(this.Rules, in activeSlot);
             bool rangedCrit = !ToolUsagePolicy.IsWornOut(this.Rules, in activeSlot) &&
-                CombatService.RollCriticalHit(state.Stats.CritChance, ++state.CombatRollNonce);
+                this.RollCritical(state);
 
             // Staffs (MagicFocus) scale with spell power, bows with physical attack (ADR-021 D4).
             float rangedScale = weaponDef.Capabilities.HasFlag(ToolCapabilities.MagicFocus) ? state.Stats.SpellPowerMultiplier : state.Stats.AttackMultiplier;
@@ -243,7 +253,7 @@ internal sealed class PlayerActionService
 
         CombatStrikeEvaluation combatEval = ToolUsagePolicy.EvaluateCombatStrike(this.Rules, in activeSlot);
         bool isCrit = combatEval.Outcome == ToolStrikeOutcome.Optimal &&
-            CombatService.RollCriticalHit(state.Stats.CritChance, ++state.CombatRollNonce);
+            this.RollCritical(state);
         float finalDamage = CombatRoll.ApplyCritical(combatEval.Damage * state.Stats.AttackMultiplier, isCrit, state.Stats.CritDamage);
 
         bool anyDamaged = _combat.ApplyMonsterHits(state, attackerPos, aimDir, _hitScratch.AsSpan(0, hitCount), finalDamage, isCrit, knockbackSpeed: 135f);

@@ -154,7 +154,7 @@ public sealed class MonsterBehaviorTests
                 _config,
                 new FixedBiomeSampler(BiomeType.LushPlains),
                 Vector2.Zero,
-                seed: 7UL);
+                entropy: TestGameplayKeys.Entropy(7UL));
             this.World.RegisterSystem(new ProjectileSystem());
         }
 

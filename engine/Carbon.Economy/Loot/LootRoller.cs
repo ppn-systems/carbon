@@ -8,25 +8,22 @@ namespace Carbon.Economy.Loot;
 
 /// <summary>
 /// Server-authoritative, deterministic, zero-allocation loot roller. The server seeds a
-/// <see cref="DeterministicRandom"/> per kill (<see cref="CreateRandom"/>), rolls, and sends the result;
-/// clients never roll. Same seed + table + context + pity state always yields the same loot (replayable audits).
+/// <see cref="DeterministicRandom"/> per kill from its secret roll key (<see cref="CreateRandom"/>), rolls, and sends the
+/// result; clients never roll. Same key + table + context + pity state always yields the same loot (replayable audits).
 /// </summary>
 public static class LootRoller
 {
     private const ulong Million = 1_000_000UL;
 
     /// <summary>
-    /// Derives the per-roll random stream from the world seed, the tick and the source entity.
+    /// Derives the per-roll random stream from the server's secret roll key (ADR-026), the tick and the source entity.
     /// </summary>
-    /// <param name="worldSeed">Server world seed.</param>
+    /// <param name="key">Secret roll key of the tick's epoch (server-only, never the world seed).</param>
     /// <param name="tick">Simulation tick of the kill.</param>
     /// <param name="sourceId">Network id of the killed monster or gathered node.</param>
     /// <returns>A deterministic random stream unique to this roll.</returns>
-    public static DeterministicRandom CreateRandom(ulong worldSeed, ulong tick, ulong sourceId)
-    {
-        ulong mixed = worldSeed ^ (tick * 0x9E3779B97F4A7C15UL) ^ ((sourceId + 0x632BE59BD9B4E019UL) * 0xC2B2AE3D27D4EB4FUL);
-        return new DeterministicRandom(mixed);
-    }
+    public static DeterministicRandom CreateRandom(in GameplayKey key, ulong tick, ulong sourceId) =>
+        key.CreateRandom(GameplayDomain.Loot, tick, sourceId);
 
     /// <summary>
     /// Rolls <paramref name="table"/> once.

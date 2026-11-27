@@ -9,7 +9,6 @@ using Carbon.Creatures.Definitions;
 using Carbon.Creatures.Scaling;
 using Carbon.Creatures.Spawning;
 using Carbon.Maps.Biomes;
-using Carbon.Primitives.Hashing;
 using Carbon.Primitives.Random;
 using Carbon.Simulation.Clock;
 using Carbon.Simulation.ECS;
@@ -23,8 +22,9 @@ namespace Carbon.Creatures.Systems;
 /// Deterministic, biome-aware monster spawner. Every <see cref="SpawningConfig.ScanIntervalTicks"/> it visits the
 /// density cells around each <see cref="SpawnAnchorComponent"/> entity and, per cell, spawns from the biome's weighted
 /// table while the live count is below the (night-boosted) cap and the cell's spawn / respawn timer has elapsed.
-/// Never spawns inside the safe zone around the world origin. Randomness is keyed by <c>(seed, cell, attempt)</c>, so
-/// the same seed and anchor history always yields the same spawns. Night (from <see cref="TimeOfDayHours"/>, an input
+/// Never spawns inside the safe zone around the world origin. Randomness is a keyed PRF of the server's secret roll key
+/// and <c>(cell, attempt, tick)</c> (ADR-026), so the same key and anchor history always yields the same spawns while a
+/// client that knows the world seed cannot predict elites or placements. Night (from <see cref="TimeOfDayHours"/>, an input
 /// set by the host) raises stats, density, spawn rate, and elite chance. Runs in <see cref="SimulationPhase.PostUpdate"/>.
 /// </summary>
 public sealed class MonsterSpawnerSystem : ISimulationSystem
@@ -36,7 +36,7 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
     private readonly MonsterScaling _scaling;
     private readonly ISpawnSurface _surface;
     private readonly Vector2 _worldOrigin;
-    private readonly ulong _seed;
+    private readonly IGameplayEntropy _entropy;
     private readonly SpawnTableData?[] _tables = new SpawnTableData?[byte.MaxValue + 1];
     private readonly Dictionary<CellCoord, CellState> _cells = new(256);
     private readonly HashSet<CellCoord> _visited = new(64);
@@ -50,20 +50,21 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
     /// <param name="config">Spawning configuration.</param>
     /// <param name="surface">Spawn surface (walkability + biome).</param>
     /// <param name="worldOrigin">World origin / first player spawn point; distance from it drives monster level.</param>
-    /// <param name="seed">Deterministic world seed.</param>
+    /// <param name="entropy">Secret roll key source for spawn placement, species and elite rolls (ADR-026; never the world seed).</param>
     /// <exception cref="ArgumentException">Thrown when a spawn table references an unknown monster.</exception>
-    public MonsterSpawnerSystem(MonsterCatalog catalog, SpawningConfig config, ISpawnSurface surface, Vector2 worldOrigin, ulong seed)
+    public MonsterSpawnerSystem(MonsterCatalog catalog, SpawningConfig config, ISpawnSurface surface, Vector2 worldOrigin, IGameplayEntropy entropy)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(surface);
+        ArgumentNullException.ThrowIfNull(entropy);
 
         _catalog = catalog;
         _config = config;
         _scaling = new MonsterScaling(config);
         _surface = surface;
         _worldOrigin = worldOrigin;
-        _seed = seed;
+        _entropy = entropy;
 
         for (int t = 0; t < config.SpawnTables.Count; t++)
         {
@@ -198,7 +199,11 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
         int candidates = Math.Max(1, _config.PlacementAttempts);
         for (int c = 0; c < candidates; c++)
         {
-            DeterministicRandom rng = new(SpatialHash.Hash(SpatialHash.Hash(_seed, cell.X, cell.Y), (int)state.Attempts, 0x4D4F4E));
+            DeterministicRandom rng = _entropy.KeyAt(tickIndex).CreateRandom(
+                GameplayDomain.Spawn,
+                ((ulong)(uint)cell.X << 32) | (uint)cell.Y,
+                state.Attempts,
+                tickIndex);
             state.Attempts++;
             if (this.TrySpawnCandidate(world, cell, anchors, isNight, ref rng))
             {

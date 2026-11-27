@@ -35,7 +35,7 @@ internal sealed class InventoryService
     private readonly WorldSimulation _simulation;
     private readonly BuildingGrid _buildings;
     private readonly float _tileSize;
-    private readonly ulong _worldSeed;
+    private readonly IGameplayEntropy _entropy;
     private readonly Func<ItemRules> _itemRules;
     private readonly Func<GameEconomy?> _economy;
     private readonly Func<ulong> _currentTick;
@@ -51,7 +51,7 @@ internal sealed class InventoryService
         WorldSimulation simulation,
         BuildingGrid buildings,
         float tileSize,
-        ulong worldSeed,
+        IGameplayEntropy entropy,
         Func<ItemRules> itemRules,
         Func<GameEconomy?> economy,
         Func<ulong> currentTick,
@@ -63,7 +63,7 @@ internal sealed class InventoryService
         _simulation = simulation ?? throw new ArgumentNullException(nameof(simulation));
         _buildings = buildings ?? throw new ArgumentNullException(nameof(buildings));
         _tileSize = tileSize;
-        _worldSeed = worldSeed;
+        _entropy = entropy ?? throw new ArgumentNullException(nameof(entropy));
         _itemRules = itemRules ?? throw new ArgumentNullException(nameof(itemRules));
         _economy = economy ?? throw new ArgumentNullException(nameof(economy));
         _currentTick = currentTick ?? throw new ArgumentNullException(nameof(currentTick));
@@ -382,7 +382,7 @@ internal sealed class InventoryService
 
         ulong tick = _currentTick();
         ulong nonce = ++_enhancementAttempts ^ ((ulong)deterministicRollSeed << 32);
-        DeterministicRandom random = ForgeEnhancer.CreateRandom(_worldSeed, tick, state.Session.PlayerNetworkId, nonce);
+        DeterministicRandom random = ForgeEnhancer.CreateRandom(_entropy.KeyAt(tick), tick, state.Session.PlayerNetworkId, nonce);
         attempt = ForgeEnhancer.TryEnhance(_itemRules(), state.Wallet, state.Inventory, slotIndex, protectionItemId, ref random, tick);
         if (attempt.Status != OpStatus.Ok)
         {

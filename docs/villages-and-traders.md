@@ -152,7 +152,7 @@ The traders of §3 use the `store` and `stall` NPC spots.
 
 - **Profiles.** `resources/config/traders.json` is server-only and hot-reloads with the economy. Each profile has a slot count, weighted entries (item code, quantity range, optional styles), a price variance and a restock period with jitter. The loader rejects unknown items, and rejects any variance that could sell an item at or below the vendor's buy-back price.
 - **Epochs.** A restock epoch is `floor((unixSeconds + jitter(trader)) / period)`, using server wall-clock time, so stock survives restarts and villages restock at different moments.
-- **Stock.** The stock of an epoch is a pure function `(world seed, trader key, epoch, profile, style)`, rolled by `TraderStockRoller` with `DeterministicRandom`.
+- **Stock.** The stock of an epoch is a pure function `(trader stock key, trader key, epoch, profile, style)`, rolled by `TraderStockRoller` with `DeterministicRandom`. The trader stock key derives from the persisted gameplay secret, not the public world seed (ADR-026), so clients cannot preview future stock and a restart does not reshuffle it.
   - `TraderStockRoller` picks distinct weighted entries, filtered by village style.
   - Only the quantity sold in the current epoch is state (`TraderBook`), kept in the `trader_stock` table. The table is created idempotently with the base schema in SQLite and PostgreSQL.
   - The trader key mixes the village centre with the building role (`SettlementNpcSpawner.TraderKeyOf`), so it is stable for a given world.

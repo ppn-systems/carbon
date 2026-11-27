@@ -70,8 +70,8 @@ restores are still applied, but at the end of the meal instead of instantly. A c
 `food.json` keeps the old instant potion behaviour.
 
 Food poisoning lasts **2 minutes**: mood −12, move/attack speed ×0.85, health regen blocked. The roll is
-`FoodPoisoningRoll.Sample(seed, eater, tickIndex, foodIndex)`, a pure SplitMix64 hash, so the same world seed
-replays identically and no RNG state is stored.
+`FoodPoisoningRoll.Sample(key, eater, tickIndex, foodIndex)`, a keyed SipHash PRF of the server-only epoch subkey
+(ADR-026), so the same secret replays identically, no RNG state is stored, and the public world seed predicts nothing.
 
 ## Food spoilage (ADR-016)
 

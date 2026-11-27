@@ -57,8 +57,8 @@ public sealed class MonsterSpawnerTests
         c.Step(1200);
 
         a.Spawns.Should().NotBeEmpty();
-        a.Spawns.Should().Equal(b.Spawns, "spawning is keyed by (seed, cell, attempt)");
-        c.Spawns.Should().NotEqual(a.Spawns, "a different seed yields a different world");
+        a.Spawns.Should().Equal(b.Spawns, "spawning is keyed by (key, cell, attempt, tick)");
+        c.Spawns.Should().NotEqual(a.Spawns, "a different key yields different spawns");
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public sealed class MonsterSpawnerTests
         public SpawnRun(ulong seed, Vector2 anchor, BiomeType biome = BiomeType.LushPlains, float hour = 12f)
         {
             this.World = new WorldSimulation(tickRate: 30);
-            this.Spawner = new MonsterSpawnerSystem(this.Catalog, this.Config, new FixedBiomeSampler(biome), Vector2.Zero, seed)
+            this.Spawner = new MonsterSpawnerSystem(this.Catalog, this.Config, new FixedBiomeSampler(biome), Vector2.Zero, TestGameplayKeys.Entropy(seed))
             {
                 TimeOfDayHours = hour
             };

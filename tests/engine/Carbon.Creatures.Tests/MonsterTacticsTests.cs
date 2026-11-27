@@ -607,7 +607,7 @@ public sealed class MonsterTacticsTests(ITestOutputHelper output)
                 _config,
                 new FixedBiomeSampler(BiomeType.LushPlains),
                 Vector2.Zero,
-                seed: 7UL,
+                entropy: TestGameplayKeys.Entropy(7UL),
                 ai: this.Ai);
             this.World.RegisterSystem(new ProjectileSystem());
         }

@@ -19,6 +19,7 @@ using Carbon.Items.Catalog;
 using Carbon.Items.Progression;
 using Carbon.Maps.Data;
 using Carbon.Maps.Streaming;
+using Carbon.Primitives.Random;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.World;
@@ -36,7 +37,7 @@ public sealed partial class AuthoritativeWorld
         WorldSimulation simulation,
         CreatureContent content,
         ChunkWorld2D chunkWorld,
-        ulong worldSeed,
+        IGameplayEntropy entropy,
         float tileSize,
         IAttackEffects effects)
     {
@@ -53,7 +54,7 @@ public sealed partial class AuthoritativeWorld
             content.Spawning,
             new ChunkWorldSpawnSurface(chunkWorld),
             chunkWorld.SpawnWorldPosition,
-            worldSeed,
+            entropy,
             new AiBehaviorSystem(chunkWorld.NavGrid, tileSize),
             effects);
     }
