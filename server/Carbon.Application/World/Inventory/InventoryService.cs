@@ -515,7 +515,7 @@ internal sealed class InventoryService
         GroundLootRules? rules = _economy()?.Config.GroundLoot;
         ulong now = _currentTick();
         ulong protectionTicks = (ulong)Math.Max(0, rules?.OwnerProtectionSeconds ?? 0) * _tickRate;
-        ulong lifetimeTicks = rules is null ? GroundLootService.LootLifetimeTicks : (ulong)Math.Max(1, rules.KillLootLifetimeSeconds) * _tickRate;
+        ulong lifetimeTicks = (rules ?? new GroundLootRules()).LifetimeTicks(_tickRate);
         LootClaim claim = new(state.Session.CharacterId, state.Session.PlayerNetworkId, now + protectionTicks, lifetimeTicks);
         _groundLoot.SpawnDropped(playerPos + new Vector2(28f, 6f), in dropStack, in claim);
         return OpStatus.Ok;

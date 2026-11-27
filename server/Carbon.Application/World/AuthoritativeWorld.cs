@@ -206,7 +206,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             () => ++_nextNetworkId,
             () => _currentTick,
             this.QueueLootVisualRefreshLocked,
-            _players.GetNetworkIdOfCharacter);
+            _players.GetNetworkIdOfCharacter,
+            () => _economy?.Config.GroundLoot);
         _construction = new ConstructionService(
             _chunkWorld,
             structureCatalog ?? StructureCatalog.LoadEmbedded(),

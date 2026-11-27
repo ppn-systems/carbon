@@ -81,6 +81,18 @@ public sealed class InventoryServiceTests
     }
 
     [Fact]
+    public void Drop_NoEconomyLoaded_LivesTheDefaultGroundLootLifetimeAtTheTickRate()
+    {
+        Harness h = new();
+        h.Player.Inventory.SetSlot(2, new ItemSlot(StackableItemId, 5));
+
+        h.Inventory.Drop(h.Player, 2, 0, new Vector2(100f, 100f), []).Should().Be(OpStatus.Ok);
+
+        h.GroundLoot.TryGet(h.LastLootNetworkId, out GroundLootEntry dropped).Should().BeTrue();
+        dropped.LifetimeTicks.Should().Be(180UL * 30UL, "the GroundLootRules default (180 s) at 30 Hz, not a hard-coded 120 s (audit MAGIC-1)");
+    }
+
+    [Fact]
     public void Drop_EmptySlot_IsNotFound()
     {
         Harness h = new();
