@@ -402,7 +402,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     }
 
     /// <inheritdoc/>
-    public bool IsNearForgeStation(float maxDistance = 175f)
+    public bool IsNearForgeStation(float maxDistance = StationReach.NpcPx)
     {
         if (!this.IsReady || _chunkWorld is null)
         {
@@ -424,24 +424,8 @@ public sealed partial class MultiplayerSession : IWorldSession
                 }
             }
 
-            int ptx = (int)MathF.Floor(playerPos.X / _tileSize);
-            int pty = (int)MathF.Floor(playerPos.Y / _tileSize);
-            int tileSpan = Math.Clamp((int)MathF.Ceiling(maxDistance / _tileSize), 1, 8);
-            for (int dy = -tileSpan; dy <= tileSpan; dy++)
-            {
-                for (int dx = -tileSpan; dx <= tileSpan; dx++)
-                {
-                    if (_chunkWorld.Buildings.TryGetStructure(ptx + dx, pty + dy, out StructureTile st) &&
-                        st.Type == StructureType.ForgeAnvil &&
-                        !st.IsDestroyed)
-                    {
-                        return true;
-                    }
-                }
-            }
+            return StationReach.IsNearStructure(_chunkWorld.Buildings, playerPos, _tileSize, StructureType.ForgeAnvil, StructureType.ForgeAnvil, StationReach.StructureTiles);
         }
-
-        return false;
     }
 
     /// <inheritdoc/>

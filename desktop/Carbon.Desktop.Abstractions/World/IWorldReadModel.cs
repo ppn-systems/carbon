@@ -238,8 +238,12 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile, INpcCap
     /// <summary>Copies the player's inventory slots into <paramref name="destination"/> under session synchronization.</summary>
     void CopyInventorySlots(Span<ItemSlot> destination);
 
-    /// <summary>Returns <see langword="true"/> when a Blacksmith NPC or placed <c>ForgeAnvil</c> is nearby.</summary>
-    bool IsNearForgeStation(float maxDistance = 175f);
+    /// <summary>
+    /// Returns <see langword="true"/> when a Blacksmith NPC is within <paramref name="maxDistance"/> or an intact
+    /// <c>ForgeAnvil</c> within <see cref="StationReach.StructureTiles"/> tiles, the server's reach (audit DUP-3).
+    /// </summary>
+    /// <param name="maxDistance">NPC reach in world units; the server uses <see cref="StationReach.NpcPx"/>.</param>
+    bool IsNearForgeStation(float maxDistance = StationReach.NpcPx);
 
     /// <summary>
     /// Returns the tier (<c>repair.json → stations</c>) of the <paramref name="venue"/> in reach, as the server measures

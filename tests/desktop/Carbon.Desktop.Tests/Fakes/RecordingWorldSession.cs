@@ -174,7 +174,7 @@ internal sealed class RecordingWorldSession : IWorldSession
     public float GetSkillCooldown(ushort skillId) => Unused<float>();
     public ushort GetAttributePoints(PrimaryAttributeId attribute) => Unused<ushort>();
     public byte GetSkillRank(ushort skillId) => Unused<byte>();
-    public bool IsNearForgeStation(float maxDistance = 175f) => Unused<bool>();
+    public bool IsNearForgeStation(float maxDistance = StationReach.NpcPx) => Unused<bool>();
     public void DrainCombatEvents(List<CombatFeedbackEvent> destination) => Unused<bool>();
     public void DrainPropImpactEvents(List<PropImpactEvent> destination) => Unused<bool>();
     public void DrainDirtyChunks(List<(int ChunkX, int ChunkY)> destination) => Unused<bool>();

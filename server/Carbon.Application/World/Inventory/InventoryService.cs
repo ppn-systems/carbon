@@ -32,8 +32,6 @@ namespace Carbon.Application.World.Inventory;
 /// </summary>
 internal sealed class InventoryService
 {
-    private const int CraftingStationReachTiles = 5;
-
     private readonly ushort _tickRate;
     private readonly WorldSimulation _simulation;
     private readonly BuildingGrid _buildings;
@@ -136,35 +134,14 @@ internal sealed class InventoryService
         CraftingStation.Forge => this.IsNearForgeStation(worldPos),
         CraftingStation.Workbench => this.IsNearStructure(worldPos, StructureType.Workbench, StructureType.Workbench),
         CraftingStation.Stove => this.IsNearStructure(worldPos, StructureType.Stove, StructureType.Campfire),
-        CraftingStation.Alchemy => _hasNearbyNpc(worldPos, 175f * 175f, NpcCapabilities.Shrine),
+        CraftingStation.Alchemy => _hasNearbyNpc(worldPos, StationReach.NpcPx * StationReach.NpcPx, NpcCapabilities.Shrine),
         _ => false,
     };
 
     /// <summary>Gets whether a forge-artisan NPC or an intact forge anvil is within reach of <paramref name="worldPos"/>.</summary>
-    public bool IsNearForgeStation(Vector2 worldPos)
-    {
-        if (_hasNearbyNpc(worldPos, 175f * 175f, NpcCapabilities.ForgeArtisan))
-        {
-            return true;
-        }
-
-        int ptx = (int)MathF.Floor(worldPos.X / _tileSize);
-        int pty = (int)MathF.Floor(worldPos.Y / _tileSize);
-        for (int dy = -5; dy <= 5; dy++)
-        {
-            for (int dx = -5; dx <= 5; dx++)
-            {
-                if (_buildings.TryGetStructure(ptx + dx, pty + dy, out StructureTile st) &&
-                    st.Type == StructureType.ForgeAnvil &&
-                    !st.IsDestroyed)
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
+    public bool IsNearForgeStation(Vector2 worldPos) =>
+        _hasNearbyNpc(worldPos, StationReach.NpcPx * StationReach.NpcPx, NpcCapabilities.ForgeArtisan) ||
+        this.IsNearStructure(worldPos, StructureType.ForgeAnvil, StructureType.ForgeAnvil);
 
     /// <summary>
     /// Gets the tier of the <paramref name="venue"/> in reach of <paramref name="worldPos"/> (ADR-028): a blacksmith
@@ -533,7 +510,7 @@ internal sealed class InventoryService
         _groundLoot.CollectAutoPickupCandidates(playerPos, state.Session.CharacterId, _pickupScratch);
         for (int i = 0; i < _pickupScratch.Count; i++)
         {
-            _ = this.TryPickup(state, _pickupScratch[i], 36f * 36f);
+            _ = this.TryPickup(state, _pickupScratch[i], GroundLootService.AutoCollectRadius * GroundLootService.AutoCollectRadius);
         }
     }
 
@@ -610,28 +587,8 @@ internal sealed class InventoryService
     }
 
     private bool IsNearStructure(Vector2 worldPos, StructureType first, StructureType second) =>
-        this.IsNearStructure(worldPos, first, second, CraftingStationReachTiles);
+        StationReach.IsNearStructure(_buildings, worldPos, _tileSize, first, second, StationReach.StructureTiles);
 
     private bool IsNearStructure(Vector2 worldPos, StructureType type, int reachTiles) =>
-        this.IsNearStructure(worldPos, type, type, reachTiles);
-
-    private bool IsNearStructure(Vector2 worldPos, StructureType first, StructureType second, int reachTiles)
-    {
-        int ptx = (int)MathF.Floor(worldPos.X / _tileSize);
-        int pty = (int)MathF.Floor(worldPos.Y / _tileSize);
-        for (int dy = -reachTiles; dy <= reachTiles; dy++)
-        {
-            for (int dx = -reachTiles; dx <= reachTiles; dx++)
-            {
-                if (_buildings.TryGetStructure(ptx + dx, pty + dy, out StructureTile st) &&
-                    (st.Type == first || st.Type == second) &&
-                    !st.IsDestroyed)
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
+        StationReach.IsNearStructure(_buildings, worldPos, _tileSize, type, type, reachTiles);
 }
