@@ -166,16 +166,17 @@ internal sealed class InventoryService
     /// <summary>
     /// Gets the tier of the <paramref name="venue"/> in reach of <paramref name="worldPos"/> (ADR-028): a blacksmith
     /// (forge-artisan NPC) for <see cref="RepairVenue.Blacksmith"/>; an intact forge anvil, else a workbench, for
-    /// <see cref="RepairVenue.Station"/>. <c>0</c> when none is in reach.
+    /// <see cref="RepairVenue.Station"/>. Reach and tiers come from <c>repair.json → stations</c>. <c>0</c> when none is in reach.
     /// </summary>
     public int GetRepairStationTier(Vector2 worldPos, RepairVenue venue, RepairTable table)
     {
         ArgumentNullException.ThrowIfNull(table);
+        float reach = table.BlacksmithReach;
         return venue switch
         {
-            RepairVenue.Blacksmith => _hasNearbyNpc(worldPos, 175f * 175f, NpcCapabilities.ForgeArtisan) ? table.BlacksmithTier : 0,
-            RepairVenue.Station when this.IsNearStructure(worldPos, StructureType.ForgeAnvil, StructureType.ForgeAnvil) => table.ForgeAnvilTier,
-            RepairVenue.Station when this.IsNearStructure(worldPos, StructureType.Workbench, StructureType.Workbench) => table.WorkbenchTier,
+            RepairVenue.Blacksmith => _hasNearbyNpc(worldPos, reach * reach, NpcCapabilities.ForgeArtisan) ? table.BlacksmithTier : 0,
+            RepairVenue.Station when this.IsNearStructure(worldPos, StructureType.ForgeAnvil, table.StationReachTiles) => table.ForgeAnvilTier,
+            RepairVenue.Station when this.IsNearStructure(worldPos, StructureType.Workbench, table.StationReachTiles) => table.WorkbenchTier,
             RepairVenue.None or RepairVenue.Station or RepairVenue.Blacksmith => 0,
             _ => 0,
         };
@@ -596,13 +597,19 @@ internal sealed class InventoryService
         return true;
     }
 
-    private bool IsNearStructure(Vector2 worldPos, StructureType first, StructureType second)
+    private bool IsNearStructure(Vector2 worldPos, StructureType first, StructureType second) =>
+        this.IsNearStructure(worldPos, first, second, CraftingStationReachTiles);
+
+    private bool IsNearStructure(Vector2 worldPos, StructureType type, int reachTiles) =>
+        this.IsNearStructure(worldPos, type, type, reachTiles);
+
+    private bool IsNearStructure(Vector2 worldPos, StructureType first, StructureType second, int reachTiles)
     {
         int ptx = (int)MathF.Floor(worldPos.X / _tileSize);
         int pty = (int)MathF.Floor(worldPos.Y / _tileSize);
-        for (int dy = -CraftingStationReachTiles; dy <= CraftingStationReachTiles; dy++)
+        for (int dy = -reachTiles; dy <= reachTiles; dy++)
         {
-            for (int dx = -CraftingStationReachTiles; dx <= CraftingStationReachTiles; dx++)
+            for (int dx = -reachTiles; dx <= reachTiles; dx++)
             {
                 if (_buildings.TryGetStructure(ptx + dx, pty + dy, out StructureTile st) &&
                     (st.Type == first || st.Type == second) &&

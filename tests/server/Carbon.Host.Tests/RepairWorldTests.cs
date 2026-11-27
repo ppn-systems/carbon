@@ -135,6 +135,9 @@ public sealed class RepairWorldTests
         StationHarness h = new();
         h.Inventory.GetRepairStationTier(h.Position, RepairVenue.Station, h.Table).Should().Be(0, "nothing is built yet");
 
+        h.Grid.ForcePlaceStructure(6, 0, StructureType.Workbench);
+        h.Inventory.GetRepairStationTier(h.Position, RepairVenue.Station, h.Table).Should().Be(0, "6 tiles is beyond stations.stationReachTiles (5)");
+
         h.Grid.ForcePlaceStructure(2, 0, StructureType.Workbench);
         h.Inventory.GetRepairStationTier(h.Position, RepairVenue.Station, h.Table).Should().Be(1, "repair.json stations.workbench");
         h.Inventory.GetRepairStationTier(h.Position, RepairVenue.Blacksmith, h.Table).Should().Be(0, "no blacksmith in reach");

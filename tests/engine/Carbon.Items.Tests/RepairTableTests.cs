@@ -160,6 +160,7 @@ public sealed class RepairTableTests
     [InlineData(", \"orc_war_helm\" ]", " ]", "every item with durability needs a family")]
     [InlineData("\"items\": [ \"bone_bow\" ]", "\"items\": [ \"bone_bow\", \"iron_sword\" ]", "an item belongs to one family")]
     [InlineData("\"stepPercent\": 10", "\"stepPercent\": 7", "steps must divide a full repair")]
+    [InlineData("\"stationReachTiles\": 5", "\"stationReachTiles\": 0", "a station must be reachable")]
     [InlineData("{ \"item\": \"leather\", \"qty\": 2 }", "{ \"item\": \"iron_sword\", \"qty\": 2 }", "a material cannot itself have durability")]
     [InlineData("\"stationTier\": 3,\n      \"materials\": [ { \"item\": \"mana_crystal\"", "\"stationTier\": 4,\n      \"materials\": [ { \"item\": \"mana_crystal\"", "a family needs a tier some station provides")]
     public void LoadFromJson_InvalidDocument_IsRejected(string find, string replace, string because)

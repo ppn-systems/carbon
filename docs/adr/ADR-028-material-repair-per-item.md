@@ -31,7 +31,8 @@ How repair worked before this ADR:
    not server-only). It holds:
    - `stepPercent` (10): the durability one repair step restores, in percent of the item's maximum. It must divide 100.
    - `tierPercent`: a material multiplier per `items.json` tier (index = tier): `100, 100, 150, 200, 300, 400`.
-   - `stations`: the tier of each venue: `workbench` 1, `forgeAnvil` 2, `blacksmith` 3.
+   - `stations`: the tier of each venue (`workbench` 1, `forgeAnvil` 2, `blacksmith` 3) and their reach
+     (`stationReachTiles` 5, `blacksmithReach` 175 px), so the client shows the same "in reach" the server checks.
    - `blacksmithFee`: `percentOfBasePrice` 30, `minimum` 1, `rarityPercent` (the old `economy.json → repair` values).
    - `families`: each has an `id`, a `stationTier`, the `materials` of a full repair of a tier-100 % item, and its
      `items`. Wood tools take logs and plant fibre, stone tools stone and fibre, leather armor leather, iron gear iron
@@ -68,9 +69,9 @@ How repair worked before this ADR:
    - Repairs already sink materials and gold. Tier progression replaces old gear anyway.
    - Revisit with its own ADR if the economy report shows gear never leaves circulation.
 6. **D6 — Venues.** The request names its venue:
-   - `Blacksmith`: a forge artisan NPC within 175 px, tier `stations.blacksmith`, fee charged.
-   - `Station`: an intact forge anvil within 5 tiles (tier `forgeAnvil`), else a workbench within 5 tiles (tier
-     `workbench`). No fee.
+   - `Blacksmith`: a forge artisan NPC within `blacksmithReach` (175 px), tier `stations.blacksmith`, fee charged.
+   - `Station`: an intact forge anvil within `stationReachTiles` (5 tiles, tier `forgeAnvil`), else a workbench in the
+     same reach (tier `workbench`). No fee.
    - None in reach is `OutOfRange`. A tier below the family's `stationTier` is `StationTierTooLow`. With the shipped
      numbers, wood, stone, leather and bone gear repair at a workbench, copper, iron and arcane gear need an anvil, and
      crystal and demon gear need the blacksmith.

@@ -5,7 +5,9 @@
   "stations": {
     "workbench": 1,
     "forgeAnvil": 2,
-    "blacksmith": 3
+    "blacksmith": 3,
+    "stationReachTiles": 5,
+    "blacksmithReach": 175
   },
   "blacksmithFee": {
     "percentOfBasePrice": 30,

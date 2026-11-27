@@ -38,6 +38,12 @@ public sealed record RepairStationTiers
 
     /// <summary>Gets or sets the blacksmith NPC tier.</summary>
     public int Blacksmith { get; set; }
+
+    /// <summary>Gets or sets how many tiles away a workbench or forge anvil still repairs.</summary>
+    public int StationReachTiles { get; set; }
+
+    /// <summary>Gets or sets how many world pixels away a blacksmith still repairs.</summary>
+    public float BlacksmithReach { get; set; }
 }
 
 /// <summary>The blacksmith's gold fee: <c>basePrice × percentOfBasePrice% × rarity% × restored share</c>, at least <see cref="Minimum"/>.</summary>

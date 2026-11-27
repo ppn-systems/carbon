@@ -43,6 +43,8 @@ public sealed class RepairTable
         this.WorkbenchTier = stations.Workbench;
         this.ForgeAnvilTier = stations.ForgeAnvil;
         this.BlacksmithTier = stations.Blacksmith;
+        this.StationReachTiles = stations.StationReachTiles;
+        this.BlacksmithReach = stations.BlacksmithReach;
         this.FeePercentOfBasePrice = fee.PercentOfBasePrice;
         this.MinimumFee = fee.Minimum;
     }
@@ -61,6 +63,12 @@ public sealed class RepairTable
 
     /// <summary>Gets the tier a blacksmith NPC provides.</summary>
     public int BlacksmithTier { get; }
+
+    /// <summary>Gets how many tiles away a workbench or forge anvil still repairs.</summary>
+    public int StationReachTiles { get; }
+
+    /// <summary>Gets how many world pixels away a blacksmith still repairs.</summary>
+    public float BlacksmithReach { get; }
 
     /// <summary>Gets the blacksmith fee of a full repair, in percent of the base price (before rarity).</summary>
     public int FeePercentOfBasePrice { get; }
@@ -112,6 +120,11 @@ public sealed class RepairTable
         if (stations.Workbench < 1 || stations.ForgeAnvil < stations.Workbench || stations.Blacksmith < stations.ForgeAnvil)
         {
             throw new InvalidDataException("repair.json needs 1 <= stations.workbench <= stations.forgeAnvil <= stations.blacksmith.");
+        }
+
+        if (stations.StationReachTiles < 1 || stations.BlacksmithReach <= 0f)
+        {
+            throw new InvalidDataException("repair.json stations.stationReachTiles and stations.blacksmithReach must be positive.");
         }
 
         RepairFeeDefinition fee = document.BlacksmithFee ?? new RepairFeeDefinition();
