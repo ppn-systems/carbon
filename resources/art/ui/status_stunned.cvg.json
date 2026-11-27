@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "itemId": 0,
+  "id": "status_stunned",
+  "displayName": "Stunned",
+  "tier": 1,
+  "categoryLabel": "Status",
+  "accentColor": "#FACC15",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.7,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          0,
+          -6.8
+        ],
+        [
+          5.8,
+          3.4
+        ],
+        [
+          -5.8,
+          3.4
+        ]
+      ],
+      "color": "#FACC15",
+      "outlineColor": "#713F12",
+      "outlineThickness": 0.9,
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          0,
+          6.0
+        ],
+        [
+          -5.8,
+          -2.4
+        ],
+        [
+          5.8,
+          -2.4
+        ]
+      ],
+      "color": "#FACC15",
+      "outlineColor": "#713F12",
+      "outlineThickness": 0.9,
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "ellipse",
+      "x": 0,
+      "y": 0,
+      "rx": 2.2,
+      "ry": 2.2,
+      "color": "#FEF9C3",
+      "bone": "root",
+      "facing": "any"
+    }
+  ]
+}

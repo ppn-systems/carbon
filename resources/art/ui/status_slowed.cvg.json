@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "itemId": 0,
+  "id": "status_slowed",
+  "displayName": "Slowed",
+  "tier": 1,
+  "categoryLabel": "Status",
+  "accentColor": "#7DD3FC",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.7,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "x": 0,
+      "y": 0,
+      "rx": 7,
+      "ry": 7,
+      "color": "#0C4A6E",
+      "outlineColor": "#082F49",
+      "outlineThickness": 1.0,
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "ring",
+      "x": 0,
+      "y": 0,
+      "rx": 4.6,
+      "ry": 4.6,
+      "thickness": 1.4,
+      "color": "#7DD3FC",
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "line",
+      "x": 0,
+      "y": 0,
+      "x2": 0,
+      "y2": -4,
+      "thickness": 1.6,
+      "color": "#E0F2FE",
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "line",
+      "x": 0,
+      "y": 0,
+      "x2": 2.6,
+      "y2": 1.6,
+      "thickness": 1.4,
+      "color": "#E0F2FE",
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "ellipse",
+      "x": 0,
+      "y": 0,
+      "rx": 1.0,
+      "ry": 1.0,
+      "color": "#E0F2FE",
+      "bone": "root",
+      "facing": "any"
+    }
+  ]
+}
