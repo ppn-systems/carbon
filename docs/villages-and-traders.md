@@ -198,7 +198,7 @@ The village blacksmith (at the smithy's forge) and the sanctuary blacksmith (bes
   - The sanctuary smith's key comes from the spawn tile, and his style is temperate.
 - **Repair.** Replaced by [ADR-028](adr/ADR-028-material-repair-per-item.md): the blacksmith repairs one chosen item for materials and a gold fee (`RepairItemRequest`, `0x4050`). `TraderStock.RepairSlots` and `RepairCosts` are always empty.
 - **Enhancement.** The enhancement work owns this (`ItemEnhancementPolicy` and the forge window, ADR-022/024). The window's **Enhance…** button only calls the scene's existing forge entry point, `WorldGameplayScene.OpenForgeWindow`, which closes the trade window and opens the forge. Nothing in the enhancement window is duplicated. `U` still opens the forge directly.
-- **Input.** `E` or a click on the blacksmith opens his trade window; the click no longer also opens the forge. His nameplate reads `[E: TRADE  U: FORGE]`.
+- **Input.** `E` (when he is the nearest thing in reach, see the interact prompt) or a click on the blacksmith opens his trade window; the click no longer also opens the forge. His nameplate reads `[U: FORGE]`.
 
 ## 5. Tests
 

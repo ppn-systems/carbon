@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "itemId": 0,
+  "id": "status_poisoned",
+  "displayName": "Poisoned",
+  "tier": 1,
+  "categoryLabel": "Status",
+  "accentColor": "#84CC16",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.7,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          0,
+          -7.5
+        ],
+        [
+          4.8,
+          0
+        ],
+        [
+          4.2,
+          3.6
+        ],
+        [
+          0,
+          6
+        ],
+        [
+          -4.2,
+          3.6
+        ],
+        [
+          -4.8,
+          0
+        ]
+      ],
+      "color": "#65A30D",
+      "outlineColor": "#1A2E05",
+      "outlineThickness": 1.1,
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "ellipse",
+      "x": 0,
+      "y": 1.2,
+      "rx": 3.0,
+      "ry": 2.6,
+      "color": "#A3E635",
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "ellipse",
+      "x": -1.2,
+      "y": 0.6,
+      "rx": 0.7,
+      "ry": 0.7,
+      "color": "#1A2E05",
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "ellipse",
+      "x": 1.2,
+      "y": 0.6,
+      "rx": 0.7,
+      "ry": 0.7,
+      "color": "#1A2E05",
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "ellipse",
+      "x": -1.8,
+      "y": -3,
+      "rx": 0.9,
+      "ry": 0.6,
+      "color": "#ECFCCB",
+      "bone": "root",
+      "facing": "any"
+    }
+  ]
+}

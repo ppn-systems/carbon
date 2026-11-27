@@ -3,6 +3,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Carbon.Combat.Statuses.Config;
 using Carbon.Configuration.Catalog;
 using Carbon.Desktop.Abstractions.Configuration;
 
@@ -41,6 +42,10 @@ public sealed partial class MultiplayerSession
         _ = _entityNames.Apply(catalog);
         _ = SyncedFoodCatalog.Apply(catalog);
         _ = SyncedProgressionConfig.Apply(catalog);
+        if (SyncedStatusEffectCatalog.TryParse(catalog, out StatusEffectCatalog statusEffects))
+        {
+            _statusEffectDefinitions = statusEffects;
+        }
         _ = _staminaConfig.Apply(catalog);
     }
 }

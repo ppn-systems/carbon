@@ -11,7 +11,7 @@ namespace Carbon.Items.Catalog;
 /// </summary>
 public static class StarterGameCatalog
 {
-    /// <summary>Starter timber axe (Harvest tier 1).</summary>
+    /// <summary>Hand-made wood axe (Harvest tier 1).</summary>
     public const uint WoodAxe = 1;
 
     /// <summary>Stone pickaxe (Harvest tier 2).</summary>
@@ -148,7 +148,7 @@ public static class StarterGameCatalog
         inventory.Clear();
         if (inventory.Capacity > 0)
         {
-            inventory.SetSlot(0, new ItemSlot(WoodAxe, 1, 0, 120f));
+            inventory.SetSlot(0, new ItemSlot(WoodAxe, 1, 0, 80f));
         }
 
         if (inventory.Capacity > 1)

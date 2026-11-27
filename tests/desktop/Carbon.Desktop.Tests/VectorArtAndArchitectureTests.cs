@@ -49,7 +49,7 @@ public sealed class VectorArtAndArchitectureTests
         summary.CharactersValidated.Should().Be(4);
         summary.MonstersValidated.Should().Be(9);
         summary.NpcsValidated.Should().Be(6, "guard, harbour master, shrine keeper, blacksmith, village merchant, general trader");
-        summary.ItemsValidated.Should().Be(90);
+        summary.ItemsValidated.Should().Be(ItemRules.LoadShippedDefaults().ItemCatalog.Count, "every items.json item has art");
         summary.PropsValidated.Should().Be(Enum.GetValues<MapPropType>().Length - 1, "every non-None prop type has art");
         summary.BiomesValidated.Should().Be(14);
         summary.StructuresValidated.Should().Be(Enum.GetValues<StructureType>().Length - 1, "every non-None structure type has art");
@@ -443,6 +443,13 @@ public sealed class VectorArtAndArchitectureTests
         lib.TryGetUiIcon("diamond", out CompiledItemVectorArt? diamondIcon).Should().BeTrue("the wallet HUD needs a diamond icon");
         coinIcon!.Shapes.Length.Should().BePositive();
         diamondIcon!.Shapes.Length.Should().BePositive();
+
+        // ADR-029: every status effect in the shipped config has its vector icon.
+        foreach (Carbon.Combat.Statuses.Config.StatusEffectDefinition effect in Carbon.Combat.Statuses.Config.StatusEffectCatalog.LoadShippedDefaults().Effects)
+        {
+            lib.TryGetUiIcon(effect.Icon, out CompiledItemVectorArt? statusIcon).Should().BeTrue($"status effect '{effect.Key}' needs its '{effect.Icon}' icon");
+            statusIcon!.Shapes.Length.Should().BePositive();
+        }
 
         string[] expectedMonsterClips =
         [

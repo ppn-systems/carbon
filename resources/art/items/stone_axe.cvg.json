@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "itemId": 190,
+  "id": "stone_axe",
+  "displayName": "Stone Axe",
+  "tier": 2,
+  "categoryLabel": "Timber Tool",
+  "accentColor": "#A8A29E",
+  "gripX": -4.5,
+  "gripY": 4.5,
+  "restAngleDeg": -78.0,
+  "worldScale": 0.94,
+  "palette": {},
+  "shapes": [
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": -7.2,
+      "y": 7.2,
+      "x2": 6.2,
+      "y2": -6.2,
+      "thickness": 2.7,
+      "color": "#92400E",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": -7.2,
+      "y": 7.2,
+      "rx": 1.8,
+      "ry": 1.8,
+      "color": "#F59E0B",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          1.2,
+          -4.6
+        ],
+        [
+          8.0,
+          -8.8
+        ],
+        [
+          9.6,
+          0.8
+        ],
+        [
+          3.4,
+          2.2
+        ]
+      ],
+      "color": "#78716C",
+      "outlineColor": "#1E293B",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          5.2,
+          -6.4
+        ],
+        [
+          8.0,
+          -8.8
+        ],
+        [
+          9.4,
+          0.2
+        ],
+        [
+          7.2,
+          0.8
+        ]
+      ],
+      "color": "#A8A29E"
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": 7.8,
+      "y": -8.2,
+      "x2": 9.2,
+      "y2": 0.4,
+      "thickness": 1.6,
+      "color": "#F8FAFC"
+    },
+    {
+      "kind": "capsule",
+      "bone": "root",
+      "facing": "any",
+      "x": -5.6,
+      "y": 3.4,
+      "x2": -3.4,
+      "y2": 5.6,
+      "thickness": 3.0,
+      "color": "#451A03",
+      "outlineColor": "#1E1B18",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 2.8,
+      "y": -2.8,
+      "rx": 1.1,
+      "ry": 1.1,
+      "color": "#D6D3D1",
+      "outlineColor": "#1E293B",
+      "outlineThickness": 0.7
+    }
+  ],
+  "heldVisible": true
+}

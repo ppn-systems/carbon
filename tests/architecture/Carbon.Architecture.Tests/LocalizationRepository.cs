@@ -105,6 +105,16 @@ internal static partial class LocalizationRepository
             }
         }
 
+        using (JsonDocument statusEffects = JsonDocument.Parse(File.ReadAllText(Path.Combine(config, "status_effects.json"))))
+        {
+            foreach (JsonElement effect in statusEffects.RootElement.GetProperty("effects").EnumerateArray())
+            {
+                string key = effect.GetProperty("key").GetString()!;
+                keys.Add($"status_effects.{key}.name");
+                keys.Add($"status_effects.{key}.desc");
+            }
+        }
+
         foreach (Carbon.Maps.Biomes.BiomeType biome in Enum.GetValues<Carbon.Maps.Biomes.BiomeType>())
         {
             keys.Add(GameText.BiomeKey(biome));

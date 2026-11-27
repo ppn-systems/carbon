@@ -59,8 +59,8 @@
           2.2
         ]
       ],
-      "color": "#94A3B8",
-      "outlineColor": "#1E293B",
+      "color": "#B45309",
+      "outlineColor": "#1E1B18",
       "outlineThickness": 1.1
     },
     {
@@ -85,7 +85,7 @@
           0.8
         ]
       ],
-      "color": "#CBD5E1"
+      "color": "#D97706"
     },
     {
       "kind": "line",
@@ -96,7 +96,7 @@
       "x2": 9.2,
       "y2": 0.4,
       "thickness": 1.6,
-      "color": "#F8FAFC"
+      "color": "#FEF3C7"
     },
     {
       "kind": "capsule",
@@ -119,8 +119,8 @@
       "y": -2.8,
       "rx": 1.1,
       "ry": 1.1,
-      "color": "#E2E8F0",
-      "outlineColor": "#1E293B",
+      "color": "#FBBF24",
+      "outlineColor": "#1E1B18",
       "outlineThickness": 0.7
     }
   ],

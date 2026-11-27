@@ -27,8 +27,8 @@ using Xunit;
 namespace Carbon.Host.Tests;
 
 /// <summary>
-/// A newly created character enters the world with nothing and must reach its first tool with server commands alone: gather loose
-/// stones, branches and fiber by hand at spawn, craft rope and the stone axe, and then fell trees faster than by hand.
+/// A newly created character enters the world with nothing and must reach its first tools with server commands alone: gather
+/// loose stones, branches and fiber by hand at spawn, punch trees for more wood, and craft the wood tools by hand.
 /// </summary>
 public sealed class SurvivalBootstrapWorldTests
 {
@@ -37,33 +37,17 @@ public sealed class SurvivalBootstrapWorldTests
     private const ulong Connection = 811UL;
 
     [Fact]
-    public async Task EmptyHandedCharacter_GathersAtSpawnCraftsStoneAxe_AndThenChopsATreeFaster()
+    public async Task EmptyHandedCharacter_GathersAtSpawnCraftsWoodAxe_AndThenChopsATreeFaster()
     {
         string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-bootstrap-{Guid.NewGuid():N}.db");
         try
         {
             using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
-            await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
-            SqliteAccountStore accounts = new(factory);
-            SqliteCharacterStore characters = new(factory);
-            AuthoritativeWorldMultiplayerTests.RecordingOutboundSink sink = new();
-
-            AuthoritativeWorld world = new(Seed, TileSize, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), characters, sink, entropy: TestGameplayEntropy.Create(Seed));
-            await world.InitializeFromStoreAsync().ConfigureAwait(true);
-
-            // A fresh character, created the way the CharacterCreate handler creates one (at the world spawn).
-            Vector2 spawn = world.DefaultSpawnWorldPosition;
-            using AuthService auth = new(accounts, characters, new Pbkdf2PasswordHasher());
-            AuthOutcome account = await auth.RegisterAsync("bootstrap", "secret-pass", CarbonProtocol.Version).ConfigureAwait(true);
-            CharacterCreateResult created = await auth.CreateCharacterAsync(account.AccountId, "Bootstrap", 0, spawn.X, spawn.Y).ConfigureAwait(true);
-            created.Succeeded.Should().BeTrue();
-            CharacterRecord hero = (await characters.FindByIdAsync(created.Character!.Id).ConfigureAwait(true))!;
-            world.TryEnterWorld(Connection, hero).Status.Should().Be(OpStatus.Ok);
-            Inventory(world).Should().BeEmpty("a new character starts with nothing (ADR-030)");
-
-            // 1. Gather the stone axe's materials by hand from the forage the generator leaves at spawn.
+            (AuthoritativeWorld world, AuthoritativeWorldMultiplayerTests.RecordingOutboundSink sink, (int X, int Y) spawnTile) =
+                await EnterFreshCharacterAsync(factory).ConfigureAwait(true);
             ChunkWorld2D mirror = new(new ProceduralWorldGenerator(Seed), TileSize, 0.0008f);
-            (int X, int Y) spawnTile = ((int)MathF.Floor(spawn.X / TileSize), (int)MathF.Floor(spawn.Y / TileSize));
+
+            // 1. Gather the wood axe's materials by hand from the forage the generator leaves at spawn.
             List<(int X, int Y)> stones = FindProps(mirror, spawnTile, 9, MapPropType.LooseStones);
             List<(int X, int Y)> branches = FindProps(mirror, spawnTile, 9, MapPropType.FallenBranch);
             List<(int X, int Y)> bushes = FindProps(mirror, spawnTile, 9, MapPropType.DryBush);
@@ -84,11 +68,11 @@ public sealed class SurvivalBootstrapWorldTests
             Count(world, StarterGameCatalog.StoneChunk).Should().Be(2);
             Count(world, StarterGameCatalog.WoodLog).Should().Be(3);
 
-            // 2. Craft rope and the stone axe without a station.
+            // 2. Craft rope and the wood axe without a station.
             world.ItemRules.RecipeCatalog.TryGetByCode("rope", out CraftingRecipe? rope).Should().BeTrue();
             world.ItemRules.RecipeCatalog.TryGetByCode("wood_axe", out CraftingRecipe? axe).Should().BeTrue();
             world.TryCraftRecipe(Connection, (ushort)rope!.Id, 1).Should().Be(OpStatus.Ok, "rope is a hand recipe");
-            world.TryCraftRecipe(Connection, (ushort)axe!.Id, 1).Should().Be(OpStatus.Ok, "the stone axe is a hand recipe");
+            world.TryCraftRecipe(Connection, (ushort)axe!.Id, 1).Should().Be(OpStatus.Ok, "the wood axe is a hand recipe");
             (ushort axeSlot, ItemSlot _) = Inventory(world).Single(s => s.Slot.ItemId == StarterGameCatalog.WoodAxe);
             Count(world, StarterGameCatalog.WoodLog).Should().Be(0, "the axe used up the gathered logs");
 
@@ -107,7 +91,7 @@ public sealed class SurvivalBootstrapWorldTests
             int chops = StrikeUntilGone(world, tree);
 
             punches.Should().BeGreaterThan(1, "bare hands fell a tree slowly");
-            chops.Should().BeLessThan(punches, "the stone axe chops faster than bare hands");
+            chops.Should().BeLessThan(punches, "the wood axe chops faster than bare hands");
         }
         finally
         {
@@ -117,6 +101,114 @@ public sealed class SurvivalBootstrapWorldTests
                 File.Delete(dbPath);
             }
         }
+    }
+
+    [Fact]
+    public async Task EmptyHandedCharacter_CraftsEveryWoodToolByHand_AndTheWoodPickaxeMinesABoulderHandsCannot()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-wood-tier-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            (AuthoritativeWorld world, AuthoritativeWorldMultiplayerTests.RecordingOutboundSink sink, (int X, int Y) spawnTile) =
+                await EnterFreshCharacterAsync(factory).ConfigureAwait(true);
+            ChunkWorld2D mirror = new(new ProceduralWorldGenerator(Seed), TileSize, 0.0008f);
+            ItemCatalog items = world.ItemRules.ItemCatalog;
+
+            // 1. Spawn forage: every fallen branch and dry bush, by hand.
+            foreach ((int X, int Y) tile in FindProps(mirror, spawnTile, 9, MapPropType.FallenBranch).Concat(FindProps(mirror, spawnTile, 9, MapPropType.DryBush)))
+            {
+                WalkTo(world, sink, TileCenter(tile));
+                StrikeUntilGone(world, tile).Should().BePositive($"forage at {tile} comes up by hand");
+                PickUpNewLoot(world, sink);
+            }
+
+            // 2. Punched wood: two oaks felled with bare hands. Bushes regrow, so pick them again until there is fiber
+            //    for two ropes and the sword's binding.
+            foreach ((int X, int Y) tree in FindProps(mirror, spawnTile, 40, MapPropType.OakTree).Take(2))
+            {
+                WalkTo(world, sink, TileCenter(tree));
+                StrikeUntilGone(world, tree).Should().BeGreaterThan(1, "bare hands fell an oak slowly");
+                PickUpNewLoot(world, sink);
+            }
+
+            uint fiber = items.ResolveId("plant_fiber");
+            for (int round = 0; round < 4 && Count(world, fiber) < 8; round++)
+            {
+                StepTicks(world, 30 * 31);
+                foreach ((int X, int Y) bush in FindProps(mirror, spawnTile, 9, MapPropType.DryBush))
+                {
+                    WalkTo(world, sink, TileCenter(bush));
+                    _ = StrikeUntilGone(world, bush);
+                    PickUpNewLoot(world, sink);
+                }
+            }
+
+            Count(world, StarterGameCatalog.WoodLog).Should().BeGreaterThanOrEqualTo(8, "branches plus two punched oaks");
+            Count(world, fiber).Should().BeGreaterThanOrEqualTo(8);
+
+            // 3. Every wood tool is a hand recipe: no station anywhere near the spawn clearing.
+            Craft(world, "rope", 2);
+            Craft(world, "wood_plank", 3);
+            Craft(world, "wood_axe", 1);
+            Craft(world, "wood_pickaxe", 1);
+            Craft(world, "wood_sword", 1);
+            uint pickaxe = items.ResolveId("wood_pickaxe");
+            Count(world, StarterGameCatalog.WoodAxe).Should().Be(1);
+            Count(world, pickaxe).Should().Be(1);
+            Count(world, items.ResolveId("wood_sword")).Should().Be(1);
+
+            // 4. A boulder resists bare hands but breaks to the wood pickaxe, dropping stone.
+            (int X, int Y) boulder = FindProps(mirror, spawnTile, 60, MapPropType.Boulder).First();
+            WalkTo(world, sink, TileCenter(boulder));
+            HashSet<ushort> occupied = [.. Inventory(world).Select(s => s.SlotIndex)];
+            byte emptyHand = (byte)Enumerable.Range(0, 8).First(i => !occupied.Contains((ushort)i));
+            world.TrySelectHotbarSlot(Connection, emptyHand).Should().Be(OpStatus.Ok);
+            StepTicks(world, 30);
+            world.TryHarvestProp(Connection, boulder.X, boulder.Y).Status.Should().Be(OpStatus.Forbidden, "bare hands cannot mine a boulder");
+
+            ushort pickSlot = Inventory(world).Single(s => s.Slot.ItemId == pickaxe).SlotIndex;
+            world.TrySelectHotbarSlot(Connection, (byte)pickSlot).Should().Be(OpStatus.Ok);
+            int stoneBefore = Count(world, StarterGameCatalog.StoneChunk);
+            StrikeUntilGone(world, boulder).Should().BePositive("the wood pickaxe mines a boulder");
+            PickUpNewLoot(world, sink);
+            Count(world, StarterGameCatalog.StoneChunk).Should().BeGreaterThan(stoneBefore, "a mined boulder drops stone for the stone tier");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
+    /// <summary>Creates a fresh character the way the CharacterCreate handler does (at the world spawn) and enters it.</summary>
+    private static async Task<(AuthoritativeWorld World, AuthoritativeWorldMultiplayerTests.RecordingOutboundSink Sink, (int X, int Y) SpawnTile)> EnterFreshCharacterAsync(SqliteConnectionFactory factory)
+    {
+        await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
+        SqliteAccountStore accounts = new(factory);
+        SqliteCharacterStore characters = new(factory);
+        AuthoritativeWorldMultiplayerTests.RecordingOutboundSink sink = new();
+        AuthoritativeWorld world = new(Seed, TileSize, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), characters, sink, entropy: TestGameplayEntropy.Create(Seed));
+        await world.InitializeFromStoreAsync().ConfigureAwait(true);
+
+        Vector2 spawn = world.DefaultSpawnWorldPosition;
+        using AuthService auth = new(accounts, characters, new Pbkdf2PasswordHasher());
+        AuthOutcome account = await auth.RegisterAsync("bootstrap", "secret-pass", CarbonProtocol.Version).ConfigureAwait(true);
+        CharacterCreateResult created = await auth.CreateCharacterAsync(account.AccountId, "Bootstrap", 0, spawn.X, spawn.Y).ConfigureAwait(true);
+        created.Succeeded.Should().BeTrue();
+        CharacterRecord hero = (await characters.FindByIdAsync(created.Character!.Id).ConfigureAwait(true))!;
+        world.TryEnterWorld(Connection, hero).Status.Should().Be(OpStatus.Ok);
+        Inventory(world).Should().BeEmpty("a new character starts with nothing (ADR-030)");
+        return (world, sink, ((int)MathF.Floor(spawn.X / TileSize), (int)MathF.Floor(spawn.Y / TileSize)));
+    }
+
+    private static void Craft(AuthoritativeWorld world, string recipeCode, ushort quantity)
+    {
+        world.ItemRules.RecipeCatalog.TryGetByCode(recipeCode, out CraftingRecipe? recipe).Should().BeTrue();
+        world.TryCraftRecipe(Connection, (ushort)recipe!.Id, quantity).Should().Be(OpStatus.Ok, $"'{recipeCode}' is a hand recipe and its materials were gathered");
     }
 
     private static Vector2 TileCenter((int X, int Y) tile) => new((tile.X + 0.5f) * TileSize, (tile.Y + 0.5f) * TileSize);

@@ -19,9 +19,10 @@ namespace Carbon.Desktop.Scenes;
 internal delegate bool TraderFilter(in RemoteEntityView entity);
 
 /// <summary>
-/// The scene's side of trading with village traders (ADR-025): which trader the player can talk to (E or a click), when
-/// the window opens and closes, and routing the mouse to <see cref="TradeWindowController"/>, which stages trades in the
-/// basket and cart (D18). Closing the window, by any route, returns everything staged. The server validates every request.
+/// The scene's side of trading with village traders (ADR-025): which trader a click talks to (E goes through
+/// <see cref="InteractionController"/>), when the window opens and closes, and routing the mouse to
+/// <see cref="TradeWindowController"/>, which stages trades in the basket and cart (D18). Closing the window, by any
+/// route, returns everything staged. The server validates every request.
 /// </summary>
 /// <param name="session">World session.</param>
 /// <param name="hud">HUD that draws the window.</param>
@@ -31,9 +32,6 @@ internal delegate bool TraderFilter(in RemoteEntityView entity);
 /// <param name="openRepair">Opens the repair window at the blacksmith (ADR-028): the blacksmith's Repair button hands off to it.</param>
 internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer hud, DesktopOptions options, TraderFilter isTrader, Func<bool> openForge, Action openRepair)
 {
-    /// <summary>UI: distance in world pixels within which the interact key opens a trader (the server re-checks 175 px).</summary>
-    private const float TalkRadius = 150f;
-
     /// <summary>UI: distance in world pixels beyond which an open trade window closes.</summary>
     private const float WindowRadius = 190f;
 
@@ -85,10 +83,6 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
             _ = trading.TryOpen(nearest);
         }
     }
-
-    /// <summary>Opens the nearest trader within talking distance (the interact key).</summary>
-    public bool TryTalk() =>
-        this.TryFindNearest(_session.LocalPlayerInterpolatedPosition, TalkRadius, out ulong trader) && _session.Trading.TryOpen(trader);
 
     /// <summary>Opens the trader under the cursor.</summary>
     public bool TryClick(Vector2 aimWorld) =>

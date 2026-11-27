@@ -19,13 +19,13 @@
       "id": "wood",
       "stationTier": 1,
       "materials": [ { "item": "wood_log", "qty": 2 }, { "item": "plant_fiber", "qty": 2 } ],
-      "items": [ "wood_axe", "hunting_bow", "shaman_staff" ]
+      "items": [ "wood_axe", "wood_pickaxe", "wood_sword", "hunting_bow", "shaman_staff" ]
     },
     {
       "id": "stone",
       "stationTier": 1,
       "materials": [ { "item": "stone_chunk", "qty": 3 }, { "item": "plant_fiber", "qty": 1 } ],
-      "items": [ "stone_pickaxe" ]
+      "items": [ "stone_axe", "stone_pickaxe" ]
     },
     {
       "id": "leather",
