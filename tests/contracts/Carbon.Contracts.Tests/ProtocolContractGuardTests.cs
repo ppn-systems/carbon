@@ -358,11 +358,10 @@ public sealed class ProtocolContractGuardTests
         {
             CharacterName = "Spellweaver",
             AppearancePreset = 7,
-            StartingClass = (byte)HeroArchetypeClass.Arcanist,
         };
         using CharacterCreate charCreateCopy = CharacterCreate.Deserialize(charCreate.Serialize());
         Assert.Equal("Spellweaver", charCreateCopy.CharacterName);
-        Assert.Equal((byte)HeroArchetypeClass.Arcanist, charCreateCopy.StartingClass);
+        Assert.Equal((byte)7, charCreateCopy.AppearancePreset);
 
         using DropInventoryItem drop = new() { SlotIndex = 5, Quantity = 2, SequenceId = 9 };
         using DropInventoryItem dropCopy = DropInventoryItem.Deserialize(drop.Serialize());

@@ -9,7 +9,8 @@ namespace Carbon.Items.Catalog;
 
 /// <summary>
 /// Maps each harvestable <see cref="MapPropType"/> to its themed drop: trees → wood, boulders → stone, veins → their ore,
-/// crystals → mana crystal, cactus → cactus fiber, bushes → berries, dry bush and dune grass → plant fiber. Items are resolved by code from the active
+/// crystals → mana crystal, cactus → cactus fiber, bushes → berries, dry bush and dune grass → plant fiber,
+/// loose stones → stone, fallen branches → wood. Items are resolved by code from the active
 /// <c>items.json</c> catalog (<see cref="ItemRules.ItemCatalog"/>), never from raw numeric ids.
 /// </summary>
 public static class PropHarvestCatalog
@@ -38,6 +39,8 @@ public static class PropHarvestCatalog
             MapPropType.MushroomCluster => ("berry_herb", 2, 10U),
             MapPropType.DryBush => ("plant_fiber", 2, 6U),
             MapPropType.DuneGrass => ("plant_fiber", 1, 4U),
+            MapPropType.LooseStones => ("stone_chunk", 1, 3U),
+            MapPropType.FallenBranch => ("wood_log", 1, 3U),
             MapPropType.None or MapPropType.AncientShrine => (null, 0, 0U),
             _ => (null, 0, 0U),
         };

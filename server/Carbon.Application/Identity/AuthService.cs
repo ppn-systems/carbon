@@ -227,7 +227,7 @@ public sealed class AuthService : IAuthService, IDisposable
     public bool DebugForgeKit { get; init; }
 
     /// <summary>
-    /// Gets or sets whether new characters start with their gear worn to 40 % durability (Debug host only,
+    /// Gets or sets whether the gear the Debug kits grant new characters starts worn to 40 % durability (Debug host only,
     /// <c>CARBON_DEBUG_WORN_GEAR</c>), for review of the blacksmith's repair mode.
     /// </summary>
     public bool DebugWornGear { get; init; }
@@ -239,17 +239,11 @@ public sealed class AuthService : IAuthService, IDisposable
         byte appearancePreset,
         float spawnX,
         float spawnY,
-        byte startingClass = 0,
         CancellationToken ct = default)
     {
         if (!IsValidIdentifier(characterName, 2, 20))
         {
             return new CharacterCreateResult(false, "invalid_name", null);
-        }
-
-        if (!Enum.IsDefined((HeroArchetypeClass)startingClass))
-        {
-            return new CharacterCreateResult(false, "invalid_class", null);
         }
 
         IReadOnlyList<CharacterRecord> existing = await _characters.ListByAccountAsync(accountId, ct).ConfigureAwait(false);
@@ -258,8 +252,8 @@ public sealed class AuthService : IAuthService, IDisposable
             return new CharacterCreateResult(false, "character_limit_reached", null);
         }
 
+        // Every character starts with nothing (ADR-030); only Debug hosts add review items.
         InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
-        StarterGameCatalog.GrantStarterLoadout(inv, startingClass);
         this.GrantDebugStarterItems(inv);
         const byte selectedSlot = 2;
         if (this.DebugForgeKit)
@@ -293,7 +287,7 @@ public sealed class AuthService : IAuthService, IDisposable
             MaxMana: stats.MaxMana,
             CurrentStamina: stats.MaxStamina,
             MaxStamina: stats.MaxStamina,
-            Class: (HeroArchetypeClass)startingClass,
+            Class: HeroArchetypeClass.None,
             Flags: CharacterTraits.StarterLoadoutGranted,
             UnlockedSkills: CharacterSkillMask.None,
             ProgressionBlob: [],
