@@ -22,6 +22,7 @@ using Carbon.Desktop.Abstractions.StatusEffects;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
+using Carbon.Items.Definitions;
 using Carbon.Items.Serialization;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
@@ -990,8 +991,7 @@ public sealed partial class MultiplayerSession
                     caster.ActiveActionKind = ActionAnimationKind.SwordSlash;
                 }
 
-                caster.AttackAnimDuration = isProjectile ? 0.28f : 0.45f;
-                caster.AttackAnimTimer = caster.AttackAnimDuration;
+                caster.StartSwing(caster.ActiveActionKind, isProjectile ? 0.28f : 0.45f, _comboClock);
                 _remoteViewsDirty = true;
             }
         }
@@ -1102,11 +1102,10 @@ public sealed partial class MultiplayerSession
                     attackerState.FacingDir = Vector2.Normalize(aimDelta);
                 }
 
-                attackerState.ActiveActionKind = attackerState.Kind == EntityKind.Monster
+                ActionAnimationKind attackerKind = attackerState.Kind == EntityKind.Monster
                     ? ActionAnimationKind.MonsterStrike
-                    : ActionAnimationKind.SwordSlash;
-                attackerState.AttackAnimDuration = 0.30f;
-                attackerState.AttackAnimTimer = 0.30f;
+                    : ResolveActionKind(_items.Rules.Items.TryGet(attackerState.EquippedWeaponId, out ItemArchetype? attackerWeapon) ? attackerWeapon : null);
+                attackerState.StartSwing(attackerKind, 0.30f, _comboClock);
             }
 
             bool isHeal = pkt.Damage < 0f;

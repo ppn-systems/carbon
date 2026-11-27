@@ -71,6 +71,12 @@ public sealed class DesktopOptions
     public int FrameStatsFrames { get; init; }
 
     /// <summary>
+    /// Gets or sets the initial window size in pixels (<c>CARBON_WINDOW_SIZE=WxH</c>, e.g. <c>1920x1080</c>; default
+    /// 1280 × 720). The screenshot tool passes its <c>WIDTH</c> × <c>HEIGHT</c> so captures match that resolution.
+    /// </summary>
+    public (int Width, int Height) WindowSize { get; init; } = (1280, 720);
+
+    /// <summary>
     /// Gets or sets a value indicating whether the scene opens the nearest trader's window once in the world
     /// (<c>CARBON_OPEN_TRADER=1</c>; screenshot tool). The capture waits for the trader's stock to arrive.
     /// </summary>
@@ -108,6 +114,12 @@ public sealed class DesktopOptions
     /// (<c>CARBON_AUTO_WALK=x,y</c>; used by the screenshot tool to capture actors in motion).
     /// </summary>
     public (float X, float Y)? AutoWalk { get; init; }
+
+    /// <summary>
+    /// Gets or sets the seconds between automatic primary-action swings at the nearest monster (<c>CARBON_AUTO_ATTACK=s</c>,
+    /// 0 = off; used by the screenshot tool to measure and capture combat).
+    /// </summary>
+    public float AutoAttackSeconds { get; init; }
 
     /// <summary>
     /// Gets or sets a HUD window to open before the automatic capture (<c>CARBON_CAPTURE_MODAL=settings|controls|inventory|character|skills|crafting</c>;
@@ -270,6 +282,7 @@ public sealed class DesktopOptions
             ScreenshotPath = screenshotPath,
             CaptureFrames = captureFrames,
             FrameStatsFrames = frameStatsFrames,
+            WindowSize = ParseSize(get("CARBON_WINDOW_SIZE")) ?? (1280, 720),
             AutoExit = string.Equals(get("CARBON_AUTO_EXIT"), "1", StringComparison.Ordinal),
             OpenTrader = string.Equals(get("CARBON_OPEN_TRADER"), "1", StringComparison.Ordinal),
             TradePreview = string.Equals(get("CARBON_TRADE_PREVIEW"), "basket", StringComparison.Ordinal),
@@ -281,6 +294,9 @@ public sealed class DesktopOptions
             },
             RepairPreview = get("CARBON_REPAIR_PREVIEW") is { Length: > 0 } repairPreview ? repairPreview.Trim() : null,
             AutoWalk = ParsePoint(get("CARBON_AUTO_WALK")),
+            AutoAttackSeconds = float.TryParse(get("CARBON_AUTO_ATTACK"), NumberStyles.Float, CultureInfo.InvariantCulture, out float autoAttack)
+                ? Math.Clamp(autoAttack, 0f, 60f)
+                : 0f,
             OpenPanel = get("CARBON_OPEN_PANEL") is { Length: > 0 } panel ? panel.Trim() : null,
             CaptureMouse = ParsePoint(get("CARBON_CAPTURE_MOUSE")),
             CaptureModal = get("CARBON_CAPTURE_MODAL") is { Length: > 0 } modal ? modal.Trim().ToLowerInvariant() : string.Empty,
@@ -305,6 +321,16 @@ public sealed class DesktopOptions
 
     private static string DefaultConfigCacheDirectory() =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Carbon", "config-cache");
+
+    /// <summary>Parses a <c>WxH</c> size between 320 × 200 and 7680 × 4320, or returns <see langword="null"/>.</summary>
+    private static (int Width, int Height)? ParseSize(string? value) =>
+        value is { Length: > 0 } &&
+        value.Trim().ToLowerInvariant().Split('x') is [string w, string h] &&
+        int.TryParse(w, NumberStyles.Integer, CultureInfo.InvariantCulture, out int width) &&
+        int.TryParse(h, NumberStyles.Integer, CultureInfo.InvariantCulture, out int height) &&
+        width is >= 320 and <= 7680 && height is >= 200 and <= 4320
+            ? (width, height)
+            : null;
 
     /// <summary>Parses an <c>x,y</c> pair (invariant culture), or returns <see langword="null"/> when unset or malformed.</summary>
     private static (float X, float Y)? ParsePoint(string? value) =>

@@ -3,21 +3,19 @@
 using System;
 using System.CodeDom.Compiler;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
-using FluentAssertions;
 using Xunit;
 
 namespace Carbon.Architecture.Tests;
 
 /// <summary>
-/// Cross-layer hygiene rules: no <c>async void</c>, no static mutable state in engine/server, namespaces match folders.
+/// Cross-layer hygiene rules: no <c>async void</c>, no static mutable state in engine/server. Naming rules live in
+/// <see cref="NamingConventionTests"/>.
 /// </summary>
-public sealed partial class CodeHygieneTests
+public sealed class CodeHygieneTests
 {
     /// <summary>Generic collection types whose <c>static readonly</c> instances are still shared mutable state.</summary>
     private static readonly HashSet<string> s_mutableCollectionDefinitions = new(StringComparer.Ordinal)
@@ -86,14 +84,6 @@ public sealed partial class CodeHygieneTests
     {
     };
 
-    /// <summary>
-    /// Existing source files whose namespace does not match RootNamespace + folder path.
-    /// Entry format: repo-relative path. Do NOT add new entries: fix the namespace or move the file.
-    /// </summary>
-    private static readonly HashSet<string> s_namespaceMismatchAllowlist = new(StringComparer.Ordinal)
-    {
-    };
-
     [Fact]
     public void ProductionCode_ShouldNotDeclareAsyncVoidMethods()
     {
@@ -135,23 +125,6 @@ public sealed partial class CodeHygieneTests
         Violations.ShouldBeEmpty(s_staticMutableStateAllowlist.Where(e => !found.Contains(e)), "fixed entries must be removed from the allowlist");
     }
 
-    [Fact]
-    public void Namespaces_ShouldMatchFolderStructure()
-    {
-        List<string> violations = [.. FindNamespaceMismatches()
-            .Where(m => !s_namespaceMismatchAllowlist.Contains(m.Path))
-            .Select(m => $"{m.Path}: declares '{m.Actual}', expected '{m.Expected}'")];
-
-        Violations.ShouldBeEmpty(violations, "namespace must equal <RootNamespace>.<Folder>.<SubFolder>");
-    }
-
-    [Fact]
-    public void NamespaceMismatchAllowlist_ShouldNotContainStaleEntries()
-    {
-        HashSet<string> found = [.. FindNamespaceMismatches().Select(m => m.Path)];
-        Violations.ShouldBeEmpty(s_namespaceMismatchAllowlist.Where(e => !found.Contains(e)), "fixed entries must be removed from the allowlist");
-    }
-
     private static IEnumerable<string> FindStaticMutableFields() => FindStaticMutableFields("engine", "server");
 
     /// <summary>Non-readonly statics and <c>static readonly</c> mutable collections declared in <paramref name="layers"/>.</summary>
@@ -186,7 +159,7 @@ public sealed partial class CodeHygieneTests
         }
     }
 
-    private static bool IsCompilerOrToolGenerated(Type type)
+    internal static bool IsCompilerOrToolGenerated(Type type)
     {
         for (Type? cursor = type; cursor is not null; cursor = cursor.DeclaringType)
         {
@@ -201,33 +174,4 @@ public sealed partial class CodeHygieneTests
 
         return false;
     }
-
-    private static IEnumerable<(string Path, string Actual, string Expected)> FindNamespaceMismatches()
-    {
-        foreach (ProductionProject project in RepositoryLayout.Projects)
-        {
-            foreach (string file in RepositoryLayout.SourceFiles(project))
-            {
-                Match match = NamespaceRegex().Match(File.ReadAllText(file));
-                if (!match.Success)
-                {
-                    continue;
-                }
-
-                string relativeDir = Path.GetRelativePath(project.ProjectDirectory, Path.GetDirectoryName(file)!);
-                string expected = relativeDir == "."
-                    ? project.RootNamespace
-                    : project.RootNamespace + "." + relativeDir.Replace('\\', '.').Replace('/', '.');
-                string actual = match.Groups["ns"].Value;
-
-                if (!string.Equals(actual, expected, StringComparison.Ordinal))
-                {
-                    yield return (RepositoryLayout.Relative(file), actual, expected);
-                }
-            }
-        }
-    }
-
-    [GeneratedRegex(@"^\s*namespace\s+(?<ns>[A-Za-z_][A-Za-z0-9_.]*)\s*[;{]", RegexOptions.Multiline)]
-    private static partial Regex NamespaceRegex();
 }

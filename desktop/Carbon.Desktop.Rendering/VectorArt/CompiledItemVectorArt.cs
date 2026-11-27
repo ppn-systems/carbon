@@ -1,5 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System;
 using System.Numerics;
 using Carbon.Graphics.Batching.Common;
 
@@ -38,6 +39,8 @@ public sealed class CompiledItemVectorArt
         this.WorldScale = worldScale;
         this.Shapes = shapes;
         this.IsHeldVisible = isHeldVisible;
+        ArgumentNullException.ThrowIfNull(shapes);
+        this.TipPoint = FindTip(gripPoint, shapes);
         this.ArmorPrimaryColor = armorPrimaryColor;
         this.ArmorSecondaryColor = armorSecondaryColor;
         this.ArmorTrimColor = armorTrimColor;
@@ -70,6 +73,12 @@ public sealed class CompiledItemVectorArt
     /// <summary>Category tag shown in RPG tooltips.</summary>
     public string CategoryLabel { get; }
 
+    /// <summary>
+    /// Gets the art point farthest from the grip (blade tip, axe head, staff focus): the end of the weapon trail
+    /// (<c>docs/art/combat-animation.md</c> §3.5).
+    /// </summary>
+    public Vector2 TipPoint { get; }
+
     /// <summary>Tier/rarity accent color.</summary>
     public ColorRgba AccentColor { get; }
 
@@ -84,4 +93,38 @@ public sealed class CompiledItemVectorArt
 
     /// <summary>Compiled vector primitives.</summary>
     public CompiledVectorShape[] Shapes { get; }
+
+    private static Vector2 FindTip(Vector2 grip, CompiledVectorShape[] shapes)
+    {
+        Vector2 best = grip;
+        float bestDist = 0f;
+        foreach (CompiledVectorShape shape in shapes)
+        {
+            if (shape.PolygonPoints is { } points)
+            {
+                foreach (Vector2 point in points)
+                {
+                    Consider(point);
+                }
+            }
+
+            Consider(shape.P0);
+            if (shape.Kind == VectorShapeKind.Capsule)
+            {
+                Consider(shape.P1);
+            }
+        }
+
+        return best;
+
+        void Consider(Vector2 point)
+        {
+            float d = Vector2.DistanceSquared(point, grip);
+            if (d > bestDist)
+            {
+                bestDist = d;
+                best = point;
+            }
+        }
+    }
 }
