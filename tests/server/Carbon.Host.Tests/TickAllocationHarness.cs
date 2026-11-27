@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Numerics;
 using Carbon.Abstractions.Persistence;
+using Carbon.Abstractions.World;
 using Carbon.Application.World;
 using Carbon.Contracts.Common;
 using Carbon.Infrastructure.Persistence.Sqlite;
@@ -35,7 +36,9 @@ internal sealed class TickAllocationHarness : IDisposable
     public AuthoritativeWorld World { get; }
 
     /// <summary>Creates a world on a temporary SQLite file and enters <paramref name="players"/> characters near spawn.</summary>
-    public static TickAllocationHarness Create(int players)
+    /// <param name="players">Characters to enter near spawn.</param>
+    /// <param name="sink">Outbound sink to observe; a no-op sink when <see langword="null"/>.</param>
+    public static TickAllocationHarness Create(int players, IWorldOutboundSink? sink = null)
     {
         string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-tick-alloc-{Guid.NewGuid():N}.db");
         SqliteConnectionFactory factory = new($"Data Source={dbPath}");
@@ -47,7 +50,7 @@ internal sealed class TickAllocationHarness : IDisposable
             30,
             new SqliteChunkDeltaRepository(factory),
             new SqliteCharacterStore(factory),
-            new NullOutboundSink(),
+            sink ?? new NullOutboundSink(),
             entropy: TestGameplayEntropy.Create(1337UL));
         world.InitializeFromStoreAsync().GetAwaiter().GetResult();
 
@@ -59,7 +62,7 @@ internal sealed class TickAllocationHarness : IDisposable
             Vector2 position = world.DefaultSpawnWorldPosition + (new Vector2(i % 4, i / 4) * 64f);
             CharacterRecord hero = new(Guid.NewGuid(), Guid.NewGuid(), $"Bench{i}", 1, 0, position.X, position.Y, 100f, 100f, 0, [], createdAt);
             connections[i] = 1_000UL + (ulong)i;
-            OpStatus status = world.TryEnterWorld(connections[i], connections[i], hero).Status;
+            OpStatus status = world.TryEnterWorld(connections[i], hero).Status;
             if (status != OpStatus.Ok)
             {
                 throw new InvalidOperationException($"player {i} could not enter the world: {status}");

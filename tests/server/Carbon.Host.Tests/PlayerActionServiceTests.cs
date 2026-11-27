@@ -343,7 +343,7 @@ public sealed class PlayerActionServiceTests
             this.Stamina = new StaminaService(this.Simulation, StaminaTestConfig.Create(), this.Outbound);
             this.Actions = new PlayerActionService(this.Simulation, 30, MonsterLayer, () => this.Rules, () => this.Tick, this.Outbound, combat, this.Projectiles, props, inventory, needs, this.Stamina, this.Host, TestGameplayEntropy.Create(1UL));
 
-            ConnectedPlayerSession session = new(1UL, 9UL, Guid.NewGuid(), Guid.NewGuid(), "Tester", 900UL, 0, 0);
+            ConnectedPlayerSession session = new(9UL, Guid.NewGuid(), Guid.NewGuid(), "Tester", 900UL, 0, 0);
             CharacterRecord character = new(
                 session.CharacterId, session.AccountId, "Tester", 1, 0, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
             Entity entity = this.Simulation.SpawnNetworkEntity(900UL, Vector2.Zero, 7f);

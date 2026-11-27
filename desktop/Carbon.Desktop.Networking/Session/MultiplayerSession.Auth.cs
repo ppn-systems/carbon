@@ -344,7 +344,7 @@ public sealed partial class MultiplayerSession
                 WorldPhysics = _chunkWorld,
             };
 
-            _localPlayer = _simulation.SpawnNetworkEntity(_localNetworkId, initialPos, radius: 7f, ownerSessionId: 1);
+            _localPlayer = _simulation.SpawnNetworkEntity(_localNetworkId, initialPos, radius: 7f);
             _simulation.Entities.SetVelocity(_localPlayer, new Velocity2D(0f, 0f, 5f));
         }
 

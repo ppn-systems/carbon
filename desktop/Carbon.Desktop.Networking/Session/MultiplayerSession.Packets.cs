@@ -459,7 +459,7 @@ public sealed partial class MultiplayerSession
                 _simulation.Entities.IsAlive(_localPlayer) &&
                 _worldSeed == worldSeed)
             {
-                _simulation.BindNetworkIdentity(_localPlayer, _localNetworkId, ownerSessionId: 1);
+                _simulation.BindNetworkIdentity(_localPlayer, _localNetworkId);
                 _simulation.Entities.GetTransform(_localPlayer).Position = rejoinPos;
                 _simulation.EnqueueCommand(SimulationCommand.Teleport(_localPlayer, rejoinPos));
                 _chunkWorld.UpdateAroundPosition(rejoinPos, chunkRadius: 4, evictionRadius: 8);
@@ -475,7 +475,7 @@ public sealed partial class MultiplayerSession
                 {
                     WorldPhysics = _chunkWorld,
                 };
-                _localPlayer = _simulation.SpawnNetworkEntity(_localNetworkId, rejoinPos, radius: 7f, ownerSessionId: 1);
+                _localPlayer = _simulation.SpawnNetworkEntity(_localNetworkId, rejoinPos, radius: 7f);
                 _simulation.Entities.SetVelocity(_localPlayer, new Velocity2D(0f, 0f, 5f));
             }
         }
