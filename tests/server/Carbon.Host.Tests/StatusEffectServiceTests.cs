@@ -111,7 +111,41 @@ public sealed class StatusEffectServiceTests
         _ = h.Service.Apply(h.Player, "poisoned", StatusSource.Monster);
         _ = h.Service.Apply(h.Player, "slowed", StatusSource.Monster);
 
-        h.Service.Serialize(h.Player).Should().Be("poisoned:10000:2", "a 3 s slow is not worth a relog");
+        h.Service.Serialize(h.Player).Should().Be("v2;poisoned:10000:2:1", "a 3 s slow is not worth a relog");
+    }
+
+    [Fact]
+    public void SerializeThenRestore_LevelledEffects_RoundTripTheLevel()
+    {
+        Harness saved = new(entropyLabel: 1UL);
+        _ = saved.Service.Apply(saved.Player, "poisoned", StatusSource.Monster, level: 3);
+        _ = saved.Service.Apply(saved.Player, "bleeding", StatusSource.Monster, level: 2);
+        string persisted = saved.Service.Serialize(saved.Player);
+        persisted.Should().Be("v2;poisoned:10000:1:3;bleeding:6000:1:2");
+
+        Harness loaded = new(entropyLabel: 1UL, spawnBuffer: false);
+        loaded.Service.Restore(loaded.Player, persisted, 0f, loaded.Needs);
+
+        loaded.Buffer.TryGet(1, out ActiveStatusEffect poison).Should().BeTrue();
+        (poison.Level, poison.MagnitudePerStack).Should().Be((3, 3f), "poison III restores with its level-3 damage");
+        loaded.Buffer.TryGet(3, out ActiveStatusEffect bleed).Should().BeTrue();
+        (bleed.Level, bleed.MagnitudePerStack).Should().Be((2, 1.25f));
+    }
+
+    [Fact]
+    public void Restore_LegacyRowsLoadAtLevelOneAndBadLevelsAreSkippedOrClamped()
+    {
+        Harness legacy = new(entropyLabel: 1UL, spawnBuffer: false);
+        legacy.Service.Restore(legacy.Player, "poisoned:4000:2", 0f, legacy.Needs);
+        legacy.Buffer.TryGet(1, out ActiveStatusEffect poison).Should().BeTrue();
+        (poison.Level, poison.Stacks, poison.MagnitudePerStack).Should().Be((1, 2, 1f), "rows saved before ADR-036 have no level and load as I");
+
+        Harness v2 = new(entropyLabel: 1UL, spawnBuffer: false);
+        v2.Service.Restore(v2.Player, "v2;poisoned:4000:1:0;bleeding:4000:1:200;rested:1000:1", 0f, v2.Needs);
+        v2.Buffer.TryGet(1, out _).Should().BeFalse("level 0 is not a level");
+        v2.Buffer.TryGet(3, out ActiveStatusEffect bleed).Should().BeTrue();
+        bleed.Level.Should().Be(5, "a level above maxLevel clamps to it");
+        v2.Buffer.TryGet(9, out _).Should().BeFalse("a v2 row needs four fields per entry");
     }
 
     [Fact]
@@ -119,13 +153,13 @@ public sealed class StatusEffectServiceTests
     {
         Harness h = new(entropyLabel: 1UL, spawnBuffer: false);
 
-        h.Service.Restore(h.Player, "poisoned:4000:2;bogus:1000:1;bleeding:x:1;slowed:2000:1;rested:999999999:1", 0f, h.Needs);
+        h.Service.Restore(h.Player, "poisoned:4000:2;bogus:1000:1;bleeding:x:1;slowed:2000:1;rested:999999999:1;bleeding:1000:1:2", 0f, h.Needs);
 
         h.Buffer.TryGet(1, out ActiveStatusEffect poison).Should().BeTrue();
         (poison.RemainingTicks, poison.Stacks).Should().Be((120U, 2));
         h.Buffer.TryGet(9, out ActiveStatusEffect rested).Should().BeTrue();
         rested.RemainingTicks.Should().Be(18_000U, "rested is clamped to its 600 s duration");
-        h.Buffer.Count.Should().Be(2, "unknown, malformed and never-saved effects are skipped");
+        h.Buffer.Count.Should().Be(2, "unknown, malformed, never-saved and (in a legacy row) four-field entries are skipped");
     }
 
     [Fact]

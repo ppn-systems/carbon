@@ -1,10 +1,19 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System;
+
 namespace Carbon.Combat.Statuses.Config;
 
 /// <summary>One status effect from <c>resources/config/status_effects.json</c> (ADR-029 D1).</summary>
 public sealed class StatusEffectDefinition
 {
+    /// <summary>The lowest movement speed multiplier any level of a slow reaches.</summary>
+    public const float MinMoveSpeedMultiplier = 0.05f;
+
+    private const float MaxMultiplier = 3f;
+
+    private const float MaxRegenMultiplier = 10f;
+
     /// <summary>Gets the stable wire id (1..65535).</summary>
     public ushort Id { get; set; }
 
@@ -52,4 +61,53 @@ public sealed class StatusEffectDefinition
 
     /// <summary>Gets whether the effect survives a relog (ADR-029 D8).</summary>
     public bool Persist { get; set; }
+
+    /// <summary>Gets the highest level (amplifier) the effect can reach, 1..255 (ADR-036 D1); 1 means no levels.</summary>
+    public byte MaxLevel { get; set; } = 1;
+
+    /// <summary>Gets the damage per pulse per stack added by each level above I.</summary>
+    public float MagnitudePerLevel { get; set; }
+
+    /// <summary>Gets the movement speed multiplier added by each level above I (negative for a slow).</summary>
+    public float MoveSpeedMultiplierPerLevel { get; set; }
+
+    /// <summary>Gets the health regeneration multiplier added by each level above I.</summary>
+    public float HealthRegenMultiplierPerLevel { get; set; }
+
+    /// <summary>Gets the stamina regeneration multiplier added by each level above I.</summary>
+    public float StaminaRegenMultiplierPerLevel { get; set; }
+
+    /// <summary>Clamps <paramref name="level"/> to <c>[1, MaxLevel]</c>; 0 (none) becomes I.</summary>
+    /// <param name="level">Requested level.</param>
+    /// <returns>The level the effect is applied at.</returns>
+    public byte ClampLevel(byte level) => Math.Clamp(level, (byte)1, Math.Max((byte)1, this.MaxLevel));
+
+    /// <summary>Gets the damage per pulse per stack at <paramref name="level"/> (clamped).</summary>
+    /// <param name="level">Effect level.</param>
+    /// <returns>The magnitude.</returns>
+    public float MagnitudeAt(byte level) =>
+        MathF.Max(0f, this.Magnitude + (this.Steps(level) * this.MagnitudePerLevel));
+
+    /// <summary>
+    /// Gets the movement speed multiplier at <paramref name="level"/> (clamped), never below
+    /// <see cref="MinMoveSpeedMultiplier"/>, so even the highest slow never stops a player (ADR-036 D1).
+    /// </summary>
+    /// <param name="level">Effect level.</param>
+    /// <returns>The multiplier.</returns>
+    public float MoveSpeedMultiplierAt(byte level) =>
+        Math.Clamp(this.MoveSpeedMultiplier + (this.Steps(level) * this.MoveSpeedMultiplierPerLevel), MinMoveSpeedMultiplier, MaxMultiplier);
+
+    /// <summary>Gets the health regeneration multiplier at <paramref name="level"/> (clamped to <c>[0, 10]</c>).</summary>
+    /// <param name="level">Effect level.</param>
+    /// <returns>The multiplier.</returns>
+    public float HealthRegenMultiplierAt(byte level) =>
+        Math.Clamp(this.HealthRegenMultiplier + (this.Steps(level) * this.HealthRegenMultiplierPerLevel), 0f, MaxRegenMultiplier);
+
+    /// <summary>Gets the stamina regeneration multiplier at <paramref name="level"/> (clamped to <c>[0, 10]</c>).</summary>
+    /// <param name="level">Effect level.</param>
+    /// <returns>The multiplier.</returns>
+    public float StaminaRegenMultiplierAt(byte level) =>
+        Math.Clamp(this.StaminaRegenMultiplier + (this.Steps(level) * this.StaminaRegenMultiplierPerLevel), 0f, MaxRegenMultiplier);
+
+    private int Steps(byte level) => this.ClampLevel(level) - 1;
 }

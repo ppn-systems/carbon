@@ -26,6 +26,8 @@ namespace Carbon.Combat.Statuses;
 /// <param name="StaminaRegenMultiplier">Stamina regeneration multiplier while active.</param>
 /// <param name="Source">What applied the effect.</param>
 /// <param name="SourceId">Source detail (monster archetype id), 0 when none.</param>
+/// <param name="Level">Effect level (amplifier), 1 = I (ADR-036). The level-scaled values are already resolved into the
+/// magnitude and multipliers; the level decides how repeated applications merge and is shown to the owner.</param>
 public readonly record struct ActiveStatusEffect(
     uint EffectId,
     Entity Caster,
@@ -44,7 +46,8 @@ public readonly record struct ActiveStatusEffect(
     float HealthRegenMultiplier = 1f,
     float StaminaRegenMultiplier = 1f,
     StatusSource Source = StatusSource.None,
-    ushort SourceId = 0)
+    ushort SourceId = 0,
+    byte Level = 1)
 {
     /// <summary>Gets the strength used by <see cref="StatusStacking.Strongest"/>: magnitude plus the speed reduction.</summary>
     public float Strength => this.MagnitudePerStack + (1f - this.MoveSpeedMultiplier);

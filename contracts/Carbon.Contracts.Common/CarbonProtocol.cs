@@ -9,7 +9,8 @@ public static class CarbonProtocol
 {
     /// <summary>
     /// Current wire protocol version negotiated during authentication. 2: <c>CharacterCreate</c> no longer carries a
-    /// starting class (ADR-030).
+    /// starting class (ADR-030). 3: <c>StatusEffectSync</c> carries a level per entry and <c>CombatHit</c> the pulsing
+    /// effect's level (ADR-036).
     /// </summary>
-    public const ushort Version = 2;
+    public const ushort Version = 3;
 }
