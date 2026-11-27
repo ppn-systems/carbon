@@ -17,7 +17,7 @@ namespace Carbon.Desktop.Rendering.Hud;
 /// language = vi
 ///
 /// [display]
-/// show_minimap = false
+/// show_minimap = true
 /// camera_zoom = 1
 /// </code>
 /// <c>CARBON_LANG</c> overrides <c>[general] language</c> at startup. A legacy <c>ui_settings.cfg</c> is read once when
@@ -32,8 +32,8 @@ public sealed class UiSettings
     private static readonly string s_settingsPath = Path.Combine(s_configDirectory, "settings.ini");
     private static readonly string s_legacySettingsPath = Path.Combine(s_configDirectory, "ui_settings.cfg");
 
-    /// <summary>Gets or sets whether the top-right radar minimap is visible (off by default).</summary>
-    public bool ShowMinimap { get; set; }
+    /// <summary>Gets or sets whether the minimap under the HUD clock is visible (on by default; <c>[M]</c> toggles it).</summary>
+    public bool ShowMinimap { get; set; } = true;
 
     /// <summary>Gets or sets whether floating combat damage/heal/XP numbers render over actors.</summary>
     public bool ShowCombatNumbers { get; set; } = true;

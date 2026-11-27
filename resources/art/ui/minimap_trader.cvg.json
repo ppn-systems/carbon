@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "itemId": 0,
+  "id": "minimap_trader",
+  "displayName": "Trader",
+  "tier": 1,
+  "categoryLabel": "Minimap",
+  "accentColor": "#FACC15",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.7,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": 0,
+      "rx": 7,
+      "ry": 7,
+      "color": "#1F2937",
+      "outlineColor": "#FACC15",
+      "outlineThickness": 1.4
+    },
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": 0,
+      "rx": 4.2,
+      "ry": 4.2,
+      "color": "#FACC15",
+      "outlineColor": "#A16207",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -0.8,
+          -2.6
+        ],
+        [
+          0.8,
+          -2.6
+        ],
+        [
+          0.8,
+          2.6
+        ],
+        [
+          -0.8,
+          2.6
+        ]
+      ],
+      "color": "#A16207"
+    }
+  ]
+}
