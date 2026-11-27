@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using Carbon.AI.Components;
 using Carbon.AI.Systems;
 using Carbon.Creatures.Components;
 using Carbon.Creatures.Definitions;
@@ -123,6 +124,28 @@ public sealed class WaterCreatureTests
         }
 
         closest.Should().BeLessThan(start - Tile, $"'{id}' chases the player up to the edge of its water");
+    }
+
+    [Theory]
+    [InlineData("abyss_eel", 11, 9)]
+    [InlineData("abyss_leviathan", 12, 11)]
+    public void Tick_PlayerDivingNearby_IsSeenThroughTheDeepWaterAndAttacked(string id, int spawnColumn, int playerColumn)
+    {
+        // Deep water is solid to the terrain raycast; a creature of the deep must still see a diver in it.
+        LakeArena arena = new();
+        Entity creature = arena.SpawnMonster(id, Centre(spawnColumn));
+        Entity player = arena.SpawnPlayer(Centre(playerColumn));
+        float full = arena.World.Entities.GetHealth(player).Current;
+        bool targeted = false;
+
+        for (int t = 0; t < 240 && arena.World.Entities.GetHealth(player).Current >= full; t++)
+        {
+            arena.StepTick();
+            targeted |= arena.World.Entities.GetComponent<AiBrainComponent>(creature).TargetEntity == player;
+        }
+
+        targeted.Should().BeTrue($"'{id}' must notice a diver {spawnColumn - playerColumn} tiles away");
+        arena.World.Entities.GetHealth(player).Current.Should().BeLessThan(full, $"'{id}' attacks the diver");
     }
 
     private static List<MonsterSpawnedEvent> RunSpawner(ISpawnSurface surface, out MonsterCatalog catalog)

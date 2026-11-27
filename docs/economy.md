@@ -79,6 +79,7 @@ The roll path is zero-allocation. The caller passes a `Span<LootDrop>` sized wit
 | `piranha_slime` (water) | 10–100 | `slime_gel` 1–2 | `slime_gel`, `raw_meat`, `slime_jelly`, `slime_core` (20), `mana_crystal` (30), `greater_health_potion` (55), `rough_gem` (60) |
 | `jelly` (water) | 10–100 | `slime_jelly` 1–2 | `slime_jelly`, `ectoplasm`, `mana_crystal`, `mana_tonic`, `slime_core` (35), `greater_health_potion` (55), `rough_gem` (60) |
 | `eel` (water) | 25–100 | `raw_meat` 1–2 | `raw_meat`, `leather`, `slime_core` (45), `greater_health_potion` (50), `rough_gem` (60) |
+| `leviathan` (boss) | 1–100 | `slime_core` 2–3, `greater_health_potion` 1–2 | `mana_crystal`, `slime_core`, `greater_health_potion`, `leather`, `rough_gem` |
 
 The water tables span wide level ranges because the sea's level follows distance like the land's. The items they drop carry the `water` tag, and their stack sizes and level-gated valuables keep the per-level gold, net and sink-share bands of §7.1 green.
 
@@ -177,7 +178,7 @@ The design target is that sinks remove **35–60% of faucet gold from level 10 u
 
 Each simulated hour runs this model:
 
-- **Kills:** `designTargets.killsPerHour` kills, rotating between the normal (non-elite) monster tables that cover the level.
+- **Kills:** `designTargets.killsPerHour` kills, rotating between the normal (non-elite, non-boss) monster tables that cover the level.
 - **Loot sales:** `sellLootPercent` of the looted item units are sold.
 - **Weapon wear and repair:**
   - Each kill takes the stage's `strikesPerKill` strikes (monster HP over the stage weapon's damage): 3 at levels 1–24, 2 from level 25.

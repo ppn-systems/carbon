@@ -10,7 +10,7 @@
       "x": 0,
       "y": 0
     },
-    "tentacles": {
+    "cape": {
       "x": 0,
       "y": -14.0
     },
@@ -52,7 +52,7 @@
     },
     {
       "kind": "polygon",
-      "bone": "tentacles",
+      "bone": "cape",
       "facing": "any",
       "points": [
         [
@@ -78,7 +78,7 @@
     },
     {
       "kind": "polygon",
-      "bone": "tentacles",
+      "bone": "cape",
       "facing": "any",
       "points": [
         [
@@ -104,7 +104,7 @@
     },
     {
       "kind": "polygon",
-      "bone": "tentacles",
+      "bone": "cape",
       "facing": "any",
       "points": [
         [
@@ -130,7 +130,7 @@
     },
     {
       "kind": "polygon",
-      "bone": "tentacles",
+      "bone": "cape",
       "facing": "any",
       "points": [
         [
@@ -156,7 +156,7 @@
     },
     {
       "kind": "polygon",
-      "bone": "tentacles",
+      "bone": "cape",
       "facing": "any",
       "points": [
         [
@@ -182,7 +182,7 @@
     },
     {
       "kind": "polygon",
-      "bone": "tentacles",
+      "bone": "cape",
       "facing": "any",
       "points": [
         [
@@ -206,7 +206,7 @@
     },
     {
       "kind": "polygon",
-      "bone": "tentacles",
+      "bone": "cape",
       "facing": "any",
       "points": [
         [
@@ -367,7 +367,7 @@
               "scaleY": 1.0,
               "dy": 0.0
             },
-            "tentacles": {
+            "cape": {
               "scaleY": 1.0,
               "dy": 0.0
             },
@@ -384,7 +384,7 @@
               "scaleY": 0.86,
               "dy": -2.0
             },
-            "tentacles": {
+            "cape": {
               "scaleY": 1.12,
               "dy": -1.4
             },
@@ -405,7 +405,7 @@
               "scaleY": 1.0,
               "dy": 0.0
             },
-            "tentacles": {
+            "cape": {
               "scaleY": 1.0,
               "dy": 0.0
             },
@@ -428,7 +428,7 @@
               "scaleY": 0.84,
               "dy": -1.0
             },
-            "tentacles": {
+            "cape": {
               "scaleY": 0.9,
               "rotDeg": -5.0
             },
@@ -445,7 +445,7 @@
               "scaleY": 1.08,
               "dy": -3.5
             },
-            "tentacles": {
+            "cape": {
               "scaleY": 1.18,
               "dy": -2.0,
               "rotDeg": 5.0
@@ -463,7 +463,7 @@
               "scaleY": 0.84,
               "dy": -1.0
             },
-            "tentacles": {
+            "cape": {
               "scaleY": 0.9,
               "rotDeg": -5.0
             },
@@ -495,7 +495,7 @@
               "scaleY": 0.8,
               "dy": 1.0
             },
-            "tentacles": {
+            "cape": {
               "scaleY": 0.7,
               "dy": -2.0
             }
@@ -509,7 +509,7 @@
               "scaleY": 1.14,
               "dy": -1.0
             },
-            "tentacles": {
+            "cape": {
               "scaleX": 1.6,
               "scaleY": 1.3,
               "dy": 1.0
@@ -519,7 +519,7 @@
         {
           "t": 0.76,
           "bones": {
-            "tentacles": {
+            "cape": {
               "scaleX": 1.3,
               "scaleY": 1.15
             }
@@ -570,7 +570,7 @@
               "scaleX": 1.9,
               "scaleY": 1.9
             },
-            "tentacles": {
+            "cape": {
               "scaleX": 1.3,
               "scaleY": 1.25
             }
@@ -588,7 +588,7 @@
               "scaleX": 2.3,
               "scaleY": 2.3
             },
-            "tentacles": {
+            "cape": {
               "scaleX": 1.5,
               "scaleY": 0.9
             }

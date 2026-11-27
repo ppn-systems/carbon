@@ -33,6 +33,8 @@ internal readonly record struct LootClaim(Guid OwnerCharacterId, ulong OwnerNetw
 /// <param name="Currency">Currency of a coin or diamond pile; 0 for an item stack.</param>
 /// <param name="CurrencyAmount">Amount a currency pile credits to the wallet.</param>
 /// <param name="CreditReason">Ledger reason of the credit when a currency pile is picked up.</param>
+/// <param name="DroppedBy">Character that threw the stack out of its bag; its auto-collect skips the stack until it walks away.</param>
+/// <param name="DropperRearmed">Whether <paramref name="DroppedBy"/> has left the stack once, so walking over it collects it again.</param>
 internal readonly record struct GroundLootEntry(
     ItemSlot Item,
     ulong SpawnTick,
@@ -42,7 +44,9 @@ internal readonly record struct GroundLootEntry(
     ulong LifetimeTicks = GroundLootService.LootLifetimeTicks,
     CurrencyKind Currency = 0,
     long CurrencyAmount = 0L,
-    CurrencyReason CreditReason = CurrencyReason.MonsterLoot)
+    CurrencyReason CreditReason = CurrencyReason.MonsterLoot,
+    Guid DroppedBy = default,
+    bool DropperRearmed = false)
 {
     /// <summary>Gets whether this is a gold or diamond pile rather than an item stack.</summary>
     public bool IsCurrency => this.Currency != 0;
@@ -73,6 +77,9 @@ internal sealed class GroundLootService
     private const float AutoCollectRadius = 32f;
     private const ulong AutoCollectGraceTicks = 12UL;
 
+    /// <summary>How far the dropper must walk from a stack it threw away before walking over it collects it again.</summary>
+    private const float DropperRearmRadius = 48f;
+
     private readonly WorldSimulation _simulation;
     private readonly Func<ItemRules> _itemRules;
     private readonly Func<ulong> _allocateNetworkId;
@@ -81,6 +88,7 @@ internal sealed class GroundLootService
     private readonly Func<Guid, ulong> _ownerNetworkId;
     private readonly Dictionary<ulong, GroundLootEntry> _byNetworkId = new();
     private readonly List<ulong> _scratch = new(32);
+    private readonly List<ulong> _rearmScratch = new(8);
 
     /// <summary>Initializes a new instance of the <see cref="GroundLootService"/> class.</summary>
     /// <param name="simulation">The world simulation that owns the loot entities.</param>
@@ -171,6 +179,23 @@ internal sealed class GroundLootService
     }
 
     /// <summary>
+    /// Drops a stack a player threw out of its bag at <paramref name="worldPos"/> under <paramref name="claim"/>, the same
+    /// rules as kill loot (ADR-019): its own entity (never merged), only the dropper may take it while protected, and it
+    /// lives the claim's lifetime. The dropper's own auto-collect also ignores it until the dropper walks away.
+    /// </summary>
+    public void SpawnDropped(Vector2 worldPos, in ItemSlot item, in LootClaim claim)
+    {
+        if (item.IsEmpty)
+        {
+            return;
+        }
+
+        ulong netId = this.SpawnEntity(worldPos, in item, in claim, 0, 0L);
+        Guid dropperCharacterId = claim.OwnerCharacterId;
+        _byNetworkId[netId] = _byNetworkId[netId] with { DroppedBy = dropperCharacterId };
+    }
+
+    /// <summary>
     /// Drops a kill's item stack at <paramref name="worldPos"/> as its own entity (never merged), reserved for the claim's
     /// owner while protected and living the claim's lifetime.
     /// </summary>
@@ -178,7 +203,7 @@ internal sealed class GroundLootService
     {
         if (!item.IsEmpty)
         {
-            this.SpawnEntity(worldPos, in item, in claim, 0, 0L);
+            _ = this.SpawnEntity(worldPos, in item, in claim, 0, 0L);
         }
     }
 
@@ -190,7 +215,7 @@ internal sealed class GroundLootService
     {
         if (amount > 0L && currency != 0)
         {
-            this.SpawnEntity(worldPos, ItemSlot.Empty, in claim, currency, amount, creditReason);
+            _ = this.SpawnEntity(worldPos, ItemSlot.Empty, in claim, currency, amount, creditReason);
         }
     }
 
@@ -233,26 +258,44 @@ internal sealed class GroundLootService
 
     /// <summary>
     /// Adds to <paramref name="output"/> the stacks within auto-collect range of <paramref name="position"/> that are past
-    /// their drop grace period.
+    /// their drop grace period. Stacks <paramref name="collector"/> threw away are skipped until it has walked beyond
+    /// <see cref="DropperRearmRadius"/> of them once, so a dropped item is not sucked straight back into the bag.
     /// </summary>
-    public void CollectAutoPickupCandidates(Vector2 position, List<ulong> output)
+    public void CollectAutoPickupCandidates(Vector2 position, Guid collector, List<ulong> output)
     {
         ArgumentNullException.ThrowIfNull(output);
         ulong now = _currentTick();
+        _rearmScratch.Clear();
         foreach (KeyValuePair<ulong, GroundLootEntry> kv in _byNetworkId)
         {
-            if (now < kv.Value.SpawnTick + AutoCollectGraceTicks)
+            if (!_simulation.TryGetEntityByNetworkId(kv.Key, out Entity lootEnt) ||
+                !_simulation.Entities.IsAlive(lootEnt) ||
+                !_simulation.Entities.HasTransform(lootEnt))
             {
                 continue;
             }
 
-            if (_simulation.TryGetEntityByNetworkId(kv.Key, out Entity lootEnt) &&
-                _simulation.Entities.IsAlive(lootEnt) &&
-                _simulation.Entities.HasTransform(lootEnt) &&
-                Vector2.DistanceSquared(position, _simulation.Entities.GetTransform(lootEnt).Position) <= (AutoCollectRadius * AutoCollectRadius))
+            float distanceSq = Vector2.DistanceSquared(position, _simulation.Entities.GetTransform(lootEnt).Position);
+            if (collector != Guid.Empty && kv.Value.DroppedBy == collector && !kv.Value.DropperRearmed)
+            {
+                if (distanceSq > DropperRearmRadius * DropperRearmRadius)
+                {
+                    _rearmScratch.Add(kv.Key);
+                }
+
+                continue;
+            }
+
+            if (now >= kv.Value.SpawnTick + AutoCollectGraceTicks && distanceSq <= AutoCollectRadius * AutoCollectRadius)
             {
                 output.Add(kv.Key);
             }
+        }
+
+        for (int i = 0; i < _rearmScratch.Count; i++)
+        {
+            ulong key = _rearmScratch[i];
+            _byNetworkId[key] = _byNetworkId[key] with { DropperRearmed = true };
         }
     }
 
@@ -302,9 +345,9 @@ internal sealed class GroundLootService
     }
 
     private void SpawnNewEntity(Vector2 worldPos, in ItemSlot item) =>
-        this.SpawnEntity(worldPos, in item, new LootClaim(Guid.Empty, 0UL, 0UL, LootLifetimeTicks), 0, 0L);
+        _ = this.SpawnEntity(worldPos, in item, new LootClaim(Guid.Empty, 0UL, 0UL, LootLifetimeTicks), 0, 0L);
 
-    private void SpawnEntity(Vector2 worldPos, in ItemSlot item, in LootClaim claim, CurrencyKind currency, long amount, CurrencyReason creditReason = CurrencyReason.MonsterLoot)
+    private ulong SpawnEntity(Vector2 worldPos, in ItemSlot item, in LootClaim claim, CurrencyKind currency, long amount, CurrencyReason creditReason = CurrencyReason.MonsterLoot)
     {
         ulong netId = _allocateNetworkId();
         ulong now = _currentTick();
@@ -312,6 +355,7 @@ internal sealed class GroundLootService
         _simulation.Entities.SetCollider(lootEntity, new Collider2D(ColliderKind.Circle, 8f, default, IsTrigger: true, LootLayer, 0U));
         _simulation.Entities.SetComponent(lootEntity, new LootDropComponent(item, 0, now + claim.LifetimeTicks));
         _byNetworkId[netId] = new GroundLootEntry(item, now, claim.OwnerCharacterId, claim.OwnerNetworkId, claim.ProtectedUntilTick, claim.LifetimeTicks, currency, amount, creditReason);
+        return netId;
     }
 
     private ulong ResolveOwnerNetworkId(in GroundLootEntry entry)
