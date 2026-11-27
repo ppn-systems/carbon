@@ -192,6 +192,25 @@ public sealed class OxygenWorldTests
         after.Should().BeApproximately(world.WaterRules.MaxOxygenSeconds, 0.1f, "oxygen is not persisted: a relog starts with a full breath");
     }
 
+    [Fact]
+    public void TryRespawn_AfterDrowning_StartsWithAFullBreathAndNoDrowning()
+    {
+        (AuthoritativeWorld world, StatusRecordingSink sink) = CreateWorld();
+        _ = world.TryEnterWorld(1UL, Character(TileOf(WaterDepthTier.Abyss)));
+        int breathTicks = (int)MathF.Ceiling(world.WaterRules.MaxOxygenSeconds / world.WaterRules.AbyssDrainPerSecond * TickRate);
+        Step(world, breathTicks + (TickRate * 60));
+        world.IsPlayerDead(1UL).Should().BeTrue("the diver drowned");
+
+        world.TryRespawn(1UL).Should().Be(OpStatus.Ok);
+
+        world.TryGetOxygen(1UL, out float oxygen, out _).Should().BeTrue();
+        oxygen.Should().Be(world.WaterRules.MaxOxygenSeconds, "a respawn at the sanctuary is a full breath");
+        Step(world, TickRate);
+        world.TryGetOxygen(1UL, out _, out SwimState state);
+        state.Should().NotBe(SwimState.Diving, "the sanctuary is on land");
+        sink.StatusSyncs.Last(s => s.ConnectionId == 1UL).Entries.Should().NotContain(e => e.EffectId == DrowningId(world), "drowning ends out of the water");
+    }
+
     private static ushort DrowningId(AuthoritativeWorld world) =>
         world.StatusEffects.TryGetByKey(world.WaterRules.DrowningEffect, out Carbon.Combat.Statuses.Config.StatusEffectDefinition definition)
             ? definition.Id
