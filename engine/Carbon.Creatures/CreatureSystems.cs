@@ -20,12 +20,13 @@ namespace Carbon.Creatures;
 /// </summary>
 public sealed class CreatureSystems
 {
-    private CreatureSystems(AiBehaviorSystem ai, MonsterBrainSystem brain, AttackSystem attacks, MonsterSpawnerSystem spawner)
+    private CreatureSystems(AiBehaviorSystem ai, MonsterBrainSystem brain, AttackSystem attacks, MonsterSpawnerSystem spawner, BossLairSystem? bossLairs)
     {
         this.Ai = ai;
         this.Brain = brain;
         this.Attacks = attacks;
         this.Spawner = spawner;
+        this.BossLairs = bossLairs;
     }
 
     /// <summary>Gets the AI behavior system.</summary>
@@ -40,6 +41,9 @@ public sealed class CreatureSystems
     /// <summary>Gets the spawner (set <see cref="MonsterSpawnerSystem.TimeOfDayHours"/> each tick).</summary>
     public MonsterSpawnerSystem Spawner { get; }
 
+    /// <summary>Gets the abyss boss lairs (ADR-032 D15), or <see langword="null"/> without a lair source or <c>bossLairs</c>.</summary>
+    public BossLairSystem? BossLairs { get; }
+
     /// <summary>
     /// Creates and registers the creature systems on <paramref name="world"/>.
     /// </summary>
@@ -51,6 +55,7 @@ public sealed class CreatureSystems
     /// <param name="entropy">Secret roll key source for spawn rolls (ADR-026; never the world seed).</param>
     /// <param name="ai">Optional pre-built AI system (e.g. with a walkability grid); must not already be registered.</param>
     /// <param name="effects">Optional host attack side effects (defaults to <see cref="DefaultAttackEffects"/>).</param>
+    /// <param name="lairs">Optional boss lair source; with <c>spawning.json → bossLairs</c> it registers <see cref="BossLairSystem"/>.</param>
     /// <returns>The registered systems.</returns>
     public static CreatureSystems Register(
         WorldSimulation world,
@@ -60,7 +65,8 @@ public sealed class CreatureSystems
         Vector2 worldOrigin,
         IGameplayEntropy entropy,
         AiBehaviorSystem? ai = null,
-        IAttackEffects? effects = null)
+        IAttackEffects? effects = null,
+        ILairSource? lairs = null)
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(catalog);
@@ -74,6 +80,14 @@ public sealed class CreatureSystems
         world.RegisterSystem(brain);
         world.RegisterSystem(attacks);
         world.RegisterSystem(spawner);
-        return new CreatureSystems(aiSystem, brain, attacks, spawner);
+        BossLairSystem? bossLairs = lairs is not null && config.BossLairs is not null
+            ? new BossLairSystem(catalog, config, spawner.Scaling, lairs, worldOrigin)
+            : null;
+        if (bossLairs is not null)
+        {
+            world.RegisterSystem(bossLairs);
+        }
+
+        return new CreatureSystems(aiSystem, brain, attacks, spawner, bossLairs);
     }
 }

@@ -116,7 +116,7 @@ internal static class TimeToLevelSimulation
         int count = 0;
         foreach (MonsterDefinition def in data.Monsters.Definitions)
         {
-            if (def.IsElite || !def.IsSpawnableAt(level))
+            if (def.IsElite || def.IsBoss || !def.IsSpawnableAt(level))
             {
                 continue;
             }

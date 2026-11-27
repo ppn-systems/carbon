@@ -293,6 +293,31 @@
         { "kind": "Leap", "minRange": 60, "maxRange": 140, "windupTicks": 14, "travelTicks": 8, "activeTicks": 2, "recoveryTicks": 18, "cooldownTicks": 90, "damageMultiplier": 1.4, "areaRadius": 26 },
         { "kind": "Melee", "minRange": 0, "maxRange": 28, "windupTicks": 10, "travelTicks": 3, "activeTicks": 4, "recoveryTicks": 14, "cooldownTicks": 34, "areaRadius": 28, "halfAngleDegrees": 60, "lungeDistance": 16 }
       ]
+    },
+    {
+      "id": "abyss_leviathan",
+      "minLevel": 1,
+      "maxLevel": 100,
+      "archetypeId": 114,
+      "displayName": "Abyss Leviathan",
+      "visualArchetype": "abyss_leviathan",
+      "lootTableId": "leviathan",
+      "isBoss": true,
+      "radius": 22,
+      "stats": { "hp": 2400, "damage": 36, "armor": 24, "speed": 120 },
+      "aggroRange": 320,
+      "leashRange": 640,
+      "engageRange": 160,
+      "retreatRange": 0,
+      "patrolRadius": 96,
+      "habitat": { "shallowest": "Abyss", "deepest": "Abyss" },
+      "behavior": { "role": "Melee", "giveUpTicks": 600, "threatSwitchMargin": 1.3 },
+      "preferredBiomes": [ "DeepOcean" ],
+      "attacks": [
+        { "kind": "Spell", "minRange": 40, "maxRange": 260, "windupTicks": 36, "travelTicks": 10, "activeTicks": 1, "recoveryTicks": 24, "cooldownTicks": 150, "damageMultiplier": 2.2, "areaRadius": 72, "shape": "Circle" },
+        { "kind": "Leap", "minRange": 90, "maxRange": 220, "windupTicks": 24, "travelTicks": 12, "activeTicks": 2, "recoveryTicks": 26, "cooldownTicks": 180, "damageMultiplier": 1.8, "areaRadius": 46 },
+        { "kind": "Melee", "minRange": 0, "maxRange": 46, "windupTicks": 20, "travelTicks": 4, "activeTicks": 4, "recoveryTicks": 18, "cooldownTicks": 60, "damageMultiplier": 1.4, "areaRadius": 58, "halfAngleDegrees": 120 }
+      ]
     }
   ]
 }

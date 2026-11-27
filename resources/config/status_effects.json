@@ -39,6 +39,8 @@
     { "monster": "drift_jelly", "effect": "poisoned", "chance": 0.3 },
     { "monster": "drift_jelly", "effect": "slowed", "chance": 0.2 },
     { "monster": "abyss_eel", "effect": "stunned", "chance": 1, "minDamageFraction": 0.12 },
-    { "monster": "abyss_eel", "effect": "bleeding", "chance": 0.2 }
+    { "monster": "abyss_eel", "effect": "bleeding", "chance": 0.2 },
+    { "monster": "abyss_leviathan", "effect": "stunned", "chance": 1, "minDamageFraction": 0.15 },
+    { "monster": "abyss_leviathan", "effect": "bleeding", "chance": 0.4, "level": 2 }
   ]
 }

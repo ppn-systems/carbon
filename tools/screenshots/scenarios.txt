@@ -129,3 +129,6 @@ water_abyss        | CARBON_WORLD_SEED=42 CARBON_DEBUG_SPAWN_TILE=1170,-6000 CAR
 
 # --- ADR-032 D14 water creatures (seed 42 sea; macro view to fit creatures spawned 12+ tiles away) ---
 creatures_coast    | CARBON_WORLD_SEED=42 CARBON_DEBUG_SPAWN_TILE=958,-6000 CARBON_DEBUG_START_HOUR=11 | CARBON_SEED=42 CARBON_WEATHER=clear CARBON_MACRO_VIEW=1
+
+# --- ADR-032 D15 abyss boss: seed 42's lair at tile (1117,-5090); the diver waits 13 tiles off, inside its 40-tile activation radius and outside its aggro range; macro view to see past the abyss fog ---
+boss_lair          | CARBON_WORLD_SEED=42 CARBON_DEBUG_SPAWN_TILE=1130,-5090 CARBON_DEBUG_START_HOUR=11 | CARBON_SEED=42 CARBON_WEATHER=clear CARBON_MACRO_VIEW=1

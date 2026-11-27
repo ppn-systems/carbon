@@ -24,6 +24,7 @@ public sealed class LootTable
         this.Theme = string.IsNullOrEmpty(definition.Theme) ? definition.Id : definition.Theme;
         this.Kind = definition.Kind;
         this.IsElite = definition.Elite;
+        this.IsBoss = definition.Boss;
         this.MinLevel = definition.MinLevel;
         this.MaxLevel = definition.MaxLevel;
         this.GoldBase = definition.GoldBase;
@@ -58,6 +59,9 @@ public sealed class LootTable
 
     /// <summary>Gets a value indicating whether this table belongs to an elite variant.</summary>
     public bool IsElite { get; }
+
+    /// <summary>Gets a value indicating whether this table belongs to a boss.</summary>
+    public bool IsBoss { get; }
 
     /// <summary>Gets the lowest designed source level.</summary>
     public int MinLevel { get; }
