@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions.Configuration;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Input;
@@ -435,8 +436,7 @@ public sealed class WorldGameplayScene : GameScene
                             Vector2.DistanceSquared(aimWorld, entity.Position) <= (24f * 24f) &&
                             _session.IsNearForgeStation())
                         {
-                            this.ToggleForgeStationModal();
-                            openedForgeNpc = true;
+                            openedForgeNpc = this.OpenForgeWindow();
                             break;
                         }
 
@@ -846,26 +846,39 @@ public sealed class WorldGameplayScene : GameScene
 
     private void ToggleForgeStationModal()
     {
-        if (_hudRenderer is null)
-        {
-            return;
-        }
-
-        if (_hudRenderer.ShowForgeModal)
+        if (_hudRenderer is { ShowForgeModal: true })
         {
             _hudRenderer.ShowForgeModal = false;
             return;
         }
 
+        _ = this.OpenForgeWindow();
+    }
+
+    /// <summary>
+    /// Opens the forge enhancement window (ADR-024). This is the one entry point for every forge context: the
+    /// <c>U</c> key, interacting at a placed Forge Anvil, and clicking any NPC whose spec has
+    /// <see cref="NpcCapabilities.ForgeArtisan"/> (the sanctuary or a village blacksmith). The server accepts the enhance
+    /// command near the same stations (<c>InventoryService.IsNearForgeStation</c>).
+    /// </summary>
+    /// <returns><see langword="true"/> when the window is open; <see langword="false"/> when no forge station is in reach.</returns>
+    public bool OpenForgeWindow()
+    {
+        if (_hudRenderer is null)
+        {
+            return false;
+        }
+
         if (!_session.IsNearForgeStation())
         {
-            _hudRenderer.PushNotification("Visit Master Blacksmith or place a Forge Anvil to enhance gear!");
-            return;
+            _hudRenderer.PushNotification(GameText.Get("forge.need_station"));
+            return false;
         }
 
         _hudRenderer.CloseAllModals();
         this.ResetInventoryDragState();
         _hudRenderer.ShowForgeModal = true;
+        return true;
     }
 
     private void UpdateTelemetry(IGameWindow window, int ptx, int pty)

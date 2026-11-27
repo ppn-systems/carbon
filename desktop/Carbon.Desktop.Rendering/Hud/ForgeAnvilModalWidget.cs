@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Contracts.Common;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Effects;
 using Carbon.Desktop.Rendering.UiSkin;
@@ -317,6 +318,19 @@ internal sealed class ForgeAnvilModalWidget
             }
 
             DrawOutcomeBar(batch, new RectangleF(ox + 310f, oy + OutcomeBarY, 336f, 12f), step);
+
+            if (step.IsRisky && art is not null)
+            {
+                EnhancementTable table = world.Items.Rules.Enhancement;
+                for (int i = 0; i < table.Protections.Length; i++)
+                {
+                    RectangleF btn = GetProtectionRect(ox, oy, i, table.Protections.Length);
+                    if (art.TryGetItem(table.Protections[i].ItemId, out CompiledItemVectorArt? scrollArt))
+                    {
+                        VectorRigRenderer.DrawItemIcon(batch, scrollArt, new Vector2(btn.X + (btn.Width * 0.5f) - 18f, btn.Y + (btn.Height * 0.5f)), 18f);
+                    }
+                }
+            }
         }
     }
 
@@ -356,11 +370,11 @@ internal sealed class ForgeAnvilModalWidget
         world.CopyInventorySlots(slots);
         this.CollectEligibleSlots(world.Items.Rules, slots);
 
-        spriteBatch.DrawOutlinedString(font, "Blacksmith Forge", new Vector2(ox + 18f, oy + 13f), CarbonUiPalette.TextWarm, black, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, GameText.Get("forge.title"), new Vector2(ox + 18f, oy + 13f), CarbonUiPalette.TextWarm, black, 1, 1f);
         bool stationNear = world.IsNearForgeStation();
         spriteBatch.DrawOutlinedString(
             font,
-            stationNear ? "Active" : "Need Forge",
+            GameText.Get(stationNear ? "forge.station_active" : "forge.station_missing"),
             new Vector2(ox + 536f, oy + 14f),
             stationNear ? CarbonUiPalette.ConfirmBorder : CarbonUiPalette.DangerBorder,
             black,
@@ -370,7 +384,7 @@ internal sealed class ForgeAnvilModalWidget
         RectangleF closeBtn = GetCloseButtonRect(ox, oy);
         CarbonUiSkin.DrawCenteredText(spriteBatch, font, "X", in closeBtn, CarbonUiPalette.TextPrimary, black, 1f);
 
-        spriteBatch.DrawOutlinedString(font, $"Gear ({_eligibleScratch.Count})", new Vector2(ox + 26f, oy + 52f), CarbonUiPalette.TextMuted, black, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, GameText.Format("forge.gear_count", new TextArg("count", _eligibleScratch.Count)), new Vector2(ox + 26f, oy + 52f), CarbonUiPalette.TextMuted, black, 1, 1f);
         if (_eligibleScratch.Count > MaxVisibleGearRows)
         {
             CarbonUiSkin.DrawCenteredText(spriteBatch, font, "^", GetScrollUpRect(ox, oy), CarbonUiPalette.TextPrimary, black, 1f);
@@ -384,7 +398,7 @@ internal sealed class ForgeAnvilModalWidget
             ItemSlot item = slots[sIdx];
             byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
             float ry = oy + 82f + (i * (RowH + 4f));
-            string tag = sIdx >= PlayerInventoryLayout.BagLimit ? "Equipped" : (sIdx < 9 ? $"Slot {sIdx + 1}" : "Bag");
+            string tag = sIdx >= PlayerInventoryLayout.BagLimit ? GameText.Get("forge.tag.equipped") : (sIdx < 9 ? GameText.Format("forge.tag.slot", new TextArg("slot", sIdx + 1)) : GameText.Get("forge.tag.bag"));
             string name = world.Items.GetDisplayName(item.ItemId);
             string rowLabel = CarbonUiSkin.TruncateToWidth(font, upg > 0 ? $"{name} +{upg}" : name, 190f, 1f);
             spriteBatch.DrawOutlinedString(font, rowLabel, new Vector2(ox + 72f, ry), CarbonUiPalette.TextPrimary, black, 1, 1f);
@@ -397,7 +411,7 @@ internal sealed class ForgeAnvilModalWidget
 
         int activeSlot = this.ResolveTargetSlot(world);
         ItemSlot target = activeSlot >= 0 && activeSlot < slots.Length ? slots[activeSlot] : ItemSlot.Empty;
-        spriteBatch.DrawOutlinedString(font, "Enhance", new Vector2(ox + 310f, oy + 52f), CarbonUiPalette.TextWarm, black, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, GameText.Get("forge.enhance"), new Vector2(ox + 310f, oy + 52f), CarbonUiPalette.TextWarm, black, 1, 1f);
         EnhancementOutcome shown = this.Vfx.PlayingOutcome != EnhancementOutcome.None
             ? this.Vfx.PlayingOutcome
             : (world.ForgeFeedbackTimer > 0f && !this.Vfx.IsActive ? world.LastForgeOutcome : EnhancementOutcome.None);
@@ -430,7 +444,7 @@ internal sealed class ForgeAnvilModalWidget
 
         if (target.IsEmpty)
         {
-            spriteBatch.DrawOutlinedString(font, "No upgradable gear", new Vector2(ox + 440f, oy + 106f), CarbonUiPalette.TextMuted, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, GameText.Get("forge.no_gear"), new Vector2(ox + 440f, oy + 106f), CarbonUiPalette.TextMuted, black, 1, 1f);
             return;
         }
 
@@ -450,9 +464,9 @@ internal sealed class ForgeAnvilModalWidget
                 1,
                 1f);
 
-            string risk = step.DestroyPermille > 0 ? "Risk: drop or break"
-                : step.DowngradePermille > 0 ? "Risk: may drop -1"
-                : "Safe level";
+            string risk = GameText.Get(step.DestroyPermille > 0 ? "forge.risk.break"
+                : step.DowngradePermille > 0 ? "forge.risk.drop"
+                : "forge.risk.safe");
             spriteBatch.DrawOutlinedString(
                 font,
                 CarbonUiSkin.TruncateToWidth(font, risk, 216f, 1f),
@@ -462,7 +476,7 @@ internal sealed class ForgeAnvilModalWidget
                 1,
                 1f);
 
-            spriteBatch.DrawOutlinedString(font, "Materials", new Vector2(ox + 310f, oy + MaterialRowY - 22f), CarbonUiPalette.TextWarm, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, GameText.Get("forge.materials"), new Vector2(ox + 310f, oy + MaterialRowY - 22f), CarbonUiPalette.TextWarm, black, 1, 1f);
             ReadOnlySpan<RecipeIngredient> materials = step.MaterialSpan;
             for (int i = 0; i < materials.Length && i < MaxMaterialRows; i++)
             {
@@ -480,17 +494,17 @@ internal sealed class ForgeAnvilModalWidget
             long fee = ItemEnhancementPolicy.GetGoldFee(world.Items.Rules, in target, step);
             spriteBatch.DrawOutlinedString(
                 font,
-                $"Fee: {fee} gold",
+                GameText.Format("forge.fee", new TextArg("gold", fee)),
                 new Vector2(ox + 310f, oy + OutcomeBarY - 24f),
                 world.LocalPlayerGold >= fee ? CarbonUiPalette.TextWarm : CarbonUiPalette.DangerBorder,
                 black,
                 1,
                 1f);
 
-            DrawChance(spriteBatch, font, "Success", step.SuccessPermille, new Vector2(ox + 310f, oy + OutcomeBarY + 18f), s_successColor);
-            DrawChance(spriteBatch, font, "No change", step.NoChangePermille, new Vector2(ox + 480f, oy + OutcomeBarY + 18f), s_noChangeColor);
-            DrawChance(spriteBatch, font, "Drop -1", step.DowngradePermille, new Vector2(ox + 310f, oy + OutcomeBarY + 38f), s_downgradeColor);
-            DrawChance(spriteBatch, font, "Destroy", step.DestroyPermille, new Vector2(ox + 480f, oy + OutcomeBarY + 38f), s_destroyColor);
+            DrawChance(spriteBatch, font, GameText.Get("forge.chance.success"), step.SuccessPermille, new Vector2(ox + 310f, oy + OutcomeBarY + 18f), s_successColor);
+            DrawChance(spriteBatch, font, GameText.Get("forge.chance.no_change"), step.NoChangePermille, new Vector2(ox + 480f, oy + OutcomeBarY + 18f), s_noChangeColor);
+            DrawChance(spriteBatch, font, GameText.Get("forge.chance.downgrade"), step.DowngradePermille, new Vector2(ox + 310f, oy + OutcomeBarY + 38f), s_downgradeColor);
+            DrawChance(spriteBatch, font, GameText.Get("forge.chance.destroy"), step.DestroyPermille, new Vector2(ox + 480f, oy + OutcomeBarY + 38f), s_destroyColor);
 
             if (step.IsRisky)
             {
@@ -499,26 +513,27 @@ internal sealed class ForgeAnvilModalWidget
                 {
                     RectangleF btn = GetProtectionRect(ox, oy, i, table.Protections.Length);
                     string label = i < 0
-                        ? "No scroll"
-                        : $"{ShortScrollName(world.Items.GetDisplayName(table.Protections[i].ItemId))} x{CountItemInSpan(slots, table.Protections[i].ItemId)}";
+                        ? GameText.Get("forge.scroll.none")
+                        : GameText.Format("forge.scroll.choice", new TextArg("count", CountItemInSpan(slots, table.Protections[i].ItemId)));
                     bool usable = i < 0 || (table.Protections[i].AppliesTo(step) && CountItemInSpan(slots, table.Protections[i].ItemId) > 0);
+                    RectangleF textRect = i < 0 ? btn : new RectangleF(btn.X + 16f, btn.Y, btn.Width - 16f, btn.Height);
                     CarbonUiSkin.DrawCenteredText(
                         spriteBatch,
                         font,
-                        CarbonUiSkin.TruncateToWidth(font, label, btn.Width - 8f, 1f),
-                        in btn,
+                        CarbonUiSkin.TruncateToWidth(font, label, textRect.Width - 8f, 1f),
+                        in textRect,
                         usable ? CarbonUiPalette.TextPrimary : CarbonUiPalette.TextMuted,
                         black,
                         1f);
                 }
             }
 
-            string action = this.Vfx.IsActive && this.Vfx.PlayingOutcome == EnhancementOutcome.None ? "FORGING..." : $"FORGE +{curLv + 1}";
+            string action = this.Vfx.IsActive && this.Vfx.PlayingOutcome == EnhancementOutcome.None ? GameText.Get("forge.forging") : GameText.Format("forge.button", new TextArg("level", curLv + 1));
             CarbonUiSkin.DrawCenteredText(spriteBatch, font, action, GetForgeButtonRect(ox, oy), CarbonUiPalette.TextPrimary, black, 1f);
         }
         else
         {
-            spriteBatch.DrawOutlinedString(font, $"Max enhancement (+{world.Items.Rules.Enhancement.MaxLevel})", new Vector2(ox + 440f, oy + 116f), CarbonUiPalette.TextWarm, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, GameText.Format("forge.max_level", new TextArg("level", world.Items.Rules.Enhancement.MaxLevel)), new Vector2(ox + 440f, oy + 116f), CarbonUiPalette.TextWarm, black, 1, 1f);
         }
     }
 
@@ -530,9 +545,6 @@ internal sealed class ForgeAnvilModalWidget
         EnhancementOutcome.NoChange or EnhancementOutcome.None => CarbonUiPalette.TextMuted,
         _ => CarbonUiPalette.TextMuted,
     };
-
-    private static string ShortScrollName(string name) =>
-        name.Replace(" Forge Scroll", string.Empty, StringComparison.Ordinal).Replace(" Scroll", string.Empty, StringComparison.Ordinal);
 
     private static void DrawChance(SpriteBatch spriteBatch, BitmapFont font, string label, int permille, Vector2 pos, ColorRgba color) =>
         spriteBatch.DrawOutlinedString(
@@ -546,10 +558,10 @@ internal sealed class ForgeAnvilModalWidget
 
     private static string DescribeOutcome(EnhancementOutcome outcome, byte newLevel) => outcome switch
     {
-        EnhancementOutcome.Success => $"Enhanced to +{newLevel}!",
-        EnhancementOutcome.NoChange => "Failed - no change.",
-        EnhancementOutcome.Downgrade => $"Failed - dropped to +{newLevel}.",
-        EnhancementOutcome.Destroyed => "The item shattered!",
+        EnhancementOutcome.Success => GameText.Format("forge.outcome.success", new TextArg("level", newLevel)),
+        EnhancementOutcome.NoChange => GameText.Get("forge.outcome.no_change"),
+        EnhancementOutcome.Downgrade => GameText.Format("forge.outcome.downgrade", new TextArg("level", newLevel)),
+        EnhancementOutcome.Destroyed => GameText.Get("forge.outcome.destroyed"),
         EnhancementOutcome.None => string.Empty,
         _ => string.Empty,
     };
