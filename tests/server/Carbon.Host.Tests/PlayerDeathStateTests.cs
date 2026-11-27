@@ -92,7 +92,7 @@ public sealed class PlayerDeathStateTests
         RecordingOutboundSink sink = new();
         AuthoritativeWorld world = DeathFixture.CreateWorld(sink);
         CharacterRecord hero = DeathFixture.Character("Alive") with { PositionX = 4_000f, PositionY = 4_000f, CurrentHealth = 40f };
-        world.TryEnterWorld(VictimConn, VictimConn, hero).Status.Should().Be(OpStatus.Ok);
+        world.TryEnterWorld(VictimConn, hero).Status.Should().Be(OpStatus.Ok);
 
         ValueTask<WorldMutationOutcome> respawn = world.SubmitRespawnAsync(VictimConn);
         world.StepFixedTick();
@@ -146,7 +146,7 @@ public sealed class PlayerDeathStateTests
         CharacterRecord saved = f.Snapshot();
         f.World.LeaveWorld(VictimConn).Should().BeTrue();
 
-        EnterWorldResult reentered = f.World.TryEnterWorld(901UL, 901UL, saved);
+        EnterWorldResult reentered = f.World.TryEnterWorld(901UL, saved);
 
         reentered.Status.Should().Be(OpStatus.Ok);
         reentered.CurrentHealth.Should().Be(reentered.MaxHealth, "a character saved dead respawns on its next login");
@@ -211,7 +211,7 @@ public sealed class PlayerDeathStateTests
                 CurrentMana = 3f,
                 CurrentStamina = 2f,
             };
-            EnterWorldResult entered = world.TryEnterWorld(VictimConn, VictimConn, victim);
+            EnterWorldResult entered = world.TryEnterWorld(VictimConn, victim);
             entered.Status.Should().Be(OpStatus.Ok);
             DeathFixture f = new(world, sink, victim) { VictimNetworkId = entered.PlayerNetworkId, Killer = mob };
 
@@ -241,7 +241,7 @@ public sealed class PlayerDeathStateTests
             for (int probeX = 1; probeX <= 12; probeX++)
             {
                 ulong probeConn = 700UL + (ulong)probeX;
-                world.TryEnterWorld(probeConn, probeConn, Character($"Probe{probeX}") with
+                world.TryEnterWorld(probeConn, Character($"Probe{probeX}") with
                 {
                     PositionX = ((probeX * 32) + 16) * 32f,
                     PositionY = 16f * 32f,

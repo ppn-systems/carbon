@@ -144,8 +144,8 @@ Before this change:
   Unclaimed death gold despawns after 5 minutes and leaves the economy.
 - The dead player's own client must send a respawn request. An old client without the death screen stays dead until
   it reconnects (D6).
-- `PlayerDeathTests` in PR #118 asserted the old instant respawn. Whichever of the two lands second updates it to send a
-  `RespawnRequest` first.
+- `PlayerDeathTests` (#118) asserted the old instant respawn. It now sends a `RespawnRequest` first and keeps its checks
+  on vitals and the sanctuary (no respawn next to the killer).
 - Status effects (ADR-029, in progress elsewhere) should be cleared in `KillPlayerLocked`, the single death path.
 - Tests: `DeathGoldPenaltyTests` (pinned floor, cap and newbie values; split conservation and determinism; config
   validation), `DeathGoldDropTests` (debit equals piles, diamonds kept, owner priority, bystander pickup only after the
