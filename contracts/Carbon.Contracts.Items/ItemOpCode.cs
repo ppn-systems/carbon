@@ -34,7 +34,7 @@ public static class ItemOpCode
     /// <summary>Client requests selling a bag stack to a nearby NPC vendor for gold.</summary>
     public const ushort VendorSellItem = 0x4008;
 
-    /// <summary>Client requests repairing an item's durability for gold at a forge station.</summary>
+    /// <summary>Retired by ADR-028 (gold-only full repair). Kept so the value is never reused; use <see cref="RepairItemRequest"/>.</summary>
     public const ushort RepairInventoryItem = 0x4009;
 
     /// <summary>Client requests splitting part of a bag stack into another bag slot (ADR-020).</summary>
@@ -64,6 +64,14 @@ public static class ItemOpCode
 
     /// <summary>S2C: a trader's stock, prices, restock countdown and the player's sell prices.</summary>
     public const ushort TraderStock = 0x4048;
+
+    // ── Repair with materials (0x4050–0x4057, ADR-028) ─────────────────────
+
+    /// <summary>C2S: repair one item for materials (and a blacksmith fee), answered with <see cref="RepairItemResult"/>.</summary>
+    public const ushort RepairItemRequest = 0x4050;
+
+    /// <summary>S2C: the outcome of <see cref="RepairItemRequest"/>.</summary>
+    public const ushort RepairItemResult = 0x4051;
 
     // ── S2C: Server → Client push (0x4030–0x40FF) ───────────────────────────
 

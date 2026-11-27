@@ -57,7 +57,7 @@ internal enum WorldCommandKind : byte
     /// <summary>Sell to a vendor (<c>Arg0</c> = slot, <c>Arg1</c> = quantity).</summary>
     VendorSell = 21,
 
-    /// <summary>Repair the item in a slot (<c>Arg0</c> = slot).</summary>
+    /// <summary>Repair one item (ADR-028): <c>Arg0</c> = slot, <c>Arg1</c> = expected item, <c>Arg2</c> = steps, <c>Arg3</c> = venue.</summary>
     RepairItem = 22,
 
     /// <summary>Open a trader's window (ADR-025; trader network id packed in TileX/TileY).</summary>

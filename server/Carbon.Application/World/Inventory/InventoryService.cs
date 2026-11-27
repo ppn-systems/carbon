@@ -10,10 +10,12 @@ using Carbon.Contracts.Common;
 using Carbon.Economy;
 using Carbon.Economy.Currency;
 using Carbon.Economy.Enhancement;
+using Carbon.Economy.Repair;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
 using Carbon.Items.Definitions;
+using Carbon.Items.Repair;
 using Carbon.Maps.Building;
 using Carbon.Primitives.Random;
 using Carbon.Simulation.ECS;
@@ -159,6 +161,68 @@ internal sealed class InventoryService
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Gets the tier of the <paramref name="venue"/> in reach of <paramref name="worldPos"/> (ADR-028): a blacksmith
+    /// (forge-artisan NPC) for <see cref="RepairVenue.Blacksmith"/>; an intact forge anvil, else a workbench, for
+    /// <see cref="RepairVenue.Station"/>. <c>0</c> when none is in reach.
+    /// </summary>
+    public int GetRepairStationTier(Vector2 worldPos, RepairVenue venue, RepairTable table)
+    {
+        ArgumentNullException.ThrowIfNull(table);
+        return venue switch
+        {
+            RepairVenue.Blacksmith => _hasNearbyNpc(worldPos, 175f * 175f, NpcCapabilities.ForgeArtisan) ? table.BlacksmithTier : 0,
+            RepairVenue.Station when this.IsNearStructure(worldPos, StructureType.ForgeAnvil, StructureType.ForgeAnvil) => table.ForgeAnvilTier,
+            RepairVenue.Station when this.IsNearStructure(worldPos, StructureType.Workbench, StructureType.Workbench) => table.WorkbenchTier,
+            RepairVenue.None or RepairVenue.Station or RepairVenue.Blacksmith => 0,
+            _ => 0,
+        };
+    }
+
+    /// <summary>
+    /// Repairs ONE item (ADR-028): finds the venue's tier in reach, then <see cref="RepairWorkshop"/> checks the item,
+    /// tier, materials and fee and spends them exactly once. Records the changed slots in <paramref name="modified"/> and
+    /// stages the wallet sync when a fee was paid. On refusal nothing changed.
+    /// </summary>
+    public RepairAttempt Repair(
+        PlayerState state,
+        ushort slotIndex,
+        ushort expectedItemId,
+        byte steps,
+        RepairVenue venue,
+        Vector2 playerPos,
+        List<(ushort SlotIndex, ItemSlot Slot)> modified)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(modified);
+        modified.Clear();
+        if (slotIndex >= state.Inventory.Capacity)
+        {
+            return RepairAttempt.Refused(RepairError.InvalidRequest);
+        }
+
+        RepairTable table = _itemRules().Repair;
+        ReadOnlySpan<ItemSlot> before = state.Inventory.Slots;
+        Span<ItemSlot> beforeSnap = stackalloc ItemSlot[before.Length];
+        before.CopyTo(beforeSnap);
+
+        ulong tick = _currentTick();
+        int tier = this.GetRepairStationTier(playerPos, venue, table);
+        RepairAttempt attempt = RepairWorkshop.TryRepair(table, state.Wallet, state.Inventory, slotIndex, expectedItemId, steps, venue, tier, tick);
+        if (!attempt.IsOk)
+        {
+            return attempt;
+        }
+
+        if (attempt.GoldSpent > 0)
+        {
+            _outbound.Pending.WalletSyncs.Add(new OutboundWalletSync(state.Session.ConnectionId, state.Wallet.Gold, state.Wallet.Diamonds, state.Wallet.Sequence));
+        }
+
+        CollectModifiedSlots(beforeSnap, state.Inventory.Slots, modified);
+        return attempt;
     }
 
     /// <summary>

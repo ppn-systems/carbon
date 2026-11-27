@@ -14,8 +14,8 @@ namespace Carbon.Abstractions.World;
 /// <param name="SellItemIds">Items the player carries that the trader buys.</param>
 /// <param name="SellPrices">Gold per unit the trader pays.</param>
 /// <param name="CanRepair">Whether the trader repairs gear.</param>
-/// <param name="RepairSlots">Bag slots holding worn gear the trader can repair.</param>
-/// <param name="RepairCosts">Gold to fully repair each of <paramref name="RepairSlots"/>.</param>
+/// <param name="RepairSlots">Retired by ADR-028 (always empty): the repair window prices from <c>repair.json</c>.</param>
+/// <param name="RepairCosts">Retired by ADR-028 (always empty).</param>
 public sealed record TraderStockSnapshot(
     ulong TraderNetworkId,
     byte Kind,

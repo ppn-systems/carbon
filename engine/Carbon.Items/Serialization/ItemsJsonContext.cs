@@ -5,6 +5,7 @@ using Carbon.Items.Crafting;
 using Carbon.Items.Definitions;
 using Carbon.Items.Enhancement;
 using Carbon.Items.Progression;
+using Carbon.Items.Repair;
 
 namespace Carbon.Items.Serialization;
 
@@ -22,4 +23,5 @@ namespace Carbon.Items.Serialization;
 [JsonSerializable(typeof(RecipeCatalogDocument))]
 [JsonSerializable(typeof(EnhancementDocument))]
 [JsonSerializable(typeof(ProgressionConfig))]
+[JsonSerializable(typeof(RepairDocument))]
 public sealed partial class ItemsJsonContext : JsonSerializerContext;

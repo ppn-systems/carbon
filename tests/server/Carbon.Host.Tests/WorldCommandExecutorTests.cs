@@ -67,6 +67,20 @@ public sealed class WorldCommandExecutorTests
     }
 
     [Fact]
+    public async Task Drain_RepairCommand_DecodesSlotItemStepsAndVenueAndReturnsThePackedReceipt()
+    {
+        RecordingHandlers handlers = new();
+        WorldCommandExecutor executor = new(handlers);
+        WorldCommandQueue queue = new();
+
+        Task<WorldMutationOutcome> repair = queue.Submit(WorldCommandKind.RepairItem, Connection, 37, 3, 4, (ushort)RepairVenue.Blacksmith).AsTask();
+        executor.Drain(queue);
+
+        handlers.Calls.Should().Equal("RepairItem 42 37 3 4 Blacksmith");
+        (await repair.ConfigureAwait(true)).Should().Be(new WorldMutationOutcome(OpStatus.Ok, 0x0000_0304U), "the repair receipt rides in the revision (ADR-028)");
+    }
+
+    [Fact]
     public void Drain_EveryTickWithNothingQueued_AllocatesNothing()
     {
         WorldCommandExecutor executor = new(new RecordingHandlers());
@@ -133,7 +147,8 @@ public sealed class WorldCommandExecutorTests
 
         public OpStatus TryVendorSell(ulong connectionId, ushort slotIndex, ushort quantity) => this.Slot($"VendorSell {connectionId} {slotIndex} {quantity}");
 
-        public OpStatus TryRepairItem(ulong connectionId, ushort slotIndex) => this.Slot($"RepairItem {connectionId} {slotIndex}");
+        public WorldMutationOutcome TryRepairItem(ulong connectionId, ushort slotIndex, ushort expectedItemId, byte steps, RepairVenue venue) =>
+            new(this.Slot($"RepairItem {connectionId} {slotIndex} {expectedItemId} {steps} {venue}"), 0x0000_0304U);
 
         public OpStatus TryAllocateCharacterPoint(ulong connectionId, PointAllocationKind kind, ushort targetId, byte amount) =>
             this.Slot($"AllocateCharacterPoint {connectionId} {kind} {targetId} {amount}");
