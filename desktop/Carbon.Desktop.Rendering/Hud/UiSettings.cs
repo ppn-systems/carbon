@@ -1,11 +1,11 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
 using Carbon.Desktop.Abstractions.Configuration;
+using Carbon.Desktop.Rendering.PostProcessing;
 
 namespace Carbon.Desktop.Rendering.Hud;
 
@@ -19,9 +19,9 @@ namespace Carbon.Desktop.Rendering.Hud;
 /// [display]
 /// show_minimap = true
 /// camera_zoom = 1
+/// graphics_quality = auto
 /// </code>
-/// <c>CARBON_LANG</c> overrides <c>[general] language</c> at startup. A legacy <c>ui_settings.cfg</c> is read once when
-/// <c>settings.ini</c> does not exist yet.
+/// <c>CARBON_LANG</c> overrides <c>[general] language</c> at startup.
 /// </summary>
 public sealed class UiSettings
 {
@@ -30,7 +30,6 @@ public sealed class UiSettings
         "Carbon");
 
     private static readonly string s_settingsPath = Path.Combine(s_configDirectory, "settings.ini");
-    private static readonly string s_legacySettingsPath = Path.Combine(s_configDirectory, "ui_settings.cfg");
 
     /// <summary>Gets or sets whether the minimap under the HUD clock is visible (on by default; <c>[M]</c> toggles it).</summary>
     public bool ShowMinimap { get; set; } = true;
@@ -54,6 +53,18 @@ public sealed class UiSettings
     public int CameraZoomPreset { get; set; } = 1;
 
     /// <summary>
+    /// Gets or sets the chosen graphics quality preset (<see langword="null"/> = auto: picked from the GPU, ADR-041).
+    /// Cosmetic only; nothing gameplay-relevant reads it.
+    /// </summary>
+    public GraphicsQuality? GraphicsQuality { get; set; }
+
+    /// <summary>
+    /// Gets or sets the preset the world renderer is actually using (the auto choice resolved, or an override), so the
+    /// Settings window can highlight it. Not saved.
+    /// </summary>
+    public GraphicsQuality EffectiveGraphicsQuality { get; set; } = PostProcessing.GraphicsQuality.Medium;
+
+    /// <summary>
     /// Gets or sets the chosen UI language code (empty = default). <c>CARBON_LANG</c> overrides it at startup (ADR-023 D3).
     /// </summary>
     public string Language { get; set; } = string.Empty;
@@ -63,18 +74,13 @@ public sealed class UiSettings
     /// <returns>The loaded settings, or defaults when the file is missing, unreadable or malformed.</returns>
     public static UiSettings LoadOrDefault(string? filePath = null)
     {
-        bool useDefaultPath = string.IsNullOrWhiteSpace(filePath);
-        string path = useDefaultPath ? s_settingsPath : filePath!;
+        string path = string.IsNullOrWhiteSpace(filePath) ? s_settingsPath : filePath;
         UiSettings settings = new();
         try
         {
             if (File.Exists(path))
             {
                 settings.Apply(IniDocument.Load(path));
-            }
-            else if (useDefaultPath && File.Exists(s_legacySettingsPath))
-            {
-                settings.ApplyLegacy(File.ReadAllLines(s_legacySettingsPath));
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -116,6 +122,7 @@ public sealed class UiSettings
                 $"screen_shake = {Bool(this.ScreenShake)}",
                 $"reduce_flashes = {Bool(this.ReduceFlashes)}",
                 $"camera_zoom = {this.CameraZoomPreset.ToString(CultureInfo.InvariantCulture)}",
+                $"graphics_quality = {(this.GraphicsQuality is { } quality ? GraphicsQualityPolicy.ToSettingValue(quality) : "auto")}",
             ];
             File.WriteAllLines(path, lines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         }
@@ -137,30 +144,6 @@ public sealed class UiSettings
         foreach (IniEntry entry in document.InSection("display"))
         {
             this.Set(entry.Key, entry.Value);
-        }
-    }
-
-    private void ApplyLegacy(IEnumerable<string> lines)
-    {
-        foreach (string raw in lines)
-        {
-            string line = raw.Trim();
-            int eq = line.IndexOf('=', StringComparison.Ordinal);
-            if (eq <= 0)
-            {
-                continue;
-            }
-
-            string key = line[..eq].Trim() switch
-            {
-                nameof(this.ShowMinimap) => "show_minimap",
-                nameof(this.ShowCombatNumbers) => "show_combat_numbers",
-                nameof(this.ShowTelemetry) => "show_telemetry",
-                nameof(this.ShowKeybindHints) => "show_keybind_hints",
-                nameof(this.CameraZoomPreset) => "camera_zoom",
-                _ => string.Empty,
-            };
-            this.Set(key, line[(eq + 1)..].Trim());
         }
     }
 
@@ -189,6 +172,9 @@ public sealed class UiSettings
                 break;
             case "camera_zoom" when int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int zoom):
                 this.CameraZoomPreset = Math.Clamp(zoom, 0, 2);
+                break;
+            case "graphics_quality":
+                this.GraphicsQuality = GraphicsQualityPolicy.TryParse(value, out GraphicsQuality quality) ? quality : null;
                 break;
             default:
                 break;

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Desktop.Abstractions.Localization;
+using Carbon.Desktop.Rendering.PostProcessing;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Sprites;
@@ -67,6 +68,7 @@ internal sealed class SettingsModalWidget
 
     private static readonly string[] s_toggleLabels = ["settings.show_minimap", "settings.show_combat_numbers", "settings.show_telemetry", "combat_feel.screen_shake", "combat_feel.reduce_flashes"];
     private static readonly string[] s_zoomLabels = ["settings.zoom.wide", "settings.zoom.standard", "settings.zoom.close"];
+    private static readonly string[] s_qualityLabels = ["settings.quality.low", "settings.quality.medium", "settings.quality.high"];
 
     private int _activeTab;
 
@@ -166,6 +168,16 @@ internal sealed class SettingsModalWidget
             }
         }
 
+        for (int q = 0; q < s_qualityLabels.Length; q++)
+        {
+            if (GetQualityButtonRect(ox, oy, q).Contains(mousePos))
+            {
+                settings.GraphicsQuality = (GraphicsQuality)q;
+                settings.Save();
+                return SettingsModalAction.SettingChanged;
+            }
+        }
+
         return SettingsModalAction.None;
     }
 
@@ -226,6 +238,17 @@ internal sealed class SettingsModalWidget
                     active ? CarbonUiPalette.SlotSelectedFill : CarbonUiPalette.SlotFill,
                     active ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle);
             }
+
+            for (int q = 0; q < s_qualityLabels.Length; q++)
+            {
+                RectangleF qRect = GetQualityButtonRect(ox, oy, q);
+                bool active = (int)settings.EffectiveGraphicsQuality == q;
+                skin.DrawButton(
+                    spriteBatch,
+                    in qRect,
+                    active ? CarbonUiPalette.SlotSelectedFill : CarbonUiPalette.SlotFill,
+                    active ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle);
+            }
         }
 
         skin.DrawButton(spriteBatch, GetFooterButtonRect(ox, oy, 0), CarbonUiPalette.ConfirmFill, CarbonUiPalette.ConfirmBorder);
@@ -264,10 +287,16 @@ internal sealed class SettingsModalWidget
             spriteBatch.DrawOutlinedString(font, GameText.Get("settings.language"), new Vector2(ox + 38f, langButton.Y + 4f), CarbonUiPalette.TextPrimary, black, 1, 1f);
             CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Current.Locale.NativeName, in langButton, CarbonUiPalette.TextPrimary, black, 1f);
 
-            spriteBatch.DrawOutlinedString(font, GameText.Get("settings.camera_zoom"), new Vector2(ox + 38f, oy + 306f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, GameText.Get("settings.camera_zoom"), new Vector2(ox + 38f, oy + 295f), CarbonUiPalette.TextPrimary, black, 1, 1f);
             for (int z = 0; z < s_zoomLabels.Length; z++)
             {
                 CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Get(s_zoomLabels[z]), GetZoomButtonRect(ox, oy, z), CarbonUiPalette.TextPrimary, black, 1f);
+            }
+
+            spriteBatch.DrawOutlinedString(font, GameText.Get("settings.graphics_quality"), new Vector2(ox + 38f, oy + 326f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            for (int q = 0; q < s_qualityLabels.Length; q++)
+            {
+                CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Get(s_qualityLabels[q]), GetQualityButtonRect(ox, oy, q), CarbonUiPalette.TextPrimary, black, 1f);
             }
         }
         else
@@ -333,7 +362,11 @@ internal sealed class SettingsModalWidget
     }
 
     private static RectangleF GetZoomButtonRect(float ox, float oy, int index) =>
-        new(ox + PanelW - 224f + (index * 64f), oy + 302f, 58f, 26f);
+        new(ox + PanelW - 224f + (index * 64f), oy + 291f, 58f, 26f);
+
+    /// <summary>Gets a graphics quality button (Low, Medium, High), in the row under the camera zoom (ADR-041).</summary>
+    internal static RectangleF GetQualityButtonRect(float ox, float oy, int index) =>
+        new(ox + PanelW - 224f + (index * 64f), oy + 322f, 58f, 26f);
 
     private static RectangleF GetFooterButtonRect(float ox, float oy, int index) =>
         new(ox + 20f + (index * 184f), oy + 372f, 172f, 38f);

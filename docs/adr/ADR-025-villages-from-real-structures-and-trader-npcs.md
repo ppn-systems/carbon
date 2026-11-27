@@ -1,7 +1,7 @@
 # ADR-025: Villages Built from Real Structures, Trader NPCs and the Village Blacksmith
 
 - **Date**: 2026-11-27
-- **Status**: Proposed
+- **Status**: Accepted
 - **Amended by**: [ADR-026](ADR-026-server-secret-gameplay-entropy.md) — gameplay rolls use a server-only secret, not the world seed
 - **Amended**: 2026-11-27 — [Sell basket and buy cart](#sell-basket-and-buy-cart-amendment-2026-11-27) (D18–D23): trades are
   staged in the window and committed as one all-or-nothing batch

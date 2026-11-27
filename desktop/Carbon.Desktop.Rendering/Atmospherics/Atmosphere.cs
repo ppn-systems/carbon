@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.OpenGL.States;
@@ -42,7 +43,7 @@ internal sealed class Atmosphere
         (9.0f, new Vector3(1.00f, 1.00f, 1.00f)),
         (16.5f, new Vector3(1.00f, 0.98f, 0.94f)),
         (18.3f, new Vector3(1.00f, 0.70f, 0.50f)), // sunset
-        (19.6f, new Vector3(0.52f, 0.40f, 0.62f)), // dusk
+        (19.6f, new Vector3(0.60f, 0.49f, 0.66f)), // dusk: violet, but with enough green left that grass keeps its hue
         (21.0f, new Vector3(0.37f, 0.42f, 0.63f)),
         (24f, new Vector3(0.36f, 0.42f, 0.64f)),
     ];
@@ -129,7 +130,10 @@ internal sealed class Atmosphere
         batch.FillRectangle(new RectangleF(minX - 64f, minY - 64f, maxX - minX + 128f, maxY - minY + 128f), c);
     }
 
-    /// <summary>The light pass (additive): soft radial glows, stronger the darker it is.</summary>
+    /// <summary>
+    /// The Low-preset light pass (additive over the darkened scene): two radial-gradient fans per light give a soft,
+    /// peaked falloff, stronger the darker it is.
+    /// </summary>
     public void DrawLights(GeometryBatch batch, List<PointLight> lights)
     {
         // Lights only matter once the day dims; at noon they vanish entirely.
@@ -139,23 +143,60 @@ internal sealed class Atmosphere
             return;
         }
 
-        foreach (PointLight light in lights)
+        DrawGlows(batch, lights, strength, 0.25f, 0.20f);
+    }
+
+    /// <summary>
+    /// The light-map pass (ADR-041): lights added into a map cleared to the ambient, which the composite multiplies
+    /// over the scene. The map stores half the light, so these peaks (0.7 × intensity) light the scene up to about 1.4×.
+    /// </summary>
+    public void DrawLightMapLights(GeometryBatch batch, List<PointLight> lights)
+    {
+        float strength = MathF.Pow(this.Night, 1.1f);
+        if (strength < 0.02f)
         {
+            return;
+        }
+
+        DrawGlows(batch, lights, strength, 0.40f, 0.30f);
+    }
+
+    /// <summary>
+    /// Adds the night fireflies near <paramref name="player"/> as small lights, so they light the ground in the light
+    /// map. Same positions and pulse as the dots <see cref="DrawOverlay"/> draws.
+    /// </summary>
+    public void CollectFireflyLights(List<PointLight> lights, Vector2 player)
+    {
+        float fade = this.FireflyFade();
+        if (fade <= 0f)
+        {
+            return;
+        }
+
+        for (int i = 0; i < FireflyCount; i++)
+        {
+            (Vector2 p, float glow) = this.Firefly(i, player);
+            lights.Add(new PointLight(p, 34f, new ColorRgba(214, 240, 120), 0.55f * glow * fade));
+        }
+    }
+
+    private static void DrawGlows(GeometryBatch batch, List<PointLight> lights, float strength, float outerShare, float coreShare)
+    {
+        Span<PointLight> span = CollectionsMarshal.AsSpan(lights);
+        for (int i = 0; i < span.Length; i++)
+        {
+            ref readonly PointLight light = ref span[i];
             float k = light.Intensity * strength;
             if (k < 0.02f)
             {
                 continue;
             }
 
-            // Ten thin layers approximate a smooth radial falloff without visible rings.
-            const int Layers = 10;
-            for (int i = 0; i < Layers; i++)
-            {
-                float t = i / (float)Layers;
-                float r = light.Radius * (1f - (t * 0.9f));
-                byte a = (byte)Math.Clamp(11f * k, 0f, 255f);
-                batch.FillCircle(light.Position, r, new ColorRgba(light.Color.R, light.Color.G, light.Color.B, a), 28);
-            }
+            ColorRgba rim = new(light.Color.R, light.Color.G, light.Color.B, 0);
+            byte outer = (byte)Math.Clamp(255f * outerShare * k, 0f, 255f);
+            byte core = (byte)Math.Clamp(255f * coreShare * k, 0f, 255f);
+            batch.FillRadialGradient(light.Position, light.Radius, new ColorRgba(light.Color.R, light.Color.G, light.Color.B, outer), rim, 24);
+            batch.FillRadialGradient(light.Position, light.Radius * 0.45f, new ColorRgba(light.Color.R, light.Color.G, light.Color.B, core), rim, 16);
         }
     }
 
@@ -169,22 +210,34 @@ internal sealed class Atmosphere
             this.DrawRain(batch, minX, minY, maxX, maxY);
         }
 
-        if (this.Night > 0.4f && this.Rain < 0.5f)
+        float fade = this.FireflyFade();
+        if (fade > 0f)
         {
             // Fireflies around the player at night
-            float fade = (this.Night - 0.4f) / 0.6f * (1f - (this.Rain * 2f));
-            for (int i = 0; i < 26; i++)
+            for (int i = 0; i < FireflyCount; i++)
             {
-                float t = _time * (0.18f + (AmbientAnimator.Hash01(51u, i) * 0.2f));
-                Vector2 home = new(
-                    (MathF.Floor(player.X / 600f) * 600f) + (AmbientAnimator.Hash01(52u, i) * 1200f) - 300f,
-                    (MathF.Floor(player.Y / 600f) * 600f) + (AmbientAnimator.Hash01(53u, i) * 900f) - 200f);
-                Vector2 p = home + new Vector2(MathF.Sin(t + i) * 60f, MathF.Cos((t * 1.4f) + (i * 0.7f)) * 40f);
-                float glow = 0.5f + (0.5f * MathF.Sin((_time * 3.5f) + (i * 2.1f)));
+                (Vector2 p, float glow) = this.Firefly(i, player);
                 batch.FillCircle(p, 8f, new ColorRgba(253, 230, 138, (byte)(45 * glow * fade)), 10);
                 batch.FillCircle(p, 1.8f, new ColorRgba(255, 250, 200, (byte)((120 + (130 * glow)) * fade)), 6);
             }
         }
+    }
+
+    private const int FireflyCount = 26;
+
+    // 0 by day and in heavy rain, rising to 1 deep in the night.
+    private float FireflyFade() =>
+        this.Night > 0.4f && this.Rain < 0.5f ? (this.Night - 0.4f) / 0.6f * (1f - (this.Rain * 2f)) : 0f;
+
+    private (Vector2 Position, float Glow) Firefly(int i, Vector2 player)
+    {
+        float t = _time * (0.18f + (AmbientAnimator.Hash01(51u, i) * 0.2f));
+        Vector2 home = new(
+            (MathF.Floor(player.X / 600f) * 600f) + (AmbientAnimator.Hash01(52u, i) * 1200f) - 300f,
+            (MathF.Floor(player.Y / 600f) * 600f) + (AmbientAnimator.Hash01(53u, i) * 900f) - 200f);
+        Vector2 p = home + new Vector2(MathF.Sin(t + i) * 60f, MathF.Cos((t * 1.4f) + (i * 0.7f)) * 40f);
+        float glow = 0.5f + (0.5f * MathF.Sin((_time * 3.5f) + (i * 2.1f)));
+        return (p, glow);
     }
 
     private void DrawRain(GeometryBatch batch, float minX, float minY, float maxX, float maxY)

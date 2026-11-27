@@ -43,6 +43,10 @@ public sealed partial class MultiplayerSession
         new(seed, structures: _structures.Current ?? throw new InvalidOperationException("structures.json has not been synced from the server yet."));
 
     /// <inheritdoc/>
+    public ProceduralWorldGenerator? TryCreateWorldGenerator(ulong seed) =>
+        _structures.Current is null ? null : this.CreateWorldGenerator(seed);
+
+    /// <inheritdoc/>
     public void CopyConstructionMarkers(List<ConstructionMarker> destination)
     {
         ArgumentNullException.ThrowIfNull(destination);
