@@ -42,13 +42,13 @@ internal enum WorldCommandKind : byte
     /// <summary>Drop items from a slot (<c>Arg0</c> = slot, <c>Arg2</c> = quantity, <c>Arg3</c> = expected item id).</summary>
     DropInventoryItem = 14,
 
-    /// <summary>Split part of a bag stack (<c>Arg0</c> = from, <c>Arg1</c> = to, <c>Arg2</c> = quantity, <c>Arg3</c> = expected item id; ADR-019).</summary>
+    /// <summary>Split part of a bag stack (<c>Arg0</c> = from, <c>Arg1</c> = to, <c>Arg2</c> = quantity, <c>Arg3</c> = expected item id; ADR-020).</summary>
     SplitInventorySlot = 15,
 
-    /// <summary>Merge and sort the backpack (ADR-019).</summary>
+    /// <summary>Merge and sort the backpack (ADR-020).</summary>
     SortInventory = 16,
 
-    /// <summary>Destroy items in a slot (<c>Arg0</c> = slot, <c>Arg2</c> = quantity, <c>Arg3</c> = expected item id; ADR-019).</summary>
+    /// <summary>Destroy items in a slot (<c>Arg0</c> = slot, <c>Arg2</c> = quantity, <c>Arg3</c> = expected item id; ADR-020).</summary>
     DestroyInventoryItem = 17,
 
     /// <summary>Buy from a vendor (<c>Arg0</c> = item id, <c>Arg1</c> = quantity).</summary>

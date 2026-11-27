@@ -10,7 +10,7 @@ using Xunit;
 
 namespace Carbon.Items.Tests;
 
-/// <summary>ADR-019: stack split, backpack sort, accessory slots, one-unit-per-slot adds, and codec hardening.</summary>
+/// <summary>ADR-020: stack split, backpack sort, accessory slots, one-unit-per-slot adds, and codec hardening.</summary>
 public sealed class InventoryOrganisationTests
 {
     private static readonly ItemRules s_rules = ItemRules.LoadShippedDefaults();

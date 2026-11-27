@@ -14,7 +14,7 @@ using Xunit;
 
 namespace Carbon.Host.Tests;
 
-/// <summary>ADR-019: server validation of move, split, sort, destroy and equip, item-bound commands, and conservation.</summary>
+/// <summary>ADR-020: server validation of move, split, sort, destroy and equip, item-bound commands, and conservation.</summary>
 public sealed class InventorySlotCommandTests
 {
     private const uint Logs = StarterGameCatalog.WoodLog;

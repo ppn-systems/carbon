@@ -101,7 +101,7 @@ public sealed class TickQueuedWorldCommandTests
         Task<WorldMutationOutcome> pending = f.World
             .SubmitSplitInventorySlotAsync(ConnectionId, 4, 20, 2, (ushort)StarterGameCatalog.WoodWallKit)
             .AsTask();
-        pending.IsCompleted.Should().BeFalse("splits run inside the tick (ADR-019, ADR-017)");
+        pending.IsCompleted.Should().BeFalse("splits run inside the tick (ADR-020, ADR-017)");
 
         f.World.StepFixedTick();
 

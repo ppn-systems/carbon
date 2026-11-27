@@ -7,7 +7,7 @@ using Carbon.Items.Definitions;
 namespace Carbon.Items.Catalog;
 
 /// <summary>
-/// Server-side backpack auto-sort (ADR-019 D3). Merges partial stacks of the same item, then orders the backpack
+/// Server-side backpack auto-sort (ADR-020 D3). Merges partial stacks of the same item, then orders the backpack
 /// (<c>9..35</c>) by category, rarity (best first), item, enhancement level, durability and freshness, with empty slots
 /// last. The hotbar and equipment slots are never touched. Quantity is conserved and the result is deterministic.
 /// Zero heap allocations.

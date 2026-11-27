@@ -9,7 +9,7 @@ namespace Carbon.Items.Catalog;
 
 /// <summary>
 /// Authoritative 42-slot player inventory layout partitioning Hotbar (<c>0..8</c>), 3x9 Backpack (<c>9..35</c>),
-/// 4 dedicated Armor paper-doll slots (<c>36..39</c>) and 2 Accessory slots (<c>40..41</c>, ADR-019).
+/// 4 dedicated Armor paper-doll slots (<c>36..39</c>) and 2 Accessory slots (<c>40..41</c>, ADR-020).
 /// </summary>
 public static class PlayerInventoryLayout
 {
@@ -37,10 +37,10 @@ public static class PlayerInventoryLayout
     /// <summary>Dedicated Feet armor slot index.</summary>
     public const int FeetSlot = 39;
 
-    /// <summary>First accessory (ring/amulet) slot index (ADR-019).</summary>
+    /// <summary>First accessory (ring/amulet) slot index (ADR-020).</summary>
     public const int Accessory1Slot = 40;
 
-    /// <summary>Second accessory (ring/amulet) slot index (ADR-019).</summary>
+    /// <summary>Second accessory (ring/amulet) slot index (ADR-020).</summary>
     public const int Accessory2Slot = 41;
 
     /// <summary>Total capacity of a player's inventory (<c>42</c>).</summary>

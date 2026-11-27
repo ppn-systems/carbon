@@ -174,15 +174,15 @@ public sealed partial class AuthoritativeWorld
     public OpStatus TryMoveInventorySlot(ulong connectionId, ushort fromSlot, ushort toSlot, ushort expectedItemId = 0) =>
         this.ExecuteSlotCommand(connectionId, new InventorySlotCommand(InventorySlotCommandKind.Move, fromSlot, toSlot, ExpectedItemId: expectedItemId));
 
-    /// <summary>Moves part of a bag stack into another bag slot (ADR-019). Synchronous form used by the tick and tests.</summary>
+    /// <summary>Moves part of a bag stack into another bag slot (ADR-020). Synchronous form used by the tick and tests.</summary>
     public OpStatus TrySplitInventorySlot(ulong connectionId, ushort fromSlot, ushort toSlot, ushort quantity, ushort expectedItemId = 0) =>
         this.ExecuteSlotCommand(connectionId, new InventorySlotCommand(InventorySlotCommandKind.Split, fromSlot, toSlot, quantity, expectedItemId));
 
-    /// <summary>Merges and sorts the backpack on the server (ADR-019). Synchronous form used by the tick and tests.</summary>
+    /// <summary>Merges and sorts the backpack on the server (ADR-020). Synchronous form used by the tick and tests.</summary>
     public OpStatus TrySortInventory(ulong connectionId) =>
         this.ExecuteSlotCommand(connectionId, new InventorySlotCommand(InventorySlotCommandKind.Sort, 0));
 
-    /// <summary>Destroys items in a slot permanently (ADR-019). Synchronous form used by the tick and tests.</summary>
+    /// <summary>Destroys items in a slot permanently (ADR-020). Synchronous form used by the tick and tests.</summary>
     public OpStatus TryDestroyInventoryItem(ulong connectionId, ushort slotIndex, int quantity, ushort expectedItemId = 0) =>
         this.ExecuteSlotCommand(connectionId, new InventorySlotCommand(InventorySlotCommandKind.Destroy, slotIndex, Quantity: quantity, ExpectedItemId: expectedItemId));
 

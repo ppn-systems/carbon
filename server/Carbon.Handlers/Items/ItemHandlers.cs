@@ -140,7 +140,7 @@ public static partial class ItemHandlers
         await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.DropInventoryItem).ConfigureAwait(false);
     }
 
-    /// <summary>Opcode <c>0x400A</c>. Moves part of a bag stack into another bag slot (ADR-019).</summary>
+    /// <summary>Opcode <c>0x400A</c>. Moves part of a bag stack into another bag slot (ADR-020).</summary>
     [PacketOpcode(ItemOpCode.SplitInventorySlot)]
     [PacketPermission(PermissionLevel.USER)]
     public static async ValueTask HandleSplitInventorySlotAsync(IPacketContext<SplitInventorySlot> context)
@@ -159,7 +159,7 @@ public static partial class ItemHandlers
         await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.SplitInventorySlot).ConfigureAwait(false);
     }
 
-    /// <summary>Opcode <c>0x400B</c>. Merges and sorts the backpack on the server (ADR-019).</summary>
+    /// <summary>Opcode <c>0x400B</c>. Merges and sorts the backpack on the server (ADR-020).</summary>
     [PacketOpcode(ItemOpCode.SortInventory)]
     [PacketPermission(PermissionLevel.USER)]
     public static async ValueTask HandleSortInventoryAsync(IPacketContext<SortInventory> context)
@@ -172,7 +172,7 @@ public static partial class ItemHandlers
         await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.SortInventory).ConfigureAwait(false);
     }
 
-    /// <summary>Opcode <c>0x400C</c>. Destroys items in a slot permanently (ADR-019).</summary>
+    /// <summary>Opcode <c>0x400C</c>. Destroys items in a slot permanently (ADR-020).</summary>
     [PacketOpcode(ItemOpCode.DestroyInventoryItem)]
     [PacketPermission(PermissionLevel.USER)]
     public static async ValueTask HandleDestroyInventoryItemAsync(IPacketContext<DestroyInventoryItem> context)

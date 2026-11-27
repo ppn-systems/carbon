@@ -7,7 +7,7 @@ using Nalix.Codec.DataFrames;
 namespace Carbon.Contracts.Items.C2S;
 
 /// <summary>
-/// Client request to destroy items in a slot permanently, after the player confirmed it (ADR-019).
+/// Client request to destroy items in a slot permanently, after the player confirmed it (ADR-020).
 /// </summary>
 [Packet]
 [GenerateFormatter]
@@ -25,7 +25,7 @@ public sealed partial class DestroyInventoryItem : PacketBase<DestroyInventoryIt
     [SerializeOrder(1)]
     public int Quantity { get; set; }
 
-    /// <summary>Item the client expects in the source slot; the server answers <c>Conflict</c> when it differs (ADR-019 D2).</summary>
+    /// <summary>Item the client expects in the source slot; the server answers <c>Conflict</c> when it differs (ADR-020 D2).</summary>
     [SerializeOrder(2)]
     public ushort ExpectedItemId { get; set; }
 }

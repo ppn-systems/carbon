@@ -27,7 +27,7 @@ public sealed partial class MoveInventorySlot : PacketBase<MoveInventorySlot>, I
 
     /// <summary>
     /// Item the client expects in the source slot. The server answers <c>Conflict</c> when it differs, so a stale or
-    /// replayed command never acts on another item; <c>0</c> skips the check (ADR-019 D2).
+    /// replayed command never acts on another item; <c>0</c> skips the check (ADR-020 D2).
     /// </summary>
     [SerializeOrder(2)]
     public ushort ExpectedItemId { get; set; }

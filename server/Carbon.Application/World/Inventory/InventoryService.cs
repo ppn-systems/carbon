@@ -219,7 +219,7 @@ internal sealed class InventoryService
     /// <summary>
     /// Runs one slot command (move, drop, split, destroy, sort) and records the changed slots in <paramref name="modified"/>.
     /// A command whose <see cref="InventorySlotCommand.ExpectedItemId"/> no longer matches its source slot is
-    /// <see cref="OpStatus.Conflict"/> and changes nothing (ADR-019 D2).
+    /// <see cref="OpStatus.Conflict"/> and changes nothing (ADR-020 D2).
     /// </summary>
     public OpStatus Execute(PlayerState state, in InventorySlotCommand command, Vector2 playerPos, List<(ushort SlotIndex, ItemSlot Slot)> modified)
     {
@@ -246,7 +246,7 @@ internal sealed class InventoryService
         };
     }
 
-    /// <summary>Moves part of a bag stack into an empty bag slot or onto a matching stack with room (ADR-019).</summary>
+    /// <summary>Moves part of a bag stack into an empty bag slot or onto a matching stack with room (ADR-020).</summary>
     public OpStatus Split(PlayerState state, ushort fromSlot, ushort toSlot, int quantity, List<(ushort SlotIndex, ItemSlot Slot)> modified)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -272,7 +272,7 @@ internal sealed class InventoryService
         return OpStatus.Ok;
     }
 
-    /// <summary>Merges partial stacks and sorts the backpack (<c>9..35</c>); the hotbar and equipment are untouched (ADR-019).</summary>
+    /// <summary>Merges partial stacks and sorts the backpack (<c>9..35</c>); the hotbar and equipment are untouched (ADR-020).</summary>
     public OpStatus Sort(PlayerState state, List<(ushort SlotIndex, ItemSlot Slot)> modified)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -289,7 +289,7 @@ internal sealed class InventoryService
         return OpStatus.Ok;
     }
 
-    /// <summary>Destroys all of a slot (or <paramref name="quantity"/> of it) permanently; nothing reaches the ground (ADR-019).</summary>
+    /// <summary>Destroys all of a slot (or <paramref name="quantity"/> of it) permanently; nothing reaches the ground (ADR-020).</summary>
     public OpStatus Destroy(PlayerState state, ushort slotIndex, int quantity, List<(ushort SlotIndex, ItemSlot Slot)> modified)
     {
         ArgumentNullException.ThrowIfNull(state);

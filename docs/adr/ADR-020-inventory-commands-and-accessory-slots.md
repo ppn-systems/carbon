@@ -1,4 +1,4 @@
-# ADR-019: Inventory Split, Sort and Destroy Commands, Item-Bound Slot Commands, and Accessory Slots
+# ADR-020: Inventory Split, Sort and Destroy Commands, Item-Bound Slot Commands, and Accessory Slots
 
 - **Date**: 2026-11-27
 - **Status**: Proposed
