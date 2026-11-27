@@ -48,6 +48,20 @@ public sealed class WorldDebugOverridesTests
         overrides.StartHour.Should().Be(23.5f);
         overrides.ForgeKit.Should().BeTrue();
     }
+
+    [Fact]
+    public void ReadDebugOverrides_StarterItems_ParsesIdQuantityAndLevelAndSkipsBadEntries()
+    {
+        Dictionary<string, string> env = new() { ["CARBON_DEBUG_STARTER_ITEMS"] = "3+10, 4x40, 18x1+7, nope, 3+11, 5x0" };
+
+        WorldDebugOverrides overrides = HostRuntimeOptions.ReadDebugOverrides(k => env.GetValueOrDefault(k));
+
+        overrides.StarterItems.Should().Equal(
+            new DebugStarterItem(3, 1, 10),
+            new DebugStarterItem(4, 40, 0),
+            new DebugStarterItem(18, 1, 7));
+        overrides.IsActive.Should().BeTrue();
+    }
 #else
     [Fact]
     public void ReadDebugOverrides_ReleaseBuild_IgnoresVariables()

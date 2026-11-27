@@ -101,6 +101,9 @@ public sealed class HudOverlayRenderer : IDisposable
         set => _bagModal.CarriedSlot = value;
     }
 
+    /// <summary>Gets the inventory split/confirm dialog state (ADR-020).</summary>
+    public InventoryDialogState InventoryDialog => _bagModal.Dialog;
+
     /// <summary>Gets or sets whether the HUD overlay is visible.</summary>
     public bool Visible { get; set; } = true;
 
@@ -334,7 +337,24 @@ public sealed class HudOverlayRenderer : IDisposable
             _skillBar.TryHitTestSkill(world, mousePos, viewportWidth, viewportHeight, out skillId);
     }
 
-    /// <summary>Hit-tests screen-space coordinates against any of the 40 slots in the Inventory tab.</summary>
+    /// <summary>Gets the screen-space centre of inventory slot <paramref name="slotIndex"/> (screenshot previews).</summary>
+    public static Vector2 GetInventorySlotCenter(int slotIndex, int viewportWidth, int viewportHeight)
+    {
+        PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
+        RectangleF rect = InventoryModalWidget.GetSlotRectForTesting(in layout, slotIndex);
+        return new Vector2(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.5f));
+    }
+
+    /// <summary>Hit-tests the inventory dialog's buttons.</summary>
+    public InventoryDialogButton HitTestInventoryDialog(Vector2 mousePos, int viewportWidth, int viewportHeight) =>
+        _bagModal.HitTestDialog(mousePos, viewportWidth, viewportHeight);
+
+    /// <summary>Hit-tests the inventory tab's Sort button.</summary>
+    public bool TryHitTestInventorySortButton(Vector2 mousePos, int viewportWidth, int viewportHeight) =>
+        this.Visible && this.ShowPlayerModal && this.ActivePlayerTab == PlayerModalTab.Inventory &&
+        _bagModal.TryHitTestSortButton(mousePos, viewportWidth, viewportHeight);
+
+    /// <summary>Hit-tests screen-space coordinates against any of the 42 slots in the Inventory tab.</summary>
     public bool TryHitTestInventorySlot(Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort slotIndex)
     {
         slotIndex = 0;
@@ -422,7 +442,7 @@ public sealed class HudOverlayRenderer : IDisposable
             _minimap.DrawGeometry(_geometryBatch, world, _art, viewportWidth, ptx, pty);
         }
 
-        int hoveredSlot = _hotbar.DrawGeometry(_geometryBatch, world, _art, feedback, viewportWidth, viewportHeight, bgMouse);
+        int hoveredSlot = _hotbar.DrawGeometry(_geometryBatch, world, _art, feedback, viewportWidth, viewportHeight, bgMouse, _animTime);
         _wallet.DrawGeometry(_geometryBatch, _art, viewportWidth, viewportHeight);
         ushort hoveredSkill = _skillBar.DrawGeometry(_geometryBatch, world, viewportWidth, viewportHeight, bgMouse);
         _geometryBatch.End();
