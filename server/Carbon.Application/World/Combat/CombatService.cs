@@ -9,6 +9,7 @@ using Carbon.AI.Threat;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.Combat.Damage;
+using Carbon.Combat.Statuses;
 using Carbon.Items.Progression;
 using Carbon.Physics.Obstacles;
 using Carbon.Physics.Shapes;
@@ -89,6 +90,12 @@ internal sealed class CombatService
     {
         EntityAttachmentStore<ThreatTable> threatStore = _simulation.Entities.GetAttachmentStore<ThreatTable>();
         bool anyDamaged = false;
+
+        // ADR-036 D9: weakness scales every player hit (melee, skill, projectile) before the monster's armor.
+        if (_simulation.Entities.GetAttachmentStore<StatusEffectBuffer>().TryGet(attacker.Entity, out StatusEffectBuffer? statuses) && statuses is not null)
+        {
+            damage *= statuses.DamageDealtMultiplier;
+        }
 
         for (int i = 0; i < targets.Length; i++)
         {

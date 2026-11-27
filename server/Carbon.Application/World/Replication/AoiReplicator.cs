@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Carbon.Abstractions.World;
+using Carbon.Combat.Statuses;
 using Carbon.Contracts.Entities;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.Networking;
@@ -90,7 +91,11 @@ internal sealed class AoiReplicator
         uint lastClientTick,
         ulong serverTick)
     {
-        _tracker.ComputeVisibility(connectionId, selfNetworkId, selfPosition, _simulation, _entered, _visible, _exited);
+        // ADR-036 D9: blindness shrinks this observer's view, so distant entities leave the client.
+        float viewScale = _simulation.Entities.GetAttachmentStore<StatusEffectBuffer>().TryGet(self, out StatusEffectBuffer? statuses) && statuses is not null
+            ? statuses.ViewRadiusMultiplier
+            : 1f;
+        _tracker.ComputeVisibility(connectionId, selfNetworkId, selfPosition, _simulation, _entered, _visible, _exited, viewScale);
         OutboundBatch pending = _outbound.Pending;
 
         for (int i = 0; i < _entered.Count; i++)

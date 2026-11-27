@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "itemId": 0,
+  "id": "status_frostbite",
+  "displayName": "Frostbite",
+  "tier": 1,
+  "categoryLabel": "Status",
+  "accentColor": "#7DD3FC",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.7,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -0.75,
+          -7.0
+        ],
+        [
+          0.75,
+          -7.0
+        ],
+        [
+          0.75,
+          7.0
+        ],
+        [
+          -0.75,
+          7.0
+        ]
+      ],
+      "color": "#BAE6FD",
+      "outlineColor": "#0C4A6E",
+      "outlineThickness": 0.9,
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          5.69,
+          -4.15
+        ],
+        [
+          6.44,
+          -2.85
+        ],
+        [
+          -5.69,
+          4.15
+        ],
+        [
+          -6.44,
+          2.85
+        ]
+      ],
+      "color": "#BAE6FD",
+      "outlineColor": "#0C4A6E",
+      "outlineThickness": 0.9,
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          6.44,
+          2.85
+        ],
+        [
+          5.69,
+          4.15
+        ],
+        [
+          -6.44,
+          -2.85
+        ],
+        [
+          -5.69,
+          -4.15
+        ]
+      ],
+      "color": "#BAE6FD",
+      "outlineColor": "#0C4A6E",
+      "outlineThickness": 0.9,
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "ellipse",
+      "x": 0,
+      "y": 0,
+      "rx": 2.2,
+      "ry": 2.2,
+      "color": "#E0F2FE",
+      "outlineColor": "#0C4A6E",
+      "outlineThickness": 0.9,
+      "bone": "root",
+      "facing": "any"
+    }
+  ]
+}

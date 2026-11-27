@@ -8,6 +8,7 @@ using Carbon.Abstractions.World;
 using Carbon.Combat.Statuses;
 using Carbon.Combat.Statuses.Config;
 using Carbon.Creatures.Definitions;
+using Carbon.Maps.Hydrology;
 using Carbon.Primitives.Random;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.World;
@@ -114,6 +115,19 @@ internal sealed class StatusEffectService
     public bool IsStunned(Entity entity) =>
         this.TryGetBuffer(entity, out StatusEffectBuffer buffer) && (buffer.ActiveControlMask & CrowdControlMask.Stunned) != 0;
 
+    /// <summary>Gets the multiplier on damage <paramref name="entity"/> deals (weakness, ADR-036 D9).</summary>
+    public float GetDamageDealtMultiplier(Entity entity) =>
+        this.TryGetBuffer(entity, out StatusEffectBuffer buffer) ? buffer.DamageDealtMultiplier : 1f;
+
+    /// <summary>Gets the multiplier on the view (AoI) radius of <paramref name="entity"/> (blindness, ADR-036 D9).</summary>
+    public float GetViewRadiusMultiplier(Entity entity) =>
+        this.TryGetBuffer(entity, out StatusEffectBuffer buffer) ? buffer.ViewRadiusMultiplier : 1f;
+
+    /// <summary>Puts out every effect water removes (burning) while <paramref name="tier"/> is at least shallow (ADR-036 D9).</summary>
+    /// <returns>Whether an effect was removed.</returns>
+    public bool ExtinguishInWater(Entity entity, WaterDepthTier tier) =>
+        tier >= WaterDepthTier.Shallow && this.TryGetBuffer(entity, out StatusEffectBuffer buffer) && buffer.RemoveExtinguishedByWater();
+
     /// <summary>Gets the stamina regeneration multiplier from effects.</summary>
     public float GetStaminaRegenMultiplier(Entity entity) =>
         this.TryGetBuffer(entity, out StatusEffectBuffer buffer) ? buffer.StaminaRegenMultiplier : 1f;
@@ -156,7 +170,9 @@ internal sealed class StatusEffectService
 
     /// <summary>
     /// Applies the effects of one landed monster hit (ADR-029 D7): the heavy-hit effect when the mitigated damage reaches
-    /// the configured share of max HP, and each proc of the attacker's monster type on the secret proc roll.
+    /// the configured share of max HP, and each proc of the attacker's monster type on the secret proc roll. A proc with
+    /// <c>minDamageFraction</c> rolls only on a hit that heavy. The proc's level grows with the attacker's level and at
+    /// night (ADR-036 D8).
     /// </summary>
     /// <returns>Whether the victim's buffer changed.</returns>
     public bool OnMonsterHit(
@@ -167,7 +183,9 @@ internal sealed class StatusEffectService
         ushort attackerArchetypeId,
         float dealt,
         float victimMaxHealth,
-        ulong tick)
+        ulong tick,
+        int attackerLevel = 1,
+        bool isNight = false)
     {
         if (dealt <= 0f)
         {
@@ -190,9 +208,15 @@ internal sealed class StatusEffectService
         for (int i = 0; i < procs.Length; i++)
         {
             MonsterProcEntry proc = procs[i];
+            if (proc.MinDamageFraction > 0f && (victimMaxHealth <= 0f || dealt < proc.MinDamageFraction * victimMaxHealth))
+            {
+                continue;
+            }
+
             if (StatusProcRoll.Sample(in key, tick, victimNetworkId, attackerNetworkId, i) < proc.Chance)
             {
-                changed |= this.Apply(victim, proc.Effect, attacker, StatusSource.Monster, attackerArchetypeId);
+                byte level = catalog.ResolveProcLevel(proc, attackerLevel, isNight);
+                changed |= this.Apply(victim, proc.Effect, attacker, StatusSource.Monster, attackerArchetypeId, proc.DurationSeconds, level: level);
             }
         }
 
@@ -236,6 +260,8 @@ internal sealed class StatusEffectService
                 ActiveStatusEffect effect = active[i];
                 float magnitude = effect.MagnitudePerStack > 0f ? effect.MagnitudePerStack * effect.Stacks
                     : effect.MoveSpeedMultiplier != 1f ? effect.MoveSpeedMultiplier
+                    : effect.DamageDealtMultiplier != 1f ? effect.DamageDealtMultiplier
+                    : effect.ViewRadiusMultiplier != 1f ? effect.ViewRadiusMultiplier
                     : effect.HealthRegenMultiplier != 1f ? effect.HealthRegenMultiplier
                     : effect.StaminaRegenMultiplier;
                 output.Add(new StatusEffectEntry(

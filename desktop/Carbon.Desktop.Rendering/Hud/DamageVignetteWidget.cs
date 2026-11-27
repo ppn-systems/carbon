@@ -12,7 +12,8 @@ namespace Carbon.Desktop.Rendering.Hud;
 
 /// <summary>
 /// Screen-edge feedback (ADR-029 D10): a red vignette that fades after the local player takes damage, a pulsing green
-/// edge while poisoned, and a cold blue edge while slowed. Drawn under every HUD widget.
+/// edge while poisoned, a dark edge while blind (darker at a smaller view, ADR-036 D9), and a cold blue edge while slowed
+/// or frostbitten. Drawn under every HUD widget.
 /// </summary>
 internal sealed class DamageVignetteWidget
 {
@@ -23,6 +24,7 @@ internal sealed class DamageVignetteWidget
     private static readonly ColorRgba s_hit = new(200, 24, 24, 255);
     private static readonly ColorRgba s_poison = new(96, 190, 40, 255);
     private static readonly ColorRgba s_slow = new(120, 180, 240, 255);
+    private static readonly ColorRgba s_blind = new(6, 6, 10, 255);
 
     /// <summary>Gets the edge tint and its peak alpha for this frame (alpha 0 = nothing to draw).</summary>
     internal static (ColorRgba Color, float Alpha) Resolve(IWorldReadModel world, float animTime)
@@ -34,7 +36,13 @@ internal sealed class DamageVignetteWidget
             return (s_hit, 150f * hit);
         }
 
-        (bool poisoned, bool slowed) = ActiveFlags(world.StatusEffectDefinitions, world.LocalStatusEffects);
+        (bool poisoned, bool slowed, float view) = ActiveFlags(world.StatusEffectDefinitions, world.LocalStatusEffects);
+        if (view < 1f)
+        {
+            // The server already shrank the view (AoI); the dark edge tells the player why monsters vanished.
+            return (s_blind, 255f * Math.Clamp(1f - view, 0f, 1f) * 1.6f);
+        }
+
         if (poisoned)
         {
             return (s_poison, 55f + (25f * MathF.Sin(animTime * 3f)));
@@ -72,10 +80,11 @@ internal sealed class DamageVignetteWidget
         }
     }
 
-    private static (bool Poisoned, bool Slowed) ActiveFlags(StatusEffectCatalog catalog, IReadOnlyList<LocalStatusEffect> effects)
+    private static (bool Poisoned, bool Slowed, float View) ActiveFlags(StatusEffectCatalog catalog, IReadOnlyList<LocalStatusEffect> effects)
     {
         bool poisoned = false;
         bool slowed = false;
+        float view = 1f;
         for (int i = 0; i < effects.Count; i++)
         {
             if (!catalog.TryGet(effects[i].EffectId, out StatusEffectDefinition def))
@@ -83,10 +92,16 @@ internal sealed class DamageVignetteWidget
                 continue;
             }
 
-            poisoned |= def.Magnitude > 0f && !def.Lethal;
-            slowed |= def.MoveSpeedMultiplier < 1f;
+            // Frostbite is a non-lethal damage effect too, but it chills (slower stamina): it gets the cold edge.
+            bool chills = def.StaminaRegenMultiplier < 1f;
+            poisoned |= def.Magnitude > 0f && !def.Lethal && !chills;
+            slowed |= def.MoveSpeedMultiplier < 1f || chills;
+            if (def.ViewRadiusMultiplier < 1f && effects[i].Magnitude is > 0f and < 1f)
+            {
+                view = MathF.Min(view, effects[i].Magnitude);
+            }
         }
 
-        return (poisoned, slowed);
+        return (poisoned, slowed, view);
     }
 }

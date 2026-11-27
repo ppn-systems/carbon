@@ -372,6 +372,16 @@ internal sealed class StatusEffectStripWidget
                 new TextArg("interval", FormatTime(_interval, def.TickIntervalSeconds)));
         }
 
+        if (def.DamageDealtMultiplier != 1f)
+        {
+            return _magnitude.Format("status_effects.magnitude.damage_dealt", new TextArg("value", effect.Magnitude, 2));
+        }
+
+        if (def.ViewRadiusMultiplier != 1f)
+        {
+            return _magnitude.Format("status_effects.magnitude.view", new TextArg("value", effect.Magnitude, 2));
+        }
+
         if (def.HealthRegenMultiplier != 1f)
         {
             return _magnitude.Format("status_effects.magnitude.health_regen", new TextArg("value", effect.Magnitude, 2));

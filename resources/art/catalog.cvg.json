@@ -1363,6 +1363,22 @@
       "file": "ui/status_drowning.cvg.json"
     },
     {
+      "id": "status_weakness",
+      "file": "ui/status_weakness.cvg.json"
+    },
+    {
+      "id": "status_blindness",
+      "file": "ui/status_blindness.cvg.json"
+    },
+    {
+      "id": "status_burning",
+      "file": "ui/status_burning.cvg.json"
+    },
+    {
+      "id": "status_frostbite",
+      "file": "ui/status_frostbite.cvg.json"
+    },
+    {
       "id": "status_hungry",
       "file": "ui/status_hungry.cvg.json"
     },

@@ -3,6 +3,8 @@
 using System.Linq;
 using System.Numerics;
 using Carbon.Application.World.Replication;
+using Carbon.Combat.Statuses;
+using Carbon.Combat.Statuses.Config;
 using Carbon.Contracts.Entities;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.Networking;
@@ -124,6 +126,28 @@ public sealed class AoiReplicatorTests
             _ = replication.ReplicateTo(connA, observerA, a, posA, lastClientTick: 1U, serverTick: 9UL);
             _ = replication.ReplicateTo(connB, observerB, b, posB, lastClientTick: 1U, serverTick: 9UL);
         }
+    }
+
+    [Fact]
+    public void ReplicateTo_BlindObserver_DropsAMonsterOutsideTheShrunkenViewAndSeesItAgainAfterwards()
+    {
+        Harness h = new();
+        _ = h.Simulation.SpawnNetworkEntity(MobNetId, new Vector2(500f, 0f), 9f);
+        _ = h.Replicate();
+        h.Outbound.Pending.Spawns.Should().ContainSingle("500 is inside the 768 view");
+        h.Outbound.Swap();
+        StatusEffectBuffer statuses = h.Simulation.Entities.GetAttachmentStore<StatusEffectBuffer>().GetOrAdd(h.Observer, static () => new StatusEffectBuffer());
+        StatusEffectCatalog catalog = StatusEffectCatalog.LoadShippedDefaults();
+        catalog.TryGetByKey("blindness", out StatusEffectDefinition blindness).Should().BeTrue();
+        _ = statuses.ApplyOrRefresh(StatusEffectCatalog.CreateActive(blindness, 30, Entity.Null, StatusSource.Monster, 104));
+
+        _ = h.Replicate();
+
+        h.Outbound.Pending.Despawns.Should().ContainSingle(d => d.NetworkId == MobNetId, "blindness I halves the view: 500 is beyond 832 x 0.5");
+        h.Outbound.Swap();
+        statuses.Clear();
+        _ = h.Replicate();
+        h.Outbound.Pending.Spawns.Should().ContainSingle(s => s.Snapshot.NetworkId == MobNetId, "sight returns when the blindness ends");
     }
 
     [Fact]

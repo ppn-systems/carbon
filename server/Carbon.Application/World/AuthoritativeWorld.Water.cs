@@ -59,6 +59,7 @@ public sealed partial class AuthoritativeWorld
             WaterDepthTier tier = _chunkWorld.GetWaterTierAt(position);
             state.WaterTier = tier;
             state.SwimState = WaterRules.SwimStateOf(tier);
+            _ = _statusEffects.ExtinguishInWater(state.Entity, tier); // ADR-036 D9: water puts out burning.
 
             float oxygen = float.IsNaN(state.OxygenSeconds) ? rules.MaxOxygenSeconds : state.OxygenSeconds;
             float drain = state.IsDead ? 0f : rules.DrainPerSecond(tier);
