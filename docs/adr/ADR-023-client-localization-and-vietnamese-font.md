@@ -1,7 +1,7 @@
 # ADR-023: Client Localization (en default, vi) and Vietnamese Font Coverage
 
 - **Date**: 2026-11-27
-- **Status**: Proposed
+- **Status**: Accepted
 - **Scope**: `resources/localization/`, `desktop/Carbon.Desktop.Abstractions/Configuration` (INI), `resources/fonts/`, `desktop/Carbon.Desktop.Abstractions`, `desktop/Carbon.Desktop.Rendering`, `graphics/Carbon.Graphics.Fonts`, `tests/`, `tools/screenshots/`, `docs/`
 
 ## Context
