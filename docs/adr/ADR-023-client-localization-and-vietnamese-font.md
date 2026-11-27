@@ -56,7 +56,7 @@ The owner asked for real i18n: English stays the default, Vietnamese comes first
      - `EntityNameKeys` resolves the key once at spawn. The remote-view snapshot looks the text up with `ILocalizer.TryGet`, which does not allocate, and is rebuilt when `ILocalizer.Version` changes.
      - `Name` stays on the wire as the English fallback for unknown ids and older clients.
      - The derived-key guard requires an `npc.*` key for every `WorldActorCatalog` NPC.
-   - Moving server notices to keys is a follow-up PR.
+   - **Server notices.** No server-to-client packet carries prose. Results and notices travel as codes and enums (for example `AuthStatus`, `OpStatus`, `MutationResult` and `EnhancementOutcome`), and the client maps them to keys. `ServerTextNeutralityTests` fails on any new `string` field in `contracts/*/S2C/`. Its allowlist holds only identifiers and names: config document names, player names, and the `EntitySpawn.Name` fallback.
 5. **D5 — Fonts.**
    - **Bundled font.** `resources/fonts/vt323.ttf` ships with its license in `resources/fonts/OFL-VT323.txt`. VT323 (Copyright 2011 The VT323 Project Authors) is licensed under the SIL Open Font License 1.1, which allows redistribution in a public repository. It covers ASCII, Latin-1 Supplement, Latin Extended-A, the Vietnamese letters of Latin Extended-B, the combining marks used by Vietnamese, and all of U+1EA0–U+1EF9. Nothing is copied from `resources/thirdparty/`.
    - **Multi-face rasterizing.** `TrueTypeFontLoader.Rasterize` takes an ordered list of faces and code-point ranges. A face supplies only the glyphs that the faces before it lack. Every face is aligned to the primary face's baseline and line metrics.
