@@ -103,6 +103,9 @@ Stamina before this ADR (all on `master` at `7b7e627`):
    - **Status effects (ADR-029)** feed `StaminaRegenContext.EffectScale`: the tick passes
      `StatusEffectService.GetStaminaRegenMultiplier` to `StaminaService.Regenerate`, so an effect's stamina regen
      modifier stacks with fatigue and hunger under the same `minimumRegenScale` floor.
+     The derived `tired` and `starving` effects carry no stamina modifier: they display the needs state, and its regen
+     penalty lives once, in `fatigueRegenScale` and `hungerRegenScale`. Timed effects such as `rested` (×1.25) stack on
+     top.
    - **Swimming (ADR-032)** should add a `swimDrainPerSecond` to `stamina.json` and call `StaminaMeter.TryDrain` from the
      tick, exactly like sprint, so exhaustion and regen delay apply to swimming too.
    - A **dodge or roll** does not exist. When it lands it pays through `StaminaService.TrySpend` with its own config
