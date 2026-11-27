@@ -5,6 +5,7 @@ using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.World;
+using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities.S2C;
 using Carbon.Contracts.Items.S2C;
 using Carbon.Contracts.Maps.S2C;
@@ -263,6 +264,52 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             {
                 _ = DispatchSkillCastAsync(conn, casterNetworkId, abilitySlot, originX, originY, aimX, aimY, _logger);
             }
+        }
+    }
+
+    /// <inheritdoc/>
+    public void SendEnhancementAnnouncement(
+        ReadOnlySpan<ulong> recipientConnectionIds,
+        ulong playerNetworkId,
+        string playerName,
+        ushort itemId,
+        EnhancementOutcome outcome,
+        byte level)
+    {
+        for (int i = 0; i < recipientConnectionIds.Length; i++)
+        {
+            if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
+            {
+                _ = DispatchEnhancementAnnouncementAsync(conn, playerNetworkId, playerName, itemId, outcome, level, _logger);
+            }
+        }
+    }
+
+    private static async Task DispatchEnhancementAnnouncementAsync(
+        IConnection connection,
+        ulong playerNetworkId,
+        string playerName,
+        ushort itemId,
+        EnhancementOutcome outcome,
+        byte level,
+        ILogger logger)
+    {
+        try
+        {
+            using PacketScope<EnhancementAnnouncement> lease = PacketFactory<EnhancementAnnouncement>.Acquire();
+            EnhancementAnnouncement pkt = lease.Value;
+            pkt.PlayerNetworkId = playerNetworkId;
+            pkt.PlayerName = playerName ?? string.Empty;
+            pkt.ItemId = itemId;
+            pkt.Outcome = outcome;
+            pkt.Level = level;
+
+            bool encrypt = connection.Algorithm != CipherSuiteType.None;
+            await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogSendFailure(logger, nameof(EnhancementAnnouncement), ex);
         }
     }
 

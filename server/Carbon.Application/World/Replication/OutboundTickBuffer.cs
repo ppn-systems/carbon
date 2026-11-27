@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Carbon.Abstractions.World;
+using Carbon.Contracts.Common;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 
@@ -94,6 +95,15 @@ internal readonly record struct OutboundSkillCast(
 
 internal readonly record struct OutboundAttackPhase(int RecipientsOffset, int RecipientsCount, AttackPhaseSnapshot Snapshot);
 
+internal readonly record struct OutboundEnhancementAnnouncement(
+    int RecipientsOffset,
+    int RecipientsCount,
+    ulong PlayerNetworkId,
+    string PlayerName,
+    ushort ItemId,
+    EnhancementOutcome Outcome,
+    byte Level);
+
 /// <summary>
 /// One tick's worth of outbound messages. Multicast messages store a slice (offset, count) into <see cref="Recipients"/>;
 /// entity deltas store a slice into <see cref="DeltaEntries"/>. All lists are reused across ticks.
@@ -128,6 +138,8 @@ internal sealed class OutboundBatch
 
     public List<OutboundAttackPhase> AttackPhases { get; } = new(32);
 
+    public List<OutboundEnhancementAnnouncement> EnhancementAnnouncements { get; } = new(4);
+
     public List<ulong> Recipients { get; } = new(256);
 
     public void Clear()
@@ -146,6 +158,7 @@ internal sealed class OutboundBatch
         this.WalletSyncs.Clear();
         this.SkillCasts.Clear();
         this.AttackPhases.Clear();
+        this.EnhancementAnnouncements.Clear();
         this.Recipients.Clear();
     }
 }
@@ -283,6 +296,18 @@ internal sealed class OutboundTickBuffer
         {
             OutboundWalletSync wallet = batch.WalletSyncs[i];
             sink.SendWalletSync(wallet.ConnectionId, wallet.Gold, wallet.Diamonds, wallet.Sequence);
+        }
+
+        for (int i = 0; i < batch.EnhancementAnnouncements.Count; i++)
+        {
+            OutboundEnhancementAnnouncement notice = batch.EnhancementAnnouncements[i];
+            sink.SendEnhancementAnnouncement(
+                recipientsSpan.Slice(notice.RecipientsOffset, notice.RecipientsCount),
+                notice.PlayerNetworkId,
+                notice.PlayerName,
+                notice.ItemId,
+                notice.Outcome,
+                notice.Level);
         }
 
         for (int i = 0; i < batch.SkillCasts.Count; i++)
