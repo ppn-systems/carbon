@@ -178,11 +178,27 @@ The rules below are binding for the account menus. Tests named in brackets check
 
 The rules here and in 2.4 apply as each screen is reworked.
 
-15. **The menu backdrop is a slow, dimmed pan over a real generated world**, behind an opaque panel.
-    - It never blocks input.
-    - It pauses while its scene is inactive.
-    - It allocates nothing per frame once warm.
-    - It can be turned off.
+15. **The menu backdrop is a slow, dimmed pan over a real generated world**, behind an opaque panel
+    (`Menu/MenuBackdrop.cs`).
+    - **Where it looks.** The view centres on the most scenic spot within 8 chunks of the spawn: the most distinct
+      biomes, plus a bonus for 8–45 % water (`MenuBackdropSite`).
+    - **How it moves.** The camera traces a closed ellipse once every 6 minutes, under 16 world px/s, so only a
+      handful of chunks are ever needed (`MenuBackdropClock`).
+    - **How it is dimmed.** A dusk-to-night tint cycles every 3 minutes, a smooth top and bottom gradient keeps the
+      title readable, and fireflies drift over it.
+    - **Where the world comes from.**
+      - The world is generated once, on a worker thread, by a generator the session builds with the synced building
+        catalog (`IGameConfigSource.TryCreateWorldGenerator`). The client has no catalog of its own.
+      - Chunk meshes are baked one per frame, then the terrain fades in over 0.8 s.
+      - Until the first config sync (a fresh launch, before signing in), and if generation fails, the backdrop is a
+        vector night sky with two whole-pixel parallax ridges instead.
+    - **Who owns it.** `MenuFlow` owns the backdrop, so it survives screen changes and never restarts its pan. Its
+      meshes are freed on entering the world.
+    - **Rules it keeps.**
+      - It never blocks input.
+      - It pauses while its scene is inactive (only the active menu scene advances it).
+      - It allocates nothing per frame once warm.
+      - `CARBON_MENU_MOTION=0` holds it still.
 16. **Screen transitions are short cross-fades** of 150–250 ms, easing out on enter. Nothing is longer than 400 ms.
 17. **Server cards** show the friendly name, a status word and a latency word with bars. They never show an address,
     port or network jargon.
