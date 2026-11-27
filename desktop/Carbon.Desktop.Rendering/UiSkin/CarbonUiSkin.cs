@@ -228,17 +228,35 @@ public sealed class CarbonUiSkin : IDisposable
             return text;
         }
 
+        // Same scan as before (longest prefix + ".." that fits, longest first), but each candidate is composed in
+        // a reusable buffer and measured as a span, so only the final string is allocated. The old loop built a
+        // string per step: O(n^2) characters per call for every over-long label, every frame (audit round 2, PERF-9).
         const string ellipsis = "..";
-        int len = text.Length - 1;
-        while (len > 0)
+        int capacity = text.Length + 1;
+        char[]? rented = null;
+        Span<char> buffer = capacity <= 256
+            ? stackalloc char[256]
+            : (rented = System.Buffers.ArrayPool<char>.Shared.Rent(capacity));
+        try
         {
-            string candidate = string.Concat(text.AsSpan(0, len), ellipsis);
-            if (font.MeasureString(candidate, TextLayoutOptions.Default, scale).Width <= maxWidth)
+            text.AsSpan().CopyTo(buffer);
+            for (int len = text.Length - 1; len > 0; len--)
             {
-                return candidate;
+                buffer[len] = '.';
+                buffer[len + 1] = '.';
+                ReadOnlySpan<char> candidate = buffer[..(len + ellipsis.Length)];
+                if (font.MeasureString(candidate, TextLayoutOptions.Default, scale).Width <= maxWidth)
+                {
+                    return new string(candidate);
+                }
             }
-
-            len--;
+        }
+        finally
+        {
+            if (rented is not null)
+            {
+                System.Buffers.ArrayPool<char>.Shared.Return(rented);
+            }
         }
 
         return ellipsis;
