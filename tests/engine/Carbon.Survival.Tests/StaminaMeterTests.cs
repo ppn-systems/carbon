@@ -169,15 +169,16 @@ public sealed class StaminaMeterTests
     }
 
     [Fact]
-    public void LoadFromJson_RepositoryStaminaJson_PinsTheHardcoreTuning()
+    public void LoadFromJson_RepositoryStaminaJson_PinsThePlayableTuning()
     {
         StaminaConfig config = StaminaConfig.LoadFromJson(File.ReadAllText(SurvivalTestWorld.FindConfigFile("stamina.json")));
 
-        config.SprintDrainPerSecond.Should().Be(16f, "ADR-033 pins the new sprint drain");
-        config.SprintDrainPerSecond.Should().BeLessThan(PreviousSprintDrainPerSecond, "running costs a bit less than before");
-        config.RegenDelaySeconds.Should().BeInRange(1.5f, 2f);
+        config.SprintDrainPerSecond.Should().Be(12f, "the ADR-033 amendment pins the sprint drain");
+        config.SprintDrainPerSecond.Should().BeLessThan(PreviousSprintDrainPerSecond, "running costs less than before ADR-033");
+        config.RegenDelaySeconds.Should().Be(1f);
+        config.ExhaustedRecoverFraction.Should().Be(0.25f);
         config.RegenPerSecondMoving.Should().BeLessThan(config.RegenPerSecondStill);
-        config.ItemSwingCosts["wood_axe"].Should().Be(8f);
+        config.ItemSwingCosts["wood_axe"].Should().Be(4f);
         config.MinimumRegenScale.Should().BeGreaterThan(0f, "regen never stops, so a fresh character cannot soft-lock");
     }
 
@@ -185,7 +186,7 @@ public sealed class StaminaMeterTests
     public void LoadFromJson_MovingRegenFasterThanStill_IsRejected()
     {
         string json = File.ReadAllText(SurvivalTestWorld.FindConfigFile("stamina.json"))
-            .Replace("\"regenPerSecondMoving\": 3", "\"regenPerSecondMoving\": 30", System.StringComparison.Ordinal);
+            .Replace("\"regenPerSecondMoving\": 8", "\"regenPerSecondMoving\": 30", System.StringComparison.Ordinal);
 
         FluentActions.Invoking(() => StaminaConfig.LoadFromJson(json)).Should().Throw<InvalidDataException>().WithMessage("*regenPerSecondMoving*");
     }

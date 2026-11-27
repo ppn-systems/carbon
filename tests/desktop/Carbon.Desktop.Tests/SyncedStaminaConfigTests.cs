@@ -23,11 +23,11 @@ public sealed class SyncedStaminaConfigTests
         synced.Apply(Catalog(1, shipped)).Should().BeTrue();
         StaminaConfig? applied = synced.Current;
         applied.Should().NotBeNull();
-        applied!.SprintDrainPerSecond.Should().Be(16f);
+        applied!.SprintDrainPerSecond.Should().Be(12f);
 
         synced.Apply(Catalog(2, "{\"sprintDrainPerSecond\": -1}"u8.ToArray())).Should().BeFalse();
         synced.Apply(new ConfigCatalog(3, [])).Should().BeFalse("a catalog without stamina.json keeps the last config");
-        synced.Current!.SprintDrainPerSecond.Should().Be(16f);
+        synced.Current!.SprintDrainPerSecond.Should().Be(12f);
     }
 
     private static ConfigCatalog Catalog(uint version, byte[] stamina) =>
