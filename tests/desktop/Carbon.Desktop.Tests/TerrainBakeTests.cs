@@ -34,14 +34,37 @@ public sealed class TerrainBakeTests(ITestOutputHelper output)
         ChunkWorld2D world = new(new ProceduralWorldGenerator(Seed));
         Chunk2D chunk = StreamAround(world, world.SpawnTile);
         ChunkMeshBuilder builder = new();
+        ChunkGeometryBaker baker = new();
 
-        ChunkTerrainRenderer.BakeChunkGeometry(builder, chunk, world, art);
+        baker.Bake(builder, chunk, world, art);
         int first = builder.VertexCount;
         builder.Clear();
-        ChunkTerrainRenderer.BakeChunkGeometry(builder, chunk, world, art);
+        baker.Bake(builder, chunk, world, art);
 
         first.Should().BeGreaterThan(Chunk2D.Size * Chunk2D.Size * 5, "every tile bakes at least its 5-vertex gradient quad");
         builder.VertexCount.Should().Be(first);
+    }
+
+    [Fact]
+    public void Bake_TwoBakersInterleaved_KeepTheirOwnWaterFeatures()
+    {
+        // Audit TS-11: the scratch used to be static, so a second renderer's bake overwrote the first one's results.
+        CarbonVectorArtLibrary art = LoadArt();
+        ProceduralWorldGenerator generator = new(Seed);
+        ChunkWorld2D world = new(generator);
+        (int sx, int sy) = generator.SpawnTile;
+        BiomeLocator.TryFind(generator, BiomeType.ShallowWater, sx, sy, 2400, out int wx, out int wy).Should().BeTrue();
+        Chunk2D water = StreamAround(world, (wx, wy));
+        Chunk2D land = StreamAround(world, world.SpawnTile);
+        ChunkGeometryBaker waterBaker = new();
+        ChunkGeometryBaker landBaker = new();
+
+        waterBaker.Bake(new ChunkMeshBuilder(), water, world, art);
+        RippleSpotList before = new(waterBaker.Ripples);
+        landBaker.Bake(new ChunkMeshBuilder(), land, world, art);
+
+        before.Items.Should().NotBeEmpty("a shallow-water chunk has animated ripples");
+        waterBaker.Ripples.Should().Equal(before.Items, "another baker's bake must not touch this baker's results");
     }
 
     [Fact]
@@ -72,6 +95,7 @@ public sealed class TerrainBakeTests(ITestOutputHelper output)
         ProceduralWorldGenerator generator = new(Seed);
         ChunkWorld2D world = new(generator);
         ChunkMeshBuilder builder = new();
+        ChunkGeometryBaker baker = new();
         (int sx, int sy) = generator.SpawnTile;
 
         List<(BiomeType Biome, Chunk2D Chunk)> chunks = [];
@@ -89,7 +113,7 @@ public sealed class TerrainBakeTests(ITestOutputHelper output)
             foreach ((BiomeType _, Chunk2D chunk) in chunks)
             {
                 builder.Clear();
-                ChunkTerrainRenderer.BakeChunkGeometry(builder, chunk, world, art);
+                baker.Bake(builder, chunk, world, art);
             }
         }
 
@@ -104,7 +128,7 @@ public sealed class TerrainBakeTests(ITestOutputHelper output)
             {
                 builder.Clear();
                 long start = Stopwatch.GetTimestamp();
-                ChunkTerrainRenderer.BakeChunkGeometry(builder, chunk, world, art);
+                baker.Bake(builder, chunk, world, art);
                 ms = Math.Min(ms, Stopwatch.GetElapsedTime(start).TotalMilliseconds);
             }
 
@@ -116,6 +140,11 @@ public sealed class TerrainBakeTests(ITestOutputHelper output)
 
         bakes.Should().BeGreaterThan(0);
         output.WriteLine($"{"average",-16} {totalMs / bakes,6:F2} ms  {totalVertices / bakes,6} vertices");
+    }
+
+    private sealed record RippleSpotList(IReadOnlyList<ChunkTerrainRenderer.RippleSpot> Source)
+    {
+        public List<ChunkTerrainRenderer.RippleSpot> Items { get; } = [.. Source];
     }
 
     private static CarbonVectorArtLibrary LoadArt() =>
