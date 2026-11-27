@@ -28,8 +28,8 @@ public interface IGameplayController
     /// <summary>Requests selling <paramref name="quantity"/> units from bag slot <paramref name="slotIndex"/> to a nearby vendor.</summary>
     bool TryVendorSell(ushort slotIndex, ushort quantity = 1);
 
-    /// <summary>Requests repairing the item in <paramref name="slotIndex"/> at a forge station for gold.</summary>
-    bool TryRepairItem(ushort slotIndex);
+    /// <summary>Gets repairing one item at a station or blacksmith (ADR-028).</summary>
+    IRepairSession Repair { get; }
 
     /// <summary>Gets trading with village traders (ADR-025).</summary>
     ITraderSession Trading { get; }
@@ -97,4 +97,10 @@ public interface IGameplayController
     /// </summary>
     /// <returns><see langword="true"/> when the request was sent.</returns>
     bool TryToggleRest();
+
+    /// <summary>
+    /// Asks the server to respawn the dead local player (ADR-031). Sends at most one request until the server answers.
+    /// </summary>
+    /// <returns><see langword="true"/> when a request was sent; <see langword="false"/> when alive or already waiting.</returns>
+    bool TryRequestRespawn() => false;
 }

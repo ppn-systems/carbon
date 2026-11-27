@@ -25,4 +25,10 @@ internal enum HudElement : byte
 
     /// <summary>Gold and diamond balances.</summary>
     Wallet,
+
+    /// <summary>Dark veil over the world while the player is dead (ADR-031).</summary>
+    DeathVeil,
+
+    /// <summary>The death screen panel: title, killer, gold lost and the Respawn button (ADR-031).</summary>
+    DeathScreen,
 }

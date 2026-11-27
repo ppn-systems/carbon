@@ -22,6 +22,14 @@ public sealed class HudCompositionTests
     }
 
     [Fact]
+    public void DeathOverlay_DrawLists_VeilThenScreen_AndNeverOnTheMainHud()
+    {
+        HudComposition.DeathVeil.ToArray().Should().Equal([HudElement.DeathVeil], "the veil is drawn first, under the panel (ADR-031)");
+        HudComposition.DeathScreen.ToArray().Should().Equal([HudElement.DeathScreen]);
+        HudComposition.MainHud.ToArray().Should().NotContain([HudElement.DeathVeil, HudElement.DeathScreen], "the death screen shows only while dead");
+    }
+
+    [Fact]
     public void InventoryHeader_DrawList_ShowsCurrency() =>
         HudComposition.InventoryHeader.ToArray().Should().Contain(HudElement.Wallet, "the inventory window is where balances stay visible");
 

@@ -34,8 +34,7 @@ public static class ItemOpCode
     /// <summary>Client requests selling a bag stack to a nearby NPC vendor for gold.</summary>
     public const ushort VendorSellItem = 0x4008;
 
-    /// <summary>Retired by ADR-028 (gold-only full repair). Kept so the value is never reused; use <see cref="RepairItemRequest"/>.</summary>
-    public const ushort RepairInventoryItem = 0x4009;
+    // 0x4009 was RepairInventoryItem (gold-only full repair), retired by ADR-028: never reuse it. See RepairItemRequest.
 
     /// <summary>Client requests splitting part of a bag stack into another bag slot (ADR-020).</summary>
     public const ushort SplitInventorySlot = 0x400A;

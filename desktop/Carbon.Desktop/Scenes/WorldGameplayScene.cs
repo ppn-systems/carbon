@@ -55,6 +55,7 @@ public sealed class WorldGameplayScene : GameScene
     private WorldSceneRenderer? _worldRenderer;
     private HudOverlayRenderer? _hudRenderer;
     private TradeInteraction? _trade;
+    private RepairInteraction? _repair;
     private Task? _pendingLogoutTask;
 
     private BiomeType _lastBiome = (BiomeType)255;
@@ -98,7 +99,8 @@ public sealed class WorldGameplayScene : GameScene
         _worldRenderer = new WorldSceneRenderer(context.Device, _options);
         _hudRenderer = new HudOverlayRenderer(context.Device, _worldRenderer.VectorArt);
         _inventoryInput.AttachHud(_hudRenderer);
-        _trade = new TradeInteraction(_session, _hudRenderer, _options, IsTraderNpc, this.OpenForgeWindow);
+        _repair = new RepairInteraction(_session, _hudRenderer, _options);
+        _trade = new TradeInteraction(_session, _hudRenderer, _options, IsTraderNpc, this.OpenForgeWindow, () => _repair.Open(RepairVenue.Blacksmith));
         if (!_options.MacroView)
         {
             this.ApplyZoomPreset(_hudRenderer.Settings.CameraZoomPreset);
@@ -175,6 +177,19 @@ public sealed class WorldGameplayScene : GameScene
         DesktopInputFrame input = _screenshotAids.PinMouse(DesktopInputController.Poll(context.Input));
         _mouseScreenPosition = _screenshotAids.Apply(_hudRenderer, _session, context.WindowWidth, context.WindowHeight) ?? input.MouseScreenPosition;
         _mouseWorldPosition = _camera.ScreenToWorld(in _mouseScreenPosition);
+        _worldRenderer.PreviewDowned = _hudRenderer.DeathPreview is not null;
+
+        if (DeathScreenInput.Handle(_session, input.ConfirmPressed, input.LeftClickPressed, input.MouseScreenPosition, context.WindowWidth, context.WindowHeight))
+        {
+            if (_hudRenderer.HasActiveModal)
+            {
+                _hudRenderer.CloseAllModals();
+                _inventoryInput.ResetDragState();
+            }
+
+            _session.Update(dt, Vector2.Zero, sprint: false);
+            return;
+        }
 
         if (input.EscapePressed)
         {
@@ -202,6 +217,7 @@ public sealed class WorldGameplayScene : GameScene
         }
 
         _trade?.Sync(_frameCount);
+        _repair?.Update((float)dt, _frameCount);
         if (_hudRenderer.ShowSettingsModal)
         {
             if (input.LeftClickPressed)
@@ -288,6 +304,12 @@ public sealed class WorldGameplayScene : GameScene
         if (input.ToggleForgePressed)
         {
             this.ToggleForgeStationModal();
+        }
+
+        if (input.ToggleRepairPressed)
+        {
+            _inventoryInput.ResetDragState();
+            _repair?.Toggle();
         }
 
         if (input.MoveDirection.LengthSquared() > 1e-4f)
@@ -439,6 +461,10 @@ public sealed class WorldGameplayScene : GameScene
         else if (_hudRenderer.Trader is not null)
         {
             _trade?.HandleWindowInput(input, context.WindowWidth, context.WindowHeight);
+        }
+        else if (_hudRenderer.Repair.IsOpen)
+        {
+            _repair?.HandleWindowInput(input, context.WindowWidth, context.WindowHeight);
         }
         else
         {
@@ -678,7 +704,7 @@ public sealed class WorldGameplayScene : GameScene
             CaptureModalOpener.Open(_hudRenderer, _session, _options.CaptureModal);
         }
 
-        _capture.AfterFrame(context, _frameCount, _trade?.IsCaptureWaiting(_frameCount) == true);
+        _capture.AfterFrame(context, _frameCount, _trade?.IsCaptureWaiting(_frameCount) == true || _repair?.IsCaptureWaiting(_frameCount) == true);
 
         GLEnum glError = context.Device.Gl.GetError();
         if (glError != GLEnum.NoError)

@@ -122,11 +122,17 @@ Before this change:
 
 ### Client
 
-12. **D12 — Death screen.** When `PlayerDeath` arrives, the desktop client darkens and desaturates the world and opens a death
-    screen. It shows the localized "You died" title, the killer's name or cause, the gold lost and a Respawn button.
-    Enter also respawns. One press sends exactly one `RespawnRequest`; further presses are ignored until the server
-    answers. The screen closes when the server accepts. It reopens on login only if the server reports the player dead,
-    which D6 never does. All text comes from a new `[death]` section in `en.ini` and `vi.ini`.
+12. **D12 — Death screen.** When `PlayerDeath` arrives (`DeathSession`, `desktop/Carbon.Desktop.Networking/Session/DeathSession.cs`),
+    the desktop client covers the world with a dark, slightly red veil and opens the death screen (`DeathScreenWidget`).
+    The screen shows the localized "You died" title, the killer's name (`monster.<id>.name`) or the cause, the gold lost
+    with the coin icon, and a Respawn button. Enter also respawns. While dead, every other gameplay input is swallowed
+    (`DeathScreenInput`) and open windows close. One press sends exactly one `RespawnRequest`. Further presses are
+    ignored until the server answers: `Ok` closes the screen, and a refusal allows another try. All text comes from a
+    new `[death]` section in `en.ini` and `vi.ini`. The obsolete "respawned at the sanctuary" toast (`hud.slain`) is gone.
+13. **D13 — Corpse.** A player at 0 HP plays the new `downed` clip of `base_hero.cvg.json` (vector art, ADR-005). The
+    local player is drawn downed while dead, and other players see a remote player at 0 HP lying on the ground. Each bone
+    turns about the feet, because bones are not hierarchical. `CARBON_UI_PREVIEW=death` opens the screen with a sample
+    death for `tools/screenshots` (scenarios `death_screen`, `death_screen_night`). It is visual only: nothing is sent.
 
 ## Alternatives Considered
 

@@ -62,6 +62,14 @@ internal sealed class RecordingWorldSession : IWorldSession
 
     public bool TryUpgradeInventoryItem(ushort slotIndex, ushort protectionItemId = 0) => this.Record($"Upgrade({slotIndex},{protectionItemId})");
 
+    /// <summary>Gets or sets the death the death screen reads (ADR-031); <see langword="null"/> while alive.</summary>
+    public DeathView? LocalDeath { get; set; }
+
+    /// <summary>Gets or sets what <see cref="TryRequestRespawn"/> does; by default it records <c>Respawn()</c>.</summary>
+    public Func<bool>? RespawnHandler { get; set; }
+
+    public bool TryRequestRespawn() => this.RespawnHandler is { } handler ? this.Record("Respawn()") && handler() : this.Record("Respawn()");
+
     private bool Record(string command)
     {
         this.Commands.Add(command);
@@ -161,7 +169,7 @@ internal sealed class RecordingWorldSession : IWorldSession
     public bool TryCraftRecipe(ushort recipeId, ushort quantity = 1) => Unused<bool>();
     public bool TryVendorBuy(ushort itemId, ushort quantity = 1) => Unused<bool>();
     public bool TryVendorSell(ushort slotIndex, ushort quantity = 1) => Unused<bool>();
-    public bool TryRepairItem(ushort slotIndex) => Unused<bool>();
+    public IRepairSession Repair => Unused<IRepairSession>();
     public bool TryHarvestNearbyProp(out (int ChunkX, int ChunkY) modifiedChunk) => throw NotUsed();
     public bool TryPlaceStarterWall(out (int ChunkX, int ChunkY) centerChunk) => throw NotUsed();
     public bool TryToggleNearbyDoor(out (int ChunkX, int ChunkY) modifiedChunk) => throw NotUsed();

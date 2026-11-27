@@ -330,7 +330,7 @@ internal sealed class SettlementNpcSpawner
         ReadOnlySpan<VillagePlot> plots = _villages.PlotsOf(sx, sy);
         for (int i = 0; i < plots.Length; i++)
         {
-            if (plots[i].Role == role && VillageBlueprint.TryGetNpcTile(_villages.Villages, plots[i], out tileX, out tileY))
+            if (plots[i].Role == role && VillageBlueprint.TryGetNpcTile(plots[i], out tileX, out tileY))
             {
                 return true;
             }
