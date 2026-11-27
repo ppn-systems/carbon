@@ -176,6 +176,12 @@ public sealed class DesktopOptions
     public string CharacterName { get; init; } = "Hero";
 
     /// <summary>
+    /// Gets the body type code (<c>races.json</c>, e.g. <c>female</c>) an auto-login starter character is created with
+    /// (<c>CARBON_CHARACTER_BODY</c>, screenshot capture); <see langword="null"/> keeps the race's first body (ADR-042).
+    /// </summary>
+    public string? CharacterBodyCode { get; init; }
+
+    /// <summary>
     /// Gets or sets the file that keeps the "Remember me" account (<c>CARBON_ACCOUNT_FILE</c>; ADR-037). It holds a
     /// revocable server token, never a password. Defaults to <c>account.ini</c> in the per-user Carbon data folder.
     /// </summary>
@@ -324,6 +330,7 @@ public sealed class DesktopOptions
             Username = username,
             Password = password,
             CharacterName = charName,
+            CharacterBodyCode = get("CARBON_CHARACTER_BODY") is { Length: > 0 } body ? body.Trim() : null,
             ConfigCacheDirectory = configCache,
             AccountFile = get("CARBON_ACCOUNT_FILE") is { Length: > 0 } accountFile ? accountFile.Trim() : DefaultAccountFile(),
             CustomServerEntry = string.Equals(get("CARBON_DEV_SERVERS"), "1", StringComparison.Ordinal),

@@ -6,7 +6,8 @@
       "code": "human",
       "nameKey": "race.human",
       "bodies": [
-        { "id": 0, "code": "male", "nameKey": "race.body.male", "rig": "characters/base_hero.cvg.json" }
+        { "id": 0, "code": "male", "nameKey": "race.body.male", "rig": "characters/base_hero.cvg.json" },
+        { "id": 1, "code": "female", "nameKey": "race.body.female", "rig": "characters/human_female.cvg.json" }
       ],
       "options": [
         {

@@ -401,13 +401,14 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
             CvgJsonContext.Default.CvgEntityRigDto)
             ?? throw new InvalidDataException($"Rig blueprint null: {filePath}");
 
-        if (dto.Shapes.Count == 0 || dto.Animations.Count == 0)
+        Dictionary<string, CvgAnimDto> animations = ResolveAnimations(dto, filePath);
+        if (dto.Shapes.Count == 0 || animations.Count == 0)
         {
             throw new InvalidDataException($"Rig '{dto.Id}' must define non-empty shapes and animations in {filePath}");
         }
 
         CompiledVectorShape[] shapes = CompileShapes(dto.Shapes, dto.Palette, filePath);
-        Dictionary<string, CompiledVectorAnimation> anims = CompileAnimations(dto.Animations);
+        Dictionary<string, CompiledVectorAnimation> anims = CompileAnimations(animations);
         Vector2[] pivots = CompilePivots(dto.BonePivots, dto.DesignHeight);
 
         Vector2 southGrip = ResolveGrip(dto.WeaponGrip, "south", new Vector2(8f, -10f));
@@ -434,7 +435,42 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
         {
             IsElite = isElite,
             Markers = CompileMarkers(dto, accent),
+            TorsoWidthScale = dto.TorsoWidthScale is > 0.5f and <= 1.5f
+                ? dto.TorsoWidthScale
+                : throw new InvalidDataException($"Rig '{dto.Id}' torsoWidthScale must be in (0.5, 1.5] in {filePath}"),
         };
+    }
+
+    /// <summary>
+    /// Returns the rig's own clips, or those of the rig its <c>animationsFrom</c> names (ADR-042 D11). The source must
+    /// define its own clips (no chains), and a rig may not do both.
+    /// </summary>
+    private static Dictionary<string, CvgAnimDto> ResolveAnimations(CvgEntityRigDto dto, string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(dto.AnimationsFrom))
+        {
+            return dto.Animations;
+        }
+
+        if (dto.Animations.Count > 0)
+        {
+            throw new InvalidDataException($"Rig '{dto.Id}' declares both 'animations' and 'animationsFrom' in {filePath}");
+        }
+
+        string sourcePath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(filePath) ?? string.Empty, dto.AnimationsFrom));
+        if (!File.Exists(sourcePath))
+        {
+            throw new FileNotFoundException($"Rig '{dto.Id}' animationsFrom '{dto.AnimationsFrom}' not found", sourcePath);
+        }
+
+        CvgEntityRigDto source = JsonSerializer.Deserialize(File.ReadAllText(sourcePath), CvgJsonContext.Default.CvgEntityRigDto)
+            ?? throw new InvalidDataException($"Rig blueprint null: {sourcePath}");
+        if (!string.IsNullOrWhiteSpace(source.AnimationsFrom) || source.Animations.Count == 0)
+        {
+            throw new InvalidDataException($"Rig '{dto.Id}' animationsFrom '{dto.AnimationsFrom}' must name a rig with its own clips");
+        }
+
+        return source.Animations;
     }
 
     private static RigMarkers CompileMarkers(CvgEntityRigDto dto, ColorRgba accent)
