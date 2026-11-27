@@ -116,9 +116,10 @@ public sealed class DesktopOptions
     public string CaptureModal { get; init; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets a menu scene to capture instead of the world (<c>CARBON_CAPTURE_SCENE=login|characters</c>, ADR-023 D8).
-    /// <c>login</c> needs <c>CARBON_AUTO_LOGIN=0</c>; <c>characters</c> registers the configured account and captures the
-    /// character screen. Empty when unset.
+    /// Gets or sets a menu scene to capture instead of the world
+    /// (<c>CARBON_CAPTURE_SCENE=start|login|register|server|characters</c>, ADR-023 D8, ADR-037). Each needs
+    /// <c>CARBON_AUTO_LOGIN=0</c>; <c>characters</c> registers the configured account and captures the character screen.
+    /// Empty when unset.
     /// </summary>
     public string CaptureScene { get; init; } = string.Empty;
 
