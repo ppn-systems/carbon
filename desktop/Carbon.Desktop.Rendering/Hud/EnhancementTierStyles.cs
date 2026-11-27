@@ -20,11 +20,11 @@ internal static class EnhancementTierStyles
     /// <summary>Tier rows in ascending level order (data, not scattered constants).</summary>
     private static readonly EnhancementTierStyle[] s_tiers =
     [
-        new(1, 1, 3, "Honed", new ColorRgba(28, 62, 38, 246), new ColorRgba(116, 206, 128, 255), default, false),
-        new(2, 4, 6, "Tempered", new ColorRgba(22, 46, 88, 246), new ColorRgba(104, 168, 255, 255), default, false),
-        new(3, 7, 8, "Runed", new ColorRgba(56, 30, 92, 248), new ColorRgba(194, 128, 255, 255), new ColorRgba(170, 104, 240, 120), false),
-        new(4, 9, 9, "Exalted", new ColorRgba(92, 62, 16, 248), new ColorRgba(255, 198, 70, 255), new ColorRgba(255, 180, 60, 130), false),
-        new(5, 10, 10, "Mythic", new ColorRgba(100, 24, 26, 250), new ColorRgba(255, 120, 84, 255), new ColorRgba(255, 150, 70, 150), true),
+        new(1, 1, 3, "enhancement.tier.honed", new ColorRgba(28, 62, 38, 246), new ColorRgba(116, 206, 128, 255), default, false),
+        new(2, 4, 6, "enhancement.tier.tempered", new ColorRgba(22, 46, 88, 246), new ColorRgba(104, 168, 255, 255), default, false),
+        new(3, 7, 8, "enhancement.tier.runed", new ColorRgba(56, 30, 92, 248), new ColorRgba(194, 128, 255, 255), new ColorRgba(170, 104, 240, 120), false),
+        new(4, 9, 9, "enhancement.tier.exalted", new ColorRgba(92, 62, 16, 248), new ColorRgba(255, 198, 70, 255), new ColorRgba(255, 180, 60, 130), false),
+        new(5, 10, 10, "enhancement.tier.mythic", new ColorRgba(100, 24, 26, 250), new ColorRgba(255, 120, 84, 255), new ColorRgba(255, 150, 70, 150), true),
     ];
 
     private static readonly string[] s_badges = CreateBadges();

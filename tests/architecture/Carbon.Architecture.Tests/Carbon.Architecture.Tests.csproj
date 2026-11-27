@@ -40,4 +40,13 @@
         <ProjectReference Include="..\..\..\server\Carbon.Infrastructure\Carbon.Infrastructure.csproj" />
         <ProjectReference Include="..\..\..\server\Carbon.Server.Configuration\Carbon.Server.Configuration.csproj" />
     </ItemGroup>
+
+    <!-- Roslyn syntax parsing for the hardcoded UI literal guard (ADR-023 D7). -->
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="LocalizationLiteralAllowlist.txt" />
+    </ItemGroup>
 </Project>

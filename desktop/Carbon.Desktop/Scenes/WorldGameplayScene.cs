@@ -7,6 +7,7 @@ using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions.Configuration;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Input;
@@ -744,7 +745,7 @@ public sealed class WorldGameplayScene : GameScene
                 {
                     if (_session.TrySortInventory())
                     {
-                        _hudRenderer.PushNotification("Backpack sorted");
+                        _hudRenderer.PushNotification(GameText.Get("inventory.sorted"));
                     }
 
                     return;
@@ -756,7 +757,7 @@ public sealed class WorldGameplayScene : GameScene
                     {
                         if (!_hudRenderer.InventoryDialog.OpenSplit(clickedSlot, in invSlots[clickedSlot]))
                         {
-                            _hudRenderer.PushNotification("Only stacks of two or more in the bag can be split");
+                            _hudRenderer.PushNotification(GameText.Get("inventory.split.needs_stack"));
                         }
                     }
                     else if (input.ShiftHeld)

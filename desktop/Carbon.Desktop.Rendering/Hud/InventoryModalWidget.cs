@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -30,6 +31,10 @@ internal sealed class InventoryModalWidget
 
     private readonly List<SkillDefinition> _skillScratch = new(8);
     private readonly ItemTooltipBuilder _tooltip = new();
+    private readonly string[] _heldLabels = new string[PlayerInventoryLayout.HotbarCount];
+    private int _heldLabelVersion = -1;
+    private (InventoryDialogKind Kind, ItemSlot Item, int Quantity, int Version) _dialogTextKey = (InventoryDialogKind.None, ItemSlot.Empty, -1, -1);
+    private (string Title, string Name, string Body, string Confirm) _dialogText = (string.Empty, string.Empty, string.Empty, string.Empty);
 
     /// <summary>Gets the split/confirm dialog state shown on top of the bag.</summary>
     public InventoryDialogState Dialog { get; } = new();
@@ -316,7 +321,7 @@ internal sealed class InventoryModalWidget
 
             if (idx >= PlayerInventoryLayout.Accessory1Slot && item.IsEmpty)
             {
-                DrawCaption(spriteBatch, font, in rect, "Ring", layout.TextScale, s);
+                DrawCaption(spriteBatch, font, in rect, GameText.Get("inventory.ring"), layout.TextScale, s);
             }
 
             if (idx < 9)
@@ -358,7 +363,7 @@ internal sealed class InventoryModalWidget
         RectangleF heldRect = GetHeldSlotRect(in layout);
         ItemSlot heldItem = world.SelectedHotbarSlot < PlayerInventoryLayout.TotalCapacity ? GetSlot(world, world.SelectedHotbarSlot) : ItemSlot.Empty;
         EnhancementSlotDecor.DrawBadgeText(spriteBatch, font, in heldRect, ItemEnhancementPolicy.GetUpgradeLevel(in heldItem), layout.TextScale, s);
-        string heldLabel = s_heldLabels[Math.Min(world.SelectedHotbarSlot, (byte)(s_heldLabels.Length - 1))];
+        string heldLabel = this.GetHeldLabel(world.SelectedHotbarSlot);
         TextMeasureResult heldSize = font.MeasureString(heldLabel, TextLayoutOptions.Default, layout.TextScale);
         spriteBatch.DrawOutlinedString(
             font,
@@ -370,7 +375,7 @@ internal sealed class InventoryModalWidget
             layout.TextScale);
 
         RectangleF sortRect = GetSortButtonRect(in layout);
-        const string sortLabel = "Sort";
+        string sortLabel = GameText.Get("inventory.sort");
         TextMeasureResult size = font.MeasureString(sortLabel, TextLayoutOptions.Default, layout.TextScale);
         spriteBatch.DrawOutlinedString(
             font,
@@ -381,8 +386,6 @@ internal sealed class InventoryModalWidget
             1,
             layout.TextScale);
     }
-
-    private static readonly string[] s_heldLabels = ["Held 1", "Held 2", "Held 3", "Held 4", "Held 5", "Held 6", "Held 7", "Held 8", "Held 9"];
 
     private static ItemSlot GetSlot(IWorldReadModel world, int slotIndex)
     {
@@ -515,7 +518,7 @@ internal sealed class InventoryModalWidget
 
         spriteBatch.DrawOutlinedString(
             font,
-            CarbonUiSkin.TruncateToWidth(font, ControlsHint, tip.Width - (padX * 2f), layout.TextScale),
+            CarbonUiSkin.TruncateToWidth(font, GameText.Get("inventory.controls_hint"), tip.Width - (padX * 2f), layout.TextScale),
             new Vector2(tip.X + padX, y + MathF.Round(2f * s)),
             CarbonUiPalette.BorderOuter,
             black,
@@ -530,7 +533,6 @@ internal sealed class InventoryModalWidget
     internal static RectangleF GetDialogButtonRectForTesting(in PlayerModalLayout layout, InventoryDialogButton button) =>
         GetDialogButtonRect(in layout, button);
 
-    private const string ControlsHint = "Ctrl+Click split  Del destroy  1-9 hotbar";
 
     private static float GetTooltipLineHeight(in PlayerModalLayout layout) =>
         MathF.Round(23f * layout.Scale * layout.TextScale);
@@ -590,21 +592,7 @@ internal sealed class InventoryModalWidget
         RectangleF box = GetDialogRect(in layout);
         RectangleF iconRect = GetDialogIconRect(in layout);
         ItemSlot item = this.Dialog.Item;
-        byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
-        string name = world.Items.GetDisplayName(item.ItemId);
-        if (upg > 0)
-        {
-            name = $"{name} +{upg}";
-        }
-
-        int qty = this.Dialog.EffectiveQuantity;
-        (string title, string body, string confirm) = this.Dialog.Kind switch
-        {
-            InventoryDialogKind.Split => ("Split stack", $"Take {this.Dialog.Quantity} of {item.Quantity}", "Split"),
-            InventoryDialogKind.ConfirmDestroy => ("Destroy item?", qty > 1 ? $"All {qty} are destroyed. No undo." : "It is destroyed. No undo.", "Destroy"),
-            InventoryDialogKind.ConfirmDrop or InventoryDialogKind.None or _ =>
-                ("Drop item?", qty > 1 ? $"Drop {qty} on the ground here?" : "Drop it on the ground here?", "Drop"),
-        };
+        (string title, string name, string body, string confirm) = this.GetDialogText(world);
 
         ItemRarity rarity = ItemRarityColors.GetRarity(world.Items.Rules, item.ItemId);
         float textX = iconRect.Right + MathF.Round(12f * s);
@@ -633,7 +621,7 @@ internal sealed class InventoryModalWidget
             RectangleF bar = GetSplitBarRect(in layout);
             spriteBatch.DrawOutlinedString(
                 font,
-                "Scroll or +/-  (Shift: 10)  Enter: split",
+                GameText.Get("inventory.split.hint"),
                 new Vector2(bar.X, bar.Bottom + MathF.Round(12f * s)),
                 CarbonUiPalette.BorderOuter,
                 black,
@@ -644,7 +632,69 @@ internal sealed class InventoryModalWidget
         }
 
         DrawCentered(spriteBatch, font, GetDialogButtonRect(in layout, InventoryDialogButton.Confirm), confirm, CarbonUiPalette.TextPrimary, layout.TextScale);
-        DrawCentered(spriteBatch, font, GetDialogButtonRect(in layout, InventoryDialogButton.Cancel), "Cancel", CarbonUiPalette.TextMuted, layout.TextScale);
+        DrawCentered(spriteBatch, font, GetDialogButtonRect(in layout, InventoryDialogButton.Cancel), GameText.Get("inventory.cancel"), CarbonUiPalette.TextMuted, layout.TextScale);
+    }
+
+    /// <summary>
+    /// Gets the dialog's title, item name, body and confirm label, rebuilt only when the dialog, its quantity or the
+    /// language changes (no per-frame formatting).
+    /// </summary>
+    private (string Title, string Name, string Body, string Confirm) GetDialogText(IWorldReadModel world)
+    {
+        InventoryDialogState d = this.Dialog;
+        int version = GameText.Current.Version;
+        if (_dialogTextKey == (d.Kind, d.Item, d.Quantity, version))
+        {
+            return _dialogText;
+        }
+
+        ItemSlot item = d.Item;
+        byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
+        string name = world.Items.Rules.ItemCatalog.TryGet(item.ItemId, out ItemCatalogEntry? entry)
+            ? GameText.ItemName(entry.Code, world.Items.GetDisplayName(item.ItemId))
+            : world.Items.GetDisplayName(item.ItemId);
+        if (upg > 0)
+        {
+            name = GameText.Format("inventory.enhanced_name", new TextArg("name", name), new TextArg("level", upg));
+        }
+
+        int qty = d.EffectiveQuantity;
+        _dialogText = d.Kind switch
+        {
+            InventoryDialogKind.Split => (
+                GameText.Get("inventory.split.title"),
+                name,
+                GameText.Format("inventory.split.body", new TextArg("count", d.Quantity), new TextArg("total", item.Quantity)),
+                GameText.Get("inventory.split.confirm")),
+            InventoryDialogKind.ConfirmDestroy => (
+                GameText.Get("inventory.destroy.title"),
+                name,
+                GameText.Plural("inventory.destroy.body", qty, new TextArg("count", qty)),
+                GameText.Get("inventory.destroy.confirm")),
+            InventoryDialogKind.ConfirmDrop or InventoryDialogKind.None or _ => (
+                GameText.Get("inventory.drop.title"),
+                name,
+                GameText.Plural("inventory.drop.body", qty, new TextArg("count", qty)),
+                GameText.Get("inventory.drop.confirm")),
+        };
+        _dialogTextKey = (d.Kind, d.Item, d.Quantity, version);
+        return _dialogText;
+    }
+
+    private string GetHeldLabel(byte hotbarSlot)
+    {
+        int version = GameText.Current.Version;
+        if (_heldLabelVersion != version)
+        {
+            for (int i = 0; i < _heldLabels.Length; i++)
+            {
+                _heldLabels[i] = GameText.Format("inventory.held", new TextArg("slot", i + 1));
+            }
+
+            _heldLabelVersion = version;
+        }
+
+        return _heldLabels[Math.Min(hotbarSlot, (byte)(_heldLabels.Length - 1))];
     }
 
     private static void DrawDialogButton(GeometryBatch batch, RectangleF rect, Vector2? mouse, ColorRgba fill, ColorRgba frame)

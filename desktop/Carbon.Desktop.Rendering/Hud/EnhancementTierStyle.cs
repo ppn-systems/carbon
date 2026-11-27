@@ -12,7 +12,7 @@ namespace Carbon.Desktop.Rendering.Hud;
 /// <param name="Tier">Tier number (<c>0</c> = not enhanced).</param>
 /// <param name="MinLevel">Lowest enhancement level in this tier.</param>
 /// <param name="MaxLevel">Highest enhancement level in this tier.</param>
-/// <param name="Name">Tier name shown in tooltips.</param>
+/// <param name="NameKey">Localization key of the tier name shown in tooltips (<c>enhancement.tier.*</c>).</param>
 /// <param name="Fill">Slot background fill.</param>
 /// <param name="Accent">Badge plate and <c>+N</c> text colour.</param>
 /// <param name="Glow">Innermost glow ring colour (<see cref="ColorRgba.A"/> = 0 for no glow); outer rings fade from it.</param>
@@ -21,7 +21,7 @@ internal readonly record struct EnhancementTierStyle(
     byte Tier,
     byte MinLevel,
     byte MaxLevel,
-    string Name,
+    string NameKey,
     ColorRgba Fill,
     ColorRgba Accent,
     ColorRgba Glow,

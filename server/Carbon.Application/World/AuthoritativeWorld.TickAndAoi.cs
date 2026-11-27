@@ -89,6 +89,7 @@ public sealed partial class AuthoritativeWorld
             }
 
             _creatures.Spawner.TimeOfDayHours = WorldProgression.ComputeTimeOfDayHours(_currentTick, this.TickRate);
+            _creatures.Ai.IsNight = _creatures.Spawner.IsNight;
             _simulation.Tick(new FixedTickArgs(_currentTick, dt, _currentTick * dt));
             this.ProcessSurvivalEventsLocked();
             if ((_currentTick % this.TickRate) == 0UL)

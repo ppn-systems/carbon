@@ -13,21 +13,21 @@ public sealed class EnhancementTierStylesTests
 {
     [Theory]
     [InlineData(0, 0, "")]
-    [InlineData(1, 1, "Honed")]
-    [InlineData(3, 1, "Honed")]
-    [InlineData(4, 2, "Tempered")]
-    [InlineData(6, 2, "Tempered")]
-    [InlineData(7, 3, "Runed")]
-    [InlineData(8, 3, "Runed")]
-    [InlineData(9, 4, "Exalted")]
-    [InlineData(10, 5, "Mythic")]
-    [InlineData(15, 5, "Mythic")]
-    public void Get_EachLevel_MapsToItsTier(byte level, byte tier, string name)
+    [InlineData(1, 1, "enhancement.tier.honed")]
+    [InlineData(3, 1, "enhancement.tier.honed")]
+    [InlineData(4, 2, "enhancement.tier.tempered")]
+    [InlineData(6, 2, "enhancement.tier.tempered")]
+    [InlineData(7, 3, "enhancement.tier.runed")]
+    [InlineData(8, 3, "enhancement.tier.runed")]
+    [InlineData(9, 4, "enhancement.tier.exalted")]
+    [InlineData(10, 5, "enhancement.tier.mythic")]
+    [InlineData(15, 5, "enhancement.tier.mythic")]
+    public void Get_EachLevel_MapsToItsTier(byte level, byte tier, string nameKey)
     {
         EnhancementTierStyle style = EnhancementTierStyles.Get(level);
 
         style.Tier.Should().Be(tier);
-        style.Name.Should().Be(name);
+        style.NameKey.Should().Be(nameKey);
     }
 
     [Fact]
@@ -80,6 +80,6 @@ public sealed class EnhancementTierStylesTests
         ItemTooltipBuilder.Build(new Carbon.Desktop.Abstractions.Configuration.SyncedItemCatalog(), in sword, 15, lines);
 
         EnhancementTierStyle style = EnhancementTierStyles.Get(level);
-        lines.Should().Contain(l => l.Text.Contains(style.Name, System.StringComparison.Ordinal) && l.Color == style.Accent);
+        lines.Should().Contain(l => l.Text.Contains(Carbon.Desktop.Abstractions.Localization.GameText.Get(style.NameKey), System.StringComparison.Ordinal) && l.Color == style.Accent);
     }
 }
