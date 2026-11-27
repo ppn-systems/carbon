@@ -137,7 +137,7 @@ public sealed class CharacterPersistenceTests
         public Harness()
         {
             ItemRules rules = ItemRules.LoadShippedDefaults();
-            NeedsService needs = new(this.Simulation, new BuildingGrid(), 32f, () => rules, () => null, new NeedsConfig(), null, 1UL);
+            NeedsService needs = new(this.Simulation, new BuildingGrid(), 32f, () => rules, () => null, new NeedsConfig(), null, TestGameplayEntropy.Create(1UL));
             this.Persistence = new CharacterPersistence(this.Simulation, needs, TimeProvider.System);
         }
 

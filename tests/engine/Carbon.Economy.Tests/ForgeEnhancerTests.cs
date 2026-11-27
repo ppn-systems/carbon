@@ -179,9 +179,9 @@ public sealed class ForgeEnhancerTests
     [Fact]
     public void CreateRandom_SameInputs_RollTheSameAndANewNonceRollsDifferently()
     {
-        DeterministicRandom a = ForgeEnhancer.CreateRandom(1337UL, 50UL, 9001UL, 1UL);
-        DeterministicRandom b = ForgeEnhancer.CreateRandom(1337UL, 50UL, 9001UL, 1UL);
-        DeterministicRandom c = ForgeEnhancer.CreateRandom(1337UL, 50UL, 9001UL, 2UL);
+        DeterministicRandom a = ForgeEnhancer.CreateRandom(TestGameplayKeys.Key(1337UL), 50UL, 9001UL, 1UL);
+        DeterministicRandom b = ForgeEnhancer.CreateRandom(TestGameplayKeys.Key(1337UL), 50UL, 9001UL, 1UL);
+        DeterministicRandom c = ForgeEnhancer.CreateRandom(TestGameplayKeys.Key(1337UL), 50UL, 9001UL, 2UL);
 
         ulong first = a.NextULong();
         first.Should().Be(b.NextULong(), "replaying the same attempt rolls the same outcome");

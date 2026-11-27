@@ -171,14 +171,14 @@ public sealed class EatActionSystemTests
     public void FoodPoisoningRoll_SameInputs_IsDeterministicAndUniform()
     {
         Entity eater = new(7, 3);
-        FoodPoisoningRoll.Sample(42, eater, 1000, 2).Should().Be(FoodPoisoningRoll.Sample(42, eater, 1000, 2));
-        FoodPoisoningRoll.Sample(42, eater, 1000, 2).Should().NotBe(FoodPoisoningRoll.Sample(43, eater, 1000, 2));
+        FoodPoisoningRoll.Sample(TestGameplayKeys.Key(42), eater, 1000, 2).Should().Be(FoodPoisoningRoll.Sample(TestGameplayKeys.Key(42), eater, 1000, 2));
+        FoodPoisoningRoll.Sample(TestGameplayKeys.Key(42), eater, 1000, 2).Should().NotBe(FoodPoisoningRoll.Sample(TestGameplayKeys.Key(43), eater, 1000, 2));
 
         int below = 0;
         const int Samples = 20_000;
         for (ulong tick = 0; tick < Samples; tick++)
         {
-            double sample = FoodPoisoningRoll.Sample(42, eater, tick, 1);
+            double sample = FoodPoisoningRoll.Sample(TestGameplayKeys.Key(42), eater, tick, 1);
             sample.Should().BeInRange(0.0, 1.0);
             if (sample < 0.15)
             {
@@ -215,7 +215,7 @@ public sealed class EatActionSystemTests
 
         List<bool> first = Run(1234);
         first.Should().HaveCount(40);
-        Run(1234).Should().Equal(first, "the poisoning roll is a pure function of seed, eater, tick and food");
+        Run(1234).Should().Equal(first, "the poisoning roll is a pure function of key, eater, tick and food");
         first.Should().Contain(true).And.Contain(false);
     }
 }

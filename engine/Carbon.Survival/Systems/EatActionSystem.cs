@@ -2,6 +2,7 @@
 
 using System;
 using Carbon.Contracts.Common;
+using Carbon.Primitives.Random;
 using Carbon.Simulation.Clock;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Systems;
@@ -23,21 +24,22 @@ public sealed class EatActionSystem : ISimulationSystem
 {
     private FoodCatalog _catalog;
     private NeedsConfig _config;
-    private readonly ulong _poisonSeed;
+    private readonly IGameplayEntropy _entropy;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EatActionSystem"/> class.
     /// </summary>
     /// <param name="catalog">Food catalog from <c>food.json</c>.</param>
     /// <param name="config">Needs tuning from <c>needs.json</c>.</param>
-    /// <param name="poisonSeed">World seed for the deterministic poisoning roll.</param>
-    public EatActionSystem(FoodCatalog catalog, NeedsConfig config, ulong poisonSeed)
+    /// <param name="entropy">Secret roll key source for the poisoning roll (ADR-026; never the world seed).</param>
+    public EatActionSystem(FoodCatalog catalog, NeedsConfig config, IGameplayEntropy entropy)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(entropy);
         _catalog = catalog;
         _config = config;
-        _poisonSeed = poisonSeed;
+        _entropy = entropy;
     }
 
     /// <inheritdoc/>
@@ -235,7 +237,7 @@ public sealed class EatActionSystem : ISimulationSystem
         float gained = needs.Food - before;
 
         bool poisoned = food.PoisonChance > 0f
-            && FoodPoisoningRoll.Sample(_poisonSeed, entity, tickIndex, foodIndex) < food.PoisonChance;
+            && FoodPoisoningRoll.Sample(_entropy.KeyAt(tickIndex), entity, tickIndex, foodIndex) < food.PoisonChance;
         if (poisoned)
         {
             needs.PoisonRemainingSeconds = MathF.Max(needs.PoisonRemainingSeconds, _config.PoisonDurationSeconds);

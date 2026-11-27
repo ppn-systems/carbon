@@ -121,7 +121,7 @@ public sealed class ForgeEnhancementWorldTests
         }
 
         f.World.StepFixedTick();
-        destroyed.Outcome.Should().Be(EnhancementOutcome.Destroyed, "+9 destroys 15% of attempts; a dozen swords at fixed seeds reach one");
+        destroyed.Outcome.Should().Be(EnhancementOutcome.Destroyed, "+9 destroys 15% of attempts; a dozen swords under a fixed test secret reach one");
         destroyed.PreviousLevel.Should().Be(9);
         List<(ushort SlotIndex, ItemSlot Slot)> snapshot = [];
         f.World.GetInventorySnapshot(Smith, snapshot).Should().BeTrue();
@@ -175,7 +175,16 @@ public sealed class ForgeEnhancementWorldTests
             _accounts = new SqliteAccountStore(factory);
             this.Economy = economy;
             this.Characters = new SqliteCharacterStore(factory);
-            this.World = new AuthoritativeWorld(1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), this.Characters, this.Sink, economy: economy);
+            this.World = new AuthoritativeWorld(
+                1337UL,
+                32f,
+                0.0008f,
+                30,
+                new SqliteChunkDeltaRepository(factory),
+                this.Characters,
+                this.Sink,
+                economy: economy,
+                entropy: TestGameplayEntropy.Create(1337UL));
         }
 
         public GameEconomy Economy { get; }

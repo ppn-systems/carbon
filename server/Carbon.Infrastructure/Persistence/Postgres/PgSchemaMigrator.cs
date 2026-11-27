@@ -82,6 +82,15 @@ public sealed class PgSchemaMigrator : IDatabaseMigrator
         );
         """;
 
+    // ADR-026: the world's gameplay secret (one row). Server-only: never logged, never sent to clients.
+    private const string GameplaySecretSql = """
+        CREATE TABLE IF NOT EXISTS gameplay_secret (
+            id                SMALLINT    NOT NULL PRIMARY KEY CHECK (id = 1),
+            secret            BYTEA       NOT NULL,
+            created_at_utc    TIMESTAMPTZ NOT NULL
+        );
+        """;
+
     private readonly NpgsqlDataSource _dataSource;
 
     /// <summary>
@@ -322,7 +331,42 @@ public sealed class PgSchemaMigrator : IDatabaseMigrator
             ],
             ct).ConfigureAwait(false);
 
+        // ADR-026: secret key for gameplay rolls, persisted so trader stock survives restarts.
+        await ApplyDdlMigrationAsync(conn, tx, "0008_gameplay_secret", GameplaySecretSql, ct).ConfigureAwait(false);
+
         await tx.CommitAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Applies an idempotent DDL migration once and records <paramref name="migrationId"/>.</summary>
+    private static async Task ApplyDdlMigrationAsync(
+        NpgsqlConnection conn,
+        NpgsqlTransaction tx,
+        string migrationId,
+        string ddl,
+        CancellationToken ct)
+    {
+        NpgsqlCommand check = new("SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE id = @id);", conn, tx);
+        await using (ConfiguredAsyncDisposable checkScope = check.ConfigureAwait(false))
+        {
+            _ = check.Parameters.AddWithValue("id", migrationId);
+            if (await check.ExecuteScalarAsync(ct).ConfigureAwait(false) is true)
+            {
+                return;
+            }
+        }
+
+#pragma warning disable CA2100 // DDL is a compile-time constant, never user input.
+        NpgsqlCommand apply = new(ddl, conn, tx);
+#pragma warning restore CA2100
+        await using (ConfiguredAsyncDisposable applyScope = apply.ConfigureAwait(false))
+        {
+            _ = await apply.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        NpgsqlCommand mark = new("INSERT INTO schema_migrations (id) VALUES (@id);", conn, tx);
+        await using ConfiguredAsyncDisposable markScope = mark.ConfigureAwait(false);
+        _ = mark.Parameters.AddWithValue("id", migrationId);
+        _ = await mark.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 
     /// <summary>

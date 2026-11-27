@@ -27,8 +27,8 @@ public sealed class LootRollerTests
 
         for (ulong kill = 0; kill < 500; kill++)
         {
-            DeterministicRandom rngA = LootRoller.CreateRandom(worldSeed: 42, tick: kill, sourceId: 9_000 + kill);
-            DeterministicRandom rngB = LootRoller.CreateRandom(worldSeed: 42, tick: kill, sourceId: 9_000 + kill);
+            DeterministicRandom rngA = LootRoller.CreateRandom(TestGameplayKeys.Key(42), tick: kill, sourceId: 9_000 + kill);
+            DeterministicRandom rngB = LootRoller.CreateRandom(TestGameplayKeys.Key(42), tick: kill, sourceId: 9_000 + kill);
             LootPityState pityA = new(123);
             LootPityState pityB = new(123);
 
@@ -51,7 +51,7 @@ public sealed class LootRollerTests
 
         for (int kill = 0; kill < 10_000; kill++)
         {
-            DeterministicRandom rng = LootRoller.CreateRandom(7, (ulong)kill, 1);
+            DeterministicRandom rng = LootRoller.CreateRandom(TestGameplayKeys.Key(7), (ulong)kill, 1);
             LootContext context = new(SourceLevel: 1 + (kill % 15), IsElite: kill % 10 == 0, IsBoss: kill % 97 == 0);
             LootRollResult result = LootRoller.Roll(slime, context, ref rng, ref pity, drops);
             for (int i = 0; i < result.ItemCount; i++)
@@ -83,7 +83,7 @@ public sealed class LootRollerTests
         for (int kill = 0; kill < 20_000; kill++)
         {
             int level = 1 + (kill % 9);
-            DeterministicRandom rng = LootRoller.CreateRandom(11, (ulong)kill, 2);
+            DeterministicRandom rng = LootRoller.CreateRandom(TestGameplayKeys.Key(11), (ulong)kill, 2);
             LootRollResult result = LootRoller.Roll(slime, new LootContext(level, IsBoss: true), ref rng, ref pity, drops);
             for (int i = 0; i < result.ItemCount; i++)
             {
@@ -109,7 +109,7 @@ public sealed class LootRollerTests
 
         for (int kill = 0; kill < 1_000; kill++)
         {
-            DeterministicRandom rng = LootRoller.CreateRandom(3, (ulong)kill, 5);
+            DeterministicRandom rng = LootRoller.CreateRandom(TestGameplayKeys.Key(3), (ulong)kill, 5);
             LootRollResult result = LootRoller.Roll(skeleton, new LootContext(20), ref rng, ref pity, drops);
             drops[..result.ItemCount].ToArray().Should().Contain(d => d.ItemId == bone && d.Quantity >= 1);
         }
@@ -125,7 +125,7 @@ public sealed class LootRollerTests
 
         for (int kill = 0; kill < 200 && !truncated; kill++)
         {
-            DeterministicRandom rng = LootRoller.CreateRandom(5, (ulong)kill, 9);
+            DeterministicRandom rng = LootRoller.CreateRandom(TestGameplayKeys.Key(5), (ulong)kill, 9);
             LootRollResult result = LootRoller.Roll(orc, new LootContext(30, IsBoss: true), ref rng, ref pity, drops);
             result.ItemCount.Should().BeLessThanOrEqualTo(1);
             truncated |= result.Truncated;
@@ -142,7 +142,7 @@ public sealed class LootRollerTests
         Span<LootDrop> drops = stackalloc LootDrop[16];
         LootPityState pity = default;
         LootContext context = new(80, PlayerLevel: 80, IsElite: true, DistanceTier: 4);
-        DeterministicRandom rng = LootRoller.CreateRandom(1, 1, 1);
+        DeterministicRandom rng = LootRoller.CreateRandom(TestGameplayKeys.Key(1), 1, 1);
         _ = LootRoller.Roll(demon, context, ref rng, ref pity, drops);
 
         long before = GC.GetAllocatedBytesForCurrentThread();
@@ -160,7 +160,7 @@ public sealed class LootRollerTests
         LootTable slime = Table("slime");
         int hardCap = ShippedConfig.Economy.Diamond.Pity.HardCapKills;
         LootPityState pity = new(hardCap - 1);
-        DeterministicRandom rng = LootRoller.CreateRandom(9, 9, 9);
+        DeterministicRandom rng = LootRoller.CreateRandom(TestGameplayKeys.Key(9), 9, 9);
         Span<LootDrop> drops = stackalloc LootDrop[16];
 
         LootRollResult result = LootRoller.Roll(slime, new LootContext(1), ref rng, ref pity, drops);
@@ -181,12 +181,12 @@ public sealed class LootRollerTests
 
         for (int kill = 0; kill < 2_000; kill++)
         {
-            DeterministicRandom rng = LootRoller.CreateRandom(4, (ulong)kill, 4);
+            DeterministicRandom rng = LootRoller.CreateRandom(TestGameplayKeys.Key(4), (ulong)kill, 4);
             LootRollResult trivial = LootRoller.Roll(slime, new LootContext(15, PlayerLevel: 60), ref rng, ref pity, drops);
             trivial.Diamonds.Should().Be(0, "gray monsters never drop diamonds, even at the pity cap");
             trivialGold += trivial.Gold;
 
-            DeterministicRandom rng2 = LootRoller.CreateRandom(4, (ulong)kill, 4);
+            DeterministicRandom rng2 = LootRoller.CreateRandom(TestGameplayKeys.Key(4), (ulong)kill, 4);
             LootPityState fresh = default;
             fairGold += LootRoller.Roll(slime, new LootContext(15, PlayerLevel: 15), ref rng2, ref fresh, drops).Gold;
         }
