@@ -18,6 +18,8 @@ public sealed class ThreatTable
 
     private ThreatEntry[] _entries = new ThreatEntry[8];
     private int _count;
+    private Entity _tauntTarget;
+    private ulong _tauntUntilTick;
 
     /// <summary>
     /// Gets the number of targets currently tracked in this table.
@@ -55,6 +57,101 @@ public sealed class ThreatTable
             Target = target,
             Threat = amount
         };
+    }
+
+    /// <summary>
+    /// Gets the threat accumulated by <paramref name="target"/>.
+    /// </summary>
+    /// <param name="target">Entity handle.</param>
+    /// <returns>The accumulated threat, or 0 when untracked.</returns>
+    public float GetThreat(Entity target)
+    {
+        for (int i = 0; i < _count; i++)
+        {
+            if (_entries[i].Target == target)
+            {
+                return _entries[i].Threat;
+            }
+        }
+
+        return 0f;
+    }
+
+    /// <summary>
+    /// Taunt hook: forces <paramref name="taunter"/> as the selected target until <paramref name="untilTick"/> and raises
+    /// its threat to the current maximum so it stays on top after the taunt expires.
+    /// </summary>
+    /// <param name="taunter">Entity that taunts the owner of this table.</param>
+    /// <param name="untilTick">Exclusive simulation tick at which the forced targeting ends.</param>
+    public void Taunt(Entity taunter, ulong untilTick)
+    {
+        if (!taunter.IsValid)
+        {
+            return;
+        }
+
+        float max = 0f;
+        for (int i = 0; i < _count; i++)
+        {
+            max = MathF.Max(max, _entries[i].Threat);
+        }
+
+        float own = this.GetThreat(taunter);
+        if (max > own)
+        {
+            this.AddThreat(taunter, max - own);
+        }
+        else if (own <= 0f)
+        {
+            this.AddThreat(taunter, 1f);
+        }
+
+        _tauntTarget = taunter;
+        _tauntUntilTick = untilTick;
+    }
+
+    /// <summary>
+    /// Selects the target to pursue with switch hysteresis: an active taunt wins, otherwise the threat leader replaces
+    /// <paramref name="current"/> only when its threat exceeds the current target's threat times <paramref name="switchMargin"/>.
+    /// Prunes dead / invalid entries.
+    /// </summary>
+    /// <param name="entities">Entity manager used to validate target life and health.</param>
+    /// <param name="current">Currently pursued target (may be <see cref="Entity.Null"/>).</param>
+    /// <param name="switchMargin">Hysteresis factor (values below 1 behave as 1).</param>
+    /// <param name="tick">Current simulation tick (for taunt expiry).</param>
+    /// <returns>The selected target, or <see cref="Entity.Null"/> if the table holds no valid target.</returns>
+    public Entity SelectTarget(EntityManager entities, Entity current, float switchMargin, ulong tick)
+    {
+        Entity leader = this.SelectHighestThreatTarget(entities);
+        if (leader == Entity.Null)
+        {
+            _tauntTarget = Entity.Null;
+            return Entity.Null;
+        }
+
+        if (_tauntTarget.IsValid)
+        {
+            if (tick < _tauntUntilTick && this.GetThreat(_tauntTarget) > 0f)
+            {
+                return _tauntTarget;
+            }
+
+            _tauntTarget = Entity.Null;
+        }
+
+        if (!current.IsValid || current == leader)
+        {
+            return leader;
+        }
+
+        float currentThreat = this.GetThreat(current);
+        if (currentThreat <= 0f)
+        {
+            return leader;
+        }
+
+        float margin = MathF.Max(1f, switchMargin);
+        return this.GetThreat(leader) > currentThreat * margin ? leader : current;
     }
 
     /// <summary>
@@ -110,7 +207,12 @@ public sealed class ThreatTable
     /// <summary>
     /// Clears all entries from the threat table.
     /// </summary>
-    public void Clear() => _count = 0;
+    public void Clear()
+    {
+        _count = 0;
+        _tauntTarget = Entity.Null;
+        _tauntUntilTick = 0;
+    }
 
     private void RemoveAt(int index)
     {
