@@ -30,7 +30,7 @@ public sealed class PropRegrowthTests
           "stump": { "seconds": 30, "durability": 30, "yield": 1, "saplingChance": 0.5 },
           "sapling": { "seconds": 20, "durability": 10, "yield": 0 },
           "young": { "seconds": 10, "durabilityShare": 0.5, "yield": 2 },
-          "mature": { "yield": 3, "saplingDrops": { "min": 0, "max": 2 } },
+          "mature": { "yield": 3, "saplingChance": 0.2 },
           "dig": { "bareHandDamage": 4, "axeEfficiency": 0.5 }
         }
         """;

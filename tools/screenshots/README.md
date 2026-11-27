@@ -13,7 +13,7 @@ tools/screenshots/capture.sh /tmp/shots '^(dune_desert|red_mesa)$'
 SKIP_BUILD=1 tools/screenshots/capture.sh /tmp/shots night    # reuse the last build
 ```
 
-Output: one `<scenario>.png` per scenario (1280x720) and `contact_sheet.png`. The client log lines tagged
+Output: one `<scenario>.png` per scenario (`WIDTH`x`HEIGHT`, default 1280x720; the client window follows via `CARBON_WINDOW_SIZE`) and `contact_sheet.png`. The client log lines tagged
 `[Focus]`, `[Biome]` and `[Terrain]` (chunk bake time and vertex count) are echoed per scenario.
 
 ## How it works
@@ -60,13 +60,14 @@ they are active.
 | `CARBON_WEATHER=rain\|clear` | Force the weather. |
 | `CARBON_MACRO_VIEW=1` | Zoomed-out overview. |
 | `CARBON_AUTO_WALK=x,y` | Walk in a constant direction (actors in motion, wakes). |
+| `CARBON_AUTO_ATTACK=s` | Hold hotbar slot 1 and swing the primary action due east every `s` seconds without moving (combat frame stats; the `combat_*` scenarios). It sends real swings, so the server stays authoritative. |
 | `CARBON_CAPTURE_FRAMES=n` | Also capture `n` consecutive frames after the main capture. |
 | `CARBON_OPEN_PANEL=character` | Open the Character tab of the player panel on entry. |
 | `CARBON_CAPTURE_MOUSE=x,y` | Pin the cursor at window pixel `x,y` so hover states (e.g. the stat preview) render. |
 | `CARBON_CAPTURE_MODAL=settings\|controls\|inventory\|character\|skills\|crafting` | Open the Settings window (Display or Controls tab) or a player-window tab before the capture, to review localized UI. |
 | `CARBON_CAPTURE_SCENE=start\|login\|register\|server\|characters` | Capture a menu screen instead of the world (ADR-037). Every value needs `CARBON_AUTO_LOGIN=0` in the scenario. `start` is the first screen, `login`, `register` and `server` open those screens from it, and `characters` registers the scenario's fresh account and captures the character creator. The script gives each scenario its own `CARBON_ACCOUNT_FILE`, so captures never read or write your remembered account. Run with `BASE_PORT=57207` to see the shipped server name instead of "Custom server". |
 | `CARBON_FORGE_PREVIEW=<kind>[:s]` | Open the forge window and play one enhancement effect (`charge`, `success`, `nochange`, `downgrade`, `destroyed`), frozen at `s` seconds when given. Visual only: nothing is sent, the server alone rolls outcomes. The `forge_*` scenarios use it. |
-| `CARBON_UI_PREVIEW=<state>` | Open a UI state for review: `signed-in` (the start screen with a sample remembered account, nothing written to disk; ADR-037), `inventory`, or `inventory-tooltip:N`, `inventory-split:N`, `inventory-destroy:N` for slot `N`, `status-hover:N` / `status-details:N` for the N-th status effect icon (ADR-029), `death` (the ADR-031 death screen for a sample slime kill, with the player drawn downed), or `item-break:N` (the ADR-035 break toast for the item in slot `N`, with its shatter shards replayed every 0.4 s). Visual only; nothing is sent to the server. |
+| `CARBON_UI_PREVIEW=<state>` | Open a UI state for review: `signed-in` (the start screen with a sample remembered account, nothing written to disk; ADR-037), `form-feedback` (the login or register screen with sample input showing inline errors, the caps-lock warning and the password strength meter; nothing is sent), `inventory`, or `inventory-tooltip:N`, `inventory-split:N`, `inventory-destroy:N` for slot `N`, `status-hover:N` / `status-details:N` for the N-th status effect icon (ADR-029), `death` (the ADR-031 death screen for a sample slime kill, with the player drawn downed), or `item-break:N` (the ADR-035 break toast for the item in slot `N`, with its shatter shards replayed every 0.4 s). Visual only; nothing is sent to the server. |
 | `CARBON_OPEN_TRADER=1` | Open the nearest trader's window once its stock arrives. The `trade_*` scenarios use it. |
 | `CARBON_TRADE_PREVIEW=basket` | With `CARBON_OPEN_TRADER=1`: stage every sellable bag stack in the "To sell" basket and two stock rows in the cart (ADR-025 D18). Visual only: nothing is sent until Sell or Buy is pressed. The `trade_basket` scenario uses it. |
 | `CARBON_OPEN_REPAIR=blacksmith\|station` | Open the repair window (ADR-028) at the blacksmith or at a player station. The `repair_*` scenarios use it. |
@@ -78,6 +79,13 @@ they are active.
 
 Script knobs: `SKIP_BUILD=1`, `GRAPHICS_QUALITY` (adds `CARBON_GRAPHICS_QUALITY` to every scenario), `CARBON_SEED`, `BASE_PORT` (TCP; UDP is `BASE_PORT+1`), `WIDTH`/`HEIGHT`,
 `CLIENT_TIMEOUT`, `SERVER_BOOT_TIMEOUT`, `SCENARIOS` (alternative scenario file).
+
+## Hero attack filmstrips
+
+`tools/screenshots/filmstrip.sh [out_dir]` runs the offline art showcase (`Carbon.Desktop --showcase`, no server) under
+xvfb. It writes its pages as PNG, including `hero_attacks.png`: one row per hero attack, sampled through the swing at
+world scale x2, with the same clip mapping, rig renderer and swing VFX as the world. Run it on two commits to compare
+attack animation before and after (`docs/art/combat-animation.md`). `SKIP_BUILD=1` reuses the last Release build.
 
 ## Smoke test
 

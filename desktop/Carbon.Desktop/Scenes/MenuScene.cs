@@ -29,10 +29,17 @@ namespace Carbon.Desktop.Scenes;
 /// </summary>
 internal abstract class MenuScene : GameScene
 {
+    /// <summary>
+    /// <c>CARBON_UI_PREVIEW</c> value that opens the login or register form with sample input showing inline errors, the
+    /// caps-lock warning and the strength meter (screenshots only; nothing is sent).
+    /// </summary>
+    public const string FormFeedbackPreview = "form-feedback";
+
     private readonly MenuSceneCapture _capture;
     private IInputManager? _boundInput;
     private float _backspaceHoldTime;
     private float _backspaceRepeatTime;
+    private bool _shiftDown;
     private Texture2D? _whitePixel;
 
     protected MenuScene(string name, MenuFlow flow, string captureName)
@@ -56,6 +63,15 @@ internal abstract class MenuScene : GameScene
 
     protected bool StatusIsError { get; set; }
 
+    /// <summary>Gets the caps-lock state inferred from typed letters (password fields warn with it).</summary>
+    protected CapsLockTracker CapsLock { get; } = new();
+
+    /// <summary>Gets whether the form-feedback screenshot preview is on.</summary>
+    protected bool IsFormFeedbackPreview => string.Equals(this.Flow.Options.UiPreview, FormFeedbackPreview, StringComparison.Ordinal);
+
+    /// <summary>Gets the panel heading drawn centred over a divider, or <see langword="null"/> for none.</summary>
+    protected virtual string? Header => null;
+
     /// <summary>Gets a value indicating whether the screen shows its final content (for screenshot capture).</summary>
     protected virtual bool ReadyForCapture => true;
 
@@ -78,7 +94,7 @@ internal abstract class MenuScene : GameScene
         base.Enter(context);
         this.DetachInput();
         _boundInput = context.Input;
-        _boundInput.CharacterReceived += this.OnCharacter;
+        _boundInput.CharacterReceived += this.ReceiveCharacter;
     }
 
     /// <inheritdoc/>
@@ -95,7 +111,14 @@ internal abstract class MenuScene : GameScene
         base.Update(context, dt);
         this.Elapsed += (float)dt;
         _ = this.Layout(context.WindowWidth, context.WindowHeight);
-        this.HandleBackspaceRepeat(context.Input.Keyboard, (float)dt);
+        KeyboardSnapshot kb = context.Input.Keyboard;
+        _shiftDown = kb.IsKeyDown(Key.ShiftLeft) || kb.IsKeyDown(Key.ShiftRight);
+        if (kb.IsKeyPressed(Key.CapsLock))
+        {
+            this.CapsLock.ObserveCapsLockKey();
+        }
+
+        this.HandleBackspaceRepeat(kb, (float)dt);
         this.UpdateMenu(context, (float)dt);
     }
 
@@ -139,22 +162,37 @@ internal abstract class MenuScene : GameScene
         spriteBatch.End();
 
         geometry.Begin(proj);
+        if (this.Header is not null)
+        {
+            float cx = card.X + (card.Width * 0.5f);
+            float dividerY = card.Y + 54f;
+            geometry.FillRectangle(new RectangleF(card.X + 28f, dividerY, card.Width - 56f, 1f), MenuPalette.Divider);
+            MenuIcons.DrawDiamond(geometry, new Vector2(cx, dividerY + 0.5f), 4f, CarbonUiPalette.BorderActive);
+        }
+
         this.DrawGeometry(geometry, font);
         geometry.End();
 
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: proj);
         ColorRgba black = CarbonUiPalette.TextOutline;
         string title = GameText.Get("login.title");
-        TextMeasureResult titleMeasure = font.MeasureString(title, TextLayoutOptions.Default, 2f);
-        spriteBatch.DrawOutlinedString(font, title, new Vector2(MathF.Floor((width - titleMeasure.Width) * 0.5f), card.Y - 66f), CarbonUiPalette.TextWarm, black, 2, 2f);
+        TextMeasureResult titleMeasure = font.MeasureString(title, TextLayoutOptions.Default, 3f);
+        Vector2 titlePos = new(MathF.Floor((width - titleMeasure.Width) * 0.5f), card.Y - 96f);
+        spriteBatch.DrawOutlinedString(font, title, titlePos + new Vector2(0f, 3f), new ColorRgba(60, 40, 18, 200), black, 2, 3f);
+        spriteBatch.DrawOutlinedString(font, title, titlePos, CarbonUiPalette.TextWarm, black, 2, 3f);
         string subtitle = GameText.Get("login.subtitle");
         TextMeasureResult subMeasure = font.MeasureString(subtitle, TextLayoutOptions.Default, 1f);
-        spriteBatch.DrawOutlinedString(font, subtitle, new Vector2(MathF.Floor((width - subMeasure.Width) * 0.5f), card.Y - 28f), CarbonUiPalette.TextMuted, black, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, subtitle, new Vector2(MathF.Floor((width - subMeasure.Width) * 0.5f), card.Y - 30f), CarbonUiPalette.TextMuted, black, 1, 1f);
+        if (this.Header is { } header)
+        {
+            TextMeasureResult headerMeasure = font.MeasureString(header, TextLayoutOptions.Default, 1f);
+            spriteBatch.DrawOutlinedString(font, header, new Vector2(MathF.Floor(card.X + ((card.Width - headerMeasure.Width) * 0.5f)), card.Y + 26f), CarbonUiPalette.TextWarm, black, 1, 1f);
+        }
 
         this.DrawTexts(spriteBatch, font);
         if (showStatus)
         {
-            ColorRgba statusColor = this.StatusIsError ? new ColorRgba(235, 130, 130, 255) : CarbonUiPalette.TextPrimary;
+            ColorRgba statusColor = this.StatusIsError ? MenuPalette.ErrorText : CarbonUiPalette.TextPrimary;
             string msg = CarbonUiSkin.TruncateToWidth(font, this.StatusMessage, statusPill.Width - 20f, 1f);
             spriteBatch.DrawOutlinedString(font, msg, new Vector2(statusPill.X + 10f, statusPill.Y + 7f), statusColor, black, 1, 1f);
         }
@@ -265,11 +303,17 @@ internal abstract class MenuScene : GameScene
         }
     }
 
+    private void ReceiveCharacter(char ch)
+    {
+        this.CapsLock.ObserveCharacter(ch, _shiftDown);
+        this.OnCharacter(ch);
+    }
+
     private void DetachInput()
     {
         if (_boundInput is { } bound)
         {
-            bound.CharacterReceived -= this.OnCharacter;
+            bound.CharacterReceived -= this.ReceiveCharacter;
             _boundInput = null;
         }
     }
