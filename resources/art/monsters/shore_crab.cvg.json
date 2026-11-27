@@ -10,7 +10,7 @@
       "x": 0,
       "y": 0
     },
-    "legs": {
+    "legLeft": {
       "x": 0,
       "y": -4.0
     },
@@ -18,11 +18,11 @@
       "x": 0,
       "y": -6.0
     },
-    "clawLeft": {
+    "armBack": {
       "x": -8.0,
       "y": -6.0
     },
-    "clawRight": {
+    "armFront": {
       "x": 8.0,
       "y": -6.0
     },
@@ -59,7 +59,7 @@
     },
     {
       "kind": "polygon",
-      "bone": "legs",
+      "bone": "legLeft",
       "facing": "any",
       "points": [
         [
@@ -85,7 +85,7 @@
     },
     {
       "kind": "polygon",
-      "bone": "legs",
+      "bone": "legLeft",
       "facing": "any",
       "points": [
         [
@@ -111,7 +111,7 @@
     },
     {
       "kind": "polygon",
-      "bone": "legs",
+      "bone": "legLeft",
       "facing": "any",
       "points": [
         [
@@ -137,7 +137,7 @@
     },
     {
       "kind": "polygon",
-      "bone": "legs",
+      "bone": "legLeft",
       "facing": "any",
       "points": [
         [
@@ -163,7 +163,7 @@
     },
     {
       "kind": "polygon",
-      "bone": "legs",
+      "bone": "legLeft",
       "facing": "any",
       "points": [
         [
@@ -189,7 +189,7 @@
     },
     {
       "kind": "polygon",
-      "bone": "legs",
+      "bone": "legLeft",
       "facing": "any",
       "points": [
         [
@@ -278,7 +278,7 @@
     },
     {
       "kind": "polygon",
-      "bone": "clawLeft",
+      "bone": "armBack",
       "facing": "any",
       "points": [
         [
@@ -304,7 +304,7 @@
     },
     {
       "kind": "ellipse",
-      "bone": "clawLeft",
+      "bone": "armBack",
       "facing": "any",
       "x": -12.4,
       "y": -11.6,
@@ -316,7 +316,7 @@
     },
     {
       "kind": "ellipse",
-      "bone": "clawLeft",
+      "bone": "armBack",
       "facing": "any",
       "x": -11.6,
       "y": -12.6,
@@ -326,7 +326,7 @@
     },
     {
       "kind": "polygon",
-      "bone": "clawLeft",
+      "bone": "armBack",
       "facing": "any",
       "points": [
         [
@@ -348,7 +348,7 @@
     },
     {
       "kind": "polygon",
-      "bone": "clawLeft",
+      "bone": "armBack",
       "facing": "any",
       "points": [
         [
@@ -370,7 +370,7 @@
     },
     {
       "kind": "polygon",
-      "bone": "clawRight",
+      "bone": "armFront",
       "facing": "any",
       "points": [
         [
@@ -396,7 +396,7 @@
     },
     {
       "kind": "ellipse",
-      "bone": "clawRight",
+      "bone": "armFront",
       "facing": "any",
       "x": 12.4,
       "y": -11.6,
@@ -408,7 +408,7 @@
     },
     {
       "kind": "ellipse",
-      "bone": "clawRight",
+      "bone": "armFront",
       "facing": "any",
       "x": 11.6,
       "y": -12.6,
@@ -418,7 +418,7 @@
     },
     {
       "kind": "polygon",
-      "bone": "clawRight",
+      "bone": "armFront",
       "facing": "any",
       "points": [
         [
@@ -440,7 +440,7 @@
     },
     {
       "kind": "polygon",
-      "bone": "clawRight",
+      "bone": "armFront",
       "facing": "any",
       "points": [
         [
@@ -623,10 +623,10 @@
               "scaleX": 1.0,
               "scaleY": 1.0
             },
-            "clawLeft": {
+            "armBack": {
               "rotDeg": 0.0
             },
-            "clawRight": {
+            "armFront": {
               "rotDeg": 0.0
             }
           }
@@ -639,11 +639,11 @@
               "scaleY": 0.96,
               "dy": 0.4
             },
-            "clawLeft": {
+            "armBack": {
               "rotDeg": -8.0,
               "dy": -0.6
             },
-            "clawRight": {
+            "armFront": {
               "rotDeg": 8.0,
               "dy": -0.6
             },
@@ -659,10 +659,10 @@
               "scaleX": 1.0,
               "scaleY": 1.0
             },
-            "clawLeft": {
+            "armBack": {
               "rotDeg": 0.0
             },
-            "clawRight": {
+            "armFront": {
               "rotDeg": 0.0
             }
           }
@@ -676,7 +676,7 @@
         {
           "t": 0.0,
           "bones": {
-            "legs": {
+            "legLeft": {
               "dx": -0.8,
               "dy": 0.0
             },
@@ -684,10 +684,10 @@
               "dx": 0.5,
               "rotDeg": -3.0
             },
-            "clawLeft": {
+            "armBack": {
               "dy": -0.6
             },
-            "clawRight": {
+            "armFront": {
               "dy": 0.4
             }
           }
@@ -695,7 +695,7 @@
         {
           "t": 0.5,
           "bones": {
-            "legs": {
+            "legLeft": {
               "dx": 0.8,
               "dy": -0.6
             },
@@ -704,10 +704,10 @@
               "dy": -0.5,
               "rotDeg": 3.0
             },
-            "clawLeft": {
+            "armBack": {
               "dy": 0.4
             },
-            "clawRight": {
+            "armFront": {
               "dy": -0.6
             }
           }
@@ -715,7 +715,7 @@
         {
           "t": 1.0,
           "bones": {
-            "legs": {
+            "legLeft": {
               "dx": -0.8,
               "dy": 0.0
             },
@@ -723,10 +723,10 @@
               "dx": 0.5,
               "rotDeg": -3.0
             },
-            "clawLeft": {
+            "armBack": {
               "dy": -0.6
             },
-            "clawRight": {
+            "armFront": {
               "dy": 0.4
             }
           }
@@ -753,12 +753,12 @@
               "dy": 1.2,
               "scaleY": 0.92
             },
-            "clawLeft": {
+            "armBack": {
               "dx": -2.0,
               "dy": 1.8,
               "rotDeg": -24.0
             },
-            "clawRight": {
+            "armFront": {
               "dx": 2.0,
               "dy": 1.8,
               "rotDeg": 24.0
@@ -772,12 +772,12 @@
               "dy": -1.6,
               "scaleY": 1.06
             },
-            "clawLeft": {
+            "armBack": {
               "dx": 4.5,
               "dy": -4.0,
               "rotDeg": 18.0
             },
-            "clawRight": {
+            "armFront": {
               "dx": -4.5,
               "dy": -4.0,
               "rotDeg": -18.0
@@ -787,12 +787,12 @@
         {
           "t": 0.76,
           "bones": {
-            "clawLeft": {
+            "armBack": {
               "dx": 3.0,
               "dy": -2.5,
               "rotDeg": 10.0
             },
-            "clawRight": {
+            "armFront": {
               "dx": -3.0,
               "dy": -2.5,
               "rotDeg": -10.0

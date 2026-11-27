@@ -194,7 +194,7 @@ public sealed class EconomySimulator
         List<LootTable> tables = [];
         foreach (LootTable table in _economy.Loot.All)
         {
-            if (table.Kind == LootSourceKind.Monster && !table.IsElite && table.MinLevel <= level && level <= table.MaxLevel)
+            if (table.Kind == LootSourceKind.Monster && !table.IsElite && !table.IsBoss && table.MinLevel <= level && level <= table.MaxLevel)
             {
                 tables.Add(table);
             }

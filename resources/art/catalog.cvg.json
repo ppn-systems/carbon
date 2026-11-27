@@ -149,6 +149,15 @@
       "level": 1,
       "accentColor": "#22D3EE",
       "file": "monsters/abyss_eel.cvg.json"
+    },
+    {
+      "archetypeId": 114,
+      "id": "abyss_leviathan",
+      "title": "Abyss Leviathan",
+      "subtitle": "BOSS OF THE ABYSS",
+      "level": 50,
+      "accentColor": "#0EA5E9",
+      "file": "monsters/abyss_leviathan.cvg.json"
     }
   ],
   "npcs": [

@@ -39,6 +39,7 @@ internal static class ArtShowcaseRunner
         (WorldActorCatalog.PiranhaSlime, "attack_leap", "Piranha Slime", "Shallow - Deep"),
         (WorldActorCatalog.DriftJelly, "attack_spell", "Drift Jelly", "Medium - Deep"),
         (WorldActorCatalog.AbyssEel, "attack_leap", "Abyss Eel", "Deep - Abyss"),
+        (WorldActorCatalog.AbyssLeviathan, "attack_spell", "Abyss Leviathan", "Boss - Abyss lair"),
     ];
 
     private static readonly (ushort ArchetypeId, string AttackClip, ActionAnimationKind VfxKind)[] s_monsterLineup =
@@ -64,6 +65,14 @@ internal static class ArtShowcaseRunner
         (WorldActorCatalog.OrcShaman, EntityAttackPhase.KindSpell, 1, 60f, 30f, "Orc Shaman - Hex Cone"),
         (WorldActorCatalog.OrcShaman, EntityAttackPhase.KindProjectile, 0, 0f, 0f, "Orc Shaman - Bolt"),
         (WorldActorCatalog.CrimsonDemon, EntityAttackPhase.KindLeap, 0, 36f, 0f, "Crimson Demon - Leap"),
+    ];
+
+    // ADR-032 D15: the abyss boss's three telegraphed patterns.
+    private static readonly (ushort ArchetypeId, byte Kind, byte Shape, float Radius, float HalfAngleDeg, string Label)[] s_bossAttackLineup =
+    [
+        (WorldActorCatalog.AbyssLeviathan, EntityAttackPhase.KindSpell, 0, 72f, 0f, "Leviathan - Tidal Crush"),
+        (WorldActorCatalog.AbyssLeviathan, EntityAttackPhase.KindLeap, 0, 46f, 0f, "Leviathan - Abyssal Lunge"),
+        (WorldActorCatalog.AbyssLeviathan, EntityAttackPhase.KindMelee, 1, 58f, 120f, "Leviathan - Tail Sweep"),
     ];
 
     // (phase, progress) samples rendered left to right in each filmstrip row.
@@ -235,7 +244,8 @@ internal static class ArtShowcaseRunner
             sprites.End();
             ScreenshotHelper.Capture(window.Device.Gl, w, h, Path.Combine(outputDir, "items_showcase.bmp"));
 
-            RenderAttackPhaseSheet(window, geom, sprites, font, art, ortho, Path.Combine(outputDir, "monsters_attack_phases.bmp"));
+            RenderAttackPhaseSheet(window, geom, sprites, font, art, ortho, s_attackLineup, "MONSTER ATTACK PHASE TIMELINES (SERVER PHASE -> CLIP TIME, ADR-013)", Path.Combine(outputDir, "monsters_attack_phases.bmp"));
+            RenderAttackPhaseSheet(window, geom, sprites, font, art, ortho, s_bossAttackLineup, "ABYSS LEVIATHAN ATTACK PATTERNS AND TELEGRAPHS (ADR-032 D15)", Path.Combine(outputDir, "boss_attack_phases.bmp"));
             RenderDayNightEliteSheet(window, geom, sprites, font, art, ortho, Path.Combine(outputDir, "monsters_day_night_elite.bmp"));
         }
         finally
@@ -337,6 +347,8 @@ internal static class ArtShowcaseRunner
         BitmapFont font,
         CarbonVectorArtLibrary art,
         Matrix4x4 ortho,
+        (ushort ArchetypeId, byte Kind, byte Shape, float Radius, float HalfAngleDeg, string Label)[] lineup,
+        string title,
         string path)
     {
         const float RowHeight = 68f;
@@ -349,7 +361,7 @@ internal static class ArtShowcaseRunner
         window.Device.Clear(ClearBufferMask.ColorBufferBit);
 
         geom.Begin(ortho);
-        for (int row = 0; row < s_attackLineup.Length; row++)
+        for (int row = 0; row < lineup.Length; row++)
         {
             for (int col = 0; col < s_phaseSamples.Length; col++)
             {
@@ -359,9 +371,9 @@ internal static class ArtShowcaseRunner
             }
         }
 
-        for (int row = 0; row < s_attackLineup.Length; row++)
+        for (int row = 0; row < lineup.Length; row++)
         {
-            (ushort archId, byte kind, byte shape, float worldRadius, float halfDeg, _) = s_attackLineup[row];
+            (ushort archId, byte kind, byte shape, float worldRadius, float halfDeg, _) = lineup[row];
             if (!art.TryGetMonster(archId, out CompiledVectorRig? rig))
             {
                 continue;
@@ -399,15 +411,15 @@ internal static class ArtShowcaseRunner
         ColorRgba gold = new(250, 204, 21, 255);
         ColorRgba white = new(241, 245, 249, 255);
         ColorRgba cyan = new(125, 211, 252, 255);
-        sprites.DrawOutlinedString(font, "MONSTER ATTACK PHASE TIMELINES (SERVER PHASE -> CLIP TIME, ADR-013)", new Vector2(24f, 18f), gold, black, 1, 1.2f);
+        sprites.DrawOutlinedString(font, title, new Vector2(24f, 18f), gold, black, 1, 1.2f);
         for (int col = 0; col < s_phaseSamples.Length; col++)
         {
             sprites.DrawOutlinedString(font, s_phaseSamples[col].Label, new Vector2(FirstColX - 44f + (col * ColWidth), 62f), cyan, black, 1, 0.85f);
         }
 
-        for (int row = 0; row < s_attackLineup.Length; row++)
+        for (int row = 0; row < lineup.Length; row++)
         {
-            (ushort archId, byte kind, _, _, _, string label) = s_attackLineup[row];
+            (ushort archId, byte kind, _, _, _, string label) = lineup[row];
             string clip = art.TryGetMonster(archId, out CompiledVectorRig? rig) ? MonsterAttackAnimator.ResolveClip(rig, archId, kind) : "-";
             float y = FirstRowY + (row * RowHeight) + 10f;
             sprites.DrawOutlinedString(font, label, new Vector2(16f, y), white, black, 1, 0.9f);

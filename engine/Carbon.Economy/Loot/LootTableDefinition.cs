@@ -18,6 +18,9 @@ public sealed record LootTableDefinition
     /// <summary>Gets a value indicating whether this table belongs to an elite variant (rolled with elite multipliers).</summary>
     public bool Elite { get; set; }
 
+    /// <summary>Gets a value indicating whether this table belongs to a boss (rolled with boss multipliers, ADR-032 D15).</summary>
+    public bool Boss { get; set; }
+
     /// <summary>Gets the source kind.</summary>
     public LootSourceKind Kind { get; set; }
 

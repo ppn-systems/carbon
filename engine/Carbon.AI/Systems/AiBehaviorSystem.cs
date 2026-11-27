@@ -141,7 +141,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
             {
                 case AiState.Idle:
                 case AiState.Patrol:
-                    Entity target = SelectTarget(world, entities, threatStore, aiEntity, pos, in brain, in tactics, aggroMult, tick.TickIndex, aggroScratch);
+                    Entity target = this.SelectTarget(world, entities, threatStore, aiEntity, pos, in brain, in tactics, aggroMult, tick.TickIndex, aggroScratch);
                     if (target.IsValid)
                     {
                         brain = brain with
@@ -412,7 +412,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
         Vector2 atkTargetPos = entities.GetTransform(brain.TargetEntity).Position;
         float disengageRange = brain.AttackRange * 1.18f;
         bool inDisengageRange = Vector2.DistanceSquared(pos, atkTargetPos) <= (disengageRange * disengageRange);
-        bool canSeeTarget = HasLineOfSight(world, pos, atkTargetPos);
+        bool canSeeTarget = this.HasLineOfSight(world, pos, atkTargetPos);
 
         if (brain.WindupRemainingTicks == 0 && (!canSeeTarget || !inDisengageRange))
         {
@@ -730,7 +730,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
         return brain;
     }
 
-    private static Entity SelectTarget(
+    private Entity SelectTarget(
         WorldSimulation world,
         EntityManager entities,
         EntityAttachmentStore<ThreatTable> threatStore,
@@ -748,7 +748,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
             return threatTarget;
         }
 
-        return FindClosestTarget(world, aiEntity, origin, brain.AggroRadius * aggroMultiplier, brain.TargetLayerMask, scratch);
+        return this.FindClosestTarget(world, aiEntity, origin, brain.AggroRadius * aggroMultiplier, brain.TargetLayerMask, scratch);
     }
 
     private static Entity SelectThreatTarget(
@@ -783,7 +783,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
         }
     }
 
-    private static Entity FindClosestTarget(
+    private Entity FindClosestTarget(
         WorldSimulation world,
         Entity self,
         Vector2 origin,
@@ -810,7 +810,7 @@ public sealed class AiBehaviorSystem : ISimulationSystem
 
             Vector2 candidatePos = world.Entities.GetTransform(candidate).Position;
             float dSq = Vector2.DistanceSquared(origin, candidatePos);
-            if (dSq < bestDistSq && HasLineOfSight(world, origin, candidatePos))
+            if (dSq < bestDistSq && this.HasLineOfSight(world, origin, candidatePos))
             {
                 bestDistSq = dSq;
                 best = candidate;
@@ -820,13 +820,20 @@ public sealed class AiBehaviorSystem : ISimulationSystem
         return best;
     }
 
-    private static bool HasLineOfSight(WorldSimulation world, Vector2 from, Vector2 to)
+    private bool HasLineOfSight(WorldSimulation world, Vector2 from, Vector2 to)
     {
         Vector2 delta = to - from;
         float dist = delta.Length();
         if (dist <= 1e-3f)
         {
             return true;
+        }
+
+        if (TerrainMask.IsWaterBound(_terrainMask) && _grid is not null)
+        {
+            // Deep water is solid to the terrain raycast, so a water creature looks along the grids instead: only what
+            // blocks both it and a walker (cliffs, props, structures) hides a target. Its water and the shore do not.
+            return this.HasWaterSight(from, to, dist);
         }
 
         Ray2D ray = new(from, delta / dist, dist);
@@ -865,6 +872,23 @@ public sealed class AiBehaviorSystem : ISimulationSystem
 
         Ray2D right = new(from - perp, dir, dist);
         return !world.Raycast(in right, out _);
+    }
+
+    private bool HasWaterSight(Vector2 from, Vector2 to, float dist)
+    {
+        int steps = Math.Max(1, (int)MathF.Ceiling(dist / (_tileSize * 0.5f)));
+        for (int step = 1; step <= steps; step++)
+        {
+            Vector2 at = Vector2.Lerp(from, to, step / (float)steps);
+            int tx = (int)MathF.Floor(at.X / _tileSize);
+            int ty = (int)MathF.Floor(at.Y / _tileSize);
+            if (!_grid!.IsWalkable(tx, ty) && !_walkabilityGrid!.IsWalkable(tx, ty))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private bool HasWaterClearance(Vector2 from, Vector2 to, float dist)

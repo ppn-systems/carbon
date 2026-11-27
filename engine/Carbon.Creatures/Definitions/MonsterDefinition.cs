@@ -34,6 +34,12 @@ public sealed class MonsterDefinition : IDataDefinition<string>
     /// <summary>Gets a value indicating whether this definition is an elite variant.</summary>
     public bool IsElite { get; set; }
 
+    /// <summary>
+    /// Gets a value indicating whether this is a boss (ADR-032 D15): it rises only at its lair, never from a spawn
+    /// table, and rolls loot with the boss multipliers.
+    /// </summary>
+    public bool IsBoss { get; set; }
+
     /// <summary>Gets the optional identifier of the elite variant spawned on an elite roll.</summary>
     public string? EliteVariant { get; set; }
 

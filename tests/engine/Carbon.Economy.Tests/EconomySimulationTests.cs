@@ -26,7 +26,7 @@ public sealed class EconomySimulationTests
         TheoryData<string, int> data = [];
         foreach (LootTable table in ShippedConfig.Loot.All)
         {
-            if (table.Kind != LootSourceKind.Monster || table.IsElite)
+            if (table.Kind != LootSourceKind.Monster || table.IsElite || table.IsBoss)
             {
                 continue;
             }

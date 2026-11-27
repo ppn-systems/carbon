@@ -71,6 +71,9 @@ public sealed class SpawningConfig
     /// <summary>Gets the spawn tables of water depth tiers (ADR-032 D14); water without a table spawns nothing.</summary>
     public IReadOnlyList<WaterSpawnTable> WaterSpawnTables { get; set; } = [];
 
+    /// <summary>Gets the abyss boss and its lairs (ADR-032 D15), or <see langword="null"/> for a world without one.</summary>
+    public BossLairConfig? BossLairs { get; set; }
+
     /// <summary>
     /// Parses and validates a <c>spawning.json</c> document.
     /// </summary>
@@ -173,6 +176,13 @@ public sealed class SpawningConfig
                     throw new ArgumentException($"Water spawn table '{table.Tier}' entry #{e} is invalid.");
                 }
             }
+        }
+
+        if (this.BossLairs is { } lairs &&
+            (string.IsNullOrWhiteSpace(lairs.Monster) || !IsProbability(lairs.LairChance) || lairs.ActivationRadius <= 0f ||
+             lairs.RespawnTicks == 0 || lairs.IdleDespawnTicks == 0))
+        {
+            throw new ArgumentException("bossLairs needs a monster, a lairChance in [0, 1], a positive activationRadius, respawnTicks and idleDespawnTicks.");
         }
     }
 

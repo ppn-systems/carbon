@@ -82,6 +82,7 @@ archetype and rig, so clients can show elite status without any extra wire data.
 | `piranha_slime` (water, Shallow–Deep, levels 10–100) | 111 | lunge (leap), bite | brawler, `piranha` pack |
 | `drift_jelly` (water, Medium–Deep, levels 10–100) | 112 | sting pulse (circle spell), tentacle lash | caster (retreat 50) |
 | `abyss_eel` (water, Deep–Abyss, levels 25–100) | 113 | strike (leap), bite | brawler |
+| `abyss_leviathan` (boss, Abyss, its lair's level) | 114 | tidal crush (circle spell), abyssal lunge (leap), tail sweep (240° arc) | boss brawler |
 
 ## Attack kinds and the animation phase contract
 
@@ -273,6 +274,21 @@ Empowerment is applied when a monster spawns: monsters spawned during the day ke
   produce the same monsters, positions, levels, and elites; a client that knows the world seed cannot predict elites.
 - `MonsterSpawnedEvent(Monster, MonsterIndex, Level, IsElite, IsNight, Position)` lets the host resolve
   `visualArchetype` and `lootTableId` from the catalog for replication and drops.
+
+## Abyss boss (ADR-032 D15)
+
+`BossLairSystem` (PostUpdate, registered by `CreatureSystems.Register` when the host passes an `ILairSource` and
+`spawning.json` has a `bossLairs` block) raises `bossLairs.monster` at its lair:
+
+- **Lairs**: `ChunkWorldLairSource` wraps `AbyssLairs`. Lairs are at most one per 1024-tile cell, at an open-abyss
+  site fixed by the world seed (`lairChance` 0.35). Each cell is looked up once and cached.
+- **Rising**: a player within `activationRadius` (1280 units, 40 tiles) of a lair raises its boss. Its level follows
+  the lair's distance from the origin.
+- **Respawn**: after the boss dies, the lair waits `respawnTicks` (54 000, 30 min at 30 Hz).
+- **Sinking back**: with no player within the radius for `idleDespawnTicks` (3600, 2 min), the boss despawns and rises
+  again whole when a player returns. It never despawns while a player in its chunk is fighting it: a target or a wound
+  within `combatGraceTicks` (600, 20 s) holds it.
+- A boss (`isBoss` in `monsters.json`) never appears in a spawn table, and its loot table must be `"boss": true`.
 
 ## Validation
 
