@@ -48,6 +48,7 @@ internal sealed class StatusEffectStripWidget
     private readonly List<string> _panelLines = new(6);
 
     private int _count;
+    private bool _suppressed;
     private int _hovered = -1;
     private RectangleF _panel;
     private RectangleF _tooltipBox;
@@ -56,6 +57,26 @@ internal sealed class StatusEffectStripWidget
 
     /// <summary>Gets the effect id whose details panel is open, or 0.</summary>
     public ushort SelectedEffectId { get; private set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the strip is hidden, as while the death screen is up (ADR-031): nothing is
+    /// drawn, the panel closes, and clicks pass through to the Respawn button.
+    /// </summary>
+    public bool Suppressed
+    {
+        get => _suppressed;
+        set
+        {
+            _suppressed = value;
+            if (value)
+            {
+                this.SelectedEffectId = 0;
+                _count = 0;
+                _hovered = -1;
+                _tooltipText = null;
+            }
+        }
+    }
 
     /// <summary>Gets a value indicating whether the details panel is open.</summary>
     public bool IsPanelOpen => this.SelectedEffectId != 0;
@@ -67,6 +88,11 @@ internal sealed class StatusEffectStripWidget
     public bool HandleClick(Vector2 mouse, IReadOnlyList<LocalStatusEffect> effects, int viewportWidth)
     {
         ArgumentNullException.ThrowIfNull(effects);
+        if (_suppressed)
+        {
+            return false;
+        }
+
         int hit = StatusEffectStripLayout.HitTest(mouse, Math.Min(effects.Count, Math.Min(MaxIcons, StatusEffectStripLayout.Capacity(viewportWidth))), viewportWidth);
         if (hit >= 0)
         {
@@ -93,8 +119,8 @@ internal sealed class StatusEffectStripWidget
     public bool IsOver(Vector2 mouse, IReadOnlyList<LocalStatusEffect> effects, int viewportWidth)
     {
         ArgumentNullException.ThrowIfNull(effects);
-        return StatusEffectStripLayout.HitTest(mouse, Math.Min(effects.Count, Math.Min(MaxIcons, StatusEffectStripLayout.Capacity(viewportWidth))), viewportWidth) >= 0 ||
-            (this.IsPanelOpen && _panel.Contains(mouse));
+        return !_suppressed && (StatusEffectStripLayout.HitTest(mouse, Math.Min(effects.Count, Math.Min(MaxIcons, StatusEffectStripLayout.Capacity(viewportWidth))), viewportWidth) >= 0 ||
+            (this.IsPanelOpen && _panel.Contains(mouse)));
     }
 
     /// <summary>Closes the details panel; returns whether it was open (Esc priority chain).</summary>
@@ -113,6 +139,11 @@ internal sealed class StatusEffectStripWidget
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(font);
+        if (_suppressed)
+        {
+            return;
+        }
+
         IReadOnlyList<LocalStatusEffect> effects = world.LocalStatusEffects;
         _count = Math.Min(effects.Count, Math.Min(MaxIcons, StatusEffectStripLayout.Capacity(viewportWidth)));
         _hovered = mouse is Vector2 m ? StatusEffectStripLayout.HitTest(m, _count, viewportWidth) : -1;

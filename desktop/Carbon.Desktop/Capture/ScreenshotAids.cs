@@ -3,8 +3,10 @@
 using System;
 using System.Globalization;
 using System.Numerics;
+using Carbon.Contracts.Common;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Session;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Input;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Items.Catalog;
@@ -53,6 +55,13 @@ internal sealed class ScreenshotAids(DesktopOptions options)
         if (hud is not null && options.UiPreview is { Length: > 0 } statusPreview && statusPreview.StartsWith("status-", StringComparison.Ordinal))
         {
             return ApplyStatusPreview(hud, session, statusPreview, viewportWidth);
+        }
+
+        if (hud is not null && string.Equals(options.UiPreview, "death", StringComparison.Ordinal))
+        {
+            // ADR-031 death screen review: a sample slime kill that dropped 1,250 gold (visual only, nothing is sent).
+            hud.DeathPreview = new DeathView(DeathCause.Monster, 0, 1_250L, "monster.wild_slime.name");
+            return null;
         }
 
         if (hud is null || options.UiPreview is not { Length: > 0 } preview || !preview.StartsWith("inventory", StringComparison.Ordinal))

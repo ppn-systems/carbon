@@ -141,6 +141,24 @@ public sealed class StatusEffectStripTests
     }
 
     [Fact]
+    public void Suppressed_WhileTheDeathScreenIsUp_ClosesThePanelAndLetsClicksThroughToRespawn()
+    {
+        StatusEffectStripWidget strip = new();
+        Vector2 poisonIcon = Centre(StatusEffectStripLayout.Icon(0, 1280));
+        _ = strip.HandleClick(poisonIcon, s_effects, 1280);
+        strip.IsPanelOpen.Should().BeTrue();
+
+        strip.Suppressed = true;
+
+        strip.IsPanelOpen.Should().BeFalse("the death screen goes on top (ADR-031)");
+        strip.HandleClick(poisonIcon, s_effects, 1280).Should().BeFalse("a click on a hidden icon belongs to the death screen");
+        strip.IsOver(poisonIcon, s_effects, 1280).Should().BeFalse("holding attack over the hidden strip is not blocked by it");
+
+        strip.Suppressed = false;
+        strip.HandleClick(poisonIcon, s_effects, 1280).Should().BeTrue("after the respawn the strip takes clicks again");
+    }
+
+    [Fact]
     public void ForEffect_PoisonAndBleedPulses_AreTintedByTheirKey()
     {
         StatusEffectCatalog shipped = StatusEffectCatalog.LoadShippedDefaults();

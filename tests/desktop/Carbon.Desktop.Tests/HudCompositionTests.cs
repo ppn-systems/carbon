@@ -30,6 +30,23 @@ public sealed class HudCompositionTests
     }
 
     [Fact]
+    public void DeathOverlay_DrawLists_VeilThenScreen_AndNeverOnTheMainHud()
+    {
+        HudComposition.DeathVeil.ToArray().Should().Equal([HudElement.DeathVeil], "the veil is drawn first, under the panel (ADR-031)");
+        HudComposition.DeathScreen.ToArray().Should().Equal([HudElement.DeathScreen]);
+        HudComposition.MainHud.ToArray().Should().NotContain([HudElement.DeathVeil, HudElement.DeathScreen], "the death screen shows only while dead");
+    }
+
+    [Fact]
+    public void DeathOverlay_DrawLists_NeverIncludeTheStatusStrip_SoTheDeathScreenStaysOnTop()
+    {
+        // The renderer draws MainHud first and the death lists last; the strip belongs to MainHud only (ADR-029, ADR-031).
+        HudComposition.MainHud.ToArray().Should().Contain(HudElement.StatusEffects);
+        HudComposition.DeathVeil.ToArray().Should().NotContain(HudElement.StatusEffects, "nothing of the strip may draw over the veil");
+        HudComposition.DeathScreen.ToArray().Should().NotContain(HudElement.StatusEffects, "nothing of the strip may draw over the death panel");
+    }
+
+    [Fact]
     public void InventoryHeader_DrawList_ShowsCurrency() =>
         HudComposition.InventoryHeader.ToArray().Should().Contain(HudElement.Wallet, "the inventory window is where balances stay visible");
 

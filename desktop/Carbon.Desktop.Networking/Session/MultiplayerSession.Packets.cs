@@ -97,6 +97,7 @@ public sealed partial class MultiplayerSession
         _tcpSubscriptions.Add(tcp.On<StatusEffectSync>(this.OnStatusEffectSync));
         _tcpSubscriptions.Add(tcp.On<WalletSync>(this.OnWalletSync));
         _tcpSubscriptions.Add(tcp.On<TraderStock>(_trading.OnStock));
+        _tcpSubscriptions.Add(tcp.On<PlayerDeath>(_death.OnPlayerDeath));
         _tcpSubscriptions.Add(tcp.On<EnhancementAnnouncement>(this.OnEnhancementAnnouncement));
         _tcpSubscriptions.Add(tcp.On<SkillCastBroadcast>(this.OnSkillCastBroadcast));
         _tcpSubscriptions.Add(tcp.On<EntityAttackPhase>(this.OnEntityAttackPhase));
@@ -1072,7 +1073,6 @@ public sealed partial class MultiplayerSession
                 if (pkt.IsKilled)
                 {
                     _lockedTargetNetworkId = 0UL;
-                    _hudNotifications.Add(GameText.Get("hud.slain"));
                     _combatEvents.Add(new CombatFeedbackEvent(
                         worldPos + new Vector2(0f, -20f),
                         0f,

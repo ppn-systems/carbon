@@ -97,4 +97,10 @@ public interface IGameplayController
     /// </summary>
     /// <returns><see langword="true"/> when the request was sent.</returns>
     bool TryToggleRest();
+
+    /// <summary>
+    /// Asks the server to respawn the dead local player (ADR-031). Sends at most one request until the server answers.
+    /// </summary>
+    /// <returns><see langword="true"/> when a request was sent; <see langword="false"/> when alive or already waiting.</returns>
+    bool TryRequestRespawn() => false;
 }
