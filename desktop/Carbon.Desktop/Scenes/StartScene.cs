@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Identity;
 using Carbon.Desktop.Abstractions.Localization;
+using Carbon.Desktop.Capture;
 using Carbon.Desktop.Menu;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching.Common;
@@ -102,6 +103,10 @@ internal sealed class StartScene : MenuScene
             case "characters":
                 // Screenshot review: register the configured account and stop at character select.
                 _pendingSignIn = this.Flow.Session.RegisterAsync(server.Host, server.Port, this.Flow.Options.Username, this.Flow.Options.Password);
+                return;
+            case RosterCapture.SceneName:
+                // Screenshot review: register, create two sample heroes, and stop at the hero roster.
+                _pendingSignIn = RosterCapture.RegisterWithHeroesAsync(this.Flow.Session, server, this.Flow.Options);
                 return;
             default:
                 break;

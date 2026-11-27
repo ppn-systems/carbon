@@ -106,6 +106,7 @@ interact_door      | CARBON_DEBUG_SPAWN_POI=RiverVillage:House CARBON_DEBUG_STAR
 interact_trade     | CARBON_DEBUG_SPAWN_POI=RiverVillage CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear
 # --- classless start (ADR-030): the creator has no class choice, and new characters arrive empty-handed ---
 char_creator       | | CARBON_AUTO_LOGIN=0 CARBON_CAPTURE_SCENE=characters
+char_roster        | | CARBON_AUTO_LOGIN=0 CARBON_CAPTURE_SCENE=roster
 # --- account menus (ADR-037): start screen signed out and signed in, login, register, server ---
 menu_start_out     | | CARBON_AUTO_LOGIN=0 CARBON_CAPTURE_SCENE=start
 menu_start_in      | | CARBON_AUTO_LOGIN=0 CARBON_CAPTURE_SCENE=start CARBON_UI_PREVIEW=signed-in
