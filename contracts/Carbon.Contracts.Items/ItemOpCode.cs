@@ -56,10 +56,10 @@ public static class ItemOpCode
     /// <summary>C2S: open a trader's window (answered with <see cref="TraderStock"/>).</summary>
     public const ushort TraderOpen = 0x4040;
 
-    /// <summary>C2S: buy units from a trader stock slot (answered with <c>MutationResult</c>).</summary>
+    /// <summary>C2S: buy units from a trader stock slot (answered with <c>MutationResult</c>). The desktop client sends <see cref="TraderBuyBatch"/> instead (ADR-025 D18).</summary>
     public const ushort TraderBuy = 0x4041;
 
-    /// <summary>C2S: sell a bag stack to a trader (answered with <c>MutationResult</c>).</summary>
+    /// <summary>C2S: sell a bag stack to a trader (answered with <c>MutationResult</c>). The desktop client sends <see cref="TraderSellBatch"/> instead (ADR-025 D18).</summary>
     public const ushort TraderSell = 0x4042;
 
     /// <summary>S2C: a trader's stock, prices, restock countdown and the player's sell prices.</summary>
@@ -72,6 +72,17 @@ public static class ItemOpCode
 
     /// <summary>S2C: the outcome of <see cref="RepairItemRequest"/>.</summary>
     public const ushort RepairItemResult = 0x4051;
+
+    // ── Trader basket and cart (0x4052–0x4057, ADR-025 D18) ────────────────
+
+    /// <summary>C2S: sell a whole basket of bag lines to a trader, all or nothing (answered with <see cref="TraderBatchResult"/>).</summary>
+    public const ushort TraderSellBatch = 0x4052;
+
+    /// <summary>C2S: buy a whole cart of stock lines from a trader, all or nothing (answered with <see cref="TraderBatchResult"/>).</summary>
+    public const ushort TraderBuyBatch = 0x4053;
+
+    /// <summary>S2C: the outcome of <see cref="TraderSellBatch"/> or <see cref="TraderBuyBatch"/>.</summary>
+    public const ushort TraderBatchResult = 0x4054;
 
     // ── Death and respawn (0x4078–0x407F, ADR-031) ──────────────────────────
 

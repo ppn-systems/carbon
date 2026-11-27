@@ -108,6 +108,37 @@ internal sealed class TradeService : IWorldTradeService
     public ValueTask<WorldMutationOutcome> SubmitTraderSellAsync(ulong connectionId, ulong traderNetworkId, ushort slotIndex, ushort quantity) =>
         _commands.SubmitTargeted(WorldCommandKind.TraderSell, connectionId, traderNetworkId, slotIndex, quantity, 0);
 
+    /// <inheritdoc/>
+    public ValueTask<WorldMutationOutcome> SubmitTraderSellBatchAsync(ulong connectionId, ulong traderNetworkId, ushort[] slotIndices, ushort[] itemIds, ushort[] quantities, long expectedGold)
+    {
+        ArgumentNullException.ThrowIfNull(slotIndices);
+        ArgumentNullException.ThrowIfNull(itemIds);
+        ArgumentNullException.ThrowIfNull(quantities);
+        return !IsWellFormed(slotIndices.Length, itemIds.Length, quantities.Length, PlayerInventoryLayout.BagLimit)
+            ? ValueTask.FromResult(Refused(OpStatus.Invalid, TradeBatchError.InvalidRequest))
+            : _commands.SubmitTargeted(WorldCommandKind.TraderSellBatch, connectionId, traderNetworkId, new BatchPayload(slotIndices, itemIds, quantities, 0, expectedGold));
+    }
+
+    /// <inheritdoc/>
+    public ValueTask<WorldMutationOutcome> SubmitTraderBuyBatchAsync(ulong connectionId, ulong traderNetworkId, long epoch, byte[] stockSlots, ushort[] itemIds, ushort[] quantities, long expectedGold)
+    {
+        ArgumentNullException.ThrowIfNull(stockSlots);
+        ArgumentNullException.ThrowIfNull(itemIds);
+        ArgumentNullException.ThrowIfNull(quantities);
+        if (!IsWellFormed(stockSlots.Length, itemIds.Length, quantities.Length, TraderCatalog.MaxSlots))
+        {
+            return ValueTask.FromResult(Refused(OpStatus.Invalid, TradeBatchError.InvalidRequest));
+        }
+
+        ushort[] slots = new ushort[stockSlots.Length];
+        for (int i = 0; i < slots.Length; i++)
+        {
+            slots[i] = stockSlots[i];
+        }
+
+        return _commands.SubmitTargeted(WorldCommandKind.TraderBuyBatch, connectionId, traderNetworkId, new BatchPayload(slots, itemIds, quantities, epoch, expectedGold));
+    }
+
     /// <summary>Runs the queued trade requests. Call on the tick, under the world lock.</summary>
     public void DrainLocked() => _commands.Drain(_execute);
 
@@ -183,6 +214,54 @@ internal sealed class TradeService : IWorldTradeService
         return this.QueueStock(state, traderNetworkId, trader, economy);
     }
 
+    /// <summary>
+    /// Sells a whole basket at the economy's vendor sell prices, all or nothing (ADR-025 D18; synchronous form). A
+    /// refusal for changed prices still pushes a fresh stock, so the window can show them for a re-confirm. Call under
+    /// the world lock.
+    /// </summary>
+    public WorldMutationOutcome SellBatchLocked(ulong connectionId, ulong traderNetworkId, ReadOnlySpan<TradeLine> lines, long expectedGold)
+    {
+        OpStatus status = this.TryResolve(connectionId, traderNetworkId, out PlayerState? state, out TraderIdentity trader, out GameEconomy? economy);
+        if (status != OpStatus.Ok)
+        {
+            return Refused(status, TradeBatchError.None);
+        }
+
+        InventoryContainer bag = state!.Inventory;
+        Span<ItemSlot> before = stackalloc ItemSlot[bag.Slots.Length];
+        bag.Slots.CopyTo(before);
+        TradeBatchOutcome sold = economy!.Vendor.TrySellBatch(state.Wallet, bag, lines, PlayerInventoryLayout.BagLimit, expectedGold, _tick());
+        return this.Finish(sold, state, before, traderNetworkId, trader, economy);
+    }
+
+    /// <summary>Buys a whole cart, all or nothing (ADR-025 D18; synchronous form). Call under the world lock.</summary>
+    public WorldMutationOutcome BuyBatchLocked(ulong connectionId, ulong traderNetworkId, ReadOnlySpan<TradeLine> lines, long epoch, long expectedGold)
+    {
+        OpStatus status = this.TryResolve(connectionId, traderNetworkId, out PlayerState? state, out TraderIdentity trader, out GameEconomy? economy);
+        if (status != OpStatus.Ok)
+        {
+            return Refused(status, TradeBatchError.None);
+        }
+
+        InventoryContainer bag = state!.Inventory;
+        Span<ItemSlot> before = stackalloc ItemSlot[bag.Slots.Length];
+        bag.Slots.CopyTo(before);
+        TradeBatchOutcome bought = _book.TryBuyBatch(
+            economy!.Traders!,
+            economy.Prices,
+            trader,
+            _time.GetUtcNow().ToUnixTimeSeconds(),
+            state.Wallet,
+            bag,
+            lines,
+            epoch,
+            expectedGold,
+            state.Level,
+            Math.Min(PlayerInventoryLayout.BagLimit, bag.Capacity),
+            _tick());
+        return this.Finish(bought, state, before, traderNetworkId, trader, economy);
+    }
+
     /// <summary>Loads persisted sales. Call once at boot.</summary>
     public async Task LoadAsync(CancellationToken ct = default)
     {
@@ -246,14 +325,62 @@ internal sealed class TradeService : IWorldTradeService
         }
     }
 
+    private static bool IsWellFormed(int slots, int items, int quantities, int maxLines) =>
+        slots > 0 && slots <= maxLines && items == slots && quantities == slots;
+
+    private static WorldMutationOutcome Refused(OpStatus status, TradeBatchError error, int line = -1) =>
+        new(status, new TradeBatchReceipt(error, line is >= 0 and < byte.MaxValue ? (byte)line : byte.MaxValue).Pack());
+
+    private WorldMutationOutcome Finish(in TradeBatchOutcome outcome, PlayerState state, ReadOnlySpan<ItemSlot> before, ulong traderNetworkId, in TraderIdentity trader, GameEconomy economy)
+    {
+        if (!outcome.IsOk)
+        {
+            if (outcome.Error == TradeBatchError.PricesChanged)
+            {
+                _ = this.QueueStock(state, traderNetworkId, trader, economy);
+            }
+
+            return Refused(TradeBatchOutcome.ToOpStatus(outcome.Error), outcome.Error, outcome.Line);
+        }
+
+        this.StageChanges(state, before);
+        OpStatus stock = this.QueueStock(state, traderNetworkId, trader, economy);
+        return new WorldMutationOutcome(stock, new TradeBatchReceipt(TradeBatchError.None, byte.MaxValue).Pack());
+    }
+
+    private WorldMutationOutcome ExecuteBatch(in WorldCommand command, ulong trader)
+    {
+        if (command.Payload is not BatchPayload batch || batch.Slots.Length > PlayerInventoryLayout.BagLimit)
+        {
+            return Refused(OpStatus.Invalid, TradeBatchError.InvalidRequest);
+        }
+
+        Span<TradeLine> lines = stackalloc TradeLine[PlayerInventoryLayout.BagLimit];
+        for (int i = 0; i < batch.Slots.Length; i++)
+        {
+            lines[i] = new TradeLine(batch.Slots[i], batch.ItemIds[i], batch.Quantities[i]);
+        }
+
+        ReadOnlySpan<TradeLine> used = lines[..batch.Slots.Length];
+        return command.Kind == WorldCommandKind.TraderSellBatch
+            ? this.SellBatchLocked(command.ConnectionId, trader, used, batch.ExpectedGold)
+            : this.BuyBatchLocked(command.ConnectionId, trader, used, batch.Epoch, batch.ExpectedGold);
+    }
+
     private WorldMutationOutcome Execute(WorldCommand command)
     {
         ulong trader = (uint)command.TileX | ((ulong)(uint)command.TileY << 32);
+        if (command.Kind is WorldCommandKind.TraderSellBatch or WorldCommandKind.TraderBuyBatch)
+        {
+            return this.ExecuteBatch(command, trader);
+        }
+
         OpStatus status = command.Kind switch
         {
             WorldCommandKind.TraderOpen => this.OpenLocked(command.ConnectionId, trader),
             WorldCommandKind.TraderBuy => this.BuyLocked(command.ConnectionId, trader, command.Arg0, command.Arg1, command.Arg2),
             WorldCommandKind.TraderSell => this.SellLocked(command.ConnectionId, trader, command.Arg0, command.Arg1),
+            WorldCommandKind.TraderSellBatch or WorldCommandKind.TraderBuyBatch => OpStatus.Invalid,
             WorldCommandKind.HarvestProp or WorldCommandKind.PlaceStructure or WorldCommandKind.DemolishStructure or
             WorldCommandKind.ToggleDoor or WorldCommandKind.SetResting or WorldCommandKind.SelectHotbarSlot or
             WorldCommandKind.CraftRecipe or WorldCommandKind.MoveInventorySlot or WorldCommandKind.UpgradeInventoryItem or
@@ -375,4 +502,7 @@ internal sealed class TradeService : IWorldTradeService
                 [])));
         return OpStatus.Ok;
     }
+
+    /// <summary>The lines of a queued basket or cart (allocated on the I/O thread, read on the tick).</summary>
+    private sealed record BatchPayload(ushort[] Slots, ushort[] ItemIds, ushort[] Quantities, long Epoch, long ExpectedGold);
 }

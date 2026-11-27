@@ -3,6 +3,8 @@
 - **Date**: 2026-11-27
 - **Status**: Proposed
 - **Amended by**: [ADR-026](ADR-026-server-secret-gameplay-entropy.md) — gameplay rolls use a server-only secret, not the world seed
+- **Amended**: 2026-11-27 — [Sell basket and buy cart](#sell-basket-and-buy-cart-amendment-2026-11-27) (D18–D23): trades are
+  staged in the window and committed as one all-or-nothing batch
 - **Scope**: `engine/Carbon.Maps` (Building, Landmarks, Settlements, Streaming), `engine/Carbon.Economy` (Trading),
   `contracts/Carbon.Contracts.Items`, `server/Carbon.Application` (Actors, Commerce), `server/Carbon.Infrastructure`
   (persistence), `desktop/` (rendering, trade window), `resources/config`, `resources/art/structures`
@@ -139,6 +141,59 @@
       The trade window's Enhance button calls the existing forge entry point, `WorldGameplayScene.OpenForgeWindow`. It
       adds no enhancement UI and no new controller method.
 
+### Sell basket and buy cart (amendment, 2026-11-27)
+
+The owner's feedback: a click in the trade window sold the item at once. Every instant trade path before this amendment:
+
+| Path | Where | Effect |
+| :--- | :--- | :--- |
+| Click a bag item | `TradeInteraction.HandleWindowInput` → `TraderSession.TrySell(slot, 1)` | sells 1 unit (`TraderSell` `0x4042`) |
+| Shift+click a bag item | same, `quantity = slot.Quantity` | sells the whole stack, no confirmation |
+| Click a stock row | `TraderSession.TryBuy(row, 1)` | buys 1 unit (`TraderBuy` `0x4041`) |
+| Shift+click a stock row | same, `BulkBuy = 5` | buys 5 units |
+| Drag | none | the trade window had no drag; `InventoryInputController` is not routed while it is open |
+| `VendorBuyItem` / `VendorSellItem` (`0x4007`/`0x4008`) | `IGameplayController.TryVendorBuy/TryVendorSell` | no caller in the client |
+
+18. **D18 — Staged trades.** The trade window stages trades and commits them only on a button press.
+    - **Sell basket ("To sell").** A click or a drag moves a bag item into the basket: one unit, or the whole stack with
+      Shift; a quantity control (−/+) adjusts each line up to the slot's quantity. Each line shows its unit price and
+      subtotal, with a running total. **Sell** commits; **Clear**, closing the window, or walking out of range returns
+      every line.
+    - **Buy cart.** This is symmetric. A click on a stock row adds a unit (Shift adds 5), capped by the units left. The
+      total is shown against the wallet, and **Buy** is disabled while the total exceeds it.
+    - A basket line only *reserves* units in the UI: the bag cell shows them as set aside, and the server sees nothing
+      until the commit. Equipment slots (`36..41`) are never shown and can never be added; the server refuses them too.
+    - Adding an enhanced item (`UpgradeLevel > 0`) marks its line, and the first press of **Sell** asks to confirm. The
+      second press sells.
+19. **D19 — Wire.** New opcodes in `0x4052–0x4057` (after ADR-028's `0x4050`/`0x4051`):
+    - C2S `TraderSellBatch` `0x4052`: trader, parallel lists of bag slot, the item the player saw there and units, and
+      the total gold the window showed.
+    - C2S `TraderBuyBatch` `0x4053`: trader, epoch, parallel lists of stock slot, item and units, and the total.
+    - S2C `TraderBatchResult` `0x4054`: trader, kind (sell/buy), `OpStatus`, a `TradeBatchError` code and the index
+      of the failing line. It carries codes only; the client maps each code to a `[trade_basket]` text.
+    - `0x4055–0x4057` stay free.
+    - `TraderSell` and `TraderBuy` keep working for older clients, but the desktop client no longer sends them. A
+      later protocol bump can retire them, like `RepairInventoryItem` (ADR-028).
+20. **D20 — All or nothing.** `VendorService.TrySellBatch` and `TraderBook.TryBuyBatch` validate every line before
+    anything changes, then commit wallet, bag and sold counts together.
+    - **Sell.** Bag slots only, no duplicate slots, each slot still holds the item and units named (`BagChanged`), and
+      every item sells (`NotSellable`).
+    - **Buy.** Current epoch, no duplicate slots, each stock slot still offers that item, enough units left
+      (`SoldOut`), enough gold (`NotEnoughGold`), and everything fits in the bag (`BagFull`, via `InventoryDraft`).
+    - **Prices.** The server recomputes every price, and a total other than the confirmed one is refused as
+      `PricesChanged`. A buy against an older epoch is refused the same way.
+21. **D21 — Re-confirm.** On a `PricesChanged` refusal the server pushes a fresh `TraderStock`.
+    - The client re-prices the lines it still holds. If any price, the epoch or a line's stock moved since the player
+      last looked, it shows "prices changed", and the button must be pressed once more to accept the new total.
+    - The same happens when a restock arrives while the cart is open.
+22. **D22 — Tick and queue.** A batch is one `WorldCommand` on `TradeService`'s queue (ADR-017).
+    - Its lines ride in the new `WorldCommand.Payload`, allocated on the I/O thread.
+    - The tick copies them into a `stackalloc` span, so draining stays allocation-free.
+    - The outcome reaches the handler as a packed `TradeBatchReceipt` in `WorldMutationOutcome.Revision`, the same
+      way as `RepairReceipt`.
+23. **D23 — Client.** The basket and cart live in a plain `TradeBasket` model (`desktop/`): tested without a window,
+    owned by `TradeInteraction`, drawn by `TradeModalWidget`. No database change.
+
 ## Alternatives Considered
 
 - **Generate village structures on every client as a base layer (no delta).** This sends nothing over the wire, but
@@ -164,7 +219,10 @@
   per chunk per client.
 - The roof renderer also gives player-built rooms roofs. Irregular rooms get a simple per-tile roof.
 - The new structure types have no kits yet, and harbours still use decorative houses.
-- Trader state adds one small table. UI strings are `GameText` keys (`[trade]` in `resources/localization/*.ini`).
+- Trader state adds one small table. UI strings are `GameText` keys (`[trade]` and, for the basket and cart,
+  `[trade_basket]` in `resources/localization/*.ini`).
+- With the D18 basket, nothing sells or buys without an explicit press of **Sell** or **Buy**. A trade takes one more
+  click, and that click is what keeps a mis-click from costing a stack.
 - Client code stays within the audit round 2 size caps:
   - trading lives in `TraderSession` (behind `IGameplayController.Trading`), `TradeInteraction` (the scene's talk, click
     and window input), and a stateless `TradeModalWidget`;

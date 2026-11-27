@@ -199,6 +199,138 @@ public sealed class TraderWorldTests
         }
     }
 
+    [Fact]
+    public async Task SellBatch_ThroughTheTick_AppliesExactlyTheBasketOrNothing()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-basket-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
+            await SeedGameplaySecretAsync(factory).ConfigureAwait(true);
+            ManualTime time = new(DateTimeOffset.FromUnixTimeSeconds(1_800_000_000L));
+            (int fx, int fy) = MerchantFrontTile();
+            RecordingOutboundSink sink = new();
+            AuthoritativeWorld world = await CreateWorldAsync(factory, sink, time).ConfigureAwait(true);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+            uint crystal = world.Economy!.Items.ResolveId("mana_crystal");
+            uint pelt = world.Economy.Items.ResolveId("beast_pelt");
+            world.TryEnterWorld(Conn, Character("Seller", fx, fy, gold: 100, new ItemSlot(crystal, 10), new ItemSlot(pelt, 20))).Status.Should().Be(OpStatus.Ok);
+            Step(world, 12);
+            ulong merchant = sink.Spawns.First(s => s.Snapshot.Kind == EntityKind.Npc && s.Snapshot.ArchetypeId == WorldActorCatalog.VillageMerchant).Snapshot.NetworkId;
+            (await Run(world, world.Trade.SubmitTraderOpenAsync(Conn, merchant))).Should().Be(OpStatus.Ok);
+            TraderStockSnapshot stock = sink.TraderStocks.Last(t => t.ConnectionId == Conn).Stock;
+            long total = (7L * SellPrice(stock, crystal)) + (20L * SellPrice(stock, pelt));
+
+            // One line asks for more pelts than the bag holds: nothing is sold, not even the good line.
+            int wallets = sink.WalletSyncs.Count;
+            WorldMutationOutcome bad = await RunOutcome(world, world.Trade.SubmitTraderSellBatchAsync(Conn, merchant, [0, 1], [(ushort)crystal, (ushort)pelt], [7, 21], total + SellPrice(stock, pelt)));
+            bad.Status.Should().Be(OpStatus.Conflict);
+            TradeBatchReceipt.Unpack(bad.Revision).Should().Be(new TradeBatchReceipt(TradeBatchError.BagChanged, 1));
+            sink.WalletSyncs.Count.Should().Be(wallets, "a refused basket pays nothing");
+            Bag(world).Should().Equal([new ItemSlot(crystal, 10), new ItemSlot(pelt, 20)], "a refused basket leaves the bag as it was");
+
+            // A total the server does not agree with is refused, and a fresh stock is pushed for the re-confirm.
+            int stocks = sink.TraderStocks.Count;
+            WorldMutationOutcome stale = await RunOutcome(world, world.Trade.SubmitTraderSellBatchAsync(Conn, merchant, [0, 1], [(ushort)crystal, (ushort)pelt], [7, 20], total - 1));
+            TradeBatchReceipt.Unpack(stale.Revision).Error.Should().Be(TradeBatchError.PricesChanged);
+            sink.TraderStocks.Count.Should().Be(stocks + 1, "the window gets the current prices to re-confirm against");
+            Bag(world).Should().Equal([new ItemSlot(crystal, 10), new ItemSlot(pelt, 20)]);
+
+            // The confirmed basket: exactly its gold in, exactly its units out.
+            WorldMutationOutcome ok = await RunOutcome(world, world.Trade.SubmitTraderSellBatchAsync(Conn, merchant, [0, 1], [(ushort)crystal, (ushort)pelt], [7, 20], total));
+            ok.Status.Should().Be(OpStatus.Ok);
+            sink.WalletSyncs.Last(w => w.ConnectionId == Conn).Gold.Should().Be(100 + total);
+            Bag(world).Should().Equal([new ItemSlot(crystal, 3), ItemSlot.Empty]);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task BuyBatch_ThroughTheTick_AppliesExactlyTheCartOrNothing()
+    {
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-cart-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
+            await SeedGameplaySecretAsync(factory).ConfigureAwait(true);
+            ManualTime time = new(DateTimeOffset.FromUnixTimeSeconds(1_800_000_000L));
+            (int fx, int fy) = MerchantFrontTile();
+            RecordingOutboundSink sink = new();
+            AuthoritativeWorld world = await CreateWorldAsync(factory, sink, time).ConfigureAwait(true);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+            world.TryEnterWorld(Conn, Character("Buyer", fx, fy, gold: 50_000)).Status.Should().Be(OpStatus.Ok);
+            Step(world, 12);
+            ulong merchant = sink.Spawns.First(s => s.Snapshot.Kind == EntityKind.Npc && s.Snapshot.ArchetypeId == WorldActorCatalog.VillageMerchant).Snapshot.NetworkId;
+            (await Run(world, world.Trade.SubmitTraderOpenAsync(Conn, merchant))).Should().Be(OpStatus.Ok);
+            TraderStockSnapshot stock = sink.TraderStocks.Last(t => t.ConnectionId == Conn).Stock;
+            stock.ItemIds.Length.Should().BeGreaterThan(1);
+            long total = stock.UnitPrices[0] + (long)stock.UnitPrices[1];
+
+            // Asking for more than is left on the second line buys nothing at all.
+            WorldMutationOutcome soldOut = await RunOutcome(world, world.Trade.SubmitTraderBuyBatchAsync(
+                Conn, merchant, stock.Epoch, [0, 1], [stock.ItemIds[0], stock.ItemIds[1]], [1, (ushort)(stock.Remaining[1] + 1)], total + ((long)stock.Remaining[1] * stock.UnitPrices[1])));
+            TradeBatchReceipt.Unpack(soldOut.Revision).Should().Be(new TradeBatchReceipt(TradeBatchError.SoldOut, 1));
+            Bag(world).Should().OnlyContain(slot => slot.IsEmpty, "a refused cart adds nothing");
+
+            // The confirmed cart: exactly its gold out and one unit of each line in.
+            WorldMutationOutcome ok = await RunOutcome(world, world.Trade.SubmitTraderBuyBatchAsync(Conn, merchant, stock.Epoch, [0, 1], [stock.ItemIds[0], stock.ItemIds[1]], [1, 1], total));
+            ok.Status.Should().Be(OpStatus.Ok);
+            sink.WalletSyncs.Last(w => w.ConnectionId == Conn).Gold.Should().Be(50_000 - total);
+            TraderStockSnapshot after = sink.TraderStocks.Last(t => t.ConnectionId == Conn).Stock;
+            after.Remaining[0].Should().Be((ushort)(stock.Remaining[0] - 1));
+            after.Remaining[1].Should().Be((ushort)(stock.Remaining[1] - 1));
+
+            // The trader restocked while the cart was open: refused as changed prices, with the new stock pushed.
+            time.Advance(TimeSpan.FromSeconds(after.SecondsUntilRestock));
+            long gold = sink.WalletSyncs.Last(w => w.ConnectionId == Conn).Gold;
+            WorldMutationOutcome restocked = await RunOutcome(world, world.Trade.SubmitTraderBuyBatchAsync(Conn, merchant, stock.Epoch, [0], [stock.ItemIds[0]], [1], stock.UnitPrices[0]));
+            TradeBatchReceipt.Unpack(restocked.Revision).Error.Should().Be(TradeBatchError.PricesChanged);
+            sink.TraderStocks.Last(t => t.ConnectionId == Conn).Stock.Epoch.Should().Be(stock.Epoch + 1, "the re-confirm is against the new stock");
+            sink.WalletSyncs.Last(w => w.ConnectionId == Conn).Gold.Should().Be(gold);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
+    private static int SellPrice(TraderStockSnapshot stock, uint itemId) => stock.SellPrices[Array.IndexOf(stock.SellItemIds, (ushort)itemId)];
+
+    private static ItemSlot[] Bag(AuthoritativeWorld world)
+    {
+        System.Collections.Generic.List<(ushort SlotIndex, ItemSlot Slot)> inventory = [];
+        world.GetInventorySnapshot(Conn, inventory).Should().BeTrue();
+        ItemSlot[] first = new ItemSlot[2];
+        foreach ((ushort index, ItemSlot slot) in inventory)
+        {
+            if (index < first.Length)
+            {
+                first[index] = slot;
+            }
+        }
+
+        return first;
+    }
+
+    private static async Task<WorldMutationOutcome> RunOutcome(AuthoritativeWorld world, ValueTask<WorldMutationOutcome> pending)
+    {
+        world.StepFixedTick();
+        return await pending.ConfigureAwait(true);
+    }
+
     private static async Task<OpStatus> Run(AuthoritativeWorld world, ValueTask<WorldMutationOutcome> pending)
     {
         world.StepFixedTick();
