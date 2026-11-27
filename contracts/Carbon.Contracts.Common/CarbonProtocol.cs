@@ -7,6 +7,9 @@ namespace Carbon.Contracts.Common;
 /// </summary>
 public static class CarbonProtocol
 {
-    /// <summary>Current wire protocol version negotiated during authentication.</summary>
-    public const ushort Version = 1;
+    /// <summary>
+    /// Current wire protocol version negotiated during authentication. 2: <c>CharacterCreate</c> no longer carries a
+    /// starting class (ADR-030).
+    /// </summary>
+    public const ushort Version = 2;
 }

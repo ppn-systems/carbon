@@ -138,4 +138,14 @@ public enum MapPropType : byte
     /// Tall clump of marram grass binding the sand (Beach Sand dunes).
     /// </summary>
     DuneGrass = 24,
+
+    /// <summary>
+    /// A few loose stones lying on the ground, gathered by hand (spawn clearing starter forage).
+    /// </summary>
+    LooseStones = 25,
+
+    /// <summary>
+    /// A fallen branch lying on the ground, gathered by hand (spawn clearing starter forage).
+    /// </summary>
+    FallenBranch = 26,
 }

@@ -9,6 +9,7 @@ using Carbon.Application.World.Players;
 using Carbon.Application.World.StatusEffects;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
+using Carbon.Contracts.Identity;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Serialization;
@@ -49,7 +50,8 @@ internal sealed class CharacterPersistence
 
     /// <summary>
     /// Loads the record's inventory into <paramref name="inventory"/>; a record without a readable inventory gets the
-    /// starter loadout of its class and is returned flagged <see cref="CharacterTraits.StarterLoadoutGranted"/>.
+    /// starter loadout of its class (nothing for a classless character, ADR-030) and is returned flagged
+    /// <see cref="CharacterTraits.StarterLoadoutGranted"/>.
     /// </summary>
     public static CharacterRecord LoadInventory(CharacterRecord character, InventoryContainer inventory)
     {
@@ -59,7 +61,15 @@ internal sealed class CharacterPersistence
             return character;
         }
 
-        StarterGameCatalog.GrantStarterLoadout(inventory, (byte)character.Class);
+        if (character.Class == HeroArchetypeClass.None)
+        {
+            inventory.Clear();
+        }
+        else
+        {
+            StarterGameCatalog.GrantStarterLoadout(inventory, (byte)character.Class);
+        }
+
         return character with { Flags = character.Flags | CharacterTraits.StarterLoadoutGranted };
     }
 

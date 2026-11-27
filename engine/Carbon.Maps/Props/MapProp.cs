@@ -74,7 +74,8 @@ public readonly record struct MapProp(
         MapPropType.DeadTree => this.WorldPositionY + (18f * this.Scale),
         MapPropType.Cactus => this.WorldPositionY + (20f * this.Scale),
         MapPropType.AncientShrine => this.WorldPositionY + (20f * this.Scale),
-        MapPropType.Bush or MapPropType.MushroomCluster or MapPropType.DryBush or MapPropType.DuneGrass => this.WorldPositionY + this.Radius,
+        MapPropType.Bush or MapPropType.MushroomCluster or MapPropType.DryBush or MapPropType.DuneGrass or
+        MapPropType.LooseStones or MapPropType.FallenBranch => this.WorldPositionY + this.Radius,
         MapPropType.CopperVein or MapPropType.IronVein or MapPropType.GoldVein or
         MapPropType.CoalDeposit or MapPropType.SilverVein or MapPropType.CrystalCluster or
         MapPropType.GlacialCrystal or MapPropType.Boulder or MapPropType.BasaltPillar => this.WorldPositionY + (this.CollisionRadius > 0.001f ? this.CollisionRadius : this.Radius),
@@ -120,8 +121,8 @@ public readonly record struct MapProp(
     {
         bool isTree = type is MapPropType.OakTree or MapPropType.BirchTree or MapPropType.PineTree or MapPropType.SnowPine or MapPropType.PalmTree or MapPropType.WillowTree or MapPropType.AcaciaTree or MapPropType.CherryBlossomTree;
         bool isFlora = isTree || type is MapPropType.DeadTree or MapPropType.Cactus or MapPropType.Bush or MapPropType.MushroomCluster or
-            MapPropType.DryBush or MapPropType.DuneGrass;
-        bool isOre = type is MapPropType.CopperVein or MapPropType.IronVein or MapPropType.GoldVein or MapPropType.CoalDeposit or MapPropType.SilverVein or MapPropType.CrystalCluster or MapPropType.GlacialCrystal or MapPropType.Boulder or MapPropType.BasaltPillar;
+            MapPropType.DryBush or MapPropType.DuneGrass or MapPropType.FallenBranch;
+        bool isOre = type is MapPropType.LooseStones or MapPropType.CopperVein or MapPropType.IronVein or MapPropType.GoldVein or MapPropType.CoalDeposit or MapPropType.SilverVein or MapPropType.CrystalCluster or MapPropType.GlacialCrystal or MapPropType.Boulder or MapPropType.BasaltPillar;
 
         PropCategory category = isTree || isFlora ? PropCategory.Flora : (isOre ? PropCategory.Mineral : PropCategory.Structure);
         PropDestructibility destruct = type switch
@@ -129,6 +130,7 @@ public readonly record struct MapProp(
             MapPropType.None or MapPropType.AncientShrine => PropDestructibility.Indestructible,
             MapPropType.Bush or MapPropType.Cactus or MapPropType.MushroomCluster or MapPropType.DeadTree or
             MapPropType.DryBush or MapPropType.DuneGrass => PropDestructibility.Create(40f, 0),
+            MapPropType.LooseStones or MapPropType.FallenBranch => PropDestructibility.Create(10f, 0),
             MapPropType.OakTree or MapPropType.BirchTree or MapPropType.WillowTree or MapPropType.PalmTree or MapPropType.AcaciaTree => PropDestructibility.Create(100f, 1),
             MapPropType.CoalDeposit or MapPropType.CopperVein or MapPropType.Boulder => PropDestructibility.Create(140f, 1),
             MapPropType.PineTree or MapPropType.SnowPine or MapPropType.CherryBlossomTree => PropDestructibility.Create(140f, 2),
