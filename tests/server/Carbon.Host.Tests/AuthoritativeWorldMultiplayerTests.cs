@@ -1836,8 +1836,12 @@ public sealed class AuthoritativeWorldMultiplayerTests
             foreach (EntityDeltaEntry entry in entries)
             {
                 this.LastPositions[entry.NetworkId] = new Vector2(entry.PositionX, entry.PositionY);
+                this.DeltaEntityIds.Add((connectionId, entry.NetworkId));
             }
         }
+
+        /// <summary>Gets every (recipient, entity) pair delivered in a delta batch, in send order.</summary>
+        public List<(ulong ConnectionId, ulong NetworkId)> DeltaEntityIds { get; } = [];
 
         public Dictionary<ulong, Vector2> LastPositions { get; } = [];
 

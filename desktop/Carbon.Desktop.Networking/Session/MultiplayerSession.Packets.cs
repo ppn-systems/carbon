@@ -816,17 +816,7 @@ public sealed partial class MultiplayerSession
 
             if (_remoteEntities.TryGetValue(pkt.NetworkId, out RemoteEntityState? state))
             {
-                state.EquippedHeadId = pkt.EquippedHeadId;
-                state.EquippedChestId = pkt.EquippedChestId;
-                state.EquippedLegsId = pkt.EquippedLegsId;
-                state.EquippedFeetId = pkt.EquippedFeetId;
-                state.EquippedWeaponId = pkt.EquippedWeaponId;
-                state.WeaponUpgradeLevel = pkt.WeaponUpgradeLevel;
-                state.Level = Math.Max((ushort)1, pkt.Level);
-                if (pkt.MaxHealth > 0f)
-                {
-                    state.MaxHealth = MathF.Max(1f, pkt.MaxHealth);
-                }
+                state.ApplyEquipment(pkt);
 
                 _remoteViewsDirty = true;
             }
@@ -1016,24 +1006,7 @@ public sealed partial class MultiplayerSession
                 return;
             }
 
-            Vector2 dir = new(pkt.DirectionX, pkt.DirectionY);
-            bool finiteDir = float.IsFinite(dir.X) && float.IsFinite(dir.Y) && dir.LengthSquared() > 1e-4f;
-            if (finiteDir && pkt.Phase != EntityAttackPhase.PhaseNone)
-            {
-                attacker.FacingDir = Vector2.Normalize(dir);
-            }
-
-            attacker.AttackKind = pkt.AttackKind;
-            attacker.AttackPhase = pkt.Phase > EntityAttackPhase.PhaseRecovery ? EntityAttackPhase.PhaseNone : pkt.Phase;
-            attacker.AttackPhaseElapsed = 0f;
-            attacker.AttackPhaseDuration = pkt.PhaseDurationTicks / (float)Math.Max((ushort)1, _tickRate);
-            attacker.AttackTarget = float.IsFinite(pkt.TargetX) && float.IsFinite(pkt.TargetY)
-                ? new Vector2(pkt.TargetX, pkt.TargetY)
-                : attacker.Position;
-            attacker.AttackDirection = finiteDir ? Vector2.Normalize(dir) : attacker.FacingDir;
-            attacker.AttackAreaRadius = float.IsFinite(pkt.AreaRadius) ? Math.Clamp(pkt.AreaRadius, 0f, 512f) : 0f;
-            attacker.AttackHalfAngle = float.IsFinite(pkt.HalfAngleRadians) ? Math.Clamp(pkt.HalfAngleRadians, 0f, MathF.PI) : 0f;
-            attacker.AttackShape = pkt.Shape;
+            attacker.ApplyAttackPhase(pkt, _tickRate);
             _remoteViewsDirty = true;
         }
     }
@@ -1065,26 +1038,7 @@ public sealed partial class MultiplayerSession
 
                 if (_remoteEntities.TryGetValue(netId, out RemoteEntityState? state))
                 {
-                    if (i < pkt.PositionsX.Length && i < pkt.PositionsY.Length)
-                    {
-                        state.Position = new Vector2(pkt.PositionsX[i], pkt.PositionsY[i]);
-                    }
-
-                    if (i < pkt.VelocitiesX.Length && i < pkt.VelocitiesY.Length)
-                    {
-                        state.Velocity = new Vector2(pkt.VelocitiesX[i], pkt.VelocitiesY[i]);
-                        if (state.Velocity.LengthSquared() > 4f)
-                        {
-                            state.FacingDir = Vector2.Normalize(state.Velocity);
-                        }
-                    }
-
-                    if (i < pkt.CurrentHealths.Length)
-                    {
-                        state.CurrentHealth = pkt.CurrentHealths[i];
-                    }
-
-                    _ = state.Interpolation.PushSnapshot(new TransformSnapshot(snapshotTime, state.Position, state.Velocity));
+                    state.ApplyDelta(pkt, i, snapshotTime);
                 }
             }
 
@@ -1292,79 +1246,4 @@ public sealed partial class MultiplayerSession
     /// <summary>Gets whether ground loot <paramref name="s"/> is still reserved for another player (ADR-019); the server decides.</summary>
     private bool IsLootLockedForLocalPlayer(RemoteEntityState s) =>
         s.LootOwnerNetworkId != 0UL && s.LootOwnerNetworkId != _localNetworkId && s.LootProtectionRemaining > 0f;
-
-    private sealed class RemoteEntityState
-    {
-        public ulong NetworkId { get; init; }
-        public EntityKind Kind { get; init; }
-        public ushort ArchetypeId { get; init; }
-        public string Name { get; init; } = string.Empty;
-        public string? NameKey { get; init; }
-        public Vector2 Position { get; set; }
-        public Vector2 Velocity { get; set; }
-        public Vector2 FacingDir { get; set; } = new(0f, 1f);
-        public float AttackAnimTimer { get; set; }
-        public float AttackAnimDuration { get; set; } = 0.30f;
-        public float HitFlashTimer { get; set; }
-        public float Radius { get; init; }
-        public float CurrentHealth { get; set; }
-        public float MaxHealth { get; set; }
-        public ushort EquippedHeadId { get; set; }
-        public ushort EquippedChestId { get; set; }
-        public ushort EquippedLegsId { get; set; }
-        public ushort EquippedFeetId { get; set; }
-        public ushort EquippedWeaponId { get; set; }
-        public ushort Level { get; set; } = 1;
-        public int LootCount { get; init; }
-        public byte WeaponUpgradeLevel { get; set; }
-        public LootCurrency LootCurrency { get; init; }
-        public ulong LootOwnerNetworkId { get; init; }
-        public float LootProtectionRemaining { get; set; }
-        public ActionAnimationKind ActiveActionKind { get; set; }
-        public byte AttackKind { get; set; }
-        public byte AttackPhase { get; set; }
-        public float AttackPhaseElapsed { get; set; }
-        public float AttackPhaseDuration { get; set; }
-        public Vector2 AttackTarget { get; set; }
-        public Vector2 AttackDirection { get; set; }
-        public float AttackAreaRadius { get; set; }
-        public float AttackHalfAngle { get; set; }
-        public byte AttackShape { get; set; }
-        public SnapshotInterpolationBuffer Interpolation { get; } = new(16);
-
-        public static RemoteEntityState FromSpawn(EntitySpawn pkt, string? nameKey) => new()
-        {
-            NetworkId = pkt.NetworkId,
-            Kind = pkt.Kind,
-            ArchetypeId = pkt.ArchetypeId,
-            Name = pkt.Name,
-            NameKey = nameKey,
-            Position = new Vector2(pkt.PositionX, pkt.PositionY),
-            Velocity = new Vector2(pkt.VelocityX, pkt.VelocityY),
-            Radius = pkt.Radius > 0f ? pkt.Radius : 7f,
-            CurrentHealth = pkt.CurrentHealth,
-            MaxHealth = pkt.MaxHealth,
-            EquippedHeadId = pkt.EquippedHeadId,
-            EquippedChestId = pkt.EquippedChestId,
-            EquippedLegsId = pkt.EquippedLegsId,
-            EquippedFeetId = pkt.EquippedFeetId,
-            EquippedWeaponId = pkt.EquippedWeaponId,
-            Level = Math.Max((ushort)1, pkt.Level),
-            LootCount = pkt.LootCount,
-            WeaponUpgradeLevel = pkt.WeaponUpgradeLevel,
-            LootCurrency = pkt.LootCurrency,
-            LootOwnerNetworkId = pkt.LootOwnerNetworkId,
-            LootProtectionRemaining = pkt.LootProtectionMs / 1000f,
-        };
-
-        public AttackPhaseView BuildAttackView() => new(
-            this.AttackKind,
-            this.AttackPhase,
-            this.AttackPhaseDuration > 0f ? Math.Clamp(this.AttackPhaseElapsed / this.AttackPhaseDuration, 0f, 1f) : 1f,
-            this.AttackTarget,
-            this.AttackDirection,
-            this.AttackAreaRadius,
-            this.AttackHalfAngle,
-            this.AttackShape);
-    }
 }

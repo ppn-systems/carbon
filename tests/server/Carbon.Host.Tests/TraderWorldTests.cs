@@ -222,8 +222,80 @@ public sealed class TraderWorldTests
         _ = await new SqliteGameplaySecretStore(factory).GetOrCreateAsync(secret).ConfigureAwait(true);
     }
 
+    [Fact]
+    public async Task FlushDirtyPersistence_TraderSaveFailsOnce_SaleIsRetriedAndSurvivesRestart()
+    {
+        // A lost retry would refill sold-out stock after a restart: items minted through the economy.
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-trader-retry-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
+            await SeedGameplaySecretAsync(factory).ConfigureAwait(true);
+            ManualTime time = new(DateTimeOffset.FromUnixTimeSeconds(1_800_000_000L));
+            FailFirstSaveTraderStockRepository repository = new();
+            (int fx, int fy) = MerchantFrontTile();
+
+            RecordingOutboundSink sink = new();
+            AuthoritativeWorld world = await CreateWorldAsync(factory, sink, time, repository).ConfigureAwait(true);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+            world.TryEnterWorld(Conn, Conn, Character("Buyer", fx, fy, gold: 5_000)).Status.Should().Be(OpStatus.Ok);
+            Step(world, 12);
+            ulong merchant = sink.Spawns.First(s => s.Snapshot.Kind == EntityKind.Npc && s.Snapshot.ArchetypeId == WorldActorCatalog.VillageMerchant).Snapshot.NetworkId;
+            (await Run(world, world.Trade.SubmitTraderOpenAsync(Conn, merchant))).Should().Be(OpStatus.Ok);
+            TraderStockSnapshot stock = sink.TraderStocks.Last(t => t.ConnectionId == Conn).Stock;
+            int slot = Array.FindIndex(stock.Remaining, r => r >= 2);
+            (await Run(world, world.Trade.SubmitTraderBuyAsync(Conn, merchant, (byte)slot, 2, stock.Epoch))).Should().Be(OpStatus.Ok);
+
+            Func<Task> failingFlush = () => world.FlushDirtyPersistenceAsync();
+            await failingFlush.Should().ThrowAsync<IOException>("the store is down for the first save");
+            await world.FlushDirtyPersistenceAsync().ConfigureAwait(true);
+
+            RecordingOutboundSink sink2 = new();
+            AuthoritativeWorld restarted = await CreateWorldAsync(factory, sink2, time, repository).ConfigureAwait(true);
+            await restarted.InitializeFromStoreAsync().ConfigureAwait(true);
+            restarted.TryEnterWorld(Conn, Conn, Character("Buyer2", fx, fy, gold: 10)).Status.Should().Be(OpStatus.Ok);
+            Step(restarted, 12);
+            ulong merchant2 = sink2.Spawns.First(s => s.Snapshot.Kind == EntityKind.Npc && s.Snapshot.ArchetypeId == WorldActorCatalog.VillageMerchant).Snapshot.NetworkId;
+            (await Run(restarted, restarted.Trade.SubmitTraderOpenAsync(Conn, merchant2))).Should().Be(OpStatus.Ok);
+            TraderStockSnapshot reloaded = sink2.TraderStocks.Last().Stock;
+            reloaded.Epoch.Should().Be(stock.Epoch, "same clock, same restock window");
+            reloaded.Remaining[slot].Should().Be((ushort)(stock.Remaining[slot] - 2), "the sale from the failed flush was retried, so it survives the restart");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
+    /// <summary>An in-memory trader store whose first save fails, like a database that is briefly unreachable.</summary>
+    private sealed class FailFirstSaveTraderStockRepository : ITraderStockRepository
+    {
+        private readonly InMemoryTraderStockRepository _inner = new();
+        private bool _failed;
+
+        public Task<System.Collections.Generic.IReadOnlyList<PersistedTraderSales>> LoadAllAsync(System.Threading.CancellationToken ct = default) =>
+            _inner.LoadAllAsync(ct);
+
+        public Task SaveBatchAsync(System.Collections.Generic.IReadOnlyList<PersistedTraderSales> sales, System.Threading.CancellationToken ct = default)
+        {
+            if (!_failed)
+            {
+                _failed = true;
+                throw new IOException("trader store unreachable");
+            }
+
+            return _inner.SaveBatchAsync(sales, ct);
+        }
+    }
+
     /// <summary>Boots a world like the host does: the gameplay secret comes from the database, the boot salt is fresh.</summary>
-    private static async Task<AuthoritativeWorld> CreateWorldAsync(SqliteConnectionFactory factory, RecordingOutboundSink sink, TimeProvider time)
+    private static async Task<AuthoritativeWorld> CreateWorldAsync(
+        SqliteConnectionFactory factory, RecordingOutboundSink sink, TimeProvider time, ITraderStockRepository? traderStock = null)
     {
         GameplayEntropy entropy = await GameplayEntropy.LoadAsync(new SqliteGameplaySecretStore(factory), null, null, 30).ConfigureAwait(true);
         string configDir = GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!;
@@ -239,7 +311,7 @@ public sealed class TraderWorldTests
             sink,
             time,
             economy: economy,
-            traderStock: new SqliteTraderStockRepository(factory),
+            traderStock: traderStock ?? new SqliteTraderStockRepository(factory),
             entropy: entropy);
     }
 
