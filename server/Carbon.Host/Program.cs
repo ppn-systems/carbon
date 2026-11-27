@@ -115,9 +115,10 @@ public static class Program
             gameData.Food,
             gameData.Economy,
             ServerGameData.LoadStructures(config.Catalog),
-            ServerGameData.LoadCreatures(config.Catalog));
+            ServerGameData.LoadCreatures(config.Catalog),
+            gameData.Progression);
         ServerGameData.BindHotReload(config, world);
-        using AuthService authService = new(accountStore, characterStore, hasher, time: null, () => world.ItemRules);
+        using AuthService authService = new(accountStore, characterStore, hasher, time: null, () => world.ItemRules, () => world.Progression);
 
         if (options.DebugOverrides.IsActive)
         {

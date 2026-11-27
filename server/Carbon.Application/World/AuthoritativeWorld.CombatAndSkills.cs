@@ -8,6 +8,7 @@ using Carbon.Application.World.Commerce;
 using Carbon.Application.World.Actions;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Projectiles;
+using Carbon.Combat.Attacks;
 using Carbon.Contracts.Entities;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -61,7 +62,7 @@ public sealed partial class AuthoritativeWorld
                 }
             }
 
-            this.GrantExperienceLocked(attacker, meta.ExperienceReward, out _);
+            this.GrantExperienceLocked(attacker, _progressionService.Config.ScaleKillExperience(meta.ExperienceReward, meta.Level, attacker.Level), out _);
             this.MarkCharacterDirtyLocked(attacker, inventoryChanged: false);
         }
     }
@@ -79,15 +80,15 @@ public sealed partial class AuthoritativeWorld
     private void GrantExperienceLocked(PlayerState state, uint amount, out bool leveledUp)
     {
         leveledUp = false;
-        if (amount == 0U || state.Level >= CharacterProgressionPolicy.MaxLevel)
+        if (amount == 0U || state.Level >= _progressionService.Config.MaxLevel)
         {
             return;
         }
 
         state.Experience += amount;
-        while (state.Level < CharacterProgressionPolicy.MaxLevel)
+        while (state.Level < _progressionService.Config.MaxLevel)
         {
-            uint needed = CharacterProgressionPolicy.GetXpToNextLevel(state.Level);
+            uint needed = _progressionService.Config.GetXpToNextLevel(state.Level);
             if (state.Experience < needed)
             {
                 break;
@@ -197,7 +198,8 @@ public sealed partial class AuthoritativeWorld
                         player.Entity,
                         player.Session.PlayerNetworkId,
                         playerPos,
-                        projectile.Damage);
+                        projectile.Damage,
+                        owner.ResolveMonsterDamageKindLocked(projectile.OwnerNetworkId, AttackKind.Projectile));
                     return true;
                 }
             }

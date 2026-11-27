@@ -32,11 +32,13 @@ clients (ADR-011). Clients never read these files: they render from replicated a
 - **Replication**: each `MonsterSpawnedEvent` is bound to a network id. Monsters replicate their `archetypeId`, and the
   client picks the vector rig from it.
 - **Rewards**: kills roll the definition's `lootTableId` in economy's `loot.json`. The `WorldActorCatalog` drop is used
-  only when no economy is configured. Kill XP is `clamp(0.45 * maxHp + 4 * level, 25, 650)`, doubled for elites and
-  multiplied by 1.35 at night.
+  only when no economy is configured. Kill XP comes from `progression.json` (`experience.kill`): `clamp(0.45 * maxHp + 4 * level, 25, 4000)`,
+  doubled for elites, ×1.35 at night, scaled by the level difference to the killer (see
+  [progression.md](progression.md) §5).
 - **Armor**: a monster's scaled armor (StatSheet `Defense`) mitigates player hits by `100 / (100 + armor)`.
 - **Hits and projectiles**: the server's `IAttackEffects` sends hits through the authoritative player damage path
-  (mitigation, death, `CombatHit`). It spawns projectiles as replicated server projectiles
+  (dodge, defense or magic resist mitigation by the monster's level, death, `CombatHit`; see
+  [progression.md](progression.md) §4). It spawns projectiles as replicated server projectiles
   (`AttackProfile.ProjectileVisual`).
 - **Phase broadcast**: every `AttackPhaseChangedEvent` is broadcast to AoI observers as `EntityAttackPhase`
   (opcode `0x1238`, [ADR-013](adr/ADR-013-entity-attack-phase-packet.md)). Monsters no longer use

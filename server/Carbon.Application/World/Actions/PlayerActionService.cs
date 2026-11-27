@@ -14,6 +14,7 @@ using Carbon.Contracts.Entities;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
+using Carbon.Items.Progression;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.Networking;
@@ -145,7 +146,7 @@ internal sealed class PlayerActionService
             return;
         }
 
-        state.Cooldowns.StartCooldown(AttackAbilityId, this.Tick, _needs.ScaleAttackCooldown(state.Entity, (uint)Math.Max(10, _tickRate / 2)));
+        state.Cooldowns.StartCooldown(AttackAbilityId, this.Tick, _needs.ScaleAttackCooldown(state.Entity, GetAttackCooldownTicks(_tickRate, state.Stats.AttackSpeedMultiplier)));
 
         Vector2 attackerPos = _simulation.Entities.GetTransform(state.Entity).Position;
         if (activeSlot.Quantity > 0 &&
@@ -176,9 +177,11 @@ internal sealed class PlayerActionService
 
             CombatStrikeEvaluation rangedEval = ToolUsagePolicy.EvaluateCombatStrike(this.Rules, in activeSlot);
             bool rangedCrit = !ToolUsagePolicy.IsWornOut(this.Rules, in activeSlot) &&
-                CombatService.RollCriticalHit(weaponDef.CritChance, ++state.CombatRollNonce);
-            float rangedDmg = rangedEval.Damage * state.Stats.AttackMultiplier;
-            float finalRangedDmg = rangedCrit ? rangedDmg * 1.5f : rangedDmg;
+                CombatService.RollCriticalHit(state.Stats.CritChance, ++state.CombatRollNonce);
+
+            // Staffs (MagicFocus) scale with spell power, bows with physical attack (ADR-021 D4).
+            float rangedScale = weaponDef.Capabilities.HasFlag(ToolCapabilities.MagicFocus) ? state.Stats.SpellPowerMultiplier : state.Stats.AttackMultiplier;
+            float finalRangedDmg = CombatRoll.ApplyCritical(rangedEval.Damage * rangedScale, rangedCrit, state.Stats.CritDamage);
 
             if (this.WearActiveTool(state, in activeSlot, 0.8f, out ItemSlot degradedRanged))
             {
@@ -205,8 +208,7 @@ internal sealed class PlayerActionService
         }
 
         float meleeRange = MeleeStrikeRangePx;
-        ItemArchetype? meleeDef = null;
-        if (!activeSlot.IsEmpty && this.Rules.Items.TryGet(activeSlot.ItemId, out meleeDef) && meleeDef.Capabilities.HasFlag(ToolCapabilities.MeleeWeapon))
+        if (!activeSlot.IsEmpty && this.Rules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? meleeDef) && meleeDef.Capabilities.HasFlag(ToolCapabilities.MeleeWeapon))
         {
             meleeRange = Math.Clamp(meleeDef.AttackRange, MeleeStrikeRangePx, 96f);
         }
@@ -240,11 +242,9 @@ internal sealed class PlayerActionService
         }
 
         CombatStrikeEvaluation combatEval = ToolUsagePolicy.EvaluateCombatStrike(this.Rules, in activeSlot);
-        bool isCrit = meleeDef is not null &&
-            combatEval.Outcome == ToolStrikeOutcome.Optimal &&
-            CombatService.RollCriticalHit(meleeDef.CritChance, ++state.CombatRollNonce);
-        float scaledDamage = combatEval.Damage * state.Stats.AttackMultiplier;
-        float finalDamage = isCrit ? scaledDamage * 1.5f : scaledDamage;
+        bool isCrit = combatEval.Outcome == ToolStrikeOutcome.Optimal &&
+            CombatService.RollCriticalHit(state.Stats.CritChance, ++state.CombatRollNonce);
+        float finalDamage = CombatRoll.ApplyCritical(combatEval.Damage * state.Stats.AttackMultiplier, isCrit, state.Stats.CritDamage);
 
         bool anyDamaged = _combat.ApplyMonsterHits(state, attackerPos, aimDir, _hitScratch.AsSpan(0, hitCount), finalDamage, isCrit, knockbackSpeed: 135f);
 
@@ -257,6 +257,20 @@ internal sealed class PlayerActionService
                 state.Session.SelectedHotbarSlot,
                 degradedCombatSlot));
         }
+    }
+
+    /// <summary>
+    /// Attack and tool swing cooldown: the base <c>max(10, tickRate / 2)</c> ticks divided by the attack speed multiplier
+    /// (capped by <c>progression.json</c>), never below 5 ticks.
+    /// </summary>
+    /// <param name="tickRate">Simulation tick rate.</param>
+    /// <param name="attackSpeedMultiplier">Derived attack speed.</param>
+    /// <returns>Cooldown ticks.</returns>
+    public static uint GetAttackCooldownTicks(int tickRate, float attackSpeedMultiplier)
+    {
+        float baseTicks = Math.Max(10, tickRate / 2);
+        float speed = attackSpeedMultiplier >= 1f ? attackSpeedMultiplier : 1f;
+        return (uint)Math.Max(5, (int)MathF.Round(baseTicks / speed));
     }
 
     private bool TryUseConsumable(PlayerState state, in ItemSlot activeSlot)

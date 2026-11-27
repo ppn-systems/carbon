@@ -6,15 +6,16 @@ using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
+using Carbon.Application.World.Actors;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.AI.Components;
 using Carbon.AI.Threat;
-using Carbon.Contracts.Entities;
 using Carbon.Items.Catalog;
 using Carbon.Maps.Generators;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
+using Carbon.Items.Progression;
 using Carbon.Maps.Data;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.Clock;
@@ -75,8 +76,7 @@ public sealed partial class AuthoritativeWorld
 
                 if (state.CurrentMana < state.Stats.MaxMana)
                 {
-                    float mpRegen = 6f + (state.Progression.GetAttribute(PrimaryAttributeId.Wisdom) * 0.35f);
-                    state.CurrentMana = MathF.Min(state.Stats.MaxMana, state.CurrentMana + (mpRegen * dt));
+                    state.CurrentMana = MathF.Min(state.Stats.MaxMana, state.CurrentMana + (state.Stats.ManaRegenPerSecond * dt));
                 }
 
                 this.PrepareNeedsForTickLocked(state, isSprinting);
@@ -165,7 +165,7 @@ public sealed partial class AuthoritativeWorld
                     observer.PersistenceDirty = true;
                 }
 
-                // Out-of-combat natural HP regeneration (+3 HP/s after 6s without taking combat hits).
+                // Out-of-combat HP regeneration (progression.json: flat + % of max HP per second) after 6 s without a hit.
                 if ((_currentTick % this.TickRate) == 0UL &&
                     (_currentTick - observer.LastCombatDamageTick) >= (ulong)(this.TickRate * 6) &&
                     !_needs.IsHealthRegenBlocked(observer.Entity) &&
@@ -174,7 +174,7 @@ public sealed partial class AuthoritativeWorld
                     HealthComponent php = _simulation.Entities.GetHealth(observer.Entity);
                     if (php.Current > 0f && php.Current < php.Max)
                     {
-                        float healed = MathF.Min(php.Max, php.Current + 3f);
+                        float healed = MathF.Min(php.Max, php.Current + MathF.Max(0f, observer.Stats.HealthRegenPerSecond));
                         _simulation.Entities.SetHealth(observer.Entity, new HealthComponent(healed, php.Max));
                         _simulation.MarkDirty(observer.Entity, EntityDirtyMask.Health);
                         observer.PersistenceDirty = true;
@@ -304,7 +304,8 @@ public sealed partial class AuthoritativeWorld
         Entity targetEntity,
         ulong targetNetId,
         Vector2 defPos,
-        float rawDamage)
+        float rawDamage,
+        DamageKind kind = DamageKind.Physical)
     {
         if (!_simulation.Entities.IsAlive(targetEntity) || !_simulation.Entities.HasHealth(targetEntity))
         {
@@ -315,7 +316,15 @@ public sealed partial class AuthoritativeWorld
         float monsterDamage = rawDamage;
         if (victim is not null)
         {
-            monsterDamage = CharacterProgressionPolicy.MitigateDamage(rawDamage, victim.Stats.Defense);
+            int attackerLevel = _actorsByNetworkId.TryGetValue(attackerNetId, out NpcActorMeta attackerMeta) ? attackerMeta.Level : victim.Level;
+            monsterDamage = _progressionService.ResolveIncomingDamage(victim, rawDamage, kind, attackerLevel, out bool dodged);
+            if (dodged)
+            {
+                // A dodge deals nothing and does not count as a hit (regen keeps running); clients show it as a miss.
+                this.QueueCombatHitLocked(defPos, attackerNetId, targetNetId, 0f, hp.Current, false, false);
+                return;
+            }
+
             victim.LastCombatDamageTick = _currentTick;
             victim.StatsDirty = true;
             _actions.WearArmor(victim, 0.5f);

@@ -210,7 +210,7 @@ health bar.
 | Side | What |
 | :--- | :--- |
 | Config | `progression.json` is loaded and validated by `ProgressionConfig.LoadFromJson` (fails fast at boot, rejected on a bad hot reload) and served to clients by the normal manifest (not server-only: clients need it for the panel preview). |
-| Server | Uses the config for level-ups, kill XP, point budget, derived stats, mitigation, evasion, crits and attack speed. Allocation and reset requests are tick-queued commands (ADR-017) and validated against the budget and the wallet. No DB migration: allocations already persist in the progression blob by attribute id. |
+| Server | `CharacterProgressionService` (`server/Carbon.Application/World/Progression`) uses the config for level-ups, kill XP, point budget, derived stats, mitigation, evasion, crits and attack speed. Allocation and reset requests are tick-queued commands (ADR-017) and validated against the budget and the wallet. No DB migration: allocations already persist in the progression blob by attribute id. |
 | Client | The character panel shows the five attributes with + buttons, unspent points, all derived stats and a preview of the change from the next point, computed from the synced `progression.json` with the same engine code. The server stays authoritative: the client never decides a point is affordable. |
 
 ## 8. Tuning
