@@ -635,6 +635,12 @@ public sealed class WorldSceneRenderer : IDisposable
                 : (world.AttackSwingTimer > 0f ? 1f - Math.Clamp(world.AttackSwingTimer / 0.24f, 0f, 1f) : _animTime);
         float flash = world.LocalHitFlashTimer > 0f ? Math.Clamp(world.LocalHitFlashTimer / 0.16f, 0f, 0.8f) : 0f;
 
+        if (action.IsActive)
+        {
+            // The body commits toward the target in every facing (docs/art/combat-animation.md §3.3).
+            footPos += AttackLean(in action);
+        }
+
         if (_art is not null && hasRig && rig is not null)
         {
             Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
@@ -802,6 +808,7 @@ public sealed class WorldSceneRenderer : IDisposable
             RigOverlay overlays = RigOverlay.None;
             VisualEquipmentLoadout remoteLoadout = default;
             string clip = moving ? "walk" : "idle";
+            ActionState remoteAction = default;
             bool norm = false;
             float eval = _animTime + (remote.NetworkId % 7 * 0.13f);
 
@@ -829,13 +836,21 @@ public sealed class WorldSceneRenderer : IDisposable
                 }
                 else if (attacking)
                 {
-                    clip = remote.ActiveActionKind switch
+                    remoteAction = new ActionState(
+                        remote.ActiveActionKind,
+                        MathF.Max(0.05f, remote.AttackAnimDuration),
+                        remote.AttackAnimRemaining,
+                        facing,
+                        remote.EquippedWeaponId,
+                        remote.ComboStep);
+                    clip = HeroAttackPose.ClipName(HeroAttackTiming.StyleOf(remote.ActiveActionKind, remote.ComboStep)) ?? remote.ActiveActionKind switch
                     {
                         ActionAnimationKind.AxeChop => "chop",
                         ActionAnimationKind.PickaxeMine => "mine",
                         ActionAnimationKind.ArcaneWave or ActionAnimationKind.SelfAura or ActionAnimationKind.StaffCast or ActionAnimationKind.BowShot => "cast",
                         ActionAnimationKind.None
                         or ActionAnimationKind.SwordSlash
+                        or ActionAnimationKind.Punch
                         or ActionAnimationKind.MonsterStrike
                         or ActionAnimationKind.MonsterBowShot
                         or ActionAnimationKind.MonsterSpellCast
@@ -846,7 +861,7 @@ public sealed class WorldSceneRenderer : IDisposable
                         or _ => "slash",
                     };
                     norm = true;
-                    eval = 1f - Math.Clamp(remote.AttackAnimRemaining / MathF.Max(0.05f, remote.AttackAnimDuration), 0f, 1f);
+                    eval = remoteAction.Progress;
                 }
                 else if (SwimClip(wade.State) is string swimClip)
                 {
@@ -883,6 +898,7 @@ public sealed class WorldSceneRenderer : IDisposable
                         ActionAnimationKind.MonsterSpellCast => "attack_cast",
                         ActionAnimationKind.MonsterHeavySlam => "attack_slam",
                         ActionAnimationKind.None
+                        or ActionAnimationKind.Punch
                         or ActionAnimationKind.SwordSlash
                         or ActionAnimationKind.AxeChop
                         or ActionAnimationKind.PickaxeMine
@@ -906,7 +922,7 @@ public sealed class WorldSceneRenderer : IDisposable
                 VectorRigRenderer.DrawEntityRig(
                     batch,
                     rig,
-                    footPos + new Vector2(0f, wade.Sink),
+                    footPos + new Vector2(0f, wade.Sink) + (remoteAction.IsActive ? AttackLean(in remoteAction) : Vector2.Zero),
                     dir8,
                     clip,
                     eval,
@@ -914,7 +930,8 @@ public sealed class WorldSceneRenderer : IDisposable
                     0f,
                     flash,
                     equippedItem: remoteWeapon,
-                    swingTimer: remote.AttackAnimRemaining,
+                    action: remoteAction,
+                    swingTimer: remoteAction.IsActive ? 0f : remote.AttackAnimRemaining,
                     appearancePreset: preset,
                     equipment: remoteLoadout,
                     art: _art,
@@ -1034,6 +1051,11 @@ public sealed class WorldSceneRenderer : IDisposable
     /// <returns>The clip name.</returns>
     public static string ResolveCharacterClip(ActionState action, float attackSwingTimer, bool moving)
     {
+        if (action.IsActive && HeroAttackPose.ClipName(HeroAttackTiming.StyleOf(action.Kind, action.ComboStep)) is string attackClip)
+        {
+            return attackClip;
+        }
+
         if (action.IsActive)
         {
             return action.Kind switch
@@ -1049,11 +1071,23 @@ public sealed class WorldSceneRenderer : IDisposable
                 ActionAnimationKind.ArcaneWave or ActionAnimationKind.SelfAura or ActionAnimationKind.StaffCast or ActionAnimationKind.BowShot => "cast",
                 ActionAnimationKind.PlaceStructure => "chop",
                 ActionAnimationKind.ConsumeItem => "idle",
-                ActionAnimationKind.None or _ => moving ? "walk" : "idle",
+                ActionAnimationKind.Punch or ActionAnimationKind.None or _ => moving ? "walk" : "idle",
             };
         }
 
         return attackSwingTimer > 0f ? "slash" : (moving ? "walk" : "idle");
+    }
+
+    /// <summary>World-unit shift of a hero toward its aim for the attack lean (zero for non-attacks).</summary>
+    /// <param name="action">Active action.</param>
+    /// <returns>Offset added to the foot position.</returns>
+    public static Vector2 AttackLean(in ActionState action)
+    {
+        HeroAttackTiming timing = HeroAttackTiming.For(HeroAttackTiming.StyleOf(action.Kind, action.ComboStep));
+        Vector2 aim = action.AimDirection;
+        return timing.Total > 0f && aim.LengthSquared() > 1e-4f
+            ? Vector2.Normalize(aim) * timing.LeanAt(action.Progress)
+            : Vector2.Zero;
     }
 
     private static void DrawDebugSolids(GeometryBatch batch, ChunkWorld2D chunkWorld, float tileSize, float minX, float minY, float maxX, float maxY)
