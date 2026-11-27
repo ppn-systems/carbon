@@ -105,6 +105,9 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     public static RectangleF GetRespawnButtonRect(int viewportWidth, int viewportHeight) =>
         DeathScreenWidget.GetRespawnButtonRect(viewportWidth, viewportHeight);
 
+    /// <summary>Gets or sets the interact-key prompt to draw this frame (hidden while a window is open).</summary>
+    public InteractionPrompt? InteractPrompt { get; set; }
+
     /// <summary>Gets or sets whether the System Settings &amp; Controls modal is open.</summary>
     public bool ShowSettingsModal { get; set; }
 
@@ -669,6 +672,13 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             case HudElement.DeathScreen:
                 DeathScreenWidget.DrawSkin(spriteBatch, _uiSkin, f.RespawnPending, f.ViewportWidth, f.ViewportHeight, f.BackgroundMouse);
                 break;
+            case HudElement.InteractPrompt:
+                if (!this.HasActiveModal && this.InteractPrompt is InteractionPrompt prompt)
+                {
+                    InteractionPromptWidget.DrawSkin(spriteBatch, _uiSkin, _font, in prompt);
+                }
+
+                break;
             case HudElement.Wallet:
             case HudElement.DeathVeil:
             default:
@@ -711,6 +721,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 break;
             case HudElement.Toasts:
             case HudElement.DeathScreen:
+            case HudElement.InteractPrompt:
             default:
                 break;
         }
@@ -741,6 +752,13 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 break;
             case HudElement.Toasts:
                 _toasts.DrawText(spriteBatch, _font, f.ViewportWidth, HudLayout.GetToastTop(f.ViewportWidth, this.Settings.ShowMinimap));
+                break;
+            case HudElement.InteractPrompt:
+                if (!this.HasActiveModal && this.InteractPrompt is InteractionPrompt prompt)
+                {
+                    InteractionPromptWidget.DrawText(spriteBatch, _font, in prompt);
+                }
+
                 break;
             case HudElement.Wallet:
                 PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(f.ViewportWidth, f.ViewportHeight);
