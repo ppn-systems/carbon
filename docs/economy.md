@@ -238,7 +238,7 @@ Ids 1–39 keep the `StarterGameCatalog` ids and codes, and a test checks catego
   - A guard test fails if desktop, graphics or `StarterGameCatalog` construct item or recipe definitions in code.
 - **Kills.** `AuthoritativeWorld.TryRollEconomyLootLocked` (`server/Carbon.Application/World/AuthoritativeWorld.Economy.cs`) replaces the hardcoded `MonsterArchetypeSpec` drops for every monster that has a loot table:
   - `WildSlime` → `slime`, `SkeletonArcher` → `skeleton`, `OrcShaman` → `orc`, `CrimsonDemon` → `demon`, `RockGolem` → `golem`, `FrostWolf` → `wolf`, `AshWraith` → `wraith`.
-  - Item stacks become ground loot. Gold and diamonds go into the killer's `Wallet`, and the killer's `LootPity` counter is updated.
+  - Item stacks, plus a gold pile and a diamond pile when the roll gives any, become ground loot near the corpse, and the killer's `LootPity` counter is updated. Only the killer may pick the drops up for `economy.json → groundLoot.ownerProtectionSeconds` (60 s); after that anyone may. They despawn after `groundLoot.killLootLifetimeSeconds` (180 s). Picking up a pile credits the picker's `Wallet` ([ADR-019](adr/ADR-019-ground-currency-pickups-and-kill-loot-protection.md)).
 - **Crafting.** `TryCraftRecipe` runs `recipes.json` recipes through `CraftingCheckout`, on a draft of the bag slots only. Each craft is all-or-nothing, never consumes forge-upgraded stacks, and charges the station fee.
   - **Station:** must be within 5 tiles.
 
@@ -275,7 +275,7 @@ Ids 1–39 keep the `StarterGameCatalog` ids and codes, and a test checks catego
 
 **Wallet persistence, sync and sinks** ([ADR-012](adr/ADR-012-server-authoritative-wallet-persistence-and-sync.md)):
 - `CharacterRecord` persists `Gold`, `Diamonds`, `WalletSequence` and `DiamondPity` through migration `0005_character_wallet`, in both SQLite and PostgreSQL.
-- `WalletSync` (S2C `0x1237`) pushes balances on world entry, after kills and after vendor operations. The HUD shows them next to the hotbar, using `resources/art/ui/coin.cvg.json` and `diamond.cvg.json`.
+- `WalletSync` (S2C `0x1237`) pushes balances on world entry, after a gold or diamond pile is picked up and after vendor operations. The HUD shows them next to the hotbar, using `resources/art/ui/coin.cvg.json` and `diamond.cvg.json`.
 - `VendorBuyItem` (`0x4007`) and `VendorSellItem` (`0x4008`) require a friendly town NPC within 175 px. `RepairInventoryItem` (`0x4009`) requires a forge station. All three reply with `MutationResult`.
 
 ## 10. Operator guide: changing the numbers

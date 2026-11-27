@@ -313,6 +313,9 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             pkt.Level = spawn.Level;
             pkt.LootCount = spawn.LootCount;
             pkt.WeaponUpgradeLevel = spawn.WeaponUpgradeLevel;
+            pkt.LootCurrency = spawn.LootCurrency;
+            pkt.LootOwnerNetworkId = spawn.LootOwnerNetworkId;
+            pkt.LootProtectionMs = spawn.LootProtectionMs;
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
             await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);

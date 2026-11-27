@@ -102,7 +102,7 @@ public sealed class EconomyServiceTests
             WorldSimulation simulation = new();
             this.GroundLoot = new GroundLootService(simulation, () => rules, () => ++_nextNetworkId, () => 50UL, (_, _) => { });
             InventoryService inventory = new(simulation, new BuildingGrid(), 32f, 1UL, () => rules, () => economy, () => 50UL, (_, _, _) => false, this.GroundLoot, this.Outbound, _ => { });
-            this.Commerce = new EconomyService(42UL, () => economy, () => 50UL, this.GroundLoot, inventory, this.Outbound, (_, _) => this.NpcNearby);
+            this.Commerce = new EconomyService(42UL, 30, () => economy, () => 50UL, this.GroundLoot, inventory, this.Outbound, (_, _) => this.NpcNearby);
 
             ConnectedPlayerSession session = new(1UL, 9UL, Guid.NewGuid(), Guid.NewGuid(), "Tester", 900UL, 0, 0);
             CharacterRecord character = new(

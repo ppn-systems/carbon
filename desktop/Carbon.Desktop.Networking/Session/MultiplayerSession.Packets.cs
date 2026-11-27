@@ -787,6 +787,9 @@ public sealed partial class MultiplayerSession
             Level = Math.Max((ushort)1, pkt.Level),
             LootCount = pkt.LootCount,
             WeaponUpgradeLevel = pkt.WeaponUpgradeLevel,
+            LootCurrency = pkt.LootCurrency,
+            LootOwnerNetworkId = pkt.LootOwnerNetworkId,
+            LootProtectionRemaining = pkt.LootProtectionMs / 1000f,
         };
 
         lock (_worldGate)
@@ -1369,6 +1372,10 @@ public sealed partial class MultiplayerSession
         }
     }
 
+    /// <summary>Gets whether ground loot <paramref name="s"/> is still reserved for another player (ADR-019); the server decides.</summary>
+    private bool IsLootLockedForLocalPlayer(RemoteEntityState s) =>
+        s.LootOwnerNetworkId != 0UL && s.LootOwnerNetworkId != _localNetworkId && s.LootProtectionRemaining > 0f;
+
     private sealed class RemoteEntityState
     {
         public ulong NetworkId { get; init; }
@@ -1392,6 +1399,9 @@ public sealed partial class MultiplayerSession
         public ushort Level { get; set; } = 1;
         public int LootCount { get; init; }
         public byte WeaponUpgradeLevel { get; set; }
+        public LootCurrency LootCurrency { get; init; }
+        public ulong LootOwnerNetworkId { get; init; }
+        public float LootProtectionRemaining { get; set; }
         public ActionAnimationKind ActiveActionKind { get; set; }
         public byte AttackKind { get; set; }
         public byte AttackPhase { get; set; }
