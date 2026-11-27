@@ -13,6 +13,7 @@ using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Effects;
 using Carbon.Desktop.Rendering.Feedback;
 using Carbon.Desktop.Rendering.Overlays;
+using Carbon.Desktop.Rendering.PostProcessing;
 using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Graphics.Animation.Directions;
 using Carbon.Graphics.Batching;
@@ -21,6 +22,7 @@ using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.Batching.Sprites;
 using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Graphics.OpenGL.Abstractions;
+using Carbon.Graphics.OpenGL.Device;
 using Carbon.Graphics.OpenGL.States;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -53,6 +55,11 @@ public sealed class WorldSceneRenderer : IDisposable
     private GeometryBatch _geometryBatch = null!;
     private ChunkTerrainRenderer _terrainRenderer = null!;
     private bool _gpuReady;
+    private WorldPostPipeline? _post;
+    private readonly string? _qualityOverride;
+    private string? _gpuRenderer;
+    private GraphicsQuality? _qualityChoice;
+    private PostPassPlan _plan = PostPassPlan.For(GraphicsQuality.Low);
     private readonly SlowTrail _slowTrail = new();
     private readonly MonsterEffectTints _monsterTints = new();
     private float _slowTrailTime;
@@ -62,7 +69,7 @@ public sealed class WorldSceneRenderer : IDisposable
     private readonly WorldEntityOverlayRenderer _overlays = new();
     private readonly ConstructionOverlayRenderer _construction = new();
     private RoofRenderer? _roofs;
-    private readonly List<PointLight> _lights = new(64);
+    private readonly List<PointLight> _lights = new(128);
     private readonly List<GroundRenderItem> _groundSortList = new(2048);
     private readonly List<CanopyRenderItem> _canopySortList = new(1024);
     private readonly List<DestroyedPropRenderItem> _remnantList = new(512);
@@ -93,7 +100,32 @@ public sealed class WorldSceneRenderer : IDisposable
 
         _art = artRepository ?? CarbonVectorArtLibrary.LoadOrDefault();
         _atmosphere = new Atmosphere(options.StartHour, options.DayLengthSeconds, options.WeatherRainOverride);
+        _qualityOverride = options.GraphicsQualityOverride;
+        this.RefreshQuality();
     }
+
+    /// <summary>
+    /// Gets or sets the player's saved graphics quality (<see langword="null"/> = auto, chosen from the GPU on the first
+    /// draw). <c>CARBON_GRAPHICS_QUALITY</c> wins over it (ADR-041). Cosmetic only.
+    /// </summary>
+    public GraphicsQuality? QualityChoice
+    {
+        get => _qualityChoice;
+        set
+        {
+            if (_qualityChoice != value)
+            {
+                _qualityChoice = value;
+                this.RefreshQuality();
+            }
+        }
+    }
+
+    /// <summary>Gets the graphics quality preset in effect.</summary>
+    public GraphicsQuality Quality { get; private set; }
+
+    /// <summary>Gets the passes the current <see cref="Quality"/> runs.</summary>
+    internal PostPassPlan Plan => _plan;
 
     /// <summary>Gets the current in-game hour <c>[0..24)</c> from the atmospheric cycle.</summary>
     public float TimeOfDayHour => _atmosphere.Hour;
@@ -206,8 +238,17 @@ public sealed class WorldSceneRenderer : IDisposable
 
         _device.SetViewport(0, 0, (uint)viewportWidth, (uint)viewportHeight);
         cameraRig.Resize(viewportWidth, viewportHeight);
-        _device.SetClearColor(new Vector4(0.04f, 0.05f, 0.08f, 1.0f));
-        _device.Clear(ClearBufferMask.ColorBufferBit);
+        Vector4 clearColor = new(0.04f, 0.05f, 0.08f, 1.0f);
+        WorldPostPipeline? post = _plan.UsesOffscreenScene ? this.EnsurePostPipeline() : null;
+        if (post is not null)
+        {
+            post.BeginScene(in _plan, viewportWidth, viewportHeight, in clearColor);
+        }
+        else
+        {
+            _device.SetClearColor(in clearColor);
+            _device.Clear(ClearBufferMask.ColorBufferBit);
+        }
 
         float halfW = viewportWidth * 0.5f / cameraRig.Camera.Zoom;
         float halfH = viewportHeight * 0.5f / cameraRig.Camera.Zoom;
@@ -323,6 +364,7 @@ public sealed class WorldSceneRenderer : IDisposable
         // Roofs over enclosed rooms (ADR-025), above everything walking inside them; the player's own room stays open.
         _roofs?.Refresh(chunkWorld.Buildings, minX, minY, maxX, maxY);
         _roofs?.Draw(_geometryBatch, chunkWorld.Buildings, playerPos, minX, minY, maxX, maxY, _animTime);
+        _roofs?.CollectLights(_lights, minX, minY, maxX, maxY, _animTime);
 
         // Pass 4: Overhead swaying canopies, particles & action swing ribbons
         _canopySortList.Sort();
@@ -345,31 +387,35 @@ public sealed class WorldSceneRenderer : IDisposable
 
         _feedback.DrawDebrisParticles(_geometryBatch);
         this.DrawActionTrails(world, playerPos);
+        // The weather joins the scene batch, before the lighting: it is lit like the rest of the world, and it needs no
+        // overlay batch (one draw call) of its own.
+        this.DrawWeatherOverlay(cameraRig, minX, minY, maxX, maxY, playerPos);
+
         _geometryBatch.End();
 
-        // Pass 5: Day/night multiply ambient, point lights, weather overlay & interior dimming
-        _geometryBatch.Begin(viewProj, Atmosphere.Multiply);
-        _atmosphere.DrawAmbient(_geometryBatch, minX, minY, maxX, maxY);
-        _geometryBatch.End();
-
+        // Pass 5: Day/night lighting, weather overlay & interior dimming.
         // The player emits no light of their own: an automatic lantern here made the character glow after dark.
-        // Light comes only from world sources (props, POIs, projectiles) and, later, an equipped light item.
-        _geometryBatch.Begin(viewProj, BlendState.Additive);
-        _atmosphere.DrawLights(_geometryBatch, _lights);
-        _geometryBatch.End();
-
-        _geometryBatch.Begin(viewProj);
-        if (cameraRig.InteriorBlend < 0.5f)
+        // Light comes only from world sources (props, POIs, projectiles, fireflies) and, later, an equipped light item.
+        if (post is not null)
         {
-            _atmosphere.DrawOverlay(_geometryBatch, minX, minY, maxX, maxY, playerPos);
+            // ADR-041: lights into the half-res light map (cleared to the ambient), then one composite to the back buffer.
+            _atmosphere.CollectFireflyLights(_lights, playerPos);
+            post.BeginLightMap(_atmosphere.Ambient);
+            _geometryBatch.Begin(viewProj, BlendState.Additive);
+            _atmosphere.DrawLightMapLights(_geometryBatch, _lights);
+            _geometryBatch.End();
+            post.Composite(in _plan, TimeOfDayGrading.Sample(_atmosphere.Hour, _atmosphere.Rain), _atmosphere.Ambient, viewportWidth, viewportHeight);
         }
-
-        if (cameraRig.InteriorBlend > 0.01f)
+        else
         {
-            DrawInteriorRoomMask(_geometryBatch, cameraRig.InteriorRoom, cameraRig.InteriorBlend, minX, minY, maxX, maxY);
-        }
+            _geometryBatch.Begin(viewProj, Atmosphere.Multiply);
+            _atmosphere.DrawAmbient(_geometryBatch, minX, minY, maxX, maxY);
+            _geometryBatch.End();
 
-        _geometryBatch.End();
+            _geometryBatch.Begin(viewProj, BlendState.Additive);
+            _atmosphere.DrawLights(_geometryBatch, _lights);
+            _geometryBatch.End();
+        }
 
         // Pass 6: Screen-space proportional monster/NPC/player plates, ghost-trail HP bars & combat numbers
         if (spriteBatch is not null && font is not null)
@@ -403,12 +449,27 @@ public sealed class WorldSceneRenderer : IDisposable
         {
             if (_gpuReady)
             {
+                _post?.Dispose();
                 _terrainRenderer.Dispose();
                 _geometryBatch.Dispose();
             }
 
             _disposed = true;
             GC.SuppressFinalize(this);
+        }
+    }
+
+    // Clouds, rain, splashes and fireflies, and the interior dimming around the room the player stands in.
+    private void DrawWeatherOverlay(CameraRig2D cameraRig, float minX, float minY, float maxX, float maxY, Vector2 playerPos)
+    {
+        if (cameraRig.InteriorBlend < 0.5f)
+        {
+            _atmosphere.DrawOverlay(_geometryBatch, minX, minY, maxX, maxY, playerPos);
+        }
+
+        if (cameraRig.InteriorBlend > 0.01f)
+        {
+            DrawInteriorRoomMask(_geometryBatch, cameraRig.InteriorRoom, cameraRig.InteriorBlend, minX, minY, maxX, maxY);
         }
     }
 
@@ -423,7 +484,27 @@ public sealed class WorldSceneRenderer : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         _geometryBatch = new GeometryBatch(_device);
         _terrainRenderer = new ChunkTerrainRenderer(_device, _art);
+        _gpuRenderer = (_device as GraphicsDevice)?.Capabilities.Renderer;
         _gpuReady = true;
+        this.RefreshQuality();
+    }
+
+    // Resolves the preset (override, saved choice, GPU default) and its pass plan; runs only when an input changes.
+    private void RefreshQuality()
+    {
+        this.Quality = GraphicsQualityPolicy.Resolve(_qualityOverride, _qualityChoice, _gpuRenderer);
+        _plan = PostPassPlan.For(this.Quality);
+    }
+
+    // The post pipeline needs a concrete GL device; it is created the first time a preset asks for it.
+    private WorldPostPipeline? EnsurePostPipeline()
+    {
+        if (_post is null && _device is GraphicsDevice concrete)
+        {
+            _post = new WorldPostPipeline(concrete);
+        }
+
+        return _post;
     }
 
     private void CollectVisibleObjects(
