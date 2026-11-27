@@ -40,6 +40,7 @@ public sealed class DawnCombatGuardTests
             using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
             await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
             AuthoritativeWorldMultiplayerTests.RecordingOutboundSink sink = new();
+            // This test pins the dawn despawn guard, not stamina pacing: free swings keep the fight continuous (ADR-033).
             AuthoritativeWorld world = new(
                 1337UL,
                 32f,
@@ -48,7 +49,8 @@ public sealed class DawnCombatGuardTests
                 new SqliteChunkDeltaRepository(factory),
                 new SqliteCharacterStore(factory),
                 sink,
-                entropy: TestGameplayEntropy.Create(DawnFightSecret));
+                entropy: TestGameplayEntropy.Create(DawnFightSecret),
+                stamina: StaminaTestConfig.CreateWithFreeSwings());
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
             _ = world.ApplyDebugOverrides(new WorldDebugOverrides { StartHour = 4.95f });
 

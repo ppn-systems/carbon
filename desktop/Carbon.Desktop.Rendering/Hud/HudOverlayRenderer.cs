@@ -39,6 +39,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     private readonly MinimapRadarWidget _minimap;
     private readonly DayNightClockWidget _clock = new();
     private readonly HotbarAndItemWidget _hotbar = new();
+    private readonly DeathScreenWidget _deathScreen = new();
     private readonly SkillBarWidget _skillBar = new();
     private readonly InventoryModalWidget _bagModal = new();
     private readonly CharacterSheetModalWidget _characterModal = new();
@@ -93,6 +94,16 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
 
     /// <summary>Gets the repair window (ADR-028); open while <see cref="RepairModalWidget.IsOpen"/>.</summary>
     public RepairModalWidget Repair { get; } = new();
+
+    /// <summary>
+    /// Gets or sets a death shown instead of the session's (screenshot preview only, <c>CARBON_UI_PREVIEW=death</c>).
+    /// Visual only: nothing is sent to the server.
+    /// </summary>
+    public DeathView? DeathPreview { get; set; }
+
+    /// <summary>Returns the death screen's Respawn button rectangle (ADR-031).</summary>
+    public static RectangleF GetRespawnButtonRect(int viewportWidth, int viewportHeight) =>
+        DeathScreenWidget.GetRespawnButtonRect(viewportWidth, viewportHeight);
 
     /// <summary>Gets or sets whether the System Settings &amp; Controls modal is open.</summary>
     public bool ShowSettingsModal { get; set; }
@@ -581,6 +592,19 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             _forgeModal.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight);
             spriteBatch.End();
         }
+
+        // The death screen covers everything else while the player is dead (ADR-031).
+        if ((this.DeathPreview ?? world.LocalDeath) is DeathView death)
+        {
+            HudFrame deathFrame = frame with
+            {
+                BackgroundMouse = mouseScreenPos,
+                Death = death,
+                RespawnPending = this.DeathPreview is null && world.IsRespawnPending,
+            };
+            this.DrawElements(HudComposition.DeathVeil, spriteBatch, screenProj, in deathFrame);
+            this.DrawElements(HudComposition.DeathScreen, spriteBatch, screenProj, in deathFrame);
+        }
     }
 
     /// <summary>
@@ -642,7 +666,11 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             case HudElement.Toasts:
                 _toasts.DrawSkin(spriteBatch, _uiSkin, _font, f.ViewportWidth, HudLayout.GetToastTop(f.ViewportWidth, this.Settings.ShowMinimap));
                 break;
+            case HudElement.DeathScreen:
+                DeathScreenWidget.DrawSkin(spriteBatch, _uiSkin, f.RespawnPending, f.ViewportWidth, f.ViewportHeight, f.BackgroundMouse);
+                break;
             case HudElement.Wallet:
+            case HudElement.DeathVeil:
             default:
                 break;
         }
@@ -675,7 +703,14 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(f.ViewportWidth, f.ViewportHeight);
                 WalletWidget.DrawGeometry(_geometryBatch, _art, in layout);
                 break;
+            case HudElement.DeathVeil:
+                DeathScreenWidget.DrawVeil(_geometryBatch, f.ViewportWidth, f.ViewportHeight);
+                break;
+            case HudElement.DeathScreen when f.Death is DeathView death:
+                DeathScreenWidget.DrawGeometry(_geometryBatch, _art, in death, f.ViewportWidth, f.ViewportHeight);
+                break;
             case HudElement.Toasts:
+            case HudElement.DeathScreen:
             default:
                 break;
         }
@@ -711,6 +746,11 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(f.ViewportWidth, f.ViewportHeight);
                 WalletWidget.DrawText(spriteBatch, _font, f.World, in layout);
                 break;
+            case HudElement.DeathScreen when f.Death is DeathView death:
+                _deathScreen.DrawText(spriteBatch, _font, in death, f.RespawnPending, f.ViewportWidth, f.ViewportHeight);
+                break;
+            case HudElement.DeathVeil:
+            case HudElement.DeathScreen:
             default:
                 break;
         }
@@ -724,7 +764,9 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         int Ptx,
         int Pty,
         Vector2? BackgroundMouse,
-        CombatFeedbackTracker? Feedback);
+        CombatFeedbackTracker? Feedback,
+        DeathView? Death = null,
+        bool RespawnPending = false);
 
     /// <summary>Keeps the skill bar under the clock/minimap column (<see cref="HudLayout"/>); always returns <see langword="true"/>.</summary>
     private bool PrepareSkillBar(int viewportWidth)

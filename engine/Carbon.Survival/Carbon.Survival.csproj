@@ -10,4 +10,9 @@
         <ProjectReference Include="..\Carbon.Combat\Carbon.Combat.csproj" />
         <ProjectReference Include="..\Carbon.Items\Carbon.Items.csproj" />
     </ItemGroup>
+
+    <ItemGroup>
+        <!-- Build-time copy of the shipped stamina tuning (ADR-033): the server default until a config snapshot replaces it. -->
+        <EmbeddedResource Include="..\..\resources\config\stamina.json" LogicalName="Carbon.Survival.Config.stamina.json" />
+    </ItemGroup>
 </Project>

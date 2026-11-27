@@ -32,6 +32,11 @@ public sealed partial class AuthoritativeWorld
     private const float FightingWindowSeconds = 6f;
     private const float SpoilageStepSeconds = 1f;
 
+    /// <summary>Gets whether the player's body moved last tick (drives needs activity and stamina regen).</summary>
+    private bool IsPlayerMovingLocked(PlayerState state) =>
+        _simulation.Entities.HasVelocity(state.Entity) &&
+        _simulation.Entities.GetVelocity(state.Entity).Linear.LengthSquared() > 1f;
+
     private void PrepareNeedsForTickLocked(PlayerState state, bool isSprinting)
     {
         if (!_simulation.Entities.HasComponent<NeedsComponent>(state.Entity))
@@ -39,8 +44,7 @@ public sealed partial class AuthoritativeWorld
             return;
         }
 
-        bool isMoving = _simulation.Entities.HasVelocity(state.Entity) &&
-            _simulation.Entities.GetVelocity(state.Entity).Linear.LengthSquared() > 1f;
+        bool isMoving = this.IsPlayerMovingLocked(state);
         bool isFighting = state.LastCombatDamageTick != 0UL &&
             (_currentTick - state.LastCombatDamageTick) < (ulong)(this.TickRate * FightingWindowSeconds);
 

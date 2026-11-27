@@ -213,18 +213,17 @@ internal sealed class ConstructionService
     /// <summary>Gets the builder work done in one tick at <paramref name="tickRate"/> ticks per second.</summary>
     public float WorkPerTick(int tickRate) => _building.Catalog.Rules.BuilderWorkPerSecond / tickRate;
 
-    /// <summary>Advances one player's construction or deconstruction job by <paramref name="work"/>.</summary>
-    public void StepJob(BuildJob job, in BuildActor actor, IMaterialSource materials, float work)
+    /// <summary>
+    /// Advances one player's construction or deconstruction job by <paramref name="work"/>; returns whether the work was
+    /// applied (a paused or failed job does no work).
+    /// </summary>
+    public bool StepJob(BuildJob job, in BuildActor actor, IMaterialSource materials, float work) => job.Kind switch
     {
-        if (job.Kind == BuildJobKind.Construct)
-        {
-            this.AdvanceConstruction(job, actor, materials, job.TileX, job.TileY, work);
-        }
-        else if (job.Kind == BuildJobKind.Deconstruct)
-        {
-            this.AdvanceDeconstruction(job, actor, materials, job.TileX, job.TileY, work);
-        }
-    }
+        BuildJobKind.Construct => this.AdvanceConstruction(job, actor, materials, job.TileX, job.TileY, work),
+        BuildJobKind.Deconstruct => this.AdvanceDeconstruction(job, actor, materials, job.TileX, job.TileY, work),
+        BuildJobKind.None => false,
+        _ => false,
+    };
 
     /// <summary>
     /// Damages a structure by a player's tool strike and drops a fraction of its materials when it is destroyed.
@@ -289,7 +288,7 @@ internal sealed class ConstructionService
         job.LastPushedStage = ConstructionStage.None;
     }
 
-    private void AdvanceConstruction(BuildJob job, in BuildActor actor, IMaterialSource materials, int jx, int jy, float work)
+    private bool AdvanceConstruction(BuildJob job, in BuildActor actor, IMaterialSource materials, int jx, int jy, float work)
     {
         if (_building.Ledger.TryGetSiteAt(jx, jy, out _, out _, out ConstructionSite site) && site.Stage == ConstructionStage.Blueprint)
         {
@@ -307,7 +306,7 @@ internal sealed class ConstructionService
             this.QueueFootprintStructureChanges(result);
             this.QueueConstructionChange(result.AnchorX, result.AnchorY, StructureType.None, StructureRotation.North, ConstructionStage.Removed, result.Width, result.Height, 1f, isDeconstruction: false);
             job.Kind = BuildJobKind.None;
-            return;
+            return true;
         }
 
         if (result.IsSuccess)
@@ -320,9 +319,10 @@ internal sealed class ConstructionService
         }
 
         this.PushSiteProgress(job, jx, jy, force: false);
+        return result.IsSuccess;
     }
 
-    private void AdvanceDeconstruction(BuildJob job, in BuildActor actor, IMaterialSource materials, int jx, int jy, float work)
+    private bool AdvanceDeconstruction(BuildJob job, in BuildActor actor, IMaterialSource materials, int jx, int jy, float work)
     {
         StructureType type = _chunkWorld.Buildings.TryGetStructure(jx, jy, out StructureTile tile) ? tile.Type : StructureType.None;
         BuildMutationResult result = _building.ApplyDeconstructionWork(actor, jx, jy, work, materials);
@@ -332,7 +332,7 @@ internal sealed class ConstructionService
             this.QueueFootprintStructureChanges(result);
             this.QueueConstructionChange(result.AnchorX, result.AnchorY, type, StructureRotation.North, ConstructionStage.Removed, result.Width, result.Height, 1f, isDeconstruction: true);
             job.Kind = BuildJobKind.None;
-            return;
+            return true;
         }
 
         if (result.IsSuccess)
@@ -344,6 +344,8 @@ internal sealed class ConstructionService
             this.QueueConstructionChange(jx, jy, type, StructureRotation.North, ConstructionStage.Removed, 1, 1, 0f, isDeconstruction: true);
             job.Kind = BuildJobKind.None;
         }
+
+        return result.IsSuccess;
     }
 
     /// <summary>Pushes the site's stage and progress when the stage changed or progress crossed a 10% step.</summary>
