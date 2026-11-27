@@ -127,7 +127,7 @@ internal sealed class AoiReplicator
                     float hp = _simulation.Entities.HasHealth(visibleEntity)
                         ? _simulation.Entities.GetHealth(visibleEntity).Current
                         : 100f;
-                    pending.DeltaEntries.Add(new EntityDeltaEntry(visibleNetId, (byte)mask, pos.X, pos.Y, vel.X, vel.Y, hp));
+                    pending.DeltaEntries.Add(new EntityDeltaEntry(visibleNetId, pos.X, pos.Y, vel.X, vel.Y, hp));
                 }
             }
         }

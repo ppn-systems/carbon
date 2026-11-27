@@ -497,7 +497,6 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         pkt.SelfPositionX = selfX;
         pkt.SelfPositionY = selfY;
         pkt.NetworkIds = columns.Ids;
-        pkt.DirtyMasks = columns.Masks;
         pkt.PositionsX = columns.PositionsX;
         pkt.PositionsY = columns.PositionsY;
         pkt.VelocitiesX = columns.VelocitiesX;
@@ -509,7 +508,6 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     internal static void ClearColumns(EntityDeltaBatch pkt)
     {
         pkt.NetworkIds = [];
-        pkt.DirtyMasks = [];
         pkt.PositionsX = [];
         pkt.PositionsY = [];
         pkt.VelocitiesX = [];

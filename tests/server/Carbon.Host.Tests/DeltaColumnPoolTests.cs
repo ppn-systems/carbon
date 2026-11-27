@@ -22,7 +22,6 @@ public sealed class DeltaColumnPoolTests(ITestOutputHelper output)
 
         columns.Count.Should().Be(3, "the packet serializes each array by its length");
         columns.Ids.Should().Equal(entries[0].NetworkId, entries[1].NetworkId, entries[2].NetworkId);
-        columns.Masks[2].Should().Be(entries[2].DirtyMask);
         columns.PositionsX[1].Should().Be(entries[1].PositionX);
         columns.PositionsY[1].Should().Be(entries[1].PositionY);
         columns.VelocitiesX[2].Should().Be(entries[2].VelocityX);
@@ -100,7 +99,6 @@ public sealed class DeltaColumnPoolTests(ITestOutputHelper output)
             SelfPositionX = 1f,
             SelfPositionY = 2f,
             NetworkIds = Array.ConvertAll(entries, e => e.NetworkId),
-            DirtyMasks = Array.ConvertAll(entries, e => e.DirtyMask),
             PositionsX = Array.ConvertAll(entries, e => e.PositionX),
             PositionsY = Array.ConvertAll(entries, e => e.PositionY),
             VelocitiesX = Array.ConvertAll(entries, e => e.VelocityX),
@@ -109,6 +107,19 @@ public sealed class DeltaColumnPoolTests(ITestOutputHelper output)
         };
 
         Serialize(pooled).Should().Equal(Serialize(fresh), "pooling must not change a single byte on the wire");
+    }
+
+    [Fact]
+    public void PopulateEntityDeltaBatch_EachEntity_CostsOnlyItsIdPositionVelocityAndHealth()
+    {
+        // ADR-038 batch 3: no per-entity dirty-mask byte; the server's dirty flags only pick which entities are sent.
+        DeltaColumnPool pool = new();
+        using EntityDeltaBatch none = new();
+        using EntityDeltaBatch three = new();
+        WorldOutboundSink.PopulateEntityDeltaBatch(none, 1UL, 1U, 0f, 0f, DeltaColumns.Empty);
+        WorldOutboundSink.PopulateEntityDeltaBatch(three, 1UL, 1U, 0f, 0f, pool.Rent(Entries(3)));
+
+        (Serialize(three).Length - Serialize(none).Length).Should().Be(3 * (sizeof(ulong) + (5 * sizeof(float))));
     }
 
     [Fact]
@@ -172,7 +183,7 @@ public sealed class DeltaColumnPoolTests(ITestOutputHelper output)
         for (int i = 0; i < count; i++)
         {
             int v = (seed * 1_000) + i;
-            entries[i] = new EntityDeltaEntry((ulong)v, (byte)(v & 0x7F), v * 1.5f, v * -2f, v * 0.25f, v * -0.5f, 100f - i);
+            entries[i] = new EntityDeltaEntry((ulong)v, v * 1.5f, v * -2f, v * 0.25f, v * -0.5f, 100f - i);
         }
 
         return entries;
