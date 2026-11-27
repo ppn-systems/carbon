@@ -55,8 +55,13 @@ The owner asked for real i18n: English stays the default, Vietnamese comes first
    - **Atlas growth.** The atlas widens to 512 px when more than 256 glyphs are baked.
    - **Baked ranges.** Basic Latin, Latin-1 Supplement, Latin Extended-A and B, Combining Diacritical Marks, Latin Extended Additional (U+1E00–U+1EFF), and General Punctuation (U+2010–U+203A).
    - **Per-locale font stacks** in `locales.ini` (`fonts = file@pixelSize, ...`, primary first):
-     - `en` keeps `thaleah_fat.ttf` at 16 px, so the English look does not change. VT323 is a fallback at 12.5 px (cap height 7 px, the same as Thaleah's) for stray accented characters such as player names.
-     - `vi` uses VT323 at 20 px for every glyph, so tone marks stay legible and every word comes from one face.
+     - **Both `en` and `vi` use VT323 at 20 px**, so every language has the same look and every word comes from one face. The stack format still allows a per-locale primary plus fallback faces for later languages.
+     - **Why one face.** An earlier revision kept Thaleah at 16 px for `en`, with VT323 only for `vi`. Side-by-side captures of the real Settings window (`CARBON_CAPTURE_MODAL`) settled it:
+       - the two languages looked like different games;
+       - Thaleah is caps-only, has 106 code points and lacks `&`;
+       - no OFL pixel face matching Thaleah's style covers Vietnamese.
+     - **Other candidates.** Galmuri9 (OFL, full Vietnamese coverage, crisp at a 2× scale of 20 px) was also captured. Its taller lines overflowed the vitals bars and buttons.
+     - `thaleah_fat.ttf` stays in `resources/fonts` for now as a test fixture and loader fallback. No locale uses it.
 6. **D6 — Migration in follow-up PRs.**
    - This ADR's first PR ships only the infrastructure: localizer, locale files, fonts, guards and the Language setting.
    - Each later PR replaces a group of desktop and graphics UI literals with keys and removes their allowlist entries. The groups are notifications, login and character screens, HUD and modals, and server-originated text.
@@ -85,6 +90,6 @@ The owner asked for real i18n: English stays the default, Vietnamese comes first
 ## Consequences
 
 - **Positive:** Vietnamese renders with correct diacritics, and other sessions can adopt keys right away. The server stays language-neutral and AOT-safe, and missing or stale translations fail CI instead of shipping.
-- **Trade-off:** In Vietnamese the UI uses a mixed-case terminal-style face instead of the all-caps Thaleah face, and 20 px lines are taller than 16 px. Fixed-width widgets may need wider slots, which the screenshot pass (D8) checks.
+- **Trade-off:** The UI uses a mixed-case terminal-style face (VT323) instead of the all-caps Thaleah face in every language. Its 20 px lines are taller than Thaleah's 16 px, so fixed-width widgets may need wider slots or shorter translations, which the screenshot pass (D8) checks.
 - **Trade-off:** `GameText.Current` is ambient mutable state in the desktop layer. This is acceptable on the client, where `CodeHygieneTests` does not apply, and it keeps widget constructors unchanged.
 - **Debt:** The literal allowlist starts with every current UI literal. It must reach zero through the D6 follow-up PRs.

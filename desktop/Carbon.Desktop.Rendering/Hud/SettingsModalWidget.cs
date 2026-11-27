@@ -283,7 +283,7 @@ internal sealed class SettingsModalWidget
             spriteBatch.DrawOutlinedString(
                 font,
                 GameText.Get("settings.drop_hint"),
-                new Vector2(ox + 36f, oy + 344f),
+                new Vector2(ox + 36f, oy + 334f),
                 CarbonUiPalette.TextMuted,
                 black,
                 1,

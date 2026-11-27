@@ -163,6 +163,12 @@ public sealed class WorldGameplayScene : GameScene
             return;
         }
 
+        // Checked before the modal early-returns below, so a capture with CARBON_CAPTURE_MODAL still exits.
+        if (_options.AutoExit && _frameCount >= 25 + _options.CaptureFrames)
+        {
+            context.Window.Close();
+        }
+
         _cameraRig.Resize(context.WindowWidth, context.WindowHeight);
         DesktopInputFrame input = DesktopInputController.Poll(context.Input);
         _mouseScreenPosition = input.MouseScreenPosition;
@@ -591,11 +597,6 @@ public sealed class WorldGameplayScene : GameScene
         bool inside = _worldRenderer.TryGetBuildingAt(playerPos, out RectangleF room);
         float rateDt = _options.CaptureFrames > 0 ? 1f / 15f : (float)dt;
         _cameraRig.Update(playerPos, inside, in room, rateDt);
-
-        if (_options.AutoExit && _frameCount >= 25 + _options.CaptureFrames)
-        {
-            context.Window.Close();
-        }
     }
 
     /// <inheritdoc/>
