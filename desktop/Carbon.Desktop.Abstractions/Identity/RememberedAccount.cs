@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using Nalix.Abstractions.Primitives;
 
 namespace Carbon.Desktop.Abstractions.Identity;
 
@@ -11,6 +12,6 @@ namespace Carbon.Desktop.Abstractions.Identity;
 /// <param name="Username">Account username, shown as "Signed in as …".</param>
 /// <param name="ServerHost">Server the token belongs to.</param>
 /// <param name="ServerPort">Server port the token belongs to.</param>
-/// <param name="Token">Remember-me token bytes issued by the server.</param>
+/// <param name="Token">Remember-me token issued by the server.</param>
 /// <param name="ExpiresAtUtc">When the server stops accepting the token.</param>
-public sealed record RememberedAccount(string Username, string ServerHost, ushort ServerPort, byte[] Token, DateTimeOffset ExpiresAtUtc);
+public sealed record RememberedAccount(string Username, string ServerHost, ushort ServerPort, Bytes32 Token, DateTimeOffset ExpiresAtUtc);

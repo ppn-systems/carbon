@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
+using Nalix.Abstractions.Primitives;
 using Microsoft.Data.Sqlite;
 
 namespace Carbon.Infrastructure.Persistence.Sqlite;
@@ -48,7 +49,7 @@ public sealed class SqliteRememberTokenStore : IRememberTokenStore
 
         SqliteCommand cmd = new(InsertSql, conn);
         await using ConfiguredAsyncDisposable cmdScope = cmd.ConfigureAwait(false);
-        cmd.Parameters.Add("@hash", SqliteType.Blob).Value = record.TokenHash;
+        cmd.Parameters.Add("@hash", SqliteType.Blob).Value = record.TokenHash.ToByteArray();
         _ = cmd.Parameters.AddWithValue("@account", record.AccountId.ToString("D"));
         _ = cmd.Parameters.AddWithValue("@created", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
         _ = cmd.Parameters.AddWithValue("@expires", record.ExpiresAtUtc.ToUnixTimeMilliseconds());
@@ -57,16 +58,14 @@ public sealed class SqliteRememberTokenStore : IRememberTokenStore
     }
 
     /// <inheritdoc/>
-    public async Task<RememberTokenRecord?> FindAsync(byte[] tokenHash, CancellationToken ct = default)
+    public async Task<RememberTokenRecord?> FindAsync(Bytes32 tokenHash, CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(tokenHash);
-
         SqliteConnection conn = await _factory.OpenAsync(ct).ConfigureAwait(false);
         await using ConfiguredAsyncDisposable connScope = conn.ConfigureAwait(false);
 
         SqliteCommand cmd = new(FindSql, conn);
         await using ConfiguredAsyncDisposable cmdScope = cmd.ConfigureAwait(false);
-        cmd.Parameters.Add("@hash", SqliteType.Blob).Value = tokenHash;
+        cmd.Parameters.Add("@hash", SqliteType.Blob).Value = tokenHash.ToByteArray();
 
         SqliteDataReader reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
         await using ConfiguredAsyncDisposable readerScope = reader.ConfigureAwait(false);
@@ -82,16 +81,14 @@ public sealed class SqliteRememberTokenStore : IRememberTokenStore
     }
 
     /// <inheritdoc/>
-    public async Task<bool> DeleteAsync(byte[] tokenHash, CancellationToken ct = default)
+    public async Task<bool> DeleteAsync(Bytes32 tokenHash, CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(tokenHash);
-
         SqliteConnection conn = await _factory.OpenAsync(ct).ConfigureAwait(false);
         await using ConfiguredAsyncDisposable connScope = conn.ConfigureAwait(false);
 
         SqliteCommand cmd = new(DeleteSql, conn);
         await using ConfiguredAsyncDisposable cmdScope = cmd.ConfigureAwait(false);
-        cmd.Parameters.Add("@hash", SqliteType.Blob).Value = tokenHash;
+        cmd.Parameters.Add("@hash", SqliteType.Blob).Value = tokenHash.ToByteArray();
         return await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false) > 0;
     }
 }

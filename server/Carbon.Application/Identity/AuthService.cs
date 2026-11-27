@@ -18,6 +18,7 @@ using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
 using Carbon.Items.Progression;
 using Carbon.Items.Serialization;
+using Nalix.Abstractions.Primitives;
 
 namespace Carbon.Application.Identity;
 
@@ -236,7 +237,10 @@ public sealed class AuthService : IAuthService, IDisposable
             throw new ArgumentException("A remember-me token needs a signed-in account.", nameof(accountId));
         }
 
-        byte[] token = RandomNumberGenerator.GetBytes(RememberTokenIssue.TokenLength);
+        Span<byte> random = stackalloc byte[Bytes32.Size];
+        RandomNumberGenerator.Fill(random);
+        Bytes32 token = new(random);
+        CryptographicOperations.ZeroMemory(random);
         DateTimeOffset expires = _time.GetUtcNow() + RememberTokenLifetime;
         await _rememberTokens
             .InsertAsync(new RememberTokenRecord(HashToken(token), accountId, expires), MaxRememberTokensPerAccount, ct)
@@ -245,19 +249,19 @@ public sealed class AuthService : IAuthService, IDisposable
     }
 
     /// <inheritdoc/>
-    public async Task<AuthOutcome> LoginWithRememberTokenAsync(byte[] token, ushort protocolVersion, CancellationToken ct = default)
+    public async Task<AuthOutcome> LoginWithRememberTokenAsync(Bytes32 token, ushort protocolVersion, CancellationToken ct = default)
     {
         if (protocolVersion != Carbon.Contracts.Common.CarbonProtocol.Version)
         {
             return new AuthOutcome(AuthStatus.ProtocolMismatch, Guid.Empty);
         }
 
-        if (token is not { Length: RememberTokenIssue.TokenLength })
+        if (token.IsZero)
         {
             return new AuthOutcome(AuthStatus.InvalidCredentials, Guid.Empty);
         }
 
-        byte[] hash = HashToken(token);
+        Bytes32 hash = HashToken(token);
         RememberTokenRecord? stored = await _rememberTokens.FindAsync(hash, ct).ConfigureAwait(false);
         if (stored is null)
         {
@@ -283,9 +287,9 @@ public sealed class AuthService : IAuthService, IDisposable
     }
 
     /// <inheritdoc/>
-    public async Task RevokeRememberTokenAsync(byte[] token, CancellationToken ct = default)
+    public async Task RevokeRememberTokenAsync(Bytes32 token, CancellationToken ct = default)
     {
-        if (token is not { Length: RememberTokenIssue.TokenLength })
+        if (token.IsZero)
         {
             return;
         }
@@ -483,7 +487,12 @@ public sealed class AuthService : IAuthService, IDisposable
     }
 
     /// <summary>SHA-256 of the token: the only form of a remember-me token the server keeps.</summary>
-    private static byte[] HashToken(byte[] token) => SHA256.HashData(token);
+    private static Bytes32 HashToken(Bytes32 token)
+    {
+        Span<byte> hash = stackalloc byte[Bytes32.Size];
+        _ = SHA256.HashData(token.AsSpan(), hash);
+        return new Bytes32(hash);
+    }
 
     private static bool IsValidIdentifier(string? value, int minLen, int maxLen)
     {

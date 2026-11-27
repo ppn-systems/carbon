@@ -2,6 +2,7 @@
 
 using Carbon.Contracts.Common;
 using Nalix.Abstractions.Networking.Packets;
+using Nalix.Abstractions.Primitives;
 using Nalix.Abstractions.Serialization;
 using Nalix.Codec.DataFrames;
 
@@ -24,9 +25,9 @@ public sealed partial class RememberTokenResult : PacketBase<RememberTokenResult
     [SerializeOrder(0)]
     public OpStatus Status { get; set; }
 
-    /// <summary>The token: 32 random bytes, empty unless <see cref="Status"/> is <see cref="OpStatus.Ok"/>.</summary>
+    /// <summary>The token: 32 random bytes, <see cref="Bytes32.Zero"/> unless <see cref="Status"/> is <see cref="OpStatus.Ok"/>.</summary>
     [SerializeOrder(1)]
-    public byte[] Token { get; set; } = [];
+    public Bytes32 Token { get; set; }
 
     /// <summary>When the token stops working, in Unix seconds (UTC).</summary>
     [SerializeOrder(2)]

@@ -23,6 +23,7 @@ using Carbon.Infrastructure.Security;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
+using Nalix.Abstractions.Primitives;
 using Nalix.Hosting;
 using Xunit;
 
@@ -93,12 +94,24 @@ public sealed class LoginFlowTests : IDisposable
         loaded!.Username.Should().Be(saved.Username);
         loaded.ServerHost.Should().Be(saved.ServerHost);
         loaded.ServerPort.Should().Be(saved.ServerPort);
-        loaded.Token.Should().Equal(saved.Token);
+        (loaded.Token == saved.Token).Should().BeTrue("the token survives the file through Bytes32.ToString and Parse");
+        File.ReadAllText(this.AccountFile).Should().Contain(saved.Token.ToString(), "account.ini keeps the token as Bytes32 text");
         loaded.ExpiresAtUtc.Should().Be(saved.ExpiresAtUtc);
         if (!OperatingSystem.IsWindows())
         {
             File.GetUnixFileMode(this.AccountFile).Should().Be(UnixFileMode.UserRead | UnixFileMode.UserWrite, "only the player may read the token");
         }
+    }
+
+    [Fact]
+    public void Bytes32_ToStringThenParse_RoundTripsEveryByte()
+    {
+        Bytes32 token = new(System.Security.Cryptography.RandomNumberGenerator.GetBytes(Bytes32.Size));
+
+        Bytes32 parsed = Bytes32.Parse(token.ToString());
+
+        (parsed == token).Should().BeTrue("account.ini relies on this text form");
+        parsed.AsSpan().SequenceEqual(token.AsSpan()).Should().BeTrue();
     }
 
     [Fact]
@@ -256,6 +269,7 @@ public sealed class LoginFlowTests : IDisposable
                 fileBytes.AsSpan().IndexOf(Encoding.UTF8.GetBytes(password)).Should().Be(-1, "Remember me must never write the password");
                 fileText.Should().NotContainEquivalentOf(Convert.ToBase64String(Encoding.UTF8.GetBytes(password)).TrimEnd('='), "not even encoded");
                 fileText.Should().NotContainEquivalentOf(Base64Url.EncodeToString(Encoding.UTF8.GetBytes(password)), "not even encoded");
+                fileText.Should().NotContainEquivalentOf(Convert.ToHexString(Encoding.UTF8.GetBytes(password)), "not even as hex, the token's text form");
                 fileText.Should().Contain(username);
 
                 // Restart: the start screen's Continue signs in on another session with the stored token alone.
@@ -289,7 +303,7 @@ public sealed class LoginFlowTests : IDisposable
     }
 
     private static RememberedAccount SampleAccount(string username) =>
-        new(username, "127.0.0.1", 57207, [1, 2, 3, 4, 5, 6, 7, 8], new DateTimeOffset(2026, 12, 27, 0, 0, 0, TimeSpan.Zero));
+        new(username, "127.0.0.1", 57207, new Bytes32(System.Security.Cryptography.RandomNumberGenerator.GetBytes(Bytes32.Size)), new DateTimeOffset(2026, 12, 27, 0, 0, 0, TimeSpan.Zero));
 
     private static string FindRepoRoot()
     {

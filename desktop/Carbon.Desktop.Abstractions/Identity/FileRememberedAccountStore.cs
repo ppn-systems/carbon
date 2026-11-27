@@ -1,11 +1,11 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
-using System.Buffers.Text;
 using System.Globalization;
 using System.IO;
 using System.Text;
 using Carbon.Desktop.Abstractions.Configuration;
+using Nalix.Abstractions.Primitives;
 
 namespace Carbon.Desktop.Abstractions.Identity;
 
@@ -53,8 +53,8 @@ public sealed class FileRememberedAccountStore : IRememberedAccountStore
                 return null;
             }
 
-            byte[] token = Base64Url.DecodeFromChars(tokenText);
-            return token.Length == 0
+            Bytes32 token = Bytes32.Parse(tokenText);
+            return token.IsZero
                 ? null
                 : new RememberedAccount(username, host, port, token, DateTimeOffset.FromUnixTimeSeconds(expiresUnix));
         }
@@ -82,7 +82,7 @@ public sealed class FileRememberedAccountStore : IRememberedAccountStore
             $"username = {IniDocument.Escape(account.Username)}",
             $"host = {IniDocument.Escape(account.ServerHost)}",
             $"port = {account.ServerPort.ToString(CultureInfo.InvariantCulture)}",
-            $"token = {Base64Url.EncodeToString(account.Token)}",
+            $"token = {account.Token}",
             $"expires = {account.ExpiresAtUtc.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture)}",
             string.Empty);
 

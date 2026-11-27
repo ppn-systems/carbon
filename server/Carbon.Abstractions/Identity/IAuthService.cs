@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
 using Carbon.Contracts.Identity;
+using Nalix.Abstractions.Primitives;
 
 namespace Carbon.Abstractions.Identity;
 
@@ -25,13 +26,9 @@ public readonly record struct AuthOutcome(AuthStatus Status, Guid AccountId);
 public readonly record struct CharacterCreateResult(bool Succeeded, string? FailureReason, CharacterRecord? Character);
 
 /// <summary>A newly issued remember-me token (ADR-037). The plaintext token exists only here and on the client.</summary>
-/// <param name="Token">The bearer token: <see cref="TokenLength"/> random bytes.</param>
+/// <param name="Token">The bearer token: 32 random bytes.</param>
 /// <param name="ExpiresAtUtc">When it stops working.</param>
-public readonly record struct RememberTokenIssue(byte[] Token, DateTimeOffset ExpiresAtUtc)
-{
-    /// <summary>Length in bytes of every remember-me token.</summary>
-    public const int TokenLength = 32;
-}
+public readonly record struct RememberTokenIssue(Bytes32 Token, DateTimeOffset ExpiresAtUtc);
 
 /// <summary>
 /// Application identity service handling registration, login, and character roster management.
@@ -63,12 +60,12 @@ public interface IAuthService
     /// Signs in with a remember-me token: <see cref="AuthStatus.InvalidCredentials"/> for an unknown, expired or revoked
     /// token, <see cref="AuthStatus.Locked"/> for a banned account (ADR-037).
     /// </summary>
-    Task<AuthOutcome> LoginWithRememberTokenAsync(byte[] token, ushort protocolVersion, CancellationToken ct = default);
+    Task<AuthOutcome> LoginWithRememberTokenAsync(Bytes32 token, ushort protocolVersion, CancellationToken ct = default);
 
     /// <summary>
     /// Revokes a remember-me token so it can never sign in again; revoking an unknown token does nothing (ADR-037).
     /// </summary>
-    Task RevokeRememberTokenAsync(byte[] token, CancellationToken ct = default);
+    Task RevokeRememberTokenAsync(Bytes32 token, CancellationToken ct = default);
 
     /// <summary>
     /// Lists all characters belonging to the authenticated account.

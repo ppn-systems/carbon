@@ -15,6 +15,7 @@ using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Infrastructure.Security;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
+using Nalix.Abstractions.Primitives;
 using NSubstitute;
 using Xunit;
 
@@ -32,7 +33,7 @@ public sealed class RememberTokenTests
         RememberTokenIssue issued = await auth.IssueRememberTokenAsync(h.Account.Id).ConfigureAwait(true);
         AuthOutcome outcome = await auth.LoginWithRememberTokenAsync(issued.Token, CarbonProtocol.Version).ConfigureAwait(true);
 
-        issued.Token.Should().HaveCount(RememberTokenIssue.TokenLength);
+        issued.Token.IsZero.Should().BeFalse("the token is 32 random bytes");
         issued.ExpiresAtUtc.Should().Be(h.Time.GetUtcNow() + AuthService.RememberTokenLifetime);
         outcome.Status.Should().Be(AuthStatus.Ok, "a freshly issued token signs in");
         outcome.AccountId.Should().Be(h.Account.Id);
@@ -47,22 +48,25 @@ public sealed class RememberTokenTests
         RememberTokenIssue issued = await auth.IssueRememberTokenAsync(h.Account.Id).ConfigureAwait(true);
 
         RememberTokenRecord stored = h.Tokens.Snapshot().Should().ContainSingle().Subject;
-        stored.TokenHash.Should().Equal(SHA256.HashData(issued.Token), "the server keeps the hash, never the token");
-        stored.TokenHash.Should().NotEqual(issued.Token);
+        (stored.TokenHash == new Bytes32(SHA256.HashData(issued.Token.AsSpan()))).Should().BeTrue("the server keeps the hash, never the token");
+        (stored.TokenHash == issued.Token).Should().BeFalse();
     }
 
     [Fact]
-    public async Task LoginWithRememberTokenAsync_AfterRevoke_RejectsTheToken()
+    public async Task LoginWithRememberTokenAsync_AfterRevoke_RejectsOnlyTheRevokedToken()
     {
         Harness h = new();
         using AuthService auth = h.CreateService();
         RememberTokenIssue issued = await auth.IssueRememberTokenAsync(h.Account.Id).ConfigureAwait(true);
+        RememberTokenIssue otherDevice = await auth.IssueRememberTokenAsync(h.Account.Id).ConfigureAwait(true);
 
         await auth.RevokeRememberTokenAsync(issued.Token).ConfigureAwait(true);
         AuthOutcome outcome = await auth.LoginWithRememberTokenAsync(issued.Token, CarbonProtocol.Version).ConfigureAwait(true);
 
         outcome.Status.Should().Be(AuthStatus.InvalidCredentials, "log out revokes the token on the server");
-        h.Tokens.Count.Should().Be(0);
+        h.Tokens.Count.Should().Be(1, "only the logged-out device's token is deleted");
+        (await auth.LoginWithRememberTokenAsync(otherDevice.Token, CarbonProtocol.Version).ConfigureAwait(true))
+            .Status.Should().Be(AuthStatus.Ok, "other remembered devices stay signed in");
     }
 
     [Fact]
@@ -94,18 +98,20 @@ public sealed class RememberTokenTests
     }
 
     [Fact]
-    public async Task LoginWithRememberTokenAsync_WithUnknownOrMalformedToken_RejectsIt()
+    public async Task LoginWithRememberTokenAsync_WithWrongTokenOfTheRightLength_RejectsIt()
     {
         Harness h = new();
         using AuthService auth = h.CreateService();
-        _ = await auth.IssueRememberTokenAsync(h.Account.Id).ConfigureAwait(true);
+        RememberTokenIssue issued = await auth.IssueRememberTokenAsync(h.Account.Id).ConfigureAwait(true);
+        byte[] nearMiss = issued.Token.ToByteArray();
+        nearMiss[^1] ^= 0x01;
 
-        (await auth.LoginWithRememberTokenAsync(RandomNumberGenerator.GetBytes(RememberTokenIssue.TokenLength), CarbonProtocol.Version).ConfigureAwait(true))
-            .Status.Should().Be(AuthStatus.InvalidCredentials);
-        (await auth.LoginWithRememberTokenAsync([1, 2, 3], CarbonProtocol.Version).ConfigureAwait(true))
-            .Status.Should().Be(AuthStatus.InvalidCredentials);
-        (await auth.LoginWithRememberTokenAsync([], CarbonProtocol.Version).ConfigureAwait(true))
-            .Status.Should().Be(AuthStatus.InvalidCredentials);
+        (await auth.LoginWithRememberTokenAsync(new Bytes32(nearMiss), CarbonProtocol.Version).ConfigureAwait(true))
+            .Status.Should().Be(AuthStatus.InvalidCredentials, "one flipped bit is a different token");
+        (await auth.LoginWithRememberTokenAsync(new Bytes32(RandomNumberGenerator.GetBytes(Bytes32.Size)), CarbonProtocol.Version).ConfigureAwait(true))
+            .Status.Should().Be(AuthStatus.InvalidCredentials, "an unknown token signs in nobody");
+        (await auth.LoginWithRememberTokenAsync(Bytes32.Zero, CarbonProtocol.Version).ConfigureAwait(true))
+            .Status.Should().Be(AuthStatus.InvalidCredentials, "a missing token signs in nobody");
     }
 
     [Fact]
@@ -159,8 +165,8 @@ public sealed class RememberTokenTests
             signedIn.AccountId.Should().Be(registered.AccountId);
             afterRevoke.Status.Should().Be(AuthStatus.InvalidCredentials, "the revoked row is deleted");
             otherDevice.Status.Should().Be(AuthStatus.Ok, "revoking one device leaves the others signed in");
-            (await tokens.FindAsync(SHA256.HashData(second.Token)).ConfigureAwait(true)).Should().NotBeNull();
-            (await File.ReadAllBytesAsync(dbPath).ConfigureAwait(true)).AsSpan().IndexOf(second.Token).Should().Be(-1, "the database holds only token hashes");
+            (await tokens.FindAsync(new Bytes32(SHA256.HashData(second.Token.AsSpan()))).ConfigureAwait(true)).Should().NotBeNull();
+            (await File.ReadAllBytesAsync(dbPath).ConfigureAwait(true)).AsSpan().IndexOf(second.Token.AsSpan()).Should().Be(-1, "the database holds only token hashes");
         }
         finally
         {

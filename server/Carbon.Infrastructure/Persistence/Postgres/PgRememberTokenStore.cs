@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
+using Nalix.Abstractions.Primitives;
 using Npgsql;
 using NpgsqlTypes;
 
@@ -50,7 +51,7 @@ public sealed class PgRememberTokenStore : IRememberTokenStore
 
         NpgsqlCommand cmd = new(InsertSql, conn);
         await using ConfiguredAsyncDisposable cmdScope = cmd.ConfigureAwait(false);
-        _ = cmd.Parameters.Add(new NpgsqlParameter("hash", NpgsqlDbType.Bytea) { Value = record.TokenHash });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("hash", NpgsqlDbType.Bytea) { Value = record.TokenHash.ToByteArray() });
         _ = cmd.Parameters.Add(new NpgsqlParameter("account", NpgsqlDbType.Uuid) { Value = record.AccountId });
         _ = cmd.Parameters.Add(new NpgsqlParameter("created", NpgsqlDbType.TimestampTz) { Value = DateTimeOffset.UtcNow });
         _ = cmd.Parameters.Add(new NpgsqlParameter("expires", NpgsqlDbType.TimestampTz) { Value = record.ExpiresAtUtc.ToUniversalTime() });
@@ -59,16 +60,14 @@ public sealed class PgRememberTokenStore : IRememberTokenStore
     }
 
     /// <inheritdoc/>
-    public async Task<RememberTokenRecord?> FindAsync(byte[] tokenHash, CancellationToken ct = default)
+    public async Task<RememberTokenRecord?> FindAsync(Bytes32 tokenHash, CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(tokenHash);
-
         NpgsqlConnection conn = await _dataSource.OpenConnectionAsync(ct).ConfigureAwait(false);
         await using ConfiguredAsyncDisposable connScope = conn.ConfigureAwait(false);
 
         NpgsqlCommand cmd = new(FindSql, conn);
         await using ConfiguredAsyncDisposable cmdScope = cmd.ConfigureAwait(false);
-        _ = cmd.Parameters.Add(new NpgsqlParameter("hash", NpgsqlDbType.Bytea) { Value = tokenHash });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("hash", NpgsqlDbType.Bytea) { Value = tokenHash.ToByteArray() });
 
         DbDataReader reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
         await using ConfiguredAsyncDisposable readerScope = reader.ConfigureAwait(false);
@@ -82,16 +81,14 @@ public sealed class PgRememberTokenStore : IRememberTokenStore
     }
 
     /// <inheritdoc/>
-    public async Task<bool> DeleteAsync(byte[] tokenHash, CancellationToken ct = default)
+    public async Task<bool> DeleteAsync(Bytes32 tokenHash, CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(tokenHash);
-
         NpgsqlConnection conn = await _dataSource.OpenConnectionAsync(ct).ConfigureAwait(false);
         await using ConfiguredAsyncDisposable connScope = conn.ConfigureAwait(false);
 
         NpgsqlCommand cmd = new(DeleteSql, conn);
         await using ConfiguredAsyncDisposable cmdScope = cmd.ConfigureAwait(false);
-        _ = cmd.Parameters.Add(new NpgsqlParameter("hash", NpgsqlDbType.Bytea) { Value = tokenHash });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("hash", NpgsqlDbType.Bytea) { Value = tokenHash.ToByteArray() });
         return await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false) > 0;
     }
 }

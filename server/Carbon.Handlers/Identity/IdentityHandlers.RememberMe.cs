@@ -14,6 +14,7 @@ using Carbon.Handlers.Internal;
 using Carbon.Handlers.Session;
 using Nalix.Abstractions.Networking;
 using Nalix.Abstractions.Networking.Packets;
+using Nalix.Abstractions.Primitives;
 using Nalix.Abstractions.Security;
 using Nalix.Codec.Extensions;
 using Nalix.Codec.Pooling;
@@ -36,7 +37,7 @@ public static partial class IdentityHandlers
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
         if (!ConnectionAuthRegistry.TryGetAccountId(connectionId, out Guid accountId))
         {
-            await SendRememberTokenAsync(sender, OpStatus.Forbidden, [], 0L).ConfigureAwait(false);
+            await SendRememberTokenAsync(sender, OpStatus.Forbidden, Bytes32.Zero, 0L).ConfigureAwait(false);
             return;
         }
 
@@ -52,7 +53,7 @@ public static partial class IdentityHandlers
         ArgumentNullException.ThrowIfNull(context);
 
         TokenSignInRequest req = context.Packet;
-        byte[] token = (byte[])req.Token.Clone();
+        Bytes32 token = req.Token;
         ushort protocolVersion = req.ClientProtocolVersion;
 
         // Captured before the first await: the pooled context may be recycled while the store runs (audit TS-4).
@@ -63,6 +64,7 @@ public static partial class IdentityHandlers
         AuthOutcome outcome = await s_authService
             .LoginWithRememberTokenAsync(token, protocolVersion, ct)
             .ConfigureAwait(false);
+        Bytes32.Wipe(ref token);
 
         if (outcome.Status == AuthStatus.Ok)
         {
@@ -89,14 +91,15 @@ public static partial class IdentityHandlers
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        byte[] token = (byte[])context.Packet.Token.Clone();
+        Bytes32 token = context.Packet.Token;
         IPacketSender sender = context.Sender;
         CancellationToken ct = context.CancellationToken;
         await s_authService.RevokeRememberTokenAsync(token, ct).ConfigureAwait(false);
+        Bytes32.Wipe(ref token);
         await PacketReplyHelper.SendMutationAsync(sender, OpStatus.Ok, ItemOpCode.RememberTokenRevoke).ConfigureAwait(false);
     }
 
-    private static ValueTask SendRememberTokenAsync(IPacketSender sender, OpStatus status, byte[] token, long expiresAtUnixSeconds)
+    private static ValueTask SendRememberTokenAsync(IPacketSender sender, OpStatus status, Bytes32 token, long expiresAtUnixSeconds)
     {
         PacketScope<RememberTokenResult> lease = PacketFactory<RememberTokenResult>.Acquire();
         try

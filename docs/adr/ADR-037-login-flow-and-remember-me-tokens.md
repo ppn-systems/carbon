@@ -27,17 +27,19 @@ opens other services too.
 
 ## Decision
 
-1. **D1 — Server-issued remember-me tokens.** A token is 32 random bytes (`RandomNumberGenerator`). The server stores
-   only `SHA-256(token)` in a new `remember_tokens` table (migration `0020_remember_tokens`, SQLite and PostgreSQL:
+1. **D1 — Server-issued remember-me tokens.** A token is 32 random bytes (`RandomNumberGenerator`), held everywhere as
+   `Nalix.Abstractions.Primitives.Bytes32`: packets, `IAuthService`, the client session and the stored account. Its `==`
+   is constant-time, and copies are wiped with `Bytes32.Wipe` or reset to `Bytes32.Zero` after use. The server stores
+   only `SHA-256(token)` (also a `Bytes32`) in a new `remember_tokens` table (migration `0020_remember_tokens`, SQLite and PostgreSQL:
    `token_hash` primary key, `account_id` referencing `accounts` with cascade delete, `created_at_utc`,
-   `expires_at_utc`). A token signs in for 30 days (`AuthService.RememberTokenLifetime`). One account keeps at most 10
+   `expires_at_utc`; repositories convert with `ToByteArray` at the boundary). A token signs in for 30 days (`AuthService.RememberTokenLifetime`). One account keeps at most 10
    tokens, one per remembered device; the oldest is dropped (`MaxRememberTokensPerAccount`). A plain hash is enough,
    with no salt or slow KDF, because the token is uniformly random, unlike a password.
 2. **D2 — Four opcodes in `0x40A0–0x40A3`** (allocated to this work; `0x40A4–0x40A7` stay free). They live in
    `Carbon.Contracts.Items`, because the opcode-band guard ties each band to its assembly:
    - `RememberTokenRequest` `0x40A0` C2S, permission `USER`: issue a token for the signed-in account.
-   - `RememberTokenResult` `0x40A1` S2C: `Status` (`OpStatus`), `Token` (`byte[]`), `ExpiresAtUnixSeconds`. The token is
-     bytes, not text, so it adds no string field to an S2C packet (ADR-023 D4 guard).
+   - `RememberTokenResult` `0x40A1` S2C: `Status` (`OpStatus`), `Token` (`Bytes32`), `ExpiresAtUnixSeconds`. The token is
+     a fixed 32-byte value, not text, so it adds no string field to an S2C packet (ADR-023 D4 guard).
    - `TokenSignInRequest` `0x40A2` C2S, permission `NONE`: `Token`, `ClientProtocolVersion`. The answer is the existing
      `AuthResult`. An unknown, expired or revoked token gets `InvalidCredentials`, a banned account `Locked`, an old
      client `ProtocolMismatch`. On `Ok` the handler elevates the connection and sends the config manifest exactly like
@@ -47,7 +49,8 @@ opens other services too.
    Existing packets are unchanged, so `CarbonProtocol.Version` stays the same.
 3. **D3 — The client stores the token, never the password.** `FileRememberedAccountStore` writes
    `%LOCALAPPDATA%/Carbon/account.ini` (or `~/.local/share/Carbon/account.ini`; override `CARBON_ACCOUNT_FILE`) with
-   the username, the server host and port, the token (Base64Url) and its expiry. On Linux and macOS the file is created
+   the username, the server host and port, the token (`Bytes32.ToString` hex, read back with `Bytes32.Parse`) and its
+   expiry. On Linux and macOS the file is created
    with mode `0600` through a temp file and a rename, so it is never readable by others. On Windows it inherits the
    per-user ACL of `%LOCALAPPDATA%`. The token is not additionally wrapped with DPAPI or libsecret: it is revocable,
    expires, works only against this game's server, and the server holds only its hash. `MenuFlow.RememberAsync` takes

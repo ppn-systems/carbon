@@ -276,7 +276,7 @@ public sealed partial class MultiplayerSession
                     _activeCharacterId == Guid.Empty ||
                     string.IsNullOrWhiteSpace(_reconnectHost) ||
                     _reconnectPort == 0 ||
-                    ((string.IsNullOrEmpty(_lastUsername) || string.IsNullOrEmpty(_lastPassword)) && _lastToken.Length == 0))
+                    ((string.IsNullOrEmpty(_lastUsername) || string.IsNullOrEmpty(_lastPassword)) && _lastToken.IsZero))
                 {
                     return;
                 }

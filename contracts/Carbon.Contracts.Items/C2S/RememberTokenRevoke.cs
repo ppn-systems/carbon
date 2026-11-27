@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using Nalix.Abstractions.Networking.Packets;
+using Nalix.Abstractions.Primitives;
 using Nalix.Abstractions.Serialization;
 using Nalix.Codec.DataFrames;
 
@@ -21,5 +22,5 @@ public sealed partial class RememberTokenRevoke : PacketBase<RememberTokenRevoke
 
     /// <summary>The token to revoke.</summary>
     [SerializeOrder(0)]
-    public byte[] Token { get; set; } = [];
+    public Bytes32 Token { get; set; }
 }

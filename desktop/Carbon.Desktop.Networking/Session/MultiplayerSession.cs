@@ -28,6 +28,7 @@ using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.World;
 using Carbon.Survival.Stamina;
+using Nalix.Abstractions.Primitives;
 using Nalix.SDK.Transport;
 
 namespace Carbon.Desktop.Networking.Session;
@@ -93,7 +94,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     private ushort _reconnectPort;
     private string _lastUsername = string.Empty;
     private string _lastPassword = string.Empty;
-    private byte[] _lastToken = [];
+    private Bytes32 _lastToken;
     private Guid _activeCharacterId;
     private volatile bool _autoReconnectEnabled;
     private bool _wasTcpConnectedLastFrame;
@@ -867,7 +868,7 @@ public sealed partial class MultiplayerSession : IWorldSession
         _activeCharacterId = Guid.Empty;
         _lastUsername = string.Empty;
         _lastPassword = string.Empty;
-        _lastToken = [];
+        Bytes32.Wipe(ref _lastToken);
         await this.TearDownTransportsAsync().ConfigureAwait(false);
         this.ClearWorldState();
         if (_sessionCts is not null)

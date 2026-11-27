@@ -14,6 +14,7 @@ using Carbon.Graphics.Fonts.Layout;
 using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Graphics.Scenes.Management;
 using Carbon.Graphics.Windowing.Input;
+using Nalix.Abstractions.Primitives;
 using Silk.NET.Input;
 
 namespace Carbon.Desktop.Scenes;
@@ -26,6 +27,9 @@ internal sealed class StartScene : MenuScene
 {
     /// <summary><c>CARBON_UI_PREVIEW</c> value that shows the signed-in state with a sample account (screenshots only).</summary>
     public const string SignedInPreview = "signed-in";
+
+    /// <summary>A non-zero stand-in token for the signed-in preview; no server ever issued it.</summary>
+    private static readonly Bytes32 s_previewToken = Bytes32.Parse(new string('1', Bytes32.Size * 2));
 
     private readonly StartMenuModel _model;
     private readonly Dictionary<StartMenuAction, MenuButton> _buttons = new()
@@ -51,7 +55,7 @@ internal sealed class StartScene : MenuScene
         : base(nameof(StartScene), flow, "start")
     {
         IRememberedAccountStore accounts = string.Equals(flow.Options.UiPreview, SignedInPreview, StringComparison.Ordinal)
-            ? new PreviewAccountStore(new RememberedAccount(flow.Options.Username, flow.SelectedServer.Host, flow.SelectedServer.Port, [1], DateTimeOffset.MaxValue))
+            ? new PreviewAccountStore(new RememberedAccount(flow.Options.Username, flow.SelectedServer.Host, flow.SelectedServer.Port, s_previewToken, DateTimeOffset.MaxValue))
             : flow.Accounts;
         _model = new StartMenuModel(accounts);
     }

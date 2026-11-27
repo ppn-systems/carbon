@@ -2,6 +2,7 @@
 
 using Carbon.Contracts.Common;
 using Nalix.Abstractions.Networking.Packets;
+using Nalix.Abstractions.Primitives;
 using Nalix.Abstractions.Serialization;
 using Nalix.Codec.DataFrames;
 
@@ -21,7 +22,7 @@ public sealed partial class TokenSignInRequest : PacketBase<TokenSignInRequest>,
 
     /// <summary>The token from <see cref="S2C.RememberTokenResult"/>, sent over the encrypted session.</summary>
     [SerializeOrder(0)]
-    public byte[] Token { get; set; } = [];
+    public Bytes32 Token { get; set; }
 
     /// <summary>Client protocol version (<see cref="CarbonProtocol.Version"/>).</summary>
     [SerializeOrder(1)]
