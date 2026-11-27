@@ -275,7 +275,7 @@ Ids 1–39 keep the `StarterGameCatalog` ids and codes, and a test checks catego
 
 **Wallet persistence, sync and sinks** ([ADR-012](adr/ADR-012-server-authoritative-wallet-persistence-and-sync.md)):
 - `CharacterRecord` persists `Gold`, `Diamonds`, `WalletSequence` and `DiamondPity` through migration `0005_character_wallet`, in both SQLite and PostgreSQL.
-- `WalletSync` (S2C `0x1237`) pushes balances on world entry, after a gold or diamond pile is picked up and after vendor operations. The HUD shows them next to the hotbar, using `resources/art/ui/coin.cvg.json` and `diamond.cvg.json`.
+- `WalletSync` (S2C `0x1237`) pushes balances on world entry, after a gold or diamond pile is picked up and after vendor operations. The inventory window shows them in its header (not the main HUD, owner request; the trader window shows gold for prices), using `resources/art/ui/coin.cvg.json` and `diamond.cvg.json`.
 - `VendorBuyItem` (`0x4007`) and `VendorSellItem` (`0x4008`) require a friendly town NPC within 175 px. `RepairInventoryItem` (`0x4009`) requires a forge station. All three reply with `MutationResult`.
 
 ## 10. Operator guide: changing the numbers
