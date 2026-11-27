@@ -165,7 +165,7 @@ public static class WorldActorCatalog
         new(VillageGuard, "Village Guard", Level: 10, Radius: 8f, NpcCapabilities.TownGuard),
         new(HarbourMaster, "Harbour Master", Level: 8, Radius: 8f, NpcCapabilities.Harbour),
         new(ShrineKeeper, "Shrine Keeper", Level: 12, Radius: 8f, NpcCapabilities.Shrine),
-        new(MasterBlacksmith, "Master Blacksmith", Level: 15, Radius: 8.5f, NpcCapabilities.ForgeArtisan),
+        new(MasterBlacksmith, "Master Blacksmith", Level: 15, Radius: 8.5f, NpcCapabilities.ForgeArtisan | NpcCapabilities.Trader),
         new(VillageMerchant, "Village Merchant", Level: 8, Radius: 8f, NpcCapabilities.Trader),
         new(GeneralTrader, "General Trader", Level: 8, Radius: 8f, NpcCapabilities.Trader),
     ];

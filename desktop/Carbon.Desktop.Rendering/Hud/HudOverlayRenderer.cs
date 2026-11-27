@@ -90,6 +90,9 @@ public sealed class HudOverlayRenderer : IDisposable
     /// <summary>Gets or sets the open trader window's stock (ADR-025), or <see langword="null"/> when it is closed.</summary>
     public TraderView? Trader { get; set; }
 
+    /// <summary>Gets or sets whether the blacksmith's trade window is in repair mode (bag clicks repair instead of sell).</summary>
+    public bool TradeRepairMode { get; set; }
+
     /// <summary>Gets or sets whether the System Settings &amp; Controls modal is open.</summary>
     public bool ShowSettingsModal { get; set; }
 
@@ -572,7 +575,7 @@ public sealed class HudOverlayRenderer : IDisposable
         }
         else if (this.Trader is TraderView trader)
         {
-            TradeModalWidget.Render(spriteBatch, _geometryBatch, _uiSkin, _font, _art, screenProj, world, trader, viewportWidth, viewportHeight, mouseScreenPos);
+            TradeModalWidget.Render(spriteBatch, _geometryBatch, _uiSkin, _font, _art, screenProj, world, trader, this.TradeRepairMode, viewportWidth, viewportHeight, mouseScreenPos);
         }
         else if (this.ShowForgeModal)
         {

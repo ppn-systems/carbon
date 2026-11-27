@@ -20,6 +20,12 @@ public interface ITraderSession
     /// <summary>Sells <paramref name="quantity"/> units from bag slot <paramref name="slotIndex"/> to the open trader.</summary>
     bool TrySell(ushort slotIndex, ushort quantity = 1);
 
+    /// <summary>
+    /// Repairs the worn gear in bag slot <paramref name="slotIndex"/> at the open blacksmith, for the gold it quoted
+    /// (<see cref="TraderView.RepairCostOf"/>); the quotes refresh once the repair is done.
+    /// </summary>
+    bool TryRepair(ushort slotIndex);
+
     /// <summary>Closes the trader window; a stock pushed later is ignored.</summary>
     void Close();
 }

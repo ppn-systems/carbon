@@ -360,11 +360,19 @@ internal sealed class WorldEntityOverlayRenderer
 
     private static string FormatDisplayTitle(in RemoteEntityView r, float distSq)
     {
-        if (r.Kind == EntityKind.Npc &&
-            WorldActorCatalog.GetNpcSpec(r.ArchetypeId).Capabilities.HasFlag(NpcCapabilities.ForgeArtisan) &&
-            distSq <= (175f * 175f))
+        // Near enough to talk: E trades with a trader (the blacksmith too), U opens the forge (ADR-024 / ADR-025).
+        if (r.Kind == EntityKind.Npc && distSq <= (175f * 175f))
         {
-            return GameText.Format("hud.nameplate.forge", new TextArg("name", r.Name));
+            NpcCapabilities caps = WorldActorCatalog.GetNpcSpec(r.ArchetypeId).Capabilities;
+            if (caps.HasFlag(NpcCapabilities.Trader))
+            {
+                return GameText.Format(caps.HasFlag(NpcCapabilities.ForgeArtisan) ? "trade.prompt_smith" : "trade.prompt", new TextArg("name", r.Name));
+            }
+
+            if (caps.HasFlag(NpcCapabilities.ForgeArtisan))
+            {
+                return GameText.Format("hud.nameplate.forge", new TextArg("name", r.Name));
+            }
         }
 
         return (r.Kind is EntityKind.Monster or EntityKind.Player) && r.Level > 0

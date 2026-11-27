@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Input;
@@ -23,9 +24,10 @@ internal delegate bool TraderFilter(in RemoteEntityView entity);
 /// </summary>
 /// <param name="session">World session.</param>
 /// <param name="hud">HUD that draws the window.</param>
+/// <param name="options">Desktop options (the screenshot tool's <c>CARBON_OPEN_TRADER</c>).</param>
 /// <param name="isTrader">Identifies trader NPCs.</param>
-/// <param name="captureOpen">Opens the nearest trader for a screenshot (<c>CARBON_OPEN_TRADER</c>).</param>
-internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer hud, TraderFilter isTrader, bool captureOpen)
+/// <param name="openForge">Opens the forge enhancement window (ADR-024): the blacksmith's Enhance button hands off to it.</param>
+internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer hud, DesktopOptions options, TraderFilter isTrader, Func<bool> openForge)
 {
     /// <summary>UI: distance in world pixels within which the interact key opens a trader (the server re-checks 175 px).</summary>
     private const float TalkRadius = 150f;
@@ -41,11 +43,13 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
 
     private readonly IWorldSession _session = session ?? throw new ArgumentNullException(nameof(session));
     private readonly HudOverlayRenderer _hud = hud ?? throw new ArgumentNullException(nameof(hud));
+    private readonly DesktopOptions _options = options ?? throw new ArgumentNullException(nameof(options));
     private readonly TraderFilter _isTrader = isTrader ?? throw new ArgumentNullException(nameof(isTrader));
+    private readonly Func<bool> _openForge = openForge ?? throw new ArgumentNullException(nameof(openForge));
     private bool _shown;
 
     /// <summary>Gets whether a screenshot should wait for the trader window (up to <paramref name="frame"/> 150).</summary>
-    public bool IsCaptureWaiting(int frame) => captureOpen && _session.Trading.ActiveTrader is null && frame < 150;
+    public bool IsCaptureWaiting(int frame) => _options.OpenTrader && _session.Trading.ActiveTrader is null && frame < 150;
 
     /// <summary>
     /// Mirrors the server's stock into the HUD once per frame. The window closes when the HUD closed it (Escape, X, a click
@@ -63,8 +67,10 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
         }
 
         _hud.Trader = active;
+        _hud.TradeRepairMode &= active is { CanRepair: true };
+        _hud.TradeRepairMode |= _options.OpenTraderRepair && !_shown && active is { CanRepair: true };
         _shown = active is not null;
-        if (captureOpen && active is null && frame >= 6 && frame % 10 == 6 &&
+        if (_options.OpenTrader && active is null && frame >= 6 && frame % 10 == 6 &&
             this.TryFindNearest(_session.LocalPlayerInterpolatedPosition, WindowRadius, out ulong nearest))
         {
             _ = trading.TryOpen(nearest);
@@ -81,7 +87,8 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
 
     /// <summary>
     /// Handles a click in the open window: a stock row buys 1 (Shift: 5), a bag item sells 1 (Shift: the whole stack), the
-    /// X or a click outside closes it.
+    /// X or a click outside closes it. At a blacksmith (ADR-025 D17), Repair toggles repair mode, where a bag click repairs,
+    /// and Enhance hands off to the forge window.
     /// </summary>
     public void HandleWindowInput(DesktopInputFrame input, int width, int height)
     {
@@ -97,6 +104,18 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
             return;
         }
 
+        if (TradeModalWidget.HitRepairButton(mouse, trader, width, height))
+        {
+            _hud.TradeRepairMode = !_hud.TradeRepairMode;
+            return;
+        }
+
+        if (TradeModalWidget.HitEnhanceButton(mouse, trader, width, height))
+        {
+            _ = _openForge();
+            return;
+        }
+
         int stockRow = TradeModalWidget.HitStockRow(mouse, trader, width, height);
         if (stockRow >= 0)
         {
@@ -105,7 +124,11 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
         }
 
         int bagSlot = TradeModalWidget.HitBagSlot(mouse, _session, width, height);
-        if (bagSlot >= 0)
+        if (bagSlot >= 0 && _hud.TradeRepairMode)
+        {
+            _ = _session.Trading.TryRepair((ushort)bagSlot);
+        }
+        else if (bagSlot >= 0)
         {
             Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
             _session.CopyInventorySlots(slots);

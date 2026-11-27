@@ -865,6 +865,8 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             pkt.SellItemIds = stock.SellItemIds;
             pkt.SellPrices = stock.SellPrices;
             pkt.CanRepair = stock.CanRepair;
+            pkt.RepairSlots = stock.RepairSlots;
+            pkt.RepairCosts = stock.RepairCosts;
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
             await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);

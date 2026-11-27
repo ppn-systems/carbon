@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Carbon.AI.Components;
 using Carbon.AI.Threat;
+using Carbon.Application.World.Commerce;
 using Carbon.Contracts.Entities;
 using Carbon.Items.Catalog;
 using Carbon.Maps.Biomes;
@@ -138,7 +139,10 @@ internal sealed class SettlementNpcSpawner
                         spawnChunkKey,
                         StarterGameCatalog.IronOre,
                         1,
-                        0U));
+                        0U,
+                        TraderProfileId: TradeService.BlacksmithProfile,
+                        TraderKey: TraderKeyOf(spawnTx, spawnTy, VillageBuildingRole.Smithy),
+                        TraderStyle: (byte)VillageStyle.Temperate));
                     break;
                 }
             }
@@ -246,7 +250,10 @@ internal sealed class SettlementNpcSpawner
                 StarterGameCatalog.IronOre,
                 1,
                 0U,
-                PatrolRadius: patrol));
+                PatrolRadius: patrol,
+                TraderProfileId: TradeService.BlacksmithProfile,
+                TraderKey: TraderKeyOf(in poi, VillageBuildingRole.Smithy),
+                TraderStyle: StyleOf(poi.Type)));
         }
     }
 
@@ -254,9 +261,12 @@ internal sealed class SettlementNpcSpawner
     /// Gets the stable key of a village trader (ADR-025): a mix of the village centre and the building role. It seeds
     /// the trader's stock and restock jitter, and keys its persisted sales, so it never changes for a given world.
     /// </summary>
-    public static ulong TraderKeyOf(in PointOfInterest poi, VillageBuildingRole role)
+    public static ulong TraderKeyOf(in PointOfInterest poi, VillageBuildingRole role) => TraderKeyOf(poi.TileX, poi.TileY, role);
+
+    /// <summary>Gets the stable key of a trader whose post is anchored at a tile (a village centre, the sanctuary).</summary>
+    public static ulong TraderKeyOf(int tileX, int tileY, VillageBuildingRole role)
     {
-        ulong x = ((ulong)(uint)poi.TileX << 32) | (uint)poi.TileY;
+        ulong x = ((ulong)(uint)tileX << 32) | (uint)tileY;
         x ^= ((ulong)role + 1UL) * 0x9E3779B97F4A7C15UL;
         x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9UL;
         x = (x ^ (x >> 27)) * 0x94D049BB133111EBUL;

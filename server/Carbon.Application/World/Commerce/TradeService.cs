@@ -78,6 +78,9 @@ internal sealed class TradeService : IWorldTradeService
         _execute = this.Execute;
     }
 
+    /// <summary>Profile id of the blacksmith, who also repairs gear (ADR-025 D17).</summary>
+    public const string BlacksmithProfile = "blacksmith";
+
     /// <summary>Gets the trader state (tests).</summary>
     public TraderBook Book => _book;
 
@@ -86,7 +89,7 @@ internal sealed class TradeService : IWorldTradeService
     {
         "merchant" => TraderStock.KindMerchant,
         "general" => TraderStock.KindGeneral,
-        "blacksmith" => TraderStock.KindBlacksmith,
+        BlacksmithProfile => TraderStock.KindBlacksmith,
         _ => 0,
     };
 
@@ -349,10 +352,36 @@ internal sealed class TradeService : IWorldTradeService
             }
         }
 
-        bool canRepair = trader.ProfileId == "blacksmith";
+        // A blacksmith also quotes the repair of every worn item in the bag (the forge repair price, PriceBook.GetRepairCost).
+        bool canRepair = trader.ProfileId == BlacksmithProfile;
+        List<ushort> repairSlots = [];
+        List<int> repairCosts = [];
+        for (int i = 0; canRepair && i < Math.Min(PlayerInventoryLayout.BagLimit, slots.Length); i++)
+        {
+            long cost = economy.Prices.GetRepairCost(slots[i]);
+            if (cost > 0)
+            {
+                repairSlots.Add((ushort)i);
+                repairCosts.Add((int)Math.Min(int.MaxValue, cost));
+            }
+        }
+
         _outbound.Pending.TraderStocks.Add(new OutboundTraderStock(
             state.Session.ConnectionId,
-            new TraderStockSnapshot(traderNetworkId, KindOf(trader.ProfileId), epoch, secondsToRestock, itemIds, prices, stocked, remaining, [.. sellIds], [.. sellPrices], canRepair)));
+            new TraderStockSnapshot(
+                traderNetworkId,
+                KindOf(trader.ProfileId),
+                epoch,
+                secondsToRestock,
+                itemIds,
+                prices,
+                stocked,
+                remaining,
+                [.. sellIds],
+                [.. sellPrices],
+                canRepair,
+                [.. repairSlots],
+                [.. repairCosts])));
         return OpStatus.Ok;
     }
 }

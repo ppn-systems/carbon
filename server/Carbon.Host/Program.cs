@@ -126,6 +126,7 @@ public static class Program
         {
             DebugForgeKit = options.DebugOverrides.ForgeKit,
             DebugStarterItems = options.DebugOverrides.StarterItems,
+            DebugWornGear = options.DebugOverrides.WornGear,
         };
 
         if (options.DebugOverrides.IsActive)

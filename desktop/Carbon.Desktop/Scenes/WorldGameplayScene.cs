@@ -97,7 +97,7 @@ public sealed class WorldGameplayScene : GameScene
         _cameraRig.Resize(context.WindowWidth, context.WindowHeight);
         _worldRenderer = new WorldSceneRenderer(context.Device, _options);
         _hudRenderer = new HudOverlayRenderer(context.Device, _worldRenderer.VectorArt);
-        _trade = new TradeInteraction(_session, _hudRenderer, IsTraderNpc, _options.OpenTrader);
+        _trade = new TradeInteraction(_session, _hudRenderer, _options, IsTraderNpc, this.OpenForgeWindow);
         if (!_options.MacroView)
         {
             this.ApplyZoomPreset(_hudRenderer.Settings.CameraZoomPreset);
@@ -459,7 +459,7 @@ public sealed class WorldGameplayScene : GameScene
                     Vector2 aimWorld = _camera.ScreenToWorld(in mouseScreen);
                     bool openedForgeNpc = _trade?.TryClick(aimWorld) ?? false;
                     IReadOnlyList<RemoteEntityView> remotes = _session.RemoteEntities;
-                    for (int i = 0; i < remotes.Count; i++)
+                    for (int i = 0; !openedForgeNpc && i < remotes.Count; i++)
                     {
                         RemoteEntityView entity = remotes[i];
                         if (entity.Kind == EntityKind.Npc &&

@@ -76,6 +76,12 @@ public sealed class DesktopOptions
     public bool OpenTrader { get; init; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the trader window opened by <see cref="OpenTrader"/> starts in the
+    /// blacksmith's repair mode (<c>CARBON_OPEN_TRADER=repair</c>; screenshot tool).
+    /// </summary>
+    public bool OpenTraderRepair { get; init; }
+
+    /// <summary>
     /// Gets or sets the forge animation to show for screenshot review (<c>CARBON_FORGE_PREVIEW</c>, e.g.
     /// <c>success:0.35</c>): <c>charge</c>, <c>success</c>, <c>nochange</c>, <c>downgrade</c> or <c>destroyed</c>, with an
     /// optional frozen time in seconds. It opens the forge window and plays the effect locally; nothing is sent to the
@@ -238,7 +244,8 @@ public sealed class DesktopOptions
             CaptureFrames = captureFrames,
             FrameStatsFrames = frameStatsFrames,
             AutoExit = string.Equals(get("CARBON_AUTO_EXIT"), "1", StringComparison.Ordinal),
-            OpenTrader = string.Equals(get("CARBON_OPEN_TRADER"), "1", StringComparison.Ordinal),
+            OpenTrader = get("CARBON_OPEN_TRADER") is "1" or "repair",
+            OpenTraderRepair = string.Equals(get("CARBON_OPEN_TRADER"), "repair", StringComparison.Ordinal),
             AutoWalk = ParsePoint(get("CARBON_AUTO_WALK")),
             OpenPanel = get("CARBON_OPEN_PANEL") is { Length: > 0 } panel ? panel.Trim() : null,
             CaptureMouse = ParsePoint(get("CARBON_CAPTURE_MOUSE")),

@@ -24,6 +24,11 @@ namespace Carbon.Desktop.Rendering.Hud;
 /// the right (icon, quantity, what the trader pays; click sells one), the wallet and the restock countdown. Everything
 /// shown comes from the server's <c>TraderStock</c>; the window only sends requests. Nine-slice skinned (ADR-008),
 /// three passes like the other HUD windows.
+/// <para>
+/// A blacksmith (<see cref="TraderView.CanRepair"/>) adds two footer buttons. <b>Repair</b> switches the bag to repair
+/// mode (the HUD's <c>TradeRepairMode</c>): worn gear shows the server's repair quote, and a click repairs it. <b>Enhance</b> hands off
+/// to the forge enhancement window (ADR-024); this window never enhances itself.
+/// </para>
 /// </summary>
 public static class TradeModalWidget
 {
@@ -36,9 +41,12 @@ public static class TradeModalWidget
     private const float RowGap = 3f;
     private const float Cell = 50f;
     private const int BagColumns = 6;
+    private const float ButtonW = 112f;
+    private const float ButtonH = 28f;
 
     private static readonly ColorRgba s_gold = new(251, 191, 36, 255);
     private static readonly ColorRgba s_soldOut = new(148, 64, 64, 255);
+    private static readonly ColorRgba s_repair = new(251, 146, 60, 255);
 
     /// <summary>Gets whether a point is inside the window.</summary>
     public static bool ContainsPoint(Vector2 mouse, int viewportWidth, int viewportHeight)
@@ -52,6 +60,22 @@ public static class TradeModalWidget
     {
         (float ox, float oy) = Origin(viewportWidth, viewportHeight);
         return CloseRect(ox, oy).Contains(mouse);
+    }
+
+    /// <summary>Gets whether the blacksmith's Repair toggle was hit.</summary>
+    public static bool HitRepairButton(Vector2 mouse, TraderView trader, int viewportWidth, int viewportHeight)
+    {
+        ArgumentNullException.ThrowIfNull(trader);
+        (float ox, float oy) = Origin(viewportWidth, viewportHeight);
+        return trader.CanRepair && RepairButtonRect(ox, oy).Contains(mouse);
+    }
+
+    /// <summary>Gets whether the blacksmith's Enhance button (hand-off to the forge window) was hit.</summary>
+    public static bool HitEnhanceButton(Vector2 mouse, TraderView trader, int viewportWidth, int viewportHeight)
+    {
+        ArgumentNullException.ThrowIfNull(trader);
+        (float ox, float oy) = Origin(viewportWidth, viewportHeight);
+        return trader.CanRepair && EnhanceButtonRect(ox, oy).Contains(mouse);
     }
 
     /// <summary>Gets the stock slot under the mouse, or -1.</summary>
@@ -98,6 +122,7 @@ public static class TradeModalWidget
         Matrix4x4 screenProj,
         IWorldReadModel world,
         TraderView trader,
+        bool repairMode,
         int viewportWidth,
         int viewportHeight,
         Vector2? mouse)
@@ -109,20 +134,20 @@ public static class TradeModalWidget
         geometryBatch.End();
 
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-        DrawSkin(spriteBatch, skin, world, trader, viewportWidth, viewportHeight, mouse);
+        DrawSkin(spriteBatch, skin, world, trader, repairMode, viewportWidth, viewportHeight, mouse);
         spriteBatch.End();
 
         geometryBatch.Begin(screenProj);
-        DrawGeometry(geometryBatch, world, trader, art, viewportWidth, viewportHeight);
+        DrawGeometry(geometryBatch, world, trader, repairMode, art, viewportWidth, viewportHeight);
         geometryBatch.End();
 
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-        DrawText(spriteBatch, font, world, trader, viewportWidth, viewportHeight);
+        DrawText(spriteBatch, font, world, trader, repairMode, viewportWidth, viewportHeight);
         spriteBatch.End();
     }
 
     /// <summary>Pass 1: frames, rows and cells.</summary>
-    private static void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin, IWorldReadModel world, TraderView trader, int viewportWidth, int viewportHeight, Vector2? mouse)
+    private static void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin, IWorldReadModel world, TraderView trader, bool repairMode, int viewportWidth, int viewportHeight, Vector2? mouse)
     {
         ArgumentNullException.ThrowIfNull(skin);
         ArgumentNullException.ThrowIfNull(world);
@@ -154,18 +179,32 @@ public static class TradeModalWidget
         for (int s = 0; s < PlayerInventoryLayout.BagLimit; s++)
         {
             RectangleF cell = BagCell(ox, oy, s);
-            bool sellable = !slots[s].IsEmpty && trader.SellPriceOf(slots[s].ItemId) > 0;
-            bool hover = sellable && mouse.HasValue && cell.Contains(mouse.Value);
+            bool clickable = IsBagSlotActive(trader, slots[s], s, repairMode);
+            bool hover = clickable && mouse.HasValue && cell.Contains(mouse.Value);
             skin.DrawSlot(
                 spriteBatch,
                 in cell,
                 hover ? CarbonUiPalette.SlotHoverFill : CarbonUiPalette.SlotFill,
                 hover ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle);
         }
+
+        if (trader.CanRepair)
+        {
+            RectangleF repair = RepairButtonRect(ox, oy);
+            bool hoverRepair = mouse.HasValue && repair.Contains(mouse.Value);
+            skin.DrawButton(
+                spriteBatch,
+                in repair,
+                repairMode ? CarbonUiPalette.SlotSelectedFill : hoverRepair ? CarbonUiPalette.SlotHoverFill : CarbonUiPalette.SlotFill,
+                repairMode || hoverRepair ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle);
+            RectangleF enhance = EnhanceButtonRect(ox, oy);
+            bool hoverEnhance = mouse.HasValue && enhance.Contains(mouse.Value);
+            skin.DrawButton(spriteBatch, in enhance, hoverEnhance ? new ColorRgba(44, 118, 84, 245) : CarbonUiPalette.ConfirmFill, CarbonUiPalette.ConfirmBorder);
+        }
     }
 
     /// <summary>Pass 2: item icons, coins and the restock bar.</summary>
-    private static void DrawGeometry(GeometryBatch batch, IWorldReadModel world, TraderView trader, IVectorArtRepository? art, int viewportWidth, int viewportHeight)
+    private static void DrawGeometry(GeometryBatch batch, IWorldReadModel world, TraderView trader, bool repairMode, IVectorArtRepository? art, int viewportWidth, int viewportHeight)
     {
         ArgumentNullException.ThrowIfNull(batch);
         ArgumentNullException.ThrowIfNull(world);
@@ -201,7 +240,7 @@ public static class TradeModalWidget
             {
                 RectangleF cell = BagCell(ox, oy, s);
                 VectorRigRenderer.DrawItemIcon(batch, icon, new Vector2(cell.X + (cell.Width * 0.5f), cell.Y + 20f), 24f);
-                if (trader.SellPriceOf(slots[s].ItemId) == 0)
+                if (!IsBagSlotActive(trader, slots[s], s, repairMode))
                 {
                     batch.FillRectangle(cell, new ColorRgba(8, 10, 14, 140));
                 }
@@ -215,7 +254,7 @@ public static class TradeModalWidget
     }
 
     /// <summary>Pass 3: labels.</summary>
-    private static void DrawText(SpriteBatch spriteBatch, BitmapFont font, IWorldReadModel world, TraderView trader, int viewportWidth, int viewportHeight)
+    private static void DrawText(SpriteBatch spriteBatch, BitmapFont font, IWorldReadModel world, TraderView trader, bool repairMode, int viewportWidth, int viewportHeight)
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(trader);
@@ -266,17 +305,39 @@ public static class TradeModalWidget
                 spriteBatch.DrawOutlinedString(font, slot.Quantity.ToString(CultureInfo.InvariantCulture), new Vector2(cell.X + 3f, cell.Y + 2f), CarbonUiPalette.TextPrimary, black, 1, 0.8f);
             }
 
-            int pays = trader.SellPriceOf(slot.ItemId);
-            if (pays > 0)
+            int amount = repairMode ? trader.RepairCostOf(s) : trader.SellPriceOf(slot.ItemId);
+            if (amount > 0)
             {
-                string price = pays.ToString("N0", CultureInfo.InvariantCulture);
-                spriteBatch.DrawOutlinedString(font, price, new Vector2(cell.X + cell.Width - 4f - Width(font, price, 0.8f), cell.Y + cell.Height - 14f), s_gold, black, 1, 0.8f);
+                string price = amount.ToString("N0", CultureInfo.InvariantCulture);
+                spriteBatch.DrawOutlinedString(
+                    font,
+                    price,
+                    new Vector2(cell.X + cell.Width - 4f - Width(font, price, 0.8f), cell.Y + cell.Height - 18f),
+                    repairMode ? s_repair : s_gold,
+                    black,
+                    1,
+                    0.8f);
             }
         }
 
         spriteBatch.DrawOutlinedString(font, world.LocalPlayerGold.ToString("N0", CultureInfo.InvariantCulture), new Vector2(ox + 46f, oy + PanelH - 38f), s_gold, black, 1, 1f);
-        spriteBatch.DrawOutlinedString(font, GameText.Get("trade.hint"), new Vector2(ox + 150f, oy + PanelH - 38f), CarbonUiPalette.TextMuted, black, 1, 1f);
+        string hint = !trader.CanRepair
+            ? GameText.Get("trade.hint")
+            : repairMode
+                ? trader.RepairSlots.Length > 0 ? GameText.Get("trade.repair_hint") : GameText.Get("trade.repair_none")
+                : GameText.Get("trade.hint_smith");
+        float hintMax = (trader.CanRepair ? RepairButtonRect(ox, oy).X : ox + PanelW) - (ox + 150f) - 12f;
+        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, hint, hintMax, 1f), new Vector2(ox + 150f, oy + PanelH - 38f), CarbonUiPalette.TextMuted, black, 1, 1f);
+        if (trader.CanRepair)
+        {
+            CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Get("trade.repair"), RepairButtonRect(ox, oy), repairMode ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextPrimary, black, 1f);
+            CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Get("trade.enhance"), EnhanceButtonRect(ox, oy), CarbonUiPalette.TextPrimary, black, 1f);
+        }
     }
+
+    // A bag item is clickable when the trader buys it (sell mode) or holds a repair quote for it (repair mode).
+    private static bool IsBagSlotActive(TraderView trader, in ItemSlot slot, int bagSlot, bool repairMode) =>
+        !slot.IsEmpty && (repairMode ? trader.RepairCostOf(bagSlot) > 0 : trader.SellPriceOf(slot.ItemId) > 0);
 
     /// <summary>Gets the window title of a trader kind.</summary>
     public static string Title(byte kind) => kind switch
@@ -298,6 +359,10 @@ public static class TradeModalWidget
         (MathF.Floor((viewportWidth - PanelW) * 0.5f), MathF.Floor((viewportHeight - PanelH) * 0.5f));
 
     private static RectangleF CloseRect(float ox, float oy) => new(ox + PanelW - 34f, oy + 10f, 24f, 24f);
+
+    private static RectangleF EnhanceButtonRect(float ox, float oy) => new(ox + PanelW - 16f - ButtonW, oy + PanelH - 44f, ButtonW, ButtonH);
+
+    private static RectangleF RepairButtonRect(float ox, float oy) => new(ox + PanelW - 24f - (ButtonW * 2f), oy + PanelH - 44f, ButtonW, ButtonH);
 
     private static RectangleF StockRow(float ox, float oy, int index) => new(ox + 24f, oy + 74f + (index * (RowH + RowGap)), 380f, RowH);
 

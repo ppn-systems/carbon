@@ -158,6 +158,7 @@ public sealed class HostRuntimeOptions
                 : null,
             ForgeKit = string.Equals(readEnv("CARBON_DEBUG_FORGE_KIT"), "1", StringComparison.Ordinal),
             StarterItems = ParseStarterItems(readEnv("CARBON_DEBUG_STARTER_ITEMS")),
+            WornGear = string.Equals(readEnv("CARBON_DEBUG_WORN_GEAR"), "1", StringComparison.Ordinal),
         };
 #else
         return new WorldDebugOverrides();

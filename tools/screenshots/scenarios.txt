@@ -77,3 +77,5 @@ village_night      | CARBON_DEBUG_SPAWN_POI=SnowVillage CARBON_DEBUG_START_HOUR=
 # --- village traders (ADR-025): spawn in front of the market stall and open the nearest trader ---
 trade_merchant     | CARBON_DEBUG_SPAWN_POI=RiverVillage CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_OPEN_TRADER=1
 trade_desert       | CARBON_DEBUG_SPAWN_POI=DesertVillage CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_OPEN_TRADER=1
+trade_blacksmith   | CARBON_DEBUG_SPAWN_POI=RiverVillage:Smithy CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_WORN_GEAR=1 | CARBON_WEATHER=clear CARBON_OPEN_TRADER=1
+trade_repair       | CARBON_DEBUG_SPAWN_POI=RiverVillage:Smithy CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_WORN_GEAR=1 | CARBON_WEATHER=clear CARBON_OPEN_TRADER=repair

@@ -19,6 +19,8 @@ namespace Carbon.Desktop.Abstractions.World;
 /// <param name="SellItemIds">Items the player carries that the trader buys.</param>
 /// <param name="SellPrices">Gold per unit the trader pays.</param>
 /// <param name="CanRepair">Whether the trader repairs gear (blacksmith).</param>
+/// <param name="RepairSlots">Bag slots holding worn gear the trader can repair.</param>
+/// <param name="RepairCosts">Gold to fully repair each of <paramref name="RepairSlots"/> (the server's quote).</param>
 public sealed record TraderView(
     ulong TraderNetworkId,
     byte Kind,
@@ -30,8 +32,17 @@ public sealed record TraderView(
     ushort[] Remaining,
     ushort[] SellItemIds,
     int[] SellPrices,
-    bool CanRepair)
+    bool CanRepair,
+    ushort[] RepairSlots,
+    int[] RepairCosts)
 {
+    /// <summary>Gets the server's quote to fully repair the gear in <paramref name="bagSlot"/>, or 0 when it is not worn.</summary>
+    public int RepairCostOf(int bagSlot)
+    {
+        int index = Array.IndexOf(this.RepairSlots, (ushort)bagSlot);
+        return index >= 0 ? this.RepairCosts[index] : 0;
+    }
+
     /// <summary>Gets what the trader pays per unit of <paramref name="itemId"/>, or 0 when it does not buy it.</summary>
     public int SellPriceOf(uint itemId)
     {
