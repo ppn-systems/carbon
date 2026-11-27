@@ -273,14 +273,6 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             _characterModal.TryHitTestStatPlusButton(mousePos, viewportWidth, viewportHeight, out attribute);
     }
 
-    /// <summary>
-    /// Handles a click on the Character tab's attribute reset button (ADR-021): the first click arms it, the second
-    /// confirms. Returns <see langword="true"/> only for the confirming click.
-    /// </summary>
-    public bool TryClickCharacterReset(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight) =>
-        this.Visible && this.ShowPlayerModal && this.ActivePlayerTab == PlayerModalTab.Character && viewportWidth > 0 && viewportHeight > 0 &&
-        _characterModal.TryClickResetButton(world, mousePos, viewportWidth, viewportHeight);
-
     /// <summary>Returns whether <paramref name="mousePos"/> hits the close button of whichever modal is open.</summary>
     public bool TryHitTestModalCloseButton(Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
