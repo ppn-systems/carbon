@@ -52,6 +52,11 @@ public sealed class BitmapFont : IDisposable
     public float FontSize => this.Metrics.FontSize;
 
     /// <summary>
+    /// Gets the atlas texels per layout unit (<see cref="BitmapFontAtlas.TexelsPerUnit"/>; 1 unless re-baked for a UI scale).
+    /// </summary>
+    public float TexelsPerUnit => this.Atlas.TexelsPerUnit;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="BitmapFont"/> class.
     /// </summary>
     /// <param name="name">The font name.</param>

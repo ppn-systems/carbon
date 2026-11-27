@@ -6,6 +6,7 @@ using System.IO;
 using System.Text;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Rendering.PostProcessing;
+using Carbon.Desktop.Rendering.UiSkin;
 
 namespace Carbon.Desktop.Rendering.Hud;
 
@@ -20,6 +21,7 @@ namespace Carbon.Desktop.Rendering.Hud;
 /// show_minimap = true
 /// camera_zoom = 1
 /// graphics_quality = auto
+/// ui_scale = auto
 /// </code>
 /// <c>CARBON_LANG</c> overrides <c>[general] language</c> at startup.
 /// </summary>
@@ -63,6 +65,12 @@ public sealed class UiSettings
     /// Settings window can highlight it. Not saved.
     /// </summary>
     public GraphicsQuality EffectiveGraphicsQuality { get; set; } = PostProcessing.GraphicsQuality.Medium;
+
+    /// <summary>
+    /// Gets or sets the chosen UI scale preset (<see langword="null"/> = auto: picked from the window size,
+    /// <see cref="UiScale.Resolve"/>).
+    /// </summary>
+    public float? UiScaleChoice { get; set; }
 
     /// <summary>
     /// Gets or sets the chosen UI language code (empty = default). <c>CARBON_LANG</c> overrides it at startup (ADR-023 D3).
@@ -123,6 +131,7 @@ public sealed class UiSettings
                 $"reduce_flashes = {Bool(this.ReduceFlashes)}",
                 $"camera_zoom = {this.CameraZoomPreset.ToString(CultureInfo.InvariantCulture)}",
                 $"graphics_quality = {(this.GraphicsQuality is { } quality ? GraphicsQualityPolicy.ToSettingValue(quality) : "auto")}",
+                $"ui_scale = {UiScale.ToSettingValue(this.UiScaleChoice)}",
             ];
             File.WriteAllLines(path, lines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         }
@@ -172,6 +181,9 @@ public sealed class UiSettings
                 break;
             case "camera_zoom" when int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int zoom):
                 this.CameraZoomPreset = Math.Clamp(zoom, 0, 2);
+                break;
+            case "ui_scale":
+                this.UiScaleChoice = UiScale.TryParse(value, out float? scale) ? scale : null;
                 break;
             case "graphics_quality":
                 this.GraphicsQuality = GraphicsQualityPolicy.TryParse(value, out GraphicsQuality quality) ? quality : null;

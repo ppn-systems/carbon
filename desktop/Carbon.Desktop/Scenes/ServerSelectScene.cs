@@ -140,7 +140,7 @@ internal sealed class ServerSelectScene : MenuScene
         MouseSnapshot mouse = context.Input.Mouse;
         bool leftDown = mouse.IsButtonDown(MouseButton.Left);
         bool leftPressed = mouse.IsButtonPressed(MouseButton.Left);
-        Vector2 mousePos = mouse.Position;
+        Vector2 mousePos = this.PointerPosition(in mouse);
         bool typing = _customField is { IsFocused: true };
 
         if (kb.IsKeyPressed(Key.Escape) || _backButton.Update(mousePos, leftDown, leftPressed, dt))

@@ -103,7 +103,7 @@ public sealed class OpcodeWiringTests
         foreach (MethodDeclarationSyntax method in roots.SelectMany(static r => r.DescendantNodes().OfType<MethodDeclarationSyntax>()))
         {
             HashSet<string> typeParameters = [.. method.TypeParameterList?.Parameters.Select(static p => p.Identifier.ValueText) ?? []];
-            if (typeParameters.Count > 0 && method.DescendantNodes().OfType<GenericNameSyntax>().Any(g => IsPacketFactory(g) && typeParameters.Contains(TypeArgumentName(g))))
+            if (typeParameters.Count > 0 && method.DescendantNodes().OfType<GenericNameSyntax>().Any(g => IsPacketSendSource(g) && typeParameters.Contains(TypeArgumentName(g))))
             {
                 rentingHelpers.Add(method.Identifier.ValueText);
             }
@@ -114,7 +114,7 @@ public sealed class OpcodeWiringTests
         {
             switch (node)
             {
-                case GenericNameSyntax generic when IsPacketFactory(generic) || rentingHelpers.Contains(generic.Identifier.ValueText):
+                case GenericNameSyntax generic when IsPacketSendSource(generic) || rentingHelpers.Contains(generic.Identifier.ValueText):
                     sent.Add(TypeArgumentName(generic));
                     break;
                 case ObjectCreationExpressionSyntax creation:
@@ -140,7 +140,7 @@ public sealed class OpcodeWiringTests
             .Select(TypeArgumentName),
     ];
 
-    private static bool IsPacketFactory(GenericNameSyntax generic) => generic.Identifier.ValueText is "PacketFactory" or "PacketLease";
+    private static bool IsPacketSendSource(GenericNameSyntax generic) => generic.Identifier.ValueText is "PacketFactory" or "PacketLease";
 
     private static string TypeArgumentName(GenericNameSyntax generic) =>
         generic.TypeArgumentList.Arguments.Count == 1 ? SimpleName(generic.TypeArgumentList.Arguments[0]) : string.Empty;

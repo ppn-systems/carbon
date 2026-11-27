@@ -41,6 +41,9 @@ public sealed class WorldSimulation
     private readonly Dictionary<ulong, Entity> _networkIdToEntity = new();
     private readonly Action<Entity, EntityDirtyMask> _markDirtyCallback;
 
+    // Cached once: a method group passed per frame would allocate a new delegate on every Update.
+    private readonly Action<FixedTickArgs> _tickCallback;
+
     private ISimulationEventBuffer?[] _eventBuffers = new ISimulationEventBuffer?[8];
     private TileObstacleGrid? _obstacleGrid;
     private IWorldPhysics2D? _worldPhysics;
@@ -100,6 +103,7 @@ public sealed class WorldSimulation
         _entities = new EntityManager();
         _spatialGrid = new SpatialHashGrid2D(cellSize);
         _markDirtyCallback = this.MarkDirty;
+        _tickCallback = this.Tick;
     }
 
     /// <summary>
@@ -176,7 +180,7 @@ public sealed class WorldSimulation
     public int Update(double elapsedSeconds)
     {
         this.ClearAllEvents();
-        return _clock.Advance(elapsedSeconds, this.Tick);
+        return _clock.Advance(elapsedSeconds, _tickCallback);
     }
 
     /// <summary>

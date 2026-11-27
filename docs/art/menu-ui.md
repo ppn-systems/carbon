@@ -37,7 +37,8 @@ Review the screens with the `menu_*` scenarios of `tools/screenshots/capture.sh`
 
 - **Pixel art and pixel fonts scale by whole multiples only**, with nearest-neighbour filtering
   ([gamedev.net](https://gamedev.net/forums/topic/719580-ui-scaling-problem/5472784/)). The menus therefore draw the
-  font at scale 1 and the title at scale 3.
+  font at scale 1 and the title at scale 3. A bigger UI re-bakes the font from its TrueType outlines at the larger
+  size instead of stretching the bitmaps (rule 21).
 - **PC text should be at least 18 px tall at 1080p** (Xbox Accessibility Guideline 101,
   [XAG 101](https://learn.microsoft.com/en-us/gaming/accessibility/xbox-accessibility-guidelines/101)).
 - **Contrast.**
@@ -252,6 +253,26 @@ The rules here and in 2.4 apply as each screen is reworked.
 20. **Every screen is reviewed in en and vi, at 1280×720 and 1920×1080.**
     - The `menu_*` scenarios capture each screen.
     - `CARBON_UI_PREVIEW=form-feedback` captures the error, caps-lock and strength states.
+
+### 2.5 UI scale
+
+21. **The menus scale to the window, staying sharp** (`Rendering/UiSkin/UiScale.cs`).
+    - **Canvas.** Layouts are designed for 1280×720. The scale is how many screen pixels one layout unit covers, and
+      every menu lays out on the window size divided by it, so layout constants never change.
+    - **Auto** picks the largest preset, 1, 1.25, 1.5 or 2, whose 1280×720 canvas fits the window: 720p gives 1, 1080p
+      gives 1.5 (body text 21 px tall instead of 14, past XAG 101's 18 px), and 1440p gives 2.
+    - **Choice.** Settings, UI Scale: Auto, 1×, 1.25×, 1.5× or 2×, saved as `[display] ui_scale` in `settings.ini`. A
+      choice larger than the window fits falls back to the fit, so a menu is never cut off. Each menu screen reads the
+      choice once when it loads.
+    - **Text.** The font is re-baked from the TrueType outlines at `20·scale` px (`GameFontLoader.LoadFont`). Its
+      offsets and advances stay in layout units (`BitmapFont.TexelsPerUnit`), so every string lays out exactly as at
+      1×, while each texel covers one screen pixel and each glyph starts on a whole pixel. Outlines are a whole number
+      of pixels thick. The font is re-baked only when the scale changes (`ScaledFontCache`), never per frame.
+    - **Shapes.** Vector geometry scales freely.
+    - **Panels.** Nine-slice edges snap to whole screen pixels, and corners draw `floor(scale)` pixels per texel
+      (`CarbonUiSkin.PixelScale`), so 1.5× never makes corner texels uneven.
+    - **Input.** The mouse position is divided by the scale before any hit-test.
+    - **Not yet.** The in-game HUD draws at 1× on its own path; scaling it is a separate change.
 
 ## 3. Known gaps
 

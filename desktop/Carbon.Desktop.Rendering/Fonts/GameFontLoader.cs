@@ -99,7 +99,18 @@ public static class GameFontLoader
     /// <param name="device">Active OpenGL graphics device.</param>
     /// <param name="locale">The locale whose font stack to load.</param>
     /// <returns>The ready-to-render UI font.</returns>
-    public static BitmapFont LoadFont(IGraphicsDevice device, LocaleInfo? locale = null)
+    public static BitmapFont LoadFont(IGraphicsDevice device, LocaleInfo? locale = null) => LoadFont(device, locale, uiScale: 1f);
+
+    /// <summary>
+    /// Loads the UI <see cref="BitmapFont"/> re-baked for a UI drawn <paramref name="uiScale"/> times larger: the glyphs are
+    /// rasterized from the TrueType outlines at <c>size·scale</c> pixels while text lays out exactly as at scale 1
+    /// (<see cref="BitmapFont.TexelsPerUnit"/>), so text stays sharp at 1.25× and 1.5× instead of being stretched.
+    /// </summary>
+    /// <param name="device">Active OpenGL graphics device.</param>
+    /// <param name="locale">The locale whose font stack to load (<see langword="null"/> = the active one).</param>
+    /// <param name="uiScale">Screen pixels per layout unit.</param>
+    /// <returns>The ready-to-render UI font.</returns>
+    public static BitmapFont LoadFont(IGraphicsDevice device, LocaleInfo? locale, float uiScale)
     {
         ArgumentNullException.ThrowIfNull(device);
         if (device is not GraphicsDevice concrete)
@@ -114,13 +125,14 @@ public static class GameFontLoader
             List<FontFaceSource> faces = LoadFaces(active, fontsDir);
             if (faces.Count > 0)
             {
-                return TrueTypeFontLoader.CreateFromTrueType(active.Code, concrete, faces, UnicodeGlyphRanges.LatinFull);
+                return TrueTypeFontLoader.CreateFromTrueType(active.Code, concrete, faces, UnicodeGlyphRanges.LatinFull, uiScale);
             }
 
             string? anyFont = TryFindFontPath();
             if (anyFont is not null)
             {
-                return TrueTypeFontLoader.CreateFromTrueType("ThaleahFat", concrete, File.ReadAllBytes(anyFont), pixelSize: 16f);
+                FontFaceSource[] fallback = [new FontFaceSource("ThaleahFat", File.ReadAllBytes(anyFont), 16f)];
+                return TrueTypeFontLoader.CreateFromTrueType("ThaleahFat", concrete, fallback, UnicodeGlyphRanges.Ascii, uiScale);
             }
         }
 
@@ -132,7 +144,16 @@ public static class GameFontLoader
     /// </summary>
     /// <param name="device">Active OpenGL graphics device.</param>
     /// <returns>The ready-to-render UI font and white pixel texture.</returns>
-    public static (BitmapFont Font, Texture2D WhitePixel) Load(IGraphicsDevice device)
+    public static (BitmapFont Font, Texture2D WhitePixel) Load(IGraphicsDevice device) => Load(device, uiScale: 1f);
+
+    /// <summary>
+    /// Loads the game UI <see cref="BitmapFont"/> baked for <paramref name="uiScale"/> (see
+    /// <see cref="LoadFont(IGraphicsDevice, LocaleInfo?, float)"/>) and the shared 1x1 white pixel texture.
+    /// </summary>
+    /// <param name="device">Active OpenGL graphics device.</param>
+    /// <param name="uiScale">Screen pixels per layout unit.</param>
+    /// <returns>The ready-to-render UI font and white pixel texture.</returns>
+    public static (BitmapFont Font, Texture2D WhitePixel) Load(IGraphicsDevice device, float uiScale)
     {
         ArgumentNullException.ThrowIfNull(device);
         if (device is not GraphicsDevice concrete)
@@ -156,7 +177,7 @@ public static class GameFontLoader
             ReadOnlySpan<byte> white = [255, 255, 255, 255];
             whitePixel.SetData(white);
 
-            font = LoadFont(concrete);
+            font = LoadFont(concrete, locale: null, uiScale);
 
             BitmapFont resultFont = font;
             Texture2D resultWhite = whitePixel;

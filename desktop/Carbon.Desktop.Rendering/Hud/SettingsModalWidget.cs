@@ -41,7 +41,7 @@ public enum SettingsModalAction : byte
 internal sealed class SettingsModalWidget
 {
     private const float PanelW = 580f;
-    private const float PanelH = 432f;
+    private const float PanelH = 464f;
 
     /// <summary>Keybind reference rows as (key label, action label) localization keys (ADR-023).</summary>
     private static readonly (string KeyLabel, string ActionLabel)[] s_controlsLeft =
@@ -69,6 +69,9 @@ internal sealed class SettingsModalWidget
     private static readonly string[] s_toggleLabels = ["settings.show_minimap", "settings.show_combat_numbers", "settings.show_telemetry", "combat_feel.screen_shake", "combat_feel.reduce_flashes"];
     private static readonly string[] s_zoomLabels = ["settings.zoom.wide", "settings.zoom.standard", "settings.zoom.close"];
     private static readonly string[] s_qualityLabels = ["settings.quality.low", "settings.quality.medium", "settings.quality.high"];
+
+    /// <summary>UI scale choices: Auto, then each of <see cref="UiScale.Presets"/> in order.</summary>
+    private static readonly string[] s_uiScaleLabels = ["settings.ui_scale.auto", "settings.ui_scale.x1", "settings.ui_scale.x1_25", "settings.ui_scale.x1_5", "settings.ui_scale.x2"];
 
     private int _activeTab;
 
@@ -178,6 +181,16 @@ internal sealed class SettingsModalWidget
             }
         }
 
+        for (int u = 0; u < s_uiScaleLabels.Length; u++)
+        {
+            if (GetUiScaleButtonRect(ox, oy, u).Contains(mousePos))
+            {
+                settings.UiScaleChoice = UiScaleChoiceAt(u);
+                settings.Save();
+                return SettingsModalAction.SettingChanged;
+            }
+        }
+
         return SettingsModalAction.None;
     }
 
@@ -207,7 +220,7 @@ internal sealed class SettingsModalWidget
                 active ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle);
         }
 
-        skin.DrawCard(spriteBatch, new RectangleF(ox + 20f, oy + 86f, PanelW - 40f, 274f), CarbonUiPalette.BorderSubtle, bodyAlpha: 238);
+        skin.DrawCard(spriteBatch, new RectangleF(ox + 20f, oy + 86f, PanelW - 40f, 306f), CarbonUiPalette.BorderSubtle, bodyAlpha: 238);
 
         if (_activeTab == 0)
         {
@@ -246,6 +259,17 @@ internal sealed class SettingsModalWidget
                 skin.DrawButton(
                     spriteBatch,
                     in qRect,
+                    active ? CarbonUiPalette.SlotSelectedFill : CarbonUiPalette.SlotFill,
+                    active ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle);
+            }
+
+            for (int u = 0; u < s_uiScaleLabels.Length; u++)
+            {
+                RectangleF uRect = GetUiScaleButtonRect(ox, oy, u);
+                bool active = settings.UiScaleChoice == UiScaleChoiceAt(u);
+                skin.DrawButton(
+                    spriteBatch,
+                    in uRect,
                     active ? CarbonUiPalette.SlotSelectedFill : CarbonUiPalette.SlotFill,
                     active ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle);
             }
@@ -297,6 +321,12 @@ internal sealed class SettingsModalWidget
             for (int q = 0; q < s_qualityLabels.Length; q++)
             {
                 CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Get(s_qualityLabels[q]), GetQualityButtonRect(ox, oy, q), CarbonUiPalette.TextPrimary, black, 1f);
+            }
+
+            spriteBatch.DrawOutlinedString(font, GameText.Get("settings.ui_scale"), new Vector2(ox + 38f, oy + 357f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            for (int u = 0; u < s_uiScaleLabels.Length; u++)
+            {
+                CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Get(s_uiScaleLabels[u]), GetUiScaleButtonRect(ox, oy, u), CarbonUiPalette.TextPrimary, black, 1f);
             }
         }
         else
@@ -368,6 +398,20 @@ internal sealed class SettingsModalWidget
     internal static RectangleF GetQualityButtonRect(float ox, float oy, int index) =>
         new(ox + PanelW - 224f + (index * 64f), oy + 322f, 58f, 26f);
 
+    /// <summary>
+    /// Gets a UI scale button (Auto, 1, 1.25, 1.5, 2), in the row under graphics quality; Auto is wider for its word.
+    /// </summary>
+    internal static RectangleF GetUiScaleButtonRect(float ox, float oy, int index)
+    {
+        float left = ox + PanelW - 332f;
+        return index == 0
+            ? new RectangleF(left, oy + 353f, 70f, 26f)
+            : new RectangleF(left + 76f + ((index - 1) * 56f), oy + 353f, 50f, 26f);
+    }
+
+    /// <summary>Gets the choice behind UI scale button <paramref name="index"/>: Auto (<see langword="null"/>) or a preset.</summary>
+    internal static float? UiScaleChoiceAt(int index) => index == 0 ? null : UiScale.Presets[index - 1];
+
     private static RectangleF GetFooterButtonRect(float ox, float oy, int index) =>
-        new(ox + 20f + (index * 184f), oy + 372f, 172f, 38f);
+        new(ox + 20f + (index * 184f), oy + 404f, 172f, 38f);
 }

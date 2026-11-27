@@ -19,6 +19,7 @@ Carbon separates deterministic game state simulation from rendering:
    - Every component MUST be a `readonly struct` or `unmanaged struct` (e.g. `PositionComponent`, `VelocityComponent`, `HealthComponent`).
    - NEVER put class references, heap collections (`List<T>`, `Dictionary<K,V>`), or interface members inside components.
    - Ensures memory cache locality, zero GC allocation, and SIMD/vectorization potential.
+   - Per-entity managed state (stat sheets, threat tables, path buffers) goes in `EntityAttachmentStore<T>`, not in a component. A type attached on every spawn implements `IReusableAttachment`, so a despawn releases it for the next entity ([ADR-044](../../../docs/adr/ADR-044-reuse-entity-attachments.md)). Fetch it from the store in the call that uses it and keep the `Entity` handle, never the attachment, in a field or closure (guarded by `AttachmentReuseGuardTests`).
    ```csharp
    public readonly record struct PositionComponent(float X, float Y, float Z);
    public readonly record struct VelocityComponent(float Vx, float Vy, float Vz);
