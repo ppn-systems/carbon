@@ -557,11 +557,14 @@ public sealed class WorldSceneRenderer : IDisposable
             ? action.AimDirection
             : (world.LocalFacingDirection.LengthSquared() > 1e-4f ? world.LocalFacingDirection : world.LastAttackDirection);
         Direction8 dir8 = DirectionExtensions.FromVector(facing, Direction8.South);
-        string clip = ResolveCharacterClip(action, world.AttackSwingTimer, velocity.LengthSquared() > 9f);
-        bool isNorm = action.IsActive || world.AttackSwingTimer > 0f;
-        float eval = action.IsActive
-            ? action.Progress
-            : (world.AttackSwingTimer > 0f ? 1f - Math.Clamp(world.AttackSwingTimer / 0.24f, 0f, 1f) : _animTime);
+        bool downed = this.PreviewDowned || world.LocalDeath is not null;
+        string clip = downed ? DownedClip : ResolveCharacterClip(action, world.AttackSwingTimer, velocity.LengthSquared() > 9f);
+        bool isNorm = downed || action.IsActive || world.AttackSwingTimer > 0f;
+        float eval = downed
+            ? 1f
+            : action.IsActive
+                ? action.Progress
+                : (world.AttackSwingTimer > 0f ? 1f - Math.Clamp(world.AttackSwingTimer / 0.24f, 0f, 1f) : _animTime);
         float flash = world.LocalHitFlashTimer > 0f ? Math.Clamp(world.LocalHitFlashTimer / 0.16f, 0f, 0.8f) : 0f;
 
         if (_art is not null && hasRig && rig is not null)
@@ -648,6 +651,12 @@ public sealed class WorldSceneRenderer : IDisposable
         VectorRigRenderer.DrawItemIcon(batch, lootArt, new Vector2(remote.Position.X, remote.Position.Y + bob), size, alpha: alpha);
     }
 
+    /// <summary>Character clip of a dead player lying on the ground (ADR-031, <c>base_hero.cvg.json</c>).</summary>
+    private const string DownedClip = "downed";
+
+    /// <summary>Gets or sets whether the local player is drawn downed for a screenshot preview (<c>CARBON_UI_PREVIEW=death</c>).</summary>
+    public bool PreviewDowned { get; set; }
+
     private void DrawRemoteEntity(GeometryBatch batch, IWorldReadModel world, in RemoteEntityView remote)
     {
         if (remote.Kind == EntityKind.Projectile)
@@ -732,7 +741,14 @@ public sealed class WorldSceneRenderer : IDisposable
                     _ = _art.TryGetItem(remote.EquippedWeaponId, out remoteWeapon);
                 }
 
-                if (attacking)
+                if (remote.MaxHealth > 0f && remote.CurrentHealth <= 0f)
+                {
+                    // A dead player lies where they fell until they respawn (ADR-031).
+                    clip = DownedClip;
+                    norm = true;
+                    eval = 1f;
+                }
+                else if (attacking)
                 {
                     clip = remote.ActiveActionKind switch
                     {

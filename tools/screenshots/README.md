@@ -63,7 +63,7 @@ they are active.
 | `CARBON_CAPTURE_MODAL=settings\|controls\|inventory\|character\|skills\|crafting` | Open the Settings window (Display or Controls tab) or a player-window tab before the capture, to review localized UI. |
 | `CARBON_CAPTURE_SCENE=login\|characters` | Capture a menu screen instead of the world. `login` needs `CARBON_AUTO_LOGIN=0` in the scenario; `characters` also needs it, registers the scenario's fresh account and captures the character creator. |
 | `CARBON_FORGE_PREVIEW=<kind>[:s]` | Open the forge window and play one enhancement effect (`charge`, `success`, `nochange`, `downgrade`, `destroyed`), frozen at `s` seconds when given. Visual only: nothing is sent, the server alone rolls outcomes. The `forge_*` scenarios use it. |
-| `CARBON_UI_PREVIEW=<state>` | Open a UI state for review: `inventory`, or `inventory-tooltip:N`, `inventory-split:N`, `inventory-destroy:N` for slot `N` (visual only; nothing is sent to the server). |
+| `CARBON_UI_PREVIEW=<state>` | Open a UI state for review: `inventory`, or `inventory-tooltip:N`, `inventory-split:N`, `inventory-destroy:N` for slot `N`, or `death` (the ADR-031 death screen for a sample slime kill that dropped 1,250 gold, with the player drawn downed). Visual only; nothing is sent to the server. |
 | `CARBON_OPEN_TRADER=1` | Open the nearest trader's window once its stock arrives. The `trade_*` scenarios use it. |
 | `CARBON_OPEN_REPAIR=blacksmith\|station` | Open the repair window (ADR-028) at the blacksmith or at a player station. The `repair_*` scenarios use it. |
 | `CARBON_REPAIR_PREVIEW=work\|success[:s]` | Play the repair animation in that window (`work`: hammering, `success`: the bar filled and flashing), frozen at `s` seconds when given. Visual only: nothing is sent. |

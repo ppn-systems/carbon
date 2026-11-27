@@ -169,6 +169,15 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile, INpcCap
     float? AuthoritativeTimeHour => null;
 
     /// <summary>
+    /// Gets the local player's death while they are dead and waiting to respawn (ADR-031), or <see langword="null"/>
+    /// while alive.
+    /// </summary>
+    DeathView? LocalDeath => null;
+
+    /// <summary>Gets whether a respawn request was sent and the server has not answered it yet.</summary>
+    bool IsRespawnPending => false;
+
+    /// <summary>
     /// Gets whether the authoritative world time is in the night window (monsters empowered), or <see langword="null"/>
     /// when running offline.
     /// </summary>

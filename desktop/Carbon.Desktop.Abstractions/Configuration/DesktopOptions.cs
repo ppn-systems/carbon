@@ -119,7 +119,7 @@ public sealed class DesktopOptions
     /// <summary>
     /// Gets or sets an optional UI state the screenshot tool opens on start (<c>CARBON_UI_PREVIEW</c>):
     /// <c>inventory</c>, or <c>inventory-tooltip:N</c>, <c>inventory-split:N</c>, <c>inventory-destroy:N</c> for slot
-    /// <c>N</c>. Purely visual; nothing is sent to the server.
+    /// <c>N</c>, or <c>death</c> (the ADR-031 death screen). Purely visual; nothing is sent to the server.
     /// </summary>
     public string? UiPreview { get; init; }
 

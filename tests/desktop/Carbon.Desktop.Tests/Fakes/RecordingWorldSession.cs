@@ -62,6 +62,14 @@ internal sealed class RecordingWorldSession : IWorldSession
 
     public bool TryUpgradeInventoryItem(ushort slotIndex, ushort protectionItemId = 0) => this.Record($"Upgrade({slotIndex},{protectionItemId})");
 
+    /// <summary>Gets or sets the death the death screen reads (ADR-031); <see langword="null"/> while alive.</summary>
+    public DeathView? LocalDeath { get; set; }
+
+    /// <summary>Gets or sets what <see cref="TryRequestRespawn"/> does; by default it records <c>Respawn()</c>.</summary>
+    public Func<bool>? RespawnHandler { get; set; }
+
+    public bool TryRequestRespawn() => this.RespawnHandler is { } handler ? this.Record("Respawn()") && handler() : this.Record("Respawn()");
+
     private bool Record(string command)
     {
         this.Commands.Add(command);
