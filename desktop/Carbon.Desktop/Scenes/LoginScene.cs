@@ -234,8 +234,8 @@ internal sealed class LoginScene : MenuScene
             return;
         }
 
-        _usernameField.AppendChar(ch);
-        _passwordField.AppendChar(ch);
+        _ = _usernameField.AppendChar(ch);
+        _ = _passwordField.AppendChar(ch);
     }
 
     /// <inheritdoc/>

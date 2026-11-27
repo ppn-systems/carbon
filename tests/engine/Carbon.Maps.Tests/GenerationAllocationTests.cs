@@ -1,8 +1,8 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
-using System;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
+using Carbon.Testing;
 using Xunit;
 
 namespace Carbon.Maps.Tests;
@@ -28,21 +28,8 @@ public sealed class GenerationAllocationTests
     {
         ProceduralWorldGenerator generator = new(1337UL);
         Chunk2D chunk = new(0, 0);
-        for (int i = 0; i < 3; i++)
-        {
-            for (int chunkX = 0; chunkX < 8; chunkX++)
-            {
-                generator.PopulateChunk(chunk, chunkX, 3);
-            }
-        }
+        AllocationResult window = AllocationProbe.Measure(8, warmupIterations: 24, i => generator.PopulateChunk(chunk, i % 8, 3));
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int chunkX = 0; chunkX < 8; chunkX++)
-        {
-            generator.PopulateChunk(chunk, chunkX, 3);
-        }
-
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        Assert.True(allocated == 0, $"Regenerating 8 cached chunks allocated {allocated} bytes.");
+        Assert.True(window.Bytes == 0, $"Regenerating 8 cached chunks allocated {window}.");
     }
 }

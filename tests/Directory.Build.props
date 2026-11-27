@@ -20,4 +20,9 @@
         <PackageReference Include="FluentAssertions" />
         <PackageReference Include="NSubstitute" />
     </ItemGroup>
+
+    <!-- The shared allocation probe every zero-allocation test uses (audit round 3, "Flaky guard"). -->
+    <ItemGroup>
+        <Compile Include="$(MSBuildThisFileDirectory)Shared/AllocationProbe.cs" Link="Shared/AllocationProbe.cs" />
+    </ItemGroup>
 </Project>

@@ -1,6 +1,5 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
-using System;
 using System.Numerics;
 using Carbon.AI.Components;
 using Carbon.Combat.Attacks;
@@ -13,6 +12,7 @@ using Carbon.Simulation.Clock;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.World;
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
 
@@ -126,14 +126,9 @@ public sealed class MonsterBehaviorTests
         }
 
         float healthBefore = arena.World.Entities.GetHealth(player).Current;
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 300; i++)
-        {
-            arena.StepTick();
-        }
+        AllocationResult window = AllocationProbe.Measure(300, warmupIterations: 0, i => arena.StepTick());
 
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        allocated.Should().Be(0, "AI, monster brain, and melee/leap attack ticks are zero-allocation");
+        window.Bytes.Should().Be(0, $"AI, monster brain, and melee/leap attack ticks are zero-allocation ({window})");
         arena.World.Entities.GetHealth(player).Current.Should().BeLessThan(healthBefore, "the measured window contains resolved attacks");
     }
 
