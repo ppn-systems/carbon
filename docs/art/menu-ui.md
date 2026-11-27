@@ -199,9 +199,24 @@ The rules here and in 2.4 apply as each screen is reworked.
       - It pauses while its scene is inactive (only the active menu scene advances it).
       - It allocates nothing per frame once warm.
       - `CARBON_MENU_MOTION=0` holds it still.
-16. **Screen transitions are short cross-fades** of 150–250 ms, easing out on enter. Nothing is longer than 400 ms.
-17. **Server cards** show the friendly name, a status word and a latency word with bars. They never show an address,
-    port or network jargon.
+16. **Screen transitions keep the world and title still and bring only the panel in** (`Menu/MenuTransition.cs`).
+    - Menu to menu: no fade to black. The new panel slides up 14 px while its contents rise out of the panel body,
+      over 220 ms with a cubic ease-out.
+    - Entering or leaving the world keeps the scene manager's 150 ms fade.
+    - With `CARBON_MENU_MOTION=0` the panel appears at once.
+    - Input is never blocked during a transition.
+    - The title sits at the same place on every screen (`MenuScene.TitleTop`), so it never jumps.
+    - A footer line names the keys for each screen.
+    - On Start, Up/Down or Tab walk the buttons and then Quit, wrapping; Enter or Space activates the focused one.
+17. **Server cards** (`Scenes/ServerSelectScene.cs`, `Menu/ServerStatus.cs`).
+    - Each card shows the friendly name, a status word (Checking / Online / Can't reach this server right now), a
+      connection word and four signal bars.
+    - Quality thresholds: excellent < 60 ms, good < 120 ms, fair < 250 ms, otherwise weak.
+    - A card never shows an address, a port or milliseconds.
+    - Each listed server is checked once per visit with a plain TCP connect that is closed at once (`TcpServerProbe`,
+      2 s timeout). It is never repeated on a timer.
+    - The selected server shows a gold card with a check mark.
+    - Up/Down or Tab walk the cards and then Back, wrapping; Enter picks.
 18. **The character creator** keeps the turntable with rotate buttons, a randomize button that always yields a complete
     look, ◀ ▶ pickers that show the current index, and live name feedback.
 
