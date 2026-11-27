@@ -12,6 +12,7 @@ using Carbon.Contracts.Items.C2S;
 using Carbon.Contracts.Items.S2C;
 using Carbon.Contracts.Maps.C2S;
 using Carbon.Desktop.Abstractions.Events;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -329,18 +330,18 @@ public sealed partial class MultiplayerSession
             {
                 if (_inventory.CountItem(materials[i].ItemId) < materials[i].Quantity)
                 {
-                    missing = "Missing upgrade materials!";
+                    missing = GameText.Get("forge.missing_materials");
                 }
             }
 
             if (missing is null && Interlocked.Read(ref _localGold) < ItemEnhancementPolicy.GetGoldFee(rules, in target, step))
             {
-                missing = "Not enough gold for the forge fee!";
+                missing = GameText.Get("forge.not_enough_gold");
             }
 
             if (missing is null && protectionItemId != 0 && _inventory.CountItem(protectionItemId) < 1)
             {
-                missing = "No protection scroll in the bag!";
+                missing = GameText.Get("forge.no_scroll");
             }
 
             if (missing is not null)
@@ -396,9 +397,9 @@ public sealed partial class MultiplayerSession
             if (status != OpStatus.Ok)
             {
                 _hudNotifications.Add(
-                    status == OpStatus.Conflict ? "Missing materials, gold or scroll for the forge!"
-                    : status == OpStatus.OutOfRange ? "Move near a Blacksmith or Forge Anvil to enhance gear!"
-                    : "The forge refused that item.");
+                    GameText.Get(status == OpStatus.Conflict ? "forge.missing_costs"
+                    : status == OpStatus.OutOfRange ? "forge.out_of_range"
+                    : "forge.refused"));
                 return;
             }
 
@@ -409,13 +410,12 @@ public sealed partial class MultiplayerSession
             _ = Interlocked.Increment(ref _forgeResultSerial);
 
             string name = _items.GetDisplayName(itemId);
-            string guard = protectionConsumed ? " (scroll spent)" : string.Empty;
             (string note, string label) = outcome switch
             {
-                EnhancementOutcome.Success => ($"{name} is now +{newLevel}!", $"+{newLevel}!"),
-                EnhancementOutcome.NoChange => ($"Forge failed - {name} stays +{newLevel}{guard}", "NO EFFECT"),
-                EnhancementOutcome.Downgrade => ($"Forge failed - {name} dropped to +{newLevel}{guard}", $"DOWN TO +{newLevel}"),
-                EnhancementOutcome.Destroyed => ($"{name} shattered on the anvil!", "SHATTERED!"),
+                EnhancementOutcome.Success => ("forge.note.success", "forge.label.success"),
+                EnhancementOutcome.NoChange => (protectionConsumed ? "forge.note.no_change_guarded" : "forge.note.no_change", "forge.label.no_change"),
+                EnhancementOutcome.Downgrade => ("forge.note.downgrade", "forge.label.downgrade"),
+                EnhancementOutcome.Destroyed => ("forge.note.destroyed", "forge.label.destroyed"),
                 EnhancementOutcome.None => (string.Empty, string.Empty),
                 _ => (string.Empty, string.Empty),
             };
@@ -425,7 +425,9 @@ public sealed partial class MultiplayerSession
                 return;
             }
 
-            _hudNotifications.Add(note);
+            TextArg itemArg = new("item", name);
+            TextArg levelArg = new("level", newLevel);
+            _hudNotifications.Add(GameText.Format(note, itemArg, levelArg));
             Vector2 pos = _simulation is not null && _simulation.Entities.IsAlive(_localPlayer)
                 ? _simulation.GetInterpolatedPosition(_localPlayer) + _visualOffset
                 : Vector2.Zero;
@@ -434,7 +436,7 @@ public sealed partial class MultiplayerSession
                 0f,
                 IsCritical: outcome != EnhancementOutcome.NoChange,
                 IsHeal: outcome == EnhancementOutcome.Success,
-                Label: label));
+                Label: GameText.Format(label, levelArg)));
         }
     }
 

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Contracts.Common;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -338,17 +339,17 @@ internal sealed class ForgeAnvilModalWidget
             long fee = ItemEnhancementPolicy.GetGoldFee(world.Items.Rules, in target, step);
             spriteBatch.DrawOutlinedString(
                 font,
-                $"Fee: {fee} gold",
+                GameText.Format("forge.fee", new TextArg("gold", fee)),
                 new Vector2(ox + 310f, oy + OutcomeBarY - 24f),
                 world.LocalPlayerGold >= fee ? CarbonUiPalette.TextWarm : CarbonUiPalette.DangerBorder,
                 black,
                 1,
                 1f);
 
-            DrawChance(spriteBatch, font, "Success", step.SuccessPermille, new Vector2(ox + 310f, oy + OutcomeBarY + 18f), s_successColor);
-            DrawChance(spriteBatch, font, "No change", step.NoChangePermille, new Vector2(ox + 480f, oy + OutcomeBarY + 18f), s_noChangeColor);
-            DrawChance(spriteBatch, font, "Drop -1", step.DowngradePermille, new Vector2(ox + 310f, oy + OutcomeBarY + 38f), s_downgradeColor);
-            DrawChance(spriteBatch, font, "Destroy", step.DestroyPermille, new Vector2(ox + 480f, oy + OutcomeBarY + 38f), s_destroyColor);
+            DrawChance(spriteBatch, font, GameText.Get("forge.chance.success"), step.SuccessPermille, new Vector2(ox + 310f, oy + OutcomeBarY + 18f), s_successColor);
+            DrawChance(spriteBatch, font, GameText.Get("forge.chance.no_change"), step.NoChangePermille, new Vector2(ox + 480f, oy + OutcomeBarY + 18f), s_noChangeColor);
+            DrawChance(spriteBatch, font, GameText.Get("forge.chance.downgrade"), step.DowngradePermille, new Vector2(ox + 310f, oy + OutcomeBarY + 38f), s_downgradeColor);
+            DrawChance(spriteBatch, font, GameText.Get("forge.chance.destroy"), step.DestroyPermille, new Vector2(ox + 480f, oy + OutcomeBarY + 38f), s_destroyColor);
 
             if (world.ForgeFeedbackTimer > 0f)
             {
@@ -362,11 +363,11 @@ internal sealed class ForgeAnvilModalWidget
                     1f);
             }
 
-            CarbonUiSkin.DrawCenteredText(spriteBatch, font, $"FORGE +{curLv + 1}", GetForgeButtonRect(ox, oy), CarbonUiPalette.TextPrimary, black, 1f);
+            CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Format("forge.button", new TextArg("level", curLv + 1)), GetForgeButtonRect(ox, oy), CarbonUiPalette.TextPrimary, black, 1f);
         }
         else
         {
-            spriteBatch.DrawOutlinedString(font, $"Max enhancement (+{world.Items.Rules.Enhancement.MaxLevel})", new Vector2(ox + 386f, oy + 122f), CarbonUiPalette.TextWarm, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, GameText.Format("forge.max_level", new TextArg("level", world.Items.Rules.Enhancement.MaxLevel)), new Vector2(ox + 386f, oy + 122f), CarbonUiPalette.TextWarm, black, 1, 1f);
         }
     }
 
@@ -382,10 +383,10 @@ internal sealed class ForgeAnvilModalWidget
 
     private static string DescribeOutcome(EnhancementOutcome outcome, byte newLevel) => outcome switch
     {
-        EnhancementOutcome.Success => $"Enhanced to +{newLevel}!",
-        EnhancementOutcome.NoChange => "Failed - no change.",
-        EnhancementOutcome.Downgrade => $"Failed - dropped to +{newLevel}.",
-        EnhancementOutcome.Destroyed => "The item shattered!",
+        EnhancementOutcome.Success => GameText.Format("forge.outcome.success", new TextArg("level", newLevel)),
+        EnhancementOutcome.NoChange => GameText.Get("forge.outcome.no_change"),
+        EnhancementOutcome.Downgrade => GameText.Format("forge.outcome.downgrade", new TextArg("level", newLevel)),
+        EnhancementOutcome.Destroyed => GameText.Get("forge.outcome.destroyed"),
         EnhancementOutcome.None => string.Empty,
         _ => string.Empty,
     };

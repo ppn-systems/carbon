@@ -187,15 +187,6 @@ public sealed partial class AuthoritativeWorld
     public OpStatus TryDestroyInventoryItem(ulong connectionId, ushort slotIndex, int quantity, ushort expectedItemId = 0) =>
         this.ExecuteSlotCommand(connectionId, new InventorySlotCommand(InventorySlotCommandKind.Destroy, slotIndex, Quantity: quantity, ExpectedItemId: expectedItemId));
 
-    /// <summary>Enhances the item in the slot (tests): <see cref="OpStatus.Ok"/> on a success, <see cref="OpStatus.EnhancementFailed"/> on a failed roll.</summary>
-    public OpStatus TryUpgradeInventoryItem(ulong connectionId, ushort slotIndex, uint deterministicRollSeed = 0U)
-    {
-        WorldMutationOutcome outcome = this.TryEnhanceInventoryItem(connectionId, slotIndex, protectionItemId: 0, deterministicRollSeed);
-        return outcome.Status != OpStatus.Ok || ForgeEnhancementReceipt.Unpack(outcome.Revision).Outcome == EnhancementOutcome.Success
-            ? outcome.Status
-            : OpStatus.EnhancementFailed;
-    }
-
     /// <summary>
     /// Runs one forge enhancement attempt (ADR-024): <see cref="OpStatus.Ok"/> with a packed
     /// <see cref="ForgeEnhancementReceipt"/> once it ran, or why nothing was spent. Called by the tick (ADR-017) and tests.

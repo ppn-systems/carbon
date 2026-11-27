@@ -16,6 +16,7 @@ using Carbon.Contracts.Items.S2C;
 using Carbon.Contracts.Maps.C2S;
 using Carbon.Contracts.Maps.S2C;
 using Carbon.Desktop.Abstractions.Events;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -856,14 +857,14 @@ public sealed partial class MultiplayerSession
         lock (_worldGate)
         {
             string item = _items.GetDisplayName(pkt.ItemId);
-            string who = string.IsNullOrWhiteSpace(pkt.PlayerName) ? "Someone" : pkt.PlayerName;
-            if (pkt.Outcome == EnhancementOutcome.Success)
+            string who = string.IsNullOrWhiteSpace(pkt.PlayerName) ? GameText.Get("forge.announce.someone") : pkt.PlayerName;
+            if (pkt.Outcome is EnhancementOutcome.Success or EnhancementOutcome.Destroyed)
             {
-                _hudNotifications.Add($"{who} forged {item} to +{pkt.Level}!");
-            }
-            else if (pkt.Outcome == EnhancementOutcome.Destroyed)
-            {
-                _hudNotifications.Add($"{who}'s +{pkt.Level} {item} shattered at the forge!");
+                _hudNotifications.Add(GameText.Format(
+                    pkt.Outcome == EnhancementOutcome.Success ? "forge.announce.success" : "forge.announce.destroyed",
+                    new TextArg("player", who),
+                    new TextArg("item", item),
+                    new TextArg("level", pkt.Level)));
             }
         }
     }
