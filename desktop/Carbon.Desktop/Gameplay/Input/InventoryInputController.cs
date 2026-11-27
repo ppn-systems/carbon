@@ -7,10 +7,11 @@ using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Input;
 using Carbon.Desktop.Rendering.Hud;
+using Carbon.Desktop.Scenes;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 
-namespace Carbon.Desktop.Scenes;
+namespace Carbon.Desktop.Gameplay.Input;
 
 /// <summary>
 /// Mouse and keyboard handling for the inventory tab of the player modal (ADR-020): click/hold drag-and-drop, quick

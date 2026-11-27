@@ -7,7 +7,7 @@ using Carbon.Desktop.Rendering.Capture;
 using Carbon.Graphics.Scenes.Management;
 using Carbon.Graphics.Windowing.Abstractions;
 
-namespace Carbon.Desktop.Scenes;
+namespace Carbon.Desktop.Capture;
 
 /// <summary>
 /// The screenshot tool's schedule for the world scene (<c>tools/screenshots</c>): one capture once the world has settled
