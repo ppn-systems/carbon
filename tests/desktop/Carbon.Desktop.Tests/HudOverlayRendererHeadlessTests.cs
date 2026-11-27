@@ -24,7 +24,7 @@ public sealed class HudOverlayRendererHeadlessTests
         using HudOverlayRenderer hud = new(device, Substitute.For<IVectorArtRepository>());
 
         device.ReceivedCalls().Should().BeEmpty("nothing is created on the GPU until the first draw");
-        hud.HasActiveModal.Should().BeFalse();
+        hud.State.HasActiveModal.Should().BeFalse();
     }
 
     [Fact]

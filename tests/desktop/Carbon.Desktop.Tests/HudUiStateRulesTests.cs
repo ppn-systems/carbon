@@ -16,53 +16,58 @@ namespace Carbon.Desktop.Tests;
 
 /// <summary>
 /// The HUD's window rules (audit OOP-3): which windows are open, which tab shows, what opening one closes, and what the
-/// carried slot and minimap wheel do around them. Pinned on <see cref="HudOverlayRenderer"/> before the state moved out.
+/// carried slot and minimap wheel do around them. Pinned on <see cref="HudOverlayRenderer"/> before the state moved out,
+/// then pointed at <see cref="HudUiState"/>.
 /// </summary>
 public sealed class HudUiStateRulesTests : IDisposable
 {
     private const int ViewportWidth = 1280;
 
-    private readonly HudOverlayRenderer _hud = new(Substitute.For<IGraphicsDevice>(), Substitute.For<IVectorArtRepository>());
+    private readonly HudUiState _state = new();
+    private readonly HudOverlayRenderer _hud;
     private readonly IWorldReadModel _world = Substitute.For<IWorldReadModel>();
+
+    // The rules live on HudUiState; OpenSettings and the minimap wheel stay on the renderer, which reads the same state.
+    public HudUiStateRulesTests() => _hud = new HudOverlayRenderer(Substitute.For<IGraphicsDevice>(), Substitute.For<IVectorArtRepository>(), _state);
 
     [Fact]
     public void NewHud_StartsVisibleWithNoWindowOpen()
     {
-        _hud.Visible.Should().BeTrue();
-        _hud.HasActiveModal.Should().BeFalse();
-        _hud.ShowPlayerModal.Should().BeFalse();
-        _hud.ActivePlayerTab.Should().Be(PlayerModalTab.Inventory);
-        _hud.TradeDragSlot.Should().Be(-1);
-        _hud.CarriedInventorySlot.Should().Be(-1);
+        _state.Visible.Should().BeTrue();
+        _state.HasActiveModal.Should().BeFalse();
+        _state.ShowPlayerModal.Should().BeFalse();
+        _state.ActivePlayerTab.Should().Be(PlayerModalTab.Inventory);
+        _state.TradeDragSlot.Should().Be(-1);
+        _state.CarriedInventorySlot.Should().Be(-1);
     }
 
     [Fact]
     public void OpenOrTogglePlayerTab_FromOtherWindows_OpensTheTabAndClosesForgeSettingsAndRepair()
     {
-        _hud.ShowForgeModal = true;
-        _hud.ShowSettingsModal = true;
-        _hud.Repair.Open(RepairVenue.Blacksmith);
+        _state.ShowForgeModal = true;
+        _state.ShowSettingsModal = true;
+        _state.Repair.Open(RepairVenue.Blacksmith);
 
-        _hud.OpenOrTogglePlayerTab(_world, PlayerModalTab.Crafting).Should().BeTrue();
+        _state.OpenOrTogglePlayerTab(_world, PlayerModalTab.Crafting).Should().BeTrue();
 
-        _hud.ShowPlayerModal.Should().BeTrue();
-        _hud.ActivePlayerTab.Should().Be(PlayerModalTab.Crafting);
-        _hud.ShowForgeModal.Should().BeFalse();
-        _hud.ShowSettingsModal.Should().BeFalse();
-        _hud.Repair.IsOpen.Should().BeFalse();
+        _state.ShowPlayerModal.Should().BeTrue();
+        _state.ActivePlayerTab.Should().Be(PlayerModalTab.Crafting);
+        _state.ShowForgeModal.Should().BeFalse();
+        _state.ShowSettingsModal.Should().BeFalse();
+        _state.Repair.IsOpen.Should().BeFalse();
     }
 
     [Fact]
     public void OpenOrTogglePlayerTab_TheShownTab_ClosesTheWindowAndDropsTheCarriedSlot()
     {
-        _hud.OpenOrTogglePlayerTab(_world, PlayerModalTab.Inventory);
-        _hud.CarriedInventorySlot = 7;
+        _state.OpenOrTogglePlayerTab(_world, PlayerModalTab.Inventory);
+        _state.CarriedInventorySlot = 7;
 
-        _hud.OpenOrTogglePlayerTab(_world, PlayerModalTab.Inventory).Should().BeTrue();
+        _state.OpenOrTogglePlayerTab(_world, PlayerModalTab.Inventory).Should().BeTrue();
 
-        _hud.ShowPlayerModal.Should().BeFalse();
-        _hud.CarriedInventorySlot.Should().Be(-1);
-        _hud.HasActiveModal.Should().BeFalse();
+        _state.ShowPlayerModal.Should().BeFalse();
+        _state.CarriedInventorySlot.Should().Be(-1);
+        _state.HasActiveModal.Should().BeFalse();
     }
 
     [Theory]
@@ -70,37 +75,37 @@ public sealed class HudUiStateRulesTests : IDisposable
     [InlineData(PlayerModalTab.Crafting, -1)]
     public void OpenOrTogglePlayerTab_SwitchingAwayFromInventory_DropsTheCarriedSlot(PlayerModalTab tab, int expectedCarried)
     {
-        _hud.OpenOrTogglePlayerTab(_world, PlayerModalTab.Inventory);
-        _hud.CarriedInventorySlot = 7;
+        _state.OpenOrTogglePlayerTab(_world, PlayerModalTab.Inventory);
+        _state.CarriedInventorySlot = 7;
 
-        _hud.OpenOrTogglePlayerTab(_world, tab);
+        _state.OpenOrTogglePlayerTab(_world, tab);
 
-        _hud.ActivePlayerTab.Should().Be(tab);
-        _hud.CarriedInventorySlot.Should().Be(expectedCarried);
+        _state.ActivePlayerTab.Should().Be(tab);
+        _state.CarriedInventorySlot.Should().Be(expectedCarried);
     }
 
     [Fact]
     public void OpenOrTogglePlayerTab_SwitchingToInventory_KeepsTheCarriedSlot()
     {
-        _hud.OpenOrTogglePlayerTab(_world, PlayerModalTab.Character);
-        _hud.CarriedInventorySlot = 7;
+        _state.OpenOrTogglePlayerTab(_world, PlayerModalTab.Character);
+        _state.CarriedInventorySlot = 7;
 
-        _hud.OpenOrTogglePlayerTab(_world, PlayerModalTab.Inventory);
+        _state.OpenOrTogglePlayerTab(_world, PlayerModalTab.Inventory);
 
-        _hud.ActivePlayerTab.Should().Be(PlayerModalTab.Inventory);
-        _hud.CarriedInventorySlot.Should().Be(7);
+        _state.ActivePlayerTab.Should().Be(PlayerModalTab.Inventory);
+        _state.CarriedInventorySlot.Should().Be(7);
     }
 
     [Fact]
     public void OpenOrTogglePlayerTab_SkillsWithoutClassSkills_IsRefusedAndChangesNothing()
     {
         _world.LocalCharacterTraits.Returns(CharacterTraits.None);
-        _hud.ShowForgeModal = true;
+        _state.ShowForgeModal = true;
 
-        _hud.OpenOrTogglePlayerTab(_world, PlayerModalTab.Skills).Should().BeFalse();
+        _state.OpenOrTogglePlayerTab(_world, PlayerModalTab.Skills).Should().BeFalse();
 
-        _hud.ShowPlayerModal.Should().BeFalse();
-        _hud.ShowForgeModal.Should().BeTrue("a refused tab closes nothing");
+        _state.ShowPlayerModal.Should().BeFalse();
+        _state.ShowForgeModal.Should().BeTrue("a refused tab closes nothing");
     }
 
     [Fact]
@@ -109,10 +114,10 @@ public sealed class HudUiStateRulesTests : IDisposable
         _world.LocalPlayerClass.Returns(HeroArchetypeClass.Vanguard);
         _world.LocalCharacterTraits.Returns(CharacterTraits.ClassAdvanced);
 
-        _hud.OpenOrTogglePlayerTab(_world, PlayerModalTab.Skills).Should().BeTrue();
+        _state.OpenOrTogglePlayerTab(_world, PlayerModalTab.Skills).Should().BeTrue();
 
-        _hud.ShowPlayerModal.Should().BeTrue();
-        _hud.ActivePlayerTab.Should().Be(PlayerModalTab.Skills);
+        _state.ShowPlayerModal.Should().BeTrue();
+        _state.ActivePlayerTab.Should().Be(PlayerModalTab.Skills);
     }
 
     [Theory]
@@ -120,34 +125,34 @@ public sealed class HudUiStateRulesTests : IDisposable
     [InlineData(true)]
     public void CloseAllModals_ClosesEveryWindowAndKeepsSettingsOnlyWhenAsked(bool keepSettings)
     {
-        _hud.OpenOrTogglePlayerTab(_world, PlayerModalTab.Inventory);
-        _hud.CarriedInventorySlot = 3;
-        _hud.ShowForgeModal = true;
-        _hud.Trader = Trader();
-        _hud.Repair.Open(RepairVenue.Station);
-        _hud.ShowSettingsModal = true;
+        _state.OpenOrTogglePlayerTab(_world, PlayerModalTab.Inventory);
+        _state.CarriedInventorySlot = 3;
+        _state.ShowForgeModal = true;
+        _state.Trader = Trader();
+        _state.Repair.Open(RepairVenue.Station);
+        _state.ShowSettingsModal = true;
 
-        _hud.CloseAllModals(keepSettings);
+        _state.CloseAllModals(keepSettings);
 
-        _hud.ShowPlayerModal.Should().BeFalse();
-        _hud.ShowForgeModal.Should().BeFalse();
-        _hud.Trader.Should().BeNull();
-        _hud.Repair.IsOpen.Should().BeFalse();
-        _hud.CarriedInventorySlot.Should().Be(-1);
-        _hud.ShowSettingsModal.Should().Be(keepSettings);
+        _state.ShowPlayerModal.Should().BeFalse();
+        _state.ShowForgeModal.Should().BeFalse();
+        _state.Trader.Should().BeNull();
+        _state.Repair.IsOpen.Should().BeFalse();
+        _state.CarriedInventorySlot.Should().Be(-1);
+        _state.ShowSettingsModal.Should().Be(keepSettings);
     }
 
     [Fact]
     public void OpenSettings_ClosesTheOtherWindowsAndOpensSettings()
     {
-        _hud.OpenOrTogglePlayerTab(_world, PlayerModalTab.Character);
-        _hud.Trader = Trader();
+        _state.OpenOrTogglePlayerTab(_world, PlayerModalTab.Character);
+        _state.Trader = Trader();
 
         _hud.OpenSettings(1);
 
-        _hud.ShowSettingsModal.Should().BeTrue();
-        _hud.ShowPlayerModal.Should().BeFalse();
-        _hud.Trader.Should().BeNull();
+        _state.ShowSettingsModal.Should().BeTrue();
+        _state.ShowPlayerModal.Should().BeFalse();
+        _state.Trader.Should().BeNull();
     }
 
     [Theory]
@@ -161,31 +166,31 @@ public sealed class HudUiStateRulesTests : IDisposable
         switch (window)
         {
             case "player":
-                _hud.ShowPlayerModal = true;
+                _state.ShowPlayerModal = true;
                 break;
             case "forge":
-                _hud.ShowForgeModal = true;
+                _state.ShowForgeModal = true;
                 break;
             case "settings":
-                _hud.ShowSettingsModal = true;
+                _state.ShowSettingsModal = true;
                 break;
             case "trader":
-                _hud.Trader = Trader();
+                _state.Trader = Trader();
                 break;
             default:
-                _hud.Repair.Open(RepairVenue.Blacksmith);
+                _state.Repair.Open(RepairVenue.Blacksmith);
                 break;
         }
 
-        _hud.HasActiveModal.Should().BeTrue();
+        _state.HasActiveModal.Should().BeTrue();
     }
 
     [Fact]
     public void HasActiveModal_InteractPrompt_IsNotAWindow()
     {
-        _hud.InteractPrompt = default(InteractionPrompt);
+        _state.InteractPrompt = default(InteractionPrompt);
 
-        _hud.HasActiveModal.Should().BeFalse();
+        _state.HasActiveModal.Should().BeFalse();
     }
 
     [Fact]
@@ -195,16 +200,26 @@ public sealed class HudUiStateRulesTests : IDisposable
         _hud.Settings.ShowMinimap = true;
         _hud.TryZoomMinimap(overMap, 1, ViewportWidth).Should().BeTrue();
 
-        _hud.ShowForgeModal = true;
+        _state.ShowForgeModal = true;
         _hud.TryZoomMinimap(overMap, 1, ViewportWidth).Should().BeFalse("a window takes the wheel");
-        _hud.ShowForgeModal = false;
+        _state.ShowForgeModal = false;
 
-        _hud.Visible = false;
+        _state.Visible = false;
         _hud.TryZoomMinimap(overMap, 1, ViewportWidth).Should().BeFalse("a hidden HUD takes nothing");
-        _hud.Visible = true;
+        _state.Visible = true;
 
         _hud.Settings.ShowMinimap = false;
         _hud.TryZoomMinimap(overMap, 1, ViewportWidth).Should().BeFalse("a hidden minimap takes nothing");
+    }
+
+    [Fact]
+    public void InventoryWidget_DrawsTheCarriedSlotTheStateHolds()
+    {
+        InventoryModalWidget bag = new(_state);
+
+        _state.CarriedInventorySlot = 5;
+
+        bag.CarriedSlot.Should().Be(5, "the bag highlights the slot the scene's state carries, not a copy of its own");
     }
 
     public void Dispose() => _hud.Dispose();
