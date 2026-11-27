@@ -152,9 +152,12 @@ public sealed partial class CodeHygieneTests
         Violations.ShouldBeEmpty(s_namespaceMismatchAllowlist.Where(e => !found.Contains(e)), "fixed entries must be removed from the allowlist");
     }
 
-    private static IEnumerable<string> FindStaticMutableFields()
+    private static IEnumerable<string> FindStaticMutableFields() => FindStaticMutableFields("engine", "server");
+
+    /// <summary>Non-readonly statics and <c>static readonly</c> mutable collections declared in <paramref name="layers"/>.</summary>
+    internal static IEnumerable<string> FindStaticMutableFields(params string[] layers)
     {
-        foreach ((ProductionProject _, Assembly assembly) in RepositoryLayout.AssembliesIn("engine", "server"))
+        foreach ((ProductionProject _, Assembly assembly) in RepositoryLayout.AssembliesIn(layers))
         {
             foreach (Type type in RepositoryLayout.GetTypesSafe(assembly))
             {

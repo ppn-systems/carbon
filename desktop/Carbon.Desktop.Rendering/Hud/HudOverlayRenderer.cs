@@ -450,7 +450,7 @@ public sealed class HudOverlayRenderer : IDisposable
             _minimap.DrawGeometry(_geometryBatch, world, _art, viewportWidth, ptx, pty);
         }
 
-        int hoveredSlot = _hotbar.DrawGeometry(_geometryBatch, world, _art, feedback, viewportWidth, viewportHeight, bgMouse);
+        int hoveredSlot = _hotbar.DrawGeometry(_geometryBatch, world, _art, feedback, viewportWidth, viewportHeight, bgMouse, _animTime);
         _wallet.DrawGeometry(_geometryBatch, _art, viewportWidth, viewportHeight);
         ushort hoveredSkill = _skillBar.DrawGeometry(_geometryBatch, world, viewportWidth, viewportHeight, bgMouse);
         _geometryBatch.End();

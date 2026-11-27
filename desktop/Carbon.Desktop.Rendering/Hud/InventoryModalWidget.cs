@@ -253,10 +253,14 @@ internal sealed class InventoryModalWidget
 
             if (!item.IsEmpty && idx != this.CarriedSlot)
             {
+                byte tierLevel = ItemEnhancementPolicy.GetUpgradeLevel(in item);
+                EnhancementSlotDecor.DrawFill(batch, in rect, tierLevel, MathF.Round(3f * s));
                 if (art is not null && art.TryGetItem(item.ItemId, out CompiledItemVectorArt? itemArt))
                 {
                     VectorRigRenderer.DrawItemIcon(batch, itemArt, new Vector2(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.46f)), iconSize);
                 }
+
+                EnhancementSlotDecor.DrawOverlay(batch, in rect, tierLevel, s, animTime);
 
                 if (world.Items.Rules.Items.TryGet(item.ItemId, out ItemArchetype? def) && def.MaxDurability > 0f)
                 {
@@ -276,14 +280,19 @@ internal sealed class InventoryModalWidget
 
         RectangleF heldRect = GetHeldSlotRect(in layout);
         ItemSlot heldItem = world.SelectedHotbarSlot < slots.Length ? slots[world.SelectedHotbarSlot] : ItemSlot.Empty;
+        byte heldLevel = ItemEnhancementPolicy.GetUpgradeLevel(in heldItem);
+        EnhancementSlotDecor.DrawFill(batch, in heldRect, heldLevel, MathF.Round(3f * s));
         if (!heldItem.IsEmpty && art is not null && art.TryGetItem(heldItem.ItemId, out CompiledItemVectorArt? heldArt))
         {
             VectorRigRenderer.DrawItemIcon(batch, heldArt, new Vector2(heldRect.X + (heldRect.Width * 0.5f), heldRect.Y + (heldRect.Height * 0.5f)), iconSize);
         }
+
         else if (heldItem.IsEmpty)
         {
             DrawEmptyEquipmentSilhouette(batch, in heldRect, -1);
         }
+
+        EnhancementSlotDecor.DrawOverlay(batch, in heldRect, heldLevel, s, animTime);
 
         return hoveredSlot;
     }
@@ -329,20 +338,7 @@ internal sealed class InventoryModalWidget
 
             if (!item.IsEmpty && idx != this.CarriedSlot)
             {
-                byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
-                if (upg > 0)
-                {
-                    string upgTxt = $"+{upg}";
-                    TextMeasureResult uSize = font.MeasureString(upgTxt, TextLayoutOptions.Default, layout.TextScale);
-                    spriteBatch.DrawOutlinedString(
-                        font,
-                        upgTxt,
-                        new Vector2(rect.Right - uSize.Width - MathF.Round(4f * s), rect.Y + MathF.Round(3f * s)),
-                        EnhancementLabelStyle.ColorFor(upg),
-                        black,
-                        1,
-                        layout.TextScale);
-                }
+                EnhancementSlotDecor.DrawBadgeText(spriteBatch, font, in rect, ItemEnhancementPolicy.GetUpgradeLevel(in item), layout.TextScale, s);
 
                 if (item.Quantity > 1)
                 {
@@ -365,6 +361,8 @@ internal sealed class InventoryModalWidget
     {
         float s = layout.Scale;
         RectangleF heldRect = GetHeldSlotRect(in layout);
+        ItemSlot heldItem = world.SelectedHotbarSlot < PlayerInventoryLayout.TotalCapacity ? GetSlot(world, world.SelectedHotbarSlot) : ItemSlot.Empty;
+        EnhancementSlotDecor.DrawBadgeText(spriteBatch, font, in heldRect, ItemEnhancementPolicy.GetUpgradeLevel(in heldItem), layout.TextScale, s);
         string heldLabel = this.GetHeldLabel(world.SelectedHotbarSlot);
         TextMeasureResult heldSize = font.MeasureString(heldLabel, TextLayoutOptions.Default, layout.TextScale);
         spriteBatch.DrawOutlinedString(
@@ -387,6 +385,13 @@ internal sealed class InventoryModalWidget
             CarbonUiPalette.TextOutline,
             1,
             layout.TextScale);
+    }
+
+    private static ItemSlot GetSlot(IWorldReadModel world, int slotIndex)
+    {
+        Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
+        world.CopyInventorySlots(slots);
+        return slots[slotIndex];
     }
 
     private static void DrawCaption(SpriteBatch spriteBatch, BitmapFont font, in RectangleF rect, string text, float textScale, float s)
