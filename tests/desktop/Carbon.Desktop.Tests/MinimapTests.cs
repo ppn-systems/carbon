@@ -26,6 +26,9 @@ public sealed class MinimapTests
     private const float TileSize = 32f;
     private static readonly RectangleF s_map = new(1000f, 100f, 180f, 180f);
 
+    /// <summary>The roles the shipped NPC archetypes have (what MultiplayerSession reports).</summary>
+    private static readonly CatalogNpcLookup s_npcs = new();
+
     [Fact]
     public void Project_ViewCentreAndEdge_LandOnMapCentreAndEdge()
     {
@@ -53,7 +56,7 @@ public sealed class MinimapTests
         ];
         Span<MinimapIcon> icons = stackalloc MinimapIcon[16];
 
-        int count = MinimapIconCollector.Collect(null, remotes, lockedTargetNetworkId: 1, in view, TileSize, icons);
+        int count = MinimapIconCollector.Collect(null, remotes, s_npcs, lockedTargetNetworkId: 1, in view, TileSize, icons);
 
         count.Should().Be(5, "loot and the far monster are not on the map");
         float ppt = view.PixelsPerTile;
@@ -73,7 +76,7 @@ public sealed class MinimapTests
         List<RemoteEntityView> remotes = [Actor(1, EntityKind.Monster, player + new Vector2((view.RadiusTiles + 1f) * TileSize, 0f))];
         Span<MinimapIcon> icons = stackalloc MinimapIcon[4];
 
-        MinimapIconCollector.Collect(null, remotes, 0, in view, TileSize, icons).Should().Be(0, "only what fits the map is drawn, never pinned to the edge");
+        MinimapIconCollector.Collect(null, remotes, s_npcs, 0, in view, TileSize, icons).Should().Be(0, "only what fits the map is drawn, never pinned to the edge");
     }
 
     [Fact]
@@ -87,7 +90,7 @@ public sealed class MinimapTests
         MinimapView view = MinimapView.Create(nearby, TileSize, 1, s_map);
         Span<MinimapIcon> icons = stackalloc MinimapIcon[32];
 
-        int count = MinimapIconCollector.Collect(world, [], 0, in view, TileSize, icons);
+        int count = MinimapIconCollector.Collect(world, [], s_npcs, 0, in view, TileSize, icons);
 
         icons[..count].ToArray().Should().ContainSingle(i => i.Kind == MinimapIconKind.Village, "a village overlapping several chunks is still one marker")
             .Which.Position.Should().Be(view.Project(village.TileX + 0.5f, village.TileY + 0.5f));
@@ -179,14 +182,14 @@ public sealed class MinimapTests
         List<RemoteEntityView> remotes = [Actor(1, EntityKind.Monster, player + new Vector2(TileSize, 0f))];
         MinimapIcon[] icons = new MinimapIcon[64];
         _ = cache.Prepare(world, null, view.VisibleChunks(), sink, 100);
-        MinimapIconCollector.Collect(world, remotes, 0, in view, TileSize, icons).Should().BeGreaterThan(1, "the village and the monster are on the map");
+        MinimapIconCollector.Collect(world, remotes, s_npcs, 0, in view, TileSize, icons).Should().BeGreaterThan(1, "the village and the monster are on the map");
 
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < 200; i++)
         {
             cache.Invalidate(centreX, centreY);
             _ = cache.Prepare(world, null, view.VisibleChunks(), sink, 3);
-            _ = MinimapIconCollector.Collect(world, remotes, 0, in view, TileSize, icons);
+            _ = MinimapIconCollector.Collect(world, remotes, s_npcs, 0, in view, TileSize, icons);
         }
 
         (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0, "the minimap runs every frame (AGENTS.md rule 4)");
@@ -286,6 +289,11 @@ public sealed class MinimapTests
         }
 
         throw new InvalidOperationException("seed 1337 has a village within 12 sites of the origin");
+    }
+
+    private sealed class CatalogNpcLookup : INpcCapabilityLookup
+    {
+        public NpcCapabilities GetNpcCapabilities(ushort archetypeId) => WorldActorCatalog.GetNpcSpec(archetypeId).Capabilities;
     }
 
     private sealed class RecordingSink : IMinimapTextureSink

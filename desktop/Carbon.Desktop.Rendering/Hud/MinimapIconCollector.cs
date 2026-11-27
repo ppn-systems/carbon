@@ -27,12 +27,14 @@ internal static class MinimapIconCollector
     internal static int Collect(
         ChunkWorld2D? world,
         IReadOnlyList<RemoteEntityView> remotes,
+        INpcCapabilityLookup npcs,
         ulong lockedTargetNetworkId,
         in MinimapView view,
         float tileSize,
         Span<MinimapIcon> destination)
     {
         ArgumentNullException.ThrowIfNull(remotes);
+        ArgumentNullException.ThrowIfNull(npcs);
         int count = 0;
         if (world is not null)
         {
@@ -77,22 +79,22 @@ internal static class MinimapIconCollector
             Vector2 p = view.ProjectWorld(r.Position, tileSize);
             if (view.IsInside(p, EdgeInset))
             {
-                destination[count++] = new MinimapIcon(Classify(in r), p, r.NetworkId != 0 && r.NetworkId == lockedTargetNetworkId);
+                destination[count++] = new MinimapIcon(Classify(in r, npcs), p, r.NetworkId != 0 && r.NetworkId == lockedTargetNetworkId);
             }
         }
 
         return count;
     }
 
-    /// <summary>Returns the marker kind of a replicated actor.</summary>
-    internal static MinimapIconKind Classify(in RemoteEntityView entity)
+    /// <summary>Returns the marker kind of a replicated actor (NPC roles as the session reports them).</summary>
+    internal static MinimapIconKind Classify(in RemoteEntityView entity, INpcCapabilityLookup npcs)
     {
         switch (entity.Kind)
         {
             case EntityKind.Player:
                 return MinimapIconKind.Player;
             case EntityKind.Npc:
-                NpcCapabilities caps = WorldActorCatalog.GetNpcSpec(entity.ArchetypeId).Capabilities;
+                NpcCapabilities caps = npcs.GetNpcCapabilities(entity.ArchetypeId);
                 return (caps & NpcCapabilities.ForgeArtisan) != 0
                     ? MinimapIconKind.Blacksmith
                     : (caps & NpcCapabilities.Trader) != 0 ? MinimapIconKind.Trader : MinimapIconKind.Npc;

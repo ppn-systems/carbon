@@ -1,28 +1,22 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
-using Carbon.Maps.Generators;
 
 namespace Carbon.Desktop.Rendering.Hud;
 
 /// <summary>
 /// Pure reading of the server's world time for the HUD clock. The hour always comes from
-/// <c>IWorldReadModel.AuthoritativeTimeHour</c> (server tick and tick rate); the clock never advances on its own.
-/// Night matches <see cref="WorldProgression.IsNightHour"/>, the window in which the server empowers monsters.
+/// <c>IWorldReadModel.AuthoritativeTimeHour</c> (server tick and tick rate) and night from
+/// <c>IWorldReadModel.AuthoritativeIsNight</c>; the clock never advances on its own and holds no gameplay numbers.
+/// Dawn and dusk are cosmetic bands around the night the session reports.
 /// </summary>
 internal static class WorldClock
 {
-    /// <summary>Hour dawn begins (end of night).</summary>
-    internal const float DawnStartHour = 5f;
-
-    /// <summary>Hour full day begins.</summary>
+    /// <summary>Hour full day begins (before it, outside the night, is dawn).</summary>
     internal const float DayStartHour = 7f;
 
-    /// <summary>Hour dusk begins.</summary>
+    /// <summary>Hour dusk begins (from it until the night, is dusk).</summary>
     internal const float DuskStartHour = 17f;
-
-    /// <summary>Hour night begins.</summary>
-    internal const float NightStartHour = 19f;
 
     /// <summary>Wraps any hour into <c>[0, 24)</c>.</summary>
     internal static float Wrap(float hour)
@@ -31,28 +25,18 @@ internal static class WorldClock
         return h >= 24f ? 0f : h;
     }
 
-    /// <summary>Returns the phase of <paramref name="hour"/>.</summary>
-    internal static DayPhase GetPhase(float hour)
+    /// <summary>Returns the phase of <paramref name="hour"/> given whether the session reports night.</summary>
+    internal static DayPhase GetPhase(float hour, bool isNight)
     {
-        float h = Wrap(hour);
-        if (WorldProgression.IsNightHour(h))
+        if (isNight)
         {
             return DayPhase.Night;
         }
 
-        return h < DayStartHour ? DayPhase.Dawn : h < DuskStartHour ? DayPhase.Day : DayPhase.Dusk;
-    }
-
-    /// <summary>Returns the in-game minutes until night starts (<c>0</c> at night).</summary>
-    internal static int MinutesUntilNight(float hour)
-    {
         float h = Wrap(hour);
-        if (WorldProgression.IsNightHour(h))
-        {
-            return 0;
-        }
-
-        return (int)MathF.Ceiling((NightStartHour - h) * 60f);
+        return h < 12f
+            ? (h < DayStartHour ? DayPhase.Dawn : DayPhase.Day)
+            : (h >= DuskStartHour ? DayPhase.Dusk : DayPhase.Day);
     }
 
     /// <summary>Formats <paramref name="hour"/> as 24-hour <c>HH:MM</c> into <paramref name="buffer"/> (at least 5 chars).</summary>

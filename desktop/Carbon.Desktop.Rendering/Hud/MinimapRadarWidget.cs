@@ -150,7 +150,7 @@ internal sealed class MinimapRadarWidget : IMinimapTextureSink, IDisposable
     {
         ArgumentNullException.ThrowIfNull(world);
         RectangleF map = HudLayout.GetMinimapMapRect(viewportWidth);
-        _iconCount = MinimapIconCollector.Collect(world.ChunkWorld, world.RemoteEntities, world.LockedTargetNetworkId, in _view, world.ChunkWorld.TileSize, _icons);
+        _iconCount = MinimapIconCollector.Collect(world.ChunkWorld, world.RemoteEntities, world, world.LockedTargetNetworkId, in _view, world.ChunkWorld.TileSize, _icons);
 
         CompiledItemVectorArt? village = null;
         CompiledItemVectorArt? trader = null;

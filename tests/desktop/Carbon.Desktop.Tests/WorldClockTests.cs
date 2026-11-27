@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.IO;
 using Carbon.Creatures.Scaling;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Maps.Generators;
@@ -15,21 +16,20 @@ public sealed class WorldClockTests
     private const ushort TickRate = 20;
 
     [Theory]
-    [InlineData(0f, nameof(DayPhase.Night))]
-    [InlineData(4.99f, nameof(DayPhase.Night))]
-    [InlineData(5f, nameof(DayPhase.Dawn))]
-    [InlineData(6.5f, nameof(DayPhase.Dawn))]
-    [InlineData(7f, nameof(DayPhase.Day))]
-    [InlineData(12f, nameof(DayPhase.Day))]
-    [InlineData(16.99f, nameof(DayPhase.Day))]
-    [InlineData(17f, nameof(DayPhase.Dusk))]
-    [InlineData(18.99f, nameof(DayPhase.Dusk))]
-    [InlineData(19f, nameof(DayPhase.Night))]
-    [InlineData(23.5f, nameof(DayPhase.Night))]
-    [InlineData(-1f, nameof(DayPhase.Night))]
-    [InlineData(29f, nameof(DayPhase.Dawn))]
-    public void GetPhase_Hour_ReturnsPhase(float hour, string expected) =>
-        WorldClock.GetPhase(hour).ToString().Should().Be(expected, $"{hour}h");
+    [InlineData(0f, true, nameof(DayPhase.Night))]
+    [InlineData(5f, false, nameof(DayPhase.Dawn))]
+    [InlineData(6.5f, false, nameof(DayPhase.Dawn))]
+    [InlineData(7f, false, nameof(DayPhase.Day))]
+    [InlineData(12f, false, nameof(DayPhase.Day))]
+    [InlineData(16.99f, false, nameof(DayPhase.Day))]
+    [InlineData(17f, false, nameof(DayPhase.Dusk))]
+    [InlineData(18.99f, false, nameof(DayPhase.Dusk))]
+    [InlineData(19f, true, nameof(DayPhase.Night))]
+    [InlineData(23.5f, true, nameof(DayPhase.Night))]
+    [InlineData(29f, false, nameof(DayPhase.Dawn))]
+    [InlineData(18.99f, true, nameof(DayPhase.Night))] // the session's night always wins over the cosmetic dusk band
+    public void GetPhase_HourAndSessionNight_ReturnsPhase(float hour, bool isNight, string expected) =>
+        WorldClock.GetPhase(hour, isNight).ToString().Should().Be(expected, $"{hour}h");
 
     [Theory]
     [InlineData(0UL, nameof(DayPhase.Day), "10:00")] // the world starts at 10:00
@@ -39,22 +39,34 @@ public sealed class WorldClockTests
     [InlineData(4_800UL, nameof(DayPhase.Day), "10:00")] // a full 240 s day later
     public void GetPhase_ServerTick_FollowsTheServerClock(ulong serverTick, string phase, string time)
     {
+        // What MultiplayerSession reports: AuthoritativeTimeHour from the server tick, AuthoritativeIsNight from it.
         float hour = WorldProgression.ComputeTimeOfDayHours(serverTick, TickRate);
+        bool isNight = WorldProgression.IsNightHour(hour);
         Span<char> buffer = stackalloc char[5];
 
-        WorldClock.GetPhase(hour).ToString().Should().Be(phase);
+        WorldClock.GetPhase(hour, isNight).ToString().Should().Be(phase);
         new string(WorldClock.FormatTime(hour, buffer)).Should().Be(time);
     }
 
     [Fact]
-    public void GetPhase_Night_MatchesTheServerMonsterEmpowermentWindow()
+    public void SessionNightRule_MatchesTheShippedServerMonsterEmpowermentWindow()
     {
-        NightConfig serverNight = new();
+        // MultiplayerSession.AuthoritativeIsNight uses WorldProgression.IsNightHour; the server empowers monsters by
+        // spawning.json "night". The HUD hint is only honest while the two agree.
+        SpawningConfig shipped = SpawningConfig.FromJson(File.ReadAllText(Path.Combine(FindRepositoryRoot(), "resources", "config", "spawning.json")));
         for (float hour = 0f; hour < 24f; hour += 0.25f)
         {
-            (WorldClock.GetPhase(hour) == DayPhase.Night).Should().Be(serverNight.IsNight(hour), $"the night hint must match the server at {hour}h");
+            WorldProgression.IsNightHour(hour).Should().Be(shipped.Night.IsNight(hour), $"the night hint must match the server at {hour}h");
         }
     }
+
+    [Theory]
+    [InlineData(nameof(DayPhase.Night), "clock.night_hint")]
+    [InlineData(nameof(DayPhase.Dusk), "clock.dusk_hint")]
+    [InlineData(nameof(DayPhase.Day), null)]
+    [InlineData(nameof(DayPhase.Dawn), null)]
+    public void HintKey_Phase_WarnsAtDuskAndNightOnly(string phase, string? expected) =>
+        DayNightClockWidget.HintKey(Enum.Parse<DayPhase>(phase)).Should().Be(expected);
 
     [Theory]
     [InlineData(6.4f, "06:24")]
@@ -67,18 +79,21 @@ public sealed class WorldClockTests
         new string(WorldClock.FormatTime(hour, buffer)).Should().Be(expected);
     }
 
-    [Theory]
-    [InlineData(17.5f, 90)]
-    [InlineData(6f, 13 * 60)]
-    [InlineData(19f, 0)]
-    [InlineData(2f, 0)]
-    public void MinutesUntilNight_Hour_CountsDownToNineteen(float hour, int expected) =>
-        WorldClock.MinutesUntilNight(hour).Should().Be(expected);
-
     [Fact]
     public void DialAngle_NoonAndMidnight_SunAtTopAndBottom()
     {
         WorldClock.DialAngle(12f).Should().BeApproximately(0f, 1e-4f, "the sun is at the top of the dial at noon");
         MathF.Abs(WorldClock.DialAngle(0f)).Should().BeApproximately(MathF.PI, 1e-4f, "the sun is at the bottom at midnight");
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        DirectoryInfo? dir = new(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Carbon.slnx")))
+        {
+            dir = dir.Parent;
+        }
+
+        return dir?.FullName ?? throw new DirectoryNotFoundException("Carbon.slnx not found above the test output directory.");
     }
 }

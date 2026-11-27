@@ -616,7 +616,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 _targetWidget.DrawSkin(spriteBatch, _uiSkin, f.ViewportWidth);
                 break;
             case HudElement.Clock:
-                _clock.DrawSkin(spriteBatch, _uiSkin, f.ViewportWidth, f.World.AuthoritativeTimeHour);
+                _clock.DrawSkin(spriteBatch, _uiSkin, f.ViewportWidth, f.World.AuthoritativeTimeHour, f.World.AuthoritativeIsNight);
                 break;
             case HudElement.Minimap:
                 if (this.Settings.ShowMinimap)
@@ -648,7 +648,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 _targetWidget.DrawGeometry(_geometryBatch, _art, f.ViewportWidth, _animTime);
                 break;
             case HudElement.Clock:
-                _clock.DrawGeometry(_geometryBatch, f.ViewportWidth, f.World.AuthoritativeTimeHour);
+                _clock.DrawGeometry(_geometryBatch, f.ViewportWidth, f.World.AuthoritativeTimeHour, f.World.AuthoritativeIsNight);
                 break;
             case HudElement.Minimap:
                 if (this.Settings.ShowMinimap)
@@ -681,7 +681,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 _targetWidget.DrawText(spriteBatch, _font, _art, f.ViewportWidth);
                 break;
             case HudElement.Clock:
-                _clock.DrawText(spriteBatch, _font, f.ViewportWidth, f.World.AuthoritativeTimeHour);
+                _clock.DrawText(spriteBatch, _font, f.ViewportWidth, f.World.AuthoritativeTimeHour, f.World.AuthoritativeIsNight);
                 break;
             case HudElement.Minimap:
                 if (this.Settings.ShowMinimap)
