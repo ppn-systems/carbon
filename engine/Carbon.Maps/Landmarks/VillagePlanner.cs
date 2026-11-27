@@ -7,12 +7,13 @@ using Carbon.Maps.Settlements;
 namespace Carbon.Maps.Landmarks;
 
 /// <summary>
-/// Lays out a village along its streets (ADR-027). A well marks the small square; a main street runs through it, lined up
-/// with the roads that reach the village, with a bend in each arm, and one or two side lanes branch off it. Every building
-/// is generated (<see cref="VillageBuildingGenerator"/>), so no two footprints in a village are alike, and is placed
-/// beside a street with its door turned to the street and a short path to it. Buildings keep clear of each other, of the
-/// streets and of the square, and stand on dry ground at the site's level. A pure function of the site, so the server and
-/// every client plan the same village.
+/// Lays out a village along its streets (ADR-027). A well marks the square; a main street runs through it in a heading of
+/// its own, with a bend in each arm, and side lanes branch off it. Every building is generated
+/// (<see cref="VillageBuildingGenerator"/>), so no two footprints in a village are alike, and is placed beside a street
+/// with its door turned to the street and a short path to it. Buildings keep clear of each other, of the streets and of
+/// the square, and stand on dry ground at the site's level. Streets nothing joins are then dropped, and the square, the
+/// streets and the door paths are listed for paving (revision 3). A pure function of the site, so the server and every
+/// client plan the same village.
 /// </summary>
 internal sealed class VillagePlanner(VillageStyle style, bool withFields) : ILandmarkPlanner
 {
@@ -28,6 +29,14 @@ internal sealed class VillagePlanner(VillageStyle style, bool withFields) : ILan
     private const int MinHousesWanted = 3;
     private const int MaxSetback = 3;
     private const float MaxSpurLength = 9f;
+
+    // Paving (ADR-027 revision 3): the square's paved radius, how far past its last junction a street runs on, and how close
+    // a door path or another street must come to count as joining a street.
+    private const float PlazaRadius = 3.3f;
+    private const float StreetTail = 1f;
+    private const float JunctionTolerance = 0.05f;
+    private const float MinPavingReach = 0.72f; // >= sqrt(2)/2: a diagonal line paves a 4-connected staircase
+    private const float MainStreetPavingReach = 1f; // the main street reads two to three tiles wide
 
     // Door direction (outwards) of a building turned by 0..3 clockwise quarter turns.
     private static readonly (int X, int Y)[] s_doorDirections = [(0, 1), (-1, 0), (0, -1), (1, 0)];
@@ -59,10 +68,13 @@ internal sealed class VillagePlanner(VillageStyle style, bool withFields) : ILan
             }
         }
 
-        foreach (LandmarkPath path in best!.Paths)
+        List<LandmarkPath> paths = PruneStreets(best!.Paths, best.StreetCount);
+        foreach (LandmarkPath path in paths)
         {
             c.Add(path);
         }
+
+        Pave(c, terrain, best, paths);
 
         foreach (VillagePlot plot in best.Plots)
         {
@@ -89,6 +101,8 @@ internal sealed class VillagePlanner(VillageStyle style, bool withFields) : ILan
             c.Paths.Add(street);
             terrain.MarkPath(street);
         }
+
+        c.StreetCount = c.Paths.Count;
 
         List<LandmarkPath> streets = [.. c.Paths];
         List<VillageBuildingTemplate> built = [];
@@ -122,25 +136,26 @@ internal sealed class VillagePlanner(VillageStyle style, bool withFields) : ILan
         }
 
         List<LandmarkPath> streets = [];
-        List<(float Angle, float Length)> arms = [];
+        List<(int First, int Count, float Length, float Angle, float Bend)> arms = [];
         float reach = c.Radius - 1.5f;
         for (int i = 0; i < Math.Min(headings.Count, 3); i++)
         {
             float bend = (c.Hash01(710 + i) - 0.5f) * 0.6f;
+            int first = streets.Count;
             float length = AddArm(c, terrain, streets, c.CenterX, c.CenterY, headings[i], bend, reach, MainStreetWidth);
             if (length > 0f)
             {
-                arms.Add((headings[i], length));
+                arms.Add((first, streets.Count - first, length, headings[i], bend));
             }
         }
 
         int lanes = arms.Count == 0 ? 0 : 3 + (int)(c.Hash(720) % 2);
         for (int i = 0; i < lanes; i++)
         {
-            (float angle, float length) = arms[(int)(c.Hash(721 + i) % (uint)arms.Count)];
+            (int first, int count, float length, float armAngle, float armBend) = arms[(int)(c.Hash(721 + i) % (uint)arms.Count)];
             float at = length * (0.45f + (c.Hash01(725 + i) * 0.4f)); // well clear of the square: no crossroads at the well
-            float sx = c.CenterX + (LandmarkPlanContext.Cos(angle) * at);
-            float sy = c.CenterY + (LandmarkPlanContext.Sin(angle) * at);
+            (float sx, float sy, int segment) = PointAlong(streets, first, count, at); // on the arm itself, past its bend
+            float angle = armAngle + (segment * armBend);
             float side = (c.Hash(730 + i) & 1) == 0 ? 1f : -1f;
             float laneAngle = angle + (side * ((MathF.PI / 2f) + ((c.Hash01(735 + i) - 0.5f) * 0.6f)));
             float laneLength = 7f + (c.Hash01(740 + i) * 6f);
@@ -148,6 +163,173 @@ internal sealed class VillagePlanner(VillageStyle style, bool withFields) : ILan
         }
 
         return streets;
+    }
+
+    // The point at a distance along an arm's segments, and which of its segments (0 or 1) it lies on.
+    private static (float X, float Y, int Segment) PointAlong(List<LandmarkPath> streets, int first, int count, float distance)
+    {
+        for (int i = first; i < first + count; i++)
+        {
+            LandmarkPath s = streets[i];
+            float dx = s.X1 - s.X0;
+            float dy = s.Y1 - s.Y0;
+            float length = MathF.Sqrt((dx * dx) + (dy * dy));
+            if (distance <= length || i == first + count - 1)
+            {
+                float t = length <= 1e-6f ? 0f : Math.Clamp(distance / length, 0f, 1f);
+                return (s.X0 + (dx * t), s.Y0 + (dy * t), i - first);
+            }
+
+            distance -= length;
+        }
+
+        return (streets[first].X0, streets[first].Y0, 0);
+    }
+
+    // Drops every street no door path and no kept street joins, and ends each street a tile past its last junction, so no
+    // lane runs on to a beach or a river bank with nothing on it. Repeats until stable: dropping a lane can free the end of
+    // the arm it branched from.
+    private static List<LandmarkPath> PruneStreets(List<LandmarkPath> paths, int streetCount)
+    {
+        List<LandmarkPath> streets = paths.GetRange(0, streetCount);
+        bool changed = true;
+        while (changed)
+        {
+            changed = false;
+            for (int i = streets.Count - 1; i >= 0; i--)
+            {
+                LandmarkPath street = streets[i];
+                float needed = -1f;
+                for (int k = streetCount; k < paths.Count; k++)
+                {
+                    needed = MathF.Max(needed, JunctionAlong(street, paths[k].X1, paths[k].Y1, atStart: true));
+                }
+
+                for (int j = 0; j < streets.Count; j++)
+                {
+                    if (j != i)
+                    {
+                        needed = MathF.Max(needed, JunctionAlong(street, streets[j].X0, streets[j].Y0, atStart: false));
+                    }
+                }
+
+                float dx = street.X1 - street.X0;
+                float dy = street.Y1 - street.Y0;
+                float length = MathF.Sqrt((dx * dx) + (dy * dy));
+                if (needed < 0f)
+                {
+                    streets.RemoveAt(i);
+                    changed = true;
+                }
+                else if (needed + StreetTail < length - 0.01f)
+                {
+                    float keep = (needed + StreetTail) / length;
+                    streets[i] = street with { X1 = street.X0 + (dx * keep), Y1 = street.Y0 + (dy * keep) };
+                    changed = true;
+                }
+            }
+        }
+
+        streets.AddRange(paths.GetRange(streetCount, paths.Count - streetCount));
+        return streets;
+    }
+
+    // How far along a street a point joins it (tiles from the street's start), or -1 when it does not join it. Another street
+    // starting where this one starts (the square, where every main arm begins) is not a junction; a door path there is.
+    private static float JunctionAlong(in LandmarkPath street, float x, float y, bool atStart)
+    {
+        if (street.DistanceSquaredTo(x, y) > JunctionTolerance * JunctionTolerance)
+        {
+            return -1f;
+        }
+
+        float along = MathF.Sqrt(((x - street.X0) * (x - street.X0)) + ((y - street.Y0) * (y - street.Y0)));
+        return along < 0.5f && !atStart ? -1f : along;
+    }
+
+    // Paves the square and every tile along a street or a door path with a floor structure (ADR-027 revision 3): dry level
+    // ground only, never inside a plot or a garden, except the step in front of each door, so the paving reaches the door
+    // (the materializer leaves a step that already holds a porch deck or yard paving as it is). Where paving meets paving or
+    // a building's apron only at a corner, the tile beside the corner is paved too, so the network is walkable edge to edge.
+    private static void Pave(LandmarkPlanContext c, SiteTerrain terrain, Draft draft, List<LandmarkPath> paths)
+    {
+        HashSet<(int X, int Y)> steps = [];
+        foreach (VillagePlot plot in draft.Plots)
+        {
+            _ = steps.Add(VillageBlueprint.FrontTile(plot));
+        }
+
+        List<(int X, int Y)> paved = [];
+        HashSet<(int X, int Y)> set = [];
+        for (int y = terrain.MinY; y <= terrain.MaxY; y++)
+        {
+            for (int x = terrain.MinX; x <= terrain.MaxX; x++)
+            {
+                float px = x + 0.5f;
+                float py = y + 0.5f;
+                bool onPath = ((px - c.CenterX) * (px - c.CenterX)) + ((py - c.CenterY) * (py - c.CenterY)) <= PlazaRadius * PlazaRadius;
+                for (int k = 0; k < paths.Count && !onPath; k++)
+                {
+                    float reach = paths[k].Width >= MainStreetWidth ? MainStreetPavingReach : MathF.Max(paths[k].Width * 0.5f, MinPavingReach);
+                    onPath = paths[k].DistanceSquaredTo(px, py) <= reach * reach;
+                }
+
+                if (steps.Contains((x, y)) || (onPath && CanPave(terrain, draft, x, y)))
+                {
+                    paved.Add((x, y));
+                    _ = set.Add((x, y));
+                }
+            }
+        }
+
+        for (int i = 0; i < paved.Count; i++)
+        {
+            (int x, int y) = paved[i];
+            for (int dy = -1; dy <= 1; dy += 2)
+            {
+                for (int dx = -1; dx <= 1; dx += 2)
+                {
+                    if (!IsWalkway(draft, set, x + dx, y + dy) || IsWalkway(draft, set, x + dx, y) || IsWalkway(draft, set, x, y + dy))
+                    {
+                        continue;
+                    }
+
+                    (int X, int Y) side = CanPave(terrain, draft, x + dx, y) ? (x + dx, y) : (x, y + dy);
+                    if (CanPave(terrain, draft, side.X, side.Y) && set.Add(side))
+                    {
+                        paved.Add(side);
+                    }
+                }
+            }
+        }
+
+        foreach ((int x, int y) in paved)
+        {
+            c.AddPaved(x, y);
+        }
+    }
+
+    private static bool CanPave(SiteTerrain terrain, Draft draft, int x, int y) =>
+        terrain.IsBuildable(x, y) && !terrain.IsRoad(x, y) &&
+        !draft.OverlapsPlot(x, y, x, y, margin: 0) && !draft.OverlapsGarden(x, y, x, y, margin: 0);
+
+    // Paving, or a building's porch, paved yard or frontage.
+    private static bool IsWalkway(Draft draft, HashSet<(int X, int Y)> paved, int x, int y)
+    {
+        if (paved.Contains((x, y)))
+        {
+            return true;
+        }
+
+        foreach (VillagePlot plot in draft.Plots)
+        {
+            if (plot.CellAtWorld(x, y) is VillageBuildingTemplate.PorchCell or VillageBuildingTemplate.YardCell)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // Adds a street arm of two bent segments that stops where the ground stops being buildable. Returns its length.
@@ -566,6 +748,9 @@ internal sealed class VillagePlanner(VillageStyle style, bool withFields) : ILan
     private sealed class Draft(LandmarkPlanContext context, int salt)
     {
         public List<LandmarkPath> Paths { get; } = [];
+
+        // Paths[..StreetCount] are the streets and lanes; the rest are door paths.
+        public int StreetCount { get; set; }
 
         public List<VillagePlot> Plots { get; } = [];
 

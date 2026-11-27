@@ -3,8 +3,9 @@
 namespace Carbon.Maps.Landmarks;
 
 /// <summary>
-/// A straight stretch of dirt path inside a point of interest (a village street, a side lane, or the short spur from a
-/// street to a front door). Visual only: it neither blocks nor slows anything. World tile units.
+/// The centre line of a straight stretch of path inside a point of interest (a village street, a side lane, or the short
+/// spur from a street to a front door). The planner paves the tiles along it (<see cref="LandmarkLayout.PavedTiles"/>);
+/// the line itself neither blocks nor slows anything. World tile units.
 /// </summary>
 /// <param name="X0">Start X.</param>
 /// <param name="Y0">Start Y.</param>

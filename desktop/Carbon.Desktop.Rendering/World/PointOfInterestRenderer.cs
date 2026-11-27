@@ -44,13 +44,9 @@ internal sealed class PointOfInterestRenderer
             case PointOfInterestType.DesertVillage:
             case PointOfInterestType.SnowVillage:
             case PointOfInterestType.SwampVillage:
+                // The square, the streets and the door paths are real floor structures the server paves (ADR-027
+                // revision 3); only the gardens are drawn here.
                 this.DrawFields(batch, layout);
-
-                // Village streets, side lanes and the spur to every front door (ADR-027).
-                this.DrawPaths(batch, layout);
-
-                // The square covers only the well area the planner keeps free, so it never paints over a building.
-                DrawPlaza(batch, c, 3.3f * _tileSize);
                 break;
 
             case PointOfInterestType.Harbor:
@@ -297,26 +293,6 @@ internal sealed class PointOfInterestRenderer
                 float a = (i + (ring * 0.5f)) * (MathF.Tau / stones);
                 Vector2 p = c + new Vector2(MathF.Cos(a) * rr, MathF.Sin(a) * rr);
                 batch.FillRectangle(new RectangleF(p.X - 3f, p.Y - 2f, 6f, 4f), new ColorRgba(150, 134, 108));
-            }
-        }
-    }
-
-    // Edges first, then the fill, so joints and crossings read as one continuous dirt path.
-    private void DrawPaths(GeometryBatch batch, LandmarkLayout layout)
-    {
-        ReadOnlySpan<LandmarkPath> paths = layout.Paths;
-        for (int pass = 0; pass < 2; pass++)
-        {
-            ColorRgba color = pass == 0 ? new ColorRgba(140, 112, 74) : new ColorRgba(184, 156, 108);
-            float grow = pass == 0 ? 4f : 0f;
-            foreach (LandmarkPath path in paths)
-            {
-                Vector2 from = new(path.X0 * _tileSize, path.Y0 * _tileSize);
-                Vector2 to = new(path.X1 * _tileSize, path.Y1 * _tileSize);
-                float width = (path.Width * _tileSize) + grow - 4f;
-                batch.DrawLine(from, to, color, width);
-                batch.FillCircle(from, width * 0.5f, color, 12);
-                batch.FillCircle(to, width * 0.5f, color, 12);
             }
         }
     }

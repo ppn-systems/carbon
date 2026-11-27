@@ -2,11 +2,14 @@
 
 - **Date**: 2026-11-27
 - **Status**: Accepted
-- **Amends**: [ADR-025](ADR-025-villages-from-real-structures-and-trader-npcs.md) D2 (building templates) and D3 (placement)
+- **Amends**: [ADR-025](ADR-025-villages-from-real-structures-and-trader-npcs.md) D2 (building templates), D3 (placement)
+  and, from revision 3, D9 (roof cutaway)
 - **Revision 2** (owner feedback: no roads between villages, bigger and wider villages, each building type distinct, built
   only from player-buildable pieces, "beautiful, done properly"): design rules below, D7–D12; D3–D6 amended
+- **Revision 3** (the follow-ups from the revision 2 review: roofs hid every interior, streets were plain dirt, empty
+  lanes ran on to a desert beach): D13–D16
 - **Scope**: `engine/Carbon.Maps` (Landmarks, Settlements, Roads), `resources/config/village_buildings.json`,
-  `desktop/Carbon.Desktop.Rendering` (village paths)
+  `desktop/Carbon.Desktop.Rendering` (village paths, roofs)
 - **Design doc**: [`docs/villages-and-traders.md`](../villages-and-traders.md) §2
 
 ## Context
@@ -107,6 +110,26 @@ a player could have built with the same tools, laid out with intent.
     footprint and door placement against the catalog.
 12. **D12 — Generator version 20** (on top of the water rework's 19); golden fingerprints re-pinned.
 
+## Decision (revision 3)
+
+13. **D13 — Streets lead somewhere.** After the buildings are placed, every street or lane that no door path and no
+    other kept street joins is dropped, and every street ends one tile past its last junction, repeated until stable
+    (`VillagePlanner.PruneStreets`). Lanes now branch from a point on the bent arm itself, not from the arm's straight
+    heading, so they join it exactly. This removes the empty lanes that fanned out to the beach in desert villages.
+14. **D14 — Paved with a buildable floor.** The square (radius 3.3 tiles), every street and every door path are paved
+    with the village's yard masonry, `VillageBlueprint.PavingType`: stone floor, or plank deck in the swamp. Both are
+    player-buildable floors with a kit. The planner lists the tiles (`LandmarkLayout.PavedTiles`): dry level ground
+    outside plots and gardens, along each centre line (main street within 1 tile, lanes and door paths within 0.72, so a
+    diagonal paves a 4-connected staircase), plus each building's front step. Where paving meets paving or an apron only
+    at a corner, the tile beside the corner is paved too. The materializer places them as village-owned structures, like
+    the buildings (ADR-025 D4–D7), so they replicate, persist and are protected the same way. The client no longer
+    paints dirt paths or a dirt square for villages.
+15. **D15 — RimWorld-style roofs (amends ADR-025 D9).** Rooms whose outlines touch (a shared wall or door) form one
+    building. The whole roof of the building the local player stands in is cut away, not only the room they stand in.
+    Roofs of other buildings fade with the player's distance from their walls, from 0.3 opacity right outside to opaque
+    at 3.5 tiles (`RoofRenderer.FadeFor`). Drawing and `RoofRenderer.RoofAlphaAt` use the same function. Client-only.
+16. **D16 — Generator version 21.** The golden village fingerprint now pins the paved tiles too.
+
 ## Alternatives Considered
 
 - **More authored templates.** Even a dozen templates repeat across a world, and "every house is different" would need
@@ -116,6 +139,10 @@ a player could have built with the same tools, laid out with intent.
 - **A grid of plots (blocks between orthogonal streets).** It reads as a town plan, not a RimWorld-style settlement,
   and fits badly on sites cut by rivers.
 - **Keep the ring but jitter the facing.** It would pass an alignment metric without changing what players see.
+- **Draw streets as client-side paving art (revision 3).** It would look paved but could not be built, mined or
+  protected like everything else in a village. The design rules ask for player-buildable pieces only.
+- **A roof toggle key instead of a fade (revision 3).** RimWorld shows roofs as an overlay toggle. A fade needs no
+  input and keeps buildings readable at a distance; a toggle can come later.
 
 ## Consequences
 
@@ -129,3 +156,7 @@ a player could have built with the same tools, laid out with intent.
   least three houses; 42–57 villages per seed), about 4.5–4.7 houses and 2–2.9 gardens per village. Villages are no
   longer on the road network, and existing worlds rebuild their villages through the ADR-025 D7 migration
   (generator version 20).
+- Revision 3, measured on the same seeds: about 170–180 paved tiles and 9 street segments per village. Generating a
+  village site takes the same time as before within noise (43–94 ms per site, including terrain, on both). Each paved
+  tile is one more structure record in its chunk delta. Existing worlds re-pave through the ADR-025 D7 migration
+  (generator version 21).

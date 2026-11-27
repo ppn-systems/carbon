@@ -60,6 +60,7 @@ public sealed class LandmarkPlanContext
     private readonly List<LandmarkField> _fields = new();
     private readonly List<VillagePlot> _plots = new();
     private readonly List<LandmarkPath> _paths = new();
+    private readonly List<(int X, int Y)> _paved = new();
 
     internal LandmarkPlanContext(in PointOfInterest poi, ITileSource tiles, Func<int, int, bool>? isRoad = null, Roads.RoadNetwork? roads = null)
     {
@@ -104,8 +105,11 @@ public sealed class LandmarkPlanContext
     /// <summary>Adds a village building plot (built from real building-grid structures, ADR-025).</summary>
     public void Add(VillagePlot plot) => _plots.Add(plot);
 
-    /// <summary>Adds a dirt path.</summary>
+    /// <summary>Adds the centre line of a street or a door path.</summary>
     public void Add(LandmarkPath path) => _paths.Add(path);
+
+    /// <summary>Adds a world tile the server paves with a floor structure.</summary>
+    public void AddPaved(int tileX, int tileY) => _paved.Add((tileX, tileY));
 
     /// <summary>Returns whether a rectangle (tile units) comes within <paramref name="margin"/> of a dirt path's edge.</summary>
     public bool NearPath(float minX, float minY, float maxX, float maxY, float margin)
@@ -234,7 +238,7 @@ public sealed class LandmarkPlanContext
     /// <summary>Deterministic cosine (identical on every platform).</summary>
     public static float Cos(float a) => DeterministicMath.Cos(a);
 
-    internal LandmarkLayout ToLayout() => new([.. _pieces], [.. _fields], [.. _plots], [.. _paths]);
+    internal LandmarkLayout ToLayout() => new([.. _pieces], [.. _fields], [.. _plots], [.. _paths], [.. _paved]);
 }
 
 /// <summary>A warehouse facing the sea, flanking houses and barrels on the quay.</summary>

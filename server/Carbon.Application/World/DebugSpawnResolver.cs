@@ -54,16 +54,19 @@ internal static class DebugSpawnResolver
         }
         else if (overrides.SpawnPoi is { } poiName)
         {
-            string[] parts = poiName.Split(':', 2, StringSplitOptions.TrimEntries);
+            // <type>[:<role>[:inside]]: "inside" spawns one step through the building's front door.
+            string[] parts = poiName.Split(':', 3, StringSplitOptions.TrimEntries);
             VillageBuildingRole role = VillageBuildingRole.Stall;
+            bool inside = parts.Length == 3 && parts[2].Equals("inside", StringComparison.OrdinalIgnoreCase);
             if (!Enum.TryParse(parts[0], ignoreCase: true, out PointOfInterestType poiType) || !Enum.IsDefined(poiType) ||
                 poiType == PointOfInterestType.None ||
-                (parts.Length == 2 && (!Enum.TryParse(parts[1], ignoreCase: true, out role) || !Enum.IsDefined(role))))
+                (parts.Length >= 2 && (!Enum.TryParse(parts[1], ignoreCase: true, out role) || !Enum.IsDefined(role))) ||
+                (parts.Length == 3 && !inside))
             {
                 throw new ArgumentException($"Unknown point of interest type '{poiName}'.", nameof(overrides));
             }
 
-            spawn = FindNearestPoi(generator, poiType, role, spawn)
+            spawn = FindNearestPoi(generator, poiType, role, inside, spawn)
                 ?? throw new ArgumentException($"No {poiType} within {PoiSearchSites} sites of spawn.", nameof(overrides));
         }
 
@@ -74,7 +77,7 @@ internal static class DebugSpawnResolver
 
     // Nearest point of interest of a type by site rings around the spawn: in front of a village building (the market
     // stall unless another role is asked for), else three tiles south of its centre.
-    private static (int X, int Y)? FindNearestPoi(ProceduralWorldGenerator generator, PointOfInterestType type, VillageBuildingRole role, (int X, int Y) from)
+    private static (int X, int Y)? FindNearestPoi(ProceduralWorldGenerator generator, PointOfInterestType type, VillageBuildingRole role, bool inside, (int X, int Y) from)
     {
         int sx0 = (int)MathF.Floor(from.X / (float)PointOfInterestResolver.SiteSize);
         int sy0 = (int)MathF.Floor(from.Y / (float)PointOfInterestResolver.SiteSize);
@@ -101,7 +104,8 @@ internal static class DebugSpawnResolver
                         if (plot.Role == role)
                         {
                             (int fx, int fy) = VillageBlueprint.FrontTile(plot);
-                            return role == VillageBuildingRole.Stall ? (fx, fy + 1) : (fx, fy);
+                            (int ex, int ey) = VillageBlueprint.EntranceTile(plot);
+                            return inside ? ((2 * ex) - fx, (2 * ey) - fy) : role == VillageBuildingRole.Stall ? (fx, fy + 1) : (fx, fy);
                         }
                     }
 
