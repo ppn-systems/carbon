@@ -230,7 +230,7 @@ public sealed class VectorArtAndArchitectureTests
     public void UnifiedPlayerModal_ShouldMaintainEqualTabWidthsAndFixedSizeAcrossAllTabs()
     {
         IWorldReadModel fakeWorld = Substitute.For<IWorldReadModel>();
-        InventoryModalWidget bag = new();
+        InventoryModalWidget bag = new(new HudUiState());
         CharacterSheetModalWidget character = new();
         CraftingModalWidget crafting = new();
         ClassSkillsModalWidget skills = new();

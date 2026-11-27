@@ -17,10 +17,10 @@ namespace Carbon.Desktop.Gameplay.Repair;
 /// <param name="session">World session.</param>
 /// <param name="hud">HUD that draws the window.</param>
 /// <param name="options">Desktop options (the screenshot tool's <c>CARBON_OPEN_REPAIR</c> and <c>CARBON_REPAIR_PREVIEW</c>).</param>
-internal sealed class RepairInteraction(IWorldSession session, HudOverlayRenderer hud, DesktopOptions options)
+internal sealed class RepairInteraction(IWorldSession session, HudUiState hud, DesktopOptions options)
 {
     private readonly IWorldSession _session = session ?? throw new ArgumentNullException(nameof(session));
-    private readonly HudOverlayRenderer _hud = hud ?? throw new ArgumentNullException(nameof(hud));
+    private readonly HudUiState _hud = hud ?? throw new ArgumentNullException(nameof(hud));
     private readonly DesktopOptions _options = options ?? throw new ArgumentNullException(nameof(options));
     private bool _captureOpened;
 

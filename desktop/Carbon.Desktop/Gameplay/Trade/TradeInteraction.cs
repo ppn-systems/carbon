@@ -45,7 +45,7 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
     private readonly TraderFilter _isTrader = isTrader ?? throw new ArgumentNullException(nameof(isTrader));
     private readonly Func<bool> _openForge = openForge ?? throw new ArgumentNullException(nameof(openForge));
     private readonly Action _openRepair = openRepair ?? throw new ArgumentNullException(nameof(openRepair));
-    private readonly TradeWindowController _window = new(hud.TradeBasket);
+    private readonly TradeWindowController _window = new(hud.State.TradeBasket);
     private bool _shown;
     private bool _previewed;
 
@@ -61,18 +61,18 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
         ITraderSession trading = _session.Trading;
         TraderView? active = trading.ActiveTrader;
         if (active is not null &&
-            ((_shown && _hud.Trader is null) || _hud.ShowPlayerModal || _hud.ShowForgeModal || _hud.Repair.IsOpen || !this.IsNear(active.TraderNetworkId)))
+            ((_shown && _hud.State.Trader is null) || _hud.State.ShowPlayerModal || _hud.State.ShowForgeModal || _hud.State.Repair.IsOpen || !this.IsNear(active.TraderNetworkId)))
         {
             trading.Close();
             active = null;
         }
 
-        _hud.Trader = active;
+        _hud.State.Trader = active;
         _shown = active is not null;
         Span<ItemSlot> bag = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         _session.CopyInventorySlots(bag);
         _window.Sync(active, bag, trading);
-        _hud.TradeDragSlot = _window.DraggedSlot;
+        _hud.State.TradeDragSlot = _window.DraggedSlot;
         if (active is not null)
         {
             this.StagePreview(active, bag);
@@ -95,7 +95,7 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
     /// </summary>
     public void HandleWindowInput(DesktopInputFrame input, int width, int height)
     {
-        if (_hud.Trader is not TraderView trader)
+        if (_hud.State.Trader is not TraderView trader)
         {
             return;
         }
@@ -104,11 +104,11 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
         if (input.LeftClickPressed &&
             (_hud.TryHitTestModalCloseButton(mouse, width, height) || !_hud.IsPointInActiveModal(_session, mouse, width, height)))
         {
-            _hud.Trader = null;
+            _hud.State.Trader = null;
             return;
         }
 
-        TradeWindowHit hit = TradeModalWidget.HitTest(mouse, trader, _hud.TradeBasket, _session, width, height);
+        TradeWindowHit hit = TradeModalWidget.HitTest(mouse, trader, _hud.State.TradeBasket, _session, width, height);
         if (input.LeftClickPressed && hit.Target == TradeWindowTarget.Repair)
         {
             _openRepair();
@@ -124,7 +124,7 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
         Span<ItemSlot> bag = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         _session.CopyInventorySlots(bag);
         string? toast = _window.Handle(hit, input.LeftClickPressed, input.LeftMouseDown, input.ShiftHeld, mouse, bag, trader, _session.LocalPlayerGold, _session.Trading);
-        _hud.TradeDragSlot = _window.DraggedSlot;
+        _hud.State.TradeDragSlot = _window.DraggedSlot;
         if (toast is not null)
         {
             _hud.PushNotification(toast);
@@ -141,7 +141,7 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
         }
 
         _previewed = true;
-        TradeBasket basket = _hud.TradeBasket;
+        TradeBasket basket = _hud.State.TradeBasket;
         for (int s = 0; s < PlayerInventoryLayout.BagLimit; s++)
         {
             _ = basket.AddFromBag(s, bag[s], trader, wholeStack: true);

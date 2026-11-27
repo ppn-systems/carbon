@@ -1,7 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
-using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions.Localization;
@@ -18,7 +17,6 @@ using Carbon.Graphics.Batching.Sprites;
 using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Graphics.OpenGL.Abstractions;
 using Carbon.Graphics.OpenGL.Textures;
-using Carbon.Items.Catalog;
 using Carbon.Desktop.Rendering.Fonts;
 
 namespace Carbon.Desktop.Rendering.Hud;
@@ -46,7 +44,8 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     private readonly HotbarAndItemWidget _hotbar = new();
     private readonly DeathScreenWidget _deathScreen = new();
     private readonly SkillBarWidget _skillBar = new();
-    private readonly InventoryModalWidget _bagModal = new();
+    private readonly HudUiState _state;
+    private readonly InventoryModalWidget _bagModal;
     private readonly CharacterSheetModalWidget _characterModal = new();
     private readonly CraftingModalWidget _craftModal = new();
     private readonly ClassSkillsModalWidget _skillsModal = new();
@@ -55,7 +54,6 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     private readonly ToastFeedWidget _toasts = new();
     private readonly StatusEffectStripWidget _statusStrip = new();
     private readonly DamageVignetteWidget _vignette = new();
-    private readonly List<SkillDefinition> _skillScratch = new(8);
 
     private float _smoothedFps = 60f;
     private float _animTime;
@@ -67,10 +65,13 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     /// </summary>
     /// <param name="device">OpenGL graphics device the HUD renders with.</param>
     /// <param name="artRepository">Optional injected declarative vector-art repository (DIP).</param>
-    public HudOverlayRenderer(IGraphicsDevice device, IVectorArtRepository? artRepository = null)
+    /// <param name="state">Window state the scene owns and drives; a new one when <see langword="null"/>.</param>
+    public HudOverlayRenderer(IGraphicsDevice device, IVectorArtRepository? artRepository = null, HudUiState? state = null)
     {
         ArgumentNullException.ThrowIfNull(device);
         _device = device;
+        _state = state ?? new HudUiState();
+        _bagModal = new InventoryModalWidget(_state);
         _art = artRepository ?? CarbonVectorArtLibrary.LoadOrDefault();
         _minimap = new MinimapRadarWidget(device);
     }
@@ -98,67 +99,36 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         }
     }
 
-    /// <summary>Gets or sets whether the unified tabbed player window (Inventory/Character/Crafting/Skills) is open.</summary>
-    public bool ShowPlayerModal { get; set; }
-
-    /// <summary>Gets or sets the active tab of the unified player modal window.</summary>
-    public PlayerModalTab ActivePlayerTab { get; set; } = PlayerModalTab.Inventory;
-
-    /// <summary>Gets or sets whether the Blacksmith Forge Anvil modal is open.</summary>
-    public bool ShowForgeModal { get; set; }
-
-    /// <summary>Gets or sets the open trader window's stock (ADR-025), or <see langword="null"/> when it is closed.</summary>
-    public TraderView? Trader { get; set; }
-
-    /// <summary>Gets the trade window's staged sell basket and buy cart (ADR-025 D18).</summary>
-    public TradeBasket TradeBasket { get; } = new();
-
-    /// <summary>Gets or sets the bag slot being dragged towards the basket, or -1.</summary>
-    public int TradeDragSlot { get; set; } = -1;
-
-    /// <summary>Gets the repair window (ADR-028); open while <see cref="RepairModalWidget.IsOpen"/>.</summary>
-    public RepairModalWidget Repair { get; } = new();
-
-    /// <summary>
-    /// Gets or sets a death shown instead of the session's (screenshot preview only, <c>CARBON_UI_PREVIEW=death</c>).
-    /// Visual only: nothing is sent to the server.
-    /// </summary>
-    public DeathView? DeathPreview { get; set; }
-
     /// <summary>Returns the death screen's Respawn button rectangle (ADR-031).</summary>
     public static RectangleF GetRespawnButtonRect(int viewportWidth, int viewportHeight) =>
         DeathScreenWidget.GetRespawnButtonRect(viewportWidth, viewportHeight);
 
-    /// <summary>Gets or sets the interact-key prompt to draw this frame (hidden while a window is open).</summary>
-    public InteractionPrompt? InteractPrompt { get; set; }
+    /// <summary>Gets the window state this HUD draws (owned and driven by the scene, audit OOP-3).</summary>
+    public HudUiState State => _state;
 
-    /// <summary>Gets or sets whether the System Settings &amp; Controls modal is open.</summary>
-    public bool ShowSettingsModal { get; set; }
-
-    /// <summary>Gets whether any full-screen modal (Player Window, Forge, or Settings) is open.</summary>
-    public bool HasActiveModal =>
-        this.ShowPlayerModal || this.ShowForgeModal || this.ShowSettingsModal || this.Trader is not null || this.Repair.IsOpen;
-
-    /// <summary>Gets or sets the inventory slot index currently held/carried by the cursor, or <c>-1</c>.</summary>
-    public int CarriedInventorySlot
+    /// <inheritdoc/>
+    bool IInventoryInputHud.ShowPlayerModal
     {
-        get => _bagModal.CarriedSlot;
-        set => _bagModal.CarriedSlot = value;
+        get => _state.ShowPlayerModal;
+        set => _state.ShowPlayerModal = value;
+    }
+
+    /// <inheritdoc/>
+    int IInventoryInputHud.CarriedInventorySlot
+    {
+        get => _state.CarriedInventorySlot;
+        set => _state.CarriedInventorySlot = value;
     }
 
     /// <summary>Gets the inventory split/confirm dialog state (ADR-020).</summary>
     public InventoryDialogState InventoryDialog => _bagModal.Dialog;
 
-    /// <summary>Gets or sets whether the HUD overlay is visible.</summary>
-    public bool Visible { get; set; } = true;
-
     /// <summary>Opens the Settings modal on the Display (<c>0</c>) or Controls (<c>1</c>) tab.</summary>
     /// <param name="tab">Tab index.</param>
     public void OpenSettings(int tab)
     {
-        this.CloseAllModals();
+        _state.OpenSettings();
         _settingsModal.SelectTab(tab);
-        this.ShowSettingsModal = true;
     }
 
     /// <summary>Marks a terrain chunk for a minimap re-bake (forwarded from the session's dirty-chunk feed).</summary>
@@ -169,64 +139,10 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     /// <param name="steps">Positive to zoom in.</param>
     /// <param name="viewportWidth">Viewport width.</param>
     public bool TryZoomMinimap(Vector2 mousePos, int steps, int viewportWidth) =>
-        this.Visible && this.Settings.ShowMinimap && !this.HasActiveModal && _minimap.TryZoom(mousePos, steps, viewportWidth);
+        _state.Visible && this.Settings.ShowMinimap && !_state.HasActiveModal && _minimap.TryZoom(mousePos, steps, viewportWidth);
 
     /// <summary>Queues a brief fading notification toast on the right edge of the HUD.</summary>
     public void PushNotification(string message) => _toasts.Push(message);
-
-    /// <summary>Returns whether <paramref name="world"/> currently has at least one accessible class skill.</summary>
-    public bool HasAccessibleClassSkills(IWorldReadModel world)
-    {
-        ArgumentNullException.ThrowIfNull(world);
-        return PlayerModalTabs.HasClassSkills(world, _skillScratch);
-    }
-
-    /// <summary>
-    /// Opens or switches to <paramref name="tab"/>, or closes the player modal if already viewing <paramref name="tab"/>.
-    /// Returns <see langword="false"/> if <paramref name="tab"/> is <see cref="PlayerModalTab.Skills"/> and the character has no class skills.
-    /// </summary>
-    public bool OpenOrTogglePlayerTab(IWorldReadModel world, PlayerModalTab tab)
-    {
-        ArgumentNullException.ThrowIfNull(world);
-        if (tab == PlayerModalTab.Skills && !this.HasAccessibleClassSkills(world))
-        {
-            return false;
-        }
-
-        if (this.ShowPlayerModal && this.ActivePlayerTab == tab)
-        {
-            this.ShowPlayerModal = false;
-            _bagModal.CarriedSlot = -1;
-            return true;
-        }
-
-        this.ShowForgeModal = false;
-        this.ShowSettingsModal = false;
-        this.Repair.Close();
-        this.ShowPlayerModal = true;
-        this.ActivePlayerTab = tab;
-        if (tab != PlayerModalTab.Inventory)
-        {
-            _bagModal.CarriedSlot = -1;
-        }
-
-        return true;
-    }
-
-    /// <summary>Closes all active modals cleanly.</summary>
-    public void CloseAllModals(bool keepSettings = false)
-    {
-        this.ShowPlayerModal = false;
-        this.ShowForgeModal = false;
-        this.Trader = null;
-        this.Repair.Close();
-        if (!keepSettings)
-        {
-            this.ShowSettingsModal = false;
-        }
-
-        _bagModal.CarriedSlot = -1;
-    }
 
     /// <summary>Scrolls the Crafting Workshop recipe list up or down.</summary>
     public void ScrollCrafting(int delta) => _craftModal.Scroll(delta);
@@ -244,7 +160,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     public bool TryHitTestHotbar(Vector2 mousePos, int viewportWidth, int viewportHeight, out byte slotIndex)
     {
         slotIndex = 0;
-        return this.Visible && viewportWidth > 0 && viewportHeight > 0 &&
+        return _state.Visible && viewportWidth > 0 && viewportHeight > 0 &&
             _hotbar.TryHitTestHotbar(mousePos, viewportWidth, viewportHeight, out slotIndex);
     }
 
@@ -258,12 +174,12 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     {
         ArgumentNullException.ThrowIfNull(world);
         tab = PlayerModalTab.Inventory;
-        if (!this.Visible || !this.ShowPlayerModal || viewportWidth <= 0 || viewportHeight <= 0)
+        if (!_state.Visible || !_state.ShowPlayerModal || viewportWidth <= 0 || viewportHeight <= 0)
         {
             return false;
         }
 
-        bool hit = this.ActivePlayerTab switch
+        bool hit = _state.ActivePlayerTab switch
         {
             PlayerModalTab.Inventory => _bagModal.TryHitTestTab(world, mousePos, viewportWidth, viewportHeight, out tab),
             PlayerModalTab.Character => _characterModal.TryHitTestTab(world, mousePos, viewportWidth, viewportHeight, out tab),
@@ -272,7 +188,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             _ => false,
         };
 
-        if (hit && tab == PlayerModalTab.Skills && !this.HasAccessibleClassSkills(world))
+        if (hit && tab == PlayerModalTab.Skills && !_state.HasAccessibleClassSkills(world))
         {
             return false;
         }
@@ -292,13 +208,13 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         ArgumentNullException.ThrowIfNull(world);
         craftRecipeId = 0;
         craftQuantity = 0;
-        return this.Visible && this.ShowPlayerModal && this.ActivePlayerTab == PlayerModalTab.Crafting && viewportWidth > 0 && viewportHeight > 0 &&
+        return _state.Visible && _state.ShowPlayerModal && _state.ActivePlayerTab == PlayerModalTab.Crafting && viewportWidth > 0 && viewportHeight > 0 &&
             _craftModal.TryHandleClick(mousePos, world, viewportWidth, viewportHeight, out craftRecipeId, out craftQuantity);
     }
 
     /// <summary>Hit-tests clicks inside the System Settings &amp; Controls modal.</summary>
     public SettingsModalAction HandleSettingsClick(Vector2 mousePos, int viewportWidth, int viewportHeight) =>
-        this.Visible && this.ShowSettingsModal && viewportWidth > 0 && viewportHeight > 0
+        _state.Visible && _state.ShowSettingsModal && viewportWidth > 0 && viewportHeight > 0
             ? _settingsModal.HandleClick(mousePos, this.Settings, viewportWidth, viewportHeight)
             : SettingsModalAction.None;
 
@@ -312,7 +228,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     {
         ArgumentNullException.ThrowIfNull(world);
         skillId = 0;
-        return this.Visible && this.ShowPlayerModal && this.ActivePlayerTab == PlayerModalTab.Skills && viewportWidth > 0 && viewportHeight > 0 &&
+        return _state.Visible && _state.ShowPlayerModal && _state.ActivePlayerTab == PlayerModalTab.Skills && viewportWidth > 0 && viewportHeight > 0 &&
             _skillsModal.TryHitTestUpgradeButton(world, mousePos, viewportWidth, viewportHeight, out skillId);
     }
 
@@ -320,21 +236,21 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     public bool TryHitTestCharacterStatPlus(Vector2 mousePos, int viewportWidth, int viewportHeight, out PrimaryAttributeId attribute)
     {
         attribute = PrimaryAttributeId.Vitality;
-        return this.Visible && this.ShowPlayerModal && this.ActivePlayerTab == PlayerModalTab.Character && viewportWidth > 0 && viewportHeight > 0 &&
+        return _state.Visible && _state.ShowPlayerModal && _state.ActivePlayerTab == PlayerModalTab.Character && viewportWidth > 0 && viewportHeight > 0 &&
             _characterModal.TryHitTestStatPlusButton(mousePos, viewportWidth, viewportHeight, out attribute);
     }
 
     /// <summary>Returns whether <paramref name="mousePos"/> hits the close button of whichever modal is open.</summary>
     public bool TryHitTestModalCloseButton(Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
-        if (!this.Visible || viewportWidth <= 0 || viewportHeight <= 0)
+        if (!_state.Visible || viewportWidth <= 0 || viewportHeight <= 0)
         {
             return false;
         }
 
-        if (this.ShowPlayerModal)
+        if (_state.ShowPlayerModal)
         {
-            return this.ActivePlayerTab switch
+            return _state.ActivePlayerTab switch
             {
                 PlayerModalTab.Inventory => _bagModal.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight),
                 PlayerModalTab.Character => _characterModal.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight),
@@ -344,17 +260,17 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             };
         }
 
-        if (this.ShowForgeModal)
+        if (_state.ShowForgeModal)
         {
             return _forgeModal.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight);
         }
 
-        if (this.Trader is not null)
+        if (_state.Trader is not null)
         {
             return TradeModalWidget.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight);
         }
 
-        if (this.Repair.IsOpen)
+        if (_state.Repair.IsOpen)
         {
             return RepairLayout.CloseRect(RepairLayout.Origin(viewportWidth, viewportHeight).Ox, RepairLayout.Origin(viewportWidth, viewportHeight).Oy).Contains(mousePos);
         }
@@ -366,19 +282,19 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     public bool IsPointInActiveModal(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
         ArgumentNullException.ThrowIfNull(world);
-        if (!this.Visible || viewportWidth <= 0 || viewportHeight <= 0)
+        if (!_state.Visible || viewportWidth <= 0 || viewportHeight <= 0)
         {
             return false;
         }
 
-        if (this.ShowSettingsModal)
+        if (_state.ShowSettingsModal)
         {
             return _settingsModal.ContainsPoint(mousePos, viewportWidth, viewportHeight);
         }
 
-        if (this.ShowPlayerModal)
+        if (_state.ShowPlayerModal)
         {
-            return this.ActivePlayerTab switch
+            return _state.ActivePlayerTab switch
             {
                 PlayerModalTab.Inventory => _bagModal.ContainsPoint(world, mousePos, viewportWidth, viewportHeight),
                 PlayerModalTab.Character => _characterModal.ContainsPoint(world, mousePos, viewportWidth, viewportHeight),
@@ -388,17 +304,17 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             };
         }
 
-        if (this.ShowForgeModal)
+        if (_state.ShowForgeModal)
         {
             return _forgeModal.ContainsPoint(mousePos, viewportWidth, viewportHeight);
         }
 
-        if (this.Trader is not null)
+        if (_state.Trader is not null)
         {
             return TradeModalWidget.ContainsPoint(mousePos, viewportWidth, viewportHeight);
         }
 
-        if (this.Repair.IsOpen)
+        if (_state.Repair.IsOpen)
         {
             return RepairModalWidget.ContainsPoint(mousePos, viewportWidth, viewportHeight);
         }
@@ -411,7 +327,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     {
         ArgumentNullException.ThrowIfNull(world);
         skillId = 0;
-        return this.Visible && viewportWidth > 0 && viewportHeight > 0 &&
+        return _state.Visible && viewportWidth > 0 && viewportHeight > 0 &&
             this.PrepareSkillBar(viewportWidth) &&
             _skillBar.TryHitTestSkill(world, mousePos, viewportWidth, viewportHeight, out skillId);
     }
@@ -430,14 +346,14 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
 
     /// <summary>Hit-tests the inventory tab's Sort button.</summary>
     public bool TryHitTestInventorySortButton(Vector2 mousePos, int viewportWidth, int viewportHeight) =>
-        this.Visible && this.ShowPlayerModal && this.ActivePlayerTab == PlayerModalTab.Inventory &&
+        _state.Visible && _state.ShowPlayerModal && _state.ActivePlayerTab == PlayerModalTab.Inventory &&
         _bagModal.TryHitTestSortButton(mousePos, viewportWidth, viewportHeight);
 
     /// <summary>Hit-tests screen-space coordinates against any of the 42 slots in the Inventory tab.</summary>
     public bool TryHitTestInventorySlot(Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort slotIndex)
     {
         slotIndex = 0;
-        return this.Visible && this.ShowPlayerModal && this.ActivePlayerTab == PlayerModalTab.Inventory && viewportWidth > 0 && viewportHeight > 0 &&
+        return _state.Visible && _state.ShowPlayerModal && _state.ActivePlayerTab == PlayerModalTab.Inventory && viewportWidth > 0 && viewportHeight > 0 &&
             _bagModal.TryHitTestSlot(mousePos, viewportWidth, viewportHeight, out slotIndex);
     }
 
@@ -445,13 +361,13 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     public bool TrySelectForgeGear(Vector2 mousePos, IWorldReadModel world, int viewportWidth, int viewportHeight)
     {
         ArgumentNullException.ThrowIfNull(world);
-        return this.Visible && this.ShowForgeModal && viewportWidth > 0 && viewportHeight > 0 &&
+        return _state.Visible && _state.ShowForgeModal && viewportWidth > 0 && viewportHeight > 0 &&
             _forgeModal.TrySelectGearAt(mousePos, world, viewportWidth, viewportHeight);
     }
 
     /// <summary>Returns whether <paramref name="mousePos"/> hits the Forge Enhance action button inside the Forge Anvil modal.</summary>
     public bool TryHitTestForgeAnvilButton(Vector2 mousePos, int viewportWidth, int viewportHeight) =>
-        this.Visible && this.ShowForgeModal && viewportWidth > 0 && viewportHeight > 0 &&
+        _state.Visible && _state.ShowForgeModal && viewportWidth > 0 && viewportHeight > 0 &&
         _forgeModal.TryHitTestForgeButton(mousePos, viewportWidth, viewportHeight);
 
     /// <summary>Resolves the selected upgradable gear slot inside the Forge Anvil modal.</summary>
@@ -509,7 +425,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(spriteBatch);
-        if (!this.Visible || !world.IsReady || viewportWidth <= 0 || viewportHeight <= 0)
+        if (!_state.Visible || !world.IsReady || viewportWidth <= 0 || viewportHeight <= 0)
         {
             return;
         }
@@ -532,9 +448,9 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         float tileSize = world.ChunkWorld.TileSize;
         int ptx = (int)MathF.Floor(playerPos.X / tileSize);
         int pty = (int)MathF.Floor(playerPos.Y / tileSize);
-        Vector2? bgMouse = this.HasActiveModal ? null : mouseScreenPos;
+        Vector2? bgMouse = _state.HasActiveModal ? null : mouseScreenPos;
         // The death screen goes on top (ADR-031): while dead the strip draws nothing and takes no clicks.
-        _statusStrip.Suppressed = (this.DeathPreview ?? world.LocalDeath) is not null;
+        _statusStrip.Suppressed = (_state.DeathPreview ?? world.LocalDeath) is not null;
         _statusStrip.ShowMinimap = this.Settings.ShowMinimap;
         _statusStrip.Prepare(world, _font, bgMouse, viewportWidth);
         _ = this.PrepareSkillBar(viewportWidth); // After the strip: the skill bar starts under its last row.
@@ -548,7 +464,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         this.DrawElements(HudComposition.MainHud, spriteBatch, screenProj, in frame);
 
         // Pass 2 & 3: Active Modal Window & Floating Tooltip/Drag Layer
-        if (this.ShowSettingsModal)
+        if (_state.ShowSettingsModal)
         {
             _geometryBatch.Begin(screenProj);
             _geometryBatch.FillRectangle(new RectangleF(0f, 0f, viewportWidth, viewportHeight), new ColorRgba(4, 6, 12, 150));
@@ -559,13 +475,13 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             _settingsModal.DrawText(spriteBatch, _font, this.Settings, viewportWidth, viewportHeight);
             spriteBatch.End();
         }
-        else if (this.ShowPlayerModal)
+        else if (_state.ShowPlayerModal)
         {
             _geometryBatch.Begin(screenProj);
             _geometryBatch.FillRectangle(new RectangleF(0f, 0f, viewportWidth, viewportHeight), new ColorRgba(4, 6, 12, 138));
             _geometryBatch.End();
 
-            switch (this.ActivePlayerTab)
+            switch (_state.ActivePlayerTab)
             {
                 case PlayerModalTab.Inventory:
                     spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
@@ -637,15 +553,15 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                     break;
             }
         }
-        else if (this.Trader is TraderView trader)
+        else if (_state.Trader is TraderView trader)
         {
-            TradeModalWidget.Render(spriteBatch, _geometryBatch, _uiSkin, _font, _art, screenProj, world, trader, this.TradeBasket, this.TradeDragSlot, viewportWidth, viewportHeight, mouseScreenPos);
+            TradeModalWidget.Render(spriteBatch, _geometryBatch, _uiSkin, _font, _art, screenProj, world, trader, _state.TradeBasket, _state.TradeDragSlot, viewportWidth, viewportHeight, mouseScreenPos);
         }
-        else if (this.Repair.IsOpen)
+        else if (_state.Repair.IsOpen)
         {
-            this.Repair.Render(spriteBatch, _geometryBatch, _uiSkin, _font, _art, screenProj, world, viewportWidth, viewportHeight, mouseScreenPos);
+            _state.Repair.Render(spriteBatch, _geometryBatch, _uiSkin, _font, _art, screenProj, world, viewportWidth, viewportHeight, mouseScreenPos);
         }
-        else if (this.ShowForgeModal)
+        else if (_state.ShowForgeModal)
         {
             _geometryBatch.Begin(screenProj);
             _geometryBatch.FillRectangle(new RectangleF(0f, 0f, viewportWidth, viewportHeight), new ColorRgba(4, 6, 12, 138));
@@ -665,13 +581,13 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         }
 
         // The death screen covers everything else while the player is dead (ADR-031).
-        if ((this.DeathPreview ?? world.LocalDeath) is DeathView death)
+        if ((_state.DeathPreview ?? world.LocalDeath) is DeathView death)
         {
             HudFrame deathFrame = frame with
             {
                 BackgroundMouse = mouseScreenPos,
                 Death = death,
-                RespawnPending = this.DeathPreview is null && world.IsRespawnPending,
+                RespawnPending = _state.DeathPreview is null && world.IsRespawnPending,
             };
             this.DrawElements(HudComposition.DeathVeil, spriteBatch, screenProj, in deathFrame);
             this.DrawElements(HudComposition.DeathScreen, spriteBatch, screenProj, in deathFrame);
@@ -744,7 +660,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 DeathScreenWidget.DrawSkin(spriteBatch, _uiSkin, f.RespawnPending, f.ViewportWidth, f.ViewportHeight, f.BackgroundMouse);
                 break;
             case HudElement.InteractPrompt:
-                if (!this.HasActiveModal && this.InteractPrompt is InteractionPrompt prompt)
+                if (!_state.HasActiveModal && _state.InteractPrompt is InteractionPrompt prompt)
                 {
                     InteractionPromptWidget.DrawSkin(spriteBatch, _uiSkin, _font, in prompt);
                 }
@@ -836,7 +752,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 _toasts.DrawText(spriteBatch, _font, f.ViewportWidth, HudLayout.GetToastTop(f.ViewportWidth, this.Settings.ShowMinimap, _statusStrip.Rows));
                 break;
             case HudElement.InteractPrompt:
-                if (!this.HasActiveModal && this.InteractPrompt is InteractionPrompt prompt)
+                if (!_state.HasActiveModal && _state.InteractPrompt is InteractionPrompt prompt)
                 {
                     InteractionPromptWidget.DrawText(spriteBatch, _font, in prompt);
                 }

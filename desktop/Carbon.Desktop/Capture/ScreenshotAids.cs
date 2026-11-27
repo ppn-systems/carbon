@@ -51,7 +51,7 @@ internal sealed class ScreenshotAids(DesktopOptions options)
         if (!_openedPanel && string.Equals(options.OpenPanel, "character", StringComparison.OrdinalIgnoreCase))
         {
             _openedPanel = true;
-            _ = hud.OpenOrTogglePlayerTab(session, PlayerModalTab.Character);
+            _ = hud.State.OpenOrTogglePlayerTab(session, PlayerModalTab.Character);
         }
     }
 
@@ -101,7 +101,7 @@ internal sealed class ScreenshotAids(DesktopOptions options)
         if (hud is not null && string.Equals(options.UiPreview, "death", StringComparison.Ordinal))
         {
             // ADR-031 death screen review: a sample slime kill (visual only, nothing is sent).
-            hud.DeathPreview = new DeathView(DeathCause.Monster, 0, "monster.wild_slime.name");
+            hud.State.DeathPreview = new DeathView(DeathCause.Monster, 0, "monster.wild_slime.name");
             return null;
         }
 
@@ -110,8 +110,8 @@ internal sealed class ScreenshotAids(DesktopOptions options)
             return null;
         }
 
-        hud.ShowPlayerModal = true;
-        hud.ActivePlayerTab = PlayerModalTab.Inventory;
+        hud.State.ShowPlayerModal = true;
+        hud.State.ActivePlayerTab = PlayerModalTab.Inventory;
         int colon = preview.IndexOf(':', StringComparison.Ordinal);
         if (colon < 0 ||
             !int.TryParse(preview.AsSpan(colon + 1), NumberStyles.Integer, CultureInfo.InvariantCulture, out int slot) ||

@@ -24,7 +24,7 @@ namespace Carbon.Desktop.Rendering.Hud;
 /// workspace. Supports cursor pickup, Shift/RMB quick-equip, drag-outside-to-drop, a read-only "Held" mirror of the
 /// selected hotbar item, a Sort button, rarity borders, rich tooltips, and the split/confirm dialogs (ADR-020).
 /// </summary>
-internal sealed class InventoryModalWidget
+internal sealed class InventoryModalWidget(HudUiState state)
 {
     private readonly List<SkillDefinition> _skillScratch = new(8);
     private readonly ItemTooltipBuilder _tooltip = new();
@@ -35,7 +35,8 @@ internal sealed class InventoryModalWidget
     /// <summary>Gets the split/confirm dialog state shown on top of the bag.</summary>
     public InventoryDialogState Dialog => _dialog.State;
 
-    public int CarriedSlot { get; set; } = -1;
+    /// <summary>Gets the carried slot (<see cref="HudUiState.CarriedInventorySlot"/>), drawn highlighted.</summary>
+    public int CarriedSlot => state.CarriedInventorySlot;
 
     public bool ContainsPoint(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
     {

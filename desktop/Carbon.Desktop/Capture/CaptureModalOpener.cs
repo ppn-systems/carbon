@@ -31,7 +31,7 @@ internal static class CaptureModalOpener
 
         if (tab is { } playerTab)
         {
-            _ = hud.OpenOrTogglePlayerTab(world, playerTab);
+            _ = hud.State.OpenOrTogglePlayerTab(world, playerTab);
             return;
         }
 
