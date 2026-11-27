@@ -19,8 +19,10 @@ namespace Carbon.Graphics.Batching.Geometry;
 /// </summary>
 public sealed class GeometryBatch : IDisposable
 {
-    private const int MAX_VERTICES = 16384;
-    private const int MAX_INDICES = 32768;
+    // Sized for a dense forest view (trees, canopies, shadows, leaves and weather in one world batch) so the batch
+    // does not split into extra draw calls; 32k vertices are 512 KB of client memory and VBO.
+    private const int MAX_VERTICES = 32768;
+    private const int MAX_INDICES = 65536;
 
     private readonly IGraphicsDevice _device;
     private readonly GlStateCache _stateCache;

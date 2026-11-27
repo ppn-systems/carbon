@@ -111,7 +111,7 @@ internal static class FallingLeaves
             }
 
             // A small leaf seen tumbling: its width shrinks and grows as it turns.
-            Vector2 along = new(MathF.Cos(angle) * 2.6f, MathF.Sin(angle) * 1.2f);
+            Vector2 along = new(MathF.Cos(angle) * 3.6f, MathF.Sin(angle) * 1.6f);
             Vector2 across = new(-along.Y * 0.55f, along.X * 0.55f * MathF.Abs(MathF.Cos(angle * 0.7f)));
             ColorRgba c = color with { A = (byte)(235f * visible) };
             batch.FillTriangle(p - along, p + across, p + along, c);
