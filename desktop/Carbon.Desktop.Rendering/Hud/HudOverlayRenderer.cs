@@ -26,7 +26,7 @@ namespace Carbon.Desktop.Rendering.Hud;
 /// Screen-space MMORPG HUD facade composing single-responsibility RPG widgets
 /// framed by <see cref="CarbonUiSkin"/> + <see cref="CarbonUiPalette"/> in strict 3-pass Z order (SRP / ISP / DIP).
 /// </summary>
-public sealed class HudOverlayRenderer : IDisposable
+public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
 {
     private readonly GeometryBatch _geometryBatch;
     private readonly IGraphicsDevice _device;

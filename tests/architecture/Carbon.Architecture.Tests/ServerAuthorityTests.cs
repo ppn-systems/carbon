@@ -55,6 +55,7 @@ public sealed partial class ServerAuthorityTests
     {
         // Debt: the client reads engine balance tables directly (finding SA-1 in the audit report).
         // Remove entries as config sync replaces each usage.
+        "desktop/Carbon.Desktop.Networking/Session/MapMutationApplier.cs|ToolUsagePolicy",
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs|ItemEnhancementPolicy",
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs|SkillCatalog",
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs|CharacterProgressionPolicy",
@@ -62,7 +63,6 @@ public sealed partial class ServerAuthorityTests
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs|CharacterProgressionPolicy",
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs|ItemEnhancementPolicy",
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs|SkillCatalog",
-        "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs|ToolUsagePolicy",
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs|WorldActorCatalog",
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.cs|WorldActorCatalog",
         "desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.cs|WorldProgression",

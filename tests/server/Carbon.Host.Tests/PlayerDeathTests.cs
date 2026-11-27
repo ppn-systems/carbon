@@ -21,13 +21,24 @@ namespace Carbon.Host.Tests;
 public sealed class PlayerDeathTests
 {
     private const int MaxTicksToDie = 1_200;
+    private const ulong EntropyLabel = 1UL;
 
     [Fact]
     public void MonsterKillsPlayer_RespawnsAtSanctuaryWithFullResources()
     {
         AuthoritativeWorldMultiplayerTests.RecordingOutboundSink sink = new();
+        // Fixed clock and gameplay secret: combat rolls (dodge, crits, AI) are keyed by them (ADR-026), so the fight
+        // plays out identically on every run.
         AuthoritativeWorld world = new(
-            1337UL, 32f, 0.0008f, 30, Substitute.For<IChunkDeltaRepository>(), Substitute.For<ICharacterStore>(), sink);
+            1337UL,
+            32f,
+            0.0008f,
+            30,
+            Substitute.For<IChunkDeltaRepository>(),
+            Substitute.For<ICharacterStore>(),
+            sink,
+            new FixedTime(DateTimeOffset.FromUnixTimeSeconds(1_800_000_000L)),
+            entropy: TestGameplayEntropy.Create(EntropyLabel));
         EntitySpawnSnapshot mob = FindMonster(world, sink);
 
         const ulong victimConn = 900UL;
@@ -89,4 +100,9 @@ public sealed class PlayerDeathTests
 
     private static CharacterRecord Character(string name) =>
         new(Guid.NewGuid(), Guid.NewGuid(), name, 1, 0, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
+
+    private sealed class FixedTime(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
 }

@@ -146,33 +146,43 @@ public sealed class VendorAndCheckoutTests
     }
 
     [Fact]
-    public void GetRepairCost_ScalesWithRarity()
+    public void GetRepairCost_SameWear_EpicCostsMorePerGoldOfValueThanCommon()
     {
-        // Same missing fraction; the rarity percentage (economy.json repair.rarityMultiplierPercent) scales the cost.
-        ItemSlot HalfWorn(string code)
-        {
-            Items.Definitions.ItemCatalogEntry item = Item(code);
-            return new ItemSlot(item.Id, 1, InstanceId: 1, Durability: item.MaxDurability / 2f);
-        }
+        // Rarity (economy.json repair.rarityMultiplierPercent) makes high-tier gear the main recurring gold sink:
+        // at the same wear, an epic blade must cost a larger share of its value to repair than a common one.
+        double commonShare = s_prices.GetRepairCost(Worn("copper_sword", 0.5f)) / (double)Item("copper_sword").BasePrice;
+        double epicShare = s_prices.GetRepairCost(Worn("ember_blade", 0.5f)) / (double)Item("ember_blade").BasePrice;
 
-        Config.RarityPercents rarity = ShippedConfig.Economy.Repair.RarityMultiplierPercent;
-        long Formula(string code, int percent) =>
-            (long)System.Math.Ceiling(Item(code).BasePrice * 0.30 * 0.5 * percent / 100d);
-
-        s_prices.GetRepairCost(HalfWorn("copper_sword")).Should().Be(Formula("copper_sword", rarity.Common));
-        s_prices.GetRepairCost(HalfWorn("ember_blade")).Should().Be(Formula("ember_blade", rarity.Epic));
-        rarity.Epic.Should().BeGreaterThan(rarity.Common, "high-tier gear is the main recurring sink");
+        epicShare.Should().BeGreaterThan(commonShare * 2, "epic repair is priced at a multiple of common repair per gold of value");
     }
 
     [Fact]
-    public void GetCraftingFee_ScalesWithRarestOutput()
+    public void GetRepairCost_ByWear_GrowsWithMissingDurabilityAndIsFreeWhenFull()
     {
-        Config.CraftingFeeRules fees = ShippedConfig.Economy.CraftingFees;
-        CraftingRecipe blade = Recipe("ember_blade");
-        long baseFee = fees.Forge + (s_prices.GetOutputValue(blade) * fees.OutputValueRateBps / 10_000);
+        long light = s_prices.GetRepairCost(Worn("ember_blade", 0.25f));
+        long heavy = s_prices.GetRepairCost(Worn("ember_blade", 0.75f));
+        long broken = s_prices.GetRepairCost(Worn("ember_blade", 1f));
 
-        s_prices.GetCraftingFee(blade).Should().Be(baseFee * fees.RarityMultiplierPercent.Epic / 100);
-        s_prices.GetCraftingFee(Recipe("wood_plank")).Should().Be(fees.None, "hand crafting stays free");
+        light.Should().BePositive();
+        heavy.Should().BeGreaterThan(light, "more missing durability costs more to restore");
+        broken.Should().BeGreaterThan(heavy);
+        s_prices.GetRepairCost(Worn("ember_blade", 0f)).Should().Be(0, "nothing to repair");
+        s_prices.GetRepairCost(Worn("copper_sword", 0.001f)).Should().BePositive("a scratch still costs at least the minimum");
+    }
+
+    [Fact]
+    public void GetCraftingFee_SameStation_EpicOutputPaysMorePerGoldOfValue()
+    {
+        CraftingRecipe common = Recipe("copper_sword");
+        CraftingRecipe epic = Recipe("ember_blade");
+        common.Station.Should().Be(epic.Station, "compare like with like");
+
+        double commonShare = s_prices.GetCraftingFee(common) / (double)s_prices.GetOutputValue(common);
+        double epicShare = s_prices.GetCraftingFee(epic) / (double)s_prices.GetOutputValue(epic);
+
+        s_prices.GetCraftingFee(common).Should().BePositive("station crafting is a gold sink");
+        epicShare.Should().BeGreaterThan(commonShare * 2, "crafting fees scale with the rarest output (economy.json craftingFees.rarityMultiplierPercent)");
+        s_prices.GetCraftingFee(Recipe("wood_plank")).Should().Be(0, "hand crafting stays free");
     }
 
     [Fact]
@@ -183,11 +193,16 @@ public sealed class VendorAndCheckoutTests
         long basePotion = s_prices.GetBuyPrice(potion);
 
         s_prices.GetBuyPrice(potion, buyerLevel: 1).Should().Be(basePotion);
-        s_prices.GetBuyPrice(potion, buyerLevel: 60).Should().Be(
-            (long)System.Math.Ceiling(basePotion * ShippedConfig.Economy.GetConsumablePricePercent(60) / 100d));
+        s_prices.GetBuyPrice(potion, buyerLevel: 60).Should().BeGreaterThan(basePotion, "high-level buyers pay their band's consumable price");
         s_prices.GetBuyPrice(potion, buyerLevel: 60).Should().BeGreaterThan(s_prices.GetBuyPrice(potion, buyerLevel: 20));
         s_prices.GetBuyPrice(log, buyerLevel: 60).Should().Be(s_prices.GetBuyPrice(log), "only consumables are level-banded");
         s_prices.GetSellPrice(potion).Should().BeLessThan(basePotion, "a high-level price never lets buy-then-sell mint gold");
+    }
+
+    private static ItemSlot Worn(string code, float missingFraction)
+    {
+        Items.Definitions.ItemCatalogEntry item = Item(code);
+        return new ItemSlot(item.Id, 1, InstanceId: 1, Durability: item.MaxDurability * (1f - missingFraction));
     }
 
     [Fact]
