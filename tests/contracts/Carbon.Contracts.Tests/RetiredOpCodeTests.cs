@@ -31,6 +31,8 @@ public sealed class RetiredOpCodeTests
         0x1101, // MapWorldInfoRequest
         0x1110, // MapWorldInfo
         0x1130, // MapTileChanged
+        0x4007, // VendorBuyItem
+        0x4008, // VendorSellItem
         0x4009, // RepairInventoryItem (ADR-028)
         0x4041, // TraderBuyRequest
         0x4042, // TraderSellRequest

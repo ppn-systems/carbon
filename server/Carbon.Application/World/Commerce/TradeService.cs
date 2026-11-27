@@ -307,7 +307,7 @@ internal sealed class TradeService : IWorldTradeService
             WorldCommandKind.ToggleDoor or WorldCommandKind.SetResting or WorldCommandKind.SelectHotbarSlot or
             WorldCommandKind.CraftRecipe or WorldCommandKind.MoveInventorySlot or WorldCommandKind.UpgradeInventoryItem or
             WorldCommandKind.DropInventoryItem or WorldCommandKind.SplitInventorySlot or WorldCommandKind.SortInventory or
-            WorldCommandKind.DestroyInventoryItem or WorldCommandKind.VendorBuy or WorldCommandKind.VendorSell or
+            WorldCommandKind.DestroyInventoryItem or
             WorldCommandKind.RepairItem or WorldCommandKind.AllocateCharacterPoint or WorldCommandKind.Respawn => OpStatus.Invalid,
             _ => OpStatus.Invalid,
         };

@@ -105,7 +105,7 @@ public sealed class WorldCommandExecutorTests
 
         Task<WorldMutationOutcome> sort = queue.Submit(WorldCommandKind.SortInventory, Connection, 0).AsTask();
         Task<WorldMutationOutcome> harvest = queue.Submit(WorldCommandKind.HarvestProp, Connection, 3, -4, StructureType.None, StructureRotation.North).AsTask();
-        Task<WorldMutationOutcome> buy = queue.Submit(WorldCommandKind.VendorBuy, Connection, 5, 1).AsTask();
+        Task<WorldMutationOutcome> buy = queue.Submit(WorldCommandKind.CraftRecipe, Connection, 5, 1).AsTask();
         Task<WorldMutationOutcome> respawn = queue.Submit(WorldCommandKind.Respawn, Connection, 0).AsTask();
         executor.Drain(queue);
 
@@ -162,10 +162,6 @@ public sealed class WorldCommandExecutorTests
 
         public OpStatus TryDestroyInventoryItem(ulong connectionId, ushort slotIndex, int quantity, ushort expectedItemId) =>
             this.Slot($"DestroyInventoryItem {connectionId} {slotIndex} {quantity} {expectedItemId}");
-
-        public OpStatus TryVendorBuy(ulong connectionId, ushort itemId, ushort quantity) => this.Slot($"VendorBuy {connectionId} {itemId} {quantity}");
-
-        public OpStatus TryVendorSell(ulong connectionId, ushort slotIndex, ushort quantity) => this.Slot($"VendorSell {connectionId} {slotIndex} {quantity}");
 
         public WorldMutationOutcome TryRepairItem(ulong connectionId, ushort slotIndex, ushort expectedItemId, byte steps, RepairVenue venue) =>
             new(this.Slot($"RepairItem {connectionId} {slotIndex} {expectedItemId} {steps} {venue}"), 0x0000_0304U);

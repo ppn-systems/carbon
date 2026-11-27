@@ -231,7 +231,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _outbound,
             state => this.MarkCharacterDirtyLocked(state, inventoryChanged: true),
             this.TickRate);
-        _commerce = new EconomyService(_entropy, this.TickRate, () => _economy, () => _currentTick, _groundLoot, _outbound, this.HasNearbyFriendlyNpcLocked);
+        _commerce = new EconomyService(_entropy, this.TickRate, () => _economy, () => _currentTick, _groundLoot, _outbound);
         _progressionService = new CharacterProgressionService(_simulation, progression ?? ProgressionConfig.LoadShippedDefaults(), _creatureCatalog, () => _itemRules,
             () => _currentTick, state => this.MarkCharacterDirtyLocked(state, inventoryChanged: false), _commerce.QueueWalletSync, _entropy);
         _combat = new CombatService(_simulation, _chunkWorld, MonsterLayer, _outbound, this.CollectNearbyConnectionsAroundWorldLocked, this.OnMonsterKilledLocked, () => _currentTick);

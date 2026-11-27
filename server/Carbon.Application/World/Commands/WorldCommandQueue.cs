@@ -51,11 +51,7 @@ internal enum WorldCommandKind : byte
     /// <summary>Destroy items in a slot (<c>Arg0</c> = slot, <c>Arg2</c> = quantity, <c>Arg3</c> = expected item id; ADR-020).</summary>
     DestroyInventoryItem = 17,
 
-    /// <summary>Buy from a vendor (<c>Arg0</c> = item id, <c>Arg1</c> = quantity).</summary>
-    VendorBuy = 20,
-
-    /// <summary>Sell to a vendor (<c>Arg0</c> = slot, <c>Arg1</c> = quantity).</summary>
-    VendorSell = 21,
+    // 20 and 21 were VendorBuy / VendorSell (ADR-038).
 
     /// <summary>Repair one item (ADR-028): <c>Arg0</c> = slot, <c>Arg1</c> = expected item, <c>Arg2</c> = steps, <c>Arg3</c> = venue.</summary>
     RepairItem = 22,

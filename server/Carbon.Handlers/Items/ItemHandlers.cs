@@ -208,32 +208,6 @@ public static partial class ItemHandlers
         await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.DestroyInventoryItem).ConfigureAwait(false);
     }
 
-    /// <summary>Opcode <c>0x4007</c>. Buys vendor-sold items for gold near a friendly town NPC.</summary>
-    [PacketOpcode(ItemOpCode.VendorBuyItem)]
-    [PacketPermission(PermissionLevel.USER)]
-    public static async ValueTask HandleVendorBuyItemAsync(IPacketContext<VendorBuyItem> context)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-
-        IPacketSender sender = context.Sender;
-        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
-        WorldMutationOutcome outcome = await s_world.SubmitVendorBuyAsync(connectionId, context.Packet.ItemId, context.Packet.Quantity).ConfigureAwait(false);
-        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.VendorBuyItem).ConfigureAwait(false);
-    }
-
-    /// <summary>Opcode <c>0x4008</c>. Sells a bag stack to a nearby friendly town NPC for gold.</summary>
-    [PacketOpcode(ItemOpCode.VendorSellItem)]
-    [PacketPermission(PermissionLevel.USER)]
-    public static async ValueTask HandleVendorSellItemAsync(IPacketContext<VendorSellItem> context)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-
-        IPacketSender sender = context.Sender;
-        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
-        WorldMutationOutcome outcome = await s_world.SubmitVendorSellAsync(connectionId, context.Packet.SlotIndex, context.Packet.Quantity).ConfigureAwait(false);
-        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.VendorSellItem).ConfigureAwait(false);
-    }
-
     /// <summary>Opcode <c>0x4050</c>. Queues repairing one item for materials and answers with <see cref="RepairItemResult"/> (ADR-028).</summary>
     [PacketOpcode(ItemOpCode.RepairItemRequest)]
     [PacketPermission(PermissionLevel.USER)]

@@ -298,8 +298,8 @@ Ids 1–39 keep the `StarterGameCatalog` ids and codes, and a test checks catego
 
 **Wallet persistence, sync and sinks** ([ADR-012](adr/ADR-012-server-authoritative-wallet-persistence-and-sync.md)):
 - `CharacterRecord` persists `Gold`, `Diamonds`, `WalletSequence` and `DiamondPity` through migration `0005_character_wallet`, in both SQLite and PostgreSQL.
-- `WalletSync` (S2C `0x1237`) pushes balances on world entry, after a gold or diamond pile is picked up and after vendor operations. The inventory window shows them in its header (not the main HUD, owner request; the trader window shows gold for prices), using `resources/art/ui/coin.cvg.json` and `diamond.cvg.json`.
-- `VendorBuyItem` (`0x4007`) and `VendorSellItem` (`0x4008`) require a friendly town NPC within 175 px. Both reply with `MutationResult`. Repair is `RepairItemRequest` (`0x4050`, ADR-028), answered with `RepairItemResult` (`0x4051`).
+- `WalletSync` (S2C `0x1237`) pushes balances on world entry, after a gold or diamond pile is picked up, and after trades, repair fees and death drops. The inventory window shows them in its header (not the main HUD, owner request; the trader window shows gold for prices), using `resources/art/ui/coin.cvg.json` and `diamond.cvg.json`.
+- Buying and selling go through village traders only (`TraderBuyBatch` / `TraderSellBatch`, ADR-025 D18); the generic vendor opcodes `0x4007`/`0x4008` were retired by [ADR-038](adr/ADR-038-retire-dead-wire-opcodes-and-fields.md). Repair is `RepairItemRequest` (`0x4050`, ADR-028), answered with `RepairItemResult` (`0x4051`).
 
 ## 10. Operator guide: changing the numbers
 

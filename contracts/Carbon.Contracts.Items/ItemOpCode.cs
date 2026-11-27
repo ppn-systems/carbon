@@ -28,11 +28,8 @@ public static class ItemOpCode
     /// <summary>Client requests dropping an item stack onto the ground.</summary>
     public const ushort DropInventoryItem = 0x4006;
 
-    /// <summary>Client requests buying items from a nearby NPC vendor for gold.</summary>
-    public const ushort VendorBuyItem = 0x4007;
-
-    /// <summary>Client requests selling a bag stack to a nearby NPC vendor for gold.</summary>
-    public const ushort VendorSellItem = 0x4008;
+    // 0x4007 / 0x4008 were VendorBuyItem / VendorSellItem (any friendly NPC, unlimited stock), no caller since village
+    // traders (ADR-025), retired by ADR-038: never reuse them.
 
     // 0x4009 was RepairInventoryItem (gold-only full repair), retired by ADR-028: never reuse it. See RepairItemRequest.
 

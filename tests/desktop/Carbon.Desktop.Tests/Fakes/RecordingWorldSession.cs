@@ -192,8 +192,6 @@ internal sealed class RecordingWorldSession : IWorldSession
     public void SelectHotbarSlot(byte slotIndex) => Unused<bool>();
     public bool TriggerPrimaryAction(Vector2 aimWorldPosition, out (int ChunkX, int ChunkY) invalidatedChunk) => throw NotUsed();
     public bool TryCraftRecipe(ushort recipeId, ushort quantity = 1) => Unused<bool>();
-    public bool TryVendorBuy(ushort itemId, ushort quantity = 1) => Unused<bool>();
-    public bool TryVendorSell(ushort slotIndex, ushort quantity = 1) => Unused<bool>();
     public IRepairSession Repair => Unused<IRepairSession>();
     public bool TryHarvestNearbyProp(out (int ChunkX, int ChunkY) modifiedChunk) => throw NotUsed();
     public bool TryPlaceStarterWall(out (int ChunkX, int ChunkY) centerChunk) => throw NotUsed();

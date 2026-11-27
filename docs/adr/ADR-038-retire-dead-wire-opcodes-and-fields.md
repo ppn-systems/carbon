@@ -19,7 +19,8 @@ later ADRs superseded but never deleted. Each one still has a live server handle
 - `TraderBuyRequest` / `TraderSellRequest` (`0x4041` / `0x4042`, ADR-025). The client has sent the D18 batches since
   the basket amendment. The single-line handlers still accepted a trade with no basket total check.
 - `VendorBuyItem` / `VendorSellItem` (`0x4007` / `0x4008`). Only the uncalled `IGameplayController.TryVendorBuy` and
-  `TryVendorSell` send them (ADR-025 Context).
+  `TryVendorSell` send them (ADR-025 Context). Their handlers still ran the generic vendor: any friendly NPC within
+  175 px sold every `vendorBuyable` item at a fixed price with unlimited stock, outside the traders' stock and restock.
 
 The audit also found about fifteen fields that the receiver never reads (W-5 … W-12). Nothing so far stopped a packet
 from losing its sender or its handler: `ProtocolContractGuardTests` checks uniqueness and bands only.
@@ -65,9 +66,9 @@ from losing its sender or its handler: `ProtocolContractGuardTests` checks uniqu
 
    | Batch | Version | Removed |
    | :--- | :--- | :--- |
-   | 1 | 4 | `0x1101` `MapWorldInfoRequest`, `0x1110` `MapWorldInfo`, `0x1130` `MapTileChanged`, `0x4041` `TraderBuyRequest`, `0x4042` `TraderSellRequest`; `MapHandlers.HandleWorldInfoAsync`; `IWorldMapService` world parameters; `IWorldTradeService.SubmitTraderBuyAsync` / `SubmitTraderSellAsync`, `TradeService.BuyLocked` / `SellLocked`, `WorldCommandKind.TraderBuy` / `TraderSell` |
+   | 1 | 4 | Every dead opcode: `0x1101` `MapWorldInfoRequest`, `0x1110` `MapWorldInfo`, `0x1130` `MapTileChanged`, `0x4007` `VendorBuyItem`, `0x4008` `VendorSellItem`, `0x4041` `TraderBuyRequest`, `0x4042` `TraderSellRequest`. Server paths only they reached: `MapHandlers.HandleWorldInfoAsync` and the `IWorldMapService` world parameters; the vendor handlers, `IWorldInventoryService.SubmitVendorBuyAsync` / `SubmitVendorSellAsync`, `AuthoritativeWorld.TryVendorBuy` / `TryVendorSell`, `EconomyService.RunVendorOperation`, `WorldCommandKind.VendorBuy` / `VendorSell`; `IWorldTradeService.SubmitTraderBuyAsync` / `SubmitTraderSellAsync`, `TradeService.BuyLocked` / `SellLocked`, `WorldCommandKind.TraderBuy` / `TraderSell`. Client: `IGameplayController.TryVendorBuy` / `TryVendorSell` |
 
-   Later batches add their rows here: the vendor opcodes, the dead fields W-6 … W-12, and `EntityDeltaBatch.DirtyMasks`.
+   Later batches add their rows here: the dead fields W-6 … W-12, and `EntityDeltaBatch.DirtyMasks`.
    The auth fields (W-13) wait for the login redesign (ADR-037).
 
 ## Alternatives Considered
@@ -84,7 +85,8 @@ from losing its sender or its handler: `ProtocolContractGuardTests` checks uniqu
 
 ## Consequences
 
-- Five opcodes and their handlers are gone. An old client is refused at login, as for any other bump.
+- Seven opcodes and their handlers are gone, and so is the generic vendor. Village traders (ADR-025) are the only
+  place to buy or sell. An old client is refused at login, as for any other bump.
 - A new packet now needs both ends before CI is green, so a half-finished feature cannot ship a dead opcode.
 - Single-line trades are no longer possible. Every trade goes through the D18 batches with their `ExpectedGold` check.
 - The class B fields stay on the wire until the owner decides. They cost bytes until then.

@@ -203,17 +203,6 @@ public sealed class MultiplayerSessionTests
                 clientA.LocalPlayerGold.Should().Be(321, "WalletSync pushes the persisted balance on world entry");
                 clientA.LocalPlayerDiamonds.Should().Be(4);
 
-                // Buy 5 wood logs from the sanctuary vendor over the wire; the server charges gold and pushes WalletSync.
-                clientA.TryVendorBuy((ushort)StarterGameCatalog.WoodLog, 5).Should().BeTrue();
-                for (int t = 0; t < 40 && clientA.LocalPlayerGold == 321; t++)
-                {
-                    clientA.Update(1.0 / 30.0, Vector2.Zero, sprint: false);
-                    world.StepFixedTick();
-                    await Task.Delay(15).ConfigureAwait(true);
-                }
-
-                clientA.LocalPlayerGold.Should().Be(311, "5 wood logs at 2 gold each were bought");
-
                 (bool enteredB, _) = await clientB.EnterWorldAsync(rosterB[0].CharacterId).ConfigureAwait(true);
                 enteredB.Should().BeTrue();
                 clientB.LocalPlayerClass.Should().Be(Contracts.Identity.HeroArchetypeClass.Arcanist);

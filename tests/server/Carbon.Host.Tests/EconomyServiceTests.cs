@@ -8,7 +8,6 @@ using Carbon.Application.World.Commerce;
 using Carbon.Application.World.Loot;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
-using Carbon.Contracts.Common;
 using Carbon.Economy;
 using Carbon.Economy.Currency;
 using Carbon.Economy.Loot;
@@ -89,22 +88,6 @@ public sealed class EconomyServiceTests
     }
 
     [Fact]
-    public void RunVendorOperation_WithoutAnEconomy_IsForbidden()
-    {
-        Harness h = new(economy: null) { NpcNearby = true };
-
-        h.Commerce.RunVendorOperation(h.Player, Vector2.Zero, VendorOperation.Buy, 1, 1, []).Should().Be(OpStatus.Forbidden);
-    }
-
-    [Fact]
-    public void RunVendorOperation_TradeAwayFromAnyTownNpc_IsOutOfRange()
-    {
-        Harness h = new(s_shipped) { NpcNearby = false };
-
-        h.Commerce.RunVendorOperation(h.Player, Vector2.Zero, VendorOperation.Sell, 0, 1, []).Should().Be(OpStatus.OutOfRange);
-    }
-
-    [Fact]
     public void QueueWalletSync_StagesTheCurrentBalances()
     {
         Harness h = new(s_shipped);
@@ -124,7 +107,7 @@ public sealed class EconomyServiceTests
             ItemRules rules = economy?.ItemRules ?? ItemRules.LoadShippedDefaults();
             WorldSimulation simulation = new();
             this.GroundLoot = new GroundLootService(simulation, () => rules, () => ++_nextNetworkId, () => 50UL, (_, _) => { });
-            this.Commerce = new EconomyService(TestGameplayEntropy.Create(42UL), 30, () => economy, () => 50UL, this.GroundLoot, this.Outbound, (_, _) => this.NpcNearby);
+            this.Commerce = new EconomyService(TestGameplayEntropy.Create(42UL), 30, () => economy, () => 50UL, this.GroundLoot, this.Outbound);
 
             ConnectedPlayerSession session = new(9UL, Guid.NewGuid(), Guid.NewGuid(), "Tester", 900UL, 0, 0);
             CharacterRecord character = new(
@@ -139,7 +122,5 @@ public sealed class EconomyServiceTests
         public EconomyService Commerce { get; }
 
         public PlayerState Player { get; }
-
-        public bool NpcNearby { get; init; }
     }
 }

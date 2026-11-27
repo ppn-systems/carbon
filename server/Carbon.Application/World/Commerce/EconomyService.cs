@@ -1,14 +1,12 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
-using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Abstractions.World;
 using Carbon.Application.World.Inventory;
 using Carbon.Application.World.Loot;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
-using Carbon.Contracts.Common;
 using Carbon.Economy;
 using Carbon.Economy.Config;
 using Carbon.Economy.Currency;
@@ -21,21 +19,9 @@ using Carbon.Primitives.Random;
 
 namespace Carbon.Application.World.Commerce;
 
-/// <summary>A vendor-side mutation of a player's wallet and inventory.</summary>
-internal enum VendorOperation : byte
-{
-    /// <summary>Buy <c>quantity</c> of item <c>itemId</c> for gold.</summary>
-    Buy = 1,
-
-    /// <summary>Sell <c>quantity</c> units from bag slot <c>slotIndex</c> for gold.</summary>
-    Sell = 2,
-
-}
-
 /// <summary>
 /// The world's economy (audit SOLID-1, extracted from <see cref="AuthoritativeWorld"/>): config-driven monster loot rolled
-/// on kills (item stacks and gold/diamond piles dropped as ground loot reserved for the killer, ADR-019), vendor buy/sell with
-/// their proximity rules, and wallet sync messages. Deterministic per (gameplay secret, tick, victim), ADR-026.
+/// on kills (item stacks and gold/diamond piles dropped as ground loot reserved for the killer, ADR-019) and wallet sync messages. Deterministic per (gameplay secret, tick, victim), ADR-026.
 /// Called only under the world lock.
 /// </summary>
 internal sealed class EconomyService
@@ -43,10 +29,7 @@ internal sealed class EconomyService
     /// <summary>Most item stacks one kill can drop.</summary>
     public const int MaxLootStacksPerKill = 16;
 
-    /// <summary>Largest quantity one vendor purchase may ask for.</summary>
-    public const ushort MaxVendorQuantity = 999;
-
-    /// <summary>Squared reach to a friendly town NPC for trading.</summary>
+    /// <summary>Squared reach to a trader NPC for trading.</summary>
     public const float VendorRangeSq = 175f * 175f;
 
     private readonly IGameplayEntropy _entropy;
@@ -55,7 +38,6 @@ internal sealed class EconomyService
     private readonly Func<ulong> _currentTick;
     private readonly GroundLootService _groundLoot;
     private readonly OutboundTickBuffer _outbound;
-    private readonly Func<Vector2, float, bool> _hasNearbyFriendlyNpc;
 
     /// <summary>Initializes a new instance of the <see cref="EconomyService"/> class.</summary>
     public EconomyService(
@@ -64,8 +46,7 @@ internal sealed class EconomyService
         Func<GameEconomy?> economy,
         Func<ulong> currentTick,
         GroundLootService groundLoot,
-        OutboundTickBuffer outbound,
-        Func<Vector2, float, bool> hasNearbyFriendlyNpc)
+        OutboundTickBuffer outbound)
     {
         _entropy = entropy ?? throw new ArgumentNullException(nameof(entropy));
         _tickRate = tickRate == 0 ? (ushort)30 : tickRate;
@@ -73,10 +54,9 @@ internal sealed class EconomyService
         _currentTick = currentTick ?? throw new ArgumentNullException(nameof(currentTick));
         _groundLoot = groundLoot ?? throw new ArgumentNullException(nameof(groundLoot));
         _outbound = outbound ?? throw new ArgumentNullException(nameof(outbound));
-        _hasNearbyFriendlyNpc = hasNearbyFriendlyNpc ?? throw new ArgumentNullException(nameof(hasNearbyFriendlyNpc));
     }
 
-    /// <summary>Gets whether the world runs an economy (vendors, loot tables, currency).</summary>
+    /// <summary>Gets whether the world runs an economy (traders, loot tables, currency).</summary>
     public bool IsEnabled => _economy() is not null;
 
     /// <summary>Maps a <see cref="WorldActorCatalog"/> monster archetype to its <c>loot.json</c> table id.</summary>
@@ -181,54 +161,6 @@ internal sealed class EconomyService
 
         this.QueueWalletSync(victim);
         return loss;
-    }
-
-    /// <summary>
-    /// Runs a vendor operation at <paramref name="playerPos"/>: requires a friendly town NPC in reach, then applies it
-    /// through the economy's vendor and records the changed slots. <paramref name="arg"/> is the item id (buy) or slot
-    /// index (sell).
-    /// </summary>
-    public OpStatus RunVendorOperation(
-        PlayerState state,
-        Vector2 playerPos,
-        VendorOperation operation,
-        ushort arg,
-        ushort quantity,
-        List<(ushort SlotIndex, ItemSlot Slot)> modified)
-    {
-        ArgumentNullException.ThrowIfNull(state);
-        ArgumentNullException.ThrowIfNull(modified);
-        GameEconomy? economy = _economy();
-        if (economy is null)
-        {
-            return OpStatus.Forbidden;
-        }
-
-        if (!_hasNearbyFriendlyNpc(playerPos, VendorRangeSq))
-        {
-            return OpStatus.OutOfRange;
-        }
-
-        ReadOnlySpan<ItemSlot> beforeSlots = state.Inventory.Slots;
-        Span<ItemSlot> beforeSnapshot = stackalloc ItemSlot[beforeSlots.Length];
-        beforeSlots.CopyTo(beforeSnapshot);
-
-        ulong tick = _currentTick();
-        OpStatus status = operation switch
-        {
-            VendorOperation.Buy => economy.Vendor.TryBuy(
-                state.Wallet, state.Inventory, arg, quantity, tick, Math.Min(PlayerInventoryLayout.BagLimit, state.Inventory.Capacity), state.Level).Status,
-            VendorOperation.Sell => economy.Vendor.TrySellSlot(state.Wallet, state.Inventory, arg, quantity, tick).Status,
-            _ => OpStatus.Invalid,
-        };
-        if (status != OpStatus.Ok)
-        {
-            return status;
-        }
-
-        modified.Clear();
-        InventoryService.CollectModifiedSlots(beforeSnapshot, state.Inventory.Slots, modified);
-        return OpStatus.Ok;
     }
 
     /// <summary>Queues the player's wallet balances for its client.</summary>
