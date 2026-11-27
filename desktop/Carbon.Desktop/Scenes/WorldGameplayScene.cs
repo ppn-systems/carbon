@@ -12,6 +12,7 @@ using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Abstractions.World;
+using Carbon.Desktop.Capture;
 using Carbon.Desktop.Input;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Graphics.Batching.Camera;
@@ -672,24 +673,7 @@ public sealed class WorldGameplayScene : GameScene
         _frameCount++;
         if (_frameCount == 15 && _options.CaptureModal.Length > 0)
         {
-            switch (_options.CaptureModal)
-            {
-                case "inventory":
-                    _ = _hudRenderer.OpenOrTogglePlayerTab(_session, PlayerModalTab.Inventory);
-                    break;
-                case "character":
-                    _ = _hudRenderer.OpenOrTogglePlayerTab(_session, PlayerModalTab.Character);
-                    break;
-                case "skills":
-                    _ = _hudRenderer.OpenOrTogglePlayerTab(_session, PlayerModalTab.Skills);
-                    break;
-                case "crafting":
-                    _ = _hudRenderer.OpenOrTogglePlayerTab(_session, PlayerModalTab.Crafting);
-                    break;
-                default:
-                    _hudRenderer.OpenSettings(string.Equals(_options.CaptureModal, "controls", StringComparison.Ordinal) ? 1 : 0);
-                    break;
-            }
+            CaptureModalOpener.Open(_hudRenderer, _session, _options.CaptureModal);
         }
 
         if (_frameCount >= 20 && !_hasAutoCaptured)
