@@ -17,6 +17,7 @@ using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
+using Nalix.Abstractions.Primitives;
 using Xunit;
 
 namespace Carbon.Host.Tests;
@@ -255,7 +256,7 @@ public sealed class TickQueuedWorldCommandTests
             SqliteCharacterStore characters = new(factory);
             DateTimeOffset now = new(2026, 11, 26, 12, 0, 0, TimeSpan.Zero);
             Guid accountId = Guid.NewGuid();
-            _ = await accounts.TryCreateAsync(new AccountRecord(accountId, "queuer", "QUEUER", [1], [2], now, false)).ConfigureAwait(false);
+            _ = await accounts.TryCreateAsync(new AccountRecord(accountId, "queuer", "QUEUER", Bytes32.Zero, [2], now, false)).ConfigureAwait(false);
 
             AuthoritativeWorld world = new(
                 Seed,

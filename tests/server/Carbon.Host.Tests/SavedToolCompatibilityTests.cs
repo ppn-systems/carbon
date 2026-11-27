@@ -15,6 +15,7 @@ using Carbon.Items.Definitions;
 using Carbon.Items.Serialization;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
+using Nalix.Abstractions.Primitives;
 using Xunit;
 
 namespace Carbon.Host.Tests;
@@ -32,7 +33,7 @@ public sealed class SavedToolCompatibilityTests
             await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
             SqliteCharacterStore characters = new(factory);
             Guid accountId = Guid.NewGuid();
-            (await new SqliteAccountStore(factory).TryCreateAsync(new AccountRecord(accountId, "veteran", "VETERAN", [1], [2], DateTimeOffset.UnixEpoch, false)).ConfigureAwait(true)).Should().BeTrue();
+            (await new SqliteAccountStore(factory).TryCreateAsync(new AccountRecord(accountId, "veteran", "VETERAN", Bytes32.Zero, [2], DateTimeOffset.UnixEpoch, false)).ConfigureAwait(true)).Should().BeTrue();
 
             // Before this tier the wood axe had 120 durability; saves keep the raw id and durability.
             InventoryContainer oldBag = new(PlayerInventoryLayout.TotalCapacity);

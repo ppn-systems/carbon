@@ -28,6 +28,7 @@ using Carbon.Survival.Config;
 using Carbon.Survival.Food;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
+using Nalix.Abstractions.Primitives;
 using Xunit;
 
 namespace Carbon.Host.Tests;
@@ -630,7 +631,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
             DateTimeOffset now = new(2026, 11, 26, 12, 0, 0, TimeSpan.Zero);
             Guid accountId = Guid.NewGuid();
-            AccountRecord account = new(accountId, "harvester", "HARVESTER", [1, 2, 3], [4, 5, 6], now, false);
+            AccountRecord account = new(accountId, "harvester", "HARVESTER", Bytes32.Zero, [4, 5, 6], now, false);
             (await accounts.TryCreateAsync(account).ConfigureAwait(true)).Should().BeTrue();
 
             const ulong seed = 1337UL;
@@ -721,7 +722,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
             DateTimeOffset now = new(2026, 11, 26, 12, 0, 0, TimeSpan.Zero);
             Guid accountId = Guid.NewGuid();
-            AccountRecord account = new(accountId, "saver", "SAVER", [1, 2, 3], [4, 5, 6], now, false);
+            AccountRecord account = new(accountId, "saver", "SAVER", Bytes32.Zero, [4, 5, 6], now, false);
             (await accounts.TryCreateAsync(account).ConfigureAwait(true)).Should().BeTrue();
 
             AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, chunks, characters, sink, entropy: TestGameplayEntropy.Create(1337UL));
@@ -791,7 +792,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
             DateTimeOffset now = DateTimeOffset.UtcNow;
             Guid accountId = Guid.NewGuid();
-            AccountRecord account = new(accountId, "tester", "TESTER", [1, 2, 3], [4, 5, 6], now, false);
+            AccountRecord account = new(accountId, "tester", "TESTER", Bytes32.Zero, [4, 5, 6], now, false);
             (await accounts.TryCreateAsync(account).ConfigureAwait(true)).Should().BeTrue();
 
             AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, chunks, characters, sink, entropy: TestGameplayEntropy.Create(1337UL));
@@ -1196,7 +1197,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             SqliteCharacterStore characters = new(factory);
             Guid accountId = Guid.NewGuid();
             DateTimeOffset now = DateTimeOffset.UtcNow;
-            (await accounts.TryCreateAsync(new AccountRecord(accountId, "hungry", "HUNGRY", [1, 2, 3], [4, 5, 6], now, false)).ConfigureAwait(true)).Should().BeTrue();
+            (await accounts.TryCreateAsync(new AccountRecord(accountId, "hungry", "HUNGRY", Bytes32.Zero, [4, 5, 6], now, false)).ConfigureAwait(true)).Should().BeTrue();
 
             RecordingOutboundSink sink = new();
             AuthoritativeWorld world = CreateSurvivalWorld(factory, sink, new NeedsConfig(), out _, out _);
@@ -1405,7 +1406,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
             Guid accountId = Guid.NewGuid();
-            (await new SqliteAccountStore(factory).TryCreateAsync(new AccountRecord(accountId, "sleepy", "SLEEPY", [1, 2, 3], [4, 5, 6], DateTimeOffset.UtcNow, false)).ConfigureAwait(true)).Should().BeTrue();
+            (await new SqliteAccountStore(factory).TryCreateAsync(new AccountRecord(accountId, "sleepy", "SLEEPY", Bytes32.Zero, [4, 5, 6], DateTimeOffset.UtcNow, false)).ConfigureAwait(true)).Should().BeTrue();
 
             // Starter loadout: a tier-1 axe in hotbar slot 0 (beds need tier 1 to build), plus logs and planks.
             InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
@@ -1537,7 +1538,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             RecordingOutboundSink sink = new();
             DateTimeOffset now = DateTimeOffset.UtcNow;
             Guid accountId = Guid.NewGuid();
-            (await accounts.TryCreateAsync(new AccountRecord(accountId, "merchant", "MERCHANT", [1, 2, 3], [4, 5, 6], now, false)).ConfigureAwait(true)).Should().BeTrue();
+            (await accounts.TryCreateAsync(new AccountRecord(accountId, "merchant", "MERCHANT", Bytes32.Zero, [4, 5, 6], now, false)).ConfigureAwait(true)).Should().BeTrue();
 
             GameEconomy economy = GameEconomy.LoadFromDirectory(GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!);
             AuthoritativeWorld world = new(

@@ -16,6 +16,7 @@ using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
+using Nalix.Abstractions.Primitives;
 using Xunit;
 
 namespace Carbon.Host.Tests;
@@ -100,7 +101,7 @@ public sealed class ItemBreakWorldTests
             SqliteCharacterStore characters = new(factory);
             DateTimeOffset now = new(2026, 11, 27, 12, 0, 0, TimeSpan.Zero);
             Guid accountId = Guid.NewGuid();
-            _ = await accounts.TryCreateAsync(new AccountRecord(accountId, "breaker", "BREAKER", [1], [2], now, false)).ConfigureAwait(false);
+            _ = await accounts.TryCreateAsync(new AccountRecord(accountId, "breaker", "BREAKER", Bytes32.Zero, [2], now, false)).ConfigureAwait(false);
 
             AuthoritativeWorldMultiplayerTests.RecordingOutboundSink sink = new();
             AuthoritativeWorld world = new(

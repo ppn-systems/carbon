@@ -16,6 +16,7 @@ using Carbon.Items.Definitions;
 using Carbon.Items.Serialization;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
+using Nalix.Abstractions.Primitives;
 using Xunit;
 
 namespace Carbon.Host.Tests;
@@ -243,7 +244,7 @@ public sealed class ForgeEnhancementWorldTests
             GameEconomy economy = GameEconomy.LoadFromDirectory(GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!);
             WorldFixture fixture = new(dbPath, factory, economy, secret);
             await fixture.World.InitializeFromStoreAsync().ConfigureAwait(true);
-            (await fixture._accounts.TryCreateAsync(new AccountRecord(fixture._accountId, "forger", "FORGER", [1, 2, 3], [4, 5, 6], DateTimeOffset.UtcNow, false)).ConfigureAwait(true))
+            (await fixture._accounts.TryCreateAsync(new AccountRecord(fixture._accountId, "forger", "FORGER", Bytes32.Zero, [4, 5, 6], DateTimeOffset.UtcNow, false)).ConfigureAwait(true))
                 .Should().BeTrue();
             return fixture;
         }

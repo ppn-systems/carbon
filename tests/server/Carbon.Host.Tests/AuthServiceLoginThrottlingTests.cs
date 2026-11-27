@@ -11,6 +11,7 @@ using Carbon.Contracts.Common;
 using Carbon.Contracts.Identity;
 using FluentAssertions;
 using NSubstitute;
+using Nalix.Abstractions.Primitives;
 using Xunit;
 
 namespace Carbon.Host.Tests;
@@ -142,7 +143,7 @@ public sealed class AuthServiceLoginThrottlingTests
                 Guid.NewGuid(),
                 Username,
                 Username.ToUpperInvariant(),
-                [1],
+                Bytes32.Zero,
                 [2],
                 this.Time.GetUtcNow(),
                 IsBanned: false);
@@ -166,13 +167,13 @@ public sealed class AuthServiceLoginThrottlingTests
 
         public int VerifyCalls => Volatile.Read(ref _verifyCalls);
 
-        public void HashPassword(string password, out byte[] hash, out byte[] salt)
+        public void HashPassword(string password, out Bytes32 hash, out byte[] salt)
         {
-            hash = [1];
+            hash = Bytes32.Zero;
             salt = [2];
         }
 
-        public bool Verify(string password, ReadOnlySpan<byte> expectedHash, ReadOnlySpan<byte> salt)
+        public bool Verify(string password, in Bytes32 expectedHash, ReadOnlySpan<byte> salt)
         {
             _ = Interlocked.Increment(ref _verifyCalls);
             return password == Password;

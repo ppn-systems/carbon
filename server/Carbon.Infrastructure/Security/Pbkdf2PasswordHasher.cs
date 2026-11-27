@@ -3,6 +3,7 @@
 using System;
 using System.Security.Cryptography;
 using Carbon.Abstractions.Security;
+using Nalix.Abstractions.Primitives;
 
 namespace Carbon.Infrastructure.Security;
 
@@ -12,28 +13,34 @@ namespace Carbon.Infrastructure.Security;
 public sealed class Pbkdf2PasswordHasher : IPasswordHasher
 {
     private const int SaltBytes = 16;
-    private const int KeyBytes = 32;
     private const int Iterations = 100_000;
 
     /// <inheritdoc/>
-    public void HashPassword(string password, out byte[] hash, out byte[] salt)
+    public void HashPassword(string password, out Bytes32 hash, out byte[] salt)
     {
         ArgumentException.ThrowIfNullOrEmpty(password);
 
         salt = RandomNumberGenerator.GetBytes(SaltBytes);
-        hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, Iterations, HashAlgorithmName.SHA256, KeyBytes);
+        Span<byte> derived = stackalloc byte[Bytes32.Size];
+        Rfc2898DeriveBytes.Pbkdf2(password, salt, derived, Iterations, HashAlgorithmName.SHA256);
+        hash = new Bytes32(derived);
+        CryptographicOperations.ZeroMemory(derived);
     }
 
     /// <inheritdoc/>
-    public bool Verify(string password, ReadOnlySpan<byte> expectedHash, ReadOnlySpan<byte> salt)
+    public bool Verify(string password, in Bytes32 expectedHash, ReadOnlySpan<byte> salt)
     {
-        if (string.IsNullOrEmpty(password) || expectedHash.Length == 0 || salt.Length == 0)
+        if (string.IsNullOrEmpty(password) || expectedHash.IsZero || salt.Length == 0)
         {
             return false;
         }
 
-        Span<byte> candidate = stackalloc byte[KeyBytes];
-        Rfc2898DeriveBytes.Pbkdf2(password, salt, candidate, Iterations, HashAlgorithmName.SHA256);
-        return CryptographicOperations.FixedTimeEquals(candidate, expectedHash);
+        Span<byte> derived = stackalloc byte[Bytes32.Size];
+        Rfc2898DeriveBytes.Pbkdf2(password, salt, derived, Iterations, HashAlgorithmName.SHA256);
+        Bytes32 candidate = new(derived);
+        CryptographicOperations.ZeroMemory(derived);
+        bool match = candidate.Equals(expectedHash); // constant-time
+        Bytes32.Wipe(ref candidate);
+        return match;
     }
 }
