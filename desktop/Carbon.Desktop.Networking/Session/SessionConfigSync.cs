@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Configuration.Caching;
@@ -16,6 +17,14 @@ using Nalix.SDK.Transport.Extensions;
 namespace Carbon.Desktop.Networking.Session;
 
 /// <summary>
+/// Opens the server's document stream for one config request, or returns <see langword="null"/> when there is no
+/// connected transport to ask (the sync then waits for the next connection's manifest).
+/// </summary>
+/// <param name="manifestVersion">The manifest version the requested documents belong to.</param>
+/// <param name="names">The documents to download.</param>
+internal delegate IAsyncEnumerable<ConfigDocument>? ConfigDocumentStreamFactory(uint manifestVersion, string[] names);
+
+/// <summary>
 /// Server-authoritative gameplay config sync (ADR-014). The server pushes a <see cref="ConfigManifest"/> after sign-in and
 /// after every hot reload; this client downloads only documents whose hash differs from the on-disk cache, verifies them,
 /// and exposes them through <see cref="GameConfig"/>. One pump runs at a time; a manifest that arrives mid-download
@@ -27,7 +36,7 @@ internal sealed class SessionConfigSync
     internal const int ConfigSyncTimeoutMs = 15_000;
 
     private readonly ConfigSyncClient _configSync;
-    private readonly Func<TcpSession?> _currentTcp;
+    private readonly ConfigDocumentStreamFactory _openDocumentStream;
     private readonly Action<ConfigCatalog> _applyCatalog;
     private readonly Lock _configGate = new();
     private ConfigManifest? _pendingManifest;
@@ -37,11 +46,11 @@ internal sealed class SessionConfigSync
 
     /// <summary>Initializes a new instance of the <see cref="SessionConfigSync"/> class.</summary>
     /// <param name="cacheDirectory">Directory of the on-disk config document cache.</param>
-    /// <param name="currentTcp">Returns the session's current TCP transport, or <see langword="null"/> when there is none.</param>
+    /// <param name="openDocumentStream">Opens a document download; <see cref="OpenTcpStream"/> in production.</param>
     /// <param name="applyCatalog">Applies a verified catalog to the session's synced catalogs before it is published.</param>
-    public SessionConfigSync(string cacheDirectory, Func<TcpSession?> currentTcp, Action<ConfigCatalog> applyCatalog)
+    public SessionConfigSync(string cacheDirectory, ConfigDocumentStreamFactory openDocumentStream, Action<ConfigCatalog> applyCatalog)
     {
-        _currentTcp = currentTcp;
+        _openDocumentStream = openDocumentStream;
         _applyCatalog = applyCatalog;
         _configSync = new ConfigSyncClient(new ConfigDocumentStore(new FileSystemConfigCacheStorage(cacheDirectory)));
         _configSync.Ready += this.OnConfigReady;
@@ -135,12 +144,12 @@ internal sealed class SessionConfigSync
 
                 while (names.Length > 0 && !this.HasPendingManifest())
                 {
-                    if (_currentTcp() is not { IsConnected: true } tcp)
+                    if (_openDocumentStream(_configSync.ManifestVersion, names) is not { } stream)
                     {
                         return;
                     }
 
-                    names = await this.DownloadConfigDocumentsAsync(tcp, names).ConfigureAwait(false);
+                    names = await this.DownloadConfigDocumentsAsync(stream).ConfigureAwait(false);
                 }
             }
         }
@@ -158,16 +167,27 @@ internal sealed class SessionConfigSync
         }
     }
 
-    private async Task<string[]> DownloadConfigDocumentsAsync(TcpSession tcp, string[] names)
+    /// <summary>The production <see cref="ConfigDocumentStreamFactory"/>: streams the documents over a connected TCP session.</summary>
+    public static IAsyncEnumerable<ConfigDocument>? OpenTcpStream(TcpSession? tcp, uint manifestVersion, string[] names) =>
+        tcp is { IsConnected: true } connected ? StreamOverTcpAsync(connected, manifestVersion, names) : null;
+
+    private static async IAsyncEnumerable<ConfigDocument> StreamOverTcpAsync(TcpSession tcp, uint manifestVersion, string[] names)
     {
         RequestOptions reqOpts = RequestOptions.Default.WithTimeout(ConfigSyncTimeoutMs).WithEncrypt(tcp.State.EncryptionEnabled);
         using PacketScope<ConfigRequest> lease = PacketFactory<ConfigRequest>.Acquire();
-        lease.Value.ManifestVersion = _configSync.ManifestVersion;
+        lease.Value.ManifestVersion = manifestVersion;
         lease.Value.Names = names;
+        await foreach (ConfigDocument chunk in tcp.StreamAsync<ConfigDocument>(lease.Value, reqOpts, CancellationToken.None).ConfigureAwait(false))
+        {
+            yield return chunk;
+        }
+    }
 
+    private async Task<string[]> DownloadConfigDocumentsAsync(IAsyncEnumerable<ConfigDocument> stream)
+    {
         string[] retry = [];
         bool sawEndOfStream = false;
-        await foreach (ConfigDocument chunk in tcp.StreamAsync<ConfigDocument>(lease.Value, reqOpts, CancellationToken.None).ConfigureAwait(false))
+        await foreach (ConfigDocument chunk in stream.ConfigureAwait(false))
         {
             sawEndOfStream |= chunk.IsEndOfStream;
             string[] again = _configSync.HandleDocument(chunk);

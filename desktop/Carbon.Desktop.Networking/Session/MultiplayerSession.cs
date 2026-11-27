@@ -56,6 +56,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     private readonly List<PropImpactEvent> _propImpactEvents = new(16);
     private readonly List<(int ChunkX, int ChunkY)> _dirtyChunks = new(16);
     private readonly List<string> _hudNotifications = new(16);
+    private readonly MapMutationApplier _mapMutations;
     private readonly TraderSession _trading;
     private readonly CharacterProgressionState _progression = new();
     private readonly Dictionary<ushort, float> _skillCooldowns = new(8);
@@ -172,6 +173,7 @@ public sealed partial class MultiplayerSession : IWorldSession
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _config = this.CreateConfigSync();
         _entityNames = new EntityNameKeys(_items);
+        _mapMutations = new MapMutationApplier(_dirtyChunks, _propImpactEvents, _combatEvents, _hudNotifications);
         _trading = new TraderSession(() => this.IsReady ? _tcpSession : null, text => { lock (_worldGate) { _hudNotifications.Add(text); } });
     }
 
