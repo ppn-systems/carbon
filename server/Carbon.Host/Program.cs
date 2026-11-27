@@ -106,7 +106,9 @@ public static class Program
 
         Pbkdf2PasswordHasher hasher = new();
         SessionTransportRegistry transportRegistry = new();
-        WorldOutboundSink outboundSink = new(transportRegistry, loggerFactory.CreateLogger<WorldOutboundSink>());
+        // ADR-043: outbound packets are leased from a pool the host owns for its lifetime.
+        using PacketPool outboundPackets = new();
+        WorldOutboundSink outboundSink = new(transportRegistry, loggerFactory.CreateLogger<WorldOutboundSink>(), outboundPackets);
         // Gameplay config is server-authoritative (ADR-014): the server builds its domains from the same snapshot it
         // serves to clients, so both sides always run on identical bytes.
         ConfigRepository config = ConfigRepository.Load(ResolveConfigDirectory(options.ConfigDirectory), s_serverOnlyDocuments);

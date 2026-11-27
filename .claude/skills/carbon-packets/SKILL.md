@@ -18,7 +18,9 @@ Applies to all network packet contracts defined in `contracts/`.
   - Every packet carries a distinct `ushort` Opcode via `public static ushort StaticOpCode => (ushort)GameOpCode.X;`.
   - Duplicate opcodes must fail the build.
 - **Zero-Allocation Pooling**:
-  - Packets must be rented from `PacketFactory<T>.Acquire()` and returned after transmission. Never `new` a packet on the hot path.
+  - Server sends on the tick path lease packets from `PacketPool.Rent<T>()` (`server/Carbon.Host/PacketPool.cs`, ADR-043) inside a `using` scope around the awaited send, so the packet returns only after the send completes and is reset (`ResetForPool`) for the next recipient. Never `new` a packet on the hot path.
+  - `PacketFactory<T>.Acquire()` allocates a new packet on every call in our setup (ADR-043). Use it only on cold paths, such as handler replies.
+  - A field with an initializer (`Level = 1`, `EatProgress = -1`) resets to the type default, not the initializer: the sender must set it on every send (`PacketResetCoverageTests` checks this).
 
 ## Packet Definition Blueprint
 
