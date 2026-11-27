@@ -110,6 +110,12 @@ public sealed class DesktopOptions
     public (float X, float Y)? AutoWalk { get; init; }
 
     /// <summary>
+    /// Gets or sets the seconds between automatic primary-action swings at the nearest monster (<c>CARBON_AUTO_ATTACK=s</c>,
+    /// 0 = off; used by the screenshot tool to measure and capture combat).
+    /// </summary>
+    public float AutoAttackSeconds { get; init; }
+
+    /// <summary>
     /// Gets or sets a HUD window to open before the automatic capture (<c>CARBON_CAPTURE_MODAL=settings|controls|inventory|character|skills|crafting</c>;
     /// used by the screenshot tool to review localized UI, ADR-023 D8). Empty when unset.
     /// </summary>
@@ -281,6 +287,9 @@ public sealed class DesktopOptions
             },
             RepairPreview = get("CARBON_REPAIR_PREVIEW") is { Length: > 0 } repairPreview ? repairPreview.Trim() : null,
             AutoWalk = ParsePoint(get("CARBON_AUTO_WALK")),
+            AutoAttackSeconds = float.TryParse(get("CARBON_AUTO_ATTACK"), NumberStyles.Float, CultureInfo.InvariantCulture, out float autoAttack)
+                ? Math.Clamp(autoAttack, 0f, 60f)
+                : 0f,
             OpenPanel = get("CARBON_OPEN_PANEL") is { Length: > 0 } panel ? panel.Trim() : null,
             CaptureMouse = ParsePoint(get("CARBON_CAPTURE_MOUSE")),
             CaptureModal = get("CARBON_CAPTURE_MODAL") is { Length: > 0 } modal ? modal.Trim().ToLowerInvariant() : string.Empty,

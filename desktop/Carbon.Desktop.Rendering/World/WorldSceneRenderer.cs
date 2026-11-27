@@ -1024,7 +1024,15 @@ public sealed class WorldSceneRenderer : IDisposable
         }
     }
 
-    private static string ResolveCharacterClip(ActionState action, float attackSwingTimer, bool moving)
+    /// <summary>
+    /// Gets the hero rig clip for the local player's action (<c>base_hero.cvg.json</c>). Public so the offline art
+    /// showcase (<c>--showcase</c>) renders hero attack filmstrips through the same mapping as the world.
+    /// </summary>
+    /// <param name="action">The local action.</param>
+    /// <param name="attackSwingTimer">Remaining legacy swing seconds.</param>
+    /// <param name="moving">Whether the player is moving.</param>
+    /// <returns>The clip name.</returns>
+    public static string ResolveCharacterClip(ActionState action, float attackSwingTimer, bool moving)
     {
         if (action.IsActive)
         {
