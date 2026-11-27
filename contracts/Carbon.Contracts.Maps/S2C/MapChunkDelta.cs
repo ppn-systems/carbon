@@ -142,4 +142,12 @@ public sealed partial class MapChunkDelta : PacketBase<MapChunkDelta>, IPacketSt
     /// <summary>Tree growth stage per prop state, parallel to <see cref="PropIndices"/> (<c>Carbon.Maps.Props.TreeGrowthStage</c>, ADR-040).</summary>
     [SerializeOrder(30)]
     public byte[] PropGrowthStages { get; set; } = [];
+
+    /// <summary>Local tile indices of trees players planted on tiles with no prop (ADR-040).</summary>
+    [SerializeOrder(31)]
+    public ushort[] PlantedIndices { get; set; } = [];
+
+    /// <summary>Tree type per planted tree (<c>Carbon.Maps.Props.MapPropType</c>), parallel to <see cref="PlantedIndices"/>.</summary>
+    [SerializeOrder(32)]
+    public byte[] PlantedTypes { get; set; } = [];
 }

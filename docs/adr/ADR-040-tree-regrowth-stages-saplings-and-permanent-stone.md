@@ -38,9 +38,17 @@ What master (`6125a15`) does:
    - Stumps and saplings have no collider and no canopy; a young tree has both, drawn at 60 % size. A stump draws the
      tree's existing `remnantShapes`, a sapling the shared `props/tree_sapling.cvg.json`. All of it is vector art.
    - Growth works while the chunk is not loaded: the chunk delta records the tree type with the stage.
-   - A sapling item can be **planted** through the place flow on a natural ground tile within build reach that holds
-     no structure, no construction site and no other prop. It creates a sapling-stage tree that grows like any other.
-     The server validates reach, tile and occupancy.
+   - A sapling item can be **planted** through the place flow. The item is `placeable`: the primary action plants it on
+     the aimed tile, so it gets the client's placement preview and build reach. The server checks:
+     - reach (`structures.json` `placementReachTiles`);
+     - a sapling in the active hotbar slot (one is used up);
+     - natural ground: no water, rock, road or bridge, in a biome that grows trees
+       (`BiomePropTables.TryGetPlantedTree`);
+     - no structure, construction site or other prop. A dug-up stump's tile can be planted again.
+
+     The sapling grows into the biome's first natural tree (on a dug-up stump's tile, the tree it was) and grows like
+     any other tree. The result is `OpStatus.Ok`, `OutOfRange`, `NotFound` (no sapling held), `Invalid` (unsuitable
+     ground) or `Conflict` (occupied tile).
    - Other flora (bushes, cactus, mushrooms, dune grass, dead trees, fallen branches) comes back whole after its own
      delay, with no stages.
 1b. **D1b — Digging up stumps** (owner addition). A player can dig up a stump to clear the land for building.
@@ -93,8 +101,10 @@ What master (`6125a15`) does:
      (`ChunkWorld2D.ScheduleLegacyRespawns`) with the delay of their type, which needs the chunk's baseline to know the
      type. The rescheduled chunks are saved again in format 4. Mined stone and ore stay gone.
    - No SQL migration: `chunk_deltas.payload` is an opaque blob, and the format byte travels inside it.
-   - Format 5 (PR 2) appends the growth stage and the tree type to each prop state. PR 3 adds planted props
-     (format 6). Each format keeps its own legacy reader.
+   - Format 5 (PR 2) appends the growth stage and the tree type to each prop state. Format 6 (PR 3) appends the planted
+     trees (tile index and tree type). They are added to the chunk before the prop states are applied. Each format
+     keeps its own legacy reader. Like natural prop states, planted trees are dropped when a delta migrates to another
+     `GeneratorVersion`, because the new generator may put a prop on their tile.
    - A tree felled before format 5 (destroyed, mature stage) is rescheduled with the stump stage's time and comes back
      whole.
 6. **D6 — Nothing grows into an occupied tile.** When a prop is due, it waits `blockedRetrySeconds` and tries again
@@ -110,7 +120,9 @@ What master (`6125a15`) does:
    parallel to `PropIndices`) and `MapPropChanged.GrowthStage` (`[SerializeOrder(5)]`). It also bumps
    `CarbonProtocol.Version` to 7. No opcode is added. Each stage change sends one `MapPropChanged` with the new stage's
    full durability. The client treats a change to a stump as the tree breaking (fracture feedback) and any other stage
-   change as quiet growth.
+   change as quiet growth. PR 3 appends `MapChunkDelta.PlantedIndices` / `PlantedTypes` (`[SerializeOrder(31)]`, `(32)`)
+   in the same protocol version 7, since both ship before a release. A `MapPropChanged` for a tile where the client has
+   no prop (a tree just planted) makes the client fetch that chunk's delta again.
 9. **D9 — Delivery.** Three PRs. (1) persistence fix, hot path, config-driven timing, permanent stone and fast spawn
    forage. (2) tree stages and stumps. (3) sapling drops and planting. `ProceduralWorldGenerator.GeneratorVersion` does
    not change: the world generator's output is the same.

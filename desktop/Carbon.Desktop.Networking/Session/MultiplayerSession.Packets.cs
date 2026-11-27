@@ -1255,6 +1255,13 @@ public sealed partial class MultiplayerSession
                 return;
             }
 
+            if (!_chunkWorld.TryGetPropAt(tileX, tileY, out _))
+            {
+                // A prop the client does not have yet: a tree a player just planted (ADR-040). Its chunk delta carries it.
+                _ = this.SyncChunkDeltaAsync(Chunk2D.ToChunkCoord(tileX), Chunk2D.ToChunkCoord(tileY));
+                return;
+            }
+
             _mapMutations.ApplyPropChanged(_chunkWorld, tileX, tileY, durability, isDestroyed, stage, _inventory, _selectedSlot, _items);
         }
     }

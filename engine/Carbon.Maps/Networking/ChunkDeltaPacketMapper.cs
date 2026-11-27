@@ -62,6 +62,17 @@ public static class ChunkDeltaPacketMapper
             pi++;
         }
 
+        int plantedCount = delta.PlantedProps.Count;
+        ushort[] plantedIndices = plantedCount == 0 ? [] : new ushort[plantedCount];
+        byte[] plantedTypes = plantedCount == 0 ? [] : new byte[plantedCount];
+        int pl = 0;
+        foreach (KeyValuePair<int, MapPropType> kvp in delta.PlantedProps)
+        {
+            plantedIndices[pl] = (ushort)kvp.Key;
+            plantedTypes[pl] = (byte)kvp.Value;
+            pl++;
+        }
+
         int structCount = delta.Structures.Count;
         ushort[] structIndices = structCount == 0 ? [] : new ushort[structCount];
         byte[] structTypes = structCount == 0 ? [] : new byte[structCount];
@@ -136,6 +147,8 @@ public static class ChunkDeltaPacketMapper
             PropDurabilities = propDurabilities,
             PropDestroyed = propDestroyed,
             PropGrowthStages = propStages,
+            PlantedIndices = plantedIndices,
+            PlantedTypes = plantedTypes,
             StructureIndices = structIndices,
             StructureTypes = structTypes,
             StructureDurabilities = structDurabilities,
@@ -178,6 +191,11 @@ public static class ChunkDeltaPacketMapper
         if (packet.PropDurabilities.Length != propCount || packet.PropDestroyed.Length != propCount || packet.PropGrowthStages.Length != propCount)
         {
             throw new ArgumentException("Prop array lengths in MapChunkDelta must match PropIndices.", nameof(packet));
+        }
+
+        if (packet.PlantedTypes.Length != packet.PlantedIndices.Length)
+        {
+            throw new ArgumentException("Planted array lengths in MapChunkDelta must match PlantedIndices.", nameof(packet));
         }
 
         int structCount = packet.StructureIndices.Length;
@@ -232,6 +250,16 @@ public static class ChunkDeltaPacketMapper
                 Variant: packet.TileVariants[i],
                 HeightLevel: packet.TileHeightLevels[i]);
             delta.SetTile(lx, ly, in tile);
+        }
+
+        for (int i = 0; i < packet.PlantedIndices.Length; i++)
+        {
+            int idx = packet.PlantedIndices[i];
+            MapPropType type = (MapPropType)packet.PlantedTypes[i];
+            if ((uint)idx <= (uint)maxLocalIndex && MapProp.IsTree(type))
+            {
+                delta.SetPlanted(idx % Chunk2D.Size, idx / Chunk2D.Size, type);
+            }
         }
 
         for (int i = 0; i < propCount; i++)

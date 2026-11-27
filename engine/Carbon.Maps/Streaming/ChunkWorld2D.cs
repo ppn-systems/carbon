@@ -514,6 +514,76 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     }
 
     /// <summary>
+    /// Plants a sapling on a world tile (ADR-040 D1): natural ground (no water, rock, road or bridge) in a biome that grows
+    /// trees, with no structure, construction site or other prop on it. A dug-up stump's tile can be planted again. The
+    /// sapling grows into the biome's tree (a dug-up stump's tile: the tree it was) on the rules' stage times.
+    /// </summary>
+    /// <param name="worldTileX">World tile X.</param>
+    /// <param name="worldTileY">World tile Y.</param>
+    /// <param name="rules">Regrowth rules (the sapling stage's durability and time).</param>
+    /// <param name="currentTick">Current simulation tick.</param>
+    /// <param name="tickRate">World ticks per second.</param>
+    /// <param name="planted">The sapling prop, when planted.</param>
+    /// <returns>The outcome.</returns>
+    public PlantResult TryPlantTree(int worldTileX, int worldTileY, PropRegrowthRules rules, ulong currentTick, int tickRate, out MapProp planted)
+    {
+        ArgumentNullException.ThrowIfNull(rules);
+        int cx = Chunk2D.ToChunkCoord(worldTileX);
+        int cy = Chunk2D.ToChunkCoord(worldTileY);
+        int lx = Chunk2D.ToLocalCoord(worldTileX);
+        int ly = Chunk2D.ToLocalCoord(worldTileY);
+        Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
+        lock (_gate)
+        {
+            planted = default;
+            MapTile tile = chunk.GetTile(lx, ly);
+            // Water biomes grow no trees, so the biome check also refuses water.
+            if (tile.IsSolid || chunk.IsRoad(lx, ly) || chunk.IsBridge(lx, ly) ||
+                !BiomePropTables.TryGetPlantedTree(tile.Biome, out PropRule tree))
+            {
+                return PlantResult.UnsuitableGround;
+            }
+
+            if ((_buildings.TryGetStructure(worldTileX, worldTileY, out StructureTile structure) && structure.IsOccupied) ||
+                _construction.IsReserved(worldTileX, worldTileY))
+            {
+                return PlantResult.Occupied;
+            }
+
+            PropDestructibility sapling = rules.Trees.StateOf(tree.Type, TreeGrowthStage.Sapling);
+            ulong growsAt = currentTick + rules.Trees.StageTicks(TreeGrowthStage.Sapling, tickRate);
+            ChunkDelta delta = _deltas.GetOrAdd(cx, cy);
+            int index = chunk.FindPropIndexAt(lx, ly);
+            if (index >= 0)
+            {
+                MapProp existing = chunk.Props[index];
+                bool dugStump = MapProp.IsTree(existing.Type) && existing.Destructibility.IsDestroyed && existing.GrowthStage == TreeGrowthStage.Stump;
+                if (!dugStump)
+                {
+                    return PlantResult.Occupied;
+                }
+
+                sapling = rules.Trees.StateOf(existing.Type, TreeGrowthStage.Sapling);
+                planted = existing with { Destructibility = sapling, GrowthStage = TreeGrowthStage.Sapling };
+                chunk.SetProp(index, planted);
+            }
+            else
+            {
+                planted = BiomePropTables.CreatePlantedTree(tree.Type, lx, ly, worldTileX, worldTileY, _tileSize) with
+                {
+                    Destructibility = sapling,
+                    GrowthStage = TreeGrowthStage.Sapling,
+                };
+                chunk.AddProp(planted);
+                delta.SetPlanted(lx, ly, tree.Type);
+            }
+
+            delta.SetPropState(lx, ly, sapling, growsAt, new TreeGrowth(TreeGrowthStage.Sapling, planted.Type));
+            return PlantResult.Planted;
+        }
+    }
+
+    /// <summary>
     /// Gets whether a tree that is not full grown stands on the tile (a stump or a sapling). It does not block movement, but
     /// nothing is built on it: dig the stump up first (ADR-040 D1).
     /// </summary>

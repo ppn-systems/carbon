@@ -284,13 +284,19 @@ public sealed partial class AuthoritativeWorld
         _ = attackerPos;
         _ = activeSlot;
         StructureType structureType = (StructureType)archetype.PlaceableStructureType;
+        int aimTx = (int)MathF.Floor(state.PendingAttackAim.X / this.TileSize);
+        int aimTy = (int)MathF.Floor(state.PendingAttackAim.Y / this.TileSize);
+        if (string.Equals(archetype.Code, PropHarvestService.SaplingCode, StringComparison.Ordinal))
+        {
+            _ = this.PlantSaplingLocked(state, aimTx, aimTy);
+            return;
+        }
+
         if (structureType == StructureType.None)
         {
             return;
         }
 
-        int aimTx = (int)MathF.Floor(state.PendingAttackAim.X / this.TileSize);
-        int aimTy = (int)MathF.Floor(state.PendingAttackAim.Y / this.TileSize);
         if (this.IsWithinInteractRangeLocked(state.Entity, aimTx, aimTy))
         {
             _ = this.PlaceBlueprintLocked(state, aimTx, aimTy, structureType, StructureRotation.North);

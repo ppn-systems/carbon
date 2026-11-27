@@ -1817,7 +1817,7 @@
       "id": 214,
       "code": "sapling",
       "name": "Sapling",
-      "category": "resource",
+      "category": "placeable",
       "rarity": "common",
       "tier": 0,
       "maxStack": 20,
@@ -1827,7 +1827,7 @@
       "tags": [
         "plant"
       ],
-      "actionHint": "Seedling | From felled trees & dug-up stumps"
+      "actionHint": "Seedling | Plant on open ground"
     }
   ]
 }
