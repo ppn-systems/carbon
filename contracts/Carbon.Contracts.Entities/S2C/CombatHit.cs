@@ -40,4 +40,8 @@ public sealed partial class CombatHit : PacketBase<CombatHit>, IPacketStaticOpco
     /// <summary>Whether the defender was killed by this hit.</summary>
     [SerializeOrder(5)]
     public bool IsKilled { get; set; }
+
+    /// <summary>Status effect whose pulse dealt this damage (ADR-029 D9), 0 for a direct hit.</summary>
+    [SerializeOrder(6)]
+    public ushort StatusEffectId { get; set; }
 }
