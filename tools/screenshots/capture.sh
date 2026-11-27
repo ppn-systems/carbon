@@ -118,7 +118,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
         tail -n 15 "$WORK/$name.client.log" >&2
         failed+=("$name")
     else
-        grep -E "^\[(Focus|Terrain|Biome)\]" "$WORK/$name.client.log" | sed "s/^/    /" || true
+        grep -E "^\[(Focus|Terrain|Biome|FrameStats)\]" "$WORK/$name.client.log" | sed "s/^/    /" || true
         captured=$((captured + 1))
     fi
 

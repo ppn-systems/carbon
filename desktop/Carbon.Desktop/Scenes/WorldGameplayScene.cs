@@ -167,7 +167,7 @@ public sealed class WorldGameplayScene : GameScene
         }
 
         // Checked before the modal early-returns below, so a capture with CARBON_CAPTURE_MODAL still exits.
-        if (_options.AutoExit && _frameCount >= 25 + _options.CaptureFrames)
+        if (_options.AutoExit && _frameCount >= 25 + Math.Max(_options.CaptureFrames, _options.FrameStatsFrames))
         {
             context.Window.Close();
             return;
