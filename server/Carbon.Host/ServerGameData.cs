@@ -10,6 +10,7 @@ using Carbon.Application.World;
 using Carbon.Configuration.Catalog;
 using Carbon.Creatures;
 using Carbon.Economy;
+using Carbon.Items.Progression;
 using Carbon.Maps.Building;
 using Carbon.Server.Configuration;
 using Carbon.Survival.Config;
@@ -24,7 +25,8 @@ namespace Carbon.Host;
 /// <param name="Economy">Items, recipes, loot and tunables.</param>
 /// <param name="Needs">Survival needs tuning.</param>
 /// <param name="Food">Edible items.</param>
-internal sealed record ServerGameData(GameEconomy Economy, NeedsConfig Needs, FoodCatalog Food)
+/// <param name="Progression">Character progression tuning (ADR-021).</param>
+internal sealed record ServerGameData(GameEconomy Economy, NeedsConfig Needs, FoodCatalog Food, ProgressionConfig Progression)
 {
     /// <summary>
     /// Documents a running server cannot swap yet, because the building service and the creature systems are built once
@@ -46,7 +48,8 @@ internal sealed record ServerGameData(GameEconomy Economy, NeedsConfig Needs, Fo
             GameEconomy economy = GameEconomy.Load(catalog);
             NeedsConfig needs = NeedsConfig.LoadFromJson(Read(catalog, "needs.json"));
             FoodCatalog food = FoodCatalog.LoadFromJson(Read(catalog, "food.json"), needs.FoodMax);
-            return new ServerGameData(economy, needs, food);
+            ProgressionConfig progression = ProgressionConfig.LoadFromJson(Read(catalog, "progression.json"));
+            return new ServerGameData(economy, needs, food, progression);
         }
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException or ArgumentException or FormatException)
         {
@@ -94,7 +97,7 @@ internal sealed record ServerGameData(GameEconomy Economy, NeedsConfig Needs, Fo
 
             ServerGameData data = Load(next);
             // Item stats and recipes (GameEconomy.ItemRules) swap with the economy, matching what clients re-sync.
-            return () => world.ApplyGameData(data.Economy, data.Needs, data.Food);
+            return () => world.ApplyGameData(data.Economy, data.Needs, data.Food, data.Progression);
         });
     }
 

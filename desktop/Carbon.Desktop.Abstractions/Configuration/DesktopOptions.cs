@@ -58,10 +58,24 @@ public sealed class DesktopOptions
     public bool AutoExit { get; init; }
 
     /// <summary>
+    /// Gets or sets the forge animation to show for screenshot review (<c>CARBON_FORGE_PREVIEW</c>, e.g.
+    /// <c>success:0.35</c>): <c>charge</c>, <c>success</c>, <c>nochange</c>, <c>downgrade</c> or <c>destroyed</c>, with an
+    /// optional frozen time in seconds. It opens the forge window and plays the effect locally; nothing is sent to the
+    /// server, which alone rolls real outcomes (ADR-024).
+    /// </summary>
+    public string? ForgePreview { get; init; }
+
+    /// <summary>
     /// Gets or sets an optional constant walk direction applied instead of keyboard movement
     /// (<c>CARBON_AUTO_WALK=x,y</c>; used by the screenshot tool to capture actors in motion).
     /// </summary>
     public (float X, float Y)? AutoWalk { get; init; }
+
+    /// <summary>
+    /// Gets or sets a HUD window to open before the automatic capture (<c>CARBON_CAPTURE_MODAL=settings|controls</c>;
+    /// used by the screenshot tool to review localized UI, ADR-023 D8). Empty when unset.
+    /// </summary>
+    public string CaptureModal { get; init; } = string.Empty;
 
     /// <summary>Gets or sets the remote dedicated server host or IP address.</summary>
     public string ServerHost { get; init; } = "127.0.0.1";
@@ -195,6 +209,8 @@ public sealed class DesktopOptions
             CaptureFrames = captureFrames,
             AutoExit = string.Equals(get("CARBON_AUTO_EXIT"), "1", StringComparison.Ordinal),
             AutoWalk = autoWalk,
+            CaptureModal = get("CARBON_CAPTURE_MODAL") is { Length: > 0 } modal ? modal.Trim().ToLowerInvariant() : string.Empty,
+            ForgePreview = get("CARBON_FORGE_PREVIEW") is { Length: > 0 } forgePreview ? forgePreview.Trim() : null,
             ServerHost = serverHost,
             ServerTcpPort = serverTcpPort,
             AutoLogin = string.Equals(get("CARBON_AUTO_LOGIN"), "1", StringComparison.Ordinal),

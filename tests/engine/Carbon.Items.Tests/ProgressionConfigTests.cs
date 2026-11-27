@@ -290,6 +290,18 @@ public sealed class ProgressionConfigTests
         (geared.Defense - bare.Defense).Should().BeApproximately(rules.GetArmorDefense(StarterGameCatalog.IronHelmet), 1e-3f);
     }
 
+    [Fact]
+    public void SumGear_AccessorySlots_CountTowardStats()
+    {
+        ItemRules rules = ItemRules.LoadShippedDefaults();
+        InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
+        inv.SetSlot(PlayerInventoryLayout.Accessory1Slot, new ItemSlot(StarterGameCatalog.IronHelmet, 1, 0UL, 220f));
+
+        GearStatBonus gear = CharacterProgressionPolicy.SumGear(rules, inv, byte.MaxValue);
+
+        gear.Defense.Should().BeApproximately(rules.GetArmorDefense(StarterGameCatalog.IronHelmet), 1e-3f, "slots 40..41 (accessories) add their item stats");
+    }
+
     [Theory]
     [InlineData("\"maxLevel\": 99", "\"maxLevel\": 1")]
     [InlineData("{ \"level\": 5, \"xp\": 1700 }", "{ \"level\": 5, \"xp\": 300 }")]
