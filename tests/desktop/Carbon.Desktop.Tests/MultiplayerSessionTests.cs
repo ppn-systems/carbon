@@ -28,6 +28,7 @@ using Carbon.Items.Serialization;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
+using Carbon.Server.Configuration;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -92,6 +93,7 @@ public sealed class MultiplayerSessionTests
                 UdpPort = udpPort,
             };
 
+            string configDirectory = GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!;
             AuthoritativeWorld world = new(
                 hostOptions.WorldSeed,
                 hostOptions.TileSize,
@@ -100,7 +102,7 @@ public sealed class MultiplayerSessionTests
                 chunkDeltas,
                 characters,
                 outboundSink,
-                economy: GameEconomy.LoadFromDirectory(GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!));
+                economy: GameEconomy.LoadFromDirectory(configDirectory));
 
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
@@ -110,7 +112,8 @@ public sealed class MultiplayerSessionTests
                 world,
                 outboundSink,
                 transportRegistry,
-                NullLogger.Instance);
+                NullLogger.Instance,
+                ConfigRepository.Load(configDirectory)); // the client takes its gameplay config only from the server (ADR-014)
 
             await app.ActivateAsync(CancellationToken.None).ConfigureAwait(true);
 

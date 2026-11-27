@@ -85,9 +85,9 @@ public sealed class RecipeCatalog
                 throw new InvalidDataException($"Recipe #{i} must have a non-zero id and a code.");
             }
 
-            if (definition.WorkTicks < 0 || definition.UnlockLevel < 0 || definition.SkillLevel < 0)
+            if (definition.UnlockLevel < 0 || definition.SkillLevel < 0)
             {
-                throw new InvalidDataException($"Recipe '{definition.Code}' has negative workTicks/unlockLevel/skillLevel.");
+                throw new InvalidDataException($"Recipe '{definition.Code}' has negative unlockLevel/skillLevel.");
             }
 
             if (definition.Ingredients.Count == 0 || definition.Outputs.Count == 0)
@@ -123,10 +123,8 @@ public sealed class RecipeCatalog
                 definition.Id,
                 ingredients,
                 outputs[0],
-                CraftSeconds: 0f,
                 Byproducts: outputs.Length > 1 ? outputs[1..] : null,
                 Station: definition.Station,
-                WorkTicks: definition.WorkTicks,
                 UnlockLevel: definition.UnlockLevel,
                 Skill: definition.Skill,
                 SkillLevel: definition.SkillLevel,
