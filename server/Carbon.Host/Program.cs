@@ -121,6 +121,7 @@ public static class Program
         using AuthService authService = new(accountStore, characterStore, hasher, time: null, () => world.ItemRules, () => world.Progression)
         {
             DebugForgeKit = options.DebugOverrides.ForgeKit,
+            DebugStarterItems = options.DebugOverrides.StarterItems,
         };
 
         if (options.DebugOverrides.IsActive)

@@ -101,12 +101,14 @@ internal sealed class ItemTooltipBuilder
 
             if (upg > 0)
             {
+                ref readonly EnhancementTierStyle tierStyle = ref EnhancementTierStyles.Get(upg);
                 output.Add(new ItemTooltipLine(
                     GameText.Format(
                         "tooltip.enhanced",
                         new TextArg("level", upg),
+                        new TextArg("tier", GameText.Get(tierStyle.NameKey)),
                         new TextArg("multiplier", mult.ToString("0.00", CultureInfo.InvariantCulture))),
-                    CarbonUiPalette.TextWarm));
+                    tierStyle.Accent));
             }
 
             if (def.MaxDurability > 0f)

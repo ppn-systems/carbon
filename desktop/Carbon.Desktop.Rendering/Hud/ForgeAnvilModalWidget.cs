@@ -404,7 +404,7 @@ internal sealed class ForgeAnvilModalWidget
             spriteBatch.DrawOutlinedString(font, rowLabel, new Vector2(ox + 72f, ry), CarbonUiPalette.TextPrimary, black, 1, 1f);
             if (upg > 0)
             {
-                spriteBatch.DrawOutlinedString(font, $"+{upg}", new Vector2(ox + 50f, ry + 18f), EnhancementLabelStyle.ColorFor(upg), black, 1, 1f);
+                spriteBatch.DrawOutlinedString(font, EnhancementTierStyles.Badge(upg), new Vector2(ox + 50f, ry + 18f), EnhancementTierStyles.Get(upg).Accent, black, 1, 1f);
             }
             spriteBatch.DrawOutlinedString(font, tag, new Vector2(ox + 72f, ry + 20f), CarbonUiPalette.TextMuted, black, 1, 1f);
         }
