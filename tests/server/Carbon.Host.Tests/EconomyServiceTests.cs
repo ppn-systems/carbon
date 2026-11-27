@@ -10,6 +10,8 @@ using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.Contracts.Common;
 using Carbon.Economy;
+using Carbon.Economy.Currency;
+using Carbon.Economy.Loot;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Simulation.World;
@@ -53,6 +55,37 @@ public sealed class EconomyServiceTests
         {
             first.Outbound.Pending.WalletSyncs.Should().ContainSingle().Which.Gold.Should().Be(first.Player.Wallet.Gold);
         }
+    }
+
+    [Fact]
+    public void TryRollLoot_AbyssBossTable_AlwaysDropsGoldAtTheBossMultiplier()
+    {
+        // ADR-032 D15: the leviathan's table is a boss table, so every kill drops gold, scaled by the boss multiplier.
+        const ushort Level = 60;
+        const int Kills = 20;
+        s_shipped.Loot.TryGet("leviathan", out LootTable? table).Should().BeTrue();
+        table!.IsBoss.Should().BeTrue();
+        double normalKill = table.ExpectedGoldPerKill(new LootContext(Level, Level));
+        Harness h = new(s_shipped);
+        long gold = 0;
+        int piles = 0;
+
+        for (int kill = 0; kill < Kills; kill++)
+        {
+            h.Commerce.TryRollLoot(h.Player, "leviathan", Level, 500UL + (ulong)kill, Vector2.Zero).Should().BeTrue();
+            for (ulong id = 3001UL; id <= 3000UL + ((ulong)(kill + 1) * 16UL); id++)
+            {
+                if (h.GroundLoot.TryGet(id, out GroundLootEntry entry) && entry.Currency == CurrencyKind.Gold && entry.SpawnTick == 50UL)
+                {
+                    gold += entry.CurrencyAmount;
+                    piles++;
+                    h.GroundLoot.Forget(id);
+                }
+            }
+        }
+
+        piles.Should().Be(Kills, "a boss always drops gold");
+        ((double)gold / Kills).Should().BeGreaterThan(normalKill * 6, "the boss multiplier applies to its gold");
     }
 
     [Fact]

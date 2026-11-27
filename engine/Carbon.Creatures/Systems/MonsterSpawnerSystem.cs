@@ -297,6 +297,11 @@ public sealed class MonsterSpawnerSystem : ISimulationSystem
         for (int i = 0; i < entries.Count; i++)
         {
             _ = catalog.TryGetIndex(entries[i].Monster, out ushort index);
+            if (catalog.GetDefinition(index).IsBoss)
+            {
+                throw new ArgumentException($"Spawn table '{table}' lists the boss '{entries[i].Monster}', which rises only at its lair.");
+            }
+
             WaterHabitat? habitat = catalog.GetDefinition(index).Habitat;
             bool fits = tier is { } waterTier ? habitat is { } h && h.Contains(waterTier) : habitat is null;
             if (!fits)

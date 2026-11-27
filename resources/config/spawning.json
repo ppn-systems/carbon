@@ -334,5 +334,13 @@
         }
       ]
     }
-  ]
+  ],
+  "bossLairs": {
+    "monster": "abyss_leviathan",
+    "lairChance": 0.35,
+    "activationRadius": 1280,
+    "respawnTicks": 54000,
+    "idleDespawnTicks": 3600,
+    "combatGraceTicks": 600
+  }
 }

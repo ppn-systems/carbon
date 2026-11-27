@@ -56,7 +56,8 @@ public sealed partial class AuthoritativeWorld
             chunkWorld.SpawnWorldPosition,
             entropy,
             new AiBehaviorSystem(chunkWorld.NavGrid, tileSize),
-            effects);
+            effects,
+            content.Spawning.BossLairs is { } lairs ? new ChunkWorldLairSource(chunkWorld, lairs.LairChance) : null);
     }
 
     private void BindSpawnedMonstersLocked()

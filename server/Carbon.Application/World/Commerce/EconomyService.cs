@@ -114,7 +114,7 @@ internal sealed class EconomyService
         }
 
         ulong tick = _currentTick();
-        LootContext context = new(monsterLevel, killer.Level, IsElite: table.IsElite);
+        LootContext context = new(monsterLevel, killer.Level, IsElite: table.IsElite, IsBoss: table.IsBoss);
         DeterministicRandom random = LootRoller.CreateRandom(_entropy.KeyAt(tick), tick, victimNetworkId);
         LootPityState pity = killer.LootPity;
         Span<LootDrop> drops = stackalloc LootDrop[MaxLootStacksPerKill];

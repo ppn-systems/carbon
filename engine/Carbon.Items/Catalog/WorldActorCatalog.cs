@@ -143,6 +143,9 @@ public static class WorldActorCatalog
     /// <summary>Abyss Eel water creature (Deep and Abyss water) archetype identifier.</summary>
     public const ushort AbyssEel = 113;
 
+    /// <summary>Abyss Leviathan boss (risen at its abyss lair, ADR-032 D15) archetype identifier.</summary>
+    public const ushort AbyssLeviathan = 114;
+
     /// <summary>Village Guard NPC archetype identifier.</summary>
     public const ushort VillageGuard = 201;
 

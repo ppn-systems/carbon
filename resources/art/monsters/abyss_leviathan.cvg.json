@@ -1,0 +1,1174 @@
+{
+  "schemaVersion": 1,
+  "id": "abyss_leviathan",
+  "designHeight": 40.0,
+  "worldHeight": 64.0,
+  "headTopOffset": 37.0,
+  "accentColor": "#0EA5E9",
+  "bonePivots": {
+    "root": {
+      "x": 0,
+      "y": 0
+    },
+    "tail": {
+      "x": -14.0,
+      "y": -10.0
+    },
+    "armBack": {
+      "x": -6.0,
+      "y": -6.0
+    },
+    "armFront": {
+      "x": 6.0,
+      "y": -6.0
+    },
+    "body": {
+      "x": 0,
+      "y": -12.0
+    },
+    "head": {
+      "x": 10.0,
+      "y": -16.0
+    },
+    "headgear": {
+      "x": 10.0,
+      "y": -22.0
+    },
+    "aura": {
+      "x": 2.0,
+      "y": -16.0
+    }
+  },
+  "palette": {
+    "outline": "#010409",
+    "primary": "#0B2545",
+    "primaryLight": "#1D4E89",
+    "primaryDark": "#06142B",
+    "belly": "#5B7FA6",
+    "glow": "#5EEAD4",
+    "eye": "#FDE047"
+  },
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0,
+      "y": 0.6,
+      "rx": 30.0,
+      "ry": 5.0,
+      "color": "#0718107A"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "aura",
+      "facing": "any",
+      "x": 2.0,
+      "y": -16.0,
+      "rx": 34.0,
+      "ry": 18.0,
+      "color": "#22D3EE1E"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "tail",
+      "facing": "any",
+      "x": -30.0,
+      "y": -7.0,
+      "rx": 6.0,
+      "ry": 4.6,
+      "color": "$primary",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.3
+    },
+    {
+      "kind": "ellipse",
+      "bone": "tail",
+      "facing": "any",
+      "x": -30.6,
+      "y": -9.07,
+      "rx": 3.4499999999999997,
+      "ry": 1.38,
+      "color": "$primaryLight"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "tail",
+      "facing": "any",
+      "x": -24.0,
+      "y": -9.6,
+      "rx": 7.4,
+      "ry": 6.0,
+      "color": "$primary",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.3
+    },
+    {
+      "kind": "ellipse",
+      "bone": "tail",
+      "facing": "any",
+      "x": -24.6,
+      "y": -12.3,
+      "rx": 4.5,
+      "ry": 1.7999999999999998,
+      "color": "$primaryLight"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "tail",
+      "facing": "any",
+      "x": -16.5,
+      "y": -11.6,
+      "rx": 9.0,
+      "ry": 7.6,
+      "color": "$primary",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.3
+    },
+    {
+      "kind": "ellipse",
+      "bone": "tail",
+      "facing": "any",
+      "x": -17.1,
+      "y": -15.02,
+      "rx": 5.699999999999999,
+      "ry": 2.28,
+      "color": "$primaryLight"
+    },
+    {
+      "kind": "polygon",
+      "bone": "tail",
+      "facing": "any",
+      "points": [
+        [
+          -33.0,
+          -7.6
+        ],
+        [
+          -42.0,
+          -15.0
+        ],
+        [
+          -39.0,
+          -6.4
+        ]
+      ],
+      "color": "$primaryDark",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "polygon",
+      "bone": "tail",
+      "facing": "any",
+      "points": [
+        [
+          -33.0,
+          -6.4
+        ],
+        [
+          -41.0,
+          0.0
+        ],
+        [
+          -37.6,
+          -5.0
+        ]
+      ],
+      "color": "$primaryDark",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "polygon",
+      "bone": "armBack",
+      "facing": "any",
+      "points": [
+        [
+          -8.0,
+          -6.0
+        ],
+        [
+          -14.0,
+          2.0
+        ],
+        [
+          -3.0,
+          -3.0
+        ]
+      ],
+      "color": "$primaryDark",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "bone": "armFront",
+      "facing": "any",
+      "points": [
+        [
+          4.0,
+          -6.0
+        ],
+        [
+          10.0,
+          2.6
+        ],
+        [
+          12.0,
+          -4.0
+        ]
+      ],
+      "color": "$primaryDark",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "body",
+      "facing": "any",
+      "x": -4.0,
+      "y": -14.0,
+      "rx": 13.0,
+      "ry": 10.0,
+      "color": "$primary",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.5
+    },
+    {
+      "kind": "ellipse",
+      "bone": "body",
+      "facing": "any",
+      "x": -4.0,
+      "y": -9.0,
+      "rx": 10.0,
+      "ry": 3.8,
+      "color": "$belly"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "body",
+      "facing": "any",
+      "x": -6.0,
+      "y": -18.6,
+      "rx": 8.0,
+      "ry": 3.0,
+      "color": "$primaryLight"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "body",
+      "facing": "any",
+      "x": -12.0,
+      "y": -16.0,
+      "rx": 1.1,
+      "ry": 1.1,
+      "color": "$glow"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "body",
+      "facing": "any",
+      "x": -6.0,
+      "y": -20.0,
+      "rx": 1.1,
+      "ry": 1.1,
+      "color": "$glow"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "body",
+      "facing": "any",
+      "x": 0.0,
+      "y": -18.0,
+      "rx": 1.1,
+      "ry": 1.1,
+      "color": "$glow"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "tail",
+      "facing": "any",
+      "x": -20.0,
+      "y": -13.0,
+      "rx": 1.1,
+      "ry": 1.1,
+      "color": "$glow"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "tail",
+      "facing": "any",
+      "x": -27.0,
+      "y": -10.0,
+      "rx": 1.1,
+      "ry": 1.1,
+      "color": "$glow"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "body",
+      "facing": "any",
+      "x": 4.0,
+      "y": -14.0,
+      "rx": 1.1,
+      "ry": 1.1,
+      "color": "$glow"
+    },
+    {
+      "kind": "polygon",
+      "bone": "headgear",
+      "facing": "any",
+      "points": [
+        [
+          -16.4,
+          -21.0
+        ],
+        [
+          -11.6,
+          -21.0
+        ],
+        [
+          -13.4,
+          -28.0
+        ]
+      ],
+      "color": "$primaryDark",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "polygon",
+      "bone": "headgear",
+      "facing": "any",
+      "points": [
+        [
+          -10.4,
+          -21.0
+        ],
+        [
+          -5.6,
+          -21.0
+        ],
+        [
+          -7.4,
+          -30.0
+        ]
+      ],
+      "color": "$primaryDark",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "polygon",
+      "bone": "headgear",
+      "facing": "any",
+      "points": [
+        [
+          -4.4,
+          -21.0
+        ],
+        [
+          0.3999999999999999,
+          -21.0
+        ],
+        [
+          -1.4,
+          -29.0
+        ]
+      ],
+      "color": "$primaryDark",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "polygon",
+      "bone": "headgear",
+      "facing": "any",
+      "points": [
+        [
+          -24.4,
+          -14.0
+        ],
+        [
+          -19.6,
+          -14.0
+        ],
+        [
+          -21.4,
+          -19.0
+        ]
+      ],
+      "color": "$primaryDark",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "any",
+      "x": 14.0,
+      "y": -19.0,
+      "rx": 11.0,
+      "ry": 8.4,
+      "color": "$primary",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.5
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "any",
+      "x": 12.0,
+      "y": -22.6,
+      "rx": 7.0,
+      "ry": 3.0,
+      "color": "$primaryLight"
+    },
+    {
+      "kind": "polygon",
+      "bone": "head",
+      "facing": "any",
+      "points": [
+        [
+          7.0,
+          -13.8
+        ],
+        [
+          28.0,
+          -14.6
+        ],
+        [
+          26.0,
+          -9.6
+        ],
+        [
+          8.0,
+          -10.0
+        ]
+      ],
+      "color": "$primaryDark",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "polygon",
+      "bone": "head",
+      "facing": "any",
+      "points": [
+        [
+          8.7,
+          -14.8
+        ],
+        [
+          11.3,
+          -14.9
+        ],
+        [
+          10.0,
+          -11.8
+        ]
+      ],
+      "color": "#E2E8F0",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.5
+    },
+    {
+      "kind": "polygon",
+      "bone": "head",
+      "facing": "any",
+      "points": [
+        [
+          12.299999999999999,
+          -14.8
+        ],
+        [
+          14.9,
+          -14.9
+        ],
+        [
+          13.6,
+          -11.8
+        ]
+      ],
+      "color": "#E2E8F0",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.5
+    },
+    {
+      "kind": "polygon",
+      "bone": "head",
+      "facing": "any",
+      "points": [
+        [
+          15.899999999999999,
+          -14.8
+        ],
+        [
+          18.5,
+          -14.9
+        ],
+        [
+          17.2,
+          -11.8
+        ]
+      ],
+      "color": "#E2E8F0",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.5
+    },
+    {
+      "kind": "polygon",
+      "bone": "head",
+      "facing": "any",
+      "points": [
+        [
+          19.5,
+          -14.8
+        ],
+        [
+          22.1,
+          -14.9
+        ],
+        [
+          20.8,
+          -11.8
+        ]
+      ],
+      "color": "#E2E8F0",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.5
+    },
+    {
+      "kind": "polygon",
+      "bone": "head",
+      "facing": "any",
+      "points": [
+        [
+          23.099999999999998,
+          -14.8
+        ],
+        [
+          25.7,
+          -14.9
+        ],
+        [
+          24.4,
+          -11.8
+        ]
+      ],
+      "color": "#E2E8F0",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.5
+    },
+    {
+      "kind": "polygon",
+      "bone": "head",
+      "facing": "any",
+      "points": [
+        [
+          10.9,
+          -10.0
+        ],
+        [
+          13.1,
+          -10.0
+        ],
+        [
+          12.0,
+          -12.6
+        ]
+      ],
+      "color": "#CBD5E1",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.5
+    },
+    {
+      "kind": "polygon",
+      "bone": "head",
+      "facing": "any",
+      "points": [
+        [
+          14.5,
+          -10.0
+        ],
+        [
+          16.7,
+          -10.0
+        ],
+        [
+          15.6,
+          -12.6
+        ]
+      ],
+      "color": "#CBD5E1",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.5
+    },
+    {
+      "kind": "polygon",
+      "bone": "head",
+      "facing": "any",
+      "points": [
+        [
+          18.099999999999998,
+          -10.0
+        ],
+        [
+          20.3,
+          -10.0
+        ],
+        [
+          19.2,
+          -12.6
+        ]
+      ],
+      "color": "#CBD5E1",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.5
+    },
+    {
+      "kind": "polygon",
+      "bone": "head",
+      "facing": "any",
+      "points": [
+        [
+          21.7,
+          -10.0
+        ],
+        [
+          23.900000000000002,
+          -10.0
+        ],
+        [
+          22.8,
+          -12.6
+        ]
+      ],
+      "color": "#CBD5E1",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.5
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "any",
+      "x": 18.0,
+      "y": -21.0,
+      "rx": 2.6,
+      "ry": 2.2,
+      "color": "$eye",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "any",
+      "x": 18.5,
+      "y": -21.0,
+      "rx": 1.0,
+      "ry": 1.8,
+      "color": "$outline"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "any",
+      "x": 11.0,
+      "y": -21.6,
+      "rx": 1.8,
+      "ry": 1.6,
+      "color": "$eye",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "polygon",
+      "bone": "headgear",
+      "facing": "any",
+      "points": [
+        [
+          12.0,
+          -26.4
+        ],
+        [
+          13.4,
+          -26.6
+        ],
+        [
+          17.0,
+          -36.0
+        ],
+        [
+          15.8,
+          -36.2
+        ]
+      ],
+      "color": "$primaryDark",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "ellipse",
+      "bone": "headgear",
+      "facing": "any",
+      "x": 16.6,
+      "y": -37.4,
+      "rx": 2.4,
+      "ry": 2.4,
+      "color": "$glow",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "ellipse",
+      "bone": "headgear",
+      "facing": "any",
+      "x": 16.6,
+      "y": -37.4,
+      "rx": 5.0,
+      "ry": 5.0,
+      "color": "#22D3EE38"
+    }
+  ],
+  "animations": {
+    "idle": {
+      "duration": 1.8,
+      "loop": true,
+      "tracks": [
+        {
+          "t": 0.0,
+          "bones": {
+            "tail": {
+              "rotDeg": 0.0
+            },
+            "body": {
+              "dy": 0.0
+            },
+            "head": {
+              "dy": 0.0,
+              "rotDeg": 0.0
+            },
+            "headgear": {
+              "dy": 0.0
+            },
+            "armBack": {
+              "rotDeg": 0.0
+            },
+            "armFront": {
+              "rotDeg": 0.0
+            }
+          }
+        },
+        {
+          "t": 0.5,
+          "bones": {
+            "tail": {
+              "rotDeg": -5.0,
+              "dy": -1.0
+            },
+            "body": {
+              "dy": -1.2,
+              "scaleY": 1.03
+            },
+            "head": {
+              "dy": -1.6,
+              "rotDeg": -3.0
+            },
+            "headgear": {
+              "dy": -1.8,
+              "rotDeg": 4.0
+            },
+            "armBack": {
+              "rotDeg": -12.0
+            },
+            "armFront": {
+              "rotDeg": 12.0
+            },
+            "aura": {
+              "scaleX": 1.08,
+              "scaleY": 1.08
+            }
+          }
+        },
+        {
+          "t": 1.0,
+          "bones": {
+            "tail": {
+              "rotDeg": 0.0
+            },
+            "body": {
+              "dy": 0.0
+            },
+            "head": {
+              "dy": 0.0,
+              "rotDeg": 0.0
+            },
+            "headgear": {
+              "dy": 0.0
+            },
+            "armBack": {
+              "rotDeg": 0.0
+            },
+            "armFront": {
+              "rotDeg": 0.0
+            }
+          }
+        }
+      ]
+    },
+    "walk": {
+      "duration": 0.8,
+      "loop": true,
+      "tracks": [
+        {
+          "t": 0.0,
+          "bones": {
+            "tail": {
+              "rotDeg": -9.0,
+              "dy": 1.4
+            },
+            "body": {
+              "rotDeg": 2.0,
+              "dy": -0.8
+            },
+            "head": {
+              "rotDeg": -4.0
+            },
+            "armBack": {
+              "rotDeg": -16.0
+            },
+            "armFront": {
+              "rotDeg": 10.0
+            }
+          }
+        },
+        {
+          "t": 0.5,
+          "bones": {
+            "tail": {
+              "rotDeg": 9.0,
+              "dy": -1.4
+            },
+            "body": {
+              "rotDeg": -2.0,
+              "dy": 0.8
+            },
+            "head": {
+              "rotDeg": 4.0
+            },
+            "armBack": {
+              "rotDeg": 10.0
+            },
+            "armFront": {
+              "rotDeg": -16.0
+            }
+          }
+        },
+        {
+          "t": 1.0,
+          "bones": {
+            "tail": {
+              "rotDeg": -9.0,
+              "dy": 1.4
+            },
+            "body": {
+              "rotDeg": 2.0,
+              "dy": -0.8
+            },
+            "head": {
+              "rotDeg": -4.0
+            },
+            "armBack": {
+              "rotDeg": -16.0
+            },
+            "armFront": {
+              "rotDeg": 10.0
+            }
+          }
+        }
+      ]
+    },
+    "attack": {
+      "duration": 0.8,
+      "loop": false,
+      "phaseMarks": {
+        "windupEnd": 0.45,
+        "travelEnd": 0.6,
+        "activeEnd": 0.78
+      },
+      "tracks": [
+        {
+          "t": 0.0,
+          "bones": {}
+        },
+        {
+          "t": 0.45,
+          "bones": {
+            "tail": {
+              "rotDeg": -32.0,
+              "dx": 4.0
+            },
+            "body": {
+              "rotDeg": 6.0,
+              "dx": 2.0
+            },
+            "head": {
+              "dx": -3.0,
+              "rotDeg": 10.0
+            }
+          }
+        },
+        {
+          "t": 0.6,
+          "bones": {
+            "tail": {
+              "rotDeg": 38.0,
+              "dx": -6.0,
+              "scaleX": 1.15
+            },
+            "body": {
+              "rotDeg": -6.0,
+              "dx": -2.0
+            },
+            "head": {
+              "dx": 2.0,
+              "rotDeg": -6.0
+            }
+          }
+        },
+        {
+          "t": 0.78,
+          "bones": {
+            "tail": {
+              "rotDeg": 18.0,
+              "dx": -3.0
+            }
+          }
+        },
+        {
+          "t": 1.0,
+          "bones": {}
+        }
+      ]
+    },
+    "attack_spell": {
+      "duration": 1.4,
+      "loop": false,
+      "phaseMarks": {
+        "windupEnd": 0.6,
+        "travelEnd": 0.72,
+        "activeEnd": 0.86
+      },
+      "tracks": [
+        {
+          "t": 0.0,
+          "bones": {}
+        },
+        {
+          "t": 0.3,
+          "bones": {
+            "body": {
+              "dy": -4.0,
+              "scaleY": 1.08
+            },
+            "head": {
+              "dy": -8.0,
+              "rotDeg": -14.0
+            },
+            "headgear": {
+              "dy": -9.0
+            },
+            "aura": {
+              "scaleX": 1.5,
+              "scaleY": 1.5
+            }
+          }
+        },
+        {
+          "t": 0.6,
+          "bones": {
+            "body": {
+              "dy": -7.0,
+              "scaleY": 1.12
+            },
+            "head": {
+              "dy": -13.0,
+              "rotDeg": -22.0
+            },
+            "headgear": {
+              "dy": -14.0,
+              "rotDeg": -10.0
+            },
+            "aura": {
+              "scaleX": 2.1,
+              "scaleY": 2.1
+            },
+            "armBack": {
+              "rotDeg": -26.0
+            },
+            "armFront": {
+              "rotDeg": 26.0
+            }
+          }
+        },
+        {
+          "t": 0.72,
+          "bones": {
+            "body": {
+              "dy": 3.0,
+              "scaleY": 0.9
+            },
+            "head": {
+              "dy": 6.0,
+              "rotDeg": 16.0
+            },
+            "headgear": {
+              "dy": 6.0
+            },
+            "aura": {
+              "scaleX": 2.6,
+              "scaleY": 2.6
+            }
+          }
+        },
+        {
+          "t": 0.86,
+          "bones": {
+            "body": {
+              "dy": 1.0
+            },
+            "head": {
+              "dy": 2.0,
+              "rotDeg": 6.0
+            },
+            "aura": {
+              "scaleX": 1.3,
+              "scaleY": 1.3
+            }
+          }
+        },
+        {
+          "t": 1.0,
+          "bones": {}
+        }
+      ]
+    },
+    "attack_leap": {
+      "duration": 1.0,
+      "loop": false,
+      "phaseMarks": {
+        "windupEnd": 0.3,
+        "travelEnd": 0.72,
+        "activeEnd": 0.86
+      },
+      "tracks": [
+        {
+          "t": 0.0,
+          "bones": {}
+        },
+        {
+          "t": 0.3,
+          "bones": {
+            "tail": {
+              "rotDeg": -20.0,
+              "dx": -3.0
+            },
+            "body": {
+              "dx": -5.0,
+              "dy": 1.5
+            },
+            "head": {
+              "dx": -6.0,
+              "rotDeg": -12.0
+            }
+          }
+        },
+        {
+          "t": 0.5,
+          "bones": {
+            "tail": {
+              "rotDeg": 12.0,
+              "dx": 6.0,
+              "dy": -6.0
+            },
+            "body": {
+              "dx": 10.0,
+              "dy": -8.0
+            },
+            "head": {
+              "dx": 16.0,
+              "dy": -9.0,
+              "rotDeg": 14.0,
+              "scaleY": 1.2
+            },
+            "headgear": {
+              "dx": 14.0,
+              "dy": -9.0
+            }
+          }
+        },
+        {
+          "t": 0.72,
+          "bones": {
+            "tail": {
+              "dx": 8.0
+            },
+            "body": {
+              "dx": 12.0
+            },
+            "head": {
+              "dx": 18.0,
+              "rotDeg": 6.0
+            },
+            "headgear": {
+              "dx": 16.0
+            }
+          }
+        },
+        {
+          "t": 0.86,
+          "bones": {
+            "body": {
+              "dx": 4.0
+            },
+            "head": {
+              "dx": 6.0
+            },
+            "headgear": {
+              "dx": 5.0
+            }
+          }
+        },
+        {
+          "t": 1.0,
+          "bones": {}
+        }
+      ]
+    }
+  },
+  "markers": {
+    "eyes": [
+      {
+        "x": 18.0,
+        "y": -21.0
+      },
+      {
+        "x": 11.0,
+        "y": -21.6
+      }
+    ],
+    "eyesSide": [
+      {
+        "x": 18.0,
+        "y": -21.0
+      }
+    ],
+    "crown": {
+      "x": 16.6,
+      "y": -38.0
+    },
+    "eyeGlowColor": "#FDE047"
+  }
+}

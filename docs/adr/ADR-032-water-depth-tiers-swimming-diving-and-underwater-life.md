@@ -211,9 +211,36 @@ function of `WorldGenSettings` and must never touch `GameplayEntropy`.
   - **Art.** Vector rigs `shore_crab`, `piranha_slime`, `drift_jelly` and `abyss_eel` (`resources/art/monsters`).
     Names are in the existing `[monster]` locale section.
   - No new packets or opcodes.
-- **D15 — Abyss boss (PR 4b).** One abyss boss has a rare, fixed lair anchor derived from world data. It has
-  telegraphed attack patterns, level-scaled loot through the economy tables, and a respawn timer. It never despawns
-  while a player fights in its chunk. All combat rolls use `GameplayEntropy` (ADR-026).
+- **D15 — Abyss boss (PR 4b).**
+  - **Lairs from world data.** `AbyssLairs` (Maps) splits the world into 1024-tile lair cells. A hash of the public seed and
+    the cell decides whether the cell holds a lair (`spawning.json → bossLairs.lairChance`, 0.35). The first of 24 hashed
+    points sitting in Abyss water, with Abyss 4 tiles away in all eight directions, is the anchor; a cell without such
+    open abyss has no lair. Lairs are world data like rivers, so the public seed fixes them; nothing is written into the
+    terrain, so the generator version is unchanged. Seed 42 holds lairs in 3 of the 20 sea cells north of its coast.
+  - **The boss.** `abyss_leviathan` (archetype 114, `isBoss`) lives in Abyss water only. Its level and stats follow its
+    lair's distance from the world origin like any monster's. Three telegraphed patterns, each an ordinary attack profile
+    broadcast as `EntityAttackPhase`:
+
+    | Pattern | Kind | Telegraph |
+    | :--- | :--- | :--- |
+    | Tidal Crush | circle spell, 72 units | a 1.2 s wind-up, then a delayed detonation |
+    | Abyssal Lunge | leap, 46-unit landing | the locked landing point |
+    | Tail Sweep | melee arc, 240°, 58 units | the swept arc |
+
+    It stuns on a hit of at least 15 % of max HP and makes wounds bleed (level II), as ADR-036 procs.
+  - **Rising and respawning.** `BossLairSystem` (Creatures, PostUpdate) raises the boss when a player comes within
+    `activationRadius` (40 tiles) of its lair. After its death the lair waits `respawnTicks` (30 minutes). It is not a
+    spawner monster: it takes no density-cell slot, and the loader rejects a spawn table that lists a boss.
+  - **Never leaving a fight.** A boss nobody is near for `idleDespawnTicks` (2 minutes) sinks back and rises again, whole
+    and without the respawn wait, when a player returns. It never sinks while a player in its chunk is fighting it: a
+    target or a wound within `combatGraceTicks` (20 s) holds it.
+  - **Loot.** Its `leviathan` table is a `"boss": true` table: every kill drops gold, and the boss gold, diamond and
+    extra-roll multipliers of `economy.json` apply. Boss tables, like elite ones, are left out of the per-hour farming
+    bands.
+  - **Sight in deep water (fixes D14).** The AI's aggro and attack line of sight used the terrain raycast, which treats
+    deep water as solid, so creatures in Deep or Abyss water never noticed anyone. A water creature now looks along the
+    nav grids instead: only what blocks both it and a walker (cliffs, props, structures) hides a target.
+  - All combat rolls stay on `GameplayEntropy` (ADR-026); the boss adds none of its own.
 
 ## Alternatives Considered
 

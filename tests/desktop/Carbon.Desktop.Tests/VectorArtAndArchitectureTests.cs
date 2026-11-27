@@ -474,6 +474,39 @@ public sealed class VectorArtAndArchitectureTests
         }
     }
 
+    [Fact]
+    public void MonsterRigs_UseOnlyKnownBones()
+    {
+        // An unknown bone name falls back to the body, so its shapes and keyframes would silently move with the body.
+        string[] known = ["root", "cape", "tail", "legleft", "legright", "body", "armback", "head", "headgear", "armfront", "aura"];
+        string artRoot = VectorArtValidator.TryFindArtRootDirectory()!;
+        foreach (string file in Directory.GetFiles(Path.Combine(artRoot, "monsters"), "*.cvg.json"))
+        {
+            using JsonDocument rig = JsonDocument.Parse(File.ReadAllText(file));
+            string name = Path.GetFileName(file);
+            foreach (JsonProperty pivot in rig.RootElement.GetProperty("bonePivots").EnumerateObject())
+            {
+                known.Should().Contain(pivot.Name.ToLowerInvariant(), $"{name} pivot '{pivot.Name}' must be a rig bone");
+            }
+
+            foreach (JsonElement shape in rig.RootElement.GetProperty("shapes").EnumerateArray())
+            {
+                known.Should().Contain(shape.GetProperty("bone").GetString()!.ToLowerInvariant(), $"{name} shapes must use rig bones");
+            }
+
+            foreach (JsonProperty clip in rig.RootElement.GetProperty("animations").EnumerateObject())
+            {
+                foreach (JsonElement key in clip.Value.GetProperty("tracks").EnumerateArray())
+                {
+                    foreach (JsonProperty bone in key.GetProperty("bones").EnumerateObject())
+                    {
+                        known.Should().Contain(bone.Name.ToLowerInvariant(), $"{name} clip '{clip.Name}' must animate rig bones");
+                    }
+                }
+            }
+        }
+    }
+
     private sealed class StubScene : GameScene;
 
     private static string FindRepoRoot(string startPath)

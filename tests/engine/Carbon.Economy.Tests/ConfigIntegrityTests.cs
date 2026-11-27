@@ -129,6 +129,8 @@ public sealed class ConfigIntegrityTests
             ShippedConfig.Loot.TryGet(lootTableId, out LootTable? table).Should().BeTrue($"monster '{monster.GetProperty("id").GetString()}' references loot table '{lootTableId}'");
             bool isElite = monster.TryGetProperty("isElite", out JsonElement elite) && elite.GetBoolean();
             table!.IsElite.Should().Be(isElite, $"loot table '{lootTableId}' elite flag must match monsters.json");
+            bool isBoss = monster.TryGetProperty("isBoss", out JsonElement boss) && boss.GetBoolean();
+            table.IsBoss.Should().Be(isBoss, $"loot table '{lootTableId}' boss flag must match monsters.json");
         }
     }
 
