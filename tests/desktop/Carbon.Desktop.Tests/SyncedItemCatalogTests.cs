@@ -117,7 +117,7 @@ public sealed class SyncedItemCatalogTests
 
         synced.Apply(Config(3, s_itemsJson, enhancement: System.Text.Encoding.UTF8.GetBytes(enhancement))).Should().BeTrue();
 
-        synced.Rules.Enhancement.Steps[0].SuccessPermille.Should().Be(990, "forge chances come from the synced enhancement.json (ADR-020), never from the client build");
+        synced.Rules.Enhancement.Steps[0].SuccessPermille.Should().Be(990, "forge chances come from the synced enhancement.json (ADR-024), never from the client build");
         synced.Apply(new ConfigCatalog(4, [
             new ConfigCatalogEntry("items", 0, 1, s_itemsJson),
             new ConfigCatalogEntry("recipes", 0, 1, s_recipesJson),

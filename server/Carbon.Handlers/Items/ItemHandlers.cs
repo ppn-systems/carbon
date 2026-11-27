@@ -104,11 +104,12 @@ public static partial class ItemHandlers
         WorldMutationOutcome outcome = await s_world.SubmitMoveInventorySlotAsync(
             connectionId,
             context.Packet.FromSlot,
-            context.Packet.ToSlot).ConfigureAwait(false);
+            context.Packet.ToSlot,
+            context.Packet.ExpectedItemId).ConfigureAwait(false);
         await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.MoveInventorySlot).ConfigureAwait(false);
     }
 
-    /// <summary>Opcode <c>0x4005</c>. Queues a forge enhancement attempt and answers with <see cref="EnhancementResult"/> (ADR-020).</summary>
+    /// <summary>Opcode <c>0x4005</c>. Queues a forge enhancement attempt and answers with <see cref="EnhancementResult"/> (ADR-024).</summary>
     [PacketOpcode(ItemOpCode.UpgradeInventoryItem)]
     [PacketPermission(PermissionLevel.USER)]
     public static async ValueTask HandleUpgradeInventoryItemAsync(IPacketContext<UpgradeInventoryItem> context)
@@ -123,7 +124,7 @@ public static partial class ItemHandlers
             slotIndex,
             context.Packet.ProtectionItemId).ConfigureAwait(false);
 
-        // The reply carries the server-rolled outcome (ADR-020); the request only names the slot and the scroll.
+        // The reply carries the server-rolled outcome (ADR-024); the request only names the slot and the scroll.
         ForgeEnhancementReceipt receipt = outcome.Status == OpStatus.Ok
             ? ForgeEnhancementReceipt.Unpack(outcome.Revision)
             : default;
@@ -152,8 +153,59 @@ public static partial class ItemHandlers
         WorldMutationOutcome outcome = await s_world.SubmitDropInventoryItemAsync(
             connectionId,
             context.Packet.SlotIndex,
-            context.Packet.Quantity).ConfigureAwait(false);
+            context.Packet.Quantity,
+            context.Packet.ExpectedItemId).ConfigureAwait(false);
         await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.DropInventoryItem).ConfigureAwait(false);
+    }
+
+    /// <summary>Opcode <c>0x400A</c>. Moves part of a bag stack into another bag slot (ADR-020).</summary>
+    [PacketOpcode(ItemOpCode.SplitInventorySlot)]
+    [PacketPermission(PermissionLevel.USER)]
+    public static async ValueTask HandleSplitInventorySlotAsync(IPacketContext<SplitInventorySlot> context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        IPacketSender sender = context.Sender;
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        SplitInventorySlot packet = context.Packet;
+        WorldMutationOutcome outcome = await s_world.SubmitSplitInventorySlotAsync(
+            connectionId,
+            packet.FromSlot,
+            packet.ToSlot,
+            packet.Quantity,
+            packet.ExpectedItemId).ConfigureAwait(false);
+        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.SplitInventorySlot).ConfigureAwait(false);
+    }
+
+    /// <summary>Opcode <c>0x400B</c>. Merges and sorts the backpack on the server (ADR-020).</summary>
+    [PacketOpcode(ItemOpCode.SortInventory)]
+    [PacketPermission(PermissionLevel.USER)]
+    public static async ValueTask HandleSortInventoryAsync(IPacketContext<SortInventory> context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        IPacketSender sender = context.Sender;
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        WorldMutationOutcome outcome = await s_world.SubmitSortInventoryAsync(connectionId).ConfigureAwait(false);
+        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.SortInventory).ConfigureAwait(false);
+    }
+
+    /// <summary>Opcode <c>0x400C</c>. Destroys items in a slot permanently (ADR-020).</summary>
+    [PacketOpcode(ItemOpCode.DestroyInventoryItem)]
+    [PacketPermission(PermissionLevel.USER)]
+    public static async ValueTask HandleDestroyInventoryItemAsync(IPacketContext<DestroyInventoryItem> context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        IPacketSender sender = context.Sender;
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        DestroyInventoryItem packet = context.Packet;
+        WorldMutationOutcome outcome = await s_world.SubmitDestroyInventoryItemAsync(
+            connectionId,
+            packet.SlotIndex,
+            packet.Quantity,
+            packet.ExpectedItemId).ConfigureAwait(false);
+        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.DestroyInventoryItem).ConfigureAwait(false);
     }
 
     /// <summary>Opcode <c>0x4007</c>. Buys vendor-sold items for gold near a friendly town NPC.</summary>

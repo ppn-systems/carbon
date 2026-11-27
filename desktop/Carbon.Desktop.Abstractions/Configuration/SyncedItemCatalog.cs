@@ -13,7 +13,7 @@ using Carbon.Items.Enhancement;
 namespace Carbon.Desktop.Abstractions.Configuration;
 
 /// <summary>
-/// One session's view of the server's <c>items.json</c>, <c>recipes.json</c> and <c>enhancement.json</c> (ADR-014, ADR-020): item names, stats, stack sizes,
+/// One session's view of the server's <c>items.json</c>, <c>recipes.json</c> and <c>enhancement.json</c> (ADR-014, ADR-024): item names, stats, stack sizes,
 /// durability and recipes come from the synced documents, never from tables compiled into the client, so items and recipes
 /// the server adds show up without a client build. The HUD, crafting window and client prediction read
 /// <see cref="Rules"/>. Owned by the session (<see cref="World.IWorldReadModel.Items"/>); each verified sync replaces the
@@ -27,7 +27,7 @@ public sealed class SyncedItemCatalog
     /// <summary>Name of the synced recipe document.</summary>
     public const string RecipesDocumentName = "recipes";
 
-    /// <summary>Name of the synced forge enhancement document (ADR-020).</summary>
+    /// <summary>Name of the synced forge enhancement document (ADR-024).</summary>
     public const string EnhancementDocumentName = "enhancement";
 
     private readonly Lazy<ItemRules> _fallback = new(ItemRules.LoadShippedDefaults);

@@ -11,7 +11,7 @@ using Xunit;
 
 namespace Carbon.Contracts.Tests;
 
-/// <summary>Wire contracts of forge enhancement (ADR-020).</summary>
+/// <summary>Wire contracts of forge enhancement (ADR-024).</summary>
 public sealed class EnhancementPacketTests
 {
     [Fact]

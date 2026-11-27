@@ -54,7 +54,7 @@ public static class ItemEnhancementPolicy
 
     /// <summary>
     /// Gets the next forge attempt for <paramref name="slot"/> from the data-driven table (<c>enhancement.json</c>,
-    /// ADR-020): outcome weights, materials and base gold fee.
+    /// ADR-024): outcome weights, materials and base gold fee.
     /// </summary>
     /// <param name="rules">Item rules holding the enhancement table.</param>
     /// <param name="slot">Item to enhance.</param>

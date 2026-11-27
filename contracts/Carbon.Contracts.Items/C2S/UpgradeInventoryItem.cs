@@ -8,7 +8,7 @@ namespace Carbon.Contracts.Items.C2S;
 
 /// <summary>
 /// Client request to forge-enhance an item in <see cref="SlotIndex"/> (<c>+0..+10</c>). The server answers with
-/// <see cref="S2C.EnhancementResult"/> (ADR-020); the client never chooses the outcome.
+/// <see cref="S2C.EnhancementResult"/> (ADR-024); the client never chooses the outcome.
 /// </summary>
 [Packet]
 [GenerateFormatter]
@@ -18,7 +18,7 @@ public sealed partial class UpgradeInventoryItem : PacketBase<UpgradeInventoryIt
     /// <inheritdoc/>
     public static ushort StaticOpCode => ItemOpCode.UpgradeInventoryItem;
 
-    /// <summary>Target inventory slot index (<c>0..39</c>).</summary>
+    /// <summary>Target inventory slot index (<c>0..41</c>).</summary>
     [SerializeOrder(0)]
     public ushort SlotIndex { get; set; }
 

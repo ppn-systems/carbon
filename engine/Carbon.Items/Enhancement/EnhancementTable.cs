@@ -15,7 +15,7 @@ using Carbon.Primitives.Random;
 namespace Carbon.Items.Enhancement;
 
 /// <summary>
-/// The validated forge enhancement table compiled from <c>enhancement.json</c> (ADR-020): per-level outcome weights,
+/// The validated forge enhancement table compiled from <c>enhancement.json</c> (ADR-024): per-level outcome weights,
 /// materials and gold fee, the safe thresholds, and the protection scrolls. Immutable; the server and each synced client
 /// hold one per <see cref="ItemRules"/>.
 /// </summary>

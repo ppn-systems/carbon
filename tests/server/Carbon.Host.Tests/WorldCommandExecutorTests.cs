@@ -25,7 +25,10 @@ public sealed class WorldCommandExecutorTests
         WorldCommandQueue queue = new();
 
         Task<WorldMutationOutcome> place = queue.Submit(WorldCommandKind.PlaceStructure, Connection, 3, -4, StructureType.WoodWall, StructureRotation.East).AsTask();
-        Task<WorldMutationOutcome> drop = queue.Submit(WorldCommandKind.DropInventoryItem, Connection, 7, arg2: 5).AsTask();
+        Task<WorldMutationOutcome> drop = queue.Submit(WorldCommandKind.DropInventoryItem, Connection, 7, arg2: 5, arg3: 13).AsTask();
+        Task<WorldMutationOutcome> split = queue.Submit(WorldCommandKind.SplitInventorySlot, Connection, 9, 10, 4, 21).AsTask();
+        Task<WorldMutationOutcome> sort = queue.Submit(WorldCommandKind.SortInventory, Connection, 0).AsTask();
+        Task<WorldMutationOutcome> destroy = queue.Submit(WorldCommandKind.DestroyInventoryItem, Connection, 11, arg2: -1, arg3: 22).AsTask();
         Task<WorldMutationOutcome> rest = queue.Submit(WorldCommandKind.SetResting, Connection, 1).AsTask();
         Task<WorldMutationOutcome> point = queue.Submit(WorldCommandKind.AllocateCharacterPoint, Connection, (ushort)PointAllocationKind.Skill, 12, 2).AsTask();
 
@@ -33,11 +36,17 @@ public sealed class WorldCommandExecutorTests
 
         handlers.Calls.Should().Equal(
             "PlaceStructure 42 3 -4 WoodWall East",
-            "DropInventoryItem 42 7 5",
+            "DropInventoryItem 42 7 5 13",
+            "SplitInventorySlot 42 9 10 4 21",
+            "SortInventory 42",
+            "DestroyInventoryItem 42 11 -1 22",
             "SetResting 42 True",
             "AllocateCharacterPoint 42 Skill 12 2");
         (await place.ConfigureAwait(true)).Should().Be(new WorldMutationOutcome(OpStatus.Ok, 9U), "tile commands report the chunk revision");
         (await drop.ConfigureAwait(true)).Should().Be(new WorldMutationOutcome(OpStatus.Ok, 0U));
+        (await split.ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok);
+        (await sort.ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok);
+        (await destroy.ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok);
         (await rest.ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok);
         (await point.ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok);
         queue.Count.Should().Be(0);
@@ -54,7 +63,7 @@ public sealed class WorldCommandExecutorTests
         executor.Drain(queue);
 
         handlers.Calls.Should().Equal("UpgradeInventoryItem 42 4 206");
-        (await upgrade.ConfigureAwait(true)).Should().Be(new WorldMutationOutcome(OpStatus.Ok, 0x1234_5678U), "the enhancement receipt rides in the revision (ADR-020)");
+        (await upgrade.ConfigureAwait(true)).Should().Be(new WorldMutationOutcome(OpStatus.Ok, 0x1234_5678U), "the enhancement receipt rides in the revision (ADR-024)");
     }
 
     [Fact]
@@ -78,7 +87,7 @@ public sealed class WorldCommandExecutorTests
     {
         RecordingHandlers handlers = new();
         WorldCommandExecutor executor = new(handlers);
-        WorldCommand unknown = new((WorldCommandKind)250, Connection, 0, 0, StructureType.None, StructureRotation.North, 0, 0, 0, null!);
+        WorldCommand unknown = new((WorldCommandKind)250, Connection, 0, 0, StructureType.None, StructureRotation.North, 0, 0, 0, 0, null!);
 
         executor.Execute(unknown).Should().Be(new WorldMutationOutcome(OpStatus.Invalid, 0U));
         handlers.Calls.Should().BeEmpty();
@@ -103,12 +112,22 @@ public sealed class WorldCommandExecutorTests
 
         public OpStatus TryCraftRecipe(ulong connectionId, ushort recipeId, ushort quantity) => this.Slot($"CraftRecipe {connectionId} {recipeId} {quantity}");
 
-        public OpStatus TryMoveInventorySlot(ulong connectionId, ushort fromSlot, ushort toSlot) => this.Slot($"MoveInventorySlot {connectionId} {fromSlot} {toSlot}");
+        public OpStatus TryMoveInventorySlot(ulong connectionId, ushort fromSlot, ushort toSlot, ushort expectedItemId) =>
+            this.Slot($"MoveInventorySlot {connectionId} {fromSlot} {toSlot} {expectedItemId}");
 
         public WorldMutationOutcome TryEnhanceInventoryItem(ulong connectionId, ushort slotIndex, ushort protectionItemId, uint deterministicRollSeed = 0U) =>
             new(this.Slot($"UpgradeInventoryItem {connectionId} {slotIndex} {protectionItemId}"), 0x1234_5678U);
 
-        public OpStatus TryDropInventoryItem(ulong connectionId, ushort slotIndex, int quantity) => this.Slot($"DropInventoryItem {connectionId} {slotIndex} {quantity}");
+        public OpStatus TryDropInventoryItem(ulong connectionId, ushort slotIndex, int quantity, ushort expectedItemId) =>
+            this.Slot($"DropInventoryItem {connectionId} {slotIndex} {quantity} {expectedItemId}");
+
+        public OpStatus TrySplitInventorySlot(ulong connectionId, ushort fromSlot, ushort toSlot, ushort quantity, ushort expectedItemId) =>
+            this.Slot($"SplitInventorySlot {connectionId} {fromSlot} {toSlot} {quantity} {expectedItemId}");
+
+        public OpStatus TrySortInventory(ulong connectionId) => this.Slot($"SortInventory {connectionId}");
+
+        public OpStatus TryDestroyInventoryItem(ulong connectionId, ushort slotIndex, int quantity, ushort expectedItemId) =>
+            this.Slot($"DestroyInventoryItem {connectionId} {slotIndex} {quantity} {expectedItemId}");
 
         public OpStatus TryVendorBuy(ulong connectionId, ushort itemId, ushort quantity) => this.Slot($"VendorBuy {connectionId} {itemId} {quantity}");
 

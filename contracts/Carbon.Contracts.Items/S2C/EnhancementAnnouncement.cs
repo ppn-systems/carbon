@@ -8,7 +8,7 @@ using Nalix.Codec.DataFrames;
 namespace Carbon.Contracts.Items.S2C;
 
 /// <summary>
-/// World-wide push (ADR-020) sent to every player in the world when someone reaches a high enhancement level or
+/// World-wide push (ADR-024) sent to every player in the world when someone reaches a high enhancement level or
 /// destroys an item at the forge (thresholds in <c>enhancement.json</c> <c>announce</c>).
 /// </summary>
 [Packet]

@@ -3,7 +3,7 @@
 namespace Carbon.Contracts.Common;
 
 /// <summary>
-/// The result of one forge enhancement roll (ADR-020). The server rolls it; the client only displays it.
+/// The result of one forge enhancement roll (ADR-024). The server rolls it; the client only displays it.
 /// Wire values are stable: append new members, never renumber.
 /// </summary>
 public enum EnhancementOutcome : byte

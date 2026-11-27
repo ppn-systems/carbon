@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Fonts.Atlases;
 using Carbon.Graphics.Fonts.Model;
@@ -15,8 +16,8 @@ using Carbon.Graphics.OpenGL.Textures;
 namespace Carbon.Desktop.Rendering.Fonts;
 
 /// <summary>
-/// Loads the game's primary rasterized UI font from <c>resources/fonts/thaleah_fat.ttf</c>
-/// (with an automatic embedded crisp pixel fallback when running outside asset folders) and allocates
+/// Loads the game's rasterized UI font for the active locale's font stack (<c>resources/localization/locales.json</c>, ADR-023 D5)
+/// from <c>resources/fonts</c> (with an automatic embedded crisp pixel fallback when running outside asset folders) and allocates
 /// the shared 1x1 white pixel texture on <see cref="IGraphicsDevice"/>.
 /// </summary>
 public static class GameFontLoader
@@ -58,8 +59,76 @@ public static class GameFontLoader
         return null;
     }
 
+    /// <summary>Searches standard runtime directories for <c>resources/fonts</c>.</summary>
+    /// <returns>The fonts directory, or <see langword="null"/> when not found.</returns>
+    public static string? TryFindFontsDirectory()
+    {
+        string? path = TryFindFontPath();
+        return path is null ? null : Path.GetDirectoryName(path);
+    }
+
     /// <summary>
-    /// Loads the game UI <see cref="BitmapFont"/> (<c>16px</c>) and shared 1x1 white pixel texture on <paramref name="device"/>.
+    /// Builds the ordered face stack of <paramref name="locale"/> from the files present in <paramref name="fontsDirectory"/>.
+    /// Missing files are skipped.
+    /// </summary>
+    /// <param name="locale">The locale whose font stack to load.</param>
+    /// <param name="fontsDirectory">The <c>resources/fonts</c> directory.</param>
+    /// <returns>The faces, primary first (empty when no listed file exists).</returns>
+    public static List<FontFaceSource> LoadFaces(LocaleInfo locale, string fontsDirectory)
+    {
+        ArgumentNullException.ThrowIfNull(locale);
+        ArgumentException.ThrowIfNullOrEmpty(fontsDirectory, nameof(fontsDirectory));
+        List<FontFaceSource> faces = new(locale.Fonts.Count);
+        for (int i = 0; i < locale.Fonts.Count; i++)
+        {
+            LocaleFontFace face = locale.Fonts[i];
+            string path = Path.Combine(fontsDirectory, face.File);
+            if (File.Exists(path))
+            {
+                faces.Add(new FontFaceSource(face.File, File.ReadAllBytes(path), face.PixelSize));
+            }
+        }
+
+        return faces;
+    }
+
+    /// <summary>
+    /// Loads the UI <see cref="BitmapFont"/> for <paramref name="locale"/> (defaults to the active <see cref="GameText"/> locale),
+    /// baking every Latin range English and Vietnamese need.
+    /// </summary>
+    /// <param name="device">Active OpenGL graphics device.</param>
+    /// <param name="locale">The locale whose font stack to load.</param>
+    /// <returns>The ready-to-render UI font.</returns>
+    public static BitmapFont LoadFont(IGraphicsDevice device, LocaleInfo? locale = null)
+    {
+        ArgumentNullException.ThrowIfNull(device);
+        if (device is not GraphicsDevice concrete)
+        {
+            throw new ArgumentException("Requires concrete GraphicsDevice to allocate font textures.", nameof(device));
+        }
+
+        LocaleInfo active = locale ?? GameText.Current.Locale;
+        string? fontsDir = TryFindFontsDirectory();
+        if (fontsDir is not null)
+        {
+            List<FontFaceSource> faces = LoadFaces(active, fontsDir);
+            if (faces.Count > 0)
+            {
+                return TrueTypeFontLoader.CreateFromTrueType(active.Code, concrete, faces, UnicodeGlyphRanges.LatinFull);
+            }
+
+            string? anyFont = TryFindFontPath();
+            if (anyFont is not null)
+            {
+                return TrueTypeFontLoader.CreateFromTrueType("ThaleahFat", concrete, File.ReadAllBytes(anyFont), pixelSize: 16f);
+            }
+        }
+
+        return CreateEmbeddedFallback(concrete);
+    }
+
+    /// <summary>
+    /// Loads the game UI <see cref="BitmapFont"/> for the active locale and shared 1x1 white pixel texture on <paramref name="device"/>.
     /// </summary>
     /// <param name="device">Active OpenGL graphics device.</param>
     /// <returns>The ready-to-render UI font and white pixel texture.</returns>
@@ -87,16 +156,7 @@ public static class GameFontLoader
             ReadOnlySpan<byte> white = [255, 255, 255, 255];
             whitePixel.SetData(white);
 
-            string? fontPath = TryFindFontPath();
-            if (fontPath is not null)
-            {
-                byte[] ttfBytes = File.ReadAllBytes(fontPath);
-                font = TrueTypeFontLoader.CreateFromTrueType("ThaleahFat", concrete, ttfBytes, pixelSize: 16f);
-            }
-            else
-            {
-                font = CreateEmbeddedFallback(concrete);
-            }
+            font = LoadFont(concrete);
 
             BitmapFont resultFont = font;
             Texture2D resultWhite = whitePixel;

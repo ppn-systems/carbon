@@ -176,7 +176,7 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile
     /// <summary>Gets whether the most recent forge enhancement attempt succeeded.</summary>
     bool LastForgeSucceeded { get; }
 
-    /// <summary>Gets the server-rolled outcome of the most recent forge attempt (ADR-020).</summary>
+    /// <summary>Gets the server-rolled outcome of the most recent forge attempt (ADR-024).</summary>
     EnhancementOutcome LastForgeOutcome => EnhancementOutcome.None;
 
     /// <summary>Gets the item level after the most recent forge attempt (<c>0</c> when destroyed).</summary>

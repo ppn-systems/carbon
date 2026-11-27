@@ -33,7 +33,7 @@ public sealed class GameEconomy
     /// <summary>File name of the loot tables.</summary>
     public const string LootFile = "loot.json";
 
-    /// <summary>File name of the forge enhancement table (ADR-020).</summary>
+    /// <summary>File name of the forge enhancement table (ADR-024).</summary>
     public const string EnhancementFile = "enhancement.json";
 
     private GameEconomy(ItemCatalog items, RecipeCatalog recipes, EconomyConfig config, LootCatalog loot, EnhancementTable enhancement)

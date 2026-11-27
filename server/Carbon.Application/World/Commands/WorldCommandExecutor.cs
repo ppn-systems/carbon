@@ -25,11 +25,17 @@ internal interface IWorldCommandHandlers
 
     OpStatus TryCraftRecipe(ulong connectionId, ushort recipeId, ushort quantity);
 
-    OpStatus TryMoveInventorySlot(ulong connectionId, ushort fromSlot, ushort toSlot);
+    OpStatus TryMoveInventorySlot(ulong connectionId, ushort fromSlot, ushort toSlot, ushort expectedItemId);
 
     WorldMutationOutcome TryEnhanceInventoryItem(ulong connectionId, ushort slotIndex, ushort protectionItemId, uint deterministicRollSeed = 0U);
 
-    OpStatus TryDropInventoryItem(ulong connectionId, ushort slotIndex, int quantity);
+    OpStatus TryDropInventoryItem(ulong connectionId, ushort slotIndex, int quantity, ushort expectedItemId);
+
+    OpStatus TrySplitInventorySlot(ulong connectionId, ushort fromSlot, ushort toSlot, ushort quantity, ushort expectedItemId);
+
+    OpStatus TrySortInventory(ulong connectionId);
+
+    OpStatus TryDestroyInventoryItem(ulong connectionId, ushort slotIndex, int quantity, ushort expectedItemId);
 
     OpStatus TryVendorBuy(ulong connectionId, ushort itemId, ushort quantity);
 
@@ -74,9 +80,14 @@ internal sealed class WorldCommandExecutor
         WorldCommandKind.SetResting => new(_handlers.TrySetResting(command.ConnectionId, command.Arg0 != 0), 0),
         WorldCommandKind.SelectHotbarSlot => new(_handlers.TrySelectHotbarSlot(command.ConnectionId, (byte)command.Arg0), 0),
         WorldCommandKind.CraftRecipe => new(_handlers.TryCraftRecipe(command.ConnectionId, command.Arg0, command.Arg1), 0),
-        WorldCommandKind.MoveInventorySlot => new(_handlers.TryMoveInventorySlot(command.ConnectionId, command.Arg0, command.Arg1), 0),
+        WorldCommandKind.MoveInventorySlot => new(_handlers.TryMoveInventorySlot(command.ConnectionId, command.Arg0, command.Arg1, command.Arg3), 0),
         WorldCommandKind.UpgradeInventoryItem => _handlers.TryEnhanceInventoryItem(command.ConnectionId, command.Arg0, command.Arg1),
-        WorldCommandKind.DropInventoryItem => new(_handlers.TryDropInventoryItem(command.ConnectionId, command.Arg0, command.Arg2), 0),
+        WorldCommandKind.DropInventoryItem => new(_handlers.TryDropInventoryItem(command.ConnectionId, command.Arg0, command.Arg2, command.Arg3), 0),
+        WorldCommandKind.SplitInventorySlot => new(
+            _handlers.TrySplitInventorySlot(command.ConnectionId, command.Arg0, command.Arg1, (ushort)Math.Clamp(command.Arg2, 0, ushort.MaxValue), command.Arg3),
+            0),
+        WorldCommandKind.SortInventory => new(_handlers.TrySortInventory(command.ConnectionId), 0),
+        WorldCommandKind.DestroyInventoryItem => new(_handlers.TryDestroyInventoryItem(command.ConnectionId, command.Arg0, command.Arg2, command.Arg3), 0),
         WorldCommandKind.VendorBuy => new(_handlers.TryVendorBuy(command.ConnectionId, command.Arg0, command.Arg1), 0),
         WorldCommandKind.VendorSell => new(_handlers.TryVendorSell(command.ConnectionId, command.Arg0, command.Arg1), 0),
         WorldCommandKind.RepairItem => new(_handlers.TryRepairItem(command.ConnectionId, command.Arg0), 0),

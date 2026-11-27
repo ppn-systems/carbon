@@ -16,7 +16,7 @@ using Xunit;
 namespace Carbon.Economy.Tests;
 
 /// <summary>
-/// One forge attempt (ADR-020): costs are spent exactly once, rejections spend nothing, outcomes are applied to the slot,
+/// One forge attempt (ADR-024): costs are spent exactly once, rejections spend nothing, outcomes are applied to the slot,
 /// and the documented expected cost per level (docs/enhancement.md) matches a Monte Carlo run of the shipped table.
 /// </summary>
 public sealed class ForgeEnhancerTests

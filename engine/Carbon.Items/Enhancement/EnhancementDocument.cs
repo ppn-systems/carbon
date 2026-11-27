@@ -5,7 +5,7 @@ using Carbon.Items.Crafting;
 
 namespace Carbon.Items.Enhancement;
 
-/// <summary>JSON shape of <c>resources/config/enhancement.json</c> (ADR-020). Compiled by <see cref="EnhancementTable"/>.</summary>
+/// <summary>JSON shape of <c>resources/config/enhancement.json</c> (ADR-024). Compiled by <see cref="EnhancementTable"/>.</summary>
 public sealed record EnhancementDocument
 {
     /// <summary>Gets or sets the schema version.</summary>

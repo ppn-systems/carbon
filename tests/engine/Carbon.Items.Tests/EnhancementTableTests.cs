@@ -14,7 +14,7 @@ using Xunit;
 
 namespace Carbon.Items.Tests;
 
-/// <summary>The shipped <c>enhancement.json</c> (ADR-020): validation, safe levels, roll distribution and protection.</summary>
+/// <summary>The shipped <c>enhancement.json</c> (ADR-024): validation, safe levels, roll distribution and protection.</summary>
 public sealed class EnhancementTableTests
 {
     private static readonly ItemRules s_rules = ItemRules.LoadShippedDefaults();

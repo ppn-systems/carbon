@@ -71,6 +71,17 @@ public static class MonsterFactory
             TargetLayerMask: targetLayerMask,
             PatrolRadius: def.PatrolRadius,
             ExternalAttackControl: true));
+        MonsterBehaviorDefinition behavior = def.Behavior;
+        entities.SetComponent(monster, new AiTacticsComponent(
+            PackId: catalog.GetPackId(monsterIndex),
+            AssistRadius: behavior.AssistRadius,
+            FleeHealthFraction: behavior.FleeHealthFraction,
+            FleeTicks: behavior.FleeTicks,
+            GiveUpTicks: behavior.GiveUpTicks,
+            ThreatSwitchMargin: behavior.ThreatSwitchMargin,
+            SurroundRadius: behavior.SurroundRadius,
+            NightAggroMultiplier: behavior.NightAggroMultiplier,
+            NightLeashMultiplier: behavior.NightLeashMultiplier));
         entities.SetComponent(monster, new MonsterComponent(monsterIndex, stats.Level, def.IsElite, stats.Damage, spawnCell));
         entities.SetComponent(monster, default(AttackStateComponent));
 

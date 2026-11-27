@@ -2,12 +2,20 @@
 # World screenshot review tool: boots a throwaway local server per scenario, captures the desktop client
 # headless with auto-login, converts the captures to PNG and writes a labelled contact sheet.
 #
-#   tools/screenshots/capture.sh [out_dir] [name_regex]
+#   tools/screenshots/capture.sh [--lang <code>] [out_dir] [name_regex]
 #
 # See tools/screenshots/README.md for the scenario format and the environment knobs.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+CLIENT_LANG="${CARBON_LANG:-en}"
+while [[ "${1:-}" == --* ]]; do
+    case "$1" in
+        --lang) CLIENT_LANG="${2:?--lang needs a locale code, e.g. vi}"; shift 2 ;;
+        *) echo "capture.sh: unknown option '$1'" >&2; exit 2 ;;
+    esac
+done
+[[ -f "$ROOT/resources/localization/$CLIENT_LANG.ini" ]] || { echo "capture.sh: no locale file resources/localization/$CLIENT_LANG.ini" >&2; exit 2; }
 TOOL_DIR="$ROOT/tools/screenshots"
 OUT_DIR="$(mkdir -p "${1:-$ROOT/artifacts/screenshots}" && cd "${1:-$ROOT/artifacts/screenshots}" && pwd)"
 FILTER="${2:-.}"
@@ -81,7 +89,7 @@ run_client() { # $1 = scenario name, $2 = client env words
     # shellcheck disable=SC2086
     (cd "$(dirname "$CLIENT_DLL")" && env LIBGL_ALWAYS_SOFTWARE=1 \
         CARBON_SERVER_HOST=127.0.0.1 CARBON_TCP_PORT="$BASE_PORT" CARBON_SEED="$SEED" \
-        CARBON_AUTO_LOGIN=1 CARBON_AUTO_EXIT=1 CARBON_USERNAME="shots_$name" CARBON_PASSWORD=carbon123 \
+        CARBON_LANG="$CLIENT_LANG" CARBON_AUTO_LOGIN=1 CARBON_AUTO_EXIT=1 CARBON_USERNAME="shots_$name" CARBON_PASSWORD=carbon123 \
         CARBON_SCREENSHOT_PATH="$OUT_DIR/$name.bmp" $env_words \
         timeout "$CLIENT_TIMEOUT" xvfb-run -a -s "-screen 0 ${WIDTH}x${HEIGHT}x24" dotnet "$CLIENT_DLL") \
         >"$WORK/$name.client.log" 2>&1
@@ -98,7 +106,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     server_env="$(echo "${server_env:-}" | xargs)"
     client_env="$(echo "${client_env:-}" | xargs)"
 
-    echo "[capture] $name"
+    echo "[capture] $name ($CLIENT_LANG)"
     rm -f "$OUT_DIR/$name.bmp" "$OUT_DIR/$name.png"
     if ! start_server "$name" "$server_env"; then
         failed+=("$name")

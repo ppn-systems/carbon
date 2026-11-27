@@ -1,4 +1,4 @@
-# ADR-020: Forge Enhancement Outcomes, Protection Scrolls and Result Packets
+# ADR-024: Forge Enhancement Outcomes, Protection Scrolls and Result Packets
 
 - **Date**: 2026-11-27
 - **Status**: Accepted

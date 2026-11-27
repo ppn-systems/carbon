@@ -5,7 +5,7 @@ using Carbon.Contracts.Common;
 namespace Carbon.Abstractions.World;
 
 /// <summary>
-/// The outcome of one tick-queued forge enhancement attempt (ADR-020), carried back to the handler in
+/// The outcome of one tick-queued forge enhancement attempt (ADR-024), carried back to the handler in
 /// <see cref="WorldMutationOutcome.Revision"/> (<see cref="Pack"/>/<see cref="Unpack"/>) so the command queue stays
 /// allocation-free.
 /// </summary>

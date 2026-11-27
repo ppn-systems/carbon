@@ -4,7 +4,7 @@ Players "smash" weapons, tools and armor at a forge (the Master Blacksmith or a 
 `ItemSlot.UpgradeLevel`. Each level adds **+12 % stats** and **+10 % max durability**
 (`ItemEnhancementPolicy.GetStatMultiplier` / `GetEffectiveMaxDurability`, unchanged). All attempt rules live in
 [`resources/config/enhancement.json`](../resources/config/enhancement.json); the numbers below are the shipped defaults.
-Wire and persistence decisions are in [ADR-020](adr/ADR-020-forge-enhancement-outcomes.md).
+Wire and persistence decisions are in [ADR-024](adr/ADR-024-forge-enhancement-outcomes.md).
 
 ## Evaluation of the previous forge
 

@@ -6,5 +6,6 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\..\engine\Carbon.Items\Carbon.Items.csproj" />
+        <ProjectReference Include="..\..\..\engine\Carbon.Creatures\Carbon.Creatures.csproj" />
     </ItemGroup>
 </Project>

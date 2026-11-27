@@ -21,7 +21,7 @@ using Xunit;
 namespace Carbon.Host.Tests;
 
 /// <summary>
-/// Forge enhancement through the authoritative world (ADR-020): the server rolls, applies the outcome to the inventory and
+/// Forge enhancement through the authoritative world (ADR-024): the server rolls, applies the outcome to the inventory and
 /// wallet together, persists both, tells the owner, and announces notable outcomes to everyone in the world.
 /// </summary>
 public sealed class ForgeEnhancementWorldTests

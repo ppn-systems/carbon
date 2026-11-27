@@ -5,7 +5,7 @@ using Carbon.Contracts.Common;
 namespace Carbon.Economy.Enhancement;
 
 /// <summary>
-/// What one forge enhancement attempt did (ADR-020). When <see cref="Status"/> is not <see cref="OpStatus.Ok"/> nothing
+/// What one forge enhancement attempt did (ADR-024). When <see cref="Status"/> is not <see cref="OpStatus.Ok"/> nothing
 /// was spent and nothing changed.
 /// </summary>
 /// <param name="Status"><see cref="OpStatus.Ok"/> once the attempt ran; otherwise why it was rejected.</param>

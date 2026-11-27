@@ -220,7 +220,7 @@ public interface IWorldOutboundSink
     void SendEntityAttackPhase(ReadOnlySpan<ulong> recipientConnectionIds, in AttackPhaseSnapshot snapshot);
 
     /// <summary>
-    /// Sends a world-wide forge announcement (ADR-020): a high-level success or a destroyed item.
+    /// Sends a world-wide forge announcement (ADR-024): a high-level success or a destroyed item.
     /// </summary>
     void SendEnhancementAnnouncement(
         ReadOnlySpan<ulong> recipientConnectionIds,

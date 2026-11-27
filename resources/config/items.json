@@ -1433,6 +1433,7 @@
       "basePrice": 380,
       "maxDurability": 0,
       "vendorBuyable": false,
+      "equipSlot": "Accessory1",
       "tags": [
         "accessory"
       ]
@@ -1448,6 +1449,7 @@
       "basePrice": 170,
       "maxDurability": 0,
       "vendorBuyable": false,
+      "equipSlot": "Accessory1",
       "tags": [
         "accessory"
       ]

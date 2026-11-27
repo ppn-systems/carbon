@@ -13,7 +13,7 @@ using Carbon.Primitives.Random;
 namespace Carbon.Economy.Enhancement;
 
 /// <summary>
-/// Runs one forge enhancement attempt atomically (ADR-020): every precondition (gear, level, materials, gold, scroll) is
+/// Runs one forge enhancement attempt atomically (ADR-024): every precondition (gear, level, materials, gold, scroll) is
 /// checked before anything is spent; then the gold fee, the materials and the scroll are taken exactly once, the server
 /// rolls on its <see cref="DeterministicRandom"/> stream, and the outcome is written to the slot. The caller holds the
 /// world lock, persists and replicates. Clients never roll.

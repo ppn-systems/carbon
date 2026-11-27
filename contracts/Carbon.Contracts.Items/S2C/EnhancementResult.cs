@@ -8,7 +8,7 @@ using Nalix.Codec.DataFrames;
 namespace Carbon.Contracts.Items.S2C;
 
 /// <summary>
-/// Server reply to <see cref="C2S.UpgradeInventoryItem"/> (ADR-020): whether the attempt ran and, when it did, the
+/// Server reply to <see cref="C2S.UpgradeInventoryItem"/> (ADR-024): whether the attempt ran and, when it did, the
 /// server-rolled outcome and the item's level afterwards. The changed slots arrive as <see cref="InventorySlotChanged"/>.
 /// </summary>
 [Packet]

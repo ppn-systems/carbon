@@ -4,18 +4,22 @@ namespace Carbon.Contracts.Entities;
 
 /// <summary>
 /// Open attribute identifiers allocatable via <see cref="C2S.EntityAllocatePoint"/> and persisted in progression blobs.
+/// Per-point effects come from the server's <c>progression.json</c> (ADR-021); ids are persisted, so never renumber.
 /// </summary>
 public enum PrimaryAttributeId : ushort
 {
-    /// <summary>Vitality (+12 Max Health, +0.5 Defense per point).</summary>
+    /// <summary>Vitality: max health, defense and health regeneration.</summary>
     Vitality = 0,
 
-    /// <summary>Wisdom (+10 Max Mana, +0.35 MP/s regeneration per point).</summary>
+    /// <summary>Wisdom: max mana, spell power, magic resist and mana regeneration.</summary>
     Wisdom = 1,
 
-    /// <summary>Power (+3.5% Attack &amp; Skill Power multiplier per point).</summary>
+    /// <summary>Power: physical attack.</summary>
     Power = 2,
 
-    /// <summary>Agility (+8 Max Stamina, +0.6% Movement Speed per point).</summary>
+    /// <summary>Agility: attack speed, movement speed, evasion and stamina.</summary>
     Agility = 3,
+
+    /// <summary>Dexterity: critical chance, critical damage and a little attack.</summary>
+    Dexterity = 4,
 }

@@ -58,6 +58,29 @@ public sealed class CombatServiceTests
     }
 
     [Fact]
+    public void ApplyMonsterHits_DealingDamage_MarksTheAttackerInCombat()
+    {
+        Harness h = new() { Tick = 4321UL };
+        Entity mob = h.SpawnMonster(500UL, new Vector2(20f, 0f), health: 50f);
+
+        _ = h.Combat.ApplyMonsterHits(h.Player, Vector2.Zero, Vector2.UnitX, [mob], 10f, isCritical: false, knockbackSpeed: 0f);
+
+        h.Player.LastCombatDamageTick.Should().Be(4321UL, "attacking pauses out-of-combat regeneration just like being hit");
+    }
+
+    [Fact]
+    public void ApplyMonsterHits_WallInTheWay_LeavesTheAttackerOutOfCombat()
+    {
+        Harness h = new() { Tick = 4321UL };
+        Entity mob = h.SpawnMonster(500UL, new Vector2(20f, 0f), health: 50f);
+        h.Physics.WallHit = true;
+
+        _ = h.Combat.ApplyMonsterHits(h.Player, Vector2.Zero, Vector2.UnitX, [mob], 10f, isCritical: false, knockbackSpeed: 0f);
+
+        h.Player.LastCombatDamageTick.Should().Be(0UL);
+    }
+
+    [Fact]
     public void ApplyMonsterHits_IdlePackmateNearby_JoinsTheChase()
     {
         Harness h = new();
@@ -136,7 +159,8 @@ public sealed class CombatServiceTests
                         output.Add(Viewer);
                     }
                 },
-                (_, netId, pos) => this.Kills.Add((netId, pos)));
+                (_, netId, pos) => this.Kills.Add((netId, pos)),
+                () => this.Tick);
 
             ConnectedPlayerSession session = new(1UL, 9UL, Guid.NewGuid(), Guid.NewGuid(), "Tester", 900UL, 0, 0);
             CharacterRecord character = new(
@@ -145,6 +169,8 @@ public sealed class CombatServiceTests
         }
 
         public WorldSimulation Simulation { get; } = new();
+
+        public ulong Tick { get; set; } = 1UL;
 
         public FakePhysics Physics { get; } = new();
 

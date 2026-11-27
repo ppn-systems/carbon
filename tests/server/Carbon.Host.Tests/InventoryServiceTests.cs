@@ -158,7 +158,7 @@ public sealed class InventoryServiceTests
         h.Inventory.ResolveHarvestTier(h.Player.Inventory, 0).Should().Be(0);
     }
 
-    private sealed class Harness
+    internal sealed class Harness
     {
         private ulong _nextNetworkId = 7000UL;
 
