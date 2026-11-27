@@ -67,6 +67,16 @@
     "ownerProtectionSeconds": 60,
     "killLootLifetimeSeconds": 180
   },
+  "deathPenalty": {
+    "minLevel": 10,
+    "dropPercent": 10,
+    "floorGoldPerLevel": 2,
+    "capGoldPerLevel": 30,
+    "goldPerPile": 250,
+    "maxPiles": 5,
+    "ownerProtectionSeconds": 120,
+    "lootLifetimeSeconds": 300
+  },
   "designTargets": {
     "killsPerHour": 120,
     "goldPerHour": [

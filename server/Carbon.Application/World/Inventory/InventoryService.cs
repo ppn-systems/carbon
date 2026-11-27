@@ -8,7 +8,6 @@ using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.Contracts.Common;
 using Carbon.Economy;
-using Carbon.Economy.Currency;
 using Carbon.Economy.Enhancement;
 using Carbon.Economy.Repair;
 using Carbon.Items.Catalog;
@@ -586,7 +585,7 @@ internal sealed class InventoryService
     /// </summary>
     private bool TryPickupCurrency(PlayerState state, ulong lootNetId, Entity lootEnt, Vector2 lootPos, in GroundLootEntry meta)
     {
-        if (!state.Wallet.TryCredit(meta.Currency, meta.CurrencyAmount, CurrencyReason.MonsterLoot, _currentTick()).IsOk)
+        if (!state.Wallet.TryCredit(meta.Currency, meta.CurrencyAmount, meta.CreditReason, _currentTick()).IsOk)
         {
             return false;
         }
