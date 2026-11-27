@@ -11,6 +11,7 @@ using Carbon.Contracts.Config.S2C;
 using Carbon.Economy;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Items.Definitions;
+using Carbon.Items.Progression;
 using Carbon.Server.Configuration;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
@@ -57,8 +58,36 @@ public sealed partial class ConfigHotReloadDomainsTests : IDisposable
             data.Food,
             data.Economy,
             ServerGameData.LoadStructures(_config.Catalog),
-            ServerGameData.LoadCreatures(_config.Catalog));
+            ServerGameData.LoadCreatures(_config.Catalog),
+            data.Progression);
         ServerGameData.BindHotReload(_config, _world);
+    }
+
+    [Fact]
+    public void Reload_ChangedProgression_SwapsTheRunningProgressionTuning()
+    {
+        ProgressionConfig before = _world.Progression;
+        this.Edit("progression.json", json => json.Replace("\"baseGold\": 50,", "\"baseGold\": 75,", StringComparison.Ordinal));
+
+        ConfigReloadResult result = _config.Reload();
+
+        result.Changed.Should().BeEquivalentTo("progression");
+        _world.Progression.Should().NotBeSameAs(before);
+        _world.Progression.Respec.BaseGold.Should().Be(75, "clients and the server switch progression tables together");
+    }
+
+    [Fact]
+    public void Reload_InvalidProgression_RejectsReloadAndKeepsTuning()
+    {
+        ProgressionConfig before = _world.Progression;
+        uint manifestBefore = _config.ManifestVersion;
+        this.Edit("progression.json", json => json.Replace("\"critChance\": 0.5,", "\"critChance\": 3,", StringComparison.Ordinal));
+
+        Action reload = () => _config.Reload();
+
+        reload.Should().Throw<InvalidDataException>();
+        _world.Progression.Should().BeSameAs(before);
+        _config.ManifestVersion.Should().Be(manifestBefore);
     }
 
     [Fact]
