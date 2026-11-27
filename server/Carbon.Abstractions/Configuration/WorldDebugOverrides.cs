@@ -52,7 +52,14 @@ public sealed record WorldDebugOverrides
     /// </summary>
     public bool WornGear { get; init; }
 
+    /// <summary>
+    /// Gets status effects every character enters the world with (ADR-029), as <c>key:remainingMs:stacks</c> entries joined
+    /// by <c>;</c>, for screenshot review of the status strip; empty for none.
+    /// </summary>
+    public string StatusEffects { get; init; } = string.Empty;
+
     /// <summary>Gets a value indicating whether any override is set.</summary>
     public bool IsActive => this.SpawnTile.HasValue || this.SpawnBiome is not null || this.SpawnPoi is not null || this.StartHour.HasValue ||
-        this.SpawnOffset != default || this.StartLevel.HasValue || this.ForgeKit || this.StarterItems.Count > 0 || this.WornGear;
+        this.SpawnOffset != default || this.StartLevel.HasValue || this.ForgeKit || this.StarterItems.Count > 0 || this.WornGear ||
+        this.StatusEffects.Length > 0;
 }
