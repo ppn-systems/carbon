@@ -246,8 +246,8 @@ internal sealed class RoofRenderer
             float ry0 = room.MinY * _tileSize;
             float rx1 = (room.MaxX + 1) * _tileSize;
             float ry1 = (room.MaxY + 1) * _tileSize;
-            const float Reach = 160f;
-            if (rx1 + Reach < minX || rx0 - Reach > maxX || ry1 + Reach < minY || ry0 - Reach > maxY)
+            const float LightCullMargin = 160f; // a room just off screen still lights its edge
+            if (rx1 + LightCullMargin < minX || rx0 - LightCullMargin > maxX || ry1 + LightCullMargin < minY || ry0 - LightCullMargin > maxY)
             {
                 continue;
             }
