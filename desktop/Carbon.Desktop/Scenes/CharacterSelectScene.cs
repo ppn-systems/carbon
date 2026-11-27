@@ -75,10 +75,6 @@ public sealed class CharacterSelectScene : GameScene
     private RectangleF _optionsBounds;
 
     private GeometryBatch? _geometryBatch;
-    private ScaledFontCache? _fonts;
-    private float? _uiScaleChoice;
-    private int _canvasWidth;
-    private int _canvasHeight;
     private CarbonUiSkin? _uiSkin;
     private IVectorArtRepository? _vectorArt;
     private IInputManager? _boundInput;
@@ -166,7 +162,7 @@ public sealed class CharacterSelectScene : GameScene
     internal MenuTextField HeroName => _createNameField;
 
     /// <summary>Gets the screen pixels per layout unit (docs/art/menu-ui.md rule 21).</summary>
-    internal float UiScale { get; private set; } = 1f;
+    internal float UiScale => _flow.Ui.Scale;
 
     /// <summary>Gets the main window rectangle from the last layout, in canvas units (tests check it fits).</summary>
     internal RectangleF PanelBounds { get; private set; }
@@ -183,8 +179,8 @@ public sealed class CharacterSelectScene : GameScene
         _geometryBatch = new GeometryBatch(context.Device);
         _uiSkin = CarbonUiSkin.Load(context.Device);
         IGraphicsDevice device = context.Device;
-        _fonts = new ScaledFontCache(scale => GameFontLoader.LoadFont(device, locale: null, scale));
-        _uiScaleChoice = _flow.ReadUiScaleChoice();
+        _flow.Ui.EnsureFonts(() => new ScaledFontCache(scale => GameFontLoader.LoadFont(device, locale: null, scale)));
+        _flow.Ui.ReloadChoice();
         this.ApplyScale(context.WindowWidth, context.WindowHeight);
         _vectorArt = CarbonVectorArtLibrary.LoadOrDefault();
     }
@@ -241,7 +237,7 @@ public sealed class CharacterSelectScene : GameScene
         }
 
         this.ApplyScale(context.WindowWidth, context.WindowHeight);
-        this.LayoutControls(_canvasWidth, _canvasHeight);
+        this.LayoutControls(_flow.Ui.CanvasWidth, _flow.Ui.CanvasHeight);
 
         KeyboardSnapshot kb = context.Input.Keyboard;
         MouseSnapshot mouse = context.Input.Mouse;
@@ -348,7 +344,7 @@ public sealed class CharacterSelectScene : GameScene
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(spriteBatch);
 
-        if (_geometryBatch is null || _fonts?.Font is null || _uiSkin is null)
+        if (_geometryBatch is null || _flow.Ui.Fonts is null || _uiSkin is null)
         {
             return;
         }
@@ -366,9 +362,14 @@ public sealed class CharacterSelectScene : GameScene
         int windowWidth = width;
         int windowHeight = height;
         this.ApplyScale(windowWidth, windowHeight);
-        BitmapFont font = _fonts.Font;
-        width = _canvasWidth;
-        height = _canvasHeight;
+        BitmapFont? font = _flow.Ui.Font;
+        if (font is null)
+        {
+            return;
+        }
+
+        width = _flow.Ui.CanvasWidth;
+        height = _flow.Ui.CanvasHeight;
         this.LayoutControls(width, height);
         Matrix4x4 proj = Matrix4x4.CreateOrthographicOffCenter(0f, windowWidth / this.UiScale, windowHeight / this.UiScale, 0f, -1f, 1f);
 
@@ -692,8 +693,6 @@ public sealed class CharacterSelectScene : GameScene
             _uiSkin = null;
             _geometryBatch?.Dispose();
             _geometryBatch = null;
-            _fonts?.Dispose();
-            _fonts = null;
         }
 
         base.Dispose(disposing);
@@ -885,15 +884,12 @@ public sealed class CharacterSelectScene : GameScene
     /// </summary>
     private void ApplyScale(int windowWidth, int windowHeight)
     {
-        float scale = Rendering.UiSkin.UiScale.Resolve(_uiScaleChoice, windowWidth, windowHeight);
-        this.UiScale = scale;
-        _canvasWidth = (int)MathF.Floor(windowWidth / scale);
-        _canvasHeight = (int)MathF.Floor(windowHeight / scale);
-        _ = _fonts?.Get(scale);
+        _flow.Ui.Resize(windowWidth, windowHeight);
+        _ = _flow.Ui.Font; // re-bakes only when the scale changed
 
         if (_uiSkin is { } skin)
         {
-            skin.PixelScale = scale;
+            skin.PixelScale = _flow.Ui.Scale;
         }
     }
 

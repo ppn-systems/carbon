@@ -283,7 +283,7 @@ public sealed class WorldSceneRenderer : IDisposable
                 continue;
             }
 
-            AmbientAnimator.DrawRipples(_geometryBatch, _terrainRenderer.GetRipples(chunk.Key), _animTime);
+            AmbientAnimator.DrawRipples(_geometryBatch, _terrainRenderer.GetRipples(chunk.Key), _animTime, tileSize);
             AmbientAnimator.DrawWaterfalls(_geometryBatch, _terrainRenderer.GetWaterfalls(chunk.Key), _animTime);
         }
 

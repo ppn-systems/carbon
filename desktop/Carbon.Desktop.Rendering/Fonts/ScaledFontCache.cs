@@ -45,6 +45,13 @@ public sealed class ScaledFontCache : IDisposable
         return baked;
     }
 
+    /// <summary>Drops the current font so the next <see cref="Get"/> bakes afresh (the language changed).</summary>
+    public void Invalidate()
+    {
+        _font?.Dispose();
+        _font = null;
+    }
+
     /// <inheritdoc/>
     public void Dispose()
     {

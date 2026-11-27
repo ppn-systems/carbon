@@ -41,7 +41,15 @@ public sealed partial class ChunkTerrainRenderer : IDisposable
     private readonly Dictionary<long, RippleSpot[]> _ripples = new();
 
     /// <summary>A point on open water where an animated ripple glint plays.</summary>
-    public readonly record struct RippleSpot(Vector2 Centre, int Seed, bool IsDeep);
+    /// <param name="Centre">Tile centre in world pixels.</param>
+    /// <param name="Seed">Stable per-tile seed.</param>
+    /// <param name="IsDeep">Deep ocean (dim, blue glints).</param>
+    /// <param name="ToShore">Unit vector toward the land this tile touches (foam laps that way), or zero in open water.</param>
+    public readonly record struct RippleSpot(Vector2 Centre, int Seed, bool IsDeep, Vector2 ToShore = default)
+    {
+        /// <summary>Gets whether this spot is a shoreline tile (lapping foam instead of glints).</summary>
+        public bool IsShore => this.ToShore != Vector2.Zero;
+    }
 
     /// <summary>Gets the ripple spots of a chunk (empty until the chunk has been rendered once).</summary>
     public ReadOnlySpan<RippleSpot> GetRipples(long chunkKey) =>

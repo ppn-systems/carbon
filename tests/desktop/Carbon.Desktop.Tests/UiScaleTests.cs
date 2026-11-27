@@ -203,6 +203,7 @@ public sealed class UiScaleTests : IDisposable
         panel.X.Should().BeGreaterThanOrEqualTo(0f);
         panel.Y.Should().BeGreaterThanOrEqualTo(0f);
         panel.Right.Should().BeLessThanOrEqualTo(canvasWidth);
+        (panel.X + (panel.Width * 0.5f)).Should().BeApproximately(canvasWidth * 0.5f, 1f, "the panel is centred on the canvas, not on the window");
         panel.Bottom.Should().BeLessThanOrEqualTo(canvasHeight - 36f, "the footer hint line sits under the panel");
     }
 
@@ -211,7 +212,7 @@ public sealed class UiScaleTests : IDisposable
     {
         LoginScene login = this.Own(new LoginScene(this.Flow()));
         ScaledFontCache fonts = this.Own(new ScaledFontCache(FakeFont));
-        login.UseFonts(fonts, 1920, 1080);
+        login.UseFonts(() => fonts, 1920, 1080);
         login.Enter(_context);
         for (int frame = 0; frame < 30; frame++)
         {
@@ -254,7 +255,8 @@ public sealed class UiScaleTests : IDisposable
             return 1.25f;
         });
         LoginScene login = this.Own(new LoginScene(flow));
-        login.UseFonts(this.Own(new ScaledFontCache(FakeFont)), 1920, 1080);
+        ScaledFontCache cache = this.Own(new ScaledFontCache(FakeFont));
+        login.UseFonts(() => cache, 1920, 1080);
         login.Enter(_context);
         login.Update(_context, 0.016);
         login.Update(_context, 0.016);
