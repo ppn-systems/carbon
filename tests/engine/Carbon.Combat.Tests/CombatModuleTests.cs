@@ -4,6 +4,7 @@ using System;
 using System.Numerics;
 using Carbon.Combat.Components;
 using Carbon.Combat.Cooldowns;
+using Carbon.Combat.Damage;
 using Carbon.Combat.Events;
 using Carbon.Combat.Hitboxes;
 using Carbon.Combat.Projectiles;
@@ -214,5 +215,33 @@ public sealed class CombatModuleTests
         _ = world.Update(0.05);
         world.Entities.GetHealth(armoredTarget).Current.Should().BeApproximately(80f, 0.001f);
         world.Entities.IsAlive(secondBolt).Should().BeFalse();
+    }
+
+    [Fact]
+    public void TryResolve_InvulnerableTarget_RefusesTheHitWithoutChangingHealth()
+    {
+        WorldSimulation world = new(tickRate: 20);
+        Entity target = world.SpawnEntity(Vector2.Zero, radius: 4f);
+        world.Entities.SetHealth(target, new HealthComponent(100f, 100f));
+        world.Entities.SetComponent(target, new CombatStateComponent(CrowdControlMask.Invulnerable));
+
+        CombatDamage.TryResolve(world, target, 40f, default(ArmorDamageMitigation), out float dealt).Should().BeFalse();
+        dealt.Should().Be(0f);
+        CombatDamage.Apply(world, target, target, 40f).Should().BeFalse();
+        world.Entities.GetHealth(target).Current.Should().Be(100f);
+    }
+
+    [Fact]
+    public void TryResolve_ArmoredTarget_AppliesTheMitigationPolicy()
+    {
+        WorldSimulation world = new(tickRate: 20);
+        Entity target = world.SpawnEntity(Vector2.Zero, radius: 4f);
+        world.Entities.SetHealth(target, new HealthComponent(100f, 100f));
+        world.Entities.GetAttachmentStore<StatSheet>().GetOrAdd(target, static () => new StatSheet()).SetBase(StatType.Defense, 100f);
+
+        CombatDamage.TryResolve(world, target, 40f, default(ArmorDamageMitigation), out float dealt).Should().BeTrue();
+
+        dealt.Should().BeApproximately(20f, 1e-4f, "armor 100 halves damage");
+        world.Entities.GetHealth(target).Current.Should().Be(100f, "resolving does not apply the damage");
     }
 }

@@ -11,6 +11,7 @@ using Carbon.Contracts.Identity.C2S;
 using Carbon.Contracts.Identity.S2C;
 using Carbon.Contracts.Items.C2S;
 using Carbon.Contracts.Items.S2C;
+using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Identity;
 using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
@@ -305,7 +306,8 @@ public sealed partial class MultiplayerSession
                 _progression.SetUnlockedSkillMask(_progression.UnlockedSkillMask | (Contracts.Entities.CharacterSkillMask)enter.UnlockedSkillMask);
             }
 
-            _unspentStatPoints = CharacterProgressionPolicy.GetUnspentStatPoints(_localLevel, _progression);
+            // The server's PlayerStatsSync corrects this right after entry; until then use the synced budget.
+            _unspentStatPoints = SyncedProgressionConfig.Current?.GetUnspentStatPoints(_localLevel, _progression) ?? 0;
             _unspentSkillPoints = CharacterProgressionPolicy.GetUnspentSkillPoints(_localLevel, _progression);
             _remoteViewsDirty = true;
             _cachedRemoteViews = [];

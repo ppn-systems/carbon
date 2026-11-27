@@ -194,6 +194,7 @@ public sealed partial class MultiplayerSession
     {
         _ = _items.Apply(catalog);
         _ = SyncedFoodCatalog.Apply(catalog);
+        _ = SyncedProgressionConfig.Apply(catalog);
         _gameConfig = catalog;
         lock (_configGate)
         {

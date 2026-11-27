@@ -20,6 +20,7 @@ using Carbon.Application.World.Loot;
 using Carbon.Application.World.Needs;
 using Carbon.Application.World.Persistence;
 using Carbon.Application.World.Players;
+using Carbon.Application.World.Progression;
 using Carbon.Application.World.Projectiles;
 using Carbon.Application.World.Props;
 using Carbon.Application.World.Replication;
@@ -34,6 +35,7 @@ using Carbon.Economy.Currency;
 using Carbon.Economy.Loot;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
+using Carbon.Items.Progression;
 using Carbon.Items.Serialization;
 using Carbon.Items.Systems;
 using Carbon.Maps.Biomes;
@@ -42,7 +44,6 @@ using Carbon.Maps.Generators;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
-using Carbon.Simulation.Networking;
 using Carbon.Simulation.World;
 using Carbon.Survival.Config;
 using Carbon.Survival.Food;
@@ -95,6 +96,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly GroundLootService _groundLoot;
     private readonly ProjectileService _projectiles;
     private readonly MonsterCatalog _creatureCatalog;
+    private readonly CharacterProgressionService _progressionService;
     private readonly CreatureSystems _creatures;
     private readonly HashSet<long> _dirtyChunks = new();
     private readonly CharacterPersistence _persistence;
@@ -127,6 +129,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// <param name="economy">Optional data-driven economy (items, loot, currencies).</param>
     /// <param name="structureCatalog">Optional data-driven building catalog.</param>
     /// <param name="creatures">Monster catalog and spawning config; defaults to <see cref="CreatureContent.LoadDefault"/> (<c>resources/config</c>).</param>
+    /// <param name="progression">Character progression tuning (<c>progression.json</c>, ADR-021); defaults to the shipped copy.</param>
     public AuthoritativeWorld(
         ulong worldSeed,
         float tileSize,
@@ -140,7 +143,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         FoodCatalog? foodCatalog = null,
         GameEconomy? economy = null,
         StructureCatalog? structureCatalog = null,
-        CreatureContent? creatures = null)
+        CreatureContent? creatures = null,
+        ProgressionConfig? progression = null)
     {
         ArgumentNullException.ThrowIfNull(chunkDeltaRepo);
         ArgumentNullException.ThrowIfNull(characterStore);
@@ -200,6 +204,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _outbound,
             state => this.MarkCharacterDirtyLocked(state, inventoryChanged: true));
         _commerce = new EconomyService(this.WorldSeed, this.TickRate, () => _economy, () => _currentTick, _groundLoot, _inventory, _outbound, this.HasNearbyFriendlyNpcLocked);
+        _progressionService = new CharacterProgressionService(_simulation, progression ?? ProgressionConfig.LoadShippedDefaults(), _creatureCatalog, () => _itemRules,
+            () => _currentTick, state => this.MarkCharacterDirtyLocked(state, inventoryChanged: false), _commerce.QueueWalletSync);
         _combat = new CombatService(_simulation, _chunkWorld, MonsterLayer, _outbound, this.CollectNearbyConnectionsAroundWorldLocked, this.OnMonsterKilledLocked, () => _currentTick);
         _props = new PropHarvestService(
             _simulation,
@@ -259,7 +265,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// <param name="economy">New economy (items, recipes, loot, tunables), or <see langword="null"/> to keep none.</param>
     /// <param name="needsConfig">New needs tuning.</param>
     /// <param name="foodCatalog">New edible items.</param>
-    public void ApplyGameData(GameEconomy? economy, NeedsConfig needsConfig, FoodCatalog foodCatalog)
+    /// <param name="progression">New progression tuning (players are re-evaluated, ADR-021 D7), or <see langword="null"/> to keep it.</param>
+    public void ApplyGameData(GameEconomy? economy, NeedsConfig needsConfig, FoodCatalog foodCatalog, ProgressionConfig? progression = null)
     {
         ArgumentNullException.ThrowIfNull(needsConfig);
         ArgumentNullException.ThrowIfNull(foodCatalog);
@@ -268,8 +275,12 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _economy = economy;
             _itemRules = economy?.ItemRules ?? _itemRules;
             _needs.Reconfigure(needsConfig, foodCatalog);
+            _progressionService.Reconfigure(progression, _players.ByConnection.Values);
         }
     }
+
+    /// <summary>Gets the progression tuning the simulation currently runs on (an immutable snapshot, swapped atomically).</summary>
+    public ProgressionConfig Progression => _progressionService.Config;
 
     /// <summary>Gets the economy the simulation currently runs on.</summary>
     public GameEconomy? Economy
@@ -409,11 +420,12 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             InventoryContainer inventory = new(PlayerInventoryCapacity);
             character = CharacterPersistence.LoadInventory(character, inventory);
 
-            ushort startLevel = Math.Max((ushort)1, character.Level);
+            ushort startLevel = (ushort)Math.Min(Math.Max((ushort)1, character.Level), _progressionService.Config.MaxLevel);
             byte selectedSlot = character.SelectedHotbarSlot < PlayerInventoryLayout.HotbarCount ? character.SelectedHotbarSlot : (byte)0;
             CharacterProgressionState startProg = CharacterPersistence.LoadProgression(character);
+            bool refunded = _progressionService.RefundIfOverBudget(startLevel, startProg);
 
-            DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(_itemRules, startLevel, inventory, selectedSlot, startProg);
+            DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(_itemRules, _progressionService.Config, startLevel, inventory, selectedSlot, startProg);
             float startHp = MathF.Min(stats.MaxHealth, MathF.Max(1f, character.CurrentHealth));
             _simulation.Entities.SetHealth(entity, new HealthComponent(startHp, stats.MaxHealth));
             _simulation.Entities.SetComponent(entity, _needs.Restore(character));
@@ -457,6 +469,10 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _players.ByConnection[connectionId] = playerState;
             _players.ConnectionByNetworkId[networkId] = connectionId;
             _replication.Track(connectionId);
+            if (refunded)
+            {
+                this.MarkCharacterDirtyLocked(playerState, inventoryChanged: false);
+            }
 
             return new EnterWorldResult(
                 OpStatus.Ok,
@@ -473,7 +489,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
                 selectedSlot,
                 startLevel,
                 character.Experience,
-                CharacterProgressionPolicy.GetXpToNextLevel(startLevel),
+                _progressionService.Config.GetXpToNextLevel(startLevel),
                 startHp,
                 stats.MaxHealth,
                 startMana,
@@ -587,29 +603,16 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             }
 
             CharacterProgressionState prog = state.Progression;
-            if (kind == PointAllocationKind.Attribute)
+            if (kind is PointAllocationKind.Attribute or PointAllocationKind.ResetAttributes)
             {
-                PrimaryAttributeId attr = (PrimaryAttributeId)targetId;
-                if (!Enum.IsDefined(attr))
+                OpStatus allocStatus = kind == PointAllocationKind.ResetAttributes
+                    ? _progressionService.TryResetAttributes(state)
+                    : _progressionService.TryAllocateAttribute(state, (PrimaryAttributeId)targetId, requested);
+                if (allocStatus != OpStatus.Ok)
                 {
-                    return OpStatus.Invalid;
+                    return allocStatus;
                 }
 
-                ushort unspentStats = CharacterProgressionPolicy.GetUnspentStatPoints(state.Level, prog);
-                if (unspentStats == 0)
-                {
-                    return OpStatus.Conflict;
-                }
-
-                ushort spend = (ushort)Math.Min(requested, unspentStats);
-                prog.AddAttribute(attr, spend);
-
-                (float Health, float Mana, float Stamina) previousMax = VitalPools.Capture(state);
-                this.RecomputeDerivedStatsLocked(state);
-                VitalPools.AddGrowth(_simulation, state, previousMax);
-
-                state.StatsDirty = true;
-                this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
                 immediateSync = this.BuildPlayerStatsSnapshotLocked(state, clearLevelUpPending: false);
             }
             else if (kind == PointAllocationKind.Skill)
@@ -707,21 +710,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             : SpawnIdentity.Unknown;
     }
 
-    private void RecomputeDerivedStatsLocked(PlayerState state)
-    {
-        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(_itemRules, state.Level, state.Inventory, state.Session.SelectedHotbarSlot, state.Progression);
-        state.Stats = stats;
-        if (_simulation.Entities.HasHealth(state.Entity))
-        {
-            HealthComponent hp = _simulation.Entities.GetHealth(state.Entity);
-            float clamped = MathF.Min(stats.MaxHealth, MathF.Max(1f, hp.Current));
-            _simulation.Entities.SetHealth(state.Entity, new HealthComponent(clamped, stats.MaxHealth));
-            _simulation.MarkDirty(state.Entity, EntityDirtyMask.Health);
-        }
-
-        state.CurrentMana = Math.Clamp(state.CurrentMana, 0f, stats.MaxMana);
-        state.CurrentStamina = Math.Clamp(state.CurrentStamina, 0f, stats.MaxStamina);
-    }
+    private void RecomputeDerivedStatsLocked(PlayerState state) => _progressionService.RecomputeDerivedStats(state);
 
     private void EnqueueEquipmentBroadcastLocked(PlayerState state, Vector2 worldPos)
     {
@@ -759,7 +748,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         HealthComponent hp = _simulation.Entities.HasHealth(state.Entity)
             ? _simulation.Entities.GetHealth(state.Entity)
             : new HealthComponent(100f, state.Stats.MaxHealth);
-        uint xpNext = CharacterProgressionPolicy.GetXpToNextLevel(state.Level);
+        uint xpNext = _progressionService.Config.GetXpToNextLevel(state.Level);
         bool leveledUp = state.LeveledUpPending;
         if (clearLevelUpPending)
         {
@@ -791,9 +780,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             }
         }
 
-        ushort unspentStats = CharacterProgressionPolicy.GetUnspentStatPoints(state.Level, state.Progression);
+        ushort unspentStats = _progressionService.Config.GetUnspentStatPoints(state.Level, state.Progression);
         ushort unspentSkills = CharacterProgressionPolicy.GetUnspentSkillPoints(state.Level, state.Progression);
-        byte[] progBlob = CharacterProgressionBinaryCodec.Serialize(state.Progression);
+        byte[] progBlob = CharacterProgressionBinaryCodec.GetOrSerializeShared(state.Progression);
 
         return new PlayerStatsSnapshot(
             state.Level,

@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Carbon.Abstractions.Configuration;
 using Carbon.Abstractions.Identity;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.Security;
@@ -14,6 +15,7 @@ using Carbon.Contracts.Identity;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
+using Carbon.Items.Progression;
 using Carbon.Items.Serialization;
 
 namespace Carbon.Application.Identity;
@@ -50,6 +52,7 @@ public sealed class AuthService : IAuthService, IDisposable
     private readonly IPasswordHasher _hasher;
     private readonly TimeProvider _time;
     private readonly Func<ItemRules> _itemRules;
+    private readonly Func<ProgressionConfig> _progression;
     private readonly ConcurrentDictionary<Guid, LoginFailures> _loginFailures = new();
     private readonly ConcurrentDictionary<string, LoginFailures> _addressFailures = new(StringComparer.Ordinal);
     private readonly Lazy<(byte[] Hash, byte[] Salt)> _dummyCredentials;
@@ -59,6 +62,12 @@ public sealed class AuthService : IAuthService, IDisposable
     /// the thread pool instead of the network I/O thread that called in.
     /// </summary>
     private readonly SemaphoreSlim _hashGate = new(Math.Max(1, Environment.ProcessorCount / 2));
+
+    /// <summary>
+    /// Gets extra items granted to new characters. Set only by Debug hosts from <c>CARBON_DEBUG_STARTER_ITEMS</c>
+    /// (screenshot review); empty otherwise.
+    /// </summary>
+    public IReadOnlyList<DebugStarterItem> DebugStarterItems { get; init; } = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AuthService"/> class.
@@ -71,12 +80,14 @@ public sealed class AuthService : IAuthService, IDisposable
     /// Returns the item rules new characters' starting stats are computed with (the world's current rules, so a hot reload
     /// applies); defaults to the shipped item tables.
     /// </param>
+    /// <param name="progression">Returns the world's current progression tuning; defaults to the shipped <c>progression.json</c>.</param>
     public AuthService(
         IAccountStore accounts,
         ICharacterStore characters,
         IPasswordHasher hasher,
         TimeProvider? time = null,
-        Func<ItemRules>? itemRules = null)
+        Func<ItemRules>? itemRules = null,
+        Func<ProgressionConfig>? progression = null)
     {
         _accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
         _characters = characters ?? throw new ArgumentNullException(nameof(characters));
@@ -90,6 +101,13 @@ public sealed class AuthService : IAuthService, IDisposable
         }
 
         _itemRules = itemRules;
+        if (progression is null)
+        {
+            ProgressionConfig defaults = ProgressionConfig.LoadShippedDefaults();
+            progression = () => defaults;
+        }
+
+        _progression = progression;
     }
 
     /// <inheritdoc/>
@@ -236,13 +254,14 @@ public sealed class AuthService : IAuthService, IDisposable
 
         InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
         StarterGameCatalog.GrantStarterLoadout(inv, startingClass);
+        this.GrantDebugStarterItems(inv);
         const byte selectedSlot = 2;
         if (this.DebugForgeKit)
         {
             GrantForgeKit(_itemRules(), inv, selectedSlot);
         }
 
-        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(_itemRules(), 1, inv, selectedSlot);
+        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(_itemRules(), _progression(), 1, inv, selectedSlot, progression: null);
         byte[] invBlob = InventoryBinaryCodec.Serialize(inv);
 
         CharacterRecord created = new(
@@ -320,6 +339,34 @@ public sealed class AuthService : IAuthService, IDisposable
         }
 
         RecordFailure(_addressFailures, address, now);
+    }
+
+    private void GrantDebugStarterItems(InventoryContainer inventory)
+    {
+        if (this.DebugStarterItems.Count == 0)
+        {
+            return;
+        }
+
+        ItemRules rules = _itemRules();
+        foreach (DebugStarterItem extra in this.DebugStarterItems)
+        {
+            if (!rules.Items.TryGet(extra.ItemId, out ItemArchetype? def))
+            {
+                continue;
+            }
+
+            ItemSlot slot = new(extra.ItemId, extra.Quantity, 0UL, def.MaxDurability);
+            if (extra.UpgradeLevel > 0)
+            {
+                slot = ItemEnhancementPolicy.WithUpgradeLevel(in slot, extra.UpgradeLevel) with
+                {
+                    Durability = ItemEnhancementPolicy.GetEffectiveMaxDurability(def, extra.UpgradeLevel),
+                };
+            }
+
+            _ = PlayerInventoryLayout.TryAddBagItem(inventory, in slot, rules.GetMaxStackSize(extra.ItemId));
+        }
     }
 
     private (byte[] Hash, byte[] Salt) CreateDummyCredentials()
