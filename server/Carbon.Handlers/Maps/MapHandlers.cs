@@ -58,6 +58,8 @@ public static partial class MapHandlers
                 row.PropDurabilities = snapshot.PropDurabilities;
                 row.PropDestroyed = snapshot.PropDestroyed;
                 row.PropGrowthStages = snapshot.PropGrowthStages;
+                row.PlantedIndices = snapshot.PlantedIndices;
+                row.PlantedTypes = snapshot.PlantedTypes;
                 row.StructureIndices = snapshot.StructureIndices;
                 row.StructureTypes = snapshot.StructureTypes;
                 row.StructureDurabilities = snapshot.StructureDurabilities;

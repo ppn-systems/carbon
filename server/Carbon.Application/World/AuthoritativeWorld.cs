@@ -1040,7 +1040,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
                 _currentTick = (ulong)Math.Round(seconds * this.TickRate);
             }
 
-            int staged = overrides.TreeStages ? this.StageTreesAroundLocked(spawnX, spawnY) : 0;
+            int staged = (overrides.TreeStages ? this.StageTreesAroundLocked(spawnX, spawnY) : 0) +
+                (overrides.PlantedGrove ? this.PlantGroveLocked(spawnX, spawnY) : 0);
             string spawnText = movesSpawn ? $"{spawnX},{spawnY}" : "default";
             string hourText = overrides.StartHour?.ToString("0.##", CultureInfo.InvariantCulture) ?? "default";
             return $"spawn={spawnText}, startHour={hourText}, startLevel={overrides.StartLevel?.ToString(CultureInfo.InvariantCulture) ?? "default"}, treeStages={staged}";

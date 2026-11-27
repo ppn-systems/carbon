@@ -172,6 +172,21 @@ internal sealed class RegrowthWorldFixture : IDisposable
 
     public static bool IsDestroyed(AuthoritativeWorld world, int x, int y) => Probe(world, x, y).Destroyed;
 
+    /// <summary>Gets whether the chunk delta records a tree a player planted on the tile (ADR-040).</summary>
+    public static bool IsPlanted(AuthoritativeWorld world, int x, int y)
+    {
+        MapChunkDelta? packet = null;
+        try
+        {
+            return world.TryCreateChunkDeltaPacket(Chunk2D.ToChunkCoord(x), Chunk2D.ToChunkCoord(y), 0U, out packet) && packet is not null &&
+                Array.IndexOf(packet.PlantedIndices, (ushort)((Chunk2D.ToLocalCoord(y) * Chunk2D.Size) + Chunk2D.ToLocalCoord(x))) >= 0;
+        }
+        finally
+        {
+            packet?.Dispose();
+        }
+    }
+
     public (bool Destroyed, TreeGrowthStage Stage) Probe(int x, int y) => Probe(this.World, x, y);
 
     public bool IsDestroyed(int x, int y) => IsDestroyed(this.World, x, y);

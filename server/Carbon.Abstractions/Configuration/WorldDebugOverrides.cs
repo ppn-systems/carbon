@@ -71,8 +71,14 @@ public sealed record WorldDebugOverrides
     /// </summary>
     public bool TreeStages { get; init; }
 
+    /// <summary>
+    /// Gets a value indicating whether a grove of planted saplings and young trees starts south of the spawn (ADR-040),
+    /// for screenshot review of planting.
+    /// </summary>
+    public bool PlantedGrove { get; init; }
+
     /// <summary>Gets a value indicating whether any override is set.</summary>
     public bool IsActive => this.SpawnTile.HasValue || this.SpawnBiome is not null || this.SpawnPoi is not null || this.StartHour.HasValue ||
         this.SpawnOffset != default || this.StartLevel.HasValue || this.ForgeKit || this.StarterItems.Count > 0 || this.WornGear || this.WornGearPercents.Count > 0 ||
-        this.StatusEffects.Length > 0 || this.TreeStages;
+        this.StatusEffects.Length > 0 || this.TreeStages || this.PlantedGrove;
 }

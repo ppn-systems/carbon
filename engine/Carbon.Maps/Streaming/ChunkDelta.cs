@@ -23,6 +23,8 @@ public sealed class ChunkDelta
     private readonly Dictionary<int, PropDestructibility> _propStates = new();
     private readonly Dictionary<int, ulong> _propRespawnTicks = new();
     private readonly Dictionary<int, TreeGrowth> _propStages = new();
+    private readonly Dictionary<int, MapPropType> _planted = new();
+    private readonly ReadOnlyDictionary<int, MapPropType> _plantedView;
     private List<int>? _unscheduledLegacyKeys;
     private readonly Dictionary<int, StructureTile> _structures = new();
     private readonly Dictionary<int, ConstructionSite> _sites = new();
@@ -45,6 +47,7 @@ public sealed class ChunkDelta
         _structuresView = _structures.AsReadOnly();
         _sitesView = _sites.AsReadOnly();
         _recordsView = _records.AsReadOnly();
+        _plantedView = _planted.AsReadOnly();
     }
 
     /// <summary>Gets the chunk X coordinate.</summary>
@@ -81,7 +84,24 @@ public sealed class ChunkDelta
     public ReadOnlyDictionary<int, StructureRecord> StructureRecords => _recordsView;
 
     /// <summary>Gets a value indicating whether the delta holds no changes.</summary>
-    public bool IsEmpty => _tiles.Count == 0 && _propStates.Count == 0 && _structures.Count == 0 && _sites.Count == 0 && _records.Count == 0;
+    public bool IsEmpty => _tiles.Count == 0 && _propStates.Count == 0 && _structures.Count == 0 && _sites.Count == 0 && _records.Count == 0 &&
+        _planted.Count == 0;
+
+    /// <summary>
+    /// Gets the trees players planted on tiles that had no prop (ADR-040 D1), keyed by local tile index. They are added to
+    /// the chunk when it is built; their growth is an ordinary prop state.
+    /// </summary>
+    public ReadOnlyDictionary<int, MapPropType> PlantedProps => _plantedView;
+
+    /// <summary>Records a tree a player planted on a tile that had no prop.</summary>
+    /// <param name="localX">Local tile X.</param>
+    /// <param name="localY">Local tile Y.</param>
+    /// <param name="type">The tree type it grows into.</param>
+    public void SetPlanted(int localX, int localY, MapPropType type)
+    {
+        _planted[ToLocalIndex(localX, localY)] = type;
+        this.Revision++;
+    }
 
     /// <summary>Converts local tile coordinates into the delta's local index.</summary>
     /// <param name="localX">Local tile X.</param>
@@ -349,8 +369,9 @@ public sealed class ChunkDelta
     /// Returns this delta carried over to another generator version. Tile edits and constructed structures are kept:
     /// they are what players placed or dug and stay meaningful on any terrain. Natural prop states (chopped trees,
     /// mined ores) are dropped: the new generator may put different props on those tiles, so the old states would
-    /// damage the wrong objects; resources simply grow back. Faction-owned structures (generated villages) are dropped
-    /// too and rebuilt from the new layout.
+    /// damage the wrong objects; resources simply grow back. Planted trees go with them (ADR-040): the new generator may
+    /// put a prop on their tile. Faction-owned structures (generated villages) are dropped too and rebuilt from the new
+    /// layout.
     /// </summary>
     /// <param name="generatorVersion">The target version.</param>
     /// <returns>This delta when the version already matches, otherwise a migrated copy.</returns>
@@ -397,12 +418,13 @@ public sealed class ChunkDelta
     // Storage format (little-endian): format, generator version, chunk X/Y, revision, tile edits, prop states, structures (v2+),
     // construction sites and structure records (v3+). v4 appends to each prop state the ticks left until it respawns
     // (0 = permanent), relative to the world tick at save time, because the world tick restarts at 0 with the server.
-    // v5 appends the tree growth stage and tree type (ADR-040 D1).
+    // v5 appends the tree growth stage and tree type (ADR-040 D1). v6 appends the planted trees (index, type) at the end.
     private const byte LegacyFormatVersion = 1;
     private const byte StructuresFormatVersion = 2;
     private const byte ConstructionFormatVersion = 3;
     private const byte TimersFormatVersion = 4;
-    private const byte FormatVersion = 5;
+    private const byte StagesFormatVersion = 5;
+    private const byte FormatVersion = 6;
     private const int HeaderSize = 1 + 2 + 4 + 4 + 4;
     private const int TileSize = 2 + 1 + 4 + 4 + 4 + 1 + 1 + 1;
     private const int LegacyPropSize = 2 + 1 + 4 + 4 + 1;
@@ -411,6 +433,7 @@ public sealed class ChunkDelta
     private const int StructureSize = 2 + 1 + 1 + 1 + 1 + 1 + 1 + 4 + 4 + 4;
     private const int SiteBaseSize = 2 + 1 + 1 + 1 + 1 + 1 + 8 + 4 + 1;
     private const int RecordSize = 2 + 8 + 1 + 1 + 1 + 1;
+    private const int PlantedSize = 2 + 1;
 
     /// <summary>Serializes the delta for storage; identical bytes on every platform.</summary>
     /// <param name="currentTick">
@@ -427,7 +450,7 @@ public sealed class ChunkDelta
         }
 
         int totalSize = HeaderSize + 2 + (_tiles.Count * TileSize) + 2 + (_propStates.Count * PropSize) + 2 + (_structures.Count * StructureSize) +
-            2 + siteBytes + 2 + (_records.Count * RecordSize);
+            2 + siteBytes + 2 + (_records.Count * RecordSize) + 2 + (_planted.Count * PlantedSize);
         byte[] buffer = new byte[totalSize];
         Span<byte> span = buffer;
         span[0] = FormatVersion;
@@ -546,6 +569,17 @@ public sealed class ChunkDelta
             o += RecordSize;
         }
 
+        keys = [.. _planted.Keys];
+        keys.Sort();
+        BinaryPrimitives.WriteUInt16LittleEndian(span[o..], (ushort)keys.Count);
+        o += 2;
+        foreach (int key in keys)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(span[o..], (ushort)key);
+            span[o + 2] = (byte)_planted[key];
+            o += PlantedSize;
+        }
+
         return buffer;
     }
 
@@ -556,7 +590,7 @@ public sealed class ChunkDelta
     /// <exception cref="FormatException">The data is truncated, has an unknown format or bad tile indices.</exception>
     public static ChunkDelta Deserialize(ReadOnlySpan<byte> data, ulong currentTick)
     {
-        if (data.Length < HeaderSize + 4 || data[0] is not (LegacyFormatVersion or StructuresFormatVersion or ConstructionFormatVersion or TimersFormatVersion or FormatVersion))
+        if (data.Length < HeaderSize + 4 || data[0] is not (LegacyFormatVersion or StructuresFormatVersion or ConstructionFormatVersion or TimersFormatVersion or StagesFormatVersion or FormatVersion))
         {
             throw new FormatException("Unknown or truncated chunk delta.");
         }
@@ -587,7 +621,7 @@ public sealed class ChunkDelta
 
         int props = BinaryPrimitives.ReadUInt16LittleEndian(data[o..]);
         o += 2;
-        int propSize = format >= FormatVersion ? PropSize : (format >= TimersFormatVersion ? TimersPropSize : LegacyPropSize);
+        int propSize = format >= StagesFormatVersion ? PropSize : (format >= TimersFormatVersion ? TimersPropSize : LegacyPropSize);
         Require(data, o + (props * propSize));
         for (int i = 0; i < props; i++, o += propSize)
         {
@@ -600,7 +634,7 @@ public sealed class ChunkDelta
                 data[o + 11],
                 (flags & 2) != 0);
             delta._propStates[key] = state;
-            TreeGrowthStage stage = format >= FormatVersion ? (TreeGrowthStage)data[o + 16] : TreeGrowthStage.Mature;
+            TreeGrowthStage stage = format >= StagesFormatVersion ? (TreeGrowthStage)data[o + 16] : TreeGrowthStage.Mature;
             if (stage is not (TreeGrowthStage.Mature or TreeGrowthStage.Stump or TreeGrowthStage.Sapling or TreeGrowthStage.Young))
             {
                 throw new FormatException("Chunk delta prop growth stage is unknown.");
@@ -657,14 +691,29 @@ public sealed class ChunkDelta
 
         if (format >= ConstructionFormatVersion)
         {
-            DeserializeConstruction(delta, data, o);
+            o = DeserializeConstruction(delta, data, o);
+        }
+
+        if (format >= FormatVersion)
+        {
+            Require(data, o + 2);
+            int planted = BinaryPrimitives.ReadUInt16LittleEndian(data[o..]);
+            o += 2;
+            Require(data, o + (planted * PlantedSize));
+            for (int i = 0; i < planted; i++, o += PlantedSize)
+            {
+                MapPropType type = (MapPropType)data[o + 2];
+                delta._planted[ReadIndex(data[o..])] = MapProp.IsTree(type)
+                    ? type
+                    : throw new FormatException("Chunk delta planted prop is not a tree.");
+            }
         }
 
         delta.Revision = revision;
         return delta;
     }
 
-    private static void DeserializeConstruction(ChunkDelta delta, ReadOnlySpan<byte> data, int o)
+    private static int DeserializeConstruction(ChunkDelta delta, ReadOnlySpan<byte> data, int o)
     {
         Require(data, o + 2);
         int sites = BinaryPrimitives.ReadUInt16LittleEndian(data[o..]);
@@ -717,6 +766,8 @@ public sealed class ChunkDelta
                 (StructureRotation)data[o + 12],
                 (StructureType)data[o + 13]);
         }
+
+        return o;
     }
 
     private static void Require(ReadOnlySpan<byte> data, int length)
@@ -735,9 +786,21 @@ public sealed class ChunkDelta
 
     /// <summary>Applies this delta onto a freshly generated chunk.</summary>
     /// <param name="chunk">The chunk, already populated from the seed.</param>
-    public void ApplyTo(Chunk2D chunk)
+    /// <param name="tileSize">World units per tile (where planted trees stand).</param>
+    public void ApplyTo(Chunk2D chunk, float tileSize)
     {
         ArgumentNullException.ThrowIfNull(chunk);
+
+        // Planted trees first, so their prop states (growth stage) below find them.
+        foreach (KeyValuePair<int, MapPropType> kvp in _planted)
+        {
+            int lx = kvp.Key & Chunk2D.SizeMask;
+            int ly = kvp.Key >> Chunk2D.SizeBits;
+            if (chunk.FindPropIndexAt(lx, ly) < 0)
+            {
+                chunk.AddProp(BiomePropTables.CreatePlantedTree(kvp.Value, lx, ly, (this.ChunkX * Chunk2D.Size) + lx, (this.ChunkY * Chunk2D.Size) + ly, tileSize));
+            }
+        }
 
         foreach (KeyValuePair<int, MapTile> kvp in _tiles)
         {

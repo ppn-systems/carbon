@@ -165,7 +165,7 @@ internal sealed class ChunkStreamer
         _generator.PopulateChunk(chunk, chunkX, chunkY, _frequency, _tileSize);
         if (_deltas.TryGet(chunkX, chunkY, out ChunkDelta? delta) && delta != null)
         {
-            delta.ApplyTo(chunk); // player-made changes on top of the deterministic baseline
+            delta.ApplyTo(chunk, _tileSize); // player-made changes on top of the deterministic baseline
         }
     }
 }

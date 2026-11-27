@@ -24,6 +24,74 @@ public static class BiomePropTables
         return (uint)i < (uint)s_tables.Length ? s_tables[i] : BiomePropTable.Empty;
     }
 
+    /// <summary>
+    /// Gets the tree a sapling planted in <paramref name="biome"/> grows into (ADR-040 D1): the first tree the biome
+    /// grows naturally.
+    /// </summary>
+    /// <param name="biome">The biome of the tile.</param>
+    /// <param name="rule">The tree's rule (type, radius, colors).</param>
+    /// <returns><see langword="false"/> when no tree grows in the biome (water, desert dunes, ...).</returns>
+    public static bool TryGetPlantedTree(BiomeType biome, out PropRule rule)
+    {
+        PropLayer[] layers = Get(biome).Layers;
+        for (int i = 0; i < layers.Length; i++)
+        {
+            PropRule[] rules = layers[i].Rules;
+            for (int r = 0; r < rules.Length; r++)
+            {
+                if (MapProp.IsTree(rules[r].Type))
+                {
+                    rule = rules[r];
+                    return true;
+                }
+            }
+        }
+
+        rule = default;
+        return false;
+    }
+
+    /// <summary>Gets the rule a tree of <paramref name="type"/> is generated with in the first biome that grows it.</summary>
+    /// <param name="type">The tree type.</param>
+    /// <param name="rule">Its rule (radius, colors).</param>
+    /// <returns><see langword="false"/> when no biome grows it.</returns>
+    public static bool TryGetTreeRule(MapPropType type, out PropRule rule)
+    {
+        for (int b = 0; b < s_tables.Length; b++)
+        {
+            PropLayer[] layers = s_tables[b].Layers;
+            for (int i = 0; i < layers.Length; i++)
+            {
+                PropRule[] rules = layers[i].Rules;
+                for (int r = 0; r < rules.Length; r++)
+                {
+                    if (rules[r].Type == type)
+                    {
+                        rule = rules[r];
+                        return true;
+                    }
+                }
+            }
+        }
+
+        rule = default;
+        return false;
+    }
+
+    /// <summary>Creates the prop of a planted tree of <paramref name="type"/> centred on a tile (ADR-040 D1).</summary>
+    /// <param name="type">The tree type.</param>
+    /// <param name="localX">Local tile X.</param>
+    /// <param name="localY">Local tile Y.</param>
+    /// <param name="worldTileX">World tile X.</param>
+    /// <param name="worldTileY">World tile Y.</param>
+    /// <param name="tileSize">Tile size in world units.</param>
+    /// <returns>The mature prop; its growth stage is set by the caller.</returns>
+    public static MapProp CreatePlantedTree(MapPropType type, int localX, int localY, int worldTileX, int worldTileY, float tileSize)
+    {
+        PropRule rule = TryGetTreeRule(type, out PropRule found) ? found : new PropRule(type, 1f, 24f, true, 0x2D6A4FFF, 0x7C4A26FF);
+        return MapProp.Create(type, localX, localY, (worldTileX + 0.5f) * tileSize, (worldTileY + 0.5f) * tileSize, rule.Radius, rule.IsSolid, rule.Primary, rule.Secondary);
+    }
+
     private static PropRule Ore(MapPropType type, float roll, float radius, uint a, uint b) => new(type, roll, radius, true, a, b);
 
     private static PropRule Boulder(float roll, float radius, uint a, uint b) => s_boulderBase with { MaxRoll = roll, Radius = radius, Primary = a, Secondary = b };

@@ -4,6 +4,12 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Application.World.Players;
+using Carbon.Application.World.Props;
+using Carbon.Application.World.Replication;
+using Carbon.Contracts.Common;
+using Carbon.Items.Containers;
+using Carbon.Items.Definitions;
+using Carbon.Maps.Data;
 using Carbon.Maps.Generators.Stages;
 using Carbon.Maps.Props;
 
@@ -101,5 +107,90 @@ public sealed partial class AuthoritativeWorld
         }
 
         return staged;
+    }
+
+    /// <summary>
+    /// Plants the sapling in the player's active hotbar slot on a tile within build reach (ADR-040 D1). Synchronous form
+    /// for tests; players plant with the primary action while holding a sapling.
+    /// </summary>
+    /// <param name="connectionId">The planting player.</param>
+    /// <param name="tileX">World tile X.</param>
+    /// <param name="tileY">World tile Y.</param>
+    /// <returns>
+    /// <see cref="OpStatus.Ok"/>; <see cref="OpStatus.OutOfRange"/> beyond build reach; <see cref="OpStatus.NotFound"/>
+    /// when no sapling is held; <see cref="OpStatus.Invalid"/> on unsuitable ground; <see cref="OpStatus.Conflict"/> on an
+    /// occupied tile.
+    /// </returns>
+    public OpStatus TryPlantSapling(ulong connectionId, int tileX, int tileY)
+    {
+        lock (_gate)
+        {
+            return _players.ByConnection.TryGetValue(connectionId, out PlayerState? state)
+                ? this.PlantSaplingLocked(state, tileX, tileY)
+                : OpStatus.Forbidden;
+        }
+    }
+
+    private OpStatus PlantSaplingLocked(PlayerState state, int tileX, int tileY)
+    {
+        if (!this.IsWithinInteractRangeLocked(state.Entity, tileX, tileY))
+        {
+            return OpStatus.OutOfRange;
+        }
+
+        ushort slotIndex = state.Session.SelectedHotbarSlot;
+        ItemSlot held = slotIndex < state.Inventory.Capacity ? state.Inventory.GetSlot(slotIndex) : ItemSlot.Empty;
+        if (held.IsEmpty || !_itemRules.ItemCatalog.TryGetByCode(PropHarvestService.SaplingCode, out ItemCatalogEntry? sapling) || held.ItemId != sapling.Id)
+        {
+            return OpStatus.NotFound;
+        }
+
+        PlantResult result = _chunkWorld.TryPlantTree(tileX, tileY, _propRegrowth, _currentTick, this.TickRate, out MapProp planted);
+        if (result != PlantResult.Planted)
+        {
+            return result == PlantResult.Occupied ? OpStatus.Conflict : OpStatus.Invalid;
+        }
+
+        ItemSlot left = held.Quantity > 1 ? held with { Quantity = held.Quantity - 1 } : ItemSlot.Empty;
+        state.Inventory.SetSlot(slotIndex, in left);
+        _outbound.Pending.SlotChanges.Add(new OutboundSlotChange(state.Session.ConnectionId, slotIndex, left));
+        this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
+        _ = _dirtyChunks.Add(Chunk2D.PackKey(Chunk2D.ToChunkCoord(tileX), Chunk2D.ToChunkCoord(tileY)));
+        (int offset, int count) = this.AppendTileRecipientsLocked(tileX, tileY);
+        if (count > 0)
+        {
+            _outbound.Pending.PropChanges.Add(new OutboundPropChange(
+                offset, count, tileX, tileY, planted.Destructibility.CurrentDurability, IsDestroyed: false, TreeGrowthStage.Sapling));
+        }
+
+        return OpStatus.Ok;
+    }
+
+    /// <summary>
+    /// Debug screenshots (<c>CARBON_DEBUG_PLANTED_GROVE</c>): saplings planted on every other tile of a 7 × 3 patch south
+    /// of the spawn, every second one grown to a young tree, through the same rules as a player planting them.
+    /// </summary>
+    private int PlantGroveLocked(int spawnX, int spawnY)
+    {
+        int planted = 0;
+        for (int dy = 3; dy <= 7; dy += 2)
+        {
+            for (int dx = -6; dx <= 6; dx += 2)
+            {
+                int x = spawnX + dx;
+                int y = spawnY + dy;
+                if (_chunkWorld.TryPlantTree(x, y, _propRegrowth, _currentTick, this.TickRate, out MapProp sapling) != PlantResult.Planted)
+                {
+                    continue;
+                }
+
+                if ((planted++ & 1) == 1)
+                {
+                    _ = _chunkWorld.TrySetTreeStageAt(x, y, TreeGrowthStage.Young, _propRegrowth.Trees.StateOf(sapling.Type, TreeGrowthStage.Young), 0UL, out _);
+                }
+            }
+        }
+
+        return planted;
     }
 }
