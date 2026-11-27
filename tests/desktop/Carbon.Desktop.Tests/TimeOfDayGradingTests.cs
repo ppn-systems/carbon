@@ -3,6 +3,7 @@
 using System;
 using System.Numerics;
 using Carbon.Desktop.Rendering.PostProcessing;
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
 
@@ -99,13 +100,8 @@ public sealed class TimeOfDayGradingTests
     [Fact]
     public void Sample_EveryFrame_AllocatesNothing()
     {
-        _ = TimeOfDayGrading.Sample(6.2f, 0.3f);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 2000; i++)
-        {
-            _ = TimeOfDayGrading.Sample(i * 0.013f, i % 10 * 0.1f);
-        }
+        AllocationResult window = AllocationProbe.Measure(2000, warmupIterations: 2000, i => _ = TimeOfDayGrading.Sample(i * 0.013f, i % 10 * 0.1f));
 
-        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0, "the grade is sampled every frame");
+        window.Bytes.Should().Be(0, $"the grade is sampled every frame ({window})");
     }
 }

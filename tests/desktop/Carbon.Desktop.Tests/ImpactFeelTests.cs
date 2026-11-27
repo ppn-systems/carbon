@@ -10,6 +10,7 @@ using Carbon.Desktop.Rendering.Feedback;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Desktop.Rendering.World;
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
 
@@ -250,8 +251,7 @@ public sealed class ImpactFeelTests
         StrikeImpactEvent[] hits = [HeroHitsSlime()];
         presenter.Step(Slash(0.05f), Vector2.UnitX, hits, Dt, ImpactFeelOptions.Default);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int frame = 0; frame < 300; frame++)
+        AllocationResult window = AllocationProbe.Measure(300, warmupIterations: 300, frame =>
         {
             float p = frame % 30 / 30f;
             ReadOnlySpan<StrikeImpactEvent> fresh = frame % 30 == 1 ? hits : [];
@@ -259,9 +259,9 @@ public sealed class ImpactFeelTests
             _ = presenter.CameraOffset(ImpactFeelOptions.Default);
             _ = presenter.FlashFor(Slime);
             _ = presenter.DisplayedProgress(Slash(p));
-        }
+        });
 
-        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0, "impact feedback runs every frame");
+        window.Bytes.Should().Be(0, $"impact feedback runs every frame ({window})");
     }
 
     [Fact]

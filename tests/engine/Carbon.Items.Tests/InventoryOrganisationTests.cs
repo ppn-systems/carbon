@@ -5,6 +5,7 @@ using System.Buffers.Binary;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Serialization;
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
 
@@ -147,10 +148,11 @@ public sealed class InventoryOrganisationTests
         inv.SetSlot(30, new ItemSlot(StarterGameCatalog.StoneChunk, 2));
         inv.SetSlot(31, new ItemSlot(StarterGameCatalog.IronSword, 1, 0, 200f));
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        AllocationWindow open = AllocationProbe.Start();
         _ = InventorySorting.SortBackpack(s_rules, inv);
+        AllocationResult window = open.Stop(1);
 
-        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0, "the sort works on stack buffers (AGENTS.md rule 4)");
+        window.Bytes.Should().Be(0, $"the sort works on stack buffers (AGENTS.md rule 4) ({window})");
     }
 
     [Fact]

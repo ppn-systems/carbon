@@ -11,6 +11,7 @@ using Carbon.Maps.Generators;
 using Carbon.Maps.Generators.Stages;
 using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
+using Carbon.Testing;
 using Xunit;
 
 namespace Carbon.Maps.Tests;
@@ -239,14 +240,14 @@ public sealed class PropRegrowthTests
 
         Fell(world, trees, respawnAt: 20UL);
         respawned.Clear();
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        AllocationWindow open = AllocationProbe.Start();
         int pending = world.ProcessPropRespawns(19UL, null, 30, blocked, null, respawned);
         int due = world.ProcessPropRespawns(20UL, null, 30, blocked, null, respawned);
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        AllocationResult window = open.Stop(2);
 
         Assert.Equal(0, pending);
         Assert.Equal(trees.Count, due);
-        Assert.Equal(0L, allocated);
+        Assert.True(window.Bytes == 0, window.ToString());
     }
 
     private static void Fell(ChunkWorld2D world, List<(int X, int Y)> tiles, ulong respawnAt)

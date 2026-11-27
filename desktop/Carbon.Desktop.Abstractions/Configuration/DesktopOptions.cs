@@ -141,9 +141,9 @@ public sealed class DesktopOptions
 
     /// <summary>
     /// Gets or sets a menu scene to capture instead of the world
-    /// (<c>CARBON_CAPTURE_SCENE=start|login|register|server|characters</c>, ADR-023 D8, ADR-037). Each needs
-    /// <c>CARBON_AUTO_LOGIN=0</c>; <c>characters</c> registers the configured account and captures the character screen.
-    /// Empty when unset.
+    /// (<c>CARBON_CAPTURE_SCENE=start|login|register|server|characters|roster</c>, ADR-023 D8, ADR-037). Each needs
+    /// <c>CARBON_AUTO_LOGIN=0</c>; <c>characters</c> registers the configured account and captures the character screen,
+    /// and <c>roster</c> also creates two sample heroes and captures the roster. Empty when unset.
     /// </summary>
     public string CaptureScene { get; init; } = string.Empty;
 
