@@ -56,8 +56,11 @@ public interface IGameplayController
     /// <summary>Right-click quick-equips armor or shuttles an item between backpack and hotbar.</summary>
     bool TryQuickMoveInventorySlot(ushort slotIndex);
 
-    /// <summary>Requests forge enhancement (<c>+1..+10</c>) on the item in <paramref name="slotIndex"/>.</summary>
-    bool TryUpgradeInventoryItem(ushort slotIndex);
+    /// <summary>
+    /// Requests forge enhancement (<c>+1..+10</c>) on the item in <paramref name="slotIndex"/>, spending the protection
+    /// scroll <paramref name="protectionItemId"/> when non-zero. The server rolls the outcome (ADR-024).
+    /// </summary>
+    bool TryUpgradeInventoryItem(ushort slotIndex, ushort protectionItemId = 0);
 
     /// <summary>Drops <paramref name="quantity"/> units from <paramref name="slotIndex"/> onto the ground.</summary>
     bool TryDropInventoryItem(ushort slotIndex, int quantity);

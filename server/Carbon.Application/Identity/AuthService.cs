@@ -13,6 +13,7 @@ using Carbon.Contracts.Entities;
 using Carbon.Contracts.Identity;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
+using Carbon.Items.Definitions;
 using Carbon.Items.Progression;
 using Carbon.Items.Serialization;
 
@@ -210,6 +211,14 @@ public sealed class AuthService : IAuthService, IDisposable
     public Task<IReadOnlyList<CharacterRecord>> ListCharactersAsync(Guid accountId, CancellationToken ct = default) =>
         _characters.ListByAccountAsync(accountId, ct);
 
+    private const long DebugForgeKitGold = 50_000L;
+
+    /// <summary>
+    /// Gets or sets whether new characters receive the forge review kit (Debug host only, <c>CARBON_DEBUG_FORGE_KIT</c>):
+    /// a +8 iron sword in the selected hotbar slot, enhancement materials, protection scrolls and gold.
+    /// </summary>
+    public bool DebugForgeKit { get; init; }
+
     /// <inheritdoc/>
     public async Task<CharacterCreateResult> CreateCharacterAsync(
         Guid accountId,
@@ -239,6 +248,11 @@ public sealed class AuthService : IAuthService, IDisposable
         InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
         StarterGameCatalog.GrantStarterLoadout(inv, startingClass);
         const byte selectedSlot = 2;
+        if (this.DebugForgeKit)
+        {
+            GrantForgeKit(_itemRules(), inv, selectedSlot);
+        }
+
         DerivedCharacterStats stats = CharacterStatCalculator.Compute(_itemRules(), _progression(), 1, inv, selectedSlot, progression: null);
         byte[] invBlob = InventoryBinaryCodec.Serialize(inv);
 
@@ -263,7 +277,8 @@ public sealed class AuthService : IAuthService, IDisposable
             Class: (HeroArchetypeClass)startingClass,
             Flags: CharacterTraits.StarterLoadoutGranted,
             UnlockedSkills: CharacterSkillMask.None,
-            ProgressionBlob: []);
+            ProgressionBlob: [],
+            Gold: this.DebugForgeKit ? DebugForgeKitGold : 0L);
 
         bool inserted = await _characters.TryCreateAsync(created, ct).ConfigureAwait(false);
         return inserted
@@ -365,4 +380,16 @@ public sealed class AuthService : IAuthService, IDisposable
 
     /// <summary>Failed-login count for one account and when its counting window started.</summary>
     private readonly record struct LoginFailures(int Count, DateTimeOffset WindowStart);
+
+    private static void GrantForgeKit(ItemRules rules, InventoryContainer inv, byte selectedSlot)
+    {
+        ItemCatalog items = rules.ItemCatalog;
+        uint sword = items.ResolveId("iron_sword");
+        float durability = rules.Items.TryGet(sword, out ItemArchetype? def) ? ItemEnhancementPolicy.GetEffectiveMaxDurability(def, 8) : 0f;
+        inv.SetSlot(selectedSlot, new ItemSlot(sword, 1, Durability: durability, UpgradeLevel: 8));
+        foreach ((string code, int quantity) in (ReadOnlySpan<(string, int)>)[("iron_ingot", 40), ("mana_crystal", 60), ("rough_gem", 10), ("forge_ward_scroll", 5), ("blessed_forge_scroll", 3)])
+        {
+            _ = PlayerInventoryLayout.TryAddBagItem(inv, new ItemSlot(items.ResolveId(code), quantity), items.GetMaxStack(items.ResolveId(code)));
+        }
+    }
 }

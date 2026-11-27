@@ -154,6 +154,7 @@ public sealed class HostRuntimeOptions
             StartLevel = ushort.TryParse(readEnv("CARBON_DEBUG_START_LEVEL"), NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort lv) && lv > 1
                 ? lv
                 : null,
+            ForgeKit = string.Equals(readEnv("CARBON_DEBUG_FORGE_KIT"), "1", StringComparison.Ordinal),
         };
 #else
         return new WorldDebugOverrides();
