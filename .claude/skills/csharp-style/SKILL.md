@@ -56,8 +56,39 @@ Applies across all C# code in `analyzer/`, `contracts/`, `engine/`, `graphics/`,
 - **Server to Client (S2C)**: Result / Notification (e.g., `PlayerMoveResult`, `WorldSnapshotSync`, `EntitySpawnNotification`).
 - **Opcodes**: Defined via strongly typed enums or constants, partitioned into distinct functional bands.
 
+## Type & Project Naming
+
+`tests/architecture/Carbon.Architecture.Tests/NamingConventionTests.cs` enforces these as positive rules with no allowlist: the project, namespace and interface rules today, and each further rule as its rename batch lands (plan in `docs/audit/2026-11-naming.md`).
+
+- **Projects:** folder, `.csproj` file, `AssemblyName` and `RootNamespace` are one name (`Carbon.Graphics.Fonts`).
+- **Namespaces:** `<RootNamespace>.<Folder>.<SubFolder>`, for product and test code alike. Move the file or rename the folder; never declare another namespace.
+- **Interfaces:** `I` + PascalCase.
+- **Type names say what the type is.** Do not use `Manager`, `Helper` or `Util(s)`. Pick the noun: `EntityManager` → `EntityRegistry`, `SceneManager` → `SceneStack`, `TopographyHelper` → `TopographyRules`, or a plural static class for a set of functions over one type (`CharacterSkillMaskHelper` → `CharacterSkillMasks`). `*Info` / `*Data` are fine for passive records (as in `CultureInfo`).
+- **Role suffixes** carry the layer:
+
+| Suffix | Meaning |
+| :--- | :--- |
+| `*System` | engine ECS step run by the tick |
+| `*Service` | server orchestrator called under the world lock |
+| `*Handlers` | static Nalix packet-handler class for one opcode band |
+| `*Store` | persistence port. The backend is spelled out: `SqliteAccountStore`, `PostgresAccountStore`. |
+| `*Document` | root DTO of one `resources/config/<x>.json` |
+| `*Config` | nested tuning object |
+| `*Outcome` | a non-wire result. A wire packet is a plain noun (`AuthResult`, `PlayerStatsSync`). |
+
+- **Acronyms** are written as words: `Hud`, `Ui`, `Npc`, `Ai`, `Vfx`, `Sfx`, `Xp`, `Aoi`, `Cvg`, `Dto`, `Id`. Other abbreviations are spelled out (`Postgres`, not `Pg`; `nextIndex`, not `nIdx`). No Hungarian prefixes.
+- **Members:** methods returning `Task` / `ValueTask` end in `Async` (except `Main`). A boolean property is an affirmative phrase; use `Is` / `Has` / `Can` where a bare word is ambiguous (`IsStatsDirty`, not `StatsDirty`). Methods returning `bool` with an `out` value start with `Try`.
+- **English only** in identifiers. Vietnamese belongs in `resources/localization/vi.ini`.
+
+## Data Naming
+
+- JSON property names are camelCase (every `JsonSerializerContext` sets `PropertyNamingPolicy = CamelCase`).
+- Ids are lower_snake (`wood_axe`, `alpine_peaks`), including ids used as JSON map keys and art file stems (`resources/art/items/wood_axe.cvg.json`).
+- Locale keys are `section.key`, with lower_snake segments (`hud.not_enough_mana`). See `resources/localization/README.md`.
+- Renaming a config key or an i18n key changes every user in the same PR (no compatibility aliases).
+
 ## File Organization
 
 - One primary type per file. File name must match type name (e.g., `WorldTickLoop.cs`).
-- Namespace must strictly match folder path (enforced by IDE0130).
+- Namespace must strictly match folder path (enforced by IDE0130 and `NamingConventionTests`).
 - Split large classes into partial files (`.cs`, `.Systems.cs`, `.Handlers.cs`) only when exceeding ~700 lines.

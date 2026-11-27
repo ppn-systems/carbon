@@ -41,7 +41,8 @@ carbon/
    - `desktop/` and `wasm/` consume `contracts/`, `engine/`, and `graphics/`.
 4. **No Allocations on Hot Paths**: Game tick loops and packet dispatching must be zero-allocation (struct components, `Span<T>`, `PacketFactory<T>.Acquire()`).
 5. **No Blind Architecture Changes**: No new frameworks, database shifts, or breaking wire protocol changes without an Architecture Decision Record (ADR) in `docs/adr/`.
-6. **No Speculative Code**: Follow Karpathy Guidelines — implement only what is requested, make surgical edits, and verify with tests.
+6. **Names Say What Things Are**: namespace = project root + folder path; no `*Manager`/`*Helper`/`*Utils`; interfaces start with `I`; `Async` on task-returning methods; camelCase JSON properties and lower_snake ids. Details in `csharp-style`, enforced by `NamingConventionTests`.
+7. **No Speculative Code**: Follow Karpathy Guidelines — implement only what is requested, make surgical edits, and verify with tests.
 
 ## Skill Directory & Trigger Routing
 
