@@ -54,7 +54,8 @@ internal sealed class StaminaService
     }
 
     /// <summary>
-    /// Pays for a discrete action. A refused action is counted (the client flashes the bar) and must not run.
+    /// Pays for a discrete action. A refused action is counted (the client flashes the bar) and must not run. A dead
+    /// player (ADR-031) cannot act: the action is refused without counting.
     /// </summary>
     /// <param name="state">Player.</param>
     /// <param name="cost">Stamina cost.</param>
@@ -62,6 +63,11 @@ internal sealed class StaminaService
     public bool TrySpend(PlayerState state, float cost)
     {
         ArgumentNullException.ThrowIfNull(state);
+        if (state.IsDead)
+        {
+            return false;
+        }
+
         if (state.Stamina.TrySpend(cost, this.Config))
         {
             if (cost > 0f)
@@ -84,7 +90,7 @@ internal sealed class StaminaService
     public bool TrySprint(PlayerState state, float deltaSeconds)
     {
         ArgumentNullException.ThrowIfNull(state);
-        if (!state.Stamina.TryDrain(this.Config.SprintDrainPerSecond * deltaSeconds, this.Config))
+        if (state.IsDead || !state.Stamina.TryDrain(this.Config.SprintDrainPerSecond * deltaSeconds, this.Config))
         {
             return false;
         }
@@ -95,11 +101,11 @@ internal sealed class StaminaService
 
     /// <summary>Gets whether a build or demolition job may make progress this tick.</summary>
     /// <param name="state">Player.</param>
-    /// <returns><see langword="false"/> while exhausted or empty.</returns>
+    /// <returns><see langword="false"/> while dead, exhausted or empty.</returns>
     public bool CanWork(PlayerState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        return this.Config.BuildWorkPerSecond <= 0f || state.Stamina.CanSprint;
+        return !state.IsDead && (this.Config.BuildWorkPerSecond <= 0f || state.Stamina.CanSprint);
     }
 
     /// <summary>Drains the stamina of one tick of build or demolition work that made progress.</summary>
@@ -117,7 +123,7 @@ internal sealed class StaminaService
     /// <summary>
     /// Regenerates one tick: nothing during the regen delay, then the still or moving rate scaled by rest, fatigue and
     /// hunger and
-    /// status effects.
+    /// status effects. A dead player does not regenerate; respawn refills the meter.
     /// </summary>
     /// <param name="state">Player.</param>
     /// <param name="deltaSeconds">Tick length.</param>
@@ -126,6 +132,11 @@ internal sealed class StaminaService
     public void Regenerate(PlayerState state, float deltaSeconds, bool isMoving, float effectScale = 1f)
     {
         ArgumentNullException.ThrowIfNull(state);
+        if (state.IsDead)
+        {
+            return;
+        }
+
         RestState fatigue = RestState.Rested;
         HungerState hunger = HungerState.Fed;
         if (_simulation.Entities.TryGetComponent(state.Entity, out NeedsComponent needs))

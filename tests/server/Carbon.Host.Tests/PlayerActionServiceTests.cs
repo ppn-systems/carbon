@@ -306,6 +306,34 @@ public sealed class PlayerActionServiceTests
     }
 
     [Fact]
+    public void Attack_WhileDead_SpendsNothingAndCountsNoRefusal()
+    {
+        Harness h = new();
+        Entity mob = h.SpawnMonster(1000f);
+        h.Player.IsDead = true;
+
+        h.Actions.Attack(h.Player);
+
+        h.Player.CurrentStamina.Should().Be(100f);
+        h.Player.StaminaRefusals.Should().Be(0U, "a dead player's input is not an exhaustion refusal");
+        h.Simulation.Entities.GetHealth(mob).Current.Should().Be(1000f);
+    }
+
+    [Fact]
+    public void Regenerate_WhileDead_RestoresNothingAndBuildWorkIsBlocked()
+    {
+        Harness h = new();
+        h.Player.CurrentStamina = 50f;
+        h.Player.IsDead = true;
+
+        h.Stamina.Regenerate(h.Player, 5f, isMoving: false);
+
+        h.Player.CurrentStamina.Should().Be(50f);
+        h.Stamina.CanWork(h.Player).Should().BeFalse();
+        h.Stamina.TrySprint(h.Player, 1f / 30f).Should().BeFalse();
+    }
+
+    [Fact]
     public void Regenerate_StatusEffectScale_SlowsRegen()
     {
         Harness h = new();
