@@ -375,7 +375,8 @@ public sealed class ForgeEnhancementVfx
         });
     }
 
-    private static void DrawHammer(GeometryBatch batch, Vector2 center, float angle)
+    /// <summary>Draws the forge hammer pivoting beside <paramref name="center"/> (shared with <see cref="RepairVfx"/>).</summary>
+    internal static void DrawHammer(GeometryBatch batch, Vector2 center, float angle)
     {
         Vector2 pivot = center + new Vector2(46f, -14f);
         Vector2 dir = new(MathF.Cos(angle), MathF.Sin(angle));
@@ -400,7 +401,8 @@ public sealed class ForgeEnhancementVfx
         batch.DrawLine(quad[0] + (dir * 1.5f), quad[1] - (dir * 1.5f), new ColorRgba(248, 250, 252, 255), 1.2f);
     }
 
-    private static void DrawSparks(GeometryBatch batch, Vector2 origin, float age, int seed, int count, float speed, ColorRgba color)
+    /// <summary>Draws one burst of falling sparks <paramref name="age"/> seconds after a strike (shared with <see cref="RepairVfx"/>).</summary>
+    internal static void DrawSparks(GeometryBatch batch, Vector2 origin, float age, int seed, int count, float speed, ColorRgba color)
     {
         if (age < 0f || age > SparkLife * 1.6f)
         {

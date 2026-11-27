@@ -60,6 +60,7 @@ internal sealed class SettingsModalWidget
         ("settings.key.inventory", "settings.action.inventory"),
         ("settings.key.character", "settings.action.character"),
         ("settings.key.craft", "settings.action.craft"),
+        ("settings.key.repair", "settings.action.repair"),
         ("settings.key.map", "settings.action.map"),
         ("settings.key.menu", "settings.action.menu"),
     ];

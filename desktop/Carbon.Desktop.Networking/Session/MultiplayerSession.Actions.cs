@@ -878,18 +878,6 @@ public sealed partial class MultiplayerSession
     }
 
     /// <inheritdoc/>
-    public bool TryRepairItem(ushort slotIndex)
-    {
-        if (!this.IsReady || _tcpSession is not { IsConnected: true } || slotIndex >= PlayerInventoryLayout.TotalCapacity)
-        {
-            return false;
-        }
-
-        _ = this.SendTcpPooledAsync<RepairInventoryItem>(p => p.SlotIndex = slotIndex);
-        return true;
-    }
-
-    /// <inheritdoc/>
     public void DrainCombatEvents(List<CombatFeedbackEvent> destination)
     {
         ArgumentNullException.ThrowIfNull(destination);
