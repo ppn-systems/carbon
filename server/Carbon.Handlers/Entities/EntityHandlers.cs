@@ -7,6 +7,8 @@ using Carbon.Abstractions.World;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Entities.C2S;
+using Carbon.Contracts.Items;
+using Carbon.Contracts.Items.C2S;
 using Carbon.Handlers.Internal;
 using Nalix.Abstractions.Injection;
 using Nalix.Abstractions.Networking.Packets;
@@ -102,5 +104,18 @@ public static partial class EntityHandlers
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
         WorldMutationOutcome outcome = await s_world.SubmitSetRestingAsync(connectionId, rest).ConfigureAwait(false);
         await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, EntityOpCode.RestRequest).ConfigureAwait(false);
+    }
+
+    /// <summary>Opcode <c>0x4079</c>. A dead player asks to respawn at the sanctuary (ADR-031).</summary>
+    [PacketOpcode(ItemOpCode.RespawnRequest)]
+    [PacketPermission(PermissionLevel.USER)]
+    public static async ValueTask HandleRespawnRequestAsync(IPacketContext<RespawnRequest> context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        IPacketSender sender = context.Sender;
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
+        WorldMutationOutcome outcome = await s_world.SubmitRespawnAsync(connectionId).ConfigureAwait(false);
+        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.RespawnRequest).ConfigureAwait(false);
     }
 }

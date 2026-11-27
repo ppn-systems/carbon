@@ -6,6 +6,7 @@ using Carbon.Data.Registry;
 using Carbon.Items.Crafting;
 using Carbon.Items.Definitions;
 using Carbon.Items.Enhancement;
+using Carbon.Items.Repair;
 
 namespace Carbon.Items.Catalog;
 
@@ -23,14 +24,17 @@ public sealed class ItemRules
     /// <param name="items">Validated item catalog.</param>
     /// <param name="recipes">Recipe catalog compiled against <paramref name="items"/>.</param>
     /// <param name="enhancement">Forge enhancement table compiled against <paramref name="items"/> (<c>enhancement.json</c>).</param>
-    public ItemRules(ItemCatalog items, RecipeCatalog recipes, EnhancementTable enhancement)
+    /// <param name="repair">Repair table compiled against <paramref name="items"/> (<c>repair.json</c>, ADR-028).</param>
+    public ItemRules(ItemCatalog items, RecipeCatalog recipes, EnhancementTable enhancement, RepairTable repair)
     {
         ArgumentNullException.ThrowIfNull(items);
         ArgumentNullException.ThrowIfNull(recipes);
         ArgumentNullException.ThrowIfNull(enhancement);
+        ArgumentNullException.ThrowIfNull(repair);
         this.ItemCatalog = items;
         this.RecipeCatalog = recipes;
         this.Enhancement = enhancement;
+        this.Repair = repair;
         this.Items = items.BuildArchetypeRegistry();
     }
 
@@ -42,6 +46,9 @@ public sealed class ItemRules
 
     /// <summary>Gets the forge enhancement table (outcome weights, materials, gold fees, protection scrolls).</summary>
     public EnhancementTable Enhancement { get; }
+
+    /// <summary>Gets the repair table (material families, station tiers, blacksmith fee; ADR-028).</summary>
+    public RepairTable Repair { get; }
 
     /// <summary>Gets the item archetypes (combat, tool, armor and consumable stats).</summary>
     public DefinitionRegistry<uint, ItemArchetype> Items { get; }
@@ -60,7 +67,8 @@ public sealed class ItemRules
         return new ItemRules(
             items,
             RecipeCatalog.LoadFromJson(ReadEmbedded("recipes.json"), items),
-            EnhancementTable.LoadFromJson(ReadEmbedded("enhancement.json"), items));
+            EnhancementTable.LoadFromJson(ReadEmbedded("enhancement.json"), items),
+            RepairTable.LoadFromJson(ReadEmbedded("repair.json"), items));
     }
 
     /// <summary>Returns the human-readable HUD display name for an item ID.</summary>
@@ -141,7 +149,7 @@ public sealed class ItemRules
     public int GetMaxStackSize(uint itemId) =>
         this.Items.TryGet(itemId, out ItemArchetype? archetype) ? Math.Max(1, archetype.MaxStackSize) : 99;
 
-    /// <summary>Reads the build-time copy of a shipped config document (<c>items.json</c>, <c>recipes.json</c>, <c>enhancement.json</c>).</summary>
+    /// <summary>Reads the build-time copy of a shipped config document (<c>items.json</c>, <c>recipes.json</c>, <c>enhancement.json</c>, <c>repair.json</c>).</summary>
     /// <param name="fileName">Document file name.</param>
     /// <returns>The document text.</returns>
     public static string ReadShippedDocument(string fileName) => ReadEmbedded(fileName);

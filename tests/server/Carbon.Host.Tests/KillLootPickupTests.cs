@@ -276,7 +276,7 @@ public sealed class KillLootPickupTests
                 this.GroundLoot,
                 this.Outbound,
                 state => this.DirtyMarks[state] = this.DirtyMarks.GetValueOrDefault(state) + 1);
-            this.Commerce = new EconomyService(TestGameplayEntropy.Create(42UL), TickRate, () => economy, () => this.Tick, this.GroundLoot, this.Inventory, this.Outbound, (_, _) => false);
+            this.Commerce = new EconomyService(TestGameplayEntropy.Create(42UL), TickRate, () => economy, () => this.Tick, this.GroundLoot, this.Outbound, (_, _) => false);
             this.Killer = this.CreatePlayer(1UL, 900UL, "Killer");
             this.Bystander = this.CreatePlayer(2UL, 901UL, "Bystander");
         }

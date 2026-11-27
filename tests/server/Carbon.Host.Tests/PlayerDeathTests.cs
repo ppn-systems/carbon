@@ -3,6 +3,7 @@
 using System;
 using System.Linq;
 using System.Numerics;
+using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
 using Carbon.Application.World;
@@ -16,7 +17,8 @@ namespace Carbon.Host.Tests;
 
 /// <summary>
 /// The lethal branch of the server's player damage path (<c>AuthoritativeWorld.ApplyDamageToPlayerLocked</c>):
-/// a player killed by a monster respawns at the sanctuary with full health, mana and stamina.
+/// a player killed by a monster stays dead until they ask to respawn (ADR-031), then respawns at the sanctuary with full
+/// health, mana and stamina.
 /// </summary>
 public sealed class PlayerDeathTests
 {
@@ -24,7 +26,7 @@ public sealed class PlayerDeathTests
     private const ulong EntropyLabel = 1UL;
 
     [Fact]
-    public void MonsterKillsPlayer_RespawnsAtSanctuaryWithFullResources()
+    public async Task MonsterKillsPlayer_RespawnRequest_RespawnsAtSanctuaryWithFullResources()
     {
         AuthoritativeWorldMultiplayerTests.RecordingOutboundSink sink = new();
         // Fixed clock and gameplay secret: combat rolls (dodge, crits, AI) are keyed by them (ADR-026), so the fight
@@ -61,6 +63,13 @@ public sealed class PlayerDeathTests
         }
 
         died.Should().BeTrue("a 1 HP player standing next to a monster must eventually be killed");
+        world.StepFixedTick();
+        world.TryGetPendingCharacterSnapshot(victim.Id, out CharacterRecord? dead).Should().BeTrue();
+        dead!.CurrentHealth.Should().Be(0f, "there is no auto-respawn (ADR-031)");
+
+        ValueTask<WorldMutationOutcome> respawn = world.SubmitRespawnAsync(victimConn);
+        world.StepFixedTick();
+        (await respawn.ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok);
         world.StepFixedTick(); // the sanctuary teleport is applied by the next simulation step
 
         world.TryGetPendingCharacterSnapshot(victim.Id, out CharacterRecord? after).Should().BeTrue("the character took damage, so its state is pending a save");

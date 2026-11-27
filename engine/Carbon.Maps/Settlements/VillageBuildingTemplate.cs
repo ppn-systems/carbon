@@ -6,9 +6,9 @@ using System.Collections.Generic;
 namespace Carbon.Maps.Settlements;
 
 /// <summary>
-/// One building of <c>village_buildings.json</c>: a footprint grid authored with its entrance on the south (bottom) row,
-/// the furniture inside, and where its NPC stands. Grid cells: <c>W</c> wall, <c>D</c> door, <c>.</c> floor,
-/// <c>p</c> porch, space = untouched ground.
+/// The footprint of one village building, made by <see cref="VillageBuildingGenerator"/>: a cell grid with its entrance
+/// on the south (bottom) side, the furniture inside, and where its NPC stands. Grid cells: <c>W</c> wall, <c>D</c> door,
+/// <c>.</c> floor, <c>p</c> porch, space = untouched ground (ADR-027).
 /// </summary>
 public sealed class VillageBuildingTemplate
 {
@@ -32,33 +32,33 @@ public sealed class VillageBuildingTemplate
     internal VillageBuildingTemplate(
         string id,
         VillageBuildingRole role,
-        int weight,
         int width,
         int height,
         char[] cells,
         IReadOnlyList<VillageFurniture> furniture,
         (int X, int Y)? npcSpot,
-        IReadOnlySet<VillageStyle> styles)
+        int roomCount)
     {
+        if (cells.Length != width * height)
+        {
+            throw new ArgumentException("The cell grid does not match the size.", nameof(cells));
+        }
+
         this.Id = id;
         this.Role = role;
-        this.Weight = weight;
         this.Width = width;
         this.Height = height;
         _cells = cells;
         this.Furniture = furniture;
         this.NpcSpot = npcSpot;
-        this.Styles = styles;
+        this.RoomCount = roomCount;
     }
 
-    /// <summary>Gets the stable id.</summary>
+    /// <summary>Gets a readable id (role, size and shape), for logs and test messages.</summary>
     public string Id { get; }
 
     /// <summary>Gets the role.</summary>
     public VillageBuildingRole Role { get; }
-
-    /// <summary>Gets the selection weight among templates of the same role and style.</summary>
-    public int Weight { get; }
 
     /// <summary>Gets the authored width in tiles.</summary>
     public int Width { get; }
@@ -72,8 +72,8 @@ public sealed class VillageBuildingTemplate
     /// <summary>Gets the authored cell the building's NPC stands on, if it has one.</summary>
     public (int X, int Y)? NpcSpot { get; }
 
-    /// <summary>Gets the styles this template is built in.</summary>
-    public IReadOnlySet<VillageStyle> Styles { get; }
+    /// <summary>Gets the number of rooms (0 for an open stall).</summary>
+    public int RoomCount { get; }
 
     /// <summary>Gets the authored cell at (<paramref name="x"/>, <paramref name="y"/>).</summary>
     /// <param name="x">Cell X.</param>
@@ -82,8 +82,14 @@ public sealed class VillageBuildingTemplate
     public char CellAt(int x, int y) =>
         (uint)x < (uint)this.Width && (uint)y < (uint)this.Height ? _cells[(y * this.Width) + x] : EmptyCell;
 
-    /// <summary>Gets whether this template can be built in <paramref name="style"/>.</summary>
-    public bool Supports(VillageStyle style) => this.Styles.Contains(style);
+    /// <summary>Gets whether another template has exactly the same footprint (size and every cell).</summary>
+    /// <param name="other">The other template.</param>
+    /// <returns><c>true</c> when the two grids are identical.</returns>
+    public bool HasSameFootprint(VillageBuildingTemplate other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return this.Width == other.Width && this.Height == other.Height && _cells.AsSpan().SequenceEqual(other._cells);
+    }
 
     /// <summary>Gets the rotated size for <paramref name="turns"/> clockwise quarter turns.</summary>
     public (int Width, int Height) RotatedSize(int turns) =>
@@ -104,35 +110,5 @@ public sealed class VillageBuildingTemplate
             2 => (w - 1 - x, h - 1 - y),
             _ => (y, w - 1 - x),
         };
-    }
-
-    internal static void ValidateGrid(string id, IReadOnlyList<string> rows, out int width, out int height, out char[] cells)
-    {
-        height = rows.Count;
-        width = height == 0 ? 0 : rows[0].Length;
-        if (width is < 3 or > 15 || height is < 1 or > 15)
-        {
-            throw new FormatException($"Village building '{id}' grid must be 3..15 wide and 1..15 tall.");
-        }
-
-        cells = new char[width * height];
-        for (int y = 0; y < height; y++)
-        {
-            if (rows[y].Length != width)
-            {
-                throw new FormatException($"Village building '{id}' grid rows must all have the same length.");
-            }
-
-            for (int x = 0; x < width; x++)
-            {
-                char c = rows[y][x];
-                if (c is not (WallCell or DoorCell or FloorCell or PorchCell or EmptyCell))
-                {
-                    throw new FormatException($"Village building '{id}' grid has unknown cell '{c}'.");
-                }
-
-                cells[(y * width) + x] = c;
-            }
-        }
     }
 }

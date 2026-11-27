@@ -100,7 +100,7 @@ internal static class DebugSpawnResolver
                     {
                         if (plot.Role == role)
                         {
-                            (int fx, int fy) = VillageBlueprint.FrontTile(VillageBuildingCatalog.Default, plot);
+                            (int fx, int fy) = VillageBlueprint.FrontTile(plot);
                             return role == VillageBuildingRole.Stall ? (fx, fy + 1) : (fx, fy);
                         }
                     }

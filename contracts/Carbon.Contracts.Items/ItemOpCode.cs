@@ -34,8 +34,7 @@ public static class ItemOpCode
     /// <summary>Client requests selling a bag stack to a nearby NPC vendor for gold.</summary>
     public const ushort VendorSellItem = 0x4008;
 
-    /// <summary>Client requests repairing an item's durability for gold at a forge station.</summary>
-    public const ushort RepairInventoryItem = 0x4009;
+    // 0x4009 was RepairInventoryItem (gold-only full repair), retired by ADR-028: never reuse it. See RepairItemRequest.
 
     /// <summary>Client requests splitting part of a bag stack into another bag slot (ADR-020).</summary>
     public const ushort SplitInventorySlot = 0x400A;
@@ -64,6 +63,22 @@ public static class ItemOpCode
 
     /// <summary>S2C: a trader's stock, prices, restock countdown and the player's sell prices.</summary>
     public const ushort TraderStock = 0x4048;
+
+    // ── Repair with materials (0x4050–0x4057, ADR-028) ─────────────────────
+
+    /// <summary>C2S: repair one item for materials (and a blacksmith fee), answered with <see cref="RepairItemResult"/>.</summary>
+    public const ushort RepairItemRequest = 0x4050;
+
+    /// <summary>S2C: the outcome of <see cref="RepairItemRequest"/>.</summary>
+    public const ushort RepairItemResult = 0x4051;
+
+    // ── Death and respawn (0x4078–0x407F, ADR-031) ──────────────────────────
+
+    /// <summary>S2C: the local player died; carries the killer and the gold dropped.</summary>
+    public const ushort PlayerDeath = 0x4078;
+
+    /// <summary>C2S: a dead player asks to respawn (answered with <c>MutationResult</c>).</summary>
+    public const ushort RespawnRequest = 0x4079;
 
     // ── Status effects (0x4058–0x405F, ADR-029) ─────────────────────────────
 

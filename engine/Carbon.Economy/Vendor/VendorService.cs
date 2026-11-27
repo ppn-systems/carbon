@@ -2,14 +2,13 @@
 
 using System;
 using Carbon.Economy.Currency;
-using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
 
 namespace Carbon.Economy.Vendor;
 
 /// <summary>
-/// Server-authoritative NPC vendor and repair operations. Every operation validates funds, wallet cap and inventory
+/// Server-authoritative NPC vendor operations (repair is <see cref="Repair.RepairWorkshop"/>, ADR-028). Every operation validates funds, wallet cap and inventory
 /// space up front and then commits wallet and inventory together, so no request can half-complete.
 /// </summary>
 public sealed class VendorService
@@ -179,45 +178,6 @@ public sealed class VendorService
         {
             int left = slot.Quantity - quantity;
             inventory.SetSlot(slotIndex, left > 0 ? slot with { Quantity = left } : ItemSlot.Empty);
-        }
-
-        return paid;
-    }
-
-    /// <summary>
-    /// Repairs the item in <paramref name="slotIndex"/> to full durability for gold.
-    /// </summary>
-    /// <param name="wallet">Owner wallet.</param>
-    /// <param name="inventory">Inventory holding the item.</param>
-    /// <param name="slotIndex">Slot index.</param>
-    /// <param name="tick">Simulation tick.</param>
-    /// <returns>The outcome; on failure nothing changed.</returns>
-    public EconomyResult TryRepair(Wallet wallet, InventoryContainer inventory, int slotIndex, ulong tick = 0)
-    {
-        ArgumentNullException.ThrowIfNull(wallet);
-        ArgumentNullException.ThrowIfNull(inventory);
-        if ((uint)slotIndex >= (uint)inventory.Capacity)
-        {
-            return EconomyResult.Fail(EconomyError.InvalidAmount);
-        }
-
-        ItemSlot slot = inventory.GetSlot(slotIndex);
-        if (slot.IsEmpty || !this.Prices.Items.TryGet(slot.ItemId, out ItemCatalogEntry? item) || item.MaxDurability <= 0f)
-        {
-            return EconomyResult.Fail(EconomyError.NotRepairable);
-        }
-
-        float maxDurability = ItemEnhancementPolicy.GetEffectiveMaxDurability(item.MaxDurability, ItemEnhancementPolicy.GetUpgradeLevel(in slot));
-        long cost = this.Prices.GetRepairCost(slot);
-        if (cost <= 0 && slot.Durability >= maxDurability)
-        {
-            return EconomyResult.Fail(EconomyError.AlreadyRepaired);
-        }
-
-        EconomyResult paid = wallet.TrySpend(CurrencyKind.Gold, cost, CurrencyReason.Repair, tick);
-        if (paid.IsOk)
-        {
-            inventory.SetSlot(slotIndex, slot with { Durability = maxDurability });
         }
 
         return paid;

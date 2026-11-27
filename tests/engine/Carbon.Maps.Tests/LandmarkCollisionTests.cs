@@ -23,7 +23,7 @@ public sealed class LandmarkCollisionTests
     public void ResolveEntityCollision_StandingInAWall_IsPushedOut()
     {
         (ChunkWorld2D world, VillagePlot plot, VillageBuildingTemplate template) = FindHouse();
-        (int wx, int wy) = plot.ToWorld(template, 0, template.Height / 2);
+        (int wx, int wy) = plot.ToWorld(0, template.Height / 2);
         Vector2 inWall = TileCenter(wx, wy);
         Vector2 before = inWall;
         bool collided = world.ResolveEntityCollision(ref inWall, radius: 7f, out _);
@@ -36,7 +36,7 @@ public sealed class LandmarkCollisionTests
     public void ResolveEntityCollision_WalkingThroughTheDoor_EntersTheHouseOnlyWhenOpen()
     {
         (ChunkWorld2D world, VillagePlot plot, VillageBuildingTemplate template) = FindHouse();
-        (int dx, int dy) = VillageBlueprint.EntranceTile(VillageBuildingCatalog.Default, plot);
+        (int dx, int dy) = VillageBlueprint.EntranceTile(plot);
         Vector2 start = TileCenter(dx, dy + 1);
 
         Vector2 closed = WalkNorth(world, start, steps: 48);
@@ -70,7 +70,7 @@ public sealed class LandmarkCollisionTests
     public void ResolveEntityCollision_InFrontOfHouse_IsNotBlockedByTheHouse()
     {
         (ChunkWorld2D world, VillagePlot plot, _) = FindHouse();
-        (int fx, int fy) = VillageBlueprint.FrontTile(VillageBuildingCatalog.Default, plot);
+        (int fx, int fy) = VillageBlueprint.FrontTile(plot);
         Vector2 inFront = TileCenter(fx, fy + 1);
         Vector2 before = inFront;
         _ = world.ResolveEntityCollision(ref inFront, radius: 7f, out _);
@@ -81,8 +81,8 @@ public sealed class LandmarkCollisionTests
     [Fact]
     public void Walkability_WallTile_IsImpassable()
     {
-        (ChunkWorld2D world, VillagePlot plot, VillageBuildingTemplate template) = FindHouse();
-        (int tx, int ty) = plot.ToWorld(template, 0, 0);
+        (ChunkWorld2D world, VillagePlot plot, _) = FindHouse();
+        (int tx, int ty) = plot.ToWorld(0, 0);
 
         Assert.Equal(TileWalkability.Impassable, world.NavGrid.GetWalkability(tx, ty));
     }
@@ -160,7 +160,7 @@ public sealed class LandmarkCollisionTests
                 world.UpdateAroundPosition(new Vector2(poi.TileX * TileSize, poi.TileY * TileSize), chunkRadius: 1, evictionRadius: 3);
                 (int sx, int sy) = VillageMaterializer.SiteOfChunk(Chunk2D.ToChunkCoord(poi.TileX), Chunk2D.ToChunkCoord(poi.TileY));
                 _ = VillageGenerationTests.NewMaterializer(world).Materialize(sx, sy);
-                return (world, plot, VillageBuildingCatalog.Default.Templates[plot.TemplateIndex]);
+                return (world, plot, plot.Template);
             }
         }
 

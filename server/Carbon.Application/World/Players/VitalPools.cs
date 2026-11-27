@@ -22,7 +22,7 @@ internal static class VitalPools
         ArgumentNullException.ThrowIfNull(simulation);
         ArgumentNullException.ThrowIfNull(state);
 
-        if (simulation.Entities.HasHealth(state.Entity) && state.Stats.MaxHealth > previous.Health)
+        if (!state.IsDead && simulation.Entities.HasHealth(state.Entity) && state.Stats.MaxHealth > previous.Health)
         {
             HealthComponent hp = simulation.Entities.GetHealth(state.Entity);
             float nextHp = MathF.Min(state.Stats.MaxHealth, hp.Current + (state.Stats.MaxHealth - previous.Health));

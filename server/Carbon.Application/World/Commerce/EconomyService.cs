@@ -12,6 +12,7 @@ using Carbon.Contracts.Common;
 using Carbon.Economy;
 using Carbon.Economy.Config;
 using Carbon.Economy.Currency;
+using Carbon.Economy.Death;
 using Carbon.Economy.Loot;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -29,14 +30,12 @@ internal enum VendorOperation : byte
     /// <summary>Sell <c>quantity</c> units from bag slot <c>slotIndex</c> for gold.</summary>
     Sell = 2,
 
-    /// <summary>Repair the item in <c>slotIndex</c> to full durability for gold (at a forge).</summary>
-    Repair = 3,
 }
 
 /// <summary>
 /// The world's economy (audit SOLID-1, extracted from <see cref="AuthoritativeWorld"/>): config-driven monster loot rolled
-/// on kills (item stacks and gold/diamond piles dropped as ground loot reserved for the killer, ADR-019), vendor buy/sell and
-/// forge repair with their proximity rules, and wallet sync messages. Deterministic per (gameplay secret, tick, victim), ADR-026.
+/// on kills (item stacks and gold/diamond piles dropped as ground loot reserved for the killer, ADR-019), vendor buy/sell with
+/// their proximity rules, and wallet sync messages. Deterministic per (gameplay secret, tick, victim), ADR-026.
 /// Called only under the world lock.
 /// </summary>
 internal sealed class EconomyService
@@ -55,7 +54,6 @@ internal sealed class EconomyService
     private readonly Func<GameEconomy?> _economy;
     private readonly Func<ulong> _currentTick;
     private readonly GroundLootService _groundLoot;
-    private readonly InventoryService _inventory;
     private readonly OutboundTickBuffer _outbound;
     private readonly Func<Vector2, float, bool> _hasNearbyFriendlyNpc;
 
@@ -66,7 +64,6 @@ internal sealed class EconomyService
         Func<GameEconomy?> economy,
         Func<ulong> currentTick,
         GroundLootService groundLoot,
-        InventoryService inventory,
         OutboundTickBuffer outbound,
         Func<Vector2, float, bool> hasNearbyFriendlyNpc)
     {
@@ -75,7 +72,6 @@ internal sealed class EconomyService
         _economy = economy ?? throw new ArgumentNullException(nameof(economy));
         _currentTick = currentTick ?? throw new ArgumentNullException(nameof(currentTick));
         _groundLoot = groundLoot ?? throw new ArgumentNullException(nameof(groundLoot));
-        _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
         _outbound = outbound ?? throw new ArgumentNullException(nameof(outbound));
         _hasNearbyFriendlyNpc = hasNearbyFriendlyNpc ?? throw new ArgumentNullException(nameof(hasNearbyFriendlyNpc));
     }
@@ -141,9 +137,56 @@ internal sealed class EconomyService
     }
 
     /// <summary>
-    /// Runs a vendor operation at <paramref name="playerPos"/>: requires a friendly town NPC in reach (a forge for repair),
-    /// then applies it through the economy's vendor and records the changed slots. <paramref name="arg"/> is the item id
-    /// (buy) or slot index (sell, repair); <paramref name="quantity"/> is unused by repair.
+    /// Takes the death penalty from a player who just died (ADR-031): debits <c>economy.json → deathPenalty</c>'s share of
+    /// their carried gold and drops exactly that amount as one to <c>maxPiles</c> gold piles around <paramref name="position"/>.
+    /// The piles are reserved for the dead player for <c>ownerProtectionSeconds</c>, then anyone may take them. Sizes and
+    /// scatter come from the secret gameplay entropy (ADR-026). Diamonds are never taken.
+    /// </summary>
+    /// <returns>The gold dropped (0 without an economy, below the minimum level, or with an empty purse).</returns>
+    public long DropDeathGold(PlayerState victim, Vector2 position)
+    {
+        ArgumentNullException.ThrowIfNull(victim);
+        GameEconomy? economy = _economy();
+        if (economy is null)
+        {
+            return 0L;
+        }
+
+        DeathPenaltyRules rules = economy.Config.DeathPenalty;
+        long loss = DeathGoldPenalty.ComputeLoss(rules, victim.Wallet.Gold, victim.Level);
+        if (loss <= 0L)
+        {
+            return 0L;
+        }
+
+        ulong tick = _currentTick();
+        if (!victim.Wallet.TrySpend(CurrencyKind.Gold, loss, CurrencyReason.DeathDrop, tick).IsOk)
+        {
+            return 0L;
+        }
+
+        DeterministicRandom random = _entropy.KeyAt(tick).CreateRandom(GameplayDomain.DeathDrop, tick, victim.Session.PlayerNetworkId);
+        Span<long> piles = stackalloc long[DeathGoldPenalty.MaxPilesLimit];
+        int count = DeathGoldPenalty.SplitIntoPiles(rules, loss, ref random, piles);
+        ulong protectionTicks = (ulong)Math.Max(0, rules.OwnerProtectionSeconds) * _tickRate;
+        ulong lifetimeTicks = (ulong)Math.Max(1, rules.LootLifetimeSeconds) * _tickRate;
+        LootClaim claim = protectionTicks == 0UL
+            ? new LootClaim(Guid.Empty, 0UL, tick, lifetimeTicks)
+            : new LootClaim(victim.Session.CharacterId, victim.Session.PlayerNetworkId, tick + protectionTicks, lifetimeTicks);
+        for (int i = 0; i < count; i++)
+        {
+            Vector2 offset = random.NextUnitVector2() * random.NextFloat(10f, 30f);
+            _groundLoot.SpawnCurrency(position + offset, CurrencyKind.Gold, piles[i], in claim, CurrencyReason.DeathDrop);
+        }
+
+        this.QueueWalletSync(victim);
+        return loss;
+    }
+
+    /// <summary>
+    /// Runs a vendor operation at <paramref name="playerPos"/>: requires a friendly town NPC in reach, then applies it
+    /// through the economy's vendor and records the changed slots. <paramref name="arg"/> is the item id (buy) or slot
+    /// index (sell).
     /// </summary>
     public OpStatus RunVendorOperation(
         PlayerState state,
@@ -161,10 +204,7 @@ internal sealed class EconomyService
             return OpStatus.Forbidden;
         }
 
-        bool inRange = operation == VendorOperation.Repair
-            ? _inventory.IsNearForgeStation(playerPos)
-            : _hasNearbyFriendlyNpc(playerPos, VendorRangeSq);
-        if (!inRange)
+        if (!_hasNearbyFriendlyNpc(playerPos, VendorRangeSq))
         {
             return OpStatus.OutOfRange;
         }
@@ -179,7 +219,6 @@ internal sealed class EconomyService
             VendorOperation.Buy => economy.Vendor.TryBuy(
                 state.Wallet, state.Inventory, arg, quantity, tick, Math.Min(PlayerInventoryLayout.BagLimit, state.Inventory.Capacity), state.Level).Status,
             VendorOperation.Sell => economy.Vendor.TrySellSlot(state.Wallet, state.Inventory, arg, quantity, tick).Status,
-            VendorOperation.Repair => economy.Vendor.TryRepair(state.Wallet, state.Inventory, arg, tick).Status,
             _ => OpStatus.Invalid,
         };
         if (status != OpStatus.Ok)

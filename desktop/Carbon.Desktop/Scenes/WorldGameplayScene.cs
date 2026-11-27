@@ -55,6 +55,7 @@ public sealed class WorldGameplayScene : GameScene
     private WorldSceneRenderer? _worldRenderer;
     private HudOverlayRenderer? _hudRenderer;
     private TradeInteraction? _trade;
+    private RepairInteraction? _repair;
     private Task? _pendingLogoutTask;
 
     private BiomeType _lastBiome = (BiomeType)255;
@@ -98,7 +99,8 @@ public sealed class WorldGameplayScene : GameScene
         _worldRenderer = new WorldSceneRenderer(context.Device, _options);
         _hudRenderer = new HudOverlayRenderer(context.Device, _worldRenderer.VectorArt);
         _inventoryInput.AttachHud(_hudRenderer);
-        _trade = new TradeInteraction(_session, _hudRenderer, _options, IsTraderNpc, this.OpenForgeWindow);
+        _repair = new RepairInteraction(_session, _hudRenderer, _options);
+        _trade = new TradeInteraction(_session, _hudRenderer, _options, IsTraderNpc, this.OpenForgeWindow, () => _repair.Open(RepairVenue.Blacksmith));
         if (!_options.MacroView)
         {
             this.ApplyZoomPreset(_hudRenderer.Settings.CameraZoomPreset);
@@ -206,6 +208,7 @@ public sealed class WorldGameplayScene : GameScene
         }
 
         _trade?.Sync(_frameCount);
+        _repair?.Update((float)dt, _frameCount);
         if (_hudRenderer.ShowSettingsModal)
         {
             if (input.LeftClickPressed)
@@ -294,6 +297,12 @@ public sealed class WorldGameplayScene : GameScene
             this.ToggleForgeStationModal();
         }
 
+        if (input.ToggleRepairPressed)
+        {
+            _inventoryInput.ResetDragState();
+            _repair?.Toggle();
+        }
+
         if (input.MoveDirection.LengthSquared() > 1e-4f)
         {
             _lastMoveDirection = Vector2.Normalize(input.MoveDirection);
@@ -380,10 +389,6 @@ public sealed class WorldGameplayScene : GameScene
                     {
                         _ = _session.TryAllocateCharacterPoint(PointAllocationKind.Attribute, (ushort)statTarget, input.ShiftHeld ? (byte)5 : (byte)1); // Shift: 5 (server clamps)
                     }
-                    else if (_hudRenderer.TryClickCharacterReset(_session, mouseScreen, context.WindowWidth, context.WindowHeight))
-                    {
-                        _ = _session.TryAllocateCharacterPoint(PointAllocationKind.ResetAttributes, 0, 1);
-                    }
                 }
             }
             else if (_hudRenderer.ActivePlayerTab == PlayerModalTab.Skills)
@@ -447,6 +452,10 @@ public sealed class WorldGameplayScene : GameScene
         else if (_hudRenderer.Trader is not null)
         {
             _trade?.HandleWindowInput(input, context.WindowWidth, context.WindowHeight);
+        }
+        else if (_hudRenderer.Repair.IsOpen)
+        {
+            _repair?.HandleWindowInput(input, context.WindowWidth, context.WindowHeight);
         }
         else
         {
@@ -691,7 +700,7 @@ public sealed class WorldGameplayScene : GameScene
             CaptureModalOpener.Open(_hudRenderer, _session, _options.CaptureModal);
         }
 
-        _capture.AfterFrame(context, _frameCount, _trade?.IsCaptureWaiting(_frameCount) == true);
+        _capture.AfterFrame(context, _frameCount, _trade?.IsCaptureWaiting(_frameCount) == true || _repair?.IsCaptureWaiting(_frameCount) == true);
 
         GLEnum glError = context.Device.Gl.GetError();
         if (glError != GLEnum.NoError)
