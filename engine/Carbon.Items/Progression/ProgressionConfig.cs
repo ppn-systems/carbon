@@ -219,6 +219,7 @@ public sealed class ProgressionConfig
         acc.Defense += gear.Defense;
         acc.MagicResist += gear.Defense * this.ArmorMagicResistFraction;
         acc.CritChance += gear.CritChance;
+        acc.AttackSpeed += gear.AttackSpeed;
 
         return new DerivedCharacterStats(
             acc.MaxHealth,

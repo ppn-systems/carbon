@@ -140,13 +140,14 @@ internal sealed class NeedsService
     }
 
     /// <summary>Sets the activity that drives needs decay this tick, and whether a sleeper sleeps comfortably.</summary>
-    public void SetActivity(Entity entity, RestMode restMode, bool isFighting, bool isSprinting, bool isMoving)
+    public void SetActivity(Entity entity, RestMode restMode, bool isFighting, bool isSprinting, bool isMoving, bool isSwimming = false)
     {
         NeedsActivity activity = restMode switch
         {
             RestMode.Sitting => NeedsActivity.Resting,
             RestMode.Sleeping or RestMode.SleepingComfortable => NeedsActivity.Sleeping,
             RestMode.None => isFighting ? NeedsActivity.Fighting
+                : isSwimming ? NeedsActivity.Swimming
                 : isSprinting ? NeedsActivity.Sprinting
                 : isMoving ? NeedsActivity.Walking
                 : NeedsActivity.Idle,

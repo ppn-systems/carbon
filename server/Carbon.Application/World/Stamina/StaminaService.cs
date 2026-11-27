@@ -99,6 +99,26 @@ internal sealed class StaminaService
         return true;
     }
 
+    /// <summary>
+    /// Drains one tick of swimming or diving strokes (ADR-032), like sprinting, so exhaustion and the regen delay apply
+    /// to swimmers. An exhausted swimmer still moves; it just cannot get its breath back while stroking.
+    /// </summary>
+    /// <param name="state">Player.</param>
+    /// <param name="deltaSeconds">Tick length.</param>
+    /// <returns><see langword="true"/> when stamina was spent this tick.</returns>
+    public bool DrainSwim(PlayerState state, float deltaSeconds)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (state.IsDead || this.Config.SwimDrainPerSecond <= 0f ||
+            !state.Stamina.TryDrain(this.Config.SwimDrainPerSecond * deltaSeconds, this.Config))
+        {
+            return false;
+        }
+
+        state.StatsDirty = true;
+        return true;
+    }
+
     /// <summary>Gets whether a build or demolition job may make progress this tick.</summary>
     /// <param name="state">Player.</param>
     /// <returns><see langword="false"/> while dead, exhausted or empty.</returns>

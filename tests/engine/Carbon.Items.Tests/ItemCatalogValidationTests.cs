@@ -140,5 +140,23 @@ public sealed class ItemCatalogValidationTests
         act.Should().NotThrow();
     }
 
+    [Theory]
+    [InlineData(-0.1f)]
+    [InlineData(1.1f)]
+    public void Create_AttackSpeedBonusOutsideZeroToOne_IsRejected(float bonus)
+    {
+        Action act = () => ItemCatalog.Create([Item(12, "blur_blade") with { AttackSpeedBonus = bonus }]);
+
+        _ = act.Should().Throw<InvalidDataException>().WithMessage("*blur_blade*attackSpeedBonus*");
+    }
+
+    [Fact]
+    public void Create_UnknownMaterial_IsRejected()
+    {
+        Action act = () => ItemCatalog.Create([Item(13, "mystery_tool") with { Material = (ItemMaterial)77 }]);
+
+        _ = act.Should().Throw<InvalidDataException>().WithMessage("*mystery_tool*material*");
+    }
+
     private static ItemCatalogEntry Item(uint id, string code) => new() { Id = id, Code = code, MaxStack = 10 };
 }

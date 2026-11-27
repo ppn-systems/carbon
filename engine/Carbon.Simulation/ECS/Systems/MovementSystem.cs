@@ -137,7 +137,7 @@ public static class MovementSystem
                     {
                         position += stepDelta;
                         bool hit = collider.Kind == ColliderKind.Circle
-                            ? worldPhysics.ResolveCircleCollision(ref position, collider.Radius, out Vector2 pushNormal)
+                            ? worldPhysics.ResolveCircleCollision(ref position, collider.Radius, collider.Mask, out Vector2 pushNormal)
                             : worldPhysics.ResolveAabbCollision(ref position, in localBox, out pushNormal);
 
                         if (hit)
@@ -160,7 +160,7 @@ public static class MovementSystem
                 {
                     position += displacement;
                     _ = collider.Kind == ColliderKind.Circle
-                        ? worldPhysics.ResolveCircleCollision(ref position, collider.Radius, out _)
+                        ? worldPhysics.ResolveCircleCollision(ref position, collider.Radius, collider.Mask, out _)
                         : worldPhysics.ResolveAabbCollision(ref position, in localBox, out _);
                 }
 

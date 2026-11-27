@@ -12,6 +12,7 @@ using Carbon.Contracts.Entities;
 using Carbon.Contracts.Identity;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
+using Carbon.Items.Definitions;
 using Carbon.Items.Serialization;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.World;
@@ -71,6 +72,34 @@ internal sealed class CharacterPersistence
         }
 
         return character with { Flags = character.Flags | CharacterTraits.StarterLoadoutGranted };
+    }
+
+    /// <summary>
+    /// Caps every item's durability at its effective maximum (enhancement included), so gear saved before a config
+    /// lowered an item's <c>maxDurability</c> loads as full rather than above 100 %. Returns how many slots changed.
+    /// </summary>
+    public static int ClampDurability(ItemRules rules, InventoryContainer inventory)
+    {
+        ArgumentNullException.ThrowIfNull(rules);
+        ArgumentNullException.ThrowIfNull(inventory);
+        int clamped = 0;
+        for (int i = 0; i < inventory.Capacity; i++)
+        {
+            ItemSlot slot = inventory.GetSlot(i);
+            if (slot.IsEmpty || !rules.Items.TryGet(slot.ItemId, out ItemArchetype? def) || def.MaxDurability <= 0f)
+            {
+                continue;
+            }
+
+            float max = ItemEnhancementPolicy.GetEffectiveMaxDurability(def, ItemEnhancementPolicy.GetUpgradeLevel(in slot));
+            if (slot.Durability > max)
+            {
+                inventory.SetSlot(i, slot with { Durability = max });
+                clamped++;
+            }
+        }
+
+        return clamped;
     }
 
     /// <summary>

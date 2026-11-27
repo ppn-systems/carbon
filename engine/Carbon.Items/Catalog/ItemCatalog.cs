@@ -107,6 +107,11 @@ public sealed class ItemCatalog : IStackSizeProvider
                 throw new InvalidDataException($"Item '{item.Code}' has an out-of-range critChance/attackRange/projectileSpeed/attackManaCost.");
             }
 
+            if (item.AttackSpeedBonus is < 0f or > 1f || !Enum.IsDefined(item.Material))
+            {
+                throw new InvalidDataException($"Item '{item.Code}' has an out-of-range attackSpeedBonus (0..1) or an unknown material.");
+            }
+
             if (item.MaxDurability > 0f && item.MaxStack != 1)
             {
                 throw new InvalidDataException($"Item '{item.Code}' wears out (maxDurability > 0) and must have maxStack 1.");
@@ -196,7 +201,9 @@ public sealed class ItemCatalog : IStackSizeProvider
             item.ProjectileSpeed,
             item.ProjectileArchetype,
             item.AttackManaCost,
-            item.Capabilities);
+            item.Capabilities,
+            item.Material,
+            item.AttackSpeedBonus);
     }
 
     /// <inheritdoc/>

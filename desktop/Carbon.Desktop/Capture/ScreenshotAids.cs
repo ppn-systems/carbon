@@ -93,6 +93,11 @@ internal sealed class ScreenshotAids(DesktopOptions options)
     private Vector2? ApplyUiPreview(HudOverlayRenderer? hud, IWorldSession session, int viewportWidth, int viewportHeight)
     {
         ArgumentNullException.ThrowIfNull(session);
+        if (hud is not null && options.UiPreview is { Length: > 0 } statusPreview && statusPreview.StartsWith("status-", StringComparison.Ordinal))
+        {
+            return ApplyStatusPreview(hud, session, statusPreview, viewportWidth);
+        }
+
         if (hud is not null && string.Equals(options.UiPreview, "death", StringComparison.Ordinal))
         {
             // ADR-031 death screen review: a sample slime kill that dropped 1,250 gold (visual only, nothing is sent).
@@ -136,5 +141,32 @@ internal sealed class ScreenshotAids(DesktopOptions options)
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// <c>status-hover:N</c> hovers the N-th status icon; <c>status-details:N</c> opens its details panel (ADR-029).
+    /// </summary>
+    private static Vector2? ApplyStatusPreview(HudOverlayRenderer hud, IWorldSession session, string preview, int viewportWidth)
+    {
+        int colon = preview.IndexOf(':', StringComparison.Ordinal);
+        if (colon < 0 ||
+            !int.TryParse(preview.AsSpan(colon + 1), NumberStyles.Integer, CultureInfo.InvariantCulture, out int index) ||
+            index < 0 || index >= session.LocalStatusEffects.Count)
+        {
+            return null;
+        }
+
+        Vector2 centre = HudOverlayRenderer.GetStatusIconCenter(index, viewportWidth);
+        if (preview.StartsWith("status-details", StringComparison.Ordinal))
+        {
+            if (!hud.IsStatusEffectDetailsOpen)
+            {
+                hud.OpenStatusEffectDetails(session.LocalStatusEffects[index].EffectId);
+            }
+
+            return null;
+        }
+
+        return centre;
     }
 }

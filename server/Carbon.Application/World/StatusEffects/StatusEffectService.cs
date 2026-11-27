@@ -329,7 +329,8 @@ internal sealed class StatusEffectService
     /// <summary>
     /// Restores persisted effects at world entry (ADR-029 D8). Unknown keys and malformed entries are skipped, durations are
     /// clamped to the definition. A record saved before ADR-029 restores <c>poisoned</c> from the needs poison seconds.
-    /// <paramref name="persistedOnly"/> false also accepts effects that are never saved (the screenshot debug override).
+    /// <paramref name="persistedOnly"/> false also accepts effects that are never saved, at any duration (the screenshot debug
+    /// override).
     /// </summary>
     public void Restore(Entity entity, string persisted, float legacyPoisonSeconds, NeedsConfig needsConfig, bool persistedOnly = true)
     {
@@ -351,7 +352,8 @@ internal sealed class StatusEffectService
             }
 
             float maxSeconds = MaxRestoreSeconds(def, needsConfig);
-            float seconds = MathF.Min(remainingMs / 1000f, maxSeconds);
+            // The screenshot debug override (persistedOnly false) may hold an effect longer than one application lasts.
+            float seconds = persistedOnly ? MathF.Min(remainingMs / 1000f, maxSeconds) : remainingMs / 1000f;
             restoredAny |= this.Apply(entity, def, Entity.Null, StatusSource.None, 0, seconds, stacks);
         }
 

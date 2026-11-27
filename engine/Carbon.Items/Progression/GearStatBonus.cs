@@ -7,4 +7,5 @@ namespace Carbon.Items.Progression;
 /// <param name="MaxMana">Bonus max mana.</param>
 /// <param name="Defense">Armor defense (also feeds magic resist through <see cref="ProgressionConfig.ArmorMagicResistFraction"/>).</param>
 /// <param name="CritChance">Held weapon critical chance.</param>
-public readonly record struct GearStatBonus(float MaxHealth, float MaxMana, float Defense, float CritChance);
+/// <param name="AttackSpeed">Held weapon attack speed bonus (<c>items.json</c> <c>attackSpeedBonus</c>).</param>
+public readonly record struct GearStatBonus(float MaxHealth, float MaxMana, float Defense, float CritChance, float AttackSpeed = 0f);

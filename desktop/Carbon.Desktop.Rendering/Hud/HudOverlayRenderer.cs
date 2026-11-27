@@ -48,6 +48,8 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     private readonly ForgeAnvilModalWidget _forgeModal = new();
     private readonly SettingsModalWidget _settingsModal = new();
     private readonly ToastFeedWidget _toasts = new();
+    private readonly StatusEffectStripWidget _statusStrip = new();
+    private readonly DamageVignetteWidget _vignette = new();
     private readonly List<SkillDefinition> _skillScratch = new(8);
 
     private float _smoothedFps = 60f;
@@ -104,6 +106,9 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     /// <summary>Returns the death screen's Respawn button rectangle (ADR-031).</summary>
     public static RectangleF GetRespawnButtonRect(int viewportWidth, int viewportHeight) =>
         DeathScreenWidget.GetRespawnButtonRect(viewportWidth, viewportHeight);
+
+    /// <summary>Gets or sets the interact-key prompt to draw this frame (hidden while a window is open).</summary>
+    public InteractionPrompt? InteractPrompt { get; set; }
 
     /// <summary>Gets or sets whether the System Settings &amp; Controls modal is open.</summary>
     public bool ShowSettingsModal { get; set; }
@@ -434,6 +439,39 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         return _forgeModal.ResolveTargetSlot(world);
     }
 
+    /// <summary>Gets a value indicating whether the status effect details panel is open (ADR-029).</summary>
+    public bool IsStatusEffectDetailsOpen => _statusStrip.IsPanelOpen;
+
+    /// <summary>
+    /// Routes a left click to the top-right status strip: an icon opens its details, and any click closes an open panel.
+    /// </summary>
+    /// <returns>Whether the strip consumed the click.</returns>
+    public bool TryHandleStatusStripClick(IWorldReadModel world, Vector2 mouseScreenPos, int viewportWidth)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        return _statusStrip.HandleClick(mouseScreenPos, world.LocalStatusEffects, viewportWidth);
+    }
+
+    /// <summary>Gets whether <paramref name="mouseScreenPos"/> is over a status icon or the open details panel.</summary>
+    public bool IsOverStatusStrip(IWorldReadModel world, Vector2 mouseScreenPos, int viewportWidth)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        return _statusStrip.IsOver(mouseScreenPos, world.LocalStatusEffects, viewportWidth);
+    }
+
+    /// <summary>Closes the status effect details panel; returns whether it was open (Esc).</summary>
+    public bool CloseStatusEffectDetails() => _statusStrip.Close();
+
+    /// <summary>Gets the screen centre of status icon <paramref name="index"/> (screenshot previews).</summary>
+    public static Vector2 GetStatusIconCenter(int index, int viewportWidth)
+    {
+        RectangleF icon = StatusEffectStripLayout.Icon(index, viewportWidth);
+        return new Vector2(icon.X + (icon.Width * 0.5f), icon.Y + (icon.Height * 0.5f));
+    }
+
+    /// <summary>Opens the details of <paramref name="effectId"/> (screenshot previews).</summary>
+    public void OpenStatusEffectDetails(ushort effectId) => _statusStrip.Open(effectId);
+
     /// <summary>Renders all screen-space RPG HUD widgets and active modals in strict 3-pass Z order.</summary>
     public void Render(
         IWorldReadModel world,
@@ -471,6 +509,13 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         int ptx = (int)MathF.Floor(playerPos.X / tileSize);
         int pty = (int)MathF.Floor(playerPos.Y / tileSize);
         Vector2? bgMouse = this.HasActiveModal ? null : mouseScreenPos;
+        // The death screen goes on top (ADR-031): while dead the strip draws nothing and takes no clicks.
+        _statusStrip.Suppressed = (this.DeathPreview ?? world.LocalDeath) is not null;
+        _statusStrip.Prepare(world, _font, bgMouse, viewportWidth);
+
+        _geometryBatch.Begin(screenProj);
+        _vignette.DrawGeometry(_geometryBatch, world, viewportWidth, viewportHeight, _animTime);
+        _geometryBatch.End();
 
         // Pass 1: Background HUD (NineSlice Skins -> Vector Geometry & Bars -> Bitmap Text), walked from HudComposition.MainHud.
         HudFrame frame = new(world, viewportWidth, viewportHeight, ptx, pty, bgMouse, feedback);
@@ -666,8 +711,18 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             case HudElement.Toasts:
                 _toasts.DrawSkin(spriteBatch, _uiSkin, _font, f.ViewportWidth, HudLayout.GetToastTop(f.ViewportWidth, this.Settings.ShowMinimap));
                 break;
+            case HudElement.StatusEffects:
+                _statusStrip.DrawSkin(spriteBatch, _uiSkin, f.World, f.ViewportWidth);
+                break;
             case HudElement.DeathScreen:
                 DeathScreenWidget.DrawSkin(spriteBatch, _uiSkin, f.RespawnPending, f.ViewportWidth, f.ViewportHeight, f.BackgroundMouse);
+                break;
+            case HudElement.InteractPrompt:
+                if (!this.HasActiveModal && this.InteractPrompt is InteractionPrompt prompt)
+                {
+                    InteractionPromptWidget.DrawSkin(spriteBatch, _uiSkin, _font, in prompt);
+                }
+
                 break;
             case HudElement.Wallet:
             case HudElement.DeathVeil:
@@ -703,6 +758,9 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(f.ViewportWidth, f.ViewportHeight);
                 WalletWidget.DrawGeometry(_geometryBatch, _art, in layout);
                 break;
+            case HudElement.StatusEffects:
+                _statusStrip.DrawGeometry(_geometryBatch, f.World, _art, f.ViewportWidth);
+                break;
             case HudElement.DeathVeil:
                 DeathScreenWidget.DrawVeil(_geometryBatch, f.ViewportWidth, f.ViewportHeight);
                 break;
@@ -711,6 +769,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 break;
             case HudElement.Toasts:
             case HudElement.DeathScreen:
+            case HudElement.InteractPrompt:
             default:
                 break;
         }
@@ -741,6 +800,16 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 break;
             case HudElement.Toasts:
                 _toasts.DrawText(spriteBatch, _font, f.ViewportWidth, HudLayout.GetToastTop(f.ViewportWidth, this.Settings.ShowMinimap));
+                break;
+            case HudElement.InteractPrompt:
+                if (!this.HasActiveModal && this.InteractPrompt is InteractionPrompt prompt)
+                {
+                    InteractionPromptWidget.DrawText(spriteBatch, _font, in prompt);
+                }
+
+                break;
+            case HudElement.StatusEffects:
+                _statusStrip.DrawText(spriteBatch, _font, f.World, f.ViewportWidth);
                 break;
             case HudElement.Wallet:
                 PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(f.ViewportWidth, f.ViewportHeight);

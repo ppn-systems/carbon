@@ -54,6 +54,7 @@ public static class CharacterStatCalculator
         float mp = 0f;
         float def = 0f;
         float crit = 0f;
+        float attackSpeed = 0f;
         for (int slotIdx = PlayerInventoryLayout.HeadSlot; slotIdx <= PlayerInventoryLayout.Accessory2Slot && slotIdx < inventory.Capacity; slotIdx++)
         {
             ItemSlot armor = inventory.GetSlot(slotIdx);
@@ -80,9 +81,10 @@ public static class CharacterStatCalculator
                 mp += MathF.Max(0f, heldDef.BonusMana) * upgMult;
                 def += MathF.Max(0f, heldDef.ArmorDefense) * upgMult;
                 crit += MathF.Max(0f, heldDef.CritChance);
+                attackSpeed += MathF.Max(0f, heldDef.AttackSpeedBonus);
             }
         }
 
-        return new GearStatBonus(hp, mp, def, crit);
+        return new GearStatBonus(hp, mp, def, crit, attackSpeed);
     }
 }

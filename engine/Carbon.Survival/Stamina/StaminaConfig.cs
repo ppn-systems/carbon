@@ -54,6 +54,9 @@ public sealed class StaminaConfig
     /// <summary>Gets the stamina drained per second while a construction or deconstruction job makes progress.</summary>
     public float BuildWorkPerSecond { get; init; }
 
+    /// <summary>Gets the stamina drained per second of swimming or diving strokes (ADR-032, the ADR-033 D8 seam).</summary>
+    public float SwimDrainPerSecond { get; init; }
+
     /// <summary>Parses and validates <c>stamina.json</c>.</summary>
     /// <param name="json">JSON object text.</param>
     /// <returns>The validated configuration.</returns>
@@ -159,6 +162,7 @@ public sealed class StaminaConfig
         RequireRange(this.ExhaustedRecoverFraction, 0.01f, 1f, "exhaustedRecoverFraction");
         RequireRange(this.MinimumRegenScale, 0.01f, 1f, "minimumRegenScale");
         RequireRange(this.BuildWorkPerSecond, 0f, 1_000f, "buildWorkPerSecond");
+        RequireRange(this.SwimDrainPerSecond, 0f, 1_000f, "swimDrainPerSecond");
         if (this.FatigueRegenScale is null || this.HungerRegenScale is null || this.SwingCosts is null || this.ItemSwingCosts is null)
         {
             throw new InvalidDataException("stamina.json must define fatigueRegenScale, hungerRegenScale, swingCosts and itemSwingCosts.");

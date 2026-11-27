@@ -38,6 +38,13 @@ public readonly record struct PlayerStatsSnapshot(
 /// <param name="GoldDropped">Gold debited and dropped at the death spot.</param>
 public readonly record struct PlayerDeathSnapshot(DeathCause Cause, ushort KillerArchetypeId, ulong KillerNetworkId, long GoldDropped);
 
+/// <summary>The local player's swim state and oxygen (ADR-032 D12), sent to the owner only.</summary>
+/// <param name="SwimState">0 walking, 1 wading, 2 swimming, 3 diving.</param>
+/// <param name="DepthTier">Water depth tier under the player (0 dry … 5 abyss).</param>
+/// <param name="OxygenMs">Oxygen left, in milliseconds of diving.</param>
+/// <param name="MaxOxygenMs">The full oxygen pool, in milliseconds.</param>
+public readonly record struct PlayerOxygenSnapshot(byte SwimState, byte DepthTier, uint OxygenMs, uint MaxOxygenMs);
+
 /// <summary>
 /// Survival needs of the local player carried inside <see cref="PlayerStatsSnapshot"/>.
 /// </summary>
@@ -276,6 +283,13 @@ public interface IWorldOutboundSink
 
     /// <summary>Tells a player they died and what it cost them (ADR-031). Sinks without a death screen ignore it.</summary>
     void SendPlayerDeath(ulong connectionId, in PlayerDeathSnapshot death)
+    {
+    }
+
+    /// <summary>
+    /// Sends the owner's swim state and oxygen (ADR-032 D12), only when they change. Sinks without water ignore it.
+    /// </summary>
+    void SendPlayerOxygen(ulong connectionId, in PlayerOxygenSnapshot oxygen)
     {
     }
 

@@ -13,6 +13,7 @@ using Carbon.Economy;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Items.Definitions;
 using Carbon.Items.Progression;
+using Carbon.Maps.Hydrology;
 using Carbon.Server.Configuration;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
@@ -114,6 +115,31 @@ public sealed partial class ConfigHotReloadDomainsTests : IDisposable
 
         reload.Should().Throw<InvalidDataException>().WithMessage("*giant_spider*");
         _world.StatusEffects.Should().BeSameAs(before);
+    }
+
+    [Fact]
+    public void Reload_ChangedWater_SwapsTheRunningSwimmingRules()
+    {
+        WaterRules before = _world.WaterRules;
+        this.Edit("water.json", json => json.Replace("\"maxSeconds\": 30", "\"maxSeconds\": 45", StringComparison.Ordinal));
+
+        ConfigReloadResult result = _config.Reload();
+
+        result.Changed.Should().BeEquivalentTo("water");
+        _world.WaterRules.Should().NotBeSameAs(before);
+        _world.WaterRules.MaxOxygenSeconds.Should().Be(45f, "clients and the server switch water rules together");
+    }
+
+    [Fact]
+    public void Reload_WaterDrowningEffectUnknown_IsRejected()
+    {
+        WaterRules before = _world.WaterRules;
+        this.Edit("water.json", json => json.Replace("\"drowningEffect\": \"drowning\"", "\"drowningEffect\": \"suffocating\"", StringComparison.Ordinal));
+
+        Action reload = () => _config.Reload();
+
+        reload.Should().Throw<InvalidDataException>().WithMessage("*suffocating*");
+        _world.WaterRules.Should().BeSameAs(before);
     }
 
     [Fact]

@@ -44,6 +44,7 @@ using Carbon.Items.Serialization;
 using Carbon.Items.Systems;
 using Carbon.Maps.Building;
 using Carbon.Maps.Generators;
+using Carbon.Maps.Hydrology;
 using Carbon.Maps.Settlements;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS;
@@ -300,13 +301,15 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// <param name="progression">New progression tuning (players are re-evaluated, ADR-021 D7), or <see langword="null"/> to keep it.</param>
     /// <param name="statusEffects">New status effect definitions (ADR-029), or <see langword="null"/> to keep them.</param>
     /// <param name="stamina">New stamina tuning (ADR-033), or <see langword="null"/> to keep it; meters keep their values.</param>
+    /// <param name="water">New water movement and oxygen rules (<c>water.json</c>, ADR-032), or <see langword="null"/> to keep them.</param>
     public void ApplyGameData(
         GameEconomy? economy,
         NeedsConfig needsConfig,
         FoodCatalog foodCatalog,
         ProgressionConfig? progression = null,
         StatusEffectCatalog? statusEffects = null,
-        StaminaConfig? stamina = null)
+        StaminaConfig? stamina = null,
+        WaterRules? water = null)
     {
         ArgumentNullException.ThrowIfNull(needsConfig);
         ArgumentNullException.ThrowIfNull(foodCatalog);
@@ -324,6 +327,11 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             if (stamina is not null)
             {
                 _stamina.Reconfigure(stamina);
+            }
+
+            if (water is not null)
+            {
+                _chunkWorld.WaterRules = water;
             }
         }
     }
@@ -483,13 +491,15 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
             ulong networkId = ++_nextNetworkId;
             Entity entity = _simulation.SpawnNetworkEntity(networkId, spawnPos, DefaultEntityRadius);
-            _simulation.Entities.SetCollider(entity, new Collider2D(ColliderKind.Circle, DefaultEntityRadius, default, false, PlayerLayer, uint.MaxValue));
+            // Players swim and dive: deep water does not block them (ADR-032 D10); it still blocks land creatures.
+            _simulation.Entities.SetCollider(entity, SwimmingColliders.AsSwimmer(new Collider2D(ColliderKind.Circle, DefaultEntityRadius, default, false, PlayerLayer, uint.MaxValue)));
             _simulation.Entities.SetVelocity(entity, new Velocity2D(0f, 0f, 5f));
             _simulation.Entities.SetComponent(entity, default(SpawnAnchorComponent));
             _creatures.Spawner.RequestScan();
 
             InventoryContainer inventory = new(PlayerInventoryCapacity);
             character = CharacterPersistence.LoadInventory(character, inventory);
+            _ = CharacterPersistence.ClampDurability(_itemRules, inventory);
 
             // ADR-035: items no longer exist at 0 durability; one saved in the retired "worn out" state gets 1 back.
             int legacyRestored = DurabilityWear.RestoreLegacyBrokenItems(_itemRules, inventory);

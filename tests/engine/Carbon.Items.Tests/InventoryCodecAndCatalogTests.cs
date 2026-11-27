@@ -89,7 +89,7 @@ public sealed class InventoryCodecAndCatalogTests
         axe.EquipSlot.Should().Be(EquipmentSlotKind.Tool);
         axe.HarvestTier.Should().Be(1);
         axe.Capabilities.Should().Be(ToolCapabilities.ChopFlora);
-        axe.FloraHarvestDamage.Should().Be(55f);
+        axe.FloraHarvestDamage.Should().Be(40f);
         s_rules.Items.GetRequired(StarterGameCatalog.HuntingBow).ProjectileSpeed.Should().Be(520f);
         s_rules.Items.GetRequired(StarterGameCatalog.WoodWallKit).PlaceableStructureType.Should().Be(1);
         s_rules.Items.TryGet(s_rules.ItemCatalog.ResolveId("ember_blade"), out ItemArchetype? blade).Should().BeTrue("items beyond the starter set are simulated too");

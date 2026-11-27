@@ -138,6 +138,7 @@ public static class Program
             statusEffects: gameData.StatusEffects,
             stamina: gameData.Stamina,
             logger: logger);
+        world.ApplyGameData(gameData.Economy, gameData.Needs, gameData.Food, gameData.Progression, gameData.StatusEffects, gameData.Stamina, gameData.Water);
         ServerGameData.BindHotReload(config, world);
         using AuthService authService = new(accountStore, characterStore, hasher, time: null, () => world.ItemRules, () => world.Progression)
         {

@@ -29,6 +29,18 @@ public interface IWorldPhysics2D
     bool ResolveCircleCollision(ref Vector2 position, float radius, out Vector2 pushNormal);
 
     /// <summary>
+    /// Resolves a circle against the terrain as seen by a collider with <paramref name="terrainMask"/>
+    /// (see <see cref="TerrainMask"/>): a swimmer passes through deep water. Worlds without water ignore the mask.
+    /// </summary>
+    /// <param name="position">Entity position, moved out of obstacles in place.</param>
+    /// <param name="radius">Collision radius.</param>
+    /// <param name="terrainMask">The collider's collision mask.</param>
+    /// <param name="pushNormal">Combined push normal, or zero.</param>
+    /// <returns><c>true</c> if a collision was resolved.</returns>
+    bool ResolveCircleCollision(ref Vector2 position, float radius, uint terrainMask, out Vector2 pushNormal) =>
+        this.ResolveCircleCollision(ref position, radius, out pushNormal);
+
+    /// <summary>
     /// Resolves axis-aligned bounding box entity collision against static world obstacles, modifying <paramref name="position"/> in-place.
     /// </summary>
     /// <param name="position">Entity world origin position.</param>

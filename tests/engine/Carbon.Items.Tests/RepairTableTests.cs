@@ -85,7 +85,7 @@ public sealed class RepairTableTests
         quote.StepsNeeded.Should().Be(10);
         quote.GetMaterial(0).Should().Be(new RecipeIngredient(Id("wood_log"), 2));
         quote.GetMaterial(1).Should().Be(new RecipeIngredient(Id("plant_fiber"), 2));
-        quote.GoldFee.Should().Be(3, "common items pay half the fee");
+        quote.GoldFee.Should().Be(2, "common items pay half the fee: 30 % of 12 gold, halved, rounded up");
         quote.RequiredStationTier.Should().Be(1, "a workbench is enough for wood");
     }
 
@@ -154,6 +154,25 @@ public sealed class RepairTableTests
                 family!.Materials.Length.Should().BePositive(item.Code);
             }
         }
+    }
+
+    [Fact]
+    public void LoadShippedDefaults_ItemStatingAMaterial_IsRepairedWithThatMaterialFamily()
+    {
+        int stated = 0;
+        foreach (Definitions.ItemCatalogEntry item in s_rules.ItemCatalog.All)
+        {
+            if (item.Material == Definitions.ItemMaterial.None)
+            {
+                continue;
+            }
+
+            stated++;
+            Table.TryGetFamily(item.Id, out RepairFamily? family).Should().BeTrue(item.Code);
+            family!.Id.Should().Be(item.Material.ToString().ToLowerInvariant(), $"items.json says '{item.Code}' is {item.Material}");
+        }
+
+        stated.Should().BePositive("the wood and stone tools state their material");
     }
 
     [Theory]
