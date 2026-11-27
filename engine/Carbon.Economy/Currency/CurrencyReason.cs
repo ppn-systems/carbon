@@ -46,4 +46,7 @@ public enum CurrencyReason : byte
 
     /// <summary>Sink: attribute point reset (ADR-021).</summary>
     AttributeReset = 12,
+
+    /// <summary>Neutral: gold a dying player dropped (debited at death, credited to whoever picks the pile up; ADR-031).</summary>
+    DeathDrop = 13,
 }

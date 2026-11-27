@@ -112,7 +112,8 @@ internal sealed class CharacterProgressionService
         if (_simulation.Entities.HasHealth(state.Entity))
         {
             HealthComponent hp = _simulation.Entities.GetHealth(state.Entity);
-            float clamped = MathF.Min(stats.MaxHealth, MathF.Max(1f, hp.Current));
+            // A dead player stays at 0 until they respawn (ADR-031); otherwise never drop below 1 on a recompute.
+            float clamped = state.IsDead ? 0f : MathF.Min(stats.MaxHealth, MathF.Max(1f, hp.Current));
             _simulation.Entities.SetHealth(state.Entity, new HealthComponent(clamped, stats.MaxHealth));
             _simulation.MarkDirty(state.Entity, EntityDirtyMask.Health);
         }

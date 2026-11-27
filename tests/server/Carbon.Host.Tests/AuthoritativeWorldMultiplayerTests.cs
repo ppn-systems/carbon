@@ -1126,7 +1126,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
     }
 
     [Fact]
-    public async Task StarvingPlayer_DiesFromMalnutritionAndRespawnsHalfFed()
+    public async Task StarvingPlayer_DiesFromMalnutritionAndRespawnsHalfFedOnRequest()
     {
         string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-starve-test-{Guid.NewGuid():N}.db");
         try
@@ -1159,6 +1159,13 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
             sink.CombatHits.Should().Contain(h => h.DefenderNetworkId == enter.PlayerNetworkId && h.IsKilled, "maximum malnutrition kills");
             ((900 + ticksUntilDeath) / 30f).Should().BeInRange(70f, 74f, "12 s to empty + 60 s of malnutrition");
+            StepTicks(world, 30);
+            world.IsPlayerDead(701UL).Should().BeTrue("starvation leaves the player dead until they ask to respawn (ADR-031)");
+            sink.PlayerDeaths.Should().ContainSingle(d => d.ConnectionId == 701UL && d.Death.Cause == DeathCause.Starvation);
+
+            ValueTask<WorldMutationOutcome> respawn = world.SubmitRespawnAsync(701UL);
+            world.StepFixedTick();
+            (await respawn.ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok);
             world.StepFixedTick();
             PlayerNeedsSnapshot respawned = sink.NeedsSyncs.Last(n => n.ConnectionId == 701UL).Needs;
             respawned.Malnutrition.Should().BeLessThan(0.1f, "death clears malnutrition");
@@ -1814,6 +1821,11 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
         public void SendTraderStock(ulong connectionId, TraderStockSnapshot stock) =>
             this.TraderStocks.Add((connectionId, stock));
+
+        public List<(ulong ConnectionId, PlayerDeathSnapshot Death)> PlayerDeaths { get; } = [];
+
+        public void SendPlayerDeath(ulong connectionId, in PlayerDeathSnapshot death) =>
+            this.PlayerDeaths.Add((connectionId, death));
 
         public List<(ulong ConnectionId, PlayerNeedsSnapshot Needs)> NeedsSyncs { get; } = [];
         public List<(ulong ConnectionId, ushort SlotIndex, uint ItemId, float FreshnessSeconds)> SlotFreshness { get; } = [];

@@ -259,7 +259,7 @@ internal sealed class TradeService : IWorldTradeService
             WorldCommandKind.CraftRecipe or WorldCommandKind.MoveInventorySlot or WorldCommandKind.UpgradeInventoryItem or
             WorldCommandKind.DropInventoryItem or WorldCommandKind.SplitInventorySlot or WorldCommandKind.SortInventory or
             WorldCommandKind.DestroyInventoryItem or WorldCommandKind.VendorBuy or WorldCommandKind.VendorSell or
-            WorldCommandKind.RepairItem or WorldCommandKind.AllocateCharacterPoint => OpStatus.Invalid,
+            WorldCommandKind.RepairItem or WorldCommandKind.AllocateCharacterPoint or WorldCommandKind.Respawn => OpStatus.Invalid,
             _ => OpStatus.Invalid,
         };
         return new WorldMutationOutcome(status, 0);
@@ -269,7 +269,7 @@ internal sealed class TradeService : IWorldTradeService
     {
         trader = default;
         economy = _economy();
-        if (!_players.ByConnection.TryGetValue(connectionId, out state) || !_simulation.Entities.HasTransform(state.Entity))
+        if (!_players.ByConnection.TryGetValue(connectionId, out state) || state.IsDead || !_simulation.Entities.HasTransform(state.Entity))
         {
             return OpStatus.Forbidden;
         }
