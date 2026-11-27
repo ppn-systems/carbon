@@ -71,6 +71,12 @@ public sealed class DesktopOptions
     /// </summary>
     public (float X, float Y)? AutoWalk { get; init; }
 
+    /// <summary>
+    /// Gets or sets a HUD window to open before the automatic capture (<c>CARBON_CAPTURE_MODAL=settings|controls</c>;
+    /// used by the screenshot tool to review localized UI, ADR-023 D8). Empty when unset.
+    /// </summary>
+    public string CaptureModal { get; init; } = string.Empty;
+
     /// <summary>Gets or sets the remote dedicated server host or IP address.</summary>
     public string ServerHost { get; init; } = "127.0.0.1";
 
@@ -203,6 +209,7 @@ public sealed class DesktopOptions
             CaptureFrames = captureFrames,
             AutoExit = string.Equals(get("CARBON_AUTO_EXIT"), "1", StringComparison.Ordinal),
             AutoWalk = autoWalk,
+            CaptureModal = get("CARBON_CAPTURE_MODAL") is { Length: > 0 } modal ? modal.Trim().ToLowerInvariant() : string.Empty,
             ForgePreview = get("CARBON_FORGE_PREVIEW") is { Length: > 0 } forgePreview ? forgePreview.Trim() : null,
             ServerHost = serverHost,
             ServerTcpPort = serverTcpPort,

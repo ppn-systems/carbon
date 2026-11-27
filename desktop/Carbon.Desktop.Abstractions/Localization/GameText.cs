@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using Carbon.Maps.Biomes;
+using Carbon.Maps.Building;
 
 namespace Carbon.Desktop.Abstractions.Localization;
 
@@ -20,6 +21,7 @@ public static class GameText
 
     private static readonly Lock s_gate = new();
     private static readonly string[] s_biomeKeys = BuildBiomeKeys();
+    private static readonly string[] s_structureKeys = BuildStructureKeys();
     private static readonly Dictionary<string, string> s_itemNameKeys = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, string> s_itemHintKeys = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, string> s_monsterNameKeys = new(StringComparer.Ordinal);
@@ -120,6 +122,22 @@ public static class GameText
             : biome.ToString();
     }
 
+    /// <summary>Returns the localized structure name (<c>structure.&lt;snake_case&gt;</c>, e.g. <c>structure.wood_wall</c>).</summary>
+    /// <param name="type">The structure type.</param>
+    /// <returns>The display name.</returns>
+    public static string StructureName(StructureType type)
+    {
+        int index = (int)type;
+        return index > 0 && index < s_structureKeys.Length && s_structureKeys[index].Length > 0
+            ? Current.Text(s_structureKeys[index])
+            : type.ToString();
+    }
+
+    /// <summary>Returns the localization key of <paramref name="type"/> (<c>structure.wood_wall</c>).</summary>
+    /// <param name="type">The structure type.</param>
+    /// <returns>The key.</returns>
+    public static string StructureKey(StructureType type) => "structure." + ToSnakeCase(type.ToString());
+
     /// <summary>Returns the localization key of <paramref name="biome"/> (<c>biome.lush_plains</c>).</summary>
     /// <param name="biome">The biome.</param>
     /// <returns>The key.</returns>
@@ -186,6 +204,28 @@ public static class GameText
             if (index >= 0)
             {
                 keys[index] = BiomeKey(values[i]);
+            }
+        }
+
+        return keys;
+    }
+
+    private static string[] BuildStructureKeys()
+    {
+        StructureType[] values = Enum.GetValues<StructureType>();
+        int max = 0;
+        for (int i = 0; i < values.Length; i++)
+        {
+            max = Math.Max(max, (int)values[i]);
+        }
+
+        string[] keys = new string[max + 1];
+        Array.Fill(keys, string.Empty);
+        for (int i = 0; i < values.Length; i++)
+        {
+            if (values[i] != StructureType.None)
+            {
+                keys[(int)values[i]] = StructureKey(values[i]);
             }
         }
 
