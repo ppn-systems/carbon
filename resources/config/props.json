@@ -1,16 +1,10 @@
 {
   "schemaVersion": 1,
-  "spawnForage": { "respawnSeconds": 45 },
+  "spawnForage": {
+    "respawnSeconds": 45
+  },
   "blockedRetrySeconds": 10,
   "regrowSeconds": {
-    "oakTree": 2700,
-    "pineTree": 2700,
-    "snowPine": 2700,
-    "palmTree": 2700,
-    "birchTree": 2700,
-    "willowTree": 2700,
-    "acaciaTree": 2700,
-    "cherryBlossomTree": 2700,
     "deadTree": 2700,
     "cactus": 900,
     "bush": 600,
@@ -18,5 +12,35 @@
     "dryBush": 600,
     "duneGrass": 600,
     "fallenBranch": 600
+  },
+  "trees": {
+    "deferWithinTiles": 6,
+    "stump": {
+      "seconds": 900,
+      "durability": 30,
+      "yield": 1,
+      "saplingChance": 0.5
+    },
+    "sapling": {
+      "seconds": 900,
+      "durability": 10,
+      "yield": 0
+    },
+    "young": {
+      "seconds": 900,
+      "durabilityShare": 0.5,
+      "yield": 1
+    },
+    "mature": {
+      "yield": 3,
+      "saplingDrops": {
+        "min": 0,
+        "max": 2
+      }
+    },
+    "dig": {
+      "bareHandDamage": 4,
+      "axeEfficiency": 0.5
+    }
   }
 }

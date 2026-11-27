@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 2,
+  "propType": 0,
+  "id": "tree_sapling",
+  "displayName": "Tree Sapling",
+  "designRadius": 10,
+  "hasCanopy": false,
+  "allowMirror": true,
+  "isWoody": true,
+  "isIcy": false,
+  "rareLastVariantChance": 0.0,
+  "light": null,
+  "paletteVariants": [
+    {
+      "edge": "#1B4332",
+      "stem": "#6B4A2B",
+      "stemLit": "#8C6440",
+      "leaf": "#40916C",
+      "leafLit": "#74C69D",
+      "soil": "#5A4632"
+    },
+    {
+      "edge": "#1E3F2C",
+      "stem": "#5E4026",
+      "stemLit": "#7E5838",
+      "leaf": "#52A35A",
+      "leafLit": "#8CD48E",
+      "soil": "#4F3E2C"
+    },
+    {
+      "edge": "#24402A",
+      "stem": "#735031",
+      "stemLit": "#966C46",
+      "leaf": "#5C9A3E",
+      "leafLit": "#95C76A",
+      "soil": "#5E4A36"
+    }
+  ],
+  "groundShapes": [
+    {
+      "kind": "ellipse",
+      "x": 0.5,
+      "y": 5.0,
+      "rx": 8.0,
+      "ry": 2.6,
+      "color": "#00000024"
+    },
+    {
+      "kind": "ellipse",
+      "x": 0.0,
+      "y": 4.2,
+      "rx": 5.5,
+      "ry": 2.0,
+      "color": "$soil"
+    },
+    {
+      "kind": "capsule",
+      "x": 0.0,
+      "y": 4.0,
+      "x2": 0.6,
+      "y2": -11.0,
+      "thickness": 1.6,
+      "color": "$stem"
+    },
+    {
+      "kind": "line",
+      "x": 0.2,
+      "y": 2.0,
+      "x2": 0.7,
+      "y2": -9.0,
+      "thickness": 0.5,
+      "color": "$stemLit"
+    },
+    {
+      "kind": "capsule",
+      "x": 0.3,
+      "y": -4.0,
+      "x2": -3.6,
+      "y2": -7.0,
+      "thickness": 0.9,
+      "color": "$stem"
+    },
+    {
+      "kind": "ellipse",
+      "x": -5.2,
+      "y": -8.0,
+      "rx": 3.2,
+      "ry": 1.6,
+      "color": "$leaf",
+      "rotDeg": -28,
+      "outlineColor": "$edge",
+      "outlineThickness": 0.6
+    },
+    {
+      "kind": "capsule",
+      "x": 0.5,
+      "y": -6.5,
+      "x2": 4.0,
+      "y2": -9.0,
+      "thickness": 0.9,
+      "color": "$stem"
+    },
+    {
+      "kind": "ellipse",
+      "x": 5.4,
+      "y": -10.0,
+      "rx": 3.2,
+      "ry": 1.6,
+      "color": "$leaf",
+      "rotDeg": 32,
+      "outlineColor": "$edge",
+      "outlineThickness": 0.6
+    },
+    {
+      "kind": "ellipse",
+      "x": 0.6,
+      "y": -13.2,
+      "rx": 2.2,
+      "ry": 3.4,
+      "color": "$leaf",
+      "outlineColor": "$edge",
+      "outlineThickness": 0.6
+    },
+    {
+      "kind": "ellipse",
+      "x": 0.2,
+      "y": -13.8,
+      "rx": 0.9,
+      "ry": 2.0,
+      "color": "$leafLit"
+    },
+    {
+      "kind": "ellipse",
+      "x": -5.6,
+      "y": -8.4,
+      "rx": 1.4,
+      "ry": 0.6,
+      "color": "$leafLit",
+      "rotDeg": -28
+    },
+    {
+      "kind": "ellipse",
+      "x": 5.0,
+      "y": -10.4,
+      "rx": 1.4,
+      "ry": 0.6,
+      "color": "$leafLit",
+      "rotDeg": 32
+    }
+  ],
+  "canopyShapes": [],
+  "remnantShapes": []
+}

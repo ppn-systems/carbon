@@ -16,6 +16,9 @@ namespace Carbon.Desktop.Rendering.VectorArt;
 /// </summary>
 internal static class VectorPropRenderer
 {
+    /// <summary>Drawn size of a young tree relative to the mature tree on the same tile (ADR-040 growth stage).</summary>
+    public const float YoungTreeScale = 0.6f;
+
     public static void DrawGround(
         GeometryBatch batch,
         in MapProp prop,
@@ -23,8 +26,30 @@ internal static class VectorPropRenderer
         Vector2 shakeOffset = default,
         float hitFlash = 0f)
     {
-        if (art is null || !art.TryGetProp((byte)prop.Type, out CompiledPropArt? propArt))
+        if (art is null)
         {
+            return;
+        }
+
+        // ADR-040: a stump draws the tree's remnant, a sapling the shared sapling art; a young tree is a smaller tree.
+        if (prop.GrowthStage == TreeGrowthStage.Sapling)
+        {
+            if (art.TryGetTreeSapling(out CompiledPropArt? saplingArt))
+            {
+                DrawShapes(batch, in prop, saplingArt, saplingArt.GroundVariants, 1f, shakeOffset, hitFlash);
+            }
+
+            return;
+        }
+
+        if (!art.TryGetProp((byte)prop.Type, out CompiledPropArt? propArt))
+        {
+            return;
+        }
+
+        if (prop.GrowthStage == TreeGrowthStage.Stump)
+        {
+            DrawShapes(batch, in prop, propArt, propArt.RemnantVariants, RemnantScale(in prop, propArt), shakeOffset, hitFlash);
             return;
         }
 
@@ -32,7 +57,7 @@ internal static class VectorPropRenderer
         int variantIdx = propArt.SelectVariantIndex(h, out _);
         CompiledVectorShape[] shapes = propArt.GroundVariants[variantIdx];
 
-        float scale = (prop.Radius > 0.1f ? prop.Radius : propArt.DesignRadius) / propArt.DesignRadius;
+        float scale = StageScale(in prop) * (prop.Radius > 0.1f ? prop.Radius : propArt.DesignRadius) / propArt.DesignRadius;
         bool mirror = propArt.AllowMirror && ((h >> 5) & 1u) != 0;
         float sx = mirror ? -scale : scale;
         float sy = scale;
@@ -92,7 +117,7 @@ internal static class VectorPropRenderer
             return;
         }
 
-        float scale = (prop.Radius > 0.1f ? prop.Radius : propArt.DesignRadius) / propArt.DesignRadius;
+        float scale = StageScale(in prop) * (prop.Radius > 0.1f ? prop.Radius : propArt.DesignRadius) / propArt.DesignRadius;
         bool mirror = propArt.AllowMirror && ((h >> 5) & 1u) != 0;
         float sx = mirror ? -scale : scale;
         float sy = scale;
@@ -111,28 +136,45 @@ internal static class VectorPropRenderer
         in MapProp prop,
         IVectorArtRepository? art)
     {
-        if (art is null || !art.TryGetProp((byte)prop.Type, out CompiledPropArt? propArt))
+        // A dug-up stump (ADR-040) leaves a clear tile: nothing to draw.
+        if (prop.GrowthStage == TreeGrowthStage.Stump || art is null || !art.TryGetProp((byte)prop.Type, out CompiledPropArt? propArt))
         {
             return;
         }
 
+        DrawShapes(batch, in prop, propArt, propArt.RemnantVariants, RemnantScale(in prop, propArt), Vector2.Zero, 0f);
+    }
+
+    /// <summary>Gets the drawn scale of the prop's growth stage: smaller for a young tree.</summary>
+    private static float StageScale(in MapProp prop) => prop.GrowthStage == TreeGrowthStage.Young ? YoungTreeScale : 1f;
+
+    private static float RemnantScale(in MapProp prop, CompiledPropArt propArt) =>
+        Math.Clamp((prop.Radius > 0.1f ? prop.Radius : propArt.DesignRadius) / propArt.DesignRadius, 0.75f, 1.35f);
+
+    private static void DrawShapes(
+        GeometryBatch batch,
+        in MapProp prop,
+        CompiledPropArt propArt,
+        CompiledVectorShape[][] variants,
+        float scale,
+        Vector2 shakeOffset,
+        float hitFlash)
+    {
         uint h = Seed(in prop);
-        int variantIdx = propArt.SelectVariantIndex(h, out _);
-        CompiledVectorShape[] shapes = propArt.RemnantVariants[variantIdx];
-        if (shapes.Length == 0)
+        int variantIdx = Math.Min(propArt.SelectVariantIndex(h, out _), variants.Length - 1);
+        if (variantIdx < 0)
         {
             return;
         }
 
-        float scale = Math.Clamp((prop.Radius > 0.1f ? prop.Radius : propArt.DesignRadius) / propArt.DesignRadius, 0.75f, 1.35f);
+        CompiledVectorShape[] shapes = variants[variantIdx];
         bool mirror = propArt.AllowMirror && ((h >> 5) & 1u) != 0;
         float sx = mirror ? -scale : scale;
-
         BonePose pose = BonePose.Identity;
-        Vector2 origin = prop.WorldPosition;
+        Vector2 origin = prop.WorldPosition + shakeOffset;
         for (int i = 0; i < shapes.Length; i++)
         {
-            VectorRigRenderer.DrawShapeAt(batch, in shapes[i], in pose, origin, sx, scale);
+            VectorRigRenderer.DrawShapeAt(batch, in shapes[i], in pose, origin, sx, scale, hitFlash);
         }
     }
 

@@ -24,6 +24,7 @@ using Carbon.Items.Definitions;
 using Carbon.Items.Progression;
 using Carbon.Maps.Building;
 using Carbon.Maps.Generators;
+using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
@@ -473,7 +474,7 @@ public sealed class PlayerActionServiceTests
             NeedsService needs = new(this.Simulation, new BuildingGrid(), 32f, () => this.Rules, () => null, new NeedsConfig(), null, TestGameplayEntropy.Create(1UL));
             InventoryService inventory = new(this.Simulation, new BuildingGrid(), 32f, TestGameplayEntropy.Create(1UL), () => this.Rules, () => null, () => this.Tick, (_, _, _) => false, loot, this.Outbound, _ => { });
             PropHarvestService props = new(
-                this.Simulation, chunks, 32f, (_, _, _) => 900UL, () => this.Rules, () => this.Tick, loot, construction, this.Outbound, dirty,
+                this.Simulation, chunks, 32f, (_, _, _) => 900UL, () => PropRegrowthRules.LoadEmbedded().Trees, 30, TestGameplayEntropy.Create(1UL), () => this.Rules, () => this.Tick, loot, construction, this.Outbound, dirty,
                 (_, _) => (0, 0), (_, _, _) => false, (_, in slot, _, out updated) =>
                 {
                     updated = slot;

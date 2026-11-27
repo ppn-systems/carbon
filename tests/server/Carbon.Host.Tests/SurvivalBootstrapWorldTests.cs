@@ -37,11 +37,25 @@ public sealed class SurvivalBootstrapWorldTests
     private const ulong Connection = 811UL;
 
     /// <summary>
-    /// The shipped forage delay, with felled oaks back after 30 s instead of 45 min so the axe can be compared with bare
-    /// hands on the same tree.
+    /// The shipped forage delay, with a felled oak's stump grown back to a full tree after 30 s instead of 45 min, so the
+    /// axe can be compared with bare hands on the same tree.
     /// </summary>
     private static readonly PropRegrowthRules s_regrowth = PropRegrowthRules.LoadFromJson(
-        """{ "spawnForage": { "respawnSeconds": 45 }, "blockedRetrySeconds": 10, "regrowSeconds": { "oakTree": 30 } }""");
+        """
+        {
+          "spawnForage": { "respawnSeconds": 45 },
+          "blockedRetrySeconds": 1,
+          "regrowSeconds": { "dryBush": 600 },
+          "trees": {
+            "deferWithinTiles": 0,
+            "stump": { "seconds": 10, "durability": 30, "yield": 1, "saplingChance": 0.5 },
+            "sapling": { "seconds": 10, "durability": 10, "yield": 0 },
+            "young": { "seconds": 10, "durabilityShare": 0.5, "yield": 1 },
+            "mature": { "yield": 3, "saplingDrops": { "min": 0, "max": 2 } },
+            "dig": { "bareHandDamage": 4, "axeEfficiency": 0.5 }
+          }
+        }
+        """);
 
     [Fact]
     public async Task EmptyHandedCharacter_GathersAtSpawnCraftsWoodAxe_AndThenChopsATreeFaster()
@@ -89,15 +103,16 @@ public sealed class SurvivalBootstrapWorldTests
             HashSet<ushort> occupied = [.. Inventory(world).Select(s => s.SlotIndex)];
             byte emptyHand = (byte)Enumerable.Range(0, 8).First(i => !occupied.Contains((ushort)i));
             world.TrySelectHotbarSlot(Connection, emptyHand).Should().Be(OpStatus.Ok);
-            int punches = StrikeUntilGone(world, tree);
+            int punches = StrikeUntilGone(world, tree, untilStump: true);
             PickUpNewLoot(world, sink);
             Count(world, StarterGameCatalog.WoodLog).Should().BePositive("a punched-down tree drops its logs");
 
-            StepTicks(world, 30 * (30 + 1));
+            StepTicks(world, 30 * (30 + 2));
             world.TrySelectHotbarSlot(Connection, (byte)axeSlot).Should().Be(OpStatus.Ok);
-            int chops = StrikeUntilGone(world, tree);
+            int chops = StrikeUntilGone(world, tree, untilStump: true);
 
             punches.Should().BeGreaterThan(1, "bare hands fell a tree slowly");
+            chops.Should().BePositive("the stump grew back into a full tree that the axe fells again");
             chops.Should().BeLessThan(punches, "the wood axe chops faster than bare hands");
         }
         finally
@@ -135,7 +150,11 @@ public sealed class SurvivalBootstrapWorldTests
             foreach ((int X, int Y) tree in FindProps(mirror, spawnTile, 40, MapPropType.OakTree).Take(2))
             {
                 WalkTo(world, sink, TileCenter(tree));
-                StrikeUntilGone(world, tree).Should().BeGreaterThan(1, "bare hands fell an oak slowly");
+
+                // Bare hands: the saplings a felled oak drops (ADR-040) must not end up in the hand that punches the next one.
+                HashSet<ushort> taken = [.. Inventory(world).Select(s => s.SlotIndex)];
+                world.TrySelectHotbarSlot(Connection, (byte)Enumerable.Range(0, 8).First(i => !taken.Contains((ushort)i))).Should().Be(OpStatus.Ok);
+                StrikeUntilGone(world, tree, untilStump: true).Should().BeGreaterThan(1, "bare hands fell an oak slowly");
                 PickUpNewLoot(world, sink);
             }
 
@@ -260,12 +279,20 @@ public sealed class SurvivalBootstrapWorldTests
         throw new InvalidOperationException($"could not walk to {target}");
     }
 
-    /// <summary>Strikes the prop by hand or with the selected tool until it breaks; returns the strikes that landed.</summary>
-    private static int StrikeUntilGone(AuthoritativeWorld world, (int X, int Y) tile)
+    /// <summary>
+    /// Strikes the prop by hand or with the selected tool until it breaks (a tree: until it is felled to a stump, when
+    /// <paramref name="untilStump"/>); returns the strikes that landed.
+    /// </summary>
+    private static int StrikeUntilGone(AuthoritativeWorld world, (int X, int Y) tile, bool untilStump = false)
     {
         int landed = 0;
         for (int attempt = 0; attempt < 2000; attempt++)
         {
+            if (untilStump && RegrowthWorldFixture.Probe(world, tile.X, tile.Y).Stage == TreeGrowthStage.Stump)
+            {
+                return landed;
+            }
+
             OpStatus status = world.TryHarvestProp(Connection, tile.X, tile.Y).Status;
             if (status == OpStatus.NotFound)
             {

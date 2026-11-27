@@ -20,6 +20,7 @@ using Carbon.Items.Definitions;
 using Carbon.Items.Progression;
 using Carbon.Maps.Data;
 using Carbon.Maps.Hydrology;
+using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.Clock;
 using Carbon.Simulation.ECS;
@@ -97,7 +98,7 @@ public sealed partial class AuthoritativeWorld
             _simulation.Tick(new FixedTickArgs(_currentTick, dt, _currentTick * dt));
             this.ProcessStatusPulsesLocked();
             this.ProcessSurvivalEventsLocked();
-            this.StepWaterLocked(dt);
+            _oxygen.Step(_players.ByConnection, dt);
             if ((_currentTick % this.TickRate) == 0UL)
             {
                 this.AdvanceFoodSpoilageLocked(SpoilageStepSeconds);
@@ -128,11 +129,11 @@ public sealed partial class AuthoritativeWorld
             if ((_currentTick % this.TickRate) == 0UL)
             {
                 _respawnedPropsScratch.Clear();
-                if (_chunkWorld.ProcessPropRespawns(_currentTick, _propRegrowth.BlockedRetryTicks(this.TickRate), _isPropTileBlocked, _respawnedPropsScratch) > 0)
+                if (_chunkWorld.ProcessPropRespawns(_currentTick, _propRegrowth, this.TickRate, _isPropTileBlocked, _isPropTileWatched, _respawnedPropsScratch) > 0)
                 {
                     for (int i = 0; i < _respawnedPropsScratch.Count; i++)
                     {
-                        (int rtx, int rty, _, float maxDur) = _respawnedPropsScratch[i];
+                        (int rtx, int rty, _, float durability, TreeGrowthStage stage) = _respawnedPropsScratch[i];
                         _ = _dirtyChunks.Add(Chunk2D.PackKey(Chunk2D.ToChunkCoord(rtx), Chunk2D.ToChunkCoord(rty)));
                         (int offset, int count) = this.AppendTileRecipientsLocked(rtx, rty);
                         if (count > 0)
@@ -142,8 +143,9 @@ public sealed partial class AuthoritativeWorld
                                 count,
                                 rtx,
                                 rty,
-                                maxDur,
-                                IsDestroyed: false));
+                                durability,
+                                IsDestroyed: false,
+                                stage));
                         }
                     }
                 }
@@ -226,7 +228,7 @@ public sealed partial class AuthoritativeWorld
                 }
 
                 this.QueueStatusEffectSyncLocked(observer);
-                this.QueueOxygenSyncLocked(observer);
+                _oxygen.QueueSync(observer);
 
                 if (observer.StatsDirty || (_currentTick % 10UL) == 0UL)
                 {

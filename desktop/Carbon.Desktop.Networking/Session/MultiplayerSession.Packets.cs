@@ -26,6 +26,7 @@ using Carbon.Items.Serialization;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Networking;
+using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
 using Carbon.Prediction.Remote;
 using Carbon.Simulation.ECS.Components;
@@ -1241,10 +1242,11 @@ public sealed partial class MultiplayerSession
         int tileY = pkt.TileY;
         float durability = pkt.Durability;
         bool isDestroyed = pkt.IsDestroyed;
-        this.PostWorldMutation(() => this.ApplyMapPropChanged(tileX, tileY, durability, isDestroyed));
+        TreeGrowthStage stage = pkt.GrowthStage <= (byte)TreeGrowthStage.Young ? (TreeGrowthStage)pkt.GrowthStage : TreeGrowthStage.Mature;
+        this.PostWorldMutation(() => this.ApplyMapPropChanged(tileX, tileY, durability, isDestroyed, stage));
     }
 
-    private void ApplyMapPropChanged(int tileX, int tileY, float durability, bool isDestroyed)
+    private void ApplyMapPropChanged(int tileX, int tileY, float durability, bool isDestroyed, TreeGrowthStage stage)
     {
         lock (_worldGate)
         {
@@ -1253,7 +1255,7 @@ public sealed partial class MultiplayerSession
                 return;
             }
 
-            _mapMutations.ApplyPropChanged(_chunkWorld, tileX, tileY, durability, isDestroyed, _inventory, _selectedSlot, _items);
+            _mapMutations.ApplyPropChanged(_chunkWorld, tileX, tileY, durability, isDestroyed, stage, _inventory, _selectedSlot, _items);
         }
     }
 

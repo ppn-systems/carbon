@@ -58,6 +58,7 @@ public sealed partial class AuthoritativeWorld
         uint revision;
         float durability;
         bool isDestroyed = false;
+        TreeGrowthStage stage;
 
         lock (_gate)
         {
@@ -119,6 +120,7 @@ public sealed partial class AuthoritativeWorld
             modifiedCopy = [.. _mutationSlotScratch];
             revision = strike.Revision;
             durability = strike.Prop.Destructibility.CurrentDurability;
+            stage = strike.Prop.GrowthStage;
             if (!strike.Damaged)
             {
                 if (recipientsCopy is null && modifiedCopy.Length == 0)
@@ -136,7 +138,7 @@ public sealed partial class AuthoritativeWorld
 
         if (recipientsCopy is not null)
         {
-            _outboundSink.SendPropChanged(recipientsCopy, tileX, tileY, durability, isDestroyed);
+            _outboundSink.SendPropChanged(recipientsCopy, tileX, tileY, durability, isDestroyed, (byte)stage);
         }
 
         this.SendSlotsOutbound(connectionId, modifiedCopy);

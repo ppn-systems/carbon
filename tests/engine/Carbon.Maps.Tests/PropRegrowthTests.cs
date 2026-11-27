@@ -23,6 +23,18 @@ public sealed class PropRegrowthTests
 {
     private const ulong Seed = 42UL;
 
+    /// <summary>A valid <c>trees</c> block for documents built in tests.</summary>
+    internal const string TreesJson = """
+        "trees": {
+          "deferWithinTiles": 0,
+          "stump": { "seconds": 30, "durability": 30, "yield": 1, "saplingChance": 0.5 },
+          "sapling": { "seconds": 20, "durability": 10, "yield": 0 },
+          "young": { "seconds": 10, "durabilityShare": 0.5, "yield": 2 },
+          "mature": { "yield": 3, "saplingDrops": { "min": 0, "max": 2 } },
+          "dig": { "bareHandDamage": 4, "axeEfficiency": 0.5 }
+        }
+        """;
+
     [Fact]
     public void LoadEmbedded_EveryStoneAndOreType_NeverComesBack()
     {
@@ -53,7 +65,7 @@ public sealed class PropRegrowthTests
     [Theory]
     [InlineData("""{ "spawnForage": { "respawnSeconds": 45 }, "blockedRetrySeconds": 10, "regrowSeconds": { "notAProp": 60 } }""")]
     [InlineData("""{ "spawnForage": { "respawnSeconds": 45 }, "blockedRetrySeconds": 10, "regrowSeconds": { "1": 60 } }""")]
-    [InlineData("""{ "spawnForage": { "respawnSeconds": 45 }, "blockedRetrySeconds": 10, "regrowSeconds": { "oakTree": 0 } }""")]
+    [InlineData("""{ "spawnForage": { "respawnSeconds": 45 }, "blockedRetrySeconds": 10, "regrowSeconds": { "bush": 0 } }""")]
     [InlineData("""{ "spawnForage": { "respawnSeconds": 0 }, "blockedRetrySeconds": 10, "regrowSeconds": {} }""")]
     [InlineData("""{ "spawnForage": { "respawnSeconds": 45 }, "regrowSeconds": {} }""")]
     public void LoadFromJson_BadDocument_IsRejected(string json) =>
@@ -63,13 +75,13 @@ public sealed class PropRegrowthTests
     public void DelaySeconds_StarterForage_IsFastOnlyInsideTheSpawnClearing()
     {
         PropRegrowthRules rules = PropRegrowthRules.LoadFromJson(
-            """{ "spawnForage": { "respawnSeconds": 40 }, "blockedRetrySeconds": 10, "regrowSeconds": { "dryBush": 600, "oakTree": 2700 } }""");
+            """{ "spawnForage": { "respawnSeconds": 40 }, "blockedRetrySeconds": 10, "regrowSeconds": { "dryBush": 600, "deadTree": 2700 }, """ + TreesJson + "}");
 
         Assert.Equal(40f, rules.DelaySeconds(MapPropType.DryBush, inSpawnClearing: true));
         Assert.Equal(600f, rules.DelaySeconds(MapPropType.DryBush, inSpawnClearing: false));
         Assert.Equal(40f, rules.DelaySeconds(MapPropType.LooseStones, inSpawnClearing: true));
         Assert.Equal(0f, rules.DelaySeconds(MapPropType.LooseStones, inSpawnClearing: false));
-        Assert.Equal(2700f, rules.DelaySeconds(MapPropType.OakTree, inSpawnClearing: true));
+        Assert.Equal(2700f, rules.DelaySeconds(MapPropType.DeadTree, inSpawnClearing: true));
         Assert.Equal(1200UL, rules.DelayTicks(MapPropType.LooseStones, inSpawnClearing: true, tickRate: 30));
     }
 
@@ -116,15 +128,15 @@ public sealed class PropRegrowthTests
         (int x, int y) = FindProp(world, p => MapProp.IsTree(p.Type));
         Assert.True(world.TryGetPropAt(x, y, out MapProp standing));
         Assert.True(world.TryDamagePropAt(x, y, float.MaxValue, byte.MaxValue, respawnAtTick: 600UL, out _));
-        List<(int TileX, int TileY, uint Revision, float MaxDurability)> respawned = [];
+        List<(int TileX, int TileY, uint Revision, float Durability, TreeGrowthStage Stage)> respawned = [];
 
-        Assert.Equal(0, world.ProcessPropRespawns(599UL, 1UL, null, respawned));
-        Assert.Equal(1, world.ProcessPropRespawns(600UL, 1UL, null, respawned));
+        Assert.Equal(0, world.ProcessPropRespawns(599UL, null, 30, null, null, respawned));
+        Assert.Equal(1, world.ProcessPropRespawns(600UL, null, 30, null, null, respawned));
 
         Assert.True(world.TryGetPropAt(x, y, out MapProp regrown));
         Assert.Equal(standing.Destructibility, regrown.Destructibility);
         Assert.Equal((x, y), (respawned[0].TileX, respawned[0].TileY));
-        Assert.Equal(standing.Destructibility.MaxDurability, respawned[0].MaxDurability);
+        Assert.Equal(standing.Destructibility.MaxDurability, respawned[0].Durability);
     }
 
     [Fact]
@@ -198,10 +210,14 @@ public sealed class PropRegrowthTests
         bool playerOnTile = true;
         bool IsBlocked(int tileX, int tileY) => playerOnTile && tileX == x && tileY == y;
 
-        Assert.Equal(0, world.ProcessPropRespawns(100UL, blockedRetryTicks: 50UL, IsBlocked, respawnedProps: null));
+        PropRegrowthRules rules = PropRegrowthRules.LoadFromJson(
+            """{ "spawnForage": { "respawnSeconds": 45 }, "blockedRetrySeconds": 5, "regrowSeconds": {}, """ + TreesJson + "}");
+
+        // 5 s at 10 ticks per second: a blocked prop tries again 50 ticks later.
+        Assert.Equal(0, world.ProcessPropRespawns(100UL, rules, 10, IsBlocked, null, respawnedProps: null));
         playerOnTile = false;
-        Assert.Equal(0, world.ProcessPropRespawns(149UL, blockedRetryTicks: 50UL, IsBlocked, respawnedProps: null));
-        Assert.Equal(1, world.ProcessPropRespawns(150UL, blockedRetryTicks: 50UL, IsBlocked, respawnedProps: null));
+        Assert.Equal(0, world.ProcessPropRespawns(149UL, rules, 10, IsBlocked, null, respawnedProps: null));
+        Assert.Equal(1, world.ProcessPropRespawns(150UL, rules, 10, IsBlocked, null, respawnedProps: null));
     }
 
     [Fact]
@@ -224,19 +240,19 @@ public sealed class PropRegrowthTests
     {
         ChunkWorld2D world = new(new ProceduralWorldGenerator(Seed));
         List<(int X, int Y)> trees = FindProps(world, p => MapProp.IsTree(p.Type), count: 8);
-        List<(int TileX, int TileY, uint Revision, float MaxDurability)> respawned = new(16);
+        List<(int TileX, int TileY, uint Revision, float Durability, TreeGrowthStage Stage)> respawned = new(16);
         static bool NeverBlocked(int tileX, int tileY) => false;
         Func<int, int, bool> blocked = NeverBlocked;
 
         // Warm-up: one cycle grows the scratch lists to capacity.
         Fell(world, trees, respawnAt: 10UL);
-        Assert.Equal(trees.Count, world.ProcessPropRespawns(10UL, 1UL, blocked, respawned));
+        Assert.Equal(trees.Count, world.ProcessPropRespawns(10UL, null, 30, blocked, null, respawned));
 
         Fell(world, trees, respawnAt: 20UL);
         respawned.Clear();
         long before = GC.GetAllocatedBytesForCurrentThread();
-        int pending = world.ProcessPropRespawns(19UL, 1UL, blocked, respawned);
-        int due = world.ProcessPropRespawns(20UL, 1UL, blocked, respawned);
+        int pending = world.ProcessPropRespawns(19UL, null, 30, blocked, null, respawned);
+        int due = world.ProcessPropRespawns(20UL, null, 30, blocked, null, respawned);
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
         Assert.Equal(0, pending);
@@ -310,11 +326,12 @@ public sealed class PropRegrowthTests
         throw new InvalidOperationException("the seeded world has no such prop near the origin");
     }
 
-    /// <summary>Rewrites a format-4 row as format 3 (no respawn timers), what a server saved before ADR-040.</summary>
+    /// <summary>Rewrites a current (format 5) row as format 3 (no respawn timers), what a server saved before ADR-040.</summary>
     private static byte[] ToFormat3(byte[] row)
     {
         const int Header = 15;
         const int TileSize = 18;
+        const int PropSize = 18;
         int tiles = BinaryPrimitives.ReadUInt16LittleEndian(row.AsSpan(Header));
         int propsAt = Header + 2 + (tiles * TileSize);
         int props = BinaryPrimitives.ReadUInt16LittleEndian(row.AsSpan(propsAt));
@@ -322,10 +339,10 @@ public sealed class PropRegrowthTests
         legacy[0] = 3;
         for (int i = 0; i < props; i++)
         {
-            legacy.AddRange(row.AsSpan(propsAt + 2 + (i * 16), 12));
+            legacy.AddRange(row.AsSpan(propsAt + 2 + (i * PropSize), 12));
         }
 
-        legacy.AddRange(row.AsSpan(propsAt + 2 + (props * 16)));
+        legacy.AddRange(row.AsSpan(propsAt + 2 + (props * PropSize)));
         return [.. legacy];
     }
 }

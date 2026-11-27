@@ -91,7 +91,17 @@ public sealed class VectorArtAndArchitectureTests
             {
                 propArt.CanopyVariants[0].Length.Should().BeGreaterThan(0);
             }
+
+            if (MapProp.IsTree(propType))
+            {
+                // ADR-040: a stump draws the tree's remnant shapes.
+                propArt.RemnantVariants.Should().OnlyContain(v => v.Length > 0, $"tree {propType} needs stump art (remnantShapes)");
+            }
         }
+
+        lib.TryGetTreeSapling(out CompiledPropArt? sapling).Should().BeTrue("the sapling growth stage has its own vector art");
+        sapling!.GroundVariants.Should().NotBeEmpty();
+        sapling.GroundVariants[0].Should().NotBeEmpty();
 
         foreach (BiomeType biome in Enum.GetValues<BiomeType>())
         {

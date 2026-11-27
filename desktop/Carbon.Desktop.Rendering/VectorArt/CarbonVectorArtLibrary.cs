@@ -33,6 +33,7 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
     private int _npcCount;
     private int _itemCount;
     private int _propCount;
+    private CompiledPropArt? _treeSapling;
     private int _biomeCount;
     private int _structureCount;
 
@@ -202,6 +203,11 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
             lib._uiIcons[entry.Id] = CompileItem(Path.Combine(artRoot, entry.File));
         }
 
+        if (catalog.TreeSapling is { File.Length: > 0 } sapling)
+        {
+            lib._treeSapling = CompileProp(Path.Combine(artRoot, sapling.File));
+        }
+
         int maxPropId = 22;
         for (int i = 0; i < catalog.Props.Count; i++)
         {
@@ -343,6 +349,13 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
 
         item = null;
         return false;
+    }
+
+    /// <inheritdoc/>
+    public bool TryGetTreeSapling([NotNullWhen(true)] out CompiledPropArt? sapling)
+    {
+        sapling = _treeSapling;
+        return sapling is not null;
     }
 
     /// <inheritdoc/>

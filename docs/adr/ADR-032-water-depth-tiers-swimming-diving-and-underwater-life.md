@@ -136,7 +136,7 @@ function of `WorldGenSettings` and must never touch `GameplayEntropy`.
     through `StaminaMeter.TryDrain`, so the regen delay and exhaustion apply to swimmers as they do to sprinters.
 - **D11 — Oxygen is server-authoritative.**
   - The pool is `oxygen.maxSeconds` (30). It drains while diving (Deep 1/s, Abyss 1.5/s) and refills at 10/s
-    anywhere else. It is stepped after the simulation tick (`AuthoritativeWorld.StepWaterLocked`).
+    anywhere else. It is stepped after the simulation tick (`OxygenService.Step`).
   - At 0, the server applies the ADR-029 `drowning` effect once: Refresh, 8 damage a second, lethal, and
     `healthRegenMultiplier` 0, so regeneration cannot outlast it. The effect is removed once on surfacing, so the
     owner's status list changes twice per drowning and not every tick.

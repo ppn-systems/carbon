@@ -101,13 +101,13 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     }
 
     /// <inheritdoc/>
-    public void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, float durability, bool isDestroyed)
+    public void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, float durability, bool isDestroyed, byte growthStage)
     {
         for (int i = 0; i < recipientConnectionIds.Length; i++)
         {
             if (this.TryResolveConnection(recipientConnectionIds[i], out IConnection? conn) && conn is not null)
             {
-                _ = DispatchPropChangedAsync(conn, tileX, tileY, durability, isDestroyed, _logger);
+                _ = DispatchPropChangedAsync(conn, tileX, tileY, durability, isDestroyed, growthStage, _logger);
             }
         }
     }
@@ -518,6 +518,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         int tileY,
         float durability,
         bool isDestroyed,
+        byte growthStage,
         ILogger logger)
     {
         try
@@ -528,6 +529,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             pkt.TileY = tileY;
             pkt.Durability = durability;
             pkt.IsDestroyed = isDestroyed;
+            pkt.GrowthStage = growthStage;
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
             await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);

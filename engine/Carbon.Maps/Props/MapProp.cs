@@ -27,6 +27,15 @@ public readonly record struct MapProp(
     float Scale)
 {
     /// <summary>
+    /// Gets how far a tree has grown back (ADR-040 D1). Always <see cref="TreeGrowthStage.Mature"/> for props that are not
+    /// trees and for trees as generated.
+    /// </summary>
+    public TreeGrowthStage GrowthStage { get; init; }
+
+    /// <summary>Gets whether the prop stands at a stage with a trunk and canopy (mature or young).</summary>
+    public bool IsFullStage => this.GrowthStage is TreeGrowthStage.Mature or TreeGrowthStage.Young;
+
+    /// <summary>
     /// Gets the world coordinate vector of this prop ground base.
     /// </summary>
     public Vector2 WorldPosition => new(this.WorldPositionX, this.WorldPositionY);
@@ -35,12 +44,12 @@ public readonly record struct MapProp(
     /// Gets a value indicating whether this prop acts as a physical collision obstacle on the ground.
     /// Trees only collide at their trunk base (<see cref="CollisionRadius"/>), while ores collide across their outcrop.
     /// </summary>
-    public bool HasCollision => this.IsSolid && this.CollisionRadius > 0.001f && !this.Destructibility.IsDestroyed;
+    public bool HasCollision => this.IsSolid && this.CollisionRadius > 0.001f && !this.Destructibility.IsDestroyed && this.IsFullStage;
 
     /// <summary>
     /// Gets a value indicating whether this prop possesses an overhead leafy canopy or roof foliage.
     /// </summary>
-    public bool HasCanopy => this.CanopyRadius > 0.001f && !this.Destructibility.IsDestroyed;
+    public bool HasCanopy => this.CanopyRadius > 0.001f && !this.Destructibility.IsDestroyed && this.IsFullStage;
 
     /// <summary>
     /// Gets the world coordinate center of the overhead canopy in 2.5D space.
@@ -82,6 +91,24 @@ public readonly record struct MapProp(
         MapPropType.None => this.WorldPositionY,
         _ => this.WorldPositionY + (this.CollisionRadius > 0.001f ? this.CollisionRadius : this.Radius)
     };
+
+    /// <summary>Gets the durability and harvest tier a prop of <paramref name="type"/> is generated with (full health).</summary>
+    /// <param name="type">The prop type.</param>
+    /// <returns>The baseline state.</returns>
+    public static PropDestructibility BaselineDestructibility(MapPropType type) =>
+        type switch
+        {
+            MapPropType.None or MapPropType.AncientShrine => PropDestructibility.Indestructible,
+            MapPropType.Bush or MapPropType.Cactus or MapPropType.MushroomCluster or MapPropType.DeadTree or
+            MapPropType.DryBush or MapPropType.DuneGrass => PropDestructibility.Create(40f, 0),
+            MapPropType.LooseStones or MapPropType.FallenBranch => PropDestructibility.Create(10f, 0),
+            MapPropType.OakTree or MapPropType.BirchTree or MapPropType.WillowTree or MapPropType.PalmTree or MapPropType.AcaciaTree => PropDestructibility.Create(100f, 1),
+            MapPropType.CoalDeposit or MapPropType.CopperVein or MapPropType.Boulder => PropDestructibility.Create(140f, 1),
+            MapPropType.PineTree or MapPropType.SnowPine or MapPropType.CherryBlossomTree => PropDestructibility.Create(140f, 2),
+            MapPropType.IronVein or MapPropType.SilverVein => PropDestructibility.Create(220f, 2),
+            MapPropType.GoldVein or MapPropType.CrystalCluster or MapPropType.GlacialCrystal or MapPropType.BasaltPillar => PropDestructibility.Create(320f, 3),
+            _ => PropDestructibility.Create(80f, 1),
+        };
 
     /// <summary>Gets whether <paramref name="type"/> is a standing tree (it has a canopy and a trunk collider).</summary>
     /// <param name="type">The prop type.</param>
@@ -140,19 +167,7 @@ public readonly record struct MapProp(
     {
         bool isTree = IsTree(type);
         PropCategory category = CategoryOf(type);
-        PropDestructibility destruct = type switch
-        {
-            MapPropType.None or MapPropType.AncientShrine => PropDestructibility.Indestructible,
-            MapPropType.Bush or MapPropType.Cactus or MapPropType.MushroomCluster or MapPropType.DeadTree or
-            MapPropType.DryBush or MapPropType.DuneGrass => PropDestructibility.Create(40f, 0),
-            MapPropType.LooseStones or MapPropType.FallenBranch => PropDestructibility.Create(10f, 0),
-            MapPropType.OakTree or MapPropType.BirchTree or MapPropType.WillowTree or MapPropType.PalmTree or MapPropType.AcaciaTree => PropDestructibility.Create(100f, 1),
-            MapPropType.CoalDeposit or MapPropType.CopperVein or MapPropType.Boulder => PropDestructibility.Create(140f, 1),
-            MapPropType.PineTree or MapPropType.SnowPine or MapPropType.CherryBlossomTree => PropDestructibility.Create(140f, 2),
-            MapPropType.IronVein or MapPropType.SilverVein => PropDestructibility.Create(220f, 2),
-            MapPropType.GoldVein or MapPropType.CrystalCluster or MapPropType.GlacialCrystal or MapPropType.BasaltPillar => PropDestructibility.Create(320f, 3),
-            _ => PropDestructibility.Create(80f, 1),
-        };
+        PropDestructibility destruct = BaselineDestructibility(type);
 
         float collisionRadius = isTree ? (8f * scale) : (isSolid ? radius : 0f);
         float canopyRadius = isTree ? radius : 0f;
