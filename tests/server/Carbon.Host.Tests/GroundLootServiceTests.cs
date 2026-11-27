@@ -48,12 +48,61 @@ public sealed class GroundLootServiceTests
         h.Loot.Spawn(new Vector2(100f, 100f), new ItemSlot(StackableItemId, 1));
         List<ulong> candidates = [];
 
-        h.Loot.CollectAutoPickupCandidates(new Vector2(100f, 100f), candidates);
+        h.Loot.CollectAutoPickupCandidates(new Vector2(100f, 100f), System.Guid.Empty, candidates);
         candidates.Should().BeEmpty("a just-dropped stack is not auto-collected immediately");
 
         h.Tick += 12;
-        h.Loot.CollectAutoPickupCandidates(new Vector2(100f, 100f), candidates);
+        h.Loot.CollectAutoPickupCandidates(new Vector2(100f, 100f), System.Guid.Empty, candidates);
         candidates.Should().ContainSingle().Which.Should().Be(h.FirstNetworkId);
+    }
+
+    [Fact]
+    public void CollectAutoPickupCandidates_DropperStandingOnItsOwnDrop_SkipsItButOthersCollectIt()
+    {
+        Harness h = new();
+        System.Guid dropper = System.Guid.NewGuid();
+        h.Loot.Spawn(new Vector2(100f, 100f), new ItemSlot(StackableItemId, 1), dropper);
+        h.Tick += 60;
+        List<ulong> candidates = [];
+
+        h.Loot.CollectAutoPickupCandidates(new Vector2(100f, 100f), dropper, candidates);
+        candidates.Should().BeEmpty("a player must not suck the item they just threw away straight back into the bag");
+
+        h.Loot.CollectAutoPickupCandidates(new Vector2(100f, 100f), System.Guid.NewGuid(), candidates);
+        candidates.Should().ContainSingle().Which.Should().Be(h.FirstNetworkId);
+    }
+
+    [Fact]
+    public void CollectAutoPickupCandidates_DropperWalksAwayAndBack_CollectsItsDropAgain()
+    {
+        Harness h = new();
+        System.Guid dropper = System.Guid.NewGuid();
+        h.Loot.Spawn(new Vector2(100f, 100f), new ItemSlot(StackableItemId, 1), dropper);
+        h.Tick += 60;
+        List<ulong> candidates = [];
+
+        h.Loot.CollectAutoPickupCandidates(new Vector2(140f, 100f), dropper, candidates);
+        h.Loot.CollectAutoPickupCandidates(new Vector2(100f, 100f), dropper, candidates);
+        candidates.Should().BeEmpty("40 px is not far enough to re-arm auto-collect");
+
+        h.Loot.CollectAutoPickupCandidates(new Vector2(200f, 100f), dropper, candidates);
+        h.Loot.CollectAutoPickupCandidates(new Vector2(100f, 100f), dropper, candidates);
+        candidates.Should().ContainSingle().Which.Should().Be(h.FirstNetworkId);
+    }
+
+    [Fact]
+    public void Spawn_DropMergedIntoAnotherStack_IsAlsoSkippedByTheDropper()
+    {
+        Harness h = new();
+        System.Guid dropper = System.Guid.NewGuid();
+        h.Loot.Spawn(new Vector2(100f, 100f), new ItemSlot(StackableItemId, 3));
+        h.Loot.Spawn(new Vector2(110f, 100f), new ItemSlot(StackableItemId, 2), dropper);
+        h.Tick += 60;
+        List<ulong> candidates = [];
+
+        h.Loot.CollectAutoPickupCandidates(new Vector2(100f, 100f), dropper, candidates);
+
+        candidates.Should().BeEmpty("merging the drop into a nearby stack must not hand it straight back");
     }
 
     [Fact]

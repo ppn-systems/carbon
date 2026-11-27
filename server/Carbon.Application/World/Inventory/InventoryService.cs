@@ -481,7 +481,10 @@ internal sealed class InventoryService
         return OpStatus.Ok;
     }
 
-    /// <summary>Drops all of a slot (or <paramref name="quantity"/> of it) as ground loot just beside the player.</summary>
+    /// <summary>
+    /// Drops all of a slot (or <paramref name="quantity"/> of it) as ground loot just beside the player; the player's own
+    /// auto-collect ignores it until they walk away (they can still pick it up with the interact key).
+    /// </summary>
     public OpStatus Drop(PlayerState state, ushort slotIndex, int quantity, Vector2 playerPos, List<(ushort SlotIndex, ItemSlot Slot)> modified)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -504,7 +507,7 @@ internal sealed class InventoryService
 
         modified.Clear();
         modified.Add((slotIndex, remainder));
-        _groundLoot.Spawn(playerPos + new Vector2(28f, 6f), in dropStack);
+        _groundLoot.Spawn(playerPos + new Vector2(28f, 6f), in dropStack, state.Session.CharacterId);
         return OpStatus.Ok;
     }
 
@@ -517,7 +520,7 @@ internal sealed class InventoryService
         }
 
         _pickupScratch.Clear();
-        _groundLoot.CollectAutoPickupCandidates(playerPos, _pickupScratch);
+        _groundLoot.CollectAutoPickupCandidates(playerPos, state.Session.CharacterId, _pickupScratch);
         for (int i = 0; i < _pickupScratch.Count; i++)
         {
             _ = this.TryPickup(state, _pickupScratch[i], 36f * 36f);

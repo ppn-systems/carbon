@@ -63,6 +63,7 @@ public sealed class InventoryServiceTests
         h.GroundLoot.Count.Should().Be(1);
         h.GroundLoot.TryGet(h.LastLootNetworkId, out GroundLootEntry dropped).Should().BeTrue();
         dropped.Item.Quantity.Should().Be(2);
+        dropped.DroppedBy.Should().Be(h.Player.Session.CharacterId, "the dropper's own auto-collect must ignore it");
     }
 
     [Fact]
