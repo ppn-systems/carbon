@@ -7,7 +7,7 @@ using System.Text;
 namespace Carbon.Desktop.Abstractions.Localization;
 
 /// <summary>
-/// A localized value precompiled once into literal and <c>{name}</c> placeholder segments (ADR-020 D2).
+/// A localized value precompiled once into literal and <c>{name}</c> placeholder segments (ADR-023 D2).
 /// <c>{{</c> and <c>}}</c> escape literal braces. Formatting never re-parses the source string.
 /// </summary>
 public sealed class TextTemplate

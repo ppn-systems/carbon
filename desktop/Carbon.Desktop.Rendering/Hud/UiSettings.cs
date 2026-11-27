@@ -1,20 +1,36 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Text;
+using Carbon.Desktop.Abstractions.Configuration;
 
 namespace Carbon.Desktop.Rendering.Hud;
 
 /// <summary>
-/// Persisted client UI, visibility, and camera zoom preferences stored AOT-safely in a local key-value file.
+/// Persisted per-user client preferences (language, HUD visibility, camera zoom) stored AOT-safely as
+/// <c>settings.ini</c> in the user's local config directory (ADR-023 D3):
+/// <code>
+/// [general]
+/// language = vi
+///
+/// [display]
+/// show_minimap = false
+/// camera_zoom = 1
+/// </code>
+/// <c>CARBON_LANG</c> overrides <c>[general] language</c> at startup. A legacy <c>ui_settings.cfg</c> is read once when
+/// <c>settings.ini</c> does not exist yet.
 /// </summary>
 public sealed class UiSettings
 {
-    private static readonly string s_settingsPath = Path.Combine(
+    private static readonly string s_configDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Carbon",
-        "ui_settings.cfg");
+        "Carbon");
+
+    private static readonly string s_settingsPath = Path.Combine(s_configDirectory, "settings.ini");
+    private static readonly string s_legacySettingsPath = Path.Combine(s_configDirectory, "ui_settings.cfg");
 
     /// <summary>Gets or sets whether the top-right radar minimap is visible (off by default).</summary>
     public bool ShowMinimap { get; set; }
@@ -32,88 +48,43 @@ public sealed class UiSettings
     public int CameraZoomPreset { get; set; } = 1;
 
     /// <summary>
-    /// Gets or sets the chosen UI language code (empty = default). <c>CARBON_LANG</c> overrides it at startup (ADR-020 D3).
+    /// Gets or sets the chosen UI language code (empty = default). <c>CARBON_LANG</c> overrides it at startup (ADR-023 D3).
     /// </summary>
     public string Language { get; set; } = string.Empty;
 
-    /// <summary>Loads settings from <paramref name="filePath"/> (or default local config path) if present.</summary>
+    /// <summary>Loads settings from <paramref name="filePath"/> (or the default <c>settings.ini</c>) if present.</summary>
+    /// <param name="filePath">Optional settings file path.</param>
+    /// <returns>The loaded settings, or defaults when the file is missing, unreadable or malformed.</returns>
     public static UiSettings LoadOrDefault(string? filePath = null)
     {
-        string path = string.IsNullOrWhiteSpace(filePath) ? s_settingsPath : filePath;
+        bool useDefaultPath = string.IsNullOrWhiteSpace(filePath);
+        string path = useDefaultPath ? s_settingsPath : filePath!;
         UiSettings settings = new();
         try
         {
-            if (!File.Exists(path))
+            if (File.Exists(path))
             {
-                return settings;
+                settings.Apply(IniDocument.Load(path));
             }
-
-            string[] lines = File.ReadAllLines(path);
-            for (int i = 0; i < lines.Length; i++)
+            else if (useDefaultPath && File.Exists(s_legacySettingsPath))
             {
-                string line = lines[i].Trim();
-                int eq = line.IndexOf('=', StringComparison.Ordinal);
-                if (eq <= 0)
-                {
-                    continue;
-                }
-
-                string key = line[..eq].Trim();
-                string val = line[(eq + 1)..].Trim();
-                switch (key)
-                {
-                    case nameof(ShowMinimap):
-                        if (bool.TryParse(val, out bool bMinimap))
-                        {
-                            settings.ShowMinimap = bMinimap;
-                        }
-
-                        break;
-                    case nameof(ShowCombatNumbers):
-                        if (bool.TryParse(val, out bool bDmg))
-                        {
-                            settings.ShowCombatNumbers = bDmg;
-                        }
-
-                        break;
-                    case nameof(ShowTelemetry):
-                        if (bool.TryParse(val, out bool bTele))
-                        {
-                            settings.ShowTelemetry = bTele;
-                        }
-
-                        break;
-                    case nameof(ShowKeybindHints):
-                        if (bool.TryParse(val, out bool bHints))
-                        {
-                            settings.ShowKeybindHints = bHints;
-                        }
-
-                        break;
-                    case nameof(CameraZoomPreset):
-                        if (int.TryParse(val, NumberStyles.Integer, CultureInfo.InvariantCulture, out int z))
-                        {
-                            settings.CameraZoomPreset = Math.Clamp(z, 0, 2);
-                        }
-
-                        break;
-                    case nameof(Language):
-                        settings.Language = val;
-                        break;
-                    default:
-                        break;
-                }
+                settings.ApplyLegacy(File.ReadAllLines(s_legacySettingsPath));
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Keep default settings if local config directory is read-only.
         }
+        catch (IniFormatException ex)
+        {
+            Console.Error.WriteLine($"[Settings] Ignoring malformed settings file: {ex.Message}");
+        }
 
         return settings;
     }
 
-    /// <summary>Writes current UI preferences cleanly to <paramref name="filePath"/> (or default config path) without reflection.</summary>
+    /// <summary>Writes current preferences to <paramref name="filePath"/> (or the default <c>settings.ini</c>) without reflection.</summary>
+    /// <param name="filePath">Optional settings file path.</param>
     public void Save(string? filePath = null)
     {
         string path = string.IsNullOrWhiteSpace(filePath) ? s_settingsPath : filePath;
@@ -127,18 +98,86 @@ public sealed class UiSettings
 
             string[] lines =
             [
-                $"{nameof(this.ShowMinimap)}={this.ShowMinimap}",
-                $"{nameof(this.ShowCombatNumbers)}={this.ShowCombatNumbers}",
-                $"{nameof(this.ShowTelemetry)}={this.ShowTelemetry}",
-                $"{nameof(this.ShowKeybindHints)}={this.ShowKeybindHints}",
-                $"{nameof(this.CameraZoomPreset)}={this.CameraZoomPreset.ToString(CultureInfo.InvariantCulture)}",
-                $"{nameof(this.Language)}={this.Language}",
+                "; Carbon client settings. CARBON_LANG overrides [general] language.",
+                "[general]",
+                $"language = {IniDocument.Escape(this.Language)}",
+                string.Empty,
+                "[display]",
+                $"show_minimap = {Bool(this.ShowMinimap)}",
+                $"show_combat_numbers = {Bool(this.ShowCombatNumbers)}",
+                $"show_telemetry = {Bool(this.ShowTelemetry)}",
+                $"show_keybind_hints = {Bool(this.ShowKeybindHints)}",
+                $"camera_zoom = {this.CameraZoomPreset.ToString(CultureInfo.InvariantCulture)}",
             ];
-            File.WriteAllLines(path, lines);
+            File.WriteAllLines(path, lines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Ignore disk write failure on restricted environments.
+        }
+    }
+
+    private static string Bool(bool value) => value ? "true" : "false";
+
+    private void Apply(IniDocument document)
+    {
+        if (document.TryGetValue("general.language", out string language))
+        {
+            this.Language = language;
+        }
+
+        foreach (IniEntry entry in document.InSection("display"))
+        {
+            this.Set(entry.Key, entry.Value);
+        }
+    }
+
+    private void ApplyLegacy(IEnumerable<string> lines)
+    {
+        foreach (string raw in lines)
+        {
+            string line = raw.Trim();
+            int eq = line.IndexOf('=', StringComparison.Ordinal);
+            if (eq <= 0)
+            {
+                continue;
+            }
+
+            string key = line[..eq].Trim() switch
+            {
+                nameof(this.ShowMinimap) => "show_minimap",
+                nameof(this.ShowCombatNumbers) => "show_combat_numbers",
+                nameof(this.ShowTelemetry) => "show_telemetry",
+                nameof(this.ShowKeybindHints) => "show_keybind_hints",
+                nameof(this.CameraZoomPreset) => "camera_zoom",
+                _ => string.Empty,
+            };
+            this.Set(key, line[(eq + 1)..].Trim());
+        }
+    }
+
+    private void Set(string key, string value)
+    {
+        bool isBool = bool.TryParse(value, out bool flag);
+        switch (key)
+        {
+            case "show_minimap" when isBool:
+                this.ShowMinimap = flag;
+                break;
+            case "show_combat_numbers" when isBool:
+                this.ShowCombatNumbers = flag;
+                break;
+            case "show_telemetry" when isBool:
+                this.ShowTelemetry = flag;
+                break;
+            case "show_keybind_hints" when isBool:
+                this.ShowKeybindHints = flag;
+                break;
+            case "camera_zoom" when int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int zoom):
+                this.CameraZoomPreset = Math.Clamp(zoom, 0, 2);
+                break;
+            default:
+                break;
         }
     }
 }

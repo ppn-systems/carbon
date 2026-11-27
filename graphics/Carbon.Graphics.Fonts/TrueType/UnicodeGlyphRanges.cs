@@ -5,7 +5,7 @@ using System.Collections.Generic;
 namespace Carbon.Graphics.Fonts.TrueType;
 
 /// <summary>
-/// Standard code-point ranges baked into UI font atlases (ADR-020 D5).
+/// Standard code-point ranges baked into UI font atlases (ADR-023 D5).
 /// </summary>
 public static class UnicodeGlyphRanges
 {

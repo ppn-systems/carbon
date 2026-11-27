@@ -9,7 +9,7 @@ using Xunit;
 
 namespace Carbon.Desktop.Tests;
 
-/// <summary>Behavior of the ADR-020 client localizer: templates, plurals, fallback and language selection.</summary>
+/// <summary>Behavior of the ADR-023 client localizer: templates, plurals, fallback and language selection.</summary>
 public sealed class LocalizerTests
 {
     [Fact]

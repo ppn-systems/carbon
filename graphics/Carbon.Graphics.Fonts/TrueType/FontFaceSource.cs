@@ -6,7 +6,7 @@ namespace Carbon.Graphics.Fonts.TrueType;
 
 /// <summary>
 /// One TrueType face in an ordered font stack. The first face defines line metrics; later faces only
-/// supply glyphs the earlier faces lack (ADR-020 D5).
+/// supply glyphs the earlier faces lack (ADR-023 D5).
 /// </summary>
 public sealed class FontFaceSource
 {

@@ -9,7 +9,7 @@ using Xunit;
 
 namespace Carbon.Graphics.Fonts.Tests;
 
-/// <summary>Multi-face rasterization and Unicode range baking for Vietnamese text (ADR-020 D5).</summary>
+/// <summary>Multi-face rasterization and Unicode range baking for Vietnamese text (ADR-023 D5).</summary>
 public sealed class TrueTypeFontStackTests
 {
     private const string VietnameseSample = "ăâđêôơưĂÂĐÊÔƠƯếỡữặỢ";

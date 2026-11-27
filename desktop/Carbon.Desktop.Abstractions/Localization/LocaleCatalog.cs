@@ -3,17 +3,23 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text.Json;
+using Carbon.Desktop.Abstractions.Configuration;
 
 namespace Carbon.Desktop.Abstractions.Localization;
 
 /// <summary>
-/// Loads <c>resources/localization</c>: the locale manifest and each locale's flat key → string table (ADR-020 D1).
+/// Loads <c>resources/localization</c>: the <c>locales.ini</c> manifest and each locale's <c>&lt;code&gt;.ini</c> key → string table (ADR-023 D1).
 /// </summary>
 public sealed class LocaleCatalog
 {
     /// <summary>The fallback locale code; its table is the source of truth.</summary>
     public const string FallbackLocale = "en";
+
+    /// <summary>File name of the locale manifest.</summary>
+    public const string ManifestFileName = "locales.ini";
+
+    /// <summary>Extension of locale table files.</summary>
+    public const string TableExtension = ".ini";
 
     private readonly Dictionary<string, IReadOnlyDictionary<string, string>> _tables;
 
@@ -53,28 +59,25 @@ public sealed class LocaleCatalog
     public static LocaleCatalog Load(string directory)
     {
         ArgumentException.ThrowIfNullOrEmpty(directory, nameof(directory));
-        LocaleManifest manifest = JsonSerializer.Deserialize(
-            File.ReadAllText(Path.Combine(directory, "locales.json")),
-            LocalizationJsonContext.Default.LocaleManifest)
-            ?? throw new InvalidDataException("locales.json is empty.");
+        LocaleManifest manifest = LocaleManifest.FromIni(IniDocument.Load(Path.Combine(directory, ManifestFileName)));
 
         Dictionary<string, IReadOnlyDictionary<string, string>> tables = new(StringComparer.Ordinal);
         foreach (LocaleInfo locale in manifest.Locales)
         {
-            tables[locale.Code] = LoadTable(Path.Combine(directory, locale.Code + ".json"));
+            tables[locale.Code] = LoadTable(Path.Combine(directory, locale.Code + TableExtension));
         }
 
         return new LocaleCatalog(manifest, tables);
     }
 
-    /// <summary>Parses one flat locale file.</summary>
-    /// <param name="path">Path of <c>&lt;code&gt;.json</c>.</param>
+    /// <summary>Parses one locale file (<c>[section]</c> + <c>key</c> → <c>section.key</c>).</summary>
+    /// <param name="path">Path of <c>&lt;code&gt;.ini</c>.</param>
     /// <returns>Key → text.</returns>
+    /// <exception cref="IniFormatException">The file is malformed or has duplicate keys.</exception>
     public static Dictionary<string, string> LoadTable(string path)
     {
         ArgumentException.ThrowIfNullOrEmpty(path, nameof(path));
-        Dictionary<string, string>? table = JsonSerializer.Deserialize(File.ReadAllText(path), LocalizationJsonContext.Default.DictionaryStringString);
-        return table ?? [];
+        return IniDocument.Load(path).ToDictionary();
     }
 
     /// <summary>
@@ -89,7 +92,7 @@ public sealed class LocaleCatalog
             for (DirectoryInfo? cursor = new(roots[i]); cursor is not null; cursor = cursor.Parent)
             {
                 string candidate = Path.Combine(cursor.FullName, "resources", "localization");
-                if (File.Exists(Path.Combine(candidate, "locales.json")))
+                if (File.Exists(Path.Combine(candidate, ManifestFileName)))
                 {
                     return candidate;
                 }

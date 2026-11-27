@@ -5,7 +5,7 @@ using System;
 namespace Carbon.Desktop.Abstractions.Localization;
 
 /// <summary>
-/// CLDR plural category selection for the supported languages (ADR-020 D2).
+/// CLDR plural category selection for the supported languages (ADR-023 D2).
 /// A plural string is stored as <c>&lt;key&gt;.one</c> and <c>&lt;key&gt;.other</c>.
 /// </summary>
 public static class PluralRules

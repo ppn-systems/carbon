@@ -86,7 +86,7 @@ public sealed class TrueTypeRasterizedFont
 /// <summary>
 /// Zero-dependency, Native-AOT-safe TrueType (<c>.ttf</c>) rasterizer producing packed RGBA8 glyph atlases
 /// compatible with <see cref="BitmapFont"/> without requiring external native font libraries.
-/// Supports ordered multi-face font stacks so a fallback face can fill glyphs the primary face lacks (ADR-020 D5).
+/// Supports ordered multi-face font stacks so a fallback face can fill glyphs the primary face lacks (ADR-023 D5).
 /// </summary>
 public static class TrueTypeFontLoader
 {

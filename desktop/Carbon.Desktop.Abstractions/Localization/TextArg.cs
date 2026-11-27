@@ -7,7 +7,7 @@ using System.Text;
 namespace Carbon.Desktop.Abstractions.Localization;
 
 /// <summary>
-/// Named argument substituted into a <c>{name}</c> placeholder of a localized template (ADR-020 D2).
+/// Named argument substituted into a <c>{name}</c> placeholder of a localized template (ADR-023 D2).
 /// Numbers are formatted with the invariant culture.
 /// </summary>
 public readonly struct TextArg

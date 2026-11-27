@@ -1,4 +1,4 @@
-# Existing hardcoded player-facing literals (ADR-020 D7). This list may only shrink.
+# Existing hardcoded player-facing literals (ADR-023 D7). This list may only shrink.
 # Format: <repo path><TAB><literal>. When you replace a literal with a GameText key, delete its line.
 desktop/Carbon.Desktop.Abstractions/Configuration/DesktopOptions.cs	Hero
 desktop/Carbon.Desktop.Abstractions/Configuration/SyncedFoodCatalog.cs	{}  Spoils in {}

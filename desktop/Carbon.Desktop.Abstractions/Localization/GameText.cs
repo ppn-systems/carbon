@@ -9,7 +9,7 @@ using Carbon.Maps.Biomes;
 namespace Carbon.Desktop.Abstractions.Localization;
 
 /// <summary>
-/// Process-wide access to the client <see cref="ILocalizer"/> (ADR-020 D3), so widgets created with <c>new()</c>
+/// Process-wide access to the client <see cref="ILocalizer"/> (ADR-023 D3), so widgets created with <c>new()</c>
 /// can localize without constructor changes. The localizer loads <c>resources/localization</c> on first use;
 /// the composition root picks the language with <see cref="Initialize"/>.
 /// </summary>

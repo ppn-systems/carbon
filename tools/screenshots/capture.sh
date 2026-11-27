@@ -15,7 +15,7 @@ while [[ "${1:-}" == --* ]]; do
         *) echo "capture.sh: unknown option '$1'" >&2; exit 2 ;;
     esac
 done
-[[ -f "$ROOT/resources/localization/$CLIENT_LANG.json" ]] || { echo "capture.sh: no locale file resources/localization/$CLIENT_LANG.json" >&2; exit 2; }
+[[ -f "$ROOT/resources/localization/$CLIENT_LANG.ini" ]] || { echo "capture.sh: no locale file resources/localization/$CLIENT_LANG.ini" >&2; exit 2; }
 TOOL_DIR="$ROOT/tools/screenshots"
 OUT_DIR="$(mkdir -p "${1:-$ROOT/artifacts/screenshots}" && cd "${1:-$ROOT/artifacts/screenshots}" && pwd)"
 FILTER="${2:-.}"

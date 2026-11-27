@@ -6,7 +6,7 @@ using System.Collections.Generic;
 namespace Carbon.Desktop.Abstractions.Localization;
 
 /// <summary>
-/// Resolves localization keys to player-facing text for the active language (ADR-020 D3).
+/// Resolves localization keys to player-facing text for the active language (ADR-023 D3).
 /// Missing keys fall back to <c>en</c>, then to the key itself, and are reported once per language.
 /// </summary>
 public interface ILocalizer

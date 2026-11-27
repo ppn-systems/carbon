@@ -15,7 +15,7 @@ using Xunit;
 namespace Carbon.Architecture.Tests;
 
 /// <summary>
-/// Fails on new hardcoded player-facing string literals in desktop and graphics UI code (ADR-020 D7).
+/// Fails on new hardcoded player-facing string literals in desktop and graphics UI code (ADR-023 D7).
 /// Existing literals are listed in <c>LocalizationLiteralAllowlist.txt</c>; that list can only shrink:
 /// a listed literal that no longer exists also fails, so delete its line when you migrate it to a key.
 /// </summary>
@@ -73,6 +73,7 @@ public sealed partial class LocalizationLiteralTests
     [InlineData("resources/fonts", false)]
     [InlineData("wood_axe", false)]
     [InlineData("#FF8800", false)]
+    [InlineData("; settings file comment", false)]
     [InlineData("x", false)]
     [InlineData("{}/{}", false)]
     public void LooksPlayerFacing_ClassifiesLiterals(string text, bool expected) =>
@@ -88,7 +89,8 @@ public sealed partial class LocalizationLiteralTests
             return false;
         }
 
-        if (LocalizationRepository.IsWellFormedKey(trimmed) || trimmed.StartsWith('#'))
+        // Keys, hex colors and INI comment lines written to config files are not player text.
+        if (LocalizationRepository.IsWellFormedKey(trimmed) || trimmed.StartsWith('#') || trimmed.StartsWith(';'))
         {
             return false;
         }
@@ -141,6 +143,8 @@ public sealed partial class LocalizationLiteralTests
                 case BinaryExpressionSyntax binary when binary.IsKind(SyntaxKind.EqualsExpression) || binary.IsKind(SyntaxKind.NotEqualsExpression):
                     return true;
                 case ObjectCreationExpressionSyntax creation when creation.Type.ToString().EndsWith("Exception", StringComparison.Ordinal):
+                    return true;
+                case ConstructorInitializerSyntax when node.Ancestors().OfType<TypeDeclarationSyntax>().FirstOrDefault()?.Identifier.ValueText.EndsWith("Exception", StringComparison.Ordinal) == true:
                     return true;
                 case InvocationExpressionSyntax invocation when IsNonUiInvocation(invocation):
                     return true;

@@ -16,7 +16,7 @@ using Carbon.Graphics.OpenGL.Textures;
 namespace Carbon.Desktop.Rendering.Fonts;
 
 /// <summary>
-/// Loads the game's rasterized UI font for the active locale's font stack (<c>resources/localization/locales.json</c>, ADR-020 D5)
+/// Loads the game's rasterized UI font for the active locale's font stack (<c>resources/localization/locales.json</c>, ADR-023 D5)
 /// from <c>resources/fonts</c> (with an automatic embedded crisp pixel fallback when running outside asset folders) and allocates
 /// the shared 1x1 white pixel texture on <see cref="IGraphicsDevice"/>.
 /// </summary>

@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Localization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -20,10 +21,10 @@ namespace Carbon.Architecture.Tests;
 /// <param name="Node">The literal or interpolated-string syntax node.</param>
 internal sealed record SourceLiteral(string Path, int Line, string Text, SyntaxNode Node);
 
-/// <summary>Reads <c>resources/localization</c> and scans production code for localization keys (ADR-020 D7).</summary>
+/// <summary>Reads <c>resources/localization</c> (INI) and scans production code for localization keys (ADR-023 D7).</summary>
 internal static partial class LocalizationRepository
 {
-    /// <summary>Key namespaces reserved for client text even before a key exists in <c>en.json</c>.</summary>
+    /// <summary>Key namespaces reserved for client text even before a key exists in <c>en.ini</c>.</summary>
     private static readonly string[] s_reservedNamespaces =
     [
         "biome", "building", "character", "crafting", "error", "forge", "hud", "inventory", "item", "login",
@@ -33,7 +34,7 @@ internal static partial class LocalizationRepository
     /// <summary>Trailing segments that make a dotted literal a file name rather than a key.</summary>
     private static readonly HashSet<string> s_fileExtensions = new(StringComparer.Ordinal)
     {
-        "json", "png", "ttf", "cfg", "txt", "bmp", "md", "cs", "glsl", "frag", "vert", "csproj", "slnx",
+        "json", "ini", "png", "ttf", "cfg", "txt", "bmp", "md", "cs", "glsl", "frag", "vert", "csproj", "slnx",
     };
 
     private static readonly Lazy<LocaleManifest> s_manifest = new(LoadManifest);
@@ -46,7 +47,7 @@ internal static partial class LocalizationRepository
 
     public static LocaleManifest Manifest => s_manifest.Value;
 
-    /// <summary>Locale code → key → value, parsed with duplicate-key detection.</summary>
+    /// <summary>Locale code → key → value.</summary>
     public static IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Tables => s_tables.Value;
 
     public static IReadOnlyDictionary<string, string> English => Tables[LocaleCatalog.FallbackLocale];
@@ -56,7 +57,7 @@ internal static partial class LocalizationRepository
 
     public static bool IsWellFormedKey(string key) => KeyPattern().IsMatch(key);
 
-    /// <summary>Returns whether a code literal looks like a localization key that must exist in <c>en.json</c>.</summary>
+    /// <summary>Returns whether a code literal looks like a localization key that must exist in <c>en.ini</c>.</summary>
     public static bool LooksLikeKeyReference(string text)
     {
         if (!IsWellFormedKey(text))
@@ -77,7 +78,7 @@ internal static partial class LocalizationRepository
     /// <summary>Key literals referenced from production code, with their locations.</summary>
     public static IReadOnlyList<SourceLiteral> KeyReferences() => [.. CodeLiterals.Where(l => LooksLikeKeyReference(l.Text))];
 
-    /// <summary>Keys derived from stable config ids and <c>BiomeType</c> names (ADR-020 D4).</summary>
+    /// <summary>Keys derived from stable config ids and <c>BiomeType</c> names (ADR-023 D4).</summary>
     public static IReadOnlySet<string> DerivedKeys()
     {
         HashSet<string> keys = new(StringComparer.Ordinal);
@@ -171,36 +172,15 @@ internal static partial class LocalizationRepository
         [.. ParseSources("desktop", "graphics", "server").SelectMany(static s => Literals(s.Path, s.Tree))];
 
     private static LocaleManifest LoadManifest() =>
-        JsonSerializer.Deserialize(File.ReadAllText(Path.Combine(LocalizationDirectory, "locales.json")), LocalizationJsonContext.Default.LocaleManifest)
-        ?? throw new InvalidDataException("locales.json is empty");
+        LocaleManifest.FromIni(IniDocument.Load(Path.Combine(LocalizationDirectory, LocaleCatalog.ManifestFileName)));
 
+    /// <summary>Loads each locale table with the production INI parser, which rejects duplicates and malformed lines.</summary>
     private static IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> LoadTables()
     {
         Dictionary<string, IReadOnlyDictionary<string, string>> tables = new(StringComparer.Ordinal);
         foreach (LocaleInfo locale in Manifest.Locales)
         {
-            string path = Path.Combine(LocalizationDirectory, locale.Code + ".json");
-            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
-            if (document.RootElement.ValueKind != JsonValueKind.Object)
-            {
-                throw new InvalidDataException($"{locale.Code}.json must be a flat JSON object.");
-            }
-
-            Dictionary<string, string> table = new(StringComparer.Ordinal);
-            foreach (JsonProperty property in document.RootElement.EnumerateObject())
-            {
-                if (property.Value.ValueKind != JsonValueKind.String)
-                {
-                    throw new InvalidDataException($"{locale.Code}.json: '{property.Name}' must be a string (flat key → string map).");
-                }
-
-                if (!table.TryAdd(property.Name, property.Value.GetString()!))
-                {
-                    throw new InvalidDataException($"{locale.Code}.json: duplicate key '{property.Name}'.");
-                }
-            }
-
-            tables[locale.Code] = table;
+            tables[locale.Code] = LocaleCatalog.LoadTable(Path.Combine(LocalizationDirectory, locale.Code + LocaleCatalog.TableExtension));
         }
 
         return tables;

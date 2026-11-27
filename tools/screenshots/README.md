@@ -55,7 +55,7 @@ they are active.
 | `CARBON_CAPTURE_FRAMES=n` | Also capture `n` consecutive frames after the main capture. |
 
 `--lang <code>` (or `CARBON_LANG`) sets the client language for every scenario; the code must have a file in
-`resources/localization/` (ADR-020). Capture `en` and `vi` into separate output directories to compare them.
+`resources/localization/` (`<code>.ini`, ADR-023). Capture `en` and `vi` into separate output directories to compare them.
 
 Script knobs: `SKIP_BUILD=1`, `CARBON_SEED`, `BASE_PORT` (TCP; UDP is `BASE_PORT+1`), `WIDTH`/`HEIGHT`,
 `CLIENT_TIMEOUT`, `SERVER_BOOT_TIMEOUT`, `SCENARIOS` (alternative scenario file).

@@ -14,7 +14,7 @@ using Xunit;
 namespace Carbon.Architecture.Tests;
 
 /// <summary>
-/// CI guards for <c>resources/localization</c> (ADR-020 D7): key parity, placeholders, usage, NFC and font coverage.
+/// CI guards for <c>resources/localization</c> (ADR-023 D7): key parity, placeholders, usage, NFC and font coverage.
 /// How to add a string: <c>resources/localization/README.md</c>.
 /// </summary>
 public sealed class LocalizationTests
@@ -28,7 +28,7 @@ public sealed class LocalizationTests
         manifest.Locales.Select(l => l.Code).Should().Contain(["en", "vi"]).And.OnlyHaveUniqueItems();
         foreach (LocaleInfo locale in manifest.Locales)
         {
-            File.Exists(Path.Combine(LocalizationRepository.LocalizationDirectory, locale.Code + ".json")).Should().BeTrue($"locales.json lists '{locale.Code}'");
+            File.Exists(Path.Combine(LocalizationRepository.LocalizationDirectory, locale.Code + LocaleCatalog.TableExtension)).Should().BeTrue($"locales.ini lists '{locale.Code}'");
             locale.NativeName.Should().NotBeNullOrWhiteSpace();
             locale.Fonts.Should().NotBeEmpty($"'{locale.Code}' needs a font stack");
             foreach (LocaleFontFace face in locale.Fonts)
@@ -38,11 +38,11 @@ public sealed class LocalizationTests
             }
         }
 
-        string[] stray = [.. Directory.GetFiles(LocalizationRepository.LocalizationDirectory, "*.json")
+        string[] stray = [.. Directory.GetFiles(LocalizationRepository.LocalizationDirectory, "*" + LocaleCatalog.TableExtension)
             .Select(Path.GetFileNameWithoutExtension)
             .Where(name => name != "locales" && !manifest.Locales.Any(l => l.Code == name))
             .Select(name => name!)];
-        stray.Should().BeEmpty("every locale file must be listed in locales.json");
+        stray.Should().BeEmpty("every locale .ini file must be listed in locales.ini");
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public sealed class LocalizationTests
         foreach ((string code, IReadOnlyDictionary<string, string> table) in LocalizationRepository.Tables)
         {
             string[] bad = [.. table.Keys.Where(k => !LocalizationRepository.IsWellFormedKey(k))];
-            bad.Should().BeEmpty($"{code}.json keys must be lowercase dot-namespaced (e.g. hud.not_enough_mana)");
+            bad.Should().BeEmpty($"{code}.ini keys must be lowercase dot-namespaced (e.g. hud.not_enough_mana)");
         }
     }
 
@@ -64,8 +64,8 @@ public sealed class LocalizationTests
             string[] missing = [.. english.Where(k => !table.ContainsKey(k)).Order(StringComparer.Ordinal)];
             string[] unknown = [.. table.Keys.Where(k => !english.Contains(k)).Order(StringComparer.Ordinal)];
 
-            missing.Should().BeEmpty($"{code}.json is missing keys that exist in en.json");
-            unknown.Should().BeEmpty($"{code}.json has keys that en.json (the source of truth) does not define");
+            missing.Should().BeEmpty($"{code}.ini is missing keys that exist in en.ini");
+            unknown.Should().BeEmpty($"{code}.ini has keys that en.ini (the source of truth) does not define");
         }
     }
 
@@ -76,8 +76,8 @@ public sealed class LocalizationTests
         {
             foreach ((string key, string value) in table)
             {
-                TextTemplate.TryParse(value, out TextTemplate template, out string? error).Should().BeTrue($"{code}.json '{key}': {error}");
-                value.Trim().Should().NotBeEmpty($"{code}.json '{key}' must not be blank");
+                TextTemplate.TryParse(value, out TextTemplate template, out string? error).Should().BeTrue($"{code}.ini '{key}': {error}");
+                value.Trim().Should().NotBeEmpty($"{code}.ini '{key}' must not be blank");
                 if (!LocalizationRepository.English.TryGetValue(key, out string? englishValue))
                 {
                     continue;
@@ -86,7 +86,7 @@ public sealed class LocalizationTests
                 TextTemplate.TryParse(englishValue, out TextTemplate englishTemplate, out _).Should().BeTrue();
                 template.Placeholders.Order(StringComparer.Ordinal).Should().Equal(
                     englishTemplate.Placeholders.Order(StringComparer.Ordinal),
-                    $"{code}.json '{key}' must use the same placeholders as en.json");
+                    $"{code}.ini '{key}' must use the same placeholders as en.ini");
             }
         }
     }
@@ -97,7 +97,7 @@ public sealed class LocalizationTests
         foreach ((string code, IReadOnlyDictionary<string, string> table) in LocalizationRepository.Tables)
         {
             string[] decomposed = [.. table.Where(p => !p.Value.IsNormalized(NormalizationForm.FormC)).Select(p => p.Key)];
-            decomposed.Should().BeEmpty($"{code}.json values must use precomposed (NFC) letters so the font atlas has a glyph for each");
+            decomposed.Should().BeEmpty($"{code}.ini values must use precomposed (NFC) letters so the font atlas has a glyph for each");
         }
     }
 
@@ -127,7 +127,7 @@ public sealed class LocalizationTests
             .Where(r => !english.ContainsKey(r.Text) && !english.ContainsKey($"{r.Text}.{PluralRules.Other}"))
             .Select(r => $"{r.Path}:{r.Line} \"{r.Text}\"")];
 
-        missing.Should().BeEmpty("every localization key referenced in code must be defined in resources/localization/en.json");
+        missing.Should().BeEmpty("every localization key referenced in code must be defined in resources/localization/en.ini");
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public sealed class LocalizationTests
         IReadOnlyDictionary<string, string> english = LocalizationRepository.English;
         string[] missing = [.. LocalizationRepository.DerivedKeys().Where(k => !english.ContainsKey(k)).Order(StringComparer.Ordinal)];
 
-        missing.Should().BeEmpty("every item, monster and biome id needs its display keys in en.json (and vi.json)");
+        missing.Should().BeEmpty("every item, monster and biome id needs its display keys in en.ini (and vi.ini)");
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public sealed class LocalizationTests
         }
 
         string[] unused = [.. LocalizationRepository.English.Keys.Where(k => !used.Contains(k)).Order(StringComparer.Ordinal)];
-        unused.Should().BeEmpty("en.json keys must be referenced by code or derived from a config id; delete stale keys from every locale");
+        unused.Should().BeEmpty("en.ini keys must be referenced by code or derived from a config id; delete stale keys from every locale");
     }
 
     [Fact]
@@ -183,7 +183,7 @@ public sealed class LocalizationTests
             }
         }
 
-        gaps.Should().BeEmpty("every character in a locale file must have a glyph in that locale's font stack (resources/localization/locales.json)");
+        gaps.Should().BeEmpty("every character in a locale file must have a glyph in that locale's font stack (resources/localization/locales.ini)");
     }
 
     [Fact]
