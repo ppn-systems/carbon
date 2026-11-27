@@ -70,6 +70,14 @@ public sealed class SqliteSchemaMigrator : IDatabaseMigrator
             updated_at_utc    INTEGER NOT NULL,
             PRIMARY KEY (chunk_x, chunk_y)
         );
+
+        -- ADR-025: trader sales per restock epoch (stock is derived from the seed and the epoch).
+        CREATE TABLE IF NOT EXISTS trader_stock (
+            trader_key        INTEGER NOT NULL PRIMARY KEY,
+            epoch             INTEGER NOT NULL,
+            sold              BLOB    NOT NULL,
+            updated_at_utc    INTEGER NOT NULL
+        );
         """;
 
     private readonly SqliteConnectionFactory _factory;

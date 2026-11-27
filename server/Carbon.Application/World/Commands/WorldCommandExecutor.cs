@@ -94,6 +94,8 @@ internal sealed class WorldCommandExecutor
         WorldCommandKind.AllocateCharacterPoint => new(
             _handlers.TryAllocateCharacterPoint(command.ConnectionId, (PointAllocationKind)command.Arg0, command.Arg1, (byte)command.Arg2),
             0),
+        // Trading runs on TradeService's own queue (drained on the same tick, under the same lock).
+        WorldCommandKind.TraderOpen or WorldCommandKind.TraderBuy or WorldCommandKind.TraderSell => new WorldMutationOutcome(OpStatus.Invalid, 0),
         _ => new WorldMutationOutcome(OpStatus.Invalid, 0),
     };
 }

@@ -225,6 +225,9 @@ internal sealed class SettlementNpcSpawner
             patrol = 12f;
         }
 
+        this.SpawnTrader(in poi, VillageBuildingRole.Stall, WorldActorCatalog.VillageMerchant, "merchant", chunkKey);
+        this.SpawnTrader(in poi, VillageBuildingRole.Store, WorldActorCatalog.GeneralTrader, "general", chunkKey);
+
         if (this.IsStandable(smithTx, smithTy))
         {
             NpcArchetypeSpec vSmith = WorldActorCatalog.GetNpcSpec(WorldActorCatalog.MasterBlacksmith);
@@ -245,6 +248,62 @@ internal sealed class SettlementNpcSpawner
                 0U,
                 PatrolRadius: patrol));
         }
+    }
+
+    /// <summary>
+    /// Gets the stable key of a village trader (ADR-025): a mix of the village centre and the building role. It seeds
+    /// the trader's stock and restock jitter, and keys its persisted sales, so it never changes for a given world.
+    /// </summary>
+    public static ulong TraderKeyOf(in PointOfInterest poi, VillageBuildingRole role)
+    {
+        ulong x = ((ulong)(uint)poi.TileX << 32) | (uint)poi.TileY;
+        x ^= ((ulong)role + 1UL) * 0x9E3779B97F4A7C15UL;
+        x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9UL;
+        x = (x ^ (x >> 27)) * 0x94D049BB133111EBUL;
+        return x ^ (x >> 31);
+    }
+
+    /// <summary>Gets the village style index (<see cref="VillageStyle"/>) of a village type.</summary>
+    public static byte StyleOf(PointOfInterestType type) => type switch
+    {
+        PointOfInterestType.DesertVillage => (byte)VillageStyle.Desert,
+        PointOfInterestType.SnowVillage => (byte)VillageStyle.Snow,
+        PointOfInterestType.SwampVillage => (byte)VillageStyle.Swamp,
+        PointOfInterestType.None or PointOfInterestType.RiverVillage or PointOfInterestType.Harbor or
+        PointOfInterestType.MountainShrine or PointOfInterestType.LakesideCamp or PointOfInterestType.WorldTree or
+        PointOfInterestType.MineEntrance or PointOfInterestType.AncientRuins or PointOfInterestType.BanditCamp or
+        PointOfInterestType.Watchtower or PointOfInterestType.BossArena => (byte)VillageStyle.Temperate,
+        _ => (byte)VillageStyle.Temperate,
+    };
+
+    // A trader stands at its building's NPC spot (behind the market stall, at the store counter) and barely moves.
+    private void SpawnTrader(in PointOfInterest poi, VillageBuildingRole role, ushort archetype, string profile, long chunkKey)
+    {
+        if (!this.TryFindNpcTile(in poi, role, out int tx, out int ty) || !this.IsStandable(tx, ty))
+        {
+            return;
+        }
+
+        NpcArchetypeSpec spec = WorldActorCatalog.GetNpcSpec(archetype);
+        this.SpawnActor(new NpcActorMeta(
+            EntityKind.Npc,
+            spec.ArchetypeId,
+            spec.Name,
+            spec.Level,
+            this.TileCenter(tx, ty),
+            180f,
+            40f,
+            spec.Radius,
+            0f,
+            0U,
+            chunkKey,
+            StarterGameCatalog.BerryHerb,
+            1,
+            0U,
+            PatrolRadius: 6f,
+            TraderProfileId: profile,
+            TraderKey: TraderKeyOf(in poi, role),
+            TraderStyle: StyleOf(poi.Type)));
     }
 
     /// <summary>Finds the NPC spot of the first plot with <paramref name="role"/> in the village of <paramref name="poi"/>.</summary>

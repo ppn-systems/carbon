@@ -8,6 +8,7 @@ using Carbon.Configuration.Catalog;
 using Carbon.Economy.Config;
 using Carbon.Economy.Crafting;
 using Carbon.Economy.Loot;
+using Carbon.Economy.Trading;
 using Carbon.Economy.Vendor;
 using Carbon.Items.Catalog;
 using Carbon.Items.Crafting;
@@ -32,8 +33,12 @@ public sealed class GameEconomy
     /// <summary>File name of the loot tables.</summary>
     public const string LootFile = "loot.json";
 
-    private GameEconomy(ItemCatalog items, RecipeCatalog recipes, EconomyConfig config, LootCatalog loot)
+    /// <summary>File name of the trader profiles (optional, ADR-025).</summary>
+    public const string TradersFile = TraderCatalog.FileName;
+
+    private GameEconomy(ItemCatalog items, RecipeCatalog recipes, EconomyConfig config, LootCatalog loot, TraderCatalog? traders)
     {
+        this.Traders = traders;
         this.Items = items;
         this.Recipes = recipes;
         this.Config = config;
@@ -62,6 +67,9 @@ public sealed class GameEconomy
     /// <summary>Gets the price rules.</summary>
     public PriceBook Prices { get; }
 
+    /// <summary>Gets the trader profiles, or <see langword="null"/> when no <c>traders.json</c> was loaded.</summary>
+    public TraderCatalog? Traders { get; }
+
     /// <summary>Gets the vendor service.</summary>
     public VendorService Vendor { get; }
 
@@ -75,15 +83,17 @@ public sealed class GameEconomy
     /// <param name="recipesJson"><c>recipes.json</c> text.</param>
     /// <param name="economyJson"><c>economy.json</c> text.</param>
     /// <param name="lootJson"><c>loot.json</c> text.</param>
+    /// <param name="tradersJson"><c>traders.json</c> text, or <see langword="null"/> for no traders.</param>
     /// <returns>The validated economy.</returns>
     /// <exception cref="InvalidDataException">Thrown when any document is malformed or inconsistent.</exception>
-    public static GameEconomy Load(string itemsJson, string recipesJson, string economyJson, string lootJson)
+    public static GameEconomy Load(string itemsJson, string recipesJson, string economyJson, string lootJson, string? tradersJson = null)
     {
         ItemCatalog items = ItemCatalog.LoadFromJson(itemsJson);
         RecipeCatalog recipes = RecipeCatalog.LoadFromJson(recipesJson, items);
         EconomyConfig config = EconomyConfig.LoadFromJson(economyJson);
         LootCatalog loot = LootCatalog.LoadFromJson(lootJson, items, config);
-        return new GameEconomy(items, recipes, config, loot);
+        TraderCatalog? traders = tradersJson is null ? null : TraderCatalog.LoadFromJson(tradersJson, items, config);
+        return new GameEconomy(items, recipes, config, loot, traders);
     }
 
     /// <summary>
@@ -101,7 +111,8 @@ public sealed class GameEconomy
             Read(config, ItemsFile),
             Read(config, RecipesFile),
             Read(config, EconomyFile),
-            Read(config, LootFile));
+            Read(config, LootFile),
+            config.Contains(Path.GetFileNameWithoutExtension(TradersFile)) ? Read(config, TradersFile) : null);
     }
 
     /// <summary>
@@ -118,7 +129,8 @@ public sealed class GameEconomy
             File.ReadAllText(Path.Combine(configDirectory, ItemsFile)),
             File.ReadAllText(Path.Combine(configDirectory, RecipesFile)),
             File.ReadAllText(Path.Combine(configDirectory, EconomyFile)),
-            File.ReadAllText(Path.Combine(configDirectory, LootFile)));
+            File.ReadAllText(Path.Combine(configDirectory, LootFile)),
+            File.Exists(Path.Combine(configDirectory, TradersFile)) ? File.ReadAllText(Path.Combine(configDirectory, TradersFile)) : null);
     }
 
     /// <summary>

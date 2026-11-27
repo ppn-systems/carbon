@@ -51,6 +51,20 @@ public static class ItemOpCode
     /// <summary>Streamed inventory slot entry answering <see cref="InventoryRequest"/>.</summary>
     public const ushort InventorySlotItem = 0x4020;
 
+    // ── Trading with village traders (0x4040–0x404F, ADR-025) ──────────────
+
+    /// <summary>C2S: open a trader's window (answered with <see cref="TraderStock"/>).</summary>
+    public const ushort TraderOpen = 0x4040;
+
+    /// <summary>C2S: buy units from a trader stock slot (answered with <c>MutationResult</c>).</summary>
+    public const ushort TraderBuy = 0x4041;
+
+    /// <summary>C2S: sell a bag stack to a trader (answered with <c>MutationResult</c>).</summary>
+    public const ushort TraderSell = 0x4042;
+
+    /// <summary>S2C: a trader's stock, prices, restock countdown and the player's sell prices.</summary>
+    public const ushort TraderStock = 0x4048;
+
     // ── S2C: Server → Client push (0x4030–0x40FF) ───────────────────────────
 
     /// <summary>Unilateral notification that a player inventory slot changed.</summary>

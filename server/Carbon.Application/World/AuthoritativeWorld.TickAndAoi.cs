@@ -39,6 +39,7 @@ public sealed partial class AuthoritativeWorld
 
             // ADR-017: mutating requests submitted since the last tick run first, in arrival order.
             _commandExecutor.Drain(_commands);
+            _trade.DrainLocked();
 
             foreach (KeyValuePair<ulong, PlayerState> kvp in _players.ByConnection)
             {
@@ -232,6 +233,7 @@ public sealed partial class AuthoritativeWorld
     /// <inheritdoc/>
     public async Task FlushDirtyPersistenceAsync(CancellationToken ct = default)
     {
+        await _trade.FlushAsync(ct).ConfigureAwait(false);
         List<PersistedChunkDelta> chunkBatch = [];
         List<CharacterRecord> characterBatch = [];
         DateTimeOffset now = _time.GetUtcNow();

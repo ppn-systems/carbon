@@ -248,6 +248,15 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     }
 
     /// <inheritdoc/>
+    public void SendTraderStock(ulong connectionId, TraderStockSnapshot stock)
+    {
+        if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
+        {
+            _ = DispatchTraderStockAsync(conn, stock, _logger);
+        }
+    }
+
+    /// <inheritdoc/>
     public void SendSkillCastBroadcast(
         ReadOnlySpan<ulong> recipientConnectionIds,
         ulong casterNetworkId,
@@ -816,6 +825,33 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogSendFailure(logger, nameof(WalletSync), ex);
+        }
+    }
+
+    private static async Task DispatchTraderStockAsync(IConnection connection, TraderStockSnapshot stock, ILogger logger)
+    {
+        try
+        {
+            using PacketScope<TraderStock> lease = PacketFactory<TraderStock>.Acquire();
+            TraderStock pkt = lease.Value;
+            pkt.TraderNetworkId = stock.TraderNetworkId;
+            pkt.Kind = stock.Kind;
+            pkt.Epoch = stock.Epoch;
+            pkt.SecondsUntilRestock = stock.SecondsUntilRestock;
+            pkt.ItemIds = stock.ItemIds;
+            pkt.UnitPrices = stock.UnitPrices;
+            pkt.Stocked = stock.Stocked;
+            pkt.Remaining = stock.Remaining;
+            pkt.SellItemIds = stock.SellItemIds;
+            pkt.SellPrices = stock.SellPrices;
+            pkt.CanRepair = stock.CanRepair;
+
+            bool encrypt = connection.Algorithm != CipherSuiteType.None;
+            await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogSendFailure(logger, nameof(TraderStock), ex);
         }
     }
 

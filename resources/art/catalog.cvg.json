@@ -147,6 +147,22 @@
       "subtitle": "FORGE ARTISAN",
       "accentColor": "#F97316",
       "file": "npcs/master_blacksmith.cvg.json"
+    },
+    {
+      "archetypeId": 205,
+      "id": "village_merchant",
+      "title": "Village Merchant",
+      "subtitle": "MARKET STALL",
+      "accentColor": "#F59E0B",
+      "file": "npcs/village_merchant.cvg.json"
+    },
+    {
+      "archetypeId": 206,
+      "id": "general_trader",
+      "title": "General Trader",
+      "subtitle": "GENERAL GOODS",
+      "accentColor": "#2DD4BF",
+      "file": "npcs/general_trader.cvg.json"
     }
   ],
   "items": [

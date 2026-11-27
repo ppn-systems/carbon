@@ -58,6 +58,12 @@ public sealed class DesktopOptions
     public bool AutoExit { get; init; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the scene opens the nearest trader's window once in the world
+    /// (<c>CARBON_OPEN_TRADER=1</c>; screenshot tool). The capture waits for the trader's stock to arrive.
+    /// </summary>
+    public bool OpenTrader { get; init; }
+
+    /// <summary>
     /// Gets or sets an optional constant walk direction applied instead of keyboard movement
     /// (<c>CARBON_AUTO_WALK=x,y</c>; used by the screenshot tool to capture actors in motion).
     /// </summary>
@@ -194,6 +200,7 @@ public sealed class DesktopOptions
             ScreenshotPath = screenshotPath,
             CaptureFrames = captureFrames,
             AutoExit = string.Equals(get("CARBON_AUTO_EXIT"), "1", StringComparison.Ordinal),
+            OpenTrader = string.Equals(get("CARBON_OPEN_TRADER"), "1", StringComparison.Ordinal),
             AutoWalk = autoWalk,
             ServerHost = serverHost,
             ServerTcpPort = serverTcpPort,

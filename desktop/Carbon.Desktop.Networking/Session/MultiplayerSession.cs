@@ -801,6 +801,8 @@ public sealed partial class MultiplayerSession : IWorldSession
             _localDiamonds = 0;
             _walletSequence = 0;
             _hasWalletSync = false;
+            _activeTrader = null;
+            _requestedTrader = 0UL;
 
             _localFood = 100f;
             _localMaxFood = 100f;

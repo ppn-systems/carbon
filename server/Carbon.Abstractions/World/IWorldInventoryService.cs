@@ -68,4 +68,7 @@ public interface IWorldInventoryService
     /// completes after the next tick (ADR-017).
     /// </summary>
     ValueTask<WorldMutationOutcome> SubmitRepairItemAsync(ulong connectionId, ushort slotIndex);
+
+    /// <summary>Gets trading with village traders (ADR-025).</summary>
+    IWorldTradeService Trade { get; }
 }

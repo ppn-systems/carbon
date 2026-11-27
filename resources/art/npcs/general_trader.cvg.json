@@ -1,0 +1,1723 @@
+{
+  "schemaVersion": 1,
+  "id": "general_trader",
+  "designHeight": 34.0,
+  "worldHeight": 35.0,
+  "headTopOffset": 31.0,
+  "accentColor": "#2DD4BF",
+  "weaponGrip": {
+    "south": {
+      "x": 8.4,
+      "y": -10.8
+    },
+    "side": {
+      "x": 7.6,
+      "y": -11.2
+    },
+    "north": {
+      "x": 8.0,
+      "y": -14.5
+    }
+  },
+  "bonePivots": {
+    "root": {
+      "x": 0.0,
+      "y": 0.0
+    },
+    "cape": {
+      "x": 0.0,
+      "y": -21.0
+    },
+    "legLeft": {
+      "x": -3.0,
+      "y": -10.4
+    },
+    "legRight": {
+      "x": 3.0,
+      "y": -10.4
+    },
+    "body": {
+      "x": 0.0,
+      "y": -15.0
+    },
+    "armBack": {
+      "x": -6.2,
+      "y": -19.5
+    },
+    "armFront": {
+      "x": 6.2,
+      "y": -19.5
+    },
+    "head": {
+      "x": 0.0,
+      "y": -22.5
+    },
+    "headgear": {
+      "x": 0.0,
+      "y": -28.0
+    },
+    "aura": {
+      "x": 0.0,
+      "y": -24.0
+    }
+  },
+  "palette": {
+    "outline": "#0F172A",
+    "primary": "#0F766E",
+    "primaryLight": "#14B8A6",
+    "primaryDark": "#134E4A",
+    "cloak": "#57534E",
+    "cloakLight": "#78716C",
+    "cloakDark": "#292524",
+    "secondary": "#A16207",
+    "accent": "#FBBF24",
+    "glow": "#5EEAD4",
+    "skin": "#F5C6A5",
+    "skinShadow": "#D49B78",
+    "hair": "#292524",
+    "boot": "#3F3F46",
+    "belt": "#92400E"
+  },
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "bone": "root",
+      "facing": "any",
+      "x": 0.0,
+      "y": 0.2,
+      "rx": 8.2,
+      "ry": 3.0,
+      "color": "#0A0E1782"
+    },
+    {
+      "kind": "polygon",
+      "bone": "cape",
+      "facing": "notNorth",
+      "points": [
+        [
+          -5.6,
+          -21.0
+        ],
+        [
+          5.6,
+          -21.0
+        ],
+        [
+          7.8,
+          -4.5
+        ],
+        [
+          -7.8,
+          -4.5
+        ]
+      ],
+      "color": "$cloakDark",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "polygon",
+      "bone": "cape",
+      "facing": "notNorth",
+      "points": [
+        [
+          -4.0,
+          -20.5
+        ],
+        [
+          4.0,
+          -20.5
+        ],
+        [
+          5.5,
+          -6.0
+        ],
+        [
+          -5.5,
+          -6.0
+        ]
+      ],
+      "color": "$cloak"
+    },
+    {
+      "kind": "polygon",
+      "bone": "cape",
+      "facing": "north",
+      "points": [
+        [
+          -6.4,
+          -21.5
+        ],
+        [
+          6.4,
+          -21.5
+        ],
+        [
+          8.6,
+          -4.0
+        ],
+        [
+          -8.6,
+          -4.0
+        ]
+      ],
+      "color": "$cloak",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "polygon",
+      "bone": "cape",
+      "facing": "north",
+      "points": [
+        [
+          -3.8,
+          -21.0
+        ],
+        [
+          3.8,
+          -21.0
+        ],
+        [
+          5.0,
+          -5.0
+        ],
+        [
+          -5.0,
+          -5.0
+        ]
+      ],
+      "color": "$cloakLight"
+    },
+    {
+      "kind": "line",
+      "bone": "cape",
+      "facing": "north",
+      "x": 0.0,
+      "y": -20.0,
+      "x2": 0.0,
+      "y2": -5.5,
+      "thickness": 1.1,
+      "color": "$cloakDark"
+    },
+    {
+      "kind": "capsule",
+      "bone": "legLeft",
+      "facing": "south",
+      "x": -3.0,
+      "y": -10.2,
+      "x2": -3.4,
+      "y2": -2.0,
+      "thickness": 3.8,
+      "color": "$primaryDark",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "legLeft",
+      "facing": "south",
+      "x": -3.4,
+      "y": -1.2,
+      "rx": 2.7,
+      "ry": 1.7,
+      "color": "$boot",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "rect",
+      "bone": "legLeft",
+      "facing": "south",
+      "x": -4.7,
+      "y": -5.2,
+      "w": 2.6,
+      "h": 1.3,
+      "color": "$belt"
+    },
+    {
+      "kind": "capsule",
+      "bone": "legRight",
+      "facing": "south",
+      "x": 3.0,
+      "y": -10.2,
+      "x2": 3.4,
+      "y2": -2.0,
+      "thickness": 3.8,
+      "color": "$primaryDark",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "legRight",
+      "facing": "south",
+      "x": 3.4,
+      "y": -1.2,
+      "rx": 2.7,
+      "ry": 1.7,
+      "color": "$boot",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "rect",
+      "bone": "legRight",
+      "facing": "south",
+      "x": 2.1,
+      "y": -5.2,
+      "w": 2.6,
+      "h": 1.3,
+      "color": "$belt"
+    },
+    {
+      "kind": "capsule",
+      "bone": "legLeft",
+      "facing": "north",
+      "x": -3.0,
+      "y": -10.2,
+      "x2": -3.3,
+      "y2": -2.0,
+      "thickness": 3.8,
+      "color": "$primaryDark",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "legLeft",
+      "facing": "north",
+      "x": -3.3,
+      "y": -1.2,
+      "rx": 2.6,
+      "ry": 1.6,
+      "color": "$boot",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "capsule",
+      "bone": "legRight",
+      "facing": "north",
+      "x": 3.0,
+      "y": -10.2,
+      "x2": 3.3,
+      "y2": -2.0,
+      "thickness": 3.8,
+      "color": "$primaryDark",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "legRight",
+      "facing": "north",
+      "x": 3.3,
+      "y": -1.2,
+      "rx": 2.6,
+      "ry": 1.6,
+      "color": "$boot",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "capsule",
+      "bone": "legLeft",
+      "facing": "side",
+      "x": -1.4,
+      "y": -10.2,
+      "x2": -2.2,
+      "y2": -2.0,
+      "thickness": 3.7,
+      "color": "$primaryDark",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "legLeft",
+      "facing": "side",
+      "x": -1.8,
+      "y": -1.2,
+      "rx": 2.8,
+      "ry": 1.6,
+      "color": "$boot",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "capsule",
+      "bone": "legRight",
+      "facing": "side",
+      "x": 1.6,
+      "y": -10.2,
+      "x2": 2.3,
+      "y2": -2.0,
+      "thickness": 3.7,
+      "color": "$primaryDark",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "legRight",
+      "facing": "side",
+      "x": 2.6,
+      "y": -1.2,
+      "rx": 2.9,
+      "ry": 1.6,
+      "color": "$boot",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "capsule",
+      "bone": "armBack",
+      "facing": "south",
+      "x": -6.2,
+      "y": -19.2,
+      "x2": -7.8,
+      "y2": -11.8,
+      "thickness": 3.3,
+      "color": "$primary",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "armBack",
+      "facing": "south",
+      "x": -8.0,
+      "y": -11.2,
+      "rx": 2.1,
+      "ry": 2.1,
+      "color": "$skin",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "ellipse",
+      "bone": "armBack",
+      "facing": "south",
+      "x": -6.2,
+      "y": -19.5,
+      "rx": 2.9,
+      "ry": 2.2,
+      "color": "$secondary",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "capsule",
+      "bone": "armBack",
+      "facing": "side",
+      "x": -2.2,
+      "y": -19.2,
+      "x2": -4.4,
+      "y2": -12.0,
+      "thickness": 3.2,
+      "color": "$primaryDark",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "armBack",
+      "facing": "side",
+      "x": -4.6,
+      "y": -11.4,
+      "rx": 2.0,
+      "ry": 2.0,
+      "color": "$skinShadow",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "capsule",
+      "bone": "armBack",
+      "facing": "north",
+      "x": -6.2,
+      "y": -19.2,
+      "x2": -7.6,
+      "y2": -12.0,
+      "thickness": 3.2,
+      "color": "$primaryDark",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "bone": "body",
+      "facing": "any",
+      "points": [
+        [
+          -5.6,
+          -10.6
+        ],
+        [
+          5.6,
+          -10.6
+        ],
+        [
+          7.0,
+          -7.2
+        ],
+        [
+          -7.0,
+          -7.2
+        ]
+      ],
+      "color": "$primaryDark",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "polygon",
+      "bone": "body",
+      "facing": "any",
+      "points": [
+        [
+          -6.5,
+          -21.2
+        ],
+        [
+          6.5,
+          -21.2
+        ],
+        [
+          5.4,
+          -10.4
+        ],
+        [
+          -5.4,
+          -10.4
+        ]
+      ],
+      "color": "$primary",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "polygon",
+      "bone": "body",
+      "facing": "notNorth",
+      "points": [
+        [
+          -4.8,
+          -20.2
+        ],
+        [
+          4.8,
+          -20.2
+        ],
+        [
+          3.8,
+          -13.0
+        ],
+        [
+          -3.8,
+          -13.0
+        ]
+      ],
+      "color": "$primaryLight"
+    },
+    {
+      "kind": "polygon",
+      "bone": "body",
+      "facing": "notNorth",
+      "points": [
+        [
+          -3.6,
+          -21.2
+        ],
+        [
+          3.6,
+          -21.2
+        ],
+        [
+          1.8,
+          -17.2
+        ],
+        [
+          -1.8,
+          -17.2
+        ]
+      ],
+      "color": "$secondary",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "rect",
+      "bone": "body",
+      "facing": "any",
+      "x": -5.5,
+      "y": -11.8,
+      "w": 11.0,
+      "h": 2.4,
+      "color": "$belt",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "rect",
+      "bone": "body",
+      "facing": "notNorth",
+      "x": -1.8,
+      "y": -12.1,
+      "w": 3.6,
+      "h": 2.9,
+      "color": "$accent",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "ellipse",
+      "bone": "body",
+      "facing": "notNorth",
+      "x": 0.0,
+      "y": -16.2,
+      "rx": 2.1,
+      "ry": 2.1,
+      "color": "$accent",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.8
+    },
+    {
+      "kind": "ellipse",
+      "bone": "body",
+      "facing": "notNorth",
+      "x": -0.4,
+      "y": -16.6,
+      "rx": 0.8,
+      "ry": 0.8,
+      "color": "$glow"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "any",
+      "x": 0.0,
+      "y": -26.8,
+      "rx": 6.9,
+      "ry": 6.4,
+      "color": "$skin",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "south",
+      "x": 0.0,
+      "y": -23.0,
+      "rx": 5.2,
+      "ry": 2.1,
+      "color": "$skinShadow"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "south",
+      "x": -3.9,
+      "y": -24.8,
+      "rx": 1.3,
+      "ry": 0.8,
+      "color": "#F8717166"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "south",
+      "x": 3.9,
+      "y": -24.8,
+      "rx": 1.3,
+      "ry": 0.8,
+      "color": "#F8717166"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "side",
+      "x": -1.4,
+      "y": -26.5,
+      "rx": 1.6,
+      "ry": 2.0,
+      "color": "$skinShadow"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "south",
+      "x": -2.5,
+      "y": -26.1,
+      "rx": 1.35,
+      "ry": 1.65,
+      "color": "#F8FAFC",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.6
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "south",
+      "x": 2.5,
+      "y": -26.1,
+      "rx": 1.35,
+      "ry": 1.65,
+      "color": "#F8FAFC",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.6
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "south",
+      "x": -2.4,
+      "y": -26.0,
+      "rx": 0.9,
+      "ry": 1.25,
+      "color": "$outline"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "south",
+      "x": 2.4,
+      "y": -26.0,
+      "rx": 0.9,
+      "ry": 1.25,
+      "color": "$outline"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "south",
+      "x": -2.7,
+      "y": -26.6,
+      "rx": 0.45,
+      "ry": 0.45,
+      "color": "#FFFFFF"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "south",
+      "x": 2.1,
+      "y": -26.6,
+      "rx": 0.45,
+      "ry": 0.45,
+      "color": "#FFFFFF"
+    },
+    {
+      "kind": "line",
+      "bone": "head",
+      "facing": "south",
+      "x": -3.8,
+      "y": -28.1,
+      "x2": -1.2,
+      "y2": -27.9,
+      "thickness": 0.9,
+      "color": "$hair"
+    },
+    {
+      "kind": "line",
+      "bone": "head",
+      "facing": "south",
+      "x": 1.2,
+      "y": -27.9,
+      "x2": 3.8,
+      "y2": -28.1,
+      "thickness": 0.9,
+      "color": "$hair"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "side",
+      "x": 3.4,
+      "y": -26.1,
+      "rx": 1.2,
+      "ry": 1.55,
+      "color": "#F8FAFC",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.6
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "side",
+      "x": 3.7,
+      "y": -26.0,
+      "rx": 0.85,
+      "ry": 1.15,
+      "color": "$outline"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "side",
+      "x": 3.3,
+      "y": -26.6,
+      "rx": 0.4,
+      "ry": 0.4,
+      "color": "#FFFFFF"
+    },
+    {
+      "kind": "ellipse",
+      "bone": "head",
+      "facing": "north",
+      "x": 0.0,
+      "y": -27.2,
+      "rx": 7.1,
+      "ry": 6.6,
+      "color": "$hair",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.1
+    },
+    {
+      "kind": "polygon",
+      "bone": "head",
+      "facing": "south",
+      "points": [
+        [
+          -6.5,
+          -28.8
+        ],
+        [
+          6.5,
+          -28.8
+        ],
+        [
+          5.2,
+          -32.2
+        ],
+        [
+          -5.2,
+          -32.2
+        ]
+      ],
+      "color": "$hair",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "polygon",
+      "bone": "head",
+      "facing": "side",
+      "points": [
+        [
+          -6.4,
+          -28.5
+        ],
+        [
+          5.2,
+          -28.8
+        ],
+        [
+          3.2,
+          -32.5
+        ],
+        [
+          -5.6,
+          -31.8
+        ]
+      ],
+      "color": "$hair",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "polygon",
+      "bone": "headgear",
+      "facing": "any",
+      "points": [
+        [
+          -9.6,
+          -29.0
+        ],
+        [
+          9.6,
+          -29.0
+        ],
+        [
+          6.8,
+          -34.8
+        ],
+        [
+          -6.8,
+          -34.8
+        ]
+      ],
+      "color": "$cloak",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "polygon",
+      "bone": "headgear",
+      "facing": "notNorth",
+      "points": [
+        [
+          -5.0,
+          -31.0
+        ],
+        [
+          5.0,
+          -31.0
+        ],
+        [
+          0.0,
+          -35.4
+        ]
+      ],
+      "color": "$primary",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "ellipse",
+      "bone": "headgear",
+      "facing": "notNorth",
+      "x": 0.0,
+      "y": -32.2,
+      "rx": 1.4,
+      "ry": 1.4,
+      "color": "$accent"
+    },
+    {
+      "kind": "capsule",
+      "bone": "armFront",
+      "facing": "south",
+      "x": 6.2,
+      "y": -19.2,
+      "x2": 8.2,
+      "y2": -11.4,
+      "thickness": 3.4,
+      "color": "$primaryLight",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "armFront",
+      "facing": "south",
+      "x": 8.4,
+      "y": -10.8,
+      "rx": 2.2,
+      "ry": 2.2,
+      "color": "$skin",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "ellipse",
+      "bone": "armFront",
+      "facing": "south",
+      "x": 6.2,
+      "y": -19.6,
+      "rx": 3.1,
+      "ry": 2.3,
+      "color": "$secondary",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "capsule",
+      "bone": "armFront",
+      "facing": "side",
+      "x": 2.0,
+      "y": -19.2,
+      "x2": 7.2,
+      "y2": -11.8,
+      "thickness": 3.4,
+      "color": "$primaryLight",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "armFront",
+      "facing": "side",
+      "x": 7.6,
+      "y": -11.2,
+      "rx": 2.2,
+      "ry": 2.2,
+      "color": "$skin",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "ellipse",
+      "bone": "armFront",
+      "facing": "side",
+      "x": 2.2,
+      "y": -19.6,
+      "rx": 3.3,
+      "ry": 2.4,
+      "color": "$secondary",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.9
+    },
+    {
+      "kind": "capsule",
+      "bone": "armFront",
+      "facing": "north",
+      "x": 6.2,
+      "y": -19.2,
+      "x2": 7.8,
+      "y2": -14.2,
+      "thickness": 3.3,
+      "color": "$primary",
+      "outlineColor": "$outline",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "ellipse",
+      "bone": "armFront",
+      "facing": "north",
+      "x": 8.0,
+      "y": -14.5,
+      "rx": 2.0,
+      "ry": 2.0,
+      "color": "$skinShadow",
+      "outlineColor": "$outline",
+      "outlineThickness": 0.9
+    }
+  ],
+  "animations": {
+    "idle": {
+      "duration": 1.4,
+      "loop": true,
+      "tracks": [
+        {
+          "t": 0.0,
+          "bones": {
+            "cape": {
+              "rotDeg": 1.5,
+              "scaleX": 1.0,
+              "scaleY": 1.0
+            },
+            "body": {
+              "dy": 0.0,
+              "scaleX": 1.0,
+              "scaleY": 1.0
+            },
+            "head": {
+              "dy": 0.0,
+              "rotDeg": 0.0
+            },
+            "headgear": {
+              "dy": 0.0,
+              "rotDeg": 0.0
+            },
+            "armBack": {
+              "rotDeg": 3.0
+            },
+            "armFront": {
+              "rotDeg": -4.0
+            }
+          }
+        },
+        {
+          "t": 0.5,
+          "bones": {
+            "cape": {
+              "rotDeg": -4.0,
+              "scaleX": 1.03,
+              "scaleY": 1.02
+            },
+            "body": {
+              "dy": 0.85,
+              "scaleX": 1.02,
+              "scaleY": 0.98
+            },
+            "head": {
+              "dy": 0.95,
+              "rotDeg": 1.5
+            },
+            "headgear": {
+              "dy": 1.1,
+              "rotDeg": 2.0
+            },
+            "armBack": {
+              "dy": 0.9,
+              "rotDeg": -2.0
+            },
+            "armFront": {
+              "dy": 0.9,
+              "rotDeg": 3.0
+            }
+          }
+        },
+        {
+          "t": 1.0,
+          "bones": {
+            "cape": {
+              "rotDeg": 1.5,
+              "scaleX": 1.0,
+              "scaleY": 1.0
+            },
+            "body": {
+              "dy": 0.0,
+              "scaleX": 1.0,
+              "scaleY": 1.0
+            },
+            "head": {
+              "dy": 0.0,
+              "rotDeg": 0.0
+            },
+            "headgear": {
+              "dy": 0.0,
+              "rotDeg": 0.0
+            },
+            "armBack": {
+              "rotDeg": 3.0
+            },
+            "armFront": {
+              "rotDeg": -4.0
+            }
+          }
+        }
+      ]
+    },
+    "walk": {
+      "duration": 0.48,
+      "loop": true,
+      "tracks": [
+        {
+          "t": 0.0,
+          "bones": {
+            "cape": {
+              "rotDeg": 8.0,
+              "dx": -0.6
+            },
+            "body": {
+              "dy": -0.7,
+              "rotDeg": 3.0
+            },
+            "head": {
+              "dy": -0.8,
+              "rotDeg": 1.5
+            },
+            "headgear": {
+              "dy": -0.9,
+              "rotDeg": 2.5
+            },
+            "legLeft": {
+              "rotDeg": -24.0,
+              "dy": -0.4
+            },
+            "legRight": {
+              "rotDeg": 24.0,
+              "dy": 0.2
+            },
+            "armBack": {
+              "rotDeg": 22.0
+            },
+            "armFront": {
+              "rotDeg": -22.0
+            }
+          }
+        },
+        {
+          "t": 0.25,
+          "bones": {
+            "cape": {
+              "rotDeg": 3.0
+            },
+            "body": {
+              "dy": 0.4,
+              "rotDeg": 0.0
+            },
+            "head": {
+              "dy": 0.4,
+              "rotDeg": 0.0
+            },
+            "headgear": {
+              "dy": 0.6,
+              "rotDeg": 0.0
+            },
+            "legLeft": {
+              "rotDeg": 0.0
+            },
+            "legRight": {
+              "rotDeg": 0.0
+            },
+            "armBack": {
+              "rotDeg": 0.0
+            },
+            "armFront": {
+              "rotDeg": 0.0
+            }
+          }
+        },
+        {
+          "t": 0.5,
+          "bones": {
+            "cape": {
+              "rotDeg": 10.0,
+              "dx": -0.8
+            },
+            "body": {
+              "dy": -0.7,
+              "rotDeg": -3.0
+            },
+            "head": {
+              "dy": -0.8,
+              "rotDeg": -1.5
+            },
+            "headgear": {
+              "dy": -0.9,
+              "rotDeg": -2.5
+            },
+            "legLeft": {
+              "rotDeg": 24.0,
+              "dy": 0.2
+            },
+            "legRight": {
+              "rotDeg": -24.0,
+              "dy": -0.4
+            },
+            "armBack": {
+              "rotDeg": -22.0
+            },
+            "armFront": {
+              "rotDeg": 22.0
+            }
+          }
+        },
+        {
+          "t": 0.75,
+          "bones": {
+            "cape": {
+              "rotDeg": 3.0
+            },
+            "body": {
+              "dy": 0.4,
+              "rotDeg": 0.0
+            },
+            "head": {
+              "dy": 0.4,
+              "rotDeg": 0.0
+            },
+            "headgear": {
+              "dy": 0.6,
+              "rotDeg": 0.0
+            },
+            "legLeft": {
+              "rotDeg": 0.0
+            },
+            "legRight": {
+              "rotDeg": 0.0
+            },
+            "armBack": {
+              "rotDeg": 0.0
+            },
+            "armFront": {
+              "rotDeg": 0.0
+            }
+          }
+        },
+        {
+          "t": 1.0,
+          "bones": {
+            "cape": {
+              "rotDeg": 8.0,
+              "dx": -0.6
+            },
+            "body": {
+              "dy": -0.7,
+              "rotDeg": 3.0
+            },
+            "head": {
+              "dy": -0.8,
+              "rotDeg": 1.5
+            },
+            "headgear": {
+              "dy": -0.9,
+              "rotDeg": 2.5
+            },
+            "legLeft": {
+              "rotDeg": -24.0,
+              "dy": -0.4
+            },
+            "legRight": {
+              "rotDeg": 24.0,
+              "dy": 0.2
+            },
+            "armBack": {
+              "rotDeg": 22.0
+            },
+            "armFront": {
+              "rotDeg": -22.0
+            }
+          }
+        }
+      ]
+    },
+    "attack": {
+      "duration": 0.26,
+      "loop": false,
+      "tracks": [
+        {
+          "t": 0.0,
+          "bones": {
+            "body": {
+              "rotDeg": -8.0,
+              "dx": -0.8
+            },
+            "head": {
+              "rotDeg": -4.0
+            },
+            "armBack": {
+              "rotDeg": 18.0
+            },
+            "armFront": {
+              "rotDeg": -72.0
+            },
+            "cape": {
+              "rotDeg": -10.0
+            }
+          }
+        },
+        {
+          "t": 0.45,
+          "bones": {
+            "body": {
+              "rotDeg": 11.0,
+              "dx": 2.0,
+              "dy": 0.9
+            },
+            "head": {
+              "rotDeg": 5.0,
+              "dx": 1.5,
+              "dy": 0.8
+            },
+            "headgear": {
+              "rotDeg": 7.0,
+              "dx": 1.5,
+              "dy": 0.9
+            },
+            "armBack": {
+              "rotDeg": -24.0
+            },
+            "armFront": {
+              "rotDeg": 48.0,
+              "dx": 1.2,
+              "dy": 0.6
+            },
+            "legLeft": {
+              "rotDeg": -14.0
+            },
+            "legRight": {
+              "rotDeg": 18.0
+            },
+            "cape": {
+              "rotDeg": 16.0
+            }
+          }
+        },
+        {
+          "t": 1.0,
+          "bones": {
+            "body": {
+              "rotDeg": 0.0
+            },
+            "head": {
+              "rotDeg": 0.0
+            },
+            "headgear": {
+              "rotDeg": 0.0
+            },
+            "armBack": {
+              "rotDeg": 0.0
+            },
+            "armFront": {
+              "rotDeg": 0.0
+            },
+            "legLeft": {
+              "rotDeg": 0.0
+            },
+            "legRight": {
+              "rotDeg": 0.0
+            },
+            "cape": {
+              "rotDeg": 0.0
+            }
+          }
+        }
+      ]
+    },
+    "slash": {
+      "duration": 0.26,
+      "loop": false,
+      "tracks": [
+        {
+          "t": 0.0,
+          "bones": {
+            "body": {
+              "rotDeg": -8.0,
+              "dx": -0.8
+            },
+            "head": {
+              "rotDeg": -4.0
+            },
+            "armBack": {
+              "rotDeg": 18.0
+            },
+            "armFront": {
+              "rotDeg": -72.0
+            },
+            "cape": {
+              "rotDeg": -10.0
+            }
+          }
+        },
+        {
+          "t": 0.45,
+          "bones": {
+            "body": {
+              "rotDeg": 11.0,
+              "dx": 2.0,
+              "dy": 0.9
+            },
+            "head": {
+              "rotDeg": 5.0,
+              "dx": 1.5,
+              "dy": 0.8
+            },
+            "headgear": {
+              "rotDeg": 7.0,
+              "dx": 1.5,
+              "dy": 0.9
+            },
+            "armBack": {
+              "rotDeg": -24.0
+            },
+            "armFront": {
+              "rotDeg": 48.0,
+              "dx": 1.2,
+              "dy": 0.6
+            },
+            "legLeft": {
+              "rotDeg": -14.0
+            },
+            "legRight": {
+              "rotDeg": 18.0
+            },
+            "cape": {
+              "rotDeg": 16.0
+            }
+          }
+        },
+        {
+          "t": 1.0,
+          "bones": {
+            "body": {
+              "rotDeg": 0.0
+            },
+            "head": {
+              "rotDeg": 0.0
+            },
+            "headgear": {
+              "rotDeg": 0.0
+            },
+            "armBack": {
+              "rotDeg": 0.0
+            },
+            "armFront": {
+              "rotDeg": 0.0
+            },
+            "legLeft": {
+              "rotDeg": 0.0
+            },
+            "legRight": {
+              "rotDeg": 0.0
+            },
+            "cape": {
+              "rotDeg": 0.0
+            }
+          }
+        }
+      ]
+    },
+    "cast": {
+      "duration": 0.34,
+      "loop": false,
+      "tracks": [
+        {
+          "t": 0.0,
+          "bones": {
+            "body": {
+              "dy": 1.0,
+              "rotDeg": -6.0
+            },
+            "armFront": {
+              "rotDeg": -45.0,
+              "dy": -1.5
+            },
+            "armBack": {
+              "rotDeg": 45.0,
+              "dy": -1.5
+            },
+            "cape": {
+              "rotDeg": -8.0
+            }
+          }
+        },
+        {
+          "t": 0.45,
+          "bones": {
+            "body": {
+              "dy": -1.8,
+              "rotDeg": 4.0
+            },
+            "head": {
+              "dy": -1.6
+            },
+            "headgear": {
+              "dy": -1.6
+            },
+            "armFront": {
+              "rotDeg": -125.0,
+              "dy": -2.0
+            },
+            "armBack": {
+              "rotDeg": 125.0,
+              "dy": -2.0
+            },
+            "cape": {
+              "rotDeg": 18.0
+            }
+          }
+        },
+        {
+          "t": 1.0,
+          "bones": {
+            "body": {
+              "dy": 0.0,
+              "rotDeg": 0.0
+            },
+            "head": {
+              "dy": 0.0
+            },
+            "headgear": {
+              "dy": 0.0
+            },
+            "armFront": {
+              "rotDeg": 0.0
+            },
+            "armBack": {
+              "rotDeg": 0.0
+            },
+            "cape": {
+              "rotDeg": 0.0
+            }
+          }
+        }
+      ]
+    },
+    "chop": {
+      "duration": 0.3,
+      "loop": false,
+      "tracks": [
+        {
+          "t": 0.0,
+          "bones": {
+            "body": {
+              "rotDeg": -12.0,
+              "dy": -1.2
+            },
+            "head": {
+              "rotDeg": -7.0,
+              "dy": -1.0
+            },
+            "headgear": {
+              "rotDeg": -8.0,
+              "dy": -1.0
+            },
+            "armFront": {
+              "rotDeg": -95.0,
+              "dy": -1.0
+            },
+            "armBack": {
+              "rotDeg": -35.0
+            },
+            "cape": {
+              "rotDeg": -12.0
+            }
+          }
+        },
+        {
+          "t": 0.5,
+          "bones": {
+            "body": {
+              "rotDeg": 14.0,
+              "dx": 2.2,
+              "dy": 1.4
+            },
+            "head": {
+              "rotDeg": 7.0,
+              "dx": 1.8,
+              "dy": 1.2
+            },
+            "headgear": {
+              "rotDeg": 9.0,
+              "dx": 1.8,
+              "dy": 1.2
+            },
+            "armFront": {
+              "rotDeg": 44.0,
+              "dx": 1.4,
+              "dy": 1.2
+            },
+            "armBack": {
+              "rotDeg": 24.0
+            },
+            "legLeft": {
+              "rotDeg": -12.0
+            },
+            "legRight": {
+              "rotDeg": 14.0
+            },
+            "cape": {
+              "rotDeg": 18.0
+            }
+          }
+        },
+        {
+          "t": 1.0,
+          "bones": {
+            "body": {
+              "rotDeg": 0.0
+            },
+            "head": {
+              "rotDeg": 0.0
+            },
+            "headgear": {
+              "rotDeg": 0.0
+            },
+            "armFront": {
+              "rotDeg": 0.0
+            },
+            "armBack": {
+              "rotDeg": 0.0
+            },
+            "legLeft": {
+              "rotDeg": 0.0
+            },
+            "legRight": {
+              "rotDeg": 0.0
+            },
+            "cape": {
+              "rotDeg": 0.0
+            }
+          }
+        }
+      ]
+    },
+    "mine": {
+      "duration": 0.3,
+      "loop": false,
+      "tracks": [
+        {
+          "t": 0.0,
+          "bones": {
+            "body": {
+              "rotDeg": -15.0,
+              "dy": -1.5
+            },
+            "head": {
+              "rotDeg": -8.0,
+              "dy": -1.4
+            },
+            "headgear": {
+              "rotDeg": -10.0,
+              "dy": -1.4
+            },
+            "armFront": {
+              "rotDeg": -112.0,
+              "dy": -1.2
+            },
+            "armBack": {
+              "rotDeg": -68.0,
+              "dy": -1.0
+            },
+            "cape": {
+              "rotDeg": -14.0
+            }
+          }
+        },
+        {
+          "t": 0.52,
+          "bones": {
+            "body": {
+              "rotDeg": 18.0,
+              "dx": 2.0,
+              "dy": 2.2
+            },
+            "head": {
+              "rotDeg": 10.0,
+              "dx": 1.6,
+              "dy": 2.0
+            },
+            "headgear": {
+              "rotDeg": 12.0,
+              "dx": 1.6,
+              "dy": 2.0
+            },
+            "armFront": {
+              "rotDeg": 52.0,
+              "dx": 1.5,
+              "dy": 1.6
+            },
+            "armBack": {
+              "rotDeg": 32.0,
+              "dx": 1.0,
+              "dy": 1.2
+            },
+            "legLeft": {
+              "rotDeg": -16.0
+            },
+            "legRight": {
+              "rotDeg": 16.0
+            },
+            "cape": {
+              "rotDeg": 20.0
+            }
+          }
+        },
+        {
+          "t": 1.0,
+          "bones": {
+            "body": {
+              "rotDeg": 0.0
+            },
+            "head": {
+              "rotDeg": 0.0
+            },
+            "headgear": {
+              "rotDeg": 0.0
+            },
+            "armFront": {
+              "rotDeg": 0.0
+            },
+            "armBack": {
+              "rotDeg": 0.0
+            },
+            "legLeft": {
+              "rotDeg": 0.0
+            },
+            "legRight": {
+              "rotDeg": 0.0
+            },
+            "cape": {
+              "rotDeg": 0.0
+            }
+          }
+        }
+      ]
+    }
+  }
+}
