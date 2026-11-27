@@ -22,6 +22,21 @@ internal static class StaminaTestConfig
     public const float TiredScale = 0.5f;
     public const float StarvingScale = 0.2f;
 
+    /// <summary>
+    /// Free swings, for tests of other systems that need an uninterrupted fight (ADR-033 would otherwise pause a
+    /// bare-handed level-1 fighter, and the monster would win).
+    /// </summary>
+    public static StaminaConfig CreateWithFreeSwings() => new()
+    {
+        SprintDrainPerSecond = SprintDrainPerSecond,
+        RegenDelaySeconds = RegenDelaySeconds,
+        RegenPerSecondStill = RegenStill,
+        RegenPerSecondMoving = RegenMoving,
+        ExhaustedRecoverFraction = ExhaustedRecoverFraction,
+        MinimumRegenScale = 0.1f,
+        SwingCosts = new() { BareHand = 0f, Melee = 0f, Tool = 0f, Ranged = 0f, Spell = 0f },
+    };
+
     public static StaminaConfig Create() => new()
     {
         SprintDrainPerSecond = SprintDrainPerSecond,
