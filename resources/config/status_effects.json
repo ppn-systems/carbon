@@ -33,6 +33,12 @@
     { "monster": "orc_warlord", "effect": "bleeding", "chance": 0.25 },
     { "monster": "orc_warlord", "effect": "stunned", "chance": 1, "minDamageFraction": 0.15 },
     { "monster": "crimson_demon", "effect": "bleeding", "chance": 0.3 },
-    { "monster": "crimson_demon", "effect": "burning", "chance": 0.25, "level": 2 }
+    { "monster": "crimson_demon", "effect": "burning", "chance": 0.25, "level": 2 },
+    { "monster": "shore_crab", "effect": "bleeding", "chance": 0.2 },
+    { "monster": "piranha_slime", "effect": "bleeding", "chance": 0.35 },
+    { "monster": "drift_jelly", "effect": "poisoned", "chance": 0.3 },
+    { "monster": "drift_jelly", "effect": "slowed", "chance": 0.2 },
+    { "monster": "abyss_eel", "effect": "stunned", "chance": 1, "minDamageFraction": 0.12 },
+    { "monster": "abyss_eel", "effect": "bleeding", "chance": 0.2 }
   ]
 }

@@ -186,8 +186,14 @@ function of `WorldGenSettings` and must never touch `GameplayEntropy`.
     chases a player up to the edge of its water and no further.
   - **Loot.** Four `water`-themed tables (`crab`, `piranha_slime`, `jelly`, `eel`) drop existing items, now also
     tagged `water`. They stay inside every gold, diamond, net and sink-share band of `economy.json`.
-  - **Combat.** Attacks are ordinary attack profiles, telegraphed by `EntityAttackPhase`. Every roll stays on the
-    `GameplayEntropy` path (ADR-026); nothing new is rolled.
+  - **Combat.** Attacks are ordinary attack profiles, telegraphed by `EntityAttackPhase`. Each creature has ADR-036
+    effect procs in `status_effects.json`:
+    - crab: bleeding 20 %;
+    - piranha slime: bleeding 35 %;
+    - jelly: poisoned 30 % and slowed 20 %;
+    - eel: stunned on a hit of at least 12 % of max HP, and bleeding 20 %.
+
+    Every roll stays on the `GameplayEntropy` path (ADR-026); nothing new is rolled.
   - **Art.** Vector rigs `shore_crab`, `piranha_slime`, `drift_jelly` and `abyss_eel` (`resources/art/monsters`).
     Names are in the existing `[monster]` locale section.
   - No new packets or opcodes.
