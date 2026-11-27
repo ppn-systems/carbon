@@ -1,5 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Maps.Building;
 
 namespace Carbon.Desktop.Rendering.World;
@@ -34,7 +35,7 @@ public static class BuildResultText
         BuildResultCode.MaterialsNotDelivered => "Waiting for materials",
         BuildResultCode.ToolTierTooLow => "Needs a better tool",
         BuildResultCode.InvalidArgument => "Invalid request",
-        BuildResultCode.ProtectedSettlement => "Village property",
+        BuildResultCode.ProtectedSettlement => GameText.Get("build.protected_settlement"),
         _ => "Cannot build here"
     };
 }

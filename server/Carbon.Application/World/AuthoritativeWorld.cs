@@ -36,10 +36,8 @@ using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Serialization;
 using Carbon.Items.Systems;
-using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Generators;
-using Carbon.Maps.Landmarks;
 using Carbon.Maps.Settlements;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS;
@@ -222,19 +220,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
                 this.GrantExperienceLocked(state, xp, out _);
                 this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
             });
-        _settlements = new SettlementNpcSpawner(
-            _simulation,
-            _chunkWorld,
-            _actorsByNetworkId,
-            () => ++_nextNetworkId,
-            this.TileSize,
-            this.TickRate,
-            DefaultEntityRadius,
-            PlayerLayer,
-            MonsterLayer,
-            NpcLayer,
-            new VillageMaterializer(_chunkWorld, VillageBuildingCatalog.Default, _construction.Catalog),
-            _dirtyChunks);
+        VillageMaterializer villages = new(_chunkWorld, VillageBuildingCatalog.Default, _construction.Catalog);
+        _settlements = new SettlementNpcSpawner(_simulation, _chunkWorld, _actorsByNetworkId, () => ++_nextNetworkId, this.TileSize, this.TickRate, DefaultEntityRadius, PlayerLayer, MonsterLayer, NpcLayer, villages, _dirtyChunks);
         _projectiles = new ProjectileService(_simulation, _chunkWorld, MonsterLayer, () => ++_nextNetworkId, new ProjectileHits(this));
 
         _needs = new NeedsService(
@@ -866,8 +853,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     // Developer-only overrides for the screenshot review tool: a forced spawn tile and a start hour. They come
     // from the host configuration (Debug builds only), never from a client packet.
 
-    private const int DebugBiomeSearchRadius = 4000;
-
     // Where every character enters the world while a debug spawn override is active.
     private Vector2? _debugSpawnPosition;
 
@@ -901,43 +886,10 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
         lock (_gate)
         {
-            (int X, int Y) spawn = _chunkWorld.SpawnTile;
-            if (overrides.SpawnTile is { } tile)
-            {
-                spawn = tile;
-            }
-            else if (overrides.SpawnBiome is { } biomeName)
-            {
-                if (!Enum.TryParse(biomeName, ignoreCase: true, out BiomeType biome) || !Enum.IsDefined(biome))
-                {
-                    throw new ArgumentException($"Unknown biome '{biomeName}'.", nameof(overrides));
-                }
-
-                if (!BiomeLocator.TryFind(_generator, biome, spawn.X, spawn.Y, DebugBiomeSearchRadius, out int bx, out int by))
-                {
-                    throw new ArgumentException($"No {biome} tile within {DebugBiomeSearchRadius} tiles of spawn.", nameof(overrides));
-                }
-
-                spawn = (bx, by);
-            }
-            else if (overrides.SpawnPoi is { } poiName)
-            {
-                if (!Enum.TryParse(poiName, ignoreCase: true, out PointOfInterestType poiType) || !Enum.IsDefined(poiType) ||
-                    poiType == PointOfInterestType.None)
-                {
-                    throw new ArgumentException($"Unknown point of interest type '{poiName}'.", nameof(overrides));
-                }
-
-                spawn = this.FindNearestPoiLocked(poiType, spawn)
-                    ?? throw new ArgumentException($"No {poiType} within {DebugPoiSearchSites} sites of spawn.", nameof(overrides));
-            }
-
-            spawn = (spawn.X + overrides.SpawnOffset.X, spawn.Y + overrides.SpawnOffset.Y);
-            bool movesSpawn = overrides.SpawnTile.HasValue || overrides.SpawnBiome is not null || overrides.SpawnPoi is not null ||
-                overrides.SpawnOffset != default;
+            (int spawnX, int spawnY) = DebugSpawnResolver.Resolve(_generator, _chunkWorld.SpawnTile, overrides, out bool movesSpawn);
             if (movesSpawn)
             {
-                _debugSpawnPosition = new Vector2((spawn.X + 0.5f) * this.TileSize, (spawn.Y + 0.5f) * this.TileSize);
+                _debugSpawnPosition = new Vector2((spawnX + 0.5f) * this.TileSize, (spawnY + 0.5f) * this.TileSize);
             }
 
             if (overrides.StartHour is float hour)
@@ -948,38 +900,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
                 _currentTick = (ulong)Math.Round(seconds * this.TickRate);
             }
 
-            string spawnText = movesSpawn ? $"{spawn.X},{spawn.Y}" : "default";
+            string spawnText = movesSpawn ? $"{spawnX},{spawnY}" : "default";
             string hourText = overrides.StartHour?.ToString("0.##", CultureInfo.InvariantCulture) ?? "default";
             return $"spawn={spawnText}, startHour={hourText}";
         }
-    }
-    private const int DebugPoiSearchSites = 12;
-
-    // Nearest point of interest of a type by site rings around the spawn; returns the tile three south of its centre.
-    private (int X, int Y)? FindNearestPoiLocked(PointOfInterestType type, (int X, int Y) from)
-    {
-        int sx0 = (int)MathF.Floor(from.X / (float)PointOfInterestResolver.SiteSize);
-        int sy0 = (int)MathF.Floor(from.Y / (float)PointOfInterestResolver.SiteSize);
-        for (int ring = 0; ring <= DebugPoiSearchSites; ring++)
-        {
-            for (int dy = -ring; dy <= ring; dy++)
-            {
-                for (int dx = -ring; dx <= ring; dx++)
-                {
-                    if (Math.Max(Math.Abs(dx), Math.Abs(dy)) != ring)
-                    {
-                        continue;
-                    }
-
-                    PointOfInterest poi = _generator.Landmarks.GetSite(sx0 + dx, sy0 + dy);
-                    if (poi.Type == type)
-                    {
-                        return (poi.TileX, poi.TileY + 3);
-                    }
-                }
-            }
-        }
-
-        return null;
     }
 }

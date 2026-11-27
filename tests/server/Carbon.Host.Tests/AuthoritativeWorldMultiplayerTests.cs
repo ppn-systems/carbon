@@ -1330,8 +1330,12 @@ public sealed class AuthoritativeWorldMultiplayerTests
             food.TryGetIndex("cooked_meat", out int cookedIndex).Should().BeTrue();
             float bonus = food.Get(cookedIndex).MoodOffset;
             bonus.Should().BeGreaterThan(0f);
-            sink.NeedsSyncs.Last(n => n.ConnectionId == 930UL).Needs.Mood.Should().BeApproximately(
-                needs.MoodBaseline + bonus, 0.01f, "a fed player who ate a cooked meal gets its mood bonus from food.json");
+            // Cooked meat keeps a small poisoning chance; the roll is seeded by entity and tick, so account for it
+            // rather than depend on which entity id the player happens to get.
+            PlayerNeedsSnapshot last = sink.NeedsSyncs.Last(n => n.ConnectionId == 930UL).Needs;
+            float poison = last.FoodPoisoned ? needs.PoisonMood : 0f;
+            last.Mood.Should().BeApproximately(
+                needs.MoodBaseline + bonus + poison, 0.01f, "a fed player who ate a cooked meal gets its mood bonus from food.json");
         }
         finally
         {
