@@ -132,16 +132,19 @@ internal sealed class RiverNetwork : IRiverDistanceSource
                     continue;
                 }
 
-                int bx = rx;
-                int by = ry;
-                Lazy<RegionData> lazy = this.GetOrRegisterRegionLazy(key, bx, by);
+                Lazy<RegionData> lazy = this.GetOrRegisterRegionLazy(key, rx, ry);
                 if (!lazy.IsValueCreated)
                 {
-                    _ = Task.Run(() => _ = lazy.Value);
+                    StartBuild(lazy);
                 }
             }
         }
     }
+
+    // Kept out of Prewarm: a lambda capturing a loop local makes the compiler allocate its closure at the top of every
+    // loop iteration, including the common already-cached case. Here it is allocated only when a build actually starts.
+    private static void StartBuild(Lazy<RegionData> lazy) =>
+        _ = Task.Run(() => _ = lazy.Value);
 
     private RegionData GetRegion(int rx, int ry)
     {

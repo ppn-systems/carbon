@@ -2,6 +2,7 @@
 
 using System;
 using System.Buffers.Binary;
+using System.Collections.Generic;
 using Carbon.Contracts.Entities;
 using Carbon.Items.Catalog;
 
@@ -30,17 +31,24 @@ public static class CharacterProgressionBinaryCodec
             }
         }
 
-        System.Collections.Generic.List<(ushort SkillId, byte Rank)> skills = [];
-        state.CopyLearnedSkills(skills);
+        // Same filter and order as CharacterProgressionState.CopyLearnedSkills, without the intermediate list.
+        int skillCount = 0;
+        foreach (KeyValuePair<ushort, byte> kvp in state.SkillRanks)
+        {
+            if (kvp.Value > 0)
+            {
+                skillCount++;
+            }
+        }
 
-        int totalBytes = HeaderBytes + (attrCount * 3) + (skills.Count * 3);
+        int totalBytes = HeaderBytes + (attrCount * 3) + (skillCount * 3);
         byte[] buffer = new byte[totalBytes];
         Span<byte> span = buffer;
 
         span[0] = FormatVersion;
         BinaryPrimitives.WriteUInt64LittleEndian(span.Slice(1, 8), (ulong)state.UnlockedSkillMask);
         span[9] = (byte)attrCount;
-        BinaryPrimitives.WriteUInt16LittleEndian(span.Slice(10, 2), (ushort)skills.Count);
+        BinaryPrimitives.WriteUInt16LittleEndian(span.Slice(10, 2), (ushort)skillCount);
 
         int offset = HeaderBytes;
         for (int i = 0; i < CharacterProgressionState.MaxAttributeSlots; i++)
@@ -56,15 +64,41 @@ public static class CharacterProgressionBinaryCodec
             offset += 3;
         }
 
-        for (int i = 0; i < skills.Count; i++)
+        foreach (KeyValuePair<ushort, byte> kvp in state.SkillRanks)
         {
-            (ushort skillId, byte rank) = skills[i];
-            BinaryPrimitives.WriteUInt16LittleEndian(span.Slice(offset, 2), skillId);
-            span[offset + 2] = rank;
+            if (kvp.Value == 0)
+            {
+                continue;
+            }
+
+            BinaryPrimitives.WriteUInt16LittleEndian(span.Slice(offset, 2), kvp.Key);
+            span[offset + 2] = kvp.Value;
             offset += 3;
         }
 
         return buffer;
+    }
+
+    /// <summary>
+    /// Returns the serialized payload of <paramref name="state"/>, reusing the array built for the previous call while
+    /// <see cref="CharacterProgressionState.Revision"/> is unchanged. For the periodic stats sync, which would otherwise
+    /// re-serialize an unchanged state for every player every few ticks.
+    /// </summary>
+    /// <remarks>The returned array is shared between calls: treat it as read-only. Use <see cref="Serialize"/> for a private copy.</remarks>
+    public static byte[] GetOrSerializeShared(CharacterProgressionState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+
+        byte[]? cached = state.CachedBlob;
+        if (cached is not null && state.CachedBlobRevision == state.Revision)
+        {
+            return cached;
+        }
+
+        byte[] blob = Serialize(state);
+        state.CachedBlob = blob;
+        state.CachedBlobRevision = state.Revision;
+        return blob;
     }
 
     /// <summary>
