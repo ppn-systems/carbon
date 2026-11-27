@@ -874,13 +874,13 @@ public sealed class WorldGameplayScene : GameScene
 
         // The title is rebuilt (and sent to the OS) only when something it shows changes, not every frame
         // (audit round 2, PERF-6).
-        WindowTitleKey titleKey = new(_session.TransportLabel, _session.ActiveCharacterName, biomeDisplayName, currentTile.HeightLevel, walkability, currentRamp, roofed, _session.RemoteEntities.Count);
+        WindowTitleKey titleKey = new(_session.ConnectionLabel, _session.ActiveCharacterName, biomeDisplayName, currentTile.HeightLevel, walkability, currentRamp, roofed, _session.RemoteEntities.Count);
         if (titleKey != _lastTitleKey)
         {
             _lastTitleKey = titleKey;
             string rampText = currentRamp != RampDirection.None ? $" [Ramp: {currentRamp}]" : string.Empty;
             string roofText = roofed ? " [Roofed Room]" : string.Empty;
-            window.Title = $"Carbon MMORPG ({_session.TransportLabel}) | {_session.ActiveCharacterName} | Biome: {biomeDisplayName} | Alt: Lvl {currentTile.HeightLevel} | Nav: {walkability}{rampText}{roofText} | Peers: {_session.RemoteEntities.Count}";
+            window.Title = $"Carbon MMORPG ({_session.ConnectionLabel}) | {_session.ActiveCharacterName} | Biome: {biomeDisplayName} | Alt: Lvl {currentTile.HeightLevel} | Nav: {walkability}{rampText}{roofText} | Peers: {_session.RemoteEntities.Count}";
         }
 
         int chunkX = Chunk2D.ToChunkCoord(ptx);

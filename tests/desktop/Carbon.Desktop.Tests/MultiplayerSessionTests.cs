@@ -179,7 +179,7 @@ public sealed class MultiplayerSessionTests
                 enteredA.Should().BeTrue();
                 clientA.IsReady.Should().BeTrue();
                 clientA.IsUdpActive.Should().BeTrue("DatagramSession should establish Authenticated UDP over NDP");
-                clientA.TransportLabel.Should().Be("TCP+UDP");
+                clientA.ConnectionLabel.Should().Be("ONLINE");
                 clientA.ActiveCharacterName.Should().Be("HeroA");
                 clientA.LocalPlayerAppearancePreset.Should().Be(1);
                 clientA.LocalPlayerLevel.Should().BeGreaterThanOrEqualTo(1);
@@ -353,13 +353,13 @@ public sealed class MultiplayerSessionTests
                 }
 
                 clientA.IsUdpActive.Should().BeTrue("UDP offline state must automatically reconnect without manual login");
-                clientA.TransportLabel.Should().Be("TCP+UDP");
+                clientA.ConnectionLabel.Should().Be("ONLINE");
 
                 // 5.6 Drop ALL transports (OFFLINE) and verify Update() automatically reconnects TCP, re-authenticates, re-enters world, and restores UDP.
                 await clientA.DropAllTransportsForTestingAsync().ConfigureAwait(true);
                 clientA.IsConnected.Should().BeFalse();
                 clientA.IsUdpActive.Should().BeFalse();
-                clientA.TransportLabel.Should().Be("OFFLINE");
+                clientA.ConnectionLabel.Should().Be("OFFLINE");
                 clientA.IsReady.Should().BeTrue("local world simulation stays alive while reconnecting");
 
                 for (int i = 0; i < 80 && (!clientA.IsConnected || !clientA.IsAuthenticated || !clientA.IsUdpActive); i++)
@@ -372,7 +372,7 @@ public sealed class MultiplayerSessionTests
                 clientA.IsConnected.Should().BeTrue("OFFLINE state must automatically reconnect TCP");
                 clientA.IsAuthenticated.Should().BeTrue("reconnect must re-authenticate session");
                 clientA.IsUdpActive.Should().BeTrue("reconnect must restore authenticated UDP");
-                clientA.TransportLabel.Should().Be("TCP+UDP");
+                clientA.ConnectionLabel.Should().Be("ONLINE");
 
                 // 6. Logout disconnects UDP cleanly and allows subsequent re-login.
                 await clientA.LogoutAsync().ConfigureAwait(true);

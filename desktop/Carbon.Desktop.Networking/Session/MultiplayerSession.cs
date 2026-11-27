@@ -574,10 +574,10 @@ public sealed partial class MultiplayerSession : IWorldSession
     public byte LocalPlayerAppearancePreset => _localAppearancePreset;
 
     /// <inheritdoc/>
-    public string TransportLabel =>
+    public string ConnectionLabel =>
         !this.IsConnected
             ? (Volatile.Read(ref _tcpReconnectInFlight) != 0 ? GameText.Get("net.status_reconnecting") : GameText.Get("net.status_offline"))
-            : (this.IsUdpActive ? "TCP+UDP" : "TCP");
+            : GameText.Get("net.status_online");
 
     /// <inheritdoc/>
     public ulong WorldSeed => _worldSeed;

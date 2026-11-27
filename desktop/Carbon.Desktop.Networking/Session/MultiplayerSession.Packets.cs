@@ -377,7 +377,7 @@ public sealed partial class MultiplayerSession
                 _wasTcpConnectedLastFrame = true;
                 lock (_worldGate)
                 {
-                    _hudNotifications.Add(this.IsUdpActive ? GameText.Get("net.reconnected_tcp_udp") : GameText.Get("net.reconnected_tcp"));
+                    _hudNotifications.Add(GameText.Get("net.reconnected"));
                 }
             }
         }

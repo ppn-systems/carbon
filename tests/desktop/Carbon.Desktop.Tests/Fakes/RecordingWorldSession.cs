@@ -113,7 +113,7 @@ internal sealed class RecordingWorldSession : IWorldSession
     // ---- Everything below is outside inventory input and deliberately unsupported. ----
     public bool IsConnected => Unused<bool>();
     public bool IsUdpActive => Unused<bool>();
-    public string TransportLabel => Unused<string>();
+    public string ConnectionLabel => Unused<string>();
     public string ActiveCharacterName => Unused<string>();
     public byte LocalPlayerAppearancePreset => Unused<byte>();
     public bool IsAuthenticated => Unused<bool>();
