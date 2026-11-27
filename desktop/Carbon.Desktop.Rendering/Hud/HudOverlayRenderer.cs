@@ -39,6 +39,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     private readonly MinimapRadarWidget _minimap = new();
     private readonly HotbarAndItemWidget _hotbar = new();
     private readonly WalletWidget _wallet = new();
+    private readonly DeathScreenWidget _deathScreen = new();
     private readonly SkillBarWidget _skillBar = new();
     private readonly InventoryModalWidget _bagModal = new();
     private readonly CharacterSheetModalWidget _characterModal = new();
@@ -92,6 +93,16 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
 
     /// <summary>Gets or sets whether the blacksmith's trade window is in repair mode (bag clicks repair instead of sell).</summary>
     public bool TradeRepairMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets a death shown instead of the session's (screenshot preview only, <c>CARBON_UI_PREVIEW=death</c>).
+    /// Visual only: nothing is sent to the server.
+    /// </summary>
+    public DeathView? DeathPreview { get; set; }
+
+    /// <summary>Returns the death screen's Respawn button rectangle (ADR-031).</summary>
+    public static RectangleF GetRespawnButtonRect(int viewportWidth, int viewportHeight) =>
+        DeathScreenWidget.GetRespawnButtonRect(viewportWidth, viewportHeight);
 
     /// <summary>Gets or sets whether the System Settings &amp; Controls modal is open.</summary>
     public bool ShowSettingsModal { get; set; }
@@ -593,6 +604,27 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
 
             spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
             _forgeModal.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight);
+            spriteBatch.End();
+        }
+
+        // The death screen covers everything else while the player is dead (ADR-031).
+        if ((this.DeathPreview ?? world.LocalDeath) is DeathView death)
+        {
+            bool pending = this.DeathPreview is null && world.IsRespawnPending;
+            _geometryBatch.Begin(screenProj);
+            DeathScreenWidget.DrawVeil(_geometryBatch, viewportWidth, viewportHeight);
+            _geometryBatch.End();
+
+            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
+            DeathScreenWidget.DrawSkin(spriteBatch, _uiSkin, pending, viewportWidth, viewportHeight, mouseScreenPos);
+            spriteBatch.End();
+
+            _geometryBatch.Begin(screenProj);
+            DeathScreenWidget.DrawGeometry(_geometryBatch, _art, in death, viewportWidth, viewportHeight);
+            _geometryBatch.End();
+
+            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
+            _deathScreen.DrawText(spriteBatch, _font, in death, pending, viewportWidth, viewportHeight);
             spriteBatch.End();
         }
     }

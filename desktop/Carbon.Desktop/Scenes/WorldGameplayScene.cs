@@ -175,6 +175,19 @@ public sealed class WorldGameplayScene : GameScene
         DesktopInputFrame input = _screenshotAids.PinMouse(DesktopInputController.Poll(context.Input));
         _mouseScreenPosition = _screenshotAids.Apply(_hudRenderer, _session, context.WindowWidth, context.WindowHeight) ?? input.MouseScreenPosition;
         _mouseWorldPosition = _camera.ScreenToWorld(in _mouseScreenPosition);
+        _worldRenderer.PreviewDowned = _hudRenderer.DeathPreview is not null;
+
+        if (DeathScreenInput.Handle(_session, input.ConfirmPressed, input.LeftClickPressed, input.MouseScreenPosition, context.WindowWidth, context.WindowHeight))
+        {
+            if (_hudRenderer.HasActiveModal)
+            {
+                _hudRenderer.CloseAllModals();
+                _inventoryInput.ResetDragState();
+            }
+
+            _session.Update(dt, Vector2.Zero, sprint: false);
+            return;
+        }
 
         if (input.EscapePressed)
         {

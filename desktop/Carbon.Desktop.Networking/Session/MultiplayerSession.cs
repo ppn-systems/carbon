@@ -58,6 +58,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     private readonly List<string> _hudNotifications = new(16);
     private readonly MapMutationApplier _mapMutations;
     private readonly TraderSession _trading;
+    private readonly DeathSession _death;
     private readonly CharacterProgressionState _progression = new();
     private readonly Dictionary<ushort, float> _skillCooldowns = new(8);
     private readonly List<ushort> _cooldownKeyScratch = new(8);
@@ -175,6 +176,7 @@ public sealed partial class MultiplayerSession : IWorldSession
         _entityNames = new EntityNameKeys(_items);
         _mapMutations = new MapMutationApplier(_dirtyChunks, _propImpactEvents, _combatEvents, _hudNotifications);
         _trading = new TraderSession(() => this.IsReady ? _tcpSession : null, text => { lock (_worldGate) { _hudNotifications.Add(text); } });
+        _death = new DeathSession(this.SendRespawnRequestAsync, id => _entityNames.Resolve(EntityKind.Monster, id, LootCurrency.None, null));
     }
 
     /// <inheritdoc/>
@@ -792,6 +794,7 @@ public sealed partial class MultiplayerSession : IWorldSession
 
     private void ClearWorldState()
     {
+        _death.Reset();
         lock (_worldGate)
         {
             _remoteEntities.Clear();

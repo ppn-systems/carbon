@@ -167,6 +167,15 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile
     /// </summary>
     float? AuthoritativeTimeHour => null;
 
+    /// <summary>
+    /// Gets the local player's death while they are dead and waiting to respawn (ADR-031), or <see langword="null"/>
+    /// while alive.
+    /// </summary>
+    DeathView? LocalDeath => null;
+
+    /// <summary>Gets whether a respawn request was sent and the server has not answered it yet.</summary>
+    bool IsRespawnPending => false;
+
     /// <summary>Gets the network ID of the currently tab/click-locked hostile target (<c>0</c> if none).</summary>
     ulong LockedTargetNetworkId { get; }
 
