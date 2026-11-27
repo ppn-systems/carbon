@@ -115,7 +115,7 @@ internal sealed class RegisterScene : MenuScene
         bool busy = _pendingRegister is not null;
         bool leftDown = mouse.IsButtonDown(MouseButton.Left);
         bool leftPressed = mouse.IsButtonPressed(MouseButton.Left);
-        Vector2 mousePos = mouse.Position;
+        Vector2 mousePos = this.PointerPosition(in mouse);
 
         if (kb.IsKeyPressed(Key.Escape) && !busy)
         {

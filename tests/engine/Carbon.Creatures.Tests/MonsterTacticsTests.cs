@@ -5,10 +5,12 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
 using Carbon.AI.Components;
+using Carbon.AI.Navigation;
 using Carbon.AI.Systems;
 using Carbon.AI.Threat;
 using Carbon.Combat.Attacks;
 using Carbon.Combat.Projectiles;
+using Carbon.Combat.Stats;
 using Carbon.Creatures.Definitions;
 using Carbon.Creatures.Scaling;
 using Carbon.Creatures.Spawning;
@@ -572,6 +574,83 @@ public sealed class MonsterTacticsTests(ITestOutputHelper output)
         public byte GetHeightLevel(int worldTileX, int worldTileY) => 0;
 
         public bool CanTraverse(int fromX, int fromY, int toX, int toY) => this.IsWalkable(toX, toY);
+    }
+
+    [Fact]
+    public void Respawn_PathingGolemIntoTheSameSlot_ReusesItsAttachmentsAndAllocatesNothing()
+    {
+        // ADR-044: a despawned monster's StatSheet, ThreatTable and PathWaypointBuffer go to the next monster, reset.
+        TacticsArena arena = new(withWalls: true);
+        for (int y = 4; y <= 14; y++)
+        {
+            arena.Grid!.SetSolid(10, y, true);
+        }
+
+        Entity player = arena.SpawnPlayer(TacticsArena.TileCenter(13, 9), health: 1e6f);
+        List<(Entity Golem, StatSheet Sheet, ThreatTable Threat, PathWaypointBuffer Path)> lives = [];
+        for (int life = 0; life < 4; life++)
+        {
+            lives.Add(LivePathingLife(arena, player));
+        }
+
+        lives.Should().OnlyContain(l => l.Golem.Id == lives[0].Golem.Id, "every life respawns into the freed slot");
+        for (int i = 1; i < lives.Count; i++)
+        {
+            lives[i].Sheet.Should().BeSameAs(lives[i - 1].Sheet, "the released sheet is reused");
+            lives[i].Threat.Should().BeSameAs(lives[i - 1].Threat);
+            lives[i].Path.Should().BeSameAs(lives[i - 1].Path);
+        }
+
+        AllocationResult window = AllocationProbe.Measure(1, warmupIterations: 2, i => _ = LivePathingLife(arena, player));
+        window.Bytes.Should().Be(0, $"a pathing monster's respawn allocates nothing ({window})");
+        window.RepeatBytes.Should().Be(0, $"and the released instances do not grow from life to life ({window})");
+        arena.World.Entities.GetAttachmentStore<StatSheet>().ReleasedCount.Should().Be(1, "one golem at a time keeps one sheet");
+        arena.World.Entities.GetAttachmentStore<PathWaypointBuffer>().ReleasedCount.Should().Be(1);
+    }
+
+    [Fact]
+    public void Respawn_IntoTheSameSlot_TheOldHandleCannotReachTheNewLife()
+    {
+        // ADR-044: holders keep an Entity handle, never the attachment (AttachmentReuseGuardTests). The handle of a despawned
+        // monster fails the generation check, so it cannot observe the reset attachments of the monster now in its slot.
+        TacticsArena arena = new(withWalls: true);
+        Entity player = arena.SpawnPlayer(TacticsArena.TileCenter(13, 9), health: 1e6f);
+        Entity first = arena.SpawnMonster("rock_golem", TacticsArena.TileCenter(7, 9));
+        arena.Threat(first).AddThreat(player, 50f);
+        arena.World.DespawnEntity(first);
+
+        Entity second = arena.SpawnMonster("rock_golem", TacticsArena.TileCenter(7, 9));
+        arena.Threat(second).AddThreat(player, 75f);
+
+        second.Id.Should().Be(first.Id, "the new life reuses the freed slot");
+        EntityManager entities = arena.World.Entities;
+        entities.GetAttachmentStore<StatSheet>().TryGet(first, out _).Should().BeFalse("a stale handle reaches no sheet");
+        entities.GetAttachmentStore<ThreatTable>().TryGet(first, out _).Should().BeFalse("a stale handle reaches no threat table");
+        entities.GetAttachmentStore<ThreatTable>().TryGet(second, out ThreatTable? threat).Should().BeTrue();
+        threat!.GetThreat(player).Should().Be(75f, "the reused table starts empty, without the previous life's threat");
+    }
+
+    /// <summary>Spawns a golem behind the wall, lets it path towards the player, and despawns it (one monster life).</summary>
+    private static (Entity Golem, StatSheet Sheet, ThreatTable Threat, PathWaypointBuffer Path) LivePathingLife(TacticsArena arena, Entity player)
+    {
+        Entity golem = arena.SpawnMonster("rock_golem", TacticsArena.TileCenter(7, 9));
+        ThreatTable threat = arena.Threat(golem);
+        threat.AddThreat(player, 50f);
+        for (int t = 0; t < 30; t++)
+        {
+            arena.StepTick();
+        }
+
+        EntityManager entities = arena.World.Entities;
+        if (!entities.GetAttachmentStore<StatSheet>().TryGet(golem, out StatSheet? sheet) ||
+            !entities.GetAttachmentStore<PathWaypointBuffer>().TryGet(golem, out PathWaypointBuffer? path))
+        {
+            throw new InvalidOperationException("the golem should have a stat sheet and a path around the wall");
+        }
+
+        arena.World.DespawnEntity(golem);
+        arena.StepTick();
+        return (golem, sheet, threat, path);
     }
 
     private sealed class TacticsArena

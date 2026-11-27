@@ -60,12 +60,12 @@ public static class MonsterFactory
         entities.SetVelocity(monster, new Velocity2D(Vector2.Zero));
         entities.SetHealth(monster, new HealthComponent(stats.MaxHealth, stats.MaxHealth));
 
-        StatSheet sheet = new();
+        // ADR-044: reuses a sheet released by a despawned monster before creating one.
+        StatSheet sheet = entities.GetAttachmentStore<StatSheet>().GetOrAdd(monster, static () => new StatSheet());
         sheet.SetBase(StatType.MaxHealth, stats.MaxHealth);
         sheet.SetBase(StatType.MoveSpeed, stats.MoveSpeed);
         sheet.SetBase(StatType.AttackPower, stats.Damage);
         sheet.SetBase(StatType.Defense, stats.Armor);
-        entities.GetAttachmentStore<StatSheet>().Set(monster, sheet);
 
         entities.SetComponent(monster, new AiBrainComponent(
             def.PatrolRadius > 0f ? AiState.Patrol : AiState.Idle,

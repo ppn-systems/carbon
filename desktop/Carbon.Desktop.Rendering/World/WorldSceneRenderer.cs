@@ -225,15 +225,7 @@ public sealed class WorldSceneRenderer : IDisposable
         this.EnsureGpuResources();
         this.EnsureWorldBound(world);
         _animTime += frameDt;
-        if (world.AuthoritativeTimeHour is float authHour)
-        {
-            _atmosphere.SyncToHour(authHour);
-            _atmosphere.Update(0f);
-        }
-        else
-        {
-            _atmosphere.Update(frameDt * timeScale);
-        }
+        AdvanceAtmosphere(_atmosphere, world.AuthoritativeTimeHour, frameDt, timeScale);
         _lights.Clear();
 
         _feedback.Update(world, frameDt, _animTime, aimedWorldPosition);
@@ -387,10 +379,16 @@ public sealed class WorldSceneRenderer : IDisposable
         {
             ref readonly CanopyRenderItem canopyItem = ref canopySpan[i];
             MapProp tree = canopyItem.Prop;
-            float gust = 0.6f + (0.4f * MathF.Sin(_animTime * 0.35f));
-            float sway = MathF.Sin((_animTime * 1.25f) + (tree.WorldPositionX * 0.013f) + (tree.WorldPositionY * 0.007f)) * 1.8f * gust * tree.Scale;
+            float sway = WindField.Sway(_animTime, tree.WorldPosition, _atmosphere.Rain, tree.Scale);
             byte alpha = tree.IsUnderCanopy(playerPos) ? (byte)90 : (byte)255;
             VectorPropRenderer.DrawCanopy(_geometryBatch, in tree, _art, alpha, sway + canopyItem.ShakeX, canopyItem.DamageTilt);
+            if (alpha == 255)
+            {
+                // Leaves leave the canopy centre and land on the ground about 12 units below the prop origin.
+                Vector2 canopy = tree.WorldPosition + new Vector2(sway, tree.CanopyOffsetY);
+                uint seed = ((uint)(int)tree.WorldPositionX * 73856093u) ^ ((uint)(int)tree.WorldPositionY * 19349663u);
+                FallingLeaves.Draw(_geometryBatch, in tree, seed, canopy, (12f * tree.Scale) - tree.CanopyOffsetY, _animTime, _atmosphere.Rain);
+            }
         }
 
         for (int i = 0; i < _visibleWorldTrees.Count; i++)
@@ -662,6 +660,29 @@ public sealed class WorldSceneRenderer : IDisposable
 
         drawn.Add((poi.TileX, poi.TileY));
         return true;
+    }
+
+    /// <summary>
+    /// One frame of the atmosphere clocks. Offline the local day cycle runs at <paramref name="timeScale"/>. Online the
+    /// server owns the hour (and the weather clock stays put, as before), but the animation clock still advances by
+    /// real frame time, so rain falls, clouds drift and fireflies move.
+    /// </summary>
+    /// <param name="atmosphere">The atmosphere.</param>
+    /// <param name="authoritativeHour">The server's hour, or <see langword="null"/> offline.</param>
+    /// <param name="frameDt">Frame time in seconds.</param>
+    /// <param name="timeScale">Offline day-cycle speed.</param>
+    internal static void AdvanceAtmosphere(Atmosphere atmosphere, float? authoritativeHour, float frameDt, float timeScale)
+    {
+        if (authoritativeHour is float hour)
+        {
+            atmosphere.SyncToHour(hour);
+            atmosphere.Update(0f);
+            atmosphere.Animate(frameDt);
+        }
+        else
+        {
+            atmosphere.Update(frameDt * timeScale);
+        }
     }
 
     private void CollectActors(IWorldReadModel world, float minX, float maxX, float minY, float maxY)
