@@ -41,9 +41,10 @@ public interface IWorldInventoryService
 
     /// <summary>
     /// Queues enhancing the weapon, tool or armor piece in <paramref name="slotIndex"/> (<c>+0..+10</c>); completes after
-    /// the next tick (ADR-017).
+    /// the next tick (ADR-017), spending the protection scroll <paramref name="protectionItemId"/> when non-zero. On
+    /// <see cref="Carbon.Contracts.Common.OpStatus.Ok"/> the revision is a packed <see cref="ForgeEnhancementReceipt"/> (ADR-024).
     /// </summary>
-    ValueTask<WorldMutationOutcome> SubmitUpgradeInventoryItemAsync(ulong connectionId, ushort slotIndex);
+    ValueTask<WorldMutationOutcome> SubmitUpgradeInventoryItemAsync(ulong connectionId, ushort slotIndex, ushort protectionItemId = 0);
 
     /// <summary>
     /// Queues dropping items from <paramref name="slotIndex"/> onto the ground as loot; completes after the next tick

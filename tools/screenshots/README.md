@@ -41,6 +41,7 @@ Requirements: the .NET SDK (`$HOME/.dotnet` is added to `PATH`), `xvfb-run`, GLF
 | `CARBON_DEBUG_SPAWN_POI=<PointOfInterestType>` | Every character enters just south of the well of the nearest point of interest of that type (e.g. `DesertVillage`; searched 12 sites out). Combine with `CARBON_WORLD_SEED` in the server env (and `CARBON_SEED` in the client env) for a seed that has one. |
 | `CARBON_DEBUG_SPAWN_OFFSET=dx,dy` | Offset in tiles added to the resolved spawn (e.g. far from the starter area). |
 | `CARBON_DEBUG_START_HOUR=h` | The world clock starts at hour `h` (0..24); clients follow the server clock. |
+| `CARBON_DEBUG_FORGE_KIT=1` | New characters start with a +8 iron sword, enhancement materials, protection scrolls and 50,000 gold (forge review). |
 
 These overrides are compiled into Debug builds of the host only (`HostRuntimeOptions.ReadDebugOverrides`);
 Release builds ignore the variables, and nothing is ever taken from a client. The host logs a warning when
@@ -54,6 +55,8 @@ they are active.
 | `CARBON_MACRO_VIEW=1` | Zoomed-out overview. |
 | `CARBON_AUTO_WALK=x,y` | Walk in a constant direction (actors in motion, wakes). |
 | `CARBON_CAPTURE_FRAMES=n` | Also capture `n` consecutive frames after the main capture. |
+| `CARBON_CAPTURE_MODAL=settings\|controls` | Open the Settings window (Display or Controls tab) before the capture, to review localized UI. |
+| `CARBON_FORGE_PREVIEW=<kind>[:s]` | Open the forge window and play one enhancement effect (`charge`, `success`, `nochange`, `downgrade`, `destroyed`), frozen at `s` seconds when given. Visual only: nothing is sent, the server alone rolls outcomes. The `forge_*` scenarios use it. |
 
 `--lang <code>` (or `CARBON_LANG`) sets the client language for every scenario; the code must have a file in
 `resources/localization/` (`<code>.ini`, ADR-023). Capture `en` and `vi` into separate output directories to compare them.

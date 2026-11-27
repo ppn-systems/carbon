@@ -176,6 +176,15 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile
     /// <summary>Gets whether the most recent forge enhancement attempt succeeded.</summary>
     bool LastForgeSucceeded { get; }
 
+    /// <summary>Gets the server-rolled outcome of the most recent forge attempt (ADR-024).</summary>
+    EnhancementOutcome LastForgeOutcome => EnhancementOutcome.None;
+
+    /// <summary>Gets the item level after the most recent forge attempt (<c>0</c> when destroyed).</summary>
+    byte LastForgeNewLevel => 0;
+
+    /// <summary>Gets a counter that increases with every forge result, so the UI can start one outcome effect per result.</summary>
+    uint ForgeResultSerial => 0U;
+
     /// <summary>Copies the player's inventory slots into <paramref name="destination"/> under session synchronization.</summary>
     void CopyInventorySlots(Span<ItemSlot> destination);
 

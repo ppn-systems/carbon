@@ -27,7 +27,7 @@ internal interface IWorldCommandHandlers
 
     OpStatus TryMoveInventorySlot(ulong connectionId, ushort fromSlot, ushort toSlot, ushort expectedItemId);
 
-    OpStatus TryUpgradeInventoryItem(ulong connectionId, ushort slotIndex);
+    WorldMutationOutcome TryEnhanceInventoryItem(ulong connectionId, ushort slotIndex, ushort protectionItemId, uint deterministicRollSeed = 0U);
 
     OpStatus TryDropInventoryItem(ulong connectionId, ushort slotIndex, int quantity, ushort expectedItemId);
 
@@ -81,7 +81,7 @@ internal sealed class WorldCommandExecutor
         WorldCommandKind.SelectHotbarSlot => new(_handlers.TrySelectHotbarSlot(command.ConnectionId, (byte)command.Arg0), 0),
         WorldCommandKind.CraftRecipe => new(_handlers.TryCraftRecipe(command.ConnectionId, command.Arg0, command.Arg1), 0),
         WorldCommandKind.MoveInventorySlot => new(_handlers.TryMoveInventorySlot(command.ConnectionId, command.Arg0, command.Arg1, command.Arg3), 0),
-        WorldCommandKind.UpgradeInventoryItem => new(_handlers.TryUpgradeInventoryItem(command.ConnectionId, command.Arg0), 0),
+        WorldCommandKind.UpgradeInventoryItem => _handlers.TryEnhanceInventoryItem(command.ConnectionId, command.Arg0, command.Arg1),
         WorldCommandKind.DropInventoryItem => new(_handlers.TryDropInventoryItem(command.ConnectionId, command.Arg0, command.Arg2, command.Arg3), 0),
         WorldCommandKind.SplitInventorySlot => new(
             _handlers.TrySplitInventorySlot(command.ConnectionId, command.Arg0, command.Arg1, (ushort)Math.Clamp(command.Arg2, 0, ushort.MaxValue), command.Arg3),

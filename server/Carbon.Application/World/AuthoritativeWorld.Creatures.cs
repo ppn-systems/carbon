@@ -16,6 +16,7 @@ using Carbon.Creatures.Definitions;
 using Carbon.Creatures.Events;
 using Carbon.Creatures.Spawning;
 using Carbon.Items.Catalog;
+using Carbon.Items.Progression;
 using Carbon.Maps.Data;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS;
@@ -97,7 +98,7 @@ public sealed partial class AuthoritativeWorld
                 chunkKey,
                 legacyDrop.DropItemId,
                 legacyDrop.DropMinQuantity,
-                ComputeExperienceReward(hp.Max, evt.Level, evt.IsElite, evt.IsNight),
+                _progressionService.Config.ComputeBaseKillExperience(hp.Max, evt.Level, evt.IsElite, evt.IsNight),
                 brain.AttackRange,
                 LootTableId: def.LootTableId);
         }
@@ -105,17 +106,10 @@ public sealed partial class AuthoritativeWorld
         _simulation.ClearEvents<MonsterSpawnedEvent>();
     }
 
-    /// <summary>
-    /// Kill XP from the scaled (data-driven) monster: <c>clamp(0.45 * maxHp + 4 * level, 25, 650)</c>, x2 for elites,
-    /// x1.35 at night (the formula previously applied by <c>WorldActorCatalog.ScaleMonster</c>).
-    /// </summary>
-    private static uint ComputeExperienceReward(float maxHealth, int level, bool isElite, bool isNight)
-    {
-        float xp = Math.Clamp((maxHealth * 0.45f) + (level * 4f), 25f, 650f);
-        xp *= isElite ? 2f : 1f;
-        xp *= isNight ? 1.35f : 1f;
-        return (uint)MathF.Round(xp);
-    }
+    private DamageKind ResolveMonsterDamageKindLocked(ulong attackerNetworkId, AttackKind kind) =>
+        _actorsByNetworkId.TryGetValue(attackerNetworkId, out NpcActorMeta meta)
+            ? _progressionService.ResolveMonsterDamageKind(meta.ArchetypeId, kind)
+            : DamageKind.Physical;
 
     private void QueueAttackPhasesLocked()
     {
@@ -176,13 +170,15 @@ public sealed partial class AuthoritativeWorld
             _ = _players.ByConnection.TryGetValue(victimConn, out victimState);
         }
 
+        AttackKind kind = _simulation.Entities.TryGetComponent(attacker, out AttackStateComponent attack) ? attack.Kind : AttackKind.Melee;
         this.ApplyDamageToPlayerLocked(
             victimState,
             attackerNet.NetworkId,
             victim,
             victimNet.NetworkId,
             _simulation.Entities.GetTransform(victim).Position,
-            damage);
+            damage,
+            this.ResolveMonsterDamageKindLocked(attackerNet.NetworkId, kind));
         return true;
     }
 

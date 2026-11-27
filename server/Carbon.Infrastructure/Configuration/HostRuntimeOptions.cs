@@ -152,6 +152,7 @@ public sealed class HostRuntimeOptions
             SpawnPoi = readEnv("CARBON_DEBUG_SPAWN_POI") is { Length: > 0 } poi ? poi.Trim() : null,
             SpawnOffset = TryParsePair(readEnv("CARBON_DEBUG_SPAWN_OFFSET")) ?? default,
             StartHour = startHour,
+            ForgeKit = string.Equals(readEnv("CARBON_DEBUG_FORGE_KIT"), "1", StringComparison.Ordinal),
         };
 #else
         return new WorldDebugOverrides();

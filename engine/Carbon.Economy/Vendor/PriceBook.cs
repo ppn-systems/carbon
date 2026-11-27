@@ -89,13 +89,15 @@ public sealed class PriceBook
             return 0;
         }
 
-        float missing = Math.Clamp(item.MaxDurability - slot.Durability, 0f, item.MaxDurability);
+        // Enhanced gear has a higher maximum (+10% per level); repair prices the missing share of that maximum.
+        float maxDurability = ItemEnhancementPolicy.GetEffectiveMaxDurability(item.MaxDurability, ItemEnhancementPolicy.GetUpgradeLevel(in slot));
+        float missing = Math.Clamp(maxDurability - slot.Durability, 0f, maxDurability);
         if (missing <= 0f)
         {
             return 0;
         }
 
-        long missingPermille = Math.Clamp((long)MathF.Ceiling(missing * 1000f / item.MaxDurability), 1L, 1000L);
+        long missingPermille = Math.Clamp((long)MathF.Ceiling(missing * 1000f / maxDurability), 1L, 1000L);
         long percent = (long)this.Config.Repair.CostPercentOfBasePrice * this.Config.Repair.RarityMultiplierPercent.For(item.Rarity);
         long cost = CeilDiv(item.BasePrice * percent * missingPermille, 100L * 100L * 1000L);
         return Math.Max(this.Config.Repair.MinimumCost, cost);

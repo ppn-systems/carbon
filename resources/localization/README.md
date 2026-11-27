@@ -6,9 +6,10 @@ Player-facing text for the desktop client ([ADR-023](../../docs/adr/ADR-023-clie
 - Files are UTF-8 without a BOM. A `[section]` namespaces the keys under it: `[hud]` + `not_enough_mana = ...` defines `hud.not_enough_mana`.
 - A line starting with `;` or `#` is a comment. Values are raw text with `\n`, `\t` and `\\` escapes, and a trailing `\` continues the value on the next line.
 - Duplicate keys or sections, and malformed lines, fail to load with the file and line.
+- **Never start a second copy of a `[section]`.** Add new keys inside the existing section. When two branches both add keys to one section, resolve the git conflict by keeping both sets of lines.
 - Placeholders are named: `{count}`, `{name}`. Write `{{` and `}}` for literal braces. Every language must use the same placeholders as `en`.
 - A plural string is two keys, `<key>.one` and `<key>.other`. Vietnamese has no plural, so give both the same text.
-- Config-derived names use stable ids: `item.<code>.name`, `item.<code>.hint`, `monster.<id>.name` and `biome.<biome>`.
+- Derived names use stable ids: `item.<code>.name`, `item.<code>.hint`, `monster.<id>.name`, `biome.<biome>` and `structure.<structure>`. Read them with `GameText.ItemName`, `MonsterName`, `BiomeName` and `StructureName`. `SyncedItemCatalog.GetDisplayName` already returns localized item names.
 - `locales.ini` lists the selectable languages and each one's font stack (`fonts = file@pixelSize, ...`). Every character in a locale file must exist in its fonts.
 - CI (`LocalizationTests`, `LocalizationLiteralTests`) enforces all of the above.
 

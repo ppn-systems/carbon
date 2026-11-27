@@ -2,15 +2,6 @@
 # Format: <repo path><TAB><literal>. When you replace a literal with a GameText key, delete its line.
 desktop/Carbon.Desktop.Abstractions/Configuration/DesktopOptions.cs	Hero
 desktop/Carbon.Desktop.Abstractions/Configuration/SyncedFoodCatalog.cs	{}  Spoils in {}
-desktop/Carbon.Desktop.Abstractions/Configuration/SyncedItemCatalog.cs	Empty
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs	FORGE FAILED!
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs	Forge failed - materials consumed!
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs	Missing upgrade materials!
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs	Move near a Blacksmith or Forge Anvil to enhance gear!
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs	Not enough Mana!
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs	Not enough Stamina!
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs	Skill locked
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs	Vitals are already full!
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Account is banned or locked.
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Account registered.
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Account username already exists.
@@ -18,6 +9,7 @@ desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Authenticat
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Client/server protocol version mismatch.
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Connection failed: {}
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Create failed: {}
+desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Created {}.
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Enter world failed: {}
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Entered world.
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Invalid character name.
@@ -33,37 +25,36 @@ desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Timed out s
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Username and password are required.
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Username must be 3 to 24 characters.
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Config.cs	Config download failed: {}
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs	Connection lost - reconnecting...
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs	LEVEL UP! Lv.{}
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs	Need Tier {} Tool!
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs	Reconnect stopped: authentication rejected
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs	Reconnected (TCP)
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs	Reconnected (TCP+UDP)
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs	SLAIN! RESPAWNED
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs	YOU WERE SLAIN - RESPAWNED AT SANCTUARY
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs	{} Visit NPC Guard to mend
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Packets.cs	{} Worn Out!
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.cs	OFFLINE
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.cs	RECONNECTING
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.cs	TCP
 desktop/Carbon.Desktop.Rendering/Fonts/GameFontLoader.cs	CarbonPixelFallback
 desktop/Carbon.Desktop.Rendering/Fonts/GameFontLoader.cs	ThaleahFat
 desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Agility
+desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Attack +{}%
 desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Attribute Points: {}
 desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Attributes
 desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Character Info
+desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	DEF  {}
+desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	HP   {} / {}
 desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Hero
+desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	MP   {} / {}
 desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Max HP {}
 desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Max MP {}
+desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Net: {}
 desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Pos ({}, {})  {} FPS
 desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Power
+desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	STA  {} / {}
+desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Stamina {}
 desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Vitality
 desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Wisdom
+desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	XP {} / {}
+desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	{}  Lv.{}
 desktop/Carbon.Desktop.Rendering/Hud/ClassSkillsModalWidget.cs	MAX
 desktop/Carbon.Desktop.Rendering/Hud/ClassSkillsModalWidget.cs	RANK UP
 desktop/Carbon.Desktop.Rendering/Hud/ClassSkillsModalWidget.cs	Skill Points: {}
 desktop/Carbon.Desktop.Rendering/Hud/ClassSkillsModalWidget.cs	UNLOCK
+desktop/Carbon.Desktop.Rendering/Hud/ClassSkillsModalWidget.cs	{}  (Rank {}/{})
 desktop/Carbon.Desktop.Rendering/Hud/ClassSkillsModalWidget.cs	{}  |  MP {}  CD {}s
+desktop/Carbon.Desktop.Rendering/Hud/ClassSkillsModalWidget.cs	{} Skills
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	ALL
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	ARMOR
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Accessory
@@ -81,6 +72,7 @@ desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Ingredients
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Material
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Max Stack {}
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	No matching recipes
+desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Owned: {}  |  {}
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	POTIONS
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Quest Item
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	READY
@@ -92,99 +84,46 @@ desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Tool  Tier {}
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	WEAPONS
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Weapon  {} DMG
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Workbench
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Active
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Bag
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Blacksmith Forge
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Enhance
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Enhanced!
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Equipped
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Failed!
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Materials
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Max enhancement (+10)
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Need Forge
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	No upgradable gear
+desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	{} Lv {}
 desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	+{} DEF  +{} HP
 desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	+{} DMG  RNG {}
 desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	+{} HP  +{} MP
+desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Drowsy {}%
+desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Eating...
 desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Exhausted
+desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Food {}%
+desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Hungry {}%
+desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Lv.{}
+desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Lv.{}+
 desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Ravenous
+desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Rest {}%
+desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Sick {}%
+desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Sit {}%
+desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Stack {}/{}
 desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Starving!
 desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Tier {} Tool
+desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Tired {}%
+desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Zzz {}%
+desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	Zzz+ {}%
 desktop/Carbon.Desktop.Rendering/Hud/InventoryModalWidget.cs	+{} DEF  +{} HP
 desktop/Carbon.Desktop.Rendering/Hud/InventoryModalWidget.cs	+{} DMG  RNG {}
 desktop/Carbon.Desktop.Rendering/Hud/InventoryModalWidget.cs	+{} HP  +{} MP
 desktop/Carbon.Desktop.Rendering/Hud/InventoryModalWidget.cs	Inventory
+desktop/Carbon.Desktop.Rendering/Hud/InventoryModalWidget.cs	Stack {}/{}
 desktop/Carbon.Desktop.Rendering/Hud/InventoryModalWidget.cs	Tier {} Tool
 desktop/Carbon.Desktop.Rendering/Hud/MinimapRadarWidget.cs	MAP
 desktop/Carbon.Desktop.Rendering/Hud/MonsterTargetWidget.cs	HOSTILE
 desktop/Carbon.Desktop.Rendering/Hud/MonsterTargetWidget.cs	LOCKED
+desktop/Carbon.Desktop.Rendering/Hud/MonsterTargetWidget.cs	Lv.{} 
 desktop/Carbon.Desktop.Rendering/Hud/MonsterTargetWidget.cs	NPC
 desktop/Carbon.Desktop.Rendering/Hud/PlayerModalTabs.cs	Bag
 desktop/Carbon.Desktop.Rendering/Hud/PlayerModalTabs.cs	Character
 desktop/Carbon.Desktop.Rendering/Hud/PlayerModalTabs.cs	Crafting
 desktop/Carbon.Desktop.Rendering/Hud/PlayerModalTabs.cs	Skills
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Attack / Harvest
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	CLOSE
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Camera Zoom
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Character & Stats
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Class Skills
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Combat
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Controls
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Craft / Forge
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Display
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Drag an item outside Bag to drop it on the ground.
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Esc
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Inventory Bag
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	LMB / Space
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	LOGOUT
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Lock Target
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Map / Toggle HUD
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Menu
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Menus
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Move
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	OFF
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	ON
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Pickup / Smith
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	QUIT
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	RESUME
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Rest / Sleep
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	STD
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Select Slot
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Settings
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Shift
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Show Combat Numbers
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Show FPS & Coords in Character Info
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Show Minimap (M)
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Sprint
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	Tab
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	WASD
-desktop/Carbon.Desktop.Rendering/Hud/SettingsModalWidget.cs	WIDE
 desktop/Carbon.Desktop.Rendering/Hud/SkillBarWidget.cs	MP {}  STA {}  CD {}s
+desktop/Carbon.Desktop.Rendering/Overlays/WorldEntityOverlayRenderer.cs	Lv.{} {}
 desktop/Carbon.Desktop.Rendering/VectorArt/CarbonVectorArtLibrary.cs	ADVENTURER
 desktop/Carbon.Desktop.Rendering/VectorArt/CvgJsonModels.cs	Item
-desktop/Carbon.Desktop.Rendering/World/BuildResultText.cs	Already built here
-desktop/Carbon.Desktop.Rendering/World/BuildResultText.cs	Blueprint already here
-desktop/Carbon.Desktop.Rendering/World/BuildResultText.cs	Can build here
-desktop/Carbon.Desktop.Rendering/World/BuildResultText.cs	Cannot build here
-desktop/Carbon.Desktop.Rendering/World/BuildResultText.cs	Cannot build on water
-desktop/Carbon.Desktop.Rendering/World/BuildResultText.cs	Cannot rotate this
-desktop/Carbon.Desktop.Rendering/World/BuildResultText.cs	Clear the tree or rock first
-desktop/Carbon.Desktop.Rendering/World/BuildResultText.cs	Cliff or uneven ground
-desktop/Carbon.Desktop.Rendering/World/BuildResultText.cs	Doors go between walls
-desktop/Carbon.Desktop.Rendering/World/BuildResultText.cs	Ground too soft
-desktop/Carbon.Desktop.Rendering/World/BuildResultText.cs	Invalid request
-desktop/Carbon.Desktop.Rendering/World/BuildResultText.cs	Missing materials
-desktop/Carbon.Desktop.Rendering/World/BuildResultText.cs	Needs a better tool
-desktop/Carbon.Desktop.Rendering/World/BuildResultText.cs	Needs a floor
-desktop/Carbon.Desktop.Rendering/World/BuildResultText.cs	Not your building
-desktop/Carbon.Desktop.Rendering/World/BuildResultText.cs	Nothing to build
-desktop/Carbon.Desktop.Rendering/World/BuildResultText.cs	Someone is standing here
-desktop/Carbon.Desktop.Rendering/World/BuildResultText.cs	Too far away
-desktop/Carbon.Desktop.Rendering/World/BuildResultText.cs	Unknown structure
-desktop/Carbon.Desktop.Rendering/World/BuildResultText.cs	Waiting for materials
-desktop/Carbon.Desktop.Rendering/World/ConstructionOverlayRenderer.cs	Blueprint - needs materials - [Z] cancel
-desktop/Carbon.Desktop.Rendering/World/ConstructionOverlayRenderer.cs	Building {}% - [Z] cancel
-desktop/Carbon.Desktop.Rendering/World/ConstructionOverlayRenderer.cs	{} - [LMB] place blueprint
 desktop/Carbon.Desktop/Program.cs	Carbon MMORPG — Online Client
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	+ EMPTY SLOT
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	+ NEW HERO
@@ -201,13 +140,16 @@ desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	CREATE HERO
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	CRIMSON
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	CROP
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	CharacterSelect
+desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	Creating {} ({})...
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	EMERALD
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	ENTER WORLD
+desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	EYES: {}
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	Entering world as {} (opening Authenticated UDP)...
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	FAIR
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	Failed to load roster: {}
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	Found {} hero(es). Select one and click ENTER WORLD.
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	GOLD
+desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	HAIR: {}
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	HERO DOSSIER
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	HERO NAME
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	HERO ROSTER ({}/4)
@@ -218,18 +160,23 @@ desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	LOGOUT
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	LONG
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	Loading characters from server...
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	MYSTIC
+desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	NET: {}
+desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	POS: ({}, {})
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	RANDOMIZE
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	RANGER
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	RAVEN
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	SILVER
+desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	SKIN: {}
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	SPIKY
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	STARTING CLASS
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	Signing out...
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	TAN
+desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	TONE: {}
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	UMBER
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	VANGUARD
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	Welcome! Pick a starting class, customize your hero, and click CREATE HERO.
 desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	{}  //  LV.{}  //  TIER {}
+desktop/Carbon.Desktop/Scenes/CharacterSelectScene.cs	{}  LV.{}
 desktop/Carbon.Desktop/Scenes/LoginScene.cs	3-24 letters or digits
 desktop/Carbon.Desktop/Scenes/LoginScene.cs	ACCOUNT USERNAME
 desktop/Carbon.Desktop/Scenes/LoginScene.cs	Authentication error: {}
@@ -243,6 +190,7 @@ desktop/Carbon.Desktop/Scenes/LoginScene.cs	Creating account via TCP X25519...
 desktop/Carbon.Desktop/Scenes/LoginScene.cs	DONE
 desktop/Carbon.Desktop/Scenes/LoginScene.cs	EDIT
 desktop/Carbon.Desktop/Scenes/LoginScene.cs	Enter credentials to connect via TCP + Authenticated UDP.
+desktop/Carbon.Desktop/Scenes/LoginScene.cs	GATEWAY: {}
 desktop/Carbon.Desktop/Scenes/LoginScene.cs	HIDE
 desktop/Carbon.Desktop/Scenes/LoginScene.cs	Invalid server gateway. Use host:port.
 desktop/Carbon.Desktop/Scenes/LoginScene.cs	Login
@@ -260,8 +208,7 @@ desktop/Carbon.Desktop/Scenes/LoginScene.cs	Signing in via TCP X25519...
 desktop/Carbon.Desktop/Scenes/LoginScene.cs	Username must be between 3 and 24 characters.
 desktop/Carbon.Desktop/Scenes/LoginScene.cs	min 6 chars
 desktop/Carbon.Desktop/Scenes/LoginScene.cs	repeat password
+desktop/Carbon.Desktop/Scenes/WorldGameplayScene.cs	 [Ramp: {}]
 desktop/Carbon.Desktop/Scenes/WorldGameplayScene.cs	 [Roofed Room]
 desktop/Carbon.Desktop/Scenes/WorldGameplayScene.cs	Carbon MMORPG ({}) | {} | Biome: {} | Alt: Lvl {} | Nav: {}{}{} | Peers: {}
-desktop/Carbon.Desktop/Scenes/WorldGameplayScene.cs	Skills unlock upon class advancement
-desktop/Carbon.Desktop/Scenes/WorldGameplayScene.cs	Visit Master Blacksmith or place a Forge Anvil to enhance gear!
 desktop/Carbon.Desktop/Scenes/WorldGameplayScene.cs	WorldGameplay

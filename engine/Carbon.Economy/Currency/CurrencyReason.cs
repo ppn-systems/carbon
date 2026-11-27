@@ -39,5 +39,11 @@ public enum CurrencyReason : byte
     Admin = 9,
 
     /// <summary>Refund of a previous debit.</summary>
-    Refund = 10
+    Refund = 10,
+
+    /// <summary>Gold fee for a forge enhancement attempt (ADR-024).</summary>
+    Enhancement = 11,
+
+    /// <summary>Sink: attribute point reset (ADR-021).</summary>
+    AttributeReset = 12,
 }

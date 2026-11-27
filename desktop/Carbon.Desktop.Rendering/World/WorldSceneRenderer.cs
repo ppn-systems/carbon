@@ -369,7 +369,7 @@ public sealed class WorldSceneRenderer : IDisposable
 
             spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
             _overlays.DrawText(spriteBatch, font, world, _art, _feedback, cameraRig, viewportWidth, viewportHeight, showCombatNumbers);
-            _construction.DrawText(spriteBatch, font, cameraRig, _art, playerPos, tileSize);
+            _construction.DrawText(spriteBatch, font, cameraRig, playerPos, tileSize);
             spriteBatch.End();
         }
     }

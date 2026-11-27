@@ -119,9 +119,13 @@ public static class Program
             gameData.Economy,
             ServerGameData.LoadStructures(config.Catalog),
             ServerGameData.LoadCreatures(config.Catalog),
-            traderStockRepo);
+            gameData.Progression,
+            traderStock: traderStockRepo);
         ServerGameData.BindHotReload(config, world);
-        using AuthService authService = new(accountStore, characterStore, hasher, time: null, () => world.ItemRules);
+        using AuthService authService = new(accountStore, characterStore, hasher, time: null, () => world.ItemRules, () => world.Progression)
+        {
+            DebugForgeKit = options.DebugOverrides.ForgeKit,
+        };
 
         if (options.DebugOverrides.IsActive)
         {
