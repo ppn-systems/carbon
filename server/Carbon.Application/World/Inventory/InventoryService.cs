@@ -86,6 +86,21 @@ internal sealed class InventoryService
         }
     }
 
+    /// <summary>Gets whether <paramref name="modified"/> touches an equipment slot or the held hotbar slot (stats and look change).</summary>
+    public static bool TouchesGear(List<(ushort SlotIndex, ItemSlot Slot)> modified, byte selectedHotbarSlot)
+    {
+        ArgumentNullException.ThrowIfNull(modified);
+        for (int i = 0; i < modified.Count; i++)
+        {
+            if (modified[i].SlotIndex >= PlayerInventoryLayout.BagLimit || modified[i].SlotIndex == selectedHotbarSlot)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>Gets the harvest tier of the item in <paramref name="slotIndex"/> (0 for an empty slot or non-tool).</summary>
     public byte ResolveHarvestTier(InventoryContainer inventory, byte slotIndex)
     {
@@ -198,6 +213,103 @@ internal sealed class InventoryService
         }
 
         CollectModifiedSlots(beforeSnapshot, state.Inventory.Slots, modified);
+        return OpStatus.Ok;
+    }
+
+    /// <summary>
+    /// Runs one slot command (move, drop, split, destroy, sort) and records the changed slots in <paramref name="modified"/>.
+    /// A command whose <see cref="InventorySlotCommand.ExpectedItemId"/> no longer matches its source slot is
+    /// <see cref="OpStatus.Conflict"/> and changes nothing (ADR-020 D2).
+    /// </summary>
+    public OpStatus Execute(PlayerState state, in InventorySlotCommand command, Vector2 playerPos, List<(ushort SlotIndex, ItemSlot Slot)> modified)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(modified);
+        modified.Clear();
+        if (command.Kind != InventorySlotCommandKind.Sort && command.SlotA < state.Inventory.Capacity)
+        {
+            ItemSlot source = state.Inventory.GetSlot(command.SlotA);
+            if (command.ExpectedItemId != 0 && !source.IsEmpty && source.ItemId != command.ExpectedItemId)
+            {
+                return OpStatus.Conflict;
+            }
+        }
+
+        return command.Kind switch
+        {
+            InventorySlotCommandKind.Move => this.Move(state, command.SlotA, command.SlotB, modified),
+            InventorySlotCommandKind.Drop => this.Drop(state, command.SlotA, command.Quantity, playerPos, modified),
+            InventorySlotCommandKind.Split => this.Split(state, command.SlotA, command.SlotB, command.Quantity, modified),
+            InventorySlotCommandKind.Destroy => this.Destroy(state, command.SlotA, command.Quantity, modified),
+            InventorySlotCommandKind.Sort => this.Sort(state, modified),
+            _ => OpStatus.Invalid,
+        };
+    }
+
+    /// <summary>Moves part of a bag stack into an empty bag slot or onto a matching stack with room (ADR-020).</summary>
+    public OpStatus Split(PlayerState state, ushort fromSlot, ushort toSlot, int quantity, List<(ushort SlotIndex, ItemSlot Slot)> modified)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(modified);
+        if (fromSlot >= state.Inventory.Capacity || toSlot >= state.Inventory.Capacity)
+        {
+            return OpStatus.Invalid;
+        }
+
+        if (state.Inventory.GetSlot(fromSlot).IsEmpty)
+        {
+            return OpStatus.NotFound;
+        }
+
+        modified.Clear();
+        if (!PlayerInventoryLayout.TrySplitStack(_itemRules(), state.Inventory, fromSlot, toSlot, quantity))
+        {
+            return OpStatus.Invalid;
+        }
+
+        modified.Add((fromSlot, state.Inventory.GetSlot(fromSlot)));
+        modified.Add((toSlot, state.Inventory.GetSlot(toSlot)));
+        return OpStatus.Ok;
+    }
+
+    /// <summary>Merges partial stacks and sorts the backpack (<c>9..35</c>); the hotbar and equipment are untouched (ADR-020).</summary>
+    public OpStatus Sort(PlayerState state, List<(ushort SlotIndex, ItemSlot Slot)> modified)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(modified);
+        modified.Clear();
+        ReadOnlySpan<ItemSlot> before = state.Inventory.Slots;
+        Span<ItemSlot> beforeSnap = stackalloc ItemSlot[before.Length];
+        before.CopyTo(beforeSnap);
+        if (InventorySorting.SortBackpack(_itemRules(), state.Inventory))
+        {
+            CollectModifiedSlots(beforeSnap, state.Inventory.Slots, modified);
+        }
+
+        return OpStatus.Ok;
+    }
+
+    /// <summary>Destroys all of a slot (or <paramref name="quantity"/> of it) permanently; nothing reaches the ground (ADR-020).</summary>
+    public OpStatus Destroy(PlayerState state, ushort slotIndex, int quantity, List<(ushort SlotIndex, ItemSlot Slot)> modified)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(modified);
+        if (slotIndex >= state.Inventory.Capacity)
+        {
+            return OpStatus.Invalid;
+        }
+
+        ItemSlot slot = state.Inventory.GetSlot(slotIndex);
+        if (slot.IsEmpty)
+        {
+            return OpStatus.NotFound;
+        }
+
+        int destroyQty = quantity <= 0 || quantity >= slot.Quantity ? slot.Quantity : quantity;
+        ItemSlot remainder = slot.Quantity > destroyQty ? slot with { Quantity = slot.Quantity - destroyQty } : ItemSlot.Empty;
+        state.Inventory.SetSlot(slotIndex, in remainder);
+        modified.Clear();
+        modified.Add((slotIndex, remainder));
         return OpStatus.Ok;
     }
 

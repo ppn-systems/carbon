@@ -2,7 +2,9 @@
 
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using Carbon.Contracts.Entities.S2C;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Items.Catalog;
 using FluentAssertions;
@@ -112,5 +114,15 @@ public sealed class MonsterAttackAnimationTests
         CarbonVectorArtLibrary lib = CarbonVectorArtLibrary.LoadFromDirectory(artRoot);
         lib.TryGetMonster(archetype, out CompiledVectorRig? rig).Should().BeTrue();
         return rig!;
+    }
+
+    [Fact]
+    public void ResolveFacing_ActiveAttackAfterBackingOff_FacesAimNotMovement()
+    {
+        Vector2 backingOff = new(-1f, 0f);
+        AttackPhaseView aiming = new(EntityAttackPhase.KindProjectile, EntityAttackPhase.PhaseWindup, 0.3f, new Vector2(200f, 0f), new Vector2(3f, 0f), 0f, 0f, 0);
+
+        MonsterAttackAnimator.ResolveFacing(aiming, backingOff).Should().Be(Vector2.UnitX, "an archer turns to its target while it draws");
+        MonsterAttackAnimator.ResolveFacing(default, backingOff).Should().Be(backingOff, "without an attack the rig keeps its movement facing");
     }
 }

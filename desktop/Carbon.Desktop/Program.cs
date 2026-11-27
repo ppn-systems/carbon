@@ -3,8 +3,10 @@
 using System;
 using System.Threading.Tasks;
 using Carbon.Desktop.Abstractions.Configuration;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Capture;
+using Carbon.Desktop.Rendering.Hud;
 using Carbon.Desktop.Scenes;
 using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Sprites;
@@ -24,6 +26,7 @@ public static class Program
     /// <summary>Entry point initializing the client session and Silk.NET window loop.</summary>
     public static async Task<int> Main(string[] args)
     {
+        _ = GameText.Initialize(UiSettings.LoadOrDefault().Language);
         if (args is { Length: >= 2 } && string.Equals(args[0], "--showcase", StringComparison.OrdinalIgnoreCase))
         {
             return ArtShowcaseRunner.Run(args[1]);

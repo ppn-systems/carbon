@@ -159,7 +159,7 @@ public sealed class PlayerActionServiceTests
             GroundLootService loot = new(this.Simulation, () => this.Rules, () => ++_nextNetworkId, () => this.Tick, (_, _) => { });
             HashSet<long> dirty = [];
             ConstructionService construction = new(chunks, StructureCatalog.LoadEmbedded(), (_, _) => false, this.Simulation, 32f, () => this.Rules, this.Outbound, dirty, (_, _) => (0, 0), (_, _) => { });
-            CombatService combat = new(this.Simulation, chunks, MonsterLayer, this.Outbound, (_, output) => output.Clear(), (_, _, _) => { });
+            CombatService combat = new(this.Simulation, chunks, MonsterLayer, this.Outbound, (_, output) => output.Clear(), (_, _, _) => { }, () => this.Tick);
             this.Projectiles = new ProjectileService(this.Simulation, chunks, MonsterLayer, () => ++_nextNetworkId, new NoProjectileHits());
             NeedsService needs = new(this.Simulation, new BuildingGrid(), 32f, () => this.Rules, () => null, new NeedsConfig(), null, 1UL);
             InventoryService inventory = new(this.Simulation, new BuildingGrid(), 32f, 1UL, () => this.Rules, () => null, () => this.Tick, (_, _, _) => false, loot, this.Outbound, _ => { });

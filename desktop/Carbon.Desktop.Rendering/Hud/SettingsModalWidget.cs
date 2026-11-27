@@ -1,7 +1,9 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Sprites;
@@ -126,6 +128,19 @@ internal sealed class SettingsModalWidget
             }
         }
 
+        if (GetLanguageButtonRect(ox, oy).Contains(mousePos))
+        {
+            ILocalizer localizer = GameText.Current;
+            string next = NextLocaleCode(localizer);
+            if (localizer.SetLanguage(next))
+            {
+                settings.Language = localizer.Language;
+                settings.Save();
+            }
+
+            return SettingsModalAction.SettingChanged;
+        }
+
         for (int z = 0; z < 3; z++)
         {
             if (GetZoomButtonRect(ox, oy, z).Contains(mousePos))
@@ -182,6 +197,10 @@ internal sealed class SettingsModalWidget
                     on ? CarbonUiPalette.ConfirmBorder : CarbonUiPalette.BorderSubtle);
             }
 
+            RectangleF langRect = GetLanguageButtonRect(ox, oy);
+            bool hoverLang = mouseScreenPos.HasValue && langRect.Contains(mouseScreenPos.Value);
+            skin.DrawButton(spriteBatch, in langRect, hoverLang ? CarbonUiPalette.SlotSelectedFill : CarbonUiPalette.SlotFill, CarbonUiPalette.BorderActive);
+
             for (int z = 0; z < 3; z++)
             {
                 RectangleF zRect = GetZoomButtonRect(ox, oy, z);
@@ -223,6 +242,10 @@ internal sealed class SettingsModalWidget
                 spriteBatch.DrawOutlinedString(font, rows[r].Label, new Vector2(ox + 38f, toggleRect.Y + 4f), CarbonUiPalette.TextPrimary, black, 1, 1f);
                 CarbonUiSkin.DrawCenteredText(spriteBatch, font, rows[r].Val ? "ON" : "OFF", in toggleRect, CarbonUiPalette.TextPrimary, black, 1f);
             }
+
+            RectangleF langButton = GetLanguageButtonRect(ox, oy);
+            spriteBatch.DrawOutlinedString(font, GameText.Get("settings.language"), new Vector2(ox + 38f, langButton.Y + 4f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Current.Locale.NativeName, in langButton, CarbonUiPalette.TextPrimary, black, 1f);
 
             spriteBatch.DrawOutlinedString(font, "Camera Zoom", new Vector2(ox + 38f, oy + 292f), CarbonUiPalette.TextPrimary, black, 1, 1f);
             string[] zoomLabels = ["WIDE", "STD", "CLOSE"];
@@ -275,6 +298,23 @@ internal sealed class SettingsModalWidget
 
     private static RectangleF GetToggleButtonRect(float ox, float oy, int row) =>
         new(ox + PanelW - 116f, oy + 104f + (row * 44f), 78f, 26f);
+
+    private static RectangleF GetLanguageButtonRect(float ox, float oy) =>
+        new(ox + PanelW - 196f, oy + 104f + (3 * 44f), 158f, 26f);
+
+    private static string NextLocaleCode(ILocalizer localizer)
+    {
+        IReadOnlyList<LocaleInfo> locales = localizer.Locales;
+        for (int i = 0; i < locales.Count; i++)
+        {
+            if (string.Equals(locales[i].Code, localizer.Language, StringComparison.Ordinal))
+            {
+                return locales[(i + 1) % locales.Count].Code;
+            }
+        }
+
+        return locales.Count > 0 ? locales[0].Code : localizer.Language;
+    }
 
     private static RectangleF GetZoomButtonRect(float ox, float oy, int index) =>
         new(ox + PanelW - 224f + (index * 64f), oy + 288f, 58f, 26f);

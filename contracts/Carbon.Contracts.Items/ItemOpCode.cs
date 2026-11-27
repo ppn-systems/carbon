@@ -37,6 +37,15 @@ public static class ItemOpCode
     /// <summary>Client requests repairing an item's durability for gold at a forge station.</summary>
     public const ushort RepairInventoryItem = 0x4009;
 
+    /// <summary>Client requests splitting part of a bag stack into another bag slot (ADR-020).</summary>
+    public const ushort SplitInventorySlot = 0x400A;
+
+    /// <summary>Client requests a server-side merge and sort of the backpack (ADR-020).</summary>
+    public const ushort SortInventory = 0x400B;
+
+    /// <summary>Client requests destroying items in a slot permanently (ADR-020).</summary>
+    public const ushort DestroyInventoryItem = 0x400C;
+
     // ── S2C: Server → Client stream (0x4020–0x402F) ─────────────────────────
 
     /// <summary>Streamed inventory slot entry answering <see cref="InventoryRequest"/>.</summary>
