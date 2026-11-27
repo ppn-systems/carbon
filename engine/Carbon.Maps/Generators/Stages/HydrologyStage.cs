@@ -35,13 +35,16 @@ public sealed class HydrologyStage : ITileStage
     {
         sample.RiverDistance = float.NaN;
 
-        // Rivers discharge into the sea; open ocean is never altered.
+        // The sea: rivers discharge into it and it is never carved. Its depth grows with distance from the coast,
+        // so it falls away smoothly from the beach to the abyss (ADR-032).
         if (sample.Elevation < WorldConstants.SeaLevel)
         {
-            return true;
+            float seaDepth = WaterDepth.SeaDepthAtCoastDistance(_rivers.GetCoastDistance(sample.WorldX, sample.WorldY));
+            this.SetWater(ref sample, seaDepth, heightLevel: 0);
+            return false;
         }
 
-        float riverDist = _rivers.GetDistance(sample.WorldX, sample.WorldY, out bool isDeepChannel);
+        float riverDist = _rivers.GetDistance(sample.WorldX, sample.WorldY, out float riverDepth);
         sample.RiverDistance = riverDist;
 
         // Desert oasis springs in arid dunes: skip expensive 2-octave noise unless inside desert climate bounds.
@@ -54,17 +57,21 @@ public sealed class HydrologyStage : ITileStage
 
         if (riverDist <= WorldConstants.RiverChannel || isOasis)
         {
-            byte variant = (byte)(SpatialHash.Hash32(_seed, sample.WorldX, sample.WorldY, 0x0A71UL) & 3);
-            bool deep = isDeepChannel && !isOasis;
-            BiomeType waterBiome = deep ? BiomeType.DeepOcean : BiomeType.ShallowWater;
-            sample.Tile = new MapTile(
-                waterBiome,
-                Elevation: deep ? 0.25f : 0.28f,
-                sample.Temperature,
-                Moisture: 0.85f,
-                IsSolid: deep,
-                variant,
-                HeightLevel: TopographyHelper.ResolveTerrainHeightLevel(sample.Relief, sample.CoastElevation, waterBiome, isInlandWater: true));
+            // Oasis pools are a small spring, never deeper than a wade, and shoal to nothing where the desert
+            // climate that holds them ends (otherwise the pool is cut off at full depth along that line).
+            float oasisDepth = 0f;
+            if (isOasis)
+            {
+                float edge = MathF.Min(
+                    MathF.Min(sample.Temperature - 0.68f, 0.28f - sample.RawMoisture),
+                    MathF.Min(sample.Elevation - 0.42f, 0.62f - sample.Elevation));
+                float fade = Math.Clamp(edge / 0.02f, 0f, 1f);
+                oasisDepth = WaterDepth.MinDepth + ((oasisNoise - 0.86f) / 0.14f * (WaterDepth.MediumFrom - WaterDepth.MinDepth) * 0.9f * fade);
+            }
+
+            float depth = riverDist <= WorldConstants.RiverChannel ? MathF.Max(riverDepth, oasisDepth) : oasisDepth;
+            byte heightLevel = TopographyHelper.ResolveTerrainHeightLevel(sample.Relief, sample.CoastElevation, BiomeType.ShallowWater, isInlandWater: true);
+            this.SetWater(ref sample, depth, heightLevel);
             return false;
         }
 
@@ -94,5 +101,19 @@ public sealed class HydrologyStage : ITileStage
         }
 
         return true;
+    }
+
+    private void SetWater(ref TileSample sample, float depth, byte heightLevel)
+    {
+        byte variant = (byte)(SpatialHash.Hash32(_seed, sample.WorldX, sample.WorldY, 0x0A71UL) & 3);
+        BiomeType biome = WaterDepth.BiomeFor(WaterDepth.TierOf(depth));
+        sample.Tile = new MapTile(
+            biome,
+            WaterDepth.ToElevation(depth),
+            sample.Temperature,
+            Moisture: 0.85f,
+            BiomeProperties.Get(biome).IsSolid,
+            variant,
+            heightLevel);
     }
 }
