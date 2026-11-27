@@ -656,6 +656,7 @@ public sealed class WorldSceneRenderer : IDisposable
         Vector2 facing = remote.FacingDirection.LengthSquared() > 1e-4f
             ? remote.FacingDirection
             : (remote.Velocity.LengthSquared() > 4f ? Vector2.Normalize(remote.Velocity) : new Vector2(0f, 1f));
+        facing = MonsterAttackAnimator.ResolveFacing(remote.Attack, facing);
         Direction8 dir8 = DirectionExtensions.FromVector(facing, Direction8.South);
         bool moving = remote.Velocity.LengthSquared() > 9f;
         bool attacking = remote.AttackAnimRemaining > 0f;
