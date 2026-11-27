@@ -61,7 +61,7 @@ public sealed class DesktopOptions
     /// Gets or sets the forge animation to show for screenshot review (<c>CARBON_FORGE_PREVIEW</c>, e.g.
     /// <c>success:0.35</c>): <c>charge</c>, <c>success</c>, <c>nochange</c>, <c>downgrade</c> or <c>destroyed</c>, with an
     /// optional frozen time in seconds. It opens the forge window and plays the effect locally; nothing is sent to the
-    /// server, which alone rolls real outcomes (ADR-020).
+    /// server, which alone rolls real outcomes (ADR-024).
     /// </summary>
     public string? ForgePreview { get; init; }
 

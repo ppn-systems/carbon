@@ -31,7 +31,7 @@ public enum ForgeSfxCue : byte
 }
 
 /// <summary>
-/// The hammer-on-anvil animation of the forge window (ADR-020). While the server rolls, the hammer charges up with three
+/// The hammer-on-anvil animation of the forge window (ADR-024). While the server rolls, the hammer charges up with three
 /// spark-throwing strikes. When the server result arrives (<c>IWorldReadModel.ForgeResultSerial</c>) the final strike
 /// plays that outcome: a golden glow burst (success), a dull clank (no change), cracks and a red flash (downgrade), or
 /// shatter shards (destroyed). It only displays results; it never decides them. Particles are computed from time and a

@@ -17,7 +17,7 @@ using Xunit;
 
 namespace Carbon.Host.Tests;
 
-/// <summary>The Debug-host forge review kit (<c>CARBON_DEBUG_FORGE_KIT</c>) used by the forge screenshot scenarios (ADR-020).</summary>
+/// <summary>The Debug-host forge review kit (<c>CARBON_DEBUG_FORGE_KIT</c>) used by the forge screenshot scenarios (ADR-024).</summary>
 public sealed class DebugForgeKitTests
 {
     [Theory]

@@ -43,7 +43,7 @@ monsters_near      | CARBON_DEBUG_SPAWN_OFFSET=13,23  CARBON_DEBUG_START_HOUR=11
 monsters_far       | CARBON_DEBUG_SPAWN_OFFSET=651,26 CARBON_DEBUG_START_HOUR=11  | CARBON_WEATHER=clear
 monsters_night     | CARBON_DEBUG_SPAWN_OFFSET=13,23  CARBON_DEBUG_START_HOUR=23  | CARBON_WEATHER=clear
 
-# --- forge enhancement VFX (ADR-020): CARBON_DEBUG_FORGE_KIT gives the character a +8 sword, materials, scrolls and
+# --- forge enhancement VFX (ADR-024): CARBON_DEBUG_FORGE_KIT gives the character a +8 sword, materials, scrolls and
 #     gold; CARBON_FORGE_PREVIEW plays one outcome effect locally, frozen at a time (visual only, nothing is sent) ---
 forge_charge       | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_FORGE_KIT=1 | CARBON_WEATHER=clear CARBON_FORGE_PREVIEW=charge:0.66
 forge_success      | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_FORGE_KIT=1 | CARBON_WEATHER=clear CARBON_FORGE_PREVIEW=success:0.32

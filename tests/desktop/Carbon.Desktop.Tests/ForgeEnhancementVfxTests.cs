@@ -8,7 +8,7 @@ using Xunit;
 
 namespace Carbon.Desktop.Tests;
 
-/// <summary>The forge hammer animation only displays server results (ADR-020): charge-up, then the received outcome.</summary>
+/// <summary>The forge hammer animation only displays server results (ADR-024): charge-up, then the received outcome.</summary>
 public sealed class ForgeEnhancementVfxTests
 {
     [Fact]

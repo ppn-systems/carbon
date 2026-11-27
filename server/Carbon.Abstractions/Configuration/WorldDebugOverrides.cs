@@ -26,7 +26,7 @@ public sealed record WorldDebugOverrides
 
     /// <summary>
     /// Gets a value indicating whether new characters start with a forge review kit (a +8 iron sword, enhancement
-    /// materials, protection scrolls and gold), for screenshot review of the forge window (ADR-020).
+    /// materials, protection scrolls and gold), for screenshot review of the forge window (ADR-024).
     /// </summary>
     public bool ForgeKit { get; init; }
 

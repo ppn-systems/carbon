@@ -47,7 +47,7 @@ internal sealed class ForgeAnvilModalWidget
     private int _protectionChoice = -1;
     private uint _lastTargetItemId;
 
-    /// <summary>Gets the hammer-on-anvil animation shown in the enhance stage (ADR-020).</summary>
+    /// <summary>Gets the hammer-on-anvil animation shown in the enhance stage (ADR-024).</summary>
     public ForgeEnhancementVfx Vfx { get; } = new();
 
     /// <summary>Advances the forge animation and picks up new server results.</summary>
