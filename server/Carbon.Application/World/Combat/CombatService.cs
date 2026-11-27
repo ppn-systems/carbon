@@ -35,6 +35,7 @@ internal sealed class CombatService
     private readonly OutboundTickBuffer _outbound;
     private readonly Action<Vector2, List<ulong>> _collectNearbyConnections;
     private readonly MonsterKilledHandler _onMonsterKilled;
+    private readonly Func<ulong> _currentTick;
     private readonly List<ulong> _recipients = new(64);
     private readonly Entity[] _packAggroScratch = new Entity[16];
 
@@ -45,7 +46,8 @@ internal sealed class CombatService
         uint monsterLayer,
         OutboundTickBuffer outbound,
         Action<Vector2, List<ulong>> collectNearbyConnections,
-        MonsterKilledHandler onMonsterKilled)
+        MonsterKilledHandler onMonsterKilled,
+        Func<ulong> currentTick)
     {
         _simulation = simulation ?? throw new ArgumentNullException(nameof(simulation));
         _worldPhysics = worldPhysics ?? throw new ArgumentNullException(nameof(worldPhysics));
@@ -53,6 +55,7 @@ internal sealed class CombatService
         _outbound = outbound ?? throw new ArgumentNullException(nameof(outbound));
         _collectNearbyConnections = collectNearbyConnections ?? throw new ArgumentNullException(nameof(collectNearbyConnections));
         _onMonsterKilled = onMonsterKilled ?? throw new ArgumentNullException(nameof(onMonsterKilled));
+        _currentTick = currentTick ?? throw new ArgumentNullException(nameof(currentTick));
     }
 
     /// <summary>Rolls a critical hit from <paramref name="critChance"/> with a deterministic hash of <paramref name="nonce"/>.</summary>
@@ -106,6 +109,8 @@ internal sealed class CombatService
             }
 
             anyDamaged = true;
+            // Dealing damage is combat too: it pauses out-of-combat regeneration like taking a hit does.
+            attacker.LastCombatDamageTick = _currentTick();
             HealthComponent hp = _simulation.Entities.GetHealth(target);
 
             // Monster armor (StatSheet Defense from monsters.json scaling) mitigates player hits like CombatDamage.Apply.
