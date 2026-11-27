@@ -36,7 +36,7 @@ internal enum VendorOperation : byte
 /// <summary>
 /// The world's economy (audit SOLID-1, extracted from <see cref="AuthoritativeWorld"/>): config-driven monster loot rolled
 /// on kills (item stacks and gold/diamond piles dropped as ground loot reserved for the killer, ADR-019), vendor buy/sell and
-/// forge repair with their proximity rules, and wallet sync messages. Deterministic per (world seed, tick, victim).
+/// forge repair with their proximity rules, and wallet sync messages. Deterministic per (gameplay secret, tick, victim), ADR-026.
 /// Called only under the world lock.
 /// </summary>
 internal sealed class EconomyService
@@ -50,7 +50,7 @@ internal sealed class EconomyService
     /// <summary>Squared reach to a friendly town NPC for trading.</summary>
     public const float VendorRangeSq = 175f * 175f;
 
-    private readonly ulong _worldSeed;
+    private readonly IGameplayEntropy _entropy;
     private readonly ushort _tickRate;
     private readonly Func<GameEconomy?> _economy;
     private readonly Func<ulong> _currentTick;
@@ -61,7 +61,7 @@ internal sealed class EconomyService
 
     /// <summary>Initializes a new instance of the <see cref="EconomyService"/> class.</summary>
     public EconomyService(
-        ulong worldSeed,
+        IGameplayEntropy entropy,
         ushort tickRate,
         Func<GameEconomy?> economy,
         Func<ulong> currentTick,
@@ -70,7 +70,7 @@ internal sealed class EconomyService
         OutboundTickBuffer outbound,
         Func<Vector2, float, bool> hasNearbyFriendlyNpc)
     {
-        _worldSeed = worldSeed;
+        _entropy = entropy ?? throw new ArgumentNullException(nameof(entropy));
         _tickRate = tickRate == 0 ? (ushort)30 : tickRate;
         _economy = economy ?? throw new ArgumentNullException(nameof(economy));
         _currentTick = currentTick ?? throw new ArgumentNullException(nameof(currentTick));
@@ -119,7 +119,7 @@ internal sealed class EconomyService
 
         ulong tick = _currentTick();
         LootContext context = new(monsterLevel, killer.Level, IsElite: table.IsElite);
-        DeterministicRandom random = LootRoller.CreateRandom(_worldSeed, tick, victimNetworkId);
+        DeterministicRandom random = LootRoller.CreateRandom(_entropy.KeyAt(tick), tick, victimNetworkId);
         LootPityState pity = killer.LootPity;
         Span<LootDrop> drops = stackalloc LootDrop[MaxLootStacksPerKill];
         LootRollResult result = LootRoller.Roll(table, context, ref random, ref pity, drops);

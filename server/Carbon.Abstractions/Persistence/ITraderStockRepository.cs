@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace Carbon.Abstractions.Persistence;
 
 /// <summary>
-/// Store of trader sales per restock epoch (ADR-025). The stock itself is derived from the world seed and the epoch;
+/// Store of trader sales per restock epoch (ADR-025). The stock itself is derived from the gameplay secret and the epoch (ADR-026);
 /// only what was sold is persisted, so a restart never refills a trader mid-epoch.
 /// </summary>
 public interface ITraderStockRepository

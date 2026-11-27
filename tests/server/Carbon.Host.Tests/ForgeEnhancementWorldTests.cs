@@ -86,6 +86,46 @@ public sealed class ForgeEnhancementWorldTests
     }
 
     [Fact]
+    public async Task TryEnhanceInventoryItem_SameWorldSeedAndTicks_OutcomesFollowTheSecretNotTheSeed()
+    {
+        // ADR-026: both worlds share the public world seed (1337) and run the same attempts on the same ticks. Only the
+        // server secret differs, and only the secret decides the outcomes.
+        IReadOnlyList<EnhancementOutcome> first = await ForgeOutcomesAsync(secret: 11UL).ConfigureAwait(true);
+        IReadOnlyList<EnhancementOutcome> replay = await ForgeOutcomesAsync(secret: 11UL).ConfigureAwait(true);
+        IReadOnlyList<EnhancementOutcome> otherSecret = await ForgeOutcomesAsync(secret: 12UL).ConfigureAwait(true);
+
+        replay.Should().Equal(first, "the same secret replays the same forge outcomes (deterministic tests and audits)");
+        otherSecret.Should().NotEqual(first, "knowing the world seed and the tick is not enough to reproduce a forge outcome");
+    }
+
+    private static async Task<IReadOnlyList<EnhancementOutcome>> ForgeOutcomesAsync(ulong secret)
+    {
+        using WorldFixture f = await WorldFixture.CreateAsync(secret).ConfigureAwait(true);
+        InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);
+        const int swords = 12;
+        for (ushort s = 0; s < swords; s++)
+        {
+            bag.SetSlot(s, new ItemSlot(StarterGameCatalog.IronSword, 1, Durability: 200f, UpgradeLevel: 9));
+        }
+
+        f.AddMaterials(bag, 198, swords, "iron_ingot");
+        f.AddMaterials(bag, 297, swords + 2, "mana_crystal");
+        f.AddMaterials(bag, 100, swords + 5, "rough_gem");
+        CharacterRecord smith = await f.CreateCharacterAsync("Seer", bag, gold: 10_000_000).ConfigureAwait(true);
+        f.World.TryEnterWorld(Smith, Smith, smith).Status.Should().Be(OpStatus.Ok);
+
+        List<EnhancementOutcome> outcomes = [];
+        for (ushort s = 0; s < swords; s++)
+        {
+            WorldMutationOutcome outcome = f.World.TryEnhanceInventoryItem(Smith, s, 0);
+            outcome.Status.Should().Be(OpStatus.Ok);
+            outcomes.Add(ForgeEnhancementReceipt.Unpack(outcome.Revision).Outcome);
+        }
+
+        return outcomes;
+    }
+
+    [Fact]
     public async Task TryEnhanceInventoryItem_PlusNineWithoutProtection_EventuallyShattersAnItemAndAnnouncesIt()
     {
         using WorldFixture f = await WorldFixture.CreateAsync().ConfigureAwait(true);
@@ -121,7 +161,7 @@ public sealed class ForgeEnhancementWorldTests
         }
 
         f.World.StepFixedTick();
-        destroyed.Outcome.Should().Be(EnhancementOutcome.Destroyed, "+9 destroys 15% of attempts; a dozen swords at fixed seeds reach one");
+        destroyed.Outcome.Should().Be(EnhancementOutcome.Destroyed, "+9 destroys 15% of attempts; a dozen swords under a fixed test secret reach one");
         destroyed.PreviousLevel.Should().Be(9);
         List<(ushort SlotIndex, ItemSlot Slot)> snapshot = [];
         f.World.GetInventorySnapshot(Smith, snapshot).Should().BeTrue();
@@ -168,14 +208,23 @@ public sealed class ForgeEnhancementWorldTests
         private readonly SqliteAccountStore _accounts;
         private readonly Guid _accountId = Guid.NewGuid();
 
-        private WorldFixture(string dbPath, SqliteConnectionFactory factory, GameEconomy economy)
+        private WorldFixture(string dbPath, SqliteConnectionFactory factory, GameEconomy economy, ulong secret)
         {
             _dbPath = dbPath;
             _factory = factory;
             _accounts = new SqliteAccountStore(factory);
             this.Economy = economy;
             this.Characters = new SqliteCharacterStore(factory);
-            this.World = new AuthoritativeWorld(1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), this.Characters, this.Sink, economy: economy);
+            this.World = new AuthoritativeWorld(
+                1337UL,
+                32f,
+                0.0008f,
+                30,
+                new SqliteChunkDeltaRepository(factory),
+                this.Characters,
+                this.Sink,
+                economy: economy,
+                entropy: TestGameplayEntropy.Create(secret));
         }
 
         public GameEconomy Economy { get; }
@@ -186,13 +235,13 @@ public sealed class ForgeEnhancementWorldTests
 
         public AuthoritativeWorld World { get; }
 
-        public static async Task<WorldFixture> CreateAsync()
+        public static async Task<WorldFixture> CreateAsync(ulong secret = 1337UL)
         {
             string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-forge-test-{Guid.NewGuid():N}.db");
             SqliteConnectionFactory factory = new($"Data Source={dbPath}");
             await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
             GameEconomy economy = GameEconomy.LoadFromDirectory(GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!);
-            WorldFixture fixture = new(dbPath, factory, economy);
+            WorldFixture fixture = new(dbPath, factory, economy, secret);
             await fixture.World.InitializeFromStoreAsync().ConfigureAwait(true);
             (await fixture._accounts.TryCreateAsync(new AccountRecord(fixture._accountId, "forger", "FORGER", [1, 2, 3], [4, 5, 6], DateTimeOffset.UtcNow, false)).ConfigureAwait(true))
                 .Should().BeTrue();

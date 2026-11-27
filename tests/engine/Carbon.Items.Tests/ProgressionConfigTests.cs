@@ -6,6 +6,7 @@ using Carbon.Contracts.Entities;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Progression;
+using Carbon.Primitives.Random;
 using FluentAssertions;
 using Xunit;
 
@@ -205,20 +206,22 @@ public sealed class ProgressionConfigTests
     [Fact]
     public void CombatRoll_ManyNonces_SucceedsAtRequestedRateAndIsDeterministic()
     {
+        GameplayKey key = TestGameplayKeys.Key(5UL);
         int crits = 0;
         int dodges = 0;
         const int Samples = 200_000;
         for (uint n = 1; n <= Samples; n++)
         {
-            crits += CombatRoll.Roll(0.25f, n) ? 1 : 0;
-            dodges += CombatRoll.Roll(0.25f, n, CombatRoll.EvasionSalt) ? 1 : 0;
+            crits += CombatRoll.Roll(0.25f, key, CombatRoll.CriticalDomain, 100UL, 7UL, n) ? 1 : 0;
+            dodges += CombatRoll.Roll(0.25f, key, CombatRoll.EvasionDomain, 100UL, 7UL, n) ? 1 : 0;
         }
 
         (crits / (float)Samples).Should().BeApproximately(0.25f, 0.01f);
         (dodges / (float)Samples).Should().BeApproximately(0.25f, 0.01f);
-        CombatRoll.Roll(0.5f, 42U).Should().Be(CombatRoll.Roll(0.5f, 42U), "rolls are a pure function of the nonce");
-        CombatRoll.Roll(0f, 42U).Should().BeFalse();
-        CombatRoll.Roll(1f, 42U).Should().BeTrue();
+        CombatRoll.Roll(0.5f, key, CombatRoll.CriticalDomain, 9UL, 7UL, 42U).Should()
+            .Be(CombatRoll.Roll(0.5f, key, CombatRoll.CriticalDomain, 9UL, 7UL, 42U), "rolls are a pure function of key, tick, actor and nonce");
+        CombatRoll.Roll(0f, key, CombatRoll.CriticalDomain, 9UL, 7UL, 42U).Should().BeFalse();
+        CombatRoll.Roll(1f, key, CombatRoll.CriticalDomain, 9UL, 7UL, 42U).Should().BeTrue();
     }
 
     [Fact]

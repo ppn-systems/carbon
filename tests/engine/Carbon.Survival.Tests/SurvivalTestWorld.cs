@@ -29,7 +29,7 @@ internal sealed class SurvivalTestWorld
         this.Config = config ?? new NeedsConfig();
         this.Catalog = catalog ?? CreateCatalog(this.Config);
         this.World = new WorldSimulation(TickRate);
-        this.Eating = new EatActionSystem(this.Catalog, this.Config, seed);
+        this.Eating = new EatActionSystem(this.Catalog, this.Config, TestGameplayKeys.Entropy(seed));
         this.World.RegisterSystem(this.Eating);
         this.World.RegisterSystem(new NeedsSystem(this.Config));
     }

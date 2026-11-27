@@ -15,6 +15,7 @@ using Carbon.Application.World.Combat;
 using Carbon.Application.World.Commands;
 using Carbon.Application.World.Commerce;
 using Carbon.Application.World.Construction;
+using Carbon.Application.World.Entropy;
 using Carbon.Application.World.Inventory;
 using Carbon.Application.World.Loot;
 using Carbon.Application.World.Needs;
@@ -101,6 +102,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly CreatureSystems _creatures;
     private readonly HashSet<long> _dirtyChunks = new();
     private readonly CharacterPersistence _persistence;
+    private readonly GameplayEntropy _entropy;
 
     // Reusable scratch buffers (zero per-tick heap allocations under steady state).
     // Outbound replication, staged under _gate during the tick and dispatched after it (OutboundTickBuffer).
@@ -117,7 +119,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// <summary>
     /// Initializes a new instance of the <see cref="AuthoritativeWorld"/> class.
     /// </summary>
-    /// <param name="worldSeed">Procedural world seed (also seeds the food poisoning roll).</param>
+    /// <param name="worldSeed">Procedural world seed. Public (clients mirror terrain from it), so it seeds terrain only, never a gameplay roll.</param>
     /// <param name="tileSize">Tile size in world units.</param>
     /// <param name="frequency">Terrain noise frequency.</param>
     /// <param name="tickRate">Fixed simulation tick rate.</param>
@@ -132,6 +134,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// <param name="creatures">Monster catalog and spawning config; defaults to <see cref="CreatureContent.LoadDefault"/> (<c>resources/config</c>).</param>
     /// <param name="progression">Character progression tuning (<c>progression.json</c>, ADR-021); defaults to the shipped copy.</param>
     /// <param name="traderStock">Trader sales store (ADR-025); defaults to in memory.</param>
+    /// <param name="entropy">
+    /// Secret source of every gameplay roll (ADR-026); defaults to a random secret that lives only in this process.
+    /// </param>
     public AuthoritativeWorld(
         ulong worldSeed,
         float tileSize,
@@ -147,7 +152,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         StructureCatalog? structureCatalog = null,
         CreatureContent? creatures = null,
         ProgressionConfig? progression = null,
-        ITraderStockRepository? traderStock = null)
+        ITraderStockRepository? traderStock = null,
+        GameplayEntropy? entropy = null)
     {
         ArgumentNullException.ThrowIfNull(chunkDeltaRepo);
         ArgumentNullException.ThrowIfNull(characterStore);
@@ -157,6 +163,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         this.TileSize = tileSize > 0f ? tileSize : 32f;
         this.Frequency = frequency > 0f ? frequency : 0.0008f;
         this.TickRate = tickRate > 0 ? tickRate : (ushort)30;
+        _entropy = entropy ?? GameplayEntropy.CreateEphemeral(this.TickRate);
 
         _chunkDeltaRepo = chunkDeltaRepo;
         _characterStore = characterStore;
@@ -174,7 +181,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         };
         CreatureContent creatureContent = creatures ?? CreatureContent.LoadDefault();
         _creatureCatalog = creatureContent.Catalog;
-        _creatures = RegisterCreatureSystems(_simulation, creatureContent, _chunkWorld, this.WorldSeed, this.TileSize, new ServerAttackEffects(this));
+        _creatures = RegisterCreatureSystems(_simulation, creatureContent, _chunkWorld, _entropy, this.TileSize, new ServerAttackEffects(this));
         _simulation.RegisterSystem(new LootExpirationSystem());
         _groundLoot = new GroundLootService(
             _simulation,
@@ -198,7 +205,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _simulation,
             _chunkWorld.Buildings,
             this.TileSize,
-            this.WorldSeed,
+            _entropy,
             () => _itemRules,
             () => _economy,
             () => _currentTick,
@@ -206,9 +213,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _groundLoot,
             _outbound,
             state => this.MarkCharacterDirtyLocked(state, inventoryChanged: true));
-        _commerce = new EconomyService(this.WorldSeed, this.TickRate, () => _economy, () => _currentTick, _groundLoot, _inventory, _outbound, this.HasNearbyFriendlyNpcLocked);
+        _commerce = new EconomyService(_entropy, this.TickRate, () => _economy, () => _currentTick, _groundLoot, _inventory, _outbound, this.HasNearbyFriendlyNpcLocked);
         _progressionService = new CharacterProgressionService(_simulation, progression ?? ProgressionConfig.LoadShippedDefaults(), _creatureCatalog, () => _itemRules,
-            () => _currentTick, state => this.MarkCharacterDirtyLocked(state, inventoryChanged: false), _commerce.QueueWalletSync);
+            () => _currentTick, state => this.MarkCharacterDirtyLocked(state, inventoryChanged: false), _commerce.QueueWalletSync, _entropy);
         _combat = new CombatService(_simulation, _chunkWorld, MonsterLayer, _outbound, this.CollectNearbyConnectionsAroundWorldLocked, this.OnMonsterKilledLocked, () => _currentTick);
         _props = new PropHarvestService(
             _simulation,
@@ -241,7 +248,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             () => _economy,
             needsConfig,
             foodCatalog,
-            worldSeed);
+            _entropy);
         _actions = new PlayerActionService(
             _simulation,
             this.TickRate,
@@ -254,10 +261,11 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _props,
             _inventory,
             _needs,
-            new PlayerActionHost(this));
+            new PlayerActionHost(this),
+            _entropy);
         _persistence = new CharacterPersistence(_simulation, _needs, _time);
         _commandExecutor = new WorldCommandExecutor(this);
-        _trade = new TradeService(_gate, worldSeed, _players, _simulation, _actorsByNetworkId, () => _economy, _outbound, _time, () => _currentTick, s => this.MarkCharacterDirtyLocked(s), traderStock);
+        _trade = new TradeService(_gate, _entropy.TraderStockKey, _players, _simulation, _actorsByNetworkId, () => _economy, _outbound, _time, () => _currentTick, s => this.MarkCharacterDirtyLocked(s), traderStock);
         _replication = new AoiReplicator(_simulation, _outbound, this.TileSize * 24f, DefaultEntityRadius, this.ResolveSpawnIdentityLocked);
     }
 

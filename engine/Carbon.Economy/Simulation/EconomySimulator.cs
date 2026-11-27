@@ -41,10 +41,10 @@ public sealed class EconomySimulator
     /// </summary>
     /// <param name="level">Monster and player level.</param>
     /// <param name="hours">Whole hours to simulate.</param>
-    /// <param name="seed">Deterministic seed.</param>
+    /// <param name="key">Roll key of the simulated kills (any fixed key gives a reproducible report).</param>
     /// <returns>Average per-hour flows.</returns>
     /// <exception cref="InvalidDataException">Thrown when no monster table or player stage covers <paramref name="level"/>.</exception>
-    public EconomyHourReport Simulate(int level, int hours, ulong seed)
+    public EconomyHourReport Simulate(int level, int hours, in GameplayKey key)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(hours);
         EconomyConfig config = _economy.Config;
@@ -70,7 +70,7 @@ public sealed class EconomySimulator
             {
                 ulong killIndex = ((ulong)hour * (ulong)killsPerHour) + (ulong)k;
                 LootTable table = tables[(int)(killIndex % (ulong)tables.Count)];
-                DeterministicRandom random = LootRoller.CreateRandom(seed, killIndex, (ulong)level);
+                DeterministicRandom random = LootRoller.CreateRandom(key, killIndex, (ulong)level);
                 LootRollResult roll = LootRoller.Roll(table, context, ref random, ref pity, drops);
 
                 // In the world, kill gold and diamonds drop as ground piles reserved for the killer for

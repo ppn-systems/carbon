@@ -8,6 +8,7 @@ using Carbon.Creatures.Definitions;
 using Carbon.Creatures.Scaling;
 using Carbon.Creatures.Spawning;
 using Carbon.Creatures.Systems;
+using Carbon.Primitives.Random;
 using Carbon.Simulation.World;
 
 namespace Carbon.Creatures;
@@ -47,7 +48,7 @@ public sealed class CreatureSystems
     /// <param name="config">Spawning configuration.</param>
     /// <param name="surface">Spawn surface (walkability + biome).</param>
     /// <param name="worldOrigin">World origin / first player spawn point.</param>
-    /// <param name="seed">Deterministic world seed.</param>
+    /// <param name="entropy">Secret roll key source for spawn rolls (ADR-026; never the world seed).</param>
     /// <param name="ai">Optional pre-built AI system (e.g. with a walkability grid); must not already be registered.</param>
     /// <param name="effects">Optional host attack side effects (defaults to <see cref="DefaultAttackEffects"/>).</param>
     /// <returns>The registered systems.</returns>
@@ -57,7 +58,7 @@ public sealed class CreatureSystems
         SpawningConfig config,
         ISpawnSurface surface,
         Vector2 worldOrigin,
-        ulong seed,
+        IGameplayEntropy entropy,
         AiBehaviorSystem? ai = null,
         IAttackEffects? effects = null)
     {
@@ -67,7 +68,7 @@ public sealed class CreatureSystems
         AiBehaviorSystem aiSystem = ai ?? new AiBehaviorSystem();
         AttackSystem attacks = new(catalog.AttackProfiles, effects);
         MonsterBrainSystem brain = new(catalog, attacks);
-        MonsterSpawnerSystem spawner = new(catalog, config, surface, worldOrigin, seed);
+        MonsterSpawnerSystem spawner = new(catalog, config, surface, worldOrigin, entropy);
 
         world.RegisterSystem(aiSystem);
         world.RegisterSystem(brain);

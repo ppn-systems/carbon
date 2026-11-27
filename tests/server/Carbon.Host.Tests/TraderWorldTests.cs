@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
 using Carbon.Application.World;
+using Carbon.Application.World.Entropy;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Items.S2C;
@@ -19,6 +20,7 @@ using Carbon.Items.Serialization;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Landmarks;
 using Carbon.Maps.Settlements;
+using Carbon.Primitives.Random;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Xunit;
@@ -30,6 +32,9 @@ namespace Carbon.Host.Tests;
 public sealed class TraderWorldTests
 {
     private const ulong Seed = 1337UL;
+
+    // The persisted gameplay secret pins the rolled stock (ADR-026), as the world seed did before.
+    private const ulong TraderWorldSecret = 2026UL;
     private const ulong Conn = 501UL;
 
     [Fact]
@@ -40,11 +45,12 @@ public sealed class TraderWorldTests
         {
             using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
             await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
+            await SeedGameplaySecretAsync(factory).ConfigureAwait(true);
             ManualTime time = new(DateTimeOffset.FromUnixTimeSeconds(1_800_000_000L));
             (int fx, int fy) = MerchantFrontTile();
 
             RecordingOutboundSink sink = new();
-            AuthoritativeWorld world = CreateWorld(factory, sink, time);
+            AuthoritativeWorld world = await CreateWorldAsync(factory, sink, time).ConfigureAwait(true);
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
             world.TryEnterWorld(Conn, Conn, Character("Buyer", fx, fy, gold: 5_000)).Status.Should().Be(OpStatus.Ok);
             Step(world, 12);
@@ -91,7 +97,7 @@ public sealed class TraderWorldTests
 
             // A restarted server (same clock) remembers the sale: the slot is not refilled mid-epoch.
             RecordingOutboundSink sink2 = new();
-            AuthoritativeWorld restarted = CreateWorld(factory, sink2, time);
+            AuthoritativeWorld restarted = await CreateWorldAsync(factory, sink2, time).ConfigureAwait(true);
             await restarted.InitializeFromStoreAsync().ConfigureAwait(true);
             restarted.TryEnterWorld(Conn, Conn, Character("Buyer2", fx, fy, gold: 10)).Status.Should().Be(OpStatus.Ok);
             Step(restarted, 12);
@@ -99,7 +105,7 @@ public sealed class TraderWorldTests
             (await Run(restarted, restarted.Trade.SubmitTraderOpenAsync(Conn, merchant2))).Should().Be(OpStatus.Ok);
             TraderStockSnapshot reloaded = sink2.TraderStocks.Last().Stock;
             reloaded.Epoch.Should().Be(stock.Epoch);
-            reloaded.ItemIds.Should().Equal(stock.ItemIds, "stock is derived from (seed, trader, epoch)");
+            reloaded.ItemIds.Should().Equal(stock.ItemIds, "stock is derived from (persisted secret, trader, epoch), so a restart with a new boot salt does not reshuffle it");
             reloaded.Remaining[slot].Should().Be(after.Remaining[slot], "sales survive a restart");
 
             // After the restock the trader is fully stocked again, with a new roll.
@@ -133,7 +139,7 @@ public sealed class TraderWorldTests
             (int fx, int fy) = FrontTileOf(VillageBuildingRole.Smithy);
 
             RecordingOutboundSink sink = new();
-            AuthoritativeWorld world = CreateWorld(factory, sink, time);
+            AuthoritativeWorld world = await CreateWorldAsync(factory, sink, time).ConfigureAwait(true);
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
             GameEconomy economy = world.Economy!;
             ItemSlot worn = new(StarterGameCatalog.IronSword, 1, 9_001UL, Durability: 50f);
@@ -205,8 +211,21 @@ public sealed class TraderWorldTests
         }
     }
 
-    private static AuthoritativeWorld CreateWorld(SqliteConnectionFactory factory, RecordingOutboundSink sink, TimeProvider time)
+    /// <summary>
+    /// Stores a fixed gameplay secret as this world's persisted secret (ADR-026), so the rolled stock is known to the
+    /// assertions; every boot below still loads it through the store like the host does.
+    /// </summary>
+    private static async Task SeedGameplaySecretAsync(SqliteConnectionFactory factory)
     {
+        byte[] secret = new byte[GameplayKey.SizeInBytes];
+        TestGameplayEntropy.Key(TraderWorldSecret).WriteBytes(secret);
+        _ = await new SqliteGameplaySecretStore(factory).GetOrCreateAsync(secret).ConfigureAwait(true);
+    }
+
+    /// <summary>Boots a world like the host does: the gameplay secret comes from the database, the boot salt is fresh.</summary>
+    private static async Task<AuthoritativeWorld> CreateWorldAsync(SqliteConnectionFactory factory, RecordingOutboundSink sink, TimeProvider time)
+    {
+        GameplayEntropy entropy = await GameplayEntropy.LoadAsync(new SqliteGameplaySecretStore(factory), null, null, 30).ConfigureAwait(true);
         string configDir = GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!;
         GameEconomy economy = GameEconomy.LoadFromDirectory(configDir);
         economy.Traders.Should().NotBeNull("traders.json ships with the server config");
@@ -220,7 +239,8 @@ public sealed class TraderWorldTests
             sink,
             time,
             economy: economy,
-            traderStock: new SqliteTraderStockRepository(factory));
+            traderStock: new SqliteTraderStockRepository(factory),
+            entropy: entropy);
     }
 
     private static CharacterRecord Character(string name, int tileX, int tileY, long gold, ItemSlot firstBagItem = default)

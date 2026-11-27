@@ -13,20 +13,21 @@ namespace Carbon.Economy.Trading;
 public readonly record struct TraderStockSlot(uint ItemId, int Quantity, int PriceOffsetPercent);
 
 /// <summary>
-/// Rolls a trader's stock for one restock epoch: a pure function of (world seed, trader key, epoch, profile, style),
+/// Rolls a trader's stock for one restock epoch: a pure function of (secret trader stock key, trader key, epoch, profile,
+/// style; ADR-026),
 /// so the same epoch always yields the same stock and audits can replay it. Zero-allocation.
 /// </summary>
 public static class TraderStockRoller
 {
     /// <summary>Rolls the stock of an epoch.</summary>
     /// <param name="profile">Trader profile.</param>
-    /// <param name="worldSeed">World seed.</param>
+    /// <param name="stockKey">Secret trader stock key (server-only, never the world seed).</param>
     /// <param name="traderKey">Trader key.</param>
     /// <param name="epoch">Restock epoch.</param>
     /// <param name="style">Village style index.</param>
     /// <param name="destination">Receives at most <see cref="TraderProfile.Slots"/> slots.</param>
     /// <returns>Number of slots written (fewer when the style has fewer eligible entries).</returns>
-    public static int Roll(TraderProfile profile, ulong worldSeed, ulong traderKey, long epoch, byte style, Span<TraderStockSlot> destination)
+    public static int Roll(TraderProfile profile, in GameplayKey stockKey, ulong traderKey, long epoch, byte style, Span<TraderStockSlot> destination)
     {
         ArgumentNullException.ThrowIfNull(profile);
         int entryCount = profile.Entries.Count;
@@ -46,7 +47,7 @@ public static class TraderStockRoller
             }
         }
 
-        DeterministicRandom random = new(TraderClock.Mix(worldSeed ^ TraderClock.Mix(traderKey ^ TraderClock.Mix((ulong)epoch))));
+        DeterministicRandom random = stockKey.CreateRandom(GameplayDomain.TraderStock, traderKey, (ulong)epoch);
         int count = 0;
         int want = Math.Min(profile.Slots, destination.Length);
         while (count < want && total > 0)

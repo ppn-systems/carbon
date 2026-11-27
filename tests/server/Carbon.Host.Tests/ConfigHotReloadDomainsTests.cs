@@ -59,7 +59,8 @@ public sealed partial class ConfigHotReloadDomainsTests : IDisposable
             data.Economy,
             ServerGameData.LoadStructures(_config.Catalog),
             ServerGameData.LoadCreatures(_config.Catalog),
-            data.Progression);
+            data.Progression,
+            entropy: TestGameplayEntropy.Create(1337UL));
         ServerGameData.BindHotReload(_config, _world);
     }
 

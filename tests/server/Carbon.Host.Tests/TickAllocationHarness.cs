@@ -40,7 +40,15 @@ internal sealed class TickAllocationHarness : IDisposable
         string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-tick-alloc-{Guid.NewGuid():N}.db");
         SqliteConnectionFactory factory = new($"Data Source={dbPath}");
         new SqliteSchemaMigrator(factory).MigrateAsync().GetAwaiter().GetResult();
-        AuthoritativeWorld world = new(1337UL, 32f, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), new SqliteCharacterStore(factory), new NullOutboundSink());
+        AuthoritativeWorld world = new(
+            1337UL,
+            32f,
+            0.0008f,
+            30,
+            new SqliteChunkDeltaRepository(factory),
+            new SqliteCharacterStore(factory),
+            new NullOutboundSink(),
+            entropy: TestGameplayEntropy.Create(1337UL));
         world.InitializeFromStoreAsync().GetAwaiter().GetResult();
 
         ulong[] connections = new ulong[players];

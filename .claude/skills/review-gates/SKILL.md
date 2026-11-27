@@ -26,8 +26,8 @@ tools/ci/verify.sh --merge-master
 It merges your `HEAD` onto the latest `origin/master` in a throwaway worktree, deletes `artifacts/`, and runs every `dotnet build` / `dotnet test` step of `.github/workflows/ci.yml` in order with `-warnaserror`. That is exactly what GitHub tests (the PR merge commit), so a green run means a green PR.
 
 - A merge conflict fails the gate: `git merge origin/master` into your branch and resolve it first. For additive hotspots (`tools/screenshots/scenarios.txt`, env knobs, debug overrides, `.ini` sections, allowlists) keep both sides.
-- Never push with `--no-build` or single-solution results. Running only `tests/Carbon.Architecture.Tests.slnx` misses server allocation budgets, and running only the server tests misses the i18n, size-cap and layer guards.
-- A guard that fails after the merge (allocation budget, class-size cap, literal allowlist, ADR or opcode uniqueness) is a real finding. Fix the cause; never raise a cap or add an allowlist line to get green.
+- Never push with `--no-build` or single-solution results. Running only `tests/Carbon.Architecture.Tests.slnx` misses server allocation budgets, and running only the server tests misses the i18n, hot-path and layer guards.
+- A guard that fails after the merge (allocation budget, literal allowlist, ADR or opcode uniqueness) is a real finding. Fix the cause; never raise a budget or add an allowlist line to get green.
 - Re-run after another PR lands on `master` before you ask for a merge.
 
 ## Scoped Verification Gates
@@ -62,3 +62,9 @@ Follow Conventional Commits: `<type>(<scope>): <subject>`
   - `feat(contracts): define player movement c2s packet and opcode`
   - `perf(engine): optimize spatial grid hash calculation for entity aoi`
   - `fix(server): resolve race condition in connection session cleanup`
+
+## Tests Must Measure Behaviour
+
+- A refactor that moves logic ships characterization tests for the moved code, written against the old behaviour.
+- Every new test must be able to fail for a real bug: break the code under test once and confirm the test goes red.
+- Do not add guards that count lines or otherwise measure a proxy that needs editing on every PR.

@@ -3,6 +3,7 @@
 using System;
 using System.Globalization;
 using Carbon.Abstractions.Configuration;
+using Carbon.Primitives.Random;
 
 namespace Carbon.Infrastructure.Configuration;
 
@@ -17,7 +18,10 @@ public sealed class HostRuntimeOptions
     /// <summary>Gets or sets the provider connection string.</summary>
     public string ConnectionString { get; init; } = "Data Source=carbon_world.db";
 
-    /// <summary>Gets or sets the deterministic world generation seed.</summary>
+    /// <summary>
+    /// Gets or sets the deterministic world generation seed. Public: clients receive it to mirror terrain, so it must
+    /// never drive a gameplay roll (those use the gameplay secret, ADR-026).
+    /// </summary>
     public ulong WorldSeed { get; init; } = 1337UL;
 
     /// <summary>Gets or sets the physical tile size in world units.</summary>
@@ -57,10 +61,28 @@ public sealed class HostRuntimeOptions
     public bool ConfigHotReload { get; init; } = true;
 
     /// <summary>
+    /// Gets the injected gameplay secret (<c>CARBON_GAMEPLAY_SECRET</c>, 32 hex characters), for tests and replays.
+    /// <see langword="null"/> (the default) means the secret persisted in the database, generated on the first boot.
+    /// </summary>
+    public GameplayKey? GameplaySecret { get; init; }
+
+    /// <summary>
+    /// Gets the injected per-boot salt (<c>CARBON_GAMEPLAY_BOOT_SALT</c>, up to 16 hex characters), for replays.
+    /// <see langword="null"/> (the default) means a fresh random salt on every start.
+    /// </summary>
+    public ulong? GameplayBootSalt { get; init; }
+
+    /// <summary>Gets the gameplay key rotation period in seconds of server time (<c>CARBON_GAMEPLAY_EPOCH_SECONDS</c>).</summary>
+    public int GameplayEpochSeconds { get; init; } = DefaultGameplayEpochSeconds;
+
+    /// <summary>
     /// Gets the developer-only world overrides (debug spawn tile or biome, start hour). Always empty in
     /// Release builds of the host: the <c>CARBON_DEBUG_*</c> variables are only read by Debug builds.
     /// </summary>
     public WorldDebugOverrides DebugOverrides { get; init; } = new();
+
+    /// <summary>Default gameplay key rotation period: ten minutes.</summary>
+    public const int DefaultGameplayEpochSeconds = 600;
 
     /// <summary>
     /// Loads options from environment variables with safe local SQLite defaults.
@@ -112,6 +134,8 @@ public sealed class HostRuntimeOptions
             ? dir.Trim()
             : string.Empty;
 
+        (GameplayKey? gameplaySecret, ulong? gameplayBootSalt, int gameplayEpochSeconds) = ReadGameplayEntropy(Environment.GetEnvironmentVariable);
+
         return new HostRuntimeOptions
         {
             Provider = provider,
@@ -126,7 +150,53 @@ public sealed class HostRuntimeOptions
             ConfigDirectory = configDirectory,
             ConfigHotReload = !string.Equals(Environment.GetEnvironmentVariable("CARBON_CONFIG_HOT_RELOAD"), "0", StringComparison.Ordinal),
             DebugOverrides = ReadDebugOverrides(Environment.GetEnvironmentVariable),
+            GameplaySecret = gameplaySecret,
+            GameplayBootSalt = gameplayBootSalt,
+            GameplayEpochSeconds = gameplayEpochSeconds,
         };
+    }
+
+    /// <summary>
+    /// Parses <c>CARBON_GAMEPLAY_SECRET</c>, <c>CARBON_GAMEPLAY_BOOT_SALT</c> and <c>CARBON_GAMEPLAY_EPOCH_SECONDS</c>
+    /// (ADR-026). A malformed secret or salt fails the boot instead of silently falling back; error messages never echo
+    /// the value.
+    /// </summary>
+    /// <param name="readEnv">Environment variable reader.</param>
+    /// <returns>The injected secret and salt (or <see langword="null"/>) and the rotation period.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when a variable is set but malformed.</exception>
+    public static (GameplayKey? Secret, ulong? BootSalt, int EpochSeconds) ReadGameplayEntropy(Func<string, string?> readEnv)
+    {
+        ArgumentNullException.ThrowIfNull(readEnv);
+        GameplayKey? secret = null;
+        if (readEnv("CARBON_GAMEPLAY_SECRET") is { Length: > 0 } rawSecret)
+        {
+            string hex = rawSecret.Trim();
+            Span<byte> bytes = stackalloc byte[GameplayKey.SizeInBytes];
+            if (hex.Length != GameplayKey.SizeInBytes * 2
+                || Convert.FromHexString(hex, bytes, out _, out int written) != System.Buffers.OperationStatus.Done
+                || written != GameplayKey.SizeInBytes
+                || bytes.IndexOfAnyExcept((byte)0) < 0)
+            {
+                throw new InvalidOperationException(
+                    $"CARBON_GAMEPLAY_SECRET must be {GameplayKey.SizeInBytes * 2} hex characters (128 bits) and not all zero.");
+            }
+
+            secret = GameplayKey.FromBytes(bytes);
+            bytes.Clear();
+        }
+
+        ulong? salt = null;
+        if (readEnv("CARBON_GAMEPLAY_BOOT_SALT") is { Length: > 0 } rawSalt)
+        {
+            salt = ulong.TryParse(rawSalt.Trim(), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out ulong parsed)
+                ? parsed
+                : throw new InvalidOperationException("CARBON_GAMEPLAY_BOOT_SALT must be up to 16 hex characters.");
+        }
+
+        int epochSeconds = int.TryParse(readEnv("CARBON_GAMEPLAY_EPOCH_SECONDS"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int es) && es > 0
+            ? es
+            : DefaultGameplayEpochSeconds;
+        return (secret, salt, epochSeconds);
     }
 
     /// <summary>

@@ -13,6 +13,7 @@ using Carbon.Contracts.Entities;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
+using Carbon.Primitives.Random;
 using Carbon.Simulation.ECS;
 
 namespace Carbon.Application.World;
@@ -40,16 +41,15 @@ public sealed partial class AuthoritativeWorld
                 this.SpawnGroundLootLocked(position, in loot);
 
                 MonsterArchetypeSpec spec = WorldActorCatalog.GetMonsterSpec(meta.ArchetypeId);
-                ulong rollHash = (_currentTick * 1103515245UL) + monsterNetworkId;
-                float roll = rollHash % 1000UL / 1000f;
+                DeterministicRandom dropRandom = _entropy.KeyAt(_currentTick).CreateRandom(GameplayDomain.MonsterDrop, _currentTick, monsterNetworkId);
+                float roll = dropRandom.NextFloat();
                 if (spec.SecondaryDropItemId != 0U && spec.SecondaryDropQuantity > 0 && roll < spec.SecondaryDropChance)
                 {
                     ItemSlot secondaryLoot = new(spec.SecondaryDropItemId, spec.SecondaryDropQuantity);
                     this.SpawnGroundLootLocked(position + new Vector2(10f, 4f), in secondaryLoot);
                 }
 
-                ulong rareHash = ((_currentTick + 17UL) * 2654435761UL) + monsterNetworkId;
-                float rareRoll = rareHash % 1000UL / 1000f;
+                float rareRoll = dropRandom.NextFloat();
                 if (spec.RareDropItemId != 0U && rareRoll < spec.RareDropChance)
                 {
                     float dur = _itemRules.Items.TryGet(spec.RareDropItemId, out ItemArchetype? rareDef)
