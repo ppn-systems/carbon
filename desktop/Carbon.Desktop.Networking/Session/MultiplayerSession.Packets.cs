@@ -15,6 +15,7 @@ using Carbon.Contracts.Identity.S2C;
 using Carbon.Contracts.Items.S2C;
 using Carbon.Contracts.Maps.C2S;
 using Carbon.Contracts.Maps.S2C;
+using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Events;
 using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
@@ -422,7 +423,8 @@ public sealed partial class MultiplayerSession
                 _progression.SetUnlockedSkillMask(_progression.UnlockedSkillMask | (CharacterSkillMask)enter.UnlockedSkillMask);
             }
 
-            _unspentStatPoints = CharacterProgressionPolicy.GetUnspentStatPoints(_localLevel, _progression);
+            // The server's PlayerStatsSync corrects this right after entry; until then use the synced budget.
+            _unspentStatPoints = SyncedProgressionConfig.Current?.GetUnspentStatPoints(_localLevel, _progression) ?? 0;
             _unspentSkillPoints = CharacterProgressionPolicy.GetUnspentSkillPoints(_localLevel, _progression);
             _remoteViewsDirty = true;
             _cachedRemoteViews = [];
@@ -899,7 +901,7 @@ public sealed partial class MultiplayerSession
             }
             else if (pkt.Level > prevLevel)
             {
-                uint prevThresh = CharacterProgressionPolicy.GetXpToNextLevel(prevLevel);
+                uint prevThresh = _localXpToNext; // the server's threshold for the previous level
                 xpGain = prevThresh - Math.Min(prevXp, prevThresh) + pkt.Experience;
             }
 

@@ -66,7 +66,7 @@ attribute).
 | HP regen | 3/s | +0.25/s | — | plus 1% of max HP per second, out of combat (6 s without a hit) |
 | MP regen | 6/s | +0.1/s | — | always |
 
-Gear still comes from `items.json` (armor defense, bonus HP/MP, held weapon crit chance) with the enhancement
+Gear still comes from `items.json` (armor and accessory slots 36–41: defense, bonus HP/MP; held weapon crit chance) with the enhancement
 multiplier from `ItemEnhancementPolicy` (unchanged).
 
 ## 3. Attribute points per level
@@ -92,6 +92,11 @@ Why this shape:
   refunds the whole allocation on load (§6).
 
 ## 4. Combat math
+
+One damage rule for every path (audit DOM-1): engine systems, player hits on monsters and monster hits on players all
+resolve a hit through `CombatDamage.TryResolve`, which refuses hits on invulnerable targets and applies a mitigation
+policy: `ArmorDamageMitigation` (creature armor, `100 / (100 + armor)`) or `ProgressionDamageMitigation` (the player
+rule below). `DamageMitigationTests` fails if the formulas are copied elsewhere.
 
 All rolls are deterministic: `CombatRoll.Roll(chance, nonce, salt)` hashes a per-character counter, so replays and
 tests are reproducible and the client cannot influence the outcome.
@@ -210,7 +215,7 @@ health bar.
 | Side | What |
 | :--- | :--- |
 | Config | `progression.json` is loaded and validated by `ProgressionConfig.LoadFromJson` (fails fast at boot, rejected on a bad hot reload) and served to clients by the normal manifest (not server-only: clients need it for the panel preview). |
-| Server | Uses the config for level-ups, kill XP, point budget, derived stats, mitigation, evasion, crits and attack speed. Allocation and reset requests are tick-queued commands (ADR-017) and validated against the budget and the wallet. No DB migration: allocations already persist in the progression blob by attribute id. |
+| Server | `CharacterProgressionService` (`server/Carbon.Application/World/Progression`) uses the config for level-ups, kill XP, point budget, derived stats, mitigation, evasion, crits and attack speed. Allocation and reset requests are tick-queued commands (ADR-017) and validated against the budget and the wallet. No DB migration: allocations already persist in the progression blob by attribute id. |
 | Client | The character panel shows the five attributes with + buttons, unspent points, all derived stats and a preview of the change from the next point, computed from the synced `progression.json` with the same engine code. The server stays authoritative: the client never decides a point is affordable. |
 
 ## 8. Tuning

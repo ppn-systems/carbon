@@ -15,6 +15,7 @@ using Carbon.Contracts.Identity;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
+using Carbon.Items.Progression;
 using Carbon.Items.Serialization;
 
 namespace Carbon.Application.Identity;
@@ -51,6 +52,7 @@ public sealed class AuthService : IAuthService, IDisposable
     private readonly IPasswordHasher _hasher;
     private readonly TimeProvider _time;
     private readonly Func<ItemRules> _itemRules;
+    private readonly Func<ProgressionConfig> _progression;
     private readonly ConcurrentDictionary<Guid, LoginFailures> _loginFailures = new();
     private readonly ConcurrentDictionary<string, LoginFailures> _addressFailures = new(StringComparer.Ordinal);
     private readonly Lazy<(byte[] Hash, byte[] Salt)> _dummyCredentials;
@@ -78,12 +80,14 @@ public sealed class AuthService : IAuthService, IDisposable
     /// Returns the item rules new characters' starting stats are computed with (the world's current rules, so a hot reload
     /// applies); defaults to the shipped item tables.
     /// </param>
+    /// <param name="progression">Returns the world's current progression tuning; defaults to the shipped <c>progression.json</c>.</param>
     public AuthService(
         IAccountStore accounts,
         ICharacterStore characters,
         IPasswordHasher hasher,
         TimeProvider? time = null,
-        Func<ItemRules>? itemRules = null)
+        Func<ItemRules>? itemRules = null,
+        Func<ProgressionConfig>? progression = null)
     {
         _accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
         _characters = characters ?? throw new ArgumentNullException(nameof(characters));
@@ -97,6 +101,13 @@ public sealed class AuthService : IAuthService, IDisposable
         }
 
         _itemRules = itemRules;
+        if (progression is null)
+        {
+            ProgressionConfig defaults = ProgressionConfig.LoadShippedDefaults();
+            progression = () => defaults;
+        }
+
+        _progression = progression;
     }
 
     /// <inheritdoc/>
@@ -250,7 +261,7 @@ public sealed class AuthService : IAuthService, IDisposable
             GrantForgeKit(_itemRules(), inv, selectedSlot);
         }
 
-        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(_itemRules(), 1, inv, selectedSlot);
+        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(_itemRules(), _progression(), 1, inv, selectedSlot, progression: null);
         byte[] invBlob = InventoryBinaryCodec.Serialize(inv);
 
         CharacterRecord created = new(

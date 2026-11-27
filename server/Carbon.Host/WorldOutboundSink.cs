@@ -28,6 +28,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
 {
     private readonly SessionTransportRegistry _transportRegistry;
     private readonly ILogger<WorldOutboundSink> _logger;
+    private readonly DeltaColumnPool _deltaColumns = new();
     private volatile IConnectionHub? _hub;
 
     /// <summary>
@@ -88,60 +89,15 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             return;
         }
 
-        int count = entries.Length;
-        ulong[] ids = count == 0 ? [] : new ulong[count];
-        byte[] masks = count == 0 ? [] : new byte[count];
-        float[] px = count == 0 ? [] : new float[count];
-        float[] py = count == 0 ? [] : new float[count];
-        float[] vx = count == 0 ? [] : new float[count];
-        float[] vy = count == 0 ? [] : new float[count];
-        float[] hp = count == 0 ? [] : new float[count];
-
-        for (int i = 0; i < count; i++)
-        {
-            ref readonly EntityDeltaEntry e = ref entries[i];
-            ids[i] = e.NetworkId;
-            masks[i] = e.DirtyMask;
-            px[i] = e.PositionX;
-            py[i] = e.PositionY;
-            vx[i] = e.VelocityX;
-            vy[i] = e.VelocityY;
-            hp[i] = e.CurrentHealth;
-        }
-
+        // PERF-3: exact-length columns come from a per-count pool and go back once the send completes.
+        DeltaColumns columns = _deltaColumns.Rent(entries);
         if (dgram is not null)
         {
-            _ = DispatchEntityDeltaBatchDatagramAsync(
-                dgram,
-                serverTick,
-                lastProcessedClientTick,
-                selfX,
-                selfY,
-                ids,
-                masks,
-                px,
-                py,
-                vx,
-                vy,
-                hp,
-                _logger);
+            _ = DispatchEntityDeltaBatchDatagramAsync(dgram, serverTick, lastProcessedClientTick, selfX, selfY, columns, _deltaColumns, _logger);
             return;
         }
 
-        _ = DispatchEntityDeltaBatchAsync(
-            streamConn!,
-            serverTick,
-            lastProcessedClientTick,
-            selfX,
-            selfY,
-            ids,
-            masks,
-            px,
-            py,
-            vx,
-            vy,
-            hp,
-            _logger);
+        _ = DispatchEntityDeltaBatchAsync(streamConn!, serverTick, lastProcessedClientTick, selfX, selfY, columns, _deltaColumns, _logger);
     }
 
     /// <inheritdoc/>
@@ -401,26 +357,31 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         uint lastProcessedClientTick,
         float selfX,
         float selfY,
-        ulong[] ids,
-        byte[] masks,
-        float[] px,
-        float[] py,
-        float[] vx,
-        float[] vy,
-        float[] hp,
+        DeltaColumns columns,
+        DeltaColumnPool pool,
         ILogger logger)
     {
         try
         {
             using PacketScope<EntityDeltaBatch> lease = PacketFactory<EntityDeltaBatch>.Acquire();
-            PopulateEntityDeltaBatch(lease.Value, serverTick, lastProcessedClientTick, selfX, selfY, ids, masks, px, py, vx, vy, hp);
-
-            bool encrypt = connection.Algorithm != CipherSuiteType.None;
-            await connection.SendAsync(lease.Value, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+            PopulateEntityDeltaBatch(lease.Value, serverTick, lastProcessedClientTick, selfX, selfY, columns);
+            try
+            {
+                bool encrypt = connection.Algorithm != CipherSuiteType.None;
+                await connection.SendAsync(lease.Value, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+            }
+            finally
+            {
+                ClearColumns(lease.Value);
+            }
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogSendFailure(logger, nameof(EntityDeltaBatch), ex);
+        }
+        finally
+        {
+            pool.Return(columns);
         }
     }
 
@@ -430,52 +391,64 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         uint lastProcessedClientTick,
         float selfX,
         float selfY,
-        ulong[] ids,
-        byte[] masks,
-        float[] px,
-        float[] py,
-        float[] vx,
-        float[] vy,
-        float[] hp,
+        DeltaColumns columns,
+        DeltaColumnPool pool,
         ILogger logger)
     {
         try
         {
             using PacketScope<EntityDeltaBatch> lease = PacketFactory<EntityDeltaBatch>.Acquire();
-            PopulateEntityDeltaBatch(lease.Value, serverTick, lastProcessedClientTick, selfX, selfY, ids, masks, px, py, vx, vy, hp);
-            await SendSerializedDatagramAsync(transport, lease.Value, DeliveryMethod.UnreliableSequenced, channel: 1).ConfigureAwait(false);
+            PopulateEntityDeltaBatch(lease.Value, serverTick, lastProcessedClientTick, selfX, selfY, columns);
+            try
+            {
+                await SendSerializedDatagramAsync(transport, lease.Value, DeliveryMethod.UnreliableSequenced, channel: 1).ConfigureAwait(false);
+            }
+            finally
+            {
+                ClearColumns(lease.Value);
+            }
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogSendFailure(logger, nameof(EntityDeltaBatch), ex);
         }
+        finally
+        {
+            pool.Return(columns);
+        }
     }
 
-    private static void PopulateEntityDeltaBatch(
+    internal static void PopulateEntityDeltaBatch(
         EntityDeltaBatch pkt,
         ulong serverTick,
         uint lastProcessedClientTick,
         float selfX,
         float selfY,
-        ulong[] ids,
-        byte[] masks,
-        float[] px,
-        float[] py,
-        float[] vx,
-        float[] vy,
-        float[] hp)
+        DeltaColumns columns)
     {
         pkt.ServerTick = serverTick;
         pkt.LastProcessedClientTick = lastProcessedClientTick;
         pkt.SelfPositionX = selfX;
         pkt.SelfPositionY = selfY;
-        pkt.NetworkIds = ids;
-        pkt.DirtyMasks = masks;
-        pkt.PositionsX = px;
-        pkt.PositionsY = py;
-        pkt.VelocitiesX = vx;
-        pkt.VelocitiesY = vy;
-        pkt.CurrentHealths = hp;
+        pkt.NetworkIds = columns.Ids;
+        pkt.DirtyMasks = columns.Masks;
+        pkt.PositionsX = columns.PositionsX;
+        pkt.PositionsY = columns.PositionsY;
+        pkt.VelocitiesX = columns.VelocitiesX;
+        pkt.VelocitiesY = columns.VelocitiesY;
+        pkt.CurrentHealths = columns.Healths;
+    }
+
+    // The columns go back to the pool after the send; the (possibly pooled) packet must not keep pointing at them.
+    internal static void ClearColumns(EntityDeltaBatch pkt)
+    {
+        pkt.NetworkIds = [];
+        pkt.DirtyMasks = [];
+        pkt.PositionsX = [];
+        pkt.PositionsY = [];
+        pkt.VelocitiesX = [];
+        pkt.VelocitiesY = [];
+        pkt.CurrentHealths = [];
     }
 
     private static async Task DispatchPropChangedAsync(

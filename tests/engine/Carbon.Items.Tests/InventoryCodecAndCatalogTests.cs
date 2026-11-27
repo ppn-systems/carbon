@@ -8,6 +8,7 @@ using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
 using Carbon.Items.Definitions;
 using Carbon.Items.Enhancement;
+using Carbon.Items.Progression;
 using Carbon.Items.Serialization;
 using FluentAssertions;
 using Xunit;
@@ -17,6 +18,7 @@ namespace Carbon.Items.Tests;
 public sealed class InventoryCodecAndCatalogTests
 {
     private static readonly ItemRules s_rules = ItemRules.LoadShippedDefaults();
+    private static readonly ProgressionConfig s_progression = ProgressionConfig.LoadShippedDefaults();
 
     [Fact]
     public void InventoryBinaryCodec_ShouldRoundTripStarterLoadoutAndRejectCorruptPayloads()
@@ -113,12 +115,12 @@ public sealed class InventoryCodecAndCatalogTests
         ItemEnhancementPolicy.GetUpgradeLevel(in upgraded).Should().Be(5);
         inv.SetSlot(PlayerInventoryLayout.HeadSlot, in upgraded);
 
-        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(s_rules, 3, inv);
+        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(s_rules, s_progression, 3, inv, byte.MaxValue, null);
         stats.Defense.Should().BeGreaterThan(10f);
         stats.MaxHealth.Should().BeGreaterThan(140f);
-        stats.MaxMana.Should().Be(100f);
-        CharacterProgressionPolicy.GetXpToNextLevel(1).Should().Be(100U);
-        CharacterProgressionPolicy.MitigateDamage(100f, stats.Defense).Should().BeLessThan(70f);
+        stats.MaxMana.Should().Be(s_progression.BaseStats.MaxMana + (2f * s_progression.PerLevel.MaxMana), "level 3 with no mana gear");
+        s_progression.GetXpToNextLevel(1).Should().BeGreaterThan(0U);
+        s_progression.Mitigate(100f, DamageKind.Physical, in stats, attackerLevel: 3).Should().BeInRange(25f, 99f, "armor mitigates part of a hit, never all of it");
 
         ItemEnhancementPolicy.TryGetStep(s_rules, in upgraded, out EnhancementStep? step).Should().BeTrue();
         step!.FromLevel.Should().Be(5);
@@ -240,8 +242,8 @@ public sealed class InventoryCodecAndCatalogTests
         mageBag.GetSlot(PlayerInventoryLayout.HeadSlot).ItemId.Should().Be(StarterGameCatalog.LeatherCap);
         mageBag.GetSlot(PlayerInventoryLayout.ChestSlot).ItemId.Should().Be(StarterGameCatalog.LeatherTunic);
         mageBag.GetSlot(PlayerInventoryLayout.FeetSlot).ItemId.Should().Be(StarterGameCatalog.LeatherBoots);
-        DerivedCharacterStats baseStats = CharacterProgressionPolicy.ComputeStats(s_rules, 1, mageBag);
-        DerivedCharacterStats staffStats = CharacterProgressionPolicy.ComputeStats(s_rules, 1, mageBag, selectedHotbarSlot: 2);
+        DerivedCharacterStats baseStats = CharacterProgressionPolicy.ComputeStats(s_rules, s_progression, 1, mageBag, byte.MaxValue, null);
+        DerivedCharacterStats staffStats = CharacterProgressionPolicy.ComputeStats(s_rules, s_progression, 1, mageBag, 2, null);
         staffStats.MaxMana.Should().BeGreaterThan(baseStats.MaxMana);
 
         ItemSlot bowSlot = rangerBag.GetSlot(2);
@@ -253,9 +255,9 @@ public sealed class InventoryCodecAndCatalogTests
 
         // Progression codec, SP cap, SkillCatalog, Capabilities flags, and TryCraftInBag safety guards
         CharacterProgressionState zeroPts = new();
-        CharacterProgressionPolicy.GetUnspentStatPoints(1, zeroPts).Should().Be(0);
+        s_progression.GetUnspentStatPoints(1, zeroPts).Should().Be(0);
         CharacterProgressionPolicy.GetUnspentSkillPoints(1, zeroPts).Should().Be(1);
-        CharacterProgressionPolicy.GetUnspentStatPoints(5, zeroPts).Should().Be(16);
+        s_progression.GetUnspentStatPoints(5, zeroPts).Should().Be(s_progression.GetTotalStatPoints(5));
         CharacterProgressionPolicy.GetUnspentSkillPoints(5, zeroPts).Should().Be(5);
         CharacterProgressionPolicy.GetTotalSkillPointsForLevel(20).Should().Be((ushort)SkillCatalog.TotalLearnableRanks);
         CharacterProgressionPolicy.TryGetSkillSpec(99, 1, out _).Should().BeFalse();
@@ -282,8 +284,8 @@ public sealed class InventoryCodecAndCatalogTests
         CharacterSkillMaskHelper.HasSkill(decodedProg.UnlockedSkillMask, SkillCatalog.ArcaneNovaId).Should().BeTrue();
         CharacterSkillMaskHelper.HasSkill(decodedProg.UnlockedSkillMask, SkillCatalog.VitalSurgeId).Should().BeFalse();
 
-        DerivedCharacterStats boosted = CharacterProgressionPolicy.ComputeStats(s_rules, 5, mageBag, selectedHotbarSlot: 2, allocated);
-        DerivedCharacterStats unboosted = CharacterProgressionPolicy.ComputeStats(s_rules, 5, mageBag, selectedHotbarSlot: 2);
+        DerivedCharacterStats boosted = CharacterProgressionPolicy.ComputeStats(s_rules, s_progression, 5, mageBag, 2, allocated);
+        DerivedCharacterStats unboosted = CharacterProgressionPolicy.ComputeStats(s_rules, s_progression, 5, mageBag, 2, null);
         boosted.MaxHealth.Should().BeGreaterThan(unboosted.MaxHealth);
         boosted.MaxMana.Should().BeGreaterThan(unboosted.MaxMana);
         boosted.AttackMultiplier.Should().BeGreaterThan(unboosted.AttackMultiplier);
