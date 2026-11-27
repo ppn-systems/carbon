@@ -217,8 +217,22 @@ The rules here and in 2.4 apply as each screen is reworked.
       2 s timeout). It is never repeated on a timer.
     - The selected server shows a gold card with a check mark.
     - Up/Down or Tab walk the cards and then Back, wrapping; Enter picks.
-18. **The character creator** keeps the turntable with rotate buttons, a randomize button that always yields a complete
-    look, ◀ ▶ pickers that show the current index, and live name feedback.
+18. **The character creator** (`Scenes/CharacterSelectScene.cs`).
+    - **Turntable** (`Menu/HeroTurntable.cs`).
+      - The turn buttons, Left/Right or Q/E turn the hero a quarter at a time. Four dots under the pedestal show the
+        facing.
+      - Left alone, the turntable turns a quarter every 2.5 s so every side is shown. A manual turn pauses that for
+        6 s.
+      - With motion off it only turns when asked.
+    - **Pickers.** Each selector row (race, body type, then the race's options from `races.json`, ADR-042) shows
+      its index ("2/4") when it has more than one choice. Randomize picks every option, so the result is a complete look.
+    - **Hero name.**
+      - The field mirrors the server's rule (`AccountRules.HeroNameError`, matching `AuthService.IsValidIdentifier`):
+        2–20 ASCII letters, digits or `_`.
+      - A refused key, such as a space or an accented letter, is explained under the field for 3 s.
+      - A name the server will take gets a check and "The server will accept this name."
+      - Create with an invalid name is held back with the rule, instead of a round trip to the server.
+    - **Roster.** Cards light on hover. An empty slot shows a "+" and "Empty slot - new hero".
 
 ### 2.4 Localization and review
 

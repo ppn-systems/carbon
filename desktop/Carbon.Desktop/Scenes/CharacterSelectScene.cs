@@ -39,7 +39,6 @@ namespace Carbon.Desktop.Scenes;
 /// </summary>
 public sealed class CharacterSelectScene : GameScene
 {
-    private static readonly Direction8[] s_turnDirs = [Direction8.South, Direction8.West, Direction8.North, Direction8.East];
     private static readonly uint[] s_classWeapons = [StarterGameCatalog.IronSword, StarterGameCatalog.HuntingBow, StarterGameCatalog.ArcaneStaff];
     private static readonly string[] s_freshStartLines =
     [
@@ -81,8 +80,11 @@ public sealed class CharacterSelectScene : GameScene
     private IInputManager? _boundInput;
 
     private bool _enteringWorld;
-    private int _turnIndex;
     private int _optionScroll;
+    private float _frameDt;
+    private float _nameRejectedFor;
+    private bool _createAttempted;
+    private int _hoveredSlot = -1;
     private bool _isCreatorMode;
 
     private float _elapsed;
@@ -95,6 +97,8 @@ public sealed class CharacterSelectScene : GameScene
     private readonly CachedText _dossierText = new();
     private readonly CachedText _positionText = new();
     private readonly CachedText[] _rosterRowText = [new(), new(), new(), new()];
+    private readonly CachedText[] _traitIndexText = [new(), new(), new(), new(), new(), new()];
+    private readonly HeroTurntable _turntable;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CharacterSelectScene"/> class.
@@ -107,10 +111,13 @@ public sealed class CharacterSelectScene : GameScene
         _requests = new CharacterRosterRequests(_session, flow.SignOutAsync, _roster);
         DesktopOptions options = flow.Options;
         _capture = new MenuSceneCapture(options, "characters");
+        _turntable = new HeroTurntable(options.MenuMotion);
 
-        _createNameField = new MenuTextField(GameText.Get("character.field.name"), GameText.Get("character.hint.name"), options.CharacterName, isPassword: false, maxLength: 20)
+        _createNameField = new MenuTextField(GameText.Get("character.field.name"), GameText.Get("character.hint.name"), options.CharacterName, isPassword: false, maxLength: AccountRules.MaxHeroName)
         {
-            CharacterFilter = static ch => char.IsLetterOrDigit(ch) || ch == '_' || ch == ' ',
+            // The server takes 2-20 ASCII letters, digits or _ (no spaces, no accents): refuse the rest as it is typed.
+            CharacterFilter = AccountRules.IsHeroNameChar,
+            Icon = MenuFieldIcon.Hero,
         };
     }
 
@@ -151,8 +158,11 @@ public sealed class CharacterSelectScene : GameScene
     private const int FirstOptionRow = 2;
     private const float SelectorRowStep = 27f;
 
+    /// <summary>Gets the hero name field (behaviour tests read its text and feedback).</summary>
+    internal MenuTextField HeroName => _createNameField;
+
     /// <summary>Gets the preview turntable direction index (behaviour tests).</summary>
-    internal int TurnIndex => _turnIndex;
+    internal int TurnIndex => _turntable.Index;
 
     /// <inheritdoc/>
     public override void Load(SceneContext context)
@@ -198,6 +208,9 @@ public sealed class CharacterSelectScene : GameScene
         base.Update(context, dt);
 
         _elapsed += (float)dt;
+        _frameDt = (float)dt;
+        _nameRejectedFor = MathF.Max(0f, _nameRejectedFor - (float)dt);
+        _turntable.Advance((float)dt);
         _flow.Backdrop.Advance((float)dt);
         bool firstCatalog = _appearance.Catalog is null;
         _appearance.Bind(_session.Races.Current);
@@ -251,6 +264,18 @@ public sealed class CharacterSelectScene : GameScene
             }
         }
 
+        if (!_createNameField.IsFocused)
+        {
+            if (kb.IsKeyPressed(Key.Left) || kb.IsKeyPressed(Key.Q))
+            {
+                _turntable.Turn(-1);
+            }
+            else if (kb.IsKeyPressed(Key.Right) || kb.IsKeyPressed(Key.E))
+            {
+                _turntable.Turn(1);
+            }
+        }
+
         this.HandleBackspaceRepeat(kb, (float)dt);
 
         bool leftDown = mouse.IsButtonDown(MouseButton.Left);
@@ -261,20 +286,20 @@ public sealed class CharacterSelectScene : GameScene
         _turnLeftBtn.IsEnabled = !busy;
         _turnRightBtn.IsEnabled = !busy;
 
-        if (_logoutButton.Update(mousePos, leftDown, leftPressed))
+        if (_logoutButton.Update(mousePos, leftDown, leftPressed, _frameDt))
         {
             this.BeginLogout();
             return;
         }
 
-        if (_turnLeftBtn.Update(mousePos, leftDown, leftPressed))
+        if (_turnLeftBtn.Update(mousePos, leftDown, leftPressed, _frameDt))
         {
-            _turnIndex = (_turnIndex + s_turnDirs.Length - 1) % s_turnDirs.Length;
+            _turntable.Turn(-1);
         }
 
-        if (_turnRightBtn.Update(mousePos, leftDown, leftPressed))
+        if (_turnRightBtn.Update(mousePos, leftDown, leftPressed, _frameDt))
         {
-            _turnIndex = (_turnIndex + 1) % s_turnDirs.Length;
+            _turntable.Turn(1);
         }
 
         if (_isCreatorMode)
@@ -354,7 +379,7 @@ public sealed class CharacterSelectScene : GameScene
             {
                 bool occupied = i < _roster.Count;
                 bool sel = occupied && i == _roster.SelectedIndex;
-                ColorRgba border = sel ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle;
+                ColorRgba border = sel ? CarbonUiPalette.BorderActive : i == _hoveredSlot ? MenuPalette.HoverBorder : CarbonUiPalette.BorderSubtle;
                 ColorRgba body = sel ? CarbonUiPalette.SlotSelectedFill : new ColorRgba(CarbonUiPalette.SlotFill.R, CarbonUiPalette.SlotFill.G, CarbonUiPalette.SlotFill.B, occupied ? (byte)234 : (byte)175);
                 _uiSkin.DrawPanel(spriteBatch, UiPanelStyle.DoubleCard, in _slotBounds[i], body, border);
                 if (occupied)
@@ -380,11 +405,20 @@ public sealed class CharacterSelectScene : GameScene
 
         // Pass 3: Live Vector Hero Pedestal, Portraits & Cursor
         _geometryBatch.Begin(proj);
-        Direction8 previewDir = s_turnDirs[_turnIndex];
+        Direction8 previewDir = _turntable.Facing;
         float stageCx = stageCard.X + (stageCard.Width * 0.5f);
         float stageCy = stageCard.Y + 240f;
+        _geometryBatch.FillCircle(new Vector2(stageCx, stageCy), 52f, new ColorRgba(212, 186, 130, 18), 26);
         _geometryBatch.FillCircle(new Vector2(stageCx, stageCy), 44f, new ColorRgba(6, 10, 18, 145), 22);
         _geometryBatch.DrawCircle(new Vector2(stageCx, stageCy), 45f, CarbonUiPalette.BorderOuter, 22, 1.8f);
+
+        // Turntable facing: four dots under the pedestal, the current facing lit.
+        for (int f = 0; f < HeroTurntable.FacingCount; f++)
+        {
+            Vector2 dot = new(stageCx - 21f + (f * 14f), stageCy + 68f);
+            bool lit = f == _turntable.Index;
+            _geometryBatch.FillCircle(dot, lit ? 3.5f : 2.5f, lit ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle, segments: 10);
+        }
 
         CharacterLook previewLook = _isCreatorMode || !_roster.HasSelection
             ? _appearance.Look
@@ -434,8 +468,44 @@ public sealed class CharacterSelectScene : GameScene
         if (_isCreatorMode)
         {
             _createNameField.DrawCursorGeometry(_geometryBatch, _font);
+            for (int row = 0; row < this.ShownOptionRows; row++)
+            {
+                _optionPrevButtons[row].DrawOverlay(_geometryBatch);
+                _optionNextButtons[row].DrawOverlay(_geometryBatch);
+            }
+
+            _randomizeBtn.DrawOverlay(_geometryBatch);
+            _createButton.DrawOverlay(_geometryBatch);
+            if (_roster.Count > 0)
+            {
+                _backToRosterButton.DrawOverlay(_geometryBatch);
+            }
         }
-        else if (_vectorArt is not null)
+        else
+        {
+            for (int i = _roster.Count; i < CharacterRoster.MaxHeroes; i++)
+            {
+                // An empty slot invites a new hero: a "+" where the portrait would be.
+                RectangleF b = _slotBounds[i];
+                Vector2 c = new(b.X + 36f, b.Y + 38f);
+                ColorRgba plus = i == _hoveredSlot ? CarbonUiPalette.BorderActive : MenuPalette.Icon;
+                _geometryBatch.FillRectangle(new RectangleF(c.X - 9f, c.Y - 1.5f, 18f, 3f), plus);
+                _geometryBatch.FillRectangle(new RectangleF(c.X - 1.5f, c.Y - 9f, 3f, 18f), plus);
+            }
+
+            if (_roster.HasFreeSlot)
+            {
+                _openCreatorButton.DrawOverlay(_geometryBatch);
+            }
+
+            _enterWorldButton.DrawOverlay(_geometryBatch);
+        }
+
+        _turnLeftBtn.DrawOverlay(_geometryBatch);
+        _turnRightBtn.DrawOverlay(_geometryBatch);
+        _logoutButton.DrawOverlay(_geometryBatch);
+
+        if (!_isCreatorMode && _vectorArt is not null)
         {
             for (int i = 0; i < _roster.Count; i++)
             {
@@ -490,10 +560,24 @@ public sealed class CharacterSelectScene : GameScene
                     "appearance.row",
                     new TextArg("label", GameText.Get(labelKey)),
                     new TextArg("value", GameText.Get(valueKey)));
-                label = CarbonUiSkin.TruncateToWidth(_font, label, 204f, 1f);
+                label = CarbonUiSkin.TruncateToWidth(_font, label, 162f, 1f);
                 spriteBatch.DrawOutlinedString(_font, label, new Vector2(rightCard.X + 52f, rightCard.Y + 47f + (row * SelectorRowStep)), CarbonUiPalette.TextPrimary, black, 1, 1f);
                 _optionPrevButtons[row].DrawText(spriteBatch, _font);
                 _optionNextButtons[row].DrawText(spriteBatch, _font);
+            }
+
+            for (int row = 0; row < this.ShownOptionRows; row++)
+            {
+                // "2/4" before the > arrow: where this pick sits among the row's choices (none for a single choice).
+                int choices = this.RowChoiceCount(row);
+                if (choices < 2)
+                {
+                    continue;
+                }
+
+                string index = _traitIndexText[row].Format("character.appearance.index", new TextArg("index", this.RowChoiceIndex(row) + 1), new TextArg("count", choices));
+                TextMeasureResult im = _font.MeasureString(index, TextLayoutOptions.Default, 1f);
+                spriteBatch.DrawOutlinedString(_font, index, new Vector2(MathF.Floor(rightCard.X + 254f - im.Width), rightCard.Y + 47f + (row * SelectorRowStep)), CarbonUiPalette.TextMuted, black, 1, 1f);
             }
 
             _randomizeBtn.DrawText(spriteBatch, _font);
@@ -519,7 +603,7 @@ public sealed class CharacterSelectScene : GameScene
                 }
                 else
                 {
-                    spriteBatch.DrawOutlinedString(_font, GameText.Get("character.empty_slot"), new Vector2(b.X + 26f, b.Y + 30f), CarbonUiPalette.TextMuted, black, 1, 1f);
+                    spriteBatch.DrawOutlinedString(_font, CarbonUiSkin.TruncateToWidth(_font, GameText.Get("character.empty_slot"), b.Width - 82f, 1f), new Vector2(b.X + 70f, b.Y + 30f), i == _hoveredSlot ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextMuted, black, 1, 1f);
                 }
             }
 
@@ -545,11 +629,13 @@ public sealed class CharacterSelectScene : GameScene
         _turnRightBtn.DrawText(spriteBatch, _font);
         _logoutButton.DrawText(spriteBatch, _font);
 
-        ColorRgba statusColor = _requests.StatusIsError
-            ? new ColorRgba(235, 130, 130, 255)
-            : CarbonUiPalette.TextPrimary;
+        ColorRgba statusColor = _requests.StatusIsError ? MenuPalette.ErrorText : CarbonUiPalette.TextPrimary;
         string status = CarbonUiSkin.TruncateToWidth(_font, _requests.StatusMessage, statusPill.Width - 20f, 1f);
         spriteBatch.DrawOutlinedString(_font, status, new Vector2(statusPill.X + 10f, statusPill.Y + 7f), statusColor, black, 1, 1f);
+
+        string footer = CarbonUiSkin.TruncateToWidth(_font, GameText.Get(_isCreatorMode ? "character.footer.creator" : "character.footer.roster"), width - 32f, 1f);
+        TextMeasureResult footerSize = _font.MeasureString(footer, TextLayoutOptions.Default, 1f);
+        spriteBatch.DrawOutlinedString(_font, footer, new Vector2(MathF.Floor((width - footerSize.Width) * 0.5f), height - 30f), CarbonUiPalette.TextMuted, black, 1, 1f);
         spriteBatch.End();
 
         base.Render(context, spriteBatch, dt);
@@ -580,6 +666,15 @@ public sealed class CharacterSelectScene : GameScene
     private void UpdateRosterMode(KeyboardSnapshot kb, Vector2 mousePos, bool leftDown, bool leftPressed, bool busy)
     {
         _createNameField.IsFocused = false;
+        _hoveredSlot = -1;
+        for (int i = 0; i < CharacterRoster.MaxHeroes; i++)
+        {
+            if (_slotBounds[i].Contains(mousePos))
+            {
+                _hoveredSlot = i;
+            }
+        }
+
         if (leftPressed && !busy)
         {
             for (int i = 0; i < CharacterRoster.MaxHeroes; i++)
@@ -597,7 +692,7 @@ public sealed class CharacterSelectScene : GameScene
         _enterWorldButton.IsEnabled = !busy && hasSelection;
         _openCreatorButton.IsEnabled = !busy && _roster.HasFreeSlot;
 
-        if (_roster.HasFreeSlot && _openCreatorButton.Update(mousePos, leftDown, leftPressed))
+        if (_roster.HasFreeSlot && _openCreatorButton.Update(mousePos, leftDown, leftPressed, _frameDt))
         {
             _isCreatorMode = true;
             _createNameField.IsFocused = true;
@@ -605,7 +700,7 @@ public sealed class CharacterSelectScene : GameScene
         }
 
         bool enterKey = !busy && (kb.IsKeyPressed(Key.Enter) || kb.IsKeyPressed(Key.KeypadEnter));
-        if ((_enterWorldButton.Update(mousePos, leftDown, leftPressed) || enterKey) && hasSelection)
+        if ((_enterWorldButton.Update(mousePos, leftDown, leftPressed, _frameDt) || enterKey) && hasSelection)
         {
             _requests.EnterWorld(_roster.Selected);
         }
@@ -632,22 +727,22 @@ public sealed class CharacterSelectScene : GameScene
 
         for (int row = 0; row < this.ShownOptionRows; row++)
         {
-            if (_optionPrevButtons[row].Update(mousePos, leftDown, leftPressed))
+            if (_optionPrevButtons[row].Update(mousePos, leftDown, leftPressed, _frameDt))
             {
                 this.CycleRow(row, -1);
             }
-            else if (_optionNextButtons[row].Update(mousePos, leftDown, leftPressed))
+            else if (_optionNextButtons[row].Update(mousePos, leftDown, leftPressed, _frameDt))
             {
                 this.CycleRow(row, 1);
             }
         }
 
-        if (_randomizeBtn.Update(mousePos, leftDown, leftPressed))
+        if (_randomizeBtn.Update(mousePos, leftDown, leftPressed, _frameDt))
         {
             _appearance.Randomize(Random.Shared);
         }
 
-        if (_roster.Count > 0 && _backToRosterButton.Update(mousePos, leftDown, leftPressed))
+        if (_roster.Count > 0 && _backToRosterButton.Update(mousePos, leftDown, leftPressed, _frameDt))
         {
             _isCreatorMode = false;
             _createNameField.IsFocused = false;
@@ -655,10 +750,20 @@ public sealed class CharacterSelectScene : GameScene
         }
 
         bool enterKey = !busy && (kb.IsKeyPressed(Key.Enter) || kb.IsKeyPressed(Key.KeypadEnter));
-        if (_createButton.Update(mousePos, leftDown, leftPressed) || (enterKey && _createNameField.IsFocused && _roster.HasFreeSlot))
+        if (_createButton.Update(mousePos, leftDown, leftPressed, _frameDt) || (enterKey && _createNameField.IsFocused && _roster.HasFreeSlot))
         {
-            _requests.Create(_createNameField.Text, _appearance.Look);
+            _createAttempted = true;
+            if (AccountRules.HeroNameError(_createNameField.Text) is null)
+            {
+                _requests.Create(_createNameField.Text, _appearance.Look);
+            }
+            else
+            {
+                _createNameField.IsFocused = true;
+            }
         }
+
+        this.RefreshNameFeedback();
     }
 
     private void PollRequests(SceneContext context)
@@ -744,15 +849,15 @@ public sealed class CharacterSelectScene : GameScene
         _optionsBounds = new RectangleF(rx + 16f, ry + 42f + (FirstOptionRow * SelectorRowStep), 274f, VisibleAppearanceRows * SelectorRowStep);
         _randomizeBtn.Bounds = new RectangleF(rx + 16f, ry + 42f + (VisibleOptionRows * SelectorRowStep) + 1f, 274f, 24f);
 
-        _createNameField.Bounds = new RectangleF(rx + 16f, ry + 250f, 274f, 36f);
+        _createNameField.Bounds = new RectangleF(rx + 16f, ry + 250f, 274f, 38f);
         if (_roster.Count > 0)
         {
-            _createButton.Bounds = new RectangleF(rx + 16f, ry + 302f, 182f, 44f);
-            _backToRosterButton.Bounds = new RectangleF(rx + 206f, ry + 302f, 84f, 44f);
+            _createButton.Bounds = new RectangleF(rx + 16f, ry + 314f, 182f, 44f);
+            _backToRosterButton.Bounds = new RectangleF(rx + 206f, ry + 314f, 84f, 44f);
         }
         else
         {
-            _createButton.Bounds = new RectangleF(rx + 16f, ry + 302f, 274f, 44f);
+            _createButton.Bounds = new RectangleF(rx + 16f, ry + 314f, 274f, 44f);
         }
     }
 
@@ -792,7 +897,36 @@ public sealed class CharacterSelectScene : GameScene
     {
         if (_isCreatorMode && !_requests.IsCreating && !_requests.IsEnteringWorld && !_requests.IsSigningOut)
         {
-            _createNameField.AppendChar(ch);
+            if (!_createNameField.AppendChar(ch))
+            {
+                // Explain a refused key (a space, an accented letter) where the player is looking.
+                _nameRejectedFor = 3f;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The line under the hero name: why a key was refused (for a few seconds), the rule after a failed create, or a
+    /// check once the name is one the server will take.
+    /// </summary>
+    private void RefreshNameFeedback()
+    {
+        string? error = AccountRules.HeroNameError(_createNameField.Text);
+        if (_nameRejectedFor > 0f)
+        {
+            _createNameField.SetFeedback(FieldFeedback.Error, GameText.Get("character.name.chars"));
+        }
+        else if (error is not null && _createAttempted)
+        {
+            _createNameField.SetFeedback(FieldFeedback.Error, GameText.Get(error));
+        }
+        else if (error is null)
+        {
+            _createNameField.SetFeedback(FieldFeedback.Success, GameText.Get("character.name.ok"));
+        }
+        else
+        {
+            _createNameField.SetFeedback(FieldFeedback.None, string.Empty);
         }
     }
 
@@ -857,6 +991,43 @@ public sealed class CharacterSelectScene : GameScene
             BodyRow => race.Bodies.Count,
             _ => race.Options[row - FirstOptionRow + _optionScroll].Choices.Count,
         };
+    }
+
+    /// <summary>Where the current pick of selector row <paramref name="row"/> sits among its choices (0-based).</summary>
+    private int RowChoiceIndex(int row)
+    {
+        RaceDefinition? race = _appearance.Race;
+        if (race is null)
+        {
+            return 0;
+        }
+
+        switch (row)
+        {
+            case RaceRow:
+                List<RaceDefinition> races = _appearance.Catalog!.Races;
+                for (int i = 0; i < races.Count; i++)
+                {
+                    if (ReferenceEquals(races[i], race))
+                    {
+                        return i;
+                    }
+                }
+
+                return 0;
+            case BodyRow:
+                for (int i = 0; i < race.Bodies.Count; i++)
+                {
+                    if (ReferenceEquals(race.Bodies[i], _appearance.Body))
+                    {
+                        return i;
+                    }
+                }
+
+                return 0;
+            default:
+                return _appearance.GetChoice(row - FirstOptionRow + _optionScroll);
+        }
     }
 
     private void CycleRow(int row, int step)
