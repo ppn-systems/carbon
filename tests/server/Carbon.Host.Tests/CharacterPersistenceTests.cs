@@ -8,9 +8,11 @@ using Carbon.Abstractions.World;
 using Carbon.Application.World.Needs;
 using Carbon.Application.World.Persistence;
 using Carbon.Application.World.Players;
+using Carbon.Application.World.StatusEffects;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Identity;
+using Carbon.Creatures;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Serialization;
@@ -151,7 +153,8 @@ public sealed class CharacterPersistenceTests
         {
             ItemRules rules = ItemRules.LoadShippedDefaults();
             NeedsService needs = new(this.Simulation, new BuildingGrid(), 32f, () => rules, () => null, new NeedsConfig(), null, TestGameplayEntropy.Create(1UL));
-            this.Persistence = new CharacterPersistence(this.Simulation, needs, TimeProvider.System);
+            StatusEffectService statusEffects = new(this.Simulation, 30, null, CreatureContent.LoadDefault().Catalog, TestGameplayEntropy.Create(1UL));
+            this.Persistence = new CharacterPersistence(this.Simulation, needs, statusEffects, TimeProvider.System);
         }
 
         public WorldSimulation Simulation { get; } = new();
