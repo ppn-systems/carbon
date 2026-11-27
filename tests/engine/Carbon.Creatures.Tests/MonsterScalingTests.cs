@@ -94,6 +94,21 @@ public sealed class MonsterScalingTests
         }
     }
 
+    [Theory]
+    [InlineData(false, 3.5)]
+    [InlineData(true, 5.5)]
+    public void ShippedConfig_SpawnDensity_StaysWithinScreenBudget(bool isNight, double maxPerScreen)
+    {
+        SpawningConfig config = CreatureTestData.LoadSpawning();
+        double cap = isNight ? Math.Ceiling(config.BaseCellCap * config.Night.DensityMultiplier) : config.BaseCellCap;
+        const double screenArea = 1280d * 720d; // reference desktop viewport, world units at zoom 1
+
+        double perScreen = cap * screenArea / (config.CellSize * config.CellSize);
+
+        perScreen.Should().BeLessThanOrEqualTo(maxPerScreen, "a fully populated area must not crowd the player's screen");
+        perScreen.Should().BeGreaterThan(1d, "the wilds should still have monsters to fight");
+    }
+
     [Fact]
     public void ShippedConfig_LevelGates_SlimesNearSpawnDemonsOnlyFarOut()
     {
