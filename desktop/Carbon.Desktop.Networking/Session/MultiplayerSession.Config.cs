@@ -33,7 +33,7 @@ public sealed partial class MultiplayerSession
     public Task<ConfigCatalog> WaitForGameConfigAsync(CancellationToken ct = default) => _config.WaitForGameConfigAsync(ct);
 
     private SessionConfigSync CreateConfigSync() =>
-        new(_options.ConfigCacheDirectory, () => _tcpSession, this.ApplyConfigCatalog);
+        new(_options.ConfigCacheDirectory, (version, names) => SessionConfigSync.OpenTcpStream(_tcpSession, version, names), this.ApplyConfigCatalog);
 
     private void ApplyConfigCatalog(ConfigCatalog catalog)
     {
