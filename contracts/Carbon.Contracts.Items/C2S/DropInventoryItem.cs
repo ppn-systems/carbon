@@ -17,11 +17,18 @@ public sealed partial class DropInventoryItem : PacketBase<DropInventoryItem>, I
     /// <inheritdoc/>
     public static ushort StaticOpCode => ItemOpCode.DropInventoryItem;
 
-    /// <summary>Source inventory slot index (<c>0..39</c>).</summary>
+    /// <summary>Source inventory slot index (<c>0..41</c>).</summary>
     [SerializeOrder(0)]
     public ushort SlotIndex { get; set; }
 
     /// <summary>Quantity to drop (&lt;= 0 drops the entire slot).</summary>
     [SerializeOrder(1)]
     public int Quantity { get; set; }
+
+    /// <summary>
+    /// Item the client expects in the source slot. The server answers <c>Conflict</c> when it differs, so a stale or
+    /// replayed command never acts on another item; <c>0</c> skips the check (ADR-020 D2).
+    /// </summary>
+    [SerializeOrder(2)]
+    public ushort ExpectedItemId { get; set; }
 }
