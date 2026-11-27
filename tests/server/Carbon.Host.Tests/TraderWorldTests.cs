@@ -303,7 +303,7 @@ public sealed class TraderWorldTests
             AuthoritativeWorld world = await CreateWorldAsync(factory, sink, time, traders, characters, chunks).ConfigureAwait(true);
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
             CharacterRecord buyer = Character("Builder", fx, fy, gold: 5_000, firstBagItem: new ItemSlot(StarterGameCatalog.WoodLog, 30));
-            world.TryEnterWorld(Conn, Conn, buyer).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(Conn, buyer).Status.Should().Be(OpStatus.Ok);
             Step(world, 12);
 
             // Dirty all three stores: a trader sale, a placed wall (chunk delta) and the buyer's wallet (character).
