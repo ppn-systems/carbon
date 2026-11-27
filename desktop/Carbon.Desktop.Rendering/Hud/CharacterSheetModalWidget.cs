@@ -266,37 +266,7 @@ internal sealed class CharacterSheetModalWidget
         RectangleF xpTrack = GetXpTrackRect(in layout);
         spriteBatch.DrawOutlinedString(font, GameText.Format("character.xp", new TextArg("xp", world.LocalPlayerExperience.ToString("N0", CultureInfo.InvariantCulture)), new TextArg("next", world.LocalPlayerXpToNext.ToString("N0", CultureInfo.InvariantCulture))), new Vector2(xpTrack.X, xpTrack.Bottom + MathF.Round(6f * s)), CarbonUiPalette.TextMuted, black, 1, ts);
 
-        // Derived stats: two columns of label + value; previewed changes show "now > next" in green.
-        RectangleF statsBox = GetStatsRect(in layout);
-        spriteBatch.DrawOutlinedString(font, GameText.Get("character.stats"), new Vector2(statsBox.X + MathF.Round(10f * s), statsBox.Y + MathF.Round(8f * s)), CarbonUiPalette.TextWarm, black, 1, ts);
-        if (_preview.Config is null)
-        {
-            spriteBatch.DrawOutlinedString(font, GameText.Get("character.syncing"), new Vector2(statsBox.X + MathF.Round(10f * s), statsBox.Y + MathF.Round(36f * s)), CarbonUiPalette.TextMuted, black, 1, ts);
-        }
-        else
-        {
-            DerivedCharacterStats now = _preview.Current;
-            DerivedCharacterStats next = _preview.Preview;
-            int perColumn = (CharacterStatsPreview.DisplayRowCount + 1) / 2;
-            float colW = (statsBox.Width - MathF.Round(20f * s)) * 0.5f;
-            float rowH = MathF.Round(32f * s);
-            for (int i = 0; i < CharacterStatsPreview.DisplayRowCount; i++)
-            {
-                int col = i / perColumn;
-                int row = i % perColumn;
-                float x = statsBox.X + MathF.Round(10f * s) + (col * colW);
-                float y = statsBox.Y + MathF.Round(34f * s) + (row * rowH);
-                bool changes = _preview.PreviewChanges(i);
-                string value = changes ? _preview.FormatStat(i, in next) : _preview.FormatStat(i, in now);
-                float valueW = font.MeasureString(value, scale: ts).Width;
-                float valueRight = x + colW - MathF.Round(12f * s);
-
-                // Labels give way to values (translations differ in width).
-                float labelW = MathF.Max(0f, valueRight - valueW - x - MathF.Round(6f * s));
-                spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, CharacterStatsPreview.StatLabel(i), labelW, ts), new Vector2(x, y), CarbonUiPalette.TextMuted, black, 1, ts);
-                spriteBatch.DrawOutlinedString(font, value, new Vector2(valueRight - valueW, y), changes ? s_previewText : CarbonUiPalette.TextPrimary, black, 1, ts);
-            }
-        }
+        this.DrawDerivedStatsText(spriteBatch, font, in layout);
 
         if (showTelemetry)
         {
@@ -443,5 +413,43 @@ internal sealed class CharacterSheetModalWidget
         float top = lastRow.Bottom + MathF.Round(12f * s);
         float h = MathF.Min(MathF.Round(40f * s), rightCard.Bottom - top - MathF.Round(10f * s));
         return new RectangleF(lastRow.X, top, lastRow.Width, h);
+    }
+
+    /// <summary>Draws the derived-stats card: two columns of label + value; previewed changes show the next value in green.</summary>
+    private void DrawDerivedStatsText(SpriteBatch spriteBatch, BitmapFont font, in PlayerModalLayout layout)
+    {
+        float s = layout.Scale;
+        float ts = layout.TextScale;
+        ColorRgba black = CarbonUiPalette.TextOutline;
+        RectangleF statsBox = GetStatsRect(in layout);
+        spriteBatch.DrawOutlinedString(font, GameText.Get("character.stats"), new Vector2(statsBox.X + MathF.Round(10f * s), statsBox.Y + MathF.Round(8f * s)), CarbonUiPalette.TextWarm, black, 1, ts);
+        if (_preview.Config is null)
+        {
+            spriteBatch.DrawOutlinedString(font, GameText.Get("character.syncing"), new Vector2(statsBox.X + MathF.Round(10f * s), statsBox.Y + MathF.Round(36f * s)), CarbonUiPalette.TextMuted, black, 1, ts);
+        }
+        else
+        {
+            DerivedCharacterStats now = _preview.Current;
+            DerivedCharacterStats next = _preview.Preview;
+            int perColumn = (CharacterStatsPreview.DisplayRowCount + 1) / 2;
+            float colW = (statsBox.Width - MathF.Round(20f * s)) * 0.5f;
+            float rowH = MathF.Round(32f * s);
+            for (int i = 0; i < CharacterStatsPreview.DisplayRowCount; i++)
+            {
+                int col = i / perColumn;
+                int row = i % perColumn;
+                float x = statsBox.X + MathF.Round(10f * s) + (col * colW);
+                float y = statsBox.Y + MathF.Round(34f * s) + (row * rowH);
+                bool changes = _preview.PreviewChanges(i);
+                string value = changes ? _preview.FormatStat(i, in next) : _preview.FormatStat(i, in now);
+                float valueW = font.MeasureString(value, scale: ts).Width;
+                float valueRight = x + colW - MathF.Round(12f * s);
+
+                // Labels give way to values (translations differ in width).
+                float labelW = MathF.Max(0f, valueRight - valueW - x - MathF.Round(6f * s));
+                spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, CharacterStatsPreview.StatLabel(i), labelW, ts), new Vector2(x, y), CarbonUiPalette.TextMuted, black, 1, ts);
+                spriteBatch.DrawOutlinedString(font, value, new Vector2(valueRight - valueW, y), changes ? s_previewText : CarbonUiPalette.TextPrimary, black, 1, ts);
+            }
+        }
     }
 }
