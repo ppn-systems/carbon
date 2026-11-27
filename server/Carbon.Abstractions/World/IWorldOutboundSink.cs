@@ -61,6 +61,10 @@ public readonly record struct PlayerNeedsSnapshot(
 /// <summary>
 /// Snapshot sent by the authoritative simulation when an entity enters a player's Area of Interest.
 /// </summary>
+/// <remarks>
+/// For ground loot, <c>LootCurrency</c> says whether it is an item stack or a gold/diamond pile, and <c>LootOwnerNetworkId</c> / <c>LootProtectionMs</c> name the only player who may pick it up and for how much longer
+/// (both 0 when anyone may).
+/// </remarks>
 public readonly record struct EntitySpawnSnapshot(
     ulong NetworkId,
     EntityKind Kind,
@@ -80,7 +84,10 @@ public readonly record struct EntitySpawnSnapshot(
     ushort EquippedWeaponId = 0,
     ushort Level = 1,
     int LootCount = 0,
-    byte WeaponUpgradeLevel = 0);
+    byte WeaponUpgradeLevel = 0,
+    LootCurrency LootCurrency = LootCurrency.None,
+    ulong LootOwnerNetworkId = 0UL,
+    uint LootProtectionMs = 0U);
 
 /// <summary>
 /// Per-entity delta slice collected inside a tick's AoI snapshot batch.

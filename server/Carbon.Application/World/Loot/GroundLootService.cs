@@ -3,6 +3,9 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Application.World.Replication;
+using Carbon.Contracts.Entities;
+using Carbon.Economy.Currency;
 using Carbon.Items.Catalog;
 using Carbon.Items.Components;
 using Carbon.Items.Containers;
@@ -12,15 +15,45 @@ using Carbon.Simulation.World;
 
 namespace Carbon.Application.World.Loot;
 
+/// <summary>Who may pick up a kill's loot, and for how long it stays on the ground.</summary>
+/// <param name="OwnerNetworkId">Player network id that alone may pick it up while protected (0 = anyone).</param>
+/// <param name="ProtectedUntilTick">First tick at which anyone may pick it up.</param>
+/// <param name="LifetimeTicks">Ticks the loot lies on the ground (renewed after a partial pickup).</param>
+internal readonly record struct LootClaim(ulong OwnerNetworkId, ulong ProtectedUntilTick, ulong LifetimeTicks);
+
 /// <summary>A ground loot stack tracked by the world, keyed by its network id.</summary>
-/// <param name="Item">The stack lying on the ground.</param>
+/// <param name="Item">The stack lying on the ground (empty for a currency pile).</param>
 /// <param name="SpawnTick">Tick the stack was dropped; auto-collect waits a short grace period after it.</param>
-internal readonly record struct GroundLootEntry(ItemSlot Item, ulong SpawnTick);
+/// <param name="OwnerNetworkId">Player network id that alone may pick it up until <paramref name="ProtectedUntilTick"/> (0 = anyone).</param>
+/// <param name="ProtectedUntilTick">First tick at which anyone may pick it up.</param>
+/// <param name="LifetimeTicks">Ticks the stack lies on the ground.</param>
+/// <param name="Currency">Currency of a coin or diamond pile; 0 for an item stack.</param>
+/// <param name="CurrencyAmount">Amount a currency pile credits to the wallet.</param>
+internal readonly record struct GroundLootEntry(
+    ItemSlot Item,
+    ulong SpawnTick,
+    ulong OwnerNetworkId = 0UL,
+    ulong ProtectedUntilTick = 0UL,
+    ulong LifetimeTicks = GroundLootService.LootLifetimeTicks,
+    CurrencyKind Currency = 0,
+    long CurrencyAmount = 0L)
+{
+    /// <summary>Gets whether this is a gold or diamond pile rather than an item stack.</summary>
+    public bool IsCurrency => this.Currency != 0;
+
+    /// <summary>Gets whether the stack is still reserved for its owner at <paramref name="tick"/>.</summary>
+    public bool IsProtectedAt(ulong tick) => this.OwnerNetworkId != 0UL && tick < this.ProtectedUntilTick;
+
+    /// <summary>Gets whether the player <paramref name="playerNetworkId"/> may pick the stack up at <paramref name="tick"/>.</summary>
+    public bool CanBePickedUpBy(ulong playerNetworkId, ulong tick) => !this.IsProtectedAt(tick) || playerNetworkId == this.OwnerNetworkId;
+}
 
 /// <summary>
 /// Owns ground loot on the authoritative server: spawning (merging into nearby stacks of the same item), finding
 /// stacks a player walks over, updating or removing a stack after a pickup, and forgetting stacks whose entity died
-/// (audit SOLID-1, first extraction from <see cref="AuthoritativeWorld"/>). Called only from inside the world tick lock.
+/// (audit SOLID-1, first extraction from <see cref="AuthoritativeWorld"/>). Kill loot (item stacks and gold/diamond piles)
+/// carries a <see cref="LootClaim"/>: it never merges, only the killer may take it while protected, and it lives the
+/// claim's lifetime (ADR-019). Called only from inside the world tick lock.
 /// </summary>
 internal sealed class GroundLootService
 {
@@ -85,7 +118,8 @@ internal sealed class GroundLootService
             foreach (KeyValuePair<ulong, GroundLootEntry> kvp in _byNetworkId)
             {
                 GroundLootEntry existing = kvp.Value;
-                if (existing.Item.ItemId != item.ItemId || !existing.Item.IsStackable || existing.Item.Quantity >= maxStack)
+                if (existing.OwnerNetworkId != 0UL || existing.IsCurrency ||
+                    existing.Item.ItemId != item.ItemId || !existing.Item.IsStackable || existing.Item.Quantity >= maxStack)
                 {
                     continue;
                 }
@@ -121,6 +155,64 @@ internal sealed class GroundLootService
         }
 
         this.SpawnNewEntity(worldPos, in item);
+    }
+
+    /// <summary>
+    /// Drops a kill's item stack at <paramref name="worldPos"/> as its own entity (never merged), reserved for the claim's
+    /// owner while protected and living the claim's lifetime.
+    /// </summary>
+    public void SpawnClaimed(Vector2 worldPos, in ItemSlot item, in LootClaim claim)
+    {
+        if (!item.IsEmpty)
+        {
+            this.SpawnEntity(worldPos, in item, in claim, 0, 0L);
+        }
+    }
+
+    /// <summary>Drops a pile of <paramref name="amount"/> gold or diamonds at <paramref name="worldPos"/> under <paramref name="claim"/>.</summary>
+    public void SpawnCurrency(Vector2 worldPos, CurrencyKind currency, long amount, in LootClaim claim)
+    {
+        if (amount > 0L && currency != 0)
+        {
+            this.SpawnEntity(worldPos, ItemSlot.Empty, in claim, currency, amount);
+        }
+    }
+
+    /// <summary>
+    /// Builds the replicated identity of ground stack <paramref name="networkId"/>: item or currency, quantity, and the owner
+    /// with the protection left (in milliseconds at <paramref name="tickRate"/> Hz).
+    /// </summary>
+    public bool TryGetSpawnIdentity(ulong networkId, ushort tickRate, out SpawnIdentity identity)
+    {
+        if (!_byNetworkId.TryGetValue(networkId, out GroundLootEntry entry))
+        {
+            identity = default;
+            return false;
+        }
+
+        ulong now = _currentTick();
+        bool isProtected = entry.IsProtectedAt(now);
+        uint protectionMs = isProtected
+            ? (uint)Math.Min(uint.MaxValue, (entry.ProtectedUntilTick - now) * 1000UL / Math.Max((ushort)1, tickRate))
+            : 0U;
+        ItemSlot item = entry.Item;
+        identity = SpawnIdentity.Unknown with
+        {
+            Kind = EntityKind.LootDrop,
+            Name = entry.Currency switch
+            {
+                CurrencyKind.Gold => "Gold",
+                CurrencyKind.Diamond => "Diamonds",
+                _ => _itemRules().GetDisplayName(item.ItemId),
+            },
+            Archetype = entry.IsCurrency ? (ushort)0 : (ushort)item.ItemId,
+            LootCount = entry.IsCurrency ? (int)Math.Min(int.MaxValue, entry.CurrencyAmount) : item.Quantity,
+            WeaponUpgrade = entry.IsCurrency ? (byte)0 : ItemEnhancementPolicy.GetUpgradeLevel(in item),
+            LootCurrency = (LootCurrency)entry.Currency,
+            LootOwnerNetworkId = isProtected ? entry.OwnerNetworkId : 0UL,
+            LootProtectionMs = protectionMs,
+        };
+        return true;
     }
 
     /// <summary>
@@ -163,7 +255,7 @@ internal sealed class GroundLootService
 
         ItemSlot left = entry.Item with { Quantity = remainder };
         _byNetworkId[networkId] = entry with { Item = left };
-        _simulation.Entities.SetComponent(lootEntity, new LootDropComponent(left, 0, _currentTick() + LootLifetimeTicks));
+        _simulation.Entities.SetComponent(lootEntity, new LootDropComponent(left, 0, _currentTick() + entry.LifetimeTicks));
         _onStackChanged(networkId, lootPosition);
     }
 
@@ -193,13 +285,16 @@ internal sealed class GroundLootService
         }
     }
 
-    private void SpawnNewEntity(Vector2 worldPos, in ItemSlot item)
+    private void SpawnNewEntity(Vector2 worldPos, in ItemSlot item) =>
+        this.SpawnEntity(worldPos, in item, new LootClaim(0UL, 0UL, LootLifetimeTicks), 0, 0L);
+
+    private void SpawnEntity(Vector2 worldPos, in ItemSlot item, in LootClaim claim, CurrencyKind currency, long amount)
     {
         ulong netId = _allocateNetworkId();
         ulong now = _currentTick();
         Entity lootEntity = _simulation.SpawnNetworkEntity(netId, worldPos, 8f);
         _simulation.Entities.SetCollider(lootEntity, new Collider2D(ColliderKind.Circle, 8f, default, IsTrigger: true, LootLayer, 0U));
-        _simulation.Entities.SetComponent(lootEntity, new LootDropComponent(item, 0, now + LootLifetimeTicks));
-        _byNetworkId[netId] = new GroundLootEntry(item, now);
+        _simulation.Entities.SetComponent(lootEntity, new LootDropComponent(item, 0, now + claim.LifetimeTicks));
+        _byNetworkId[netId] = new GroundLootEntry(item, now, claim.OwnerNetworkId, claim.ProtectedUntilTick, claim.LifetimeTicks, currency, amount);
     }
 }

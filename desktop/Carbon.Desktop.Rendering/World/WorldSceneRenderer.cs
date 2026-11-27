@@ -596,6 +596,47 @@ public sealed class WorldSceneRenderer : IDisposable
         WadingRenderer.DrawFront(batch, _art, tileSize, footPos, in wade, velocity, _animTime, 1u);
     }
 
+    /// <summary>
+    /// Draws a ground loot drop: the item's art, or the coin/diamond art for a currency pile (ADR-019). Loot still reserved
+    /// for another player is drawn faded, without its light beam.
+    /// </summary>
+    private static void DrawLootDrop(GeometryBatch batch, IVectorArtRepository? art, in RemoteEntityView remote, float animTime)
+    {
+        float bob = (MathF.Sin((animTime * 4.2f) + remote.NetworkId) * 2.8f) - 5f;
+        byte alpha = remote.IsLootLocked ? (byte)105 : (byte)255;
+        batch.FillCircle(new Vector2(remote.Position.X + 1f, remote.Position.Y + 4f), 8.5f, new ColorRgba(0, 0, 0, remote.IsLootLocked ? (byte)50 : (byte)95), 10);
+
+        CompiledItemVectorArt? lootArt = null;
+        bool hasArt = art is not null && remote.LootCurrency switch
+        {
+            LootCurrency.Gold => art.TryGetUiIcon("coin", out lootArt),
+            LootCurrency.Diamond => art.TryGetUiIcon("diamond", out lootArt),
+            LootCurrency.None or _ => art.TryGetItem(remote.ArchetypeId, out lootArt),
+        };
+        if (!hasArt || lootArt is null)
+        {
+            batch.FillCircle(new Vector2(remote.Position.X, remote.Position.Y + bob), 6f, new ColorRgba(250, 204, 21, (byte)(240 * alpha / 255)), 10);
+            return;
+        }
+
+        if (!remote.IsLootLocked)
+        {
+            ColorRgba beamCol = remote.WeaponUpgradeLevel > 0
+                ? new ColorRgba(34, 211, 238, 70)
+                : new ColorRgba(lootArt.AccentColor.R, lootArt.AccentColor.G, lootArt.AccentColor.B, 55);
+            batch.FillRectangle(new RectangleF(remote.Position.X - 3f, remote.Position.Y - 22f, 6f, 24f), beamCol);
+        }
+
+        ColorRgba ringCol = remote.IsLootLocked
+            ? new ColorRgba(148, 163, 184, 90)
+            : remote.WeaponUpgradeLevel > 0
+                ? new ColorRgba(34, 211, 238, 170)
+                : new ColorRgba(lootArt.AccentColor.R, lootArt.AccentColor.G, lootArt.AccentColor.B, 140);
+        batch.DrawCircle(new Vector2(remote.Position.X, remote.Position.Y + 2f), 10.5f, ringCol, 14, 1.2f);
+        float size = remote.LootCurrency == LootCurrency.None ? 18f : 14f;
+        VectorRigRenderer.DrawItemIcon(batch, lootArt, new Vector2(remote.Position.X, remote.Position.Y + bob), size, alpha: alpha);
+    }
+
     private void DrawRemoteEntity(GeometryBatch batch, IWorldReadModel world, in RemoteEntityView remote)
     {
         if (remote.Kind == EntityKind.Projectile)
@@ -606,26 +647,7 @@ public sealed class WorldSceneRenderer : IDisposable
 
         if (remote.Kind == EntityKind.LootDrop)
         {
-            float bob = (MathF.Sin((_animTime * 4.2f) + remote.NetworkId) * 2.8f) - 5f;
-            batch.FillCircle(new Vector2(remote.Position.X + 1f, remote.Position.Y + 4f), 8.5f, new ColorRgba(0, 0, 0, 95), 10);
-            if (_art is not null && _art.TryGetItem(remote.ArchetypeId, out CompiledItemVectorArt? lootArt))
-            {
-                ColorRgba beamCol = remote.WeaponUpgradeLevel > 0
-                    ? new ColorRgba(34, 211, 238, 70)
-                    : new ColorRgba(lootArt.AccentColor.R, lootArt.AccentColor.G, lootArt.AccentColor.B, 55);
-                batch.FillRectangle(new RectangleF(remote.Position.X - 3f, remote.Position.Y - 22f, 6f, 24f), beamCol);
-
-                ColorRgba ringCol = remote.WeaponUpgradeLevel > 0
-                    ? new ColorRgba(34, 211, 238, 170)
-                    : new ColorRgba(lootArt.AccentColor.R, lootArt.AccentColor.G, lootArt.AccentColor.B, 140);
-                batch.DrawCircle(new Vector2(remote.Position.X, remote.Position.Y + 2f), 10.5f, ringCol, 14, 1.2f);
-                VectorRigRenderer.DrawItemIcon(batch, lootArt, new Vector2(remote.Position.X, remote.Position.Y + bob), 18f);
-            }
-            else
-            {
-                batch.FillCircle(new Vector2(remote.Position.X, remote.Position.Y + bob), 6f, new ColorRgba(250, 204, 21, 240), 10);
-            }
-
+            DrawLootDrop(batch, _art, in remote, _animTime);
             return;
         }
 

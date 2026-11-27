@@ -24,7 +24,10 @@ internal readonly record struct SpawnIdentity(
     ushort WeaponId,
     ushort Level,
     int LootCount,
-    byte WeaponUpgrade)
+    byte WeaponUpgrade,
+    LootCurrency LootCurrency = LootCurrency.None,
+    ulong LootOwnerNetworkId = 0UL,
+    uint LootProtectionMs = 0U)
 {
     /// <summary>Gets the identity used for an entity the world knows nothing more about.</summary>
     public static SpawnIdentity Unknown { get; } = new(EntityKind.Player, "Adventurer", 0, 0, 0, 0, 0, 0, 1, 0, 0);
@@ -200,7 +203,10 @@ internal sealed class AoiReplicator
             id.WeaponId,
             id.Level,
             id.LootCount,
-            id.WeaponUpgrade);
+            id.WeaponUpgrade,
+            id.LootCurrency,
+            id.LootOwnerNetworkId,
+            id.LootProtectionMs);
         return true;
     }
 }
