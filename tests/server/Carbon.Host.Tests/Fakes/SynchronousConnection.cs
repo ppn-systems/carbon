@@ -19,14 +19,29 @@ namespace Carbon.Host.Tests.Fakes;
 /// real <c>WorldOutboundSink</c> (audit round 3, ALLOC-1) without a socket. Written by hand rather than with NSubstitute,
 /// whose interception allocates on every call and would be measured too. Members the send path does not use throw, so a
 /// change in what it uses shows up as a logged send failure rather than silently.
+/// <para>
+/// Held sends are queued under a lock, and <see cref="WaitForPendingSends"/> waits until a given number is held.
+/// Completing one resumes its dispatcher on the thread pool (Nalix's send path continues asynchronously), so a test
+/// waits for the outcome it asserts rather than assuming it has happened.
+/// </para>
 /// </summary>
 internal sealed class SynchronousConnection(ulong connectionId, bool holdSends = false) : IConnection, IConnection.ITransport
 {
+    private readonly object _gate = new();
     private readonly Queue<TaskCompletionSource> _pending = new();
     private uint _sendSequence;
 
     /// <summary>Gets the number of held sends not yet completed.</summary>
-    public int PendingSends => _pending.Count;
+    public int PendingSends
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _pending.Count;
+            }
+        }
+    }
 
     /// <summary>Gets the number of frames sent.</summary>
     public long Frames { get; private set; }
@@ -103,18 +118,55 @@ internal sealed class SynchronousConnection(ulong connectionId, bool holdSends =
         }
 
         TaskCompletionSource pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        _pending.Enqueue(pending);
+        lock (_gate)
+        {
+            _pending.Enqueue(pending);
+            Monitor.PulseAll(_gate);
+        }
+
         return new ValueTask(pending.Task);
     }
 
+    /// <summary>Waits until at least <paramref name="count"/> sends are held.</summary>
+    /// <param name="count">The number of held sends to wait for.</param>
+    /// <param name="timeout">How long to wait.</param>
+    /// <returns><see langword="true"/> if that many sends are held.</returns>
+    public bool WaitForPendingSends(int count, TimeSpan timeout)
+    {
+        long deadline = Environment.TickCount64 + (long)timeout.TotalMilliseconds;
+        lock (_gate)
+        {
+            while (_pending.Count < count)
+            {
+                long left = deadline - Environment.TickCount64;
+                if (left <= 0 || !Monitor.Wait(_gate, TimeSpan.FromMilliseconds(left)))
+                {
+                    return _pending.Count >= count;
+                }
+            }
+
+            return true;
+        }
+    }
+
     /// <summary>Completes the oldest held send.</summary>
-    public void CompleteNext() => _pending.Dequeue().SetResult();
+    public void CompleteNext() => this.Dequeue().SetResult();
 
     /// <summary>Fails the oldest held send with <paramref name="error"/>.</summary>
-    public void FailNext(Exception error) => _pending.Dequeue().SetException(error);
+    public void FailNext(Exception error) => this.Dequeue().SetException(error);
 
     /// <summary>Cancels the oldest held send.</summary>
-    public void CancelNext() => _pending.Dequeue().SetCanceled();
+    public void CancelNext() => this.Dequeue().SetCanceled();
+
+    private TaskCompletionSource Dequeue()
+    {
+        lock (_gate)
+        {
+            return _pending.Count > 0
+                ? _pending.Dequeue()
+                : throw new InvalidOperationException("No send is held; wait for it with WaitForPendingSends first.");
+        }
+    }
 
     public uint NextSendSequence() => ++_sendSequence;
 

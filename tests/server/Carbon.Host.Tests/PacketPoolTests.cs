@@ -20,7 +20,8 @@ namespace Carbon.Host.Tests;
 public sealed class PacketPoolTests
 {
     private const ulong Connection = 7UL;
-    private static readonly TimeSpan s_timeout = TimeSpan.FromSeconds(5);
+    // Only bounds how long a test waits for the thread pool to resume a dispatcher; every outcome is asserted exactly.
+    private static readonly TimeSpan s_timeout = TimeSpan.FromSeconds(30);
 
     [Fact]
     public void Lease_Dispose_ReturnsThePacketOnceAndReset()
@@ -51,12 +52,13 @@ public sealed class PacketPoolTests
         rig.Sink.SendEntityDespawn(Connection, 100UL);
         rig.Sink.SendEntityDespawn(Connection, 200UL);
 
-        rig.Connection.PendingSends.Should().Be(2);
+        rig.WaitForPendingSends(2);
         rig.Manager.Outstanding.Should().Be(2, "neither packet may go back while its send is outstanding");
         rig.Manager.Rents.Should().Be(2, "the second send got a second instance, not the first one again");
 
         rig.Connection.CompleteNext();
         rig.WaitUntilOutstanding(1);
+        rig.Manager.Outstanding.Should().Be(1, "the completed send returned its packet; the other is still out");
         rig.Connection.CompleteNext();
         rig.WaitUntilOutstanding(0);
 
@@ -70,11 +72,13 @@ public sealed class PacketPoolTests
         using Rig rig = new();
 
         rig.Sink.SendEntityDespawn(Connection, 100UL);
+        rig.WaitForPendingSends(1);
         rig.Connection.FailNext(new IOException("connection reset"));
-        rig.WaitUntilOutstanding(0);
 
+        rig.WaitUntilOutstanding(0);
         rig.Manager.DoubleReturns.Should().Be(0);
         rig.Logger.WaitForFailures(1, s_timeout).Should().BeTrue("the failure is logged");
+        rig.Logger.Failures.Should().ContainSingle();
     }
 
     [Fact]
@@ -83,9 +87,10 @@ public sealed class PacketPoolTests
         using Rig rig = new();
 
         rig.Sink.SendEntityDespawn(Connection, 100UL);
+        rig.WaitForPendingSends(1);
         rig.Connection.CancelNext();
-        rig.WaitUntilOutstanding(0);
 
+        rig.WaitUntilOutstanding(0);
         rig.Manager.DoubleReturns.Should().Be(0);
     }
 
@@ -97,6 +102,7 @@ public sealed class PacketPoolTests
 
         rig.Sink.SendEntityDeltaBatch(Connection, 10UL, 3U, 0f, 0f, entries);
 
+        rig.WaitForPendingSends(1);
         rig.Manager.Outstanding.Should().Be(1);
         rig.Connection.CompleteNext();
         rig.WaitUntilOutstanding(0);
@@ -126,12 +132,16 @@ public sealed class PacketPoolTests
 
         public WorldOutboundSink Sink { get; }
 
-        public void WaitUntilOutstanding(int count)
-        {
-            // Completed sends resume their dispatchers asynchronously.
-            SpinWait.SpinUntil(() => this.Manager.Outstanding == count, s_timeout).Should().BeTrue(
+        // The dispatchers reach the connection through Nalix's send path; wait until it holds the sends, rather than
+        // assume they are queued when the sink call returns.
+        // A completed send resumes its dispatcher on the thread pool; wait for the return it makes.
+        public void WaitUntilOutstanding(int count) =>
+            this.Manager.WaitForOutstanding(count, s_timeout).Should().BeTrue(
                 $"{count} packet(s) should be out, but {this.Manager.Outstanding} are");
-        }
+
+        public void WaitForPendingSends(int count) =>
+            this.Connection.WaitForPendingSends(count, s_timeout).Should().BeTrue(
+                $"{count} send(s) should be held, but {this.Connection.PendingSends} are");
 
         public void Dispose()
         {
@@ -155,7 +165,24 @@ public sealed class PacketPoolTests
             }
         }
 
-        public bool WaitForFailures(int count, TimeSpan timeout) => SpinWait.SpinUntil(() => this.Failures.Count >= count, timeout);
+        // Woken by every logged failure; a failed send logs from its dispatcher on the thread pool.
+        public bool WaitForFailures(int count, TimeSpan timeout)
+        {
+            long deadline = Environment.TickCount64 + (long)timeout.TotalMilliseconds;
+            lock (_failures)
+            {
+                while (_failures.Count < count)
+                {
+                    long left = deadline - Environment.TickCount64;
+                    if (left <= 0 || !Monitor.Wait(_failures, TimeSpan.FromMilliseconds(left)))
+                    {
+                        return _failures.Count >= count;
+                    }
+                }
+
+                return true;
+            }
+        }
 
         public IDisposable? BeginScope<TState>(TState state)
             where TState : notnull => null;
@@ -169,6 +196,7 @@ public sealed class PacketPoolTests
                 lock (_failures)
                 {
                     _failures.Add($"{exception.GetType().Name}: {exception.Message}");
+                    Monitor.PulseAll(_failures);
                 }
             }
         }
