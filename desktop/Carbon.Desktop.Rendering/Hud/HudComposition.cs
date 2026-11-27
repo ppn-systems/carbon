@@ -13,6 +13,7 @@ internal static class HudComposition
     private static readonly HudElement[] s_mainHud =
     [
         HudElement.TargetFrame,
+        HudElement.Clock,
         HudElement.Minimap,
         HudElement.Hotbar,
         HudElement.SkillBar,

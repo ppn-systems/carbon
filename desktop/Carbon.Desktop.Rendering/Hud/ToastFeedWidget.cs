@@ -45,9 +45,9 @@ internal sealed class ToastFeedWidget
         }
     }
 
-    public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin, BitmapFont font, int viewportWidth, bool showMinimap)
+    public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin, BitmapFont font, int viewportWidth, float topY)
     {
-        float baseY = showMinimap ? 218f : 18f;
+        float baseY = topY;
         for (int i = 0; i < _toasts.Count; i++)
         {
             NotificationToast toast = _toasts[i];
@@ -67,9 +67,9 @@ internal sealed class ToastFeedWidget
         }
     }
 
-    public void DrawText(SpriteBatch spriteBatch, BitmapFont font, int viewportWidth, bool showMinimap)
+    public void DrawText(SpriteBatch spriteBatch, BitmapFont font, int viewportWidth, float topY)
     {
-        float baseY = showMinimap ? 218f : 18f;
+        float baseY = topY;
         for (int i = 0; i < _toasts.Count; i++)
         {
             NotificationToast toast = _toasts[i];
