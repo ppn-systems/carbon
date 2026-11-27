@@ -55,6 +55,11 @@ public sealed class PlayerDeathTests
         EnterWorldResult entered = world.TryEnterWorld(victimConn, victim);
         entered.Status.Should().Be(OpStatus.Ok);
 
+        // ADR-033: a 4-stamina punch at 2 stamina is refused and exhausts the victim before the fight ends.
+        world.EnqueueAttackInput(victimConn, mob.NetworkId, new Vector2(mob.PositionX, mob.PositionY), 0).Should().Be(OpStatus.Ok);
+        world.StepFixedTick();
+        sink.StaminaStatuses.Should().ContainSingle(s => s.ConnectionId == victimConn && s.Exhausted);
+
         bool died = false;
         for (int tick = 0; tick < MaxTicksToDie && !died; tick++)
         {
@@ -67,6 +72,15 @@ public sealed class PlayerDeathTests
         world.TryGetPendingCharacterSnapshot(victim.Id, out CharacterRecord? dead).Should().BeTrue();
         dead!.CurrentHealth.Should().Be(0f, "there is no auto-respawn (ADR-031)");
 
+        float staminaAtDeath = dead.CurrentStamina;
+        for (int tick = 0; tick < 90; tick++)
+        {
+            world.StepFixedTick();
+        }
+
+        world.TryGetPendingCharacterSnapshot(victim.Id, out CharacterRecord? stillDead).Should().BeTrue();
+        stillDead!.CurrentStamina.Should().Be(staminaAtDeath, "a dead player does not regenerate stamina (ADR-033)");
+
         ValueTask<WorldMutationOutcome> respawn = world.SubmitRespawnAsync(victimConn);
         world.StepFixedTick();
         (await respawn.ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok);
@@ -76,6 +90,7 @@ public sealed class PlayerDeathTests
         after!.CurrentHealth.Should().Be(after.MaxHealth, "respawn heals to full");
         after.CurrentMana.Should().Be(after.MaxMana, "respawn refills mana");
         after.CurrentStamina.Should().Be(after.MaxStamina, "respawn refills stamina");
+        sink.StaminaStatuses.Last(s => s.ConnectionId == victimConn).Exhausted.Should().BeFalse("respawn clears exhaustion");
         Vector2 respawnedAt = new(after.PositionX, after.PositionY);
         Vector2.Distance(respawnedAt, world.DefaultSpawnWorldPosition).Should().BeLessThan(
             world.TileSize * 2f, "the dead player is moved to the sanctuary, not left where they fell");

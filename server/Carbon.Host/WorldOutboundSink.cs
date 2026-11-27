@@ -217,6 +217,15 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     }
 
     /// <inheritdoc/>
+    public void SendStaminaStatus(ulong connectionId, bool exhausted, uint refusalCount)
+    {
+        if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
+        {
+            _ = DispatchStaminaStatusAsync(conn, exhausted, refusalCount, _logger);
+        }
+    }
+
+    /// <inheritdoc/>
     public void SendTraderStock(ulong connectionId, TraderStockSnapshot stock)
     {
         if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
@@ -901,6 +910,24 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogSendFailure(logger, nameof(WalletSync), ex);
+        }
+    }
+
+    private static async Task DispatchStaminaStatusAsync(IConnection connection, bool exhausted, uint refusalCount, ILogger logger)
+    {
+        try
+        {
+            using PacketScope<StaminaStatusSync> lease = PacketFactory<StaminaStatusSync>.Acquire();
+            StaminaStatusSync pkt = lease.Value;
+            pkt.Exhausted = exhausted;
+            pkt.RefusalCount = refusalCount;
+
+            bool encrypt = connection.Algorithm != CipherSuiteType.None;
+            await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogSendFailure(logger, nameof(StaminaStatusSync), ex);
         }
     }
 
