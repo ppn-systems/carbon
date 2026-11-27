@@ -24,6 +24,7 @@ using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Infrastructure.Security;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
+using Carbon.Items.Serialization;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
@@ -143,8 +144,16 @@ public sealed class MultiplayerSessionTests
 
                 AuthenticationResult regB = await clientB.RegisterAsync("127.0.0.1", tcpPort, "playerB", "password123").ConfigureAwait(true);
                 regB.Succeeded.Should().BeTrue();
-                (bool createdB, _) = await clientB.CreateCharacterAsync("HeroB", appearancePreset: 2, startingClass: (byte)Contracts.Identity.HeroArchetypeClass.Arcanist).ConfigureAwait(true);
+                (bool createdB, _) = await clientB.CreateCharacterAsync("HeroB", appearancePreset: 2).ConfigureAwait(true);
                 createdB.Should().BeTrue();
+                IReadOnlyList<CharacterRosterEntry> freshRosterB = await clientB.ListCharactersAsync().ConfigureAwait(true);
+                freshRosterB.Should().ContainSingle(c => c.Name == "HeroB" && c.Class == Contracts.Identity.HeroArchetypeClass.None, "new heroes start classless (ADR-030)");
+
+                // HeroB stands in for a hero created before ADR-030: an Arcanist that kept its class and starter staff.
+                InventoryContainer arcanistKit = new(PlayerInventoryLayout.TotalCapacity);
+                StarterGameCatalog.GrantStarterLoadout(arcanistKit, (byte)Contracts.Identity.HeroArchetypeClass.Arcanist);
+                CharacterRecord? heroBRecord = await characters.FindByIdAsync(freshRosterB[0].CharacterId).ConfigureAwait(true);
+                await characters.SaveBatchAsync([heroBRecord! with { Class = Contracts.Identity.HeroArchetypeClass.Arcanist, InventoryBlob = InventoryBinaryCodec.Serialize(arcanistKit) }]).ConfigureAwait(true);
                 IReadOnlyList<CharacterRosterEntry> rosterB = await clientB.ListCharactersAsync().ConfigureAwait(true);
                 rosterB.Should().ContainSingle(c =>
                     c.Name == "HeroB" &&
@@ -155,7 +164,15 @@ public sealed class MultiplayerSessionTests
 
                 // Seed a persisted wallet balance (ADR-012) before entering the world.
                 CharacterRecord? heroARecord = await characters.FindByIdAsync(rosterA[0].CharacterId).ConfigureAwait(true);
-                await characters.SaveBatchAsync([heroARecord! with { Gold = 321, Diamonds = 4 }]).ConfigureAwait(true);
+                InventoryContainer freshBag = new(PlayerInventoryLayout.TotalCapacity);
+                InventoryBinaryCodec.TryDeserializeInto(heroARecord!.InventoryBlob, freshBag).Should().BeTrue();
+                freshBag.Slots.ToArray().Should().OnlyContain(s => s.IsEmpty, "a hero created over the wire arrives with nothing (ADR-030)");
+                heroARecord.Class.Should().Be(Contracts.Identity.HeroArchetypeClass.None);
+
+                // The rest of this scenario swings tools and places walls, so HeroA gets the pre-ADR-030 Vanguard kit.
+                InventoryContainer vanguardKit = new(PlayerInventoryLayout.TotalCapacity);
+                StarterGameCatalog.GrantStarterLoadout(vanguardKit);
+                await characters.SaveBatchAsync([heroARecord with { Gold = 321, Diamonds = 4, InventoryBlob = InventoryBinaryCodec.Serialize(vanguardKit) }]).ConfigureAwait(true);
 
                 // 3. Enter world and verify Authenticated UDP (NDP) activates cleanly.
                 (bool enteredA, _) = await clientA.EnterWorldAsync(rosterA[0].CharacterId).ConfigureAwait(true);
