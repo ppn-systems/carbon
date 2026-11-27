@@ -68,7 +68,7 @@ public static class VectorRigRenderer
 
         if (isModularHuman && !isNorth && equipment.ChestId != 0)
         {
-            ModularCharacterOverlays.DrawEquippedBackCape(batch, rig, in bones[(int)VectorBoneId.Cape], footPosition, sx, sy, isNorth: false, equipment.ChestId, art, hitFlash);
+            ModularCharacterOverlays.DrawEquippedBackCape(batch, rig, in bones[(int)VectorBoneId.Cape], footPosition, sx * rig.TorsoWidthScale, sy, isNorth: false, equipment.ChestId, art, hitFlash);
         }
 
         if ((overlays & RigOverlay.NightGlow) != 0)
@@ -88,7 +88,7 @@ public static class VectorRigRenderer
             ModularCharacterOverlays.DrawChestAndArmArmor(batch, rig, in bones, footPosition, sx, sy, isNorth, isSide, equipment.ChestId, art, hitFlash);
             if (isNorth && equipment.ChestId != 0)
             {
-                ModularCharacterOverlays.DrawEquippedBackCape(batch, rig, in bones[(int)VectorBoneId.Cape], footPosition, sx, sy, isNorth: true, equipment.ChestId, art, hitFlash);
+                ModularCharacterOverlays.DrawEquippedBackCape(batch, rig, in bones[(int)VectorBoneId.Cape], footPosition, sx * rig.TorsoWidthScale, sy, isNorth: true, equipment.ChestId, art, hitFlash);
             }
 
             ModularCharacterOverlays.DrawFaceAndHair(batch, rig, in bones[(int)VectorBoneId.Head], footPosition, sx, sy, isSouth, isSide, isNorth, in look, equipment.HeadId, hitFlash);
