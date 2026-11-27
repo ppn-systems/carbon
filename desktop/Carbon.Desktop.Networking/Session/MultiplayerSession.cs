@@ -58,6 +58,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     private readonly RemoteViewBuffer _remoteViewsB = new();
     private readonly List<CombatFeedbackEvent> _combatEvents = new(32);
     private readonly List<PropImpactEvent> _propImpactEvents = new(16);
+    private readonly List<StrikeImpactEvent> _strikeImpactEvents = new(16);
     private readonly List<ItemBreakEvent> _itemBreakEvents = new(4);
     private readonly List<(int ChunkX, int ChunkY)> _dirtyChunks = new(16);
     private readonly List<string> _hudNotifications = new(16);

@@ -31,7 +31,7 @@ internal readonly record struct DamagedPropHudMarker(Vector2 WorldPos, float Cur
 /// Manages transient combat &amp; gathering feedback: prop shake timers, debris particles,
 /// floating combat numbers, smooth delayed HP ghost-damage trails, and active target lock (SRP).
 /// </summary>
-public sealed class CombatFeedbackTracker
+public sealed class CombatFeedbackTracker : IImpactParticleSink
 {
     private const int MaxDebrisParticles = 256;
 
@@ -81,6 +81,15 @@ public sealed class CombatFeedbackTracker
             long key = PackTileKey(impact.TileX, impact.TileY);
             _propHits[key] = new PropHitState(ShakeTimer: 0.26f, BarTimer: impact.IsDestroyed ? 0f : 3.5f);
             this.SpawnImpactDebris(in impact, animTime);
+            if (!impact.WasTierBlocked && IsLocalStrike(world, impact.TileX, impact.TileY))
+            {
+                // The local hero's own chop or strike also throws splinters or chips along the swing.
+                this.SpawnStrikeBurst(
+                    impact.WorldPosition + new Vector2(0f, -6f),
+                    world.LastAttackDirection,
+                    impact.Category == PropCategory.Mineral ? ImpactMaterial.Stone : ImpactMaterial.Wood,
+                    impact.IsDestroyed ? 1.4f : 1f);
+            }
         }
 
         _itemBreakScratch.Clear();
@@ -273,6 +282,31 @@ public sealed class CombatFeedbackTracker
         return false;
     }
 
+    /// <inheritdoc/>
+    public void SpawnStrikeBurst(Vector2 position, Vector2 direction, ImpactMaterial material, float intensity)
+    {
+        Vector2 dir = direction.LengthSquared() > 1e-4f ? Vector2.Normalize(direction) : Vector2.UnitX;
+        float baseAngle = MathF.Atan2(dir.Y, dir.X);
+        int count = (int)MathF.Round((material == ImpactMaterial.Flesh ? 9f : 8f) * Math.Clamp(intensity, 0.5f, 2f));
+        uint seed = (uint)(position.X * 92821f) ^ (uint)(position.Y * 68917f) ^ ((uint)material * 2654435761U);
+        for (int i = 0; i < count; i++)
+        {
+            seed = (seed * 1664525U) + 1013904223U;
+            float spread = (((seed & 0xFFFF) / 65535f) - 0.5f) * 1.6f;
+            float speed = 60f + (((seed >> 16) & 0xFF) / 255f * 70f);
+            float angle = baseAngle + spread;
+            Vector2 vel = new(MathF.Cos(angle) * speed, (MathF.Sin(angle) * speed * 0.6f) - 40f);
+            (ColorRgba color, float size, float life) = material switch
+            {
+                ImpactMaterial.Wood => (i % 3 == 0 ? new ColorRgba(253, 230, 138, 255) : new ColorRgba(180, 120, 66, 255), 2.2f, 0.42f),
+                ImpactMaterial.Stone => (i % 3 == 0 ? new ColorRgba(254, 243, 199, 255) : new ColorRgba(120, 128, 140, 255), i % 3 == 0 ? 1.4f : 2.4f, 0.36f),
+                ImpactMaterial.Flesh or _ => (i % 4 == 0 ? new ColorRgba(255, 241, 242, 255) : new ColorRgba(225, 29, 72, 255), i % 4 == 0 ? 3.2f : 1.8f, 0.34f),
+            };
+            _particles[_nextParticleCursor] = new DebrisParticle(position, vel, color, size, life + (i % 3 * 0.05f), life + 0.1f);
+            _nextParticleCursor = (_nextParticleCursor + 1) % MaxDebrisParticles;
+        }
+    }
+
     /// <summary>Draws active debris particles onto <paramref name="batch"/> in world space.</summary>
     public void DrawDebrisParticles(GeometryBatch batch)
     {
@@ -441,6 +475,11 @@ public sealed class CombatFeedbackTracker
 
         return MathF.Max(actual, ghost - (0.55f * dt));
     }
+
+    // The local hero's own swing hit this prop: they are swinging and the tile is within the server's tool reach.
+    private static bool IsLocalStrike(IWorldReadModel world, int tileX, int tileY) =>
+        (world.CurrentAction.IsActive || world.AttackSwingTimer > 0f) &&
+        ToolReach.IsWithin(world.LocalPlayerInterpolatedPosition, tileX, tileY, world.ChunkWorld.TileSize);
 
     private static long PackTileKey(int tileX, int tileY) => ((long)tileX << 32) | (uint)tileY;
 

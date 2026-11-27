@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Diagnostics;
 using Carbon.Abstractions.World;
 using Carbon.Contracts.Entities.S2C;
 using FluentAssertions;
@@ -148,6 +149,10 @@ public sealed class DeltaColumnPoolTests(ITestOutputHelper output)
             SendOnce(pool, packet, observers);
         }
 
+        int gen0 = GC.CollectionCount(0);
+        int gen1 = GC.CollectionCount(1);
+        int gen2 = GC.CollectionCount(2);
+        long start = Stopwatch.GetTimestamp();
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int tick = 0; tick < 1_000; tick++)
         {
@@ -155,8 +160,14 @@ public sealed class DeltaColumnPoolTests(ITestOutputHelper output)
         }
 
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        output.WriteLine($"{allocated} bytes over 4,000 batches");
-        allocated.Should().Be(0, "steady-state delta batches must reuse their columns");
+        TimeSpan elapsed = Stopwatch.GetElapsedTime(start);
+
+        // Once flaky under heavy parallel load and not reproducible since (audit round 3, "Flaky guard"): the message
+        // carries what the window saw, so a failure reports its own evidence even in a quiet log.
+        string window = $"{allocated} bytes over 4,000 batches in {elapsed.TotalMilliseconds:F1} ms, " +
+            $"GCs gen0/1/2 +{GC.CollectionCount(0) - gen0}/+{GC.CollectionCount(1) - gen1}/+{GC.CollectionCount(2) - gen2}";
+        output.WriteLine(window);
+        allocated.Should().Be(0, $"steady-state delta batches must reuse their columns ({window})");
     }
 
     private static void SendOnce(DeltaColumnPool pool, EntityDeltaBatch packet, EntityDeltaEntry[][] observers)

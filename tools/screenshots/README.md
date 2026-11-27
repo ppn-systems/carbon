@@ -85,7 +85,8 @@ Script knobs: `SKIP_BUILD=1`, `GRAPHICS_QUALITY` (adds `CARBON_GRAPHICS_QUALITY`
 
 `tools/screenshots/filmstrip.sh [out_dir]` runs the offline art showcase (`Carbon.Desktop --showcase`, no server) under
 xvfb. It writes its pages as PNG, including `hero_attacks.png`: one row per hero attack, sampled through the swing at
-world scale x2, with the same clip mapping, rig renderer and swing VFX as the world. Run it on two commits to compare
+world scale x2, with the same clip mapping, rig renderer and swing VFX as the world. `hero_impact.png` runs the real impact presenter for a
+whiff and a hit at a slime: the slime flashes only when the blade arrives, and the hit-stop frames are outlined in red. Run it on two commits to compare
 attack animation before and after (`docs/art/combat-animation.md`). `SKIP_BUILD=1` reuses the last Release build.
 
 ## Smoke test
