@@ -3,10 +3,12 @@
 using System;
 using System.Linq;
 using System.Numerics;
+using System.Threading.Tasks;
 using Carbon.Abstractions.Configuration;
 using Carbon.Abstractions.Persistence;
 using Carbon.Abstractions.World;
 using Carbon.Application.World;
+using Carbon.Contracts.Common;
 using FluentAssertions;
 using NSubstitute;
 using Xunit;
@@ -36,7 +38,7 @@ public sealed class StatusEffectWorldTests
     }
 
     [Fact]
-    public void StepFixedTick_LethalBleedingPulse_RespawnsThePlayerAndClearsEveryEffect()
+    public async Task StepFixedTick_LethalBleedingPulse_KillsThePlayerAndClearsEveryEffect()
     {
         (AuthoritativeWorld world, StatusRecordingSink sink) = CreateWorld();
         CharacterRecord hero = Character(statusEffects: "bleeding:6000:2;poisoned:8000:1", health: 1f);
@@ -47,8 +49,15 @@ public sealed class StatusEffectWorldTests
         sink.CombatHits.Should().Contain(h => h.DefenderNetworkId == entered.PlayerNetworkId && h.StatusEffectId == Bleeding && h.RemainingHealth == 0f);
         sink.StatusSyncs.Last(s => s.ConnectionId == 1UL).Entries
             .Should().NotContain(e => e.EffectId == Bleeding || e.EffectId == Poisoned, "death clears every effect");
+        world.IsPlayerDead(1UL).Should().BeTrue("a lethal pulse uses the normal death path: dead until a respawn request (ADR-031)");
+        world.TryGetPendingCharacterSnapshot(hero.Id, out CharacterRecord? dead).Should().BeTrue();
+        dead!.CurrentHealth.Should().Be(0f);
+
+        ValueTask<WorldMutationOutcome> respawn = world.SubmitRespawnAsync(1UL);
+        Step(world, 1);
+        (await respawn.ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok);
         world.TryGetPendingCharacterSnapshot(hero.Id, out CharacterRecord? saved).Should().BeTrue();
-        saved!.CurrentHealth.Should().Be(saved.MaxHealth, "a lethal pulse uses the normal respawn path");
+        saved!.CurrentHealth.Should().Be(saved.MaxHealth, "the respawn heals to full");
     }
 
     [Fact]

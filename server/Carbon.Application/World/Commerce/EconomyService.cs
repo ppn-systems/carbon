@@ -12,6 +12,7 @@ using Carbon.Contracts.Common;
 using Carbon.Economy;
 using Carbon.Economy.Config;
 using Carbon.Economy.Currency;
+using Carbon.Economy.Death;
 using Carbon.Economy.Loot;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -138,6 +139,53 @@ internal sealed class EconomyService
         _groundLoot.SpawnCurrency(position + new Vector2(-6f, -10f), CurrencyKind.Gold, result.Gold, in claim);
         _groundLoot.SpawnCurrency(position + new Vector2(6f, -10f), CurrencyKind.Diamond, result.Diamonds, in claim);
         return true;
+    }
+
+    /// <summary>
+    /// Takes the death penalty from a player who just died (ADR-031): debits <c>economy.json → deathPenalty</c>'s share of
+    /// their carried gold and drops exactly that amount as one to <c>maxPiles</c> gold piles around <paramref name="position"/>.
+    /// The piles are reserved for the dead player for <c>ownerProtectionSeconds</c>, then anyone may take them. Sizes and
+    /// scatter come from the secret gameplay entropy (ADR-026). Diamonds are never taken.
+    /// </summary>
+    /// <returns>The gold dropped (0 without an economy, below the minimum level, or with an empty purse).</returns>
+    public long DropDeathGold(PlayerState victim, Vector2 position)
+    {
+        ArgumentNullException.ThrowIfNull(victim);
+        GameEconomy? economy = _economy();
+        if (economy is null)
+        {
+            return 0L;
+        }
+
+        DeathPenaltyRules rules = economy.Config.DeathPenalty;
+        long loss = DeathGoldPenalty.ComputeLoss(rules, victim.Wallet.Gold, victim.Level);
+        if (loss <= 0L)
+        {
+            return 0L;
+        }
+
+        ulong tick = _currentTick();
+        if (!victim.Wallet.TrySpend(CurrencyKind.Gold, loss, CurrencyReason.DeathDrop, tick).IsOk)
+        {
+            return 0L;
+        }
+
+        DeterministicRandom random = _entropy.KeyAt(tick).CreateRandom(GameplayDomain.DeathDrop, tick, victim.Session.PlayerNetworkId);
+        Span<long> piles = stackalloc long[DeathGoldPenalty.MaxPilesLimit];
+        int count = DeathGoldPenalty.SplitIntoPiles(rules, loss, ref random, piles);
+        ulong protectionTicks = (ulong)Math.Max(0, rules.OwnerProtectionSeconds) * _tickRate;
+        ulong lifetimeTicks = (ulong)Math.Max(1, rules.LootLifetimeSeconds) * _tickRate;
+        LootClaim claim = protectionTicks == 0UL
+            ? new LootClaim(Guid.Empty, 0UL, tick, lifetimeTicks)
+            : new LootClaim(victim.Session.CharacterId, victim.Session.PlayerNetworkId, tick + protectionTicks, lifetimeTicks);
+        for (int i = 0; i < count; i++)
+        {
+            Vector2 offset = random.NextUnitVector2() * random.NextFloat(10f, 30f);
+            _groundLoot.SpawnCurrency(position + offset, CurrencyKind.Gold, piles[i], in claim, CurrencyReason.DeathDrop);
+        }
+
+        this.QueueWalletSync(victim);
+        return loss;
     }
 
     /// <summary>

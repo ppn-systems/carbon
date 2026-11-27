@@ -1,9 +1,11 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Numerics;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
 using Carbon.Combat.Statuses;
+using Carbon.Contracts.Common;
 using Carbon.Simulation.ECS.Components;
 
 namespace Carbon.Application.World;
@@ -43,19 +45,12 @@ public sealed partial class AuthoritativeWorld
                 false,
                 (ushort)pulse.EffectId);
 
-            if (hp.Current <= 0f)
+            if (hp.Current <= 0f && !state.IsDead)
             {
-                // A lethal pulse (bleeding) uses the normal death and respawn path, which also clears every effect.
-                _ = this.ApplyDamageToPlayerLocked(
-                    null,
-                    attackerNetId,
-                    state.Entity,
-                    victimNetId,
-                    _simulation.Entities.GetTransform(state.Entity).Position,
-                    1f);
-                this.ResetNeedsAfterDeathLocked(state);
-                state.CurrentMana = state.Stats.MaxMana;
-                state.CurrentStamina = state.Stats.MaxStamina;
+                // A lethal pulse (bleeding) enters the same dead state as a hit (ADR-031), which also clears every effect.
+                Vector2 deathPos = _simulation.Entities.GetTransform(state.Entity).Position;
+                this.KillPlayerLocked(state, attackerNetId, deathPos, DeathCause.Monster);
+                this.QueueCombatHitLocked(deathPos, attackerNetId, victimNetId, 0f, 0f, false, true);
             }
         }
 

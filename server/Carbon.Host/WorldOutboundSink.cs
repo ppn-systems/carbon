@@ -235,6 +235,15 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     }
 
     /// <inheritdoc/>
+    public void SendPlayerDeath(ulong connectionId, in PlayerDeathSnapshot death)
+    {
+        if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
+        {
+            _ = DispatchPlayerDeathAsync(conn, death, _logger);
+        }
+    }
+
+    /// <inheritdoc/>
     public void SendStatusEffects(ulong connectionId, ReadOnlySpan<StatusEffectEntry> entries)
     {
         if (!this.TryResolveConnection(connectionId, out IConnection? conn) || conn is null)
@@ -919,6 +928,26 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogSendFailure(logger, nameof(StaminaStatusSync), ex);
+        }
+    }
+
+    private static async Task DispatchPlayerDeathAsync(IConnection connection, PlayerDeathSnapshot death, ILogger logger)
+    {
+        try
+        {
+            using PacketScope<PlayerDeath> lease = PacketFactory<PlayerDeath>.Acquire();
+            PlayerDeath pkt = lease.Value;
+            pkt.Cause = death.Cause;
+            pkt.KillerArchetypeId = death.KillerArchetypeId;
+            pkt.KillerNetworkId = death.KillerNetworkId;
+            pkt.GoldDropped = death.GoldDropped;
+
+            bool encrypt = connection.Algorithm != CipherSuiteType.None;
+            await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogSendFailure(logger, nameof(PlayerDeath), ex);
         }
     }
 

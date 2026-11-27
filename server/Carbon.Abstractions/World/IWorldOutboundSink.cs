@@ -31,6 +31,13 @@ public readonly record struct PlayerStatsSnapshot(
     float[] CooldownRemainingSeconds,
     PlayerNeedsSnapshot Needs = default);
 
+/// <summary>A player's death (ADR-031), pushed to that player only. Ids only: the client localizes the text.</summary>
+/// <param name="Cause">What killed the player.</param>
+/// <param name="KillerArchetypeId">The killing monster's archetype id (0 when not a monster).</param>
+/// <param name="KillerNetworkId">The killer's network id (0 when none).</param>
+/// <param name="GoldDropped">Gold debited and dropped at the death spot.</param>
+public readonly record struct PlayerDeathSnapshot(DeathCause Cause, ushort KillerArchetypeId, ulong KillerNetworkId, long GoldDropped);
+
 /// <summary>
 /// Survival needs of the local player carried inside <see cref="PlayerStatsSnapshot"/>.
 /// </summary>
@@ -257,6 +264,11 @@ public interface IWorldOutboundSink
 
     /// <summary>Pushes a trader's stock to the player trading with it (ADR-025). Sinks without trading ignore it.</summary>
     void SendTraderStock(ulong connectionId, TraderStockSnapshot stock)
+    {
+    }
+
+    /// <summary>Tells a player they died and what it cost them (ADR-031). Sinks without a death screen ignore it.</summary>
+    void SendPlayerDeath(ulong connectionId, in PlayerDeathSnapshot death)
     {
     }
 
