@@ -10,7 +10,7 @@ using Carbon.Graphics.Batching.Sprites;
 using Carbon.Graphics.Fonts.Layout;
 using Carbon.Graphics.Fonts.Rendering;
 
-namespace Carbon.Desktop.Scenes;
+namespace Carbon.Desktop.Menu;
 
 internal enum MenuButtonStyle
 {

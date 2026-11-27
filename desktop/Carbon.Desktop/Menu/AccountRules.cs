@@ -1,6 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
-namespace Carbon.Desktop.Scenes;
+namespace Carbon.Desktop.Menu;
 
 /// <summary>
 /// Client-side copies of the server's account rules (<c>AuthService</c>), so the player sees a mistake before sending.

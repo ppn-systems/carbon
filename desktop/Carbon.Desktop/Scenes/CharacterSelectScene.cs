@@ -10,6 +10,7 @@ using Carbon.Desktop.Abstractions.Identity;
 using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Capture;
+using Carbon.Desktop.Menu;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Graphics.Animation.Directions;

@@ -7,6 +7,7 @@ using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Capture;
 using Carbon.Desktop.Diagnostics;
+using Carbon.Desktop.Menu;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Desktop.Scenes;
 using Carbon.Graphics.Batching.Camera;

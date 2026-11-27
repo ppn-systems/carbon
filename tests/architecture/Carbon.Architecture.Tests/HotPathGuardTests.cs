@@ -33,6 +33,9 @@ public sealed class HotPathGuardTests
         "desktop/Carbon.Desktop.Networking",
         "desktop/Carbon.Desktop.Rendering",
         "desktop/Carbon.Desktop/Scenes",
+        "desktop/Carbon.Desktop/Gameplay",
+        "desktop/Carbon.Desktop/Menu",
+        "desktop/Carbon.Desktop/Capture",
     ];
 
     /// <summary>Files in hot-path folders that may import LINQ because the code is a cold load path. Do NOT add entries.</summary>

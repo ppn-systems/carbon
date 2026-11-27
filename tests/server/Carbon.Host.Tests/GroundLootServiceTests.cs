@@ -3,8 +3,11 @@
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Application.World.Loot;
+using Carbon.Economy.Config;
 using Carbon.Items.Catalog;
+using Carbon.Items.Components;
 using Carbon.Items.Containers;
+using Carbon.Simulation.ECS;
 using Carbon.Simulation.World;
 using FluentAssertions;
 using Xunit;
@@ -119,22 +122,84 @@ public sealed class GroundLootServiceTests
         h.Loot.Count.Should().Be(0);
     }
 
+    [Theory]
+    [InlineData(10, 90, 900UL)] // audit MAGIC-1: config seconds at the world's own tick rate, not 120 s at 30 Hz
+    [InlineData(30, 180, 5400UL)] // the shipped economy.json at 30 Hz: 180 s, which the old constant cut to 120 s
+    [InlineData(20, 45, 900UL)]
+    public void Spawn_UnclaimedStack_LivesTheConfiguredLifetimeAtTheWorldsTickRate(int tickRate, int lifetimeSeconds, ulong expectedTicks)
+    {
+        Harness h = new(tickRate, new GroundLootRules { KillLootLifetimeSeconds = lifetimeSeconds });
+
+        h.Loot.Spawn(new Vector2(100f, 100f), new ItemSlot(StackableItemId, 3));
+
+        h.Loot.TryGet(h.FirstNetworkId, out GroundLootEntry entry).Should().BeTrue();
+        entry.LifetimeTicks.Should().Be(expectedTicks, "groundLoot.killLootLifetimeSeconds × tick rate");
+        h.DespawnAtTick(h.FirstNetworkId).Should().Be(h.Tick + expectedTicks, "the entity expires when its entry does");
+    }
+
+    [Fact]
+    public void Spawn_NoEconomyLoaded_FallsBackToTheDefaultLifetimeAtTheWorldsTickRate()
+    {
+        Harness h = new(tickRate: 10, rules: null);
+
+        h.Loot.Spawn(new Vector2(100f, 100f), new ItemSlot(StackableItemId, 3));
+
+        h.DespawnAtTick(h.FirstNetworkId).Should().Be(h.Tick + (180UL * 10UL), "the GroundLootRules default (180 s) at 10 Hz");
+    }
+
+    [Fact]
+    public void Spawn_MergeIntoAStack_RefreshesItsExpiryToTheConfiguredLifetime()
+    {
+        Harness h = new(tickRate: 10, new GroundLootRules { KillLootLifetimeSeconds = 90 });
+        h.Loot.Spawn(new Vector2(100f, 100f), new ItemSlot(StackableItemId, 3));
+        h.Tick += 400UL;
+
+        h.Loot.Spawn(new Vector2(110f, 100f), new ItemSlot(StackableItemId, 2));
+
+        h.DespawnAtTick(h.FirstNetworkId).Should().Be(h.Tick + 900UL, "a top-up restarts the stack's lifetime");
+    }
+
+    [Fact]
+    public void Spawn_RulesChangeAfterAReload_NewStacksUseTheNewLifetime()
+    {
+        GroundLootRules rules = new() { KillLootLifetimeSeconds = 90 };
+        Harness h = new(tickRate: 10, rulesSource: () => rules);
+        h.Loot.Spawn(new Vector2(100f, 100f), new ItemSlot(StackableItemId, 1));
+        rules = new GroundLootRules { KillLootLifetimeSeconds = 30 };
+
+        h.Loot.Spawn(new Vector2(400f, 100f), new ItemSlot(StackableItemId, 1));
+
+        h.DespawnAtTick(h.FirstNetworkId + 1UL).Should().Be(h.Tick + 300UL, "the lifetime is read when the stack spawns");
+    }
+
     private sealed class Harness
     {
         private ulong _nextNetworkId = 5000UL;
 
         public Harness()
+            : this(tickRate: 30, rulesSource: null)
+        {
+        }
+
+        public Harness(int tickRate, GroundLootRules? rules)
+            : this(tickRate, () => rules)
+        {
+        }
+
+        public Harness(int tickRate, System.Func<GroundLootRules?>? rulesSource)
         {
             ItemRules rules = ItemRules.LoadShippedDefaults();
+            this.Simulation = new WorldSimulation(tickRate);
             this.Loot = new GroundLootService(
                 this.Simulation,
                 () => rules,
                 () => ++_nextNetworkId,
                 () => this.Tick,
-                (id, _) => this.ChangedStacks.Add(id));
+                (id, _) => this.ChangedStacks.Add(id),
+                groundLootRules: rulesSource);
         }
 
-        public WorldSimulation Simulation { get; } = new();
+        public WorldSimulation Simulation { get; }
 
         public GroundLootService Loot { get; }
 
@@ -143,5 +208,11 @@ public sealed class GroundLootServiceTests
         public ulong FirstNetworkId => 5001UL;
 
         public List<ulong> ChangedStacks { get; } = [];
+
+        public ulong DespawnAtTick(ulong networkId)
+        {
+            this.Simulation.TryGetEntityByNetworkId(networkId, out Entity entity).Should().BeTrue();
+            return this.Simulation.Entities.GetComponent<LootDropComponent>(entity).DespawnAtTick;
+        }
     }
 }

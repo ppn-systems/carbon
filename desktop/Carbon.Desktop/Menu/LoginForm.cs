@@ -1,6 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
-namespace Carbon.Desktop.Scenes;
+namespace Carbon.Desktop.Menu;
 
 /// <summary>The login screen's controls in tab order.</summary>
 internal enum LoginFocus

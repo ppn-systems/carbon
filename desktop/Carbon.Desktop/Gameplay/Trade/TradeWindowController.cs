@@ -7,7 +7,7 @@ using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Items.Containers;
 
-namespace Carbon.Desktop.Scenes;
+namespace Carbon.Desktop.Gameplay.Trade;
 
 /// <summary>
 /// What the mouse does in the trader window (ADR-025 D18), apart from hit-testing: a click on stock adds a unit to the cart

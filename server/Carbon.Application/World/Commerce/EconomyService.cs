@@ -174,7 +174,7 @@ internal sealed class EconomyService
     private LootClaim CreateKillClaim(GroundLootRules rules, ConnectedPlayerSession killer, ulong tick)
     {
         ulong protectionTicks = (ulong)Math.Max(0, rules.OwnerProtectionSeconds) * _tickRate;
-        ulong lifetimeTicks = (ulong)Math.Max(1, rules.KillLootLifetimeSeconds) * _tickRate;
+        ulong lifetimeTicks = rules.LifetimeTicks(_tickRate);
         return protectionTicks == 0UL
             ? new LootClaim(Guid.Empty, 0UL, tick, lifetimeTicks)
             : new LootClaim(killer.CharacterId, killer.PlayerNetworkId, tick + protectionTicks, lifetimeTicks);

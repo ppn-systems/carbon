@@ -3,7 +3,7 @@
 using System.Collections.Generic;
 using Carbon.Desktop.Abstractions.Identity;
 
-namespace Carbon.Desktop.Scenes;
+namespace Carbon.Desktop.Menu;
 
 /// <summary>A button on the start screen.</summary>
 internal enum StartMenuAction

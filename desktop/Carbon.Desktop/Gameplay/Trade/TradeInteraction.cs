@@ -6,12 +6,13 @@ using System.Numerics;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Abstractions.World;
+using Carbon.Desktop.Gameplay.Interaction;
 using Carbon.Desktop.Input;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 
-namespace Carbon.Desktop.Scenes;
+namespace Carbon.Desktop.Gameplay.Trade;
 
 /// <summary>Says whether a replicated entity is a trader NPC (the scene owns the actor catalog lookup).</summary>
 /// <param name="entity">Replicated entity.</param>

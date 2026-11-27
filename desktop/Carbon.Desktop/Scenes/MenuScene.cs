@@ -4,6 +4,7 @@ using System;
 using System.Numerics;
 using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Capture;
+using Carbon.Desktop.Menu;
 using Carbon.Desktop.Rendering.Fonts;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching;
