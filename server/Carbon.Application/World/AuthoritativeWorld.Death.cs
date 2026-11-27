@@ -7,6 +7,7 @@ using Carbon.Application.World.Actors;
 using Carbon.Application.World.Commands;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
+using Carbon.Application.World.Water;
 using Carbon.Contracts.Common;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.Networking;
@@ -117,7 +118,7 @@ public sealed partial class AuthoritativeWorld
         }
 
         state.IsDead = false;
-        state.OxygenSeconds = float.NaN; // a full breath at the sanctuary
+        OxygenService.RefillBreath(state); // a full breath at the sanctuary
         this.ResetNeedsAfterDeathLocked(state);
         state.CurrentMana = state.Stats.MaxMana;
         state.Stamina.Refill(state.Stats.MaxStamina);

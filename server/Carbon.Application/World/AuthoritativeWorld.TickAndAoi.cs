@@ -98,7 +98,7 @@ public sealed partial class AuthoritativeWorld
             _simulation.Tick(new FixedTickArgs(_currentTick, dt, _currentTick * dt));
             this.ProcessStatusPulsesLocked();
             this.ProcessSurvivalEventsLocked();
-            this.StepWaterLocked(dt);
+            _oxygen.Step(_players.ByConnection, dt);
             if ((_currentTick % this.TickRate) == 0UL)
             {
                 this.AdvanceFoodSpoilageLocked(SpoilageStepSeconds);
@@ -228,7 +228,7 @@ public sealed partial class AuthoritativeWorld
                 }
 
                 this.QueueStatusEffectSyncLocked(observer);
-                this.QueueOxygenSyncLocked(observer);
+                _oxygen.QueueSync(observer);
 
                 if (observer.StatsDirty || (_currentTick % 10UL) == 0UL)
                 {
