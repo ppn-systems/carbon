@@ -2,6 +2,7 @@
 
 using System.Collections.Generic;
 using Carbon.Items.Crafting;
+using Carbon.Items.Definitions;
 
 namespace Carbon.Items.Enhancement;
 
@@ -21,7 +22,7 @@ public sealed record EnhancementDocument
     public int DestroyMinLevel { get; set; }
 
     /// <summary>Gets or sets the gold fee multiplier per item rarity, in percent.</summary>
-    public EnhancementRarityPercents GoldRarityPercent { get; set; } = new();
+    public RarityPercents GoldRarityPercent { get; set; } = new();
 
     /// <summary>Gets or sets when an attempt is announced to the whole world.</summary>
     public EnhancementAnnounceRules Announce { get; set; } = new();
@@ -69,25 +70,6 @@ public sealed record EnhancementProtectionDefinition
 
     /// <summary>Gets or sets whether destruction is prevented (it becomes a downgrade, or no change when downgrades are prevented too).</summary>
     public bool PreventsDestroy { get; set; }
-}
-
-/// <summary>Gold fee multiplier per rarity, in percent.</summary>
-public sealed record EnhancementRarityPercents
-{
-    /// <summary>Gets or sets the common multiplier.</summary>
-    public int Common { get; set; } = 100;
-
-    /// <summary>Gets or sets the uncommon multiplier.</summary>
-    public int Uncommon { get; set; } = 100;
-
-    /// <summary>Gets or sets the rare multiplier.</summary>
-    public int Rare { get; set; } = 100;
-
-    /// <summary>Gets or sets the epic multiplier.</summary>
-    public int Epic { get; set; } = 100;
-
-    /// <summary>Gets or sets the legendary multiplier.</summary>
-    public int Legendary { get; set; } = 100;
 }
 
 /// <summary>When an attempt is broadcast to the whole world.</summary>

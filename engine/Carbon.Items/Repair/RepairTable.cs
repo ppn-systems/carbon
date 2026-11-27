@@ -25,7 +25,7 @@ public sealed class RepairTable
 
     private readonly FrozenDictionary<uint, Entry> _items;
     private readonly int[] _tierPercent;
-    private readonly RepairRarityPercents _feeRarity;
+    private readonly RarityPercents _feeRarity;
 
     private RepairTable(
         FrozenDictionary<uint, Entry> items,
@@ -160,9 +160,8 @@ public sealed class RepairTable
         }
 
         RepairFeeDefinition fee = document.BlacksmithFee ?? new RepairFeeDefinition();
-        RepairRarityPercents rarity = fee.RarityPercent ?? new RepairRarityPercents();
-        if (fee.PercentOfBasePrice < 0 || fee.Minimum < 0 ||
-            rarity.Common < 0 || rarity.Uncommon < 0 || rarity.Rare < 0 || rarity.Epic < 0 || rarity.Legendary < 0)
+        RarityPercents rarity = fee.RarityPercent ?? new RarityPercents();
+        if (fee.PercentOfBasePrice < 0 || fee.Minimum < 0 || !rarity.IsValid)
         {
             throw new InvalidDataException("repair.json blacksmithFee values must not be negative.");
         }
@@ -397,15 +396,7 @@ public sealed class RepairTable
 
     private long GetFee(ItemCatalogEntry item, float restored, float max)
     {
-        int rarity = item.Rarity switch
-        {
-            ItemRarity.Common => _feeRarity.Common,
-            ItemRarity.Uncommon => _feeRarity.Uncommon,
-            ItemRarity.Rare => _feeRarity.Rare,
-            ItemRarity.Epic => _feeRarity.Epic,
-            ItemRarity.Legendary => _feeRarity.Legendary,
-            _ => 100,
-        };
+        int rarity = _feeRarity.For(item.Rarity);
         long restoredPermille = (long)Math.Clamp(MathF.Ceiling(restored * 1000f / max), 1f, 1000f);
         long numerator = item.BasePrice * this.FeePercentOfBasePrice * rarity * restoredPermille;
         long fee = (numerator + FeeDivisor - 1) / FeeDivisor;

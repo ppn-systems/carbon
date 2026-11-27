@@ -1,11 +1,10 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
-using Carbon.Items.Definitions;
-
-namespace Carbon.Economy.Config;
+namespace Carbon.Items.Definitions;
 
 /// <summary>
-/// A percentage per <see cref="ItemRarity"/> (100 = unchanged), used to scale station fees by item tier.
+/// A percentage per <see cref="ItemRarity"/> (100 = unchanged), used to scale station fees by item tier
+/// (<c>economy.json</c> crafting fees, <c>enhancement.json</c> gold, <c>repair.json</c> blacksmith fee).
 /// </summary>
 public sealed record RarityPercents
 {
