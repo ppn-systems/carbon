@@ -778,6 +778,7 @@ public sealed partial class MultiplayerSession
             Kind = pkt.Kind,
             ArchetypeId = pkt.ArchetypeId,
             Name = pkt.Name,
+            NameKey = _entityNames.Resolve(pkt.Kind, pkt.ArchetypeId, pkt.LootCurrency, pkt.Kind == EntityKind.Npc ? WorldActorCatalog.GetNpcSpec(pkt.ArchetypeId).Name : null),
             Position = new Vector2(pkt.PositionX, pkt.PositionY),
             Velocity = new Vector2(pkt.VelocityX, pkt.VelocityY),
             Radius = pkt.Radius > 0f ? pkt.Radius : 7f,
@@ -1404,6 +1405,7 @@ public sealed partial class MultiplayerSession
         public EntityKind Kind { get; init; }
         public ushort ArchetypeId { get; init; }
         public string Name { get; init; } = string.Empty;
+        public string? NameKey { get; init; }
         public Vector2 Position { get; set; }
         public Vector2 Velocity { get; set; }
         public Vector2 FacingDir { get; set; } = new(0f, 1f);

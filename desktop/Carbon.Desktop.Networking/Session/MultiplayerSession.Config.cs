@@ -193,6 +193,7 @@ public sealed partial class MultiplayerSession
     private void OnConfigReady(ConfigCatalog catalog)
     {
         _ = _items.Apply(catalog);
+        _ = _entityNames.Apply(catalog);
         _ = SyncedFoodCatalog.Apply(catalog);
         _ = SyncedProgressionConfig.Apply(catalog);
         _gameConfig = catalog;
