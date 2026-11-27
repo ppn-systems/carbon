@@ -3,6 +3,7 @@
 using Carbon.Abstractions.World;
 using Carbon.Contracts.Common;
 using Carbon.Items.Catalog;
+using Carbon.Survival.Stamina;
 using FluentAssertions;
 using Xunit;
 
@@ -43,7 +44,7 @@ public sealed class StaminaPacingTests
     [Fact]
     public void SwingUntilRefused_LevelOneHeroWithWoodSword_HasAFightsWorthOfSwings()
     {
-        StaminaPacingWorld world = StaminaPacingWorld.Create(s_levelOne);
+        StaminaPacingWorld world = StaminaPacingWorld.CreateAtBoulder(s_levelOne);
 
         int swings = world.SwingUntilRefused();
 
@@ -54,7 +55,7 @@ public sealed class StaminaPacingTests
     [Fact]
     public void RestFromExhaustion_LevelOneHero_ActsAgainAfterAShortBreather()
     {
-        StaminaPacingWorld world = StaminaPacingWorld.Create(s_levelOne);
+        StaminaPacingWorld world = StaminaPacingWorld.CreateAtBoulder(s_levelOne);
         _ = world.SwingUntilRefused();
         world.IsExhausted.Should().BeTrue();
 
@@ -68,26 +69,72 @@ public sealed class StaminaPacingTests
     [Fact]
     public void SwingAxeAtOak_CostAboveCurrentStamina_IsRefusedAndTheOakIsUntouched()
     {
-        StaminaPacingWorld world = StaminaPacingWorld.Create(s_levelOne);
-        float cost = world.World.StaminaConfig.ItemSwingCosts["wood_axe"];
-        world.SwingDownTo(cost);
-        world.Idle(StaminaPacingWorld.TicksPerSecond / 2); // the swing cooldown, so only stamina can refuse
-        float low = world.Stamina();
-        low.Should().BeLessThan(cost);
-        uint refusalsBefore = world.Refusals;
+        float cost = StaminaConfig.LoadShippedDefaults().ItemSwingCosts["wood_axe"];
+        StaminaPacingWorld world = StaminaPacingWorld.Create(s_levelOne, stamina: cost - 1f);
 
         world.SwingAxeAtOak().Should().Be(OpStatus.RateLimited, "a swing the hero cannot afford is refused");
 
         world.OakDamaged().Should().BeFalse("a refused swing does not touch the oak");
-        world.Stamina().Should().Be(low, "a refused swing costs nothing");
+        world.Stamina().Should().Be(cost - 1f, "a refused swing costs nothing");
         world.Idle(1);
-        world.Refusals.Should().Be(refusalsBefore + 1U, "the client is told the swing was refused");
+        world.Refusals.Should().Be(1U, "the client is told the swing was refused");
+    }
+
+    [Fact]
+    public void Attack_WhiffWithNothingInReach_CostsNothingAndStillStartsTheCooldown()
+    {
+        StaminaPacingWorld world = StaminaPacingWorld.CreateAtBoulder(s_levelOne);
+        float full = world.Stamina();
+
+        world.Whiff();
+        world.Idle(1);
+        world.Stamina().Should().Be(full, "swinging at the air is free");
+
+        world.SwingAtBoulder();
+        world.Idle(1);
+        world.Stamina().Should().Be(full, "the whiff started the cooldown, so the next swing does not happen yet");
+    }
+
+    [Fact]
+    public void Attack_SwingThatReachesAProp_CostsTheConfiguredSwingCost()
+    {
+        StaminaPacingWorld world = StaminaPacingWorld.CreateAtBoulder(s_levelOne);
+        float full = world.Stamina();
+
+        world.SwingAtBoulder();
+        world.Idle(1);
+
+        world.Stamina().Should().Be(full - StaminaConfig.LoadShippedDefaults().ItemSwingCosts["wood_sword"], "a swing that connects pays the wood sword's cost");
+    }
+
+    [Fact]
+    public void Attack_WhiffWhileExhausted_IsAllowedButAHitIsRefused()
+    {
+        StaminaPacingWorld world = StaminaPacingWorld.CreateAtBoulder(s_levelOne);
+        _ = world.SwingUntilRefused();
+        world.IsExhausted.Should().BeTrue();
+        world.Idle(StaminaPacingWorld.TicksPerSecond / 2); // let the last cooldown end
+        uint refusals = world.Refusals;
+        float low = world.Stamina();
+
+        world.Whiff();
+        world.Idle(1);
+        world.SwingAtBoulder();
+        world.Idle(1);
+
+        world.Refusals.Should().Be(refusals, "the whiff was allowed and started the cooldown, which holds the next swing");
+        world.Stamina().Should().BeGreaterThanOrEqualTo(low, "a whiff costs nothing");
+
+        world.Idle(StaminaPacingWorld.TicksPerSecond / 2);
+        world.SwingAtBoulder();
+        world.Idle(1);
+        world.Refusals.Should().Be(refusals + 1U, "a swing that connects while exhausted is refused");
     }
 
     [Fact]
     public void StepFixedTick_AfterASwing_RegenWaitsForTheConfiguredDelayThenStarts()
     {
-        StaminaPacingWorld world = StaminaPacingWorld.Create(s_levelOne);
+        StaminaPacingWorld world = StaminaPacingWorld.CreateAtBoulder(s_levelOne);
         world.SwingDownTo(world.MaxStamina());
         float afterSwing = world.Stamina();
         int delayTicks = (int)(world.World.StaminaConfig.RegenDelaySeconds * StaminaPacingWorld.TicksPerSecond);

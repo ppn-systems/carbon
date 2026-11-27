@@ -204,13 +204,14 @@ Typical builds:
 
 The level-1 and level-10 fights are against a wild slime of the same level. Slimes stop at level 15, so the level-30 fight
 is against the first non-elite level-30 monster the scouts meet (a skeleton archer). "Swings to refusal" is continuous
-swinging from a full bar. "60 s of swinging" holds the attack button for a minute and counts paid swings and stops; the
-client does not send swings while exhausted.
+sword swings at a boulder from a full bar: a target the swing reaches, so every swing pays. A sword wears out on stone,
+so the hero carries spare swords of the same kind. "60 s of swinging" holds the attack button at the boulder for a
+minute and counts paid swings and stops. A "stop" is a refused swing or becoming exhausted.
 
 | Level | Max | Swings to refusal | Oak: s / swings / stops | Slime fight: s / hits / lowest stamina / exhausted | Sprint s | Rest: unlock / full s | 60 s of swinging: swings / stops |
 | :--- | ---: | ---: | :--- | :--- | ---: | :--- | :--- |
-| 1 before | 100 | 16 | 1.0 / 3 / 0 | 1.7 / 5 / 70 / 0 | 6.3 | 6.5 / 17.4 | 46 / 7 |
-| 1 after | 100 | **25** | 1.0 / 3 / 0 | 1.7 / 5 / 80 / 0 | **8.3** | **2.8 / 8.2** | **87 / 11** |
+| 1 before | 100 | 16 | 1.0 / 3 / 0 | 1.7 / 5 / 70 / 0 | 6.3 | 6.4 / 17.3 | 46 / 7 |
+| 1 after | 100 | **25** | 1.0 / 3 / 0 | 1.7 / 5 / 80 / 0 | **8.3** | **2.8 / 8.2** | **79 / 10** |
 | 10 before | 209 | 26 | 0.5 / 2 / 0 | 2.6 / 6 / 161 / 0 | 13.1 | 13.3 / 35.9 | 44 / 3 |
 | 10 after | 209 | **41** | 0.5 / 2 / 0 | 2.6 / 6 / 179 / 0 | **17.4** | **4.0 / 15.2** | **81 / 5** |
 | 30 before | 469 | 46 | 0.5 / 2 / 0 | 3.3 / 8 / 389 / 0 | 29.3 | 27.2 / 78.0 | 62 / 2 |
@@ -221,7 +222,7 @@ What the numbers show:
 - A single slime or a single oak was never the problem. The slime dies in 5 hits and the oak in 3 swings, at either
   tuning.
 - The problem was **recovery**. The bar refilled at 6/s, only after 1.75 s without a spend, and exhaustion held until 35%.
-  A level-1 hero who emptied the bar waited 6.5 s to act again and 17.4 s for a full bar. Holding attack for a minute
+  A level-1 hero who emptied the bar waited 6.4 s to act again and 17.3 s for a full bar. Holding attack for a minute
   gave 46 swings, a third of the 150 the cooldown allows. Real fights add misses, a slime pack (`pack: slime`) and
   a run between targets, so "a few swings and it's empty" is what the owner felt.
 
@@ -235,7 +236,7 @@ Reference games (approximate, from public wikis):
   standing. Tree felling needs several short pauses at the start of the game.
 
 The new tuning sits between Dark Souls and Valheim: a bar that lasts a whole level-1 fight (25 swings), a 1 s delay, and
-a breather of about 3 s instead of 6.5 s.
+a breather of about 3 s instead of 6.4 s.
 
 ### Decision
 
@@ -259,6 +260,23 @@ what hurt.
 Unchanged: `swimDrainPerSecond` 5, `buildWorkPerSecond` 4, `restingRegenMultiplier` 1.5, the fatigue and hunger scales,
 and `minimumRegenScale` 0.25.
 
+**Whiffs are free.** The owner added: "Swinging at the air shouldn't cost stamina." This replaces D5's "paid up front,
+hit or miss", and reverses the rejected alternative "Charging cost only on a hit".
+
+- A melee, tool or bare-hand swing pays its configured cost only when it reaches a target: a monster in the swing arc
+  (or the explicit target in reach), or a standing destructible prop or structure on the tiles the swing would strike
+  (`PropHarvestService.HasStrikeTarget`, which checks the same tiles as `SwingAtWorld` and changes nothing).
+- A prop the held item cannot damage (a sword on stone) still counts as a target: the swing lands, and it wears the item.
+- A whiff costs 0 but still starts the attack cooldown and plays the swing, so spamming the air gains nothing.
+- A whiff is allowed while exhausted and deals nothing. A swing that would connect while exhausted, or that costs more
+  than the meter holds, is refused as before (no cooldown, no damage, no wear).
+- **Bows and staffs still pay on release.** The shot is spent whether or not it hits, and the server cannot know at release
+  whether a projectile will land. Staffs stay free (`swingCosts.spell` 0, mana-paid).
+- The harvest key (`TryHarvestProp`) always names a prop, so it always pays.
+- **Client.** The desktop no longer refuses melee, tool or bare-hand swings locally while exhausted, because only the
+  server knows whether the swing connects. It sends them, and a refused hit flashes the bar from `StaminaStatusSync`. It
+  still refuses shots and the harvest key locally while exhausted.
+
 Kept from the original decision: a swing that costs more than the meter holds is refused (D3); the exhausted state and
 its recover fraction (D4); wood tools cost less than the next tier; death and respawn (D5); swimming drain (D8).
 
@@ -281,6 +299,10 @@ Recovery after the amendment:
 - After exhaustion, a level-1 hero acts again within 4 s and has a full bar within 10 s.
 - A swing that costs more than the meter holds is refused, leaves the oak untouched and is reported.
 - After a swing, regen waits for the configured delay and then starts.
+- A whiff costs nothing and still starts the cooldown.
+- A swing that reaches a prop costs the configured wood sword cost.
+- A whiff while exhausted is allowed (it starts the cooldown, no refusal); a swing that connects while exhausted is
+  refused.
 
 Mutation results (each change was made alone, then reverted):
 
@@ -292,14 +314,18 @@ Mutation results (each change was made alone, then reverted):
 | regen still / moving 14 / 8 → 6 / 3 | acts again after a breather |
 | `regenDelaySeconds` 1 → 4 | acts again after a breather |
 | `exhaustedRecoverFraction` 0.25 → 0.6 | acts again after a breather |
-| `StaminaMeter.TrySpend` never refuses | unaffordable swing is refused |
-| a spend does not start the regen delay | regen waits for the delay; acts again after a breather; unaffordable swing is refused |
+| `StaminaMeter.TrySpend` never refuses | unaffordable swing is refused; whiff while exhausted is allowed |
+| a spend does not start the regen delay | regen waits for the delay; acts again after a breather; whiff while exhausted is allowed |
 | a spend sets 3× the configured delay | regen waits for the delay; acts again after a breather |
 | a refusal does not exhaust | none of these; `StaminaMeterTests.TrySpend_MoreThanTheMeterHolds_RefusesWithoutDebitingAndExhausts` fails |
+| charge on a whiff too | whiff costs nothing; whiff while exhausted is allowed |
+| a whiff does not start the cooldown | whiff costs nothing and starts the cooldown; whiff while exhausted is allowed |
+| props never count as a target (only monsters) | a swing that reaches a prop pays; full bar gives 20 swings; acts again after a breather; regen waits for the delay; whiff while exhausted is allowed |
 
 ### Consequences
 
-- Stamina still paces play: emptying the bar stops the hero for about 3 s, and holding attack for a minute is about 87
-  swings instead of the 150 the cooldown allows.
+- Stamina still paces play: emptying the bar stops the hero for about 3 s, and holding attack at a target for a minute
+  is about 79 swings instead of the 150 the cooldown allows.
+- Walking around swinging at nothing no longer drains the bar.
 - Better tools still pay twice: they cost more per swing but need fewer swings.
 - The level-1 start stays slow because bare hands are weak (#129), not because of stamina.

@@ -37,8 +37,15 @@ internal sealed class StaminaPacingWorld
     private const byte SwordSlot = 0;
     private const byte AxeSlot = 1;
 
+    // A sword wears fast on stone (ToolUsagePolicy: blade blunt on stone), so the boulder runs use the same sword from
+    // spare hotbar slots as each one breaks: every swing is still a real swing of that sword at that cost.
+    private const byte FirstSpareSwordSlot = 2;
+    private const byte LastSpareSwordSlot = 8;
+
     private readonly CharacterRecord _hero;
     private uint _clientTick;
+    private byte _swordSlot;
+    private (int X, int Y)? _boulder;
 
     private StaminaPacingWorld(AuthoritativeWorld world, AuthoritativeWorldMultiplayerTests.RecordingOutboundSink sink, CharacterRecord hero, ulong heroNetworkId)
     {
@@ -90,10 +97,22 @@ internal sealed class StaminaPacingWorld
     }
 
     /// <summary>Creates the world with a hero of <paramref name="build"/> standing next to the first oak near spawn.</summary>
-    public static StaminaPacingWorld Create(HeroBuild build)
+    /// <param name="build">Hero.</param>
+    /// <param name="stamina">Starting stamina (default: full).</param>
+    public static StaminaPacingWorld Create(HeroBuild build, float? stamina = null)
     {
         (AuthoritativeWorld world, AuthoritativeWorldMultiplayerTests.RecordingOutboundSink sink) = NewWorld();
-        return Enter(world, sink, build, OakStandingPoint(world, out _));
+        return Enter(world, sink, build, StandingPoint(world, IsOak, out _), stamina);
+    }
+
+    /// <summary>
+    /// Creates the world with a hero of <paramref name="build"/> standing next to the first boulder near spawn: a target a
+    /// sword swing reaches (so it pays, ADR-033 amendment) but cannot damage, so it never runs out.
+    /// </summary>
+    public static StaminaPacingWorld CreateAtBoulder(HeroBuild build)
+    {
+        (AuthoritativeWorld world, AuthoritativeWorldMultiplayerTests.RecordingOutboundSink sink) = NewWorld();
+        return Enter(world, sink, build, StandingPoint(world, IsBoulder, out _));
     }
 
     /// <summary>
@@ -168,8 +187,7 @@ internal sealed class StaminaPacingWorld
         int paid = 0;
         for (int t = 0; t < 120 * TicksPerSecond && !this.IsExhausted; t++)
         {
-            Vector2 self = this.Sink.SelfPositions.TryGetValue(HeroConnection, out Vector2 p) ? p : new Vector2(_hero.PositionX, _hero.PositionY);
-            _ = this.World.EnqueueAttackInput(HeroConnection, 0UL, self + new Vector2(0f, -200f), SwordSlot);
+            this.SwingAtBoulder();
             this.World.StepFixedTick();
             float now = this.Stamina();
             if (now < before - 0.01f)
@@ -196,8 +214,7 @@ internal sealed class StaminaPacingWorld
         {
             if (!this.IsExhausted)
             {
-                Vector2 self = this.Sink.SelfPositions.TryGetValue(HeroConnection, out Vector2 p) ? p : new Vector2(_hero.PositionX, _hero.PositionY);
-                _ = this.World.EnqueueAttackInput(HeroConnection, 0UL, self + new Vector2(0f, -200f), SwordSlot);
+                this.SwingAtBoulder();
             }
 
             this.World.StepFixedTick();
@@ -270,7 +287,7 @@ internal sealed class StaminaPacingWorld
     /// <summary>Chops the oak next to the hero with the axe, pressing the harvest key every tick, until it falls.</summary>
     public ChopResult ChopOak(int maxSeconds = 120)
     {
-        Vector2 at = OakStandingPoint(this.World, out (int X, int Y) oak);
+        Vector2 at = StandingPoint(this.World, IsOak, out (int X, int Y) oak);
         Vector2.Distance(at, new Vector2(_hero.PositionX, _hero.PositionY)).Should().BeLessThan(1f, "the hero was created next to the oak");
         float minStamina = this.Stamina();
         int startStatuses = this.Sink.StaminaStatuses.Count;
@@ -306,8 +323,7 @@ internal sealed class StaminaPacingWorld
     {
         for (int t = 0; t < 60 * TicksPerSecond && this.Stamina() >= target && !this.IsExhausted; t++)
         {
-            Vector2 self = this.Sink.SelfPositions.TryGetValue(HeroConnection, out Vector2 p) ? p : new Vector2(_hero.PositionX, _hero.PositionY);
-            _ = this.World.EnqueueAttackInput(HeroConnection, 0UL, self + new Vector2(0f, -200f), SwordSlot);
+            this.SwingAtBoulder();
             this.World.StepFixedTick();
         }
     }
@@ -323,15 +339,47 @@ internal sealed class StaminaPacingWorld
     /// <summary>Tries the axe on the oak once (harvest key) and returns the server's answer.</summary>
     public OpStatus SwingAxeAtOak()
     {
-        _ = OakStandingPoint(this.World, out (int X, int Y) oak);
+        _ = StandingPoint(this.World, IsOak, out (int X, int Y) oak);
         this.SelectSlot(AxeSlot);
         return this.World.TryHarvestProp(HeroConnection, oak.X, oak.Y).Status;
     }
 
     public bool OakDamaged()
     {
-        _ = OakStandingPoint(this.World, out (int X, int Y) oak);
+        _ = StandingPoint(this.World, IsOak, out (int X, int Y) oak);
         return this.Sink.PropChanges.Exists(p => p.TileX == oak.X && p.TileY == oak.Y);
+    }
+
+    /// <summary>Queues a sword swing at the boulder the hero stands next to (a paid, connecting swing).</summary>
+    public void SwingAtBoulder()
+    {
+        if (_boulder is null)
+        {
+            _ = StandingPoint(this.World, IsBoulder, out (int X, int Y) found);
+            _boulder = found;
+        }
+
+        (int bx, int by) = _boulder.Value;
+        _ = this.World.EnqueueAttackInput(HeroConnection, 0UL, new Vector2((bx + 0.5f) * TileSize, (by + 0.5f) * TileSize), this.CurrentSword());
+    }
+
+    /// <summary>Queues a sword swing into the open air east of the hero, away from the prop it stands next to.</summary>
+    public void Whiff()
+    {
+        Vector2 self = this.Sink.SelfPositions.TryGetValue(HeroConnection, out Vector2 p) ? p : new Vector2(_hero.PositionX, _hero.PositionY);
+        _ = this.World.EnqueueAttackInput(HeroConnection, 0UL, self + new Vector2(200f, 0f), this.CurrentSword());
+    }
+
+    /// <summary>The hotbar slot of a sword that has not broken yet.</summary>
+    private byte CurrentSword()
+    {
+        while (_swordSlot < LastSpareSwordSlot &&
+            this.Sink.SlotChanges.Exists(c => c.ConnectionId == HeroConnection && c.SlotIndex == _swordSlot && c.Quantity == 0))
+        {
+            _swordSlot = _swordSlot == SwordSlot ? FirstSpareSwordSlot : (byte)(_swordSlot + 1);
+        }
+
+        return _swordSlot;
     }
 
     private void SelectSlot(byte slot) => _ = this.World.TrySelectHotbarSlot(HeroConnection, slot);
@@ -351,11 +399,15 @@ internal sealed class StaminaPacingWorld
         return (world, sink);
     }
 
-    private static StaminaPacingWorld Enter(AuthoritativeWorld world, AuthoritativeWorldMultiplayerTests.RecordingOutboundSink sink, HeroBuild build, Vector2 at)
+    private static StaminaPacingWorld Enter(AuthoritativeWorld world, AuthoritativeWorldMultiplayerTests.RecordingOutboundSink sink, HeroBuild build, Vector2 at, float? stamina = null)
     {
         InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
         inv.SetSlot(SwordSlot, new ItemSlot(build.SwordId, 1, 0, 500f));
         inv.SetSlot(AxeSlot, new ItemSlot(build.AxeId, 1, 0, 500f));
+        for (byte spare = FirstSpareSwordSlot; spare <= LastSpareSwordSlot; spare++)
+        {
+            inv.SetSlot(spare, new ItemSlot(build.SwordId, 1, 0, 500f));
+        }
         CharacterProgressionState progression = new();
         progression.SetAttribute(PrimaryAttributeId.Power, build.PowerPoints);
         progression.SetAttribute(PrimaryAttributeId.Agility, build.AgilityPoints);
@@ -375,7 +427,7 @@ internal sealed class StaminaPacingWorld
             SelectedHotbarSlot: SwordSlot,
             InventoryBlob: InventoryBinaryCodec.Serialize(inv),
             UpdatedAtUtc: DateTimeOffset.UnixEpoch,
-            CurrentStamina: maxStamina,
+            CurrentStamina: stamina ?? maxStamina,
             MaxStamina: maxStamina,
             ProgressionBlob: CharacterProgressionBinaryCodec.Serialize(progression));
         EnterWorldResult entered = world.TryEnterWorld(HeroConnection, hero);
@@ -383,8 +435,12 @@ internal sealed class StaminaPacingWorld
         return new StaminaPacingWorld(world, sink, hero, entered.PlayerNetworkId);
     }
 
-    /// <summary>The first oak near spawn (deterministic generator) and a free point one tile east of it.</summary>
-    private static Vector2 OakStandingPoint(AuthoritativeWorld world, out (int X, int Y) oak)
+    private static bool IsOak(in MapProp prop) => prop.Type == MapPropType.OakTree;
+
+    private static bool IsBoulder(in MapProp prop) => prop.Type == MapPropType.Boulder;
+
+    /// <summary>The first matching prop near spawn (deterministic generator) and a point one tile east of it.</summary>
+    private static Vector2 StandingPoint(AuthoritativeWorld world, PropFilter filter, out (int X, int Y) oak)
     {
         ChunkWorld2D mirror = new(new ProceduralWorldGenerator(Seed), TileSize, 0.0008f);
         int sx = (int)MathF.Floor(world.DefaultSpawnWorldPosition.X / TileSize);
@@ -393,7 +449,7 @@ internal sealed class StaminaPacingWorld
         {
             foreach ((int dx, int dy) in Ring(r))
             {
-                if (mirror.TryGetPropAt(sx + dx, sy + dy, out MapProp prop) && prop.Type == MapPropType.OakTree && !prop.Destructibility.IsDestroyed)
+                if (mirror.TryGetPropAt(sx + dx, sy + dy, out MapProp prop) && filter(in prop) && !prop.Destructibility.IsDestroyed)
                 {
                     oak = (sx + dx, sy + dy);
                     return new Vector2(((oak.X + 0.5f) * TileSize) + 40f, (oak.Y + 0.5f) * TileSize);
@@ -401,7 +457,7 @@ internal sealed class StaminaPacingWorld
             }
         }
 
-        throw new InvalidOperationException("No oak near spawn for the test seed.");
+        throw new InvalidOperationException("No matching prop near spawn for the test seed.");
     }
 
     private static IEnumerable<(int Dx, int Dy)> Ring(int r) =>
@@ -421,3 +477,5 @@ internal sealed record HeroBuild(ushort Level, ushort PowerPoints, ushort Agilit
 internal readonly record struct FightResult(bool Killed, float Seconds, int Hits, float MinStamina, int Exhaustions);
 
 internal readonly record struct ChopResult(bool Felled, float Seconds, int Swings, float MinStamina, int Rests);
+
+internal delegate bool PropFilter(in MapProp prop);

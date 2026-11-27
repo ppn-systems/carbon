@@ -40,11 +40,11 @@ public sealed class StaminaPacingHarness(ITestOutputHelper output)
         table.AppendLine("| :--- | ---: | ---: | :--- | :--- | ---: | :--- | :--- |");
         foreach ((HeroBuild build, ushort archetype, int level, float probeFrom) in rows)
         {
-            StaminaPacingWorld swinger = StaminaPacingWorld.Create(build);
+            StaminaPacingWorld swinger = StaminaPacingWorld.CreateAtBoulder(build);
             float max = swinger.MaxStamina();
             int swings = swinger.SwingUntilRefused();
             (float unlocked, float full) = swinger.RestFromExhaustion();
-            (int sustained, int rests) = StaminaPacingWorld.Create(build).SwingFor(60);
+            (int sustained, int rests) = StaminaPacingWorld.CreateAtBoulder(build).SwingFor(60);
 
             ChopResult chop = StaminaPacingWorld.Create(build).ChopOak();
 
