@@ -281,19 +281,79 @@ public static class VectorRigRenderer
             return;
         }
 
-        Vector2 baseGrip = dir8 == Direction8.North
-            ? rig.NorthGrip
-            : (dir8 == Direction8.South ? rig.SouthGrip : rig.SideGrip);
-        Vector2 armPivot = rig.GetBonePivot(VectorBoneId.ArmFront);
-        Vector2 gripRel = new(
-            (baseGrip.X - armPivot.X) * frontArmPose.ScaleX,
-            (baseGrip.Y - armPivot.Y) * frontArmPose.ScaleY);
-        Vector2 rotatedRel = Rotate(gripRel, frontArmPose.RotRad);
-        float handLocalX = armPivot.X + rotatedRel.X + frontArmPose.Dx;
-        float handLocalY = armPivot.Y + rotatedRel.Y + frontArmPose.Dy;
-        Vector2 handWorld = new(
-            footPos.X + (handLocalX * (mirrorX ? -uniformScale : uniformScale)),
-            footPos.Y + (handLocalY * uniformScale));
+        HeldItemPose held = ComputeHeldItemPose(rig, item, footPos, dir8, uniformScale, mirrorX, in frontArmPose, in action, swingTimer);
+        float totalRot = held.Rotation;
+        float itemScale = held.Scale;
+        Vector2 itemCenter = held.Center;
+        BonePose pose = new() { RotRad = totalRot, ScaleX = 1f, ScaleY = 1f };
+
+        if (weaponUpgradeLevel > 0)
+        {
+            ColorRgba sheen = weaponUpgradeLevel >= 6
+                ? new ColorRgba(34, 211, 238, 125)
+                : new ColorRgba(250, 204, 21, 115);
+            Vector2 auraTip = itemCenter + Rotate(new Vector2(3.5f * itemScale, -3.5f * itemScale), totalRot);
+            batch.FillCircle(auraTip, (5.5f + (weaponUpgradeLevel * 0.45f)) * itemScale, sheen, 12);
+        }
+
+        for (int i = 0; i < item.Shapes.Length; i++)
+        {
+            DrawSingleShape(batch, in item.Shapes[i], Vector2.Zero, in pose, itemCenter, itemScale, itemScale, hitFlash: 0f);
+        }
+
+        HeroAttackTiming bowTiming = HeroAttackTiming.For(HeroAttackStyle.BowShot);
+        if (action.IsActive && action.Kind == ActionAnimationKind.BowShot && action.Progress < bowTiming.ContactFraction)
+        {
+            // Draw to the apex, hold, then the string snaps forward at release (the arrow leaves with the server's shot).
+            float apex = HeroAttackPose.ApexShareOfAnticipation * bowTiming.ContactFraction;
+            float drawFrac = KeyframeEasing.Apply(KeyframeEase.InOut, Math.Clamp(action.Progress / apex, 0f, 1f));
+            float pullDist = 4.6f * drawFrac;
+            Vector2 topLimb = itemCenter + Rotate(new Vector2(-3.2f, -8.2f) * itemScale, totalRot);
+            Vector2 botLimb = itemCenter + Rotate(new Vector2(-3.2f, 8.2f) * itemScale, totalRot);
+            Vector2 nockPt = itemCenter + Rotate(new Vector2(-3.2f - pullDist, 0f) * itemScale, totalRot);
+            Vector2 arrowTip = itemCenter + Rotate(new Vector2(9.2f - (pullDist * 0.35f), 0f) * itemScale, totalRot);
+            batch.DrawLine(topLimb, nockPt, new ColorRgba(248, 250, 252, 235), 1.3f * itemScale);
+            batch.DrawLine(botLimb, nockPt, new ColorRgba(248, 250, 252, 235), 1.3f * itemScale);
+            batch.DrawLine(nockPt, arrowTip, new ColorRgba(253, 224, 71, 240), 1.6f * itemScale);
+            batch.FillCircle(arrowTip, 1.8f * itemScale, item.AccentColor, 8);
+        }
+        else if (action.IsActive && action.Kind == ActionAnimationKind.StaffCast)
+        {
+            float pulse = MathF.Sin(action.Progress * MathF.PI);
+            Vector2 focusPos = itemCenter + Rotate(new Vector2(6.2f, -6.2f) * itemScale, totalRot);
+            float ringRadius = (4.8f + (pulse * 5.2f)) * itemScale;
+            byte ringAlpha = (byte)Math.Clamp((int)(pulse * 220f), 40, 220);
+            batch.DrawCircle(focusPos, ringRadius, new ColorRgba(item.AccentColor.R, item.AccentColor.G, item.AccentColor.B, ringAlpha), 16, 1.4f * itemScale);
+            batch.FillCircle(focusPos, (2.4f + (pulse * 1.8f)) * itemScale, new ColorRgba(224, 242, 254, ringAlpha), 10);
+        }
+    }
+
+    /// <summary>
+    /// Places a held item in the front hand: where the hand is, the item's centre, rotation and scale. Shared by the item
+    /// drawing and the weapon trail, which samples it along the swing (<c>docs/art/combat-animation.md</c> §3.5).
+    /// </summary>
+    /// <param name="rig">Character rig.</param>
+    /// <param name="item">Held item art.</param>
+    /// <param name="footPos">Foot position in world units.</param>
+    /// <param name="dir8">Facing.</param>
+    /// <param name="uniformScale">Rig scale.</param>
+    /// <param name="mirrorX">Whether the rig is mirrored (facing west).</param>
+    /// <param name="frontArmPose">Evaluated front-arm bone.</param>
+    /// <param name="action">Active action.</param>
+    /// <param name="swingTimer">Legacy swing seconds when no action is active.</param>
+    /// <returns>The held item pose.</returns>
+    internal static HeldItemPose ComputeHeldItemPose(
+        CompiledVectorRig rig,
+        CompiledItemVectorArt item,
+        Vector2 footPos,
+        Direction8 dir8,
+        float uniformScale,
+        bool mirrorX,
+        in BonePose frontArmPose,
+        in ActionState action,
+        float swingTimer)
+    {
+        Vector2 handWorld = ComputeHand(rig, footPos, dir8, uniformScale, mirrorX, in frontArmPose);
 
         Vector2 dirVec = action.IsActive && action.AimDirection.LengthSquared() > 1e-4f
             ? action.AimDirection
@@ -354,48 +414,32 @@ public static class VectorRigRenderer
         float totalRot = baseItemRot + swingOffset;
         float itemScale = uniformScale * item.WorldScale * 0.9f;
         Vector2 rotatedGrip = Rotate(item.GripPoint * itemScale, totalRot);
-        Vector2 itemCenter = handWorld - rotatedGrip;
-        BonePose pose = new() { RotRad = totalRot, ScaleX = 1f, ScaleY = 1f };
+        return new HeldItemPose(handWorld, handWorld - rotatedGrip, totalRot, itemScale);
+    }
 
-        if (weaponUpgradeLevel > 0)
-        {
-            ColorRgba sheen = weaponUpgradeLevel >= 6
-                ? new ColorRgba(34, 211, 238, 125)
-                : new ColorRgba(250, 204, 21, 115);
-            Vector2 auraTip = itemCenter + Rotate(new Vector2(3.5f * itemScale, -3.5f * itemScale), totalRot);
-            batch.FillCircle(auraTip, (5.5f + (weaponUpgradeLevel * 0.45f)) * itemScale, sheen, 12);
-        }
-
-        for (int i = 0; i < item.Shapes.Length; i++)
-        {
-            DrawSingleShape(batch, in item.Shapes[i], Vector2.Zero, in pose, itemCenter, itemScale, itemScale, hitFlash: 0f);
-        }
-
-        HeroAttackTiming bowTiming = HeroAttackTiming.For(HeroAttackStyle.BowShot);
-        if (action.IsActive && action.Kind == ActionAnimationKind.BowShot && action.Progress < bowTiming.ContactFraction)
-        {
-            // Draw to the apex, hold, then the string snaps forward at release (the arrow leaves with the server's shot).
-            float apex = HeroAttackPose.ApexShareOfAnticipation * bowTiming.ContactFraction;
-            float drawFrac = KeyframeEasing.Apply(KeyframeEase.InOut, Math.Clamp(action.Progress / apex, 0f, 1f));
-            float pullDist = 4.6f * drawFrac;
-            Vector2 topLimb = itemCenter + Rotate(new Vector2(-3.2f, -8.2f) * itemScale, totalRot);
-            Vector2 botLimb = itemCenter + Rotate(new Vector2(-3.2f, 8.2f) * itemScale, totalRot);
-            Vector2 nockPt = itemCenter + Rotate(new Vector2(-3.2f - pullDist, 0f) * itemScale, totalRot);
-            Vector2 arrowTip = itemCenter + Rotate(new Vector2(9.2f - (pullDist * 0.35f), 0f) * itemScale, totalRot);
-            batch.DrawLine(topLimb, nockPt, new ColorRgba(248, 250, 252, 235), 1.3f * itemScale);
-            batch.DrawLine(botLimb, nockPt, new ColorRgba(248, 250, 252, 235), 1.3f * itemScale);
-            batch.DrawLine(nockPt, arrowTip, new ColorRgba(253, 224, 71, 240), 1.6f * itemScale);
-            batch.FillCircle(arrowTip, 1.8f * itemScale, item.AccentColor, 8);
-        }
-        else if (action.IsActive && action.Kind == ActionAnimationKind.StaffCast)
-        {
-            float pulse = MathF.Sin(action.Progress * MathF.PI);
-            Vector2 focusPos = itemCenter + Rotate(new Vector2(6.2f, -6.2f) * itemScale, totalRot);
-            float ringRadius = (4.8f + (pulse * 5.2f)) * itemScale;
-            byte ringAlpha = (byte)Math.Clamp((int)(pulse * 220f), 40, 220);
-            batch.DrawCircle(focusPos, ringRadius, new ColorRgba(item.AccentColor.R, item.AccentColor.G, item.AccentColor.B, ringAlpha), 16, 1.4f * itemScale);
-            batch.FillCircle(focusPos, (2.4f + (pulse * 1.8f)) * itemScale, new ColorRgba(224, 242, 254, ringAlpha), 10);
-        }
+    /// <summary>Gets the world position of the front hand (the weapon grip) for an evaluated front-arm bone.</summary>
+    /// <param name="rig">Character rig.</param>
+    /// <param name="footPos">Foot position in world units.</param>
+    /// <param name="dir8">Facing.</param>
+    /// <param name="uniformScale">Rig scale.</param>
+    /// <param name="mirrorX">Whether the rig is mirrored (facing west).</param>
+    /// <param name="frontArmPose">Evaluated front-arm bone.</param>
+    /// <returns>Hand position.</returns>
+    internal static Vector2 ComputeHand(CompiledVectorRig rig, Vector2 footPos, Direction8 dir8, float uniformScale, bool mirrorX, in BonePose frontArmPose)
+    {
+        Vector2 baseGrip = dir8 == Direction8.North
+            ? rig.NorthGrip
+            : (dir8 == Direction8.South ? rig.SouthGrip : rig.SideGrip);
+        Vector2 armPivot = rig.GetBonePivot(VectorBoneId.ArmFront);
+        Vector2 gripRel = new(
+            (baseGrip.X - armPivot.X) * frontArmPose.ScaleX,
+            (baseGrip.Y - armPivot.Y) * frontArmPose.ScaleY);
+        Vector2 rotatedRel = Rotate(gripRel, frontArmPose.RotRad);
+        float handLocalX = armPivot.X + rotatedRel.X + frontArmPose.Dx;
+        float handLocalY = armPivot.Y + rotatedRel.Y + frontArmPose.Dy;
+        return new Vector2(
+            footPos.X + (handLocalX * (mirrorX ? -uniformScale : uniformScale)),
+            footPos.Y + (handLocalY * uniformScale));
     }
 
     private static float WrapAngle(float radians)
