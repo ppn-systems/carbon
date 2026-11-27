@@ -102,6 +102,12 @@ public static class CarbonUiPalette
     /// <summary>Rest bar fill while very tired or exhausted.</summary>
     public static readonly ColorRgba RestWarnFill = new(168, 72, 160, 255);
 
+    /// <summary>Stamina bar fill while exhausted (ADR-033).</summary>
+    public static readonly ColorRgba StaminaExhaustedFill = new(150, 128, 70, 255);
+
+    /// <summary>Stamina bar overlay that flashes when an action is refused for lack of stamina (ADR-033).</summary>
+    public static readonly ColorRgba StaminaRefusedFlash = new(236, 72, 60, 255);
+
     /// <summary>Hunger bar fill while food poisoned.</summary>
     public static readonly ColorRgba PoisonFill = new(128, 160, 52, 255);
 

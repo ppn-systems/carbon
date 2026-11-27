@@ -91,11 +91,18 @@ public sealed partial class AuthoritativeWorld
                 return new WorldMutationOutcome(OpStatus.Forbidden, 0);
             }
 
-            state.Cooldowns.StartCooldown(AttackAbilityId, _currentTick, _needs.ScaleAttackCooldown(state.Entity, PlayerActionService.GetAttackCooldownTicks(this.TickRate, state.Stats.AttackSpeedMultiplier)));
-
             ItemSlot activeSlot = state.Session.SelectedHotbarSlot < state.Inventory.Capacity
                 ? state.Inventory.GetSlot(state.Session.SelectedHotbarSlot)
                 : ItemSlot.Empty;
+
+            // ADR-033: the harvest key swings the held tool, so it pays the same stamina as a tick-path swing.
+            if (!_stamina.TrySpend(state, _stamina.GetSwingCost(_itemRules, in activeSlot)))
+            {
+                return new WorldMutationOutcome(OpStatus.RateLimited, 0);
+            }
+
+            state.Cooldowns.StartCooldown(AttackAbilityId, _currentTick, _needs.ScaleAttackCooldown(state.Entity, PlayerActionService.GetAttackCooldownTicks(this.TickRate, state.Stats.AttackSpeedMultiplier)));
+
             _mutationSlotScratch.Clear();
             PropStrikeResult strike = _props.Strike(state, tileX, tileY, in existing, in activeSlot, replicateToolWear: false, out ItemSlot? toolWear);
             if (toolWear.HasValue)
@@ -373,8 +380,17 @@ public sealed partial class AuthoritativeWorld
                 continue;
             }
 
+            // ADR-033: building and demolition work pause while exhausted and drain stamina while they progress.
+            if (!_stamina.CanWork(state))
+            {
+                continue;
+            }
+
             _playerMaterials.Bind(state);
-            _construction.StepJob(state.Build, actor, _playerMaterials, work);
+            if (_construction.StepJob(state.Build, actor, _playerMaterials, work))
+            {
+                _stamina.DrainWork(state, dt);
+            }
         }
     }
 

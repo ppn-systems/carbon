@@ -10,11 +10,13 @@ using Carbon.Application.World;
 using Carbon.Configuration.Catalog;
 using Carbon.Creatures;
 using Carbon.Economy;
+using Carbon.Items.Definitions;
 using Carbon.Items.Progression;
 using Carbon.Maps.Building;
 using Carbon.Server.Configuration;
 using Carbon.Survival.Config;
 using Carbon.Survival.Food;
+using Carbon.Survival.Stamina;
 
 namespace Carbon.Host;
 
@@ -26,7 +28,8 @@ namespace Carbon.Host;
 /// <param name="Needs">Survival needs tuning.</param>
 /// <param name="Food">Edible items.</param>
 /// <param name="Progression">Character progression tuning (ADR-021).</param>
-internal sealed record ServerGameData(GameEconomy Economy, NeedsConfig Needs, FoodCatalog Food, ProgressionConfig Progression)
+/// <param name="Stamina">Stamina tuning (ADR-033).</param>
+internal sealed record ServerGameData(GameEconomy Economy, NeedsConfig Needs, FoodCatalog Food, ProgressionConfig Progression, StaminaConfig Stamina)
 {
     /// <summary>
     /// Documents a running server cannot swap yet, because the building service and the creature systems are built once
@@ -49,7 +52,9 @@ internal sealed record ServerGameData(GameEconomy Economy, NeedsConfig Needs, Fo
             NeedsConfig needs = NeedsConfig.LoadFromJson(Read(catalog, "needs.json"));
             FoodCatalog food = FoodCatalog.LoadFromJson(Read(catalog, "food.json"), needs.FoodMax);
             ProgressionConfig progression = ProgressionConfig.LoadFromJson(Read(catalog, "progression.json"));
-            return new ServerGameData(economy, needs, food, progression);
+            StaminaConfig stamina = StaminaConfig.LoadFromJson(Read(catalog, "stamina.json"));
+            RequireKnownItemCodes(stamina, economy);
+            return new ServerGameData(economy, needs, food, progression, stamina);
         }
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException or ArgumentException or FormatException)
         {
@@ -97,8 +102,26 @@ internal sealed record ServerGameData(GameEconomy Economy, NeedsConfig Needs, Fo
 
             ServerGameData data = Load(next);
             // Item stats and recipes (GameEconomy.ItemRules) swap with the economy, matching what clients re-sync.
-            return () => world.ApplyGameData(data.Economy, data.Needs, data.Food, data.Progression);
+            return () => world.ApplyGameData(data.Economy, data.Needs, data.Food, data.Progression, data.Stamina);
         });
+    }
+
+    /// <summary>Rejects <c>itemSwingCosts</c> entries that name no item, so a typo cannot silently fall back to a default.</summary>
+    private static void RequireKnownItemCodes(StaminaConfig stamina, GameEconomy economy)
+    {
+        HashSet<string> codes = new(StringComparer.Ordinal);
+        foreach (ItemArchetype item in economy.ItemRules.Items.All)
+        {
+            _ = codes.Add(item.Code);
+        }
+
+        foreach (string code in stamina.ItemSwingCosts.Keys)
+        {
+            if (!codes.Contains(code))
+            {
+                throw new InvalidDataException($"stamina.json 'itemSwingCosts' names unknown item '{code}'.");
+            }
+        }
     }
 
     private static string Read(ConfigCatalog catalog, string fileName) =>

@@ -134,7 +134,8 @@ public static class Program
             ServerGameData.LoadCreatures(config.Catalog),
             gameData.Progression,
             traderStock: traderStockRepo,
-            entropy: entropy);
+            entropy: entropy,
+            stamina: gameData.Stamina);
         ServerGameData.BindHotReload(config, world);
         using AuthService authService = new(accountStore, characterStore, hasher, time: null, () => world.ItemRules, () => world.Progression)
         {

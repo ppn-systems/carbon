@@ -55,12 +55,8 @@ public sealed partial class AuthoritativeWorld
                     {
                         this.WakeLocked(state);
                     }
-                    isSprinting = isMoving && state.PendingSprint && state.CurrentStamina > 2f;
-                    if (isSprinting)
-                    {
-                        state.CurrentStamina = MathF.Max(0f, state.CurrentStamina - (22f * dt));
-                        state.StatsDirty = true;
-                    }
+                    // ADR-033: sprint drains stamina and is off while exhausted.
+                    isSprinting = isMoving && state.PendingSprint && _stamina.TrySprint(state, dt);
 
                     float speed = (isSprinting ? SprintSpeed : BaseWalkSpeed) * state.Stats.MoveSpeedMultiplier * _needs.GetMoveScale(state.Entity);
                     _simulation.EnqueueCommand(SimulationCommand.MoveInput(
@@ -71,9 +67,9 @@ public sealed partial class AuthoritativeWorld
                     state.HasPendingInput = false;
                 }
 
-                if (!isSprinting && state.CurrentStamina < state.Stats.MaxStamina)
+                if (!isSprinting)
                 {
-                    state.CurrentStamina = MathF.Min(state.Stats.MaxStamina, state.CurrentStamina + (18f * dt));
+                    _stamina.Regenerate(state, dt, this.IsPlayerMovingLocked(state));
                 }
 
                 if (state.CurrentMana < state.Stats.MaxMana)
@@ -219,6 +215,8 @@ public sealed partial class AuthoritativeWorld
                     this.EnqueueStatsSyncLocked(observer, observer.LeveledUpPending);
                     observer.StatsDirty = false;
                 }
+
+                _stamina.QueueStatusIfChanged(observer);
             }
 
             _replication.ClearDirtyFlags();
@@ -385,7 +383,7 @@ public sealed partial class AuthoritativeWorld
             {
                 this.ResetNeedsAfterDeathLocked(victim);
                 victim.CurrentMana = victim.Stats.MaxMana;
-                victim.CurrentStamina = victim.Stats.MaxStamina;
+                victim.Stamina.Refill(victim.Stats.MaxStamina);
                 victim.StatsDirty = true;
                 this.MarkCharacterDirtyLocked(victim, inventoryChanged: false);
             }

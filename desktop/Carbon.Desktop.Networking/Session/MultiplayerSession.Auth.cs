@@ -294,7 +294,7 @@ public sealed partial class MultiplayerSession
             _localMaxHealth = MathF.Max(1f, enter.MaxHealth);
             _localMana = enter.CurrentMana;
             _localMaxMana = MathF.Max(1f, enter.MaxMana);
-            _localStamina = enter.CurrentStamina;
+            this.ResetStaminaPrediction(enter.CurrentStamina);
             _localMaxStamina = MathF.Max(1f, enter.MaxStamina);
             _localDefense = enter.Defense;
             _localClass = (HeroArchetypeClass)enter.ClassId;

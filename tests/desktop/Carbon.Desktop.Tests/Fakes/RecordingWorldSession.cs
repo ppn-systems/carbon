@@ -92,6 +92,10 @@ internal sealed class RecordingWorldSession : IWorldSession
     public float LocalPlayerMaxMana => Unused<float>();
     public float LocalPlayerStamina => Unused<float>();
     public float LocalPlayerMaxStamina => Unused<float>();
+
+    public bool LocalPlayerStaminaExhausted => Unused<bool>();
+
+    public float LocalPlayerStaminaFlash => Unused<float>();
     public float LocalPlayerDefense => Unused<float>();
     public long LocalPlayerGold => Unused<long>();
     public long LocalPlayerDiamonds => Unused<long>();

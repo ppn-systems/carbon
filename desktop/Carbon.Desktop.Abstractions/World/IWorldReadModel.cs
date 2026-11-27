@@ -66,6 +66,12 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile
     /// <summary>Gets derived maximum stamina points.</summary>
     float LocalPlayerMaxStamina { get; }
 
+    /// <summary>Gets whether the local player is exhausted: no stamina actions and no sprint until the pool recovers (ADR-033).</summary>
+    bool LocalPlayerStaminaExhausted { get; }
+
+    /// <summary>Gets the stamina bar flash after a refused action, from 1 (just refused) down to 0.</summary>
+    float LocalPlayerStaminaFlash { get; }
+
     /// <summary>Gets derived armor defense rating.</summary>
     float LocalPlayerDefense { get; }
 

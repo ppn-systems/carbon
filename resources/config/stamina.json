@@ -1,0 +1,40 @@
+{
+  "sprintDrainPerSecond": 16,
+  "regenDelaySeconds": 1.75,
+  "regenPerSecondStill": 6,
+  "regenPerSecondMoving": 3,
+  "restingRegenMultiplier": 1.5,
+  "exhaustedRecoverFraction": 0.35,
+  "minimumRegenScale": 0.25,
+  "fatigueRegenScale": {
+    "tired": 0.8,
+    "veryTired": 0.6,
+    "exhausted": 0.4
+  },
+  "hungerRegenScale": {
+    "hungry": 0.85,
+    "urgentlyHungry": 0.6,
+    "starving": 0.4
+  },
+  "swingCosts": {
+    "bareHand": 4,
+    "melee": 9,
+    "tool": 9,
+    "ranged": 6,
+    "spell": 0
+  },
+  "itemSwingCosts": {
+    "wood_axe": 8,
+    "iron_axe": 10,
+    "stone_pickaxe": 10,
+    "crystal_pickaxe": 12,
+    "copper_sword": 8,
+    "iron_sword": 10,
+    "demon_cleaver": 14,
+    "ember_blade": 15,
+    "hunting_bow": 6,
+    "bone_bow": 7,
+    "crystal_bow": 8
+  },
+  "buildWorkPerSecond": 4
+}

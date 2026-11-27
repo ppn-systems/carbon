@@ -75,4 +75,9 @@ public static class ItemOpCode
 
     /// <summary>World-wide notice of a notable enhancement (a high-level success or a destroyed item).</summary>
     public const ushort EnhancementAnnouncement = 0x4032;
+
+    // ── Stamina (0x4088–0x408F, ADR-033) ────────────────────────────────────
+
+    /// <summary>S2C: the local player's stamina exhaustion and refused-action count (ADR-033).</summary>
+    public const ushort StaminaStatusSync = 0x4088;
 }

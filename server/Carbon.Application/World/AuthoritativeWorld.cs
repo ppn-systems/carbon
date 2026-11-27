@@ -25,6 +25,7 @@ using Carbon.Application.World.Progression;
 using Carbon.Application.World.Projectiles;
 using Carbon.Application.World.Props;
 using Carbon.Application.World.Replication;
+using Carbon.Application.World.Stamina;
 using Carbon.Combat.Cooldowns;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
@@ -48,6 +49,7 @@ using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.World;
 using Carbon.Survival.Config;
 using Carbon.Survival.Food;
+using Carbon.Survival.Stamina;
 
 namespace Carbon.Application.World;
 
@@ -90,6 +92,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly IWorldOutboundSink _outboundSink;
     private readonly TimeProvider _time;
     private readonly NeedsService _needs;
+    private readonly StaminaService _stamina;
     private GameEconomy? _economy;
     private ItemRules _itemRules;
 
@@ -137,6 +140,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// <param name="entropy">
     /// Secret source of every gameplay roll (ADR-026); defaults to a random secret that lives only in this process.
     /// </param>
+    /// <param name="stamina">Stamina tuning (<c>stamina.json</c>, ADR-033); defaults to the shipped copy.</param>
     public AuthoritativeWorld(
         ulong worldSeed,
         float tileSize,
@@ -153,7 +157,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         CreatureContent? creatures = null,
         ProgressionConfig? progression = null,
         ITraderStockRepository? traderStock = null,
-        GameplayEntropy? entropy = null)
+        GameplayEntropy? entropy = null,
+        StaminaConfig? stamina = null)
     {
         ArgumentNullException.ThrowIfNull(chunkDeltaRepo);
         ArgumentNullException.ThrowIfNull(characterStore);
@@ -249,6 +254,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             needsConfig,
             foodCatalog,
             _entropy);
+        _stamina = new StaminaService(_simulation, stamina ?? StaminaConfig.LoadShippedDefaults(), _outbound);
         _actions = new PlayerActionService(
             _simulation,
             this.TickRate,
@@ -261,6 +267,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _props,
             _inventory,
             _needs,
+            _stamina,
             new PlayerActionHost(this),
             _entropy);
         _persistence = new CharacterPersistence(_simulation, _needs, _time);
@@ -279,7 +286,13 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// <param name="needsConfig">New needs tuning.</param>
     /// <param name="foodCatalog">New edible items.</param>
     /// <param name="progression">New progression tuning (players are re-evaluated, ADR-021 D7), or <see langword="null"/> to keep it.</param>
-    public void ApplyGameData(GameEconomy? economy, NeedsConfig needsConfig, FoodCatalog foodCatalog, ProgressionConfig? progression = null)
+    /// <param name="stamina">New stamina tuning (ADR-033), or <see langword="null"/> to keep it; meters keep their values.</param>
+    public void ApplyGameData(
+        GameEconomy? economy,
+        NeedsConfig needsConfig,
+        FoodCatalog foodCatalog,
+        ProgressionConfig? progression = null,
+        StaminaConfig? stamina = null)
     {
         ArgumentNullException.ThrowIfNull(needsConfig);
         ArgumentNullException.ThrowIfNull(foodCatalog);
@@ -289,6 +302,10 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _itemRules = economy?.ItemRules ?? _itemRules;
             _needs.Reconfigure(needsConfig, foodCatalog);
             _progressionService.Reconfigure(progression, _players.ByConnection.Values);
+            if (stamina is not null)
+            {
+                _stamina.Reconfigure(stamina);
+            }
         }
     }
 
@@ -318,6 +335,18 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             lock (_gate)
             {
                 return _itemRules;
+            }
+        }
+    }
+
+    /// <summary>Gets the stamina tuning the simulation currently runs on (ADR-033).</summary>
+    public StaminaConfig StaminaConfig
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _stamina.Config;
             }
         }
     }
