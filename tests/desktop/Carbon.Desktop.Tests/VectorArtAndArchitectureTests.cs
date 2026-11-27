@@ -47,7 +47,8 @@ public sealed class VectorArtAndArchitectureTests
         Directory.Exists(Path.Combine(repoRoot, "resources", "vector-art")).Should().BeFalse("duplicate vector-art folder must not exist");
 
         VectorArtValidationSummary summary = VectorArtValidator.ValidateDirectory(artRoot!);
-        summary.CharactersValidated.Should().Be(1, "catalog.cvg.json lists each character body rig once, keyed by file (ADR-042)");
+        int bodyRigs = RaceCatalog.LoadShippedDefaults().Races.SelectMany(r => r.Bodies).Select(b => b.Rig).Distinct(StringComparer.Ordinal).Count();
+        summary.CharactersValidated.Should().Be(bodyRigs, "catalog.cvg.json lists each body rig races.json names, once, keyed by file (ADR-042)");
         using JsonDocument monsters = JsonDocument.Parse(File.ReadAllText(Path.Combine(repoRoot, "resources", "config", "monsters.json")));
         int monsterArchetypes = monsters.RootElement.GetProperty("monsters").EnumerateArray()
             .Select(m => m.GetProperty("archetypeId").GetUInt16()).Distinct().Count();

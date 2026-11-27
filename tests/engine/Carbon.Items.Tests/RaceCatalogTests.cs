@@ -96,7 +96,7 @@ public sealed class RaceCatalogTests
     [Theory]
     [InlineData((ushort)0, (byte)0, new byte[] { 0, 0, 0, 0 }, CharacterLookStatus.UnknownRace)]
     [InlineData((ushort)2, (byte)0, new byte[] { 0, 0, 0, 0 }, CharacterLookStatus.UnknownRace)]
-    [InlineData((ushort)1, (byte)1, new byte[] { 0, 0, 0, 0 }, CharacterLookStatus.UnknownBodyType)]
+    [InlineData((ushort)1, (byte)2, new byte[] { 0, 0, 0, 0 }, CharacterLookStatus.UnknownBodyType)]
     [InlineData((ushort)1, (byte)0, new byte[] { 0, 0, 0 }, CharacterLookStatus.OptionCountMismatch)]
     [InlineData((ushort)1, (byte)0, new byte[] { 0, 0, 0, 0, 0 }, CharacterLookStatus.OptionCountMismatch)]
     [InlineData((ushort)1, (byte)0, new byte[] { 4, 0, 0, 0 }, CharacterLookStatus.OptionOutOfRange)]

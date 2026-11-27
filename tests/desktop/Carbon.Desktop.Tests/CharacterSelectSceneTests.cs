@@ -2,6 +2,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -40,17 +42,23 @@ public sealed class CharacterSelectSceneTests : IDisposable
     private static readonly Vector2 s_logout = new(1028f, 141f);
     private static readonly Vector2 s_turnLeft = new(560f, 530f);
     private static readonly Vector2 s_turnRight = new(684f, 530f);
-    private static readonly Vector2 s_hairPrev = new(802f, 235f);
-    private static readonly Vector2 s_hairNext = new(1048f, 235f);
-    private static readonly Vector2 s_hairColorNext = new(1048f, 269f);
-    private static readonly Vector2 s_faceNext = new(1048f, 303f);
-    private static readonly Vector2 s_skinPrev = new(802f, 337f);
+    // Selector rows, 27 px apart: race, body type, then the race's options (human: hair, hair colour, eyes, skin).
+    private static readonly Vector2 s_raceNext = new(1048f, 233f);
+    private static readonly Vector2 s_bodyNext = new(1048f, 260f);
+    private static readonly Vector2 s_hairPrev = new(802f, 287f);
+    private static readonly Vector2 s_hairNext = new(1048f, 287f);
+    private static readonly Vector2 s_hairColorNext = new(1048f, 314f);
+    private static readonly Vector2 s_faceNext = new(1048f, 341f);
+    private static readonly Vector2 s_skinPrev = new(802f, 368f);
+    private static readonly Vector2 s_lastOptionRow = new(1048f, 368f);
     private static readonly Vector2 s_createWithHeroes = new(879f, 502f);
     private static readonly Vector2 s_createFirstHero = new(925f, 502f);
     private static readonly Vector2 s_backToRoster = new(1020f, 502f);
 
     private static readonly CharacterRosterEntry s_ayla = new(Guid.NewGuid(), "Ayla", 3, 1, 0f, 0f);
     private static readonly CharacterRosterEntry s_bram = new(Guid.NewGuid(), "Bram", 7, 1, 0f, 0f);
+
+    private static readonly string s_twoRaceJson = TwoRaceJson();
 
     private readonly IWorldSession _session = Substitute.For<IWorldSession>();
     private readonly IInputManager _input = Substitute.For<IInputManager>();
@@ -237,6 +245,66 @@ public sealed class CharacterSelectSceneTests : IDisposable
     }
 
     [Fact]
+    public void CreatorBodyRow_NextBody_SendsTheFemaleHumanLook()
+    {
+        this.LoadRoster(s_ayla);
+        _session.CreateCharacterAsync(Arg.Any<string>(), Arg.Any<CharacterLook>(), Arg.Any<CancellationToken>()).Returns(new TaskCompletionSource<(bool, string)>().Task);
+        this.Click(s_openCreator);
+        this.ClearName();
+        this.Type("Mira");
+
+        this.Click(s_bodyNext);
+        this.Click(s_hairNext);
+        this.Click(s_createWithHeroes);
+
+        _scene.Look.Should().Be(new CharacterLook(1, 1, [1, 0, 0, 0]), "body 1 is the female human body in races.json, and options keep their row");
+        _session.Received(1).CreateCharacterAsync("Mira", new CharacterLook(1, 1, [1, 0, 0, 0]), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void CreatorRaceRow_OnlyOneRace_DoesNotCycle()
+    {
+        this.LoadRoster(s_ayla);
+        this.Click(s_openCreator);
+        this.Click(s_bodyNext);
+
+        this.Click(s_raceNext);
+
+        _scene.Look.RaceId.Should().Be(1, "the shipped races.json has one race, so its row has nothing to cycle to");
+        _scene.Look.BodyType.Should().Be(1, "a click on a row that cannot cycle leaves the rest of the look alone");
+    }
+
+    [Fact]
+    public void CreatorRaceRow_ConfigOnlyRace_IsListedAndItsExtraOptionsScrollIntoView()
+    {
+        _session.Races.Returns(TestRaces.Synced(Encoding.UTF8.GetBytes(s_twoRaceJson)));
+        this.LoadRoster(s_ayla);
+        this.Click(s_openCreator);
+
+        this.Click(s_raceNext);
+        _scene.Look.Should().Be(new CharacterLook(4242, 5, [0, 0, 0, 0, 0, 0]), "the creator lists whatever races.json holds");
+
+        this.Click(s_lastOptionRow);
+        _scene.Look.GetOption(3).Should().Be(1, "the fourth option row starts on option 4");
+
+        this.Scroll(at: s_lastOptionRow, wheel: -1f);
+        this.Scroll(at: s_lastOptionRow, wheel: -1f);
+        this.Scroll(at: s_lastOptionRow, wheel: -1f);
+        _scene.OptionScroll.Should().Be(2, "six options under four rows scroll by at most two");
+        _scene.RowKeys(0).Should().Be(("character_creator.race", "race.test_kin"));
+        _scene.RowKeys(1).Should().Be(("character_creator.body", "race.body.slim"));
+        _scene.RowKeys(2).LabelKey.Should().Be("test.option2", "the first option row now shows the third option");
+        _scene.RowKeys(5).Should().Be(("test.option5", "appearance.hair.crop"), "the last row shows the sixth option and its current choice");
+
+        this.Click(s_lastOptionRow);
+        _scene.Look.Should().Be(new CharacterLook(4242, 5, [0, 0, 0, 1, 0, 1]), "after scrolling, the last row is the sixth option");
+
+        this.Click(s_raceNext);
+        _scene.Look.Should().Be(new CharacterLook(1, 0, [0, 0, 0, 0]), "back to the first race, its first body and choices");
+        _scene.OptionScroll.Should().Be(0);
+    }
+
+    [Fact]
     public void CreateHero_SendsTheTypedNameAndLookThenSelectsTheNewHero()
     {
         this.LoadRoster(s_ayla);
@@ -365,6 +433,12 @@ public sealed class CharacterSelectSceneTests : IDisposable
         this.Frame();
     }
 
+    private void Scroll(Vector2 at, float wheel)
+    {
+        _mouse = new MouseSnapshot(at, at, new Vector2(0f, wheel), new bool[8], new bool[8]);
+        this.Frame();
+    }
+
     private void Click(Vector2 at)
     {
         bool[] down = new bool[8];
@@ -387,5 +461,20 @@ public sealed class CharacterSelectSceneTests : IDisposable
         {
             this.Press(Key.Backspace);
         }
+    }
+
+    private static string TwoRaceJson()
+    {
+        static string Option(int n) =>
+            $$"""{"code":"o{{n}}","nameKey":"test.option{{n}}","role":"hair","choices":[{"nameKey":"appearance.hair.crop","part":"a"},{"nameKey":"appearance.hair.long","part":"b"}]}""";
+        string four = string.Join(',', Enumerable.Range(0, 4).Select(Option));
+        string six = string.Join(',', Enumerable.Range(0, 6).Select(Option));
+        return $$"""
+            {"schemaVersion":1,"races":[
+              {"id":1,"code":"human","nameKey":"race.human",
+               "bodies":[{"id":0,"code":"male","nameKey":"race.body.male","rig":"characters/base_hero.cvg.json"}],"options":[{{four}}]},
+              {"id":4242,"code":"test_kin","nameKey":"race.test_kin",
+               "bodies":[{"id":5,"code":"slim","nameKey":"race.body.slim","rig":"characters/test_kin_slim.cvg.json"}],"options":[{{six}}]}]}
+            """;
     }
 }

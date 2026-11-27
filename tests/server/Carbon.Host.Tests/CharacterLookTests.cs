@@ -155,7 +155,7 @@ public sealed class CharacterLookTests : IDisposable
     [Theory]
     [InlineData((ushort)0, (byte)0, new byte[] { 0, 0, 0, 0 })]
     [InlineData((ushort)77, (byte)0, new byte[] { 0, 0, 0, 0 })]
-    [InlineData((ushort)1, (byte)1, new byte[] { 0, 0, 0, 0 })]
+    [InlineData((ushort)1, (byte)2, new byte[] { 0, 0, 0, 0 })]
     [InlineData((ushort)1, (byte)0, new byte[] { 0, 0, 0 })]
     [InlineData((ushort)1, (byte)0, new byte[] { 0, 0, 0, 4 })]
     public async Task CreateCharacterAsync_LookNotInRacesJson_IsRejectedAndNothingIsStored(ushort raceId, byte bodyType, byte[] options)

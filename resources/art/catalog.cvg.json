@@ -6,6 +6,12 @@
       "title": "Adventurer",
       "accentColor": "#38BDF8",
       "file": "characters/base_hero.cvg.json"
+    },
+    {
+      "id": "human_female",
+      "title": "Adventurer",
+      "accentColor": "#38BDF8",
+      "file": "characters/human_female.cvg.json"
     }
   ],
   "monsters": [

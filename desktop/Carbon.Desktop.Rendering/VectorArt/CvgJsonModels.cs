@@ -237,6 +237,16 @@ internal sealed class CvgEntityRigDto
     public Dictionary<string, string> Palette { get; set; } = [];
     public List<CvgShapeDto> Shapes { get; set; } = [];
     public Dictionary<string, CvgAnimDto> Animations { get; set; } = [];
+
+    /// <summary>
+    /// Rig file (relative to this rig's folder) whose clips this rig plays instead of its own (ADR-042 D11): body rigs
+    /// share one skeleton, so they share every clip without copies. Mutually exclusive with <see cref="Animations"/>.
+    /// </summary>
+    public string? AnimationsFrom { get; set; }
+
+    /// <summary>Horizontal scale of the modular chest armor, pauldrons and cape on this body (default 1).</summary>
+    public float TorsoWidthScale { get; set; } = 1f;
+
     public CvgRigMarkersDto? Markers { get; set; }
 }
 
