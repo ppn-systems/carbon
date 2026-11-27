@@ -239,7 +239,7 @@ public sealed class TraderWorldTests
             RecordingOutboundSink sink = new();
             AuthoritativeWorld world = await CreateWorldAsync(factory, sink, time, repository).ConfigureAwait(true);
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
-            world.TryEnterWorld(Conn, Conn, Character("Buyer", fx, fy, gold: 5_000)).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(Conn, Character("Buyer", fx, fy, gold: 5_000)).Status.Should().Be(OpStatus.Ok);
             Step(world, 12);
             ulong merchant = sink.Spawns.First(s => s.Snapshot.Kind == EntityKind.Npc && s.Snapshot.ArchetypeId == WorldActorCatalog.VillageMerchant).Snapshot.NetworkId;
             (await Run(world, world.Trade.SubmitTraderOpenAsync(Conn, merchant))).Should().Be(OpStatus.Ok);
@@ -254,7 +254,7 @@ public sealed class TraderWorldTests
             RecordingOutboundSink sink2 = new();
             AuthoritativeWorld restarted = await CreateWorldAsync(factory, sink2, time, repository).ConfigureAwait(true);
             await restarted.InitializeFromStoreAsync().ConfigureAwait(true);
-            restarted.TryEnterWorld(Conn, Conn, Character("Buyer2", fx, fy, gold: 10)).Status.Should().Be(OpStatus.Ok);
+            restarted.TryEnterWorld(Conn, Character("Buyer2", fx, fy, gold: 10)).Status.Should().Be(OpStatus.Ok);
             Step(restarted, 12);
             ulong merchant2 = sink2.Spawns.First(s => s.Snapshot.Kind == EntityKind.Npc && s.Snapshot.ArchetypeId == WorldActorCatalog.VillageMerchant).Snapshot.NetworkId;
             (await Run(restarted, restarted.Trade.SubmitTraderOpenAsync(Conn, merchant2))).Should().Be(OpStatus.Ok);
