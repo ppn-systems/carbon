@@ -197,11 +197,14 @@ public sealed class OxygenWorldTests
     {
         (AuthoritativeWorld world, StatusRecordingSink sink) = CreateWorld();
         _ = world.TryEnterWorld(1UL, Character(TileOf(WaterDepthTier.Abyss)));
-        int breathTicks = (int)MathF.Ceiling(world.WaterRules.MaxOxygenSeconds / world.WaterRules.AbyssDrainPerSecond * TickRate);
-        Step(world, breathTicks + (TickRate * 60));
+        for (int i = 0; i < TickRate * 120 && !world.IsPlayerDead(1UL); i++)
+        {
+            world.StepFixedTick();
+        }
+
         world.IsPlayerDead(1UL).Should().BeTrue("the diver drowned");
 
-        world.TryRespawn(1UL).Should().Be(OpStatus.Ok);
+        world.TryRespawn(1UL).Should().Be(OpStatus.Ok, "respawning at once, before the breath could refill");
 
         world.TryGetOxygen(1UL, out float oxygen, out _).Should().BeTrue();
         oxygen.Should().Be(world.WaterRules.MaxOxygenSeconds, "a respawn at the sanctuary is a full breath");
@@ -209,6 +212,27 @@ public sealed class OxygenWorldTests
         world.TryGetOxygen(1UL, out _, out SwimState state);
         state.Should().NotBe(SwimState.Diving, "the sanctuary is on land");
         sink.StatusSyncs.Last(s => s.ConnectionId == 1UL).Entries.Should().NotContain(e => e.EffectId == DrowningId(world), "drowning ends out of the water");
+    }
+
+    [Fact]
+    public void StepFixedTick_DrownedAndWaitingToRespawn_StopsUsingOxygenAndRefills()
+    {
+        (AuthoritativeWorld world, _) = CreateWorld();
+        _ = world.TryEnterWorld(1UL, Character(TileOf(WaterDepthTier.Abyss)));
+        for (int i = 0; i < TickRate * 120 && !world.IsPlayerDead(1UL); i++)
+        {
+            world.StepFixedTick();
+        }
+
+        world.IsPlayerDead(1UL).Should().BeTrue("the diver drowned");
+        world.TryGetOxygen(1UL, out float atDeath, out _);
+        atDeath.Should().BeLessThan(1f, "the breath had just run out");
+
+        Step(world, TickRate * 2);
+
+        world.TryGetOxygen(1UL, out float later, out SwimState state);
+        state.Should().Be(SwimState.Diving, "the body is still in the abyss");
+        later.Should().BeGreaterThan(atDeath, "a dead player no longer uses oxygen, so the breath refills");
     }
 
     private static ushort DrowningId(AuthoritativeWorld world) =>
