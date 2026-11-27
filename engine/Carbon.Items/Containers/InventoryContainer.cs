@@ -128,12 +128,13 @@ public sealed class InventoryContainer
             return remaining;
         }
 
+        // Items that cannot stack take one slot per unit (as InventoryDraft.Add does).
         for (int i = 0; i < _slots.Length && remaining > 0; i++)
         {
             if (_slots[i].IsEmpty)
             {
-                this.SetSlotInternal(i, incoming);
-                remaining = 0;
+                this.SetSlotInternal(i, incoming with { Quantity = 1 });
+                remaining--;
             }
         }
 

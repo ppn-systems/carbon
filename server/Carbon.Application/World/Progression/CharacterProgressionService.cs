@@ -237,29 +237,9 @@ internal sealed class CharacterProgressionService
     /// </summary>
     private void ApplyAllocationChange(PlayerState state)
     {
-        float prevMaxHp = state.Stats.MaxHealth;
-        float prevMaxMp = state.Stats.MaxMana;
-        float prevMaxStam = state.Stats.MaxStamina;
+        (float Health, float Mana, float Stamina) previousMax = VitalPools.Capture(state);
         this.RecomputeDerivedStats(state);
-
-        if (_simulation.Entities.HasHealth(state.Entity) && state.Stats.MaxHealth > prevMaxHp)
-        {
-            HealthComponent hp = _simulation.Entities.GetHealth(state.Entity);
-            float nextHp = MathF.Min(state.Stats.MaxHealth, hp.Current + (state.Stats.MaxHealth - prevMaxHp));
-            _simulation.Entities.SetHealth(state.Entity, new HealthComponent(nextHp, state.Stats.MaxHealth));
-            _simulation.MarkDirty(state.Entity, EntityDirtyMask.Health);
-        }
-
-        if (state.Stats.MaxMana > prevMaxMp)
-        {
-            state.CurrentMana = MathF.Min(state.Stats.MaxMana, state.CurrentMana + (state.Stats.MaxMana - prevMaxMp));
-        }
-
-        if (state.Stats.MaxStamina > prevMaxStam)
-        {
-            state.CurrentStamina = MathF.Min(state.Stats.MaxStamina, state.CurrentStamina + (state.Stats.MaxStamina - prevMaxStam));
-        }
-
+        VitalPools.AddGrowth(_simulation, state, previousMax);
         state.StatsDirty = true;
         _markCharacterDirty(state);
     }

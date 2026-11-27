@@ -212,7 +212,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             () => _currentTick,
             state => this.MarkCharacterDirtyLocked(state, inventoryChanged: false),
             _commerce.QueueWalletSync);
-        _combat = new CombatService(_simulation, _chunkWorld, MonsterLayer, _outbound, this.CollectNearbyConnectionsAroundWorldLocked, this.OnMonsterKilledLocked);
+        _combat = new CombatService(_simulation, _chunkWorld, MonsterLayer, _outbound, this.CollectNearbyConnectionsAroundWorldLocked, this.OnMonsterKilledLocked, () => _currentTick);
         _props = new PropHarvestService(
             _simulation,
             _chunkWorld,

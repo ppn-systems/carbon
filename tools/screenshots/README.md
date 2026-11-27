@@ -5,9 +5,10 @@ monsters, the character panel) with the real online client against a throwaway l
 labelled contact sheet. Use it to review terrain, props, lighting and actor art before and after a change.
 
 ```bash
-tools/screenshots/capture.sh [out_dir] [name_regex]
+tools/screenshots/capture.sh [--lang <code>] [out_dir] [name_regex]
 
 tools/screenshots/capture.sh                                  # all scenarios -> artifacts/screenshots/
+tools/screenshots/capture.sh --lang vi /tmp/shots-vi          # same scenarios with the Vietnamese UI
 tools/screenshots/capture.sh /tmp/shots '^(dune_desert|red_mesa)$'
 SKIP_BUILD=1 tools/screenshots/capture.sh /tmp/shots night    # reuse the last build
 ```
@@ -55,6 +56,9 @@ they are active.
 | `CARBON_CAPTURE_FRAMES=n` | Also capture `n` consecutive frames after the main capture. |
 | `CARBON_OPEN_PANEL=character` | Open the Character tab of the player panel on entry. |
 | `CARBON_CAPTURE_MOUSE=x,y` | Pin the cursor at window pixel `x,y` so hover states (e.g. the stat preview) render. |
+
+`--lang <code>` (or `CARBON_LANG`) sets the client language for every scenario; the code must have a file in
+`resources/localization/` (`<code>.ini`, ADR-023). Capture `en` and `vi` into separate output directories to compare them.
 
 Script knobs: `SKIP_BUILD=1`, `CARBON_SEED`, `BASE_PORT` (TCP; UDP is `BASE_PORT+1`), `WIDTH`/`HEIGHT`,
 `CLIENT_TIMEOUT`, `SERVER_BOOT_TIMEOUT`, `SCENARIOS` (alternative scenario file).
