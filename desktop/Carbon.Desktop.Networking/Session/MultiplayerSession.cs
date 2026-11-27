@@ -27,7 +27,6 @@ using Carbon.Prediction.Remote;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.World;
-using Carbon.Survival.Stamina;
 using Nalix.Abstractions.Primitives;
 using Nalix.SDK.Transport;
 
@@ -130,7 +129,6 @@ public sealed partial class MultiplayerSession : IWorldSession
     private uint _localXpToNext = 100U;
     private float _localMana = 80f;
     private float _localMaxMana = 80f;
-    private StaminaMeter _stamina = new(100f);
     private float _localMaxStamina = 100f;
     private float _localDefense = 2f;
     private long _localGold;

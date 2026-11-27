@@ -1,9 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
-using System;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Items.S2C;
-using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Items.Definitions;
 using Carbon.Survival.Components;
@@ -12,74 +10,40 @@ using Carbon.Survival.Stamina;
 namespace Carbon.Desktop.Networking.Session;
 
 /// <summary>
-/// Client stamina (ADR-033): predicts sprint drain and regen with the server's synced <c>stamina.json</c> and the same
-/// <see cref="StaminaMeter"/> rules, mirrors the server's exhaustion, and flashes the bar when an action is refused.
-/// The server validates every spend; <c>PlayerStatsSync</c> overwrites the predicted value.
+/// Client stamina (ADR-033): the session's side of <see cref="StaminaPredictor"/>. It feeds the prediction the local
+/// player's rest and hunger, takes the world lock where the HUD reads, and turns refusals into HUD messages.
 /// </summary>
 public sealed partial class MultiplayerSession
 {
-    /// <summary>HUD animation: how long the bar flashes after a refused action (presentation, not gameplay).</summary>
-    private const float BarFlashSeconds = 0.6f;
-
-    private readonly SyncedStaminaConfig _staminaConfig = new();
-
-    private uint _staminaRefusals;
-    private float _staminaFlashTimer;
+    private readonly StaminaPredictor _stamina = new();
 
     /// <inheritdoc/>
     public bool LocalPlayerStaminaExhausted => _stamina.Exhausted;
 
     /// <inheritdoc/>
-    public float LocalPlayerStaminaFlash => _staminaFlashTimer / BarFlashSeconds;
+    public float LocalPlayerStaminaFlash => _stamina.Flash;
 
     /// <summary>Starts a fresh meter (world entry, logout).</summary>
-    private void ResetStaminaPrediction(float current)
-    {
-        _stamina = new StaminaMeter(current);
-        _staminaRefusals = 0U;
-        _staminaFlashTimer = 0f;
-    }
+    private void ResetStaminaPrediction(float current) => _stamina.Reset(current);
 
-    /// <summary>
-    /// Predicts one frame: drains sprint when <paramref name="wantsSprint"/> and the meter allows it, otherwise regenerates.
-    /// Returns whether the player sprints. Without a synced config nothing is predicted and sprint follows the meter only.
-    /// </summary>
+    /// <summary>Predicts one frame and returns whether the player sprints (see <see cref="StaminaPredictor.Tick"/>).</summary>
     private bool PredictStaminaTick(float deltaSeconds, bool wantsSprint, bool isMoving)
     {
-        if (_staminaFlashTimer > 0f)
-        {
-            _staminaFlashTimer = MathF.Max(0f, _staminaFlashTimer - deltaSeconds);
-        }
-
-        StaminaConfig? config = _staminaConfig.Current;
-        if (config is null)
-        {
-            return wantsSprint && _stamina.CanSprint;
-        }
-
-        if (wantsSprint && _stamina.TryDrain(config.SprintDrainPerSecond * deltaSeconds, config))
-        {
-            return true;
-        }
-
         StaminaRegenContext context = new(
             isMoving,
             _localRestMode != RestMode.None,
             (RestState)_localRestState,
             (HungerState)_localHungerState);
-        _stamina.Regenerate(deltaSeconds, _localMaxStamina, config.GetRegenPerSecond(in context), config);
-        return false;
+        return _stamina.Tick(deltaSeconds, wantsSprint, in context, _localMaxStamina);
     }
 
     /// <summary>Predicts paying <paramref name="cost"/>; flashes and tells the player when it would be refused.</summary>
     private bool TryPredictStaminaSpend(float cost)
     {
-        bool wasExhausted = _stamina.Exhausted;
-        StaminaConfig? config = _staminaConfig.Current;
-        bool paid = config is null ? _stamina.CanAfford(cost) : _stamina.TrySpend(cost, config);
+        bool paid = _stamina.TrySpend(cost, out string refusalKey);
         if (!paid)
         {
-            this.FlashStaminaRefusal(wasExhausted ? "stamina.too_tired" : "hud.not_enough_stamina");
+            this.FlashStaminaRefusal(refusalKey);
         }
 
         return paid;
@@ -91,8 +55,7 @@ public sealed partial class MultiplayerSession
     /// </summary>
     private bool RefuseSwingWhileExhausted(ItemArchetype? held)
     {
-        StaminaConfig? config = _staminaConfig.Current;
-        if (!_stamina.Exhausted || (config is not null && config.GetSwingCost(held) <= 0f))
+        if (!_stamina.RefusesSwing(held))
         {
             return false;
         }
@@ -105,7 +68,7 @@ public sealed partial class MultiplayerSession
     {
         lock (_worldGate)
         {
-            _staminaFlashTimer = BarFlashSeconds;
+            _stamina.StartFlash();
             _hudNotifications.Add(GameText.Get(messageKey));
         }
     }
@@ -114,13 +77,7 @@ public sealed partial class MultiplayerSession
     {
         lock (_worldGate)
         {
-            _stamina.Exhausted = pkt.Exhausted;
-            if (pkt.RefusalCount > _staminaRefusals)
-            {
-                _staminaFlashTimer = BarFlashSeconds;
-            }
-
-            _staminaRefusals = pkt.RefusalCount;
+            _stamina.OnStatusSync(pkt.Exhausted, pkt.RefusalCount);
         }
     }
 }

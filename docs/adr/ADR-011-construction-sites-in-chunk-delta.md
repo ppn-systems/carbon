@@ -1,6 +1,6 @@
 # ADR-011: Construction sites và quyền sở hữu công trình trong chunk delta
 
-**Status:** Proposed
+**Status:** Accepted
 
 ## Context
 
