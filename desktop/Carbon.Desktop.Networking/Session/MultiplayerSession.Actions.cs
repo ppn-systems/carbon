@@ -9,14 +9,16 @@ using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Entities.C2S;
 using Carbon.Contracts.Items.C2S;
+using Carbon.Contracts.Items.S2C;
 using Carbon.Contracts.Maps.C2S;
 using Carbon.Desktop.Abstractions.Events;
-using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Abstractions.Localization;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
 using Carbon.Items.Definitions;
+using Carbon.Items.Enhancement;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
 using Carbon.Maps.Props;
@@ -303,7 +305,7 @@ public sealed partial class MultiplayerSession
     }
 
     /// <inheritdoc/>
-    public bool TryUpgradeInventoryItem(ushort slotIndex)
+    public bool TryUpgradeInventoryItem(ushort slotIndex, ushort protectionItemId = 0)
     {
         if (!this.IsReady ||
             _tcpSession is not { IsConnected: true } ||
@@ -312,33 +314,53 @@ public sealed partial class MultiplayerSession
             return false;
         }
 
-        bool missingMats = false;
+        // A local pre-check only avoids pointless requests; the server re-checks every cost and rolls the outcome.
+        string? missing = null;
         lock (_worldGate)
         {
+            ItemRules rules = _items.Rules;
             ItemSlot target = _inventory.GetSlot(slotIndex);
-            if (!ItemEnhancementPolicy.CanUpgrade(_items.Rules, in target, out uint m1, out int c1, out uint m2, out int c2, out float _))
+            if (!ItemEnhancementPolicy.TryGetStep(rules, in target, out EnhancementStep? step))
             {
                 return false;
             }
 
-            if (_inventory.CountItem(m1) < c1 || (m2 != 0U && _inventory.CountItem(m2) < c2))
+            ReadOnlySpan<RecipeIngredient> materials = step.MaterialSpan;
+            for (int i = 0; i < materials.Length && missing is null; i++)
             {
-                _hudNotifications.Add("Missing upgrade materials!");
-                missingMats = true;
+                if (_inventory.CountItem(materials[i].ItemId) < materials[i].Quantity)
+                {
+                    missing = GameText.Get("forge.missing_materials");
+                }
+            }
+
+            if (missing is null && Interlocked.Read(ref _localGold) < ItemEnhancementPolicy.GetGoldFee(rules, in target, step))
+            {
+                missing = GameText.Get("forge.not_enough_gold");
+            }
+
+            if (missing is null && protectionItemId != 0 && _inventory.CountItem(protectionItemId) < 1)
+            {
+                missing = GameText.Get("forge.no_scroll");
+            }
+
+            if (missing is not null)
+            {
+                _hudNotifications.Add(missing);
             }
         }
 
-        if (missingMats)
+        if (missing is not null)
         {
             return false;
         }
 
         ushort seq = ++_itemSeqId;
-        _ = this.ExecuteUpgradeRequestAsync(slotIndex, seq);
+        _ = this.ExecuteUpgradeRequestAsync(slotIndex, protectionItemId, seq);
         return true;
     }
 
-    private async Task ExecuteUpgradeRequestAsync(ushort slotIndex, ushort seq)
+    private async Task ExecuteUpgradeRequestAsync(ushort slotIndex, ushort protectionItemId, ushort seq)
     {
         TcpSession? tcp = _tcpSession;
         if (tcp is null || !tcp.IsConnected)
@@ -351,45 +373,70 @@ public sealed partial class MultiplayerSession
             RequestOptions reqOpts = RequestOptions.Default.WithTimeout(4000).WithEncrypt(tcp.State.EncryptionEnabled);
             using PacketScope<UpgradeInventoryItem> lease = PacketFactory<UpgradeInventoryItem>.Acquire();
             lease.Value.SlotIndex = slotIndex;
+            lease.Value.ProtectionItemId = protectionItemId;
             lease.Value.SequenceId = seq;
 
-            using MutationResult reply = await tcp.RequestAsync<MutationResult>(
+            using EnhancementResult reply = await tcp.RequestAsync<EnhancementResult>(
                 lease.Value,
                 reqOpts,
                 predicate: null,
                 CancellationToken.None).ConfigureAwait(false);
-
-            bool succeeded = reply.Status == OpStatus.Ok;
-            lock (_worldGate)
-            {
-                _forgeFeedbackTimer = 1.25f;
-                _lastForgeSucceeded = succeeded;
-                if (reply.Status == OpStatus.EnhancementFailed)
-                {
-                    _hudNotifications.Add("Forge failed - materials consumed!");
-                    Vector2 pos = _simulation is not null && _simulation.Entities.IsAlive(_localPlayer)
-                        ? _simulation.GetInterpolatedPosition(_localPlayer) + _visualOffset
-                        : Vector2.Zero;
-                    _combatEvents.Add(new CombatFeedbackEvent(
-                        pos + new Vector2(0f, -16f),
-                        0f,
-                        IsCritical: true,
-                        IsHeal: false,
-                        Label: "FORGE FAILED!"));
-                }
-                else if (reply.Status == OpStatus.Conflict)
-                {
-                    _hudNotifications.Add("Missing upgrade materials!");
-                }
-                else if (reply.Status == OpStatus.OutOfRange)
-                {
-                    _hudNotifications.Add("Move near a Blacksmith or Forge Anvil to enhance gear!");
-                }
-            }
+            this.ApplyForgeResult(reply.Status, reply.Outcome, reply.ItemId, reply.NewLevel, reply.ProtectionConsumed);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             // Transient transport error ignored cleanly.
+        }
+    }
+
+    /// <summary>Records a server forge result for the HUD (feedback pulse, outcome effect, notification).</summary>
+    private void ApplyForgeResult(OpStatus status, EnhancementOutcome outcome, ushort itemId, byte newLevel, bool protectionConsumed)
+    {
+        lock (_worldGate)
+        {
+            if (status != OpStatus.Ok)
+            {
+                _hudNotifications.Add(
+                    GameText.Get(status == OpStatus.Conflict ? "forge.missing_costs"
+                    : status == OpStatus.OutOfRange ? "forge.out_of_range"
+                    : "forge.refused"));
+                return;
+            }
+
+            _forgeFeedbackTimer = 1.25f;
+            _lastForgeSucceeded = outcome == EnhancementOutcome.Success;
+            _lastForgeOutcome = outcome;
+            _lastForgeNewLevel = newLevel;
+            _ = Interlocked.Increment(ref _forgeResultSerial);
+
+            string name = _items.GetDisplayName(itemId);
+            (string note, string label) = outcome switch
+            {
+                EnhancementOutcome.Success => ("forge.note.success", "forge.label.success"),
+                EnhancementOutcome.NoChange => (protectionConsumed ? "forge.note.no_change_guarded" : "forge.note.no_change", "forge.label.no_change"),
+                EnhancementOutcome.Downgrade => ("forge.note.downgrade", "forge.label.downgrade"),
+                EnhancementOutcome.Destroyed => ("forge.note.destroyed", "forge.label.destroyed"),
+                EnhancementOutcome.None => (string.Empty, string.Empty),
+                _ => (string.Empty, string.Empty),
+            };
+
+            if (note.Length == 0)
+            {
+                return;
+            }
+
+            TextArg itemArg = new("item", name);
+            TextArg levelArg = new("level", newLevel);
+            _hudNotifications.Add(GameText.Format(note, itemArg, levelArg));
+            Vector2 pos = _simulation is not null && _simulation.Entities.IsAlive(_localPlayer)
+                ? _simulation.GetInterpolatedPosition(_localPlayer) + _visualOffset
+                : Vector2.Zero;
+            _combatEvents.Add(new CombatFeedbackEvent(
+                pos + new Vector2(0f, -16f),
+                0f,
+                IsCritical: outcome != EnhancementOutcome.NoChange,
+                IsHeal: outcome == EnhancementOutcome.Success,
+                Label: GameText.Format(label, levelArg)));
         }
     }
 

@@ -19,6 +19,7 @@ public sealed class SyncedItemCatalogTests
 {
     private static readonly byte[] s_itemsJson = File.ReadAllBytes(Path.Combine(FindRepositoryRoot(), "resources", "config", "items.json"));
     private static readonly byte[] s_recipesJson = File.ReadAllBytes(Path.Combine(FindRepositoryRoot(), "resources", "config", "recipes.json"));
+    private static readonly byte[] s_enhancementJson = File.ReadAllBytes(Path.Combine(FindRepositoryRoot(), "resources", "config", "enhancement.json"));
 
     [Fact]
     public void Apply_SyncedItemsDocument_ServesNamesAndStacksForItemsTheClientNeverCompiled()
@@ -106,14 +107,33 @@ public sealed class SyncedItemCatalogTests
         }
     }
 
-    private static ConfigCatalog Config(uint version, byte[] items, byte[]? recipes = null)
+    [Fact]
+    public void Apply_ServerChangedEnhancementChances_DesktopShowsTheSyncedTable()
+    {
+        SyncedItemCatalog synced = new();
+        string enhancement = System.Text.Encoding.UTF8.GetString(s_enhancementJson)
+            .Replace("\"success\": 1000,", "\"success\": 990,", StringComparison.Ordinal)
+            .Replace("\"noChange\": 0,", "\"noChange\": 10,", StringComparison.Ordinal);
+
+        synced.Apply(Config(3, s_itemsJson, enhancement: System.Text.Encoding.UTF8.GetBytes(enhancement))).Should().BeTrue();
+
+        synced.Rules.Enhancement.Steps[0].SuccessPermille.Should().Be(990, "forge chances come from the synced enhancement.json (ADR-024), never from the client build");
+        synced.Apply(new ConfigCatalog(4, [
+            new ConfigCatalogEntry("items", 0, 1, s_itemsJson),
+            new ConfigCatalogEntry("recipes", 0, 1, s_recipesJson),
+        ])).Should().BeFalse("enhancement.json must sync with items.json");
+    }
+
+    private static ConfigCatalog Config(uint version, byte[] items, byte[]? recipes = null, byte[]? enhancement = null)
     {
         byte[] recipeBytes = recipes ?? s_recipesJson;
+        byte[] enhancementBytes = enhancement ?? s_enhancementJson;
         return new ConfigCatalog(
             version,
             [
                 new ConfigCatalogEntry("items", ConfigContentHash.Compute(items), version, items),
                 new ConfigCatalogEntry("recipes", ConfigContentHash.Compute(recipeBytes), version, recipeBytes),
+                new ConfigCatalogEntry("enhancement", ConfigContentHash.Compute(enhancementBytes), version, enhancementBytes),
             ]);
     }
 

@@ -2,10 +2,6 @@
 # Format: <repo path><TAB><literal>. When you replace a literal with a GameText key, delete its line.
 desktop/Carbon.Desktop.Abstractions/Configuration/DesktopOptions.cs	Hero
 desktop/Carbon.Desktop.Abstractions/Configuration/SyncedFoodCatalog.cs	{}  Spoils in {}
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs	FORGE FAILED!
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs	Forge failed - materials consumed!
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs	Missing upgrade materials!
-desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Actions.cs	Move near a Blacksmith or Forge Anvil to enhance gear!
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Account is banned or locked.
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Account registered.
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.Auth.cs	Account username already exists.
@@ -89,21 +85,6 @@ desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	WEAPONS
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Weapon  {} DMG
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	Workbench
 desktop/Carbon.Desktop.Rendering/Hud/CraftingModalWidget.cs	{} Lv {}
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Active
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Bag
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Blacksmith Forge
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Enhance
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Enhanced!
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Equipped
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	FORGE +{}
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Failed!
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Gear ({})
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Materials
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Max enhancement (+10)
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Need Forge
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	No upgradable gear
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Slot {}
-desktop/Carbon.Desktop.Rendering/Hud/ForgeAnvilModalWidget.cs	Success: {}%
 desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	+{} DEF  +{} HP
 desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	+{} DMG  RNG {}
 desktop/Carbon.Desktop.Rendering/Hud/HotbarAndItemWidget.cs	+{} HP  +{} MP
