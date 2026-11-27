@@ -1,5 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Carbon.Simulation.ECS;
@@ -30,6 +31,20 @@ internal sealed class PlayerRegistry
 
         state = null;
         return false;
+    }
+
+    /// <summary>Gets the player network id of character <paramref name="characterId"/> while it is in the world, else 0.</summary>
+    public ulong GetNetworkIdOfCharacter(Guid characterId)
+    {
+        foreach (PlayerState state in this.ByConnection.Values)
+        {
+            if (state.Session.CharacterId == characterId)
+            {
+                return state.Session.PlayerNetworkId;
+            }
+        }
+
+        return 0UL;
     }
 
     /// <summary>Gets the player controlling <paramref name="entity"/>.</summary>

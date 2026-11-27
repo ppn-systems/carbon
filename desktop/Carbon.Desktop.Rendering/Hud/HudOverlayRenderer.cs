@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Contracts.Entities;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Feedback;
 using Carbon.Desktop.Rendering.UiSkin;
@@ -27,7 +28,9 @@ namespace Carbon.Desktop.Rendering.Hud;
 public sealed class HudOverlayRenderer : IDisposable
 {
     private readonly GeometryBatch _geometryBatch;
-    private readonly BitmapFont _font;
+    private readonly IGraphicsDevice _device;
+    private BitmapFont _font;
+    private int _fontLanguageVersion;
     private readonly Texture2D _whitePixel;
     private readonly CarbonUiSkin _uiSkin;
     private readonly IVectorArtRepository? _art;
@@ -57,7 +60,9 @@ public sealed class HudOverlayRenderer : IDisposable
     public HudOverlayRenderer(IGraphicsDevice device, IVectorArtRepository? artRepository = null)
     {
         ArgumentNullException.ThrowIfNull(device);
+        _device = device;
         _geometryBatch = new GeometryBatch(device);
+        _fontLanguageVersion = GameText.Current.Version;
         (_font, _whitePixel) = GameFontLoader.Load(device);
         _uiSkin = CarbonUiSkin.Load(device);
         _art = artRepository ?? CarbonVectorArtLibrary.LoadOrDefault();
@@ -389,6 +394,7 @@ public sealed class HudOverlayRenderer : IDisposable
             _smoothedFps += (instFps - _smoothedFps) * 0.08f;
         }
 
+        this.ReloadFontIfLanguageChanged();
         _targetWidget.UpdateTarget(world, feedback, aimedWorldPos);
 
         Matrix4x4 screenProj = Matrix4x4.CreateOrthographicOffCenter(0f, viewportWidth, viewportHeight, 0f, -1f, 1f);
@@ -543,6 +549,21 @@ public sealed class HudOverlayRenderer : IDisposable
             _forgeModal.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight);
             spriteBatch.End();
         }
+    }
+
+    /// <inheritdoc/>
+    private void ReloadFontIfLanguageChanged()
+    {
+        int version = GameText.Current.Version;
+        if (version == _fontLanguageVersion)
+        {
+            return;
+        }
+
+        _fontLanguageVersion = version;
+        BitmapFont previous = _font;
+        _font = GameFontLoader.LoadFont(_device);
+        previous.Dispose();
     }
 
     /// <inheritdoc/>

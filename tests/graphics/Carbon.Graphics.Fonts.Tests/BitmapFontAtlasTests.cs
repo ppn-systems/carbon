@@ -80,10 +80,10 @@ public sealed class BitmapFontAtlasTests
         dir.Should().NotBeNull("test must locate repository resources/fonts directory");
         string fontsDir = Path.Combine(dir!.FullName, "resources", "fonts");
         string[] fontFiles = Directory.GetFiles(fontsDir);
-        fontFiles.Should().ContainSingle(path => string.Equals(Path.GetFileName(path), "thaleah_fat.ttf", StringComparison.OrdinalIgnoreCase),
-            "unused fonts should be removed leaving only thaleah_fat.ttf");
+        string thaleahPath = fontFiles.Should().ContainSingle(path => string.Equals(Path.GetFileName(path), "thaleah_fat.ttf", StringComparison.OrdinalIgnoreCase),
+            "thaleah_fat.ttf is the English UI font").Which;
 
-        byte[] ttfBytes = File.ReadAllBytes(fontFiles[0]);
+        byte[] ttfBytes = File.ReadAllBytes(thaleahPath);
 
         // Act
         TrueTypeRasterizedFont font = TrueTypeFontLoader.RasterizeAscii("ThaleahFat", ttfBytes, 16f);

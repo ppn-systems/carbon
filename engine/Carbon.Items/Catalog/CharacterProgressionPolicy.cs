@@ -3,12 +3,27 @@
 using System;
 using Carbon.Contracts.Entities;
 using Carbon.Items.Containers;
+using Carbon.Items.Progression;
 
 namespace Carbon.Items.Catalog;
 
 /// <summary>
 /// Computed player combat and resource attributes combining character level progression with equipped gear.
 /// </summary>
+/// <param name="MaxHealth">Max health.</param>
+/// <param name="MaxMana">Max mana.</param>
+/// <param name="MaxStamina">Max stamina.</param>
+/// <param name="Defense">Physical defense rating.</param>
+/// <param name="AttackMultiplier">Physical attack multiplier.</param>
+/// <param name="MoveSpeedMultiplier">Movement speed multiplier (capped).</param>
+/// <param name="SpellPowerMultiplier">Magic attack multiplier.</param>
+/// <param name="MagicResist">Magic resist rating.</param>
+/// <param name="CritChance">Critical chance including the held weapon (capped).</param>
+/// <param name="CritDamage">Critical damage multiplier (capped).</param>
+/// <param name="AttackSpeedMultiplier">Attack speed multiplier (capped); divides the attack cooldown.</param>
+/// <param name="Evasion">Evasion rating; the dodge chance depends on the attacker's level.</param>
+/// <param name="HealthRegenPerSecond">Out-of-combat health regeneration per second.</param>
+/// <param name="ManaRegenPerSecond">Mana regeneration per second.</param>
 public readonly record struct DerivedCharacterStats(
     float MaxHealth,
     float MaxMana,
@@ -16,7 +31,14 @@ public readonly record struct DerivedCharacterStats(
     float Defense,
     float AttackMultiplier,
     float MoveSpeedMultiplier,
-    float SpellPowerMultiplier = 1f);
+    float SpellPowerMultiplier = 1f,
+    float MagicResist = 0f,
+    float CritChance = 0f,
+    float CritDamage = 1.5f,
+    float AttackSpeedMultiplier = 1f,
+    float Evasion = 0f,
+    float HealthRegenPerSecond = 3f,
+    float ManaRegenPerSecond = 6f);
 
 /// <summary>
 /// Rank-evaluated combat/resource specification for an active player skill.
@@ -164,6 +186,79 @@ public static class CharacterProgressionPolicy
         }
 
         return new DerivedCharacterStats(maxHp, maxMp, maxStam, defTotal, atkMult, speedMult, spellMult);
+    }
+
+    /// <summary>
+    /// Computes derived stats from <paramref name="config"/> (<c>progression.json</c>): base and per-level growth,
+    /// attribute allocations, equipped armor (slots <c>36..39</c>) and the held weapon, with caps applied.
+    /// </summary>
+    /// <param name="rules">Item rules (armor and weapon stats).</param>
+    /// <param name="config">Progression tuning.</param>
+    /// <param name="level">Character level.</param>
+    /// <param name="inventory">Inventory with equipment slots.</param>
+    /// <param name="selectedHotbarSlot">Held hotbar slot (<see cref="byte.MaxValue"/> = none).</param>
+    /// <param name="progression">Attribute allocations.</param>
+    /// <returns>The derived stats.</returns>
+    public static DerivedCharacterStats ComputeStats(
+        ItemRules rules,
+        ProgressionConfig config,
+        ushort level,
+        InventoryContainer inventory,
+        byte selectedHotbarSlot,
+        CharacterProgressionState? progression)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        GearStatBonus gear = SumGear(rules, inventory, selectedHotbarSlot);
+        return config.ComputeStats(level, progression, in gear);
+    }
+
+    /// <summary>
+    /// Sums the bonuses of equipped, non-broken armor (slots <c>36..39</c>) and the held weapon, enhancement included.
+    /// </summary>
+    /// <param name="rules">Item rules.</param>
+    /// <param name="inventory">Inventory with equipment slots.</param>
+    /// <param name="selectedHotbarSlot">Held hotbar slot (<see cref="byte.MaxValue"/> = none).</param>
+    /// <returns>The summed gear bonuses.</returns>
+    public static GearStatBonus SumGear(ItemRules rules, InventoryContainer inventory, byte selectedHotbarSlot)
+    {
+        ArgumentNullException.ThrowIfNull(rules);
+        ArgumentNullException.ThrowIfNull(inventory);
+
+        float hp = 0f;
+        float mp = 0f;
+        float def = 0f;
+        float crit = 0f;
+        for (int slotIdx = PlayerInventoryLayout.HeadSlot; slotIdx <= PlayerInventoryLayout.FeetSlot && slotIdx < inventory.Capacity; slotIdx++)
+        {
+            ItemSlot armor = inventory.GetSlot(slotIdx);
+            if (armor.IsEmpty || ToolUsagePolicy.IsWornOut(rules, in armor))
+            {
+                continue;
+            }
+
+            float upgMult = ItemEnhancementPolicy.GetStatMultiplier(ItemEnhancementPolicy.GetUpgradeLevel(in armor));
+            hp += rules.GetArmorBonusHealth(armor.ItemId) * upgMult;
+            mp += rules.GetArmorBonusMana(armor.ItemId) * upgMult;
+            def += rules.GetArmorDefense(armor.ItemId) * upgMult;
+        }
+
+        if (selectedHotbarSlot < PlayerInventoryLayout.HotbarCount && selectedHotbarSlot < inventory.Capacity)
+        {
+            ItemSlot held = inventory.GetSlot(selectedHotbarSlot);
+            if (!held.IsEmpty &&
+                !ToolUsagePolicy.IsWornOut(rules, in held) &&
+                rules.Items.TryGet(held.ItemId, out Definitions.ItemArchetype? heldDef) &&
+                heldDef.Category == Definitions.ItemCategory.Weapon)
+            {
+                float upgMult = ItemEnhancementPolicy.GetStatMultiplier(ItemEnhancementPolicy.GetUpgradeLevel(in held));
+                hp += MathF.Max(0f, heldDef.BonusHealth) * upgMult;
+                mp += MathF.Max(0f, heldDef.BonusMana) * upgMult;
+                def += MathF.Max(0f, heldDef.ArmorDefense) * upgMult;
+                crit += MathF.Max(0f, heldDef.CritChance);
+            }
+        }
+
+        return new GearStatBonus(hp, mp, def, crit);
     }
 
     /// <summary>Mitigates incoming raw damage using <paramref name="defense"/> with diminishing hyperbolic scaling.</summary>

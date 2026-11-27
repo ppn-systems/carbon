@@ -13,8 +13,6 @@ using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
 using Carbon.Simulation.ECS;
-using Carbon.Simulation.ECS.Components;
-using Carbon.Simulation.Networking;
 
 namespace Carbon.Application.World;
 
@@ -101,15 +99,10 @@ public sealed partial class AuthoritativeWorld
 
         if (leveledUp)
         {
+            // A level-up never refills vitals (killing a monster must not heal): only the max-pool growth is added.
+            (float Health, float Mana, float Stamina) previousMax = VitalPools.Capture(state);
             this.RecomputeDerivedStatsLocked(state);
-            if (_simulation.Entities.HasHealth(state.Entity))
-            {
-                _simulation.Entities.SetHealth(state.Entity, new HealthComponent(state.Stats.MaxHealth, state.Stats.MaxHealth));
-                _simulation.MarkDirty(state.Entity, EntityDirtyMask.Health);
-            }
-
-            state.CurrentMana = state.Stats.MaxMana;
-            state.CurrentStamina = state.Stats.MaxStamina;
+            VitalPools.AddGrowth(_simulation, state, previousMax);
 
             if (_simulation.Entities.HasTransform(state.Entity))
             {

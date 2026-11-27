@@ -1,7 +1,9 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Numerics;
 using Carbon.Contracts.Entities.S2C;
+using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
 
 namespace Carbon.Desktop.Rendering.VectorArt;
@@ -16,6 +18,17 @@ public static class MonsterAttackAnimator
 {
     /// <summary>Generic fallback attack clip present on every monster rig.</summary>
     public const string FallbackClip = "attack";
+
+    /// <summary>
+    /// Resolves the direction a monster rig faces: while a server attack phase is active the rig faces the attack's aim
+    /// direction (a kiting archer that just backed off turns to shoot at its target instead of away from it); otherwise
+    /// it keeps <paramref name="movementFacing"/>.
+    /// </summary>
+    /// <param name="attack">Replicated attack phase.</param>
+    /// <param name="movementFacing">Facing derived from movement.</param>
+    /// <returns>The facing direction to draw.</returns>
+    public static Vector2 ResolveFacing(in AttackPhaseView attack, Vector2 movementFacing) =>
+        attack.IsActive && attack.Direction.LengthSquared() > 1e-4f ? Vector2.Normalize(attack.Direction) : movementFacing;
 
     /// <summary>
     /// Resolves the clip a monster plays for <paramref name="attackKind"/>, falling back to <see cref="FallbackClip"/>.
