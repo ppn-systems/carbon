@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -26,9 +27,10 @@ internal sealed class CraftingModalWidget
 {
     private const int MaxVisibleCards = 6;
 
-    private static readonly string[] s_tabLabels = ["ALL", "WEAPONS", "ARMOR", "TOOLS", "BUILD", "POTIONS"];
+    private static readonly string[] s_tabLabels = CraftingText.TabKeys;
 
     private readonly List<SkillDefinition> _skillScratch = new(8);
+    private readonly CraftingText _text = new(MaxVisibleCards, maxIngredients: 6);
     private int _activeTab;
     private int _scrollOffset;
     private ushort _selectedRecipeId = 1;
@@ -352,7 +354,7 @@ internal sealed class CraftingModalWidget
         PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
         float s = layout.Scale;
         bool hasSkills = PlayerModalTabs.HasClassSkills(world, _skillScratch);
-        PlayerModalTabs.DrawWindowChromeText(spriteBatch, font, in layout, PlayerModalTab.Crafting, hasSkills, "Crafting");
+        PlayerModalTabs.DrawWindowChromeText(spriteBatch, font, in layout, PlayerModalTab.Crafting, hasSkills, GameText.Get("craft.title"));
 
         ColorRgba black = CarbonUiPalette.TextOutline;
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
@@ -362,11 +364,11 @@ internal sealed class CraftingModalWidget
         {
             RectangleF tRect = GetFilterTabRect(in layout, t);
             ColorRgba tc = t == _activeTab ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextPrimary;
-            CarbonUiSkin.DrawCenteredText(spriteBatch, font, s_tabLabels[t], in tRect, tc, black, layout.TextScale);
+            CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Get(s_tabLabels[t]), in tRect, tc, black, layout.TextScale);
         }
 
         RectangleF filterRect = GetCraftableFilterRect(in layout);
-        CarbonUiSkin.DrawCenteredText(spriteBatch, font, _craftableOnly ? "READY" : "ALL", in filterRect, CarbonUiPalette.TextPrimary, black, layout.TextScale);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Get(_craftableOnly ? "craft.filter.ready" : "craft.filter.all"), in filterRect, CarbonUiPalette.TextPrimary, black, layout.TextScale);
 
         CarbonUiSkin.DrawCenteredText(spriteBatch, font, "^", GetScrollUpRect(in layout), CarbonUiPalette.TextPrimary, black, layout.TextScale);
         CarbonUiSkin.DrawCenteredText(spriteBatch, font, "v", GetScrollDownRect(in layout), CarbonUiPalette.TextPrimary, black, layout.TextScale);
@@ -391,10 +393,10 @@ internal sealed class CraftingModalWidget
             RectangleF rowRect = GetRecipeRowRect(in layout, shown);
             bool canCraft = PlayerInventoryLayout.CanCraft(slots, rec);
             float textMaxW = rowRect.Width - MathF.Round(72f * s);
-            string outName = CarbonUiSkin.TruncateToWidth(font, $"{world.Items.GetDisplayName(rec.Output.ItemId)} x{rec.Output.Quantity}", textMaxW, layout.TextScale);
+            string outName = CarbonUiSkin.TruncateToWidth(font, _text.RowName(shown, world.Items.GetDisplayName(rec.Output.ItemId), rec.Output.Quantity), textMaxW, layout.TextScale);
             spriteBatch.DrawOutlinedString(font, outName, new Vector2(rowRect.X + MathF.Round(64f * s), rowRect.Y + MathF.Round(10f * s)), canCraft ? CarbonUiPalette.TextPrimary : CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
 
-            string summaryTag = CarbonUiSkin.TruncateToWidth(font, FormatRecipeShortTag(world.Items.Rules, rec.Output.ItemId), textMaxW, layout.TextScale);
+            string summaryTag = CarbonUiSkin.TruncateToWidth(font, _text.ShortTag(shown, world.Items.Rules, rec.Output.ItemId), textMaxW, layout.TextScale);
             spriteBatch.DrawOutlinedString(font, summaryTag, new Vector2(rowRect.X + MathF.Round(64f * s), rowRect.Y + MathF.Round(36f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
 
             matchIdx++;
@@ -404,7 +406,7 @@ internal sealed class CraftingModalWidget
         if (shown == 0)
         {
             RectangleF leftPane = GetLeftPaneRect(in layout);
-            spriteBatch.DrawOutlinedString(font, "No matching recipes", new Vector2(leftPane.X + MathF.Round(72f * s), leftPane.Y + MathF.Round(190f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
+            spriteBatch.DrawOutlinedString(font, GameText.Get("craft.no_recipes"), new Vector2(leftPane.X + MathF.Round(72f * s), leftPane.Y + MathF.Round(190f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
         }
 
         if (world.Items.Rules.Recipes.TryGet(_selectedRecipeId, out CraftingRecipe? selectedRec))
@@ -415,21 +417,21 @@ internal sealed class CraftingModalWidget
             int owned = PlayerInventoryLayout.CountItem(slots, outId);
             float headerX = outBox.Right + MathF.Round(12f * s);
             float headerMaxW = rightPane.Right - headerX - MathF.Round(14f * s);
-            string title = CarbonUiSkin.TruncateToWidth(font, $"{world.Items.GetDisplayName(outId)} x{selectedRec.Output.Quantity}", headerMaxW, layout.TitleScale);
+            string title = CarbonUiSkin.TruncateToWidth(font, _text.Title(world.Items.GetDisplayName(outId), selectedRec.Output.Quantity), headerMaxW, layout.TitleScale);
             spriteBatch.DrawOutlinedString(font, title, new Vector2(headerX, outBox.Y + MathF.Round(4f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TitleScale);
-            string requirement = CarbonUiSkin.TruncateToWidth(font, $"Owned: {owned}  |  {FormatRequirement(selectedRec)}", headerMaxW, layout.TextScale);
+            string requirement = CarbonUiSkin.TruncateToWidth(font, _text.Requirement(owned, selectedRec), headerMaxW, layout.TextScale);
             spriteBatch.DrawOutlinedString(font, requirement, new Vector2(headerX, outBox.Y + MathF.Round(38f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
 
             float detailPad = MathF.Round(16f * s);
             spriteBatch.DrawOutlinedString(
                 font,
-                CarbonUiSkin.TruncateToWidth(font, FormatDetailedStats(world.Items.Rules, outId), rightPane.Width - (detailPad * 2f), layout.TextScale),
+                CarbonUiSkin.TruncateToWidth(font, _text.DetailedStats(world.Items.Rules, outId), rightPane.Width - (detailPad * 2f), layout.TextScale),
                 new Vector2(rightPane.X + detailPad, outBox.Bottom + MathF.Round(18f * s)),
                 CarbonUiPalette.TextPrimary,
                 black,
                 1,
                 layout.TextScale);
-            spriteBatch.DrawOutlinedString(font, "Ingredients", new Vector2(rightPane.X + detailPad, outBox.Bottom + MathF.Round(54f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TextScale);
+            spriteBatch.DrawOutlinedString(font, GameText.Get("craft.ingredients"), new Vector2(rightPane.X + detailPad, outBox.Bottom + MathF.Round(54f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TextScale);
 
             for (int k = 0; k < selectedRec.Ingredients.Count; k++)
             {
@@ -446,7 +448,7 @@ internal sealed class CraftingModalWidget
                     black,
                     1,
                     layout.TextScale);
-                string countStr = $"{have}/{ing.Quantity}";
+                string countStr = _text.IngredientCount(k, have, ing.Quantity);
                 TextMeasureResult cSize = font.MeasureString(countStr, TextLayoutOptions.Default, layout.TextScale);
                 spriteBatch.DrawOutlinedString(
                     font,
@@ -458,25 +460,9 @@ internal sealed class CraftingModalWidget
                     layout.TextScale);
             }
 
-            CarbonUiSkin.DrawCenteredText(spriteBatch, font, "CRAFT x1", GetCraft1ButtonRect(in layout), CarbonUiPalette.TextPrimary, black, layout.TextScale);
-            CarbonUiSkin.DrawCenteredText(spriteBatch, font, "CRAFT x5", GetCraft5ButtonRect(in layout), CarbonUiPalette.TextPrimary, black, layout.TextScale);
+            CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Get("craft.craft_one"), GetCraft1ButtonRect(in layout), CarbonUiPalette.TextPrimary, black, layout.TextScale);
+            CarbonUiSkin.DrawCenteredText(spriteBatch, font, GameText.Get("craft.craft_five"), GetCraft5ButtonRect(in layout), CarbonUiPalette.TextPrimary, black, layout.TextScale);
         }
-    }
-
-    /// <summary>Formats the recipes.json station and unlock-level gate the server enforces (e.g. <c>Forge Lv 12</c>).</summary>
-    private static string FormatRequirement(CraftingRecipe recipe)
-    {
-        string station = recipe.Station switch
-        {
-            CraftingStation.None => "Hand",
-            CraftingStation.Workbench => "Workbench",
-            CraftingStation.Forge => "Forge",
-            CraftingStation.Stove => "Stove/Campfire",
-            CraftingStation.Alchemy => "Shrine",
-            _ => recipe.Station.ToString(),
-        };
-
-        return recipe.UnlockLevel > 1 ? $"{station} Lv {recipe.UnlockLevel}" : station;
     }
 
     private int CountMatches(ItemRules rules, ReadOnlySpan<ItemSlot> slots, ReadOnlySpan<CraftingRecipe> recipes)
@@ -520,32 +506,6 @@ internal sealed class CraftingModalWidget
             _ => true,
         };
     }
-
-    private static string FormatRecipeShortTag(ItemRules rules, uint itemId) =>
-        rules.Items.TryGet(itemId, out ItemArchetype? def)
-            ? def.Category switch
-            {
-                ItemCategory.Weapon => $"Weapon  {(int)def.BaseDamage} DMG",
-                ItemCategory.Armor => $"Armor  +{(int)def.ArmorDefense} DEF",
-                ItemCategory.Tool => $"Tool  Tier {def.HarvestTier}",
-                ItemCategory.Placeable => "Structure",
-                ItemCategory.Consumable => "Consumable",
-                ItemCategory.Accessory => "Accessory",
-                ItemCategory.Quest => "Quest Item",
-                ItemCategory.Resource or ItemCategory.None or _ => "Material",
-            }
-            : string.Empty;
-
-    private static string FormatDetailedStats(ItemRules rules, uint itemId) =>
-        rules.Items.TryGet(itemId, out ItemArchetype? def)
-            ? def.Category switch
-            {
-                ItemCategory.Weapon => $"DMG {(int)def.BaseDamage}  Crit {(int)(def.CritChance * 100f)}%  RNG {(int)def.AttackRange}",
-                ItemCategory.Armor => $"DEF +{(int)def.ArmorDefense}  HP +{(int)def.BonusHealth}  MP +{(int)def.BonusMana}",
-                ItemCategory.Tool => $"Tier {def.HarvestTier}  Chop {(int)def.FloraHarvestDamage}  Mine {(int)def.MineralHarvestDamage}",
-                ItemCategory.Consumable or ItemCategory.Placeable or ItemCategory.Accessory or ItemCategory.Resource or ItemCategory.Quest or ItemCategory.None or _ => $"Max Stack {def.MaxStackSize}",
-            }
-            : string.Empty;
 
     private static RectangleF GetFilterTabRect(in PlayerModalLayout layout, int tabIndex)
     {

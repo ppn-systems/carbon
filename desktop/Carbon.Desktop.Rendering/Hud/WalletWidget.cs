@@ -60,8 +60,11 @@ internal sealed class WalletWidget
         ArgumentNullException.ThrowIfNull(world);
         (float x, float y) = Origin(viewportWidth, viewportHeight);
         ColorRgba outline = CarbonUiPalette.TextOutline;
-        spriteBatch.DrawOutlinedString(font, Format(world.LocalPlayerGold), new Vector2(x + 34f, y + 11f), s_goldText, outline, 1, 1f);
-        spriteBatch.DrawOutlinedString(font, Format(world.LocalPlayerDiamonds), new Vector2(x + 34f, y + 11f + RowHeight), s_diamondText, outline, 1, 1f);
+        // Balances are formatted into stack buffers: no string per frame (audit round 2, PERF-7).
+        Span<char> gold = stackalloc char[32];
+        Span<char> diamonds = stackalloc char[32];
+        spriteBatch.DrawOutlinedString(font, Format(world.LocalPlayerGold, gold), new Vector2(x + 34f, y + 11f), s_goldText, outline, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, Format(world.LocalPlayerDiamonds, diamonds), new Vector2(x + 34f, y + 11f + RowHeight), s_diamondText, outline, 1, 1f);
     }
 
     private static (float X, float Y) Origin(int viewportWidth, int viewportHeight)
@@ -71,5 +74,7 @@ internal sealed class WalletWidget
         return (hotbarStartX + HotbarWidth + 14f, hotbarY - 7f);
     }
 
-    private static string Format(long value) => value.ToString("N0", CultureInfo.InvariantCulture);
+    /// <summary>Formats <paramref name="value"/> as <c>N0</c> (invariant) into <paramref name="buffer"/>; 32 chars fit any long.</summary>
+    internal static ReadOnlySpan<char> Format(long value, Span<char> buffer) =>
+        value.TryFormat(buffer, out int written, "N0", CultureInfo.InvariantCulture) ? buffer[..written] : [];
 }
