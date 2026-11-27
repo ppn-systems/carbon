@@ -98,6 +98,6 @@ public sealed class EnterWorldSessionBindingTests : IDisposable
     private CharacterRecord Hero(string name)
     {
         System.Numerics.Vector2 spawn = _harness.World.DefaultSpawnWorldPosition;
-        return new CharacterRecord(Guid.NewGuid(), Guid.NewGuid(), name, 1, 0, spawn.X, spawn.Y, 100f, 100f, 0, [], s_createdAt);
+        return new CharacterRecord(Guid.NewGuid(), Guid.NewGuid(), name, 1, default, spawn.X, spawn.Y, 100f, 100f, 0, [], s_createdAt);
     }
 }

@@ -2,31 +2,9 @@
   "schemaVersion": 2,
   "characters": [
     {
-      "preset": 0,
-      "id": "base_hero_0",
-      "title": "Adventurer A",
+      "id": "base_hero",
+      "title": "Adventurer",
       "accentColor": "#38BDF8",
-      "file": "characters/base_hero.cvg.json"
-    },
-    {
-      "preset": 1,
-      "id": "base_hero_1",
-      "title": "Adventurer B",
-      "accentColor": "#F87171",
-      "file": "characters/base_hero.cvg.json"
-    },
-    {
-      "preset": 2,
-      "id": "base_hero_2",
-      "title": "Adventurer C",
-      "accentColor": "#C084FC",
-      "file": "characters/base_hero.cvg.json"
-    },
-    {
-      "preset": 3,
-      "id": "base_hero_3",
-      "title": "Adventurer D",
-      "accentColor": "#FACC15",
       "file": "characters/base_hero.cvg.json"
     }
   ],

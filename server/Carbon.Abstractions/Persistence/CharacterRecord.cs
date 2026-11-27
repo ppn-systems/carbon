@@ -17,14 +17,15 @@ namespace Carbon.Abstractions.Persistence;
 /// needs (ADR-015); a negative <c>NeedsFood</c> means "never saved" and spawns the character fully fed. <c>NeedsRest</c>
 /// persists the rest need (ADR-018); a negative value spawns the character fully rested. <c>StatusEffects</c> persists
 /// the active status effects marked <c>persist</c> as <c>key:remainingMs:stacks</c> entries joined by <c>;</c> (ADR-029 D8).
-/// They are trailing optional members so existing call sites keep compiling.
+/// <c>Look</c> is the structured appearance (race, body type, option choices) validated against <c>races.json</c> on
+/// create (ADR-042). The other members above are trailing optional members so existing call sites keep compiling.
 /// </remarks>
 public sealed record CharacterRecord(
     Guid Id,
     Guid AccountId,
     string Name,
     ushort Level,
-    byte AppearancePreset,
+    CharacterLook Look,
     float PositionX,
     float PositionY,
     float CurrentHealth,

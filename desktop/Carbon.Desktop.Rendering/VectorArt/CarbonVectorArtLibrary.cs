@@ -19,7 +19,8 @@ namespace Carbon.Desktop.Rendering.VectorArt;
 /// </summary>
 public sealed class CarbonVectorArtLibrary : IVectorArtRepository
 {
-    private CompiledVectorRig?[] _characterTable = [];
+    private readonly Dictionary<string, CompiledVectorRig> _characterRigs = new(StringComparer.OrdinalIgnoreCase);
+    private CompiledVectorRig? _defaultCharacterRig;
     private CompiledVectorRig?[] _monsterTable = [];
     private CompiledVectorRig?[] _npcTable = [];
     private CompiledItemVectorArt?[] _itemTable = [];
@@ -28,7 +29,6 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
     private CompiledBiomeArt?[] _biomeTable = [];
     private CompiledStructureArt?[] _structureTable = [];
 
-    private int _characterCount;
     private int _monsterCount;
     private int _npcCount;
     private int _itemCount;
@@ -42,7 +42,7 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
     }
 
     /// <inheritdoc/>
-    public int CharacterCount => _characterCount;
+    public int CharacterCount => _characterRigs.Count;
 
     /// <inheritdoc/>
     public int MonsterCount => _monsterCount;
@@ -90,16 +90,6 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
         CarbonVectorArtLibrary lib = new();
         Dictionary<string, CompiledVectorRig> compiledCache = new(StringComparer.OrdinalIgnoreCase);
 
-        int maxCharId = 3;
-        for (int i = 0; i < catalog.Characters.Count; i++)
-        {
-            if (catalog.Characters[i].Preset > maxCharId)
-            {
-                maxCharId = catalog.Characters[i].Preset;
-            }
-        }
-
-        lib._characterTable = new CompiledVectorRig?[maxCharId + 1];
         for (int i = 0; i < catalog.Characters.Count; i++)
         {
             CvgCharacterCatalogDto entry = catalog.Characters[i];
@@ -115,12 +105,9 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
                 compiledCache[fullPath] = compiled;
             }
 
-            if (lib._characterTable[entry.Preset] is null)
-            {
-                lib._characterCount++;
-            }
-
-            lib._characterTable[entry.Preset] = compiled;
+            // Keyed by the art-relative file races.json names per body type (ADR-042).
+            lib._characterRigs[NormalizeRigPath(entry.File)] = compiled;
+            lib._defaultCharacterRig ??= compiled;
         }
 
         int maxMonsterId = 101;
@@ -275,23 +262,16 @@ public sealed class CarbonVectorArtLibrary : IVectorArtRepository
     }
 
     /// <inheritdoc/>
-    public bool TryGetCharacter(byte preset, [NotNullWhen(true)] out CompiledVectorRig? rig)
+    public CompiledVectorRig? DefaultCharacterRig => _defaultCharacterRig;
+
+    /// <inheritdoc/>
+    public bool TryGetCharacterRig(string rigFile, [NotNullWhen(true)] out CompiledVectorRig? rig)
     {
-        if (preset < _characterTable.Length && _characterTable[preset] is { } found)
-        {
-            rig = found;
-            return true;
-        }
-
-        if (_characterTable.Length > 0 && _characterTable[0] is { } fallback)
-        {
-            rig = fallback;
-            return true;
-        }
-
-        rig = null;
-        return false;
+        ArgumentNullException.ThrowIfNull(rigFile);
+        return _characterRigs.TryGetValue(NormalizeRigPath(rigFile), out rig);
     }
+
+    private static string NormalizeRigPath(string file) => file.Replace('\\', '/').TrimStart('.', '/');
 
     /// <inheritdoc/>
     public bool TryGetMonster(ushort archetypeId, [NotNullWhen(true)] out CompiledVectorRig? rig)

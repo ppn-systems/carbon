@@ -36,7 +36,7 @@ public sealed class DebugForgeKitTests
             };
             AuthOutcome account = await auth.RegisterAsync("smith", "secret-pass", CarbonProtocol.Version).ConfigureAwait(true);
 
-            CharacterCreateResult created = await auth.CreateCharacterAsync(account.AccountId, "Smith", 0, 0f, 0f).ConfigureAwait(true);
+            CharacterCreateResult created = await auth.CreateCharacterAsync(account.AccountId, "Smith", TestLooks.Human, 0f, 0f).ConfigureAwait(true);
 
             created.Succeeded.Should().BeTrue();
             InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);

@@ -16,52 +16,20 @@ internal static class ModularCharacterOverlays
 {
     private static readonly ColorRgba s_outline = new(20, 24, 36, 255);
 
-    private static readonly ColorRgba[] s_skinBases =
-    [
-        new(245, 198, 165, 255), // Fair
-        new(230, 169, 125, 255), // Warm Tan
-        new(198, 134, 92, 255),  // Olive Bronze
-        new(141, 85, 36, 255),   // Deep Umber
-    ];
-
-    private static readonly ColorRgba[] s_skinShadows =
-    [
-        new(212, 155, 120, 255),
-        new(190, 130, 88, 255),
-        new(158, 98, 62, 255),
-        new(102, 58, 22, 255),
-    ];
-
-    private static readonly ColorRgba[] s_hairMains =
-    [
-        new(28, 32, 46, 255),    // Midnight Raven
-        new(113, 63, 18, 255),   // Chestnut Brown
-        new(234, 179, 8, 255),   // Golden Blonde
-        new(203, 213, 225, 255), // Silver Ash
-    ];
-
-    private static readonly ColorRgba[] s_hairHighlights =
-    [
-        new(68, 76, 102, 255),
-        new(161, 98, 7, 255),
-        new(253, 224, 71, 255),
-        new(241, 245, 249, 255),
-    ];
-
     /// <summary>Substitutes tagged semantic skin/hair/eye shape roles on modular rigs.</summary>
-    public static ColorRgba ResolveModularColor(in CompiledVectorShape shape, byte appearancePreset, bool supportsModularHuman)
+    /// <remarks>The colours come from the look's <c>races.json</c> options (ADR-042), resolved into <paramref name="palette"/>.</remarks>
+    public static ColorRgba ResolveModularColor(in CompiledVectorShape shape, in CharacterPalette palette, bool supportsModularHuman)
     {
         if (!supportsModularHuman || shape.Role == VectorPaletteRole.None)
         {
             return shape.Color;
         }
 
-        int tone = (appearancePreset >> 6) & 0x03;
         return shape.Role switch
         {
-            VectorPaletteRole.Skin => s_skinBases[tone],
-            VectorPaletteRole.SkinShadow => s_skinShadows[tone],
-            VectorPaletteRole.Hair => s_hairMains[(appearancePreset >> 2) & 0x03],
+            VectorPaletteRole.Skin => palette.Skin,
+            VectorPaletteRole.SkinShadow => palette.SkinShadow,
+            VectorPaletteRole.Hair => palette.Hair,
             VectorPaletteRole.None or VectorPaletteRole.Eye or _ => shape.Color,
         };
     }
@@ -255,29 +223,22 @@ internal static class ModularCharacterOverlays
         bool isSouth,
         bool isSide,
         bool isNorth,
-        byte appearancePreset,
+        in CharacterPalette palette,
         ushort equippedHeadId,
         float hitFlash)
     {
         Vector2 headPivot = rig.GetBonePivot(VectorBoneId.Head);
         float absS = MathF.Abs(sx);
-        int hairStyle = appearancePreset & 0x03;
-        int hairColorIdx = (appearancePreset >> 2) & 0x03;
-        int faceStyle = (appearancePreset >> 4) & 0x03;
-        ColorRgba hairMain = s_hairMains[hairColorIdx];
-        ColorRgba hairHi = s_hairHighlights[hairColorIdx];
+        int hairStyle = palette.HairPart;
+        int faceStyle = palette.EyeStyle;
+        ColorRgba hairMain = palette.Hair;
+        ColorRgba hairHi = palette.HairHighlight;
         ColorRgba outlineCol = ApplyFlash(s_outline, hitFlash * 0.45f);
 
         bool closedVisor = equippedHeadId == StarterGameCatalog.IronHelmet;
         if (!isNorth && !closedVisor)
         {
-            ColorRgba irisColor = faceStyle switch
-            {
-                1 => new ColorRgba(220, 38, 38, 255),  // Fierce Crimson
-                2 => new ColorRgba(16, 185, 129, 255), // Calm Emerald
-                3 => new ColorRgba(56, 189, 248, 255), // Mystic Cyan
-                _ => new ColorRgba(30, 58, 138, 255),  // Cheerful Cobalt
-            };
+            ColorRgba irisColor = palette.Iris;
             float eyeH = faceStyle == 2 ? 1.15f : 1.55f;
             float browTilt = faceStyle == 1 ? 0.8f : -0.2f;
 

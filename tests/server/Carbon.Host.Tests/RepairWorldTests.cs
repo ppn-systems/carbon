@@ -179,7 +179,7 @@ public sealed class RepairWorldTests
                 simulation, this.Grid, 32f, TestGameplayEntropy.Create(1UL), () => this.Rules, () => null, () => 50UL,
                 (_, _, _) => this.BlacksmithNearby, loot, new OutboundTickBuffer(), _ => { });
             ConnectedPlayerSession session = new(9UL, Guid.NewGuid(), Guid.NewGuid(), "Smith", 900UL, 0, 0);
-            CharacterRecord character = new(session.CharacterId, session.AccountId, "Smith", 1, 0, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
+            CharacterRecord character = new(session.CharacterId, session.AccountId, "Smith", 1, default, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
             this.Player = new PlayerState(session, simulation.SpawnNetworkEntity(900UL, this.Position, 7f), character, new InventoryContainer(PlayerInventoryLayout.TotalCapacity));
         }
 
@@ -258,7 +258,7 @@ public sealed class RepairWorldTests
                 _accountId,
                 "Smith",
                 1,
-                0,
+                default,
                 this.World.DefaultSpawnWorldPosition.X + offsetX,
                 this.World.DefaultSpawnWorldPosition.Y,
                 100f,

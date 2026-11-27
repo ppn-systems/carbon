@@ -32,7 +32,7 @@ public sealed class AuthServiceDebugStarterItemsTests
             DebugStarterItems = [new DebugStarterItem(StarterGameCatalog.IronSword, 1, 9), new DebugStarterItem(StarterGameCatalog.WoodLog, 40, 0)],
         };
 
-        CharacterCreateResult result = await auth.CreateCharacterAsync(Guid.NewGuid(), "Tester", 0, 0f, 0f).ConfigureAwait(true);
+        CharacterCreateResult result = await auth.CreateCharacterAsync(Guid.NewGuid(), "Tester", TestLooks.Human, 0f, 0f).ConfigureAwait(true);
 
         result.Succeeded.Should().BeTrue();
         InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);

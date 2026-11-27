@@ -193,13 +193,19 @@ public sealed class ProgressionConfig
     /// <param name="level">Character level.</param>
     /// <param name="progression">Allocations (<see langword="null"/> = none).</param>
     /// <param name="gear">Summed equipment bonuses.</param>
+    /// <param name="raceModifiers">The character's race stat changes from <c>races.json</c> (ADR-042), or <see langword="null"/>.</param>
     /// <returns>The derived stats.</returns>
-    public DerivedCharacterStats ComputeStats(int level, CharacterProgressionState? progression, in GearStatBonus gear)
+    public DerivedCharacterStats ComputeStats(int level, CharacterProgressionState? progression, in GearStatBonus gear, StatBlock? raceModifiers = null)
     {
         float levels = Math.Clamp(level, 1, this.MaxLevel) - 1;
         StatAccumulator acc = default;
         acc.Add(this.BaseStats, 1f);
         acc.Add(this.PerLevel, levels);
+        if (raceModifiers is not null)
+        {
+            acc.Add(raceModifiers, 1f);
+        }
+
         if (progression is not null)
         {
             for (int i = 0; i < CharacterProgressionState.MaxAttributeSlots; i++)

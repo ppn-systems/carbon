@@ -277,7 +277,7 @@ public sealed class TickQueuedWorldCommandTests
                 accountId,
                 "Queuer",
                 Level: level,
-                AppearancePreset: 0,
+                Look: default,
                 PositionX: ((tx + 0.5f) * 32f) + 40f,
                 PositionY: (ty + 0.5f) * 32f,
                 CurrentHealth: 100f,

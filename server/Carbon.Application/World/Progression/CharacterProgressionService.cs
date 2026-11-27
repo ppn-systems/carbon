@@ -107,7 +107,8 @@ internal sealed class CharacterProgressionService
             state.Level,
             state.Inventory,
             state.Session.SelectedHotbarSlot,
-            state.Progression);
+            state.Progression,
+            state.RaceModifiers);
         state.Stats = stats;
         if (_simulation.Entities.HasHealth(state.Entity))
         {

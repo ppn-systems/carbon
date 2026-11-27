@@ -36,7 +36,7 @@ public static class VectorRigRenderer
         CompiledItemVectorArt? equippedItem = null,
         ActionState action = default,
         float swingTimer = 0f,
-        byte appearancePreset = 0,
+        CharacterPalette? palette = null,
         VisualEquipmentLoadout equipment = default,
         IVectorArtRepository? art = null,
         RigOverlay overlays = RigOverlay.None,
@@ -55,6 +55,7 @@ public static class VectorRigRenderer
         bool isSide = direction is Direction8.East or Direction8.West or Direction8.SouthEast or Direction8.SouthWest or Direction8.NorthEast or Direction8.NorthWest;
         bool isSouth = !isNorth && !isSide;
         bool isModularHuman = rig.SupportsModularHuman || string.Equals(rig.Id, "base_hero", StringComparison.OrdinalIgnoreCase);
+        CharacterPalette look = palette ?? CharacterPalette.Default;
 
         Span<BonePose> bones = stackalloc BonePose[(int)VectorBoneId.Count];
         rig.EvaluatePose(clipName, "idle", timeOrNormalizedProgress, isNormalized, bones);
@@ -75,10 +76,10 @@ public static class VectorRigRenderer
             DrawNightAura(batch, rig, in bones[(int)VectorBoneId.Body], footPosition, sx, sy, overlayTime);
         }
 
-        DrawPassShapes(batch, rig, in bones, footPosition, sx, sy, isSouth, isSide, isNorth, capePass: !isNorth, hitFlash, appearancePreset, isModularHuman);
+        DrawPassShapes(batch, rig, in bones, footPosition, sx, sy, isSouth, isSide, isNorth, capePass: !isNorth, hitFlash, look, isModularHuman);
         if (isNorth)
         {
-            DrawPassShapes(batch, rig, in bones, footPosition, sx, sy, isSouth, isSide, isNorth, capePass: true, hitFlash, appearancePreset, isModularHuman);
+            DrawPassShapes(batch, rig, in bones, footPosition, sx, sy, isSouth, isSide, isNorth, capePass: true, hitFlash, look, isModularHuman);
         }
 
         if (isModularHuman)
@@ -90,7 +91,7 @@ public static class VectorRigRenderer
                 ModularCharacterOverlays.DrawEquippedBackCape(batch, rig, in bones[(int)VectorBoneId.Cape], footPosition, sx, sy, isNorth: true, equipment.ChestId, art, hitFlash);
             }
 
-            ModularCharacterOverlays.DrawFaceAndHair(batch, rig, in bones[(int)VectorBoneId.Head], footPosition, sx, sy, isSouth, isSide, isNorth, appearancePreset, equipment.HeadId, hitFlash);
+            ModularCharacterOverlays.DrawFaceAndHair(batch, rig, in bones[(int)VectorBoneId.Head], footPosition, sx, sy, isSouth, isSide, isNorth, in look, equipment.HeadId, hitFlash);
             ModularCharacterOverlays.DrawHeadArmor(batch, rig, in bones[(int)VectorBoneId.Headgear], footPosition, sx, sy, isSouth, isNorth, equipment.HeadId, art, hitFlash);
         }
 
@@ -186,7 +187,7 @@ public static class VectorRigRenderer
         string clipName = "idle",
         float timeOrNormalizedProgress = 0f,
         CompiledItemVectorArt? equippedItem = null,
-        byte appearancePreset = 0,
+        CharacterPalette? palette = null,
         VisualEquipmentLoadout equipment = default,
         IVectorArtRepository? art = null)
     {
@@ -223,7 +224,7 @@ public static class VectorRigRenderer
             targetHeightOverride: targetHeight,
             hitFlash: 0f,
             equippedItem: equippedItem,
-            appearancePreset: appearancePreset,
+            palette: palette,
             equipment: equipment,
             art: art);
     }
@@ -237,7 +238,7 @@ public static class VectorRigRenderer
         float sy,
         float hitFlash = 0f,
         byte alpha = 255) =>
-        DrawSingleShape(batch, in s, Vector2.Zero, in pose, origin, sx, sy, hitFlash, 0, false, alpha);
+        DrawSingleShape(batch, in s, Vector2.Zero, in pose, origin, sx, sy, hitFlash, default, false, alpha);
 
     /// <summary>
     /// Draws an inventory or UI item vector icon centered at <paramref name="center"/> scaled cleanly to <paramref name="targetSize"/>.
@@ -485,7 +486,7 @@ public static class VectorRigRenderer
         bool isNorth,
         bool capePass,
         float hitFlash,
-        byte appearancePreset = 0,
+        CharacterPalette palette = default,
         bool isBaseHero = false)
     {
         CompiledVectorShape[] shapes = rig.Shapes;
@@ -516,7 +517,7 @@ public static class VectorRigRenderer
 
             BonePose bonePose = bones[(int)shape.Bone];
             Vector2 bonePivot = rig.GetBonePivot(shape.Bone);
-            DrawSingleShape(batch, in shape, bonePivot, in bonePose, origin, sx, sy, hitFlash, appearancePreset, isBaseHero);
+            DrawSingleShape(batch, in shape, bonePivot, in bonePose, origin, sx, sy, hitFlash, palette, isBaseHero);
         }
     }
 
@@ -529,11 +530,11 @@ public static class VectorRigRenderer
         float sx,
         float sy,
         float hitFlash,
-        byte appearancePreset = 0,
+        CharacterPalette palette = default,
         bool isBaseHero = false,
         byte alpha = 255)
     {
-        ColorRgba baseCol = ModularCharacterOverlays.ResolveModularColor(in s, appearancePreset, isBaseHero);
+        ColorRgba baseCol = ModularCharacterOverlays.ResolveModularColor(in s, in palette, isBaseHero);
         ColorRgba fill = ApplyHitFlash(baseCol, hitFlash);
         if (alpha < 255)
         {

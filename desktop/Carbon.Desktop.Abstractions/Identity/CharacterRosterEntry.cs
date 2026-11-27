@@ -15,7 +15,7 @@ namespace Carbon.Desktop.Abstractions.Identity;
 /// <param name="ZoneTier">Danger/progression tier at the saved world position.</param>
 /// <param name="PositionX">Saved world X position.</param>
 /// <param name="PositionY">Saved world Y position.</param>
-/// <param name="AppearancePreset">Saved visual appearance preset index.</param>
+/// <param name="Look">Saved look: race, body type and option choices (ADR-042).</param>
 /// <param name="Class">Persisted hero archetype class.</param>
 /// <param name="Traits">Persisted character progression traits bitmask.</param>
 public sealed record CharacterRosterEntry(
@@ -25,6 +25,6 @@ public sealed record CharacterRosterEntry(
     byte ZoneTier,
     float PositionX,
     float PositionY,
-    byte AppearancePreset = 0,
+    CharacterLook Look = default,
     HeroArchetypeClass Class = HeroArchetypeClass.Vanguard,
     CharacterTraits Traits = CharacterTraits.None);
