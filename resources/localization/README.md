@@ -26,6 +26,7 @@ Player-facing text for the desktop client ([ADR-023](../../docs/adr/ADR-023-clie
    - `GameText.Get("hud.not_enough_mana")`
    - `GameText.Format("hud.picked_up", new TextArg("name", itemName))`
    - `GameText.Plural("hud.coins", count)`
+   - For text drawn every frame, keep a `CachedText` field and call `_label.Format(...)`. It re-formats only when an argument or the language changes.
 
    The namespace is `Carbon.Desktop.Abstractions.Localization`.
 3. If you replaced a literal, delete its line from `tests/architecture/Carbon.Architecture.Tests/LocalizationLiteralAllowlist.txt`.

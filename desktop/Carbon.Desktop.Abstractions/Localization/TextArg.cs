@@ -54,6 +54,15 @@ public readonly struct TextArg
     /// <returns>The substituted text.</returns>
     public override string ToString() => _text ?? _number.ToString(CultureInfo.InvariantCulture);
 
+    /// <summary>Returns whether this argument has the same name and value as <paramref name="other"/> (no allocation).</summary>
+    /// <param name="other">The argument to compare.</param>
+    /// <returns><see langword="true"/> when name and value match.</returns>
+    public bool SameAs(in TextArg other) =>
+        string.Equals(this.Name, other.Name, StringComparison.Ordinal)
+        && (_text is null
+            ? other._text is null && _number == other._number
+            : string.Equals(_text, other._text, StringComparison.Ordinal));
+
     /// <summary>Appends the argument value to <paramref name="builder"/> without boxing.</summary>
     /// <param name="builder">Destination builder.</param>
     internal void AppendTo(StringBuilder builder)

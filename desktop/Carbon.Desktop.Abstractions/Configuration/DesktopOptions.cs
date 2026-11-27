@@ -90,6 +90,13 @@ public sealed class DesktopOptions
     public string CaptureModal { get; init; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets a menu scene to capture instead of the world (<c>CARBON_CAPTURE_SCENE=login|characters</c>, ADR-023 D8).
+    /// <c>login</c> needs <c>CARBON_AUTO_LOGIN=0</c>; <c>characters</c> registers the configured account and captures the
+    /// character screen. Empty when unset.
+    /// </summary>
+    public string CaptureScene { get; init; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets an optional UI state the screenshot tool opens on start (<c>CARBON_UI_PREVIEW</c>):
     /// <c>inventory</c>, or <c>inventory-tooltip:N</c>, <c>inventory-split:N</c>, <c>inventory-destroy:N</c> for slot
     /// <c>N</c>. Purely visual; nothing is sent to the server.
@@ -229,6 +236,7 @@ public sealed class DesktopOptions
             OpenPanel = get("CARBON_OPEN_PANEL") is { Length: > 0 } panel ? panel.Trim() : null,
             CaptureMouse = ParsePoint(get("CARBON_CAPTURE_MOUSE")),
             CaptureModal = get("CARBON_CAPTURE_MODAL") is { Length: > 0 } modal ? modal.Trim().ToLowerInvariant() : string.Empty,
+            CaptureScene = get("CARBON_CAPTURE_SCENE") is { Length: > 0 } captureScene ? captureScene.Trim().ToLowerInvariant() : string.Empty,
             ForgePreview = get("CARBON_FORGE_PREVIEW") is { Length: > 0 } forgePreview ? forgePreview.Trim() : null,
             UiPreview = get("CARBON_UI_PREVIEW") is { Length: > 0 } preview ? preview.Trim() : null,
             ServerHost = serverHost,

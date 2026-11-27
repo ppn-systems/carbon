@@ -59,6 +59,7 @@ they are active.
 | `CARBON_OPEN_PANEL=character` | Open the Character tab of the player panel on entry. |
 | `CARBON_CAPTURE_MOUSE=x,y` | Pin the cursor at window pixel `x,y` so hover states (e.g. the stat preview) render. |
 | `CARBON_CAPTURE_MODAL=settings\|controls` | Open the Settings window (Display or Controls tab) before the capture, to review localized UI. |
+| `CARBON_CAPTURE_SCENE=login\|characters` | Capture a menu screen instead of the world. `login` needs `CARBON_AUTO_LOGIN=0` in the scenario; `characters` also needs it, registers the scenario's fresh account and captures the character creator. |
 | `CARBON_FORGE_PREVIEW=<kind>[:s]` | Open the forge window and play one enhancement effect (`charge`, `success`, `nochange`, `downgrade`, `destroyed`), frozen at `s` seconds when given. Visual only: nothing is sent, the server alone rolls outcomes. The `forge_*` scenarios use it. |
 | `CARBON_UI_PREVIEW=<state>` | Open a UI state for review: `inventory`, or `inventory-tooltip:N`, `inventory-split:N`, `inventory-destroy:N` for slot `N` (visual only; nothing is sent to the server). |
 
