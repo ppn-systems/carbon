@@ -88,6 +88,7 @@ public sealed class CharacterSelectScene : GameScene
     private IVectorArtRepository? _vectorArt;
     private IInputManager? _boundInput;
 
+    private bool _enteringWorld;
     private int _turnIndex;
     private bool _isCreatorMode;
 
@@ -163,6 +164,7 @@ public sealed class CharacterSelectScene : GameScene
         base.Enter(context);
 
         this.AttachInput(context.Input);
+        _flow.Backdrop.Resume();
         _requests.LoadRoster();
     }
 
@@ -170,6 +172,13 @@ public sealed class CharacterSelectScene : GameScene
     public override void Leave(SceneContext context)
     {
         this.DetachInput();
+        _flow.Backdrop.Pause();
+        if (_enteringWorld)
+        {
+            // The menus' backdrop is not drawn in the world; free its meshes until the player returns.
+            _flow.Backdrop.ReleaseGpu();
+        }
+
         base.Leave(context);
     }
 
@@ -180,6 +189,7 @@ public sealed class CharacterSelectScene : GameScene
         base.Update(context, dt);
 
         _elapsed += (float)dt;
+        _flow.Backdrop.Advance((float)dt);
         this.PollRequests(context);
 
         if (_requests.IsSigningOut || _requests.IsEnteringWorld)
@@ -294,10 +304,8 @@ public sealed class CharacterSelectScene : GameScene
         RectangleF rightCard = new(ox + 592f, oy + 68f, 306f, 384f);
         RectangleF statusPill = new(ox + 22f, oy + totalH - 46f, totalW - 44f, 30f);
 
-        // Pass 1: Twilight horizon backdrop
-        _geometryBatch.Begin(proj);
-        MenuBackdropRenderer.Draw(_geometryBatch, width, height, _elapsed);
-        _geometryBatch.End();
+        // Pass 1: the menus' shared living backdrop (docs/art/menu-ui.md rule 15)
+        _flow.Backdrop.Render(context.Device, _geometryBatch, width, height);
 
         // Pass 2: Standardized 9-Slice Windows, Cards, Hero Slots & Buttons
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: proj);
@@ -527,7 +535,7 @@ public sealed class CharacterSelectScene : GameScene
 
         base.Render(context, spriteBatch, dt);
 
-        _capture.AfterRender(context, ready: !_requests.IsLoadingRoster && !_requests.IsCreating);
+        _capture.AfterRender(context, ready: !_requests.IsLoadingRoster && !_requests.IsCreating && _flow.Backdrop.IsSettled(expectWorld: true));
     }
 
     /// <inheritdoc/>
@@ -681,6 +689,7 @@ public sealed class CharacterSelectScene : GameScene
             {
                 next = new WorldGameplayScene(_flow);
                 context.SceneManager.ChangeScene(next, transitionDuration: 0.18f);
+                _enteringWorld = true;
                 next = null;
             }
             finally

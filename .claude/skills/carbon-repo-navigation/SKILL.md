@@ -43,8 +43,19 @@ carbon/
 
 ## How to Locate a Game Feature
 
-1. **Packet / Opcode**: Look in `contracts/Packets/<Domain>/` or search `CarbonOpCode.<Name>`.
-2. **Server Packet Handler**: Look in `server/Handlers/<Domain>/` by matching `[PacketOpcode(CarbonOpCode.<Name>)]`.
-3. **Game Logic / ECS System**: Look in `engine/Systems/<Domain>/` (e.g., `MovementSystem`, `CombatSystem`).
-4. **Entity Components**: Look in `engine/Components/<Domain>/` (struct components).
-5. **Client Rendering / Input**: Look in `desktop/Input/` or `desktop/Rendering/` for Desktop; `wasm/Pages/` or `wasm/Interop/` for WebAssembly.
+1. **Packet / Opcode**: one project per domain, `contracts/Carbon.Contracts.<Domain>/` (`Common`, `Config`, `Entities`,
+   `Identity`, `Items`, `Maps`). Client requests are in `C2S/`, server messages in `S2C/`, and the opcodes in
+   `<Domain>OpCode.cs` (for example `MapOpCode.ChunkRequest`, `ItemOpCode`, `SharedOpCode`).
+2. **Server Packet Handler**: `server/Carbon.Handlers/<Domain>/<Domain>Handlers*.cs`, matched by
+   `[PacketOpcode(<Domain>OpCode.<Name>)]`.
+3. **Server Game Logic**: the `AuthoritativeWorld` partials in `server/Carbon.Application/World/` (`AuthoritativeWorld.<Area>.cs`)
+   and the services under `server/Carbon.Application/World/<Area>/` (`Combat/`, `Commerce/`, `Inventory/`, `Loot/`,
+   `Persistence/`, `Replication/`, ...).
+4. **Shared Rules / ECS**: pure rules live in the domain projects under `engine/` (`Carbon.Items`, `Carbon.Combat`,
+   `Carbon.Maps`, `Carbon.Survival`, `Carbon.Economy`, ...). ECS struct components are in
+   `engine/Carbon.Simulation/ECS/Components/` (`Transform2D`, `Velocity2D`, ...) and systems in
+   `engine/Carbon.Simulation/ECS/Systems/` (`MovementSystem`, `EntityCollisionSystem`).
+5. **Desktop Client**: scenes in `desktop/Carbon.Desktop/Scenes/`, gameplay input and interactions in
+   `desktop/Carbon.Desktop/Gameplay/` and `desktop/Carbon.Desktop/Input/`, rendering and HUD in
+   `desktop/Carbon.Desktop.Rendering/`, and the network session in `desktop/Carbon.Desktop.Networking/Session/`.
+   `wasm/` holds no code yet.

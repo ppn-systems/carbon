@@ -1,7 +1,7 @@
 # ADR-020: Inventory Split, Sort and Destroy Commands, Item-Bound Slot Commands, and Accessory Slots
 
 - **Date**: 2026-11-27
-- **Status**: Proposed
+- **Status**: Accepted
 - **Scope**: `contracts/Carbon.Contracts.Items`, `engine/Carbon.Items`, `server/Carbon.Application/World`, `server/Carbon.Handlers/Items`, `desktop/`, `resources/config/items.json`
 - **Audit**: INV-1…INV-3, UX-1…UX-9 in `docs/audit/2026-11-inventory-audit.md`
 

@@ -164,6 +164,8 @@ internal sealed class PointOfInterestRenderer
                     lights.Add(new PointLight(foot + new Vector2(0f, -20f), 85f, spirit, 0.35f));
                     break;
                 case LandmarkPieceKind.Well:
+                    lights.Add(new PointLight(foot + new Vector2(0f, -26f), 120f, warm, 0.85f * flicker)); // lantern under the well roof
+                    break;
                 case LandmarkPieceKind.Tent:
                 case LandmarkPieceKind.ShrineGate:
                 case LandmarkPieceKind.Barrel:
