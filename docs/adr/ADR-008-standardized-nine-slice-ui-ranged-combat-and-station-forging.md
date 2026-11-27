@@ -1,6 +1,6 @@
 # ADR-008: Standardized 9-Slice UI Skin, Ranged/Mage Combat & Station-Bound Forging
 
-- **Status**: Accepted
+- **Status**: Accepted (section 2's `CharacterCreate.StartingClass` is removed by [ADR-030](ADR-030-classless-empty-handed-start.md))
 - **Date**: 2026-11-26
 - **Deciders**: Carbon Engineering Team
 
