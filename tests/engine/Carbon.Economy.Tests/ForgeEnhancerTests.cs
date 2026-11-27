@@ -218,6 +218,70 @@ public sealed class ForgeEnhancerTests
         s.Should().BeApproximately(scrolls, Math.Max(0.05, scrolls * 0.06), "mean scrolls");
     }
 
+    [Fact]
+    public void CreateRandom_AttackerKnowsWorldSeedTickOwnerAndNonce_CannotReproduceServerOutcomes()
+    {
+        // ADR-026: the world seed is public (MapWorldInfo.Seed, CharacterEnterWorld.WorldSeed). A client that knows it,
+        // the tick, its own id and the attempt counter must still not be able to predict a forge roll.
+        const ulong WorldSeed = 1337UL;
+        const ulong Owner = 9001UL;
+        GameplayKey serverKey = TestGameplayKeys.Key(0xA5A5_0000_1234_5678UL);
+        EnhancementStep step = Rules.Enhancement.Steps[^1];
+        GameplayKey[] seedDerivedGuesses = [KeyFromSeed(WorldSeed, 0UL), KeyFromSeed(WorldSeed, WorldSeed), KeyFromSeed(WorldSeed, ~WorldSeed)];
+
+        const int Attempts = 400;
+        int legacyMatches = 0;
+        int[] guessMatches = new int[seedDerivedGuesses.Length];
+        for (ulong n = 1; n <= Attempts; n++)
+        {
+            ulong tick = 1_000UL + (n * 3UL);
+            DeterministicRandom server = ForgeEnhancer.CreateRandom(serverKey, tick, Owner, n);
+            EnhancementOutcome actual = EnhancementTable.Roll(step, ref server);
+
+            DeterministicRandom legacy = LegacySeedStream(WorldSeed, tick, Owner, n);
+            legacyMatches += EnhancementTable.Roll(step, ref legacy) == actual ? 1 : 0;
+            for (int g = 0; g < seedDerivedGuesses.Length; g++)
+            {
+                DeterministicRandom guess = ForgeEnhancer.CreateRandom(seedDerivedGuesses[g], tick, Owner, n);
+                guessMatches[g] += EnhancementTable.Roll(step, ref guess) == actual ? 1 : 0;
+            }
+        }
+
+        // Independent streams agree only by chance (well below 90% for a step with several outcomes); a reproduction would agree 100%.
+        legacyMatches.Should().BeLessThan(Attempts * 9 / 10, "the pre-ADR-026 seed formula no longer predicts the server");
+        foreach (int matches in guessMatches)
+        {
+            matches.Should().BeLessThan(Attempts * 9 / 10, "no key built from the world seed predicts the server");
+        }
+    }
+
+    [Fact]
+    public void CreateRandom_SameSecret_ReplaysTheSameOutcomeSequence()
+    {
+        EnhancementStep step = Rules.Enhancement.Steps[^1];
+        for (ulong n = 1; n <= 64; n++)
+        {
+            DeterministicRandom first = ForgeEnhancer.CreateRandom(TestGameplayKeys.Key(42UL), 500UL + n, 7UL, n);
+            DeterministicRandom replay = ForgeEnhancer.CreateRandom(TestGameplayKeys.Key(42UL), 500UL + n, 7UL, n);
+            EnhancementTable.Roll(step, ref first).Should().Be(EnhancementTable.Roll(step, ref replay), "the same secret and inputs replay the same roll");
+        }
+    }
+
+    /// <summary>The forge stream before ADR-026: a public mix of the world seed and the roll inputs.</summary>
+    private static DeterministicRandom LegacySeedStream(ulong worldSeed, ulong tick, ulong ownerId, ulong attemptNonce) =>
+        new(worldSeed
+            ^ (tick * 0x9E3779B97F4A7C15UL)
+            ^ ((ownerId + 0x632BE59BD9B4E019UL) * 0xC2B2AE3D27D4EB4FUL)
+            ^ ((attemptNonce + 0x165667B19E3779F9UL) * 0xD6E8FEB86659FD93UL));
+
+    private static GameplayKey KeyFromSeed(ulong low, ulong high)
+    {
+        byte[] bytes = new byte[GameplayKey.SizeInBytes];
+        BitConverter.TryWriteBytes(bytes.AsSpan(0, 8), low).Should().BeTrue();
+        BitConverter.TryWriteBytes(bytes.AsSpan(8, 8), high).Should().BeTrue();
+        return GameplayKey.FromBytes(bytes);
+    }
+
     private static (double Attempts, double Gold, double Destroyed, double Scrolls) Simulate(int target, bool protect, int trials)
     {
         EnhancementTable table = Rules.Enhancement;

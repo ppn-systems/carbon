@@ -2,6 +2,7 @@
 
 - **Date**: 2026-11-27
 - **Status**: Proposed
+- **Amended by**: [ADR-026](ADR-026-server-secret-gameplay-entropy.md) — gameplay rolls use a server-only secret, not the world seed
 - **Scope**: `engine/Carbon.Maps` (Building, Landmarks, Settlements, Streaming), `engine/Carbon.Economy` (Trading),
   `contracts/Carbon.Contracts.Items`, `server/Carbon.Application` (Actors, Commerce), `server/Carbon.Infrastructure`
   (persistence), `desktop/` (rendering, trade window), `resources/config`, `resources/art/structures`

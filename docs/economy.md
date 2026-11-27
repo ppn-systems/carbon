@@ -21,7 +21,7 @@ Proven survival/MMO economies (RuneScape, WoW, EVE, Diablo, Terraria, RimWorld) 
 3. **No arbitrage.** Vendors pay 25% of base price and charge 100%. Buying ingredients, crafting and selling always loses gold, and a test checks this for every recipe.
 4. **Gray monsters pay little.** A monster more than 8 levels below the player is *trivial* (the WoW "gray mob" rule). It pays 20% gold, can't drop diamonds and doesn't advance pity, so farming starter zones is pointless.
 5. **Premium currency stays rare.** Diamonds come mainly from elites (×5), bosses (×40), deep/distant zones (+25% per distance tier) and rich ore veins. Bad-luck protection puts a floor on income without making diamonds common.
-6. **Server-authoritative and deterministic.** The server seeds a `DeterministicRandom` per kill (`LootRoller.CreateRandom(worldSeed, tick, sourceId)`), rolls and sends the result. Clients never roll. The same inputs always give the same loot, so audits can be replayed.
+6. **Server-authoritative and deterministic.** The server seeds a `DeterministicRandom` per kill (`LootRoller.CreateRandom(key, tick, sourceId)`, where `key` is the secret epoch subkey of [ADR-026](adr/ADR-026-server-secret-gameplay-entropy.md), never the public world seed), rolls and sends the result. Clients never roll. The same secret and inputs always give the same loot, so audits can be replayed.
 7. **Atomic mutations.** Each wallet, vendor or crafting operation either fully succeeds or changes nothing. It returns `OpStatus` (wire) plus a detailed reason (`EconomyError` / `CraftFailure`).
 
 ## 2. Currencies (`Carbon.Economy.Currency`)

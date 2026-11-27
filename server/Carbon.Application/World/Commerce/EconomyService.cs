@@ -36,7 +36,7 @@ internal enum VendorOperation : byte
 /// <summary>
 /// The world's economy (audit SOLID-1, extracted from <see cref="AuthoritativeWorld"/>): config-driven monster loot rolled
 /// on kills (item stacks and gold/diamond piles dropped as ground loot reserved for the killer, ADR-019), vendor buy/sell and
-/// forge repair with their proximity rules, and wallet sync messages. Deterministic per (world seed, tick, victim).
+/// forge repair with their proximity rules, and wallet sync messages. Deterministic per (gameplay secret, tick, victim), ADR-026.
 /// Called only under the world lock.
 /// </summary>
 internal sealed class EconomyService
