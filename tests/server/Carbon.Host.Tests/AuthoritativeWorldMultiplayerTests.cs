@@ -58,7 +58,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
             Vector2 position = world.DefaultSpawnWorldPosition + (new Vector2(offsetTilesX, offsetTilesY) * 32f);
             CharacterRecord hero = new(Guid.NewGuid(), Guid.NewGuid(), "Newcomer", 1, 0, position.X, position.Y, 100f, 100f, 0, [], DateTimeOffset.UtcNow);
-            world.TryEnterWorld(connectionId: 77UL, sessionId: 77UL, hero).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(connectionId: 77UL, hero).Status.Should().Be(OpStatus.Ok);
 
             // One second at 30 Hz: the entry scan must populate the heartland immediately, not after spawn intervals.
             for (int tick = 0; tick < 30; tick++)
@@ -133,8 +133,8 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 [],
                 now);
 
-            EnterWorldResult enterA = world.TryEnterWorld(connectionId: 101UL, sessionId: 1UL, charA);
-            EnterWorldResult enterB = world.TryEnterWorld(connectionId: 202UL, sessionId: 2UL, charB);
+            EnterWorldResult enterA = world.TryEnterWorld(connectionId: 101UL, charA);
+            EnterWorldResult enterB = world.TryEnterWorld(connectionId: 202UL, charB);
 
             enterA.Status.Should().Be(OpStatus.Ok);
             enterB.Status.Should().Be(OpStatus.Ok);
@@ -263,7 +263,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 now,
                 Gold: 5_000);
 
-            world.TryEnterWorld(connectionId: 101UL, sessionId: 1UL, scout).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(connectionId: 101UL, scout).Status.Should().Be(OpStatus.Ok);
             // recipes.json: planks are hand-crafted anywhere; walls need a built workbench nearby.
             world.ItemRules.RecipeCatalog.TryGetByCode("wood_plank", out CraftingRecipe? plankRecipe).Should().BeTrue();
             world.ItemRules.RecipeCatalog.TryGetByCode("wood_wall", out CraftingRecipe? wallRecipe).Should().BeTrue();
@@ -286,7 +286,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 float wx = ((probeX * 32) + 16) * 32f;
                 float wy = 16f * 32f;
                 CharacterRecord hunter = scout with { Id = Guid.NewGuid(), PositionX = wx, PositionY = wy };
-                world.TryEnterWorld(connectionId: 303UL, sessionId: 3UL, hunter).Status.Should().Be(OpStatus.Ok);
+                world.TryEnterWorld(connectionId: 303UL, hunter).Status.Should().Be(OpStatus.Ok);
                 world.StepFixedTick();
 
                 for (int i = 0; i < sink.Spawns.Count; i++)
@@ -308,7 +308,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 PositionX = mobSpawn!.Value.PositionX + 16f,
                 PositionY = mobSpawn.Value.PositionY,
             };
-            world.TryEnterWorld(connectionId: 404UL, sessionId: 4UL, slayer).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(connectionId: 404UL, slayer).Status.Should().Be(OpStatus.Ok);
             world.EnqueueAttackInput(404UL, mobSpawn.Value.NetworkId, new Vector2(mobSpawn.Value.PositionX, mobSpawn.Value.PositionY), 2);
             world.StepFixedTick();
 
@@ -367,7 +367,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 PositionX = mobSpawn.Value.PositionX + 40f,
                 PositionY = mobSpawn.Value.PositionY,
             };
-            EnterWorldResult advEnter = world.TryEnterWorld(connectionId: 405UL, sessionId: 5UL, vanguardAdv);
+            EnterWorldResult advEnter = world.TryEnterWorld(connectionId: 405UL, vanguardAdv);
             advEnter.Status.Should().Be(OpStatus.Ok);
 
             world.TryAllocateCharacterPoint(405UL, PointAllocationKind.Skill, SkillCatalog.ArcaneNovaId, 1).Should().Be(OpStatus.Forbidden);
@@ -434,7 +434,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 now,
                 Gold: 5_000);
 
-            world.TryEnterWorld(connectionId: 701UL, sessionId: 71UL, hero).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(connectionId: 701UL, hero).Status.Should().Be(OpStatus.Ok);
 
             int wallTx = (int)MathF.Floor(world.DefaultSpawnWorldPosition.X / 32f) + 2;
             int wallTy = (int)MathF.Floor(world.DefaultSpawnWorldPosition.Y / 32f);
@@ -468,7 +468,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             pending.Should().NotBeNull();
 
             // Re-entering with the same CharacterId evicts the previous live connection cleanly.
-            world.TryEnterWorld(connectionId: 702UL, sessionId: 72UL, hero).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(connectionId: 702UL, hero).Status.Should().Be(OpStatus.Ok);
             world.TryGetSessionByConnection(701UL, out _).Should().BeFalse();
             world.TryGetSessionByConnection(702UL, out _).Should().BeTrue();
         }
@@ -520,7 +520,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 hunterY = 16f * 32f;
                 ulong cid = (ulong)(900 + probeX);
                 CharacterRecord rec = new(Guid.NewGuid(), Guid.NewGuid(), $"Ranger{probeX}", 1, 0, hunterX, hunterY, 120f, 120f, 2, rangerBytes, now, CurrentMana: 110f, MaxMana: 110f, Gold: 5_000);
-                world.TryEnterWorld(cid, cid, rec).Status.Should().Be(OpStatus.Ok);
+                world.TryEnterWorld(cid, rec).Status.Should().Be(OpStatus.Ok);
                 world.StepFixedTick();
 
                 for (int i = 0; i < sink.Spawns.Count; i++)
@@ -566,7 +566,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             // 3. Fire HuntingBow projectile from ~120px away towards discovered monster and step ticks until swept projectile hits.
             Vector2 shotOrigin = new(mobSpawn!.Value.PositionX - 110f, mobSpawn.Value.PositionY);
             CharacterRecord sniper = new(Guid.NewGuid(), Guid.NewGuid(), "Sniper", 1, 0, shotOrigin.X, shotOrigin.Y, 120f, 120f, 2, rangerBytes, now, CurrentMana: 110f, MaxMana: 110f, Gold: 5_000);
-            world.TryEnterWorld(950UL, 950UL, sniper).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(950UL, sniper).Status.Should().Be(OpStatus.Ok);
             world.EnqueueAttackInput(950UL, 0UL, new Vector2(mobSpawn.Value.PositionX, mobSpawn.Value.PositionY), 2).Should().Be(OpStatus.Ok);
             for (int t = 0; t < 16; t++)
             {
@@ -678,7 +678,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 UpdatedAtUtc: now,
                 Flags: CharacterTraits.StarterLoadoutGranted);
             (await characters.TryCreateAsync(hero).ConfigureAwait(true)).Should().BeTrue();
-            world.TryEnterWorld(connectionId: 701UL, sessionId: 701UL, hero).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(connectionId: 701UL, hero).Status.Should().Be(OpStatus.Ok);
 
             OpStatus first = world.TryHarvestProp(701UL, tx, ty).Status;
             OpStatus second = world.TryHarvestProp(701UL, tx, ty).Status;
@@ -745,7 +745,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 Flags: CharacterTraits.StarterLoadoutGranted);
             (await characters.TryCreateAsync(hero).ConfigureAwait(true)).Should().BeTrue();
 
-            world.TryEnterWorld(connectionId: 801UL, sessionId: 801UL, hero).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(connectionId: 801UL, hero).Status.Should().Be(OpStatus.Ok);
             world.TrySelectHotbarSlot(801UL, 3).Should().Be(OpStatus.Ok);
             world.LeaveWorld(801UL).Should().BeTrue();
 
@@ -818,7 +818,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 Flags: CharacterTraits.StarterLoadoutGranted | CharacterTraits.ClassAdvanced);
             (await characters.TryCreateAsync(hero).ConfigureAwait(true)).Should().BeTrue();
 
-            world.TryEnterWorld(connectionId: 601UL, sessionId: 601UL, hero).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(connectionId: 601UL, hero).Status.Should().Be(OpStatus.Ok);
 
             int startTx = (int)MathF.Floor(world.DefaultSpawnWorldPosition.X / 32f);
             int startTy = (int)MathF.Floor(world.DefaultSpawnWorldPosition.Y / 32f);
@@ -851,7 +851,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 float wx = ((probeX * 32) + 16) * 32f;
                 float wy = 16f * 32f;
                 CharacterRecord scout = hero with { Id = Guid.NewGuid(), Name = $"Scout{probeX}", PositionX = wx, PositionY = wy };
-                world.TryEnterWorld((ulong)(610 + probeX), (ulong)(610 + probeX), scout).Status.Should().Be(OpStatus.Ok);
+                world.TryEnterWorld((ulong)(610 + probeX), scout).Status.Should().Be(OpStatus.Ok);
                 world.StepFixedTick();
 
                 for (int i = 0; i < sink.Spawns.Count; i++)
@@ -868,7 +868,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
             // Too far for melee strike (120px > MeleeStrikeRangePx = 56px)
             CharacterRecord farStriker = hero with { Id = Guid.NewGuid(), Name = "FarStriker", PositionX = mobSpawn!.Value.PositionX + 120f, PositionY = mobSpawn.Value.PositionY };
-            world.TryEnterWorld(602UL, 602UL, farStriker).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(602UL, farStriker).Status.Should().Be(OpStatus.Ok);
             int hitsBeforeFar = sink.CombatHits.Count;
             world.EnqueueAttackInput(602UL, mobSpawn.Value.NetworkId, new Vector2(mobSpawn.Value.PositionX, mobSpawn.Value.PositionY), 2).Should().Be(OpStatus.Ok);
             world.StepFixedTick();
@@ -876,7 +876,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
             // Within strict melee range (36px <= MeleeStrikeRangePx = 56px)
             CharacterRecord closeStriker = hero with { Id = Guid.NewGuid(), Name = "CloseStriker", PositionX = mobSpawn.Value.PositionX + 36f, PositionY = mobSpawn.Value.PositionY };
-            world.TryEnterWorld(603UL, 603UL, closeStriker).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(603UL, closeStriker).Status.Should().Be(OpStatus.Ok);
             int hitsBeforeClose = sink.CombatHits.Count;
             world.EnqueueAttackInput(603UL, mobSpawn.Value.NetworkId, new Vector2(mobSpawn.Value.PositionX, mobSpawn.Value.PositionY), 2).Should().Be(OpStatus.Ok);
             world.StepFixedTick();
@@ -926,7 +926,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             for (int probeX = 1; probeX <= 12 && mob is null; probeX++)
             {
                 ulong probeConn = 700UL + (ulong)probeX;
-                world.TryEnterWorld(probeConn, probeConn, template with { Id = Guid.NewGuid(), PositionX = ((probeX * 32) + 16) * 32f, PositionY = 16f * 32f }).Status.Should().Be(OpStatus.Ok);
+                world.TryEnterWorld(probeConn, template with { Id = Guid.NewGuid(), PositionX = ((probeX * 32) + 16) * 32f, PositionY = 16f * 32f }).Status.Should().Be(OpStatus.Ok);
                 world.StepFixedTick();
                 mob = sink.Spawns
                     .Where(x => x.ConnectionId == probeConn && x.Snapshot.Kind == EntityKind.Monster && AuthoritativeWorld.ResolveLootTableId(x.Snapshot.ArchetypeId) is not null)
@@ -938,7 +938,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             economy.Loot.TryGet(AuthoritativeWorld.ResolveLootTableId(mob!.Value.ArchetypeId)!, out Carbon.Economy.Loot.LootTable? table).Should().BeTrue();
 
             const ulong slayerConn = 800UL;
-            world.TryEnterWorld(slayerConn, slayerConn, template with { Id = Guid.NewGuid(), PositionX = mob.Value.PositionX + 16f, PositionY = mob.Value.PositionY }).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(slayerConn, template with { Id = Guid.NewGuid(), PositionX = mob.Value.PositionX + 16f, PositionY = mob.Value.PositionY }).Status.Should().Be(OpStatus.Ok);
             int killTickSpawnIndex = -1;
             for (int tick = 0; tick < 900 && killTickSpawnIndex < 0; tick++)
             {
@@ -1012,7 +1012,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             for (int probeX = 1; probeX <= 12 && mob is null; probeX++)
             {
                 ulong probeConn = 700UL + (ulong)probeX;
-                world.TryEnterWorld(probeConn, probeConn, template with { Id = Guid.NewGuid(), PositionX = ((probeX * 32) + 16) * 32f, PositionY = 16f * 32f }).Status.Should().Be(OpStatus.Ok);
+                world.TryEnterWorld(probeConn, template with { Id = Guid.NewGuid(), PositionX = ((probeX * 32) + 16) * 32f, PositionY = 16f * 32f }).Status.Should().Be(OpStatus.Ok);
                 world.StepFixedTick();
                 mob = sink.Spawns
                     .Where(x => x.ConnectionId == probeConn && x.Snapshot.Kind == EntityKind.Monster)
@@ -1031,7 +1031,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 PositionY = mob.Value.PositionY,
                 Experience = world.Progression.GetXpToNextLevel(1) - 1U,
             };
-            world.TryEnterWorld(slayerConn, slayerConn, slayer).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(slayerConn, slayer).Status.Should().Be(OpStatus.Ok);
             world.TryGetPendingCharacterSnapshot(slayer.Id, out CharacterRecord? before).Should().BeTrue();
             float maxBefore = before!.MaxHealth;
 
@@ -1090,7 +1090,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
                 100f, 100f, SelectedHotbarSlot: 0, InventoryBlob: InventoryBinaryCodec.Serialize(inv),
                 UpdatedAtUtc: DateTimeOffset.UtcNow);
-            world.TryEnterWorld(connectionId: 700UL, sessionId: 700UL, hero).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(connectionId: 700UL, hero).Status.Should().Be(OpStatus.Ok);
 
             world.StepFixedTick();
             sink.NeedsSyncs.Should().Contain(n => n.ConnectionId == 700UL && n.Needs.MaxFood == 100f && n.Needs.EatProgress < 0f);
@@ -1144,7 +1144,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 Guid.NewGuid(), Guid.NewGuid(), "Faster", 1, 0,
                 world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
                 100f, 100f, 0, [], DateTimeOffset.UtcNow);
-            EnterWorldResult enter = world.TryEnterWorld(connectionId: 701UL, sessionId: 701UL, hero);
+            EnterWorldResult enter = world.TryEnterWorld(connectionId: 701UL, hero);
             enter.Status.Should().Be(OpStatus.Ok);
 
             StepTicks(world, 30 * 30);
@@ -1209,8 +1209,8 @@ public sealed class AuthoritativeWorldMultiplayerTests
             stored.NeedsMalnutrition.Should().Be(0.3f);
             stored.NeedsPoisonSeconds.Should().Be(30f);
 
-            world.TryEnterWorld(910UL, 910UL, stored).Status.Should().Be(OpStatus.Ok);
-            world.TryEnterWorld(911UL, 911UL, (await characters.FindByIdAsync(legacy.Id).ConfigureAwait(true))!).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(910UL, stored).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(911UL, (await characters.FindByIdAsync(legacy.Id).ConfigureAwait(true))!).Status.Should().Be(OpStatus.Ok);
             world.StepFixedTick();
 
             PlayerNeedsSnapshot restored = sink.NeedsSyncs.Last(n => n.ConnectionId == 910UL).Needs;
@@ -1272,7 +1272,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 Guid.NewGuid(), Guid.NewGuid(), "Hoarder", 1, 0,
                 world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
                 100f, 100f, 0, InventoryBinaryCodec.Serialize(inv), DateTimeOffset.UtcNow);
-            world.TryEnterWorld(920UL, 920UL, hero).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(920UL, hero).Status.Should().Be(OpStatus.Ok);
 
             StepTicks(world, 30);
             sink.SlotFreshness.Should().Contain(c => c.ConnectionId == 920UL && c.SlotIndex == 5 && c.ItemId == rawMeat && c.FreshnessSeconds == 3f, "the first spoilage pass stamps the stack");
@@ -1327,7 +1327,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
                 100f, 100f, SelectedHotbarSlot: 1, InventoryBlob: InventoryBinaryCodec.Serialize(inv),
                 UpdatedAtUtc: DateTimeOffset.UtcNow, Gold: 100);
-            EnterWorldResult enter = world.TryEnterWorld(930UL, 930UL, cook);
+            EnterWorldResult enter = world.TryEnterWorld(930UL, cook);
             enter.Status.Should().Be(OpStatus.Ok);
 
             world.ItemRules.RecipeCatalog.TryGetByCode("cooked_meat", out CraftingRecipe? recipe).Should().BeTrue();
@@ -1410,7 +1410,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
                 100f, 100f, 0, InventoryBinaryCodec.Serialize(inv), DateTimeOffset.UtcNow, NeedsRest: 50f);
             (await characters.TryCreateAsync(sleeper).ConfigureAwait(true)).Should().BeTrue();
-            EnterWorldResult enter = world.TryEnterWorld(940UL, 940UL, sleeper);
+            EnterWorldResult enter = world.TryEnterWorld(940UL, sleeper);
             enter.Status.Should().Be(OpStatus.Ok);
             world.StepFixedTick();
             sink.NeedsSyncs.Last(n => n.ConnectionId == 940UL).Needs.Rest.Should().BeApproximately(50f, 0.1f, "rest is restored from the record");
@@ -1558,7 +1558,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             stored.DiamondPity.Should().Be(42);
 
             const ulong conn = 901UL;
-            world.TryEnterWorld(conn, conn, stored).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(conn, stored).Status.Should().Be(OpStatus.Ok);
             world.StepFixedTick();
             sink.WalletSyncs.Should().Contain((conn, 500L, 2L, 7UL), "the client receives its persisted balance on world entry");
 
@@ -1585,7 +1585,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
             // A player far from any town NPC is refused.
             CharacterRecord wanderer = stored with { Id = Guid.NewGuid(), Name = "Wanderer", PositionX = stored.PositionX + 9000f };
-            world.TryEnterWorld(902UL, 902UL, wanderer).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(902UL, wanderer).Status.Should().Be(OpStatus.Ok);
             world.TryVendorBuy(902UL, (ushort)woodLog, 1).Should().Be(OpStatus.OutOfRange);
 
             await world.FlushDirtyPersistenceAsync().ConfigureAwait(true);
@@ -1645,7 +1645,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             for (int probeX = 1; probeX <= 6 && mob is null; probeX++)
             {
                 CharacterRecord hunter = scout with { Id = Guid.NewGuid(), PositionX = ((probeX * 32) + 16) * 32f, PositionY = 16f * 32f };
-                world.TryEnterWorld(connectionId: 303UL, sessionId: 3UL, hunter).Status.Should().Be(OpStatus.Ok);
+                world.TryEnterWorld(connectionId: 303UL, hunter).Status.Should().Be(OpStatus.Ok);
                 world.StepFixedTick();
                 mob = sink.Spawns.Find(s => s.ConnectionId == 303UL && s.Snapshot.Kind == EntityKind.Monster).Snapshot;
                 mob = mob is { NetworkId: > 0UL } ? mob : null;
@@ -1656,7 +1656,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
             // Aggro needs line of sight; with seed 1337 the west side of this mob is clear of props.
             CharacterRecord bait = scout with { Id = Guid.NewGuid(), Name = "Bait", PositionX = mob.Value.PositionX - 30f, PositionY = mob.Value.PositionY };
-            EnterWorldResult baitEnter = world.TryEnterWorld(connectionId: 404UL, sessionId: 4UL, bait);
+            EnterWorldResult baitEnter = world.TryEnterWorld(connectionId: 404UL, bait);
             baitEnter.Status.Should().Be(OpStatus.Ok);
 
             int firstActiveTick = -1;
@@ -1732,7 +1732,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 Guid.NewGuid(), Guid.NewGuid(), "Smith", (ushort)copper!.UnlockLevel, 0,
                 world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
                 100f, 100f, 0, InventoryBinaryCodec.Serialize(bag), DateTimeOffset.UtcNow, Gold: 100);
-            world.TryEnterWorld(990UL, 990UL, smith).Status.Should().Be(OpStatus.Ok);
+            world.TryEnterWorld(990UL, smith).Status.Should().Be(OpStatus.Ok);
             world.StepFixedTick(); // spawns the sanctuary blacksmith next to spawn
 
             world.TryCraftRecipe(990UL, (ushort)iron!.Id, 1).Should().Be(OpStatus.Forbidden, $"iron ingots unlock at level {iron.UnlockLevel}");
@@ -1836,8 +1836,12 @@ public sealed class AuthoritativeWorldMultiplayerTests
             foreach (EntityDeltaEntry entry in entries)
             {
                 this.LastPositions[entry.NetworkId] = new Vector2(entry.PositionX, entry.PositionY);
+                this.DeltaEntityIds.Add((connectionId, entry.NetworkId));
             }
         }
+
+        /// <summary>Gets every (recipient, entity) pair delivered in a delta batch, in send order.</summary>
+        public List<(ulong ConnectionId, ulong NetworkId)> DeltaEntityIds { get; } = [];
 
         public Dictionary<ulong, Vector2> LastPositions { get; } = [];
 

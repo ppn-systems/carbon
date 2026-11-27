@@ -59,7 +59,7 @@ public sealed class PlayerRegistryTests
 
     private static PlayerState Register(PlayerRegistry registry, Entity entity)
     {
-        ConnectedPlayerSession session = new(1UL, Connection, Guid.NewGuid(), Guid.NewGuid(), "Tester", NetworkId, 0, 0);
+        ConnectedPlayerSession session = new(Connection, Guid.NewGuid(), Guid.NewGuid(), "Tester", NetworkId, 0, 0);
         CharacterRecord character = new(
             session.CharacterId, session.AccountId, "Tester", 1, 0, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
         PlayerState state = new(session, entity, character, new InventoryContainer(4));
