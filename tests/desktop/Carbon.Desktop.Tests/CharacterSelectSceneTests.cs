@@ -412,6 +412,55 @@ public sealed class CharacterSelectSceneTests : IDisposable
         _scene.TurnIndex.Should().Be(1);
     }
 
+    [Fact]
+    public void CreatorName_RefusesASpaceOrAccentAndSaysWhy()
+    {
+        this.LoadRoster(s_ayla);
+        this.Click(s_openCreator);
+        this.ClearName();
+
+        this.Type("H\u00F9 ng");
+        this.Frame();
+
+        _scene.HeroName.Text.Should().Be("Hng", "the server takes only ASCII letters, digits and _ in a hero name");
+        _scene.HeroName.Feedback.Should().Be(FieldFeedback.Error);
+        _scene.HeroName.FeedbackMessage.Should().Be(GameText.Get("character.name.chars"), "a refused key is explained where the player is looking");
+
+        for (int i = 0; i < 200; i++)
+        {
+            this.Frame();
+        }
+
+        _scene.HeroName.Feedback.Should().Be(FieldFeedback.Success, "after a few seconds the line shows the name is fine");
+    }
+
+    [Fact]
+    public void CreatorCreate_WithAOneLetterName_IsHeldBackWithTheRule()
+    {
+        this.LoadRoster(s_ayla);
+        this.Click(s_openCreator);
+        this.ClearName();
+        this.Type("K");
+
+        this.Click(s_createWithHeroes);
+
+        _ = _session.DidNotReceive().CreateCharacterAsync(Arg.Any<string>(), Arg.Any<CharacterLook>(), Arg.Any<CancellationToken>());
+        _scene.HeroName.Feedback.Should().Be(FieldFeedback.Error);
+        _scene.HeroName.FeedbackMessage.Should().Be(GameText.Get("character.name.length"));
+    }
+
+    [Fact]
+    public void ArrowKeys_TurnTheTurntableWhenNotTyping()
+    {
+        this.LoadRoster(s_ayla);
+
+        this.Press(Key.Right);
+        _scene.TurnIndex.Should().Be(1);
+        this.Press(Key.Left);
+        this.Press(Key.Left);
+        _scene.TurnIndex.Should().Be(3, "left wraps from south to east");
+    }
+
     private void LoadRoster(params CharacterRosterEntry[] heroes)
     {
         _list.SetResult(heroes);
