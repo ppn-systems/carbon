@@ -12,13 +12,9 @@ namespace Carbon.Items.Serialization;
 /// </summary>
 public static class InventoryBinaryCodec
 {
-    private const byte FormatVersionV1 = 1;
-    private const byte FormatVersionV2 = 2;
     private const byte FormatVersion = 3;
     private const int HeaderBytes = 5;
-    private const int EntryBytesV1 = 22;
-    private const int EntryBytesV2 = 23;
-    private const int EntryBytesV3 = 27;
+    private const int EntryBytes = 27;
 
     /// <summary>
     /// Serializes all non-empty slots in <paramref name="container"/> into a binary payload.
@@ -39,7 +35,7 @@ public static class InventoryBinaryCodec
             }
         }
 
-        byte[] buffer = new byte[HeaderBytes + (occupied * EntryBytesV3)];
+        byte[] buffer = new byte[HeaderBytes + (occupied * EntryBytes)];
         Span<byte> span = buffer;
         span[0] = FormatVersion;
         BinaryPrimitives.WriteUInt16LittleEndian(span.Slice(1, 2), (ushort)Math.Clamp(slots.Length, 0, ushort.MaxValue));
@@ -61,7 +57,7 @@ public static class InventoryBinaryCodec
             BinaryPrimitives.WriteInt32LittleEndian(span.Slice(offset + 18, 4), BitConverter.SingleToInt32Bits(slot.Durability));
             span[offset + 22] = slot.UpgradeLevel;
             BinaryPrimitives.WriteInt32LittleEndian(span.Slice(offset + 23, 4), BitConverter.SingleToInt32Bits(slot.FreshnessSeconds));
-            offset += EntryBytesV3;
+            offset += EntryBytes;
         }
 
         return buffer;
@@ -69,8 +65,9 @@ public static class InventoryBinaryCodec
 
     /// <summary>
     /// Attempts to deserialize <paramref name="data"/> into <paramref name="target"/>.
-    /// Accepts the current format v3 and the legacy v2/v1 payloads (which carry no freshness, so they load as not perishable).
-    /// Non-finite or negative durability loads as <c>0</c>, and a repeated slot index keeps its first entry.
+    /// Accepts only the current format (v3); any other payload is refused, and the caller treats the record as having no
+    /// inventory (<c>CharacterPersistence.LoadInventory</c> grants the starter loadout). Non-finite or negative durability
+    /// loads as <c>0</c>, and a repeated slot index keeps its first entry.
     /// </summary>
     /// <param name="data">Raw persisted inventory bytes.</param>
     /// <param name="target">Destination container cleared and populated when valid.</param>
@@ -79,16 +76,13 @@ public static class InventoryBinaryCodec
     {
         ArgumentNullException.ThrowIfNull(target);
 
-        if (data.Length < HeaderBytes || (data[0] != FormatVersion && data[0] != FormatVersionV2 && data[0] != FormatVersionV1))
+        if (data.Length < HeaderBytes || data[0] != FormatVersion)
         {
             return false;
         }
 
-        bool isV3 = data[0] == FormatVersion;
-        bool isV2 = isV3 || data[0] == FormatVersionV2;
-        int entryBytes = isV3 ? EntryBytesV3 : isV2 ? EntryBytesV2 : EntryBytesV1;
         ushort entryCount = BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(3, 2));
-        if (data.Length < HeaderBytes + (entryCount * entryBytes))
+        if (data.Length < HeaderBytes + (entryCount * EntryBytes))
         {
             return false;
         }
@@ -107,23 +101,14 @@ public static class InventoryBinaryCodec
                 // A NaN durability would never wear out (NaN <= 0 is false); treat corrupt values as broken.
                 durability = 0f;
             }
-            byte upgradeLevel = isV2
-                ? data[offset + 22]
-                : (byte)(instanceId <= 10UL ? instanceId : 0UL);
-            if (!isV2 && instanceId <= 10UL)
-            {
-                instanceId = 0UL;
-            }
-
-            float freshness = isV3
-                ? BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32LittleEndian(data.Slice(offset + 23, 4)))
-                : 0f;
+            byte upgradeLevel = data[offset + 22];
+            float freshness = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32LittleEndian(data.Slice(offset + 23, 4)));
             if (!float.IsFinite(freshness) || freshness < 0f)
             {
                 freshness = 0f;
             }
 
-            offset += entryBytes;
+            offset += EntryBytes;
 
             // A repeated slot index keeps the first entry rather than silently overwriting it.
             if (slotIndex < target.Capacity && itemId > 0 && quantity > 0 && target.GetSlot(slotIndex).IsEmpty)

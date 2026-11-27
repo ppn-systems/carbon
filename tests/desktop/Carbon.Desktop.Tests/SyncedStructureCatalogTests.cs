@@ -52,6 +52,23 @@ public sealed class SyncedStructureCatalogTests : IDisposable
     }
 
     [Fact]
+    public async Task TryCreateWorldGenerator_OnlyAfterTheCatalogIsSynced_BuildsWithTheServersCatalog()
+    {
+        MultiplayerSession session = this.NewSession();
+        await using (session.ConfigureAwait(true))
+        {
+            session.TryCreateWorldGenerator(1337UL).Should().BeNull("the menu backdrop must not plan villages from a catalog the server did not send");
+
+            session.ApplyConfigCatalog(Catalog(1, ServerTuned(reachTiles: 7, workbenchWidth: 3)));
+            ProceduralWorldGenerator? generator = session.TryCreateWorldGenerator(1337UL);
+
+            generator.Should().NotBeNull();
+            generator!.Seed.Should().Be(1337UL);
+            generator.Structures.Rules.PlacementReachTiles.Should().Be(7, "the generator plans with the synced structures.json");
+        }
+    }
+
+    [Fact]
     public async Task ApplyConfigCatalog_ServerChangedStructuresJson_ClientUsesTheServersReachAndFootprint()
     {
         MultiplayerSession session = this.NewSession();

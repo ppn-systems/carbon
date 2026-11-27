@@ -1,7 +1,7 @@
 # ADR-026: Server-Secret Gameplay Entropy with Rotating Epoch Keys
 
 - **Date**: 2026-11-27
-- **Status**: Proposed
+- **Status**: Accepted
 - **Scope**: `engine/Carbon.Primitives` (Random), `engine/Carbon.Economy` (Enhancement, Loot, Trading, Simulation),
   `engine/Carbon.Items` (Progression), `engine/Carbon.Survival`, `engine/Carbon.Creatures`, `server/Carbon.Application`
   (World, Entropy), `server/Carbon.Abstractions` / `server/Carbon.Infrastructure` (persistence), `server/Carbon.Host`
