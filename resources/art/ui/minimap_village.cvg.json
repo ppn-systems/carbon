@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "itemId": 0,
+  "id": "minimap_village",
+  "displayName": "Village",
+  "tier": 1,
+  "categoryLabel": "Minimap",
+  "accentColor": "#F5E6C8",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.7,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -7,
+          -1
+        ],
+        [
+          0,
+          -7.5
+        ],
+        [
+          7,
+          -1
+        ]
+      ],
+      "color": "#C2410C",
+      "outlineColor": "#431407",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -5.5,
+          -1
+        ],
+        [
+          5.5,
+          -1
+        ],
+        [
+          5.5,
+          6.5
+        ],
+        [
+          -5.5,
+          6.5
+        ]
+      ],
+      "color": "#F5E6C8",
+      "outlineColor": "#431407",
+      "outlineThickness": 1.2
+    },
+    {
+      "kind": "polygon",
+      "bone": "root",
+      "facing": "any",
+      "points": [
+        [
+          -1.6,
+          6.5
+        ],
+        [
+          -1.6,
+          2
+        ],
+        [
+          1.6,
+          2
+        ],
+        [
+          1.6,
+          6.5
+        ]
+      ],
+      "color": "#7C2D12"
+    }
+  ]
+}

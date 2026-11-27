@@ -4,7 +4,7 @@
   "id": "shallow_water",
   "displayName": "Shallow Water",
   "groundColor": "#389BB8",
-  "minimapColor": "#266DA8",
+  "minimapColor": "#2E7DC0",
   "cliffBase": "#464C52",
   "cliffStrata": "#363B41",
   "cliffHighlight": "#A5ACB4E6",
