@@ -142,9 +142,12 @@ public sealed partial class MultiplayerSession
 
         if (activeSlot.Quantity > 0 && hasArchetype && archetype is { Category: ItemCategory.Placeable or ItemCategory.Tool })
         {
-            float distSq = Vector2.DistanceSquared(this.LocalPlayerInterpolatedPosition, aimWorldPosition);
-            float maxDist = archetype.Category == ItemCategory.Placeable ? this.BuildReachTiles * _tileSize : 56f;
-            if (distSq <= (maxDist * maxDist))
+            Vector2 playerPos = this.LocalPlayerInterpolatedPosition;
+            float buildReach = this.BuildReachTiles * _tileSize;
+            bool inReach = archetype.Category == ItemCategory.Placeable
+                ? Vector2.DistanceSquared(playerPos, aimWorldPosition) <= buildReach * buildReach
+                : IsToolStrikeInReach(playerPos, aimWorldPosition, _tileSize);
+            if (inReach)
             {
                 int aimTx = (int)MathF.Floor(aimWorldPosition.X / _tileSize);
                 int aimTy = (int)MathF.Floor(aimWorldPosition.Y / _tileSize);
@@ -155,6 +158,14 @@ public sealed partial class MultiplayerSession
 
         return false;
     }
+
+    /// <summary>
+    /// Returns whether a tool swing aimed at <paramref name="aimWorldPosition"/> reaches the aimed tile, measured as the
+    /// server measures it (<see cref="ToolReach"/>: player centre to tile centre), so the client never predicts a strike
+    /// the server refuses.
+    /// </summary>
+    internal static bool IsToolStrikeInReach(Vector2 playerPos, Vector2 aimWorldPosition, float tileSize) =>
+        ToolReach.IsWithin(playerPos, (int)MathF.Floor(aimWorldPosition.X / tileSize), (int)MathF.Floor(aimWorldPosition.Y / tileSize), tileSize);
 
     /// <inheritdoc/>
     public bool TryCastSkill(ushort skillId, Vector2 aimWorldPosition)

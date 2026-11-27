@@ -38,9 +38,6 @@ internal readonly record struct PropStrikeResult(bool Damaged, MapProp Prop, uin
 /// </summary>
 internal sealed class PropHarvestService
 {
-    /// <summary>Reach of a tool swing, center of the player to center of the tile.</summary>
-    public const float ToolHarvestRangePx = 52f;
-
     private readonly WorldSimulation _simulation;
     private readonly ChunkWorld2D _chunkWorld;
     private readonly float _tileSize;
@@ -89,12 +86,8 @@ internal sealed class PropHarvestService
         _grantHarvestExperience = grantHarvestExperience ?? throw new ArgumentNullException(nameof(grantHarvestExperience));
     }
 
-    /// <summary>Gets whether the tile's center is within a tool swing of <paramref name="playerPos"/>.</summary>
-    public bool IsWithinHarvestRange(Vector2 playerPos, int tileX, int tileY)
-    {
-        Vector2 tileCenter = new((tileX + 0.5f) * _tileSize, (tileY + 0.5f) * _tileSize);
-        return Vector2.DistanceSquared(playerPos, tileCenter) <= (ToolHarvestRangePx * ToolHarvestRangePx);
-    }
+    /// <summary>Gets whether the tile's center is within a tool swing of <paramref name="playerPos"/> (<see cref="ToolReach"/>).</summary>
+    public bool IsWithinHarvestRange(Vector2 playerPos, int tileX, int tileY) => ToolReach.IsWithin(playerPos, tileX, tileY, _tileSize);
 
     /// <summary>Gets the delta revision of the chunk holding the tile (0 when unmodified).</summary>
     public uint ChunkRevision(int tileX, int tileY) =>
