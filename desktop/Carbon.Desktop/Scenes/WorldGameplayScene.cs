@@ -101,6 +101,9 @@ public sealed class WorldGameplayScene : GameScene
         _worldToScreen = world => _camera.WorldToScreen(in world);
     }
 
+    /// <summary>Gets the HUD's window state (tests).</summary>
+    internal HudUiState HudState => _hudState;
+
     /// <inheritdoc/>
     public override void Load(SceneContext context)
     {
