@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Numerics;
 using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Desktop.Rendering.World;
@@ -13,19 +12,12 @@ using Carbon.Maps.Generators;
 using Carbon.Maps.Streaming;
 using FluentAssertions;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Carbon.Desktop.Tests;
 
-public sealed class TerrainBakeTests(ITestOutputHelper output)
+public sealed class TerrainBakeTests
 {
     private const ulong Seed = 1337UL;
-
-    private static readonly BiomeType[] s_benchBiomes =
-    [
-        BiomeType.LushPlains, BiomeType.AncientForest, BiomeType.TropicalJungle, BiomeType.MistySwamp,
-        BiomeType.DuneDesert, BiomeType.RedMesa, BiomeType.BeachSand, BiomeType.FrozenTundra, BiomeType.ShallowWater,
-    ];
 
     [Fact]
     public void BakeChunkGeometry_SameChunkTwice_ProducesIdenticalGeometry()
@@ -85,61 +77,6 @@ public sealed class TerrainBakeTests(ITestOutputHelper output)
                 }
             }
         }
-    }
-
-    // Reports the CPU cost of a chunk bake per biome (run with --logger "console;verbosity=detailed").
-    [Fact]
-    public void BakeChunkGeometry_RepresentativeBiomes_ReportsBakeCost()
-    {
-        CarbonVectorArtLibrary art = LoadArt();
-        ProceduralWorldGenerator generator = new(Seed);
-        ChunkWorld2D world = new(generator);
-        ChunkMeshBuilder builder = new();
-        ChunkGeometryBaker baker = new();
-        (int sx, int sy) = generator.SpawnTile;
-
-        List<(BiomeType Biome, Chunk2D Chunk)> chunks = [];
-        foreach (BiomeType biome in s_benchBiomes)
-        {
-            if (BiomeLocator.TryFind(generator, biome, sx, sy, 2400, out int bx, out int by))
-            {
-                chunks.Add((biome, StreamAround(world, (bx, by))));
-            }
-        }
-
-        // Let tiered JIT promote every bake path to optimized code first, as it is after a minute of play.
-        for (int i = 0; i < 40; i++)
-        {
-            foreach ((BiomeType _, Chunk2D chunk) in chunks)
-            {
-                builder.Clear();
-                baker.Bake(builder, chunk, world, art);
-            }
-        }
-
-        double totalMs = 0d;
-        long totalVertices = 0;
-        int bakes = 0;
-        foreach ((BiomeType biome, Chunk2D chunk) in chunks)
-        {
-            // The minimum of many runs filters out noise from other processes sharing the machine.
-            double ms = double.MaxValue;
-            for (int i = 0; i < 25; i++)
-            {
-                builder.Clear();
-                long start = Stopwatch.GetTimestamp();
-                baker.Bake(builder, chunk, world, art);
-                ms = Math.Min(ms, Stopwatch.GetElapsedTime(start).TotalMilliseconds);
-            }
-
-            output.WriteLine($"{biome,-16} {ms,6:F2} ms  {builder.VertexCount,6} vertices");
-            totalMs += ms;
-            totalVertices += builder.VertexCount;
-            bakes++;
-        }
-
-        bakes.Should().BeGreaterThan(0);
-        output.WriteLine($"{"average",-16} {totalMs / bakes,6:F2} ms  {totalVertices / bakes,6} vertices");
     }
 
     private sealed record RippleSpotList(IReadOnlyList<ChunkTerrainRenderer.RippleSpot> Source)
