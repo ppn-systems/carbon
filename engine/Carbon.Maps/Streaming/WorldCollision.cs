@@ -3,6 +3,7 @@
 using System;
 using System.Numerics;
 using Carbon.Maps.Data;
+using Carbon.Maps.Hydrology;
 using Carbon.Maps.Landmarks;
 using Carbon.Maps.Props;
 using Carbon.Physics.Obstacles;
@@ -93,7 +94,19 @@ internal sealed class WorldCollision
     /// <param name="radius">Entity collision radius.</param>
     /// <param name="pushNormal">Combined surface push normal if a collision occurred; otherwise Vector2.Zero.</param>
     /// <returns>True if a collision was resolved; otherwise false.</returns>
-    public bool Resolve(ref Vector2 position, float radius, out Vector2 pushNormal)
+    public bool Resolve(ref Vector2 position, float radius, out Vector2 pushNormal) =>
+        this.Resolve(ref position, radius, canSwim: false, out pushNormal);
+
+    /// <summary>
+    /// Resolves a circle against the terrain; a swimmer (<paramref name="canSwim"/>) passes through deep water, which
+    /// blocks everything else (ADR-032 D10). Cliffs and height steps still block swimmers.
+    /// </summary>
+    /// <param name="position">Entity position in world coordinates, modified in place to slide around obstacles.</param>
+    /// <param name="radius">Entity collision radius.</param>
+    /// <param name="canSwim">Whether the entity can swim and dive.</param>
+    /// <param name="pushNormal">Combined surface push normal if a collision occurred; otherwise Vector2.Zero.</param>
+    /// <returns>True if a collision was resolved; otherwise false.</returns>
+    public bool Resolve(ref Vector2 position, float radius, bool canSwim, out Vector2 pushNormal)
     {
         pushNormal = Vector2.Zero;
         bool collided = false;
@@ -113,11 +126,12 @@ internal sealed class WorldCollision
             {
                 MapTile tile = _world.PeekTileAtWorld(tx, ty);
                 bool hasDeck = _world.IsBridgeAtWorld(tx, ty) || _world.Generator.Landmarks.IsWalkablePierTile(tx, ty);
-                bool isImpassable = !hasDeck && tile.IsSolid;
+                bool swimsHere = canSwim && WaterWading.IsWater(tile.Biome);
+                bool isImpassable = !hasDeck && tile.IsSolid && !swimsHere;
 
                 if (!isImpassable && !hasDeck && (tx != currentTileX || ty != currentTileY))
                 {
-                    if (!_world.NavGrid.CanTraverse(currentTileX, currentTileY, tx, ty, includeLandmarks: false))
+                    if (!_world.NavGrid.CanTraverse(currentTileX, currentTileY, tx, ty, includeLandmarks: false, canSwim))
                     {
                         isImpassable = true;
                     }

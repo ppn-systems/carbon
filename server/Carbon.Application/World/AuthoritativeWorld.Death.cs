@@ -117,6 +117,7 @@ public sealed partial class AuthoritativeWorld
         }
 
         state.IsDead = false;
+        state.OxygenSeconds = float.NaN; // a full breath at the sanctuary
         this.ResetNeedsAfterDeathLocked(state);
         state.CurrentMana = state.Stats.MaxMana;
         state.Stamina.Refill(state.Stats.MaxStamina);

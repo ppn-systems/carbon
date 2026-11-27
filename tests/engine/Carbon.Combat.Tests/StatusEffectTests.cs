@@ -186,13 +186,18 @@ public sealed class StatusEffectTests
     [Fact]
     public void LoadShippedDefaults_HasTheAdrEffectsAndRules()
     {
-        s_shipped.Effects.Should().HaveCount(9);
+        s_shipped.Effects.Should().HaveCount(10);
         s_shipped.HeavyHitEffect!.Key.Should().Be("stunned");
         s_shipped.HeavyHitMinDamageFraction.Should().Be(0.25f);
         s_shipped.RestedEffect!.Key.Should().Be("rested");
         s_shipped.GetDerived(StatusDerivation.Tired)!.MaxStacks.Should().Be(3);
         s_shipped.TryGetByKey("well_fed", out StatusEffectDefinition wellFed).Should().BeTrue();
         wellFed.HealthRegenMultiplier.Should().Be(1.5f);
+
+        // ADR-032: drowning kills, and nothing heals a player while it lasts.
+        s_shipped.TryGetByKey("drowning", out StatusEffectDefinition drowning).Should().BeTrue();
+        drowning.Lethal.Should().BeTrue();
+        drowning.HealthRegenMultiplier.Should().Be(0f);
     }
 
     private static ActiveStatusEffect Create(string key)

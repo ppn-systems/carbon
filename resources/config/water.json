@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "speed": { "shore": 0.8, "shallow": 0.6, "medium": 0.5, "deep": 0.45, "abyss": 0.4 },
+  "oxygen": {
+    "maxSeconds": 30,
+    "drainPerSecond": { "deep": 1.0, "abyss": 1.5 },
+    "refillPerSecond": 10,
+    "drowningEffect": "drowning"
+  }
+}

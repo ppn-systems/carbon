@@ -23,6 +23,7 @@ namespace Carbon.Maps.Streaming;
 /// </summary>
 public sealed class ChunkWorld2D : IWorldPhysics2D
 {
+    private WaterRules _waterRules = WaterRules.Default;
     private readonly ProceduralWorldGenerator _generator;
     private readonly float _tileSize;
     private readonly float _frequency;
@@ -60,6 +61,16 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     /// Gets the physical dimension of each tile in world units.
     /// </summary>
     public float TileSize => _tileSize;
+
+    /// <summary>
+    /// Gets or sets the water movement and oxygen rules (<c>water.json</c>, ADR-032). The server and the client set
+    /// them from the same synced document, so prediction moves swimmers at the server's speed.
+    /// </summary>
+    public WaterRules WaterRules
+    {
+        get => _waterRules;
+        set => _waterRules = value ?? throw new ArgumentNullException(nameof(value));
+    }
 
     /// <summary>
     /// Gets the world spawn coordinate vector located on safe, natural starter land.
@@ -544,13 +555,60 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
             return 0f;
         }
 
-        if (tile.Biome == BiomeType.ShallowWater)
+        if (WaterWading.IsWater(tile.Biome))
         {
-            return WaterWading.SpeedMultiplier(this.GetWaterDepth(worldPosition));
+            // Wading, swimming and diving slow with depth (water.json, ADR-032 D10), blended across tiles.
+            return this.WaterRules.SpeedAtDepth(this.GetWaterDepthAt(worldPosition));
         }
 
         return tile.MoveSpeedMultiplier;
     }
+
+    /// <summary>
+    /// Gets the water depth (<see cref="WaterDepth"/>) at a position, blended bilinearly between the four nearest tile
+    /// centres so it changes smoothly inside a tile. Dry land, bridges and piers report 0. Allocation-free.
+    /// </summary>
+    /// <param name="worldPosition">Position in world units.</param>
+    /// <returns>The depth; 0 out of the water.</returns>
+    public float GetWaterDepthAt(Vector2 worldPosition)
+    {
+        int tx = (int)MathF.Floor(worldPosition.X / _tileSize);
+        int ty = (int)MathF.Floor(worldPosition.Y / _tileSize);
+        if (!WaterWading.IsWater(this.PeekTileAtWorld(tx, ty).Biome) || this.IsDeckAtWorld(tx, ty))
+        {
+            return 0f;
+        }
+
+        float u = (worldPosition.X / _tileSize) - 0.5f;
+        float v = (worldPosition.Y / _tileSize) - 0.5f;
+        int x0 = (int)MathF.Floor(u);
+        int y0 = (int)MathF.Floor(v);
+        float fx = u - x0;
+        float fy = v - y0;
+        float top = WaterDepth.Of(this.PeekTileAtWorld(x0, y0)) +
+            ((WaterDepth.Of(this.PeekTileAtWorld(x0 + 1, y0)) - WaterDepth.Of(this.PeekTileAtWorld(x0, y0))) * fx);
+        float bottom = WaterDepth.Of(this.PeekTileAtWorld(x0, y0 + 1)) +
+            ((WaterDepth.Of(this.PeekTileAtWorld(x0 + 1, y0 + 1)) - WaterDepth.Of(this.PeekTileAtWorld(x0, y0 + 1))) * fx);
+        return MathF.Max(top + ((bottom - top) * fy), WaterDepth.MinDepth);
+    }
+
+    /// <summary>Gets the depth tier of the water tile under a position: <see cref="WaterDepthTier.Dry"/> on land, bridges and piers.</summary>
+    /// <param name="worldPosition">Position in world units.</param>
+    /// <returns>The tier.</returns>
+    public WaterDepthTier GetWaterTierAt(Vector2 worldPosition)
+    {
+        int tx = (int)MathF.Floor(worldPosition.X / _tileSize);
+        int ty = (int)MathF.Floor(worldPosition.Y / _tileSize);
+        return this.IsDeckAtWorld(tx, ty) ? WaterDepthTier.Dry : WaterDepth.TierOf(this.PeekTileAtWorld(tx, ty));
+    }
+
+    /// <summary>Gets how a player moves at a position: walking, wading, swimming or diving (ADR-032 D10).</summary>
+    /// <param name="worldPosition">Position in world units.</param>
+    /// <returns>The swim state.</returns>
+    public SwimState GetSwimStateAt(Vector2 worldPosition) => WaterRules.SwimStateOf(this.GetWaterTierAt(worldPosition));
+
+    private bool IsDeckAtWorld(int worldTileX, int worldTileY) =>
+        this.IsBridgeAtWorld(worldTileX, worldTileY) || _generator.Landmarks.IsWalkablePierTile(worldTileX, worldTileY);
 
     /// <summary>
     /// Gets the normalized wading depth of shallow water at <paramref name="worldPosition"/> (see <see cref="WaterWading"/>).
@@ -612,6 +670,10 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     /// <inheritdoc/>
     public bool ResolveCircleCollision(ref Vector2 position, float radius, out Vector2 pushNormal) =>
         this.ResolveEntityCollision(ref position, radius, out pushNormal);
+
+    /// <inheritdoc/>
+    public bool ResolveCircleCollision(ref Vector2 position, float radius, uint terrainMask, out Vector2 pushNormal) =>
+        _collision.Resolve(ref position, radius, TerrainMask.CanSwim(terrainMask), out pushNormal);
 
     /// <inheritdoc/>
     public bool ResolveAabbCollision(ref Vector2 position, in AABB2D localBox, out Vector2 pushNormal) =>

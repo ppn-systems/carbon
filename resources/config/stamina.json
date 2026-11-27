@@ -1,5 +1,6 @@
 {
   "sprintDrainPerSecond": 16,
+  "swimDrainPerSecond": 5,
   "regenDelaySeconds": 1.75,
   "regenPerSecondStill": 6,
   "regenPerSecondMoving": 3,

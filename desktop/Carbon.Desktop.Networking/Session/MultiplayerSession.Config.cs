@@ -47,5 +47,9 @@ public sealed partial class MultiplayerSession
             _statusEffectDefinitions = statusEffects;
         }
         _ = _staminaConfig.Apply(catalog);
+        if (_waterRules.Apply(catalog) && _chunkWorld is not null)
+        {
+            _chunkWorld.WaterRules = _waterRules.Current;
+        }
     }
 }
