@@ -25,6 +25,9 @@
   },
   "itemSwingCosts": {
     "wood_axe": 8,
+    "wood_pickaxe": 8,
+    "wood_sword": 6,
+    "stone_axe": 9,
     "iron_axe": 10,
     "stone_pickaxe": 10,
     "crystal_pickaxe": 12,

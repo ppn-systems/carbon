@@ -484,6 +484,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
             InventoryContainer inventory = new(PlayerInventoryCapacity);
             character = CharacterPersistence.LoadInventory(character, inventory);
+            _ = CharacterPersistence.ClampDurability(_itemRules, inventory);
 
             ushort startLevel = (ushort)Math.Min(Math.Max(Math.Max((ushort)1, character.Level), _debugStartLevel), _progressionService.Config.MaxLevel);
             byte selectedSlot = character.SelectedHotbarSlot < PlayerInventoryLayout.HotbarCount ? character.SelectedHotbarSlot : (byte)0;
