@@ -64,6 +64,18 @@ internal static class StatusEffectStripLayout
     }
 
     /// <summary>
+    /// Gets the hover tooltip box: under the strip and right-aligned to the left edge of the clock and minimap column, so
+    /// the column's own text never draws over it.
+    /// </summary>
+    public static RectangleF Tooltip(float width, int viewportWidth)
+    {
+        RectangleF strip = HudLayout.GetStatusStripRect(viewportWidth);
+        RectangleF column = HudLayout.GetClockRect(viewportWidth);
+        float x = MathF.Max(8f, column.X - PanelGap - width);
+        return new RectangleF(x, strip.Y + strip.Height + HudLayout.Gap, width, 26f);
+    }
+
+    /// <summary>
     /// Gets the details panel rectangle: under the strip, to the left of the clock and minimap column, and below the
     /// top-centre target card when a narrow window would make them meet.
     /// </summary>

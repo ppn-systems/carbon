@@ -50,6 +50,8 @@ internal sealed class StatusEffectStripWidget
     private int _count;
     private int _hovered = -1;
     private RectangleF _panel;
+    private RectangleF _tooltipBox;
+    private string? _tooltipText;
     private float _descriptionHeight;
 
     /// <summary>Gets the effect id whose details panel is open, or 0.</summary>
@@ -115,6 +117,7 @@ internal sealed class StatusEffectStripWidget
         _count = Math.Min(effects.Count, Math.Min(MaxIcons, StatusEffectStripLayout.Capacity(viewportWidth)));
         _hovered = mouse is Vector2 m ? StatusEffectStripLayout.HitTest(m, _count, viewportWidth) : -1;
         _panelLines.Clear();
+        this.PrepareTooltip(world, font, effects, viewportWidth);
         if (!this.IsPanelOpen)
         {
             return;
@@ -166,6 +169,10 @@ internal sealed class StatusEffectStripWidget
         if (this.IsPanelOpen)
         {
             skin.DrawCard(spriteBatch, _panel, CarbonUiPalette.BorderOuter, bodyAlpha: 240);
+        }
+        else if (_tooltipText is not null)
+        {
+            skin.DrawInset(spriteBatch, _tooltipBox, CarbonUiPalette.WindowFill, CarbonUiPalette.BorderOuter);
         }
     }
 
@@ -225,10 +232,9 @@ internal sealed class StatusEffectStripWidget
             }
         }
 
-        if (_hovered >= 0 && _hovered < count && !this.IsPanelOpen &&
-            catalog.TryGet(effects[_hovered].EffectId, out StatusEffectDefinition hovered))
+        if (!this.IsPanelOpen && _tooltipText is not null)
         {
-            this.DrawTooltip(spriteBatch, font, effects[_hovered], hovered, viewportWidth);
+            spriteBatch.DrawOutlinedString(font, _tooltipText, new Vector2(_tooltipBox.X + 8f, _tooltipBox.Y + 5f), CarbonUiPalette.TextPrimary, outline, 1, 1f);
         }
 
         if (this.IsPanelOpen && catalog.TryGet(this.SelectedEffectId, out StatusEffectDefinition def))
@@ -339,16 +345,26 @@ internal sealed class StatusEffectStripWidget
         return -1;
     }
 
-    private void DrawTooltip(SpriteBatch spriteBatch, BitmapFont font, in LocalStatusEffect effect, StatusEffectDefinition def, int viewportWidth)
+    /// <summary>
+    /// Lays out the hover tooltip in a backed box next to the clock and minimap column (see
+    /// <see cref="StatusEffectStripLayout.Tooltip"/>).
+    /// </summary>
+    private void PrepareTooltip(IWorldReadModel world, BitmapFont font, IReadOnlyList<LocalStatusEffect> effects, int viewportWidth)
     {
+        _tooltipText = null;
+        if (_hovered < 0 || _hovered >= effects.Count || this.IsPanelOpen ||
+            !world.StatusEffectDefinitions.TryGet(effects[_hovered].EffectId, out StatusEffectDefinition def))
+        {
+            return;
+        }
+
+        LocalStatusEffect effect = effects[_hovered];
         string name = _names.Text(def.Key, def.Key);
-        string text = effect.IsTimed
+        _tooltipText = effect.IsTimed
             ? _tooltip.Format("status_effects.tooltip", new TextArg("name", name), new TextArg("time", FormatTime(_tooltipTime, effect.RemainingSeconds)))
             : _tooltip.Format("status_effects.tooltip_untimed", new TextArg("name", name));
-        RectangleF icon = StatusEffectStripLayout.Icon(_hovered, viewportWidth);
-        float width = font.MeasureString(text, TextLayoutOptions.Default, 1f).Width;
-        float x = MathF.Max(8f, MathF.Min(icon.X, viewportWidth - width - 12f));
-        spriteBatch.DrawOutlinedString(font, text, new Vector2(x, icon.Y + icon.Height + 6f), CarbonUiPalette.TextPrimary, CarbonUiPalette.TextOutline, 2, 1f);
+        float width = font.MeasureString(_tooltipText, TextLayoutOptions.Default, 1f).Width + 16f;
+        _tooltipBox = StatusEffectStripLayout.Tooltip(width, viewportWidth);
     }
 
     private void DrawPanelText(SpriteBatch spriteBatch, BitmapFont font, StatusEffectDefinition def)

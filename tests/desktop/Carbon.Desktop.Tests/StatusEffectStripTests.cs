@@ -70,6 +70,22 @@ public sealed class StatusEffectStripTests
         Overlaps(panel, HudLayout.GetMinimapFrameRect(width)).Should().BeFalse("so does the minimap");
     }
 
+    [Theory]
+    [InlineData(1280)]
+    [InlineData(1920)]
+    [InlineData(1024)]
+    public void Tooltip_SitsUnderTheStripLeftOfTheColumnAndClearOfTheTargetCard(int width)
+    {
+        RectangleF tooltip = StatusEffectStripLayout.Tooltip(120f, width);
+        RectangleF targetCard = new(System.MathF.Floor((width - 340f) * 0.5f), 14f, 340f, 74f);
+
+        (tooltip.X + tooltip.Width).Should().Be(HudLayout.GetClockRect(width).X - 8f);
+        tooltip.Y.Should().Be(54f);
+        Overlaps(tooltip, HudLayout.GetClockRect(width)).Should().BeFalse("the clock's text would draw over the tooltip");
+        Overlaps(tooltip, HudLayout.GetMinimapFrameRect(width)).Should().BeFalse();
+        Overlaps(tooltip, targetCard).Should().BeFalse();
+    }
+
     [Fact]
     public void HitTest_NarrowWindow_OnlyIconsThatFitAreClickable()
     {
