@@ -58,7 +58,8 @@ public sealed class ConfigSyncLiveTests
             SqliteCharacterStore characters = new(dbFactory);
             using AuthService authService = new(accounts, characters, new Pbkdf2PasswordHasher());
             SessionTransportRegistry transportRegistry = new();
-            WorldOutboundSink outboundSink = new(transportRegistry, NullLogger<WorldOutboundSink>.Instance);
+            using PacketPool outboundPackets = new();
+            WorldOutboundSink outboundSink = new(transportRegistry, NullLogger<WorldOutboundSink>.Instance, outboundPackets);
             HostRuntimeOptions hostOptions = new() { WebSocketPort = 0, TcpPort = tcpPort, UdpPort = udpPort };
             AuthoritativeWorld world = new(
                 hostOptions.WorldSeed,
