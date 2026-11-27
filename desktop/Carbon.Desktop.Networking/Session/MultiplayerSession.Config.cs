@@ -46,5 +46,6 @@ public sealed partial class MultiplayerSession
         {
             _statusEffectDefinitions = statusEffects;
         }
+        _ = _staminaConfig.Apply(catalog);
     }
 }

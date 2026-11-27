@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 using Carbon.Contracts.Entities;
@@ -271,7 +272,9 @@ internal sealed class HotbarAndItemWidget
         // Stamina bar
         float staX = mpX + barW + segGap;
         float staRatio = Math.Clamp(world.LocalPlayerStamina / MathF.Max(1f, world.LocalPlayerMaxStamina), 0f, 1f);
-        DrawMeterGeometry(batch, new RectangleF(staX, barsY, barW, barH), staRatio, staRatio, CarbonUiPalette.StaminaFill);
+        RectangleF staRect = new(staX, barsY, barW, barH);
+        DrawMeterGeometry(batch, staRect, staRatio, staRatio, world.LocalPlayerStaminaExhausted ? CarbonUiPalette.StaminaExhaustedFill : CarbonUiPalette.StaminaFill);
+        DrawStaminaCues(batch, staRect, world.LocalPlayerStaminaExhausted, world.LocalPlayerStaminaFlash);
 
         // Hunger bar (food meter) with a thin meal-progress strip while eating
         float foodX = staX + barW + segGap;
@@ -309,6 +312,29 @@ internal sealed class HotbarAndItemWidget
         }
 
         batch.DrawRectangle(xpTrack, CarbonUiPalette.BorderSubtle, 1f);
+    }
+
+    /// <summary>
+    /// ADR-033 cues on the stamina bar: a slow breathing pulse while exhausted, and a red flash that fades after a refused
+    /// action.
+    /// </summary>
+    private static void DrawStaminaCues(GeometryBatch batch, in RectangleF rect, bool exhausted, float flash)
+    {
+        if (exhausted)
+        {
+            // About one breath every 1.6 s.
+            double seconds = Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
+            float breath = 0.5f + (0.5f * MathF.Sin((float)(seconds * Math.Tau / 1.6)));
+            batch.FillRectangle(rect, new ColorRgba(0, 0, 0, (byte)(40f + (70f * breath))));
+        }
+
+        if (flash > 0f)
+        {
+            ColorRgba red = CarbonUiPalette.StaminaRefusedFlash;
+            byte alpha = (byte)(200f * Math.Clamp(flash, 0f, 1f));
+            batch.FillRectangle(rect, new ColorRgba(red.R, red.G, red.B, alpha));
+            batch.DrawRectangle(rect, new ColorRgba(255, 230, 220, alpha), 2f);
+        }
     }
 
     private static void DrawMeterGeometry(
@@ -375,7 +401,7 @@ internal sealed class HotbarAndItemWidget
         float staX = mpX + barW + segGap;
         Span<char> staBuffer = stackalloc char[24];
         _ = staBuffer.TryWrite($"{(int)MathF.Floor(world.LocalPlayerStamina)}/{(int)MathF.Ceiling(world.LocalPlayerMaxStamina)}", out int staTextLength);
-        ReadOnlySpan<char> staText = staBuffer[..staTextLength];
+        ReadOnlySpan<char> staText = world.LocalPlayerStaminaExhausted ? GameText.Get("stamina.exhausted") : staBuffer[..staTextLength];
         CarbonUiSkin.DrawCenteredText(spriteBatch, font, staText, new RectangleF(staX, barsY, barW, barH), CarbonUiPalette.TextPrimary, black, 1f);
 
         float foodX = staX + barW + segGap;

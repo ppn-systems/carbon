@@ -15,6 +15,12 @@ namespace Carbon.Maps.Hydrology;
 /// High-throughput, zero-LOH deterministic river, estuary, and lake network for an infinite world.
 /// Uses coarse D8 flow routing over priority-flooded relief backed by shared pooled buffers.
 /// </summary>
+/// <remarks>
+/// Per 512-tile region it stores, for every tile, the width-scaled distance to the nearest river or lake and the
+/// depth of that water, plus a coarse distance-to-coast field the sea depth is read from (ADR-032). Rivers widen
+/// with the number of springs upstream, are as deep as they are wide, and always end in the sea, in a lake or in
+/// another river.
+/// </remarks>
 internal sealed class RiverNetwork : IRiverDistanceSource
 {
     /// <summary>Region edge in tiles.</summary>
@@ -40,13 +46,34 @@ internal sealed class RiverNetwork : IRiverDistanceSource
 
     private const float Quantum = 16f;
     private const byte FarAway = 255;
-    private const float MaxStoredDistance = (FarAway - 1) / Quantum;
+    // Rivers and lakes are stamped out to this width-scaled distance: past every threshold a reader uses (harbours
+    // look within 12, the riparian valley ends at 10). Farther tiles read as far from any river.
+    private const float MaxStampedDistance = 12.5f;
 
     private const int MaxCachedRegions = 128;
     private const int MaxCachedBlocks = 640;
 
     private const int EstuaryCells = 3;
-    private const float MaxChannelScale = 5f;
+
+    // Polyline pieces per cell-to-cell stretch of river.
+    private const int CurveSteps = 6;
+
+    // Channel half-width in tiles: BaseHalfWidth + HalfWidthPerSqrtFlow * sqrt(springs upstream), at most MaxHalfWidth.
+    private const float BaseHalfWidth = 2.2f;
+    private const float HalfWidthPerSqrtFlow = 1.7f;
+    private const float MaxHalfWidth = 18f;
+
+    // The pool a river ends in (when it reaches neither the sea nor another river) is at least this wide.
+    private const float MinPoolRadius = 6f;
+
+    // Beyond the water, banks are measured in widths of at most this many (old widest river): wide rivers do not
+    // carve proportionally wider valleys.
+    private const float MinBankScale = 0.85f;
+    private const float MaxBankScale = 2.6f;
+
+    // Coast distance: cells of apron around the region (beyond it the distance is capped), in 16-tile cells.
+    private const int CoastApronCells = 16;
+    private const int CoastCellsPerSide = (RegionSize / Cell) + 2;
     private const int FillApron = 384;
     private const int BlockCells = 64;
     private const float FillEpsilon = 1e-5f;
@@ -64,7 +91,7 @@ internal sealed class RiverNetwork : IRiverDistanceSource
     private const float ShoreWarpFrequency = 1f / 37f;
     private const int MaxLakeRadiusCells = 24;
 
-    private readonly record struct RegionData(byte[] DistanceField, byte[] DeepMask);
+    private readonly record struct RegionData(byte[] DistanceField, byte[] DepthField, float[] CoastDistance);
 
     private readonly record struct CacheKey(ulong Seed, int FreqBits, int X, int Y);
 
@@ -101,15 +128,40 @@ internal sealed class RiverNetwork : IRiverDistanceSource
         this.GetDistance(worldX, worldY, out _);
 
     /// <inheritdoc/>
-    public float GetDistance(int worldX, int worldY, out bool isDeepChannel)
+    public float GetDistance(int worldX, int worldY, out float waterDepth)
     {
         int rx = FloorDiv(worldX, RegionSize);
         int ry = FloorDiv(worldY, RegionSize);
         RegionData data = this.GetRegion(rx, ry);
         int index = ((worldY - (ry * RegionSize)) * RegionSize) + (worldX - (rx * RegionSize));
         byte q = data.DistanceField[index];
-        isDeepChannel = q < FarAway && (data.DeepMask[index >> 3] & (1 << (index & 7))) != 0;
-        return q == FarAway ? float.MaxValue : q / Quantum;
+        float distance = q == FarAway ? float.MaxValue : q / Quantum;
+        waterDepth = distance <= WorldConstants.RiverChannel
+            ? MathF.Max(data.DepthField[index] * (WaterDepth.MaxInlandDepth / 255f), WaterDepth.MinDepth)
+            : 0f;
+        return distance;
+    }
+
+    /// <inheritdoc/>
+    public float GetCoastDistance(int worldX, int worldY)
+    {
+        int rx = FloorDiv(worldX, RegionSize);
+        int ry = FloorDiv(worldY, RegionSize);
+        float[] coast = this.GetRegion(rx, ry).CoastDistance;
+
+        // Cell c (relative to the region, starting one cell before it) is centred on tile (c - 1) * Cell + Cell / 2.
+        float u = ((worldX - (rx * RegionSize) + 0.5f - (Cell * 0.5f)) / Cell) + 1f;
+        float v = ((worldY - (ry * RegionSize) + 0.5f - (Cell * 0.5f)) / Cell) + 1f;
+        int cx = Math.Clamp((int)MathF.Floor(u), 0, CoastCellsPerSide - 2);
+        int cy = Math.Clamp((int)MathF.Floor(v), 0, CoastCellsPerSide - 2);
+        float fx = Math.Clamp(u - cx, 0f, 1f);
+        float fy = Math.Clamp(v - cy, 0f, 1f);
+        int i = (cy * CoastCellsPerSide) + cx;
+        float top = coast[i] + ((coast[i + 1] - coast[i]) * fx);
+        float bottom = coast[i + CoastCellsPerSide] + ((coast[i + CoastCellsPerSide + 1] - coast[i + CoastCellsPerSide]) * fx);
+
+        // Distances run between cell centres; the coast itself lies about half a cell out from the last land centre.
+        return MathF.Max(top + ((bottom - top) * fy) - (Cell * 0.5f), 0f);
     }
 
     /// <summary>
@@ -279,6 +331,7 @@ internal sealed class RiverNetwork : IRiverDistanceSource
         try
         {
             this.SampleGrid(gx0, gy0, g, relief);
+            float[] coast = BuildCoastDistance(relief, g, FloorDiv(x0, Cell) - gx0, FloorDiv(y0, Cell) - gy0);
             Fill(relief, filled, done, g, cellCount);
 
             Array.Clear(flow, 0, cellCount);
@@ -368,7 +421,7 @@ internal sealed class RiverNetwork : IRiverDistanceSource
             }
 
             byte[] field = new byte[RegionSize * RegionSize];
-            byte[] deepMask = new byte[RegionSize * RegionSize / 8];
+            byte[] depthField = new byte[RegionSize * RegionSize];
             Array.Fill(field, FarAway);
 
             for (int c = 0; c < cellCount; c++)
@@ -454,7 +507,14 @@ internal sealed class RiverNetwork : IRiverDistanceSource
                 }
             }
 
-            const int Steps = 6;
+            Span<float> curveX = stackalloc float[CurveSteps + 1];
+            Span<float> curveY = stackalloc float[CurveSteps + 1];
+
+            // Only stretches starting within this many cells of the region can reach into it (a stretch spans
+            // at most two cells, plus its widest reach); most of the routing grid lies outside the region.
+            const int StampCells = 2 + (int)((MaxHalfWidth + ((MaxStampedDistance - WorldConstants.RiverChannel) * MaxBankScale)) / Cell) + 1;
+            int regionCx = FloorDiv(x0, Cell) - gx0;
+            int regionCy = FloorDiv(y0, Cell) - gy0;
             for (int a = 0; a < cellCount; a++)
             {
                 int b = next[a];
@@ -463,39 +523,44 @@ internal sealed class RiverNetwork : IRiverDistanceSource
                     continue; // no channel inside a lake: the lake surface covers it
                 }
 
+                int acx = a % g;
+                int acy = a / g;
+                if (acx < regionCx - StampCells || acx > regionCx + (RegionSize / Cell) + StampCells ||
+                    acy < regionCy - StampCells || acy > regionCy + (RegionSize / Cell) + StampCells)
+                {
+                    continue;
+                }
+
                 int p0 = prev[a] >= 0 ? prev[a] : a;
                 int p3 = next[b] >= 0 ? next[b] : b;
                 (float x0p, float y0p) = this.CellPoint(p0, g, gx0, gy0);
                 (float ax, float ay) = this.CellPoint(a, g, gx0, gy0);
                 (float bx, float by) = this.CellPoint(b, g, gx0, gy0);
                 (float x3p, float y3p) = this.CellPoint(p3, g, gx0, gy0);
-                float wa = MathF.Min(Width(flow[a]) * mouth[a], MaxChannelScale);
-                float wb = MathF.Min(Width(flow[b]) * mouth[b], MaxChannelScale);
-                bool deepSegment = flow[a] >= 4 || mouth[a] > 1.2f || flow[b] >= 4 || mouth[b] > 1.2f;
+                float ha = HalfWidth(flow[a], mouth[a]);
+                float hb = HalfWidth(flow[b], mouth[b]);
 
-                float sx = ax;
-                float sy = ay;
-                for (int i = 1; i <= Steps; i++)
+                for (int i = 0; i <= CurveSteps; i++)
                 {
-                    float t = i / (float)Steps;
-                    float ex = CatmullRom(x0p, ax, bx, x3p, t);
-                    float ey = CatmullRom(y0p, ay, by, y3p, t);
-                    this.StampSegment(field, deepMask, x0, y0, sx, sy, ex, ey, wa + ((wb - wa) * (i - 1) / Steps), wa + ((wb - wa) * i / Steps), deepSegment);
-                    sx = ex;
-                    sy = ey;
+                    float t = i / (float)CurveSteps;
+                    curveX[i] = CatmullRom(x0p, ax, bx, x3p, t);
+                    curveY[i] = CatmullRom(y0p, ay, by, y3p, t);
                 }
+
+                this.StampCurve(field, depthField, x0, y0, curveX, curveY, ha, hb);
             }
 
-            this.StampLakeShores(field, x0, y0, gx0, gy0, g, cellCount, filled, relief, isLake);
+            this.StampLakeShores(field, depthField, x0, y0, gx0, gy0, g, cellCount, filled, relief, isLake);
 
             for (int i = 0; i < lakeEnds.Count; i++)
             {
                 int end = lakeEnds[i];
                 (float lx, float ly) = this.CellPoint(end, g, gx0, gy0);
-                StampLake(field, x0, y0, lx, ly, MathF.Min(3.0f + (1.4f * MathF.Sqrt(flow[end])), 14f));
+                // A pool clearly wider than the river that fills it.
+                StampLake(field, depthField, x0, y0, lx, ly, Math.Clamp(1.5f * HalfWidth(flow[end], 1f), MinPoolRadius, MaxHalfWidth));
             }
 
-            return new RegionData(field, deepMask);
+            return new RegionData(field, depthField, coast);
         }
         finally
         {
@@ -629,6 +694,8 @@ internal sealed class RiverNetwork : IRiverDistanceSource
 
             if (bestX < 0)
             {
+                // Nowhere lower to go (the edge of the routing window): pool here rather than stop dead on land.
+                endsInLake = true;
                 return;
             }
 
@@ -663,74 +730,148 @@ internal sealed class RiverNetwork : IRiverDistanceSource
         return 0.5f * ((2f * p1) + ((p2 - p0) * t) + (((2f * p0) - (5f * p1) + (4f * p2) - p3) * t2) + (((3f * p1) - p0 - (3f * p2) + p3) * t3));
     }
 
-    private static readonly float[] s_widths = Array.ConvertAll(
-        [
-            0x3F59999A, 0x3FA28F5C, 0x3FC201F1, 0x3FD851EC, 0x3FE9A079, 0x3FF7C481,
-            0x4001DC98, 0x40070A3E, 0x400B9B8A, 0x400FB184, 0x401363B8, 0x4016C388,
-            0x4019DE2A, 0x401CBDE0, 0x401F6ACF, 0x4021EB85, 0x40244560, 0x40266666,
-        ],
-        BitConverter.Int32BitsToSingle);
+    // Rivers widen downstream with the number of springs feeding them, and flare at the estuary.
+    private static float HalfWidth(int flow, float mouth) =>
+        MathF.Min((BaseHalfWidth + (HalfWidthPerSqrtFlow * MathF.Sqrt(Math.Max(flow, 1)))) * mouth, MaxHalfWidth);
 
-    private static float Width(int flow) => s_widths[Math.Clamp(flow, 1, s_widths.Length) - 1];
+    // Beyond the water's edge, distance is counted in bank widths, so the field keeps its old meaning
+    // (≤ RiverChannel is water, RiparianReach is the valley edge) and wide rivers keep natural banks.
+    private static float BankScale(float halfWidth) =>
+        Math.Clamp(halfWidth / WorldConstants.RiverChannel, MinBankScale, MaxBankScale);
 
-    private void StampSegment(
+    // Stamps one cell-to-cell stretch of river, a Catmull-Rom curve given as a polyline, in a single pass over its
+    // bounding box: each tile is measured against the nearest piece of the polyline (one box, not one per piece,
+    // which overlapped about sixfold). The half-width runs linearly from ha to hb along the stretch.
+    private void StampCurve(
         byte[] field,
-        byte[] deepMask,
+        byte[] depthField,
         int x0,
         int y0,
-        float ax,
-        float ay,
-        float bx,
-        float by,
-        float wa,
-        float wb,
-        bool allowDeepCore)
+        ReadOnlySpan<float> curveX,
+        ReadOnlySpan<float> curveY,
+        float ha,
+        float hb)
     {
-        float reach = MaxStoredDistance * MathF.Max(wa, wb);
-        int minX = Math.Max((int)MathF.Floor(MathF.Min(ax, bx) - reach) - x0, 0);
-        int maxX = Math.Min((int)MathF.Ceiling(MathF.Max(ax, bx) + reach) - x0, RegionSize - 1);
-        int minY = Math.Max((int)MathF.Floor(MathF.Min(ay, by) - reach) - y0, 0);
-        int maxY = Math.Min((int)MathF.Ceiling(MathF.Max(ay, by) + reach) - y0, RegionSize - 1);
+        float maxHalf = MathF.Max(ha, hb);
+        float reach = maxHalf + ((MaxStampedDistance - WorldConstants.RiverChannel) * BankScale(maxHalf));
+        float loX = float.MaxValue;
+        float hiX = float.MinValue;
+        float loY = float.MaxValue;
+        float hiY = float.MinValue;
+        for (int i = 0; i < curveX.Length; i++)
+        {
+            loX = MathF.Min(loX, curveX[i]);
+            hiX = MathF.Max(hiX, curveX[i]);
+            loY = MathF.Min(loY, curveY[i]);
+            hiY = MathF.Max(hiY, curveY[i]);
+        }
+
+        int minX = Math.Max((int)MathF.Floor(loX - reach) - x0, 0);
+        int maxX = Math.Min((int)MathF.Ceiling(hiX + reach) - x0, RegionSize - 1);
+        int minY = Math.Max((int)MathF.Floor(loY - reach) - y0, 0);
+        int maxY = Math.Min((int)MathF.Ceiling(hiY + reach) - y0, RegionSize - 1);
         if (minX > maxX || minY > maxY)
         {
             return;
         }
 
-        float dx = bx - ax;
-        float dy = by - ay;
-        float lenSq = MathF.Max((dx * dx) + (dy * dy), 1e-6f);
+        int pieces = curveX.Length - 1;
+        float reachSq = reach * reach;
+
+        // Each row only needs the span the curve's reach covers there: the union of discs round the polyline
+        // points, widened by the longest piece so the discs cover the pieces between them.
+        float longest = 0f;
+        for (int i = 0; i < pieces; i++)
+        {
+            float dx = curveX[i + 1] - curveX[i];
+            float dy = curveY[i + 1] - curveY[i];
+            longest = MathF.Max(longest, (dx * dx) + (dy * dy));
+        }
+
+        float cover = reach + (0.5f * MathF.Sqrt(longest)) + 1f;
+        float coverSq = cover * cover;
         for (int ty = minY; ty <= maxY; ty++)
         {
             int worldY = y0 + ty;
             float py = worldY + 0.5f;
             int row = ty * RegionSize;
-            for (int tx = minX; tx <= maxX; tx++)
+            float spanLo = float.MaxValue;
+            float spanHi = float.MinValue;
+            for (int i = 0; i < curveX.Length; i++)
+            {
+                float oy = py - curveY[i];
+                float sq = coverSq - (oy * oy);
+                if (sq > 0f)
+                {
+                    float half = MathF.Sqrt(sq);
+                    spanLo = MathF.Min(spanLo, curveX[i] - half);
+                    spanHi = MathF.Max(spanHi, curveX[i] + half);
+                }
+            }
+
+            int rowMinX = Math.Max(minX, (int)MathF.Floor(spanLo) - x0);
+            int rowMaxX = Math.Min(maxX, (int)MathF.Ceiling(spanHi) - x0);
+            for (int tx = rowMinX; tx <= rowMaxX; tx++)
             {
                 int worldX = x0 + tx;
                 float px = worldX + 0.5f;
-                float t = Math.Clamp((((px - ax) * dx) + ((py - ay) * dy)) / lenSq, 0f, 1f);
-                float ex = px - (ax + (t * dx));
-                float ey = py - (ay + (t * dy));
-                float d = MathF.Sqrt((ex * ex) + (ey * ey)) / (wa + ((wb - wa) * t));
-                int index = row + tx;
-                Store(field, index, d);
 
-                if (allowDeepCore && d <= 0.85f)
+                // The nearest point of the polyline, and how far along the stretch it lies (0..1).
+                float bestSq = float.MaxValue;
+                float along = 0f;
+                for (int i = 0; i < pieces; i++)
                 {
-                    // Natural shallow fords break up deep trunks into wadeable crossings every ~8 coarse zones.
-                    bool isNaturalFord = (SpatialHash.Hash32(_seed, worldX >> 4, worldY >> 4, 0xF08DUL) & 7) == 0;
-                    if (!isNaturalFord)
+                    float ax = curveX[i];
+                    float ay = curveY[i];
+                    float dx = curveX[i + 1] - ax;
+                    float dy = curveY[i + 1] - ay;
+                    float t = Math.Clamp((((px - ax) * dx) + ((py - ay) * dy)) / MathF.Max((dx * dx) + (dy * dy), 1e-6f), 0f, 1f);
+                    float ex = px - (ax + (t * dx));
+                    float ey = py - (ay + (t * dy));
+                    float sq = (ex * ex) + (ey * ey);
+                    if (sq < bestSq)
                     {
-                        deepMask[index >> 3] |= (byte)(1 << (index & 7));
+                        bestSq = sq;
+                        along = (i + t) / pieces;
                     }
                 }
+
+                if (bestSq >= reachSq)
+                {
+                    continue;
+                }
+
+                float dist = MathF.Sqrt(bestSq);
+                float half = ha + ((hb - ha) * along);
+                int index = row + tx;
+                if (dist > half)
+                {
+                    Store(field, index, WorldConstants.RiverChannel + ((dist - half) / BankScale(half)));
+                    continue;
+                }
+
+                float across = dist / half;
+                Store(field, index, WorldConstants.RiverChannel * across);
+
+                // A parabolic bed, as deep as the channel is wide (one tile less, for the tiles the edge rounds
+                // off): zero at the banks, deepest mid-stream.
+                float depth = WaterDepth.MaxDepthForChannelWidth((2f * half) - 1f) * (1f - (across * across));
+                if (depth >= WaterDepth.MediumFrom &&
+                    (SpatialHash.Hash32(_seed, worldX >> 4, worldY >> 4, 0xF08DUL) & 7) == 0)
+                {
+                    // Natural fords break up big rivers into wadeable crossings every ~8 coarse zones.
+                    depth = WaterDepth.MediumFrom * 0.9f;
+                }
+
+                StoreDepth(depthField, index, depth);
             }
         }
     }
 
-    private static void StampLake(byte[] field, int x0, int y0, float lx, float ly, float radius)
+    private static void StampLake(byte[] field, byte[] depthField, int x0, int y0, float lx, float ly, float radius)
     {
-        float reach = radius + MaxStoredDistance;
+        float centreDepth = WaterDepth.MaxDepthForChannelWidth((2f * radius) - 1f);
+        float reach = radius + MaxStampedDistance;
         int minX = Math.Max((int)MathF.Floor(lx - reach) - x0, 0);
         int maxX = Math.Min((int)MathF.Ceiling(lx + reach) - x0, RegionSize - 1);
         int minY = Math.Max((int)MathF.Floor(ly - reach) - y0, 0);
@@ -742,14 +883,20 @@ internal sealed class RiverNetwork : IRiverDistanceSource
             for (int tx = minX; tx <= maxX; tx++)
             {
                 float ex = x0 + tx + 0.5f - lx;
-                float d = MathF.Max(MathF.Sqrt((ex * ex) + (eyBase * eyBase)) - radius, 0f);
-                Store(field, row + tx, d);
+                float r = MathF.Sqrt((ex * ex) + (eyBase * eyBase));
+                Store(field, row + tx, MathF.Max(r - radius, 0f));
+                if (r < radius)
+                {
+                    float k = r / radius;
+                    StoreDepth(depthField, row + tx, centreDepth * (1f - (k * k)));
+                }
             }
         }
     }
 
     private void StampLakeShores(
         byte[] field,
+        byte[] depthField,
         int x0,
         int y0,
         int gx0,
@@ -879,7 +1026,10 @@ internal sealed class RiverNetwork : IRiverDistanceSource
                     float d = top + ((bottom - top) * fy);
                     if (d >= Threshold)
                     {
+                        // Lakes deepen with the depth of their basin, from the waterline to a deep heart.
                         Store(field, (ty * RegionSize) + tx, 0f);
+                        float k = Math.Clamp((d - Threshold) / (MaxLakeDepth - Threshold), 0f, 1f);
+                        StoreDepth(depthField, (ty * RegionSize) + tx, WaterDepth.MaxInlandDepth * k);
                         continue;
                     }
 
@@ -899,7 +1049,7 @@ internal sealed class RiverNetwork : IRiverDistanceSource
 
     private static void Store(byte[] field, int index, float distance)
     {
-        if (distance >= MaxStoredDistance)
+        if (distance >= MaxStampedDistance)
         {
             return;
         }
@@ -908,6 +1058,90 @@ internal sealed class RiverNetwork : IRiverDistanceSource
         if (q < field[index])
         {
             field[index] = q;
+        }
+    }
+
+    private static void StoreDepth(byte[] depthField, int index, float depth)
+    {
+        byte q = (byte)(Math.Clamp(depth / WaterDepth.MaxInlandDepth, 0f, 1f) * 255f);
+        if (q > depthField[index])
+        {
+            depthField[index] = q;
+        }
+    }
+
+    // Chamfer distance (in tiles) from every cell around the region to the nearest land cell, capped at the apron:
+    // the sea gets deeper the farther it is from any coast. The window holds every cell within the cap of the
+    // region, so neighbouring regions agree on the cells they share and the sea floor has no seams.
+    private static float[] BuildCoastDistance(float[] relief, int g, int regionCx, int regionCy)
+    {
+        const int Window = CoastCellsPerSide + (2 * CoastApronCells);
+        const float Cap = CoastApronCells * Cell;
+        const float Straight = Cell;
+        const float Diagonal = Cell * 1.4142135f;
+
+        float[] dist = ArrayPool<float>.Shared.Rent(Window * Window);
+        try
+        {
+            int wx0 = regionCx - 1 - CoastApronCells;
+            int wy0 = regionCy - 1 - CoastApronCells;
+            for (int y = 0; y < Window; y++)
+            {
+                for (int x = 0; x < Window; x++)
+                {
+                    int gx = Math.Clamp(wx0 + x, 0, g - 1);
+                    int gy = Math.Clamp(wy0 + y, 0, g - 1);
+                    dist[(y * Window) + x] = relief[(gy * g) + gx] >= SeaRelief ? 0f : Cap;
+                }
+            }
+
+            for (int y = 0; y < Window; y++)
+            {
+                for (int x = 0; x < Window; x++)
+                {
+                    int i = (y * Window) + x;
+                    float d = dist[i];
+                    if (x > 0) { d = MathF.Min(d, dist[i - 1] + Straight); }
+                    if (y > 0)
+                    {
+                        d = MathF.Min(d, dist[i - Window] + Straight);
+                        if (x > 0) { d = MathF.Min(d, dist[i - Window - 1] + Diagonal); }
+                        if (x < Window - 1) { d = MathF.Min(d, dist[i - Window + 1] + Diagonal); }
+                    }
+
+                    dist[i] = d;
+                }
+            }
+
+            for (int y = Window - 1; y >= 0; y--)
+            {
+                for (int x = Window - 1; x >= 0; x--)
+                {
+                    int i = (y * Window) + x;
+                    float d = dist[i];
+                    if (x < Window - 1) { d = MathF.Min(d, dist[i + 1] + Straight); }
+                    if (y < Window - 1)
+                    {
+                        d = MathF.Min(d, dist[i + Window] + Straight);
+                        if (x < Window - 1) { d = MathF.Min(d, dist[i + Window + 1] + Diagonal); }
+                        if (x > 0) { d = MathF.Min(d, dist[i + Window - 1] + Diagonal); }
+                    }
+
+                    dist[i] = d;
+                }
+            }
+
+            float[] coast = new float[CoastCellsPerSide * CoastCellsPerSide];
+            for (int y = 0; y < CoastCellsPerSide; y++)
+            {
+                Array.Copy(dist, ((y + CoastApronCells) * Window) + CoastApronCells, coast, y * CoastCellsPerSide, CoastCellsPerSide);
+            }
+
+            return coast;
+        }
+        finally
+        {
+            ArrayPool<float>.Shared.Return(dist);
         }
     }
 

@@ -114,10 +114,13 @@ public sealed class StatusEffectWorldTests
             .Should().ContainSingle(e => e.EffectId == Slowed).Which.RemainingMs.Should().Be(59_966U, "the review knob is not clamped; the saved row is ignored for a never-saved effect");
     }
 
+    // Walks from the world spawn: its clearing is the one place the generator keeps free of trees and rocks, so the
+    // walk measures the effect and not a prop in the way.
     private static float WalkDistance(string statusEffects, int waitTicks)
     {
         (AuthoritativeWorld world, StatusRecordingSink sink) = CreateWorld(new WorldDebugOverrides { StatusEffects = statusEffects });
-        _ = world.TryEnterWorld(1UL, Character(statusEffects: string.Empty));
+        Vector2 spawn = world.DefaultSpawnWorldPosition;
+        _ = world.TryEnterWorld(1UL, Character(statusEffects: string.Empty) with { PositionX = spawn.X, PositionY = spawn.Y });
         Step(world, waitTicks + 1);
         Vector2 start = sink.SelfPositions[1UL];
         for (uint i = 0; i < 15; i++)

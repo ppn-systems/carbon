@@ -7,6 +7,7 @@ using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Procedural;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
+using Carbon.Maps.Hydrology;
 using Carbon.Maps.Streaming;
 using static Carbon.Desktop.Rendering.World.ChunkTerrainRenderer;
 
@@ -75,6 +76,11 @@ internal sealed partial class ChunkGeometryBaker
                 // shows no diamond where its corners differ from it.
                 TerrainSurface.Field centre = TerrainSurface.Sample(wtx + 0.5f, wty + 0.5f);
                 Vector3 own = TerrainSurface.Ground(style, tile.HeightLevel, in centre);
+                if (TerrainSurface.IsWater(tile.Biome))
+                {
+                    own *= TerrainSurface.WaterDepthShade(WaterDepth.Of(tile));
+                }
+
                 builder.AddGradientRectangle(
                     new RectangleF(tileWorldX, tileWorldY, tileSize, tileSize),
                     TerrainSurface.ToColor(nw),
@@ -206,6 +212,7 @@ internal sealed partial class ChunkGeometryBaker
     {
         ref readonly TerrainSurface.Field field = ref _cornerFields[(cy * CornerStride) + cx];
         Vector3 sum = Vector3.Zero;
+        float depthSum = 0f;
         int count = 0;
         for (int i = 0; i < 4; i++)
         {
@@ -213,11 +220,17 @@ internal sealed partial class ChunkGeometryBaker
             if (t.HeightLevel == self.HeightLevel && TerrainSurface.IsWater(t.Biome) == selfWater)
             {
                 sum += TerrainSurface.Ground(this.StyleOf(t.Biome, art), t.HeightLevel, in field);
+                depthSum += WaterDepth.Of(t);
                 count++;
             }
         }
 
         Vector3 c = count > 0 ? sum / count : TerrainSurface.Ground(this.StyleOf(self.Biome, art), self.HeightLevel, in field);
+        if (selfWater)
+        {
+            // Water darkens smoothly with depth (ADR-032), blended across corners like the ground colour.
+            c *= TerrainSurface.WaterDepthShade(count > 0 ? depthSum / count : WaterDepth.Of(self));
+        }
         int other = 0;
         for (int dy = -2; dy < 2; dy++)
         {

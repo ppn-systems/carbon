@@ -252,6 +252,13 @@ public interface IWorldOutboundSink
     /// <summary>Synchronizes the owning player's RPG vitals, flags, progression blob, and cooldown arrays.</summary>
     void SendPlayerStatsSync(ulong connectionId, in PlayerStatsSnapshot snapshot);
 
+    /// <summary>
+    /// Pushes the owning player's stamina exhaustion and refused-action count (ADR-033). Sinks without a client ignore it.
+    /// </summary>
+    void SendStaminaStatus(ulong connectionId, bool exhausted, uint refusalCount)
+    {
+    }
+
     /// <summary>Pushes the owning player's server-authoritative gold and diamond balances (ADR-012).</summary>
     void SendWalletSync(ulong connectionId, long gold, long diamonds, ulong sequence);
 

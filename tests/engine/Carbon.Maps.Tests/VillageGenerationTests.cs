@@ -16,9 +16,9 @@ namespace Carbon.Maps.Tests;
 public sealed class VillageGenerationTests
 {
     // Pins every village plot (generated footprint, furniture, origin, turns) of seed 42 over a 13x13 site window
-    // (generator version 18: villages along streets with generated buildings, ADR-027). Update it only together with
-    // GeneratorVersion.
-    private const ulong GoldenVillagePlotFingerprint = 15131943118228400016UL;
+    // (generator version 19: villages along streets with generated buildings, ADR-027, that need dry room round their
+    // plot ring beside the wider rivers of ADR-032). Update it only together with GeneratorVersion.
+    private const ulong GoldenVillagePlotFingerprint = 11495324889950601071UL;
 
     private readonly ITestOutputHelper _output;
 

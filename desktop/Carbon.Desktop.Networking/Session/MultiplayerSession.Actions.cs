@@ -82,7 +82,7 @@ public sealed partial class MultiplayerSession
                 foodFull &&
                 (!healsHp || _localHealth >= _localMaxHealth - 0.5f) &&
                 (!healsMp || _localMana >= _localMaxMana - 0.5f) &&
-                (!healsStam || _localStamina >= _localMaxStamina - 0.5f))
+                (!healsStam || _stamina.Current >= _localMaxStamina - 0.5f))
             {
                 lock (_worldGate)
                 {
@@ -91,6 +91,12 @@ public sealed partial class MultiplayerSession
 
                 return false;
             }
+        }
+
+        if (!(hasArchetype && archetype is { Category: ItemCategory.Placeable or ItemCategory.Consumable }) &&
+            this.RefuseSwingWhileExhausted(hasArchetype ? archetype : null))
+        {
+            return false;
         }
 
         if (hasArchetype && archetype is { ProjectileSpeed: > 0f, AttackManaCost: > 0f } &&
@@ -182,18 +188,22 @@ public sealed partial class MultiplayerSession
             return false;
         }
 
-        if (_localMana < spec.ManaCost || _localStamina < spec.StaminaCost)
+        if (_localMana < spec.ManaCost)
         {
             lock (_worldGate)
             {
-                _hudNotifications.Add(_localMana < spec.ManaCost ? GameText.Get("hud.not_enough_mana") : GameText.Get("hud.not_enough_stamina"));
+                _hudNotifications.Add(GameText.Get("hud.not_enough_mana"));
             }
 
             return false;
         }
 
+        if (!this.TryPredictStaminaSpend(spec.StaminaCost))
+        {
+            return false;
+        }
+
         _localMana = MathF.Max(0f, _localMana - spec.ManaCost);
-        _localStamina = MathF.Max(0f, _localStamina - spec.StaminaCost);
         lock (_worldGate)
         {
             _skillCooldowns[skillId] = spec.CooldownSeconds;
@@ -978,6 +988,17 @@ public sealed partial class MultiplayerSession
         }
 
         if (!found)
+        {
+            return false;
+        }
+
+        ItemSlot heldSlot;
+        lock (_worldGate)
+        {
+            heldSlot = _inventory.GetSlot(_selectedSlot);
+        }
+
+        if (this.RefuseSwingWhileExhausted(_items.Rules.Items.TryGet(heldSlot.ItemId, out ItemArchetype? held) ? held : null))
         {
             return false;
         }

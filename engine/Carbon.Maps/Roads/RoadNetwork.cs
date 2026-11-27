@@ -720,13 +720,12 @@ public sealed class RoadNetwork
 
         if (t.Biome is BiomeType.DeepOcean or BiomeType.ShallowWater)
         {
-            // Inland river or lake channels can be bridged if not open abyssal ocean.
-            bool openSea = t.Biome == BiomeType.DeepOcean && t.Elevation < 0.23f;
-            if (!openSea && _rivers is not null && _rivers.GetDistance(wx, wy) <= WorldConstants.RiverChannel + 1f)
+            // Inland river or lake channels can be bridged, however deep; so can wading-depth water.
+            if (_rivers is not null && _rivers.GetDistance(wx, wy) <= WorldConstants.RiverChannel + 1f)
             {
                 kind[idx] = 2; // Bridgeable river water
             }
-            else if (t.Biome == BiomeType.ShallowWater && t.Elevation >= 0.27f)
+            else if (WaterDepth.TierOf(t) <= WaterDepthTier.Shallow)
             {
                 kind[idx] = 2;
             }
