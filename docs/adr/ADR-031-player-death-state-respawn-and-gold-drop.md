@@ -124,8 +124,10 @@ Before this change:
 
 12. **D12 — Death screen.** When `PlayerDeath` arrives (`DeathSession`, `desktop/Carbon.Desktop.Networking/Session/DeathSession.cs`),
     the desktop client covers the world with a dark, slightly red veil and opens the death screen (`DeathScreenWidget`).
-    The screen shows the localized "You died" title, the killer's name (`monster.<id>.name`) or the cause, the gold lost
-    with the coin icon, and a Respawn button. Enter also respawns. While dead, every other gameplay input is swallowed
+    The screen shows the localized "You died" title, the killer's name (`monster.<id>.name`) or the cause, and a Respawn
+    button. Enter also respawns. The gold drop is silent: the owner asked that the screen, toasts and HUD say nothing
+    about it, so the client neither shows nor keeps `GoldDropped` (the server still drops the piles and the packet keeps
+    the member). The first version showed the amount with the coin icon and a hint that others can take it. While dead, every other gameplay input is swallowed
     (`DeathScreenInput`) and open windows close. One press sends exactly one `RespawnRequest`. Further presses are
     ignored until the server answers: `Ok` closes the screen, and a refusal allows another try. All text comes from a
     new `[death]` section in `en.ini` and `vi.ini`. The obsolete "respawned at the sanctuary" toast (`hud.slain`) is gone.
