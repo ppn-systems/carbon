@@ -695,7 +695,7 @@ public sealed class WorldSceneRenderer : IDisposable
     private static void DrawActorShadow(GeometryBatch batch, in SunShadow.State sun, Vector2 footPos, float radius)
     {
         SunShadow.Draw(batch, in sun, footPos, radius * 0.8f, 26f, 54f);
-        batch.FillRadialGradient(new Vector2(footPos.X, footPos.Y + 1f), radius * 1.3f, new ColorRgba(0, 0, 0, 105), new ColorRgba(0, 0, 0, 0), 14, 0.55f);
+        batch.FillRadialGradient(new Vector2(footPos.X, footPos.Y + 1f), radius * 1.3f, new ColorRgba(0, 0, 0, 105), new ColorRgba(0, 0, 0, 0), 10, 0.55f);
     }
 
     /// <summary>Gets whether the local player has an effect that lowers move speed (ADR-029).</summary>

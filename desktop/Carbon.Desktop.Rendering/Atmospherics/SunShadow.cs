@@ -71,6 +71,6 @@ internal static class SunShadow
         // Long shadows are wide ellipses along the sun's (mostly east-west) direction.
         float rx = radius + (reach * 0.5f * MathF.Abs(state.Direction.X));
         float ry = (radius * 0.45f) + (reach * 0.5f * state.Direction.Y);
-        batch.FillRadialGradient(centre, rx, core, rim, 20, ry / rx);
+        batch.FillRadialGradient(centre, rx, core, rim, 14, ry / rx);
     }
 }
