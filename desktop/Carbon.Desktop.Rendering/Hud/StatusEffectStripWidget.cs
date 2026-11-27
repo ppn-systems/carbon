@@ -19,9 +19,10 @@ using Carbon.Graphics.Fonts.Rendering;
 namespace Carbon.Desktop.Rendering.Hud;
 
 /// <summary>
-/// Top-right status strip (ADR-029 D10): one vector icon per active effect with a duration ring, the stack count and a
-/// countdown; a hover tooltip; and a details panel (name, description, remaining time, source, magnitude) opened by a
-/// click on an icon and closed by a click elsewhere or Esc. Text comes from the <c>[status_effects]</c> section.
+/// Top-right status strip (ADR-029 D10): one vector icon per active effect with a duration ring, the stack count, the level
+/// numeral (ADR-036 D6) and a countdown; a hover tooltip; and a details panel (name with level, description, remaining
+/// time, level, source, magnitude) opened by a click on an icon and closed by a click elsewhere or Esc. Text comes from
+/// the <c>[status_effects]</c> and <c>[status_levels]</c> sections.
 /// </summary>
 internal sealed class StatusEffectStripWidget
 {
@@ -45,7 +46,8 @@ internal sealed class StatusEffectStripWidget
     private readonly CachedText _source = new();
     private readonly CachedText _magnitude = new();
     private readonly CachedText _interval = new();
-    private readonly List<string> _panelLines = new(6);
+    private readonly StatusLevelLabels _levels = new();
+    private readonly List<string> _panelLines = new(7);
 
     private int _count;
     private bool _suppressed;
@@ -53,6 +55,7 @@ internal sealed class StatusEffectStripWidget
     private RectangleF _panel;
     private RectangleF _tooltipBox;
     private string? _tooltipText;
+    private string _panelTitle = string.Empty;
     private float _descriptionHeight;
 
     /// <summary>Gets the effect id whose details panel is open, or 0.</summary>
@@ -77,6 +80,12 @@ internal sealed class StatusEffectStripWidget
             }
         }
     }
+
+    /// <summary>Gets the details panel title prepared this frame (the name with its level, ADR-036 D6).</summary>
+    internal string PanelTitle => _panelTitle;
+
+    /// <summary>Gets the details panel lines prepared this frame.</summary>
+    internal IReadOnlyList<string> PanelLines => _panelLines;
 
     /// <summary>Gets a value indicating whether the details panel is open.</summary>
     public bool IsPanelOpen => this.SelectedEffectId != 0;
@@ -165,6 +174,11 @@ internal sealed class StatusEffectStripWidget
         _panelLines.Add(effect.IsTimed
             ? _remaining.Format("status_effects.remaining", new TextArg("time", FormatTime(_remainingTime, effect.RemainingSeconds)))
             : GameText.Get("status_effects.while_active"));
+        if (def.MaxLevel > 1 || effect.Level > 1)
+        {
+            _panelLines.Add(_levels.PanelLine(effect.Level));
+        }
+
         if (def.MaxStacks > 1)
         {
             _panelLines.Add(_stacks.Format("status_effects.stacks", new TextArg("count", effect.Stacks)));
@@ -176,6 +190,7 @@ internal sealed class StatusEffectStripWidget
             _panelLines.Add(magnitude);
         }
 
+        _panelTitle = _levels.NameWithLevel(_names.Text(def.Key, def.Key), effect.Level);
         string description = _descriptions.Text(def.Key, def.Key);
         float textWidth = StatusEffectStripLayout.PanelWidth - (PanelPadding * 2f);
         _descriptionHeight = font.MeasureString(description, new TextLayoutOptions(textWidth, wordWrap: true), 1f).Height;
@@ -255,6 +270,12 @@ internal sealed class StatusEffectStripWidget
                 spriteBatch.DrawOutlinedString(font, stack[..written], new Vector2(rect.X + rect.Width - 9f, rect.Y + 1f), CarbonUiPalette.TextPrimary, outline, 1, 0.85f);
             }
 
+            if (this.IconNumeral(in effect) is { } numeral)
+            {
+                // Top left: the stack count keeps the top right and the countdown the bottom left.
+                spriteBatch.DrawOutlinedString(font, numeral, new Vector2(rect.X + 2f, rect.Y + 1f), s_ring, outline, 1, 0.8f);
+            }
+
             if (effect.IsTimed)
             {
                 string countdown = FormatShortTime(_countdowns[i], effect.RemainingSeconds);
@@ -273,6 +294,9 @@ internal sealed class StatusEffectStripWidget
             this.DrawPanelText(spriteBatch, font, def);
         }
     }
+
+    /// <summary>Gets the level numeral drawn on an icon (bottom right), or <see langword="null"/> for level I.</summary>
+    internal string? IconNumeral(in LocalStatusEffect effect) => _levels.IconNumeral(effect.Level);
 
     /// <summary>Formats seconds with the shared <c>[time]</c> keys into <paramref name="cache"/>.</summary>
     internal static string FormatTime(CachedText cache, float seconds)
@@ -390,7 +414,7 @@ internal sealed class StatusEffectStripWidget
         }
 
         LocalStatusEffect effect = effects[_hovered];
-        string name = _names.Text(def.Key, def.Key);
+        string name = _levels.NameWithLevel(_names.Text(def.Key, def.Key), effect.Level);
         _tooltipText = effect.IsTimed
             ? _tooltip.Format("status_effects.tooltip", new TextArg("name", name), new TextArg("time", FormatTime(_tooltipTime, effect.RemainingSeconds)))
             : _tooltip.Format("status_effects.tooltip_untimed", new TextArg("name", name));
@@ -404,7 +428,7 @@ internal sealed class StatusEffectStripWidget
         float x = _panel.X + PanelPadding;
         float y = _panel.Y + PanelPadding;
         ColorRgba titleColor = def.Category == StatusCategory.Buff ? s_buffFrame : s_debuffFrame;
-        spriteBatch.DrawOutlinedString(font, _names.Text(def.Key, def.Key), new Vector2(x, y), titleColor, outline, 1, 1.15f);
+        spriteBatch.DrawOutlinedString(font, _panelTitle, new Vector2(x, y), titleColor, outline, 1, 1.15f);
         y += 24f;
         float textWidth = _panel.Width - (PanelPadding * 2f);
         spriteBatch.DrawOutlinedString(font, _descriptions.Text(def.Key, def.Key), new Vector2(x, y), new TextLayoutOptions(textWidth, wordWrap: true), CarbonUiPalette.TextPrimary, outline, 1, 1f);

@@ -1127,8 +1127,10 @@ public sealed partial class MultiplayerSession
         }
     }
 
-    /// <summary>Replaces the local status effect list (ADR-029 D9); sent by the server only when it changes.</summary>
-    private void OnStatusEffectSync(StatusEffectSync pkt)
+    /// <summary>
+    /// Converts a <c>StatusEffectSync</c> into local entries (ADR-029 D9). A missing or zero level reads as I (ADR-036 D4).
+    /// </summary>
+    internal static LocalStatusEffect[] ToLocalStatusEffects(StatusEffectSync pkt)
     {
         int count = Math.Min(
             pkt.EffectIds.Length,
@@ -1143,9 +1145,17 @@ public sealed partial class MultiplayerSession
                 pkt.DurationMs[i] / 1000f,
                 pkt.Magnitudes[i],
                 pkt.SourceKinds[i],
-                pkt.SourceIds[i]);
+                pkt.SourceIds[i],
+                i < pkt.Levels.Length && pkt.Levels[i] > 0 ? pkt.Levels[i] : (byte)1);
         }
 
+        return effects;
+    }
+
+    /// <summary>Replaces the local status effect list (ADR-029 D9); sent by the server only when it changes.</summary>
+    private void OnStatusEffectSync(StatusEffectSync pkt)
+    {
+        LocalStatusEffect[] effects = ToLocalStatusEffects(pkt);
         lock (_worldGate)
         {
             _localStatusEffects = effects;

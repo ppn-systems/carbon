@@ -13,6 +13,7 @@ namespace Carbon.Desktop.Abstractions.StatusEffects;
 /// <param name="Magnitude">Damage per pulse (all stacks) for damage effects, otherwise the effect's multiplier.</param>
 /// <param name="SourceKind">What applied it (<c>StatusSource</c> byte).</param>
 /// <param name="SourceId">Monster archetype id, or 0.</param>
+/// <param name="Level">Effect level (amplifier), 1 = I (ADR-036).</param>
 public readonly record struct LocalStatusEffect(
     ushort EffectId,
     byte Stacks,
@@ -20,7 +21,8 @@ public readonly record struct LocalStatusEffect(
     float DurationSeconds,
     float Magnitude,
     byte SourceKind,
-    ushort SourceId)
+    ushort SourceId,
+    byte Level = 1)
 {
     /// <summary>Gets a value indicating whether the effect has a timer (derived effects do not).</summary>
     public bool IsTimed => this.DurationSeconds > 0f;
