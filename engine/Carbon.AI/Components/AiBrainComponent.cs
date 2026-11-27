@@ -28,6 +28,9 @@ namespace Carbon.AI.Components;
 /// When <see langword="true"/>, <see cref="AiState.Attack"/> only evaluates leash / disengage transitions: velocity, cooldowns,
 /// windups, and attack events are owned by an external attack system (e.g. data-driven creature attack profiles).
 /// </param>
+/// <param name="ChaseTicks">Consecutive ticks spent chasing without reaching attack range (drives <see cref="AiTacticsComponent.GiveUpTicks"/>).</param>
+/// <param name="FleeRemainingTicks">Remaining ticks of the current <see cref="AiState.Flee"/> episode.</param>
+/// <param name="HasFled">Whether the actor already fled during the current engagement (reset when it gets home).</param>
 public readonly record struct AiBrainComponent(
     AiState State,
     Vector2 HomePosition,
@@ -45,4 +48,7 @@ public readonly record struct AiBrainComponent(
     uint WindupTicks = 0,
     uint WindupRemainingTicks = 0,
     uint RepathCooldownTicks = 0,
-    bool ExternalAttackControl = false);
+    bool ExternalAttackControl = false,
+    uint ChaseTicks = 0,
+    uint FleeRemainingTicks = 0,
+    bool HasFled = false);

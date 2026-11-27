@@ -25,8 +25,10 @@ namespace Carbon.Host.Tests;
 /// <summary>ADR-019 end to end: a kill's gold lies on the ground; picking it up credits, syncs and persists the wallet.</summary>
 public sealed class KillLootWorldTests
 {
-    [Fact]
-    public async Task MonsterKill_GoldPilePickedUpByTheKiller_CreditsSyncsAndPersistsTheBalance()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)] // the killer logs out and back in during the protection window
+    public async Task MonsterKill_GoldPilePickedUpByTheKiller_CreditsSyncsAndPersistsTheBalance(bool reconnect)
     {
         string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-kill-gold-{Guid.NewGuid():N}.db");
         try
@@ -95,16 +97,32 @@ public sealed class KillLootWorldTests
             goldAfterKill.Should().Be(0L, "kill gold is no longer credited directly");
             sink.WalletSyncs.Should().NotContain(w => w.ConnectionId == slayerConn && w.Gold > 0);
 
-            world.EnqueuePickupLoot(slayerConn, goldPile.NetworkId).Should().Be(OpStatus.Ok);
+            ulong pickupConn = slayerConn;
+            if (reconnect)
+            {
+                world.LeaveWorld(slayerConn).Should().BeTrue();
+                pickupConn = 801UL;
+                int beforeReentry = sink.Spawns.Count;
+                EnterWorldResult reentered = world.TryEnterWorld(pickupConn, pickupConn, slayer with { PositionX = goldPile.PositionX + 40f, PositionY = goldPile.PositionY });
+                reentered.Status.Should().Be(OpStatus.Ok);
+                reentered.PlayerNetworkId.Should().NotBe(entered.PlayerNetworkId, "a reconnect gets a new entity");
+                world.StepFixedTick();
+                sink.Spawns.Skip(beforeReentry)
+                    .Should().Contain(
+                        x => x.ConnectionId == pickupConn && x.Snapshot.NetworkId == goldPile.NetworkId && x.Snapshot.LootOwnerNetworkId == reentered.PlayerNetworkId,
+                        "the pile is replicated as owned by the killer's new entity, so its client draws it as its own");
+            }
+
+            world.EnqueuePickupLoot(pickupConn, goldPile.NetworkId).Should().Be(OpStatus.Ok);
             long gold = 0L;
             for (int tick = 0; tick < 30 && gold == 0L; tick++)
             {
                 world.StepFixedTick();
-                world.TryGetWalletBalances(slayerConn, out gold, out _).Should().BeTrue();
+                world.TryGetWalletBalances(pickupConn, out gold, out _).Should().BeTrue();
             }
 
-            gold.Should().Be(goldPile.LootCount, "picking the pile up credits exactly its amount");
-            sink.WalletSyncs.Should().Contain(w => w.ConnectionId == slayerConn && w.Gold == gold, "the client learns its new balance");
+            gold.Should().Be(goldPile.LootCount, "picking the pile up credits exactly its amount, also after a reconnect within the window");
+            sink.WalletSyncs.Should().Contain(w => w.ConnectionId == pickupConn && w.Gold == gold, "the client learns its new balance");
 
             await world.FlushDirtyPersistenceAsync().ConfigureAwait(true);
             CharacterRecord? reloaded = await characters.FindByIdAsync(slayer.Id).ConfigureAwait(true);

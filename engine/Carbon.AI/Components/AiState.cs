@@ -20,5 +20,8 @@ public enum AiState : byte
     Attack = 3,
 
     /// <summary>Leashed back to home anchor after leaving tether radius or losing target.</summary>
-    ReturnHome = 4
+    ReturnHome = 4,
+
+    /// <summary>Running away from the current target at low health (see <see cref="AiTacticsComponent.FleeHealthFraction"/>).</summary>
+    Flee = 5
 }
