@@ -2,7 +2,7 @@
 
 using System;
 
-namespace Carbon.Desktop.Scenes;
+namespace Carbon.Desktop.Menu;
 
 /// <summary>The register screen's controls in tab order.</summary>
 internal enum RegisterFocus

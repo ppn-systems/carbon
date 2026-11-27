@@ -8,7 +8,7 @@ using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Input;
 using Carbon.Desktop.Rendering.Hud;
 
-namespace Carbon.Desktop.Scenes;
+namespace Carbon.Desktop.Gameplay.Repair;
 
 /// <summary>
 /// The scene's side of the repair window (ADR-028): <c>N</c> opens it at a player station, the blacksmith's trade window

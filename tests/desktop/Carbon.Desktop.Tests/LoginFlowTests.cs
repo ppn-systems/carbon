@@ -12,6 +12,7 @@ using Carbon.Application.Identity;
 using Carbon.Application.World;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Identity;
+using Carbon.Desktop.Menu;
 using Carbon.Desktop.Networking.Session;
 using Carbon.Desktop.Scenes;
 using Carbon.Economy;

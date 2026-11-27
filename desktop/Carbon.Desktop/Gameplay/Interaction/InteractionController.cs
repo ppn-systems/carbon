@@ -10,7 +10,7 @@ using Carbon.Desktop.Rendering.Hud;
 using Carbon.Items.Catalog;
 using Carbon.Maps.Building;
 
-namespace Carbon.Desktop.Scenes;
+namespace Carbon.Desktop.Gameplay.Interaction;
 
 /// <summary>
 /// The interact key (E). Once per frame <see cref="Refresh"/> collects everything the key could use (loot drops, traders,

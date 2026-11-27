@@ -3,7 +3,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Carbon.Desktop.Scenes;
+namespace Carbon.Desktop.Menu;
 
 /// <summary>Tab / Shift+Tab focus cycling over a fixed order.</summary>
 internal static class FocusRing

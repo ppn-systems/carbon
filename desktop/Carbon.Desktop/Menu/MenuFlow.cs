@@ -7,7 +7,7 @@ using Carbon.Desktop.Abstractions.Identity;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Graphics.Batching.Camera;
 
-namespace Carbon.Desktop.Scenes;
+namespace Carbon.Desktop.Menu;
 
 /// <summary>
 /// What the menu scenes share (ADR-037): the session, the remembered account, the server list and the chosen server.

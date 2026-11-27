@@ -5,7 +5,7 @@ using System.Numerics;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Rendering.Hud;
 
-namespace Carbon.Desktop.Scenes;
+namespace Carbon.Desktop.Gameplay.Input;
 
 /// <summary>
 /// Input while the death screen is open (ADR-031): Enter or a click on Respawn asks the server to respawn, and every other
