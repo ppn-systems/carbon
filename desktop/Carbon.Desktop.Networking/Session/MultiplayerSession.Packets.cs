@@ -222,7 +222,7 @@ public sealed partial class MultiplayerSession
                 _cachedRemoteViews = [];
                 _remoteViewsDirty = true;
                 _lockedTargetNetworkId = 0UL;
-                _hudNotifications.Add("Connection lost - reconnecting...");
+                _hudNotifications.Add(GameText.Get("net.connection_lost"));
             }
 
             _tcpReconnectAttempt = 0;
@@ -306,7 +306,7 @@ public sealed partial class MultiplayerSession
                         _autoReconnectEnabled = false;
                         lock (_worldGate)
                         {
-                            _hudNotifications.Add("Reconnect stopped: authentication rejected");
+                            _hudNotifications.Add(GameText.Get("net.reconnect_auth_rejected"));
                         }
 
                         return;
@@ -373,7 +373,7 @@ public sealed partial class MultiplayerSession
                 _wasTcpConnectedLastFrame = true;
                 lock (_worldGate)
                 {
-                    _hudNotifications.Add(this.IsUdpActive ? "Reconnected (TCP+UDP)" : "Reconnected (TCP)");
+                    _hudNotifications.Add(this.IsUdpActive ? GameText.Get("net.reconnected_tcp_udp") : GameText.Get("net.reconnected_tcp"));
                 }
             }
         }
@@ -963,12 +963,12 @@ public sealed partial class MultiplayerSession
                     xpGain,
                     IsCritical: false,
                     IsHeal: true,
-                    Label: $"+{xpGain} XP"));
+                    Label: GameText.Format("hud.xp_gain", new TextArg("amount", xpGain))));
             }
 
             if (pkt.LeveledUp)
             {
-                string msg = $"LEVEL UP! Lv.{_localLevel}";
+                string msg = GameText.Format("hud.level_up", new TextArg("level", _localLevel));
                 _combatEvents.Add(new CombatFeedbackEvent(
                     localPos + new Vector2(0f, -34f),
                     _localLevel,
@@ -1133,13 +1133,13 @@ public sealed partial class MultiplayerSession
                 if (pkt.IsKilled)
                 {
                     _lockedTargetNetworkId = 0UL;
-                    _hudNotifications.Add("YOU WERE SLAIN - RESPAWNED AT SANCTUARY");
+                    _hudNotifications.Add(GameText.Get("hud.slain"));
                     _combatEvents.Add(new CombatFeedbackEvent(
                         worldPos + new Vector2(0f, -20f),
                         0f,
                         IsCritical: true,
                         IsHeal: false,
-                        Label: "SLAIN! RESPAWNED"));
+                        Label: GameText.Get("hud.slain_short")));
                 }
             }
             else if (_remoteEntities.TryGetValue(pkt.DefenderNetworkId, out RemoteEntityState? defenderState))
@@ -1206,7 +1206,7 @@ public sealed partial class MultiplayerSession
                 byte prevUpg = ItemEnhancementPolicy.GetUpgradeLevel(in previous);
                 if (previous.ItemId == next.ItemId && pkt.UpgradeLevel > prevUpg)
                 {
-                    string forgeMsg = $"+{pkt.UpgradeLevel} {_items.GetDisplayName(next.ItemId)} Forged!";
+                    string forgeMsg = GameText.Format("hud.item_forged", new TextArg("level", pkt.UpgradeLevel), new TextArg("item", _items.GetDisplayName(next.ItemId)));
                     _combatEvents.Add(new CombatFeedbackEvent(
                         localPos + new Vector2(0f, -14f),
                         pkt.UpgradeLevel,
@@ -1238,18 +1238,19 @@ public sealed partial class MultiplayerSession
                 {
                     if (previous.Durability > 0f && next.Durability <= 0f)
                     {
-                        string brokenMsg = $"{_items.GetDisplayName(next.ItemId)} Worn Out!";
+                        string brokenItem = _items.GetDisplayName(next.ItemId);
+                        string brokenMsg = GameText.Format("hud.item_worn_out", new TextArg("item", brokenItem));
                         _combatEvents.Add(new CombatFeedbackEvent(
                             localPos + new Vector2(0f, -14f),
                             0f,
                             IsCritical: true,
                             IsHeal: false,
                             Label: brokenMsg));
-                        _hudNotifications.Add($"{brokenMsg} Visit NPC Guard to mend");
+                        _hudNotifications.Add(GameText.Format("hud.item_worn_out_hint", new TextArg("item", brokenItem)));
                     }
                     else if (previous.Durability <= 0f && next.Durability > 0f)
                     {
-                        string mendMsg = $"{_items.GetDisplayName(next.ItemId)} Mended!";
+                        string mendMsg = GameText.Format("hud.item_mended", new TextArg("item", _items.GetDisplayName(next.ItemId)));
                         _combatEvents.Add(new CombatFeedbackEvent(
                             localPos + new Vector2(0f, -14f),
                             next.Durability,
@@ -1325,8 +1326,8 @@ public sealed partial class MultiplayerSession
                         kind,
                         updated.Destructibility.HarvestTier);
                     string warn = eval.Outcome != ToolStrikeOutcome.Optimal
-                        ? ToolUsagePolicy.GetMisuseWarning(eval.Outcome, updated.Destructibility.HarvestTier)
-                        : $"Need Tier {updated.Destructibility.HarvestTier} Tool!";
+                        ? ToolWarningText.Describe(eval.Outcome, updated.Destructibility.HarvestTier)
+                        : ToolWarningText.Describe(ToolStrikeOutcome.InsufficientTier, updated.Destructibility.HarvestTier);
                     _combatEvents.Add(new CombatFeedbackEvent(worldPos, 0f, IsCritical: false, IsHeal: false, Label: warn));
                     _hudNotifications.Add(warn);
                 }
@@ -1348,7 +1349,7 @@ public sealed partial class MultiplayerSession
                         IsHeal: false));
                     if (eval.Outcome == ToolStrikeOutcome.SwordMisuseOnWood)
                     {
-                        _hudNotifications.Add(ToolUsagePolicy.GetMisuseWarning(eval.Outcome, updated.Destructibility.HarvestTier));
+                        _hudNotifications.Add(ToolWarningText.Describe(eval.Outcome, updated.Destructibility.HarvestTier));
                     }
                 }
             }

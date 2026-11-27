@@ -78,7 +78,7 @@ internal static partial class LocalizationRepository
     /// <summary>Key literals referenced from production code, with their locations.</summary>
     public static IReadOnlyList<SourceLiteral> KeyReferences() => [.. CodeLiterals.Where(l => LooksLikeKeyReference(l.Text))];
 
-    /// <summary>Keys derived from stable config ids and <c>BiomeType</c> names (ADR-023 D4).</summary>
+    /// <summary>Keys derived from stable config ids and <c>BiomeType</c> / <c>StructureType</c> names (ADR-023 D4).</summary>
     public static IReadOnlySet<string> DerivedKeys()
     {
         HashSet<string> keys = new(StringComparer.Ordinal);
@@ -108,6 +108,14 @@ internal static partial class LocalizationRepository
         foreach (Carbon.Maps.Biomes.BiomeType biome in Enum.GetValues<Carbon.Maps.Biomes.BiomeType>())
         {
             keys.Add(GameText.BiomeKey(biome));
+        }
+
+        foreach (Carbon.Maps.Building.StructureType structure in Enum.GetValues<Carbon.Maps.Building.StructureType>())
+        {
+            if (structure != Carbon.Maps.Building.StructureType.None)
+            {
+                keys.Add(GameText.StructureKey(structure));
+            }
         }
 
         return keys;

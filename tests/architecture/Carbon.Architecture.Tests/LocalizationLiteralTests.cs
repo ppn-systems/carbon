@@ -76,6 +76,10 @@ public sealed partial class LocalizationLiteralTests
     [InlineData("; settings file comment", false)]
     [InlineData("x", false)]
     [InlineData("{}/{}", false)]
+    [InlineData("+{} {} Forged!", true)]
+    [InlineData("+{} XP", true)]
+    [InlineData("{}%", false)]
+    [InlineData("{} x{}", false)]
     public void LooksPlayerFacing_ClassifiesLiterals(string text, bool expected) =>
         LooksPlayerFacing(text).Should().Be(expected);
 
@@ -100,7 +104,14 @@ public sealed partial class LocalizationLiteralTests
             return false;
         }
 
-        return WordsWithSpace().IsMatch(trimmed) || CapitalizedWord().IsMatch(trimmed);
+        if (WordsWithSpace().IsMatch(trimmed) || CapitalizedWord().IsMatch(trimmed))
+        {
+            return true;
+        }
+
+        // Interpolated text such as $"+{n} {name} Forged!" or $"+{xp} XP": judge the words around the holes.
+        string core = trimmed.Replace("{}", " ", StringComparison.Ordinal).Trim(' ', '+', '-', '(', ')', '[', ']', '/', ':', '%', '.', ',', '|', 'x');
+        return core.Length >= 2 && core != trimmed && (WordsWithSpace().IsMatch(core) || CapitalizedWord().IsMatch(core) || AllCapsWord().IsMatch(core));
     }
 
     private static Dictionary<string, SourceLiteral> ScanUiLiterals()
@@ -212,4 +223,7 @@ public sealed partial class LocalizationLiteralTests
 
     [GeneratedRegex(@"^\p{Lu}[\p{L}&]*[!?.:]?$")]
     private static partial Regex CapitalizedWord();
+
+    [GeneratedRegex(@"^\p{Lu}{2,}$")]
+    private static partial Regex AllCapsWord();
 }
