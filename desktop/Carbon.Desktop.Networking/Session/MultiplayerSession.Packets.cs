@@ -471,7 +471,7 @@ public sealed partial class MultiplayerSession
             {
                 _worldSeed = worldSeed;
                 ProceduralWorldGenerator generator = new(_worldSeed);
-                _chunkWorld = new ChunkWorld2D(generator, _tileSize, frequency);
+                _chunkWorld = new ChunkWorld2D(generator, _tileSize, frequency) { WaterRules = _waterRules.Current };
                 _constructionMarkers.Clear();
                 _chunkWorld.UpdateAroundPosition(rejoinPos, chunkRadius: 4, evictionRadius: 8);
                 _simulation = new WorldSimulation(_tickRate, _tileSize)
@@ -479,6 +479,7 @@ public sealed partial class MultiplayerSession
                     WorldPhysics = _chunkWorld,
                 };
                 _localPlayer = _simulation.SpawnNetworkEntity(_localNetworkId, rejoinPos, radius: 7f);
+                this.MakeLocalPlayerSwimmer();
                 _simulation.Entities.SetVelocity(_localPlayer, new Velocity2D(0f, 0f, 5f));
             }
         }

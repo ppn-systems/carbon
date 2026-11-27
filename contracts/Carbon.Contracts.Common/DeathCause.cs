@@ -16,4 +16,7 @@ public enum DeathCause : byte
 
     /// <summary>Starvation or malnutrition (ADR-015).</summary>
     Starvation = 2,
+
+    /// <summary>Drowning: out of oxygen under water (ADR-032).</summary>
+    Drowning = 3,
 }

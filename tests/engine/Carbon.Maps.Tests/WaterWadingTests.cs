@@ -61,18 +61,6 @@ public sealed class WaterWadingTests
     }
 
     [Fact]
-    public void GetMoveSpeedMultiplier_ShallowWater_IsSlowerThanLandAndSlowestMidWater()
-    {
-        ChunkWorld2D world = CreateLakeWorld();
-
-        float waterline = world.GetMoveSpeedMultiplier(new Vector2(((LandEdgeX + 1) * Tile) + 1f, 8.5f * Tile));
-        float midWater = world.GetMoveSpeedMultiplier(Centre(9, 8));
-
-        Assert.InRange(waterline, 0.70f, WaterWading.ShoreSpeedMultiplier);
-        Assert.Equal(WaterWading.DeepSpeedMultiplier, midWater, 4);
-    }
-
-    [Fact]
     public void GetWaterDepth_WalkingFromShoreToDeepWater_NeverDecreases()
     {
         ChunkWorld2D world = CreateLakeWorld();
@@ -98,12 +86,12 @@ public sealed class WaterWadingTests
     }
 
     [Fact]
-    public void DeepWater_StaysImpassable()
+    public void DeepWater_IsSolidAndHasNoWadingDepth()
     {
+        // Deep water stays solid to walkers; swimmers pass through it (SwimmingTests). Its speed is the diving speed.
         ChunkWorld2D world = CreateLakeWorld();
 
         Assert.True(world.PeekTileAtWorld(DeepStartX, 8).IsSolid);
-        Assert.Equal(0f, world.GetMoveSpeedMultiplier(Centre(DeepStartX, 8)));
         Assert.Equal(0f, world.GetWaterDepth(Centre(DeepStartX, 8)));
     }
 

@@ -244,6 +244,15 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
     }
 
     /// <inheritdoc/>
+    public void SendPlayerOxygen(ulong connectionId, in PlayerOxygenSnapshot oxygen)
+    {
+        if (this.TryResolveConnection(connectionId, out IConnection? conn) && conn is not null)
+        {
+            _ = DispatchPlayerOxygenAsync(conn, oxygen, _logger);
+        }
+    }
+
+    /// <inheritdoc/>
     public void SendStatusEffects(ulong connectionId, ReadOnlySpan<StatusEffectEntry> entries)
     {
         if (!this.TryResolveConnection(connectionId, out IConnection? conn) || conn is null)
@@ -948,6 +957,26 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogSendFailure(logger, nameof(PlayerDeath), ex);
+        }
+    }
+
+    private static async Task DispatchPlayerOxygenAsync(IConnection connection, PlayerOxygenSnapshot oxygen, ILogger logger)
+    {
+        try
+        {
+            using PacketScope<PlayerOxygenSync> lease = PacketFactory<PlayerOxygenSync>.Acquire();
+            PlayerOxygenSync pkt = lease.Value;
+            pkt.SwimState = oxygen.SwimState;
+            pkt.DepthTier = oxygen.DepthTier;
+            pkt.OxygenMs = oxygen.OxygenMs;
+            pkt.MaxOxygenMs = oxygen.MaxOxygenMs;
+
+            bool encrypt = connection.Algorithm != CipherSuiteType.None;
+            await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogSendFailure(logger, nameof(PlayerOxygenSync), ex);
         }
     }
 

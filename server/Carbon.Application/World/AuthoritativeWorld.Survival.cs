@@ -15,6 +15,7 @@ using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
+using Carbon.Maps.Hydrology;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Survival.Components;
 using Carbon.Survival.Events;
@@ -55,7 +56,8 @@ public sealed partial class AuthoritativeWorld
             this.WakeLocked(state);
         }
 
-        _needs.SetActivity(state.Entity, state.RestMode, isFighting, isSprinting, isMoving);
+        // Swimming and diving (ADR-032) tire and hunger like the swimming activity of needs.json.
+        _needs.SetActivity(state.Entity, state.RestMode, isFighting, isSprinting, isMoving, isSwimming: state.SwimState >= SwimState.Swimming);
         _statusEffects.MirrorPoisonIntoNeeds(state.Entity);
 
         // Cancel the meal if the food left its reserved slot (dropped, moved, traded) so nothing is eaten for free.

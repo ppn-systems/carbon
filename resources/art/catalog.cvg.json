@@ -1303,6 +1303,10 @@
       "file": "ui/status_stunned.cvg.json"
     },
     {
+      "id": "status_drowning",
+      "file": "ui/status_drowning.cvg.json"
+    },
+    {
       "id": "status_hungry",
       "file": "ui/status_hungry.cvg.json"
     },

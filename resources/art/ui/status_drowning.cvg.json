@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "itemId": 0,
+  "id": "status_drowning",
+  "displayName": "Drowning",
+  "tier": 1,
+  "categoryLabel": "Status",
+  "accentColor": "#38BDF8",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.7,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -7,
+          2.5
+        ],
+        [
+          7,
+          2.5
+        ],
+        [
+          6.2,
+          7
+        ],
+        [
+          -6.2,
+          7
+        ]
+      ],
+      "color": "#1E3A8A",
+      "outlineColor": "#0B1A40",
+      "outlineThickness": 1.0,
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -6.6,
+          2.5
+        ],
+        [
+          6.6,
+          2.5
+        ],
+        [
+          6.3,
+          3.6
+        ],
+        [
+          -6.3,
+          3.6
+        ]
+      ],
+      "color": "#38BDF8",
+      "outlineColor": "#0B1A40",
+      "outlineThickness": 0.6,
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "ellipse",
+      "x": -2.6,
+      "y": 0.2,
+      "rx": 2.3,
+      "ry": 2.3,
+      "color": "#7DD3FC",
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "ellipse",
+      "x": -3.4050000000000002,
+      "y": -0.605,
+      "rx": 0.736,
+      "ry": 0.736,
+      "color": "#F0F9FF",
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "ellipse",
+      "x": 2.4,
+      "y": -3.2,
+      "rx": 1.7,
+      "ry": 1.7,
+      "color": "#7DD3FC",
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "ellipse",
+      "x": 1.805,
+      "y": -3.795,
+      "rx": 0.544,
+      "ry": 0.544,
+      "color": "#F0F9FF",
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "ellipse",
+      "x": -0.6,
+      "y": -6.0,
+      "rx": 1.1,
+      "ry": 1.1,
+      "color": "#7DD3FC",
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "ellipse",
+      "x": -0.985,
+      "y": -6.385,
+      "rx": 0.35200000000000004,
+      "ry": 0.35200000000000004,
+      "color": "#F0F9FF",
+      "bone": "root",
+      "facing": "any"
+    }
+  ]
+}

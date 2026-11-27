@@ -15,6 +15,7 @@ using Carbon.Economy;
 using Carbon.Items.Definitions;
 using Carbon.Items.Progression;
 using Carbon.Maps.Building;
+using Carbon.Maps.Hydrology;
 using Carbon.Server.Configuration;
 using Carbon.Survival.Config;
 using Carbon.Survival.Food;
@@ -32,13 +33,15 @@ namespace Carbon.Host;
 /// <param name="Progression">Character progression tuning (ADR-021).</param>
 /// <param name="StatusEffects">Status effect definitions and monster procs (ADR-029).</param>
 /// <param name="Stamina">Stamina tuning (ADR-033).</param>
+/// <param name="Water">Water movement and oxygen rules (ADR-032).</param>
 internal sealed record ServerGameData(
     GameEconomy Economy,
     NeedsConfig Needs,
     FoodCatalog Food,
     ProgressionConfig Progression,
     StatusEffectCatalog StatusEffects,
-    StaminaConfig Stamina)
+    StaminaConfig Stamina,
+    WaterRules Water)
 {
     /// <summary>
     /// Documents a running server cannot swap yet, because the building service and the creature systems are built once
@@ -65,7 +68,13 @@ internal sealed record ServerGameData(
             RequireKnownProcMonsters(statusEffects, LoadCreatures(catalog).Catalog);
             StaminaConfig stamina = StaminaConfig.LoadFromJson(Read(catalog, "stamina.json"));
             RequireKnownItemCodes(stamina, economy);
-            return new ServerGameData(economy, needs, food, progression, statusEffects, stamina);
+            WaterRules water = WaterRules.LoadFromJson(Read(catalog, WaterRules.DocumentName + ".json"));
+            if (!statusEffects.TryGetByKey(water.DrowningEffect, out _))
+            {
+                throw new InvalidDataException($"water.json drowningEffect '{water.DrowningEffect}' is not in status_effects.json.");
+            }
+
+            return new ServerGameData(economy, needs, food, progression, statusEffects, stamina, water);
         }
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException or ArgumentException or FormatException)
         {
@@ -113,7 +122,7 @@ internal sealed record ServerGameData(
 
             ServerGameData data = Load(next);
             // Item stats and recipes (GameEconomy.ItemRules) swap with the economy, matching what clients re-sync.
-            return () => world.ApplyGameData(data.Economy, data.Needs, data.Food, data.Progression, data.StatusEffects, data.Stamina);
+            return () => world.ApplyGameData(data.Economy, data.Needs, data.Food, data.Progression, data.StatusEffects, data.Stamina, data.Water);
         });
     }
 
