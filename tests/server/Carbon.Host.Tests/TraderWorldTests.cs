@@ -495,7 +495,7 @@ public sealed class TraderWorldTests
                     {
                         if (plot.Role == role)
                         {
-                            return VillageBlueprint.FrontTile(VillageBuildingCatalog.Default, plot);
+                            return VillageBlueprint.FrontTile(plot);
                         }
                     }
                 }

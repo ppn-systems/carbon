@@ -4,7 +4,7 @@ The owner's request: stop hand-drawing village buildings and build real villages
 
 The work ships as three pull requests:
 
-1. **Real-structure villages** (this document's §2): templates, planner, materialization, protection, art and roofs.
+1. **Real-structure villages** (this document's §2): generated buildings, streets, materialization, protection, art and roofs.
 2. **Traders** (§3): stock tables, restock epochs, persistence, packets and the desktop trade window.
 3. **Blacksmith** (§4): a trading profile for weapons, armor and tools, repair, and a hook into the enhancement window.
 
@@ -27,56 +27,59 @@ The work ships as three pull requests:
 
 ```jsonc
 {
+  "version": 2,
   "styles": {                                            // one palette per VillageStyle
     "temperate": { "wall": "WoodWall", "door": "WoodDoor", "floor": "WoodFloor", "porch": null },
     "desert":    { "wall": "SandstoneWall", "door": "WoodDoor", "floor": "StoneFloor", "porch": null },
     "snow":      { "wall": "StoneWall", "door": "WoodDoor", "floor": "WoodFloor", "porch": null },
     "swamp":     { "wall": "WoodWall", "door": "WoodDoor", "floor": "PlankDeck", "porch": "PlankDeck" }  // stilted deck
-  },
-  "buildings": [
-    {
-      "id": "smithy", "role": "smithy", "weight": 1,      // role: house | store | smithy | stall
-      "grid": [                                           // authored with the entrance on the bottom (south) row
-        "WWWWWWW",                                        // W wall  D door  . floor  p porch  ' ' bare ground
-        "W.....W",
-        "W.....W",
-        "W.....W",
-        "W.....W",
-        "WWDWWWW",
-        "ppppppp"
-      ],
-      "furniture": [ { "type": "ForgeAnvil", "at": [3, 2] }, { "type": "Workbench", "at": [4, 1] } ],
-      "npc": [3, 3]                                       // where the building's NPC stands
-    }
-  ]
+  }
 }
 ```
 
-- **Templates:** `cottage`, `family_house`, `workshop_house`, `general_store`, `smithy` and `market_stall`.
-  - A template may be limited to some styles (`"styles": [...]`).
-  - Furniture can be rotated, and its anchor is the top-left cell of its footprint.
-- **Validation:** `VillageBuildingCatalog.Parse` rejects:
-  - unknown cells, roles, styles or structure types;
-  - furniture on a wall or door;
-  - an NPC spot inside a wall;
-  - a palette entry of the wrong category (for example a floor type used as a wall).
-- **World-generation data:** the file is embedded into `Carbon.Maps`, like `structures.json`, so the server and every client plan the same villages. Editing it changes the generated world: bump `ProceduralWorldGenerator.GeneratorVersion` and update `VillageGenerationTests.GoldenVillagePlotFingerprint` in the same change.
+- **Validation:** `VillageBuildingCatalog.Parse` rejects unknown styles or structure types, a missing style, and a palette
+  entry of the wrong category (for example a floor type used as a wall).
+- **World-generation data:** the file is embedded into `Carbon.Maps`, like `structures.json`, so the server and every
+  client plan the same villages. Editing it changes the generated world: bump `ProceduralWorldGenerator.GeneratorVersion`
+  and update `VillageGenerationTests.GoldenVillagePlotFingerprint` in the same change.
 
-### 2.2 Planner (deterministic)
+### 2.2 Buildings and layout (deterministic, ADR-027)
 
-`VillagePlanner` (`engine/Carbon.Maps/Landmarks/LandmarkPlanners.cs`) keeps the well, the crop fields (temperate) and the barrel. It then places buildings in this order: market stall, smithy, general store, then up to five houses.
+**Buildings.** `VillageBuildingGenerator.Generate(role, seed)` (`engine/Carbon.Maps/Settlements`) makes every building:
 
-- **Choosing a template.** For each building, `VillageBuildingCatalog.Pick` chooses a template for the role and style, weighted and driven by the layout hash.
-- **Candidate positions.** Up to 40 candidates lie on rings around the well: 4.5–5.5 tiles out for the stall, 6.5–12.5 tiles for the rest, starting at a golden-angle offset. Each candidate first turns its entrance to face the square. A second pass accepts any facing, so cramped sites still fit their buildings.
-- **Accepting a plot.** A candidate becomes a plot when all of these hold:
-  - every corner lies within `radius − 0.5`;
-  - it stays off the 5×5 well square;
-  - it keeps at least one tile from every other plot, so there are alleys between buildings;
-  - every tile, plus a one-tile ring around it, is dry flat ground at the site level;
-  - no tile is on a road or bridge;
-  - the tile in front of the entrance is free.
-- **Roads.** The road query is pure. The generator binds `RoadNetwork.IsRoadOrBridgeAtTile` into `PointOfInterestResolver.RoadQuery`. Roads read only site centres, never layouts, so there is no cycle.
-- **Measured.** Across seeds 42, 1, 2 and 1337 (17×17 sites each), 92–100 % of villages get a stall, a smithy, a store and at least 2 houses; the rest are squeezed by rivers or cliffs. `VillageGenerationTests.Plan_Villages_GetStallSmithyStoreAndHouses` enforces at least 90 %.
+- a rectangle (houses 5–8 × 5–7 tiles, shops 6–8 × 6–7) or an L-shape, with its entrance in the south wall and a porch
+  row in front (decked in the swamp palette);
+- one to three rooms, split by straight interior walls with doors; a split never walls off a door and leaves at least
+  two tiles of floor on each side;
+- furniture by role, each piece on a free floor tile away from doors, and only where every free tile and the NPC spot
+  stay reachable from the entrance:
+
+| Role | Front room | Back rooms |
+| :--- | :--- | :--- |
+| House | stove, table, shelf or chest; beds when it has one room | bedroom (beds, chest), storeroom or workroom |
+| Smithy | forge anvil with the smith beside it, stove, workbench, shelf, chest | bedroom, storeroom or workroom |
+| Store | shelves, a counter of two tables with the trader behind it, chest | storeroom |
+| Stall | open market stall, crate, merchant behind the counter | — |
+
+**Streets.** `VillagePlanner` (`engine/Carbon.Maps/Landmarks/VillagePlanner.cs`) keeps the well on a small square,
+then lays a main street through it, lined up with the roads that reach the village (`RoadNetwork.Rasterize` over the
+site), with a bend in each arm, plus one or two side lanes. Streets stop at water and cliffs.
+
+**Placement.** The smithy, the store, the stall and four to seven houses, in that order:
+
+- beside a street first, the door turned to the street, at a varied setback; when no frontage is left, anywhere on the
+  site with the door facing the nearest street (at most 8 tiles away);
+- a short path joins every front door to its street (`LandmarkLayout.Paths`, drawn by `PointOfInterestRenderer`);
+- a plot stays inside `radius − 0.5`, off the square, streets, paths and roads, one or two tiles from other plots, on
+  dry level ground with a one-tile ring, and its path crosses open ground only;
+- no two buildings of a village share a footprint;
+- a footprint with no room is retried compact; after three houses that do not fit, the site counts as full; with fewer
+  than two houses, the streets are laid out another way (up to four layouts) and the best layout is kept.
+
+**Measured.** Across seeds 42, 1, 2 and 1337 (17×17 sites each), 94–97 % of villages get a stall, a smithy, a store and
+at least 2 houses (`VillageGenerationTests.Plan_Villages_GetStallSmithyStoreAndHouses` enforces 90 %). The mean
+alignment of doors with the direction to the well is 0.52–0.56; the old ring scored 0.83–0.84
+(`Plan_Layout_IsNotARingFacingTheWell` enforces below 0.7). Planning takes about 15 ms per village, once per process.
 
 `LandmarkLayout.Plots` holds the result. It is a pure function of the seed and the generator version.
 
