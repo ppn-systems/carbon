@@ -21,6 +21,9 @@ internal sealed class CloudSystem
     private const float HighCell = 1100f;
     private const int MaxPuffs = 18;
 
+    // Cirrus emits two puffs per step, so a cloud yields at most twice MaxPuffs.
+    private const int MaxPuffSlots = MaxPuffs * 2;
+
     private static readonly Vector2 s_wind = new(15f, 4.5f);
 
     private readonly List<Cloud> _visible = new(64);
@@ -35,6 +38,8 @@ internal sealed class CloudSystem
     }
 
     private readonly record struct Cloud(Vector2 Centre, float Size, Kind Kind, uint Seed, float Life, float Altitude);
+
+    private readonly record struct Puff(Vector2 Position, float Radius, float Life);
 
     /// <summary>
     /// Works out which clouds are alive in and around the view this frame. Call once per frame before
@@ -58,6 +63,7 @@ internal sealed class CloudSystem
         }
 
         Vector2 sun = SunShadowDirection(hour);
+        Span<Puff> puffs = stackalloc Puff[MaxPuffSlots];
         foreach (Cloud cloud in _visible)
         {
             if (cloud.Kind == Kind.Cirrus)
@@ -67,12 +73,14 @@ internal sealed class CloudSystem
 
             Vector2 offset = sun * cloud.Altitude;
             float strength = (cloud.Kind == Kind.Storm ? 34f : cloud.Kind == Kind.Stratus ? 16f : 24f) * daylight * (0.8f + (rain * 0.4f));
-            ForEachPuff(cloud, (p, r, puffLife) =>
+            int count = CollectPuffs(cloud, puffs);
+            for (int i = 0; i < count; i++)
             {
+                (Vector2 p, float r, float puffLife) = puffs[i];
                 float a = strength * cloud.Life * puffLife;
                 FillEllipse(batch, p + offset, r * 1.05f, r * 0.62f, new ColorRgba(12, 22, 38, (byte)(a * 0.55f)), 20);
                 FillEllipse(batch, p + offset, r * 0.75f, r * 0.44f, new ColorRgba(12, 22, 38, (byte)(a * 0.45f)), 18);
-            });
+            }
         }
     }
 
@@ -80,6 +88,7 @@ internal sealed class CloudSystem
     public void DrawClouds(GeometryBatch batch, float hour, float night, float rain, Vector2 player)
     {
         (ColorRgba lit, ColorRgba mid, ColorRgba shade) = Palette(hour, night, rain);
+        Span<Puff> puffs = stackalloc Puff[MaxPuffSlots];
         foreach (Cloud cloud in _visible)
         {
             // Clouds thin out where they pass right over the player, so they never hide the action.
@@ -98,22 +107,28 @@ internal sealed class CloudSystem
             ColorRgba cShade = cloud.Kind == Kind.Storm ? Mix(shade, new ColorRgba(30, 34, 44), 0.6f) : shade;
 
             // Three passes give each cloud volume: shaded base, body, sunlit crown.
-            ForEachPuff(cloud, (p, r, puffLife) =>
+            int count = CollectPuffs(cloud, puffs);
+            for (int i = 0; i < count; i++)
             {
+                (Vector2 p, float r, float puffLife) = puffs[i];
                 float a = baseAlpha * puffLife;
                 FillEllipse(batch, p + new Vector2(0f, r * 0.22f), r * 1.02f, r * 0.82f, WithAlpha(cShade, a * 0.45f), 22);
-            });
-            ForEachPuff(cloud, (p, r, puffLife) =>
+            }
+
+            for (int i = 0; i < count; i++)
             {
+                (Vector2 p, float r, float puffLife) = puffs[i];
                 float a = baseAlpha * puffLife;
                 FillEllipse(batch, p, r, r * 0.86f, WithAlpha(cMid, a * 0.40f), 22);
                 FillEllipse(batch, p, r * 0.72f, r * 0.62f, WithAlpha(cMid, a * 0.30f), 18);
-            });
-            ForEachPuff(cloud, (p, r, puffLife) =>
+            }
+
+            for (int i = 0; i < count; i++)
             {
+                (Vector2 p, float r, float puffLife) = puffs[i];
                 float a = baseAlpha * puffLife;
                 FillEllipse(batch, p + new Vector2(-r * 0.22f, -r * 0.26f), r * 0.6f, r * 0.48f, WithAlpha(cLit, a * 0.45f), 16);
-            });
+            }
         }
     }
 
@@ -193,9 +208,11 @@ internal sealed class CloudSystem
     }
 
     // Puffs of a cloud in its own shape; each puff has its own life so clouds build up and dissolve
-    // gradually instead of fading as one block.
-    private static void ForEachPuff(in Cloud cloud, Action<Vector2, float, float> draw)
+    // gradually instead of fading as one block. Written into a caller's stack buffer (at most
+    // MaxPuffSlots) instead of invoking a per-frame closure for each draw pass (audit round 2, PERF-16).
+    private static int CollectPuffs(in Cloud cloud, Span<Puff> puffs)
     {
+        int written = 0;
         int count = cloud.Kind switch
         {
             Kind.Stratus => 12,
@@ -255,13 +272,15 @@ internal sealed class CloudSystem
             if (cloud.Kind == Kind.Cirrus)
             {
                 // Stretch along the wind
-                draw(cloud.Centre + p, r, puffLife);
-                draw(cloud.Centre + p + new Vector2(r * 1.4f, r * 0.2f), r * 0.8f, puffLife * 0.8f);
+                puffs[written++] = new Puff(cloud.Centre + p, r, puffLife);
+                puffs[written++] = new Puff(cloud.Centre + p + new Vector2(r * 1.4f, r * 0.2f), r * 0.8f, puffLife * 0.8f);
                 continue;
             }
 
-            draw(cloud.Centre + p, r * (0.8f + (0.2f * puffLife)), Smooth(puffLife));
+            puffs[written++] = new Puff(cloud.Centre + p, r * (0.8f + (0.2f * puffLife)), Smooth(puffLife));
         }
+
+        return written;
     }
 
     // ── Light ───────────────────────────────────────────────────────────────
