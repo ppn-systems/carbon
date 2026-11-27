@@ -15,42 +15,26 @@ namespace Carbon.Maps.Tests;
 
 public sealed class VillageGenerationTests
 {
-    // Pins every village plot (template, origin, turns) of seed 42 over a 13x13 site window (generator version 16:
-    // villages built from real structures, ADR-025). Update it only together with GeneratorVersion.
-    private const ulong GoldenVillagePlotFingerprint = 15994986282064531618UL;
+    // Pins every village plot (generated footprint, furniture, origin, turns) of seed 42 over a 13x13 site window
+    // (generator version 18: villages along streets with generated buildings, ADR-027). Update it only together with
+    // GeneratorVersion.
+    private const ulong GoldenVillagePlotFingerprint = 15131943118228400016UL;
 
     private readonly ITestOutputHelper _output;
 
     public VillageGenerationTests(ITestOutputHelper output) => _output = output;
 
     [Fact]
-    public void Catalog_Embedded_ParsesEveryStyleAndRole()
+    public void Catalog_Parse_RejectsBadPalettes()
     {
-        VillageBuildingCatalog catalog = VillageBuildingCatalog.Default;
-        foreach (VillageStyle style in Enum.GetValues<VillageStyle>())
-        {
-            foreach (VillageBuildingRole role in Enum.GetValues<VillageBuildingRole>())
-            {
-                Assert.True(catalog.Pick(role, style, 7U) >= 0, $"No {role} template for style {style}.");
-            }
-        }
-    }
+        const string Ok = """{ "wall": "WoodWall", "door": "WoodDoor", "floor": "WoodFloor" }""";
+        static string Doc(string temperate, string desert = Ok) =>
+            "{ \"styles\": { \"temperate\": " + temperate + ", \"desert\": " + desert + ", \"snow\": " + Ok + ", \"swamp\": " + Ok + " } }";
 
-    [Fact]
-    public void Catalog_Parse_RejectsUnknownCellsAndTypes()
-    {
-        const string Styles = """
-            "styles": {
-              "temperate": { "wall": "WoodWall", "door": "WoodDoor", "floor": "WoodFloor" },
-              "desert": { "wall": "WoodWall", "door": "WoodDoor", "floor": "WoodFloor" },
-              "snow": { "wall": "WoodWall", "door": "WoodDoor", "floor": "WoodFloor" },
-              "swamp": { "wall": "WoodWall", "door": "WoodDoor", "floor": "WoodFloor" }
-            }
-            """;
-        Assert.Throws<FormatException>(() => VillageBuildingCatalog.Parse("{" + Styles + """, "buildings": [ { "id": "a", "role": "house", "grid": [ "WXW" ] } ] }"""));
-        Assert.Throws<FormatException>(() => VillageBuildingCatalog.Parse("{" + Styles + """, "buildings": [ { "id": "a", "role": "house", "grid": [ "W.W" ], "furniture": [ { "type": "Nope", "at": [1, 0] } ] } ] }"""));
-        Assert.Throws<FormatException>(() => VillageBuildingCatalog.Parse("{" + Styles + """, "buildings": [ { "id": "a", "role": "house", "grid": [ "W.W" ], "furniture": [ { "type": "WoodChest", "at": [0, 0] } ] } ] }"""));
-        Assert.Throws<FormatException>(() => VillageBuildingCatalog.Parse("""{ "styles": { "temperate": { "wall": "WoodFloor", "door": "WoodDoor", "floor": "WoodFloor" } }, "buildings": [] }"""));
+        Assert.NotNull(VillageBuildingCatalog.Parse(Doc(Ok)));
+        Assert.Throws<FormatException>(() => VillageBuildingCatalog.Parse(Doc("""{ "wall": "WoodFloor", "door": "WoodDoor", "floor": "WoodFloor" }""")));
+        Assert.Throws<FormatException>(() => VillageBuildingCatalog.Parse(Doc("""{ "wall": "Nope", "door": "WoodDoor", "floor": "WoodFloor" }""")));
+        Assert.Throws<FormatException>(() => VillageBuildingCatalog.Parse("""{ "styles": { "temperate": { "wall": "WoodWall", "door": "WoodDoor", "floor": "WoodFloor" } } }"""));
     }
 
     [Fact]
@@ -147,8 +131,8 @@ public sealed class VillageGenerationTests
 
             foreach (VillagePlot plot in layout.Plots)
             {
-                VillageBuildingTemplate template = VillageBuildingCatalog.Default.Templates[plot.TemplateIndex];
-                (int fx, int fy) = VillageBlueprint.FrontTile(VillageBuildingCatalog.Default, plot);
+                VillageBuildingTemplate template = plot.Template;
+                (int fx, int fy) = VillageBlueprint.FrontTile(plot);
                 HashSet<(int, int)> reach = FloodWalkable(world, fx, fy, plot);
                 for (int y = 0; y < template.Height; y++)
                 {
@@ -159,7 +143,7 @@ public sealed class VillageGenerationTests
                             continue;
                         }
 
-                        (int wx, int wy) = plot.ToWorld(template, x, y);
+                        (int wx, int wy) = plot.ToWorld(x, y);
                         Assert.True(
                             RoomDetector.IsTileEnclosed(wx, wy, world.Buildings.IsRoomBoundaryAt),
                             $"{template.Id} cell {x},{y} at {wx},{wy} is not enclosed.");
@@ -170,7 +154,7 @@ public sealed class VillageGenerationTests
                     }
                 }
 
-                if (VillageBlueprint.TryGetNpcTile(VillageBuildingCatalog.Default, plot, out int nx, out int ny))
+                if (VillageBlueprint.TryGetNpcTile(plot, out int nx, out int ny))
                 {
                     Assert.False(world.Buildings.IsSolidAt(nx, ny), $"{template.Id} NPC spot is blocked.");
                     Assert.True(reach.Contains((nx, ny)), $"{template.Id} NPC spot cannot be reached from the entrance.");
@@ -181,6 +165,200 @@ public sealed class VillageGenerationTests
         }
 
         Assert.True(checkedBuildings > 20);
+    }
+
+    [Theory]
+    [InlineData(42UL)]
+    [InlineData(1UL)]
+    [InlineData(2UL)]
+    [InlineData(1337UL)]
+    public void Plan_BuildingsOfOneVillage_AllHaveDifferentFootprints(ulong seed)
+    {
+        foreach ((_, PointOfInterest poi, LandmarkLayout layout) in Villages(seed))
+        {
+            ReadOnlySpan<VillagePlot> plots = layout.Plots;
+            for (int i = 0; i < plots.Length; i++)
+            {
+                for (int j = i + 1; j < plots.Length; j++)
+                {
+                    Assert.False(
+                        plots[i].Template.HasSameFootprint(plots[j].Template),
+                        $"{plots[i].Template.Id} and {plots[j].Template.Id} of the village at {poi.TileX},{poi.TileY} share a footprint");
+                }
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(42UL)]
+    [InlineData(1UL)]
+    [InlineData(2UL)]
+    [InlineData(1337UL)]
+    public void Plan_Buildings_StandOnDryGroundAtTheSiteLevelAndOffStreetsAndRoads(ulong seed)
+    {
+        foreach ((ProceduralWorldGenerator gen, PointOfInterest poi, LandmarkLayout layout) in Villages(seed))
+        {
+            byte level = gen.SampleTile(poi.TileX, poi.TileY).HeightLevel;
+            foreach (VillagePlot plot in layout.Plots)
+            {
+                for (int y = plot.OriginY - 1; y <= plot.OriginY + plot.Height; y++)
+                {
+                    for (int x = plot.OriginX - 1; x <= plot.OriginX + plot.Width; x++)
+                    {
+                        MapTile t = gen.SampleTile(x, y);
+                        bool dry = !t.IsSolid && t.HeightLevel == level && t.Biome is not (Biomes.BiomeType.ShallowWater or Biomes.BiomeType.DeepOcean);
+                        Assert.True(dry, $"{plot.Template.Id} at {poi.TileX},{poi.TileY} stands on water or a cliff at {x},{y}");
+                        if (plot.Contains(x, y))
+                        {
+                            Assert.False(gen.Roads.IsRoadOrBridgeAtTile(x, y, bridgeOnly: false), $"{plot.Template.Id} is built over a road at {x},{y}");
+                        }
+                    }
+                }
+
+                foreach (LandmarkPath path in layout.Paths)
+                {
+                    if (path.Width < 1f)
+                    {
+                        continue; // The spur to a door may cross its own porch.
+                    }
+
+                    for (int y = plot.OriginY; y < plot.OriginY + plot.Height; y++)
+                    {
+                        for (int x = plot.OriginX; x < plot.OriginX + plot.Width; x++)
+                        {
+                            float reach = path.Width * 0.5f;
+                            Assert.True(
+                                path.DistanceSquaredTo(x + 0.5f, y + 0.5f) > reach * reach,
+                                $"{plot.Template.Id} at {poi.TileX},{poi.TileY} is built over a street at {x},{y}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(42UL)]
+    [InlineData(1UL)]
+    [InlineData(2UL)]
+    [InlineData(1337UL)]
+    public void Plan_EveryDoor_FacesAPathThatLeadsToAStreet(ulong seed)
+    {
+        foreach ((ProceduralWorldGenerator gen, PointOfInterest poi, LandmarkLayout layout) in Villages(seed))
+        {
+            List<LandmarkPath> streets = [];
+            foreach (LandmarkPath path in layout.Paths)
+            {
+                if (path.Width >= 1f)
+                {
+                    streets.Add(path);
+                }
+            }
+
+            Assert.NotEmpty(streets);
+            foreach (VillagePlot plot in layout.Plots)
+            {
+                (int fx, int fy) = VillageBlueprint.FrontTile(plot);
+                (int ex, int ey) = VillageBlueprint.EntranceTile(plot);
+                float doorX = fx - ex;
+                float doorY = fy - ey;
+                bool served = false;
+                foreach (LandmarkPath spur in layout.Paths)
+                {
+                    bool startsAtDoor = MathF.Abs(spur.X0 - (fx + 0.5f)) < 0.01f && MathF.Abs(spur.Y0 - (fy + 0.5f)) < 0.01f;
+                    if (!startsAtDoor)
+                    {
+                        continue;
+                    }
+
+                    float dx = spur.X1 - spur.X0;
+                    float dy = spur.Y1 - spur.Y0;
+                    float length = MathF.Sqrt((dx * dx) + (dy * dy));
+                    bool onStreet = streets.Exists(s => s.DistanceSquaredTo(spur.X1, spur.Y1) < 0.01f);
+                    bool outwards = length < 0.01f || ((dx * doorX) + (dy * doorY)) / length >= 0.5f;
+                    served |= onStreet && outwards;
+                }
+
+                Assert.True(served, $"{plot.Template.Id} at {poi.TileX},{poi.TileY}: no path leads from its door straight out to a street");
+            }
+
+            _ = gen;
+        }
+    }
+
+    // A ring of buildings around the well turns every entrance to the well. Buildings that line streets face the street,
+    // which runs through the square, so their doors mostly look past the well, not at it.
+    [Theory]
+    [InlineData(42UL)]
+    [InlineData(1UL)]
+    [InlineData(2UL)]
+    [InlineData(1337UL)]
+    public void Plan_Layout_IsNotARingFacingTheWell(ulong seed)
+    {
+        double sum = 0;
+        int buildings = 0;
+        foreach ((_, PointOfInterest poi, LandmarkLayout layout) in Villages(seed))
+        {
+            foreach (VillagePlot plot in layout.Plots)
+            {
+                if (plot.Role == VillageBuildingRole.Stall)
+                {
+                    continue;
+                }
+
+                (int fx, int fy) = VillageBlueprint.FrontTile(plot);
+                (int ex, int ey) = VillageBlueprint.EntranceTile(plot);
+                double wx = poi.TileX - ex;
+                double wy = poi.TileY - ey;
+                double length = Math.Sqrt((wx * wx) + (wy * wy));
+                sum += (((fx - ex) * wx) + ((fy - ey) * wy)) / Math.Max(length, 1e-6);
+                buildings++;
+            }
+        }
+
+        double mean = sum / buildings;
+        _output.WriteLine($"{buildings} buildings, mean door-to-well alignment {mean:F2}");
+        Assert.True(buildings > 100, $"only {buildings} buildings");
+        Assert.True(mean < 0.7, $"doors point at the well on average ({mean:F2}): the layout is still a ring around the square");
+    }
+
+    [Theory]
+    [InlineData(42UL)]
+    [InlineData(1337UL)]
+    public void Materialize_EveryDoorAndNpcSpot_IsReachableOnFootFromTheSquare(ulong seed)
+    {
+        int doors = 0;
+        foreach ((ProceduralWorldGenerator gen, PointOfInterest poi, LandmarkLayout layout) in Villages(seed))
+        {
+            ChunkWorld2D world = new(gen);
+            (int sx, int sy) = VillageMaterializer.SiteOfChunk(Chunk2D.ToChunkCoord(poi.TileX), Chunk2D.ToChunkCoord(poi.TileY));
+            _ = NewMaterializer(world).Materialize(sx, sy);
+            HashSet<(int, int)> reach = FloodFromSquare(world, gen, poi);
+            foreach (VillagePlot plot in layout.Plots)
+            {
+                for (int y = 0; y < plot.Template.Height; y++)
+                {
+                    for (int x = 0; x < plot.Template.Width; x++)
+                    {
+                        if (plot.Template.CellAt(x, y) != VillageBuildingTemplate.DoorCell)
+                        {
+                            continue;
+                        }
+
+                        (int wx, int wy) = plot.ToWorld(x, y);
+                        Assert.True(reach.Contains((wx, wy)), $"{plot.Template.Id} door {x},{y} at {wx},{wy} cannot be reached from the square of {poi.TileX},{poi.TileY}");
+                        doors++;
+                    }
+                }
+
+                if (VillageBlueprint.TryGetNpcTile(plot, out int nx, out int ny))
+                {
+                    Assert.True(reach.Contains((nx, ny)), $"{plot.Template.Id} NPC spot cannot be reached from the square of {poi.TileX},{poi.TileY}");
+                }
+            }
+        }
+
+        Assert.True(doors > 100, $"only {doors} doors checked");
     }
 
     [Fact]
@@ -270,8 +448,8 @@ public sealed class VillageGenerationTests
         BuildingService service = BuildingService.ForWorld(world, StructureCatalog.LoadEmbedded(), new BuildPermissionTable());
 
         VillagePlot plot = layout.Plots[0].Role == VillageBuildingRole.Stall ? layout.Plots[1] : layout.Plots[0];
-        VillageBuildingTemplate template = VillageBuildingCatalog.Default.Templates[plot.TemplateIndex];
-        (int wallX, int wallY) = plot.ToWorld(template, 0, 0);
+        VillageBuildingTemplate template = plot.Template;
+        (int wallX, int wallY) = plot.ToWorld(0, 0);
         BuildActor player = new(12345UL, wallX, wallY + 1, ToolTier: 9);
         FakeInventory refunds = new();
 
@@ -284,7 +462,7 @@ public sealed class VillageGenerationTests
         {
             for (int x = 0; x < template.Width; x++)
             {
-                (int fx, int fy) = plot.ToWorld(template, x, y);
+                (int fx, int fy) = plot.ToWorld(x, y);
                 if (template.CellAt(x, y) == VillageBuildingTemplate.FloorCell &&
                     world.Buildings.TryGetStructure(fx, fy, out StructureTile floor) && floor.Category == StructureCategory.Floor)
                 {
@@ -350,7 +528,19 @@ public sealed class VillageGenerationTests
             {
                 foreach (VillagePlot p in gen.Landmarks.GetLayout(sx, sy).Plots)
                 {
-                    Mix(p.TemplateIndex);
+                    Mix((ulong)p.Role);
+                    for (int y = 0; y < p.Template.Height; y++)
+                    {
+                        for (int x = 0; x < p.Template.Width; x++)
+                        {
+                            Mix(p.Template.CellAt(x, y));
+                        }
+                    }
+
+                    foreach (VillageFurniture f in p.Template.Furniture)
+                    {
+                        Mix(((ulong)f.Type << 32) | ((ulong)(uint)f.X << 16) | (uint)f.Y);
+                    }
                     Mix((ulong)p.Style);
                     Mix((uint)p.OriginX);
                     Mix((uint)p.OriginY);
@@ -387,6 +577,41 @@ public sealed class VillageGenerationTests
         }
 
         return h;
+    }
+
+    // Tiles reachable on foot from the square: doors open (players open them), walls, furniture and solid terrain block.
+    private static HashSet<(int, int)> FloodFromSquare(ChunkWorld2D world, ProceduralWorldGenerator gen, PointOfInterest poi)
+    {
+        byte level = gen.SampleTile(poi.TileX, poi.TileY).HeightLevel;
+        (int, int) start = (poi.TileX, poi.TileY + 2);
+        HashSet<(int, int)> seen = [start];
+        Queue<(int, int)> queue = new();
+        queue.Enqueue(start);
+        while (queue.Count > 0)
+        {
+            (int cx, int cy) = queue.Dequeue();
+            foreach ((int dx, int dy) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+            {
+                int nx = cx + dx;
+                int ny = cy + dy;
+                if (Math.Abs(nx - poi.TileX) > poi.Radius + 2 || Math.Abs(ny - poi.TileY) > poi.Radius + 2 || seen.Contains((nx, ny)))
+                {
+                    continue;
+                }
+
+                bool door = world.Buildings.TryGetStructure(nx, ny, out StructureTile s) && s.Category == StructureCategory.Door;
+                MapTile terrain = gen.SampleTile(nx, ny);
+                if ((world.Buildings.IsSolidAt(nx, ny) && !door) || terrain.IsSolid || terrain.HeightLevel != level)
+                {
+                    continue;
+                }
+
+                _ = seen.Add((nx, ny));
+                queue.Enqueue((nx, ny));
+            }
+        }
+
+        return seen;
     }
 
     // Tiles reachable on foot from (x, y): doors count as passable (players open them), solid structures and terrain block.

@@ -15,22 +15,27 @@ public sealed class LandmarkLayout
     private readonly LandmarkPiece[] _pieces;
     private readonly LandmarkField[] _fields;
     private readonly VillagePlot[] _plots;
+    private readonly LandmarkPath[] _paths;
 
-    internal LandmarkLayout(LandmarkPiece[] pieces, LandmarkField[] fields, VillagePlot[] plots)
+    internal LandmarkLayout(LandmarkPiece[] pieces, LandmarkField[] fields, VillagePlot[] plots, LandmarkPath[] paths)
     {
         _pieces = pieces;
         _fields = fields;
         _plots = plots;
+        _paths = paths;
     }
 
     /// <summary>Gets the empty layout.</summary>
-    public static LandmarkLayout Empty { get; } = new([], [], []);
+    public static LandmarkLayout Empty { get; } = new([], [], [], []);
 
     /// <summary>
     /// Gets the village buildings. They are not drawn or collided as landmark pieces: the server materializes them as
     /// real building-grid structures owned by the village faction (ADR-025).
     /// </summary>
     public ReadOnlySpan<VillagePlot> Plots => _plots;
+
+    /// <summary>Gets the dirt paths: village streets, lanes and the spurs to front doors (ADR-027).</summary>
+    public ReadOnlySpan<LandmarkPath> Paths => _paths;
 
     /// <summary>Gets the upright structures.</summary>
     public ReadOnlySpan<LandmarkPiece> Pieces => _pieces;
@@ -58,6 +63,23 @@ public sealed class LandmarkLayout
         }
 
         LandmarkPlanContext context = new(poi, tileAt, isRoad);
+        LandmarkPlanners.Get(poi.Type)?.Plan(context);
+        return context.ToLayout();
+    }
+
+    /// <summary>Builds the layout of a point of interest with the world's road network.</summary>
+    internal static LandmarkLayout Build(in PointOfInterest poi, ITileSource tileAt, Roads.RoadNetwork? roads)
+    {
+        ArgumentNullException.ThrowIfNull(tileAt);
+        if (poi.Type == PointOfInterestType.None)
+        {
+            return Empty;
+        }
+
+        Func<int, int, bool>? isRoad = roads is null
+            ? null
+            : (x, y) => roads.IsRoadOrBridgeAtTile(x, y, bridgeOnly: false) || roads.IsRoadOrBridgeAtTile(x, y, bridgeOnly: true);
+        LandmarkPlanContext context = new(poi, tileAt, isRoad, roads);
         LandmarkPlanners.Get(poi.Type)?.Plan(context);
         return context.ToLayout();
     }

@@ -6,7 +6,6 @@ using System.Numerics;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
 using Carbon.Maps.Landmarks;
-using Carbon.Maps.Settlements;
 using Carbon.Desktop.Rendering.Atmospherics;
 
 namespace Carbon.Desktop.Rendering.World;
@@ -47,17 +46,8 @@ internal sealed class PointOfInterestRenderer
             case PointOfInterestType.SwampVillage:
                 this.DrawFields(batch, layout);
 
-                // Dirt paths from the square to the front door of every building (real structures, ADR-025).
-                foreach (VillagePlot plot in layout.Plots)
-                {
-                    if (plot.Role == VillageBuildingRole.Stall)
-                    {
-                        continue;
-                    }
-
-                    (int fx, int fy) = VillageBlueprint.FrontTile(VillageBuildingCatalog.Default, plot);
-                    DrawPath(batch, c, new Vector2((fx + 0.5f) * _tileSize, (fy + 0.5f) * _tileSize), 14f);
-                }
+                // Village streets, side lanes and the spur to every front door (ADR-027).
+                this.DrawPaths(batch, layout);
 
                 // The square covers only the well area the planner keeps free, so it never paints over a building.
                 DrawPlaza(batch, c, 2.6f * _tileSize);
@@ -311,10 +301,24 @@ internal sealed class PointOfInterestRenderer
         }
     }
 
-    private static void DrawPath(GeometryBatch batch, Vector2 from, Vector2 to, float width)
+    // Edges first, then the fill, so joints and crossings read as one continuous dirt path.
+    private void DrawPaths(GeometryBatch batch, LandmarkLayout layout)
     {
-        batch.DrawLine(from, to, new ColorRgba(140, 112, 74), width + 4f);
-        batch.DrawLine(from, to, new ColorRgba(184, 156, 108), width);
+        ReadOnlySpan<LandmarkPath> paths = layout.Paths;
+        for (int pass = 0; pass < 2; pass++)
+        {
+            ColorRgba color = pass == 0 ? new ColorRgba(140, 112, 74) : new ColorRgba(184, 156, 108);
+            float grow = pass == 0 ? 4f : 0f;
+            foreach (LandmarkPath path in paths)
+            {
+                Vector2 from = new(path.X0 * _tileSize, path.Y0 * _tileSize);
+                Vector2 to = new(path.X1 * _tileSize, path.Y1 * _tileSize);
+                float width = (path.Width * _tileSize) + grow - 4f;
+                batch.DrawLine(from, to, color, width);
+                batch.FillCircle(from, width * 0.5f, color, 12);
+                batch.FillCircle(to, width * 0.5f, color, 12);
+            }
+        }
     }
 
     private static Vector2 SeaDirection(in PointOfInterest poi)

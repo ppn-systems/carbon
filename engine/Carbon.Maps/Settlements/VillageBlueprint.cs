@@ -13,7 +13,7 @@ public static class VillageBlueprint
     /// Appends every structure tile of <paramref name="plot"/>: walls, doors, floors and porches from the style palette,
     /// then the furniture (each footprint tile of it, standing on the floor of its cell).
     /// </summary>
-    /// <param name="catalog">Village templates and palettes.</param>
+    /// <param name="catalog">Village style palettes.</param>
     /// <param name="structures">Structure definitions (furniture footprints).</param>
     /// <param name="plot">The plot.</param>
     /// <param name="output">Receives the placements (not cleared).</param>
@@ -22,7 +22,7 @@ public static class VillageBlueprint
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(structures);
         ArgumentNullException.ThrowIfNull(output);
-        VillageBuildingTemplate template = catalog.Templates[plot.TemplateIndex];
+        VillageBuildingTemplate template = plot.Template;
         VillageStylePalette palette = catalog.Palette(plot.Style);
         int start = output.Count;
 
@@ -36,7 +36,7 @@ public static class VillageBlueprint
                     continue;
                 }
 
-                (int wx, int wy) = plot.ToWorld(template, x, y);
+                (int wx, int wy) = plot.ToWorld(x, y);
                 output.Add(new VillagePlacement(wx, wy, type, StructureRotation.North, wx, wy, StructureType.None));
             }
         }
@@ -45,8 +45,8 @@ public static class VillageBlueprint
         foreach (VillageFurniture f in template.Furniture)
         {
             (int fw, int fh) = structures.TryGet(f.Type, out StructureDefinition def) ? def.GetFootprint(f.Rotation) : (1, 1);
-            (int ax, int ay) = plot.ToWorld(template, f.X, f.Y);
-            (int bx, int by) = plot.ToWorld(template, f.X + fw - 1, f.Y + fh - 1);
+            (int ax, int ay) = plot.ToWorld(f.X, f.Y);
+            (int bx, int by) = plot.ToWorld(f.X + fw - 1, f.Y + fh - 1);
             int minX = Math.Min(ax, bx);
             int minY = Math.Min(ay, by);
             int maxX = Math.Max(ax, bx);
@@ -83,13 +83,12 @@ public static class VillageBlueprint
     }
 
     /// <summary>Gets the world tile of the plot's NPC spot, if its template has one.</summary>
-    public static bool TryGetNpcTile(VillageBuildingCatalog catalog, in VillagePlot plot, out int tileX, out int tileY)
+    public static bool TryGetNpcTile(in VillagePlot plot, out int tileX, out int tileY)
     {
-        ArgumentNullException.ThrowIfNull(catalog);
-        VillageBuildingTemplate template = catalog.Templates[plot.TemplateIndex];
+        VillageBuildingTemplate template = plot.Template;
         if (template.NpcSpot is (int x, int y))
         {
-            (tileX, tileY) = plot.ToWorld(template, x, y);
+            (tileX, tileY) = plot.ToWorld(x, y);
             return true;
         }
 
@@ -98,29 +97,31 @@ public static class VillageBlueprint
         return false;
     }
 
-    /// <summary>Gets the world tile of the first door of the plot, or of its front centre for door-less templates.</summary>
-    public static (int X, int Y) EntranceTile(VillageBuildingCatalog catalog, in VillagePlot plot)
+    /// <summary>
+    /// Gets the world tile of the entrance: the door on the authored south wall (searched from the bottom row up), or the
+    /// front centre for door-less templates.
+    /// </summary>
+    public static (int X, int Y) EntranceTile(in VillagePlot plot)
     {
-        ArgumentNullException.ThrowIfNull(catalog);
-        VillageBuildingTemplate template = catalog.Templates[plot.TemplateIndex];
+        VillageBuildingTemplate template = plot.Template;
         for (int y = template.Height - 1; y >= 0; y--)
         {
             for (int x = 0; x < template.Width; x++)
             {
                 if (template.CellAt(x, y) == VillageBuildingTemplate.DoorCell)
                 {
-                    return plot.ToWorld(template, x, y);
+                    return plot.ToWorld(x, y);
                 }
             }
         }
 
-        return plot.ToWorld(template, template.Width / 2, template.Height - 1);
+        return plot.ToWorld(template.Width / 2, template.Height - 1);
     }
 
     /// <summary>Gets the world tile just outside the entrance (where the village path ends).</summary>
-    public static (int X, int Y) FrontTile(VillageBuildingCatalog catalog, in VillagePlot plot)
+    public static (int X, int Y) FrontTile(in VillagePlot plot)
     {
-        (int ex, int ey) = EntranceTile(catalog, plot);
+        (int ex, int ey) = EntranceTile(plot);
         return (plot.Turns & 3) switch
         {
             0 => (ex, ey + 1),
