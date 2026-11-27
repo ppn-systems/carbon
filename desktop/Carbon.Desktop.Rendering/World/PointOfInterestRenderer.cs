@@ -6,6 +6,7 @@ using System.Numerics;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
 using Carbon.Maps.Landmarks;
+using Carbon.Maps.Settlements;
 using Carbon.Desktop.Rendering.Atmospherics;
 
 namespace Carbon.Desktop.Rendering.World;
@@ -45,15 +46,21 @@ internal sealed class PointOfInterestRenderer
             case PointOfInterestType.SnowVillage:
             case PointOfInterestType.SwampVillage:
                 this.DrawFields(batch, layout);
-                foreach (LandmarkPiece p in layout.Pieces)
+
+                // Dirt paths from the square to the front door of every building (real structures, ADR-025).
+                foreach (VillagePlot plot in layout.Plots)
                 {
-                    if (p.Kind == LandmarkPieceKind.House)
+                    if (plot.Role == VillageBuildingRole.Stall)
                     {
-                        DrawPath(batch, c, this.ToWorld(p) + new Vector2(0f, 6f), 14f);
+                        continue;
                     }
+
+                    (int fx, int fy) = VillageBlueprint.FrontTile(VillageBuildingCatalog.Default, plot);
+                    DrawPath(batch, c, new Vector2((fx + 0.5f) * _tileSize, (fy + 0.5f) * _tileSize), 14f);
                 }
 
-                DrawPlaza(batch, c, r * 0.30f);
+                // The square covers only the well area the planner keeps free, so it never paints over a building.
+                DrawPlaza(batch, c, 2.6f * _tileSize);
                 break;
 
             case PointOfInterestType.Harbor:

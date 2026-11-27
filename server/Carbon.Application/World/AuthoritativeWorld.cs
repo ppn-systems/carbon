@@ -39,6 +39,8 @@ using Carbon.Items.Systems;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Generators;
+using Carbon.Maps.Landmarks;
+using Carbon.Maps.Settlements;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
@@ -219,7 +221,19 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
                 this.GrantExperienceLocked(state, xp, out _);
                 this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
             });
-        _settlements = new SettlementNpcSpawner(_simulation, _chunkWorld, _actorsByNetworkId, () => ++_nextNetworkId, this.TileSize, this.TickRate, DefaultEntityRadius, PlayerLayer, MonsterLayer, NpcLayer);
+        _settlements = new SettlementNpcSpawner(
+            _simulation,
+            _chunkWorld,
+            _actorsByNetworkId,
+            () => ++_nextNetworkId,
+            this.TileSize,
+            this.TickRate,
+            DefaultEntityRadius,
+            PlayerLayer,
+            MonsterLayer,
+            NpcLayer,
+            new VillageMaterializer(_chunkWorld, VillageBuildingCatalog.Default, _construction.Catalog),
+            _dirtyChunks);
         _projectiles = new ProjectileService(_simulation, _chunkWorld, MonsterLayer, () => ++_nextNetworkId, new ProjectileHits(this));
 
         _needs = new NeedsService(
@@ -924,9 +938,21 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
                 spawn = (bx, by);
             }
+            else if (overrides.SpawnPoi is { } poiName)
+            {
+                if (!Enum.TryParse(poiName, ignoreCase: true, out PointOfInterestType poiType) || !Enum.IsDefined(poiType) ||
+                    poiType == PointOfInterestType.None)
+                {
+                    throw new ArgumentException($"Unknown point of interest type '{poiName}'.", nameof(overrides));
+                }
+
+                spawn = this.FindNearestPoiLocked(poiType, spawn)
+                    ?? throw new ArgumentException($"No {poiType} within {DebugPoiSearchSites} sites of spawn.", nameof(overrides));
+            }
 
             spawn = (spawn.X + overrides.SpawnOffset.X, spawn.Y + overrides.SpawnOffset.Y);
-            bool movesSpawn = overrides.SpawnTile.HasValue || overrides.SpawnBiome is not null || overrides.SpawnOffset != default;
+            bool movesSpawn = overrides.SpawnTile.HasValue || overrides.SpawnBiome is not null || overrides.SpawnPoi is not null ||
+                overrides.SpawnOffset != default;
             if (movesSpawn)
             {
                 _debugSpawnPosition = new Vector2((spawn.X + 0.5f) * this.TileSize, (spawn.Y + 0.5f) * this.TileSize);
@@ -944,5 +970,34 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             string hourText = overrides.StartHour?.ToString("0.##", CultureInfo.InvariantCulture) ?? "default";
             return $"spawn={spawnText}, startHour={hourText}";
         }
+    }
+    private const int DebugPoiSearchSites = 12;
+
+    // Nearest point of interest of a type by site rings around the spawn; returns the tile three south of its centre.
+    private (int X, int Y)? FindNearestPoiLocked(PointOfInterestType type, (int X, int Y) from)
+    {
+        int sx0 = (int)MathF.Floor(from.X / (float)PointOfInterestResolver.SiteSize);
+        int sy0 = (int)MathF.Floor(from.Y / (float)PointOfInterestResolver.SiteSize);
+        for (int ring = 0; ring <= DebugPoiSearchSites; ring++)
+        {
+            for (int dy = -ring; dy <= ring; dy++)
+            {
+                for (int dx = -ring; dx <= ring; dx++)
+                {
+                    if (Math.Max(Math.Abs(dx), Math.Abs(dy)) != ring)
+                    {
+                        continue;
+                    }
+
+                    PointOfInterest poi = _generator.Landmarks.GetSite(sx0 + dx, sy0 + dy);
+                    if (poi.Type == type)
+                    {
+                        return (poi.TileX, poi.TileY + 3);
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 }

@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 2,
+  "structureType": 18,
+  "id": "wood_shelf",
+  "displayName": "Wood Shelf",
+  "palette": {
+    "frame": "#7C2D12",
+    "frameLight": "#9A3412",
+    "board": "#B45309",
+    "back": "#431407",
+    "jarA": "#0EA5E9",
+    "jarB": "#16A34A",
+    "book": "#B91C1C",
+    "bookB": "#1D4ED8",
+    "sack": "#D6C7A1",
+    "shadow": "#00000040"
+  },
+  "shapes": [
+    {
+      "kind": "rect",
+      "x": 2,
+      "y": 29,
+      "w": 28,
+      "h": 3,
+      "color": "$shadow"
+    },
+    {
+      "kind": "rect",
+      "x": 3,
+      "y": 1,
+      "w": 26,
+      "h": 29,
+      "color": "$frame"
+    },
+    {
+      "kind": "rect",
+      "x": 5,
+      "y": 3,
+      "w": 22,
+      "h": 25,
+      "color": "$back"
+    },
+    {
+      "kind": "rect",
+      "x": 5,
+      "y": 10,
+      "w": 22,
+      "h": 2,
+      "color": "$board"
+    },
+    {
+      "kind": "rect",
+      "x": 5,
+      "y": 19,
+      "w": 22,
+      "h": 2,
+      "color": "$board"
+    },
+    {
+      "kind": "rect",
+      "x": 3,
+      "y": 1,
+      "w": 26,
+      "h": 2,
+      "color": "$frameLight"
+    },
+    {
+      "kind": "ellipse",
+      "x": 9,
+      "y": 7.5,
+      "rx": 2.4,
+      "ry": 2.8,
+      "color": "$jarA"
+    },
+    {
+      "kind": "ellipse",
+      "x": 15,
+      "y": 7.5,
+      "rx": 2.4,
+      "ry": 2.8,
+      "color": "$jarB"
+    },
+    {
+      "kind": "ellipse",
+      "x": 21,
+      "y": 8,
+      "rx": 2,
+      "ry": 2.2,
+      "color": "$jarA"
+    },
+    {
+      "kind": "rect",
+      "x": 7,
+      "y": 13,
+      "w": 3,
+      "h": 6,
+      "color": "$book"
+    },
+    {
+      "kind": "rect",
+      "x": 10.5,
+      "y": 14,
+      "w": 2.5,
+      "h": 5,
+      "color": "$bookB"
+    },
+    {
+      "kind": "rect",
+      "x": 13.5,
+      "y": 13,
+      "w": 3,
+      "h": 6,
+      "color": "$book"
+    },
+    {
+      "kind": "rect",
+      "x": 17,
+      "y": 15,
+      "w": 2.5,
+      "h": 4,
+      "color": "$jarB"
+    },
+    {
+      "kind": "ellipse",
+      "x": 14,
+      "y": 25,
+      "rx": 6,
+      "ry": 3.2,
+      "color": "$sack"
+    },
+    {
+      "kind": "ellipse",
+      "x": 22,
+      "y": 25.5,
+      "rx": 3,
+      "ry": 2.5,
+      "color": "$book"
+    }
+  ],
+  "openShapes": []
+}

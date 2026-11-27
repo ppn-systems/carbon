@@ -24,4 +24,5 @@ internal readonly record struct NpcActorMeta(
     float AttackRange = 44f,
     float ProjectileSpeed = 0f,
     byte ProjectileArchetype = 0,
-    string? LootTableId = null);
+    string? LootTableId = null,
+    float PatrolRadius = 64f);

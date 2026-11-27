@@ -1177,6 +1177,36 @@
       "id": "wood_bed",
       "displayName": "Wood Bed",
       "file": "structures/wood_bed.cvg.json"
+    },
+    {
+      "structureType": 16,
+      "id": "sandstone_wall",
+      "displayName": "Sandstone Wall",
+      "file": "structures/sandstone_wall.cvg.json"
+    },
+    {
+      "structureType": 17,
+      "id": "wood_table",
+      "displayName": "Wood Table",
+      "file": "structures/wood_table.cvg.json"
+    },
+    {
+      "structureType": 18,
+      "id": "wood_shelf",
+      "displayName": "Wood Shelf",
+      "file": "structures/wood_shelf.cvg.json"
+    },
+    {
+      "structureType": 19,
+      "id": "market_stall",
+      "displayName": "Market Stall",
+      "file": "structures/market_stall.cvg.json"
+    },
+    {
+      "structureType": 20,
+      "id": "plank_deck",
+      "displayName": "Plank Deck",
+      "file": "structures/plank_deck.cvg.json"
     }
   ],
   "uiIcons": [

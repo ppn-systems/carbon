@@ -10,6 +10,7 @@ using Carbon.Items.Catalog;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
 using Carbon.Maps.Landmarks;
+using Carbon.Maps.Settlements;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
@@ -18,9 +19,10 @@ using Carbon.Simulation.World;
 namespace Carbon.Application.World.Actors;
 
 /// <summary>
-/// Spawns the world's friendly NPCs as chunks come into play (audit SOLID-1, extracted from <see cref="AuthoritativeWorld"/>):
-/// the sanctuary blacksmith beside the world spawn (once), and per chunk a guard, harbour master or shrine keeper at
-/// each settlement point of interest, plus a blacksmith in river, desert and snow villages. Each chunk is populated once.
+/// Builds villages and spawns the world's friendly NPCs as chunks come into play (audit SOLID-1, extracted from
+/// <see cref="AuthoritativeWorld"/>): the sanctuary blacksmith beside the world spawn (once); per site, the village's real
+/// buildings (<see cref="VillageMaterializer"/>, ADR-025) and a guard at the well plus the blacksmith at the smithy's forge;
+/// a harbour master, shrine keeper or guard at other settlements. Each site is populated once.
 /// <see cref="SpawnActor"/> creates the replicated entity (collider, AI brain, health, threat table for monsters) and
 /// registers its <see cref="NpcActorMeta"/>. Called only under the world lock.
 /// </summary>
@@ -37,6 +39,10 @@ internal sealed class SettlementNpcSpawner
     private readonly uint _monsterLayer;
     private readonly uint _npcLayer;
     private readonly HashSet<long> _populatedChunks = new();
+    private readonly HashSet<long> _populatedSites = new();
+    private readonly HashSet<long> _builtSites = new();
+    private readonly VillageMaterializer? _villages;
+    private readonly ISet<long>? _dirtyChunks;
     private bool _spawnedSanctuaryBlacksmith;
 
     /// <summary>Initializes a new instance of the <see cref="SettlementNpcSpawner"/> class.</summary>
@@ -50,8 +56,12 @@ internal sealed class SettlementNpcSpawner
         float defaultRadius,
         uint playerLayer,
         uint monsterLayer,
-        uint npcLayer)
+        uint npcLayer,
+        VillageMaterializer? villages = null,
+        ISet<long>? dirtyChunks = null)
     {
+        _villages = villages;
+        _dirtyChunks = dirtyChunks;
         _simulation = simulation ?? throw new ArgumentNullException(nameof(simulation));
         _chunkWorld = chunkWorld ?? throw new ArgumentNullException(nameof(chunkWorld));
         _actors = actors ?? throw new ArgumentNullException(nameof(actors));
@@ -66,6 +76,29 @@ internal sealed class SettlementNpcSpawner
 
     /// <summary>Gets the number of chunks already populated.</summary>
     public int PopulatedChunkCount => _populatedChunks.Count;
+
+    /// <summary>Gets the village builder, when villages are built from real structures.</summary>
+    public VillageMaterializer? Villages => _villages;
+
+    /// <summary>
+    /// Builds the village of the site owning a chunk, once per site. Called before a chunk's delta is served and when
+    /// chunks come into play, so no client ever sees a village chunk before its buildings exist.
+    /// </summary>
+    /// <param name="chunkX">Chunk X.</param>
+    /// <param name="chunkY">Chunk Y.</param>
+    public void EnsureVillageBuilt(int chunkX, int chunkY)
+    {
+        if (_villages is null)
+        {
+            return;
+        }
+
+        (int sx, int sy) = VillageMaterializer.SiteOfChunk(chunkX, chunkY);
+        if (_builtSites.Add(Chunk2D.PackKey(sx, sy)))
+        {
+            _ = _villages.Materialize(sx, sy, _dirtyChunks);
+        }
+    }
 
     public void PopulateAround(Vector2 worldCenter, int radius)
     {
@@ -123,79 +156,133 @@ internal sealed class SettlementNpcSpawner
                     continue;
                 }
 
-                // Spawn friendly settlement NPCs near Points of Interest.
+                this.EnsureVillageBuilt(cx, cy);
+
+                // Spawn friendly settlement NPCs once per point of interest (a POI is listed by every chunk it reaches).
                 for (int i = 0; i < chunk.PointsOfInterest.Count; i++)
                 {
                     PointOfInterest poi = chunk.PointsOfInterest[i];
-                    if (poi.Type is PointOfInterestType.RiverVillage or
-                        PointOfInterestType.Harbor or
-                        PointOfInterestType.MountainShrine or
-                        PointOfInterestType.LakesideCamp or
-                        PointOfInterestType.DesertVillage or
-                        PointOfInterestType.SnowVillage or
-                        PointOfInterestType.SwampVillage)
+                    if (_populatedSites.Add(Chunk2D.PackKey(poi.TileX, poi.TileY)))
                     {
-                        int npcTx = poi.TileX + 1;
-                        int npcTy = poi.TileY + 1;
-                        MapTile npcTile = _chunkWorld.GetTileAtWorld(npcTx, npcTy);
-                        if (!npcTile.IsSolid)
-                        {
-                            ushort npcArchetype = poi.Type == PointOfInterestType.Harbor
-                                ? WorldActorCatalog.HarbourMaster
-                                : poi.Type == PointOfInterestType.MountainShrine
-                                    ? WorldActorCatalog.ShrineKeeper
-                                    : WorldActorCatalog.VillageGuard;
-                            NpcArchetypeSpec npcSpec = WorldActorCatalog.GetNpcSpec(npcArchetype);
-                            Vector2 npcPos = new((npcTx + 0.5f) * _tileSize, (npcTy + 0.5f) * _tileSize);
-                            NpcActorMeta npcMeta = new(
-                                EntityKind.Npc,
-                                npcSpec.ArchetypeId,
-                                npcSpec.Name,
-                                npcSpec.Level,
-                                npcPos,
-                                200f,
-                                70f,
-                                npcSpec.Radius,
-                                0f,
-                                0U,
-                                key,
-                                StarterGameCatalog.BerryHerb,
-                                1,
-                                0U);
-                            this.SpawnActor(npcMeta);
-                        }
-
-                        if (poi.Type is PointOfInterestType.RiverVillage or PointOfInterestType.DesertVillage or PointOfInterestType.SnowVillage)
-                        {
-                            int smithTx = poi.TileX - 1;
-                            int smithTy = poi.TileY + 1;
-                            MapTile vSmithTile = _chunkWorld.GetTileAtWorld(smithTx, smithTy);
-                            if (!vSmithTile.IsSolid && !_chunkWorld.HasSolidPropAt(smithTx, smithTy))
-                            {
-                                NpcArchetypeSpec vSmith = WorldActorCatalog.GetNpcSpec(WorldActorCatalog.MasterBlacksmith);
-                                Vector2 vSmithPos = new((smithTx + 0.5f) * _tileSize, (smithTy + 0.5f) * _tileSize);
-                                this.SpawnActor(new NpcActorMeta(
-                                    EntityKind.Npc,
-                                    vSmith.ArchetypeId,
-                                    vSmith.Name,
-                                    vSmith.Level,
-                                    vSmithPos,
-                                    250f,
-                                    45f,
-                                    vSmith.Radius,
-                                    0f,
-                                    0U,
-                                    key,
-                                    StarterGameCatalog.IronOre,
-                                    1,
-                                    0U));
-                            }
-                        }
+                        this.SpawnSettlementNpcs(in poi, key);
                     }
                 }
             }
         }
     }
+
+    private void SpawnSettlementNpcs(in PointOfInterest poi, long chunkKey)
+    {
+        if (poi.Type is not (PointOfInterestType.RiverVillage or
+            PointOfInterestType.Harbor or
+            PointOfInterestType.MountainShrine or
+            PointOfInterestType.LakesideCamp or
+            PointOfInterestType.DesertVillage or
+            PointOfInterestType.SnowVillage or
+            PointOfInterestType.SwampVillage))
+        {
+            return;
+        }
+
+        int npcTx = poi.TileX + 1;
+        int npcTy = poi.TileY + 1;
+        if (this.IsStandable(npcTx, npcTy))
+        {
+            ushort npcArchetype = poi.Type == PointOfInterestType.Harbor
+                ? WorldActorCatalog.HarbourMaster
+                : poi.Type == PointOfInterestType.MountainShrine
+                    ? WorldActorCatalog.ShrineKeeper
+                    : WorldActorCatalog.VillageGuard;
+            NpcArchetypeSpec npcSpec = WorldActorCatalog.GetNpcSpec(npcArchetype);
+            this.SpawnActor(new NpcActorMeta(
+                EntityKind.Npc,
+                npcSpec.ArchetypeId,
+                npcSpec.Name,
+                npcSpec.Level,
+                this.TileCenter(npcTx, npcTy),
+                200f,
+                70f,
+                npcSpec.Radius,
+                0f,
+                0U,
+                chunkKey,
+                StarterGameCatalog.BerryHerb,
+                1,
+                0U));
+        }
+
+        if (!IsVillage(poi.Type))
+        {
+            return;
+        }
+
+        // The blacksmith works at the smithy's forge; without a smithy (cramped site) he stands by the well.
+        (int smithTx, int smithTy) = (poi.TileX - 1, poi.TileY + 1);
+        float patrol = 64f;
+        if (this.TryFindNpcTile(in poi, VillageBuildingRole.Smithy, out int sTx, out int sTy))
+        {
+            (smithTx, smithTy) = (sTx, sTy);
+            patrol = 12f;
+        }
+
+        if (this.IsStandable(smithTx, smithTy))
+        {
+            NpcArchetypeSpec vSmith = WorldActorCatalog.GetNpcSpec(WorldActorCatalog.MasterBlacksmith);
+            this.SpawnActor(new NpcActorMeta(
+                EntityKind.Npc,
+                vSmith.ArchetypeId,
+                vSmith.Name,
+                vSmith.Level,
+                this.TileCenter(smithTx, smithTy),
+                250f,
+                45f,
+                vSmith.Radius,
+                0f,
+                0U,
+                chunkKey,
+                StarterGameCatalog.IronOre,
+                1,
+                0U,
+                PatrolRadius: patrol));
+        }
+    }
+
+    /// <summary>Finds the NPC spot of the first plot with <paramref name="role"/> in the village of <paramref name="poi"/>.</summary>
+    public bool TryFindNpcTile(in PointOfInterest poi, VillageBuildingRole role, out int tileX, out int tileY)
+    {
+        tileX = 0;
+        tileY = 0;
+        if (_villages is null)
+        {
+            return false;
+        }
+
+        (int sx, int sy) = VillageMaterializer.SiteOfChunk(Chunk2D.ToChunkCoord(poi.TileX), Chunk2D.ToChunkCoord(poi.TileY));
+        ReadOnlySpan<VillagePlot> plots = _villages.PlotsOf(sx, sy);
+        for (int i = 0; i < plots.Length; i++)
+        {
+            if (plots[i].Role == role && VillageBlueprint.TryGetNpcTile(_villages.Villages, plots[i], out tileX, out tileY))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsVillage(PointOfInterestType type) =>
+        type is PointOfInterestType.RiverVillage or PointOfInterestType.DesertVillage or PointOfInterestType.SnowVillage or PointOfInterestType.SwampVillage;
+
+    private bool IsStandable(int tileX, int tileY)
+    {
+        MapTile tile = _chunkWorld.GetTileAtWorld(tileX, tileY);
+        return !tile.IsSolid &&
+            tile.Biome is not (BiomeType.ShallowWater or BiomeType.DeepOcean) &&
+            !_chunkWorld.HasSolidPropAt(tileX, tileY) &&
+            !_chunkWorld.Buildings.IsSolidAt(tileX, tileY);
+    }
+
+    private Vector2 TileCenter(int tileX, int tileY) => new((tileX + 0.5f) * _tileSize, (tileY + 0.5f) * _tileSize);
 
     public void SpawnActor(in NpcActorMeta meta)
     {
@@ -219,7 +306,7 @@ internal sealed class SettlementNpcSpawner
             meta.MoveSpeed,
             TargetLayerMask: targetMask,
             AttackCooldownTicks: (uint)Math.Max(15, _tickRate),
-            PatrolRadius: meta.Kind == EntityKind.Monster ? 96f : 64f,
+            PatrolRadius: meta.Kind == EntityKind.Monster ? 96f : meta.PatrolRadius,
             WindupTicks: meta.WindupTicks);
         _simulation.Entities.SetComponent(entity, in brain);
 

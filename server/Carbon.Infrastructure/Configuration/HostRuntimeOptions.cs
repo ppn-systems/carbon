@@ -131,7 +131,7 @@ public sealed class HostRuntimeOptions
 
     /// <summary>
     /// Parses the developer-only <c>CARBON_DEBUG_SPAWN_TILE</c> (<c>x,y</c>), <c>CARBON_DEBUG_SPAWN_BIOME</c>
-    /// (biome name), <c>CARBON_DEBUG_SPAWN_OFFSET</c> (<c>dx,dy</c> tiles) and <c>CARBON_DEBUG_START_HOUR</c>
+    /// (biome name), <c>CARBON_DEBUG_SPAWN_POI</c> (point of interest type), <c>CARBON_DEBUG_SPAWN_OFFSET</c> (<c>dx,dy</c> tiles) and <c>CARBON_DEBUG_START_HOUR</c>
     /// variables. Release builds ignore them and always return no overrides.
     /// </summary>
     /// <param name="readEnv">Environment variable reader.</param>
@@ -149,6 +149,7 @@ public sealed class HostRuntimeOptions
         {
             SpawnTile = TryParsePair(readEnv("CARBON_DEBUG_SPAWN_TILE")),
             SpawnBiome = readEnv("CARBON_DEBUG_SPAWN_BIOME") is { Length: > 0 } biome ? biome.Trim() : null,
+            SpawnPoi = readEnv("CARBON_DEBUG_SPAWN_POI") is { Length: > 0 } poi ? poi.Trim() : null,
             SpawnOffset = TryParsePair(readEnv("CARBON_DEBUG_SPAWN_OFFSET")) ?? default,
             StartHour = startHour,
         };

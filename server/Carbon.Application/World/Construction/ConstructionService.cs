@@ -226,11 +226,14 @@ internal sealed class ConstructionService
         }
     }
 
-    /// <summary>Damages a structure (tool strikes) and drops a fraction of its materials when it is destroyed.</summary>
-    public void DamageStructure(int tileX, int tileY, float damage)
+    /// <summary>
+    /// Damages a structure by a player's tool strike and drops a fraction of its materials when it is destroyed.
+    /// Village (faction-owned) structures are refused (<see cref="BuildResultCode.ProtectedSettlement"/>).
+    /// </summary>
+    public BuildResultCode DamageStructure(int tileX, int tileY, float damage)
     {
         _groundDrops.Position = new Vector2((tileX + 0.5f) * _tileSize, (tileY + 0.5f) * _tileSize);
-        BuildMutationResult result = _building.ApplyDamage(tileX, tileY, damage, _groundDrops);
+        BuildMutationResult result = _building.ApplyPlayerDamage(attackerId: 0UL, tileX, tileY, damage, _groundDrops);
         if (result.IsSuccess)
         {
             this.MarkFootprintDirty(result);
@@ -241,7 +244,12 @@ internal sealed class ConstructionService
                 this.QueueConstructionChange(result.AnchorX, result.AnchorY, StructureType.None, StructureRotation.North, ConstructionStage.Removed, result.Width, result.Height, 0f, isDeconstruction: true);
             }
         }
+
+        return result.Code;
     }
+
+    /// <summary>Gets whether a tile belongs to a generated village (players may not modify it).</summary>
+    public bool IsFactionProtected(int tileX, int tileY) => _building.IsFactionProtected(tileX, tileY);
 
     /// <summary>Gets the delta revision of the chunk holding the tile (0 when unmodified).</summary>
     public uint ChunkRevision(int tileX, int tileY) =>
@@ -254,7 +262,7 @@ internal sealed class ConstructionService
         Span<byte> bytes = stackalloc byte[16];
         _ = characterId.TryWriteBytes(bytes);
         ulong id = BinaryPrimitives.ReadUInt64LittleEndian(bytes) ^ BinaryPrimitives.ReadUInt64LittleEndian(bytes[8..]);
-        return id == 0UL ? 1UL : id;
+        return StructureOwners.ToPlayerOwnerId(id);
     }
 
     /// <summary>

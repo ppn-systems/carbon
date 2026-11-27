@@ -3,44 +3,121 @@
   "structureType": 15,
   "id": "wood_bed",
   "displayName": "Wood Bed",
+  "size": [
+    1,
+    2
+  ],
   "palette": {
     "frame": "#78350F",
-    "sheet": "#E5E7EB",
+    "frameLight": "#92400E",
+    "sheet": "#F5F5F4",
     "blanket": "#2563EB",
-    "pillow": "#F9FAFB"
+    "blanketLight": "#3B82F6",
+    "stitch": "#1E3A8A",
+    "pillow": "#FAFAF9",
+    "shadow": "#00000040"
   },
   "shapes": [
+    {
+      "kind": "rect",
+      "x": 2,
+      "y": 61,
+      "w": 28,
+      "h": 3,
+      "color": "$shadow"
+    },
     {
       "kind": "rect",
       "x": 3,
       "y": 1,
       "w": 26,
-      "h": 30,
+      "h": 61,
       "color": "$frame"
     },
     {
       "kind": "rect",
+      "x": 3,
+      "y": 1,
+      "w": 26,
+      "h": 6,
+      "color": "$frameLight"
+    },
+    {
+      "kind": "rect",
       "x": 5,
-      "y": 3,
+      "y": 7,
       "w": 22,
-      "h": 26,
+      "h": 52,
+      "color": "$sheet"
+    },
+    {
+      "kind": "rect",
+      "x": 8,
+      "y": 9,
+      "w": 16,
+      "h": 9,
+      "color": "$pillow",
+      "outlineColor": "$sheet",
+      "outlineThickness": 0.6
+    },
+    {
+      "kind": "rect",
+      "x": 5,
+      "y": 24,
+      "w": 22,
+      "h": 35,
+      "color": "$blanket"
+    },
+    {
+      "kind": "rect",
+      "x": 5,
+      "y": 24,
+      "w": 22,
+      "h": 5,
       "color": "$sheet"
     },
     {
       "kind": "rect",
       "x": 5,
-      "y": 12,
+      "y": 29,
       "w": 22,
-      "h": 17,
-      "color": "$blanket"
+      "h": 3,
+      "color": "$blanketLight"
+    },
+    {
+      "kind": "line",
+      "x": 5,
+      "y": 40,
+      "x2": 27,
+      "y2": 40,
+      "thickness": 0.7,
+      "color": "$stitch"
+    },
+    {
+      "kind": "line",
+      "x": 5,
+      "y": 50,
+      "x2": 27,
+      "y2": 50,
+      "thickness": 0.7,
+      "color": "$stitch"
+    },
+    {
+      "kind": "line",
+      "x": 16,
+      "y": 32,
+      "x2": 16,
+      "y2": 59,
+      "thickness": 0.7,
+      "color": "$stitch"
     },
     {
       "kind": "rect",
-      "x": 8,
-      "y": 4,
-      "w": 16,
-      "h": 6,
-      "color": "$pillow"
+      "x": 3,
+      "y": 58,
+      "w": 26,
+      "h": 4,
+      "color": "$frameLight"
     }
   ],
   "openShapes": []

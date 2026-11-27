@@ -34,6 +34,7 @@ public static class BuildResultText
         BuildResultCode.MaterialsNotDelivered => "Waiting for materials",
         BuildResultCode.ToolTierTooLow => "Needs a better tool",
         BuildResultCode.InvalidArgument => "Invalid request",
+        BuildResultCode.ProtectedSettlement => "Village property",
         _ => "Cannot build here"
     };
 }

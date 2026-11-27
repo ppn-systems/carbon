@@ -819,7 +819,18 @@ public sealed partial class ChunkTerrainRenderer : IDisposable
             ReadOnlySpan<CompiledVectorShape> shapes = structure.DoorState == DoorState.Open && structArt.OpenShapes.Length > 0
                 ? structArt.OpenShapes
                 : structArt.Shapes;
-            VectorMeshBaker.StampTileShapes(builder, shapes, x, y, s);
+            if (structArt.IsMultiTile && world.Construction.TryGetRecord(wtx, wty, out StructureRecord record))
+            {
+                // Multi-tile art (beds, workbenches, market stalls) is drawn once across the footprint, at its anchor.
+                if (record.AnchorOffsetX == 0 && record.AnchorOffsetY == 0)
+                {
+                    VectorMeshBaker.StampFootprintShapes(builder, shapes, x, y, s, structArt.FootprintWidth, structArt.FootprintHeight, (int)record.Rotation);
+                }
+            }
+            else
+            {
+                VectorMeshBaker.StampTileShapes(builder, shapes, x, y, s);
+            }
         }
         else
         {

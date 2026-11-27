@@ -25,7 +25,6 @@ using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
-using Carbon.Maps.Generators;
 using Carbon.Maps.Landmarks;
 using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
@@ -53,6 +52,7 @@ public sealed class WorldSceneRenderer : IDisposable
     private readonly CombatFeedbackTracker _feedback = new();
     private readonly WorldEntityOverlayRenderer _overlays = new();
     private readonly ConstructionOverlayRenderer _construction = new();
+    private RoofRenderer? _roofs;
     private readonly List<PointLight> _lights = new(64);
     private readonly List<GroundRenderItem> _groundSortList = new(2048);
     private readonly List<CanopyRenderItem> _canopySortList = new(1024);
@@ -103,11 +103,14 @@ public sealed class WorldSceneRenderer : IDisposable
     {
         ArgumentNullException.ThrowIfNull(world);
 
-        if (_poiRenderer is null || _boundSeed != world.WorldSeed)
+        if (_poiRenderer is null || _boundSeed != world.WorldSeed || !ReferenceEquals(_landmarks, world.ChunkWorld.Generator.Landmarks))
         {
-            ProceduralWorldGenerator generator = new(new WorldGenSettings(world.WorldSeed, world.ChunkWorld.TileSize));
-            _landmarks = generator.Landmarks;
+            // The session's own generator: it was built with the server's seed and frequency (MapWorldInfo). A separate
+            // generator built from the seed alone used the default frequency and resolved different points of interest,
+            // so village pieces (well, barrels, paths) were never drawn.
+            _landmarks = world.ChunkWorld.Generator.Landmarks;
             _poiRenderer = new PointOfInterestRenderer(world.ChunkWorld.TileSize, _landmarks);
+            _roofs = new RoofRenderer(world.ChunkWorld.TileSize);
             _boundSeed = world.WorldSeed;
             _terrainRenderer.InvalidateAll();
         }
@@ -117,6 +120,12 @@ public sealed class WorldSceneRenderer : IDisposable
     public bool TryGetBuildingAt(Vector2 playerWorld, out RectangleF room)
     {
         if (_poiRenderer is not null && _poiRenderer.TryGetBuildingAt(playerWorld, out _, out room))
+        {
+            return true;
+        }
+
+        // Rooms of the building grid (village houses, player builds) from the roof renderer's last refresh.
+        if (_roofs is not null && _roofs.TryGetRoomAt(playerWorld, out room))
         {
             return true;
         }
@@ -285,6 +294,13 @@ public sealed class WorldSceneRenderer : IDisposable
         }
 
         _construction.DrawMarkers(_geometryBatch, _art, tileSize, minX, minY, maxX, maxY, _animTime);
+
+        // Roofs over enclosed rooms (ADR-025), above everything walking inside them; the player's own room stays open.
+        if (_roofs is not null)
+        {
+            _roofs.Refresh(chunkWorld.Buildings, minX, minY, maxX, maxY);
+            _roofs.Draw(_geometryBatch, chunkWorld.Buildings, playerPos, minX, minY, maxX, maxY, _animTime);
+        }
 
         // Pass 4: Overhead swaying canopies, particles & action swing ribbons
         _canopySortList.Sort();

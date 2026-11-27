@@ -326,6 +326,112 @@
       ],
       "rotatable": true,
       "requiresFloor": true
+    },
+    {
+      "id": "sandstone_wall",
+      "type": "SandstoneWall",
+      "category": "Wall",
+      "material": "Stone",
+      "cost": [
+        {
+          "item": "stone_chunk",
+          "qty": 3
+        }
+      ],
+      "work": 180,
+      "hitPoints": 320,
+      "toolTier": 2,
+      "affordance": "Medium",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "wood_table",
+      "type": "WoodTable",
+      "category": "Furniture",
+      "material": "Wood",
+      "cost": [
+        {
+          "item": "wood_plank",
+          "qty": 4
+        }
+      ],
+      "work": 70,
+      "hitPoints": 70,
+      "toolTier": 1,
+      "affordance": "Medium",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "wood_shelf",
+      "type": "WoodShelf",
+      "category": "Furniture",
+      "material": "Wood",
+      "cost": [
+        {
+          "item": "wood_plank",
+          "qty": 3
+        }
+      ],
+      "work": 60,
+      "hitPoints": 70,
+      "toolTier": 1,
+      "affordance": "Medium",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "market_stall",
+      "type": "MarketStall",
+      "category": "Station",
+      "material": "Wood",
+      "cost": [
+        {
+          "item": "wood_plank",
+          "qty": 8
+        },
+        {
+          "item": "cloth",
+          "qty": 2
+        }
+      ],
+      "work": 200,
+      "hitPoints": 140,
+      "toolTier": 1,
+      "affordance": "Medium",
+      "size": [
+        2,
+        1
+      ],
+      "rotatable": true
+    },
+    {
+      "id": "plank_deck",
+      "type": "PlankDeck",
+      "category": "Floor",
+      "material": "Wood",
+      "cost": [
+        {
+          "item": "wood_plank",
+          "qty": 1
+        }
+      ],
+      "work": 40,
+      "hitPoints": 50,
+      "toolTier": 0,
+      "affordance": "Light",
+      "size": [
+        1,
+        1
+      ],
+      "moveSpeed": 1.1
     }
   ],
   "builderWorkPerSecond": 60

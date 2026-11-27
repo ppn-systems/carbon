@@ -13,8 +13,12 @@ public sealed class CompiledStructureArt
         string id,
         string displayName,
         CompiledVectorShape[] shapes,
-        CompiledVectorShape[] openShapes)
+        CompiledVectorShape[] openShapes,
+        int footprintWidth = 1,
+        int footprintHeight = 1)
     {
+        this.FootprintWidth = footprintWidth;
+        this.FootprintHeight = footprintHeight;
         this.StructureType = structureType;
         this.Id = id;
         this.DisplayName = displayName;
@@ -33,6 +37,18 @@ public sealed class CompiledStructureArt
 
     /// <summary>Default (or closed door) tile geometry in <c>[0..32]</c> tile coordinates.</summary>
     public CompiledVectorShape[] Shapes { get; }
+
+    /// <summary>
+    /// Gets the unrotated footprint width in tiles the art is authored over (<c>[0..32 × width]</c>). Multi-tile art is
+    /// drawn once, at the structure's anchor, rotated with its record.
+    /// </summary>
+    public int FootprintWidth { get; }
+
+    /// <summary>Gets the unrotated footprint height in tiles the art is authored over.</summary>
+    public int FootprintHeight { get; }
+
+    /// <summary>Gets whether the art covers more than one tile.</summary>
+    public bool IsMultiTile => this.FootprintWidth > 1 || this.FootprintHeight > 1;
 
     /// <summary>Alternate geometry rendered when a door structure is in the open state.</summary>
     public CompiledVectorShape[] OpenShapes { get; }

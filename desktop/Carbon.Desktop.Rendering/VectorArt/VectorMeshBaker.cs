@@ -60,6 +60,138 @@ internal static class VectorMeshBaker
         }
     }
 
+    /// <summary>
+    /// Stamps art authored over a <paramref name="tilesWide"/> × <paramref name="tilesHigh"/> footprint
+    /// (<c>[0..32·w] × [0..32·h]</c>) at a structure anchor, turned by <paramref name="turns"/> clockwise quarter turns
+    /// (<c>StructureRotation</c>): one turn maps the authored footprint onto an <c>h × w</c> one. Every shape is reduced
+    /// to triangles in authored space and then transformed, so rotated rectangles and ellipses stay exact.
+    /// </summary>
+    public static void StampFootprintShapes(
+        ChunkMeshBuilder builder,
+        ReadOnlySpan<CompiledVectorShape> shapes,
+        float anchorWorldX,
+        float anchorWorldY,
+        float tileSize,
+        int tilesWide,
+        int tilesHigh,
+        int turns)
+    {
+        FootprintTransform t = new(anchorWorldX, anchorWorldY, tileSize / 32f, tilesWide * 32f, tilesHigh * 32f, turns & 3);
+        for (int i = 0; i < shapes.Length; i++)
+        {
+            ref readonly CompiledVectorShape s = ref shapes[i];
+            switch (s.Kind)
+            {
+                case VectorShapeKind.Rect:
+                    {
+                        Vector2 c = new(s.P0.X + (s.P1.X * 0.5f), s.P0.Y + (s.P1.Y * 0.5f));
+                        float cos = MathF.Cos(s.RotRad);
+                        float sin = MathF.Sin(s.RotRad);
+                        if (s.HasOutline)
+                        {
+                            StampQuad(builder, t, c, (s.P1.X * 0.5f) + s.OutlineThickness, (s.P1.Y * 0.5f) + s.OutlineThickness, cos, sin, s.OutlineColor);
+                        }
+
+                        StampQuad(builder, t, c, s.P1.X * 0.5f, s.P1.Y * 0.5f, cos, sin, s.Color);
+                        break;
+                    }
+
+                case VectorShapeKind.Ellipse:
+                    {
+                        float cos = MathF.Cos(s.RotRad);
+                        float sin = MathF.Sin(s.RotRad);
+                        if (s.HasOutline)
+                        {
+                            StampFan(builder, t, s.P0, s.P1.X + s.OutlineThickness, s.P1.Y + s.OutlineThickness, cos, sin, s.OutlineColor);
+                        }
+
+                        StampFan(builder, t, s.P0, s.P1.X, s.P1.Y, cos, sin, s.Color);
+                        break;
+                    }
+
+                case VectorShapeKind.Polygon:
+                    {
+                        Vector2[]? pts = s.PolygonPoints;
+                        if (pts is null || pts.Length < 3)
+                        {
+                            break;
+                        }
+
+                        Vector2 v0 = t.Map(pts[0]);
+                        for (int k = 1; k < pts.Length - 1; k++)
+                        {
+                            builder.AddTriangle(v0, t.Map(pts[k]), t.Map(pts[k + 1]), s.Color);
+                        }
+
+                        if (s.HasOutline)
+                        {
+                            float thick = MathF.Max(0.8f, s.OutlineThickness * t.Scale);
+                            for (int k = 0; k < pts.Length; k++)
+                            {
+                                StampSegment(builder, t.Map(pts[k]), t.Map(pts[(k + 1) % pts.Length]), thick, s.OutlineColor, hasOutline: false, default, 0f, capEnds: false);
+                            }
+                        }
+
+                        break;
+                    }
+
+                case VectorShapeKind.Capsule:
+                    StampSegment(builder, t.Map(s.P0), t.Map(s.P1), s.Thickness * t.Scale, s.Color, s.HasOutline, s.OutlineColor, s.OutlineThickness * t.Scale, capEnds: true);
+                    break;
+
+                case VectorShapeKind.Line:
+                    StampSegment(builder, t.Map(s.P0), t.Map(s.P1), s.Thickness * t.Scale, s.Color, hasOutline: false, default, 0f, capEnds: false);
+                    break;
+
+                case VectorShapeKind.Ring:
+                    StampRing(builder, t.Map(s.P0), s.P1.X * t.Scale, s.Thickness * t.Scale, s.Color);
+                    break;
+
+                default:
+                    break;
+            }
+        }
+    }
+
+    private static void StampQuad(ChunkMeshBuilder builder, in FootprintTransform t, Vector2 c, float hw, float hh, float cos, float sin, ColorRgba col)
+    {
+        Vector2 p0 = t.Map(new Vector2(c.X + (-hw * cos) - (-hh * sin), c.Y + (-hw * sin) + (-hh * cos)));
+        Vector2 p1 = t.Map(new Vector2(c.X + (hw * cos) - (-hh * sin), c.Y + (hw * sin) + (-hh * cos)));
+        Vector2 p2 = t.Map(new Vector2(c.X + (hw * cos) - (hh * sin), c.Y + (hw * sin) + (hh * cos)));
+        Vector2 p3 = t.Map(new Vector2(c.X + (-hw * cos) - (hh * sin), c.Y + (-hw * sin) + (hh * cos)));
+        builder.AddTriangle(p0, p1, p2, col);
+        builder.AddTriangle(p0, p2, p3, col);
+    }
+
+    private static void StampFan(ChunkMeshBuilder builder, in FootprintTransform t, Vector2 c, float rx, float ry, float cos, float sin, ColorRgba col)
+    {
+        Vector2 center = t.Map(c);
+        for (int i = 0; i < EllipseSegments; i++)
+        {
+            Vector2 u0 = s_unitCircle[i];
+            Vector2 u1 = s_unitCircle[(i + 1) % EllipseSegments];
+            Vector2 p0 = new(c.X + (u0.X * rx * cos) - (u0.Y * ry * sin), c.Y + (u0.X * rx * sin) + (u0.Y * ry * cos));
+            Vector2 p1 = new(c.X + (u1.X * rx * cos) - (u1.Y * ry * sin), c.Y + (u1.X * rx * sin) + (u1.Y * ry * cos));
+            builder.AddTriangle(center, t.Map(p0), t.Map(p1), col);
+        }
+    }
+
+    /// <summary>Maps authored footprint pixels to world space for a quarter-turn rotation.</summary>
+    private readonly record struct FootprintTransform(float OriginX, float OriginY, float Scale, float Width, float Height, int Turns)
+    {
+        public Vector2 Map(Vector2 p)
+        {
+            Vector2 r = this.Turns switch
+            {
+                1 => new Vector2(this.Height - p.Y, p.X),
+                2 => new Vector2(this.Width - p.X, this.Height - p.Y),
+                3 => new Vector2(p.Y, this.Width - p.X),
+                _ => p,
+            };
+            return new Vector2(this.OriginX + (r.X * this.Scale), this.OriginY + (r.Y * this.Scale));
+        }
+    }
+
     private static void StampRect(
         ChunkMeshBuilder builder,
         in CompiledVectorShape s,

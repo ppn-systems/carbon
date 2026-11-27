@@ -91,6 +91,18 @@ public static partial class MapHandlers
                 row.StructureDurabilities = snapshot.StructureDurabilities;
                 row.StructureDoorStates = snapshot.StructureDoorStates;
                 row.StructureConnectivities = snapshot.StructureConnectivities;
+                row.SiteIndices = snapshot.SiteIndices;
+                row.SiteTypes = snapshot.SiteTypes;
+                row.SiteRotations = snapshot.SiteRotations;
+                row.SiteStages = snapshot.SiteStages;
+                row.SiteSizes = snapshot.SiteSizes;
+                row.SiteWorkDone = snapshot.SiteWorkDone;
+                row.SiteOwnerIds = snapshot.SiteOwnerIds;
+                row.RecordIndices = snapshot.RecordIndices;
+                row.RecordOwnerIds = snapshot.RecordOwnerIds;
+                row.RecordAnchorOffsets = snapshot.RecordAnchorOffsets;
+                row.RecordRotations = snapshot.RecordRotations;
+                row.RecordFloorsBeneath = snapshot.RecordFloorsBeneath;
                 await sender.ReplyAsync(row).ConfigureAwait(false);
             }
         }

@@ -17,7 +17,8 @@ public interface IBuildPermissions
 }
 
 /// <summary>
-/// Default permission policy: unowned structures are public, otherwise only the owner and players the owner granted.
+/// Default permission policy: unowned structures are public, faction-owned structures (<see cref="StructureOwners"/>) are
+/// closed to everyone but the faction itself, otherwise only the owner and players the owner granted.
 /// </summary>
 public sealed class BuildPermissionTable : IBuildPermissions
 {
@@ -46,6 +47,7 @@ public sealed class BuildPermissionTable : IBuildPermissions
 
     /// <inheritdoc/>
     public bool CanModify(ulong actorId, ulong ownerId) =>
+        StructureOwners.IsFaction(ownerId) ? actorId == ownerId :
         ownerId == 0 || actorId == ownerId ||
         (_grants.TryGetValue(ownerId, out HashSet<ulong>? guests) && guests.Contains(actorId));
 }

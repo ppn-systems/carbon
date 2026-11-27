@@ -4,6 +4,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Threading;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
 using Carbon.Physics.Separation;
@@ -24,6 +25,7 @@ public sealed class BuildingGrid : IBuildingGrid
     private readonly Func<int, int, bool> _isRoomBoundaryDelegate;
     private readonly Action<int, int, StructureTile>? _onStructureChanged;
     private readonly Action<int, int, WallConnectivityMask>? _onConnectivityUpdated;
+    private int _revision;
 
     /// <summary>
     /// Initializes a new standalone instance of the <see cref="BuildingGrid"/> class.
@@ -49,6 +51,12 @@ public sealed class BuildingGrid : IBuildingGrid
 
     /// <inheritdoc/>
     public int StructureCount => _structures.Count;
+
+    /// <summary>
+    /// Gets a counter bumped by every change to the set or shape of structures (placement, removal, destruction, door
+    /// toggles, chunk imports). Lets readers such as the roof renderer cache room detection.
+    /// </summary>
+    public int Revision => Volatile.Read(ref _revision);
 
     /// <summary>
     /// Gets a snapshot enumerable of all placed structures and their coordinates.
@@ -173,6 +181,7 @@ public sealed class BuildingGrid : IBuildingGrid
         _structures[(worldTileX, worldTileY)] = blueprint;
         placedStructure = blueprint;
         _roofCache.Clear();
+        _ = Interlocked.Increment(ref _revision);
 
         // Automatically update the 4 cardinal neighbors so they snap to the new structure
         this.UpdateNeighborConnectivity(worldTileX, worldTileY);
@@ -194,6 +203,7 @@ public sealed class BuildingGrid : IBuildingGrid
 
         _structures[(worldTileX, worldTileY)] = blueprint;
         _roofCache.Clear();
+        _ = Interlocked.Increment(ref _revision);
         this.UpdateNeighborConnectivity(worldTileX, worldTileY);
         _onStructureChanged?.Invoke(worldTileX, worldTileY, blueprint);
     }
@@ -220,6 +230,7 @@ public sealed class BuildingGrid : IBuildingGrid
 
         _structures[(worldTileX, worldTileY)] = placed;
         _roofCache.Clear();
+        _ = Interlocked.Increment(ref _revision);
         this.UpdateNeighborConnectivity(worldTileX, worldTileY);
         _onStructureChanged?.Invoke(worldTileX, worldTileY, placed);
     }
@@ -230,6 +241,7 @@ public sealed class BuildingGrid : IBuildingGrid
         if (_structures.TryRemove((worldTileX, worldTileY), out _))
         {
             _roofCache.Clear();
+            _ = Interlocked.Increment(ref _revision);
             this.UpdateNeighborConnectivity(worldTileX, worldTileY);
             _onStructureChanged?.Invoke(worldTileX, worldTileY, StructureTile.Empty);
             return true;
@@ -264,6 +276,7 @@ public sealed class BuildingGrid : IBuildingGrid
         {
             // Structure collapsed; invalidate roof enclosures and disconnect adjacent walls
             _roofCache.Clear();
+            _ = Interlocked.Increment(ref _revision);
             this.UpdateNeighborConnectivity(worldTileX, worldTileY);
         }
 
@@ -283,6 +296,7 @@ public sealed class BuildingGrid : IBuildingGrid
         DoorState nextState = current.DoorState is DoorState.Closed ? DoorState.Open : DoorState.Closed;
         updatedStructure = current.WithDoorState(nextState);
         _structures[(worldTileX, worldTileY)] = updatedStructure;
+        _ = Interlocked.Increment(ref _revision);
         _onStructureChanged?.Invoke(worldTileX, worldTileY, updatedStructure);
         return true;
     }
@@ -396,6 +410,7 @@ public sealed class BuildingGrid : IBuildingGrid
     {
         _structures.Clear();
         _roofCache.Clear();
+        _ = Interlocked.Increment(ref _revision);
     }
 
     /// <summary>
@@ -405,6 +420,7 @@ public sealed class BuildingGrid : IBuildingGrid
     internal void ApplyChunkStructures(int chunkX, int chunkY, IReadOnlyDictionary<int, StructureTile> structures)
     {
         _roofCache.Clear();
+        _ = Interlocked.Increment(ref _revision);
         int baseX = chunkX * Chunk2D.Size;
         int baseY = chunkY * Chunk2D.Size;
 
@@ -496,6 +512,11 @@ public sealed class BuildingGrid : IBuildingGrid
         StructureType.Campfire => StructureTile.CreateStation(type, StructureMaterial.Wood, durability: 40f, harvestTier: 0),
         StructureType.WoodChest => StructureTile.CreateFurniture(type, StructureMaterial.Wood, durability: 80f, harvestTier: 1),
         StructureType.WoodBed => StructureTile.CreateFurniture(type, StructureMaterial.Wood, durability: 90f, harvestTier: 1),
+        StructureType.SandstoneWall => StructureTile.CreateWall(type, StructureMaterial.Stone, durability: 320f, harvestTier: 2),
+        StructureType.WoodTable => StructureTile.CreateFurniture(type, StructureMaterial.Wood, durability: 70f, harvestTier: 1),
+        StructureType.WoodShelf => StructureTile.CreateFurniture(type, StructureMaterial.Wood, durability: 70f, harvestTier: 1),
+        StructureType.MarketStall => StructureTile.CreateStation(type, StructureMaterial.Wood, durability: 140f, harvestTier: 1),
+        StructureType.PlankDeck => StructureTile.CreateFloor(type, StructureMaterial.Wood, moveSpeedMultiplier: 1.10f),
         _ => StructureTile.Empty
     };
 }

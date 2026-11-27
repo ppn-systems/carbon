@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 2,
+  "structureType": 17,
+  "id": "wood_table",
+  "displayName": "Wood Table",
+  "palette": {
+    "top": "#A16207",
+    "topLight": "#CA8A04",
+    "grain": "#713F12",
+    "leg": "#57340F",
+    "cloth": "#E7E5E4",
+    "plate": "#F5F5F4",
+    "bread": "#D97706",
+    "mug": "#92400E",
+    "shadow": "#00000038"
+  },
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "x": 16,
+      "y": 28,
+      "rx": 13,
+      "ry": 3,
+      "color": "$shadow"
+    },
+    {
+      "kind": "rect",
+      "x": 6,
+      "y": 22,
+      "w": 3,
+      "h": 7,
+      "color": "$leg"
+    },
+    {
+      "kind": "rect",
+      "x": 23,
+      "y": 22,
+      "w": 3,
+      "h": 7,
+      "color": "$leg"
+    },
+    {
+      "kind": "rect",
+      "x": 3,
+      "y": 7,
+      "w": 26,
+      "h": 16,
+      "color": "$top",
+      "outlineColor": "$grain",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "rect",
+      "x": 4,
+      "y": 8,
+      "w": 24,
+      "h": 4,
+      "color": "$topLight"
+    },
+    {
+      "kind": "line",
+      "x": 3,
+      "y": 15,
+      "x2": 29,
+      "y2": 15,
+      "thickness": 0.8,
+      "color": "$grain"
+    },
+    {
+      "kind": "line",
+      "x": 3,
+      "y": 19,
+      "x2": 29,
+      "y2": 19,
+      "thickness": 0.6,
+      "color": "$grain"
+    },
+    {
+      "kind": "rect",
+      "x": 12,
+      "y": 7,
+      "w": 8,
+      "h": 16,
+      "color": "$cloth"
+    },
+    {
+      "kind": "ellipse",
+      "x": 11,
+      "y": 13,
+      "rx": 4.5,
+      "ry": 3,
+      "color": "$plate"
+    },
+    {
+      "kind": "ellipse",
+      "x": 11,
+      "y": 12.5,
+      "rx": 3,
+      "ry": 1.8,
+      "color": "$bread"
+    },
+    {
+      "kind": "rect",
+      "x": 21,
+      "y": 10,
+      "w": 4,
+      "h": 5,
+      "color": "$mug",
+      "outlineColor": "$grain",
+      "outlineThickness": 0.6
+    },
+    {
+      "kind": "ellipse",
+      "x": 23,
+      "y": 10,
+      "rx": 2,
+      "ry": 0.8,
+      "color": "$grain"
+    }
+  ],
+  "openShapes": []
+}

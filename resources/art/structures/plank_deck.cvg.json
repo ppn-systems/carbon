@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 2,
+  "structureType": 20,
+  "id": "plank_deck",
+  "displayName": "Plank Deck",
+  "palette": {
+    "gap": "#1F2A24",
+    "plank": "#8B6A43",
+    "plankLight": "#A6845A",
+    "plankDark": "#6B4F31",
+    "nail": "#3F3A34"
+  },
+  "shapes": [
+    {
+      "kind": "rect",
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "color": "$gap"
+    },
+    {
+      "kind": "rect",
+      "x": 0,
+      "y": 0.5,
+      "w": 32,
+      "h": 7,
+      "color": "$plank"
+    },
+    {
+      "kind": "rect",
+      "x": 0,
+      "y": 8.5,
+      "w": 32,
+      "h": 7,
+      "color": "$plankLight"
+    },
+    {
+      "kind": "rect",
+      "x": 0,
+      "y": 16.5,
+      "w": 32,
+      "h": 7,
+      "color": "$plankDark"
+    },
+    {
+      "kind": "rect",
+      "x": 0,
+      "y": 24.5,
+      "w": 32,
+      "h": 7,
+      "color": "$plank"
+    },
+    {
+      "kind": "line",
+      "x": 14,
+      "y": 0.5,
+      "x2": 14,
+      "y2": 7.5,
+      "thickness": 1.0,
+      "color": "$gap"
+    },
+    {
+      "kind": "line",
+      "x": 24,
+      "y": 8.5,
+      "x2": 24,
+      "y2": 15.5,
+      "thickness": 1.0,
+      "color": "$gap"
+    },
+    {
+      "kind": "line",
+      "x": 8,
+      "y": 16.5,
+      "x2": 8,
+      "y2": 23.5,
+      "thickness": 1.0,
+      "color": "$gap"
+    },
+    {
+      "kind": "line",
+      "x": 19,
+      "y": 24.5,
+      "x2": 19,
+      "y2": 31.5,
+      "thickness": 1.0,
+      "color": "$gap"
+    },
+    {
+      "kind": "ellipse",
+      "x": 3,
+      "y": 4,
+      "rx": 0.7,
+      "ry": 0.7,
+      "color": "$nail"
+    },
+    {
+      "kind": "ellipse",
+      "x": 29,
+      "y": 12,
+      "rx": 0.7,
+      "ry": 0.7,
+      "color": "$nail"
+    },
+    {
+      "kind": "ellipse",
+      "x": 4,
+      "y": 20,
+      "rx": 0.7,
+      "ry": 0.7,
+      "color": "$nail"
+    },
+    {
+      "kind": "ellipse",
+      "x": 28,
+      "y": 28,
+      "rx": 0.7,
+      "ry": 0.7,
+      "color": "$nail"
+    }
+  ],
+  "openShapes": []
+}

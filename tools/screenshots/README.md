@@ -37,6 +37,7 @@ Requirements: the .NET SDK (`$HOME/.dotnet` is added to `PATH`), `xvfb-run`, GLF
 | :--- | :--- |
 | `CARBON_DEBUG_SPAWN_BIOME=<BiomeType>` | Every character enters at the nearest representative tile of the biome (`BiomeLocator`: ±10-tile interior; `ShallowWater` is framed wading by a shore). |
 | `CARBON_DEBUG_SPAWN_TILE=x,y` | Every character enters at this world tile (wins over the biome). |
+| `CARBON_DEBUG_SPAWN_POI=<PointOfInterestType>` | Every character enters just south of the well of the nearest point of interest of that type (e.g. `DesertVillage`; searched 12 sites out). Combine with `CARBON_WORLD_SEED` in the server env (and `CARBON_SEED` in the client env) for a seed that has one. |
 | `CARBON_DEBUG_SPAWN_OFFSET=dx,dy` | Offset in tiles added to the resolved spawn (e.g. far from the starter area). |
 | `CARBON_DEBUG_START_HOUR=h` | The world clock starts at hour `h` (0..24); clients follow the server clock. |
 
