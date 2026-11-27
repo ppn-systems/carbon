@@ -10,6 +10,7 @@ using Carbon.Maps.Biomes;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Streaming;
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
 
@@ -110,14 +111,10 @@ public sealed class ShorelineFoamTests
     [Fact]
     public void ShoreWave_EveryFrame_AllocatesNothing()
     {
-        _ = AmbientAnimator.ShoreWave(1u, 0f);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 2000; i++)
-        {
-            _ = AmbientAnimator.ShoreWave((uint)i, i * 0.016f);
-        }
+        AllocationResult window = AllocationProbe.Measure(2000, warmupIterations: 2000, i =>
+            _ = AmbientAnimator.ShoreWave((uint)i, i * 0.016f));
 
-        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0);
+        window.Bytes.Should().Be(0, $"every shoreline tile samples its wave every frame ({window})");
     }
 
     // A time at which the wave of this tile has just started rolling in (crest near 0).
