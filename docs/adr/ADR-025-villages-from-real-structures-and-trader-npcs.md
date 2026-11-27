@@ -159,4 +159,8 @@
   per chunk per client.
 - The roof renderer also gives player-built rooms roofs. Irregular rooms get a simple per-tile roof.
 - The new structure types have no kits yet, and harbours still use decorative houses.
-- Trader state adds one small table. New UI strings live in one constants class until the i18n work lands.
+- Trader state adds one small table. UI strings are `GameText` keys (`[trade]` in `resources/localization/*.ini`).
+- Client code stays within the audit round 2 size caps:
+  - trading lives in `TraderSession` (behind `IGameplayController.Trading`), `TradeInteraction` (the scene's talk, click
+    and window input), and a stateless `TradeModalWidget`;
+  - the scene's screenshot schedule moved to `AutoCapture`, so the trader capture can wait for the stock.

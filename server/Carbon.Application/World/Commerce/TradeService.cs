@@ -45,6 +45,9 @@ internal sealed class TradeService : IWorldTradeService
     private readonly Func<ulong> _tick;
     private readonly Action<PlayerState> _markDirty;
     private readonly ITraderStockRepository _repository;
+
+    // Cached once: a method-group conversion per tick would allocate a delegate on the hot path.
+    private readonly Func<WorldCommand, WorldMutationOutcome> _execute;
     private readonly List<(ushort SlotIndex, ItemSlot Slot)> _modified = new(8);
 
     /// <summary>Initializes a new instance of the <see cref="TradeService"/> class.</summary>
@@ -72,6 +75,7 @@ internal sealed class TradeService : IWorldTradeService
         _tick = tick ?? throw new ArgumentNullException(nameof(tick));
         _markDirty = markDirty ?? throw new ArgumentNullException(nameof(markDirty));
         _repository = repository ?? new InMemoryTraderStockRepository();
+        _execute = this.Execute;
     }
 
     /// <summary>Gets the trader state (tests).</summary>
@@ -101,7 +105,7 @@ internal sealed class TradeService : IWorldTradeService
         _commands.SubmitTargeted(WorldCommandKind.TraderSell, connectionId, traderNetworkId, slotIndex, quantity, 0);
 
     /// <summary>Runs the queued trade requests. Call on the tick, under the world lock.</summary>
-    public void DrainLocked() => _commands.Drain(this.Execute);
+    public void DrainLocked() => _commands.Drain(_execute);
 
     /// <summary>Opens a trader (synchronous form for the tick and tests). Call under the world lock.</summary>
     public OpStatus OpenLocked(ulong connectionId, ulong traderNetworkId) =>

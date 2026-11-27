@@ -8,6 +8,7 @@ using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
+using Carbon.Graphics.Batching;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.Batching.Sprites;
@@ -24,7 +25,7 @@ namespace Carbon.Desktop.Rendering.Hud;
 /// shown comes from the server's <c>TraderStock</c>; the window only sends requests. Nine-slice skinned (ADR-008),
 /// three passes like the other HUD windows.
 /// </summary>
-internal sealed class TradeModalWidget
+public static class TradeModalWidget
 {
     /// <summary>Most stock rows shown.</summary>
     public const int MaxStockRows = 9;
@@ -40,21 +41,21 @@ internal sealed class TradeModalWidget
     private static readonly ColorRgba s_soldOut = new(148, 64, 64, 255);
 
     /// <summary>Gets whether a point is inside the window.</summary>
-    public bool ContainsPoint(Vector2 mouse, int viewportWidth, int viewportHeight)
+    public static bool ContainsPoint(Vector2 mouse, int viewportWidth, int viewportHeight)
     {
         (float ox, float oy) = Origin(viewportWidth, viewportHeight);
         return new RectangleF(ox, oy, PanelW, PanelH).Contains(mouse);
     }
 
     /// <summary>Gets whether the close button was hit.</summary>
-    public bool TryHitTestCloseButton(Vector2 mouse, int viewportWidth, int viewportHeight)
+    public static bool TryHitTestCloseButton(Vector2 mouse, int viewportWidth, int viewportHeight)
     {
         (float ox, float oy) = Origin(viewportWidth, viewportHeight);
         return CloseRect(ox, oy).Contains(mouse);
     }
 
     /// <summary>Gets the stock slot under the mouse, or -1.</summary>
-    public int HitStockRow(Vector2 mouse, TraderView trader, int viewportWidth, int viewportHeight)
+    public static int HitStockRow(Vector2 mouse, TraderView trader, int viewportWidth, int viewportHeight)
     {
         ArgumentNullException.ThrowIfNull(trader);
         (float ox, float oy) = Origin(viewportWidth, viewportHeight);
@@ -70,7 +71,7 @@ internal sealed class TradeModalWidget
     }
 
     /// <summary>Gets the bag slot under the mouse (an occupied bag slot), or -1.</summary>
-    public int HitBagSlot(Vector2 mouse, IWorldReadModel world, int viewportWidth, int viewportHeight)
+    public static int HitBagSlot(Vector2 mouse, IWorldReadModel world, int viewportWidth, int viewportHeight)
     {
         ArgumentNullException.ThrowIfNull(world);
         (float ox, float oy) = Origin(viewportWidth, viewportHeight);
@@ -87,8 +88,41 @@ internal sealed class TradeModalWidget
         return -1;
     }
 
+    /// <summary>Draws the window over a dimmed screen, in three passes (skin, geometry, text).</summary>
+    public static void Render(
+        SpriteBatch spriteBatch,
+        GeometryBatch geometryBatch,
+        CarbonUiSkin skin,
+        BitmapFont font,
+        IVectorArtRepository? art,
+        Matrix4x4 screenProj,
+        IWorldReadModel world,
+        TraderView trader,
+        int viewportWidth,
+        int viewportHeight,
+        Vector2? mouse)
+    {
+        ArgumentNullException.ThrowIfNull(spriteBatch);
+        ArgumentNullException.ThrowIfNull(geometryBatch);
+        geometryBatch.Begin(screenProj);
+        geometryBatch.FillRectangle(new RectangleF(0f, 0f, viewportWidth, viewportHeight), new ColorRgba(4, 6, 12, 120));
+        geometryBatch.End();
+
+        spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
+        DrawSkin(spriteBatch, skin, world, trader, viewportWidth, viewportHeight, mouse);
+        spriteBatch.End();
+
+        geometryBatch.Begin(screenProj);
+        DrawGeometry(geometryBatch, world, trader, art, viewportWidth, viewportHeight);
+        geometryBatch.End();
+
+        spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
+        DrawText(spriteBatch, font, world, trader, viewportWidth, viewportHeight);
+        spriteBatch.End();
+    }
+
     /// <summary>Pass 1: frames, rows and cells.</summary>
-    public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin, IWorldReadModel world, TraderView trader, int viewportWidth, int viewportHeight, Vector2? mouse)
+    private static void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin, IWorldReadModel world, TraderView trader, int viewportWidth, int viewportHeight, Vector2? mouse)
     {
         ArgumentNullException.ThrowIfNull(skin);
         ArgumentNullException.ThrowIfNull(world);
@@ -131,7 +165,7 @@ internal sealed class TradeModalWidget
     }
 
     /// <summary>Pass 2: item icons, coins and the restock bar.</summary>
-    public void DrawGeometry(GeometryBatch batch, IWorldReadModel world, TraderView trader, IVectorArtRepository? art, int viewportWidth, int viewportHeight)
+    private static void DrawGeometry(GeometryBatch batch, IWorldReadModel world, TraderView trader, IVectorArtRepository? art, int viewportWidth, int viewportHeight)
     {
         ArgumentNullException.ThrowIfNull(batch);
         ArgumentNullException.ThrowIfNull(world);
@@ -149,7 +183,7 @@ internal sealed class TradeModalWidget
 
             if (coin is not null)
             {
-                VectorRigRenderer.DrawItemIcon(batch, coin, new Vector2(row.X + 262f, row.Y + (row.Height * 0.5f)), 14f);
+                VectorRigRenderer.DrawItemIcon(batch, coin, new Vector2(row.X + 268f, row.Y + (row.Height * 0.5f)), 14f);
             }
 
             // Stock gauge: how much of this restock is left.
@@ -181,7 +215,7 @@ internal sealed class TradeModalWidget
     }
 
     /// <summary>Pass 3: labels.</summary>
-    public void DrawText(SpriteBatch spriteBatch, BitmapFont font, IWorldReadModel world, TraderView trader, int viewportWidth, int viewportHeight)
+    private static void DrawText(SpriteBatch spriteBatch, BitmapFont font, IWorldReadModel world, TraderView trader, int viewportWidth, int viewportHeight)
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(trader);
@@ -208,7 +242,7 @@ internal sealed class TradeModalWidget
             spriteBatch.DrawOutlinedString(
                 font,
                 trader.UnitPrices[i].ToString("N0", CultureInfo.InvariantCulture),
-                new Vector2(row.X + 274f, row.Y + 12f),
+                new Vector2(row.X + 280f, row.Y + 12f),
                 affordable ? s_gold : CarbonUiPalette.DangerBorder,
                 black,
                 1,

@@ -31,17 +31,8 @@ public interface IGameplayController
     /// <summary>Requests repairing the item in <paramref name="slotIndex"/> at a forge station for gold.</summary>
     bool TryRepairItem(ushort slotIndex);
 
-    /// <summary>Asks to trade with the trader NPC <paramref name="traderNetworkId"/>; the window opens when its stock arrives.</summary>
-    bool TryOpenTrader(ulong traderNetworkId);
-
-    /// <summary>Buys <paramref name="quantity"/> units from stock slot <paramref name="slotIndex"/> of the open trader.</summary>
-    bool TryTraderBuy(byte slotIndex, ushort quantity = 1);
-
-    /// <summary>Sells <paramref name="quantity"/> units from bag slot <paramref name="slotIndex"/> to the open trader.</summary>
-    bool TryTraderSell(ushort slotIndex, ushort quantity = 1);
-
-    /// <summary>Closes the trader window.</summary>
-    void CloseTrader();
+    /// <summary>Gets trading with village traders (ADR-025).</summary>
+    ITraderSession Trading { get; }
 
     /// <summary>Attempts to harvest or damage the nearest natural prop beside the local player.</summary>
     bool TryHarvestNearbyProp(out (int ChunkX, int ChunkY) modifiedChunk);

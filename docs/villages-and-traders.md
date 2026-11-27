@@ -157,7 +157,7 @@ The traders of §3 use the `store` and `stall` NPC spots.
   - Only the quantity sold in the current epoch is state (`TraderBook`), kept in the `trader_stock` table. The table is created idempotently with the base schema in SQLite and PostgreSQL.
   - The trader key mixes the village centre with the building role (`SettlementNpcSpawner.TraderKeyOf`), so it is stable for a given world.
 - **Prices.** A unit price is the list price (`PriceBook.GetListPrice`: base × buy markup, consumables by the buyer's level band), shifted by the slot's rolled offset. It is never at or below the vendor buy-back price.
-- **Server.** `TradeService` (`server/Carbon.Application/World/Commerce`) has its own command queue, drained on the world tick, and pushes stock through the outbound tick buffer. `TradeHandlers` route the three C2S opcodes.
+- **Server.** `TradeService` (`server/Carbon.Application/World/Commerce`) has its own command queue, drained on the world tick, and pushes stock through the outbound tick buffer. The `ItemHandlers.Trade` partial routes the three C2S opcodes.
 - **Wire.**
   - C2S: `TraderOpen` `0x4040`, `TraderBuy` `0x4041` (carries the epoch it was priced in), `TraderSell` `0x4042`.
   - S2C: `TraderStock` `0x4048` carries items, prices, remaining quantities, sell prices and seconds until restock.
@@ -175,6 +175,11 @@ The traders of §3 use the `store` and `stall` NPC spots.
   - Walking away, opening another window or `Esc` closes it.
 
   All strings are in `resources/localization/{en,vi}.ini` under `[trade]` (ADR-023).
+
+  The code is split to stay within the client size caps (audit round 2):
+  - `TraderSession` (networking) holds the pushed stock and sends the requests. It is reached through `IGameplayController.Trading`.
+  - `TradeInteraction` (scene) decides when to talk, click, open and close.
+  - `TradeModalWidget` (HUD) is stateless; it draws the window and hit-tests it.
 - **Screenshots.** `tools/screenshots/capture.sh <out> '^trade_'` spawns the player in front of the market stall and opens the trader (`CARBON_OPEN_TRADER=1`).
 
 ## 4. Blacksmith

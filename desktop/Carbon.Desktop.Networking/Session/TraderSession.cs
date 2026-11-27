@@ -23,8 +23,12 @@ namespace Carbon.Desktop.Networking.Session;
 /// Trading with village traders (ADR-025): the server pushes <see cref="TraderStock"/>; the client keeps the last one as
 /// <see cref="ActiveTrader"/> while the window is open and sends buy / sell requests, showing a toast when one fails.
 /// </summary>
-public sealed partial class MultiplayerSession
+/// <param name="tcp">Gets the TCP session while the world session is ready, else <see langword="null"/>.</param>
+/// <param name="notify">Queues a HUD toast (thread-safe).</param>
+public sealed class TraderSession(Func<TcpSession?> tcp, Action<string> notify) : ITraderSession
 {
+    private readonly Func<TcpSession?> _tcp = tcp ?? throw new ArgumentNullException(nameof(tcp));
+    private readonly Action<string> _notify = notify ?? throw new ArgumentNullException(nameof(notify));
     private TraderView? _activeTrader;
     private ulong _requestedTrader;
 
@@ -32,28 +36,28 @@ public sealed partial class MultiplayerSession
     public TraderView? ActiveTrader => Volatile.Read(ref _activeTrader);
 
     /// <inheritdoc/>
-    public bool TryOpenTrader(ulong traderNetworkId)
+    public bool TryOpen(ulong traderNetworkId)
     {
-        if (!this.IsReady || _tcpSession is not { IsConnected: true } || traderNetworkId == 0UL)
+        if (traderNetworkId == 0UL || this.Connected() is not TcpSession session)
         {
             return false;
         }
 
         Volatile.Write(ref _requestedTrader, traderNetworkId);
-        _ = this.SendTcpPooledAsync<TraderOpenRequest>(p => p.TraderNetworkId = traderNetworkId);
+        _ = SendAsync<TraderOpenRequest>(session, p => p.TraderNetworkId = traderNetworkId);
         return true;
     }
 
     /// <inheritdoc/>
-    public bool TryTraderBuy(byte slotIndex, ushort quantity = 1)
+    public bool TryBuy(byte slotIndex, ushort quantity = 1)
     {
         TraderView? trader = this.ActiveTrader;
-        if (trader is null || quantity == 0 || slotIndex >= trader.ItemIds.Length || _tcpSession is not { IsConnected: true } tcp)
+        if (trader is null || quantity == 0 || slotIndex >= trader.ItemIds.Length || this.Connected() is not TcpSession session)
         {
             return false;
         }
 
-        _ = this.RequestTradeAsync<TraderBuyRequest>(tcp, p =>
+        _ = this.RequestAsync<TraderBuyRequest>(session, p =>
         {
             p.TraderNetworkId = trader.TraderNetworkId;
             p.SlotIndex = slotIndex;
@@ -64,15 +68,15 @@ public sealed partial class MultiplayerSession
     }
 
     /// <inheritdoc/>
-    public bool TryTraderSell(ushort slotIndex, ushort quantity = 1)
+    public bool TrySell(ushort slotIndex, ushort quantity = 1)
     {
         TraderView? trader = this.ActiveTrader;
-        if (trader is null || quantity == 0 || slotIndex >= PlayerInventoryLayout.BagLimit || _tcpSession is not { IsConnected: true } tcp)
+        if (trader is null || quantity == 0 || slotIndex >= PlayerInventoryLayout.BagLimit || this.Connected() is not TcpSession session)
         {
             return false;
         }
 
-        _ = this.RequestTradeAsync<TraderSellRequest>(tcp, p =>
+        _ = this.RequestAsync<TraderSellRequest>(session, p =>
         {
             p.TraderNetworkId = trader.TraderNetworkId;
             p.SlotIndex = slotIndex;
@@ -82,14 +86,14 @@ public sealed partial class MultiplayerSession
     }
 
     /// <inheritdoc/>
-    public void CloseTrader()
+    public void Close()
     {
         Volatile.Write(ref _requestedTrader, 0UL);
         Volatile.Write(ref _activeTrader, null);
     }
 
-    /// <summary>Gets the localized toast for a failed trade (shared by the trade window).</summary>
-    public static string DescribeTradeFailure(OpStatus status) => status switch
+    /// <summary>Gets the localized toast for a failed trade.</summary>
+    public static string DescribeFailure(OpStatus status) => status switch
     {
         OpStatus.Conflict => GameText.Get("trade.failed_conflict"),
         OpStatus.InventoryFull => GameText.Get("trade.failed_bag_full"),
@@ -99,8 +103,11 @@ public sealed partial class MultiplayerSession
         _ => GameText.Get("trade.failed"),
     };
 
-    private void OnTraderStock(TraderStock pkt)
+    /// <summary>Handles a pushed <see cref="TraderStock"/> (network thread).</summary>
+    public void OnStock(TraderStock pkt)
     {
+        ArgumentNullException.ThrowIfNull(pkt);
+
         // Only the trader the player asked for opens (a late push after closing the window is ignored).
         if (pkt.TraderNetworkId != Volatile.Read(ref _requestedTrader))
         {
@@ -122,29 +129,43 @@ public sealed partial class MultiplayerSession
         Volatile.Write(ref _activeTrader, view);
     }
 
-    private async Task RequestTradeAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TPacket>(TcpSession tcp, Action<TPacket> populate)
+    private TcpSession? Connected() => _tcp() is { IsConnected: true } session ? session : null;
+
+    private static async Task SendAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TPacket>(TcpSession session, Action<TPacket> populate)
         where TPacket : PacketBase<TPacket>, IPacketStaticOpcode, new()
     {
         try
         {
-            RequestOptions options = RequestOptions.Default.WithTimeout(4000).WithEncrypt(tcp.State.EncryptionEnabled);
             using PacketScope<TPacket> lease = PacketFactory<TPacket>.Acquire();
             populate(lease.Value);
-            using MutationResult reply = await tcp.RequestAsync<MutationResult>(lease.Value, options, predicate: null, CancellationToken.None).ConfigureAwait(false);
-            if (reply.Status != OpStatus.Ok)
-            {
-                lock (_worldGate)
-                {
-                    _hudNotifications.Add(DescribeTradeFailure(reply.Status));
-                }
-            }
+            await session.SendAsync(lease.Value, session.State.EncryptionEnabled, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            lock (_worldGate)
-            {
-                _hudNotifications.Add(GameText.Get("trade.failed"));
-            }
+            // A dropped connection is handled by the session's own fault path; the window just stays as it was.
+        }
+    }
+
+    private async Task RequestAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TPacket>(TcpSession session, Action<TPacket> populate)
+        where TPacket : PacketBase<TPacket>, IPacketStaticOpcode, new()
+    {
+        OpStatus status;
+        try
+        {
+            RequestOptions options = RequestOptions.Default.WithTimeout(4000).WithEncrypt(session.State.EncryptionEnabled);
+            using PacketScope<TPacket> lease = PacketFactory<TPacket>.Acquire();
+            populate(lease.Value);
+            using MutationResult reply = await session.RequestAsync<MutationResult>(lease.Value, options, predicate: null, CancellationToken.None).ConfigureAwait(false);
+            status = reply.Status;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            status = OpStatus.Invalid;
+        }
+
+        if (status != OpStatus.Ok)
+        {
+            _notify(DescribeFailure(status));
         }
     }
 }

@@ -45,7 +45,6 @@ public sealed class HudOverlayRenderer : IDisposable
     private readonly CraftingModalWidget _craftModal = new();
     private readonly ClassSkillsModalWidget _skillsModal = new();
     private readonly ForgeAnvilModalWidget _forgeModal = new();
-    private readonly TradeModalWidget _tradeModal = new();
     private readonly SettingsModalWidget _settingsModal = new();
     private readonly ToastFeedWidget _toasts = new();
     private readonly List<SkillDefinition> _skillScratch = new(8);
@@ -88,15 +87,15 @@ public sealed class HudOverlayRenderer : IDisposable
     /// <summary>Gets or sets whether the Blacksmith Forge Anvil modal is open.</summary>
     public bool ShowForgeModal { get; set; }
 
-    /// <summary>Gets or sets whether the trader window is open (the scene mirrors <c>IWorldReadModel.ActiveTrader</c>).</summary>
-    public bool ShowTradeModal { get; set; }
+    /// <summary>Gets or sets the open trader window's stock (ADR-025), or <see langword="null"/> when it is closed.</summary>
+    public TraderView? Trader { get; set; }
 
     /// <summary>Gets or sets whether the System Settings &amp; Controls modal is open.</summary>
     public bool ShowSettingsModal { get; set; }
 
     /// <summary>Gets whether any full-screen modal (Player Window, Forge, or Settings) is open.</summary>
     public bool HasActiveModal =>
-        this.ShowPlayerModal || this.ShowForgeModal || this.ShowSettingsModal || this.ShowTradeModal;
+        this.ShowPlayerModal || this.ShowForgeModal || this.ShowSettingsModal || this.Trader is not null;
 
     /// <summary>Gets or sets the inventory slot index currently held/carried by the cursor, or <c>-1</c>.</summary>
     public int CarriedInventorySlot
@@ -166,7 +165,7 @@ public sealed class HudOverlayRenderer : IDisposable
     {
         this.ShowPlayerModal = false;
         this.ShowForgeModal = false;
-        this.ShowTradeModal = false;
+        this.Trader = null;
         if (!keepSettings)
         {
             this.ShowSettingsModal = false;
@@ -296,9 +295,9 @@ public sealed class HudOverlayRenderer : IDisposable
             return _forgeModal.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight);
         }
 
-        if (this.ShowTradeModal)
+        if (this.Trader is not null)
         {
-            return _tradeModal.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight);
+            return TradeModalWidget.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight);
         }
 
         return false;
@@ -335,30 +334,12 @@ public sealed class HudOverlayRenderer : IDisposable
             return _forgeModal.ContainsPoint(mousePos, viewportWidth, viewportHeight);
         }
 
-        if (this.ShowTradeModal)
+        if (this.Trader is not null)
         {
-            return _tradeModal.ContainsPoint(mousePos, viewportWidth, viewportHeight);
+            return TradeModalWidget.ContainsPoint(mousePos, viewportWidth, viewportHeight);
         }
 
         return false;
-    }
-
-    /// <summary>Gets the trader stock slot under the mouse in the trade window, or -1.</summary>
-    public int HitTradeStockRow(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
-    {
-        ArgumentNullException.ThrowIfNull(world);
-        return this.Visible && this.ShowTradeModal && world.ActiveTrader is TraderView trader
-            ? _tradeModal.HitStockRow(mousePos, trader, viewportWidth, viewportHeight)
-            : -1;
-    }
-
-    /// <summary>Gets the bag slot under the mouse in the trade window, or -1.</summary>
-    public int HitTradeBagSlot(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
-    {
-        ArgumentNullException.ThrowIfNull(world);
-        return this.Visible && this.ShowTradeModal && world.ActiveTrader is not null
-            ? _tradeModal.HitBagSlot(mousePos, world, viewportWidth, viewportHeight)
-            : -1;
     }
 
     /// <summary>Hit-tests screen-space coordinates against the right-edge class skill bar.</summary>
@@ -581,23 +562,9 @@ public sealed class HudOverlayRenderer : IDisposable
                     break;
             }
         }
-        else if (this.ShowTradeModal && world.ActiveTrader is TraderView trader)
+        else if (this.Trader is TraderView trader)
         {
-            _geometryBatch.Begin(screenProj);
-            _geometryBatch.FillRectangle(new RectangleF(0f, 0f, viewportWidth, viewportHeight), new ColorRgba(4, 6, 12, 120));
-            _geometryBatch.End();
-
-            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-            _tradeModal.DrawSkin(spriteBatch, _uiSkin, world, trader, viewportWidth, viewportHeight, mouseScreenPos);
-            spriteBatch.End();
-
-            _geometryBatch.Begin(screenProj);
-            _tradeModal.DrawGeometry(_geometryBatch, world, trader, _art, viewportWidth, viewportHeight);
-            _geometryBatch.End();
-
-            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-            _tradeModal.DrawText(spriteBatch, _font, world, trader, viewportWidth, viewportHeight);
-            spriteBatch.End();
+            TradeModalWidget.Render(spriteBatch, _geometryBatch, _uiSkin, _font, _art, screenProj, world, trader, viewportWidth, viewportHeight, mouseScreenPos);
         }
         else if (this.ShowForgeModal)
         {
