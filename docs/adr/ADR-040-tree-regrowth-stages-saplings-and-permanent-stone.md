@@ -139,6 +139,8 @@ What master (`6125a15`) does:
        tree, for a garden or a windbreak, so it is a rare find rather than a resource loop.
      - At 3 %, a player fells about 33 mature trees per sapling on average. A stand of trees grows back where it was
        cut, but planting whole forests is not a strategy.
+     - Bounds: tune both chances within 0–10 %. Above 10 %, saplings become loot to farm. 0 is allowed: no wild tree is
+       ever needed to plant one, since the map holds endless wild trees.
      - Both values live in `props.json` (`trees.mature.saplingChance`, `trees.stump.saplingChance`) and are pinned by
        `TreeGrowthTests.LoadEmbedded_SaplingDrops_AreRareButSustainable`.
    - **Clearing rule: only a mature tree leaves a stump.** Before, felling a sapling or a young tree left a stump that
