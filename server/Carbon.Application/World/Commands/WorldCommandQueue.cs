@@ -51,11 +51,7 @@ internal enum WorldCommandKind : byte
     /// <summary>Destroy items in a slot (<c>Arg0</c> = slot, <c>Arg2</c> = quantity, <c>Arg3</c> = expected item id; ADR-020).</summary>
     DestroyInventoryItem = 17,
 
-    /// <summary>Buy from a vendor (<c>Arg0</c> = item id, <c>Arg1</c> = quantity).</summary>
-    VendorBuy = 20,
-
-    /// <summary>Sell to a vendor (<c>Arg0</c> = slot, <c>Arg1</c> = quantity).</summary>
-    VendorSell = 21,
+    // 20 and 21 were VendorBuy / VendorSell (ADR-038).
 
     /// <summary>Repair one item (ADR-028): <c>Arg0</c> = slot, <c>Arg1</c> = expected item, <c>Arg2</c> = steps, <c>Arg3</c> = venue.</summary>
     RepairItem = 22,
@@ -63,11 +59,7 @@ internal enum WorldCommandKind : byte
     /// <summary>Open a trader's window (ADR-025; trader network id packed in TileX/TileY).</summary>
     TraderOpen = 40,
 
-    /// <summary>Buy from a trader stock slot (Arg0 slot, Arg1 quantity, Arg2 epoch).</summary>
-    TraderBuy = 41,
-
-    /// <summary>Sell a bag slot to a trader (Arg0 slot, Arg1 quantity).</summary>
-    TraderSell = 42,
+    // 41 and 42 were the single-line TraderBuy / TraderSell (ADR-038).
 
     /// <summary>Sell a whole basket to a trader, all or nothing (ADR-025 D18; lines in <see cref="WorldCommand.Payload"/>).</summary>
     TraderSellBatch = 43,

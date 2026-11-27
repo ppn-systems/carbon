@@ -21,8 +21,7 @@ public static class MapOpCode
 {
     // ── C2S: Client → Server (0x1101–0x110F) ────────────────────────────────
 
-    /// <summary>Client asks for the world generation parameters (seed, version, spawn).</summary>
-    public const ushort WorldInfoRequest = 0x1101;
+    // 0x1101 was WorldInfoRequest, retired by ADR-038 (CharacterEnterWorld carries the world parameters): never reuse it.
 
     /// <summary>Client asks for the edits of one chunk (stream response of <see cref="ChunkDelta"/>).</summary>
     public const ushort ChunkRequest = 0x1102;
@@ -41,8 +40,7 @@ public static class MapOpCode
 
     // ── S2C: Server → Client request-response (0x1110–0x111F) ───────────────
 
-    /// <summary>Server answers <see cref="WorldInfoRequest"/>.</summary>
-    public const ushort WorldInfo = 0x1110;
+    // 0x1110 was WorldInfo, the answer to WorldInfoRequest, retired by ADR-038: never reuse it.
 
     // ── S2C: Server → Client stream (0x1120–0x112F) ─────────────────────────
 
@@ -51,15 +49,13 @@ public static class MapOpCode
 
     // ── S2C: Server → Client push (0x1130–0x11FF) ───────────────────────────
 
-    /// <summary>A terrain tile changed (AoI broadcast).</summary>
-    public const ushort TileChanged = 0x1130;
+    // 0x1130 was TileChanged, never sent (tile edits replicate in ChunkDelta), retired by ADR-038: never reuse it.
 
     /// <summary>A natural prop was damaged or destroyed (AoI broadcast).</summary>
     public const ushort PropChanged = 0x1131;
 
     /// <summary>A structure was placed, damaged, toggled or removed (AoI broadcast).</summary>
     public const ushort StructureChanged = 0x1132;
-
 
     /// <summary>A construction site (blueprint / frame) or a deconstruction changed stage or progress (AoI broadcast).</summary>
     public const ushort ConstructionChanged = 0x1133;

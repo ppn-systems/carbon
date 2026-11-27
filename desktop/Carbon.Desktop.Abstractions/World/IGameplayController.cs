@@ -22,12 +22,6 @@ public interface IGameplayController
     /// <summary>Attempts to craft <paramref name="quantity"/> instances of <paramref name="recipeId"/>.</summary>
     bool TryCraftRecipe(ushort recipeId, ushort quantity = 1);
 
-    /// <summary>Requests buying <paramref name="quantity"/> units of <paramref name="itemId"/> from a nearby vendor (server validates and charges gold).</summary>
-    bool TryVendorBuy(ushort itemId, ushort quantity = 1);
-
-    /// <summary>Requests selling <paramref name="quantity"/> units from bag slot <paramref name="slotIndex"/> to a nearby vendor.</summary>
-    bool TryVendorSell(ushort slotIndex, ushort quantity = 1);
-
     /// <summary>Gets repairing one item at a station or blacksmith (ADR-028).</summary>
     IRepairSession Repair { get; }
 

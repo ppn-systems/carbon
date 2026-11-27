@@ -19,7 +19,7 @@ namespace Carbon.Maps.Generators;
 public sealed class ProceduralWorldGenerator : ITileSource
 {
     /// <summary>
-    /// Version of the generation algorithm, sent to clients in <c>MapWorldInfo.GeneratorVersion</c>.
+    /// Version of the generation algorithm, sent to clients in <c>CharacterEnterWorld.GeneratorVersion</c>.
     /// Bump it whenever any change alters generated output (the golden-hash test fails), so a client running
     /// a different generator refuses to play instead of silently desyncing.
     /// </summary>
@@ -81,7 +81,7 @@ public sealed class ProceduralWorldGenerator : ITileSource
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ProceduralWorldGenerator"/> class from world settings
-    /// (as sent to clients in <c>MapWorldInfo</c>).
+    /// (as sent to clients in <c>CharacterEnterWorld</c>).
     /// </summary>
     /// <param name="settings">World settings.</param>
     /// <param name="extraTileStages">Optional tile stages run after the biome stage.</param>

@@ -221,7 +221,7 @@ public sealed class ForgeEnhancerTests
     [Fact]
     public void CreateRandom_AttackerKnowsWorldSeedTickOwnerAndNonce_CannotReproduceServerOutcomes()
     {
-        // ADR-026: the world seed is public (MapWorldInfo.Seed, CharacterEnterWorld.WorldSeed). A client that knows it,
+        // ADR-026: the world seed is public (CharacterEnterWorld.WorldSeed). A client that knows it,
         // the tick, its own id and the attempt counter must still not be able to predict a forge roll.
         const ulong WorldSeed = 1337UL;
         const ulong Owner = 9001UL;

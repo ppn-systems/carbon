@@ -111,7 +111,7 @@ public sealed class WorldSceneRenderer : IDisposable
 
         if (_poiRenderer is null || _boundSeed != world.WorldSeed || !ReferenceEquals(_landmarks, world.ChunkWorld.Generator.Landmarks))
         {
-            // The session's generator has the server's seed and frequency (MapWorldInfo); a seed-only one resolves other POIs.
+            // The session's generator has the server's seed and frequency (CharacterEnterWorld); a seed-only one resolves other POIs.
             _landmarks = world.ChunkWorld.Generator.Landmarks;
             _poiRenderer = new PointOfInterestRenderer(world.ChunkWorld.TileSize, _landmarks);
             _roofs = new RoofRenderer(world.ChunkWorld.TileSize);

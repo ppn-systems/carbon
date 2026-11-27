@@ -1,7 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
-using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Abstractions.World;
 using Carbon.Contracts.Maps;
@@ -12,46 +11,18 @@ using Carbon.Maps.Building;
 using Nalix.Abstractions.Injection;
 using Nalix.Abstractions.Networking.Packets;
 using Nalix.Abstractions.Security;
-using Nalix.Codec.Extensions;
 using Nalix.Codec.Pooling;
 
 namespace Carbon.Handlers.Maps;
 
 /// <summary>
-/// Stateless packet handlers for world info, chunk delta streaming, harvesting, and construction.
+/// Stateless packet handlers for chunk delta streaming, harvesting, and construction.
 /// </summary>
 [PacketHandler("Carbon.Maps")]
 public static partial class MapHandlers
 {
     [Inject] private static IWorldMapService s_world = null!;
     [Inject] private static ISessionTransportRegistry s_transports = null!;
-
-    /// <summary>Opcode <c>0x1101</c>. Returns deterministic world seed, version, and starter spawn coordinates.</summary>
-    [PacketOpcode(MapOpCode.WorldInfoRequest)]
-    [PacketPermission(PermissionLevel.USER)]
-    public static ValueTask HandleWorldInfoAsync(IPacketContext<MapWorldInfoRequest> context)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-
-        Vector2 spawn = s_world.DefaultSpawnWorldPosition;
-        PacketScope<MapWorldInfo> lease = PacketFactory<MapWorldInfo>.Acquire();
-        try
-        {
-            MapWorldInfo reply = lease.Value;
-            reply.Seed = s_world.WorldSeed;
-            reply.GeneratorVersion = s_world.GeneratorVersion;
-            reply.TileSize = s_world.TileSize;
-            reply.Frequency = s_world.Frequency;
-            reply.SpawnTileX = (int)MathF.Floor(spawn.X / s_world.TileSize);
-            reply.SpawnTileY = (int)MathF.Floor(spawn.Y / s_world.TileSize);
-            return context.Sender.ReplyAsync(reply).DisposeOnCompletionAsync(lease);
-        }
-        catch
-        {
-            lease.Dispose();
-            throw;
-        }
-    }
 
     /// <summary>Opcode <c>0x1102</c>. Streams chunk delta state when newer than the client's cached revision.</summary>
     [PacketOpcode(MapOpCode.ChunkRequest)]

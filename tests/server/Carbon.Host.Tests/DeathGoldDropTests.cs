@@ -126,7 +126,7 @@ public sealed class DeathGoldDropTests
                 this.GroundLoot,
                 this.Outbound,
                 _ => { });
-            this.Commerce = new EconomyService(TestGameplayEntropy.Create(42UL), TickRate, () => economy, () => this.Tick, this.GroundLoot, this.Outbound, (_, _) => false);
+            this.Commerce = new EconomyService(TestGameplayEntropy.Create(42UL), TickRate, () => economy, () => this.Tick, this.GroundLoot, this.Outbound);
             this.Victim = this.CreatePlayer(1UL, 900UL, "Victim");
             this.Bystander = this.CreatePlayer(2UL, 901UL, "Bystander");
         }

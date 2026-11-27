@@ -36,7 +36,7 @@ public sealed partial class TraderStock : PacketBase<TraderStock>, IPacketStatic
     [SerializeOrder(1)]
     public byte Kind { get; set; }
 
-    /// <summary>Restock epoch the stock and prices belong to (echoed in <see cref="C2S.TraderBuyRequest.Epoch"/>).</summary>
+    /// <summary>Restock epoch the stock and prices belong to (echoed in <see cref="C2S.TraderBuyBatchRequest.Epoch"/>).</summary>
     [SerializeOrder(2)]
     public long Epoch { get; set; }
 

@@ -50,28 +50,8 @@ public sealed partial class AuthoritativeWorld
     public static string? ResolveLootTableId(ushort archetypeId) => EconomyService.ResolveLootTableId(archetypeId);
 
     /// <inheritdoc/>
-    public ValueTask<WorldMutationOutcome> SubmitVendorBuyAsync(ulong connectionId, ushort itemId, ushort quantity) =>
-        _commands.Submit(WorldCommandKind.VendorBuy, connectionId, itemId, quantity);
-
-    /// <inheritdoc/>
-    public ValueTask<WorldMutationOutcome> SubmitVendorSellAsync(ulong connectionId, ushort slotIndex, ushort quantity) =>
-        _commands.Submit(WorldCommandKind.VendorSell, connectionId, slotIndex, quantity);
-
-    /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitRepairItemAsync(ulong connectionId, ushort slotIndex, ushort expectedItemId, byte steps, RepairVenue venue) =>
         _commands.Submit(WorldCommandKind.RepairItem, connectionId, slotIndex, expectedItemId, steps, (ushort)venue);
-
-    /// <summary>Buys vendor-sold items for gold near a friendly town NPC. Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
-    public OpStatus TryVendorBuy(ulong connectionId, ushort itemId, ushort quantity) =>
-        quantity is 0 or > EconomyService.MaxVendorQuantity
-            ? OpStatus.Invalid
-            : this.RunVendorOperation(connectionId, VendorOperation.Buy, itemId, quantity);
-
-    /// <summary>Sells units from a bag slot to a nearby friendly town NPC for gold. Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
-    public OpStatus TryVendorSell(ulong connectionId, ushort slotIndex, ushort quantity) =>
-        quantity == 0 || slotIndex >= PlayerInventoryLayout.BagLimit
-            ? OpStatus.Invalid
-            : this.RunVendorOperation(connectionId, VendorOperation.Sell, slotIndex, quantity);
 
     /// <summary>
     /// Repairs ONE item for materials (and the blacksmith fee) at <paramref name="venue"/> (ADR-028). Returns
@@ -109,47 +89,5 @@ public sealed partial class AuthoritativeWorld
         this.SendSlotsOutbound(connectionId, modifiedCopy);
         _outboundSink.SendPlayerStatsSync(connectionId, in statsSnap);
         return new WorldMutationOutcome(OpStatus.Ok, new RepairReceipt(RepairError.None, (byte)attempt.Steps).Pack());
-    }
-
-    /// <summary>
-    /// Runs a vendor mutation under the world lock, then pushes the changed inventory slots and the new wallet
-    /// balance to the owning client.
-    /// </summary>
-    private OpStatus RunVendorOperation(ulong connectionId, VendorOperation operation, ushort arg, ushort quantity)
-    {
-        if (!_commerce.IsEnabled)
-        {
-            return OpStatus.Forbidden;
-        }
-
-        (ushort SlotIndex, ItemSlot Slot)[] modifiedCopy;
-        long gold;
-        long diamonds;
-        ulong sequence;
-        lock (_gate)
-        {
-            if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state) ||
-                !_simulation.Entities.HasTransform(state.Entity))
-            {
-                return OpStatus.Forbidden;
-            }
-
-            Vector2 playerPos = _simulation.Entities.GetTransform(state.Entity).Position;
-            OpStatus status = _commerce.RunVendorOperation(state, playerPos, operation, arg, quantity, _mutationSlotScratch);
-            if (status != OpStatus.Ok)
-            {
-                return status;
-            }
-
-            this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
-            modifiedCopy = [.. _mutationSlotScratch];
-            gold = state.Wallet.Gold;
-            diamonds = state.Wallet.Diamonds;
-            sequence = state.Wallet.Sequence;
-        }
-
-        this.SendSlotsOutbound(connectionId, modifiedCopy);
-        _outboundSink.SendWalletSync(connectionId, gold, diamonds, sequence);
-        return OpStatus.Ok;
     }
 }

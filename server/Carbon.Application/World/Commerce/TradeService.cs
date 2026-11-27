@@ -99,16 +99,6 @@ internal sealed class TradeService : IWorldTradeService
         _commands.SubmitTargeted(WorldCommandKind.TraderOpen, connectionId, traderNetworkId, 0, 0, 0);
 
     /// <inheritdoc/>
-    public ValueTask<WorldMutationOutcome> SubmitTraderBuyAsync(ulong connectionId, ulong traderNetworkId, byte slotIndex, ushort quantity, long epoch) =>
-        epoch is < 0 or > int.MaxValue
-            ? ValueTask.FromResult(new WorldMutationOutcome(OpStatus.Invalid, 0))
-            : _commands.SubmitTargeted(WorldCommandKind.TraderBuy, connectionId, traderNetworkId, slotIndex, quantity, (int)epoch);
-
-    /// <inheritdoc/>
-    public ValueTask<WorldMutationOutcome> SubmitTraderSellAsync(ulong connectionId, ulong traderNetworkId, ushort slotIndex, ushort quantity) =>
-        _commands.SubmitTargeted(WorldCommandKind.TraderSell, connectionId, traderNetworkId, slotIndex, quantity, 0);
-
-    /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitTraderSellBatchAsync(ulong connectionId, ulong traderNetworkId, ushort[] slotIndices, ushort[] itemIds, ushort[] quantities, long expectedGold)
     {
         ArgumentNullException.ThrowIfNull(slotIndices);
@@ -147,72 +137,6 @@ internal sealed class TradeService : IWorldTradeService
         this.TryResolve(connectionId, traderNetworkId, out PlayerState? state, out TraderIdentity trader, out GameEconomy? economy) is OpStatus status && status != OpStatus.Ok
             ? status
             : this.QueueStock(state!, traderNetworkId, trader, economy!);
-
-    /// <summary>Buys from a trader (synchronous form). Call under the world lock.</summary>
-    public OpStatus BuyLocked(ulong connectionId, ulong traderNetworkId, int slotIndex, int quantity, long epoch)
-    {
-        OpStatus status = this.TryResolve(connectionId, traderNetworkId, out PlayerState? state, out TraderIdentity trader, out GameEconomy? economy);
-        if (status != OpStatus.Ok)
-        {
-            return status;
-        }
-
-        if (quantity is <= 0 or > EconomyService.MaxVendorQuantity)
-        {
-            return OpStatus.Invalid;
-        }
-
-        InventoryContainer bag = state!.Inventory;
-        Span<ItemSlot> before = stackalloc ItemSlot[bag.Slots.Length];
-        bag.Slots.CopyTo(before);
-        TradeResult result = _book.TryBuy(
-            economy!.Traders!,
-            economy.Prices,
-            trader,
-            _time.GetUtcNow().ToUnixTimeSeconds(),
-            state.Wallet,
-            bag,
-            slotIndex,
-            quantity,
-            epoch,
-            state.Level,
-            Math.Min(PlayerInventoryLayout.BagLimit, bag.Capacity),
-            _tick());
-        if (result != TradeResult.Ok)
-        {
-            return result.ToOpStatus();
-        }
-
-        this.StageChanges(state, before);
-        return this.QueueStock(state, traderNetworkId, trader, economy);
-    }
-
-    /// <summary>Sells to a trader at the economy's vendor sell price (synchronous form). Call under the world lock.</summary>
-    public OpStatus SellLocked(ulong connectionId, ulong traderNetworkId, int slotIndex, int quantity)
-    {
-        OpStatus status = this.TryResolve(connectionId, traderNetworkId, out PlayerState? state, out TraderIdentity trader, out GameEconomy? economy);
-        if (status != OpStatus.Ok)
-        {
-            return status;
-        }
-
-        if (quantity <= 0 || (uint)slotIndex >= PlayerInventoryLayout.BagLimit)
-        {
-            return OpStatus.Invalid;
-        }
-
-        InventoryContainer bag = state!.Inventory;
-        Span<ItemSlot> before = stackalloc ItemSlot[bag.Slots.Length];
-        bag.Slots.CopyTo(before);
-        OpStatus sold = economy!.Vendor.TrySellSlot(state.Wallet, bag, slotIndex, quantity, _tick()).Status;
-        if (sold != OpStatus.Ok)
-        {
-            return sold;
-        }
-
-        this.StageChanges(state, before);
-        return this.QueueStock(state, traderNetworkId, trader, economy);
-    }
 
     /// <summary>
     /// Sells a whole basket at the economy's vendor sell prices, all or nothing (ADR-025 D18; synchronous form). A
@@ -378,14 +302,12 @@ internal sealed class TradeService : IWorldTradeService
         OpStatus status = command.Kind switch
         {
             WorldCommandKind.TraderOpen => this.OpenLocked(command.ConnectionId, trader),
-            WorldCommandKind.TraderBuy => this.BuyLocked(command.ConnectionId, trader, command.Arg0, command.Arg1, command.Arg2),
-            WorldCommandKind.TraderSell => this.SellLocked(command.ConnectionId, trader, command.Arg0, command.Arg1),
             WorldCommandKind.TraderSellBatch or WorldCommandKind.TraderBuyBatch => OpStatus.Invalid,
             WorldCommandKind.HarvestProp or WorldCommandKind.PlaceStructure or WorldCommandKind.DemolishStructure or
             WorldCommandKind.ToggleDoor or WorldCommandKind.SetResting or WorldCommandKind.SelectHotbarSlot or
             WorldCommandKind.CraftRecipe or WorldCommandKind.MoveInventorySlot or WorldCommandKind.UpgradeInventoryItem or
             WorldCommandKind.DropInventoryItem or WorldCommandKind.SplitInventorySlot or WorldCommandKind.SortInventory or
-            WorldCommandKind.DestroyInventoryItem or WorldCommandKind.VendorBuy or WorldCommandKind.VendorSell or
+            WorldCommandKind.DestroyInventoryItem or
             WorldCommandKind.RepairItem or WorldCommandKind.AllocateCharacterPoint or WorldCommandKind.Respawn => OpStatus.Invalid,
             _ => OpStatus.Invalid,
         };

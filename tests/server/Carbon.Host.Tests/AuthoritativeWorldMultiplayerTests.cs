@@ -1522,7 +1522,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
     }
 
     [Fact]
-    public async Task Wallet_PersistsAcrossSessions_SyncsToClient_AndPaysForVendorSinks()
+    public async Task Wallet_PersistsAcrossSessions_SyncsToClient_AndPaysForBlacksmithFees()
     {
         string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-wallet-test-{Guid.NewGuid():N}.db");
         try
@@ -1554,6 +1554,9 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
             InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);
             StarterGameCatalog.GrantStarterLoadout(bag);
+            uint plantFiber = economy.Items.ResolveId("plant_fiber");
+            bag.SetSlot(0, new ItemSlot(StarterGameCatalog.WoodAxe, 1, 0, 10f)); // worn, so the blacksmith has work
+            bag.SetSlot(8, new ItemSlot(plantFiber, 4));
             CharacterRecord trader = new(
                 Guid.NewGuid(), accountId, "Trader", 1, 0,
                 world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
@@ -1569,39 +1572,25 @@ public sealed class AuthoritativeWorldMultiplayerTests
             world.StepFixedTick();
             sink.WalletSyncs.Should().Contain((conn, 500L, 2L, 7UL), "the client receives its persisted balance on world entry");
 
-            // Sanctuary blacksmith next to spawn acts as vendor and repair station.
-            uint woodLog = economy.Items.ResolveId("wood_log");
-            long logPrice = economy.Prices.GetBuyPrice(woodLog);
-            world.TryVendorBuy(conn, (ushort)woodLog, 10).Should().Be(OpStatus.Ok);
-            world.TryGetWalletBalances(conn, out long gold, out _).Should().BeTrue();
-            gold.Should().Be(500 - (10 * logPrice));
-            sink.WalletSyncs[^1].Gold.Should().Be(gold);
-            sink.SlotChanges.Should().Contain(c => c.ConnectionId == conn && c.ItemId == woodLog);
-
-            world.TryVendorBuy(conn, (ushort)economy.Items.ResolveId("demon_horn"), 1).Should().Be(OpStatus.Forbidden, "rare drops are not sold by vendors");
-            world.TryVendorBuy(conn, (ushort)woodLog, 60_000).Should().Be(OpStatus.Invalid);
-            world.TryVendorSell(conn, PlayerInventoryLayout.HeadSlot, 1).Should().Be(OpStatus.Invalid, "equipped armor cannot be sold");
-
+            // The sanctuary blacksmith next to spawn charges a gold fee per repair (ADR-028): a live gold sink.
             List<(ushort SlotIndex, ItemSlot Slot)> inventory = [];
             world.GetInventorySnapshot(conn, inventory).Should().BeTrue();
             (ushort swordSlot, ItemSlot sword) = inventory.First(x => x.Slot.ItemId == StarterGameCatalog.IronSword);
             WorldMutationOutcome whole = world.TryRepairItem(conn, swordSlot, (ushort)sword.ItemId, 1, RepairVenue.Blacksmith);
             whole.Status.Should().Be(OpStatus.Conflict);
             RepairReceipt.Unpack(whole.Revision).Error.Should().Be(RepairError.NotDamaged, "a full-durability item needs no repair");
-            world.TryVendorSell(conn, swordSlot, 1).Should().Be(OpStatus.Ok);
-            world.TryGetWalletBalances(conn, out long afterSale, out _).Should().BeTrue();
-            afterSale.Should().Be(gold + economy.Prices.GetSellPrice(sword.ItemId));
 
-            // A player far from any town NPC is refused.
-            CharacterRecord wanderer = stored with { Id = Guid.NewGuid(), Name = "Wanderer", PositionX = stored.PositionX + 9000f };
-            world.TryEnterWorld(902UL, wanderer).Status.Should().Be(OpStatus.Ok);
-            world.TryVendorBuy(902UL, (ushort)woodLog, 1).Should().Be(OpStatus.OutOfRange);
+            world.TryRepairItem(conn, 0, (ushort)StarterGameCatalog.WoodAxe, 1, RepairVenue.Blacksmith).Status.Should().Be(OpStatus.Ok);
+            world.TryGetWalletBalances(conn, out long afterSale, out _).Should().BeTrue();
+            afterSale.Should().BeLessThan(500, "the blacksmith fee is paid in gold");
+            world.StepFixedTick(); // wallet syncs are staged and flushed with the tick's outbound batch
+            sink.WalletSyncs[^1].Should().Be((conn, afterSale, 2L, 8UL), "the fee is pushed to the client with the next wallet sequence");
 
             await world.FlushDirtyPersistenceAsync().ConfigureAwait(true);
             CharacterRecord? reloaded = await characters.FindByIdAsync(trader.Id).ConfigureAwait(true);
             reloaded!.Gold.Should().Be(afterSale);
             reloaded.Diamonds.Should().Be(2);
-            reloaded.WalletSequence.Should().Be(9UL, "one purchase and one sale were recorded after the persisted sequence 7");
+            reloaded.WalletSequence.Should().Be(8UL, "one fee was recorded after the persisted sequence 7");
             reloaded.DiamondPity.Should().Be(42);
         }
         finally

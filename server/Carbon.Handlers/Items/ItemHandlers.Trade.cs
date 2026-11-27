@@ -36,36 +36,6 @@ public static partial class ItemHandlers
         }
     }
 
-    /// <summary>Opcode <c>0x4041</c>. Buys from a trader stock slot.</summary>
-    [PacketOpcode(ItemOpCode.TraderBuy)]
-    [PacketPermission(PermissionLevel.USER)]
-    public static async ValueTask HandleTraderBuyAsync(IPacketContext<TraderBuyRequest> context)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-
-        IPacketSender sender = context.Sender;
-        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
-        TraderBuyRequest p = context.Packet;
-        (ulong trader, byte slot, ushort quantity, long epoch) = (p.TraderNetworkId, p.SlotIndex, p.Quantity, p.Epoch);
-        WorldMutationOutcome outcome = await s_world.Trade.SubmitTraderBuyAsync(connectionId, trader, slot, quantity, epoch).ConfigureAwait(false);
-        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.TraderBuy).ConfigureAwait(false);
-    }
-
-    /// <summary>Opcode <c>0x4042</c>. Sells a bag stack to a trader.</summary>
-    [PacketOpcode(ItemOpCode.TraderSell)]
-    [PacketPermission(PermissionLevel.USER)]
-    public static async ValueTask HandleTraderSellAsync(IPacketContext<TraderSellRequest> context)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-
-        IPacketSender sender = context.Sender;
-        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
-        TraderSellRequest p = context.Packet;
-        (ulong trader, ushort slot, ushort quantity) = (p.TraderNetworkId, p.SlotIndex, p.Quantity);
-        WorldMutationOutcome outcome = await s_world.Trade.SubmitTraderSellAsync(connectionId, trader, slot, quantity).ConfigureAwait(false);
-        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.TraderSell).ConfigureAwait(false);
-    }
-
     /// <summary>Opcode <c>0x4052</c>. Sells a whole basket, all or nothing; replies with <see cref="TraderBatchResult"/> (ADR-025 D18).</summary>
     [PacketOpcode(ItemOpCode.TraderSellBatch)]
     [PacketPermission(PermissionLevel.USER)]

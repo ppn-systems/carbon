@@ -67,17 +67,17 @@ public sealed class TraderWorldTests
             slot.Should().BeGreaterThanOrEqualTo(0);
 
             long goldBefore = sink.WalletSyncs.Count > 0 ? sink.WalletSyncs.Last().Gold : 5_000L;
-            (await Run(world, world.Trade.SubmitTraderBuyAsync(Conn, merchant, (byte)slot, 2, stock.Epoch))).Should().Be(OpStatus.Ok);
+            (await Run(world, BuyLine(world, merchant, stock, slot, 2, stock.Epoch))).Should().Be(OpStatus.Ok);
             sink.WalletSyncs.Last(w => w.ConnectionId == Conn).Gold.Should().Be(goldBefore - (2L * stock.UnitPrices[slot]));
             TraderStockSnapshot after = sink.TraderStocks.Last(t => t.ConnectionId == Conn).Stock;
             after.Remaining[slot].Should().Be((ushort)(stock.Remaining[slot] - 2), "stock is limited per restock");
             sink.SlotChanges.Should().Contain(c => c.ConnectionId == Conn && c.ItemId == stock.ItemIds[slot]);
 
-            (await Run(world, world.Trade.SubmitTraderBuyAsync(Conn, merchant, (byte)slot, (ushort)(after.Remaining[slot] + 1), stock.Epoch)))
+            (await Run(world, BuyLine(world, merchant, stock, slot, (ushort)(after.Remaining[slot] + 1), stock.Epoch)))
                 .Should().Be(OpStatus.Conflict, "more than is left cannot be bought");
-            (await Run(world, world.Trade.SubmitTraderBuyAsync(Conn, merchant, (byte)slot, 1, stock.Epoch - 1)))
+            (await Run(world, BuyLine(world, merchant, stock, slot, 1, stock.Epoch - 1)))
                 .Should().Be(OpStatus.Conflict, "a stale epoch is refused");
-            (await Run(world, world.Trade.SubmitTraderBuyAsync(Conn, merchant, 99, 1, stock.Epoch))).Should().Be(OpStatus.Invalid);
+            (await Run(world, BuyLine(world, merchant, stock, 99, 1, stock.Epoch))).Should().Be(OpStatus.Invalid);
             (await Run(world, world.Trade.SubmitTraderOpenAsync(Conn, 0xDEADUL))).Should().Be(OpStatus.NotFound);
 
             // Sell what was bought back: the trader pays the vendor sell price (the 25 % spread), never more than it charged.
@@ -85,7 +85,7 @@ public sealed class TraderWorldTests
             sellPrice.Should().BeLessThan(stock.UnitPrices[slot], "buy-then-sell never mints gold");
             ushort bagSlot = sink.SlotChanges.Last(c => c.ConnectionId == Conn && c.ItemId == stock.ItemIds[slot]).SlotIndex;
             long goldMid = sink.WalletSyncs.Last(w => w.ConnectionId == Conn).Gold;
-            (await Run(world, world.Trade.SubmitTraderSellAsync(Conn, merchant, bagSlot, 1))).Should().Be(OpStatus.Ok);
+            (await Run(world, SellLine(world, merchant, after, bagSlot, stock.ItemIds[slot], 1))).Should().Be(OpStatus.Ok);
             sink.WalletSyncs.Last(w => w.ConnectionId == Conn).Gold.Should().Be(goldMid + sellPrice);
 
             // A second player far away is out of reach.
@@ -114,7 +114,7 @@ public sealed class TraderWorldTests
             TraderStockSnapshot restocked = sink2.TraderStocks.Last().Stock;
             restocked.Epoch.Should().Be(stock.Epoch + 1);
             restocked.Remaining.Should().Equal(restocked.Stocked);
-            (await Run(restarted, restarted.Trade.SubmitTraderBuyAsync(Conn, merchant2, 0, 1, restocked.Epoch)))
+            (await Run(restarted, BuyLine(restarted, merchant2, restocked, 0, 1, restocked.Epoch)))
                 .Should().Be(restocked.UnitPrices[0] > 10 ? OpStatus.Conflict : OpStatus.Ok, "a buyer who cannot afford it is refused");
         }
         finally
@@ -325,6 +325,23 @@ public sealed class TraderWorldTests
         return first;
     }
 
+    // A one-line cart or basket through the live batch path; the single-line opcodes were retired by ADR-038.
+    private static ValueTask<WorldMutationOutcome> BuyLine(AuthoritativeWorld world, ulong merchant, TraderStockSnapshot stock, int slot, ushort quantity, long epoch)
+    {
+        bool known = (uint)slot < (uint)stock.ItemIds.Length;
+        return world.Trade.SubmitTraderBuyBatchAsync(
+            Conn,
+            merchant,
+            epoch,
+            [(byte)slot],
+            [known ? stock.ItemIds[slot] : (ushort)0],
+            [quantity],
+            known ? (long)quantity * stock.UnitPrices[slot] : 0L);
+    }
+
+    private static ValueTask<WorldMutationOutcome> SellLine(AuthoritativeWorld world, ulong merchant, TraderStockSnapshot stock, ushort bagSlot, ushort itemId, ushort quantity) =>
+        world.Trade.SubmitTraderSellBatchAsync(Conn, merchant, [bagSlot], [itemId], [quantity], (long)quantity * SellPrice(stock, itemId));
+
     private static async Task<WorldMutationOutcome> RunOutcome(AuthoritativeWorld world, ValueTask<WorldMutationOutcome> pending)
     {
         world.StepFixedTick();
@@ -379,7 +396,7 @@ public sealed class TraderWorldTests
             (await Run(world, world.Trade.SubmitTraderOpenAsync(Conn, merchant))).Should().Be(OpStatus.Ok);
             TraderStockSnapshot stock = sink.TraderStocks.Last(t => t.ConnectionId == Conn).Stock;
             int slot = Array.FindIndex(stock.Remaining, r => r >= 2);
-            (await Run(world, world.Trade.SubmitTraderBuyAsync(Conn, merchant, (byte)slot, 2, stock.Epoch))).Should().Be(OpStatus.Ok);
+            (await Run(world, BuyLine(world, merchant, stock, slot, 2, stock.Epoch))).Should().Be(OpStatus.Ok);
 
             Func<Task> failingFlush = () => world.FlushDirtyPersistenceAsync();
             await failingFlush.Should().ThrowAsync<IOException>("the store is down for the first save");
@@ -445,7 +462,7 @@ public sealed class TraderWorldTests
             (await Run(world, world.Trade.SubmitTraderOpenAsync(Conn, merchant))).Should().Be(OpStatus.Ok);
             TraderStockSnapshot stock = sink.TraderStocks.Last(t => t.ConnectionId == Conn).Stock;
             int slot = Array.FindIndex(stock.Remaining, r => r >= 1);
-            (await Run(world, world.Trade.SubmitTraderBuyAsync(Conn, merchant, (byte)slot, 1, stock.Epoch))).Should().Be(OpStatus.Ok);
+            (await Run(world, BuyLine(world, merchant, stock, slot, 1, stock.Epoch))).Should().Be(OpStatus.Ok);
             PlaceWallNear(world, fx, fy).Should().BeTrue("a wall placed near the buyer dirties a chunk");
 
             Func<Task> flush = () => world.FlushDirtyPersistenceAsync();

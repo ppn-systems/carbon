@@ -54,18 +54,6 @@ public interface IWorldInventoryService
     ValueTask<WorldMutationOutcome> SubmitDropInventoryItemAsync(ulong connectionId, ushort slotIndex, int quantity, ushort expectedItemId);
 
     /// <summary>
-    /// Queues buying vendor-sold items for gold while standing near a friendly town NPC; completes after the next tick
-    /// (ADR-017).
-    /// </summary>
-    ValueTask<WorldMutationOutcome> SubmitVendorBuyAsync(ulong connectionId, ushort itemId, ushort quantity);
-
-    /// <summary>
-    /// Queues selling units from a bag slot (<c>0..35</c>) to a nearby friendly town NPC for gold; completes after the
-    /// next tick (ADR-017).
-    /// </summary>
-    ValueTask<WorldMutationOutcome> SubmitVendorSellAsync(ulong connectionId, ushort slotIndex, ushort quantity);
-
-    /// <summary>
     /// Queues repairing ONE item (ADR-028): <paramref name="steps"/> steps of the item in <paramref name="slotIndex"/>
     /// at <paramref name="venue"/>, for the materials and fee in <c>repair.json</c>. Completes after the next tick
     /// (ADR-017) with a packed <see cref="RepairReceipt"/> in <see cref="WorldMutationOutcome.Revision"/>.
