@@ -1,7 +1,7 @@
 # ADR-041: World Light Map and a Single Post Pass
 
 - **Date**: 2026-11-27
-- **Status**: Proposed
+- **Status**: Accepted
 - **Amends**: [ADR-005](ADR-005-data-driven-sprite-animation-and-combat-vfx-pipeline.md) (how the vector world is lit
   and composited); [ADR-023](ADR-023-client-localization-and-vietnamese-font.md) (new `[display] graphics_quality`
   setting)
