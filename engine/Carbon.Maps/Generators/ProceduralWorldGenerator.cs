@@ -112,7 +112,7 @@ public sealed class ProceduralWorldGenerator : ITileSource
         ulong seed = settings.Seed;
         _seed = seed;
         ElevationStage elevation = new(seed, settings.Frequency);
-        _rivers = new RiverNetwork(seed, settings.Frequency, elevation);
+        _rivers = new RiverNetwork(seed, elevation);
         _landmarks = new PointOfInterestResolver(seed, this, _rivers, this.Structures);
         _roads = new RoadNetwork(StageSeed.Derive(seed, "roads"), _landmarks, this, _rivers);
         _landmarks.Roads = _roads;
@@ -241,8 +241,18 @@ public sealed class ProceduralWorldGenerator : ITileSource
     /// <param name="worldTileX">World tile X.</param>
     /// <param name="worldTileY">World tile Y.</param>
     /// <param name="radiusTiles">Radius in tiles.</param>
-    public void PrewarmHydrology(int worldTileX, int worldTileY, int radiusTiles) =>
-        _rivers.Prewarm(worldTileX, worldTileY, radiusTiles);
+    /// <param name="stream">Who is streaming (one per player on the server); its regions stay cached while it is near them.</param>
+    public void PrewarmHydrology(int worldTileX, int worldTileY, int radiusTiles, ulong stream = 0) =>
+        _rivers.Prewarm(worldTileX, worldTileY, radiusTiles, stream);
+
+    /// <summary>Lets the river regions <paramref name="stream"/> was near be trimmed again (the player left).</summary>
+    /// <param name="stream">The stream passed to <see cref="PrewarmHydrology"/>.</param>
+    public void ReleaseHydrologyStream(ulong stream) => _rivers.ReleaseStream(stream);
+
+    /// <summary>Stops the generator's background builds on shutdown (ADR-045 D10).</summary>
+    /// <param name="timeout">How long to wait for running builds.</param>
+    /// <returns><see langword="true"/> if every build finished within <paramref name="timeout"/>.</returns>
+    public bool StopBackgroundBuilds(TimeSpan timeout) => _rivers.StopBackgroundBuilds(timeout);
 
     /// <summary>
     /// Samples a single map tile at world tile coordinates with continuous multi-scale coherent noise.

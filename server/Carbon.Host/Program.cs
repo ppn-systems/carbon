@@ -211,6 +211,7 @@ public static class Program
         await app.RunAsync(cts.Token).ConfigureAwait(false);
         await cts.CancelAsync().ConfigureAwait(false);
         await tickTask.ConfigureAwait(false);
+        _ = world.StopBackgroundBuilds(TimeSpan.FromSeconds(5));
         return 0;
     }
 

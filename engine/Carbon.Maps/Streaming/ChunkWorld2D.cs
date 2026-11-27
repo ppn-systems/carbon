@@ -58,6 +58,9 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     /// </summary>
     public ProceduralWorldGenerator Generator => _generator;
 
+    /// <summary>Gets the lock guarding chunk and delta changes (tests: background builds never take it, ADR-045 D9).</summary>
+    internal Lock Gate => _gate;
+
     /// <summary>
     /// Gets the physical dimension of each tile in world units.
     /// </summary>
@@ -633,6 +636,10 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     public bool TryGetChunk(int chunkX, int chunkY, out Chunk2D? chunk) =>
         _streamer.TryGet(chunkX, chunkY, out chunk);
 
+    /// <summary>Releases what <paramref name="stream"/> kept cached (a player left the world).</summary>
+    /// <param name="stream">The stream passed to <see cref="UpdateAroundPosition"/>.</param>
+    public void ReleaseStream(ulong stream) => _generator.ReleaseHydrologyStream(stream);
+
     /// <summary>
     /// Streams and loads all chunks within <paramref name="chunkRadius"/> around the target world position,
     /// recycling chunks farther than <paramref name="evictionRadius"/> back into the pool.
@@ -640,7 +647,8 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     /// <param name="centerWorldPos">Target center world coordinates (e.g. camera or player).</param>
     /// <param name="chunkRadius">Active load radius in chunks (e.g. 4 chunks = 9x9 active grid).</param>
     /// <param name="evictionRadius">Distance in chunks beyond which inactive chunks are recycled into the pool (e.g. 7 chunks).</param>
-    public void UpdateAroundPosition(Vector2 centerWorldPos, int chunkRadius = 4, int evictionRadius = 7)
+    /// <param name="stream">Who is streaming: one per player on the server (its connection), 0 on the client.</param>
+    public void UpdateAroundPosition(Vector2 centerWorldPos, int chunkRadius = 4, int evictionRadius = 7, ulong stream = 0)
     {
         float chunkSizeWorld = Chunk2D.Size * _tileSize;
         int centerChunkX = (int)MathF.Floor(centerWorldPos.X / chunkSizeWorld);
@@ -650,7 +658,8 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
         _generator.PrewarmHydrology(
             (centerChunkX * Chunk2D.Size) + (Chunk2D.Size / 2),
             (centerChunkY * Chunk2D.Size) + (Chunk2D.Size / 2),
-            (chunkRadius + 8) * Chunk2D.Size);
+            (chunkRadius + 8) * Chunk2D.Size,
+            stream);
 
         // 1. Load the chunks in range; recycle those far away (their edits stay in the delta store).
         _streamer.Stream(centerChunkX, centerChunkY, chunkRadius, evictionRadius);

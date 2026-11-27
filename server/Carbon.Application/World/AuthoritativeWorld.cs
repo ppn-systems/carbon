@@ -852,9 +852,17 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
         _ = _players.ConnectionByNetworkId.Remove(state.Session.PlayerNetworkId);
         _replication.Untrack(connectionId);
+        _chunkWorld.ReleaseStream(connectionId);
         _simulation.DespawnEntity(state.Entity);
         return true;
     }
+
+    /// <summary>
+    /// Stops the world generator's background builds on server shutdown (ADR-045 D10), after the tick has stopped.
+    /// </summary>
+    /// <param name="timeout">How long to wait for running builds.</param>
+    /// <returns><see langword="true"/> if every build finished within <paramref name="timeout"/>.</returns>
+    public bool StopBackgroundBuilds(TimeSpan timeout) => _generator.StopBackgroundBuilds(timeout);
 
     private void MarkCharacterDirtyLocked(PlayerState state, bool inventoryChanged = true) =>
         _persistence.MarkDirty(state, inventoryChanged);
