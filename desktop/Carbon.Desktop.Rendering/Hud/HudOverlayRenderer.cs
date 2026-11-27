@@ -48,6 +48,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     private readonly InventoryModalWidget _bagModal;
     private readonly CharacterSheetModalWidget _characterModal = new();
     private readonly CraftingModalWidget _craftModal = new();
+    private readonly RepairModalWidget _repairWidget = new();
     private readonly ClassSkillsModalWidget _skillsModal = new();
     private readonly ForgeAnvilModalWidget _forgeModal = new();
     private readonly SettingsModalWidget _settingsModal = new();
@@ -559,7 +560,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         }
         else if (_state.Repair.IsOpen)
         {
-            _state.Repair.Render(spriteBatch, _geometryBatch, _uiSkin, _font, _art, screenProj, world, viewportWidth, viewportHeight, mouseScreenPos);
+            _repairWidget.Render(spriteBatch, _geometryBatch, _uiSkin, _font, _art, screenProj, world, _state.Repair, viewportWidth, viewportHeight, mouseScreenPos);
         }
         else if (_state.ShowForgeModal)
         {

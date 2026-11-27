@@ -54,8 +54,8 @@ public static class Program
         WindowSettings settings = new()
         {
             Title = "Carbon MMORPG — Online Client",
-            Width = 1280,
-            Height = 720,
+            Width = options.WindowSize.Width,
+            Height = options.WindowSize.Height,
             VSync = true,
             IsResizable = true,
         };

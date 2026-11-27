@@ -156,7 +156,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// </param>
     /// <param name="statusEffects">Status effect definitions (<c>status_effects.json</c>, ADR-029); defaults to the shipped copy.</param>
     /// <param name="stamina">Stamina tuning (<c>stamina.json</c>, ADR-033); defaults to the shipped copy.</param>
-    /// <param name="logger">Diagnostics (legacy save fix-ups on enter, ADR-035); defaults to none.</param>
+    /// <param name="logger">Diagnostics (chunk delta rows dropped at boot, ADR-039); defaults to none.</param>
     /// <param name="propRegrowth">Natural prop regrowth (<c>props.json</c>, ADR-040); defaults to the shipped copy.</param>
     public AuthoritativeWorld(
         ulong worldSeed,
@@ -516,13 +516,29 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         {
             for (int i = 0; i < deltas.Count; i++)
             {
-                ChunkDelta domainDelta = ChunkDelta.Deserialize(deltas[i].Payload, _currentTick);
+                ChunkDelta domainDelta;
+                try
+                {
+                    domainDelta = ChunkDelta.Deserialize(deltas[i].Payload, _currentTick);
+                }
+                catch (FormatException ex)
+                {
+                    // ADR-039: a row in a retired format, or a corrupt one, is dropped, so the chunk comes back from its
+                    // baseline. Boot never fails on a stored row.
+                    if (_logger.IsEnabled(LogLevel.Warning))
+                    {
+                        _logger.LogWarning(
+                            "Dropped the stored delta of chunk ({ChunkX}, {ChunkY}): {Reason}",
+                            deltas[i].ChunkX,
+                            deltas[i].ChunkY,
+                            ex.Message);
+                    }
+
+                    continue;
+                }
+
                 _chunkWorld.ImportDelta(domainDelta);
             }
-
-            // Rows saved before format 4 kept no respawn timers (ADR-040 D4): reschedule their destroyed props once, and
-            // save those chunks again in the new format.
-            _ = _chunkWorld.ScheduleLegacyRespawns(this.PropRegrowDelayTicksLocked, _currentTick, _dirtyChunks);
 
             Vector2 originSpawn = _chunkWorld.SpawnWorldPosition;
             _chunkWorld.UpdateAroundPosition(originSpawn, chunkRadius: 2, evictionRadius: 8);
@@ -576,17 +592,6 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             InventoryContainer inventory = new(PlayerInventoryCapacity);
             character = CharacterPersistence.LoadInventory(character, inventory);
             _ = CharacterPersistence.ClampDurability(_itemRules, inventory);
-
-            // ADR-035: items no longer exist at 0 durability; one saved in the retired "worn out" state gets 1 back.
-            int legacyRestored = DurabilityWear.RestoreLegacyBrokenItems(_itemRules, inventory);
-            if (legacyRestored > 0 && _logger.IsEnabled(LogLevel.Warning))
-            {
-                _logger.LogWarning(
-                    "Character {CharacterId} had {Count} item(s) saved at 0 durability; restored them to {Durability} (ADR-035).",
-                    character.Id,
-                    legacyRestored,
-                    DurabilityWear.LegacyRestoredDurability);
-            }
 
             ushort startLevel = (ushort)Math.Min(Math.Max(Math.Max((ushort)1, character.Level), _debugStartLevel), _progressionService.Config.MaxLevel);
             byte selectedSlot = character.SelectedHotbarSlot < PlayerInventoryLayout.HotbarCount ? character.SelectedHotbarSlot : (byte)0;
@@ -650,11 +655,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _players.ByConnection[connectionId] = playerState;
             _players.ConnectionByNetworkId[networkId] = connectionId;
             _replication.Track(connectionId);
-            if (legacyRestored > 0)
-            {
-                this.MarkCharacterDirtyLocked(playerState, inventoryChanged: true);
-            }
-            else if (refunded || diedBeforeLogout)
+            if (refunded || diedBeforeLogout)
             {
                 this.MarkCharacterDirtyLocked(playerState, inventoryChanged: false);
             }

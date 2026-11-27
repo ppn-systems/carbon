@@ -598,51 +598,6 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
         prop.GrowthStage is TreeGrowthStage.Stump or TreeGrowthStage.Sapling;
 
     /// <summary>
-    /// Schedules the respawn of every destroyed prop read from a storage row older than format 4 (which kept no timers;
-    /// see <see cref="ChunkDelta.HasUnscheduledLegacyRespawns"/>). Each such chunk is generated once to learn the prop types.
-    /// Cold path: run once after loading the deltas.
-    /// </summary>
-    /// <param name="delayTicks">Ticks until a destroyed prop of a type on a world tile comes back (0 = never).</param>
-    /// <param name="currentTick">Current simulation tick.</param>
-    /// <param name="rescheduledChunks">Receives the packed key of every chunk that changed, so it can be saved again.</param>
-    /// <returns>The number of props scheduled.</returns>
-    public int ScheduleLegacyRespawns(Func<MapPropType, int, int, ulong> delayTicks, ulong currentTick, ICollection<long> rescheduledChunks)
-    {
-        ArgumentNullException.ThrowIfNull(delayTicks);
-        ArgumentNullException.ThrowIfNull(rescheduledChunks);
-        int scheduled = 0;
-        ReadOnlySpan<ChunkDelta> all = _deltas.All;
-        for (int i = 0; i < all.Length; i++)
-        {
-            ChunkDelta delta = all[i];
-            if (!delta.HasUnscheduledLegacyRespawns)
-            {
-                continue;
-            }
-
-            Chunk2D chunk = this.GetOrCreateChunk(delta.ChunkX, delta.ChunkY);
-            int baseTx = delta.ChunkX * Chunk2D.Size;
-            int baseTy = delta.ChunkY * Chunk2D.Size;
-            lock (_gate)
-            {
-                scheduled += delta.ScheduleLegacyRespawns(
-                    key =>
-                    {
-                        int lx = key & Chunk2D.SizeMask;
-                        int ly = key >> Chunk2D.SizeBits;
-                        int index = chunk.FindPropIndexAt(lx, ly);
-                        return index >= 0 ? delayTicks(chunk.Props[index].Type, baseTx + lx, baseTy + ly) : 0UL;
-                    },
-                    currentTick);
-            }
-
-            rescheduledChunks.Add(delta.Key);
-        }
-
-        return scheduled;
-    }
-
-    /// <summary>
     /// Reads the terrain tile at a world tile coordinate WITHOUT loading or generating a chunk.
     /// Resident chunks are read directly; otherwise the recorded delta or the pure seed sample is used.
     /// Allocation-free, intended for collision and navigation hot paths.
