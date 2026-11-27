@@ -588,22 +588,14 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         // The death screen covers everything else while the player is dead (ADR-031).
         if ((this.DeathPreview ?? world.LocalDeath) is DeathView death)
         {
-            bool pending = this.DeathPreview is null && world.IsRespawnPending;
-            _geometryBatch.Begin(screenProj);
-            DeathScreenWidget.DrawVeil(_geometryBatch, viewportWidth, viewportHeight);
-            _geometryBatch.End();
-
-            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-            DeathScreenWidget.DrawSkin(spriteBatch, _uiSkin, pending, viewportWidth, viewportHeight, mouseScreenPos);
-            spriteBatch.End();
-
-            _geometryBatch.Begin(screenProj);
-            DeathScreenWidget.DrawGeometry(_geometryBatch, _art, in death, viewportWidth, viewportHeight);
-            _geometryBatch.End();
-
-            spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-            _deathScreen.DrawText(spriteBatch, _font, in death, pending, viewportWidth, viewportHeight);
-            spriteBatch.End();
+            HudFrame deathFrame = frame with
+            {
+                BackgroundMouse = mouseScreenPos,
+                Death = death,
+                RespawnPending = this.DeathPreview is null && world.IsRespawnPending,
+            };
+            this.DrawElements(HudComposition.DeathVeil, spriteBatch, screenProj, in deathFrame);
+            this.DrawElements(HudComposition.DeathScreen, spriteBatch, screenProj, in deathFrame);
         }
     }
 
@@ -666,7 +658,11 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             case HudElement.Toasts:
                 _toasts.DrawSkin(spriteBatch, _uiSkin, _font, f.ViewportWidth, HudLayout.GetToastTop(f.ViewportWidth, this.Settings.ShowMinimap));
                 break;
+            case HudElement.DeathScreen:
+                DeathScreenWidget.DrawSkin(spriteBatch, _uiSkin, f.RespawnPending, f.ViewportWidth, f.ViewportHeight, f.BackgroundMouse);
+                break;
             case HudElement.Wallet:
+            case HudElement.DeathVeil:
             default:
                 break;
         }
@@ -699,7 +695,14 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(f.ViewportWidth, f.ViewportHeight);
                 WalletWidget.DrawGeometry(_geometryBatch, _art, in layout);
                 break;
+            case HudElement.DeathVeil:
+                DeathScreenWidget.DrawVeil(_geometryBatch, f.ViewportWidth, f.ViewportHeight);
+                break;
+            case HudElement.DeathScreen when f.Death is DeathView death:
+                DeathScreenWidget.DrawGeometry(_geometryBatch, _art, in death, f.ViewportWidth, f.ViewportHeight);
+                break;
             case HudElement.Toasts:
+            case HudElement.DeathScreen:
             default:
                 break;
         }
@@ -735,6 +738,11 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(f.ViewportWidth, f.ViewportHeight);
                 WalletWidget.DrawText(spriteBatch, _font, f.World, in layout);
                 break;
+            case HudElement.DeathScreen when f.Death is DeathView death:
+                _deathScreen.DrawText(spriteBatch, _font, in death, f.RespawnPending, f.ViewportWidth, f.ViewportHeight);
+                break;
+            case HudElement.DeathVeil:
+            case HudElement.DeathScreen:
             default:
                 break;
         }
@@ -748,7 +756,9 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         int Ptx,
         int Pty,
         Vector2? BackgroundMouse,
-        CombatFeedbackTracker? Feedback);
+        CombatFeedbackTracker? Feedback,
+        DeathView? Death = null,
+        bool RespawnPending = false);
 
     /// <summary>Keeps the skill bar under the clock/minimap column (<see cref="HudLayout"/>); always returns <see langword="true"/>.</summary>
     private bool PrepareSkillBar(int viewportWidth)
