@@ -10,6 +10,7 @@ using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Events;
 using Carbon.Desktop.Abstractions.Identity;
 using Carbon.Desktop.Abstractions.Session;
+using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Maps.Building;
 using Carbon.Maps.Streaming;
@@ -22,7 +23,7 @@ namespace Carbon.Desktop.Abstractions.World;
 /// Strictly read-only world, actor vitals, inventory, action, and transient feedback query port (CQRS / ISP).
 /// Renderers and HUD widgets depend only on this interface and cannot mutate network or gameplay state.
 /// </summary>
-public interface IWorldReadModel : IConnectionStatus, ICharacterProfile
+public interface IWorldReadModel : IConnectionStatus, ICharacterProfile, INpcCapabilityLookup
 {
     /// <summary>Gets the session's server-synced item and recipe tables (names, stats, stack sizes, recipes).</summary>
     SyncedItemCatalog Items { get; }
@@ -172,6 +173,15 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile
     /// Gets the authoritative synchronized in-game time-of-day hour (<c>0..24</c>), or <see langword="null"/> when running offline.
     /// </summary>
     float? AuthoritativeTimeHour => null;
+
+    /// <summary>
+    /// Gets whether the authoritative world time is in the night window (monsters empowered), or <see langword="null"/>
+    /// when running offline.
+    /// </summary>
+    bool? AuthoritativeIsNight => null;
+
+    /// <inheritdoc/>
+    NpcCapabilities INpcCapabilityLookup.GetNpcCapabilities(ushort archetypeId) => NpcCapabilities.None;
 
     /// <summary>Gets the network ID of the currently tab/click-locked hostile target (<c>0</c> if none).</summary>
     ulong LockedTargetNetworkId { get; }
