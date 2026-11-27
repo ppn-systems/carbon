@@ -91,15 +91,15 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     /// <summary>Gets or sets the open trader window's stock (ADR-025), or <see langword="null"/> when it is closed.</summary>
     public TraderView? Trader { get; set; }
 
-    /// <summary>Gets or sets whether the blacksmith's trade window is in repair mode (bag clicks repair instead of sell).</summary>
-    public bool TradeRepairMode { get; set; }
+    /// <summary>Gets the repair window (ADR-028); open while <see cref="RepairModalWidget.IsOpen"/>.</summary>
+    public RepairModalWidget Repair { get; } = new();
 
     /// <summary>Gets or sets whether the System Settings &amp; Controls modal is open.</summary>
     public bool ShowSettingsModal { get; set; }
 
     /// <summary>Gets whether any full-screen modal (Player Window, Forge, or Settings) is open.</summary>
     public bool HasActiveModal =>
-        this.ShowPlayerModal || this.ShowForgeModal || this.ShowSettingsModal || this.Trader is not null;
+        this.ShowPlayerModal || this.ShowForgeModal || this.ShowSettingsModal || this.Trader is not null || this.Repair.IsOpen;
 
     /// <summary>Gets or sets the inventory slot index currently held/carried by the cursor, or <c>-1</c>.</summary>
     public int CarriedInventorySlot
@@ -164,6 +164,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
 
         this.ShowForgeModal = false;
         this.ShowSettingsModal = false;
+        this.Repair.Close();
         this.ShowPlayerModal = true;
         this.ActivePlayerTab = tab;
         if (tab != PlayerModalTab.Inventory)
@@ -180,6 +181,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         this.ShowPlayerModal = false;
         this.ShowForgeModal = false;
         this.Trader = null;
+        this.Repair.Close();
         if (!keepSettings)
         {
             this.ShowSettingsModal = false;
@@ -314,6 +316,11 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             return TradeModalWidget.TryHitTestCloseButton(mousePos, viewportWidth, viewportHeight);
         }
 
+        if (this.Repair.IsOpen)
+        {
+            return RepairLayout.CloseRect(RepairLayout.Origin(viewportWidth, viewportHeight).Ox, RepairLayout.Origin(viewportWidth, viewportHeight).Oy).Contains(mousePos);
+        }
+
         return false;
     }
 
@@ -351,6 +358,11 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         if (this.Trader is not null)
         {
             return TradeModalWidget.ContainsPoint(mousePos, viewportWidth, viewportHeight);
+        }
+
+        if (this.Repair.IsOpen)
+        {
+            return RepairModalWidget.ContainsPoint(mousePos, viewportWidth, viewportHeight);
         }
 
         return false;
@@ -545,7 +557,11 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         }
         else if (this.Trader is TraderView trader)
         {
-            TradeModalWidget.Render(spriteBatch, _geometryBatch, _uiSkin, _font, _art, screenProj, world, trader, this.TradeRepairMode, viewportWidth, viewportHeight, mouseScreenPos);
+            TradeModalWidget.Render(spriteBatch, _geometryBatch, _uiSkin, _font, _art, screenProj, world, trader, viewportWidth, viewportHeight, mouseScreenPos);
+        }
+        else if (this.Repair.IsOpen)
+        {
+            this.Repair.Render(spriteBatch, _geometryBatch, _uiSkin, _font, _art, screenProj, world, viewportWidth, viewportHeight, mouseScreenPos);
         }
         else if (this.ShowForgeModal)
         {

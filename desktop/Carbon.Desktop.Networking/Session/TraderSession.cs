@@ -86,19 +86,6 @@ public sealed class TraderSession(Func<TcpSession?> tcp, Action<string> notify) 
     }
 
     /// <inheritdoc/>
-    public bool TryRepair(ushort slotIndex)
-    {
-        TraderView? trader = this.ActiveTrader;
-        if (trader is not { CanRepair: true } || trader.RepairCostOf(slotIndex) <= 0 || this.Connected() is not TcpSession session)
-        {
-            return false;
-        }
-
-        _ = this.RepairAsync(session, trader.TraderNetworkId, slotIndex);
-        return true;
-    }
-
-    /// <inheritdoc/>
     public void Close()
     {
         Volatile.Write(ref _requestedTrader, 0UL);
@@ -138,9 +125,7 @@ public sealed class TraderSession(Func<TcpSession?> tcp, Action<string> notify) 
             [.. pkt.Remaining],
             [.. pkt.SellItemIds],
             [.. pkt.SellPrices],
-            pkt.CanRepair,
-            [.. pkt.RepairSlots],
-            [.. pkt.RepairCosts]);
+            pkt.CanRepair);
         Volatile.Write(ref _activeTrader, view);
     }
 
@@ -158,20 +143,6 @@ public sealed class TraderSession(Func<TcpSession?> tcp, Action<string> notify) 
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             // A dropped connection is handled by the session's own fault path; the window just stays as it was.
-        }
-    }
-
-    // Forge repair (RepairInventoryItem) through the blacksmith's window; on success it asks for fresh quotes.
-    private async Task RepairAsync(TcpSession session, ulong traderNetworkId, ushort slotIndex)
-    {
-        OpStatus status = await RequestStatusAsync<RepairInventoryItem>(session, p => p.SlotIndex = slotIndex).ConfigureAwait(false);
-        if (status == OpStatus.Ok)
-        {
-            _ = this.TryOpen(traderNetworkId);
-        }
-        else
-        {
-            _notify(status == OpStatus.Conflict ? GameText.Get("trade.failed_repair") : DescribeFailure(status));
         }
     }
 

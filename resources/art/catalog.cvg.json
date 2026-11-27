@@ -1263,6 +1263,10 @@
       "file": "ui/diamond.cvg.json"
     },
     {
+      "id": "repair",
+      "file": "ui/repair.cvg.json"
+    },
+    {
       "id": "minimap_village",
       "file": "ui/minimap_village.cvg.json"
     },

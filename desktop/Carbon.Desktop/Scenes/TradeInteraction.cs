@@ -27,7 +27,8 @@ internal delegate bool TraderFilter(in RemoteEntityView entity);
 /// <param name="options">Desktop options (the screenshot tool's <c>CARBON_OPEN_TRADER</c>).</param>
 /// <param name="isTrader">Identifies trader NPCs.</param>
 /// <param name="openForge">Opens the forge enhancement window (ADR-024): the blacksmith's Enhance button hands off to it.</param>
-internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer hud, DesktopOptions options, TraderFilter isTrader, Func<bool> openForge)
+/// <param name="openRepair">Opens the repair window at the blacksmith (ADR-028): the blacksmith's Repair button hands off to it.</param>
+internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer hud, DesktopOptions options, TraderFilter isTrader, Func<bool> openForge, Action openRepair)
 {
     /// <summary>UI: distance in world pixels within which the interact key opens a trader (the server re-checks 175 px).</summary>
     private const float TalkRadius = 150f;
@@ -46,6 +47,7 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
     private readonly DesktopOptions _options = options ?? throw new ArgumentNullException(nameof(options));
     private readonly TraderFilter _isTrader = isTrader ?? throw new ArgumentNullException(nameof(isTrader));
     private readonly Func<bool> _openForge = openForge ?? throw new ArgumentNullException(nameof(openForge));
+    private readonly Action _openRepair = openRepair ?? throw new ArgumentNullException(nameof(openRepair));
     private bool _shown;
 
     /// <summary>Gets whether a screenshot should wait for the trader window (up to <paramref name="frame"/> 150).</summary>
@@ -60,15 +62,13 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
         ITraderSession trading = _session.Trading;
         TraderView? active = trading.ActiveTrader;
         if (active is not null &&
-            ((_shown && _hud.Trader is null) || _hud.ShowPlayerModal || _hud.ShowForgeModal || !this.IsNear(active.TraderNetworkId)))
+            ((_shown && _hud.Trader is null) || _hud.ShowPlayerModal || _hud.ShowForgeModal || _hud.Repair.IsOpen || !this.IsNear(active.TraderNetworkId)))
         {
             trading.Close();
             active = null;
         }
 
         _hud.Trader = active;
-        _hud.TradeRepairMode &= active is { CanRepair: true };
-        _hud.TradeRepairMode |= _options.OpenTraderRepair && !_shown && active is { CanRepair: true };
         _shown = active is not null;
         if (_options.OpenTrader && active is null && frame >= 6 && frame % 10 == 6 &&
             this.TryFindNearest(_session.LocalPlayerInterpolatedPosition, WindowRadius, out ulong nearest))
@@ -87,8 +87,8 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
 
     /// <summary>
     /// Handles a click in the open window: a stock row buys 1 (Shift: 5), a bag item sells 1 (Shift: the whole stack), the
-    /// X or a click outside closes it. At a blacksmith (ADR-025 D17), Repair toggles repair mode, where a bag click repairs,
-    /// and Enhance hands off to the forge window.
+    /// X or a click outside closes it. At a blacksmith (ADR-025 D17), Repair hands off to the repair window (ADR-028) and
+    /// Enhance to the forge window.
     /// </summary>
     public void HandleWindowInput(DesktopInputFrame input, int width, int height)
     {
@@ -106,7 +106,7 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
 
         if (TradeModalWidget.HitRepairButton(mouse, trader, width, height))
         {
-            _hud.TradeRepairMode = !_hud.TradeRepairMode;
+            _openRepair();
             return;
         }
 
@@ -124,11 +124,7 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
         }
 
         int bagSlot = TradeModalWidget.HitBagSlot(mouse, _session, width, height);
-        if (bagSlot >= 0 && _hud.TradeRepairMode)
-        {
-            _ = _session.Trading.TryRepair((ushort)bagSlot);
-        }
-        else if (bagSlot >= 0)
+        if (bagSlot >= 0)
         {
             Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
             _session.CopyInventorySlots(slots);

@@ -157,7 +157,7 @@ internal sealed class RecordingWorldSession : IWorldSession
     public bool TryCraftRecipe(ushort recipeId, ushort quantity = 1) => Unused<bool>();
     public bool TryVendorBuy(ushort itemId, ushort quantity = 1) => Unused<bool>();
     public bool TryVendorSell(ushort slotIndex, ushort quantity = 1) => Unused<bool>();
-    public bool TryRepairItem(ushort slotIndex) => Unused<bool>();
+    public IRepairSession Repair => Unused<IRepairSession>();
     public bool TryHarvestNearbyProp(out (int ChunkX, int ChunkY) modifiedChunk) => throw NotUsed();
     public bool TryPlaceStarterWall(out (int ChunkX, int ChunkY) centerChunk) => throw NotUsed();
     public bool TryToggleNearbyDoor(out (int ChunkX, int ChunkY) modifiedChunk) => throw NotUsed();
