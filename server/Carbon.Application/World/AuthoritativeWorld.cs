@@ -793,7 +793,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
         ushort unspentStats = CharacterProgressionPolicy.GetUnspentStatPoints(state.Level, state.Progression);
         ushort unspentSkills = CharacterProgressionPolicy.GetUnspentSkillPoints(state.Level, state.Progression);
-        byte[] progBlob = CharacterProgressionBinaryCodec.Serialize(state.Progression);
+        byte[] progBlob = CharacterProgressionBinaryCodec.GetOrSerializeShared(state.Progression);
 
         return new PlayerStatsSnapshot(
             state.Level,
