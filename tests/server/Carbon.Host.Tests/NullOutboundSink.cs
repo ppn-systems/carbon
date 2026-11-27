@@ -2,6 +2,7 @@
 
 using System;
 using Carbon.Abstractions.World;
+using Carbon.Contracts.Common;
 
 namespace Carbon.Host.Tests;
 
@@ -57,6 +58,10 @@ internal sealed class NullOutboundSink : IWorldOutboundSink
     }
 
     public void SendEntityAttackPhase(ReadOnlySpan<ulong> recipientConnectionIds, in AttackPhaseSnapshot snapshot)
+    {
+    }
+
+    public void SendEnhancementAnnouncement(ReadOnlySpan<ulong> recipientConnectionIds, ulong playerNetworkId, string playerName, ushort itemId, EnhancementOutcome outcome, byte level)
     {
     }
 }
