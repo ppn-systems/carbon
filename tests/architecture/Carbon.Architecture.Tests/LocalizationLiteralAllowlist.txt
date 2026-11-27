@@ -48,17 +48,6 @@ desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.cs	RECONNECTING
 desktop/Carbon.Desktop.Networking/Session/MultiplayerSession.cs	TCP
 desktop/Carbon.Desktop.Rendering/Fonts/GameFontLoader.cs	CarbonPixelFallback
 desktop/Carbon.Desktop.Rendering/Fonts/GameFontLoader.cs	ThaleahFat
-desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Agility
-desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Attribute Points: {}
-desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Attributes
-desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Character Info
-desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Hero
-desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Max HP {}
-desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Max MP {}
-desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Pos ({}, {})  {} FPS
-desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Power
-desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Vitality
-desktop/Carbon.Desktop.Rendering/Hud/CharacterSheetModalWidget.cs	Wisdom
 desktop/Carbon.Desktop.Rendering/Hud/ClassSkillsModalWidget.cs	MAX
 desktop/Carbon.Desktop.Rendering/Hud/ClassSkillsModalWidget.cs	RANK UP
 desktop/Carbon.Desktop.Rendering/Hud/ClassSkillsModalWidget.cs	Skill Points: {}

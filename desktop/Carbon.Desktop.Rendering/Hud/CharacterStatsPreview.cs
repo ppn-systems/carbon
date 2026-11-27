@@ -4,6 +4,7 @@ using System;
 using System.Globalization;
 using System.Text;
 using Carbon.Contracts.Entities;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -30,11 +31,12 @@ internal sealed class CharacterStatsPreview
     ];
 
     /// <summary>Number of derived stat lines shown.</summary>
-    public const int StatLineCount = 14;
+    public const int DisplayRowCount = 14;
 
     private readonly CharacterProgressionState _current = new();
     private readonly CharacterProgressionState _preview = new();
     private ProgressionConfig? _describedConfig;
+    private ILocalizer? _describedLanguage;
     private readonly string[] _perPoint = new string[Attributes.Length];
     private InventoryContainer? _inventory;
 
@@ -58,11 +60,11 @@ internal sealed class CharacterStatsPreview
     /// <returns>Display name.</returns>
     public static string NameOf(PrimaryAttributeId attribute) => attribute switch
     {
-        PrimaryAttributeId.Vitality => "Vitality",
-        PrimaryAttributeId.Wisdom => "Wisdom",
-        PrimaryAttributeId.Power => "Power",
-        PrimaryAttributeId.Agility => "Agility",
-        PrimaryAttributeId.Dexterity => "Dexterity",
+        PrimaryAttributeId.Vitality => GameText.Get("attribute.vitality"),
+        PrimaryAttributeId.Wisdom => GameText.Get("attribute.wisdom"),
+        PrimaryAttributeId.Power => GameText.Get("attribute.power"),
+        PrimaryAttributeId.Agility => GameText.Get("attribute.agility"),
+        PrimaryAttributeId.Dexterity => GameText.Get("attribute.dexterity"),
         _ => attribute.ToString(),
     };
 
@@ -152,7 +154,8 @@ internal sealed class CharacterStatsPreview
             return string.Empty;
         }
 
-        if (!ReferenceEquals(config, _describedConfig))
+        ILocalizer language = GameText.Current;
+        if (!ReferenceEquals(config, _describedConfig) || !ReferenceEquals(language, _describedLanguage))
         {
             for (int i = 0; i < Attributes.Length; i++)
             {
@@ -161,6 +164,7 @@ internal sealed class CharacterStatsPreview
             }
 
             _describedConfig = config;
+            _describedLanguage = language;
         }
 
         int index = Array.IndexOf(Attributes, attribute);
@@ -168,24 +172,24 @@ internal sealed class CharacterStatsPreview
     }
 
     /// <summary>Gets the label of stat line <paramref name="index"/>.</summary>
-    /// <param name="index">Line index (<c>0..StatLineCount-1</c>).</param>
+    /// <param name="index">Line index (<c>0..DisplayRowCount-1</c>).</param>
     /// <returns>Label.</returns>
     public static string StatLabel(int index) => index switch
     {
-        0 => "Max HP",
-        1 => "Max MP",
-        2 => "Stamina",
-        3 => "ATK",
-        4 => "MATK",
-        5 => "DEF",
-        6 => "MRES",
-        7 => "Crit",
-        8 => "Crit Dmg",
-        9 => "Atk Spd",
-        10 => "Move Spd",
-        11 => "Evasion",
-        12 => "HP Regen",
-        13 => "MP Regen",
+        0 => GameText.Get("stat.max_hp"),
+        1 => GameText.Get("stat.max_mp"),
+        2 => GameText.Get("stat.stamina"),
+        3 => GameText.Get("stat.atk"),
+        4 => GameText.Get("stat.matk"),
+        5 => GameText.Get("stat.def"),
+        6 => GameText.Get("stat.mres"),
+        7 => GameText.Get("stat.crit"),
+        8 => GameText.Get("stat.crit_dmg"),
+        9 => GameText.Get("stat.atk_speed"),
+        10 => GameText.Get("stat.move_speed"),
+        11 => GameText.Get("stat.evasion"),
+        12 => GameText.Get("stat.hp_regen"),
+        13 => GameText.Get("stat.mp_regen"),
         _ => string.Empty,
     };
 
@@ -230,24 +234,24 @@ internal sealed class CharacterStatsPreview
     internal static string Describe(StatBlock b)
     {
         StringBuilder sb = new(48);
-        Append(sb, b.MaxHealth, "HP", 1f);
-        Append(sb, b.MaxMana, "MP", 1f);
-        Append(sb, b.Attack, "% ATK", 100f);
-        Append(sb, b.SpellPower, "% MATK", 100f);
-        Append(sb, b.Defense, "DEF", 1f);
-        Append(sb, b.MagicResist, "MRES", 1f);
-        Append(sb, b.CritChance, "% Crit", 100f);
-        Append(sb, b.CritDamage, "% CritDmg", 100f);
-        Append(sb, b.AttackSpeed, "% ASPD", 100f);
-        Append(sb, b.MoveSpeed, "% MSPD", 100f);
-        Append(sb, b.Evasion, "EVA", 1f);
-        Append(sb, b.MaxStamina, "STA", 1f);
-        Append(sb, b.HealthRegen, "HP/s", 1f);
-        Append(sb, b.ManaRegen, "MP/s", 1f);
+        Append(sb, b.MaxHealth, "stat.unit_hp", percent: false);
+        Append(sb, b.MaxMana, "stat.unit_mp", percent: false);
+        Append(sb, b.Attack, "stat.unit_atk", percent: true);
+        Append(sb, b.SpellPower, "stat.unit_matk", percent: true);
+        Append(sb, b.Defense, "stat.unit_def", percent: false);
+        Append(sb, b.MagicResist, "stat.unit_mres", percent: false);
+        Append(sb, b.CritChance, "stat.unit_crit", percent: true);
+        Append(sb, b.CritDamage, "stat.unit_crit_dmg", percent: true);
+        Append(sb, b.AttackSpeed, "stat.unit_aspd", percent: true);
+        Append(sb, b.MoveSpeed, "stat.unit_mspd", percent: true);
+        Append(sb, b.Evasion, "stat.unit_eva", percent: false);
+        Append(sb, b.MaxStamina, "stat.unit_sta", percent: false);
+        Append(sb, b.HealthRegen, "stat.unit_hp_regen", percent: false);
+        Append(sb, b.ManaRegen, "stat.unit_mp_regen", percent: false);
         return sb.ToString();
     }
 
-    private static void Append(StringBuilder sb, float value, string unit, float scale)
+    private static void Append(StringBuilder sb, float value, string unitKey, bool percent)
     {
         if (value <= 0f)
         {
@@ -259,8 +263,11 @@ internal sealed class CharacterStatsPreview
             _ = sb.Append(' ');
         }
 
-        bool percent = unit.StartsWith('%');
-        _ = sb.Append(CultureInfo.InvariantCulture, $"+{value * scale:0.##}").Append(percent ? string.Empty : " ").Append(unit);
+        // "+14 HP" for flat values, "+1.2% ATK" for fractions.
+        _ = sb.Append('+')
+            .Append((percent ? value * 100f : value).ToString("0.##", CultureInfo.InvariantCulture))
+            .Append(percent ? "% " : " ")
+            .Append(GameText.Get(unitKey));
     }
 
     private static string Whole(float v) => ((int)MathF.Round(v)).ToString(CultureInfo.InvariantCulture);

@@ -204,14 +204,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _outbound,
             state => this.MarkCharacterDirtyLocked(state, inventoryChanged: true));
         _commerce = new EconomyService(this.WorldSeed, this.TickRate, () => _economy, () => _currentTick, _groundLoot, _inventory, _outbound, this.HasNearbyFriendlyNpcLocked);
-        _progressionService = new CharacterProgressionService(
-            _simulation,
-            progression ?? ProgressionConfig.LoadShippedDefaults(),
-            _creatureCatalog,
-            () => _itemRules,
-            () => _currentTick,
-            state => this.MarkCharacterDirtyLocked(state, inventoryChanged: false),
-            _commerce.QueueWalletSync);
+        _progressionService = new CharacterProgressionService(_simulation, progression ?? ProgressionConfig.LoadShippedDefaults(), _creatureCatalog, () => _itemRules,
+            () => _currentTick, state => this.MarkCharacterDirtyLocked(state, inventoryChanged: false), _commerce.QueueWalletSync);
         _combat = new CombatService(_simulation, _chunkWorld, MonsterLayer, _outbound, this.CollectNearbyConnectionsAroundWorldLocked, this.OnMonsterKilledLocked, () => _currentTick);
         _props = new PropHarvestService(
             _simulation,
@@ -271,10 +265,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// <param name="economy">New economy (items, recipes, loot, tunables), or <see langword="null"/> to keep none.</param>
     /// <param name="needsConfig">New needs tuning.</param>
     /// <param name="foodCatalog">New edible items.</param>
-    /// <param name="progression">
-    /// New progression tuning, or <see langword="null"/> to keep the current one. Every connected player's derived stats
-    /// are recomputed, and an allocation the new budget no longer covers is refunded (ADR-021 D7).
-    /// </param>
+    /// <param name="progression">New progression tuning (players are re-evaluated, ADR-021 D7), or <see langword="null"/> to keep it.</param>
     public void ApplyGameData(GameEconomy? economy, NeedsConfig needsConfig, FoodCatalog foodCatalog, ProgressionConfig? progression = null)
     {
         ArgumentNullException.ThrowIfNull(needsConfig);
@@ -284,24 +275,12 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _economy = economy;
             _itemRules = economy?.ItemRules ?? _itemRules;
             _needs.Reconfigure(needsConfig, foodCatalog);
-            if (progression is not null)
-            {
-                _progressionService.Reconfigure(progression, _players.ByConnection.Values);
-            }
+            _progressionService.Reconfigure(progression, _players.ByConnection.Values);
         }
     }
 
-    /// <summary>Gets the progression tuning the simulation currently runs on.</summary>
-    public ProgressionConfig Progression
-    {
-        get
-        {
-            lock (_gate)
-            {
-                return _progressionService.Config;
-            }
-        }
-    }
+    /// <summary>Gets the progression tuning the simulation currently runs on (an immutable snapshot, swapped atomically).</summary>
+    public ProgressionConfig Progression => _progressionService.Config;
 
     /// <summary>Gets the economy the simulation currently runs on.</summary>
     public GameEconomy? Economy
@@ -441,10 +420,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             InventoryContainer inventory = new(PlayerInventoryCapacity);
             character = CharacterPersistence.LoadInventory(character, inventory);
 
-            ushort startLevel = Math.Max(Math.Max((ushort)1, character.Level), _debugStartLevel);
+            ushort startLevel = (ushort)Math.Min(Math.Max(Math.Max((ushort)1, character.Level), _debugStartLevel), _progressionService.Config.MaxLevel);
             byte selectedSlot = character.SelectedHotbarSlot < PlayerInventoryLayout.HotbarCount ? character.SelectedHotbarSlot : (byte)0;
             CharacterProgressionState startProg = CharacterPersistence.LoadProgression(character);
-            startLevel = (ushort)Math.Min(startLevel, _progressionService.Config.MaxLevel);
             bool refunded = _progressionService.RefundIfOverBudget(startLevel, startProg);
 
             DerivedCharacterStats stats = CharacterStatCalculator.Compute(_itemRules, _progressionService.Config, startLevel, inventory, selectedSlot, startProg);

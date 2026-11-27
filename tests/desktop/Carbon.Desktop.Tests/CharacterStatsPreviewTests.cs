@@ -78,7 +78,7 @@ public sealed class CharacterStatsPreviewTests
         CharacterStatsPreview preview = new();
         _ = Run(preview, s_config, 30, 0, null, vitality: 20);
 
-        for (int i = 0; i < CharacterStatsPreview.StatLineCount; i++)
+        for (int i = 0; i < CharacterStatsPreview.DisplayRowCount; i++)
         {
             CharacterStatsPreview.StatLabel(i).Should().NotBeEmpty();
             preview.FormatStat(i, preview.Current).Should().NotBeEmpty();

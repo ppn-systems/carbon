@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Numerics;
 using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions.Configuration;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -241,8 +242,8 @@ internal sealed class CharacterSheetModalWidget
             in layout,
             PlayerModalTab.Character,
             hasSkills,
-            "Character Info",
-            $"Attribute Points: {unspentAp}",
+            GameText.Get("character.title"),
+            GameText.Format("character.points_badge", new TextArg("count", unspentAp)),
             unspentAp > 0);
 
         RectangleF leftCard = GetLeftCardRect(in layout);
@@ -252,28 +253,34 @@ internal sealed class CharacterSheetModalWidget
         // Identity, next to the portrait.
         float idX = leftCard.X + MathF.Round(120f * s);
         float idW = leftCard.Right - idX - MathF.Round(12f * s);
-        string heroName = string.IsNullOrWhiteSpace(world.ActiveCharacterName) ? "Hero" : world.ActiveCharacterName;
+        string heroName = string.IsNullOrWhiteSpace(world.ActiveCharacterName) ? GameText.Get("character.hero") : world.ActiveCharacterName;
         spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, heroName, idW, layout.TitleScale), new Vector2(idX, leftCard.Y + MathF.Round(22f * s)), CarbonUiPalette.TextPrimary, black, 1, layout.TitleScale);
-        spriteBatch.DrawOutlinedString(font, $"{world.LocalPlayerClass}  Lv.{world.LocalPlayerLevel}", new Vector2(idX, leftCard.Y + MathF.Round(52f * s)), CarbonUiPalette.TextWarm, black, 1, ts);
-        spriteBatch.DrawOutlinedString(font, $"HP {(int)MathF.Ceiling(world.LocalPlayerHealth)}/{(int)MathF.Ceiling(world.LocalPlayerMaxHealth)}  MP {(int)MathF.Floor(world.LocalPlayerMana)}/{(int)MathF.Ceiling(world.LocalPlayerMaxMana)}", new Vector2(idX, leftCard.Y + MathF.Round(76f * s)), CarbonUiPalette.TextMuted, black, 1, ts);
+        spriteBatch.DrawOutlinedString(font, GameText.Format("character.class_level", new TextArg("class", world.LocalPlayerClass.ToString()), new TextArg("level", world.LocalPlayerLevel)), new Vector2(idX, leftCard.Y + MathF.Round(52f * s)), CarbonUiPalette.TextWarm, black, 1, ts);
+        string vitals = GameText.Format(
+            "character.vitals",
+            new TextArg("hp", (long)MathF.Ceiling(world.LocalPlayerHealth)),
+            new TextArg("max_hp", (long)MathF.Ceiling(world.LocalPlayerMaxHealth)),
+            new TextArg("mp", (long)MathF.Floor(world.LocalPlayerMana)),
+            new TextArg("max_mp", (long)MathF.Ceiling(world.LocalPlayerMaxMana)));
+        spriteBatch.DrawOutlinedString(font, vitals, new Vector2(idX, leftCard.Y + MathF.Round(76f * s)), CarbonUiPalette.TextMuted, black, 1, ts);
         RectangleF xpTrack = GetXpTrackRect(in layout);
-        spriteBatch.DrawOutlinedString(font, $"XP {world.LocalPlayerExperience:N0} / {world.LocalPlayerXpToNext:N0}", new Vector2(xpTrack.X, xpTrack.Bottom + MathF.Round(6f * s)), CarbonUiPalette.TextMuted, black, 1, ts);
+        spriteBatch.DrawOutlinedString(font, GameText.Format("character.xp", new TextArg("xp", world.LocalPlayerExperience.ToString("N0", CultureInfo.InvariantCulture)), new TextArg("next", world.LocalPlayerXpToNext.ToString("N0", CultureInfo.InvariantCulture))), new Vector2(xpTrack.X, xpTrack.Bottom + MathF.Round(6f * s)), CarbonUiPalette.TextMuted, black, 1, ts);
 
         // Derived stats: two columns of label + value; previewed changes show "now > next" in green.
         RectangleF statsBox = GetStatsRect(in layout);
-        spriteBatch.DrawOutlinedString(font, "Stats", new Vector2(statsBox.X + MathF.Round(10f * s), statsBox.Y + MathF.Round(8f * s)), CarbonUiPalette.TextWarm, black, 1, ts);
+        spriteBatch.DrawOutlinedString(font, GameText.Get("character.stats"), new Vector2(statsBox.X + MathF.Round(10f * s), statsBox.Y + MathF.Round(8f * s)), CarbonUiPalette.TextWarm, black, 1, ts);
         if (_preview.Config is null)
         {
-            spriteBatch.DrawOutlinedString(font, "Syncing...", new Vector2(statsBox.X + MathF.Round(10f * s), statsBox.Y + MathF.Round(36f * s)), CarbonUiPalette.TextMuted, black, 1, ts);
+            spriteBatch.DrawOutlinedString(font, GameText.Get("character.syncing"), new Vector2(statsBox.X + MathF.Round(10f * s), statsBox.Y + MathF.Round(36f * s)), CarbonUiPalette.TextMuted, black, 1, ts);
         }
         else
         {
             DerivedCharacterStats now = _preview.Current;
             DerivedCharacterStats next = _preview.Preview;
-            int perColumn = (CharacterStatsPreview.StatLineCount + 1) / 2;
+            int perColumn = (CharacterStatsPreview.DisplayRowCount + 1) / 2;
             float colW = (statsBox.Width - MathF.Round(20f * s)) * 0.5f;
             float rowH = MathF.Round(32f * s);
-            for (int i = 0; i < CharacterStatsPreview.StatLineCount; i++)
+            for (int i = 0; i < CharacterStatsPreview.DisplayRowCount; i++)
             {
                 int col = i / perColumn;
                 int row = i % perColumn;
@@ -291,13 +298,19 @@ internal sealed class CharacterSheetModalWidget
 
         if (showTelemetry)
         {
-            spriteBatch.DrawOutlinedString(font, $"Pos ({ptx}, {pty})  {(int)fps} FPS  {world.TransportLabel}", new Vector2(leftCard.X + MathF.Round(12f * s), leftCard.Bottom - MathF.Round(22f * s)), CarbonUiPalette.TextMuted, black, 1, ts);
+            string telemetry = GameText.Format(
+                "character.telemetry",
+                new TextArg("x", ptx),
+                new TextArg("y", pty),
+                new TextArg("fps", (long)fps),
+                new TextArg("net", world.TransportLabel));
+            spriteBatch.DrawOutlinedString(font, telemetry, new Vector2(leftCard.X + MathF.Round(12f * s), leftCard.Bottom - MathF.Round(22f * s)), CarbonUiPalette.TextMuted, black, 1, ts);
         }
 
         // Attributes card.
         float pad = MathF.Round(18f * s);
-        spriteBatch.DrawOutlinedString(font, "Attributes", new Vector2(rightCard.X + pad, rightCard.Y + MathF.Round(14f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TitleScale);
-        string pointsText = unspentAp > 0 ? $"{unspentAp} to spend" : "No points";
+        spriteBatch.DrawOutlinedString(font, GameText.Get("character.attributes"), new Vector2(rightCard.X + pad, rightCard.Y + MathF.Round(14f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TitleScale);
+        string pointsText = unspentAp > 0 ? GameText.Format("character.to_spend", new TextArg("count", unspentAp)) : GameText.Get("character.no_points");
         float pointsW = font.MeasureString(pointsText, scale: ts).Width;
         spriteBatch.DrawOutlinedString(font, pointsText, new Vector2(rightCard.Right - pad - pointsW, rightCard.Y + MathF.Round(18f * s)), unspentAp > 0 ? s_previewText : CarbonUiPalette.TextMuted, black, 1, ts);
 
@@ -330,7 +343,7 @@ internal sealed class CharacterSheetModalWidget
         RectangleF reset = GetResetRect(in layout);
         spriteBatch.DrawOutlinedString(
             font,
-            CarbonUiSkin.TruncateToWidth(font, "Click + for 1 point, Shift+click for 5", reset.Width, ts),
+            CarbonUiSkin.TruncateToWidth(font, GameText.Get("character.hint"), reset.Width, ts),
             new Vector2(reset.X, reset.Bottom + MathF.Round(12f * s)),
             CarbonUiPalette.TextMuted,
             black,
@@ -363,10 +376,10 @@ internal sealed class CharacterSheetModalWidget
     {
         ProgressionConfig? config = _preview.Config;
         long cost = config?.GetRespecCost(world.LocalPlayerLevel) ?? 0L;
-        string price = cost > 0L ? string.Create(CultureInfo.InvariantCulture, $"{cost:N0} gold") : "free";
-        return this.IsResetArmed
-            ? $"Click again to reset ({price})"
-            : $"Reset points ({price})";
+        string price = cost > 0L
+            ? GameText.Format("character.price_gold", new TextArg("amount", cost.ToString("N0", CultureInfo.InvariantCulture)))
+            : GameText.Get("character.price_free");
+        return GameText.Format(this.IsResetArmed ? "character.reset_confirm" : "character.reset", new TextArg("price", price));
     }
 
     private static RectangleF GetLeftCardRect(in PlayerModalLayout layout)

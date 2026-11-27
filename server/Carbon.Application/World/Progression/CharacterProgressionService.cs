@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using Carbon.Application.World.Players;
 using Carbon.Combat.Attacks;
 using Carbon.Contracts.Common;
@@ -29,6 +30,7 @@ internal sealed class CharacterProgressionService
     private readonly Action<PlayerState> _markCharacterDirty;
     private readonly Action<PlayerState> _queueWalletSync;
     private readonly HashSet<ushort> _casterArchetypes;
+    private ProgressionConfig _config;
 
     /// <summary>Initializes a new instance of the <see cref="CharacterProgressionService"/> class.</summary>
     /// <param name="simulation">World simulation (player health components).</param>
@@ -48,7 +50,7 @@ internal sealed class CharacterProgressionService
         Action<PlayerState> queueWalletSync)
     {
         _simulation = simulation ?? throw new ArgumentNullException(nameof(simulation));
-        this.Config = config ?? throw new ArgumentNullException(nameof(config));
+        _config = config ?? throw new ArgumentNullException(nameof(config));
         ArgumentNullException.ThrowIfNull(monsters);
         _itemRules = itemRules ?? throw new ArgumentNullException(nameof(itemRules));
         _currentTick = currentTick ?? throw new ArgumentNullException(nameof(currentTick));
@@ -58,18 +60,27 @@ internal sealed class CharacterProgressionService
     }
 
     /// <summary>Gets the progression tuning currently in use.</summary>
-    public ProgressionConfig Config { get; private set; }
+    public ProgressionConfig Config
+    {
+        get => Volatile.Read(ref _config);
+        private set => Volatile.Write(ref _config, value);
+    }
 
     /// <summary>
     /// Switches to a new tuning (hot reload) and re-evaluates <paramref name="players"/>: levels are clamped to the new
     /// cap, allocations the new budget no longer covers are refunded, and derived stats are recomputed.
     /// </summary>
-    /// <param name="config">New tuning.</param>
+    /// <param name="config">New tuning, or <see langword="null"/> to keep the current one (no-op).</param>
     /// <param name="players">Connected players.</param>
-    public void Reconfigure(ProgressionConfig config, IEnumerable<PlayerState> players)
+    public void Reconfigure(ProgressionConfig? config, IEnumerable<PlayerState> players)
     {
-        this.Config = config ?? throw new ArgumentNullException(nameof(config));
         ArgumentNullException.ThrowIfNull(players);
+        if (config is null)
+        {
+            return;
+        }
+
+        this.Config = config;
         foreach (PlayerState state in players)
         {
             state.Level = (ushort)Math.Min(state.Level, config.MaxLevel);

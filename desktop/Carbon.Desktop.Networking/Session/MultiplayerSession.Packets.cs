@@ -16,6 +16,7 @@ using Carbon.Contracts.Items.S2C;
 using Carbon.Contracts.Maps.C2S;
 using Carbon.Contracts.Maps.S2C;
 using Carbon.Desktop.Abstractions.Configuration;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.Events;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
@@ -1158,7 +1159,7 @@ public sealed partial class MultiplayerSession
             float mag = MathF.Abs(pkt.Damage);
 
             // A 0-damage hit that kills nothing is a dodge (ADR-021 evasion).
-            string? label = pkt.Damage == 0f && !pkt.IsKilled ? "Miss" : null;
+            string? label = pkt.Damage == 0f && !pkt.IsKilled ? GameText.Get("character.miss") : null;
             _combatEvents.Add(new CombatFeedbackEvent(worldPos, mag, pkt.IsCritical, isHeal, label));
         }
     }
