@@ -27,9 +27,10 @@ public sealed class RoadPrewarmTests(ITestOutputHelper output)
     private static readonly TimeSpan s_timeout = TimeSpan.FromSeconds(60);
 
     [Fact]
-    public void UpdateAroundPosition_WalkingIntoNewLand_BuildsRoadSitesOnTheCallingThread()
+    public void UpdateAroundPosition_WalkingIntoNewLand_PlansRoadsAndRiversOffTheCallingThread()
     {
-        // Characterisation: roads are planned on the thread that streams the chunk in.
+        // ADR-045 D8: each step prewarms the road sites (and the river regions their routes cross) a margin beyond the
+        // load radius, so the next step's chunks find them built.
         ProceduralWorldGenerator generator = new(9256UL);
         ChunkWorld2D world = new(generator, TileSize);
         Vector2 position = new((world.SpawnTile.X + 0.5f) * TileSize, (world.SpawnTile.Y + 0.5f) * TileSize);
@@ -48,7 +49,9 @@ public sealed class RoadPrewarmTests(ITestOutputHelper output)
         int roadBuilds = roads.SiteBuildsOnThisThread - roadsBefore;
         int regionBuilds = rivers.RegionBuildsOnThisThread - regionsBefore;
         output.WriteLine($"{Steps} steps east: {roadBuilds} road sites and {regionBuilds} river regions built on the calling thread");
-        roadBuilds.Should().BeGreaterThan(0, "the tick plans the road sites it walks into");
+        roadBuilds.Should().Be(0, "the road sites were planned in the background before the walk reached them");
+        regionBuilds.Should().Be(0, "and so were the river regions their routes cross");
+        generator.Roads.BackgroundSiteBuilds.Should().BeGreaterThan(0, "the walk did reach road sites, planned in the background");
     }
 
     // One streaming step with the server's radii, then the background builds it started run to completion, as they
@@ -56,6 +59,8 @@ public sealed class RoadPrewarmTests(ITestOutputHelper output)
     private static void Step(ChunkWorld2D world, Vector2 position)
     {
         world.UpdateAroundPosition(position, chunkRadius: 2, evictionRadius: 8, stream: 1UL);
-        SpinWait.SpinUntil(() => world.Generator.Rivers.PendingBuilds == 0, s_timeout).Should().BeTrue("background builds finish");
+        SpinWait.SpinUntil(
+            () => world.Generator.Rivers.PendingBuilds == 0 && world.Generator.Roads.PendingBuilds == 0,
+            s_timeout).Should().BeTrue("background builds finish");
     }
 }

@@ -134,6 +134,9 @@ What this shows:
   the player crosses into the neighbouring chunks, a few seconds ahead at walking speed. A sprint or a teleport into
   unexplored land can still join an in-flight build and wait for its rest.
 - Background CPU use rises a little: sites near a player are planned whether or not the player ends up there.
+- The margin `K` (D1) adds little. `RoadNetwork.Query` already reads two sites (about 14 chunks) beyond any rectangle, so
+  the road sites a one-chunk step needs are almost always queued already without it. A mutation that ignores `K`
+  survives every guard. It stays configurable, default 2, as decided.
 - Generator code gains a second concurrent cache. D2's `Lazy` and D3's tests keep it deterministic.
 - The host stops the generator's background builds on shutdown (D10).
 - Generators with the same seed no longer share regions (D7).

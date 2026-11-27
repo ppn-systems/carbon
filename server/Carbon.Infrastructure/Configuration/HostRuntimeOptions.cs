@@ -33,6 +33,18 @@ public sealed class HostRuntimeOptions
     /// <summary>Gets or sets the fixed simulation tick rate in Hertz.</summary>
     public ushort TickRate { get; init; } = 30;
 
+    /// <summary>
+    /// Gets the road sites planned at once in the background ahead of players (<c>CARBON_ROAD_PREWARM_WORKERS</c>,
+    /// default 2; 0 turns the prewarm off). Tuning only: the roads are the same either way (ADR-045 D5).
+    /// </summary>
+    public int RoadPrewarmWorkers { get; init; } = 2;
+
+    /// <summary>
+    /// Gets the chunks beyond a player's load radius whose road sites are planned ahead (<c>CARBON_ROAD_PREWARM_MARGIN</c>,
+    /// default 2; ADR-045 D1).
+    /// </summary>
+    public int RoadPrewarmMarginChunks { get; init; } = 2;
+
     /// <summary>Gets or sets the WebSocket listen host binding (<c>localhost</c> by default, or <c>+</c>).</summary>
     public string WebSocketHost { get; init; } = "localhost";
 
@@ -122,6 +134,14 @@ public sealed class HostRuntimeOptions
             ? up
             : (ushort)57208;
 
+        int roadWorkers = int.TryParse(Environment.GetEnvironmentVariable("CARBON_ROAD_PREWARM_WORKERS"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int rw) && rw >= 0
+            ? rw
+            : 2;
+
+        int roadMargin = int.TryParse(Environment.GetEnvironmentVariable("CARBON_ROAD_PREWARM_MARGIN"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int rm) && rm >= 0
+            ? rm
+            : 2;
+
         string wsHost = Environment.GetEnvironmentVariable("CARBON_WS_HOST") is { Length: > 0 } host
             ? host.Trim()
             : "localhost";
@@ -142,6 +162,8 @@ public sealed class HostRuntimeOptions
             ConnectionString = connectionString,
             WorldSeed = seed,
             TickRate = tickRate,
+            RoadPrewarmWorkers = roadWorkers,
+            RoadPrewarmMarginChunks = roadMargin,
             WebSocketHost = wsHost,
             WebSocketPort = wsPort,
             WebSocketPath = wsPath,
