@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
+using Nalix.Abstractions.Primitives;
 using Npgsql;
 using NpgsqlTypes;
 
@@ -84,7 +85,7 @@ public sealed class PgAccountStore : IAccountStore
         _ = cmd.Parameters.Add(new NpgsqlParameter("id", NpgsqlDbType.Uuid) { Value = account.Id });
         _ = cmd.Parameters.Add(new NpgsqlParameter("name", NpgsqlDbType.Varchar) { Value = account.Username });
         _ = cmd.Parameters.Add(new NpgsqlParameter("norm", NpgsqlDbType.Varchar) { Value = account.NormalizedUsername });
-        _ = cmd.Parameters.Add(new NpgsqlParameter("hash", NpgsqlDbType.Bytea) { Value = account.PasswordHash });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("hash", NpgsqlDbType.Bytea) { Value = PasswordHashColumn.Write(account.PasswordHash) });
         _ = cmd.Parameters.Add(new NpgsqlParameter("salt", NpgsqlDbType.Bytea) { Value = account.PasswordSalt });
         _ = cmd.Parameters.Add(new NpgsqlParameter("created", NpgsqlDbType.TimestampTz) { Value = account.CreatedAtUtc });
         _ = cmd.Parameters.Add(new NpgsqlParameter("banned", NpgsqlDbType.Boolean) { Value = account.IsBanned });
@@ -102,7 +103,7 @@ public sealed class PgAccountStore : IAccountStore
             return null;
         }
 
-        byte[] hash = await reader.GetFieldValueAsync<byte[]>(3, ct).ConfigureAwait(false);
+        Bytes32 hash = PasswordHashColumn.Read(await reader.GetFieldValueAsync<byte[]>(3, ct).ConfigureAwait(false));
         byte[] salt = await reader.GetFieldValueAsync<byte[]>(4, ct).ConfigureAwait(false);
         DateTimeOffset created = await reader.GetFieldValueAsync<DateTimeOffset>(5, ct).ConfigureAwait(false);
 

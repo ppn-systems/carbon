@@ -17,6 +17,7 @@ using Carbon.Items.Containers;
 using Carbon.Items.Serialization;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
+using Nalix.Abstractions.Primitives;
 using Xunit;
 using RecordingOutboundSink = Carbon.Host.Tests.AuthoritativeWorldMultiplayerTests.RecordingOutboundSink;
 
@@ -72,7 +73,7 @@ public sealed class KillLootWorldTests
             mob.Should().NotBeNull("wilderness chunks should populate a slime/skeleton/orc/demon");
 
             Guid accountId = Guid.NewGuid();
-            (await accounts.TryCreateAsync(new AccountRecord(accountId, "slayer", "SLAYER", [1, 2, 3], [4, 5, 6], DateTimeOffset.UtcNow, false)).ConfigureAwait(true)).Should().BeTrue();
+            (await accounts.TryCreateAsync(new AccountRecord(accountId, "slayer", "SLAYER", Bytes32.Zero, [4, 5, 6], DateTimeOffset.UtcNow, false)).ConfigureAwait(true)).Should().BeTrue();
             CharacterRecord slayer = template with { Id = Guid.NewGuid(), AccountId = accountId, Name = "Slayer", PositionX = mob!.Value.PositionX + 16f, PositionY = mob.Value.PositionY };
             (await characters.TryCreateAsync(slayer).ConfigureAwait(true)).Should().BeTrue();
 

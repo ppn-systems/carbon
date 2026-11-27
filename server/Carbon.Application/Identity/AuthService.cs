@@ -64,7 +64,7 @@ public sealed class AuthService : IAuthService, IDisposable
     private readonly IRememberTokenStore _rememberTokens;
     private readonly ConcurrentDictionary<Guid, LoginFailures> _loginFailures = new();
     private readonly ConcurrentDictionary<string, LoginFailures> _addressFailures = new(StringComparer.Ordinal);
-    private readonly Lazy<(byte[] Hash, byte[] Salt)> _dummyCredentials;
+    private readonly Lazy<(Bytes32 Hash, byte[] Salt)> _dummyCredentials;
 
     /// <summary>
     /// Bounds concurrent password hashing so a flood of logins cannot occupy every core; the hashing itself runs on
@@ -108,7 +108,7 @@ public sealed class AuthService : IAuthService, IDisposable
         _hasher = hasher ?? throw new ArgumentNullException(nameof(hasher));
         _time = time ?? TimeProvider.System;
         _rememberTokens = rememberTokens ?? new InMemoryRememberTokenStore();
-        _dummyCredentials = new Lazy<(byte[], byte[])>(this.CreateDummyCredentials);
+        _dummyCredentials = new Lazy<(Bytes32, byte[])>(this.CreateDummyCredentials);
         if (itemRules is null)
         {
             ItemRules defaults = ItemRules.LoadShippedDefaults();
@@ -140,10 +140,10 @@ public sealed class AuthService : IAuthService, IDisposable
 
         string trimmed = username.Trim();
         string normalized = trimmed.ToUpperInvariant();
-        (byte[] hash, byte[] salt) = await this.RunHashAsync(
+        (Bytes32 hash, byte[] salt) = await this.RunHashAsync(
             () =>
             {
-                _hasher.HashPassword(password, out byte[] h, out byte[] s);
+                _hasher.HashPassword(password, out Bytes32 h, out byte[] s);
                 return (h, s);
             },
             ct).ConfigureAwait(false);
@@ -196,7 +196,7 @@ public sealed class AuthService : IAuthService, IDisposable
             _ = await this.RunHashAsync(
                 () =>
                 {
-                    (byte[] dummyHash, byte[] dummySalt) = _dummyCredentials.Value;
+                    (Bytes32 dummyHash, byte[] dummySalt) = _dummyCredentials.Value;
                     return _hasher.Verify(password, dummyHash, dummySalt);
                 },
                 ct).ConfigureAwait(false);
@@ -215,7 +215,7 @@ public sealed class AuthService : IAuthService, IDisposable
             return new AuthOutcome(AuthStatus.Locked, Guid.Empty);
         }
 
-        byte[] expectedHash = existing.PasswordHash;
+        Bytes32 expectedHash = existing.PasswordHash;
         byte[] salt = existing.PasswordSalt;
         bool verified = await this.RunHashAsync(() => _hasher.Verify(password, expectedHash, salt), ct).ConfigureAwait(false);
         if (!verified)
@@ -467,9 +467,9 @@ public sealed class AuthService : IAuthService, IDisposable
         }
     }
 
-    private (byte[] Hash, byte[] Salt) CreateDummyCredentials()
+    private (Bytes32 Hash, byte[] Salt) CreateDummyCredentials()
     {
-        _hasher.HashPassword(Guid.NewGuid().ToString("N"), out byte[] hash, out byte[] salt);
+        _hasher.HashPassword(Guid.NewGuid().ToString("N"), out Bytes32 hash, out byte[] salt);
         return (hash, salt);
     }
 

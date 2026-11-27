@@ -24,6 +24,7 @@ using Carbon.Maps.Building;
 using Carbon.Simulation.World;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
+using Nalix.Abstractions.Primitives;
 using Xunit;
 
 namespace Carbon.Host.Tests;
@@ -239,7 +240,7 @@ public sealed class RepairWorldTests
             GameEconomy economy = GameEconomy.LoadFromDirectory(GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!);
             Fixture fixture = new(dbPath, factory, economy);
             await fixture.World.InitializeFromStoreAsync().ConfigureAwait(true);
-            (await new SqliteAccountStore(factory).TryCreateAsync(new AccountRecord(fixture._accountId, "smith", "SMITH", [1, 2, 3], [4, 5, 6], DateTimeOffset.UtcNow, false)).ConfigureAwait(true))
+            (await new SqliteAccountStore(factory).TryCreateAsync(new AccountRecord(fixture._accountId, "smith", "SMITH", Bytes32.Zero, [4, 5, 6], DateTimeOffset.UtcNow, false)).ConfigureAwait(true))
                 .Should().BeTrue();
             return fixture;
         }

@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
 using Microsoft.Data.Sqlite;
+using Nalix.Abstractions.Primitives;
 
 namespace Carbon.Infrastructure.Persistence.Sqlite;
 
@@ -82,7 +83,7 @@ public sealed class SqliteAccountStore : IAccountStore
         _ = cmd.Parameters.AddWithValue("@id", account.Id.ToString("D"));
         _ = cmd.Parameters.AddWithValue("@name", account.Username);
         _ = cmd.Parameters.AddWithValue("@norm", account.NormalizedUsername);
-        _ = cmd.Parameters.AddWithValue("@hash", account.PasswordHash);
+        _ = cmd.Parameters.AddWithValue("@hash", PasswordHashColumn.Write(account.PasswordHash));
         _ = cmd.Parameters.AddWithValue("@salt", account.PasswordSalt);
         _ = cmd.Parameters.AddWithValue("@created", account.CreatedAtUtc.ToUnixTimeMilliseconds());
         _ = cmd.Parameters.AddWithValue("@banned", account.IsBanned ? 1L : 0L);
@@ -100,7 +101,7 @@ public sealed class SqliteAccountStore : IAccountStore
             return null;
         }
 
-        byte[] hash = await reader.GetFieldValueAsync<byte[]>(3, ct).ConfigureAwait(false);
+        Bytes32 hash = PasswordHashColumn.Read(await reader.GetFieldValueAsync<byte[]>(3, ct).ConfigureAwait(false));
         byte[] salt = await reader.GetFieldValueAsync<byte[]>(4, ct).ConfigureAwait(false);
 
         return new AccountRecord(

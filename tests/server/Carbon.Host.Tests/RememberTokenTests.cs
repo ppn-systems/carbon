@@ -208,7 +208,7 @@ public sealed class RememberTokenTests
     {
         public Harness()
         {
-            this.Account = new AccountRecord(Guid.NewGuid(), "hero", "HERO", [1], [2], this.Time.GetUtcNow(), IsBanned: false);
+            this.Account = new AccountRecord(Guid.NewGuid(), "hero", "HERO", Bytes32.Zero, [2], this.Time.GetUtcNow(), IsBanned: false);
             this.Accounts.FindByIdAsync(this.Account.Id, Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult<AccountRecord?>(this.Account));
         }
