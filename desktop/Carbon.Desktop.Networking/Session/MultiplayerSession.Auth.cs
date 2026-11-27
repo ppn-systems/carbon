@@ -423,6 +423,7 @@ public sealed partial class MultiplayerSession
             _localStatusEffects = [];
             _currentAction = ActionState.None;
             _comboStep = 0;
+            _combo.Reset();
 
             _worldSeed = enter.WorldSeed;
             _tileSize = enter.TileSize > 0f ? enter.TileSize : 32f;

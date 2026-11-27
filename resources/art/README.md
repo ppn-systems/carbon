@@ -9,6 +9,7 @@ Thư mục này chứa toàn bộ bản vẽ vector 2D khai báo bằng JSON (`.
   - `biomes` (`BiomeType 0..13`)
   - `structures` (`StructureType 1..8`)
 - `characters/base_hero.cvg.json`: Rig cơ sở duy nhất cho người chơi (`supportsModularHuman`, tag `role`).
+  Các clip đòn đánh (`jab`, `hook`, `slash_fore`, `slash_back`, `thrust`, `overhead`, `bow_shot`, `staff_cast`) đặt keyframe đúng ranh giới chuẩn bị / ra đòn / thu đòn của `HeroAttackTiming` (`phaseMarks`), xem `docs/art/combat-animation.md`. Mỗi keyframe có thể khai báo `ease` (`linear`, `in`, `out`, `inOut`; mặc định `inOut` = smoothstep) cho đoạn chuyển động đi ra từ key đó.
 - `monsters/*.cvg.json`: 7 quái vật kèm keyframe animation `idle`, `walk`, `attack`.
 - `npcs/*.cvg.json`: 4 NPC kèm animation.
 - `items/*.cvg.json`: 32 vật phẩm, công cụ, vũ khí, tài nguyên và trang bị.

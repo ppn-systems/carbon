@@ -303,46 +303,40 @@ public static class VectorRigRenderer
         float armFollowRot = mirrorX ? -frontArmPose.RotRad : frontArmPose.RotRad;
         float swingOffset;
         float thrustFactor = 0f;
+        HeroAttackStyle style = action.IsActive ? HeroAttackTiming.StyleOf(action.Kind, action.ComboStep) : HeroAttackStyle.None;
+        float wristDeg = HeroAttackPose.WristDegrees(style, action.Progress, out float swingWeight);
 
-        if (action.IsActive)
+        if (HeroAttackPose.HasWristCurve(style))
+        {
+            // The item is locked to the hand: its tip points along the arm turned by the wrist curve (rig space, mirrored
+            // with the rig), blended from the rest pose around the swing (docs/art/combat-animation.md §3.3).
+            float tipRig = (MathF.PI * 0.5f) + frontArmPose.RotRad + (wristDeg * (MathF.PI / 180f));
+            float tipWorld = mirrorX ? MathF.PI - tipRig : tipRig;
+            float restRot = item.RestAngleRad + armFollowRot;
+            float swingRot = tipWorld + (MathF.PI * 0.25f) - baseItemRot;
+            swingOffset = restRot + (WrapAngle(swingRot - restRot) * swingWeight);
+        }
+        else if (action.IsActive && style == HeroAttackStyle.BowShot)
+        {
+            // Bow: held at the aim; a small recoil kick at release (start of the active window).
+            HeroAttackTiming bow = HeroAttackTiming.For(style);
+            float sinceRelease = action.Progress - bow.ContactFraction;
+            float kick = sinceRelease >= 0f ? MathF.Exp(-sinceRelease * 18f) * 0.22f : 0f;
+            swingOffset = -0.35f - kick;
+        }
+        else if (action.IsActive)
         {
             float p = action.Progress;
-            switch (action.Kind)
+            if (action.Kind == ActionAnimationKind.SpinSlash)
             {
-                case ActionAnimationKind.AxeChop:
-                    swingOffset = EvaluateSwingArc(p, -1.62f, 1.05f, out thrustFactor);
-                    break;
-                case ActionAnimationKind.PickaxeMine:
-                    swingOffset = EvaluateSwingArc(p, -1.85f, 0.88f, out thrustFactor);
-                    break;
-                case ActionAnimationKind.SwordSlash:
-                case ActionAnimationKind.SpinSlash:
-                    swingOffset = (action.ComboStep & 1) == 0
-                        ? EvaluateSwingArc(p, -1.35f, 1.28f, out thrustFactor)
-                        : EvaluateSwingArc(p, 1.35f, -1.28f, out thrustFactor);
-                    break;
-                case ActionAnimationKind.PlaceStructure:
-                    swingOffset = -0.6f + (p * 0.8f);
-                    break;
-                case ActionAnimationKind.BowShot:
-                    swingOffset = -0.35f + (MathF.Sin(p * MathF.PI) * 0.20f);
-                    thrustFactor = p < 0.55f ? p / 0.55f * 0.35f : 0f;
-                    break;
-                case ActionAnimationKind.StaffCast:
-                    swingOffset = -0.92f + (MathF.Sin(p * MathF.PI) * 0.68f);
-                    thrustFactor = MathF.Sin(p * MathF.PI) * 0.55f;
-                    break;
-                case ActionAnimationKind.ConsumeItem:
-                case ActionAnimationKind.MonsterStrike:
-                case ActionAnimationKind.MonsterBowShot:
-                case ActionAnimationKind.MonsterSpellCast:
-                case ActionAnimationKind.MonsterHeavySlam:
-                case ActionAnimationKind.ArcaneWave:
-                case ActionAnimationKind.SelfAura:
-                case ActionAnimationKind.None:
-                default:
-                    swingOffset = 0f;
-                    break;
+                swingOffset = (action.ComboStep & 1) == 0
+                    ? EvaluateSwingArc(p, -1.35f, 1.28f, out thrustFactor)
+                    : EvaluateSwingArc(p, 1.35f, -1.28f, out thrustFactor);
+            }
+            else
+            {
+                // A held material or piece of gear rides in the punching hand; other actions hold the item at the aim.
+                swingOffset = action.Kind == ActionAnimationKind.Punch ? item.RestAngleRad + armFollowRot : 0f;
             }
         }
         else if (swingTimer > 0f)
@@ -377,9 +371,12 @@ public static class VectorRigRenderer
             DrawSingleShape(batch, in item.Shapes[i], Vector2.Zero, in pose, itemCenter, itemScale, itemScale, hitFlash: 0f);
         }
 
-        if (action.IsActive && action.Kind == ActionAnimationKind.BowShot && action.Progress < 0.68f)
+        HeroAttackTiming bowTiming = HeroAttackTiming.For(HeroAttackStyle.BowShot);
+        if (action.IsActive && action.Kind == ActionAnimationKind.BowShot && action.Progress < bowTiming.ContactFraction)
         {
-            float drawFrac = MathF.Sin(Math.Clamp(action.Progress / 0.65f, 0f, 1f) * MathF.PI);
+            // Draw to the apex, hold, then the string snaps forward at release (the arrow leaves with the server's shot).
+            float apex = HeroAttackPose.ApexShareOfAnticipation * bowTiming.ContactFraction;
+            float drawFrac = KeyframeEasing.Apply(KeyframeEase.InOut, Math.Clamp(action.Progress / apex, 0f, 1f));
             float pullDist = 4.6f * drawFrac;
             Vector2 topLimb = itemCenter + Rotate(new Vector2(-3.2f, -8.2f) * itemScale, totalRot);
             Vector2 botLimb = itemCenter + Rotate(new Vector2(-3.2f, 8.2f) * itemScale, totalRot);
@@ -399,6 +396,12 @@ public static class VectorRigRenderer
             batch.DrawCircle(focusPos, ringRadius, new ColorRgba(item.AccentColor.R, item.AccentColor.G, item.AccentColor.B, ringAlpha), 16, 1.4f * itemScale);
             batch.FillCircle(focusPos, (2.4f + (pulse * 1.8f)) * itemScale, new ColorRgba(224, 242, 254, ringAlpha), 10);
         }
+    }
+
+    private static float WrapAngle(float radians)
+    {
+        float a = radians % (2f * MathF.PI);
+        return a > MathF.PI ? a - (2f * MathF.PI) : a < -MathF.PI ? a + (2f * MathF.PI) : a;
     }
 
     private static float EvaluateSwingArc(float progress, float windupRad, float strikeRad, out float thrustFactor)

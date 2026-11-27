@@ -29,17 +29,19 @@ internal static class HeroAttackFilmstrip
     private const float Zoom = 2f;
     private const float LabelWidth = 150f;
     private const float ColWidth = 125f;
-    private const float FirstRowY = 64f;
-    private const float RowHeight = 82f;
+    private const float FirstRowY = 60f;
+    private const float RowHeight = 73f;
     private const float FootRadius = 7f;
 
-    // (label, action kind, held item id, combo step): item ids are the shipped catalogue (items.json).
+    // (label, action kind, held item id, combo step): item ids are the shipped catalogue (items.json). Bare hands
+    // render as a punch once the hero has one (ActionAnimationKind.Punch); before that they played the sword clip.
     private static readonly (string Label, ActionAnimationKind Kind, uint ItemId, byte Combo)[] s_rows =
     [
-        ("Bare hands 1", ActionAnimationKind.SwordSlash, 0U, 0),
-        ("Bare hands 2", ActionAnimationKind.SwordSlash, 0U, 1),
+        ("Bare hands 1", ActionAnimationKind.Punch, 0U, 0),
+        ("Bare hands 2", ActionAnimationKind.Punch, 0U, 1),
         ("Iron Sword 1", ActionAnimationKind.SwordSlash, 3U, 0),
         ("Iron Sword 2", ActionAnimationKind.SwordSlash, 3U, 1),
+        ("Iron Sword 3", ActionAnimationKind.SwordSlash, 3U, 2),
         ("Wood Axe", ActionAnimationKind.AxeChop, 1U, 0),
         ("Stone Pickaxe", ActionAnimationKind.PickaxeMine, 2U, 0),
         ("Hunting Bow", ActionAnimationKind.BowShot, 24U, 0),
@@ -106,7 +108,7 @@ internal static class HeroAttackFilmstrip
                 VectorRigRenderer.DrawEntityRig(
                     geom,
                     rig,
-                    footPos,
+                    footPos + WorldSceneRenderer.AttackLean(in action),
                     Direction8.East,
                     WorldSceneRenderer.ResolveCharacterClip(action, 0f, moving: false),
                     action.Progress,
@@ -137,6 +139,17 @@ internal static class HeroAttackFilmstrip
             ActionState probe = new(kind, 1f, 0.5f, Vector2.UnitX, itemId, combo);
             sprites.DrawOutlinedString(font, label, new Vector2(12f, y), white, black, 1, 0.9f);
             sprites.DrawOutlinedString(font, "clip: " + WorldSceneRenderer.ResolveCharacterClip(probe, 0f, moving: false), new Vector2(12f, y + 20f), gold, black, 1, 0.8f);
+
+            // Phase of each sample from the attack's timing: anticipation, active (strike live) or recovery.
+            HeroAttackTiming timing = HeroAttackTiming.For(HeroAttackTiming.StyleOf(kind, combo));
+            for (int col = 0; col < s_samples.Length && timing.Total > 0f; col++)
+            {
+                float t = s_samples[col];
+                (string phase, ColorRgba colour) = t < timing.ContactFraction
+                    ? ("ANTIC", cyan)
+                    : t < timing.ActiveEndFraction ? ("ACTIVE", new ColorRgba(251, 113, 133, 255)) : ("RECOVER", new ColorRgba(148, 163, 184, 255));
+                sprites.DrawOutlinedString(font, phase, new Vector2(LabelWidth + (col * ColWidth) + 8f, FirstRowY + (row * RowHeight) + 6f), colour, black, 1, 0.7f);
+            }
         }
 
         sprites.End();
