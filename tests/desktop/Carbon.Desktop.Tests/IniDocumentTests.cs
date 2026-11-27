@@ -79,6 +79,15 @@ public sealed class IniDocumentTests
     }
 
     [Fact]
+    public void Parse_DuplicateSection_NamesBothLinesAndTheFix()
+    {
+        Action parse = () => IniDocument.Parse("[hud]\na = 1\n\n[item]\nb = 2\n[hud]\nc = 3\n", "en.ini");
+
+        parse.Should().Throw<IniFormatException>()
+            .WithMessage("en.ini:6: duplicate section [hud] (first defined on line 1)*append the keys to the existing section*");
+    }
+
+    [Fact]
     public void Parse_DuplicateKeyAcrossSectionSyntax_IsRejected()
     {
         Action parse = () => IniDocument.Parse("hud.key = a\n[hud]\nkey = b\n", "en.ini");
