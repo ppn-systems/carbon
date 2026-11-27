@@ -127,10 +127,14 @@ public sealed class GraphicsDevice : IGraphicsDevice
         }
     }
 
+    /// <summary>Gets the number of draw calls issued through this device since it was created (frame statistics).</summary>
+    public long DrawCallCount { get; private set; }
+
     /// <inheritdoc/>
     public unsafe void DrawElements(PrimitiveType primitiveType, uint indexCount, DrawElementsType indexType, nuint indexOffset = 0)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        this.DrawCallCount++;
         this.Gl.DrawElements(primitiveType, indexCount, indexType, (void*)indexOffset);
     }
 
@@ -138,6 +142,7 @@ public sealed class GraphicsDevice : IGraphicsDevice
     public void DrawArrays(PrimitiveType primitiveType, int first, uint vertexCount)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        this.DrawCallCount++;
         this.Gl.DrawArrays(primitiveType, first, vertexCount);
     }
 

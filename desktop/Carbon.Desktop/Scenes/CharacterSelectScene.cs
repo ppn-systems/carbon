@@ -7,7 +7,9 @@ using System.Threading.Tasks;
 using Carbon.Contracts.Identity;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Identity;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.Session;
+using Carbon.Desktop.Capture;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Graphics.Animation.Directions;
@@ -37,18 +39,18 @@ namespace Carbon.Desktop.Scenes;
 /// </summary>
 public sealed class CharacterSelectScene : GameScene
 {
-    private static readonly string[] s_hairStyles = ["CROP", "SPIKY", "LONG", "BOB"];
-    private static readonly string[] s_hairColors = ["RAVEN", "BROWN", "GOLD", "SILVER"];
-    private static readonly string[] s_faceStyles = ["COBALT", "CRIMSON", "EMERALD", "MYSTIC"];
-    private static readonly string[] s_skinTones = ["FAIR", "TAN", "BRONZE", "UMBER"];
+    private static readonly string[] s_hairStyles = ["character.hair.crop", "character.hair.spiky", "character.hair.long", "character.hair.bob"];
+    private static readonly string[] s_hairColors = ["character.hair_color.raven", "character.hair_color.brown", "character.hair_color.gold", "character.hair_color.silver"];
+    private static readonly string[] s_faceStyles = ["character.eyes.cobalt", "character.eyes.crimson", "character.eyes.emerald", "character.eyes.mystic"];
+    private static readonly string[] s_skinTones = ["character.skin.fair", "character.skin.tan", "character.skin.bronze", "character.skin.umber"];
     private static readonly Direction8[] s_turnDirs = [Direction8.South, Direction8.West, Direction8.North, Direction8.East];
     private static readonly uint[] s_classWeapons = [StarterGameCatalog.IronSword, StarterGameCatalog.HuntingBow, StarterGameCatalog.ArcaneStaff];
-    private static readonly string[] s_classTitles = ["VANGUARD", "RANGER", "ARCANIST"];
+    private static readonly string[] s_classTitles = ["character.class.vanguard", "character.class.ranger", "character.class.arcanist"];
     private static readonly string[] s_classSubtitles =
     [
-        "Iron Sword | Melee HP/DEF",
-        "Hunt Bow | 290 Ranged Crit",
-        "Arcane Staff | Bolts +30 MP",
+        "character.class_hint.vanguard",
+        "character.class_hint.ranger",
+        "character.class_hint.arcanist",
     ];
 
     private readonly IWorldSession _session;
@@ -56,13 +58,13 @@ public sealed class CharacterSelectScene : GameScene
     private readonly Camera2D _camera;
 
     private readonly MenuTextField _createNameField;
-    private readonly MenuButton _enterWorldButton = new("ENTER WORLD", MenuButtonStyle.SecondaryEmerald);
-    private readonly MenuButton _openCreatorButton = new("+ NEW HERO", MenuButtonStyle.PrimaryGold);
-    private readonly MenuButton _backToRosterButton = new("BACK", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _createButton = new("CREATE HERO", MenuButtonStyle.PrimaryGold);
-    private readonly MenuButton _turnLeftBtn = new("< TURN", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _turnRightBtn = new("TURN >", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _randomizeBtn = new("RANDOMIZE", MenuButtonStyle.NeutralSlate);
+    private readonly MenuButton _enterWorldButton = new(GameText.Get("character.enter_world"), MenuButtonStyle.SecondaryEmerald);
+    private readonly MenuButton _openCreatorButton = new(GameText.Get("character.new_hero"), MenuButtonStyle.PrimaryGold);
+    private readonly MenuButton _backToRosterButton = new(GameText.Get("character.back"), MenuButtonStyle.NeutralSlate);
+    private readonly MenuButton _createButton = new(GameText.Get("character.create"), MenuButtonStyle.PrimaryGold);
+    private readonly MenuButton _turnLeftBtn = new(GameText.Get("character.turn_left"), MenuButtonStyle.NeutralSlate);
+    private readonly MenuButton _turnRightBtn = new(GameText.Get("character.turn_right"), MenuButtonStyle.NeutralSlate);
+    private readonly MenuButton _randomizeBtn = new(GameText.Get("character.randomize"), MenuButtonStyle.NeutralSlate);
     private readonly MenuButton _hairPrevBtn = new("<", MenuButtonStyle.NeutralSlate);
     private readonly MenuButton _hairNextBtn = new(">", MenuButtonStyle.NeutralSlate);
     private readonly MenuButton _hColPrevBtn = new("<", MenuButtonStyle.NeutralSlate);
@@ -71,7 +73,7 @@ public sealed class CharacterSelectScene : GameScene
     private readonly MenuButton _faceNextBtn = new(">", MenuButtonStyle.NeutralSlate);
     private readonly MenuButton _skinPrevBtn = new("<", MenuButtonStyle.NeutralSlate);
     private readonly MenuButton _skinNextBtn = new(">", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _logoutButton = new("LOGOUT", MenuButtonStyle.DangerRed);
+    private readonly MenuButton _logoutButton = new(GameText.Get("character.logout"), MenuButtonStyle.DangerRed);
     private readonly RectangleF[] _slotBounds = new RectangleF[4];
     private readonly RectangleF[] _classCardBounds = new RectangleF[3];
 
@@ -102,7 +104,17 @@ public sealed class CharacterSelectScene : GameScene
     private float _elapsed;
     private float _backspaceHoldTime;
     private float _backspaceRepeatTime;
-    private string _statusMessage = "Loading characters from server...";
+    private readonly MenuSceneCapture _capture;
+    private readonly CachedText _headerText = new();
+    private readonly CachedText _netText = new();
+    private readonly CachedText _hairText = new();
+    private readonly CachedText _toneText = new();
+    private readonly CachedText _eyesText = new();
+    private readonly CachedText _skinText = new();
+    private readonly CachedText _dossierText = new();
+    private readonly CachedText _positionText = new();
+    private readonly CachedText[] _rosterRowText = [new(), new(), new(), new()];
+    private string _statusMessage = GameText.Get("character.status.loading");
     private bool _statusIsError;
 
     /// <summary>
@@ -114,8 +126,9 @@ public sealed class CharacterSelectScene : GameScene
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _camera = camera ?? throw new ArgumentNullException(nameof(camera));
+        _capture = new MenuSceneCapture(options, "characters");
 
-        _createNameField = new MenuTextField("HERO NAME", "2-20 chars", options.CharacterName, isPassword: false, maxLength: 20)
+        _createNameField = new MenuTextField(GameText.Get("character.field.name"), GameText.Get("character.hint.name"), options.CharacterName, isPassword: false, maxLength: 20)
         {
             CharacterFilter = static ch => char.IsLetterOrDigit(ch) || ch == '_' || ch == ' ',
         };
@@ -432,30 +445,32 @@ public sealed class CharacterSelectScene : GameScene
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: proj);
         ColorRgba black = CarbonUiPalette.TextOutline;
 
-        string header = _isCreatorMode ? "CHARACTER CREATOR" : $"HERO ROSTER ({_characters.Count}/4)";
+        string header = _isCreatorMode
+            ? GameText.Get("character.header.creator")
+            : _headerText.Format("character.header.roster", new TextArg("count", _characters.Count), new TextArg("max", 4));
         spriteBatch.DrawOutlinedString(_font, header, new Vector2(ox + 22f, oy + 18f), CarbonUiPalette.TextWarm, black, 2, 1.5f);
-        spriteBatch.DrawOutlinedString(_font, $"NET: {_session.TransportLabel}", new Vector2(ox + 686f, oy + 22f), CarbonUiPalette.TextMuted, black, 1, 1f);
+        spriteBatch.DrawOutlinedString(_font, _netText.Format("character.net", new TextArg("transport", _session.TransportLabel)), new Vector2(ox + 686f, oy + 22f), CarbonUiPalette.TextMuted, black, 1, 1f);
 
-        string stageTitle = _isCreatorMode ? $"{s_classTitles[(int)_selectedClass]}" : "HERO STAGE";
+        string stageTitle = _isCreatorMode ? GameText.Get(s_classTitles[(int)_selectedClass]) : GameText.Get("character.stage");
         TextMeasureResult stSize = _font.MeasureString(stageTitle, TextLayoutOptions.Default, 1f);
         spriteBatch.DrawOutlinedString(_font, stageTitle, new Vector2(MathF.Floor(stageCard.X + ((stageCard.Width - stSize.Width) * 0.5f)), stageCard.Y + 14f), CarbonUiPalette.TextPrimary, black, 1, 1f);
 
         if (_isCreatorMode)
         {
-            spriteBatch.DrawOutlinedString(_font, "STARTING CLASS", new Vector2(ox + 24f, oy + 66f), CarbonUiPalette.TextMuted, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(_font, GameText.Get("character.starting_class"), new Vector2(ox + 24f, oy + 66f), CarbonUiPalette.TextMuted, black, 1, 1f);
             for (int c = 0; c < 3; c++)
             {
                 RectangleF cb = _classCardBounds[c];
                 ColorRgba accent = (byte)_selectedClass == c ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextPrimary;
-                spriteBatch.DrawOutlinedString(_font, s_classTitles[c], new Vector2(cb.X + 64f, cb.Y + 18f), accent, black, 1, 1.25f);
-                spriteBatch.DrawOutlinedString(_font, CarbonUiSkin.TruncateToWidth(_font, s_classSubtitles[c], cb.Width - 72f, 1f), new Vector2(cb.X + 64f, cb.Y + 48f), CarbonUiPalette.TextMuted, black, 1, 1f);
+                spriteBatch.DrawOutlinedString(_font, GameText.Get(s_classTitles[c]), new Vector2(cb.X + 64f, cb.Y + 18f), accent, black, 1, 1.25f);
+                spriteBatch.DrawOutlinedString(_font, CarbonUiSkin.TruncateToWidth(_font, GameText.Get(s_classSubtitles[c]), cb.Width - 72f, 1f), new Vector2(cb.X + 64f, cb.Y + 48f), CarbonUiPalette.TextMuted, black, 1, 1f);
             }
 
-            spriteBatch.DrawOutlinedString(_font, "APPEARANCE", new Vector2(rightCard.X + 16f, rightCard.Y + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
-            spriteBatch.DrawOutlinedString(_font, $"HAIR: {s_hairStyles[_hairStyle]}", new Vector2(rightCard.X + 52f, rightCard.Y + 49f), CarbonUiPalette.TextPrimary, black, 1, 1f);
-            spriteBatch.DrawOutlinedString(_font, $"TONE: {s_hairColors[_hairColor]}", new Vector2(rightCard.X + 52f, rightCard.Y + 83f), CarbonUiPalette.TextPrimary, black, 1, 1f);
-            spriteBatch.DrawOutlinedString(_font, $"EYES: {s_faceStyles[_faceStyle]}", new Vector2(rightCard.X + 52f, rightCard.Y + 117f), CarbonUiPalette.TextPrimary, black, 1, 1f);
-            spriteBatch.DrawOutlinedString(_font, $"SKIN: {s_skinTones[_skinTone]}", new Vector2(rightCard.X + 52f, rightCard.Y + 151f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(_font, GameText.Get("character.appearance"), new Vector2(rightCard.X + 16f, rightCard.Y + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(_font, _hairText.Format("character.appearance.hair", new TextArg("value", GameText.Get(s_hairStyles[_hairStyle]))), new Vector2(rightCard.X + 52f, rightCard.Y + 49f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(_font, _toneText.Format("character.appearance.hair_color", new TextArg("value", GameText.Get(s_hairColors[_hairColor]))), new Vector2(rightCard.X + 52f, rightCard.Y + 83f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(_font, _eyesText.Format("character.appearance.eyes", new TextArg("value", GameText.Get(s_faceStyles[_faceStyle]))), new Vector2(rightCard.X + 52f, rightCard.Y + 117f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(_font, _skinText.Format("character.appearance.skin", new TextArg("value", GameText.Get(s_skinTones[_skinTone]))), new Vector2(rightCard.X + 52f, rightCard.Y + 151f), CarbonUiPalette.TextPrimary, black, 1, 1f);
 
             _hairPrevBtn.DrawText(spriteBatch, _font);
             _hairNextBtn.DrawText(spriteBatch, _font);
@@ -482,24 +497,24 @@ public sealed class CharacterSelectScene : GameScene
                 {
                     CharacterRosterEntry c = _characters[i];
                     ColorRgba nc = i == _selectedIndex ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextPrimary;
-                    string clsLabel = s_classTitles[Math.Clamp((int)c.Class, 0, s_classTitles.Length - 1)];
+                    string clsLabel = GameText.Get(s_classTitles[Math.Clamp((int)c.Class, 0, s_classTitles.Length - 1)]);
                     spriteBatch.DrawOutlinedString(_font, CarbonUiSkin.TruncateToWidth(_font, c.Name, b.Width - 82f, 1.25f), new Vector2(b.X + 70f, b.Y + 14f), nc, black, 1, 1.25f);
-                    spriteBatch.DrawOutlinedString(_font, $"{clsLabel}  LV.{c.Level}", new Vector2(b.X + 70f, b.Y + 42f), CarbonUiPalette.TextMuted, black, 1, 1f);
+                    spriteBatch.DrawOutlinedString(_font, _rosterRowText[i].Format("character.roster_row", new TextArg("class", clsLabel), new TextArg("level", c.Level)), new Vector2(b.X + 70f, b.Y + 42f), CarbonUiPalette.TextMuted, black, 1, 1f);
                 }
                 else
                 {
-                    spriteBatch.DrawOutlinedString(_font, "+ EMPTY SLOT", new Vector2(b.X + 26f, b.Y + 30f), CarbonUiPalette.TextMuted, black, 1, 1f);
+                    spriteBatch.DrawOutlinedString(_font, GameText.Get("character.empty_slot"), new Vector2(b.X + 26f, b.Y + 30f), CarbonUiPalette.TextMuted, black, 1, 1f);
                 }
             }
 
-            spriteBatch.DrawOutlinedString(_font, "HERO DOSSIER", new Vector2(rightCard.X + 16f, rightCard.Y + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(_font, GameText.Get("character.dossier"), new Vector2(rightCard.X + 16f, rightCard.Y + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
             if (_selectedIndex >= 0 && _selectedIndex < _characters.Count)
             {
                 CharacterRosterEntry sel = _characters[_selectedIndex];
-                string selCls = s_classTitles[Math.Clamp((int)sel.Class, 0, s_classTitles.Length - 1)];
+                string selCls = GameText.Get(s_classTitles[Math.Clamp((int)sel.Class, 0, s_classTitles.Length - 1)]);
                 spriteBatch.DrawOutlinedString(_font, CarbonUiSkin.TruncateToWidth(_font, sel.Name.ToUpperInvariant(), rightCard.Width - 32f, 1.5f), new Vector2(rightCard.X + 16f, rightCard.Y + 44f), CarbonUiPalette.TextPrimary, black, 1, 1.5f);
-                spriteBatch.DrawOutlinedString(_font, $"{selCls}  //  LV.{sel.Level}  //  TIER {sel.ZoneTier}", new Vector2(rightCard.X + 16f, rightCard.Y + 78f), CarbonUiPalette.TextWarm, black, 1, 1f);
-                spriteBatch.DrawOutlinedString(_font, $"POS: ({(int)sel.PositionX}, {(int)sel.PositionY})", new Vector2(rightCard.X + 16f, rightCard.Y + 102f), CarbonUiPalette.TextMuted, black, 1, 1f);
+                spriteBatch.DrawOutlinedString(_font, _dossierText.Format("character.dossier_line", new TextArg("class", selCls), new TextArg("level", sel.Level), new TextArg("tier", sel.ZoneTier)), new Vector2(rightCard.X + 16f, rightCard.Y + 78f), CarbonUiPalette.TextWarm, black, 1, 1f);
+                spriteBatch.DrawOutlinedString(_font, _positionText.Format("character.position", new TextArg("x", (int)sel.PositionX), new TextArg("y", (int)sel.PositionY)), new Vector2(rightCard.X + 16f, rightCard.Y + 102f), CarbonUiPalette.TextMuted, black, 1, 1f);
             }
 
             if (_characters.Count < 4)
@@ -522,6 +537,8 @@ public sealed class CharacterSelectScene : GameScene
         spriteBatch.End();
 
         base.Render(context, spriteBatch, dt);
+
+        _capture.AfterRender(context, ready: _listTask is null && _createTask is null);
     }
 
     /// <inheritdoc/>
@@ -584,7 +601,7 @@ public sealed class CharacterSelectScene : GameScene
             CharacterRosterEntry hero = _characters[_selectedIndex];
             _enterTask = _session.EnterWorldAsync(hero.CharacterId);
             _statusIsError = false;
-            _statusMessage = $"Entering world as {hero.Name} (opening Authenticated UDP)...";
+            _statusMessage = GameText.Format("character.status.entering", new TextArg("name", hero.Name));
         }
     }
 
@@ -673,7 +690,7 @@ public sealed class CharacterSelectScene : GameScene
             _preferSelectName = _createNameField.Text.Trim();
             _createTask = _session.CreateCharacterAsync(_createNameField.Text, _selectedPreset, (byte)_selectedClass);
             _statusIsError = false;
-            _statusMessage = $"Creating {_preferSelectName} ({s_classTitles[(int)_selectedClass]})...";
+            _statusMessage = GameText.Format("character.status.creating", new TextArg("name", _preferSelectName), new TextArg("class", GameText.Get(s_classTitles[(int)_selectedClass])));
         }
     }
 
@@ -799,14 +816,14 @@ public sealed class CharacterSelectScene : GameScene
                 {
                     _statusIsError = false;
                     _statusMessage = _characters.Count > 0
-                        ? $"Found {_characters.Count} hero(es). Select one and click ENTER WORLD."
-                        : "Welcome! Pick a starting class, customize your hero, and click CREATE HERO.";
+                        ? GameText.Plural("character.status.found", _characters.Count)
+                        : GameText.Get("character.status.welcome");
                 }
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 _statusIsError = true;
-                _statusMessage = $"Failed to load roster: {ex.Message}";
+                _statusMessage = GameText.Format("character.status.load_failed", new TextArg("error", ex.Message));
             }
         }
     }
@@ -863,7 +880,7 @@ public sealed class CharacterSelectScene : GameScene
     {
         _logoutTask = _session.LogoutAsync();
         _statusIsError = false;
-        _statusMessage = "Signing out...";
+        _statusMessage = GameText.Get("character.status.signing_out");
     }
 
     private void HandleBackspaceRepeat(in KeyboardSnapshot kb, float dt)

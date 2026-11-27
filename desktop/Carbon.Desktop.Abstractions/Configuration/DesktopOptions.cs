@@ -57,6 +57,18 @@ public sealed class DesktopOptions
     /// <summary>Gets or sets a value indicating whether the runner closes automatically after capture.</summary>
     public bool AutoExit { get; init; }
 
+    /// <summary>Gets or sets a player panel tab to open once in the world (<c>CARBON_OPEN_PANEL=character</c>), for screenshots.</summary>
+    public string? OpenPanel { get; init; }
+
+    /// <summary>Gets or sets a fixed mouse position in window pixels (<c>CARBON_CAPTURE_MOUSE=x,y</c>), for screenshots of hover states.</summary>
+    public (float X, float Y)? CaptureMouse { get; init; }
+
+    /// <summary>
+    /// Gets or sets how many in-world frames to sample for the frame-stats log (<c>CARBON_FRAME_STATS=n</c>, 0 = off).
+    /// When set, <see cref="AutoExit"/> also waits for these frames.
+    /// </summary>
+    public int FrameStatsFrames { get; init; }
+
     /// <summary>
     /// Gets or sets a value indicating whether the scene opens the nearest trader's window once in the world
     /// (<c>CARBON_OPEN_TRADER=1</c>; screenshot tool). The capture waits for the trader's stock to arrive.
@@ -84,10 +96,17 @@ public sealed class DesktopOptions
     public (float X, float Y)? AutoWalk { get; init; }
 
     /// <summary>
-    /// Gets or sets a HUD window to open before the automatic capture (<c>CARBON_CAPTURE_MODAL=settings|controls</c>;
+    /// Gets or sets a HUD window to open before the automatic capture (<c>CARBON_CAPTURE_MODAL=settings|controls|inventory|character|skills|crafting</c>;
     /// used by the screenshot tool to review localized UI, ADR-023 D8). Empty when unset.
     /// </summary>
     public string CaptureModal { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets a menu scene to capture instead of the world (<c>CARBON_CAPTURE_SCENE=login|characters</c>, ADR-023 D8).
+    /// <c>login</c> needs <c>CARBON_AUTO_LOGIN=0</c>; <c>characters</c> registers the configured account and captures the
+    /// character screen. Empty when unset.
+    /// </summary>
+    public string CaptureScene { get; init; } = string.Empty;
 
     /// <summary>
     /// Gets or sets an optional UI state the screenshot tool opens on start (<c>CARBON_UI_PREVIEW</c>):
@@ -179,14 +198,11 @@ public sealed class DesktopOptions
             ? Math.Clamp(parsedFrames, 0, 240)
             : 0;
 
-        (float X, float Y)? autoWalk = null;
-        if (get("CARBON_AUTO_WALK") is { Length: > 0 } walk &&
-            walk.Split(',') is [string wx, string wy] &&
-            float.TryParse(wx, NumberStyles.Float, CultureInfo.InvariantCulture, out float awx) &&
-            float.TryParse(wy, NumberStyles.Float, CultureInfo.InvariantCulture, out float awy))
-        {
-            autoWalk = (awx, awy);
-        }
+
+        int frameStatsFrames = int.TryParse(get("CARBON_FRAME_STATS"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedStats)
+            ? Math.Clamp(parsedStats, 0, 100_000)
+            : 0;
+
 
         string serverHost = get("CARBON_SERVER_HOST") is { Length: > 0 } host ? host.Trim() : "127.0.0.1";
         ushort serverTcpPort = ushort.TryParse(get("CARBON_TCP_PORT") ?? get("CARBON_SERVER_PORT"), NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort parsedPort) && parsedPort > 0
@@ -226,11 +242,15 @@ public sealed class DesktopOptions
             TimeScale = timeScale,
             ScreenshotPath = screenshotPath,
             CaptureFrames = captureFrames,
+            FrameStatsFrames = frameStatsFrames,
             AutoExit = string.Equals(get("CARBON_AUTO_EXIT"), "1", StringComparison.Ordinal),
             OpenTrader = get("CARBON_OPEN_TRADER") is "1" or "repair",
             OpenTraderRepair = string.Equals(get("CARBON_OPEN_TRADER"), "repair", StringComparison.Ordinal),
-            AutoWalk = autoWalk,
+            AutoWalk = ParsePoint(get("CARBON_AUTO_WALK")),
+            OpenPanel = get("CARBON_OPEN_PANEL") is { Length: > 0 } panel ? panel.Trim() : null,
+            CaptureMouse = ParsePoint(get("CARBON_CAPTURE_MOUSE")),
             CaptureModal = get("CARBON_CAPTURE_MODAL") is { Length: > 0 } modal ? modal.Trim().ToLowerInvariant() : string.Empty,
+            CaptureScene = get("CARBON_CAPTURE_SCENE") is { Length: > 0 } captureScene ? captureScene.Trim().ToLowerInvariant() : string.Empty,
             ForgePreview = get("CARBON_FORGE_PREVIEW") is { Length: > 0 } forgePreview ? forgePreview.Trim() : null,
             UiPreview = get("CARBON_UI_PREVIEW") is { Length: > 0 } preview ? preview.Trim() : null,
             ServerHost = serverHost,
@@ -246,4 +266,13 @@ public sealed class DesktopOptions
 
     private static string DefaultConfigCacheDirectory() =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Carbon", "config-cache");
+
+    /// <summary>Parses an <c>x,y</c> pair (invariant culture), or returns <see langword="null"/> when unset or malformed.</summary>
+    private static (float X, float Y)? ParsePoint(string? value) =>
+        value is { Length: > 0 } &&
+        value.Split(',') is [string x, string y] &&
+        float.TryParse(x, NumberStyles.Float, CultureInfo.InvariantCulture, out float px) &&
+        float.TryParse(y, NumberStyles.Float, CultureInfo.InvariantCulture, out float py)
+            ? (px, py)
+            : null;
 }

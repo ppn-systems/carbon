@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching.Common;
@@ -21,6 +22,11 @@ internal sealed class SkillBarWidget
 {
     private const float SlotSize = 52f;
     private const float Gap = 6f;
+
+    private readonly DerivedTextCache _skillNames = new("skill.", ".name");
+    private readonly DerivedTextCache _skillSummaries = new("skill.", ".summary");
+    private readonly CachedText _tooltipTitle = new();
+    private readonly CachedText _tooltipCost = new();
 
     private readonly List<SkillDefinition> _visibleSkills = new(8);
 
@@ -239,11 +245,20 @@ internal sealed class SkillBarWidget
             float tipX = MathF.Max(12f, startX - tipW - 14f);
             float tipY = Math.Clamp(hoveredY, 12f, viewportHeight - tipH - 12f);
 
-            string title = CarbonUiSkin.TruncateToWidth(font, rank > 0 ? $"{hoveredDef.DisplayName} R{rank}" : $"{hoveredDef.DisplayName}", tipW - 18f, 1f);
+            string skillName = _skillNames.Text(hoveredDef.Code, hoveredDef.DisplayName);
+            string title = CarbonUiSkin.TruncateToWidth(
+                font,
+                rank > 0 ? _tooltipTitle.Format("hud.skills.bar_title", new TextArg("name", skillName), new TextArg("rank", rank)) : skillName,
+                tipW - 18f,
+                1f);
             spriteBatch.DrawOutlinedString(font, title, new Vector2(tipX + 9f, tipY + 8f), CarbonUiPalette.TextWarm, black, 1, 1f);
             string costLine = rank > 0
-                ? $"MP {(int)hoveredSpec.ManaCost}  STA {(int)hoveredSpec.StaminaCost}  CD {hoveredSpec.CooldownSeconds:F1}s"
-                : hoveredDef.Summary;
+                ? _tooltipCost.Format(
+                    "hud.skills.cost",
+                    new TextArg("mp", (int)hoveredSpec.ManaCost),
+                    new TextArg("sta", (int)hoveredSpec.StaminaCost),
+                    new TextArg("cd", hoveredSpec.CooldownSeconds, decimals: 1))
+                : _skillSummaries.Text(hoveredDef.Code, hoveredDef.Summary);
             spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, costLine, tipW - 18f, 1f), new Vector2(tipX + 9f, tipY + 30f), CarbonUiPalette.TextMuted, black, 1, 1f);
         }
     }

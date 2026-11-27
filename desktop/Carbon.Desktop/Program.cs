@@ -6,10 +6,12 @@ using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Capture;
+using Carbon.Desktop.Diagnostics;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Desktop.Scenes;
 using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Sprites;
+using Carbon.Graphics.OpenGL.Device;
 using Carbon.Graphics.Scenes.Management;
 using Carbon.Graphics.Windowing.Configuration;
 using Carbon.Graphics.Windowing.Window;
@@ -74,12 +76,21 @@ public static class Program
                 Console.WriteLine($"Target Server: {options.ServerHost}:{options.ServerTcpPort} (TCP + Authenticated UDP)");
             };
 
-            window.Update += (_, dt) => sceneManager?.Update(dt);
+            FrameStatsSampler? frameStats = options.FrameStatsFrames > 0
+                ? new FrameStatsSampler(() => (window.Device as GraphicsDevice)?.DrawCallCount ?? 0L)
+                : null;
+
+            window.Update += (_, dt) =>
+            {
+                frameStats?.BeginFrame();
+                sceneManager?.Update(dt);
+            };
             window.Render += (_, dt) =>
             {
                 if (sceneManager is not null && spriteBatch is not null)
                 {
                     sceneManager.Render(spriteBatch, dt);
+                    frameStats?.EndFrame(sceneManager.CurrentScene?.GetType().Name ?? "none");
                 }
             };
             window.Resize += (_, width, height) => sceneManager?.Resize(width, height);

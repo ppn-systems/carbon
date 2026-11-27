@@ -115,7 +115,7 @@ internal static class RepositoryLayout
                 return false;
             }
 
-            files = [.. output.Split('\0', StringSplitOptions.RemoveEmptyEntries).OrderBy(f => f, StringComparer.Ordinal)];
+            files = ParseLsFilesOutput(output);
             return true;
         }
         catch (System.ComponentModel.Win32Exception)
@@ -123,6 +123,14 @@ internal static class RepositoryLayout
             return false;
         }
     }
+
+    /// <summary>
+    /// Parses NUL-separated <c>git ls-files -z</c> output into sorted, distinct paths. During an unresolved merge git
+    /// lists a conflicted path once per index stage (base, ours, theirs). Without the dedupe, file-based guards read
+    /// the same file up to three times, and a class looked about 3x its size to the size caps.
+    /// </summary>
+    internal static List<string> ParseLsFilesOutput(string output) =>
+        [.. output.Split('\0', StringSplitOptions.RemoveEmptyEntries).Distinct(StringComparer.Ordinal).OrderBy(f => f, StringComparer.Ordinal)];
 
     private static string[] ReadIgnoredDirectoryPrefixes()
     {

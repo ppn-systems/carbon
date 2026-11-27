@@ -4,6 +4,7 @@ using System;
 using System.Numerics;
 using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions.Configuration;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Feedback;
 using Carbon.Desktop.Rendering.UiSkin;
@@ -37,6 +38,11 @@ internal sealed class HotbarAndItemWidget
     private const byte HungryState = 1;
     private const byte UrgentHungerState = 2;
     private const byte StarvingState = 3;
+
+    private readonly CachedText _levelLabel = new();
+    private readonly CachedText _restLabel = new();
+    private readonly CachedText _hungerLabel = new();
+    private readonly CachedText _tooltipStats = new();
 
     public void DrawSkin(
         SpriteBatch spriteBatch,
@@ -185,7 +191,7 @@ internal sealed class HotbarAndItemWidget
         float barsY = xpY - 24f;
         ColorRgba black = CarbonUiPalette.TextOutline;
 
-        DrawVitalsClusterText(spriteBatch, font, world, startX, barsY);
+        this.DrawVitalsClusterText(spriteBatch, font, world, startX, barsY);
 
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
@@ -221,7 +227,7 @@ internal sealed class HotbarAndItemWidget
             ItemSlot hItem = slots[hoveredSlot];
             if (!hItem.IsEmpty)
             {
-                DrawTooltipText(spriteBatch, font, world, art, startX + (hoveredSlot * (SlotSize + Gap)), barsY - 10f, viewportWidth, in hItem);
+                this.DrawTooltipText(spriteBatch, font, world, startX + (hoveredSlot * (SlotSize + Gap)), barsY - 10f, viewportWidth, in hItem);
             }
         }
     }
@@ -323,7 +329,7 @@ internal sealed class HotbarAndItemWidget
         batch.DrawRectangle(rect, CarbonUiPalette.BorderSubtle, 1f);
     }
 
-    private static void DrawVitalsClusterText(
+    private void DrawVitalsClusterText(
         SpriteBatch spriteBatch,
         BitmapFont font,
         IWorldReadModel world,
@@ -336,9 +342,9 @@ internal sealed class HotbarAndItemWidget
         const float barH = 20f;
         ColorRgba black = CarbonUiPalette.TextOutline;
 
-        string lvText = world.LocalUnspentStatPoints > 0
-            ? $"Lv.{world.LocalPlayerLevel}+"
-            : $"Lv.{world.LocalPlayerLevel}";
+        string lvText = _levelLabel.Format(
+            world.LocalUnspentStatPoints > 0 ? "hud.level_unspent" : "hud.level",
+            new TextArg("level", world.LocalPlayerLevel));
         CarbonUiSkin.DrawCenteredText(
             spriteBatch,
             font,
@@ -361,46 +367,48 @@ internal sealed class HotbarAndItemWidget
         CarbonUiSkin.DrawCenteredText(spriteBatch, font, staText, new RectangleF(staX, barsY, barW, barH), CarbonUiPalette.TextPrimary, black, 1f);
 
         float foodX = staX + barW + segGap;
-        CarbonUiSkin.DrawCenteredText(spriteBatch, font, BuildHungerLabel(world), new RectangleF(foodX, barsY, barW, barH), CarbonUiPalette.TextPrimary, black, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, this.BuildHungerLabel(world), new RectangleF(foodX, barsY, barW, barH), CarbonUiPalette.TextPrimary, black, 1f);
 
         float restX = foodX + barW + segGap;
-        CarbonUiSkin.DrawCenteredText(spriteBatch, font, BuildRestLabel(world), new RectangleF(restX, barsY, barW, barH), CarbonUiPalette.TextPrimary, black, 1f);
+        CarbonUiSkin.DrawCenteredText(spriteBatch, font, this.BuildRestLabel(world), new RectangleF(restX, barsY, barW, barH), CarbonUiPalette.TextPrimary, black, 1f);
     }
 
-    private static string BuildRestLabel(IWorldReadModel world)
+    private string BuildRestLabel(IWorldReadModel world)
     {
         int pct = (int)MathF.Round(100f * Math.Clamp(world.LocalPlayerRest / MathF.Max(1f, world.LocalPlayerMaxRest), 0f, 1f));
-        return world.LocalPlayerRestMode switch
+        string key = world.LocalPlayerRestMode switch
         {
-            RestMode.Sitting => $"Sit {pct}%",
-            RestMode.Sleeping => $"Zzz {pct}%",
-            RestMode.SleepingComfortable => $"Zzz+ {pct}%",
+            RestMode.Sitting => "hud.rest.sitting",
+            RestMode.Sleeping => "hud.rest.sleeping",
+            RestMode.SleepingComfortable => "hud.rest.sleeping_comfortable",
             RestMode.None => world.LocalPlayerRestState switch
             {
-                ExhaustedState => "Exhausted",
-                VeryTiredState => $"Drowsy {pct}%",
-                TiredState => $"Tired {pct}%",
-                _ => $"Rest {pct}%",
+                ExhaustedState => "hud.rest.exhausted",
+                VeryTiredState => "hud.rest.very_tired",
+                TiredState => "hud.rest.tired",
+                _ => "hud.rest.normal",
             },
-            _ => $"Rest {pct}%",
+            _ => "hud.rest.normal",
         };
+        return _restLabel.Format(key, new TextArg("pct", pct));
     }
 
-    private static string BuildHungerLabel(IWorldReadModel world)
+    private string BuildHungerLabel(IWorldReadModel world)
     {
         if (world.LocalPlayerEatProgress >= 0f)
         {
-            return "Eating...";
+            return GameText.Get("hud.food.eating");
         }
 
         int pct = (int)MathF.Round(100f * Math.Clamp(world.LocalPlayerFood / MathF.Max(1f, world.LocalPlayerMaxFood), 0f, 1f));
-        return world.LocalPlayerHungerState switch
+        string key = world.LocalPlayerHungerState switch
         {
-            HungryState => $"Hungry {pct}%",
-            UrgentHungerState => "Ravenous",
-            StarvingState => "Starving!",
-            _ => world.LocalPlayerFoodPoisoned ? $"Sick {pct}%" : $"Food {pct}%",
+            HungryState => "hud.food.hungry",
+            UrgentHungerState => "hud.food.ravenous",
+            StarvingState => "hud.food.starving",
+            _ => world.LocalPlayerFoodPoisoned ? "hud.food.sick" : "hud.food.normal",
         };
+        return _hungerLabel.Format(key, new TextArg("pct", pct));
     }
 
     private static void DrawTooltipGeometry(
@@ -443,11 +451,10 @@ internal sealed class HotbarAndItemWidget
         }
     }
 
-    private static void DrawTooltipText(
+    private void DrawTooltipText(
         SpriteBatch spriteBatch,
         BitmapFont font,
         IWorldReadModel world,
-        IVectorArtRepository? art,
         float slotX,
         float topY,
         int viewportWidth,
@@ -460,10 +467,6 @@ internal sealed class HotbarAndItemWidget
         ColorRgba black = CarbonUiPalette.TextOutline;
 
         string name = world.Items.GetDisplayName(item.ItemId);
-        if (art is not null && art.TryGetItem(item.ItemId, out CompiledItemVectorArt? bp))
-        {
-            name = bp.DisplayName;
-        }
 
         byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
         string titleName = upg > 0 ? $"{name} +{upg}" : name;
@@ -473,11 +476,23 @@ internal sealed class HotbarAndItemWidget
         string stats = world.Items.Rules.Items.TryGet(item.ItemId, out ItemArchetype? def)
             ? def.Category switch
             {
-                ItemCategory.Armor => $"+{(int)MathF.Round(def.ArmorDefense * upgMult)} DEF  +{(int)MathF.Round(def.BonusHealth * upgMult)} HP",
-                ItemCategory.Weapon => $"+{(int)MathF.Round(def.BaseDamage * upgMult)} DMG  RNG {(int)def.AttackRange}",
-                ItemCategory.Tool => $"Tier {def.HarvestTier} Tool",
-                ItemCategory.Consumable => $"+{(int)def.HealHealth} HP  +{(int)def.RestoreMana} MP",
-                ItemCategory.Placeable or ItemCategory.Accessory or ItemCategory.Resource or ItemCategory.Quest or ItemCategory.None or _ => $"Stack {item.Quantity}/{def.MaxStackSize}",
+                ItemCategory.Armor => _tooltipStats.Format(
+                    "hud.tooltip.armor",
+                    new TextArg("def", (int)MathF.Round(def.ArmorDefense * upgMult)),
+                    new TextArg("hp", (int)MathF.Round(def.BonusHealth * upgMult))),
+                ItemCategory.Weapon => _tooltipStats.Format(
+                    "hud.tooltip.weapon",
+                    new TextArg("dmg", (int)MathF.Round(def.BaseDamage * upgMult)),
+                    new TextArg("range", (int)def.AttackRange)),
+                ItemCategory.Tool => _tooltipStats.Format("hud.tooltip.tool", new TextArg("tier", def.HarvestTier)),
+                ItemCategory.Consumable => _tooltipStats.Format(
+                    "hud.tooltip.consumable",
+                    new TextArg("hp", (int)def.HealHealth),
+                    new TextArg("mp", (int)def.RestoreMana)),
+                ItemCategory.Placeable or ItemCategory.Accessory or ItemCategory.Resource or ItemCategory.Quest or ItemCategory.None or _ => _tooltipStats.Format(
+                    "hud.tooltip.stack",
+                    new TextArg("count", item.Quantity),
+                    new TextArg("max", def.MaxStackSize)),
             }
             : $"x{item.Quantity}";
 

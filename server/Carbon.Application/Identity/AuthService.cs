@@ -272,7 +272,7 @@ public sealed class AuthService : IAuthService, IDisposable
             WearGear(inv);
         }
 
-        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(_itemRules(), _progression(), 1, inv, selectedSlot, progression: null);
+        DerivedCharacterStats stats = CharacterStatCalculator.Compute(_itemRules(), _progression(), 1, inv, selectedSlot, progression: null);
         byte[] invBlob = InventoryBinaryCodec.Serialize(inv);
 
         CharacterRecord created = new(

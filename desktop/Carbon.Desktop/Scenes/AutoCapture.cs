@@ -12,7 +12,8 @@ namespace Carbon.Desktop.Scenes;
 /// <summary>
 /// The screenshot tool's schedule for the world scene (<c>tools/screenshots</c>): one capture once the world has settled
 /// (later when the scene still waits for something, e.g. a trader window), then <see cref="DesktopOptions.CaptureFrames"/>
-/// consecutive frames, then the window closes when <see cref="DesktopOptions.AutoExit"/> is set.
+/// consecutive frames, then the window closes when <see cref="DesktopOptions.AutoExit"/> is set (after the frame-stats
+/// window too, <see cref="DesktopOptions.FrameStatsFrames"/>).
 /// </summary>
 /// <param name="options">Desktop options.</param>
 internal sealed class AutoCapture(DesktopOptions options)
@@ -48,7 +49,7 @@ internal sealed class AutoCapture(DesktopOptions options)
                 $"{Path.GetFileNameWithoutExtension(_options.ScreenshotPath)}_{frame - _capturedAtFrame:D3}.bmp");
             ScreenshotHelper.Capture(context.Device.Gl, context.WindowWidth, context.WindowHeight, path);
         }
-        else if (_options.AutoExit && frame >= _capturedAtFrame + 5 + _options.CaptureFrames)
+        else if (_options.AutoExit && frame >= _capturedAtFrame + 5 + Math.Max(_options.CaptureFrames, _options.FrameStatsFrames))
         {
             context.Window.Close();
         }
