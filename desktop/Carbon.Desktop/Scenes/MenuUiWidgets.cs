@@ -247,6 +247,9 @@ internal sealed class MenuButton
 
     public bool IsPressed { get; private set; }
 
+    /// <summary>Gets or sets whether keyboard focus is on the button (drawn like a hover).</summary>
+    public bool IsFocused { get; set; }
+
     public bool Update(Vector2 mousePos, bool leftDown, bool leftPressed)
     {
         if (!this.IsEnabled)
@@ -291,11 +294,17 @@ internal sealed class MenuButton
             return (new ColorRgba(24, 29, 39, 185), new ColorRgba(56, 65, 80, 170));
         }
 
+        (ColorRgba Fill, ColorRgba Border) colors = this.ResolveStyleColors(this.IsHovered || this.IsFocused);
+        return this.IsFocused ? (colors.Fill, CarbonUiPalette.BorderActive) : colors;
+    }
+
+    private (ColorRgba Fill, ColorRgba Border) ResolveStyleColors(bool hot)
+    {
         if (this.Style == MenuButtonStyle.PrimaryGold)
         {
             return this.IsPressed
                 ? (new ColorRgba(76, 66, 44, 245), CarbonUiPalette.BorderActive)
-                : (this.IsHovered
+                : (hot
                     ? (new ColorRgba(92, 80, 52, 245), CarbonUiPalette.BorderActive)
                     : (new ColorRgba(62, 54, 38, 238), CarbonUiPalette.BorderActive));
         }
@@ -304,7 +313,7 @@ internal sealed class MenuButton
         {
             return this.IsPressed
                 ? (new ColorRgba(26, 74, 52, 245), CarbonUiPalette.ConfirmBorder)
-                : (this.IsHovered
+                : (hot
                     ? (new ColorRgba(44, 114, 82, 245), CarbonUiPalette.ConfirmBorder)
                     : (CarbonUiPalette.ConfirmFill, CarbonUiPalette.ConfirmBorder));
         }
@@ -313,16 +322,68 @@ internal sealed class MenuButton
         {
             return this.IsPressed
                 ? (new ColorRgba(104, 28, 34, 245), CarbonUiPalette.DangerBorder)
-                : (this.IsHovered
+                : (hot
                     ? (new ColorRgba(152, 44, 50, 245), CarbonUiPalette.DangerBorder)
                     : (CarbonUiPalette.DangerFill, CarbonUiPalette.DangerBorder));
         }
 
         return this.IsPressed
             ? (CarbonUiPalette.SlotSelectedFill, CarbonUiPalette.BorderOuter)
-            : (this.IsHovered
+            : (hot
                 ? (CarbonUiPalette.SlotHoverFill, CarbonUiPalette.BorderOuter)
                 : (CarbonUiPalette.CardFill, CarbonUiPalette.BorderSubtle));
+    }
+}
+
+/// <summary>A "Remember me" style checkbox: a square with a check, then its label.</summary>
+internal sealed class MenuCheckbox
+{
+    public MenuCheckbox(string label) => this.Label = label;
+
+    public string Label { get; }
+
+    public bool IsChecked { get; set; }
+
+    public bool IsFocused { get; set; }
+
+    /// <summary>Gets or sets the clickable row (box plus label).</summary>
+    public RectangleF Bounds { get; set; }
+
+    private RectangleF Box => new(this.Bounds.X, this.Bounds.Y + MathF.Floor((this.Bounds.Height - 22f) * 0.5f), 22f, 22f);
+
+    /// <summary>Toggles on a click inside the row; returns whether it was clicked.</summary>
+    public bool Update(Vector2 mousePos, bool leftPressed)
+    {
+        if (leftPressed && this.Bounds.Contains(mousePos))
+        {
+            this.IsChecked = !this.IsChecked;
+            return true;
+        }
+
+        return false;
+    }
+
+    public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin)
+    {
+        RectangleF box = this.Box;
+        skin.DrawInset(spriteBatch, in box, this.IsFocused ? CarbonUiPalette.SlotSelectedFill : CarbonUiPalette.SlotFill, this.IsFocused ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle);
+    }
+
+    public void DrawGeometry(GeometryBatch batch)
+    {
+        if (this.IsChecked)
+        {
+            RectangleF box = this.Box;
+            batch.DrawLine(new Vector2(box.X + 5f, box.Y + 11f), new Vector2(box.X + 9f, box.Y + 16f), CarbonUiPalette.BorderActive, 3f);
+            batch.DrawLine(new Vector2(box.X + 9f, box.Y + 16f), new Vector2(box.X + 17f, box.Y + 6f), CarbonUiPalette.BorderActive, 3f);
+        }
+    }
+
+    public void DrawText(SpriteBatch spriteBatch, BitmapFont font)
+    {
+        RectangleF box = this.Box;
+        float ty = MathF.Floor(this.Bounds.Y + ((this.Bounds.Height - font.LineHeight) * 0.5f));
+        spriteBatch.DrawOutlinedString(font, this.Label, new Vector2(box.Right + 10f, ty), this.IsFocused ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextPrimary, CarbonUiPalette.TextOutline, 1, 1f);
     }
 }
 

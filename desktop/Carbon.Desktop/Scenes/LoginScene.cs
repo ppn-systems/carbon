@@ -1,713 +1,284 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
-using System.Globalization;
 using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Identity;
 using Carbon.Desktop.Abstractions.Localization;
-using Carbon.Desktop.Abstractions.Session;
-using Carbon.Desktop.Capture;
 using Carbon.Desktop.Rendering.UiSkin;
-using Carbon.Graphics.Batching;
-using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.Batching.Sprites;
-using Carbon.Graphics.Fonts.Layout;
 using Carbon.Graphics.Fonts.Rendering;
-using Carbon.Graphics.OpenGL.Textures;
-using Carbon.Graphics.Scenes.Base;
 using Carbon.Graphics.Scenes.Management;
-using Carbon.Graphics.Windowing.Abstractions;
 using Carbon.Graphics.Windowing.Input;
 using Silk.NET.Input;
-using Silk.NET.OpenGL;
-using Carbon.Desktop.Rendering.Fonts;
 
 namespace Carbon.Desktop.Scenes;
 
 /// <summary>
-/// Online authentication scene with standardized 9-slice skinning, explicit Sign-In / Create-Account tabs,
-/// password confirmation &amp; reveal toggle, gateway endpoint editor, and fast AutoLogin path.
+/// Login screen (ADR-037): username, then password (masked), a "Remember me" checkbox, Login and Back. Tab moves
+/// username → password → Remember me → Login; Enter submits. "Remember me" keeps a server-issued token, never the password.
 /// </summary>
-public sealed class LoginScene : GameScene
+internal sealed class LoginScene : MenuScene
 {
-    private readonly IWorldSession _session;
-    private readonly DesktopOptions _options;
-    private readonly Camera2D _camera;
-
+    private readonly LoginForm _form = new();
     private readonly MenuTextField _usernameField;
     private readonly MenuTextField _passwordField;
-    private readonly MenuTextField _confirmPasswordField;
-    private readonly MenuTextField _serverField;
+    private readonly MenuCheckbox _rememberBox = new(GameText.Get("login.remember_me"));
+    private readonly MenuButton _submitButton = new(GameText.Get("login.login"), MenuButtonStyle.SecondaryEmerald);
+    private readonly MenuButton _backButton = new(GameText.Get("login.back"), MenuButtonStyle.NeutralSlate);
 
-    private readonly MenuButton _signInTab = new(GameText.Get("login.tab.sign_in"), MenuButtonStyle.PrimaryGold);
-    private readonly MenuButton _registerTab = new(GameText.Get("login.tab.register"), MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _toggleMaskBtn = new(GameText.Get("login.show"), MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _submitButton = new(GameText.Get("login.submit"), MenuButtonStyle.SecondaryEmerald);
-    private readonly MenuButton _editGatewayBtn = new(GameText.Get("login.edit"), MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _quitButton = new(GameText.Get("login.quit"), MenuButtonStyle.DangerRed);
+    private Task<AuthenticationResult>? _pendingAuth;
+    private Task<bool>? _pendingRemember;
+    private string _signedInUser = string.Empty;
+    private GameServer _signedInServer;
+    private RectangleF _card;
 
-    private GeometryBatch? _geometryBatch;
-    private BitmapFont? _font;
-    private Texture2D? _whitePixel;
-    private CarbonUiSkin? _uiSkin;
-    private IInputManager? _boundInput;
-
-    private Task<AuthenticationResult>? _pendingAuthTask;
-    private Task? _pendingAutoEnterTask;
-    private bool _registerMode;
-    private bool _showGatewayEditor;
-    private bool _autoStarted;
-    private float _elapsed;
-    private float _backspaceHoldTime;
-    private float _backspaceRepeatTime;
-    private readonly MenuSceneCapture _capture;
-    private readonly CachedText _gatewayText = new();
-    private readonly CachedText _connectingText = new();
-    private string _statusMessage = GameText.Get("login.status.ready");
-    private bool _statusIsError;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="LoginScene"/> class.
-    /// </summary>
-    public LoginScene(IWorldSession session, DesktopOptions options, Camera2D camera)
-        : base("Login")
+    public LoginScene(MenuFlow flow)
+        : base("Login", flow, "login")
     {
-        _session = session ?? throw new ArgumentNullException(nameof(session));
-        _options = options ?? throw new ArgumentNullException(nameof(options));
-        _camera = camera ?? throw new ArgumentNullException(nameof(camera));
-        _capture = new MenuSceneCapture(options, "login");
-
-        _usernameField = new MenuTextField(GameText.Get("login.field.username"), GameText.Get("login.hint.username"), options.Username, isPassword: false, maxLength: 24)
+        _usernameField = new MenuTextField(GameText.Get("login.field.username"), GameText.Get("login.hint.username"), string.Empty, isPassword: false, maxLength: AccountRules.MaxUsername)
         {
-            IsFocused = true,
-            CharacterFilter = static ch => char.IsLetterOrDigit(ch) || ch == '_' || ch == '.',
+            CharacterFilter = AccountRules.IsUsernameChar,
         };
-        _passwordField = new MenuTextField(GameText.Get("login.field.password"), GameText.Get("login.hint.password"), options.Password, isPassword: true, maxLength: 64);
-        _confirmPasswordField = new MenuTextField(GameText.Get("login.field.confirm"), GameText.Get("login.hint.confirm"), string.Empty, isPassword: true, maxLength: 64);
-        _serverField = new MenuTextField(GameText.Get("login.field.server"), "127.0.0.1:57207", $"{options.ServerHost}:{options.ServerTcpPort}", isPassword: false, maxLength: 96);
+        _passwordField = new MenuTextField(GameText.Get("login.field.password"), GameText.Get("login.hint.password"), string.Empty, isPassword: true, maxLength: AccountRules.MaxPassword);
+        _signedInServer = flow.SelectedServer;
+        this.SetStatus(GameText.Get("login.status.sign_in_hint"), isError: false);
+        this.SyncFocus();
+    }
+
+    private bool Busy => _pendingAuth is not null || _pendingRemember is not null;
+
+    /// <inheritdoc/>
+    protected override RectangleF Layout(int width, int height)
+    {
+        const float panelW = 500f;
+        const float panelH = 420f;
+        float px = MathF.Floor((width - panelW) * 0.5f);
+        float py = MathF.Floor((height - panelH) * 0.5f) + 22f;
+        _card = new RectangleF(px, py, panelW, panelH);
+
+        float fx = px + 28f;
+        float fw = panelW - 56f;
+        _usernameField.Bounds = new RectangleF(fx, py + 84f, fw, 38f);
+        _passwordField.Bounds = new RectangleF(fx, py + 158f, fw, 38f);
+        _rememberBox.Bounds = new RectangleF(fx, py + 208f, fw, 30f);
+        _submitButton.Bounds = new RectangleF(fx, py + 252f, fw, 44f);
+        _backButton.Bounds = new RectangleF(fx, py + 308f, 120f, 36f);
+        return _card;
     }
 
     /// <inheritdoc/>
-    public override void Load(SceneContext context)
+    protected override void UpdateMenu(SceneContext context, float dt)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        base.Load(context);
-
-        _geometryBatch = new GeometryBatch(context.Device);
-        (_font, _whitePixel) = GameFontLoader.Load(context.Device);
-        _uiSkin = CarbonUiSkin.Load(context.Device);
-    }
-
-    /// <inheritdoc/>
-    public override void Enter(SceneContext context)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        base.Enter(context);
-
-        this.AttachInput(context.Input);
-
-        if (_options.AutoLogin && !_autoStarted)
+        if (this.CompletePending(context))
         {
-            _autoStarted = true;
-            _statusIsError = false;
-            _statusMessage = GameText.Format("login.status.auto_sign_in", new TextArg("host", _options.ServerHost), new TextArg("port", _options.ServerTcpPort));
-            _pendingAutoEnterTask = _session.InitializeAsync();
+            return;
         }
-        else if (!_autoStarted && string.Equals(_options.CaptureScene, "characters", StringComparison.Ordinal))
-        {
-            // Screenshot review (CARBON_CAPTURE_SCENE=characters): register the configured account and stop at character select.
-            _autoStarted = true;
-            _registerMode = true;
-            _confirmPasswordField.Text = _passwordField.Text;
-            this.BeginAuth();
-        }
-    }
-
-    /// <inheritdoc/>
-    public override void Leave(SceneContext context)
-    {
-        this.DetachInput();
-        base.Leave(context);
-    }
-
-    /// <inheritdoc/>
-    public override void Update(SceneContext context, double dt)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        base.Update(context, dt);
-
-        _elapsed += (float)dt;
-
-        if (_pendingAutoEnterTask is not null && _pendingAutoEnterTask.IsCompleted)
-        {
-            Task completed = _pendingAutoEnterTask;
-            _pendingAutoEnterTask = null;
-            try
-            {
-                completed.GetAwaiter().GetResult();
-                WorldGameplayScene? next = null;
-                try
-                {
-                    next = new WorldGameplayScene(_session, _options, _camera);
-                    context.SceneManager.ChangeScene(next, transitionDuration: 0.15f);
-                    next = null;
-                }
-                finally
-                {
-                    next?.Dispose();
-                }
-
-                return;
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException)
-            {
-                _statusIsError = true;
-                _statusMessage = ex.Message;
-            }
-        }
-
-        if (_pendingAuthTask is not null && _pendingAuthTask.IsCompleted)
-        {
-            Task<AuthenticationResult> completedAuth = _pendingAuthTask;
-            _pendingAuthTask = null;
-            try
-            {
-                AuthenticationResult authResult = completedAuth.GetAwaiter().GetResult();
-                if (authResult.Succeeded)
-                {
-                    CharacterSelectScene? next = null;
-                    try
-                    {
-                        next = new CharacterSelectScene(_session, _options, _camera);
-                        context.SceneManager.ChangeScene(next, transitionDuration: 0.16f);
-                        next = null;
-                    }
-                    finally
-                    {
-                        next?.Dispose();
-                    }
-
-                    return;
-                }
-
-                _statusIsError = true;
-                _statusMessage = authResult.Message;
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException)
-            {
-                _statusIsError = true;
-                _statusMessage = GameText.Format("login.status.auth_error", new TextArg("error", ex.Message));
-            }
-        }
-
-        this.LayoutControls(context.WindowWidth, context.WindowHeight);
 
         KeyboardSnapshot kb = context.Input.Keyboard;
         MouseSnapshot mouse = context.Input.Mouse;
-        bool busy = _pendingAuthTask is not null || _pendingAutoEnterTask is not null;
-
-        if (kb.IsKeyPressed(Key.Escape))
-        {
-            if (this.UnfocusAll())
-            {
-                // First Escape clears active text focus cleanly.
-            }
-            else if (_showGatewayEditor)
-            {
-                _showGatewayEditor = false;
-            }
-            else
-            {
-                context.Window.Close();
-                return;
-            }
-        }
-
-        if (kb.IsKeyPressed(Key.Tab))
-        {
-            bool reverse = kb.IsKeyDown(Key.ShiftLeft) || kb.IsKeyDown(Key.ShiftRight);
-            this.CycleFocus(reverse);
-        }
-
-        this.HandleBackspaceRepeat(kb, (float)dt);
-
+        bool busy = this.Busy;
         bool leftDown = mouse.IsButtonDown(MouseButton.Left);
         bool leftPressed = mouse.IsButtonPressed(MouseButton.Left);
         Vector2 mousePos = mouse.Position;
 
-        _signInTab.IsEnabled = !busy;
-        _registerTab.IsEnabled = !busy;
-        _toggleMaskBtn.IsEnabled = !busy;
+        if (kb.IsKeyPressed(Key.Escape) && !busy)
+        {
+            ChangeTo(context, () => new StartScene(this.Flow));
+            return;
+        }
+
+        if (kb.IsKeyPressed(Key.Tab))
+        {
+            _form.Tab(reverse: kb.IsKeyDown(Key.ShiftLeft) || kb.IsKeyDown(Key.ShiftRight));
+        }
+
+        if (!busy && kb.IsKeyPressed(Key.Space) && _form.Focus == LoginFocus.RememberMe)
+        {
+            _rememberBox.IsChecked = !_rememberBox.IsChecked;
+        }
+
+        if (!busy && leftPressed)
+        {
+            if (_usernameField.Bounds.Contains(mousePos))
+            {
+                _form.Focus = LoginFocus.Username;
+            }
+            else if (_passwordField.Bounds.Contains(mousePos))
+            {
+                _form.Focus = LoginFocus.Password;
+            }
+            else if (_rememberBox.Update(mousePos, leftPressed))
+            {
+                _form.Focus = LoginFocus.RememberMe;
+            }
+        }
+
+        this.SyncFocus();
+        _usernameField.Update(dt, mousePos, leftPressed: false);
+        _passwordField.Update(dt, mousePos, leftPressed: false);
+
         _submitButton.IsEnabled = !busy;
-        _editGatewayBtn.IsEnabled = !busy;
-        _quitButton.IsEnabled = true;
-
-        _signInTab.Style = _registerMode ? MenuButtonStyle.NeutralSlate : MenuButtonStyle.PrimaryGold;
-        _registerTab.Style = _registerMode ? MenuButtonStyle.PrimaryGold : MenuButtonStyle.NeutralSlate;
-        _submitButton.Text = _registerMode ? GameText.Get("login.tab.register") : GameText.Get("login.submit");
-        _submitButton.Style = _registerMode ? MenuButtonStyle.PrimaryGold : MenuButtonStyle.SecondaryEmerald;
-        _editGatewayBtn.Text = _showGatewayEditor ? GameText.Get("login.done") : GameText.Get("login.edit");
-
-        if (_signInTab.Update(mousePos, leftDown, leftPressed) && _registerMode)
+        _backButton.IsEnabled = !busy;
+        if (_backButton.Update(mousePos, leftDown, leftPressed))
         {
-            _registerMode = false;
-            _confirmPasswordField.IsFocused = false;
-            _statusIsError = false;
-            _statusMessage = GameText.Get("login.status.sign_in_hint");
-        }
-        else if (_registerTab.Update(mousePos, leftDown, leftPressed) && !_registerMode)
-        {
-            _registerMode = true;
-            _statusIsError = false;
-            _statusMessage = GameText.Get("login.status.register_hint");
-        }
-
-        if (_toggleMaskBtn.Update(mousePos, leftDown, leftPressed))
-        {
-            bool showPlain = _passwordField.IsPassword;
-            _passwordField.IsPassword = !showPlain;
-            _confirmPasswordField.IsPassword = !showPlain;
-            _toggleMaskBtn.Text = showPlain ? GameText.Get("login.hide") : GameText.Get("login.show");
-        }
-
-        if (_editGatewayBtn.Update(mousePos, leftDown, leftPressed))
-        {
-            _showGatewayEditor = !_showGatewayEditor;
-            if (_showGatewayEditor)
-            {
-                _ = this.UnfocusAll();
-                _serverField.IsFocused = true;
-            }
-            else if (_serverField.IsFocused)
-            {
-                _serverField.IsFocused = false;
-                _usernameField.IsFocused = true;
-            }
-        }
-
-        if (_quitButton.Update(mousePos, leftDown, leftPressed))
-        {
-            context.Window.Close();
+            ChangeTo(context, () => new StartScene(this.Flow));
             return;
         }
 
-        this.UpdateActiveFields((float)dt, mousePos, leftPressed && !busy);
-
-        bool enterSubmit = !busy && (kb.IsKeyPressed(Key.Enter) || kb.IsKeyPressed(Key.KeypadEnter));
-        if (_submitButton.Update(mousePos, leftDown, leftPressed) || enterSubmit)
+        bool enter = kb.IsKeyPressed(Key.Enter) || kb.IsKeyPressed(Key.KeypadEnter);
+        if ((_submitButton.Update(mousePos, leftDown, leftPressed) || enter) && !busy)
         {
-            this.BeginAuth();
-        }
-
-        if (busy)
-        {
-            _statusIsError = false;
-            _statusMessage = _pendingAutoEnterTask is not null
-                ? _connectingText.Format("login.status.entering", new TextArg("host", _options.ServerHost), new TextArg("port", _options.ServerTcpPort))
-                : (_registerMode ? GameText.Get("login.status.registering") : GameText.Get("login.status.signing_in"));
+            this.BeginLogin();
         }
     }
 
     /// <inheritdoc/>
-    public override void Render(SceneContext context, SpriteBatch spriteBatch, double dt)
+    protected override void DrawSkins(SpriteBatch spriteBatch, CarbonUiSkin skin)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(spriteBatch);
-
-        if (_geometryBatch is null || _font is null || _uiSkin is null)
-        {
-            return;
-        }
-
-        int width = context.WindowWidth;
-        int height = context.WindowHeight;
-        if (width <= 0 || height <= 0)
-        {
-            return;
-        }
-
-        context.Device.SetClearColor(new Vector4(0.04f, 0.06f, 0.11f, 1f));
-        context.Device.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-
-        this.LayoutControls(width, height);
-        Matrix4x4 proj = Matrix4x4.CreateOrthographicOffCenter(0f, width, height, 0f, -1f, 1f);
-
-        (float px, float py, float panelW, float panelH) = this.GetPanelRect(width, height);
-        RectangleF card = new(px, py, panelW, panelH);
-        RectangleF gatewayPill = new(px + 28f, py + panelH - 90f, 344f, 34f);
-        RectangleF statusPill = new(px + 28f, py + panelH - 46f, panelW - 56f, 30f);
-
-        // Pass 1: Animated twilight horizon backdrop
-        _geometryBatch.Begin(proj);
-        MenuBackdropRenderer.Draw(_geometryBatch, width, height, _elapsed);
-        _geometryBatch.End();
-
-        // Pass 2: Standardized 9-Slice Ornate Frame, Tabs, Fields & Buttons
-        spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: proj);
-        _uiSkin.DrawWindow(spriteBatch, in card, CarbonUiPalette.BorderOuter, bodyAlpha: 242);
-        _signInTab.DrawSkin(spriteBatch, _uiSkin);
-        _registerTab.DrawSkin(spriteBatch, _uiSkin);
-        _usernameField.DrawSkin(spriteBatch, _uiSkin);
-        _passwordField.DrawSkin(spriteBatch, _uiSkin);
-        _toggleMaskBtn.DrawSkin(spriteBatch, _uiSkin);
-        if (_registerMode)
-        {
-            _confirmPasswordField.DrawSkin(spriteBatch, _uiSkin);
-        }
-
-        _submitButton.DrawSkin(spriteBatch, _uiSkin);
-        if (_showGatewayEditor)
-        {
-            _serverField.DrawSkin(spriteBatch, _uiSkin);
-        }
-        else
-        {
-            _uiSkin.DrawInset(spriteBatch, in gatewayPill, CarbonUiPalette.SlotFill, CarbonUiPalette.BorderSubtle);
-        }
-
-        _editGatewayBtn.DrawSkin(spriteBatch, _uiSkin);
-        _quitButton.DrawSkin(spriteBatch, _uiSkin);
-
-        ColorRgba statusFrame = _statusIsError
-            ? CarbonUiPalette.DangerBorder
-            : CarbonUiPalette.BorderSubtle;
-        _uiSkin.DrawInset(spriteBatch, in statusPill, CarbonUiPalette.SlotFill, statusFrame);
-        spriteBatch.End();
-
-        // Pass 3: Focus cursors & server badge accent
-        _geometryBatch.Begin(proj);
-        _usernameField.DrawCursorGeometry(_geometryBatch, _font);
-        _passwordField.DrawCursorGeometry(_geometryBatch, _font);
-        if (_registerMode)
-        {
-            _confirmPasswordField.DrawCursorGeometry(_geometryBatch, _font);
-        }
-
-        if (_showGatewayEditor)
-        {
-            _serverField.DrawCursorGeometry(_geometryBatch, _font);
-        }
-        else
-        {
-            ColorRgba dotCol = _session.IsConnected ? CarbonUiPalette.StaminaFill : CarbonUiPalette.TextMuted;
-            _geometryBatch.FillCircle(new Vector2(gatewayPill.X + 14f, gatewayPill.Y + 17f), 4f, dotCol, 10);
-        }
-
-        _geometryBatch.End();
-
-        // Pass 4: Crisp Bitmap Typography
-        spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: proj);
-        ColorRgba black = CarbonUiPalette.TextOutline;
-
-        string title = GameText.Get("login.title");
-        TextMeasureResult titleMeasure = _font.MeasureString(title, TextLayoutOptions.Default, 2f);
-        spriteBatch.DrawOutlinedString(_font, title, new Vector2(MathF.Floor((width - titleMeasure.Width) * 0.5f), py - 66f), CarbonUiPalette.TextWarm, black, 2, 2f);
-
-        string subtitle = GameText.Get("login.subtitle");
-        TextMeasureResult subMeasure = _font.MeasureString(subtitle, TextLayoutOptions.Default, 1f);
-        spriteBatch.DrawOutlinedString(_font, subtitle, new Vector2(MathF.Floor((width - subMeasure.Width) * 0.5f), py - 28f), CarbonUiPalette.TextMuted, black, 1, 1f);
-
-        _signInTab.DrawText(spriteBatch, _font);
-        _registerTab.DrawText(spriteBatch, _font);
-        _usernameField.DrawText(spriteBatch, _font);
-        _passwordField.DrawText(spriteBatch, _font);
-        _toggleMaskBtn.DrawText(spriteBatch, _font);
-        if (_registerMode)
-        {
-            _confirmPasswordField.DrawText(spriteBatch, _font);
-        }
-
-        _submitButton.DrawText(spriteBatch, _font);
-        if (_showGatewayEditor)
-        {
-            _serverField.DrawText(spriteBatch, _font);
-        }
-        else
-        {
-            string gwText = CarbonUiSkin.TruncateToWidth(_font, _gatewayText.Format("login.gateway", new TextArg("address", _serverField.Text)), gatewayPill.Width - 36f, 1f);
-            spriteBatch.DrawOutlinedString(_font, gwText, new Vector2(gatewayPill.X + 26f, gatewayPill.Y + 9f), CarbonUiPalette.TextMuted, black, 1, 1f);
-        }
-
-        _editGatewayBtn.DrawText(spriteBatch, _font);
-        _quitButton.DrawText(spriteBatch, _font);
-
-        ColorRgba statusColor = _statusIsError
-            ? new ColorRgba(235, 130, 130, 255)
-            : CarbonUiPalette.TextPrimary;
-        string msg = CarbonUiSkin.TruncateToWidth(_font, _statusMessage, statusPill.Width - 20f, 1f);
-        spriteBatch.DrawOutlinedString(_font, msg, new Vector2(statusPill.X + 10f, statusPill.Y + 7f), statusColor, black, 1, 1f);
-        spriteBatch.End();
-
-        base.Render(context, spriteBatch, dt);
-
-        _capture.AfterRender(context, ready: true);
+        _usernameField.DrawSkin(spriteBatch, skin);
+        _passwordField.DrawSkin(spriteBatch, skin);
+        _rememberBox.DrawSkin(spriteBatch, skin);
+        _submitButton.DrawSkin(spriteBatch, skin);
+        _backButton.DrawSkin(spriteBatch, skin);
     }
 
     /// <inheritdoc/>
-    protected override void Dispose(bool disposing)
+    protected override void DrawGeometry(GeometryBatch geometry, BitmapFont font)
     {
-        if (disposing)
-        {
-            this.DetachInput();
-            _uiSkin?.Dispose();
-            _uiSkin = null;
-            _geometryBatch?.Dispose();
-            _geometryBatch = null;
-            _font?.Dispose();
-            _font = null;
-            _whitePixel?.Dispose();
-            _whitePixel = null;
-        }
-
-        base.Dispose(disposing);
+        _usernameField.DrawCursorGeometry(geometry, font);
+        _passwordField.DrawCursorGeometry(geometry, font);
+        _rememberBox.DrawGeometry(geometry);
     }
 
-    private (float Px, float Py, float PanelW, float PanelH) GetPanelRect(int width, int height)
+    /// <inheritdoc/>
+    protected override void DrawTexts(SpriteBatch spriteBatch, BitmapFont font)
     {
-        const float panelW = 540f;
-        float panelH = _registerMode ? 496f : 434f;
-        if (_showGatewayEditor)
-        {
-            panelH += 34f;
-        }
-
-        float px = MathF.Floor((width - panelW) * 0.5f);
-        float py = MathF.Floor((height - panelH) * 0.5f) + 22f;
-        return (px, py, panelW, panelH);
+        spriteBatch.DrawOutlinedString(font, GameText.Get("login.header.login"), new Vector2(_card.X + 28f, _card.Y + 24f), CarbonUiPalette.TextWarm, CarbonUiPalette.TextOutline, 1, 1f);
+        _usernameField.DrawText(spriteBatch, font);
+        _passwordField.DrawText(spriteBatch, font);
+        _rememberBox.DrawText(spriteBatch, font);
+        _submitButton.DrawText(spriteBatch, font);
+        _backButton.DrawText(spriteBatch, font);
     }
 
-    private void LayoutControls(int width, int height)
+    /// <inheritdoc/>
+    protected override void OnCharacter(char ch)
     {
-        (float px, float py, float panelW, float panelH) = this.GetPanelRect(width, height);
-        float fieldX = px + 28f;
-        float fieldW = panelW - 56f;
-
-        _signInTab.Bounds = new RectangleF(fieldX, py + 22f, 236f, 38f);
-        _registerTab.Bounds = new RectangleF(fieldX + 248f, py + 22f, 236f, 38f);
-
-        _usernameField.Bounds = new RectangleF(fieldX, py + 98f, fieldW, 38f);
-        _passwordField.Bounds = new RectangleF(fieldX, py + 172f, fieldW - 76f, 38f);
-        _toggleMaskBtn.Bounds = new RectangleF(fieldX + fieldW - 68f, py + 172f, 68f, 38f);
-
-        float nextY = py + 230f;
-        if (_registerMode)
-        {
-            _confirmPasswordField.Bounds = new RectangleF(fieldX, py + 246f, fieldW, 38f);
-            nextY = py + 302f;
-        }
-
-        _submitButton.Bounds = new RectangleF(fieldX, nextY, fieldW, 44f);
-
-        if (_showGatewayEditor)
-        {
-            _serverField.Bounds = new RectangleF(fieldX, py + panelH - 96f, 344f, 36f);
-            _editGatewayBtn.Bounds = new RectangleF(fieldX + 352f, py + panelH - 96f, 68f, 36f);
-            _quitButton.Bounds = new RectangleF(fieldX + 426f, py + panelH - 96f, 58f, 36f);
-        }
-        else
-        {
-            _editGatewayBtn.Bounds = new RectangleF(fieldX + 352f, py + panelH - 90f, 68f, 34f);
-            _quitButton.Bounds = new RectangleF(fieldX + 426f, py + panelH - 90f, 58f, 34f);
-        }
-    }
-
-    private void BeginAuth()
-    {
-        if (!TryParseEndpoint(_serverField.Text, _options.ServerTcpPort, out string host, out ushort port))
-        {
-            _statusIsError = true;
-            _statusMessage = GameText.Get("login.error.invalid_gateway");
-            return;
-        }
-
-        string user = _usernameField.Text.Trim();
-        string pass = _passwordField.Text;
-        if (user.Length < 3 || user.Length > 24)
-        {
-            _statusIsError = true;
-            _statusMessage = GameText.Get("login.error.username_length");
-            return;
-        }
-
-        if (pass.Length < 6)
-        {
-            _statusIsError = true;
-            _statusMessage = GameText.Get("login.error.password_length");
-            return;
-        }
-
-        if (_registerMode && !string.Equals(pass, _confirmPasswordField.Text, StringComparison.Ordinal))
-        {
-            _statusIsError = true;
-            _statusMessage = GameText.Get("login.error.password_mismatch");
-            return;
-        }
-
-        _pendingAuthTask = _registerMode
-            ? _session.RegisterAsync(host, port, user, pass)
-            : _session.LoginAsync(host, port, user, pass);
-    }
-
-    private void UpdateActiveFields(float dt, Vector2 mousePos, bool allowFocusClick)
-    {
-        _usernameField.Update(dt, mousePos, allowFocusClick);
-        _passwordField.Update(dt, mousePos, allowFocusClick);
-        if (_registerMode)
-        {
-            _confirmPasswordField.Update(dt, mousePos, allowFocusClick);
-        }
-        else
-        {
-            _confirmPasswordField.IsFocused = false;
-        }
-
-        if (_showGatewayEditor)
-        {
-            _serverField.Update(dt, mousePos, allowFocusClick);
-        }
-        else
-        {
-            _serverField.IsFocused = false;
-        }
-    }
-
-    private bool UnfocusAll()
-    {
-        bool any = _usernameField.IsFocused || _passwordField.IsFocused || _confirmPasswordField.IsFocused || _serverField.IsFocused;
-        _usernameField.IsFocused = false;
-        _passwordField.IsFocused = false;
-        _confirmPasswordField.IsFocused = false;
-        _serverField.IsFocused = false;
-        return any;
-    }
-
-    private void CycleFocus(bool reverse)
-    {
-        MenuTextField[] active = (_registerMode, _showGatewayEditor) switch
-        {
-            (true, true) => [_usernameField, _passwordField, _confirmPasswordField, _serverField],
-            (true, false) => [_usernameField, _passwordField, _confirmPasswordField],
-            (false, true) => [_usernameField, _passwordField, _serverField],
-            (false, false) => [_usernameField, _passwordField],
-        };
-
-        int focusedIdx = -1;
-        for (int i = 0; i < active.Length; i++)
-        {
-            if (active[i].IsFocused)
-            {
-                focusedIdx = i;
-                active[i].IsFocused = false;
-                break;
-            }
-        }
-
-        int next = focusedIdx < 0
-            ? 0
-            : (reverse ? (focusedIdx + active.Length - 1) % active.Length : (focusedIdx + 1) % active.Length);
-        active[next].IsFocused = true;
-    }
-
-    private void HandleBackspaceRepeat(in KeyboardSnapshot kb, float dt)
-    {
-        if (kb.IsKeyPressed(Key.Backspace))
-        {
-            this.ApplyBackspace();
-            _backspaceHoldTime = 0f;
-            _backspaceRepeatTime = 0f;
-            return;
-        }
-
-        if (kb.IsKeyDown(Key.Backspace))
-        {
-            _backspaceHoldTime += dt;
-            if (_backspaceHoldTime >= 0.38f)
-            {
-                _backspaceRepeatTime += dt;
-                if (_backspaceRepeatTime >= 0.055f)
-                {
-                    _backspaceRepeatTime = 0f;
-                    this.ApplyBackspace();
-                }
-            }
-        }
-        else
-        {
-            _backspaceHoldTime = 0f;
-            _backspaceRepeatTime = 0f;
-        }
-    }
-
-    private void ApplyBackspace()
-    {
-        _usernameField.Backspace();
-        _passwordField.Backspace();
-        _confirmPasswordField.Backspace();
-        _serverField.Backspace();
-    }
-
-    private void OnCharacterReceived(char ch)
-    {
-        if (_pendingAuthTask is not null || _pendingAutoEnterTask is not null)
+        if (this.Busy)
         {
             return;
         }
 
         _usernameField.AppendChar(ch);
         _passwordField.AppendChar(ch);
-        if (_registerMode)
-        {
-            _confirmPasswordField.AppendChar(ch);
-        }
-
-        if (_showGatewayEditor)
-        {
-            _serverField.AppendChar(ch);
-        }
     }
 
-    private void AttachInput(IInputManager input)
+    /// <inheritdoc/>
+    protected override void OnBackspace()
     {
-        this.DetachInput();
-        _boundInput = input;
-        _boundInput.CharacterReceived += this.OnCharacterReceived;
+        _usernameField.Backspace();
+        _passwordField.Backspace();
     }
 
-    private void DetachInput()
+    private void SyncFocus()
     {
-        if (_boundInput is { } bound)
-        {
-            bound.CharacterReceived -= this.OnCharacterReceived;
-            _boundInput = null;
-        }
+        _usernameField.IsFocused = _form.Focus == LoginFocus.Username;
+        _passwordField.IsFocused = _form.Focus == LoginFocus.Password;
+        _rememberBox.IsFocused = _form.Focus == LoginFocus.RememberMe;
+        _submitButton.IsFocused = _form.Focus == LoginFocus.Submit;
     }
 
-    private static bool TryParseEndpoint(string raw, ushort defaultPort, out string host, out ushort port)
+    private void BeginLogin()
     {
-        host = string.Empty;
-        port = defaultPort > 0 ? defaultPort : (ushort)57207;
-
-        string trimmed = raw?.Trim() ?? string.Empty;
-        if (trimmed.Length == 0)
+        _form.Username = _usernameField.Text;
+        _form.Password = _passwordField.Text;
+        _form.RememberMe = _rememberBox.IsChecked;
+        if (_form.Validate() is { } errorKey)
         {
-            return false;
+            this.SetStatus(GameText.Get(errorKey), isError: true);
+            return;
         }
 
-        int colonIdx = trimmed.LastIndexOf(':');
-        if (colonIdx > 0 && colonIdx < trimmed.Length - 1 &&
-            ushort.TryParse(trimmed[(colonIdx + 1)..], NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort parsedPort) &&
-            parsedPort > 0)
+        GameServer server = this.Flow.SelectedServer;
+        _signedInUser = _form.Username.Trim();
+        _signedInServer = server;
+        this.SetStatus(GameText.Get("login.status.signing_in"), isError: false);
+        _pendingAuth = this.SignInAsync(server, _signedInUser, _form.Password, _form.RememberMe);
+    }
+
+    /// <summary>
+    /// Signs in. Without "Remember me", an account remembered earlier is forgotten first (its token revoked), one request
+    /// at a time on the session.
+    /// </summary>
+    private async Task<AuthenticationResult> SignInAsync(GameServer server, string username, string password, bool remember)
+    {
+        if (!remember)
         {
-            host = trimmed[..colonIdx].Trim();
-            port = parsedPort;
-            return host.Length > 0;
+            await this.Flow.ForgetAsync(this.Flow.Accounts.Load()).ConfigureAwait(false);
         }
 
-        host = trimmed;
-        return host.Length > 0;
+        return await this.Flow.Session.LoginAsync(server.Host, server.Port, username, password).ConfigureAwait(false);
+    }
+
+    /// <summary>Finishes sign-in and the remember-me step; returns whether the scene changed.</summary>
+    private bool CompletePending(SceneContext context)
+    {
+        if (_pendingAuth is { IsCompleted: true } auth)
+        {
+            _pendingAuth = null;
+            AuthenticationResult result;
+            try
+            {
+                result = auth.GetAwaiter().GetResult();
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                Console.Error.WriteLine($"[Auth] Sign-in failed: {ex.Message}");
+                this.SetStatus(GameText.Get("login.status.auth_error"), isError: true);
+                return false;
+            }
+
+            if (!result.Succeeded)
+            {
+                this.SetStatus(result.Message, isError: true);
+                return false;
+            }
+
+            // The password was needed only for this sign-in; clear the field.
+            _passwordField.Text = string.Empty;
+            if (!_form.RememberMe)
+            {
+                ChangeTo(context, () => new CharacterSelectScene(this.Flow));
+                return true;
+            }
+
+            _pendingRemember = this.Flow.RememberAsync(_signedInUser, _signedInServer);
+        }
+
+        if (_pendingRemember is { IsCompleted: true } remember)
+        {
+            _pendingRemember = null;
+            try
+            {
+                if (!remember.GetAwaiter().GetResult())
+                {
+                    Console.Error.WriteLine("[Auth] The server did not issue a remember-me token.");
+                }
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                // Signed in all the same; the player is asked for the password next time.
+                Console.Error.WriteLine($"[Auth] Could not remember the sign-in: {ex.Message}");
+            }
+
+            ChangeTo(context, () => new CharacterSelectScene(this.Flow));
+            return true;
+        }
+
+        return false;
     }
 }

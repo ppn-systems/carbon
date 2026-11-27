@@ -56,7 +56,7 @@ internal sealed class DeathSession(Func<Task<OpStatus>> sendRespawnRequest, Func
         string? killerKey = packet.Cause == DeathCause.Monster ? _monsterNameKey(packet.KillerArchetypeId) : null;
         lock (_gate)
         {
-            _death = new DeathView(packet.Cause, packet.KillerArchetypeId, packet.GoldDropped, killerKey);
+            _death = new DeathView(packet.Cause, packet.KillerArchetypeId, killerKey);
             _pending = false;
         }
     }

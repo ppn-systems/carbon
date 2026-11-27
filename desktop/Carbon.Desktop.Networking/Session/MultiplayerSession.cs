@@ -28,6 +28,7 @@ using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.World;
 using Carbon.Survival.Stamina;
+using Nalix.Abstractions.Primitives;
 using Nalix.SDK.Transport;
 
 namespace Carbon.Desktop.Networking.Session;
@@ -93,6 +94,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     private ushort _reconnectPort;
     private string _lastUsername = string.Empty;
     private string _lastPassword = string.Empty;
+    private Bytes32 _lastToken;
     private Guid _activeCharacterId;
     private volatile bool _autoReconnectEnabled;
     private bool _wasTcpConnectedLastFrame;
@@ -574,10 +576,10 @@ public sealed partial class MultiplayerSession : IWorldSession
     public byte LocalPlayerAppearancePreset => _localAppearancePreset;
 
     /// <inheritdoc/>
-    public string TransportLabel =>
+    public string ConnectionLabel =>
         !this.IsConnected
             ? (Volatile.Read(ref _tcpReconnectInFlight) != 0 ? GameText.Get("net.status_reconnecting") : GameText.Get("net.status_offline"))
-            : (this.IsUdpActive ? "TCP+UDP" : "TCP");
+            : GameText.Get("net.status_online");
 
     /// <inheritdoc/>
     public ulong WorldSeed => _worldSeed;
@@ -866,6 +868,7 @@ public sealed partial class MultiplayerSession : IWorldSession
         _activeCharacterId = Guid.Empty;
         _lastUsername = string.Empty;
         _lastPassword = string.Empty;
+        Bytes32.Wipe(ref _lastToken);
         await this.TearDownTransportsAsync().ConfigureAwait(false);
         this.ClearWorldState();
         if (_sessionCts is not null)

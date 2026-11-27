@@ -14,6 +14,6 @@ public interface IConnectionStatus
     /// <summary>Gets a value indicating whether the authenticated UDP fast channel is connected.</summary>
     bool IsUdpActive { get; }
 
-    /// <summary>Gets the active transport label (<c>TCP+UDP</c>, <c>TCP</c>, <c>RECONNECTING</c>, or <c>OFFLINE</c>).</summary>
-    string TransportLabel { get; }
+    /// <summary>Gets the localized, player-facing connection state (online, reconnecting or offline); never a transport name.</summary>
+    string ConnectionLabel { get; }
 }

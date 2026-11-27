@@ -170,18 +170,10 @@ internal sealed class PlayerActionService
                 ? archetype
                 : null;
 
-        // ADR-033: every swing (melee, tool, bare hand, bow) is paid up front, hit or miss. A swing the player cannot
-        // afford is refused: no cooldown, no damage, no wear.
-        if (placeable is null && !_stamina.TrySpend(state, _stamina.GetSwingCost(this.Rules, in activeSlot)))
-        {
-            return;
-        }
-
-        state.Cooldowns.StartCooldown(AttackAbilityId, this.Tick, _needs.ScaleAttackCooldown(state.Entity, GetAttackCooldownTicks(_tickRate, state.Stats.AttackSpeedMultiplier)));
-
         Vector2 attackerPos = _simulation.Entities.GetTransform(state.Entity).Position;
         if (placeable is not null)
         {
+            state.Cooldowns.StartCooldown(AttackAbilityId, this.Tick, this.AttackCooldownTicks(state));
             _host.UsePlaceable(state, attackerPos, activeSlot, placeable);
             return;
         }
@@ -189,18 +181,35 @@ internal sealed class PlayerActionService
         Vector2 rawAim = state.PendingAttackAim - attackerPos;
         Vector2 aimDir = rawAim.LengthSquared() > 1e-4f ? Vector2.Normalize(rawAim) : Vector2.UnitX;
 
-        if (activeSlot.Quantity > 0 &&
+        ItemArchetype? rangedDef = activeSlot.Quantity > 0 &&
             this.Rules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? weaponDef) &&
-            weaponDef.ProjectileSpeed > 0f)
+            weaponDef.ProjectileSpeed > 0f
+                ? weaponDef
+                : null;
+
+        int hitCount = rangedDef is null ? this.FindMeleeTargets(state, in activeSlot, attackerPos, aimDir) : 0;
+
+        // ADR-033 amendment: a melee, tool or bare-hand swing pays only when it reaches a target (a monster, or a prop or
+        // structure in reach). A whiff is free but still starts the cooldown. A shot pays on release: the shot is spent.
+        // A paid swing the player cannot afford is refused: no cooldown, no damage, no wear.
+        bool connects = rangedDef is not null || hitCount > 0 || _props.HasStrikeTarget(state, attackerPos, aimDir);
+        if (connects && !_stamina.TrySpend(state, _stamina.GetSwingCost(this.Rules, in activeSlot)))
         {
-            if (weaponDef.AttackManaCost > 0f)
+            return;
+        }
+
+        state.Cooldowns.StartCooldown(AttackAbilityId, this.Tick, this.AttackCooldownTicks(state));
+
+        if (rangedDef is not null)
+        {
+            if (rangedDef.AttackManaCost > 0f)
             {
-                if (state.CurrentMana < weaponDef.AttackManaCost)
+                if (state.CurrentMana < rangedDef.AttackManaCost)
                 {
                     return;
                 }
 
-                state.CurrentMana = MathF.Max(0f, state.CurrentMana - weaponDef.AttackManaCost);
+                state.CurrentMana = MathF.Max(0f, state.CurrentMana - rangedDef.AttackManaCost);
                 state.StatsDirty = true;
             }
 
@@ -208,7 +217,7 @@ internal sealed class PlayerActionService
             bool rangedCrit = this.RollCritical(state);
 
             // Staffs (MagicFocus) scale with spell power, bows with physical attack (ADR-021 D4).
-            float rangedScale = weaponDef.Capabilities.HasFlag(ToolCapabilities.MagicFocus) ? state.Stats.SpellPowerMultiplier : state.Stats.AttackMultiplier;
+            float rangedScale = rangedDef.Capabilities.HasFlag(ToolCapabilities.MagicFocus) ? state.Stats.SpellPowerMultiplier : state.Stats.AttackMultiplier;
             float finalRangedDmg = CombatRoll.ApplyCritical(rangedEval.Damage * rangedScale, rangedCrit, state.Stats.CritDamage);
 
             if (this.WearActiveTool(state, in activeSlot, 0.8f, out ItemSlot degradedRanged))
@@ -219,22 +228,52 @@ internal sealed class PlayerActionService
                     degradedRanged));
             }
 
-            _combat.QueueSkillCast(attackerPos, aimDir, state.Session.PlayerNetworkId, AbilityInputEncoding.EncodePlayerProjectileCast(weaponDef.ProjectileArchetype));
+            _combat.QueueSkillCast(attackerPos, aimDir, state.Session.PlayerNetworkId, AbilityInputEncoding.EncodePlayerProjectileCast(rangedDef.ProjectileArchetype));
 
-            uint lifeTicks = (uint)Math.Max(12, MathF.Ceiling(weaponDef.AttackRange / weaponDef.ProjectileSpeed * _tickRate));
+            uint lifeTicks = (uint)Math.Max(12, MathF.Ceiling(rangedDef.AttackRange / rangedDef.ProjectileSpeed * _tickRate));
             _ = _projectiles.Spawn(
                 state.Session.PlayerNetworkId,
                 state.Session.ConnectionId,
                 fromPlayer: true,
                 attackerPos + (aimDir * 10f),
-                aimDir * weaponDef.ProjectileSpeed,
-                weaponDef.ProjectileArchetype,
+                aimDir * rangedDef.ProjectileSpeed,
+                rangedDef.ProjectileArchetype,
                 finalRangedDmg,
                 rangedCrit,
                 lifeTicks);
             return;
         }
 
+        if (hitCount == 0)
+        {
+            _props.SwingAtWorld(state, attackerPos, aimDir, in activeSlot);
+            return;
+        }
+
+        CombatStrikeEvaluation combatEval = ToolUsagePolicy.EvaluateCombatStrike(this.Rules, in activeSlot);
+        bool isCrit = combatEval.Outcome == ToolStrikeOutcome.Optimal &&
+            this.RollCritical(state);
+        float finalDamage = CombatRoll.ApplyCritical(combatEval.Damage * state.Stats.AttackMultiplier, isCrit, state.Stats.CritDamage);
+
+        bool anyDamaged = _combat.ApplyMonsterHits(state, attackerPos, aimDir, _hitScratch.AsSpan(0, hitCount), finalDamage, isCrit, knockbackSpeed: 135f);
+
+        if (anyDamaged &&
+            combatEval.DurabilityLoss > 0f &&
+            this.WearActiveTool(state, in activeSlot, combatEval.DurabilityLoss, out ItemSlot degradedCombatSlot))
+        {
+            _outbound.Pending.SlotChanges.Add(new OutboundSlotChange(
+                state.Session.ConnectionId,
+                state.Session.SelectedHotbarSlot,
+                degradedCombatSlot));
+        }
+    }
+
+    private uint AttackCooldownTicks(PlayerState state) =>
+        _needs.ScaleAttackCooldown(state.Entity, GetAttackCooldownTicks(_tickRate, state.Stats.AttackSpeedMultiplier));
+
+    /// <summary>Fills <c>_hitScratch</c> with the monsters a melee swing reaches; returns how many.</summary>
+    private int FindMeleeTargets(PlayerState state, in ItemSlot activeSlot, Vector2 attackerPos, Vector2 aimDir)
+    {
         float meleeRange = MeleeStrikeRangePx;
         if (!activeSlot.IsEmpty && this.Rules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? meleeDef) && meleeDef.Capabilities.HasFlag(ToolCapabilities.MeleeWeapon))
         {
@@ -263,28 +302,7 @@ internal sealed class PlayerActionService
             hitCount = 1;
         }
 
-        if (hitCount == 0)
-        {
-            _props.SwingAtWorld(state, attackerPos, aimDir, in activeSlot);
-            return;
-        }
-
-        CombatStrikeEvaluation combatEval = ToolUsagePolicy.EvaluateCombatStrike(this.Rules, in activeSlot);
-        bool isCrit = combatEval.Outcome == ToolStrikeOutcome.Optimal &&
-            this.RollCritical(state);
-        float finalDamage = CombatRoll.ApplyCritical(combatEval.Damage * state.Stats.AttackMultiplier, isCrit, state.Stats.CritDamage);
-
-        bool anyDamaged = _combat.ApplyMonsterHits(state, attackerPos, aimDir, _hitScratch.AsSpan(0, hitCount), finalDamage, isCrit, knockbackSpeed: 135f);
-
-        if (anyDamaged &&
-            combatEval.DurabilityLoss > 0f &&
-            this.WearActiveTool(state, in activeSlot, combatEval.DurabilityLoss, out ItemSlot degradedCombatSlot))
-        {
-            _outbound.Pending.SlotChanges.Add(new OutboundSlotChange(
-                state.Session.ConnectionId,
-                state.Session.SelectedHotbarSlot,
-                degradedCombatSlot));
-        }
+        return hitCount;
     }
 
     /// <summary>

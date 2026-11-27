@@ -43,6 +43,7 @@ namespace Carbon.Desktop.Scenes;
 /// </summary>
 public sealed class WorldGameplayScene : GameScene
 {
+    private readonly MenuFlow _flow;
     private readonly IWorldSession _session;
     private readonly DesktopOptions _options;
     private readonly ScreenshotAids _screenshotAids;
@@ -76,19 +77,21 @@ public sealed class WorldGameplayScene : GameScene
     /// <summary>
     /// Initializes a new instance of the <see cref="WorldGameplayScene"/> class.
     /// </summary>
-    /// <param name="session">Initialized online client world session.</param>
-    /// <param name="options">Client runtime options.</param>
-    /// <param name="camera">Shared 2D orthographic camera.</param>
-    public WorldGameplayScene(IWorldSession session, DesktopOptions options, Camera2D camera)
+    /// <param name="flow">Menu flow holding the initialized session, options and shared camera.</param>
+    internal WorldGameplayScene(MenuFlow flow)
         : base("WorldGameplay")
     {
-        _session = session ?? throw new ArgumentNullException(nameof(session));
-        _options = options ?? throw new ArgumentNullException(nameof(options));
+        _flow = flow ?? throw new ArgumentNullException(nameof(flow));
+        IWorldSession session = flow.Session;
+        DesktopOptions options = flow.Options;
+        Camera2D camera = flow.Camera;
+        _session = session;
+        _options = options;
         _screenshotAids = new ScreenshotAids(_options);
         _capture = new AutoCapture(options);
         _inventoryInput = new InventoryInputController(_session);
         _interaction = new InteractionController(_session);
-        _camera = camera ?? throw new ArgumentNullException(nameof(camera));
+        _camera = camera;
         _worldToScreen = world => _camera.WorldToScreen(in world);
     }
 
@@ -153,13 +156,13 @@ public sealed class WorldGameplayScene : GameScene
                 }
                 catch (Exception ex) when (ex is not OutOfMemoryException)
                 {
-                    // Proceed cleanly back to LoginScene.
+                    // Proceed cleanly back to the start screen.
                 }
 
-                LoginScene? next = null;
+                StartScene? next = null;
                 try
                 {
-                    next = new LoginScene(_session, _options, _camera);
+                    next = new StartScene(_flow);
                     context.SceneManager.ChangeScene(next, transitionDuration: 0.16f);
                     next = null;
                 }
@@ -247,7 +250,7 @@ public sealed class WorldGameplayScene : GameScene
                     }
                     else if (act == SettingsModalAction.Logout)
                     {
-                        _pendingLogoutTask = _session.LogoutAsync();
+                        _pendingLogoutTask = _flow.SignOutAsync();
                     }
                     else if (act == SettingsModalAction.Quit)
                     {
@@ -874,13 +877,13 @@ public sealed class WorldGameplayScene : GameScene
 
         // The title is rebuilt (and sent to the OS) only when something it shows changes, not every frame
         // (audit round 2, PERF-6).
-        WindowTitleKey titleKey = new(_session.TransportLabel, _session.ActiveCharacterName, biomeDisplayName, currentTile.HeightLevel, walkability, currentRamp, roofed, _session.RemoteEntities.Count);
+        WindowTitleKey titleKey = new(_session.ConnectionLabel, _session.ActiveCharacterName, biomeDisplayName, currentTile.HeightLevel, walkability, currentRamp, roofed, _session.RemoteEntities.Count);
         if (titleKey != _lastTitleKey)
         {
             _lastTitleKey = titleKey;
             string rampText = currentRamp != RampDirection.None ? $" [Ramp: {currentRamp}]" : string.Empty;
             string roofText = roofed ? " [Roofed Room]" : string.Empty;
-            window.Title = $"Carbon MMORPG ({_session.TransportLabel}) | {_session.ActiveCharacterName} | Biome: {biomeDisplayName} | Alt: Lvl {currentTile.HeightLevel} | Nav: {walkability}{rampText}{roofText} | Peers: {_session.RemoteEntities.Count}";
+            window.Title = $"Carbon MMORPG ({_session.ConnectionLabel}) | {_session.ActiveCharacterName} | Biome: {biomeDisplayName} | Alt: Lvl {currentTile.HeightLevel} | Nav: {walkability}{rampText}{roofText} | Peers: {_session.RemoteEntities.Count}";
         }
 
         int chunkX = Chunk2D.ToChunkCoord(ptx);

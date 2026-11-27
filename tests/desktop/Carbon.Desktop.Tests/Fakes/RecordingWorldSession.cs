@@ -113,7 +113,7 @@ internal sealed class RecordingWorldSession : IWorldSession
     // ---- Everything below is outside inventory input and deliberately unsupported. ----
     public bool IsConnected => Unused<bool>();
     public bool IsUdpActive => Unused<bool>();
-    public string TransportLabel => Unused<string>();
+    public string ConnectionLabel => Unused<string>();
     public string ActiveCharacterName => Unused<string>();
     public byte LocalPlayerAppearancePreset => Unused<byte>();
     public bool IsAuthenticated => Unused<bool>();
@@ -182,6 +182,9 @@ internal sealed class RecordingWorldSession : IWorldSession
     public BuildResultCode PreviewPlacement(int tileX, int tileY, StructureType type, StructureRotation rotation, out int width, out int height) => throw NotUsed();
     public Task<AuthenticationResult> LoginAsync(string host, ushort tcpPort, string username, string password, CancellationToken ct = default) => Unused<Task<AuthenticationResult>>();
     public Task<AuthenticationResult> RegisterAsync(string host, ushort tcpPort, string username, string password, CancellationToken ct = default) => Unused<Task<AuthenticationResult>>();
+    public Task<AuthenticationResult> LoginWithTokenAsync(string host, ushort tcpPort, Nalix.Abstractions.Primitives.Bytes32 token, CancellationToken ct = default) => Unused<Task<AuthenticationResult>>();
+    public Task<RememberTokenGrant?> RequestRememberTokenAsync(CancellationToken ct = default) => Unused<Task<RememberTokenGrant?>>();
+    public Task RevokeRememberTokenAsync(string host, ushort tcpPort, Nalix.Abstractions.Primitives.Bytes32 token, CancellationToken ct = default) => Unused<Task>();
     public Task LogoutAsync(CancellationToken ct = default) => Unused<Task>();
     public Task InitializeAsync(CancellationToken ct = default) => Unused<Task>();
     public Task<IReadOnlyList<CharacterRosterEntry>> ListCharactersAsync(CancellationToken ct = default) => Unused<Task<IReadOnlyList<CharacterRosterEntry>>>();

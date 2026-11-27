@@ -233,7 +233,7 @@ internal sealed class CharacterSheetModalWidget
                 new TextArg("x", ptx),
                 new TextArg("y", pty),
                 new TextArg("fps", (long)fps),
-                new TextArg("net", world.TransportLabel));
+                new TextArg("net", world.ConnectionLabel));
             spriteBatch.DrawOutlinedString(font, telemetry, new Vector2(leftCard.X + MathF.Round(12f * s), leftCard.Bottom - MathF.Round(22f * s)), CarbonUiPalette.TextMuted, black, 1, ts);
         }
 

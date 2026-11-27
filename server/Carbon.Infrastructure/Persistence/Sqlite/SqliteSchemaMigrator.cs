@@ -92,6 +92,18 @@ public sealed class SqliteSchemaMigrator : IDatabaseMigrator
         );
         """;
 
+    // ADR-037: remember-me tokens. Only the SHA-256 of a token is stored; deleting the row revokes it.
+    private const string RememberTokensSql = """
+        CREATE TABLE IF NOT EXISTS remember_tokens (
+            token_hash        BLOB    NOT NULL PRIMARY KEY,
+            account_id        TEXT    NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+            created_at_utc    INTEGER NOT NULL,
+            expires_at_utc    INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS ix_remember_tokens_account_id ON remember_tokens(account_id);
+        """;
+
     private readonly SqliteConnectionFactory _factory;
 
     /// <summary>
@@ -388,6 +400,9 @@ public sealed class SqliteSchemaMigrator : IDatabaseMigrator
                 ("status_effects", "TEXT NOT NULL DEFAULT ''"),
             ],
             ct).ConfigureAwait(false);
+
+        // ADR-037: remember-me token hashes.
+        await ApplyDdlMigrationAsync(conn, tx, "0020_remember_tokens", RememberTokensSql, ct).ConfigureAwait(false);
 
         await tx.CommitAsync(ct).ConfigureAwait(false);
     }

@@ -100,8 +100,8 @@ internal sealed class ScreenshotAids(DesktopOptions options)
 
         if (hud is not null && string.Equals(options.UiPreview, "death", StringComparison.Ordinal))
         {
-            // ADR-031 death screen review: a sample slime kill that dropped 1,250 gold (visual only, nothing is sent).
-            hud.DeathPreview = new DeathView(DeathCause.Monster, 0, 1_250L, "monster.wild_slime.name");
+            // ADR-031 death screen review: a sample slime kill (visual only, nothing is sent).
+            hud.DeathPreview = new DeathView(DeathCause.Monster, 0, "monster.wild_slime.name");
             return null;
         }
 
@@ -156,7 +156,7 @@ internal sealed class ScreenshotAids(DesktopOptions options)
             return null;
         }
 
-        Vector2 centre = HudOverlayRenderer.GetStatusIconCenter(index, viewportWidth);
+        Vector2 centre = hud.GetStatusIconCenter(index, viewportWidth);
         if (preview.StartsWith("status-details", StringComparison.Ordinal))
         {
             if (!hud.IsStatusEffectDetailsOpen)

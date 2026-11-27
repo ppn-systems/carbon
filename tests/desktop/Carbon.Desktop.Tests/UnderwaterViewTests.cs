@@ -103,7 +103,7 @@ public sealed class UnderwaterViewTests
         bar.Bottom.Should().BeLessThan(vitals.Y, "the bar sits above the vitals");
         (vitals.Y - bar.Bottom).Should().BeLessThan(12f, "and close enough to read as one of them");
         Overlaps(bar, hotbar).Should().BeFalse();
-        Overlaps(bar, HudLayout.GetStatusStripRect(width)).Should().BeFalse();
+        Overlaps(bar, HudLayout.GetStatusStripRect(width, showMinimap: true, StatusEffectStripLayout.MaxRows)).Should().BeFalse();
         Overlaps(bar, HudLayout.GetMinimapFrameRect(width)).Should().BeFalse();
         (bar.X + (bar.Width * 0.5f)).Should().BeApproximately(width * 0.5f, 1f, "the bar is centred like the vitals");
     }

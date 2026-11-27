@@ -121,4 +121,19 @@ public static class ItemOpCode
 
     /// <summary>S2C: the owner's item is about to break, or broke and was destroyed (ADR-035).</summary>
     public const ushort ItemDurabilityAlert = 0x4090;
+
+    // ── Remember-me sign-in (0x40A0–0x40A7, ADR-037) ───────────────────────
+    // Account packets: these ids were allocated to ADR-037, and the band guard ties each band to its assembly, so they live here.
+
+    /// <summary>C2S: a signed-in player asks for a remember-me token for this device (ADR-037).</summary>
+    public const ushort RememberTokenRequest = 0x40A0;
+
+    /// <summary>S2C: reply to <see cref="RememberTokenRequest"/> with the new token (ADR-037).</summary>
+    public const ushort RememberTokenResult = 0x40A1;
+
+    /// <summary>C2S: sign in with a remember-me token instead of a password; answered with an <c>AuthResult</c> (ADR-037).</summary>
+    public const ushort TokenSignInRequest = 0x40A2;
+
+    /// <summary>C2S: revoke a remember-me token on log out; answered with a <c>MutationResult</c> (ADR-037).</summary>
+    public const ushort RememberTokenRevoke = 0x40A3;
 }
