@@ -57,6 +57,7 @@ public sealed class VillageBuildingGeneratorTests
     [InlineData(VillageBuildingRole.House)]
     [InlineData(VillageBuildingRole.Smithy)]
     [InlineData(VillageBuildingRole.Store)]
+    [InlineData(VillageBuildingRole.Storehouse)]
     public void Generate_EveryBuilding_IsEnclosedWithItsEntranceOnTheSouthWall(VillageBuildingRole role)
     {
         for (ulong seed = 1; seed <= Seeds; seed++)
@@ -79,7 +80,7 @@ public sealed class VillageBuildingGeneratorTests
                         }
                     }
 
-                    if (c == VillageBuildingTemplate.DoorCell && t.CellAt(x, y + 1) == VillageBuildingTemplate.PorchCell)
+                    if (c == VillageBuildingTemplate.DoorCell && t.CellAt(x, y + 1) is VillageBuildingTemplate.PorchCell or VillageBuildingTemplate.YardCell)
                     {
                         entrances++;
                     }
@@ -95,6 +96,7 @@ public sealed class VillageBuildingGeneratorTests
     [InlineData(VillageBuildingRole.House)]
     [InlineData(VillageBuildingRole.Smithy)]
     [InlineData(VillageBuildingRole.Store)]
+    [InlineData(VillageBuildingRole.Storehouse)]
     public void Generate_EveryRoomAndNpcSpot_IsReachableFromTheEntranceAroundTheFurniture(VillageBuildingRole role)
     {
         StructureCatalog structures = StructureCatalog.LoadEmbedded();
@@ -132,6 +134,7 @@ public sealed class VillageBuildingGeneratorTests
             VillageBuildingTemplate house = VillageBuildingGenerator.Generate(VillageBuildingRole.House, seed);
             Assert.True(Count(house, StructureType.WoodBed) >= 1, $"{house.Id} (seed {seed}) has no bed");
             Assert.True(Count(house, StructureType.Stove) == 1, $"{house.Id} (seed {seed}) needs one stove to cook on");
+            Assert.True(Count(house, StructureType.WoodTable) >= 1, $"{house.Id} (seed {seed}) has no table");
             Assert.Equal(0, Count(house, StructureType.ForgeAnvil));
             Assert.Null(house.NpcSpot);
 
@@ -139,10 +142,23 @@ public sealed class VillageBuildingGeneratorTests
             Assert.Equal(1, Count(smithy, StructureType.ForgeAnvil));
             Assert.True(smithy.NpcSpot is (int sx, int sy) && NextTo(smithy, StructureType.ForgeAnvil, sx, sy), $"{smithy.Id} (seed {seed}): the smith must stand at the anvil");
 
+            Assert.True(OnApron(smithy, StructureType.ForgeAnvil), $"{smithy.Id} (seed {seed}): the anvil stands out in the work yard");
+            Assert.True(OnApron(smithy, StructureType.Workbench), $"{smithy.Id} (seed {seed}): the workbench stands out in the work yard");
+            Assert.Equal(2, CountCells(smithy, VillageBuildingTemplate.PillarCell));
+            Assert.True(Count(smithy, StructureType.Stove) == 1, $"{smithy.Id} (seed {seed}) needs its forge fire");
+
             VillageBuildingTemplate store = VillageBuildingGenerator.Generate(VillageBuildingRole.Store, seed);
             Assert.True(Count(store, StructureType.WoodShelf) >= 2, $"{store.Id} (seed {seed}) has fewer than two shelves");
             Assert.Equal(0, Count(store, StructureType.ForgeAnvil));
             Assert.True(store.NpcSpot is (int tx, int ty) && NextTo(store, StructureType.WoodTable, tx, ty), $"{store.Id} (seed {seed}): the trader must stand at the counter");
+            Assert.True(CountCells(store, VillageBuildingTemplate.YardCell) >= 2 * store.Width, $"{store.Id} (seed {seed}): the store has a paved frontage");
+
+            VillageBuildingTemplate storehouse = VillageBuildingGenerator.Generate(VillageBuildingRole.Storehouse, seed);
+            int storage = Count(storehouse, StructureType.WoodShelf) + Count(storehouse, StructureType.WoodChest);
+            Assert.True(storage >= 8, $"{storehouse.Id} (seed {seed}) holds only {storage} shelves and chests");
+            Assert.Equal(1, storehouse.RoomCount);
+            Assert.Equal(0, Count(storehouse, StructureType.WoodBed));
+            Assert.Null(storehouse.NpcSpot);
         }
     }
 
@@ -205,6 +221,33 @@ public sealed class VillageBuildingGeneratorTests
         return n;
     }
 
+    private static bool OnApron(VillageBuildingTemplate t, StructureType type)
+    {
+        foreach (VillageFurniture f in t.Furniture)
+        {
+            if (f.Type == type)
+            {
+                return t.CellAt(f.X, f.Y) == VillageBuildingTemplate.YardCell;
+            }
+        }
+
+        return false;
+    }
+
+    private static int CountCells(VillageBuildingTemplate t, char cell)
+    {
+        int n = 0;
+        for (int y = 0; y < t.Height; y++)
+        {
+            for (int x = 0; x < t.Width; x++)
+            {
+                n += t.CellAt(x, y) == cell ? 1 : 0;
+            }
+        }
+
+        return n;
+    }
+
     private static bool NextTo(VillageBuildingTemplate t, StructureType type, int x, int y)
     {
         foreach (VillageFurniture f in t.Furniture)
@@ -228,7 +271,7 @@ public sealed class VillageBuildingGeneratorTests
             {
                 for (int x = f.X; x < f.X + w; x++)
                 {
-                    Assert.Equal(VillageBuildingTemplate.FloorCell, t.CellAt(x, y));
+                    Assert.True(t.CellAt(x, y) is VillageBuildingTemplate.FloorCell or VillageBuildingTemplate.YardCell, $"{t.Id}: {f.Type} stands on '{t.CellAt(x, y)}'");
                     Assert.False(blocked[(y * t.Width) + x], $"{t.Id}: two pieces of furniture overlap at {x},{y}");
                     blocked[(y * t.Width) + x] = true;
                 }
@@ -238,17 +281,22 @@ public sealed class VillageBuildingGeneratorTests
         return blocked;
     }
 
-    // Cells reachable on foot from the porch in front of the entrance: floor (not under furniture) and doors.
+    // Cells reachable on foot from outside: floor and yard paving (not under furniture), porches and doors.
     private static HashSet<(int, int)> Reach(VillageBuildingTemplate t, bool[] blocked)
     {
         HashSet<(int, int)> seen = [];
         Queue<(int, int)> queue = new();
-        for (int x = 0; x < t.Width; x++)
+        // Start on every open apron tile at the outline (the front row and the open sides of a yard): that is outside.
+        for (int y = 0; y < t.Height; y++)
         {
-            if (t.CellAt(x, t.Height - 1) == VillageBuildingTemplate.PorchCell)
+            for (int x = 0; x < t.Width; x++)
             {
-                _ = seen.Add((x, t.Height - 1));
-                queue.Enqueue((x, t.Height - 1));
+                bool outline = y == t.Height - 1 || x == 0 || x == t.Width - 1;
+                if (outline && t.CellAt(x, y) is VillageBuildingTemplate.PorchCell or VillageBuildingTemplate.YardCell && !blocked[(y * t.Width) + x])
+                {
+                    _ = seen.Add((x, y));
+                    queue.Enqueue((x, y));
+                }
             }
         }
 
@@ -260,8 +308,8 @@ public sealed class VillageBuildingGeneratorTests
                 int x = cx + dx;
                 int y = cy + dy;
                 char c = t.CellAt(x, y);
-                bool open = c == VillageBuildingTemplate.DoorCell ||
-                    (c == VillageBuildingTemplate.FloorCell && !blocked[(y * t.Width) + x]);
+                bool open = c is VillageBuildingTemplate.DoorCell or VillageBuildingTemplate.PorchCell ||
+                    (c is VillageBuildingTemplate.FloorCell or VillageBuildingTemplate.YardCell && !blocked[(y * t.Width) + x]);
                 if (open && seen.Add((x, y)))
                 {
                     queue.Enqueue((x, y));

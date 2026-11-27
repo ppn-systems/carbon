@@ -73,9 +73,16 @@ internal sealed class HotbarAndItemWidget
             bool active = i == world.SelectedHotbarSlot;
             float sy = active ? hotbarY - 3f : hotbarY;
             ItemSlot item = slots[i];
+            bool aboutToBreak = !item.IsEmpty &&
+                world.Items.Rules.Items.TryGet(item.ItemId, out ItemArchetype? borderDef) &&
+                borderDef.MaxDurability > 0f &&
+                DurabilityBarStyle.IsCritical(
+                    world.Items.Rules.Repair,
+                    item.Durability,
+                    ItemEnhancementPolicy.GetEffectiveMaxDurability(borderDef, ItemEnhancementPolicy.GetUpgradeLevel(in item)));
             ColorRgba border = active
                 ? CarbonUiPalette.BorderActive
-                : (!item.IsEmpty && ToolUsagePolicy.IsWornOut(world.Items.Rules, in item) ? CarbonUiPalette.DangerBorder : CarbonUiPalette.BorderSubtle);
+                : (aboutToBreak ? CarbonUiPalette.DangerBorder : CarbonUiPalette.BorderSubtle);
             skin.DrawSlot(
                 spriteBatch,
                 new RectangleF(sx, sy, SlotSize, SlotSize),
@@ -160,11 +167,9 @@ internal sealed class HotbarAndItemWidget
                     byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
                     float effMaxDur = MathF.Max(1f, ItemEnhancementPolicy.GetEffectiveMaxDurability(archetype, upg));
                     float frac = Math.Clamp(item.Durability / effMaxDur, 0f, 1f);
-                    ColorRgba durColor = frac <= 0f
-                        ? CarbonUiPalette.HpFill
-                        : (frac > 0.35f ? CarbonUiPalette.StaminaFill : CarbonUiPalette.XpFill);
+                    ColorRgba durColor = DurabilityBarStyle.GetFill(world.Items.Rules.Repair, item.Durability, effMaxDur);
                     batch.FillRectangle(new RectangleF(sx + 6f, sy + SlotSize - 7f, SlotSize - 12f, 3f), new ColorRgba(8, 10, 14, 240));
-                    batch.FillRectangle(new RectangleF(sx + 6f, sy + SlotSize - 7f, MathF.Max(frac <= 0f ? SlotSize - 12f : 1f, (SlotSize - 12f) * frac), 3f), durColor);
+                    batch.FillRectangle(new RectangleF(sx + 6f, sy + SlotSize - 7f, MathF.Max(1f, (SlotSize - 12f) * frac), 3f), durColor);
                 }
             }
         }
@@ -480,9 +485,7 @@ internal sealed class HotbarAndItemWidget
             byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
             float effMaxDur = MathF.Max(1f, ItemEnhancementPolicy.GetEffectiveMaxDurability(archetype, upg));
             float frac = Math.Clamp(item.Durability / effMaxDur, 0f, 1f);
-            ColorRgba durFill = frac <= 0f
-                ? CarbonUiPalette.HpFill
-                : (frac > 0.35f ? CarbonUiPalette.StaminaFill : CarbonUiPalette.XpFill);
+            ColorRgba durFill = DurabilityBarStyle.GetFill(world.Items.Rules.Repair, item.Durability, effMaxDur);
             RectangleF durBg = new(x + 8f, y + 53f, cardW - 16f, 5f);
             batch.FillRectangle(durBg, CarbonUiPalette.SlotFill);
             batch.FillRectangle(new RectangleF(x + 8f, y + 53f, (cardW - 16f) * frac, 5f), durFill);

@@ -210,9 +210,11 @@ internal sealed class RecordingWorldSession : IWorldSession
 
         public bool TryOpen(ulong traderNetworkId) => owner.Record($"Trade({traderNetworkId})");
 
-        public bool TryBuy(byte slotIndex, ushort quantity = 1) => throw NotUsed();
+        public bool TrySellBatch(ulong traderNetworkId, ReadOnlySpan<TradeBasketLine> lines, long expectedGold) => throw NotUsed();
 
-        public bool TrySell(ushort slotIndex, ushort quantity = 1) => throw NotUsed();
+        public bool TryBuyBatch(ulong traderNetworkId, long epoch, ReadOnlySpan<TradeBasketLine> lines, long expectedGold) => throw NotUsed();
+
+        public bool TryTakeBatchReply(out TradeBatchReply reply) => throw NotUsed();
 
         public bool TryRepair(ushort slotIndex) => throw NotUsed();
 

@@ -18,4 +18,18 @@ public interface IWorldTradeService
 
     /// <summary>Sells units from a bag slot to a trader.</summary>
     ValueTask<WorldMutationOutcome> SubmitTraderSellAsync(ulong connectionId, ulong traderNetworkId, ushort slotIndex, ushort quantity);
+
+    /// <summary>
+    /// Sells a whole basket (parallel lists of bag slot, expected item and units) for <paramref name="expectedGold"/>, all
+    /// or nothing (ADR-025 D18). The outcome's <see cref="WorldMutationOutcome.Revision"/> is a packed
+    /// <see cref="TradeBatchReceipt"/>. The lists are owned by the queue once submitted.
+    /// </summary>
+    ValueTask<WorldMutationOutcome> SubmitTraderSellBatchAsync(ulong connectionId, ulong traderNetworkId, ushort[] slotIndices, ushort[] itemIds, ushort[] quantities, long expectedGold);
+
+    /// <summary>
+    /// Buys a whole cart (parallel lists of stock slot, expected item and units) priced in <paramref name="epoch"/> for
+    /// <paramref name="expectedGold"/>, all or nothing (ADR-025 D18). The outcome's
+    /// <see cref="WorldMutationOutcome.Revision"/> is a packed <see cref="TradeBatchReceipt"/>.
+    /// </summary>
+    ValueTask<WorldMutationOutcome> SubmitTraderBuyBatchAsync(ulong connectionId, ulong traderNetworkId, long epoch, byte[] stockSlots, ushort[] itemIds, ushort[] quantities, long expectedGold);
 }

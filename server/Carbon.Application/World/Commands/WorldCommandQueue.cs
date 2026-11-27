@@ -69,6 +69,12 @@ internal enum WorldCommandKind : byte
     /// <summary>Sell a bag slot to a trader (Arg0 slot, Arg1 quantity).</summary>
     TraderSell = 42,
 
+    /// <summary>Sell a whole basket to a trader, all or nothing (ADR-025 D18; lines in <see cref="WorldCommand.Payload"/>).</summary>
+    TraderSellBatch = 43,
+
+    /// <summary>Buy a whole cart from a trader, all or nothing (ADR-025 D18; lines in <see cref="WorldCommand.Payload"/>).</summary>
+    TraderBuyBatch = 44,
+
     /// <summary>Allocate character points (<c>Arg0</c> = <c>PointAllocationKind</c>, <c>Arg1</c> = target id, <c>Arg2</c> = amount).</summary>
     AllocateCharacterPoint = 30,
 
@@ -76,7 +82,10 @@ internal enum WorldCommandKind : byte
     Respawn = 31,
 }
 
-/// <summary>A mutating request waiting for the next tick, with the completion its handler awaits.</summary>
+/// <summary>
+/// A mutating request waiting for the next tick, with the completion its handler awaits. <see cref="Payload"/> carries
+/// the lines of a variable-length request (a trader basket); fixed-size requests leave it <see langword="null"/>.
+/// </summary>
 internal readonly record struct WorldCommand(
     WorldCommandKind Kind,
     ulong ConnectionId,
@@ -88,7 +97,8 @@ internal readonly record struct WorldCommand(
     ushort Arg1,
     int Arg2,
     ushort Arg3,
-    TaskCompletionSource<WorldMutationOutcome> Completion);
+    TaskCompletionSource<WorldMutationOutcome> Completion,
+    object? Payload = null);
 
 /// <summary>
 /// Lock-free queue of mutating requests submitted from network I/O threads and drained at the start of each fixed
@@ -125,6 +135,10 @@ internal sealed class WorldCommandQueue
     /// <summary>Queues a command carrying a 64-bit target (split over TileX/TileY) and three arguments.</summary>
     public ValueTask<WorldMutationOutcome> SubmitTargeted(WorldCommandKind kind, ulong connectionId, ulong target, ushort arg0, ushort arg1, int arg2) =>
         this.Enqueue(new WorldCommand(kind, connectionId, (int)(uint)target, (int)(uint)(target >> 32), StructureType.None, StructureRotation.North, arg0, arg1, arg2, 0, null!));
+
+    /// <summary>Queues a command carrying a 64-bit target and a variable-length <paramref name="payload"/> (normal path, not the tick).</summary>
+    public ValueTask<WorldMutationOutcome> SubmitTargeted(WorldCommandKind kind, ulong connectionId, ulong target, object payload) =>
+        this.Enqueue(new WorldCommand(kind, connectionId, (int)(uint)target, (int)(uint)(target >> 32), StructureType.None, StructureRotation.North, 0, 0, 0, 0, null!, payload));
 
     private ValueTask<WorldMutationOutcome> Enqueue(WorldCommand command)
     {

@@ -232,6 +232,12 @@ public sealed class AuthService : IAuthService, IDisposable
     /// </summary>
     public bool DebugWornGear { get; init; }
 
+    /// <summary>
+    /// Gets or sets the durability shares (percent of max) the Debug kits' durable items start at, in slot order with the
+    /// last repeating (Debug host only, <c>CARBON_DEBUG_WORN_GEAR=p1,p2,...</c>), for review of the ADR-035 warning colours.
+    /// </summary>
+    public IReadOnlyList<int> DebugWornGearPercents { get; init; } = [];
+
     /// <inheritdoc/>
     public async Task<CharacterCreateResult> CreateCharacterAsync(
         Guid accountId,
@@ -264,6 +270,10 @@ public sealed class AuthService : IAuthService, IDisposable
         if (this.DebugWornGear)
         {
             WearGear(inv);
+        }
+        else if (this.DebugWornGearPercents.Count > 0)
+        {
+            WearGearTo(inv, this.DebugWornGearPercents);
         }
 
         DerivedCharacterStats stats = CharacterStatCalculator.Compute(_itemRules(), _progression(), 1, inv, selectedSlot, progression: null);
@@ -421,6 +431,20 @@ public sealed class AuthService : IAuthService, IDisposable
 
     /// <summary>Failed-login count for one account and when its counting window started.</summary>
     private readonly record struct LoginFailures(int Count, DateTimeOffset WindowStart);
+
+    private static void WearGearTo(InventoryContainer inv, IReadOnlyList<int> percents)
+    {
+        int next = 0;
+        for (int i = 0; i < inv.Capacity; i++)
+        {
+            ItemSlot slot = inv.GetSlot(i);
+            if (!slot.IsEmpty && slot.Durability > 0f)
+            {
+                int percent = percents[Math.Min(next++, percents.Count - 1)];
+                inv.SetSlot(i, slot with { Durability = slot.Durability * percent / 100f });
+            }
+        }
+    }
 
     private static void WearGear(InventoryContainer inv)
     {

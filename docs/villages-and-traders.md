@@ -43,43 +43,55 @@ The work ships as three pull requests:
   client plan the same villages. Editing it changes the generated world: bump `ProceduralWorldGenerator.GeneratorVersion`
   and update `VillageGenerationTests.GoldenVillagePlotFingerprint` in the same change.
 
-### 2.2 Buildings and layout (deterministic, ADR-027)
+### 2.2 Buildings and layout (deterministic, ADR-027 revision 2)
 
-**Buildings.** `VillageBuildingGenerator.Generate(role, seed)` (`engine/Carbon.Maps/Settlements`) makes every building:
+**Buildings.** `VillageBuildingGenerator.Generate(role, seed)` (`engine/Carbon.Maps/Settlements`) makes every building
+from player-buildable pieces only (each has a kit, §2.1):
 
-- a rectangle (houses 5–8 × 5–7 tiles, shops 6–8 × 6–7) or an L-shape, with its entrance in the south wall and a porch
-  row in front (decked in the swamp palette);
-- one to three rooms, split by straight interior walls with doors; a split never walls off a door and leaves at least
-  two tiles of floor on each side;
-- furniture by role, each piece on a free floor tile away from doors, and only where every free tile and the NPC spot
-  stay reachable from the entrance:
+- a rectangle or an L-shape, with its entrance in the south wall. Houses are 7–11 × 6–9 tiles, smithies 8–10 × 6–7,
+  stores 7–9 × 6–8 and storehouses 8–11 × 6–7;
+- in front, an apron: one porch row for houses and storehouses (decked in the swamp palette), a two-row paved frontage
+  for the store, and a three-row paved work yard with roof pillars at its outer corners for the smithy. The column in
+  front of the door is always kept free;
+- one to three rooms (a storehouse has one), split by straight interior walls with doors. A split never walls off a
+  door and leaves at least two tiles of floor on each side and three on one;
+- furniture by role, against walls where it can be, each piece on a free tile away from doors, and only where every
+  free tile, the yard and the NPC spot stay reachable from the entrance:
 
-| Role | Front room | Back rooms |
+| Role | Inside | Apron |
 | :--- | :--- | :--- |
-| House | stove, table, shelf or chest; beds when it has one room | bedroom (beds, chest), storeroom or workroom |
-| Smithy | forge anvil with the smith beside it, stove, workbench, shelf, chest | bedroom, storeroom or workroom |
-| Store | shelves, a counter of two tables with the trader behind it, chest | storeroom |
+| House | stove, table, shelf or chest; beds when it has one room; back rooms are a bedroom (beds, chest), a storeroom or a workroom | porch |
+| Smithy | stove, shelf, two chests (stone walls, masonry floor) | work yard: forge anvil with the smith beside it, workbench, pillars |
+| Store | shelves, a counter of two tables with the trader behind it, chest | paved frontage |
+| Storehouse | chests and shelves along the walls, free-standing shelves (masonry floor), no NPC | porch |
 | Stall | open market stall, crate, merchant behind the counter | — |
 
-**Streets.** `VillagePlanner` (`engine/Carbon.Maps/Landmarks/VillagePlanner.cs`) keeps the well on a small square,
-then lays a main street through it, lined up with the roads that reach the village (`RoadNetwork.Rasterize` over the
-site), with a bend in each arm, plus one or two side lanes. Streets stop at water and cliffs.
+Materials follow the village style's palette, except that the smithy is built in stone where the palette walls are
+wood, and the smithy, the storehouse and paved aprons use a masonry floor (plank deck in the swamp)
+(`VillageBlueprint.CellType`).
 
-**Placement.** The smithy, the store, the stall and four to seven houses, in that order:
+**Streets.** `VillagePlanner` (`engine/Carbon.Maps/Landmarks/VillagePlanner.cs`) keeps the well on a square, then lays
+a main street through it in a heading taken from the layout hash (two arms, sometimes a third), each with a bend, plus
+three or four side lanes of 7–13 tiles. Villages are not on the road network (`RoadNetwork.IsConnected`), so no road
+reaches or crosses them. Streets stop at water and cliffs.
+
+**Placement.** The smithy, the store, the stall, the storehouse and six to ten houses, in that order:
 
 - beside a street first, the door turned to the street, at a varied setback; when no frontage is left, anywhere on the
-  site with the door facing the nearest street (at most 8 tiles away);
-- a short path joins every front door to its street (`LandmarkLayout.Paths`, drawn by `PointOfInterestRenderer`);
-- a plot stays inside `radius − 0.5`, off the square, streets, paths and roads, one or two tiles from other plots, on
-  dry level ground with a one-tile ring, and its path crosses open ground only;
+  site with the door facing the nearest street (at most 9 tiles away);
+- a short path joins every front door to its street (`LandmarkLayout.Paths`, drawn by `PointOfInterestRenderer`). It
+  crosses open ground and its own apron only, never another building or a garden;
+- a plot stays inside the 26-tile site radius, off the square, streets, paths, roads and gardens, two or three tiles from
+  other plots, on dry level ground with a one-tile ring;
 - no two buildings of a village share a footprint;
-- a footprint with no room is retried compact; after three houses that do not fit, the site counts as full; with fewer
-  than two houses, the streets are laid out another way (up to four layouts) and the best layout is kept.
+- beside a home, a kitchen garden (`LandmarkLayout.Fields`) is added at its side or back, never in front of a door;
+- a footprint with no room is retried compact; when a layout gets fewer than three houses, the streets are laid out
+  another way (up to four layouts) and the best layout is kept.
 
-**Measured.** Across seeds 42, 1, 2 and 1337 (17×17 sites each), 94–97 % of villages get a stall, a smithy, a store and
-at least 2 houses (`VillageGenerationTests.Plan_Villages_GetStallSmithyStoreAndHouses` enforces 90 %). The mean
-alignment of doors with the direction to the well is 0.50–0.56; the old ring scored 0.83–0.84
-(`Plan_Layout_IsNotARingFacingTheWell` enforces below 0.7). Planning takes about 15 ms per village, once per process.
+**Measured.** Across seeds 42, 1, 2 and 1337 (17×17 sites each), every village gets a stall, a smithy, a store, a
+storehouse and at least three houses (`Plan_Villages_GetStallSmithyStoreAndHouses`), with about 4.5–4.7 houses and
+2–2.9 gardens per village. Door-to-well alignment stays below the ring's 0.83 (`Plan_Layout_IsNotARingFacingTheWell`
+enforces below 0.7). Planning takes about 15 ms per village, once per process.
 
 `LandmarkLayout.Plots` holds the result. It is a pure function of the seed and the generator version.
 
@@ -160,30 +172,34 @@ The traders of §3 use the `store` and `stall` NPC spots.
   - Only the quantity sold in the current epoch is state (`TraderBook`), kept in the `trader_stock` table. The table is created idempotently with the base schema in SQLite and PostgreSQL.
   - The trader key mixes the village centre with the building role (`SettlementNpcSpawner.TraderKeyOf`), so it is stable for a given world.
 - **Prices.** A unit price is the list price (`PriceBook.GetListPrice`: base × buy markup, consumables by the buyer's level band), shifted by the slot's rolled offset. It is never at or below the vendor buy-back price.
-- **Server.** `TradeService` (`server/Carbon.Application/World/Commerce`) has its own command queue, drained on the world tick, and pushes stock through the outbound tick buffer. The `ItemHandlers.Trade` partial routes the three C2S opcodes.
+- **Server.** `TradeService` (`server/Carbon.Application/World/Commerce`) has its own command queue, drained on the world tick, and pushes stock through the outbound tick buffer. The `ItemHandlers.Trade` partial routes the C2S opcodes.
 - **Wire.**
-  - C2S: `TraderOpen` `0x4040`, `TraderBuy` `0x4041` (carries the epoch it was priced in), `TraderSell` `0x4042`.
-  - S2C: `TraderStock` `0x4048` carries items, prices, remaining quantities, sell prices and seconds until restock.
-  - Results come back as `MutationResult`, followed by `TraderStock` and `WalletSync`.
-- **Rules.** The player must be within 175 px of a live trader. A buy needs a valid slot, enough remaining stock, gold and bag space, and commits all of them atomically. A stale epoch is refused with `Conflict`. A sell pays the economy sell price (25 % spread, a gold sink).
+  - C2S: `TraderOpen` `0x4040`; `TraderSellBatch` `0x4052` (a whole basket: bag slot, item and units per line, and the total the window showed); `TraderBuyBatch` `0x4053` (a whole cart, priced in an epoch).
+  - S2C: `TraderStock` `0x4048` carries items, prices, remaining quantities, sell prices and seconds until restock. `TraderBatchResult` `0x4054` answers a batch with a `TradeBatchError` code and the failing line, after the changed slots, `WalletSync` and a fresh `TraderStock`.
+  - The single-item `TraderBuy` `0x4041` and `TraderSell` `0x4042` (answered with `MutationResult`) still work for older clients; the desktop client no longer sends them (ADR-025 D19).
+- **Rules.** The player must be within 175 px of a live trader. A buy needs a valid slot, enough remaining stock, gold and bag space, and commits all of them atomically. A stale epoch is refused with `Conflict`. A sell pays the economy sell price (25 % spread, a gold sink). A batch is all or nothing: every line is checked and every price recomputed before anything changes, and a total other than the confirmed one is refused as `PricesChanged` (ADR-025 D20).
 - **Desktop.** `TradeModalWidget` (nine-slice, ADR-008) shows:
   - the stock rows: icon, name, units left with a gauge, and the price, in red when unaffordable;
   - the bag grid, with what the trader pays per item; items the trader does not buy are dimmed;
-  - the wallet and a live restock countdown.
+  - the wallet and a live restock countdown;
+  - the **Cart** and the **To sell** basket (ADR-025 D18): one line per item with −/+, the subtotal, and the running total.
 
-  Controls:
+  Controls. Nothing is bought or sold until **Buy** or **Sell** is pressed:
   - `E` near a trader, or clicking one, opens the window.
-  - Clicking a row buys 1; Shift-click buys 5.
-  - Clicking a bag item sells 1; Shift-click sells the stack.
-  - Walking away, opening another window or `Esc` closes it.
+  - Clicking a stock row adds 1 to the cart; Shift-click adds 5.
+  - Clicking a bag item moves 1 to the basket; Shift-click or dragging it onto To sell moves the whole stack. Equipment cannot be added.
+  - −/+ change a line (Shift: by 10); **Clear** returns a side.
+  - When prices change (a restock, or the server refused the total) or the basket holds enhanced gear, the button reads **Confirm**: the first press accepts, the next one sends.
+  - Walking away, opening another window or `Esc` closes the window, and everything staged returns (it never left the bag).
 
-  All strings are in `resources/localization/{en,vi}.ini` under `[trade]` (ADR-023).
+  All strings are in `resources/localization/{en,vi}.ini` under `[trade]` and `[trade_basket]` (ADR-023).
 
   The code is split to stay within the client size caps (audit round 2):
-  - `TraderSession` (networking) holds the pushed stock and sends the requests. It is reached through `IGameplayController.Trading`.
-  - `TradeInteraction` (scene) decides when to talk, click, open and close.
+  - `TraderSession` (networking) holds the pushed stock, sends the committed batches and queues their answers. It is reached through `IGameplayController.Trading`.
+  - `TradeBasket` (abstractions) holds the staged lines, re-prices them and decides when a press re-confirms.
+  - `TradeInteraction` (scene) decides when to talk, click, open and close; `TradeWindowController` maps clicks and drags to the basket.
   - `TradeModalWidget` (HUD) is stateless; it draws the window and hit-tests it.
-- **Screenshots.** `tools/screenshots/capture.sh <out> '^trade_'` spawns the player in front of the market stall and opens the trader (`CARBON_OPEN_TRADER=1`).
+- **Screenshots.** `tools/screenshots/capture.sh <out> '^trade_'` spawns the player in front of the market stall and opens the trader (`CARBON_OPEN_TRADER=1`). `trade_basket` also stages a sample basket and cart (`CARBON_TRADE_PREVIEW=basket`, visual only).
 
 ## 4. Blacksmith
 
@@ -200,9 +216,10 @@ The village blacksmith (at the smithy's forge) and the sanctuary blacksmith (bes
 
 | Test | Checks |
 | :--- | :--- |
-| `VillageGenerationTests` (Maps) | Catalog parsing and rejection; same seed gives the same plots and the same structures; golden plot fingerprint; completeness across 4 seeds; plots inside the footprint and apart; every interior floor is an enclosed room, reachable from its door, with reachable NPC spots; idempotent and fully village-owned materialization; chunk-delta round trip; migration drops village tiles but keeps player builds; players cannot deconstruct, damage or build. |
+| `VillageGenerationTests` (Maps) | Catalog parsing and rejection; same seed gives the same plots and the same structures; golden plot fingerprint; completeness across 4 seeds; plots inside the footprint and at least two tiles apart; no road or bridge tile in a village; every emitted structure is a catalog structure with a cost and its real footprint; gardens beside homes, off buildings, streets and paths; every interior floor is an enclosed room, reachable from its door, with reachable NPC spots; idempotent and fully village-owned materialization; chunk-delta round trip; migration drops village tiles but keeps player builds; players cannot deconstruct, damage or build. |
 | `LandmarkCollisionTests` (Maps) | Real village house: walls push out, a closed door blocks and an open one lets you in, the interior is roofed, and the ground in front is free. |
 | `SettlementNpcSpawnerTests` (Host) | A village is built once with one guard; the blacksmith stands next to the forge; deconstruct and damage are refused. |
+| `VillageStructureKitTests` (Maps) | Every structure type any village building can emit has a placeable kit item with a build cost. |
 | `VectorArtAndArchitectureTests` (Desktop) | Every structure type has art (doors with open shapes). |
 | `TraderTests` (Economy) | Shipped profiles load; invalid documents are rejected (unknown item, variance, quantities, too few entries, jitter, style); stock is deterministic per epoch and changes at restock; slots are distinct and style-correct, within quantity and variance ranges; prices stay within variance and above the buy-back price at levels 1/30/80; the epoch clock and per-trader jitter; limited quantity sells out and the next epoch restocks; failures change nothing (funds, full bag, slot, quantity, stale epoch, unknown trader); sales drain and import. |
 | `TraderWorldTests` (Host) | Through the real world: open a merchant and buy (wallet and stock change); more than is left, a stale epoch, a bad slot and an unknown trader are refused; selling pays less than the buy price; a far player is out of range; sales persist across a server restart on SQLite; the next epoch is fully restocked. The smithy's blacksmith sells only `blacksmith` profile items, sends no gold-only repair quotes, and repairs a worn sword for its `repair.json` materials and fee (ADR-028). The sanctuary blacksmith trades too. The merchant quotes no repairs. |

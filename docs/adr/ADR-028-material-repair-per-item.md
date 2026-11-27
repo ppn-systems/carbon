@@ -2,6 +2,7 @@
 
 - **Date**: 2026-11-27
 - **Status**: Accepted
+- **Amended by**: [ADR-035](ADR-035-items-break-at-zero-durability.md) — an item at 0 durability is destroyed, so only an item above 0 is repairable
 - **Scope**: `contracts/`, `engine/Carbon.Items`, `engine/Carbon.Economy`, `server/`, `desktop/`, `resources/config/repair.json`, `resources/config/economy.json`, `tests/`, `docs/`
 
 ## Context

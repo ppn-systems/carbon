@@ -71,9 +71,9 @@ public sealed class RoadNetwork
     }
 
     /// <summary>Returns whether roads connect to this kind of point of interest.</summary>
+    /// <remarks>Villages are not connected (ADR-027): they keep their own streets and no road leads in or out.</remarks>
     public static bool IsConnected(PointOfInterestType type) => type is
-        PointOfInterestType.RiverVillage or PointOfInterestType.DesertVillage or PointOfInterestType.SnowVillage or
-        PointOfInterestType.SwampVillage or PointOfInterestType.Harbor or PointOfInterestType.MineEntrance or
+        PointOfInterestType.Harbor or PointOfInterestType.MineEntrance or
         PointOfInterestType.Watchtower or PointOfInterestType.AncientRuins;
 
     /// <summary>Collects the roads and bridge spans that may cross a tile rectangle.</summary>

@@ -95,19 +95,19 @@ public static class LandmarkRules
         new(PointOfInterestType.Harbor, 12, 3f) { RequireNearSea = true, RiverAtMost = 12f, HeightLevel = 0 },
 
         // Biome villages: each climate builds its own kind of settlement by the water.
-        new(PointOfInterestType.SwampVillage, 16, 2.5f) { RequireFlat = true, HeightLevel = 0, RiverAbove = 3f, RiverAtMost = 11f, Biomes = [BiomeType.MistySwamp] },
-        new(PointOfInterestType.DesertVillage, 16, 2.5f) { RequireFlat = true, HeightLevel = 0, RiverAbove = 3f, RiverAtMost = 11f, Biomes = [BiomeType.DuneDesert, BiomeType.RedMesa] },
-        new(PointOfInterestType.SnowVillage, 16, 2.5f) { RequireFlat = true, HeightLevel = 0, RiverAbove = 3f, RiverAtMost = 11f, Biomes = [BiomeType.FrozenTundra] },
+        new(PointOfInterestType.SwampVillage, 26, 2.5f) { RequireFlat = true, HeightLevel = 0, RiverAbove = 8f, RiverAtMost = 18f, Biomes = [BiomeType.MistySwamp] },
+        new(PointOfInterestType.DesertVillage, 26, 2.5f) { RequireFlat = true, HeightLevel = 0, RiverAbove = 8f, RiverAtMost = 18f, Biomes = [BiomeType.DuneDesert, BiomeType.RedMesa] },
+        new(PointOfInterestType.SnowVillage, 26, 2.5f) { RequireFlat = true, HeightLevel = 0, RiverAbove = 8f, RiverAtMost = 18f, Biomes = [BiomeType.FrozenTundra] },
 
         // Village: flat fertile lowland, near water but outside the flood zone.
-        new(PointOfInterestType.RiverVillage, 16, 2.5f)
+        new(PointOfInterestType.RiverVillage, 26, 2.5f)
         {
             RequireFlat = true,
             HeightLevel = 0,
-            RiverAbove = 4.5f,
-            RiverAtMost = 11f,
+            RiverAbove = 8f,
+            RiverAtMost = 18f,
             Biomes = [BiomeType.LushPlains, BiomeType.Savanna, BiomeType.BlossomWoods, BiomeType.AncientForest],
-            RiverSweetSpot = 7f,
+            RiverSweetSpot = 12f,
             RiverSlope = 0.1f,
         },
 

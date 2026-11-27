@@ -8,7 +8,8 @@ namespace Carbon.Maps.Settlements;
 /// <summary>
 /// The footprint of one village building, made by <see cref="VillageBuildingGenerator"/>: a cell grid with its entrance
 /// on the south (bottom) side, the furniture inside, and where its NPC stands. Grid cells: <c>W</c> wall, <c>D</c> door,
-/// <c>.</c> floor, <c>p</c> porch, space = untouched ground (ADR-027).
+/// <c>.</c> floor, <c>p</c> porch, <c>y</c> yard paving (an open work yard or a shop frontage), <c>P</c> roof pillar,
+/// space = untouched ground (ADR-027).
 /// </summary>
 public sealed class VillageBuildingTemplate
 {
@@ -23,6 +24,12 @@ public sealed class VillageBuildingTemplate
 
     /// <summary>Cell of a porch / deck.</summary>
     public const char PorchCell = 'p';
+
+    /// <summary>Cell of open-air paving outside the walls (the smithy's work yard, a shop's frontage).</summary>
+    public const char YardCell = 'y';
+
+    /// <summary>Cell of a roof pillar (the corners of an open-sided work yard).</summary>
+    public const char PillarCell = 'P';
 
     /// <summary>Cell left as natural ground.</summary>
     public const char EmptyCell = ' ';

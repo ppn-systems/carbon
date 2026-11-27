@@ -111,6 +111,9 @@ public static class CarbonUiPalette
     /// <summary>Hunger bar fill while food poisoned.</summary>
     public static readonly ColorRgba PoisonFill = new(128, 160, 52, 255);
 
+    /// <summary>Durability bar fill at or below the low warning share (ADR-035).</summary>
+    public static readonly ColorRgba DurabilityLowFill = new(234, 179, 8, 255);
+
     /// <summary>Warm XP bar fill.</summary>
     public static readonly ColorRgba XpFill = new(198, 168, 104, 255);
 

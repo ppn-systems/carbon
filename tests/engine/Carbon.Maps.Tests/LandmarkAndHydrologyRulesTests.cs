@@ -36,7 +36,7 @@ public sealed class LandmarkAndHydrologyRulesTests
                     case PointOfInterestType.RiverVillage:
                         villages++;
                         Assert.Equal(0, tile.HeightLevel);
-                        Assert.InRange(river, 4.5f, 11f); // close to water, outside the flood zone
+                        Assert.InRange(river, 8f, 18f); // near water, but far enough that the wider village stays dry (ADR-027)
                         break;
                     case PointOfInterestType.MountainShrine:
                         Assert.Equal(2, tile.HeightLevel);
@@ -53,7 +53,7 @@ public sealed class LandmarkAndHydrologyRulesTests
                     case PointOfInterestType.SwampVillage:
                         villages++;
                         Assert.Equal(0, tile.HeightLevel);
-                        Assert.InRange(river, 3f, 11f);
+                        Assert.InRange(river, 8f, 18f);
                         break;
                     case PointOfInterestType.WorldTree:
                         Assert.True(tile.HeightLevel <= 1);

@@ -1,8 +1,10 @@
 # ADR-027: Organic Village Layout Along Streets and Generated Building Footprints
 
 - **Date**: 2026-11-27
-- **Status**: Proposed
+- **Status**: Accepted
 - **Amends**: [ADR-025](ADR-025-villages-from-real-structures-and-trader-npcs.md) D2 (building templates) and D3 (placement)
+- **Revision 2** (owner feedback: no roads between villages, bigger and wider villages, each building type distinct, built
+  only from player-buildable pieces, "beautiful, done properly"): design rules below, D7–D12; D3–D6 amended
 - **Scope**: `engine/Carbon.Maps` (Landmarks, Settlements, Roads), `resources/config/village_buildings.json`,
   `desktop/Carbon.Desktop.Rendering` (village paths)
 - **Design doc**: [`docs/villages-and-traders.md`](../villages-and-traders.md) §2
@@ -53,6 +55,58 @@
    fingerprint is updated. ADR-025 D7 migration drops the old village structures; the new village is built in their
    place. The wire format does not change.
 
+## Design Rules (revision 2)
+
+Derived from how RimWorld colonies and faction bases read top-down, and from small real villages. The goal is a village
+a player could have built with the same tools, laid out with intent.
+
+- **Pieces.** Every tile is a structure a player can place: walls, doors, floors, pillars and furniture from
+  `structures.json`, each with a placeable kit, at its catalog footprint and rotation, with doors set between walls.
+  No village-only props stand in for buildings; the well and the square stay as the village centre.
+- **Rooms with a purpose.** A bedroom is at least 3 tiles wide (about 3×4 inside, RimWorld's "decent" bedroom); a
+  kitchen or pantry may be 2 wide. Each room has its own door. Furniture stands against walls, leaving the middle and
+  every doorway clear; nothing may cut a room off.
+- **Material contrast.** Walls, floors and outdoor paving differ by role: the smithy is stone (fireproof walls and a
+  stone floor round the forge), the storehouse has a stone floor for heavy goods, homes and the store use the style's
+  wood or stone; yards are stone paving; dirt paths are lighter and narrower than streets.
+- **Each type reads differently.**
+  - Smithy: a stone hall with an open-sided work yard in front, two roof pillars at its outer corners, the anvil and
+    workbench out in the yard and the smith beside the anvil.
+  - Store: a paved frontage the width of the shop; the counter just inside, the trader behind it, shelves on the walls.
+  - Storehouse: one big hall of shelves and chests with aisles.
+  - Homes: bedrooms, a kitchen with the stove and table, storage; a kitchen garden beside many of them.
+- **Spacing.** Two to three tiles of open ground between buildings (yards and alleys), a one-tile ring of dry level
+  ground round each, and nothing in front of a door.
+- **A clear centre that is not radial.** The well square anchors the main street, but buildings follow the streets
+  and their own frontage, not a ring; side lanes branch well clear of the square, so there is no crossroads at the well.
+- **No roads.** Villages are not on the road network; their streets are their own lanes inside the village.
+
+### Review of revision 1 (screenshots of every biome, gameplay and macro zoom)
+
+- Cramped: 16-tile villages squeezed 3–5 buildings between the well and a lake or river.
+- Monotonous: every building was a wooden box of the same material; smithy, store and homes differed only inside.
+- Roads ran straight through villages and dictated the main street.
+- Streets were as wide as the inter-village roads; door paths were long diagonal scratches.
+- Paths met at the well in a crossroads; the square was small for the village.
+- Roofs hide interiors (ADR-025 D9), so only footprint, materials, yards and gardens can make buildings read apart from
+  above; revision 2 relies on those.
+
+## Decision (revision 2)
+
+7. **D7 — No roads to villages.** `RoadNetwork.IsConnected` excludes the four village types; the planner no longer
+   reads roads to orient the main street (D3), which takes the layout hash's heading, with a third arm on some sites.
+8. **D8 — Bigger, drier sites.** Village radius 16 → 26 tiles; villages sit 8–18 tiles from water (was 3–11), so the
+   wider footprint is mostly dry. Six to ten homes are attempted, buildings keep 2–3 tiles apart, three or four lanes.
+9. **D9 — Building types.** A new append-only role, `VillageBuildingRole.Storehouse = 4`. Templates gain two cells:
+   `y` (open-air paving, the smithy's yard and the store's frontage) and `P` (a roof pillar). Materials by role as in
+   the design rules (`VillageBlueprint.CellType`).
+10. **D10 — Gardens.** A kitchen garden (`LandmarkField`) beside a home's side or back, never in front of a door, on
+    dry ground off streets; later buildings and door paths avoid it.
+11. **D11 — Player-buildable only.** Every structure type a village emits has a placeable kit
+    (`VillageStructureKitTests`), and `Plan_EveryVillageStructure_IsAPlayerBuildableCatalogStructure` checks cost,
+    footprint and door placement against the catalog.
+12. **D12 — Generator version 20** (on top of the water rework's 19); golden fingerprints re-pinned.
+
 ## Alternatives Considered
 
 - **More authored templates.** Even a dozen templates repeat across a world, and "every house is different" would need
@@ -71,3 +125,7 @@
 - Planning a village takes about 15 ms on one core (the ring planner took 2–4 ms). It runs once per site per process
   and is cached; the road raster keeps it there.
 - `LandmarkLayout` gains `Paths`. Old clients (version 17) refuse to connect, as for any generator change.
+- Revision 2, measured on the same seeds: every village is complete (a stall, a smithy, a store, a storehouse and at
+  least three houses; 42–57 villages per seed), about 4.5–4.7 houses and 2–2.9 gardens per village. Villages are no
+  longer on the road network, and existing worlds rebuild their villages through the ADR-025 D7 migration
+  (generator version 20).

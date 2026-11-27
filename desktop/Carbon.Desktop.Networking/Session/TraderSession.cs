@@ -1,15 +1,14 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Items.C2S;
 using Carbon.Contracts.Items.S2C;
-using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
-using Carbon.Items.Catalog;
 using Nalix.Abstractions.Networking.Packets;
 using Nalix.Codec.DataFrames;
 using Nalix.Codec.Pooling;
@@ -21,7 +20,8 @@ namespace Carbon.Desktop.Networking.Session;
 
 /// <summary>
 /// Trading with village traders (ADR-025): the server pushes <see cref="TraderStock"/>; the client keeps the last one as
-/// <see cref="ActiveTrader"/> while the window is open and sends buy / sell requests, showing a toast when one fails.
+/// <see cref="ActiveTrader"/> while the window is open and sends the committed basket or cart as one batch (ADR-025 D18),
+/// queuing the answer for the window and showing a toast when one is refused.
 /// </summary>
 /// <param name="tcp">Gets the TCP session while the world session is ready, else <see langword="null"/>.</param>
 /// <param name="notify">Queues a HUD toast (thread-safe).</param>
@@ -29,6 +29,7 @@ public sealed class TraderSession(Func<TcpSession?> tcp, Action<string> notify) 
 {
     private readonly Func<TcpSession?> _tcp = tcp ?? throw new ArgumentNullException(nameof(tcp));
     private readonly Action<string> _notify = notify ?? throw new ArgumentNullException(nameof(notify));
+    private readonly ConcurrentQueue<TradeBatchReply> _replies = new();
     private TraderView? _activeTrader;
     private ulong _requestedTrader;
 
@@ -49,41 +50,66 @@ public sealed class TraderSession(Func<TcpSession?> tcp, Action<string> notify) 
     }
 
     /// <inheritdoc/>
-    public bool TryBuy(byte slotIndex, ushort quantity = 1)
+    public bool TrySellBatch(ulong traderNetworkId, ReadOnlySpan<TradeBasketLine> lines, long expectedGold)
     {
-        TraderView? trader = this.ActiveTrader;
-        if (trader is null || quantity == 0 || slotIndex >= trader.ItemIds.Length || this.Connected() is not TcpSession session)
+        if (!this.CanCommit(traderNetworkId, lines) || this.Connected() is not TcpSession session)
         {
             return false;
         }
 
-        _ = this.RequestAsync<TraderBuyRequest>(session, p =>
+        ushort[] slots = new ushort[lines.Length];
+        ushort[] items = new ushort[lines.Length];
+        ushort[] quantities = new ushort[lines.Length];
+        for (int i = 0; i < lines.Length; i++)
         {
-            p.TraderNetworkId = trader.TraderNetworkId;
-            p.SlotIndex = slotIndex;
-            p.Quantity = quantity;
-            p.Epoch = trader.Epoch;
+            slots[i] = (ushort)lines[i].Slot;
+            items[i] = (ushort)lines[i].ItemId;
+            quantities[i] = (ushort)Math.Min(ushort.MaxValue, lines[i].Quantity);
+        }
+
+        _ = this.CommitAsync<TraderSellBatchRequest>(session, traderNetworkId, TraderBatchResult.KindSell, p =>
+        {
+            p.TraderNetworkId = traderNetworkId;
+            p.SlotIndices = slots;
+            p.ItemIds = items;
+            p.Quantities = quantities;
+            p.ExpectedGold = expectedGold;
         });
         return true;
     }
 
     /// <inheritdoc/>
-    public bool TrySell(ushort slotIndex, ushort quantity = 1)
+    public bool TryBuyBatch(ulong traderNetworkId, long epoch, ReadOnlySpan<TradeBasketLine> lines, long expectedGold)
     {
-        TraderView? trader = this.ActiveTrader;
-        if (trader is null || quantity == 0 || slotIndex >= PlayerInventoryLayout.BagLimit || this.Connected() is not TcpSession session)
+        if (!this.CanCommit(traderNetworkId, lines) || this.Connected() is not TcpSession session)
         {
             return false;
         }
 
-        _ = this.RequestAsync<TraderSellRequest>(session, p =>
+        byte[] slots = new byte[lines.Length];
+        ushort[] items = new ushort[lines.Length];
+        ushort[] quantities = new ushort[lines.Length];
+        for (int i = 0; i < lines.Length; i++)
         {
-            p.TraderNetworkId = trader.TraderNetworkId;
-            p.SlotIndex = slotIndex;
-            p.Quantity = quantity;
+            slots[i] = (byte)lines[i].Slot;
+            items[i] = (ushort)lines[i].ItemId;
+            quantities[i] = (ushort)Math.Min(ushort.MaxValue, lines[i].Quantity);
+        }
+
+        _ = this.CommitAsync<TraderBuyBatchRequest>(session, traderNetworkId, TraderBatchResult.KindBuy, p =>
+        {
+            p.TraderNetworkId = traderNetworkId;
+            p.Epoch = epoch;
+            p.StockSlots = slots;
+            p.ItemIds = items;
+            p.Quantities = quantities;
+            p.ExpectedGold = expectedGold;
         });
         return true;
     }
+
+    /// <inheritdoc/>
+    public bool TryTakeBatchReply(out TradeBatchReply reply) => _replies.TryDequeue(out reply);
 
     /// <inheritdoc/>
     public void Close()
@@ -91,17 +117,6 @@ public sealed class TraderSession(Func<TcpSession?> tcp, Action<string> notify) 
         Volatile.Write(ref _requestedTrader, 0UL);
         Volatile.Write(ref _activeTrader, null);
     }
-
-    /// <summary>Gets the localized toast for a failed trade.</summary>
-    public static string DescribeFailure(OpStatus status) => status switch
-    {
-        OpStatus.Conflict => GameText.Get("trade.failed_conflict"),
-        OpStatus.InventoryFull => GameText.Get("trade.failed_bag_full"),
-        OpStatus.OutOfRange => GameText.Get("trade.failed_too_far"),
-        OpStatus.Ok or OpStatus.Forbidden or OpStatus.NotFound or OpStatus.Invalid or OpStatus.RateLimited or
-        OpStatus.EnhancementFailed => GameText.Get("trade.failed"),
-        _ => GameText.Get("trade.failed"),
-    };
 
     /// <summary>Handles a pushed <see cref="TraderStock"/> (network thread).</summary>
     public void OnStock(TraderStock pkt)
@@ -146,33 +161,32 @@ public sealed class TraderSession(Func<TcpSession?> tcp, Action<string> notify) 
         }
     }
 
-    private async Task RequestAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TPacket>(TcpSession session, Action<TPacket> populate)
-        where TPacket : PacketBase<TPacket>, IPacketStaticOpcode, new()
-    {
-        OpStatus status = await RequestStatusAsync(session, populate).ConfigureAwait(false);
-        if (status != OpStatus.Ok)
-        {
-            _notify(DescribeFailure(status));
-        }
-    }
+    private bool CanCommit(ulong traderNetworkId, ReadOnlySpan<TradeBasketLine> lines) =>
+        traderNetworkId != 0UL && !lines.IsEmpty && lines.Length <= TradeBasket.MaxSellLines && this.ActiveTrader?.TraderNetworkId == traderNetworkId;
 
-    private static async Task<OpStatus> RequestStatusAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TPacket>(TcpSession session, Action<TPacket> populate)
+    // Sends a basket or cart and queues the server's answer for the window; a lost request answers as a plain failure,
+    // so the window never waits forever.
+    private async Task CommitAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TPacket>(TcpSession session, ulong traderNetworkId, byte kind, Action<TPacket> populate)
         where TPacket : PacketBase<TPacket>, IPacketStaticOpcode, new()
     {
-        OpStatus status;
+        TradeBatchReply answer;
         try
         {
             RequestOptions options = RequestOptions.Default.WithTimeout(4000).WithEncrypt(session.State.EncryptionEnabled);
             using PacketScope<TPacket> lease = PacketFactory<TPacket>.Acquire();
             populate(lease.Value);
-            using MutationResult reply = await session.RequestAsync<MutationResult>(lease.Value, options, predicate: null, CancellationToken.None).ConfigureAwait(false);
-            status = reply.Status;
+            using TraderBatchResult reply = await session.RequestAsync<TraderBatchResult>(lease.Value, options, predicate: null, CancellationToken.None).ConfigureAwait(false);
+            answer = new TradeBatchReply(reply.TraderNetworkId, reply.Kind, reply.Status, reply.Error, reply.Line);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            status = OpStatus.Invalid;
+            answer = new TradeBatchReply(traderNetworkId, kind, OpStatus.Invalid, TradeBatchError.None, TraderBatchResult.NoLine);
         }
 
-        return status;
+        _replies.Enqueue(answer);
+        if (!answer.IsOk)
+        {
+            _notify(TradeBasket.DescribeFailure(answer));
+        }
     }
 }

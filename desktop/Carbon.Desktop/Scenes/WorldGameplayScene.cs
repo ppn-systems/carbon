@@ -179,7 +179,7 @@ public sealed class WorldGameplayScene : GameScene
 
         _cameraRig.Resize(context.WindowWidth, context.WindowHeight);
         DesktopInputFrame input = _screenshotAids.PinMouse(DesktopInputController.Poll(context.Input));
-        _mouseScreenPosition = _screenshotAids.Apply(_hudRenderer, _session, context.WindowWidth, context.WindowHeight) ?? input.MouseScreenPosition;
+        _mouseScreenPosition = _screenshotAids.Apply(_hudRenderer, _session, context.WindowWidth, context.WindowHeight, _worldRenderer.FeedbackTracker) ?? input.MouseScreenPosition;
         _mouseWorldPosition = _camera.ScreenToWorld(in _mouseScreenPosition);
         _worldRenderer.PreviewDowned = _hudRenderer.DeathPreview is not null;
 

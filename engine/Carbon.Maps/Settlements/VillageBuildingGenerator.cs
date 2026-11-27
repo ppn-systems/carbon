@@ -9,9 +9,11 @@ namespace Carbon.Maps.Settlements;
 
 /// <summary>
 /// Generates the footprint of a village building from a seed (ADR-027): a rectangle or an L-shape of varied size, one to
-/// three rooms split by interior walls with doors, an entrance on the south wall and furniture chosen by the building's
-/// role (a home gets beds, a stove and storage; a smithy its forge; a shop its shelves and counter). The result is a pure
-/// function of <c>(role, seed)</c>, so the server and every client generate the same building. Plan time only.
+/// three rooms split by interior walls with doors, an entrance on the south wall, an apron in front of it (a porch, a
+/// shop's paved frontage, or the smithy's open-sided work yard) and furniture chosen by the building's role: a home gets
+/// beds, a stove, a table and storage; the smithy its anvil and workbench out in the yard with the smith beside them; the
+/// store shelves and a counter; the storehouse rows of shelves and chests. The result is a pure function of
+/// <c>(role, seed)</c>, so the server and every client generate the same building. Plan time only.
 /// </summary>
 public static class VillageBuildingGenerator
 {
@@ -33,7 +35,7 @@ public static class VillageBuildingGenerator
 
         DeterministicRandom rng = new(seed);
         Builder b = Shape(role, compact, ref rng);
-        b.MinEntranceRoom = role == VillageBuildingRole.House ? 6 : 14;
+        b.MinEntranceRoom = role == VillageBuildingRole.House ? 8 : 14;
         int rooms = TargetRooms(role, b, ref rng);
         for (int i = 1; i < rooms; i++)
         {
@@ -64,17 +66,33 @@ public static class VillageBuildingGenerator
 
     private static Builder Shape(VillageBuildingRole role, bool compact, ref DeterministicRandom rng)
     {
-        (int minW, int maxW, int minH, int maxH, float lChance) = compact ? (5, 6, 5, 6, 0f) : role switch
+        // Sizes include the walls: a 3x4 bedroom needs a 5x6 shell. Aprons: homes and the storehouse get a porch row,
+        // the store a two-row paved frontage, the smithy a three-row work yard with roof pillars at its outer corners.
+        (int minW, int maxW, int minH, int maxH, float lChance) = compact ? (6, 7, 5, 6, 0f) : role switch
         {
-            VillageBuildingRole.House => (5, 8, 5, 7, 0.45f),
-            VillageBuildingRole.Smithy or VillageBuildingRole.Store => (6, 8, 6, 7, 0.35f),
-            VillageBuildingRole.Stall => (5, 9, 5, 7, 0.45f),
-            _ => (5, 9, 5, 7, 0.45f),
+            VillageBuildingRole.House => (7, 11, 6, 9, 0.4f),
+            VillageBuildingRole.Smithy => (8, 10, 6, 7, 0f),
+            VillageBuildingRole.Store => (7, 9, 6, 8, 0.3f),
+            VillageBuildingRole.Storehouse => (8, 11, 6, 7, 0f),
+            VillageBuildingRole.Stall => (6, 9, 6, 7, 0f),
+            _ => (6, 9, 6, 7, 0f),
+        };
+        (int apronRows, char apronCell) = role switch
+        {
+            VillageBuildingRole.Smithy => (3, VillageBuildingTemplate.YardCell),
+            VillageBuildingRole.Store => (2, VillageBuildingTemplate.YardCell),
+            VillageBuildingRole.House or VillageBuildingRole.Storehouse or VillageBuildingRole.Stall => (1, VillageBuildingTemplate.PorchCell),
+            _ => (1, VillageBuildingTemplate.PorchCell),
         };
 
         int w = rng.NextInt(minW, maxW + 1);
         int bodyH = rng.NextInt(minH, maxH + 1);
-        Builder b = new(w, bodyH);
+        Builder b = new(w, bodyH, apronRows, apronCell);
+        if (role == VillageBuildingRole.Smithy)
+        {
+            b.SetPillars();
+        }
+
         if (w >= 7 && bodyH >= 6 && rng.NextBool(lChance))
         {
             // Cut a notch out of a back corner; the south (entrance) wall always spans the full width.
@@ -92,10 +110,10 @@ public static class VillageBuildingGenerator
     private static int TargetRooms(VillageBuildingRole role, Builder b, ref DeterministicRandom rng)
     {
         int floor = b.FloorCount;
-        int max = floor >= 24 ? 3 : floor >= 12 ? 2 : 1;
+        int max = role == VillageBuildingRole.Storehouse ? 1 : floor >= 30 ? 3 : floor >= 15 ? 2 : 1;
         float roll = rng.NextFloat();
         int rooms = role == VillageBuildingRole.House
-            ? (roll < 0.25f ? 1 : roll < 0.75f ? 2 : 3)
+            ? (roll < 0.2f ? 1 : roll < 0.7f ? 2 : 3)
             : (roll < 0.4f ? 1 : 2);
         return Math.Min(rooms, max);
     }
@@ -106,15 +124,33 @@ public static class VillageBuildingGenerator
         switch (role)
         {
             case VillageBuildingRole.Smithy:
-                if (b.TryPlaceWithNpc(StructureType.ForgeAnvil, main, ref rng))
+                // The anvil and the workbench stand out in the open yard, the smith beside the anvil; the forge fire
+                // (stove), stock and tools are inside the stone hall.
+                if (!b.TryPlaceInApron(StructureType.ForgeAnvil, withNpc: true, ref rng))
                 {
-                    _ = b.TryPlace(StructureType.Stove, main, StructureRotation.North, againstWall: true, ref rng);
+                    _ = b.TryPlaceWithNpc(StructureType.ForgeAnvil, main, ref rng);
                 }
 
-                _ = b.TryPlace(StructureType.Workbench, main, StructureRotation.North, againstWall: true, ref rng);
+                _ = b.TryPlaceInApron(StructureType.Workbench, withNpc: false, ref rng);
+                _ = b.TryPlace(StructureType.Stove, main, StructureRotation.North, againstWall: true, ref rng);
                 _ = b.TryPlace(StructureType.WoodShelf, main, StructureRotation.North, againstWall: true, ref rng);
                 _ = b.TryPlace(StructureType.WoodChest, main, StructureRotation.North, againstWall: true, ref rng);
+                _ = b.TryPlace(StructureType.WoodChest, main, StructureRotation.North, againstWall: true, ref rng);
                 _ = FurnishBackRooms(b, main, ref rng, bedroomFirst: true);
+                break;
+
+            case VillageBuildingRole.Storehouse:
+                // Shelves and chests along every wall, then free-standing shelves where an aisle still reaches the rest.
+                for (int i = 0; i < 14; i++)
+                {
+                    _ = b.TryPlace(i % 3 == 2 ? StructureType.WoodChest : StructureType.WoodShelf, main, StructureRotation.North, againstWall: true, ref rng);
+                }
+
+                for (int i = 0; i < 4; i++)
+                {
+                    _ = b.TryPlace(StructureType.WoodShelf, main, StructureRotation.North, againstWall: false, ref rng);
+                }
+
                 break;
 
             case VillageBuildingRole.Store:
@@ -207,11 +243,11 @@ public static class VillageBuildingGenerator
         private int[] _room = [];
         private int _doorX;
 
-        public Builder(int width, int bodyHeight)
+        public Builder(int width, int bodyHeight, int apronRows, char apronCell)
         {
             this.Width = width;
             this.BodyHeight = bodyHeight;
-            this.Height = bodyHeight + 1;
+            this.Height = bodyHeight + apronRows;
             this.Cells = new char[width * this.Height];
             _inside = new bool[width * this.Height];
             _blocked = new bool[width * this.Height];
@@ -225,9 +261,12 @@ public static class VillageBuildingGenerator
                 }
             }
 
-            for (int x = 0; x < width; x++)
+            for (int y = bodyHeight; y < this.Height; y++)
             {
-                this.Cells[(bodyHeight * width) + x] = VillageBuildingTemplate.PorchCell;
+                for (int x = 0; x < width; x++)
+                {
+                    this.Cells[(y * width) + x] = apronCell;
+                }
             }
         }
 
@@ -267,6 +306,13 @@ public static class VillageBuildingGenerator
         }
 
         private (int X, int Y) InsideEntrance => (_doorX, this.BodyHeight - 2);
+
+        // Roof pillars at the outer corners of the work yard (an open-sided shelter, like a RimWorld forge yard).
+        public void SetPillars()
+        {
+            this.Set(0, this.Height - 1, VillageBuildingTemplate.PillarCell);
+            this.Set(this.Width - 1, this.Height - 1, VillageBuildingTemplate.PillarCell);
+        }
 
         public void CutNotch(int x0, int y0, int w, int h)
         {
@@ -324,6 +370,12 @@ public static class VillageBuildingGenerator
 
             _doorX = options[rng.NextInt(0, options.Count)];
             this.Set(_doorX, y, VillageBuildingTemplate.DoorCell);
+
+            // The way out stays clear: nothing is placed on the apron in front of the door.
+            for (int ay = this.BodyHeight; ay < this.Height; ay++)
+            {
+                _reserved[this.Index(_doorX, ay)] = true;
+            }
         }
 
         // Turns one straight run of floor into an interior wall with a door, if both sides stay proper rooms.
@@ -444,6 +496,156 @@ public static class VillageBuildingGenerator
             return false;
         }
 
+        // Furniture out on the apron (the smithy's yard), optionally with the NPC standing beside it.
+        public bool TryPlaceInApron(StructureType type, bool withNpc, ref DeterministicRandom rng)
+        {
+            (int fw, int fh) = FootprintOf(type, StructureRotation.North);
+            List<(int X, int Y)> anchors = [];
+            for (int y = this.BodyHeight; y + fh <= this.Height; y++)
+            {
+                for (int x = 0; x + fw <= this.Width; x++)
+                {
+                    if (this.IsFreeApron(x, y, fw, fh))
+                    {
+                        anchors.Add((x, y));
+                    }
+                }
+            }
+
+            Shuffle(anchors, ref rng);
+            foreach ((int ax, int ay) in anchors)
+            {
+                (int X, int Y)? npc = null;
+                if (withNpc)
+                {
+                    foreach ((int dx, int dy) in s_steps)
+                    {
+                        if (fw == 1 && fh == 1 && this.IsFreeApron(ax + dx, ay + dy, 1, 1))
+                        {
+                            npc = (ax + dx, ay + dy);
+                            break;
+                        }
+                    }
+
+                    if (npc is null)
+                    {
+                        continue;
+                    }
+                }
+
+                for (int j = 0; j < fh; j++)
+                {
+                    for (int i = 0; i < fw; i++)
+                    {
+                        _blocked[this.Index(ax + i, ay + j)] = true;
+                    }
+                }
+
+                // Every free yard tile (and so the smith's spot) must still be reachable from the yard's open edge.
+                if (!this.EveryFreeApronReachable())
+                {
+                    for (int j = 0; j < fh; j++)
+                    {
+                        for (int i = 0; i < fw; i++)
+                        {
+                            _blocked[this.Index(ax + i, ay + j)] = false;
+                        }
+                    }
+
+                    continue;
+                }
+
+                this.Furniture.Add(new VillageFurniture(type, ax, ay, StructureRotation.North));
+                if (npc is (int nx, int ny))
+                {
+                    this.Npc = (nx, ny);
+                    _reserved[this.Index(nx, ny)] = true;
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+        // Apron tiles reachable on foot from outside: the open bottom row and the open sides of the apron.
+        private bool EveryFreeApronReachable()
+        {
+            bool[] seen = new bool[this.Cells.Length];
+            Queue<int> queue = new();
+            for (int y = this.BodyHeight; y < this.Height; y++)
+            {
+                for (int x = 0; x < this.Width; x++)
+                {
+                    bool edge = y == this.Height - 1 || x == 0 || x == this.Width - 1;
+                    int k = this.Index(x, y);
+                    if (edge && this.IsOpenApron(k))
+                    {
+                        seen[k] = true;
+                        queue.Enqueue(k);
+                    }
+                }
+            }
+
+            while (queue.Count > 0)
+            {
+                int k = queue.Dequeue();
+                foreach ((int dx, int dy) in s_steps)
+                {
+                    int nx = (k % this.Width) + dx;
+                    int ny = (k / this.Width) + dy;
+                    if (nx < 0 || nx >= this.Width || ny < this.BodyHeight || ny >= this.Height)
+                    {
+                        continue;
+                    }
+
+                    int n = this.Index(nx, ny);
+                    if (!seen[n] && this.IsOpenApron(n))
+                    {
+                        seen[n] = true;
+                        queue.Enqueue(n);
+                    }
+                }
+            }
+
+            for (int k = this.BodyHeight * this.Width; k < this.Cells.Length; k++)
+            {
+                if (this.IsOpenApron(k) && !seen[k])
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private bool IsOpenApron(int k) =>
+            this.Cells[k] is VillageBuildingTemplate.YardCell or VillageBuildingTemplate.PorchCell && !_blocked[k];
+
+        private bool IsFreeApron(int x, int y, int fw, int fh)
+        {
+            for (int j = 0; j < fh; j++)
+            {
+                for (int i = 0; i < fw; i++)
+                {
+                    int cx = x + i;
+                    int cy = y + j;
+                    if (cx < 0 || cx >= this.Width || cy < this.BodyHeight || cy >= this.Height)
+                    {
+                        return false;
+                    }
+
+                    int k = this.Index(cx, cy);
+                    if (this.Cells[k] != VillageBuildingTemplate.YardCell || _blocked[k] || _reserved[k])
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+
         // A shop counter (two tables side by side) with the shopkeeper behind it, on the side away from the door.
         public bool TryPlaceCounter(int room, ref DeterministicRandom rng)
         {
@@ -524,13 +726,17 @@ public static class VillageBuildingGenerator
                 }
             }
 
-            // The new wall needs floor on both sides along its whole length, so it never makes a one-tile alcove.
+            // The new wall needs two tiles of floor on both sides along its whole length, and three on one side: a room is
+            // at least 2 wide (a kitchen or pantry) and the room beside it at least 3 (a bedroom).
             for (int i = 0; i < length; i++)
             {
                 int x = sx + (dx * i);
                 int y = sy + (dy * i);
+                bool wideBefore = this.At(x - (3 * px), y - (3 * py)) == VillageBuildingTemplate.FloorCell;
+                bool wideAfter = this.At(x + (3 * px), y + (3 * py)) == VillageBuildingTemplate.FloorCell;
                 if (this.At(x - px, y - py) != VillageBuildingTemplate.FloorCell || this.At(x + px, y + py) != VillageBuildingTemplate.FloorCell ||
-                    this.At(x - (2 * px), y - (2 * py)) != VillageBuildingTemplate.FloorCell || this.At(x + (2 * px), y + (2 * py)) != VillageBuildingTemplate.FloorCell)
+                    this.At(x - (2 * px), y - (2 * py)) != VillageBuildingTemplate.FloorCell || this.At(x + (2 * px), y + (2 * py)) != VillageBuildingTemplate.FloorCell ||
+                    !(wideBefore || wideAfter))
                 {
                     return false;
                 }

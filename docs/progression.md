@@ -104,7 +104,7 @@ tests are reproducible and the client cannot influence the outcome.
 ### 4.1 Critical hits
 
 `critChance = min(50%, weapon crit + DEX bonus)`; a crit multiplies damage by `min(×2.5, 1.5 + DEX bonus)`.
-Melee crits still require an optimal swing (not a worn-out weapon), as before.
+Melee crits still require an optimal swing (a matching tool or weapon). An item at 0 durability no longer exists ([ADR-035](adr/ADR-035-items-break-at-zero-durability.md)).
 
 ### 4.2 Defense and magic resist (diminishing returns)
 

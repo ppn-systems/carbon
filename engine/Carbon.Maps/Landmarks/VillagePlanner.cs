@@ -16,19 +16,18 @@ namespace Carbon.Maps.Landmarks;
 /// </summary>
 internal sealed class VillagePlanner(VillageStyle style, bool withFields) : ILandmarkPlanner
 {
-    private const int MaxHouses = 7;
-    private const int MinHouses = 4;
-    private const float MainStreetWidth = 1.4f;
-    private const float LaneWidth = 1.2f;
-    private const float SpurWidth = 0.8f;
-    private const float SquareRadius = 2.8f;
+    private const int MaxHouses = 10;
+    private const int MinHouses = 6;
+    private const float MainStreetWidth = 1.1f;
+    private const float LaneWidth = 0.9f;
+    private const float SpurWidth = 0.6f;
+    private const float SquareRadius = 3.6f;
     private const int FootprintTries = 6;
     private const int MaxHouseFailures = 3;
     private const int LayoutVariants = 4;
-    private const int MinHousesWanted = 2;
+    private const int MinHousesWanted = 3;
     private const int MaxSetback = 3;
-    private const float MaxSpurLength = 8f;
-    private const int RoadSamples = 48;
+    private const float MaxSpurLength = 9f;
 
     // Door direction (outwards) of a building turned by 0..3 clockwise quarter turns.
     private static readonly (int X, int Y)[] s_doorDirections = [(0, 1), (-1, 0), (0, -1), (1, 0)];
@@ -70,19 +69,9 @@ internal sealed class VillagePlanner(VillageStyle style, bool withFields) : ILan
             c.Add(plot);
         }
 
-        for (int i = 0; i < (withFields ? 6 : 0); i++)
+        foreach ((int minX, int minY, int maxX, int maxY, byte crop) in best.Gardens)
         {
-            float a = (i * (MathF.Tau / 6f)) + 0.5f + (c.Hash01(i + 200) * 0.3f);
-            float fx = cx + (LandmarkPlanContext.Cos(a) * c.Radius * 0.86f);
-            float fy = cy + (LandmarkPlanContext.Sin(a) * c.Radius * 0.86f);
-            float hx = (36f + (c.Hash01(i + 210) * 18f)) * Px;
-            float hy = (22f + (c.Hash01(i + 220) * 12f)) * Px;
-            bool clear = !c.OverlapsPlot((int)MathF.Floor(fx - hx), (int)MathF.Floor(fy - hy), (int)MathF.Floor(fx + hx), (int)MathF.Floor(fy + hy), margin: 1) &&
-                !c.NearPath(fx - hx, fy - hy, fx + hx, fy + hy, margin: 0.3f);
-            if (clear && c.IsBuildable(fx, fy, hx * 2f) && !c.Overlaps(fx, fy, hx + (40f * Px)))
-            {
-                c.Add(new LandmarkField(fx - hx, fy - hy, fx + hx, fy + hy, (byte)(c.Hash(i + 230) % 3)));
-            }
+            c.Add(new LandmarkField(minX, minY, maxX + 1, maxY + 1, crop));
         }
 
         float barrelX = cx + (42f * Px);
@@ -104,30 +93,32 @@ internal sealed class VillagePlanner(VillageStyle style, bool withFields) : ILan
         List<LandmarkPath> streets = [.. c.Paths];
         List<VillageBuildingTemplate> built = [];
         int houses = MinHouses + (int)(c.Hash(600) % (MaxHouses - MinHouses + 1));
-        VillageBuildingRole[] order = [VillageBuildingRole.Smithy, VillageBuildingRole.Store, VillageBuildingRole.Stall];
+        VillageBuildingRole[] order = [VillageBuildingRole.Smithy, VillageBuildingRole.Store, VillageBuildingRole.Stall, VillageBuildingRole.Storehouse];
         int failures = 0;
         for (int k = 0; k < order.Length + houses + MaxHouseFailures && failures < MaxHouseFailures && built.Count < order.Length + houses; k++)
         {
             VillageBuildingRole role = k < order.Length ? order[k] : VillageBuildingRole.House;
-            if (!this.TryPlaceBuilding(c, terrain, streets, built, candidates, role, k) && role == VillageBuildingRole.House)
+            if (!this.TryPlaceBuilding(c, terrain, streets, built, candidates, role, k))
             {
-                failures++; // After a few houses that do not fit even compact, the site is full.
+                failures += role == VillageBuildingRole.House ? 1 : 0; // After a few houses that do not fit, the site is full.
+            }
+            else if (role == VillageBuildingRole.House && (withFields || c.Hash(1200 + k) % 2 == 0))
+            {
+                TryAddGarden(c, terrain, c.Plots[^1], k);
             }
         }
     }
 
-    // The main street (arms through the square, along the roads that reach the village) and one or two side lanes.
+    // The main street (two or three arms through the square) and two or three side lanes.
     private static List<LandmarkPath> LayStreets(Draft c, SiteTerrain terrain)
     {
-        List<float> headings = RoadHeadings(c, terrain);
-        if (headings.Count == 0)
+        // Villages are not on the road network (ADR-027 design rules): the main street takes its own heading through the
+        // square, with a third arm on some sites.
+        float heading = c.Hash01(700) * MathF.Tau;
+        List<float> headings = [heading, heading + MathF.PI + ((c.Hash01(701) - 0.5f) * 0.7f)];
+        if (c.Hash(702) % 2 == 0)
         {
-            headings.Add(c.Hash01(700) * MathF.Tau);
-        }
-
-        if (headings.Count == 1)
-        {
-            headings.Add(headings[0] + MathF.PI + ((c.Hash01(701) - 0.5f) * 0.7f));
+            headings.Add(heading + (MathF.PI * 0.5f) + ((c.Hash01(703) - 0.5f) * 0.8f));
         }
 
         List<LandmarkPath> streets = [];
@@ -143,63 +134,20 @@ internal sealed class VillagePlanner(VillageStyle style, bool withFields) : ILan
             }
         }
 
-        int lanes = arms.Count == 0 ? 0 : 1 + (int)(c.Hash(720) % 2);
+        int lanes = arms.Count == 0 ? 0 : 3 + (int)(c.Hash(720) % 2);
         for (int i = 0; i < lanes; i++)
         {
             (float angle, float length) = arms[(int)(c.Hash(721 + i) % (uint)arms.Count)];
-            float at = Math.Min(length, reach * 0.5f) * (0.5f + (c.Hash01(725 + i) * 0.4f));
+            float at = length * (0.45f + (c.Hash01(725 + i) * 0.4f)); // well clear of the square: no crossroads at the well
             float sx = c.CenterX + (LandmarkPlanContext.Cos(angle) * at);
             float sy = c.CenterY + (LandmarkPlanContext.Sin(angle) * at);
             float side = (c.Hash(730 + i) & 1) == 0 ? 1f : -1f;
             float laneAngle = angle + (side * ((MathF.PI / 2f) + ((c.Hash01(735 + i) - 0.5f) * 0.6f)));
-            float laneLength = 5f + (c.Hash01(740 + i) * 4f);
+            float laneLength = 7f + (c.Hash01(740 + i) * 6f);
             _ = AddArm(c, terrain, streets, sx, sy, laneAngle, (c.Hash01(745 + i) - 0.5f) * 0.5f, laneLength, LaneWidth);
         }
 
         return streets;
-    }
-
-    // Directions (radians) from the centre in which roads leave the village, one per road.
-    private static List<float> RoadHeadings(Draft c, SiteTerrain terrain)
-    {
-        float d = c.Radius - 1.5f;
-        Span<bool> hit = stackalloc bool[RoadSamples];
-        int first = -1;
-        for (int i = 0; i < RoadSamples; i++)
-        {
-            float a = i * (MathF.Tau / RoadSamples);
-            hit[i] = terrain.IsRoad((int)MathF.Floor(c.CenterX + (LandmarkPlanContext.Cos(a) * d)), (int)MathF.Floor(c.CenterY + (LandmarkPlanContext.Sin(a) * d)));
-            if (!hit[i] && first < 0)
-            {
-                first = i;
-            }
-        }
-
-        List<float> headings = [];
-        if (first < 0)
-        {
-            return headings;
-        }
-
-        // Walk the circle from a sample without road, so a run of hits never wraps around the start.
-        int run = 0;
-        int runStart = 0;
-        for (int k = 1; k <= RoadSamples; k++)
-        {
-            int i = (first + k) % RoadSamples;
-            if (hit[i])
-            {
-                runStart = run == 0 ? k : runStart;
-                run++;
-            }
-            else if (run > 0)
-            {
-                headings.Add((first + runStart + ((run - 1) * 0.5f)) * (MathF.Tau / RoadSamples));
-                run = 0;
-            }
-        }
-
-        return headings;
     }
 
     // Adds a street arm of two bent segments that stops where the ground stops being buildable. Returns its length.
@@ -254,7 +202,7 @@ internal sealed class VillagePlanner(VillageStyle style, bool withFields) : ILan
         VillageBuildingRole role,
         int order)
     {
-        int clearance = c.Hash(800 + order) % 3 == 0 ? 2 : 1;
+        int clearance = 2 + (int)(c.Hash(800 + order) % 2);
         float gap = c.Hash(820 + order) % 2 * 0.5f;
         bool compact = false;
         for (int attempt = 0; attempt < FootprintTries; attempt++)
@@ -421,8 +369,61 @@ internal sealed class VillagePlanner(VillageStyle style, bool withFields) : ILan
             VillageBuildingRole.Stall => distance,
             VillageBuildingRole.Smithy or VillageBuildingRole.Store => distance + (noise * 4f),
             VillageBuildingRole.House => noise * 2f,
+            VillageBuildingRole.Storehouse => (distance * 0.3f) + (noise * 4f),
             _ => noise,
         };
+    }
+
+    // A kitchen garden beside a home (one tile from its side or back wall), on open dry ground off streets and other plots.
+    private static void TryAddGarden(Draft c, SiteTerrain terrain, in VillagePlot home, int order)
+    {
+        int gw = 3 + (int)(c.Hash(1300 + order) % 3);
+        int gh = 3 + (int)(c.Hash(1310 + order) % 2);
+        int start = (int)(c.Hash(1320 + order) % 4);
+        (int ex, int ey) = VillageBlueprint.EntranceTile(home);
+        int midX = home.OriginX + (home.Width / 2);
+        int midY = home.OriginY + (home.Height / 2);
+        for (int k = 0; k < 4; k++)
+        {
+            (int x0, int y0) = ((start + k) % 4) switch
+            {
+                0 => (home.OriginX - 1 - gw, midY - (gh / 2)),
+                1 => (home.OriginX + home.Width + 1, midY - (gh / 2)),
+                2 => (midX - (gw / 2), home.OriginY - 1 - gh),
+                _ => (midX - (gw / 2), home.OriginY + home.Height + 1),
+            };
+            int x1 = x0 + gw - 1;
+            int y1 = y0 + gh - 1;
+
+            // Never in front of the door.
+            bool front = ex >= x0 - 1 && ex <= x1 + 1 && ey >= y0 - 2 && ey <= y1 + 2;
+            if (front || !WithinRadius(c, x0 + 0.5f, y0 + 0.5f, c.Radius - 0.5f) || !WithinRadius(c, x1 + 0.5f, y1 + 0.5f, c.Radius - 0.5f) ||
+                !WithinRadius(c, x0 + 0.5f, y1 + 0.5f, c.Radius - 0.5f) || !WithinRadius(c, x1 + 0.5f, y0 + 0.5f, c.Radius - 0.5f) ||
+                c.OverlapsPlot(x0, y0, x1, y1, margin: 1) || c.OverlapsGarden(x0, y0, x1, y1, margin: 1))
+            {
+                continue;
+            }
+
+            bool clear = true;
+            for (int y = y0; y <= y1 && clear; y++)
+            {
+                for (int x = x0; x <= x1; x++)
+                {
+                    if (!terrain.IsBuildable(x, y) || terrain.IsPath(x, y) || terrain.IsPlot(x, y) || terrain.IsRoad(x, y))
+                    {
+                        clear = false;
+                        break;
+                    }
+                }
+            }
+
+            if (clear)
+            {
+                c.Gardens.Add((x0, y0, x1, y1, (byte)(c.Hash(1330 + order) % 3)));
+                terrain.MarkRect(x0, y0, x1, y1);
+                return;
+            }
+        }
     }
 
     private static bool NearestStreetPoint(List<LandmarkPath> streets, float x, float y, out float px, out float py, out float distance)
@@ -484,7 +485,8 @@ internal sealed class VillagePlanner(VillageStyle style, bool withFields) : ILan
 
         float qx = Math.Clamp(c.CenterX, minX, maxX + 1) - c.CenterX;
         float qy = Math.Clamp(c.CenterY, minY, maxY + 1) - c.CenterY;
-        if ((qx * qx) + (qy * qy) < SquareRadius * SquareRadius || c.OverlapsPlot(minX, minY, maxX, maxY, clearance))
+        if ((qx * qx) + (qy * qy) < SquareRadius * SquareRadius || c.OverlapsPlot(minX, minY, maxX, maxY, clearance) ||
+            c.OverlapsGarden(minX, minY, maxX, maxY, margin: 1))
         {
             return false;
         }
@@ -512,7 +514,7 @@ internal sealed class VillagePlanner(VillageStyle style, bool withFields) : ILan
             int tx = (int)MathF.Floor(sx + (ddx * t));
             int ty = (int)MathF.Floor(sy + (ddy * t));
             char cell = plot.CellAtWorld(tx, ty);
-            if (terrain.IsPlot(tx, ty) || cell is not (VillageBuildingTemplate.EmptyCell or VillageBuildingTemplate.PorchCell))
+            if (terrain.IsPlot(tx, ty) || cell is not (VillageBuildingTemplate.EmptyCell or VillageBuildingTemplate.PorchCell or VillageBuildingTemplate.YardCell))
             {
                 return false;
             }
@@ -566,6 +568,21 @@ internal sealed class VillagePlanner(VillageStyle style, bool withFields) : ILan
         public List<LandmarkPath> Paths { get; } = [];
 
         public List<VillagePlot> Plots { get; } = [];
+
+        public List<(int MinX, int MinY, int MaxX, int MaxY, byte Crop)> Gardens { get; } = [];
+
+        public bool OverlapsGarden(int minX, int minY, int maxX, int maxY, int margin)
+        {
+            foreach ((int gx0, int gy0, int gx1, int gy1, _) in this.Gardens)
+            {
+                if (minX - margin <= gx1 && maxX + margin >= gx0 && minY - margin <= gy1 && maxY + margin >= gy0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         public PointOfInterest Poi => context.Poi;
 
@@ -703,6 +720,22 @@ internal sealed class VillagePlanner(VillageStyle style, bool withFields) : ILan
                     if (i >= 0 && path.DistanceSquaredTo(x + 0.5f, y + 0.5f) <= reach * reach)
                     {
                         _cells[i] |= PathFlag;
+                    }
+                }
+            }
+        }
+
+        // Marks a garden as taken, so no later building or door path crosses it.
+        public void MarkRect(int minX, int minY, int maxX, int maxY)
+        {
+            for (int y = minY; y <= maxY; y++)
+            {
+                for (int x = minX; x <= maxX; x++)
+                {
+                    int i = this.IndexOf(x, y);
+                    if (i >= 0)
+                    {
+                        _cells[i] |= PlotFlag;
                     }
                 }
             }
