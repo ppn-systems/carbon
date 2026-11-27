@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Desktop.Rendering.Atmospherics;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
 using Carbon.Maps.Building;
@@ -219,6 +220,53 @@ internal sealed class RoofRenderer
             else
             {
                 this.DrawTileRoof(batch, grid, in room, alpha);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Adds the night lights of the rooms in view (ADR-041): warm light spilling from each door, a soft window glow
+    /// over the room, and the hearth or forge fire at its stove. Uses the rooms of the last <see cref="Refresh"/>.
+    /// </summary>
+    /// <param name="lights">Light list the frame collects into.</param>
+    /// <param name="minX">View left edge.</param>
+    /// <param name="minY">View top edge.</param>
+    /// <param name="maxX">View right edge.</param>
+    /// <param name="maxY">View bottom edge.</param>
+    /// <param name="time">Animation time in seconds (fire flicker).</param>
+    public void CollectLights(List<PointLight> lights, float minX, float minY, float maxX, float maxY, float time)
+    {
+        ArgumentNullException.ThrowIfNull(lights);
+        ColorRgba warm = new(255, 186, 104);
+        ColorRgba fire = new(255, 140, 60);
+        for (int i = 0; i < _rooms.Count; i++)
+        {
+            RoofRoom room = _rooms[i];
+            float rx0 = room.MinX * _tileSize;
+            float ry0 = room.MinY * _tileSize;
+            float rx1 = (room.MaxX + 1) * _tileSize;
+            float ry1 = (room.MaxY + 1) * _tileSize;
+            const float Reach = 160f;
+            if (rx1 + Reach < minX || rx0 - Reach > maxX || ry1 + Reach < minY || ry0 - Reach > maxY)
+            {
+                continue;
+            }
+
+            Vector2 centre = new((rx0 + rx1) * 0.5f, (ry0 + ry1) * 0.5f);
+            float span = MathF.Max(rx1 - rx0, ry1 - ry0);
+            lights.Add(new PointLight(centre, span * 0.75f, warm, 0.3f));
+            if (room.DoorX != int.MinValue)
+            {
+                Vector2 door = new((room.DoorX + 0.5f) * _tileSize, (room.DoorY + 0.5f) * _tileSize);
+                lights.Add(new PointLight(door + (Vector2.Normalize(door - centre + new Vector2(0f, 0.01f)) * _tileSize * 0.8f), 72f, warm, 0.75f));
+            }
+
+            if (room.StoveX != int.MinValue)
+            {
+                Vector2 stove = new((room.StoveX + 0.5f) * _tileSize, (room.StoveY + 0.5f) * _tileSize);
+                float flicker = 0.82f + (0.12f * MathF.Sin((time * 9f) + stove.X)) + (0.06f * MathF.Sin((time * 23f) + stove.Y));
+                bool forge = room.Emblem == RoofEmblem.Anvil;
+                lights.Add(new PointLight(stove, forge ? 130f : 84f, forge ? fire : warm, (forge ? 0.95f : 0.7f) * flicker));
             }
         }
     }

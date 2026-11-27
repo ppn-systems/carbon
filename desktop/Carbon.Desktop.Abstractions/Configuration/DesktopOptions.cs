@@ -71,6 +71,12 @@ public sealed class DesktopOptions
     public int FrameStatsFrames { get; init; }
 
     /// <summary>
+    /// Gets or sets a forced graphics quality preset (<c>CARBON_GRAPHICS_QUALITY=low|medium|high</c>; screenshots and
+    /// perf runs). It wins over the saved setting and the GPU default (ADR-041). Cosmetic only.
+    /// </summary>
+    public string? GraphicsQualityOverride { get; init; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether the scene opens the nearest trader's window once in the world
     /// (<c>CARBON_OPEN_TRADER=1</c>; screenshot tool). The capture waits for the trader's stock to arrive.
     /// </summary>
@@ -270,6 +276,7 @@ public sealed class DesktopOptions
             ScreenshotPath = screenshotPath,
             CaptureFrames = captureFrames,
             FrameStatsFrames = frameStatsFrames,
+            GraphicsQualityOverride = get("CARBON_GRAPHICS_QUALITY") is { Length: > 0 } quality ? quality.Trim() : null,
             AutoExit = string.Equals(get("CARBON_AUTO_EXIT"), "1", StringComparison.Ordinal),
             OpenTrader = string.Equals(get("CARBON_OPEN_TRADER"), "1", StringComparison.Ordinal),
             TradePreview = string.Equals(get("CARBON_TRADE_PREVIEW"), "basket", StringComparison.Ordinal),

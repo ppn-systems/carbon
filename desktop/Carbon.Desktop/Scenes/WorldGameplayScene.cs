@@ -697,6 +697,7 @@ public sealed class WorldGameplayScene : GameScene
 
         float frameDt = _options.CaptureFrames > 0 ? 1f / 15f : (float)dt;
         _worldRenderer.EnsureWorldBound(_session);
+        _worldRenderer.QualityChoice = _hudRenderer.Settings.GraphicsQuality; // cosmetic only (ADR-041)
         _worldRenderer.Render(
             _session,
             _cameraRig,
@@ -708,6 +709,7 @@ public sealed class WorldGameplayScene : GameScene
             _hudRenderer.Font,
             _mouseWorldPosition,
             _hudRenderer.Settings.ShowCombatNumbers);
+        _hudRenderer.Settings.EffectiveGraphicsQuality = _worldRenderer.Quality;
 
         // No prompt while dead: Update stops refreshing the target then (ADR-031 death screen).
         _hudState.InteractPrompt = _session.LocalDeath is null ? _interaction.BuildPrompt(_worldToScreen) : null;

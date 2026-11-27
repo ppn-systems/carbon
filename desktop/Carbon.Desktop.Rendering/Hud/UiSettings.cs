@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using Carbon.Desktop.Abstractions.Configuration;
+using Carbon.Desktop.Rendering.PostProcessing;
 
 namespace Carbon.Desktop.Rendering.Hud;
 
@@ -19,6 +20,7 @@ namespace Carbon.Desktop.Rendering.Hud;
 /// [display]
 /// show_minimap = true
 /// camera_zoom = 1
+/// graphics_quality = auto
 /// </code>
 /// <c>CARBON_LANG</c> overrides <c>[general] language</c> at startup. A legacy <c>ui_settings.cfg</c> is read once when
 /// <c>settings.ini</c> does not exist yet.
@@ -46,6 +48,18 @@ public sealed class UiSettings
 
     /// <summary>Gets or sets discrete camera zoom preset (<c>0</c>=Wide, <c>1</c>=Standard, <c>2</c>=Close).</summary>
     public int CameraZoomPreset { get; set; } = 1;
+
+    /// <summary>
+    /// Gets or sets the chosen graphics quality preset (<see langword="null"/> = auto: picked from the GPU, ADR-041).
+    /// Cosmetic only; nothing gameplay-relevant reads it.
+    /// </summary>
+    public GraphicsQuality? GraphicsQuality { get; set; }
+
+    /// <summary>
+    /// Gets or sets the preset the world renderer is actually using (the auto choice resolved, or an override), so the
+    /// Settings window can highlight it. Not saved.
+    /// </summary>
+    public GraphicsQuality EffectiveGraphicsQuality { get; set; } = PostProcessing.GraphicsQuality.Medium;
 
     /// <summary>
     /// Gets or sets the chosen UI language code (empty = default). <c>CARBON_LANG</c> overrides it at startup (ADR-023 D3).
@@ -108,6 +122,7 @@ public sealed class UiSettings
                 $"show_telemetry = {Bool(this.ShowTelemetry)}",
                 $"show_keybind_hints = {Bool(this.ShowKeybindHints)}",
                 $"camera_zoom = {this.CameraZoomPreset.ToString(CultureInfo.InvariantCulture)}",
+                $"graphics_quality = {(this.GraphicsQuality is { } quality ? GraphicsQualityPolicy.ToSettingValue(quality) : "auto")}",
             ];
             File.WriteAllLines(path, lines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         }
@@ -175,6 +190,9 @@ public sealed class UiSettings
                 break;
             case "camera_zoom" when int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int zoom):
                 this.CameraZoomPreset = Math.Clamp(zoom, 0, 2);
+                break;
+            case "graphics_quality":
+                this.GraphicsQuality = GraphicsQualityPolicy.TryParse(value, out GraphicsQuality quality) ? quality : null;
                 break;
             default:
                 break;

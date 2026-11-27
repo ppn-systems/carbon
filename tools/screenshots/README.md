@@ -71,11 +71,12 @@ they are active.
 | `CARBON_TRADE_PREVIEW=basket` | With `CARBON_OPEN_TRADER=1`: stage every sellable bag stack in the "To sell" basket and two stock rows in the cart (ADR-025 D18). Visual only: nothing is sent until Sell or Buy is pressed. The `trade_basket` scenario uses it. |
 | `CARBON_OPEN_REPAIR=blacksmith\|station` | Open the repair window (ADR-028) at the blacksmith or at a player station. The `repair_*` scenarios use it. |
 | `CARBON_REPAIR_PREVIEW=work\|success[:s]` | Play the repair animation in that window (`work`: hammering, `success`: the bar filled and flashing), frozen at `s` seconds when given. Visual only: nothing is sent. |
+| `CARBON_GRAPHICS_QUALITY=low\|medium\|high` | Force the graphics quality preset (ADR-041), over the saved setting and the GPU default. Under xvfb the GPU is llvmpipe, so the default is Low; pass `high` to review the light map, grading and bloom. Cosmetic only. |
 
 `--lang <code>` (or `CARBON_LANG`) sets the client language for every scenario; the code must have a file in
 `resources/localization/` (`<code>.ini`, ADR-023). Capture `en` and `vi` into separate output directories to compare them.
 
-Script knobs: `SKIP_BUILD=1`, `CARBON_SEED`, `BASE_PORT` (TCP; UDP is `BASE_PORT+1`), `WIDTH`/`HEIGHT`,
+Script knobs: `SKIP_BUILD=1`, `GRAPHICS_QUALITY` (adds `CARBON_GRAPHICS_QUALITY` to every scenario), `CARBON_SEED`, `BASE_PORT` (TCP; UDP is `BASE_PORT+1`), `WIDTH`/`HEIGHT`,
 `CLIENT_TIMEOUT`, `SERVER_BOOT_TIMEOUT`, `SCENARIOS` (alternative scenario file).
 
 ## Smoke test
