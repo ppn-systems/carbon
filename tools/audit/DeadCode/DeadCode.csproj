@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <RootNamespace>Carbon.Tools.Audit.DeadCode</RootNamespace>
+        <!-- A console tool that writes progress to stderr; blocking writes are fine here. -->
+        <NoWarn>$(NoWarn);CA1849</NoWarn>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
+        <PackageReference Include="Microsoft.Build.Locator" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" />
+    </ItemGroup>
+</Project>
