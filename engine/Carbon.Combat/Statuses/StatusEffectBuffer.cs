@@ -95,6 +95,39 @@ public sealed class StatusEffectBuffer
         }
     }
 
+    /// <summary>Gets the product of every active <see cref="ActiveStatusEffect.DamageDealtMultiplier"/> (weakness).</summary>
+    public float DamageDealtMultiplier
+    {
+        get
+        {
+            float scale = 1f;
+            for (int i = 0; i < _count; i++)
+            {
+                scale *= _effects[i].DamageDealtMultiplier;
+            }
+
+            return scale;
+        }
+    }
+
+    /// <summary>
+    /// Gets the product of every active <see cref="ActiveStatusEffect.ViewRadiusMultiplier"/> (blindness), never below
+    /// <see cref="Config.StatusEffectDefinition.MinViewRadiusMultiplier"/>.
+    /// </summary>
+    public float ViewRadiusMultiplier
+    {
+        get
+        {
+            float scale = 1f;
+            for (int i = 0; i < _count; i++)
+            {
+                scale *= _effects[i].ViewRadiusMultiplier;
+            }
+
+            return MathF.Max(Config.StatusEffectDefinition.MinViewRadiusMultiplier, scale);
+        }
+    }
+
     /// <summary>
     /// Gets a read-only span over active status effects.
     /// </summary>
@@ -171,6 +204,9 @@ public sealed class StatusEffectBuffer
                         Source = values.Source,
                         SourceId = values.SourceId,
                         Level = Math.Max(level, currentLevel),
+                        DamageDealtMultiplier = values.DamageDealtMultiplier,
+                        ViewRadiusMultiplier = values.ViewRadiusMultiplier,
+                        ExtinguishedByWater = values.ExtinguishedByWater,
                     };
                     break;
             }
@@ -283,6 +319,23 @@ public sealed class StatusEffectBuffer
                 };
             }
         }
+    }
+
+    /// <summary>Removes every effect that water puts out (burning, ADR-036 D9).</summary>
+    /// <returns><see langword="true"/> when an effect was removed.</returns>
+    public bool RemoveExtinguishedByWater()
+    {
+        bool removed = false;
+        for (int i = _count - 1; i >= 0; i--)
+        {
+            if (_effects[i].ExtinguishedByWater)
+            {
+                this.RemoveAt(i);
+                removed = true;
+            }
+        }
+
+        return removed;
     }
 
     /// <summary>

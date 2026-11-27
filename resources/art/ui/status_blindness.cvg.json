@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "itemId": 0,
+  "id": "status_blindness",
+  "displayName": "Blindness",
+  "tier": 1,
+  "categoryLabel": "Status",
+  "accentColor": "#94A3B8",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.7,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "ellipse",
+      "x": 0,
+      "y": 0,
+      "rx": 6.6,
+      "ry": 3.8,
+      "color": "#E2E8F0",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 1.1,
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "ellipse",
+      "x": 0,
+      "y": 0,
+      "rx": 2.4,
+      "ry": 2.4,
+      "color": "#334155",
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "ellipse",
+      "x": 0.6,
+      "y": -0.7,
+      "rx": 0.6,
+      "ry": 0.6,
+      "color": "#F8FAFC",
+      "bone": "root",
+      "facing": "any"
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        [
+          -5.87,
+          -4.74
+        ],
+        [
+          -4.74,
+          -5.87
+        ],
+        [
+          5.87,
+          4.74
+        ],
+        [
+          4.74,
+          5.87
+        ]
+      ],
+      "color": "#0F172A",
+      "outlineColor": "#0F172A",
+      "outlineThickness": 0.4,
+      "bone": "root",
+      "facing": "any"
+    }
+  ]
+}

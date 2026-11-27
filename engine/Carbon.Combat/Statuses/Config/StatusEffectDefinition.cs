@@ -10,6 +10,11 @@ public sealed class StatusEffectDefinition
     /// <summary>The lowest movement speed multiplier any level of a slow reaches.</summary>
     public const float MinMoveSpeedMultiplier = 0.05f;
 
+    /// <summary>The smallest view radius multiplier any level of blindness reaches (ADR-036 D9).</summary>
+    public const float MinViewRadiusMultiplier = 0.25f;
+
+    private const float MinDamageDealtMultiplier = 0.05f;
+
     private const float MaxMultiplier = 3f;
 
     private const float MaxRegenMultiplier = 10f;
@@ -77,6 +82,21 @@ public sealed class StatusEffectDefinition
     /// <summary>Gets the stamina regeneration multiplier added by each level above I.</summary>
     public float StaminaRegenMultiplierPerLevel { get; set; }
 
+    /// <summary>Gets the multiplier on damage the affected player deals (weakness, ADR-036 D9).</summary>
+    public float DamageDealtMultiplier { get; set; } = 1f;
+
+    /// <summary>Gets the damage dealt multiplier added by each level above I.</summary>
+    public float DamageDealtMultiplierPerLevel { get; set; }
+
+    /// <summary>Gets the multiplier on the affected player's view (AoI) radius (blindness, ADR-036 D9).</summary>
+    public float ViewRadiusMultiplier { get; set; } = 1f;
+
+    /// <summary>Gets the view radius multiplier added by each level above I.</summary>
+    public float ViewRadiusMultiplierPerLevel { get; set; }
+
+    /// <summary>Gets whether entering water at least <c>Shallow</c> deep removes the effect (burning, ADR-036 D9).</summary>
+    public bool ExtinguishedByWater { get; set; }
+
     /// <summary>Clamps <paramref name="level"/> to <c>[1, MaxLevel]</c>; 0 (none) becomes I.</summary>
     /// <param name="level">Requested level.</param>
     /// <returns>The level the effect is applied at.</returns>
@@ -108,6 +128,21 @@ public sealed class StatusEffectDefinition
     /// <returns>The multiplier.</returns>
     public float StaminaRegenMultiplierAt(byte level) =>
         Math.Clamp(this.StaminaRegenMultiplier + (this.Steps(level) * this.StaminaRegenMultiplierPerLevel), 0f, MaxRegenMultiplier);
+
+    /// <summary>Gets the damage dealt multiplier at <paramref name="level"/> (clamped to <c>[0.05, 3]</c>).</summary>
+    /// <param name="level">Effect level.</param>
+    /// <returns>The multiplier.</returns>
+    public float DamageDealtMultiplierAt(byte level) =>
+        Math.Clamp(this.DamageDealtMultiplier + (this.Steps(level) * this.DamageDealtMultiplierPerLevel), MinDamageDealtMultiplier, MaxMultiplier);
+
+    /// <summary>
+    /// Gets the view radius multiplier at <paramref name="level"/>, never below <see cref="MinViewRadiusMultiplier"/>, so a
+    /// blinded player still sees nearby enemies.
+    /// </summary>
+    /// <param name="level">Effect level.</param>
+    /// <returns>The multiplier.</returns>
+    public float ViewRadiusMultiplierAt(byte level) =>
+        Math.Clamp(this.ViewRadiusMultiplier + (this.Steps(level) * this.ViewRadiusMultiplierPerLevel), MinViewRadiusMultiplier, MaxMultiplier);
 
     private int Steps(byte level) => this.ClampLevel(level) - 1;
 }

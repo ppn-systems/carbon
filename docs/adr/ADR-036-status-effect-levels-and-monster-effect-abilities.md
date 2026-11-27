@@ -118,16 +118,19 @@ What ADR-029 shipped on `master`:
 
    | Key | Id | Rule | Values | Mechanic |
    | :--- | :---: | :--- | :--- | :--- |
-   | `weakness` | 10 | Strongest, max III | 8 s, damage dealt ×0.75, −0.1 per level | the player's melee, skill and projectile damage is multiplied before mitigation |
-   | `blindness` | 11 | Strongest, max III | 5 s, view ×0.5, −0.1 per level | the server shrinks that player's AoI enter and exit radii, so distant entities leave the client; the client also darkens the screen edge |
-   | `burning` | 12 | Stack ×3, max V | 5 s, 1.5 per 1 s per stack, +1 per level, lethal | entering water at least `Shallow` deep (ADR-032) puts it out |
-   | `frostbite` | 13 | Refresh, max III | 6 s, 0.5 per 2 s, +0.5 per level, not lethal; stamina regen ×0.6, −0.1 per level | damage pulses and slower stamina regen |
+   | `weakness` | 11 | Strongest, max III | 8 s, damage dealt ×0.75, −0.1 per level | the player's melee, skill and projectile damage is multiplied before mitigation |
+   | `blindness` | 12 | Strongest, max III | 5 s, view ×0.5, −0.1 per level | the server shrinks that player's AoI enter and exit radii, so distant entities leave the client; the client also darkens the screen edge |
+   | `burning` | 13 | Stack ×3, max V | 5 s, 1.5 per 1 s per stack, +1 per level, lethal | entering water at least `Shallow` deep (ADR-032) puts it out |
+   | `frostbite` | 14 | Refresh, max III | 6 s, 0.5 per 2 s, +0.5 per level, not lethal; stamina regen ×0.6, −0.1 per level | damage pulses and slower stamina regen |
 
    New definition keys: `damageDealtMultiplier` (+ `PerLevel`), `viewRadiusMultiplier` (+ `PerLevel`, clamped to at least
    0.25 so a player always sees nearby enemies), and `extinguishedByWater`.
-10. **D10 — Telegraphs hint at the effect.** On the client, a monster's attack telegraph and its projectiles are tinted
-    with the colour of its first proc's effect (`StatusEffectTints`, already used for damage numbers), from the synced
-    `status_effects.json`. Example: green for poison, orange for burning. Vector geometry only, no new sprites.
+10. **D10 — Telegraphs hint at the effect.** On the client, a monster's attack telegraph (melee wedge, aim line and
+    reticle, spell zone, leap zone) takes the colour of its first proc's effect from the synced `status_effects.json`
+    (`StatusEffectTints.ForTelegraph`): green for poison, orange for burning, violet for weakness, and so on. The archetype
+    is resolved once per catalog (`MonsterEffectTints`). Projectiles keep their colour: a projectile entity does not carry
+    its shooter's archetype, and the aim line already shows the colour before the shot. Blindness also darkens the screen
+    edge in proportion to the lost view, and frostbite uses the cold edge of a slow. Vector geometry only, no new sprites.
 
 ## Alternatives Considered
 

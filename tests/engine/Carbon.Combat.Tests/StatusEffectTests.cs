@@ -295,7 +295,7 @@ public sealed class StatusEffectTests
     [Fact]
     public void LoadShippedDefaults_HasTheAdrEffectsAndRules()
     {
-        s_shipped.Effects.Should().HaveCount(10);
+        s_shipped.Effects.Should().HaveCount(14, "ADR-029, drowning (ADR-032) and the four ADR-036 effects");
         s_shipped.HeavyHitEffect!.Key.Should().Be("stunned");
         s_shipped.HeavyHitMinDamageFraction.Should().Be(0.25f);
         s_shipped.RestedEffect!.Key.Should().Be("rested");

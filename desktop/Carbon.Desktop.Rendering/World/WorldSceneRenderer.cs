@@ -49,6 +49,7 @@ public sealed class WorldSceneRenderer : IDisposable
     private readonly IGraphicsDevice _device;
     private readonly GeometryBatch _geometryBatch;
     private readonly SlowTrail _slowTrail = new();
+    private readonly MonsterEffectTints _monsterTints = new();
     private float _slowTrailTime;
     private readonly ChunkTerrainRenderer _terrainRenderer;
     private readonly Atmosphere _atmosphere;
@@ -805,7 +806,8 @@ public sealed class WorldSceneRenderer : IDisposable
                 if (remote.Attack.IsActive)
                 {
                     // Server-authoritative phase timeline (ADR-013): kind-specific clip, beats aligned to phase markers.
-                    AttackTelegraphRenderer.Draw(batch, footPos, remote.Attack, _animTime);
+                    // ADR-036 D10: the telegraph takes the colour of the effect the monster can apply (green for poison).
+                    AttackTelegraphRenderer.Draw(batch, footPos, remote.Attack, _animTime, _monsterTints.Resolve(world, remote.ArchetypeId));
                     clip = MonsterAttackAnimator.ResolveClip(rig, remote.ArchetypeId, remote.Attack.AttackKind);
                     AttackPhaseMarks marks = rig.TryGetAnimation(clip, out CompiledVectorAnimation? attackAnim)
                         ? attackAnim.PhaseMarks
