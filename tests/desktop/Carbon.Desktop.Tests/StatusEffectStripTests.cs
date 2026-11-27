@@ -56,13 +56,16 @@ public sealed class StatusEffectStripTests
     }
 
     [Theory]
-    [InlineData(1280)]
-    [InlineData(1920)]
-    public void Panel_OpensUnderTheStripLeftOfTheClockAndMinimapColumn(int width)
+    [InlineData(1280, 96f)]
+    [InlineData(1920, 54f)]
+    [InlineData(2560, 54f)]
+    public void Panel_OpensUnderTheStripLeftOfTheClockAndMinimapColumnAndClearOfTheTargetCard(int width, float expectedTop)
     {
         RectangleF panel = StatusEffectStripLayout.Panel(160f, width);
+        RectangleF targetCard = new(System.MathF.Floor((width - 340f) * 0.5f), 14f, 340f, 74f);
 
-        panel.Y.Should().Be(HudLayout.GetStatusStripRect(width).Y + 46f);
+        panel.Y.Should().Be(expectedTop, "the panel drops below the target card only when they would meet");
+        Overlaps(panel, targetCard).Should().BeFalse("the locked target stays readable");
         Overlaps(panel, HudLayout.GetClockRect(width)).Should().BeFalse("the clock stays readable while the details are open");
         Overlaps(panel, HudLayout.GetMinimapFrameRect(width)).Should().BeFalse("so does the minimap");
     }

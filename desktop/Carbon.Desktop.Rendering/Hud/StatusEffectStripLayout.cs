@@ -27,6 +27,11 @@ internal static class StatusEffectStripLayout
 
     private const float PanelGap = 8f;
 
+    /// <summary>Half width and bottom of the top-centre target card (see <c>MonsterTargetWidget</c>: 340 x 74 at y = 14).</summary>
+    private const float TargetCardHalfWidth = 170f;
+
+    private const float TargetCardBottom = 88f;
+
     /// <summary>Gets how many icons fit in the reserved strip.</summary>
     public static int Capacity(int viewportWidth)
     {
@@ -58,12 +63,21 @@ internal static class StatusEffectStripLayout
         return -1;
     }
 
-    /// <summary>Gets the details panel rectangle: under the strip, to the left of the clock and minimap column.</summary>
+    /// <summary>
+    /// Gets the details panel rectangle: under the strip, to the left of the clock and minimap column, and below the
+    /// top-centre target card when a narrow window would make them meet.
+    /// </summary>
     public static RectangleF Panel(float height, int viewportWidth)
     {
         RectangleF strip = HudLayout.GetStatusStripRect(viewportWidth);
         RectangleF column = HudLayout.GetClockRect(viewportWidth);
         float x = MathF.Max(8f, column.X - PanelGap - PanelWidth);
-        return new RectangleF(x, strip.Y + strip.Height + HudLayout.Gap, PanelWidth, height);
+        float y = strip.Y + strip.Height + HudLayout.Gap;
+        if (x < (viewportWidth * 0.5f) + TargetCardHalfWidth + PanelGap)
+        {
+            y = MathF.Max(y, TargetCardBottom + PanelGap);
+        }
+
+        return new RectangleF(x, y, PanelWidth, height);
     }
 }
