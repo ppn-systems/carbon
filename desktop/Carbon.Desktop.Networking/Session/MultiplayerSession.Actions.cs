@@ -879,6 +879,21 @@ public sealed partial class MultiplayerSession
     }
 
     /// <inheritdoc/>
+    public void DrainStrikeImpactEvents(List<StrikeImpactEvent> destination)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        lock (_worldGate)
+        {
+            for (int i = 0; i < _strikeImpactEvents.Count; i++)
+            {
+                destination.Add(_strikeImpactEvents[i]);
+            }
+
+            _strikeImpactEvents.Clear();
+        }
+    }
+
+    /// <inheritdoc/>
     public void DrainPropImpactEvents(List<PropImpactEvent> destination)
     {
         ArgumentNullException.ThrowIfNull(destination);

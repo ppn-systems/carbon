@@ -161,7 +161,9 @@ public sealed class ProtocolContractGuardTests
             ZoneTier = 2,
             PositionX = 123.5f,
             PositionY = -45.25f,
-            AppearancePreset = 3,
+            RaceId = 1,
+            BodyType = 1,
+            AppearanceOptions = [3, 2, 1, 0],
             ClassId = (byte)HeroArchetypeClass.Arcanist,
             Traits = CharacterTraits.StarterLoadoutGranted | CharacterTraits.ForgeUnlocked,
         };
@@ -170,7 +172,9 @@ public sealed class ProtocolContractGuardTests
         Assert.Equal("Aria", summaryCopy.Name);
         Assert.Equal((ushort)7, summaryCopy.Level);
         Assert.Equal((byte)2, summaryCopy.ZoneTier);
-        Assert.Equal((byte)3, summaryCopy.AppearancePreset);
+        Assert.Equal((ushort)1, summaryCopy.RaceId);
+        Assert.Equal((byte)1, summaryCopy.BodyType);
+        Assert.Equal([3, 2, 1, 0], summaryCopy.AppearanceOptions);
         Assert.Equal((byte)HeroArchetypeClass.Arcanist, summaryCopy.ClassId);
         Assert.Equal(CharacterTraits.StarterLoadoutGranted | CharacterTraits.ForgeUnlocked, summaryCopy.Traits);
 
@@ -185,14 +189,18 @@ public sealed class ProtocolContractGuardTests
             PositionY = 20f,
             ServerTick = 120UL,
             TickRate = 30,
-            AppearancePreset = 2,
+            RaceId = 7,
+            BodyType = 2,
+            AppearanceOptions = [1, 1, 0],
             ClassId = (byte)HeroArchetypeClass.Ranger,
             Traits = CharacterTraits.StarterLoadoutGranted,
             UnlockedSkillMask = 0b0101UL,
             ProgressionBlob = [1, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         };
         using CharacterEnterWorld enterCopy = CharacterEnterWorld.Deserialize(enter.Serialize());
-        Assert.Equal((byte)2, enterCopy.AppearancePreset);
+        Assert.Equal((ushort)7, enterCopy.RaceId);
+        Assert.Equal((byte)2, enterCopy.BodyType);
+        Assert.Equal([1, 1, 0], enterCopy.AppearanceOptions);
         Assert.Equal(55UL, enterCopy.PlayerNetworkId);
         Assert.Equal((byte)HeroArchetypeClass.Ranger, enterCopy.ClassId);
         Assert.Equal(CharacterTraits.StarterLoadoutGranted, enterCopy.Traits);
@@ -355,11 +363,12 @@ public sealed class ProtocolContractGuardTests
         using CharacterCreate charCreate = new()
         {
             CharacterName = "Spellweaver",
-            AppearancePreset = 7,
+            RaceId = 1,
+            AppearanceOptions = [2, 0],
         };
         using CharacterCreate charCreateCopy = CharacterCreate.Deserialize(charCreate.Serialize());
         Assert.Equal("Spellweaver", charCreateCopy.CharacterName);
-        Assert.Equal((byte)7, charCreateCopy.AppearancePreset);
+        Assert.Equal([2, 0], charCreateCopy.AppearanceOptions);
 
         using DropInventoryItem drop = new() { SlotIndex = 5, Quantity = 2, SequenceId = 9 };
         using DropInventoryItem dropCopy = DropInventoryItem.Deserialize(drop.Serialize());
@@ -407,12 +416,10 @@ public sealed class ProtocolContractGuardTests
         Assert.Equal((ushort)24, phaseCopy.PhaseDurationTicks);
         Assert.Equal(0.25f, phaseCopy.Progress);
 
-        byte packed = CharacterAppearance.Pack(2, 3, 1, 2);
-        CharacterAppearance app = new(packed);
-        Assert.Equal((byte)2, app.HairStyle);
-        Assert.Equal((byte)3, app.HairColor);
-        Assert.Equal((byte)1, app.FaceStyle);
-        Assert.Equal((byte)2, app.SkinTone);
+        CharacterLook look = new(1, 0, [2, 3, 1, 2]);
+        Assert.Equal((byte)4, look.OptionCount);
+        Assert.Equal((byte)1, look.GetOption(2));
+        Assert.Equal(new CharacterLook(1, 0, [2, 3, 1, 2]), look);
 
         using EntityAllocatePoint alloc = new()
         {

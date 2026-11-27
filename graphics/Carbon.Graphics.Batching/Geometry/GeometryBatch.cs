@@ -19,8 +19,10 @@ namespace Carbon.Graphics.Batching.Geometry;
 /// </summary>
 public sealed class GeometryBatch : IDisposable
 {
-    private const int MAX_VERTICES = 16384;
-    private const int MAX_INDICES = 32768;
+    // Sized for a dense forest view (trees, canopies, shadows and weather in one world batch) so the batch does not
+    // split into extra draw calls. Flushes replace the buffers at the size in use, so capacity costs no upload time.
+    private const int MAX_VERTICES = 32768;
+    private const int MAX_INDICES = 65536;
 
     private readonly IGraphicsDevice _device;
     private readonly GlStateCache _stateCache;
@@ -329,8 +331,8 @@ public sealed class GeometryBatch : IDisposable
         _stateCache.SetDepthStencilState(DepthStencilState.None);
         _vao.Bind();
 
-        _vbo.SetData(_vertices.AsSpan(0, _vertexCount), 0, discardBuffer: true);
-        _ebo.SetData(_indices.AsSpan(0, _indexCount), 0, discardBuffer: true);
+        _vbo.ReplaceData(_vertices.AsSpan(0, _vertexCount));
+        _ebo.ReplaceData(_indices.AsSpan(0, _indexCount));
 
         _device.DrawElements(PrimitiveType.Triangles, (uint)_indexCount, DrawElementsType.UnsignedInt);
 

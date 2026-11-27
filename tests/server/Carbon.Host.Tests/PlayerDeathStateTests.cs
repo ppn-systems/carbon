@@ -193,7 +193,7 @@ public sealed class PlayerDeathStateTests
                 entropy: TestGameplayEntropy.Create(1UL));
 
         public static CharacterRecord Character(string name) =>
-            new(Guid.NewGuid(), Guid.NewGuid(), name, 1, 0, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
+            new(Guid.NewGuid(), Guid.NewGuid(), name, 1, default, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
 
         /// <summary>Puts a 1 HP player next to a wild monster and steps until the monster kills them.</summary>
         public static DeathFixture KillVictim(GameEconomy? economy = null, ushort level = 1, long gold = 0L)

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using Carbon.Economy.Loot;
 using Carbon.Items.Definitions;
 using Carbon.Primitives.Random;
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
 
@@ -139,19 +140,17 @@ public sealed class LootRollerTests
     public void Roll_SteadyState_AllocatesNothing()
     {
         LootTable demon = Table("demon");
-        Span<LootDrop> drops = stackalloc LootDrop[16];
         LootPityState pity = default;
         LootContext context = new(80, PlayerLevel: 80, IsElite: true, DistanceTier: 4);
         DeterministicRandom rng = LootRoller.CreateRandom(TestGameplayKeys.Key(1), 1, 1);
-        _ = LootRoller.Roll(demon, context, ref rng, ref pity, drops);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int kill = 0; kill < 10_000; kill++)
+        AllocationResult window = AllocationProbe.Measure(10_000, warmupIterations: 10_000, kill =>
         {
+            Span<LootDrop> drops = stackalloc LootDrop[16];
             _ = LootRoller.Roll(demon, context, ref rng, ref pity, drops);
-        }
+        });
 
-        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0, "the roll path is on the kill hot path");
+        window.Bytes.Should().Be(0, $"the roll path is on the kill hot path ({window})");
     }
 
     [Fact]

@@ -255,7 +255,7 @@ public sealed class OxygenWorldTests
     }
 
     private static CharacterRecord Character(Vector2 position, float health = 100f) => new(
-        Guid.NewGuid(), Guid.NewGuid(), "Diver", 1, 0, position.X, position.Y, health, health, 0, [], DateTimeOffset.UnixEpoch);
+        Guid.NewGuid(), Guid.NewGuid(), "Diver", 1, default, position.X, position.Y, health, health, 0, [], DateTimeOffset.UnixEpoch);
 
     private static void Step(AuthoritativeWorld world, int ticks)
     {

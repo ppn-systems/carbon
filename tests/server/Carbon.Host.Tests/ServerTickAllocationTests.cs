@@ -1,5 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
 using Xunit.Abstractions;
@@ -22,7 +23,7 @@ public sealed class ServerTickAllocationTests(ITestOutputHelper output)
     /// Allowed average bytes per tick. Measured at 136 before PERF-1 and about 2 after. The remainder is monster
     /// respawn (stat sheets, attachment stores; audit ECS-3). Lower this as allocations are removed; never raise it.
     /// </summary>
-    private const double MaxBytesPerTick = 32;
+    internal const double MaxBytesPerTick = 32;
 
     [Fact]
     public void StepFixedTick_SteadyStateWithPlayersAndMonsters_StaysWithinAllocationBudget()
@@ -33,11 +34,11 @@ public sealed class ServerTickAllocationTests(ITestOutputHelper output)
             harness.Step();
         }
 
-        (double bytesPerTick, double millisecondsPerTick) = harness.Measure(MeasuredTicks);
-        output.WriteLine($"8 players: {bytesPerTick:F1} B/tick, {millisecondsPerTick:F3} ms/tick");
+        AllocationResult window = harness.Measure(MeasuredTicks);
+        output.WriteLine($"8 players: {window.BytesPerIteration:F1} B/tick, {window.Elapsed.TotalMilliseconds / MeasuredTicks:F3} ms/tick ({window})");
 
-        bytesPerTick.Should().BeLessThanOrEqualTo(
+        window.BytesPerIteration.Should().BeLessThanOrEqualTo(
             MaxBytesPerTick,
-            "the fixed tick is a hot path (AGENTS.md rule 4): no LINQ, closures, boxing or per-tick arrays");
+            $"the fixed tick is a hot path (AGENTS.md rule 4): no LINQ, closures, boxing or per-tick arrays ({window})");
     }
 }

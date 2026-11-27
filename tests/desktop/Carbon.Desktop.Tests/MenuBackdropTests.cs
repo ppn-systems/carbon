@@ -13,6 +13,7 @@ using Carbon.Graphics.Scenes.Management;
 using Carbon.Graphics.Windowing.Abstractions;
 using Carbon.Graphics.Windowing.Input;
 using Carbon.Maps.Biomes;
+using Carbon.Testing;
 using FluentAssertions;
 using NSubstitute;
 using Xunit;
@@ -118,20 +119,15 @@ public sealed class MenuBackdropTests
     public void ClockFrame_AllocatesNothing()
     {
         MenuBackdropClock clock = new(s_centre, animate: true);
-        clock.Advance(0.016f);
-        _ = clock.Camera;
-        _ = clock.NightAmount;
-
-        long before = GC.GetAllocatedBytesForCurrentThread();
         float sink = 0f;
-        for (int i = 0; i < 10_000; i++)
+
+        AllocationResult window = AllocationProbe.Measure(10_000, warmupIterations: 10_000, i =>
         {
             clock.Advance(0.016f);
             sink += clock.Camera.X + clock.NightAmount;
-        }
+        });
 
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        allocated.Should().Be(0, "the backdrop runs every menu frame (zero per-frame allocation)");
+        window.Bytes.Should().Be(0, $"the backdrop runs every menu frame (zero per-frame allocation) ({window})");
         sink.Should().NotBe(0f);
     }
 
@@ -139,17 +135,14 @@ public sealed class MenuBackdropTests
     public void BackdropAdvanceAndPause_BeforeAnyDraw_AllocateNothingAndStartNoWork()
     {
         using MenuBackdrop backdrop = new(1337UL, animate: true, static _ => null);
-        backdrop.Advance(0.016f);
-
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 1_000; i++)
+        AllocationResult window = AllocationProbe.Measure(1_000, warmupIterations: 1_000, i =>
         {
             backdrop.Advance(0.016f);
             backdrop.Pause();
             backdrop.Resume();
-        }
+        });
 
-        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0);
+        window.Bytes.Should().Be(0, window.ToString());
         backdrop.IsSettled(expectWorld: false).Should().BeFalse("nothing is generated until the first draw asks for it");
     }
 

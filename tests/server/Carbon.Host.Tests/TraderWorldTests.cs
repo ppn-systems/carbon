@@ -613,7 +613,7 @@ public sealed class TraderWorldTests
             Guid.NewGuid(),
             name,
             10,
-            0,
+            default,
             (tileX + 0.5f) * 32f,
             (tileY + 0.5f) * 32f,
             100f,

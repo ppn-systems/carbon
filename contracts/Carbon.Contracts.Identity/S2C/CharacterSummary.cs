@@ -51,9 +51,7 @@ public sealed partial class CharacterSummary : PacketBase<CharacterSummary>, IPa
     [SerializeOrder(7)]
     public float PositionY { get; set; }
 
-    /// <summary>Visual appearance preset index (0..255).</summary>
-    [SerializeOrder(8)]
-    public byte AppearancePreset { get; set; }
+    // [SerializeOrder(8)] was the packed AppearancePreset byte, replaced by orders 11–13 in protocol 8 (ADR-042).
 
     /// <summary>Character starting archetype class (<see cref="HeroArchetypeClass"/>).</summary>
     [SerializeOrder(9)]
@@ -62,4 +60,16 @@ public sealed partial class CharacterSummary : PacketBase<CharacterSummary>, IPa
     /// <summary>Persistent character progression/unlock bitmask.</summary>
     [SerializeOrder(10)]
     public CharacterTraits Traits { get; set; }
+
+    /// <summary>Race id of the character (<c>races.json</c>, ADR-042).</summary>
+    [SerializeOrder(11)]
+    public ushort RaceId { get; set; }
+
+    /// <summary>Body type id within the race (ADR-042).</summary>
+    [SerializeOrder(12)]
+    public byte BodyType { get; set; }
+
+    /// <summary>One choice index per appearance option of the race, in the race's option order (ADR-042).</summary>
+    [SerializeOrder(13)]
+    public byte[] AppearanceOptions { get; set; } = [];
 }

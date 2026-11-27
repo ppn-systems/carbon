@@ -180,7 +180,7 @@ public sealed class CharacterPersistenceTests
     }
 
     private static CharacterRecord Character() => new(
-        Guid.NewGuid(), Guid.NewGuid(), "Tester", 1, 0, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
+        Guid.NewGuid(), Guid.NewGuid(), "Tester", 1, default, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
 
     private sealed class Harness
     {

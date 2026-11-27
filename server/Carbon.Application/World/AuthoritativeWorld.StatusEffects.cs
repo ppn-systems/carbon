@@ -34,7 +34,10 @@ public sealed partial class AuthoritativeWorld
             ulong attackerNetId = _simulation.TryGetNetworkIdentity(pulse.Caster, out NetworkIdentity caster) ? caster.NetworkId : victimNetId;
             HealthComponent hp = _simulation.Entities.GetHealth(state.Entity);
             state.StatsDirty = true;
-            this.MarkCharacterDirtyLocked(state, inventoryChanged: false);
+
+            // Flag only: the next flush builds the record (audit round 3, ALLOC-2). Snapshotting here built a whole
+            // CharacterRecord, progression blob and status string included, on every pulse of every afflicted player.
+            state.PersistenceDirty = true;
             this.QueueCombatHitLocked(
                 _simulation.Entities.GetTransform(state.Entity).Position,
                 attackerNetId,

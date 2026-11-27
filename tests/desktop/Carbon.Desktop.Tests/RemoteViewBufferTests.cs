@@ -6,6 +6,7 @@ using System.Numerics;
 using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Networking.Session;
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
 
@@ -52,17 +53,16 @@ public sealed class RemoteViewBufferTests
             buffer.Add(View((ulong)i));
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int frame = 0; frame < 100; frame++)
+        AllocationResult window = AllocationProbe.Measure(100, warmupIterations: 100, frame =>
         {
             buffer.Clear();
             for (int i = 0; i < 50; i++)
             {
                 buffer.Add(View((ulong)i));
             }
-        }
+        });
 
-        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0, "the remote views are rebuilt every frame");
+        window.Bytes.Should().Be(0, $"the remote views are rebuilt every frame ({window})");
     }
 
     private static RemoteEntityView View(ulong id) =>

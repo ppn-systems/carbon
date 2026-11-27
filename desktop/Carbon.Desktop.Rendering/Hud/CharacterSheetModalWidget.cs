@@ -127,7 +127,7 @@ internal sealed class CharacterSheetModalWidget
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
 
-        if (art is not null && art.TryGetCharacter(world.LocalPlayerAppearancePreset, out CompiledVectorRig? rig))
+        if (art is not null && CharacterLookResolver.TryResolve(art, world.Races.Current, world.LocalPlayerLook, out CompiledVectorRig? rig, out CharacterPalette palette) && rig is not null)
         {
             ItemSlot activeItem = world.SelectedHotbarSlot < slots.Length ? slots[world.SelectedHotbarSlot] : ItemSlot.Empty;
             CompiledItemVectorArt? weaponArt = null;
@@ -161,7 +161,7 @@ internal sealed class CharacterSheetModalWidget
                 equippedItem: weaponArt,
                 action: default,
                 swingTimer: 0f,
-                appearancePreset: world.LocalPlayerAppearancePreset,
+                palette: palette,
                 equipment: loadout,
                 art: art);
         }

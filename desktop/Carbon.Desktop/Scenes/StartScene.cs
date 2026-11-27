@@ -7,9 +7,11 @@ using System.Threading.Tasks;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Identity;
 using Carbon.Desktop.Abstractions.Localization;
+using Carbon.Desktop.Capture;
 using Carbon.Desktop.Menu;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching.Common;
+using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.Batching.Sprites;
 using Carbon.Graphics.Fonts.Layout;
 using Carbon.Graphics.Fonts.Rendering;
@@ -42,8 +44,11 @@ internal sealed class StartScene : MenuScene
         [StartMenuAction.Server] = new(GameText.Get("login.server"), MenuButtonStyle.NeutralSlate),
     };
 
+    private RectangleF _identity;
+    private string? _initialOf;
+    private string _initial = string.Empty;
+
     private readonly MenuButton _quitButton = new(GameText.Get("login.quit"), MenuButtonStyle.DangerRed);
-    private readonly CachedText _greeting = new();
     private readonly CachedText _serverLine = new();
 
     private Task<AuthenticationResult>? _pendingSignIn;
@@ -63,6 +68,12 @@ internal sealed class StartScene : MenuScene
 
     /// <summary>Gets the buttons on screen, in order (tests read this).</summary>
     public IReadOnlyList<StartMenuAction> VisibleActions => _model.Actions;
+
+    /// <summary>Gets the button with keyboard focus (tests read this).</summary>
+    internal StartMenuAction Focus => _model.Focus;
+
+    /// <inheritdoc/>
+    protected override string? FooterHint => GameText.Get("login.footer.start");
 
     private bool Busy => _pendingSignIn is not null || _pendingAutoEnter is not null;
 
@@ -93,6 +104,10 @@ internal sealed class StartScene : MenuScene
                 // Screenshot review: register the configured account and stop at character select.
                 _pendingSignIn = this.Flow.Session.RegisterAsync(server.Host, server.Port, this.Flow.Options.Username, this.Flow.Options.Password);
                 return;
+            case RosterCapture.SceneName:
+                // Screenshot review: register, create two sample heroes, and stop at the hero roster.
+                _pendingSignIn = RosterCapture.RegisterWithHeroesAsync(this.Flow.Session, server, this.Flow.Options);
+                return;
             default:
                 break;
         }
@@ -108,14 +123,17 @@ internal sealed class StartScene : MenuScene
     protected override RectangleF Layout(int width, int height)
     {
         const float panelW = 460f;
-        const float panelH = 380f;
+        bool signedIn = _model.SignedInName is not null;
+        float headH = signedIn ? 146f : 132f;
+        float panelH = headH + (_model.Actions.Count * 58f) + 48f + (this.StatusMessage.Length > 0 ? 56f : 16f);
         float px = MathF.Floor((width - panelW) * 0.5f);
-        float py = MathF.Floor((height - panelH) * 0.5f) + 22f;
+        float py = PanelTop(height, panelH);
         _card = new RectangleF(px, py, panelW, panelH);
+        _identity = new RectangleF(px + 32f, py + 26f, panelW - 64f, signedIn ? 74f : 60f);
 
-        float bx = px + 60f;
-        float bw = panelW - 120f;
-        float by = py + 104f;
+        float bx = px + 56f;
+        float bw = panelW - 112f;
+        float by = py + headH;
         foreach (MenuButton button in _buttons.Values)
         {
             button.Bounds = default;
@@ -127,7 +145,7 @@ internal sealed class StartScene : MenuScene
             by += 58f;
         }
 
-        _quitButton.Bounds = new RectangleF(MathF.Floor(px + ((panelW - 120f) * 0.5f)), by + 4f, 120f, 30f);
+        _quitButton.Bounds = new RectangleF(MathF.Floor(px + ((panelW - 128f) * 0.5f)), by + 2f, 128f, 32f);
         return _card;
     }
 
@@ -152,10 +170,14 @@ internal sealed class StartScene : MenuScene
         Vector2 mousePos = mouse.Position;
         bool busy = this.Busy;
 
-        if (_quitButton.Update(mousePos, leftDown, leftPressed))
+        bool shift = kb.IsKeyDown(Key.ShiftLeft) || kb.IsKeyDown(Key.ShiftRight);
+        if (kb.IsKeyPressed(Key.Down) || (kb.IsKeyPressed(Key.Tab) && !shift))
         {
-            context.Window.Close();
-            return;
+            _model.MoveFocus(reverse: false);
+        }
+        else if (kb.IsKeyPressed(Key.Up) || (kb.IsKeyPressed(Key.Tab) && shift))
+        {
+            _model.MoveFocus(reverse: true);
         }
 
         StartMenuAction? clicked = null;
@@ -163,15 +185,24 @@ internal sealed class StartScene : MenuScene
         {
             MenuButton button = _buttons[action];
             button.IsEnabled = !busy;
-            if (button.Update(mousePos, leftDown, leftPressed))
+            button.IsBusy = busy && action == StartMenuAction.Continue && _pendingSignIn is not null;
+            button.IsFocused = _model.Focus == action;
+            if (button.Update(mousePos, leftDown, leftPressed, dt))
             {
                 clicked = action;
             }
         }
 
-        if (clicked is null && !busy && (kb.IsKeyPressed(Key.Enter) || kb.IsKeyPressed(Key.KeypadEnter)))
+        _quitButton.IsFocused = _model.Focus == StartMenuAction.Quit;
+        if (_quitButton.Update(mousePos, leftDown, leftPressed, dt))
         {
-            clicked = _model.Actions[0];
+            clicked = StartMenuAction.Quit;
+        }
+
+        bool activate = kb.IsKeyPressed(Key.Enter) || kb.IsKeyPressed(Key.KeypadEnter) || kb.IsKeyPressed(Key.Space);
+        if (clicked is null && activate && (!busy || _model.Focus == StartMenuAction.Quit))
+        {
+            clicked = _model.Focus;
         }
 
         if (clicked is { } chosen)
@@ -205,6 +236,9 @@ internal sealed class StartScene : MenuScene
             case StartMenuAction.Server:
                 ChangeTo(context, () => new ServerSelectScene(this.Flow));
                 break;
+            case StartMenuAction.Quit:
+                context.Window.Close();
+                break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(action), action, null);
         }
@@ -213,6 +247,7 @@ internal sealed class StartScene : MenuScene
     /// <inheritdoc/>
     protected override void DrawSkins(SpriteBatch spriteBatch, CarbonUiSkin skin)
     {
+        skin.DrawInset(spriteBatch, in _identity, CarbonUiPalette.SlotFill, _model.SignedInName is null ? CarbonUiPalette.BorderSubtle : CarbonUiPalette.BorderActive);
         foreach (StartMenuAction action in _model.Actions)
         {
             _buttons[action].DrawSkin(spriteBatch, skin);
@@ -222,21 +257,61 @@ internal sealed class StartScene : MenuScene
     }
 
     /// <inheritdoc/>
-    protected override void DrawTexts(SpriteBatch spriteBatch, BitmapFont font)
+    protected override void DrawGeometry(GeometryBatch geometry, BitmapFont font)
     {
-        float cx = _card.X + (_card.Width * 0.5f);
-        if (_model.SignedInName is { } name)
+        if (_model.SignedInName is not null)
         {
-            string greeting = _greeting.Format("login.signed_in_as", new TextArg("name", name));
-            DrawCentered(spriteBatch, font, greeting, cx, _card.Y + 34f, CarbonUiPalette.TextWarm);
+            // The player's badge: a gold ring around their initial.
+            Vector2 centre = new(_identity.X + 38f, _identity.Y + (_identity.Height * 0.5f));
+            geometry.FillCircle(centre, 24f, new ColorRgba(52, 44, 30, 255), segments: 28);
+            geometry.DrawCircle(centre, 24f, CarbonUiPalette.BorderActive, segments: 28, thickness: 2f);
         }
         else
         {
-            DrawCentered(spriteBatch, font, GameText.Get("login.welcome"), cx, _card.Y + 34f, CarbonUiPalette.TextWarm);
+            MenuIcons.DrawDiamond(geometry, new Vector2(_identity.X + 22f, _identity.Y + 20f), 4f, CarbonUiPalette.BorderActive);
+        }
+
+        MenuIcons.DrawField(geometry, MenuFieldIcon.Globe, new Vector2(_identity.X + 12f, _identity.Bottom + 19f), MenuPalette.Icon);
+        foreach (StartMenuAction action in _model.Actions)
+        {
+            _buttons[action].DrawOverlay(geometry);
+        }
+
+        _quitButton.DrawOverlay(geometry);
+    }
+
+    /// <inheritdoc/>
+    protected override void DrawTexts(SpriteBatch spriteBatch, BitmapFont font)
+    {
+        ColorRgba black = CarbonUiPalette.TextOutline;
+        if (_model.SignedInName is { } name)
+        {
+            Vector2 centre = new(_identity.X + 38f, _identity.Y + (_identity.Height * 0.5f));
+            if (!ReferenceEquals(_initialOf, name))
+            {
+                _initialOf = name;
+                _initial = name.Length > 0 ? name[..1].ToUpperInvariant() : string.Empty;
+            }
+
+            string initial = _initial;
+            TextMeasureResult im = font.MeasureString(initial, TextLayoutOptions.Default, 2f);
+            spriteBatch.DrawOutlinedString(font, initial, new Vector2(MathF.Floor(centre.X - (im.Width * 0.5f)), MathF.Floor(centre.Y - (im.Height * 0.5f))), CarbonUiPalette.TextWarm, black, 1, 2f);
+
+            float tx = _identity.X + 76f;
+            float tw = _identity.Right - tx - 12f;
+            spriteBatch.DrawOutlinedString(font, GameText.Get("login.signed_in_label"), new Vector2(tx, _identity.Y + 10f), CarbonUiPalette.TextMuted, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, name, tw, 1f), new Vector2(tx, _identity.Y + 29f), CarbonUiPalette.TextWarm, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, GameText.Get("login.remembered_note"), tw, 1f), new Vector2(tx, _identity.Y + 49f), MenuPalette.SuccessText, black, 1, 1f);
+        }
+        else
+        {
+            spriteBatch.DrawOutlinedString(font, GameText.Get("login.welcome"), new Vector2(_identity.X + 36f, _identity.Y + 12f), CarbonUiPalette.TextWarm, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, GameText.Get("login.tagline"), _identity.Width - 48f, 1f), new Vector2(_identity.X + 36f, _identity.Y + 34f), CarbonUiPalette.TextMuted, black, 1, 1f);
         }
 
         string server = _serverLine.Format("login.server_line", new TextArg("name", ServerSelectScene.DisplayName(this.Flow.SelectedServer)));
-        DrawCentered(spriteBatch, font, CarbonUiSkin.TruncateToWidth(font, server, _card.Width - 56f, 1f), cx, _card.Y + 64f, CarbonUiPalette.TextMuted);
+        string fitted = CarbonUiSkin.TruncateToWidth(font, server, _identity.Width - 30f, 1f);
+        spriteBatch.DrawOutlinedString(font, fitted, new Vector2(_identity.X + 26f, _identity.Bottom + 11f), CarbonUiPalette.TextMuted, black, 1, 1f);
 
         foreach (StartMenuAction action in _model.Actions)
         {
@@ -244,12 +319,6 @@ internal sealed class StartScene : MenuScene
         }
 
         _quitButton.DrawText(spriteBatch, font);
-    }
-
-    private static void DrawCentered(SpriteBatch spriteBatch, BitmapFont font, string text, float centerX, float y, ColorRgba color)
-    {
-        TextMeasureResult m = font.MeasureString(text, TextLayoutOptions.Default, 1f);
-        spriteBatch.DrawOutlinedString(font, text, new Vector2(MathF.Floor(centerX - (m.Width * 0.5f)), y), color, CarbonUiPalette.TextOutline, 1, 1f);
     }
 
     /// <summary>Finishes sign-in or auto-enter work; returns whether the scene changed.</summary>

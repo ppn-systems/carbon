@@ -131,7 +131,7 @@ internal sealed class StaminaPacingWorld
             {
                 probe++;
                 Vector2 at = spawn + (dir * (startDistance + (step * 512f)));
-                CharacterRecord scout = new(Guid.NewGuid(), Guid.NewGuid(), "Scout", 1, 0, at.X, at.Y, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
+                CharacterRecord scout = new(Guid.NewGuid(), Guid.NewGuid(), "Scout", 1, default, at.X, at.Y, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
                 world.TryEnterWorld(probe, scout).Status.Should().Be(OpStatus.Ok);
                 world.StepFixedTick();
                 EntitySpawnSnapshot? mob = sink.Spawns
@@ -419,7 +419,7 @@ internal sealed class StaminaPacingWorld
             Guid.NewGuid(),
             "Pacer",
             build.Level,
-            AppearancePreset: 0,
+            Look: default,
             PositionX: at.X,
             PositionY: at.Y,
             CurrentHealth: 5000f,

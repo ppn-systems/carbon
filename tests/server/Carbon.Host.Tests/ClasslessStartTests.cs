@@ -43,7 +43,7 @@ public sealed class ClasslessStartTests : IDisposable
     {
         Guid accountId = await this.RegisterAsync("fresh").ConfigureAwait(true);
 
-        CharacterCreateResult created = await _auth.CreateCharacterAsync(accountId, "Fresh", 3, 0f, 0f).ConfigureAwait(true);
+        CharacterCreateResult created = await _auth.CreateCharacterAsync(accountId, "Fresh", TestLooks.Human, 0f, 0f).ConfigureAwait(true);
 
         created.Succeeded.Should().BeTrue();
         CharacterRecord? stored = await _characters.FindByIdAsync(created.Character!.Id).ConfigureAwait(true);
@@ -59,7 +59,7 @@ public sealed class ClasslessStartTests : IDisposable
     public async Task TryEnterWorld_NewCharacter_ArrivesEmptyHandedAndClassless()
     {
         Guid accountId = await this.RegisterAsync("arrival").ConfigureAwait(true);
-        CharacterCreateResult created = await _auth.CreateCharacterAsync(accountId, "Arrival", 0, 0f, 0f).ConfigureAwait(true);
+        CharacterCreateResult created = await _auth.CreateCharacterAsync(accountId, "Arrival", TestLooks.Human, 0f, 0f).ConfigureAwait(true);
         AuthoritativeWorld world = await this.CreateWorldAsync().ConfigureAwait(true);
 
         EnterWorldResult entered = world.TryEnterWorld(901UL, (await _characters.FindByIdAsync(created.Character!.Id).ConfigureAwait(true))!);
@@ -78,7 +78,7 @@ public sealed class ClasslessStartTests : IDisposable
         InventoryContainer kit = new(PlayerInventoryLayout.TotalCapacity);
         StarterGameCatalog.GrantStarterLoadout(kit, (byte)HeroArchetypeClass.Ranger);
         CharacterRecord veteran = new(
-            Guid.NewGuid(), accountId, "Veteran", 7, 0, 0f, 0f, 100f, 100f, 2, InventoryBinaryCodec.Serialize(kit), DateTimeOffset.UnixEpoch,
+            Guid.NewGuid(), accountId, "Veteran", 7, default, 0f, 0f, 100f, 100f, 2, InventoryBinaryCodec.Serialize(kit), DateTimeOffset.UnixEpoch,
             Class: HeroArchetypeClass.Ranger);
         (await _characters.TryCreateAsync(veteran).ConfigureAwait(true)).Should().BeTrue();
         AuthoritativeWorld world = await this.CreateWorldAsync().ConfigureAwait(true);

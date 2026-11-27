@@ -123,7 +123,7 @@ public sealed class ItemBreakWorldTests
                 accountId,
                 "Breaker",
                 Level: 1,
-                AppearancePreset: 0,
+                Look: default,
                 PositionX: ((tx + 0.5f) * 32f) + 40f,
                 PositionY: (ty + 0.5f) * 32f,
                 CurrentHealth: 100f,
