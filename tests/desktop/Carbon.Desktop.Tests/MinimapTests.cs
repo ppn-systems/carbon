@@ -3,8 +3,11 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Threading.Tasks;
 using Carbon.Contracts.Entities;
+using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.World;
+using Carbon.Desktop.Networking.Session;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Graphics.Batching.Common;
@@ -66,6 +69,36 @@ public sealed class MinimapTests
         icons[2].Position.Should().Be(s_map.Center + new Vector2(-3f * ppt, 2f * ppt));
         icons[3].Kind.Should().Be(MinimapIconKind.Trader);
         icons[4].Kind.Should().Be(MinimapIconKind.Npc);
+    }
+
+    [Fact]
+    public async Task Collect_NpcRolesFromTheSession_MarkTradersAndBlacksmiths()
+    {
+        // The minimap reads NPC roles through the session (INpcCapabilityLookup), like the trade and forge prompts.
+        MultiplayerSession session = new(new DesktopOptions());
+        try
+        {
+            Vector2 player = new(0.5f * TileSize, 0.5f * TileSize);
+            MinimapView view = MinimapView.Create(player, TileSize, 1, s_map);
+            List<RemoteEntityView> remotes =
+            [
+                Actor(1, EntityKind.Npc, player + new Vector2(TileSize, 0f), WorldActorCatalog.MasterBlacksmith),
+                Actor(2, EntityKind.Npc, player + new Vector2(-TileSize, 0f), WorldActorCatalog.GeneralTrader),
+                Actor(3, EntityKind.Npc, player + new Vector2(0f, TileSize), WorldActorCatalog.ShrineKeeper),
+            ];
+            MinimapIcon[] icons = new MinimapIcon[4];
+
+            MinimapIconCollector.Collect(null, remotes, session, 0, in view, TileSize, icons).Should().Be(3);
+
+            icons[0].Kind.Should().Be(MinimapIconKind.Blacksmith);
+            icons[1].Kind.Should().Be(MinimapIconKind.Trader);
+            icons[2].Kind.Should().Be(MinimapIconKind.Npc);
+            session.AuthoritativeIsNight.Should().BeNull("offline there is no server clock, so the HUD clock hides");
+        }
+        finally
+        {
+            await session.DisposeAsync().ConfigureAwait(true);
+        }
     }
 
     [Fact]
