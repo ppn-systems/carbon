@@ -157,16 +157,21 @@ Use them to review clip and overlay changes.
 
 ## AI positioning
 
-While the brain is in `Attack` and no attack is running:
+While the brain is in `Attack` and no attack is running, `MonsterBrainSystem` positions the monster by its
+`behavior.role`:
 
-1. If the target is inside `retreatRange` and the retreat path is clear, the monster backs off at 80% speed. Ranged
-   monsters and casters restore their spacing before they use close-range fallbacks. They use those fallbacks only
-   when cornered.
-2. Otherwise the first **ready** profile whose `[minRange, maxRange]` contains the target starts.
-3. Otherwise the monster closes in if a ready profile needs it closer, backs off if one needs it farther, or holds.
+1. If the target is inside `retreatRange`, the monster backs off at 80% speed and slides along walls. Ranged monsters
+   and casters restore their spacing before they use close-range fallbacks. They use those fallbacks only when
+   cornered.
+2. Ranged monsters and casters hold fire below `preferredRange - rangeTolerance` and keep backing off. Crowded melee
+   monsters step to a free surround slot first.
+3. Otherwise the first **ready** profile whose `[minRange, maxRange]` contains the target starts.
+4. Otherwise the monster closes in (melee monsters move to their surround slot) if a ready profile needs it closer,
+   backs off if one needs it farther, strafes inside its band (ranged and caster), or holds.
 
-The AI layer handles leashing: when the monster passes `leashRange` it returns home, heals, and any running attack is
-interrupted.
+The AI layer handles leashing, give-up, fleeing, pack assist and threat switching. When the monster leashes home it
+heals, and any running attack is interrupted. See [monster-ai.md](monster-ai.md) for the state machine, the `behavior`
+keys and the tests.
 
 ## Difficulty scaling (`spawning.json`)
 

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.AI.Components;
+using Carbon.AI.Tactics;
 using Carbon.AI.Threat;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
@@ -115,7 +116,10 @@ internal sealed class CombatService
                 if (_simulation.Entities.HasComponent<AiBrainComponent>(target))
                 {
                     ref AiBrainComponent brain = ref _simulation.Entities.GetComponent<AiBrainComponent>(target);
-                    brain = brain with { State = AiState.Chase, TargetEntity = attacker.Entity, RepathCooldownTicks = 0 };
+                    if (brain.State != AiState.Flee)
+                    {
+                        brain = brain with { State = AiState.Chase, TargetEntity = attacker.Entity, RepathCooldownTicks = 0 };
+                    }
                 }
 
                 if (_simulation.Entities.HasVelocity(target) && knockbackSpeed > 0f)
@@ -125,22 +129,15 @@ internal sealed class CombatService
                     _simulation.MarkDirty(target, EntityDirtyMask.Velocity);
                 }
 
-                // Pack social aggro: alert nearby allied monsters within 160px to assist.
-                _simulation.OverlapCircle(targetPos, 160f, _packAggroScratch, out int allyCount, _monsterLayer);
-                for (int a = 0; a < allyCount; a++)
+                // Pack social aggro: data-driven packs (monsters.json behavior.pack) alert same-pack allies in their
+                // assist radius; legacy monsters without a pack alert any monster within 160px.
+                if (AiPack.HasPack(_simulation.Entities, target))
                 {
-                    Entity ally = _packAggroScratch[a];
-                    if (ally == target || !_simulation.Entities.IsAlive(ally) || !_simulation.Entities.HasComponent<AiBrainComponent>(ally))
-                    {
-                        continue;
-                    }
-
-                    threatStore.GetOrAdd(ally, static () => new ThreatTable()).AddThreat(attacker.Entity, dealt * 0.8f);
-                    ref AiBrainComponent allyBrain = ref _simulation.Entities.GetComponent<AiBrainComponent>(ally);
-                    if (allyBrain.State is AiState.Idle or AiState.Patrol)
-                    {
-                        allyBrain = allyBrain with { State = AiState.Chase, TargetEntity = attacker.Entity, RepathCooldownTicks = 0 };
-                    }
+                    _ = AiPack.CallForHelp(_simulation, target, targetPos, attacker.Entity, dealt * 0.8f, 1f, _packAggroScratch);
+                }
+                else
+                {
+                    this.AlertNearbyMonsters(target, targetPos, attacker.Entity, dealt * 0.8f, threatStore);
                 }
             }
             else
@@ -153,6 +150,26 @@ internal sealed class CombatService
         }
 
         return anyDamaged;
+    }
+
+    private void AlertNearbyMonsters(Entity target, Vector2 targetPos, Entity attacker, float threat, EntityAttachmentStore<ThreatTable> threatStore)
+    {
+        _simulation.OverlapCircle(targetPos, 160f, _packAggroScratch, out int allyCount, _monsterLayer);
+        for (int a = 0; a < allyCount; a++)
+        {
+            Entity ally = _packAggroScratch[a];
+            if (ally == target || !_simulation.Entities.IsAlive(ally) || !_simulation.Entities.HasComponent<AiBrainComponent>(ally))
+            {
+                continue;
+            }
+
+            threatStore.GetOrAdd(ally, static () => new ThreatTable()).AddThreat(attacker, threat);
+            ref AiBrainComponent allyBrain = ref _simulation.Entities.GetComponent<AiBrainComponent>(ally);
+            if (allyBrain.State is AiState.Idle or AiState.Patrol)
+            {
+                allyBrain = allyBrain with { State = AiState.Chase, TargetEntity = attacker, RepathCooldownTicks = 0 };
+            }
+        }
     }
 
     /// <summary>Gets whether no wall stands between <paramref name="from"/> and <paramref name="to"/> (always true within 6px).</summary>

@@ -38,6 +38,29 @@ public sealed class AiModuleTests
     }
 
     [Fact]
+    public void ThreatTable_SelectTarget_AppliesSwitchMarginAndTauntWindow()
+    {
+        EntityManager entities = new(16);
+        Entity tank = entities.CreateEntity();
+        Entity dps = entities.CreateEntity();
+        ThreatTable table = new();
+        table.AddThreat(tank, 100f);
+        table.AddThreat(dps, 105f);
+
+        table.SelectTarget(entities, tank, switchMargin: 1.1f, tick: 0).Should().Be(tank, "105 is within the 10% margin");
+        table.SelectTarget(entities, Entity.Null, switchMargin: 1.1f, tick: 0).Should().Be(dps, "without a current target the leader wins");
+
+        table.AddThreat(dps, 10f);
+        table.SelectTarget(entities, tank, switchMargin: 1.1f, tick: 0).Should().Be(dps, "115 beats 110");
+
+        table.Taunt(tank, untilTick: 10);
+        table.GetThreat(tank).Should().BeGreaterThanOrEqualTo(table.GetThreat(dps), "a taunt lifts the taunter to the top of the table");
+        table.AddThreat(dps, 1000f);
+        table.SelectTarget(entities, dps, switchMargin: 1.1f, tick: 5).Should().Be(tank, "the taunt is active");
+        table.SelectTarget(entities, tank, switchMargin: 1.1f, tick: 10).Should().Be(dps, "the taunt expired");
+    }
+
+    [Fact]
     public void PathWaypointBuffer_WithGridPathfinder_SteersAroundWall()
     {
         ChunkWorld2D world = new(new ProceduralWorldGenerator(42UL), tileSize: 32f);

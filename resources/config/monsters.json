@@ -17,6 +17,7 @@
       "engageRange": 100,
       "retreatRange": 0,
       "patrolRadius": 96,
+      "behavior": { "role": "Melee", "surroundRadius": 18, "pack": "slime", "assistRadius": 180, "fleeHealthFraction": 0.2, "fleeTicks": 60, "giveUpTicks": 240, "nightAggroMultiplier": 1.25, "nightLeashMultiplier": 1.2 },
       "preferredBiomes": [ "BeachSand", "LushPlains", "AncientForest", "MistySwamp", "TropicalJungle", "Savanna", "BlossomWoods", "DuneDesert", "RedMesa", "FrozenTundra", "AlpinePeaks", "VolcanicAshland" ],
       "attacks": [
         { "kind": "Leap", "minRange": 40, "maxRange": 110, "windupTicks": 12, "travelTicks": 10, "activeTicks": 2, "recoveryTicks": 14, "cooldownTicks": 75, "damageMultiplier": 1.4, "areaRadius": 26 },
@@ -39,6 +40,7 @@
       "engageRange": 150,
       "retreatRange": 0,
       "patrolRadius": 48,
+      "behavior": { "role": "Melee", "surroundRadius": 26, "pack": "slime", "assistRadius": 220, "giveUpTicks": 300, "nightAggroMultiplier": 1.2, "nightLeashMultiplier": 1.2 },
       "preferredBiomes": [ "BeachSand", "LushPlains", "AncientForest", "MistySwamp", "TropicalJungle", "Savanna" ],
       "attacks": [
         { "kind": "Leap", "minRange": 50, "maxRange": 160, "windupTicks": 18, "travelTicks": 14, "activeTicks": 2, "recoveryTicks": 20, "cooldownTicks": 90, "damageMultiplier": 1.6, "areaRadius": 48 },
@@ -60,6 +62,7 @@
       "engageRange": 30,
       "retreatRange": 0,
       "patrolRadius": 64,
+      "behavior": { "role": "Melee", "surroundRadius": 20, "pack": "golem", "assistRadius": 150, "giveUpTicks": 300, "threatSwitchMargin": 1.25 },
       "preferredBiomes": [ "DuneDesert", "RedMesa" ],
       "attacks": [
         { "kind": "Melee", "minRange": 0, "maxRange": 30, "windupTicks": 18, "travelTicks": 3, "activeTicks": 4, "recoveryTicks": 20, "cooldownTicks": 48, "damageMultiplier": 1.2, "areaRadius": 34, "halfAngleDegrees": 80, "lungeDistance": 10 }
@@ -80,6 +83,7 @@
       "engageRange": 120,
       "retreatRange": 0,
       "patrolRadius": 96,
+      "behavior": { "role": "Melee", "surroundRadius": 18, "pack": "wolf", "assistRadius": 260, "fleeHealthFraction": 0.25, "fleeTicks": 75, "giveUpTicks": 210, "nightAggroMultiplier": 1.4, "nightLeashMultiplier": 1.25 },
       "preferredBiomes": [ "FrozenTundra", "AlpinePeaks" ],
       "attacks": [
         { "kind": "Leap", "minRange": 50, "maxRange": 130, "windupTicks": 10, "travelTicks": 8, "activeTicks": 2, "recoveryTicks": 12, "cooldownTicks": 80, "damageMultiplier": 1.3, "areaRadius": 22 },
@@ -101,6 +105,7 @@
       "engageRange": 200,
       "retreatRange": 90,
       "patrolRadius": 80,
+      "behavior": { "role": "Caster", "preferredRange": 150, "rangeTolerance": 30, "strafeSpeedFactor": 0.25, "strafeSwitchTicks": 60, "giveUpTicks": 240, "nightAggroMultiplier": 1.3, "nightLeashMultiplier": 1.2 },
       "preferredBiomes": [ "VolcanicAshland", "BlossomWoods" ],
       "attacks": [
         { "kind": "Spell", "minRange": 60, "maxRange": 215, "windupTicks": 22, "travelTicks": 16, "activeTicks": 1, "recoveryTicks": 14, "cooldownTicks": 96, "damageMultiplier": 1.6, "areaRadius": 40, "shape": "Circle" },
@@ -122,6 +127,7 @@
       "engageRange": 220,
       "retreatRange": 110,
       "patrolRadius": 80,
+      "behavior": { "role": "Ranged", "preferredRange": 170, "rangeTolerance": 25, "strafeSpeedFactor": 0.55, "strafeSwitchTicks": 40, "pack": "undead", "assistRadius": 200, "giveUpTicks": 240, "nightAggroMultiplier": 1.3, "nightLeashMultiplier": 1.2 },
       "preferredBiomes": [ "BeachSand", "LushPlains", "AncientForest", "DuneDesert", "RedMesa" ],
       "attacks": [
         { "kind": "Projectile", "minRange": 40, "maxRange": 240, "windupTicks": 18, "activeTicks": 1, "recoveryTicks": 12, "cooldownTicks": 45, "projectileSpeed": 390, "projectileRadius": 3, "arcHeight": 18, "projectileVisual": 5 },
@@ -144,6 +150,7 @@
       "engageRange": 180,
       "retreatRange": 80,
       "patrolRadius": 80,
+      "behavior": { "role": "Caster", "preferredRange": 140, "rangeTolerance": 25, "strafeSpeedFactor": 0.3, "strafeSwitchTicks": 50, "pack": "orc", "assistRadius": 220, "fleeHealthFraction": 0.25, "fleeTicks": 60, "giveUpTicks": 240, "nightAggroMultiplier": 1.2, "nightLeashMultiplier": 1.15 },
       "preferredBiomes": [ "MistySwamp", "TropicalJungle", "Savanna" ],
       "attacks": [
         { "kind": "Spell", "minRange": 0, "maxRange": 100, "windupTicks": 16, "travelTicks": 6, "activeTicks": 1, "recoveryTicks": 12, "cooldownTicks": 70, "damageMultiplier": 1.2, "areaRadius": 100, "halfAngleDegrees": 30, "shape": "Cone" },
@@ -167,6 +174,7 @@
       "engageRange": 150,
       "retreatRange": 0,
       "patrolRadius": 48,
+      "behavior": { "role": "Melee", "surroundRadius": 24, "pack": "orc", "assistRadius": 260, "giveUpTicks": 300, "threatSwitchMargin": 1.2, "nightAggroMultiplier": 1.2, "nightLeashMultiplier": 1.15 },
       "preferredBiomes": [ "MistySwamp", "TropicalJungle", "Savanna" ],
       "attacks": [
         { "kind": "Leap", "minRange": 60, "maxRange": 150, "windupTicks": 16, "travelTicks": 12, "activeTicks": 2, "recoveryTicks": 22, "cooldownTicks": 120, "damageMultiplier": 1.3, "areaRadius": 36 },
@@ -188,6 +196,7 @@
       "engageRange": 150,
       "retreatRange": 0,
       "patrolRadius": 80,
+      "behavior": { "role": "Melee", "surroundRadius": 22, "giveUpTicks": 300, "nightAggroMultiplier": 1.35, "nightLeashMultiplier": 1.25 },
       "preferredBiomes": [ "DuneDesert", "RedMesa", "VolcanicAshland" ],
       "attacks": [
         { "kind": "Leap", "minRange": 60, "maxRange": 150, "windupTicks": 16, "travelTicks": 12, "activeTicks": 2, "recoveryTicks": 22, "cooldownTicks": 110, "damageMultiplier": 1.3, "areaRadius": 36 },

@@ -362,7 +362,7 @@ internal sealed class InventoryService
         Vector2 playerPos = _simulation.Entities.GetTransform(state.Entity).Position;
         Vector2 lootPos = _simulation.Entities.GetTransform(lootEnt).Position;
         if (Vector2.DistanceSquared(playerPos, lootPos) > maxRangeSq ||
-            !meta.CanBePickedUpBy(state.Session.PlayerNetworkId, _currentTick()))
+            !meta.CanBePickedUpBy(state.Session.CharacterId, _currentTick()))
         {
             return false;
         }
