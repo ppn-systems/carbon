@@ -7,6 +7,7 @@ using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
 using Carbon.Items.Definitions;
+using Carbon.Items.Enhancement;
 using Carbon.Items.Progression;
 using Carbon.Items.Serialization;
 using FluentAssertions;
@@ -121,12 +122,11 @@ public sealed class InventoryCodecAndCatalogTests
         s_progression.GetXpToNextLevel(1).Should().BeGreaterThan(0U);
         s_progression.Mitigate(100f, DamageKind.Physical, in stats, attackerLevel: 3).Should().BeInRange(25f, 99f, "armor mitigates part of a hit, never all of it");
 
-        ItemEnhancementPolicy.CanUpgrade(s_rules, in upgraded, out uint m1, out int c1, out uint m2, out int c2, out float chance).Should().BeTrue();
-        m1.Should().Be(StarterGameCatalog.IronOre);
-        c1.Should().BeGreaterThan(0);
-        m2.Should().Be(StarterGameCatalog.ManaCrystal);
-        c2.Should().BeGreaterThan(0);
-        chance.Should().BeApproximately(0.85f, 0.01f);
+        ItemEnhancementPolicy.TryGetStep(s_rules, in upgraded, out EnhancementStep? step).Should().BeTrue();
+        step!.FromLevel.Should().Be(5);
+        step.MaterialSpan.ToArray().Should().Contain(m => m.ItemId == StarterGameCatalog.IronOre && m.Quantity > 0);
+        step.MaterialSpan.ToArray().Should().Contain(m => m.ItemId == StarterGameCatalog.ManaCrystal && m.Quantity > 0);
+        step.SuccessPermille.Should().BeInRange(1, EnhancementTable.WeightTotal);
     }
 
     [Fact]

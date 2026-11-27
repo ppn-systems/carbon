@@ -1572,6 +1572,38 @@
         "food",
         "slime"
       ]
+    },
+    {
+      "id": 205,
+      "code": "forge_ward_scroll",
+      "name": "Forge Ward Scroll",
+      "category": "resource",
+      "rarity": "uncommon",
+      "tier": 2,
+      "maxStack": 20,
+      "basePrice": 90,
+      "maxDurability": 0,
+      "vendorBuyable": true,
+      "tags": [
+        "enhancement"
+      ],
+      "actionHint": "Forge Protection | Spent on an attempt from +5: a failure never drops a level"
+    },
+    {
+      "id": 206,
+      "code": "blessed_forge_scroll",
+      "name": "Blessed Forge Scroll",
+      "category": "resource",
+      "rarity": "rare",
+      "tier": 3,
+      "maxStack": 20,
+      "basePrice": 420,
+      "maxDurability": 0,
+      "vendorBuyable": false,
+      "tags": [
+        "enhancement"
+      ],
+      "actionHint": "Forge Protection | Spent on an attempt from +5: the item never drops a level or breaks"
     }
   ]
 }
