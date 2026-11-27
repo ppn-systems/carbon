@@ -50,7 +50,8 @@ public sealed partial class MultiplayerSession : IWorldSession
     private readonly ConcurrentDictionary<long, uint> _requestedChunks = new();
     private readonly ConcurrentDictionary<Guid, string> _characterNames = new();
     private readonly ConcurrentDictionary<Guid, byte> _characterPresets = new();
-    private readonly List<RemoteEntityView> _remoteViewSnapshot = new(64);
+    private readonly RemoteViewBuffer _remoteViewsA = new();
+    private readonly RemoteViewBuffer _remoteViewsB = new();
     private readonly List<CombatFeedbackEvent> _combatEvents = new(32);
     private readonly List<PropImpactEvent> _propImpactEvents = new(16);
     private readonly List<(int ChunkX, int ChunkY)> _dirtyChunks = new(16);
@@ -70,7 +71,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     /// the renderer never reads <see cref="ChunkWorld"/> while a packet is changing it (audit TS-2).
     /// </summary>
     private readonly ConcurrentQueue<Action> _worldInbox = new();
-    private RemoteEntityView[] _cachedRemoteViews = [];
+    private IReadOnlyList<RemoteEntityView> _cachedRemoteViews = [];
     private bool _remoteViewsDirty = true;
     private int _remoteViewsTextVersion;
 
@@ -425,7 +426,9 @@ public sealed partial class MultiplayerSession : IWorldSession
                     return _cachedRemoteViews;
                 }
 
-                _remoteViewSnapshot.Clear();
+                // Alternate between two buffers so the list returned last time is not rewritten under its reader.
+                RemoteViewBuffer target = ReferenceEquals(_cachedRemoteViews, _remoteViewsA) ? _remoteViewsB : _remoteViewsA;
+                target.Clear();
                 double renderTime = Math.Max(0.0, _latestServerTime - InterpolationDelaySeconds);
                 foreach (KeyValuePair<ulong, RemoteEntityState> kvp in _remoteEntities)
                 {
@@ -437,7 +440,7 @@ public sealed partial class MultiplayerSession : IWorldSession
                     Vector2 viewPos = s.Interpolation.Count > 0 ? sampled.Position : s.Position;
                     Vector2 viewVel = s.Interpolation.Count > 0 ? sampled.Velocity : s.Velocity;
 
-                    _remoteViewSnapshot.Add(new RemoteEntityView(
+                    target.Add(new RemoteEntityView(
                         s.NetworkId,
                         s.Kind,
                         s.NameKey is not null && text.TryGet(s.NameKey, out string localizedName) ? localizedName : s.Name,
@@ -465,7 +468,7 @@ public sealed partial class MultiplayerSession : IWorldSession
                         this.IsLootLockedForLocalPlayer(s)));
                 }
 
-                _cachedRemoteViews = _remoteViewSnapshot.Count == 0 ? [] : [.. _remoteViewSnapshot];
+                _cachedRemoteViews = target;
                 _remoteViewsDirty = false;
                 _remoteViewsTextVersion = text.Version;
                 return _cachedRemoteViews;

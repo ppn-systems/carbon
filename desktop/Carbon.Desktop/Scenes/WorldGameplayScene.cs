@@ -65,6 +65,7 @@ public sealed class WorldGameplayScene : GameScene
     private Vector2 _mouseScreenPosition;
     private Vector2 _mouseWorldPosition;
     private int _frameCount;
+    private WindowTitleKey _lastTitleKey;
     private int _carriedInventorySlot = -1;
     private Vector2 _pressStartMousePos;
     private bool _isHoldDragging;
@@ -1085,9 +1086,18 @@ public sealed class WorldGameplayScene : GameScene
 
         TileWalkability walkability = chunkWorld.NavGrid.GetWalkability(ptx, pty);
         RampDirection currentRamp = chunkWorld.NavGrid.GetRamp(ptx, pty);
-        string rampText = currentRamp != RampDirection.None ? $" [Ramp: {currentRamp}]" : string.Empty;
-        string roofText = chunkWorld.Buildings.IsRoofedAt(ptx, pty) ? " [Roofed Room]" : string.Empty;
-        window.Title = $"Carbon MMORPG ({_session.TransportLabel}) | {_session.ActiveCharacterName} | Biome: {biomeDisplayName} | Alt: Lvl {currentTile.HeightLevel} | Nav: {walkability}{rampText}{roofText} | Peers: {_session.RemoteEntities.Count}";
+        bool roofed = chunkWorld.Buildings.IsRoofedAt(ptx, pty);
+
+        // The title is rebuilt (and sent to the OS) only when something it shows changes, not every frame
+        // (audit round 2, PERF-6).
+        WindowTitleKey titleKey = new(_session.TransportLabel, _session.ActiveCharacterName, biomeDisplayName, currentTile.HeightLevel, walkability, currentRamp, roofed, _session.RemoteEntities.Count);
+        if (titleKey != _lastTitleKey)
+        {
+            _lastTitleKey = titleKey;
+            string rampText = currentRamp != RampDirection.None ? $" [Ramp: {currentRamp}]" : string.Empty;
+            string roofText = roofed ? " [Roofed Room]" : string.Empty;
+            window.Title = $"Carbon MMORPG ({_session.TransportLabel}) | {_session.ActiveCharacterName} | Biome: {biomeDisplayName} | Alt: Lvl {currentTile.HeightLevel} | Nav: {walkability}{rampText}{roofText} | Peers: {_session.RemoteEntities.Count}";
+        }
 
         int chunkX = Chunk2D.ToChunkCoord(ptx);
         int chunkY = Chunk2D.ToChunkCoord(pty);
@@ -1098,4 +1108,14 @@ public sealed class WorldGameplayScene : GameScene
             _worldRenderer?.EvictDistant(chunkX, chunkY, 7);
         }
     }
+
+    private readonly record struct WindowTitleKey(
+        string? Transport,
+        string? Character,
+        string? Biome,
+        int Height,
+        TileWalkability Walkability,
+        RampDirection Ramp,
+        bool Roofed,
+        int Peers);
 }
