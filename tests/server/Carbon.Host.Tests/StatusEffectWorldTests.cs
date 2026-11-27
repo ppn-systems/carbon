@@ -24,7 +24,7 @@ public sealed class StatusEffectWorldTests
     public void StepFixedTick_SavedBleeding_PulsesOnTheThirtiethTickAsATintedCombatHit()
     {
         (AuthoritativeWorld world, StatusRecordingSink sink) = CreateWorld();
-        EnterWorldResult entered = world.TryEnterWorld(1UL, 1UL, Character(statusEffects: "bleeding:6000:2"));
+        EnterWorldResult entered = world.TryEnterWorld(1UL, Character(statusEffects: "bleeding:6000:2"));
 
         Step(world, 29);
         sink.CombatHits.Should().NotContain(h => h.StatusEffectId == Bleeding, "bleeding pulses once per second");
@@ -40,7 +40,7 @@ public sealed class StatusEffectWorldTests
     {
         (AuthoritativeWorld world, StatusRecordingSink sink) = CreateWorld();
         CharacterRecord hero = Character(statusEffects: "bleeding:6000:2;poisoned:8000:1", health: 1f);
-        EnterWorldResult entered = world.TryEnterWorld(1UL, 1UL, hero);
+        EnterWorldResult entered = world.TryEnterWorld(1UL, hero);
 
         Step(world, 31);
 
@@ -55,8 +55,8 @@ public sealed class StatusEffectWorldTests
     public void StepFixedTick_TwoPlayers_SendsEachPlayersEffectsOnlyToThatPlayer()
     {
         (AuthoritativeWorld world, StatusRecordingSink sink) = CreateWorld();
-        _ = world.TryEnterWorld(1UL, 1UL, Character(statusEffects: "poisoned:8000:2"));
-        _ = world.TryEnterWorld(2UL, 2UL, Character(statusEffects: string.Empty, offsetX: 48f));
+        _ = world.TryEnterWorld(1UL, Character(statusEffects: "poisoned:8000:2"));
+        _ = world.TryEnterWorld(2UL, Character(statusEffects: string.Empty, offsetX: 48f));
 
         Step(world, 2);
 
@@ -84,7 +84,7 @@ public sealed class StatusEffectWorldTests
     public void StepFixedTick_SlowExpires_SendsAListWithoutIt()
     {
         (AuthoritativeWorld world, StatusRecordingSink sink) = CreateWorld(new WorldDebugOverrides { StatusEffects = "slowed:500:1" });
-        _ = world.TryEnterWorld(1UL, 1UL, Character(statusEffects: string.Empty));
+        _ = world.TryEnterWorld(1UL, Character(statusEffects: string.Empty));
 
         Step(world, 1);
         sink.StatusSyncs.Last(s => s.ConnectionId == 1UL).Entries.Should().Contain(e => e.EffectId == Slowed && e.RemainingMs == 466U);
@@ -96,7 +96,7 @@ public sealed class StatusEffectWorldTests
     private static float WalkDistance(string statusEffects, int waitTicks)
     {
         (AuthoritativeWorld world, StatusRecordingSink sink) = CreateWorld(new WorldDebugOverrides { StatusEffects = statusEffects });
-        _ = world.TryEnterWorld(1UL, 1UL, Character(statusEffects: string.Empty));
+        _ = world.TryEnterWorld(1UL, Character(statusEffects: string.Empty));
         Step(world, waitTicks + 1);
         Vector2 start = sink.SelfPositions[1UL];
         for (uint i = 0; i < 15; i++)
