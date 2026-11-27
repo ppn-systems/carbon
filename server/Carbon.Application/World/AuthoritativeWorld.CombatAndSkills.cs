@@ -13,8 +13,6 @@ using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
 using Carbon.Simulation.ECS;
-using Carbon.Simulation.ECS.Components;
-using Carbon.Simulation.Networking;
 
 namespace Carbon.Application.World;
 
@@ -101,22 +99,10 @@ public sealed partial class AuthoritativeWorld
 
         if (leveledUp)
         {
-            // A level-up never refills vitals (killing a monster must not heal): only the max-pool growth is added,
-            // so the current/max ratio does not drop.
-            float prevMaxHp = state.Stats.MaxHealth;
-            float prevMaxMp = state.Stats.MaxMana;
-            float prevMaxStam = state.Stats.MaxStamina;
+            // A level-up never refills vitals (killing a monster must not heal): only the max-pool growth is added.
+            (float Health, float Mana, float Stamina) previousMax = VitalPools.Capture(state);
             this.RecomputeDerivedStatsLocked(state);
-            if (_simulation.Entities.HasHealth(state.Entity) && state.Stats.MaxHealth > prevMaxHp)
-            {
-                HealthComponent hp = _simulation.Entities.GetHealth(state.Entity);
-                float nextHp = MathF.Min(state.Stats.MaxHealth, hp.Current + (state.Stats.MaxHealth - prevMaxHp));
-                _simulation.Entities.SetHealth(state.Entity, new HealthComponent(nextHp, state.Stats.MaxHealth));
-                _simulation.MarkDirty(state.Entity, EntityDirtyMask.Health);
-            }
-
-            state.CurrentMana = MathF.Min(state.Stats.MaxMana, state.CurrentMana + MathF.Max(0f, state.Stats.MaxMana - prevMaxMp));
-            state.CurrentStamina = MathF.Min(state.Stats.MaxStamina, state.CurrentStamina + MathF.Max(0f, state.Stats.MaxStamina - prevMaxStam));
+            VitalPools.AddGrowth(_simulation, state, previousMax);
 
             if (_simulation.Entities.HasTransform(state.Entity))
             {
