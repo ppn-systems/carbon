@@ -66,7 +66,7 @@ attribute).
 | HP regen | 3/s | +0.25/s | — | plus 1% of max HP per second, out of combat (6 s without a hit) |
 | MP regen | 6/s | +0.1/s | — | always |
 
-Gear still comes from `items.json` (armor defense, bonus HP/MP, held weapon crit chance) with the enhancement
+Gear still comes from `items.json` (armor and accessory slots 36–41: defense, bonus HP/MP; held weapon crit chance) with the enhancement
 multiplier from `ItemEnhancementPolicy` (unchanged).
 
 ## 3. Attribute points per level
@@ -92,6 +92,11 @@ Why this shape:
   refunds the whole allocation on load (§6).
 
 ## 4. Combat math
+
+One damage rule for every path (audit DOM-1): engine systems, player hits on monsters and monster hits on players all
+resolve a hit through `CombatDamage.TryResolve`, which refuses hits on invulnerable targets and applies a mitigation
+policy: `ArmorDamageMitigation` (creature armor, `100 / (100 + armor)`) or `ProgressionDamageMitigation` (the player
+rule below). `DamageMitigationTests` fails if the formulas are copied elsewhere.
 
 All rolls are deterministic: `CombatRoll.Roll(chance, nonce, salt)` hashes a per-character counter, so replays and
 tests are reproducible and the client cannot influence the outcome.

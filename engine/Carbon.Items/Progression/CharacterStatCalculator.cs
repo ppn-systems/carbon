@@ -16,7 +16,7 @@ public static class CharacterStatCalculator
 {
     /// <summary>
     /// Computes derived stats from <paramref name="config"/> (<c>progression.json</c>): base and per-level growth,
-    /// attribute allocations, equipped armor (slots <c>36..39</c>) and the held weapon, with caps applied.
+    /// attribute allocations, equipped armor and accessories (slots <c>36..41</c>) and the held weapon, with caps applied.
     /// </summary>
     /// <param name="rules">Item rules (armor and weapon stats).</param>
     /// <param name="config">Progression tuning.</param>
@@ -39,7 +39,7 @@ public static class CharacterStatCalculator
     }
 
     /// <summary>
-    /// Sums the bonuses of equipped, non-broken armor (slots <c>36..39</c>) and the held weapon, enhancement included.
+    /// Sums the bonuses of equipped, non-broken armor and accessories (slots <c>36..41</c>) and the held weapon, enhancement included.
     /// </summary>
     /// <param name="rules">Item rules.</param>
     /// <param name="inventory">Inventory with equipment slots.</param>
@@ -54,7 +54,7 @@ public static class CharacterStatCalculator
         float mp = 0f;
         float def = 0f;
         float crit = 0f;
-        for (int slotIdx = PlayerInventoryLayout.HeadSlot; slotIdx <= PlayerInventoryLayout.FeetSlot && slotIdx < inventory.Capacity; slotIdx++)
+        for (int slotIdx = PlayerInventoryLayout.HeadSlot; slotIdx <= PlayerInventoryLayout.Accessory2Slot && slotIdx < inventory.Capacity; slotIdx++)
         {
             ItemSlot armor = inventory.GetSlot(slotIdx);
             if (armor.IsEmpty || ToolUsagePolicy.IsWornOut(rules, in armor))

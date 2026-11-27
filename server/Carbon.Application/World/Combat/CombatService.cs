@@ -8,7 +8,7 @@ using Carbon.AI.Tactics;
 using Carbon.AI.Threat;
 using Carbon.Application.World.Players;
 using Carbon.Application.World.Replication;
-using Carbon.Combat.Stats;
+using Carbon.Combat.Damage;
 using Carbon.Items.Progression;
 using Carbon.Physics.Obstacles;
 using Carbon.Physics.Shapes;
@@ -78,7 +78,6 @@ internal sealed class CombatService
         float knockbackSpeed)
     {
         EntityAttachmentStore<ThreatTable> threatStore = _simulation.Entities.GetAttachmentStore<ThreatTable>();
-        EntityAttachmentStore<StatSheet> statsStore = _simulation.Entities.GetAttachmentStore<StatSheet>();
         bool anyDamaged = false;
 
         for (int i = 0; i < targets.Length; i++)
@@ -97,17 +96,16 @@ internal sealed class CombatService
                 continue;
             }
 
+            // One damage rule for every path (audit DOM-1): invulnerable targets refuse the hit, monster armor mitigates it.
+            if (!CombatDamage.TryResolve(_simulation, target, damage, default(ArmorDamageMitigation), out float dealt))
+            {
+                continue;
+            }
+
             anyDamaged = true;
             // Dealing damage is combat too: it pauses out-of-combat regeneration like taking a hit does.
             attacker.LastCombatDamageTick = _currentTick();
             HealthComponent hp = _simulation.Entities.GetHealth(target);
-
-            // Monster armor (StatSheet Defense from monsters.json scaling) mitigates player hits like CombatDamage.Apply.
-            float dealt = damage;
-            if (statsStore.TryGet(target, out StatSheet? targetStats))
-            {
-                dealt *= 100f / (100f + MathF.Max(0f, targetStats.GetValue(StatType.Defense)));
-            }
 
             float remaining = MathF.Max(0f, hp.Current - dealt);
             bool killed = remaining <= 0f;

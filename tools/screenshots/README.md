@@ -57,6 +57,7 @@ they are active.
 | `CARBON_CAPTURE_FRAMES=n` | Also capture `n` consecutive frames after the main capture. |
 | `CARBON_OPEN_PANEL=character` | Open the Character tab of the player panel on entry. |
 | `CARBON_CAPTURE_MOUSE=x,y` | Pin the cursor at window pixel `x,y` so hover states (e.g. the stat preview) render. |
+| `CARBON_CAPTURE_MODAL=settings\|controls` | Open the Settings window (Display or Controls tab) before the capture, to review localized UI. |
 | `CARBON_FORGE_PREVIEW=<kind>[:s]` | Open the forge window and play one enhancement effect (`charge`, `success`, `nochange`, `downgrade`, `destroyed`), frozen at `s` seconds when given. Visual only: nothing is sent, the server alone rolls outcomes. The `forge_*` scenarios use it. |
 
 `--lang <code>` (or `CARBON_LANG`) sets the client language for every scenario; the code must have a file in

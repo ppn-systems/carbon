@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Threading;
 using Carbon.Application.World.Players;
 using Carbon.Combat.Attacks;
+using Carbon.Combat.Damage;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Creatures.Definitions;
@@ -206,20 +207,29 @@ internal sealed class CharacterProgressionService
 
     /// <summary>
     /// Resolves a monster hit of <paramref name="rawDamage"/> on <paramref name="victim"/>: a deterministic dodge roll
-    /// against the attacker's level, then defense or magic resist mitigation (ADR-021 §4).
+    /// against the attacker's level, then <see cref="CombatDamage.TryResolve{TMitigation}"/> with the player's defense or
+    /// magic resist (ADR-021 §4, audit DOM-1). An invulnerable victim avoids the hit like a dodge.
     /// </summary>
     /// <param name="victim">Player hit.</param>
     /// <param name="rawDamage">Damage before mitigation.</param>
     /// <param name="kind">Damage kind.</param>
     /// <param name="attackerLevel">Attacker level.</param>
-    /// <param name="dodged">Whether the hit was dodged (then the result is 0).</param>
+    /// <param name="avoided">Whether the hit was dodged or refused (then the result is 0).</param>
     /// <returns>Damage to apply.</returns>
-    public float ResolveIncomingDamage(PlayerState victim, float rawDamage, DamageKind kind, int attackerLevel, out bool dodged)
+    public float ResolveIncomingDamage(PlayerState victim, float rawDamage, DamageKind kind, int attackerLevel, out bool avoided)
     {
         ArgumentNullException.ThrowIfNull(victim);
+        ProgressionConfig config = this.Config;
         DerivedCharacterStats stats = victim.Stats;
-        dodged = CombatRoll.Roll(this.Config.GetEvasionChance(in stats, attackerLevel), ++victim.CombatRollNonce, CombatRoll.EvasionSalt);
-        return dodged ? 0f : this.Config.Mitigate(rawDamage, kind, in stats, attackerLevel);
+        if (CombatRoll.Roll(config.GetEvasionChance(in stats, attackerLevel), ++victim.CombatRollNonce, CombatRoll.EvasionSalt))
+        {
+            avoided = true;
+            return 0f;
+        }
+
+        ProgressionDamageMitigation mitigation = new(config, stats, kind, attackerLevel);
+        avoided = !CombatDamage.TryResolve(_simulation, victim.Entity, rawDamage, in mitigation, out float dealt);
+        return avoided ? 0f : dealt;
     }
 
     /// <summary>A caster's spells and bolts are magical; everything else a monster does is physical (ADR-021 D4).</summary>
