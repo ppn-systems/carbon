@@ -577,9 +577,9 @@ public sealed class MonsterTacticsTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Respawn_PathingGolemIntoTheSameSlot_AllocatesItsAttachmentsAgain()
+    public void Respawn_PathingGolemIntoTheSameSlot_ReusesItsAttachmentsAndAllocatesNothing()
     {
-        // Characterisation (ADR-044): each life of a monster gets new attachments, even in the slot of the previous one.
+        // ADR-044: a despawned monster's StatSheet, ThreatTable and PathWaypointBuffer go to the next monster, reset.
         TacticsArena arena = new(withWalls: true);
         for (int y = 4; y <= 14; y++)
         {
@@ -596,13 +596,38 @@ public sealed class MonsterTacticsTests(ITestOutputHelper output)
         lives.Should().OnlyContain(l => l.Golem.Id == lives[0].Golem.Id, "every life respawns into the freed slot");
         for (int i = 1; i < lives.Count; i++)
         {
-            lives[i].Sheet.Should().NotBeSameAs(lives[i - 1].Sheet);
-            lives[i].Threat.Should().NotBeSameAs(lives[i - 1].Threat);
-            lives[i].Path.Should().NotBeSameAs(lives[i - 1].Path);
+            lives[i].Sheet.Should().BeSameAs(lives[i - 1].Sheet, "the released sheet is reused");
+            lives[i].Threat.Should().BeSameAs(lives[i - 1].Threat);
+            lives[i].Path.Should().BeSameAs(lives[i - 1].Path);
         }
 
         AllocationResult window = AllocationProbe.Measure(1, warmupIterations: 2, i => _ = LivePathingLife(arena, player));
-        window.Bytes.Should().BeGreaterThan(0, $"a respawn allocates its StatSheet, ThreatTable and PathWaypointBuffer again ({window})");
+        window.Bytes.Should().Be(0, $"a pathing monster's respawn allocates nothing ({window})");
+        window.RepeatBytes.Should().Be(0, $"and the released instances do not grow from life to life ({window})");
+        arena.World.Entities.GetAttachmentStore<StatSheet>().ReleasedCount.Should().Be(1, "one golem at a time keeps one sheet");
+        arena.World.Entities.GetAttachmentStore<PathWaypointBuffer>().ReleasedCount.Should().Be(1);
+    }
+
+    [Fact]
+    public void Respawn_IntoTheSameSlot_TheOldHandleCannotReachTheNewLife()
+    {
+        // ADR-044: holders keep an Entity handle, never the attachment (AttachmentReuseGuardTests). The handle of a despawned
+        // monster fails the generation check, so it cannot observe the reset attachments of the monster now in its slot.
+        TacticsArena arena = new(withWalls: true);
+        Entity player = arena.SpawnPlayer(TacticsArena.TileCenter(13, 9), health: 1e6f);
+        Entity first = arena.SpawnMonster("rock_golem", TacticsArena.TileCenter(7, 9));
+        arena.Threat(first).AddThreat(player, 50f);
+        arena.World.DespawnEntity(first);
+
+        Entity second = arena.SpawnMonster("rock_golem", TacticsArena.TileCenter(7, 9));
+        arena.Threat(second).AddThreat(player, 75f);
+
+        second.Id.Should().Be(first.Id, "the new life reuses the freed slot");
+        EntityManager entities = arena.World.Entities;
+        entities.GetAttachmentStore<StatSheet>().TryGet(first, out _).Should().BeFalse("a stale handle reaches no sheet");
+        entities.GetAttachmentStore<ThreatTable>().TryGet(first, out _).Should().BeFalse("a stale handle reaches no threat table");
+        entities.GetAttachmentStore<ThreatTable>().TryGet(second, out ThreatTable? threat).Should().BeTrue();
+        threat!.GetThreat(player).Should().Be(75f, "the reused table starts empty, without the previous life's threat");
     }
 
     /// <summary>Spawns a golem behind the wall, lets it path towards the player, and despawns it (one monster life).</summary>

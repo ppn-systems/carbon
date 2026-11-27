@@ -1,5 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using Carbon.AI.Threat;
+using Carbon.Combat.Stats;
 using Carbon.Creatures.Components;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
@@ -23,7 +25,7 @@ public sealed class RespawnAllocationTests(ITestOutputHelper output)
     private const int CycleTicks = 2400;
 
     [Fact]
-    public void KillAndRespawnCycle_SteadyState_AllocatesPerRespawn()
+    public void KillAndRespawnCycle_SteadyState_AllocatesNothingPerRespawn()
     {
         using TickAllocationHarness harness = TickAllocationHarness.Create(players: 8);
         Cycle cycle = new(harness);
@@ -40,7 +42,14 @@ public sealed class RespawnAllocationTests(ITestOutputHelper output)
             $"{(double)window.RepeatBytes!.Value / repeatRespawns:F1} over {repeatRespawns} in the repeat window ({window})");
 
         respawns.Should().BeGreaterThan(20, "the measured cycle respawns the monsters it killed");
-        window.Bytes.Should().BeGreaterThan(0, $"characterisation: a respawn allocates its StatSheet and ThreatTable again ({window})");
+        window.Bytes.Should().Be(0, $"a respawn reuses the StatSheet and ThreatTable a despawn released (ADR-044) ({window})");
+        window.RepeatBytes.Should().Be(0, $"warm-up growth is over: the released instances are bounded ({window})");
+
+        // Bounded: never more instances, attached plus released, than the peak number of monsters alive at once.
+        EntityManager entities = harness.World.Simulation.Entities;
+        int live = entities.GetPool<MonsterComponent>().EntitySlots.Length;
+        (entities.GetAttachmentStore<StatSheet>().ReleasedCount + live).Should().BeLessThanOrEqualTo(cycle.PeakLive);
+        (entities.GetAttachmentStore<ThreatTable>().ReleasedCount + live).Should().BeLessThanOrEqualTo(cycle.PeakLive);
     }
 
     /// <summary>Kills every live monster, then ticks until their cells have respawned.</summary>
@@ -49,6 +58,9 @@ public sealed class RespawnAllocationTests(ITestOutputHelper output)
         private readonly Entity[] _victims = new Entity[1024];
 
         private int _runs;
+
+        /// <summary>Gets the most monsters alive at once, seen at the start of a run.</summary>
+        public int PeakLive { get; private set; }
 
         /// <summary>Gets the monsters respawned by each run, in order: two warm-up runs, the window, the repeat window.</summary>
         public int[] Respawns { get; } = new int[4];
@@ -63,6 +75,7 @@ public sealed class RespawnAllocationTests(ITestOutputHelper output)
                 _victims[count++] = simulation.Entities.GetEntity(monsters.EntitySlots[i]);
             }
 
+            this.PeakLive = System.Math.Max(this.PeakLive, count);
             for (int i = 0; i < count; i++)
             {
                 simulation.Entities.SetHealth(_victims[i], new HealthComponent(0f, 1f));
