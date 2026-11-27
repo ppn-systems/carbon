@@ -9,6 +9,7 @@ using Carbon.Application.World.Players;
 using Carbon.Application.World.Projectiles;
 using Carbon.Application.World.Props;
 using Carbon.Application.World.Replication;
+using Carbon.Application.World.Stamina;
 using Carbon.Combat.Hitboxes;
 using Carbon.Contracts.Entities;
 using Carbon.Items.Catalog;
@@ -73,6 +74,7 @@ internal sealed class PlayerActionService
     private readonly PropHarvestService _props;
     private readonly InventoryService _inventory;
     private readonly NeedsService _needs;
+    private readonly StaminaService _stamina;
     private readonly IPlayerActionHost _host;
     private readonly IGameplayEntropy _entropy;
     private readonly Entity[] _hitScratch = new Entity[32];
@@ -90,6 +92,7 @@ internal sealed class PlayerActionService
         PropHarvestService props,
         InventoryService inventory,
         NeedsService needs,
+        StaminaService stamina,
         IPlayerActionHost host,
         IGameplayEntropy entropy)
     {
@@ -104,6 +107,7 @@ internal sealed class PlayerActionService
         _props = props ?? throw new ArgumentNullException(nameof(props));
         _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
         _needs = needs ?? throw new ArgumentNullException(nameof(needs));
+        _stamina = stamina ?? throw new ArgumentNullException(nameof(stamina));
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _entropy = entropy ?? throw new ArgumentNullException(nameof(entropy));
     }
@@ -156,14 +160,25 @@ internal sealed class PlayerActionService
             return;
         }
 
+        ItemArchetype? placeable = activeSlot.Quantity > 0 &&
+            this.Rules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? archetype) &&
+            archetype.Category == ItemCategory.Placeable
+                ? archetype
+                : null;
+
+        // ADR-033: every swing (melee, tool, bare hand, bow) is paid up front, hit or miss. A swing the player cannot
+        // afford is refused: no cooldown, no damage, no wear.
+        if (placeable is null && !_stamina.TrySpend(state, _stamina.GetSwingCost(this.Rules, in activeSlot)))
+        {
+            return;
+        }
+
         state.Cooldowns.StartCooldown(AttackAbilityId, this.Tick, _needs.ScaleAttackCooldown(state.Entity, GetAttackCooldownTicks(_tickRate, state.Stats.AttackSpeedMultiplier)));
 
         Vector2 attackerPos = _simulation.Entities.GetTransform(state.Entity).Position;
-        if (activeSlot.Quantity > 0 &&
-            this.Rules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? archetype) &&
-            archetype.Category == ItemCategory.Placeable)
+        if (placeable is not null)
         {
-            _host.UsePlaceable(state, attackerPos, activeSlot, archetype);
+            _host.UsePlaceable(state, attackerPos, activeSlot, placeable);
             return;
         }
 
@@ -387,13 +402,18 @@ internal sealed class PlayerActionService
         }
 
         SkillSpec spec = skillDef.EvaluateRank(rank);
-        if (state.CurrentMana < spec.ManaCost || state.CurrentStamina < spec.StaminaCost)
+        if (state.CurrentMana < spec.ManaCost)
+        {
+            return;
+        }
+
+        // ADR-033: a skill's stamina cost goes through the meter, so exhaustion blocks it and the spend delays regen.
+        if (!_stamina.TrySpend(state, spec.StaminaCost))
         {
             return;
         }
 
         state.CurrentMana = MathF.Max(0f, state.CurrentMana - spec.ManaCost);
-        state.CurrentStamina = MathF.Max(0f, state.CurrentStamina - spec.StaminaCost);
         state.StatsDirty = true;
         state.Cooldowns.StartCooldown(abilityId, this.Tick, (uint)Math.Max(1, MathF.Ceiling(spec.CooldownSeconds * _tickRate)));
 

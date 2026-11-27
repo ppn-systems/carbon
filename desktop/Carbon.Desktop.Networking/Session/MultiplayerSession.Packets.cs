@@ -93,8 +93,10 @@ public sealed partial class MultiplayerSession
         _tcpSubscriptions.Add(tcp.On<InventorySlotChanged>(this.OnInventorySlotChanged));
         _tcpSubscriptions.Add(tcp.On<EntityEquipmentChanged>(this.OnEntityEquipmentChanged));
         _tcpSubscriptions.Add(tcp.On<PlayerStatsSync>(this.OnPlayerStatsSync));
+        _tcpSubscriptions.Add(tcp.On<StaminaStatusSync>(this.OnStaminaStatusSync));
         _tcpSubscriptions.Add(tcp.On<WalletSync>(this.OnWalletSync));
         _tcpSubscriptions.Add(tcp.On<TraderStock>(_trading.OnStock));
+        _tcpSubscriptions.Add(tcp.On<PlayerDeath>(_death.OnPlayerDeath));
         _tcpSubscriptions.Add(tcp.On<EnhancementAnnouncement>(this.OnEnhancementAnnouncement));
         _tcpSubscriptions.Add(tcp.On<SkillCastBroadcast>(this.OnSkillCastBroadcast));
         _tcpSubscriptions.Add(tcp.On<EntityAttackPhase>(this.OnEntityAttackPhase));
@@ -410,7 +412,7 @@ public sealed partial class MultiplayerSession
             _localMaxHealth = MathF.Max(1f, enter.MaxHealth);
             _localMana = enter.CurrentMana;
             _localMaxMana = MathF.Max(1f, enter.MaxMana);
-            _localStamina = enter.CurrentStamina;
+            this.ResetStaminaPrediction(enter.CurrentStamina);
             _localMaxStamina = MathF.Max(1f, enter.MaxStamina);
             _localDefense = enter.Defense;
             _localClass = (HeroArchetypeClass)enter.ClassId;
@@ -881,7 +883,7 @@ public sealed partial class MultiplayerSession
             _localMaxHealth = MathF.Max(1f, pkt.MaxHealth);
             _localMana = pkt.CurrentMana;
             _localMaxMana = MathF.Max(1f, pkt.MaxMana);
-            _localStamina = pkt.CurrentStamina;
+            _stamina.Current = pkt.CurrentStamina;
             _localMaxStamina = MathF.Max(1f, pkt.MaxStamina);
             _localDefense = pkt.Defense;
             if (pkt.MaxFood > 0f)
@@ -1066,7 +1068,6 @@ public sealed partial class MultiplayerSession
                 if (pkt.IsKilled)
                 {
                     _lockedTargetNetworkId = 0UL;
-                    _hudNotifications.Add(GameText.Get("hud.slain"));
                     _combatEvents.Add(new CombatFeedbackEvent(
                         worldPos + new Vector2(0f, -20f),
                         0f,

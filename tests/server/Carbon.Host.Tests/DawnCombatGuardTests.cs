@@ -40,6 +40,7 @@ public sealed class DawnCombatGuardTests
             using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
             await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
             AuthoritativeWorldMultiplayerTests.RecordingOutboundSink sink = new();
+            // This test pins the dawn despawn guard, not stamina pacing: free swings keep the fight continuous (ADR-033).
             AuthoritativeWorld world = new(
                 1337UL,
                 32f,
@@ -48,7 +49,8 @@ public sealed class DawnCombatGuardTests
                 new SqliteChunkDeltaRepository(factory),
                 new SqliteCharacterStore(factory),
                 sink,
-                entropy: TestGameplayEntropy.Create(DawnFightSecret));
+                entropy: TestGameplayEntropy.Create(DawnFightSecret),
+                stamina: StaminaTestConfig.CreateWithFreeSwings());
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
             _ = world.ApplyDebugOverrides(new WorldDebugOverrides { StartHour = 4.95f });
 
@@ -67,9 +69,16 @@ public sealed class DawnCombatGuardTests
             bool killed = false;
             for (int t = 0; t < 900 && !killed; t++)
             {
-                if (t % 10 == 0)
+                // The fighter keeps after the monster when a hit knocks it out of reach, so the fight does not hang
+                // on where the generated terrain happens to stop the knockback.
+                Vector2 aim = sink.LastPositions.TryGetValue(mob.NetworkId, out Vector2 p) ? p : new Vector2(mob.PositionX, mob.PositionY);
+                Vector2 toMob = sink.SelfPositions.TryGetValue(FighterConnection, out Vector2 self) ? aim - self : Vector2.Zero;
+                if (toMob.LengthSquared() > 40f * 40f)
                 {
-                    Vector2 aim = sink.LastPositions.TryGetValue(mob.NetworkId, out Vector2 p) ? p : new Vector2(mob.PositionX, mob.PositionY);
+                    world.EnqueueMoveInput(FighterConnection, (uint)t + 1U, Vector2.Normalize(toMob), sprint: false);
+                }
+                else if (t % 10 == 0)
+                {
                     _ = world.EnqueueAttackInput(FighterConnection, mob.NetworkId, aim, 2);
                 }
 

@@ -15,6 +15,7 @@ using Carbon.Application.World.Players;
 using Carbon.Application.World.Projectiles;
 using Carbon.Application.World.Props;
 using Carbon.Application.World.Replication;
+using Carbon.Application.World.Stamina;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
@@ -24,6 +25,7 @@ using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.World;
+using Carbon.Survival.Components;
 using Carbon.Survival.Config;
 using FluentAssertions;
 using Xunit;
@@ -149,6 +151,212 @@ public sealed class PlayerActionServiceTests
         h.Outbound.Pending.SlotChanges.Should().ContainSingle();
     }
 
+    [Fact]
+    public void Attack_BareHandSwing_DebitsExactlyTheBareHandCost()
+    {
+        Harness h = new();
+        h.Player.PendingAttackAim = new Vector2(0f, 40f);
+
+        h.Actions.Attack(h.Player);
+
+        h.Player.CurrentStamina.Should().Be(100f - StaminaTestConfig.BareHandCost, "a punch or bare-hand gather costs stamina, hit or miss");
+    }
+
+    [Fact]
+    public void Attack_MeleeWeaponAtAMonster_DebitsExactlyTheMeleeCostAndHits()
+    {
+        Harness h = new();
+        ItemArchetype sword = h.Find(a => a.Capabilities.HasFlag(ToolCapabilities.MeleeWeapon) && a.Code != "wood_axe");
+        h.Hold(new ItemSlot(sword.Id, 1, Durability: sword.MaxDurability));
+        Entity mob = h.SpawnMonster(1000f);
+
+        h.Actions.Attack(h.Player);
+
+        h.Player.CurrentStamina.Should().Be(100f - StaminaTestConfig.MeleeCost);
+        h.Simulation.Entities.GetHealth(mob).Current.Should().BeLessThan(1000f);
+    }
+
+    [Fact]
+    public void Attack_ToolWithAnItemOverride_DebitsTheItemCost()
+    {
+        Harness h = new();
+        ItemArchetype axe = h.Find(a => a.Code == "wood_axe");
+        h.Hold(new ItemSlot(axe.Id, 1, Durability: axe.MaxDurability));
+        h.Player.PendingAttackAim = new Vector2(0f, 40f);
+
+        h.Actions.Attack(h.Player);
+
+        h.Player.CurrentStamina.Should().Be(100f - StaminaTestConfig.WoodAxeCost, "itemSwingCosts scales the cost by tool");
+    }
+
+    [Fact]
+    public void Attack_ToolWithoutAnOverride_DebitsTheToolCost()
+    {
+        Harness h = new();
+        ItemArchetype pick = h.Find(a => a.Category == ItemCategory.Tool && a.Code != "wood_axe");
+        h.Hold(new ItemSlot(pick.Id, 1, Durability: pick.MaxDurability));
+        h.Player.PendingAttackAim = new Vector2(0f, 40f);
+
+        h.Actions.Attack(h.Player);
+
+        h.Player.CurrentStamina.Should().Be(100f - StaminaTestConfig.ToolCost);
+    }
+
+    [Fact]
+    public void Attack_BowShot_DebitsExactlyTheRangedCost()
+    {
+        Harness h = new();
+        ItemArchetype bow = h.Find(a => a.Capabilities.HasFlag(ToolCapabilities.RangedBow));
+        h.Hold(new ItemSlot(bow.Id, 1, Durability: bow.MaxDurability));
+        h.Player.PendingAttackAim = new Vector2(100f, 0f);
+
+        h.Actions.Attack(h.Player);
+
+        h.Player.CurrentStamina.Should().Be(100f - StaminaTestConfig.RangedCost);
+        h.Projectiles.Count.Should().Be(1);
+    }
+
+    [Fact]
+    public void Attack_MeleeWithoutEnoughStamina_IsRefusedAndNothingHappens()
+    {
+        Harness h = new();
+        ItemArchetype sword = h.Find(a => a.Capabilities.HasFlag(ToolCapabilities.MeleeWeapon) && a.Code != "wood_axe");
+        ItemSlot held = new(sword.Id, 1, Durability: sword.MaxDurability);
+        h.Hold(held);
+        Entity mob = h.SpawnMonster(1000f);
+        h.Player.CurrentStamina = StaminaTestConfig.MeleeCost - 1f;
+
+        h.Actions.Attack(h.Player);
+
+        h.Simulation.Entities.GetHealth(mob).Current.Should().Be(1000f, "a refused swing does not hit");
+        h.Player.Inventory.GetSlot(0).Should().Be(held, "a refused swing does not wear the weapon");
+        h.Player.CurrentStamina.Should().Be(StaminaTestConfig.MeleeCost - 1f);
+        h.Player.Cooldowns.IsReady(PlayerActionService.AttackAbilityId, h.Tick).Should().BeTrue("a refused swing does not start the cooldown");
+        h.Player.StaminaRefusals.Should().Be(1U);
+        h.Player.Stamina.Exhausted.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Attack_WhileExhausted_IsRefusedEvenWhenTheSwingIsAffordable()
+    {
+        Harness h = new();
+        Entity mob = h.SpawnMonster(1000f);
+        h.Player.CurrentStamina = 2f;
+        h.Actions.Attack(h.Player); // 2 < 3: refused, exhausted
+        h.Player.CurrentStamina = 40f; // below the 50% recover fraction
+
+        h.Actions.Attack(h.Player);
+
+        h.Simulation.Entities.GetHealth(mob).Current.Should().Be(1000f);
+        h.Player.CurrentStamina.Should().Be(40f);
+        h.Player.StaminaRefusals.Should().Be(2U);
+    }
+
+    [Fact]
+    public void QueueStatusIfChanged_AfterARefusal_PushesExhaustionAndTheRefusalCountOnce()
+    {
+        Harness h = new();
+        h.Player.CurrentStamina = 1f;
+        h.Actions.Attack(h.Player);
+
+        h.Stamina.QueueStatusIfChanged(h.Player);
+        h.Stamina.QueueStatusIfChanged(h.Player);
+
+        h.Outbound.Pending.StaminaStatuses.Should().ContainSingle()
+            .Which.Should().Be(new OutboundStaminaStatus(h.Player.Session.ConnectionId, Exhausted: true, RefusalCount: 1U));
+    }
+
+    [Fact]
+    public void Regenerate_BeforeTheDelay_RestoresNothing()
+    {
+        Harness h = new();
+        h.Player.PendingAttackAim = new Vector2(0f, 40f);
+        h.Actions.Attack(h.Player); // 97, delay 1.5 s
+
+        h.Stamina.Regenerate(h.Player, 1.4f, isMoving: false);
+
+        h.Player.CurrentStamina.Should().Be(100f - StaminaTestConfig.BareHandCost);
+    }
+
+    [Theory]
+    [InlineData(false, StaminaTestConfig.RegenStill)]
+    [InlineData(true, StaminaTestConfig.RegenMoving)]
+    public void Regenerate_AfterTheDelay_IsSlowerWhileMoving(bool isMoving, float expectedPerSecond)
+    {
+        Harness h = new();
+        h.Player.CurrentStamina = 50f;
+
+        h.Stamina.Regenerate(h.Player, 1f, isMoving);
+
+        h.Player.CurrentStamina.Should().BeApproximately(50f + expectedPerSecond, 0.001f);
+    }
+
+    [Theory]
+    [InlineData(RestState.Tired, HungerState.Fed, StaminaTestConfig.RegenStill * StaminaTestConfig.TiredScale)]
+    [InlineData(RestState.Rested, HungerState.Starving, StaminaTestConfig.RegenStill * StaminaTestConfig.StarvingScale)]
+    public void Regenerate_TiredOrStarving_SlowsRegen(RestState fatigue, HungerState hunger, float expectedPerSecond)
+    {
+        Harness h = new();
+        h.Simulation.Entities.SetComponent(h.Player.Entity, new NeedsComponent { Fatigue = fatigue, Hunger = hunger });
+        h.Player.CurrentStamina = 50f;
+
+        h.Stamina.Regenerate(h.Player, 1f, isMoving: false);
+
+        h.Player.CurrentStamina.Should().BeApproximately(50f + expectedPerSecond, 0.001f);
+    }
+
+    [Fact]
+    public void Attack_WhileDead_SpendsNothingAndCountsNoRefusal()
+    {
+        Harness h = new();
+        Entity mob = h.SpawnMonster(1000f);
+        h.Player.IsDead = true;
+
+        h.Actions.Attack(h.Player);
+
+        h.Player.CurrentStamina.Should().Be(100f);
+        h.Player.StaminaRefusals.Should().Be(0U, "a dead player's input is not an exhaustion refusal");
+        h.Simulation.Entities.GetHealth(mob).Current.Should().Be(1000f);
+    }
+
+    [Fact]
+    public void Regenerate_WhileDead_RestoresNothingAndBuildWorkIsBlocked()
+    {
+        Harness h = new();
+        h.Player.CurrentStamina = 50f;
+        h.Player.IsDead = true;
+
+        h.Stamina.Regenerate(h.Player, 5f, isMoving: false);
+
+        h.Player.CurrentStamina.Should().Be(50f);
+        h.Stamina.CanWork(h.Player).Should().BeFalse();
+        h.Stamina.TrySprint(h.Player, 1f / 30f).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Regenerate_StatusEffectScale_SlowsRegen()
+    {
+        Harness h = new();
+        h.Player.CurrentStamina = 50f;
+
+        h.Stamina.Regenerate(h.Player, 1f, isMoving: false, effectScale: 0.5f);
+
+        h.Player.CurrentStamina.Should().BeApproximately(50f + (StaminaTestConfig.RegenStill * 0.5f), 0.001f, "ADR-029 effects scale stamina regen");
+    }
+
+    [Fact]
+    public void DrainWork_OneSecondOfBuilding_DebitsExactlyTheBuildCost()
+    {
+        Harness h = new();
+
+        for (int i = 0; i < 30; i++)
+        {
+            h.Stamina.DrainWork(h.Player, 1f / 30f);
+        }
+
+        h.Player.CurrentStamina.Should().BeApproximately(100f - StaminaTestConfig.BuildWorkPerSecond, 0.01f);
+    }
+
     private sealed class Harness
     {
         private ulong _nextNetworkId = 9000UL;
@@ -171,7 +379,8 @@ public sealed class PlayerActionServiceTests
                     return false;
                 },
                 (_, _) => { });
-            this.Actions = new PlayerActionService(this.Simulation, 30, MonsterLayer, () => this.Rules, () => this.Tick, this.Outbound, combat, this.Projectiles, props, inventory, needs, this.Host, TestGameplayEntropy.Create(1UL));
+            this.Stamina = new StaminaService(this.Simulation, StaminaTestConfig.Create(), this.Outbound);
+            this.Actions = new PlayerActionService(this.Simulation, 30, MonsterLayer, () => this.Rules, () => this.Tick, this.Outbound, combat, this.Projectiles, props, inventory, needs, this.Stamina, this.Host, TestGameplayEntropy.Create(1UL));
 
             ConnectedPlayerSession session = new(9UL, Guid.NewGuid(), Guid.NewGuid(), "Tester", 900UL, 0, 0);
             CharacterRecord character = new(
@@ -197,6 +406,17 @@ public sealed class PlayerActionServiceTests
         public RecordingHost Host { get; } = new();
 
         public PlayerActionService Actions { get; }
+
+        public StaminaService Stamina { get; }
+
+        public Entity SpawnMonster(float health)
+        {
+            Entity mob = this.Simulation.SpawnNetworkEntity(++_nextNetworkId, new Vector2(5f, 0f), 8f);
+            this.Simulation.Entities.SetCollider(mob, new Collider2D(ColliderKind.Circle, 8f, default, false, MonsterLayer, 0U));
+            this.Simulation.Entities.SetHealth(mob, new HealthComponent(health, health));
+            this.Player.PendingAttackAim = new Vector2(50f, 0f);
+            return mob;
+        }
 
         public PlayerState Player { get; }
 

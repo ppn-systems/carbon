@@ -173,7 +173,8 @@ public sealed class MmorpgWorldGenV12Tests
     [Fact]
     public void RiverNetwork_RegionSeam512_IsContinuous()
     {
-        const float maxTrackableDistance = 254f / 16f;
+        // The river field is stamped out to 12.5 width-scaled tiles (ADR-032); beyond that a tile reads as far away.
+        const float maxTrackableDistance = 12.5f;
         ProceduralWorldGenerator generator = new(42UL);
         for (int coord = -256; coord <= 256; coord += 4)
         {

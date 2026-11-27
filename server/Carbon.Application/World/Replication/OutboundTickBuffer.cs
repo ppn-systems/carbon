@@ -90,6 +90,8 @@ internal readonly record struct OutboundWalletSync(ulong ConnectionId, long Gold
 /// <summary>A player's death pushed to that player (ADR-031).</summary>
 internal readonly record struct OutboundPlayerDeath(ulong ConnectionId, PlayerDeathSnapshot Death);
 
+internal readonly record struct OutboundStaminaStatus(ulong ConnectionId, bool Exhausted, uint RefusalCount);
+
 /// <summary>A trader's stock pushed to one player (ADR-025).</summary>
 internal readonly record struct OutboundTraderStock(ulong ConnectionId, TraderStockSnapshot Stock);
 
@@ -148,6 +150,8 @@ internal sealed class OutboundBatch
 
     public List<StatusEffectEntry> StatusEntries { get; } = new(64);
 
+    public List<OutboundStaminaStatus> StaminaStatuses { get; } = new(16);
+
     public List<OutboundTraderStock> TraderStocks { get; } = new(4);
 
     public List<OutboundPlayerDeath> PlayerDeaths { get; } = new(4);
@@ -173,6 +177,7 @@ internal sealed class OutboundBatch
         this.ConstructionChanges.Clear();
         this.EquipmentChanges.Clear();
         this.StatsSyncs.Clear();
+        this.StaminaStatuses.Clear();
         this.WalletSyncs.Clear();
         this.StatusSyncs.Clear();
         this.StatusEntries.Clear();
@@ -313,6 +318,12 @@ internal sealed class OutboundTickBuffer
             OutboundStatsSync sync = batch.StatsSyncs[i];
             PlayerStatsSnapshot statsSnap = sync.Snapshot;
             sink.SendPlayerStatsSync(sync.ConnectionId, in statsSnap);
+        }
+
+        for (int i = 0; i < batch.StaminaStatuses.Count; i++)
+        {
+            OutboundStaminaStatus stamina = batch.StaminaStatuses[i];
+            sink.SendStaminaStatus(stamina.ConnectionId, stamina.Exhausted, stamina.RefusalCount);
         }
 
         for (int i = 0; i < batch.WalletSyncs.Count; i++)

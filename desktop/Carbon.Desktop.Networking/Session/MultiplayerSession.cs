@@ -17,6 +17,7 @@ using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
+using Carbon.Items.Repair;
 using Carbon.Maps.Building;
 using Carbon.Maps.Streaming;
 using Carbon.Prediction.Reconciliation;
@@ -24,6 +25,7 @@ using Carbon.Prediction.Remote;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.World;
+using Carbon.Survival.Stamina;
 using Nalix.SDK.Transport;
 
 namespace Carbon.Desktop.Networking.Session;
@@ -58,6 +60,8 @@ public sealed partial class MultiplayerSession : IWorldSession
     private readonly List<string> _hudNotifications = new(16);
     private readonly MapMutationApplier _mapMutations;
     private readonly TraderSession _trading;
+    private readonly DeathSession _death;
+    private readonly RepairSession _repair;
     private readonly CharacterProgressionState _progression = new();
     private readonly Dictionary<ushort, float> _skillCooldowns = new(8);
     private readonly List<ushort> _cooldownKeyScratch = new(8);
@@ -121,7 +125,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     private uint _localXpToNext = 100U;
     private float _localMana = 80f;
     private float _localMaxMana = 80f;
-    private float _localStamina = 100f;
+    private StaminaMeter _stamina = new(100f);
     private float _localMaxStamina = 100f;
     private float _localDefense = 2f;
     private long _localGold;
@@ -164,6 +168,9 @@ public sealed partial class MultiplayerSession : IWorldSession
     /// <inheritdoc/>
     public ITraderSession Trading => _trading;
 
+    /// <inheritdoc/>
+    public IRepairSession Repair => _repair;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="MultiplayerSession"/> class.
     /// </summary>
@@ -175,6 +182,8 @@ public sealed partial class MultiplayerSession : IWorldSession
         _entityNames = new EntityNameKeys(_items);
         _mapMutations = new MapMutationApplier(_dirtyChunks, _propImpactEvents, _combatEvents, _hudNotifications);
         _trading = new TraderSession(() => this.IsReady ? _tcpSession : null, text => { lock (_worldGate) { _hudNotifications.Add(text); } });
+        _death = new DeathSession(this.SendRespawnRequestAsync, id => _entityNames.Resolve(EntityKind.Monster, id, LootCurrency.None, null));
+        _repair = new RepairSession(() => this.IsReady ? _tcpSession : null, text => { lock (_worldGate) { _hudNotifications.Add(text); } });
     }
 
     /// <inheritdoc/>
@@ -224,7 +233,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     public float LocalPlayerMaxMana => _localMaxMana;
 
     /// <inheritdoc/>
-    public float LocalPlayerStamina => _localStamina;
+    public float LocalPlayerStamina => _stamina.Current;
 
     /// <inheritdoc/>
     public float LocalPlayerMaxStamina => _localMaxStamina;
@@ -413,6 +422,56 @@ public sealed partial class MultiplayerSession : IWorldSession
         }
 
         return false;
+    }
+
+    /// <inheritdoc/>
+    public int GetRepairStationTier(RepairVenue venue)
+    {
+        RepairTable table = _items.Rules.Repair;
+        if (!this.IsReady || _chunkWorld is null || venue == RepairVenue.None)
+        {
+            return 0;
+        }
+
+        Vector2 playerPos = this.LocalPlayerInterpolatedPosition;
+        lock (_worldGate)
+        {
+            if (venue == RepairVenue.Blacksmith)
+            {
+                foreach (KeyValuePair<ulong, RemoteEntityState> kvp in _remoteEntities)
+                {
+                    RemoteEntityState s = kvp.Value;
+                    if (s.Kind == EntityKind.Npc &&
+                        WorldActorCatalog.GetNpcSpec(s.ArchetypeId).Capabilities.HasFlag(NpcCapabilities.ForgeArtisan) &&
+                        Vector2.DistanceSquared(playerPos, s.Position) <= table.BlacksmithReach * table.BlacksmithReach)
+                    {
+                        return table.BlacksmithTier;
+                    }
+                }
+
+                return 0;
+            }
+
+            int ptx = (int)MathF.Floor(playerPos.X / _tileSize);
+            int pty = (int)MathF.Floor(playerPos.Y / _tileSize);
+            int best = 0;
+            int reach = table.StationReachTiles;
+            for (int dy = -reach; dy <= reach; dy++)
+            {
+                for (int dx = -reach; dx <= reach; dx++)
+                {
+                    if (_chunkWorld.Buildings.TryGetStructure(ptx + dx, pty + dy, out StructureTile st) && !st.IsDestroyed)
+                    {
+                        int tier = st.Type == StructureType.ForgeAnvil ? table.ForgeAnvilTier
+                            : st.Type == StructureType.Workbench ? table.WorkbenchTier
+                            : 0;
+                        best = Math.Max(best, tier);
+                    }
+                }
+            }
+
+            return best;
+        }
     }
 
     /// <inheritdoc/>
@@ -694,16 +753,8 @@ public sealed partial class MultiplayerSession : IWorldSession
             }
 
             bool isMoving = moveDir.LengthSquared() > 0.001f;
-            bool canSprint = sprint && isMoving && _localStamina > 2f;
+            bool canSprint = this.PredictStaminaTick(fdt, sprint && isMoving, isMoving);
             float speed = canSprint ? SprintSpeed : WalkSpeed;
-            if (canSprint)
-            {
-                _localStamina = MathF.Max(0f, _localStamina - (22f * fdt));
-            }
-            else if (_localStamina < _localMaxStamina)
-            {
-                _localStamina = MathF.Min(_localMaxStamina, _localStamina + (18f * fdt));
-            }
 
             if (_localMana < _localMaxMana)
             {
@@ -799,6 +850,7 @@ public sealed partial class MultiplayerSession : IWorldSession
 
     private void ClearWorldState()
     {
+        _death.Reset();
         lock (_worldGate)
         {
             _remoteEntities.Clear();
@@ -825,7 +877,7 @@ public sealed partial class MultiplayerSession : IWorldSession
             _localXpToNext = 100U;
             _localMana = 80f;
             _localMaxMana = 80f;
-            _localStamina = 100f;
+            this.ResetStaminaPrediction(100f);
             _localMaxStamina = 100f;
             _localDefense = 2f;
             _localGold = 0;

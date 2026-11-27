@@ -67,6 +67,12 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile, INpcCap
     /// <summary>Gets derived maximum stamina points.</summary>
     float LocalPlayerMaxStamina { get; }
 
+    /// <summary>Gets whether the local player is exhausted: no stamina actions and no sprint until the pool recovers (ADR-033).</summary>
+    bool LocalPlayerStaminaExhausted { get; }
+
+    /// <summary>Gets the stamina bar flash after a refused action, from 1 (just refused) down to 0.</summary>
+    float LocalPlayerStaminaFlash { get; }
+
     /// <summary>Gets derived armor defense rating.</summary>
     float LocalPlayerDefense { get; }
 
@@ -169,6 +175,15 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile, INpcCap
     float? AuthoritativeTimeHour => null;
 
     /// <summary>
+    /// Gets the local player's death while they are dead and waiting to respawn (ADR-031), or <see langword="null"/>
+    /// while alive.
+    /// </summary>
+    DeathView? LocalDeath => null;
+
+    /// <summary>Gets whether a respawn request was sent and the server has not answered it yet.</summary>
+    bool IsRespawnPending => false;
+
+    /// <summary>
     /// Gets whether the authoritative world time is in the night window (monsters empowered), or <see langword="null"/>
     /// when running offline.
     /// </summary>
@@ -200,6 +215,13 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile, INpcCap
 
     /// <summary>Returns <see langword="true"/> when a Blacksmith NPC or placed <c>ForgeAnvil</c> is nearby.</summary>
     bool IsNearForgeStation(float maxDistance = 175f);
+
+    /// <summary>
+    /// Returns the tier (<c>repair.json → stations</c>) of the <paramref name="venue"/> in reach, as the server measures
+    /// it (ADR-028): a blacksmith NPC, or a forge anvil, else a workbench, within the synced reach. <c>0</c> when
+    /// none. For display only; the server re-checks.
+    /// </summary>
+    int GetRepairStationTier(RepairVenue venue) => 0;
 
     /// <summary>Drains newly buffered floating combat/loot events into <paramref name="destination"/>.</summary>
     void DrainCombatEvents(List<CombatFeedbackEvent> destination);
