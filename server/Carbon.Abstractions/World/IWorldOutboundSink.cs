@@ -107,7 +107,6 @@ public readonly record struct EntitySpawnSnapshot(
 /// Per-entity delta slice collected inside a tick's AoI snapshot batch.
 /// </summary>
 /// <param name="NetworkId">Entity network ID.</param>
-/// <param name="DirtyMask">Dirty bitmask flags.</param>
 /// <param name="PositionX">World X coordinate.</param>
 /// <param name="PositionY">World Y coordinate.</param>
 /// <param name="VelocityX">Linear X velocity.</param>
@@ -115,7 +114,6 @@ public readonly record struct EntitySpawnSnapshot(
 /// <param name="CurrentHealth">Current health points.</param>
 public readonly record struct EntityDeltaEntry(
     ulong NetworkId,
-    byte DirtyMask,
     float PositionX,
     float PositionY,
     float VelocityX,

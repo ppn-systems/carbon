@@ -80,7 +80,6 @@ internal sealed class DeltaColumns
     private DeltaColumns()
     {
         this.Ids = [];
-        this.Masks = [];
         this.PositionsX = [];
         this.PositionsY = [];
         this.VelocitiesX = [];
@@ -91,7 +90,6 @@ internal sealed class DeltaColumns
     internal DeltaColumns(int count)
     {
         this.Ids = new ulong[count];
-        this.Masks = new byte[count];
         this.PositionsX = new float[count];
         this.PositionsY = new float[count];
         this.VelocitiesX = new float[count];
@@ -105,8 +103,6 @@ internal sealed class DeltaColumns
     public int Count => this.Ids.Length;
 
     public ulong[] Ids { get; }
-
-    public byte[] Masks { get; }
 
     public float[] PositionsX { get; }
 
@@ -124,7 +120,6 @@ internal sealed class DeltaColumns
         {
             ref readonly EntityDeltaEntry e = ref entries[i];
             this.Ids[i] = e.NetworkId;
-            this.Masks[i] = e.DirtyMask;
             this.PositionsX[i] = e.PositionX;
             this.PositionsY[i] = e.PositionY;
             this.VelocitiesX[i] = e.VelocityX;

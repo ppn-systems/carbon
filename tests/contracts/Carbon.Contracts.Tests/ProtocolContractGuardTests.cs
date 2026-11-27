@@ -206,7 +206,6 @@ public sealed class ProtocolContractGuardTests
             SelfPositionX = 10f,
             SelfPositionY = 20f,
             NetworkIds = [1001UL, 1002UL],
-            DirtyMasks = [2, 6],
             PositionsX = [11f, 22f],
             PositionsY = [33f, 44f],
             VelocitiesX = [1f, -1f],

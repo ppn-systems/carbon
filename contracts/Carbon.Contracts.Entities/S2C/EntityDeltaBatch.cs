@@ -38,9 +38,8 @@ public sealed partial class EntityDeltaBatch : PacketBase<EntityDeltaBatch>, IPa
     [SerializeOrder(4)]
     public ulong[] NetworkIds { get; set; } = [];
 
-    /// <summary>Per-entity dirty bitmask flags.</summary>
-    [SerializeOrder(5)]
-    public byte[] DirtyMasks { get; set; } = [];
+    // [SerializeOrder(5)] was DirtyMasks: every column is always sent in full, so the client never read it; removed by
+    // ADR-038.
 
     /// <summary>Updated world X positions per entity.</summary>
     [SerializeOrder(6)]
