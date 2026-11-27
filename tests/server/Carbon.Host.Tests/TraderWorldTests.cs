@@ -272,11 +272,139 @@ public sealed class TraderWorldTests
         }
     }
 
+    public enum FailingStore
+    {
+        Trader,
+        Characters,
+        Chunks,
+    }
+
+    [Theory]
+    [InlineData(FailingStore.Trader)]
+    [InlineData(FailingStore.Characters)]
+    [InlineData(FailingStore.Chunks)]
+    public async Task FlushDirtyPersistence_OneStoreFails_OthersStillSaveThisCycleAndTheFailedOneRetriesNext(FailingStore failing)
+    {
+        // A broken store must never stop the others: a trader-table outage that skipped character saves would roll
+        // every player back on the next crash.
+        string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-flush-isolation-{Guid.NewGuid():N}.db");
+        try
+        {
+            using SqliteConnectionFactory factory = new($"Data Source={dbPath}");
+            await new SqliteSchemaMigrator(factory).MigrateAsync().ConfigureAwait(true);
+            await SeedGameplaySecretAsync(factory).ConfigureAwait(true);
+            ManualTime time = new(DateTimeOffset.FromUnixTimeSeconds(1_800_000_000L));
+            FailFirstSaveTraderStockRepository traders = new(failing == FailingStore.Trader);
+            FailFirstSaveStore characters = new(failing == FailingStore.Characters);
+            FailFirstSaveStore chunks = new(failing == FailingStore.Chunks);
+            (int fx, int fy) = MerchantFrontTile();
+
+            RecordingOutboundSink sink = new();
+            AuthoritativeWorld world = await CreateWorldAsync(factory, sink, time, traders, characters, chunks).ConfigureAwait(true);
+            await world.InitializeFromStoreAsync().ConfigureAwait(true);
+            CharacterRecord buyer = Character("Builder", fx, fy, gold: 5_000, firstBagItem: new ItemSlot(StarterGameCatalog.WoodLog, 30));
+            world.TryEnterWorld(Conn, Conn, buyer).Status.Should().Be(OpStatus.Ok);
+            Step(world, 12);
+
+            // Dirty all three stores: a trader sale, a placed wall (chunk delta) and the buyer's wallet (character).
+            ulong merchant = sink.Spawns.First(s => s.Snapshot.Kind == EntityKind.Npc && s.Snapshot.ArchetypeId == WorldActorCatalog.VillageMerchant).Snapshot.NetworkId;
+            (await Run(world, world.Trade.SubmitTraderOpenAsync(Conn, merchant))).Should().Be(OpStatus.Ok);
+            TraderStockSnapshot stock = sink.TraderStocks.Last(t => t.ConnectionId == Conn).Stock;
+            int slot = Array.FindIndex(stock.Remaining, r => r >= 1);
+            (await Run(world, world.Trade.SubmitTraderBuyAsync(Conn, merchant, (byte)slot, 1, stock.Epoch))).Should().Be(OpStatus.Ok);
+            PlaceWallNear(world, fx, fy).Should().BeTrue("a wall placed near the buyer dirties a chunk");
+
+            Func<Task> flush = () => world.FlushDirtyPersistenceAsync();
+            await flush.Should().ThrowAsync<IOException>("the failure is still surfaced for the host to log");
+
+            (traders.Saves > 0).Should().Be(failing != FailingStore.Trader, "trader sales save unless their own store failed");
+            characters.SavedIds.Contains(buyer.Id).Should().Be(failing != FailingStore.Characters, "characters save unless their own store failed");
+            (chunks.Saves > 0).Should().Be(failing != FailingStore.Chunks, "chunk deltas save unless their own store failed");
+
+            await world.FlushDirtyPersistenceAsync().ConfigureAwait(true);
+
+            traders.Saves.Should().BePositive("trader sales are retried");
+            characters.SavedIds.Should().Contain(buyer.Id, "characters are retried");
+            chunks.Saves.Should().BePositive("chunk deltas are retried");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+        }
+    }
+
+    private static bool PlaceWallNear(AuthoritativeWorld world, int tileX, int tileY)
+    {
+        foreach ((int dx, int dy) in new[] { (0, 2), (0, -2), (-2, 0), (2, 0), (2, 2), (-2, -2), (2, -2), (-2, 2), (1, 2), (-1, -2), (3, 0), (-3, 0) })
+        {
+            if (world.TryPlaceStructure(Conn, tileX + dx, tileY + dy, Carbon.Maps.Building.StructureType.WoodWall).Status == OpStatus.Ok)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>A character and chunk-delta store whose first save fails when asked to, then records what it saved.</summary>
+    private sealed class FailFirstSaveStore(bool failFirstSave) : ICharacterStore, IChunkDeltaRepository
+    {
+        private bool _failed = !failFirstSave;
+
+        public int Saves { get; private set; }
+
+        public System.Collections.Generic.HashSet<Guid> SavedIds { get; } = [];
+
+        public Task SaveBatchAsync(System.Collections.Generic.IReadOnlyList<CharacterRecord> characters, System.Threading.CancellationToken ct = default)
+        {
+            this.FailOnce();
+            this.Saves++;
+            foreach (CharacterRecord character in characters)
+            {
+                _ = this.SavedIds.Add(character.Id);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task SaveBatchAsync(System.Collections.Generic.IReadOnlyList<PersistedChunkDelta> deltas, System.Threading.CancellationToken ct = default)
+        {
+            this.FailOnce();
+            this.Saves++;
+            return Task.CompletedTask;
+        }
+
+        public Task<System.Collections.Generic.IReadOnlyList<PersistedChunkDelta>> LoadAllAsync(System.Threading.CancellationToken ct = default) =>
+            Task.FromResult<System.Collections.Generic.IReadOnlyList<PersistedChunkDelta>>([]);
+
+        public Task<System.Collections.Generic.IReadOnlyList<CharacterRecord>> ListByAccountAsync(Guid accountId, System.Threading.CancellationToken ct = default) =>
+            Task.FromResult<System.Collections.Generic.IReadOnlyList<CharacterRecord>>([]);
+
+        public Task<CharacterRecord?> FindByIdAsync(Guid characterId, System.Threading.CancellationToken ct = default) => Task.FromResult<CharacterRecord?>(null);
+
+        public Task<bool> TryCreateAsync(CharacterRecord character, System.Threading.CancellationToken ct = default) => Task.FromResult(true);
+
+        private void FailOnce()
+        {
+            if (!_failed)
+            {
+                _failed = true;
+                throw new IOException("store unreachable");
+            }
+        }
+    }
+
     /// <summary>An in-memory trader store whose first save fails, like a database that is briefly unreachable.</summary>
-    private sealed class FailFirstSaveTraderStockRepository : ITraderStockRepository
+    private sealed class FailFirstSaveTraderStockRepository(bool failFirstSave = true) : ITraderStockRepository
     {
         private readonly InMemoryTraderStockRepository _inner = new();
-        private bool _failed;
+        private bool _failed = !failFirstSave;
+
+        public int Saves { get; private set; }
 
         public Task<System.Collections.Generic.IReadOnlyList<PersistedTraderSales>> LoadAllAsync(System.Threading.CancellationToken ct = default) =>
             _inner.LoadAllAsync(ct);
@@ -289,13 +417,19 @@ public sealed class TraderWorldTests
                 throw new IOException("trader store unreachable");
             }
 
+            this.Saves++;
             return _inner.SaveBatchAsync(sales, ct);
         }
     }
 
     /// <summary>Boots a world like the host does: the gameplay secret comes from the database, the boot salt is fresh.</summary>
     private static async Task<AuthoritativeWorld> CreateWorldAsync(
-        SqliteConnectionFactory factory, RecordingOutboundSink sink, TimeProvider time, ITraderStockRepository? traderStock = null)
+        SqliteConnectionFactory factory,
+        RecordingOutboundSink sink,
+        TimeProvider time,
+        ITraderStockRepository? traderStock = null,
+        ICharacterStore? characters = null,
+        IChunkDeltaRepository? chunks = null)
     {
         GameplayEntropy entropy = await GameplayEntropy.LoadAsync(new SqliteGameplaySecretStore(factory), null, null, 30).ConfigureAwait(true);
         string configDir = GameEconomy.FindConfigDirectory(AppContext.BaseDirectory)!;
@@ -306,8 +440,8 @@ public sealed class TraderWorldTests
             32f,
             0.0008f,
             30,
-            new SqliteChunkDeltaRepository(factory),
-            new SqliteCharacterStore(factory),
+            chunks ?? new SqliteChunkDeltaRepository(factory),
+            characters ?? new SqliteCharacterStore(factory),
             sink,
             time,
             economy: economy,

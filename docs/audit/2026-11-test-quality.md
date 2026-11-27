@@ -193,7 +193,7 @@ This is why `test/complexity-guards` was **not** opened: the change would not be
 
 **Found while writing the rank 2–5 tests:**
 
-- **One failing store blocks every save in a cycle.** `AuthoritativeWorld.FlushDirtyPersistenceAsync` (`AuthoritativeWorld.TickAndAoi.cs:234`) awaits the trader flush first. If the trader store throws, that cycle's character and chunk saves are skipped. They are retried on the next cycle, so nothing is lost while the outage is short. But a trader table that stays broken blocks all character persistence. Report only: a design decision for the persistence owner.
+- **One failing store blocked every save in a cycle.** `AuthoritativeWorld.FlushDirtyPersistenceAsync` awaited the trader flush first. If the trader store threw, that cycle's character and chunk saves were skipped. A chunk failure also skipped characters. A trader table that stayed broken would therefore have blocked all character persistence. **Fixed** in `fix/independent-persistence-flush`: each store saves independently, keeps its own failed rows dirty, and the failures are rethrown at the end for the host to log.
 - **The death-time save is not observable.** Removing the `MarkCharacterDirtyLocked` call in the lethal branch does not fail the death test, because the hit itself already marked the character dirty. The test therefore claims only the respawn state, not the save.
 
 **Not applicable:** player-to-player trade does not exist yet. Only the `CurrencyReason.Trade` enum value (`engine/Carbon.Economy/Currency/CurrencyReason.cs:33`) exists.
