@@ -1,7 +1,7 @@
 # ADR-019: Ground Currency Pickups and Kill-Loot Owner Protection
 
 - **Date**: 2026-11-27
-- **Status**: Proposed
+- **Status**: Accepted
 - **Scope**: `contracts/Carbon.Contracts.Entities`, `engine/Carbon.Economy`, `server/`, `desktop/`, `resources/config/economy.json`, `tests/`, `docs/`
 
 ## Context

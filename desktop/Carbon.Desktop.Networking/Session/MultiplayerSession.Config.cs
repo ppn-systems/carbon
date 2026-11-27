@@ -49,7 +49,7 @@ public sealed partial class MultiplayerSession
         {
             _statusEffectDefinitions = statusEffects;
         }
-        _ = _staminaConfig.Apply(catalog);
+        _ = _stamina.Config.Apply(catalog);
         _ = _races.Apply(catalog);
         _ = _structures.Apply(catalog);
         if (_waterRules.Apply(catalog) && _chunkWorld is not null)

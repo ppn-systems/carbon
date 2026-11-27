@@ -1,7 +1,7 @@
 # ADR-039: No Save Compatibility Before Release
 
 - **Date**: 2026-11-27
-- **Status**: Proposed
+- **Status**: Accepted
 - **Amends**: [ADR-016](ADR-016-perishable-food-freshness.md) (D2: v1 and v2 inventory payloads no longer load),
   [ADR-023](ADR-023-client-localization-and-vietnamese-font.md) (the legacy `ui_settings.cfg` is no longer read),
   [ADR-035](ADR-035-items-break-at-zero-durability.md) (D7: no 1-durability fix-up on entering the world),
