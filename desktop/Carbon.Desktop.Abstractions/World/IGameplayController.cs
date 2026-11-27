@@ -50,7 +50,7 @@ public interface IGameplayController
     /// <summary>Casts active skill <paramref name="skillId"/> toward <paramref name="aimWorldPosition"/>.</summary>
     bool TryCastSkill(ushort skillId, Vector2 aimWorldPosition);
 
-    /// <summary>Requests moving, swapping, merging, or equipping between inventory slots (<c>0..39</c>).</summary>
+    /// <summary>Requests moving, swapping, merging, or equipping between inventory slots (<c>0..41</c>).</summary>
     bool TryMoveInventorySlot(ushort fromSlot, ushort toSlot);
 
     /// <summary>Right-click quick-equips armor or shuttles an item between backpack and hotbar.</summary>
@@ -64,6 +64,18 @@ public interface IGameplayController
 
     /// <summary>Drops <paramref name="quantity"/> units from <paramref name="slotIndex"/> onto the ground.</summary>
     bool TryDropInventoryItem(ushort slotIndex, int quantity);
+
+    /// <summary>
+    /// Requests moving <paramref name="quantity"/> units of the bag stack in <paramref name="fromSlot"/> into the first
+    /// empty bag slot (ADR-020).
+    /// </summary>
+    bool TrySplitInventorySlot(ushort fromSlot, int quantity);
+
+    /// <summary>Requests a server-side merge and sort of the backpack (ADR-020).</summary>
+    bool TrySortInventory();
+
+    /// <summary>Requests destroying <paramref name="quantity"/> units (<c>&lt;= 0</c> = all) of <paramref name="slotIndex"/> permanently (ADR-020).</summary>
+    bool TryDestroyInventoryItem(ushort slotIndex, int quantity);
 
     /// <summary>Attempts to pick up the closest ground loot item within range.</summary>
     bool TryPickupNearbyLoot();

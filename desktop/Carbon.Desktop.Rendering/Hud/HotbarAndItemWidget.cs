@@ -104,7 +104,8 @@ internal sealed class HotbarAndItemWidget
         CombatFeedbackTracker? feedback,
         int viewportWidth,
         int viewportHeight,
-        Vector2? mouseScreenPos)
+        Vector2? mouseScreenPos,
+        float animTime = 0f)
     {
         float startX = MathF.Floor((viewportWidth - TotalWidth) * 0.5f);
         float hotbarY = viewportHeight - SlotSize - 16f;
@@ -132,11 +133,16 @@ internal sealed class HotbarAndItemWidget
             ItemSlot item = slots[i];
             if (!item.IsEmpty)
             {
+                RectangleF slotRect = new(sx, sy, SlotSize, SlotSize);
+                byte tierLevel = ItemEnhancementPolicy.GetUpgradeLevel(in item);
+                EnhancementSlotDecor.DrawFill(batch, in slotRect, tierLevel, 3f);
                 Vector2 iconCenter = new(sx + (SlotSize * 0.5f), sy + (SlotSize * 0.46f));
                 if (art is not null && art.TryGetItem(item.ItemId, out CompiledItemVectorArt? itemArt))
                 {
                     VectorRigRenderer.DrawItemIcon(batch, itemArt, iconCenter, targetSize: 34f);
                 }
+
+                EnhancementSlotDecor.DrawOverlay(batch, in slotRect, tierLevel, 0.8f, animTime);
 
                 if (world.Items.Rules.Items.TryGet(item.ItemId, out ItemArchetype? archetype) && archetype.MaxDurability > 0f)
                 {
@@ -199,11 +205,8 @@ internal sealed class HotbarAndItemWidget
                 1f);
 
             ItemSlot item = slots[i];
-            byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
-            if (upg > 0)
-            {
-                spriteBatch.DrawOutlinedString(font, $"+{upg}", new Vector2(sx + SlotSize - 22f, sy + 2f), EnhancementLabelStyle.ColorFor(upg), black, 1, 1f);
-            }
+            RectangleF slotRect = new(sx, sy, SlotSize, SlotSize);
+            EnhancementSlotDecor.DrawBadgeText(spriteBatch, font, in slotRect, ItemEnhancementPolicy.GetUpgradeLevel(in item), 1f, 0.8f);
 
             if (!item.IsEmpty && item.Quantity > 1)
             {
@@ -464,7 +467,7 @@ internal sealed class HotbarAndItemWidget
 
         byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
         string titleName = upg > 0 ? $"{name} +{upg}" : name;
-        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, titleName, cardW - 62f, 1f), new Vector2(x + 54f, y + 8f), upg > 0 ? EnhancementLabelStyle.ColorFor(upg) : CarbonUiPalette.TextWarm, black, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, titleName, cardW - 62f, 1f), new Vector2(x + 54f, y + 8f), upg > 0 ? EnhancementTierStyles.Get(upg).Accent : CarbonUiPalette.TextWarm, black, 1, 1f);
 
         float upgMult = ItemEnhancementPolicy.GetStatMultiplier(upg);
         string stats = world.Items.Rules.Items.TryGet(item.ItemId, out ItemArchetype? def)

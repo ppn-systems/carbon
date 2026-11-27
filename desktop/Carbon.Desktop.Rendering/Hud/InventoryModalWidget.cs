@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -19,9 +20,9 @@ using Carbon.Items.Definitions;
 namespace Carbon.Desktop.Rendering.Hud;
 
 /// <summary>
-/// Minecraft-inspired large 40-slot Bag &amp; Armor modal (<c>[I]</c>) framed cleanly inside
-/// the fixed <see cref="PlayerModalTabs"/> workspace. Supports cursor pickup, Shift/RMB quick-equip,
-/// and drag-outside-to-drop (SRP).
+/// 42-slot Bag, Armor &amp; Accessory modal (<c>[I]</c>) framed inside the fixed <see cref="PlayerModalTabs"/>
+/// workspace. Supports cursor pickup, Shift/RMB quick-equip, drag-outside-to-drop, a read-only "Held" mirror of the
+/// selected hotbar item, a Sort button, rarity borders, rich tooltips, and the split/confirm dialogs (ADR-020).
 /// </summary>
 internal sealed class InventoryModalWidget
 {
@@ -29,6 +30,14 @@ internal sealed class InventoryModalWidget
     private const float BaseSlotGap = 8f;
 
     private readonly List<SkillDefinition> _skillScratch = new(8);
+    private readonly ItemTooltipBuilder _tooltip = new();
+    private readonly string[] _heldLabels = new string[PlayerInventoryLayout.HotbarCount];
+    private int _heldLabelVersion = -1;
+    private (InventoryDialogKind Kind, ItemSlot Item, int Quantity, int Version) _dialogTextKey = (InventoryDialogKind.None, ItemSlot.Empty, -1, -1);
+    private (string Title, string Name, string Body, string Confirm) _dialogText = (string.Empty, string.Empty, string.Empty, string.Empty);
+
+    /// <summary>Gets the split/confirm dialog state shown on top of the bag.</summary>
+    public InventoryDialogState Dialog { get; } = new();
 
     public int CarriedSlot { get; set; } = -1;
 
@@ -68,6 +77,44 @@ internal sealed class InventoryModalWidget
         return false;
     }
 
+    public bool TryHitTestSortButton(Vector2 mousePos, int viewportWidth, int viewportHeight)
+    {
+        PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
+        return GetSortButtonRect(in layout).Contains(mousePos);
+    }
+
+    public InventoryDialogButton HitTestDialog(Vector2 mousePos, int viewportWidth, int viewportHeight)
+    {
+        if (!this.Dialog.IsOpen)
+        {
+            return InventoryDialogButton.None;
+        }
+
+        PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
+        bool split = this.Dialog.Kind == InventoryDialogKind.Split;
+        if (GetDialogButtonRect(in layout, InventoryDialogButton.Confirm).Contains(mousePos))
+        {
+            return InventoryDialogButton.Confirm;
+        }
+
+        if (GetDialogButtonRect(in layout, InventoryDialogButton.Cancel).Contains(mousePos))
+        {
+            return InventoryDialogButton.Cancel;
+        }
+
+        if (split && GetDialogButtonRect(in layout, InventoryDialogButton.Minus).Contains(mousePos))
+        {
+            return InventoryDialogButton.Minus;
+        }
+
+        if (split && GetDialogButtonRect(in layout, InventoryDialogButton.Plus).Contains(mousePos))
+        {
+            return InventoryDialogButton.Plus;
+        }
+
+        return GetDialogRect(in layout).Contains(mousePos) ? InventoryDialogButton.Body : InventoryDialogButton.None;
+    }
+
     public void DrawSkin(
         SpriteBatch spriteBatch,
         CarbonUiSkin skin,
@@ -94,15 +141,35 @@ internal sealed class InventoryModalWidget
             bool hovered = mouseScreenPos.HasValue && rect.Contains(mouseScreenPos.Value);
             bool carried = s == this.CarriedSlot;
             bool isArmor = s >= PlayerInventoryLayout.BagLimit;
+            ItemRarity rarity = slots[s].IsEmpty || carried ? ItemRarity.Common : ItemRarityColors.GetRarity(world.Items.Rules, slots[s].ItemId);
 
             ColorRgba fill = carried
                 ? CarbonUiPalette.SlotSelectedFill
                 : (hovered ? CarbonUiPalette.SlotHoverFill : CarbonUiPalette.SlotFill);
             ColorRgba border = carried
                 ? CarbonUiPalette.BorderActive
-                : (hovered || isArmor ? CarbonUiPalette.BorderOuter : CarbonUiPalette.BorderSubtle);
+                : rarity != ItemRarity.Common
+                    ? ItemRarityColors.GetBorder(rarity)
+                    : (hovered || isArmor ? CarbonUiPalette.BorderOuter : CarbonUiPalette.BorderSubtle);
             skin.DrawSlot(spriteBatch, in rect, fill, border);
         }
+
+        RectangleF heldRect = GetHeldSlotRect(in layout);
+        ItemSlot held = world.SelectedHotbarSlot < slots.Length ? slots[world.SelectedHotbarSlot] : ItemSlot.Empty;
+        ItemRarity heldRarity = held.IsEmpty ? ItemRarity.Common : ItemRarityColors.GetRarity(world.Items.Rules, held.ItemId);
+        skin.DrawInset(
+            spriteBatch,
+            in heldRect,
+            CarbonUiPalette.SlotFill,
+            heldRarity != ItemRarity.Common ? ItemRarityColors.GetBorder(heldRarity) : CarbonUiPalette.BorderSubtle);
+
+        RectangleF sortRect = GetSortButtonRect(in layout);
+        bool sortHover = mouseScreenPos.HasValue && sortRect.Contains(mouseScreenPos.Value);
+        skin.DrawButton(
+            spriteBatch,
+            in sortRect,
+            sortHover ? CarbonUiPalette.SlotHoverFill : CarbonUiPalette.CardFill,
+            sortHover ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderOuter);
     }
 
     public int DrawGeometry(
@@ -181,15 +248,19 @@ internal sealed class InventoryModalWidget
             ItemSlot item = slots[idx];
             if (idx >= PlayerInventoryLayout.BagLimit && (item.IsEmpty || idx == this.CarriedSlot))
             {
-                DrawEmptyArmorSilhouette(batch, in rect, idx - PlayerInventoryLayout.BagLimit);
+                DrawEmptyEquipmentSilhouette(batch, in rect, idx - PlayerInventoryLayout.BagLimit);
             }
 
             if (!item.IsEmpty && idx != this.CarriedSlot)
             {
+                byte tierLevel = ItemEnhancementPolicy.GetUpgradeLevel(in item);
+                EnhancementSlotDecor.DrawFill(batch, in rect, tierLevel, MathF.Round(3f * s));
                 if (art is not null && art.TryGetItem(item.ItemId, out CompiledItemVectorArt? itemArt))
                 {
                     VectorRigRenderer.DrawItemIcon(batch, itemArt, new Vector2(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.46f)), iconSize);
                 }
+
+                EnhancementSlotDecor.DrawOverlay(batch, in rect, tierLevel, s, animTime);
 
                 if (world.Items.Rules.Items.TryGet(item.ItemId, out ItemArchetype? def) && def.MaxDurability > 0f)
                 {
@@ -206,6 +277,22 @@ internal sealed class InventoryModalWidget
                 }
             }
         }
+
+        RectangleF heldRect = GetHeldSlotRect(in layout);
+        ItemSlot heldItem = world.SelectedHotbarSlot < slots.Length ? slots[world.SelectedHotbarSlot] : ItemSlot.Empty;
+        byte heldLevel = ItemEnhancementPolicy.GetUpgradeLevel(in heldItem);
+        EnhancementSlotDecor.DrawFill(batch, in heldRect, heldLevel, MathF.Round(3f * s));
+        if (!heldItem.IsEmpty && art is not null && art.TryGetItem(heldItem.ItemId, out CompiledItemVectorArt? heldArt))
+        {
+            VectorRigRenderer.DrawItemIcon(batch, heldArt, new Vector2(heldRect.X + (heldRect.Width * 0.5f), heldRect.Y + (heldRect.Height * 0.5f)), iconSize);
+        }
+
+        else if (heldItem.IsEmpty)
+        {
+            DrawEmptyEquipmentSilhouette(batch, in heldRect, -1);
+        }
+
+        EnhancementSlotDecor.DrawOverlay(batch, in heldRect, heldLevel, s, animTime);
 
         return hoveredSlot;
     }
@@ -225,11 +312,17 @@ internal sealed class InventoryModalWidget
         ColorRgba black = CarbonUiPalette.TextOutline;
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
+        this.DrawStageText(spriteBatch, font, world, in layout);
 
         for (int idx = 0; idx < PlayerInventoryLayout.TotalCapacity && idx < slots.Length; idx++)
         {
             RectangleF rect = GetSlotRect(in layout, idx);
             ItemSlot item = slots[idx];
+
+            if (idx >= PlayerInventoryLayout.Accessory1Slot && item.IsEmpty)
+            {
+                DrawCaption(spriteBatch, font, in rect, GameText.Get("inventory.ring"), layout.TextScale, s);
+            }
 
             if (idx < 9)
             {
@@ -245,20 +338,7 @@ internal sealed class InventoryModalWidget
 
             if (!item.IsEmpty && idx != this.CarriedSlot)
             {
-                byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
-                if (upg > 0)
-                {
-                    string upgTxt = $"+{upg}";
-                    TextMeasureResult uSize = font.MeasureString(upgTxt, TextLayoutOptions.Default, layout.TextScale);
-                    spriteBatch.DrawOutlinedString(
-                        font,
-                        upgTxt,
-                        new Vector2(rect.Right - uSize.Width - MathF.Round(4f * s), rect.Y + MathF.Round(3f * s)),
-                        EnhancementLabelStyle.ColorFor(upg),
-                        black,
-                        1,
-                        layout.TextScale);
-                }
+                EnhancementSlotDecor.DrawBadgeText(spriteBatch, font, in rect, ItemEnhancementPolicy.GetUpgradeLevel(in item), layout.TextScale, s);
 
                 if (item.Quantity > 1)
                 {
@@ -277,6 +357,56 @@ internal sealed class InventoryModalWidget
         }
     }
 
+    private void DrawStageText(SpriteBatch spriteBatch, BitmapFont font, IWorldReadModel world, in PlayerModalLayout layout)
+    {
+        float s = layout.Scale;
+        RectangleF heldRect = GetHeldSlotRect(in layout);
+        ItemSlot heldItem = world.SelectedHotbarSlot < PlayerInventoryLayout.TotalCapacity ? GetSlot(world, world.SelectedHotbarSlot) : ItemSlot.Empty;
+        EnhancementSlotDecor.DrawBadgeText(spriteBatch, font, in heldRect, ItemEnhancementPolicy.GetUpgradeLevel(in heldItem), layout.TextScale, s);
+        string heldLabel = this.GetHeldLabel(world.SelectedHotbarSlot);
+        TextMeasureResult heldSize = font.MeasureString(heldLabel, TextLayoutOptions.Default, layout.TextScale);
+        spriteBatch.DrawOutlinedString(
+            font,
+            heldLabel,
+            new Vector2(heldRect.X + MathF.Floor((heldRect.Width - heldSize.Width) * 0.5f), heldRect.Bottom + MathF.Round(5f * s)),
+            CarbonUiPalette.TextMuted,
+            CarbonUiPalette.TextOutline,
+            1,
+            layout.TextScale);
+
+        RectangleF sortRect = GetSortButtonRect(in layout);
+        string sortLabel = GameText.Get("inventory.sort");
+        TextMeasureResult size = font.MeasureString(sortLabel, TextLayoutOptions.Default, layout.TextScale);
+        spriteBatch.DrawOutlinedString(
+            font,
+            sortLabel,
+            new Vector2(sortRect.X + MathF.Floor((sortRect.Width - size.Width) * 0.5f), sortRect.Y + MathF.Floor((sortRect.Height - size.Height) * 0.5f)),
+            CarbonUiPalette.TextWarm,
+            CarbonUiPalette.TextOutline,
+            1,
+            layout.TextScale);
+    }
+
+    private static ItemSlot GetSlot(IWorldReadModel world, int slotIndex)
+    {
+        Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
+        world.CopyInventorySlots(slots);
+        return slots[slotIndex];
+    }
+
+    private static void DrawCaption(SpriteBatch spriteBatch, BitmapFont font, in RectangleF rect, string text, float textScale, float s)
+    {
+        TextMeasureResult size = font.MeasureString(text, TextLayoutOptions.Default, textScale);
+        spriteBatch.DrawOutlinedString(
+            font,
+            text,
+            new Vector2(rect.X + MathF.Floor((rect.Width - size.Width) * 0.5f), rect.Bottom - size.Height - MathF.Round(3f * s)),
+            CarbonUiPalette.TextMuted,
+            CarbonUiPalette.TextOutline,
+            1,
+            textScale);
+    }
+
     public void DrawTopOverlayGeometry(
         GeometryBatch batch,
         IWorldReadModel world,
@@ -288,14 +418,20 @@ internal sealed class InventoryModalWidget
     {
         PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
         float s = layout.Scale;
+        Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
+        world.CopyInventorySlots(slots);
+
+        if (this.Dialog.IsOpen)
+        {
+            this.DrawDialogGeometry(batch, world, art, in layout, mouseScreenPos);
+            return;
+        }
 
         if (this.CarriedSlot >= 0 && mouseScreenPos.HasValue && art is not null)
         {
-            Span<ItemSlot> dragSpan = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
-            world.CopyInventorySlots(dragSpan);
-            if (this.CarriedSlot < dragSpan.Length)
+            if (this.CarriedSlot < slots.Length)
             {
-                ItemSlot carried = dragSpan[this.CarriedSlot];
+                ItemSlot carried = slots[this.CarriedSlot];
                 if (!carried.IsEmpty && art.TryGetItem(carried.ItemId, out CompiledItemVectorArt? dragArt))
                 {
                     VectorRigRenderer.DrawItemIcon(batch, dragArt, mouseScreenPos.Value, MathF.Round(48f * s));
@@ -305,19 +441,15 @@ internal sealed class InventoryModalWidget
             return;
         }
 
-        if (hoveredSlot >= 0 && mouseScreenPos.HasValue)
+        if (hoveredSlot >= 0 && hoveredSlot < slots.Length && !slots[hoveredSlot].IsEmpty && mouseScreenPos.HasValue)
         {
-            Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
-            world.CopyInventorySlots(slots);
-            if (hoveredSlot < slots.Length && !slots[hoveredSlot].IsEmpty)
-            {
-                float tipW = MathF.Round(300f * s);
-                float tipH = MathF.Round(70f * s);
-                float tx = Math.Clamp(mouseScreenPos.Value.X + MathF.Round(16f * s), 12f, viewportWidth - tipW - 12f);
-                float ty = Math.Clamp(mouseScreenPos.Value.Y - tipH - MathF.Round(8f * s), 12f, viewportHeight - tipH - 12f);
-                batch.FillRectangle(new RectangleF(tx, ty, tipW, tipH), CarbonUiPalette.WindowFill);
-                batch.DrawRectangle(new RectangleF(tx, ty, tipW, tipH), CarbonUiPalette.BorderOuter, 1.5f);
-            }
+            _ = _tooltip.Update(world.Items, hoveredSlot, in slots[hoveredSlot]);
+            RectangleF tip = this.GetTooltipRect(in layout, mouseScreenPos.Value, viewportWidth, viewportHeight);
+            ItemRarity rarity = ItemRarityColors.GetRarity(world.Items.Rules, slots[hoveredSlot].ItemId);
+            ColorRgba frame = rarity == ItemRarity.Common ? CarbonUiPalette.BorderOuter : ItemRarityColors.GetBorder(rarity);
+            batch.FillRectangle(tip, CarbonUiPalette.WindowFill);
+            batch.FillRectangle(new RectangleF(tip.X, tip.Y, tip.Width, MathF.Max(2f, MathF.Round(3f * s))), frame);
+            batch.DrawRectangle(tip, frame, 1.5f);
         }
     }
 
@@ -333,14 +465,20 @@ internal sealed class InventoryModalWidget
         PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
         float s = layout.Scale;
         ColorRgba black = CarbonUiPalette.TextOutline;
+        Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
+        world.CopyInventorySlots(slots);
+
+        if (this.Dialog.IsOpen)
+        {
+            this.DrawDialogText(spriteBatch, font, world, in layout);
+            return;
+        }
 
         if (this.CarriedSlot >= 0 && mouseScreenPos.HasValue)
         {
-            Span<ItemSlot> dragSpan = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
-            world.CopyInventorySlots(dragSpan);
-            if (this.CarriedSlot < dragSpan.Length && dragSpan[this.CarriedSlot].Quantity > 1)
+            if (this.CarriedSlot < slots.Length && slots[this.CarriedSlot].Quantity > 1)
             {
-                string qty = $"{dragSpan[this.CarriedSlot].Quantity}";
+                string qty = $"{slots[this.CarriedSlot].Quantity}";
                 spriteBatch.DrawOutlinedString(
                     font,
                     qty,
@@ -354,56 +492,279 @@ internal sealed class InventoryModalWidget
             return;
         }
 
-        if (hoveredSlot < 0 || !mouseScreenPos.HasValue)
+        if (hoveredSlot < 0 || !mouseScreenPos.HasValue || hoveredSlot >= slots.Length || slots[hoveredSlot].IsEmpty)
         {
             return;
         }
 
-        Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
-        world.CopyInventorySlots(slots);
-        if (hoveredSlot >= slots.Length || slots[hoveredSlot].IsEmpty)
-        {
-            return;
-        }
-
-        ItemSlot hItem = slots[hoveredSlot];
-        float tipW = MathF.Round(300f * s);
-        float tipH = MathF.Round(70f * s);
-        float tx = Math.Clamp(mouseScreenPos.Value.X + MathF.Round(16f * s), 12f, viewportWidth - tipW - 12f);
-        float ty = Math.Clamp(mouseScreenPos.Value.Y - tipH - MathF.Round(8f * s), 12f, viewportHeight - tipH - 12f);
-
-        byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in hItem);
-        string title = upg > 0 ? $"{world.Items.GetDisplayName(hItem.ItemId)} +{upg}" : world.Items.GetDisplayName(hItem.ItemId);
+        _ = _tooltip.Update(world.Items, hoveredSlot, in slots[hoveredSlot]);
+        RectangleF tip = this.GetTooltipRect(in layout, mouseScreenPos.Value, viewportWidth, viewportHeight);
         float padX = MathF.Round(10f * s);
+        float lineH = GetTooltipLineHeight(in layout);
+        float y = tip.Y + MathF.Round(9f * s);
+        IReadOnlyList<ItemTooltipLine> lines = _tooltip.Lines;
+        for (int i = 0; i < lines.Count; i++)
+        {
+            spriteBatch.DrawOutlinedString(
+                font,
+                CarbonUiSkin.TruncateToWidth(font, lines[i].Text, tip.Width - (padX * 2f), layout.TextScale),
+                new Vector2(tip.X + padX, y),
+                lines[i].Color,
+                black,
+                1,
+                layout.TextScale);
+            y += lineH;
+        }
+
         spriteBatch.DrawOutlinedString(
             font,
-            CarbonUiSkin.TruncateToWidth(font, title, tipW - (padX * 2f), layout.TextScale),
-            new Vector2(tx + padX, ty + MathF.Round(10f * s)),
-            CarbonUiPalette.TextWarm,
+            CarbonUiSkin.TruncateToWidth(font, GameText.Get("inventory.controls_hint"), tip.Width - (padX * 2f), layout.TextScale),
+            new Vector2(tip.X + padX, y + MathF.Round(2f * s)),
+            CarbonUiPalette.BorderOuter,
+            black,
+            1,
+            layout.TextScale);
+    }
+
+    internal static RectangleF GetHeldSlotRectForTesting(in PlayerModalLayout layout) => GetHeldSlotRect(in layout);
+
+    internal static RectangleF GetSortButtonRectForTesting(in PlayerModalLayout layout) => GetSortButtonRect(in layout);
+
+    internal static RectangleF GetDialogButtonRectForTesting(in PlayerModalLayout layout, InventoryDialogButton button) =>
+        GetDialogButtonRect(in layout, button);
+
+
+    private static float GetTooltipLineHeight(in PlayerModalLayout layout) =>
+        MathF.Round(23f * layout.Scale * layout.TextScale);
+
+    private RectangleF GetTooltipRect(in PlayerModalLayout layout, Vector2 mouse, int viewportWidth, int viewportHeight)
+    {
+        float s = layout.Scale;
+        float tipW = MathF.Round(410f * s * layout.TextScale);
+        float tipH = MathF.Round(18f * s) + ((_tooltip.Lines.Count + 1) * GetTooltipLineHeight(in layout));
+        float tx = Math.Clamp(mouse.X + MathF.Round(18f * s), 12f, MathF.Max(12f, viewportWidth - tipW - 12f));
+        float ty = Math.Clamp(mouse.Y - tipH - MathF.Round(8f * s), 12f, MathF.Max(12f, viewportHeight - tipH - 12f));
+        return new RectangleF(tx, ty, tipW, tipH);
+    }
+
+    private void DrawDialogGeometry(GeometryBatch batch, IWorldReadModel world, IVectorArtRepository? art, in PlayerModalLayout layout, Vector2? mouse)
+    {
+        float s = layout.Scale;
+        batch.FillRectangle(new RectangleF(layout.Ox, layout.Oy, layout.PanelW, layout.PanelH), new ColorRgba(4, 6, 12, 160));
+        RectangleF box = GetDialogRect(in layout);
+        bool destroy = this.Dialog.Kind == InventoryDialogKind.ConfirmDestroy;
+        ColorRgba frame = destroy ? CarbonUiPalette.DangerBorder : CarbonUiPalette.BorderActive;
+        batch.FillRectangle(box, CarbonUiPalette.WindowFill);
+        batch.FillRectangle(new RectangleF(box.X, box.Y, box.Width, MathF.Max(2f, MathF.Round(3f * s))), frame);
+        batch.DrawRectangle(box, frame, 2f);
+
+        RectangleF iconRect = GetDialogIconRect(in layout);
+        ItemRarity rarity = ItemRarityColors.GetRarity(world.Items.Rules, this.Dialog.Item.ItemId);
+        batch.FillRectangle(iconRect, CarbonUiPalette.SlotFill);
+        batch.DrawRectangle(iconRect, rarity == ItemRarity.Common ? CarbonUiPalette.BorderSubtle : ItemRarityColors.GetBorder(rarity), 1.5f);
+        if (art is not null && art.TryGetItem(this.Dialog.Item.ItemId, out CompiledItemVectorArt? itemArt))
+        {
+            VectorRigRenderer.DrawItemIcon(batch, itemArt, new Vector2(iconRect.X + (iconRect.Width * 0.5f), iconRect.Y + (iconRect.Height * 0.5f)), MathF.Round(42f * s));
+        }
+
+        if (this.Dialog.Kind == InventoryDialogKind.Split)
+        {
+            RectangleF bar = GetSplitBarRect(in layout);
+            float frac = this.Dialog.Item.Quantity > 0 ? this.Dialog.Quantity / (float)this.Dialog.Item.Quantity : 0f;
+            batch.FillRectangle(bar, new ColorRgba(8, 10, 14, 240));
+            batch.FillRectangle(new RectangleF(bar.X, bar.Y, MathF.Max(2f, bar.Width * frac), bar.Height), CarbonUiPalette.XpFill);
+            DrawDialogButton(batch, GetDialogButtonRect(in layout, InventoryDialogButton.Minus), mouse, CarbonUiPalette.CardFill, CarbonUiPalette.BorderOuter);
+            DrawDialogButton(batch, GetDialogButtonRect(in layout, InventoryDialogButton.Plus), mouse, CarbonUiPalette.CardFill, CarbonUiPalette.BorderOuter);
+        }
+
+        DrawDialogButton(
+            batch,
+            GetDialogButtonRect(in layout, InventoryDialogButton.Confirm),
+            mouse,
+            destroy ? CarbonUiPalette.DangerFill : CarbonUiPalette.ConfirmFill,
+            destroy ? CarbonUiPalette.DangerBorder : CarbonUiPalette.ConfirmBorder);
+        DrawDialogButton(batch, GetDialogButtonRect(in layout, InventoryDialogButton.Cancel), mouse, CarbonUiPalette.CardFill, CarbonUiPalette.BorderOuter);
+    }
+
+    private void DrawDialogText(SpriteBatch spriteBatch, BitmapFont font, IWorldReadModel world, in PlayerModalLayout layout)
+    {
+        float s = layout.Scale;
+        RectangleF box = GetDialogRect(in layout);
+        RectangleF iconRect = GetDialogIconRect(in layout);
+        ItemSlot item = this.Dialog.Item;
+        (string title, string name, string body, string confirm) = this.GetDialogText(world);
+
+        ItemRarity rarity = ItemRarityColors.GetRarity(world.Items.Rules, item.ItemId);
+        float textX = iconRect.Right + MathF.Round(12f * s);
+        float textW = box.Right - textX - MathF.Round(14f * s);
+        ColorRgba black = CarbonUiPalette.TextOutline;
+        spriteBatch.DrawOutlinedString(font, title, new Vector2(textX, box.Y + MathF.Round(14f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TitleScale);
+        spriteBatch.DrawOutlinedString(
+            font,
+            CarbonUiSkin.TruncateToWidth(font, name, textW, layout.TextScale),
+            new Vector2(textX, box.Y + MathF.Round(44f * s)),
+            ItemRarityColors.GetTitle(rarity),
+            black,
+            1,
+            layout.TextScale);
+        spriteBatch.DrawOutlinedString(
+            font,
+            CarbonUiSkin.TruncateToWidth(font, body, textW, layout.TextScale),
+            new Vector2(textX, box.Y + MathF.Round(68f * s)),
+            CarbonUiPalette.TextPrimary,
             black,
             1,
             layout.TextScale);
 
-        float upgMult = ItemEnhancementPolicy.GetStatMultiplier(upg);
-        string statLine = world.Items.Rules.Items.TryGet(hItem.ItemId, out ItemArchetype? def)
-            ? (def.Category == ItemCategory.Armor
-                ? $"+{(int)MathF.Round(def.ArmorDefense * upgMult)} DEF  +{(int)MathF.Round(def.BonusHealth * upgMult)} HP"
-                : def.Category == ItemCategory.Weapon
-                    ? $"+{(int)MathF.Round(def.BaseDamage * upgMult)} DMG  RNG {(int)def.AttackRange}"
-                    : def.Category == ItemCategory.Tool
-                        ? $"Tier {def.HarvestTier} Tool"
-                        : def.Category == ItemCategory.Consumable
-                            ? $"+{(int)def.HealHealth} HP  +{(int)def.RestoreMana} MP"
-                            : $"Stack {hItem.Quantity}/{def.MaxStackSize}")
-            : $"x{hItem.Quantity}";
+        if (this.Dialog.Kind == InventoryDialogKind.Split)
+        {
+            RectangleF bar = GetSplitBarRect(in layout);
+            spriteBatch.DrawOutlinedString(
+                font,
+                GameText.Get("inventory.split.hint"),
+                new Vector2(bar.X, bar.Bottom + MathF.Round(12f * s)),
+                CarbonUiPalette.BorderOuter,
+                black,
+                1,
+                layout.TextScale);
+            DrawCentered(spriteBatch, font, GetDialogButtonRect(in layout, InventoryDialogButton.Minus), "-", CarbonUiPalette.TextPrimary, layout.TitleScale);
+            DrawCentered(spriteBatch, font, GetDialogButtonRect(in layout, InventoryDialogButton.Plus), "+", CarbonUiPalette.TextPrimary, layout.TitleScale);
+        }
+
+        DrawCentered(spriteBatch, font, GetDialogButtonRect(in layout, InventoryDialogButton.Confirm), confirm, CarbonUiPalette.TextPrimary, layout.TextScale);
+        DrawCentered(spriteBatch, font, GetDialogButtonRect(in layout, InventoryDialogButton.Cancel), GameText.Get("inventory.cancel"), CarbonUiPalette.TextMuted, layout.TextScale);
+    }
+
+    /// <summary>
+    /// Gets the dialog's title, item name, body and confirm label, rebuilt only when the dialog, its quantity or the
+    /// language changes (no per-frame formatting).
+    /// </summary>
+    private (string Title, string Name, string Body, string Confirm) GetDialogText(IWorldReadModel world)
+    {
+        InventoryDialogState d = this.Dialog;
+        int version = GameText.Current.Version;
+        if (_dialogTextKey == (d.Kind, d.Item, d.Quantity, version))
+        {
+            return _dialogText;
+        }
+
+        ItemSlot item = d.Item;
+        byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
+        string name = world.Items.Rules.ItemCatalog.TryGet(item.ItemId, out ItemCatalogEntry? entry)
+            ? GameText.ItemName(entry.Code, world.Items.GetDisplayName(item.ItemId))
+            : world.Items.GetDisplayName(item.ItemId);
+        if (upg > 0)
+        {
+            name = GameText.Format("inventory.enhanced_name", new TextArg("name", name), new TextArg("level", upg));
+        }
+
+        int qty = d.EffectiveQuantity;
+        _dialogText = d.Kind switch
+        {
+            InventoryDialogKind.Split => (
+                GameText.Get("inventory.split.title"),
+                name,
+                GameText.Format("inventory.split.body", new TextArg("count", d.Quantity), new TextArg("total", item.Quantity)),
+                GameText.Get("inventory.split.confirm")),
+            InventoryDialogKind.ConfirmDestroy => (
+                GameText.Get("inventory.destroy.title"),
+                name,
+                GameText.Plural("inventory.destroy.body", qty, new TextArg("count", qty)),
+                GameText.Get("inventory.destroy.confirm")),
+            InventoryDialogKind.ConfirmDrop or InventoryDialogKind.None or _ => (
+                GameText.Get("inventory.drop.title"),
+                name,
+                GameText.Plural("inventory.drop.body", qty, new TextArg("count", qty)),
+                GameText.Get("inventory.drop.confirm")),
+        };
+        _dialogTextKey = (d.Kind, d.Item, d.Quantity, version);
+        return _dialogText;
+    }
+
+    private string GetHeldLabel(byte hotbarSlot)
+    {
+        int version = GameText.Current.Version;
+        if (_heldLabelVersion != version)
+        {
+            for (int i = 0; i < _heldLabels.Length; i++)
+            {
+                _heldLabels[i] = GameText.Format("inventory.held", new TextArg("slot", i + 1));
+            }
+
+            _heldLabelVersion = version;
+        }
+
+        return _heldLabels[Math.Min(hotbarSlot, (byte)(_heldLabels.Length - 1))];
+    }
+
+    private static void DrawDialogButton(GeometryBatch batch, RectangleF rect, Vector2? mouse, ColorRgba fill, ColorRgba frame)
+    {
+        bool hover = mouse.HasValue && rect.Contains(mouse.Value);
+        batch.FillRectangle(rect, hover ? CarbonUiPalette.SlotHoverFill : fill);
+        batch.DrawRectangle(rect, hover ? CarbonUiPalette.BorderActive : frame, 1.5f);
+    }
+
+    private static void DrawCentered(SpriteBatch spriteBatch, BitmapFont font, RectangleF rect, string text, ColorRgba color, float scale)
+    {
+        TextMeasureResult size = font.MeasureString(text, TextLayoutOptions.Default, scale);
         spriteBatch.DrawOutlinedString(
             font,
-            CarbonUiSkin.TruncateToWidth(font, statLine, tipW - (padX * 2f), layout.TextScale),
-            new Vector2(tx + padX, ty + MathF.Round(37f * s)),
-            CarbonUiPalette.TextMuted,
-            black,
+            text,
+            new Vector2(rect.X + MathF.Floor((rect.Width - size.Width) * 0.5f), rect.Y + MathF.Floor((rect.Height - size.Height) * 0.5f)),
+            color,
+            CarbonUiPalette.TextOutline,
             1,
-            layout.TextScale);
+            scale);
+    }
+
+    private static RectangleF GetDialogRect(in PlayerModalLayout layout)
+    {
+        float s = layout.Scale;
+        float w = MathF.Round(420f * s);
+        float h = MathF.Round(224f * s);
+        return new RectangleF(
+            layout.Ox + MathF.Floor((layout.PanelW - w) * 0.5f),
+            layout.Oy + MathF.Floor((layout.PanelH - h) * 0.5f),
+            w,
+            h);
+    }
+
+    private static RectangleF GetDialogIconRect(in PlayerModalLayout layout)
+    {
+        float s = layout.Scale;
+        RectangleF box = GetDialogRect(in layout);
+        float size = MathF.Round(64f * s);
+        return new RectangleF(box.X + MathF.Round(16f * s), box.Y + MathF.Round(18f * s), size, size);
+    }
+
+    private static RectangleF GetSplitBarRect(in PlayerModalLayout layout)
+    {
+        float s = layout.Scale;
+        RectangleF minus = GetDialogButtonRect(in layout, InventoryDialogButton.Minus);
+        RectangleF plus = GetDialogButtonRect(in layout, InventoryDialogButton.Plus);
+        float h = MathF.Round(10f * s);
+        float gap = MathF.Round(10f * s);
+        return new RectangleF(minus.Right + gap, minus.Y + MathF.Floor((minus.Height - h) * 0.5f), plus.X - minus.Right - (gap * 2f), h);
+    }
+
+    private static RectangleF GetDialogButtonRect(in PlayerModalLayout layout, InventoryDialogButton button)
+    {
+        float s = layout.Scale;
+        RectangleF box = GetDialogRect(in layout);
+        float pad = MathF.Round(16f * s);
+        float btnH = MathF.Round(36f * s);
+        float btnW = MathF.Round(130f * s);
+        float bottomY = box.Bottom - pad - btnH;
+        float stepSize = MathF.Round(32f * s);
+        float stepY = box.Y + MathF.Round(100f * s);
+        return button switch
+        {
+            InventoryDialogButton.Confirm => new RectangleF(box.Right - pad - btnW - MathF.Round(10f * s) - btnW, bottomY, btnW, btnH),
+            InventoryDialogButton.Cancel => new RectangleF(box.Right - pad - btnW, bottomY, btnW, btnH),
+            InventoryDialogButton.Minus => new RectangleF(box.X + pad, stepY, stepSize, stepSize),
+            InventoryDialogButton.Plus => new RectangleF(box.Right - pad - stepSize, stepY, stepSize, stepSize),
+            InventoryDialogButton.None or InventoryDialogButton.Body or _ => RectangleF.Empty,
+        };
     }
 
     internal static RectangleF GetSlotRectForTesting(in PlayerModalLayout layout, int slotIndex) =>
@@ -438,13 +799,16 @@ internal sealed class InventoryModalWidget
             float rightX = doll.Right + armorGapX;
             float topY = layout.ContentY + MathF.Round(10f * s);
             float botY = topY + slotSize + MathF.Round(12f * s);
+            float outerRightX = rightX + slotSize + MathF.Round(12f * s);
             int armorIdx = slotIndex - PlayerInventoryLayout.BagLimit;
             return armorIdx switch
             {
                 0 => new RectangleF(leftX, topY, slotSize, slotSize),
                 1 => new RectangleF(leftX, botY, slotSize, slotSize),
                 2 => new RectangleF(rightX, topY, slotSize, slotSize),
-                _ => new RectangleF(rightX, botY, slotSize, slotSize),
+                3 => new RectangleF(rightX, botY, slotSize, slotSize),
+                4 => new RectangleF(outerRightX, topY, slotSize, slotSize),
+                _ => new RectangleF(outerRightX, botY, slotSize, slotSize),
             };
         }
 
@@ -465,8 +829,48 @@ internal sealed class InventoryModalWidget
             slotSize);
     }
 
-    private static void DrawEmptyArmorSilhouette(GeometryBatch batch, in RectangleF rect, int armorIndex)
+    /// <summary>Read-only mirror of the selected hotbar item, left of the helmet (the weapon is what the hotbar holds).</summary>
+    private static RectangleF GetHeldSlotRect(in PlayerModalLayout layout)
     {
+        float s = layout.Scale;
+        RectangleF head = GetSlotRect(in layout, PlayerInventoryLayout.HeadSlot);
+        return new RectangleF(head.X - head.Width - MathF.Round(12f * s), head.Y, head.Width, head.Height);
+    }
+
+    private static RectangleF GetSortButtonRect(in PlayerModalLayout layout)
+    {
+        float s = layout.Scale;
+        RectangleF held = GetHeldSlotRect(in layout);
+        RectangleF chest = GetSlotRect(in layout, PlayerInventoryLayout.ChestSlot);
+        float h = MathF.Round(34f * s);
+        return new RectangleF(held.X, chest.Bottom - h, held.Width, h);
+    }
+
+    private static void DrawEmptyEquipmentSilhouette(GeometryBatch batch, in RectangleF rect, int armorIndex)
+    {
+        if (armorIndex is < 0 or >= 4)
+        {
+            float cx0 = rect.X + (rect.Width * 0.5f);
+            float cy0 = rect.Y + (rect.Height * 0.44f);
+            float u0 = rect.Width / 50f;
+            ColorRgba ghost0 = new(76, 86, 102, 115);
+            if (armorIndex < 0)
+            {
+                // Held: a sword outline.
+                batch.FillRectangle(new RectangleF(cx0 - (2f * u0), cy0 - (13f * u0), 4f * u0, 18f * u0), ghost0);
+                batch.FillRectangle(new RectangleF(cx0 - (8f * u0), cy0 + (5f * u0), 16f * u0, 3f * u0), ghost0);
+                batch.FillRectangle(new RectangleF(cx0 - (2f * u0), cy0 + (8f * u0), 4f * u0, 6f * u0), ghost0);
+            }
+            else
+            {
+                // Ring.
+                batch.DrawCircle(new Vector2(cx0, cy0), 8f * u0, ghost0, 16, MathF.Max(2f, 3f * u0));
+                batch.FillCircle(new Vector2(cx0, cy0 - (10f * u0)), 3f * u0, ghost0, 8);
+            }
+
+            return;
+        }
+
         float cx = rect.X + (rect.Width * 0.5f);
         float cy = rect.Y + (rect.Height * 0.5f);
         float u = rect.Width / 50f;
