@@ -345,6 +345,23 @@ public sealed class WorldGameplaySceneInputTests : IDisposable
     }
 
     [Fact]
+    public void LeftClick_OnTheBlacksmithInForgeReach_OpensTheForgeInsteadOfStriking()
+    {
+        Vector2 cursor = new(640f, 300f);
+        this.Frame();
+        Vector2 aim = _camera.ScreenToWorld(in cursor);
+        _session.IsNearForgeStation(Arg.Any<float>()).Returns(true);
+        _session.GetNpcCapabilities(Items.Catalog.WorldActorCatalog.MasterBlacksmith)
+            .Returns(Items.Catalog.WorldActorCatalog.GetNpcSpec(Items.Catalog.WorldActorCatalog.MasterBlacksmith).Capabilities);
+        _session.RemoteEntities.Returns(new List<RemoteEntityView> { Npc(9UL, Items.Catalog.WorldActorCatalog.MasterBlacksmith, aim + new Vector2(4f, 0f)) });
+
+        this.Click(MouseButton.Left, cursor);
+
+        this.Hud.ShowForgeModal.Should().BeTrue("clicking a forge artisan in reach opens the forge");
+        _session.DidNotReceive().TriggerPrimaryAction(Arg.Any<Vector2>(), out Arg.Any<(int, int)>());
+    }
+
+    [Fact]
     public void RightClick_OpenGround_DemolishesUnderTheCursor()
     {
         Vector2 cursor = new(640f, 300f);
@@ -379,6 +396,9 @@ public sealed class WorldGameplaySceneInputTests : IDisposable
         this.Hud.ShowSettingsModal.Should().BeFalse();
         _session.DidNotReceive().TriggerPrimaryAction(Arg.Any<Vector2>(), out Arg.Any<(int, int)>());
     }
+
+    private static RemoteEntityView Npc(ulong id, ushort archetype, Vector2 position) =>
+        new(id, Contracts.Entities.EntityKind.Npc, "Blacksmith", position, Vector2.Zero, 8f, 100f, 100f, ArchetypeId: archetype);
 
     private static RemoteEntityView Monster(ulong id, Vector2 position) =>
         new(id, Contracts.Entities.EntityKind.Monster, "Slime", position, Vector2.Zero, 8f, 50f, 50f);
