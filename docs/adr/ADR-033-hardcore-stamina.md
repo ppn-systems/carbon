@@ -79,7 +79,8 @@ Stamina before this ADR (all on `master` at `7b7e627`):
    - **Regen**: each non-sprinting tick. It is "moving" when the body's velocity is above 1 px/s (the same test needs
      activity uses), and "resting" while sitting or sleeping (ADR-018). Fatigue and hunger come from the player's
      `NeedsComponent`.
-   - **Respawn** (death and starvation) refills the meter and clears exhaustion.
+   - **Death (ADR-031)**: a dead player neither spends nor regenerates stamina; inputs are not counted as refusals.
+     **Respawn** refills the meter and clears exhaustion.
 6. **D6 — Wire.** `StaminaStatusSync` (S2C, `ItemOpCode.StaminaStatusSync = 0x4088`), allocated from the stamina band
    `0x4088–0x408F`:
    - `bool Exhausted` and `uint RefusalCount` (a running count of refusals).
