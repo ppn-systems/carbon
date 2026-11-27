@@ -13,11 +13,11 @@ namespace Carbon.Economy.Tests;
 public sealed class WalletTests(ITestOutputHelper output)
 {
     [Fact]
-    public void TryCreditAndTrySpend_AfterAFullCollection_Allocate()
+    public void TryCreditAndTrySpend_AfterAFullCollection_AllocateNothing()
     {
-        // ALLOC-13 characterisation: Enum.IsDefined reads the enum's metadata from a runtime cache that a full collection
-        // can free, so the first credit or spend after a gen2 GC rebuilds it on the calling (tick) thread. Every gold or
-        // diamond pickup is a credit.
+        // ALLOC-13: the checks name the currencies instead of calling Enum.IsDefined, whose runtime metadata cache a full
+        // collection can free and the next call rebuilds on the calling (tick) thread. Every gold or diamond pickup is a
+        // credit.
         Wallet wallet = new(ownerId: 7);
         for (int i = 0; i < 1_000; i++)
         {
@@ -37,7 +37,24 @@ public sealed class WalletTests(ITestOutputHelper output)
         }
 
         output.WriteLine($"{bytes} B over 20 credit-and-spend pairs, each after a full collection");
-        bytes.Should().BeGreaterThan(0, "characterisation: the enum metadata is rebuilt after a full collection");
+        bytes.Should().Be(0, "nothing is rebuilt after a full collection");
+    }
+
+    [Fact]
+    public void TryCreditAndTrySpend_EveryDefinedCurrency_IsAcceptedAndAnUndefinedOneIsNot()
+    {
+        // The checks list the currencies by name, so a currency added to the enum must be added to them too.
+        Wallet wallet = new(ownerId: 7);
+        foreach (CurrencyKind currency in Enum.GetValues<CurrencyKind>())
+        {
+            wallet.TryCredit(currency, 2, CurrencyReason.MonsterLoot).IsOk.Should().BeTrue($"{currency} is a currency");
+            wallet.TrySpend(currency, 1, CurrencyReason.VendorPurchase).IsOk.Should().BeTrue($"{currency} is a currency");
+        }
+
+        const CurrencyKind belowTheFirst = 0;
+        const CurrencyKind pastTheLast = (CurrencyKind)3;
+        wallet.TryCredit(belowTheFirst, 1, CurrencyReason.MonsterLoot).Error.Should().Be(EconomyError.InvalidAmount);
+        wallet.TrySpend(pastTheLast, 1, CurrencyReason.VendorPurchase).Error.Should().Be(EconomyError.InvalidAmount);
     }
 
     [Fact]
