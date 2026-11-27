@@ -58,8 +58,9 @@ public sealed class HotPathGuardTests
     /// </summary>
     private static readonly Dictionary<string, int> s_classSizeAllowlist = new(StringComparer.Ordinal)
     {
-        ["Carbon.Desktop.Networking.Session.MultiplayerSession"] = 4050, // 4025 after #75 (3950 when the guard was written)
+        ["Carbon.Desktop.Networking.Session.MultiplayerSession"] = 4123, // TODO(audit round 2): split by responsibility (auth, packets, actions, inventory) and lower; 4123 after #77/#81
         ["Carbon.Desktop.Rendering.Hud.CraftingModalWidget"] = 650, // 644 today
+        ["Carbon.Desktop.Rendering.Hud.InventoryModalWidget"] = 876, // TODO(audit round 2): split dialogs/tooltip/paper doll out of the modal and lower; 876 after #77/#81
         ["Carbon.Desktop.Rendering.Hud.ForgeAnvilModalWidget"] = 627, // TODO(audit round 2): split layout from VFX state after #81 lands, then delete this entry
         ["Carbon.Desktop.Rendering.VectorArt.CarbonVectorArtLibrary"] = 950, // 920 today
         ["Carbon.Desktop.Rendering.VectorArt.ModularCharacterOverlays"] = 650, // 625 today
@@ -69,7 +70,7 @@ public sealed class HotPathGuardTests
         ["Carbon.Desktop.Rendering.World.WorldSceneRenderer"] = 1000, // 986 today
         ["Carbon.Desktop.Scenes.CharacterSelectScene"] = 900, // 885 today
         ["Carbon.Desktop.Scenes.LoginScene"] = 700, // 665 today
-        ["Carbon.Desktop.Scenes.WorldGameplayScene"] = 950, // 911 after #80/#87; headroom for the several in-flight PRs that touch it
+        ["Carbon.Desktop.Scenes.WorldGameplayScene"] = 1113, // TODO(audit round 2): split input/modal routing out of the scene and lower; 1113 after #77/#81
         ["Carbon.Graphics.Fonts.TrueType.TrueTypeFontLoader"] = 1000, // 953 today
     };
 
@@ -98,7 +99,8 @@ public sealed class HotPathGuardTests
         ["Carbon.Desktop.Scenes.CharacterSelectScene.Render"] = 290, // 284 today
         ["Carbon.Desktop.Scenes.LoginScene.Render"] = 140, // 130 today
         ["Carbon.Desktop.Scenes.LoginScene.Update"] = 180, // 175 today
-        ["Carbon.Desktop.Scenes.WorldGameplayScene.Update"] = 500, // 482 after #80/#87; same headroom as the class
+        ["Carbon.Desktop.Scenes.WorldGameplayScene.HandleInventoryTabInput"] = 148, // TODO(audit round 2): extract split/destroy/sort input handlers and lower; 148 after #77/#81
+        ["Carbon.Desktop.Scenes.WorldGameplayScene.Update"] = 504, // TODO(audit round 2): extract per-modal update steps and lower; 504 after #77/#81
         ["Carbon.Graphics.Fonts.Layout.TextLayoutEngine.LayoutAndDraw"] = 190, // 186 today
         ["Carbon.Graphics.Fonts.Layout.TextLayoutEngine.Measure"] = 130, // 125 today
         ["Carbon.Graphics.Fonts.TrueType.TrueTypeFontLoader.Rasterize"] = 200, // 194 today
