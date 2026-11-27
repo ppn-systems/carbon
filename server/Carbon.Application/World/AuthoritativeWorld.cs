@@ -55,6 +55,8 @@ using Carbon.Simulation.World;
 using Carbon.Survival.Config;
 using Carbon.Survival.Food;
 using Carbon.Survival.Stamina;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Carbon.Application.World;
 
@@ -76,6 +78,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private const uint SkillAbilityIdBase = PlayerActionService.SkillAbilityIdBase;
 
     private readonly Lock _gate = new();
+    private readonly ILogger _logger;
     private readonly WorldCommandQueue _commands = new();
     private readonly WorldCommandExecutor _commandExecutor;
     private readonly TradeService _trade;
@@ -151,6 +154,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// </param>
     /// <param name="statusEffects">Status effect definitions (<c>status_effects.json</c>, ADR-029); defaults to the shipped copy.</param>
     /// <param name="stamina">Stamina tuning (<c>stamina.json</c>, ADR-033); defaults to the shipped copy.</param>
+    /// <param name="logger">Diagnostics (chunk delta rows dropped at boot, ADR-039); defaults to none.</param>
     /// <param name="propRegrowth">Natural prop regrowth (<c>props.json</c>, ADR-040); defaults to the shipped copy.</param>
     public AuthoritativeWorld(
         ulong worldSeed,
@@ -171,12 +175,14 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         GameplayEntropy? entropy = null,
         StatusEffectCatalog? statusEffects = null,
         StaminaConfig? stamina = null,
+        ILogger? logger = null,
         PropRegrowthRules? propRegrowth = null)
     {
         ArgumentNullException.ThrowIfNull(chunkDeltaRepo);
         ArgumentNullException.ThrowIfNull(characterStore);
         ArgumentNullException.ThrowIfNull(outboundSink);
 
+        _logger = logger ?? NullLogger.Instance;
         _propRegrowth = propRegrowth ?? PropRegrowthRules.LoadEmbedded();
         this.WorldSeed = worldSeed;
         this.TileSize = tileSize > 0f ? tileSize : 32f;
@@ -480,13 +486,29 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         {
             for (int i = 0; i < deltas.Count; i++)
             {
-                ChunkDelta domainDelta = ChunkDelta.Deserialize(deltas[i].Payload, _currentTick);
+                ChunkDelta domainDelta;
+                try
+                {
+                    domainDelta = ChunkDelta.Deserialize(deltas[i].Payload, _currentTick);
+                }
+                catch (FormatException ex)
+                {
+                    // ADR-039: a row in a retired format, or a corrupt one, is dropped, so the chunk comes back from its
+                    // baseline. Boot never fails on a stored row.
+                    if (_logger.IsEnabled(LogLevel.Warning))
+                    {
+                        _logger.LogWarning(
+                            "Dropped the stored delta of chunk ({ChunkX}, {ChunkY}): {Reason}",
+                            deltas[i].ChunkX,
+                            deltas[i].ChunkY,
+                            ex.Message);
+                    }
+
+                    continue;
+                }
+
                 _chunkWorld.ImportDelta(domainDelta);
             }
-
-            // Rows saved before format 4 kept no respawn timers (ADR-040 D4): reschedule their destroyed props once, and
-            // save those chunks again in the new format.
-            _ = _chunkWorld.ScheduleLegacyRespawns(this.PropRegrowDelayTicksLocked, _currentTick, _dirtyChunks);
 
             Vector2 originSpawn = _chunkWorld.SpawnWorldPosition;
             _chunkWorld.UpdateAroundPosition(originSpawn, chunkRadius: 2, evictionRadius: 8);
