@@ -14,6 +14,7 @@ using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Events;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Abstractions.World;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Maps.Building;
@@ -151,6 +152,9 @@ public sealed partial class MultiplayerSession : IWorldSession
     private ulong _lockedTargetNetworkId;
     private float _forgeFeedbackTimer;
     private bool _lastForgeSucceeded;
+    private EnhancementOutcome _lastForgeOutcome;
+    private byte _lastForgeNewLevel;
+    private uint _forgeResultSerial;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MultiplayerSession"/> class.
@@ -338,6 +342,15 @@ public sealed partial class MultiplayerSession : IWorldSession
     public bool LastForgeSucceeded => _lastForgeSucceeded;
 
     /// <inheritdoc/>
+    public EnhancementOutcome LastForgeOutcome => _lastForgeOutcome;
+
+    /// <inheritdoc/>
+    public byte LastForgeNewLevel => _lastForgeNewLevel;
+
+    /// <inheritdoc/>
+    public uint ForgeResultSerial => Volatile.Read(ref _forgeResultSerial);
+
+    /// <inheritdoc/>
     public void CopyInventorySlots(Span<ItemSlot> destination)
     {
         lock (_worldGate)
@@ -471,7 +484,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     /// <inheritdoc/>
     public string TransportLabel =>
         !this.IsConnected
-            ? (Volatile.Read(ref _tcpReconnectInFlight) != 0 ? "RECONNECTING" : "OFFLINE")
+            ? (Volatile.Read(ref _tcpReconnectInFlight) != 0 ? GameText.Get("net.status_reconnecting") : GameText.Get("net.status_offline"))
             : (this.IsUdpActive ? "TCP+UDP" : "TCP");
 
     /// <inheritdoc/>

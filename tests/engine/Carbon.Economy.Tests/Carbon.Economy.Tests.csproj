@@ -14,6 +14,7 @@
         <None Include="..\..\..\resources\config\recipes.json" Link="config\recipes.json" CopyToOutputDirectory="PreserveNewest" />
         <None Include="..\..\..\resources\config\loot.json" Link="config\loot.json" CopyToOutputDirectory="PreserveNewest" />
         <None Include="..\..\..\resources\config\economy.json" Link="config\economy.json" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="..\..\..\resources\config\enhancement.json" Link="config\enhancement.json" CopyToOutputDirectory="PreserveNewest" />
         <None Include="..\..\..\resources\config\monsters.json" Link="config\monsters.json" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 </Project>

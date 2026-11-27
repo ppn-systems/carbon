@@ -1,14 +1,17 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Diagnostics.CodeAnalysis;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
+using Carbon.Items.Enhancement;
 
 namespace Carbon.Items.Catalog;
 
 /// <summary>
 /// Governs forge enhancement levels (<c>+0..+10</c>) stored on <see cref="ItemSlot.UpgradeLevel"/>,
-/// stat scaling multipliers, effective max durability, and upgrade material recipes.
+/// stat scaling multipliers, effective max durability, and the lookups into the data-driven attempt table
+/// (<see cref="EnhancementTable"/>, <c>enhancement.json</c>).
 /// </summary>
 public static class ItemEnhancementPolicy
 {
@@ -31,69 +34,49 @@ public static class ItemEnhancementPolicy
     public static float GetEffectiveMaxDurability(ItemArchetype archetype, byte upgradeLevel)
     {
         ArgumentNullException.ThrowIfNull(archetype);
-        if (archetype.MaxDurability <= 0f)
-        {
-            return 0f;
-        }
+        return GetEffectiveMaxDurability(archetype.MaxDurability, upgradeLevel);
+    }
 
-        return archetype.MaxDurability * (1f + (Math.Clamp(upgradeLevel, (byte)0, MaxUpgradeLevel) * 0.10f));
+    /// <summary>Returns <paramref name="baseMaxDurability"/> scaled by <paramref name="upgradeLevel"/> (<c>+10%</c> per level).</summary>
+    public static float GetEffectiveMaxDurability(float baseMaxDurability, byte upgradeLevel) =>
+        baseMaxDurability <= 0f ? 0f : baseMaxDurability * (1f + (Math.Clamp(upgradeLevel, (byte)0, MaxUpgradeLevel) * 0.10f));
+
+    /// <summary>Returns whether <paramref name="itemId"/> is gear the forge can enhance (it has durability).</summary>
+    /// <param name="rules">Item rules.</param>
+    /// <param name="itemId">Item id.</param>
+    /// <returns><see langword="true"/> for weapons, tools and armor with durability.</returns>
+    public static bool IsEnhanceable(ItemRules rules, uint itemId)
+    {
+        ArgumentNullException.ThrowIfNull(rules);
+        return itemId != 0U && rules.Items.TryGet(itemId, out ItemArchetype? def) && def.MaxDurability > 0f;
     }
 
     /// <summary>
-    /// Checks whether <paramref name="slot"/> is eligible for forging and outputs its material costs &amp; success chance.
+    /// Gets the next forge attempt for <paramref name="slot"/> from the data-driven table (<c>enhancement.json</c>,
+    /// ADR-024): outcome weights, materials and base gold fee.
     /// </summary>
-    public static bool CanUpgrade(
-        ItemRules rules,
-        in ItemSlot slot,
-        out uint material1Id,
-        out int material1Count,
-        out uint material2Id,
-        out int material2Count,
-        out float successChance)
+    /// <param name="rules">Item rules holding the enhancement table.</param>
+    /// <param name="slot">Item to enhance.</param>
+    /// <param name="step">The attempt row when the item can still be enhanced.</param>
+    /// <returns><see langword="false"/> for empty slots, non-gear, or items at the table's max level.</returns>
+    public static bool TryGetStep(ItemRules rules, in ItemSlot slot, [NotNullWhen(true)] out EnhancementStep? step)
     {
         ArgumentNullException.ThrowIfNull(rules);
-        material1Id = 0U;
-        material1Count = 0;
-        material2Id = 0U;
-        material2Count = 0;
-        successChance = 0f;
+        step = null;
+        return !slot.IsEmpty
+            && IsEnhanceable(rules, slot.ItemId)
+            && rules.Enhancement.TryGetStep(GetUpgradeLevel(in slot), out step);
+    }
 
-        if (slot.IsEmpty || !rules.Items.TryGet(slot.ItemId, out ItemArchetype? def) || def.MaxDurability <= 0f)
-        {
-            return false;
-        }
-
-        byte level = GetUpgradeLevel(in slot);
-        if (level >= MaxUpgradeLevel)
-        {
-            return false;
-        }
-
-        if (level < 3)
-        {
-            material1Id = StarterGameCatalog.StoneChunk;
-            material1Count = 2 + level;
-            material2Id = StarterGameCatalog.IronOre;
-            material2Count = 1 + level;
-            successChance = 1.0f;
-        }
-        else if (level < 6)
-        {
-            material1Id = StarterGameCatalog.IronOre;
-            material1Count = level;
-            material2Id = StarterGameCatalog.ManaCrystal;
-            material2Count = level - 2;
-            successChance = 0.85f;
-        }
-        else
-        {
-            material1Id = StarterGameCatalog.IronOre;
-            material1Count = level + 1;
-            material2Id = StarterGameCatalog.ManaCrystal;
-            material2Count = level - 3;
-            successChance = 0.70f;
-        }
-
-        return true;
+    /// <summary>Returns the gold fee of <paramref name="step"/> for the item in <paramref name="slot"/> (scaled by its rarity).</summary>
+    /// <param name="rules">Item rules.</param>
+    /// <param name="slot">Item to enhance.</param>
+    /// <param name="step">Attempt row.</param>
+    /// <returns>The fee in gold.</returns>
+    public static long GetGoldFee(ItemRules rules, in ItemSlot slot, EnhancementStep step)
+    {
+        ArgumentNullException.ThrowIfNull(rules);
+        ItemRarity rarity = rules.ItemCatalog.TryGet(slot.ItemId, out ItemCatalogEntry? entry) ? entry.Rarity : ItemRarity.Common;
+        return rules.Enhancement.GetGoldFee(step, rarity);
     }
 }
