@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Contracts.Entities;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -23,6 +24,7 @@ namespace Carbon.Desktop.Rendering.Hud;
 /// </summary>
 internal sealed class CharacterSheetModalWidget
 {
+    private const int AttributeRowCount = 4;
     private static readonly PrimaryAttributeId[] s_statTargets =
     [
         PrimaryAttributeId.Vitality,
@@ -32,6 +34,17 @@ internal sealed class CharacterSheetModalWidget
     ];
 
     private readonly List<SkillDefinition> _skillScratch = new(8);
+    private readonly CachedText _attributePoints = new();
+    private readonly CachedText _classLevel = new();
+    private readonly CachedText _xp = new();
+    private readonly CachedText _hp = new();
+    private readonly CachedText _mp = new();
+    private readonly CachedText _sta = new();
+    private readonly CachedText _def = new();
+    private readonly CachedText _telemetry = new();
+    private readonly CachedText _net = new();
+    private readonly CachedText[] _rowTitles = [new(), new(), new(), new()];
+    private readonly CachedText[] _rowBonuses = [new(), new(), new(), new()];
 
     public bool ContainsPoint(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
@@ -189,8 +202,8 @@ internal sealed class CharacterSheetModalWidget
             in layout,
             PlayerModalTab.Character,
             hasSkills,
-            "Character Info",
-            $"Attribute Points: {unspentAp}",
+            GameText.Get("hud.character.title"),
+            _attributePoints.Format("hud.character.attribute_points", new TextArg("points", unspentAp)),
             unspentAp > 0);
 
         RectangleF leftCard = GetLeftCardRect(in layout);
@@ -200,7 +213,7 @@ internal sealed class CharacterSheetModalWidget
         // Left Character Summary
         float lx = leftCard.X + MathF.Round(20f * s);
         float textW = leftCard.Width - MathF.Round(40f * s);
-        string heroName = string.IsNullOrWhiteSpace(world.ActiveCharacterName) ? "Hero" : world.ActiveCharacterName;
+        string heroName = string.IsNullOrWhiteSpace(world.ActiveCharacterName) ? GameText.Get("hud.character.default_name") : world.ActiveCharacterName;
         spriteBatch.DrawOutlinedString(
             font,
             CarbonUiSkin.TruncateToWidth(font, heroName, textW, layout.TitleScale),
@@ -209,24 +222,24 @@ internal sealed class CharacterSheetModalWidget
             black,
             1,
             layout.TitleScale);
-        spriteBatch.DrawOutlinedString(font, $"{world.LocalPlayerClass}  Lv.{world.LocalPlayerLevel}", new Vector2(lx, leftCard.Y + MathF.Round(216f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TextScale);
-        spriteBatch.DrawOutlinedString(font, $"XP {world.LocalPlayerExperience} / {world.LocalPlayerXpToNext}", new Vector2(lx, leftCard.Y + MathF.Round(264f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
+        spriteBatch.DrawOutlinedString(font, _classLevel.Format("hud.character.class_level", new TextArg("class", ClassLabel(world.LocalPlayerClass)), new TextArg("level", world.LocalPlayerLevel)), new Vector2(lx, leftCard.Y + MathF.Round(216f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TextScale);
+        spriteBatch.DrawOutlinedString(font, _xp.Format("hud.character.xp", new TextArg("current", world.LocalPlayerExperience), new TextArg("next", world.LocalPlayerXpToNext)), new Vector2(lx, leftCard.Y + MathF.Round(264f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
 
-        spriteBatch.DrawOutlinedString(font, $"HP   {(int)MathF.Ceiling(world.LocalPlayerHealth)} / {(int)MathF.Ceiling(world.LocalPlayerMaxHealth)}", new Vector2(lx, leftCard.Y + MathF.Round(304f * s)), CarbonUiPalette.TextPrimary, black, 1, layout.TextScale);
-        spriteBatch.DrawOutlinedString(font, $"MP   {(int)MathF.Floor(world.LocalPlayerMana)} / {(int)MathF.Ceiling(world.LocalPlayerMaxMana)}", new Vector2(lx, leftCard.Y + MathF.Round(334f * s)), CarbonUiPalette.TextPrimary, black, 1, layout.TextScale);
-        spriteBatch.DrawOutlinedString(font, $"STA  {(int)MathF.Floor(world.LocalPlayerStamina)} / {(int)MathF.Ceiling(world.LocalPlayerMaxStamina)}", new Vector2(lx, leftCard.Y + MathF.Round(364f * s)), CarbonUiPalette.TextPrimary, black, 1, layout.TextScale);
-        spriteBatch.DrawOutlinedString(font, $"DEF  {(int)MathF.Round(world.LocalPlayerDefense)}", new Vector2(lx, leftCard.Y + MathF.Round(394f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TextScale);
+        spriteBatch.DrawOutlinedString(font, _hp.Format("hud.character.hp", new TextArg("current", (int)MathF.Ceiling(world.LocalPlayerHealth)), new TextArg("max", (int)MathF.Ceiling(world.LocalPlayerMaxHealth))), new Vector2(lx, leftCard.Y + MathF.Round(304f * s)), CarbonUiPalette.TextPrimary, black, 1, layout.TextScale);
+        spriteBatch.DrawOutlinedString(font, _mp.Format("hud.character.mp", new TextArg("current", (int)MathF.Floor(world.LocalPlayerMana)), new TextArg("max", (int)MathF.Ceiling(world.LocalPlayerMaxMana))), new Vector2(lx, leftCard.Y + MathF.Round(334f * s)), CarbonUiPalette.TextPrimary, black, 1, layout.TextScale);
+        spriteBatch.DrawOutlinedString(font, _sta.Format("hud.character.sta", new TextArg("current", (int)MathF.Floor(world.LocalPlayerStamina)), new TextArg("max", (int)MathF.Ceiling(world.LocalPlayerMaxStamina))), new Vector2(lx, leftCard.Y + MathF.Round(364f * s)), CarbonUiPalette.TextPrimary, black, 1, layout.TextScale);
+        spriteBatch.DrawOutlinedString(font, _def.Format("hud.character.def", new TextArg("value", (int)MathF.Round(world.LocalPlayerDefense))), new Vector2(lx, leftCard.Y + MathF.Round(394f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TextScale);
 
         if (showTelemetry)
         {
-            spriteBatch.DrawOutlinedString(font, $"Pos ({ptx}, {pty})  {(int)fps} FPS", new Vector2(lx, leftCard.Y + MathF.Round(434f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
-            spriteBatch.DrawOutlinedString(font, $"Net: {world.TransportLabel}", new Vector2(lx, leftCard.Y + MathF.Round(462f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
+            spriteBatch.DrawOutlinedString(font, _telemetry.Format("hud.character.telemetry", new TextArg("x", ptx), new TextArg("y", pty), new TextArg("fps", (int)fps)), new Vector2(lx, leftCard.Y + MathF.Round(434f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
+            spriteBatch.DrawOutlinedString(font, _net.Format("hud.character.net", new TextArg("transport", world.TransportLabel)), new Vector2(lx, leftCard.Y + MathF.Round(462f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
         }
 
         // Right Attributes Card
         spriteBatch.DrawOutlinedString(
             font,
-            "Attributes",
+            GameText.Get("hud.character.attributes"),
             new Vector2(rightCard.X + MathF.Round(18f * s), rightCard.Y + MathF.Round(18f * s)),
             CarbonUiPalette.TextWarm,
             black,
@@ -238,23 +251,27 @@ internal sealed class CharacterSheetModalWidget
         ushort pwrPts = world.GetAttributePoints(PrimaryAttributeId.Power);
         ushort agiPts = world.GetAttributePoints(PrimaryAttributeId.Agility);
 
-        (string Title, string Bonus, ushort Pts)[] rows =
-        [
-            ("Vitality", $"Max HP {(int)MathF.Ceiling(world.LocalPlayerMaxHealth)}", vitPts),
-            ("Wisdom", $"Max MP {(int)MathF.Ceiling(world.LocalPlayerMaxMana)}", wisPts),
-            ("Power", $"Attack +{pwrPts * 3.5f:F0}%", pwrPts),
-            ("Agility", $"Stamina {(int)MathF.Ceiling(world.LocalPlayerMaxStamina)}", agiPts),
-        ];
-
-        for (int i = 0; i < rows.Length; i++)
+        for (int i = 0; i < AttributeRowCount; i++)
         {
+            (string titleKey, ushort pts, string bonus) = i switch
+            {
+                0 => ("hud.attribute.vitality", vitPts, _rowBonuses[0].Format("hud.attribute.vitality_bonus", new TextArg("value", (int)MathF.Ceiling(world.LocalPlayerMaxHealth)))),
+                1 => ("hud.attribute.wisdom", wisPts, _rowBonuses[1].Format("hud.attribute.wisdom_bonus", new TextArg("value", (int)MathF.Ceiling(world.LocalPlayerMaxMana)))),
+                2 => ("hud.attribute.power", pwrPts, _rowBonuses[2].Format("hud.attribute.power_bonus", new TextArg("percent", (int)MathF.Round(pwrPts * 3.5f)))),
+                _ => ("hud.attribute.agility", agiPts, _rowBonuses[3].Format("hud.attribute.agility_bonus", new TextArg("value", (int)MathF.Ceiling(world.LocalPlayerMaxStamina)))),
+            };
             RectangleF rowRect = GetStatRowRect(in layout, i);
-            spriteBatch.DrawOutlinedString(font, $"{rows[i].Title} ({rows[i].Pts})", new Vector2(rowRect.X + MathF.Round(16f * s), rowRect.Y + MathF.Round(16f * s)), CarbonUiPalette.TextPrimary, black, 1, layout.TextScale);
-            spriteBatch.DrawOutlinedString(font, rows[i].Bonus, new Vector2(rowRect.X + MathF.Round(16f * s), rowRect.Y + MathF.Round(48f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
+            string title = _rowTitles[i].Format("hud.attribute.row", new TextArg("name", GameText.Get(titleKey)), new TextArg("points", pts));
+            spriteBatch.DrawOutlinedString(font, title, new Vector2(rowRect.X + MathF.Round(16f * s), rowRect.Y + MathF.Round(16f * s)), CarbonUiPalette.TextPrimary, black, 1, layout.TextScale);
+            spriteBatch.DrawOutlinedString(font, bonus, new Vector2(rowRect.X + MathF.Round(16f * s), rowRect.Y + MathF.Round(48f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
             RectangleF plusRect = GetStatPlusRect(in layout, i);
             CarbonUiSkin.DrawCenteredText(spriteBatch, font, "+", in plusRect, unspentAp > 0 ? CarbonUiPalette.TextPrimary : CarbonUiPalette.TextMuted, black, layout.TitleScale);
         }
     }
+
+    /// <summary>Class display name; the <c>character.class.*</c> keys arrive with the character-select migration.</summary>
+    private static string ClassLabel<TClass>(TClass playerClass)
+        where TClass : struct, Enum => playerClass.ToString();
 
     private static RectangleF GetLeftCardRect(in PlayerModalLayout layout)
     {

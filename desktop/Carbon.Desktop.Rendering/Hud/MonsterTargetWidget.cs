@@ -3,6 +3,7 @@
 using System;
 using System.Numerics;
 using Carbon.Contracts.Entities;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Feedback;
 using Carbon.Desktop.Rendering.UiSkin;
@@ -22,6 +23,7 @@ namespace Carbon.Desktop.Rendering.Hud;
 /// </summary>
 internal sealed class MonsterTargetWidget
 {
+    private readonly CachedText _title = new();
     private RemoteEntityView _activeTarget;
     private float _ghostRatio;
     private bool _hasTarget;
@@ -130,12 +132,11 @@ internal sealed class MonsterTargetWidget
 
         CompiledVectorRig? rig = ResolveRig(art, in _activeTarget);
         ushort displayLv = _activeTarget.Level > 0 ? _activeTarget.Level : (rig is not null ? rig.Level : (ushort)1);
-        string levelPrefix = displayLv > 0 ? $"Lv.{displayLv} " : string.Empty;
         string subtitle = _isLocked
-            ? "LOCKED"
+            ? GameText.Get("hud.target.locked")
             : (rig is not null && !string.IsNullOrWhiteSpace(rig.Subtitle)
                 ? rig.Subtitle
-                : (_activeTarget.Kind == EntityKind.Npc ? "NPC" : "HOSTILE"));
+                : GameText.Get(_activeTarget.Kind == EntityKind.Npc ? "hud.target.npc" : "hud.target.hostile"));
 
         ColorRgba nameColor = _activeTarget.Kind == EntityKind.Npc
             ? CarbonUiPalette.TextWarm
@@ -144,7 +145,11 @@ internal sealed class MonsterTargetWidget
         string safeSub = CarbonUiSkin.TruncateToWidth(font, subtitle, 92f, 1f);
         TextMeasureResult subSize = font.MeasureString(safeSub, TextLayoutOptions.Default, 1f);
         float maxNameWidth = MathF.Max(80f, cardW - 72f - subSize.Width - 20f);
-        string fullTitle = CarbonUiSkin.TruncateToWidth(font, $"{levelPrefix}{_activeTarget.Name}", maxNameWidth, 1f);
+        string fullTitle = CarbonUiSkin.TruncateToWidth(
+            font,
+            displayLv > 0 ? _title.Format("hud.target.title_level", new TextArg("level", displayLv), new TextArg("name", _activeTarget.Name)) : _activeTarget.Name,
+            maxNameWidth,
+            1f);
 
         spriteBatch.DrawOutlinedString(font, fullTitle, new Vector2(x + 70f, y + 13f), nameColor, black, 1, 1f);
         spriteBatch.DrawOutlinedString(font, safeSub, new Vector2(x + cardW - subSize.Width - 14f, y + 13f), CarbonUiPalette.TextMuted, black, 1, 1f);

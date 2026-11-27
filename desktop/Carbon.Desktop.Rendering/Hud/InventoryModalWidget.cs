@@ -307,7 +307,7 @@ internal sealed class InventoryModalWidget
         PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
         float s = layout.Scale;
         bool hasSkills = PlayerModalTabs.HasClassSkills(world, _skillScratch);
-        PlayerModalTabs.DrawWindowChromeText(spriteBatch, font, in layout, PlayerModalTab.Inventory, hasSkills, "Inventory");
+        PlayerModalTabs.DrawWindowChromeText(spriteBatch, font, in layout, PlayerModalTab.Inventory, hasSkills, GameText.Get("hud.window.inventory"));
 
         ColorRgba black = CarbonUiPalette.TextOutline;
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];

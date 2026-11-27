@@ -110,6 +110,12 @@ internal static partial class LocalizationRepository
             keys.Add(GameText.BiomeKey(biome));
         }
 
+        foreach (Carbon.Items.Catalog.SkillDefinition skill in Carbon.Items.Catalog.SkillCatalog.Skills.All)
+        {
+            keys.Add($"skill.{skill.Code}.name");
+            keys.Add($"skill.{skill.Code}.summary");
+        }
+
         foreach (Carbon.Maps.Building.StructureType structure in Enum.GetValues<Carbon.Maps.Building.StructureType>())
         {
             if (structure != Carbon.Maps.Building.StructureType.None)
