@@ -5,7 +5,7 @@ using Carbon.Items.Definitions;
 namespace Carbon.Economy.Config;
 
 /// <summary>
-/// A percentage per <see cref="ItemRarity"/> (100 = unchanged), used to scale repair costs and station fees by item tier.
+/// A percentage per <see cref="ItemRarity"/> (100 = unchanged), used to scale station fees by item tier.
 /// </summary>
 public sealed record RarityPercents
 {

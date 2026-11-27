@@ -234,16 +234,31 @@ public static partial class ItemHandlers
         await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.VendorSellItem).ConfigureAwait(false);
     }
 
-    /// <summary>Opcode <c>0x4009</c>. Repairs an item's durability for gold at a forge station.</summary>
-    [PacketOpcode(ItemOpCode.RepairInventoryItem)]
+    /// <summary>Opcode <c>0x4050</c>. Queues repairing one item for materials and answers with <see cref="RepairItemResult"/> (ADR-028).</summary>
+    [PacketOpcode(ItemOpCode.RepairItemRequest)]
     [PacketPermission(PermissionLevel.USER)]
-    public static async ValueTask HandleRepairInventoryItemAsync(IPacketContext<RepairInventoryItem> context)
+    public static async ValueTask HandleRepairItemRequestAsync(IPacketContext<RepairItemRequest> context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
         IPacketSender sender = context.Sender;
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
-        WorldMutationOutcome outcome = await s_world.SubmitRepairItemAsync(connectionId, context.Packet.SlotIndex).ConfigureAwait(false);
-        await PacketReplyHelper.SendMutationAsync(sender, outcome.Status, ItemOpCode.RepairInventoryItem).ConfigureAwait(false);
+        RepairItemRequest request = context.Packet;
+        ushort slotIndex = request.SlotIndex;
+        WorldMutationOutcome outcome = await s_world.SubmitRepairItemAsync(
+            connectionId,
+            slotIndex,
+            request.ExpectedItemId,
+            request.Steps,
+            request.Venue).ConfigureAwait(false);
+
+        RepairReceipt receipt = RepairReceipt.Unpack(outcome.Revision);
+        using PacketScope<RepairItemResult> lease = PacketFactory<RepairItemResult>.Acquire();
+        RepairItemResult reply = lease.Value;
+        reply.Status = outcome.Status;
+        reply.Error = outcome.Status == OpStatus.Ok ? RepairError.None : receipt.Error;
+        reply.SlotIndex = slotIndex;
+        reply.Steps = receipt.Steps;
+        await sender.ReplyAsync(reply).ConfigureAwait(false);
     }
 }

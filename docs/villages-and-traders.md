@@ -189,10 +189,7 @@ The village blacksmith (at the smithy's forge) and the sanctuary blacksmith (bes
 - **Stock.** He trades from the `blacksmith` profile: weapons, armor, tools and smithing materials, with the same seeded, restocking, limited stock as the other traders (§3).
   - The village smith's key is `TraderKeyOf(village, Smithy)` and his style is the village's.
   - The sanctuary smith's key comes from the spawn tile, and his style is temperate.
-- **Repair.** The `TraderStock` push carries `RepairSlots` and `RepairCosts`, the server's quotes (`PriceBook.GetRepairCost`) for each worn item in the bag.
-  - The window's **Repair** button switches the bag to repair mode. Worn gear shows the server's repair quote; everything else is dimmed. The client never prices a repair.
-  - A click sends the existing `RepairInventoryItem`. The server already accepts it next to a forge-artisan NPC (`InventoryService.IsNearForgeStation`).
-  - On success the window re-opens the trader to refresh the quotes. A `Conflict` (not enough gold) shows a toast.
+- **Repair.** Replaced by [ADR-028](adr/ADR-028-material-repair-per-item.md): the blacksmith repairs one chosen item for materials and a gold fee (`RepairItemRequest`, `0x4050`). `TraderStock.RepairSlots` and `RepairCosts` are always empty.
 - **Enhancement.** The enhancement work owns this (`ItemEnhancementPolicy` and the forge window, ADR-022/024). The window's **Enhance…** button only calls the scene's existing forge entry point, `WorldGameplayScene.OpenForgeWindow`, which closes the trade window and opens the forge. Nothing in the enhancement window is duplicated. `U` still opens the forge directly.
 - **Input.** `E` or a click on the blacksmith opens his trade window; the click no longer also opens the forge. His nameplate reads `[E: TRADE  U: FORGE]`.
 

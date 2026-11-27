@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "stepPercent": 10,
+  "tierPercent": [100, 100, 150, 200, 300, 400],
+  "stations": {
+    "workbench": 1,
+    "forgeAnvil": 2,
+    "blacksmith": 3,
+    "stationReachTiles": 5,
+    "blacksmithReach": 175
+  },
+  "blacksmithFee": {
+    "percentOfBasePrice": 30,
+    "minimum": 1,
+    "rarityPercent": { "common": 50, "uncommon": 100, "rare": 175, "epic": 300, "legendary": 400 }
+  },
+  "families": [
+    {
+      "id": "wood",
+      "stationTier": 1,
+      "materials": [ { "item": "wood_log", "qty": 2 }, { "item": "plant_fiber", "qty": 2 } ],
+      "items": [ "wood_axe", "hunting_bow", "shaman_staff" ]
+    },
+    {
+      "id": "stone",
+      "stationTier": 1,
+      "materials": [ { "item": "stone_chunk", "qty": 3 }, { "item": "plant_fiber", "qty": 1 } ],
+      "items": [ "stone_pickaxe" ]
+    },
+    {
+      "id": "leather",
+      "stationTier": 1,
+      "materials": [ { "item": "leather", "qty": 2 } ],
+      "items": [ "leather_cap", "leather_tunic", "leather_greaves", "leather_boots" ]
+    },
+    {
+      "id": "bone",
+      "stationTier": 1,
+      "materials": [ { "item": "bone_shard", "qty": 3 } ],
+      "items": [ "bone_bow" ]
+    },
+    {
+      "id": "copper",
+      "stationTier": 2,
+      "materials": [ { "item": "copper_ingot", "qty": 2 } ],
+      "items": [ "copper_sword" ]
+    },
+    {
+      "id": "iron",
+      "stationTier": 2,
+      "materials": [ { "item": "iron_ingot", "qty": 2 } ],
+      "items": [ "iron_sword", "iron_axe", "iron_helmet", "iron_chestplate", "iron_leggings", "iron_boots", "orc_war_helm" ]
+    },
+    {
+      "id": "arcane",
+      "stationTier": 2,
+      "materials": [ { "item": "wood_plank", "qty": 2 }, { "item": "mana_crystal", "qty": 1 } ],
+      "items": [ "arcane_staff" ]
+    },
+    {
+      "id": "crystal",
+      "stationTier": 3,
+      "materials": [ { "item": "mana_crystal", "qty": 2 } ],
+      "items": [ "crystal_pickaxe", "crystal_crown", "crystal_robe", "crystal_bow", "crystal_staff" ]
+    },
+    {
+      "id": "demon",
+      "stationTier": 3,
+      "materials": [ { "item": "iron_ingot", "qty": 2 }, { "item": "demon_ember", "qty": 1 } ],
+      "items": [ "demon_cleaver", "ember_blade", "abyssal_crown" ]
+    }
+  ]
+}

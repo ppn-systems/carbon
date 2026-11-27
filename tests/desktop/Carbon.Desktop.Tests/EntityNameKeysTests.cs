@@ -42,7 +42,7 @@ public sealed class EntityNameKeysTests
     public void Resolve_Loot_UsesItemCodeOrCurrencyKey()
     {
         SyncedItemCatalog items = new();
-        items.Apply(Config(1, "items", "recipes", "enhancement")).Should().BeTrue();
+        items.Apply(Config(1, "items", "recipes", "enhancement", "repair")).Should().BeTrue();
         EntityNameKeys names = new(items);
 
         names.Resolve(EntityKind.LootDrop, 3, LootCurrency.None, null).Should().Be("item.iron_sword.name");

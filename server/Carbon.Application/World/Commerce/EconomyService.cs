@@ -30,14 +30,12 @@ internal enum VendorOperation : byte
     /// <summary>Sell <c>quantity</c> units from bag slot <c>slotIndex</c> for gold.</summary>
     Sell = 2,
 
-    /// <summary>Repair the item in <c>slotIndex</c> to full durability for gold (at a forge).</summary>
-    Repair = 3,
 }
 
 /// <summary>
 /// The world's economy (audit SOLID-1, extracted from <see cref="AuthoritativeWorld"/>): config-driven monster loot rolled
-/// on kills (item stacks and gold/diamond piles dropped as ground loot reserved for the killer, ADR-019), vendor buy/sell and
-/// forge repair with their proximity rules, and wallet sync messages. Deterministic per (gameplay secret, tick, victim), ADR-026.
+/// on kills (item stacks and gold/diamond piles dropped as ground loot reserved for the killer, ADR-019), vendor buy/sell with
+/// their proximity rules, and wallet sync messages. Deterministic per (gameplay secret, tick, victim), ADR-026.
 /// Called only under the world lock.
 /// </summary>
 internal sealed class EconomyService
@@ -56,7 +54,6 @@ internal sealed class EconomyService
     private readonly Func<GameEconomy?> _economy;
     private readonly Func<ulong> _currentTick;
     private readonly GroundLootService _groundLoot;
-    private readonly InventoryService _inventory;
     private readonly OutboundTickBuffer _outbound;
     private readonly Func<Vector2, float, bool> _hasNearbyFriendlyNpc;
 
@@ -67,7 +64,6 @@ internal sealed class EconomyService
         Func<GameEconomy?> economy,
         Func<ulong> currentTick,
         GroundLootService groundLoot,
-        InventoryService inventory,
         OutboundTickBuffer outbound,
         Func<Vector2, float, bool> hasNearbyFriendlyNpc)
     {
@@ -76,7 +72,6 @@ internal sealed class EconomyService
         _economy = economy ?? throw new ArgumentNullException(nameof(economy));
         _currentTick = currentTick ?? throw new ArgumentNullException(nameof(currentTick));
         _groundLoot = groundLoot ?? throw new ArgumentNullException(nameof(groundLoot));
-        _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
         _outbound = outbound ?? throw new ArgumentNullException(nameof(outbound));
         _hasNearbyFriendlyNpc = hasNearbyFriendlyNpc ?? throw new ArgumentNullException(nameof(hasNearbyFriendlyNpc));
     }
@@ -189,9 +184,9 @@ internal sealed class EconomyService
     }
 
     /// <summary>
-    /// Runs a vendor operation at <paramref name="playerPos"/>: requires a friendly town NPC in reach (a forge for repair),
-    /// then applies it through the economy's vendor and records the changed slots. <paramref name="arg"/> is the item id
-    /// (buy) or slot index (sell, repair); <paramref name="quantity"/> is unused by repair.
+    /// Runs a vendor operation at <paramref name="playerPos"/>: requires a friendly town NPC in reach, then applies it
+    /// through the economy's vendor and records the changed slots. <paramref name="arg"/> is the item id (buy) or slot
+    /// index (sell).
     /// </summary>
     public OpStatus RunVendorOperation(
         PlayerState state,
@@ -209,10 +204,7 @@ internal sealed class EconomyService
             return OpStatus.Forbidden;
         }
 
-        bool inRange = operation == VendorOperation.Repair
-            ? _inventory.IsNearForgeStation(playerPos)
-            : _hasNearbyFriendlyNpc(playerPos, VendorRangeSq);
-        if (!inRange)
+        if (!_hasNearbyFriendlyNpc(playerPos, VendorRangeSq))
         {
             return OpStatus.OutOfRange;
         }
@@ -227,7 +219,6 @@ internal sealed class EconomyService
             VendorOperation.Buy => economy.Vendor.TryBuy(
                 state.Wallet, state.Inventory, arg, quantity, tick, Math.Min(PlayerInventoryLayout.BagLimit, state.Inventory.Capacity), state.Level).Status,
             VendorOperation.Sell => economy.Vendor.TrySellSlot(state.Wallet, state.Inventory, arg, quantity, tick).Status,
-            VendorOperation.Repair => economy.Vendor.TryRepair(state.Wallet, state.Inventory, arg, tick).Status,
             _ => OpStatus.Invalid,
         };
         if (status != OpStatus.Ok)

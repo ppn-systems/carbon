@@ -28,10 +28,9 @@ public readonly record struct EconomyResult(OpStatus Status, EconomyError Error)
     {
         EconomyError.None => OpStatus.Ok,
         EconomyError.InvalidAmount or EconomyError.SameWallet or EconomyError.CraftRejected => OpStatus.Invalid,
-        EconomyError.InsufficientFunds or EconomyError.BalanceCapExceeded or EconomyError.InsufficientItems
-            or EconomyError.AlreadyRepaired => OpStatus.Conflict,
+        EconomyError.InsufficientFunds or EconomyError.BalanceCapExceeded or EconomyError.InsufficientItems => OpStatus.Conflict,
         EconomyError.UnknownItem => OpStatus.NotFound,
-        EconomyError.NotForSale or EconomyError.NotRepairable => OpStatus.Forbidden,
+        EconomyError.NotForSale => OpStatus.Forbidden,
         EconomyError.InventoryFull => OpStatus.InventoryFull,
         _ => OpStatus.Invalid
     };

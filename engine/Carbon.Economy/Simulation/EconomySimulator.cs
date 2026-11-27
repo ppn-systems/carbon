@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using Carbon.Contracts.Common;
 using Carbon.Economy.Config;
 using Carbon.Economy.Currency;
 using Carbon.Economy.Loot;
@@ -12,6 +13,7 @@ using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
 using Carbon.Items.Definitions;
+using Carbon.Items.Repair;
 using Carbon.Primitives.Random;
 
 namespace Carbon.Economy.Simulation;
@@ -242,9 +244,12 @@ public sealed class EconomySimulator
         float loss = ToolUsagePolicy.EvaluateCombatStrike(_economy.ItemRules, in slot).DurabilityLoss * strikesPerKill;
         ItemSlot worn = slot with { Durability = MathF.Max(0f, slot.Durability - loss) };
         gear.SetSlot(0, worn);
-        if (worn.Durability * 100f < item.MaxDurability * model.RepairBelowPercent)
+        // The blacksmith's gold fee for a full repair (repair.json, ADR-028); materials are gathered, not bought.
+        if (worn.Durability * 100f < item.MaxDurability * model.RepairBelowPercent &&
+            _economy.ItemRules.Repair.TryQuoteFull(in worn, RepairVenue.Blacksmith, out RepairQuote quote) == RepairError.None &&
+            wallet.TrySpend(CurrencyKind.Gold, quote.GoldFee, CurrencyReason.Repair, tick).IsOk)
         {
-            _ = _economy.Vendor.TryRepair(wallet, gear, 0, tick);
+            gear.SetSlot(0, worn with { Durability = quote.NewDurability });
         }
     }
 
