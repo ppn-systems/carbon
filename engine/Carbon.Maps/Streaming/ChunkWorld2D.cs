@@ -36,6 +36,7 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     private readonly TileWalkabilityGrid _navGrid;
     private readonly WorldCollision _collision;
     private readonly Lazy<(int X, int Y)> _spawn;
+    private readonly List<int> _respawnKeysScratch = [];
 
     /// <summary>
     /// Gets the spatial building grid managing constructed structures, connected walls, and doors.
@@ -332,50 +333,133 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     /// <param name="currentTick">Current simulation tick.</param>
     /// <returns>The total number of props respawned.</returns>
     public int ProcessPropRespawns(ulong currentTick) =>
-        this.ProcessPropRespawns(currentTick, respawnedProps: null);
+        this.ProcessPropRespawns(currentTick, blockedRetryTicks: 1UL, isTileBlocked: null, respawnedProps: null);
 
     /// <summary>
-    /// Restores any destroyed props whose scheduled respawn tick has been reached and optionally collects
-    /// the restored world tile coordinates &amp; max durability for network replication.
+    /// Restores any destroyed props whose scheduled respawn tick has been reached and optionally collects the restored
+    /// world tile coordinates &amp; max durability for network replication. A prop never comes back inside a structure or
+    /// on a construction site, or on a tile <paramref name="isTileBlocked"/> reports (e.g. a player standing there): its respawn moves
+    /// <paramref name="blockedRetryTicks"/> later instead. Allocation-free once the destination has capacity: a resident
+    /// chunk gets its prop back at full durability in place, and a chunk that is not resident regenerates it from the seed
+    /// when it next loads.
     /// </summary>
+    /// <param name="currentTick">Current simulation tick.</param>
+    /// <param name="blockedRetryTicks">Ticks a blocked respawn waits before it is tried again (at least 1).</param>
+    /// <param name="isTileBlocked">Optional check of a world tile (X, Y) the caller knows is occupied.</param>
+    /// <param name="respawnedProps">Optional destination for the restored props.</param>
+    /// <returns>The total number of props respawned.</returns>
     public int ProcessPropRespawns(
         ulong currentTick,
+        ulong blockedRetryTicks,
+        Func<int, int, bool>? isTileBlocked,
         List<(int TileX, int TileY, uint Revision, float MaxDurability)>? respawnedProps)
     {
         int respawned = 0;
-        List<int>? localKeys = respawnedProps is not null ? [] : null;
+        ulong retryAt = currentTick + Math.Max(1UL, blockedRetryTicks);
         lock (_gate)
         {
             ReadOnlySpan<ChunkDelta> all = _deltas.All;
             for (int i = 0; i < all.Length; i++)
             {
                 ChunkDelta delta = all[i];
-                localKeys?.Clear();
-                int expired = delta.RemoveExpiredPropStates(currentTick, localKeys);
-                if (expired > 0)
+                if (delta.PendingRespawnCount == 0)
                 {
-                    respawned += expired;
-                    _streamer.RebuildIfResident(delta.ChunkX, delta.ChunkY);
+                    continue;
+                }
 
-                    if (respawnedProps is not null && localKeys is not null && _streamer.TryGet(delta.ChunkX, delta.ChunkY, out Chunk2D? chunk) && chunk is not null)
+                _respawnKeysScratch.Clear();
+                if (delta.CollectDueRespawns(currentTick, _respawnKeysScratch) == 0)
+                {
+                    continue;
+                }
+
+                bool resident = _streamer.TryGet(delta.ChunkX, delta.ChunkY, out Chunk2D? chunk) && chunk is not null;
+                int baseTx = delta.ChunkX * Chunk2D.Size;
+                int baseTy = delta.ChunkY * Chunk2D.Size;
+                for (int k = 0; k < _respawnKeysScratch.Count; k++)
+                {
+                    int key = _respawnKeysScratch[k];
+                    int lx = key & Chunk2D.SizeMask;
+                    int ly = key >> Chunk2D.SizeBits;
+                    int tx = baseTx + lx;
+                    int ty = baseTy + ly;
+                    if ((_buildings.TryGetStructure(tx, ty, out StructureTile structure) && structure.IsOccupied) ||
+                        _construction.IsReserved(tx, ty) ||
+                        (isTileBlocked is not null && isTileBlocked(tx, ty)))
                     {
-                        int baseTx = delta.ChunkX * Chunk2D.Size;
-                        int baseTy = delta.ChunkY * Chunk2D.Size;
-                        for (int k = 0; k < localKeys.Count; k++)
-                        {
-                            int key = localKeys[k];
-                            int lx = key & Chunk2D.SizeMask;
-                            int ly = key >> Chunk2D.SizeBits;
-                            int pIdx = chunk.FindPropIndexAt(lx, ly);
-                            float maxDur = pIdx >= 0 ? chunk.Props[pIdx].Destructibility.MaxDurability : 100f;
-                            respawnedProps.Add((baseTx + lx, baseTy + ly, delta.Revision, maxDur));
-                        }
+                        delta.DeferRespawn(key, retryAt);
+                        continue;
                     }
+
+                    if (!delta.CompleteRespawn(key))
+                    {
+                        continue;
+                    }
+
+                    respawned++;
+                    int pIdx = resident ? chunk!.FindPropIndexAt(lx, ly) : -1;
+                    float maxDur = 100f;
+                    if (pIdx >= 0)
+                    {
+                        MapProp prop = chunk!.Props[pIdx];
+                        PropDestructibility state = prop.Destructibility;
+                        maxDur = state.MaxDurability;
+                        chunk.SetProp(pIdx, prop with { Destructibility = state with { CurrentDurability = maxDur, IsDestroyed = false } });
+                    }
+
+                    respawnedProps?.Add((tx, ty, delta.Revision, maxDur));
                 }
             }
+
+            _respawnKeysScratch.Clear();
         }
 
         return respawned;
+    }
+
+    /// <summary>
+    /// Schedules the respawn of every destroyed prop read from a storage row older than format 4 (which kept no timers;
+    /// see <see cref="ChunkDelta.HasUnscheduledLegacyRespawns"/>). Each such chunk is generated once to learn the prop types.
+    /// Cold path: run once after loading the deltas.
+    /// </summary>
+    /// <param name="delayTicks">Ticks until a destroyed prop of a type on a world tile comes back (0 = never).</param>
+    /// <param name="currentTick">Current simulation tick.</param>
+    /// <param name="rescheduledChunks">Receives the packed key of every chunk that changed, so it can be saved again.</param>
+    /// <returns>The number of props scheduled.</returns>
+    public int ScheduleLegacyRespawns(Func<MapPropType, int, int, ulong> delayTicks, ulong currentTick, ICollection<long> rescheduledChunks)
+    {
+        ArgumentNullException.ThrowIfNull(delayTicks);
+        ArgumentNullException.ThrowIfNull(rescheduledChunks);
+        int scheduled = 0;
+        ReadOnlySpan<ChunkDelta> all = _deltas.All;
+        for (int i = 0; i < all.Length; i++)
+        {
+            ChunkDelta delta = all[i];
+            if (!delta.HasUnscheduledLegacyRespawns)
+            {
+                continue;
+            }
+
+            Chunk2D chunk = this.GetOrCreateChunk(delta.ChunkX, delta.ChunkY);
+            int baseTx = delta.ChunkX * Chunk2D.Size;
+            int baseTy = delta.ChunkY * Chunk2D.Size;
+            lock (_gate)
+            {
+                scheduled += delta.ScheduleLegacyRespawns(
+                    key =>
+                    {
+                        int lx = key & Chunk2D.SizeMask;
+                        int ly = key >> Chunk2D.SizeBits;
+                        int index = chunk.FindPropIndexAt(lx, ly);
+                        return index >= 0 ? delayTicks(chunk.Props[index].Type, baseTx + lx, baseTy + ly) : 0UL;
+                    },
+                    currentTick);
+            }
+
+            rescheduledChunks.Add(delta.Key);
+        }
+
+        return scheduled;
     }
 
     /// <summary>

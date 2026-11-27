@@ -531,7 +531,7 @@ public sealed class VillageGenerationTests
         ChunkWorld2D restored = new(new ProceduralWorldGenerator(gen.Seed));
         foreach (ChunkDelta delta in world.Deltas)
         {
-            restored.ImportDelta(ChunkDelta.Deserialize(delta.Serialize()));
+            restored.ImportDelta(ChunkDelta.Deserialize(delta.Serialize(currentTick: 0), currentTick: 0));
         }
 
         Assert.Equal(world.Buildings.StructureCount, restored.Buildings.StructureCount);

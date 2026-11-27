@@ -14,5 +14,6 @@
     <ItemGroup>
         <EmbeddedResource Include="..\..\resources\config\structures.json" LogicalName="Carbon.Maps.Building.structures.json" Link="Building\structures.json" />
         <EmbeddedResource Include="..\..\resources\config\village_buildings.json" LogicalName="Carbon.Maps.Settlements.village_buildings.json" Link="Settlements\village_buildings.json" />
+        <EmbeddedResource Include="..\..\resources\config\props.json" LogicalName="Carbon.Maps.Props.props.json" Link="Props\props.json" />
     </ItemGroup>
 </Project>

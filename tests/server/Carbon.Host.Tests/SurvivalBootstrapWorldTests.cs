@@ -36,6 +36,13 @@ public sealed class SurvivalBootstrapWorldTests
     private const float TileSize = 32f;
     private const ulong Connection = 811UL;
 
+    /// <summary>
+    /// The shipped forage delay, with felled oaks back after 30 s instead of 45 min so the axe can be compared with bare
+    /// hands on the same tree.
+    /// </summary>
+    private static readonly PropRegrowthRules s_regrowth = PropRegrowthRules.LoadFromJson(
+        """{ "spawnForage": { "respawnSeconds": 45 }, "blockedRetrySeconds": 10, "regrowSeconds": { "oakTree": 30 } }""");
+
     [Fact]
     public async Task EmptyHandedCharacter_GathersAtSpawnCraftsWoodAxe_AndThenChopsATreeFaster()
     {
@@ -86,7 +93,7 @@ public sealed class SurvivalBootstrapWorldTests
             PickUpNewLoot(world, sink);
             Count(world, StarterGameCatalog.WoodLog).Should().BePositive("a punched-down tree drops its logs");
 
-            StepTicks(world, 30 * 31);
+            StepTicks(world, 30 * (30 + 1));
             world.TrySelectHotbarSlot(Connection, (byte)axeSlot).Should().Be(OpStatus.Ok);
             int chops = StrikeUntilGone(world, tree);
 
@@ -123,7 +130,7 @@ public sealed class SurvivalBootstrapWorldTests
                 PickUpNewLoot(world, sink);
             }
 
-            // 2. Punched wood: two oaks felled with bare hands. Bushes regrow, so pick them again until there is fiber
+            // 2. Punched wood: two oaks felled with bare hands. Spawn forage regrows fast, so pick it again until there is fiber
             //    for two ropes and the sword's binding.
             foreach ((int X, int Y) tree in FindProps(mirror, spawnTile, 40, MapPropType.OakTree).Take(2))
             {
@@ -135,7 +142,7 @@ public sealed class SurvivalBootstrapWorldTests
             uint fiber = items.ResolveId("plant_fiber");
             for (int round = 0; round < 4 && Count(world, fiber) < 8; round++)
             {
-                StepTicks(world, 30 * 31);
+                StepTicks(world, 30 * ((int)world.PropRegrowth.SpawnForageRespawnSeconds + 1));
                 foreach ((int X, int Y) bush in FindProps(mirror, spawnTile, 9, MapPropType.DryBush))
                 {
                     WalkTo(world, sink, TileCenter(bush));
@@ -191,7 +198,7 @@ public sealed class SurvivalBootstrapWorldTests
         SqliteAccountStore accounts = new(factory);
         SqliteCharacterStore characters = new(factory);
         AuthoritativeWorldMultiplayerTests.RecordingOutboundSink sink = new();
-        AuthoritativeWorld world = new(Seed, TileSize, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), characters, sink, entropy: TestGameplayEntropy.Create(Seed));
+        AuthoritativeWorld world = new(Seed, TileSize, 0.0008f, 30, new SqliteChunkDeltaRepository(factory), characters, sink, entropy: TestGameplayEntropy.Create(Seed), propRegrowth: s_regrowth);
         await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
         Vector2 spawn = world.DefaultSpawnWorldPosition;

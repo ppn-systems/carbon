@@ -128,7 +128,7 @@ public sealed partial class AuthoritativeWorld
             if ((_currentTick % this.TickRate) == 0UL)
             {
                 _respawnedPropsScratch.Clear();
-                if (_chunkWorld.ProcessPropRespawns(_currentTick, _respawnedPropsScratch) > 0)
+                if (_chunkWorld.ProcessPropRespawns(_currentTick, _propRegrowth.BlockedRetryTicks(this.TickRate), _isPropTileBlocked, _respawnedPropsScratch) > 0)
                 {
                     for (int i = 0; i < _respawnedPropsScratch.Count; i++)
                     {
@@ -283,7 +283,7 @@ public sealed partial class AuthoritativeWorld
                             cy,
                             delta.Revision,
                             delta.GeneratorVersion,
-                            delta.Serialize(),
+                            delta.Serialize(_currentTick),
                             now));
                     }
                 }

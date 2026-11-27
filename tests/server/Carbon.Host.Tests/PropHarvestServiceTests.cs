@@ -14,6 +14,7 @@ using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
 using Carbon.Maps.Building;
+using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
@@ -77,6 +78,32 @@ public sealed class PropHarvestServiceTests
         h.Outbound.Pending.SlotChanges.Should().ContainSingle();
     }
 
+    [Theory]
+    [InlineData(900UL, true)]
+    [InlineData(0UL, false)]
+    public void Strike_BreakingTheProp_SchedulesItsConfiguredRegrowth(ulong delayTicks, bool comesBack)
+    {
+        Harness h = new() { RegrowDelayTicks = delayTicks };
+        (int tx, int ty, MapProp prop) = h.FindDestructibleProp();
+        ItemSlot tool = h.StrongestToolFor(prop);
+
+        PropStrikeResult last = default;
+        for (int i = 0; i < 200 && !last.Prop.Destructibility.IsDestroyed; i++)
+        {
+            _ = h.Chunks.TryGetPropAt(tx, ty, out MapProp current);
+            last = h.Props.Strike(h.Player, tx, ty, in current, in tool, replicateToolWear: false, out _);
+        }
+
+        last.Prop.Destructibility.IsDestroyed.Should().BeTrue();
+        h.Chunks.TryGetDelta(Chunk2D.ToChunkCoord(tx), Chunk2D.ToChunkCoord(ty), out ChunkDelta? delta).Should().BeTrue();
+        bool scheduled = delta!.TryGetRespawnTick(Chunk2D.ToLocalCoord(tx), Chunk2D.ToLocalCoord(ty), out ulong at);
+        scheduled.Should().Be(comesBack, "the regrowth delay comes from props.json, 0 meaning never");
+        if (comesBack)
+        {
+            at.Should().Be(100UL + delayTicks, "the prop comes back the configured ticks after it broke");
+        }
+    }
+
     [Fact]
     public void IsWithinHarvestRange_UsesTheTileCenterAndTheSwingReach()
     {
@@ -108,7 +135,7 @@ public sealed class PropHarvestServiceTests
                 this.Simulation,
                 this.Chunks,
                 TileSize,
-                30,
+                (_, _, _) => this.RegrowDelayTicks,
                 () => this.Rules,
                 () => 100UL,
                 loot,
@@ -127,6 +154,9 @@ public sealed class PropHarvestServiceTests
         }
 
         public ItemRules Rules { get; } = ItemRules.LoadShippedDefaults();
+
+        /// <summary>Gets or sets the regrowth delay every destroyed prop is scheduled with (0 = never comes back).</summary>
+        public ulong RegrowDelayTicks { get; set; } = 900UL;
 
         public WorldSimulation Simulation { get; } = new();
 

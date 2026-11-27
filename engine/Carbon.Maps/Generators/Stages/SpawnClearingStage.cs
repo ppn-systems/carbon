@@ -39,6 +39,27 @@ public sealed class SpawnClearingStage : IChunkStage
 
     private readonly Lazy<(int X, int Y)> _spawn;
 
+    /// <summary>
+    /// Gets whether <paramref name="type"/> is starter forage this clearing places (loose stones, fallen branches, dry
+    /// bushes). They respawn fast inside the clearing (ADR-040 D3) so a new player never runs out.
+    /// </summary>
+    /// <param name="type">The prop type.</param>
+    /// <returns><see langword="true"/> for a starter forage type.</returns>
+    public static bool IsStarterForage(MapPropType type) =>
+        type is MapPropType.LooseStones or MapPropType.FallenBranch or MapPropType.DryBush;
+
+    /// <summary>Gets whether a world tile lies inside the clearing around <paramref name="spawn"/>.</summary>
+    /// <param name="spawn">The spawn tile.</param>
+    /// <param name="tileX">World tile X.</param>
+    /// <param name="tileY">World tile Y.</param>
+    /// <returns><see langword="true"/> within <see cref="Radius"/> tiles of the spawn tile.</returns>
+    public static bool IsInClearing((int X, int Y) spawn, int tileX, int tileY)
+    {
+        long dx = (long)tileX - spawn.X;
+        long dy = (long)tileY - spawn.Y;
+        return (dx * dx) + (dy * dy) <= Radius * Radius;
+    }
+
     /// <summary>Initializes a new instance of the <see cref="SpawnClearingStage"/> class.</summary>
     /// <param name="spawn">The spawn tile, computed lazily once.</param>
     public SpawnClearingStage(Lazy<(int X, int Y)> spawn) => _spawn = spawn ?? throw new ArgumentNullException(nameof(spawn));

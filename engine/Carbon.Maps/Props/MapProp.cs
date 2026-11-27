@@ -83,6 +83,25 @@ public readonly record struct MapProp(
         _ => this.WorldPositionY + (this.CollisionRadius > 0.001f ? this.CollisionRadius : this.Radius)
     };
 
+    /// <summary>Gets whether <paramref name="type"/> is a standing tree (it has a canopy and a trunk collider).</summary>
+    /// <param name="type">The prop type.</param>
+    /// <returns><see langword="true"/> for a tree.</returns>
+    public static bool IsTree(MapPropType type) =>
+        type is MapPropType.OakTree or MapPropType.BirchTree or MapPropType.PineTree or MapPropType.SnowPine or MapPropType.PalmTree or
+            MapPropType.WillowTree or MapPropType.AcaciaTree or MapPropType.CherryBlossomTree;
+
+    /// <summary>Gets the category of a prop type: flora, mineral (stone and ore) or structure (landmarks).</summary>
+    /// <param name="type">The prop type.</param>
+    /// <returns>The category.</returns>
+    public static PropCategory CategoryOf(MapPropType type)
+    {
+        bool isFlora = IsTree(type) || type is MapPropType.DeadTree or MapPropType.Cactus or MapPropType.Bush or MapPropType.MushroomCluster or
+            MapPropType.DryBush or MapPropType.DuneGrass or MapPropType.FallenBranch;
+        bool isOre = type is MapPropType.LooseStones or MapPropType.CopperVein or MapPropType.IronVein or MapPropType.GoldVein or MapPropType.CoalDeposit or
+            MapPropType.SilverVein or MapPropType.CrystalCluster or MapPropType.GlacialCrystal or MapPropType.Boulder or MapPropType.BasaltPillar;
+        return isFlora ? PropCategory.Flora : (isOre ? PropCategory.Mineral : PropCategory.Structure);
+    }
+
     /// <summary>
     /// Creates a complete domain prop instance with explicit category, destructibility, collision radius, and canopy geometry.
     /// </summary>
@@ -119,12 +138,8 @@ public readonly record struct MapProp(
         uint colorSecondary,
         float scale = 1.0f)
     {
-        bool isTree = type is MapPropType.OakTree or MapPropType.BirchTree or MapPropType.PineTree or MapPropType.SnowPine or MapPropType.PalmTree or MapPropType.WillowTree or MapPropType.AcaciaTree or MapPropType.CherryBlossomTree;
-        bool isFlora = isTree || type is MapPropType.DeadTree or MapPropType.Cactus or MapPropType.Bush or MapPropType.MushroomCluster or
-            MapPropType.DryBush or MapPropType.DuneGrass or MapPropType.FallenBranch;
-        bool isOre = type is MapPropType.LooseStones or MapPropType.CopperVein or MapPropType.IronVein or MapPropType.GoldVein or MapPropType.CoalDeposit or MapPropType.SilverVein or MapPropType.CrystalCluster or MapPropType.GlacialCrystal or MapPropType.Boulder or MapPropType.BasaltPillar;
-
-        PropCategory category = isTree || isFlora ? PropCategory.Flora : (isOre ? PropCategory.Mineral : PropCategory.Structure);
+        bool isTree = IsTree(type);
+        PropCategory category = CategoryOf(type);
         PropDestructibility destruct = type switch
         {
             MapPropType.None or MapPropType.AncientShrine => PropDestructibility.Indestructible,

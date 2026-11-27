@@ -31,7 +31,8 @@ internal readonly record struct PropStrikeResult(bool Damaged, MapProp Prop, uin
 
 /// <summary>
 /// Harvesting natural props with tools (audit SOLID-1, extracted from <see cref="AuthoritativeWorld"/>): a strike wears the
-/// tool, damages the prop (respawning after 30 s), marks the chunk dirty and, when the prop breaks, drops its harvest and
+/// tool, damages the prop (scheduling its regrowth from <c>props.json</c>, ADR-040; stone and ore never come back), marks
+/// the chunk dirty and, when the prop breaks, drops its harvest and
 /// grants experience. The tick's swing fallback also probes around the aim point, tells clients when a prop resisted the
 /// tool, and lets tools damage structures. Called only under the world lock.
 /// </summary>
@@ -43,7 +44,7 @@ internal sealed class PropHarvestService
     private readonly WorldSimulation _simulation;
     private readonly ChunkWorld2D _chunkWorld;
     private readonly float _tileSize;
-    private readonly int _tickRate;
+    private readonly Func<MapPropType, int, int, ulong> _regrowDelayTicks;
     private readonly Func<ItemRules> _itemRules;
     private readonly Func<ulong> _currentTick;
     private readonly GroundLootService _groundLoot;
@@ -60,7 +61,7 @@ internal sealed class PropHarvestService
         WorldSimulation simulation,
         ChunkWorld2D chunkWorld,
         float tileSize,
-        int tickRate,
+        Func<MapPropType, int, int, ulong> regrowDelayTicks,
         Func<ItemRules> itemRules,
         Func<ulong> currentTick,
         GroundLootService groundLoot,
@@ -75,7 +76,7 @@ internal sealed class PropHarvestService
         _simulation = simulation ?? throw new ArgumentNullException(nameof(simulation));
         _chunkWorld = chunkWorld ?? throw new ArgumentNullException(nameof(chunkWorld));
         _tileSize = tileSize;
-        _tickRate = tickRate;
+        _regrowDelayTicks = regrowDelayTicks ?? throw new ArgumentNullException(nameof(regrowDelayTicks));
         _itemRules = itemRules ?? throw new ArgumentNullException(nameof(itemRules));
         _currentTick = currentTick ?? throw new ArgumentNullException(nameof(currentTick));
         _groundLoot = groundLoot ?? throw new ArgumentNullException(nameof(groundLoot));
@@ -133,7 +134,8 @@ internal sealed class PropHarvestService
             }
         }
 
-        ulong respawnAt = _currentTick() + (ulong)(_tickRate * 30);
+        ulong regrowDelay = _regrowDelayTicks(existing.Type, tileX, tileY);
+        ulong respawnAt = regrowDelay > 0UL ? _currentTick() + regrowDelay : 0UL;
         if (!_chunkWorld.TryDamagePropAt(tileX, tileY, eval.Damage, eval.EffectiveTier, respawnAt, out MapProp updated))
         {
             return new PropStrikeResult(false, existing, this.ChunkRevision(tileX, tileY), eval);

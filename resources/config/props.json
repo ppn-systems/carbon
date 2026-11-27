@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "spawnForage": { "respawnSeconds": 45 },
+  "blockedRetrySeconds": 10,
+  "regrowSeconds": {
+    "oakTree": 2700,
+    "pineTree": 2700,
+    "snowPine": 2700,
+    "palmTree": 2700,
+    "birchTree": 2700,
+    "willowTree": 2700,
+    "acaciaTree": 2700,
+    "cherryBlossomTree": 2700,
+    "deadTree": 2700,
+    "cactus": 900,
+    "bush": 600,
+    "mushroomCluster": 600,
+    "dryBush": 600,
+    "duneGrass": 600,
+    "fallenBranch": 600
+  }
+}

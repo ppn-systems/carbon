@@ -14,6 +14,7 @@ using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Items.Definitions;
 using Carbon.Items.Progression;
 using Carbon.Maps.Hydrology;
+using Carbon.Maps.Props;
 using Carbon.Server.Configuration;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
@@ -140,6 +141,31 @@ public sealed partial class ConfigHotReloadDomainsTests : IDisposable
 
         reload.Should().Throw<InvalidDataException>().WithMessage("*suffocating*");
         _world.WaterRules.Should().BeSameAs(before);
+    }
+
+    [Fact]
+    public void Reload_ChangedProps_SwapsTheRunningRegrowthRules()
+    {
+        PropRegrowthRules before = _world.PropRegrowth;
+        this.Edit("props.json", json => json.Replace("\"respawnSeconds\": 45", "\"respawnSeconds\": 60", StringComparison.Ordinal));
+
+        ConfigReloadResult result = _config.Reload();
+
+        result.Changed.Should().BeEquivalentTo("props");
+        _world.PropRegrowth.Should().NotBeSameAs(before);
+        _world.PropRegrowth.SpawnForageRespawnSeconds.Should().Be(60f, "a props.json edit applies without a restart (ADR-040 D4)");
+    }
+
+    [Fact]
+    public void Reload_PropsGivesOreARegrowthDelay_IsRejected()
+    {
+        PropRegrowthRules before = _world.PropRegrowth;
+        this.Edit("props.json", json => json.Replace("\"bush\": 600", "\"bush\": 600, \"ironVein\": 600", StringComparison.Ordinal));
+
+        Action reload = () => _config.Reload();
+
+        reload.Should().Throw<InvalidDataException>().WithMessage("*ironVein*");
+        _world.PropRegrowth.Should().BeSameAs(before);
     }
 
     [Fact]
