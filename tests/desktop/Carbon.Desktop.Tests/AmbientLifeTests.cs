@@ -3,6 +3,7 @@
 using System;
 using System.Numerics;
 using Carbon.Desktop.Rendering.Atmospherics;
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
 
@@ -70,14 +71,10 @@ public sealed class AmbientLifeTests
     [Fact]
     public void TryGetBird_EveryFrame_AllocatesNothing()
     {
-        _ = AmbientLife.TryGetBird(0, 0, 1f, s_min, s_max, out _);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 3000; i++)
-        {
-            _ = AmbientLife.TryGetBird(i % AmbientLife.FlockSlots, i % AmbientLife.BirdsPerFlock, i * 0.05f, s_min, s_max, out _);
-        }
+        AllocationResult window = AllocationProbe.Measure(3000, warmupIterations: 3000, i =>
+            _ = AmbientLife.TryGetBird(i % AmbientLife.FlockSlots, i % AmbientLife.BirdsPerFlock, i * 0.05f, s_min, s_max, out _));
 
-        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0);
+        window.Bytes.Should().Be(0, $"every bird is placed every frame ({window})");
     }
 
     // A flock slot and a time at which its leader has been flying for a while and keeps flying for 1 s more.
