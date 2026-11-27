@@ -223,7 +223,7 @@ public sealed class SurvivalBootstrapWorldTests
         Vector2 spawn = world.DefaultSpawnWorldPosition;
         using AuthService auth = new(accounts, characters, new Pbkdf2PasswordHasher());
         AuthOutcome account = await auth.RegisterAsync("bootstrap", "secret-pass", CarbonProtocol.Version).ConfigureAwait(true);
-        CharacterCreateResult created = await auth.CreateCharacterAsync(account.AccountId, "Bootstrap", 0, spawn.X, spawn.Y).ConfigureAwait(true);
+        CharacterCreateResult created = await auth.CreateCharacterAsync(account.AccountId, "Bootstrap", TestLooks.Human, spawn.X, spawn.Y).ConfigureAwait(true);
         created.Succeeded.Should().BeTrue();
         CharacterRecord hero = (await characters.FindByIdAsync(created.Character!.Id).ConfigureAwait(true))!;
         world.TryEnterWorld(Connection, hero).Status.Should().Be(OpStatus.Ok);

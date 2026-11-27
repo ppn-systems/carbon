@@ -9,7 +9,7 @@ namespace Carbon.Desktop.Rendering.VectorArt;
 /// </summary>
 public interface IVectorArtRepository
 {
-    /// <summary>Gets total loaded character appearance rigs.</summary>
+    /// <summary>Gets total loaded character body rigs.</summary>
     int CharacterCount { get; }
 
     /// <summary>Gets total loaded monster rigs.</summary>
@@ -30,8 +30,16 @@ public interface IVectorArtRepository
     /// <summary>Gets total loaded structure blueprints.</summary>
     int StructureCount { get; }
 
-    /// <summary>Resolves a playable character rig by appearance preset (<c>0..3</c>).</summary>
-    bool TryGetCharacter(byte preset, [NotNullWhen(true)] out CompiledVectorRig? rig);
+    /// <summary>Gets the first playable character rig of the catalog, drawn when a look names no loaded rig.</summary>
+    CompiledVectorRig? DefaultCharacterRig { get; }
+
+    /// <summary>
+    /// Resolves a playable character rig by its art-relative file, as <c>races.json</c> names it per body type (ADR-042).
+    /// </summary>
+    /// <param name="rigFile">Rig file relative to the art root (e.g. <c>characters/base_hero.cvg.json</c>).</param>
+    /// <param name="rig">The compiled rig.</param>
+    /// <returns><see langword="true"/> when the catalog declares that file under <c>characters</c>.</returns>
+    bool TryGetCharacterRig(string rigFile, [NotNullWhen(true)] out CompiledVectorRig? rig);
 
     /// <summary>Resolves a monster rig by archetype ID (<c>101..107</c>).</summary>
     bool TryGetMonster(ushort archetypeId, [NotNullWhen(true)] out CompiledVectorRig? rig);

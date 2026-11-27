@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Items.Races;
 using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
@@ -105,7 +106,7 @@ internal sealed class WorldEntityOverlayRenderer
                 continue;
             }
 
-            Vector2 crownWorld = ResolveHeadCrownWorld(in r, art);
+            Vector2 crownWorld = ResolveHeadCrownWorld(in r, art, world.Races.Current);
             Vector2 screenPt = cameraRig.Camera.WorldToScreen(in crownWorld);
             if (screenPt.X < -90f || screenPt.X > viewportWidth + 90f || screenPt.Y < -70f || screenPt.Y > viewportHeight + 70f)
             {
@@ -219,7 +220,7 @@ internal sealed class WorldEntityOverlayRenderer
                 continue;
             }
 
-            Vector2 crownWorld = ResolveHeadCrownWorld(in r, art);
+            Vector2 crownWorld = ResolveHeadCrownWorld(in r, art, world.Races.Current);
             Vector2 screenPt = cameraRig.Camera.WorldToScreen(in crownWorld);
             if (screenPt.X < -90f || screenPt.X > viewportWidth + 90f || screenPt.Y < -70f || screenPt.Y > viewportHeight + 70f)
             {
@@ -262,7 +263,7 @@ internal sealed class WorldEntityOverlayRenderer
         }
     }
 
-    private static Vector2 ResolveHeadCrownWorld(in RemoteEntityView remote, IVectorArtRepository? art)
+    private static Vector2 ResolveHeadCrownWorld(in RemoteEntityView remote, IVectorArtRepository? art, RaceCatalog? races)
     {
         float radius = remote.Radius > 0f ? remote.Radius : 7f;
         float footY = remote.Position.Y + radius;
@@ -278,7 +279,7 @@ internal sealed class WorldEntityOverlayRenderer
             {
                 worldHeight = nr.WorldHeight;
             }
-            else if (remote.Kind == EntityKind.Player && art.TryGetCharacter((byte)remote.ArchetypeId, out CompiledVectorRig? cr))
+            else if (remote.Kind == EntityKind.Player && CharacterLookResolver.TryResolve(art, races, remote.Look, out CompiledVectorRig? cr, out _) && cr is not null)
             {
                 worldHeight = cr.WorldHeight;
             }

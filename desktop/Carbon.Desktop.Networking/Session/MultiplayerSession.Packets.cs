@@ -434,10 +434,7 @@ public sealed partial class MultiplayerSession
             _tileSize = enter.TileSize > 0f ? enter.TileSize : 32f;
             _tickRate = enter.TickRate > 0 ? enter.TickRate : (ushort)30;
             _localNetworkId = enter.PlayerNetworkId;
-            if (enter.AppearancePreset != 0)
-            {
-                _localAppearancePreset = enter.AppearancePreset;
-            }
+            _ = CharacterLook.TryCreate(enter.RaceId, enter.BodyType, enter.AppearanceOptions, out _localLook);
 
             // The world swap runs on the main thread, before the chunk deltas requested next (same FIFO inbox), so the
             // renderer never sees ChunkWorld2D/WorldSimulation replaced mid-frame (audit TS-2). Only plain values are
@@ -765,7 +762,7 @@ public sealed partial class MultiplayerSession
             {
                 _localHealth = pkt.CurrentHealth;
                 _localMaxHealth = pkt.MaxHealth > 0f ? pkt.MaxHealth : 100f;
-                _localAppearancePreset = (byte)pkt.ArchetypeId;
+                _ = CharacterLook.TryCreate(pkt.RaceId, pkt.BodyType, pkt.AppearanceOptions, out _localLook);
                 _localLevel = Math.Max((ushort)1, pkt.Level);
             }
 

@@ -16,52 +16,20 @@ internal static class ModularCharacterOverlays
 {
     private static readonly ColorRgba s_outline = new(20, 24, 36, 255);
 
-    private static readonly ColorRgba[] s_skinBases =
-    [
-        new(245, 198, 165, 255), // Fair
-        new(230, 169, 125, 255), // Warm Tan
-        new(198, 134, 92, 255),  // Olive Bronze
-        new(141, 85, 36, 255),   // Deep Umber
-    ];
-
-    private static readonly ColorRgba[] s_skinShadows =
-    [
-        new(212, 155, 120, 255),
-        new(190, 130, 88, 255),
-        new(158, 98, 62, 255),
-        new(102, 58, 22, 255),
-    ];
-
-    private static readonly ColorRgba[] s_hairMains =
-    [
-        new(28, 32, 46, 255),    // Midnight Raven
-        new(113, 63, 18, 255),   // Chestnut Brown
-        new(234, 179, 8, 255),   // Golden Blonde
-        new(203, 213, 225, 255), // Silver Ash
-    ];
-
-    private static readonly ColorRgba[] s_hairHighlights =
-    [
-        new(68, 76, 102, 255),
-        new(161, 98, 7, 255),
-        new(253, 224, 71, 255),
-        new(241, 245, 249, 255),
-    ];
-
     /// <summary>Substitutes tagged semantic skin/hair/eye shape roles on modular rigs.</summary>
-    public static ColorRgba ResolveModularColor(in CompiledVectorShape shape, byte appearancePreset, bool supportsModularHuman)
+    /// <remarks>The colours come from the look's <c>races.json</c> options (ADR-042), resolved into <paramref name="palette"/>.</remarks>
+    public static ColorRgba ResolveModularColor(in CompiledVectorShape shape, in CharacterPalette palette, bool supportsModularHuman)
     {
         if (!supportsModularHuman || shape.Role == VectorPaletteRole.None)
         {
             return shape.Color;
         }
 
-        int tone = (appearancePreset >> 6) & 0x03;
         return shape.Role switch
         {
-            VectorPaletteRole.Skin => s_skinBases[tone],
-            VectorPaletteRole.SkinShadow => s_skinShadows[tone],
-            VectorPaletteRole.Hair => s_hairMains[(appearancePreset >> 2) & 0x03],
+            VectorPaletteRole.Skin => palette.Skin,
+            VectorPaletteRole.SkinShadow => palette.SkinShadow,
+            VectorPaletteRole.Hair => palette.Hair,
             VectorPaletteRole.None or VectorPaletteRole.Eye or _ => shape.Color,
         };
     }
@@ -181,49 +149,51 @@ internal static class ModularCharacterOverlays
         ref readonly BonePose bodyPose = ref bones[(int)VectorBoneId.Body];
         bool isRobe = chestId == StarterGameCatalog.CrystalRobe;
 
+        // Body-bone pieces follow the body's torso width (ADR-042 D11); arm pieces follow the arm bones.
+        float tsx = sx * rig.TorsoWidthScale;
         Span<Vector2> plate = stackalloc Vector2[4];
         float bottomY = isRobe ? -7.2f : -10.8f;
         float bottomW = isRobe ? 6.6f : 5.5f;
-        FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-6.7f, -21.3f), (6.7f, -21.3f), (bottomW, bottomY), (-bottomW, bottomY));
+        FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (-6.7f, -21.3f), (6.7f, -21.3f), (bottomW, bottomY), (-bottomW, bottomY));
         ColorRgba outlineCol = ApplyFlash(s_outline, hitFlash * 0.45f);
-        DrawOutlinedPoly(batch, plate, bodyCol, outlineCol, 1.1f * MathF.Abs(sx), hitFlash);
+        DrawOutlinedPoly(batch, plate, bodyCol, outlineCol, 1.1f * MathF.Abs(tsx), hitFlash);
 
         if (!isNorth)
         {
-            float absScale = MathF.Abs(sx);
+            float absScale = MathF.Abs(tsx);
             if (isRobe)
             {
                 // Arcane robe V-lapel & glowing diamond clasp
-                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-3.6f, -20.8f), (3.6f, -20.8f), (1.8f, -13.0f), (-1.8f, -13.0f));
+                FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (-3.6f, -20.8f), (3.6f, -20.8f), (1.8f, -13.0f), (-1.8f, -13.0f));
                 batch.FillConvexPolygon(plate, ApplyFlash(highCol, hitFlash));
-                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-1.6f, -20.8f), (1.6f, -20.8f), (1.2f, -8.0f), (-1.2f, -8.0f));
+                FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (-1.6f, -20.8f), (1.6f, -20.8f), (1.2f, -8.0f), (-1.2f, -8.0f));
                 batch.FillConvexPolygon(plate, ApplyFlash(trimCol, hitFlash));
-                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (0f, -19.2f), (1.9f, -17.3f), (0f, -15.4f), (-1.9f, -17.3f));
+                FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (0f, -19.2f), (1.9f, -17.3f), (0f, -15.4f), (-1.9f, -17.3f));
                 DrawOutlinedPoly(batch, plate, gemCol, outlineCol, 0.9f * absScale, hitFlash);
             }
             else if (chestId == StarterGameCatalog.IronChestplate)
             {
                 // Sculpted steel cuirass highlight + center ridge + riveted belt
-                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-4.8f, -20.4f), (4.8f, -20.4f), (3.2f, -13.4f), (-3.2f, -13.4f));
+                FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (-4.8f, -20.4f), (4.8f, -20.4f), (3.2f, -13.4f), (-3.2f, -13.4f));
                 batch.FillConvexPolygon(plate, ApplyFlash(highCol, hitFlash));
-                Vector2 ridgeTop = Transform(new Vector2(0f, -20.4f), bodyPivot, bodyPose, origin, sx, sy);
-                Vector2 ridgeBot = Transform(new Vector2(0f, -13.2f), bodyPivot, bodyPose, origin, sx, sy);
+                Vector2 ridgeTop = Transform(new Vector2(0f, -20.4f), bodyPivot, bodyPose, origin, tsx, sy);
+                Vector2 ridgeBot = Transform(new Vector2(0f, -13.2f), bodyPivot, bodyPose, origin, tsx, sy);
                 batch.DrawLine(ridgeTop, ridgeBot, ApplyFlash(outlineCol, hitFlash * 0.5f), 1.0f * absScale);
-                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-5.7f, -12.0f), (5.7f, -12.0f), (5.7f, -9.8f), (-5.7f, -9.8f));
+                FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (-5.7f, -12.0f), (5.7f, -12.0f), (5.7f, -9.8f), (-5.7f, -9.8f));
                 batch.FillConvexPolygon(plate, ApplyFlash(new ColorRgba(51, 65, 85, 255), hitFlash));
-                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-1.5f, -12.3f), (1.5f, -12.3f), (1.5f, -9.5f), (-1.5f, -9.5f));
+                FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (-1.5f, -12.3f), (1.5f, -12.3f), (1.5f, -9.5f), (-1.5f, -9.5f));
                 DrawOutlinedPoly(batch, plate, trimCol, outlineCol, 0.9f * absScale, hitFlash);
             }
             else
             {
                 // Tunic / leather brigandine chest panel + diagonal baldric strap + brass buckle
-                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-4.4f, -20.2f), (4.4f, -20.2f), (3.4f, -13.2f), (-3.4f, -13.2f));
+                FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (-4.4f, -20.2f), (4.4f, -20.2f), (3.4f, -13.2f), (-3.4f, -13.2f));
                 batch.FillConvexPolygon(plate, ApplyFlash(highCol, hitFlash));
-                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-5.6f, -21.0f), (-3.0f, -21.0f), (5.2f, -11.4f), (2.6f, -11.4f));
+                FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (-5.6f, -21.0f), (-3.0f, -21.0f), (5.2f, -11.4f), (2.6f, -11.4f));
                 DrawOutlinedPoly(batch, plate, new ColorRgba(92, 46, 14, 255), outlineCol, 0.85f * absScale, hitFlash);
-                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-5.7f, -12.0f), (5.7f, -12.0f), (5.7f, -9.8f), (-5.7f, -9.8f));
+                FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (-5.7f, -12.0f), (5.7f, -12.0f), (5.7f, -9.8f), (-5.7f, -9.8f));
                 batch.FillConvexPolygon(plate, ApplyFlash(new ColorRgba(69, 26, 3, 255), hitFlash));
-                FillQuad(plate, bodyPivot, bodyPose, origin, sx, sy, (-1.3f, -12.2f), (1.3f, -12.2f), (1.3f, -9.6f), (-1.3f, -9.6f));
+                FillQuad(plate, bodyPivot, bodyPose, origin, tsx, sy, (-1.3f, -12.2f), (1.3f, -12.2f), (1.3f, -9.6f), (-1.3f, -9.6f));
                 DrawOutlinedPoly(batch, plate, trimCol, outlineCol, 0.85f * absScale, hitFlash);
             }
         }
@@ -231,7 +201,7 @@ internal static class ModularCharacterOverlays
         float absS = MathF.Abs(sx);
         Vector2 armFPivot = rig.GetBonePivot(VectorBoneId.ArmFront);
         ref readonly BonePose armFPose = ref bones[(int)VectorBoneId.ArmFront];
-        Vector2 pauldronPos = Transform(new Vector2(isSide ? 2.2f : 6.4f, -19.5f), armFPivot, armFPose, origin, sx, sy);
+        Vector2 pauldronPos = Transform(isSide ? new Vector2(2.2f, -19.5f) : armFPivot + new Vector2(0.2f, 0f), armFPivot, armFPose, origin, sx, sy);
         batch.FillCircle(pauldronPos, 3.2f * absS, outlineCol, 12);
         batch.FillCircle(pauldronPos, 2.4f * absS, ApplyFlash(trimCol, hitFlash), 12);
 
@@ -239,7 +209,7 @@ internal static class ModularCharacterOverlays
         {
             Vector2 armBPivot = rig.GetBonePivot(VectorBoneId.ArmBack);
             ref readonly BonePose armBPose = ref bones[(int)VectorBoneId.ArmBack];
-            Vector2 backPauldron = Transform(new Vector2(-6.4f, -19.5f), armBPivot, armBPose, origin, sx, sy);
+            Vector2 backPauldron = Transform(armBPivot + new Vector2(-0.2f, 0f), armBPivot, armBPose, origin, sx, sy);
             batch.FillCircle(backPauldron, 3.0f * absS, outlineCol, 12);
             batch.FillCircle(backPauldron, 2.2f * absS, ApplyFlash(highCol, hitFlash), 12);
         }
@@ -255,29 +225,22 @@ internal static class ModularCharacterOverlays
         bool isSouth,
         bool isSide,
         bool isNorth,
-        byte appearancePreset,
+        in CharacterPalette palette,
         ushort equippedHeadId,
         float hitFlash)
     {
         Vector2 headPivot = rig.GetBonePivot(VectorBoneId.Head);
         float absS = MathF.Abs(sx);
-        int hairStyle = appearancePreset & 0x03;
-        int hairColorIdx = (appearancePreset >> 2) & 0x03;
-        int faceStyle = (appearancePreset >> 4) & 0x03;
-        ColorRgba hairMain = s_hairMains[hairColorIdx];
-        ColorRgba hairHi = s_hairHighlights[hairColorIdx];
+        int hairStyle = palette.HairPart;
+        int faceStyle = palette.EyeStyle;
+        ColorRgba hairMain = palette.Hair;
+        ColorRgba hairHi = palette.HairHighlight;
         ColorRgba outlineCol = ApplyFlash(s_outline, hitFlash * 0.45f);
 
         bool closedVisor = equippedHeadId == StarterGameCatalog.IronHelmet;
         if (!isNorth && !closedVisor)
         {
-            ColorRgba irisColor = faceStyle switch
-            {
-                1 => new ColorRgba(220, 38, 38, 255),  // Fierce Crimson
-                2 => new ColorRgba(16, 185, 129, 255), // Calm Emerald
-                3 => new ColorRgba(56, 189, 248, 255), // Mystic Cyan
-                _ => new ColorRgba(30, 58, 138, 255),  // Cheerful Cobalt
-            };
+            ColorRgba irisColor = palette.Iris;
             float eyeH = faceStyle == 2 ? 1.15f : 1.55f;
             float browTilt = faceStyle == 1 ? 0.8f : -0.2f;
 

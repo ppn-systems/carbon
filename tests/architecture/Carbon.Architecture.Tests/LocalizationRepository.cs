@@ -115,6 +115,28 @@ internal static partial class LocalizationRepository
             }
         }
 
+        // races.json names every label it shows (ADR-042): races, body types, options and their choices.
+        using (JsonDocument races = JsonDocument.Parse(File.ReadAllText(Path.Combine(config, "races.json"))))
+        {
+            foreach (JsonElement race in races.RootElement.GetProperty("races").EnumerateArray())
+            {
+                keys.Add(race.GetProperty("nameKey").GetString()!);
+                foreach (JsonElement body in race.GetProperty("bodies").EnumerateArray())
+                {
+                    keys.Add(body.GetProperty("nameKey").GetString()!);
+                }
+
+                foreach (JsonElement option in race.GetProperty("options").EnumerateArray())
+                {
+                    keys.Add(option.GetProperty("nameKey").GetString()!);
+                    foreach (JsonElement choice in option.GetProperty("choices").EnumerateArray())
+                    {
+                        keys.Add(choice.GetProperty("nameKey").GetString()!);
+                    }
+                }
+            }
+        }
+
         foreach (Carbon.Maps.Biomes.BiomeType biome in Enum.GetValues<Carbon.Maps.Biomes.BiomeType>())
         {
             keys.Add(GameText.BiomeKey(biome));

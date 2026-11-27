@@ -58,7 +58,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
             Vector2 position = world.DefaultSpawnWorldPosition + (new Vector2(offsetTilesX, offsetTilesY) * 32f);
-            CharacterRecord hero = new(Guid.NewGuid(), Guid.NewGuid(), "Newcomer", 1, 0, position.X, position.Y, 100f, 100f, 0, [], DateTimeOffset.UtcNow);
+            CharacterRecord hero = new(Guid.NewGuid(), Guid.NewGuid(), "Newcomer", 1, default, position.X, position.Y, 100f, 100f, 0, [], DateTimeOffset.UtcNow);
             world.TryEnterWorld(connectionId: 77UL, hero).Status.Should().Be(OpStatus.Ok);
 
             // One second at 30 Hz: the entry scan must populate the heartland immediately, not after spawn intervals.
@@ -112,7 +112,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 Guid.NewGuid(),
                 "PlayerA",
                 1,
-                0,
+                default,
                 world.DefaultSpawnWorldPosition.X,
                 world.DefaultSpawnWorldPosition.Y,
                 100f,
@@ -125,7 +125,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 Guid.NewGuid(),
                 "PlayerB",
                 1,
-                1,
+                default,
                 world.DefaultSpawnWorldPosition.X + 64f,
                 world.DefaultSpawnWorldPosition.Y,
                 100f,
@@ -254,7 +254,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 Guid.NewGuid(),
                 "Scout",
                 1,
-                0,
+                default,
                 world.DefaultSpawnWorldPosition.X,
                 world.DefaultSpawnWorldPosition.Y,
                 100f,
@@ -425,7 +425,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 Guid.NewGuid(),
                 "Hardener",
                 1,
-                0,
+                default,
                 world.DefaultSpawnWorldPosition.X,
                 world.DefaultSpawnWorldPosition.Y,
                 100f,
@@ -520,7 +520,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 hunterX = ((probeX * 32) + 16) * 32f;
                 hunterY = 16f * 32f;
                 ulong cid = (ulong)(900 + probeX);
-                CharacterRecord rec = new(Guid.NewGuid(), Guid.NewGuid(), $"Ranger{probeX}", 1, 0, hunterX, hunterY, 120f, 120f, 2, rangerBytes, now, CurrentMana: 110f, MaxMana: 110f, Gold: 5_000);
+                CharacterRecord rec = new(Guid.NewGuid(), Guid.NewGuid(), $"Ranger{probeX}", 1, default, hunterX, hunterY, 120f, 120f, 2, rangerBytes, now, CurrentMana: 110f, MaxMana: 110f, Gold: 5_000);
                 world.TryEnterWorld(cid, rec).Status.Should().Be(OpStatus.Ok);
                 world.StepFixedTick();
 
@@ -566,7 +566,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
             // 3. Fire HuntingBow projectile from ~120px away towards discovered monster and step ticks until swept projectile hits.
             Vector2 shotOrigin = new(mobSpawn!.Value.PositionX - 110f, mobSpawn.Value.PositionY);
-            CharacterRecord sniper = new(Guid.NewGuid(), Guid.NewGuid(), "Sniper", 1, 0, shotOrigin.X, shotOrigin.Y, 120f, 120f, 2, rangerBytes, now, CurrentMana: 110f, MaxMana: 110f, Gold: 5_000);
+            CharacterRecord sniper = new(Guid.NewGuid(), Guid.NewGuid(), "Sniper", 1, default, shotOrigin.X, shotOrigin.Y, 120f, 120f, 2, rangerBytes, now, CurrentMana: 110f, MaxMana: 110f, Gold: 5_000);
             world.TryEnterWorld(950UL, sniper).Status.Should().Be(OpStatus.Ok);
             world.EnqueueAttackInput(950UL, 0UL, new Vector2(mobSpawn.Value.PositionX, mobSpawn.Value.PositionY), 2).Should().Be(OpStatus.Ok);
             for (int t = 0; t < 16; t++)
@@ -669,7 +669,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 accountId,
                 "Harvester",
                 Level: 1,
-                AppearancePreset: 0,
+                Look: default,
                 PositionX: ((tx + 0.5f) * 32f) + 40f,
                 PositionY: (ty + 0.5f) * 32f,
                 CurrentHealth: 100f,
@@ -735,7 +735,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 accountId,
                 "Saver",
                 Level: 1,
-                AppearancePreset: 0,
+                Look: default,
                 PositionX: world.DefaultSpawnWorldPosition.X,
                 PositionY: world.DefaultSpawnWorldPosition.Y,
                 CurrentHealth: 100f,
@@ -807,7 +807,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 accountId,
                 "ReachTester",
                 Level: 3,
-                AppearancePreset: 0,
+                Look: default,
                 PositionX: world.DefaultSpawnWorldPosition.X,
                 PositionY: world.DefaultSpawnWorldPosition.Y,
                 CurrentHealth: 120f,
@@ -920,7 +920,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);
             StarterGameCatalog.GrantStarterLoadout(bag);
             CharacterRecord template = new(
-                Guid.NewGuid(), Guid.NewGuid(), "Hunter", 1, 0, 0f, 0f, 100f, 100f, 2, InventoryBinaryCodec.Serialize(bag), DateTimeOffset.UtcNow);
+                Guid.NewGuid(), Guid.NewGuid(), "Hunter", 1, default, 0f, 0f, 100f, 100f, 2, InventoryBinaryCodec.Serialize(bag), DateTimeOffset.UtcNow);
 
             // Probe wilderness chunks until a monster backed by a loot table enters AoI.
             EntitySpawnSnapshot? mob = null;
@@ -1007,7 +1007,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);
             StarterGameCatalog.GrantStarterLoadout(bag);
             CharacterRecord template = new(
-                Guid.NewGuid(), Guid.NewGuid(), "Hunter", 1, 0, 0f, 0f, 30f, 100f, 2, InventoryBinaryCodec.Serialize(bag), DateTimeOffset.UtcNow);
+                Guid.NewGuid(), Guid.NewGuid(), "Hunter", 1, default, 0f, 0f, 30f, 100f, 2, InventoryBinaryCodec.Serialize(bag), DateTimeOffset.UtcNow);
 
             EntitySpawnSnapshot? mob = null;
             for (int probeX = 1; probeX <= 12 && mob is null; probeX++)
@@ -1087,7 +1087,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
             inv.SetSlot(0, new ItemSlot(economy.Items.ResolveId(foodCode), 3));
             CharacterRecord hero = new(
-                Guid.NewGuid(), Guid.NewGuid(), "Glutton", 1, 0,
+                Guid.NewGuid(), Guid.NewGuid(), "Glutton", 1, default,
                 world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
                 100f, 100f, SelectedHotbarSlot: 0, InventoryBlob: InventoryBinaryCodec.Serialize(inv),
                 UpdatedAtUtc: DateTimeOffset.UtcNow);
@@ -1142,7 +1142,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
             CharacterRecord hero = new(
-                Guid.NewGuid(), Guid.NewGuid(), "Faster", 1, 0,
+                Guid.NewGuid(), Guid.NewGuid(), "Faster", 1, default,
                 world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
                 100f, 100f, 0, [], DateTimeOffset.UtcNow);
             EnterWorldResult enter = world.TryEnterWorld(connectionId: 701UL, hero);
@@ -1204,7 +1204,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             await world.InitializeFromStoreAsync().ConfigureAwait(true);
 
             CharacterRecord famished = new(
-                Guid.NewGuid(), accountId, "Famished", 1, 0,
+                Guid.NewGuid(), accountId, "Famished", 1, default,
                 world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
                 100f, 100f, 0, [], now,
                 NeedsFood: 20f, NeedsMalnutrition: 0.3f, NeedsPoisonSeconds: 30f);
@@ -1277,7 +1277,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
             inv.SetSlot(5, new ItemSlot(rawMeat, 4));
             CharacterRecord hero = new(
-                Guid.NewGuid(), Guid.NewGuid(), "Hoarder", 1, 0,
+                Guid.NewGuid(), Guid.NewGuid(), "Hoarder", 1, default,
                 world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
                 100f, 100f, 0, InventoryBinaryCodec.Serialize(inv), DateTimeOffset.UtcNow);
             world.TryEnterWorld(920UL, hero).Status.Should().Be(OpStatus.Ok);
@@ -1331,7 +1331,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             inv.SetSlot(0, new ItemSlot(rawMeat, 1));
             inv.SetSlot(1, new ItemSlot(StarterGameCatalog.WoodLog, 10));
             CharacterRecord cook = new(
-                Guid.NewGuid(), Guid.NewGuid(), "Cook", 1, 0,
+                Guid.NewGuid(), Guid.NewGuid(), "Cook", 1, default,
                 world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
                 100f, 100f, SelectedHotbarSlot: 1, InventoryBlob: InventoryBinaryCodec.Serialize(inv),
                 UpdatedAtUtc: DateTimeOffset.UtcNow, Gold: 100);
@@ -1414,7 +1414,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             inv.TryAdd(new ItemSlot(economy.Items.ResolveId("wood_plank"), 20)).Should().Be(0);
             inv.TryAdd(new ItemSlot(StarterGameCatalog.WoodLog, 10)).Should().Be(0);
             CharacterRecord sleeper = new(
-                Guid.NewGuid(), accountId, "Sleeper", 1, 0,
+                Guid.NewGuid(), accountId, "Sleeper", 1, default,
                 world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
                 100f, 100f, 0, InventoryBinaryCodec.Serialize(inv), DateTimeOffset.UtcNow, NeedsRest: 50f);
             (await characters.TryCreateAsync(sleeper).ConfigureAwait(true)).Should().BeTrue();
@@ -1559,7 +1559,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             bag.SetSlot(0, new ItemSlot(StarterGameCatalog.WoodAxe, 1, 0, 10f)); // worn, so the blacksmith has work
             bag.SetSlot(8, new ItemSlot(plantFiber, 4));
             CharacterRecord trader = new(
-                Guid.NewGuid(), accountId, "Trader", 1, 0,
+                Guid.NewGuid(), accountId, "Trader", 1, default,
                 world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
                 100f, 100f, 0, InventoryBinaryCodec.Serialize(bag), now,
                 Gold: 500, Diamonds: 2, WalletSequence: 7, DiamondPity: 42);
@@ -1631,7 +1631,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
                 Guid.NewGuid(),
                 "Scout",
                 1,
-                0,
+                default,
                 world.DefaultSpawnWorldPosition.X,
                 world.DefaultSpawnWorldPosition.Y,
                 5000f,
@@ -1728,7 +1728,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
             bag.SetSlot(1, new ItemSlot(economy.Items.ResolveId("coal"), 2));
             bag.SetSlot(2, new ItemSlot(economy.Items.ResolveId("iron_ore"), 2));
             CharacterRecord smith = new(
-                Guid.NewGuid(), Guid.NewGuid(), "Smith", (ushort)copper!.UnlockLevel, 0,
+                Guid.NewGuid(), Guid.NewGuid(), "Smith", (ushort)copper!.UnlockLevel, default,
                 world.DefaultSpawnWorldPosition.X, world.DefaultSpawnWorldPosition.Y,
                 100f, 100f, 0, InventoryBinaryCodec.Serialize(bag), DateTimeOffset.UtcNow, Gold: 100);
             world.TryEnterWorld(990UL, smith).Status.Should().Be(OpStatus.Ok);
@@ -1800,6 +1800,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
         public List<(ulong ConnectionId, ushort Level, uint Experience, float Defense, ushort VitPoints, byte Skill1Rank)> StatsSyncs { get; } = [];
         public List<(ulong CasterNetworkId, byte AbilitySlot)> SkillCasts { get; } = [];
         public List<(ulong ConnectionId, AttackPhaseSnapshot Snapshot)> AttackPhases { get; } = [];
+        public Dictionary<ulong, PlayerStatsSnapshot> LatestStats { get; } = [];
         public List<(ulong ConnectionId, long Gold, long Diamonds, ulong Sequence)> WalletSyncs { get; } = [];
         public List<(ulong[] Recipients, string PlayerName, ushort ItemId, EnhancementOutcome Outcome, byte Level)> Announcements { get; } = [];
 
@@ -1898,6 +1899,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
         public void SendPlayerStatsSync(ulong connectionId, in PlayerStatsSnapshot snapshot)
         {
+            this.LatestStats[connectionId] = snapshot;
             this.NeedsSyncs.Add((connectionId, snapshot.Needs));
             CharacterProgressionState prog = new();
             _ = CharacterProgressionBinaryCodec.TryDeserializeInto(snapshot.ProgressionBlob ?? [], prog);

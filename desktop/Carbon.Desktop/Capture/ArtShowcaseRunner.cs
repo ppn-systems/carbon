@@ -249,6 +249,7 @@ internal static class ArtShowcaseRunner
             RenderDayNightEliteSheet(window, geom, sprites, font, art, ortho, Path.Combine(outputDir, "monsters_day_night_elite.bmp"));
             HeroAttackFilmstrip.Render(window, geom, sprites, font, art, ortho, Path.Combine(outputDir, "hero_attacks.bmp"));
             HeroImpactFilmstrip.Render(window, geom, sprites, font, art, ortho, Path.Combine(outputDir, "hero_impact.bmp"));
+            HeroBodySheet.Render(window, geom, sprites, font, art, ortho, Path.Combine(outputDir, "hero_bodies.bmp"));
         }
         finally
         {

@@ -61,7 +61,7 @@ internal static class HeroImpactFilmstrip
     /// <param name="path">Output BMP path.</param>
     public static void Render(IGameWindow window, GeometryBatch geom, SpriteBatch sprites, BitmapFont font, CarbonVectorArtLibrary art, Matrix4x4 ortho, string path)
     {
-        if (!art.TryGetCharacter(0, out CompiledVectorRig? hero) || !art.TryGetMonster(SlimeRigId, out CompiledVectorRig? slime))
+        if (art.DefaultCharacterRig is not { } hero || !art.TryGetMonster(SlimeRigId, out CompiledVectorRig? slime))
         {
             return;
         }

@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using Carbon.Contracts.Common;
+using Carbon.Contracts.Identity;
 
 namespace Carbon.Abstractions.World;
 
@@ -17,7 +18,7 @@ namespace Carbon.Abstractions.World;
 /// <param name="PositionY">Spawned world Y coordinate.</param>
 /// <param name="ServerTick">Current server tick.</param>
 /// <param name="TickRate">Configured simulation tick rate.</param>
-/// <param name="AppearancePreset">Saved character appearance preset identifier.</param>
+/// <param name="Look">Saved character look (ADR-042).</param>
 /// <param name="SelectedHotbarSlot">Persisted active hotbar slot index.</param>
 /// <param name="Level">Current character progression level.</param>
 /// <param name="Experience">Accumulated XP within the current level.</param>
@@ -44,7 +45,7 @@ public readonly record struct EnterWorldResult(
     float PositionY,
     ulong ServerTick,
     ushort TickRate,
-    byte AppearancePreset = 0,
+    CharacterLook Look = default,
     byte SelectedHotbarSlot = 0,
     ushort Level = 1,
     uint Experience = 0U,

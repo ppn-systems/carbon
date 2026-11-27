@@ -123,7 +123,7 @@ public sealed class PlayerDeathTests
     }
 
     private static CharacterRecord Character(string name) =>
-        new(Guid.NewGuid(), Guid.NewGuid(), name, 1, 0, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
+        new(Guid.NewGuid(), Guid.NewGuid(), name, 1, default, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
 
     private sealed class FixedTime(DateTimeOffset now) : TimeProvider
     {

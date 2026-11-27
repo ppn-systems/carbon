@@ -67,7 +67,7 @@ internal static class HeroAttackFilmstrip
         Matrix4x4 ortho,
         string path)
     {
-        if (!art.TryGetCharacter(0, out CompiledVectorRig? rig))
+        if (art.DefaultCharacterRig is not { } rig)
         {
             return;
         }

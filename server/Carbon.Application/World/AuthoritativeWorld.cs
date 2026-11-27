@@ -41,6 +41,7 @@ using Carbon.Economy.Loot;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Progression;
+using Carbon.Items.Races;
 using Carbon.Items.Serialization;
 using Carbon.Items.Systems;
 using Carbon.Maps.Building;
@@ -126,6 +127,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly Func<int, int, bool> _isPropTileBlocked;
     private readonly Func<int, int, bool> _isPropTileWatched;
     private PropRegrowthRules _propRegrowth;
+    private RaceCatalog _races = RaceCatalog.LoadShippedDefaults();
     private readonly Entity[] _combatHitScratch = new Entity[32];
 
     private ulong _nextNetworkId = 1000UL;
@@ -323,6 +325,10 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// New prop regrowth rules (<c>props.json</c>, ADR-040), or <see langword="null"/> to keep them; props already
     /// waiting keep their scheduled tick.
     /// </param>
+    /// <param name="races">
+    /// New race catalog (<c>races.json</c>, ADR-042), or <see langword="null"/> to keep it; connected players' race stat
+    /// changes are re-read and their stats recomputed.
+    /// </param>
     public void ApplyGameData(
         GameEconomy? economy,
         NeedsConfig needsConfig,
@@ -331,7 +337,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         StatusEffectCatalog? statusEffects = null,
         StaminaConfig? stamina = null,
         WaterRules? water = null,
-        PropRegrowthRules? propRegrowth = null)
+        PropRegrowthRules? propRegrowth = null,
+        RaceCatalog? races = null)
     {
         ArgumentNullException.ThrowIfNull(needsConfig);
         ArgumentNullException.ThrowIfNull(foodCatalog);
@@ -340,6 +347,17 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _economy = economy;
             _itemRules = economy?.ItemRules ?? _itemRules;
             _needs.Reconfigure(needsConfig, foodCatalog);
+            if (races is not null)
+            {
+                _races = races;
+                foreach (PlayerState player in _players.ByConnection.Values)
+                {
+                    player.RaceModifiers = races.GetStatModifiers(player.SourceCharacter.Look);
+                    _progressionService.RecomputeDerivedStats(player);
+                    player.StatsDirty = true;
+                }
+            }
+
             _progressionService.Reconfigure(progression, _players.ByConnection.Values);
             if (statusEffects is not null)
             {
@@ -359,6 +377,18 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             if (propRegrowth is not null)
             {
                 _propRegrowth = propRegrowth;
+            }
+        }
+    }
+
+    /// <summary>Gets the playable races the server validates looks against (ADR-042).</summary>
+    public RaceCatalog Races
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _races;
             }
         }
     }
@@ -568,7 +598,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             CharacterProgressionState startProg = CharacterPersistence.LoadProgression(character);
             bool refunded = _progressionService.RefundIfOverBudget(startLevel, startProg);
 
-            DerivedCharacterStats stats = CharacterStatCalculator.Compute(_itemRules, _progressionService.Config, startLevel, inventory, selectedSlot, startProg);
+            StatBlock? raceModifiers = _races.GetStatModifiers(character.Look);
+            DerivedCharacterStats stats = CharacterStatCalculator.Compute(_itemRules, _progressionService.Config, startLevel, inventory, selectedSlot, startProg, raceModifiers);
             float startHp = diedBeforeLogout ? stats.MaxHealth : MathF.Min(stats.MaxHealth, MathF.Max(1f, character.CurrentHealth));
             _simulation.Entities.SetHealth(entity, new HealthComponent(startHp, stats.MaxHealth));
             _simulation.Entities.SetComponent(entity, _needs.Restore(character));
@@ -601,6 +632,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
             PlayerState playerState = new(session, entity, character, inventory)
             {
+                RaceModifiers = raceModifiers,
                 Level = startLevel,
                 Experience = character.Experience,
                 Stats = stats,
@@ -639,7 +671,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
                 spawnPos.Y,
                 _currentTick,
                 this.TickRate,
-                character.AppearancePreset,
+                character.Look,
                 selectedSlot,
                 startLevel,
                 character.Experience,
@@ -836,7 +868,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             return new SpawnIdentity(
                 EntityKind.Player,
                 state.Session.CharacterName,
-                state.SourceCharacter.AppearancePreset,
+                0,
                 (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.HeadSlot).ItemId,
                 (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.ChestSlot).ItemId,
                 (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.LegsSlot).ItemId,
@@ -844,7 +876,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
                 (ushort)held.ItemId,
                 state.Level,
                 0,
-                ItemEnhancementPolicy.GetUpgradeLevel(in held));
+                ItemEnhancementPolicy.GetUpgradeLevel(in held),
+                Look: state.SourceCharacter.Look);
         }
 
         if (_actorsByNetworkId.TryGetValue(networkId, out NpcActorMeta meta))

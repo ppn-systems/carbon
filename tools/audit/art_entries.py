@@ -155,7 +155,7 @@ def main() -> int:
     live["uiIcons"] = {k: k for k in icons}
     live_where["uiIcons"] = "TryGetUiIcon literals + status_effects.json"
 
-    key_field = {"characters": "preset", "monsters": "archetypeId", "npcs": "archetypeId", "items": "itemId",
+    key_field = {"characters": "file", "monsters": "archetypeId", "npcs": "archetypeId", "items": "itemId",
                  "props": "propType", "biomes": "biomeId", "structures": "structureType", "uiIcons": "id"}
     referenced_files: set[str] = set()
     for section, entries in catalog.items():
