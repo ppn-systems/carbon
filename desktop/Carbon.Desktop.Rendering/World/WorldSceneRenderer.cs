@@ -1050,6 +1050,7 @@ public sealed class WorldSceneRenderer : IDisposable
         {
             MapTile tile = chunkWorld.GetTileAtWorld(tileX, tileY);
             bool occupied = chunkWorld.HasSolidPropAt(tileX, tileY) ||
+                chunkWorld.HasGrowingTreeAt(tileX, tileY) ||
                 chunkWorld.Buildings.TryGetStructure(tileX, tileY, out _) ||
                 tile.Biome is BiomeType.DeepOcean or BiomeType.ShallowWater ||
                 tile.IsSolid;

@@ -50,6 +50,7 @@ public static class ChunkDeltaPacketMapper
         ushort[] propIndices = propCount == 0 ? [] : new ushort[propCount];
         float[] propDurabilities = propCount == 0 ? [] : new float[propCount];
         bool[] propDestroyed = propCount == 0 ? [] : new bool[propCount];
+        byte[] propStages = propCount == 0 ? [] : new byte[propCount];
 
         int pi = 0;
         foreach (KeyValuePair<int, PropDestructibility> kvp in delta.PropStates)
@@ -57,6 +58,7 @@ public static class ChunkDeltaPacketMapper
             propIndices[pi] = (ushort)kvp.Key;
             propDurabilities[pi] = kvp.Value.CurrentDurability;
             propDestroyed[pi] = kvp.Value.IsDestroyed;
+            propStages[pi] = (byte)delta.GrowthStageAt(kvp.Key);
             pi++;
         }
 
@@ -133,6 +135,7 @@ public static class ChunkDeltaPacketMapper
             PropIndices = propIndices,
             PropDurabilities = propDurabilities,
             PropDestroyed = propDestroyed,
+            PropGrowthStages = propStages,
             StructureIndices = structIndices,
             StructureTypes = structTypes,
             StructureDurabilities = structDurabilities,
@@ -172,7 +175,7 @@ public static class ChunkDeltaPacketMapper
         }
 
         int propCount = packet.PropIndices.Length;
-        if (packet.PropDurabilities.Length != propCount || packet.PropDestroyed.Length != propCount)
+        if (packet.PropDurabilities.Length != propCount || packet.PropDestroyed.Length != propCount || packet.PropGrowthStages.Length != propCount)
         {
             throw new ArgumentException("Prop array lengths in MapChunkDelta must match PropIndices.", nameof(packet));
         }
@@ -249,7 +252,14 @@ public static class ChunkDeltaPacketMapper
                 CurrentDurability: destroyed ? 0f : durability,
                 HarvestTier: 1,
                 IsDestroyed: destroyed);
-            delta.SetPropState(lx, ly, state);
+            TreeGrowthStage stage = (TreeGrowthStage)packet.PropGrowthStages[i];
+            if (stage is not (TreeGrowthStage.Mature or TreeGrowthStage.Stump or TreeGrowthStage.Sapling or TreeGrowthStage.Young))
+            {
+                stage = TreeGrowthStage.Mature;
+            }
+
+            // The client keeps no growth timers or tree types: the server replicates every stage change.
+            delta.SetPropState(lx, ly, state, 0UL, new TreeGrowth(stage, MapPropType.None));
         }
 
         for (int i = 0; i < structCount; i++)

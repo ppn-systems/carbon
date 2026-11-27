@@ -99,6 +99,40 @@ public sealed class MapMutationApplierTests
     }
 
     [Fact]
+    public void ApplyPropChanged_TreeFelledToAStump_BreaksLikeADestroyedPropAndLeavesTheStump()
+    {
+        (int x, int y, MapProp tree) = this.FindTree();
+        this.Hold(this.FindChopTool(tree.Destructibility.HarvestTier));
+
+        _applier.ApplyPropChanged(_world, x, y, 30f, isDestroyed: false, TreeGrowthStage.Stump, _inventory, HotbarSlot, _items);
+
+        _world.TryGetPropAt(x, y, out MapProp stump).Should().BeTrue();
+        stump.GrowthStage.Should().Be(TreeGrowthStage.Stump, "ADR-040: a felled tree is a stump the client draws");
+        stump.Destructibility.IsDestroyed.Should().BeFalse();
+        stump.Destructibility.CurrentDurability.Should().Be(30f, "the stump has its own durability scale");
+        stump.HasCanopy.Should().BeFalse();
+        _impacts.Should().ContainSingle().Which.IsDestroyed.Should().BeTrue("felling shows the break feedback");
+    }
+
+    [Fact]
+    public void ApplyPropChanged_StumpGrowsIntoASapling_IsQuiet()
+    {
+        (int x, int y, MapProp tree) = this.FindTree();
+        _applier.ApplyPropChanged(_world, x, y, 30f, isDestroyed: false, TreeGrowthStage.Stump, _inventory, HotbarSlot, _items);
+        _impacts.Clear();
+        _combat.Clear();
+
+        _applier.ApplyPropChanged(_world, x, y, 10f, isDestroyed: false, TreeGrowthStage.Sapling, _inventory, HotbarSlot, _items);
+
+        _world.TryGetPropAt(x, y, out MapProp sapling).Should().BeTrue();
+        sapling.GrowthStage.Should().Be(TreeGrowthStage.Sapling);
+        sapling.Type.Should().Be(tree.Type);
+        _impacts.Should().BeEmpty("growth is not a hit");
+        _combat.Should().BeEmpty();
+        _hud.Should().BeEmpty();
+    }
+
+    [Fact]
     public void ApplyPropChanged_DuplicateDestroyPacket_DoesNotWarnAboutTheToolTier()
     {
         // A second "destroyed" update deals no damage; it must not be mistaken for a tier-blocked strike.
@@ -218,7 +252,7 @@ public sealed class MapMutationApplierTests
     }
 
     private void ApplyProp(int x, int y, float durability, bool isDestroyed) =>
-        _applier.ApplyPropChanged(_world, x, y, durability, isDestroyed, _inventory, HotbarSlot, _items);
+        _applier.ApplyPropChanged(_world, x, y, durability, isDestroyed, TreeGrowthStage.Mature, _inventory, HotbarSlot, _items);
 
     private void Hold(ItemArchetype item) =>
         _inventory.SetSlot(HotbarSlot, new ItemSlot(item.Id, 1, InstanceId: 1, Durability: MathF.Max(1f, item.MaxDurability)));
@@ -256,6 +290,22 @@ public sealed class MapMutationApplierTests
         }
 
         throw new InvalidOperationException($"seed 1337 has no destructible {category} prop of tier >= {minTier} near spawn");
+    }
+
+    private (int X, int Y, MapProp Prop) FindTree()
+    {
+        for (int y = -48; y < 48; y++)
+        {
+            for (int x = -48; x < 48; x++)
+            {
+                if (_world.TryGetPropAt(x, y, out MapProp prop) && MapProp.IsTree(prop.Type))
+                {
+                    return (x, y, prop);
+                }
+            }
+        }
+
+        throw new InvalidOperationException("seed 1337 has no tree near spawn");
     }
 
     private (int X, int Y) FindEmptyTile()

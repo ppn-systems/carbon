@@ -120,8 +120,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly List<ulong> _aoiRecipientsScratch = new(64);
     private readonly List<(ushort SlotIndex, ItemSlot Slot)> _mutationSlotScratch = new(8);
     private readonly List<(ushort SlotIndex, ItemSlot Slot)> _spoiledSlotsScratch = new(8);
-    private readonly List<(int TileX, int TileY, uint Revision, float MaxDurability)> _respawnedPropsScratch = new(16);
+    private readonly List<(int TileX, int TileY, uint Revision, float Durability, TreeGrowthStage Stage)> _respawnedPropsScratch = new(16);
     private readonly Func<int, int, bool> _isPropTileBlocked;
+    private readonly Func<int, int, bool> _isPropTileWatched;
     private PropRegrowthRules _propRegrowth;
     private readonly Entity[] _combatHitScratch = new Entity[32];
 
@@ -242,11 +243,15 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             () => _currentTick, state => this.MarkCharacterDirtyLocked(state, inventoryChanged: false), _commerce.QueueWalletSync, _entropy);
         _combat = new CombatService(_simulation, _chunkWorld, MonsterLayer, _outbound, this.CollectNearbyConnectionsAroundWorldLocked, this.OnMonsterKilledLocked, () => _currentTick);
         _isPropTileBlocked = this.IsPropTileBlockedLocked;
+        _isPropTileWatched = this.IsPropTileWatchedLocked;
         _props = new PropHarvestService(
             _simulation,
             _chunkWorld,
             this.TileSize,
             this.PropRegrowDelayTicksLocked,
+            () => _propRegrowth.Trees,
+            this.TickRate,
+            _entropy,
             () => _itemRules,
             () => _currentTick,
             _groundLoot,
@@ -1031,9 +1036,10 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
                 _currentTick = (ulong)Math.Round(seconds * this.TickRate);
             }
 
+            int staged = overrides.TreeStages ? this.StageTreesAroundLocked(spawnX, spawnY) : 0;
             string spawnText = movesSpawn ? $"{spawnX},{spawnY}" : "default";
             string hourText = overrides.StartHour?.ToString("0.##", CultureInfo.InvariantCulture) ?? "default";
-            return $"spawn={spawnText}, startHour={hourText}, startLevel={overrides.StartLevel?.ToString(CultureInfo.InvariantCulture) ?? "default"}";
+            return $"spawn={spawnText}, startHour={hourText}, startLevel={overrides.StartLevel?.ToString(CultureInfo.InvariantCulture) ?? "default"}, treeStages={staged}";
         }
     }
 }

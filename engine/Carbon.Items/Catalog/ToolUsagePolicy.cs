@@ -159,4 +159,43 @@ public static class ToolUsagePolicy
 
         return new PropStrikeEvaluation(dmg, tier, isDurabilityTool ? 1.0f : 0f, ToolStrikeOutcome.Optimal);
     }
+
+    /// <summary>
+    /// Evaluates a strike that digs up a tree stump (ADR-040 D1): a pickaxe digs at its full mineral damage, an axe at
+    /// <paramref name="axeEfficiency"/> of its wood damage, and bare hands (or anything else) at
+    /// <paramref name="bareHandDamage"/>, slowly but never blocked. A stump needs no tool tier. Tools wear as usual and a
+    /// blade dulls, as on wood.
+    /// </summary>
+    /// <param name="rules">Item tables.</param>
+    /// <param name="slot">The held item (empty: bare hands).</param>
+    /// <param name="bareHandDamage">Damage of a strike without a digging tool (<c>props.json</c> <c>trees.dig</c>).</param>
+    /// <param name="axeEfficiency">Share of an axe's wood damage dealt to a stump.</param>
+    /// <returns>The evaluation.</returns>
+    public static PropStrikeEvaluation EvaluateStumpDig(ItemRules rules, in ItemSlot slot, float bareHandDamage, float axeEfficiency)
+    {
+        ArgumentNullException.ThrowIfNull(rules);
+        if (slot.IsEmpty || !rules.Items.TryGet(slot.ItemId, out ItemArchetype? def))
+        {
+            return new PropStrikeEvaluation(bareHandDamage, 0, 0f, ToolStrikeOutcome.Optimal);
+        }
+
+        float upgradeMult = ItemEnhancementPolicy.GetStatMultiplier(ItemEnhancementPolicy.GetUpgradeLevel(in slot));
+        float wear = def.MaxDurability > 0f ? 1.0f : 0f;
+        if (def.Category == ItemCategory.Weapon)
+        {
+            return new PropStrikeEvaluation(bareHandDamage, 0, 4.5f, ToolStrikeOutcome.SwordMisuseOnWood);
+        }
+
+        if (def.Capabilities.HasFlag(ToolCapabilities.MineMineral))
+        {
+            return new PropStrikeEvaluation(MathF.Max(bareHandDamage, rules.GetMineralHarvestDamage(slot.ItemId) * upgradeMult), def.HarvestTier, wear, ToolStrikeOutcome.Optimal);
+        }
+
+        if (def.Capabilities.HasFlag(ToolCapabilities.ChopFlora))
+        {
+            return new PropStrikeEvaluation(MathF.Max(bareHandDamage, rules.GetFloraHarvestDamage(slot.ItemId) * axeEfficiency * upgradeMult), def.HarvestTier, wear, ToolStrikeOutcome.Optimal);
+        }
+
+        return new PropStrikeEvaluation(bareHandDamage, 0, wear, ToolStrikeOutcome.Optimal);
+    }
 }

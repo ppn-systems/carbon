@@ -7,6 +7,7 @@ using Carbon.Abstractions.World;
 using Carbon.Contracts.Common;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
+using Carbon.Maps.Props;
 
 namespace Carbon.Application.World.Replication;
 
@@ -46,7 +47,8 @@ internal readonly record struct OutboundPropChange(
     int TileX,
     int TileY,
     float Durability,
-    bool IsDestroyed);
+    bool IsDestroyed,
+    TreeGrowthStage GrowthStage = TreeGrowthStage.Mature);
 
 internal readonly record struct OutboundStructureChange(
     int RecipientsOffset,
@@ -295,7 +297,8 @@ internal sealed class OutboundTickBuffer
                 prop.TileX,
                 prop.TileY,
                 prop.Durability,
-                prop.IsDestroyed);
+                prop.IsDestroyed,
+                (byte)prop.GrowthStage);
         }
 
         for (int i = 0; i < batch.StructureChanges.Count; i++)

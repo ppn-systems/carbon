@@ -195,8 +195,11 @@ public interface IWorldOutboundSink
         float selfY,
         ReadOnlySpan<EntityDeltaEntry> entries);
 
-    /// <summary>Broadcasts a natural prop state update to connections in range.</summary>
-    void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, float durability, bool isDestroyed);
+    /// <summary>
+    /// Broadcasts a natural prop state update to connections in range, with its tree growth stage
+    /// (<c>Carbon.Maps.Props.TreeGrowthStage</c>: 0 for every prop that is not a growing tree; ADR-040).
+    /// </summary>
+    void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, float durability, bool isDestroyed, byte growthStage);
 
     /// <summary>Broadcasts a constructed structure update to connections in range.</summary>
     void SendStructureChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, byte structureType, byte doorState);

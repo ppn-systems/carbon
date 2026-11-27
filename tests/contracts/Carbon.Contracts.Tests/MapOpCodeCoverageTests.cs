@@ -86,6 +86,7 @@ public sealed class MapOpCodeCoverageTests
             RecordAnchorOffsets = [0x10],
             RecordRotations = [3],
             RecordFloorsBeneath = [5],
+            PropGrowthStages = [1],
         };
 
         byte[] bytes = original.Serialize();
@@ -98,6 +99,7 @@ public sealed class MapOpCodeCoverageTests
         Assert.Equal(original.TileTraits, copy.TileTraits);
         Assert.Equal(original.PropDurabilities, copy.PropDurabilities);
         Assert.Equal(original.PropDestroyed, copy.PropDestroyed);
+        Assert.Equal(original.PropGrowthStages, copy.PropGrowthStages);
         Assert.Equal(original.StructureIndices, copy.StructureIndices);
         Assert.Equal(original.StructureTypes, copy.StructureTypes);
         Assert.Equal(original.StructureDurabilities, copy.StructureDurabilities);

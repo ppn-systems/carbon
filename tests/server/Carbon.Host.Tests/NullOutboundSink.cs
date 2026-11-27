@@ -21,7 +21,7 @@ internal sealed class NullOutboundSink : IWorldOutboundSink
     {
     }
 
-    public void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, float durability, bool isDestroyed)
+    public void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, float durability, bool isDestroyed, byte growthStage)
     {
     }
 

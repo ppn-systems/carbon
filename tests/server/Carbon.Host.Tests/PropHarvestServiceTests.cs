@@ -136,6 +136,9 @@ public sealed class PropHarvestServiceTests
                 this.Chunks,
                 TileSize,
                 (_, _, _) => this.RegrowDelayTicks,
+                () => PropRegrowthRules.LoadEmbedded().Trees,
+                30,
+                TestGameplayEntropy.Create(Seed),
                 () => this.Rules,
                 () => 100UL,
                 loot,
@@ -174,7 +177,7 @@ public sealed class PropHarvestServiceTests
 
         public bool WearReturns { get; init; }
 
-        public (int TileX, int TileY, MapProp Prop) FindDestructibleProp(byte minimumTier = 0)
+        public (int TileX, int TileY, MapProp Prop) FindDestructibleProp(byte minimumTier = 0, bool trees = false)
         {
             for (int r = 0; r <= 96; r++)
             {
@@ -186,7 +189,8 @@ public sealed class PropHarvestServiceTests
                             this.Chunks.TryGetPropAt(dx, dy, out MapProp prop) &&
                             prop.Destructibility.IsDestructible &&
                             !prop.Destructibility.IsDestroyed &&
-                            prop.Destructibility.HarvestTier >= minimumTier)
+                            prop.Destructibility.HarvestTier >= minimumTier &&
+                            MapProp.IsTree(prop.Type) == trees)
                         {
                             return (dx, dy, prop);
                         }

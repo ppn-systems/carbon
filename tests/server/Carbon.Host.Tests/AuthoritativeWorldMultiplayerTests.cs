@@ -1854,7 +1854,7 @@ public sealed class AuthoritativeWorldMultiplayerTests
 
         public List<(int TileX, int TileY, float Durability)> PropChanges { get; } = [];
 
-        public void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, float durability, bool isDestroyed) =>
+        public void SendPropChanged(ReadOnlySpan<ulong> recipientConnectionIds, int tileX, int tileY, float durability, bool isDestroyed, byte growthStage) =>
             this.PropChanges.Add((tileX, tileY, durability));
 
         public List<(ulong ConnectionId, bool Exhausted, uint RefusalCount)> StaminaStatuses { get; } = [];

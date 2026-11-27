@@ -1010,6 +1010,14 @@
       "tier": 1,
       "accentColor": "#A8774A",
       "file": "items/plank_deck.cvg.json"
+    },
+    {
+      "itemId": 214,
+      "id": "sapling",
+      "displayName": "Sapling",
+      "tier": 1,
+      "accentColor": "#40916C",
+      "file": "items/sapling.cvg.json"
     }
   ],
   "props": [
@@ -1459,5 +1467,9 @@
       "id": "minimap_smith",
       "file": "ui/minimap_smith.cvg.json"
     }
-  ]
+  ],
+  "treeSapling": {
+    "id": "tree_sapling",
+    "file": "props/tree_sapling.cvg.json"
+  }
 }

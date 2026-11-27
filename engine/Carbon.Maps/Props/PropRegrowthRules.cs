@@ -12,7 +12,7 @@ namespace Carbon.Maps.Props;
 /// <summary>
 /// How long a harvested natural prop takes to come back, from <c>resources/config/props.json</c> (ADR-040). The server
 /// runs it (ADR-014). A prop type with no entry never comes back: stone, boulders and ore are permanent, and the infinite
-/// world replaces them with exploration. Starter forage in the spawn clearing comes back after its own short delay, so a
+/// world replaces them with exploration. Trees grow back through stages (<see cref="Trees"/>). Starter forage in the spawn clearing comes back after its own short delay, so a
 /// new player with an empty bag can always gather a first tool.
 /// </summary>
 public sealed class PropRegrowthRules
@@ -28,12 +28,16 @@ public sealed class PropRegrowthRules
 
     private readonly FrozenDictionary<MapPropType, float> _regrowSeconds;
 
-    private PropRegrowthRules(float spawnForageRespawnSeconds, float blockedRetrySeconds, FrozenDictionary<MapPropType, float> regrowSeconds)
+    private PropRegrowthRules(float spawnForageRespawnSeconds, float blockedRetrySeconds, FrozenDictionary<MapPropType, float> regrowSeconds, TreeGrowthRules trees)
     {
+        this.Trees = trees;
         this.SpawnForageRespawnSeconds = spawnForageRespawnSeconds;
         this.BlockedRetrySeconds = blockedRetrySeconds;
         _regrowSeconds = regrowSeconds;
     }
+
+    /// <summary>Gets how felled trees grow back through their stages (ADR-040 D1).</summary>
+    public TreeGrowthRules Trees { get; }
 
     /// <summary>Gets the seconds starter forage inside the spawn clearing takes to come back.</summary>
     public float SpawnForageRespawnSeconds { get; }
@@ -112,6 +116,12 @@ public sealed class PropRegrowthRules
                 foreach (JsonProperty entry in table.EnumerateObject())
                 {
                     MapPropType type = ParseType(entry.Name);
+                    if (MapProp.IsTree(type))
+                    {
+                        throw new InvalidDataException(
+                            $"props.json 'regrowSeconds.{entry.Name}': trees grow back through the 'trees' stages (ADR-040 D1).");
+                    }
+
                     if (MapProp.CategoryOf(type) != PropCategory.Flora)
                     {
                         throw new InvalidDataException(
@@ -127,12 +137,56 @@ public sealed class PropRegrowthRules
                 }
             }
 
-            return new PropRegrowthRules(forage, retry, regrow.ToFrozenDictionary());
+            _ = Required(root, "trees", out JsonElement trees);
+            return new PropRegrowthRules(forage, retry, regrow.ToFrozenDictionary(), ParseTrees(trees));
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
         {
             throw new InvalidDataException($"props.json is invalid: {ex.Message}", ex);
         }
+    }
+
+    private static TreeGrowthRules ParseTrees(JsonElement trees)
+    {
+        _ = Required(trees, "stump", out JsonElement stump);
+        _ = Required(trees, "sapling", out JsonElement sapling);
+        _ = Required(trees, "young", out JsonElement young);
+        _ = Required(trees, "mature", out JsonElement mature);
+        _ = Required(mature, "saplingDrops", out JsonElement drops);
+        _ = Required(trees, "dig", out JsonElement dig);
+        TreeStageRule stumpRule = Stage(stump, "trees.stump", "durability", 1f, 10_000f);
+        TreeStageRule saplingRule = Stage(sapling, "trees.sapling", "durability", 1f, 10_000f);
+        TreeStageRule youngRule = Stage(young, "trees.young", "durabilityShare", 0.05f, 1f);
+        int matureYield = Integer(mature, "yield", 0, 99, "trees.mature.yield");
+        int dropMin = Integer(drops, "min", 0, 20, "trees.mature.saplingDrops.min");
+        int dropMax = Integer(drops, "max", dropMin, 20, "trees.mature.saplingDrops.max");
+        float chance = Number(stump, "saplingChance");
+        Range(chance, 0f, 1f, "trees.stump.saplingChance");
+        int defer = Integer(trees, "deferWithinTiles", 0, 64, "trees.deferWithinTiles");
+        float bareHand = Number(dig, "bareHandDamage");
+        Range(bareHand, 0.1f, 10_000f, "trees.dig.bareHandDamage");
+        float axe = Number(dig, "axeEfficiency");
+        Range(axe, 0f, 1f, "trees.dig.axeEfficiency");
+        return new TreeGrowthRules(stumpRule, saplingRule, youngRule, matureYield, dropMin, dropMax, chance, defer, bareHand, axe);
+    }
+
+    private static TreeStageRule Stage(JsonElement stage, string name, string durabilityKey, float minDurability, float maxDurability)
+    {
+        float seconds = Number(stage, "seconds");
+        Range(seconds, 1f, MaxDelaySeconds, name + ".seconds");
+        float durability = Number(stage, durabilityKey);
+        Range(durability, minDurability, maxDurability, name + "." + durabilityKey);
+        return new TreeStageRule(seconds, durability, Integer(stage, "yield", 0, 99, name + ".yield"));
+    }
+
+    private static int Integer(JsonElement parent, string key, int min, int max, string name)
+    {
+        int value = parent.TryGetProperty(key, out JsonElement element)
+            ? element.GetInt32()
+            : throw new InvalidDataException($"props.json is missing '{name}'.");
+        return value >= min && value <= max
+            ? value
+            : throw new InvalidDataException($"props.json '{name}' = {value} is outside [{min}, {max}].");
     }
 
     private static MapPropType ParseType(string name)

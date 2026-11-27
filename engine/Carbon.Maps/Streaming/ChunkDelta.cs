@@ -22,6 +22,7 @@ public sealed class ChunkDelta
     private readonly Dictionary<int, MapTile> _tiles = new();
     private readonly Dictionary<int, PropDestructibility> _propStates = new();
     private readonly Dictionary<int, ulong> _propRespawnTicks = new();
+    private readonly Dictionary<int, TreeGrowth> _propStages = new();
     private List<int>? _unscheduledLegacyKeys;
     private readonly Dictionary<int, StructureTile> _structures = new();
     private readonly Dictionary<int, ConstructionSite> _sites = new();
@@ -110,11 +111,32 @@ public sealed class ChunkDelta
     /// <param name="localY">Local tile Y of the prop anchor.</param>
     /// <param name="state">The new prop state.</param>
     /// <param name="respawnAtTick">World tick after which the destroyed prop state expires (0 = permanent).</param>
-    public void SetPropState(int localX, int localY, PropDestructibility state, ulong respawnAtTick)
+    public void SetPropState(int localX, int localY, PropDestructibility state, ulong respawnAtTick) =>
+        this.SetPropState(localX, localY, state, respawnAtTick, default);
+
+    /// <summary>
+    /// Records a prop state override with its tree growth stage (ADR-040 D1) and an optional tick: for a destroyed prop,
+    /// when it comes back; for a growing tree (any stage but mature), when it grows into the next stage.
+    /// </summary>
+    /// <param name="localX">Local tile X of the prop anchor.</param>
+    /// <param name="localY">Local tile Y of the prop anchor.</param>
+    /// <param name="state">The new prop state.</param>
+    /// <param name="respawnAtTick">The tick it comes back or grows (0 = never).</param>
+    /// <param name="growth">The tree growth stage and type (<c>default</c>, mature, for every other prop).</param>
+    public void SetPropState(int localX, int localY, PropDestructibility state, ulong respawnAtTick, TreeGrowth growth)
     {
         int key = ToLocalIndex(localX, localY);
         _propStates[key] = state;
-        if (state.IsDestroyed && respawnAtTick > 0)
+        if (growth.Stage == TreeGrowthStage.Mature)
+        {
+            _ = _propStages.Remove(key);
+        }
+        else
+        {
+            _propStages[key] = growth;
+        }
+
+        if ((state.IsDestroyed || growth.Stage != TreeGrowthStage.Mature) && respawnAtTick > 0)
         {
             _propRespawnTicks[key] = respawnAtTick;
         }
@@ -125,6 +147,16 @@ public sealed class ChunkDelta
 
         this.Revision++;
     }
+
+    /// <summary>Gets the tree growth recorded for the prop on a local tile index (<c>default</c>, mature, when none is).</summary>
+    /// <param name="key">Local tile index.</param>
+    /// <returns>The stage and tree type.</returns>
+    public TreeGrowth GrowthAt(int key) => _propStages.TryGetValue(key, out TreeGrowth growth) ? growth : default;
+
+    /// <summary>Gets the tree growth stage recorded for the prop on a local tile index (mature when none is).</summary>
+    /// <param name="key">Local tile index.</param>
+    /// <returns>The stage.</returns>
+    public TreeGrowthStage GrowthStageAt(int key) => this.GrowthAt(key).Stage;
 
     /// <summary>Gets the number of destroyed props waiting for a scheduled respawn.</summary>
     public int PendingRespawnCount => _propRespawnTicks.Count;
@@ -172,6 +204,7 @@ public sealed class ChunkDelta
     internal bool CompleteRespawn(int key)
     {
         _ = _propRespawnTicks.Remove(key);
+        _ = _propStages.Remove(key);
         if (!_propStates.Remove(key))
         {
             return false;
@@ -364,14 +397,17 @@ public sealed class ChunkDelta
     // Storage format (little-endian): format, generator version, chunk X/Y, revision, tile edits, prop states, structures (v2+),
     // construction sites and structure records (v3+). v4 appends to each prop state the ticks left until it respawns
     // (0 = permanent), relative to the world tick at save time, because the world tick restarts at 0 with the server.
+    // v5 appends the tree growth stage and tree type (ADR-040 D1).
     private const byte LegacyFormatVersion = 1;
     private const byte StructuresFormatVersion = 2;
     private const byte ConstructionFormatVersion = 3;
-    private const byte FormatVersion = 4;
+    private const byte TimersFormatVersion = 4;
+    private const byte FormatVersion = 5;
     private const int HeaderSize = 1 + 2 + 4 + 4 + 4;
     private const int TileSize = 2 + 1 + 4 + 4 + 4 + 1 + 1 + 1;
     private const int LegacyPropSize = 2 + 1 + 4 + 4 + 1;
-    private const int PropSize = LegacyPropSize + 4;
+    private const int TimersPropSize = LegacyPropSize + 4;
+    private const int PropSize = TimersPropSize + 2;
     private const int StructureSize = 2 + 1 + 1 + 1 + 1 + 1 + 1 + 4 + 4 + 4;
     private const int SiteBaseSize = 2 + 1 + 1 + 1 + 1 + 1 + 8 + 4 + 1;
     private const int RecordSize = 2 + 8 + 1 + 1 + 1 + 1;
@@ -441,6 +477,9 @@ public sealed class ChunkDelta
             }
 
             BinaryPrimitives.WriteUInt32LittleEndian(span[(o + 12)..], ticksLeft);
+            TreeGrowth growth = this.GrowthAt(key);
+            span[o + 16] = (byte)growth.Stage;
+            span[o + 17] = (byte)growth.Type;
             o += PropSize;
         }
 
@@ -517,7 +556,7 @@ public sealed class ChunkDelta
     /// <exception cref="FormatException">The data is truncated, has an unknown format or bad tile indices.</exception>
     public static ChunkDelta Deserialize(ReadOnlySpan<byte> data, ulong currentTick)
     {
-        if (data.Length < HeaderSize + 4 || data[0] is not (LegacyFormatVersion or StructuresFormatVersion or ConstructionFormatVersion or FormatVersion))
+        if (data.Length < HeaderSize + 4 || data[0] is not (LegacyFormatVersion or StructuresFormatVersion or ConstructionFormatVersion or TimersFormatVersion or FormatVersion))
         {
             throw new FormatException("Unknown or truncated chunk delta.");
         }
@@ -548,7 +587,7 @@ public sealed class ChunkDelta
 
         int props = BinaryPrimitives.ReadUInt16LittleEndian(data[o..]);
         o += 2;
-        int propSize = format >= FormatVersion ? PropSize : LegacyPropSize;
+        int propSize = format >= FormatVersion ? PropSize : (format >= TimersFormatVersion ? TimersPropSize : LegacyPropSize);
         Require(data, o + (props * propSize));
         for (int i = 0; i < props; i++, o += propSize)
         {
@@ -561,12 +600,23 @@ public sealed class ChunkDelta
                 data[o + 11],
                 (flags & 2) != 0);
             delta._propStates[key] = state;
-            if (!state.IsDestroyed)
+            TreeGrowthStage stage = format >= FormatVersion ? (TreeGrowthStage)data[o + 16] : TreeGrowthStage.Mature;
+            if (stage is not (TreeGrowthStage.Mature or TreeGrowthStage.Stump or TreeGrowthStage.Sapling or TreeGrowthStage.Young))
+            {
+                throw new FormatException("Chunk delta prop growth stage is unknown.");
+            }
+
+            if (stage != TreeGrowthStage.Mature)
+            {
+                delta._propStages[key] = new TreeGrowth(stage, (MapPropType)data[o + 17]);
+            }
+
+            if (!state.IsDestroyed && stage == TreeGrowthStage.Mature)
             {
                 continue;
             }
 
-            if (format < FormatVersion)
+            if (format < TimersFormatVersion)
             {
                 // Rows before v4 kept no timer: the prop is rescheduled once its type is known (ScheduleLegacyRespawns).
                 (delta._unscheduledLegacyKeys ??= []).Add(key);
@@ -699,7 +749,7 @@ public sealed class ChunkDelta
             int index = chunk.FindPropIndexAt(kvp.Key & Chunk2D.SizeMask, kvp.Key >> Chunk2D.SizeBits);
             if (index >= 0)
             {
-                chunk.SetProp(index, chunk.Props[index] with { Destructibility = kvp.Value });
+                chunk.SetProp(index, chunk.Props[index] with { Destructibility = kvp.Value, GrowthStage = this.GrowthStageAt(kvp.Key) });
             }
         }
 
