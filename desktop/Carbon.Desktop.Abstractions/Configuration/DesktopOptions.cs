@@ -64,6 +64,12 @@ public sealed class DesktopOptions
     public (float X, float Y)? CaptureMouse { get; init; }
 
     /// <summary>
+    /// Gets or sets how many in-world frames to sample for the frame-stats log (<c>CARBON_FRAME_STATS=n</c>, 0 = off).
+    /// When set, <see cref="AutoExit"/> also waits for these frames.
+    /// </summary>
+    public int FrameStatsFrames { get; init; }
+
+    /// <summary>
     /// Gets or sets the forge animation to show for screenshot review (<c>CARBON_FORGE_PREVIEW</c>, e.g.
     /// <c>success:0.35</c>): <c>charge</c>, <c>success</c>, <c>nochange</c>, <c>downgrade</c> or <c>destroyed</c>, with an
     /// optional frozen time in seconds. It opens the forge window and plays the effect locally; nothing is sent to the
@@ -182,6 +188,10 @@ public sealed class DesktopOptions
             captureMouse = (cmx, cmy);
         }
 
+        int frameStatsFrames = int.TryParse(get("CARBON_FRAME_STATS"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedStats)
+            ? Math.Clamp(parsedStats, 0, 100_000)
+            : 0;
+
         (float X, float Y)? autoWalk = null;
         if (get("CARBON_AUTO_WALK") is { Length: > 0 } walk &&
             walk.Split(',') is [string wx, string wy] &&
@@ -229,6 +239,7 @@ public sealed class DesktopOptions
             TimeScale = timeScale,
             ScreenshotPath = screenshotPath,
             CaptureFrames = captureFrames,
+            FrameStatsFrames = frameStatsFrames,
             AutoExit = string.Equals(get("CARBON_AUTO_EXIT"), "1", StringComparison.Ordinal),
             AutoWalk = autoWalk,
             OpenPanel = get("CARBON_OPEN_PANEL") is { Length: > 0 } panel ? panel.Trim() : null,
