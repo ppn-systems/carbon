@@ -4,6 +4,7 @@ using Carbon.Contracts.Common;
 using Carbon.Economy.Crafting;
 using Carbon.Economy.Currency;
 using Carbon.Economy.Vendor;
+using Carbon.Items.Catalog;
 using Carbon.Items.Components;
 using Carbon.Items.Containers;
 using Carbon.Items.Crafting;
@@ -118,6 +119,30 @@ public sealed class VendorAndCheckoutTests
         bag.GetSlot(0).Durability.Should().Be(200f);
         vendor.TryRepair(wallet, bag, 0).Error.Should().Be(EconomyError.AlreadyRepaired);
         vendor.TryRepair(wallet, bag, 1).Error.Should().Be(EconomyError.NotRepairable);
+    }
+
+    [Fact]
+    public void TryRepair_EnhancedItem_RestoresTheEffectiveMaxForItsLevel()
+    {
+        // Audit DOM-4: a +5 iron sword has 200 × 1.5 = 300 max durability, so repair at the base 200 is not "full".
+        VendorService vendor = new(s_prices);
+        Wallet wallet = new(1);
+        wallet.TryCredit(CurrencyKind.Gold, 1_000, CurrencyReason.Admin);
+        InventoryContainer bag = new(1);
+        uint sword = Id("iron_sword");
+        float effectiveMax = ItemEnhancementPolicy.GetEffectiveMaxDurability(Item("iron_sword").MaxDurability, 5);
+        bag.SetSlot(0, new ItemSlot(sword, 1, InstanceId: 5, Durability: 200f, UpgradeLevel: 5));
+
+        long cost = s_prices.GetRepairCost(bag.GetSlot(0));
+        EconomyResult result = vendor.TryRepair(wallet, bag, 0);
+
+        effectiveMax.Should().Be(300f);
+        cost.Should().BeGreaterThan(0, "a +5 item at the base maximum is still a third worn");
+        result.IsOk.Should().BeTrue();
+        wallet.Gold.Should().Be(1_000 - cost);
+        bag.GetSlot(0).Durability.Should().Be(effectiveMax, "repair restores the enhanced maximum");
+        bag.GetSlot(0).UpgradeLevel.Should().Be(5);
+        vendor.TryRepair(wallet, bag, 0).Error.Should().Be(EconomyError.AlreadyRepaired);
     }
 
     [Fact]
