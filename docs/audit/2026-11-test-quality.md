@@ -6,7 +6,7 @@
 | **Scope** | `tests/**` (205 files, ~30k lines), plus the production code those tests are meant to protect |
 | **Question** | Can each test fail for a real bug? Which risky behaviour has no test at all? |
 | **Method** | Read every test file. Check each suspicious test against the code under test. Mine `git log -p` on the guard files for evidence of cosmetic gaming. Measure client methods with a Roslyn prototype (cyclomatic complexity, nesting, lines). For every test that was added or rewritten, break the code under test, run the test, record the result and revert. The results are in each fix PR. |
-| **Status** | Report plus fixes. Each finding's **Fix** column names the PR branch that addresses it. Findings marked *report only* are known debt and are not changed here. |
+| **Status** | Report plus fixes. Each finding's **Fix** column names the PR branch that addresses it. Findings marked *report only* are known debt and are not changed here. The line caps in TQ-7.1/7.2 were removed by #111 while this audit was running. |
 
 ## How to read this
 
@@ -18,7 +18,7 @@
 ## Executive summary
 
 1. **The riskiest client code had no test.** #109 moved about 300 lines of inventory input (drag/drop, split, drop, destroy, hotbar bind) into `InventoryInputController`. The only test change was a line-count number. The class could not be unit-tested, because it took the concrete GL-backed `HudOverlayRenderer`. **Fixed:** an 8-member `IInventoryInputHud` seam plus 39 behaviour tests. All 10 mutants were killed (`test/inventory-input-controller`).
-2. **Line caps measure layout, not risk, and they are being gamed.** The commit log shows folds, partial merges and API moves whose stated goal was to fit under a cap (TQ-7.1). The guards also miss real complexity. `DesktopOptions.FromEnvironment` (cyclomatic complexity 35) and `ItemTooltipBuilder.Build` (34) pass the 120-line method cap, while straight-line draw code is flagged. **Recommendation, implemented:** cap cyclomatic complexity per method with an exact-pinned allowlist that can only shrink, and keep line counts only as a loose backstop (`test/complexity-guards`).
+2. **Line caps measured layout, not risk, and were being gamed.** The commit log shows folds, partial merges and API moves whose stated goal was to fit under a cap (TQ-7.1). The caps also missed real complexity: `DesktopOptions.FromEnvironment` (cyclomatic complexity 35) and `ItemTooltipBuilder.Build` (34) passed the 120-line method cap, while straight-line draw code was flagged. **#111 has since removed the line caps** (`b14440e`). This audit recommends **not** replacing them with another merge-gating size guard; see the [proposal](#proposal-what-should-replace-the-line-caps).
 3. **Allowlists record the status quo.** Several "only shrinks" allowlists grew, re-keyed when code moved, or were pinned with headroom instead of at the measured value (TQ-7.2–7.5).
 4. **A handful of tautologies and output-only tests.** Economy pricing tests re-implement `PriceBook`'s formulas. Two "tests" assert nothing about behaviour (a printed table and a wall-clock benchmark). **Fixed** in `test/tautology-cleanup`.
 5. **Risky untested paths on the server:** player death and respawn, multi-observer delta dispatch, a trader-stock save failure, and progression hot-reload with players online (TQ-8). **Tests added** for the top paths in `test/risky-path-coverage`.
@@ -89,7 +89,7 @@ None found. NSubstitute is used only at leaf seams (`ITexture`, `IFocusable`, st
 
 ## 7. Proxy guards (line caps and growing allowlists)
 
-### TQ-7.1 Line caps reward cosmetic edits, and the history shows it
+### TQ-7.1 Line caps rewarded cosmetic edits (removed by #111)
 
 `ClassSizeTests` caps `AuthoritativeWorld*.cs` at 8 files and 3,040 raw lines (currently 3,027). `HotPathGuardTests` caps client classes at 600 lines and client method bodies at 120 lines, with 12 class and 25 method allowlist entries.
 
@@ -105,7 +105,7 @@ A raw line count is lowered by joining lines, moving comments to line ends, merg
 
 Lines over 200 characters in the `AuthoritativeWorld` partials grew from 3 to 6, e.g. `AuthoritativeWorld.cs:233` (230 chars) and `:260`, next to one-argument-per-line constructors at :236-257.
 
-The caps also **miss** real complexity. A Roslyn prototype over `desktop/` and `graphics/` (1,511 member bodies) found:
+The caps also **missed** real complexity. A Roslyn prototype over `desktop/` and `graphics/` (1,511 member bodies) found:
 
 | Method | Cyclomatic complexity | Lines | Line guard result |
 | :--- | ---: | ---: | :--- |
@@ -138,28 +138,45 @@ Entries are keyed by `file|Type`. `4b478ab` added `ItemTooltipBuilder.cs|ItemEnh
 
 `HotPathGuardTests.cs:22-44` bans `using System.Linq` across all of `engine/`, cold config loaders included. The real allocation risk is measured by `ServerTickAllocationTests.cs:28` (≤ 32 B/tick), which is the better guard. **Report only:** the LINQ ban is cheap and correct in direction.
 
-### Proposal: measure complexity, not lines (TQ-7.1, TQ-7.2)
+### Proposal: what should replace the line caps
 
-**Recommendation: replace the per-method line cap with a per-method cyclomatic complexity cap (Roslyn), pinned exactly, with a ratchet. Keep line counts only as a loose backstop.**
+#111 (`b14440e`, merged during this audit) deleted the class and method line caps, their allowlists and `ClassSizeTests`. `review-gates` now asks for behaviour tests instead. That removes the "fold lines to pass" incentive completely. The question left is whether anything should take their place.
 
-| Option | Gamed by folding or comments? | Catches dense branching? | Flags long straight-line draw code? | Cost |
+The alternatives, measured with a Roslyn prototype over the 1,511 member bodies in `desktop/` and `graphics/` at `a64a98f`:
+
+| Option | Gamed by folding or comments? | Catches dense branching? | False positives on long straight-line draw code? | Needs an allowlist? |
 | :--- | :--- | :--- | :--- | :--- |
-| Raw line caps (today) | yes | no | yes (false positives) | — |
-| Non-blank, non-comment line count | partly (folding still works) | no | yes | small |
-| **Cyclomatic complexity per method** (1 + `if`/loop/`case`/switch arm/`catch`/`?:`/`&&`/`||`/`??`/`when`) | **no**: formatting does not change the syntax tree | **yes** | no | small: the guard already parses every file with Roslyn |
-| Complexity plus nesting depth | no | yes | no | small. Depth > 4 only adds 11 methods that are already high-complexity, so it adds little signal for its cost. |
+| Raw line caps (removed by #111) | yes | no | yes | yes: 37 entries, which grew |
+| Non-blank, non-comment line count | partly (folding still works) | no | yes | yes |
+| Cyclomatic complexity per method (1 + `if`/loop/`case`/switch arm/`catch`/`?:`/`&&`/`||`/`??`/`when`) | no: formatting does not change the syntax tree | yes | no | yes: 22 methods are over 25 today |
+| Complexity plus nesting depth | no | yes | no | yes. Depth > 4 adds 11 methods, all already high-complexity, so little extra signal. |
+| **No size guard; behaviour tests at the refactor (#111)** | n/a | no, but the riskiest dense methods now have tests | n/a | **no** |
 
-Design, implemented in `test/complexity-guards`:
+**Recommendation: do not reintroduce a merge-gating size guard. Keep #111.** Complexity is clearly the better metric of the options above. It cannot be folded away, and it flags the risky methods the line caps missed. But any merge gate on it brings back what made the line caps bad:
 
-1. `ClientMethods_ShouldNotExceedComplexityCap`: complexity ≤ **25** per member body in `desktop/` and `graphics/`. This is a common industry threshold, and at it 22 methods are over today.
-2. **The allowlist is pinned at the measured value, not with headroom.** `ComplexityAllowlist_ShouldMatchMeasuredValues` fails both when a method grows past its entry and when it shrinks below it. The test tells the author to lower the entry to the measured value. So the list can only shrink, and it never carries hidden budget. An entry whose method drops to ≤ 25 must be removed.
-3. **Line caps become backstops** at 300 lines per method and 1,500 per class, roughly 2.5 times the old caps. Each backstop allowlist holds only the extreme outliers, pinned exactly: `WorldGameplayScene.Update` and `MultiplayerSession`. Folding a line no longer buys anything that matters.
-4. `AuthoritativeWorld` (`ClassSizeTests`):
-   - It counts `partial class AuthoritativeWorld` **declarations** anywhere under `server/`, which closes the "file name or subfolder" glob loophole.
-   - It caps the class's **total complexity**, pinned exactly with the same ratchet.
-   - The 3,040-line cap becomes a 3,600-line backstop.
+- an allowlist of 22 entries that records the status quo;
+- an edit to that list on every extraction PR;
+- an incentive to game the number, e.g. turning `if` chains into lookup tables just to pass.
 
-What this deliberately does not do: it does not add a new framework or analyzer package. Roslyn is already referenced by the architecture tests.
+The risk a size guard tried to proxy, "a big method is easy to break", is better handled directly:
+
+1. **Characterization tests at the moment logic moves**, as `review-gates` now requires. #109 would have needed `InventoryInputControllerTests` before it merged.
+2. **The complexity table as a work list, not a gate.** Use the top methods by complexity to pick the next behaviour-test targets. At `a64a98f`:
+
+   | Method | Complexity | Behaviour tests |
+   | :--- | ---: | :--- |
+   | `WorldGameplayScene.Update` | 140 | none |
+   | `CharacterSelectScene.Render` | 53 | none |
+   | `WorldSceneRenderer.DrawRemoteEntity` | 41 | none |
+   | `MultiplayerSession.Update` | 39 | some |
+   | `InventoryInputController.HandleTabInput` | 38 | now covered |
+   | `WorldSceneRenderer.CollectVisibleObjects` | 38 | none |
+   | `LoginScene.Update` | 37 | none |
+   | `DesktopOptions.FromEnvironment` | 35 | partial |
+
+   If a recurring signal is wanted, add the prototype as an opt-in report (a test that writes the table and asserts nothing, run on demand, not in CI). Rule 3 below explains why it must not run in CI.
+
+This is why `test/complexity-guards` was **not** opened: the change would not be clearly better than what #111 left.
 
 ## 8. Important behaviour with no test (ranked by risk)
 
@@ -187,4 +204,4 @@ What this deliberately does not do: it does not add a new framework or analyzer 
 1. A new or rewritten test must fail when the behaviour it names breaks. Record the mutation in the PR.
 2. Expectations come from the requirement, not from the code. Use relations ("epic costs more per gold of value than common"), documented anchor points, or literal wire bytes. Do not re-run the production formula.
 3. Do not add printouts or benchmarks to the unit-test run. A benchmark belongs in a benchmark project, and a balance table belongs in the balance doc.
-4. Guards measure risk (complexity, allocations per tick, layer edges), not layout. An allowlist entry is pinned at the measured value and can only go down.
+4. Guards measure risk directly (allocations per tick, layer edges, server authority), not size. If a guard needs an allowlist, pin each entry at the measured value so it can only go down.
