@@ -56,6 +56,9 @@ public sealed class RoadNetwork
     private readonly PointOfInterestResolver _landmarks;
     private readonly ITileSource _tiles;
     private readonly IRiverDistanceSource _rivers;
+    // Road sites built per thread (ADR-045 D8 guards: a tick step after a prewarm builds none itself).
+    private readonly ConcurrentDictionary<int, int> _siteBuildsByThread = new();
+
     private readonly ConcurrentDictionary<long, RoadSiteData> _bySite = new();
     private readonly ConcurrentQueue<long> _siteOrder = new();
     private readonly ConcurrentDictionary<long, (int X, int Y)[]> _choices = new();
@@ -255,8 +258,12 @@ public sealed class RoadNetwork
         return _bySite.TryGetValue(key, out RoadSiteData published) ? published : built;
     }
 
+    /// <summary>Gets the number of road sites this network built on the calling thread (tests).</summary>
+    internal int SiteBuildsOnThisThread => _siteBuildsByThread.GetValueOrDefault(Environment.CurrentManagedThreadId);
+
     private RoadSiteData BuildSiteData(int siteX, int siteY)
     {
+        _ = _siteBuildsByThread.AddOrUpdate(Environment.CurrentManagedThreadId, 1, static (_, n) => n + 1);
         (int X, int Y)[] mine = this.Choose(siteX, siteY);
         if (mine.Length == 0)
         {
