@@ -127,10 +127,15 @@ public static class CarbonUiPalette
 /// </summary>
 public sealed class CarbonUiSkin : IDisposable
 {
+    private readonly Texture2D _atlas;
     private readonly PanelSkinEntry[] _entries;
     private bool _disposed;
 
-    private CarbonUiSkin(PanelSkinEntry[] entries) => _entries = entries;
+    private CarbonUiSkin(Texture2D atlas, PanelSkinEntry[] entries)
+    {
+        _atlas = atlas;
+        _entries = entries;
+    }
 
     /// <summary>
     /// Searches for <c>resources/ui/panels</c> and uploads dual-layer nine-slice textures onto <paramref name="device"/>.
@@ -155,13 +160,34 @@ public sealed class CarbonUiSkin : IDisposable
             new("5.png", new NineSliceMargins(10f)),
         ];
 
+        // Every style's body and frame live in one atlas texture (audit round 2, PERF-8): HUD panels drawn one after
+        // another then share a texture, so the sprite batch no longer breaks its batch twice per panel. Each image is
+        // decoded once even when several styles use it ("15.png" serves four).
+        Dictionary<string, PanelImage> images = new(StringComparer.Ordinal);
+        List<PanelImage> ordered = [];
+        PanelImage[] perSpec = new PanelImage[specs.Length];
+        for (int i = 0; i < specs.Length; i++)
+        {
+            if (!images.TryGetValue(specs[i].FileName, out PanelImage? image))
+            {
+                image = LoadPanelImage(panelDir, specs[i]);
+                images[specs[i].FileName] = image;
+                ordered.Add(image);
+            }
+
+            perSpec[i] = image;
+        }
+
+        PanelAtlasLayout atlasLayout = PanelAtlasLayout.Pack(ordered);
+        Texture2D atlas = CreateTexture(concrete, (uint)atlasLayout.Width, (uint)atlasLayout.Height, atlasLayout.Pixels);
         PanelSkinEntry[] entries = new PanelSkinEntry[specs.Length];
         for (int i = 0; i < specs.Length; i++)
         {
-            entries[i] = LoadPanelEntry(concrete, panelDir, specs[i]);
+            PanelImage image = perSpec[i];
+            entries[i] = new PanelSkinEntry(image.BodySource, image.FrameSource, image.HasFile ? specs[i].Margins : new NineSliceMargins(4f));
         }
 
-        return new CarbonUiSkin(entries);
+        return new CarbonUiSkin(atlas, entries);
     }
 
     /// <summary>Searches standard runtime directories for <c>resources/ui/panels</c>.</summary>
@@ -293,15 +319,16 @@ public sealed class CarbonUiSkin : IDisposable
 
         PanelSkinEntry entry = _entries[idx];
         NineSliceMargins clampedMargins = ClampMargins(entry.Margins, bounds);
-        RectangleF sourceBounds = entry.SourceBounds;
         if (bodyColor.A > 0)
         {
-            spriteBatch.DrawNineSlice(entry.Body, in sourceBounds, in clampedMargins, in bounds, bodyColor);
+            RectangleF bodySource = entry.BodySource;
+            spriteBatch.DrawNineSlice(_atlas, in bodySource, in clampedMargins, in bounds, bodyColor);
         }
 
         if (frameColor.A > 0)
         {
-            spriteBatch.DrawNineSlice(entry.Frame, in sourceBounds, in clampedMargins, in bounds, frameColor);
+            RectangleF frameSource = entry.FrameSource;
+            spriteBatch.DrawNineSlice(_atlas, in frameSource, in clampedMargins, in bounds, frameColor);
         }
     }
 
@@ -333,12 +360,7 @@ public sealed class CarbonUiSkin : IDisposable
             return;
         }
 
-        for (int i = 0; i < _entries.Length; i++)
-        {
-            _entries[i].Body.Dispose();
-            _entries[i].Frame.Dispose();
-        }
-
+        _atlas.Dispose();
         _disposed = true;
     }
 
@@ -353,7 +375,7 @@ public sealed class CarbonUiSkin : IDisposable
             MathF.Min(source.Bottom, maxV));
     }
 
-    private static PanelSkinEntry LoadPanelEntry(GraphicsDevice device, string? panelDir, PanelSpec spec)
+    private static PanelImage LoadPanelImage(string? panelDir, PanelSpec spec)
     {
         if (panelDir is not null)
         {
@@ -362,7 +384,7 @@ public sealed class CarbonUiSkin : IDisposable
             {
                 DecodedImage decoded = ImageDecoder.Decode(File.ReadAllBytes(fullPath));
                 DownsampleAndSplit(decoded, out int outW, out int outH, out byte[] bodyRgba, out byte[] frameRgba);
-                return CreatePanelEntry(device, (uint)outW, (uint)outH, bodyRgba, frameRgba, spec.Margins);
+                return new PanelImage(outW, outH, bodyRgba, frameRgba, HasFile: true);
             }
         }
 
@@ -384,33 +406,7 @@ public sealed class CarbonUiSkin : IDisposable
             }
         }
 
-        return CreatePanelEntry(device, size, size, fallbackBody, fallbackFrame, new NineSliceMargins(4f));
-    }
-
-    private static PanelSkinEntry CreatePanelEntry(
-        GraphicsDevice device,
-        uint width,
-        uint height,
-        byte[] bodyRgba,
-        byte[] frameRgba,
-        NineSliceMargins margins)
-    {
-        Texture2D? bodyTex = null;
-        Texture2D? frameTex = null;
-        try
-        {
-            bodyTex = CreateTexture(device, width, height, bodyRgba);
-            frameTex = CreateTexture(device, width, height, frameRgba);
-            PanelSkinEntry entry = new(bodyTex, frameTex, new RectangleF(0f, 0f, width, height), margins);
-            bodyTex = null;
-            frameTex = null;
-            return entry;
-        }
-        finally
-        {
-            frameTex?.Dispose();
-            bodyTex?.Dispose();
-        }
+        return new PanelImage(size, size, fallbackBody, fallbackFrame, HasFile: false);
     }
 
     private static void DownsampleAndSplit(
@@ -589,9 +585,5 @@ public sealed class CarbonUiSkin : IDisposable
 
     private readonly record struct PanelSpec(string FileName, NineSliceMargins Margins);
 
-    private readonly record struct PanelSkinEntry(
-        Texture2D Body,
-        Texture2D Frame,
-        RectangleF SourceBounds,
-        NineSliceMargins Margins);
+    private readonly record struct PanelSkinEntry(RectangleF BodySource, RectangleF FrameSource, NineSliceMargins Margins);
 }
