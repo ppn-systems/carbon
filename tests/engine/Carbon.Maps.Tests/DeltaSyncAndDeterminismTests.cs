@@ -50,9 +50,9 @@ public sealed partial class DeltaSyncAndDeterminismTests
         ChunkWorld2D client = new(new ProceduralWorldGenerator(42UL));
         foreach (ChunkDelta delta in server.Deltas)
         {
-            byte[] bytes = delta.Serialize();
-            ChunkDelta decoded = ChunkDelta.Deserialize(bytes);
-            Assert.Equal(bytes, decoded.Serialize());
+            byte[] bytes = delta.Serialize(currentTick: 0);
+            ChunkDelta decoded = ChunkDelta.Deserialize(bytes, currentTick: 0);
+            Assert.Equal(bytes, decoded.Serialize(currentTick: 0));
             Assert.Equal(delta.Revision, decoded.Revision);
             client.ImportDelta(decoded);
         }
@@ -73,10 +73,10 @@ public sealed partial class DeltaSyncAndDeterminismTests
         delta.SetStructure(2, 3, in wall);
         delta.SetPropState(6, 7, PropDestructibility.Create(10f) with { IsDestroyed = true });
 
-        byte[] bytes = delta.Serialize();
+        byte[] bytes = delta.Serialize(currentTick: 0);
         bytes[1] = ProceduralWorldGenerator.GeneratorVersion - 1; // recorded by the previous generator
         bytes[2] = 0;
-        ChunkDelta old = ChunkDelta.Deserialize(bytes);
+        ChunkDelta old = ChunkDelta.Deserialize(bytes, currentTick: 0);
 
         ChunkDelta migrated = old.MigrateTo(ProceduralWorldGenerator.GeneratorVersion);
         Assert.Equal(ProceduralWorldGenerator.GeneratorVersion, migrated.GeneratorVersion);
@@ -105,9 +105,9 @@ public sealed partial class DeltaSyncAndDeterminismTests
         ChunkWorld2D client = new(new ProceduralWorldGenerator(42UL), tileSize: 32f);
         foreach (ChunkDelta delta in server.Deltas)
         {
-            byte[] encoded = delta.Serialize();
-            ChunkDelta decoded = ChunkDelta.Deserialize(encoded);
-            Assert.Equal(encoded, decoded.Serialize());
+            byte[] encoded = delta.Serialize(currentTick: 0);
+            ChunkDelta decoded = ChunkDelta.Deserialize(encoded, currentTick: 0);
+            Assert.Equal(encoded, decoded.Serialize(currentTick: 0));
             client.ImportDelta(decoded);
         }
 
@@ -126,7 +126,7 @@ public sealed partial class DeltaSyncAndDeterminismTests
         // Demolish on server and re-sync delta to client
         Assert.True(server.Buildings.TryDemolishStructure(sx, sy));
         Assert.True(server.TryGetDelta(Chunk2D.ToChunkCoord(sx), Chunk2D.ToChunkCoord(sy), out ChunkDelta? updatedDelta));
-        client.ImportDelta(ChunkDelta.Deserialize(updatedDelta!.Serialize()));
+        client.ImportDelta(ChunkDelta.Deserialize(updatedDelta!.Serialize(currentTick: 0), currentTick: 0));
 
         Assert.False(client.Buildings.TryGetStructure(sx, sy, out _));
         Assert.False(client.Buildings.IsSolidAt(sx, sy));
@@ -174,11 +174,11 @@ public sealed partial class DeltaSyncAndDeterminismTests
     {
         ChunkDelta delta = new(0, 0);
         delta.SetTile(1, 1, new MapTile(Biomes.BiomeType.LushPlains, 0.5f, 0.5f, 0.5f, false, 0, 0));
-        byte[] bytes = delta.Serialize();
+        byte[] bytes = delta.Serialize(currentTick: 0);
 
-        _ = Assert.Throws<FormatException>(() => ChunkDelta.Deserialize(bytes.AsSpan(0, bytes.Length - 3)));
+        _ = Assert.Throws<FormatException>(() => ChunkDelta.Deserialize(bytes.AsSpan(0, bytes.Length - 3), currentTick: 0));
         bytes[0] = 99;
-        _ = Assert.Throws<FormatException>(() => ChunkDelta.Deserialize(bytes));
+        _ = Assert.Throws<FormatException>(() => ChunkDelta.Deserialize(bytes, currentTick: 0));
     }
 
     [GeneratedRegex(@"\bMathF?\.(Sin|Cos|Tan|Asin|Acos|Atan|Atan2|Log|Log2|Log10|Exp|Pow|Cbrt|Sinh|Cosh|Tanh)\s*\(")]

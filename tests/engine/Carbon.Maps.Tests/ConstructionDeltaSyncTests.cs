@@ -33,7 +33,7 @@ public sealed class ConstructionDeltaSyncTests
         ChunkWorld2D restored = new(new ProceduralWorldGenerator(1337UL));
         foreach (ChunkDelta delta in source.Deltas)
         {
-            restored.ImportDelta(ChunkDelta.Deserialize(delta.Serialize()));
+            restored.ImportDelta(ChunkDelta.Deserialize(delta.Serialize(currentTick: 0), currentTick: 0));
         }
 
         restored.Buildings.TryGetStructure(wallX, wallY, out StructureTile wall).Should().BeTrue();

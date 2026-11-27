@@ -45,6 +45,7 @@ using Carbon.Items.Systems;
 using Carbon.Maps.Building;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Hydrology;
+using Carbon.Maps.Props;
 using Carbon.Maps.Settlements;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS;
@@ -120,6 +121,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly List<(ushort SlotIndex, ItemSlot Slot)> _mutationSlotScratch = new(8);
     private readonly List<(ushort SlotIndex, ItemSlot Slot)> _spoiledSlotsScratch = new(8);
     private readonly List<(int TileX, int TileY, uint Revision, float MaxDurability)> _respawnedPropsScratch = new(16);
+    private readonly Func<int, int, bool> _isPropTileBlocked;
+    private PropRegrowthRules _propRegrowth;
     private readonly Entity[] _combatHitScratch = new Entity[32];
 
     private ulong _nextNetworkId = 1000UL;
@@ -149,6 +152,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// <param name="statusEffects">Status effect definitions (<c>status_effects.json</c>, ADR-029); defaults to the shipped copy.</param>
     /// <param name="stamina">Stamina tuning (<c>stamina.json</c>, ADR-033); defaults to the shipped copy.</param>
     /// <param name="logger">Diagnostics (legacy save fix-ups on enter, ADR-035); defaults to none.</param>
+    /// <param name="propRegrowth">Natural prop regrowth (<c>props.json</c>, ADR-040); defaults to the shipped copy.</param>
     public AuthoritativeWorld(
         ulong worldSeed,
         float tileSize,
@@ -168,13 +172,15 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         GameplayEntropy? entropy = null,
         StatusEffectCatalog? statusEffects = null,
         StaminaConfig? stamina = null,
-        ILogger? logger = null)
+        ILogger? logger = null,
+        PropRegrowthRules? propRegrowth = null)
     {
         ArgumentNullException.ThrowIfNull(chunkDeltaRepo);
         ArgumentNullException.ThrowIfNull(characterStore);
         ArgumentNullException.ThrowIfNull(outboundSink);
 
         _logger = logger ?? NullLogger.Instance;
+        _propRegrowth = propRegrowth ?? PropRegrowthRules.LoadEmbedded();
         this.WorldSeed = worldSeed;
         this.TileSize = tileSize > 0f ? tileSize : 32f;
         this.Frequency = frequency > 0f ? frequency : 0.0008f;
@@ -235,11 +241,12 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         _progressionService = new CharacterProgressionService(_simulation, progression ?? ProgressionConfig.LoadShippedDefaults(), _creatureCatalog, () => _itemRules,
             () => _currentTick, state => this.MarkCharacterDirtyLocked(state, inventoryChanged: false), _commerce.QueueWalletSync, _entropy);
         _combat = new CombatService(_simulation, _chunkWorld, MonsterLayer, _outbound, this.CollectNearbyConnectionsAroundWorldLocked, this.OnMonsterKilledLocked, () => _currentTick);
+        _isPropTileBlocked = this.IsPropTileBlockedLocked;
         _props = new PropHarvestService(
             _simulation,
             _chunkWorld,
             this.TileSize,
-            this.TickRate,
+            this.PropRegrowDelayTicksLocked,
             () => _itemRules,
             () => _currentTick,
             _groundLoot,
@@ -303,6 +310,10 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// <param name="statusEffects">New status effect definitions (ADR-029), or <see langword="null"/> to keep them.</param>
     /// <param name="stamina">New stamina tuning (ADR-033), or <see langword="null"/> to keep it; meters keep their values.</param>
     /// <param name="water">New water movement and oxygen rules (<c>water.json</c>, ADR-032), or <see langword="null"/> to keep them.</param>
+    /// <param name="propRegrowth">
+    /// New prop regrowth rules (<c>props.json</c>, ADR-040), or <see langword="null"/> to keep them; props already
+    /// waiting keep their scheduled tick.
+    /// </param>
     public void ApplyGameData(
         GameEconomy? economy,
         NeedsConfig needsConfig,
@@ -310,7 +321,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         ProgressionConfig? progression = null,
         StatusEffectCatalog? statusEffects = null,
         StaminaConfig? stamina = null,
-        WaterRules? water = null)
+        WaterRules? water = null,
+        PropRegrowthRules? propRegrowth = null)
     {
         ArgumentNullException.ThrowIfNull(needsConfig);
         ArgumentNullException.ThrowIfNull(foodCatalog);
@@ -333,6 +345,23 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             if (water is not null)
             {
                 _chunkWorld.WaterRules = water;
+            }
+
+            if (propRegrowth is not null)
+            {
+                _propRegrowth = propRegrowth;
+            }
+        }
+    }
+
+    /// <summary>Gets the prop regrowth rules the simulation currently runs on (ADR-040).</summary>
+    public PropRegrowthRules PropRegrowth
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _propRegrowth;
             }
         }
     }
@@ -445,9 +474,13 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         {
             for (int i = 0; i < deltas.Count; i++)
             {
-                ChunkDelta domainDelta = ChunkDelta.Deserialize(deltas[i].Payload);
+                ChunkDelta domainDelta = ChunkDelta.Deserialize(deltas[i].Payload, _currentTick);
                 _chunkWorld.ImportDelta(domainDelta);
             }
+
+            // Rows saved before format 4 kept no respawn timers (ADR-040 D4): reschedule their destroyed props once, and
+            // save those chunks again in the new format.
+            _ = _chunkWorld.ScheduleLegacyRespawns(this.PropRegrowDelayTicksLocked, _currentTick, _dirtyChunks);
 
             Vector2 originSpawn = _chunkWorld.SpawnWorldPosition;
             _chunkWorld.UpdateAroundPosition(originSpawn, chunkRadius: 2, evictionRadius: 8);

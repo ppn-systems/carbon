@@ -22,6 +22,7 @@ public sealed class ChunkDelta
     private readonly Dictionary<int, MapTile> _tiles = new();
     private readonly Dictionary<int, PropDestructibility> _propStates = new();
     private readonly Dictionary<int, ulong> _propRespawnTicks = new();
+    private List<int>? _unscheduledLegacyKeys;
     private readonly Dictionary<int, StructureTile> _structures = new();
     private readonly Dictionary<int, ConstructionSite> _sites = new();
     private readonly Dictionary<int, StructureRecord> _records = new();
@@ -125,50 +126,101 @@ public sealed class ChunkDelta
         this.Revision++;
     }
 
+    /// <summary>Gets the number of destroyed props waiting for a scheduled respawn.</summary>
+    public int PendingRespawnCount => _propRespawnTicks.Count;
+
+    /// <summary>Gets the world tick a destroyed prop on the tile comes back at.</summary>
+    /// <param name="localX">Local tile X of the prop anchor.</param>
+    /// <param name="localY">Local tile Y of the prop anchor.</param>
+    /// <param name="respawnAtTick">The scheduled tick.</param>
+    /// <returns><see langword="true"/> when a respawn is scheduled (otherwise a destroyed prop is permanent).</returns>
+    public bool TryGetRespawnTick(int localX, int localY, out ulong respawnAtTick) =>
+        _propRespawnTicks.TryGetValue(ToLocalIndex(localX, localY), out respawnAtTick);
+
     /// <summary>
-    /// Expires destroyed prop states whose scheduled respawn tick has arrived.
+    /// Gets a value indicating whether the delta was read from a row older than format 4, which did not store respawn
+    /// timers: its destroyed props must be rescheduled once (<see cref="ScheduleLegacyRespawns"/>), or they would stay
+    /// gone forever.
+    /// </summary>
+    public bool HasUnscheduledLegacyRespawns => _unscheduledLegacyKeys is { Count: > 0 };
+
+    /// <summary>
+    /// Adds the local tile index of every destroyed prop whose scheduled respawn tick has arrived to <paramref name="due"/>.
+    /// Changes nothing; complete each with <see cref="CompleteRespawn"/> or push it back with <see cref="DeferRespawn"/>.
     /// </summary>
     /// <param name="currentTick">Current world simulation tick.</param>
-    /// <param name="removedLocalIndices">Optional destination populated with local packed tile keys of respawned props.</param>
-    /// <returns>The number of props whose state was reset for respawn.</returns>
-    internal int RemoveExpiredPropStates(ulong currentTick, List<int>? removedLocalIndices = null)
+    /// <param name="due">Destination, not cleared.</param>
+    /// <returns>The number of indices added.</returns>
+    internal int CollectDueRespawns(ulong currentTick, List<int> due)
     {
-        if (_propRespawnTicks.Count == 0)
-        {
-            return 0;
-        }
-
-        int removed = 0;
-        List<int>? expired = null;
+        int added = 0;
         foreach (KeyValuePair<int, ulong> kvp in _propRespawnTicks)
         {
             if (kvp.Value <= currentTick)
             {
-                expired ??= [];
-                expired.Add(kvp.Key);
+                due.Add(kvp.Key);
+                added++;
             }
         }
 
-        if (expired is not null)
+        return added;
+    }
+
+    /// <summary>Drops the destroyed state of the prop on a local tile index, so the baseline prop stands again.</summary>
+    /// <param name="key">Local tile index.</param>
+    /// <returns><see langword="true"/> when a prop state was removed.</returns>
+    internal bool CompleteRespawn(int key)
+    {
+        _ = _propRespawnTicks.Remove(key);
+        if (!_propStates.Remove(key))
         {
-            for (int i = 0; i < expired.Count; i++)
-            {
-                int key = expired[i];
-                _ = _propRespawnTicks.Remove(key);
-                if (_propStates.Remove(key))
-                {
-                    removed++;
-                    removedLocalIndices?.Add(key);
-                }
-            }
+            return false;
+        }
 
-            if (removed > 0)
+        this.Revision++;
+        return true;
+    }
+
+    /// <summary>Moves a scheduled respawn to a later tick (the tile is blocked now). Does not change the revision.</summary>
+    /// <param name="key">Local tile index.</param>
+    /// <param name="respawnAtTick">The new tick.</param>
+    internal void DeferRespawn(int key, ulong respawnAtTick)
+    {
+        if (_propRespawnTicks.ContainsKey(key))
+        {
+            _propRespawnTicks[key] = respawnAtTick;
+        }
+    }
+
+    /// <summary>
+    /// Schedules the respawn of destroyed props read from a pre-format-4 row (see <see cref="HasUnscheduledLegacyRespawns"/>).
+    /// A prop whose delay is 0 stays destroyed for good.
+    /// </summary>
+    /// <param name="delayTicks">Ticks until the prop anchored on a local tile index comes back (0 = never).</param>
+    /// <param name="currentTick">Current world tick.</param>
+    /// <returns>The number of props scheduled.</returns>
+    public int ScheduleLegacyRespawns(Func<int, ulong> delayTicks, ulong currentTick)
+    {
+        ArgumentNullException.ThrowIfNull(delayTicks);
+        if (_unscheduledLegacyKeys is null)
+        {
+            return 0;
+        }
+
+        int scheduled = 0;
+        for (int i = 0; i < _unscheduledLegacyKeys.Count; i++)
+        {
+            int key = _unscheduledLegacyKeys[i];
+            ulong delay = _propStates.TryGetValue(key, out PropDestructibility state) && state.IsDestroyed ? delayTicks(key) : 0UL;
+            if (delay > 0UL)
             {
-                this.Revision++;
+                _propRespawnTicks[key] = currentTick + delay;
+                scheduled++;
             }
         }
 
-        return removed;
+        _unscheduledLegacyKeys = null;
+        return scheduled;
     }
 
     /// <summary>Records or updates a constructed structure on a tile within the chunk.</summary>
@@ -309,21 +361,28 @@ public sealed class ChunkDelta
         return migrated;
     }
 
-    // Wire format (little-endian): format, generator version, chunk X/Y, revision, tile edits, prop states, structures (v2+),
-    // construction sites and structure records (v3+).
+    // Storage format (little-endian): format, generator version, chunk X/Y, revision, tile edits, prop states, structures (v2+),
+    // construction sites and structure records (v3+). v4 appends to each prop state the ticks left until it respawns
+    // (0 = permanent), relative to the world tick at save time, because the world tick restarts at 0 with the server.
     private const byte LegacyFormatVersion = 1;
     private const byte StructuresFormatVersion = 2;
-    private const byte FormatVersion = 3;
+    private const byte ConstructionFormatVersion = 3;
+    private const byte FormatVersion = 4;
     private const int HeaderSize = 1 + 2 + 4 + 4 + 4;
     private const int TileSize = 2 + 1 + 4 + 4 + 4 + 1 + 1 + 1;
-    private const int PropSize = 2 + 1 + 4 + 4 + 1;
+    private const int LegacyPropSize = 2 + 1 + 4 + 4 + 1;
+    private const int PropSize = LegacyPropSize + 4;
     private const int StructureSize = 2 + 1 + 1 + 1 + 1 + 1 + 1 + 4 + 4 + 4;
     private const int SiteBaseSize = 2 + 1 + 1 + 1 + 1 + 1 + 8 + 4 + 1;
     private const int RecordSize = 2 + 8 + 1 + 1 + 1 + 1;
 
-    /// <summary>Serializes the delta for storage or the network; identical bytes on every platform.</summary>
+    /// <summary>Serializes the delta for storage; identical bytes on every platform.</summary>
+    /// <param name="currentTick">
+    /// The world tick now: pending respawns are stored as the ticks left from it, so they survive a restart that resets
+    /// the world tick (see <see cref="Deserialize"/>).
+    /// </param>
     /// <returns>The encoded delta.</returns>
-    public byte[] Serialize()
+    public byte[] Serialize(ulong currentTick)
     {
         int siteBytes = 0;
         foreach (ConstructionSite site in _sites.Values)
@@ -373,6 +432,15 @@ public sealed class ChunkDelta
             BinaryPrimitives.WriteSingleLittleEndian(span[(o + 3)..], p.MaxDurability);
             BinaryPrimitives.WriteSingleLittleEndian(span[(o + 7)..], p.CurrentDurability);
             span[o + 11] = p.HarvestTier;
+            uint ticksLeft = 0U;
+            if (_propRespawnTicks.TryGetValue(key, out ulong respawnAt))
+            {
+                // At least 1: a respawn that is due but not yet processed must not turn permanent on reload.
+                ulong left = respawnAt > currentTick ? respawnAt - currentTick : 1UL;
+                ticksLeft = (uint)Math.Min(left, uint.MaxValue);
+            }
+
+            BinaryPrimitives.WriteUInt32LittleEndian(span[(o + 12)..], ticksLeft);
             o += PropSize;
         }
 
@@ -444,11 +512,12 @@ public sealed class ChunkDelta
 
     /// <summary>Decodes a delta written by <see cref="Serialize"/>.</summary>
     /// <param name="data">The encoded delta.</param>
+    /// <param name="currentTick">The world tick now: stored respawn delays are rescheduled from it.</param>
     /// <returns>The delta, at the generator version it was recorded with.</returns>
     /// <exception cref="FormatException">The data is truncated, has an unknown format or bad tile indices.</exception>
-    public static ChunkDelta Deserialize(ReadOnlySpan<byte> data)
+    public static ChunkDelta Deserialize(ReadOnlySpan<byte> data, ulong currentTick)
     {
-        if (data.Length < HeaderSize + 4 || data[0] is not (LegacyFormatVersion or StructuresFormatVersion or FormatVersion))
+        if (data.Length < HeaderSize + 4 || data[0] is not (LegacyFormatVersion or StructuresFormatVersion or ConstructionFormatVersion or FormatVersion))
         {
             throw new FormatException("Unknown or truncated chunk delta.");
         }
@@ -479,17 +548,33 @@ public sealed class ChunkDelta
 
         int props = BinaryPrimitives.ReadUInt16LittleEndian(data[o..]);
         o += 2;
-        Require(data, o + (props * PropSize));
-        for (int i = 0; i < props; i++, o += PropSize)
+        int propSize = format >= FormatVersion ? PropSize : LegacyPropSize;
+        Require(data, o + (props * propSize));
+        for (int i = 0; i < props; i++, o += propSize)
         {
             int key = ReadIndex(data[o..]);
             byte flags = data[o + 2];
-            delta._propStates[key] = new PropDestructibility(
+            PropDestructibility state = new(
                 (flags & 1) != 0,
                 BinaryPrimitives.ReadSingleLittleEndian(data[(o + 3)..]),
                 BinaryPrimitives.ReadSingleLittleEndian(data[(o + 7)..]),
                 data[o + 11],
                 (flags & 2) != 0);
+            delta._propStates[key] = state;
+            if (!state.IsDestroyed)
+            {
+                continue;
+            }
+
+            if (format < FormatVersion)
+            {
+                // Rows before v4 kept no timer: the prop is rescheduled once its type is known (ScheduleLegacyRespawns).
+                (delta._unscheduledLegacyKeys ??= []).Add(key);
+            }
+            else if (BinaryPrimitives.ReadUInt32LittleEndian(data[(o + 12)..]) is uint ticksLeft and > 0U)
+            {
+                delta._propRespawnTicks[key] = currentTick + ticksLeft;
+            }
         }
 
         if (format >= StructuresFormatVersion)
@@ -520,7 +605,7 @@ public sealed class ChunkDelta
             }
         }
 
-        if (format >= FormatVersion)
+        if (format >= ConstructionFormatVersion)
         {
             DeserializeConstruction(delta, data, o);
         }
