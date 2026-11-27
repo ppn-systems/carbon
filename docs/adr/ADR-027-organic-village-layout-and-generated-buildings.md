@@ -66,7 +66,7 @@
 ## Consequences
 
 - Houses differ in size, shape, room count, door position and furniture; buildings line the streets and face them.
-- Measured on seeds 42, 1, 2 and 1337 (17×17 sites): mean door-to-well alignment 0.52–0.56 (ring: 0.83–0.84);
+- Measured on seeds 42, 1, 2 and 1337 (17×17 sites): mean door-to-well alignment 0.50–0.56 (ring: 0.83–0.84);
   94–97 % of villages get a stall, a smithy, a store and at least two houses (the test floor stays 90 %).
 - Planning a village takes about 15 ms on one core (the ring planner took 2–4 ms). It runs once per site per process
   and is cached; the road raster keeps it there.

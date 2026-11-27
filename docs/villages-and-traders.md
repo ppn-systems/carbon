@@ -78,7 +78,7 @@ site), with a bend in each arm, plus one or two side lanes. Streets stop at wate
 
 **Measured.** Across seeds 42, 1, 2 and 1337 (17×17 sites each), 94–97 % of villages get a stall, a smithy, a store and
 at least 2 houses (`VillageGenerationTests.Plan_Villages_GetStallSmithyStoreAndHouses` enforces 90 %). The mean
-alignment of doors with the direction to the well is 0.52–0.56; the old ring scored 0.83–0.84
+alignment of doors with the direction to the well is 0.50–0.56; the old ring scored 0.83–0.84
 (`Plan_Layout_IsNotARingFacingTheWell` enforces below 0.7). Planning takes about 15 ms per village, once per process.
 
 `LandmarkLayout.Plots` holds the result. It is a pure function of the seed and the generator version.
