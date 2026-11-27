@@ -26,6 +26,8 @@ using Carbon.Application.World.Projectiles;
 using Carbon.Application.World.Props;
 using Carbon.Application.World.Replication;
 using Carbon.Application.World.Stamina;
+using Carbon.Application.World.StatusEffects;
+using Carbon.Combat.Statuses.Config;
 using Carbon.Combat.Cooldowns;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
@@ -106,6 +108,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly HashSet<long> _dirtyChunks = new();
     private readonly CharacterPersistence _persistence;
     private readonly GameplayEntropy _entropy;
+    private readonly StatusEffectService _statusEffects;
 
     // Reusable scratch buffers (zero per-tick heap allocations under steady state).
     // Outbound replication, staged under _gate during the tick and dispatched after it (OutboundTickBuffer).
@@ -140,6 +143,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// <param name="entropy">
     /// Secret source of every gameplay roll (ADR-026); defaults to a random secret that lives only in this process.
     /// </param>
+    /// <param name="statusEffects">Status effect definitions (<c>status_effects.json</c>, ADR-029); defaults to the shipped copy.</param>
     /// <param name="stamina">Stamina tuning (<c>stamina.json</c>, ADR-033); defaults to the shipped copy.</param>
     public AuthoritativeWorld(
         ulong worldSeed,
@@ -158,6 +162,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         ProgressionConfig? progression = null,
         ITraderStockRepository? traderStock = null,
         GameplayEntropy? entropy = null,
+        StatusEffectCatalog? statusEffects = null,
         StaminaConfig? stamina = null)
     {
         ArgumentNullException.ThrowIfNull(chunkDeltaRepo);
@@ -270,7 +275,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _stamina,
             new PlayerActionHost(this),
             _entropy);
-        _persistence = new CharacterPersistence(_simulation, _needs, _time);
+        _statusEffects = new StatusEffectService(_simulation, this.TickRate, statusEffects, _creatureCatalog, _entropy);
+        _persistence = new CharacterPersistence(_simulation, _needs, _statusEffects, _time);
         _commandExecutor = new WorldCommandExecutor(this);
         _trade = new TradeService(_gate, _entropy.TraderStockKey, _players, _simulation, _actorsByNetworkId, () => _economy, _outbound, _time, () => _currentTick, s => this.MarkCharacterDirtyLocked(s), traderStock);
         _replication = new AoiReplicator(_simulation, _outbound, this.TileSize * 24f, DefaultEntityRadius, this.ResolveSpawnIdentityLocked);
@@ -286,12 +292,14 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// <param name="needsConfig">New needs tuning.</param>
     /// <param name="foodCatalog">New edible items.</param>
     /// <param name="progression">New progression tuning (players are re-evaluated, ADR-021 D7), or <see langword="null"/> to keep it.</param>
+    /// <param name="statusEffects">New status effect definitions (ADR-029), or <see langword="null"/> to keep them.</param>
     /// <param name="stamina">New stamina tuning (ADR-033), or <see langword="null"/> to keep it; meters keep their values.</param>
     public void ApplyGameData(
         GameEconomy? economy,
         NeedsConfig needsConfig,
         FoodCatalog foodCatalog,
         ProgressionConfig? progression = null,
+        StatusEffectCatalog? statusEffects = null,
         StaminaConfig? stamina = null)
     {
         ArgumentNullException.ThrowIfNull(needsConfig);
@@ -302,6 +310,11 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _itemRules = economy?.ItemRules ?? _itemRules;
             _needs.Reconfigure(needsConfig, foodCatalog);
             _progressionService.Reconfigure(progression, _players.ByConnection.Values);
+            if (statusEffects is not null)
+            {
+                _statusEffects.Reconfigure(statusEffects);
+            }
+
             if (stamina is not null)
             {
                 _stamina.Reconfigure(stamina);
@@ -311,6 +324,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
     /// <summary>Gets trading with village traders (ADR-025).</summary>
     public IWorldTradeService Trade => _trade;
+
+    /// <summary>Gets the status effect definitions the simulation currently runs on (ADR-029; immutable, swapped atomically).</summary>
+    public StatusEffectCatalog StatusEffects => _statusEffects.Catalog;
 
     /// <summary>Gets the progression tuning the simulation currently runs on (an immutable snapshot, swapped atomically).</summary>
     public ProgressionConfig Progression => _progressionService.Config;
@@ -475,6 +491,13 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             float startHp = MathF.Min(stats.MaxHealth, MathF.Max(1f, character.CurrentHealth));
             _simulation.Entities.SetHealth(entity, new HealthComponent(startHp, stats.MaxHealth));
             _simulation.Entities.SetComponent(entity, _needs.Restore(character));
+            _statusEffects.Restore(entity, character.StatusEffects, character.NeedsPoisonSeconds, _needs.Config);
+            if (_debugStatusEffects.Length > 0)
+            {
+                _statusEffects.Restore(entity, _debugStatusEffects, 0f, _needs.Config, persistedOnly: false);
+            }
+
+            _statusEffects.MirrorPoisonIntoNeeds(entity);
 
             byte harvestTier = _inventory.ResolveHarvestTier(inventory, selectedSlot);
 
@@ -889,6 +912,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     // Where every character enters the world while a debug spawn override is active.
     private Vector2? _debugSpawnPosition;
     private ushort _debugStartLevel; // minimum level of entering characters (CARBON_DEBUG_START_LEVEL)
+    private string _debugStatusEffects = string.Empty; // effects of entering characters (CARBON_DEBUG_STATUS_EFFECTS)
 
     /// <summary>Gets the forced debug spawn position, if a debug override set one.</summary>
     public Vector2? DebugSpawnPosition
@@ -927,6 +951,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             }
 
             _debugStartLevel = overrides.StartLevel ?? 0;
+            _debugStatusEffects = overrides.StatusEffects;
             if (overrides.StartHour is float hour)
             {
                 // The clock is a pure function of the tick (WorldProgression), so the start hour is a tick offset.

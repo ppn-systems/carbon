@@ -72,8 +72,9 @@ public sealed partial class AuthoritativeWorld
         float damage,
         float remainingHealth,
         bool isCritical,
-        bool isKilled) =>
-        _combat.QueueCombatHit(worldPos, attackerNetId, defenderNetId, damage, remainingHealth, isCritical, isKilled);
+        bool isKilled,
+        ushort statusEffectId = 0) =>
+        _combat.QueueCombatHit(worldPos, attackerNetId, defenderNetId, damage, remainingHealth, isCritical, isKilled, statusEffectId);
 
     private void GrantExperienceLocked(PlayerState state, uint amount, out bool leveledUp)
     {
@@ -185,7 +186,7 @@ public sealed partial class AuthoritativeWorld
                 float hitR = DefaultEntityRadius + 5f;
                 if (ProjectileService.DistancePointToSegmentSq(playerPos, segmentStart, segmentEnd, out _) <= (hitR * hitR))
                 {
-                    owner.ApplyDamageToPlayerLocked(
+                    _ = owner.ApplyDamageToPlayerLocked(
                         player,
                         projectile.OwnerNetworkId,
                         player.Entity,

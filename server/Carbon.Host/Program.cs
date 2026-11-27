@@ -135,6 +135,7 @@ public static class Program
             gameData.Progression,
             traderStock: traderStockRepo,
             entropy: entropy,
+            statusEffects: gameData.StatusEffects,
             stamina: gameData.Stamina);
         ServerGameData.BindHotReload(config, world);
         using AuthService authService = new(accountStore, characterStore, hasher, time: null, () => world.ItemRules, () => world.Progression)

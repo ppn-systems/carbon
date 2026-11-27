@@ -306,6 +306,17 @@ public sealed class PlayerActionServiceTests
     }
 
     [Fact]
+    public void Regenerate_StatusEffectScale_SlowsRegen()
+    {
+        Harness h = new();
+        h.Player.CurrentStamina = 50f;
+
+        h.Stamina.Regenerate(h.Player, 1f, isMoving: false, effectScale: 0.5f);
+
+        h.Player.CurrentStamina.Should().BeApproximately(50f + (StaminaTestConfig.RegenStill * 0.5f), 0.001f, "ADR-029 effects scale stamina regen");
+    }
+
+    [Fact]
     public void DrainWork_OneSecondOfBuilding_DebitsExactlyTheBuildCost()
     {
         Harness h = new();

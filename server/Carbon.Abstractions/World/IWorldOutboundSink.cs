@@ -142,6 +142,25 @@ public readonly record struct AttackPhaseSnapshot(
     float Progress);
 
 /// <summary>
+/// One active status effect of the local player, dispatched as <c>StatusEffectSync</c> to the owner only (ADR-029 D9).
+/// </summary>
+/// <param name="EffectId">Wire id from <c>status_effects.json</c>.</param>
+/// <param name="Stacks">Current stacks (severity for derived effects).</param>
+/// <param name="RemainingMs">Remaining milliseconds; 0 while a derived condition holds.</param>
+/// <param name="DurationMs">Full duration of the latest application in milliseconds; 0 for derived effects.</param>
+/// <param name="Magnitude">Damage per pulse (all stacks) for damage effects, otherwise the effect's multiplier.</param>
+/// <param name="SourceKind">What applied it (<c>StatusSource</c> byte).</param>
+/// <param name="SourceId">Source detail: the monster archetype id, or 0.</param>
+public readonly record struct StatusEffectEntry(
+    ushort EffectId,
+    byte Stacks,
+    uint RemainingMs,
+    uint DurationMs,
+    float Magnitude,
+    byte SourceKind,
+    ushort SourceId);
+
+/// <summary>
 /// Decoupled transport sink used by <c>Carbon.Application</c> to dispatch AoI entity updates and map edits
 /// to active connections without referencing Nalix sockets directly.
 /// </summary>
@@ -182,6 +201,29 @@ public interface IWorldOutboundSink
 
     /// <summary>Broadcasts a combat damage event to connections observing the combatants.</summary>
     void SendCombatHit(ReadOnlySpan<ulong> recipientConnectionIds, ulong attackerNetworkId, ulong defenderNetworkId, float damage, float remainingHealth, bool isCritical, bool isKilled);
+
+    /// <summary>
+    /// Broadcasts a combat hit caused by a status effect pulse (ADR-029 D9); <paramref name="statusEffectId"/> is 0 for a
+    /// direct hit. Sinks that do not tint damage numbers fall back to <see cref="SendCombatHit(ReadOnlySpan{ulong}, ulong, ulong, float, float, bool, bool)"/>.
+    /// </summary>
+    void SendCombatHit(
+        ReadOnlySpan<ulong> recipientConnectionIds,
+        ulong attackerNetworkId,
+        ulong defenderNetworkId,
+        float damage,
+        float remainingHealth,
+        bool isCritical,
+        bool isKilled,
+        ushort statusEffectId) =>
+        this.SendCombatHit(recipientConnectionIds, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled);
+
+    /// <summary>
+    /// Sends the owner's full list of active status effects (ADR-029 D9). Sent only when the list changed, never per tick.
+    /// Sinks without status effects ignore it.
+    /// </summary>
+    void SendStatusEffects(ulong connectionId, ReadOnlySpan<StatusEffectEntry> entries)
+    {
+    }
 
     /// <summary>Sends a single updated inventory slot to the owning player connection.</summary>
     /// <remarks><paramref name="freshnessSeconds"/> is the food spoilage countdown (ADR-016), 0 when not perishable.</remarks>

@@ -49,7 +49,7 @@ Stamina before this ADR (all on `master` at `7b7e627`):
    - `TryDrain(amount)` drains one tick of continuous effort (sprint, build work). It may take what is left.
    - `Regenerate(dt, max, rate)` first counts down the delay, then regenerates.
    - `StaminaConfig.GetRegenPerSecond` picks the still or moving rate, multiplies by the resting bonus, then by
-     fatigue × hunger × effect scale, floored at `minimumRegenScale`.
+     fatigue × hunger × status-effect scale, floored at `minimumRegenScale`.
 3. **D3 — Refuse, don't weaken.** An action that costs more than the meter holds is **refused**: nothing happens (no
    damage, no wear, no cooldown, no projectile) and the body becomes **exhausted**. Reasons:
    - It is a single, cheap server check that the client can predict exactly. A "weak action" would need a second
@@ -99,8 +99,9 @@ Stamina before this ADR (all on `master` at `7b7e627`):
      1.6 s) and reads `stamina.exhausted` instead of the numbers.
    - New `[stamina]` section in `en.ini` and `vi.ini`. The server sends no text.
 8. **D8 — Seams for other work.**
-   - **Status effects (ADR-029)** have not landed. `StaminaRegenContext.EffectScale` (1 today) is where their stamina
-     regen modifiers multiply in. Once it is fed, `StaminaService.Regenerate` is the only caller to change.
+   - **Status effects (ADR-029)** feed `StaminaRegenContext.EffectScale`: the tick passes
+     `StatusEffectService.GetStaminaRegenMultiplier` to `StaminaService.Regenerate`, so an effect's stamina regen
+     modifier stacks with fatigue and hunger under the same `minimumRegenScale` floor.
    - **Swimming (ADR-032)** should add a `swimDrainPerSecond` to `stamina.json` and call `StaminaMeter.TryDrain` from the
      tick, exactly like sprint, so exhaustion and regen delay apply to swimming too.
    - A **dodge or roll** does not exist. When it lands it pays through `StaminaService.TrySpend` with its own config

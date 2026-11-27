@@ -6,7 +6,8 @@ using Carbon.Simulation.ECS;
 namespace Carbon.Combat.Statuses;
 
 /// <summary>
-/// Per-entity container managing active buffs, debuffs, stack capping, crowd-control flags, and periodic pulses.
+/// Per-entity container managing active buffs, debuffs, stacking rules (ADR-029 D3), crowd-control flags, and periodic
+/// pulses. Entries are unmanaged structs in one array that only grows past its initial 8 slots.
 /// </summary>
 public sealed class StatusEffectBuffer
 {
@@ -17,6 +18,12 @@ public sealed class StatusEffectBuffer
     /// Gets the number of active status effects currently on this actor.
     /// </summary>
     public int Count => _count;
+
+    /// <summary>
+    /// Gets a counter bumped by every change the owner must be told about: an effect added, stacked, refreshed,
+    /// replaced, expired or removed. Pulses and the countdown do not bump it.
+    /// </summary>
+    public uint Version { get; private set; }
 
     /// <summary>
     /// Computes the combined <see cref="CrowdControlMask"/> across all active status effects.
@@ -36,37 +43,129 @@ public sealed class StatusEffectBuffer
     }
 
     /// <summary>
+    /// Gets the movement speed scale: 0 while stunned or rooted, otherwise the product of every active
+    /// <see cref="ActiveStatusEffect.MoveSpeedMultiplier"/>.
+    /// </summary>
+    public float MoveSpeedScale
+    {
+        get
+        {
+            float scale = 1f;
+            for (int i = 0; i < _count; i++)
+            {
+                if ((_effects[i].ControlMask & (CrowdControlMask.Stunned | CrowdControlMask.Rooted)) != 0)
+                {
+                    return 0f;
+                }
+
+                scale *= _effects[i].MoveSpeedMultiplier;
+            }
+
+            return scale;
+        }
+    }
+
+    /// <summary>Gets the product of every active <see cref="ActiveStatusEffect.HealthRegenMultiplier"/>.</summary>
+    public float HealthRegenMultiplier
+    {
+        get
+        {
+            float scale = 1f;
+            for (int i = 0; i < _count; i++)
+            {
+                scale *= _effects[i].HealthRegenMultiplier;
+            }
+
+            return scale;
+        }
+    }
+
+    /// <summary>Gets the product of every active <see cref="ActiveStatusEffect.StaminaRegenMultiplier"/>.</summary>
+    public float StaminaRegenMultiplier
+    {
+        get
+        {
+            float scale = 1f;
+            for (int i = 0; i < _count; i++)
+            {
+                scale *= _effects[i].StaminaRegenMultiplier;
+            }
+
+            return scale;
+        }
+    }
+
+    /// <summary>
     /// Gets a read-only span over active status effects.
     /// </summary>
     public ReadOnlySpan<ActiveStatusEffect> ActiveEffects => _effects.AsSpan(0, _count);
 
     /// <summary>
-    /// Applies a new status effect or refreshes/stacks an existing entry with matching <see cref="ActiveStatusEffect.EffectId"/>.
+    /// Applies a new status effect, or merges it into the active entry with the same
+    /// <see cref="ActiveStatusEffect.EffectId"/> according to <see cref="ActiveStatusEffect.Stacking"/> of the incoming effect.
     /// </summary>
     /// <param name="effect">Status effect specification to apply.</param>
-    public void ApplyOrRefresh(in ActiveStatusEffect effect)
+    /// <returns><see langword="true"/> when the buffer changed; <see langword="false"/> when a weaker effect was ignored.</returns>
+    public bool ApplyOrRefresh(in ActiveStatusEffect effect)
     {
+        byte maxStacks = Math.Max((byte)1, effect.MaxStacks);
         for (int i = 0; i < _count; i++)
         {
-            if (_effects[i].EffectId == effect.EffectId)
+            if (_effects[i].EffectId != effect.EffectId)
             {
-                ActiveStatusEffect current = _effects[i];
-                byte maxStacks = Math.Max((byte)1, effect.MaxStacks);
-                byte nextStacks = (byte)Math.Min(maxStacks, current.Stacks + Math.Max((byte)1, effect.Stacks));
-
-                _effects[i] = current with
-                {
-                    Caster = effect.Caster,
-                    ControlMask = effect.ControlMask,
-                    MagnitudePerStack = effect.MagnitudePerStack,
-                    RemainingTicks = Math.Max(current.RemainingTicks, effect.RemainingTicks),
-                    PulseIntervalTicks = effect.PulseIntervalTicks,
-                    Stacks = nextStacks,
-                    MaxStacks = maxStacks,
-                    IsDamage = effect.IsDamage
-                };
-                return;
+                continue;
             }
+
+            ActiveStatusEffect current = _effects[i];
+            ActiveStatusEffect merged;
+            switch (effect.Stacking)
+            {
+                case StatusStacking.Refresh:
+                    merged = WithPulseCountdown(effect with { Stacks = 1, MaxStacks = maxStacks }, current.TicksUntilNextPulse);
+                    break;
+                case StatusStacking.Strongest:
+                    if (effect.Strength > current.Strength)
+                    {
+                        merged = WithPulseCountdown(effect with { Stacks = 1, MaxStacks = maxStacks }, current.TicksUntilNextPulse);
+                    }
+                    else if (effect.Strength == current.Strength && effect.RemainingTicks > current.RemainingTicks)
+                    {
+                        merged = current with { RemainingTicks = effect.RemainingTicks, DurationTicks = effect.DurationTicks };
+                    }
+                    else
+                    {
+                        return false;
+                    }
+
+                    break;
+                case StatusStacking.Stack:
+                default:
+                    byte nextStacks = (byte)Math.Min(maxStacks, current.Stacks + Math.Max((byte)1, effect.Stacks));
+                    uint remaining = Math.Max(current.RemainingTicks, effect.RemainingTicks);
+                    merged = current with
+                    {
+                        Caster = effect.Caster,
+                        ControlMask = effect.ControlMask,
+                        MagnitudePerStack = effect.MagnitudePerStack,
+                        RemainingTicks = remaining,
+                        DurationTicks = Math.Max(remaining, effect.DurationTicks),
+                        PulseIntervalTicks = effect.PulseIntervalTicks,
+                        Stacks = nextStacks,
+                        MaxStacks = maxStacks,
+                        IsDamage = effect.IsDamage,
+                        Lethal = effect.Lethal,
+                        MoveSpeedMultiplier = effect.MoveSpeedMultiplier,
+                        HealthRegenMultiplier = effect.HealthRegenMultiplier,
+                        StaminaRegenMultiplier = effect.StaminaRegenMultiplier,
+                        Source = effect.Source,
+                        SourceId = effect.SourceId,
+                    };
+                    break;
+            }
+
+            _effects[i] = merged;
+            this.Version++;
+            return true;
         }
 
         if (_count >= _effects.Length)
@@ -74,17 +173,29 @@ public sealed class StatusEffectBuffer
             Array.Resize(ref _effects, _effects.Length * 2);
         }
 
-        byte initialStacks = Math.Clamp(effect.Stacks, (byte)1, Math.Max((byte)1, effect.MaxStacks));
-        uint pulseCountdown = effect.PulseIntervalTicks > 0 && effect.TicksUntilNextPulse == 0
-            ? effect.PulseIntervalTicks
-            : effect.TicksUntilNextPulse;
+        byte initialStacks = Math.Clamp(effect.Stacks, (byte)1, maxStacks);
+        _effects[_count++] = WithPulseCountdown(effect with { Stacks = initialStacks, MaxStacks = maxStacks }, 0);
+        this.Version++;
+        return true;
+    }
 
-        _effects[_count++] = effect with
+    /// <summary>Gets the active entry for <paramref name="effectId"/>.</summary>
+    /// <param name="effectId">Status effect identifier.</param>
+    /// <param name="effect">The active entry when found.</param>
+    /// <returns><see langword="true"/> when the effect is active.</returns>
+    public bool TryGet(uint effectId, out ActiveStatusEffect effect)
+    {
+        for (int i = 0; i < _count; i++)
         {
-            Stacks = initialStacks,
-            MaxStacks = Math.Max((byte)1, effect.MaxStacks),
-            TicksUntilNextPulse = pulseCountdown
-        };
+            if (_effects[i].EffectId == effectId)
+            {
+                effect = _effects[i];
+                return true;
+            }
+        }
+
+        effect = default;
+        return false;
     }
 
     /// <summary>
@@ -134,7 +245,8 @@ public sealed class StatusEffectBuffer
                             owner,
                             effect.EffectId,
                             effect.MagnitudePerStack * effect.Stacks,
-                            effect.IsDamage);
+                            effect.IsDamage,
+                            effect.Lethal);
                     }
 
                     pulseTimer = effect.PulseIntervalTicks;
@@ -163,7 +275,23 @@ public sealed class StatusEffectBuffer
     /// <summary>
     /// Removes all active status effects.
     /// </summary>
-    public void Clear() => _count = 0;
+    public void Clear()
+    {
+        if (_count > 0)
+        {
+            _count = 0;
+            this.Version++;
+        }
+    }
+
+    private static ActiveStatusEffect WithPulseCountdown(in ActiveStatusEffect effect, uint runningCountdown)
+    {
+        uint countdown = effect.TicksUntilNextPulse != 0 ? effect.TicksUntilNextPulse
+            : runningCountdown != 0 ? runningCountdown
+            : effect.PulseIntervalTicks;
+        uint duration = effect.DurationTicks != 0 ? effect.DurationTicks : effect.RemainingTicks;
+        return effect with { TicksUntilNextPulse = countdown, DurationTicks = duration };
+    }
 
     private void RemoveAt(int index)
     {
@@ -174,5 +302,6 @@ public sealed class StatusEffectBuffer
         }
 
         _count--;
+        this.Version++;
     }
 }

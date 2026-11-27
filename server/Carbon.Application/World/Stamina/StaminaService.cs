@@ -116,12 +116,14 @@ internal sealed class StaminaService
 
     /// <summary>
     /// Regenerates one tick: nothing during the regen delay, then the still or moving rate scaled by rest, fatigue and
-    /// hunger.
+    /// hunger and
+    /// status effects.
     /// </summary>
     /// <param name="state">Player.</param>
     /// <param name="deltaSeconds">Tick length.</param>
     /// <param name="isMoving">Whether the player moved this tick.</param>
-    public void Regenerate(PlayerState state, float deltaSeconds, bool isMoving)
+    /// <param name="effectScale">Stamina regen multiplier from status effects (ADR-029); 1 without effects.</param>
+    public void Regenerate(PlayerState state, float deltaSeconds, bool isMoving, float effectScale = 1f)
     {
         ArgumentNullException.ThrowIfNull(state);
         RestState fatigue = RestState.Rested;
@@ -132,7 +134,7 @@ internal sealed class StaminaService
             hunger = needs.Hunger;
         }
 
-        StaminaRegenContext context = new(isMoving, state.RestMode != Contracts.Entities.RestMode.None, fatigue, hunger);
+        StaminaRegenContext context = new(isMoving, state.RestMode != Contracts.Entities.RestMode.None, fatigue, hunger, effectScale);
         state.Stamina.Regenerate(deltaSeconds, state.Stats.MaxStamina, this.Config.GetRegenPerSecond(in context), this.Config);
     }
 

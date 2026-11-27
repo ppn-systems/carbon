@@ -65,6 +65,11 @@ public static class ItemOpCode
     /// <summary>S2C: a trader's stock, prices, restock countdown and the player's sell prices.</summary>
     public const ushort TraderStock = 0x4048;
 
+    // ── Status effects (0x4058–0x405F, ADR-029) ─────────────────────────────
+
+    /// <summary>S2C: the local player's active status effects, sent to the owner only when they change.</summary>
+    public const ushort StatusEffectSync = 0x4058;
+
     // ── S2C: Server → Client push (0x4030–0x40FF) ───────────────────────────
 
     /// <summary>Unilateral notification that a player inventory slot changed.</summary>

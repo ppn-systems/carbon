@@ -207,7 +207,8 @@ internal sealed class CombatService
         float damage,
         float remainingHealth,
         bool isCritical,
-        bool isKilled)
+        bool isKilled,
+        ushort statusEffectId = 0)
     {
         _collectNearbyConnections(worldPos, _recipients);
         if (_recipients.Count == 0)
@@ -226,7 +227,8 @@ internal sealed class CombatService
             damage,
             remainingHealth,
             isCritical,
-            isKilled));
+            isKilled,
+            statusEffectId));
     }
 
     /// <summary>Broadcasts a skill or projectile cast from <paramref name="origin"/> aimed along <paramref name="aimDir"/>.</summary>
