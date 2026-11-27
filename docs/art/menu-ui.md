@@ -272,7 +272,12 @@ The rules here and in 2.4 apply as each screen is reworked.
     - **Panels.** Nine-slice edges snap to whole screen pixels, and corners draw `floor(scale)` pixels per texel
       (`CarbonUiSkin.PixelScale`), so 1.5× never makes corner texels uneven.
     - **Input.** The mouse position is divided by the scale before any hit-test.
-    - **Not yet.** The in-game HUD draws at 1× on its own path; scaling it is a separate change.
+    - **One scale everywhere** (`UiScaleState`). The menus and the in-game HUD share one choice, one scale and one font
+      cache, so entering the world never re-bakes the font. The HUD maps the mouse and the window size onto the canvas
+      at its own boundary (`HudOverlayRenderer`), so the input code calling it works in window pixels as before. A new
+      choice in Settings applies at once.
+    - **World text stays 1×.** Nameplates and floating combat numbers follow the camera zoom, not the UI scale, so they
+      keep their own 1× font.
 
 ## 3. Known gaps
 

@@ -9,6 +9,7 @@ using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Gameplay.Interaction;
 using Carbon.Desktop.Input;
 using Carbon.Desktop.Rendering.Hud;
+using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 
@@ -108,7 +109,11 @@ internal sealed class TradeInteraction(IWorldSession session, HudOverlayRenderer
             return;
         }
 
-        TradeWindowHit hit = TradeModalWidget.HitTest(mouse, trader, _hud.State.TradeBasket, _session, width, height);
+        // The window is laid out on the UI-scale canvas (docs/art/menu-ui.md rule 21): hit-test and drag there.
+        UiScaleState ui = _hud.UiScale;
+        ui.Resize(width, height);
+        mouse = ui.ToCanvas(mouse);
+        TradeWindowHit hit = TradeModalWidget.HitTest(mouse, trader, _hud.State.TradeBasket, _session, ui.CanvasWidth, ui.CanvasHeight);
         if (input.LeftClickPressed && hit.Target == TradeWindowTarget.Repair)
         {
             _openRepair();

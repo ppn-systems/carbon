@@ -29,6 +29,8 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
 {
     private readonly OxygenBarWidget _oxygenBar = new();
     private readonly IGraphicsDevice _device;
+    private readonly UiScaleState _ui;
+    private readonly bool _ownsUi;
 
     // GPU resources, created on first use (EnsureGpuResources) so the HUD's UI state can be built without a GL context.
     private GeometryBatch _geometryBatch = null!;
@@ -67,10 +69,14 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     /// <param name="device">OpenGL graphics device the HUD renders with.</param>
     /// <param name="artRepository">Optional injected declarative vector-art repository (DIP).</param>
     /// <param name="state">Window state the scene owns and drives; a new one when <see langword="null"/>.</param>
-    public HudOverlayRenderer(IGraphicsDevice device, IVectorArtRepository? artRepository = null, HudUiState? state = null)
+    /// <param name="uiScale">The UI scale shared with the menus; a private one (from <see cref="Settings"/>) when <see langword="null"/>.</param>
+    public HudOverlayRenderer(IGraphicsDevice device, IVectorArtRepository? artRepository = null, HudUiState? state = null, UiScaleState? uiScale = null)
     {
         ArgumentNullException.ThrowIfNull(device);
         _device = device;
+        _ownsUi = uiScale is null;
+        _ui = uiScale ?? new UiScaleState(() => this.Settings.UiScaleChoice);
+        _ui.Choice = this.Settings.UiScaleChoice;
         _state = state ?? new HudUiState();
         _bagModal = new InventoryModalWidget(_state);
         _art = artRepository ?? CarbonVectorArtLibrary.LoadOrDefault();
@@ -80,7 +86,10 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     /// <summary>Gets the persisted client HUD &amp; display settings.</summary>
     public UiSettings Settings { get; } = UiSettings.LoadOrDefault();
 
-    /// <summary>Gets the primary bitmap font shared with world-space nameplates &amp; floating combat text.</summary>
+    /// <summary>
+    /// Gets the 1x font for world-space nameplates and floating combat text: they follow the camera zoom, not the UI
+    /// scale. The HUD's own panels draw with the shared UI-scale font (<see cref="UiScale"/>).
+    /// </summary>
     public BitmapFont Font
     {
         get
@@ -100,9 +109,20 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         }
     }
 
-    /// <summary>Returns the death screen's Respawn button rectangle (ADR-031).</summary>
-    public static RectangleF GetRespawnButtonRect(int viewportWidth, int viewportHeight) =>
-        DeathScreenWidget.GetRespawnButtonRect(viewportWidth, viewportHeight);
+    /// <summary>Returns the death screen's Respawn button rectangle (ADR-031), in window pixels.</summary>
+    public RectangleF GetRespawnButtonRect(int viewportWidth, int viewportHeight)
+    {
+        (_, viewportWidth, viewportHeight) = this.ToCanvas(Vector2.Zero, viewportWidth, viewportHeight);
+        RectangleF canvas = DeathScreenWidget.GetRespawnButtonRect(viewportWidth, viewportHeight);
+        float scale = _ui.Scale;
+        return new RectangleF(canvas.X * scale, canvas.Y * scale, canvas.Width * scale, canvas.Height * scale);
+    }
+
+    /// <summary>
+    /// Gets the UI scale the HUD shares with the menus (docs/art/menu-ui.md rule 21). Every method here takes the mouse and
+    /// the viewport in window pixels and maps them onto the scale's canvas itself.
+    /// </summary>
+    public UiScaleState UiScale => _ui;
 
     /// <summary>Gets the window state this HUD draws (owned and driven by the scene, audit OOP-3).</summary>
     public HudUiState State => _state;
@@ -139,8 +159,11 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     /// <param name="mousePos">Cursor position.</param>
     /// <param name="steps">Positive to zoom in.</param>
     /// <param name="viewportWidth">Viewport width.</param>
-    public bool TryZoomMinimap(Vector2 mousePos, int steps, int viewportWidth) =>
-        _state.Visible && this.Settings.ShowMinimap && !_state.HasActiveModal && _minimap.TryZoom(mousePos, steps, viewportWidth);
+    public bool TryZoomMinimap(Vector2 mousePos, int steps, int viewportWidth)
+    {
+        (mousePos, viewportWidth) = this.ToCanvas(mousePos, viewportWidth);
+        return _state.Visible && this.Settings.ShowMinimap && !_state.HasActiveModal && _minimap.TryZoom(mousePos, steps, viewportWidth);
+    }
 
     /// <summary>Queues a brief fading notification toast on the right edge of the HUD.</summary>
     public void PushNotification(string message) => _toasts.Push(message);
@@ -160,6 +183,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     /// <summary>Hit-tests screen-space pointer coordinates against the 9 hotbar slots.</summary>
     public bool TryHitTestHotbar(Vector2 mousePos, int viewportWidth, int viewportHeight, out byte slotIndex)
     {
+        (mousePos, viewportWidth, viewportHeight) = this.ToCanvas(mousePos, viewportWidth, viewportHeight);
         slotIndex = 0;
         return _state.Visible && viewportWidth > 0 && viewportHeight > 0 &&
             _hotbar.TryHitTestHotbar(mousePos, viewportWidth, viewportHeight, out slotIndex);
@@ -174,6 +198,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         out PlayerModalTab tab)
     {
         ArgumentNullException.ThrowIfNull(world);
+        (mousePos, viewportWidth, viewportHeight) = this.ToCanvas(mousePos, viewportWidth, viewportHeight);
         tab = PlayerModalTab.Inventory;
         if (!_state.Visible || !_state.ShowPlayerModal || viewportWidth <= 0 || viewportHeight <= 0)
         {
@@ -207,6 +232,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         out ushort craftQuantity)
     {
         ArgumentNullException.ThrowIfNull(world);
+        (mousePos, viewportWidth, viewportHeight) = this.ToCanvas(mousePos, viewportWidth, viewportHeight);
         craftRecipeId = 0;
         craftQuantity = 0;
         return _state.Visible && _state.ShowPlayerModal && _state.ActivePlayerTab == PlayerModalTab.Crafting && viewportWidth > 0 && viewportHeight > 0 &&
@@ -214,10 +240,15 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     }
 
     /// <summary>Hit-tests clicks inside the System Settings &amp; Controls modal.</summary>
-    public SettingsModalAction HandleSettingsClick(Vector2 mousePos, int viewportWidth, int viewportHeight) =>
-        _state.Visible && _state.ShowSettingsModal && viewportWidth > 0 && viewportHeight > 0
+    public SettingsModalAction HandleSettingsClick(Vector2 mousePos, int viewportWidth, int viewportHeight)
+    {
+        (mousePos, viewportWidth, viewportHeight) = this.ToCanvas(mousePos, viewportWidth, viewportHeight);
+        SettingsModalAction action = _state.Visible && _state.ShowSettingsModal && viewportWidth > 0 && viewportHeight > 0
             ? _settingsModal.HandleClick(mousePos, this.Settings, viewportWidth, viewportHeight)
             : SettingsModalAction.None;
+        _ui.Choice = this.Settings.UiScaleChoice; // a new UI scale applies at once, in the world and back in the menus
+        return action;
+    }
 
     /// <summary>Hit-tests unlock/rank-up buttons inside the Class Skills tab.</summary>
     public bool TryHitTestSkillUpgrade(
@@ -228,6 +259,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         out ushort skillId)
     {
         ArgumentNullException.ThrowIfNull(world);
+        (mousePos, viewportWidth, viewportHeight) = this.ToCanvas(mousePos, viewportWidth, viewportHeight);
         skillId = 0;
         return _state.Visible && _state.ShowPlayerModal && _state.ActivePlayerTab == PlayerModalTab.Skills && viewportWidth > 0 && viewportHeight > 0 &&
             _skillsModal.TryHitTestUpgradeButton(world, mousePos, viewportWidth, viewportHeight, out skillId);
@@ -236,6 +268,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     /// <summary>Hit-tests <c>+</c> attribute allocation buttons inside the Character Info tab (<c>[Y]</c>).</summary>
     public bool TryHitTestCharacterStatPlus(Vector2 mousePos, int viewportWidth, int viewportHeight, out PrimaryAttributeId attribute)
     {
+        (mousePos, viewportWidth, viewportHeight) = this.ToCanvas(mousePos, viewportWidth, viewportHeight);
         attribute = PrimaryAttributeId.Vitality;
         return _state.Visible && _state.ShowPlayerModal && _state.ActivePlayerTab == PlayerModalTab.Character && viewportWidth > 0 && viewportHeight > 0 &&
             _characterModal.TryHitTestStatPlusButton(mousePos, viewportWidth, viewportHeight, out attribute);
@@ -244,6 +277,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     /// <summary>Returns whether <paramref name="mousePos"/> hits the close button of whichever modal is open.</summary>
     public bool TryHitTestModalCloseButton(Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
+        (mousePos, viewportWidth, viewportHeight) = this.ToCanvas(mousePos, viewportWidth, viewportHeight);
         if (!_state.Visible || viewportWidth <= 0 || viewportHeight <= 0)
         {
             return false;
@@ -283,6 +317,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     public bool IsPointInActiveModal(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
         ArgumentNullException.ThrowIfNull(world);
+        (mousePos, viewportWidth, viewportHeight) = this.ToCanvas(mousePos, viewportWidth, viewportHeight);
         if (!_state.Visible || viewportWidth <= 0 || viewportHeight <= 0)
         {
             return false;
@@ -327,32 +362,41 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     public bool TryHitTestSkill(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort skillId)
     {
         ArgumentNullException.ThrowIfNull(world);
+        (mousePos, viewportWidth, viewportHeight) = this.ToCanvas(mousePos, viewportWidth, viewportHeight);
         skillId = 0;
         return _state.Visible && viewportWidth > 0 && viewportHeight > 0 &&
             this.PrepareSkillBar(viewportWidth) &&
             _skillBar.TryHitTestSkill(world, mousePos, viewportWidth, viewportHeight, out skillId);
     }
 
-    /// <summary>Gets the screen-space centre of inventory slot <paramref name="slotIndex"/> (screenshot previews).</summary>
-    public static Vector2 GetInventorySlotCenter(int slotIndex, int viewportWidth, int viewportHeight)
+    /// <summary>Gets the window-pixel centre of inventory slot <paramref name="slotIndex"/> (screenshot previews).</summary>
+    public Vector2 GetInventorySlotCenter(int slotIndex, int viewportWidth, int viewportHeight)
     {
+        (_, viewportWidth, viewportHeight) = this.ToCanvas(Vector2.Zero, viewportWidth, viewportHeight);
         PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
         RectangleF rect = InventoryModalWidget.GetSlotRectForTesting(in layout, slotIndex);
-        return new Vector2(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.5f));
+        return _ui.ToWindow(new Vector2(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.5f)));
     }
 
     /// <summary>Hit-tests the inventory dialog's buttons.</summary>
-    public InventoryDialogButton HitTestInventoryDialog(Vector2 mousePos, int viewportWidth, int viewportHeight) =>
-        _bagModal.HitTestDialog(mousePos, viewportWidth, viewportHeight);
+    public InventoryDialogButton HitTestInventoryDialog(Vector2 mousePos, int viewportWidth, int viewportHeight)
+    {
+        (mousePos, viewportWidth, viewportHeight) = this.ToCanvas(mousePos, viewportWidth, viewportHeight);
+        return _bagModal.HitTestDialog(mousePos, viewportWidth, viewportHeight);
+    }
 
     /// <summary>Hit-tests the inventory tab's Sort button.</summary>
-    public bool TryHitTestInventorySortButton(Vector2 mousePos, int viewportWidth, int viewportHeight) =>
-        _state.Visible && _state.ShowPlayerModal && _state.ActivePlayerTab == PlayerModalTab.Inventory &&
-        _bagModal.TryHitTestSortButton(mousePos, viewportWidth, viewportHeight);
+    public bool TryHitTestInventorySortButton(Vector2 mousePos, int viewportWidth, int viewportHeight)
+    {
+        (mousePos, viewportWidth, viewportHeight) = this.ToCanvas(mousePos, viewportWidth, viewportHeight);
+        return _state.Visible && _state.ShowPlayerModal && _state.ActivePlayerTab == PlayerModalTab.Inventory &&
+            _bagModal.TryHitTestSortButton(mousePos, viewportWidth, viewportHeight);
+    }
 
     /// <summary>Hit-tests screen-space coordinates against any of the 42 slots in the Inventory tab.</summary>
     public bool TryHitTestInventorySlot(Vector2 mousePos, int viewportWidth, int viewportHeight, out ushort slotIndex)
     {
+        (mousePos, viewportWidth, viewportHeight) = this.ToCanvas(mousePos, viewportWidth, viewportHeight);
         slotIndex = 0;
         return _state.Visible && _state.ShowPlayerModal && _state.ActivePlayerTab == PlayerModalTab.Inventory && viewportWidth > 0 && viewportHeight > 0 &&
             _bagModal.TryHitTestSlot(mousePos, viewportWidth, viewportHeight, out slotIndex);
@@ -362,14 +406,18 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     public bool TrySelectForgeGear(Vector2 mousePos, IWorldReadModel world, int viewportWidth, int viewportHeight)
     {
         ArgumentNullException.ThrowIfNull(world);
+        (mousePos, viewportWidth, viewportHeight) = this.ToCanvas(mousePos, viewportWidth, viewportHeight);
         return _state.Visible && _state.ShowForgeModal && viewportWidth > 0 && viewportHeight > 0 &&
             _forgeModal.TrySelectGearAt(mousePos, world, viewportWidth, viewportHeight);
     }
 
     /// <summary>Returns whether <paramref name="mousePos"/> hits the Forge Enhance action button inside the Forge Anvil modal.</summary>
-    public bool TryHitTestForgeAnvilButton(Vector2 mousePos, int viewportWidth, int viewportHeight) =>
-        _state.Visible && _state.ShowForgeModal && viewportWidth > 0 && viewportHeight > 0 &&
-        _forgeModal.TryHitTestForgeButton(mousePos, viewportWidth, viewportHeight);
+    public bool TryHitTestForgeAnvilButton(Vector2 mousePos, int viewportWidth, int viewportHeight)
+    {
+        (mousePos, viewportWidth, viewportHeight) = this.ToCanvas(mousePos, viewportWidth, viewportHeight);
+        return _state.Visible && _state.ShowForgeModal && viewportWidth > 0 && viewportHeight > 0 &&
+            _forgeModal.TryHitTestForgeButton(mousePos, viewportWidth, viewportHeight);
+    }
 
     /// <summary>Resolves the selected upgradable gear slot inside the Forge Anvil modal.</summary>
     public int ResolveForgeTargetSlot(IWorldReadModel world)
@@ -388,6 +436,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     public bool TryHandleStatusStripClick(IWorldReadModel world, Vector2 mouseScreenPos, int viewportWidth)
     {
         ArgumentNullException.ThrowIfNull(world);
+        (mouseScreenPos, viewportWidth) = this.ToCanvas(mouseScreenPos, viewportWidth);
         _statusStrip.ShowMinimap = this.Settings.ShowMinimap;
         return _statusStrip.HandleClick(mouseScreenPos, world.LocalStatusEffects, viewportWidth);
     }
@@ -396,6 +445,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     public bool IsOverStatusStrip(IWorldReadModel world, Vector2 mouseScreenPos, int viewportWidth)
     {
         ArgumentNullException.ThrowIfNull(world);
+        (mouseScreenPos, viewportWidth) = this.ToCanvas(mouseScreenPos, viewportWidth);
         _statusStrip.ShowMinimap = this.Settings.ShowMinimap;
         return _statusStrip.IsOver(mouseScreenPos, world.LocalStatusEffects, viewportWidth);
     }
@@ -406,8 +456,9 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     /// <summary>Gets the screen centre of status icon <paramref name="index"/> (screenshot previews).</summary>
     public Vector2 GetStatusIconCenter(int index, int viewportWidth)
     {
+        (_, viewportWidth) = this.ToCanvas(Vector2.Zero, viewportWidth);
         RectangleF icon = StatusEffectStripLayout.Icon(index, viewportWidth, this.Settings.ShowMinimap);
-        return new Vector2(icon.X + (icon.Width * 0.5f), icon.Y + (icon.Height * 0.5f));
+        return _ui.ToWindow(new Vector2(icon.X + (icon.Width * 0.5f), icon.Y + (icon.Height * 0.5f)));
     }
 
     /// <summary>Opens the details of <paramref name="effectId"/> (screenshot previews).</summary>
@@ -417,19 +468,26 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     public void Render(
         IWorldReadModel world,
         SpriteBatch spriteBatch,
-        int viewportWidth,
-        int viewportHeight,
+        int windowWidth,
+        int windowHeight,
         float frameDt,
-        Vector2? mouseScreenPos = null,
+        Vector2? mouseWindowPos = null,
         CombatFeedbackTracker? feedback = null,
         Vector2? aimedWorldPos = null)
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(spriteBatch);
-        if (!_state.Visible || !world.IsReady || viewportWidth <= 0 || viewportHeight <= 0)
+        if (!_state.Visible || !world.IsReady || windowWidth <= 0 || windowHeight <= 0)
         {
             return;
         }
+
+        // The HUD lays out on the shared UI-scale canvas (docs/art/menu-ui.md rule 21): every widget below works in canvas
+        // units, the projection draws them Scale times larger and the mouse is mapped into the canvas here.
+        _ui.Resize(windowWidth, windowHeight);
+        int viewportWidth = _ui.CanvasWidth;
+        int viewportHeight = _ui.CanvasHeight;
+        Vector2? mouseScreenPos = mouseWindowPos is { } mouseWindow ? _ui.ToCanvas(mouseWindow) : null;
 
         _animTime += frameDt;
         _forgeModal.Update(frameDt, world);
@@ -444,7 +502,9 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         this.ReloadFontIfLanguageChanged();
         _targetWidget.UpdateTarget(world, feedback, aimedWorldPos);
 
-        Matrix4x4 screenProj = Matrix4x4.CreateOrthographicOffCenter(0f, viewportWidth, viewportHeight, 0f, -1f, 1f);
+        Matrix4x4 screenProj = Matrix4x4.CreateOrthographicOffCenter(0f, windowWidth / _ui.Scale, windowHeight / _ui.Scale, 0f, -1f, 1f);
+        _uiSkin.PixelScale = _ui.Scale;
+        BitmapFont hudFont = _ui.Font ?? _font;
         Vector2 playerPos = world.LocalPlayerInterpolatedPosition;
         float tileSize = world.ChunkWorld.TileSize;
         int ptx = (int)MathF.Floor(playerPos.X / tileSize);
@@ -453,7 +513,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         // The death screen goes on top (ADR-031): while dead the strip draws nothing and takes no clicks.
         _statusStrip.Suppressed = (_state.DeathPreview ?? world.LocalDeath) is not null;
         _statusStrip.ShowMinimap = this.Settings.ShowMinimap;
-        _statusStrip.Prepare(world, _font, bgMouse, viewportWidth);
+        _statusStrip.Prepare(world, hudFont, bgMouse, viewportWidth);
         _ = this.PrepareSkillBar(viewportWidth); // After the strip: the skill bar starts under its last row.
 
         _geometryBatch.Begin(screenProj);
@@ -461,7 +521,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         _geometryBatch.End();
 
         // Pass 1: Background HUD (NineSlice Skins -> Vector Geometry & Bars -> Bitmap Text), walked from HudComposition.MainHud.
-        HudFrame frame = new(world, viewportWidth, viewportHeight, ptx, pty, bgMouse, feedback);
+        HudFrame frame = new(world, hudFont, viewportWidth, viewportHeight, ptx, pty, bgMouse, feedback);
         this.DrawElements(HudComposition.MainHud, spriteBatch, screenProj, in frame);
 
         // Pass 2 & 3: Active Modal Window & Floating Tooltip/Drag Layer
@@ -473,7 +533,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
 
             spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
             _settingsModal.DrawSkin(spriteBatch, _uiSkin, this.Settings, viewportWidth, viewportHeight, mouseScreenPos);
-            _settingsModal.DrawText(spriteBatch, _font, this.Settings, viewportWidth, viewportHeight);
+            _settingsModal.DrawText(spriteBatch, hudFont, this.Settings, viewportWidth, viewportHeight);
             spriteBatch.End();
         }
         else if (_state.ShowPlayerModal)
@@ -494,7 +554,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                     _geometryBatch.End();
 
                     spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-                    _bagModal.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight);
+                    _bagModal.DrawText(spriteBatch, hudFont, world, viewportWidth, viewportHeight);
                     spriteBatch.End();
 
                     this.DrawElements(HudComposition.InventoryHeader, spriteBatch, screenProj, in frame);
@@ -504,7 +564,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                     _geometryBatch.End();
 
                     spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-                    _bagModal.DrawTopOverlayText(spriteBatch, _font, world, viewportWidth, viewportHeight, mouseScreenPos, hoveredModalSlot);
+                    _bagModal.DrawTopOverlayText(spriteBatch, hudFont, world, viewportWidth, viewportHeight, mouseScreenPos, hoveredModalSlot);
                     spriteBatch.End();
                     break;
 
@@ -518,7 +578,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                     _geometryBatch.End();
 
                     spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-                    _characterModal.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight, ptx, pty, _smoothedFps, this.Settings.ShowTelemetry);
+                    _characterModal.DrawText(spriteBatch, hudFont, world, viewportWidth, viewportHeight, ptx, pty, _smoothedFps, this.Settings.ShowTelemetry);
                     spriteBatch.End();
                     break;
 
@@ -532,7 +592,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                     _geometryBatch.End();
 
                     spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-                    _craftModal.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight);
+                    _craftModal.DrawText(spriteBatch, hudFont, world, viewportWidth, viewportHeight);
                     spriteBatch.End();
                     break;
 
@@ -546,7 +606,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                     _geometryBatch.End();
 
                     spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-                    _skillsModal.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight);
+                    _skillsModal.DrawText(spriteBatch, hudFont, world, viewportWidth, viewportHeight);
                     spriteBatch.End();
                     break;
 
@@ -556,11 +616,11 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         }
         else if (_state.Trader is TraderView trader)
         {
-            TradeModalWidget.Render(spriteBatch, _geometryBatch, _uiSkin, _font, _art, screenProj, world, trader, _state.TradeBasket, _state.TradeDragSlot, viewportWidth, viewportHeight, mouseScreenPos);
+            TradeModalWidget.Render(spriteBatch, _geometryBatch, _uiSkin, hudFont, _art, screenProj, world, trader, _state.TradeBasket, _state.TradeDragSlot, viewportWidth, viewportHeight, mouseScreenPos);
         }
         else if (_state.Repair.IsOpen)
         {
-            _repairWidget.Render(spriteBatch, _geometryBatch, _uiSkin, _font, _art, screenProj, world, _state.Repair, viewportWidth, viewportHeight, mouseScreenPos);
+            _repairWidget.Render(spriteBatch, _geometryBatch, _uiSkin, hudFont, _art, screenProj, world, _state.Repair, viewportWidth, viewportHeight, mouseScreenPos);
         }
         else if (_state.ShowForgeModal)
         {
@@ -577,7 +637,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             _geometryBatch.End();
 
             spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: screenProj);
-            _forgeModal.DrawText(spriteBatch, _font, world, viewportWidth, viewportHeight);
+            _forgeModal.DrawText(spriteBatch, hudFont, world, viewportWidth, viewportHeight);
             spriteBatch.End();
         }
 
@@ -652,7 +712,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 _skillBar.DrawSkin(spriteBatch, _uiSkin, f.World, f.ViewportWidth, f.ViewportHeight);
                 break;
             case HudElement.Toasts:
-                _toasts.DrawSkin(spriteBatch, _uiSkin, _font, f.ViewportWidth, HudLayout.GetToastTop(f.ViewportWidth, this.Settings.ShowMinimap, _statusStrip.Rows));
+                _toasts.DrawSkin(spriteBatch, _uiSkin, f.Font, f.ViewportWidth, HudLayout.GetToastTop(f.ViewportWidth, this.Settings.ShowMinimap, _statusStrip.Rows));
                 break;
             case HudElement.StatusEffects:
                 _statusStrip.DrawSkin(spriteBatch, _uiSkin, f.World, f.ViewportWidth);
@@ -663,7 +723,8 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             case HudElement.InteractPrompt:
                 if (!_state.HasActiveModal && _state.InteractPrompt is InteractionPrompt prompt)
                 {
-                    InteractionPromptWidget.DrawSkin(spriteBatch, _uiSkin, _font, in prompt);
+                    InteractionPrompt onCanvas = prompt with { ScreenAnchor = _ui.ToCanvas(prompt.ScreenAnchor) };
+                    InteractionPromptWidget.DrawSkin(spriteBatch, _uiSkin, f.Font, in onCanvas);
                 }
 
                 break;
@@ -731,47 +792,48 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         switch (element)
         {
             case HudElement.TargetFrame:
-                _targetWidget.DrawText(spriteBatch, _font, _art, f.ViewportWidth);
+                _targetWidget.DrawText(spriteBatch, f.Font, _art, f.ViewportWidth);
                 break;
             case HudElement.Clock:
-                _clock.DrawText(spriteBatch, _font, f.ViewportWidth, this.Settings.ShowMinimap, f.World.AuthoritativeTimeHour, f.World.AuthoritativeIsNight);
+                _clock.DrawText(spriteBatch, f.Font, f.ViewportWidth, this.Settings.ShowMinimap, f.World.AuthoritativeTimeHour, f.World.AuthoritativeIsNight);
                 break;
             case HudElement.Minimap:
                 if (this.Settings.ShowMinimap)
                 {
-                    _minimap.DrawText(spriteBatch, _font, f.ViewportWidth, f.Ptx, f.Pty, f.BackgroundMouse);
+                    _minimap.DrawText(spriteBatch, f.Font, f.ViewportWidth, f.Ptx, f.Pty, f.BackgroundMouse);
                 }
 
                 break;
             case HudElement.Hotbar:
-                _hotbar.DrawText(spriteBatch, _font, f.World, _art, f.ViewportWidth, f.ViewportHeight, hoveredSlot);
+                _hotbar.DrawText(spriteBatch, f.Font, f.World, _art, f.ViewportWidth, f.ViewportHeight, hoveredSlot);
                 break;
             case HudElement.SkillBar:
-                _skillBar.DrawText(spriteBatch, _font, f.World, f.ViewportWidth, f.ViewportHeight, hoveredSkill);
+                _skillBar.DrawText(spriteBatch, f.Font, f.World, f.ViewportWidth, f.ViewportHeight, hoveredSkill);
                 break;
             case HudElement.Toasts:
-                _toasts.DrawText(spriteBatch, _font, f.ViewportWidth, HudLayout.GetToastTop(f.ViewportWidth, this.Settings.ShowMinimap, _statusStrip.Rows));
+                _toasts.DrawText(spriteBatch, f.Font, f.ViewportWidth, HudLayout.GetToastTop(f.ViewportWidth, this.Settings.ShowMinimap, _statusStrip.Rows));
                 break;
             case HudElement.InteractPrompt:
                 if (!_state.HasActiveModal && _state.InteractPrompt is InteractionPrompt prompt)
                 {
-                    InteractionPromptWidget.DrawText(spriteBatch, _font, in prompt);
+                    InteractionPrompt onCanvas = prompt with { ScreenAnchor = _ui.ToCanvas(prompt.ScreenAnchor) };
+                    InteractionPromptWidget.DrawText(spriteBatch, f.Font, in onCanvas);
                 }
 
                 break;
             case HudElement.StatusEffects:
-                _statusStrip.DrawText(spriteBatch, _font, f.World, f.ViewportWidth);
+                _statusStrip.DrawText(spriteBatch, f.Font, f.World, f.ViewportWidth);
                 break;
             case HudElement.Wallet:
                 PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(f.ViewportWidth, f.ViewportHeight);
-                WalletWidget.DrawText(spriteBatch, _font, f.World, in layout);
+                WalletWidget.DrawText(spriteBatch, f.Font, f.World, in layout);
                 break;
             case HudElement.DeathScreen when f.Death is DeathView death:
-                _deathScreen.DrawText(spriteBatch, _font, in death, f.RespawnPending, f.ViewportWidth, f.ViewportHeight);
+                _deathScreen.DrawText(spriteBatch, f.Font, in death, f.RespawnPending, f.ViewportWidth, f.ViewportHeight);
                 break;
             case HudElement.OxygenBar:
                 WaterView breath = f.World.LocalWater;
-                _oxygenBar.DrawText(spriteBatch, _font, in breath, f.ViewportWidth, f.ViewportHeight);
+                _oxygenBar.DrawText(spriteBatch, f.Font, in breath, f.ViewportWidth, f.ViewportHeight);
                 break;
             case HudElement.DeathVeil:
             case HudElement.DeathScreen:
@@ -784,6 +846,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     /// <summary>Per-frame inputs shared by every element of a draw list.</summary>
     private readonly record struct HudFrame(
         IWorldReadModel World,
+        BitmapFont Font,
         int ViewportWidth,
         int ViewportHeight,
         int Ptx,
@@ -792,6 +855,20 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         CombatFeedbackTracker? Feedback,
         DeathView? Death = null,
         bool RespawnPending = false);
+
+    /// <summary>Maps a window-pixel point and window size onto the UI-scale canvas.</summary>
+    private (Vector2 Point, int Width, int Height) ToCanvas(Vector2 windowPoint, int windowWidth, int windowHeight)
+    {
+        _ui.Resize(windowWidth, windowHeight);
+        return (_ui.ToCanvas(windowPoint), _ui.CanvasWidth, _ui.CanvasHeight);
+    }
+
+    /// <summary>Maps a window-pixel point and window width onto the canvas, with the window height last seen (width-only callers).</summary>
+    private (Vector2 Point, int Width) ToCanvas(Vector2 windowPoint, int windowWidth)
+    {
+        _ui.Resize(windowWidth, _ui.WindowHeight);
+        return (_ui.ToCanvas(windowPoint), _ui.CanvasWidth);
+    }
 
     /// <summary>Keeps the skill bar under the minimap/clock column and the status strip (<see cref="HudLayout"/>); always returns <see langword="true"/>.</summary>
     private bool PrepareSkillBar(int viewportWidth)
@@ -812,6 +889,8 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         _geometryBatch = new GeometryBatch(_device);
         _fontLanguageVersion = GameText.Current.Version;
         (_font, _whitePixel) = GameFontLoader.Load(_device);
+        IGraphicsDevice device = _device;
+        _ui.EnsureFonts(() => new ScaledFontCache(scale => GameFontLoader.LoadFont(device, locale: null, scale)));
         _uiSkin = CarbonUiSkin.Load(_device);
         _gpuReady = true;
     }
@@ -826,6 +905,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         }
 
         _fontLanguageVersion = version;
+        _ui.Fonts?.Invalidate(); // the shared UI font re-bakes in the new language on its next use
         BitmapFont previous = _font;
         _font = GameFontLoader.LoadFont(_device);
         previous.Dispose();
@@ -847,6 +927,11 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 _geometryBatch.Dispose();
                 _font.Dispose();
                 _whitePixel.Dispose();
+            }
+
+            if (_ownsUi)
+            {
+                _ui.Dispose();
             }
 
             _disposed = true;

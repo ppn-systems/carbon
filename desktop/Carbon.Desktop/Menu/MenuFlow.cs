@@ -6,6 +6,7 @@ using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Identity;
 using Carbon.Desktop.Abstractions.Session;
 using Carbon.Desktop.Rendering.Hud;
+using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching.Camera;
 
 namespace Carbon.Desktop.Menu;
@@ -18,7 +19,7 @@ internal sealed class MenuFlow
     public MenuFlow(IWorldSession session, DesktopOptions options, Camera2D camera, IRememberedAccountStore accounts, ServerDirectory servers, IServerProbe? probe = null, Func<float?>? readUiScaleChoice = null)
     {
         this.Probe = probe ?? new TcpServerProbe();
-        this.ReadUiScaleChoice = readUiScaleChoice ?? (static () => null);
+        this.Ui = new UiScaleState(readUiScaleChoice ?? (static () => null));
         this.Session = session ?? throw new ArgumentNullException(nameof(session));
         this.Options = options ?? throw new ArgumentNullException(nameof(options));
         this.Camera = camera ?? throw new ArgumentNullException(nameof(camera));
@@ -42,10 +43,10 @@ internal sealed class MenuFlow
     public IServerProbe Probe { get; }
 
     /// <summary>
-    /// Gets the reader of the player's UI scale choice (<see langword="null"/> = Auto). Each menu screen reads it once when it
-    /// loads, so a change made in the in-game Settings shows on the next screen.
+    /// Gets the UI scale the menus and the in-game HUD share: one choice, one scale and one font cache. Each menu screen
+    /// re-reads the saved choice once when it loads.
     /// </summary>
-    public Func<float?> ReadUiScaleChoice { get; }
+    public UiScaleState Ui { get; }
 
     /// <summary>Gets the living world behind the menus; shared so it keeps panning across screen changes.</summary>
     public MenuBackdrop Backdrop { get; }
