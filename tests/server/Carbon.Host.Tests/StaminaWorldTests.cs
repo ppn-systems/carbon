@@ -6,6 +6,7 @@ using System.Linq;
 using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
+using Carbon.Abstractions.World;
 using Carbon.Application.World;
 using Carbon.Contracts.Common;
 using Carbon.Infrastructure.Persistence.Sqlite;
@@ -121,6 +122,43 @@ public sealed class StaminaWorldTests
         f.Sink.StructureChanges.Should().NotContain(c => c.TileX == tx && c.TileY == ty, "an exhausted builder does no work");
     }
 
+    [Fact]
+    public async Task StepFixedTick_DeadPlayer_DoesNotRegenerateAndRefusesSpends()
+    {
+        // 50 stamina: below max (regen would show) and enough for an 11-cost swing (only death can refuse it).
+        using StaminaWorld f = await StaminaWorld.CreateAsync(stamina: 50f, starving: true).ConfigureAwait(true);
+        f.DieOfStarvation();
+        float atDeath = f.Stamina();
+        atDeath.Should().BeInRange(StaminaTestConfig.WoodAxeCost, 99f);
+
+        f.Step(3 * TicksPerSecond);
+
+        f.Stamina().Should().Be(atDeath, "a dead player does not regenerate (ADR-031, ADR-033)");
+        f.World.TryHarvestProp(ConnectionId, f.PropTileX, f.PropTileY).Status.Should().Be(OpStatus.RateLimited);
+        f.Sink.PropChanges.Should().BeEmpty("a dead player cannot swing");
+        f.Stamina().Should().Be(atDeath);
+        f.World.StepFixedTick();
+        f.Sink.StaminaStatuses.Should().NotContain(st => st.Exhausted, "a dead player's swing is not a stamina refusal");
+    }
+
+    [Fact]
+    public async Task SubmitRespawnAsync_ExhaustedWhenKilled_RefillsAndAllowsASwingInTheSameTick()
+    {
+        using StaminaWorld f = await StaminaWorld.CreateAsync(stamina: 5f, starving: true).ConfigureAwait(true);
+        f.World.TryHarvestProp(ConnectionId, f.PropTileX, f.PropTileY).Status.Should().Be(OpStatus.RateLimited, "5 < 11: refused and exhausted");
+        f.DieOfStarvation();
+
+        // Both commands run in the next tick, in order (ADR-017), before regen: the swing works only if respawn itself
+        // cleared the exhaustion.
+        Task<WorldMutationOutcome> respawn = f.World.SubmitRespawnAsync(ConnectionId).AsTask();
+        Task<WorldMutationOutcome> swing = f.World.SubmitHarvestPropAsync(ConnectionId, f.PropTileX, f.PropTileY).AsTask();
+        f.World.StepFixedTick();
+
+        (await respawn.ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok);
+        (await swing.ConfigureAwait(true)).Status.Should().Be(OpStatus.Ok, "respawn clears exhaustion");
+        f.Stamina().Should().Be(100f - StaminaTestConfig.WoodAxeCost, "respawn refilled the pool before the swing");
+    }
+
     private sealed class StaminaWorld : IDisposable
     {
         private readonly string _dbPath;
@@ -147,7 +185,7 @@ public sealed class StaminaWorldTests
 
         public int PropTileY { get; }
 
-        public static async Task<StaminaWorld> CreateAsync(float stamina)
+        public static async Task<StaminaWorld> CreateAsync(float stamina, bool starving = false)
         {
             string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-stamina-{Guid.NewGuid():N}.db");
             SqliteConnectionFactory factory = new($"Data Source={dbPath}");
@@ -178,12 +216,14 @@ public sealed class StaminaWorldTests
                 AppearancePreset: 0,
                 PositionX: ((tx + 0.5f) * 32f) + 40f,
                 PositionY: (ty + 0.5f) * 32f,
-                CurrentHealth: 100f,
+                CurrentHealth: starving ? 1f : 100f,
                 MaxHealth: 100f,
                 SelectedHotbarSlot: 0,
                 InventoryBlob: InventoryBinaryCodec.Serialize(inv),
                 UpdatedAtUtc: new DateTimeOffset(2026, 11, 27, 12, 0, 0, TimeSpan.Zero),
-                CurrentStamina: stamina);
+                CurrentStamina: stamina,
+                NeedsFood: starving ? 0f : -1f,
+                NeedsMalnutrition: starving ? 1f : 0f);
             world.TryEnterWorld(ConnectionId, hero).Status.Should().Be(OpStatus.Ok);
             return new StaminaWorld(dbPath, factory, world, sink, hero.Id, tx, ty);
         }
@@ -201,6 +241,17 @@ public sealed class StaminaWorldTests
                 this.World.EnqueueMoveInput(ConnectionId, ++_clientTick, new Vector2(i % 60 < 30 ? 1f : -1f, 0f), sprint: true);
                 this.World.StepFixedTick();
             }
+        }
+
+        /// <summary>Steps until the starving 1 HP hero dies (ADR-031 dead state).</summary>
+        public void DieOfStarvation()
+        {
+            for (int i = 0; i < 20 * TicksPerSecond && !this.World.IsPlayerDead(ConnectionId); i++)
+            {
+                this.World.StepFixedTick();
+            }
+
+            this.World.IsPlayerDead(ConnectionId).Should().BeTrue("starvation kills a 1 HP hero");
         }
 
         public void Step(int ticks)
