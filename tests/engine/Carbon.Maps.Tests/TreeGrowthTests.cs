@@ -40,6 +40,16 @@ public sealed class TreeGrowthTests
     }
 
     [Fact]
+    public void LoadEmbedded_SaplingDrops_AreRareButSustainable()
+    {
+        // ADR-040 D1 amendment: one sapling in five felled mature trees, one in ten dug-up stumps.
+        TreeGrowthRules trees = PropRegrowthRules.LoadEmbedded().Trees;
+
+        Assert.Equal(0.2f, trees.MatureSaplingChance);
+        Assert.Equal(0.1f, trees.StumpSaplingChance);
+    }
+
+    [Fact]
     public void LoadFromJson_TreeInRegrowSeconds_IsRejected()
     {
         string json = """{ "spawnForage": { "respawnSeconds": 45 }, "blockedRetrySeconds": 5, "regrowSeconds": { "oakTree": 60 }, """ + PropRegrowthTests.TreesJson + "}";
