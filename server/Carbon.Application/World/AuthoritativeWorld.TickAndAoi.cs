@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
@@ -235,9 +236,23 @@ public sealed partial class AuthoritativeWorld
     private void SwapOutboundBuffersLocked() => _outbound.Swap();
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Trader sales, chunk deltas and characters are saved independently: a failing store keeps its own rows dirty
+    /// for the next flush, but never stops the other stores from saving in this one. The failures are rethrown at
+    /// the end (one as-is, several as an <see cref="AggregateException"/>) so the host logs them.
+    /// </remarks>
     public async Task FlushDirtyPersistenceAsync(CancellationToken ct = default)
     {
-        await _trade.FlushAsync(ct).ConfigureAwait(false);
+        List<Exception>? failures = null;
+        try
+        {
+            await _trade.FlushAsync(ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            (failures ??= []).Add(ex);
+        }
+
         List<PersistedChunkDelta> chunkBatch = [];
         List<CharacterRecord> characterBatch = [];
         DateTimeOffset now = _time.GetUtcNow();
@@ -267,26 +282,13 @@ public sealed partial class AuthoritativeWorld
             _persistence.CollectBatch(_players.ByConnection.Values, characterBatch);
         }
 
-        if (chunkBatch.Count > 0 || characterBatch.Count > 0)
+        if (chunkBatch.Count > 0)
         {
             try
             {
-                if (chunkBatch.Count > 0)
-                {
-                    await _chunkDeltaRepo.SaveBatchAsync(chunkBatch, ct).ConfigureAwait(false);
-                }
-
-                if (characterBatch.Count > 0)
-                {
-                    await _characterStore.SaveBatchAsync(characterBatch, ct).ConfigureAwait(false);
-                }
-
-                lock (_gate)
-                {
-                    _persistence.Release(characterBatch);
-                }
+                await _chunkDeltaRepo.SaveBatchAsync(chunkBatch, ct).ConfigureAwait(false);
             }
-            catch
+            catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 lock (_gate)
                 {
@@ -294,13 +296,45 @@ public sealed partial class AuthoritativeWorld
                     {
                         _ = _dirtyChunks.Add(Chunk2D.PackKey(chunkBatch[i].ChunkX, chunkBatch[i].ChunkY));
                     }
+                }
 
+                (failures ??= []).Add(ex);
+            }
+        }
+
+        if (characterBatch.Count > 0)
+        {
+            try
+            {
+                await _characterStore.SaveBatchAsync(characterBatch, ct).ConfigureAwait(false);
+                lock (_gate)
+                {
+                    _persistence.Release(characterBatch);
+                }
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                lock (_gate)
+                {
                     _persistence.Requeue(characterBatch);
                 }
 
-                throw;
+                (failures ??= []).Add(ex);
             }
         }
+
+        if (failures is null)
+        {
+            return;
+        }
+
+        ct.ThrowIfCancellationRequested();
+        if (failures.Count == 1)
+        {
+            ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        }
+
+        throw new AggregateException("Persistence flush failed for more than one store; the failed rows stay dirty for the next flush.", failures);
     }
 
     private void DispatchPendingTickOutputs() => _outbound.Dispatch(_outboundSink);

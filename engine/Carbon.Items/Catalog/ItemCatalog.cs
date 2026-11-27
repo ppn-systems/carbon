@@ -56,6 +56,13 @@ public sealed class ItemCatalog : IStackSizeProvider
     }
 
     /// <summary>
+    /// Largest item id the wire can carry: packets hold item ids as <see cref="ushort"/> (for example
+    /// <c>InventorySlotChanged.ItemId</c>, equipment looks and ground-loot archetypes), while the engine keeps
+    /// <see cref="uint"/>. Rejecting larger ids at load keeps every engine-to-wire conversion lossless (audit DOM-7).
+    /// </summary>
+    public const uint MaxWireItemId = ushort.MaxValue;
+
+    /// <summary>
     /// Builds a validated catalog from definitions.
     /// </summary>
     /// <param name="items">Item definitions.</param>
@@ -73,6 +80,11 @@ public sealed class ItemCatalog : IStackSizeProvider
             if (item.Id == 0 || string.IsNullOrWhiteSpace(item.Code))
             {
                 throw new InvalidDataException($"Item #{i} must have a non-zero id and a code.");
+            }
+
+            if (item.Id > MaxWireItemId)
+            {
+                throw new InvalidDataException($"Item '{item.Code}' has id {item.Id}; item ids must be at most {MaxWireItemId} because the wire carries them as 16-bit values.");
             }
 
             if (!ids.Add(item.Id))

@@ -94,7 +94,7 @@ internal sealed class ProjectileService
         uint lifetimeTicks)
     {
         ulong netId = _allocateNetworkId();
-        Entity proj = _simulation.SpawnNetworkEntity(netId, origin, 4f, ownerSessionId: ownerConnectionId);
+        Entity proj = _simulation.SpawnNetworkEntity(netId, origin, 4f);
         _simulation.Entities.SetCollider(proj, new Collider2D(ColliderKind.Circle, 4f, default, true, ProjectileLayer, 0U));
         _simulation.Entities.SetVelocity(proj, new Velocity2D(velocity.X, velocity.Y, 0f));
 
