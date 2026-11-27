@@ -34,7 +34,7 @@ namespace Carbon.Desktop.Scenes;
 
 /// <summary>
 /// Two-mode Hero Roster &amp; Character Creator scene framed with standardized 9-slice <see cref="CarbonUiSkin"/>,
-/// featuring 4-direction live hero turntable, class archetype selection (<c>Vanguard</c>/<c>Ranger</c>/<c>Arcanist</c>),
+/// featuring 4-direction live hero turntable, a classless fresh-start note (ADR-030),
 /// and appearance trait customization.
 /// </summary>
 public sealed class CharacterSelectScene : GameScene
@@ -45,12 +45,15 @@ public sealed class CharacterSelectScene : GameScene
     private static readonly string[] s_skinTones = ["character.skin.fair", "character.skin.tan", "character.skin.bronze", "character.skin.umber"];
     private static readonly Direction8[] s_turnDirs = [Direction8.South, Direction8.West, Direction8.North, Direction8.East];
     private static readonly uint[] s_classWeapons = [StarterGameCatalog.IronSword, StarterGameCatalog.HuntingBow, StarterGameCatalog.ArcaneStaff];
-    private static readonly string[] s_classTitles = ["character.class.vanguard", "character.class.ranger", "character.class.arcanist"];
-    private static readonly string[] s_classSubtitles =
+    private static readonly string[] s_freshStartLines =
     [
-        "character.class_hint.vanguard",
-        "character.class_hint.ranger",
-        "character.class_hint.arcanist",
+        "character_creator.fresh_start.line1",
+        "character_creator.fresh_start.line2",
+        "character_creator.fresh_start.line3",
+        "character_creator.fresh_start.line4",
+        "character_creator.fresh_start.line5",
+        "character_creator.fresh_start.line6",
+        "character_creator.fresh_start.line7",
     ];
 
     private readonly IWorldSession _session;
@@ -75,7 +78,7 @@ public sealed class CharacterSelectScene : GameScene
     private readonly MenuButton _skinNextBtn = new(">", MenuButtonStyle.NeutralSlate);
     private readonly MenuButton _logoutButton = new(GameText.Get("character.logout"), MenuButtonStyle.DangerRed);
     private readonly RectangleF[] _slotBounds = new RectangleF[4];
-    private readonly RectangleF[] _classCardBounds = new RectangleF[3];
+    private RectangleF _freshStartBounds;
 
     private GeometryBatch? _geometryBatch;
     private BitmapFont? _font;
@@ -92,7 +95,6 @@ public sealed class CharacterSelectScene : GameScene
     private byte _faceStyle;
     private byte _skinTone;
     private byte _selectedPreset;
-    private HeroArchetypeClass _selectedClass = HeroArchetypeClass.Vanguard;
     private bool _isCreatorMode;
     private string? _preferSelectName;
 
@@ -297,13 +299,7 @@ public sealed class CharacterSelectScene : GameScene
 
         if (_isCreatorMode)
         {
-            for (int c = 0; c < 3; c++)
-            {
-                bool sel = (byte)_selectedClass == c;
-                ColorRgba border = sel ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle;
-                ColorRgba body = sel ? CarbonUiPalette.SlotSelectedFill : CarbonUiPalette.SlotFill;
-                _uiSkin.DrawPanel(spriteBatch, UiPanelStyle.DoubleCard, in _classCardBounds[c], body, border);
-            }
+            _uiSkin.DrawPanel(spriteBatch, UiPanelStyle.DoubleCard, in _freshStartBounds, CarbonUiPalette.SlotFill, CarbonUiPalette.BorderSubtle);
 
             _hairPrevBtn.DrawSkin(spriteBatch, _uiSkin);
             _hairNextBtn.DrawSkin(spriteBatch, _uiSkin);
@@ -351,7 +347,7 @@ public sealed class CharacterSelectScene : GameScene
         _uiSkin.DrawInset(spriteBatch, in statusPill, CarbonUiPalette.SlotFill, _statusIsError ? CarbonUiPalette.DangerBorder : CarbonUiPalette.BorderSubtle);
         spriteBatch.End();
 
-        // Pass 3: Live Vector Hero Pedestal, Class Weapon Badges, Portraits & Cursor
+        // Pass 3: Live Vector Hero Pedestal, Portraits & Cursor
         _geometryBatch.Begin(proj);
         Direction8 previewDir = s_turnDirs[_turnIndex];
         float stageCx = stageCard.X + (stageCard.Width * 0.5f);
@@ -366,15 +362,13 @@ public sealed class CharacterSelectScene : GameScene
         {
             CompiledItemVectorArt? weaponArt = null;
             VisualEquipmentLoadout previewLoadout = default;
-            HeroArchetypeClass previewClass = _isCreatorMode
-                ? _selectedClass
-                : (_selectedIndex >= 0 && _selectedIndex < _characters.Count
-                    ? _characters[_selectedIndex].Class
-                    : HeroArchetypeClass.Vanguard);
-            if (_isCreatorMode || (_selectedIndex >= 0 && _selectedIndex < _characters.Count))
+            // A new hero arrives with nothing (ADR-030); a hero created with a class shows that class's starter kit.
+            HeroArchetypeClass previewClass = !_isCreatorMode && _selectedIndex >= 0 && _selectedIndex < _characters.Count
+                ? _characters[_selectedIndex].Class
+                : HeroArchetypeClass.None;
+            if ((int)previewClass < s_classWeapons.Length)
             {
-                int classIdx = Math.Clamp((int)previewClass, 0, s_classWeapons.Length - 1);
-                uint starterWeaponId = s_classWeapons[classIdx];
+                uint starterWeaponId = s_classWeapons[(int)previewClass];
                 _ = _vectorArt.TryGetItem(starterWeaponId, out weaponArt);
                 previewLoadout = new VisualEquipmentLoadout(
                     HeadId: (ushort)StarterGameCatalog.LeatherCap,
@@ -405,17 +399,6 @@ public sealed class CharacterSelectScene : GameScene
 
         if (_isCreatorMode)
         {
-            if (_vectorArt is not null)
-            {
-                for (int c = 0; c < 3; c++)
-                {
-                    if (_vectorArt.TryGetItem(s_classWeapons[c], out CompiledItemVectorArt? wArt))
-                    {
-                        VectorRigRenderer.DrawItemIcon(_geometryBatch, wArt, new Vector2(_classCardBounds[c].X + 34f, _classCardBounds[c].Y + 46f), 34f);
-                    }
-                }
-            }
-
             _createNameField.DrawCursorGeometry(_geometryBatch, _font);
         }
         else if (_vectorArt is not null)
@@ -451,19 +434,17 @@ public sealed class CharacterSelectScene : GameScene
         spriteBatch.DrawOutlinedString(_font, header, new Vector2(ox + 22f, oy + 18f), CarbonUiPalette.TextWarm, black, 2, 1.5f);
         spriteBatch.DrawOutlinedString(_font, _netText.Format("character.net", new TextArg("transport", _session.TransportLabel)), new Vector2(ox + 686f, oy + 22f), CarbonUiPalette.TextMuted, black, 1, 1f);
 
-        string stageTitle = _isCreatorMode ? GameText.Get(s_classTitles[(int)_selectedClass]) : GameText.Get("character.stage");
+        string stageTitle = GameText.Get("character.stage");
         TextMeasureResult stSize = _font.MeasureString(stageTitle, TextLayoutOptions.Default, 1f);
         spriteBatch.DrawOutlinedString(_font, stageTitle, new Vector2(MathF.Floor(stageCard.X + ((stageCard.Width - stSize.Width) * 0.5f)), stageCard.Y + 14f), CarbonUiPalette.TextPrimary, black, 1, 1f);
 
         if (_isCreatorMode)
         {
-            spriteBatch.DrawOutlinedString(_font, GameText.Get("character.starting_class"), new Vector2(ox + 24f, oy + 66f), CarbonUiPalette.TextMuted, black, 1, 1f);
-            for (int c = 0; c < 3; c++)
+            spriteBatch.DrawOutlinedString(_font, GameText.Get("character_creator.fresh_start"), new Vector2(_freshStartBounds.X + 16f, _freshStartBounds.Y + 16f), CarbonUiPalette.TextWarm, black, 1, 1.25f);
+            for (int line = 0; line < s_freshStartLines.Length; line++)
             {
-                RectangleF cb = _classCardBounds[c];
-                ColorRgba accent = (byte)_selectedClass == c ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextPrimary;
-                spriteBatch.DrawOutlinedString(_font, GameText.Get(s_classTitles[c]), new Vector2(cb.X + 64f, cb.Y + 18f), accent, black, 1, 1.25f);
-                spriteBatch.DrawOutlinedString(_font, CarbonUiSkin.TruncateToWidth(_font, GameText.Get(s_classSubtitles[c]), cb.Width - 72f, 1f), new Vector2(cb.X + 64f, cb.Y + 48f), CarbonUiPalette.TextMuted, black, 1, 1f);
+                string text = CarbonUiSkin.TruncateToWidth(_font, GameText.Get(s_freshStartLines[line]), _freshStartBounds.Width - 32f, 1f);
+                spriteBatch.DrawOutlinedString(_font, text, new Vector2(_freshStartBounds.X + 16f, _freshStartBounds.Y + 58f + (line * 30f)), CarbonUiPalette.TextMuted, black, 1, 1f);
             }
 
             spriteBatch.DrawOutlinedString(_font, GameText.Get("character.appearance"), new Vector2(rightCard.X + 16f, rightCard.Y + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
@@ -497,7 +478,7 @@ public sealed class CharacterSelectScene : GameScene
                 {
                     CharacterRosterEntry c = _characters[i];
                     ColorRgba nc = i == _selectedIndex ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextPrimary;
-                    string clsLabel = GameText.Get(s_classTitles[Math.Clamp((int)c.Class, 0, s_classTitles.Length - 1)]);
+                    string clsLabel = GameText.ClassName(c.Class);
                     spriteBatch.DrawOutlinedString(_font, CarbonUiSkin.TruncateToWidth(_font, c.Name, b.Width - 82f, 1.25f), new Vector2(b.X + 70f, b.Y + 14f), nc, black, 1, 1.25f);
                     spriteBatch.DrawOutlinedString(_font, _rosterRowText[i].Format("character.roster_row", new TextArg("class", clsLabel), new TextArg("level", c.Level)), new Vector2(b.X + 70f, b.Y + 42f), CarbonUiPalette.TextMuted, black, 1, 1f);
                 }
@@ -511,7 +492,7 @@ public sealed class CharacterSelectScene : GameScene
             if (_selectedIndex >= 0 && _selectedIndex < _characters.Count)
             {
                 CharacterRosterEntry sel = _characters[_selectedIndex];
-                string selCls = GameText.Get(s_classTitles[Math.Clamp((int)sel.Class, 0, s_classTitles.Length - 1)]);
+                string selCls = GameText.ClassName(sel.Class);
                 spriteBatch.DrawOutlinedString(_font, CarbonUiSkin.TruncateToWidth(_font, sel.Name.ToUpperInvariant(), rightCard.Width - 32f, 1.5f), new Vector2(rightCard.X + 16f, rightCard.Y + 44f), CarbonUiPalette.TextPrimary, black, 1, 1.5f);
                 spriteBatch.DrawOutlinedString(_font, _dossierText.Format("character.dossier_line", new TextArg("class", selCls), new TextArg("level", sel.Level), new TextArg("tier", sel.ZoneTier)), new Vector2(rightCard.X + 16f, rightCard.Y + 78f), CarbonUiPalette.TextWarm, black, 1, 1f);
                 spriteBatch.DrawOutlinedString(_font, _positionText.Format("character.position", new TextArg("x", (int)sel.PositionX), new TextArg("y", (int)sel.PositionY)), new Vector2(rightCard.X + 16f, rightCard.Y + 102f), CarbonUiPalette.TextMuted, black, 1, 1f);
@@ -608,17 +589,6 @@ public sealed class CharacterSelectScene : GameScene
     private void UpdateCreatorMode(KeyboardSnapshot kb, Vector2 mousePos, bool leftDown, bool leftPressed, float dt, bool busy)
     {
         _createNameField.Update(dt, mousePos, leftPressed && !busy);
-        if (leftPressed && !busy)
-        {
-            for (int c = 0; c < 3; c++)
-            {
-                if (_classCardBounds[c].Contains(mousePos))
-                {
-                    _selectedClass = (HeroArchetypeClass)c;
-                }
-            }
-        }
-
         _hairPrevBtn.IsEnabled = !busy;
         _hairNextBtn.IsEnabled = !busy;
         _hColPrevBtn.IsEnabled = !busy;
@@ -688,9 +658,9 @@ public sealed class CharacterSelectScene : GameScene
         if (_createButton.Update(mousePos, leftDown, leftPressed) || (enterKey && _createNameField.IsFocused && _characters.Count < 4))
         {
             _preferSelectName = _createNameField.Text.Trim();
-            _createTask = _session.CreateCharacterAsync(_createNameField.Text, _selectedPreset, (byte)_selectedClass);
+            _createTask = _session.CreateCharacterAsync(_createNameField.Text, _selectedPreset);
             _statusIsError = false;
-            _statusMessage = GameText.Format("character.status.creating", new TextArg("name", _preferSelectName), new TextArg("class", GameText.Get(s_classTitles[(int)_selectedClass])));
+            _statusMessage = GameText.Format("character.status.creating", new TextArg("name", _preferSelectName));
         }
     }
 
@@ -847,10 +817,7 @@ public sealed class CharacterSelectScene : GameScene
         _openCreatorButton.Bounds = new RectangleF(ox + 22f, oy + 408f, 270f, 44f);
         _enterWorldButton.Bounds = new RectangleF(ox + 608f, oy + 392f, 274f, 46f);
 
-        for (int c = 0; c < 3; c++)
-        {
-            _classCardBounds[c] = new RectangleF(ox + 22f, oy + 92f + (c * 108f), 270f, 96f);
-        }
+        _freshStartBounds = new RectangleF(ox + 22f, oy + 68f, 270f, 384f);
 
         float rx = ox + 592f;
         float ry = oy + 68f;

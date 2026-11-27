@@ -9,4 +9,8 @@
         <ProjectReference Include="..\Carbon.Physics\Carbon.Physics.csproj" />
         <ProjectReference Include="..\Carbon.Simulation\Carbon.Simulation.csproj" />
     </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="..\..\resources\config\status_effects.json" LogicalName="Carbon.Combat.Config.status_effects.json" />
+    </ItemGroup>
 </Project>
