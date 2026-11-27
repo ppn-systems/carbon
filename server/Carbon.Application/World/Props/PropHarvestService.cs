@@ -157,6 +157,42 @@ internal sealed class PropHarvestService
     }
 
     /// <summary>
+    /// Whether a swing from <paramref name="attackerPos"/> towards <paramref name="aimDir"/> reaches something
+    /// <see cref="SwingAtWorld"/> would strike: a standing destructible prop on the aimed or probed tiles, or a structure on
+    /// the aimed tile. Changes nothing (ADR-033 amendment: only a swing that connects costs stamina).
+    /// </summary>
+    public bool HasStrikeTarget(PlayerState state, Vector2 attackerPos, Vector2 aimDir)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        int aimTx = (int)MathF.Floor(state.PendingAttackAim.X / _tileSize);
+        int aimTy = (int)MathF.Floor(state.PendingAttackAim.Y / _tileSize);
+        if (this.IsStrikeableProp(attackerPos, aimTx, aimTy))
+        {
+            return true;
+        }
+
+        Vector2 sideDir = new(-aimDir.Y, aimDir.X);
+        ReadOnlySpan<Vector2> probes =
+        [
+            attackerPos + (aimDir * 24f),
+            attackerPos + (((aimDir * 0.85f) + (sideDir * 0.52f)) * 24f),
+            attackerPos + (((aimDir * 0.85f) - (sideDir * 0.52f)) * 24f),
+        ];
+
+        for (int i = 0; i < probes.Length; i++)
+        {
+            if (this.IsStrikeableProp(attackerPos, (int)MathF.Floor(probes[i].X / _tileSize), (int)MathF.Floor(probes[i].Y / _tileSize)))
+            {
+                return true;
+            }
+        }
+
+        return _isWithinInteractRange(state.Entity, aimTx, aimTy) &&
+            _chunkWorld.Buildings.TryGetStructure(aimTx, aimTy, out StructureTile structure) &&
+            structure.Type != StructureType.None;
+    }
+
+    /// <summary>
     /// A swing that hit no monster: strikes the prop at the aim point, else the first prop in three probes ahead of the
     /// player. When a prop resists the tool, clients are told its unchanged durability. With no prop, a structure at the
     /// aim point within reach takes tool damage if the tool's tier allows.
@@ -259,6 +295,13 @@ internal sealed class PropHarvestService
             }
         }
     }
+
+    private bool IsStrikeableProp(Vector2 attackerPos, int tileX, int tileY) =>
+        this.IsWithinHarvestRange(attackerPos, tileX, tileY) &&
+        _chunkWorld.TryGetPropAt(tileX, tileY, out MapProp prop) &&
+        prop.Type != MapPropType.None &&
+        !prop.Destructibility.IsDestroyed &&
+        prop.Destructibility.IsDestructible;
 
     private static ToolTargetKind ToToolTargetKind(PropCategory category) =>
         category == PropCategory.Mineral
