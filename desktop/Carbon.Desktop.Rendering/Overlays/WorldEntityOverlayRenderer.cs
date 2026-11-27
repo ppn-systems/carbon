@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Contracts.Entities;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Feedback;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -363,11 +364,11 @@ internal sealed class WorldEntityOverlayRenderer
             WorldActorCatalog.GetNpcSpec(r.ArchetypeId).Capabilities.HasFlag(NpcCapabilities.ForgeArtisan) &&
             distSq <= (175f * 175f))
         {
-            return $"{r.Name} [U/E: FORGE]";
+            return GameText.Format("hud.nameplate.forge", new TextArg("name", r.Name));
         }
 
         return (r.Kind is EntityKind.Monster or EntityKind.Player) && r.Level > 0
-            ? $"Lv.{r.Level} {r.Name}"
+            ? GameText.Format("hud.nameplate.level", new TextArg("level", r.Level), new TextArg("name", r.Name))
             : r.Name;
     }
 

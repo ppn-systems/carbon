@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
+using Carbon.Contracts.Identity;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 
@@ -110,6 +111,17 @@ public static class GameText
     /// <param name="fallbackName">The config <c>displayName</c> used when no locale has the key.</param>
     /// <returns>The display name.</returns>
     public static string MonsterName(string monsterId, string fallbackName) => Derived(s_monsterNameKeys, "monster.", monsterId, ".name", fallbackName);
+
+    /// <summary>Returns the localized hero class name (<c>character.class.*</c>).</summary>
+    /// <param name="heroClass">The class.</param>
+    /// <returns>The display name.</returns>
+    public static string ClassName(HeroArchetypeClass heroClass) => heroClass switch
+    {
+        HeroArchetypeClass.Vanguard => Current.Text("character.class.vanguard"),
+        HeroArchetypeClass.Ranger => Current.Text("character.class.ranger"),
+        HeroArchetypeClass.Arcanist => Current.Text("character.class.arcanist"),
+        _ => heroClass.ToString(),
+    };
 
     /// <summary>Returns the localized biome name (<c>biome.&lt;snake_case&gt;</c>).</summary>
     /// <param name="biome">The biome.</param>

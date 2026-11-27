@@ -52,6 +52,11 @@ forge_nochange     | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_FORGE_KIT=1 | CARBO
 forge_downgrade    | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_FORGE_KIT=1 | CARBON_WEATHER=clear CARBON_FORGE_PREVIEW=downgrade:0.3
 forge_destroyed    | CARBON_DEBUG_START_HOUR=11 CARBON_DEBUG_FORGE_KIT=1 | CARBON_WEATHER=clear CARBON_FORGE_PREVIEW=destroyed:0.3
 
+# --- character panel (ADR-021): a level-25 character with unspent points; the second pins the cursor on
+#     Power's "+" button (1280x720 layout) to show the green stat preview ---
+stats_panel       | CARBON_DEBUG_START_LEVEL=25 CARBON_DEBUG_START_HOUR=11 | CARBON_OPEN_PANEL=character CARBON_WEATHER=clear
+stats_panel_hover | CARBON_DEBUG_START_LEVEL=25 CARBON_DEBUG_START_HOUR=11 | CARBON_OPEN_PANEL=character CARBON_WEATHER=clear CARBON_CAPTURE_MOUSE=907,297
+
 # --- inventory UI (CARBON_UI_PREVIEW, client-only; starter loadout) ---
 inventory_open     | CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=inventory
 inventory_tooltip  | CARBON_DEBUG_START_HOUR=11 | CARBON_WEATHER=clear CARBON_UI_PREVIEW=inventory-tooltip:2

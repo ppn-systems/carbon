@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching.Common;
@@ -49,6 +50,8 @@ internal readonly record struct PlayerModalLayout(
 /// <summary>Shared equal-width tab strip, fixed frame chrome, and header across <see cref="PlayerModalTab"/> views.</summary>
 internal static class PlayerModalTabs
 {
+    private static readonly string[] s_tabLabelKeys = ["hud.tab.bag", "hud.tab.character", "hud.tab.crafting", "hud.tab.skills"];
+
     private const float BaseSlotSize = 70f;
     private const float BaseSlotGap = 8f;
     private const float BaseSidePad = 37f;
@@ -224,7 +227,7 @@ internal static class PlayerModalTabs
         string? rightBadge = null,
         bool highlightBadge = false)
     {
-        string[] labels = ["Bag", "Character", "Crafting", "Skills"];
+        ReadOnlySpan<string> labels = s_tabLabelKeys;
         int count = showSkills ? 4 : 3;
         ColorRgba black = CarbonUiPalette.TextOutline;
 
@@ -235,7 +238,7 @@ internal static class PlayerModalTabs
             CarbonUiSkin.DrawCenteredText(
                 spriteBatch,
                 font,
-                labels[i],
+                GameText.Get(labels[i]),
                 in tabRect,
                 active ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextMuted,
                 black,

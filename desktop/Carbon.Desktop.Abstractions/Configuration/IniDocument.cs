@@ -75,7 +75,7 @@ public sealed class IniDocument
         List<IniEntry> entries = [];
         Dictionary<string, IniEntry> byKey = new(StringComparer.Ordinal);
         List<string> sections = [];
-        HashSet<string> seenSections = new(StringComparer.Ordinal);
+        Dictionary<string, int> sectionLines = new(StringComparer.Ordinal);
         string section = string.Empty;
 
         string[] lines = text.Split('\n');
@@ -101,9 +101,12 @@ public sealed class IniDocument
                     throw new IniFormatException(sourceName, lineNumber, $"invalid section name '{section}' (allowed: a-z 0-9 _ .)");
                 }
 
-                if (!seenSections.Add(section))
+                if (!sectionLines.TryAdd(section, lineNumber))
                 {
-                    throw new IniFormatException(sourceName, lineNumber, $"duplicate section [{section}]");
+                    throw new IniFormatException(
+                        sourceName,
+                        lineNumber,
+                        $"duplicate section [{section}] (first defined on line {sectionLines[section]}); append the keys to the existing section instead of starting a new one");
                 }
 
                 sections.Add(section);

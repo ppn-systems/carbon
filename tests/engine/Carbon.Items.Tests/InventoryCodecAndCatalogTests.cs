@@ -115,7 +115,7 @@ public sealed class InventoryCodecAndCatalogTests
         ItemEnhancementPolicy.GetUpgradeLevel(in upgraded).Should().Be(5);
         inv.SetSlot(PlayerInventoryLayout.HeadSlot, in upgraded);
 
-        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(s_rules, s_progression, 3, inv, byte.MaxValue, null);
+        DerivedCharacterStats stats = CharacterStatCalculator.Compute(s_rules, s_progression, 3, inv, byte.MaxValue, null);
         stats.Defense.Should().BeGreaterThan(10f);
         stats.MaxHealth.Should().BeGreaterThan(140f);
         stats.MaxMana.Should().Be(s_progression.BaseStats.MaxMana + (2f * s_progression.PerLevel.MaxMana), "level 3 with no mana gear");
@@ -242,8 +242,8 @@ public sealed class InventoryCodecAndCatalogTests
         mageBag.GetSlot(PlayerInventoryLayout.HeadSlot).ItemId.Should().Be(StarterGameCatalog.LeatherCap);
         mageBag.GetSlot(PlayerInventoryLayout.ChestSlot).ItemId.Should().Be(StarterGameCatalog.LeatherTunic);
         mageBag.GetSlot(PlayerInventoryLayout.FeetSlot).ItemId.Should().Be(StarterGameCatalog.LeatherBoots);
-        DerivedCharacterStats baseStats = CharacterProgressionPolicy.ComputeStats(s_rules, s_progression, 1, mageBag, byte.MaxValue, null);
-        DerivedCharacterStats staffStats = CharacterProgressionPolicy.ComputeStats(s_rules, s_progression, 1, mageBag, 2, null);
+        DerivedCharacterStats baseStats = CharacterStatCalculator.Compute(s_rules, s_progression, 1, mageBag, byte.MaxValue, null);
+        DerivedCharacterStats staffStats = CharacterStatCalculator.Compute(s_rules, s_progression, 1, mageBag, 2, null);
         staffStats.MaxMana.Should().BeGreaterThan(baseStats.MaxMana);
 
         ItemSlot bowSlot = rangerBag.GetSlot(2);
@@ -284,8 +284,8 @@ public sealed class InventoryCodecAndCatalogTests
         CharacterSkillMaskHelper.HasSkill(decodedProg.UnlockedSkillMask, SkillCatalog.ArcaneNovaId).Should().BeTrue();
         CharacterSkillMaskHelper.HasSkill(decodedProg.UnlockedSkillMask, SkillCatalog.VitalSurgeId).Should().BeFalse();
 
-        DerivedCharacterStats boosted = CharacterProgressionPolicy.ComputeStats(s_rules, s_progression, 5, mageBag, 2, allocated);
-        DerivedCharacterStats unboosted = CharacterProgressionPolicy.ComputeStats(s_rules, s_progression, 5, mageBag, 2, null);
+        DerivedCharacterStats boosted = CharacterStatCalculator.Compute(s_rules, s_progression, 5, mageBag, 2, allocated);
+        DerivedCharacterStats unboosted = CharacterStatCalculator.Compute(s_rules, s_progression, 5, mageBag, 2, null);
         boosted.MaxHealth.Should().BeGreaterThan(unboosted.MaxHealth);
         boosted.MaxMana.Should().BeGreaterThan(unboosted.MaxMana);
         boosted.AttackMultiplier.Should().BeGreaterThan(unboosted.AttackMultiplier);

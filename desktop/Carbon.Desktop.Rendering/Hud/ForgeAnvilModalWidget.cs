@@ -27,20 +27,7 @@ namespace Carbon.Desktop.Rendering.Hud;
 /// </summary>
 internal sealed class ForgeAnvilModalWidget
 {
-    private const float PanelW = 684f;
-    private const float PanelH = 480f;
-    private const int MaxVisibleGearRows = 7;
-    private const float RowH = 48f;
-    private const int MaxMaterialRows = 3;
-    private const float MaterialRowY = 216f;
-    private const float MaterialRowH = 22f;
-    private const float OutcomeBarY = 302f;
     private const string AnvilItemCode = "forge_anvil";
-
-    private static readonly ColorRgba s_successColor = new(16, 185, 129, 240);
-    private static readonly ColorRgba s_noChangeColor = new(148, 163, 184, 240);
-    private static readonly ColorRgba s_downgradeColor = new(249, 115, 22, 240);
-    private static readonly ColorRgba s_destroyColor = new(225, 29, 72, 240);
 
     private readonly List<ushort> _eligibleScratch = new(24);
     private int _selectedSlot = -1;
@@ -84,32 +71,32 @@ internal sealed class ForgeAnvilModalWidget
 
     public bool ContainsPoint(Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
-        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
-        return mousePos.X >= ox && mousePos.X <= ox + PanelW && mousePos.Y >= oy && mousePos.Y <= oy + PanelH;
+        (float ox, float oy) = ForgeAnvilLayout.ComputeOrigin(viewportWidth, viewportHeight);
+        return mousePos.X >= ox && mousePos.X <= ox + ForgeAnvilLayout.PanelW && mousePos.Y >= oy && mousePos.Y <= oy + ForgeAnvilLayout.PanelH;
     }
 
     public bool TryHitTestCloseButton(Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
-        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
-        return GetCloseButtonRect(ox, oy).Contains(mousePos);
+        (float ox, float oy) = ForgeAnvilLayout.ComputeOrigin(viewportWidth, viewportHeight);
+        return ForgeAnvilLayout.GetCloseButtonRect(ox, oy).Contains(mousePos);
     }
 
     public bool TryHitTestForgeButton(Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
-        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
-        return GetForgeButtonRect(ox, oy).Contains(mousePos);
+        (float ox, float oy) = ForgeAnvilLayout.ComputeOrigin(viewportWidth, viewportHeight);
+        return ForgeAnvilLayout.GetForgeButtonRect(ox, oy).Contains(mousePos);
     }
 
     public bool TrySelectGearAt(Vector2 mousePos, IWorldReadModel world, int viewportWidth, int viewportHeight)
     {
-        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
-        if (GetScrollUpRect(ox, oy).Contains(mousePos))
+        (float ox, float oy) = ForgeAnvilLayout.ComputeOrigin(viewportWidth, viewportHeight);
+        if (ForgeAnvilLayout.GetScrollUpRect(ox, oy).Contains(mousePos))
         {
             this.Scroll(-1);
             return true;
         }
 
-        if (GetScrollDownRect(ox, oy).Contains(mousePos))
+        if (ForgeAnvilLayout.GetScrollDownRect(ox, oy).Contains(mousePos))
         {
             this.Scroll(1);
             return true;
@@ -118,7 +105,7 @@ internal sealed class ForgeAnvilModalWidget
         int protections = world.Items.Rules.Enhancement.Protections.Length;
         for (int i = -1; i < protections; i++)
         {
-            if (GetProtectionRect(ox, oy, i, protections).Contains(mousePos))
+            if (ForgeAnvilLayout.GetProtectionRect(ox, oy, i, protections).Contains(mousePos))
             {
                 _protectionChoice = i;
                 return true;
@@ -130,9 +117,9 @@ internal sealed class ForgeAnvilModalWidget
         this.CollectEligibleSlots(world.Items.Rules, slots);
         this.ClampScrollOffset();
 
-        for (int i = 0; i < MaxVisibleGearRows && (_scrollOffset + i) < _eligibleScratch.Count; i++)
+        for (int i = 0; i < ForgeAnvilLayout.MaxVisibleGearRows && (_scrollOffset + i) < _eligibleScratch.Count; i++)
         {
-            RectangleF row = new(ox + 26f, oy + 76f + (i * (RowH + 4f)), 244f, RowH);
+            RectangleF row = new(ox + 26f, oy + 76f + (i * (ForgeAnvilLayout.RowH + 4f)), 244f, ForgeAnvilLayout.RowH);
             if (row.Contains(mousePos))
             {
                 _selectedSlot = _eligibleScratch[_scrollOffset + i];
@@ -183,7 +170,7 @@ internal sealed class ForgeAnvilModalWidget
         int viewportHeight,
         Vector2? mouseScreenPos)
     {
-        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
+        (float ox, float oy) = ForgeAnvilLayout.ComputeOrigin(viewportWidth, viewportHeight);
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
         this.CollectEligibleSlots(world.Items.Rules, slots);
@@ -192,28 +179,28 @@ internal sealed class ForgeAnvilModalWidget
         ColorRgba frameCol = world.ForgeFeedbackTimer > 0f
             ? (world.LastForgeSucceeded ? CarbonUiPalette.ConfirmBorder : CarbonUiPalette.DangerBorder)
             : CarbonUiPalette.BorderOuter;
-        skin.DrawWindow(spriteBatch, new RectangleF(ox, oy, PanelW, PanelH), frameCol, bodyAlpha: 246);
+        skin.DrawWindow(spriteBatch, new RectangleF(ox, oy, ForgeAnvilLayout.PanelW, ForgeAnvilLayout.PanelH), frameCol, bodyAlpha: 246);
         skin.DrawCard(spriteBatch, new RectangleF(ox + 16f, oy + 44f, 264f, 420f), CarbonUiPalette.BorderSubtle, bodyAlpha: 236);
         skin.DrawCard(spriteBatch, new RectangleF(ox + 290f, oy + 44f, 378f, 420f), CarbonUiPalette.BorderSubtle, bodyAlpha: 236);
 
-        RectangleF closeBtn = GetCloseButtonRect(ox, oy);
+        RectangleF closeBtn = ForgeAnvilLayout.GetCloseButtonRect(ox, oy);
         bool hoverClose = mouseScreenPos.HasValue && closeBtn.Contains(mouseScreenPos.Value);
         skin.DrawButton(spriteBatch, in closeBtn, hoverClose ? new ColorRgba(158, 46, 52, 245) : CarbonUiPalette.DangerFill, CarbonUiPalette.DangerBorder);
 
-        if (_eligibleScratch.Count > MaxVisibleGearRows)
+        if (_eligibleScratch.Count > ForgeAnvilLayout.MaxVisibleGearRows)
         {
-            RectangleF upBtn = GetScrollUpRect(ox, oy);
-            RectangleF dnBtn = GetScrollDownRect(ox, oy);
+            RectangleF upBtn = ForgeAnvilLayout.GetScrollUpRect(ox, oy);
+            RectangleF dnBtn = ForgeAnvilLayout.GetScrollDownRect(ox, oy);
             skin.DrawButton(spriteBatch, in upBtn, CarbonUiPalette.CardFill, CarbonUiPalette.BorderSubtle);
             skin.DrawButton(spriteBatch, in dnBtn, CarbonUiPalette.CardFill, CarbonUiPalette.BorderSubtle);
         }
 
         int activeSlot = this.ResolveTargetSlot(world);
-        for (int i = 0; i < MaxVisibleGearRows && (_scrollOffset + i) < _eligibleScratch.Count; i++)
+        for (int i = 0; i < ForgeAnvilLayout.MaxVisibleGearRows && (_scrollOffset + i) < _eligibleScratch.Count; i++)
         {
             ushort sIdx = _eligibleScratch[_scrollOffset + i];
             bool sel = sIdx == activeSlot;
-            RectangleF row = new(ox + 26f, oy + 76f + (i * (RowH + 4f)), 244f, RowH);
+            RectangleF row = new(ox + 26f, oy + 76f + (i * (ForgeAnvilLayout.RowH + 4f)), 244f, ForgeAnvilLayout.RowH);
             skin.DrawSlot(
                 spriteBatch,
                 in row,
@@ -221,7 +208,7 @@ internal sealed class ForgeAnvilModalWidget
                 sel ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle);
         }
 
-        RectangleF anvilBox = GetStageRect(ox, oy);
+        RectangleF anvilBox = ForgeAnvilLayout.GetStageRect(ox, oy);
         skin.DrawSlot(spriteBatch, in anvilBox, CarbonUiPalette.SlotFill, CarbonUiPalette.BorderOuter);
 
         ItemSlot target = activeSlot >= 0 && activeSlot < slots.Length ? slots[activeSlot] : ItemSlot.Empty;
@@ -237,7 +224,7 @@ internal sealed class ForgeAnvilModalWidget
             EnhancementTable table = world.Items.Rules.Enhancement;
             for (int i = -1; i < table.Protections.Length; i++)
             {
-                RectangleF btn = GetProtectionRect(ox, oy, i, table.Protections.Length);
+                RectangleF btn = ForgeAnvilLayout.GetProtectionRect(ox, oy, i, table.Protections.Length);
                 bool usable = i < 0 || (table.Protections[i].AppliesTo(step) && CountItemInSpan(slots, table.Protections[i].ItemId) > 0);
                 bool picked = i == _protectionChoice || (i < 0 && _protectionChoice < 0);
                 skin.DrawButton(
@@ -248,7 +235,7 @@ internal sealed class ForgeAnvilModalWidget
             }
         }
 
-        RectangleF forgeBtn = GetForgeButtonRect(ox, oy);
+        RectangleF forgeBtn = ForgeAnvilLayout.GetForgeButtonRect(ox, oy);
         bool hoverForge = mouseScreenPos.HasValue && forgeBtn.Contains(mouseScreenPos.Value);
         skin.DrawButton(
             spriteBatch,
@@ -264,24 +251,24 @@ internal sealed class ForgeAnvilModalWidget
         int viewportWidth,
         int viewportHeight)
     {
-        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
+        (float ox, float oy) = ForgeAnvilLayout.ComputeOrigin(viewportWidth, viewportHeight);
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
         this.CollectEligibleSlots(world.Items.Rules, slots);
         this.ClampScrollOffset();
 
-        for (int i = 0; i < MaxVisibleGearRows && (_scrollOffset + i) < _eligibleScratch.Count; i++)
+        for (int i = 0; i < ForgeAnvilLayout.MaxVisibleGearRows && (_scrollOffset + i) < _eligibleScratch.Count; i++)
         {
             ushort sIdx = _eligibleScratch[_scrollOffset + i];
             if (art is not null && art.TryGetItem(slots[sIdx].ItemId, out CompiledItemVectorArt? gearArt))
             {
-                VectorRigRenderer.DrawItemIcon(batch, gearArt, new Vector2(ox + 48f, oy + 100f + (i * (RowH + 4f))), 28f);
+                VectorRigRenderer.DrawItemIcon(batch, gearArt, new Vector2(ox + 48f, oy + 100f + (i * (ForgeAnvilLayout.RowH + 4f))), 28f);
             }
         }
 
         int activeSlot = this.ResolveTargetSlot(world);
         ItemSlot target = activeSlot >= 0 && activeSlot < slots.Length ? slots[activeSlot] : ItemSlot.Empty;
-        RectangleF stage = GetStageRect(ox, oy);
+        RectangleF stage = ForgeAnvilLayout.GetStageRect(ox, oy);
         Vector2 itemCenter = new(stage.X + (stage.Width * 0.5f), stage.Y + 40f);
         if (!this.Vfx.IsActive && !target.IsEmpty)
         {
@@ -309,22 +296,22 @@ internal sealed class ForgeAnvilModalWidget
         if (ItemEnhancementPolicy.TryGetStep(world.Items.Rules, in target, out EnhancementStep? step))
         {
             ReadOnlySpan<RecipeIngredient> materials = step.MaterialSpan;
-            for (int i = 0; i < materials.Length && i < MaxMaterialRows; i++)
+            for (int i = 0; i < materials.Length && i < ForgeAnvilLayout.MaxMaterialRows; i++)
             {
                 if (art is not null && art.TryGetItem(materials[i].ItemId, out CompiledItemVectorArt? matArt))
                 {
-                    VectorRigRenderer.DrawItemIcon(batch, matArt, new Vector2(ox + 324f, oy + MaterialRowY + 8f + (i * MaterialRowH)), 18f);
+                    VectorRigRenderer.DrawItemIcon(batch, matArt, new Vector2(ox + 324f, oy + ForgeAnvilLayout.MaterialRowY + 8f + (i * ForgeAnvilLayout.MaterialRowH)), 18f);
                 }
             }
 
-            DrawOutcomeBar(batch, new RectangleF(ox + 310f, oy + OutcomeBarY, 336f, 12f), step);
+            ForgeOutcomeStyle.DrawOutcomeBar(batch, new RectangleF(ox + 310f, oy + ForgeAnvilLayout.OutcomeBarY, 336f, 12f), step);
 
             if (step.IsRisky && art is not null)
             {
                 EnhancementTable table = world.Items.Rules.Enhancement;
                 for (int i = 0; i < table.Protections.Length; i++)
                 {
-                    RectangleF btn = GetProtectionRect(ox, oy, i, table.Protections.Length);
+                    RectangleF btn = ForgeAnvilLayout.GetProtectionRect(ox, oy, i, table.Protections.Length);
                     if (art.TryGetItem(table.Protections[i].ItemId, out CompiledItemVectorArt? scrollArt))
                     {
                         VectorRigRenderer.DrawItemIcon(batch, scrollArt, new Vector2(btn.X + (btn.Width * 0.5f) - 18f, btn.Y + (btn.Height * 0.5f)), 18f);
@@ -334,29 +321,6 @@ internal sealed class ForgeAnvilModalWidget
         }
     }
 
-    /// <summary>Draws the four outcome chances of <paramref name="step"/> as one stacked bar (success, no change, downgrade, destroy).</summary>
-    private static void DrawOutcomeBar(GeometryBatch batch, RectangleF bar, EnhancementStep step)
-    {
-        batch.FillRectangle(bar, new ColorRgba(12, 18, 34, 240));
-        float x = bar.X;
-        x = FillSegment(batch, bar, x, step.SuccessPermille, s_successColor);
-        x = FillSegment(batch, bar, x, step.NoChangePermille, s_noChangeColor);
-        x = FillSegment(batch, bar, x, step.DowngradePermille, s_downgradeColor);
-        _ = FillSegment(batch, bar, x, step.DestroyPermille, s_destroyColor);
-        batch.DrawRectangle(bar, new ColorRgba(100, 116, 139, 220), 1f);
-    }
-
-    private static float FillSegment(GeometryBatch batch, RectangleF bar, float x, int permille, ColorRgba color)
-    {
-        float w = bar.Width * permille / EnhancementTable.WeightTotal;
-        if (w > 0f)
-        {
-            batch.FillRectangle(new RectangleF(x, bar.Y, w, bar.Height), color);
-        }
-
-        return x + w;
-    }
-
     public void DrawText(
         SpriteBatch spriteBatch,
         BitmapFont font,
@@ -364,12 +328,25 @@ internal sealed class ForgeAnvilModalWidget
         int viewportWidth,
         int viewportHeight)
     {
-        (float ox, float oy) = ComputeOrigin(viewportWidth, viewportHeight);
+        (float ox, float oy) = ForgeAnvilLayout.ComputeOrigin(viewportWidth, viewportHeight);
         ColorRgba black = CarbonUiPalette.TextOutline;
         Span<ItemSlot> slots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
         world.CopyInventorySlots(slots);
         this.CollectEligibleSlots(world.Items.Rules, slots);
 
+        this.DrawHeaderText(spriteBatch, font, world, ox, oy, black);
+        this.DrawGearListText(spriteBatch, font, world, slots, ox, oy, black);
+
+        int activeSlot = this.ResolveTargetSlot(world);
+        ItemSlot target = activeSlot >= 0 && activeSlot < slots.Length ? slots[activeSlot] : ItemSlot.Empty;
+        spriteBatch.DrawOutlinedString(font, GameText.Get("forge.enhance"), new Vector2(ox + 310f, oy + 52f), CarbonUiPalette.TextWarm, black, 1, 1f);
+        this.DrawOutcomeText(spriteBatch, font, world, slots, ox, oy, black);
+        this.DrawTargetText(spriteBatch, font, world, slots, in target, ox, oy, black);
+    }
+
+    // Title, station state, close button, gear count and scroll arrows.
+    private void DrawHeaderText(SpriteBatch spriteBatch, BitmapFont font, IWorldReadModel world, float ox, float oy, ColorRgba black)
+    {
         spriteBatch.DrawOutlinedString(font, GameText.Get("forge.title"), new Vector2(ox + 18f, oy + 13f), CarbonUiPalette.TextWarm, black, 1, 1f);
         bool stationNear = world.IsNearForgeStation();
         spriteBatch.DrawOutlinedString(
@@ -381,23 +358,27 @@ internal sealed class ForgeAnvilModalWidget
             1,
             1f);
 
-        RectangleF closeBtn = GetCloseButtonRect(ox, oy);
+        RectangleF closeBtn = ForgeAnvilLayout.GetCloseButtonRect(ox, oy);
         CarbonUiSkin.DrawCenteredText(spriteBatch, font, "X", in closeBtn, CarbonUiPalette.TextPrimary, black, 1f);
 
         spriteBatch.DrawOutlinedString(font, GameText.Format("forge.gear_count", new TextArg("count", _eligibleScratch.Count)), new Vector2(ox + 26f, oy + 52f), CarbonUiPalette.TextMuted, black, 1, 1f);
-        if (_eligibleScratch.Count > MaxVisibleGearRows)
+        if (_eligibleScratch.Count > ForgeAnvilLayout.MaxVisibleGearRows)
         {
-            CarbonUiSkin.DrawCenteredText(spriteBatch, font, "^", GetScrollUpRect(ox, oy), CarbonUiPalette.TextPrimary, black, 1f);
-            CarbonUiSkin.DrawCenteredText(spriteBatch, font, "v", GetScrollDownRect(ox, oy), CarbonUiPalette.TextPrimary, black, 1f);
+            CarbonUiSkin.DrawCenteredText(spriteBatch, font, "^", ForgeAnvilLayout.GetScrollUpRect(ox, oy), CarbonUiPalette.TextPrimary, black, 1f);
+            CarbonUiSkin.DrawCenteredText(spriteBatch, font, "v", ForgeAnvilLayout.GetScrollDownRect(ox, oy), CarbonUiPalette.TextPrimary, black, 1f);
         }
+    }
 
+    // One row per eligible item in the scrolled gear list: name, +N badge and where it sits.
+    private void DrawGearListText(SpriteBatch spriteBatch, BitmapFont font, IWorldReadModel world, ReadOnlySpan<ItemSlot> slots, float ox, float oy, ColorRgba black)
+    {
         this.ClampScrollOffset();
-        for (int i = 0; i < MaxVisibleGearRows && (_scrollOffset + i) < _eligibleScratch.Count; i++)
+        for (int i = 0; i < ForgeAnvilLayout.MaxVisibleGearRows && (_scrollOffset + i) < _eligibleScratch.Count; i++)
         {
             ushort sIdx = _eligibleScratch[_scrollOffset + i];
             ItemSlot item = slots[sIdx];
             byte upg = ItemEnhancementPolicy.GetUpgradeLevel(in item);
-            float ry = oy + 82f + (i * (RowH + 4f));
+            float ry = oy + 82f + (i * (ForgeAnvilLayout.RowH + 4f));
             string tag = sIdx >= PlayerInventoryLayout.BagLimit ? GameText.Get("forge.tag.equipped") : (sIdx < 9 ? GameText.Format("forge.tag.slot", new TextArg("slot", sIdx + 1)) : GameText.Get("forge.tag.bag"));
             string name = world.Items.GetDisplayName(item.ItemId);
             string rowLabel = CarbonUiSkin.TruncateToWidth(font, upg > 0 ? $"{name} +{upg}" : name, 190f, 1f);
@@ -408,10 +389,11 @@ internal sealed class ForgeAnvilModalWidget
             }
             spriteBatch.DrawOutlinedString(font, tag, new Vector2(ox + 72f, ry + 20f), CarbonUiPalette.TextMuted, black, 1, 1f);
         }
+    }
 
-        int activeSlot = this.ResolveTargetSlot(world);
-        ItemSlot target = activeSlot >= 0 && activeSlot < slots.Length ? slots[activeSlot] : ItemSlot.Empty;
-        spriteBatch.DrawOutlinedString(font, GameText.Get("forge.enhance"), new Vector2(ox + 310f, oy + 52f), CarbonUiPalette.TextWarm, black, 1, 1f);
+    // The caption of the outcome being played or just received.
+    private void DrawOutcomeText(SpriteBatch spriteBatch, BitmapFont font, IWorldReadModel world, ReadOnlySpan<ItemSlot> slots, float ox, float oy, ColorRgba black)
+    {
         EnhancementOutcome shown = this.Vfx.PlayingOutcome != EnhancementOutcome.None
             ? this.Vfx.PlayingOutcome
             : (world.ForgeFeedbackTimer > 0f && !this.Vfx.IsActive ? world.LastForgeOutcome : EnhancementOutcome.None);
@@ -434,14 +416,18 @@ internal sealed class ForgeAnvilModalWidget
 
             spriteBatch.DrawOutlinedString(
                 font,
-                DescribeOutcome(shown, shownLevel),
+                ForgeOutcomeStyle.DescribeOutcome(shown, shownLevel),
                 new Vector2(ox + 440f, oy + 52f),
-                OutcomeTextColor(shown),
+                ForgeOutcomeStyle.OutcomeTextColor(shown),
                 black,
                 1,
                 1f);
         }
+    }
 
+    // The selected item: level change, risk, materials, fee, chances, protection picker and the forge button.
+    private void DrawTargetText(SpriteBatch spriteBatch, BitmapFont font, IWorldReadModel world, ReadOnlySpan<ItemSlot> slots, in ItemSlot target, float ox, float oy, ColorRgba black)
+    {
         if (target.IsEmpty)
         {
             spriteBatch.DrawOutlinedString(font, GameText.Get("forge.no_gear"), new Vector2(ox + 440f, oy + 106f), CarbonUiPalette.TextMuted, black, 1, 1f);
@@ -471,20 +457,20 @@ internal sealed class ForgeAnvilModalWidget
                 font,
                 CarbonUiSkin.TruncateToWidth(font, risk, 216f, 1f),
                 new Vector2(ox + 440f, oy + 140f),
-                step.DestroyPermille > 0 ? s_destroyColor : (step.DowngradePermille > 0 ? s_downgradeColor : s_successColor),
+                step.DestroyPermille > 0 ? ForgeOutcomeStyle.Destroy : (step.DowngradePermille > 0 ? ForgeOutcomeStyle.Downgrade : ForgeOutcomeStyle.Success),
                 black,
                 1,
                 1f);
 
-            spriteBatch.DrawOutlinedString(font, GameText.Get("forge.materials"), new Vector2(ox + 310f, oy + MaterialRowY - 22f), CarbonUiPalette.TextWarm, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, GameText.Get("forge.materials"), new Vector2(ox + 310f, oy + ForgeAnvilLayout.MaterialRowY - 22f), CarbonUiPalette.TextWarm, black, 1, 1f);
             ReadOnlySpan<RecipeIngredient> materials = step.MaterialSpan;
-            for (int i = 0; i < materials.Length && i < MaxMaterialRows; i++)
+            for (int i = 0; i < materials.Length && i < ForgeAnvilLayout.MaxMaterialRows; i++)
             {
                 int have = CountItemInSpan(slots, materials[i].ItemId);
                 spriteBatch.DrawOutlinedString(
                     font,
                     $"{world.Items.GetDisplayName(materials[i].ItemId)}: {have}/{materials[i].Quantity}",
-                    new Vector2(ox + 344f, oy + MaterialRowY + (i * MaterialRowH)),
+                    new Vector2(ox + 344f, oy + ForgeAnvilLayout.MaterialRowY + (i * ForgeAnvilLayout.MaterialRowH)),
                     have >= materials[i].Quantity ? CarbonUiPalette.ConfirmBorder : CarbonUiPalette.DangerBorder,
                     black,
                     1,
@@ -495,41 +481,21 @@ internal sealed class ForgeAnvilModalWidget
             spriteBatch.DrawOutlinedString(
                 font,
                 GameText.Format("forge.fee", new TextArg("gold", fee)),
-                new Vector2(ox + 310f, oy + OutcomeBarY - 24f),
+                new Vector2(ox + 310f, oy + ForgeAnvilLayout.OutcomeBarY - 24f),
                 world.LocalPlayerGold >= fee ? CarbonUiPalette.TextWarm : CarbonUiPalette.DangerBorder,
                 black,
                 1,
                 1f);
 
-            DrawChance(spriteBatch, font, GameText.Get("forge.chance.success"), step.SuccessPermille, new Vector2(ox + 310f, oy + OutcomeBarY + 18f), s_successColor);
-            DrawChance(spriteBatch, font, GameText.Get("forge.chance.no_change"), step.NoChangePermille, new Vector2(ox + 480f, oy + OutcomeBarY + 18f), s_noChangeColor);
-            DrawChance(spriteBatch, font, GameText.Get("forge.chance.downgrade"), step.DowngradePermille, new Vector2(ox + 310f, oy + OutcomeBarY + 38f), s_downgradeColor);
-            DrawChance(spriteBatch, font, GameText.Get("forge.chance.destroy"), step.DestroyPermille, new Vector2(ox + 480f, oy + OutcomeBarY + 38f), s_destroyColor);
+            ForgeOutcomeStyle.DrawChance(spriteBatch, font, GameText.Get("forge.chance.success"), step.SuccessPermille, new Vector2(ox + 310f, oy + ForgeAnvilLayout.OutcomeBarY + 18f), ForgeOutcomeStyle.Success);
+            ForgeOutcomeStyle.DrawChance(spriteBatch, font, GameText.Get("forge.chance.no_change"), step.NoChangePermille, new Vector2(ox + 480f, oy + ForgeAnvilLayout.OutcomeBarY + 18f), ForgeOutcomeStyle.NoChange);
+            ForgeOutcomeStyle.DrawChance(spriteBatch, font, GameText.Get("forge.chance.downgrade"), step.DowngradePermille, new Vector2(ox + 310f, oy + ForgeAnvilLayout.OutcomeBarY + 38f), ForgeOutcomeStyle.Downgrade);
+            ForgeOutcomeStyle.DrawChance(spriteBatch, font, GameText.Get("forge.chance.destroy"), step.DestroyPermille, new Vector2(ox + 480f, oy + ForgeAnvilLayout.OutcomeBarY + 38f), ForgeOutcomeStyle.Destroy);
 
-            if (step.IsRisky)
-            {
-                EnhancementTable table = world.Items.Rules.Enhancement;
-                for (int i = -1; i < table.Protections.Length; i++)
-                {
-                    RectangleF btn = GetProtectionRect(ox, oy, i, table.Protections.Length);
-                    string label = i < 0
-                        ? GameText.Get("forge.scroll.none")
-                        : GameText.Format("forge.scroll.choice", new TextArg("count", CountItemInSpan(slots, table.Protections[i].ItemId)));
-                    bool usable = i < 0 || (table.Protections[i].AppliesTo(step) && CountItemInSpan(slots, table.Protections[i].ItemId) > 0);
-                    RectangleF textRect = i < 0 ? btn : new RectangleF(btn.X + 16f, btn.Y, btn.Width - 16f, btn.Height);
-                    CarbonUiSkin.DrawCenteredText(
-                        spriteBatch,
-                        font,
-                        CarbonUiSkin.TruncateToWidth(font, label, textRect.Width - 8f, 1f),
-                        in textRect,
-                        usable ? CarbonUiPalette.TextPrimary : CarbonUiPalette.TextMuted,
-                        black,
-                        1f);
-                }
-            }
+            DrawProtectionChoicesText(spriteBatch, font, world, slots, step, ox, oy, black);
 
             string action = this.Vfx.IsActive && this.Vfx.PlayingOutcome == EnhancementOutcome.None ? GameText.Get("forge.forging") : GameText.Format("forge.button", new TextArg("level", curLv + 1));
-            CarbonUiSkin.DrawCenteredText(spriteBatch, font, action, GetForgeButtonRect(ox, oy), CarbonUiPalette.TextPrimary, black, 1f);
+            CarbonUiSkin.DrawCenteredText(spriteBatch, font, action, ForgeAnvilLayout.GetForgeButtonRect(ox, oy), CarbonUiPalette.TextPrimary, black, 1f);
         }
         else
         {
@@ -537,34 +503,31 @@ internal sealed class ForgeAnvilModalWidget
         }
     }
 
-    private static ColorRgba OutcomeTextColor(EnhancementOutcome outcome) => outcome switch
+    // The "no scroll" choice plus one button per protection scroll, each with the count carried.
+    private static void DrawProtectionChoicesText(SpriteBatch spriteBatch, BitmapFont font, IWorldReadModel world, ReadOnlySpan<ItemSlot> slots, EnhancementStep step, float ox, float oy, ColorRgba black)
     {
-        EnhancementOutcome.Success => s_successColor,
-        EnhancementOutcome.Downgrade => s_downgradeColor,
-        EnhancementOutcome.Destroyed => s_destroyColor,
-        EnhancementOutcome.NoChange or EnhancementOutcome.None => CarbonUiPalette.TextMuted,
-        _ => CarbonUiPalette.TextMuted,
-    };
-
-    private static void DrawChance(SpriteBatch spriteBatch, BitmapFont font, string label, int permille, Vector2 pos, ColorRgba color) =>
-        spriteBatch.DrawOutlinedString(
-            font,
-            $"{label} {permille / 10}.{permille % 10}%",
-            pos,
-            permille > 0 ? color : CarbonUiPalette.TextMuted,
-            CarbonUiPalette.TextOutline,
-            1,
-            1f);
-
-    private static string DescribeOutcome(EnhancementOutcome outcome, byte newLevel) => outcome switch
-    {
-        EnhancementOutcome.Success => GameText.Format("forge.outcome.success", new TextArg("level", newLevel)),
-        EnhancementOutcome.NoChange => GameText.Get("forge.outcome.no_change"),
-        EnhancementOutcome.Downgrade => GameText.Format("forge.outcome.downgrade", new TextArg("level", newLevel)),
-        EnhancementOutcome.Destroyed => GameText.Get("forge.outcome.destroyed"),
-        EnhancementOutcome.None => string.Empty,
-        _ => string.Empty,
-    };
+        if (step.IsRisky)
+        {
+            EnhancementTable table = world.Items.Rules.Enhancement;
+            for (int i = -1; i < table.Protections.Length; i++)
+            {
+                RectangleF btn = ForgeAnvilLayout.GetProtectionRect(ox, oy, i, table.Protections.Length);
+                string label = i < 0
+                    ? GameText.Get("forge.scroll.none")
+                    : GameText.Format("forge.scroll.choice", new TextArg("count", CountItemInSpan(slots, table.Protections[i].ItemId)));
+                bool usable = i < 0 || (table.Protections[i].AppliesTo(step) && CountItemInSpan(slots, table.Protections[i].ItemId) > 0);
+                RectangleF textRect = i < 0 ? btn : new RectangleF(btn.X + 16f, btn.Y, btn.Width - 16f, btn.Height);
+                CarbonUiSkin.DrawCenteredText(
+                    spriteBatch,
+                    font,
+                    CarbonUiSkin.TruncateToWidth(font, label, textRect.Width - 8f, 1f),
+                    in textRect,
+                    usable ? CarbonUiPalette.TextPrimary : CarbonUiPalette.TextMuted,
+                    black,
+                    1f);
+            }
+        }
+    }
 
     private static bool HasMaterials(ReadOnlySpan<ItemSlot> slots, EnhancementStep step)
     {
@@ -625,30 +588,11 @@ internal sealed class ForgeAnvilModalWidget
 
     private void ClampScrollOffset()
     {
-        int maxScroll = Math.Max(0, _eligibleScratch.Count - MaxVisibleGearRows);
+        int maxScroll = Math.Max(0, _eligibleScratch.Count - ForgeAnvilLayout.MaxVisibleGearRows);
         if (_scrollOffset > maxScroll)
         {
             _scrollOffset = maxScroll;
         }
     }
 
-    private static (float Ox, float Oy) ComputeOrigin(int viewportWidth, int viewportHeight) =>
-        (MathF.Floor((viewportWidth - PanelW) * 0.5f), MathF.Floor((viewportHeight - PanelH) * 0.5f));
-
-    private static RectangleF GetCloseButtonRect(float ox, float oy) => new(ox + PanelW - 34f, oy + 10f, 24f, 24f);
-
-    private static RectangleF GetScrollUpRect(float ox, float oy) => new(ox + 232f, oy + 50f, 18f, 18f);
-
-    private static RectangleF GetScrollDownRect(float ox, float oy) => new(ox + 254f, oy + 50f, 18f, 18f);
-
-    private static RectangleF GetStageRect(float ox, float oy) => new(ox + 306f, oy + 74f, 120f, 112f);
-
-    /// <summary>Protection picker button <paramref name="index"/> (<c>-1</c> = no scroll) of <paramref name="count"/> scrolls.</summary>
-    private static RectangleF GetProtectionRect(float ox, float oy, int index, int count)
-    {
-        float w = (336f - (count * 6f)) / (count + 1);
-        return new RectangleF(ox + 310f + ((index + 1) * (w + 6f)), oy + 362f, w, 26f);
-    }
-
-    private static RectangleF GetForgeButtonRect(float ox, float oy) => new(ox + 310f, oy + 404f, 336f, 40f);
 }

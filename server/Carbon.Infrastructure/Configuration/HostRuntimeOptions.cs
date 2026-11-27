@@ -131,8 +131,9 @@ public sealed class HostRuntimeOptions
 
     /// <summary>
     /// Parses the developer-only <c>CARBON_DEBUG_SPAWN_TILE</c> (<c>x,y</c>), <c>CARBON_DEBUG_SPAWN_BIOME</c>
-    /// (biome name), <c>CARBON_DEBUG_SPAWN_POI</c> (point of interest type), <c>CARBON_DEBUG_SPAWN_OFFSET</c> (<c>dx,dy</c> tiles) and <c>CARBON_DEBUG_START_HOUR</c>
-    /// variables. Release builds ignore them and always return no overrides.
+    /// (biome name), <c>CARBON_DEBUG_SPAWN_POI</c> (point of interest type), <c>CARBON_DEBUG_SPAWN_OFFSET</c> (<c>dx,dy</c> tiles),
+    /// <c>CARBON_DEBUG_START_HOUR</c> and <c>CARBON_DEBUG_START_LEVEL</c> variables. Release builds ignore them and always return
+    /// no overrides.
     /// </summary>
     /// <param name="readEnv">Environment variable reader.</param>
     /// <returns>The overrides (empty when none are set, and always empty in Release builds).</returns>
@@ -152,6 +153,9 @@ public sealed class HostRuntimeOptions
             SpawnPoi = readEnv("CARBON_DEBUG_SPAWN_POI") is { Length: > 0 } poi ? poi.Trim() : null,
             SpawnOffset = TryParsePair(readEnv("CARBON_DEBUG_SPAWN_OFFSET")) ?? default,
             StartHour = startHour,
+            StartLevel = ushort.TryParse(readEnv("CARBON_DEBUG_START_LEVEL"), NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort lv) && lv > 1
+                ? lv
+                : null,
             ForgeKit = string.Equals(readEnv("CARBON_DEBUG_FORGE_KIT"), "1", StringComparison.Ordinal),
             StarterItems = ParseStarterItems(readEnv("CARBON_DEBUG_STARTER_ITEMS")),
         };
