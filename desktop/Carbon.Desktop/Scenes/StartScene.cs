@@ -266,6 +266,7 @@ internal sealed class StartScene : MenuScene
             try
             {
                 autoEnter.GetAwaiter().GetResult();
+                this.EnteringWorld = true;
                 ChangeTo(context, () => new WorldGameplayScene(this.Flow));
                 return true;
             }

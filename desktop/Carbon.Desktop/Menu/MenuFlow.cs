@@ -22,6 +22,7 @@ internal sealed class MenuFlow
         this.Accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
         this.Servers = servers ?? throw new ArgumentNullException(nameof(servers));
         this.SelectedServer = servers.Find(options.ServerHost, options.ServerTcpPort) ?? servers.Servers[0];
+        this.Backdrop = new MenuBackdrop(options.Seed, options.MenuMotion, session.TryCreateWorldGenerator);
     }
 
     public IWorldSession Session { get; }
@@ -33,6 +34,9 @@ internal sealed class MenuFlow
     public IRememberedAccountStore Accounts { get; }
 
     public ServerDirectory Servers { get; }
+
+    /// <summary>Gets the living world behind the menus; shared so it keeps panning across screen changes.</summary>
+    public MenuBackdrop Backdrop { get; }
 
     /// <summary>Gets or sets the server Login, Register and Continue connect to.</summary>
     public GameServer SelectedServer { get; set; }
