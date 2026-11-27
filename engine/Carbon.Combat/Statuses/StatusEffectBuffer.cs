@@ -118,17 +118,25 @@ public sealed class StatusEffectBuffer
 
             ActiveStatusEffect current = _effects[i];
             ActiveStatusEffect merged;
+            byte level = Math.Max((byte)1, effect.Level);
+            byte currentLevel = Math.Max((byte)1, current.Level);
             switch (effect.Stacking)
             {
                 case StatusStacking.Refresh:
-                    merged = WithPulseCountdown(effect with { Stacks = 1, MaxStacks = maxStacks }, current.TicksUntilNextPulse);
+                    // ADR-036 D3: the same or a higher level refreshes (and upgrades); a lower one never cuts a higher one short.
+                    if (level < currentLevel)
+                    {
+                        return false;
+                    }
+
+                    merged = WithPulseCountdown(effect with { Stacks = 1, MaxStacks = maxStacks, Level = level }, current.TicksUntilNextPulse);
                     break;
                 case StatusStacking.Strongest:
-                    if (effect.Strength > current.Strength)
+                    if (level > currentLevel || (level == currentLevel && effect.Strength > current.Strength))
                     {
-                        merged = WithPulseCountdown(effect with { Stacks = 1, MaxStacks = maxStacks }, current.TicksUntilNextPulse);
+                        merged = WithPulseCountdown(effect with { Stacks = 1, MaxStacks = maxStacks, Level = level }, current.TicksUntilNextPulse);
                     }
-                    else if (effect.Strength == current.Strength && effect.RemainingTicks > current.RemainingTicks)
+                    else if (level == currentLevel && effect.Strength == current.Strength && effect.RemainingTicks > current.RemainingTicks)
                     {
                         merged = current with { RemainingTicks = effect.RemainingTicks, DurationTicks = effect.DurationTicks };
                     }
@@ -140,25 +148,29 @@ public sealed class StatusEffectBuffer
                     break;
                 case StatusStacking.Stack:
                 default:
+                    // ADR-036 D3: every application adds a stack; the entry keeps the higher level and that level's values,
+                    // so a weaker source never downgrades a stronger one and an upgrade never drops stacks.
                     byte nextStacks = (byte)Math.Min(maxStacks, current.Stacks + Math.Max((byte)1, effect.Stacks));
                     uint remaining = Math.Max(current.RemainingTicks, effect.RemainingTicks);
+                    ActiveStatusEffect values = level >= currentLevel ? effect : current;
                     merged = current with
                     {
-                        Caster = effect.Caster,
-                        ControlMask = effect.ControlMask,
-                        MagnitudePerStack = effect.MagnitudePerStack,
+                        Caster = values.Caster,
+                        ControlMask = values.ControlMask,
+                        MagnitudePerStack = values.MagnitudePerStack,
                         RemainingTicks = remaining,
-                        DurationTicks = Math.Max(remaining, effect.DurationTicks),
-                        PulseIntervalTicks = effect.PulseIntervalTicks,
+                        DurationTicks = Math.Max(remaining, Math.Max(effect.DurationTicks, current.DurationTicks)),
+                        PulseIntervalTicks = values.PulseIntervalTicks,
                         Stacks = nextStacks,
                         MaxStacks = maxStacks,
-                        IsDamage = effect.IsDamage,
-                        Lethal = effect.Lethal,
-                        MoveSpeedMultiplier = effect.MoveSpeedMultiplier,
-                        HealthRegenMultiplier = effect.HealthRegenMultiplier,
-                        StaminaRegenMultiplier = effect.StaminaRegenMultiplier,
-                        Source = effect.Source,
-                        SourceId = effect.SourceId,
+                        IsDamage = values.IsDamage,
+                        Lethal = values.Lethal,
+                        MoveSpeedMultiplier = values.MoveSpeedMultiplier,
+                        HealthRegenMultiplier = values.HealthRegenMultiplier,
+                        StaminaRegenMultiplier = values.StaminaRegenMultiplier,
+                        Source = values.Source,
+                        SourceId = values.SourceId,
+                        Level = Math.Max(level, currentLevel),
                     };
                     break;
             }
@@ -174,7 +186,7 @@ public sealed class StatusEffectBuffer
         }
 
         byte initialStacks = Math.Clamp(effect.Stacks, (byte)1, maxStacks);
-        _effects[_count++] = WithPulseCountdown(effect with { Stacks = initialStacks, MaxStacks = maxStacks }, 0);
+        _effects[_count++] = WithPulseCountdown(effect with { Stacks = initialStacks, MaxStacks = maxStacks, Level = Math.Max((byte)1, effect.Level) }, 0);
         this.Version++;
         return true;
     }
@@ -246,7 +258,8 @@ public sealed class StatusEffectBuffer
                             effect.EffectId,
                             effect.MagnitudePerStack * effect.Stacks,
                             effect.IsDamage,
-                            effect.Lethal);
+                            effect.Lethal,
+                            Level: effect.Level);
                     }
 
                     pulseTimer = effect.PulseIntervalTicks;

@@ -32,9 +32,23 @@ public sealed class StatusEffectWorldTests
         sink.CombatHits.Should().NotContain(h => h.StatusEffectId == Bleeding, "bleeding pulses once per second");
 
         Step(world, 1);
-        (ulong[] recipients, ulong defender, float damage, float remaining, ushort effect) = sink.CombatHits.Single(h => h.StatusEffectId == Bleeding);
-        (defender, damage, remaining, effect).Should().Be((entered.PlayerNetworkId, 1.5f, 98.5f, Bleeding), "two stacks of 0.75");
+        (ulong[] recipients, ulong defender, float damage, float remaining, ushort effect, byte level) = sink.CombatHits.Single(h => h.StatusEffectId == Bleeding);
+        (defender, damage, remaining, effect, level).Should().Be((entered.PlayerNetworkId, 1.5f, 98.5f, Bleeding, 1), "two stacks of 0.75; a legacy row loads at level I");
         recipients.Should().Contain(1UL);
+    }
+
+    [Fact]
+    public void StepFixedTick_SavedBleedingLevelTwo_PulsesLevelTwoDamageAndSendsTheLevel()
+    {
+        (AuthoritativeWorld world, StatusRecordingSink sink) = CreateWorld();
+        EnterWorldResult entered = world.TryEnterWorld(1UL, Character(statusEffects: "v2;bleeding:6000:2:2"));
+
+        Step(world, 30);
+
+        (_, ulong defender, float damage, _, _, byte level) = sink.CombatHits.Single(h => h.StatusEffectId == Bleeding);
+        (defender, damage, level).Should().Be((entered.PlayerNetworkId, 2.5f, 2), "two stacks of bleeding II (0.75 + 0.5)");
+        sink.StatusSyncs.Last(s => s.ConnectionId == 1UL).Entries
+            .Should().ContainSingle(e => e.EffectId == Bleeding).Which.Level.Should().Be(2, "the owner's list carries the level");
     }
 
     [Fact]

@@ -126,7 +126,7 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
 
     /// <inheritdoc/>
     public void SendCombatHit(ReadOnlySpan<ulong> recipientConnectionIds, ulong attackerNetworkId, ulong defenderNetworkId, float damage, float remainingHealth, bool isCritical, bool isKilled) =>
-        this.SendCombatHit(recipientConnectionIds, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId: 0);
+        this.SendCombatHit(recipientConnectionIds, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId: 0, statusEffectLevel: 0);
 
     /// <inheritdoc/>
     public void SendCombatHit(
@@ -137,7 +137,8 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         float remainingHealth,
         bool isCritical,
         bool isKilled,
-        ushort statusEffectId)
+        ushort statusEffectId,
+        byte statusEffectLevel)
     {
         for (int i = 0; i < recipientConnectionIds.Length; i++)
         {
@@ -146,11 +147,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
                 dg is not null &&
                 dg.Transport is IDatagramTransport dgramTransport)
             {
-                _ = DispatchCombatHitDatagramAsync(dgramTransport, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId, _logger);
+                _ = DispatchCombatHitDatagramAsync(dgramTransport, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId, statusEffectLevel, _logger);
             }
             else if (this.TryResolveConnection(recipientId, out IConnection? conn) && conn is not null)
             {
-                _ = DispatchCombatHitAsync(conn, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId, _logger);
+                _ = DispatchCombatHitAsync(conn, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId, statusEffectLevel, _logger);
             }
         }
     }
@@ -251,27 +252,8 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             return;
         }
 
-        // Change-driven (ADR-029 D9), never per tick: the arrays are built here because the span does not outlive the call.
-        ushort[] ids = new ushort[entries.Length];
-        byte[] stacks = new byte[entries.Length];
-        uint[] remaining = new uint[entries.Length];
-        uint[] duration = new uint[entries.Length];
-        float[] magnitudes = new float[entries.Length];
-        byte[] sourceKinds = new byte[entries.Length];
-        ushort[] sourceIds = new ushort[entries.Length];
-        for (int i = 0; i < entries.Length; i++)
-        {
-            StatusEffectEntry entry = entries[i];
-            ids[i] = entry.EffectId;
-            stacks[i] = entry.Stacks;
-            remaining[i] = entry.RemainingMs;
-            duration[i] = entry.DurationMs;
-            magnitudes[i] = entry.Magnitude;
-            sourceKinds[i] = entry.SourceKind;
-            sourceIds[i] = entry.SourceId;
-        }
-
-        _ = DispatchStatusEffectsAsync(conn, ids, stacks, remaining, duration, magnitudes, sourceKinds, sourceIds, _logger);
+        // Change-driven (ADR-029 D9), never per tick: the entries are copied because the span does not outlive the call.
+        _ = DispatchStatusEffectsAsync(conn, entries.ToArray(), _logger);
     }
 
     /// <inheritdoc/>
@@ -643,12 +625,13 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         bool isCritical,
         bool isKilled,
         ushort statusEffectId,
+        byte statusEffectLevel,
         ILogger logger)
     {
         try
         {
             using PacketScope<CombatHit> lease = PacketFactory<CombatHit>.Acquire();
-            PopulateCombatHit(lease.Value, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId);
+            PopulateCombatHit(lease.Value, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId, statusEffectLevel);
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
             await connection.SendAsync(lease.Value, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);
@@ -668,12 +651,13 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         bool isCritical,
         bool isKilled,
         ushort statusEffectId,
+        byte statusEffectLevel,
         ILogger logger)
     {
         try
         {
             using PacketScope<CombatHit> lease = PacketFactory<CombatHit>.Acquire();
-            PopulateCombatHit(lease.Value, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId);
+            PopulateCombatHit(lease.Value, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, statusEffectId, statusEffectLevel);
             await SendSerializedDatagramAsync(transport, lease.Value, DeliveryMethod.ReliableUnordered, channel: 2).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -682,7 +666,8 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         }
     }
 
-    private static void PopulateCombatHit(
+    /// <summary>Fills a pooled combat hit; the status fields are reset on every use, so a recycled packet never keeps a level.</summary>
+    internal static void PopulateCombatHit(
         CombatHit pkt,
         ulong attackerNetworkId,
         ulong defenderNetworkId,
@@ -690,9 +675,11 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         float remainingHealth,
         bool isCritical,
         bool isKilled,
-        ushort statusEffectId)
+        ushort statusEffectId,
+        byte statusEffectLevel)
     {
         pkt.StatusEffectId = statusEffectId;
+        pkt.StatusEffectLevel = statusEffectLevel;
         pkt.AttackerNetworkId = attackerNetworkId;
         pkt.DefenderNetworkId = defenderNetworkId;
         pkt.Damage = damage;
@@ -980,28 +967,47 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
         }
     }
 
-    private static async Task DispatchStatusEffectsAsync(
-        IConnection connection,
-        ushort[] ids,
-        byte[] stacks,
-        uint[] remaining,
-        uint[] duration,
-        float[] magnitudes,
-        byte[] sourceKinds,
-        ushort[] sourceIds,
-        ILogger logger)
+    /// <summary>Copies the owner's effect list (ADR-029 D9, with levels per ADR-036 D4) into the packet's parallel arrays.</summary>
+    internal static void PopulateStatusEffectSync(StatusEffectSync pkt, ReadOnlySpan<StatusEffectEntry> entries)
+    {
+        ushort[] ids = new ushort[entries.Length];
+        byte[] stacks = new byte[entries.Length];
+        uint[] remaining = new uint[entries.Length];
+        uint[] duration = new uint[entries.Length];
+        float[] magnitudes = new float[entries.Length];
+        byte[] sourceKinds = new byte[entries.Length];
+        ushort[] sourceIds = new ushort[entries.Length];
+        byte[] levels = new byte[entries.Length];
+        for (int i = 0; i < entries.Length; i++)
+        {
+            StatusEffectEntry entry = entries[i];
+            ids[i] = entry.EffectId;
+            stacks[i] = entry.Stacks;
+            remaining[i] = entry.RemainingMs;
+            duration[i] = entry.DurationMs;
+            magnitudes[i] = entry.Magnitude;
+            sourceKinds[i] = entry.SourceKind;
+            sourceIds[i] = entry.SourceId;
+            levels[i] = entry.Level;
+        }
+
+        pkt.EffectIds = ids;
+        pkt.Stacks = stacks;
+        pkt.RemainingMs = remaining;
+        pkt.DurationMs = duration;
+        pkt.Magnitudes = magnitudes;
+        pkt.SourceKinds = sourceKinds;
+        pkt.SourceIds = sourceIds;
+        pkt.Levels = levels;
+    }
+
+    private static async Task DispatchStatusEffectsAsync(IConnection connection, StatusEffectEntry[] entries, ILogger logger)
     {
         try
         {
             using PacketScope<StatusEffectSync> lease = PacketFactory<StatusEffectSync>.Acquire();
             StatusEffectSync pkt = lease.Value;
-            pkt.EffectIds = ids;
-            pkt.Stacks = stacks;
-            pkt.RemainingMs = remaining;
-            pkt.DurationMs = duration;
-            pkt.Magnitudes = magnitudes;
-            pkt.SourceKinds = sourceKinds;
-            pkt.SourceIds = sourceIds;
+            PopulateStatusEffectSync(pkt, entries);
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
             await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);

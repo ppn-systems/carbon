@@ -43,7 +43,8 @@ public sealed partial class AuthoritativeWorld
                 hp.Current,
                 false,
                 false,
-                (ushort)pulse.EffectId);
+                (ushort)pulse.EffectId,
+                pulse.Level);
 
             if (hp.Current <= 0f && !state.IsDead)
             {
