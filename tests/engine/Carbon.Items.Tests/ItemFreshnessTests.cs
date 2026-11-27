@@ -1,7 +1,5 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
-using System;
-using System.Buffers.Binary;
 using Carbon.Items.Containers;
 using Carbon.Items.Serialization;
 using FluentAssertions;
@@ -30,24 +28,18 @@ public sealed class ItemFreshnessTests
     }
 
     [Fact]
-    public void InventoryBinaryCodec_LegacyV2Payload_LoadsAsNotPerishable()
+    public void InventoryBinaryCodec_RetiredFormatVersion_IsRefused()
     {
-        // v2 header (version, capacity, count) + one 23-byte entry: slot, item, quantity, instance, durability, upgrade.
-        byte[] v2 = new byte[5 + 23];
-        v2[0] = 2;
-        BinaryPrimitives.WriteUInt16LittleEndian(v2.AsSpan(1, 2), 8);
-        BinaryPrimitives.WriteUInt16LittleEndian(v2.AsSpan(3, 2), 1);
-        BinaryPrimitives.WriteUInt16LittleEndian(v2.AsSpan(5, 2), 1);
-        BinaryPrimitives.WriteUInt32LittleEndian(v2.AsSpan(7, 4), RawMeat);
-        BinaryPrimitives.WriteInt32LittleEndian(v2.AsSpan(11, 4), 7);
+        // A well-formed v3 payload relabelled as v2: the length fits, only the version byte is old.
+        InventoryContainer source = new(8);
+        source.SetSlot(1, new ItemSlot(RawMeat, 7, FreshnessSeconds: 600f));
+        byte[] payload = InventoryBinaryCodec.Serialize(source);
+        payload[0] = 2;
 
         InventoryContainer target = new(8);
-        InventoryBinaryCodec.TryDeserializeInto(v2, target).Should().BeTrue("old saves must keep loading");
-        ItemSlot slot = target.GetSlot(1);
-        slot.ItemId.Should().Be(RawMeat);
-        slot.Quantity.Should().Be(7);
-        slot.FreshnessSeconds.Should().Be(0f);
-        slot.IsPerishable.Should().BeFalse();
+        target.SetSlot(0, new ItemSlot(RawMeat, 1));
+        InventoryBinaryCodec.TryDeserializeInto(payload, target).Should().BeFalse("only the current format v3 is read; there are no saves to keep");
+        target.GetSlot(0).Should().Be(new ItemSlot(RawMeat, 1), "a refused payload leaves the target untouched");
     }
 
     [Fact]

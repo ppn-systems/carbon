@@ -13,7 +13,7 @@ The RimWorld-style food chain needs raw food to spoil over time. `ItemSlot` (`en
 1. **D1 — Domain field.** `ItemSlot` gets a trailing optional `float FreshnessSeconds` (`0` = not perishable, or perishable but not stamped yet) and an `IsPerishable` helper.
    - **Merging stacks:** when stacks merge (`ItemSlot.MergeWith`, used by `InventoryContainer`, `InventoryDraft` and `PlayerInventoryLayout`), the result keeps the **lowest** non-zero freshness. A zero (unstamped) stack takes the other stack's value.
 2. **D2 — Persistence.** `InventoryBinaryCodec` writes format **v3**: 27-byte entries, the v2 layout plus a trailing `float` freshness.
-   - v2 and v1 payloads still load, as not perishable.
+   - v2 and v1 payloads no longer load ([ADR-039](ADR-039-no-save-compatibility-before-release.md) D1).
    - Negative or non-finite stored values load as `0`.
    - No database schema change: the inventory blob carries the field.
 3. **D3 — Wire.**

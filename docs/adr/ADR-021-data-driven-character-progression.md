@@ -1,7 +1,7 @@
 # ADR-021: Data-Driven Character Progression, Combat Stats and Attribute Reset
 
 - **Date**: 2026-11-27
-- **Status**: Proposed
+- **Status**: Accepted
 - **Scope**: `resources/config/progression.json`, `engine/Carbon.Items/Progression`, `contracts/Carbon.Contracts.Entities`,
   `server/Carbon.Application/World`, `desktop/` character panel, `tests/`
 - **Design**: [`docs/progression.md`](../progression.md) (evaluation, formulas, targets, simulation results)
