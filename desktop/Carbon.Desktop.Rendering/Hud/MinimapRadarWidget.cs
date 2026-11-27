@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Carbon.Contracts.Entities;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -114,7 +115,7 @@ internal sealed class MinimapRadarWidget
     {
         float mapX = MathF.Floor(viewportWidth - 176f);
         ColorRgba black = CarbonUiPalette.TextOutline;
-        spriteBatch.DrawOutlinedString(font, "MAP", new Vector2(mapX, 17f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+        spriteBatch.DrawOutlinedString(font, GameText.Get("hud.minimap.title"), new Vector2(mapX, 17f), CarbonUiPalette.TextPrimary, black, 1, 1f);
         spriteBatch.DrawOutlinedString(font, "N", new Vector2(mapX + 73f, 22f), CarbonUiPalette.TextWarm, black, 1, 1f);
         spriteBatch.DrawOutlinedString(font, $"({ptx},{pty})", new Vector2(mapX, 191f), CarbonUiPalette.TextMuted, black, 1, 1f);
     }

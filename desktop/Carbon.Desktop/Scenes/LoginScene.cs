@@ -6,7 +6,9 @@ using System.Numerics;
 using System.Threading.Tasks;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Identity;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.Session;
+using Carbon.Desktop.Capture;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching;
 using Carbon.Graphics.Batching.Camera;
@@ -41,12 +43,12 @@ public sealed class LoginScene : GameScene
     private readonly MenuTextField _confirmPasswordField;
     private readonly MenuTextField _serverField;
 
-    private readonly MenuButton _signInTab = new("SIGN IN", MenuButtonStyle.PrimaryGold);
-    private readonly MenuButton _registerTab = new("CREATE ACCOUNT", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _toggleMaskBtn = new("SHOW", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _submitButton = new("SIGN IN TO REALM", MenuButtonStyle.SecondaryEmerald);
-    private readonly MenuButton _editGatewayBtn = new("EDIT", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _quitButton = new("QUIT", MenuButtonStyle.DangerRed);
+    private readonly MenuButton _signInTab = new(GameText.Get("login.tab.sign_in"), MenuButtonStyle.PrimaryGold);
+    private readonly MenuButton _registerTab = new(GameText.Get("login.tab.register"), MenuButtonStyle.NeutralSlate);
+    private readonly MenuButton _toggleMaskBtn = new(GameText.Get("login.show"), MenuButtonStyle.NeutralSlate);
+    private readonly MenuButton _submitButton = new(GameText.Get("login.submit"), MenuButtonStyle.SecondaryEmerald);
+    private readonly MenuButton _editGatewayBtn = new(GameText.Get("login.edit"), MenuButtonStyle.NeutralSlate);
+    private readonly MenuButton _quitButton = new(GameText.Get("login.quit"), MenuButtonStyle.DangerRed);
 
     private GeometryBatch? _geometryBatch;
     private BitmapFont? _font;
@@ -62,7 +64,10 @@ public sealed class LoginScene : GameScene
     private float _elapsed;
     private float _backspaceHoldTime;
     private float _backspaceRepeatTime;
-    private string _statusMessage = "Ready. Sign in or create an online account.";
+    private readonly MenuSceneCapture _capture;
+    private readonly CachedText _gatewayText = new();
+    private readonly CachedText _connectingText = new();
+    private string _statusMessage = GameText.Get("login.status.ready");
     private bool _statusIsError;
 
     /// <summary>
@@ -74,15 +79,16 @@ public sealed class LoginScene : GameScene
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _camera = camera ?? throw new ArgumentNullException(nameof(camera));
+        _capture = new MenuSceneCapture(options, "login");
 
-        _usernameField = new MenuTextField("ACCOUNT USERNAME", "3-24 letters or digits", options.Username, isPassword: false, maxLength: 24)
+        _usernameField = new MenuTextField(GameText.Get("login.field.username"), GameText.Get("login.hint.username"), options.Username, isPassword: false, maxLength: 24)
         {
             IsFocused = true,
             CharacterFilter = static ch => char.IsLetterOrDigit(ch) || ch == '_' || ch == '.',
         };
-        _passwordField = new MenuTextField("PASSWORD", "min 6 chars", options.Password, isPassword: true, maxLength: 64);
-        _confirmPasswordField = new MenuTextField("CONFIRM PASSWORD", "repeat password", string.Empty, isPassword: true, maxLength: 64);
-        _serverField = new MenuTextField("SERVER GATEWAY (HOST:PORT)", "127.0.0.1:57207", $"{options.ServerHost}:{options.ServerTcpPort}", isPassword: false, maxLength: 96);
+        _passwordField = new MenuTextField(GameText.Get("login.field.password"), GameText.Get("login.hint.password"), options.Password, isPassword: true, maxLength: 64);
+        _confirmPasswordField = new MenuTextField(GameText.Get("login.field.confirm"), GameText.Get("login.hint.confirm"), string.Empty, isPassword: true, maxLength: 64);
+        _serverField = new MenuTextField(GameText.Get("login.field.server"), "127.0.0.1:57207", $"{options.ServerHost}:{options.ServerTcpPort}", isPassword: false, maxLength: 96);
     }
 
     /// <inheritdoc/>
@@ -108,8 +114,16 @@ public sealed class LoginScene : GameScene
         {
             _autoStarted = true;
             _statusIsError = false;
-            _statusMessage = $"Auto-signing in to {_options.ServerHost}:{_options.ServerTcpPort}...";
+            _statusMessage = GameText.Format("login.status.auto_sign_in", new TextArg("host", _options.ServerHost), new TextArg("port", _options.ServerTcpPort));
             _pendingAutoEnterTask = _session.InitializeAsync();
+        }
+        else if (!_autoStarted && string.Equals(_options.CaptureScene, "characters", StringComparison.Ordinal))
+        {
+            // Screenshot review (CARBON_CAPTURE_SCENE=characters): register the configured account and stop at character select.
+            _autoStarted = true;
+            _registerMode = true;
+            _confirmPasswordField.Text = _passwordField.Text;
+            this.BeginAuth();
         }
     }
 
@@ -186,7 +200,7 @@ public sealed class LoginScene : GameScene
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 _statusIsError = true;
-                _statusMessage = $"Authentication error: {ex.Message}";
+                _statusMessage = GameText.Format("login.status.auth_error", new TextArg("error", ex.Message));
             }
         }
 
@@ -234,22 +248,22 @@ public sealed class LoginScene : GameScene
 
         _signInTab.Style = _registerMode ? MenuButtonStyle.NeutralSlate : MenuButtonStyle.PrimaryGold;
         _registerTab.Style = _registerMode ? MenuButtonStyle.PrimaryGold : MenuButtonStyle.NeutralSlate;
-        _submitButton.Text = _registerMode ? "CREATE ACCOUNT" : "SIGN IN TO REALM";
+        _submitButton.Text = _registerMode ? GameText.Get("login.tab.register") : GameText.Get("login.submit");
         _submitButton.Style = _registerMode ? MenuButtonStyle.PrimaryGold : MenuButtonStyle.SecondaryEmerald;
-        _editGatewayBtn.Text = _showGatewayEditor ? "DONE" : "EDIT";
+        _editGatewayBtn.Text = _showGatewayEditor ? GameText.Get("login.done") : GameText.Get("login.edit");
 
         if (_signInTab.Update(mousePos, leftDown, leftPressed) && _registerMode)
         {
             _registerMode = false;
             _confirmPasswordField.IsFocused = false;
             _statusIsError = false;
-            _statusMessage = "Enter credentials to connect via TCP + Authenticated UDP.";
+            _statusMessage = GameText.Get("login.status.sign_in_hint");
         }
         else if (_registerTab.Update(mousePos, leftDown, leftPressed) && !_registerMode)
         {
             _registerMode = true;
             _statusIsError = false;
-            _statusMessage = "Choose a unique username (3-24 chars) and password.";
+            _statusMessage = GameText.Get("login.status.register_hint");
         }
 
         if (_toggleMaskBtn.Update(mousePos, leftDown, leftPressed))
@@ -257,7 +271,7 @@ public sealed class LoginScene : GameScene
             bool showPlain = _passwordField.IsPassword;
             _passwordField.IsPassword = !showPlain;
             _confirmPasswordField.IsPassword = !showPlain;
-            _toggleMaskBtn.Text = showPlain ? "HIDE" : "SHOW";
+            _toggleMaskBtn.Text = showPlain ? GameText.Get("login.hide") : GameText.Get("login.show");
         }
 
         if (_editGatewayBtn.Update(mousePos, leftDown, leftPressed))
@@ -293,8 +307,8 @@ public sealed class LoginScene : GameScene
         {
             _statusIsError = false;
             _statusMessage = _pendingAutoEnterTask is not null
-                ? $"Connecting & entering world ({_options.ServerHost}:{_options.ServerTcpPort})..."
-                : (_registerMode ? "Creating account via TCP X25519..." : "Signing in via TCP X25519...");
+                ? _connectingText.Format("login.status.entering", new TextArg("host", _options.ServerHost), new TextArg("port", _options.ServerTcpPort))
+                : (_registerMode ? GameText.Get("login.status.registering") : GameText.Get("login.status.signing_in"));
         }
     }
 
@@ -389,11 +403,11 @@ public sealed class LoginScene : GameScene
         spriteBatch.Begin(DepthSortMode.Immediate, transformMatrix: proj);
         ColorRgba black = CarbonUiPalette.TextOutline;
 
-        const string title = "CARBON REALMS";
+        string title = GameText.Get("login.title");
         TextMeasureResult titleMeasure = _font.MeasureString(title, TextLayoutOptions.Default, 2f);
         spriteBatch.DrawOutlinedString(_font, title, new Vector2(MathF.Floor((width - titleMeasure.Width) * 0.5f), py - 66f), CarbonUiPalette.TextWarm, black, 2, 2f);
 
-        const string subtitle = "ONLINE MMORPG  //  TCP + AUTH UDP";
+        string subtitle = GameText.Get("login.subtitle");
         TextMeasureResult subMeasure = _font.MeasureString(subtitle, TextLayoutOptions.Default, 1f);
         spriteBatch.DrawOutlinedString(_font, subtitle, new Vector2(MathF.Floor((width - subMeasure.Width) * 0.5f), py - 28f), CarbonUiPalette.TextMuted, black, 1, 1f);
 
@@ -414,7 +428,7 @@ public sealed class LoginScene : GameScene
         }
         else
         {
-            string gwText = CarbonUiSkin.TruncateToWidth(_font, $"GATEWAY: {_serverField.Text}", gatewayPill.Width - 36f, 1f);
+            string gwText = CarbonUiSkin.TruncateToWidth(_font, _gatewayText.Format("login.gateway", new TextArg("address", _serverField.Text)), gatewayPill.Width - 36f, 1f);
             spriteBatch.DrawOutlinedString(_font, gwText, new Vector2(gatewayPill.X + 26f, gatewayPill.Y + 9f), CarbonUiPalette.TextMuted, black, 1, 1f);
         }
 
@@ -429,6 +443,8 @@ public sealed class LoginScene : GameScene
         spriteBatch.End();
 
         base.Render(context, spriteBatch, dt);
+
+        _capture.AfterRender(context, ready: true);
     }
 
     /// <inheritdoc/>
@@ -504,7 +520,7 @@ public sealed class LoginScene : GameScene
         if (!TryParseEndpoint(_serverField.Text, _options.ServerTcpPort, out string host, out ushort port))
         {
             _statusIsError = true;
-            _statusMessage = "Invalid server gateway. Use host:port.";
+            _statusMessage = GameText.Get("login.error.invalid_gateway");
             return;
         }
 
@@ -513,21 +529,21 @@ public sealed class LoginScene : GameScene
         if (user.Length < 3 || user.Length > 24)
         {
             _statusIsError = true;
-            _statusMessage = "Username must be between 3 and 24 characters.";
+            _statusMessage = GameText.Get("login.error.username_length");
             return;
         }
 
         if (pass.Length < 6)
         {
             _statusIsError = true;
-            _statusMessage = "Password must be at least 6 characters.";
+            _statusMessage = GameText.Get("login.error.password_length");
             return;
         }
 
         if (_registerMode && !string.Equals(pass, _confirmPasswordField.Text, StringComparison.Ordinal))
         {
             _statusIsError = true;
-            _statusMessage = "Password confirmation does not match.";
+            _statusMessage = GameText.Get("login.error.password_mismatch");
             return;
         }
 
