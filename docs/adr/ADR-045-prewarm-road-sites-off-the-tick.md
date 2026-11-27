@@ -60,9 +60,8 @@ What this shows:
 2. **D2 — One build per site, joined, never duplicated.** The site cache holds `Lazy<RoadSiteData>` with
    `ExecutionAndPublication`, as hydrology does. If a chunk needs a site whose prewarm has not finished, the tick
    **joins** the in-flight build: it waits for the rest of it, with no second build. A site never prewarmed is built on
-   the tick exactly as today. So the worst case is today's cost and the usual case is none.
-   - **Not chosen: falling back to "no roads yet".** That would make a chunk's contents depend on thread timing: the
-     same seed could give a chunk with or without its road, and the client and server would disagree.
+   the tick exactly as today. So the worst case is today's cost and the usual case is none. A no-roads fallback is
+   rejected (see Alternatives Considered).
 3. **D3 — Determinism is unchanged and tested.**
    - Building sites concurrently, in shuffled order, gives `RoadLink` arrays and ramps equal to a sequential build.
    - Generating a strip with prewarm on, and with it off, gives byte-identical chunks (tiles, roads, bridges, props).
@@ -75,7 +74,19 @@ What this shows:
    - Queued sites farther than the prewarm radius from every caller's latest centre are dropped before they start.
 6. **D6 — Ownership.** The cache stays per generator instance. Trimming removes only completed entries, so a joined
    build is never dropped under the waiting tick.
-7. **D7 — Guards.**
+7. **D7 — Keep hydrology warm under present players.** The road prewarm keeps the river regions its routes need warm,
+   but #228 found a second way a region gets rebuilt on the tick. The process-wide cache holds 128 regions, trimmed first
+   in, first out. Once the players online span more regions than that, a region trimmed under one player is rebuilt
+   (0.6–2.4 MB) the next time a chunk needs it, on the tick if its prewarm has not finished. Two parts:
+   - **Never trim a region in use.** A region within the prewarm radius of any online player's latest centre is pinned;
+     trimming skips pinned regions. So the cache can no longer evict what the players need, however many are online.
+   - **Size the bound against the players.** The bound becomes the larger of 128 and the regions all players' prewarm
+     radii cover, plus a margin. A prewarm radius of `r` tiles touches at most `(2r / 512 + 1)²` regions of 512 tiles:
+     9 at hydrology's 320 tiles today, about 25 if it covers the roads' reach (about 900 tiles). Players in the same
+     area share regions. Memory grows with the spread of the players, not with time.
+   - **Guard:** with players spread over more than 128 regions, stepping each player again rebuilds no region on the
+     calling thread.
+8. **D8 — Guards.**
    - A tick-time test: after a prewarm and an explicit wait-for-idle hook, a step into the prewarmed area spends **0 ms in
      road planning**, measured as road builds on the calling thread = 0, not as wall time.
    - The allocation test from #228 extended to a cold strip: the step allocates nothing in `RoadStage` once its sites
@@ -83,6 +94,10 @@ What this shows:
 
 ## Alternatives Considered
 
+- **Fall back to "no roads yet" when a site is not ready** (rejected). The tick would never wait, but a chunk's contents
+  would depend on thread timing. The same seed could give a chunk with or without its road, and the client and server,
+  which generate the same chunks, would disagree. Joining the in-flight build (D2) keeps chunks a pure function of the
+  seed.
 - **Raise `PrewarmHydrology`'s radius to cover road routes** (about 900 tiles). It moves the hydrology part off the tick
   but not the road A*. It also builds more river regions than the roads need, into a 128-region process-wide cache that
   would then trim more.
@@ -94,7 +109,8 @@ What this shows:
 
 ## Consequences
 
-- An unexplored area no longer stalls the server tick for road planning once its prewarm has run. The prewarm starts as
+- An unexplored area no longer stalls the server tick for road planning once its prewarm has run, and a region the
+  players need is no longer trimmed and rebuilt under them (D7). The prewarm starts as
   the player crosses into the neighbouring chunks, a few seconds ahead at walking speed. A sprint or a teleport into
   unexplored land can still join an in-flight build and wait for its rest.
 - Background CPU use rises a little: sites near a player are planned whether or not the player ends up there.
@@ -106,5 +122,6 @@ What this shows:
 1. Is joining an in-flight build (D2) acceptable, or should the tick never wait, which would need a different answer to
    determinism than a fallback?
 2. The concurrency cap `N` (D5) and the prewarm margin `K` (D1).
-3. Should the process-wide hydrology cache (128 regions) become per-world while this is open? Today a second world in
-   the same process (tests, a future multi-world server) trims the first's regions.
+3. D7 pins regions in the process-wide cache. Should the cache instead become per world? Today a second world in the
+   same process (tests, a future multi-world server) trims the first's regions; pinning protects only the regions
+   players stand near.
