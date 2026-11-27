@@ -513,6 +513,13 @@ public sealed partial class MultiplayerSession : IWorldSession
             ? Carbon.Maps.Generators.WorldProgression.ComputeTimeOfDayHours((ulong)(_latestServerTime * _tickRate), _tickRate)
             : null;
 
+    /// <inheritdoc/>
+    public bool? AuthoritativeIsNight =>
+        this.AuthoritativeTimeHour is float hour ? Carbon.Maps.Generators.WorldProgression.IsNightHour(hour) : null;
+
+    /// <inheritdoc/>
+    public NpcCapabilities GetNpcCapabilities(ushort archetypeId) => WorldActorCatalog.GetNpcSpec(archetypeId).Capabilities;
+
     /// <summary>
     /// Counts perishable stacks down locally between server updates (ADR-016). The server stays authoritative: it
     /// sends the spoiled replacement, and the local countdown never reaches zero (zero means not perishable).
