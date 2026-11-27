@@ -51,6 +51,9 @@ internal sealed class RiverNetwork : IRiverDistanceSource
     private const float MaxStampedDistance = 12.5f;
 
     private const int MaxCachedRegions = 128;
+
+    // Regions held beyond the pinned ones, for those being streamed in around a moving player.
+    private const int PinMargin = 16;
     private const int MaxCachedBlocks = 640;
 
     private const int EstuaryCells = 3;
@@ -93,7 +96,15 @@ internal sealed class RiverNetwork : IRiverDistanceSource
 
     private readonly record struct RegionData(byte[] DistanceField, byte[] DepthField, float[] CoastDistance);
 
-    private readonly record struct CacheKey(ulong Seed, int FreqBits, int X, int Y);
+    private readonly record struct CacheKey(int X, int Y);
+
+    // A stream's latest prewarm rectangle, in regions (ADR-045 D7).
+    private readonly record struct PinRect(int X0, int Y0, int X1, int Y1)
+    {
+        public int Count => (this.X1 - this.X0 + 1) * (this.Y1 - this.Y0 + 1);
+
+        public bool Contains(CacheKey key) => key.X >= this.X0 && key.X <= this.X1 && key.Y >= this.Y0 && key.Y <= this.Y1;
+    }
 
     private static readonly (int Dx, int Dy, float Len)[] s_d8 =
     [
@@ -101,27 +112,52 @@ internal sealed class RiverNetwork : IRiverDistanceSource
         (1, 1, 1.4142135f), (1, -1, 1.4142135f), (-1, 1, 1.4142135f), (-1, -1, 1.4142135f),
     ];
 
-    private static readonly ConcurrentDictionary<CacheKey, Lazy<RegionData>> s_sharedRegions = new();
-    private static readonly ConcurrentQueue<CacheKey> s_regionOrder = new();
-    private static readonly ConcurrentDictionary<CacheKey, Lazy<float[]>> s_sharedBlocks = new();
-    private static readonly ConcurrentQueue<CacheKey> s_blockOrder = new();
+    // ADR-045 D7: the caches belong to this network, so to one world. Two worlds never trim each other's regions.
+    private readonly ConcurrentDictionary<CacheKey, Lazy<RegionData>> _regions = new();
+    private readonly ConcurrentQueue<CacheKey> _regionOrder = new();
+    private readonly ConcurrentDictionary<CacheKey, Lazy<float[]>> _blocks = new();
+    private readonly ConcurrentQueue<CacheKey> _blockOrder = new();
+
+    // Regions within a stream's latest prewarm rectangle are pinned: trimming skips them, and the bound grows to hold them.
+    private readonly Lock _pinGate = new();
+    private readonly Dictionary<ulong, PinRect> _pins = [];
+    private int _pinnedRegions;
+
+    // ADR-045 D10: background builds started by Prewarm, each observed; StopBackgroundBuilds waits for them.
+    private readonly ConcurrentDictionary<Task, byte> _builds = new();
+    private int _stopped;
 
     private readonly ulong _seed;
-    private readonly int _frequencyBits;
+    private readonly int _maxCachedRegions;
+    private int _regionBuilds;
     private readonly IRoutingTerrain _relief;
     private readonly SimplexNoise2D _shoreWarp;
 
     /// <summary>Initializes a new instance of the <see cref="RiverNetwork"/> class.</summary>
     /// <param name="seed">World seed.</param>
-    /// <param name="frequency">Macro spatial frequency.</param>
     /// <param name="relief">Terrain elevation used for routing at a world tile; must be deterministic.</param>
-    public RiverNetwork(ulong seed, float frequency, IRoutingTerrain relief)
+    public RiverNetwork(ulong seed, IRoutingTerrain relief)
+        : this(seed, relief, MaxCachedRegions)
     {
+    }
+
+    /// <summary>Initializes a new instance with a region bound of <paramref name="maxCachedRegions"/> (tests).</summary>
+    internal RiverNetwork(ulong seed, IRoutingTerrain relief, int maxCachedRegions)
+    {
+        _maxCachedRegions = maxCachedRegions;
         _seed = seed;
-        _frequencyBits = BitConverter.SingleToInt32Bits(frequency);
         _relief = relief ?? throw new ArgumentNullException(nameof(relief));
         _shoreWarp = new SimplexNoise2D(seed ^ 0x6C8E9CF570932BD5UL);
     }
+
+    /// <summary>Gets the number of regions this network has built (tests: a cache hit builds none).</summary>
+    internal int RegionBuilds => Volatile.Read(ref _regionBuilds);
+
+    /// <summary>Gets the number of regions cached (tests: the bound and the pins).</summary>
+    internal int CachedRegions => _regions.Count;
+
+    /// <summary>Gets the number of background builds not finished yet (tests).</summary>
+    internal int PendingBuilds => _builds.Count;
 
     /// <inheritdoc/>
     public float GetDistance(int worldX, int worldY) =>
@@ -165,21 +201,28 @@ internal sealed class RiverNetwork : IRiverDistanceSource
     }
 
     /// <summary>
-    /// Starts building every region within <paramref name="radiusTiles"/> on the thread pool if not already cached.
+    /// Starts building every region within <paramref name="radiusTiles"/> on the thread pool if not already cached, and
+    /// pins them for <paramref name="stream"/> (one per player on the server) until its next prewarm moves elsewhere or
+    /// <see cref="ReleaseStream"/> drops it.
     /// </summary>
-    public void Prewarm(int worldX, int worldY, int radiusTiles)
+    public void Prewarm(int worldX, int worldY, int radiusTiles, ulong stream = 0)
     {
         int rx0 = FloorDiv(worldX - radiusTiles, RegionSize);
         int rx1 = FloorDiv(worldX + radiusTiles, RegionSize);
         int ry0 = FloorDiv(worldY - radiusTiles, RegionSize);
         int ry1 = FloorDiv(worldY + radiusTiles, RegionSize);
+        this.Pin(stream, new PinRect(rx0, ry0, rx1, ry1));
+        if (Volatile.Read(ref _stopped) != 0)
+        {
+            return;
+        }
 
         for (int ry = ry0; ry <= ry1; ry++)
         {
             for (int rx = rx0; rx <= rx1; rx++)
             {
-                CacheKey key = new(_seed, _frequencyBits, rx, ry);
-                if (s_sharedRegions.ContainsKey(key))
+                CacheKey key = new(rx, ry);
+                if (_regions.ContainsKey(key))
                 {
                     continue;
                 }
@@ -187,21 +230,102 @@ internal sealed class RiverNetwork : IRiverDistanceSource
                 Lazy<RegionData> lazy = this.GetOrRegisterRegionLazy(key, rx, ry);
                 if (!lazy.IsValueCreated)
                 {
-                    StartBuild(lazy);
+                    this.StartBuild(lazy);
                 }
             }
         }
     }
 
+    /// <summary>Unpins the regions of <paramref name="stream"/> (a player left the world).</summary>
+    public void ReleaseStream(ulong stream)
+    {
+        lock (_pinGate)
+        {
+            if (_pins.Remove(stream, out PinRect old))
+            {
+                _pinnedRegions -= old.Count;
+            }
+        }
+    }
+
+    /// <summary>
+    /// ADR-045 D10: stops background builds on shutdown. Builds not started yet are skipped, running ones stop at their
+    /// next check, and every one is awaited, so none is left running or unobserved.
+    /// </summary>
+    /// <param name="timeout">How long to wait for running builds.</param>
+    /// <returns><see langword="true"/> if every build finished within <paramref name="timeout"/>.</returns>
+    public bool StopBackgroundBuilds(TimeSpan timeout)
+    {
+        _ = Interlocked.Exchange(ref _stopped, 1);
+        Task[] pending = [.. _builds.Keys];
+        try
+        {
+            return Task.WaitAll(pending, timeout);
+        }
+        catch (AggregateException)
+        {
+            // A cancelled or failed build already ran its observing continuation; nothing is left unobserved.
+            return true;
+        }
+    }
+
+    private void Pin(ulong stream, PinRect rect)
+    {
+        lock (_pinGate)
+        {
+            if (_pins.TryGetValue(stream, out PinRect old))
+            {
+                if (old == rect)
+                {
+                    return;
+                }
+
+                _pinnedRegions -= old.Count;
+            }
+
+            _pins[stream] = rect;
+            _pinnedRegions += rect.Count;
+        }
+    }
+
+    private bool IsPinned(CacheKey key)
+    {
+        lock (_pinGate)
+        {
+            foreach (PinRect rect in _pins.Values)
+            {
+                if (rect.Contains(key))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
     // Kept out of Prewarm: a lambda capturing a loop local makes the compiler allocate its closure at the top of every
     // loop iteration, including the common already-cached case. Here it is allocated only when a build actually starts.
-    private static void StartBuild(Lazy<RegionData> lazy) =>
-        _ = Task.Run(() => _ = lazy.Value);
+    private void StartBuild(Lazy<RegionData> lazy)
+    {
+        Task build = Task.Run(() => _ = lazy.Value);
+        _ = _builds.TryAdd(build, 0);
+        _ = build.ContinueWith(
+            static (t, state) =>
+            {
+                _ = t.Exception; // observed: a build stopped by StopBackgroundBuilds never surfaces as unobserved
+                _ = ((ConcurrentDictionary<Task, byte>)state!).TryRemove(t, out _);
+            },
+            _builds,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
 
     private RegionData GetRegion(int rx, int ry)
     {
-        CacheKey key = new(_seed, _frequencyBits, rx, ry);
-        if (s_sharedRegions.TryGetValue(key, out Lazy<RegionData>? existing))
+        CacheKey key = new(rx, ry);
+        if (_regions.TryGetValue(key, out Lazy<RegionData>? existing))
         {
             return existing.Value;
         }
@@ -211,12 +335,14 @@ internal sealed class RiverNetwork : IRiverDistanceSource
 
     private Lazy<RegionData> GetOrRegisterRegionLazy(CacheKey key, int rx, int ry)
     {
-        TrimCache(s_sharedRegions, s_regionOrder, key, MaxCachedRegions);
+        // The bound holds every pinned region plus a margin for those being streamed in.
+        int bound = Math.Max(_maxCachedRegions, Volatile.Read(ref _pinnedRegions) + PinMargin);
+        this.TrimRegions(key, bound);
         Lazy<RegionData> created = new(() => this.BuildRegion(rx, ry), LazyThreadSafetyMode.ExecutionAndPublication);
-        Lazy<RegionData> active = s_sharedRegions.GetOrAdd(key, created);
+        Lazy<RegionData> active = _regions.GetOrAdd(key, created);
         if (ReferenceEquals(active, created))
         {
-            s_regionOrder.Enqueue(key);
+            _regionOrder.Enqueue(key);
         }
 
         return active;
@@ -224,21 +350,38 @@ internal sealed class RiverNetwork : IRiverDistanceSource
 
     private float[] GetBlock(int bx, int by)
     {
-        CacheKey key = new(_seed, _frequencyBits, bx, by);
-        if (s_sharedBlocks.TryGetValue(key, out Lazy<float[]>? existing))
+        CacheKey key = new(bx, by);
+        if (_blocks.TryGetValue(key, out Lazy<float[]>? existing))
         {
             return existing.Value;
         }
 
-        TrimCache(s_sharedBlocks, s_blockOrder, key, MaxCachedBlocks);
+        TrimCache(_blocks, _blockOrder, key, MaxCachedBlocks);
         Lazy<float[]> created = new(() => this.BuildBlock(bx, by), LazyThreadSafetyMode.ExecutionAndPublication);
-        Lazy<float[]> active = s_sharedBlocks.GetOrAdd(key, created);
+        Lazy<float[]> active = _blocks.GetOrAdd(key, created);
         if (ReferenceEquals(active, created))
         {
-            s_blockOrder.Enqueue(key);
+            _blockOrder.Enqueue(key);
         }
 
         return active.Value;
+    }
+
+    // First in, first out, skipping pinned regions and the one being added.
+    private void TrimRegions(CacheKey keep, int max)
+    {
+        int guard = 0;
+        while (_regions.Count >= max && guard < 8 && _regionOrder.TryDequeue(out CacheKey oldest))
+        {
+            guard++;
+            if (oldest == keep || this.IsPinned(oldest))
+            {
+                _regionOrder.Enqueue(oldest);
+                continue;
+            }
+
+            _ = _regions.TryRemove(oldest, out _);
+        }
     }
 
     private float[] BuildBlock(int bx, int by)
@@ -308,8 +451,21 @@ internal sealed class RiverNetwork : IRiverDistanceSource
         }
     }
 
+    private void ThrowIfStopped()
+    {
+        if (Volatile.Read(ref _stopped) != 0)
+        {
+            throw new OperationCanceledException("The river network was stopped.");
+        }
+    }
+
     private RegionData BuildRegion(int rx, int ry)
     {
+        // ADR-045 D10: a build not started before shutdown is skipped; one running stops at its next check. The caller
+        // waiting on it sees the cancellation, and only while the world is stopping.
+        this.ThrowIfStopped();
+
+        _ = Interlocked.Increment(ref _regionBuilds);
         int x0 = rx * RegionSize;
         int y0 = ry * RegionSize;
 
@@ -331,8 +487,10 @@ internal sealed class RiverNetwork : IRiverDistanceSource
         try
         {
             this.SampleGrid(gx0, gy0, g, relief);
+            this.ThrowIfStopped();
             float[] coast = BuildCoastDistance(relief, g, FloorDiv(x0, Cell) - gx0, FloorDiv(y0, Cell) - gy0);
             Fill(relief, filled, done, g, cellCount);
+            this.ThrowIfStopped();
 
             Array.Clear(flow, 0, cellCount);
             Array.Fill(next, -1, 0, cellCount);

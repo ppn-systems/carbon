@@ -69,12 +69,6 @@ public sealed class CodeHygieneTests
 
         // Process-wide authentication map. Audit: injected singleton or connection attribute.
         "Carbon.Handlers.Session.ConnectionAuthRegistry.s_accountsByConnection",
-
-        // Process-wide river caches shared by every world/test. Audit: instance cache owned by the generator.
-        "Carbon.Maps.Hydrology.RiverNetwork.s_blockOrder",
-        "Carbon.Maps.Hydrology.RiverNetwork.s_regionOrder",
-        "Carbon.Maps.Hydrology.RiverNetwork.s_sharedBlocks",
-        "Carbon.Maps.Hydrology.RiverNetwork.s_sharedRegions",
     };
 
     /// <summary>

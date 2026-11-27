@@ -852,9 +852,13 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
         _ = _players.ConnectionByNetworkId.Remove(state.Session.PlayerNetworkId);
         _replication.Untrack(connectionId);
+        _chunkWorld.ReleaseStream(connectionId);
         _simulation.DespawnEntity(state.Entity);
         return true;
     }
+
+    /// <inheritdoc/>
+    public bool StopBackgroundBuilds(TimeSpan timeout) => _generator.StopBackgroundBuilds(timeout);
 
     private void MarkCharacterDirtyLocked(PlayerState state, bool inventoryChanged = true) =>
         _persistence.MarkDirty(state, inventoryChanged);

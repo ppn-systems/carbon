@@ -1,5 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -27,4 +28,11 @@ public interface IWorldSimulationLoop
 
     /// <summary>Completes every queued, unprocessed world command with a failure status (host shutdown, ADR-017 D4).</summary>
     void FailPendingCommands();
+
+    /// <summary>
+    /// Stops the world generator's background builds once no tick will run again (host shutdown, ADR-045 D10).
+    /// </summary>
+    /// <param name="timeout">How long to wait for running builds.</param>
+    /// <returns><see langword="true"/> if every build finished within <paramref name="timeout"/>.</returns>
+    bool StopBackgroundBuilds(TimeSpan timeout);
 }

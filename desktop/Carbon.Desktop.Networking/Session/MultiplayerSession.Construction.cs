@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Threading;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Maps.S2C;
 using Carbon.Desktop.Abstractions.Configuration;
@@ -34,13 +35,35 @@ public sealed partial class MultiplayerSession
     private int _previewLocalTileX = int.MinValue;
     private int _previewLocalTileY = int.MinValue;
 
+    // ADR-045 D7: a generator caches its own world's river regions, so the session keeps one per seed and catalog. The
+    // menu backdrop and the world it enters share it, and so do re-entries into the same world: none rebuilds regions
+    // the other already built.
+    private readonly Lock _generatorGate = new();
+    private ProceduralWorldGenerator? _generator;
+    private ulong _generatorSeed;
+    private StructureCatalog? _generatorStructures;
+
     /// <summary>
-    /// Creates the local world generator for <paramref name="seed"/>. Villages are planned from <c>structures.json</c>
-    /// footprints, so the generator takes the server's synced catalog; entering the world waits for the config sync.
+    /// Gets the local world generator for <paramref name="seed"/>, creating it the first time. Villages are planned from
+    /// <c>structures.json</c> footprints, so the generator takes the server's synced catalog; entering the world waits for
+    /// the config sync. The same seed and catalog return the same generator (the backdrop's, for the world it shows).
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown before the first config sync.</exception>
-    internal ProceduralWorldGenerator CreateWorldGenerator(ulong seed) =>
-        new(seed, structures: _structures.Current ?? throw new InvalidOperationException("structures.json has not been synced from the server yet."));
+    internal ProceduralWorldGenerator CreateWorldGenerator(ulong seed)
+    {
+        StructureCatalog structures = _structures.Current ?? throw new InvalidOperationException("structures.json has not been synced from the server yet.");
+        lock (_generatorGate)
+        {
+            if (_generator is null || _generatorSeed != seed || !ReferenceEquals(_generatorStructures, structures))
+            {
+                _generator = new(seed, structures: structures);
+                _generatorSeed = seed;
+                _generatorStructures = structures;
+            }
+
+            return _generator;
+        }
+    }
 
     /// <inheritdoc/>
     public ProceduralWorldGenerator? TryCreateWorldGenerator(ulong seed) =>

@@ -69,6 +69,28 @@ public sealed class SyncedStructureCatalogTests : IDisposable
     }
 
     [Fact]
+    public async Task TryCreateWorldGenerator_SameSeedAndCatalog_HandsTheBackdropsGeneratorToTheWorld()
+    {
+        // ADR-045 D7: one generator per world, so entering the world reuses the regions the backdrop built.
+        MultiplayerSession session = this.NewSession();
+        await using (session.ConfigureAwait(true))
+        {
+            session.ApplyConfigCatalog(Catalog(1, ServerTuned(reachTiles: 7, workbenchWidth: 3)));
+
+            ProceduralWorldGenerator? backdrop = session.TryCreateWorldGenerator(1337UL);
+            ProceduralWorldGenerator? world = session.TryCreateWorldGenerator(1337UL);
+            world.Should().BeSameAs(backdrop, "the world reuses the backdrop's generator");
+
+            session.TryCreateWorldGenerator(42UL).Should().NotBeSameAs(world, "another world gets its own generator");
+
+            session.ApplyConfigCatalog(Catalog(2, ServerTuned(reachTiles: 5, workbenchWidth: 3)));
+            ProceduralWorldGenerator? resynced = session.TryCreateWorldGenerator(1337UL);
+            resynced.Should().NotBeSameAs(world, "a new structures.json plans villages differently");
+            resynced!.Structures.Rules.PlacementReachTiles.Should().Be(5);
+        }
+    }
+
+    [Fact]
     public async Task ApplyConfigCatalog_ServerChangedStructuresJson_ClientUsesTheServersReachAndFootprint()
     {
         MultiplayerSession session = this.NewSession();
