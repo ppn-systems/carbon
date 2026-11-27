@@ -5,6 +5,7 @@ using System.Numerics;
 using Carbon.Contracts.Common;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.World;
+using Carbon.Desktop.Rendering.Effects;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Desktop.Tests.Fakes;
 using Carbon.Items.Catalog;
@@ -18,7 +19,7 @@ namespace Carbon.Desktop.Tests;
 /// <summary>
 /// The repair window's rules (ADR-028): opening and closing, which control a click hits, which damaged item is selected
 /// and repaired, and that nothing changes while the anvil animation plays or a request is pending. Pinned on
-/// <see cref="RepairModalWidget"/> before its state moved out of the drawing.
+/// <see cref="RepairModalWidget"/> before its state moved out of the drawing into <see cref="RepairWindowState"/>.
 /// </summary>
 public sealed class RepairWindowStateTests : IDisposable
 {
@@ -28,7 +29,7 @@ public sealed class RepairWindowStateTests : IDisposable
 
     private readonly SubstituteWorldSession _world = new();
     private readonly IRepairSession _repair = Substitute.For<IRepairSession>();
-    private readonly RepairModalWidget _window = new();
+    private readonly RepairWindowState _window = new();
     private readonly SyncedItemCatalog _items = new();
     private readonly (float X, float Y) _origin = RepairLayout.Origin(Width, Height);
 
@@ -98,8 +99,14 @@ public sealed class RepairWindowStateTests : IDisposable
 
         this.Click(RepairLayout.ItemRow(_origin.X, _origin.Y, 1).Center);
         _window.TryStart(_world, _repair, partial: false).Should().BeFalse("the animation is still playing");
-
         _repair.Received(1).TryRepair(Arg.Any<ushort>(), Arg.Any<ushort>(), Arg.Any<byte>(), Arg.Any<RepairVenue>());
+
+        // Once the anvil stops, the click made during the animation did not change the selection.
+        _repair.ClearReceivedCalls();
+        _window.Update(0f, _repair);
+        _window.Update(RepairVfx.WorkDuration * 10f, _repair);
+        _window.TryStart(_world, _repair, partial: false).Should().BeTrue();
+        _repair.Received(1).TryRepair(BagStart, (ushort)this.Sword, Arg.Any<byte>(), RepairVenue.Station);
     }
 
     [Fact]
@@ -161,6 +168,39 @@ public sealed class RepairWindowStateTests : IDisposable
 
         _window.Preview(_world, success: true, seconds: 0.5f, freeze: true).Should().BeFalse();
         _window.Vfx.IsActive.Should().BeFalse();
+    }
+
+    [Fact]
+    public void HeldPlan_WhileTheAnvilWorks_IsTheStartedItemEvenAfterTheBagChanges()
+    {
+        this.Damage(BagStart, 2);
+        _window.Open(RepairVenue.Station);
+        Span<RepairRequirement> rows = stackalloc RepairRequirement[RepairPlan.MaxRequirements];
+        _window.TryGetHeldPlan(rows, out _).Should().BeFalse("nothing was started");
+
+        _window.TryStart(_world, _repair, partial: false).Should().BeTrue();
+        _world.Inventory[BagStart] = default;
+
+        _window.TryGetHeldPlan(rows, out RepairPlan held).Should().BeTrue();
+        held.SlotIndex.Should().Be(BagStart);
+        held.RequirementCount.Should().BePositive();
+        rows[0].Need.Should().BePositive();
+    }
+
+    [Fact]
+    public void HeldPlan_AfterTheAnvilStops_IsReleased()
+    {
+        this.Damage(BagStart, 1);
+        _window.Open(RepairVenue.Station);
+        _window.TryStart(_world, _repair, partial: false).Should().BeTrue();
+
+        // No answer arrives: the animation gives up after its longest wait.
+        _window.Update(0f, _repair);
+        _window.Update(RepairVfx.WorkDuration * 10f, _repair);
+
+        _window.Vfx.IsActive.Should().BeFalse();
+        Span<RepairRequirement> rows = stackalloc RepairRequirement[RepairPlan.MaxRequirements];
+        _window.TryGetHeldPlan(rows, out _).Should().BeFalse();
     }
 
     public void Dispose() => ((IAsyncDisposable)_world).DisposeAsync().AsTask().GetAwaiter().GetResult();
