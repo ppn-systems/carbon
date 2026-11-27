@@ -1,14 +1,45 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System;
 using Carbon.Contracts.Common;
 using Carbon.Economy.Currency;
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Carbon.Economy.Tests;
 
-public sealed class WalletTests
+public sealed class WalletTests(ITestOutputHelper output)
 {
+    [Fact]
+    public void TryCreditAndTrySpend_AfterAFullCollection_Allocate()
+    {
+        // ALLOC-13 characterisation: Enum.IsDefined reads the enum's metadata from a runtime cache that a full collection
+        // can free, so the first credit or spend after a gen2 GC rebuilds it on the calling (tick) thread. Every gold or
+        // diamond pickup is a credit.
+        Wallet wallet = new(ownerId: 7);
+        for (int i = 0; i < 1_000; i++)
+        {
+            _ = wallet.TryCredit(CurrencyKind.Gold, 2, CurrencyReason.MonsterLoot);
+            _ = wallet.TrySpend(CurrencyKind.Gold, 1, CurrencyReason.VendorPurchase);
+        }
+
+        long bytes = 0;
+        for (int i = 0; i < 20; i++)
+        {
+            GC.Collect(2, GCCollectionMode.Forced, blocking: true);
+            GC.WaitForPendingFinalizers();
+            AllocationWindow window = AllocationProbe.Start();
+            _ = wallet.TryCredit(CurrencyKind.Diamond, 2, CurrencyReason.MonsterLoot);
+            _ = wallet.TrySpend(CurrencyKind.Diamond, 1, CurrencyReason.VendorPurchase);
+            bytes += window.Stop(1).Bytes;
+        }
+
+        output.WriteLine($"{bytes} B over 20 credit-and-spend pairs, each after a full collection");
+        bytes.Should().BeGreaterThan(0, "characterisation: the enum metadata is rebuilt after a full collection");
+    }
+
     [Fact]
     public void TrySpend_WithInsufficientFunds_RejectsAndLeavesBalanceUntouched()
     {
