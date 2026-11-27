@@ -13,7 +13,7 @@ tools/screenshots/capture.sh /tmp/shots '^(dune_desert|red_mesa)$'
 SKIP_BUILD=1 tools/screenshots/capture.sh /tmp/shots night    # reuse the last build
 ```
 
-Output: one `<scenario>.png` per scenario (1280x720) and `contact_sheet.png`. The client log lines tagged
+Output: one `<scenario>.png` per scenario (`WIDTH`x`HEIGHT`, default 1280x720; the client window follows via `CARBON_WINDOW_SIZE`) and `contact_sheet.png`. The client log lines tagged
 `[Focus]`, `[Biome]` and `[Terrain]` (chunk bake time and vertex count) are echoed per scenario.
 
 ## How it works
