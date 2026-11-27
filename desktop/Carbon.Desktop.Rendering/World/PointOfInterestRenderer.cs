@@ -50,7 +50,7 @@ internal sealed class PointOfInterestRenderer
                 this.DrawPaths(batch, layout);
 
                 // The square covers only the well area the planner keeps free, so it never paints over a building.
-                DrawPlaza(batch, c, 2.6f * _tileSize);
+                DrawPlaza(batch, c, 3.3f * _tileSize);
                 break;
 
             case PointOfInterestType.Harbor:
